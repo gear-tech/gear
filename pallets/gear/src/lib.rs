@@ -404,10 +404,6 @@ pub mod pallet {
         FailedToConstructProgram,
         /// Value doesn't cover ExistentialDeposit.
         ValueLessThanMinimal,
-        /// Unable to instrument program code.
-        GasInstrumentationFailed,
-        /// No code could be found at the supplied code hash.
-        CodeNotFound,
         /// Messages storage corrupted.
         MessagesStorageCorrupted,
     }
@@ -796,6 +792,8 @@ pub mod pallet {
                 host_fn_weights: schedule.host_fn_weights.into_core(),
                 forbidden_funcs: ["gr_gas_available"].into(),
                 mailbox_threshold: T::MailboxThreshold::get(),
+                waitlist_cost: CostsPerBlockOf::<T>::waitlist(),
+                reserve_for: CostsPerBlockOf::<T>::reserve_for().unique_saturated_into(),
             };
 
             let mut min_limit = 0;
@@ -1143,6 +1141,8 @@ pub mod pallet {
                 host_fn_weights: schedule.host_fn_weights.into_core(),
                 forbidden_funcs: Default::default(),
                 mailbox_threshold: T::MailboxThreshold::get(),
+                waitlist_cost: CostsPerBlockOf::<T>::waitlist(),
+                reserve_for: CostsPerBlockOf::<T>::reserve_for().unique_saturated_into(),
             };
 
             if T::DebugInfo::is_remap_id_enabled() {
@@ -1181,18 +1181,12 @@ pub mod pallet {
                                     == schedule.instruction_weights.version
                                 {
                                     code
-                                } else if let Ok(code) = Self::reinstrument_code(code_id, &schedule)
-                                {
-                                    // todo: charge for code instrumenting
-                                    code
                                 } else {
-                                    // todo: mark code as unable for instrument to skip next time
-                                    log::debug!(
-                                        "Can not instrument code '{:?}' for program '{:?}'",
-                                        code_id,
-                                        dispatch.destination()
-                                    );
-                                    continue;
+                                    // todo: charge for code instrumenting
+                                    // If instrumented code exists, re-instrumentation can't fail
+                                    Self::reinstrument_code(code_id, &schedule).unwrap_or_else(
+                                        |e| unreachable!("Code storage corrupted {:?}", e),
+                                    )
                                 }
                             } else {
                                 // This branch is considered unreachable,
@@ -1221,6 +1215,7 @@ pub mod pallet {
 
                                 Self::wait_dispatch(
                                     dispatch,
+                                    None,
                                     MessageWaitedSystemReason::ProgramIsNotInitialized
                                         .into_reason(),
                                 );
@@ -1361,21 +1356,36 @@ pub mod pallet {
             Ok(code_id)
         }
 
+        /// Re - instruments the code under `code_id` with new gas costs for instructions
+        ///
+        /// The procedure of re - instrumentation is considered infallible for several reasons:
+        /// 1. Once (de)serialized valid wasm module can't fail (de)serialization after inserting new gas costs.
+        /// 2. The checked (for expected exports and etc.) structure of the Wasm module remains unchanged.
+        /// 3. `gas` calls injection is considered infallible for once instrumented program.
+        /// One detail should be mentioned here. The injection can actually fail, if cost for some wasm instruction
+        /// is removed. But this case is prevented by the Gear node protocol and checked in backwards compatibility
+        /// test (`schedule::tests::instructions_backward_compatibility`)
         pub(crate) fn reinstrument_code(
             code_id: CodeId,
             schedule: &Schedule<T>,
         ) -> Result<InstrumentedCode, DispatchError> {
-            let original_code =
-                T::CodeStorage::get_original_code(code_id).ok_or(Error::<T>::CodeNotFound)?;
+            if T::CodeStorage::get_code(code_id).is_none() {
+                return Err(Error::<T>::CodeNotExists.into());
+            }
+
+            // By the invariant set in CodeStorage trait, original code can't exist in storage
+            // without the instrumented code
+            let original_code = T::CodeStorage::get_original_code(code_id).unwrap_or_else(|| unreachable!(
+                "Code storage is corrupted: instrumented code with id {:?} exists while original not",
+                code_id
+            ));
+
             let code = Code::try_new(
                 original_code,
                 schedule.instruction_weights.version,
                 |module| schedule.rules(module),
             )
-            .map_err(|e| {
-                log::debug!("Code failed to load: {:?}", e);
-                Error::<T>::FailedToConstructProgram
-            })?;
+            .unwrap_or_else(|e| unreachable!("Unexpected re-instrumentation failure: {:?}", e));
 
             let code_and_id = CodeAndId::from_parts_unchecked(code, code_id);
             let code_and_id = InstrumentedCodeAndId::from(code_and_id);

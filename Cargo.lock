@@ -102,9 +102,9 @@ dependencies = [
 
 [[package]]
 name = "anyhow"
-version = "1.0.63"
+version = "1.0.64"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a26fa4d7e3f2eebadf743988fc8aec9fa9a9e82611acafd77c1462ed6262440a"
+checksum = "b9a8f622bcf6ff3df478e9deba3e03e4e04b300f8e6a139e192c05fa3490afc7"
 
 [[package]]
 name = "approx"
@@ -822,9 +822,9 @@ dependencies = [
 
 [[package]]
 name = "clap"
-version = "3.2.18"
+version = "3.2.20"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b15f2ea93df33549dbe2e8eecd1ca55269d63ae0b3ba1f55db030817d1c2867f"
+checksum = "23b71c3ce99b7611011217b366d923f1d0a7e07a92bb2dbf1e84508c673ca3bd"
 dependencies = [
  "atty",
  "bitflags",
@@ -1325,7 +1325,7 @@ version = "0.1.0"
 dependencies = [
  "gear-wasm-builder",
  "parity-scale-codec",
- "sha2 0.10.3",
+ "sha2 0.10.5",
 ]
 
 [[package]]
@@ -1552,6 +1552,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "demo-waiter"
+version = "0.1.0"
+dependencies = [
+ "gear-wasm-builder",
+ "gstd",
+ "parity-scale-codec",
+]
+
+[[package]]
 name = "demo-waiting-proxy"
 version = "0.1.0"
 dependencies = [
@@ -1768,7 +1777,6 @@ dependencies = [
  "gear-runtime-primitives",
  "hex",
  "log",
- "pallet-aura",
  "pallet-authorship",
  "pallet-balances",
  "pallet-gear",
@@ -1779,7 +1787,6 @@ dependencies = [
  "primitive-types",
  "rand 0.8.5",
  "serde",
- "sp-consensus-aura",
  "sp-consensus-babe",
  "sp-consensus-slots",
  "sp-core",
@@ -1789,7 +1796,7 @@ dependencies = [
  "sp-std",
  "vara-runtime",
  "wasm-mutate",
- "wasmparser 0.89.1",
+ "wasmparser 0.90.0",
  "wasmprinter",
  "wat",
 ]
@@ -2131,7 +2138,7 @@ source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#abc1
 dependencies = [
  "Inflector",
  "chrono",
- "clap 3.2.18",
+ "clap 3.2.20",
  "comfy-table",
  "frame-benchmarking",
  "frame-support",
@@ -2544,7 +2551,7 @@ dependencies = [
 name = "gear-cli"
 version = "0.1.0"
 dependencies = [
- "clap 3.2.18",
+ "clap 3.2.20",
  "frame-benchmarking",
  "frame-benchmarking-cli",
  "frame-system",
@@ -2590,7 +2597,7 @@ dependencies = [
  "sp-io",
  "sp-runtime",
  "sp-std",
- "wasm-instrument",
+ "wasm-instrument 0.2.1",
 ]
 
 [[package]]
@@ -2617,7 +2624,7 @@ dependencies = [
  "scale-info",
  "static_assertions",
  "wabt",
- "wasm-instrument",
+ "wasm-instrument 0.2.1",
 ]
 
 [[package]]
@@ -2697,8 +2704,8 @@ dependencies = [
  "gear-runtime-primitives",
  "hex-literal",
  "log",
- "pallet-aura",
  "pallet-authorship",
+ "pallet-babe",
  "pallet-balances",
  "pallet-gear",
  "pallet-gear-debug",
@@ -2709,6 +2716,8 @@ dependencies = [
  "pallet-gear-rpc-runtime-api",
  "pallet-gear-scheduler",
  "pallet-grandpa",
+ "pallet-session",
+ "pallet-shift-session-manager",
  "pallet-sudo",
  "pallet-timestamp",
  "pallet-transaction-payment",
@@ -2718,7 +2727,7 @@ dependencies = [
  "scale-info",
  "sp-api",
  "sp-block-builder",
- "sp-consensus-aura",
+ "sp-consensus-babe",
  "sp-core",
  "sp-inherents",
  "sp-offchain",
@@ -2777,7 +2786,7 @@ name = "gear-runtime-test-cli"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "clap 3.2.18",
+ "clap 3.2.20",
  "colored",
  "frame-support",
  "frame-system",
@@ -2789,7 +2798,6 @@ dependencies = [
  "gear-test",
  "junit-common",
  "log",
- "pallet-aura",
  "pallet-balances",
  "pallet-gear",
  "pallet-gear-debug",
@@ -2800,7 +2808,6 @@ dependencies = [
  "sc-cli",
  "sc-service",
  "serde_json",
- "sp-consensus-aura",
  "sp-consensus-babe",
  "sp-consensus-slots",
  "sp-core",
@@ -2831,7 +2838,6 @@ dependencies = [
  "sc-basic-authorship",
  "sc-client-api",
  "sc-consensus",
- "sc-consensus-aura",
  "sc-consensus-babe",
  "sc-consensus-babe-rpc",
  "sc-executor",
@@ -2847,7 +2853,6 @@ dependencies = [
  "sp-block-builder",
  "sp-blockchain",
  "sp-consensus",
- "sp-consensus-aura",
  "sp-consensus-babe",
  "sp-core",
  "sp-finality-grandpa",
@@ -2869,7 +2874,7 @@ name = "gear-test"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "clap 3.2.18",
+ "clap 3.2.20",
  "colored",
  "derive_more",
  "env_logger",
@@ -2888,7 +2893,7 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_yaml",
- "wasm-instrument",
+ "wasm-instrument 0.2.1",
 ]
 
 [[package]]
@@ -3070,7 +3075,7 @@ dependencies = [
  "log",
  "parity-scale-codec",
  "path-clean",
- "wasm-instrument",
+ "wasm-instrument 0.2.1",
  "wasmi",
 ]
 
@@ -3733,9 +3738,9 @@ dependencies = [
 
 [[package]]
 name = "libfuzzer-sys"
-version = "0.4.3"
+version = "0.4.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "336244aaeab6a12df46480dc585802aa743a72d66b11937844c61bbca84c991d"
+checksum = "ae185684fe19814afd066da15a7cc41e126886c21282934225d9fc847582da58"
 dependencies = [
  "arbitrary",
  "cc",
@@ -3858,7 +3863,7 @@ dependencies = [
  "rand 0.8.5",
  "ring",
  "rw-stream-sink",
- "sha2 0.10.3",
+ "sha2 0.10.5",
  "smallvec",
  "thiserror",
  "unsigned-varint",
@@ -3932,7 +3937,7 @@ dependencies = [
  "prost-build",
  "rand 0.7.3",
  "regex",
- "sha2 0.10.3",
+ "sha2 0.10.5",
  "smallvec",
  "unsigned-varint",
  "wasm-timer",
@@ -3979,7 +3984,7 @@ dependencies = [
  "prost",
  "prost-build",
  "rand 0.7.3",
- "sha2 0.10.3",
+ "sha2 0.10.5",
  "smallvec",
  "thiserror",
  "uint",
@@ -4057,7 +4062,7 @@ dependencies = [
  "prost",
  "prost-build",
  "rand 0.8.5",
- "sha2 0.10.3",
+ "sha2 0.10.5",
  "snow",
  "static_assertions",
  "x25519-dalek",
@@ -4154,7 +4159,7 @@ dependencies = [
  "prost",
  "prost-build",
  "rand 0.8.5",
- "sha2 0.10.3",
+ "sha2 0.10.5",
  "thiserror",
  "unsigned-varint",
  "void",
@@ -4651,7 +4656,7 @@ dependencies = [
  "core2",
  "digest 0.10.3",
  "multihash-derive",
- "sha2 0.10.3",
+ "sha2 0.10.5",
  "sha3 0.10.2",
  "unsigned-varint",
 ]
@@ -4959,9 +4964,9 @@ dependencies = [
 
 [[package]]
 name = "once_cell"
-version = "1.13.1"
+version = "1.14.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "074864da206b4973b84eb91683020dbefd6a8c3f0f38e054d93954e891935e4e"
+checksum = "2f7254b99e31cad77da24b08ebf628882739a608578bb1bcdfc1f9c21260d7c0"
 
 [[package]]
 name = "opaque-debug"
@@ -5004,22 +5009,6 @@ checksum = "eebde548fbbf1ea81a99b128872779c437752fb99f217c45245e1a61dcd9edcd"
 dependencies = [
  "libc",
  "winapi",
-]
-
-[[package]]
-name = "pallet-aura"
-version = "4.0.0-dev"
-source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#abc134523a276ba867ec4ebd10dc16069401a9ed"
-dependencies = [
- "frame-support",
- "frame-system",
- "pallet-timestamp",
- "parity-scale-codec",
- "scale-info",
- "sp-application-crypto",
- "sp-consensus-aura",
- "sp-runtime",
- "sp-std",
 ]
 
 [[package]]
@@ -5101,6 +5090,7 @@ dependencies = [
  "demo-proxy",
  "demo-proxy-with-gas",
  "demo-value-sender",
+ "demo-waiter",
  "demo-waiting-proxy",
  "derive_more",
  "env_logger",
@@ -5131,7 +5121,7 @@ dependencies = [
  "rand_pcg 0.3.1",
  "scale-info",
  "serde",
- "sp-consensus-aura",
+ "sp-consensus-babe",
  "sp-core",
  "sp-externalities",
  "sp-io",
@@ -5139,7 +5129,7 @@ dependencies = [
  "sp-sandbox",
  "sp-std",
  "wabt",
- "wasm-instrument",
+ "wasm-instrument 0.2.1",
 ]
 
 [[package]]
@@ -5283,7 +5273,7 @@ dependencies = [
  "sp-io",
  "sp-runtime",
  "sp-std",
- "wasm-instrument",
+ "wasm-instrument 0.2.1",
 ]
 
 [[package]]
@@ -6360,13 +6350,9 @@ dependencies = [
 name = "regression-analysis"
 version = "0.1.0"
 dependencies = [
- "clap 3.2.18",
- "frame-support",
- "gear-runtime",
+ "clap 3.2.20",
  "junit-common",
- "pallet-gear",
  "quick-xml",
- "serde",
  "serde_json",
  "tabled",
  "thousands",
@@ -6720,7 +6706,7 @@ version = "0.10.0-dev"
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#abc134523a276ba867ec4ebd10dc16069401a9ed"
 dependencies = [
  "chrono",
- "clap 3.2.18",
+ "clap 3.2.20",
  "fdlimit",
  "futures",
  "hex",
@@ -6826,35 +6812,6 @@ dependencies = [
  "sp-core",
  "sp-runtime",
  "sp-state-machine",
- "substrate-prometheus-endpoint",
- "thiserror",
-]
-
-[[package]]
-name = "sc-consensus-aura"
-version = "0.10.0-dev"
-source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#abc134523a276ba867ec4ebd10dc16069401a9ed"
-dependencies = [
- "async-trait",
- "futures",
- "log",
- "parity-scale-codec",
- "sc-block-builder",
- "sc-client-api",
- "sc-consensus",
- "sc-consensus-slots",
- "sc-telemetry",
- "sp-api",
- "sp-application-crypto",
- "sp-block-builder",
- "sp-blockchain",
- "sp-consensus",
- "sp-consensus-aura",
- "sp-consensus-slots",
- "sp-core",
- "sp-inherents",
- "sp-keystore",
- "sp-runtime",
  "substrate-prometheus-endpoint",
  "thiserror",
 ]
@@ -7003,7 +6960,7 @@ dependencies = [
  "sp-serializer",
  "sp-wasm-interface",
  "thiserror",
- "wasm-instrument",
+ "wasm-instrument 0.2.0",
  "wasmer",
  "wasmer-cache",
  "wasmer-compiler",
@@ -7852,9 +7809,9 @@ dependencies = [
 
 [[package]]
 name = "sha2"
-version = "0.10.3"
+version = "0.10.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "899bf02746a2c92bf1053d9327dadb252b01af1f81f90cdb902411f518bc7215"
+checksum = "cf9db03534dff993187064c4e0c05a5708d2a9728ace9a8959b77bedf415dac5"
 dependencies = [
  "cfg-if",
  "cpufeatures",
@@ -7979,7 +7936,7 @@ dependencies = [
  "rand_core 0.6.3",
  "ring",
  "rustc_version",
- "sha2 0.10.3",
+ "sha2 0.10.5",
  "subtle",
 ]
 
@@ -8128,24 +8085,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "sp-consensus-aura"
-version = "0.10.0-dev"
-source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#abc134523a276ba867ec4ebd10dc16069401a9ed"
-dependencies = [
- "async-trait",
- "parity-scale-codec",
- "scale-info",
- "sp-api",
- "sp-application-crypto",
- "sp-consensus",
- "sp-consensus-slots",
- "sp-inherents",
- "sp-runtime",
- "sp-std",
- "sp-timestamp",
-]
-
-[[package]]
 name = "sp-consensus-babe"
 version = "0.10.0-dev"
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#abc134523a276ba867ec4ebd10dc16069401a9ed"
@@ -8249,7 +8188,7 @@ dependencies = [
  "blake2",
  "byteorder",
  "digest 0.10.3",
- "sha2 0.10.3",
+ "sha2 0.10.5",
  "sha3 0.10.2",
  "sp-std",
  "twox-hash",
@@ -8996,18 +8935,18 @@ checksum = "b1141d4d61095b28419e22cb0bbf02755f5e54e0526f97f1e3d1d160e60885fb"
 
 [[package]]
 name = "thiserror"
-version = "1.0.32"
+version = "1.0.34"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f5f6586b7f764adc0231f4c79be7b920e766bb2f3e51b3661cdb263828f19994"
+checksum = "8c1b05ca9d106ba7d2e31a9dab4a64e7be2cce415321966ea3132c49a656e252"
 dependencies = [
  "thiserror-impl",
 ]
 
 [[package]]
 name = "thiserror-impl"
-version = "1.0.32"
+version = "1.0.34"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "12bafc5b54507e0149cdf1b145a5d80ab80a90bcd9275df43d4fff68460f6c21"
+checksum = "e8f2591983642de85c921015f3f070c665a197ed69e417af436115e3a1407487"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -9342,7 +9281,7 @@ name = "try-runtime-cli"
 version = "0.10.0-dev"
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#abc134523a276ba867ec4ebd10dc16069401a9ed"
 dependencies = [
- "clap 3.2.18",
+ "clap 3.2.20",
  "jsonrpsee",
  "log",
  "parity-scale-codec",
@@ -9766,6 +9705,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "wasm-instrument"
+version = "0.2.1"
+source = "git+https://github.com/gear-tech/wasm-instrument.git?branch=gear-stable#7cceecba3c5904855cbb3930fba0a8349e2824f9"
+dependencies = [
+ "parity-wasm 0.45.0",
+]
+
+[[package]]
 name = "wasm-mutate"
 version = "0.2.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -9783,7 +9730,7 @@ dependencies = [
 name = "wasm-proc"
 version = "0.1.0"
 dependencies = [
- "clap 3.2.18",
+ "clap 3.2.20",
  "env_logger",
  "gear-wasm-builder",
  "log",
@@ -10106,6 +10053,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "wasmparser"
+version = "0.90.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b62c8d843f4423efee314dc75a1049886deba3214f7e7f9ff0e4e58b4d618581"
+dependencies = [
+ "indexmap",
+]
+
+[[package]]
 name = "wasmprinter"
 version = "0.2.39"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -10344,13 +10300,13 @@ dependencies = [
 
 [[package]]
 name = "which"
-version = "4.2.5"
+version = "4.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5c4fb54e6113b6a8772ee41c3404fb0301ac79604489467e0a9ce1f3e97c24ae"
+checksum = "1c831fbbee9e129a8cf93e7747a82da9d95ba8e16621cae60ec2cdc849bacb7b"
 dependencies = [
  "either",
- "lazy_static",
  "libc",
+ "once_cell",
 ]
 
 [[package]]
