@@ -51,6 +51,7 @@ unsafe extern "system" fn exception_handler(exception_info: *mut EXCEPTION_POINT
         // (e.g. it reads and writes, but doesn't execute as native code)
         // that's why the case is impossible
         8 /* DEP */ => unreachable!("data execution prevention"),
+        // existence of other values is undocumented and I expect they should be treated as reserved 
         _ => None,
     };
     let info = ExceptionInfo {
