@@ -228,7 +228,6 @@ impl ReservationId {
     }
 }
 
-
 #[test]
 fn formatting_test() {
     use alloc::format;
