@@ -38,6 +38,21 @@ cfg_if! {
             // Use second bit from err reg. See https://git.io/JEQn3
             Some(error_code & 0b10 == 0b10)
         }
+    } else if #[cfg(all(target_os = "macos", target_arch = "x86_64"))] {
+        unsafe fn ucontext_get_write(ucontext: *mut nix::libc::ucontext_t) -> Option<bool> {
+            // See https://wiki.osdev.org/Exceptions
+            const WRITE_BIT_MASK: u32 = 0b10;
+            const TRAPNO: u16 = 0xe; // Page Fault
+
+            let mcontext = (*ucontext).uc_mcontext;
+            let exception_state = (*mcontext).__es;
+            let trapno = exception_state.__trapno;
+            let err = exception_state.__err;
+
+            assert_eq!(trapno, TRAPNO);
+
+            Some(err & WRITE_BIT_MASK == WRITE_BIT_MASK)
+        }
     } else if #[cfg(all(target_os = "macos", target_arch = "aarch64"))] {
         unsafe fn ucontext_get_write(ucontext: *mut nix::libc::ucontext_t) -> Option<bool> {
             // See https://developer.arm.com/documentation/ddi0595/2021-03/AArch64-Registers/ESR-EL1--Exception-Syndrome-Register--EL1-
