@@ -275,7 +275,6 @@ impl<ExternalId: Clone, Id: Clone + Copy, Balance: Zero + Clone + Copy>
     }
 
     /// Returns whether the node is detached and isn't part of the tree structure
-    /// (not node's parent, not node's child).
     pub(crate) fn is_detached(&self) -> bool {
         self.is_reserved() | self.is_cut()
     }
