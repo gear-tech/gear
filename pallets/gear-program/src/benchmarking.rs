@@ -37,6 +37,7 @@ benchmarks! {
 
     resume_program {
         let q in 1 .. 128;
+        let minimum_balance = <T as pallet::Config>::Currency::minimum_balance();
         let caller: T::AccountId = benchmarking::account("caller", 0, 0);
         <T as Config>::Currency::deposit_creating(&caller, (1u128 << 60).unique_saturated_into());
         let code = benchmarking::generate_wasm(q.into()).unwrap();
@@ -49,7 +50,7 @@ benchmarks! {
         let memory_pages = common::get_program_data_for_pages(program_id.into_origin(), pages.iter()).unwrap().into_iter().map(|(page, data)| (page, data.into_vec())).collect();
 
         crate::Pallet::<T>::pause_program(program_id).unwrap();
-    }: _(RawOrigin::Signed(caller), program_id, memory_pages, Default::default(), 10_000u32.into())
+    }: _(RawOrigin::Signed(caller), program_id, memory_pages, Default::default(), minimum_balance)
     verify {
         assert!(crate::Pallet::<T>::program_exists(program_id));
         assert!(!crate::Pallet::<T>::program_paused(program_id));
