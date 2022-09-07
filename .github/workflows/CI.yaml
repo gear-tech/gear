@@ -225,18 +225,6 @@ jobs:
         env:
           RUSTFLAGS: -Cinstrument-coverage
 
-      - name: "Test (performance): pallets"
-        if: ${{ github.ref != 'refs/heads/master' }}
-        id: test-performance-pallets
-        run: |
-          cp /root/cache/pallet-tests.json /tmp/
-          ./target/release/regression-analysis compare --data-path /tmp/pallet-tests.json --current-junit-path ./target/nextest/ci/junit.xml > ./target/pallet-tests-diff.md
-          body="$(cat ./target/pallet-tests-diff.md)"
-          body="${body//'%'/'%25'}"
-          body="${body//$'\n'/'%0A'}"
-          body="${body//$'\r'/'%0D'}"
-          echo "::set-output name=body::$body"
-
       - name: "Test: JS metadata"
         run: ./scripts/gear.sh test js
         env:
@@ -253,18 +241,6 @@ jobs:
           cargo build -p gear-node --release --no-default-features --features=gear-native --out-dir target-no-lazy -Z unstable-options
           ./target-no-lazy/gear-node runtime-spec-tests ./gear-test/spec/*
 
-      - name: "Test (performance): node runtime testsuite"
-        if: ${{ github.ref != 'refs/heads/master' }}
-        id: test-performance-runtime
-        run: |
-          cp /root/cache/runtime-tests.json /tmp/
-          ./target/release/regression-analysis compare --disable-filter --data-path /tmp/runtime-tests.json --current-junit-path ./target/runtime-test-junit.xml > ./target/runtime-tests-diff.md
-          body="$(cat ./target/runtime-tests-diff.md)"
-          body="${body//'%'/'%25'}"
-          body="${body//$'\n'/'%0A'}"
-          body="${body//$'\r'/'%0D'}"
-          echo "::set-output name=body::$body"
-
       - name: "Test: Runtime upgrade and queue processing"
         run: ./scripts/gear.sh test runtime-upgrade
 
@@ -278,53 +254,6 @@ jobs:
         run: |
           cargo build -p gear-node --release --features runtime-benchmarks
           ./target/release/gear-node benchmark pallet --chain=dev --steps=1 --repeat=1 --pallet=pallet_gear --extrinsic="*" --execution=wasm --wasm-execution=compiled --heap-pages=4096
-
-      - name: Find comment (performance)
-        uses: peter-evans/find-comment@v2
-        if: ${{ github.ref != 'refs/heads/master' }}
-        id: find_comment_id
-        with:
-          issue-number: ${{ github.event.pull_request.number }}
-          comment-author: "github-actions[bot]"
-          direction: last
-
-      - name: "Create comment (performance)"
-        uses: peter-evans/create-or-update-comment@v2
-        if: github.ref != 'refs/heads/master' && steps.find_comment_id.outputs.comment-id == ''
-        continue-on-error: true
-        with:
-          issue-number: ${{ github.event.pull_request.number }}
-          body: |
-            <details><summary>${{ github.event.pull_request.head.sha }}</summary>
-            <details><summary>Pallet tests (values are in nanoseconds)</summary>
-
-            ${{ steps.test-performance-pallets.outputs.body }}
-            </details>
-
-            <details><summary>Runtime tests (values are in nanoseconds)</summary>
-
-            ${{ steps.test-performance-runtime.outputs.body }}
-            </details>
-            </details>
-
-      - name: "Update comment (performance)"
-        uses: peter-evans/create-or-update-comment@v2
-        if: steps.find_comment_id.outputs.comment-id != ''
-        continue-on-error: true
-        with:
-          comment-id: ${{ steps.find_comment_id.outputs.comment-id }}
-          body: |
-            <details><summary>${{ github.event.pull_request.head.sha }}</summary>
-            <details><summary>Pallet tests (values are in nanoseconds)</summary>
-
-            ${{ steps.test-performance-pallets.outputs.body }}
-            </details>
-
-            <details><summary>Runtime tests (values are in nanoseconds)</summary>
-
-            ${{ steps.test-performance-runtime.outputs.body }}
-            </details>
-            </details>
 
       - name: "Coverage: Aggregate"
         run: >-
