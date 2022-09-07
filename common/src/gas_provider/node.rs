@@ -18,6 +18,7 @@
 
 use super::*;
 use codec::MaxEncodedLen;
+use gear_core::ids::ReservationId;
 
 /// ID of the [`GasNode`].
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, TypeInfo)]
@@ -39,6 +40,18 @@ impl<T, U> GasNodeId<T, U> {
             GasNodeId::Node(_) => None,
             GasNodeId::Reservation(reservation_id) => Some(reservation_id),
         }
+    }
+}
+
+impl<U> From<MessageId> for GasNodeId<MessageId, U> {
+    fn from(id: MessageId) -> Self {
+        Self::Node(id)
+    }
+}
+
+impl<T> From<ReservationId> for GasNodeId<T, ReservationId> {
+    fn from(id: ReservationId) -> Self {
+        Self::Reservation(id)
     }
 }
 

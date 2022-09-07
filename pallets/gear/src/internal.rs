@@ -246,7 +246,7 @@ where
             .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
 
         // Querying external id. Fails in cases of `GasTree` invalidations.
-        let external = GasHandlerOf::<T>::get_external(GasNodeId::Node(message_id))
+        let external = GasHandlerOf::<T>::get_external(message_id)
             .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
 
         // Querying actual block author to reward.
@@ -265,7 +265,7 @@ where
     /// Updates currency and balances data on imbalance creation.
     pub(crate) fn consume_message(message_id: MessageId) {
         // Consuming `GasNode`, returning optional outcome with imbalance.
-        let outcome = GasHandlerOf::<T>::consume(GasNodeId::Node(message_id))
+        let outcome = GasHandlerOf::<T>::consume(message_id)
             .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
 
         // Unreserving funds, if imbalance returned.

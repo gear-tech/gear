@@ -104,20 +104,22 @@ pub trait Tree {
     /// node identified by the `key` belongs to a subtree originating at
     /// such "orphan" node, or in case of inexistent key.
     fn get_origin_node(
-        key: GasNodeIdOf<Self>,
+        key: impl Into<GasNodeIdOf<Self>>,
     ) -> Result<(Self::ExternalOrigin, GasNodeIdOf<Self>), Self::Error>;
 
     /// The external origin for a key.
     ///
     /// See [`get_origin_node`](Self::get_origin_node) for details.
-    fn get_external(key: GasNodeIdOf<Self>) -> Result<Self::ExternalOrigin, Self::Error> {
+    fn get_external(
+        key: impl Into<GasNodeIdOf<Self>>,
+    ) -> Result<Self::ExternalOrigin, Self::Error> {
         Self::get_origin_node(key).map(|(external, _key)| external)
     }
 
     /// The id of external node for a key.
     ///
     /// See [`get_origin_node`](Self::get_origin_node) for details.
-    fn get_origin_key(key: GasNodeIdOf<Self>) -> Result<Self::Key, Self::Error> {
+    fn get_origin_key(key: impl Into<GasNodeIdOf<Self>>) -> Result<Self::Key, Self::Error> {
         Self::get_origin_node(key).and_then(|(_external, key)| {
             key.to_node_id()
                 .ok_or_else(|| Self::InternalError::forbidden().into())
@@ -149,7 +151,7 @@ pub trait Tree {
     /// Error occurs if the tree is invalidated (has "orphan" nodes), and the
     /// node identified by the `key` belongs to a subtree originating at
     /// such "orphan" node, or in case of inexistent key.
-    fn consume(key: GasNodeIdOf<Self>) -> ConsumeResultOf<Self>;
+    fn consume(key: impl Into<GasNodeIdOf<Self>>) -> ConsumeResultOf<Self>;
 
     /// Burn underlying value.
     ///

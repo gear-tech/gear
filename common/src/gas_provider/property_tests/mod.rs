@@ -136,9 +136,24 @@ impl ValueStorage for TotalIssuanceWrap {
     }
 }
 
-type Key = GasNodeId<H256, ReservationKey>;
-type ExternalOrigin = H256;
-type GasNode = super::GasNode<ExternalOrigin, H256, Balance>;
+type Key = GasNodeId<MapKey, ReservationKey>;
+type ExternalOrigin = MapKey;
+type GasNode = super::GasNode<ExternalOrigin, MapKey, Balance>;
+
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd)]
+pub struct MapKey(H256);
+
+impl MapKey {
+    fn random() -> Self {
+        Self(H256::random())
+    }
+}
+
+impl<U> From<MapKey> for GasNodeId<MapKey, U> {
+    fn from(key: MapKey) -> Self {
+        Self::Node(key)
+    }
+}
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd)]
 pub struct ReservationKey(H256);
@@ -146,6 +161,12 @@ pub struct ReservationKey(H256);
 impl ReservationKey {
     fn random() -> Self {
         Self(H256::random())
+    }
+}
+
+impl<T> From<ReservationKey> for GasNodeId<T, ReservationKey> {
+    fn from(key: ReservationKey) -> Self {
+        Self::Reservation(key)
     }
 }
 
@@ -267,7 +288,7 @@ struct GasProvider;
 
 impl super::Provider for GasProvider {
     type ExternalOrigin = ExternalOrigin;
-    type Key = H256;
+    type Key = MapKey;
     type ReservationKey = ReservationKey;
     type Balance = Balance;
     type PositiveImbalance = PositiveImbalance<Self::Balance, TotalIssuanceWrap>;
@@ -303,13 +324,13 @@ proptest! {
         TotalIssuanceWrap::kill();
         <GasTreeNodesWrap as storage::MapStorage>::clear();
 
-        let external = H256::random();
+        let external = MapKey::random();
         // `actions` can consist only from tree splits. Then it's length will
         // represent a potential amount of nodes in the tree.
         // +1 for the root
         let mut node_ids = Vec::with_capacity(actions.len() + 1);
-        let root_node = H256::random();
-        node_ids.push(GasNodeId::Node(root_node));
+        let root_node = MapKey::random();
+        node_ids.push(root_node.into());
 
         // Only root has a max balance
         Gas::create(external, root_node, max_balance).expect("Failed to create gas tree");
@@ -331,28 +352,28 @@ proptest! {
             match action {
                 GasTreeAction::SplitWithValue(parent_idx, amount) => {
                     let parent = node_ids.ring_get(parent_idx).copied().expect("before each iteration there is at least 1 element; qed");
-                    let child = H256::random();
+                    let child = MapKey::random();
 
                     if let GasNodeId::Node(parent) = parent {
                         if let Err(e) = Gas::split_with_value(parent, child, amount) {
                             assertions::assert_not_invariant_error(e);
                         } else {
                             spec_ref_nodes.insert(child);
-                            node_ids.push(GasNodeId::Node(child))
+                            node_ids.push(child.into())
                         }
                     }
 
                 }
                 GasTreeAction::Split(parent_idx) => {
                     let parent = node_ids.ring_get(parent_idx).copied().expect("before each iteration there is at least 1 element; qed");
-                    let child = H256::random();
+                    let child = MapKey::random();
 
                     if let GasNodeId::Node(parent) = parent {
                         if let Err(e) = Gas::split(parent, child) {
                             assertions::assert_not_invariant_error(e);
                         } else {
                             unspec_ref_nodes.insert(child);
-                            node_ids.push(GasNodeId::Node(child));
+                            node_ids.push(child.into());
                         }
                     }
                 }
@@ -400,7 +421,7 @@ proptest! {
                                 &remaining_nodes,
                                 &marked_consumed,
                             );
-                            assertions::assert_root_removed_last(GasNodeId::Node(root_node), remaining_nodes);
+                            assertions::assert_root_removed_last(root_node.into(), remaining_nodes);
 
                             caught += maybe_caught.unwrap_or_default();
                         }
@@ -415,13 +436,13 @@ proptest! {
                 }
                 GasTreeAction::Cut(from, amount) => {
                     let from = node_ids.ring_get(from).copied().expect("before each iteration there is at least 1 element; qed");
-                    let child = H256::random();
+                    let child = MapKey::random();
 
                     if let GasNodeId::Node(from) = from {
                         if let Err(e) = Gas::cut(from, child, amount) {
                             assertions::assert_not_invariant_error(e)
                         } else {
-                            node_ids.push(GasNodeId::Node(child));
+                            node_ids.push(child.into());
                         }
                     }
                 }
@@ -434,7 +455,7 @@ proptest! {
                         if let Err(e) = Gas::reserve(from, child, amount) {
                             assertions::assert_not_invariant_error(e)
                         } else {
-                            node_ids.push(GasNodeId::Reservation(child));
+                            node_ids.push(child.into());
                         }
                     }
                 }
@@ -467,7 +488,7 @@ proptest! {
 
             // Check property: all existing specified and unspecified nodes have a parent in a tree
             if let GasNode::SpecifiedLocal { parent, .. } | GasNode::UnspecifiedLocal { parent, .. } = node {
-                let parent = GasNodeId::Node(parent);
+                let parent = parent.into();
                 assert!(gas_tree_ids.contains(&parent));
                 // All nodes with parent point to a parent with value
                 let parent_node = GasTreeNodesWrap::get(&parent).expect("checked");
@@ -536,21 +557,21 @@ proptest! {
         let mut nodes = Vec::with_capacity(actions.len());
 
         for node in &mut nodes {
-            *node = H256::random();
+            *node = MapKey::random();
         }
 
         for action in actions {
             match action {
                 GasTreeAction::SplitWithValue(parent_idx, amount) => {
                     if let Some(&parent) = nodes.ring_get(parent_idx) {
-                        let child = H256::random();
+                        let child = MapKey::random();
 
                         Gas::split_with_value(parent, child, amount).expect("Failed to split with value");
                     }
                 }
                 GasTreeAction::Split(parent_idx) => {
                     if let Some(&parent) = nodes.ring_get(parent_idx) {
-                        let child = H256::random();
+                        let child = MapKey::random();
 
                         Gas::split(parent, child).expect("Failed to split without value");
                     }

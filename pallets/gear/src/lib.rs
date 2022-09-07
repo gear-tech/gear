@@ -149,8 +149,8 @@ pub mod pallet {
     use crate::manager::{ExtManager, HandleKind, QueuePostProcessingData};
     use alloc::format;
     use common::{
-        self, event::*, gas_provider::GasNodeId, BlockLimiter, CodeMetadata, GasPrice, GasProvider,
-        GasTree, Origin, Program, ProgramState,
+        self, event::*, BlockLimiter, CodeMetadata, GasPrice, GasProvider, GasTree, Origin,
+        Program, ProgramState,
     };
     use core_processor::{
         common::{Actor, DispatchOutcome as CoreDispatchOutcome, ExecutableActorData, JournalNote},
@@ -889,7 +889,7 @@ pub mod pallet {
                 let get_main_limit = || GasHandlerOf::<T>::get_limit(main_message_id).ok();
 
                 let get_origin_msg_of = |msg_id| {
-                    GasHandlerOf::<T>::get_origin_key(GasNodeId::Node(msg_id))
+                    GasHandlerOf::<T>::get_origin_key(msg_id)
                         .map_err(|_| b"Internal error: unable to get origin key".to_vec())
                 };
 
@@ -1159,7 +1159,7 @@ pub mod pallet {
                         .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
 
                     // Querying external id. Fails in cases of `GasTree` invalidations.
-                    let external = GasHandlerOf::<T>::get_external(GasNodeId::Node(dispatch.id()))
+                    let external = GasHandlerOf::<T>::get_external(dispatch.id())
                         .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
 
                     log::debug!(
