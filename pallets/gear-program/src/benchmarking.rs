@@ -36,7 +36,7 @@ benchmarks! {
     }
 
     resume_program {
-        let q in 1 .. 256;
+        let q in 1 .. 128;
         let caller: T::AccountId = benchmarking::account("caller", 0, 0);
         <T as Config>::Currency::deposit_creating(&caller, (1u128 << 60).unique_saturated_into());
         let code = benchmarking::generate_wasm(q.into()).unwrap();
