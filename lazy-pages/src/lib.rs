@@ -299,14 +299,14 @@ pub fn init<H: UserSignalHandler>(version: LazyPagesVersion) -> bool {
     }
 }
 
-// FIXME: issue #1444
-#[cfg(not(all(target_os = "linux", target_arch = "x86_64")))]
 #[cfg(test)]
 mod tests {
     use crate::*;
     use region::Protection;
     use std::ptr;
 
+    // FIXME: issue #1444
+    #[cfg_attr(all(target_os = "linux", target_arch = "x86_64"), ignore)]
     #[test]
     fn read_write_flag_works() {
         unsafe fn protect(access: bool) {
