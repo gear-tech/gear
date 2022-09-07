@@ -23,8 +23,7 @@ use crate::{
 use codec::{Decode, Encode};
 use scale_info::TypeInfo;
 
-/// Message for Reply entry point.
-/// [`ReplyMessage`] is unique because of storing [`MessageId`] from message on what it replies, and can be the only one per some message execution.
+/// Message for signal entry point.
 #[derive(Clone, Default, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo)]
 pub struct SignalMessage {
     /// Message id.
@@ -38,7 +37,7 @@ pub struct SignalMessage {
 impl SignalMessage {
     /// Creates a new [`SignalMessage`].
     pub fn new(origin_msg_id: MessageId, payload: Payload, exit_code: ExitCode) -> Self {
-        let id = MessageId::generate_reply(origin_msg_id, exit_code);
+        let id = MessageId::generate_signal(origin_msg_id, exit_code);
 
         Self {
             id,

@@ -43,7 +43,7 @@ mod tests {
     use gtest::{Program, System};
 
     #[test]
-    fn program_can_be_initialized() {
+    fn signal_can_be_sent() {
         let system = System::new();
         system.init_logger();
 
