@@ -325,7 +325,7 @@ impl_opaque_keys! {
     }
 }
 parameter_types! {
-    pub const SelectedFraction: Percent = Percent::from_percent(25);
+    pub const SelectedFraction: Percent = Percent::from_percent(100);
 }
 
 impl pallet_shift_session_manager::Config for Runtime {
