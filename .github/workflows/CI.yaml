@@ -35,7 +35,8 @@ jobs:
         run: ./scripts/check-spec.sh
 
   check:
-    needs: spec_version
+    # Disable in vara branches
+    # needs: spec_version
     runs-on: [self-hosted, cachepot, epyc]
     env:
       RUSTUP_HOME: /tmp/rustup_home
@@ -117,7 +118,8 @@ jobs:
           mv /tmp/*.tar /root/cache/
 
   build:
-    needs: spec_version
+    # Disable in vara branches
+    # needs: spec_version
     runs-on: [self-hosted, cachepot, epyc]
     env:
       LLVM_PROFILE_FILE: "gear-%p-%m.profraw"
