@@ -3,29 +3,7 @@ const { randomAsHex } = require('@polkadot/util-crypto');
 const { readFileSync } = require('fs');
 const assert = require('assert');
 const { exec } = require('child_process');
-const { messageDispatchedIsOccurred, getBlockNumber, getNextBlock, checkInit } = require('./util.js');
-
-function listenToUserMessageSent(api, programId) {
-  let message;
-
-  unsub = api.query.system.events((events) => {
-    const blockHash = events.createdAtHash.toHex();
-    events.forEach((d) => {
-      const { event } = d;
-      if (event.method === 'UserMessageSent') {
-        if (event.data.message.source.eq(programId)) {
-          const data = event.data.toHuman();
-          message = {
-            exitCode: Number(data.message.reply.exitCode),
-            payload: data.message.payload,
-            blockHash,
-          };
-        }
-      }
-    });
-  });
-  return () => message;
-}
+const { messageDispatchedIsOccurred, getBlockNumber, getNextBlock, checkProcessed, listenToUserMessageSent } = require('./util.js');
 
 async function main(pathToDemoLoop) {
   const provider = new WsProvider('ws://127.0.0.1:9944');
@@ -38,7 +16,7 @@ async function main(pathToDemoLoop) {
   const codeBytes = api.createType('Bytes', Array.from(code));
   const program = api.tx.gear.uploadProgram(codeBytes, randomAsHex(20), '0x', 100_000_000_000, 0);
 
-  const isInitialized = checkInit(api);
+  const gotProcessed = checkProcessed(api);
   const [programId, messageId] = await new Promise((resolve, reject) => {
     program.signAndSend(account, ({ events, status }) => {
       events.forEach(({ event: { method, data } }) => {
@@ -50,7 +28,7 @@ async function main(pathToDemoLoop) {
       });
     });
   });
-  await isInitialized(messageId);
+  await gotProcessed(messageId, true);
 
   const gasLimit = api.consts.gearGas.blockGasLimit;
 
@@ -101,15 +79,15 @@ main(pathToDemoLoop)
     exitCode = 1;
   })
   .finally(() => {
-    exec('kill -9 $(pgrep -a gear-node)', (err, stdout, stderr) => {
+    exec('pgrep -f "gear-node" | xargs kill -9', (err, stdout, stderr) => {
       if (err) {
-        console.log(`JS_TEST: Unable to execute kill command`);
+        console.log(`JS_TEST: Unable to execute kill command (${err})`);
       }
 
       if (exitCode == 0) {
         console.log('JS_TEST: ✅ Test passed');
       } else {
-        console.log('JS_TEST: ❌ Test failed');
+        console.log(`JS_TEST: ❌ Test failed (${exitCode})`);
       }
 
       process.exit(exitCode);

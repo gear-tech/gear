@@ -1,38 +1,10 @@
 const { ApiPromise, WsProvider, Keyring } = require('@polkadot/api');
-const { randomAsHex } = require('@polkadot/util-crypto');
 const { readFileSync } = require('fs');
 const assert = require('assert/strict');
 const { exec } = require('child_process');
-const { messageDispatchedIsOccurred, getBlockNumber, getNextBlock, checkInit } = require('./util.js');
+const { messageDispatchedIsOccurred, getBlockNumber, getNextBlock, checkProcessed, getMessageEnqueuedBlock, uploadProgram } = require('./util.js');
 
-function upload_program(api, account, pathToDemo) {
-  const code = readFileSync(pathToDemo);
-  const codeBytes = api.createType('Bytes', Array.from(code));
-  const program = api.tx.gear.uploadProgram(codeBytes, randomAsHex(20), '0x00', 100_000_000_000, 0);
-  return new Promise((resolve, reject) => {
-    program.signAndSend(account, ({ events, status }) => {
-      events.forEach(({ event: { method, data } }) => {
-        if (method === 'ExtrinsicFailed') {
-          reject('SubmitProgram extrinsic failed');
-        } else if (method === 'MessageEnqueued' && status.isFinalized) {
-          resolve([data.destination.toHex(), data.id.toHex()]);
-        }
-      });
-    });
-  });
-};
-
-function getMessageEnqueuedBlock(api, { events, status }) {
-  let blockHash = undefined;
-  events.forEach(({ event }) => {
-    if (api.events.gear.MessageEnqueued.is(event)) {
-      blockHash = status.asInBlock.toHex();
-    }
-  });
-  return blockHash;
-};
-
-async function main(pathToRuntimeCode, pathToDemoPing, pathToDemoWrongLoad) {
+async function main(pathToRuntimeCode, pathToDemoPing) {
   // Create connection
   const provider = new WsProvider('ws://127.0.0.1:9944');
   const api = await ApiPromise.create({ provider });
@@ -42,14 +14,13 @@ async function main(pathToRuntimeCode, pathToDemoPing, pathToDemoWrongLoad) {
   // Check that it is root
   assert.ok((await api.query.sudo.key()).eq(account.addressRaw));
 
-  const isInitialized = checkInit(api);
-  // Upload demo_wrong_load, just check that node won't panic
-  await upload_program(api, account, pathToDemoWrongLoad);
+  const gotProcessed = checkProcessed(api);
 
   // Upload demo_ping
-  const [programId, messageId] = await upload_program(api, account, pathToDemoPing);
-  // Check that demo_ping was initialized
-  await isInitialized(messageId);
+  const [programId, messageId] = await uploadProgram(api, account, pathToDemoPing);
+
+  // Check that demo_ping was successfully initialized.
+  await gotProcessed(messageId, true);
 
   // Take runtime code
   const code = readFileSync(pathToRuntimeCode);
@@ -97,12 +68,9 @@ const pathToRuntimeCode = args[0];
 assert.notStrictEqual(pathToRuntimeCode, undefined, `Path to runtime code is not specified`);
 const pathToDemoPing = args[1];
 assert.notStrictEqual(pathToDemoPing, undefined, `Path to demo ping is not specified`);
-// TODO: tmp add demo wrong load here, make separate test (issue #1378).
-const pathToDemoWrongLoad = args[2];
-assert.notStrictEqual(pathToDemoWrongLoad, undefined, `Path to demo ping is not specified`);
 let exitCode = undefined;
 
-main(pathToRuntimeCode, pathToDemoPing, pathToDemoWrongLoad)
+main(pathToRuntimeCode, pathToDemoPing)
   .then(() => {
     exitCode = 0;
   })
@@ -111,15 +79,15 @@ main(pathToRuntimeCode, pathToDemoPing, pathToDemoWrongLoad)
     exitCode = 1;
   })
   .finally(() => {
-    exec('kill -9 $(pgrep -a gear-node)', (err, stdout, stderr) => {
+    exec('pgrep -f "gear-node" | xargs kill -9', (err, stdout, stderr) => {
       if (err) {
-        console.log(`JS_TEST: Unable to execute kill command`);
+        console.log(`JS_TEST: Unable to execute kill command (${err})`);
       }
 
       if (exitCode == 0) {
         console.log('JS_TEST: ✅ Test passed');
       } else {
-        console.log('JS_TEST: ❌ Test failed');
+        console.log(`JS_TEST: ❌ Test failed (${exitCode})`);
       }
 
       process.exit(exitCode);
