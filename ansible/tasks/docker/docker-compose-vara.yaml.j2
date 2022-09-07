@@ -8,6 +8,7 @@ services:
       - "9944:9944"
       - "9615:9615"
     image: ghcr.io/gear-tech/node-vara:latest
+    restart: always
     environment:
       - RUST_LOG=essential
     volumes:
