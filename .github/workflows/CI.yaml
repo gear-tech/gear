@@ -15,24 +15,25 @@ env:
   NIGHTLY_TOOLCHAIN_VERSION: ${{ secrets.NIGHTLY_TOOLCHAIN_VERSION }}
 
 jobs:
-  spec_version:
-    runs-on: [self-hosted, cachepot, epyc]
-    steps:
-      - name: Cancel Previous Runs
-        if: ${{ github.event_name == 'pull_request' }}
-        uses: styfle/cancel-workflow-action@0.9.1
-        with:
-          access_token: ${{ github.token }}
+  # Disable in vara branches
+  # spec_version:
+  #   runs-on: [self-hosted, cachepot, epyc]
+  #   steps:
+  #     - name: Cancel Previous Runs
+  #       if: ${{ github.event_name == 'pull_request' }}
+  #       uses: styfle/cancel-workflow-action@0.9.1
+  #       with:
+  #         access_token: ${{ github.token }}
 
-      - name: "ACTIONS: Checkout"
-        uses: actions/checkout@v3
+  #     - name: "ACTIONS: Checkout"
+  #       uses: actions/checkout@v3
 
-      - name: "Fetch origin"
-        run: git fetch origin
+  #     - name: "Fetch origin"
+  #       run: git fetch origin
 
-      - name: "Check spec version"
-        if: ${{ ! contains(github.event.pull_request.labels.*.name, 'A4-insubstantial') }}
-        run: ./scripts/check-spec.sh
+  #     - name: "Check spec version"
+  #       if: ${{ ! contains(github.event.pull_request.labels.*.name, 'A4-insubstantial') }}
+  #       run: ./scripts/check-spec.sh
 
   check:
     # Disable in vara branches
