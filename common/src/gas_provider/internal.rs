@@ -246,8 +246,8 @@ where
             GasNode::External { .. } | GasNode::Cut { .. } | GasNode::Reserved { .. } => Ok(None),
             GasNode::SpecifiedLocal { parent, .. } => {
                 let mut ret_id = *parent;
-                let mut ret_node = Self::get_node(GasNodeId::Node(*parent))
-                    .ok_or_else(InternalError::parent_is_lost)?;
+                let mut ret_node =
+                    Self::get_node(*parent).ok_or_else(InternalError::parent_is_lost)?;
                 while !ret_node.is_patron() {
                     match ret_node {
                         GasNode::External { .. } => return Ok(None),
@@ -659,7 +659,7 @@ where
         log::debug!("Spent {:?} of gas", amount);
 
         // Save node that delivers limit
-        StorageMap::insert(GasNodeId::Node(node_id.unwrap_or(key)), node);
+        StorageMap::insert(node_id.unwrap_or(key).into(), node);
 
         Ok(NegativeImbalance::new(amount))
     }

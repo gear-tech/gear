@@ -124,10 +124,7 @@ fn test_consume_procedure_with_subnodes() {
         assert_noop!(Gas::consume(node_3), Error::<Test>::NodeWasConsumed);
 
         // Impossible to consume non-existing node.
-        assert_noop!(
-            Gas::consume(GasNodeId::Node(random_node_id())),
-            Error::<Test>::NodeNotFound
-        );
+        assert_noop!(Gas::consume(random_node_id()), Error::<Test>::NodeNotFound);
 
         // Before consuming blockage `node_4`
         assert_ok!(Gas::get_external(root));
@@ -395,7 +392,7 @@ fn all_keys_are_cleared() {
             assert!(GasTree::contains_key(GasNodeId::Node(*key)));
 
             // There are no patron nodes in the tree after root was consumed
-            assert!(Gas::consume(GasNodeId::Node(*key)).unwrap().is_some());
+            assert!(Gas::consume(*key).unwrap().is_some());
         }
 
         // here we consumed everything
