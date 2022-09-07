@@ -1,0 +1,37 @@
+inputs:
+  name:
+    required: true
+  file:
+    required: true
+  ssh-deploy-key:
+    required: true
+  github-token:
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: "Clean after run"
+      run: rm -rf ./benchmark-data-repository
+      shell: bash
+    - name: "Store result"
+      uses: benchmark-action/github-action-benchmark@v1
+      with:
+        name: ${{ inputs.name }}
+        tool: 'customSmallerIsBetter'
+        output-file-path: ${{ inputs.file }}
+        fail-on-alert: false
+        gh-repository: github.com/gear-tech/performance-charts
+        gh-pages-branch: master
+        benchmark-data-dir-path: ./
+        github-token: ${{ inputs.github-token }}
+    - name: Push to another repository
+      uses: cpina/github-action-push-to-another-repository@main
+      env:
+        SSH_DEPLOY_KEY: ${{ inputs.ssh-deploy-key }}
+      with:
+        source-directory: ./benchmark-data-repository
+        destination-github-username: 'gear-tech'
+        destination-repository-name: 'performance-charts'
+        user-email: hello@gear-tech.io
+        target-branch: master

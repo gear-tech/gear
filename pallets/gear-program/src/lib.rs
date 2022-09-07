@@ -21,7 +21,6 @@
 pub use pallet::*;
 pub use pause::PauseError;
 
-mod code;
 mod pause;
 mod program;
 
@@ -62,7 +61,7 @@ pub mod pallet {
     };
     use sp_runtime::{traits::Zero, DispatchError};
     use sp_std::{collections::btree_map::BTreeMap, convert::TryInto, prelude::*};
-    use weights::WeightInfo;
+    pub use weights::WeightInfo;
 
     const LOCK_ID: LockIdentifier = *b"resume_p";
 
@@ -119,13 +118,34 @@ pub mod pallet {
     #[pallet::unbounded]
     pub(crate) type CodeStorage<T: Config> = StorageMap<_, Identity, CodeId, InstrumentedCode>;
 
+    common::wrap_storage_map!(
+        storage: CodeStorage,
+        name: CodeStorageWrap,
+        key: CodeId,
+        value: InstrumentedCode
+    );
+
     #[pallet::storage]
     #[pallet::unbounded]
     pub(crate) type OriginalCodeStorage<T: Config> = StorageMap<_, Identity, CodeId, Vec<u8>>;
 
+    common::wrap_storage_map!(
+        storage: OriginalCodeStorage,
+        name: OriginalCodeStorageWrap,
+        key: CodeId,
+        value: Vec<u8>
+    );
+
     #[pallet::storage]
     #[pallet::unbounded]
     pub(crate) type MetadataStorage<T: Config> = StorageMap<_, Identity, CodeId, CodeMetadata>;
+
+    common::wrap_storage_map!(
+        storage: MetadataStorage,
+        name: MetadataStorageWrap,
+        key: CodeId,
+        value: CodeMetadata
+    );
 
     #[pallet::storage]
     #[pallet::unbounded]
@@ -134,6 +154,12 @@ pub mod pallet {
 
     #[pallet::hooks]
     impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {}
+
+    impl<T: Config> common::CodeStorage for pallet::Pallet<T> {
+        type InstrumentedCodeStorage = CodeStorageWrap<T>;
+        type MetadataStorage = MetadataStorageWrap<T>;
+        type OriginalCodeStorage = OriginalCodeStorageWrap<T>;
+    }
 
     #[pallet::call]
     impl<T: Config> Pallet<T>

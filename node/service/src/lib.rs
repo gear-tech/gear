@@ -17,8 +17,6 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use sc_client_api::{BlockBackend, ExecutorProvider};
-#[cfg(feature = "authoring-aura")]
-use sc_consensus_aura::{ImportQueueParams, SlotProportion, StartAuraParams};
 use sc_executor::{NativeElseWasmExecutor, NativeExecutionDispatch};
 use sc_finality_grandpa::SharedVoterState;
 use sc_keystore::LocalKeystore;
@@ -27,8 +25,6 @@ use sc_service::{
 };
 use sc_telemetry::{Telemetry, TelemetryWorker};
 use sp_api::ConstructRuntimeApi;
-#[cfg(feature = "authoring-aura")]
-use sp_consensus_aura::sr25519::AuthorityPair as AuraPair;
 use sp_runtime::traits::BlakeTwo256;
 use sp_trie::PrefixedMemoryDB;
 use std::{sync::Arc, time::Duration};
@@ -58,11 +54,10 @@ pub trait IdentifyVariant {
 
 impl IdentifyVariant for Box<dyn ChainSpec> {
     fn is_gear(&self) -> bool {
-        // TODO: remove the second condition upon chains renaming completion (issue #1303)
-        self.id().starts_with("gear") || self.id().eq("staging_testnet_v2")
+        self.id().to_lowercase().starts_with("gear")
     }
     fn is_vara(&self) -> bool {
-        self.id().starts_with("vara")
+        self.id().to_lowercase().starts_with("vara")
     }
     fn is_dev(&self) -> bool {
         self.id().ends_with("dev")
@@ -77,7 +72,6 @@ type FullGrandpaBlockImport<RuntimeApi, ExecutorDispatch, ChainSelection = FullS
         FullClient<RuntimeApi, ExecutorDispatch>,
         ChainSelection,
     >;
-#[cfg(not(feature = "authoring-aura"))]
 type FullBabeBlockImport<RuntimeApi, ExecutorDispatch, ChainSelection> = (
     sc_consensus_babe::BabeBlockImport<
         Block,
@@ -124,7 +118,7 @@ pub fn new_chain_ops(
         spec if spec.is_gear() => {
             chain_ops!(config, gear_runtime, GearExecutorDispatch, Gear)
         }
-        #[cfg(all(not(feature = "gear-native"), feature = "vara-native"))]
+        #[cfg(feature = "vara-native")]
         spec if spec.is_vara() => {
             chain_ops!(config, vara_runtime, VaraExecutorDispatch, Vara)
         }
@@ -132,14 +126,6 @@ pub fn new_chain_ops(
     }
 }
 
-#[cfg(feature = "authoring-aura")]
-type OtherPartial<RuntimeApi, ExecutorDispatch, ChainSelection = FullSelectChain> = (
-    FullGrandpaBlockImport<RuntimeApi, ExecutorDispatch, ChainSelection>,
-    sc_finality_grandpa::LinkHalf<Block, FullClient<RuntimeApi, ExecutorDispatch>, ChainSelection>,
-    Option<Telemetry>,
-);
-
-#[cfg(not(feature = "authoring-aura"))]
 type OtherPartial<RuntimeApi, ExecutorDispatch, ChainSelection = FullSelectChain> = (
     FullGrandpaBlockImport<RuntimeApi, ExecutorDispatch, ChainSelection>,
     sc_finality_grandpa::LinkHalf<Block, FullClient<RuntimeApi, ExecutorDispatch>, ChainSelection>,
@@ -228,35 +214,6 @@ where
         telemetry.as_ref().map(|x| x.handle()),
     )?;
 
-    #[cfg(feature = "authoring-aura")]
-    let import_queue = {
-        let slot_duration = sc_consensus_aura::slot_duration(&*client)?;
-
-        sc_consensus_aura::import_queue::<AuraPair, _, _, _, _, _, _>(ImportQueueParams {
-            block_import: grandpa_block_import.clone(),
-            justification_import: Some(Box::new(grandpa_block_import.clone())),
-            client: client.clone(),
-            create_inherent_data_providers: move |_, ()| async move {
-                let timestamp = sp_timestamp::InherentDataProvider::from_system_time();
-
-                let slot =
-					sp_consensus_aura::inherents::InherentDataProvider::from_timestamp_and_slot_duration(
-						*timestamp,
-						slot_duration,
-					);
-
-                Ok((timestamp, slot))
-            },
-            spawner: &task_manager.spawn_essential_handle(),
-            can_author_with: sp_consensus::CanAuthorWithNativeVersion::new(
-                client.executor().clone(),
-            ),
-            registry: config.prometheus_registry(),
-            check_for_equivocation: Default::default(),
-            telemetry: telemetry.as_ref().map(|x| x.handle()),
-        })?
-    };
-    #[cfg(not(feature = "authoring-aura"))]
     let (import_queue, babe_block_import_setup) = {
         let babe_config = sc_consensus_babe::Config::get(&*client)?;
         let (babe_block_import, babe_link) = sc_consensus_babe::block_import(
@@ -292,19 +249,6 @@ where
         )
     };
 
-    #[cfg(feature = "authoring-aura")]
-    let partial = PartialComponents {
-        client,
-        backend,
-        task_manager,
-        import_queue,
-        keystore_container,
-        select_chain,
-        transaction_pool,
-        other: (grandpa_block_import, grandpa_link, telemetry),
-    };
-
-    #[cfg(not(feature = "authoring-aura"))]
     let partial = PartialComponents {
         client,
         backend,
@@ -341,7 +285,7 @@ pub fn build_full(config: Configuration) -> Result<TaskManager, ServiceError> {
         spec if spec.is_gear() => {
             new_full::<gear_runtime::RuntimeApi, GearExecutorDispatch>(config)
         }
-        #[cfg(all(not(feature = "gear-native"), feature = "vara-native"))]
+        #[cfg(feature = "vara-native")]
         spec if spec.is_vara() => {
             new_full::<vara_runtime::RuntimeApi, VaraExecutorDispatch>(config)
         }
@@ -373,9 +317,6 @@ where
         other,
     } = new_partial::<RuntimeApi, ExecutorDispatch>(&config)?;
 
-    #[cfg(feature = "authoring-aura")]
-    let (block_import, grandpa_link, mut telemetry) = other;
-    #[cfg(not(feature = "authoring-aura"))]
     let (_, grandpa_link, mut telemetry, (babe_block_import, babe_link)) = other;
 
     if let Some(url) = &config.keystore_remote {
@@ -476,49 +417,6 @@ where
         let can_author_with =
             sp_consensus::CanAuthorWithNativeVersion::new(client.executor().clone());
 
-        #[cfg(feature = "authoring-aura")]
-        {
-            let slot_duration = sc_consensus_aura::slot_duration(&*client)?;
-
-            let aura = sc_consensus_aura::start_aura::<AuraPair, _, _, _, _, _, _, _, _, _, _, _>(
-                StartAuraParams {
-                    slot_duration,
-                    client,
-                    select_chain,
-                    block_import,
-                    proposer_factory,
-                    create_inherent_data_providers: move |_, ()| async move {
-                        let timestamp = sp_timestamp::InherentDataProvider::from_system_time();
-
-                        let slot =
-						sp_consensus_aura::inherents::InherentDataProvider::from_timestamp_and_slot_duration(
-							*timestamp,
-							slot_duration,
-						);
-
-                        Ok((timestamp, slot))
-                    },
-                    force_authoring,
-                    backoff_authoring_blocks,
-                    keystore: keystore_container.sync_keystore(),
-                    can_author_with,
-                    sync_oracle: network.clone(),
-                    justification_sync_link: network.clone(),
-                    block_proposal_slot_portion: SlotProportion::new(2f32 / 3f32),
-                    max_block_proposal_slot_portion: None,
-                    telemetry: telemetry.as_ref().map(|x| x.handle()),
-                },
-            )?;
-
-            // the AURA authoring task is considered essential, i.e. if it
-            // fails we take down the service with it.
-            task_manager.spawn_essential_handle().spawn_blocking(
-                "aura",
-                Some("block-authoring"),
-                aura,
-            );
-        }
-        #[cfg(not(feature = "authoring-aura"))]
         {
             let slot_duration = babe_link.config().slot_duration();
 

@@ -111,9 +111,9 @@ jobs:
         if: ${{ github.event_name == 'push' }}
         continue-on-error: true
         run: |
-          tar -cf /tmp/check_target_${{ github.base_ref }}.tar ./target
-          tar -cf /tmp/check_cache_${{ github.base_ref }}.tar /tmp/cachepot
-          tar -cf /tmp/check_cargo_registry_${{ github.base_ref }}.tar /tmp/cargo/bin /tmp/cargo/registry/cache /tmp/cargo/registry/index /tmp/cargo/git
+          tar -cf /tmp/check_target_${{ github.ref_name }}.tar ./target
+          tar -cf /tmp/check_cache_${{ github.ref_name }}.tar /tmp/cachepot
+          tar -cf /tmp/check_cargo_registry_${{ github.ref_name }}.tar /tmp/cargo/bin /tmp/cargo/registry/cache /tmp/cargo/registry/index /tmp/cargo/git
           mv /tmp/*.tar /root/cache/
 
   build:
@@ -225,18 +225,6 @@ jobs:
         env:
           RUSTFLAGS: -Cinstrument-coverage
 
-      - name: "Test (performance): pallets"
-        if: ${{ github.ref != 'refs/heads/master' }}
-        id: test-performance-pallets
-        run: |
-          cp /root/cache/pallet-tests.json /tmp/
-          ./target/release/regression-analysis compare --data-path /tmp/pallet-tests.json --current-junit-path ./target/nextest/ci/junit.xml > ./target/pallet-tests-diff.md
-          body="$(cat ./target/pallet-tests-diff.md)"
-          body="${body//'%'/'%25'}"
-          body="${body//$'\n'/'%0A'}"
-          body="${body//$'\r'/'%0D'}"
-          echo "::set-output name=body::$body"
-
       - name: "Test: JS metadata"
         run: ./scripts/gear.sh test js
         env:
@@ -253,75 +241,19 @@ jobs:
           cargo build -p gear-node --release --no-default-features --features=gear-native --out-dir target-no-lazy -Z unstable-options
           ./target-no-lazy/gear-node runtime-spec-tests ./gear-test/spec/*
 
-      - name: "Test (performance): node runtime testsuite"
-        if: ${{ github.ref != 'refs/heads/master' }}
-        id: test-performance-runtime
-        run: |
-          cp /root/cache/runtime-tests.json /tmp/
-          ./target/release/regression-analysis compare --disable-filter --data-path /tmp/runtime-tests.json --current-junit-path ./target/runtime-test-junit.xml > ./target/runtime-tests-diff.md
-          body="$(cat ./target/runtime-tests-diff.md)"
-          body="${body//'%'/'%25'}"
-          body="${body//$'\n'/'%0A'}"
-          body="${body//$'\r'/'%0D'}"
-          echo "::set-output name=body::$body"
-
       - name: "Test: Runtime upgrade and queue processing"
         run: ./scripts/gear.sh test runtime-upgrade
 
       - name: "Test: Weight on client for loop"
         run: ./scripts/gear.sh test client-weights
 
+      - name: "Test: Upload programs"
+        run: ./scripts/gear.sh test uploads "$(pwd)/target/wat-examples/wrong_load.wasm"
+
       - name: "Test: Runtime benchmarks work"
         run: |
           cargo build -p gear-node --release --features runtime-benchmarks
           ./target/release/gear-node benchmark pallet --chain=dev --steps=1 --repeat=1 --pallet=pallet_gear --extrinsic="*" --execution=wasm --wasm-execution=compiled --heap-pages=4096
-
-      - name: Find comment (performance)
-        uses: peter-evans/find-comment@v2
-        if: ${{ github.ref != 'refs/heads/master' }}
-        id: find_comment_id
-        with:
-          issue-number: ${{ github.event.pull_request.number }}
-          comment-author: "github-actions[bot]"
-          direction: last
-
-      - name: "Create comment (performance)"
-        uses: peter-evans/create-or-update-comment@v2
-        if: github.ref != 'refs/heads/master' && steps.find_comment_id.outputs.comment-id == ''
-        continue-on-error: true
-        with:
-          issue-number: ${{ github.event.pull_request.number }}
-          body: |
-            <details><summary>${{ github.event.pull_request.head.sha }}</summary>
-            <details><summary>Pallet tests (values are in nanoseconds)</summary>
-
-            ${{ steps.test-performance-pallets.outputs.body }}
-            </details>
-
-            <details><summary>Runtime tests (values are in nanoseconds)</summary>
-
-            ${{ steps.test-performance-runtime.outputs.body }}
-            </details>
-            </details>
-
-      - name: "Update comment (performance)"
-        uses: peter-evans/create-or-update-comment@v2
-        if: steps.find_comment_id.outputs.comment-id != ''
-        continue-on-error: true
-        with:
-          comment-id: ${{ steps.find_comment_id.outputs.comment-id }}
-          body: |
-            <details><summary>${{ github.event.pull_request.head.sha }}</summary>
-            <details><summary>Pallet tests (values are in nanoseconds)</summary>
-
-            ${{ steps.test-performance-pallets.outputs.body }}
-            </details>
-
-            <details><summary>Runtime tests (values are in nanoseconds)</summary>
-
-            ${{ steps.test-performance-runtime.outputs.body }}
-            </details>
-            </details>
 
       - name: "Coverage: Aggregate"
         run: >-
@@ -363,10 +295,10 @@ jobs:
         if: ${{ github.event_name == 'push' }}
         continue-on-error: true
         run: |
-          tar -cf /tmp/build_target_${{ github.base_ref }}.tar ./target
-          tar -cf /tmp/build_cache_${{ github.base_ref }}.tar /tmp/cachepot
-          tar -cf /tmp/build_cargo_registry_${{ github.base_ref }}.tar /tmp/cargo/bin /tmp/cargo/registry/cache /tmp/cargo/registry/index /tmp/cargo/git
-          mkdir -p /root/cache/
+          tar -cf /tmp/build_target_${{ github.ref_name }}.tar ./target
+          tar -cf /tmp/build_cache_${{ github.ref_name }}.tar /tmp/cachepot
+          tar -cf /tmp/build_cargo_registry_${{ github.ref_name }}.tar /tmp/cargo/bin /tmp/cargo/registry/cache /tmp/cargo/registry/index /tmp/cargo/git
+          mv /tmp/*.tar /root/cache/
 
       - name: "Cache: Pack to temp"
         if: ${{ github.event_name == 'pull_request' }}
@@ -460,7 +392,7 @@ jobs:
             --features=lazy-pages
 
   upload:
-    if: github.event_name == 'push' && github.base_ref == 'master'
+    if: github.event_name == 'push' && github.ref_name == 'master'
     runs-on: self-hosted
     needs: build
     steps:

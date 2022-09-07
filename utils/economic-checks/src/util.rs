@@ -29,18 +29,15 @@ use frame_system as system;
 use gear_core::ids::{CodeId, ProgramId};
 #[cfg(feature = "gear-native")]
 use gear_runtime::{
-    Aura, AuraConfig, Authorship, Balances, Gear, GearGas, GearMessenger, GearPayment, GearProgram,
-    Grandpa, GrandpaConfig, Runtime, SudoConfig, System, TransactionPayment,
-    TransactionPaymentConfig, UncheckedExtrinsic, EXISTENTIAL_DEPOSIT,
+    Authorship, Babe, BabeConfig, Balances, Gear, GearGas, GearMessenger, GearPayment, GearProgram,
+    Grandpa, GrandpaConfig, Runtime, Session, SessionConfig, SessionKeys, SudoConfig, System,
+    TransactionPayment, TransactionPaymentConfig, UncheckedExtrinsic, EXISTENTIAL_DEPOSIT,
 };
 use pallet_gear::{BlockGasLimitOf, GasHandlerOf};
 use pallet_gear_gas::Error as GasError;
 use parking_lot::RwLock;
 use rand::{rngs::StdRng, RngCore};
 use runtime_primitives::AccountPublic;
-#[cfg(feature = "authoring-aura")]
-use sp_consensus_aura::{sr25519::AuthorityId as AuraId, AURA_ENGINE_ID};
-#[cfg(not(feature = "authoring-aura"))]
 use sp_consensus_babe::{
     digests::{PreDigest, SecondaryPlainPreDigest},
     AuthorityId as BabeId, BABE_ENGINE_ID,
@@ -86,9 +83,6 @@ where
     AccountPublic::from(get_from_seed::<TPublic>(seed)).into_account()
 }
 
-#[cfg(feature = "authoring-aura")]
-type AuthorityId = AuraId;
-#[cfg(not(feature = "authoring-aura"))]
 type AuthorityId = BabeId;
 
 // Generate authority keys.
@@ -120,11 +114,6 @@ pub(crate) fn initialize(new_blk: BlockNumberFor<Runtime>) {
 
     // All blocks are to be authored by validator at index 0
     let slot = Slot::from(u64::from(new_blk));
-    #[cfg(feature = "authoring-aura")]
-    let pre_digest = Digest {
-        logs: vec![DigestItem::PreRuntime(AURA_ENGINE_ID, slot.encode())],
-    };
-    #[cfg(not(feature = "authoring-aura"))]
     let pre_digest = Digest {
         logs: vec![DigestItem::PreRuntime(
             BABE_ENGINE_ID,
@@ -143,9 +132,6 @@ pub(crate) fn initialize(new_blk: BlockNumberFor<Runtime>) {
 // Run on_initialize hooks in order as they appear in AllPalletsWithSystem.
 pub(crate) fn on_initialize(new_block_number: BlockNumberFor<Runtime>) {
     System::on_initialize(new_block_number);
-    #[cfg(feature = "authoring-aura")]
-    Aura::on_initialize(new_block_number);
-    #[cfg(not(feature = "authoring-aura"))]
     Babe::on_initialize(new_block_number);
     Balances::on_initialize(new_block_number);
     TransactionPayment::on_initialize(new_block_number);
@@ -154,7 +140,6 @@ pub(crate) fn on_initialize(new_block_number: BlockNumberFor<Runtime>) {
     GearMessenger::on_initialize(new_block_number);
     Gear::on_initialize(new_block_number);
     GearGas::on_initialize(new_block_number);
-    #[cfg(not(feature = "authoring-aura"))]
     Session::on_initialize(new_block_number);
 }
 
@@ -169,7 +154,6 @@ pub(crate) fn on_finalize(current_blk: BlockNumberFor<Runtime>) {
     TransactionPayment::on_finalize(current_blk);
     Balances::on_finalize(current_blk);
     Grandpa::on_finalize(current_blk);
-    #[cfg(not(feature = "authoring-aura"))]
     Babe::on_finalize(current_blk);
     System::on_finalize(current_blk);
 }
@@ -181,14 +165,8 @@ pub(crate) fn new_test_ext(
 ) -> sp_io::TestExternalities {
     assert!(!seeds.is_empty());
 
-    #[cfg(feature = "authoring-aura")]
-    let initial_authorities: Vec<(AccountId32, AuraId, GrandpaId)> =
+    let initial_authorities: Vec<(AccountId32, BabeId, GrandpaId)> =
         seeds.into_iter().map(authority_keys_from_seed).collect();
-    #[cfg(not(feature = "authoring-aura"))]
-    let initial_authorities: Vec<(AccountId32, BabeId, GrandpaId)> = seeds
-        .into_iter()
-        .map(|s| authority_keys_from_seed(s))
-        .collect();
 
     let mut t = system::GenesisConfig::default()
         .build_storage::<Runtime>()
@@ -209,39 +187,23 @@ pub(crate) fn new_test_ext(
     .assimilate_storage(&mut t)
     .unwrap();
 
-    #[cfg(feature = "authoring-aura")]
-    AuraConfig {
-        authorities: initial_authorities
-            .iter()
-            .cloned()
-            .map(|(_, x, _)| x)
-            .collect(),
-    }
-    .assimilate_storage(&mut t)
-    .unwrap();
-
+    #[allow(clippy::unnecessary_operation)]
     BasicExternalities::execute_with_storage(&mut t, || {
-        #[cfg(not(feature = "authoring-aura"))]
         BabeConfig {
             authorities: Default::default(),
+            #[cfg(feature = "gear-native")]
+            epoch_config: Some(gear_runtime::BABE_GENESIS_EPOCH_CONFIG),
+            #[cfg(all(not(feature = "gear-native"), feature = "vara-native"))]
             epoch_config: Some(vara_runtime::BABE_GENESIS_EPOCH_CONFIG),
         };
 
-        #[cfg(feature = "authoring-aura")]
-        <GrandpaConfig as GenesisBuild<Runtime>>::build(&GrandpaConfig {
-            authorities: initial_authorities.into_iter().map(|x| (x.2, 1)).collect(),
-        });
-        #[cfg(not(feature = "authoring-aura"))]
-        GrandpaConfig {
-            authorities: Default::default(),
-        };
+        GrandpaConfig::default();
 
         <TransactionPaymentConfig as GenesisBuild<Runtime>>::build(
             &TransactionPaymentConfig::default(),
         );
     });
 
-    #[cfg(not(feature = "authoring-aura"))]
     SessionConfig {
         keys: initial_authorities
             .iter()

@@ -45,7 +45,7 @@ use gear_core::{
 #[derive(Debug)]
 enum SuccessfulDispatchResultKind {
     Exit(ProgramId),
-    Wait,
+    Wait(Option<u32>),
     Success,
 }
 
@@ -183,16 +183,20 @@ pub fn process<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environment<
         host_fn_weights,
         forbidden_funcs,
         mailbox_threshold,
+        waitlist_cost,
+        reserve_for,
     } = block_config.clone();
 
-    let execution_settings = ExecutionSettings::new(
+    let execution_settings = ExecutionSettings {
         block_info,
         existential_deposit,
         allocations_config,
         host_fn_weights,
         forbidden_funcs,
         mailbox_threshold,
-    );
+        waitlist_cost,
+        reserve_for,
+    };
 
     let dispatch = execution_context.dispatch;
     let balance = execution_context.balance;
@@ -228,7 +232,7 @@ pub fn process<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environment<
                 ExecutionErrorReason::Ext(reason),
             ),
             DispatchResultKind::Success => process_success(Success, res),
-            DispatchResultKind::Wait => process_success(Wait, res),
+            DispatchResultKind::Wait(duration) => process_success(Wait(duration), res),
             DispatchResultKind::Exit(value_destination) => {
                 process_success(Exit(value_destination), res)
             }
@@ -420,10 +424,11 @@ fn process_success(
     }
 
     let outcome = match kind {
-        Wait => {
-            journal.push(JournalNote::WaitDispatch(
-                dispatch.into_stored(program_id, context_store),
-            ));
+        Wait(duration) => {
+            journal.push(JournalNote::WaitDispatch {
+                dispatch: dispatch.into_stored(program_id, context_store),
+                duration,
+            });
 
             return journal;
         }

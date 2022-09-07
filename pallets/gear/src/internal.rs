@@ -33,6 +33,7 @@ use common::{
     storage::*,
     GasPrice, GasTree, Origin,
 };
+use core::cmp::{Ord, Ordering};
 use core_processor::common::ExecutionErrorReason;
 use frame_support::traits::{
     BalanceStatus, Currency, ExistenceRequirement, Imbalance, ReservableCurrency,
@@ -101,7 +102,7 @@ impl<T: Config> HoldBoundCost<T> {
 
 /// Hold bound, specifying cost of storing, expected block number for task to
 /// create on it, deadlines and durations of holding.
-#[derive(Clone, Debug, Decode, Encode, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Debug, Decode, Encode, Eq, PartialEq)]
 pub(crate) struct HoldBound<T: Config> {
     /// Cost of storing per block.
     cost: SchedulingCostOf<T>,
@@ -155,6 +156,21 @@ impl<T: Config> HoldBound<T> {
         self.deadline_duration()
             .saturated_into::<GasBalanceOf<T>>()
             .saturating_mul(self.cost())
+    }
+}
+
+impl<T: Config> PartialOrd for HoldBound<T> {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        self.expected.partial_cmp(&other.expected)
+    }
+}
+
+impl<T: Config> Ord for HoldBound<T>
+where
+    BlockNumberFor<T>: PartialOrd,
+{
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.expected.cmp(&other.expected)
     }
 }
 
@@ -317,27 +333,31 @@ where
     }
 
     /// Adds dispatch into waitlist, deposits event and adds task for waking it.
-    pub(crate) fn wait_dispatch(dispatch: StoredDispatch, reason: MessageWaitedReason) {
-        // Figuring out maximal deadline of holding.
-        let hold =
-            HoldBound::<T>::by(CostsPerBlockOf::<T>::waitlist()).maximum_for_message(dispatch.id());
+    pub(crate) fn wait_dispatch(
+        dispatch: StoredDispatch,
+        duration: Option<BlockNumberFor<T>>,
+        reason: MessageWaitedReason,
+    ) {
+        // `HoldBound` cost builder.
+        let hold_builder = HoldBound::<T>::by(CostsPerBlockOf::<T>::waitlist());
+
+        // Maximal hold bound for the message.
+        let maximal_hold = hold_builder.clone().maximum_for_message(dispatch.id());
+
+        // Figuring out correct hold bound.
+        let hold = if let Some(duration) = duration {
+            hold_builder.duration(duration).min(maximal_hold)
+        } else {
+            maximal_hold
+        };
 
         // Validating duration.
         if hold.expected_duration().is_zero() {
             // TODO: Replace with unreachable call after:
             // - `HoldBound` safety usage stabilized;
-            // - Issue #1173 solved.
             log::error!("Failed to figure out correct wait hold bound");
             return;
         }
-
-        // TODO: remove, once duration-control added inside programs (#1173).
-        //
-        // This need in async scenarios, while we send gasless message and it
-        // goes into waitlist: then all funds become locked for storing in
-        // waitlist, instead of distribute for execution and storing.
-        let hold = HoldBound::<T>::by(CostsPerBlockOf::<T>::waitlist())
-            .duration(hold.expected_duration().min(500u32.unique_saturated_into()));
 
         // Locking funds for holding.
         GasHandlerOf::<T>::lock(dispatch.id(), hold.lock())

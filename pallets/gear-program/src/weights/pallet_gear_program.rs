@@ -17,8 +17,8 @@ use frame_support::{traits::Get, weights::Weight};
 use sp_std::marker::PhantomData;
 
 /// Weight functions for `pallet_gear_program`.
-pub struct WeightInfo<T>(PhantomData<T>);
-impl<T: frame_system::Config> super::WeightInfo for WeightInfo<T> {
+pub struct SubstrateWeight<T>(PhantomData<T>);
+impl<T: frame_system::Config> super::WeightInfo for SubstrateWeight<T> {
 	// Storage: GearProgram PausedPrograms (r:1 w:1)
 	// Storage: System Account (r:2 w:2)
 	// Storage: unknown [0x673a3a70616765733a3a13614ad1183876953cdd99749d6dcf5d41b7ffc0740c] (r:0 w:1)

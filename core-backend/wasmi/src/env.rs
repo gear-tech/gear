@@ -351,6 +351,8 @@ where
         builder.add_host_func("env", "gr_value", Funcs::value);
         builder.add_host_func("env", "gr_value_available", Funcs::value_available);
         builder.add_host_func("env", "gr_wait", Funcs::wait);
+        builder.add_host_func("env", "gr_wait_for", Funcs::wait_for);
+        builder.add_host_func("env", "gr_wait_no_more", Funcs::wait_no_more);
         builder.add_host_func("env", "gr_wake", Funcs::wake);
 
         let mem: MemoryRef = match MemoryInstance::alloc(Pages(mem_size.0 as usize), None) {
@@ -372,10 +374,7 @@ where
         };
 
         let defined_host_functions = builder.defined_host_functions.clone();
-        let module = match wasmi::Module::from_buffer(binary) {
-            Ok(module) => module,
-            Err(e) => return Err(ModuleInstantiation(e)),
-        };
+        let module = wasmi::Module::from_buffer(binary).map_err(ModuleInstantiation)?;
         let instance = match ModuleInstance::new(&module, &builder) {
             Ok(inst) => inst.not_started_instance().clone(),
             Err(e) => return Err(ModuleInstantiation(e)),
