@@ -21,4 +21,6 @@
 pub mod frame_system;
 pub mod pallet_balances;
 pub mod pallet_gear;
+pub mod pallet_gear_program;
 pub mod pallet_timestamp;
+pub mod pallet_utility;

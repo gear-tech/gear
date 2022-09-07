@@ -299,7 +299,7 @@ impl pallet_sudo::Config for Runtime {
 impl pallet_utility::Config for Runtime {
     type Event = Event;
     type Call = Call;
-    type WeightInfo = ();
+    type WeightInfo = weights::pallet_utility::SubstrateWeight<Runtime>;
     type PalletsOrigin = OriginCaller;
 }
 
@@ -310,7 +310,7 @@ impl gear_common::GasPrice for GasConverter {
 
 impl pallet_gear_program::Config for Runtime {
     type Event = Event;
-    type WeightInfo = pallet_gear_program::weights::SubstrateWeight<Runtime>;
+    type WeightInfo = weights::pallet_gear_program::SubstrateWeight<Runtime>;
     type Currency = Balances;
     type Messenger = GearMessenger;
 }
