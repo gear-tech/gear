@@ -50,5 +50,8 @@ pub use prelude::*;
 #[cfg(feature = "debug")]
 pub use gcore::ext;
 
-/// Default wait duration for async sending calls.
-pub const DEFAULT_WAIT_NO_MORE_DURATION: u32 = 100;
+/// This module is for configuring `gstd` inside gear programs.
+pub mod config {
+    /// Default wait duration for async sending calls.
+    pub static mut DEFAULT_WAIT_NO_MORE_DURATION: u32 = 100;
+}
