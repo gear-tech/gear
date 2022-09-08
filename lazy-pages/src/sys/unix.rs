@@ -90,10 +90,11 @@ where
         };
 
         if let Err(err) = H::handle(exc_info) {
-            let old_sig_handler_works = if let Error::SignalFromUnknownMemory { .. } = err {
-                old_sig_handler(sig, info, ucontext)
-            } else {
-                false
+            let old_sig_handler_works = match err {
+                Error::SignalFromUnknownMemory { .. } | Error::WasmMemAddrIsNotSet => {
+                    old_sig_handler(sig, info, ucontext)
+                }
+                _ => false,
             };
             if !old_sig_handler_works {
                 panic!("Signal handler failed: {}", err);
@@ -107,9 +108,20 @@ where
     H: UserSignalHandler,
 {
     let handler = signal::SigHandler::SigAction(handle_sigsegv::<H>);
+    // Set additional SA_ONSTACK and SA_NODEFER to avoid problems with wasmer executor.
+    // See comment from shorturl.at/KMO68 :
+    // ```
+    //  SA_ONSTACK allows us to handle signals on an alternate stack,
+    //  so that the handler can run in response to running out of
+    //  stack space on the main stack. Rust installs an alternate
+    //  stack with sigaltstack, so we rely on that.
+    //  SA_NODEFER allows us to reenter the signal handler if we
+    //  crash while handling the signal, and fall through to the
+    //  Breakpad handler by testing handlingSegFault.
+    // ```
     let sig_action = signal::SigAction::new(
         handler,
-        signal::SaFlags::SA_SIGINFO,
+        signal::SaFlags::SA_SIGINFO | signal::SaFlags::SA_ONSTACK | signal::SaFlags::SA_NODEFER,
         signal::SigSet::empty(),
     );
 
