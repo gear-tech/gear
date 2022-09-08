@@ -67,12 +67,10 @@ where
 
     if Pin::new(&mut task.future).poll(&mut cx).is_ready() {
         super::futures().remove(&msg_id);
-        super::locks().remove(&msg_id);
     } else {
-        // TODO: make this call configurable (#1380)
         super::locks()
             .entry(msg_id)
-            .or_insert_with(|| Default::default())
+            .or_insert_with(Default::default)
             .wait();
     }
 }

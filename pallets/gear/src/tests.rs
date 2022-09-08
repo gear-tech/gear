@@ -2818,7 +2818,7 @@ fn test_different_waits_fail() {
 
 #[test]
 fn test_sending_waits() {
-    use demo_waiter::{Command, WASM_BINARY};
+    use demo_waiter::{Command, DEFAULT_WAIT_NO_MORE_DURATION, WASM_BINARY};
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -2840,7 +2840,9 @@ fn test_sending_waits() {
         let program_id = get_last_program_id();
         run_to_next_block(None);
 
-        // `Command::SendFor` case.
+        // Case 1 - `Command::SendFor`
+        //
+        // Send message and then wait_for.
         let duration = 5;
         let payload = Command::SendFor(USER_1.into(), duration).encode();
 
@@ -2857,15 +2859,14 @@ fn test_sending_waits() {
             0,
         ));
 
-        let wait_for_success = get_last_message_id();
+        let wait_for = get_last_message_id();
         run_to_next_block(None);
 
-        assert_eq!(
-            get_waitlist_expiration(wait_for_success),
-            expiration(duration)
-        );
+        assert_eq!(get_waitlist_expiration(wait_for), expiration(duration));
 
-        // `Command::SendNoMore` case.
+        // Case 2 - `Command::SendNoMore`
+        //
+        // Send message and then wait no_more.
         let duration = 10;
         let payload = Command::SendNoMore(USER_1.into(), duration).encode();
         assert_ok!(Gear::send_message(
@@ -2881,13 +2882,56 @@ fn test_sending_waits() {
             0,
         ));
 
-        let wait_no_more_success = get_last_message_id();
+        let wait_no_more = get_last_message_id();
         run_to_next_block(None);
 
-        assert_eq!(
-            get_waitlist_expiration(wait_no_more_success),
-            expiration(duration)
-        );
+        assert_eq!(get_waitlist_expiration(wait_no_more), expiration(duration));
+
+        // Case 3 - `Command::SendNoMoreWait`
+        //
+        // Send message and then wait no_more, wake, wait no_more again.
+        let duration = 10;
+        let payload = Command::SendNoMoreWait(USER_2.into(), duration).encode();
+        assert_ok!(Gear::send_message(
+            Origin::signed(USER_1),
+            program_id,
+            payload,
+            // # Note
+            //
+            // just using `gas_limit` which is enough to process this message
+            // since the end cases around the `gas_limit` have already been
+            // tested in other tests.
+            2_500_000_000,
+            0,
+        ));
+
+        let wait_wait = get_last_message_id();
+        run_to_next_block(None);
+        assert_eq!(get_waitlist_expiration(wait_wait), expiration(duration));
+
+        let reply_to_id = MailboxOf::<Test>::iter_key(USER_2)
+            .next()
+            .map(|(msg, _bn)| msg.id())
+            .expect("Element should be");
+
+        // wake `wait_wait`
+        assert_ok!(Gear::send_reply(
+            Origin::signed(USER_2),
+            reply_to_id,
+            vec![],
+            // # Note
+            //
+            // just using `gas_limit` which is enough to process this message
+            // since the end cases around the `gas_limit` have already been
+            // tested in other tests.
+            1_500_000_000,
+            0,
+        ));
+
+        run_to_next_block(None);
+        assert_eq!(get_waitlist_expiration(wait_wait), unsafe {
+            expiration(DEFAULT_WAIT_NO_MORE_DURATION)
+        });
     });
 }
 

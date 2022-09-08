@@ -20,6 +20,9 @@
 use codec::{Decode, Encode};
 use gstd::ActorId;
 
+// Re-exports for testing
+pub use gstd::config::DEFAULT_WAIT_NO_MORE_DURATION;
+
 #[cfg(feature = "std")]
 mod code {
     include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
@@ -40,4 +43,5 @@ pub enum Command {
     WaitNoMore(u32),
     SendFor(ActorId, u32),
     SendNoMore(ActorId, u32),
+    SendNoMoreWait(ActorId, u32),
 }
