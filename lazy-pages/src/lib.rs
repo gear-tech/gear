@@ -305,8 +305,6 @@ mod tests {
     use region::Protection;
     use std::ptr;
 
-    // FIXME: issue #1444
-    #[cfg_attr(all(target_os = "linux", target_arch = "x86_64"), ignore)]
     #[test]
     fn read_write_flag_works() {
         unsafe fn protect(access: bool) {
