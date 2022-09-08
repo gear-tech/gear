@@ -49,3 +49,6 @@ pub use prelude::*;
 
 #[cfg(feature = "debug")]
 pub use gcore::ext;
+
+/// Default wait duration for async sending calls.
+pub const DEFAULT_WAIT_NO_MORE_DURATION: u32 = 100;

@@ -19,6 +19,7 @@
 //! Module for future-management.
 
 use crate::{
+    async_runtime::locks::Lock,
     prelude::{BTreeMap, Box},
     MessageId,
 };
@@ -58,16 +59,21 @@ pub fn message_loop<F>(future: F)
 where
     F: Future<Output = ()> + 'static,
 {
+    let msg_id = crate::msg::id();
     let task = super::futures()
-        .entry(crate::msg::id())
+        .entry(msg_id)
         .or_insert_with(|| Task::new(future));
 
     let mut cx = Context::from_waker(&task.waker);
 
     if Pin::new(&mut task.future).poll(&mut cx).is_ready() {
-        super::futures().remove(&crate::msg::id());
+        super::futures().remove(&msg_id);
+        super::locks().remove(&msg_id);
     } else {
         // TODO: make this call configurable (#1380)
-        crate::exec::wait_no_more(100)
+        super::locks()
+            .entry(msg_id)
+            .or_insert_with(|| Lock::NoMore(crate::DEFAULT_WAIT_NO_MORE_DURATION))
+            .wait();
     }
 }
