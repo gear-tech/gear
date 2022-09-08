@@ -99,7 +99,7 @@ fn assert_removed_nodes_have_no_lock(removed_nodes: &RemovedNodes) {
     for node in removed_nodes.values() {
         let lock = node.lock();
 
-        if node.is_reserved_local() {
+        if node.is_detached() {
             assert!(lock.is_none());
         } else {
             assert_eq!(lock, Some(0));
@@ -120,6 +120,7 @@ fn assert_removed_nodes_form_path(
 
     while not_checked_parents_count > 1 {
         if let Some(parent) = node.parent() {
+            let parent = parent.into();
             assert!(!remaining_nodes.contains_key(&parent));
             assert!(removed_nodes.contains_key(&parent));
 
@@ -128,7 +129,7 @@ fn assert_removed_nodes_form_path(
         }
     }
     if let Some(parent) = node.parent() {
-        assert!(remaining_nodes.contains_key(&parent));
+        assert!(remaining_nodes.contains_key(&parent.into()));
     }
 }
 
@@ -143,7 +144,7 @@ pub(super) fn assert_root_removed_last(root_node: Key, remaining_nodes: Remainin
         assert_eq!(
             remaining_nodes
                 .iter()
-                .filter(|(_, node)| !node.is_reserved_local())
+                .filter(|(_, node)| !node.is_detached())
                 .count(),
             0
         );
