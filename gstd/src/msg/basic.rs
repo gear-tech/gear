@@ -436,7 +436,7 @@ pub fn send_bytes_with_gas<T: AsRef<[u8]>>(
 ///
 /// unsafe extern "C" fn handle() {
 ///     // ...
-///     let msg_handle = msg::send_init();
+///     let msg_handle = msg::send_init().unwrap();
 ///     msg::send_push(&msg_handle, b"PING");
 ///     msg::send_commit(msg_handle, msg::source(), 42);
 /// }
@@ -462,7 +462,7 @@ pub fn send_commit(handle: MessageHandle, program: ActorId, value: u128) -> Resu
 ///
 /// unsafe extern "C" fn handle() {
 ///     // ...
-///     let msg_handle = msg::send_init();
+///     let msg_handle = msg::send_init().unwrap();
 ///     msg::send_push(&msg_handle, b"PING");
 ///     msg::send_commit_with_gas(msg_handle, msg::source(), 10_000_000, 42);
 /// }
@@ -498,7 +498,7 @@ pub fn send_commit_with_gas(
 ///
 /// unsafe extern "C" fn handle() {
 ///     // ...
-///     let msg_handle = msg::send_init();
+///     let msg_handle = msg::send_init().unwrap();
 ///     msg::send_push(&msg_handle, b"PING");
 ///     msg::send_commit(msg_handle, msg::source(), 42);
 /// }
@@ -526,7 +526,7 @@ pub fn send_init() -> Result<MessageHandle> {
 ///
 /// unsafe extern "C" fn handle() {
 ///     // ...
-///     let msg_handle = msg::send_init();
+///     let msg_handle = msg::send_init().unwrap();
 ///     msg::send_push(&msg_handle, b"PING");
 ///     msg::send_commit(msg_handle, msg::source(), 42);
 /// }
