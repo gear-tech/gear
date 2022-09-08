@@ -19,7 +19,6 @@
 //! Module for future-management.
 
 use crate::{
-    async_runtime::locks::Lock,
     prelude::{BTreeMap, Box},
     MessageId,
 };
@@ -73,9 +72,7 @@ where
         // TODO: make this call configurable (#1380)
         super::locks()
             .entry(msg_id)
-            .or_insert_with(|| unsafe {
-                Lock::NoMore(crate::config::DEFAULT_WAIT_NO_MORE_DURATION)
-            })
+            .or_insert_with(|| Default::default())
             .wait();
     }
 }

@@ -2,6 +2,7 @@
 use crate::{async_runtime, exec, prelude::BTreeMap, MessageId};
 
 /// Wait locks.
+#[derive(Debug, PartialEq, Eq)]
 pub(crate) enum Lock {
     For(u32),
     NoMore(u32),
@@ -14,6 +15,12 @@ impl Lock {
             Lock::For(d) => exec::wait_for(*d),
             Lock::NoMore(d) => exec::wait_no_more(*d),
         }
+    }
+}
+
+impl Default for Lock {
+    fn default() -> Self {
+        unsafe { Lock::NoMore(crate::config::DEFAULT_WAIT_NO_MORE_DURATION) }
     }
 }
 
@@ -36,3 +43,24 @@ pub trait Wait {
 
 /// Map of wait locks.
 pub(crate) type Locks = BTreeMap<MessageId, Lock>;
+
+#[test]
+fn wait_lock_config_works() {
+    let lock_a = Lock::default();
+    assert_eq!(lock_a, unsafe {
+        Lock::NoMore(crate::config::DEFAULT_WAIT_NO_MORE_DURATION)
+    });
+
+    // update default duration
+    unsafe {
+        crate::config::DEFAULT_WAIT_NO_MORE_DURATION = 42;
+    }
+
+    // test updated deafult lock
+    let lock_b = Lock::default();
+    assert_eq!(lock_b, unsafe {
+        Lock::NoMore(crate::config::DEFAULT_WAIT_NO_MORE_DURATION)
+    });
+
+    assert_ne!(lock_a, lock_b);
+}
