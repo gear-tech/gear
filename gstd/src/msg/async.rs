@@ -73,11 +73,7 @@ impl<D: Decode> Future for CodecMessageFuture<D> {
     }
 }
 
-impl<D: Decode> Wait for CodecMessageFuture<D> {
-    fn waiting_reply_to(&self) -> MessageId {
-        self.waiting_reply_to
-    }
-}
+impl<D: Decode> Wait for CodecMessageFuture<D> {}
 
 impl<D: Decode> FusedFuture for CodecMessageFuture<D> {
     fn is_terminated(&self) -> bool {
@@ -118,11 +114,7 @@ impl Future for MessageFuture {
     }
 }
 
-impl Wait for MessageFuture {
-    fn waiting_reply_to(&self) -> MessageId {
-        self.waiting_reply_to
-    }
-}
+impl Wait for MessageFuture {}
 
 impl FusedFuture for MessageFuture {
     fn is_terminated(&self) -> bool {

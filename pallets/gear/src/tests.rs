@@ -2817,6 +2817,81 @@ fn test_different_waits_fail() {
 }
 
 #[test]
+fn test_sending_waits() {
+    use demo_waiter::{Command, WASM_BINARY};
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        // utils
+        let expiration = |duration: u32| -> BlockNumberFor<Test> {
+            System::block_number().saturating_add(duration.unique_saturated_into())
+        };
+
+        // upload program
+        assert_ok!(Gear::upload_program(
+            Origin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
+            0u64,
+            0u128
+        ));
+
+        let program_id = get_last_program_id();
+        run_to_next_block(None);
+
+        // `Command::SendFor` case.
+        let duration = 5;
+        let payload = Command::SendFor(USER_1.into(), duration).encode();
+
+        assert_ok!(Gear::send_message(
+            Origin::signed(USER_1),
+            program_id,
+            payload,
+            // # Note
+            //
+            // just using `gas_limit` which is enough to process this message
+            // since the end cases around the `gas_limit` have already been
+            // tested in other tests.
+            1_500_000_000,
+            0,
+        ));
+
+        let wait_for_success = get_last_message_id();
+        run_to_next_block(None);
+
+        assert_eq!(
+            get_waitlist_expiration(wait_for_success),
+            expiration(duration)
+        );
+
+        // `Command::SendNoMore` case.
+        let duration = 10;
+        let payload = Command::SendNoMore(USER_1.into(), duration).encode();
+        assert_ok!(Gear::send_message(
+            Origin::signed(USER_1),
+            program_id,
+            payload,
+            // # Note
+            //
+            // just using `gas_limit` which is enough to process this message
+            // since the end cases around the `gas_limit` have already been
+            // tested in other tests.
+            1_500_000_000,
+            0,
+        ));
+
+        let wait_no_more_success = get_last_message_id();
+        run_to_next_block(None);
+
+        assert_eq!(
+            get_waitlist_expiration(wait_no_more_success),
+            expiration(duration)
+        );
+    });
+}
+
+#[test]
 fn test_message_processing_for_non_existing_destination() {
     init_logger();
     new_test_ext().execute_with(|| {

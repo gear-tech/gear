@@ -25,25 +25,25 @@ impl Default for Lock {
 }
 
 /// Wait trait for async sending messages.
-pub trait Wait {
-    /// Message which is waiting for.
-    fn waiting_reply_to(&self) -> MessageId;
-
+pub trait Wait: Sized {
     /// Delays handling for given specific amount of blocks.
-    fn no_more(&self, duration: u32) {
-        async_runtime::locks().insert(self.waiting_reply_to(), Lock::NoMore(duration));
+    fn no_more(self, duration: u32) -> Self {
+        async_runtime::locks().insert(crate::msg::id(), Lock::NoMore(duration));
+        self
     }
 
     /// Delays handling for maximal amount of blocks that could be payed, that
     /// doesn't exceed given duration.
-    fn till(&self, duration: u32) {
-        async_runtime::locks().insert(self.waiting_reply_to(), Lock::For(duration));
+    fn till(self, duration: u32) -> Self {
+        async_runtime::locks().insert(crate::msg::id(), Lock::For(duration));
+        self
     }
 }
 
 /// Map of wait locks.
 pub(crate) type Locks = BTreeMap<MessageId, Lock>;
 
+#[cfg(test)]
 #[test]
 fn wait_lock_config_works() {
     let lock_a = Lock::default();
