@@ -22,9 +22,10 @@ use sc_service::ChainType;
 use sp_consensus_babe::AuthorityId as BabeId;
 use sp_core::{crypto::UncheckedInto, sr25519};
 use sp_finality_grandpa::AuthorityId as GrandpaId;
+use sp_runtime::Perbill;
 use vara_runtime::{
-    BabeConfig, BalancesConfig, GenesisConfig, GrandpaConfig, SessionConfig, SessionKeys,
-    SudoConfig, SystemConfig, WASM_BINARY,
+    constants::currency::UNITS as TOKEN, BabeConfig, BalancesConfig, GenesisConfig, GrandpaConfig,
+    SessionConfig, SessionKeys, StakerStatus, StakingConfig, SudoConfig, SystemConfig, WASM_BINARY,
 };
 
 // The URL for the telemetry server.
@@ -34,8 +35,9 @@ use vara_runtime::{
 pub type ChainSpec = sc_service::GenericChainSpec<GenesisConfig>;
 
 /// Generate authority keys.
-pub fn authority_keys_from_seed(s: &str) -> (AccountId, BabeId, GrandpaId) {
+pub fn authority_keys_from_seed(s: &str) -> (AccountId, AccountId, BabeId, GrandpaId) {
     (
+        get_account_id_from_seed::<sr25519::Public>(&format!("{}//stash", s)),
         get_account_id_from_seed::<sr25519::Public>(s),
         get_from_seed::<BabeId>(s),
         get_from_seed::<GrandpaId>(s),
@@ -62,8 +64,6 @@ pub fn development_config() -> Result<ChainSpec, String> {
                 vec![
                     get_account_id_from_seed::<sr25519::Public>("Alice"),
                     get_account_id_from_seed::<sr25519::Public>("Bob"),
-                    get_account_id_from_seed::<sr25519::Public>("Alice//stash"),
-                    get_account_id_from_seed::<sr25519::Public>("Bob//stash"),
                 ],
                 true,
             )
@@ -110,12 +110,6 @@ pub fn local_testnet_config() -> Result<ChainSpec, String> {
                     get_account_id_from_seed::<sr25519::Public>("Dave"),
                     get_account_id_from_seed::<sr25519::Public>("Eve"),
                     get_account_id_from_seed::<sr25519::Public>("Ferdie"),
-                    get_account_id_from_seed::<sr25519::Public>("Alice//stash"),
-                    get_account_id_from_seed::<sr25519::Public>("Bob//stash"),
-                    get_account_id_from_seed::<sr25519::Public>("Charlie//stash"),
-                    get_account_id_from_seed::<sr25519::Public>("Dave//stash"),
-                    get_account_id_from_seed::<sr25519::Public>("Eve//stash"),
-                    get_account_id_from_seed::<sr25519::Public>("Ferdie//stash"),
                 ],
                 true,
             )
@@ -150,7 +144,11 @@ pub fn main() -> Result<ChainSpec, String> {
                 // Initial PoA authorities
                 vec![
                     (
+                        // Stash account
                         hex!["6efec345ff71786529e5e21ff50fb669a46cb052daa87fd2ce86d9ba4835a533"]
+                            .into(),
+                        // Controller account
+                        hex!["e44eb7c78c1a46e6d7a92fcc964f5362f0fe9514b58460513f8d051ff79fa95f"]
                             .into(),
                         // 5EaEodiLKeJzuW4HACVdFLY5oZnVy9ateRqoM5CM32tfMZhW
                         hex!["6efec345ff71786529e5e21ff50fb669a46cb052daa87fd2ce86d9ba4835a533"]
@@ -160,7 +158,11 @@ pub fn main() -> Result<ChainSpec, String> {
                             .unchecked_into(),
                     ),
                     (
+                        // Stash account
                         hex!["f66b57dee7e59d9288ae6ad9d70d06b7475d01d999a29c35676d7cca3b5fbd6b"]
+                            .into(),
+                        // Controller account
+                        hex!["3051267a473a914daab6519d363978f9102e56c0c3ef1be9bc3ae2ce37573630"]
                             .into(),
                         // 5HdoXNLoGRKGm2Cxpxh7A1vBtbehk8RrKToaQBgK4UhBdVod
                         hex!["f66b57dee7e59d9288ae6ad9d70d06b7475d01d999a29c35676d7cca3b5fbd6b"]
@@ -170,7 +172,11 @@ pub fn main() -> Result<ChainSpec, String> {
                             .unchecked_into(),
                     ),
                     (
+                        // Stash account
                         hex!["8ae47a881c08af1eef02292feb9cbdb9cda0e3ee127a07e1bd10f8794a45884c"]
+                            .into(),
+                        // Controller account
+                        hex!["32ffe6532fa969364f5b900ddbd5152869a512e1616b7dab8dbfb190e4a06140"]
                             .into(),
                         // 5FCpLXt4MgbSm1hbkFpWPVwZxXN7Bz7fYexjUGPBP9XojvJo
                         hex!["8ae47a881c08af1eef02292feb9cbdb9cda0e3ee127a07e1bd10f8794a45884c"]
@@ -180,7 +186,11 @@ pub fn main() -> Result<ChainSpec, String> {
                             .unchecked_into(),
                     ),
                     (
+                        // Stash account
                         hex!["96edf0641f4f4f387b15870d9610cdfc8db38c701e63b8e863e43e7ff366262b"]
+                            .into(),
+                        // Controller account
+                        hex!["ce47cc63787a62acdf9e1d22e295fd4fccd828578ca628c9f9a67f089bf0d07e"]
                             .into(),
                         // 5FUbirpEwZtLVbz863h53XbknL7mC1kbZapGmp9PfLws7DL8
                         hex!["96edf0641f4f4f387b15870d9610cdfc8db38c701e63b8e863e43e7ff366262b"]
@@ -190,7 +200,11 @@ pub fn main() -> Result<ChainSpec, String> {
                             .unchecked_into(),
                     ),
                     (
+                        // Stash account
                         hex!["ee5941d0f4a1f50d70f27a90a655ede3f1dad5ba33a2f8fe9ea5bfe9f0d7c91e"]
+                            .into(),
+                        // Controller account
+                        hex!["74e6f377a9181e5d458871ef42d9cc70fccf71ae92be4c2773f0e6bfdf57303b"]
                             .into(),
                         // 5HTDmXsmytGu5itJN8WvSXqGpMeD3STFTw7A2G9tbK5foEeM
                         hex!["ee5941d0f4a1f50d70f27a90a655ede3f1dad5ba33a2f8fe9ea5bfe9f0d7c91e"]
@@ -200,7 +214,11 @@ pub fn main() -> Result<ChainSpec, String> {
                             .unchecked_into(),
                     ),
                     (
+                        // Stash account
                         hex!["32b89c4a881f873f33bd18bbcc5b9e571c43e8caa9bd6169ded16e688f0c9d65"]
+                            .into(),
+                        // Controller account
+                        hex!["3cd2bac9ade1bc68c9e75d67c9aa9d021cb4c46ef16ba7a6ee8c1d351faa750f"]
                             .into(),
                         // 5DDD6JKfrns5WmSSsGZkSmDuc7MePzNHYVuthi8hUnfcCPjv
                         hex!["32b89c4a881f873f33bd18bbcc5b9e571c43e8caa9bd6169ded16e688f0c9d65"]
@@ -240,22 +258,24 @@ pub fn main() -> Result<ChainSpec, String> {
 /// Configure initial storage state for FRAME modules.
 fn testnet_genesis(
     wasm_binary: &[u8],
-    initial_authorities: Vec<(AccountId, BabeId, GrandpaId)>,
+    initial_authorities: Vec<(AccountId, AccountId, BabeId, GrandpaId)>,
     root_key: AccountId,
     endowed_accounts: Vec<AccountId>,
     _enable_println: bool,
 ) -> GenesisConfig {
+    const ENDOWMENT: u128 = 1_000_000 * TOKEN;
+    const STASH: u128 = 100 * TOKEN;
+
     GenesisConfig {
         system: SystemConfig {
             // Add Wasm runtime to storage.
             code: wasm_binary.to_vec(),
         },
         balances: BalancesConfig {
-            // Configure endowed accounts with initial balance of 1 << 60.
             balances: endowed_accounts
                 .iter()
-                .cloned()
-                .map(|k| (k, 1 << 60))
+                .map(|k: &AccountId| (k.clone(), ENDOWMENT))
+                .chain(initial_authorities.iter().map(|x| (x.0.clone(), STASH)))
                 .collect(),
         },
         babe: BabeConfig {
@@ -273,12 +293,23 @@ fn testnet_genesis(
                         x.0.clone(),
                         x.0.clone(),
                         SessionKeys {
-                            babe: x.1.clone(),
-                            grandpa: x.2.clone(),
+                            babe: x.2.clone(),
+                            grandpa: x.3.clone(),
                         },
                     )
                 })
                 .collect::<Vec<_>>(),
+        },
+        staking: StakingConfig {
+            validator_count: initial_authorities.len() as u32,
+            minimum_validator_count: initial_authorities.len() as u32,
+            stakers: initial_authorities
+                .iter()
+                .map(|x| (x.0.clone(), x.1.clone(), STASH, StakerStatus::Validator))
+                .collect(),
+            invulnerables: initial_authorities.iter().map(|x| x.0.clone()).collect(),
+            slash_reward_fraction: Perbill::from_percent(10),
+            ..Default::default()
         },
         sudo: SudoConfig {
             // Assign network admin rights.
