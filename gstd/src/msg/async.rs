@@ -19,7 +19,7 @@
 //! This `gstd` module provides async messaging functions.
 
 use crate::{
-    async_runtime::{signals, ReplyPoll},
+    async_runtime::{signals, ReplyPoll, Wait},
     errors::{ContractError, Result},
     prelude::{convert::AsRef, Vec},
     ActorId, MessageId,
@@ -73,6 +73,12 @@ impl<D: Decode> Future for CodecMessageFuture<D> {
     }
 }
 
+impl<D: Decode> Wait for CodecMessageFuture<D> {
+    fn waiting_reply_to(&self) -> MessageId {
+        self.waiting_reply_to
+    }
+}
+
 impl<D: Decode> FusedFuture for CodecMessageFuture<D> {
     fn is_terminated(&self) -> bool {
         !signals().waits_for(self.waiting_reply_to)
@@ -109,6 +115,12 @@ impl Future for MessageFuture {
                 Poll::Ready(Ok(actual_reply))
             },
         }
+    }
+}
+
+impl Wait for MessageFuture {
+    fn waiting_reply_to(&self) -> MessageId {
+        self.waiting_reply_to
     }
 }
 

@@ -28,6 +28,7 @@ pub use self::futures::message_loop;
 use self::futures::FuturesMap;
 use crate::prelude::BTreeMap;
 use locks::Locks;
+pub use locks::Wait;
 pub(crate) use signals::ReplyPoll;
 use signals::WakeSignals;
 
