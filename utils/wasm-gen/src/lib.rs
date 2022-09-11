@@ -131,12 +131,6 @@ pub fn gen_wasm_smith_module(u: &mut Unstructured, config: &SwarmConfig) -> Modu
     }
 }
 
-pub enum GenConfigMod {
-    Default,
-    Rare,
-    Special(GearConfig),
-}
-
 fn gen_mem_export(mut module: PModule, u: &mut Unstructured, config: &GearConfig) -> PModule {
     let mut mem_section_idx = None;
     for i in 0..module.sections().len() {

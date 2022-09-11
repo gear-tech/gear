@@ -5,10 +5,6 @@ use core::convert::TryFrom;
 use futures::{future, FutureExt};
 use gstd::{msg, prelude::*, ActorId};
 use scale_info::TypeInfo;
-use sp_core::{
-    sr25519::{Pair as Sr25519Pair, Public, Signature},
-    Pair,
-};
 
 static mut SIGNATORIES: Vec<ActorId> = vec![];
 static mut DESTINATION: ActorId = ActorId::new([0u8; 32]);
@@ -83,13 +79,15 @@ async fn main() {
                     .ok()
                     .and_then(|response| {
                         // the same way as in verify.rs from subkey
-                        Signature::try_from(response.signature.as_slice()).ok()
+                        <[u8; 64]>::try_from(response.signature.as_slice()).ok()
                     })
             })
             .map(|signature| {
-                let pub_key = Public(<[u8; 32]>::from(unsafe { SIGNATORIES[i] }));
+                let pub_key = <[u8; 32]>::from(unsafe { SIGNATORIES[i] });
 
-                Sr25519Pair::verify(&signature, &message, &pub_key).into()
+                light_sr25519::verify(&signature, &message, pub_key)
+                    .is_ok()
+                    .into()
             })
             .unwrap_or(0);
 
