@@ -224,7 +224,7 @@ impl frame_system::Config for Runtime {
     /// The data to be stored in an account.
     type AccountData = pallet_balances::AccountData<Balance>;
     /// Weight information for the extrinsics of this pallet.
-    type SystemWeightInfo = weights::frame_system::WeightInfo<Self>;
+    type SystemWeightInfo = weights::frame_system::SubstrateWeight<Self>;
     /// This is used as an identifier of the chain. 42 is the generic substrate prefix.
     type SS58Prefix = SS58Prefix;
     /// The set code logic, just the default since we're not a parachain.
@@ -240,7 +240,7 @@ impl pallet_timestamp::Config for Runtime {
     type Moment = Moment;
     type OnTimestampSet = ();
     type MinimumPeriod = MinimumPeriod;
-    type WeightInfo = weights::pallet_timestamp::WeightInfo<Self>;
+    type WeightInfo = weights::pallet_timestamp::SubstrateWeight<Self>;
 }
 
 parameter_types! {
@@ -268,7 +268,7 @@ impl pallet_balances::Config for Runtime {
     type DustRemoval = ();
     type ExistentialDeposit = ConstU128<EXISTENTIAL_DEPOSIT>;
     type AccountStore = System;
-    type WeightInfo = weights::pallet_balances::WeightInfo<Self>;
+    type WeightInfo = weights::pallet_balances::SubstrateWeight<Self>;
 }
 
 parameter_types! {
@@ -313,7 +313,7 @@ impl cumulus_pallet_xcmp_queue::Config for Runtime {
     type ExecuteOverweightOrigin = EnsureRoot<AccountId>;
     type ControllerOrigin = EnsureRoot<AccountId>;
     type ControllerOriginConverter = XcmOriginToTransactDispatchOrigin;
-    type WeightInfo = weights::cumulus_pallet_xcmp_queue::WeightInfo<Self>;
+    type WeightInfo = weights::cumulus_pallet_xcmp_queue::SubstrateWeight<Self>;
 }
 
 impl cumulus_pallet_dmp_queue::Config for Runtime {
@@ -339,7 +339,7 @@ impl pallet_session::Config for Runtime {
     // Essentially just Aura, but lets be pedantic.
     type SessionHandler = <SessionKeys as sp_runtime::traits::OpaqueKeys>::KeyTypeIdProviders;
     type Keys = SessionKeys;
-    type WeightInfo = weights::pallet_session::WeightInfo<Self>;
+    type WeightInfo = weights::pallet_session::SubstrateWeight<Self>;
 }
 
 impl pallet_aura::Config for Runtime {
@@ -373,7 +373,7 @@ impl pallet_collator_selection::Config for Runtime {
     type ValidatorId = <Self as frame_system::Config>::AccountId;
     type ValidatorIdOf = pallet_collator_selection::IdentityCollator;
     type ValidatorRegistration = Session;
-    type WeightInfo = weights::pallet_collator_selection::WeightInfo<Self>;
+    type WeightInfo = weights::pallet_collator_selection::SubstrateWeight<Self>;
 }
 
 impl pallet_sudo::Config for Runtime {
@@ -384,7 +384,7 @@ impl pallet_sudo::Config for Runtime {
 impl pallet_utility::Config for Runtime {
     type Event = Event;
     type Call = Call;
-    type WeightInfo = weights::pallet_utility::WeightInfo<Self>;
+    type WeightInfo = weights::pallet_utility::SubstrateWeight<Self>;
     type PalletsOrigin = OriginCaller;
 }
 
@@ -413,7 +413,7 @@ impl pallet_gear::Config for Runtime {
     type Event = Event;
     type Currency = Balances;
     type GasPrice = GasConverter;
-    type WeightInfo = pallet_gear::weights::GearWeight<Runtime>;
+    type WeightInfo = weights::pallet_gear::SubstrateWeight<Self>;
     type Schedule = Schedule;
     type OutgoingLimit = OutgoingLimit;
     type DebugInfo = DebugInfo;
