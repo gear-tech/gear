@@ -67,13 +67,12 @@ async fn main() -> Result<()> {
         } else {
             (seed_gen.next_u64(), 0)
         };
-        println!("Run with seed = {}", seed);
+        let salt = format!("{:02}", salt);
+        println!("Run with seed = {}, salt = {}", seed, salt);
 
         let code = gen_code_for_seed(seed);
         println!("Gen code size = {}", code.len());
 
-        let salt = format!("{:02}", salt);
-        println!("salt = {}", salt);
         let params = UploadProgram {
             code: code.clone(),
             salt: hex::decode(salt.as_str()).unwrap(),
@@ -82,7 +81,12 @@ async fn main() -> Result<()> {
             value: 0,
         };
 
-        let _res = signer.submit_program(params).await.unwrap();
-        println!("Successfully receive response");
+        let _res = signer.submit_program(params).await.map_err(|err| {
+            println!("ERROR: {}", err);
+            err
+        }).map(|res| {
+            println!("Successfully receive response");
+            res
+        });
     }
 }
