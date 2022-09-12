@@ -18,7 +18,11 @@
  * along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
 
-use crate::{sys::ExceptionInfo, Error};
+use crate::{
+    sys::{ExceptionInfo, UserSignalHandler},
+    Error,
+};
+use cfg_if::cfg_if;
 use nix::{
     libc::{c_void, siginfo_t},
     sys::{signal, signal::SigHandler},
@@ -29,30 +33,63 @@ thread_local! {
     static OLD_SIG_HANDLER: RefCell<SigHandler> = RefCell::new(SigHandler::SigDfl);
 }
 
-extern "C" fn handle_sigsegv(sig: i32, info: *mut siginfo_t, ucontext: *mut c_void) {
-    unsafe {
-        #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
-        let is_write = {
-            let ucontext = ucontext as *const nix::libc::ucontext_t;
+cfg_if! {
+    if #[cfg(all(target_os = "linux", target_arch = "x86_64"))] {
+        unsafe fn ucontext_get_write(ucontext: *mut nix::libc::ucontext_t) -> Option<bool> {
             let error_reg = nix::libc::REG_ERR as usize;
             let error_code = (*ucontext).uc_mcontext.gregs[error_reg];
             // Use second bit from err reg. See https://git.io/JEQn3
             Some(error_code & 0b10 == 0b10)
-        };
+        }
+    } else if #[cfg(all(target_os = "macos", target_arch = "x86_64"))] {
+        unsafe fn ucontext_get_write(ucontext: *mut nix::libc::ucontext_t) -> Option<bool> {
+            // See https://wiki.osdev.org/Exceptions
+            const WRITE_BIT_MASK: u32 = 0b10;
+            const TRAPNO: u16 = 0xe; // Page Fault
 
-        #[cfg(not(all(target_os = "linux", target_arch = "x86_64")))]
-        let is_write = {
-            let _unused_warning_resolver = ucontext;
-            None
-        };
+            let mcontext = (*ucontext).uc_mcontext;
+            let exception_state = (*mcontext).__es;
+            let trapno = exception_state.__trapno;
+            let err = exception_state.__err;
 
+            assert_eq!(trapno, TRAPNO);
+
+            Some(err & WRITE_BIT_MASK == WRITE_BIT_MASK)
+        }
+    } else if #[cfg(all(target_os = "macos", target_arch = "aarch64"))] {
+        unsafe fn ucontext_get_write(ucontext: *mut nix::libc::ucontext_t) -> Option<bool> {
+            // See https://developer.arm.com/documentation/ddi0595/2021-03/AArch64-Registers/ESR-EL1--Exception-Syndrome-Register--EL1-
+            const WNR_BIT_MASK: u32 = 0b0100_0000; // Write not Read bit
+            const EXCEPTION_CLASS_SHIFT: u32 = u32::BITS - 6;
+            const EXCEPTION_CLASS: u32 = 0b10_0100; // Data Abort from a lower Exception Level
+
+            let mcontext = (*ucontext).uc_mcontext;
+            let exception_state = (*mcontext).__es;
+            let esr = exception_state.__esr;
+
+            let exception_class = esr >> EXCEPTION_CLASS_SHIFT;
+            assert_eq!(exception_class, EXCEPTION_CLASS);
+
+            Some(esr & WNR_BIT_MASK == WNR_BIT_MASK)
+        }
+    } else {
+        compile_error!("lazy pages are not supported on your system. Disable `lazy-pages` feature");
+    }
+}
+
+extern "C" fn handle_sigsegv<H>(sig: i32, info: *mut siginfo_t, ucontext: *mut c_void)
+where
+    H: UserSignalHandler,
+{
+    unsafe {
         let addr = (*info).si_addr();
+        let is_write = ucontext_get_write(ucontext as *mut _);
         let exc_info = ExceptionInfo {
             fault_addr: addr as *mut _,
             is_write,
         };
 
-        if let Err(err) = super::user_signal_handler(exc_info) {
+        if let Err(err) = H::handle(exc_info) {
             let old_sig_handler_works = if let Error::SignalFromUnknownMemory { .. } = err {
                 old_sig_handler(sig, info, ucontext)
             } else {
@@ -65,8 +102,11 @@ extern "C" fn handle_sigsegv(sig: i32, info: *mut siginfo_t, ucontext: *mut c_vo
     }
 }
 
-pub unsafe fn setup_signal_handler() -> io::Result<()> {
-    let handler = signal::SigHandler::SigAction(handle_sigsegv);
+pub unsafe fn setup_signal_handler<H>() -> io::Result<()>
+where
+    H: UserSignalHandler,
+{
+    let handler = signal::SigHandler::SigAction(handle_sigsegv::<H>);
     let sig_action = signal::SigAction::new(
         handler,
         signal::SaFlags::SA_SIGINFO,

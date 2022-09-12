@@ -36,7 +36,7 @@ impl<T> RingGet<T> for Vec<T> {
 
 /// Consumes node with `consuming` id and returns a map of removed nodes
 pub(super) fn consume_node(
-    consuming: H256,
+    consuming: Key,
 ) -> Result<(MaybeCaughtValue, RemainingNodes, RemovedNodes), super::Error> {
     let nodes_before_consume = gas_tree_node_clone();
     Gas::consume(consuming).map(|maybe_output| {

@@ -228,18 +228,6 @@ jobs:
         env:
           RUSTFLAGS: -Cinstrument-coverage
 
-      - name: "Test (performance): pallets"
-        if: ${{ github.ref != 'refs/heads/master' }}
-        id: test-performance-pallets
-        run: |
-          cp /root/cache/pallet-tests.json /tmp/
-          ./target/release/regression-analysis compare --data-path /tmp/pallet-tests.json --current-junit-path ./target/nextest/ci/junit.xml > ./target/pallet-tests-diff.md
-          body="$(cat ./target/pallet-tests-diff.md)"
-          body="${body//'%'/'%25'}"
-          body="${body//$'\n'/'%0A'}"
-          body="${body//$'\r'/'%0D'}"
-          echo "::set-output name=body::$body"
-
       - name: "Test: JS metadata"
         run: ./scripts/gear.sh test js
         env:
@@ -279,53 +267,8 @@ jobs:
       #   run: |
       #     cargo build -p gear-node --release --features runtime-benchmarks
       #     ./target/release/gear-node benchmark pallet --chain=dev --steps=1 --repeat=1 --pallet=pallet_gear --extrinsic="*" --execution=wasm --wasm-execution=compiled --heap-pages=4096
-
-      - name: Find comment (performance)
-        uses: peter-evans/find-comment@v2
-        if: ${{ github.ref != 'refs/heads/master' }}
-        id: find_comment_id
-        with:
-          issue-number: ${{ github.event.pull_request.number }}
-          comment-author: "github-actions[bot]"
-          direction: last
-
-      - name: "Create comment (performance)"
-        uses: peter-evans/create-or-update-comment@v2
-        if: github.ref != 'refs/heads/master' && steps.find_comment_id.outputs.comment-id == ''
-        continue-on-error: true
-        with:
-          issue-number: ${{ github.event.pull_request.number }}
-          body: |
-            <details><summary>${{ github.event.pull_request.head.sha }}</summary>
-            <details><summary>Pallet tests (values are in nanoseconds)</summary>
-
-            ${{ steps.test-performance-pallets.outputs.body }}
-            </details>
-
-            <details><summary>Runtime tests (values are in nanoseconds)</summary>
-
-            ${{ steps.test-performance-runtime.outputs.body }}
-            </details>
-            </details>
-
-      - name: "Update comment (performance)"
-        uses: peter-evans/create-or-update-comment@v2
-        if: steps.find_comment_id.outputs.comment-id != ''
-        continue-on-error: true
-        with:
-          comment-id: ${{ steps.find_comment_id.outputs.comment-id }}
-          body: |
-            <details><summary>${{ github.event.pull_request.head.sha }}</summary>
-            <details><summary>Pallet tests (values are in nanoseconds)</summary>
-
-            ${{ steps.test-performance-pallets.outputs.body }}
-            </details>
-
-            <details><summary>Runtime tests (values are in nanoseconds)</summary>
-
-            ${{ steps.test-performance-runtime.outputs.body }}
-            </details>
-            </details>
+      - name: "Test: Upload programs"
+        run: ./scripts/gear.sh test uploads "$(pwd)/target/wat-examples/wrong_load.wasm"
 
       - name: "Coverage: Aggregate"
         run: >-
@@ -443,6 +386,60 @@ jobs:
           $outputDir = if ($Env:CARGO_HOME) { Join-Path $Env:CARGO_HOME "bin" } else { "~/.cargo/bin" }
           $tmp | Expand-Archive -DestinationPath $outputDir -Force
           $tmp | Remove-Item
+
+      - name: "Build: Node"
+        uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args: -p gear-node --features=lazy-pages
+
+      - name: "Test: Lazy pages"
+        uses: actions-rs/cargo@v1
+        with:
+          command: nextest
+          args: >-
+            run
+            -p pallet-gear
+            -p pallet-gear-debug
+            -p pallet-gear-payment
+            -p gear-lazy-pages
+            -p gear-runtime-interface
+            --features=lazy-pages
+
+  build-macos-x86:
+    if: github.ref == 'refs/heads/master'
+    runs-on: macos-latest
+    steps:
+      - name: Cancel Previous Runs
+        if: ${{ github.event_name == 'pull_request' }}
+        uses: styfle/cancel-workflow-action@0.9.1
+        with:
+          access_token: ${{ github.token }}
+
+      - name: "ACTIONS: Checkout"
+        uses: actions/checkout@v2
+
+      - name: "ACTIONS: Setup caching"
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
+      - name: "Install: Nightly toolchain"
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: nightly
+          target: wasm32-unknown-unknown
+
+      - name: "Install: cargo-nextest"
+        run: curl -LsSf https://get.nexte.st/latest/mac | tar zxf - -C ${CARGO_HOME:-~/.cargo}/bin
 
       - name: "Build: Node"
         uses: actions-rs/cargo@v1

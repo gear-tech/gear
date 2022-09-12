@@ -30,6 +30,7 @@ use sp_std::vec::Vec;
 use std::{cell::RefCell, collections::BTreeSet, convert::TryFrom};
 
 mod sys;
+pub use crate::sys::{DefaultUserSignalHandler, ExceptionInfo, UserSignalHandler};
 
 #[derive(Debug, derive_more::Display, derive_more::From)]
 pub enum Error {
@@ -253,7 +254,7 @@ pub enum InitError {
 ///
 /// # Safety
 /// See [`sys::setup_signal_handler`]
-unsafe fn init_internal(version: LazyPagesVersion) -> Result<(), InitError> {
+unsafe fn init_internal<H: UserSignalHandler>(version: LazyPagesVersion) -> Result<(), InitError> {
     use InitError::*;
 
     // Set version even if it has been already set, because `on_idle` calls can be
@@ -278,7 +279,7 @@ unsafe fn init_internal(version: LazyPagesVersion) -> Result<(), InitError> {
         return Err(NativePageSizeIsNotSuitable(ps));
     }
 
-    if let Err(err) = sys::setup_signal_handler() {
+    if let Err(err) = sys::setup_signal_handler::<H>() {
         return Err(CanNotSetUpSignalHandler(err.to_string()));
     }
 
@@ -288,12 +289,77 @@ unsafe fn init_internal(version: LazyPagesVersion) -> Result<(), InitError> {
 }
 
 /// Initialize lazy pages for current thread.
-pub fn init(version: LazyPagesVersion) -> bool {
-    if let Err(err) = unsafe { init_internal(version) } {
+pub fn init<H: UserSignalHandler>(version: LazyPagesVersion) -> bool {
+    if let Err(err) = unsafe { init_internal::<H>(version) } {
         log::debug!("Cannot initialize lazy pages: {}", err);
         false
     } else {
         log::debug!("Successfully enables lazy pages for current thread");
         true
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::*;
+    use region::Protection;
+    use std::ptr;
+
+    // FIXME: issue #1444
+    #[cfg_attr(all(target_os = "linux", target_arch = "x86_64"), ignore)]
+    #[test]
+    fn read_write_flag_works() {
+        unsafe fn protect(access: bool) {
+            let protection = if access {
+                Protection::READ_WRITE
+            } else {
+                Protection::NONE
+            };
+            let page_size = region::page::size();
+            let addr = MEM_ADDR;
+            region::protect(addr, page_size, protection).unwrap();
+        }
+
+        unsafe fn invalid_write() {
+            ptr::write(MEM_ADDR as *mut _, 123);
+            protect(false);
+        }
+
+        unsafe fn invalid_read() {
+            let _: u8 = ptr::read(MEM_ADDR);
+            protect(false);
+        }
+
+        static mut COUNTER: u32 = 0;
+        static mut MEM_ADDR: *const u8 = ptr::null_mut();
+
+        struct TestHandler;
+
+        impl UserSignalHandler for TestHandler {
+            unsafe fn handle(info: ExceptionInfo) -> Result<(), Error> {
+                let write_expected = COUNTER % 2 == 0;
+                assert_eq!(info.is_write, Some(write_expected));
+
+                protect(true);
+
+                COUNTER += 1;
+
+                Ok(())
+            }
+        }
+
+        assert!(init::<TestHandler>(LazyPagesVersion::Version1));
+
+        let page_size = region::page::size();
+        let addr = region::alloc(page_size, Protection::NONE).unwrap();
+
+        unsafe {
+            MEM_ADDR = addr.as_ptr();
+
+            invalid_write();
+            invalid_read();
+            invalid_write();
+            invalid_read();
+        }
     }
 }

@@ -17,11 +17,14 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use clap::{Parser, Subcommand};
-use common::TestSuites;
+use frame_support::{dispatch::GetCallName, weights::Weight};
+use junit_common::TestSuites;
+use pallet_gear::{HostFnWeights, InstructionWeights};
 use quick_xml::de::from_str;
+use serde::{Deserialize, Serialize};
 use std::{
-    collections::BTreeMap,
-    fs,
+    collections::{BTreeMap, HashMap},
+    fs, iter,
     path::{Path, PathBuf},
     str::FromStr,
 };
@@ -29,6 +32,7 @@ use tabled::{Style, Table};
 
 mod junit_tree;
 mod output;
+mod stats;
 
 const PALLET_NAMES: [&str; 7] = [
     "pallet-gear-gas",
@@ -68,6 +72,50 @@ enum Commands {
         #[clap(long, value_parser)]
         disable_filter: bool,
     },
+    Convert {
+        #[clap(long, value_parser)]
+        data_folder_path: PathBuf,
+        #[clap(long, value_parser)]
+        output_file: PathBuf,
+        #[clap(long, value_parser)]
+        disable_filter: bool,
+    },
+    Weights {
+        #[clap(subcommand)]
+        kind: WeightsKind,
+        #[clap(long, value_parser)]
+        input_file: PathBuf,
+        #[clap(long, value_parser)]
+        output_file: PathBuf,
+    },
+}
+
+#[derive(Subcommand)]
+enum WeightsKind {
+    HostFn,
+    Instruction,
+    Extrinsic,
+}
+
+#[derive(Debug, Serialize)]
+struct GithubActionBenchmark {
+    name: String,
+    unit: String,
+    value: u64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    range: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    extra: Option<String>,
+}
+
+#[derive(Deserialize)]
+#[serde(transparent)]
+struct WeightBenchmark(Vec<Weight>);
+
+impl WeightBenchmark {
+    fn calc_weight(&self) -> Weight {
+        self.0.iter().sum()
+    }
 }
 
 fn build_tree<P: AsRef<Path>>(
@@ -82,7 +130,7 @@ fn build_tree<P: AsRef<Path>>(
         PALLET_NAMES.iter().any(|&name| name == pallet_name)
     };
 
-    let junit_xml = std::fs::read_to_string(path).unwrap();
+    let junit_xml = fs::read_to_string(path).unwrap();
     let test_suites: TestSuites = from_str(&junit_xml).unwrap();
     let total_time = [(
         String::from("Total time"),
@@ -94,24 +142,10 @@ fn build_tree<P: AsRef<Path>>(
     result
 }
 
-fn median(values: &[u64]) -> u64 {
-    assert!(!values.is_empty());
-
-    let len = values.len();
-    if len % 2 == 0 {
-        let i = len / 2;
-        values[i - 1] / 2 + values[i] / 2 + values[i - 1] % 2 + values[i] % 2
-    } else {
-        values[len / 2]
-    }
-}
-
-fn collect_data<P: AsRef<Path>>(
-    data_folder_path: P,
-    output_path: P,
+fn collect_data(
+    data_folder_path: PathBuf,
     disable_filter: bool,
-    preallocate: usize,
-) {
+) -> BTreeMap<String, BTreeMap<String, Vec<u64>>> {
     let mut statistics: BTreeMap<_, BTreeMap<_, Vec<_>>> = BTreeMap::default();
     for entry in fs::read_dir(data_folder_path).unwrap() {
         let executions = build_tree(disable_filter, &entry.unwrap().path());
@@ -132,7 +166,7 @@ fn collect_data<P: AsRef<Path>>(
 
                     time_vec.insert(i, time);
                 } else {
-                    let mut time_vec = Vec::with_capacity(preallocate);
+                    let mut time_vec = Vec::with_capacity(PREALLOCATE);
                     time_vec.push(time);
 
                     previous_times.insert(key.clone(), time_vec);
@@ -141,11 +175,10 @@ fn collect_data<P: AsRef<Path>>(
         }
     }
 
-    let writer = std::fs::File::create(output_path).unwrap();
-    serde_json::to_writer_pretty(writer, &statistics).unwrap();
+    statistics
 }
 
-fn compare<P: AsRef<Path>>(data_path: P, current_junit_path: P, disable_filter: bool) {
+fn compare(data_path: PathBuf, current_junit_path: PathBuf, disable_filter: bool) {
     let mut statistics: BTreeMap<String, BTreeMap<String, Vec<u64>>> =
         serde_json::from_str(&fs::read_to_string(data_path).unwrap()).unwrap();
     let executions = build_tree(disable_filter, current_junit_path);
@@ -156,27 +189,9 @@ fn compare<P: AsRef<Path>>(data_path: P, current_junit_path: P, disable_filter: 
                 let test_stats = tests
                     .iter()
                     .filter_map(|(key, &time)| {
-                        test_times.get_mut(key).map(|times| {
-                            // this is necessary as the order may be wrong after deserialization
-                            times.sort_unstable();
-                            let len = times.len();
-                            let len_remainder = len % 2;
-                            let quartile_lower = median(&times[..len / 2]);
-                            let quartile_upper = median(&times[len / 2 + len_remainder..]);
-                            let median = median(times.as_ref());
-                            let average = times.iter().sum::<u64>() / (len as u64);
-
-                            output::Test {
-                                name: key.clone(),
-                                current_time: (1_000_000_000.0 * time) as u64,
-                                median,
-                                average,
-                                quartile_lower,
-                                quartile_upper,
-                                min: *times.first().unwrap(),
-                                max: *times.last().unwrap(),
-                            }
-                        })
+                        test_times
+                            .get_mut(key)
+                            .map(|times| output::Test::new_for_stats(key.clone(), time, times))
                     })
                     .collect::<Vec<_>>();
 
@@ -200,23 +215,238 @@ fn compare<P: AsRef<Path>>(data_path: P, current_junit_path: P, disable_filter: 
     }
 }
 
+fn convert(data_folder_path: PathBuf, output_file: PathBuf, disable_filter: bool) {
+    let statistics = collect_data(data_folder_path, disable_filter);
+    let benchmarks = statistics
+        .into_iter()
+        .flat_map(|(section_name, test_times)| iter::repeat(section_name).zip(test_times))
+        .map(|(section_name, (test_name, mut times))| {
+            let test_name = if section_name == TEST_SUITES_TEXT {
+                test_name
+            } else {
+                format!("{} - {}", section_name, test_name)
+            };
+
+            output::Test::new_for_github(test_name, &mut times)
+        })
+        .map(|test| GithubActionBenchmark {
+            name: test.name,
+            unit: "ms".to_string(),
+            value: test.current_time / 1_000_000,
+            range: Some(format!("± {}", test.std_dev / 1_000_000)),
+            extra: None,
+        })
+        .collect::<Vec<_>>();
+
+    let output = serde_json::to_string_pretty(&benchmarks).unwrap();
+    fs::write(output_file, output).unwrap();
+}
+
+fn weights(kind: WeightsKind, input_file: PathBuf, output_file: PathBuf) {
+    fn convert_into_bench(
+        map: &HashMap<String, WeightBenchmark>,
+        field: &str,
+    ) -> Option<GithubActionBenchmark> {
+        map.get(field).map(|weight| GithubActionBenchmark {
+            name: field.to_string(),
+            unit: "ns".to_string(),
+            value: weight.calc_weight() / 1000,
+            range: None,
+            extra: None,
+        })
+    }
+
+    macro_rules! add_weights {
+        (
+            weights = $weights:ident;
+            benches = $benches:ident;
+            $name:ident {
+                $( $field:ident $( : $underscore:tt )?, )+
+            }
+        ) => {{
+            // check field is exist
+            let $name::<gear_runtime::Runtime> {
+                $( $field: _, )+
+            } = Default::default();
+
+            $(
+                let field = add_weights!(@field $weights $field $( : $underscore )?);
+                $benches.extend(field);
+            )+
+        }};
+        (@field $weights:ident $field:ident: _) => { None };
+        (@field $weights:ident _phantom) => { None };
+        (@field $weights:ident $field:ident) => {
+            convert_into_bench(&$weights, stringify!($field))
+        };
+    }
+
+    let file = fs::File::open(input_file).unwrap();
+    let map: HashMap<String, WeightBenchmark> = serde_json::from_reader(file).unwrap();
+    let map: HashMap<String, WeightBenchmark> = map
+        .into_iter()
+        .map(|(name, bench)| {
+            (
+                // we strip prefix because WASM instruction benchmarks have it
+                name.strip_prefix("instr_")
+                    .map(|x| x.to_string())
+                    .unwrap_or(name),
+                bench,
+            )
+        })
+        .collect();
+
+    let mut benches = vec![];
+
+    match kind {
+        WeightsKind::HostFn => {
+            add_weights! {
+                weights = map;
+                benches = benches;
+                HostFnWeights {
+                    _phantom,
+                    alloc,
+                    gr_gas_available,
+                    gr_msg_id,
+                    gr_origin,
+                    gr_program_id,
+                    gr_source,
+                    gr_value,
+                    gr_value_available,
+                    gr_size,
+                    gr_read,
+                    gr_read_per_byte,
+                    gr_block_height,
+                    gr_block_timestamp,
+                    gr_send_init,
+                    gr_send_push,
+                    gr_send_push_per_byte,
+                    gr_send_commit,
+                    gr_send_commit_per_byte,
+                    gr_reply_commit,
+                    gr_reply_commit_per_byte,
+                    gr_reply_push,
+                    gr_reply_push_per_byte,
+                    gr_reply_to,
+                    gr_debug,
+                    gr_exit_code,
+                    gr_exit,
+                    gr_leave,
+                    gr_wait,
+                    gr_wait_for,
+                    gr_wait_no_more,
+                    gr_wake,
+                    gr_create_program_wgas,
+                    gr_create_program_wgas_per_byte,
+                    gas,
+                }
+            }
+        }
+        WeightsKind::Instruction => {
+            add_weights! {
+                weights = map;
+                benches = benches;
+                InstructionWeights {
+                    version: _,
+                    i64const,
+                    i64load,
+                    i64store,
+                    select,
+                    r#if,
+                    br,
+                    br_if,
+                    br_table,
+                    br_table_per_entry,
+                    call,
+                    call_indirect,
+                    call_indirect_per_param,
+                    local_get,
+                    local_set,
+                    local_tee,
+                    global_get,
+                    global_set,
+                    memory_current,
+                    i64clz,
+                    i64ctz,
+                    i64popcnt,
+                    i64eqz,
+                    i64extendsi32,
+                    i64extendui32,
+                    i32wrapi64,
+                    i64eq,
+                    i64ne,
+                    i64lts,
+                    i64ltu,
+                    i64gts,
+                    i64gtu,
+                    i64les,
+                    i64leu,
+                    i64ges,
+                    i64geu,
+                    i64add,
+                    i64sub,
+                    i64mul,
+                    i64divs,
+                    i64divu,
+                    i64rems,
+                    i64remu,
+                    i64and,
+                    i64or,
+                    i64xor,
+                    i64shl,
+                    i64shrs,
+                    i64shru,
+                    i64rotl,
+                    i64rotr,
+                    _phantom,
+                }
+            }
+        }
+        WeightsKind::Extrinsic => {
+            let extrinsics = pallet_gear::pallet::Call::<gear_runtime::Runtime>::get_call_names();
+            benches.extend(
+                extrinsics
+                    .iter()
+                    .flat_map(|extrinsic| convert_into_bench(&map, extrinsic)),
+            );
+        }
+    }
+
+    let output_file = fs::File::create(output_file).unwrap();
+    serde_json::to_writer_pretty(output_file, &benches).unwrap();
+}
+
 fn main() {
     let cli = Cli::parse();
 
-    match &cli.command {
+    match cli.command {
         Commands::CollectData {
             data_folder_path,
             disable_filter,
             output_path,
         } => {
-            collect_data(data_folder_path, output_path, *disable_filter, PREALLOCATE);
+            let statistics = collect_data(data_folder_path, disable_filter);
+            let writer = fs::File::create(output_path).unwrap();
+            serde_json::to_writer_pretty(writer, &statistics).unwrap();
         }
         Commands::Compare {
             data_path,
             current_junit_path,
             disable_filter,
         } => {
-            compare(data_path, current_junit_path, *disable_filter);
+            compare(data_path, current_junit_path, disable_filter);
         }
+        Commands::Convert {
+            data_folder_path,
+            output_file,
+            disable_filter,
+        } => {
+            convert(data_folder_path, output_file, disable_filter);
+        }
+        Commands::Weights {
+            kind,
+            input_file,
+            output_file,
+        } => weights(kind, input_file, output_file),
     }
 }

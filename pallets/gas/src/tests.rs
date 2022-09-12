@@ -19,7 +19,7 @@
 use super::*;
 use crate::mock::*;
 use common::{
-    gas_provider::{NegativeImbalance, PositiveImbalance},
+    gas_provider::{GasNodeId, NegativeImbalance, PositiveImbalance},
     GasTree as _, Origin,
 };
 use frame_support::{assert_noop, assert_ok, traits::Imbalance};
@@ -37,7 +37,7 @@ fn random_node_id() -> MessageId {
 #[test]
 fn simple_value_tree() {
     new_test_ext().execute_with(|| {
-        let new_root = MessageId::from_origin(H256::random());
+        let new_root = random_node_id();
 
         {
             let pos = Gas::create(ALICE, new_root, 1000).unwrap();
@@ -379,9 +379,7 @@ fn all_keys_are_cleared() {
     new_test_ext().execute_with(|| {
         let root = random_node_id();
         let origin = ALICE;
-        let sub_keys = (0..5)
-            .map(|_| MessageId::from_origin(H256::random()))
-            .collect::<Vec<_>>();
+        let sub_keys = (0..5).map(|_| random_node_id()).collect::<Vec<_>>();
 
         Gas::create(origin, root, 2000).unwrap();
         for key in sub_keys.iter() {
@@ -391,7 +389,7 @@ fn all_keys_are_cleared() {
         assert!(Gas::consume(root).unwrap().is_some());
         for key in sub_keys.iter() {
             // here we have not yet consumed everything
-            assert!(GasTree::contains_key(*key));
+            assert!(GasTree::contains_key(GasNodeId::Node(*key)));
 
             // There are no patron nodes in the tree after root was consumed
             assert!(Gas::consume(*key).unwrap().is_some());
@@ -610,7 +608,9 @@ fn subtree_gas_limit_remains_intact() {
         // Consume node_2
         assert!(Gas::consume(node_2).unwrap().is_none());
         // Marked as consumed
-        assert!(GasTree::get(node_2).map(|node| node.is_consumed()).unwrap());
+        assert!(GasTree::get(GasNodeId::Node(node_2))
+            .map(|node| node.is_consumed())
+            .unwrap());
         // Expect gas limit of the node_4 to remain unchanged
         assert_ok!(Gas::get_limit(node_4), 250);
 
