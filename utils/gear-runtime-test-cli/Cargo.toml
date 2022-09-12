@@ -44,6 +44,22 @@ gear-core-processor = { path = "../../core-processor" }
 junit-common = { path = "../junit-common" }
 
 [features]
+default = ['std']
+std = [
+    'codec/std',
+    'log/std',
+    'frame-support/std',
+    'frame-system/std',
+    'sp-consensus-aura/std',
+    'sp-consensus-babe/std',
+    'sp-consensus-slots/std',
+    'sp-core/std',
+    'sp-finality-grandpa/std',
+    'sp-io/std',
+    'sp-runtime/std',
+    'pallet-balances/std',
+    'runtime-primitives/std',
+]
 gear-native = ["gear-runtime"]
 vara-native = ["vara-runtime"]
 rococo-gear-native = ["rococo-gear-runtime", "authoring-aura"]
