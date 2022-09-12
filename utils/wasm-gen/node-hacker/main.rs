@@ -23,6 +23,10 @@ pub struct Params {
 
     /// dump wasm into "out.wasm" for seed and stop work
     #[structopt(long)]
+    pub dump_seed: Option<u64>,
+
+    /// generate program for seed and test it in inf loop
+    #[structopt(long)]
     pub only_seed: Option<u64>,
 }
 
@@ -38,7 +42,7 @@ fn gen_code_for_seed(seed: u64) -> Vec<u8> {
 async fn main() -> Result<()> {
     let params = Params::from_args();
 
-    if let Some(seed) = params.only_seed {
+    if let Some(seed) = params.dump_seed {
         let code = gen_code_for_seed(seed);
         let mut file = File::create("out.wasm").expect("Cannot create out.wasm file");
         file.write(&code).expect("Cannot write bytes into file");
@@ -52,19 +56,27 @@ async fn main() -> Result<()> {
         .try_signer(None)
         .unwrap();
 
+    let mut salt: u32 = 0;
     let mut seed_gen = SmallRng::seed_from_u64(params.seed);
     loop {
         println!("==============================================");
 
-        let seed = seed_gen.next_u64();
+        let (seed, salt) = if let Some(seed) = params.only_seed {
+            salt += 1;
+            (seed, salt)
+        } else {
+            (seed_gen.next_u64(), 0)
+        };
         println!("Run with seed = {}", seed);
 
         let code = gen_code_for_seed(seed);
         println!("Gen code size = {}", code.len());
 
+        let salt = format!("{:02}", salt);
+        println!("salt = {}", salt);
         let params = UploadProgram {
             code: code.clone(),
-            salt: hex::decode("00").unwrap(),
+            salt: hex::decode(salt.as_str()).unwrap(),
             init_payload: hex::decode("00").unwrap(),
             gas_limit: 250_000_000_000,
             value: 0,
