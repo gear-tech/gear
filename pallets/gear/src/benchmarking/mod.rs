@@ -59,6 +59,7 @@ use gear_core::{
     message::{Dispatch, DispatchKind, Message, ReplyDetails},
 };
 use pallet_authorship::Pallet as AuthorshipPallet;
+use sp_consensus_aura::AURA_ENGINE_ID;
 use sp_consensus_babe::{
     digests::{PreDigest, SecondaryPlainPreDigest},
     Slot, BABE_ENGINE_ID,
@@ -87,15 +88,22 @@ where
 {
     // All blocks are to be authored by validator at index 0
     let slot = Slot::from(0);
-    let pre_digest = Digest {
-        logs: vec![DigestItem::PreRuntime(
-            BABE_ENGINE_ID,
-            PreDigest::SecondaryPlain(SecondaryPlainPreDigest {
-                slot,
-                authority_index: 0,
-            })
-            .encode(),
-        )],
+
+    let pre_digest = if cfg!(feature = "authoring-aura") {
+        Digest {
+            logs: vec![DigestItem::PreRuntime(AURA_ENGINE_ID, slot.encode())],
+        }
+    } else {
+        Digest {
+            logs: vec![DigestItem::PreRuntime(
+                BABE_ENGINE_ID,
+                PreDigest::SecondaryPlain(SecondaryPlainPreDigest {
+                    slot,
+                    authority_index: 0,
+                })
+                .encode(),
+            )],
+        }
     };
 
     let bn = One::one();

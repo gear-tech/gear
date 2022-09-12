@@ -77,7 +77,7 @@ runtime-primitives = { package = "gear-runtime-primitives", version = "0.1.0", d
 pallet-gear-scheduler = { version = "1.0.0", default-features = false, path = "../../pallets/gear-scheduler" }
 pallet-gear-messenger = { version = "1.0.0", default-features = false, path = "../../pallets/gear-messenger" }
 pallet-gear-program = { version = "2.0.0", default-features = false, path = "../../pallets/gear-program" }
-pallet-gear = { version = "2.0.0", default-features = false, path = "../../pallets/gear" }
+pallet-gear = { version = "2.0.0", default-features = false, features = ["authoring-aura"], path = "../../pallets/gear" }
 pallet-gear-debug = { version = "2.0.0", default-features = false, path = "../../pallets/gear-debug", optional = true }
 pallet-gear-gas = { version = "2.0.0", default-features = false, path = "../../pallets/gas" }
 pallet-gear-payment = { version = "0.1.0", default-features = false, path = "../../pallets/payment" }

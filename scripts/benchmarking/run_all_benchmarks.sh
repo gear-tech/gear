@@ -58,10 +58,11 @@ then
 fi
 
 # The executable to use.
-GEAR=./target/production/gear-node
+GEAR=${GEAR_BINARY:-./target/production/gear-node}
 
 # Manually exclude some pallets.
 EXCLUDED_PALLETS=(
+  frame_benchmarking
 )
 
 # Load all pallet names in an array.
