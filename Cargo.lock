@@ -3108,7 +3108,7 @@ dependencies = [
  "arbitrary",
  "parity-wasm 0.45.0",
  "rand 0.8.5",
- "wasm-instrument 0.2.0",
+ "wasm-instrument 0.2.1",
  "wasm-smith",
  "wasmparser 0.90.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "wasmprinter",
@@ -10436,7 +10436,7 @@ dependencies = [
 [[package]]
 name = "wasm-encoder"
 version = "0.16.0"
-source = "git+https://github.com/grishasobol/wasm-tools.git?branch=gear#050a6388e93635aee8e0a4315be240d073081fcc"
+source = "git+https://github.com/gear-tech/wasm-tools.git?branch=gear-stable#cb7969e6b1a6b598f9ebdd0336a8e66dbc836d77"
 dependencies = [
  "leb128",
 ]
@@ -10507,14 +10507,14 @@ dependencies = [
 [[package]]
 name = "wasm-smith"
 version = "0.11.4"
-source = "git+https://github.com/grishasobol/wasm-tools.git?branch=gear#050a6388e93635aee8e0a4315be240d073081fcc"
+source = "git+https://github.com/gear-tech/wasm-tools.git?branch=gear-stable#cb7969e6b1a6b598f9ebdd0336a8e66dbc836d77"
 dependencies = [
  "arbitrary",
  "flagset",
  "indexmap",
  "leb128",
- "wasm-encoder 0.16.0 (git+https://github.com/grishasobol/wasm-tools.git?branch=gear)",
- "wasmparser 0.90.0 (git+https://github.com/grishasobol/wasm-tools.git?branch=gear)",
+ "wasm-encoder 0.16.0 (git+https://github.com/gear-tech/wasm-tools.git?branch=gear-stable)",
+ "wasmparser 0.90.0 (git+https://github.com/gear-tech/wasm-tools.git?branch=gear-stable)",
 ]
 
 [[package]]
@@ -10867,7 +10867,7 @@ dependencies = [
 [[package]]
 name = "wasmparser"
 version = "0.90.0"
-source = "git+https://github.com/grishasobol/wasm-tools.git?branch=gear#050a6388e93635aee8e0a4315be240d073081fcc"
+source = "git+https://github.com/gear-tech/wasm-tools.git?branch=gear-stable#cb7969e6b1a6b598f9ebdd0336a8e66dbc836d77"
 dependencies = [
  "indexmap",
 ]
