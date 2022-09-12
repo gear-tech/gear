@@ -408,7 +408,6 @@ jobs:
 
   build-macos-x86:
     if: github.ref == 'refs/heads/master'
-    needs: spec_version
     runs-on: macos-latest
     steps:
       - name: Cancel Previous Runs
