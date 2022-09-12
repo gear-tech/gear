@@ -59,9 +59,9 @@ cfg_if! {
     } else if #[cfg(all(target_os = "macos", target_arch = "aarch64"))] {
         unsafe fn ucontext_get_write(ucontext: *mut nix::libc::ucontext_t) -> Option<bool> {
             // See https://developer.arm.com/documentation/ddi0595/2021-03/AArch64-Registers/ESR-EL1--Exception-Syndrome-Register--EL1-
-            const WNR_BIT_MASK: u32 = 0b100_0000; // Write not Read bit
+            const WNR_BIT_MASK: u32 = 0b0100_0000; // Write not Read bit
             const EXCEPTION_CLASS_SHIFT: u32 = u32::BITS - 6;
-            const EXCEPTION_CLASS: u32 = 0b100_100; // Data Abort from a lower Exception Level
+            const EXCEPTION_CLASS: u32 = 0b10_0100; // Data Abort from a lower Exception Level
 
             let mcontext = (*ucontext).uc_mcontext;
             let exception_state = (*mcontext).__es;
