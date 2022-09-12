@@ -16,12 +16,17 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use std::{collections::BTreeMap, ops::RangeInclusive};
+
 use arbitrary::Unstructured;
 use parity_wasm::{
     builder,
-    elements::{Instruction, Instructions, Module as PModule, Section, Type},
+    elements::{
+        External, FunctionType, Instruction, Instructions, Internal, Module, Section, Type,
+        ValueType,
+    },
 };
-use wasm_smith::{InstructionKind::*, InstructionKinds, Module, SwarmConfig};
+use wasm_smith::{InstructionKind::*, InstructionKinds, Module as ModuleSmith, SwarmConfig};
 
 #[cfg(test)]
 mod test;
@@ -34,7 +39,11 @@ pub struct Ratio {
 
 impl Ratio {
     pub fn get(&self, u: &mut Unstructured) -> bool {
-        u.ratio(self.numerator, self.denominator).unwrap()
+        if self.numerator == 0 {
+            false
+        } else {
+            u.ratio(self.numerator, self.denominator).unwrap()
+        }
     }
 }
 
@@ -47,6 +56,56 @@ impl From<(u32, u32)> for Ratio {
     }
 }
 
+impl Ratio {
+    pub fn mult<T: Into<usize>>(&self, x: T) -> usize {
+        (T::into(x) * self.numerator as usize) / self.denominator as usize
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct ParamRule {
+    // pub param_type: ValueType,
+    pub allowed_values: RangeInclusive<i64>,
+    pub restricted_ratio: Ratio,
+}
+
+#[derive(Debug, Clone)]
+pub struct SyscallConfig {
+    pub alloc_param_rules: ParamRule,
+    pub free_param_rules: ParamRule,
+    pub ptr_rule: ParamRule,
+    pub memory_size_rule: ParamRule,
+    pub no_rule: ParamRule,
+}
+
+impl Default for SyscallConfig {
+    fn default() -> Self {
+        Self {
+            alloc_param_rules: ParamRule {
+                allowed_values: 0..=512,
+                restricted_ratio: (1, 100).into(),
+            },
+            free_param_rules: ParamRule {
+                allowed_values: 0..=512,
+                restricted_ratio: (1, 100).into(),
+            },
+            ptr_rule: ParamRule {
+                allowed_values: 0..=513 * 0x10000 - 1,
+                restricted_ratio: (1, 100).into(),
+            },
+            memory_size_rule: ParamRule {
+                allowed_values: 0..=0x10000,
+                restricted_ratio: (10, 100).into(),
+            },
+            no_rule: ParamRule {
+                allowed_values: 0..=0,
+                restricted_ratio: (100, 100).into(),
+            },
+        }
+    }
+}
+
+#[derive(Clone)]
 pub struct GearConfig {
     pub process_when_no_funcs: Ratio,
     pub skip_init: Ratio,
@@ -55,6 +114,9 @@ pub struct GearConfig {
     pub max_mem_size: u32,
     pub max_mem_delta: u32,
     pub has_mem_upper_bound: Ratio,
+    pub upper_bound_can_be_less_then: Ratio,
+    pub sys_call_freq: Ratio,
+    pub sys_calls: SyscallConfig,
 }
 
 impl Default for GearConfig {
@@ -68,6 +130,9 @@ impl Default for GearConfig {
             max_mem_size: 1024,
             max_mem_delta: 1024,
             has_mem_upper_bound: prob,
+            upper_bound_can_be_less_then: prob,
+            sys_call_freq: prob,
+            sys_calls: Default::default(),
         }
     }
 }
@@ -83,6 +148,24 @@ impl GearConfig {
             max_mem_size: 1024,
             max_mem_delta: 1024,
             has_mem_upper_bound: prob,
+            upper_bound_can_be_less_then: prob,
+            sys_call_freq: (1, 100).into(),
+            sys_calls: Default::default(),
+        }
+    }
+    pub fn new_valid() -> Self {
+        let prob = (1, 100).into();
+        Self {
+            process_when_no_funcs: prob,
+            skip_init: (0, 100).into(),
+            skip_init_when_no_funcs: (0, 100).into(),
+            init_export_is_any_func: (0, 100).into(),
+            max_mem_size: 512,
+            max_mem_delta: 256,
+            has_mem_upper_bound: prob,
+            upper_bound_can_be_less_then: (0, 100).into(),
+            sys_call_freq: prob,
+            sys_calls: Default::default(),
         }
     }
 }
@@ -123,128 +206,850 @@ pub fn default_swarm_config(u: &mut Unstructured, gear_config: &GearConfig) -> S
     cfg
 }
 
-pub fn gen_wasm_smith_module(u: &mut Unstructured, config: &SwarmConfig) -> Module {
+pub fn gen_wasm_smith_module(u: &mut Unstructured, config: &SwarmConfig) -> ModuleSmith {
     loop {
-        if let Ok(module) = Module::new(config.clone(), u) {
+        if let Ok(module) = ModuleSmith::new(config.clone(), u) {
             return module;
         }
     }
 }
 
-fn gen_mem_export(mut module: PModule, u: &mut Unstructured, config: &GearConfig) -> PModule {
-    let mut mem_section_idx = None;
-    for i in 0..module.sections().len() {
-        if let Section::Memory(_) = module.sections()[i] {
-            mem_section_idx = Some(i);
-            break;
-        }
-    }
-    mem_section_idx.map(|index| module.sections_mut().remove(index));
-
-    let mem_size = u.int_in_range(0..=config.max_mem_size).unwrap();
-    let mem_size_upper_bound = if config.has_mem_upper_bound.get(u) {
-        Some(u.int_in_range(0..=mem_size + config.max_mem_delta).unwrap())
-    } else {
-        None
-    };
-    builder::from_module(module)
-        .import()
-        .module("env")
-        .field("memory")
-        .external()
-        .memory(mem_size, mem_size_upper_bound)
-        .build()
-        .build()
+struct SysCallInfo {
+    pub params: Vec<ValueType>,
+    pub results: Vec<ValueType>,
+    pub param_rules: Vec<ParamRule>,
+    pub frequency: Ratio,
 }
 
-fn gen_init(module: PModule, u: &mut Unstructured, config: &GearConfig) -> PModule {
-    if config.skip_init.get(u) {
-        return module;
+impl SysCallInfo {
+    pub fn func_type(&self) -> FunctionType {
+        FunctionType::new(self.params.clone(), self.results.clone())
+    }
+}
+
+fn sys_calls_table(config: &GearConfig) -> BTreeMap<&'static str, SysCallInfo> {
+    use ValueType::*;
+    let mut res = BTreeMap::new();
+    let frequency = config.sys_call_freq;
+
+    let ptr_rule = || config.sys_calls.ptr_rule.clone();
+    let size_rule = || config.sys_calls.memory_size_rule.clone();
+    let no_rule = || config.sys_calls.no_rule.clone();
+
+    // pub fn alloc(pages: u32) -> usize;
+    res.insert(
+        "alloc",
+        SysCallInfo {
+            params: [I32].to_vec(),
+            results: [I32].to_vec(),
+            param_rules: [config.sys_calls.alloc_param_rules.clone()].to_vec(),
+            frequency,
+        },
+    );
+    // pub fn free(page: u32);
+    res.insert(
+        "free",
+        SysCallInfo {
+            params: [I32].to_vec(),
+            results: [].to_vec(),
+            param_rules: [config.sys_calls.free_param_rules.clone()].to_vec(),
+            frequency,
+        },
+    );
+
+    // pub fn gr_debug(msg_ptr: *const u8, msg_len: u32);
+    res.insert(
+        "gr_debug",
+        SysCallInfo {
+            params: [I32, I32].to_vec(),
+            results: [].to_vec(),
+            param_rules: [ptr_rule(), size_rule()].to_vec(),
+            frequency,
+        },
+    );
+    // pub fn gr_error(data: *mut u8);
+    res.insert(
+        "gr_error",
+        SysCallInfo {
+            params: [I32].to_vec(),
+            results: [].to_vec(),
+            param_rules: [ptr_rule()].to_vec(),
+            frequency,
+        },
+    );
+
+    // pub fn gr_block_height() -> u32;
+    res.insert(
+        "gr_block_height",
+        SysCallInfo {
+            params: [].to_vec(),
+            results: [I32].to_vec(),
+            param_rules: [].to_vec(),
+            frequency,
+        },
+    );
+    // pub fn gr_block_timestamp() -> u64;
+    res.insert(
+        "gr_block_timestamp",
+        SysCallInfo {
+            params: [].to_vec(),
+            results: [I64].to_vec(),
+            param_rules: [].to_vec(),
+            frequency,
+        },
+    );
+    // pub fn gr_exit(value_dest_ptr: *const u8) -> !;
+    res.insert(
+        "gr_exit",
+        SysCallInfo {
+            params: [I32].to_vec(),
+            results: [].to_vec(),
+            param_rules: [ptr_rule()].to_vec(),
+            frequency,
+        },
+    );
+    // pub fn gr_gas_available() -> u64;
+    res.insert(
+        "gr_gas_available",
+        SysCallInfo {
+            params: [].to_vec(),
+            results: [I64].to_vec(),
+            param_rules: [].to_vec(),
+            frequency,
+        },
+    );
+    // pub fn gr_program_id(val: *mut u8);
+    res.insert(
+        "gr_program_id",
+        SysCallInfo {
+            params: [I32].to_vec(),
+            results: [].to_vec(),
+            param_rules: [ptr_rule()].to_vec(),
+            frequency,
+        },
+    );
+    // pub fn gr_origin(origin_ptr: *mut u8);
+    res.insert(
+        "gr_origin",
+        SysCallInfo {
+            params: [I32].to_vec(),
+            results: [].to_vec(),
+            param_rules: [ptr_rule()].to_vec(),
+            frequency,
+        },
+    );
+    // pub fn gr_leave() -> !;
+    res.insert(
+        "gr_leave",
+        SysCallInfo {
+            params: [].to_vec(),
+            results: [].to_vec(),
+            param_rules: [].to_vec(),
+            frequency,
+        },
+    );
+    // pub fn gr_value_available(val: *mut u8);
+    res.insert(
+        "gr_value_available",
+        SysCallInfo {
+            params: [I32].to_vec(),
+            results: [].to_vec(),
+            param_rules: [ptr_rule()].to_vec(),
+            frequency,
+        },
+    );
+    // pub fn gr_wait() -> !;
+    res.insert(
+        "gr_wait",
+        SysCallInfo {
+            params: [].to_vec(),
+            results: [].to_vec(),
+            param_rules: [].to_vec(),
+            frequency,
+        },
+    );
+    // pub fn gr_wait_no_more(duration: *const u8) -> !;
+    res.insert(
+        "gr_wait_no_more",
+        SysCallInfo {
+            params: [I32].to_vec(),
+            results: [].to_vec(),
+            param_rules: [ptr_rule()].to_vec(),
+            frequency,
+        },
+    );
+    // pub fn gr_wait_for(duration: *const u8) -> !;
+    res.insert(
+        "gr_wait_for",
+        SysCallInfo {
+            params: [I32].to_vec(),
+            results: [].to_vec(),
+            param_rules: [ptr_rule()].to_vec(),
+            frequency,
+        },
+    );
+    // pub fn gr_wake(waker_id_ptr: *const u8);
+    res.insert(
+        "gr_wake",
+        SysCallInfo {
+            params: [I32].to_vec(),
+            results: [].to_vec(),
+            param_rules: [ptr_rule()].to_vec(),
+            frequency,
+        },
+    );
+
+    // pub fn gr_exit_code() -> i32;
+    res.insert(
+        "gr_exit_code",
+        SysCallInfo {
+            params: [].to_vec(),
+            results: [I32].to_vec(),
+            param_rules: [].to_vec(),
+            frequency,
+        },
+    );
+    // pub fn gr_msg_id(val: *mut u8);
+    res.insert(
+        "gr_msg_id",
+        SysCallInfo {
+            params: [I32].to_vec(),
+            results: [].to_vec(),
+            param_rules: [ptr_rule()].to_vec(),
+            frequency,
+        },
+    );
+    // pub fn gr_read(at: u32, len: u32, dest: *mut u8);
+    res.insert(
+        "gr_exit_code",
+        SysCallInfo {
+            params: [I32, I32, I32].to_vec(),
+            results: [].to_vec(),
+            param_rules: [no_rule(), size_rule(), ptr_rule()].to_vec(),
+            frequency,
+        },
+    );
+    // pub fn gr_reply(data_ptr: *const u8, data_len: u32, value_ptr: *const u8, message_id_ptr: *mut u8) -> SyscallError;
+    res.insert(
+        "gr_reply",
+        SysCallInfo {
+            params: [I32, I32, I32, I32].to_vec(),
+            results: [I32].to_vec(),
+            param_rules: [ptr_rule(), size_rule(), ptr_rule(), ptr_rule()].to_vec(),
+            frequency,
+        },
+    );
+    // pub fn gr_reply_wgas(
+    //     data_ptr: *const u8,
+    //     data_len: u32,
+    //     gas_limit: u64,
+    //     value_ptr: *const u8,
+    //     message_id_ptr: *mut u8,
+    // ) -> SyscallError;
+    res.insert(
+        "gr_reply_wgas",
+        SysCallInfo {
+            params: [I32, I32, I64, I32, I32].to_vec(),
+            results: [I32].to_vec(),
+            param_rules: [ptr_rule(), size_rule(), no_rule(), ptr_rule(), ptr_rule()].to_vec(),
+            frequency,
+        },
+    );
+    // pub fn gr_reply_commit(value_ptr: *const u8, message_id_ptr: *mut u8) -> SyscallError;
+    res.insert(
+        "gr_reply_commit",
+        SysCallInfo {
+            params: [I32, I32].to_vec(),
+            results: [I32].to_vec(),
+            param_rules: [ptr_rule(), ptr_rule()].to_vec(),
+            frequency,
+        },
+    );
+    // pub fn gr_reply_commit_wgas(
+    //     gas_limit: u64,
+    //     value_ptr: *const u8,
+    //     message_id_ptr: *mut u8,
+    // ) -> SyscallError;
+    res.insert(
+        "gr_reply_commit_wgas",
+        SysCallInfo {
+            params: [I64, I32, I32].to_vec(),
+            results: [I32].to_vec(),
+            param_rules: [no_rule(), ptr_rule(), ptr_rule()].to_vec(),
+            frequency,
+        },
+    );
+    // pub fn gr_reply_push(data_ptr: *const u8, data_len: u32) -> SyscallError;
+    res.insert(
+        "gr_reply_push",
+        SysCallInfo {
+            params: [I32, I32].to_vec(),
+            results: [I32].to_vec(),
+            param_rules: [ptr_rule(), size_rule()].to_vec(),
+            frequency,
+        },
+    );
+    // pub fn gr_reply_to(dest: *mut u8);
+    res.insert(
+        "gr_reply_to",
+        SysCallInfo {
+            params: [I32].to_vec(),
+            results: [].to_vec(),
+            param_rules: [ptr_rule()].to_vec(),
+            frequency,
+        },
+    );
+    // pub fn gr_send(
+    //     program: *const u8,
+    //     data_ptr: *const u8,
+    //     data_len: u32,
+    //     value_ptr: *const u8,
+    //     message_id_ptr: *mut u8,
+    // ) -> SyscallError;
+    res.insert(
+        "gr_send",
+        SysCallInfo {
+            params: [I32, I32, I32, I32, I32].to_vec(),
+            results: [I32].to_vec(),
+            param_rules: [ptr_rule(), ptr_rule(), size_rule(), ptr_rule(), ptr_rule()].to_vec(),
+            frequency,
+        },
+    );
+    // pub fn gr_send_wgas(
+    //     program: *const u8,
+    //     data_ptr: *const u8,
+    //     data_len: u32,
+    //     gas_limit: u64,
+    //     value_ptr: *const u8,
+    //     message_id_ptr: *mut u8,
+    // ) -> SyscallError;
+    res.insert(
+        "gr_send_wgas",
+        SysCallInfo {
+            params: [I32, I32, I32, I64, I32, I32].to_vec(),
+            results: [I32].to_vec(),
+            param_rules: [
+                ptr_rule(),
+                ptr_rule(),
+                size_rule(),
+                no_rule(),
+                ptr_rule(),
+                ptr_rule(),
+            ]
+            .to_vec(),
+            frequency,
+        },
+    );
+    // pub fn gr_send_commit(
+    //     handle: u32,
+    //     message_id_ptr: *mut u8,
+    //     program: *const u8,
+    //     value_ptr: *const u8,
+    // ) -> SyscallError;
+    res.insert(
+        "gr_send_commit",
+        SysCallInfo {
+            params: [I32, I32, I32, I32].to_vec(),
+            results: [I32].to_vec(),
+            param_rules: [no_rule(), ptr_rule(), ptr_rule(), ptr_rule()].to_vec(),
+            frequency,
+        },
+    );
+    // pub fn gr_send_commit_wgas(
+    //     handle: u32,
+    //     message_id_ptr: *mut u8,
+    //     program: *const u8,
+    //     gas_limit: u64,
+    //     value_ptr: *const u8,
+    // ) -> SyscallError;
+    res.insert(
+        "gr_send_commit_wgas",
+        SysCallInfo {
+            params: [I32, I32, I32, I64, I32].to_vec(),
+            results: [I32].to_vec(),
+            param_rules: [no_rule(), ptr_rule(), ptr_rule(), no_rule(), ptr_rule()].to_vec(),
+            frequency,
+        },
+    );
+    // pub fn gr_send_init(handle: *mut u32) -> SyscallError;
+    res.insert(
+        "gr_send_init",
+        SysCallInfo {
+            params: [I32].to_vec(),
+            results: [I32].to_vec(),
+            param_rules: [ptr_rule()].to_vec(),
+            frequency,
+        },
+    );
+    // pub fn gr_send_push(handle: u32, data_ptr: *const u8, data_len: u32) -> SyscallError;
+    res.insert(
+        "gr_send_push",
+        SysCallInfo {
+            params: [I32, I32, I32].to_vec(),
+            results: [I32].to_vec(),
+            param_rules: [no_rule(), ptr_rule(), size_rule()].to_vec(),
+            frequency,
+        },
+    );
+    // pub fn gr_size() -> u32;
+    res.insert(
+        "gr_size",
+        SysCallInfo {
+            params: [].to_vec(),
+            results: [I32].to_vec(),
+            param_rules: [].to_vec(),
+            frequency,
+        },
+    );
+    // pub fn gr_source(program: *mut u8);
+    res.insert(
+        "gr_source",
+        SysCallInfo {
+            params: [I32].to_vec(),
+            results: [].to_vec(),
+            param_rules: [ptr_rule()].to_vec(),
+            frequency,
+        },
+    );
+    // pub fn gr_value(val: *mut u8);
+    res.insert(
+        "gr_value",
+        SysCallInfo {
+            params: [I32].to_vec(),
+            results: [].to_vec(),
+            param_rules: [ptr_rule()].to_vec(),
+            frequency,
+        },
+    );
+
+    // pub fn gr_create_program(
+    //     code_hash: *const u8,
+    //     salt_ptr: *const u8,
+    //     salt_len: u32,
+    //     data_ptr: *const u8,
+    //     data_len: u32,
+    //     value_ptr: *const u8,
+    //     program_id_ptr: *mut u8,
+    // ) -> SyscallError;
+    res.insert(
+        "gr_create_program",
+        SysCallInfo {
+            params: [I32, I32, I32, I32, I32, I32, I32].to_vec(),
+            results: [].to_vec(),
+            param_rules: [
+                ptr_rule(),
+                ptr_rule(),
+                size_rule(),
+                ptr_rule(),
+                size_rule(),
+                ptr_rule(),
+                ptr_rule(),
+            ]
+            .to_vec(),
+            frequency,
+        },
+    );
+
+    // pub fn gr_create_program_wgas(
+    //     code_hash: *const u8,
+    //     salt_ptr: *const u8,
+    //     salt_len: u32,
+    //     data_ptr: *const u8,
+    //     data_len: u32,
+    //     gas_limit: u64,
+    //     value_ptr: *const u8,
+    //     program_id_ptr: *mut u8,
+    // ) -> SyscallError;
+    res.insert(
+        "gr_create_program_wgas",
+        SysCallInfo {
+            params: [I32, I32, I32, I32, I32, I64, I32, I32].to_vec(),
+            results: [].to_vec(),
+            param_rules: [
+                ptr_rule(),
+                ptr_rule(),
+                size_rule(),
+                ptr_rule(),
+                size_rule(),
+                no_rule(),
+                ptr_rule(),
+                ptr_rule(),
+            ]
+            .to_vec(),
+            frequency,
+        },
+    );
+
+    res
+}
+
+fn make_call_instructions_vec(
+    u: &mut Unstructured,
+    params: &[ValueType],
+    results: &[ValueType],
+    params_rules: &[ParamRule],
+    func_no: u32,
+) -> Vec<Instruction> {
+    let gen_const_instr = |u: &mut Unstructured, param| match param {
+        ValueType::I32 => Instruction::I32Const(u.arbitrary().unwrap()),
+        ValueType::I64 => Instruction::I64Const(u.arbitrary().unwrap()),
+        _ => panic!("Cannot handle f32/f64"),
+    };
+
+    let mut code = Vec::new();
+    for index in 0..params.len() {
+        let instr = if let Some(rule) = params_rules.get(index) {
+            if rule.restricted_ratio.get(u) {
+                gen_const_instr(u, params[index])
+            } else {
+                let c = u.int_in_range(rule.allowed_values.clone()).unwrap();
+                match params[index] {
+                    ValueType::I32 => Instruction::I32Const(c as i32),
+                    ValueType::I64 => Instruction::I64Const(c),
+                    _ => panic!("Cannot handle f32/f64"),
+                }
+            }
+        } else {
+            gen_const_instr(u, params[index])
+        };
+        code.push(instr);
+    }
+    code.push(Instruction::Call(func_no));
+    code.extend(results.iter().map(|_| Instruction::Drop));
+    code
+}
+
+#[derive(Debug, Clone, Copy)]
+enum FuncIdx {
+    Import(u32),
+    Func(u32),
+}
+
+fn get_func_type(module: &Module, func_idx: FuncIdx) -> FunctionType {
+    match func_idx {
+        FuncIdx::Import(idx) => {
+            let type_no = if let External::Function(type_no) =
+                module.import_section().unwrap().entries()[idx as usize].external()
+            {
+                *type_no as usize
+            } else {
+                panic!("Import func index must be for import function");
+            };
+            let Type::Function(func_type) = &module.type_section().unwrap().types()[type_no];
+            func_type.clone()
+        }
+        FuncIdx::Func(idx) => {
+            let func = module.function_section().unwrap().entries()[idx as usize];
+            let Type::Function(func_type) =
+                &module.type_section().unwrap().types()[func.type_ref() as usize];
+            func_type.clone()
+        }
+    }
+}
+
+struct WasmGen<'a> {
+    u: &'a mut Unstructured<'a>,
+    config: GearConfig,
+    calls_indexes: Vec<FuncIdx>,
+}
+
+impl<'a> WasmGen<'a> {
+    fn initial_calls_indexes(module: &Module) -> Vec<FuncIdx> {
+        let mut calls_indexes = Vec::new();
+        let import_funcs_num = module
+            .import_section()
+            .map(|imps| imps.functions() as u32)
+            .unwrap_or(0);
+        let code_funcs_num = module
+            .function_section()
+            .map(|funcs| funcs.entries().len() as u32)
+            .unwrap_or(0);
+        for i in 0..import_funcs_num {
+            calls_indexes.push(FuncIdx::Import(i));
+        }
+        for i in 0..code_funcs_num {
+            calls_indexes.push(FuncIdx::Func(i));
+        }
+        calls_indexes
     }
 
-    let funcs_len = module
-        .function_section()
-        .map_or(0, |funcs| funcs.entries().len() as u32);
-
-    if funcs_len == 0 && config.skip_init_when_no_funcs.get(u) {
-        return module;
+    pub fn new(module: &Module, u: &'a mut Unstructured<'a>, config: GearConfig) -> Self {
+        let calls_indexes = Self::initial_calls_indexes(module);
+        Self {
+            u,
+            config,
+            calls_indexes,
+        }
     }
 
-    if funcs_len == 0 {
-        let module = builder::from_module(module).function().build().build();
-        return module;
+    pub fn gen_mem_export(&mut self, mut module: Module) -> Module {
+        let mut mem_section_idx = None;
+        for i in 0..module.sections().len() {
+            match module.sections()[i] {
+                Section::Memory(_) => {
+                    mem_section_idx = Some(i);
+                    break;
+                }
+                _ => {}
+            }
+        }
+        mem_section_idx.map(|index| module.sections_mut().remove(index));
+
+        let mem_size = self.u.int_in_range(0..=self.config.max_mem_size).unwrap();
+        let mem_size_upper_bound = if self.config.has_mem_upper_bound.get(self.u) {
+            Some(if self.config.upper_bound_can_be_less_then.get(self.u) {
+                self.u
+                    .int_in_range(0..=mem_size + self.config.max_mem_delta)
+                    .unwrap()
+            } else {
+                self.u
+                    .int_in_range(mem_size..=mem_size + self.config.max_mem_delta)
+                    .unwrap()
+            })
+        } else {
+            None
+        };
+
+        builder::from_module(module)
+            .import()
+            .module("env")
+            .field("memory")
+            .external()
+            .memory(mem_size, mem_size_upper_bound)
+            .build()
+            .build()
     }
 
-    let index = u.int_in_range(0..=funcs_len - 1).unwrap();
+    fn insert_instructions_in_random_place(
+        &mut self,
+        mut module: Module,
+        instructions: &[Instruction],
+    ) -> Module {
+        let funcs_num = module.code_section().unwrap().bodies().len();
+        let insert_func_no = self.u.int_in_range(0..=funcs_num - 1).unwrap();
+        let code = module.code_section_mut().unwrap().bodies_mut()[insert_func_no]
+            .code_mut()
+            .elements_mut();
 
-    if config.init_export_is_any_func.get(u) {
-        let module = builder::from_module(module)
+        let pos = self.u.int_in_range(0..=code.len() - 1).unwrap();
+        code.splice(pos..pos, instructions.iter().cloned());
+        module
+    }
+
+    pub fn gen_init(&mut self, mut module: Module) -> (Module, bool) {
+        if self.config.skip_init.get(self.u) {
+            return (module, false);
+        }
+
+        let funcs_len = module
+            .function_section()
+            .map_or(0, |funcs| funcs.entries().len() as u32);
+
+        if funcs_len == 0 && self.config.skip_init_when_no_funcs.get(self.u) {
+            return (module, false);
+        }
+
+        if funcs_len == 0 {
+            self.calls_indexes.push(FuncIdx::Func(funcs_len));
+            return (
+                builder::from_module(module)
+                    .function()
+                    .signature()
+                    .build()
+                    .build()
+                    .export()
+                    .field("init")
+                    .internal()
+                    .func(funcs_len)
+                    .build()
+                    .build(),
+                true,
+            );
+        }
+
+        let func_no = self.u.int_in_range(0..=funcs_len - 1).unwrap();
+
+        if self.config.init_export_is_any_func.get(self.u) {
+            return (
+                builder::from_module(module)
+                    .export()
+                    .field("init")
+                    .internal()
+                    .func(func_no)
+                    .build()
+                    .build(),
+                true,
+            );
+        }
+
+        let func_type = get_func_type(&module, FuncIdx::Func(func_no));
+        let mut instructions = make_call_instructions_vec(
+            self.u,
+            func_type.params(),
+            func_type.results(),
+            Default::default(),
+            func_no,
+        );
+        instructions.push(Instruction::End);
+
+        module = builder::from_module(module)
+            .function()
+            .body()
+            .with_instructions(Instructions::new(instructions))
+            .build()
+            .signature()
+            .build()
+            .build()
             .export()
             .field("init")
             .internal()
-            .func(index)
+            .func(funcs_len)
             .build()
             .build();
-        return module;
+
+        let init_function_no = module.function_section().unwrap().entries().len() as u32 - 1;
+        self.calls_indexes.push(FuncIdx::Func(init_function_no));
+
+        (module, true)
     }
 
-    let func = module.function_section().unwrap().entries()[index as usize];
-    let Type::Function(func_type) =
-        &module.type_section().unwrap().types()[func.type_ref() as usize];
-    let mut code = Vec::new();
-    code.extend(
-        func_type
-            .params()
-            .iter()
-            .map(|param_type| match param_type {
-                parity_wasm::elements::ValueType::I32 => {
-                    Instruction::I32Const(u.arbitrary().unwrap())
-                }
-                parity_wasm::elements::ValueType::I64 => {
-                    Instruction::I64Const(u.arbitrary().unwrap())
-                }
-                _ => panic!("Cannot handle f32/f64"),
-            }),
-    );
-    code.push(Instruction::Call(index));
-    code.extend(func_type.results().iter().map(|_| Instruction::Drop));
-    code.push(Instruction::End);
+    pub fn insert_sys_calls(&mut self, mut module: Module) -> Module {
+        let code_size = if let Some(code) = module.code_section() {
+            code.bodies()
+                .iter()
+                .fold(0, |sum, body| sum + body.code().elements().len())
+        } else {
+            return module;
+        };
 
-    builder::from_module(module)
-        .function()
-        .body()
-        .with_instructions(Instructions::new(code))
-        .build()
-        .build()
-        .export()
-        .field("init")
-        .internal()
-        .func(funcs_len)
-        .build()
-        .build()
+        let sys_calls_table = sys_calls_table(&self.config);
+
+        for (name, info) in sys_calls_table {
+            let sys_call_max_number = info.frequency.mult(code_size);
+            let sys_call_number = self.u.int_in_range(0..=sys_call_max_number).unwrap();
+            if sys_call_number == 0 {
+                continue;
+            }
+
+            let types = module.type_section_mut().unwrap().types_mut();
+            let type_no = types.len() as u32;
+            types.push(Type::Function(info.func_type()));
+
+            // make import
+            module = builder::from_module(module)
+                .import()
+                .module("env")
+                .external()
+                .func(type_no)
+                .field(name)
+                .build()
+                .build();
+
+            let import_func_no = module.import_section().unwrap().functions() as u32 - 1;
+
+            self.calls_indexes.push(FuncIdx::Import(import_func_no));
+
+            let func_no = self.calls_indexes.len() as u32 - 1;
+
+            // insert sys call any where in the code
+            let instructions = make_call_instructions_vec(
+                self.u,
+                &info.params,
+                &info.results,
+                &info.param_rules,
+                func_no,
+            );
+            module = self.insert_instructions_in_random_place(module, &instructions);
+        }
+
+        module
+    }
+
+    pub fn resolves_calls_indexes(self, mut module: Module) -> Module {
+        if module.code_section().is_none() {
+            return module;
+        }
+
+        let Self { calls_indexes, .. } = self;
+        // println!("{calls_indexes:?}");
+
+        let import_funcs_num = module
+            .import_section()
+            .map(|imp| imp.functions() as u32)
+            .unwrap_or(0);
+
+        for instr in module
+            .code_section_mut()
+            .unwrap()
+            .bodies_mut()
+            .iter_mut()
+            .flat_map(|body| body.code_mut().elements_mut().iter_mut())
+        {
+            if let Instruction::Call(func_no) = instr {
+                let index = calls_indexes[*func_no as usize];
+                match index {
+                    FuncIdx::Func(no) => *func_no = no + import_funcs_num,
+                    FuncIdx::Import(no) => *func_no = no,
+                }
+            }
+        }
+
+        let mut empty_export_section = Default::default();
+        for func_no in module
+            .export_section_mut()
+            .unwrap_or(&mut empty_export_section)
+            .entries_mut()
+            .iter_mut()
+            .filter_map(|export| {
+                if let Internal::Function(func_no) = export.internal_mut() {
+                    Some(func_no)
+                } else {
+                    None
+                }
+            })
+        {
+            // println!("func_no = {func_no:?}");
+            if let FuncIdx::Func(code_func_no) = calls_indexes[*func_no as usize] {
+                *func_no = import_funcs_num + code_func_no;
+            } else {
+                // TODO: check that case
+                panic!("Export cannot be to the import function");
+            }
+        }
+
+        module
+    }
 }
 
-pub fn gen_gear_program_module(u: &mut Unstructured, config: GearConfig) -> PModule {
+pub fn gen_gear_program_module<'a>(u: &'a mut Unstructured<'a>, config: GearConfig) -> Module {
     let swarm_config = default_swarm_config(u, &config);
 
-    let module = loop {
+    let mut module = loop {
         let module = gen_wasm_smith_module(u, &swarm_config);
         let wasm_bytes = module.to_bytes();
-        let module: PModule =
-            wasm_instrument::parity_wasm::deserialize_buffer(&wasm_bytes).unwrap();
+        let module: Module = wasm_instrument::parity_wasm::deserialize_buffer(&wasm_bytes).unwrap();
         if module.function_section().is_some() || config.process_when_no_funcs.get(u) {
             break module;
         }
     };
 
-    let module = gen_mem_export(module, u, &config);
+    // println!(
+    //     "\n\n\n{}\n\n\n",
+    //     wasmprinter::print_bytes(&module.clone().into_bytes().unwrap()).unwrap()
+    // );
 
-    gen_init(module, u, &config)
-
+    let mut gen = WasmGen::new(&module, u, config);
+    module = gen.gen_mem_export(module);
+    let (mut module, has_init) = gen.gen_init(module);
+    if !has_init {
+        return gen.resolves_calls_indexes(module);
+    }
+    module = gen.insert_sys_calls(module);
+    gen.resolves_calls_indexes(module)
     // println!("funcs num = {}", module.function_section().map(|f| f.entries().len()).unwrap_or(0));
 }
 
-pub fn gen_gear_program_code(u: &mut Unstructured, config: GearConfig) -> Vec<u8> {
+pub fn gen_gear_program_code<'a>(u: &'a mut Unstructured<'a>, config: GearConfig) -> Vec<u8> {
     let module = gen_gear_program_module(u, config);
     parity_wasm::serialize(module).unwrap()
 }
