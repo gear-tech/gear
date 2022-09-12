@@ -2833,7 +2833,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "gear-node-hacker"
+name = "gear-node-loader"
 version = "0.1.0"
 dependencies = [
  "arbitrary",
