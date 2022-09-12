@@ -158,7 +158,13 @@ pub(crate) fn authority_keys_from_seed(
 }
 
 #[cfg(any(feature = "gear-native", feature = "vara-native"))]
-pub fn authority_keys_from_seed(s: &str) -> (AccountId32, sp_consensus_babe::AuthorityId, sp_finality_grandpa::AuthorityId) {
+pub fn authority_keys_from_seed(
+    s: &str,
+) -> (
+    AccountId32,
+    sp_consensus_babe::AuthorityId,
+    sp_finality_grandpa::AuthorityId,
+) {
     (
         get_account_id_from_seed::<sr25519::Public>(s),
         get_from_seed::<sp_consensus_babe::AuthorityId>(s),
