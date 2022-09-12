@@ -15,7 +15,7 @@ rand = { version = "0.8.5", features = ["std_rng"] }
 serde = "1"
 env_logger = "0.9"
 hex = "0.4.3"
-arbitrary = { version = "1" }
+arbitrary = { version = "1.1.6" }
 wasm-mutate = "0.2.7"
 wasmparser = "0.90.0"
 
