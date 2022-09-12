@@ -657,7 +657,6 @@ construct_runtime!(
         GearGas: pallet_gear_gas,
         Gear: pallet_gear,
         GearPayment: pallet_gear_payment,
-        ShiftSessionManager: pallet_shift_session_manager,
 
         // TODO: remove from production version
         Airdrop: pallet_airdrop,
