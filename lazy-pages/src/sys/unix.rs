@@ -27,11 +27,17 @@ use nix::{
     libc::{c_void, siginfo_t},
     sys::{signal, signal::SigHandler},
 };
-use std::{cell::RefCell, io};
+use once_cell::sync::OnceCell;
+use std::io;
 
-thread_local! {
-    static OLD_SIG_HANDLER: RefCell<SigHandler> = RefCell::new(SigHandler::SigDfl);
-}
+/// Signal handler which has been set before lazy pages initialization.
+/// Currently use to support wasmer signal handler.
+/// Wasmer protects memory around wasm memory and for stack limits.
+/// It makes it only in `store` initialization when executor is created,
+/// see https://github.com/gear-tech/substrate/blob/gear-stable/client/executor/common/src/sandbox/wasmer_backend.rs
+/// and https://github.com/wasmerio/wasmer/blob/e6857d116134bdc9ab6a1dabc3544cf8e6aee22b/lib/vm/src/trap/traphandlers.rs#L548
+/// So, if we receive signal from unknown memory we should try to use old (wasmer) signal handler.
+static mut OLD_SIG_HANDLER: OnceCell<SigHandler> = OnceCell::new();
 
 cfg_if! {
     if #[cfg(all(target_os = "linux", target_arch = "x86_64"))] {
@@ -132,21 +138,28 @@ where
     };
 
     let old_sigaction = signal::sigaction(signal, &sig_action).map_err(io::Error::from)?;
-    OLD_SIG_HANDLER.with(|sh| *sh.borrow_mut() = old_sigaction.handler());
+    let handler = old_sigaction.handler();
+    let _ = OLD_SIG_HANDLER
+        .set(handler)
+        .map(|_| log::trace!("Save old signal handler: {:?}", handler));
 
     Ok(())
 }
 
 unsafe fn old_sig_handler(sig: i32, info: *mut siginfo_t, ucontext: *mut c_void) -> bool {
-    match OLD_SIG_HANDLER.with(|sh| *sh.borrow()) {
-        SigHandler::SigDfl | SigHandler::SigIgn => false,
-        SigHandler::Handler(func) => {
-            func(sig);
-            true
+    if let Some(old_sig_handler) = OLD_SIG_HANDLER.get() {
+        match old_sig_handler {
+            SigHandler::SigDfl | SigHandler::SigIgn => false,
+            SigHandler::Handler(func) => {
+                func(sig);
+                true
+            }
+            SigHandler::SigAction(func) => {
+                func(sig, info, ucontext);
+                true
+            }
         }
-        SigHandler::SigAction(func) => {
-            func(sig, info, ucontext);
-            true
-        }
+    } else {
+        false
     }
 }
