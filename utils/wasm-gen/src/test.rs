@@ -1,6 +1,6 @@
 use crate::{gen_gear_program_code, GearConfig};
+use rand::{rngs::SmallRng, SeedableRng, RngCore};
 use arbitrary::Unstructured;
-use rand::{rngs::SmallRng, RngCore, SeedableRng};
 
 #[test]
 fn gen_wasm() {
