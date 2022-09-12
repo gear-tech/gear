@@ -323,6 +323,10 @@ case "$COMMAND" in
         header "Running js test for client weights"
         client_weights_test "$ROOT_DIR"; ;;
 
+      uploads)
+        header "Running js test for client code uploading"
+        uploads_test "$ROOT_DIR" "$@"; ;;
+
       fuzz)
         header "Running fuzzer for system consistency check"
         run_fuzzer "$ROOT_DIR" "$@"; ;;

@@ -28,10 +28,6 @@ all: gear examples
 .PHONY: all-release
 all-release: gear-release examples
 
-.PHONY: build-wat-examples
-build-wat-examples:
-	@ ./scripts/gear.sh build wat-examples
-
 .PHONY: gear
 gear:
 	@ ./scripts/gear.sh build gear
@@ -58,6 +54,10 @@ build-examples:
 .PHONY: wasm-proc
 wasm-proc:
 	@ ./scripts/gear.sh build wasm-proc
+
+.PHONY: wat-examples
+wat-examples:
+	@ ./scripts/gear.sh build wat-examples
 
 .PHONY: proc-examples
 proc-examples: wasm-proc

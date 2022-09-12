@@ -61,7 +61,7 @@ pub mod pallet {
     };
     use sp_runtime::{traits::Zero, DispatchError};
     use sp_std::{collections::btree_map::BTreeMap, convert::TryInto, prelude::*};
-    use weights::WeightInfo;
+    pub use weights::WeightInfo;
 
     const LOCK_ID: LockIdentifier = *b"resume_p";
 
