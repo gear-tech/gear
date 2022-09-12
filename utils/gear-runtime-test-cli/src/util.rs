@@ -28,20 +28,13 @@ use gear_runtime::{
 use pallet_gear::{BlockGasLimitOf, Config, GasAllowanceOf};
 use pallet_gear_debug::DebugData;
 use runtime_primitives::AccountPublic;
-#[cfg(all(
-    feature = "rococo-gear-native",
-    not(feature = "gear-native"),
-    not(feature = "vara-native")
-))]
-use sp_consensus_aura::{sr25519::AuthorityId as AuraId, AURA_ENGINE_ID};
+use sp_consensus_aura::AURA_ENGINE_ID;
 use sp_consensus_babe::{
     digests::{PreDigest, SecondaryPlainPreDigest},
-    AuthorityId as BabeId, BABE_ENGINE_ID,
+    BABE_ENGINE_ID,
 };
 use sp_consensus_slots::Slot;
 use sp_core::{sr25519, Pair, Public};
-#[cfg(not(feature = "authoring-aura"))]
-use sp_finality_grandpa::AuthorityId as GrandpaId;
 use sp_runtime::{
     app_crypto::UncheckedFrom, traits::IdentifyAccount, AccountId32, Digest, DigestItem,
 };
@@ -95,25 +88,21 @@ pub(crate) fn initialize(new_blk: BlockNumberFor<Runtime>) {
     // All blocks are to be authored by validator at index 0
     let slot = Slot::from(0);
 
-    #[cfg(all(
-        feature = "rococo-gear-native",
-        not(feature = "gear-native"),
-        not(feature = "vara-native")
-    ))]
-    let pre_digest = Digest {
-        logs: vec![DigestItem::PreRuntime(AURA_ENGINE_ID, slot.encode())],
-    };
-
-    #[cfg(any(feature = "gear-native", feature = "vara-native"))]
-    let pre_digest = Digest {
-        logs: vec![DigestItem::PreRuntime(
-            BABE_ENGINE_ID,
-            PreDigest::SecondaryPlain(SecondaryPlainPreDigest {
-                slot,
-                authority_index: 0,
-            })
-            .encode(),
-        )],
+    let pre_digest = if cfg!(feature = "authoring-aura") {
+        Digest {
+            logs: vec![DigestItem::PreRuntime(AURA_ENGINE_ID, slot.encode())],
+        }
+    } else {
+        Digest {
+            logs: vec![DigestItem::PreRuntime(
+                BABE_ENGINE_ID,
+                PreDigest::SecondaryPlain(SecondaryPlainPreDigest {
+                    slot,
+                    authority_index: 0,
+                })
+                .encode(),
+            )],
+        }
     };
 
     System::initialize(&new_blk, &System::parent_hash(), &pre_digest);
@@ -159,19 +148,21 @@ where
     not(feature = "gear-native"),
     not(feature = "vara-native")
 ))]
-pub(crate) fn authority_keys_from_seed(s: &str) -> (AccountId32, AuraId) {
+pub(crate) fn authority_keys_from_seed(
+    s: &str,
+) -> (AccountId32, sp_consensus_aura::sr25519::AuthorityId) {
     (
         get_account_id_from_seed::<sr25519::Public>(s),
-        get_from_seed::<AuraId>(s),
+        get_from_seed::<sp_consensus_aura::sr25519::AuthorityId>(s),
     )
 }
 
 #[cfg(any(feature = "gear-native", feature = "vara-native"))]
-pub fn authority_keys_from_seed(s: &str) -> (AccountId32, BabeId, GrandpaId) {
+pub fn authority_keys_from_seed(s: &str) -> (AccountId32, sp_consensus_babe::AuthorityId, sp_finality_grandpa::AuthorityId) {
     (
         get_account_id_from_seed::<sr25519::Public>(s),
-        get_from_seed::<BabeId>(s),
-        get_from_seed::<GrandpaId>(s),
+        get_from_seed::<sp_consensus_babe::AuthorityId>(s),
+        get_from_seed::<sp_finality_grandpa::AuthorityId>(s),
     )
 }
 
