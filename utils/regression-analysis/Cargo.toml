@@ -9,6 +9,11 @@ license = "GPL-3.0"
 clap = { version = "3.2", features = ["derive"] }
 quick-xml = { version = "0.24", features = [ "serialize" ] }
 tabled = "0.8.0"
-common = { package = "junit-common", path = "../junit-common" }
+junit-common = { path = "../junit-common" }
+serde = { version = "1.0.138", features = ["derive"] }
 serde_json = "1.0.85"
 thousands = "0.2.0"
+
+gear-runtime = { path = "../../runtime/gear" }
+pallet-gear = { path = "../../pallets/gear" }
+frame-support = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }

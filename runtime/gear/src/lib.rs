@@ -78,6 +78,9 @@ pub mod constants;
 
 pub use constants::{currency::*, time::*};
 
+// Weights used in the runtime.
+mod weights;
+
 // The version of the runtime specification.
 //
 // Full node will not attempt to use its native runtime in substitute for the
@@ -88,7 +91,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
     impl_name: create_runtime_str!("gear"),
     apis: RUNTIME_API_VERSIONS,
     authoring_version: 1,
-    spec_version: 120,
+    spec_version: 130,
     impl_version: 1,
     transaction_version: 1,
     state_version: 1,
@@ -161,7 +164,7 @@ impl frame_system::Config for Runtime {
     /// The data to be stored in an account.
     type AccountData = pallet_balances::AccountData<Balance>;
     /// Weight information for the extrinsics of this pallet.
-    type SystemWeightInfo = ();
+    type SystemWeightInfo = weights::frame_system::SubstrateWeight<Runtime>;
     /// This is used as an identifier of the chain. 42 is the generic substrate prefix.
     type SS58Prefix = SS58Prefix;
     /// The set code logic, just the default since we're not a parachain.
@@ -235,7 +238,7 @@ impl pallet_timestamp::Config for Runtime {
     type Moment = Moment;
     type OnTimestampSet = Babe;
     type MinimumPeriod = MinimumPeriod;
-    type WeightInfo = pallet_timestamp::weights::SubstrateWeight<Runtime>;
+    type WeightInfo = weights::pallet_timestamp::SubstrateWeight<Runtime>;
 }
 
 impl pallet_balances::Config for Runtime {
@@ -249,7 +252,7 @@ impl pallet_balances::Config for Runtime {
     type DustRemoval = ();
     type ExistentialDeposit = ConstU128<EXISTENTIAL_DEPOSIT>;
     type AccountStore = System;
-    type WeightInfo = pallet_balances::weights::SubstrateWeight<Runtime>;
+    type WeightInfo = weights::pallet_balances::SubstrateWeight<Runtime>;
 }
 
 impl pallet_transaction_payment::Config for Runtime {
@@ -293,7 +296,7 @@ impl pallet_sudo::Config for Runtime {
 impl pallet_utility::Config for Runtime {
     type Event = Event;
     type Call = Call;
-    type WeightInfo = ();
+    type WeightInfo = weights::pallet_utility::SubstrateWeight<Runtime>;
     type PalletsOrigin = OriginCaller;
 }
 
@@ -304,7 +307,7 @@ impl gear_common::GasPrice for GasConverter {
 
 impl pallet_gear_program::Config for Runtime {
     type Event = Event;
-    type WeightInfo = pallet_gear_program::weights::GearProgramWeight<Runtime>;
+    type WeightInfo = weights::pallet_gear_program::SubstrateWeight<Runtime>;
     type Currency = Balances;
     type Messenger = GearMessenger;
 }
@@ -317,7 +320,7 @@ impl pallet_gear::Config for Runtime {
     type Event = Event;
     type Currency = Balances;
     type GasPrice = GasConverter;
-    type WeightInfo = pallet_gear::weights::GearWeight<Runtime>;
+    type WeightInfo = weights::pallet_gear::SubstrateWeight<Runtime>;
     type Schedule = Schedule;
     type OutgoingLimit = OutgoingLimit;
     type DebugInfo = DebugInfo;
@@ -479,11 +482,14 @@ extern crate frame_benchmarking;
 #[cfg(feature = "runtime-benchmarks")]
 mod benches {
     define_benchmarks!(
-        [frame_benchmarking, BaselineBench::<Runtime>]
+        // Substrate pallets
         [frame_system, SystemBench::<Runtime>]
         [pallet_balances, Balances]
         [pallet_timestamp, Timestamp]
+        [pallet_utility, Utility]
+        // Gear pallets
         [pallet_gear, Gear]
+        [pallet_gear_program, GearProgram]
     );
 }
 
