@@ -677,11 +677,8 @@ mod benches {
         [pallet_utility, Utility]
         // Gear pallets
         [pallet_gear, Gear]
-<<<<<<< HEAD
         [pallet_airdrop, Airdrop]
-=======
         [pallet_gear_program, GearProgram]
->>>>>>> master
     );
 }
 
