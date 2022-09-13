@@ -61,7 +61,7 @@ use sp_runtime::{
     transaction_validity::{
         InvalidTransaction, TransactionSource, TransactionValidity, TransactionValidityError,
     },
-    ApplyExtrinsicResult, Perbill, Percent,
+    ApplyExtrinsicResult, Perbill,
 };
 use sp_std::{
     convert::{TryFrom, TryInto},

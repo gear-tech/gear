@@ -58,7 +58,7 @@ use sp_runtime::{
     create_runtime_str, generic, impl_opaque_keys,
     traits::{AccountIdLookup, BlakeTwo256, Block as BlockT, NumberFor, OpaqueKeys},
     transaction_validity::{TransactionSource, TransactionValidity},
-    ApplyExtrinsicResult, Percent,
+    ApplyExtrinsicResult,
 };
 use sp_std::{
     convert::{TryFrom, TryInto},
