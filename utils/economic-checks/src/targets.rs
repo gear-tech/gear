@@ -340,7 +340,7 @@ pub fn simple_scenario(params: &Params) -> TargetOutcome {
                     let (block_num, contract_num, seed) = v.expect("Guaranteed to have value");
                     queue
                         .entry(block_num % (MAX_BLOCK - 2) + MIN_BLOCK) // [MIN_BLOCK..MAX_BLOCK]
-                        .or_insert(Vec::new())
+                        .or_default()
                         .push((contract_num % num_hashes, Seed(seed)));
                 });
 
@@ -556,7 +556,7 @@ mod tests {
                 let (block_num, contract_num, seed) = v.expect("Guaranteed to have value");
                 queue
                     .entry(block_num % (MAX_BLOCK - 2) + MIN_BLOCK) // [MIN_BLOCK..MAX_BLOCK]
-                    .or_insert(Vec::new())
+                    .or_default()
                     .push((contract_num % 16, Seed(seed)));
             });
 

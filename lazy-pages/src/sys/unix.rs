@@ -27,11 +27,17 @@ use nix::{
     libc::{c_void, siginfo_t},
     sys::{signal, signal::SigHandler},
 };
-use std::{cell::RefCell, io};
+use once_cell::sync::OnceCell;
+use std::io;
 
-thread_local! {
-    static OLD_SIG_HANDLER: RefCell<SigHandler> = RefCell::new(SigHandler::SigDfl);
-}
+/// Signal handler which has been set before lazy pages initialization.
+/// Currently use to support wasmer signal handler.
+/// Wasmer protects memory around wasm memory and for stack limits.
+/// It makes it only in `store` initialization when executor is created,
+/// see https://github.com/gear-tech/substrate/blob/gear-stable/client/executor/common/src/sandbox/wasmer_backend.rs
+/// and https://github.com/wasmerio/wasmer/blob/e6857d116134bdc9ab6a1dabc3544cf8e6aee22b/lib/vm/src/trap/traphandlers.rs#L548
+/// So, if we receive signal from unknown memory we should try to use old (wasmer) signal handler.
+static mut OLD_SIG_HANDLER: OnceCell<SigHandler> = OnceCell::new();
 
 cfg_if! {
     if #[cfg(all(target_os = "linux", target_arch = "x86_64"))] {
@@ -61,7 +67,7 @@ cfg_if! {
             // See https://developer.arm.com/documentation/ddi0595/2021-03/AArch64-Registers/ESR-EL1--Exception-Syndrome-Register--EL1-
             const WNR_BIT_MASK: u32 = 0b100_0000; // Write not Read bit
             const EXCEPTION_CLASS_SHIFT: u32 = u32::BITS - 6;
-            const EXCEPTION_CLASS: u32 = 0b100_100; // Data Abort from a lower Exception Level
+            const EXCEPTION_CLASS: u32 = 0b10_0100; // Data Abort from a lower Exception Level
 
             let mcontext = (*ucontext).uc_mcontext;
             let exception_state = (*mcontext).__es;
@@ -90,10 +96,11 @@ where
         };
 
         if let Err(err) = H::handle(exc_info) {
-            let old_sig_handler_works = if let Error::SignalFromUnknownMemory { .. } = err {
-                old_sig_handler(sig, info, ucontext)
-            } else {
-                false
+            let old_sig_handler_works = match err {
+                Error::SignalFromUnknownMemory { .. } | Error::WasmMemAddrIsNotSet => {
+                    old_sig_handler(sig, info, ucontext)
+                }
+                _ => false,
             };
             if !old_sig_handler_works {
                 panic!("Signal handler failed: {}", err);
@@ -107,9 +114,20 @@ where
     H: UserSignalHandler,
 {
     let handler = signal::SigHandler::SigAction(handle_sigsegv::<H>);
+    // Set additional SA_ONSTACK and SA_NODEFER to avoid problems with wasmer executor.
+    // See comment from shorturl.at/KMO68 :
+    // ```
+    //  SA_ONSTACK allows us to handle signals on an alternate stack,
+    //  so that the handler can run in response to running out of
+    //  stack space on the main stack. Rust installs an alternate
+    //  stack with sigaltstack, so we rely on that.
+    //  SA_NODEFER allows us to reenter the signal handler if we
+    //  crash while handling the signal, and fall through to the
+    //  Breakpad handler by testing handlingSegFault.
+    // ```
     let sig_action = signal::SigAction::new(
         handler,
-        signal::SaFlags::SA_SIGINFO,
+        signal::SaFlags::SA_SIGINFO | signal::SaFlags::SA_ONSTACK | signal::SaFlags::SA_NODEFER,
         signal::SigSet::empty(),
     );
 
@@ -120,21 +138,28 @@ where
     };
 
     let old_sigaction = signal::sigaction(signal, &sig_action).map_err(io::Error::from)?;
-    OLD_SIG_HANDLER.with(|sh| *sh.borrow_mut() = old_sigaction.handler());
+    let handler = old_sigaction.handler();
+    let _ = OLD_SIG_HANDLER
+        .set(handler)
+        .map(|_| log::trace!("Save old signal handler: {:?}", handler));
 
     Ok(())
 }
 
 unsafe fn old_sig_handler(sig: i32, info: *mut siginfo_t, ucontext: *mut c_void) -> bool {
-    match OLD_SIG_HANDLER.with(|sh| *sh.borrow()) {
-        SigHandler::SigDfl | SigHandler::SigIgn => false,
-        SigHandler::Handler(func) => {
-            func(sig);
-            true
+    if let Some(old_sig_handler) = OLD_SIG_HANDLER.get() {
+        match old_sig_handler {
+            SigHandler::SigDfl | SigHandler::SigIgn => false,
+            SigHandler::Handler(func) => {
+                func(sig);
+                true
+            }
+            SigHandler::SigAction(func) => {
+                func(sig, info, ucontext);
+                true
+            }
         }
-        SigHandler::SigAction(func) => {
-            func(sig, info, ucontext);
-            true
-        }
+    } else {
+        false
     }
 }
