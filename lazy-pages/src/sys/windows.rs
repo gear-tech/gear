@@ -18,7 +18,7 @@
  * along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
 
-use crate::sys::ExceptionInfo;
+use crate::sys::{ExceptionInfo, UserSignalHandler};
 use std::io;
 use winapi::{
     shared::ntdef::LONG,
@@ -29,7 +29,10 @@ use winapi::{
     vc::excpt::{EXCEPTION_CONTINUE_EXECUTION, EXCEPTION_CONTINUE_SEARCH},
 };
 
-unsafe extern "system" fn exception_handler(exception_info: *mut EXCEPTION_POINTERS) -> LONG {
+unsafe extern "system" fn exception_handler<H>(exception_info: *mut EXCEPTION_POINTERS) -> LONG
+where
+    H: UserSignalHandler,
+{
     let exception_record = (*exception_info).ExceptionRecord;
 
     let is_access_violation = (*exception_record).ExceptionCode == EXCEPTION_ACCESS_VIOLATION;
@@ -51,6 +54,7 @@ unsafe extern "system" fn exception_handler(exception_info: *mut EXCEPTION_POINT
         // (e.g. it reads and writes, but doesn't execute as native code)
         // that's why the case is impossible
         8 /* DEP */ => unreachable!("data execution prevention"),
+        // existence of other values is undocumented and I expect they should be treated as reserved 
         _ => None,
     };
     let info = ExceptionInfo {
@@ -58,14 +62,17 @@ unsafe extern "system" fn exception_handler(exception_info: *mut EXCEPTION_POINT
         is_write,
     };
 
-    super::user_signal_handler(info)
+    H::handle(info)
         .map_err(|err| err.to_string())
         .expect("Memory exception handler failed");
 
     EXCEPTION_CONTINUE_EXECUTION
 }
 
-pub unsafe fn setup_signal_handler() -> io::Result<()> {
-    SetUnhandledExceptionFilter(Some(exception_handler));
+pub unsafe fn setup_signal_handler<H>() -> io::Result<()>
+where
+    H: UserSignalHandler,
+{
+    SetUnhandledExceptionFilter(Some(exception_handler::<H>));
     Ok(())
 }

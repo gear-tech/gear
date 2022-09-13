@@ -136,7 +136,9 @@ pub trait GearRI {
     /// Init lazy pages for `on_idle`.
     /// Returns whether initialization was successful.
     fn init_lazy_pages() -> bool {
-        lazy_pages::init(lazy_pages::LazyPagesVersion::Version1)
+        use lazy_pages::{DefaultUserSignalHandler, LazyPagesVersion};
+
+        lazy_pages::init::<DefaultUserSignalHandler>(LazyPagesVersion::Version1)
     }
 
     /// Init lazy pages context for current program.
