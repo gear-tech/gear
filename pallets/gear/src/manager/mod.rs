@@ -56,9 +56,10 @@ use core_processor::common::{Actor, ExecutableActorData};
 use frame_support::traits::Currency;
 use gear_core::{
     ids::{CodeId, MessageId, ProgramId},
-    message::ExitCode,
-    program::Program as NativeProgram,
+    message::{ExitCode, DispatchKind},
+    program::Program as NativeProgram, code::{CodeAndId, InstrumentedCode}, memory::WasmPageNumber,
 };
+use primitive_types::H256;
 use sp_runtime::traits::UniqueSaturatedInto;
 use sp_std::{
     collections::{btree_map::BTreeMap, btree_set::BTreeSet},
@@ -73,6 +74,34 @@ pub enum HandleKind {
     InitByHash(CodeId),
     Handle(ProgramId),
     Reply(MessageId, ExitCode),
+}
+
+#[derive(Debug)]
+pub struct CodeInfo {
+    hash: H256,
+    length_bytes: u32,
+    exports: BTreeSet<DispatchKind>,
+    static_pages: WasmPageNumber,
+}
+
+impl CodeInfo {
+    pub fn from_code_and_id(code: &CodeAndId) -> Self {
+        Self {
+            hash: code.code_id().into_origin(),
+            length_bytes: code.code().code().len() as u32,
+            exports: code.code().exports().clone(),
+            static_pages: code.code().static_pages(),
+        }
+    }
+
+    pub fn from_code(id: &CodeId, code: &InstrumentedCode) -> Self {
+        Self {
+            hash: id.into_origin(),
+            length_bytes: code.code().len() as u32,
+            exports: code.exports().clone(),
+            static_pages: code.static_pages(),
+        }
+    }
 }
 
 /// Journal handler implementation for `pallet_gear`.
@@ -191,13 +220,13 @@ where
         })
     }
 
-    pub fn set_program(&self, program_id: ProgramId, code_id: CodeId, message_id: MessageId) {
+    pub fn set_program(&self, program_id: ProgramId, code_info: &CodeInfo, message_id: MessageId) {
         // Program can be added to the storage only with code, which is done in
         // `submit_program` or `upload_code` extrinsic.
         //
         // Code can exist without program, but the latter can't exist without code.
-        assert!(
-            T::CodeStorage::exists(code_id),
+        debug_assert!(
+            T::CodeStorage::exists(CodeId::from_origin(code_info.hash)),
             "Program set must be called only when code exists",
         );
 
@@ -205,7 +234,10 @@ where
         let program = common::ActiveProgram {
             allocations: Default::default(),
             pages_with_data: Default::default(),
-            code_hash: code_id.into_origin(),
+            code_hash: code_info.hash,
+            code_length_bytes: code_info.length_bytes,
+            code_exports: code_info.exports.clone(),
+            static_pages: code_info.static_pages,
             state: common::ProgramState::Uninitialized { message_id },
         };
 

@@ -247,6 +247,9 @@ fn run_fixture(test: &'_ sample::Test, fixture: &sample::Fixture) -> ColoredStri
             allocations: Default::default(),
             pages_with_data: Default::default(),
             code_hash: H256::default(),
+            code_exports: Default::default(),
+            code_length_bytes: 0,
+            static_pages: 0.into(),
             state: gear_common::ProgramState::Initialized,
         };
         gear_common::set_program(*id, program);

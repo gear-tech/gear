@@ -146,7 +146,7 @@ pub mod pallet {
     #[cfg(feature = "lazy-pages")]
     use gear_lazy_pages_common as lazy_pages;
 
-    use crate::manager::{ExtManager, HandleKind, QueuePostProcessingData};
+    use crate::manager::{ExtManager, HandleKind, QueuePostProcessingData, CodeInfo};
     use alloc::format;
     use common::{
         self, event::*, BlockLimiter, CodeMetadata, GasPrice, GasProvider, GasTree, Origin,
@@ -1475,6 +1475,7 @@ pub mod pallet {
         pub(crate) fn do_create_program(
             who: T::AccountId,
             packet: InitPacket,
+            code_info: CodeInfo,
         ) -> Result<(), DispatchError> {
             let origin = who.clone().into_origin();
 
@@ -1482,13 +1483,13 @@ pub mod pallet {
 
             ExtManager::<T>::default().set_program(
                 packet.destination(),
-                packet.code_id(),
+                &code_info,
                 message_id,
             );
 
             // # Safety
             //
-            // This is unreachable since the `message_id is new generated
+            // This is unreachable since the `message_id` is new generated
             // with `Self::next_message_id`.
             let _ = GasHandlerOf::<T>::create(
                 who.clone(),
@@ -1610,6 +1611,7 @@ pub mod pallet {
             Self::check_gas_limit_and_value(gas_limit, value)?;
 
             let code_and_id = Self::check_code(code)?;
+            let code_info = CodeInfo::from_code_and_id(&code_and_id);
             let packet = Self::init_packet(
                 who.clone(),
                 code_and_id.code_id(),
@@ -1634,7 +1636,7 @@ pub mod pallet {
                 });
             }
 
-            Self::do_create_program(who, packet)?;
+            Self::do_create_program(who, packet, code_info)?;
 
             Ok(().into())
         }
@@ -1667,9 +1669,8 @@ pub mod pallet {
             let who = ensure_signed(origin)?;
 
             // Check if code exists.
-            if !T::CodeStorage::exists(code_id) {
-                return Err(Error::<T>::CodeNotExists.into());
-            }
+            let code = T::CodeStorage::get_code(code_id)
+                .ok_or(Error::<T>::CodeNotExists)?;
 
             // Check `gas_limit` and `value`
             Self::check_gas_limit_and_value(gas_limit, value)?;
@@ -1678,7 +1679,7 @@ pub mod pallet {
             let packet =
                 Self::init_packet(who.clone(), code_id, salt, init_payload, gas_limit, value)?;
 
-            Self::do_create_program(who, packet)?;
+            Self::do_create_program(who, packet, CodeInfo::from_code(&code_id, &code))?;
             Ok(().into())
         }
 
