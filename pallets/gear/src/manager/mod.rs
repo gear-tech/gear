@@ -112,6 +112,8 @@ pub struct ExtManager<T: Config> {
     programs: BTreeSet<ProgramId>,
     /// Ids of programs which memory pages have been loaded earlier during processing a block.
     program_loaded_pages: BTreeSet<ProgramId>,
+    /// Binary code ids that have been loaded earlier during processing a block.
+    loaded_codes: BTreeSet<CodeId>,
     /// Messages dispatches.
     dispatch_statuses: BTreeMap<MessageId, DispatchStatus>,
     /// Programs, which state changed.
@@ -147,6 +149,7 @@ where
             users: Default::default(),
             programs: Default::default(),
             program_loaded_pages: Default::default(),
+            loaded_codes: Default::default(),
             dispatch_statuses: Default::default(),
             state_changes: Default::default(),
         }
@@ -186,9 +189,21 @@ where
     /// Adds program's id to the collection of programs with
     /// loaded memory pages.
     pub fn insert_program_id_loaded_pages(&mut self, id: ProgramId) {
-        assert!(self.check_program_id(&id));
+        debug_assert!(self.check_program_id(&id));
 
         self.program_loaded_pages.insert(id);
+    }
+
+    /// Checks if the code was loaded.
+    pub fn code_loaded(&self, id: &CodeId) -> bool {
+        self.loaded_codes.contains(id)
+    }
+
+    /// Adds code's id to the collection of the previously loaded instruction sets.
+    pub fn insert_code_id_loaded(&mut self, id: CodeId) {
+        debug_assert!(T::CodeStorage::exists(id));
+
+        self.loaded_codes.insert(id);
     }
 
     /// NOTE: By calling this function we can't differ whether `None` returned, because
