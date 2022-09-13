@@ -2745,7 +2745,6 @@ dependencies = [
  "pallet-gear-scheduler",
  "pallet-grandpa",
  "pallet-session",
- "pallet-shift-session-manager",
  "pallet-sudo",
  "pallet-timestamp",
  "pallet-transaction-payment",
@@ -5445,21 +5444,6 @@ dependencies = [
  "sp-staking",
  "sp-std",
  "sp-trie",
-]
-
-[[package]]
-name = "pallet-shift-session-manager"
-version = "0.1.0"
-dependencies = [
- "frame-support",
- "frame-system",
- "pallet-session",
- "parity-scale-codec",
- "scale-info",
- "sp-core",
- "sp-runtime",
- "sp-staking",
- "sp-std",
 ]
 
 [[package]]
@@ -9604,7 +9588,6 @@ dependencies = [
  "pallet-gear-scheduler",
  "pallet-grandpa",
  "pallet-session",
- "pallet-shift-session-manager",
  "pallet-staking",
  "pallet-staking-reward-curve",
  "pallet-sudo",
