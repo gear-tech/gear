@@ -23,7 +23,7 @@ use std::io;
 use winapi::{
     shared::ntdef::LONG,
     um::{
-        errhandlingapi::SetUnhandledExceptionFilter, minwinbase::EXCEPTION_ACCESS_VIOLATION,
+        errhandlingapi::AddVectoredExceptionHandler, minwinbase::EXCEPTION_ACCESS_VIOLATION,
         winnt::EXCEPTION_POINTERS,
     },
     vc::excpt::{EXCEPTION_CONTINUE_EXECUTION, EXCEPTION_CONTINUE_SEARCH},
@@ -73,6 +73,12 @@ pub unsafe fn setup_signal_handler<H>() -> io::Result<()>
 where
     H: UserSignalHandler,
 {
-    SetUnhandledExceptionFilter(Some(exception_handler::<H>));
-    Ok(())
+    const CALL_FIRST: bool = true;
+
+    let handle = AddVectoredExceptionHandler(CALL_FIRST as _, Some(exception_handler::<H>));
+    if handle.is_null() {
+        Err(io::Error::last_os_error())
+    } else {
+        Ok(())
+    }
 }

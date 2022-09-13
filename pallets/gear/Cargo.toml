@@ -28,7 +28,6 @@ gear-core = { path = "../../core", default-features = false }
 gear-core-errors = { path = "../../core-errors", default-features = false }
 gear-backend-common = { path = "../../core-backend/common", default-features = false }
 gear-backend-sandbox = { path = "../../core-backend/sandbox", default-features = false }
-gear-runtime-interface = { path = "../../runtime-interface", default-features = false }
 pallet-gear-proc-macro = { version = "2.0.0", path = "proc-macro" }
 
 # Substrate deps
@@ -83,6 +82,7 @@ page_size = "0.4.2"
 pallet-gear-gas = { path = "../gas" }
 pallet-gear-messenger = { path = "../gear-messenger" }
 pallet-gear-scheduler = { path = "../gear-scheduler" }
+gear-runtime-interface = { path = "../../runtime-interface" }
 
 [features]
 default = ['std']
@@ -94,7 +94,6 @@ std = [
 	"frame-system/std",
 	"wasm-instrument/std",
 	"gear-backend-sandbox/std",
-	"gear-runtime-interface/std",
 	"scale-info/std",
 	"sp-io/std",
 	"sp-std/std",
