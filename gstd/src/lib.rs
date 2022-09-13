@@ -55,8 +55,36 @@ pub mod traits {
     pub use crate::async_runtime::Wait;
 }
 
+pub use config::Config;
+
 /// This module is for configuring `gstd` inside gear programs.
 pub mod config {
-    /// Default wait duration for async sending calls.
-    pub static mut DEFAULT_WAIT_NO_MORE_DURATION: u32 = 100;
+    /// `gstd` configuration
+    pub struct Config {
+        pub wait_duration: u32,
+    }
+
+    impl Config {
+        const fn default() -> Self {
+            Self { wait_duration: 100 }
+        }
+
+        /// Get wait duration
+        pub fn wait_duration() -> u32 {
+            unsafe { CONFIG.wait_duration }
+        }
+
+        /// Set wait duration
+        pub fn set_wait_duration(duration: u32) -> Result<(), ()> {
+            // # TODO
+            //
+            // check duration
+            unsafe { CONFIG.wait_duration = duration };
+            Ok(())
+        }
+    }
+
+    /// Private `gstd` configuration, only could be modified
+    /// with the public interfaces of `Config`.
+    static mut CONFIG: Config = Config::default();
 }

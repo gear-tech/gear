@@ -1,5 +1,5 @@
 //! Wait duration registry
-use crate::{async_runtime, exec, prelude::BTreeMap, MessageId};
+use crate::{async_runtime, exec, prelude::BTreeMap, Config, MessageId};
 
 /// Wait locks.
 #[derive(Debug, PartialEq, Eq)]
@@ -20,7 +20,7 @@ impl Lock {
 
 impl Default for Lock {
     fn default() -> Self {
-        unsafe { Lock::NoMore(crate::config::DEFAULT_WAIT_NO_MORE_DURATION) }
+        Lock::NoMore(Config::wait_duration())
     }
 }
 
