@@ -90,11 +90,7 @@ impl WakeSignals {
             Some(WakeSignal {
                 payload: Some(payload),
                 ..
-            }) => {
-                // Remove lock after waking.
-                super::locks().remove(&crate::msg::id());
-                ReplyPoll::Some(payload)
-            }
+            }) => ReplyPoll::Some(payload),
         }
     }
 }

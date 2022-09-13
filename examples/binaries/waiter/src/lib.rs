@@ -20,9 +20,6 @@
 use codec::{Decode, Encode};
 use gstd::ActorId;
 
-// Re-exports for testing
-pub use gstd::config::DEFAULT_WAIT_NO_MORE_DURATION;
-
 #[cfg(feature = "std")]
 mod code {
     include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
@@ -34,6 +31,11 @@ pub use code::WASM_BINARY_OPT as WASM_BINARY;
 #[cfg(not(feature = "std"))]
 mod wasm {
     include! {"./code.rs"}
+}
+
+// Re-exports for testing
+pub fn default_wait_duration() -> u32 {
+    gstd::Config::wait_duration()
 }
 
 #[derive(Debug, Encode, Decode)]

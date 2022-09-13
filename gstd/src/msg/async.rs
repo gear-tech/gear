@@ -121,6 +121,9 @@ impl Future for MessageFuture {
                     return Poll::Ready(Err(ContractError::ExitCode(exit_code)));
                 }
 
+                // Remove lock after waking.
+                async_runtime::locks().remove(&crate::msg::id());
+
                 Poll::Ready(Ok(actual_reply))
             },
         }

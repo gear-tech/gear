@@ -70,12 +70,11 @@ pub mod config {
         }
 
         /// Set wait duration
-        pub fn set_wait_duration(duration: u32) -> Result<(), ()> {
+        pub fn set_wait_duration(duration: u32) {
             // # TODO
             //
             // check duration
             unsafe { CONFIG.wait_duration = duration };
-            Ok(())
         }
     }
 

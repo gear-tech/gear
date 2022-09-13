@@ -2818,7 +2818,7 @@ fn test_different_waits_fail() {
 
 #[test]
 fn test_sending_waits() {
-    use demo_waiter::{Command, DEFAULT_WAIT_NO_MORE_DURATION, WASM_BINARY};
+    use demo_waiter::{Command, WASM_BINARY};
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -2929,9 +2929,10 @@ fn test_sending_waits() {
         ));
 
         run_to_next_block(None);
-        assert_eq!(get_waitlist_expiration(wait_wait), unsafe {
-            expiration(DEFAULT_WAIT_NO_MORE_DURATION)
-        });
+        assert_eq!(
+            get_waitlist_expiration(wait_wait),
+            expiration(demo_waiter::default_wait_duration())
+        );
     });
 }
 
