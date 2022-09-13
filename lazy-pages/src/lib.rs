@@ -96,7 +96,7 @@ pub enum LazyPagesVersion {
     Version1,
 }
 
-#[derive(Default, PartialEq, Eq)]
+#[derive(Default, PartialEq, Eq, Debug)]
 pub(crate) struct LazyPagesExecutionContext {
     /// Pointer to the begin of wasm memory buffer
     pub wasm_mem_addr: Option<usize>,
@@ -179,6 +179,9 @@ pub fn initialize_for_program(
         };
 
         ctx.program_storage_prefix = Some(program_prefix);
+
+        log::trace!("Initialize lazy pages for current program: {:?}", ctx);
+
         Ok(())
     })
 }
