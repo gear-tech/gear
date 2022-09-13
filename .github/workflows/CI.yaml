@@ -268,7 +268,9 @@ jobs:
       #     cargo build -p gear-node --release --features runtime-benchmarks
       #     ./target/release/gear-node benchmark pallet --chain=dev --steps=1 --repeat=1 --pallet=pallet_gear --extrinsic="*" --execution=wasm --wasm-execution=compiled --heap-pages=4096
       - name: "Test: Upload programs"
-        run: ./scripts/gear.sh test uploads "$(pwd)/target/wat-examples/wrong_load.wasm"
+        run: |
+          ./scripts/gear.sh test uploads "$(pwd)/target/wat-examples/wrong_load.wasm"
+          ./scripts/gear.sh test uploads "$(pwd)/target/wat-examples/inf_recursion.wasm"
 
       - name: "Coverage: Aggregate"
         run: >-
@@ -418,7 +420,6 @@ jobs:
 
       - name: "ACTIONS: Checkout"
         uses: actions/checkout@v2
-
       - name: "ACTIONS: Setup caching"
         uses: actions/cache@v3
         with:
