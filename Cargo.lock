@@ -2687,7 +2687,8 @@ dependencies = [
  "derive_more",
  "gear-core",
  "log",
- "nix 0.23.1",
+ "nix 0.25.0",
+ "once_cell",
  "region 3.0.0",
  "sp-io",
  "sp-std",
@@ -2744,7 +2745,6 @@ dependencies = [
  "pallet-gear-scheduler",
  "pallet-grandpa",
  "pallet-session",
- "pallet-shift-session-manager",
  "pallet-sudo",
  "pallet-timestamp",
  "pallet-transaction-payment",
@@ -4829,19 +4829,6 @@ dependencies = [
 
 [[package]]
 name = "nix"
-version = "0.23.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9f866317acbd3a240710c63f065ffb1e4fd466259045ccb504130b7f668f35c6"
-dependencies = [
- "bitflags",
- "cc",
- "cfg-if",
- "libc",
- "memoffset",
-]
-
-[[package]]
-name = "nix"
 version = "0.24.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "195cdbc1741b8134346d515b3a56a1c94b0912758009cfd53f99ea0f57b065fc"
@@ -4850,6 +4837,20 @@ dependencies = [
  "cfg-if",
  "libc",
  "memoffset",
+]
+
+[[package]]
+name = "nix"
+version = "0.25.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e322c04a9e3440c327fca7b6c8a63e6890a32fa2ad689db972425f07e0d22abb"
+dependencies = [
+ "autocfg",
+ "bitflags",
+ "cfg-if",
+ "libc",
+ "memoffset",
+ "pin-utils",
 ]
 
 [[package]]
@@ -5443,21 +5444,6 @@ dependencies = [
  "sp-staking",
  "sp-std",
  "sp-trie",
-]
-
-[[package]]
-name = "pallet-shift-session-manager"
-version = "0.1.0"
-dependencies = [
- "frame-support",
- "frame-system",
- "pallet-session",
- "parity-scale-codec",
- "scale-info",
- "sp-core",
- "sp-runtime",
- "sp-staking",
- "sp-std",
 ]
 
 [[package]]
@@ -6176,9 +6162,9 @@ checksum = "a993555f31e5a609f617c12db6250dedcac1b0a85076912c436e6fc9b2c8e6a3"
 
 [[package]]
 name = "quick-xml"
-version = "0.24.0"
+version = "0.25.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "678404d55890514fa1c01fe98cf280b674db93944fdcb70310dd3be1d0d63be7"
+checksum = "58e21a144a0ffb5fad7b464babcdab934a325ad69b7c0373bcfef5cbd9799ca9"
 dependencies = [
  "memchr",
  "serde",
@@ -9602,7 +9588,6 @@ dependencies = [
  "pallet-gear-scheduler",
  "pallet-grandpa",
  "pallet-session",
- "pallet-shift-session-manager",
  "pallet-staking",
  "pallet-staking-reward-curve",
  "pallet-sudo",

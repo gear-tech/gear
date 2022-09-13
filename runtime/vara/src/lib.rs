@@ -62,7 +62,7 @@ use sp_runtime::{
     transaction_validity::{
         InvalidTransaction, TransactionSource, TransactionValidity, TransactionValidityError,
     },
-    ApplyExtrinsicResult, Perbill, Percent,
+    ApplyExtrinsicResult, Perbill,
 };
 use sp_std::{
     convert::{TryFrom, TryInto},
@@ -334,13 +334,6 @@ impl_opaque_keys! {
         pub grandpa: Grandpa,
     }
 }
-parameter_types! {
-    pub const SelectedFraction: Percent = Percent::from_percent(100);
-}
-
-impl pallet_shift_session_manager::Config for Runtime {
-    type SelectedFraction = SelectedFraction;
-}
 
 impl pallet_session::Config for Runtime {
     type Event = Event;
@@ -348,7 +341,7 @@ impl pallet_session::Config for Runtime {
     type ValidatorIdOf = pallet_staking::StashOf<Self>;
     type ShouldEndSession = Babe;
     type NextSessionRotation = Babe;
-    type SessionManager = ShiftSessionManager;
+    type SessionManager = ();
     type SessionHandler = <SessionKeys as OpaqueKeys>::KeyTypeIdProviders;
     type Keys = SessionKeys;
     type WeightInfo = pallet_session::weights::SubstrateWeight<Runtime>;
@@ -583,7 +576,6 @@ construct_runtime!(
         GearGas: pallet_gear_gas,
         Gear: pallet_gear,
         GearPayment: pallet_gear_payment,
-        ShiftSessionManager: pallet_shift_session_manager,
 
         // TODO: remove from prodiction version
         Airdrop: pallet_airdrop,
@@ -619,8 +611,6 @@ construct_runtime!(
         GearGas: pallet_gear_gas,
         Gear: pallet_gear,
         GearPayment: pallet_gear_payment,
-        ShiftSessionManager: pallet_shift_session_manager,
-
         // TODO: remove from production version
         Airdrop: pallet_airdrop,
     }
