@@ -1,6 +1,6 @@
 use crate::Command;
 
-use gstd::{exec, msg, traits::Wait};
+use gstd::{exec, msg};
 
 #[gstd::async_main]
 async fn main() {
@@ -13,7 +13,7 @@ async fn main() {
         Command::SendFor(to, duration) => {
             msg::send_bytes_for_reply(to, [], 0)
                 .expect("send message failed")
-                .till(duration)
+                .exactly(duration)
                 .await;
         }
         Command::SendNoMore(to, duration) => {

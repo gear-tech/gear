@@ -50,11 +50,6 @@ pub use prelude::*;
 #[cfg(feature = "debug")]
 pub use gcore::ext;
 
-/// Shared traits for gear programs.
-pub mod traits {
-    pub use crate::async_runtime::Wait;
-}
-
 pub use config::Config;
 
 /// This module is for configuring `gstd` inside gear programs.

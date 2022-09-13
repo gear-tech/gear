@@ -19,7 +19,7 @@
 //! This `gstd` module provides async messaging functions.
 
 use crate::{
-    async_runtime::{signals, ReplyPoll, Wait},
+    async_runtime::{self, signals, Lock, ReplyPoll},
     errors::{ContractError, Result},
     prelude::{convert::AsRef, Vec},
     ActorId, MessageId,
@@ -73,7 +73,20 @@ impl<D: Decode> Future for CodecMessageFuture<D> {
     }
 }
 
-impl<D: Decode> Wait for CodecMessageFuture<D> {}
+impl<D: Decode> CodecMessageFuture<D> {
+    /// Delays handling for given specific amount of blocks.
+    pub fn no_more(self, duration: u32) -> Self {
+        async_runtime::locks().insert(crate::msg::id(), Lock::NoMore(duration));
+        self
+    }
+
+    /// Delays handling for maximal amount of blocks that could be payed, that
+    /// doesn't exceed given duration.
+    pub fn exactly(self, duration: u32) -> Self {
+        async_runtime::locks().insert(crate::msg::id(), Lock::For(duration));
+        self
+    }
+}
 
 impl<D: Decode> FusedFuture for CodecMessageFuture<D> {
     fn is_terminated(&self) -> bool {
@@ -114,7 +127,20 @@ impl Future for MessageFuture {
     }
 }
 
-impl Wait for MessageFuture {}
+impl MessageFuture {
+    /// Delays handling for given specific amount of blocks.
+    pub fn no_more(self, duration: u32) -> Self {
+        async_runtime::locks().insert(crate::msg::id(), Lock::NoMore(duration));
+        self
+    }
+
+    /// Delays handling for maximal amount of blocks that could be payed, that
+    /// doesn't exceed given duration.
+    pub fn exactly(self, duration: u32) -> Self {
+        async_runtime::locks().insert(crate::msg::id(), Lock::For(duration));
+        self
+    }
+}
 
 impl FusedFuture for MessageFuture {
     fn is_terminated(&self) -> bool {
