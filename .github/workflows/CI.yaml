@@ -405,6 +405,17 @@ jobs:
           $tmp | Remove-Item
         shell: powershell
 
+      - name: "Install: wabt"
+        run: |
+          $tmp = New-TemporaryFile | Rename-Item -NewName { $_ -replace 'tmp$', 'tar.gz' } -PassThru
+          Invoke-WebRequest -OutFile $tmp https://github.com/WebAssembly/wabt/releases/download/1.0.29/wabt-1.0.29-windows.tar.gz
+          $outputDir = if ($Env:CARGO_HOME) { Join-Path $Env:CARGO_HOME "bin" } else { "~/.cargo/bin" }
+          tar zxf $tmp
+          cp ./wabt-1.0.29/bin/* $outputDir
+          Remove-Item -Recurse ./wabt-1.0.29
+          $tmp | Remove-Item
+        shell: powershell
+
       - name: "Install: Node.js"
         uses: actions/setup-node@v2
         with:
