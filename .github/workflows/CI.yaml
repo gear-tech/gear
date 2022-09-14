@@ -387,10 +387,10 @@ jobs:
 
       - name: "Install: cargo-hack"
         run: |
-          $tmp = New-TemporaryFile | Rename-Item -NewName { $_ -replace 'tmp$', 'zip' } -PassThru
+          $tmp = New-TemporaryFile | Rename-Item -NewName { $_ -replace 'tmp$', 'tar.gz' } -PassThru
           Invoke-WebRequest -OutFile $tmp https://github.com/taiki-e/cargo-hack/releases/latest/download/cargo-hack-x86_64-pc-windows-msvc.tar.gz
-          $outputDir = if ($Env:CARGO_HOME) { Join-Path $Env:CARGO_HOME "bin" } else { "~/.cargo/bin" }
-          $tmp | Expand-Archive -DestinationPath $outputDir -Force
+          $outputDir = if ($Env:CARGO_HOME) { Join-Path $Env:CARGO_HOME "bin" } else { Resolve-Path "~/.cargo/bin" }
+          tar zxf $tmp -C $outputDir
           $tmp | Remove-Item
         shell: powershell
 
