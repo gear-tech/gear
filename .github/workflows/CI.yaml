@@ -383,7 +383,13 @@ jobs:
         shell: powershell
 
       - name: "Install: cargo-hack"
-        uses: taiki-e/install-action@cargo-hack
+        run: |
+          $tmp = New-TemporaryFile | Rename-Item -NewName { $_ -replace 'tmp$', 'zip' } -PassThru
+          Invoke-WebRequest -OutFile $tmp https://github.com/taiki-e/cargo-hack/releases/download/v0.5.18/cargo-hack-x86_64-pc-windows-msvc.zip
+          $outputDir = if ($Env:CARGO_HOME) { Join-Path $Env:CARGO_HOME "bin" } else { "~/.cargo/bin" }
+          $tmp | Expand-Archive -DestinationPath $outputDir -Force
+          $tmp | Remove-Item
+        shell: powershell
 
       - name: "Install: Node.js"
         uses: actions/setup-node@v2
