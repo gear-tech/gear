@@ -416,6 +416,9 @@ jobs:
       - name: "Build: Node"
         run: ./scripts/gear.sh build node --release --locked
 
+      - name: "Build: WAT examples"
+        run: ./scripts/gear.sh build wat-examples
+
       - name: "Build: wasm-proc"
         run: ./scripts/gear.sh build wasm-proc --locked
 
@@ -427,6 +430,17 @@ jobs:
 
       - name: "Test: Process node runtime testsuite"
         run: ./scripts/gear.sh test rtest
+        
+      - name: "Test: Runtime upgrade and queue processing"
+        run: ./scripts/gear.sh test runtime-upgrade
+
+      - name: "Test: Weight on client for loop"
+        run: ./scripts/gear.sh test client-weights
+
+      - name: "Test: Upload programs"
+        run: |
+          ./scripts/gear.sh test uploads "$(pwd)/target/wat-examples/wrong_load.wasm"
+          ./scripts/gear.sh test uploads "$(pwd)/target/wat-examples/inf_recursion.wasm"
 
       - name: "Test: Lazy pages"
         uses: actions-rs/cargo@v1
