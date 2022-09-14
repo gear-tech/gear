@@ -31,6 +31,7 @@ async function getNextBlock(api, blockNumber) {
 function checkProcessed(api) {
   let processedMessages = new Map();
 
+  // TODO: does not update processedMessages after first message (issue #1462)
   const unsubPromise = api.query.system.events((events) => {
     events.forEach(({ event: { method, data } }) => {
       if (method === 'MessagesDispatched') {
