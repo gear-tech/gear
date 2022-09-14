@@ -343,6 +343,12 @@ pub enum ExecutionErrorReason {
     /// Not enough gas in block for initial memory handling
     #[display(fmt = "Not enough gas in block for initial memory handling")]
     InitialMemoryBlockGasExceeded,
+    /// Not enough gas for basic program data handling
+    #[display(fmt = "Not enough gas for basic program data handling")]
+    ProgramDataGasExceeded,
+    /// Not enough gas for loading a program code
+    #[display(fmt = "Not enough gas for loading a program code")]
+    ProgramCodeGasExceeded,
     /// Mem size less then static pages num
     #[display(fmt = "Mem size less then static pages num")]
     InsufficientMemorySize,

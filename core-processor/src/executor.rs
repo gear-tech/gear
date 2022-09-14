@@ -37,6 +37,72 @@ use gear_core::{
     message::{ContextSettings, IncomingDispatch, MessageContext},
 };
 
+pub(crate) enum ChargeForBytesResult {
+    Ok,
+    BlockGasExceeded,
+    GasExceeded,
+}
+
+fn charge_gas_for_bytes(
+    read_cost: u64,
+    per_byte_cost: u64,
+    byte_count: u64,
+    gas_counter: &mut GasCounter,
+    gas_allowance_counter: &mut GasAllowanceCounter,
+    subsequent_execution: bool,
+) -> ChargeForBytesResult {
+    if subsequent_execution {
+        return ChargeForBytesResult::Ok;
+    }
+
+    let amount = read_cost.saturating_add(byte_count.saturating_mul(per_byte_cost));
+    if gas_allowance_counter.charge(amount) != ChargeResult::Enough {
+        return ChargeForBytesResult::BlockGasExceeded;
+    }
+
+    if gas_counter.charge(amount) != ChargeResult::Enough {
+        return ChargeForBytesResult::GasExceeded;
+    }
+
+    ChargeForBytesResult::Ok
+}
+
+pub(crate) fn charge_gas_for_program(
+    read_cost: u64,
+    per_byte_cost: u64,
+    gas_counter: &mut GasCounter,
+    gas_allowance_counter: &mut GasAllowanceCounter,
+    subsequent_execution: bool,
+) -> ChargeForBytesResult {
+    const PROGRAM_BYTE_COUNT: u64 = 100_500;
+    charge_gas_for_bytes(
+        read_cost,
+        per_byte_cost,
+        PROGRAM_BYTE_COUNT,
+        gas_counter,
+        gas_allowance_counter,
+        subsequent_execution,
+    )
+}
+
+pub(crate) fn charge_gas_for_code(
+    read_cost: u64,
+    per_byte_cost: u64,
+    code_len_bytes: u32,
+    gas_counter: &mut GasCounter,
+    gas_allowance_counter: &mut GasAllowanceCounter,
+    subsequent_execution: bool,
+) -> ChargeForBytesResult {
+    charge_gas_for_bytes(
+        read_cost,
+        per_byte_cost,
+        code_len_bytes.into(),
+        gas_counter,
+        gas_allowance_counter,
+        subsequent_execution,
+    )
+}
+
 /// Make checks that everything with memory goes well.
 fn check_memory<'a>(
     allocations: &BTreeSet<WasmPageNumber>,

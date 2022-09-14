@@ -151,11 +151,12 @@ mod tests {
     #[test]
     fn test_duplicate() {
         let sys = System::new();
+        sys.init_logger();
         let factory = prepare_factory(&sys);
 
         let salt = 0i32.to_be_bytes();
         let child_id_expected = calculate_program_id(CHILD_CODE_HASH.into(), &salt);
-        let payload = CreateProgram::Custom(vec![(CHILD_CODE_HASH, salt.to_vec(), 100_000)]);
+        let payload = CreateProgram::Custom(vec![(CHILD_CODE_HASH, salt.to_vec(), 100_000_000)]);
 
         // Send `handle` msg to factory to create a new child
         let res = factory.send_bytes(10001, payload.encode());
@@ -176,6 +177,7 @@ mod tests {
     #[test]
     fn test_non_existing_code_hash() {
         let sys = System::new();
+        sys.init_logger();
         let factory = prepare_factory(&sys);
 
         // Non existing code hash provided
@@ -193,6 +195,7 @@ mod tests {
     #[should_panic(expected = "Program can't be constructed with provided code")]
     fn test_invalid_wasm_child() {
         let sys = System::new();
+        sys.init_logger();
         let factory = prepare_factory(&sys);
 
         let invalid_wasm = [10u8; 32];

@@ -141,6 +141,11 @@ pub fn prepare(
     block_config: &BlockConfig,
     execution_context: MessageExecutionContext,
 ) -> PrepareResult {
+    use executor::ChargeForBytesResult;
+
+    let subsequent_code_loading = false;
+    let per_byte_cost = 100;
+    let read_cost = 200;
     let MessageExecutionContext {
         actor,
         dispatch,
@@ -162,6 +167,36 @@ pub fn prepare(
     };
 
     let mut gas_counter = GasCounter::new(dispatch.gas_limit());
+    let mut gas_allowance_counter = GasAllowanceCounter::new(gas_allowance);
+
+    match executor::charge_gas_for_program(
+        read_cost,
+        per_byte_cost,
+        &mut gas_counter,
+        &mut gas_allowance_counter,
+        subsequent_execution,
+    ) {
+        ChargeForBytesResult::Ok => (),
+        ChargeForBytesResult::GasExceeded => {
+            // program struct has already been loaded so charge anyway
+            gas_counter.charge(gas_counter.left());
+
+            return PrepareResult::Error(process_error(
+                dispatch,
+                program_id,
+                gas_counter.burned(),
+                ExecutionErrorReason::ProgramDataGasExceeded,
+            ));
+        }
+        ChargeForBytesResult::BlockGasExceeded => {
+            return PrepareResult::Error(process_allowance_exceed(
+                dispatch,
+                program_id,
+                gas_counter.burned(),
+            ))
+        }
+    }
+
     if !actor_data.code_exports.contains(&dispatch.kind()) {
         return PrepareResult::WontExecute(process_success(
             SuccessfulDispatchResultKind::Success,
@@ -169,7 +204,32 @@ pub fn prepare(
         ));
     }
 
-    let mut gas_allowance_counter = GasAllowanceCounter::new(gas_allowance);
+    match executor::charge_gas_for_code(
+        read_cost,
+        per_byte_cost,
+        actor_data.code_length_bytes,
+        &mut gas_counter,
+        &mut gas_allowance_counter,
+        subsequent_code_loading,
+    ) {
+        ChargeForBytesResult::Ok => (),
+        ChargeForBytesResult::GasExceeded => {
+            return PrepareResult::Error(process_error(
+                dispatch,
+                program_id,
+                gas_counter.burned(),
+                ExecutionErrorReason::ProgramCodeGasExceeded,
+            ))
+        }
+        ChargeForBytesResult::BlockGasExceeded => {
+            return PrepareResult::Error(process_allowance_exceed(
+                dispatch,
+                program_id,
+                gas_counter.burned(),
+            ))
+        }
+    }
+
     let memory_size = match executor::charge_gas_for_pages(
         &block_config.allocations_config,
         &mut gas_counter,
