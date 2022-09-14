@@ -388,9 +388,20 @@ jobs:
       - name: "Install: cargo-hack"
         run: |
           $tmp = New-TemporaryFile | Rename-Item -NewName { $_ -replace 'tmp$', 'zip' } -PassThru
-          Invoke-WebRequest -OutFile $tmp https://github.com/taiki-e/cargo-hack/releases/download/v0.5.18/cargo-hack-x86_64-pc-windows-msvc.zip
+          Invoke-WebRequest -OutFile $tmp https://github.com/taiki-e/cargo-hack/releases/latest/download/cargo-hack-x86_64-pc-windows-msvc.tar.gz
           $outputDir = if ($Env:CARGO_HOME) { Join-Path $Env:CARGO_HOME "bin" } else { "~/.cargo/bin" }
           $tmp | Expand-Archive -DestinationPath $outputDir -Force
+          $tmp | Remove-Item
+        shell: powershell
+
+      - name: "Install: binaryen"
+        run: |
+          $tmp = New-TemporaryFile | Rename-Item -NewName { $_ -replace 'tmp$', 'tar.gz' } -PassThru
+          Invoke-WebRequest -OutFile $tmp https://github.com/WebAssembly/binaryen/releases/download/version_110/binaryen-version_110-x86_64-windows.tar.gz
+          $outputDir = if ($Env:CARGO_HOME) { Join-Path $Env:CARGO_HOME "bin" } else { "~/.cargo/bin" }
+          tar zxf $tmp
+          cp ./binaryen-version_110/bin/* $outputDir
+          Remove-Item ./binaryen-version_110
           $tmp | Remove-Item
         shell: powershell
 
