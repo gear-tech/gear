@@ -328,7 +328,7 @@ unsafe fn user_signal_handler_internal(
 }
 
 /// User signal handler. Logic depends on lazy pages version.
-/// For the most recent logic see "self::user_signal_handler_internal_v2"
+/// For the most recent logic see "self::user_signal_handler_internal"
 pub unsafe fn user_signal_handler(info: ExceptionInfo) -> Result<(), Error> {
     log::debug!("Interrupted, exception info = {:?}", info);
     LAZY_PAGES_CONTEXT.with(|ctx| user_signal_handler_internal(ctx.borrow_mut(), info))

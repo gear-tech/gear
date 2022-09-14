@@ -2658,7 +2658,9 @@ version = "0.1.0"
 dependencies = [
  "cfg-if",
  "derive_more",
+ "errno",
  "gear-core",
+ "libc",
  "log",
  "nix 0.25.0",
  "once_cell",

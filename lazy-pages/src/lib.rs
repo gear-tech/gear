@@ -282,6 +282,8 @@ unsafe fn init_internal<H: UserSignalHandler>(version: LazyPagesVersion) -> Resu
         return Err(NativePageSizeIsNotSuitable(ps));
     }
 
+    sys::init_for_thread();
+
     if let Err(err) = sys::setup_signal_handler::<H>() {
         return Err(CanNotSetUpSignalHandler(err.to_string()));
     }
