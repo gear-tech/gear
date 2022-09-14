@@ -354,6 +354,8 @@ jobs:
 
       - name: "Install: Setup MSYS2 environment"
         uses: msys2/setup-msys2@v2
+        with:
+          path-type: inherit
 
       - name: "Install: rustup 1.24.3"
         run: |
