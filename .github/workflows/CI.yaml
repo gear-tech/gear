@@ -382,27 +382,27 @@ jobs:
 
       - name: "Install: Node.js packages"
         run: ./scripts/gear.sh init js
-        shell: C:\shells\msys2bash.cmd {0}
+        shell: C:/shells/msys2bash.cmd {0}
 
       - name: "Build: Node"
         run: ./scripts/gear.sh build node --release --locked
-        shell: C:\shells\msys2bash.cmd {0}
+        shell: C:/shells/msys2bash.cmd {0}
 
       - name: "Build: wasm-proc"
         run: ./scripts/gear.sh build wasm-proc --locked
-        shell: C:\shells\msys2bash.cmd {0}
+        shell: C:/shells/msys2bash.cmd {0}
 
       - name: "Build: Examples (WASM)"
         run: ./scripts/gear.sh build examples --locked
-        shell: C:\shells\msys2bash.cmd {0}
+        shell: C:/shells/msys2bash.cmd {0}
 
       - name: "Build: Split examples by .opt and .meta"
         run: ./scripts/gear.sh build examples-proc
-        shell: C:\shells\msys2bash.cmd {0}
+        shell: C:/shells/msys2bash.cmd {0}
 
       - name: "Test: Process node runtime testsuite"
         run: ./scripts/gear.sh test rtest
-        shell: C:\shells\msys2bash.cmd {0}
+        shell: C:/shells/msys2bash.cmd {0}
 
       - name: "Test: Lazy pages"
         uses: actions-rs/cargo@v1
