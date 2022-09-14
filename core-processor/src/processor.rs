@@ -143,15 +143,16 @@ pub fn prepare(
 ) -> PrepareResult {
     use executor::ChargeForBytesResult;
 
-    let subsequent_code_loading = false;
-    let per_byte_cost = 100;
-    let read_cost = 200;
+    let per_byte_cost = block_config.per_byte_cost;
+    let read_cost = block_config.read_cost;
+
     let MessageExecutionContext {
         actor,
         dispatch,
         origin,
         gas_allowance,
         subsequent_execution,
+        subsequent_code_loading,
     } = execution_context;
     let Actor {
         balance,
@@ -285,6 +286,7 @@ pub fn process<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environment<
         mailbox_threshold,
         waitlist_cost,
         reserve_for,
+        ..
     } = block_config.clone();
 
     let execution_settings = ExecutionSettings {

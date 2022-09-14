@@ -36,8 +36,8 @@ use crate::{
     manager::{CodeInfo, ExtManager, HandleKind},
     pallet,
     schedule::{API_BENCHMARK_BATCH_SIZE, INSTR_BENCHMARK_BATCH_SIZE},
-    BTreeMap, BalanceOf, BlockGasLimitOf, Call, Config, CostsPerBlockOf, CurrencyOf,
-    Ext as Externalities, GasHandlerOf, MailboxOf, Pallet as Gear, Pallet, QueueOf,
+    BTreeMap, BalanceOf, BlockGasLimitOf, Call, Config, CostsPerBlockOf, CurrencyOf, DbWeightOf,
+    Ext as Externalities, GasHandlerOf, MailboxOf, Pallet as Gear, Pallet, PerByteCostOf, QueueOf,
     SandboxEnvironment, Schedule, WaitlistOf,
 };
 use codec::Encode;
@@ -323,6 +323,8 @@ where
         mailbox_threshold,
         waitlist_cost,
         reserve_for,
+        read_cost: DbWeightOf::<T>::get().reads(1),
+        per_byte_cost: PerByteCostOf::<T>::get(),
     };
 
     if let Some(queued_dispatch) = QueueOf::<T>::dequeue().map_err(|_| "MQ storage corrupted")? {
@@ -337,6 +339,7 @@ where
             origin: ProgramId::from_origin(source),
             gas_allowance: u64::MAX,
             subsequent_execution: false,
+            subsequent_code_loading: false,
         };
 
         let context = match core_processor::prepare(&block_config, message_execution_context) {

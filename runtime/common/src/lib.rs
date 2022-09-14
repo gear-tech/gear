@@ -60,6 +60,8 @@ parameter_types! {
 
     pub const OutgoingLimit: u32 = 1024;
     pub const MailboxThreshold: u64 = 3000;
+
+    pub const PerByteCost: u64 = 100;
 }
 
 pub type NegativeImbalance<T> = <pallet_balances::Pallet<T> as Currency<

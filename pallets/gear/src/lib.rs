@@ -76,10 +76,12 @@ pub(crate) type CurrencyOf<T> = <T as Config>::Currency;
 pub(crate) type BalanceOf<T> =
     <<T as Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
 pub(crate) type SentOf<T> = <<T as Config>::Messenger as Messenger>::Sent;
+pub(crate) type DbWeightOf<T> = <T as frame_system::Config>::DbWeight;
 pub(crate) type DequeuedOf<T> = <<T as Config>::Messenger as Messenger>::Dequeued;
 pub(crate) type QueueProcessingOf<T> = <<T as Config>::Messenger as Messenger>::QueueProcessing;
 pub(crate) type QueueOf<T> = <<T as Config>::Messenger as Messenger>::Queue;
 pub(crate) type MailboxOf<T> = <<T as Config>::Messenger as Messenger>::Mailbox;
+pub(crate) type PerByteCostOf<T> = <T as Config>::PerByteCost;
 pub(crate) type WaitlistOf<T> = <<T as Config>::Messenger as Messenger>::Waitlist;
 pub(crate) type MessengerCapacityOf<T> = <<T as Config>::Messenger as Messenger>::Capacity;
 pub(crate) type TaskPoolOf<T> = <<T as Config>::Scheduler as Scheduler>::TaskPool;
@@ -208,6 +210,10 @@ pub mod pallet {
         /// but will be seen in events.
         #[pallet::constant]
         type MailboxThreshold: Get<u64>;
+
+        /// The cost per loaded byte.
+        #[pallet::constant]
+        type PerByteCost: Get<u64>;
 
         /// Messenger.
         type Messenger: Messenger<
@@ -794,6 +800,8 @@ pub mod pallet {
                 mailbox_threshold: T::MailboxThreshold::get(),
                 waitlist_cost: CostsPerBlockOf::<T>::waitlist(),
                 reserve_for: CostsPerBlockOf::<T>::reserve_for().unique_saturated_into(),
+                read_cost: DbWeightOf::<T>::get().reads(1),
+                per_byte_cost: PerByteCostOf::<T>::get(),
             };
 
             let mut min_limit = 0;
@@ -817,18 +825,28 @@ pub mod pallet {
                     .map_err(|_| b"Internal error: unable to get gas limit".to_vec())?;
 
                 let subsequent_execution = ext_manager.program_pages_loaded(&actor_id);
+                let subsequent_code_loading = actor
+                    .executable_data
+                    .as_ref()
+                    .map(|d| ext_manager.code_loaded(&d.code_id))
+                    .unwrap_or(false);
                 let message_execution_context = MessageExecutionContext {
                     actor,
                     dispatch: queued_dispatch.into_incoming(gas_limit),
                     origin: ProgramId::from_origin(source),
                     gas_allowance: u64::MAX,
                     subsequent_execution,
+                    subsequent_code_loading,
                 };
 
-                let may_be_returned_context = (!subsequent_execution
-                    && actor_id == main_program_id)
+                let subsequent_execution = !subsequent_execution && actor_id == main_program_id;
+                let subsequent_code_loading =
+                    !subsequent_code_loading && actor_id == main_program_id;
+
+                let may_be_returned_context = (subsequent_execution || subsequent_code_loading)
                     .then(|| MessageExecutionContext {
-                        subsequent_execution: true,
+                        subsequent_execution,
+                        subsequent_code_loading,
                         ..message_execution_context.clone()
                     });
 
@@ -1014,12 +1032,12 @@ pub mod pallet {
             // over sorted bns set (that's the reason why `BTreeSet` used).
             let (missed_blocks, were_empty) = MissedBlocksOf::<T>::take()
                 .map(|mut set| {
-                    GasAllowanceOf::<T>::decrease(T::DbWeight::get().writes(1));
+                    GasAllowanceOf::<T>::decrease(DbWeightOf::<T>::get().writes(1));
                     set.insert(bn);
                     (set, false)
                 })
                 .unwrap_or_else(|| {
-                    GasAllowanceOf::<T>::decrease(T::DbWeight::get().reads(1));
+                    GasAllowanceOf::<T>::decrease(DbWeightOf::<T>::get().reads(1));
                     ([bn].into(), true)
                 });
 
@@ -1035,7 +1053,7 @@ pub mod pallet {
                 //
                 // Making sure we have gas to remove next task
                 // or update missed blocks.
-                if GasAllowanceOf::<T>::get() <= T::DbWeight::get().writes(2) {
+                if GasAllowanceOf::<T>::get() <= DbWeightOf::<T>::get().writes(2) {
                     stopped_at = Some(*bn);
                     log::debug!("Stopping processing tasks at: {stopped_at:?}");
                     break;
@@ -1046,7 +1064,7 @@ pub mod pallet {
                     log::debug!("Processing task: {:?}", task);
 
                     // Decreasing gas allowance due to DB deletion.
-                    GasAllowanceOf::<T>::decrease(T::DbWeight::get().writes(1));
+                    GasAllowanceOf::<T>::decrease(DbWeightOf::<T>::get().writes(1));
 
                     // Processing task.
                     //
@@ -1059,7 +1077,7 @@ pub mod pallet {
                     //
                     // Making sure we have gas to remove next task
                     // or update missed blocks.
-                    if GasAllowanceOf::<T>::get() <= T::DbWeight::get().writes(2) {
+                    if GasAllowanceOf::<T>::get() <= DbWeightOf::<T>::get().writes(2) {
                         stopped_at = Some(*bn);
                         log::debug!("Stopping processing tasks at: {stopped_at:?}");
                         break;
@@ -1090,7 +1108,7 @@ pub mod pallet {
                 // Charging for inserting into missing blocks,
                 // if we were reading it only (they were empty).
                 if were_empty {
-                    GasAllowanceOf::<T>::decrease(T::DbWeight::get().writes(1));
+                    GasAllowanceOf::<T>::decrease(DbWeightOf::<T>::get().writes(1));
                 }
 
                 MissedBlocksOf::<T>::put(actual_missed_blocks);
@@ -1126,6 +1144,8 @@ pub mod pallet {
                 mailbox_threshold: T::MailboxThreshold::get(),
                 waitlist_cost: CostsPerBlockOf::<T>::waitlist(),
                 reserve_for: CostsPerBlockOf::<T>::reserve_for().unique_saturated_into(),
+                read_cost: DbWeightOf::<T>::get().reads(1),
+                per_byte_cost: PerByteCostOf::<T>::get(),
             };
 
             if T::DebugInfo::is_remap_id_enabled() {
@@ -1207,6 +1227,7 @@ pub mod pallet {
                         .unique_saturated_into();
 
                     let program_id = dispatch.destination();
+                    let maybe_code_id = active_actor_data.as_ref().map(|d| d.code_id);
                     let message_execution_context = MessageExecutionContext {
                         actor: Actor {
                             balance,
@@ -1217,6 +1238,9 @@ pub mod pallet {
                         origin: ProgramId::from_origin(external.into_origin()),
                         gas_allowance: GasAllowanceOf::<T>::get(),
                         subsequent_execution: ext_manager.program_pages_loaded(&program_id),
+                        subsequent_code_loading: maybe_code_id
+                            .map(|code_id| ext_manager.code_loaded(&code_id))
+                            .unwrap_or(false),
                     };
 
                     let journal =

@@ -115,6 +115,10 @@ pub struct BlockConfig {
     pub waitlist_cost: u64,
     /// Reserve for parameter of scheduling.
     pub reserve_for: u32,
+    /// One-time db-read cost.
+    pub read_cost: u64,
+    /// Per loaded byte cost.
+    pub per_byte_cost: u64,
 }
 
 /// Unstable parameters for message execution across processing runs.
@@ -130,4 +134,6 @@ pub struct MessageExecutionContext {
     pub gas_allowance: u64,
     /// The program is being executed the second or next time in the block.
     pub subsequent_execution: bool,
+    /// The code is being loaded the second or next time in the block.
+    pub subsequent_code_loading: bool,
 }

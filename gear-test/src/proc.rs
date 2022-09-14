@@ -42,6 +42,8 @@ pub const OUTGOING_LIMIT: u32 = 1024;
 pub const MAILBOX_THRESHOLD: u64 = 3000;
 pub const WAITLIST_COST: u64 = 100;
 pub const RESERVE_FOR: u32 = 1;
+pub const READ_COST: u64 = 20;
+pub const PER_BYTE_COST: u64 = 10;
 
 pub fn parse_payload(payload: String) -> String {
     let program_id_regex = Regex::new(r"\{(?P<id>[0-9]+)\}").unwrap();
@@ -115,6 +117,7 @@ where
         origin: Default::default(),
         gas_allowance: u64::MAX,
         subsequent_execution: false,
+        subsequent_code_loading: false,
     };
 
     let journal = match core_processor::prepare(&block_config, message_execution_context) {
@@ -309,6 +312,7 @@ where
                     origin: Default::default(),
                     gas_allowance: u64::MAX,
                     subsequent_execution: false,
+                    subsequent_code_loading: false,
                 };
 
                 let journal =
@@ -363,6 +367,7 @@ where
                 origin: Default::default(),
                 gas_allowance: u64::MAX,
                 subsequent_execution: false,
+                subsequent_code_loading: false,
             };
 
             let journal = match core_processor::prepare(&block_config, message_execution_context) {
@@ -405,5 +410,7 @@ fn test_block_config(block_info: BlockInfo) -> BlockConfig {
         mailbox_threshold: MAILBOX_THRESHOLD,
         waitlist_cost: WAITLIST_COST,
         reserve_for: RESERVE_FOR,
+        read_cost: READ_COST,
+        per_byte_cost: PER_BYTE_COST,
     }
 }
