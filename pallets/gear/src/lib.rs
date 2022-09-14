@@ -58,8 +58,8 @@ use gear_backend_sandbox::SandboxEnvironment;
 use gear_core::{
     code::{Code, CodeAndId, InstrumentedCode, InstrumentedCodeAndId},
     ids::{CodeId, MessageId, ProgramId, ReservationId},
+    memory::{PageBuf, PageNumber},
     message::*,
-    program::Program as NativeProgram,
 };
 use pallet_gear_program::Pallet as GearProgramPallet;
 use primitive_types::H256;
@@ -146,7 +146,7 @@ pub mod pallet {
     #[cfg(feature = "lazy-pages")]
     use gear_lazy_pages_common as lazy_pages;
 
-    use crate::manager::{ExtManager, HandleKind, QueuePostProcessingData, CodeInfo};
+    use crate::manager::{CodeInfo, ExtManager, HandleKind, QueuePostProcessingData};
     use alloc::format;
     use common::{
         self, event::*, BlockLimiter, CodeMetadata, GasPrice, GasProvider, GasTree, Origin,
@@ -509,6 +509,7 @@ pub mod pallet {
             })?;
 
             let code_and_id = CodeAndId::new(code);
+            let code_info = CodeInfo::from_code_and_id(&code_and_id);
 
             let packet = InitPacket::new_with_gas(
                 code_and_id.code_id(),
@@ -534,8 +535,6 @@ pub mod pallet {
 
             let origin = who.clone().into_origin();
 
-            let code_id = code_and_id.code_id();
-
             // By that call we follow the guarantee that we have in `Self::upload_code` -
             // if there's code in storage, there's also metadata for it.
             if let Ok(code_id) = Self::set_code_with_metadata(code_and_id, origin) {
@@ -550,7 +549,7 @@ pub mod pallet {
 
             let message_id = Self::next_message_id(origin);
 
-            ExtManager::<T>::default().set_program(program_id, code_id, message_id);
+            ExtManager::<T>::default().set_program(program_id, &code_info, message_id);
 
             // # Safety
             //
@@ -809,7 +808,7 @@ pub mod pallet {
             {
                 let actor_id = queued_dispatch.destination();
 
-                let actor = ext_manager
+                let (actor, code) = ext_manager
                     .get_actor(actor_id)
                     .ok_or_else(|| b"Program not found in the storage".to_vec())?;
 
@@ -835,37 +834,20 @@ pub mod pallet {
 
                 let journal =
                     match core_processor::prepare(&block_config, message_execution_context) {
-                        PrepareResult::Ok {
-                            context,
-                            pages_with_data,
-                        } => {
-                            #[cfg(feature = "lazy-pages")]
-                            let memory_pages = {
-                                let _ = pages_with_data;
-                                assert!(lazy_pages::try_to_enable_lazy_pages());
-                                Default::default()
-                            };
-                            #[cfg(not(feature = "lazy-pages"))]
-                            let memory_pages = match common::get_program_data_for_pages(
-                                actor_id.into_origin(),
-                                pages_with_data.iter(),
+                        PrepareResult::Ok(context) => {
+                            let memory_pages = match Self::get_and_track_memory_pages(
+                                &mut ext_manager,
+                                actor_id,
+                                &context.actor_data().pages_with_data,
                             ) {
-                                Ok(data) => data,
-                                Err(err) => {
-                                    log::error!(
-                                        "Page data in storage is in invalid state: {}",
-                                        err
-                                    );
-                                    continue;
-                                }
+                                None => continue,
+                                Some(m) => m,
                             };
-
-                            ext_manager.insert_program_id_loaded_pages(actor_id);
 
                             may_be_returned += may_be_returned_context
                                 .map(|c| {
                                     let burned = match core_processor::prepare(&block_config, c) {
-                                        PrepareResult::Ok { context, .. } => {
+                                        PrepareResult::Ok(context) => {
                                             context.gas_counter().burned()
                                         }
                                         _ => context.gas_counter().burned(),
@@ -877,7 +859,7 @@ pub mod pallet {
 
                             core_processor::process::<Ext, SandboxEnvironment>(
                                 &block_config,
-                                context,
+                                (context, actor_id, code).into(),
                                 memory_pages,
                             )
                         }
@@ -1175,36 +1157,6 @@ pub mod pallet {
                     {
                         // Check whether message should be added to the wait list
                         if let Program::Active(prog) = maybe_active_program {
-                            let schedule = T::Schedule::get();
-                            let code_id = CodeId::from_origin(prog.code_hash);
-                            let code = if let Some(code) = T::CodeStorage::get_code(code_id) {
-                                if code.instruction_weights_version()
-                                    == schedule.instruction_weights.version
-                                {
-                                    code
-                                } else {
-                                    // todo: charge for code instrumenting
-                                    // If instrumented code exists, re-instrumentation can't fail
-                                    Self::reinstrument_code(code_id, &schedule).unwrap_or_else(
-                                        |e| unreachable!("Code storage corrupted {:?}", e),
-                                    )
-                                }
-                            } else {
-                                // This branch is considered unreachable,
-                                // because there can't be a program
-                                // without code.
-                                //
-                                // Reaching this code is a sign of a serious
-                                // storage or logic corruption.
-                                log::error!(
-                                    "Code '{:?}' not found for program '{:?}'",
-                                    code_id,
-                                    dispatch.destination()
-                                );
-
-                                continue;
-                            };
-
                             if matches!(prog.state, ProgramState::Uninitialized {message_id} if message_id != dispatch.id())
                                 && dispatch.reply().is_none()
                             {
@@ -1223,15 +1175,13 @@ pub mod pallet {
                                 continue;
                             }
 
-                            let program = NativeProgram::from_parts(
-                                dispatch.destination(),
-                                code,
-                                prog.allocations,
-                                matches!(prog.state, ProgramState::Initialized),
-                            );
-
                             Some(ExecutableActorData {
-                                program,
+                                allocations: prog.allocations,
+                                code_id: CodeId::from_origin(prog.code_hash),
+                                code_exports: prog.code_exports,
+                                code_length_bytes: prog.code_length_bytes,
+                                static_pages: prog.static_pages,
+                                initialized: matches!(prog.state, ProgramState::Initialized),
                                 pages_with_data: prog.pages_with_data,
                             })
                         } else {
@@ -1271,33 +1221,28 @@ pub mod pallet {
 
                     let journal =
                         match core_processor::prepare(&block_config, message_execution_context) {
-                            PrepareResult::Ok {
-                                context,
-                                pages_with_data,
-                            } => {
-                                #[cfg(feature = "lazy-pages")]
-                                let memory_pages = {
-                                    let _ = pages_with_data;
-                                    assert!(lazy_pages::try_to_enable_lazy_pages());
-                                    Default::default()
-                                };
-                                #[cfg(not(feature = "lazy-pages"))]
-                                let memory_pages = match common::get_program_data_for_pages(
-                                    program_id.into_origin(),
-                                    pages_with_data.iter(),
+                            PrepareResult::Ok(context) => {
+                                let memory_pages = match Self::get_and_track_memory_pages(
+                                    &mut ext_manager,
+                                    program_id,
+                                    &context.actor_data().pages_with_data,
                                 ) {
-                                    Ok(data) => data,
-                                    Err(err) => {
-                                        log::error!("Cannot get data for program pages: {err}");
-                                        continue;
-                                    }
+                                    None => continue,
+                                    Some(m) => m,
                                 };
 
-                                ext_manager.insert_program_id_loaded_pages(program_id);
+                                let code = match Self::get_and_track_code(
+                                    &mut ext_manager,
+                                    context.actor_data().code_id,
+                                    program_id,
+                                ) {
+                                    None => continue,
+                                    Some(c) => c,
+                                };
 
                                 core_processor::process::<Ext, SandboxEnvironment>(
                                     &block_config,
-                                    context,
+                                    (context, program_id, code).into(),
                                     memory_pages,
                                 )
                             }
@@ -1330,6 +1275,68 @@ pub mod pallet {
                     state_changes: post_data.state_changes,
                 });
             }
+        }
+
+        fn get_and_track_memory_pages(
+            manager: &mut ExtManager<T>,
+            program_id: ProgramId,
+            pages_with_data: &BTreeSet<PageNumber>,
+        ) -> Option<BTreeMap<PageNumber, PageBuf>> {
+            #[cfg(feature = "lazy-pages")]
+            let memory_pages = {
+                let _ = pages_with_data;
+                assert!(lazy_pages::try_to_enable_lazy_pages());
+                Default::default()
+            };
+
+            #[cfg(not(feature = "lazy-pages"))]
+            let memory_pages = match common::get_program_data_for_pages(
+                program_id.into_origin(),
+                pages_with_data.iter(),
+            ) {
+                Ok(data) => data,
+                Err(err) => {
+                    log::error!("Cannot get data for program pages: {err}");
+                    return None;
+                }
+            };
+
+            manager.insert_program_id_loaded_pages(program_id);
+
+            Some(memory_pages)
+        }
+
+        fn get_and_track_code(
+            manager: &mut ExtManager<T>,
+            code_id: CodeId,
+            program_id: ProgramId,
+        ) -> Option<InstrumentedCode> {
+            let code = match T::CodeStorage::get_code(code_id) {
+                None => {
+                    log::error!("Code '{code_id:?}' not found for program '{program_id:?}'");
+                    return None;
+                }
+                Some(c) => c,
+            };
+
+            if manager.code_loaded(&code_id) {
+                return Some(code);
+            }
+
+            let schedule = T::Schedule::get();
+            let code = if code.instruction_weights_version() == schedule.instruction_weights.version
+            {
+                code
+            } else {
+                // todo: charge for code instrumenting
+                // If instrumented code exists, re-instrumentation can't fail
+                Self::reinstrument_code(code_id, &schedule)
+                    .unwrap_or_else(|e| unreachable!("Code storage corrupted {:?}", e))
+            };
+
+            manager.insert_code_id_loaded(code_id);
+
+            Some(code)
         }
 
         /// Sets `code` and metadata, if code doesn't exist in storage.
@@ -1481,11 +1488,7 @@ pub mod pallet {
 
             let message_id = Self::next_message_id(origin);
 
-            ExtManager::<T>::default().set_program(
-                packet.destination(),
-                &code_info,
-                message_id,
-            );
+            ExtManager::<T>::default().set_program(packet.destination(), &code_info, message_id);
 
             // # Safety
             //
@@ -1669,8 +1672,7 @@ pub mod pallet {
             let who = ensure_signed(origin)?;
 
             // Check if code exists.
-            let code = T::CodeStorage::get_code(code_id)
-                .ok_or(Error::<T>::CodeNotExists)?;
+            let code = T::CodeStorage::get_code(code_id).ok_or(Error::<T>::CodeNotExists)?;
 
             // Check `gas_limit` and `value`
             Self::check_gas_limit_and_value(gas_limit, value)?;

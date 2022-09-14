@@ -42,7 +42,8 @@ use frame_support::{
 };
 use gear_core::{
     ids::{CodeId, MessageId, ProgramId},
-    memory::{Error as MemoryError, PageBuf, PageNumber, WasmPageNumber}, message::DispatchKind,
+    memory::{Error as MemoryError, PageBuf, PageNumber, WasmPageNumber},
+    message::DispatchKind,
 };
 use primitive_types::H256;
 use scale_info::TypeInfo;

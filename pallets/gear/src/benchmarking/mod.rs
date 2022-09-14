@@ -33,7 +33,7 @@ use self::{
     sandbox::Sandbox,
 };
 use crate::{
-    manager::{ExtManager, HandleKind},
+    manager::{CodeInfo, ExtManager, HandleKind},
     pallet,
     schedule::{API_BENCHMARK_BATCH_SIZE, INSTR_BENCHMARK_BATCH_SIZE},
     BTreeMap, BalanceOf, BlockGasLimitOf, Call, Config, CostsPerBlockOf, CurrencyOf,
@@ -47,7 +47,7 @@ use common::{
 };
 use core_processor::{
     configs::{AllocationsConfig, BlockConfig, BlockInfo, MessageExecutionContext},
-    PrepareResult, PreparedMessageExecutionContext,
+    PrepareResult, ProcessExecutionContext,
 };
 use frame_benchmarking::{benchmarks, whitelisted_caller};
 use frame_support::traits::{Currency, Get, Hooks, ReservableCurrency};
@@ -181,7 +181,7 @@ fn caller_funding<T: pallet::Config>() -> BalanceOf<T> {
 struct Exec<T: Config> {
     ext_manager: ExtManager<T>,
     block_config: BlockConfig,
-    context: Box<PreparedMessageExecutionContext>,
+    context: ProcessExecutionContext,
     memory_pages: BTreeMap<PageNumber, PageBuf>,
 }
 
@@ -215,11 +215,11 @@ where
             .map_err(|_| "Code failed to load")?;
 
             let code_and_id = CodeAndId::new(code);
-            let code_id = code_and_id.code_id();
+            let code_info = CodeInfo::from_code_and_id(&code_and_id);
 
             let _ = Gear::<T>::set_code_with_metadata(code_and_id, source);
 
-            ExtManager::<T>::default().set_program(program_id, code_id, root_message_id);
+            ExtManager::<T>::default().set_program(program_id, &code_info, root_message_id);
 
             Dispatch::new(
                 DispatchKind::Init,
@@ -237,11 +237,10 @@ where
         HandleKind::InitByHash(code_id) => {
             let program_id = ProgramId::generate(code_id, b"bench_salt");
 
-            if !T::CodeStorage::exists(code_id) {
-                return Err("Code not found in storage");
-            }
+            let code = T::CodeStorage::get_code(code_id).ok_or("Code not found in storage")?;
+            let code_info = CodeInfo::from_code(&code_id, &code);
 
-            ExtManager::<T>::default().set_program(program_id, code_id, root_message_id);
+            ExtManager::<T>::default().set_program(program_id, &code_info, root_message_id);
 
             Dispatch::new(
                 DispatchKind::Init,
@@ -328,7 +327,7 @@ where
 
     if let Some(queued_dispatch) = QueueOf::<T>::dequeue().map_err(|_| "MQ storage corrupted")? {
         let actor_id = queued_dispatch.destination();
-        let actor = ext_manager
+        let (actor, code) = ext_manager
             .get_actor(actor_id)
             .ok_or("Program not found in the storage")?;
 
@@ -341,14 +340,14 @@ where
         };
 
         let context = match core_processor::prepare(&block_config, message_execution_context) {
-            PrepareResult::Ok { context, .. } => context,
+            PrepareResult::Ok(context) => context,
             _ => return Err("core_processor::prepare failed"),
         };
 
         Ok(Exec {
             ext_manager,
             block_config,
-            context,
+            context: (context, actor_id, code).into(),
             // actor without pages data because of lazy pages enabled
             memory_pages: Default::default(),
         })

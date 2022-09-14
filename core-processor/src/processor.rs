@@ -25,15 +25,11 @@ use crate::{
     executor,
     ext::ProcessorExt,
 };
-use alloc::{
-    boxed::Box,
-    collections::{BTreeMap, BTreeSet},
-    string::ToString,
-    vec::Vec,
-};
+use alloc::{boxed::Box, collections::BTreeMap, string::ToString, vec::Vec};
 use codec::Encode;
 use gear_backend_common::{Environment, IntoExtInfo};
 use gear_core::{
+    code::InstrumentedCode,
     env::Ext as EnvExt,
     gas::{GasAllowanceCounter, GasCounter},
     ids::ProgramId,
@@ -55,7 +51,7 @@ pub struct PreparedMessageExecutionContext {
     dispatch: IncomingDispatch,
     origin: ProgramId,
     balance: u128,
-    program: Program,
+    actor_data: ExecutableActorData,
     memory_size: WasmPageNumber,
 }
 
@@ -64,17 +60,73 @@ impl PreparedMessageExecutionContext {
     pub fn gas_counter(&self) -> &GasCounter {
         &self.gas_counter
     }
+
+    /// Returns reference to the ExecutableActorData.
+    pub fn actor_data(&self) -> &ExecutableActorData {
+        &self.actor_data
+    }
+}
+
+/// Checked parameters for message execution across processing runs.
+pub struct ProcessExecutionContext {
+    gas_counter: GasCounter,
+    gas_allowance_counter: GasAllowanceCounter,
+    dispatch: IncomingDispatch,
+    origin: ProgramId,
+    balance: u128,
+    program: Program,
+    memory_size: WasmPageNumber,
+}
+
+impl
+    From<(
+        Box<PreparedMessageExecutionContext>,
+        ProgramId,
+        InstrumentedCode,
+    )> for ProcessExecutionContext
+{
+    fn from(
+        args: (
+            Box<PreparedMessageExecutionContext>,
+            ProgramId,
+            InstrumentedCode,
+        ),
+    ) -> Self {
+        let (context, program_id, code) = args;
+
+        let PreparedMessageExecutionContext {
+            gas_counter,
+            gas_allowance_counter,
+            dispatch,
+            origin,
+            balance,
+            actor_data,
+            memory_size,
+        } = *context;
+
+        let program = Program::from_parts(
+            program_id,
+            code,
+            actor_data.allocations,
+            actor_data.initialized,
+        );
+
+        Self {
+            gas_counter,
+            gas_allowance_counter,
+            dispatch,
+            origin,
+            balance,
+            program,
+            memory_size,
+        }
+    }
 }
 
 /// Defines result variants of the function `prepare`.
 pub enum PrepareResult {
     /// Successfully pre-charged for memory pages.
-    Ok {
-        /// A context for `process` function.
-        context: Box<PreparedMessageExecutionContext>,
-        /// A set with numbers of memory pages which contain some data.
-        pages_with_data: BTreeSet<PageNumber>,
-    },
+    Ok(Box<PreparedMessageExecutionContext>),
     /// Required function is not exported. The program will not be executed.
     WontExecute(Vec<JournalNote>),
     /// Provided actor is not executable or there is not enough gas for memory pages size.
@@ -98,27 +150,19 @@ pub fn prepare(
     } = execution_context;
     let Actor {
         balance,
-        destination_program,
+        destination_program: program_id,
         executable_data,
     } = actor;
 
-    let (program, pages_with_data) = match check_is_executable(executable_data, &dispatch) {
+    let actor_data = match check_is_executable(executable_data, &dispatch) {
         Err(exit_code) => {
-            return PrepareResult::Error(process_non_executable(
-                dispatch,
-                destination_program,
-                exit_code,
-            ))
+            return PrepareResult::Error(process_non_executable(dispatch, program_id, exit_code))
         }
-        Ok(ExecutableActorData {
-            program,
-            pages_with_data,
-        }) => (program, pages_with_data),
+        Ok(data) => data,
     };
 
-    let program_id = program.id();
     let mut gas_counter = GasCounter::new(dispatch.gas_limit());
-    if !program.code().exports().contains(&dispatch.kind()) {
+    if !actor_data.code_exports.contains(&dispatch.kind()) {
         return PrepareResult::WontExecute(process_success(
             SuccessfulDispatchResultKind::Success,
             DispatchResult::success(dispatch, program_id, gas_counter.into()),
@@ -130,8 +174,8 @@ pub fn prepare(
         &block_config.allocations_config,
         &mut gas_counter,
         &mut gas_allowance_counter,
-        program.get_allocations(),
-        program.static_pages(),
+        &actor_data.allocations,
+        actor_data.static_pages,
         dispatch.context().is_none() && matches!(dispatch.kind(), DispatchKind::Init),
         subsequent_execution,
     ) {
@@ -152,24 +196,21 @@ pub fn prepare(
         }
     };
 
-    PrepareResult::Ok {
-        context: Box::new(PreparedMessageExecutionContext {
-            gas_counter,
-            gas_allowance_counter,
-            dispatch,
-            origin,
-            balance,
-            program,
-            memory_size,
-        }),
-        pages_with_data,
-    }
+    PrepareResult::Ok(Box::new(PreparedMessageExecutionContext {
+        gas_counter,
+        gas_allowance_counter,
+        dispatch,
+        origin,
+        balance,
+        actor_data,
+        memory_size,
+    }))
 }
 
 /// Process program & dispatch for it and return journal for updates.
 pub fn process<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environment<A>>(
     block_config: &BlockConfig,
-    execution_context: Box<PreparedMessageExecutionContext>,
+    execution_context: ProcessExecutionContext,
     memory_pages: BTreeMap<PageNumber, PageBuf>,
 ) -> Vec<JournalNote> {
     use SuccessfulDispatchResultKind::*;
@@ -256,7 +297,7 @@ fn check_is_executable(
 ) -> Result<ExecutableActorData, ExitCode> {
     executable_data
         .map(|data| {
-            if data.program.is_initialized() & matches!(dispatch.kind(), DispatchKind::Init) {
+            if data.initialized & matches!(dispatch.kind(), DispatchKind::Init) {
                 Err(crate::RE_INIT_EXIT_CODE)
             } else {
                 Ok(data)

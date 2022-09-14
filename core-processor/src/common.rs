@@ -29,7 +29,7 @@ use gear_core::{
     gas::{GasAllowanceCounter, GasAmount, GasCounter},
     ids::{CodeId, MessageId, ProgramId},
     memory::{PageBuf, PageNumber, WasmPageNumber},
-    message::{ContextStore, Dispatch, IncomingDispatch, StoredDispatch},
+    message::{ContextStore, Dispatch, DispatchKind, IncomingDispatch, StoredDispatch},
     program::Program,
 };
 use gear_core_errors::MemoryError;
@@ -393,10 +393,20 @@ pub struct Actor {
 /// Executable actor data.
 #[derive(Clone, Debug, Decode, Encode)]
 pub struct ExecutableActorData {
-    /// Program aggregated data.
-    pub program: Program,
-    /// Numbers of allocated memory pages that have non-default data.
+    /// Set of dynamic wasm page numbers, which are allocated by the program.
+    pub allocations: BTreeSet<WasmPageNumber>,
+    /// Set of gear pages numbers, which has data in storage.
     pub pages_with_data: BTreeSet<PageNumber>,
+    /// Id of the program code.
+    pub code_id: CodeId,
+    /// Length in bytes of the program code.
+    pub code_length_bytes: u32,
+    /// Exported functions by the program code.
+    pub code_exports: BTreeSet<DispatchKind>,
+    /// Count of static memory pages.
+    pub static_pages: WasmPageNumber,
+    /// Flag indicates if the program is initialized.
+    pub initialized: bool,
 }
 
 /// Execution context.

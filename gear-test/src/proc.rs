@@ -99,8 +99,8 @@ where
         ));
     }
 
-    let program = journal_handler.store_program(message.id, code, message.message.id());
-    let program_id = program.id();
+    let program_id = message.id;
+    let actor_data = journal_handler.store_program(program_id, code.clone(), message.message.id());
     journal_handler.write_gas(message.message.id(), message.message.gas_limit());
 
     let block_config = test_block_config(block_info);
@@ -109,10 +109,7 @@ where
         actor: Actor {
             balance: 0,
             destination_program: program_id,
-            executable_data: Some(ExecutableActorData {
-                program,
-                pages_with_data: Default::default(),
-            }),
+            executable_data: Some(actor_data),
         },
         dispatch: message.into(),
         origin: Default::default(),
@@ -122,8 +119,13 @@ where
 
     let journal = match core_processor::prepare(&block_config, message_execution_context) {
         PrepareResult::WontExecute(journal) | PrepareResult::Error(journal) => journal,
-        PrepareResult::Ok { context, .. } => {
-            core_processor::process::<Ext, E>(&block_config, context, Default::default())
+        PrepareResult::Ok(context) => {
+            let (code, ..) = code.into_parts();
+            core_processor::process::<Ext, E>(
+                &block_config,
+                (context, program_id, code).into(),
+                Default::default(),
+            )
         }
     };
 
@@ -314,8 +316,16 @@ where
                         PrepareResult::WontExecute(journal) | PrepareResult::Error(journal) => {
                             journal
                         }
-                        PrepareResult::Ok { context, .. } => {
-                            core_processor::process::<Ext, E>(&block_config, context, memory_pages)
+                        PrepareResult::Ok(context) => {
+                            let (code, ..) = journal_handler
+                                .load_code(context.actor_data().code_id)
+                                .expect("code not found in the collection")
+                                .into_parts();
+                            core_processor::process::<Ext, E>(
+                                &block_config,
+                                (context, program_id, code).into(),
+                                memory_pages,
+                            )
                         }
                     };
 
@@ -357,8 +367,16 @@ where
 
             let journal = match core_processor::prepare(&block_config, message_execution_context) {
                 PrepareResult::WontExecute(journal) | PrepareResult::Error(journal) => journal,
-                PrepareResult::Ok { context, .. } => {
-                    core_processor::process::<Ext, E>(&block_config, context, memory_pages)
+                PrepareResult::Ok(context) => {
+                    let (code, ..) = journal_handler
+                        .load_code(context.actor_data().code_id)
+                        .expect("code not found in the collection")
+                        .into_parts();
+                    core_processor::process::<Ext, E>(
+                        &block_config,
+                        (context, program_id, code).into(),
+                        memory_pages,
+                    )
                 }
             };
 

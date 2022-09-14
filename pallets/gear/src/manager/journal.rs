@@ -17,8 +17,9 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    manager::{CodeInfo, ExtManager}, Config, CurrencyOf, Event, GasAllowanceOf, GasHandlerOf,
-    GearProgramPallet, Pallet, QueueOf, SentOf, WaitlistOf,
+    manager::{CodeInfo, ExtManager},
+    Config, CurrencyOf, Event, GasAllowanceOf, GasHandlerOf, GearProgramPallet, Pallet, QueueOf,
+    SentOf, WaitlistOf,
 };
 use common::{event::*, storage::*, CodeStorage, GasTree, Origin, Program};
 use core_processor::common::{DispatchOutcome as CoreDispatchOutcome, JournalHandler};

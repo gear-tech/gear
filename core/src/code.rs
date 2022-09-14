@@ -283,7 +283,7 @@ impl CodeAndId {
 
     /// Creates the instance from the precalculated hash without checks.
     pub fn from_parts_unchecked(code: Code, code_id: CodeId) -> Self {
-        assert_eq!(code_id, CodeId::generate(code.raw_code()));
+        debug_assert_eq!(code_id, CodeId::generate(code.raw_code()));
         Self { code, code_id }
     }
 

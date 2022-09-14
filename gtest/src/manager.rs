@@ -29,7 +29,7 @@ use core_processor::{
 };
 use gear_backend_wasmi::WasmiEnvironment;
 use gear_core::{
-    code::{Code, CodeAndId, InstrumentedCodeAndId},
+    code::{Code, CodeAndId, InstrumentedCode, InstrumentedCodeAndId},
     ids::{CodeId, MessageId, ProgramId},
     memory::{PageBuf, PageNumber, WasmPageNumber},
     message::{
@@ -118,11 +118,16 @@ impl TestActor {
     // Gets a new executable actor derived from the inner program.
     fn get_executable_actor_data(
         &self,
-    ) -> Option<(ExecutableActorData, BTreeMap<PageNumber, PageBuf>)> {
-        let (program, pages_data) = match self {
+    ) -> Option<(
+        ExecutableActorData,
+        CoreProgram,
+        BTreeMap<PageNumber, PageBuf>,
+    )> {
+        let (program, pages_data, code_id) = match self {
             TestActor::Initialized(Program::Genuine {
                 program,
                 pages_data,
+                code_id,
                 ..
             })
             | TestActor::Uninitialized(
@@ -130,16 +135,24 @@ impl TestActor {
                 Some(Program::Genuine {
                     program,
                     pages_data,
+                    code_id,
                     ..
                 }),
-            ) => (program.clone(), pages_data.clone()),
+            ) => (program.clone(), pages_data.clone(), code_id),
             _ => return None,
         };
+
         Some((
             ExecutableActorData {
-                program,
+                allocations: program.get_allocations().clone(),
+                code_id: *code_id,
+                code_exports: program.code().exports().clone(),
+                code_length_bytes: program.code().code().len() as u32,
+                static_pages: program.code().static_pages(),
+                initialized: program.is_initialized(),
                 pages_with_data: pages_data.keys().copied().collect(),
             },
+            program,
             pages_data,
         ))
     }
@@ -329,8 +342,14 @@ impl ExtManager {
 
             if actor.is_dormant() {
                 self.process_dormant(balance, dispatch);
-            } else if let Some((data, memory_pages)) = actor.get_executable_actor_data() {
-                self.process_normal(balance, data, memory_pages, dispatch);
+            } else if let Some((data, program, memory_pages)) = actor.get_executable_actor_data() {
+                self.process_normal(
+                    balance,
+                    data,
+                    program.code().clone(),
+                    memory_pages,
+                    dispatch,
+                );
             } else if let Some(mock) = actor.take_mock() {
                 self.process_mock(mock, dispatch);
             } else {
@@ -550,10 +569,11 @@ impl ExtManager {
         &mut self,
         balance: u128,
         data: ExecutableActorData,
+        code: InstrumentedCode,
         memory_pages: BTreeMap<PageNumber, PageBuf>,
         dispatch: StoredDispatch,
     ) {
-        self.process_dispatch(balance, Some(data), memory_pages, dispatch);
+        self.process_dispatch(balance, Some((data, code)), memory_pages, dispatch);
     }
 
     fn process_dormant(&mut self, balance: u128, dispatch: StoredDispatch) {
@@ -563,7 +583,7 @@ impl ExtManager {
     fn process_dispatch(
         &mut self,
         balance: u128,
-        data: Option<ExecutableActorData>,
+        data: Option<(ExecutableActorData, InstrumentedCode)>,
         memory_pages: BTreeMap<PageNumber, PageBuf>,
         dispatch: StoredDispatch,
     ) {
@@ -584,11 +604,17 @@ impl ExtManager {
             waitlist_cost: WAITLIST_COST,
             reserve_for: RESERVE_FOR,
         };
+
+        let (actor_data, code) = match data {
+            Some((a, c)) => (Some(a), Some(c)),
+            None => (None, None),
+        };
+
         let message_execution_context = MessageExecutionContext {
             actor: Actor {
                 balance,
                 destination_program: dest,
-                executable_data: data,
+                executable_data: actor_data,
             },
             dispatch: dispatch.into_incoming(gas_limit),
             origin: self.origin,
@@ -598,9 +624,9 @@ impl ExtManager {
 
         let journal = match core_processor::prepare(&block_config, message_execution_context) {
             PrepareResult::WontExecute(journal) | PrepareResult::Error(journal) => journal,
-            PrepareResult::Ok { context, .. } => core_processor::process::<Ext, WasmiEnvironment>(
+            PrepareResult::Ok(context) => core_processor::process::<Ext, WasmiEnvironment>(
                 &block_config,
-                context,
+                (context, dest, code.unwrap()).into(),
                 memory_pages,
             ),
         };
@@ -620,7 +646,7 @@ impl ExtManager {
             .ok_or(TestError::ActorNotFound(*program_id))?;
 
         let code_id = actor.code_id();
-        let (data, memory) = actor
+        let (_data, program, memory) = actor
             .get_executable_actor_data()
             .ok_or(TestError::ActorIsNotExecutable(*program_id))?;
         let pages_initial_data = memory
@@ -632,13 +658,13 @@ impl ExtManager {
             .map(Vec::as_slice)
             .ok_or(TestError::MetaBinaryNotProvided)?;
 
-        let mut ext = WasmExecutor::build_ext(&data.program, payload.unwrap_or_default());
+        let mut ext = WasmExecutor::build_ext(&program, payload.unwrap_or_default());
 
         WasmExecutor::update_ext(&mut ext, self);
 
         WasmExecutor::execute(
             &mut ext,
-            &data.program,
+            &program,
             meta_binary,
             &pages_initial_data,
             function_name,

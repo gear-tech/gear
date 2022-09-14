@@ -55,9 +55,10 @@ use common::{event::*, ActiveProgram, CodeStorage, Origin, ProgramState};
 use core_processor::common::{Actor, ExecutableActorData};
 use frame_support::traits::Currency;
 use gear_core::{
+    code::{CodeAndId, InstrumentedCode},
     ids::{CodeId, MessageId, ProgramId},
-    message::{ExitCode, DispatchKind},
-    program::Program as NativeProgram, code::{CodeAndId, InstrumentedCode}, memory::WasmPageNumber,
+    memory::WasmPageNumber,
+    message::{DispatchKind, ExitCode},
 };
 use primitive_types::H256;
 use sp_runtime::traits::UniqueSaturatedInto;
@@ -208,31 +209,31 @@ where
 
     /// NOTE: By calling this function we can't differ whether `None` returned, because
     /// program with `id` doesn't exist or it's terminated
-    pub fn get_actor(&self, id: ProgramId) -> Option<Actor> {
+    pub fn get_actor(&self, id: ProgramId) -> Option<(Actor, InstrumentedCode)> {
         let active: ActiveProgram = common::get_program(id.into_origin())?.try_into().ok()?;
-        let program = {
-            let code_id = CodeId::from_origin(active.code_hash);
-            let code = T::CodeStorage::get_code(code_id)?;
-            NativeProgram::from_parts(
-                id,
-                code,
-                active.allocations,
-                matches!(active.state, ProgramState::Initialized),
-            )
-        };
+        let code_id = CodeId::from_origin(active.code_hash);
+        let code = T::CodeStorage::get_code(code_id)?;
 
         let balance =
             CurrencyOf::<T>::free_balance(&<T::AccountId as Origin>::from_origin(id.into_origin()))
                 .unique_saturated_into();
 
-        Some(Actor {
-            balance,
-            destination_program: id,
-            executable_data: Some(ExecutableActorData {
-                program,
-                pages_with_data: active.pages_with_data,
-            }),
-        })
+        Some((
+            Actor {
+                balance,
+                destination_program: id,
+                executable_data: Some(ExecutableActorData {
+                    allocations: active.allocations.clone(),
+                    code_id,
+                    code_exports: active.code_exports,
+                    code_length_bytes: active.code_length_bytes,
+                    static_pages: active.static_pages,
+                    initialized: matches!(active.state, ProgramState::Initialized),
+                    pages_with_data: active.pages_with_data,
+                }),
+            },
+            code,
+        ))
     }
 
     pub fn set_program(&self, program_id: ProgramId, code_info: &CodeInfo, message_id: MessageId) {
