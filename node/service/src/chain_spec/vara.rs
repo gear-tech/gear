@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::chain_spec::{get_account_id_from_seed, get_from_seed, AccountId};
+use crate::chain_spec::{get_account_id_from_seed, get_from_seed, AccountId, Extensions};
 use hex_literal::hex;
 use sc_service::ChainType;
 use sp_consensus_babe::AuthorityId as BabeId;
@@ -32,7 +32,7 @@ use vara_runtime::{
 // const STAGING_TELEMETRY_URL: &str = "wss://telemetry.polkadot.io/submit/";
 
 /// Specialized `ChainSpec`. This is a specialization of the general Substrate ChainSpec type.
-pub type ChainSpec = sc_service::GenericChainSpec<GenesisConfig>;
+pub type ChainSpec = sc_service::GenericChainSpec<GenesisConfig, Extensions>;
 
 /// Generate authority keys.
 pub fn authority_keys_from_seed(s: &str) -> (AccountId, AccountId, BabeId, GrandpaId) {
@@ -79,7 +79,7 @@ pub fn development_config() -> Result<ChainSpec, String> {
         // Properties
         None,
         // Extensions
-        None,
+        Default::default(),
     ))
 }
 
@@ -125,7 +125,7 @@ pub fn local_testnet_config() -> Result<ChainSpec, String> {
         // Properties
         None,
         // Extensions
-        None,
+        Default::default(),
     ))
 }
 
@@ -251,7 +251,7 @@ pub fn main() -> Result<ChainSpec, String> {
         // Properties
         None,
         // Extensions
-        None,
+        Default::default(),
     ))
 }
 
