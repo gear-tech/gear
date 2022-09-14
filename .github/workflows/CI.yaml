@@ -383,15 +383,19 @@ jobs:
         with:
           node-version: "16"
 
-      - name: "Install: Create symlink to Node.js"
+      - name: "Install: Create symlinks for MSYS"
         run: |
           $npm = (Get-Command npm).Path
           $dir = Split-Path -Parent $npm
           cmd /c mklink /d C:\nodejs $dir
+          
+          $cargo = (Get-Command cargo).Path
+          $dir = Split-Path -Parent $cargo
+          cmd /c mklink /d C:\cargo $dir
         shell: powershell
 
-      - name: "Install: Add Node.js to PATH"
-        run: echo 'export PATH="$PATH:/c/nodejs"' >> ~/.bash_profile
+      - name: "Install: Add PATH MSYS"
+        run: echo 'export PATH="$PATH:/c/nodejs:/c/cargo"' >> ~/.bash_profile
         shell: msys2 {0}
 
       - name: "Install: Node.js packages"
