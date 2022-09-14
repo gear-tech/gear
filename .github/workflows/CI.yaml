@@ -342,6 +342,9 @@ jobs:
     env:
       RUSTC_WRAPPER: "cachepot"
       CARGO_INCREMENTAL: 0
+    defaults: 
+      run: 
+        shell: msys2 {0}
     steps:
       - name: Cancel Previous Runs
         if: ${{ github.event_name == 'pull_request' }}
@@ -352,11 +355,15 @@ jobs:
       - name: "ACTIONS: Checkout"
         uses: actions/checkout@v2
 
+      - name: "Install: Setup MSYS2 environment"
+        uses: msys2/setup-msys2@v2
+
       - name: "Install: rustup 1.24.3"
         run: |
           Invoke-WebRequest "https://static.rust-lang.org/rustup/archive/1.24.3/x86_64-pc-windows-msvc/rustup-init.exe" -OutFile "rustup-init.exe"
           .\rustup-init.exe -y
           rustup --version
+        shell: powershell
 
       - name: "Install: Disable rustup auto-update"
         run: rustup set auto-self-update disable
@@ -374,6 +381,7 @@ jobs:
           $outputDir = if ($Env:CARGO_HOME) { Join-Path $Env:CARGO_HOME "bin" } else { "~/.cargo/bin" }
           $tmp | Expand-Archive -DestinationPath $outputDir -Force
           $tmp | Remove-Item
+        shell: powershell
 
       - name: "Install: Node.js"
         uses: actions/setup-node@v2
@@ -382,27 +390,21 @@ jobs:
 
       - name: "Install: Node.js packages"
         run: ./scripts/gear.sh init js
-        shell: C:/shells/msys2bash.cmd {0}
 
       - name: "Build: Node"
         run: ./scripts/gear.sh build node --release --locked
-        shell: C:/shells/msys2bash.cmd {0}
 
       - name: "Build: wasm-proc"
         run: ./scripts/gear.sh build wasm-proc --locked
-        shell: C:/shells/msys2bash.cmd {0}
 
       - name: "Build: Examples (WASM)"
         run: ./scripts/gear.sh build examples --locked
-        shell: C:/shells/msys2bash.cmd {0}
 
       - name: "Build: Split examples by .opt and .meta"
         run: ./scripts/gear.sh build examples-proc
-        shell: C:/shells/msys2bash.cmd {0}
 
       - name: "Test: Process node runtime testsuite"
         run: ./scripts/gear.sh test rtest
-        shell: C:/shells/msys2bash.cmd {0}
 
       - name: "Test: Lazy pages"
         uses: actions-rs/cargo@v1
