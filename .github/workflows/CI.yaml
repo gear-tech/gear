@@ -401,7 +401,7 @@ jobs:
           $outputDir = if ($Env:CARGO_HOME) { Join-Path $Env:CARGO_HOME "bin" } else { "~/.cargo/bin" }
           tar zxf $tmp
           cp ./binaryen-version_110/bin/* $outputDir
-          Remove-Item ./binaryen-version_110
+          Remove-Item -Recurse ./binaryen-version_110
           $tmp | Remove-Item
         shell: powershell
 
