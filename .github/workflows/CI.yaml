@@ -374,11 +374,34 @@ jobs:
           $tmp | Expand-Archive -DestinationPath $outputDir -Force
           $tmp | Remove-Item
 
-      - name: "Build: Node"
-        uses: actions-rs/cargo@v1
+      - name: "Install: Node.js"
+        uses: actions/setup-node@v2
         with:
-          command: build
-          args: -p gear-node --features=lazy-pages
+          node-version: "16"
+
+      - name: "Install: Node.js packages"
+        run: ./scripts/gear.sh init js
+        shell: msys2bash.cmd
+
+      - name: "Build: Node"
+        run: ./scripts/gear.sh build node --release --locked
+        shell: msys2bash.cmd
+
+      - name: "Build: wasm-proc"
+        run: ./scripts/gear.sh build wasm-proc --locked
+        shell: msys2bash.cmd
+
+      - name: "Build: Examples (WASM)"
+        run: ./scripts/gear.sh build examples --locked
+        shell: msys2bash.cmd
+
+      - name: "Build: Split examples by .opt and .meta"
+        run: ./scripts/gear.sh build examples-proc
+        shell: msys2bash.cmd
+
+      - name: "Test: Process node runtime testsuite"
+        run: ./scripts/gear.sh test rtest
+        shell: msys2bash.cmd
 
       - name: "Test: Lazy pages"
         uses: actions-rs/cargo@v1
