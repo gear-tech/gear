@@ -40,6 +40,21 @@ impl Lock {
             LockType::NoMore(d) => exec::wait_no_more(d),
         }
     }
+
+    /// Check if this lock is timeout
+    pub fn timeout(&self) -> Option<(u32, u32)> {
+        let current = exec::block_height();
+        let expected = match &self.ty {
+            LockType::For(d) => *d,
+            LockType::NoMore(d) => self.at + *d,
+        };
+
+        if current >= expected {
+            Some((expected, current))
+        } else {
+            None
+        }
+    }
 }
 
 impl Default for Lock {

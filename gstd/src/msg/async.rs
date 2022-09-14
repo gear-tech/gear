@@ -113,6 +113,17 @@ impl Future for MessageFuture {
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let fut = &mut *self;
+
+        // check if message is timeout
+        if let Some((expected, now)) = async_runtime::locks()
+            .get(&fut.waiting_reply_to)
+            .map(|lock| lock.timeout())
+            .flatten()
+        {
+            return Poll::Ready(Err(ContractError::Timeout(expected, now)));
+        }
+
+        // do polling
         match signals().poll(fut.waiting_reply_to, cx) {
             ReplyPoll::None => panic!("Somebody created MessageFuture with the MessageId that never ended in static replies!"),
             ReplyPoll::Pending => Poll::Pending,
