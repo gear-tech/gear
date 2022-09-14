@@ -440,6 +440,7 @@ jobs:
             -p gear-lazy-pages
             -p gear-runtime-interface
             --features=lazy-pages
+            --release            
 
   build-macos-x86:
     if: github.ref == 'refs/heads/master'
