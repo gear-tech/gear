@@ -390,9 +390,9 @@ impl pallet_staking::BenchmarkingConfig for StakingBenchmarkingConfig {
     type MaxValidators = ConstU32<1000>;
 }
 
-pub struct NoElectionAtStage1<DataProvider>(sp_std::marker::PhantomData<DataProvider>);
+pub struct ElectNone<DataProvider>(sp_std::marker::PhantomData<DataProvider>);
 
-impl<DataProvider> ElectionProvider for NoElectionAtStage1<DataProvider>
+impl<DataProvider> ElectionProvider for ElectNone<DataProvider>
 where
     DataProvider: ElectionDataProvider<AccountId = AccountId, BlockNumber = BlockNumber>,
 {
@@ -406,14 +406,34 @@ where
     }
 }
 
+pub struct ElectAll<DataProvider>(sp_std::marker::PhantomData<DataProvider>);
+
+impl<DataProvider> ElectionProvider for ElectAll<DataProvider>
+where
+    DataProvider: ElectionDataProvider<AccountId = AccountId, BlockNumber = BlockNumber>,
+{
+    type AccountId = AccountId;
+    type BlockNumber = BlockNumber;
+    type Error = &'static str;
+    type DataProvider = DataProvider;
+
+    fn elect() -> Result<sp_npos_elections::Supports<AccountId>, Self::Error> {
+        let targets = Self::DataProvider::electable_targets(None)?
+            .into_iter()
+            .map(|acc| (acc, Default::default()))
+            .collect();
+        Ok(targets)
+    }
+}
+
 impl pallet_staking::Config for Runtime {
     type MaxNominations = ConstU32<16>; // TODO: review with NPoS enabled
     type Currency = Balances;
     type CurrencyBalance = Balance;
     type UnixTime = Timestamp;
     type CurrencyToVote = U128CurrencyToVote;
-    type ElectionProvider = NoElectionAtStage1<Staking>;
-    type GenesisElectionProvider = NoElectionAtStage1<Staking>;
+    type ElectionProvider = ElectNone<Staking>;
+    type GenesisElectionProvider = ElectAll<Staking>;
     type RewardRemainder = (); // No rewards in stage 1 => can just burn
     type Event = Event;
     type Slash = ();

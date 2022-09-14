@@ -2860,6 +2860,7 @@ dependencies = [
  "jsonrpsee",
  "pallet-gear-rpc",
  "pallet-gear-rpc-runtime-api",
+ "pallet-staking",
  "pallet-transaction-payment",
  "pallet-transaction-payment-rpc",
  "pallet-transaction-payment-rpc-runtime-api",

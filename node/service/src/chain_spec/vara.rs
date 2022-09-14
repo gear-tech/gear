@@ -308,6 +308,7 @@ fn testnet_genesis(
                 .map(|x| (x.0.clone(), x.1.clone(), STASH, StakerStatus::Validator))
                 .collect(),
             invulnerables: initial_authorities.iter().map(|x| x.0.clone()).collect(),
+            force_era: pallet_staking::Forcing::ForceNone,
             slash_reward_fraction: Perbill::from_percent(10),
             ..Default::default()
         },

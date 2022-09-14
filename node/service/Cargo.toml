@@ -70,6 +70,7 @@ sp-session = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substr
 pallet-transaction-payment = { version = "4.0.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
 pallet-transaction-payment-rpc = { version = "4.0.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
 pallet-transaction-payment-rpc-runtime-api = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
+pallet-staking = { version = "4.0.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", optional = true }
 
 # Substrate Other
 frame-benchmarking = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", optional = true }
@@ -88,6 +89,7 @@ gear-native = [
 ]
 vara-native = [
 	"vara-runtime",
+	"pallet-staking",
 ]
 lazy-pages = [
 	"gear-runtime?/lazy-pages",
