@@ -31,7 +31,10 @@ use frame_support::weights::Weight;
 use frame_support::{
     construct_runtime, parameter_types,
     traits::{ConstU128, ConstU32, Contains, KeyOwnerProofSystem, U128CurrencyToVote},
-    weights::{constants::RocksDbWeight, IdentityFee},
+    weights::{
+        constants::{RocksDbWeight, WEIGHT_PER_SECOND},
+        IdentityFee,
+    },
 };
 use frame_system::EnsureRoot;
 pub use pallet_gear::manager::{ExtManager, HandleKind};
