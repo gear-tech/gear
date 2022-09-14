@@ -383,6 +383,10 @@ jobs:
         with:
           node-version: "16"
 
+      - name: "Install: Add Node.js to PATH"
+        run: echo 'export PATH="$PATH:/c/program files/nodejs:"' >> ~/.bash_profile
+        shell: msys2 {0}
+
       - name: "Install: Node.js packages"
         run: ./scripts/gear.sh init js
         shell: msys2 {0}
