@@ -37,10 +37,10 @@ static_assertions::const_assert_eq!(PAGE_STORAGE_GRANULARITY, 0x4000);
 cfg_if! {
     if #[cfg(windows)] {
         mod windows;
-        pub use windows::*;
+        pub(crate) use windows::*;
     } else if #[cfg(unix)] {
         mod unix;
-        pub use unix::*;
+        pub(crate) use unix::*;
     } else {
         compile_error!("lazy pages are not supported on your system. Disable `lazy-pages` feature");
     }

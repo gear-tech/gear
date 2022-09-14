@@ -124,7 +124,7 @@ enum ThreadInitError {
 fn init_for_thread_internal() -> Result<(), ThreadInitError> {
     use core::{mem, ptr};
 
-    // Should be enought for lazy pages signal handler
+    // Should be enough for lazy pages signal handler
     const STACK_SIZE: usize = 0x20000;
 
     enum StackInfo {
@@ -204,11 +204,11 @@ fn init_for_thread_internal() -> Result<(), ThreadInitError> {
     TLS.with(|tls| tls.as_ref().map(|_| ()).map_err(|err| *err))
 }
 
-pub(crate) unsafe fn init_for_thread() {
-    init_for_thread_internal().expect("Cannot initialize for thread");
+pub(crate) unsafe fn init_for_thread() -> Result<(), String> {
+    init_for_thread_internal().map_err(|err| err.to_string())
 }
 
-pub unsafe fn setup_signal_handler<H>() -> io::Result<()>
+pub(crate) unsafe fn setup_signal_handler<H>() -> io::Result<()>
 where
     H: UserSignalHandler,
 {

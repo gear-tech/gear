@@ -71,7 +71,7 @@ where
 
 pub(crate) fn init_for_thread() {}
 
-pub unsafe fn setup_signal_handler<H>() -> io::Result<()>
+pub(crate) unsafe fn setup_signal_handler<H>() -> io::Result<()>
 where
     H: UserSignalHandler,
 {
