@@ -2491,7 +2491,7 @@ fn test_different_waits_success() {
             WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
             EMPTY_PAYLOAD.to_vec(),
-            0u64,
+            100_000_000u64,
             0u128
         ));
 
@@ -2627,7 +2627,7 @@ fn test_different_waits_fail() {
             WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
             EMPTY_PAYLOAD.to_vec(),
-            0u64,
+            100_000_000u64,
             0u128
         ));
 
@@ -3282,8 +3282,8 @@ fn test_create_program_simple() {
             Origin::signed(USER_1),
             factory_id,
             CreateProgram::Custom(vec![
-                (child_code_hash, b"salt1".to_vec(), 100_000_000),
-                (child_code_hash, b"salt2".to_vec(), 100_000_000),
+                (child_code_hash, b"salt1".to_vec(), 200_000_000),
+                (child_code_hash, b"salt2".to_vec(), 200_000_000),
             ])
             .encode(),
             50_000_000_000,
@@ -3513,7 +3513,7 @@ fn test_create_program_miscellaneous() {
             factory_id,
             CreateProgram::Custom(vec![
                 // one successful init with one handle message (+2 dequeued, +1 dispatched, +1 successful init)
-                (child1_code_hash, b"salt1".to_vec(), 100_000_000),
+                (child1_code_hash, b"salt1".to_vec(), 200_000_000),
                 // init fail (not enough gas) and reply generated (+2 dequeued, +1 dispatched),
                 // handle message is processed, but not executed, reply generated (+2 dequeued, +1 dispatched)
                 (child1_code_hash, b"salt2".to_vec(), 100_000),
@@ -3533,7 +3533,7 @@ fn test_create_program_miscellaneous() {
                 // handle message is processed, but not executed, reply generated (+2 dequeued, +1 dispatched)
                 (child2_code_hash, b"salt1".to_vec(), 300_000),
                 // one successful init with one handle message (+2 dequeued, +1 dispatched, +1 successful init)
-                (child2_code_hash, b"salt2".to_vec(), 100_000_000),
+                (child2_code_hash, b"salt2".to_vec(), 200_000_000),
             ])
             .encode(),
             50_000_000_000,
@@ -3547,9 +3547,9 @@ fn test_create_program_miscellaneous() {
             factory_id,
             CreateProgram::Custom(vec![
                 // duplicate in the next block: init not executed, nor the handle (because destination is terminated), replies are generated (+4 dequeue, +2 dispatched)
-                (child2_code_hash, b"salt1".to_vec(), 100_000_000),
+                (child2_code_hash, b"salt1".to_vec(), 200_000_000),
                 // one successful init with one handle message (+2 dequeued, +1 dispatched, +1 successful init)
-                (child2_code_hash, b"salt3".to_vec(), 100_000_000),
+                (child2_code_hash, b"salt3".to_vec(), 200_000_000),
             ])
             .encode(),
             50_000_000_000,
@@ -4446,7 +4446,7 @@ fn test_create_program_with_value_lt_ed() {
                 ProgramCodeKind::Default.to_bytes(),
                 b"test0".to_vec(),
                 EMPTY_PAYLOAD.to_vec(),
-                10_000_000,
+                100_000_000,
                 ed - 1,
             ),
             Error::<Test>::ValueLessThanMinimal,
@@ -5447,7 +5447,7 @@ mod utils {
     use sp_runtime::traits::UniqueSaturatedInto;
     use sp_std::{convert::TryFrom, fmt::Debug};
 
-    pub(super) const DEFAULT_GAS_LIMIT: u64 = 100_000_000;
+    pub(super) const DEFAULT_GAS_LIMIT: u64 = 200_000_000;
     pub(super) const DEFAULT_SALT: &[u8; 4] = b"salt";
     pub(super) const EMPTY_PAYLOAD: &[u8; 0] = b"";
     pub(super) const OUTGOING_WITH_VALUE_IN_HANDLE_VALUE: u128 = 10000000;
@@ -5925,7 +5925,7 @@ mod utils {
                             end $while
                         )
                         (func $init
-                            i32.const 4
+                            i32.const 100
                             call $doWork
                         )
                     )"#
