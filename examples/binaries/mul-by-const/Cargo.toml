@@ -9,6 +9,7 @@ workspace = "../../../"
 [dependencies]
 gstd = { path = "../../../gstd", features = ["debug"] }
 hex = { version = "0.4.3", default-features = false, features = ["alloc"] }
+codec = { package = "parity-scale-codec", version = "~3.1.2", default-features = false, features = ["derive"] }
 
 [build-dependencies]
 gear-wasm-builder = { path = "../../../utils/wasm-builder" }

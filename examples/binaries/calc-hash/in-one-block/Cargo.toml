@@ -10,7 +10,7 @@ workspace = "../../../../"
 gstd = { path = "../../../../gstd", features = ["debug"] }
 
 # encoding
-codec = { package = "parity-scale-codec", version = "3.1.2", default-features = false, features = ["derive"]}
+codec = { package = "parity-scale-codec", version = "~3.1.2", default-features = false, features = ["derive"]}
 shared = { path = "..", package = "demo-calc-hash" }
 
 [build-dependencies]
