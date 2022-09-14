@@ -114,6 +114,7 @@ impl Future for MessageFuture {
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let fut = &mut *self;
 
+        // crate::debug!("polling..");
         // check if message is timeout
         if let Some((expected, now)) = async_runtime::locks()
             .get(&fut.waiting_reply_to)

@@ -2933,6 +2933,34 @@ fn test_sending_waits() {
             get_waitlist_expiration(wait_wait),
             expiration(demo_waiter::default_wait_duration())
         );
+
+        // Case 4 - `Command::SendTimeout`
+        //
+        // Emits error when locks are timeout
+        let duration = 5;
+        let payload = Command::SendTimeout(USER_3.into(), duration).encode();
+        assert_ok!(Gear::send_message(
+            Origin::signed(USER_3),
+            program_id,
+            payload,
+            // # Note
+            //
+            // just using `gas_limit` which is enough to process this message
+            // since the end cases around the `gas_limit` have already been
+            // tested in other tests.
+            2_500_000_000,
+            0,
+        ));
+
+        run_to_block(
+            System::block_number().saturating_add((duration + 10).into()),
+            None,
+        );
+        let payload = MailboxOf::<Test>::iter_key(USER_3)
+            .next()
+            .map(|(msg, _bn)| msg.payload().to_vec())
+            .expect("Element should be");
+        assert_eq!(payload, b"timeout");
     });
 }
 

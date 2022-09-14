@@ -46,4 +46,5 @@ pub enum Command {
     SendFor(ActorId, u32),
     SendNoMore(ActorId, u32),
     SendNoMoreWait(ActorId, u32),
+    SendTimeout(ActorId, u32),
 }
