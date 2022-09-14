@@ -339,6 +339,9 @@ jobs:
     # if: github.ref == 'refs/heads/master'
     needs: spec_version
     runs-on: ci-win
+    defaults: 
+      run: 
+        shell: msys2 {0}
     env:
       RUSTC_WRAPPER: "cachepot"
       CARGO_INCREMENTAL: 0
