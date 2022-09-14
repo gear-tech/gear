@@ -32,16 +32,24 @@ wasm_init() {
 
 # $1 = ROOT_DIR
 js_init() {
-  npm --prefix "$1"/utils/wasm-proc/metadata-js install
-  npm --prefix "$1"/scripts/test-utils install
-  npm --prefix "$1"/gear-test/src/js install
+  cd "$1"/utils/wasm-proc/metadata-js
+  npm install
+  cd "$1"/scripts/test-utils
+  npm install
+  cd "$1"/gear-test/src/js
+  npm install
+  cd "$1"
 }
 
 # $1 = ROOT_DIR
 js_update() {
-  npm --prefix "$1"/utils/wasm-proc/metadata-js update
-  npm --prefix "$1"/scripts/test-utils update
-  npm --prefix "$1"/gear-test/src/js update
+  cd "$1"/utils/wasm-proc/metadata-js
+  npm update
+  cd "$1"/scripts/test-utils
+  npm update
+  cd "$1"/gear-test/src/js
+  npm update
+  cd "$1"
 }
 
 cargo_init() {
