@@ -2922,10 +2922,10 @@ fn test_wait_timeout() {
 
     init_logger();
     new_test_ext().execute_with(|| {
-        // // utils
-        // let expiration = |duration: u32| -> BlockNumberFor<Test> {
-        //     System::block_number().saturating_add(duration.unique_saturated_into())
-        // };
+        // utils
+        let expiration = |duration: u32| -> BlockNumberFor<Test> {
+            System::block_number().saturating_add(duration.unique_saturated_into())
+        };
 
         // upload program
         assert_ok!(Gear::upload_program(
@@ -2940,30 +2940,36 @@ fn test_wait_timeout() {
         let program_id = get_last_program_id();
         run_to_next_block(None);
 
-        // Case 4 - `Command::SendTimeout`
+        // `Command::SendTimeout`
         //
         // Emits error when locks are timeout
-        let duration = 5;
+        let duration = 10;
         let payload = Command::SendTimeout(USER_3.into(), duration).encode();
-        assert_ok!(Gear::send_message(
-            Origin::signed(USER_1),
-            program_id,
-            payload,
-            5_500_000_000,
-            0,
-        ));
-
-        run_to_block(
-            System::block_number().saturating_add((duration).into()),
-            None,
-        );
-
-        let payload = Command::Wake.encode();
         assert_ok!(Gear::send_message(
             Origin::signed(USER_3),
             program_id,
             payload,
-            2_500_000_000,
+            8_500_000_000,
+            0,
+        ));
+
+        // wait till timeout
+        run_to_block(
+            System::block_number().saturating_add((duration + 1).into()),
+            None,
+        );
+
+        // trigger the timeout message
+        let reply_to_id = MailboxOf::<Test>::iter_key(USER_3)
+            .next()
+            .map(|(msg, _bn)| msg.id())
+            .expect("Element should be");
+
+        assert_ok!(Gear::send_reply(
+            Origin::signed(USER_3),
+            reply_to_id,
+            vec![],
+            5_500_000_000,
             0,
         ));
 

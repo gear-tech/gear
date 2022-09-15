@@ -41,12 +41,23 @@ impl Lock {
         }
     }
 
+    /// Get bound of the current lock
+    pub fn bound(&self) -> u32 {
+        match &self.ty {
+            LockType::For(d) => {
+                // TODO:
+                //
+                // Calculate the bound with the hold cost per block
+                self.at + *d * 2
+            }
+            LockType::NoMore(d) => self.at + *d,
+        }
+    }
+
     /// Check if this lock is timeout
     pub fn timeout(&self) -> Option<(u32, u32)> {
         let current = exec::block_height();
-        let expected = match &self.ty {
-            LockType::For(d) | LockType::NoMore(d) => self.at + *d,
-        };
+        let expected = self.bound();
 
         if current >= expected {
             Some((expected, current))

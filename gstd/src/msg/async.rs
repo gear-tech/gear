@@ -113,6 +113,7 @@ impl Future for MessageFuture {
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let fut = &mut *self;
+        crate::debug!("\n\n polling");
 
         // check if message is timeout
         if let Some((expected, now)) = async_runtime::locks()
@@ -121,6 +122,8 @@ impl Future for MessageFuture {
             .flatten()
         {
             return Poll::Ready(Err(ContractError::Timeout(expected, now)));
+        } else {
+            crate::debug!("\n\n not timeout {:?}", fut.waiting_reply_to);
         }
 
         // do polling
@@ -144,7 +147,15 @@ impl Future for MessageFuture {
 impl MessageFuture {
     /// Delays handling for given specific amount of blocks.
     pub fn no_more(self, duration: u32) -> Self {
+        let locks = async_runtime::locks();
+        let msg_id = crate::msg::id();
+        if let Some(_) = locks.get(&msg_id) {
+            crate::debug!("\n\n resetting locks {}", duration);
+        } else {
+            // async_runtime::locks().insert(crate::msg::id(), Lock::no_more(duration));
+        }
         async_runtime::locks().insert(crate::msg::id(), Lock::no_more(duration));
+
         self
     }
 
