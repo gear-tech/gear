@@ -81,7 +81,7 @@ pub enum TerminationReason {
     Leave,
     Success,
     Trap(TrapExplanation),
-    Wait(Option<u32>),
+    Wait(Option<u32>, bool),
     GasAllowanceExceeded,
 }
 

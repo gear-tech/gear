@@ -94,6 +94,8 @@ pub enum Reason<R: RuntimeReason, S: SystemReason> {
 pub enum MessageWaitedRuntimeReason {
     /// Program called `gr_wait` while executing message.
     WaitCalled,
+    /// Program called `gr_wait_for` while executing message.
+    WaitForCalled,
 }
 
 /// System reason for messages waiting.

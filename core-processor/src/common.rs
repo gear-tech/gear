@@ -43,7 +43,7 @@ pub enum DispatchResultKind {
     /// Trap dispatch.
     Trap(TrapExplanation),
     /// Wait dispatch.
-    Wait(Option<u32>),
+    Wait(Option<u32>, bool),
     /// Exit dispatch.
     Exit(ProgramId),
     /// Gas allowance exceed.
@@ -196,6 +196,8 @@ pub enum JournalNote {
         dispatch: StoredDispatch,
         /// Expected duration of holding.
         duration: Option<u32>,
+        /// If this message is waiting for its reincarnation.
+        reincarnation: bool,
     },
     /// Wake particular message.
     WakeMessage {
@@ -268,7 +270,12 @@ pub trait JournalHandler {
     /// Process send dispatch.
     fn send_dispatch(&mut self, message_id: MessageId, dispatch: Dispatch);
     /// Process send message.
-    fn wait_dispatch(&mut self, dispatch: StoredDispatch, duration: Option<u32>);
+    fn wait_dispatch(
+        &mut self,
+        dispatch: StoredDispatch,
+        duration: Option<u32>,
+        reincarnation: bool,
+    );
     /// Process send message.
     fn wake_message(
         &mut self,

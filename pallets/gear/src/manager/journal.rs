@@ -259,11 +259,21 @@ where
         }
     }
 
-    fn wait_dispatch(&mut self, dispatch: StoredDispatch, duration: Option<u32>) {
+    fn wait_dispatch(
+        &mut self,
+        dispatch: StoredDispatch,
+        duration: Option<u32>,
+        reincarnation: bool,
+    ) {
         Pallet::<T>::wait_dispatch(
             dispatch,
             duration.map(UniqueSaturatedInto::unique_saturated_into),
-            MessageWaitedRuntimeReason::WaitCalled.into_reason(),
+            if reincarnation {
+                MessageWaitedRuntimeReason::WaitForCalled
+            } else {
+                MessageWaitedRuntimeReason::WaitCalled
+            }
+            .into_reason(),
         )
     }
 

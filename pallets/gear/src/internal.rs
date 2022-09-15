@@ -26,8 +26,8 @@ use alloc::collections::BTreeSet;
 use codec::{Decode, Encode};
 use common::{
     event::{
-        MessageWaitedReason, MessageWokenReason, Reason, UserMessageReadReason,
-        UserMessageReadRuntimeReason,
+        MessageWaitedReason, MessageWaitedRuntimeReason, MessageWokenReason, Reason,
+        UserMessageReadReason, UserMessageReadRuntimeReason,
     },
     gas_provider::GasNodeId,
     scheduler::*,
@@ -368,6 +368,23 @@ where
         let origin_msg = GasHandlerOf::<T>::get_origin_key(GasNodeId::Node(dispatch.id()))
             .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
 
+        match reason {
+            MessageWaitedReason::Runtime(MessageWaitedRuntimeReason::WaitForCalled) => {
+                TaskPoolOf::<T>::add(
+                    hold.expected(),
+                    ScheduledTask::WakeMessage(dispatch.destination(), dispatch.id()),
+                )
+                .unwrap_or_else(|e| unreachable!("Scheduling logic invalidated! {:?}", e));
+            }
+            _ => {
+                TaskPoolOf::<T>::add(
+                    hold.expected(),
+                    ScheduledTask::RemoveFromWaitlist(dispatch.destination(), dispatch.id()),
+                )
+                .unwrap_or_else(|e| unreachable!("Scheduling logic invalidated! {:?}", e));
+            }
+        }
+
         // Depositing appropriate event.
         Self::deposit_event(Event::MessageWaited {
             id: dispatch.id(),
@@ -375,13 +392,6 @@ where
             expiration: hold.expected(),
             reason,
         });
-
-        // Adding wake request in task pool.
-        TaskPoolOf::<T>::add(
-            hold.expected(),
-            ScheduledTask::RemoveFromWaitlist(dispatch.destination(), dispatch.id()),
-        )
-        .unwrap_or_else(|e| unreachable!("Scheduling logic invalidated! {:?}", e));
 
         // Adding message in waitlist.
         WaitlistOf::<T>::insert(dispatch, hold.expected())

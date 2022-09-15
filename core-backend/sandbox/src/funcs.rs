@@ -759,7 +759,7 @@ where
             .wait()
             .map_err(FuncError::Core)
             .err()
-            .unwrap_or(FuncError::Terminated(TerminationReason::Wait(None)));
+            .unwrap_or(FuncError::Terminated(TerminationReason::Wait(None, false)));
         ctx.err = err;
         Err(HostError)
     }
@@ -776,7 +776,7 @@ where
         };
 
         ctx.err = match f() {
-            Ok(duration) => FuncError::Terminated(TerminationReason::Wait(duration)),
+            Ok(duration) => FuncError::Terminated(TerminationReason::Wait(duration, true)),
             Err(e) => e,
         };
         Err(HostError)
@@ -794,7 +794,7 @@ where
         };
 
         ctx.err = match f() {
-            Ok(duration) => FuncError::Terminated(TerminationReason::Wait(duration)),
+            Ok(duration) => FuncError::Terminated(TerminationReason::Wait(duration, false)),
             Err(e) => e,
         };
         Err(HostError)
