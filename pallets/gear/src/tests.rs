@@ -2816,6 +2816,45 @@ fn test_different_waits_fail() {
     });
 }
 
+// TODO:
+//
+// introduce new tests for this in #1485
+#[test]
+fn test_wait_for_timeout() {
+    use demo_waiter::{Command, WASM_BINARY};
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        assert_ok!(Gear::upload_program(
+            Origin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
+            0u64,
+            0u128
+        ));
+
+        let program_id = get_last_program_id();
+
+        run_to_next_block(None);
+
+        let duration = 10;
+        let payload = Command::WaitForAndSendMessage(USER_1.into(), duration).encode();
+        assert_ok!(Gear::send_message(
+            Origin::signed(USER_1),
+            program_id,
+            payload,
+            2_500_000_000,
+            0,
+        ));
+
+        run_to_block(
+            System::block_number().saturating_add((duration * 2).into()),
+            None,
+        );
+    })
+}
+
 #[test]
 fn test_message_processing_for_non_existing_destination() {
     init_logger();

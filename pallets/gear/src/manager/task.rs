@@ -151,7 +151,16 @@ where
         todo!("#646");
     }
 
-    fn wake_message(&mut self, _program_id: ProgramId, _message_id: MessageId) {
-        todo!("issue #349");
+    fn wake_message(&mut self, program_id: ProgramId, message_id: MessageId) {
+        // Wake reason.
+        let reason = MessageWokenSystemReason::TimeoutHasCome.into_reason();
+
+        // Waking dispatch.
+        let waitlisted = Pallet::<T>::wake_dispatch(program_id, message_id, reason)
+            .unwrap_or_else(|| unreachable!("Scheduling logic invalidated!"));
+
+        // Enqueueing dispatch into message queue.
+        QueueOf::<T>::queue(waitlisted)
+            .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e));
     }
 }

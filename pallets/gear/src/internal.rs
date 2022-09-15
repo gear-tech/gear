@@ -385,6 +385,12 @@ where
             }
         }
 
+        // TaskPoolOf::<T>::add(
+        //     hold.expected(),
+        //     ScheduledTask::RemoveFromWaitlist(dispatch.destination(), dispatch.id()),
+        // )
+        // .unwrap_or_else(|e| unreachable!("Scheduling logic invalidated! {:?}", e));
+
         // Depositing appropriate event.
         Self::deposit_event(Event::MessageWaited {
             id: dispatch.id(),
