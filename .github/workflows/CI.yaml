@@ -335,8 +335,7 @@ jobs:
           path: artifact
 
   build-win:
-    # TODO: remove
-    # if: github.ref == 'refs/heads/master'
+    if: github.ref == 'refs/heads/master'
     needs: spec_version
     runs-on: ci-win
     defaults: 
