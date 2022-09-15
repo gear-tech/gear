@@ -31,7 +31,7 @@ members = [
     "utils/economic-checks",
     "utils/economic-checks/fuzz",
     "utils/wasm-gen",
-    "utils/wasm-gen/node-hacker",
+    "utils/node-loader/",
 ]
 
 [profile.release]
