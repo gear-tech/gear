@@ -2282,11 +2282,7 @@ checksum = "3f9eec918d3f24069decb9af1554cad7c880e2da24a9afd88aca000531ab82c1"
 [[package]]
 name = "fork-tree"
 version = "3.0.0"
-<<<<<<< HEAD
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#267d1ef24d675858090f7078868e96d24d4a105e"
-=======
-source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#abc134523a276ba867ec4ebd10dc16069401a9ed"
->>>>>>> ffbf575f (fix substrate deps in cargo lock (#1476))
 dependencies = [
  "parity-scale-codec",
 ]
@@ -2303,11 +2299,7 @@ dependencies = [
 [[package]]
 name = "frame-benchmarking"
 version = "4.0.0-dev"
-<<<<<<< HEAD
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#267d1ef24d675858090f7078868e96d24d4a105e"
-=======
-source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#abc134523a276ba867ec4ebd10dc16069401a9ed"
->>>>>>> ffbf575f (fix substrate deps in cargo lock (#1476))
 dependencies = [
  "frame-support",
  "frame-system",
@@ -2330,11 +2322,7 @@ dependencies = [
 [[package]]
 name = "frame-benchmarking-cli"
 version = "4.0.0-dev"
-<<<<<<< HEAD
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#267d1ef24d675858090f7078868e96d24d4a105e"
-=======
-source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#abc134523a276ba867ec4ebd10dc16069401a9ed"
->>>>>>> ffbf575f (fix substrate deps in cargo lock (#1476))
 dependencies = [
  "Inflector",
  "chrono",
@@ -2385,11 +2373,7 @@ dependencies = [
 [[package]]
 name = "frame-executive"
 version = "4.0.0-dev"
-<<<<<<< HEAD
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#267d1ef24d675858090f7078868e96d24d4a105e"
-=======
-source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#abc134523a276ba867ec4ebd10dc16069401a9ed"
->>>>>>> ffbf575f (fix substrate deps in cargo lock (#1476))
 dependencies = [
  "frame-support",
  "frame-system",
@@ -2418,11 +2402,7 @@ dependencies = [
 [[package]]
 name = "frame-support"
 version = "4.0.0-dev"
-<<<<<<< HEAD
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#267d1ef24d675858090f7078868e96d24d4a105e"
-=======
-source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#abc134523a276ba867ec4ebd10dc16069401a9ed"
->>>>>>> ffbf575f (fix substrate deps in cargo lock (#1476))
 dependencies = [
  "bitflags",
  "frame-metadata",
@@ -2454,11 +2434,7 @@ dependencies = [
 [[package]]
 name = "frame-support-procedural"
 version = "4.0.0-dev"
-<<<<<<< HEAD
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#267d1ef24d675858090f7078868e96d24d4a105e"
-=======
-source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#abc134523a276ba867ec4ebd10dc16069401a9ed"
->>>>>>> ffbf575f (fix substrate deps in cargo lock (#1476))
 dependencies = [
  "Inflector",
  "cfg-expr",
@@ -2472,11 +2448,7 @@ dependencies = [
 [[package]]
 name = "frame-support-procedural-tools"
 version = "4.0.0-dev"
-<<<<<<< HEAD
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#267d1ef24d675858090f7078868e96d24d4a105e"
-=======
-source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#abc134523a276ba867ec4ebd10dc16069401a9ed"
->>>>>>> ffbf575f (fix substrate deps in cargo lock (#1476))
 dependencies = [
  "frame-support-procedural-tools-derive",
  "proc-macro-crate 1.2.1",
@@ -2488,11 +2460,7 @@ dependencies = [
 [[package]]
 name = "frame-support-procedural-tools-derive"
 version = "3.0.0"
-<<<<<<< HEAD
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#267d1ef24d675858090f7078868e96d24d4a105e"
-=======
-source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#abc134523a276ba867ec4ebd10dc16069401a9ed"
->>>>>>> ffbf575f (fix substrate deps in cargo lock (#1476))
 dependencies = [
  "proc-macro2",
  "quote",
@@ -2502,11 +2470,7 @@ dependencies = [
 [[package]]
 name = "frame-system"
 version = "4.0.0-dev"
-<<<<<<< HEAD
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#267d1ef24d675858090f7078868e96d24d4a105e"
-=======
-source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#abc134523a276ba867ec4ebd10dc16069401a9ed"
->>>>>>> ffbf575f (fix substrate deps in cargo lock (#1476))
 dependencies = [
  "frame-support",
  "log",
@@ -2524,11 +2488,7 @@ dependencies = [
 [[package]]
 name = "frame-system-benchmarking"
 version = "4.0.0-dev"
-<<<<<<< HEAD
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#267d1ef24d675858090f7078868e96d24d4a105e"
-=======
-source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#abc134523a276ba867ec4ebd10dc16069401a9ed"
->>>>>>> ffbf575f (fix substrate deps in cargo lock (#1476))
 dependencies = [
  "frame-benchmarking",
  "frame-support",
@@ -2543,11 +2503,7 @@ dependencies = [
 [[package]]
 name = "frame-system-rpc-runtime-api"
 version = "4.0.0-dev"
-<<<<<<< HEAD
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#267d1ef24d675858090f7078868e96d24d4a105e"
-=======
-source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#abc134523a276ba867ec4ebd10dc16069401a9ed"
->>>>>>> ffbf575f (fix substrate deps in cargo lock (#1476))
 dependencies = [
  "parity-scale-codec",
  "sp-api",
@@ -2556,11 +2512,7 @@ dependencies = [
 [[package]]
 name = "frame-try-runtime"
 version = "0.10.0-dev"
-<<<<<<< HEAD
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#267d1ef24d675858090f7078868e96d24d4a105e"
-=======
-source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#abc134523a276ba867ec4ebd10dc16069401a9ed"
->>>>>>> ffbf575f (fix substrate deps in cargo lock (#1476))
 dependencies = [
  "frame-support",
  "parity-scale-codec",
@@ -5439,11 +5391,7 @@ dependencies = [
 [[package]]
 name = "pallet-authorship"
 version = "4.0.0-dev"
-<<<<<<< HEAD
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#267d1ef24d675858090f7078868e96d24d4a105e"
-=======
-source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#abc134523a276ba867ec4ebd10dc16069401a9ed"
->>>>>>> ffbf575f (fix substrate deps in cargo lock (#1476))
 dependencies = [
  "frame-support",
  "frame-system",
@@ -5458,11 +5406,7 @@ dependencies = [
 [[package]]
 name = "pallet-babe"
 version = "4.0.0-dev"
-<<<<<<< HEAD
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#267d1ef24d675858090f7078868e96d24d4a105e"
-=======
-source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#abc134523a276ba867ec4ebd10dc16069401a9ed"
->>>>>>> ffbf575f (fix substrate deps in cargo lock (#1476))
 dependencies = [
  "frame-benchmarking",
  "frame-support",
@@ -5486,11 +5430,7 @@ dependencies = [
 [[package]]
 name = "pallet-balances"
 version = "4.0.0-dev"
-<<<<<<< HEAD
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#267d1ef24d675858090f7078868e96d24d4a105e"
-=======
-source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#abc134523a276ba867ec4ebd10dc16069401a9ed"
->>>>>>> ffbf575f (fix substrate deps in cargo lock (#1476))
 dependencies = [
  "frame-benchmarking",
  "frame-support",
@@ -5769,11 +5709,7 @@ dependencies = [
 [[package]]
 name = "pallet-grandpa"
 version = "4.0.0-dev"
-<<<<<<< HEAD
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#267d1ef24d675858090f7078868e96d24d4a105e"
-=======
-source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#abc134523a276ba867ec4ebd10dc16069401a9ed"
->>>>>>> ffbf575f (fix substrate deps in cargo lock (#1476))
 dependencies = [
  "frame-benchmarking",
  "frame-support",
@@ -5796,11 +5732,7 @@ dependencies = [
 [[package]]
 name = "pallet-session"
 version = "4.0.0-dev"
-<<<<<<< HEAD
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#267d1ef24d675858090f7078868e96d24d4a105e"
-=======
-source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#abc134523a276ba867ec4ebd10dc16069401a9ed"
->>>>>>> ffbf575f (fix substrate deps in cargo lock (#1476))
 dependencies = [
  "frame-support",
  "frame-system",
@@ -5821,11 +5753,7 @@ dependencies = [
 [[package]]
 name = "pallet-sudo"
 version = "4.0.0-dev"
-<<<<<<< HEAD
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#267d1ef24d675858090f7078868e96d24d4a105e"
-=======
-source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#abc134523a276ba867ec4ebd10dc16069401a9ed"
->>>>>>> ffbf575f (fix substrate deps in cargo lock (#1476))
 dependencies = [
  "frame-support",
  "frame-system",
@@ -5839,11 +5767,7 @@ dependencies = [
 [[package]]
 name = "pallet-timestamp"
 version = "4.0.0-dev"
-<<<<<<< HEAD
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#267d1ef24d675858090f7078868e96d24d4a105e"
-=======
-source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#abc134523a276ba867ec4ebd10dc16069401a9ed"
->>>>>>> ffbf575f (fix substrate deps in cargo lock (#1476))
 dependencies = [
  "frame-benchmarking",
  "frame-support",
@@ -5861,11 +5785,7 @@ dependencies = [
 [[package]]
 name = "pallet-transaction-payment"
 version = "4.0.0-dev"
-<<<<<<< HEAD
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#267d1ef24d675858090f7078868e96d24d4a105e"
-=======
-source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#abc134523a276ba867ec4ebd10dc16069401a9ed"
->>>>>>> ffbf575f (fix substrate deps in cargo lock (#1476))
 dependencies = [
  "frame-support",
  "frame-system",
@@ -5881,11 +5801,7 @@ dependencies = [
 [[package]]
 name = "pallet-transaction-payment-rpc"
 version = "4.0.0-dev"
-<<<<<<< HEAD
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#267d1ef24d675858090f7078868e96d24d4a105e"
-=======
-source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#abc134523a276ba867ec4ebd10dc16069401a9ed"
->>>>>>> ffbf575f (fix substrate deps in cargo lock (#1476))
 dependencies = [
  "jsonrpsee",
  "pallet-transaction-payment-rpc-runtime-api",
@@ -5900,11 +5816,7 @@ dependencies = [
 [[package]]
 name = "pallet-transaction-payment-rpc-runtime-api"
 version = "4.0.0-dev"
-<<<<<<< HEAD
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#267d1ef24d675858090f7078868e96d24d4a105e"
-=======
-source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#abc134523a276ba867ec4ebd10dc16069401a9ed"
->>>>>>> ffbf575f (fix substrate deps in cargo lock (#1476))
 dependencies = [
  "pallet-transaction-payment",
  "parity-scale-codec",
@@ -5915,11 +5827,7 @@ dependencies = [
 [[package]]
 name = "pallet-utility"
 version = "4.0.0-dev"
-<<<<<<< HEAD
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#267d1ef24d675858090f7078868e96d24d4a105e"
-=======
-source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#abc134523a276ba867ec4ebd10dc16069401a9ed"
->>>>>>> ffbf575f (fix substrate deps in cargo lock (#1476))
 dependencies = [
  "frame-benchmarking",
  "frame-support",
@@ -6883,11 +6791,7 @@ dependencies = [
 [[package]]
 name = "remote-externalities"
 version = "0.10.0-dev"
-<<<<<<< HEAD
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#267d1ef24d675858090f7078868e96d24d4a105e"
-=======
-source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#abc134523a276ba867ec4ebd10dc16069401a9ed"
->>>>>>> ffbf575f (fix substrate deps in cargo lock (#1476))
 dependencies = [
  "env_logger",
  "jsonrpsee",
@@ -7145,11 +7049,7 @@ dependencies = [
 [[package]]
 name = "sc-allocator"
 version = "4.1.0-dev"
-<<<<<<< HEAD
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#267d1ef24d675858090f7078868e96d24d4a105e"
-=======
-source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#abc134523a276ba867ec4ebd10dc16069401a9ed"
->>>>>>> ffbf575f (fix substrate deps in cargo lock (#1476))
 dependencies = [
  "log",
  "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
@@ -7160,11 +7060,7 @@ dependencies = [
 [[package]]
 name = "sc-basic-authorship"
 version = "0.10.0-dev"
-<<<<<<< HEAD
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#267d1ef24d675858090f7078868e96d24d4a105e"
-=======
-source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#abc134523a276ba867ec4ebd10dc16069401a9ed"
->>>>>>> ffbf575f (fix substrate deps in cargo lock (#1476))
 dependencies = [
  "futures",
  "futures-timer",
@@ -7187,11 +7083,7 @@ dependencies = [
 [[package]]
 name = "sc-block-builder"
 version = "0.10.0-dev"
-<<<<<<< HEAD
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#267d1ef24d675858090f7078868e96d24d4a105e"
-=======
-source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#abc134523a276ba867ec4ebd10dc16069401a9ed"
->>>>>>> ffbf575f (fix substrate deps in cargo lock (#1476))
 dependencies = [
  "parity-scale-codec",
  "sc-client-api",
@@ -7207,11 +7099,7 @@ dependencies = [
 [[package]]
 name = "sc-chain-spec"
 version = "4.0.0-dev"
-<<<<<<< HEAD
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#267d1ef24d675858090f7078868e96d24d4a105e"
-=======
-source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#abc134523a276ba867ec4ebd10dc16069401a9ed"
->>>>>>> ffbf575f (fix substrate deps in cargo lock (#1476))
 dependencies = [
  "impl-trait-for-tuples",
  "memmap2",
@@ -7228,11 +7116,7 @@ dependencies = [
 [[package]]
 name = "sc-chain-spec-derive"
 version = "4.0.0-dev"
-<<<<<<< HEAD
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#267d1ef24d675858090f7078868e96d24d4a105e"
-=======
-source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#abc134523a276ba867ec4ebd10dc16069401a9ed"
->>>>>>> ffbf575f (fix substrate deps in cargo lock (#1476))
 dependencies = [
  "proc-macro-crate 1.2.1",
  "proc-macro2",
@@ -7243,11 +7127,7 @@ dependencies = [
 [[package]]
 name = "sc-cli"
 version = "0.10.0-dev"
-<<<<<<< HEAD
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#267d1ef24d675858090f7078868e96d24d4a105e"
-=======
-source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#abc134523a276ba867ec4ebd10dc16069401a9ed"
->>>>>>> ffbf575f (fix substrate deps in cargo lock (#1476))
 dependencies = [
  "chrono",
  "clap 3.2.22",
@@ -7286,11 +7166,7 @@ dependencies = [
 [[package]]
 name = "sc-client-api"
 version = "4.0.0-dev"
-<<<<<<< HEAD
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#267d1ef24d675858090f7078868e96d24d4a105e"
-=======
-source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#abc134523a276ba867ec4ebd10dc16069401a9ed"
->>>>>>> ffbf575f (fix substrate deps in cargo lock (#1476))
 dependencies = [
  "fnv",
  "futures",
@@ -7318,11 +7194,7 @@ dependencies = [
 [[package]]
 name = "sc-client-db"
 version = "0.10.0-dev"
-<<<<<<< HEAD
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#267d1ef24d675858090f7078868e96d24d4a105e"
-=======
-source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#abc134523a276ba867ec4ebd10dc16069401a9ed"
->>>>>>> ffbf575f (fix substrate deps in cargo lock (#1476))
 dependencies = [
  "hash-db",
  "kvdb",
@@ -7347,11 +7219,7 @@ dependencies = [
 [[package]]
 name = "sc-consensus"
 version = "0.10.0-dev"
-<<<<<<< HEAD
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#267d1ef24d675858090f7078868e96d24d4a105e"
-=======
-source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#abc134523a276ba867ec4ebd10dc16069401a9ed"
->>>>>>> ffbf575f (fix substrate deps in cargo lock (#1476))
 dependencies = [
  "async-trait",
  "futures",
@@ -7375,11 +7243,7 @@ dependencies = [
 [[package]]
 name = "sc-consensus-babe"
 version = "0.10.0-dev"
-<<<<<<< HEAD
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#267d1ef24d675858090f7078868e96d24d4a105e"
-=======
-source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#abc134523a276ba867ec4ebd10dc16069401a9ed"
->>>>>>> ffbf575f (fix substrate deps in cargo lock (#1476))
 dependencies = [
  "async-trait",
  "fork-tree",
@@ -7421,11 +7285,7 @@ dependencies = [
 [[package]]
 name = "sc-consensus-babe-rpc"
 version = "0.10.0-dev"
-<<<<<<< HEAD
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#267d1ef24d675858090f7078868e96d24d4a105e"
-=======
-source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#abc134523a276ba867ec4ebd10dc16069401a9ed"
->>>>>>> ffbf575f (fix substrate deps in cargo lock (#1476))
 dependencies = [
  "futures",
  "jsonrpsee",
@@ -7447,11 +7307,7 @@ dependencies = [
 [[package]]
 name = "sc-consensus-epochs"
 version = "0.10.0-dev"
-<<<<<<< HEAD
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#267d1ef24d675858090f7078868e96d24d4a105e"
-=======
-source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#abc134523a276ba867ec4ebd10dc16069401a9ed"
->>>>>>> ffbf575f (fix substrate deps in cargo lock (#1476))
 dependencies = [
  "fork-tree",
  "parity-scale-codec",
@@ -7464,11 +7320,7 @@ dependencies = [
 [[package]]
 name = "sc-consensus-slots"
 version = "0.10.0-dev"
-<<<<<<< HEAD
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#267d1ef24d675858090f7078868e96d24d4a105e"
-=======
-source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#abc134523a276ba867ec4ebd10dc16069401a9ed"
->>>>>>> ffbf575f (fix substrate deps in cargo lock (#1476))
 dependencies = [
  "async-trait",
  "futures",
@@ -7493,11 +7345,7 @@ dependencies = [
 [[package]]
 name = "sc-executor"
 version = "0.10.0-dev"
-<<<<<<< HEAD
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#267d1ef24d675858090f7078868e96d24d4a105e"
-=======
-source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#abc134523a276ba867ec4ebd10dc16069401a9ed"
->>>>>>> ffbf575f (fix substrate deps in cargo lock (#1476))
 dependencies = [
  "lazy_static",
  "lru",
@@ -7524,11 +7372,7 @@ dependencies = [
 [[package]]
 name = "sc-executor-common"
 version = "0.10.0-dev"
-<<<<<<< HEAD
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#267d1ef24d675858090f7078868e96d24d4a105e"
-=======
-source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#abc134523a276ba867ec4ebd10dc16069401a9ed"
->>>>>>> ffbf575f (fix substrate deps in cargo lock (#1476))
 dependencies = [
  "environmental",
  "log",
@@ -7548,11 +7392,7 @@ dependencies = [
 [[package]]
 name = "sc-executor-wasmi"
 version = "0.10.0-dev"
-<<<<<<< HEAD
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#267d1ef24d675858090f7078868e96d24d4a105e"
-=======
-source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#abc134523a276ba867ec4ebd10dc16069401a9ed"
->>>>>>> ffbf575f (fix substrate deps in cargo lock (#1476))
 dependencies = [
  "log",
  "parity-scale-codec",
@@ -7567,11 +7407,7 @@ dependencies = [
 [[package]]
 name = "sc-executor-wasmtime"
 version = "0.10.0-dev"
-<<<<<<< HEAD
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#267d1ef24d675858090f7078868e96d24d4a105e"
-=======
-source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#abc134523a276ba867ec4ebd10dc16069401a9ed"
->>>>>>> ffbf575f (fix substrate deps in cargo lock (#1476))
 dependencies = [
  "cfg-if",
  "libc",
@@ -7591,11 +7427,7 @@ dependencies = [
 [[package]]
 name = "sc-finality-grandpa"
 version = "0.10.0-dev"
-<<<<<<< HEAD
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#267d1ef24d675858090f7078868e96d24d4a105e"
-=======
-source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#abc134523a276ba867ec4ebd10dc16069401a9ed"
->>>>>>> ffbf575f (fix substrate deps in cargo lock (#1476))
 dependencies = [
  "ahash",
  "async-trait",
@@ -7636,11 +7468,7 @@ dependencies = [
 [[package]]
 name = "sc-informant"
 version = "0.10.0-dev"
-<<<<<<< HEAD
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#267d1ef24d675858090f7078868e96d24d4a105e"
-=======
-source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#abc134523a276ba867ec4ebd10dc16069401a9ed"
->>>>>>> ffbf575f (fix substrate deps in cargo lock (#1476))
 dependencies = [
  "ansi_term",
  "futures",
@@ -7657,11 +7485,7 @@ dependencies = [
 [[package]]
 name = "sc-keystore"
 version = "4.0.0-dev"
-<<<<<<< HEAD
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#267d1ef24d675858090f7078868e96d24d4a105e"
-=======
-source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#abc134523a276ba867ec4ebd10dc16069401a9ed"
->>>>>>> ffbf575f (fix substrate deps in cargo lock (#1476))
 dependencies = [
  "async-trait",
  "hex",
@@ -7676,11 +7500,7 @@ dependencies = [
 [[package]]
 name = "sc-network"
 version = "0.10.0-dev"
-<<<<<<< HEAD
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#267d1ef24d675858090f7078868e96d24d4a105e"
-=======
-source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#abc134523a276ba867ec4ebd10dc16069401a9ed"
->>>>>>> ffbf575f (fix substrate deps in cargo lock (#1476))
 dependencies = [
  "async-trait",
  "asynchronous-codec",
@@ -7747,11 +7567,7 @@ dependencies = [
 [[package]]
 name = "sc-network-common"
 version = "0.10.0-dev"
-<<<<<<< HEAD
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#267d1ef24d675858090f7078868e96d24d4a105e"
-=======
-source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#abc134523a276ba867ec4ebd10dc16069401a9ed"
->>>>>>> ffbf575f (fix substrate deps in cargo lock (#1476))
 dependencies = [
  "async-trait",
  "bitflags",
@@ -7774,11 +7590,7 @@ dependencies = [
 [[package]]
 name = "sc-network-gossip"
 version = "0.10.0-dev"
-<<<<<<< HEAD
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#267d1ef24d675858090f7078868e96d24d4a105e"
-=======
-source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#abc134523a276ba867ec4ebd10dc16069401a9ed"
->>>>>>> ffbf575f (fix substrate deps in cargo lock (#1476))
 dependencies = [
  "ahash",
  "futures",
@@ -7796,11 +7608,7 @@ dependencies = [
 [[package]]
 name = "sc-network-light"
 version = "0.10.0-dev"
-<<<<<<< HEAD
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#267d1ef24d675858090f7078868e96d24d4a105e"
-=======
-source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#abc134523a276ba867ec4ebd10dc16069401a9ed"
->>>>>>> ffbf575f (fix substrate deps in cargo lock (#1476))
 dependencies = [
  "futures",
  "hex",
@@ -7821,11 +7629,7 @@ dependencies = [
 [[package]]
 name = "sc-network-sync"
 version = "0.10.0-dev"
-<<<<<<< HEAD
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#267d1ef24d675858090f7078868e96d24d4a105e"
-=======
-source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#abc134523a276ba867ec4ebd10dc16069401a9ed"
->>>>>>> ffbf575f (fix substrate deps in cargo lock (#1476))
 dependencies = [
  "fork-tree",
  "futures",
@@ -7853,11 +7657,7 @@ dependencies = [
 [[package]]
 name = "sc-offchain"
 version = "4.0.0-dev"
-<<<<<<< HEAD
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#267d1ef24d675858090f7078868e96d24d4a105e"
-=======
-source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#abc134523a276ba867ec4ebd10dc16069401a9ed"
->>>>>>> ffbf575f (fix substrate deps in cargo lock (#1476))
 dependencies = [
  "bytes",
  "fnv",
@@ -7887,11 +7687,7 @@ dependencies = [
 [[package]]
 name = "sc-peerset"
 version = "4.0.0-dev"
-<<<<<<< HEAD
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#267d1ef24d675858090f7078868e96d24d4a105e"
-=======
-source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#abc134523a276ba867ec4ebd10dc16069401a9ed"
->>>>>>> ffbf575f (fix substrate deps in cargo lock (#1476))
 dependencies = [
  "futures",
  "libp2p",
@@ -7904,11 +7700,7 @@ dependencies = [
 [[package]]
 name = "sc-proposer-metrics"
 version = "0.10.0-dev"
-<<<<<<< HEAD
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#267d1ef24d675858090f7078868e96d24d4a105e"
-=======
-source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#abc134523a276ba867ec4ebd10dc16069401a9ed"
->>>>>>> ffbf575f (fix substrate deps in cargo lock (#1476))
 dependencies = [
  "log",
  "substrate-prometheus-endpoint",
@@ -7917,11 +7709,7 @@ dependencies = [
 [[package]]
 name = "sc-rpc"
 version = "4.0.0-dev"
-<<<<<<< HEAD
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#267d1ef24d675858090f7078868e96d24d4a105e"
-=======
-source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#abc134523a276ba867ec4ebd10dc16069401a9ed"
->>>>>>> ffbf575f (fix substrate deps in cargo lock (#1476))
 dependencies = [
  "futures",
  "hash-db",
@@ -7951,11 +7739,7 @@ dependencies = [
 [[package]]
 name = "sc-rpc-api"
 version = "0.10.0-dev"
-<<<<<<< HEAD
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#267d1ef24d675858090f7078868e96d24d4a105e"
-=======
-source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#abc134523a276ba867ec4ebd10dc16069401a9ed"
->>>>>>> ffbf575f (fix substrate deps in cargo lock (#1476))
 dependencies = [
  "futures",
  "jsonrpsee",
@@ -7978,11 +7762,7 @@ dependencies = [
 [[package]]
 name = "sc-rpc-server"
 version = "4.0.0-dev"
-<<<<<<< HEAD
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#267d1ef24d675858090f7078868e96d24d4a105e"
-=======
-source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#abc134523a276ba867ec4ebd10dc16069401a9ed"
->>>>>>> ffbf575f (fix substrate deps in cargo lock (#1476))
 dependencies = [
  "futures",
  "jsonrpsee",
@@ -7995,11 +7775,7 @@ dependencies = [
 [[package]]
 name = "sc-service"
 version = "0.10.0-dev"
-<<<<<<< HEAD
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#267d1ef24d675858090f7078868e96d24d4a105e"
-=======
-source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#abc134523a276ba867ec4ebd10dc16069401a9ed"
->>>>>>> ffbf575f (fix substrate deps in cargo lock (#1476))
 dependencies = [
  "async-trait",
  "directories",
@@ -8068,11 +7844,7 @@ dependencies = [
 [[package]]
 name = "sc-state-db"
 version = "0.10.0-dev"
-<<<<<<< HEAD
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#267d1ef24d675858090f7078868e96d24d4a105e"
-=======
-source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#abc134523a276ba867ec4ebd10dc16069401a9ed"
->>>>>>> ffbf575f (fix substrate deps in cargo lock (#1476))
 dependencies = [
  "log",
  "parity-scale-codec",
@@ -8105,11 +7877,7 @@ dependencies = [
 [[package]]
 name = "sc-sysinfo"
 version = "6.0.0-dev"
-<<<<<<< HEAD
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#267d1ef24d675858090f7078868e96d24d4a105e"
-=======
-source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#abc134523a276ba867ec4ebd10dc16069401a9ed"
->>>>>>> ffbf575f (fix substrate deps in cargo lock (#1476))
 dependencies = [
  "futures",
  "libc",
@@ -8128,11 +7896,7 @@ dependencies = [
 [[package]]
 name = "sc-telemetry"
 version = "4.0.0-dev"
-<<<<<<< HEAD
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#267d1ef24d675858090f7078868e96d24d4a105e"
-=======
-source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#abc134523a276ba867ec4ebd10dc16069401a9ed"
->>>>>>> ffbf575f (fix substrate deps in cargo lock (#1476))
 dependencies = [
  "chrono",
  "futures",
@@ -8150,11 +7914,7 @@ dependencies = [
 [[package]]
 name = "sc-tracing"
 version = "4.0.0-dev"
-<<<<<<< HEAD
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#267d1ef24d675858090f7078868e96d24d4a105e"
-=======
-source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#abc134523a276ba867ec4ebd10dc16069401a9ed"
->>>>>>> ffbf575f (fix substrate deps in cargo lock (#1476))
 dependencies = [
  "ansi_term",
  "atty",
@@ -8185,11 +7945,7 @@ dependencies = [
 [[package]]
 name = "sc-tracing-proc-macro"
 version = "4.0.0-dev"
-<<<<<<< HEAD
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#267d1ef24d675858090f7078868e96d24d4a105e"
-=======
-source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#abc134523a276ba867ec4ebd10dc16069401a9ed"
->>>>>>> ffbf575f (fix substrate deps in cargo lock (#1476))
 dependencies = [
  "proc-macro-crate 1.2.1",
  "proc-macro2",
@@ -8200,11 +7956,7 @@ dependencies = [
 [[package]]
 name = "sc-transaction-pool"
 version = "4.0.0-dev"
-<<<<<<< HEAD
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#267d1ef24d675858090f7078868e96d24d4a105e"
-=======
-source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#abc134523a276ba867ec4ebd10dc16069401a9ed"
->>>>>>> ffbf575f (fix substrate deps in cargo lock (#1476))
 dependencies = [
  "futures",
  "futures-timer",
@@ -8230,11 +7982,7 @@ dependencies = [
 [[package]]
 name = "sc-transaction-pool-api"
 version = "4.0.0-dev"
-<<<<<<< HEAD
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#267d1ef24d675858090f7078868e96d24d4a105e"
-=======
-source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#abc134523a276ba867ec4ebd10dc16069401a9ed"
->>>>>>> ffbf575f (fix substrate deps in cargo lock (#1476))
 dependencies = [
  "futures",
  "log",
@@ -8247,11 +7995,7 @@ dependencies = [
 [[package]]
 name = "sc-utils"
 version = "4.0.0-dev"
-<<<<<<< HEAD
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#267d1ef24d675858090f7078868e96d24d4a105e"
-=======
-source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#abc134523a276ba867ec4ebd10dc16069401a9ed"
->>>>>>> ffbf575f (fix substrate deps in cargo lock (#1476))
 dependencies = [
  "futures",
  "futures-timer",
@@ -8733,11 +8477,7 @@ dependencies = [
 [[package]]
 name = "sp-api"
 version = "4.0.0-dev"
-<<<<<<< HEAD
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#267d1ef24d675858090f7078868e96d24d4a105e"
-=======
-source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#abc134523a276ba867ec4ebd10dc16069401a9ed"
->>>>>>> ffbf575f (fix substrate deps in cargo lock (#1476))
 dependencies = [
  "hash-db",
  "log",
@@ -8755,11 +8495,7 @@ dependencies = [
 [[package]]
 name = "sp-api-proc-macro"
 version = "4.0.0-dev"
-<<<<<<< HEAD
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#267d1ef24d675858090f7078868e96d24d4a105e"
-=======
-source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#abc134523a276ba867ec4ebd10dc16069401a9ed"
->>>>>>> ffbf575f (fix substrate deps in cargo lock (#1476))
 dependencies = [
  "blake2",
  "proc-macro-crate 1.2.1",
@@ -8827,11 +8563,7 @@ dependencies = [
 [[package]]
 name = "sp-authorship"
 version = "4.0.0-dev"
-<<<<<<< HEAD
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#267d1ef24d675858090f7078868e96d24d4a105e"
-=======
-source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#abc134523a276ba867ec4ebd10dc16069401a9ed"
->>>>>>> ffbf575f (fix substrate deps in cargo lock (#1476))
 dependencies = [
  "async-trait",
  "parity-scale-codec",
@@ -8843,11 +8575,7 @@ dependencies = [
 [[package]]
 name = "sp-block-builder"
 version = "4.0.0-dev"
-<<<<<<< HEAD
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#267d1ef24d675858090f7078868e96d24d4a105e"
-=======
-source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#abc134523a276ba867ec4ebd10dc16069401a9ed"
->>>>>>> ffbf575f (fix substrate deps in cargo lock (#1476))
 dependencies = [
  "parity-scale-codec",
  "sp-api",
@@ -8859,11 +8587,7 @@ dependencies = [
 [[package]]
 name = "sp-blockchain"
 version = "4.0.0-dev"
-<<<<<<< HEAD
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#267d1ef24d675858090f7078868e96d24d4a105e"
-=======
-source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#abc134523a276ba867ec4ebd10dc16069401a9ed"
->>>>>>> ffbf575f (fix substrate deps in cargo lock (#1476))
 dependencies = [
  "futures",
  "log",
@@ -8881,11 +8605,7 @@ dependencies = [
 [[package]]
 name = "sp-consensus"
 version = "0.10.0-dev"
-<<<<<<< HEAD
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#267d1ef24d675858090f7078868e96d24d4a105e"
-=======
-source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#abc134523a276ba867ec4ebd10dc16069401a9ed"
->>>>>>> ffbf575f (fix substrate deps in cargo lock (#1476))
 dependencies = [
  "async-trait",
  "futures",
@@ -8904,11 +8624,7 @@ dependencies = [
 [[package]]
 name = "sp-consensus-babe"
 version = "0.10.0-dev"
-<<<<<<< HEAD
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#267d1ef24d675858090f7078868e96d24d4a105e"
-=======
-source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#abc134523a276ba867ec4ebd10dc16069401a9ed"
->>>>>>> ffbf575f (fix substrate deps in cargo lock (#1476))
 dependencies = [
  "async-trait",
  "merlin",
@@ -8931,11 +8647,7 @@ dependencies = [
 [[package]]
 name = "sp-consensus-slots"
 version = "0.10.0-dev"
-<<<<<<< HEAD
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#267d1ef24d675858090f7078868e96d24d4a105e"
-=======
-source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#abc134523a276ba867ec4ebd10dc16069401a9ed"
->>>>>>> ffbf575f (fix substrate deps in cargo lock (#1476))
 dependencies = [
  "parity-scale-codec",
  "scale-info",
@@ -8949,11 +8661,7 @@ dependencies = [
 [[package]]
 name = "sp-consensus-vrf"
 version = "0.10.0-dev"
-<<<<<<< HEAD
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#267d1ef24d675858090f7078868e96d24d4a105e"
-=======
-source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#abc134523a276ba867ec4ebd10dc16069401a9ed"
->>>>>>> ffbf575f (fix substrate deps in cargo lock (#1476))
 dependencies = [
  "parity-scale-codec",
  "scale-info",
@@ -9058,25 +8766,7 @@ dependencies = [
 [[package]]
 name = "sp-core-hashing"
 version = "4.0.0"
-<<<<<<< HEAD
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#267d1ef24d675858090f7078868e96d24d4a105e"
-=======
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ec864a6a67249f0c8dd3d5acab43623a61677e85ff4f2f9b04b802d2fe780e83"
-dependencies = [
- "blake2-rfc",
- "byteorder",
- "sha2 0.9.9",
- "sp-std 4.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "tiny-keccak",
- "twox-hash",
-]
-
-[[package]]
-name = "sp-core-hashing"
-version = "4.0.0"
-source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#abc134523a276ba867ec4ebd10dc16069401a9ed"
->>>>>>> ffbf575f (fix substrate deps in cargo lock (#1476))
 dependencies = [
  "blake2",
  "byteorder",
@@ -9090,11 +8780,7 @@ dependencies = [
 [[package]]
 name = "sp-core-hashing-proc-macro"
 version = "5.0.0"
-<<<<<<< HEAD
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#267d1ef24d675858090f7078868e96d24d4a105e"
-=======
-source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#abc134523a276ba867ec4ebd10dc16069401a9ed"
->>>>>>> ffbf575f (fix substrate deps in cargo lock (#1476))
 dependencies = [
  "proc-macro2",
  "quote",
@@ -9105,11 +8791,7 @@ dependencies = [
 [[package]]
 name = "sp-database"
 version = "4.0.0-dev"
-<<<<<<< HEAD
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#267d1ef24d675858090f7078868e96d24d4a105e"
-=======
-source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#abc134523a276ba867ec4ebd10dc16069401a9ed"
->>>>>>> ffbf575f (fix substrate deps in cargo lock (#1476))
 dependencies = [
  "kvdb",
  "parking_lot 0.12.1",
@@ -9118,22 +8800,7 @@ dependencies = [
 [[package]]
 name = "sp-debug-derive"
 version = "4.0.0"
-<<<<<<< HEAD
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#267d1ef24d675858090f7078868e96d24d4a105e"
-=======
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d676664972e22a0796176e81e7bec41df461d1edf52090955cdab55f2c956ff2"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn",
-]
-
-[[package]]
-name = "sp-debug-derive"
-version = "4.0.0"
-source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#abc134523a276ba867ec4ebd10dc16069401a9ed"
->>>>>>> ffbf575f (fix substrate deps in cargo lock (#1476))
 dependencies = [
  "proc-macro2",
  "quote",
@@ -9165,11 +8832,7 @@ dependencies = [
 [[package]]
 name = "sp-finality-grandpa"
 version = "4.0.0-dev"
-<<<<<<< HEAD
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#267d1ef24d675858090f7078868e96d24d4a105e"
-=======
-source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#abc134523a276ba867ec4ebd10dc16069401a9ed"
->>>>>>> ffbf575f (fix substrate deps in cargo lock (#1476))
 dependencies = [
  "finality-grandpa",
  "log",
@@ -9187,11 +8850,7 @@ dependencies = [
 [[package]]
 name = "sp-inherents"
 version = "4.0.0-dev"
-<<<<<<< HEAD
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#267d1ef24d675858090f7078868e96d24d4a105e"
-=======
-source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#abc134523a276ba867ec4ebd10dc16069401a9ed"
->>>>>>> ffbf575f (fix substrate deps in cargo lock (#1476))
 dependencies = [
  "async-trait",
  "impl-trait-for-tuples",
@@ -9256,11 +8915,7 @@ dependencies = [
 [[package]]
 name = "sp-keyring"
 version = "6.0.0"
-<<<<<<< HEAD
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#267d1ef24d675858090f7078868e96d24d4a105e"
-=======
-source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#abc134523a276ba867ec4ebd10dc16069401a9ed"
->>>>>>> ffbf575f (fix substrate deps in cargo lock (#1476))
 dependencies = [
  "lazy_static",
  "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
@@ -9271,28 +8926,7 @@ dependencies = [
 [[package]]
 name = "sp-keystore"
 version = "0.12.0"
-<<<<<<< HEAD
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#267d1ef24d675858090f7078868e96d24d4a105e"
-=======
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3261eddca8c8926e3e1de136a7980cb3afc3455247d9d6f3119d9b292f73aaee"
-dependencies = [
- "async-trait",
- "futures",
- "merlin",
- "parity-scale-codec",
- "parking_lot 0.12.1",
- "schnorrkel",
- "sp-core 6.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "sp-externalities 0.12.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "thiserror",
-]
-
-[[package]]
-name = "sp-keystore"
-version = "0.12.0"
-source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#abc134523a276ba867ec4ebd10dc16069401a9ed"
->>>>>>> ffbf575f (fix substrate deps in cargo lock (#1476))
 dependencies = [
  "async-trait",
  "futures",
@@ -9309,11 +8943,7 @@ dependencies = [
 [[package]]
 name = "sp-maybe-compressed-blob"
 version = "4.1.0-dev"
-<<<<<<< HEAD
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#267d1ef24d675858090f7078868e96d24d4a105e"
-=======
-source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#abc134523a276ba867ec4ebd10dc16069401a9ed"
->>>>>>> ffbf575f (fix substrate deps in cargo lock (#1476))
 dependencies = [
  "thiserror",
  "zstd",
@@ -9322,11 +8952,7 @@ dependencies = [
 [[package]]
 name = "sp-offchain"
 version = "4.0.0-dev"
-<<<<<<< HEAD
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#267d1ef24d675858090f7078868e96d24d4a105e"
-=======
-source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#abc134523a276ba867ec4ebd10dc16069401a9ed"
->>>>>>> ffbf575f (fix substrate deps in cargo lock (#1476))
 dependencies = [
  "sp-api",
  "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
@@ -9336,22 +8962,7 @@ dependencies = [
 [[package]]
 name = "sp-panic-handler"
 version = "4.0.0"
-<<<<<<< HEAD
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#267d1ef24d675858090f7078868e96d24d4a105e"
-=======
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2101f3c555fceafcfcfb0e61c55ea9ed80dc60bd77d54d9f25b369edb029e9a4"
-dependencies = [
- "backtrace",
- "lazy_static",
- "regex",
-]
-
-[[package]]
-name = "sp-panic-handler"
-version = "4.0.0"
-source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#abc134523a276ba867ec4ebd10dc16069401a9ed"
->>>>>>> ffbf575f (fix substrate deps in cargo lock (#1476))
 dependencies = [
  "backtrace",
  "lazy_static",
@@ -9361,11 +8972,7 @@ dependencies = [
 [[package]]
 name = "sp-rpc"
 version = "6.0.0"
-<<<<<<< HEAD
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#267d1ef24d675858090f7078868e96d24d4a105e"
-=======
-source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#abc134523a276ba867ec4ebd10dc16069401a9ed"
->>>>>>> ffbf575f (fix substrate deps in cargo lock (#1476))
 dependencies = [
  "rustc-hash",
  "serde",
@@ -9387,42 +8994,12 @@ dependencies = [
  "rand 0.7.3",
  "scale-info",
  "serde",
-<<<<<<< HEAD
  "sp-application-crypto",
  "sp-arithmetic",
  "sp-core",
  "sp-io",
  "sp-std",
  "sp-weights",
-=======
- "sp-application-crypto 6.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "sp-arithmetic 5.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "sp-core 6.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "sp-io 6.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "sp-std 4.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
-]
-
-[[package]]
-name = "sp-runtime"
-version = "6.0.0"
-source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#abc134523a276ba867ec4ebd10dc16069401a9ed"
-dependencies = [
- "either",
- "hash256-std-hasher",
- "impl-trait-for-tuples",
- "log",
- "parity-scale-codec",
- "parity-util-mem",
- "paste",
- "rand 0.7.3",
- "scale-info",
- "serde",
- "sp-application-crypto 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-arithmetic 5.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-io 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
->>>>>>> ffbf575f (fix substrate deps in cargo lock (#1476))
 ]
 
 [[package]]
@@ -9487,11 +9064,7 @@ dependencies = [
 [[package]]
 name = "sp-sandbox"
 version = "0.10.0-dev"
-<<<<<<< HEAD
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#267d1ef24d675858090f7078868e96d24d4a105e"
-=======
-source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#abc134523a276ba867ec4ebd10dc16069401a9ed"
->>>>>>> ffbf575f (fix substrate deps in cargo lock (#1476))
 dependencies = [
  "log",
  "parity-scale-codec",
@@ -9503,24 +9076,9 @@ dependencies = [
 ]
 
 [[package]]
-<<<<<<< HEAD
 name = "sp-session"
 version = "4.0.0-dev"
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#267d1ef24d675858090f7078868e96d24d4a105e"
-=======
-name = "sp-serializer"
-version = "4.0.0-dev"
-source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#abc134523a276ba867ec4ebd10dc16069401a9ed"
-dependencies = [
- "serde",
- "serde_json",
-]
-
-[[package]]
-name = "sp-session"
-version = "4.0.0-dev"
-source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#abc134523a276ba867ec4ebd10dc16069401a9ed"
->>>>>>> ffbf575f (fix substrate deps in cargo lock (#1476))
 dependencies = [
  "parity-scale-codec",
  "scale-info",
@@ -9534,11 +9092,7 @@ dependencies = [
 [[package]]
 name = "sp-staking"
 version = "4.0.0-dev"
-<<<<<<< HEAD
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#267d1ef24d675858090f7078868e96d24d4a105e"
-=======
-source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#abc134523a276ba867ec4ebd10dc16069401a9ed"
->>>>>>> ffbf575f (fix substrate deps in cargo lock (#1476))
 dependencies = [
  "parity-scale-codec",
  "scale-info",
@@ -9594,17 +9148,7 @@ dependencies = [
 [[package]]
 name = "sp-std"
 version = "4.0.0"
-<<<<<<< HEAD
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#267d1ef24d675858090f7078868e96d24d4a105e"
-=======
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "14804d6069ee7a388240b665f17908d98386ffb0b5d39f89a4099fc7a2a4c03f"
-
-[[package]]
-name = "sp-std"
-version = "4.0.0"
-source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#abc134523a276ba867ec4ebd10dc16069401a9ed"
->>>>>>> ffbf575f (fix substrate deps in cargo lock (#1476))
 
 [[package]]
 name = "sp-storage"
@@ -9635,11 +9179,7 @@ dependencies = [
 [[package]]
 name = "sp-tasks"
 version = "4.0.0-dev"
-<<<<<<< HEAD
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#267d1ef24d675858090f7078868e96d24d4a105e"
-=======
-source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#abc134523a276ba867ec4ebd10dc16069401a9ed"
->>>>>>> ffbf575f (fix substrate deps in cargo lock (#1476))
 dependencies = [
  "log",
  "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
@@ -9652,11 +9192,7 @@ dependencies = [
 [[package]]
 name = "sp-timestamp"
 version = "4.0.0-dev"
-<<<<<<< HEAD
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#267d1ef24d675858090f7078868e96d24d4a105e"
-=======
-source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#abc134523a276ba867ec4ebd10dc16069401a9ed"
->>>>>>> ffbf575f (fix substrate deps in cargo lock (#1476))
 dependencies = [
  "async-trait",
  "futures-timer",
@@ -9696,11 +9232,7 @@ dependencies = [
 [[package]]
 name = "sp-transaction-pool"
 version = "4.0.0-dev"
-<<<<<<< HEAD
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#267d1ef24d675858090f7078868e96d24d4a105e"
-=======
-source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#abc134523a276ba867ec4ebd10dc16069401a9ed"
->>>>>>> ffbf575f (fix substrate deps in cargo lock (#1476))
 dependencies = [
  "sp-api",
  "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
@@ -9709,11 +9241,7 @@ dependencies = [
 [[package]]
 name = "sp-transaction-storage-proof"
 version = "4.0.0-dev"
-<<<<<<< HEAD
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#267d1ef24d675858090f7078868e96d24d4a105e"
-=======
-source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#abc134523a276ba867ec4ebd10dc16069401a9ed"
->>>>>>> ffbf575f (fix substrate deps in cargo lock (#1476))
 dependencies = [
  "async-trait",
  "log",
@@ -9767,11 +9295,7 @@ dependencies = [
 [[package]]
 name = "sp-version"
 version = "5.0.0"
-<<<<<<< HEAD
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#267d1ef24d675858090f7078868e96d24d4a105e"
-=======
-source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#abc134523a276ba867ec4ebd10dc16069401a9ed"
->>>>>>> ffbf575f (fix substrate deps in cargo lock (#1476))
 dependencies = [
  "impl-serde",
  "parity-scale-codec",
@@ -9788,11 +9312,7 @@ dependencies = [
 [[package]]
 name = "sp-version-proc-macro"
 version = "4.0.0-dev"
-<<<<<<< HEAD
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#267d1ef24d675858090f7078868e96d24d4a105e"
-=======
-source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#abc134523a276ba867ec4ebd10dc16069401a9ed"
->>>>>>> ffbf575f (fix substrate deps in cargo lock (#1476))
 dependencies = [
  "parity-scale-codec",
  "proc-macro2",
@@ -10005,11 +9525,7 @@ dependencies = [
 [[package]]
 name = "substrate-build-script-utils"
 version = "3.0.0"
-<<<<<<< HEAD
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#267d1ef24d675858090f7078868e96d24d4a105e"
-=======
-source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#abc134523a276ba867ec4ebd10dc16069401a9ed"
->>>>>>> ffbf575f (fix substrate deps in cargo lock (#1476))
 dependencies = [
  "platforms",
 ]
@@ -10017,11 +9533,7 @@ dependencies = [
 [[package]]
 name = "substrate-frame-rpc-system"
 version = "4.0.0-dev"
-<<<<<<< HEAD
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#267d1ef24d675858090f7078868e96d24d4a105e"
-=======
-source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#abc134523a276ba867ec4ebd10dc16069401a9ed"
->>>>>>> ffbf575f (fix substrate deps in cargo lock (#1476))
 dependencies = [
  "frame-system-rpc-runtime-api",
  "futures",
@@ -10042,11 +9554,7 @@ dependencies = [
 [[package]]
 name = "substrate-prometheus-endpoint"
 version = "0.10.0-dev"
-<<<<<<< HEAD
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#267d1ef24d675858090f7078868e96d24d4a105e"
-=======
-source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#abc134523a276ba867ec4ebd10dc16069401a9ed"
->>>>>>> ffbf575f (fix substrate deps in cargo lock (#1476))
 dependencies = [
  "futures-util",
  "hyper",
@@ -10059,11 +9567,7 @@ dependencies = [
 [[package]]
 name = "substrate-wasm-builder"
 version = "5.0.0-dev"
-<<<<<<< HEAD
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#267d1ef24d675858090f7078868e96d24d4a105e"
-=======
-source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#abc134523a276ba867ec4ebd10dc16069401a9ed"
->>>>>>> ffbf575f (fix substrate deps in cargo lock (#1476))
 dependencies = [
  "ansi_term",
  "build-helper",
@@ -10650,11 +10154,7 @@ checksum = "59547bce71d9c38b83d9c0e92b6066c4253371f15005def0c30d9657f50c7642"
 [[package]]
 name = "try-runtime-cli"
 version = "0.10.0-dev"
-<<<<<<< HEAD
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#267d1ef24d675858090f7078868e96d24d4a105e"
-=======
-source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#abc134523a276ba867ec4ebd10dc16069401a9ed"
->>>>>>> ffbf575f (fix substrate deps in cargo lock (#1476))
 dependencies = [
  "clap 3.2.22",
  "frame-try-runtime",
