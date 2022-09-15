@@ -42,6 +42,7 @@ async fn main() -> Result<()> {
 async fn load_node(params: Params) {
     gear_program::keystore::login(&params.user, None).unwrap();
 
+    let params = Arc::new(params);
     let gear_api = gear_program::api::Api::new(Some(&params.endpoint))
         .await
         .unwrap();
@@ -52,15 +53,17 @@ async fn load_node(params: Params) {
     loop {
         tasks.clear();
         while tasks.len() != MAX_TASKS {
-            let task = load_node_task(
+            let task = tokio::spawn(load_node_task(
                 gear_api.clone(),
                 Arc::clone(&salt),
                 Arc::clone(&seed_gen),
-                &params,
-            );
-            tasks.push(Box::pin(task));
+                Arc::clone(&params),
+            ));
+            tasks.push(task);
         }
-        join_all(&mut tasks).await;
+        for task in &mut tasks {
+            task.await.unwrap();
+        }
     }
 }
 
@@ -68,7 +71,7 @@ async fn load_node_task(
     gear_api: Api,
     salt: Arc<Mutex<u32>>,
     seed_gen: Arc<Mutex<SmallRng>>,
-    params: &Params,
+    params: Arc<Params>,
 ) {
     let signer = gear_api.try_signer(None).unwrap();
 
