@@ -1,15 +1,16 @@
 [package]
-name = "gear-node-hacker"
+name = "gear-node-loader"
 version = "0.1.0"
 authors = ["Gear Technologies"]
 publish = false
 edition = "2021"
 
-[package.metadata]
-cargo-fuzz = true
+[[bin]]
+name = "gear-node-loader"
+path = "src/main.rs"
 
 [dependencies]
-gear-wasm-gen = { path = ".." }
+gear-wasm-gen = { path = "../wasm-gen" }
 arbitrary = "1.1.6"
 gear-program = "0.1"
 hex = "0.4.3"
@@ -18,9 +19,5 @@ color-eyre = { version = "0.6.2", optional = true }
 log = "0.4.16"
 structopt = "0.3.26"
 rand = { version = "0.8.0", features = ["small_rng"] }
-
-[[bin]]
-name = "gear-node-hacker"
-path = "main.rs"
-test = false
-doc = false
+futures = "0.3.24"
+parking_lot = "0.12.1"
