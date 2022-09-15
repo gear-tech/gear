@@ -324,12 +324,12 @@ mod tests {
         }
 
         unsafe fn invalid_write() {
-            ptr::write(MEM_ADDR as *mut _, 123);
+            ptr::write_volatile(MEM_ADDR as *mut _, 123);
             protect(false);
         }
 
         unsafe fn invalid_read() {
-            let _: u8 = ptr::read(MEM_ADDR);
+            let _: u8 = ptr::read_volatile(MEM_ADDR);
             protect(false);
         }
 
