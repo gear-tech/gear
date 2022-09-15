@@ -308,8 +308,6 @@ mod tests {
     use region::Protection;
     use std::ptr;
 
-    // FIXME: issue #1444
-    #[cfg_attr(all(target_os = "linux", target_arch = "x86_64"), ignore)]
     #[test]
     fn read_write_flag_works() {
         unsafe fn protect(access: bool) {
@@ -324,12 +322,12 @@ mod tests {
         }
 
         unsafe fn invalid_write() {
-            ptr::write(MEM_ADDR as *mut _, 123);
+            ptr::write_volatile(MEM_ADDR as *mut _, 123);
             protect(false);
         }
 
         unsafe fn invalid_read() {
-            let _: u8 = ptr::read(MEM_ADDR);
+            let _: u8 = ptr::read_volatile(MEM_ADDR);
             protect(false);
         }
 
