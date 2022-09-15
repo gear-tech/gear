@@ -33,7 +33,7 @@ unsafe extern "C" fn init() {}
 
 #[no_mangle]
 unsafe extern "C" fn handle_signal() {
-    assert_eq!(msg::load_bytes(), b"signal".to_vec());
+    assert_eq!(msg::exit_code(), 0xBEEF);
 }
 
 #[cfg(test)]
@@ -49,7 +49,7 @@ mod tests {
 
         let program = Program::current(&system);
 
-        let res = program.send_signal(0, b"signal");
+        let res = program.send_signal(0, 0xBEEF);
         assert!(!res.main_failed());
     }
 }

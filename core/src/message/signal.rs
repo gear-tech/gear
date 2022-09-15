@@ -18,7 +18,7 @@
 
 use crate::{
     ids::{MessageId, ProgramId},
-    message::{Dispatch, DispatchKind, ExitCode, Message, Payload, ReplyDetails},
+    message::{Dispatch, DispatchKind, ExitCode, Message, ReplyDetails},
 };
 use codec::{Decode, Encode};
 use scale_info::TypeInfo;
@@ -28,22 +28,16 @@ use scale_info::TypeInfo;
 pub struct SignalMessage {
     /// Message id.
     id: MessageId,
-    /// Message payload.
-    payload: Payload,
     /// Reply exit code.
     exit_code: ExitCode,
 }
 
 impl SignalMessage {
     /// Creates a new [`SignalMessage`].
-    pub fn new(origin_msg_id: MessageId, payload: Payload, exit_code: ExitCode) -> Self {
+    pub fn new(origin_msg_id: MessageId, exit_code: ExitCode) -> Self {
         let id = MessageId::generate_signal(origin_msg_id, exit_code);
 
-        Self {
-            id,
-            payload,
-            exit_code,
-        }
+        Self { id, exit_code }
     }
 
     /// Convert [`SignalMessage`] into [`Message`].
@@ -52,7 +46,7 @@ impl SignalMessage {
             self.id,
             ProgramId::SYSTEM,
             destination,
-            self.payload,
+            Default::default(),
             None,
             0,
             Some(ReplyDetails::new(self.id, self.exit_code)),
@@ -67,11 +61,6 @@ impl SignalMessage {
     /// Message id.
     pub fn id(&self) -> MessageId {
         self.id
-    }
-
-    /// Message payload reference.
-    pub fn payload(&self) -> &[u8] {
-        self.payload.as_ref()
     }
 
     /// Exit code of the reply message.
