@@ -30,7 +30,7 @@ async fn main() -> Result<()> {
     if let Some(seed) = params.dump_seed {
         let code = gen_code_for_seed(seed);
         let mut file = File::create("out.wasm").expect("Cannot create out.wasm file");
-        file.write(&code).expect("Cannot write bytes into file");
+        file.write_all(&code).expect("Cannot write bytes into file");
         return Ok(());
     }
 
