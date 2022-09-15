@@ -45,8 +45,7 @@ impl Lock {
     pub fn timeout(&self) -> Option<(u32, u32)> {
         let current = exec::block_height();
         let expected = match &self.ty {
-            LockType::For(d) => *d,
-            LockType::NoMore(d) => self.at + *d,
+            LockType::For(d) | LockType::NoMore(d) => self.at + *d,
         };
 
         if current >= expected {
