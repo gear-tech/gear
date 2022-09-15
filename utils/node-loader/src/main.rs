@@ -8,7 +8,6 @@
 use std::{fs::File, io::Write, sync::Arc};
 
 use arbitrary::Unstructured;
-use futures::future::join_all;
 use gear_program::{
     api::{generated::api::gear::calls::UploadProgram, Api},
     result::Result,
@@ -20,8 +19,6 @@ use rand::{rngs::SmallRng, RngCore, SeedableRng};
 use args::{parse_cli_params, Params};
 
 mod args;
-
-const MAX_TASKS: usize = 100;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -49,10 +46,11 @@ async fn load_node(params: Params) {
     let salt = Arc::new(Mutex::new(0));
     let seed_gen = Arc::new(Mutex::new(SmallRng::seed_from_u64(params.seed)));
 
-    let mut tasks = Vec::with_capacity(MAX_TASKS);
+    let workers_num = params.workers as usize;
+    let mut tasks = Vec::with_capacity(workers_num);
     loop {
         tasks.clear();
-        while tasks.len() != MAX_TASKS {
+        while tasks.len() != workers_num {
             let task = tokio::spawn(load_node_task(
                 gear_api.clone(),
                 Arc::clone(&salt),

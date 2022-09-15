@@ -24,6 +24,10 @@ pub(crate) struct Params {
     /// generate program for seed and test it in inf loop
     #[structopt(long)]
     pub only_seed: Option<u64>,
+
+    /// amount of workers
+    #[structopt(long, short, default_value = "1")]
+    pub workers: u32,
 }
 
 pub(crate) fn parse_cli_params() -> Params {
