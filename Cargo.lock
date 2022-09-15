@@ -2838,10 +2838,12 @@ version = "0.1.0"
 dependencies = [
  "arbitrary",
  "color-eyre",
+ "futures",
  "gear-program",
  "gear-wasm-gen",
  "hex",
  "log",
+ "parking_lot 0.12.1",
  "rand 0.8.5",
  "structopt",
  "tokio",
