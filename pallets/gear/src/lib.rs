@@ -816,7 +816,7 @@ pub mod pallet {
             {
                 let actor_id = queued_dispatch.destination();
 
-                let (actor, code) = ext_manager
+                let actor = ext_manager
                     .get_actor(actor_id)
                     .ok_or_else(|| b"Program not found in the storage".to_vec())?;
 
@@ -850,7 +850,7 @@ pub mod pallet {
                         ..message_execution_context.clone()
                     });
 
-                let journal =
+                let (journal, gas_burned) =
                     match core_processor::prepare(&block_config, message_execution_context) {
                         PrepareResult::Ok(context) => {
                             let memory_pages = match Self::get_and_track_memory_pages(
@@ -862,29 +862,47 @@ pub mod pallet {
                                 Some(m) => m,
                             };
 
-                            may_be_returned += may_be_returned_context
-                                .map(|c| {
-                                    let burned = match core_processor::prepare(&block_config, c) {
-                                        PrepareResult::Ok(context) => {
-                                            context.gas_counter().burned()
-                                        }
-                                        _ => context.gas_counter().burned(),
-                                    };
+                            let code = match Self::get_and_track_code(
+                                &mut ext_manager,
+                                context.actor_data().code_id,
+                                actor_id,
+                            ) {
+                                None => continue,
+                                Some(c) => c,
+                            };
 
-                                    context.gas_counter().burned() - burned
-                                })
-                                .unwrap_or(0);
+                            let gas_burned = context.gas_counter().burned();
 
-                            core_processor::process::<Ext, SandboxEnvironment>(
-                                &block_config,
-                                (context, actor_id, code).into(),
-                                memory_pages,
+                            (
+                                core_processor::process::<Ext, SandboxEnvironment>(
+                                    &block_config,
+                                    (context, actor_id, code).into(),
+                                    memory_pages,
+                                ),
+                                gas_burned,
                             )
                         }
-                        PrepareResult::WontExecute(journal) | PrepareResult::Error(journal) => {
-                            journal
+                        PrepareResult::WontExecute {
+                            journal,
+                            gas_burned,
                         }
+                        | PrepareResult::Error {
+                            journal,
+                            gas_burned,
+                        } => (journal, gas_burned),
                     };
+
+                may_be_returned += may_be_returned_context
+                    .map(|c| {
+                        let burned = match core_processor::prepare(&block_config, c) {
+                            PrepareResult::Ok(context) => context.gas_counter().burned(),
+                            PrepareResult::WontExecute { gas_burned, .. }
+                            | PrepareResult::Error { gas_burned, .. } => gas_burned,
+                        };
+
+                        gas_burned - burned
+                    })
+                    .unwrap_or(0);
 
                 let get_main_limit = || GasHandlerOf::<T>::get_limit(main_message_id).ok();
 
@@ -1270,9 +1288,8 @@ pub mod pallet {
                                     memory_pages,
                                 )
                             }
-                            PrepareResult::WontExecute(journal) | PrepareResult::Error(journal) => {
-                                journal
-                            }
+                            PrepareResult::WontExecute { journal, .. }
+                            | PrepareResult::Error { journal, .. } => journal,
                         };
 
                     core_processor::handle_journal(journal, &mut ext_manager);

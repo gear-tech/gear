@@ -128,9 +128,44 @@ pub enum PrepareResult {
     /// Successfully pre-charged for memory pages.
     Ok(Box<PreparedMessageExecutionContext>),
     /// Required function is not exported. The program will not be executed.
-    WontExecute(Vec<JournalNote>),
+    WontExecute {
+        /// Array of JournalNote.
+        journal: Vec<JournalNote>,
+        /// The amount of burned gas.
+        gas_burned: u64,
+    },
     /// Provided actor is not executable or there is not enough gas for memory pages size.
-    Error(Vec<JournalNote>),
+    Error {
+        /// Array of JournalNote.
+        journal: Vec<JournalNote>,
+        /// The amount of burned gas.
+        gas_burned: u64,
+    },
+}
+
+fn prepare_error(
+    dispatch: IncomingDispatch,
+    program_id: ProgramId,
+    gas_counter: GasCounter,
+    err: ExecutionErrorReason,
+) -> PrepareResult {
+    let gas_burned = gas_counter.burned();
+    PrepareResult::Error {
+        journal: process_error(dispatch, program_id, gas_burned, err),
+        gas_burned,
+    }
+}
+
+fn prepare_allowance_exceed(
+    dispatch: IncomingDispatch,
+    program_id: ProgramId,
+    gas_counter: GasCounter,
+) -> PrepareResult {
+    let gas_burned = gas_counter.burned();
+    PrepareResult::Error {
+        journal: process_allowance_exceed(dispatch, program_id, gas_burned),
+        gas_burned,
+    }
 }
 
 /// Prepares environment for the execution of a program.
@@ -162,7 +197,10 @@ pub fn prepare(
 
     let actor_data = match check_is_executable(executable_data, &dispatch) {
         Err(exit_code) => {
-            return PrepareResult::Error(process_non_executable(dispatch, program_id, exit_code))
+            return PrepareResult::Error {
+                journal: process_non_executable(dispatch, program_id, exit_code),
+                gas_burned: 0,
+            };
         }
         Ok(data) => data,
     };
@@ -182,27 +220,27 @@ pub fn prepare(
             // program struct has already been loaded so charge anyway
             gas_counter.charge(gas_counter.left());
 
-            return PrepareResult::Error(process_error(
+            return prepare_error(
                 dispatch,
                 program_id,
-                gas_counter.burned(),
+                gas_counter,
                 ExecutionErrorReason::ProgramDataGasExceeded,
-            ));
+            );
         }
         ChargeForBytesResult::BlockGasExceeded => {
-            return PrepareResult::Error(process_allowance_exceed(
-                dispatch,
-                program_id,
-                gas_counter.burned(),
-            ))
+            return prepare_allowance_exceed(dispatch, program_id, gas_counter)
         }
     }
 
     if !actor_data.code_exports.contains(&dispatch.kind()) {
-        return PrepareResult::WontExecute(process_success(
-            SuccessfulDispatchResultKind::Success,
-            DispatchResult::success(dispatch, program_id, gas_counter.into()),
-        ));
+        let gas_burned = gas_counter.burned();
+        return PrepareResult::WontExecute {
+            journal: process_success(
+                SuccessfulDispatchResultKind::Success,
+                DispatchResult::success(dispatch, program_id, gas_counter.into()),
+            ),
+            gas_burned,
+        };
     }
 
     match executor::charge_gas_for_code(
@@ -215,19 +253,15 @@ pub fn prepare(
     ) {
         ChargeForBytesResult::Ok => (),
         ChargeForBytesResult::GasExceeded => {
-            return PrepareResult::Error(process_error(
+            return prepare_error(
                 dispatch,
                 program_id,
-                gas_counter.burned(),
+                gas_counter,
                 ExecutionErrorReason::ProgramCodeGasExceeded,
-            ))
+            );
         }
         ChargeForBytesResult::BlockGasExceeded => {
-            return PrepareResult::Error(process_allowance_exceed(
-                dispatch,
-                program_id,
-                gas_counter.burned(),
-            ))
+            return prepare_allowance_exceed(dispatch, program_id, gas_counter);
         }
     }
 
@@ -246,14 +280,14 @@ pub fn prepare(
         }
         Err(reason) => {
             log::debug!("Failed to charge for memory pages: {reason:?}");
-            return PrepareResult::Error(match reason {
+            return match reason {
                 ExecutionErrorReason::InitialMemoryBlockGasExceeded
                 | ExecutionErrorReason::GrowMemoryBlockGasExceeded
                 | ExecutionErrorReason::LoadMemoryBlockGasExceeded => {
-                    process_allowance_exceed(dispatch, program_id, gas_counter.burned())
+                    prepare_allowance_exceed(dispatch, program_id, gas_counter)
                 }
-                _ => process_error(dispatch, program_id, gas_counter.burned(), reason),
-            });
+                _ => prepare_error(dispatch, program_id, gas_counter, reason),
+            };
         }
     };
 

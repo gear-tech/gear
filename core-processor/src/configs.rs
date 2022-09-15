@@ -122,7 +122,7 @@ pub struct BlockConfig {
 }
 
 /// Unstable parameters for message execution across processing runs.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct MessageExecutionContext {
     /// Executable actor.
     pub actor: Actor,

@@ -2833,7 +2833,7 @@ fn test_message_processing_for_non_existing_destination() {
             program_id,
             EMPTY_PAYLOAD.to_vec(),
             10_000,
-            1000
+            1_000
         ));
 
         let skipped_message_id = get_last_message_id();
@@ -2843,7 +2843,8 @@ fn test_message_processing_for_non_existing_destination() {
 
         assert_not_executed(skipped_message_id);
 
-        assert_eq!(user_balance_before, Balances::free_balance(USER_1));
+        // some funds may be unreserved after processing init-message
+        assert!(user_balance_before <= Balances::free_balance(USER_1));
 
         assert!(!Gear::is_active(program_id));
         assert!(<Test as Config>::CodeStorage::exists(code_hash));
@@ -4301,6 +4302,7 @@ fn gas_spent_precalculated() {
 
         let GasInfo {
             min_limit: gas_spent_1,
+            may_be_returned,
             ..
         } = Gear::calculate_gas_info(
             USER_1.into_origin(),
@@ -4318,18 +4320,25 @@ fn gas_spent_precalculated() {
         let set_local_cost = schedule.instruction_weights.local_set;
         let get_local_cost = schedule.instruction_weights.local_get;
         let add_cost = schedule.instruction_weights.i64add;
-        let gas_cost = schedule.host_fn_weights.gas as u32; // gas call in handle and "add" func
+        // gas call in handle and "add" func
+        let gas_cost = schedule.host_fn_weights.gas as u32;
         let load_page_cost = schedule.memory_weights.load_cost as u32;
 
-        let total_cost = call_cost
-            + const_i64_cost * 2
-            + set_local_cost
-            + get_local_cost * 2
-            + add_cost
-            + gas_cost * 2
-            + load_page_cost;
+        // includes cost for loading memory pages
+        assert!(may_be_returned >= load_page_cost as u64);
 
-        assert_eq!(gas_spent_1, total_cost as u64);
+        let total_cost = {
+            let cost = call_cost
+                + const_i64_cost * 2
+                + set_local_cost
+                + get_local_cost * 2
+                + add_cost
+                + gas_cost * 2;
+
+            u64::from(cost) + may_be_returned
+        };
+
+        assert_eq!(gas_spent_1, total_cost);
 
         let GasInfo {
             min_limit: gas_spent_2,
@@ -5279,7 +5288,7 @@ fn missing_functions_are_not_executed() {
 
     init_logger();
     new_test_ext().execute_with(|| {
-        let initial_balance = Balances::free_balance(USER_1);
+        let balance_before = Balances::free_balance(USER_1);
 
         let program_id = {
             let res = upload_program_default(USER_1, ProgramCodeKind::Custom(wat));
@@ -5287,7 +5296,11 @@ fn missing_functions_are_not_executed() {
             res.expect("submit result was asserted")
         };
 
-        let GasInfo { min_limit, .. } = Gear::calculate_gas_info(
+        let GasInfo {
+            min_limit,
+            may_be_returned,
+            ..
+        } = Gear::calculate_gas_info(
             USER_1.into_origin(),
             HandleKind::Init(ProgramCodeKind::Custom(wat).to_bytes()),
             EMPTY_PAYLOAD.to_vec(),
@@ -5296,13 +5309,17 @@ fn missing_functions_are_not_executed() {
         )
         .expect("calculate_gas_info failed");
 
-        assert_eq!(min_limit, 0);
+        // there is no execution so the values should be equal
+        assert_eq!(min_limit, may_be_returned);
 
         run_to_next_block(None);
 
-        // there is no 'init' so memory pages don't get loaded and
-        // no execution is performed at all and hence user was not charged.
-        assert_eq!(initial_balance, Balances::free_balance(USER_1));
+        // there is no 'init' so memory pages and code don't get loaded and
+        // no execution is performed at all and hence user was not charged for program execution.
+        assert_eq!(
+            balance_before,
+            Balances::free_balance(USER_1) + GasPrice::gas_price(may_be_returned)
+        );
 
         // this value is actually a constant in the wat.
         let locked_value = 1_000;
@@ -5325,7 +5342,11 @@ fn missing_functions_are_not_executed() {
 
         let reply_to_id = get_last_mail(USER_1).id();
 
-        let GasInfo { min_limit, .. } = Gear::calculate_gas_info(
+        let GasInfo {
+            min_limit,
+            may_be_returned,
+            ..
+        } = Gear::calculate_gas_info(
             USER_1.into_origin(),
             HandleKind::Reply(reply_to_id, 0),
             EMPTY_PAYLOAD.to_vec(),
@@ -5334,8 +5355,9 @@ fn missing_functions_are_not_executed() {
         )
         .expect("calculate_gas_info failed");
 
-        assert_eq!(min_limit, 0);
+        assert_eq!(min_limit, may_be_returned);
 
+        let balance_before = Balances::free_balance(USER_1);
         let reply_value = 1_500;
         assert_ok!(Gear::send_reply(
             Origin::signed(USER_1),
@@ -5347,10 +5369,9 @@ fn missing_functions_are_not_executed() {
 
         run_to_next_block(None);
 
-        // there is no 'handle_reply' too
         assert_eq!(
-            initial_balance - reply_value,
-            Balances::free_balance(USER_1)
+            balance_before - reply_value + locked_value,
+            Balances::free_balance(USER_1) + GasPrice::gas_price(may_be_returned)
         );
     });
 }
@@ -5362,6 +5383,15 @@ fn missing_handle_is_not_executed() {
         (import "env" "memory" (memory 2))
         (export "init" (func $init))
         (func $init)
+    )"#;
+
+    let wat_handle = r#"
+    (module
+        (import "env" "memory" (memory 2))
+        (export "init" (func $init))
+        (export "handle" (func $handle))
+        (func $init)
+        (func $handle)
     )"#;
 
     init_logger();
@@ -5377,9 +5407,21 @@ fn missing_handle_is_not_executed() {
         .map(|_| get_last_program_id())
         .expect("submit_program failed");
 
+        let program_handle_id = Gear::upload_program(
+            Origin::signed(USER_3),
+            ProgramCodeKind::Custom(wat_handle).to_bytes(),
+            vec![],
+            EMPTY_PAYLOAD.to_vec(),
+            1_000_000_000,
+            0,
+        )
+        .map(|_| get_last_program_id())
+        .expect("submit_program failed");
+
         run_to_next_block(None);
 
         let balance_before = Balances::free_balance(USER_1);
+        let balance_before_handle = Balances::free_balance(USER_3);
 
         assert_ok!(Gear::send_message(
             Origin::signed(USER_1),
@@ -5389,11 +5431,20 @@ fn missing_handle_is_not_executed() {
             0,
         ));
 
+        assert_ok!(Gear::send_message(
+            Origin::signed(USER_3),
+            program_handle_id,
+            EMPTY_PAYLOAD.to_vec(),
+            1_000_000_000,
+            0,
+        ));
+
         run_to_next_block(None);
 
-        // there is no 'handle' so no memory pages are loaded and
-        // the program is not executed. Hence the user didn't pay for processing.
-        assert_eq!(balance_before, Balances::free_balance(USER_1));
+        let margin = balance_before - Balances::free_balance(USER_1);
+        let margin_handle = balance_before_handle - Balances::free_balance(USER_3);
+
+        assert!(margin < margin_handle);
     });
 }
 

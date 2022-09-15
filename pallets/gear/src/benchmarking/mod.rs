@@ -329,7 +329,7 @@ where
 
     if let Some(queued_dispatch) = QueueOf::<T>::dequeue().map_err(|_| "MQ storage corrupted")? {
         let actor_id = queued_dispatch.destination();
-        let (actor, code) = ext_manager
+        let actor = ext_manager
             .get_actor(actor_id)
             .ok_or("Program not found in the storage")?;
 
@@ -342,10 +342,16 @@ where
             subsequent_code_loading: false,
         };
 
-        let context = match core_processor::prepare(&block_config, message_execution_context) {
-            PrepareResult::Ok(context) => context,
-            _ => return Err("core_processor::prepare failed"),
-        };
+        let (context, code) =
+            match core_processor::prepare(&block_config, message_execution_context) {
+                PrepareResult::Ok(context) => {
+                    let code = T::CodeStorage::get_code(context.actor_data().code_id)
+                        .ok_or("Program code not found")?;
+
+                    (context, code)
+                }
+                _ => return Err("core_processor::prepare failed"),
+            };
 
         Ok(Exec {
             ext_manager,
