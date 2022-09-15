@@ -1,26 +1,21 @@
 //! Gear node loader.
-//! 
+//!
 //! This tool sends semi-random data to the gear node with one main purpose - crash it.
 //! The sent data is not completely random as it is usually in fuzz-kind tests. The tool
 //! gets properly structured data acceptable by the gear node and randomizes it's "fields".
-//! That's why generated data is called semi-random. 
+//! That's why generated data is called semi-random.
 
-use std::fs::File;
-use std::io::Write;
-use std::sync::Arc;
+use std::{fs::File, io::Write, sync::Arc};
 
 use arbitrary::Unstructured;
+use futures::future::join_all;
 use gear_program::{
-    api::{
-        Api, 
-        generated::api::gear::calls::UploadProgram
-    },
-    result::Result
+    api::{generated::api::gear::calls::UploadProgram, Api},
+    result::Result,
 };
 use gear_wasm_gen::GearConfig;
-use rand::{rngs::SmallRng, RngCore, SeedableRng};
-use futures::future::join_all;
 use parking_lot::Mutex;
+use rand::{rngs::SmallRng, RngCore, SeedableRng};
 
 use args::{parse_cli_params, Params};
 
@@ -60,8 +55,8 @@ async fn load_node(params: Params) {
             let task = load_node_task(
                 gear_api.clone(),
                 Arc::clone(&salt),
-                Arc::clone(&seed_gen), 
-                &params
+                Arc::clone(&seed_gen),
+                &params,
             );
             tasks.push(Box::pin(task));
         }
@@ -69,10 +64,13 @@ async fn load_node(params: Params) {
     }
 }
 
-async fn load_node_task(gear_api: Api, salt: Arc<Mutex<u32>>, seed_gen: Arc<Mutex<SmallRng>>, params: &Params) {
-    let signer = gear_api
-        .try_signer(None)
-        .unwrap();
+async fn load_node_task(
+    gear_api: Api,
+    salt: Arc<Mutex<u32>>,
+    seed_gen: Arc<Mutex<SmallRng>>,
+    params: &Params,
+) {
+    let signer = gear_api.try_signer(None).unwrap();
 
     println!("==============================================");
 
@@ -96,13 +94,17 @@ async fn load_node_task(gear_api: Api, salt: Arc<Mutex<u32>>, seed_gen: Arc<Mute
         value: 0,
     };
 
-    let _res = signer.submit_program(params).await.map_err(|err| {
-        println!("ERROR: {}", err);
-        err
-    }).map(|res| {
-        println!("Successfully receive response");
-        res
-    });
+    let _res = signer
+        .submit_program(params)
+        .await
+        .map_err(|err| {
+            println!("ERROR: {}", err);
+            err
+        })
+        .map(|res| {
+            println!("Successfully receive response");
+            res
+        });
 }
 
 fn gen_code_for_seed(seed: u64) -> Vec<u8> {
