@@ -50,7 +50,7 @@ use sp_runtime::{
     create_runtime_str, generic, impl_opaque_keys,
     traits::{AccountIdLookup, BlakeTwo256, Block as BlockT, NumberFor, OpaqueKeys},
     transaction_validity::{TransactionSource, TransactionValidity},
-    ApplyExtrinsicResult, Percent,
+    ApplyExtrinsicResult,
 };
 use sp_std::{
     convert::{TryFrom, TryInto},
@@ -91,7 +91,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
     impl_name: create_runtime_str!("gear"),
     apis: RUNTIME_API_VERSIONS,
     authoring_version: 1,
-    spec_version: 150,
+    spec_version: 170,
     impl_version: 1,
     transaction_version: 1,
     state_version: 1,
@@ -270,19 +270,14 @@ impl_opaque_keys! {
         pub grandpa: Grandpa,
     }
 }
-parameter_types! {
-    pub const SelectedFraction: Percent = Percent::from_percent(25);
-}
-impl pallet_shift_session_manager::Config for Runtime {
-    type SelectedFraction = SelectedFraction;
-}
+
 impl pallet_session::Config for Runtime {
     type Event = Event;
     type ValidatorId = <Self as frame_system::Config>::AccountId;
     type ValidatorIdOf = ();
     type ShouldEndSession = Babe;
     type NextSessionRotation = Babe;
-    type SessionManager = ShiftSessionManager;
+    type SessionManager = ();
     type SessionHandler = <SessionKeys as OpaqueKeys>::KeyTypeIdProviders;
     type Keys = SessionKeys;
     type WeightInfo = pallet_session::weights::SubstrateWeight<Runtime>;
@@ -406,7 +401,6 @@ construct_runtime!(
         GearGas: pallet_gear_gas,
         Gear: pallet_gear,
         GearPayment: pallet_gear_payment,
-        ShiftSessionManager: pallet_shift_session_manager,
 
         // Only available with "debug-mode" feature on
         GearDebug: pallet_gear_debug,
@@ -436,7 +430,6 @@ construct_runtime!(
         GearGas: pallet_gear_gas,
         Gear: pallet_gear,
         GearPayment: pallet_gear_payment,
-        ShiftSessionManager: pallet_shift_session_manager,
     }
 );
 

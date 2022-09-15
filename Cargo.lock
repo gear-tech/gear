@@ -99,9 +99,9 @@ dependencies = [
 
 [[package]]
 name = "anyhow"
-version = "1.0.64"
+version = "1.0.65"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b9a8f622bcf6ff3df478e9deba3e03e4e04b300f8e6a139e192c05fa3490afc7"
+checksum = "98161a4e3e2184da77bb14f02184cdd111e83bbbcc9979dfee3c44b9a85f5602"
 
 [[package]]
 name = "approx"
@@ -3569,7 +3569,8 @@ dependencies = [
  "derive_more",
  "gear-core",
  "log",
- "nix 0.23.1",
+ "nix 0.25.0",
+ "once_cell",
  "region 3.0.0",
  "sp-io 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
  "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
@@ -3626,7 +3627,6 @@ dependencies = [
  "pallet-gear-scheduler",
  "pallet-grandpa",
  "pallet-session",
- "pallet-shift-session-manager",
  "pallet-sudo",
  "pallet-timestamp",
  "pallet-transaction-payment",
@@ -3748,6 +3748,7 @@ dependencies = [
  "pallet-transaction-payment-rpc",
  "pallet-transaction-payment-rpc-runtime-api",
  "sc-basic-authorship",
+ "sc-chain-spec",
  "sc-client-api",
  "sc-consensus",
  "sc-consensus-babe",
@@ -3758,9 +3759,11 @@ dependencies = [
  "sc-rpc",
  "sc-rpc-api",
  "sc-service",
+ "sc-sync-state-rpc",
  "sc-telemetry",
  "sc-transaction-pool",
  "sc-transaction-pool-api",
+ "serde",
  "sp-api",
  "sp-block-builder",
  "sp-blockchain",
@@ -4731,9 +4734,9 @@ checksum = "884e2677b40cc8c339eaefcb701c32ef1fd2493d71118dc0ca4b6a736c93bd67"
 
 [[package]]
 name = "libc"
-version = "0.2.126"
+version = "0.2.132"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "349d5a591cd28b49e1d1037471617a32ddcda5731b99419008085f72d5a53836"
+checksum = "8371e4e5341c3a96db127eb2465ac681ced4c433e01dd0e938adbef26ba93ba5"
 
 [[package]]
 name = "libc_print"
@@ -5861,19 +5864,6 @@ dependencies = [
 
 [[package]]
 name = "nix"
-version = "0.23.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9f866317acbd3a240710c63f065ffb1e4fd466259045ccb504130b7f668f35c6"
-dependencies = [
- "bitflags",
- "cc",
- "cfg-if 1.0.0",
- "libc",
- "memoffset",
-]
-
-[[package]]
-name = "nix"
 version = "0.24.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "195cdbc1741b8134346d515b3a56a1c94b0912758009cfd53f99ea0f57b065fc"
@@ -5882,6 +5872,20 @@ dependencies = [
  "cfg-if 1.0.0",
  "libc",
  "memoffset",
+]
+
+[[package]]
+name = "nix"
+version = "0.25.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e322c04a9e3440c327fca7b6c8a63e6890a32fa2ad689db972425f07e0d22abb"
+dependencies = [
+ "autocfg",
+ "bitflags",
+ "cfg-if 1.0.0",
+ "libc",
+ "memoffset",
+ "pin-utils",
 ]
 
 [[package]]
@@ -6910,21 +6914,6 @@ dependencies = [
  "sp-staking 4.0.0-dev (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
  "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
  "sp-trie 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
-]
-
-[[package]]
-name = "pallet-shift-session-manager"
-version = "0.1.0"
-dependencies = [
- "frame-support 4.0.0-dev (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "frame-system",
- "pallet-session",
- "parity-scale-codec",
- "scale-info",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-staking 4.0.0-dev (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
 ]
 
 [[package]]
@@ -8855,9 +8844,9 @@ checksum = "a993555f31e5a609f617c12db6250dedcac1b0a85076912c436e6fc9b2c8e6a3"
 
 [[package]]
 name = "quick-xml"
-version = "0.24.0"
+version = "0.25.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "678404d55890514fa1c01fe98cf280b674db93944fdcb70310dd3be1d0d63be7"
+checksum = "58e21a144a0ffb5fad7b464babcdab934a325ad69b7c0373bcfef5cbd9799ca9"
 dependencies = [
  "memchr",
  "serde",
@@ -12978,7 +12967,6 @@ dependencies = [
  "pallet-gear-scheduler",
  "pallet-grandpa",
  "pallet-session",
- "pallet-shift-session-manager",
  "pallet-sudo",
  "pallet-timestamp",
  "pallet-transaction-payment",

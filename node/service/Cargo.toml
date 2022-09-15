@@ -14,6 +14,7 @@ targets = ["x86_64-unknown-linux-gnu"]
 [dependencies]
 hex-literal = "0.3.4"
 jsonrpsee = { version = "0.14.0", features = ["server"] }
+serde = { version = "1.0.136", features = ["derive"] }
 
 # Gear
 pallet-gear-rpc = { path = "../../pallets/gear/rpc" }
@@ -26,6 +27,7 @@ gear-runtime = { path = "../../runtime/gear", optional = true }
 vara-runtime = { path = "../../runtime/vara", optional = true }
 
 # Substrate Client
+sc-chain-spec = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.26" }
 sc-executor = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.26", features = [
 	"wasmtime",
 	"wasmer-sandbox",
@@ -46,6 +48,7 @@ sc-finality-grandpa = { git = "https://github.com/paritytech/substrate", branch 
 sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.26" }
 sc-basic-authorship = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.26" }
 sc-rpc = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.26" }
+sc-sync-state-rpc = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.26" }
 
 # Substrate Primitives
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.26" }

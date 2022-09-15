@@ -95,6 +95,6 @@ wat_examples_build() {
   for wat in `ls $WAT_DIR`; do
     target_name=$TARGET_DIR/$(basename $wat .wat).wasm
     wat2wasm $WAT_DIR/$wat -o $target_name;
-    echo "Built OK: $wat";
+    echo "Built OK: $WAT_DIR/$wat";
   done
 }

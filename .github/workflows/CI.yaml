@@ -251,7 +251,9 @@ jobs:
         run: ./scripts/gear.sh test client-weights
 
       - name: "Test: Upload programs"
-        run: ./scripts/gear.sh test uploads "$(pwd)/target/wat-examples/wrong_load.wasm"
+        run: |
+          ./scripts/gear.sh test uploads "$(pwd)/target/wat-examples/wrong_load.wasm"
+          ./scripts/gear.sh test uploads "$(pwd)/target/wat-examples/inf_recursion.wasm"
 
       - name: "Test: Runtime benchmarks work"
         run: |
