@@ -44,7 +44,6 @@ async fn main() -> Result<()> {
     Ok(())
 }
 
-// todo &mut in thread pool?
 async fn load_node(params: Params) {
     gear_program::keystore::login(&params.user, None).unwrap();
 
