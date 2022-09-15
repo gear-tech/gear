@@ -30,7 +30,7 @@ use nix::{
 use once_cell::sync::OnceCell;
 use std::io;
 
-/// Signal handler which has been set before lazy pages initialization.
+/// Signal handler which has been set before lazy-pages initialization.
 /// Currently use to support wasmer signal handler.
 /// Wasmer protects memory around wasm memory and for stack limits.
 /// It makes it only in `store` initialization when executor is created,
@@ -79,7 +79,7 @@ cfg_if! {
             Some(esr & WNR_BIT_MASK == WNR_BIT_MASK)
         }
     } else {
-        compile_error!("lazy pages are not supported on your system. Disable `lazy-pages` feature");
+        compile_error!("lazy-pages are not supported on your system. Disable `lazy-pages` feature");
     }
 }
 
@@ -124,28 +124,21 @@ enum ThreadInitError {
 fn init_for_thread_internal() -> Result<(), ThreadInitError> {
     use core::{mem, ptr};
 
-    // Should be enough for lazy pages signal handler
-    const STACK_SIZE: usize = 0x20000;
+    // Should be enough for lazy-pages signal handler.
+    // Equal to libc::SIGSTKSZ on macos M1.
+    const SIGNAL_STACK_SIZE: usize = 0x20000;
 
     enum StackInfo {
         UseOldStack,
-        NewStack {
-            mmap_ptr: *mut libc::c_void,
-            mmap_size: usize,
-        },
+        NewStack(*mut libc::c_void),
     }
 
     impl Drop for StackInfo {
         fn drop(&mut self) {
-            if let StackInfo::NewStack {
-                mmap_ptr,
-                mmap_size,
-            } = self
-            {
+            if let StackInfo::NewStack(mmap_ptr) = self {
                 unsafe {
                     // Deallocate the stack memory.
-                    let r = libc::munmap(*mmap_ptr, *mmap_size);
-                    if r != 0 {
+                    if libc::munmap(*mmap_ptr, SIGNAL_STACK_SIZE) != 0 {
                         log::error!(
                             "Cannot deallocate signal stack memory during the thread shutdown: {}",
                             errno::errno()
@@ -157,19 +150,20 @@ fn init_for_thread_internal() -> Result<(), ThreadInitError> {
     }
 
     unsafe fn init_sigstack() -> Result<StackInfo, ThreadInitError> {
-        // Check whether old signal stack exist and suitable for us
+        // Check whether old signal stack exist and suitable for lazy-pages signal handler.
         let mut old_stack = mem::zeroed();
         let res = libc::sigaltstack(ptr::null(), &mut old_stack);
         if res != 0 {
             return Err(ThreadInitError::OldStack(errno::errno()));
         }
-        if old_stack.ss_flags & libc::SS_DISABLE == 0 && old_stack.ss_size >= STACK_SIZE {
+        if old_stack.ss_flags & libc::SS_DISABLE == 0 && old_stack.ss_size >= SIGNAL_STACK_SIZE {
             return Ok(StackInfo::UseOldStack);
         }
 
+        // Alloc memory for new signal stack.
         let ptr = libc::mmap(
             ptr::null_mut(),
-            STACK_SIZE,
+            SIGNAL_STACK_SIZE,
             libc::PROT_READ | libc::PROT_WRITE,
             libc::MAP_PRIVATE | libc::MAP_ANON,
             -1,
@@ -179,10 +173,11 @@ fn init_for_thread_internal() -> Result<(), ThreadInitError> {
             return Err(ThreadInitError::Mmap(errno::errno()));
         }
 
+        // Mark allocated memory as new signal stack.
         let new_stack = libc::stack_t {
             ss_sp: ptr,
             ss_flags: 0,
-            ss_size: STACK_SIZE,
+            ss_size: SIGNAL_STACK_SIZE,
         };
         let res = libc::sigaltstack(&new_stack, ptr::null_mut());
         if res != 0 {
@@ -192,13 +187,10 @@ fn init_for_thread_internal() -> Result<(), ThreadInitError> {
         log::debug!(
             "Set new signal stack: ptr = {:?}, size = {:#x}",
             ptr,
-            STACK_SIZE
+            SIGNAL_STACK_SIZE
         );
 
-        Ok(StackInfo::NewStack {
-            mmap_ptr: ptr,
-            mmap_size: STACK_SIZE,
-        })
+        Ok(StackInfo::NewStack(ptr))
     }
 
     thread_local! {

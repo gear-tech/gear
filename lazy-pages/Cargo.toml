@@ -2,7 +2,7 @@
 name = "gear-lazy-pages"
 version = "0.1.0"
 authors = ["Gear Technologies"]
-description = "Gear lazy pages support"
+description = "Gear lazy-pages support"
 edition = "2018"
 license = "GPL-3.0"
 homepage = "https://gear-tech.io"
