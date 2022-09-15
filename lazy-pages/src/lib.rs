@@ -252,7 +252,7 @@ pub enum InitError {
     CanNotSetUpSignalHandler(String),
 }
 
-/// Initialize lazy pages:
+/// Initialize lazy-pages once for process:
 /// 1) checks whether lazy pages is supported in current environment
 /// 2) set signals handler
 ///
