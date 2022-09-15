@@ -36,7 +36,7 @@ mod property_tests;
 pub use error::Error;
 pub use internal::TreeImpl;
 pub use negative_imbalance::NegativeImbalance;
-pub use node::GasNode;
+pub use node::{GasNode, GasNodeId};
 pub use positive_imbalance::PositiveImbalance;
 
 /// Simplified type for result of `GasTree::consume` call.
@@ -44,6 +44,9 @@ pub type ConsumeResultOf<T> = Result<
     Option<(<T as Tree>::NegativeImbalance, <T as Tree>::ExternalOrigin)>,
     <T as Tree>::Error,
 >;
+
+/// Simplified type for [`GasNodeId`] of [`Tree`].
+pub type GasNodeIdOf<T> = GasNodeId<<T as Tree>::Key, <T as Tree>::ReservationKey>;
 
 /// Abstraction for a chain of value items each piece of which has an attributed
 /// owner and can be traced up to some root origin.
@@ -56,6 +59,9 @@ pub trait Tree {
 
     /// Type that identifies a particular value item.
     type Key: Clone;
+
+    /// Type that identifies a particular value item for gas reservation.
+    type ReservationKey: Clone;
 
     /// Type representing a quantity of value.
     type Balance;
@@ -97,20 +103,27 @@ pub trait Tree {
     /// Error occurs if the tree is invalidated (has "orphan" nodes), and the
     /// node identified by the `key` belongs to a subtree originating at
     /// such "orphan" node, or in case of inexistent key.
-    fn get_origin_node(key: Self::Key) -> Result<(Self::ExternalOrigin, Self::Key), Self::Error>;
+    fn get_origin_node(
+        key: impl Into<GasNodeIdOf<Self>>,
+    ) -> Result<(Self::ExternalOrigin, GasNodeIdOf<Self>), Self::Error>;
 
     /// The external origin for a key.
     ///
     /// See [`get_origin_node`](Self::get_origin_node) for details.
-    fn get_external(key: Self::Key) -> Result<Self::ExternalOrigin, Self::Error> {
+    fn get_external(
+        key: impl Into<GasNodeIdOf<Self>>,
+    ) -> Result<Self::ExternalOrigin, Self::Error> {
         Self::get_origin_node(key).map(|(external, _key)| external)
     }
 
     /// The id of external node for a key.
     ///
     /// See [`get_origin_node`](Self::get_origin_node) for details.
-    fn get_origin_key(key: Self::Key) -> Result<Self::Key, Self::Error> {
-        Self::get_origin_node(key).map(|(_external, key)| key)
+    fn get_origin_key(key: impl Into<GasNodeIdOf<Self>>) -> Result<Self::Key, Self::Error> {
+        Self::get_origin_node(key).and_then(|(_external, key)| {
+            key.to_node_id()
+                .ok_or_else(|| Self::InternalError::forbidden().into())
+        })
     }
 
     /// Get value associated with given id and the key of an ancestor,
@@ -138,7 +151,7 @@ pub trait Tree {
     /// Error occurs if the tree is invalidated (has "orphan" nodes), and the
     /// node identified by the `key` belongs to a subtree originating at
     /// such "orphan" node, or in case of inexistent key.
-    fn consume(key: Self::Key) -> ConsumeResultOf<Self>;
+    fn consume(key: impl Into<GasNodeIdOf<Self>>) -> ConsumeResultOf<Self>;
 
     /// Burn underlying value.
     ///
@@ -207,6 +220,15 @@ pub trait Tree {
     /// for example, for `GasNode::ReservedLocal`.
     fn get_lock(key: Self::Key) -> Result<Self::Balance, Self::Error>;
 
+    /// Reserve some value from underlying balance.
+    ///
+    /// Used in gas reservation feature.
+    fn reserve(
+        key: Self::Key,
+        new_key: Self::ReservationKey,
+        amount: Self::Balance,
+    ) -> Result<(), Self::Error>;
+
     /// Removes all values.
     fn clear();
 }
@@ -218,6 +240,9 @@ pub trait Provider {
 
     /// Type that identifies a particular value item.
     type Key;
+
+    /// Type that identifies a particular value item for gas reservation.
+    type ReservationKey;
 
     /// Type representing a quantity of value.
     type Balance;
@@ -244,6 +269,7 @@ pub trait Provider {
     type GasTree: Tree<
         ExternalOrigin = Self::ExternalOrigin,
         Key = Self::Key,
+        ReservationKey = Self::ReservationKey,
         Balance = Self::Balance,
         PositiveImbalance = Self::PositiveImbalance,
         NegativeImbalance = Self::NegativeImbalance,

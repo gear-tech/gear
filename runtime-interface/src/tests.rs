@@ -17,6 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::*;
+use gear_lazy_pages::{ExceptionInfo, LazyPagesVersion, UserSignalHandler};
 
 #[test]
 fn test_mprotect_pages() {
@@ -25,64 +26,26 @@ fn test_mprotect_pages() {
     const OLD_VALUE: u8 = 99;
     const NEW_VALUE: u8 = 100;
 
-    unsafe fn test_handler(mem: usize) {
-        let ps = region::page::size();
-        let addr = ((mem / ps) * ps) as *mut ();
-        region::protect(addr, ps, region::Protection::READ_WRITE).unwrap();
-        for p in 0..ps / PageNumber::size() {
-            *((mem + p * PageNumber::size()) as *mut u8) = NEW_VALUE;
-        }
-        region::protect(addr, ps, region::Protection::READ).unwrap();
-    }
+    struct TestHandler;
 
-    #[cfg(unix)]
-    unsafe {
-        use libc::{c_void, siginfo_t};
-        use nix::sys::signal;
-
-        extern "C" fn handle_sigsegv(_: i32, info: *mut siginfo_t, _: *mut c_void) {
-            unsafe {
-                let mem = (*info).si_addr() as usize;
-                test_handler(mem);
+    impl UserSignalHandler for TestHandler {
+        unsafe fn handle(info: ExceptionInfo) -> Result<(), lazy_pages::Error> {
+            let mem = info.fault_addr as usize;
+            let ps = region::page::size();
+            let addr = region::page::floor(info.fault_addr);
+            region::protect(addr, ps, region::Protection::READ_WRITE).unwrap();
+            for p in 0..ps / PageNumber::size() {
+                *((mem + p * PageNumber::size()) as *mut u8) = NEW_VALUE;
             }
-        }
+            region::protect(addr, ps, region::Protection::READ).unwrap();
 
-        let sig_handler = signal::SigHandler::SigAction(handle_sigsegv);
-        let sig_action = signal::SigAction::new(
-            sig_handler,
-            signal::SaFlags::SA_SIGINFO,
-            signal::SigSet::empty(),
-        );
-        signal::sigaction(signal::SIGSEGV, &sig_action).expect("Must be correct");
-        signal::sigaction(signal::SIGBUS, &sig_action).expect("Must be correct");
+            Ok(())
+        }
     }
 
-    #[cfg(windows)]
-    unsafe {
-        use winapi::{
-            shared::ntdef::LONG,
-            um::{
-                errhandlingapi::SetUnhandledExceptionFilter,
-                minwinbase::EXCEPTION_ACCESS_VIOLATION, winnt::EXCEPTION_POINTERS,
-            },
-            vc::excpt::EXCEPTION_CONTINUE_EXECUTION,
-        };
+    env_logger::init();
 
-        unsafe extern "system" fn exception_handler(
-            exception_info: *mut EXCEPTION_POINTERS,
-        ) -> LONG {
-            let record = (*exception_info).ExceptionRecord;
-            assert_eq!((*record).ExceptionCode, EXCEPTION_ACCESS_VIOLATION);
-            assert_eq!((*record).NumberParameters, 2);
-
-            let mem = (*record).ExceptionInformation[1] as usize;
-            test_handler(mem);
-
-            EXCEPTION_CONTINUE_EXECUTION
-        }
-
-        SetUnhandledExceptionFilter(Some(exception_handler));
-    }
+    assert!(lazy_pages::init::<TestHandler>(LazyPagesVersion::Version1));
 
     let mut v = vec![0u8; 3 * WasmPageNumber::size()];
     let buff = v.as_mut_ptr() as usize;

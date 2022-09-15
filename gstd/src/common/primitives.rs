@@ -67,6 +67,10 @@ impl ActorId {
         Self::new([0; 32])
     }
 
+    pub fn is_zero(&self) -> bool {
+        self == &Self::zero()
+    }
+
     pub fn from_bs58(address: String) -> Result<Self> {
         let decoded = bs58::decode(address)
             .into_vec()
@@ -257,5 +261,17 @@ impl TryFrom<&[u8]> for CodeHash {
 
     fn try_from(slice: &[u8]) -> Result<Self> {
         Self::from_slice(slice)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn zero_id() {
+        let id = ActorId::zero();
+        assert_eq!(id.0, [0; 32]);
+        assert!(id.is_zero());
     }
 }
