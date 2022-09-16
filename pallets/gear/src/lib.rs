@@ -778,7 +778,7 @@ pub mod pallet {
             let schedule = T::Schedule::get();
 
             let allocations_config = AllocationsConfig {
-                max_pages: gear_core::memory::WasmPageNumber(schedule.limits.memory_pages),
+                max_pages: schedule.limits.memory_pages.into(),
                 init_cost: schedule.memory_weights.initial_cost,
                 alloc_cost: schedule.memory_weights.allocation_cost,
                 mem_grow_cost: schedule.memory_weights.grow_cost,
@@ -1127,7 +1127,7 @@ pub mod pallet {
             let schedule = T::Schedule::get();
 
             let allocations_config = AllocationsConfig {
-                max_pages: gear_core::memory::WasmPageNumber(schedule.limits.memory_pages),
+                max_pages: schedule.limits.memory_pages.into(),
                 init_cost: schedule.memory_weights.initial_cost,
                 alloc_cost: schedule.memory_weights.allocation_cost,
                 mem_grow_cost: schedule.memory_weights.grow_cost,
