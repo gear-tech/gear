@@ -29,7 +29,7 @@ use common::{
         MessageWaitedReason, MessageWokenReason, Reason, UserMessageReadReason,
         UserMessageReadRuntimeReason,
     },
-    gas_provider::GasNodeId,
+    gas_provider::{GasNodeId, GasNodeIdOf},
     scheduler::*,
     storage::*,
     GasPrice, GasTree, Origin,
@@ -263,9 +263,9 @@ where
     /// Consumes message by given `MessageId`.
     ///
     /// Updates currency and balances data on imbalance creation.
-    pub(crate) fn consume_message(message_id: MessageId) {
+    pub(crate) fn consume_message(id: impl Into<GasNodeIdOf<GasHandlerOf<T>>>) {
         // Consuming `GasNode`, returning optional outcome with imbalance.
-        let outcome = GasHandlerOf::<T>::consume(message_id)
+        let outcome = GasHandlerOf::<T>::consume(id)
             .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
 
         // Unreserving funds, if imbalance returned.

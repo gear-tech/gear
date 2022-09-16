@@ -220,6 +220,8 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
             // Standard Error: 86_000
             .saturating_add((61_908_000 as Weight).saturating_mul(r as Weight))
     }
+    fn gr_reserve_gas(_: u32) -> u64 { 0 }
+    fn gr_unreserve_gas(_: u32) -> u64 { 0 }
     fn gr_gas_available(r: u32, ) -> Weight {
         (80_421_000 as Weight)
             // Standard Error: 75_000

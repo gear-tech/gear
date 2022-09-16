@@ -5419,7 +5419,7 @@ fn test_mad_big_prog_instrumentation() {
 fn gas_reservation_works() {
     init_logger();
     new_test_ext().execute_with(|| {
-        GearPallet::<Test>::upload_program(
+        Gear::upload_program(
             Origin::signed(USER_1),
             demo_reserve_gas::WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
@@ -5445,7 +5445,7 @@ fn gas_reservation_works() {
         )
         .expect("calculate_gas_info failed");
 
-        assert_ok!(GearPallet::<Test>::send_message(
+        assert_ok!(Gear::send_message(
             Origin::signed(USER_1),
             pid,
             EMPTY_PAYLOAD.to_vec(),

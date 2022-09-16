@@ -387,7 +387,7 @@ where
         for task in tasks {
             match task {
                 GasReservationTask::CreateReservation { id, amount, bn } => {
-                    GasHandlerOf::<T>::update_reservation(message_id, id.into(), amount as u64)
+                    GasHandlerOf::<T>::reserve(message_id, id, amount as u64)
                         .unwrap_or_else(|e| unreachable!("GasTree corrupted: {:?}", e));
 
                     TaskPoolOf::<T>::add(

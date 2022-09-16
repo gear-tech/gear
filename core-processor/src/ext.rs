@@ -565,7 +565,7 @@ impl EnvExt for Ext {
     fn reserve_gas(&mut self, amount: u32, blocks: u32) -> Result<ReservationId, Self::Error> {
         self.charge_gas_runtime(RuntimeCosts::ReserveGas)?;
 
-        self.charge_gas(amount)?;
+        self.charge_gas(amount as u64)?;
 
         let ProcessorContext {
             message_context,
