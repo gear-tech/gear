@@ -2848,9 +2848,12 @@ fn test_requeue_after_wait_for_timeout() {
             0,
         ));
 
-        run_to_next_block(None);
+        run_to_block(
+            System::block_number().saturating_add((duration + 1).into()),
+            None,
+        );
 
-        // The waited message has been requeued.
+        // the watied for message has been requeued
         assert_eq!(
             System::events()
                 .iter()
