@@ -47,7 +47,7 @@ use frame_system::{pallet_prelude::BlockNumberFor, Pallet as SystemPallet};
 use gear_backend_common::{StackEndError, TrapExplanation};
 use gear_backend_sandbox::funcs::FuncError;
 use gear_core::{
-    code::Code,
+    code::{self, Code},
     ids::{CodeId, MessageId, ProgramId},
 };
 use gear_core_errors::*;
@@ -5394,6 +5394,40 @@ fn missing_handle_is_not_executed() {
         // there is no 'handle' so no memory pages are loaded and
         // the program is not executed. Hence the user didn't pay for processing.
         assert_eq!(balance_before, Balances::free_balance(USER_1));
+    });
+}
+
+#[test]
+fn invalid_memory_page_count_rejected() {
+    let wat_start = r#"
+    (module
+        (import "env" "memory" (memory "#;
+    let wat_end = r#"))
+        (export "init" (func $init))
+        (func $init)
+    )"#;
+
+    let wat = format!("{wat_start}{}{wat_end}", code::MAX_WASM_PAGE_COUNT + 1);
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        assert_noop!(Gear::upload_code(
+                Origin::signed(USER_1),
+                ProgramCodeKind::Custom(&wat).to_bytes(),
+            ),
+            Error::<Test>::FailedToConstructProgram
+        );
+
+        assert_noop!(Gear::upload_program(
+                Origin::signed(USER_1),
+                ProgramCodeKind::Custom(&wat).to_bytes(),
+                vec![],
+                EMPTY_PAYLOAD.to_vec(),
+                1_000_000_000,
+                0,
+            ),
+            Error::<Test>::FailedToConstructProgram
+        );
     });
 }
 

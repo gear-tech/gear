@@ -25,6 +25,9 @@ use parity_wasm::elements::{Internal, Module};
 use scale_info::TypeInfo;
 use wasm_instrument::gas_metering::Rules;
 
+/// Defines maximal permitted count of memory pages.
+pub const MAX_WASM_PAGE_COUNT: u32 = 512;
+
 /// Parse function exports from wasm module into [`DispatchKind`].
 fn get_exports(
     module: &Module,
