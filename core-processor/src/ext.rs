@@ -34,10 +34,7 @@ use gear_core::{
     gas::{ChargeResult, GasAllowanceCounter, GasAmount, GasCounter, ValueCounter},
     ids::{CodeId, MessageId, ProgramId},
     memory::{AllocationsContext, Memory, PageBuf, WasmPageNumber},
-    message::{
-        DispatchKind, ExitCode, GasLimit, HandlePacket, InitPacket, MessageContext, Packet,
-        ReplyPacket,
-    },
+    message::{ExitCode, GasLimit, HandlePacket, InitPacket, MessageContext, Packet, ReplyPacket},
 };
 use gear_core_errors::{CoreError, ExecutionError, ExtError, MemoryError, MessageError, WaitError};
 
