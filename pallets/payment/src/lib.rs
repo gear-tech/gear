@@ -40,7 +40,7 @@ pub use pallet::*;
 
 type BalanceOf<T> =
     <<T as pallet_transaction_payment::Config>::OnChargeTransaction as OnChargeTransaction<T>>::Balance;
-type CallOf<T> = <T as frame_system::Config>::RuntimeCall;
+type CallOf<T> = <T as frame_system::Config>::Call;
 pub(crate) type QueueOf<T> = <<T as Config>::Messenger as Messenger>::Queue;
 pub type TransactionPayment<T> = pallet_transaction_payment::Pallet<T>;
 
@@ -144,9 +144,9 @@ where
     CallOf<T>: Dispatchable<Info = DispatchInfo, PostInfo = PostDispatchInfo>,
 {
     fn pre_dispatch_info<'a>(
-        call: &'a <T as frame_system::Config>::RuntimeCall,
-        info: &'a DispatchInfoOf<<T as frame_system::Config>::RuntimeCall>,
-    ) -> Cow<'a, DispatchInfoOf<<T as frame_system::Config>::RuntimeCall>> {
+        call: &'a <T as frame_system::Config>::Call,
+        info: &'a DispatchInfoOf<<T as frame_system::Config>::Call>,
+    ) -> Cow<'a, DispatchInfoOf<<T as frame_system::Config>::Call>> {
         // If the call is not subject to fee multiplication, divide weight by fee multiplier.
         // This action will effectively be cancelled out at the time the fee is calculated.
         //

@@ -11,8 +11,8 @@ repository = "https://github.com/gear-tech/gear"
 [dependencies]
 log = "0.4.17"
 gear-core = { path = "../core" }
-sp-io = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-v0.9.26" }
-sp-std = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-v0.9.26" }
+sp-io = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-v0.9.29" }
+sp-std = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-v0.9.29" }
 cfg-if = "1.0.0"
 region = "3.0.0"
 derive_more = "0.99.17"

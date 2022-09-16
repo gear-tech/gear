@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use sc_client_api::{Backend as BackendT, BlockBackend, UsageProvider};
+use sc_client_api::{Backend as BackendT, BlockBackend, UsageProvider, ExecutorProvider};
 use sc_executor::{NativeElseWasmExecutor, NativeExecutionDispatch};
 use sc_finality_grandpa::SharedVoterState;
 use sc_keystore::LocalKeystore;
@@ -246,6 +246,7 @@ where
                 },
                 &task_manager.spawn_essential_handle(),
                 config.prometheus_registry(),
+                sp_consensus::CanAuthorWithNativeVersion::new(client.executor().clone()),
                 telemetry.as_ref().map(|x| x.handle()),
             )?,
             (babe_block_import, babe_link),
@@ -417,6 +418,8 @@ where
             telemetry.as_ref().map(|x| x.handle()),
         );
 
+        let can_author_with = sp_consensus::CanAuthorWithNativeVersion::new(client.executor().clone());
+
         {
             let slot_duration = babe_link.config().slot_duration();
 
@@ -442,6 +445,7 @@ where
                 force_authoring,
                 backoff_authoring_blocks,
                 babe_link,
+                can_author_with,
                 block_proposal_slot_portion: sc_consensus_babe::SlotProportion::new(2f32 / 3f32), // Substrate suggests 0.5
                 max_block_proposal_slot_portion: None,
                 telemetry: telemetry.as_ref().map(|x| x.handle()),

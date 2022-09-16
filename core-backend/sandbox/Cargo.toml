@@ -11,7 +11,7 @@ gear-core-errors = { path = "../../core-errors", features = ["codec"] }
 gear-backend-common = { path = "../common" }
 
 parity-wasm = { version = "0.45.0", default-features = false }
-sp-sandbox = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.26", default-features = false }
+sp-sandbox = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.29", default-features = false }
 # Use max_level_debug feature to remove tracing in sys-calls by default.
 log = { version = "0.4.17", default-features = false, features = ["max_level_debug"] }
 derive_more = "0.99.17"

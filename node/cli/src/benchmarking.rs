@@ -168,14 +168,14 @@ impl frame_benchmarking_cli::ExtrinsicBuilder for RemarkBuilder {
             {
                 // First the setup code to init all the variables that are needed
                 // to build the signed extras.
-                use runtime::{RuntimeCall, SystemCall};
+                use runtime::{Call, SystemCall};
 
                 let genesis_hash = client
                     .block_hash(0)
                     .ok()
                     .flatten()
                     .expect("Genesis block exists; qed");
-                let call = RuntimeCall::System(SystemCall::remark { remark: vec![] });
+                let call = Call::System(SystemCall::remark { remark: vec![] });
                 let bob = Sr25519Keyring::Bob.pair();
                 let period = gear_runtime_common::BlockHashCount::get()
                     .checked_next_power_of_two()
@@ -240,14 +240,14 @@ impl frame_benchmarking_cli::ExtrinsicBuilder for TransferKeepAliveBuilder {
             {
                 // First the setup code to init all the variables that are needed
                 // to build the signed extras.
-                use runtime::{RuntimeCall, BalancesCall, EXISTENTIAL_DEPOSIT};
+                use runtime::{Call, BalancesCall, EXISTENTIAL_DEPOSIT};
 
                 let genesis_hash = client
                     .block_hash(0)
                     .ok()
                     .flatten()
                     .expect("Genesis block exists; qed");
-                let call = RuntimeCall::Balances(BalancesCall::transfer_keep_alive {
+                let call = Call::Balances(BalancesCall::transfer_keep_alive {
                     dest: self.dest.clone().into(),
                     value: EXISTENTIAL_DEPOSIT,
                 });

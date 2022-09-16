@@ -33,7 +33,7 @@ use cumulus_client_service::{
 use cumulus_primitives_core::ParaId;
 use cumulus_relay_chain_inprocess_interface::build_inprocess_relay_chain;
 use cumulus_relay_chain_interface::{RelayChainError, RelayChainInterface, RelayChainResult};
-use cumulus_relay_chain_rpc_interface::RelayChainRPCInterface;
+use cumulus_relay_chain_rpc_interface::{create_client_and_start_worker, RelayChainRpcInterface};
 
 use jsonrpsee::RpcModule;
 
@@ -43,8 +43,9 @@ use polkadot_service::CollatorPair;
 
 use sc_client_api::ExecutorProvider;
 use sc_network::NetworkService;
+use sc_network_common::service::NetworkBlock;
 use sc_service::{
-    error::Error as ServiceError, ChainSpec, Configuration, PartialComponents, Role, TaskManager,
+    error::Error as ServiceError, ChainSpec, Configuration, PartialComponents, TaskManager,
 };
 use sc_telemetry::{Telemetry, TelemetryHandle, TelemetryWorker, TelemetryWorkerHandle};
 use sp_api::ConstructRuntimeApi;
@@ -210,10 +211,10 @@ async fn build_relay_chain_interface(
     Option<CollatorPair>,
 )> {
     match collator_options.relay_chain_rpc_url {
-        Some(relay_chain_url) => Ok((
-            Arc::new(RelayChainRPCInterface::new(relay_chain_url).await?) as Arc<_>,
-            None,
-        )),
+        Some(relay_chain_url) => {
+            let client = create_client_and_start_worker(relay_chain_url, task_manager).await?;
+            Ok((Arc::new(RelayChainRpcInterface::new(client)) as Arc<_>, None))
+        },
         None => build_inprocess_relay_chain(
             polkadot_config,
             parachain_config,
@@ -269,10 +270,6 @@ where
         bool,
     ) -> Result<Box<dyn ParachainConsensus<Block>>, sc_service::Error>,
 {
-    if matches!(parachain_config.role, Role::Light) {
-        return Err("Light client not supported!".into());
-    }
-
     let parachain_config = prepare_node_config(parachain_config);
 
     let params = new_partial::<RuntimeApi, Executor, BIQ>(&parachain_config, build_import_queue)?;
