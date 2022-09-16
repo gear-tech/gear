@@ -177,19 +177,19 @@ pub fn run() -> sc_cli::Result<()> {
         Some(Subcommand::Benchmark(cmd)) => {
             let runner = cli.create_runner(cmd)?;
 
-            runner.sync_run(|config| {
-                // This switch needs to be in the client, since the client decides
-                // which sub-commands it wants to support.
 
-                match cmd {
-                    BenchmarkCmd::Pallet(cmd) => {
-                        if !cfg!(feature = "runtime-benchmarks") {
-                            return Err(
-                                "Runtime benchmarking wasn't enabled when building the node. \
-                            You can enable it with `--features runtime-benchmarks`."
-                                    .into(),
-                            );
-                        }
+			runner.sync_run(|config| {
+				// This switch needs to be in the client, since the client decides
+				// which sub-commands it wants to support.
+				match cmd {
+					BenchmarkCmd::Pallet(cmd) => {
+						if !cfg!(feature = "runtime-benchmarks") {
+							return Err(
+								"Runtime benchmarking wasn't enabled when building the node. \
+							You can enable it with `--features runtime-benchmarks`."
+									.into(),
+							)
+						}
                         match &config.chain_spec {
                             #[cfg(feature = "gear-native")]
                             spec if spec.is_gear() => cmd
@@ -203,20 +203,26 @@ pub fn run() -> sc_cli::Result<()> {
                                 ),
                             _ => Err("invalid chain spec".into()),
                         }
-                    }
+                    },
                     BenchmarkCmd::Block(cmd) => {
                         let (client, _, _, _) = service::new_chain_ops(&config)?;
 
                         unwrap_client!(client, cmd.run(client.clone()))
-                    }
+                    },
+					#[cfg(not(feature = "runtime-benchmarks"))]
+					BenchmarkCmd::Storage(_) => Err(
+						"Storage benchmarking can be enabled with `--features runtime-benchmarks`."
+							.into(),
+					),
+					#[cfg(feature = "runtime-benchmarks")]
                     BenchmarkCmd::Storage(cmd) => {
                         let (client, backend, _, _) = service::new_chain_ops(&config)?;
                         let db = backend.expose_db();
                         let storage = backend.expose_storage();
 
                         unwrap_client!(client, cmd.run(config, client.clone(), db, storage))
-                    }
-                    BenchmarkCmd::Overhead(cmd) => {
+					},
+					BenchmarkCmd::Overhead(cmd) => {
                         let inherent_data = inherent_benchmark_data().map_err(|e| {
                             sc_cli::Error::from(format!("generating inherent data: {:?}", e))
                         })?;
@@ -228,10 +234,11 @@ pub fn run() -> sc_cli::Result<()> {
                         unwrap_client!(
                             client,
                             // cmd.run(config, client.clone(), inherent_data, ext_builder)
-                            cmd.run(config, client.clone(), inherent_data, &ext_builder)
+                            cmd.run(config, client.clone(), inherent_data,
+							Vec::new(), &ext_builder)
                         )
-                    }
-                    BenchmarkCmd::Extrinsic(cmd) => {
+					},
+					BenchmarkCmd::Extrinsic(cmd) => {
                         let inherent_data = inherent_benchmark_data().map_err(|e| {
                             sc_cli::Error::from(format!("generating inherent data: {:?}", e))
                         })?;
@@ -248,14 +255,14 @@ pub fn run() -> sc_cli::Result<()> {
                         unwrap_client!(
                             client,
                             // cmd.run(config, client.clone(), inherent_data, ext_builder)
-                            cmd.run(client.clone(), inherent_data, &ext_factory)
+                            cmd.run(client.clone(), inherent_data,
+							Vec::new(), &ext_factory)
                         )
-                    }
-                    BenchmarkCmd::Machine(cmd) => {
-                        cmd.run(&config, SUBSTRATE_REFERENCE_HARDWARE.clone())
-                    }
-                }
-            })
+					},
+					BenchmarkCmd::Machine(cmd) =>
+						cmd.run(&config, SUBSTRATE_REFERENCE_HARDWARE.clone()),
+				}
+			})
         }
         Some(Subcommand::GearRuntimeTest(cmd)) => {
             let runner = cli.create_runner(cmd)?;

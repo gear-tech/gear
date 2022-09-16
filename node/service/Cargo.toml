@@ -13,7 +13,7 @@ targets = ["x86_64-unknown-linux-gnu"]
 
 [dependencies]
 hex-literal = "0.3.4"
-jsonrpsee = { version = "0.14.0", features = ["server"] }
+jsonrpsee = { version = "0.15.1", features = ["server"] }
 serde = { version = "1.0.136", features = ["derive"] }
 
 # Gear
@@ -30,8 +30,8 @@ vara-runtime = { path = "../../runtime/vara", optional = true }
 sc-chain-spec = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
 sc-executor = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", features = [
 	"wasmtime",
-	"wasmer-sandbox",
-	"wasmer-cache",
+	# "wasmer-sandbox",
+	# "wasmer-cache",
 ] }
 sc-service = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", features = [
 	"wasmtime",
