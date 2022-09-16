@@ -533,14 +533,16 @@ impl ExtManager {
                     )
                 }
 
-                let id = MessageId::generate_reply(message_id, 1);
-                let packet = ReplyPacket::new(Default::default(), 1);
-                let reply_message = ReplyMessage::from_packet(id, packet);
+                if !dispatch.kind().is_signal() {
+                    let id = MessageId::generate_reply(message_id, 1);
+                    let packet = ReplyPacket::new(Default::default(), 1);
+                    let reply_message = ReplyMessage::from_packet(id, packet);
 
-                self.send_dispatch(
-                    message_id,
-                    reply_message.into_dispatch(program_id, dispatch.source(), message_id),
-                );
+                    self.send_dispatch(
+                        message_id,
+                        reply_message.into_dispatch(program_id, dispatch.source(), message_id),
+                    );
+                }
             }
         }
 
