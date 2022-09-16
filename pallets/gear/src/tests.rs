@@ -2820,7 +2820,7 @@ fn test_different_waits_fail() {
 //
 // introduce new tests for this in #1485
 #[test]
-fn test_wait_for_timeout() {
+fn test_requeue_after_wait_for_timeout() {
     use demo_waiter::{Command, WASM_BINARY};
 
     init_logger();
@@ -2839,7 +2839,7 @@ fn test_wait_for_timeout() {
         run_to_next_block(None);
 
         let duration = 10;
-        let payload = Command::WaitForAndSendMessage(USER_1.into(), duration).encode();
+        let payload = Command::WaitFor(duration).encode();
         assert_ok!(Gear::send_message(
             Origin::signed(USER_1),
             program_id,
@@ -2848,9 +2848,15 @@ fn test_wait_for_timeout() {
             0,
         ));
 
-        run_to_block(
-            System::block_number().saturating_add((duration * 2).into()),
-            None,
+        run_to_next_block(None);
+
+        // The waited message has been requeued.
+        assert_eq!(
+            System::events()
+                .iter()
+                .filter(|e| matches!(e.event, MockEvent::Gear(Event::MessageWaited { .. })))
+                .count(),
+            2
         );
     })
 }

@@ -26,7 +26,6 @@ mod code {
 
 #[cfg(feature = "std")]
 pub use code::WASM_BINARY_OPT as WASM_BINARY;
-use gstd::ActorId;
 
 #[cfg(not(feature = "std"))]
 mod wasm {
@@ -37,6 +36,5 @@ mod wasm {
 pub enum Command {
     Wait,
     WaitFor(u32),
-    WaitForAndSendMessage(ActorId, u32),
     WaitNoMore(u32),
 }
