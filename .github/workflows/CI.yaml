@@ -233,8 +233,14 @@ jobs:
       - name: "Test: Process gear-test"
         run: ./scripts/gear.sh test gtest
 
+      - name: "Rebuild: gear-node"
+        run: ./scripts/gear.sh build node --release
+
       - name: "Test: Process node runtime testsuite"
         run: ./scripts/gear.sh test rtest
+
+      - name: "Rebuild: gear-collator"
+        run: ./scripts/gear.sh build collator --release
 
       - name: "Test: Process collator runtime testsuite"
         run: ./scripts/gear.sh test collator_runtime
