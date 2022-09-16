@@ -1,15 +1,15 @@
 use std::fmt::Debug;
 
-use tokio::task::JoinHandle;
 use futures::Future;
-
-use super::args::Params;
+use tokio::task::JoinHandle;
 
 pub(crate) struct TaskPool<T>(Vec<JoinHandle<T>>);
 
 impl<T> TaskPool<T> {
-    pub(crate) fn new(params: &Params) -> Self {
-        Self(Vec::with_capacity(params.workers as usize))
+    const POOL_SIZE: usize = 100;
+
+    pub(crate) fn new() -> Self {
+        Self(Vec::with_capacity(Self::POOL_SIZE))
     }
 
     pub(crate) async fn run<Job>(&mut self, job_wrap: impl Fn() -> Job) -> Result<Vec<T>, ()>

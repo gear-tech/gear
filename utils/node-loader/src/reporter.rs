@@ -7,7 +7,7 @@
 #[derive(Debug)]
 pub(crate) struct Reporter {
     seed: u64,
-    reports: Vec<String>
+    reports: Vec<String>,
 }
 
 impl Reporter {
@@ -31,5 +31,3 @@ impl Reporter {
         println!("==============================================\n");
     }
 }
-
-

@@ -1,35 +1,66 @@
 //! CLI args for the `gear-node-loader`
 
+use std::str::FromStr;
+
 use structopt::StructOpt;
 
 #[derive(Debug, StructOpt)]
 #[structopt(name = "node-loader")]
-pub(crate) struct Params {
-    /// rpc node addr
+pub(crate) enum Params {
+    /// Dump the wasm program with provided seed to "out.wasm"
+    Dump {
+        /// Seed value used to generate program via wasm-gen
+        seed: u64,
+    },
+    /// Perform load test on the node
+    Load(LoadParams),
+}
+
+#[derive(Debug, StructOpt)]
+pub(crate) struct LoadParams {
     #[structopt(long, default_value = "ws://localhost:9944")]
-    pub endpoint: String,
+    pub(crate) endpoint: String,
 
-    /// user name
+    /// User name
     #[structopt(long, default_value = "//Alice")]
-    pub user: String,
+    pub(crate) user: String,
 
-    /// seed for random seeds generation
-    #[structopt(long, short, default_value = "0")]
-    pub seed: u64,
-
-    /// dump wasm into "out.wasm" for seed and stop work
-    #[structopt(long)]
-    pub dump_seed: Option<u64>,
-
-    /// generate program for seed and test it in inf loop
-    #[structopt(long)]
-    pub only_seed: Option<u64>,
-
-    /// amount of workers
-    #[structopt(long, short, default_value = "1")]
-    pub workers: u32,
+    /// Seed for random seeds generation. There are either 2 seed variants:
+    /// start or constant. Start sets starting seed value for the generator.
+    /// Constant sets constant seed which will be used in every test, therefore
+    /// generated input data (for example, program) for each test will be the same.
+    #[structopt(long, short, default_value = "start=0")]
+    pub(crate) seed: SeedVariant,
 }
 
 pub(crate) fn parse_cli_params() -> Params {
     Params::from_args()
+}
+
+#[derive(Debug)]
+pub(crate) enum SeedVariant {
+    Start(u64),
+    Constant(u64),
+}
+
+impl FromStr for SeedVariant {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let s = s.to_lowercase();
+        let input = s.split('=').collect::<Vec<_>>();
+        if input.len() != 2 {
+            return Err(format!(
+                "Invalid seed argument format {s:?}. Must be 'seed_variant=num'"
+            ));
+        }
+
+        let variant = input[0];
+        let num = input[1].parse::<u64>().map_err(|e| e.to_string())?;
+        match variant {
+            "start" => Ok(SeedVariant::Start(num)),
+            "constant" => Ok(SeedVariant::Constant(num)),
+            v => Err(format!("Invalid variant {v}")),
+        }
+    }
 }
