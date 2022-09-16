@@ -87,6 +87,8 @@ pub enum CodeError {
     StartSectionExists,
     /// We restrict custom sections in smart contracts.
     CustomSectionsExist,
+    /// The provided code has invalid count of static pages.
+    InvalidStaticPageCount,
 }
 
 /// Contains instrumented binary code of a program and initial memory size from memory import.
@@ -142,6 +144,10 @@ impl Code {
                 })
                 .ok_or(CodeError::MemoryEntryNotFound)?,
         );
+
+        if static_pages > MAX_WASM_PAGE_COUNT.into() {
+            return Err(CodeError::InvalidStaticPageCount);
+        }
 
         let exports = get_exports(&module, true)?;
 
