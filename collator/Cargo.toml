@@ -19,7 +19,7 @@ gear-cli = { package = "gear-collator-cli", path = "cli" }
 gear-service = { package = "gear-collator-service", path = "service", default-features = false }
 
 [features]
-default = ["rococo-gear-native", "lazy-pages"]
+default = ["rococo-gear-native"]
 rococo-gear-native = [
 	"gear-cli/rococo-gear-native",
 	"gear-service/rococo-gear-native",
