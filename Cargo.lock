@@ -432,14 +432,14 @@ dependencies = [
  "sc-network-gossip",
  "sc-utils",
  "sp-api",
- "sp-application-crypto 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-arithmetic 5.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-application-crypto",
+ "sp-arithmetic",
  "sp-blockchain",
  "sp-consensus",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-keystore 0.12.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-core",
+ "sp-keystore",
  "sp-mmr-primitives",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-runtime",
  "substrate-prometheus-endpoint",
  "thiserror",
  "wasm-timer",
@@ -460,8 +460,8 @@ dependencies = [
  "sc-rpc",
  "sc-utils",
  "serde",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-core",
+ "sp-runtime",
  "thiserror",
 ]
 
@@ -482,10 +482,10 @@ dependencies = [
  "parity-scale-codec",
  "scale-info",
  "sp-api",
- "sp-application-crypto 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-application-crypto",
+ "sp-core",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -1365,8 +1365,8 @@ dependencies = [
  "sc-chain-spec",
  "sc-cli",
  "sc-service",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-core",
+ "sp-runtime",
  "url",
 ]
 
@@ -1389,8 +1389,8 @@ dependencies = [
  "sc-client-api",
  "sp-api",
  "sp-consensus",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-core",
+ "sp-runtime",
  "tracing",
 ]
 
@@ -1410,15 +1410,15 @@ dependencies = [
  "sc-consensus-slots",
  "sc-telemetry",
  "sp-api",
- "sp-application-crypto 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-application-crypto",
  "sp-block-builder",
  "sp-blockchain",
  "sp-consensus",
  "sp-consensus-aura",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-inherents 4.0.0-dev (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-keystore 0.12.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-core",
+ "sp-inherents",
+ "sp-keystore",
+ "sp-runtime",
  "substrate-prometheus-endpoint",
  "tracing",
 ]
@@ -1439,8 +1439,8 @@ dependencies = [
  "sp-api",
  "sp-blockchain",
  "sp-consensus",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-trie 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-runtime",
+ "sp-trie",
  "tracing",
 ]
 
@@ -1463,9 +1463,9 @@ dependencies = [
  "sp-api",
  "sp-blockchain",
  "sp-consensus",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-state-machine 0.12.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-core",
+ "sp-runtime",
+ "sp-state-machine",
  "tracing",
 ]
 
@@ -1489,7 +1489,7 @@ dependencies = [
  "sp-api",
  "sp-consensus",
  "sp-maybe-compressed-blob",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-runtime",
  "tracing",
 ]
 
@@ -1516,8 +1516,8 @@ dependencies = [
  "sp-api",
  "sp-blockchain",
  "sp-consensus",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-core",
+ "sp-runtime",
  "tracing",
 ]
 
@@ -1527,16 +1527,16 @@ version = "0.1.0"
 source = "git+https://github.com/paritytech/cumulus?branch=polkadot-v0.9.26#e43b8b878a6fd0ca8b5e88d19822c4d777d3c677"
 dependencies = [
  "frame-executive",
- "frame-support 4.0.0-dev (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "frame-support",
  "frame-system",
  "pallet-aura",
  "parity-scale-codec",
  "scale-info",
  "serde",
- "sp-application-crypto 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-application-crypto",
  "sp-consensus-aura",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -1545,14 +1545,14 @@ version = "0.1.0"
 source = "git+https://github.com/paritytech/cumulus?branch=polkadot-v0.9.26#e43b8b878a6fd0ca8b5e88d19822c4d777d3c677"
 dependencies = [
  "cumulus-primitives-core",
- "frame-support 4.0.0-dev (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "frame-support",
  "frame-system",
  "log",
  "parity-scale-codec",
  "scale-info",
- "sp-io 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
  "xcm",
  "xcm-executor",
 ]
@@ -1566,7 +1566,7 @@ dependencies = [
  "cumulus-primitives-core",
  "cumulus-primitives-parachain-inherent",
  "environmental",
- "frame-support 4.0.0-dev (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "frame-support",
  "frame-system",
  "impl-trait-for-tuples",
  "log",
@@ -1575,14 +1575,14 @@ dependencies = [
  "polkadot-parachain",
  "scale-info",
  "serde",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-externalities 0.12.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-inherents 4.0.0-dev (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-io 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-state-machine 0.12.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-trie 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-core",
+ "sp-externalities",
+ "sp-inherents",
+ "sp-io",
+ "sp-runtime",
+ "sp-state-machine",
+ "sp-std",
+ "sp-trie",
  "sp-version",
  "xcm",
 ]
@@ -1604,12 +1604,12 @@ version = "3.0.0"
 source = "git+https://github.com/paritytech/cumulus?branch=polkadot-v0.9.26#e43b8b878a6fd0ca8b5e88d19822c4d777d3c677"
 dependencies = [
  "frame-benchmarking",
- "frame-support 4.0.0-dev (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "frame-support",
  "frame-system",
  "pallet-session",
  "parity-scale-codec",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -1618,14 +1618,14 @@ version = "0.1.0"
 source = "git+https://github.com/paritytech/cumulus?branch=polkadot-v0.9.26#e43b8b878a6fd0ca8b5e88d19822c4d777d3c677"
 dependencies = [
  "cumulus-primitives-core",
- "frame-support 4.0.0-dev (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "frame-support",
  "frame-system",
  "parity-scale-codec",
  "scale-info",
  "serde",
- "sp-io 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
  "xcm",
 ]
 
@@ -1636,14 +1636,14 @@ source = "git+https://github.com/paritytech/cumulus?branch=polkadot-v0.9.26#e43b
 dependencies = [
  "cumulus-primitives-core",
  "frame-benchmarking",
- "frame-support 4.0.0-dev (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "frame-support",
  "frame-system",
  "log",
  "parity-scale-codec",
  "rand_chacha 0.3.1",
  "scale-info",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-runtime",
+ "sp-std",
  "xcm",
  "xcm-executor",
 ]
@@ -1653,15 +1653,15 @@ name = "cumulus-primitives-core"
 version = "0.1.0"
 source = "git+https://github.com/paritytech/cumulus?branch=polkadot-v0.9.26#e43b8b878a6fd0ca8b5e88d19822c4d777d3c677"
 dependencies = [
- "frame-support 4.0.0-dev (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "frame-support",
  "parity-scale-codec",
  "polkadot-core-primitives",
  "polkadot-parachain",
  "polkadot-primitives",
  "sp-api",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-trie 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-runtime",
+ "sp-std",
+ "sp-trie",
 ]
 
 [[package]]
@@ -1677,13 +1677,13 @@ dependencies = [
  "sc-client-api",
  "scale-info",
  "sp-api",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-inherents 4.0.0-dev (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-state-machine 0.12.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-storage 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-trie 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-core",
+ "sp-inherents",
+ "sp-runtime",
+ "sp-state-machine",
+ "sp-std",
+ "sp-storage",
+ "sp-trie",
  "tracing",
 ]
 
@@ -1695,8 +1695,8 @@ dependencies = [
  "cumulus-primitives-core",
  "futures",
  "parity-scale-codec",
- "sp-inherents 4.0.0-dev (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-inherents",
+ "sp-std",
  "sp-timestamp",
 ]
 
@@ -1706,14 +1706,14 @@ version = "0.1.0"
 source = "git+https://github.com/paritytech/cumulus?branch=polkadot-v0.9.26#e43b8b878a6fd0ca8b5e88d19822c4d777d3c677"
 dependencies = [
  "cumulus-primitives-core",
- "frame-support 4.0.0-dev (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "frame-support",
  "parity-scale-codec",
  "polkadot-core-primitives",
  "polkadot-parachain",
  "polkadot-primitives",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-trie 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-runtime",
+ "sp-std",
+ "sp-trie",
  "xcm",
 ]
 
@@ -1741,9 +1741,9 @@ dependencies = [
  "sp-api",
  "sp-blockchain",
  "sp-consensus",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-state-machine 0.12.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-core",
+ "sp-runtime",
+ "sp-state-machine",
  "tracing",
 ]
 
@@ -1764,9 +1764,9 @@ dependencies = [
  "sc-client-api",
  "sp-api",
  "sp-blockchain",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-state-machine 0.12.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-core",
+ "sp-runtime",
+ "sp-state-machine",
  "thiserror",
 ]
 
@@ -1788,10 +1788,10 @@ dependencies = [
  "sc-client-api",
  "sc-rpc-api",
  "sp-api",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-state-machine 0.12.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-storage 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-core",
+ "sp-runtime",
+ "sp-state-machine",
+ "sp-storage",
  "tracing",
  "url",
 ]
@@ -1804,9 +1804,9 @@ dependencies = [
  "cumulus-primitives-core",
  "parity-scale-codec",
  "polkadot-primitives",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-state-machine 0.12.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-runtime",
+ "sp-state-machine",
+ "sp-std",
 ]
 
 [[package]]
@@ -2388,7 +2388,7 @@ dependencies = [
  "demo-mul-by-const",
  "demo-ncompose",
  "env_logger",
- "frame-support 4.0.0-dev (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "frame-support",
  "frame-system",
  "gear-common",
  "gear-core",
@@ -2408,11 +2408,11 @@ dependencies = [
  "serde",
  "sp-consensus-babe",
  "sp-consensus-slots",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-core",
  "sp-finality-grandpa",
- "sp-io 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
  "vara-runtime",
  "wasm-mutate",
  "wasmparser 0.90.0",
@@ -2814,7 +2814,7 @@ name = "frame-benchmarking"
 version = "4.0.0-dev"
 source = "git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26#d5950c412e763381bff77781e410f90d94f578dd"
 dependencies = [
- "frame-support 4.0.0-dev (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "frame-support",
  "frame-system",
  "linregress",
  "log",
@@ -2823,12 +2823,12 @@ dependencies = [
  "scale-info",
  "serde",
  "sp-api",
- "sp-application-crypto 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-io 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-runtime-interface 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-storage 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-application-crypto",
+ "sp-io",
+ "sp-runtime",
+ "sp-runtime-interface",
+ "sp-std",
+ "sp-storage",
 ]
 
 [[package]]
@@ -2841,7 +2841,7 @@ dependencies = [
  "clap 3.2.17",
  "comfy-table",
  "frame-benchmarking",
- "frame-support 4.0.0-dev (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "frame-support",
  "frame-system",
  "gethostname",
  "handlebars",
@@ -2868,15 +2868,15 @@ dependencies = [
  "serde_nanos",
  "sp-api",
  "sp-blockchain",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-core",
  "sp-database",
- "sp-externalities 0.12.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-inherents 4.0.0-dev (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-keystore 0.12.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-state-machine 0.12.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-storage 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-trie 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-externalities",
+ "sp-inherents",
+ "sp-keystore",
+ "sp-runtime",
+ "sp-state-machine",
+ "sp-storage",
+ "sp-trie",
  "tempfile",
  "thiserror",
  "thousands",
@@ -2899,14 +2899,14 @@ version = "4.0.0-dev"
 source = "git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26#d5950c412e763381bff77781e410f90d94f578dd"
 dependencies = [
  "frame-election-provider-solution-type",
- "frame-support 4.0.0-dev (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "frame-support",
  "frame-system",
  "parity-scale-codec",
  "scale-info",
- "sp-arithmetic 5.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-arithmetic",
  "sp-npos-elections",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -2914,15 +2914,15 @@ name = "frame-executive"
 version = "4.0.0-dev"
 source = "git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26#d5950c412e763381bff77781e410f90d94f578dd"
 dependencies = [
- "frame-support 4.0.0-dev (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "frame-support",
  "frame-system",
  "parity-scale-codec",
  "scale-info",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-io 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-tracing 5.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
+ "sp-tracing",
 ]
 
 [[package]]
@@ -2940,11 +2940,11 @@ dependencies = [
 [[package]]
 name = "frame-support"
 version = "4.0.0-dev"
-source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#abc134523a276ba867ec4ebd10dc16069401a9ed"
+source = "git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26#d5950c412e763381bff77781e410f90d94f578dd"
 dependencies = [
  "bitflags",
  "frame-metadata",
- "frame-support-procedural 4.0.0-dev (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "frame-support-procedural",
  "impl-trait-for-tuples",
  "k256",
  "log",
@@ -2954,59 +2954,17 @@ dependencies = [
  "scale-info",
  "serde",
  "smallvec",
- "sp-arithmetic 5.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-core-hashing-proc-macro 5.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-inherents 4.0.0-dev (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-io 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-staking 4.0.0-dev (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-state-machine 0.12.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-tracing 5.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-arithmetic",
+ "sp-core",
+ "sp-core-hashing-proc-macro",
+ "sp-inherents",
+ "sp-io",
+ "sp-runtime",
+ "sp-staking",
+ "sp-state-machine",
+ "sp-std",
+ "sp-tracing",
  "tt-call",
-]
-
-[[package]]
-name = "frame-support"
-version = "4.0.0-dev"
-source = "git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26#d5950c412e763381bff77781e410f90d94f578dd"
-dependencies = [
- "bitflags",
- "frame-metadata",
- "frame-support-procedural 4.0.0-dev (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "impl-trait-for-tuples",
- "k256",
- "log",
- "once_cell",
- "parity-scale-codec",
- "paste",
- "scale-info",
- "serde",
- "smallvec",
- "sp-arithmetic 5.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-core-hashing-proc-macro 5.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-inherents 4.0.0-dev (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-io 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-staking 4.0.0-dev (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-state-machine 0.12.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-tracing 5.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "tt-call",
-]
-
-[[package]]
-name = "frame-support-procedural"
-version = "4.0.0-dev"
-source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#abc134523a276ba867ec4ebd10dc16069401a9ed"
-dependencies = [
- "Inflector",
- "frame-support-procedural-tools 4.0.0-dev (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "proc-macro2",
- "quote",
- "syn",
 ]
 
 [[package]]
@@ -3015,19 +2973,7 @@ version = "4.0.0-dev"
 source = "git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26#d5950c412e763381bff77781e410f90d94f578dd"
 dependencies = [
  "Inflector",
- "frame-support-procedural-tools 4.0.0-dev (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "proc-macro2",
- "quote",
- "syn",
-]
-
-[[package]]
-name = "frame-support-procedural-tools"
-version = "4.0.0-dev"
-source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#abc134523a276ba867ec4ebd10dc16069401a9ed"
-dependencies = [
- "frame-support-procedural-tools-derive 3.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "proc-macro-crate",
+ "frame-support-procedural-tools",
  "proc-macro2",
  "quote",
  "syn",
@@ -3038,18 +2984,8 @@ name = "frame-support-procedural-tools"
 version = "4.0.0-dev"
 source = "git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26#d5950c412e763381bff77781e410f90d94f578dd"
 dependencies = [
- "frame-support-procedural-tools-derive 3.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "frame-support-procedural-tools-derive",
  "proc-macro-crate",
- "proc-macro2",
- "quote",
- "syn",
-]
-
-[[package]]
-name = "frame-support-procedural-tools-derive"
-version = "3.0.0"
-source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#abc134523a276ba867ec4ebd10dc16069401a9ed"
-dependencies = [
  "proc-macro2",
  "quote",
  "syn",
@@ -3070,15 +3006,15 @@ name = "frame-system"
 version = "4.0.0-dev"
 source = "git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26#d5950c412e763381bff77781e410f90d94f578dd"
 dependencies = [
- "frame-support 4.0.0-dev (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "frame-support",
  "log",
  "parity-scale-codec",
  "scale-info",
  "serde",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-io 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
  "sp-version",
 ]
 
@@ -3088,13 +3024,13 @@ version = "4.0.0-dev"
 source = "git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26#d5950c412e763381bff77781e410f90d94f578dd"
 dependencies = [
  "frame-benchmarking",
- "frame-support 4.0.0-dev (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "frame-support",
  "frame-system",
  "parity-scale-codec",
  "scale-info",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-core",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -3111,10 +3047,10 @@ name = "frame-try-runtime"
 version = "0.10.0-dev"
 source = "git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26#d5950c412e763381bff77781e410f90d94f578dd"
 dependencies = [
- "frame-support 4.0.0-dev (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "frame-support",
  "sp-api",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -3362,10 +3298,10 @@ dependencies = [
  "sc-client-api",
  "sc-service",
  "scale-info",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-inherents 4.0.0-dev (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-core",
+ "sp-inherents",
  "sp-keyring",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-runtime",
  "sp-timestamp",
  "substrate-build-script-utils",
  "try-runtime-cli",
@@ -3406,10 +3342,10 @@ dependencies = [
  "sc-sysinfo",
  "sc-telemetry",
  "scale-info",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-inherents 4.0.0-dev (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-core",
+ "sp-inherents",
  "sp-keyring",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-runtime",
  "sp-timestamp",
  "substrate-build-script-utils",
  "try-runtime-cli",
@@ -3468,15 +3404,15 @@ dependencies = [
  "sp-blockchain",
  "sp-consensus",
  "sp-consensus-aura",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-keystore 0.12.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-core",
+ "sp-keystore",
  "sp-offchain",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-runtime",
  "sp-session",
- "sp-storage 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-storage",
  "sp-timestamp",
  "sp-transaction-pool",
- "sp-trie 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-trie",
  "substrate-build-script-utils",
  "substrate-frame-rpc-system",
  "substrate-prometheus-endpoint",
@@ -3490,7 +3426,7 @@ version = "0.1.0"
 dependencies = [
  "derive_more",
  "frame-benchmarking",
- "frame-support 4.0.0-dev (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "frame-support",
  "frame-system",
  "gear-common-codegen",
  "gear-core",
@@ -3501,11 +3437,11 @@ dependencies = [
  "primitive-types",
  "proptest",
  "scale-info",
- "sp-arithmetic 5.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-io 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-arithmetic",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
  "wasm-instrument 0.2.1",
 ]
 
@@ -3572,8 +3508,8 @@ dependencies = [
  "nix 0.25.0",
  "once_cell",
  "region 3.0.0",
- "sp-io 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-io",
+ "sp-std",
  "static_assertions",
  "winapi",
 ]
@@ -3587,7 +3523,7 @@ dependencies = [
  "gear-core",
  "gear-runtime-interface",
  "log",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-std",
 ]
 
 [[package]]
@@ -3604,7 +3540,7 @@ version = "0.1.0"
 dependencies = [
  "frame-benchmarking",
  "frame-executive",
- "frame-support 4.0.0-dev (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "frame-support",
  "frame-system",
  "frame-system-benchmarking",
  "frame-system-rpc-runtime-api",
@@ -3637,12 +3573,12 @@ dependencies = [
  "sp-api",
  "sp-block-builder",
  "sp-consensus-babe",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-inherents 4.0.0-dev (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-core",
+ "sp-inherents",
  "sp-offchain",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-runtime",
  "sp-session",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-std",
  "sp-transaction-pool",
  "sp-version",
  "substrate-wasm-builder",
@@ -3653,15 +3589,15 @@ name = "gear-runtime-common"
 version = "0.1.0"
 dependencies = [
  "frame-benchmarking",
- "frame-support 4.0.0-dev (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "frame-support",
  "frame-system",
  "frame-system-benchmarking",
  "gear-common",
  "gear-runtime-primitives",
  "pallet-authorship",
  "pallet-balances",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -3677,8 +3613,8 @@ dependencies = [
  "nix 0.24.2",
  "parity-scale-codec",
  "region 3.0.0",
- "sp-runtime-interface 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-runtime-interface",
+ "sp-std",
  "static_assertions",
  "winapi",
 ]
@@ -3687,8 +3623,8 @@ dependencies = [
 name = "gear-runtime-primitives"
 version = "0.1.0"
 dependencies = [
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-core",
+ "sp-runtime",
 ]
 
 [[package]]
@@ -3698,7 +3634,7 @@ dependencies = [
  "anyhow",
  "clap 3.2.17",
  "colored",
- "frame-support 4.0.0-dev (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "frame-support",
  "frame-system",
  "gear-common",
  "gear-core",
@@ -3722,10 +3658,10 @@ dependencies = [
  "sp-consensus-aura",
  "sp-consensus-babe",
  "sp-consensus-slots",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-core",
  "sp-finality-grandpa",
- "sp-io 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-io",
+ "sp-runtime",
  "vara-runtime",
 ]
 
@@ -3769,15 +3705,15 @@ dependencies = [
  "sp-blockchain",
  "sp-consensus",
  "sp-consensus-babe",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-core",
  "sp-finality-grandpa",
  "sp-offchain",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-runtime",
  "sp-session",
- "sp-storage 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-storage",
  "sp-timestamp",
  "sp-transaction-pool",
- "sp-trie 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-trie",
  "substrate-build-script-utils",
  "substrate-frame-rpc-system",
  "try-runtime-cli",
@@ -4579,7 +4515,7 @@ dependencies = [
  "bitvec",
  "frame-election-provider-support",
  "frame-executive",
- "frame-support 4.0.0-dev (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "frame-support",
  "frame-system",
  "frame-system-rpc-runtime-api",
  "frame-try-runtime",
@@ -4631,20 +4567,20 @@ dependencies = [
  "serde_derive",
  "smallvec",
  "sp-api",
- "sp-arithmetic 5.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-arithmetic",
  "sp-authority-discovery",
  "sp-block-builder",
  "sp-consensus-babe",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-inherents 4.0.0-dev (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-io 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-core",
+ "sp-inherents",
+ "sp-io",
  "sp-mmr-primitives",
  "sp-npos-elections",
  "sp-offchain",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-runtime",
  "sp-session",
- "sp-staking 4.0.0-dev (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-staking",
+ "sp-std",
  "sp-transaction-pool",
  "sp-version",
  "static_assertions",
@@ -4659,11 +4595,11 @@ name = "kusama-runtime-constants"
 version = "0.9.26"
 source = "git+https://github.com/paritytech/polkadot?branch=release-v0.9.26#d8785970175dce344f2a6ad1cd88297529a6dd59"
 dependencies = [
- "frame-support 4.0.0-dev (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "frame-support",
  "polkadot-primitives",
  "polkadot-runtime-common",
  "smallvec",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-runtime",
 ]
 
 [[package]]
@@ -6119,15 +6055,15 @@ name = "pallet-aura"
 version = "4.0.0-dev"
 source = "git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26#d5950c412e763381bff77781e410f90d94f578dd"
 dependencies = [
- "frame-support 4.0.0-dev (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "frame-support",
  "frame-system",
  "pallet-timestamp",
  "parity-scale-codec",
  "scale-info",
- "sp-application-crypto 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-application-crypto",
  "sp-consensus-aura",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -6135,15 +6071,15 @@ name = "pallet-authority-discovery"
 version = "4.0.0-dev"
 source = "git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26#d5950c412e763381bff77781e410f90d94f578dd"
 dependencies = [
- "frame-support 4.0.0-dev (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "frame-support",
  "frame-system",
  "pallet-session",
  "parity-scale-codec",
  "scale-info",
- "sp-application-crypto 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-application-crypto",
  "sp-authority-discovery",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -6151,14 +6087,14 @@ name = "pallet-authorship"
 version = "4.0.0-dev"
 source = "git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26#d5950c412e763381bff77781e410f90d94f578dd"
 dependencies = [
- "frame-support 4.0.0-dev (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "frame-support",
  "frame-system",
  "impl-trait-for-tuples",
  "parity-scale-codec",
  "scale-info",
  "sp-authorship",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -6167,7 +6103,7 @@ version = "4.0.0-dev"
 source = "git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26#d5950c412e763381bff77781e410f90d94f578dd"
 dependencies = [
  "frame-benchmarking",
- "frame-support 4.0.0-dev (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "frame-support",
  "frame-system",
  "log",
  "pallet-authorship",
@@ -6175,14 +6111,14 @@ dependencies = [
  "pallet-timestamp",
  "parity-scale-codec",
  "scale-info",
- "sp-application-crypto 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-application-crypto",
  "sp-consensus-babe",
  "sp-consensus-vrf",
- "sp-io 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-io",
+ "sp-runtime",
  "sp-session",
- "sp-staking 4.0.0-dev (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-staking",
+ "sp-std",
 ]
 
 [[package]]
@@ -6191,13 +6127,13 @@ version = "4.0.0-dev"
 source = "git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26#d5950c412e763381bff77781e410f90d94f578dd"
 dependencies = [
  "frame-election-provider-support",
- "frame-support 4.0.0-dev (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "frame-support",
  "frame-system",
  "log",
  "parity-scale-codec",
  "scale-info",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -6206,13 +6142,13 @@ version = "4.0.0-dev"
 source = "git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26#d5950c412e763381bff77781e410f90d94f578dd"
 dependencies = [
  "frame-benchmarking",
- "frame-support 4.0.0-dev (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "frame-support",
  "frame-system",
  "log",
  "parity-scale-codec",
  "scale-info",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -6221,14 +6157,14 @@ version = "4.0.0-dev"
 source = "git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26#d5950c412e763381bff77781e410f90d94f578dd"
 dependencies = [
  "beefy-primitives",
- "frame-support 4.0.0-dev (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "frame-support",
  "frame-system",
  "pallet-session",
  "parity-scale-codec",
  "scale-info",
  "serde",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -6238,7 +6174,7 @@ source = "git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.2
 dependencies = [
  "beefy-merkle-tree",
  "beefy-primitives",
- "frame-support 4.0.0-dev (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "frame-support",
  "frame-system",
  "hex",
  "log",
@@ -6248,10 +6184,10 @@ dependencies = [
  "parity-scale-codec",
  "scale-info",
  "serde",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-io 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -6259,16 +6195,16 @@ name = "pallet-bounties"
 version = "4.0.0-dev"
 source = "git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26#d5950c412e763381bff77781e410f90d94f578dd"
 dependencies = [
- "frame-support 4.0.0-dev (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "frame-support",
  "frame-system",
  "log",
  "pallet-treasury",
  "parity-scale-codec",
  "scale-info",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-io 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -6276,17 +6212,17 @@ name = "pallet-child-bounties"
 version = "4.0.0-dev"
 source = "git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26#d5950c412e763381bff77781e410f90d94f578dd"
 dependencies = [
- "frame-support 4.0.0-dev (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "frame-support",
  "frame-system",
  "log",
  "pallet-bounties",
  "pallet-treasury",
  "parity-scale-codec",
  "scale-info",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-io 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -6295,7 +6231,7 @@ version = "3.0.0"
 source = "git+https://github.com/paritytech/cumulus?branch=polkadot-v0.9.26#e43b8b878a6fd0ca8b5e88d19822c4d777d3c677"
 dependencies = [
  "frame-benchmarking",
- "frame-support 4.0.0-dev (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "frame-support",
  "frame-system",
  "log",
  "pallet-authorship",
@@ -6304,9 +6240,9 @@ dependencies = [
  "rand 0.8.5",
  "scale-info",
  "serde",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-staking 4.0.0-dev (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-runtime",
+ "sp-staking",
+ "sp-std",
 ]
 
 [[package]]
@@ -6315,15 +6251,15 @@ version = "4.0.0-dev"
 source = "git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26#d5950c412e763381bff77781e410f90d94f578dd"
 dependencies = [
  "frame-benchmarking",
- "frame-support 4.0.0-dev (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "frame-support",
  "frame-system",
  "log",
  "parity-scale-codec",
  "scale-info",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-io 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -6332,14 +6268,14 @@ version = "4.0.0-dev"
 source = "git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26#d5950c412e763381bff77781e410f90d94f578dd"
 dependencies = [
  "frame-benchmarking",
- "frame-support 4.0.0-dev (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "frame-support",
  "frame-system",
  "parity-scale-codec",
  "scale-info",
  "serde",
- "sp-io 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -6349,18 +6285,18 @@ source = "git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.2
 dependencies = [
  "frame-benchmarking",
  "frame-election-provider-support",
- "frame-support 4.0.0-dev (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "frame-support",
  "frame-system",
  "log",
  "parity-scale-codec",
  "rand 0.7.3",
  "scale-info",
- "sp-arithmetic 5.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-io 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-arithmetic",
+ "sp-core",
+ "sp-io",
  "sp-npos-elections",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-runtime",
+ "sp-std",
  "static_assertions",
  "strum 0.23.0",
 ]
@@ -6370,16 +6306,16 @@ name = "pallet-elections-phragmen"
 version = "5.0.0-dev"
 source = "git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26#d5950c412e763381bff77781e410f90d94f578dd"
 dependencies = [
- "frame-support 4.0.0-dev (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "frame-support",
  "frame-system",
  "log",
  "parity-scale-codec",
  "scale-info",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-io 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-core",
+ "sp-io",
  "sp-npos-elections",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -6412,7 +6348,7 @@ dependencies = [
  "derive_more",
  "env_logger",
  "frame-benchmarking",
- "frame-support 4.0.0-dev (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "frame-support",
  "frame-system",
  "gear-backend-common",
  "gear-backend-sandbox",
@@ -6440,12 +6376,12 @@ dependencies = [
  "serde",
  "sp-consensus-aura",
  "sp-consensus-babe",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-externalities 0.12.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-io 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-core",
+ "sp-externalities",
+ "sp-io",
+ "sp-runtime",
  "sp-sandbox",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-std",
  "wabt",
  "wasm-instrument 0.2.1",
 ]
@@ -6456,7 +6392,7 @@ version = "2.0.0"
 dependencies = [
  "env_logger",
  "frame-benchmarking",
- "frame-support 4.0.0-dev (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "frame-support",
  "frame-system",
  "gear-backend-sandbox",
  "gear-common",
@@ -6475,10 +6411,10 @@ dependencies = [
  "primitive-types",
  "scale-info",
  "serde",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-io 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
  "wabt",
 ]
 
@@ -6488,7 +6424,7 @@ version = "2.0.0"
 dependencies = [
  "env_logger",
  "frame-benchmarking",
- "frame-support 4.0.0-dev (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "frame-support",
  "frame-system",
  "gear-common",
  "gear-core",
@@ -6500,9 +6436,9 @@ dependencies = [
  "primitive-types",
  "scale-info",
  "serde",
- "sp-io 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
  "wabt",
 ]
 
@@ -6512,7 +6448,7 @@ version = "1.0.0"
 dependencies = [
  "env_logger",
  "frame-benchmarking",
- "frame-support 4.0.0-dev (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "frame-support",
  "frame-system",
  "gear-common",
  "gear-core",
@@ -6524,9 +6460,9 @@ dependencies = [
  "parity-scale-codec",
  "primitive-types",
  "scale-info",
- "sp-io 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -6535,7 +6471,7 @@ version = "0.1.0"
 dependencies = [
  "env_logger",
  "frame-benchmarking",
- "frame-support 4.0.0-dev (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "frame-support",
  "frame-system",
  "gear-common",
  "gear-core",
@@ -6554,9 +6490,9 @@ dependencies = [
  "primitive-types",
  "scale-info",
  "serde",
- "sp-io 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
  "wabt",
 ]
 
@@ -6575,7 +6511,7 @@ version = "2.0.0"
 dependencies = [
  "env_logger",
  "frame-benchmarking",
- "frame-support 4.0.0-dev (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "frame-support",
  "frame-system",
  "gear-common",
  "gear-core",
@@ -6587,10 +6523,10 @@ dependencies = [
  "parity-scale-codec",
  "primitive-types",
  "scale-info",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-io 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
  "wasm-instrument 0.2.1",
 ]
 
@@ -6604,9 +6540,9 @@ dependencies = [
  "pallet-gear-rpc-runtime-api",
  "sp-api",
  "sp-blockchain",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-core",
  "sp-rpc",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-runtime",
 ]
 
 [[package]]
@@ -6615,8 +6551,8 @@ version = "2.0.0"
 dependencies = [
  "pallet-gear",
  "sp-api",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-core",
+ "sp-std",
 ]
 
 [[package]]
@@ -6625,7 +6561,7 @@ version = "1.0.0"
 dependencies = [
  "env_logger",
  "frame-benchmarking",
- "frame-support 4.0.0-dev (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "frame-support",
  "frame-system",
  "gear-common",
  "gear-core",
@@ -6641,10 +6577,10 @@ dependencies = [
  "parity-scale-codec",
  "primitive-types",
  "scale-info",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-io 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -6653,13 +6589,13 @@ version = "4.0.0-dev"
 source = "git+https://github.com/paritytech/substrate?branch=polkadot-v0.9.26#e8a7d161f39db70cb27fdad6c6e215cf493ebc3b"
 dependencies = [
  "frame-benchmarking",
- "frame-support 4.0.0-dev (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "frame-support",
  "frame-system",
  "parity-scale-codec",
  "scale-info",
- "sp-arithmetic 5.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-arithmetic",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -6668,21 +6604,21 @@ version = "4.0.0-dev"
 source = "git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26#d5950c412e763381bff77781e410f90d94f578dd"
 dependencies = [
  "frame-benchmarking",
- "frame-support 4.0.0-dev (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "frame-support",
  "frame-system",
  "log",
  "pallet-authorship",
  "pallet-session",
  "parity-scale-codec",
  "scale-info",
- "sp-application-crypto 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-application-crypto",
+ "sp-core",
  "sp-finality-grandpa",
- "sp-io 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-io",
+ "sp-runtime",
  "sp-session",
- "sp-staking 4.0.0-dev (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-staking",
+ "sp-std",
 ]
 
 [[package]]
@@ -6692,13 +6628,13 @@ source = "git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.2
 dependencies = [
  "enumflags2",
  "frame-benchmarking",
- "frame-support 4.0.0-dev (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "frame-support",
  "frame-system",
  "parity-scale-codec",
  "scale-info",
- "sp-io 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -6706,18 +6642,18 @@ name = "pallet-im-online"
 version = "4.0.0-dev"
 source = "git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26#d5950c412e763381bff77781e410f90d94f578dd"
 dependencies = [
- "frame-support 4.0.0-dev (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "frame-support",
  "frame-system",
  "log",
  "pallet-authorship",
  "parity-scale-codec",
  "scale-info",
- "sp-application-crypto 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-io 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-staking 4.0.0-dev (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-application-crypto",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
+ "sp-staking",
+ "sp-std",
 ]
 
 [[package]]
@@ -6725,15 +6661,15 @@ name = "pallet-indices"
 version = "4.0.0-dev"
 source = "git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26#d5950c412e763381bff77781e410f90d94f578dd"
 dependencies = [
- "frame-support 4.0.0-dev (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "frame-support",
  "frame-system",
  "parity-scale-codec",
  "scale-info",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-io 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-core",
+ "sp-io",
  "sp-keyring",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -6742,15 +6678,15 @@ version = "4.0.0-dev"
 source = "git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26#d5950c412e763381bff77781e410f90d94f578dd"
 dependencies = [
  "frame-benchmarking",
- "frame-support 4.0.0-dev (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "frame-support",
  "frame-system",
  "log",
  "parity-scale-codec",
  "scale-info",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-io 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -6760,15 +6696,15 @@ source = "git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.2
 dependencies = [
  "ckb-merkle-mountain-range",
  "frame-benchmarking",
- "frame-support 4.0.0-dev (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "frame-support",
  "frame-system",
  "parity-scale-codec",
  "scale-info",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-io 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-core",
+ "sp-io",
  "sp-mmr-primitives",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -6781,9 +6717,9 @@ dependencies = [
  "serde",
  "sp-api",
  "sp-blockchain",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-core",
  "sp-mmr-primitives",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-runtime",
 ]
 
 [[package]]
@@ -6791,13 +6727,13 @@ name = "pallet-multisig"
 version = "4.0.0-dev"
 source = "git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26#d5950c412e763381bff77781e410f90d94f578dd"
 dependencies = [
- "frame-support 4.0.0-dev (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "frame-support",
  "frame-system",
  "parity-scale-codec",
  "scale-info",
- "sp-io 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -6805,16 +6741,16 @@ name = "pallet-nomination-pools"
 version = "1.0.0"
 source = "git+https://github.com/paritytech/substrate?branch=polkadot-v0.9.26#e8a7d161f39db70cb27fdad6c6e215cf493ebc3b"
 dependencies = [
- "frame-support 4.0.0-dev (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "frame-support",
  "frame-system",
  "log",
  "parity-scale-codec",
  "scale-info",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-io 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-staking 4.0.0-dev (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
+ "sp-staking",
+ "sp-std",
 ]
 
 [[package]]
@@ -6822,16 +6758,16 @@ name = "pallet-offences"
 version = "4.0.0-dev"
 source = "git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26#d5950c412e763381bff77781e410f90d94f578dd"
 dependencies = [
- "frame-support 4.0.0-dev (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "frame-support",
  "frame-system",
  "log",
  "pallet-balances",
  "parity-scale-codec",
  "scale-info",
  "serde",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-staking 4.0.0-dev (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-runtime",
+ "sp-staking",
+ "sp-std",
 ]
 
 [[package]]
@@ -6840,14 +6776,14 @@ version = "4.0.0-dev"
 source = "git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26#d5950c412e763381bff77781e410f90d94f578dd"
 dependencies = [
  "frame-benchmarking",
- "frame-support 4.0.0-dev (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "frame-support",
  "frame-system",
  "parity-scale-codec",
  "scale-info",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-io 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -6855,13 +6791,13 @@ name = "pallet-proxy"
 version = "4.0.0-dev"
 source = "git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26#d5950c412e763381bff77781e410f90d94f578dd"
 dependencies = [
- "frame-support 4.0.0-dev (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "frame-support",
  "frame-system",
  "parity-scale-codec",
  "scale-info",
- "sp-io 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -6870,13 +6806,13 @@ version = "4.0.0-dev"
 source = "git+https://github.com/paritytech/substrate?branch=polkadot-v0.9.26#e8a7d161f39db70cb27fdad6c6e215cf493ebc3b"
 dependencies = [
  "frame-benchmarking",
- "frame-support 4.0.0-dev (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "frame-support",
  "frame-system",
  "parity-scale-codec",
  "scale-info",
- "sp-io 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -6885,14 +6821,14 @@ version = "4.0.0-dev"
 source = "git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26#d5950c412e763381bff77781e410f90d94f578dd"
 dependencies = [
  "frame-benchmarking",
- "frame-support 4.0.0-dev (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "frame-support",
  "frame-system",
  "log",
  "parity-scale-codec",
  "scale-info",
- "sp-io 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -6900,20 +6836,20 @@ name = "pallet-session"
 version = "4.0.0-dev"
 source = "git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26#d5950c412e763381bff77781e410f90d94f578dd"
 dependencies = [
- "frame-support 4.0.0-dev (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "frame-support",
  "frame-system",
  "impl-trait-for-tuples",
  "log",
  "pallet-timestamp",
  "parity-scale-codec",
  "scale-info",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-io 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
  "sp-session",
- "sp-staking 4.0.0-dev (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-trie 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-staking",
+ "sp-std",
+ "sp-trie",
 ]
 
 [[package]]
@@ -6921,13 +6857,13 @@ name = "pallet-society"
 version = "4.0.0-dev"
 source = "git+https://github.com/paritytech/substrate?branch=polkadot-v0.9.26#e8a7d161f39db70cb27fdad6c6e215cf493ebc3b"
 dependencies = [
- "frame-support 4.0.0-dev (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "frame-support",
  "frame-system",
  "parity-scale-codec",
  "rand_chacha 0.2.2",
  "scale-info",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -6936,7 +6872,7 @@ version = "4.0.0-dev"
 source = "git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26#d5950c412e763381bff77781e410f90d94f578dd"
 dependencies = [
  "frame-election-provider-support",
- "frame-support 4.0.0-dev (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "frame-support",
  "frame-system",
  "log",
  "pallet-authorship",
@@ -6944,11 +6880,11 @@ dependencies = [
  "parity-scale-codec",
  "scale-info",
  "serde",
- "sp-application-crypto 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-io 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-staking 4.0.0-dev (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-application-crypto",
+ "sp-io",
+ "sp-runtime",
+ "sp-staking",
+ "sp-std",
 ]
 
 [[package]]
@@ -6968,7 +6904,7 @@ version = "4.0.0-dev"
 source = "git+https://github.com/paritytech/substrate?branch=polkadot-v0.9.26#e8a7d161f39db70cb27fdad6c6e215cf493ebc3b"
 dependencies = [
  "log",
- "sp-arithmetic 5.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-arithmetic",
 ]
 
 [[package]]
@@ -6976,13 +6912,13 @@ name = "pallet-sudo"
 version = "4.0.0-dev"
 source = "git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26#d5950c412e763381bff77781e410f90d94f578dd"
 dependencies = [
- "frame-support 4.0.0-dev (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "frame-support",
  "frame-system",
  "parity-scale-codec",
  "scale-info",
- "sp-io 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -6991,15 +6927,15 @@ version = "4.0.0-dev"
 source = "git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26#d5950c412e763381bff77781e410f90d94f578dd"
 dependencies = [
  "frame-benchmarking",
- "frame-support 4.0.0-dev (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "frame-support",
  "frame-system",
  "log",
  "parity-scale-codec",
  "scale-info",
- "sp-inherents 4.0.0-dev (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-io 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-inherents",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
  "sp-timestamp",
 ]
 
@@ -7008,17 +6944,17 @@ name = "pallet-tips"
 version = "4.0.0-dev"
 source = "git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26#d5950c412e763381bff77781e410f90d94f578dd"
 dependencies = [
- "frame-support 4.0.0-dev (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "frame-support",
  "frame-system",
  "log",
  "pallet-treasury",
  "parity-scale-codec",
  "scale-info",
  "serde",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-io 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -7026,15 +6962,15 @@ name = "pallet-transaction-payment"
 version = "4.0.0-dev"
 source = "git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26#d5950c412e763381bff77781e410f90d94f578dd"
 dependencies = [
- "frame-support 4.0.0-dev (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "frame-support",
  "frame-system",
  "parity-scale-codec",
  "scale-info",
  "serde",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-io 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -7047,9 +6983,9 @@ dependencies = [
  "parity-scale-codec",
  "sp-api",
  "sp-blockchain",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-core",
  "sp-rpc",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-runtime",
 ]
 
 [[package]]
@@ -7060,7 +6996,7 @@ dependencies = [
  "pallet-transaction-payment",
  "parity-scale-codec",
  "sp-api",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-runtime",
 ]
 
 [[package]]
@@ -7068,15 +7004,15 @@ name = "pallet-treasury"
 version = "4.0.0-dev"
 source = "git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26#d5950c412e763381bff77781e410f90d94f578dd"
 dependencies = [
- "frame-support 4.0.0-dev (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "frame-support",
  "frame-system",
  "impl-trait-for-tuples",
  "pallet-balances",
  "parity-scale-codec",
  "scale-info",
  "serde",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -7085,14 +7021,14 @@ version = "4.0.0-dev"
 source = "git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26#d5950c412e763381bff77781e410f90d94f578dd"
 dependencies = [
  "frame-benchmarking",
- "frame-support 4.0.0-dev (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "frame-support",
  "frame-system",
  "parity-scale-codec",
  "scale-info",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-io 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -7100,13 +7036,13 @@ name = "pallet-vesting"
 version = "4.0.0-dev"
 source = "git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26#d5950c412e763381bff77781e410f90d94f578dd"
 dependencies = [
- "frame-support 4.0.0-dev (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "frame-support",
  "frame-system",
  "log",
  "parity-scale-codec",
  "scale-info",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -7114,15 +7050,15 @@ name = "pallet-xcm"
 version = "0.9.26"
 source = "git+https://github.com/paritytech/polkadot?branch=release-v0.9.26#d8785970175dce344f2a6ad1cd88297529a6dd59"
 dependencies = [
- "frame-support 4.0.0-dev (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "frame-support",
  "frame-system",
  "log",
  "parity-scale-codec",
  "scale-info",
  "serde",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-core",
+ "sp-runtime",
+ "sp-std",
  "xcm",
  "xcm-executor",
 ]
@@ -7144,7 +7080,7 @@ version = "0.1.0"
 source = "git+https://github.com/paritytech/cumulus?branch=polkadot-v0.9.26#e43b8b878a6fd0ca8b5e88d19822c4d777d3c677"
 dependencies = [
  "cumulus-primitives-core",
- "frame-support 4.0.0-dev (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "frame-support",
  "frame-system",
  "parity-scale-codec",
  "scale-info",
@@ -7501,8 +7437,8 @@ dependencies = [
  "polkadot-node-subsystem-util",
  "polkadot-primitives",
  "rand 0.8.5",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-keystore 0.12.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-core",
+ "sp-keystore",
  "thiserror",
  "tracing-gum",
 ]
@@ -7546,8 +7482,8 @@ dependencies = [
  "sc-service",
  "sc-sysinfo",
  "sc-tracing",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-trie 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-core",
+ "sp-trie",
  "substrate-build-script-utils",
  "thiserror",
  "try-runtime-cli",
@@ -7580,15 +7516,15 @@ dependencies = [
  "sp-blockchain",
  "sp-consensus",
  "sp-consensus-babe",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-core",
  "sp-finality-grandpa",
- "sp-inherents 4.0.0-dev (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-inherents",
  "sp-keyring",
  "sp-mmr-primitives",
  "sp-offchain",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-runtime",
  "sp-session",
- "sp-storage 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-storage",
  "sp-timestamp",
  "sp-transaction-pool",
 ]
@@ -7607,9 +7543,9 @@ dependencies = [
  "polkadot-node-subsystem",
  "polkadot-node-subsystem-util",
  "polkadot-primitives",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-keystore 0.12.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-core",
+ "sp-keystore",
+ "sp-runtime",
  "thiserror",
  "tracing-gum",
 ]
@@ -7622,9 +7558,9 @@ dependencies = [
  "parity-scale-codec",
  "parity-util-mem",
  "scale-info",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-core",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -7644,8 +7580,8 @@ dependencies = [
  "polkadot-node-subsystem-util",
  "polkadot-primitives",
  "sc-network",
- "sp-application-crypto 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-keystore 0.12.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-application-crypto",
+ "sp-keystore",
  "thiserror",
  "tracing-gum",
 ]
@@ -7659,8 +7595,8 @@ dependencies = [
  "polkadot-node-primitives",
  "polkadot-primitives",
  "reed-solomon-novelpoly",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-trie 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-core",
+ "sp-trie",
  "thiserror",
 ]
 
@@ -7678,9 +7614,9 @@ dependencies = [
  "rand 0.8.5",
  "rand_chacha 0.3.1",
  "sc-network",
- "sp-application-crypto 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-keystore 0.12.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-application-crypto",
+ "sp-core",
+ "sp-keystore",
  "tracing-gum",
 ]
 
@@ -7717,7 +7653,7 @@ dependencies = [
  "polkadot-node-subsystem",
  "polkadot-node-subsystem-util",
  "polkadot-primitives",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-core",
  "sp-maybe-compressed-blob",
  "thiserror",
  "tracing-gum",
@@ -7744,10 +7680,10 @@ dependencies = [
  "polkadot-primitives",
  "sc-keystore",
  "schnorrkel",
- "sp-application-crypto 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-application-crypto",
  "sp-consensus",
  "sp-consensus-slots",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-runtime",
  "thiserror",
  "tracing-gum",
 ]
@@ -7786,7 +7722,7 @@ dependencies = [
  "polkadot-node-subsystem-util",
  "polkadot-primitives",
  "polkadot-statement-table",
- "sp-keystore 0.12.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-keystore",
  "thiserror",
  "tracing-gum",
 ]
@@ -7800,7 +7736,7 @@ dependencies = [
  "polkadot-node-subsystem",
  "polkadot-node-subsystem-util",
  "polkadot-primitives",
- "sp-keystore 0.12.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-keystore",
  "thiserror",
  "tracing-gum",
  "wasm-timer",
@@ -7886,8 +7822,8 @@ dependencies = [
  "polkadot-node-subsystem",
  "polkadot-primitives",
  "sp-blockchain",
- "sp-inherents 4.0.0-dev (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-inherents",
+ "sp-runtime",
  "thiserror",
  "tracing-gum",
 ]
@@ -7932,12 +7868,12 @@ dependencies = [
  "sc-executor-common",
  "sc-executor-wasmtime",
  "slotmap",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-externalities 0.12.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-io 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-core",
+ "sp-externalities",
+ "sp-io",
  "sp-maybe-compressed-blob",
- "sp-tracing 5.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-wasm-interface 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-tracing",
+ "sp-wasm-interface",
  "tempfile",
  "tracing-gum",
 ]
@@ -7953,7 +7889,7 @@ dependencies = [
  "polkadot-node-subsystem-util",
  "polkadot-overseer",
  "polkadot-primitives",
- "sp-keystore 0.12.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-keystore",
  "thiserror",
  "tracing-gum",
 ]
@@ -7989,7 +7925,7 @@ dependencies = [
  "polkadot-node-primitives",
  "polkadot-primitives",
  "sc-network",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-core",
  "thiserror",
 ]
 
@@ -8045,11 +7981,11 @@ dependencies = [
  "polkadot-primitives",
  "schnorrkel",
  "serde",
- "sp-application-crypto 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-application-crypto",
  "sp-consensus-babe",
  "sp-consensus-vrf",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-keystore 0.12.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-core",
+ "sp-keystore",
  "sp-maybe-compressed-blob",
  "thiserror",
  "zstd",
@@ -8110,9 +8046,9 @@ dependencies = [
  "polkadot-primitives",
  "prioritized-metered-channel",
  "rand 0.8.5",
- "sp-application-crypto 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-keystore 0.12.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-application-crypto",
+ "sp-core",
+ "sp-keystore",
  "thiserror",
  "tracing-gum",
 ]
@@ -8135,7 +8071,7 @@ dependencies = [
  "polkadot-primitives",
  "sc-client-api",
  "sp-api",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-core",
  "tracing-gum",
 ]
 
@@ -8145,15 +8081,15 @@ version = "0.9.26"
 source = "git+https://github.com/paritytech/polkadot?branch=release-v0.9.26#d8785970175dce344f2a6ad1cd88297529a6dd59"
 dependencies = [
  "derive_more",
- "frame-support 4.0.0-dev (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "frame-support",
  "parity-scale-codec",
  "parity-util-mem",
  "polkadot-core-primitives",
  "scale-info",
  "serde",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-core",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -8186,18 +8122,18 @@ dependencies = [
  "scale-info",
  "serde",
  "sp-api",
- "sp-application-crypto 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-arithmetic 5.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-application-crypto",
+ "sp-arithmetic",
  "sp-authority-discovery",
  "sp-consensus-slots",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-inherents 4.0.0-dev (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-io 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-keystore 0.12.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-staking 4.0.0-dev (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-trie 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-core",
+ "sp-inherents",
+ "sp-io",
+ "sp-keystore",
+ "sp-runtime",
+ "sp-staking",
+ "sp-std",
+ "sp-trie",
  "sp-version",
 ]
 
@@ -8227,8 +8163,8 @@ dependencies = [
  "sp-blockchain",
  "sp-consensus",
  "sp-consensus-babe",
- "sp-keystore 0.12.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-keystore",
+ "sp-runtime",
  "substrate-frame-rpc-system",
  "substrate-state-trie-migration-rpc",
 ]
@@ -8242,7 +8178,7 @@ dependencies = [
  "bitvec",
  "frame-election-provider-support",
  "frame-executive",
- "frame-support 4.0.0-dev (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "frame-support",
  "frame-system",
  "frame-system-rpc-runtime-api",
  "frame-try-runtime",
@@ -8293,16 +8229,16 @@ dependencies = [
  "sp-authority-discovery",
  "sp-block-builder",
  "sp-consensus-babe",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-inherents 4.0.0-dev (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-io 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-core",
+ "sp-inherents",
+ "sp-io",
  "sp-mmr-primitives",
  "sp-npos-elections",
  "sp-offchain",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-runtime",
  "sp-session",
- "sp-staking 4.0.0-dev (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-staking",
+ "sp-std",
  "sp-transaction-pool",
  "sp-version",
  "static_assertions",
@@ -8320,7 +8256,7 @@ dependencies = [
  "beefy-primitives",
  "bitvec",
  "frame-election-provider-support",
- "frame-support 4.0.0-dev (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "frame-support",
  "frame-system",
  "impl-trait-for-tuples",
  "libsecp256k1",
@@ -8345,14 +8281,14 @@ dependencies = [
  "serde_derive",
  "slot-range-helper",
  "sp-api",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-inherents 4.0.0-dev (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-io 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-core",
+ "sp-inherents",
+ "sp-io",
  "sp-npos-elections",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-runtime",
  "sp-session",
- "sp-staking 4.0.0-dev (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-staking",
+ "sp-std",
  "static_assertions",
  "xcm",
 ]
@@ -8362,11 +8298,11 @@ name = "polkadot-runtime-constants"
 version = "0.9.26"
 source = "git+https://github.com/paritytech/polkadot?branch=release-v0.9.26#d8785970175dce344f2a6ad1cd88297529a6dd59"
 dependencies = [
- "frame-support 4.0.0-dev (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "frame-support",
  "polkadot-primitives",
  "polkadot-runtime-common",
  "smallvec",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-runtime",
 ]
 
 [[package]]
@@ -8377,8 +8313,8 @@ dependencies = [
  "bs58",
  "parity-scale-codec",
  "polkadot-primitives",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-tracing 5.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-std",
+ "sp-tracing",
 ]
 
 [[package]]
@@ -8389,7 +8325,7 @@ dependencies = [
  "bitflags",
  "bitvec",
  "derive_more",
- "frame-support 4.0.0-dev (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "frame-support",
  "frame-system",
  "log",
  "pallet-authority-discovery",
@@ -8409,14 +8345,14 @@ dependencies = [
  "scale-info",
  "serde",
  "sp-api",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-inherents 4.0.0-dev (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-io 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-keystore 0.12.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-core",
+ "sp-inherents",
+ "sp-io",
+ "sp-keystore",
+ "sp-runtime",
  "sp-session",
- "sp-staking 4.0.0-dev (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-staking",
+ "sp-std",
  "xcm",
  "xcm-executor",
 ]
@@ -8503,19 +8439,19 @@ dependencies = [
  "sp-blockchain",
  "sp-consensus",
  "sp-consensus-babe",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-core",
  "sp-finality-grandpa",
- "sp-inherents 4.0.0-dev (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-io 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-keystore 0.12.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-inherents",
+ "sp-io",
+ "sp-keystore",
  "sp-offchain",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-runtime",
  "sp-session",
- "sp-state-machine 0.12.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-storage 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-state-machine",
+ "sp-storage",
  "sp-timestamp",
  "sp-transaction-pool",
- "sp-trie 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-trie",
  "substrate-prometheus-endpoint",
  "thiserror",
  "tracing-gum",
@@ -8536,8 +8472,8 @@ dependencies = [
  "polkadot-node-subsystem",
  "polkadot-node-subsystem-util",
  "polkadot-primitives",
- "sp-keystore 0.12.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-staking 4.0.0-dev (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-keystore",
+ "sp-staking",
  "thiserror",
  "tracing-gum",
 ]
@@ -8549,7 +8485,7 @@ source = "git+https://github.com/paritytech/polkadot?branch=release-v0.9.26#d878
 dependencies = [
  "parity-scale-codec",
  "polkadot-primitives",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-core",
 ]
 
 [[package]]
@@ -9137,7 +9073,7 @@ name = "regression-analysis"
 version = "0.1.0"
 dependencies = [
  "clap 3.2.17",
- "frame-support 4.0.0-dev (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "frame-support",
  "gear-runtime",
  "junit-common",
  "pallet-gear",
@@ -9159,9 +9095,9 @@ dependencies = [
  "parity-scale-codec",
  "serde",
  "serde_json",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-io 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
  "sp-version",
 ]
 
@@ -9275,7 +9211,7 @@ dependencies = [
  "cumulus-primitives-utility",
  "frame-benchmarking",
  "frame-executive",
- "frame-support 4.0.0-dev (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "frame-support",
  "frame-system",
  "frame-system-benchmarking",
  "frame-system-rpc-runtime-api",
@@ -9313,13 +9249,13 @@ dependencies = [
  "sp-api",
  "sp-block-builder",
  "sp-consensus-aura",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-inherents 4.0.0-dev (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-io 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-core",
+ "sp-inherents",
+ "sp-io",
  "sp-offchain",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-runtime",
  "sp-session",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-std",
  "sp-transaction-pool",
  "sp-version",
  "substrate-wasm-builder",
@@ -9500,8 +9436,8 @@ version = "4.1.0-dev"
 source = "git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26#d5950c412e763381bff77781e410f90d94f578dd"
 dependencies = [
  "log",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-wasm-interface 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-core",
+ "sp-wasm-interface",
  "thiserror",
 ]
 
@@ -9525,9 +9461,9 @@ dependencies = [
  "sp-api",
  "sp-authority-discovery",
  "sp-blockchain",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-keystore 0.12.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-core",
+ "sp-keystore",
+ "sp-runtime",
  "substrate-prometheus-endpoint",
  "thiserror",
 ]
@@ -9549,9 +9485,9 @@ dependencies = [
  "sp-api",
  "sp-blockchain",
  "sp-consensus",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-inherents 4.0.0-dev (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-core",
+ "sp-inherents",
+ "sp-runtime",
  "substrate-prometheus-endpoint",
 ]
 
@@ -9565,10 +9501,10 @@ dependencies = [
  "sp-api",
  "sp-block-builder",
  "sp-blockchain",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-inherents 4.0.0-dev (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-state-machine 0.12.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-core",
+ "sp-inherents",
+ "sp-runtime",
+ "sp-state-machine",
 ]
 
 [[package]]
@@ -9584,8 +9520,8 @@ dependencies = [
  "sc-telemetry",
  "serde",
  "serde_json",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-core",
+ "sp-runtime",
 ]
 
 [[package]]
@@ -9627,11 +9563,11 @@ dependencies = [
  "serde",
  "serde_json",
  "sp-blockchain",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-core",
  "sp-keyring",
- "sp-keystore 0.12.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-panic-handler 4.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-keystore",
+ "sp-panic-handler",
+ "sp-runtime",
  "sp-version",
  "thiserror",
  "tiny-bip39",
@@ -9655,14 +9591,14 @@ dependencies = [
  "sp-api",
  "sp-blockchain",
  "sp-consensus",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-core",
  "sp-database",
- "sp-externalities 0.12.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-keystore 0.12.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-state-machine 0.12.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-storage 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-trie 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-externalities",
+ "sp-keystore",
+ "sp-runtime",
+ "sp-state-machine",
+ "sp-storage",
+ "sp-trie",
  "substrate-prometheus-endpoint",
 ]
 
@@ -9682,13 +9618,13 @@ dependencies = [
  "parking_lot 0.12.1",
  "sc-client-api",
  "sc-state-db",
- "sp-arithmetic 5.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-arithmetic",
  "sp-blockchain",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-core",
  "sp-database",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-state-machine 0.12.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-trie 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-runtime",
+ "sp-state-machine",
+ "sp-trie",
 ]
 
 [[package]]
@@ -9708,9 +9644,9 @@ dependencies = [
  "sp-api",
  "sp-blockchain",
  "sp-consensus",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-state-machine 0.12.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-core",
+ "sp-runtime",
+ "sp-state-machine",
  "substrate-prometheus-endpoint",
  "thiserror",
 ]
@@ -9730,16 +9666,16 @@ dependencies = [
  "sc-consensus-slots",
  "sc-telemetry",
  "sp-api",
- "sp-application-crypto 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-application-crypto",
  "sp-block-builder",
  "sp-blockchain",
  "sp-consensus",
  "sp-consensus-aura",
  "sp-consensus-slots",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-inherents 4.0.0-dev (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-keystore 0.12.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-core",
+ "sp-inherents",
+ "sp-keystore",
+ "sp-runtime",
  "substrate-prometheus-endpoint",
  "thiserror",
 ]
@@ -9770,18 +9706,18 @@ dependencies = [
  "schnorrkel",
  "serde",
  "sp-api",
- "sp-application-crypto 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-application-crypto",
  "sp-block-builder",
  "sp-blockchain",
  "sp-consensus",
  "sp-consensus-babe",
  "sp-consensus-slots",
  "sp-consensus-vrf",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-inherents 4.0.0-dev (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-io 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-keystore 0.12.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-core",
+ "sp-inherents",
+ "sp-io",
+ "sp-keystore",
+ "sp-runtime",
  "sp-version",
  "substrate-prometheus-endpoint",
  "thiserror",
@@ -9799,13 +9735,13 @@ dependencies = [
  "sc-rpc-api",
  "serde",
  "sp-api",
- "sp-application-crypto 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-application-crypto",
  "sp-blockchain",
  "sp-consensus",
  "sp-consensus-babe",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-keystore 0.12.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-core",
+ "sp-keystore",
+ "sp-runtime",
  "thiserror",
 ]
 
@@ -9819,7 +9755,7 @@ dependencies = [
  "sc-client-api",
  "sc-consensus",
  "sp-blockchain",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-runtime",
 ]
 
 [[package]]
@@ -9835,14 +9771,14 @@ dependencies = [
  "sc-client-api",
  "sc-consensus",
  "sc-telemetry",
- "sp-arithmetic 5.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-arithmetic",
  "sp-blockchain",
  "sp-consensus",
  "sp-consensus-slots",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-inherents 4.0.0-dev (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-state-machine 0.12.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-core",
+ "sp-inherents",
+ "sp-runtime",
+ "sp-state-machine",
  "sp-timestamp",
  "thiserror",
 ]
@@ -9854,7 +9790,7 @@ source = "git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.2
 dependencies = [
  "sc-client-api",
  "sp-authorship",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-runtime",
  "thiserror",
 ]
 
@@ -9871,16 +9807,16 @@ dependencies = [
  "sc-executor-wasmi",
  "sc-executor-wasmtime",
  "sp-api",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-core-hashing-proc-macro 5.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-externalities 0.12.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-io 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-panic-handler 4.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-runtime-interface 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-core",
+ "sp-core-hashing-proc-macro",
+ "sp-externalities",
+ "sp-io",
+ "sp-panic-handler",
+ "sp-runtime-interface",
  "sp-tasks",
- "sp-trie 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-trie",
  "sp-version",
- "sp-wasm-interface 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-wasm-interface",
  "tracing",
  "wasmi 0.11.0",
 ]
@@ -9897,7 +9833,7 @@ dependencies = [
  "sp-maybe-compressed-blob",
  "sp-sandbox",
  "sp-serializer",
- "sp-wasm-interface 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-wasm-interface",
  "thiserror",
  "wasm-instrument 0.1.1",
  "wasmer",
@@ -9915,9 +9851,9 @@ dependencies = [
  "parity-scale-codec",
  "sc-allocator",
  "sc-executor-common",
- "sp-runtime-interface 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-runtime-interface",
  "sp-sandbox",
- "sp-wasm-interface 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-wasm-interface",
  "wasmi 0.11.0",
 ]
 
@@ -9935,9 +9871,9 @@ dependencies = [
  "rustix 0.35.7",
  "sc-allocator",
  "sc-executor-common",
- "sp-runtime-interface 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-runtime-interface",
  "sp-sandbox",
- "sp-wasm-interface 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-wasm-interface",
  "wasmtime",
 ]
 
@@ -9969,14 +9905,14 @@ dependencies = [
  "sc-utils",
  "serde_json",
  "sp-api",
- "sp-application-crypto 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-arithmetic 5.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-application-crypto",
+ "sp-arithmetic",
  "sp-blockchain",
  "sp-consensus",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-core",
  "sp-finality-grandpa",
- "sp-keystore 0.12.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-keystore",
+ "sp-runtime",
  "substrate-prometheus-endpoint",
  "thiserror",
 ]
@@ -9997,8 +9933,8 @@ dependencies = [
  "serde",
  "serde_json",
  "sp-blockchain",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-core",
+ "sp-runtime",
  "thiserror",
 ]
 
@@ -10016,7 +9952,7 @@ dependencies = [
  "sc-network",
  "sc-transaction-pool-api",
  "sp-blockchain",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-runtime",
 ]
 
 [[package]]
@@ -10028,9 +9964,9 @@ dependencies = [
  "hex",
  "parking_lot 0.12.1",
  "serde_json",
- "sp-application-crypto 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-keystore 0.12.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-application-crypto",
+ "sp-core",
+ "sp-keystore",
  "thiserror",
 ]
 
@@ -10073,12 +10009,12 @@ dependencies = [
  "serde",
  "serde_json",
  "smallvec",
- "sp-arithmetic 5.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-arithmetic",
  "sp-blockchain",
  "sp-consensus",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-core",
  "sp-finality-grandpa",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-runtime",
  "substrate-prometheus-endpoint",
  "thiserror",
  "unsigned-varint",
@@ -10111,7 +10047,7 @@ dependencies = [
  "log",
  "lru 0.7.8",
  "sc-network",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-runtime",
  "substrate-prometheus-endpoint",
  "tracing",
 ]
@@ -10131,8 +10067,8 @@ dependencies = [
  "sc-network-common",
  "sc-peerset",
  "sp-blockchain",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-core",
+ "sp-runtime",
  "thiserror",
 ]
 
@@ -10156,12 +10092,12 @@ dependencies = [
  "sc-network-common",
  "sc-peerset",
  "smallvec",
- "sp-arithmetic 5.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-arithmetic",
  "sp-blockchain",
  "sp-consensus",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-core",
  "sp-finality-grandpa",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-runtime",
  "thiserror",
 ]
 
@@ -10186,9 +10122,9 @@ dependencies = [
  "sc-network",
  "sc-utils",
  "sp-api",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-core",
  "sp-offchain",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-runtime",
  "threadpool",
  "tracing",
 ]
@@ -10236,11 +10172,11 @@ dependencies = [
  "serde_json",
  "sp-api",
  "sp-blockchain",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-keystore 0.12.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-core",
+ "sp-keystore",
  "sp-offchain",
  "sp-rpc",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-runtime",
  "sp-session",
  "sp-version",
 ]
@@ -10260,10 +10196,10 @@ dependencies = [
  "scale-info",
  "serde",
  "serde_json",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-core",
  "sp-rpc",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-tracing 5.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-runtime",
+ "sp-tracing",
  "sp-version",
  "thiserror",
 ]
@@ -10321,22 +10257,22 @@ dependencies = [
  "serde",
  "serde_json",
  "sp-api",
- "sp-application-crypto 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-application-crypto",
  "sp-block-builder",
  "sp-blockchain",
  "sp-consensus",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-externalities 0.12.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-inherents 4.0.0-dev (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-keystore 0.12.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-core",
+ "sp-externalities",
+ "sp-inherents",
+ "sp-keystore",
+ "sp-runtime",
  "sp-session",
- "sp-state-machine 0.12.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-storage 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-tracing 5.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-state-machine",
+ "sp-storage",
+ "sp-tracing",
  "sp-transaction-pool",
  "sp-transaction-storage-proof",
- "sp-trie 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-trie",
  "sp-version",
  "substrate-prometheus-endpoint",
  "tempfile",
@@ -10357,7 +10293,7 @@ dependencies = [
  "parity-util-mem-derive",
  "parking_lot 0.12.1",
  "sc-client-api",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-core",
 ]
 
 [[package]]
@@ -10375,7 +10311,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sp-blockchain",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-runtime",
  "thiserror",
 ]
 
@@ -10393,9 +10329,9 @@ dependencies = [
  "sc-telemetry",
  "serde",
  "serde_json",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-io 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-core",
+ "sp-io",
+ "sp-std",
 ]
 
 [[package]]
@@ -10437,10 +10373,10 @@ dependencies = [
  "serde",
  "sp-api",
  "sp-blockchain",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-core",
  "sp-rpc",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-tracing 5.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-runtime",
+ "sp-tracing",
  "thiserror",
  "tracing",
  "tracing-log",
@@ -10477,9 +10413,9 @@ dependencies = [
  "serde",
  "sp-api",
  "sp-blockchain",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-tracing 5.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-core",
+ "sp-runtime",
+ "sp-tracing",
  "sp-transaction-pool",
  "substrate-prometheus-endpoint",
  "thiserror",
@@ -10494,7 +10430,7 @@ dependencies = [
  "log",
  "serde",
  "sp-blockchain",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-runtime",
  "thiserror",
 ]
 
@@ -10896,8 +10832,8 @@ dependencies = [
  "enumn",
  "parity-scale-codec",
  "paste",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -10973,10 +10909,10 @@ dependencies = [
  "log",
  "parity-scale-codec",
  "sp-api-proc-macro",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-state-machine 0.12.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-core",
+ "sp-runtime",
+ "sp-state-machine",
+ "sp-std",
  "sp-version",
  "thiserror",
 ]
@@ -10996,42 +10932,14 @@ dependencies = [
 [[package]]
 name = "sp-application-crypto"
 version = "6.0.0"
-source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#abc134523a276ba867ec4ebd10dc16069401a9ed"
-dependencies = [
- "parity-scale-codec",
- "scale-info",
- "serde",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-io 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
-]
-
-[[package]]
-name = "sp-application-crypto"
-version = "6.0.0"
 source = "git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26#d5950c412e763381bff77781e410f90d94f578dd"
 dependencies = [
  "parity-scale-codec",
  "scale-info",
  "serde",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-io 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
-]
-
-[[package]]
-name = "sp-arithmetic"
-version = "5.0.0"
-source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#abc134523a276ba867ec4ebd10dc16069401a9ed"
-dependencies = [
- "integer-sqrt",
- "num-traits",
- "parity-scale-codec",
- "scale-info",
- "serde",
- "sp-debug-derive 4.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "static_assertions",
+ "sp-core",
+ "sp-io",
+ "sp-std",
 ]
 
 [[package]]
@@ -11044,8 +10952,8 @@ dependencies = [
  "parity-scale-codec",
  "scale-info",
  "serde",
- "sp-debug-derive 4.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-debug-derive",
+ "sp-std",
  "static_assertions",
 ]
 
@@ -11057,9 +10965,9 @@ dependencies = [
  "parity-scale-codec",
  "scale-info",
  "sp-api",
- "sp-application-crypto 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-application-crypto",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -11069,9 +10977,9 @@ source = "git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.2
 dependencies = [
  "async-trait",
  "parity-scale-codec",
- "sp-inherents 4.0.0-dev (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-inherents",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -11081,9 +10989,9 @@ source = "git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.2
 dependencies = [
  "parity-scale-codec",
  "sp-api",
- "sp-inherents 4.0.0-dev (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-inherents",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -11099,8 +11007,8 @@ dependencies = [
  "sp-api",
  "sp-consensus",
  "sp-database",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-state-machine 0.12.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-runtime",
+ "sp-state-machine",
  "thiserror",
 ]
 
@@ -11114,11 +11022,11 @@ dependencies = [
  "futures-timer",
  "log",
  "parity-scale-codec",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-inherents 4.0.0-dev (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-state-machine 0.12.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-core",
+ "sp-inherents",
+ "sp-runtime",
+ "sp-state-machine",
+ "sp-std",
  "sp-version",
  "thiserror",
 ]
@@ -11132,12 +11040,12 @@ dependencies = [
  "parity-scale-codec",
  "scale-info",
  "sp-api",
- "sp-application-crypto 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-application-crypto",
  "sp-consensus",
  "sp-consensus-slots",
- "sp-inherents 4.0.0-dev (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-inherents",
+ "sp-runtime",
+ "sp-std",
  "sp-timestamp",
 ]
 
@@ -11152,15 +11060,15 @@ dependencies = [
  "scale-info",
  "serde",
  "sp-api",
- "sp-application-crypto 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-application-crypto",
  "sp-consensus",
  "sp-consensus-slots",
  "sp-consensus-vrf",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-inherents 4.0.0-dev (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-keystore 0.12.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-core",
+ "sp-inherents",
+ "sp-keystore",
+ "sp-runtime",
+ "sp-std",
  "sp-timestamp",
 ]
 
@@ -11172,9 +11080,9 @@ dependencies = [
  "parity-scale-codec",
  "scale-info",
  "serde",
- "sp-arithmetic 5.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-arithmetic",
+ "sp-runtime",
+ "sp-std",
  "sp-timestamp",
 ]
 
@@ -11186,55 +11094,9 @@ dependencies = [
  "parity-scale-codec",
  "scale-info",
  "schnorrkel",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
-]
-
-[[package]]
-name = "sp-core"
-version = "6.0.0"
-source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#abc134523a276ba867ec4ebd10dc16069401a9ed"
-dependencies = [
- "base58",
- "bitflags",
- "blake2-rfc",
- "byteorder",
- "dyn-clonable",
- "ed25519-dalek",
- "futures",
- "hash-db",
- "hash256-std-hasher",
- "hex",
- "impl-serde",
- "lazy_static",
- "libsecp256k1",
- "log",
- "merlin",
- "num-traits",
- "parity-scale-codec",
- "parity-util-mem",
- "parking_lot 0.12.1",
- "primitive-types",
- "rand 0.7.3",
- "regex",
- "scale-info",
- "schnorrkel",
- "secp256k1",
- "secrecy",
- "serde",
- "sp-core-hashing 4.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-debug-derive 4.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-externalities 0.12.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-runtime-interface 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-storage 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "ss58-registry",
- "substrate-bip39",
- "thiserror",
- "tiny-bip39",
- "wasmi 0.13.0",
- "zeroize",
+ "sp-core",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -11269,12 +11131,12 @@ dependencies = [
  "secp256k1",
  "secrecy",
  "serde",
- "sp-core-hashing 4.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-debug-derive 4.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-externalities 0.12.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-runtime-interface 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-storage 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-core-hashing",
+ "sp-debug-derive",
+ "sp-externalities",
+ "sp-runtime-interface",
+ "sp-std",
+ "sp-storage",
  "ss58-registry",
  "substrate-bip39",
  "thiserror",
@@ -11286,20 +11148,6 @@ dependencies = [
 [[package]]
 name = "sp-core-hashing"
 version = "4.0.0"
-source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#abc134523a276ba867ec4ebd10dc16069401a9ed"
-dependencies = [
- "blake2",
- "byteorder",
- "digest 0.10.3",
- "sha2 0.10.5",
- "sha3 0.10.1",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "twox-hash",
-]
-
-[[package]]
-name = "sp-core-hashing"
-version = "4.0.0"
 source = "git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26#d5950c412e763381bff77781e410f90d94f578dd"
 dependencies = [
  "blake2",
@@ -11307,19 +11155,8 @@ dependencies = [
  "digest 0.10.3",
  "sha2 0.10.5",
  "sha3 0.10.1",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-std",
  "twox-hash",
-]
-
-[[package]]
-name = "sp-core-hashing-proc-macro"
-version = "5.0.0"
-source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#abc134523a276ba867ec4ebd10dc16069401a9ed"
-dependencies = [
- "proc-macro2",
- "quote",
- "sp-core-hashing 4.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "syn",
 ]
 
 [[package]]
@@ -11329,7 +11166,7 @@ source = "git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.2
 dependencies = [
  "proc-macro2",
  "quote",
- "sp-core-hashing 4.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-core-hashing",
  "syn",
 ]
 
@@ -11345,16 +11182,6 @@ dependencies = [
 [[package]]
 name = "sp-debug-derive"
 version = "4.0.0"
-source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#abc134523a276ba867ec4ebd10dc16069401a9ed"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn",
-]
-
-[[package]]
-name = "sp-debug-derive"
-version = "4.0.0"
 source = "git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26#d5950c412e763381bff77781e410f90d94f578dd"
 dependencies = [
  "proc-macro2",
@@ -11365,23 +11192,12 @@ dependencies = [
 [[package]]
 name = "sp-externalities"
 version = "0.12.0"
-source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#abc134523a276ba867ec4ebd10dc16069401a9ed"
-dependencies = [
- "environmental",
- "parity-scale-codec",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-storage 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
-]
-
-[[package]]
-name = "sp-externalities"
-version = "0.12.0"
 source = "git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26#d5950c412e763381bff77781e410f90d94f578dd"
 dependencies = [
  "environmental",
  "parity-scale-codec",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-storage 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-std",
+ "sp-storage",
 ]
 
 [[package]]
@@ -11395,25 +11211,11 @@ dependencies = [
  "scale-info",
  "serde",
  "sp-api",
- "sp-application-crypto 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-keystore 0.12.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
-]
-
-[[package]]
-name = "sp-inherents"
-version = "4.0.0-dev"
-source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#abc134523a276ba867ec4ebd10dc16069401a9ed"
-dependencies = [
- "async-trait",
- "impl-trait-for-tuples",
- "parity-scale-codec",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "thiserror",
+ "sp-application-crypto",
+ "sp-core",
+ "sp-keystore",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -11424,35 +11226,10 @@ dependencies = [
  "async-trait",
  "impl-trait-for-tuples",
  "parity-scale-codec",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-core",
+ "sp-runtime",
+ "sp-std",
  "thiserror",
-]
-
-[[package]]
-name = "sp-io"
-version = "6.0.0"
-source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#abc134523a276ba867ec4ebd10dc16069401a9ed"
-dependencies = [
- "futures",
- "hash-db",
- "libsecp256k1",
- "log",
- "parity-scale-codec",
- "parking_lot 0.12.1",
- "secp256k1",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-externalities 0.12.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-keystore 0.12.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-runtime-interface 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-state-machine 0.12.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-tracing 5.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-trie 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-wasm-interface 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "tracing",
- "tracing-core",
 ]
 
 [[package]]
@@ -11467,15 +11244,15 @@ dependencies = [
  "parity-scale-codec",
  "parking_lot 0.12.1",
  "secp256k1",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-externalities 0.12.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-keystore 0.12.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-runtime-interface 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-state-machine 0.12.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-tracing 5.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-trie 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-wasm-interface 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-core",
+ "sp-externalities",
+ "sp-keystore",
+ "sp-runtime-interface",
+ "sp-state-machine",
+ "sp-std",
+ "sp-tracing",
+ "sp-trie",
+ "sp-wasm-interface",
  "tracing",
  "tracing-core",
 ]
@@ -11486,25 +11263,9 @@ version = "6.0.0"
 source = "git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26#d5950c412e763381bff77781e410f90d94f578dd"
 dependencies = [
  "lazy_static",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-core",
+ "sp-runtime",
  "strum 0.23.0",
-]
-
-[[package]]
-name = "sp-keystore"
-version = "0.12.0"
-source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#abc134523a276ba867ec4ebd10dc16069401a9ed"
-dependencies = [
- "async-trait",
- "futures",
- "merlin",
- "parity-scale-codec",
- "parking_lot 0.12.1",
- "schnorrkel",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-externalities 0.12.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "thiserror",
 ]
 
 [[package]]
@@ -11519,8 +11280,8 @@ dependencies = [
  "parking_lot 0.12.1",
  "schnorrkel",
  "serde",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-externalities 0.12.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-core",
+ "sp-externalities",
  "thiserror",
 ]
 
@@ -11542,10 +11303,10 @@ dependencies = [
  "parity-scale-codec",
  "serde",
  "sp-api",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-debug-derive 4.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-core",
+ "sp-debug-derive",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -11556,10 +11317,10 @@ dependencies = [
  "parity-scale-codec",
  "scale-info",
  "serde",
- "sp-arithmetic 5.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-arithmetic",
+ "sp-core",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -11568,18 +11329,8 @@ version = "4.0.0-dev"
 source = "git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26#d5950c412e763381bff77781e410f90d94f578dd"
 dependencies = [
  "sp-api",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
-]
-
-[[package]]
-name = "sp-panic-handler"
-version = "4.0.0"
-source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#abc134523a276ba867ec4ebd10dc16069401a9ed"
-dependencies = [
- "backtrace",
- "lazy_static",
- "regex",
+ "sp-core",
+ "sp-runtime",
 ]
 
 [[package]]
@@ -11599,29 +11350,7 @@ source = "git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.2
 dependencies = [
  "rustc-hash",
  "serde",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
-]
-
-[[package]]
-name = "sp-runtime"
-version = "6.0.0"
-source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#abc134523a276ba867ec4ebd10dc16069401a9ed"
-dependencies = [
- "either",
- "hash256-std-hasher",
- "impl-trait-for-tuples",
- "log",
- "parity-scale-codec",
- "parity-util-mem",
- "paste",
- "rand 0.7.3",
- "scale-info",
- "serde",
- "sp-application-crypto 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-arithmetic 5.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-io 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-core",
 ]
 
 [[package]]
@@ -11639,28 +11368,11 @@ dependencies = [
  "rand 0.7.3",
  "scale-info",
  "serde",
- "sp-application-crypto 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-arithmetic 5.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-io 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
-]
-
-[[package]]
-name = "sp-runtime-interface"
-version = "6.0.0"
-source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#abc134523a276ba867ec4ebd10dc16069401a9ed"
-dependencies = [
- "impl-trait-for-tuples",
- "parity-scale-codec",
- "primitive-types",
- "sp-externalities 0.12.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-runtime-interface-proc-macro 5.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-storage 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-tracing 5.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-wasm-interface 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "static_assertions",
+ "sp-application-crypto",
+ "sp-arithmetic",
+ "sp-core",
+ "sp-io",
+ "sp-std",
 ]
 
 [[package]]
@@ -11671,25 +11383,13 @@ dependencies = [
  "impl-trait-for-tuples",
  "parity-scale-codec",
  "primitive-types",
- "sp-externalities 0.12.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-runtime-interface-proc-macro 5.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-storage 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-tracing 5.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-wasm-interface 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-externalities",
+ "sp-runtime-interface-proc-macro",
+ "sp-std",
+ "sp-storage",
+ "sp-tracing",
+ "sp-wasm-interface",
  "static_assertions",
-]
-
-[[package]]
-name = "sp-runtime-interface-proc-macro"
-version = "5.0.0"
-source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#abc134523a276ba867ec4ebd10dc16069401a9ed"
-dependencies = [
- "Inflector",
- "proc-macro-crate",
- "proc-macro2",
- "quote",
- "syn",
 ]
 
 [[package]]
@@ -11711,10 +11411,10 @@ source = "git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.2
 dependencies = [
  "log",
  "parity-scale-codec",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-io 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-wasm-interface 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-core",
+ "sp-io",
+ "sp-std",
+ "sp-wasm-interface",
  "wasmi 0.11.0",
 ]
 
@@ -11735,21 +11435,10 @@ dependencies = [
  "parity-scale-codec",
  "scale-info",
  "sp-api",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-staking 4.0.0-dev (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
-]
-
-[[package]]
-name = "sp-staking"
-version = "4.0.0-dev"
-source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#abc134523a276ba867ec4ebd10dc16069401a9ed"
-dependencies = [
- "parity-scale-codec",
- "scale-info",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-core",
+ "sp-runtime",
+ "sp-staking",
+ "sp-std",
 ]
 
 [[package]]
@@ -11759,30 +11448,8 @@ source = "git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.2
 dependencies = [
  "parity-scale-codec",
  "scale-info",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
-]
-
-[[package]]
-name = "sp-state-machine"
-version = "0.12.0"
-source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#abc134523a276ba867ec4ebd10dc16069401a9ed"
-dependencies = [
- "hash-db",
- "log",
- "num-traits",
- "parity-scale-codec",
- "parking_lot 0.12.1",
- "rand 0.7.3",
- "smallvec",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-externalities 0.12.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-panic-handler 4.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-trie 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "thiserror",
- "tracing",
- "trie-root",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -11797,11 +11464,11 @@ dependencies = [
  "parking_lot 0.12.1",
  "rand 0.7.3",
  "smallvec",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-externalities 0.12.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-panic-handler 4.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-trie 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-core",
+ "sp-externalities",
+ "sp-panic-handler",
+ "sp-std",
+ "sp-trie",
  "thiserror",
  "tracing",
  "trie-root",
@@ -11810,25 +11477,7 @@ dependencies = [
 [[package]]
 name = "sp-std"
 version = "4.0.0"
-source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#abc134523a276ba867ec4ebd10dc16069401a9ed"
-
-[[package]]
-name = "sp-std"
-version = "4.0.0"
 source = "git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26#d5950c412e763381bff77781e410f90d94f578dd"
-
-[[package]]
-name = "sp-storage"
-version = "6.0.0"
-source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#abc134523a276ba867ec4ebd10dc16069401a9ed"
-dependencies = [
- "impl-serde",
- "parity-scale-codec",
- "ref-cast",
- "serde",
- "sp-debug-derive 4.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
-]
 
 [[package]]
 name = "sp-storage"
@@ -11839,8 +11488,8 @@ dependencies = [
  "parity-scale-codec",
  "ref-cast",
  "serde",
- "sp-debug-derive 4.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-debug-derive",
+ "sp-std",
 ]
 
 [[package]]
@@ -11849,11 +11498,11 @@ version = "4.0.0-dev"
 source = "git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26#d5950c412e763381bff77781e410f90d94f578dd"
 dependencies = [
  "log",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-externalities 0.12.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-io 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-runtime-interface 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-core",
+ "sp-externalities",
+ "sp-io",
+ "sp-runtime-interface",
+ "sp-std",
 ]
 
 [[package]]
@@ -11866,22 +11515,10 @@ dependencies = [
  "log",
  "parity-scale-codec",
  "sp-api",
- "sp-inherents 4.0.0-dev (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-inherents",
+ "sp-runtime",
+ "sp-std",
  "thiserror",
-]
-
-[[package]]
-name = "sp-tracing"
-version = "5.0.0"
-source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#abc134523a276ba867ec4ebd10dc16069401a9ed"
-dependencies = [
- "parity-scale-codec",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "tracing",
- "tracing-core",
- "tracing-subscriber",
 ]
 
 [[package]]
@@ -11890,7 +11527,7 @@ version = "5.0.0"
 source = "git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26#d5950c412e763381bff77781e410f90d94f578dd"
 dependencies = [
  "parity-scale-codec",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-std",
  "tracing",
  "tracing-core",
  "tracing-subscriber",
@@ -11902,7 +11539,7 @@ version = "4.0.0-dev"
 source = "git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26#d5950c412e763381bff77781e410f90d94f578dd"
 dependencies = [
  "sp-api",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-runtime",
 ]
 
 [[package]]
@@ -11914,27 +11551,11 @@ dependencies = [
  "log",
  "parity-scale-codec",
  "scale-info",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-inherents 4.0.0-dev (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-trie 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
-]
-
-[[package]]
-name = "sp-trie"
-version = "6.0.0"
-source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#abc134523a276ba867ec4ebd10dc16069401a9ed"
-dependencies = [
- "hash-db",
- "memory-db",
- "parity-scale-codec",
- "scale-info",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "thiserror",
- "trie-db",
- "trie-root",
+ "sp-core",
+ "sp-inherents",
+ "sp-runtime",
+ "sp-std",
+ "sp-trie",
 ]
 
 [[package]]
@@ -11946,8 +11567,8 @@ dependencies = [
  "memory-db",
  "parity-scale-codec",
  "scale-info",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-core",
+ "sp-std",
  "thiserror",
  "trie-db",
  "trie-root",
@@ -11963,9 +11584,9 @@ dependencies = [
  "parity-wasm 0.42.2",
  "scale-info",
  "serde",
- "sp-core-hashing-proc-macro 5.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-core-hashing-proc-macro",
+ "sp-runtime",
+ "sp-std",
  "sp-version-proc-macro",
  "thiserror",
 ]
@@ -11984,24 +11605,12 @@ dependencies = [
 [[package]]
 name = "sp-wasm-interface"
 version = "6.0.0"
-source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#abc134523a276ba867ec4ebd10dc16069401a9ed"
-dependencies = [
- "impl-trait-for-tuples",
- "log",
- "parity-scale-codec",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "wasmi 0.13.0",
-]
-
-[[package]]
-name = "sp-wasm-interface"
-version = "6.0.0"
 source = "git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26#d5950c412e763381bff77781e410f90d94f578dd"
 dependencies = [
  "impl-trait-for-tuples",
  "log",
  "parity-scale-codec",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-std",
  "wasmi 0.11.0",
  "wasmtime",
 ]
@@ -12201,8 +11810,8 @@ dependencies = [
  "sp-api",
  "sp-block-builder",
  "sp-blockchain",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-core",
+ "sp-runtime",
 ]
 
 [[package]]
@@ -12230,12 +11839,12 @@ dependencies = [
  "sc-rpc-api",
  "scale-info",
  "serde",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-io 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-state-machine 0.12.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-trie 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
+ "sp-state-machine",
+ "sp-std",
+ "sp-trie",
  "trie-db",
 ]
 
@@ -12782,12 +12391,12 @@ dependencies = [
  "sc-executor",
  "sc-service",
  "serde",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-externalities 0.12.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-io 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-keystore 0.12.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-state-machine 0.12.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-core",
+ "sp-externalities",
+ "sp-io",
+ "sp-keystore",
+ "sp-runtime",
+ "sp-state-machine",
  "sp-version",
  "zstd",
 ]
@@ -12944,7 +12553,7 @@ version = "0.1.0"
 dependencies = [
  "frame-benchmarking",
  "frame-executive",
- "frame-support 4.0.0-dev (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "frame-support",
  "frame-system",
  "frame-system-benchmarking",
  "frame-system-rpc-runtime-api",
@@ -12977,13 +12586,13 @@ dependencies = [
  "sp-api",
  "sp-block-builder",
  "sp-consensus-babe",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-inherents 4.0.0-dev (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-io 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-core",
+ "sp-inherents",
+ "sp-io",
  "sp-offchain",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-runtime",
  "sp-session",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-std",
  "sp-transaction-pool",
  "sp-version",
  "static_assertions",
@@ -13541,7 +13150,6 @@ dependencies = [
  "memory_units 0.4.0",
  "num-rational 0.4.1",
  "num-traits",
- "region 3.0.0",
 ]
 
 [[package]]
@@ -14030,7 +13638,7 @@ dependencies = [
  "log",
  "parity-scale-codec",
  "scale-info",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-runtime",
  "xcm-procedural",
 ]
 
@@ -14039,17 +13647,17 @@ name = "xcm-builder"
 version = "0.9.26"
 source = "git+https://github.com/paritytech/polkadot?branch=release-v0.9.26#d8785970175dce344f2a6ad1cd88297529a6dd59"
 dependencies = [
- "frame-support 4.0.0-dev (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "frame-support",
  "frame-system",
  "log",
  "pallet-transaction-payment",
  "parity-scale-codec",
  "polkadot-parachain",
  "scale-info",
- "sp-arithmetic 5.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-io 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-arithmetic",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
  "xcm",
  "xcm-executor",
 ]
@@ -14059,15 +13667,15 @@ name = "xcm-executor"
 version = "0.9.26"
 source = "git+https://github.com/paritytech/polkadot?branch=release-v0.9.26#d8785970175dce344f2a6ad1cd88297529a6dd59"
 dependencies = [
- "frame-support 4.0.0-dev (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "frame-support",
  "impl-trait-for-tuples",
  "log",
  "parity-scale-codec",
- "sp-arithmetic 5.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-io 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate?branch=polkagear3000-v0.9.26)",
+ "sp-arithmetic",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
  "xcm",
 ]
 
