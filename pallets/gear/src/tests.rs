@@ -20,11 +20,12 @@ use crate::{
     internal::HoldBound,
     manager::HandleKind,
     mock::{
-        new_test_ext, run_to_block, run_to_next_block, Balances, Event as MockEvent, Gear,
-        GearProgram, Origin, System, Test, BLOCK_AUTHOR, LOW_BALANCE_USER, USER_1, USER_2, USER_3,
+        new_test_ext, run_to_block, run_to_next_block, Balances, Gear, GearProgram, Origin,
+        RuntimeEvent as MockRuntimeEvent, System, Test, BLOCK_AUTHOR, LOW_BALANCE_USER, USER_1,
+        USER_2, USER_3,
     },
-    pallet, BlockGasLimitOf, Config, CostsPerBlockOf, Error, Event, GasAllowanceOf, GasHandlerOf,
-    GasInfo, MailboxOf, WaitlistOf,
+    pallet, BlockGasLimitOf, Config, CostsPerBlockOf, Error, GasAllowanceOf, GasHandlerOf, GasInfo,
+    MailboxOf, RuntimeEvent, WaitlistOf,
 };
 use codec::{Decode, Encode};
 use common::{
@@ -1607,21 +1608,21 @@ fn init_message_logging_works() {
             assert_ok!(upload_program_default(USER_1, code_kind));
 
             let event = match System::events().last().map(|r| r.event.clone()) {
-                Some(MockEvent::Gear(e)) => e,
+                Some(MockRuntimeEvent::Gear(e)) => e,
                 _ => unreachable!("Should be one Gear event"),
             };
 
             run_to_block(next_block, None);
 
             let msg_id = match event {
-                Event::MessageEnqueued { id, entry, .. } => {
+                RuntimeEvent::MessageEnqueued { id, entry, .. } => {
                     if entry == Entry::Init {
                         id
                     } else {
-                        unreachable!("expect Event::InitMessageEnqueued")
+                        unreachable!("expect RuntimeEvent::InitMessageEnqueued")
                     }
                 }
-                _ => unreachable!("expect Event::InitMessageEnqueued"),
+                _ => unreachable!("expect RuntimeEvent::InitMessageEnqueued"),
             };
 
             if let Some(trap) = trap {
@@ -1733,7 +1734,7 @@ fn events_logging_works() {
             let message_id = get_last_message_id();
 
             System::assert_last_event(
-                Event::MessageEnqueued {
+                RuntimeEvent::MessageEnqueued {
                     id: message_id,
                     source: USER_1,
                     destination: program_id,
@@ -1766,7 +1767,7 @@ fn events_logging_works() {
             let message_id = get_last_message_id();
 
             System::assert_last_event(
-                Event::MessageEnqueued {
+                RuntimeEvent::MessageEnqueued {
                     id: message_id,
                     source: USER_1,
                     destination: program_id,
@@ -1820,17 +1821,17 @@ fn send_reply_works() {
         // global nonce is 2 before sending reply message
         // `upload_program` and `send_message` messages were sent before in `setup_mailbox_test_state`
         let event = match System::events().last().map(|r| r.event.clone()) {
-            Some(MockEvent::Gear(e)) => e,
+            Some(MockRuntimeEvent::Gear(e)) => e,
             _ => unreachable!("Should be one Gear event"),
         };
 
         let actual_reply_message_id = match event {
-            Event::MessageEnqueued {
+            RuntimeEvent::MessageEnqueued {
                 id,
                 entry: Entry::Reply(_reply_to_id),
                 ..
             } => id,
-            _ => unreachable!("expect Event::DispatchMessageEnqueued"),
+            _ => unreachable!("expect RuntimeEvent::DispatchMessageEnqueued"),
         };
 
         assert_eq!(expected_reply_message_id, actual_reply_message_id);
@@ -2017,7 +2018,7 @@ fn claim_value_works() {
         );
 
         System::assert_last_event(
-            Event::UserMessageRead {
+            RuntimeEvent::UserMessageRead {
                 id: reply_to_id,
                 reason: UserMessageReadRuntimeReason::MessageClaimed.into_reason(),
             }
@@ -2169,7 +2170,7 @@ fn test_code_submission_pass() {
         // for expiration block number with properly
         // calculated one (issues #646 and #969).
         System::assert_last_event(
-            Event::CodeChanged {
+            RuntimeEvent::CodeChanged {
                 id: code_id,
                 change: CodeChangeKind::Active { expiration: None },
             }
@@ -2219,7 +2220,7 @@ fn test_code_is_not_submitted_twice_after_program_submission() {
         // for expiration block number with properly
         // calculated one (issues #646 and #969).
         System::assert_has_event(
-            Event::CodeChanged {
+            RuntimeEvent::CodeChanged {
                 id: code_id,
                 change: CodeChangeKind::Active { expiration: None },
             }
@@ -2264,7 +2265,7 @@ fn test_code_is_not_reset_within_program_submission() {
             .filter(|e| {
                 matches!(
                     e.event,
-                    MockEvent::Gear(Event::CodeChanged {
+                    MockRuntimeEvent::Gear(RuntimeEvent::CodeChanged {
                         change: CodeChangeKind::Active { .. },
                         ..
                     })
@@ -4023,7 +4024,7 @@ fn locking_gas_for_waitlist() {
         let mut expiration = None;
 
         System::events().iter().for_each(|e| {
-            if let MockEvent::Gear(Event::MessageWaited {
+            if let MockRuntimeEvent::Gear(RuntimeEvent::MessageWaited {
                 id,
                 expiration: exp,
                 ..
@@ -4688,7 +4689,7 @@ fn test_reply_to_terminated_program() {
         assert!(MailboxOf::<Test>::is_empty(&USER_1));
 
         System::assert_last_event(
-            Event::UserMessageRead {
+            RuntimeEvent::UserMessageRead {
                 id: mail_id,
                 reason: UserMessageReadRuntimeReason::MessageClaimed.into_reason(),
             }
@@ -5419,7 +5420,8 @@ mod utils {
     #![allow(unused)]
 
     use super::{
-        assert_ok, pallet, run_to_block, Event, MailboxOf, MockEvent, Origin, SystemPallet, Test,
+        assert_ok, pallet, run_to_block, MailboxOf, MockRuntimeEvent, Origin, RuntimeEvent,
+        SystemPallet, Test,
     };
     use crate::{
         mock::{Balances, Gear, System},
@@ -5513,7 +5515,7 @@ mod utils {
     pub(super) fn assert_init_success(expected: u32) {
         let mut actual_children_amount = 0;
         System::events().iter().for_each(|e| {
-            if let MockEvent::Gear(Event::ProgramChanged {
+            if let MockRuntimeEvent::Gear(RuntimeEvent::ProgramChanged {
                 change: ProgramChangeKind::Active { .. },
                 ..
             }) = e.event
@@ -5529,14 +5531,16 @@ mod utils {
         let last_dequeued = System::events()
             .iter()
             .filter_map(|e| {
-                if let MockEvent::Gear(Event::MessagesDispatched { total, .. }) = e.event {
+                if let MockRuntimeEvent::Gear(RuntimeEvent::MessagesDispatched { total, .. }) =
+                    e.event
+                {
                     Some(total)
                 } else {
                     None
                 }
             })
             .last()
-            .expect("Not found Event::MessagesDispatched");
+            .expect("Not found RuntimeEvent::MessagesDispatched");
 
         assert_eq!(expected, last_dequeued);
     }
@@ -5545,7 +5549,9 @@ mod utils {
         let actual_dequeued: u32 = System::events()
             .iter()
             .filter_map(|e| {
-                if let MockEvent::Gear(Event::MessagesDispatched { total, .. }) = e.event {
+                if let MockRuntimeEvent::Gear(RuntimeEvent::MessagesDispatched { total, .. }) =
+                    e.event
+                {
                     Some(total)
                 } else {
                     None
@@ -5690,7 +5696,9 @@ mod utils {
     pub(super) fn dispatch_status(message_id: MessageId) -> Option<DispatchStatus> {
         let mut found_status: Option<DispatchStatus> = None;
         System::events().iter().for_each(|e| {
-            if let MockEvent::Gear(Event::MessagesDispatched { statuses, .. }) = &e.event {
+            if let MockRuntimeEvent::Gear(RuntimeEvent::MessagesDispatched { statuses, .. }) =
+                &e.event
+            {
                 found_status = statuses.get(&message_id).map(Clone::clone);
             }
         });
@@ -5703,22 +5711,22 @@ mod utils {
     }
 
     pub(super) fn assert_succeed(message_id: MessageId) {
-        let status =
-            dispatch_status(message_id).expect("Message not found in `Event::MessagesDispatched`");
+        let status = dispatch_status(message_id)
+            .expect("Message not found in `RuntimeEvent::MessagesDispatched`");
 
         assert_eq!(status, DispatchStatus::Success)
     }
 
     pub(super) fn assert_failed(message_id: MessageId, error: ExecutionErrorReason) {
-        let status =
-            dispatch_status(message_id).expect("Message not found in `Event::MessagesDispatched`");
+        let status = dispatch_status(message_id)
+            .expect("Message not found in `RuntimeEvent::MessagesDispatched`");
 
         assert_eq!(status, DispatchStatus::Failed);
 
         let mut actual_error = None;
 
         System::events().into_iter().for_each(|e| {
-            if let MockEvent::Gear(Event::UserMessageSent { message, .. }) = e.event {
+            if let MockRuntimeEvent::Gear(RuntimeEvent::UserMessageSent { message, .. }) = e.event {
                 if let Some(details) = message.reply() {
                     if details.reply_to() == message_id && details.exit_code() != 0 {
                         actual_error = Some(
@@ -5731,7 +5739,7 @@ mod utils {
         });
 
         let mut actual_error =
-            actual_error.expect("Error message not found in any `Event::UserMessageSent`");
+            actual_error.expect("Error message not found in any `RuntimeEvent::UserMessageSent`");
         let mut expectations = error.to_string();
 
         log::debug!("Actual error: {:?}", actual_error);
@@ -5748,13 +5756,13 @@ mod utils {
     }
 
     pub(super) fn assert_not_executed(message_id: MessageId) {
-        let status =
-            dispatch_status(message_id).expect("Message not found in `Event::MessagesDispatched`");
+        let status = dispatch_status(message_id)
+            .expect("Message not found in `RuntimeEvent::MessagesDispatched`");
 
         assert_eq!(status, DispatchStatus::NotExecuted)
     }
 
-    pub(super) fn get_last_event() -> MockEvent {
+    pub(super) fn get_last_event() -> MockRuntimeEvent {
         System::events()
             .into_iter()
             .last()
@@ -5764,11 +5772,11 @@ mod utils {
 
     pub(super) fn get_last_program_id() -> ProgramId {
         let event = match System::events().last().map(|r| r.event.clone()) {
-            Some(MockEvent::Gear(e)) => e,
+            Some(MockRuntimeEvent::Gear(e)) => e,
             _ => unreachable!("Should be one Gear event"),
         };
 
-        if let Event::MessageEnqueued {
+        if let RuntimeEvent::MessageEnqueued {
             destination,
             entry: Entry::Init,
             ..
@@ -5776,17 +5784,17 @@ mod utils {
         {
             destination
         } else {
-            unreachable!("expect Event::InitMessageEnqueued")
+            unreachable!("expect RuntimeEvent::InitMessageEnqueued")
         }
     }
 
     pub(super) fn get_last_code_id() -> CodeId {
         let event = match System::events().last().map(|r| r.event.clone()) {
-            Some(MockEvent::Gear(e)) => e,
+            Some(MockRuntimeEvent::Gear(e)) => e,
             _ => unreachable!("Should be one Gear event"),
         };
 
-        if let Event::CodeChanged {
+        if let RuntimeEvent::CodeChanged {
             change: CodeChangeKind::Active { .. },
             id,
             ..
@@ -5794,7 +5802,7 @@ mod utils {
         {
             id
         } else {
-            unreachable!("expect Event::CodeChanged")
+            unreachable!("expect RuntimeEvent::CodeChanged")
         }
     }
 
@@ -5803,15 +5811,15 @@ mod utils {
             .iter()
             .rev()
             .filter_map(|r| {
-                if let MockEvent::Gear(e) = r.event.clone() {
+                if let MockRuntimeEvent::Gear(e) = r.event.clone() {
                     Some(e)
                 } else {
                     None
                 }
             })
             .find_map(|e| match e {
-                Event::MessageEnqueued { id, .. } => Some(id),
-                Event::UserMessageSent { message, .. } => Some(message.id()),
+                RuntimeEvent::MessageEnqueued { id, .. } => Some(id),
+                RuntimeEvent::UserMessageSent { message, .. } => Some(message.id()),
                 _ => None,
             })
             .expect("can't find message send event")
@@ -5822,7 +5830,7 @@ mod utils {
         System::events()
             .into_iter()
             .rfind(|e| match e.event {
-                MockEvent::Gear(Event::MessageWaited {
+                MockRuntimeEvent::Gear(RuntimeEvent::MessageWaited {
                     id: message_id,
                     expiration,
                     ..
@@ -5843,7 +5851,10 @@ mod utils {
         System::events()
             .into_iter()
             .rfind(|e| {
-                if let MockEvent::Gear(Event::MessageWaited { id, expiration, .. }) = e.event {
+                if let MockRuntimeEvent::Gear(RuntimeEvent::MessageWaited {
+                    id, expiration, ..
+                }) = e.event
+                {
                     message_id = Some(id);
                     exp = Some(expiration);
                     true
@@ -5858,7 +5869,7 @@ mod utils {
 
     pub(super) fn maybe_last_message(account: AccountId) -> Option<StoredMessage> {
         System::events().into_iter().rev().find_map(|e| {
-            if let MockEvent::Gear(Event::UserMessageSent { message, .. }) = e.event {
+            if let MockRuntimeEvent::Gear(RuntimeEvent::UserMessageSent { message, .. }) = e.event {
                 if message.destination() == account.into() {
                     Some(message)
                 } else {

@@ -186,7 +186,7 @@ pub mod pallet {
     impl<T: crate::Config> EmptyCallback for OnChange<T> {
         fn call() {
             let weight = T::DbWeight::get().writes(1);
-            GasAllowanceOf::<T>::decrease(weight);
+            GasAllowanceOf::<T>::decrease(weight.ref_time());
         }
     }
 

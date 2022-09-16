@@ -105,7 +105,7 @@ fn debug_mode_works() {
         let static_pages = WasmPageNumber(16);
 
         System::assert_last_event(
-            crate::Event::DebugDataSnapshot(DebugData {
+            crate::RuntimeEvent::DebugDataSnapshot(DebugData {
                 dispatch_queue: vec![],
                 programs: vec![crate::ProgramDetails {
                     id: program_id_1,
@@ -134,7 +134,7 @@ fn debug_mode_works() {
         GearDebug::do_snapshot();
 
         System::assert_last_event(
-            crate::Event::DebugDataSnapshot(DebugData {
+            crate::RuntimeEvent::DebugDataSnapshot(DebugData {
                 dispatch_queue: vec![],
                 programs: vec![
                     crate::ProgramDetails {
@@ -185,7 +185,7 @@ fn debug_mode_works() {
         GearDebug::do_snapshot();
 
         System::assert_last_event(
-            crate::Event::DebugDataSnapshot(DebugData {
+            crate::RuntimeEvent::DebugDataSnapshot(DebugData {
                 dispatch_queue: vec![
                     StoredDispatch::new(
                         DispatchKind::Handle,
@@ -239,7 +239,7 @@ fn debug_mode_works() {
 
         // only programs left!
         System::assert_last_event(
-            crate::Event::DebugDataSnapshot(DebugData {
+            crate::RuntimeEvent::DebugDataSnapshot(DebugData {
                 dispatch_queue: vec![],
                 programs: vec![
                     crate::ProgramDetails {
@@ -266,16 +266,16 @@ fn debug_mode_works() {
 }
 
 fn get_last_message_id() -> MessageId {
-    use pallet_gear::Event;
+    use pallet_gear::RuntimeEvent;
 
     let event = match System::events().last().map(|r| r.event.clone()) {
-        Some(super::mock::Event::Gear(e)) => e,
+        Some(super::mock::RuntimeEvent::Gear(e)) => e,
         _ => unreachable!("Should be one Gear event"),
     };
 
     match event {
-        Event::MessageEnqueued { id, .. } => id,
-        Event::UserMessageSent { message, .. } => message.id(),
+        RuntimeEvent::MessageEnqueued { id, .. } => id,
+        RuntimeEvent::UserMessageSent { message, .. } => message.id(),
         _ => unreachable!("expect sending"),
     }
 }
@@ -451,7 +451,7 @@ fn check_not_allocated_pages() {
             .for_each(|page| append_rest_psg_pages(page, &mut persistent_pages));
 
         System::assert_last_event(
-            crate::Event::DebugDataSnapshot(DebugData {
+            crate::RuntimeEvent::DebugDataSnapshot(DebugData {
                 dispatch_queue: vec![],
                 programs: vec![crate::ProgramDetails {
                     id: program_id,
@@ -481,7 +481,7 @@ fn check_not_allocated_pages() {
         persistent_pages.insert(gear_page0, page0_data.to_vec());
 
         System::assert_last_event(
-            crate::Event::DebugDataSnapshot(DebugData {
+            crate::RuntimeEvent::DebugDataSnapshot(DebugData {
                 dispatch_queue: vec![],
                 programs: vec![crate::ProgramDetails {
                     id: program_id,
@@ -689,7 +689,7 @@ fn check_changed_pages_in_storage() {
             .for_each(|page| append_rest_psg_pages(page, &mut persistent_pages));
 
         System::assert_last_event(
-            crate::Event::DebugDataSnapshot(DebugData {
+            crate::RuntimeEvent::DebugDataSnapshot(DebugData {
                 dispatch_queue: vec![],
                 programs: vec![crate::ProgramDetails {
                     id: program_id,
@@ -729,7 +729,7 @@ fn check_changed_pages_in_storage() {
             .for_each(|page| append_rest_psg_pages(page, &mut persistent_pages));
 
         System::assert_last_event(
-            crate::Event::DebugDataSnapshot(DebugData {
+            crate::RuntimeEvent::DebugDataSnapshot(DebugData {
                 dispatch_queue: vec![],
                 programs: vec![crate::ProgramDetails {
                     id: program_id,
@@ -818,7 +818,7 @@ fn check_gear_stack_end() {
             .for_each(|page| append_rest_psg_pages(page, &mut persistent_pages));
 
         System::assert_last_event(
-            crate::Event::DebugDataSnapshot(DebugData {
+            crate::RuntimeEvent::DebugDataSnapshot(DebugData {
                 dispatch_queue: vec![],
                 programs: vec![crate::ProgramDetails {
                     id: program_id,
