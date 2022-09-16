@@ -34,7 +34,10 @@ use gear_core::{
     gas::{ChargeResult, GasAllowanceCounter, GasAmount, GasCounter, ValueCounter},
     ids::{CodeId, MessageId, ProgramId},
     memory::{AllocationsContext, Memory, PageBuf, WasmPageNumber},
-    message::{ExitCode, GasLimit, HandlePacket, InitPacket, MessageContext, Packet, ReplyPacket},
+    message::{
+        DispatchKind, ExitCode, GasLimit, HandlePacket, InitPacket, MessageContext, Packet,
+        ReplyPacket,
+    },
 };
 use gear_core_errors::{CoreError, ExecutionError, ExtError, MemoryError, MessageError, WaitError};
 
@@ -323,6 +326,14 @@ impl Ext {
         self.charge_message_value(packet.value())?;
         Ok(())
     }
+
+    fn check_forbidden_call(&mut self, id: ProgramId) -> Result<(), ProcessorError> {
+        if id == ProgramId::SYSTEM {
+            self.return_and_store_err(Err(ExecutionError::ForbiddenFunction))
+        } else {
+            Ok(())
+        }
+    }
 }
 
 impl EnvExt for Ext {
@@ -420,6 +431,7 @@ impl EnvExt for Ext {
     fn send_commit(&mut self, handle: usize, msg: HandlePacket) -> Result<MessageId, Self::Error> {
         self.charge_gas_runtime(RuntimeCosts::SendCommit(msg.payload().len() as u32))?;
 
+        self.check_forbidden_call(msg.destination())?;
         self.charge_expiring_resources(&msg)?;
 
         let result = self.context.message_context.send_commit(handle as u32, msg);
@@ -430,6 +442,7 @@ impl EnvExt for Ext {
     fn reply_commit(&mut self, msg: ReplyPacket) -> Result<MessageId, Self::Error> {
         self.charge_gas_runtime(RuntimeCosts::ReplyCommit(msg.payload().len() as u32))?;
 
+        self.check_forbidden_call(self.context.message_context.reply_destination())?;
         self.charge_expiring_resources(&msg)?;
 
         let result = self.context.message_context.reply_commit(msg);
@@ -660,5 +673,9 @@ impl EnvExt for Ext {
 
     fn forbidden_funcs(&self) -> &BTreeSet<&'static str> {
         &self.context.forbidden_funcs
+    }
+
+    fn dispatch_kind(&self) -> DispatchKind {
+        self.context.message_context.current()
     }
 }

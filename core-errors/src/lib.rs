@@ -162,6 +162,9 @@ pub enum ExecutionError {
     /// An error occurs in attempt to refund more gas than burned one.
     #[display(fmt = "Too many gas refunded")]
     TooManyGasAdded,
+    /// An error occurs in attempt to call forbidden sys-call.
+    #[display(fmt = "Unable to call a forbidden function")]
+    ForbiddenFunction,
 }
 
 /// An error occurred in API.

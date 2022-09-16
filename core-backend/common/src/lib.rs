@@ -93,8 +93,6 @@ pub enum TrapExplanation {
     Core(ExtError),
     #[display(fmt = "{}", _0)]
     Other(TrimmedString),
-    #[display(fmt = "Unable to call a forbidden function")]
-    ForbiddenFunction,
     #[display(fmt = "Reason is unknown. Possibly `unreachable` instruction is occurred")]
     Unknown,
 }
