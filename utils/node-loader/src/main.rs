@@ -8,6 +8,7 @@
 use std::{fs::File, io::Write, sync::Arc};
 
 use arbitrary::Unstructured;
+use futures::Future;
 use gear_program::{
     api::{generated::api::gear::calls::UploadProgram, Api},
     result::Result,
@@ -15,10 +16,13 @@ use gear_program::{
 use gear_wasm_gen::GearConfig;
 use parking_lot::Mutex;
 use rand::{rngs::SmallRng, RngCore, SeedableRng};
+use tokio::task::JoinHandle;
 
 use args::{parse_cli_params, Params};
+use reporter::Reporter;
 
 mod args;
+mod reporter;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -46,22 +50,19 @@ async fn load_node(params: Params) {
     let salt = Arc::new(Mutex::new(0));
     let seed_gen = Arc::new(Mutex::new(SmallRng::seed_from_u64(params.seed)));
 
-    let workers_num = params.workers as usize;
-    let mut tasks = Vec::with_capacity(workers_num);
+    let mut task_pool = TaskPool::new(&params);
     loop {
-        tasks.clear();
-        while tasks.len() != workers_num {
-            let task = tokio::spawn(load_node_task(
-                gear_api.clone(),
-                Arc::clone(&salt),
-                Arc::clone(&seed_gen),
-                Arc::clone(&params),
-            ));
-            tasks.push(task);
-        }
-        for task in &mut tasks {
-            task.await.unwrap();
-        }
+        task_pool
+            .run(|| {
+                load_node_task(
+                    gear_api.clone(),
+                    Arc::clone(&salt),
+                    Arc::clone(&seed_gen),
+                    Arc::clone(&params),
+                )
+            })
+            .await
+            .expect("tmp");
     }
 }
 
@@ -70,11 +71,10 @@ async fn load_node_task(
     salt: Arc<Mutex<u32>>,
     seed_gen: Arc<Mutex<SmallRng>>,
     params: Arc<Params>,
-) {
+) -> std::result::Result<(), ()> {
     let signer = gear_api.try_signer(None).unwrap();
 
     println!("==============================================");
-
     let (seed, salt) = if let Some(seed) = params.only_seed {
         *salt.lock() += 1;
         (seed, *salt.lock())
@@ -106,6 +106,8 @@ async fn load_node_task(
             println!("Successfully receive response");
             res
         });
+
+    Ok(())
 }
 
 fn gen_code_for_seed(seed: u64) -> Vec<u8> {
@@ -114,4 +116,32 @@ fn gen_code_for_seed(seed: u64) -> Vec<u8> {
     rng.fill_bytes(&mut buf);
     let mut u = Unstructured::new(&buf);
     gear_wasm_gen::gen_gear_program_code(&mut u, GearConfig::default())
+}
+
+struct TaskPool<T>(Vec<JoinHandle<T>>);
+
+impl<T> TaskPool<T> {
+    fn new(params: &Params) -> Self {
+        Self(Vec::with_capacity(params.workers as usize))
+    }
+
+    async fn run<Job>(&mut self, job_wrap: impl Fn() -> Job) -> std::result::Result<(), ()>
+    where
+        Job: Future<Output = T> + Send + 'static,
+        T: std::fmt::Debug + Send + 'static,
+    {
+        let Self(tasks) = self;
+
+        tasks.clear();
+        while tasks.len() != tasks.capacity() {
+            let task = tokio::spawn(job_wrap());
+            tasks.push(task)
+        }
+
+        for task in tasks {
+            let res = task.await.map_err(|_| ())?;
+        }
+
+        Ok(())
+    }
 }

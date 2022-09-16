@@ -3,7 +3,7 @@
 use structopt::StructOpt;
 
 #[derive(Debug, StructOpt)]
-#[structopt(name = "node-hacker")]
+#[structopt(name = "node-loader")]
 pub(crate) struct Params {
     /// rpc node addr
     #[structopt(long, default_value = "ws://localhost:9944")]
