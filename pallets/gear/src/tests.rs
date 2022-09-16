@@ -5079,7 +5079,7 @@ fn execution_over_blocks() {
         assert_ok!(Gear::send_message(
             Origin::signed(USER_1),
             in_one_block,
-            Package::new(1024, src).encode(),
+            Package::new(2048, src).encode(),
             block_gas_limit,
             0,
         ));
