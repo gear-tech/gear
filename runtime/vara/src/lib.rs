@@ -129,7 +129,7 @@ impl frame_system::Config for Runtime {
     /// The identifier used to distinguish between accounts.
     type AccountId = AccountId;
     /// The aggregated dispatch type that is available for extrinsics.
-    type Call = Call;
+    type RuntimeCall = RuntimeCall;
     /// The lookup mechanism to get account ID from whatever is passed in dispatchers.
     type Lookup = AccountIdLookup<AccountId, ()>;
     /// The index type for storing how many extrinsics an account has signed.
@@ -143,7 +143,7 @@ impl frame_system::Config for Runtime {
     /// The header type.
     type Header = generic::Header<BlockNumber, BlakeTwo256>;
     /// The ubiquitous event type.
-    type Event = Event;
+    type RuntimeEvent = RuntimeEvent;
     /// The ubiquitous origin type.
     type Origin = Origin;
     /// Maximum number of block number to block hash mappings to keep (oldest pruned first).
@@ -200,8 +200,7 @@ impl pallet_babe::Config for Runtime {
 }
 
 impl pallet_grandpa::Config for Runtime {
-    type Event = Event;
-    type Call = Call;
+    type RuntimeEvent = RuntimeEvent;
 
     type KeyOwnerProofSystem = ();
 
@@ -249,7 +248,7 @@ impl pallet_balances::Config for Runtime {
     /// The type for recording an account's balance.
     type Balance = Balance;
     /// The ubiquitous event type.
-    type Event = Event;
+    type RuntimeEvent = RuntimeEvent;
     type DustRemoval = ();
     type ExistentialDeposit = ConstU128<EXISTENTIAL_DEPOSIT>;
     type AccountStore = System;
@@ -257,7 +256,7 @@ impl pallet_balances::Config for Runtime {
 }
 
 impl pallet_transaction_payment::Config for Runtime {
-    type Event = Event;
+    type RuntimeEvent = RuntimeEvent;
     type OnChargeTransaction = CurrencyAdapter<Balances, DealWithFees<Runtime>>;
     type OperationalFeeMultiplier = OperationalFeeMultiplier;
     type WeightToFee = IdentityFee<Balance>;
@@ -273,7 +272,7 @@ impl_opaque_keys! {
 }
 
 impl pallet_session::Config for Runtime {
-    type Event = Event;
+    type RuntimeEvent = RuntimeEvent;
     type ValidatorId = <Self as frame_system::Config>::AccountId;
     type ValidatorIdOf = ();
     type ShouldEndSession = Babe;
@@ -285,13 +284,13 @@ impl pallet_session::Config for Runtime {
 }
 
 impl pallet_sudo::Config for Runtime {
-    type Event = Event;
-    type Call = Call;
+    type RuntimeEvent = RuntimeEvent;
+    type RuntimeCall = RuntimeCall;
 }
 
 impl pallet_utility::Config for Runtime {
-    type Event = Event;
-    type Call = Call;
+    type RuntimeEvent = RuntimeEvent;
+    type RuntimeCall = RuntimeCall;
     type WeightInfo = weights::pallet_utility::SubstrateWeight<Runtime>;
     type PalletsOrigin = OriginCaller;
 }
@@ -302,7 +301,7 @@ impl gear_common::GasPrice for GasConverter {
 }
 
 impl pallet_gear_program::Config for Runtime {
-    type Event = Event;
+    type RuntimeEvent = RuntimeEvent;
     type WeightInfo = weights::pallet_gear_program::SubstrateWeight<Runtime>;
     type Currency = Balances;
     type Messenger = GearMessenger;
@@ -313,7 +312,7 @@ parameter_types! {
 }
 
 impl pallet_gear::Config for Runtime {
-    type Event = Event;
+    type RuntimeEvent = RuntimeEvent;
     type Currency = Balances;
     type GasPrice = GasConverter;
     type WeightInfo = weights::pallet_gear::SubstrateWeight<Runtime>;
@@ -330,7 +329,7 @@ impl pallet_gear::Config for Runtime {
 
 #[cfg(feature = "debug-mode")]
 impl pallet_gear_debug::Config for Runtime {
-    type Event = Event;
+    type RuntimeEvent = RuntimeEvent;
     type WeightInfo = pallet_gear_debug::weights::GearSupportWeight<Runtime>;
     type CodeStorage = GearProgram;
     type Messenger = GearMessenger;
@@ -352,15 +351,15 @@ impl pallet_gear_messenger::Config for Runtime {
 }
 
 pub struct ExtraFeeFilter;
-impl Contains<Call> for ExtraFeeFilter {
-    fn contains(call: &Call) -> bool {
+impl Contains<RuntimeCall> for ExtraFeeFilter {
+    fn contains(call: &RuntimeCall) -> bool {
         // Calls that affect message queue and are subject to extra fee
         matches!(
             call,
-            Call::Gear(pallet_gear::Call::create_program { .. })
-                | Call::Gear(pallet_gear::Call::upload_program { .. })
-                | Call::Gear(pallet_gear::Call::send_message { .. })
-                | Call::Gear(pallet_gear::Call::send_reply { .. })
+            RuntimeCall::Gear(pallet_gear::Call::create_program { .. })
+                | RuntimeCall::Gear(pallet_gear::Call::upload_program { .. })
+                | RuntimeCall::Gear(pallet_gear::Call::send_message { .. })
+                | RuntimeCall::Gear(pallet_gear::Call::send_reply { .. })
         )
     }
 }
@@ -372,10 +371,10 @@ impl pallet_gear_payment::Config for Runtime {
 
 impl<C> frame_system::offchain::SendTransactionTypes<C> for Runtime
 where
-    Call: From<C>,
+    RuntimeCall: From<C>,
 {
     type Extrinsic = UncheckedExtrinsic;
-    type OverarchingCall = Call;
+    type OverarchingCall = RuntimeCall;
 }
 
 // Create the runtime by composing the FRAME pallets that were previously configured.
@@ -452,9 +451,10 @@ pub type SignedExtra = (
     pallet_gear_payment::CustomChargeTransactionPayment<Runtime>,
 );
 /// Unchecked extrinsic type as expected by this runtime.
-pub type UncheckedExtrinsic = generic::UncheckedExtrinsic<Address, Call, Signature, SignedExtra>;
+pub type UncheckedExtrinsic =
+    generic::UncheckedExtrinsic<Address, RuntimeCall, Signature, SignedExtra>;
 /// The payload being signed in transactions.
-pub type SignedPayload = generic::SignedPayload<Call, SignedExtra>;
+pub type SignedPayload = generic::SignedPayload<RuntimeCall, SignedExtra>;
 /// Executive: handles dispatch to the various modules.
 pub type Executive = frame_executive::Executive<
     Runtime,
@@ -489,17 +489,17 @@ mod benches {
 
 impl_runtime_apis_plus_common! {
     impl sp_consensus_babe::BabeApi<Block> for Runtime {
-        fn configuration() -> sp_consensus_babe::BabeGenesisConfiguration {
+        fn configuration() -> sp_consensus_babe::BabeConfiguration {
             // The choice of `c` parameter (where `1 - c` represents the
             // probability of a slot being empty), is done in accordance to the
             // slot duration and expected target block time, for safely
             // resisting network delays of maximum two seconds.
             // <https://research.web3.foundation/en/latest/polkadot/BABE/Babe/#6-practical-results>
-            sp_consensus_babe::BabeGenesisConfiguration {
+            sp_consensus_babe::BabeConfiguration {
                 slot_duration: Babe::slot_duration(),
                 epoch_length: EpochDuration::get(),
                 c: BABE_GENESIS_EPOCH_CONFIG.c,
-                genesis_authorities: Babe::authorities().to_vec(),
+                authorities: Babe::authorities().to_vec(),
                 randomness: Babe::randomness(),
                 allowed_slots: BABE_GENESIS_EPOCH_CONFIG.allowed_slots,
             }
