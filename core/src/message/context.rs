@@ -267,6 +267,7 @@ impl MessageContext {
         }
     }
 
+    /// Return reply destination.
     pub fn reply_destination(&self) -> ProgramId {
         self.outcome.source
     }

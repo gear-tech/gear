@@ -41,7 +41,7 @@ use gear_core::{
     ids::{MessageId, ProgramId},
     message::{HandlePacket, InitPacket, ReplyPacket},
 };
-use gear_core_errors::{ExecutionError, MemoryError};
+use gear_core_errors::MemoryError;
 use sp_sandbox::{HostError, ReturnValue, Value};
 
 pub(crate) type SyscallOutput = Result<ReturnValue, HostError>;
@@ -910,7 +910,8 @@ where
     }
 
     pub fn forbidden(ctx: &mut Runtime<E>, _args: &[Value]) -> SyscallOutput {
-        ctx.err = FuncError::Core(ExecutionError::ForbiddenFunction.into());
+        ctx.err =
+            FuncError::Terminated(TerminationReason::Trap(TrapExplanation::ForbiddenFunction));
         Err(HostError)
     }
 }

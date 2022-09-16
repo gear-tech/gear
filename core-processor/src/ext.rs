@@ -674,8 +674,4 @@ impl EnvExt for Ext {
     fn forbidden_funcs(&self) -> &BTreeSet<&'static str> {
         &self.context.forbidden_funcs
     }
-
-    fn dispatch_kind(&self) -> DispatchKind {
-        self.context.message_context.current()
-    }
 }
