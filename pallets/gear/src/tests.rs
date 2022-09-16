@@ -5411,14 +5411,16 @@ fn invalid_memory_page_count_rejected() {
 
     init_logger();
     new_test_ext().execute_with(|| {
-        assert_noop!(Gear::upload_code(
+        assert_noop!(
+            Gear::upload_code(
                 Origin::signed(USER_1),
                 ProgramCodeKind::Custom(&wat).to_bytes(),
             ),
             Error::<Test>::FailedToConstructProgram
         );
 
-        assert_noop!(Gear::upload_program(
+        assert_noop!(
+            Gear::upload_program(
                 Origin::signed(USER_1),
                 ProgramCodeKind::Custom(&wat).to_bytes(),
                 vec![],

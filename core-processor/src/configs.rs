@@ -22,8 +22,7 @@ use crate::common::Actor;
 use alloc::collections::BTreeSet;
 use codec::{Decode, Encode};
 use gear_core::{
-    costs::HostFnWeights, ids::ProgramId, memory::WasmPageNumber, message::IncomingDispatch,
-    code,
+    code, costs::HostFnWeights, ids::ProgramId, memory::WasmPageNumber, message::IncomingDispatch,
 };
 
 const INIT_COST: u64 = 5000;
