@@ -341,13 +341,13 @@ impl pallet_session::Config for Runtime {
     type ValidatorIdOf = pallet_staking::StashOf<Self>;
     type ShouldEndSession = Babe;
     type NextSessionRotation = Babe;
-    type SessionManager = ();
+    type SessionManager = pallet_session_historical::NoteHistoricalRoot<Self, Staking>;
     type SessionHandler = <SessionKeys as OpaqueKeys>::KeyTypeIdProviders;
     type Keys = SessionKeys;
     type WeightInfo = pallet_session::weights::SubstrateWeight<Runtime>;
 }
 
-impl pallet_session::historical::Config for Runtime {
+impl pallet_session_historical::Config for Runtime {
     type FullIdentification = pallet_staking::Exposure<AccountId, Balance>;
     type FullIdentificationOf = pallet_staking::ExposureOf<Runtime>;
 }
@@ -390,9 +390,9 @@ impl pallet_staking::BenchmarkingConfig for StakingBenchmarkingConfig {
     type MaxValidators = ConstU32<1000>;
 }
 
-pub struct NoElectionAtStage1<DataProvider>(sp_std::marker::PhantomData<DataProvider>);
+pub struct ElectNone<DataProvider>(sp_std::marker::PhantomData<DataProvider>);
 
-impl<DataProvider> ElectionProvider for NoElectionAtStage1<DataProvider>
+impl<DataProvider> ElectionProvider for ElectNone<DataProvider>
 where
     DataProvider: ElectionDataProvider<AccountId = AccountId, BlockNumber = BlockNumber>,
 {
@@ -402,7 +402,27 @@ where
     type DataProvider = DataProvider;
 
     fn elect() -> Result<sp_npos_elections::Supports<AccountId>, Self::Error> {
-        Err("<No election takes place at stage 1")
+        Err("No election takes place at stage 1")
+    }
+}
+
+pub struct ElectAll<DataProvider>(sp_std::marker::PhantomData<DataProvider>);
+
+impl<DataProvider> ElectionProvider for ElectAll<DataProvider>
+where
+    DataProvider: ElectionDataProvider<AccountId = AccountId, BlockNumber = BlockNumber>,
+{
+    type AccountId = AccountId;
+    type BlockNumber = BlockNumber;
+    type Error = &'static str;
+    type DataProvider = DataProvider;
+
+    fn elect() -> Result<sp_npos_elections::Supports<AccountId>, Self::Error> {
+        let targets = Self::DataProvider::electable_targets(None)?
+            .into_iter()
+            .map(|acc| (acc, Default::default()))
+            .collect();
+        Ok(targets)
     }
 }
 
@@ -412,8 +432,8 @@ impl pallet_staking::Config for Runtime {
     type CurrencyBalance = Balance;
     type UnixTime = Timestamp;
     type CurrencyToVote = U128CurrencyToVote;
-    type ElectionProvider = NoElectionAtStage1<Staking>;
-    type GenesisElectionProvider = NoElectionAtStage1<Staking>;
+    type ElectionProvider = ElectNone<Staking>;
+    type GenesisElectionProvider = ElectAll<Staking>;
     type RewardRemainder = (); // No rewards in stage 1 => can just burn
     type Event = Event;
     type Slash = ();
