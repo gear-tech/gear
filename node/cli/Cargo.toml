@@ -10,7 +10,9 @@ targets = ["x86_64-unknown-linux-gnu"]
 
 [dependencies]
 clap = { version = "3.2", features = ["derive"] }
-scale-info = { version = "2.1.1", default-features = false, features = ["derive"] }
+scale-info = { version = "2.1.1", default-features = false, features = [
+	"derive",
+] }
 
 # Gear
 runtime-primitives = { package = "gear-runtime-primitives", version = "0.1.0", default-features = false, path = "../../runtime/primitives" }
@@ -68,9 +70,9 @@ vara-native = [
 	"vara-runtime",
 ]
 lazy-pages = ["service/lazy-pages"]
-runtime-benchmarks = ["service/runtime-benchmarks"]
-debug-mode = ["service/debug-mode"]
-try-runtime = [
-	"service/try-runtime",
-	"try-runtime-cli",
+runtime-benchmarks = [
+	"service/runtime-benchmarks",
+	"frame-benchmarking-cli/runtime-benchmarks",
 ]
+debug-mode = ["service/debug-mode"]
+try-runtime = ["service/try-runtime", "try-runtime-cli"]

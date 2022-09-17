@@ -30,8 +30,8 @@ vara-runtime = { path = "../../runtime/vara", optional = true }
 sc-chain-spec = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
 sc-executor = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", features = [
 	"wasmtime",
-	# "wasmer-sandbox",
-	# "wasmer-cache",
+	"wasmer-sandbox",
+	"wasmer-cache",
 ] }
 sc-service = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", features = [
 	"wasmtime",
@@ -72,7 +72,7 @@ pallet-transaction-payment-rpc = { version = "4.0.0-dev", default-features = fal
 pallet-transaction-payment-rpc-runtime-api = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
 
 # Substrate Other
-frame-benchmarking = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", optional = true }
+frame-benchmarking = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
 frame-benchmarking-cli = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
 substrate-frame-rpc-system = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
 frame-system = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
@@ -94,7 +94,8 @@ lazy-pages = [
 	"vara-runtime?/lazy-pages",
 ]
 runtime-benchmarks = [
-	"frame-benchmarking",
+ 	"frame-benchmarking/runtime-benchmarks",
+ 	"frame-benchmarking-cli/runtime-benchmarks",
 	"gear-runtime?/runtime-benchmarks",
 	"vara-runtime?/runtime-benchmarks",
 ]

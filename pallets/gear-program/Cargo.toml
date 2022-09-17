@@ -45,6 +45,7 @@ std = [
 	"log/std",
 	"codec/std",
 	"common/std",
+	"frame-benchmarking?/std",
 	"frame-support/std",
 	"frame-system/std",
 	"scale-info/std",
@@ -56,7 +57,7 @@ std = [
 	"pallet-balances/std",
 ]
 runtime-benchmarks = [
-	"frame-benchmarking",
+	"frame-benchmarking/runtime-benchmarks",
 	"frame-system/runtime-benchmarks",
 	"frame-support/runtime-benchmarks",
 	"common/runtime-benchmarks"

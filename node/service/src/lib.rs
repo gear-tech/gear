@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use sc_client_api::{BlockBackend};
+use sc_client_api::BlockBackend;
 use sc_executor::{NativeElseWasmExecutor, NativeExecutionDispatch};
 use sc_finality_grandpa::SharedVoterState;
 use sc_keystore::LocalKeystore;

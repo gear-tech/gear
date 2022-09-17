@@ -50,6 +50,7 @@ default = ['std']
 std = [
 	"codec/std",
 	"log/std",
+	"frame-benchmarking?/std",
 	"frame-support/std",
 	"frame-system/std",
 	"scale-info/std",
@@ -61,7 +62,7 @@ std = [
 	"primitive-types/std",
 ]
 runtime-benchmarks = [
-	"frame-benchmarking",
+	"frame-benchmarking/runtime-benchmarks",
 	"frame-system/runtime-benchmarks",
 	"frame-support/runtime-benchmarks",
 	"parity-wasm",
