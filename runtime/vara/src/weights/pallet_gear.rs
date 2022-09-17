@@ -35,6 +35,10 @@ use sp_std::marker::PhantomData;
 
 /// Weight functions needed for pallet_gear.
 pub trait WeightInfo {
+    fn allocation_cost() -> Weight;
+    fn grow_cost() -> Weight;
+    fn initial_cost() -> Weight;
+    fn load_cost() -> Weight;
     fn claim_value() -> Weight;
     fn upload_code(c: u32, ) -> Weight;
     fn create_program(s: u32, ) -> Weight;
@@ -133,6 +137,20 @@ pub trait WeightInfo {
 /// Weights for pallet_gear using the Substrate node and recommended hardware.
 pub struct SubstrateWeight<T>(PhantomData<T>);
 impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
+    fn allocation_cost() -> Weight {
+        // To be changed with the proper value.
+        T::DbWeight::get().writes(1)
+    }
+    fn grow_cost() -> Weight {
+        // To be changed with the proper value.
+        T::DbWeight::get().writes(1)
+    }
+    fn initial_cost() -> Weight {
+        T::DbWeight::get().writes(1)
+    }
+    fn load_cost() -> Weight {
+        T::DbWeight::get().reads(1)
+    }
     fn claim_value() -> Weight {
         Weight::from_ref_time(104_749_000 as u64)
             .saturating_add(T::DbWeight::get().reads(8 as u64))
@@ -722,6 +740,20 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
 
 // For backwards compatibility and tests
 impl WeightInfo for () {
+    fn allocation_cost() -> Weight {
+        // To be changed with the proper value.
+        RocksDbWeight::get().writes(1)
+    }
+    fn grow_cost() -> Weight {
+        // To be changed with the proper value.
+        RocksDbWeight::get().writes(1)
+    }
+    fn initial_cost() -> Weight {
+        RocksDbWeight::get().writes(1)
+    }
+    fn load_cost() -> Weight {
+        RocksDbWeight::get().reads(1)
+    }
     fn claim_value() -> Weight {
         Weight::from_ref_time(104_749_000 as u64)
             .saturating_add(RocksDbWeight::get().reads(8 as u64))
