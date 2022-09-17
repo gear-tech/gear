@@ -20,8 +20,9 @@ use crate::{
     internal::HoldBound,
     manager::HandleKind,
     mock::{
-        new_test_ext, run_to_block, run_to_next_block, Balances, Event as MockEvent, Gear,
-        GearProgram, Origin, System, Test, BLOCK_AUTHOR, LOW_BALANCE_USER, USER_1, USER_2, USER_3, get_minimal_weight,
+        get_minimal_weight, new_test_ext, run_to_block, run_to_next_block, Balances,
+        Event as MockEvent, Gear, GearProgram, Origin, System, Test, BLOCK_AUTHOR,
+        LOW_BALANCE_USER, USER_1, USER_2, USER_3,
     },
     pallet, BlockGasLimitOf, Config, CostsPerBlockOf, Error, Event, GasAllowanceOf, GasHandlerOf,
     GasInfo, MailboxOf, WaitlistOf,
@@ -746,8 +747,9 @@ fn spent_gas_to_reward_block_author_works() {
 
         // The block author should be paid the amount of Currency equal to
         // the `gas_charge` incurred while processing the `InitProgram` message
-        let gas_spent =
-            GasPrice::gas_price(BlockGasLimitOf::<Test>::get() - GasAllowanceOf::<Test>::get() - minimal_weight);
+        let gas_spent = GasPrice::gas_price(
+            BlockGasLimitOf::<Test>::get() - GasAllowanceOf::<Test>::get() - minimal_weight,
+        );
         assert_eq!(
             Balances::free_balance(BLOCK_AUTHOR),
             block_author_initial_balance + gas_spent
@@ -800,8 +802,9 @@ fn unused_gas_released_back_works() {
 
         run_to_block(2, None);
 
-        let user1_actual_msgs_spends =
-            GasPrice::gas_price(BlockGasLimitOf::<Test>::get() - GasAllowanceOf::<Test>::get() - minimal_weight);
+        let user1_actual_msgs_spends = GasPrice::gas_price(
+            BlockGasLimitOf::<Test>::get() - GasAllowanceOf::<Test>::get() - minimal_weight,
+        );
 
         assert!(user1_potential_msgs_spends > user1_actual_msgs_spends);
 

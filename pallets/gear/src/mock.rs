@@ -22,7 +22,8 @@ use frame_support::{
     construct_runtime,
     pallet_prelude::*,
     parameter_types,
-    traits::{ConstU64, FindAuthor}, weights::RuntimeDbWeight,
+    traits::{ConstU64, FindAuthor},
+    weights::RuntimeDbWeight,
 };
 use frame_system as system;
 use sp_core::H256;
@@ -209,9 +210,8 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
 }
 
 pub fn get_minimal_weight() -> Weight {
-    new_test_ext().execute_with(|| {
-        Gear::on_idle(System::block_number(), BlockGasLimitOf::<Test>::get())
-    })
+    new_test_ext()
+        .execute_with(|| Gear::on_idle(System::block_number(), BlockGasLimitOf::<Test>::get()))
 }
 
 pub fn run_to_block(n: u64, remaining_weight: Option<u64>) {
