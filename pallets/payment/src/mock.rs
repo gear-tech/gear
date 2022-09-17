@@ -20,7 +20,7 @@ use crate as pallet_gear_payment;
 use frame_support::{
     construct_runtime, parameter_types,
     traits::{ConstU8, Contains, Currency, FindAuthor, OnFinalize, OnInitialize, OnUnbalanced},
-    weights::IdentityFee,
+    weights::{IdentityFee, Weight},
 };
 use frame_system as system;
 use pallet_transaction_payment::CurrencyAdapter;
@@ -107,7 +107,7 @@ parameter_types! {
     pub const SS58Prefix: u8 = 42;
     pub const ExistentialDeposit: u64 = 1;
     pub BlockWeights: frame_system::limits::BlockWeights =
-        frame_system::limits::BlockWeights::simple_max(1_000_000_000);
+        frame_system::limits::BlockWeights::simple_max(Weight::from_ref_time(1_000_000_000));
 }
 
 impl system::Config for Test {
@@ -116,7 +116,7 @@ impl system::Config for Test {
     type BlockLength = ();
     type DbWeight = ();
     type Origin = Origin;
-    type Call = Call;
+    type RuntimeCall = RuntimeCall;
     type Index = u64;
     type BlockNumber = u64;
     type Hash = H256;
@@ -219,15 +219,15 @@ impl OnUnbalanced<NegativeImbalance> for DealWithFees {
 }
 
 pub struct ExtraFeeFilter;
-impl Contains<Call> for ExtraFeeFilter {
-    fn contains(call: &Call) -> bool {
+impl Contains<RuntimeCall> for ExtraFeeFilter {
+    fn contains(call: &RuntimeCall) -> bool {
         // Calls that affect message queue and are subject to extra fee
         matches!(
             call,
-            Call::Gear(pallet_gear::Call::create_program { .. })
-                | Call::Gear(pallet_gear::Call::upload_program { .. })
-                | Call::Gear(pallet_gear::Call::send_message { .. })
-                | Call::Gear(pallet_gear::Call::send_reply { .. })
+            RuntimeCall::Gear(pallet_gear::Call::create_program { .. })
+                | RuntimeCall::Gear(pallet_gear::Call::upload_program { .. })
+                | RuntimeCall::Gear(pallet_gear::Call::send_message { .. })
+                | RuntimeCall::Gear(pallet_gear::Call::send_reply { .. })
         )
     }
 }
@@ -264,8 +264,8 @@ pub fn run_to_block(n: u64) {
     }
 }
 
-impl crate::ExtractCall<Call> for TestXt<Call, ()> {
-    fn extract_call(&self) -> Call {
+impl crate::ExtractCall<RuntimeCall> for TestXt<RuntimeCall, ()> {
+    fn extract_call(&self) -> RuntimeCall {
         self.call.clone()
     }
 }

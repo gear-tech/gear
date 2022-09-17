@@ -24,7 +24,7 @@
 use crate::{weights::WeightInfo, Config};
 
 use codec::{Decode, Encode};
-use frame_support::{weights::Weight, DefaultNoBound};
+use frame_support::DefaultNoBound;
 use gear_core::costs::HostFnWeights as CoreHostFnWeights;
 use pallet_gear_proc_macro::{ScheduleDebug, WeightDebug};
 use scale_info::TypeInfo;

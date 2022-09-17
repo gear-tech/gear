@@ -87,7 +87,7 @@ impl system::Config for Test {
     type BlockLength = ();
     type DbWeight = RocksDbWeight;
     type Origin = Origin;
-    type Call = Call;
+    type RuntimeCall = RuntimeCall;
     type Index = u64;
     type BlockNumber = u64;
     type Hash = H256;
@@ -226,6 +226,9 @@ pub fn run_to_block(n: u64, remaining_weight: Option<u64>) {
             remaining_weight
         );
 
-        Gear::on_idle(System::block_number(), remaining_weight);
+        Gear::on_idle(
+            System::block_number(),
+            Weight::from_ref_time(remaining_weight),
+        );
     }
 }

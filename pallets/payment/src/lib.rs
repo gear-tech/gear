@@ -32,7 +32,7 @@ use sp_runtime::{
     generic::{CheckedExtrinsic, UncheckedExtrinsic},
     traits::{Bounded, Convert, DispatchInfoOf, Dispatchable, PostDispatchInfoOf, SignedExtension},
     transaction_validity::TransactionValidityError,
-    FixedPointNumber, FixedPointOperand, Perquintill, SaturatedConversion, Saturating,
+    FixedPointNumber, FixedPointOperand, Perquintill, SaturatedConversion,
 };
 use sp_std::borrow::Cow;
 
@@ -212,28 +212,29 @@ where
 }
 
 /// A trait whose purpose is to extract the `Call` variant of an extrinsic
-pub trait ExtractCall<Call> {
-    fn extract_call(&self) -> Call;
+pub trait ExtractCall<RuntimeCall> {
+    fn extract_call(&self) -> RuntimeCall;
 }
 
 /// Implementation for unchecked extrinsic.
-impl<Address, Call, Signature, Extra> ExtractCall<Call>
-    for UncheckedExtrinsic<Address, Call, Signature, Extra>
+impl<Address, RuntimeCall, Signature, Extra> ExtractCall<RuntimeCall>
+    for UncheckedExtrinsic<Address, RuntimeCall, Signature, Extra>
 where
-    Call: Dispatchable + Clone,
+    RuntimeCall: Dispatchable + Clone,
     Extra: SignedExtension,
 {
-    fn extract_call(&self) -> Call {
+    fn extract_call(&self) -> RuntimeCall {
         self.function.clone()
     }
 }
 
 /// Implementation for checked extrinsic.
-impl<Address, Call, Extra> ExtractCall<Call> for CheckedExtrinsic<Address, Call, Extra>
+impl<Address, RuntimeCall, Extra> ExtractCall<RuntimeCall>
+    for CheckedExtrinsic<Address, RuntimeCall, Extra>
 where
-    Call: Dispatchable + Clone,
+    RuntimeCall: Dispatchable + Clone,
 {
-    fn extract_call(&self) -> Call {
+    fn extract_call(&self) -> RuntimeCall {
         self.function.clone()
     }
 }

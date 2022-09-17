@@ -105,7 +105,7 @@ fn out_of_rent_reply_exists(
     let pid = pid.into();
 
     System::events().into_iter().any(|e| {
-        if let mock::RuntimeEvent::Gear(pallet_gear::RuntimeEvent::UserMessageSent {
+        if let mock::RuntimeEvent::Gear(pallet_gear::Event::UserMessageSent {
             message: msg,
             expiration: None,
         }) = &e.event
@@ -136,7 +136,10 @@ fn gear_handles_tasks() {
         let initial_block = 2;
         run_to_block(initial_block, Some(u64::MAX));
         // Read of missed blocks.
-        assert_eq!(GasAllowanceOf::<Test>::get(), u64::MAX - db_r_w(1, 0));
+        assert_eq!(
+            GasAllowanceOf::<Test>::get(),
+            u64::MAX - db_r_w(1, 0).ref_time()
+        );
 
         // Block producer initial balance.
         let block_author_balance = Balances::free_balance(BLOCK_AUTHOR);
@@ -163,7 +166,10 @@ fn gear_handles_tasks() {
         // Check if task and message exist before start of block `bn`.
         run_to_block(bn - 1, Some(u64::MAX));
         // Read of missed blocks.
-        assert_eq!(GasAllowanceOf::<Test>::get(), u64::MAX - db_r_w(1, 0));
+        assert_eq!(
+            GasAllowanceOf::<Test>::get(),
+            u64::MAX - db_r_w(1, 0).ref_time()
+        );
 
         // Storages checking.
         assert!(task_and_wl_message_exist(mid, pid, bn));
@@ -180,7 +186,10 @@ fn gear_handles_tasks() {
         // Check if task and message got processed in block `bn`.
         run_to_block(bn, Some(u64::MAX));
         // Read of missed blocks and write for removal of task.
-        assert_eq!(GasAllowanceOf::<Test>::get(), u64::MAX - db_r_w(1, 1));
+        assert_eq!(
+            GasAllowanceOf::<Test>::get(),
+            u64::MAX - db_r_w(1, 1).ref_time()
+        );
 
         // Storages checking.
         assert!(!task_and_wl_message_exist(mid, pid, bn));
@@ -209,7 +218,10 @@ fn gear_handles_outdated_tasks() {
         let initial_block = 2;
         run_to_block(initial_block, Some(u64::MAX));
         // Read of missed blocks.
-        assert_eq!(GasAllowanceOf::<Test>::get(), u64::MAX - db_r_w(1, 0));
+        assert_eq!(
+            GasAllowanceOf::<Test>::get(),
+            u64::MAX - db_r_w(1, 0).ref_time()
+        );
 
         // Block producer initial balance.
         let block_author_balance = Balances::free_balance(BLOCK_AUTHOR);
@@ -247,7 +259,10 @@ fn gear_handles_outdated_tasks() {
 
         // Check if tasks and messages exist before start of block `bn`.
         run_to_block(bn - 1, Some(u64::MAX));
-        assert_eq!(GasAllowanceOf::<Test>::get(), u64::MAX - db_r_w(1, 0));
+        assert_eq!(
+            GasAllowanceOf::<Test>::get(),
+            u64::MAX - db_r_w(1, 0).ref_time()
+        );
 
         // Storages checking.
         assert!(task_and_wl_message_exist(mid1, pid1, bn));
@@ -270,7 +285,7 @@ fn gear_handles_outdated_tasks() {
 
         // Check if task and message got processed before start of block `bn`.
         // But due to the low gas allowance, we may process the only first task.
-        run_to_block(bn, Some(db_r_w(1, 2) + 1));
+        run_to_block(bn, Some(db_r_w(1, 2).ref_time() + 1));
         // Read of missed blocks, write to it afterwards + single task processing.
         assert_eq!(GasAllowanceOf::<Test>::get(), 1);
 
@@ -299,7 +314,10 @@ fn gear_handles_outdated_tasks() {
         // Check if missed task and message got processed in block `bn`.
         run_to_block(bn + 1, Some(u64::MAX));
         // Delete of missed blocks + single task processing.
-        assert_eq!(GasAllowanceOf::<Test>::get(), u64::MAX - db_r_w(0, 2));
+        assert_eq!(
+            GasAllowanceOf::<Test>::get(),
+            u64::MAX - db_r_w(0, 2).ref_time()
+        );
 
         let cost2 = wl_cost_for(bn + 1 - initial_block);
 
