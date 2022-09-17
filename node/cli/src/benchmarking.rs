@@ -42,54 +42,54 @@ use std::{sync::Arc, time::Duration};
 /// This is not done as a trait function since the return type depends on the runtime.
 /// This macro therefore uses the same approach as [`with_client!`].
 macro_rules! with_signed_payload {
-	{
-		$self:ident,
-		{
-			$extra:ident,
-			$client:ident,
-			$raw_payload:ident
-		},
-		{
-			$( $setup:tt )*
-		},
-		(
-			$period:expr,
-			$current_block:expr,
-			$nonce:expr,
-			$call:expr,
-			$genesis:expr,
+    {
+        $self:ident,
+        {
+            $extra:ident,
+            $client:ident,
+            $raw_payload:ident
+        },
+        {
+            $( $setup:tt )*
+        },
+        (
+            $period:expr,
+            $current_block:expr,
+            $nonce:expr,
+            $call:expr,
+            $genesis:expr,
             $best_hash:expr,
             $tip:expr
-		),
-		{
-			$( $usage:tt )*
-		}
-	} => {
-		match $self.$client.as_ref() {
-			#[cfg(feature = "gear-native")]
-			Client::Gear($client) => {
-				use gear_runtime as runtime;
+        ),
+        {
+            $( $usage:tt )*
+        }
+    } => {
+        match $self.$client.as_ref() {
+            #[cfg(feature = "gear-native")]
+            Client::Gear($client) => {
+                use gear_runtime as runtime;
 
-				$( $setup )*
+                $( $setup )*
 
-				signed_payload!($extra, $raw_payload,
-					($period, $current_block, $nonce, $call, $genesis, $best_hash, $tip));
+                signed_payload!($extra, $raw_payload,
+                    ($period, $current_block, $nonce, $call, $genesis, $best_hash, $tip));
 
-				$( $usage )*
-			},
-			#[cfg(feature = "vara-native")]
-			Client::Vara($client) => {
-				use vara_runtime as runtime;
+                $( $usage )*
+            },
+            #[cfg(feature = "vara-native")]
+            Client::Vara($client) => {
+                use vara_runtime as runtime;
 
-				$( $setup )*
+                $( $setup )*
 
-				signed_payload!($extra, $raw_payload,
-					($period, $current_block, $nonce, $call, $genesis, $best_hash, $tip));
+                signed_payload!($extra, $raw_payload,
+                    ($period, $current_block, $nonce, $call, $genesis, $best_hash, $tip));
 
-				$( $usage )*
-			},
-		}
-	}
+                $( $usage )*
+            },
+        }
+    }
 }
 
 /// Generates a `SignedPayload` for the Gear and Vara runtimes.
@@ -97,17 +97,17 @@ macro_rules! with_signed_payload {
 /// Should only be used for benchmarking as it is not tested for regular usage.
 macro_rules! signed_payload {
     (
-	$extra:ident, $raw_payload:ident,
-	(
-		$period:expr,
-		$current_block:expr,
-		$nonce:expr,
-		$call:expr,
-		$genesis:expr,
+    $extra:ident, $raw_payload:ident,
+    (
+        $period:expr,
+        $current_block:expr,
+        $nonce:expr,
+        $call:expr,
+        $genesis:expr,
         $best_hash:expr,
         $tip:expr
-	)
-	) => {
+    )
+    ) => {
         let $extra: runtime::SignedExtra = (
             frame_system::CheckNonZeroSender::<runtime::Runtime>::new(),
             frame_system::CheckSpecVersion::<runtime::Runtime>::new(),

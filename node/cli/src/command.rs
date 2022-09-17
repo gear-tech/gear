@@ -83,7 +83,7 @@ impl SubstrateCli for Cli {
                     }
 
                     #[cfg(not(feature = "vara-native"))]
-					return Err("Vara runtime is not available. Please compile the node with `--features vara-native` to enable it.".into());
+                    return Err("Vara runtime is not available. Please compile the node with `--features vara-native` to enable it.".into());
                 } else {
                     #[cfg(feature = "gear-native")]
                     {
@@ -91,7 +91,7 @@ impl SubstrateCli for Cli {
                     }
 
                     #[cfg(not(feature = "gear-native"))]
-					return Err("Gear runtime is not available. Please compile the node with default features to enable it.".into());
+                    return Err("Gear runtime is not available. Please compile the node with default features to enable it.".into());
                 }
             }
         })
@@ -111,9 +111,9 @@ impl SubstrateCli for Cli {
 /// Unwraps a [`service::Client`] into the concrete runtime client.
 macro_rules! unwrap_client {
     (
-		$client:ident,
-		$code:expr
-	) => {
+        $client:ident,
+        $code:expr
+    ) => {
         match $client.as_ref() {
             #[cfg(feature = "gear-native")]
             service::Client::Gear($client) => $code,
@@ -185,7 +185,7 @@ pub fn run() -> sc_cli::Result<()> {
                         if !cfg!(feature = "runtime-benchmarks") {
                             return Err(
                                 "Runtime benchmarking wasn't enabled when building the node. \
-							You can enable it with `--features runtime-benchmarks`."
+                            You can enable it with `--features runtime-benchmarks`."
                                     .into(),
                             );
                         }
@@ -311,7 +311,7 @@ pub fn run() -> sc_cli::Result<()> {
         }
         #[cfg(not(feature = "try-runtime"))]
         Some(Subcommand::TryRuntime) => Err("TryRuntime wasn't enabled when building the node. \
-				You can enable it with `--features try-runtime`."
+                You can enable it with `--features try-runtime`."
             .into()),
         Some(Subcommand::ChainInfo(cmd)) => {
             let runner = cli.create_runner(cmd)?;
