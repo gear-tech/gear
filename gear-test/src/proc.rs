@@ -95,12 +95,6 @@ where
     let code = Code::try_new(message.code.clone(), 1, |_| ConstantCostRules::default())
         .map_err(|e| anyhow::anyhow!("Error initialization: {:?}", &e))?;
 
-    if code.static_pages() > AllocationsConfig::default().max_pages {
-        return Err(anyhow::anyhow!(
-            "Error initialization: memory limit exceeded"
-        ));
-    }
-
     let program_id = message.id;
     let actor_data = journal_handler.store_program(program_id, code.clone(), message.message.id());
     journal_handler.write_gas(message.message.id(), message.message.gas_limit());
