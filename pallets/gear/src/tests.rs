@@ -21,7 +21,7 @@ use crate::{
     manager::HandleKind,
     mock::{
         new_test_ext, run_to_block, run_to_next_block, Balances, Event as MockEvent, Gear,
-        GearProgram, Origin, System, Test, BLOCK_AUTHOR, LOW_BALANCE_USER, USER_1, USER_2, USER_3,
+        GearProgram, Origin, System, Test, BLOCK_AUTHOR, LOW_BALANCE_USER, USER_1, USER_2, USER_3, get_minimal_weight,
     },
     pallet, BlockGasLimitOf, Config, CostsPerBlockOf, Error, Event, GasAllowanceOf, GasHandlerOf,
     GasInfo, MailboxOf, WaitlistOf,
@@ -57,6 +57,9 @@ use utils::*;
 #[test]
 fn unstoppable_block_execution_works() {
     init_logger();
+
+    let minimal_weight = get_minimal_weight();
+
     new_test_ext().execute_with(|| {
         let user_balance = Balances::free_balance(USER_1) as u64;
         let executions_amount = 10;
@@ -102,7 +105,7 @@ fn unstoppable_block_execution_works() {
 
         assert!(balance_for_each_execution * executions_amount > real_gas_to_burn);
 
-        run_to_block(3, Some(real_gas_to_burn));
+        run_to_block(3, Some(minimal_weight + real_gas_to_burn));
 
         assert_last_dequeued(executions_amount as u32);
 
@@ -473,6 +476,9 @@ fn upload_program_fails_on_duplicate_id() {
 #[test]
 fn send_message_works() {
     init_logger();
+
+    let minimal_weight = get_minimal_weight();
+
     new_test_ext().execute_with(|| {
         let user1_initial_balance = Balances::free_balance(USER_1);
         let user2_initial_balance = Balances::free_balance(USER_2);
@@ -535,7 +541,7 @@ fn send_message_works() {
         run_to_block(3, Some(remaining_weight));
 
         // Messages were sent by user 1 only
-        let actual_gas_burned = remaining_weight - GasAllowanceOf::<Test>::get();
+        let actual_gas_burned = remaining_weight - minimal_weight - GasAllowanceOf::<Test>::get();
         assert_eq!(actual_gas_burned, 0);
 
         // Ensure that no gas handlers were created
@@ -728,6 +734,9 @@ fn messages_processing_works() {
 #[test]
 fn spent_gas_to_reward_block_author_works() {
     init_logger();
+
+    let minimal_weight = get_minimal_weight();
+
     new_test_ext().execute_with(|| {
         let block_author_initial_balance = Balances::free_balance(BLOCK_AUTHOR);
         assert_ok!(upload_program_default(USER_1, ProgramCodeKind::Default));
@@ -738,7 +747,7 @@ fn spent_gas_to_reward_block_author_works() {
         // The block author should be paid the amount of Currency equal to
         // the `gas_charge` incurred while processing the `InitProgram` message
         let gas_spent =
-            GasPrice::gas_price(BlockGasLimitOf::<Test>::get() - GasAllowanceOf::<Test>::get());
+            GasPrice::gas_price(BlockGasLimitOf::<Test>::get() - GasAllowanceOf::<Test>::get() - minimal_weight);
         assert_eq!(
             Balances::free_balance(BLOCK_AUTHOR),
             block_author_initial_balance + gas_spent
@@ -749,6 +758,9 @@ fn spent_gas_to_reward_block_author_works() {
 #[test]
 fn unused_gas_released_back_works() {
     init_logger();
+
+    let minimal_weight = get_minimal_weight();
+
     new_test_ext().execute_with(|| {
         let user1_initial_balance = Balances::free_balance(USER_1);
         // This amount is intentionally lower than that hardcoded in the
@@ -789,7 +801,7 @@ fn unused_gas_released_back_works() {
         run_to_block(2, None);
 
         let user1_actual_msgs_spends =
-            GasPrice::gas_price(BlockGasLimitOf::<Test>::get() - GasAllowanceOf::<Test>::get());
+            GasPrice::gas_price(BlockGasLimitOf::<Test>::get() - GasAllowanceOf::<Test>::get() - minimal_weight);
 
         assert!(user1_potential_msgs_spends > user1_actual_msgs_spends);
 
@@ -1400,6 +1412,9 @@ fn block_gas_limit_works() {
 	)"#;
 
     init_logger();
+
+    let minimal_weight = get_minimal_weight();
+
     new_test_ext().execute_with(|| {
         // Submit programs and get their ids
         let pid1 = {
@@ -1513,8 +1528,12 @@ fn block_gas_limit_works() {
 
         assert!(gas1.burned + gas2.burned < gas1.min_limit + gas2.min_limit);
 
-        // both processed if gas allowance equal only burned count
-        run_to_next_block(Some(gas1.burned + gas2.burned));
+        // program1 sends message to a user and it goes to the TaskPool
+        let tasks_add_weight = <Test as frame_system::Config>::DbWeight::get().writes(1);
+
+        // both processed if gas allowance equals only burned count
+        let weight = minimal_weight + tasks_add_weight;
+        run_to_next_block(Some(weight + gas1.burned + gas2.burned));
         assert_last_dequeued(2);
 
         send_with_min_limit_to(pid1, &gas1);
@@ -1522,7 +1541,7 @@ fn block_gas_limit_works() {
         send_with_min_limit_to(pid1, &gas1);
 
         // Try to process 3 messages
-        run_to_next_block(Some(gas1.burned + gas2.burned - 1));
+        run_to_next_block(Some(weight + gas1.burned + gas2.burned - 1));
 
         // Message #1 is dequeued and processed.
         // Message #2 tried to execute, but exceed gas_allowance is re-queued at the top.
@@ -1537,7 +1556,8 @@ fn block_gas_limit_works() {
         assert_eq!(GasAllowanceOf::<Test>::get(), 0);
 
         // Try to process 2 messages.
-        run_to_next_block(Some(gas2.burned + gas1.burned + 10));
+        let additional_weight = 12;
+        run_to_next_block(Some(weight + gas2.burned + gas1.burned + additional_weight));
 
         // Both messages got processed.
         //
@@ -1546,7 +1566,7 @@ fn block_gas_limit_works() {
         // |   |        |   |
 
         assert_last_dequeued(2);
-        assert_eq!(GasAllowanceOf::<Test>::get(), 10);
+        assert_eq!(GasAllowanceOf::<Test>::get(), additional_weight);
     });
 }
 
