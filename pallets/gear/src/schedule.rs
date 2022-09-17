@@ -24,8 +24,8 @@
 use crate::{weights::WeightInfo, Config};
 
 use codec::{Decode, Encode};
+use gear_core::{code, costs::HostFnWeights as CoreHostFnWeights};
 use frame_support::DefaultNoBound;
-use gear_core::costs::HostFnWeights as CoreHostFnWeights;
 use pallet_gear_proc_macro::{ScheduleDebug, WeightDebug};
 use scale_info::TypeInfo;
 #[cfg(feature = "std")]
@@ -476,7 +476,7 @@ impl Default for Limits {
             stack_height: 512,
             globals: 256,
             parameters: 128,
-            memory_pages: 512,
+            memory_pages: code::MAX_WASM_PAGE_COUNT,
             // 4k function pointers (This is in count not bytes).
             table_size: 4096,
             br_table_size: 256,
