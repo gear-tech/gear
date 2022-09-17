@@ -31,6 +31,10 @@ pub(crate) struct LoadParams {
     /// generated input data (for example, program) for each test will be the same.
     #[structopt(long, short, default_value = "start=0")]
     pub(crate) seed: SeedVariant,
+
+    /// Desirable amount of threads.
+    #[structopt(long, short, default_value = "1")]
+    pub(crate) threads: usize,
 }
 
 pub(crate) fn parse_cli_params() -> Params {

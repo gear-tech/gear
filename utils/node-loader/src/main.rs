@@ -55,7 +55,7 @@ async fn load_node(params: LoadParams) -> Result<(), String> {
         .unwrap();
     let salt = Arc::new(Mutex::new(0));
 
-    let mut task_pool = TaskPool::new();
+    let mut task_pool = TaskPool::try_new(params.threads)?;
     loop {
         let reporters = task_pool
             .run(|| load_node_task(gear_api.clone(), Arc::clone(&salt), Arc::clone(&params)))
