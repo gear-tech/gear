@@ -46,10 +46,7 @@ pub trait WeightInfo {
 
 /// Weights for {{pallet}} using the Substrate node and recommended hardware.
 pub struct SubstrateWeight<T>(PhantomData<T>);
-{{#if (eq pallet "frame_system")}}
-impl<T: crate::Config> {{pallet}}::WeightInfo for SubstrateWeight<T> {
-{{else}}
-impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
+impl<T: frame_system::Config> {{pallet}}::WeightInfo for SubstrateWeight<T> {
 {{/if}}
     {{#each benchmarks as |benchmark|}}
     {{#each benchmark.component_ranges as |range|}}
@@ -84,9 +81,6 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
 // For backwards compatibility and tests
 impl WeightInfo for () {
     {{#each benchmarks as |benchmark|}}
-    {{#each benchmark.comments as |comment|}}
-    // {{comment}}
-    {{/each}}
     {{#each benchmark.component_ranges as |range|}}
     /// The range of component `{{range.name}}` is `[{{range.min}}, {{range.max}}]`.
     {{/each}}
