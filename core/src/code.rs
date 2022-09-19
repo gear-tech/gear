@@ -85,8 +85,6 @@ pub enum CodeError {
     Encode,
     /// We restrict start sections in smart contracts.
     StartSectionExists,
-    /// We restrict custom sections in smart contracts.
-    CustomSectionsExist,
     /// The provided code has invalid count of static pages.
     InvalidStaticPageCount,
 }
@@ -122,11 +120,6 @@ impl Code {
         if module.start_section().is_some() {
             log::debug!("Found start section in contract code, which is not allowed");
             return Err(CodeError::StartSectionExists);
-        }
-
-        if module.custom_sections().count() != 0 {
-            log::debug!("Found custom sections in contract code, which is not allowed");
-            return Err(CodeError::CustomSectionsExist);
         }
 
         // get initial memory size from memory import.
