@@ -161,8 +161,8 @@ where
         if !T::ExtraFeeCallFilter::contains(call) {
             let multiplier = TransactionPayment::<T>::next_fee_multiplier();
             if multiplier > Multiplier::saturating_from_integer(1) {
-                let info: DispatchInfo = *info;
-                info.weight.set_ref_time(
+                let mut info: DispatchInfo = *info;
+                info.weight = Weight::from_ref_time(
                     multiplier
                         .reciprocal() // take inverse
                         .unwrap_or_else(Multiplier::max_value)

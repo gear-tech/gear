@@ -479,7 +479,7 @@ fn query_info_and_fee_details_work() {
                 class: info_affecting_mq.class,
                 partial_fee: 0 /* base_fee */
                     + len_affecting_mq as u128  /* len * 1 */
-                    + (info_not_affecting_mq.weight.ref_time() as u128) * 16_u128 /* weight * 16 */
+                    + (info_affecting_mq.weight.ref_time() as u128) * 16_u128 /* weight * 16 */
             },
         );
 
@@ -511,7 +511,7 @@ fn query_info_and_fee_details_work() {
                 inclusion_fee: Some(InclusionFee {
                     base_fee: 0,
                     len_fee: len_affecting_mq as u128,
-                    adjusted_weight_fee: (info_not_affecting_mq.weight.ref_time() as u128) * 16_u128
+                    adjusted_weight_fee: (info_affecting_mq.weight.ref_time() as u128) * 16_u128
                 }),
                 tip: 0,
             },
