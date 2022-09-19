@@ -5420,15 +5420,15 @@ fn missing_handle_is_not_executed() {
 
 #[test]
 fn invalid_memory_page_count_rejected() {
-    let wat_start = r#"
+    let wat = format!(
+        r#"
     (module
-        (import "env" "memory" (memory "#;
-    let wat_end = r#"))
+        (import "env" "memory" (memory {}))
         (export "init" (func $init))
         (func $init)
-    )"#;
-
-    let wat = format!("{wat_start}{}{wat_end}", code::MAX_WASM_PAGE_COUNT + 1);
+    )"#,
+        code::MAX_WASM_PAGE_COUNT + 1
+    );
 
     init_logger();
     new_test_ext().execute_with(|| {
