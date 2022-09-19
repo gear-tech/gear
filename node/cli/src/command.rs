@@ -232,7 +232,6 @@ pub fn run() -> sc_cli::Result<()> {
 
                         unwrap_client!(
                             client,
-                            // cmd.run(config, client.clone(), inherent_data, ext_builder)
                             cmd.run(
                                 config,
                                 client.clone(),
@@ -258,7 +257,6 @@ pub fn run() -> sc_cli::Result<()> {
 
                         unwrap_client!(
                             client,
-                            // cmd.run(config, client.clone(), inherent_data, ext_builder)
                             cmd.run(client.clone(), inherent_data, Vec::new(), &ext_factory)
                         )
                     }
