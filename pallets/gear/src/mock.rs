@@ -23,6 +23,7 @@ use frame_support::{
     pallet_prelude::*,
     parameter_types,
     traits::{ConstU64, FindAuthor},
+    weights::RuntimeDbWeight,
 };
 use frame_system as system;
 use sp_core::H256;
@@ -77,13 +78,14 @@ parameter_types! {
     pub const BlockHashCount: u64 = 250;
     pub const SS58Prefix: u8 = 42;
     pub const ExistentialDeposit: u64 = 500;
+    pub const DbWeight: RuntimeDbWeight = RuntimeDbWeight { read: 111, write: 230 };
 }
 
 impl system::Config for Test {
     type BaseCallFilter = frame_support::traits::Everything;
     type BlockWeights = ();
     type BlockLength = ();
-    type DbWeight = ();
+    type DbWeight = DbWeight;
     type Origin = Origin;
     type RuntimeCall = RuntimeCall;
     type Index = u64;
@@ -205,6 +207,29 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
     let mut ext = sp_io::TestExternalities::new(t);
     ext.execute_with(|| System::set_block_number(1));
     ext
+}
+
+pub fn get_min_weight() -> Weight {
+    new_test_ext()
+        .execute_with(|| Gear::on_idle(System::block_number(), BlockGasLimitOf::<Test>::get()))
+}
+
+pub fn get_weight_of_adding_task() -> Weight {
+    let minimal_weight = get_min_weight();
+
+    new_test_ext().execute_with(|| {
+        let gas_allowance = GasAllowanceOf::<Test>::get();
+
+        Gear::on_idle(System::block_number(), BlockGasLimitOf::<Test>::get());
+
+        TaskPoolOf::<Test>::add(
+            100,
+            ScheduledTask::RemoveFromMailbox(USER_2, Default::default()),
+        )
+        .unwrap_or_else(|e| unreachable!("Scheduling logic invalidated! {:?}", e));
+
+        gas_allowance - GasAllowanceOf::<Test>::get()
+    }) - minimal_weight
 }
 
 pub fn run_to_block(n: u64, remaining_weight: Option<u64>) {
