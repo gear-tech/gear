@@ -46,7 +46,7 @@ fn dump_with_seed(seed: u64) -> Result<(), String> {
 
 async fn load_node(params: LoadParams) -> Result<(), String> {
     let gear_api = utils::obtain_gear_api(&params.endpoint, &params.user).await?;
-    let mut task_pool = TaskPool::<SmallRng>::try_new(params.threads, params.seed, gear_api)?;
+    let mut task_pool = TaskPool::<SmallRng>::try_new(params.workers, params.seed, gear_api)?;
 
     loop {
         let reporters = task_pool

@@ -16,4 +16,3 @@ pub(crate) async fn obtain_gear_api(endpoint: &str, user: &str) -> Result<Api, S
 
 pub(crate) trait Rng: RngCore + SeedableRng + 'static {}
 impl<T: RngCore + SeedableRng + 'static> Rng for T {}
-

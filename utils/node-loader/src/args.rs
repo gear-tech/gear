@@ -24,17 +24,19 @@ pub(crate) struct LoadParams {
     #[structopt(long, default_value = "//Alice")]
     pub(crate) user: String,
 
-    /// Seed for random seeds generation. There are either 2 seed variants:
-    /// start or constant. Start sets starting seed value for the generator.
-    /// Constant sets constant seed which will be used in every test, therefore
-    /// generated input data (for example, program) for each test will be the same.
+    /// Seed used to generate random seeds for various internal generators.
+    /// If the parameter isn't provided, then timestamp will be used by default.
+    /// There are either 2 seed variants: start or constant. Start sets starting
+    ///  seed value for the generator. Constant sets constant seed which will be
+    /// used in every test, therefore generated input data (for example, program)
+    /// for each test will be the same.
     /// Example value: `<seed_variant>=<seed_u64_value>`.
     #[structopt(long, short)]
     pub(crate) seed: Option<SeedVariant>,
 
-    /// Desirable amount of threads.
+    /// Desirable amount of workers in task pool.
     #[structopt(long, short, default_value = "1")]
-    pub(crate) threads: usize,
+    pub(crate) workers: usize,
 }
 
 pub(crate) fn parse_cli_params() -> Params {
@@ -43,7 +45,7 @@ pub(crate) fn parse_cli_params() -> Params {
 
 #[derive(Debug)]
 pub(crate) enum SeedVariant {
-    Start(u64),
+    Dynamic(u64),
     Constant(u64),
 }
 
@@ -62,7 +64,7 @@ impl FromStr for SeedVariant {
         let variant = input[0];
         let num = input[1].parse::<u64>().map_err(|e| e.to_string())?;
         match variant {
-            "start" => Ok(SeedVariant::Start(num)),
+            "start" => Ok(SeedVariant::Dynamic(num)),
             "constant" => Ok(SeedVariant::Constant(num)),
             v => Err(format!("Invalid variant {v}")),
         }

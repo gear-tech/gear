@@ -12,7 +12,7 @@ mod upload_program;
 pub(crate) struct TaskPool<Rng: crate::Rng> {
     up_task_gen: UploadProgramTaskGen,
     tasks: Vec<JoinHandle<SomeReporter>>,
-    _phantom: PhantomData<Rng>
+    _phantom: PhantomData<Rng>,
 }
 
 impl<Rng: crate::Rng> TaskPool<Rng> {
@@ -23,8 +23,7 @@ impl<Rng: crate::Rng> TaskPool<Rng> {
         size: usize,
         seed_variant: Option<SeedVariant>,
         gear_api: Api,
-    ) -> Result<Self, String> 
-    {
+    ) -> Result<Self, String> {
         if size >= Self::MIN_SIZE && size <= Self::MAX_SIZE {
             Ok(Self {
                 up_task_gen: UploadProgramTaskGen::try_new(
@@ -32,7 +31,7 @@ impl<Rng: crate::Rng> TaskPool<Rng> {
                     generators::get_some_seed_generator::<Rng>(seed_variant),
                 ),
                 tasks: Vec::with_capacity(size),
-                _phantom: PhantomData
+                _phantom: PhantomData,
             })
         } else {
             Err(format!(

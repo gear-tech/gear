@@ -727,7 +727,7 @@ where
                         .unwrap()
                         .iter()
                         .for_each(|line| {
-                            println!("OK LOG from {:?}- {}", &thread::current().id(), line);
+                            println!("{}", &thread::current().id(), line);
                         });
                 }
                 println!(

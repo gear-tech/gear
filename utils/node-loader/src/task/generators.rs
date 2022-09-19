@@ -1,12 +1,17 @@
 use arbitrary::Unstructured;
 use rand::RngCore;
 
-use crate::{args::SeedVariant, utils::{now, self}};
+use crate::{
+    args::SeedVariant,
+    utils::{self, now},
+};
 
-pub(crate) fn get_some_seed_generator<Rng: utils::Rng>(seed_variant: Option<SeedVariant>) -> Box<dyn RngCore> {
+pub(crate) fn get_some_seed_generator<Rng: utils::Rng>(
+    seed_variant: Option<SeedVariant>,
+) -> Box<dyn RngCore> {
     match seed_variant {
         None => Box::new(Rng::seed_from_u64(now())) as Box<dyn RngCore>,
-        Some(SeedVariant::Start(v)) => Box::new(Rng::seed_from_u64(v)) as Box<dyn RngCore>,
+        Some(SeedVariant::Dynamic(v)) => Box::new(Rng::seed_from_u64(v)) as Box<dyn RngCore>,
         Some(SeedVariant::Constant(v)) => Box::new(ConstantGenerator::new(v)) as Box<dyn RngCore>,
     }
 }

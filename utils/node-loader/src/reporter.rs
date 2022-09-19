@@ -13,7 +13,6 @@ pub(crate) trait Reporter: Send {
     fn report(&self) -> Result<(), String>;
 }
 
-// todo use cow?
 // todo make macro to use "{}" stuff instead of data argument in `record`
 #[derive(Debug)]
 pub(crate) struct StdoutReporter {

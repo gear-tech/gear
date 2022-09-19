@@ -1,6 +1,6 @@
 use futures::Future;
-use rand::RngCore;
 use gear_program::api::{generated::api::gear::calls::UploadProgram, Api};
+use rand::RngCore;
 
 use crate::{
     reporter::{Reporter, SomeReporter, StdoutReporter},
@@ -21,7 +21,9 @@ impl UploadProgramTaskGen {
         }
     }
 
-    pub(super) fn gen<Rng: utils::Rng>(&mut self) -> impl Future<Output = SomeReporter> + Send + 'static {
+    pub(super) fn gen<Rng: utils::Rng>(
+        &mut self,
+    ) -> impl Future<Output = SomeReporter> + Send + 'static {
         upload_program_task::<Rng>(self.gear_api.clone(), self.code_seed_gen.next_u64())
     }
 }
