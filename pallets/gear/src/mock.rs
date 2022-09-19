@@ -210,8 +210,12 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
 }
 
 pub fn get_min_weight() -> Weight {
-    new_test_ext()
-        .execute_with(|| Gear::on_idle(System::block_number(), BlockGasLimitOf::<Test>::get()))
+    new_test_ext().execute_with(|| {
+        Gear::on_idle(
+            System::block_number(),
+            Weight::from_ref_time(BlockGasLimitOf::<Test>::get()),
+        )
+    })
 }
 
 pub fn get_weight_of_adding_task() -> Weight {
@@ -220,7 +224,10 @@ pub fn get_weight_of_adding_task() -> Weight {
     new_test_ext().execute_with(|| {
         let gas_allowance = GasAllowanceOf::<Test>::get();
 
-        Gear::on_idle(System::block_number(), BlockGasLimitOf::<Test>::get());
+        Gear::on_idle(
+            System::block_number(),
+            Weight::from_ref_time(BlockGasLimitOf::<Test>::get()),
+        );
 
         TaskPoolOf::<Test>::add(
             100,
@@ -228,7 +235,7 @@ pub fn get_weight_of_adding_task() -> Weight {
         )
         .unwrap_or_else(|e| unreachable!("Scheduling logic invalidated! {:?}", e));
 
-        gas_allowance - GasAllowanceOf::<Test>::get()
+        Weight::from_ref_time(gas_allowance - GasAllowanceOf::<Test>::get())
     }) - minimal_weight
 }
 

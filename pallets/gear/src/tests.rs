@@ -106,7 +106,7 @@ fn unstoppable_block_execution_works() {
 
         assert!(balance_for_each_execution * executions_amount > real_gas_to_burn);
 
-        run_to_block(3, Some(minimal_weight + real_gas_to_burn));
+        run_to_block(3, Some(minimal_weight.ref_time() + real_gas_to_burn));
 
         assert_last_dequeued(executions_amount as u32);
 
@@ -542,7 +542,8 @@ fn send_message_works() {
         run_to_block(3, Some(remaining_weight));
 
         // Messages were sent by user 1 only
-        let actual_gas_burned = remaining_weight - minimal_weight - GasAllowanceOf::<Test>::get();
+        let actual_gas_burned =
+            remaining_weight - minimal_weight.ref_time() - GasAllowanceOf::<Test>::get();
         assert_eq!(actual_gas_burned, 0);
 
         // Ensure that no gas handlers were created
@@ -748,7 +749,9 @@ fn spent_gas_to_reward_block_author_works() {
         // The block author should be paid the amount of Currency equal to
         // the `gas_charge` incurred while processing the `InitProgram` message
         let gas_spent = GasPrice::gas_price(
-            BlockGasLimitOf::<Test>::get() - GasAllowanceOf::<Test>::get() - minimal_weight,
+            BlockGasLimitOf::<Test>::get()
+                - GasAllowanceOf::<Test>::get()
+                - minimal_weight.ref_time(),
         );
         assert_eq!(
             Balances::free_balance(BLOCK_AUTHOR),
@@ -803,7 +806,9 @@ fn unused_gas_released_back_works() {
         run_to_block(2, None);
 
         let user1_actual_msgs_spends = GasPrice::gas_price(
-            BlockGasLimitOf::<Test>::get() - GasAllowanceOf::<Test>::get() - minimal_weight,
+            BlockGasLimitOf::<Test>::get()
+                - GasAllowanceOf::<Test>::get()
+                - minimal_weight.ref_time(),
         );
 
         assert!(user1_potential_msgs_spends > user1_actual_msgs_spends);
@@ -1535,7 +1540,7 @@ fn block_gas_limit_works() {
         // program1 sends message to a user and it goes to the TaskPool
         let weight = minimal_weight + tasks_add_weight;
         // both processed if gas allowance equals only burned count
-        run_to_next_block(Some(weight + gas1.burned + gas2.burned));
+        run_to_next_block(Some(weight.ref_time() + gas1.burned + gas2.burned));
         assert_last_dequeued(2);
 
         send_with_min_limit_to(pid1, &gas1);
@@ -1543,7 +1548,7 @@ fn block_gas_limit_works() {
         send_with_min_limit_to(pid1, &gas1);
 
         // Try to process 3 messages
-        run_to_next_block(Some(weight + gas1.burned + gas2.burned - 1));
+        run_to_next_block(Some(weight.ref_time() + gas1.burned + gas2.burned - 1));
 
         // Message #1 is dequeued and processed.
         // Message #2 tried to execute, but exceed gas_allowance is re-queued at the top.
@@ -1559,7 +1564,9 @@ fn block_gas_limit_works() {
 
         // Try to process 2 messages.
         let additional_weight = 12;
-        run_to_next_block(Some(weight + gas2.burned + gas1.burned + additional_weight));
+        run_to_next_block(Some(
+            weight.ref_time() + gas2.burned + gas1.burned + additional_weight,
+        ));
 
         // Both messages got processed.
         //
