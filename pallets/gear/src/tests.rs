@@ -20,9 +20,8 @@ use crate::{
     internal::HoldBound,
     manager::HandleKind,
     mock::{
-        new_test_ext, run_to_block, self,
-        run_to_next_block, Balances, Event as MockEvent, Gear, GearProgram, Origin, System, Test,
-        BLOCK_AUTHOR, LOW_BALANCE_USER, USER_1, USER_2, USER_3,
+        self, new_test_ext, run_to_block, run_to_next_block, Balances, Event as MockEvent, Gear,
+        GearProgram, Origin, System, Test, BLOCK_AUTHOR, LOW_BALANCE_USER, USER_1, USER_2, USER_3,
     },
     pallet, BlockGasLimitOf, Config, CostsPerBlockOf, Error, Event, GasAllowanceOf, GasHandlerOf,
     GasInfo, MailboxOf, WaitlistOf,
