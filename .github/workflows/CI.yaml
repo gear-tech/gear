@@ -496,6 +496,9 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-cargo-
 
+      - name: "Install: protobuf"
+        run: brew install protobuf
+
       - name: "Install: Nightly toolchain"
         uses: actions-rs/toolchain@v1
         with:
