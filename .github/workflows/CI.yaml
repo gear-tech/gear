@@ -360,7 +360,7 @@ jobs:
           path-type: inherit
           install: >-
             procps
-            protobuf
+            mingw-w64-x86_64-protobuf
 
       - name: "Install: rustup 1.24.3"
         run: |
