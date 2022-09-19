@@ -32,23 +32,31 @@ wasm_init() {
 
 # $1 = ROOT_DIR
 js_init() {
-  npm --prefix "$1"/utils/wasm-proc/metadata-js install
-  npm --prefix "$1"/scripts/test-utils install
-  npm --prefix "$1"/gear-test/src/js install
+  cd "$1"/utils/wasm-proc/metadata-js
+  npm install
+  cd "$1"/scripts/test-utils
+  npm install
+  cd "$1"/gear-test/src/js
+  npm install
+  cd "$1"
 }
 
 # $1 = ROOT_DIR
 js_update() {
-  npm --prefix "$1"/utils/wasm-proc/metadata-js update
-  npm --prefix "$1"/scripts/test-utils update
-  npm --prefix "$1"/gear-test/src/js update
+  cd "$1"/utils/wasm-proc/metadata-js
+  npm update
+  cd "$1"/scripts/test-utils
+  npm update
+  cd "$1"/gear-test/src/js
+  npm update
+  cd "$1"
 }
 
 cargo_init() {
   if [ -z $CI ]; then
     cargo install cargo-hack
     cargo install cargo-nextest
-  else
+  elif [[ "$OSTYPE" == "linux-gnu"* ]]; then
     curl "https://api.github.com/repos/taiki-e/cargo-hack/releases/latest" |
     grep -wo "https.*x86_64-unknown-linux-gnu.tar.gz" |
     xargs curl -L |
