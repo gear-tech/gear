@@ -56,7 +56,7 @@ cargo_init() {
   if [ -z $CI ]; then
     cargo install cargo-hack
     cargo install cargo-nextest
-  elif [ "$OSTYPE" == "linux-gnu" ]; then
+  elif [ "$OSTYPE" = "linux-gnu" ]; then
     curl "https://api.github.com/repos/taiki-e/cargo-hack/releases/latest" |
     grep -wo "https.*x86_64-unknown-linux-gnu.tar.gz" |
     xargs curl -L |
