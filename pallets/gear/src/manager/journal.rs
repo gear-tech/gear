@@ -387,6 +387,14 @@ where
         for task in tasks {
             match task {
                 GasReservationTask::CreateReservation { id, amount, bn } => {
+                    log::debug!(
+                        "Reserved: {:?} from {:?} with {:?} for {} blocks",
+                        amount,
+                        message_id,
+                        id,
+                        bn
+                    );
+
                     GasHandlerOf::<T>::reserve(message_id, id, amount as u64)
                         .unwrap_or_else(|e| unreachable!("GasTree corrupted: {:?}", e));
 

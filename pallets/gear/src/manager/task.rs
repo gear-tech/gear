@@ -156,6 +156,7 @@ where
     }
 
     fn remove_gas_reservation(&mut self, reservation_id: ReservationId) {
+        log::debug!("Remove reservation with {:?}", reservation_id);
         Pallet::<T>::consume_message(reservation_id);
     }
 }
