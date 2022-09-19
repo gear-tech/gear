@@ -20,9 +20,9 @@ use crate::{
     internal::HoldBound,
     manager::HandleKind,
     mock::{
-        get_minimal_weight, new_test_ext, run_to_block, run_to_next_block, Balances,
-        Event as MockEvent, Gear, GearProgram, Origin, System, Test, BLOCK_AUTHOR,
-        LOW_BALANCE_USER, USER_1, USER_2, USER_3,
+        get_minimal_weight, get_task_pool_add_weight, new_test_ext, run_to_block,
+        run_to_next_block, Balances, Event as MockEvent, Gear, GearProgram, Origin, System, Test,
+        BLOCK_AUTHOR, LOW_BALANCE_USER, USER_1, USER_2, USER_3,
     },
     pallet, BlockGasLimitOf, Config, CostsPerBlockOf, Error, Event, GasAllowanceOf, GasHandlerOf,
     GasInfo, MailboxOf, WaitlistOf,
@@ -1416,7 +1416,7 @@ fn block_gas_limit_works() {
 
     init_logger();
 
-    let minimal_weight = get_minimal_weight();
+    let (minimal_weight, tasks_add_weight) = get_task_pool_add_weight();
 
     new_test_ext().execute_with(|| {
         // Submit programs and get their ids
@@ -1532,10 +1532,8 @@ fn block_gas_limit_works() {
         assert!(gas1.burned + gas2.burned < gas1.min_limit + gas2.min_limit);
 
         // program1 sends message to a user and it goes to the TaskPool
-        let tasks_add_weight = <Test as frame_system::Config>::DbWeight::get().writes(1);
-
-        // both processed if gas allowance equals only burned count
         let weight = minimal_weight + tasks_add_weight;
+        // both processed if gas allowance equals only burned count
         run_to_next_block(Some(weight + gas1.burned + gas2.burned));
         assert_last_dequeued(2);
 
