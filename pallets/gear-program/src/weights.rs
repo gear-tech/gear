@@ -21,10 +21,10 @@
 //! THIS FILE WAS AUTO-GENERATED USING THE SUBSTRATE BENCHMARK CLI VERSION 4.0.0-dev
 //! DATE: 2022-09-17, STEPS: `50`, REPEAT: 20, LOW RANGE: `[]`, HIGH RANGE: `[]`
 //! HOSTNAME: `epyc-runners-node.hetzner`, CPU: `AMD EPYC 7502P 32-Core Processor`
-//! EXECUTION: Some(Wasm), WASM-EXECUTION: Compiled, CHAIN: Some("vara-dev"), DB CACHE: 1024
+//! EXECUTION: Some(Wasm), WASM-EXECUTION: Compiled, CHAIN: Some("gear-dev"), DB CACHE: 1024
 
 // Executed Command:
-// ./target/production/gear-node benchmark pallet --chain=vara-dev --steps=50 --repeat=20 --pallet=pallet_gear_program --extrinsic=* --execution=wasm --wasm-execution=compiled --heap-pages=4096 --output=./scripts/benchmarking/weights-output/pallet_gear_program.rs --template=.maintain/frame-weight-template.hbs
+// ./target/production/gear-node benchmark pallet --chain=gear-dev --steps=50 --repeat=20 --pallet=pallet_gear_program --extrinsic=* --execution=wasm --wasm-execution=compiled --heap-pages=4096 --output=./scripts/benchmarking/weights-output/pallet_gear_program.rs --template=.maintain/frame-weight-template.hbs
 
 #![cfg_attr(rustfmt, rustfmt_skip)]
 #![allow(unused_parens)]
@@ -39,29 +39,27 @@ pub trait WeightInfo {
     fn resume_program(q: u32, ) -> Weight;
 }
 
+// For backwards compatibility and tests
+const SUBMIT_WEIGHT_PER_BYTE: Weight = Weight::from_ref_time(1_000_000u64);
+
 /// Weights for pallet_gear_program using the Substrate node and recommended hardware.
 pub struct SubstrateWeight<T>(PhantomData<T>);
-impl<T: frame_system::Config> pallet_gear_program::WeightInfo for SubstrateWeight<T> {
+impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
     /// The range of component `q` is `[1, 128]`.
     fn resume_program(q: u32, ) -> Weight {
-        Weight::from_ref_time(349_268_000 as u64)
-            // Standard Error: 417_738
-            .saturating_add(Weight::from_ref_time(199_197_378 as u64).saturating_mul(q as u64))
+        Weight::from_ref_time(230_752_000 as u64)
+            // Standard Error: 368_812
+            .saturating_add(Weight::from_ref_time(198_184_206 as u64).saturating_mul(q as u64))
             .saturating_add(T::DbWeight::get().reads(4 as u64))
             .saturating_add(T::DbWeight::get().writes(22 as u64))
             .saturating_add(T::DbWeight::get().writes((16 as u64).saturating_mul(q as u64)))
     }
 }
 
-// For backwards compatibility and tests
 impl WeightInfo for () {
-    /// The range of component `q` is `[1, 128]`.
-    fn resume_program(q: u32, ) -> Weight {
-        Weight::from_ref_time(349_268_000 as u64)
-            // Standard Error: 417_738
-            .saturating_add(Weight::from_ref_time(199_197_378 as u64).saturating_mul(q as u64))
-            .saturating_add(RocksDbWeight::get().reads(4 as u64))
-            .saturating_add(RocksDbWeight::get().writes(22 as u64))
-            .saturating_add(RocksDbWeight::get().writes((16 as u64).saturating_mul(q as u64)))
+    fn resume_program(q: u32) -> Weight {
+        Weight::from_ref_time(0u64)
+            .saturating_add(RocksDbWeight::get().writes(4u64))
+            .saturating_add(SUBMIT_WEIGHT_PER_BYTE.saturating_mul(q as u64))
     }
 }
