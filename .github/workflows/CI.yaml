@@ -358,7 +358,9 @@ jobs:
         uses: msys2/setup-msys2@v2
         with:
           path-type: inherit
-          install: procps
+          install: >-
+            procps
+            mingw-w64-x86_64-protobuf
 
       - name: "Install: rustup 1.24.3"
         run: |
@@ -493,6 +495,9 @@ jobs:
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
             ${{ runner.os }}-cargo-
+
+      - name: "Install: protobuf"
+        run: brew install protobuf
 
       - name: "Install: Nightly toolchain"
         uses: actions-rs/toolchain@v1
