@@ -1,17 +1,39 @@
-use std::fmt::Debug;
+use std::marker::PhantomData;
 
-use futures::Future;
+use gear_program::api::Api;
 use tokio::task::JoinHandle;
 
-pub(crate) struct TaskPool<T>(Vec<JoinHandle<T>>);
+use crate::{args::SeedVariant, reporter::SomeReporter};
+use upload_program::UploadProgramTaskGen;
 
-impl<T> TaskPool<T> {
+pub(crate) mod generators;
+mod upload_program;
+
+pub(crate) struct TaskPool<Rng: crate::Rng> {
+    up_task_gen: UploadProgramTaskGen,
+    tasks: Vec<JoinHandle<SomeReporter>>,
+    _phantom: PhantomData<Rng>
+}
+
+impl<Rng: crate::Rng> TaskPool<Rng> {
     pub(crate) const MIN_SIZE: usize = 1;
     pub(crate) const MAX_SIZE: usize = 100;
 
-    pub(crate) fn try_new(size: usize) -> Result<Self, String> {
+    pub(crate) fn try_new(
+        size: usize,
+        seed_variant: Option<SeedVariant>,
+        gear_api: Api,
+    ) -> Result<Self, String> 
+    {
         if size >= Self::MIN_SIZE && size <= Self::MAX_SIZE {
-            Ok(Self(Vec::with_capacity(size)))
+            Ok(Self {
+                up_task_gen: UploadProgramTaskGen::try_new(
+                    gear_api,
+                    generators::get_some_seed_generator::<Rng>(seed_variant),
+                ),
+                tasks: Vec::with_capacity(size),
+                _phantom: PhantomData
+            })
         } else {
             Err(format!(
                 "Can't create task pool with such size {size:?}. \
@@ -22,17 +44,13 @@ impl<T> TaskPool<T> {
         }
     }
 
-    pub(crate) async fn run<Job>(&mut self, job_wrap: impl Fn() -> Job) -> Result<Vec<T>, ()>
-    where
-        Job: Future<Output = T> + Send + 'static,
-        T: Debug + Send + 'static,
-    {
-        let Self(tasks) = self;
+    pub(crate) async fn run(&mut self) -> Result<Vec<SomeReporter>, ()> {
+        let TaskPool { tasks, .. } = self;
         let mut results = Vec::with_capacity(tasks.capacity());
 
         tasks.clear();
         while tasks.len() != tasks.capacity() {
-            let task = tokio::spawn(job_wrap());
+            let task = tokio::spawn(self.up_task_gen.gen::<Rng>());
             tasks.push(task)
         }
 

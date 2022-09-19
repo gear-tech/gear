@@ -2,32 +2,47 @@
 //! logger to solve logs jumbling problem in a
 //! multithreaded environment.
 
+pub(crate) type SomeReporter = Box<dyn Reporter>;
+
+pub(crate) trait Reporter: Send {
+    /// Save data to reported later.
+    fn record(&mut self, data: String) -> Result<(), String>;
+
+    /// Report saved data into any destination either file, socket
+    /// or stdout.
+    fn report(&self) -> Result<(), String>;
+}
+
 // todo use cow?
 // todo make macro to use "{}" stuff instead of data argument in `record`
 #[derive(Debug)]
-pub(crate) struct Reporter {
-    seed: u64,
+pub(crate) struct StdoutReporter {
+    id: u64,
     reports: Vec<String>,
 }
 
-impl Reporter {
+impl StdoutReporter {
     pub(crate) fn new(id: u64) -> Self {
         Self {
-            seed: id,
+            id,
             reports: Vec::new(),
         }
     }
+}
 
-    pub(crate) fn record(&mut self, data: impl ToString) {
-        self.reports.push(data.to_string());
+impl Reporter for StdoutReporter {
+    fn record(&mut self, data: String) -> Result<(), String> {
+        self.reports.push(data);
+        Ok(())
     }
 
-    pub(crate) fn report(self) {
-        println!("Reporter with seed {} reports:", self.seed);
+    fn report(&self) -> Result<(), String> {
+        println!("Reporter with seed {} reports:", self.id);
         println!("==============================================");
-        self.reports.into_iter().for_each(|record| {
+        self.reports.iter().for_each(|record| {
             println!("{record:?}");
         });
         println!("==============================================\n");
+        Ok(())
     }
 }

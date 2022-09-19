@@ -1,7 +1,6 @@
 //! CLI args for the `gear-node-loader`
 
 use std::str::FromStr;
-
 use structopt::StructOpt;
 
 #[derive(Debug, StructOpt)]
@@ -29,8 +28,9 @@ pub(crate) struct LoadParams {
     /// start or constant. Start sets starting seed value for the generator.
     /// Constant sets constant seed which will be used in every test, therefore
     /// generated input data (for example, program) for each test will be the same.
-    #[structopt(long, short, default_value = "start=0")]
-    pub(crate) seed: SeedVariant,
+    /// Example value: `<seed_variant>=<seed_u64_value>`.
+    #[structopt(long, short)]
+    pub(crate) seed: Option<SeedVariant>,
 
     /// Desirable amount of threads.
     #[structopt(long, short, default_value = "1")]
