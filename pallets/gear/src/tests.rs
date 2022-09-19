@@ -20,7 +20,7 @@ use crate::{
     internal::HoldBound,
     manager::HandleKind,
     mock::{
-        get_minimal_weight, get_task_pool_add_weight, new_test_ext, run_to_block,
+        new_test_ext, run_to_block, self,
         run_to_next_block, Balances, Event as MockEvent, Gear, GearProgram, Origin, System, Test,
         BLOCK_AUTHOR, LOW_BALANCE_USER, USER_1, USER_2, USER_3,
     },
@@ -59,7 +59,7 @@ use utils::*;
 fn unstoppable_block_execution_works() {
     init_logger();
 
-    let minimal_weight = get_minimal_weight();
+    let minimal_weight = mock::get_min_weight();
 
     new_test_ext().execute_with(|| {
         let user_balance = Balances::free_balance(USER_1) as u64;
@@ -478,7 +478,7 @@ fn upload_program_fails_on_duplicate_id() {
 fn send_message_works() {
     init_logger();
 
-    let minimal_weight = get_minimal_weight();
+    let minimal_weight = mock::get_min_weight();
 
     new_test_ext().execute_with(|| {
         let user1_initial_balance = Balances::free_balance(USER_1);
@@ -736,7 +736,7 @@ fn messages_processing_works() {
 fn spent_gas_to_reward_block_author_works() {
     init_logger();
 
-    let minimal_weight = get_minimal_weight();
+    let minimal_weight = mock::get_min_weight();
 
     new_test_ext().execute_with(|| {
         let block_author_initial_balance = Balances::free_balance(BLOCK_AUTHOR);
@@ -761,7 +761,7 @@ fn spent_gas_to_reward_block_author_works() {
 fn unused_gas_released_back_works() {
     init_logger();
 
-    let minimal_weight = get_minimal_weight();
+    let minimal_weight = mock::get_min_weight();
 
     new_test_ext().execute_with(|| {
         let user1_initial_balance = Balances::free_balance(USER_1);
@@ -1416,7 +1416,8 @@ fn block_gas_limit_works() {
 
     init_logger();
 
-    let (minimal_weight, tasks_add_weight) = get_task_pool_add_weight();
+    let minimal_weight = mock::get_min_weight();
+    let tasks_add_weight = mock::get_weight_of_adding_task();
 
     new_test_ext().execute_with(|| {
         // Submit programs and get their ids

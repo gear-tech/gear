@@ -209,30 +209,27 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
     ext
 }
 
-pub fn get_minimal_weight() -> Weight {
+pub fn get_min_weight() -> Weight {
     new_test_ext()
         .execute_with(|| Gear::on_idle(System::block_number(), BlockGasLimitOf::<Test>::get()))
 }
 
-pub fn get_task_pool_add_weight() -> (Weight, Weight) {
-    let minimal_weight = get_minimal_weight();
+pub fn get_weight_of_adding_task() -> Weight {
+    let minimal_weight = get_min_weight();
 
-    (
-        minimal_weight,
-        new_test_ext().execute_with(|| {
-            let gas_allowance = GasAllowanceOf::<Test>::get();
+    new_test_ext().execute_with(|| {
+        let gas_allowance = GasAllowanceOf::<Test>::get();
 
-            Gear::on_idle(System::block_number(), BlockGasLimitOf::<Test>::get());
+        Gear::on_idle(System::block_number(), BlockGasLimitOf::<Test>::get());
 
-            TaskPoolOf::<Test>::add(
-                100,
-                ScheduledTask::RemoveFromMailbox(USER_2, Default::default()),
-            )
-            .unwrap_or_else(|e| unreachable!("Scheduling logic invalidated! {:?}", e));
+        TaskPoolOf::<Test>::add(
+            100,
+            ScheduledTask::RemoveFromMailbox(USER_2, Default::default()),
+        )
+        .unwrap_or_else(|e| unreachable!("Scheduling logic invalidated! {:?}", e));
 
-            gas_allowance - GasAllowanceOf::<Test>::get()
-        }) - minimal_weight,
-    )
+        gas_allowance - GasAllowanceOf::<Test>::get()
+    }) - minimal_weight
 }
 
 pub fn run_to_block(n: u64, remaining_weight: Option<u64>) {
