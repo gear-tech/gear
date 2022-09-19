@@ -20,8 +20,9 @@ use crate::{
     internal::HoldBound,
     manager::HandleKind,
     mock::{
-        self, new_test_ext, run_to_block, run_to_next_block, Balances, Event as MockEvent, Gear,
-        GearProgram, Origin, System, Test, BLOCK_AUTHOR, LOW_BALANCE_USER, USER_1, USER_2, USER_3,
+        self, new_test_ext, run_to_block, run_to_next_block, Balances, Gear, GearProgram, Origin,
+        RuntimeEvent as MockRuntimeEvent, System, Test, BLOCK_AUTHOR, LOW_BALANCE_USER, USER_1,
+        USER_2, USER_3,
     },
     pallet, BlockGasLimitOf, Config, CostsPerBlockOf, Error, Event, GasAllowanceOf, GasHandlerOf,
     GasInfo, MailboxOf, WaitlistOf,
@@ -105,7 +106,7 @@ fn unstoppable_block_execution_works() {
 
         assert!(balance_for_each_execution * executions_amount > real_gas_to_burn);
 
-        run_to_block(3, Some(minimal_weight + real_gas_to_burn));
+        run_to_block(3, Some(minimal_weight.ref_time() + real_gas_to_burn));
 
         assert_last_dequeued(executions_amount as u32);
 
@@ -541,7 +542,8 @@ fn send_message_works() {
         run_to_block(3, Some(remaining_weight));
 
         // Messages were sent by user 1 only
-        let actual_gas_burned = remaining_weight - minimal_weight - GasAllowanceOf::<Test>::get();
+        let actual_gas_burned =
+            remaining_weight - minimal_weight.ref_time() - GasAllowanceOf::<Test>::get();
         assert_eq!(actual_gas_burned, 0);
 
         // Ensure that no gas handlers were created
@@ -747,7 +749,9 @@ fn spent_gas_to_reward_block_author_works() {
         // The block author should be paid the amount of Currency equal to
         // the `gas_charge` incurred while processing the `InitProgram` message
         let gas_spent = GasPrice::gas_price(
-            BlockGasLimitOf::<Test>::get() - GasAllowanceOf::<Test>::get() - minimal_weight,
+            BlockGasLimitOf::<Test>::get()
+                - GasAllowanceOf::<Test>::get()
+                - minimal_weight.ref_time(),
         );
         assert_eq!(
             Balances::free_balance(BLOCK_AUTHOR),
@@ -802,7 +806,9 @@ fn unused_gas_released_back_works() {
         run_to_block(2, None);
 
         let user1_actual_msgs_spends = GasPrice::gas_price(
-            BlockGasLimitOf::<Test>::get() - GasAllowanceOf::<Test>::get() - minimal_weight,
+            BlockGasLimitOf::<Test>::get()
+                - GasAllowanceOf::<Test>::get()
+                - minimal_weight.ref_time(),
         );
 
         assert!(user1_potential_msgs_spends > user1_actual_msgs_spends);
@@ -1534,7 +1540,7 @@ fn block_gas_limit_works() {
         // program1 sends message to a user and it goes to the TaskPool
         let weight = minimal_weight + tasks_add_weight;
         // both processed if gas allowance equals only burned count
-        run_to_next_block(Some(weight + gas1.burned + gas2.burned));
+        run_to_next_block(Some(weight.ref_time() + gas1.burned + gas2.burned));
         assert_last_dequeued(2);
 
         send_with_min_limit_to(pid1, &gas1);
@@ -1542,7 +1548,7 @@ fn block_gas_limit_works() {
         send_with_min_limit_to(pid1, &gas1);
 
         // Try to process 3 messages
-        run_to_next_block(Some(weight + gas1.burned + gas2.burned - 1));
+        run_to_next_block(Some(weight.ref_time() + gas1.burned + gas2.burned - 1));
 
         // Message #1 is dequeued and processed.
         // Message #2 tried to execute, but exceed gas_allowance is re-queued at the top.
@@ -1558,7 +1564,9 @@ fn block_gas_limit_works() {
 
         // Try to process 2 messages.
         let additional_weight = 12;
-        run_to_next_block(Some(weight + gas2.burned + gas1.burned + additional_weight));
+        run_to_next_block(Some(
+            weight.ref_time() + gas2.burned + gas1.burned + additional_weight,
+        ));
 
         // Both messages got processed.
         //
@@ -1628,7 +1636,7 @@ fn init_message_logging_works() {
             assert_ok!(upload_program_default(USER_1, code_kind));
 
             let event = match System::events().last().map(|r| r.event.clone()) {
-                Some(MockEvent::Gear(e)) => e,
+                Some(MockRuntimeEvent::Gear(e)) => e,
                 _ => unreachable!("Should be one Gear event"),
             };
 
@@ -1841,7 +1849,7 @@ fn send_reply_works() {
         // global nonce is 2 before sending reply message
         // `upload_program` and `send_message` messages were sent before in `setup_mailbox_test_state`
         let event = match System::events().last().map(|r| r.event.clone()) {
-            Some(MockEvent::Gear(e)) => e,
+            Some(MockRuntimeEvent::Gear(e)) => e,
             _ => unreachable!("Should be one Gear event"),
         };
 
@@ -2285,7 +2293,7 @@ fn test_code_is_not_reset_within_program_submission() {
             .filter(|e| {
                 matches!(
                     e.event,
-                    MockEvent::Gear(Event::CodeChanged {
+                    MockRuntimeEvent::Gear(Event::CodeChanged {
                         change: CodeChangeKind::Active { .. },
                         ..
                     })
@@ -4044,7 +4052,7 @@ fn locking_gas_for_waitlist() {
         let mut expiration = None;
 
         System::events().iter().for_each(|e| {
-            if let MockEvent::Gear(Event::MessageWaited {
+            if let MockRuntimeEvent::Gear(Event::MessageWaited {
                 id,
                 expiration: exp,
                 ..
@@ -4692,7 +4700,7 @@ fn test_reply_to_terminated_program() {
         assert_eq!(MailboxOf::<Test>::len(&USER_1), 1);
 
         // Send reply
-        let reply_call = crate::mock::Call::Gear(crate::Call::<Test>::send_reply {
+        let reply_call = crate::mock::RuntimeCall::Gear(crate::Call::<Test>::send_reply {
             reply_to_id: mail_id,
             payload: EMPTY_PAYLOAD.to_vec(),
             gas_limit: 10_000_000,
@@ -5476,7 +5484,8 @@ mod utils {
     #![allow(unused)]
 
     use super::{
-        assert_ok, pallet, run_to_block, Event, MailboxOf, MockEvent, Origin, SystemPallet, Test,
+        assert_ok, pallet, run_to_block, Event, MailboxOf, MockRuntimeEvent, Origin, SystemPallet,
+        Test,
     };
     use crate::{
         mock::{Balances, Gear, System},
@@ -5570,7 +5579,7 @@ mod utils {
     pub(super) fn assert_init_success(expected: u32) {
         let mut actual_children_amount = 0;
         System::events().iter().for_each(|e| {
-            if let MockEvent::Gear(Event::ProgramChanged {
+            if let MockRuntimeEvent::Gear(Event::ProgramChanged {
                 change: ProgramChangeKind::Active { .. },
                 ..
             }) = e.event
@@ -5586,14 +5595,14 @@ mod utils {
         let last_dequeued = System::events()
             .iter()
             .filter_map(|e| {
-                if let MockEvent::Gear(Event::MessagesDispatched { total, .. }) = e.event {
+                if let MockRuntimeEvent::Gear(Event::MessagesDispatched { total, .. }) = e.event {
                     Some(total)
                 } else {
                     None
                 }
             })
             .last()
-            .expect("Not found Event::MessagesDispatched");
+            .expect("Not found RuntimeEvent::MessagesDispatched");
 
         assert_eq!(expected, last_dequeued);
     }
@@ -5602,7 +5611,7 @@ mod utils {
         let actual_dequeued: u32 = System::events()
             .iter()
             .filter_map(|e| {
-                if let MockEvent::Gear(Event::MessagesDispatched { total, .. }) = e.event {
+                if let MockRuntimeEvent::Gear(Event::MessagesDispatched { total, .. }) = e.event {
                     Some(total)
                 } else {
                     None
@@ -5735,8 +5744,8 @@ mod utils {
         )
     }
 
-    pub(super) fn call_default_message(to: ProgramId) -> crate::mock::Call {
-        crate::mock::Call::Gear(crate::Call::<Test>::send_message {
+    pub(super) fn call_default_message(to: ProgramId) -> crate::mock::RuntimeCall {
+        crate::mock::RuntimeCall::Gear(crate::Call::<Test>::send_message {
             destination: to,
             payload: EMPTY_PAYLOAD.to_vec(),
             gas_limit: DEFAULT_GAS_LIMIT,
@@ -5747,7 +5756,7 @@ mod utils {
     pub(super) fn dispatch_status(message_id: MessageId) -> Option<DispatchStatus> {
         let mut found_status: Option<DispatchStatus> = None;
         System::events().iter().for_each(|e| {
-            if let MockEvent::Gear(Event::MessagesDispatched { statuses, .. }) = &e.event {
+            if let MockRuntimeEvent::Gear(Event::MessagesDispatched { statuses, .. }) = &e.event {
                 found_status = statuses.get(&message_id).map(Clone::clone);
             }
         });
@@ -5775,7 +5784,7 @@ mod utils {
         let mut actual_error = None;
 
         System::events().into_iter().for_each(|e| {
-            if let MockEvent::Gear(Event::UserMessageSent { message, .. }) = e.event {
+            if let MockRuntimeEvent::Gear(Event::UserMessageSent { message, .. }) = e.event {
                 if let Some(details) = message.reply() {
                     if details.reply_to() == message_id && details.exit_code() != 0 {
                         actual_error = Some(
@@ -5788,7 +5797,7 @@ mod utils {
         });
 
         let mut actual_error =
-            actual_error.expect("Error message not found in any `Event::UserMessageSent`");
+            actual_error.expect("Error message not found in any `RuntimeEvent::UserMessageSent`");
         let mut expectations = error.to_string();
 
         log::debug!("Actual error: {:?}", actual_error);
@@ -5811,7 +5820,7 @@ mod utils {
         assert_eq!(status, DispatchStatus::NotExecuted)
     }
 
-    pub(super) fn get_last_event() -> MockEvent {
+    pub(super) fn get_last_event() -> MockRuntimeEvent {
         System::events()
             .into_iter()
             .last()
@@ -5821,7 +5830,7 @@ mod utils {
 
     pub(super) fn get_last_program_id() -> ProgramId {
         let event = match System::events().last().map(|r| r.event.clone()) {
-            Some(MockEvent::Gear(e)) => e,
+            Some(MockRuntimeEvent::Gear(e)) => e,
             _ => unreachable!("Should be one Gear event"),
         };
 
@@ -5833,13 +5842,13 @@ mod utils {
         {
             destination
         } else {
-            unreachable!("expect Event::InitMessageEnqueued")
+            unreachable!("expect RuntimeEvent::InitMessageEnqueued")
         }
     }
 
     pub(super) fn get_last_code_id() -> CodeId {
         let event = match System::events().last().map(|r| r.event.clone()) {
-            Some(MockEvent::Gear(e)) => e,
+            Some(MockRuntimeEvent::Gear(e)) => e,
             _ => unreachable!("Should be one Gear event"),
         };
 
@@ -5860,7 +5869,7 @@ mod utils {
             .iter()
             .rev()
             .filter_map(|r| {
-                if let MockEvent::Gear(e) = r.event.clone() {
+                if let MockRuntimeEvent::Gear(e) = r.event.clone() {
                     Some(e)
                 } else {
                     None
@@ -5879,7 +5888,7 @@ mod utils {
         System::events()
             .into_iter()
             .rfind(|e| match e.event {
-                MockEvent::Gear(Event::MessageWaited {
+                MockRuntimeEvent::Gear(Event::MessageWaited {
                     id: message_id,
                     expiration,
                     ..
@@ -5900,7 +5909,8 @@ mod utils {
         System::events()
             .into_iter()
             .rfind(|e| {
-                if let MockEvent::Gear(Event::MessageWaited { id, expiration, .. }) = e.event {
+                if let MockRuntimeEvent::Gear(Event::MessageWaited { id, expiration, .. }) = e.event
+                {
                     message_id = Some(id);
                     exp = Some(expiration);
                     true
@@ -5915,7 +5925,7 @@ mod utils {
 
     pub(super) fn maybe_last_message(account: AccountId) -> Option<StoredMessage> {
         System::events().into_iter().rev().find_map(|e| {
-            if let MockEvent::Gear(Event::UserMessageSent { message, .. }) = e.event {
+            if let MockRuntimeEvent::Gear(Event::UserMessageSent { message, .. }) = e.event {
                 if message.destination() == account.into() {
                     Some(message)
                 } else {
