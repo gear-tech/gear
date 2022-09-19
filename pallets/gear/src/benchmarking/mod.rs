@@ -323,7 +323,7 @@ where
         mailbox_threshold,
         waitlist_cost,
         reserve_for,
-        read_cost: DbWeightOf::<T>::get().reads(1),
+        read_cost: DbWeightOf::<T>::get().reads(1).ref_time(),
         per_byte_cost: PerByteCostOf::<T>::get(),
     };
 

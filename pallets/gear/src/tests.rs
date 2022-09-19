@@ -4366,7 +4366,7 @@ fn gas_spent_precalculated() {
                 .expect("program must exist")
                 .code_length_bytes;
 
-            let read_cost = DbWeightOf::<Test>::get().reads(1);
+            let read_cost = DbWeightOf::<Test>::get().reads(1).ref_time();
 
             u64::from(cost)
                 // cost for loading program
@@ -5345,7 +5345,7 @@ fn missing_functions_are_not_executed() {
         .expect("calculate_gas_info failed");
 
         let program_cost = core_processor::calculate_gas_for_program(
-            DbWeightOf::<Test>::get().reads(1),
+            DbWeightOf::<Test>::get().reads(1).ref_time(),
             PerByteCostOf::<Test>::get(),
         );
         // there is no execution so the values should be equal
