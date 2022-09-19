@@ -1267,11 +1267,12 @@ pub mod pallet {
         }
 
         fn get_memory_pages(
-            _program_id: ProgramId,
+            program_id: ProgramId,
             pages_with_data: &BTreeSet<PageNumber>,
         ) -> Option<BTreeMap<PageNumber, PageBuf>> {
             #[cfg(feature = "lazy-pages")]
             let memory_pages = {
+                let _ = program_id;
                 let _ = pages_with_data;
                 assert!(lazy_pages::try_to_enable_lazy_pages());
                 Default::default()
