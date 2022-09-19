@@ -104,9 +104,24 @@ impl GasCounter {
         }
     }
 
+    /// Decrease gas by `amount`.
+    ///
+    /// Called when gas reservation is occurred.
+    // We don't increase `burn` counter because `GasTree` manipulation is handled by separated function
+    pub fn decrease(&mut self, amount: u64) -> ChargeResult {
+        match self.left.checked_sub(amount) {
+            None => ChargeResult::NotEnough,
+            Some(new_left) => {
+                self.left = new_left;
+                ChargeResult::Enough
+            }
+        }
+    }
+
     /// Increase gas by `amount`.
     ///
     /// Called when gas unreservation is occurred.
+    // We don't decrease `burn` counter because `GasTree` manipulation is handled by separated function
     pub fn increase(&mut self, amount: u64) -> bool {
         match self.left.checked_add(amount) {
             None => false,

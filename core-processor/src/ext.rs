@@ -328,6 +328,22 @@ impl Ext {
         self.charge_message_value(packet.value())?;
         Ok(())
     }
+
+    fn check_charge_results(
+        &mut self,
+        common_charge: ChargeResult,
+        allowance_charge: ChargeResult,
+    ) -> Result<(), ProcessorError> {
+        use ChargeResult::*;
+
+        let res: Result<(), ProcessorError> = match (common_charge, allowance_charge) {
+            (NotEnough, _) => Err(ExecutionError::GasLimitExceeded.into()),
+            (Enough, NotEnough) => Err(TerminationReason::GasAllowanceExceeded.into()),
+            (Enough, Enough) => Ok(()),
+        };
+
+        self.return_and_store_err(res)
+    }
 }
 
 impl EnvExt for Ext {
@@ -526,31 +542,14 @@ impl EnvExt for Ext {
     }
 
     fn charge_gas(&mut self, val: u64) -> Result<(), Self::Error> {
-        use ChargeResult::*;
-
         let common_charge = self.context.gas_counter.charge(val);
         let allowance_charge = self.context.gas_allowance_counter.charge(val);
-
-        let res: Result<(), ProcessorError> = match (common_charge, allowance_charge) {
-            (NotEnough, _) => Err(ExecutionError::GasLimitExceeded.into()),
-            (Enough, NotEnough) => Err(TerminationReason::GasAllowanceExceeded.into()),
-            (Enough, Enough) => Ok(()),
-        };
-
-        self.return_and_store_err(res)
+        self.check_charge_results(common_charge, allowance_charge)
     }
 
     fn charge_gas_runtime(&mut self, costs: RuntimeCosts) -> Result<(), Self::Error> {
-        use ChargeResult::*;
         let (common_charge, allowance_charge) = charge_gas_token!(self, costs);
-
-        let res: Result<(), ProcessorError> = match (common_charge, allowance_charge) {
-            (NotEnough, _) => Err(ExecutionError::GasLimitExceeded.into()),
-            (Enough, NotEnough) => Err(TerminationReason::GasAllowanceExceeded.into()),
-            (Enough, Enough) => Ok(()),
-        };
-
-        self.return_and_store_err(res)
+        self.check_charge_results(common_charge, allowance_charge)
     }
 
     fn refund_gas(&mut self, val: u64) -> Result<(), Self::Error> {
@@ -565,7 +564,9 @@ impl EnvExt for Ext {
     fn reserve_gas(&mut self, amount: u32, blocks: u32) -> Result<ReservationId, Self::Error> {
         self.charge_gas_runtime(RuntimeCosts::ReserveGas)?;
 
-        self.charge_gas(amount as u64)?;
+        let common_charge = self.context.gas_counter.decrease(amount as u64);
+        let allowance_charge = self.context.gas_allowance_counter.charge(amount as u64);
+        self.check_charge_results(common_charge, allowance_charge)?;
 
         let ProcessorContext {
             message_context,
