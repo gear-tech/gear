@@ -22,6 +22,7 @@ use frame_support::{
     traits::{FindAuthor, OnFinalize, OnIdle, OnInitialize},
 };
 use frame_system as system;
+use pallet_gear_messenger::Weight;
 use primitive_types::H256;
 use sp_runtime::{
     testing::Header,
@@ -40,7 +41,7 @@ impl pallet_balances::Config for Test {
     type ReserveIdentifier = [u8; 8];
     type Balance = u128;
     type DustRemoval = ();
-    type Event = Event;
+    type RuntimeEvent = RuntimeEvent;
     type ExistentialDeposit = ExistentialDeposit;
     type AccountStore = System;
     type WeightInfo = ();
@@ -58,7 +59,7 @@ impl system::Config for Test {
     type BlockLength = ();
     type DbWeight = ();
     type Origin = Origin;
-    type Call = Call;
+    type RuntimeCall = RuntimeCall;
     type Index = u64;
     type BlockNumber = u64;
     type Hash = H256;
@@ -66,7 +67,7 @@ impl system::Config for Test {
     type AccountId = u64;
     type Lookup = IdentityLookup<Self::AccountId>;
     type Header = Header;
-    type Event = Event;
+    type RuntimeEvent = RuntimeEvent;
     type BlockHashCount = BlockHashCount;
     type Version = ();
     type PalletInfo = PalletInfo;
@@ -80,7 +81,7 @@ impl system::Config for Test {
 }
 
 impl pallet_gear_debug::Config for Test {
-    type Event = Event;
+    type RuntimeEvent = RuntimeEvent;
     type WeightInfo = ();
     type CodeStorage = GearProgram;
     type Messenger = GearMessenger;
@@ -123,14 +124,14 @@ impl common::GasPrice for GasConverter {
 }
 
 impl pallet_gear_program::Config for Test {
-    type Event = Event;
+    type RuntimeEvent = RuntimeEvent;
     type WeightInfo = ();
     type Currency = Balances;
     type Messenger = GearMessenger;
 }
 
 impl pallet_gear::Config for Test {
-    type Event = Event;
+    type RuntimeEvent = RuntimeEvent;
     type Currency = Balances;
     type GasPrice = GasConverter;
     type WeightInfo = ();
@@ -212,6 +213,9 @@ pub fn run_to_block(n: u64, remaining_weight: Option<u64>) {
         Gear::on_initialize(System::block_number());
         let remaining_weight =
             remaining_weight.unwrap_or(pallet_gear::BlockGasLimitOf::<Test>::get());
-        Gear::on_idle(System::block_number(), remaining_weight);
+        Gear::on_idle(
+            System::block_number(),
+            Weight::from_ref_time(remaining_weight),
+        );
     }
 }

@@ -39,6 +39,7 @@
 
 #![allow(unused_parens)]
 #![allow(unused_imports)]
+#![allow(clippy::unnecessary_cast)]
 
 use frame_support::{
     traits::Get,
@@ -54,12 +55,12 @@ pub trait WeightInfo {
 pub struct GearSupportWeight<T>(PhantomData<T>);
 impl<T: frame_system::Config> WeightInfo for GearSupportWeight<T> {
     fn enable_debug_mode() -> Weight {
-        (0_u64).saturating_add(T::DbWeight::get().writes(1_u64))
+        Weight::zero().saturating_add(T::DbWeight::get().writes(1_u64))
     }
 }
 
 impl WeightInfo for () {
     fn enable_debug_mode() -> Weight {
-        (0_u64).saturating_add(RocksDbWeight::get().writes(1_u64))
+        Weight::zero().saturating_add(RocksDbWeight::get().writes(1_u64))
     }
 }
