@@ -830,7 +830,7 @@ pub mod pallet {
                     gas_allowance: u64::MAX,
                 };
 
-                let (journal, _gas_burned) =
+                let journal =
                     match core_processor::prepare(&block_config, message_execution_context) {
                         PrepareResult::Ok(context) => {
                             let memory_pages = match Self::get_memory_pages(
@@ -847,25 +847,15 @@ pub mod pallet {
                                 Some(c) => c,
                             };
 
-                            let gas_burned = context.gas_counter().burned();
-
-                            (
-                                core_processor::process::<Ext, SandboxEnvironment>(
-                                    &block_config,
-                                    (context, actor_id, code).into(),
-                                    memory_pages,
-                                ),
-                                gas_burned,
+                            core_processor::process::<Ext, SandboxEnvironment>(
+                                &block_config,
+                                (context, actor_id, code).into(),
+                                memory_pages,
                             )
                         }
-                        PrepareResult::WontExecute {
-                            journal,
-                            gas_burned,
+                        PrepareResult::WontExecute(journal) | PrepareResult::Error(journal) => {
+                            journal
                         }
-                        | PrepareResult::Error {
-                            journal,
-                            gas_burned,
-                        } => (journal, gas_burned),
                     };
 
                 let get_main_limit = || GasHandlerOf::<T>::get_limit(main_message_id).ok();
@@ -1245,8 +1235,9 @@ pub mod pallet {
                                     memory_pages,
                                 )
                             }
-                            PrepareResult::WontExecute { journal, .. }
-                            | PrepareResult::Error { journal, .. } => journal,
+                            PrepareResult::WontExecute(journal) | PrepareResult::Error(journal) => {
+                                journal
+                            }
                         };
 
                     core_processor::handle_journal(journal, &mut ext_manager);

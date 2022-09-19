@@ -113,9 +113,7 @@ where
     };
 
     let journal = match core_processor::prepare(&block_config, message_execution_context) {
-        PrepareResult::WontExecute { journal, .. } | PrepareResult::Error { journal, .. } => {
-            journal
-        }
+        PrepareResult::WontExecute(journal) | PrepareResult::Error(journal) => journal,
         PrepareResult::Ok(context) => {
             let (code, ..) = code.into_parts();
             core_processor::process::<Ext, E>(
@@ -309,8 +307,9 @@ where
 
                 let journal =
                     match core_processor::prepare(&block_config, message_execution_context) {
-                        PrepareResult::WontExecute { journal, .. }
-                        | PrepareResult::Error { journal, .. } => journal,
+                        PrepareResult::WontExecute(journal) | PrepareResult::Error(journal) => {
+                            journal
+                        }
                         PrepareResult::Ok(context) => {
                             let (code, ..) = journal_handler
                                 .load_code(context.actor_data().code_id)
@@ -360,8 +359,7 @@ where
             };
 
             let journal = match core_processor::prepare(&block_config, message_execution_context) {
-                PrepareResult::WontExecute { journal, .. }
-                | PrepareResult::Error { journal, .. } => journal,
+                PrepareResult::WontExecute(journal) | PrepareResult::Error(journal) => journal,
                 PrepareResult::Ok(context) => {
                     let (code, ..) = journal_handler
                         .load_code(context.actor_data().code_id)

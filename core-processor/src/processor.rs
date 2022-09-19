@@ -125,22 +125,12 @@ impl
 
 /// Defines result variants of the function `prepare`.
 pub enum PrepareResult {
-    /// Successfully pre-charged for memory pages.
+    /// Successfully pre-charged for resources.
     Ok(Box<PreparedMessageExecutionContext>),
     /// Required function is not exported. The program will not be executed.
-    WontExecute {
-        /// Array of JournalNote.
-        journal: Vec<JournalNote>,
-        /// The amount of burned gas.
-        gas_burned: u64,
-    },
-    /// Provided actor is not executable or there is not enough gas for memory pages size.
-    Error {
-        /// Array of JournalNote.
-        journal: Vec<JournalNote>,
-        /// The amount of burned gas.
-        gas_burned: u64,
-    },
+    WontExecute(Vec<JournalNote>),
+    /// Provided actor is not executable or there is not enough gas for resources.
+    Error(Vec<JournalNote>),
 }
 
 fn prepare_error(
@@ -150,10 +140,7 @@ fn prepare_error(
     err: ExecutionErrorReason,
 ) -> PrepareResult {
     let gas_burned = gas_counter.burned();
-    PrepareResult::Error {
-        journal: process_error(dispatch, program_id, gas_burned, err),
-        gas_burned,
-    }
+    PrepareResult::Error(process_error(dispatch, program_id, gas_burned, err))
 }
 
 fn prepare_allowance_exceed(
@@ -162,10 +149,7 @@ fn prepare_allowance_exceed(
     gas_counter: GasCounter,
 ) -> PrepareResult {
     let gas_burned = gas_counter.burned();
-    PrepareResult::Error {
-        journal: process_allowance_exceed(dispatch, program_id, gas_burned),
-        gas_burned,
-    }
+    PrepareResult::Error(process_allowance_exceed(dispatch, program_id, gas_burned))
 }
 
 /// Prepares environment for the execution of a program.
@@ -196,10 +180,7 @@ pub fn prepare(
 
     let actor_data = match check_is_executable(executable_data, &dispatch) {
         Err(exit_code) => {
-            return PrepareResult::Error {
-                journal: process_non_executable(dispatch, program_id, exit_code),
-                gas_burned: 0,
-            };
+            return PrepareResult::Error(process_non_executable(dispatch, program_id, exit_code));
         }
         Ok(data) => data,
     };
@@ -231,14 +212,10 @@ pub fn prepare(
     }
 
     if !actor_data.code_exports.contains(&dispatch.kind()) {
-        let gas_burned = gas_counter.burned();
-        return PrepareResult::WontExecute {
-            journal: process_success(
-                SuccessfulDispatchResultKind::Success,
-                DispatchResult::success(dispatch, program_id, gas_counter.into()),
-            ),
-            gas_burned,
-        };
+        return PrepareResult::WontExecute(process_success(
+            SuccessfulDispatchResultKind::Success,
+            DispatchResult::success(dispatch, program_id, gas_counter.into()),
+        ));
     }
 
     match executor::charge_gas_for_code(
