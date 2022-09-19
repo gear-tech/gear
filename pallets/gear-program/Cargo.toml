@@ -62,3 +62,4 @@ runtime-benchmarks = [
 	"frame-support/runtime-benchmarks",
 	"common/runtime-benchmarks"
 ]
+try-runtime = ["frame-support/try-runtime"]

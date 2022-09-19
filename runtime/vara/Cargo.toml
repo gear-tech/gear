@@ -132,6 +132,14 @@ try-runtime = [
 	"frame-executive/try-runtime",
 	"frame-try-runtime",
 	"frame-system/try-runtime",
+	"frame-support/try-runtime",
+	"pallet-gear/try-runtime",
+	"pallet-gear-messenger/try-runtime",
+	"pallet-gear-payment/try-runtime",
+	"pallet-gear-program/try-runtime",
+	"pallet-gear-gas/try-runtime",
+	"pallet-gear-scheduler/try-runtime",
+	"pallet-gear-debug/try-runtime",
 	"pallet-authorship/try-runtime",
 	"pallet-babe/try-runtime",
 	"pallet-balances/try-runtime",
@@ -140,6 +148,7 @@ try-runtime = [
 	"pallet-sudo/try-runtime",
 	"pallet-timestamp/try-runtime",
 	"pallet-transaction-payment/try-runtime",
+	"pallet-utility/try-runtime",
 ]
 debug-mode = ["pallet-gear-debug"]
 lazy-pages = [

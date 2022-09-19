@@ -60,3 +60,4 @@ runtime-benchmarks = [
 	"frame-support/runtime-benchmarks",
 	"parity-wasm",
 ]
+try-runtime = ["frame-support/try-runtime"]
