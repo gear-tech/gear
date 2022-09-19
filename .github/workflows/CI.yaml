@@ -358,7 +358,9 @@ jobs:
         uses: msys2/setup-msys2@v2
         with:
           path-type: inherit
-          install: procps
+          install: >-
+            procps
+            protobuf
 
       - name: "Install: rustup 1.24.3"
         run: |
