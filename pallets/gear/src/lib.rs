@@ -807,7 +807,6 @@ pub mod pallet {
             let mut min_limit = 0;
             let mut reserved = 0;
             let mut burned = 0;
-            let mut may_be_returned = 0;
 
             let mut ext_manager = ExtManager::<T>::default();
 
@@ -824,37 +823,17 @@ pub mod pallet {
                 let gas_limit = GasHandlerOf::<T>::get_limit(dispatch_id)
                     .map_err(|_| b"Internal error: unable to get gas limit".to_vec())?;
 
-                let subsequent_execution = ext_manager.program_pages_loaded(&actor_id);
-                let subsequent_code_loading = actor
-                    .executable_data
-                    .as_ref()
-                    .map(|d| ext_manager.code_loaded(&d.code_id))
-                    .unwrap_or(false);
                 let message_execution_context = MessageExecutionContext {
                     actor,
                     dispatch: queued_dispatch.into_incoming(gas_limit),
                     origin: ProgramId::from_origin(source),
                     gas_allowance: u64::MAX,
-                    subsequent_execution,
-                    subsequent_code_loading,
                 };
 
-                let subsequent_execution = !subsequent_execution && actor_id == main_program_id;
-                let subsequent_code_loading =
-                    !subsequent_code_loading && actor_id == main_program_id;
-
-                let may_be_returned_context = (subsequent_execution || subsequent_code_loading)
-                    .then(|| MessageExecutionContext {
-                        subsequent_execution,
-                        subsequent_code_loading,
-                        ..message_execution_context.clone()
-                    });
-
-                let (journal, gas_burned) =
+                let (journal, _gas_burned) =
                     match core_processor::prepare(&block_config, message_execution_context) {
                         PrepareResult::Ok(context) => {
-                            let memory_pages = match Self::get_and_track_memory_pages(
-                                &mut ext_manager,
+                            let memory_pages = match Self::get_memory_pages(
                                 actor_id,
                                 &context.actor_data().pages_with_data,
                             ) {
@@ -862,11 +841,8 @@ pub mod pallet {
                                 Some(m) => m,
                             };
 
-                            let code = match Self::get_and_track_code(
-                                &mut ext_manager,
-                                context.actor_data().code_id,
-                                actor_id,
-                            ) {
+                            let code = match Self::get_code(context.actor_data().code_id, actor_id)
+                            {
                                 None => continue,
                                 Some(c) => c,
                             };
@@ -891,18 +867,6 @@ pub mod pallet {
                             gas_burned,
                         } => (journal, gas_burned),
                     };
-
-                may_be_returned += may_be_returned_context
-                    .map(|c| {
-                        let burned = match core_processor::prepare(&block_config, c) {
-                            PrepareResult::Ok(context) => context.gas_counter().burned(),
-                            PrepareResult::WontExecute { gas_burned, .. }
-                            | PrepareResult::Error { gas_burned, .. } => gas_burned,
-                        };
-
-                        gas_burned - burned
-                    })
-                    .unwrap_or(0);
 
                 let get_main_limit = || GasHandlerOf::<T>::get_limit(main_message_id).ok();
 
@@ -967,7 +931,7 @@ pub mod pallet {
                 min_limit,
                 reserved,
                 burned,
-                may_be_returned,
+                may_be_returned: 0,
                 waited,
             })
         }
@@ -1245,7 +1209,6 @@ pub mod pallet {
                         .unique_saturated_into();
 
                     let program_id = dispatch.destination();
-                    let maybe_code_id = active_actor_data.as_ref().map(|d| d.code_id);
                     let message_execution_context = MessageExecutionContext {
                         actor: Actor {
                             balance,
@@ -1255,17 +1218,12 @@ pub mod pallet {
                         dispatch: dispatch.into_incoming(gas_limit),
                         origin: ProgramId::from_origin(external.into_origin()),
                         gas_allowance: GasAllowanceOf::<T>::get(),
-                        subsequent_execution: ext_manager.program_pages_loaded(&program_id),
-                        subsequent_code_loading: maybe_code_id
-                            .map(|code_id| ext_manager.code_loaded(&code_id))
-                            .unwrap_or(false),
                     };
 
                     let journal =
                         match core_processor::prepare(&block_config, message_execution_context) {
                             PrepareResult::Ok(context) => {
-                                let memory_pages = match Self::get_and_track_memory_pages(
-                                    &mut ext_manager,
+                                let memory_pages = match Self::get_memory_pages(
                                     program_id,
                                     &context.actor_data().pages_with_data,
                                 ) {
@@ -1273,8 +1231,7 @@ pub mod pallet {
                                     Some(m) => m,
                                 };
 
-                                let code = match Self::get_and_track_code(
-                                    &mut ext_manager,
+                                let code = match Self::get_code(
                                     context.actor_data().code_id,
                                     program_id,
                                 ) {
@@ -1318,9 +1275,8 @@ pub mod pallet {
             }
         }
 
-        fn get_and_track_memory_pages(
-            manager: &mut ExtManager<T>,
-            program_id: ProgramId,
+        fn get_memory_pages(
+            _program_id: ProgramId,
             pages_with_data: &BTreeSet<PageNumber>,
         ) -> Option<BTreeMap<PageNumber, PageBuf>> {
             #[cfg(feature = "lazy-pages")]
@@ -1342,16 +1298,10 @@ pub mod pallet {
                 }
             };
 
-            manager.insert_program_id_loaded_pages(program_id);
-
             Some(memory_pages)
         }
 
-        fn get_and_track_code(
-            manager: &mut ExtManager<T>,
-            code_id: CodeId,
-            program_id: ProgramId,
-        ) -> Option<InstrumentedCode> {
+        fn get_code(code_id: CodeId, program_id: ProgramId) -> Option<InstrumentedCode> {
             let code = match T::CodeStorage::get_code(code_id) {
                 None => {
                     log::error!("Code '{code_id:?}' not found for program '{program_id:?}'");
@@ -1359,10 +1309,6 @@ pub mod pallet {
                 }
                 Some(c) => c,
             };
-
-            if manager.code_loaded(&code_id) {
-                return Some(code);
-            }
 
             let schedule = T::Schedule::get();
             let code = if code.instruction_weights_version() == schedule.instruction_weights.version
@@ -1374,8 +1320,6 @@ pub mod pallet {
                 Self::reinstrument_code(code_id, &schedule)
                     .unwrap_or_else(|e| unreachable!("Code storage corrupted {:?}", e))
             };
-
-            manager.insert_code_id_loaded(code_id);
 
             Some(code)
         }

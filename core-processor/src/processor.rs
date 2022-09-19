@@ -186,8 +186,7 @@ pub fn prepare(
         dispatch,
         origin,
         gas_allowance,
-        subsequent_execution,
-        subsequent_code_loading,
+        ..
     } = execution_context;
     let Actor {
         balance,
@@ -213,7 +212,6 @@ pub fn prepare(
         per_byte_cost,
         &mut gas_counter,
         &mut gas_allowance_counter,
-        subsequent_execution,
     ) {
         ChargeForBytesResult::Ok => (),
         ChargeForBytesResult::GasExceeded => {
@@ -249,7 +247,6 @@ pub fn prepare(
         actor_data.code_length_bytes,
         &mut gas_counter,
         &mut gas_allowance_counter,
-        subsequent_code_loading,
     ) {
         ChargeForBytesResult::Ok => (),
         ChargeForBytesResult::GasExceeded => {
@@ -272,7 +269,6 @@ pub fn prepare(
         &actor_data.allocations,
         actor_data.static_pages,
         dispatch.context().is_none() && matches!(dispatch.kind(), DispatchKind::Init),
-        subsequent_execution,
     ) {
         Ok(size) => {
             log::debug!("Charged for memory pages. Size: {size:?}");

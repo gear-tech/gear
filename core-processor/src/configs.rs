@@ -131,8 +131,4 @@ pub struct MessageExecutionContext {
     pub origin: ProgramId,
     /// Gas allowance.
     pub gas_allowance: u64,
-    /// The program is being executed the second or next time in the block.
-    pub subsequent_execution: bool,
-    /// The code is being loaded the second or next time in the block.
-    pub subsequent_code_loading: bool,
 }

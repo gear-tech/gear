@@ -43,19 +43,21 @@ pub(crate) enum ChargeForBytesResult {
     GasExceeded,
 }
 
+/// Calculates gas amount required to charge for program loading.
+pub fn calculate_gas_for_program(read_cost: u64, _per_byte_cost: u64) -> u64 {
+    read_cost
+}
+
+/// Calculates gas amount required to charge for code loading.
+pub fn calculate_gas_for_code(read_cost: u64, per_byte_cost: u64, code_len_bytes: u64) -> u64 {
+    read_cost.saturating_add(code_len_bytes.saturating_mul(per_byte_cost))
+}
+
 fn charge_gas_for_bytes(
-    read_cost: u64,
-    per_byte_cost: u64,
-    byte_count: u64,
+    amount: u64,
     gas_counter: &mut GasCounter,
     gas_allowance_counter: &mut GasAllowanceCounter,
-    subsequent_execution: bool,
 ) -> ChargeForBytesResult {
-    if subsequent_execution {
-        return ChargeForBytesResult::Ok;
-    }
-
-    let amount = read_cost.saturating_add(byte_count.saturating_mul(per_byte_cost));
     if gas_allowance_counter.charge(amount) != ChargeResult::Enough {
         return ChargeForBytesResult::BlockGasExceeded;
     }
@@ -72,16 +74,11 @@ pub(crate) fn charge_gas_for_program(
     per_byte_cost: u64,
     gas_counter: &mut GasCounter,
     gas_allowance_counter: &mut GasAllowanceCounter,
-    subsequent_execution: bool,
 ) -> ChargeForBytesResult {
-    const PROGRAM_BYTE_COUNT: u64 = 100_500;
     charge_gas_for_bytes(
-        read_cost,
-        per_byte_cost,
-        PROGRAM_BYTE_COUNT,
+        calculate_gas_for_program(read_cost, per_byte_cost),
         gas_counter,
         gas_allowance_counter,
-        subsequent_execution,
     )
 }
 
@@ -91,15 +88,11 @@ pub(crate) fn charge_gas_for_code(
     code_len_bytes: u32,
     gas_counter: &mut GasCounter,
     gas_allowance_counter: &mut GasAllowanceCounter,
-    subsequent_execution: bool,
 ) -> ChargeForBytesResult {
     charge_gas_for_bytes(
-        read_cost,
-        per_byte_cost,
-        code_len_bytes.into(),
+        calculate_gas_for_code(read_cost, per_byte_cost, code_len_bytes.into()),
         gas_counter,
         gas_allowance_counter,
-        subsequent_execution,
     )
 }
 
@@ -139,7 +132,6 @@ pub(crate) fn charge_gas_for_pages(
     allocations: &BTreeSet<WasmPageNumber>,
     static_pages: WasmPageNumber,
     initial_execution: bool,
-    subsequent_execution: bool,
 ) -> Result<WasmPageNumber, ExecutionErrorReason> {
     if !initial_execution {
         let max_wasm_page = if let Some(page) = allocations.iter().next_back() {
@@ -150,17 +142,14 @@ pub(crate) fn charge_gas_for_pages(
             return Ok(0.into());
         };
 
-        if !subsequent_execution {
-            // Charging gas for loaded pages
-            let amount =
-                settings.load_page_cost * (allocations.len() as u64 + static_pages.0 as u64);
-            if gas_allowance_counter.charge(amount) != ChargeResult::Enough {
-                return Err(ExecutionErrorReason::LoadMemoryBlockGasExceeded);
-            }
+        // Charging gas for loaded pages
+        let amount = settings.load_page_cost * (allocations.len() as u64 + static_pages.0 as u64);
+        if gas_allowance_counter.charge(amount) != ChargeResult::Enough {
+            return Err(ExecutionErrorReason::LoadMemoryBlockGasExceeded);
+        }
 
-            if gas_counter.charge(amount) != ChargeResult::Enough {
-                return Err(ExecutionErrorReason::LoadMemoryGasExceeded);
-            }
+        if gas_counter.charge(amount) != ChargeResult::Enough {
+            return Err(ExecutionErrorReason::LoadMemoryGasExceeded);
         }
 
         // Charging gas for mem size
