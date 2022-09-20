@@ -266,7 +266,7 @@ impl TryFrom<&[u8]> for CodeHash {
 
 /// Reservation identifier.
 ///
-/// The ID is used to get reserved gas.
+/// The ID is used to get reserve and unreserve gas.
 ///
 /// # Examples
 ///

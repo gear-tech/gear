@@ -34,12 +34,16 @@ const RESERVATION_AMOUNT: u32 = 50_000_000;
 
 #[no_mangle]
 unsafe extern "C" fn init() {
+    let noop_reservation = ReservationId::reserve(50_000, 10);
+    noop_reservation.unreserve();
+
     RESERVATION_ID = Some(ReservationId::reserve(RESERVATION_AMOUNT, 5));
 }
 
 #[no_mangle]
 unsafe extern "C" fn handle() {
-    RESERVATION_ID.take().unwrap().unreserve();
+    let id = RESERVATION_ID.take().unwrap();
+    id.unreserve();
 }
 
 #[cfg(test)]
