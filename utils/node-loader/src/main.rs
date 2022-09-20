@@ -36,7 +36,6 @@ async fn run(params: Params) -> Result<()> {
     }
 }
 
-// todo use anyhow?
 fn dump_with_seed(seed: u64) -> Result<()> {
     let code = generators::generate_gear_program::<SmallRng>(seed);
     let mut file = File::create("out.wasm")?;
