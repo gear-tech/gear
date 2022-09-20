@@ -18,10 +18,8 @@ async fn test_command_send_works() -> Result<()> {
     let mailbox = api.mailbox(common::alice_account_id(), 10).await?;
     assert_eq!(mailbox.len(), 2);
     assert!(mailbox
-        .into_iter()
-        .map(|mail| mail.0.payload)
-        .collect::<Vec<Vec<u8>>>()
-        .contains(&messager::SEND_REPLY.encode()));
+        .iter()
+        .any(|mail| mail.0.payload == messager::SEND_REPLY.encode()));
 
     Ok(())
 }

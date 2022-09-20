@@ -1,15 +1,5 @@
 //! Command `send`
-use crate::{
-    api::{
-        generated::api::{
-            gear::{calls::SendMessage, Event as GearEvent},
-            runtime_types::gear_core::ids::ProgramId,
-        },
-        signer::Signer,
-        Api,
-    },
-    result::Result,
-};
+use crate::{api::signer::Signer, result::Result, utils};
 use structopt::StructOpt;
 
 /// Sends a message to a program or to another account.
@@ -46,31 +36,13 @@ pub struct Send {
 
 impl Send {
     pub async fn exec(&self, signer: Signer) -> Result<()> {
-        let events = signer.events().await?;
-        let r = tokio::try_join!(
-            self.send_message(&signer),
-            Api::wait_for(events, |event| {
-                matches!(event, GearEvent::MessagesDispatched { .. })
-            })
-        );
-
-        r?;
-
-        Ok(())
-    }
-
-    async fn send_message(&self, signer: &Signer) -> Result<()> {
-        let mut destination = [0; 32];
-        destination
-            .copy_from_slice(hex::decode(self.destination.trim_start_matches("0x"))?.as_ref());
-
         signer
-            .send_message(SendMessage {
-                destination: ProgramId(destination),
-                payload: hex::decode(self.payload.trim_start_matches("0x"))?,
-                gas_limit: self.gas_limit,
-                value: self.value,
-            })
+            .send_message(
+                utils::hex_to_hash(&self.destination)?.into(),
+                utils::hex_to_vec(&self.payload)?,
+                self.gas_limit,
+                self.value,
+            )
             .await?;
 
         Ok(())

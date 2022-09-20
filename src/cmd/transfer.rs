@@ -1,8 +1,5 @@
 //! command `transfer`
-use crate::{
-    api::{generated::api::balances::calls::Transfer as TransferCall, signer::Signer},
-    result::Result,
-};
+use crate::{api::signer::Signer, result::Result};
 use structopt::StructOpt;
 use subxt::{sp_core::crypto::Ss58Codec, sp_runtime::AccountId32};
 
@@ -11,14 +8,14 @@ use subxt::{sp_core::crypto::Ss58Codec, sp_runtime::AccountId32};
 /// # Note
 ///
 /// Gear node is currently using the default properties of substrate for
-/// [the staging testnet][0], and the deciamls of 1 UNIT is 12 by default.
+/// [the staging testnet][0], and the decimals of 1 UNIT is 12 by default.
 ///
 /// [0]: https://github.com/gear-tech/gear/blob/c01d0390cdf1031cb4eba940d0199d787ea480e0/node/src/chain_spec.rs#L218
 #[derive(Debug, StructOpt)]
 pub struct Transfer {
     /// Transfer to (ss58address).
     destination: String,
-    /// Balance will be transfered.
+    /// Balance to transfer.
     value: u128,
 }
 
@@ -30,11 +27,9 @@ impl Transfer {
         println!("From: {}", address.to_ss58check());
         println!("To: {}", self.destination);
         println!("Value: {}", self.value);
+
         signer
-            .transfer(TransferCall {
-                dest: AccountId32::from_ss58check(&self.destination)?.into(),
-                value: self.value,
-            })
+            .transfer(AccountId32::from_ss58check(&self.destination)?, self.value)
             .await?;
 
         Ok(())

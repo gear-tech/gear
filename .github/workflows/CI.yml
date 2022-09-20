@@ -9,8 +9,7 @@ on:
     - cron:  '0 0 * * *'
 
 jobs:
-  build_and_tests:
-    name: Gear Program
+  Build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
@@ -30,7 +29,7 @@ jobs:
           ./scripts/download-gear.sh res
           cargo test --all --all-features
 
-  clippy:
+  Check:
     runs-on: ubuntu-latest
     steps:
       - name: Cancel Previous Runs
@@ -39,19 +38,30 @@ jobs:
           access_token: ${{ github.token }}
 
       - uses: actions/checkout@v1
+
       - uses: actions-rs/toolchain@v1
         with:
-          profile: minimal
           toolchain: stable
           components: clippy
+
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: nightly
+          components: rustfmt
+
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: nightly
+          target: wasm32-unknown-unknown
+
 
       - name: Install Protoc
         uses: arduino/setup-protoc@v1
 
       - uses: Swatinem/rust-cache@v2
 
-      - name: Check code format
-        run: cargo fmt --check
+      - name: "Check formatting: repo"
+        run: cargo +nightly fmt --all --check
 
-      - name: Run cargo clippy
-        run: cargo clippy --all --all-features
+      - name: "Check clippy: repo"
+        run: SKIP_WASM_BUILD=1 cargo clippy --workspace --all-targets --all-features -- --no-deps -D warnings

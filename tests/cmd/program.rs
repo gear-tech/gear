@@ -20,7 +20,7 @@ async fn test_command_state_works() -> Result<()> {
     let deploy = common::gear(&[
         "-e",
         &node.ws(),
-        "create",
+        "upload-program",
         "res/demo_meta.opt.wasm",
         "",
         &hex::encode(

@@ -1,8 +1,5 @@
-//! Command `submit`
-use crate::{
-    api::{generated::api::gear::calls::UploadCode, signer::Signer},
-    result::Result,
-};
+//! Command `upload`
+use crate::{api::signer::Signer, result::Result};
 use std::{fs, path::PathBuf};
 use structopt::StructOpt;
 
@@ -30,11 +27,7 @@ pub struct Upload {
 
 impl Upload {
     pub async fn exec(&self, signer: Signer) -> Result<()> {
-        signer
-            .upload_code(UploadCode {
-                code: fs::read(&self.code)?,
-            })
-            .await?;
+        signer.upload_code(fs::read(&self.code)?).await?;
 
         Ok(())
     }

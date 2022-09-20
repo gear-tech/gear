@@ -42,7 +42,7 @@ impl Node {
             }
         }
 
-        return Err(Error::EmptyStderr);
+        Err(Error::EmptyStderr)
     }
 }
 

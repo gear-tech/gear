@@ -25,8 +25,9 @@ async fn test_command_transfer_works() -> Result<()> {
     let before = api.get_balance(ADDRESS).await?;
 
     // Run command transfer
-    let value = 1000000000_u128;
+    let value = 1_000_000_000u128;
     let _ = common::gear(&["-e", &node.ws(), "transfer", ADDRESS, &value.to_string()])?;
+
     let after = api.get_balance(ADDRESS).await?;
 
     assert_eq!(after.saturating_sub(before), value);

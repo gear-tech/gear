@@ -1,11 +1,5 @@
 //! Command `claim`
-use crate::{
-    api::{
-        generated::api::{gear::calls::ClaimValue, runtime_types::gear_core::ids::MessageId},
-        signer::Signer,
-    },
-    result::Result,
-};
+use crate::{api::signer::Signer, result::Result, utils};
 use structopt::StructOpt;
 
 /// Claim value from mailbox.
@@ -17,14 +11,9 @@ pub struct Claim {
 
 impl Claim {
     pub async fn exec(&self, signer: Signer) -> Result<()> {
-        let mut message_id = [0; 32];
+        let message_id = utils::hex_to_hash(&self.message_id)?.into();
 
-        message_id.copy_from_slice(hex::decode(self.message_id.trim_start_matches("0x"))?.as_ref());
-        signer
-            .claim_value_from_mailbox(ClaimValue {
-                message_id: MessageId(message_id),
-            })
-            .await?;
+        signer.claim_value(message_id).await?;
 
         Ok(())
     }

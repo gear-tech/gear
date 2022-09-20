@@ -1,13 +1,13 @@
 //! gear api rpc methods
 use crate::{
-    api::{signer::Signer, types},
+    api::{signer::Signer, types::GasInfo},
     result::Result,
 };
-
+use gear_core::ids::{CodeId, MessageId, ProgramId};
 use std::sync::Arc;
 use subxt::{
     rpc::{rpc_params, ClientT},
-    sp_core::{Bytes, H256},
+    sp_core::H256,
     RpcClient,
 };
 
@@ -22,36 +22,103 @@ impl Signer {
         AsRef::<[u8; 32]>::as_ref(self.signer.account_id()).into()
     }
 
-    /// gear_getInitGasSpent
-    pub async fn get_init_gas_spent(
+    /// gear_calculateInitCreateGas
+    pub async fn calculate_create_gas(
         &self,
-        code: Bytes,
-        payload: Bytes,
-        value: u64,
+        code_id: CodeId,
+        payload: Vec<u8>,
+        value: u128,
+        allow_other_panics: bool,
         at: Option<H256>,
-    ) -> Result<types::GasInfo> {
+    ) -> Result<GasInfo> {
         self.rpc()
             .request(
-                "gear_calculateInitUploadGas",
-                rpc_params![self.source(), code, payload, value, true, at],
+                "gear_calculateInitCreateGas",
+                rpc_params![
+                    self.source(),
+                    H256(code_id.into()),
+                    hex::encode(payload),
+                    u64::try_from(value).unwrap_or(u64::MAX),
+                    allow_other_panics,
+                    at
+                ],
             )
             .await
             .map_err(Into::into)
     }
 
-    /// gear_getHandleGasSpent
-    #[allow(dead_code)]
-    pub async fn get_handle_gas_spent(
+    /// gear_calculateInitUploadGas
+    pub async fn calculate_upload_gas(
         &self,
-        dest: H256,
-        payload: Bytes,
+        code: Vec<u8>,
+        payload: Vec<u8>,
         value: u128,
+        allow_other_panics: bool,
         at: Option<H256>,
-    ) -> Result<types::GasInfo> {
+    ) -> Result<GasInfo> {
+        self.rpc()
+            .request(
+                "gear_calculateInitUploadGas",
+                rpc_params![
+                    self.source(),
+                    hex::encode(code),
+                    hex::encode(payload),
+                    u64::try_from(value).unwrap_or(u64::MAX),
+                    allow_other_panics,
+                    at
+                ],
+            )
+            .await
+            .map_err(Into::into)
+    }
+
+    /// gear_calculateHandleGas
+    pub async fn calculate_handle_gas(
+        &self,
+        destination: ProgramId,
+        payload: Vec<u8>,
+        value: u128,
+        allow_other_panics: bool,
+        at: Option<H256>,
+    ) -> Result<GasInfo> {
         self.rpc()
             .request(
                 "gear_calculateHandleGas",
-                rpc_params![self.source(), dest, payload, value, true, at],
+                rpc_params![
+                    self.source(),
+                    H256(destination.into()),
+                    hex::encode(payload),
+                    u64::try_from(value).unwrap_or(u64::MAX),
+                    allow_other_panics,
+                    at
+                ],
+            )
+            .await
+            .map_err(Into::into)
+    }
+
+    /// gear_calculateReplyGas
+    pub async fn calculate_reply_gas(
+        &self,
+        message_id: MessageId,
+        exit_code: i32,
+        payload: Vec<u8>,
+        value: u128,
+        allow_other_panics: bool,
+        at: Option<H256>,
+    ) -> Result<GasInfo> {
+        self.rpc()
+            .request(
+                "gear_calculateReplyGas",
+                rpc_params![
+                    self.source(),
+                    H256(message_id.into()),
+                    exit_code,
+                    hex::encode(payload),
+                    u64::try_from(value).unwrap_or(u64::MAX),
+                    allow_other_panics,
+                    at
+                ],
             )
             .await
             .map_err(Into::into)

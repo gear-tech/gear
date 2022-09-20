@@ -1,12 +1,13 @@
-//! command `create`
+//! command `upload_program`
 use crate::{api::signer::Signer, result::Result, utils};
+use std::{fs, path::PathBuf};
 use structopt::StructOpt;
 
 /// Deploy program to gear node
 #[derive(StructOpt, Debug)]
-pub struct Create {
-    /// gear program code id
-    code_id: String,
+pub struct UploadProgram {
+    /// gear program code <*.wasm>
+    code: PathBuf,
     /// gear program salt ( hex encoding )
     #[structopt(default_value = "0x")]
     salt: String,
@@ -23,15 +24,15 @@ pub struct Create {
     value: u128,
 }
 
-impl Create {
+impl UploadProgram {
     /// Exec command submit
     pub async fn exec(&self, signer: Signer) -> Result<()> {
-        let code_id = utils::hex_to_hash(&self.code_id)?.into();
+        let code = fs::read(&self.code)?;
         let payload = utils::hex_to_vec(&self.init_payload)?;
 
         let gas = if self.gas_limit == 0 {
             signer
-                .calculate_create_gas(code_id, payload.clone(), self.value, false, None)
+                .calculate_upload_gas(code.clone(), payload.clone(), self.value, false, None)
                 .await?
                 .min_limit
         } else {
@@ -41,10 +42,10 @@ impl Create {
         // estimate gas
         let gas_limit = signer.cmp_gas_limit(gas).await?;
 
-        // create program
+        // upload program
         signer
-            .create_program(
-                code_id,
+            .upload_program(
+                code,
                 utils::hex_to_vec(&self.salt)?,
                 payload,
                 gas_limit,

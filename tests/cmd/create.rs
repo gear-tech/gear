@@ -2,12 +2,12 @@
 use crate::common::{self, logs, traits::Convert, Result};
 
 #[tokio::test]
-async fn test_command_create_works() -> Result<()> {
+async fn test_command_upload_program_works() -> Result<()> {
     common::login_as_alice().expect("login failed");
     let mut node = common::Node::dev()?;
     node.wait(logs::gear_node::IMPORTING_BLOCKS)?;
 
-    let output = common::gear(&["-e", &node.ws(), "create", "res/demo_meta.opt.wasm"])?;
+    let output = common::gear(&["-e", &node.ws(), "upload-program", "res/demo_meta.opt.wasm"])?;
     assert!(output
         .stderr
         .convert()

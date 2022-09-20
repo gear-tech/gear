@@ -67,12 +67,12 @@ pub fn program_id(bin: &[u8], salt: &[u8]) -> [u8; 32] {
     argument.extend_from_slice(&code_id);
     argument.extend_from_slice(salt);
 
-    hash(&argument).into()
+    hash(&argument)
 }
 
 /// Get wasm binary path
 pub fn wasm_path(name: &str) -> String {
-    ([
+    [
         WASM_TARGET,
         if cfg!(debug_assertions) {
             "debug"
@@ -83,8 +83,7 @@ pub fn wasm_path(name: &str) -> String {
         name,
         ".opt.wasm",
     ]
-    .concat())
-    .to_string()
+    .concat()
 }
 
 /// AccountId32 of `addr`
@@ -103,7 +102,7 @@ pub async fn create_messager() -> Result<Node> {
     let _ = gear(&[
         "-e",
         &node.ws(),
-        "create",
+        "upload-program",
         &messager,
         "0x",
         "0x",

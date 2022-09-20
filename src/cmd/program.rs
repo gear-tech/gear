@@ -3,6 +3,7 @@ use crate::{
     api::Api,
     metadata::Metadata,
     result::{Error, Result},
+    utils,
 };
 use std::{fs, path::PathBuf};
 use structopt::StructOpt;
@@ -73,7 +74,7 @@ impl Program {
             &fs::read(&metadata)?,
             code.static_pages.0 as u64,
             pages,
-            hex::decode(msg.trim_start_matches("0x"))?,
+            utils::hex_to_vec(msg)?,
             timestamp.unwrap_or(0),
             height.unwrap_or(0),
         )?;

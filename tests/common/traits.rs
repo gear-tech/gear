@@ -7,6 +7,6 @@ pub trait Convert<T> {
 
 impl Convert<String> for Vec<u8> {
     fn convert(&self) -> String {
-        String::from_utf8_lossy(&self).to_string()
+        String::from_utf8_lossy(self).to_string()
     }
 }

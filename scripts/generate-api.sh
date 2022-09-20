@@ -5,11 +5,11 @@
 readonly ROOT_DIR="$(cd "$(dirname "$0")"/.. && pwd)"
 readonly GEAR_NODE_DOCKER_IMAGE='ghcr.io/gear-tech/node:latest'
 readonly GEAR_NODE_BIN="${ROOT_DIR}/res/gear-node"
-readonly GENERATED_RS="${ROOT_DIR}/src/api/generated.rs"
+readonly GENERATED_RS="${ROOT_DIR}/src/api/generated/metadata.rs"
 readonly RPC_PORT='9933'
 readonly SCRIPTS="${ROOT_DIR}/scripts"
 
-#################
+###################
 # Generated header
 ###################
 function generate-header() {
@@ -24,7 +24,7 @@ function generate-header() {
 EOF
 }
 
-######################
+########################
 # Usage of this script.
 ########################
 function usage() {
@@ -37,7 +37,7 @@ USAGE:
 EOF
 }
 
-#############################################################
+###############################################################
 # Check if the required binaries are installed in the machine.
 ###############################################################
 function pre-check() {
@@ -52,7 +52,7 @@ function pre-check() {
             curl https://sh.rustup.rs -sSf | sh -s -- -y --profile minimal
         fi
 
-        cargo install subxt-cli
+        cargo install subxt-cli --version 0.22.0
     fi
 
     if ! [ -x "$(command -v rustfmt)" ]; then
@@ -62,7 +62,7 @@ function pre-check() {
 }
 
 
-#######################################
+##########################################
 # Run gear-node and capture spec-version.
 ##########################################
 function spec-version() {
@@ -87,7 +87,7 @@ function spec-version() {
     done
 }
 
-#########################################
+############################################
 # Generate rust code for the gear-node api.
 ############################################
 function main() {
