@@ -24,8 +24,8 @@
 use crate::{weights::WeightInfo, Config};
 
 use codec::{Decode, Encode};
-use frame_support::{weights::Weight, DefaultNoBound};
-use gear_core::costs::HostFnWeights as CoreHostFnWeights;
+use frame_support::DefaultNoBound;
+use gear_core::{code, costs::HostFnWeights as CoreHostFnWeights};
 use pallet_gear_proc_macro::{ScheduleDebug, WeightDebug};
 use scale_info::TypeInfo;
 #[cfg(feature = "std")]
@@ -259,7 +259,7 @@ pub struct InstructionWeights<T: Config> {
 #[scale_info(skip_type_params(T))]
 pub struct HostFnWeights<T: Config> {
     /// Weight of calling `alloc`.
-    pub alloc: Weight,
+    pub alloc: u64,
 
     /// Weight of calling `gr_reserve_gas`.
     pub gr_reserve_gas: Weight,
@@ -268,103 +268,103 @@ pub struct HostFnWeights<T: Config> {
     pub gr_unreserve_gas: u64,
 
     /// Weight of calling `gr_gas_available`.
-    pub gr_gas_available: Weight,
+    pub gr_gas_available: u64,
 
     /// Weight of calling `gr_msg_id`.
-    pub gr_msg_id: Weight,
+    pub gr_msg_id: u64,
 
     /// Weight of calling `gr_origin`.
-    pub gr_origin: Weight,
+    pub gr_origin: u64,
 
     /// Weight of calling `gr_program_id`.
-    pub gr_program_id: Weight,
+    pub gr_program_id: u64,
 
     /// Weight of calling `gr_source`.
-    pub gr_source: Weight,
+    pub gr_source: u64,
 
     /// Weight of calling `gr_value`.
-    pub gr_value: Weight,
+    pub gr_value: u64,
 
     /// Weight of calling `gr_value_available`.
-    pub gr_value_available: Weight,
+    pub gr_value_available: u64,
 
     /// Weight of calling `gr_size`.
-    pub gr_size: Weight,
+    pub gr_size: u64,
 
     /// Weight of calling `gr_read`.
-    pub gr_read: Weight,
+    pub gr_read: u64,
 
     /// Weight per payload byte by `gr_read`.
-    pub gr_read_per_byte: Weight,
+    pub gr_read_per_byte: u64,
 
     /// Weight of calling `gr_block_height`.
-    pub gr_block_height: Weight,
+    pub gr_block_height: u64,
 
     /// Weight of calling `gr_block_timestamp`.
-    pub gr_block_timestamp: Weight,
+    pub gr_block_timestamp: u64,
 
     /// Weight of calling `gr_value_available`.
-    pub gr_send_init: Weight,
+    pub gr_send_init: u64,
 
     /// Weight of calling `gr_send_push`.
-    pub gr_send_push: Weight,
+    pub gr_send_push: u64,
 
     /// Weight per payload byte by `gr_send_push`.
-    pub gr_send_push_per_byte: Weight,
+    pub gr_send_push_per_byte: u64,
 
     /// Weight of calling `gr_send_commit`.
-    pub gr_send_commit: Weight,
+    pub gr_send_commit: u64,
 
     /// Weight per payload byte by `gr_send_commit`.
-    pub gr_send_commit_per_byte: Weight,
+    pub gr_send_commit_per_byte: u64,
 
     /// Weight of calling `gr_reply_commit`.
-    pub gr_reply_commit: Weight,
+    pub gr_reply_commit: u64,
 
     /// Weight per payload byte by `gr_reply_commit`.
-    pub gr_reply_commit_per_byte: Weight,
+    pub gr_reply_commit_per_byte: u64,
 
     /// Weight of calling `gr_reply_push`.
-    pub gr_reply_push: Weight,
+    pub gr_reply_push: u64,
 
     /// Weight per payload byte by `gr_reply_push`.
-    pub gr_reply_push_per_byte: Weight,
+    pub gr_reply_push_per_byte: u64,
 
     /// Weight of calling `gr_reply_to`.
-    pub gr_reply_to: Weight,
+    pub gr_reply_to: u64,
 
     /// Weight of calling `gr_debug`.
-    pub gr_debug: Weight,
+    pub gr_debug: u64,
 
     /// Weight of calling `gr_exit_code`.
-    pub gr_exit_code: Weight,
+    pub gr_exit_code: u64,
 
     /// Weight of calling `gr_exit`.
-    pub gr_exit: Weight,
+    pub gr_exit: u64,
 
     /// Weight of calling `gr_leave`.
-    pub gr_leave: Weight,
+    pub gr_leave: u64,
 
     /// Weight of calling `gr_wait`.
-    pub gr_wait: Weight,
+    pub gr_wait: u64,
 
     /// Weight of calling `gr_wait_for`.
-    pub gr_wait_for: Weight,
+    pub gr_wait_for: u64,
 
     /// Weight of calling `gr_wait_no_more`.
-    pub gr_wait_no_more: Weight,
+    pub gr_wait_no_more: u64,
 
     /// Weight of calling `gr_wake`.
-    pub gr_wake: Weight,
+    pub gr_wake: u64,
 
     /// Weight of calling `create_program_wgas`.
-    pub gr_create_program_wgas: Weight,
+    pub gr_create_program_wgas: u64,
 
     /// Weight per payload byte by `create_program_wgas`.
-    pub gr_create_program_wgas_per_byte: Weight,
+    pub gr_create_program_wgas_per_byte: u64,
 
     /// Weight of calling `gas`.
-    pub gas: Weight,
+    pub gas: u64,
 
     /// The type parameter is used in the default implementation.
     #[codec(skip)]
@@ -377,16 +377,16 @@ pub struct HostFnWeights<T: Config> {
 #[scale_info(skip_type_params(T))]
 pub struct MemoryWeights<T: Config> {
     /// Weight of initial page.
-    pub initial_cost: Weight,
+    pub initial_cost: u64,
 
     /// Weight of allocated page.
-    pub allocation_cost: Weight,
+    pub allocation_cost: u64,
 
     /// Weight of growing page.
-    pub grow_cost: Weight,
+    pub grow_cost: u64,
 
     /// Weight of loading page.
-    pub load_cost: Weight,
+    pub load_cost: u64,
 
     /// The type parameter is used in the default implementation.
     #[codec(skip)]
@@ -401,25 +401,25 @@ macro_rules! replace_token {
 
 macro_rules! call_zero {
 	($name:ident, $( $arg:expr ),*) => {
-        <T as Config>::WeightInfo::$name($( replace_token!($arg 0) ),*)
-    };
+		<T as Config>::WeightInfo::$name($( replace_token!($arg 0) ),*)
+	};
 }
 
 macro_rules! cost_args {
 	($name:ident, $( $arg: expr ),+) => {
-		(<T as Config>::WeightInfo::$name($( $arg ),+).saturating_sub(call_zero!($name, $( $arg ),+)))
+		(<T as Config>::WeightInfo::$name($( $arg ),+).saturating_sub(call_zero!($name, $( $arg ),+))).ref_time()
 	}
 }
 
 macro_rules! cost_batched_args {
 	($name:ident, $( $arg: expr ),+) => {
-		cost_args!($name, $( $arg ),+) / Weight::from(API_BENCHMARK_BATCH_SIZE)
+		cost_args!($name, $( $arg ),+) / u64::from(API_BENCHMARK_BATCH_SIZE)
 	}
 }
 
 macro_rules! cost_instr_no_params_with_batch_size {
     ($name:ident, $batch_size:expr) => {
-        (cost_args!($name, 1) / Weight::from($batch_size)) as u32
+        (cost_args!($name, 1) / u64::from($batch_size)) as u32
     };
 }
 
@@ -482,7 +482,7 @@ impl Default for Limits {
             stack_height: 512,
             globals: 256,
             parameters: 128,
-            memory_pages: 512,
+            memory_pages: code::MAX_WASM_PAGE_COUNT,
             // 4k function pointers (This is in count not bytes).
             table_size: 4096,
             br_table_size: 256,
@@ -643,10 +643,10 @@ impl<T: Config> Default for HostFnWeights<T> {
 impl<T: Config> Default for MemoryWeights<T> {
     fn default() -> Self {
         Self {
-            initial_cost: <T as Config>::WeightInfo::initial_cost(),
-            allocation_cost: <T as Config>::WeightInfo::allocation_cost(),
-            grow_cost: <T as Config>::WeightInfo::grow_cost(),
-            load_cost: <T as Config>::WeightInfo::load_cost(),
+            initial_cost: <T as Config>::WeightInfo::initial_cost().ref_time(),
+            allocation_cost: <T as Config>::WeightInfo::allocation_cost().ref_time(),
+            grow_cost: <T as Config>::WeightInfo::grow_cost().ref_time(),
+            load_cost: <T as Config>::WeightInfo::load_cost().ref_time(),
             _phantom: PhantomData,
         }
     }

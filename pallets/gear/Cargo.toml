@@ -91,6 +91,7 @@ std = [
 	"codec/std",
 	"log/std",
 	"common/std",
+	"frame-benchmarking?/std",
 	"frame-support/std",
 	"frame-system/std",
 	"wasm-instrument/std",
@@ -110,7 +111,7 @@ std = [
 	"gear-lazy-pages-common?/std",
 ]
 runtime-benchmarks = [
-	"frame-benchmarking",
+	"frame-benchmarking/runtime-benchmarks",
 	"frame-system/runtime-benchmarks",
 	"frame-support/runtime-benchmarks",
 	"common/runtime-benchmarks",

@@ -23,6 +23,7 @@ use common::{
 };
 use frame_support::{
     traits::{GenesisBuild, OnFinalize, OnIdle, OnInitialize},
+    weights::Weight,
     BasicExternalities,
 };
 use frame_system as system;
@@ -259,7 +260,10 @@ pub(crate) fn run_to_block(n: u32, remaining_weight: Option<u64>) {
     while System::block_number() < n {
         // Run on_idle hook that processes the queue
         let remaining_weight = remaining_weight.unwrap_or_else(BlockGasLimitOf::<Runtime>::get);
-        Gear::on_idle(System::block_number(), remaining_weight);
+        Gear::on_idle(
+            System::block_number(),
+            Weight::from_ref_time(remaining_weight),
+        );
 
         let current_blk = System::block_number();
         on_finalize(current_blk);
@@ -283,7 +287,7 @@ pub(crate) fn run_to_block_with_ocw(
         let remaining_weight = remaining_weight.unwrap_or_else(BlockGasLimitOf::<Runtime>::get);
 
         // Processing message queue
-        Gear::on_idle(i, remaining_weight);
+        Gear::on_idle(i, Weight::from_ref_time(remaining_weight));
 
         on_finalize(i);
 

@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Lazy pages support.
+//! Lazy-pages support.
 //! In runtime data for contract wasm memory pages can be loaded in lazy manner.
 //! All pages, which is supposed to be lazy, must be mprotected before contract execution.
 //! During execution data from storage is loaded for all pages, which has been accessed.
@@ -26,11 +26,15 @@
 //! It's not necessary behavior, but more simple and safe.
 
 use gear_core::memory::{PageNumber, WasmPageNumber, PAGE_STORAGE_GRANULARITY};
+use once_cell::sync::OnceCell;
 use sp_std::vec::Vec;
 use std::{cell::RefCell, collections::BTreeSet, convert::TryFrom};
 
 mod sys;
 pub use crate::sys::{DefaultUserSignalHandler, ExceptionInfo, UserSignalHandler};
+
+/// Initialize lazy-pages once for process.
+static LAZY_PAGES_INITIALIZED: OnceCell<Result<(), InitError>> = OnceCell::new();
 
 #[derive(Debug, derive_more::Display, derive_more::From)]
 pub enum Error {
@@ -104,12 +108,12 @@ pub(crate) struct LazyPagesExecutionContext {
     pub wasm_mem_size: Option<u32>,
     /// Current program prefix in storage
     pub program_storage_prefix: Option<Vec<u8>>,
-    /// Wasm addresses of lazy pages, that have been read or write accessed at least once.
+    /// Wasm addresses of lazy-pages, that have been read or write accessed at least once.
     /// Lazy page here is page, which has `size = max(native_page_size, gear_page_size)`.
     pub accessed_pages_addrs: BTreeSet<WasmAddr>,
     /// End of stack wasm address. Default is `0`, which means,
     /// that wasm data has no stack region. It's not necessary to specify
-    /// this value, `lazy pages` uses it to identify memory, for which we
+    /// this value, `lazy-pages` uses it to identify memory, for which we
     /// can skip processing and this memory won't be protected. So, pages
     /// which lies before this value will never get into `released_pages`,
     /// which means that they will never be updated in storage.
@@ -122,11 +126,10 @@ thread_local! {
     // NOTE: here we suppose, that each contract is executed in separate thread.
     // Or may be in one thread but consequentially.
 
-    /// Identify whether signal handler is set for current thread.
-    static LAZY_PAGES_ENABLED: RefCell<bool> = RefCell::new(false);
-    /// Lazy pages impl version. Different runtimes may require different impl of lazy pages functionality.
+    /// Lazy-pages impl version. Different runtimes may require different impl of lazy-pages functionality.
+    /// NOTE: be dangerous when use it and pay attention process and thread initialization.
     static LAZY_PAGES_VERSION: RefCell<LazyPagesVersion> = RefCell::new(LazyPagesVersion::Version1);
-    /// Lazy pages context for current execution.
+    /// Lazy-pages context for current execution.
     static LAZY_PAGES_CONTEXT: RefCell<LazyPagesExecutionContext> = RefCell::new(Default::default());
 }
 
@@ -180,7 +183,7 @@ pub fn initialize_for_program(
 
         ctx.program_storage_prefix = Some(program_prefix);
 
-        log::trace!("Initialize lazy pages for current program: {:?}", ctx);
+        log::trace!("Initialize lazy-pages for current program: {:?}", ctx);
 
         Ok(())
     })
@@ -236,70 +239,66 @@ pub fn set_wasm_mem_size(size: WasmPageNumber) -> Result<(), WasmMemSizeError> {
     Ok(())
 }
 
-/// Returns vec of lazy pages which has been accessed
+/// Returns vec of lazy-pages which has been accessed
 pub fn get_released_pages() -> Vec<PageNumber> {
     LAZY_PAGES_CONTEXT.with(|ctx| ctx.borrow().released_pages.iter().copied().collect())
 }
 
-#[derive(Debug, derive_more::Display)]
+#[derive(Debug, Clone, derive_more::Display)]
 pub enum InitError {
-    #[display(fmt = "Initial context is not in default state before initialization")]
-    InitialContextIsNotDefault,
-    #[display(fmt = "Native page size {:#x} is not suitable for lazy pages", _0)]
+    #[display(fmt = "Native page size {:#x} is not suitable for lazy-pages", _0)]
     NativePageSizeIsNotSuitable(usize),
     #[display(fmt = "Can not set signal handler: {}", _0)]
     CanNotSetUpSignalHandler(String),
 }
 
-/// Initialize lazy pages:
-/// 1) checks whether lazy pages is supported in current environment
+/// Initialize lazy-pages once for process:
+/// 1) checks whether lazy-pages is supported in current environment
 /// 2) set signals handler
 ///
 /// # Safety
 /// See [`sys::setup_signal_handler`]
-unsafe fn init_internal<H: UserSignalHandler>(version: LazyPagesVersion) -> Result<(), InitError> {
+unsafe fn init_for_process<H: UserSignalHandler>() -> Result<(), InitError> {
     use InitError::*;
 
-    // Set version even if it has been already set, because `on_idle` calls can be
-    // in the same thread, even after runtime upgrade, which can change version.
-    LAZY_PAGES_VERSION.with(|v| *v.borrow_mut() = version);
+    LAZY_PAGES_INITIALIZED
+        .get_or_init(|| {
+            let ps = region::page::size();
+            if ps > PAGE_STORAGE_GRANULARITY
+                || PAGE_STORAGE_GRANULARITY % ps != 0
+                || (ps > PageNumber::size() && ps % PageNumber::size() != 0)
+                || (ps < PageNumber::size() && PageNumber::size() % ps != 0)
+            {
+                return Err(NativePageSizeIsNotSuitable(ps));
+            }
 
-    if LAZY_PAGES_ENABLED.with(|x| *x.borrow()) {
-        log::trace!("Lazy-pages has been already enabled for current thread");
-        return Ok(());
-    }
+            if let Err(err) = sys::setup_signal_handler::<H>() {
+                return Err(CanNotSetUpSignalHandler(err.to_string()));
+            }
 
-    if LAZY_PAGES_CONTEXT.with(|ctx| *ctx.borrow() != LazyPagesExecutionContext::default()) {
-        return Err(InitialContextIsNotDefault);
-    }
+            log::trace!("Successfully initialize lazy-pages for process");
 
-    let ps = region::page::size();
-    if ps > PAGE_STORAGE_GRANULARITY
-        || PAGE_STORAGE_GRANULARITY % ps != 0
-        || (ps > PageNumber::size() && ps % PageNumber::size() != 0)
-        || (ps < PageNumber::size() && PageNumber::size() % ps != 0)
-    {
-        return Err(NativePageSizeIsNotSuitable(ps));
-    }
-
-    if let Err(err) = sys::setup_signal_handler::<H>() {
-        return Err(CanNotSetUpSignalHandler(err.to_string()));
-    }
-
-    LAZY_PAGES_ENABLED.with(|x| *x.borrow_mut() = true);
-
-    Ok(())
+            Ok(())
+        })
+        .clone()
 }
 
-/// Initialize lazy pages for current thread.
+/// Initialize lazy-pages for current thread.
 pub fn init<H: UserSignalHandler>(version: LazyPagesVersion) -> bool {
-    if let Err(err) = unsafe { init_internal::<H>(version) } {
-        log::debug!("Cannot initialize lazy pages: {}", err);
-        false
-    } else {
-        log::debug!("Successfully enables lazy pages for current thread");
-        true
+    // Set version even if it has been already set, because it can be changed after runtime upgrade.
+    LAZY_PAGES_VERSION.with(|v| *v.borrow_mut() = version);
+
+    if let Err(err) = unsafe { init_for_process::<H>() } {
+        log::debug!("Cannot initialize lazy-pages for process: {}", err);
+        return false;
     }
+
+    if let Err(err) = unsafe { sys::init_for_thread() } {
+        log::debug!("Cannot initialize lazy-pages for thread: {}", err);
+        return false;
+    }
+
+    true
 }
 
 #[cfg(test)]

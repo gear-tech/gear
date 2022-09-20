@@ -48,7 +48,7 @@ impl gear_common::GasPrice for GasConverter {
 
 parameter_types! {
     pub const GasLimitMaxPercentage: Percent = Percent::from_percent(75);
-    pub BlockGasLimit: u64 = GasLimitMaxPercentage::get() * BlockWeights::get().max_block;
+    pub BlockGasLimit: u64 = GasLimitMaxPercentage::get() * BlockWeights::get().max_block.ref_time();
 
     pub const TransactionByteFee: Balance = 1;
     pub const QueueLengthStep: u128 = 10;
