@@ -22,7 +22,7 @@ use crate::{
 };
 use common::{
     event::*,
-    scheduler::{ScheduledTask, TaskPool},
+    scheduler::{ScheduledTask, TaskHandler, TaskPool},
     storage::*,
     CodeStorage, GasTree, Origin, Program,
 };
@@ -404,12 +404,8 @@ where
                     )
                     .unwrap_or_else(|e| unreachable!("Scheduling logic invalidated! {:?}", e));
                 }
-                GasReservationTask::RemoveReservation { bn, spent } => {
-                    let spent = spent.unwrap_or(0);
-                    GasHandlerOf::<T>::split_with_value(id, message_id, spent as u64)
-                        .unwrap_or_else(|e| unreachable!("GasTree corrupted: {:?}", e));
-
-                    Pallet::<T>::consume_and_retrieve(id);
+                GasReservationTask::RemoveReservation { bn } => {
+                    <Self as TaskHandler<T::AccountId>>::remove_gas_reservation(self, id);
 
                     let _ = TaskPoolOf::<T>::delete(
                         BlockNumberFor::<T>::from(bn),

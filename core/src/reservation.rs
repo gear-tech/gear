@@ -64,10 +64,8 @@ impl GasReserver {
     pub fn unreserve(&mut self, id: ReservationId) -> Option<u32> {
         let GasReservationSlot { amount, bn } = self.map.remove(&id)?;
         if self.tasks.remove(&id).is_none() {
-            self.tasks.insert(
-                id,
-                GasReservationTask::RemoveReservation { bn, spent: None },
-            );
+            self.tasks
+                .insert(id, GasReservationTask::RemoveReservation { bn });
         }
         Some(amount)
     }
@@ -97,8 +95,6 @@ pub enum GasReservationTask {
     RemoveReservation {
         /// Block number which reservation will be removed to.
         bn: u32,
-        /// Amount of spent reserved gas.
-        spent: Option<u32>,
     },
 }
 
