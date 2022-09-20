@@ -9,5 +9,5 @@ clippy:
 	@ SKIP_WASM_BUILD=1 cargo clippy --workspace --all-targets \
 		--all-features -- --no-deps -D warnings
 
-test: # This requires run of ./scripts/donwload-gear.sh res.
+test: # This requires run of `./scripts/donwload-gear.sh res`
 	@ cargo test --all --all-features
