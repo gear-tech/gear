@@ -150,7 +150,6 @@ impl ActorId {
 ///
 /// The ID is used to get reserved gas.
 /// See [`exec::reserve_gas`](crate::exec::reserve_gas).
-// TODO: consider remove `Copy` and `Default` to avoid invalid IDs
 #[derive(Clone, Copy, Debug, Default, Hash, Ord, PartialEq, PartialOrd, Eq)]
 pub struct ReservationId(pub [u8; 32]);
 

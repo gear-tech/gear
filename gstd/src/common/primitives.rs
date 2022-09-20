@@ -267,6 +267,23 @@ impl TryFrom<&[u8]> for CodeHash {
 /// Reservation identifier.
 ///
 /// The ID is used to get reserved gas.
+///
+/// # Examples
+///
+/// ```
+/// use gstd::ReservationId;
+///
+/// static mut RESERVED: Option<ReservationId> = None;
+///
+/// unsafe extern "C" fn init() {
+///     RESERVED = Some(ReservationId::reserve(50_000_000, 7));
+/// }
+///
+/// unsafe extern "C" fn handle() {
+///     let reservation_id = RESERVED.take().expect("create in init()");
+///     reservation_id.unreserve();
+/// }
+/// ```
 #[derive(Debug, Hash, Ord, PartialEq, PartialOrd, Eq, TypeInfo, Decode, Encode)]
 pub struct ReservationId([u8; 32]);
 

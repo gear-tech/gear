@@ -139,8 +139,7 @@ pub trait Ext {
     /// Refund some gas.
     fn refund_gas(&mut self, amount: u64) -> Result<(), Self::Error>;
 
-    // TODO: correct docs
-    /// Reserve some gas for contract emergency needs.
+    /// Reserve some gas for a few blocks.
     fn reserve_gas(&mut self, amount: u32, blocks: u32) -> Result<ReservationId, Self::Error>;
 
     /// Unreserve gas using reservation ID.

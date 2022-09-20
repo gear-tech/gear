@@ -105,7 +105,22 @@ pub fn exit(value_destination: ActorId) -> ! {
 }
 
 /// Reserve gas for further usage.
-// TODO: descriptive docs
+///
+/// # Examples
+///
+/// ```
+/// use gcore::{exec, ReservationId};
+///
+/// static mut RESERVED: ReservationId = ReservationId::default();
+///
+/// unsafe extern "C" fn init() {
+///     RESERVED = exec::reserve_gas(50_000_000, 7);
+/// }
+///
+/// unsafe extern "C" fn handle() {
+///     exec::unreserve_gas(RESERVED);
+/// }
+/// ```
 pub fn reserve_gas(amount: u32, blocks: u32) -> ReservationId {
     unsafe {
         let mut id = MaybeUninit::uninit();
@@ -115,7 +130,9 @@ pub fn reserve_gas(amount: u32, blocks: u32) -> ReservationId {
 }
 
 /// Unreserve gas using reservation ID
-// TODO: descriptive docs
+///
+/// # Examples
+/// See [`reserve_gas`] example.
 pub fn unreserve_gas(id: ReservationId) {
     unsafe { sys::gr_unreserve_gas(id.as_slice().as_ptr()) }
 }
