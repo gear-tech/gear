@@ -630,7 +630,7 @@ pub mod pallet {
         /// Block initialization.
         fn on_initialize(_bn: BlockNumberFor<T>) -> Weight {
             // Amount of weight used for initialization.
-            let mut weight = 0;
+            let mut weight = Weight::zero();
 
             // Clear amount of messages sent.
             //

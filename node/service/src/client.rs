@@ -201,20 +201,20 @@ pub trait ClientHandle {
 }
 
 macro_rules! with_client {
-	{
-		$self:ident,
-		$client:ident,
-		{
-			$( $code:tt )*
-		}
-	} => {
-		match $self {
-			#[cfg(feature = "gear-native")]
-			Self::Gear($client) => { $( $code )* },
-			#[cfg(feature = "vara-native")]
-			Self::Vara($client) => { $( $code )* },
-		}
-	}
+    {
+        $self:ident,
+        $client:ident,
+        {
+            $( $code:tt )*
+        }
+    } => {
+        match $self {
+            #[cfg(feature = "gear-native")]
+            Self::Gear($client) => { $( $code )* },
+            #[cfg(feature = "vara-native")]
+            Self::Vara($client) => { $( $code )* },
+        }
+    }
 }
 
 /// A client instance of Gear.
