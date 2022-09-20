@@ -23,7 +23,12 @@ use crate::{
 use frame_benchmarking_cli::{BenchmarkCmd, ExtrinsicFactory, SUBSTRATE_REFERENCE_HARDWARE};
 use runtime_primitives::Block;
 use sc_cli::{ChainSpec, RuntimeVersion, SubstrateCli};
-use service::{chain_spec, IdentifyVariant};
+use sc_client_api::Backend;
+use sc_service::Arc;
+use service::{
+    chain_spec, FullBackend, FullClient, GearExecutorDispatch, IdentifyVariant,
+    VaraExecutorDispatch,
+};
 use sp_keyring::Sr25519Keyring;
 
 impl SubstrateCli for Cli {
@@ -171,7 +176,41 @@ pub fn run() -> sc_cli::Result<()> {
             let runner = cli.create_runner(cmd)?;
             runner.async_run(|config| {
                 let (client, backend, _, task_manager) = service::new_chain_ops(&config)?;
-                Ok((cmd.run(client, backend, None), task_manager))
+                match &config.chain_spec {
+                    #[cfg(feature = "gear-native")]
+                    spec if spec.is_gear() => {
+                        let aux_revert = Box::new(
+                            |client: Arc<
+                                FullClient<gear_runtime::RuntimeApi, GearExecutorDispatch>,
+                            >,
+                             backend,
+                             blocks| {
+                                sc_consensus_babe::revert(client.clone(), backend, blocks)?;
+                                sc_finality_grandpa::revert(client, blocks)?;
+                                Ok(())
+                            },
+                        );
+
+                        Ok((cmd.run(client, backend, Some(aux_revert)), task_manager))
+                    },
+                    // #[cfg(feature = "vara-native")]
+                    // spec if spec.is_vara() => {
+                    //     let aux_revert = Box::new(
+                    //         |client: Arc<
+                    //             FullClient<vara_runtime::RuntimeApi, VaraExecutorDispatch>,
+                    //         >,
+                    //          backend,
+                    //          blocks| {
+                    //             sc_consensus_babe::revert(client.clone(), backend, blocks)?;
+                    //             sc_finality_grandpa::revert(client, blocks)?;
+                    //             Ok(())
+                    //         },
+                    //     );
+
+                    //     Ok((cmd.run(client, backend, Some(aux_revert)), task_manager))
+                    // },
+                    _ => panic!(),
+                }
             })
         }
         Some(Subcommand::Benchmark(cmd)) => {
