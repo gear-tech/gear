@@ -30,7 +30,10 @@ use core::fmt;
 use scale_info::TypeInfo;
 
 /// Core error.
-pub trait CoreError: fmt::Display + fmt::Debug {}
+pub trait CoreError: fmt::Display + fmt::Debug + Sized {
+    /// Attempt to call forbidden sys-call.
+    fn forbidden_function() -> Self;
+}
 
 /// Error using messages.
 #[derive(Copy, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, derive_more::Display)]
@@ -198,4 +201,8 @@ impl ExtError {
     }
 }
 
-impl CoreError for ExtError {}
+impl CoreError for ExtError {
+    fn forbidden_function() -> Self {
+        Self::Execution(ExecutionError::ForbiddenFunction)
+    }
+}

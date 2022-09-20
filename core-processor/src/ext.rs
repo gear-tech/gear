@@ -154,7 +154,11 @@ impl From<ExecutionError> for ProcessorError {
     }
 }
 
-impl CoreError for ProcessorError {}
+impl CoreError for ProcessorError {
+    fn forbidden_function() -> Self {
+        Self::Core(ExtError::forbidden_function())
+    }
+}
 
 impl IntoExtError for ProcessorError {
     fn into_ext_error(self) -> Result<ExtError, Self> {
