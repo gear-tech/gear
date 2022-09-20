@@ -219,16 +219,13 @@ pub fn run_to_block(n: u64, remaining_weight: Option<u64>) {
         Gear::on_initialize(System::block_number());
 
         let remaining_weight = remaining_weight.unwrap_or(BlockGasLimitOf::<Test>::get());
-
         log::debug!(
-            "🧱 Running on_idle block #{} with weight {}",
+            "🧱 Running run #{} with weight {}",
             System::block_number(),
             remaining_weight
         );
 
-        Gear::on_idle(
-            System::block_number(),
-            Weight::from_ref_time(remaining_weight),
-        );
+        Gear::do_run(remaining_weight);
+        Gear::on_finalize(System::block_number());
     }
 }

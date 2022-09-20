@@ -133,7 +133,7 @@ fn mprotect_mem_interval_except_pages(
 /// Note: name is expanded as gear_ri
 #[runtime_interface]
 pub trait GearRI {
-    /// Init lazy pages for `on_idle`.
+    /// Init lazy-pages.
     /// Returns whether initialization was successful.
     fn init_lazy_pages() -> bool {
         use lazy_pages::{DefaultUserSignalHandler, LazyPagesVersion};

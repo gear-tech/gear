@@ -1157,10 +1157,10 @@ pub mod api {
                         };
                         if runtime_storage_hash
                             == [
-                                12u8, 124u8, 14u8, 61u8, 251u8, 71u8, 159u8, 209u8, 3u8, 84u8,
-                                16u8, 232u8, 172u8, 107u8, 214u8, 39u8, 93u8, 72u8, 113u8, 178u8,
-                                198u8, 253u8, 5u8, 182u8, 45u8, 172u8, 111u8, 250u8, 31u8, 37u8,
-                                78u8, 19u8,
+                                208u8, 215u8, 217u8, 63u8, 214u8, 29u8, 173u8, 237u8, 100u8, 254u8,
+                                221u8, 21u8, 104u8, 149u8, 108u8, 181u8, 115u8, 0u8, 242u8, 175u8,
+                                244u8, 185u8, 124u8, 217u8, 60u8, 199u8, 67u8, 220u8, 163u8, 121u8,
+                                30u8, 56u8,
                             ]
                         {
                             let entry = Events;
@@ -5524,10 +5524,9 @@ pub mod api {
                     };
                     if runtime_call_hash
                         == [
-                            186u8, 15u8, 140u8, 241u8, 240u8, 8u8, 54u8, 60u8, 202u8, 83u8, 110u8,
-                            179u8, 114u8, 16u8, 176u8, 139u8, 227u8, 146u8, 254u8, 206u8, 78u8,
-                            186u8, 122u8, 37u8, 153u8, 123u8, 178u8, 145u8, 238u8, 121u8, 199u8,
-                            167u8,
+                            248u8, 241u8, 123u8, 74u8, 201u8, 201u8, 5u8, 37u8, 38u8, 52u8, 45u8,
+                            252u8, 215u8, 244u8, 101u8, 193u8, 27u8, 86u8, 66u8, 53u8, 14u8, 255u8,
+                            159u8, 117u8, 132u8, 250u8, 96u8, 82u8, 244u8, 12u8, 170u8, 148u8,
                         ]
                     {
                         let call = Sudo {
@@ -5570,9 +5569,10 @@ pub mod api {
                     };
                     if runtime_call_hash
                         == [
-                            211u8, 233u8, 49u8, 1u8, 241u8, 46u8, 76u8, 244u8, 222u8, 248u8, 247u8,
-                            89u8, 208u8, 186u8, 54u8, 100u8, 161u8, 230u8, 93u8, 147u8, 98u8,
-                            168u8, 171u8, 78u8, 53u8, 249u8, 157u8, 195u8, 129u8, 29u8, 70u8, 99u8,
+                            208u8, 208u8, 158u8, 94u8, 167u8, 71u8, 200u8, 84u8, 214u8, 76u8,
+                            240u8, 179u8, 14u8, 61u8, 219u8, 16u8, 151u8, 192u8, 111u8, 69u8, 1u8,
+                            27u8, 220u8, 142u8, 148u8, 109u8, 104u8, 209u8, 142u8, 129u8, 81u8,
+                            148u8,
                         ]
                     {
                         let call = SudoUncheckedWeight {
@@ -5651,9 +5651,10 @@ pub mod api {
                     };
                     if runtime_call_hash
                         == [
-                            158u8, 210u8, 163u8, 11u8, 233u8, 185u8, 237u8, 57u8, 201u8, 9u8,
-                            229u8, 190u8, 82u8, 200u8, 44u8, 73u8, 140u8, 150u8, 42u8, 123u8, 44u8,
-                            6u8, 165u8, 112u8, 193u8, 64u8, 206u8, 210u8, 74u8, 176u8, 65u8, 116u8,
+                            102u8, 159u8, 83u8, 67u8, 179u8, 28u8, 3u8, 142u8, 180u8, 197u8, 199u8,
+                            17u8, 71u8, 141u8, 232u8, 119u8, 130u8, 45u8, 254u8, 137u8, 26u8,
+                            244u8, 65u8, 202u8, 173u8, 89u8, 31u8, 80u8, 202u8, 199u8, 136u8,
+                            220u8,
                         ]
                     {
                         let call = SudoAs {
@@ -5853,10 +5854,9 @@ pub mod api {
                     };
                     if runtime_call_hash
                         == [
-                            150u8, 222u8, 18u8, 10u8, 218u8, 254u8, 40u8, 81u8, 233u8, 155u8,
-                            154u8, 123u8, 129u8, 170u8, 86u8, 132u8, 253u8, 180u8, 49u8, 146u8,
-                            80u8, 245u8, 15u8, 67u8, 106u8, 180u8, 123u8, 35u8, 20u8, 14u8, 253u8,
-                            128u8,
+                            86u8, 55u8, 135u8, 138u8, 232u8, 211u8, 98u8, 60u8, 37u8, 74u8, 254u8,
+                            252u8, 139u8, 105u8, 153u8, 87u8, 241u8, 176u8, 247u8, 3u8, 104u8,
+                            228u8, 234u8, 34u8, 243u8, 247u8, 29u8, 3u8, 108u8, 117u8, 22u8, 149u8,
                         ]
                     {
                         let call = Batch { calls };
@@ -5900,10 +5900,10 @@ pub mod api {
                     };
                     if runtime_call_hash
                         == [
-                            56u8, 211u8, 159u8, 10u8, 229u8, 7u8, 57u8, 180u8, 114u8, 214u8, 131u8,
-                            24u8, 101u8, 252u8, 11u8, 202u8, 129u8, 178u8, 174u8, 155u8, 213u8,
-                            216u8, 76u8, 124u8, 26u8, 59u8, 209u8, 35u8, 203u8, 160u8, 179u8,
-                            212u8,
+                            61u8, 32u8, 112u8, 59u8, 62u8, 19u8, 209u8, 59u8, 235u8, 46u8, 16u8,
+                            140u8, 255u8, 210u8, 13u8, 56u8, 215u8, 182u8, 212u8, 31u8, 218u8,
+                            142u8, 216u8, 212u8, 253u8, 211u8, 180u8, 49u8, 151u8, 104u8, 159u8,
+                            234u8,
                         ]
                     {
                         let call = AsDerivative {
@@ -5950,10 +5950,9 @@ pub mod api {
                     };
                     if runtime_call_hash
                         == [
-                            82u8, 7u8, 143u8, 96u8, 119u8, 216u8, 240u8, 109u8, 253u8, 129u8,
-                            238u8, 146u8, 208u8, 207u8, 16u8, 111u8, 246u8, 4u8, 239u8, 136u8,
-                            166u8, 226u8, 18u8, 230u8, 222u8, 55u8, 23u8, 99u8, 26u8, 10u8, 201u8,
-                            12u8,
+                            117u8, 160u8, 41u8, 147u8, 114u8, 177u8, 183u8, 224u8, 144u8, 36u8,
+                            78u8, 1u8, 46u8, 151u8, 111u8, 158u8, 65u8, 131u8, 237u8, 80u8, 71u8,
+                            199u8, 122u8, 213u8, 85u8, 26u8, 14u8, 81u8, 39u8, 228u8, 213u8, 12u8,
                         ]
                     {
                         let call = BatchAll { calls };
@@ -5994,10 +5993,10 @@ pub mod api {
                     };
                     if runtime_call_hash
                         == [
-                            245u8, 38u8, 19u8, 43u8, 163u8, 118u8, 42u8, 41u8, 165u8, 241u8, 162u8,
-                            51u8, 238u8, 58u8, 236u8, 81u8, 234u8, 224u8, 137u8, 203u8, 102u8,
-                            94u8, 102u8, 234u8, 103u8, 44u8, 82u8, 204u8, 152u8, 141u8, 90u8,
-                            109u8,
+                            157u8, 179u8, 124u8, 204u8, 237u8, 99u8, 11u8, 146u8, 142u8, 240u8,
+                            19u8, 126u8, 13u8, 200u8, 36u8, 162u8, 176u8, 96u8, 171u8, 179u8,
+                            201u8, 10u8, 109u8, 42u8, 38u8, 219u8, 19u8, 214u8, 29u8, 87u8, 207u8,
+                            200u8,
                         ]
                     {
                         let call = DispatchAs {
@@ -6044,10 +6043,9 @@ pub mod api {
                     };
                     if runtime_call_hash
                         == [
-                            134u8, 216u8, 182u8, 199u8, 41u8, 236u8, 250u8, 168u8, 176u8, 206u8,
-                            166u8, 177u8, 17u8, 224u8, 16u8, 56u8, 237u8, 253u8, 98u8, 162u8,
-                            142u8, 209u8, 153u8, 189u8, 137u8, 130u8, 96u8, 83u8, 175u8, 158u8,
-                            154u8, 2u8,
+                            73u8, 35u8, 110u8, 138u8, 30u8, 4u8, 130u8, 51u8, 211u8, 178u8, 76u8,
+                            92u8, 199u8, 22u8, 4u8, 151u8, 149u8, 84u8, 88u8, 201u8, 187u8, 178u8,
+                            26u8, 197u8, 14u8, 111u8, 139u8, 102u8, 45u8, 69u8, 247u8, 113u8,
                         ]
                     {
                         let call = ForceBatch { calls };
@@ -7671,6 +7669,12 @@ pub mod api {
                 const PALLET: &'static str = "Gear";
                 const FUNCTION: &'static str = "reset";
             }
+            #[derive(:: subxt :: codec :: Decode, :: subxt :: codec :: Encode, Debug)]
+            pub struct Run;
+            impl ::subxt::Call for Run {
+                const PALLET: &'static str = "Gear";
+                const FUNCTION: &'static str = "run";
+            }
             pub struct TransactionApi<'a, T: ::subxt::Config, X> {
                 client: &'a ::subxt::Client<T>,
                 marker: ::core::marker::PhantomData<X>,
@@ -8049,6 +8053,31 @@ pub mod api {
                         Err(::subxt::MetadataError::IncompatibleMetadata.into())
                     }
                 }
+                #[doc = "Process message queue"]
+                pub fn run(
+                    &self,
+                ) -> Result<
+                    ::subxt::SubmittableExtrinsic<'a, T, X, Run, DispatchError, root_mod::Event>,
+                    ::subxt::BasicError,
+                > {
+                    let runtime_call_hash = {
+                        let locked_metadata = self.client.metadata();
+                        let metadata = locked_metadata.read();
+                        metadata.call_hash::<Run>()?
+                    };
+                    if runtime_call_hash
+                        == [
+                            35u8, 17u8, 4u8, 245u8, 125u8, 244u8, 248u8, 85u8, 197u8, 26u8, 9u8,
+                            208u8, 119u8, 91u8, 214u8, 45u8, 64u8, 127u8, 225u8, 88u8, 5u8, 173u8,
+                            222u8, 124u8, 185u8, 147u8, 239u8, 10u8, 28u8, 252u8, 197u8, 187u8,
+                        ]
+                    {
+                        let call = Run {};
+                        Ok(::subxt::SubmittableExtrinsic::new(self.client, call))
+                    } else {
+                        Err(::subxt::MetadataError::IncompatibleMetadata.into())
+                    }
+                }
             }
         }
         #[doc = "\n\t\t\tThe [event](https://docs.substrate.io/main-docs/build/events-errors/) emitted\n\t\t\tby this pallet.\n\t\t\t"]
@@ -8167,6 +8196,110 @@ pub mod api {
             impl ::subxt::Event for ProgramChanged {
                 const PALLET: &'static str = "Gear";
                 const EVENT: &'static str = "ProgramChanged";
+            }
+            #[derive(:: subxt :: codec :: Decode, :: subxt :: codec :: Encode, Debug)]
+            #[doc = "The extrinsic that runs queue processing rolled back"]
+            pub struct QueueProcessingReverted;
+            impl ::subxt::Event for QueueProcessingReverted {
+                const PALLET: &'static str = "Gear";
+                const EVENT: &'static str = "QueueProcessingReverted";
+            }
+        }
+        pub mod storage {
+            use super::runtime_types;
+            pub struct ForceQueue;
+            impl ::subxt::StorageEntry for ForceQueue {
+                const PALLET: &'static str = "Gear";
+                const STORAGE: &'static str = "ForceQueue";
+                type Value = runtime_types::pallet_gear::Forcing;
+                fn key(&self) -> ::subxt::StorageEntryKey {
+                    ::subxt::StorageEntryKey::Plain
+                }
+            }
+            pub struct QueueState;
+            impl ::subxt::StorageEntry for QueueState {
+                const PALLET: &'static str = "Gear";
+                const STORAGE: &'static str = "QueueState";
+                type Value = runtime_types::pallet_gear::ProcessStatus;
+                fn key(&self) -> ::subxt::StorageEntryKey {
+                    ::subxt::StorageEntryKey::Plain
+                }
+            }
+            pub struct StorageApi<'a, T: ::subxt::Config> {
+                client: &'a ::subxt::Client<T>,
+            }
+            impl<'a, T: ::subxt::Config> StorageApi<'a, T> {
+                pub fn new(client: &'a ::subxt::Client<T>) -> Self {
+                    Self { client }
+                }
+                pub fn force_queue(
+                    &self,
+                    block_hash: ::core::option::Option<T::Hash>,
+                ) -> impl ::core::future::Future<
+                    Output = ::core::result::Result<
+                        runtime_types::pallet_gear::Forcing,
+                        ::subxt::BasicError,
+                    >,
+                > + 'a {
+                    let client = self.client;
+                    async move {
+                        let runtime_storage_hash = {
+                            let locked_metadata = client.metadata();
+                            let metadata = locked_metadata.read();
+                            match metadata.storage_hash::<ForceQueue>() {
+                                Ok(hash) => hash,
+                                Err(e) => return Err(e.into()),
+                            }
+                        };
+                        if runtime_storage_hash
+                            == [
+                                0u8, 9u8, 40u8, 188u8, 219u8, 80u8, 30u8, 224u8, 6u8, 142u8, 241u8,
+                                174u8, 91u8, 14u8, 86u8, 59u8, 53u8, 175u8, 176u8, 183u8, 126u8,
+                                255u8, 243u8, 37u8, 11u8, 48u8, 153u8, 234u8, 129u8, 188u8, 43u8,
+                                146u8,
+                            ]
+                        {
+                            let entry = ForceQueue;
+                            client.storage().fetch_or_default(&entry, block_hash).await
+                        } else {
+                            Err(::subxt::MetadataError::IncompatibleMetadata.into())
+                        }
+                    }
+                }
+                pub fn queue_state(
+                    &self,
+                    block_hash: ::core::option::Option<T::Hash>,
+                ) -> impl ::core::future::Future<
+                    Output = ::core::result::Result<
+                        runtime_types::pallet_gear::ProcessStatus,
+                        ::subxt::BasicError,
+                    >,
+                > + 'a {
+                    let client = self.client;
+                    async move {
+                        let runtime_storage_hash = {
+                            let locked_metadata = client.metadata();
+                            let metadata = locked_metadata.read();
+                            match metadata.storage_hash::<QueueState>() {
+                                Ok(hash) => hash,
+                                Err(e) => return Err(e.into()),
+                            }
+                        };
+                        if runtime_storage_hash
+                            == [
+                                171u8, 168u8, 205u8, 108u8, 158u8, 83u8, 98u8, 1u8, 148u8, 248u8,
+                                134u8, 134u8, 130u8, 99u8, 69u8, 61u8, 119u8, 251u8, 11u8, 153u8,
+                                4u8, 9u8, 147u8, 225u8, 185u8, 176u8, 120u8, 219u8, 55u8, 26u8,
+                                131u8, 233u8,
+                            ]
+                        {
+                            let entry = QueueState;
+                            client.storage().fetch_or_default(&entry, block_hash).await
+                        } else {
+                            Err(::subxt::MetadataError::IncompatibleMetadata.into())
+                        }
+                    }
+                }
             }
         }
         pub mod constants {
@@ -9526,6 +9659,9 @@ pub mod api {
                     #[codec(index = 6)]
                     #[doc = "Reset all pallet associated storage."]
                     reset,
+                    #[codec(index = 7)]
+                    #[doc = "Process message queue"]
+                    run,
                 }
                 #[derive(:: subxt :: codec :: Decode, :: subxt :: codec :: Encode, Debug)]
                 #[doc = "\n\t\t\tCustom [dispatch errors](https://docs.substrate.io/main-docs/build/events-errors/)\n\t\t\tof this pallet.\n\t\t\t"]
@@ -9664,6 +9800,9 @@ pub mod api {
                             ::core::primitive::u32,
                         >,
                     },
+                    #[codec(index = 9)]
+                    #[doc = "The extrinsic that runs queue processing rolled back"]
+                    QueueProcessingReverted,
                 }
             }
             pub mod schedule {
@@ -9788,6 +9927,26 @@ pub mod api {
                     pub host_fn_weights: runtime_types::pallet_gear::schedule::HostFnWeights,
                     pub memory_weights: runtime_types::pallet_gear::schedule::MemoryWeights,
                 }
+            }
+            #[derive(:: subxt :: codec :: Decode, :: subxt :: codec :: Encode, Debug)]
+            pub enum Forcing {
+                #[codec(index = 0)]
+                NotForcing,
+                #[codec(index = 1)]
+                ForceNone,
+                #[codec(index = 2)]
+                ForceOnce,
+                #[codec(index = 3)]
+                ForceAlways,
+            }
+            #[derive(:: subxt :: codec :: Decode, :: subxt :: codec :: Encode, Debug)]
+            pub enum ProcessStatus {
+                #[codec(index = 0)]
+                Scheduled,
+                #[codec(index = 1)]
+                Completed,
+                #[codec(index = 2)]
+                SkippedOrFailed,
             }
         }
         pub mod pallet_gear_gas {
@@ -11427,9 +11586,9 @@ pub mod api {
             };
             if runtime_metadata_hash
                 != [
-                    164u8, 46u8, 74u8, 79u8, 41u8, 242u8, 58u8, 48u8, 53u8, 136u8, 62u8, 1u8, 93u8,
-                    93u8, 186u8, 70u8, 235u8, 162u8, 137u8, 168u8, 73u8, 150u8, 104u8, 198u8,
-                    180u8, 35u8, 78u8, 194u8, 164u8, 174u8, 36u8, 180u8,
+                    53u8, 102u8, 150u8, 68u8, 246u8, 126u8, 98u8, 224u8, 231u8, 80u8, 70u8, 40u8,
+                    212u8, 9u8, 101u8, 182u8, 0u8, 108u8, 161u8, 211u8, 101u8, 139u8, 227u8, 107u8,
+                    19u8, 34u8, 190u8, 147u8, 16u8, 219u8, 47u8, 126u8,
                 ]
             {
                 Err(::subxt::MetadataError::IncompatibleMetadata)
@@ -11574,6 +11733,9 @@ pub mod api {
         }
         pub fn gear_gas(&self) -> gear_gas::storage::StorageApi<'a, T> {
             gear_gas::storage::StorageApi::new(self.client)
+        }
+        pub fn gear(&self) -> gear::storage::StorageApi<'a, T> {
+            gear::storage::StorageApi::new(self.client)
         }
     }
     pub struct TransactionApi<'a, T: ::subxt::Config, X> {
