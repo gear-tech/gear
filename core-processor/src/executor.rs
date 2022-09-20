@@ -387,8 +387,6 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
     // Getting new programs that are scheduled to be initialized (respected messages are in `generated_dispatches` collection)
     let program_candidates = info.program_candidates_data;
 
-    log::info!("!!!TEST!!! {:?}", info.gas_reserver);
-
     // Output
     Ok(DispatchResult {
         kind,

@@ -150,7 +150,7 @@ pub fn prepare(
                 | ExecutionErrorReason::LoadMemoryBlockGasExceeded => {
                     process_allowance_exceed(dispatch, program_id, gas_counter.burned())
                 }
-                _ => process_error(dispatch, program_id, gas_counter.burned(), reason),
+                _ => process_error(dispatch, program_id, None, gas_counter.burned(), reason),
             });
         }
     };
@@ -234,6 +234,7 @@ pub fn process<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environment<
             DispatchResultKind::Trap(reason) => process_error(
                 res.dispatch,
                 program_id,
+                Some(res.gas_reserver),
                 res.gas_amount.burned(),
                 ExecutionErrorReason::Ext(reason),
             ),
@@ -252,7 +253,7 @@ pub fn process<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environment<
             | ExecutionErrorReason::LoadMemoryBlockGasExceeded => {
                 process_allowance_exceed(dispatch, program_id, e.gas_amount.burned())
             }
-            _ => process_error(dispatch, program_id, e.gas_amount.burned(), e.reason),
+            _ => process_error(dispatch, program_id, None, e.gas_amount.burned(), e.reason),
         },
     }
 }
@@ -276,6 +277,7 @@ fn check_is_executable(
 fn process_error(
     dispatch: IncomingDispatch,
     program_id: ProgramId,
+    gas_reserver: Option<GasReserver>,
     gas_burned: u64,
     err: ExecutionErrorReason,
 ) -> Vec<JournalNote> {
@@ -289,6 +291,14 @@ fn process_error(
         message_id,
         amount: gas_burned,
     });
+
+    if let Some(gas_reserver) = gas_reserver {
+        journal.push(JournalNote::UpdateGasReservations {
+            message_id,
+            program_id,
+            gas_reserver,
+        });
+    }
 
     // We check if value is greater than zero to don't provide
     // no-op journal note.
@@ -375,7 +385,6 @@ fn process_success(
         amount: gas_amount.burned(),
     });
 
-    // TODO: reserve not only in success cases
     journal.push(JournalNote::UpdateGasReservations {
         message_id,
         program_id,
