@@ -17,7 +17,7 @@ codec = { package = "parity-scale-codec", version = "3.1.2", default-features = 
 scale-info = { version = "2.1.1", default-features = false, features = ["derive"] }
 log = { version = "0.4.17", default-features = false }
 parity-wasm = { version = "0.45.0", default-features = false, optional = true }
-primitive-types = { version = "0.11.1", default-features = false, features = ["scale-info"] }
+primitive-types = { version = "0.12.0", default-features = false, features = ["scale-info"] }
 
 # Internal deps
 common = { package = "gear-common", path = "../../common", default-features = false }

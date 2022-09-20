@@ -1805,7 +1805,7 @@ dependencies = [
  "parity-scale-codec",
  "parity-wasm 0.45.0",
  "parking_lot 0.12.1",
- "primitive-types",
+ "primitive-types 0.12.0",
  "rand 0.8.5",
  "serde",
  "sp-consensus-babe",
@@ -2096,6 +2096,18 @@ name = "fixed-hash"
 version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cfcf0ed7fe52a17a03854ec54a9f76d6d84508d1c0e66bc1793301c73fc8493c"
+dependencies = [
+ "byteorder",
+ "rand 0.8.5",
+ "rustc-hex",
+ "static_assertions",
+]
+
+[[package]]
+name = "fixed-hash"
+version = "0.8.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "835c052cb0c08c1acf6ffd71c022172e18723949c8282f2b9f27efbc51e64534"
 dependencies = [
  "byteorder",
  "rand 0.8.5",
@@ -2631,7 +2643,7 @@ dependencies = [
  "log",
  "parity-scale-codec",
  "parity-wasm 0.45.0",
- "primitive-types",
+ "primitive-types 0.12.0",
  "proptest",
  "scale-info",
  "sp-arithmetic",
@@ -2935,7 +2947,7 @@ dependencies = [
  "log",
  "once_cell",
  "parity-scale-codec",
- "primitive-types",
+ "primitive-types 0.12.0",
  "rayon",
  "regex",
  "serde",
@@ -3093,7 +3105,7 @@ dependencies = [
  "gstd-codegen",
  "hex",
  "parity-scale-codec",
- "primitive-types",
+ "primitive-types 0.12.0",
  "scale-info",
 ]
 
@@ -5176,7 +5188,7 @@ dependencies = [
  "pallet-gear-scheduler",
  "pallet-timestamp",
  "parity-scale-codec",
- "primitive-types",
+ "primitive-types 0.12.0",
  "rand 0.8.5",
  "rand_pcg 0.3.1",
  "scale-info",
@@ -5214,7 +5226,7 @@ dependencies = [
  "pallet-gear-scheduler",
  "pallet-timestamp",
  "parity-scale-codec",
- "primitive-types",
+ "primitive-types 0.12.0",
  "scale-info",
  "serde",
  "sp-core",
@@ -5239,7 +5251,7 @@ dependencies = [
  "pallet-timestamp",
  "parity-scale-codec",
  "parity-wasm 0.45.0",
- "primitive-types",
+ "primitive-types 0.12.0",
  "scale-info",
  "serde",
  "sp-io",
@@ -5264,7 +5276,7 @@ dependencies = [
  "pallet-gear-gas",
  "pallet-timestamp",
  "parity-scale-codec",
- "primitive-types",
+ "primitive-types 0.12.0",
  "scale-info",
  "sp-io",
  "sp-runtime",
@@ -5293,7 +5305,7 @@ dependencies = [
  "pallet-transaction-payment",
  "parity-scale-codec",
  "parity-wasm 0.45.0",
- "primitive-types",
+ "primitive-types 0.12.0",
  "scale-info",
  "serde",
  "sp-io",
@@ -5327,7 +5339,7 @@ dependencies = [
  "pallet-gear-gas",
  "pallet-gear-messenger",
  "parity-scale-codec",
- "primitive-types",
+ "primitive-types 0.12.0",
  "scale-info",
  "sp-core",
  "sp-io",
@@ -5381,7 +5393,7 @@ dependencies = [
  "pallet-gear-program",
  "pallet-timestamp",
  "parity-scale-codec",
- "primitive-types",
+ "primitive-types 0.12.0",
  "scale-info",
  "sp-core",
  "sp-io",
@@ -5597,7 +5609,7 @@ dependencies = [
  "impl-trait-for-tuples",
  "parity-util-mem-derive",
  "parking_lot 0.12.1",
- "primitive-types",
+ "primitive-types 0.11.1",
  "smallvec",
  "winapi",
 ]
@@ -5900,9 +5912,21 @@ version = "0.11.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e28720988bff275df1f51b171e1b2a18c30d194c4d2b61defdacecd625a5d94a"
 dependencies = [
- "fixed-hash",
+ "fixed-hash 0.7.0",
  "impl-codec",
  "impl-serde",
+ "scale-info",
+ "uint",
+]
+
+[[package]]
+name = "primitive-types"
+version = "0.12.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5cfd65aea0c5fa0bfcc7c9e7ca828c921ef778f43d325325ec84bda371bfa75a"
+dependencies = [
+ "fixed-hash 0.8.0",
+ "impl-codec",
  "scale-info",
  "uint",
 ]
@@ -8304,7 +8328,7 @@ dependencies = [
  "parity-scale-codec",
  "parity-util-mem",
  "parking_lot 0.12.1",
- "primitive-types",
+ "primitive-types 0.11.1",
  "rand 0.7.3",
  "regex",
  "scale-info",
@@ -8537,7 +8561,7 @@ dependencies = [
  "bytes",
  "impl-trait-for-tuples",
  "parity-scale-codec",
- "primitive-types",
+ "primitive-types 0.11.1",
  "sp-externalities",
  "sp-runtime-interface-proc-macro",
  "sp-std",
