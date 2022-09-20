@@ -21,3 +21,4 @@ structopt = "0.3.26"
 rand = { version = "0.8.0", features = ["small_rng"] }
 futures = "0.3.24"
 parking_lot = "0.12.1"
+anyhow = "1.0.65"

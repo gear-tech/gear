@@ -2880,6 +2880,7 @@ dependencies = [
 name = "gear-node-hacker"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "arbitrary",
  "color-eyre",
  "gear-program",
