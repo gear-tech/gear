@@ -138,6 +138,8 @@ pub trait WeightInfo {
 /// Weights for pallet_gear using the Substrate node and recommended hardware.
 pub struct SubstrateWeight<T>(PhantomData<T>);
 impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
+    fn gr_reserve_gas(r: u32, ) -> Weight { Weight::from_ref_time(0) }
+    fn gr_unreserve_gas(r: u32, ) -> Weight { Weight::from_ref_time(0) }
     fn allocation_cost() -> Weight {
         // To be changed with the proper value.
         T::DbWeight::get().writes(1)

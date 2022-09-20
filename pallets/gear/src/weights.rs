@@ -83,6 +83,8 @@ pub trait WeightInfo {
     fn gr_wake(r: u32, ) -> Weight;
     fn gr_create_program_wgas(r: u32, ) -> Weight;
     fn gr_create_program_wgas_per_kb(n: u32, ) -> Weight;
+    fn gr_reserve_gas(r: u32, ) -> Weight;
+    fn gr_unreserve_gas(r: u32, ) -> Weight;
     fn instr_i64const(r: u32, ) -> Weight;
     fn instr_i64load(r: u32, ) -> Weight;
     fn instr_i64store(r: u32, ) -> Weight;
@@ -437,6 +439,8 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
             .saturating_add(Weight::from_ref_time(1_000_547 as u64).saturating_mul(n as u64))
             .saturating_add(T::DbWeight::get().reads(4 as u64))
     }
+    fn gr_reserve_gas(r: u32, ) -> Weight { Weight::from_ref_time(0) }
+    fn gr_unreserve_gas(r: u32, ) -> Weight { Weight::from_ref_time(0) }
     /// The range of component `r` is `[0, 50]`.
     fn instr_i64const(r: u32, ) -> Weight {
         Weight::from_ref_time(3_067_000 as u64)
@@ -1040,6 +1044,8 @@ impl WeightInfo for () {
             .saturating_add(Weight::from_ref_time(1_000_547 as u64).saturating_mul(n as u64))
             .saturating_add(RocksDbWeight::get().reads(4 as u64))
     }
+    fn gr_reserve_gas(r: u32, ) -> Weight { Weight::from_ref_time(0) }
+    fn gr_unreserve_gas(r: u32, ) -> Weight { Weight::from_ref_time(0) }
     /// The range of component `r` is `[0, 50]`.
     fn instr_i64const(r: u32, ) -> Weight {
         Weight::from_ref_time(3_067_000 as u64)

@@ -262,7 +262,7 @@ pub struct HostFnWeights<T: Config> {
     pub alloc: u64,
 
     /// Weight of calling `gr_reserve_gas`.
-    pub gr_reserve_gas: Weight,
+    pub gr_reserve_gas: u64,
 
     /// Weight of calling `gr_unreserve_gas`
     pub gr_unreserve_gas: u64,
