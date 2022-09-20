@@ -4,7 +4,7 @@ use crate::api::{
     config::GearConfig,
     generated::api::{runtime_types::sp_runtime::DispatchError, Event},
 };
-use subxt::{sp_core::H256, TransactionStatus};
+use subxt::{rpc::InvalidUri, sp_core::H256, TransactionStatus};
 
 type TxStatus<'t> = TransactionStatus<'t, GearConfig, DispatchError, Event>;
 
@@ -63,6 +63,8 @@ pub enum Error {
     #[error("Invalid secret key")]
     InvalidSecret,
     #[error(transparent)]
+    InvalidUri(#[from] InvalidUri),
+    #[error(transparent)]
     Io(#[from] std::io::Error),
     #[error(transparent)]
     Keyring(#[from] keyring::Error),
@@ -80,6 +82,8 @@ pub enum Error {
     ProgramNotFound(String),
     #[error("Program has been terminated.")]
     ProgramTerminated,
+    #[error(transparent)]
+    Ws(#[from] jsonrpsee_client_transport::ws::WsHandshakeError),
     #[error("{0}")]
     Schnorrkel(schnorrkel::SignatureError),
     #[error(transparent)]

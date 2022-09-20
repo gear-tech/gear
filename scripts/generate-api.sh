@@ -41,10 +41,8 @@ EOF
 # Check if the required binaries are installed in the machine.
 ###############################################################
 function pre-check() {
-    if ! [ -f "${GEAR_NODE_BIN}" ]; then
-        echo 'gear-node not found, downloading...';
-        "${SCRIPTS}/download-gear.sh ${ROOT_DIR}/res"
-    fi
+    echo 'downloading the latest gear-node...';
+    ${SCRIPTS}/download-gear.sh "${ROOT_DIR}/res/"
 
     if ! [ -x "$(command -v subxt)" ]; then
         echo 'subxt not found, installing subxt...';
@@ -64,19 +62,19 @@ function pre-check() {
 }
 
 
-################
-# Run gear-node.
-##################
+#######################################
+# Run gear-node and capture spec-version.
+##########################################
 function spec-version() {
     spec_version=''
 
-    # Pipe the stderr to read line in sub-shell
+    # Pipe the stderr to read line into sub-shell
     ${GEAR_NODE_BIN} --tmp --dev --rpc-port ${RPC_PORT} 2>&1 > /dev/null |
         while [ "${spec_version}" == '' ] ; do
             read -r line
             if [[ "$line" == *"gear-"* ]]; then
                 spec_version="$(echo ${line} | grep -Eo 'gear-[0-9]{3}' | sed 's/.*-//')"
-                echo ${spec_version}
+                echo "$spec_version"
                 break
             fi
         done &
@@ -101,14 +99,17 @@ function main() {
     # 0. Check if the required commands exist.
     pre-check
 
-    # 1. Run gear-node and capture stderr line by line
+    # 1. Run gear-node and capture spec version
     spec_version="$(spec-version)"
 
-    # 2. generate header and code
+    # 2. generate code
+    sleep 5
     generate-header "${spec_version}" > "${GENERATED_RS}"
     subxt codegen --url "http://0.0.0.0:${RPC_PORT}" | rustfmt --edition=2021 >> "${GENERATED_RS}"
 
     echo "Updated gear-node api in ${GENERATED_RS}." >&2
+    trap "kill 0" EXIT
+
     exit 0
 }
 

@@ -40,7 +40,7 @@ pub struct Info {
 impl Info {
     /// execute command transfer
     pub async fn exec(&self, signer: Signer) -> Result<()> {
-        let mut address = self.address.clone().unwrap_or(signer.address());
+        let mut address = self.address.clone().unwrap_or_else(|| signer.address());
         if address.starts_with("//") {
             address = Pair::from_string(&address, None)
                 .expect("Parse development address failed")
@@ -56,7 +56,7 @@ impl Info {
 
     /// Get balance of address
     pub async fn balance(signer: Signer, address: &str) -> Result<()> {
-        let info = signer.info(&address).await?;
+        let info = signer.info(address).await?;
 
         println!("{info:#?}");
 

@@ -1564,6 +1564,7 @@ dependencies = [
  "env_logger",
  "futures-util",
  "hex",
+ "jsonrpsee-client-transport",
  "keyring",
  "lazy_static",
  "libp2p",

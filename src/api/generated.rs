@@ -2,13 +2,13 @@
 //!
 //! subxt codegen | rustfmt --edition=2021
 //!
-//! spec_version: 110
+//! spec_version: 190
 #![allow(clippy::all)]
 #![allow(missing_docs)]
 #[allow(dead_code, unused_imports, non_camel_case_types)]
 pub mod api {
     use super::api as root_mod;
-    pub static PALLETS: [&str; 18usize] = [
+    pub static PALLETS: [&str; 17usize] = [
         "System",
         "Timestamp",
         "Authorship",
@@ -25,7 +25,6 @@ pub mod api {
         "GearGas",
         "Gear",
         "GearPayment",
-        "ShiftSessionManager",
         "GearDebug",
     ];
     #[derive(:: subxt :: codec :: Decode, :: subxt :: codec :: Encode, Debug)]
@@ -48,7 +47,7 @@ pub mod api {
         GearProgram(gear_program::Event),
         #[codec(index = 14)]
         Gear(gear::Event),
-        #[codec(index = 17)]
+        #[codec(index = 16)]
         GearDebug(gear_debug::Event),
     }
     pub mod system {
@@ -1551,9 +1550,10 @@ pub mod api {
                     let metadata = locked_metadata.read();
                     if metadata.constant_hash("System", "Version")?
                         == [
-                            182u8, 198u8, 97u8, 147u8, 77u8, 87u8, 141u8, 92u8, 136u8, 20u8, 178u8,
-                            27u8, 96u8, 59u8, 126u8, 69u8, 191u8, 72u8, 17u8, 214u8, 108u8, 106u8,
-                            80u8, 47u8, 67u8, 173u8, 95u8, 242u8, 131u8, 81u8, 215u8, 218u8,
+                            213u8, 190u8, 28u8, 139u8, 149u8, 85u8, 78u8, 148u8, 240u8, 74u8,
+                            231u8, 209u8, 103u8, 196u8, 123u8, 223u8, 220u8, 80u8, 88u8, 177u8,
+                            175u8, 238u8, 153u8, 94u8, 17u8, 89u8, 28u8, 49u8, 231u8, 200u8, 136u8,
+                            60u8,
                         ]
                     {
                         let pallet = metadata.pallet("System")?;
@@ -7410,7 +7410,12 @@ pub mod api {
                     ::subxt::StorageEntryKey::Plain
                 }
             }
-            pub struct GasNodes<'a>(pub &'a runtime_types::gear_core::ids::MessageId);
+            pub struct GasNodes<'a>(
+                pub  &'a runtime_types::gear_common::gas_provider::node::GasNodeId<
+                    runtime_types::gear_core::ids::MessageId,
+                    runtime_types::gear_core::ids::ReservationId,
+                >,
+            );
             impl ::subxt::StorageEntry for GasNodes<'_> {
                 const PALLET: &'static str = "GearGas";
                 const STORAGE: &'static str = "GasNodes";
@@ -7478,7 +7483,10 @@ pub mod api {
                 }
                 pub fn gas_nodes(
                     &self,
-                    _0: &'a runtime_types::gear_core::ids::MessageId,
+                    _0: &'a runtime_types::gear_common::gas_provider::node::GasNodeId<
+                        runtime_types::gear_core::ids::MessageId,
+                        runtime_types::gear_core::ids::ReservationId,
+                    >,
                     block_hash: ::core::option::Option<T::Hash>,
                 ) -> impl ::core::future::Future<
                     Output = ::core::result::Result<
@@ -7504,10 +7512,10 @@ pub mod api {
                         };
                         if runtime_storage_hash
                             == [
-                                55u8, 26u8, 98u8, 40u8, 159u8, 156u8, 76u8, 198u8, 246u8, 77u8,
-                                135u8, 51u8, 175u8, 212u8, 227u8, 17u8, 230u8, 82u8, 43u8, 58u8,
-                                181u8, 189u8, 43u8, 23u8, 248u8, 24u8, 102u8, 158u8, 156u8, 23u8,
-                                50u8, 138u8,
+                                57u8, 91u8, 183u8, 208u8, 112u8, 32u8, 28u8, 146u8, 55u8, 22u8,
+                                92u8, 103u8, 94u8, 102u8, 43u8, 117u8, 72u8, 197u8, 28u8, 60u8,
+                                111u8, 228u8, 82u8, 197u8, 74u8, 180u8, 98u8, 217u8, 49u8, 59u8,
+                                164u8, 161u8,
                             ]
                         {
                             let entry = GasNodes(_0);
@@ -7538,10 +7546,10 @@ pub mod api {
                         };
                         if runtime_storage_hash
                             == [
-                                55u8, 26u8, 98u8, 40u8, 159u8, 156u8, 76u8, 198u8, 246u8, 77u8,
-                                135u8, 51u8, 175u8, 212u8, 227u8, 17u8, 230u8, 82u8, 43u8, 58u8,
-                                181u8, 189u8, 43u8, 23u8, 248u8, 24u8, 102u8, 158u8, 156u8, 23u8,
-                                50u8, 138u8,
+                                57u8, 91u8, 183u8, 208u8, 112u8, 32u8, 28u8, 146u8, 55u8, 22u8,
+                                92u8, 103u8, 94u8, 102u8, 43u8, 117u8, 72u8, 197u8, 28u8, 60u8,
+                                111u8, 228u8, 82u8, 197u8, 74u8, 180u8, 98u8, 217u8, 49u8, 59u8,
+                                164u8, 161u8,
                             ]
                         {
                             client.storage().iter(block_hash).await
@@ -8211,9 +8219,10 @@ pub mod api {
                     let metadata = locked_metadata.read();
                     if metadata.constant_hash("Gear", "Schedule")?
                         == [
-                            135u8, 233u8, 173u8, 191u8, 237u8, 170u8, 117u8, 242u8, 138u8, 229u8,
-                            120u8, 192u8, 150u8, 54u8, 69u8, 79u8, 66u8, 189u8, 239u8, 111u8, 6u8,
-                            189u8, 70u8, 5u8, 163u8, 71u8, 58u8, 162u8, 94u8, 71u8, 197u8, 112u8,
+                            116u8, 108u8, 149u8, 16u8, 137u8, 81u8, 168u8, 51u8, 235u8, 174u8,
+                            108u8, 138u8, 7u8, 178u8, 123u8, 233u8, 124u8, 124u8, 226u8, 96u8,
+                            47u8, 200u8, 253u8, 141u8, 163u8, 201u8, 72u8, 107u8, 25u8, 241u8,
+                            202u8, 135u8,
                         ]
                     {
                         let pallet = metadata.pallet("Gear")?;
@@ -8281,102 +8290,6 @@ pub mod api {
     pub mod gear_payment {
         use super::root_mod;
         use super::runtime_types;
-    }
-    pub mod shift_session_manager {
-        use super::root_mod;
-        use super::runtime_types;
-        pub mod storage {
-            use super::runtime_types;
-            pub struct InitialValidators;
-            impl ::subxt::StorageEntry for InitialValidators {
-                const PALLET: &'static str = "ShiftSessionManager";
-                const STORAGE: &'static str = "InitialValidators";
-                type Value = ::std::vec::Vec<::subxt::sp_core::crypto::AccountId32>;
-                fn key(&self) -> ::subxt::StorageEntryKey {
-                    ::subxt::StorageEntryKey::Plain
-                }
-            }
-            pub struct StorageApi<'a, T: ::subxt::Config> {
-                client: &'a ::subxt::Client<T>,
-            }
-            impl<'a, T: ::subxt::Config> StorageApi<'a, T> {
-                pub fn new(client: &'a ::subxt::Client<T>) -> Self {
-                    Self { client }
-                }
-                #[doc = " Validators of first two sessions."]
-                pub fn initial_validators(
-                    &self,
-                    block_hash: ::core::option::Option<T::Hash>,
-                ) -> impl ::core::future::Future<
-                    Output = ::core::result::Result<
-                        ::core::option::Option<
-                            ::std::vec::Vec<::subxt::sp_core::crypto::AccountId32>,
-                        >,
-                        ::subxt::BasicError,
-                    >,
-                > + 'a {
-                    let client = self.client;
-                    async move {
-                        let runtime_storage_hash = {
-                            let locked_metadata = client.metadata();
-                            let metadata = locked_metadata.read();
-                            match metadata.storage_hash::<InitialValidators>() {
-                                Ok(hash) => hash,
-                                Err(e) => return Err(e.into()),
-                            }
-                        };
-                        if runtime_storage_hash
-                            == [
-                                120u8, 27u8, 249u8, 169u8, 208u8, 81u8, 31u8, 182u8, 199u8, 197u8,
-                                242u8, 72u8, 43u8, 12u8, 221u8, 71u8, 182u8, 133u8, 22u8, 21u8,
-                                162u8, 120u8, 16u8, 3u8, 94u8, 191u8, 241u8, 208u8, 242u8, 14u8,
-                                172u8, 107u8,
-                            ]
-                        {
-                            let entry = InitialValidators;
-                            client.storage().fetch(&entry, block_hash).await
-                        } else {
-                            Err(::subxt::MetadataError::IncompatibleMetadata.into())
-                        }
-                    }
-                }
-            }
-        }
-        pub mod constants {
-            use super::runtime_types;
-            pub struct ConstantsApi<'a, T: ::subxt::Config> {
-                client: &'a ::subxt::Client<T>,
-            }
-            impl<'a, T: ::subxt::Config> ConstantsApi<'a, T> {
-                pub fn new(client: &'a ::subxt::Client<T>) -> Self {
-                    Self { client }
-                }
-                #[doc = " A fraction of initially available validators to be selected for a session"]
-                pub fn selected_fraction(
-                    &self,
-                ) -> ::core::result::Result<
-                    runtime_types::sp_arithmetic::per_things::Percent,
-                    ::subxt::BasicError,
-                > {
-                    let locked_metadata = self.client.metadata();
-                    let metadata = locked_metadata.read();
-                    if metadata.constant_hash("ShiftSessionManager", "SelectedFraction")?
-                        == [
-                            3u8, 31u8, 161u8, 149u8, 203u8, 76u8, 227u8, 20u8, 40u8, 37u8, 76u8,
-                            98u8, 88u8, 50u8, 140u8, 133u8, 91u8, 89u8, 92u8, 192u8, 29u8, 110u8,
-                            90u8, 156u8, 137u8, 72u8, 151u8, 218u8, 18u8, 75u8, 35u8, 26u8,
-                        ]
-                    {
-                        let pallet = metadata.pallet("ShiftSessionManager")?;
-                        let constant = pallet.constant("SelectedFraction")?;
-                        let value = ::subxt::codec::Decode::decode(&mut &constant.value[..])?;
-                        Ok(value)
-                    } else {
-                        Err(::subxt::MetadataError::IncompatibleMetadata.into())
-                    }
-                }
-            }
-        }
     }
     pub mod gear_debug {
         use super::root_mod;
@@ -9041,8 +8954,10 @@ pub mod api {
                             consumed: ::core::primitive::bool,
                         },
                         #[codec(index = 1)]
-                        ReservedLocal { id: _0, value: _2 },
+                        Cut { id: _0, value: _2 },
                         #[codec(index = 2)]
+                        Reserved { id: _0, value: _2 },
+                        #[codec(index = 3)]
                         SpecifiedLocal {
                             parent: _1,
                             value: _2,
@@ -9050,8 +8965,15 @@ pub mod api {
                             refs: runtime_types::gear_common::gas_provider::node::ChildrenRefs,
                             consumed: ::core::primitive::bool,
                         },
-                        #[codec(index = 3)]
+                        #[codec(index = 4)]
                         UnspecifiedLocal { parent: _1, lock: _2 },
+                    }
+                    #[derive(:: subxt :: codec :: Decode, :: subxt :: codec :: Encode, Debug)]
+                    pub enum GasNodeId<_0, _1> {
+                        #[codec(index = 0)]
+                        Node(_0),
+                        #[codec(index = 1)]
+                        Reservation(_1),
                     }
                 }
             }
@@ -9149,6 +9071,8 @@ pub mod api {
                 pub struct MessageId(pub [::core::primitive::u8; 32usize]);
                 #[derive(:: subxt :: codec :: Decode, :: subxt :: codec :: Encode, Debug)]
                 pub struct ProgramId(pub [::core::primitive::u8; 32usize]);
+                #[derive(:: subxt :: codec :: Decode, :: subxt :: codec :: Encode, Debug)]
+                pub struct ReservationId(pub [::core::primitive::u8; 32usize]);
             }
             pub mod memory {
                 use super::runtime_types;
@@ -9251,7 +9175,7 @@ pub mod api {
                 GearProgram(runtime_types::pallet_gear_program::pallet::Call),
                 #[codec(index = 14)]
                 Gear(runtime_types::pallet_gear::pallet::Call),
-                #[codec(index = 17)]
+                #[codec(index = 16)]
                 GearDebug(runtime_types::pallet_gear_debug::pallet::Call),
             }
             #[derive(:: subxt :: codec :: Decode, :: subxt :: codec :: Encode, Debug)]
@@ -9274,7 +9198,7 @@ pub mod api {
                 GearProgram(runtime_types::pallet_gear_program::pallet::Event),
                 #[codec(index = 14)]
                 Gear(runtime_types::pallet_gear::pallet::Event),
-                #[codec(index = 17)]
+                #[codec(index = 16)]
                 GearDebug(runtime_types::pallet_gear_debug::pallet::Event),
             }
             #[derive(:: subxt :: codec :: Decode, :: subxt :: codec :: Encode, Debug)]
@@ -10894,13 +10818,6 @@ pub mod api {
                     Debug,
                 )]
                 pub struct Perbill(pub ::core::primitive::u32);
-                #[derive(
-                    :: subxt :: codec :: CompactAs,
-                    :: subxt :: codec :: Decode,
-                    :: subxt :: codec :: Encode,
-                    Debug,
-                )]
-                pub struct Percent(pub ::core::primitive::u8);
             }
         }
         pub mod sp_consensus_babe {
@@ -11795,9 +11712,9 @@ pub mod api {
             };
             if runtime_metadata_hash
                 != [
-                    115u8, 200u8, 240u8, 196u8, 8u8, 165u8, 252u8, 169u8, 230u8, 222u8, 203u8,
-                    137u8, 47u8, 250u8, 48u8, 196u8, 56u8, 78u8, 251u8, 250u8, 156u8, 24u8, 152u8,
-                    50u8, 118u8, 170u8, 121u8, 11u8, 241u8, 94u8, 18u8, 237u8,
+                    213u8, 6u8, 119u8, 199u8, 32u8, 177u8, 131u8, 211u8, 245u8, 216u8, 162u8, 63u8,
+                    36u8, 233u8, 225u8, 35u8, 64u8, 98u8, 119u8, 80u8, 149u8, 65u8, 42u8, 14u8,
+                    57u8, 41u8, 60u8, 70u8, 252u8, 81u8, 229u8, 136u8,
                 ]
             {
                 Err(::subxt::MetadataError::IncompatibleMetadata)
@@ -11896,11 +11813,6 @@ pub mod api {
         pub fn gear(&self) -> gear::constants::ConstantsApi<'a, T> {
             gear::constants::ConstantsApi::new(self.client)
         }
-        pub fn shift_session_manager(
-            &self,
-        ) -> shift_session_manager::constants::ConstantsApi<'a, T> {
-            shift_session_manager::constants::ConstantsApi::new(self.client)
-        }
     }
     pub struct StorageApi<'a, T: ::subxt::Config> {
         client: &'a ::subxt::Client<T>,
@@ -11947,9 +11859,6 @@ pub mod api {
         }
         pub fn gear_gas(&self) -> gear_gas::storage::StorageApi<'a, T> {
             gear_gas::storage::StorageApi::new(self.client)
-        }
-        pub fn shift_session_manager(&self) -> shift_session_manager::storage::StorageApi<'a, T> {
-            shift_session_manager::storage::StorageApi::new(self.client)
         }
         pub fn gear_debug(&self) -> gear_debug::storage::StorageApi<'a, T> {
             gear_debug::storage::StorageApi::new(self.client)

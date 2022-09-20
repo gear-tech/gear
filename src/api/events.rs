@@ -28,7 +28,6 @@ pub type InBlockEvents = TransactionEvents<GearConfig, Event>;
 
 impl Api {
     /// Subscribe all events
-    #[allow(unused)]
     pub async fn events(&self) -> Result<Events<'_>> {
         Ok(self.0.events().subscribe().await?)
     }
