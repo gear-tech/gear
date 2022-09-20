@@ -19,7 +19,7 @@
 //! Gas reservation structures.
 
 use crate::ids::{MessageId, ReservationId};
-use alloc::{collections::BTreeMap, vec::Vec};
+use alloc::collections::BTreeMap;
 use codec::{Decode, Encode};
 use scale_info::TypeInfo;
 
@@ -27,7 +27,7 @@ use scale_info::TypeInfo;
 #[derive(Debug, Clone)]
 pub struct GasReserver {
     map: GasReservationMap,
-    tasks: Vec<GasReservationTask>,
+    tasks: BTreeMap<ReservationId, GasReservationTask>,
 }
 
 impl GasReserver {
@@ -35,7 +35,7 @@ impl GasReserver {
     pub fn new(map: GasReservationMap) -> Self {
         Self {
             map,
-            tasks: Vec::new(),
+            tasks: Default::default(),
         }
     }
 
@@ -52,8 +52,10 @@ impl GasReserver {
             "reservation ID expected to be unique; qed"
         );
 
-        self.tasks
-            .push(GasReservationTask::CreateReservation { id, amount, bn });
+        let prev_task = self
+            .tasks
+            .insert(id, GasReservationTask::CreateReservation { amount, bn });
+        assert_eq!(prev_task, None, "reservation ID collision; qed");
 
         id
     }
@@ -61,24 +63,31 @@ impl GasReserver {
     /// Unreserves gas.
     pub fn unreserve(&mut self, id: ReservationId) -> Option<u32> {
         let GasReservationSlot { amount, bn } = self.map.remove(&id)?;
-        self.tasks
-            .push(GasReservationTask::RemoveReservation { id, bn });
+        if self.tasks.remove(&id).is_none() {
+            self.tasks.insert(
+                id,
+                GasReservationTask::RemoveReservation { bn, spent: None },
+            );
+        }
         Some(amount)
     }
 
     /// Split reserver into parts.
-    pub fn into_parts(self) -> (GasReservationMap, Vec<GasReservationTask>) {
+    pub fn into_parts(
+        self,
+    ) -> (
+        GasReservationMap,
+        BTreeMap<ReservationId, GasReservationTask>,
+    ) {
         (self.map, self.tasks)
     }
 }
 
 /// Gas reservation task.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub enum GasReservationTask {
     /// Create a new reservation.
     CreateReservation {
-        /// Reservation ID.
-        id: ReservationId,
         /// Amount of reserved gas.
         amount: u32,
         /// Block number which reservation will be removed to.
@@ -86,10 +95,10 @@ pub enum GasReservationTask {
     },
     /// Remove reservation.
     RemoveReservation {
-        /// Reservation ID.
-        id: ReservationId,
         /// Block number which reservation will be removed to.
         bn: u32,
+        /// Amount of spent reserved gas.
+        spent: Option<u32>,
     },
 }
 

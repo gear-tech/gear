@@ -22,7 +22,7 @@ use crate::{
 };
 use common::{
     event::*,
-    scheduler::{ScheduledTask, TaskHandler, TaskPool},
+    scheduler::{ScheduledTask, TaskPool},
     storage::*,
     CodeStorage, GasTree, Origin, Program,
 };
@@ -210,7 +210,7 @@ where
     }
 
     fn message_consumed(&mut self, message_id: MessageId) {
-        Pallet::<T>::consume_message(message_id)
+        Pallet::<T>::consume_and_retrieve(message_id)
     }
 
     fn send_dispatch(&mut self, message_id: MessageId, dispatch: Dispatch) {
@@ -384,9 +384,9 @@ where
     ) {
         let (gas_reservation_map, tasks) = gas_reserver.into_parts();
 
-        for task in tasks {
+        for (id, task) in tasks {
             match task {
-                GasReservationTask::CreateReservation { id, amount, bn } => {
+                GasReservationTask::CreateReservation { amount, bn } => {
                     log::debug!(
                         "Reserved: {:?} from {:?} with {:?} for {} blocks",
                         amount,
@@ -404,8 +404,12 @@ where
                     )
                     .unwrap_or_else(|e| unreachable!("Scheduling logic invalidated! {:?}", e));
                 }
-                GasReservationTask::RemoveReservation { id, bn } => {
-                    <Self as TaskHandler<T::AccountId>>::remove_gas_reservation(self, id);
+                GasReservationTask::RemoveReservation { bn, spent } => {
+                    let spent = spent.unwrap_or(0);
+                    GasHandlerOf::<T>::split_with_value(id, message_id, spent as u64)
+                        .unwrap_or_else(|e| unreachable!("GasTree corrupted: {:?}", e));
+
+                    Pallet::<T>::consume_and_retrieve(id);
 
                     let _ = TaskPoolOf::<T>::delete(
                         BlockNumberFor::<T>::from(bn),

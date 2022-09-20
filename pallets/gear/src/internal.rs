@@ -260,10 +260,10 @@ where
         Self::transfer_reserved(&external, &block_author, value);
     }
 
-    /// Consumes message by given `MessageId`.
+    /// Consumes message by given `MessageId` or gas reservation by `ReservationId`.
     ///
     /// Updates currency and balances data on imbalance creation.
-    pub(crate) fn consume_message(id: impl Into<GasNodeIdOf<GasHandlerOf<T>>>) {
+    pub(crate) fn consume_and_retrieve(id: impl Into<GasNodeIdOf<GasHandlerOf<T>>>) {
         // Consuming `GasNode`, returning optional outcome with imbalance.
         let outcome = GasHandlerOf::<T>::consume(id)
             .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
@@ -275,11 +275,7 @@ where
 
             // Unreserving funds, if left non-zero amount of gas.
             if !gas_left.is_zero() {
-                log::debug!(
-                    "Message consumed. Unreserving {} from {:?}",
-                    gas_left,
-                    external
-                );
+                log::debug!("Consumed. Unreserving {} from {:?}", gas_left, external);
 
                 // Converting gas amount into value.
                 let value = T::GasPrice::gas_price(gas_left);
@@ -473,7 +469,7 @@ where
         let user_queries = matches!(reason, Reason::Runtime(MessageClaimed | MessageReplied));
 
         // Optionally consuming message.
-        user_queries.then(|| Self::consume_message(mailboxed.id()));
+        user_queries.then(|| Self::consume_and_retrieve(mailboxed.id()));
 
         // Taking data for funds transfer.
         let user_id = mailboxed.destination();

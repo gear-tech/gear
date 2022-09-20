@@ -72,7 +72,7 @@ where
         // }
 
         // Consuming gas handler for mailboxed message.
-        Pallet::<T>::consume_message(mailboxed.id());
+        Pallet::<T>::consume_and_retrieve(mailboxed.id());
     }
 
     // TODO: Generate system signal (instead of reply?) (issue #647).
@@ -144,7 +144,7 @@ where
         }
 
         // Consuming gas handler for waitlisted message.
-        Pallet::<T>::consume_message(waitlisted.id());
+        Pallet::<T>::consume_and_retrieve(waitlisted.id());
     }
 
     fn remove_paused_program(&mut self, _program_id: ProgramId) {
@@ -157,6 +157,6 @@ where
 
     fn remove_gas_reservation(&mut self, reservation_id: ReservationId) {
         log::debug!("Remove reservation with {:?}", reservation_id);
-        Pallet::<T>::consume_message(reservation_id);
+        Pallet::<T>::consume_and_retrieve(reservation_id);
     }
 }

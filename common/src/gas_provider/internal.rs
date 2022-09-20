@@ -104,6 +104,7 @@ where
         Value = GasNode<ExternalId, MapKey, Balance>,
     >,
     GasNodeId<MapKey, MapReservationKey>: From<MapKey>,
+    GasNodeId<MapKey, MapReservationKey>: From<MapReservationKey>,
 {
     pub(super) fn get_node(
         key: impl Into<GasNodeId<MapKey, MapReservationKey>>,
@@ -475,6 +476,7 @@ where
         Value = GasNode<ExternalId, MapKey, Balance>,
     >,
     GasNodeId<MapKey, MapReservationKey>: From<MapKey>,
+    GasNodeId<MapKey, MapReservationKey>: From<MapReservationKey>,
 {
     type ExternalOrigin = ExternalId;
     type Key = MapKey;
