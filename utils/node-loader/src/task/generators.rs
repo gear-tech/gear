@@ -1,4 +1,7 @@
+use std::pin::Pin;
+
 use arbitrary::Unstructured;
+use futures::Future;
 use rand::RngCore;
 
 use crate::{
@@ -8,11 +11,11 @@ use crate::{
 
 pub(crate) fn get_some_seed_generator<Rng: utils::Rng>(
     seed_variant: Option<SeedVariant>,
-) -> Box<dyn RngCore> {
+) -> Box<dyn RngCore + Send + Sync> {
     match seed_variant {
-        None => Box::new(Rng::seed_from_u64(now())) as Box<dyn RngCore>,
-        Some(SeedVariant::Dynamic(v)) => Box::new(Rng::seed_from_u64(v)) as Box<dyn RngCore>,
-        Some(SeedVariant::Constant(v)) => Box::new(ConstantGenerator::new(v)) as Box<dyn RngCore>,
+        None => Box::new(Rng::seed_from_u64(now())) as Box<dyn RngCore + Send + Sync>,
+        Some(SeedVariant::Dynamic(v)) => Box::new(Rng::seed_from_u64(v)) as Box<dyn RngCore + Send + Sync>,
+        Some(SeedVariant::Constant(v)) => Box::new(ConstantGenerator::new(v)) as Box<dyn RngCore + Send + Sync>,
     }
 }
 
@@ -49,4 +52,11 @@ impl RngCore for ConstantGenerator {
     fn try_fill_bytes(&mut self, _dest: &mut [u8]) -> Result<(), rand::Error> {
         unimplemented!()
     }
+}
+
+pub(crate) type FutureSomeReporter = Pin<Box<dyn Future<Output = crate::reporter::SomeReporter> + Send + 'static>>;
+
+pub(crate) trait TaskGen{
+    type Output;
+    fn gen(self: &Self) -> Self::Output;
 }

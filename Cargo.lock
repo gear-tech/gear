@@ -2307,6 +2307,12 @@ dependencies = [
  "sp-runtime-interface",
  "sp-std",
  "sp-storage",
+ "sp-application-crypto 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-io 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-runtime-interface 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-storage 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
 ]
 
 [[package]]
@@ -5183,6 +5189,20 @@ dependencies = [
 [[package]]
 name = "num"
 version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "43db66d1170d347f9a065114077f7dccb00c1b9478c89384490a3425279a4606"
+dependencies = [
+ "num-bigint 0.4.3",
+ "num-complex",
+ "num-integer",
+ "num-iter",
+ "num-rational 0.4.1",
+ "num-traits",
+]
+
+[[package]]
+name = "num-bigint"
+version = "0.2.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "43db66d1170d347f9a065114077f7dccb00c1b9478c89384490a3425279a4606"
 dependencies = [
@@ -9145,6 +9165,20 @@ source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#267d
 name = "sp-storage"
 version = "6.0.0"
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#267d1ef24d675858090f7078868e96d24d4a105e"
+dependencies = [
+ "impl-serde",
+ "parity-scale-codec",
+ "ref-cast",
+ "serde",
+ "sp-debug-derive 4.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "sp-std 4.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
+name = "sp-storage"
+version = "6.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5dab53af846068e3e0716d3ccc70ea0db44035c79b2ed5821aaa6635039efa37"
 dependencies = [
  "impl-serde",
  "parity-scale-codec",

@@ -7,12 +7,11 @@
 
 use std::{fs::File, io::Write};
 
+use futures::stream::StreamExt;
 use rand::rngs::SmallRng;
 
-use anyhow::Result;
 use args::{parse_cli_params, LoadParams, Params};
 use task::{generators, TaskPool};
-use utils::Rng;
 
 mod args;
 mod reporter;
@@ -22,36 +21,39 @@ mod utils;
 /// Main entry-point
 #[tokio::main]
 async fn main() {
-    let params = parse_cli_params();
-    if let Err(e) = run(params).await {
+    if let Err(e) = run().await {
         eprintln!("{e:}");
-        std::process::exit(1);
     }
 }
 
-async fn run(params: Params) -> Result<()> {
+async fn run() -> Result<(), String> {
+    let params = parse_cli_params();
+
     match params {
         Params::Dump { seed } => dump_with_seed(seed),
         Params::Load(load_params) => load_node(load_params).await,
     }
 }
 
-fn dump_with_seed(seed: u64) -> Result<()> {
+// todo use anyhow?
+fn dump_with_seed(seed: u64) -> Result<(), String> {
     let code = generators::generate_gear_program::<SmallRng>(seed);
-    let mut file = File::create("out.wasm")?;
-    file.write_all(&code)?;
+    let mut file = File::create("out.wasm").map_err(|e| e.to_string())?;
+    file.write_all(&code).map_err(|e| e.to_string())?;
     Ok(())
 }
 
-async fn load_node(params: LoadParams) -> Result<()> {
+async fn load_node(params: LoadParams) -> Result<(), String> {
     let gear_api = utils::obtain_gear_api(&params.endpoint, &params.user).await?;
-    let mut task_pool = TaskPool::<SmallRng>::try_new(params.workers, params.seed, gear_api)?;
+    let mut task_pool = TaskPool::try_new(params.workers, params.seed)?;
 
-    loop {
-        let reporters = task_pool.run().await?;
+    task_pool.run(gear_api).await;
 
-        for r in reporters {
-            r.report()?;
+    for rep in task_pool.next().await {
+        match rep {
+            Ok(r) => r.report()?,
+            Err(e) => println!("Error inside task: {e}"),
         }
     }
+    Ok(())
 }

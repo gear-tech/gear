@@ -2,17 +2,15 @@
 //! logger to solve logs jumbling problem in a
 //! multithreaded environment.
 
-use anyhow::Result;
-
 pub(crate) type SomeReporter = Box<dyn Reporter>;
 
 pub(crate) trait Reporter: Send {
     /// Save data to reported later.
-    fn record(&mut self, data: String) -> Result<()>;
+    fn record(&mut self, data: String) -> Result<(), String>;
 
     /// Report saved data into any destination either file, socket
     /// or stdout.
-    fn report(&self) -> Result<()>;
+    fn report(&self) -> Result<(), String>;
 }
 
 // todo make macro to use "{}" stuff instead of data argument in `record`
@@ -32,12 +30,12 @@ impl StdoutReporter {
 }
 
 impl Reporter for StdoutReporter {
-    fn record(&mut self, data: String) -> Result<()> {
+    fn record(&mut self, data: String) -> Result<(), String> {
         self.reports.push(data);
         Ok(())
     }
 
-    fn report(&self) -> Result<()> {
+    fn report(&self) -> Result<(), String> {
         println!("Reporter with seed {} reports:", self.id);
         println!("==============================================");
         self.reports.iter().for_each(|record| {

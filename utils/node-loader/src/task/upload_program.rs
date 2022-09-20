@@ -1,43 +1,49 @@
-use anyhow::Result;
-use futures::Future;
+use std::sync::{Arc, Mutex};
+
 use gear_program::api::{generated::api::gear::calls::UploadProgram, Api};
-use rand::RngCore;
+use rand::{RngCore, rngs::SmallRng};
 
 use crate::{
     reporter::{Reporter, SomeReporter, StdoutReporter},
     task::generators,
-    utils,
 };
+
+use super::generators::{TaskGen, FutureSomeReporter};
 
 pub(crate) struct UploadProgramTaskGen {
     gear_api: Api,
-    code_seed_gen: Box<dyn RngCore>,
+    code_seed_gen: Arc<Mutex<dyn RngCore + Send + Sync>>,
 }
 
 impl UploadProgramTaskGen {
-    pub(super) fn new(gear_api: Api, code_rand_gen: Box<dyn RngCore>) -> Self {
+    pub(super) fn try_new(gear_api: Api, code_seed_gen: Arc<Mutex<Box<dyn RngCore + Send + Sync>>> ) -> Self {
         Self {
-            code_seed_gen: code_rand_gen,
+            code_seed_gen,
             gear_api,
         }
     }
+}
 
-    pub(super) fn gen<Rng: utils::Rng>(
-        &mut self,
-    ) -> impl Future<Output = Result<SomeReporter>> + Send + 'static {
-        upload_program_task::<Rng>(self.gear_api.clone(), self.code_seed_gen.next_u64())
+impl TaskGen for UploadProgramTaskGen {
+    type Output = FutureSomeReporter;
+    fn gen(&self) -> Self::Output {
+        let seed = self
+            .code_seed_gen
+            .lock()
+            .expect("code seed generator panic")
+            .next_u64();
+
+        Box::pin(upload_program_task(self.gear_api.clone(), seed))
     }
 }
 
-async fn upload_program_task<Rng: utils::Rng>(
-    gear_api: Api,
-    code_gen_seed: u64,
-) -> Result<SomeReporter> {
-    let signer = gear_api.try_signer(None)?;
+async fn upload_program_task(gear_api: Api, code_gen_seed: u64) -> SomeReporter {
+    // todo avoid panics
+    let signer = gear_api.try_signer(None).unwrap();
 
     let mut reporter = StdoutReporter::new(code_gen_seed);
 
-    let code = generators::generate_gear_program::<Rng>(code_gen_seed);
+    let code = generators::generate_gear_program::<SmallRng>(code_gen_seed);
     let _ = reporter.record(format!("Gen code size = {}", code.len()));
 
     let payload = UploadProgram {
@@ -51,8 +57,8 @@ async fn upload_program_task<Rng: utils::Rng>(
     if let Err(e) = signer.submit_program(payload).await {
         let _ = reporter.record(format!("ERROR: {}", e));
     } else {
-        let _ = reporter.record("Successfully received response".into());
+        let _ = reporter.record("Successfully receive response".into());
     }
 
-    Ok(Box::new(reporter))
+    Box::new(reporter)
 }
