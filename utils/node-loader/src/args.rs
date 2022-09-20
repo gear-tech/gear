@@ -1,5 +1,6 @@
 //! CLI args for the `gear-node-loader`
 
+use anyhow::Error;
 use std::str::FromStr;
 use structopt::StructOpt;
 
@@ -50,23 +51,23 @@ pub(crate) enum SeedVariant {
 }
 
 impl FromStr for SeedVariant {
-    type Err = String;
+    type Err = Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let s = s.to_lowercase();
         let input = s.split('=').collect::<Vec<_>>();
         if input.len() != 2 {
-            return Err(format!(
+            return Err(anyhow::anyhow!(
                 "Invalid seed argument format {s:?}. Must be 'seed_variant=num'"
             ));
         }
 
         let variant = input[0];
-        let num = input[1].parse::<u64>().map_err(|e| e.to_string())?;
+        let num = input[1].parse::<u64>()?;
         match variant {
             "start" => Ok(SeedVariant::Dynamic(num)),
             "constant" => Ok(SeedVariant::Constant(num)),
-            v => Err(format!("Invalid variant {v}")),
+            v => Err(anyhow::anyhow!("Invalid variant {v}")),
         }
     }
 }
