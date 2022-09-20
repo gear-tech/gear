@@ -147,6 +147,7 @@ pub fn set_program(program_id: H256, code: Vec<u8>, static_pages: WasmPageNumber
             pages_with_data: persistent_pages_data.keys().copied().collect(),
             code_hash: code_id,
             state: ProgramState::Initialized,
+            gas_reservation_map: GasReservationMap::default(),
         },
         persistent_pages_data,
     )
