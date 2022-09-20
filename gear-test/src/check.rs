@@ -727,7 +727,7 @@ where
                         .unwrap()
                         .iter()
                         .for_each(|line| {
-                            println!("{}", &thread::current().id(), line);
+                            println!("{}", line);
                         });
                 }
                 println!(

@@ -2835,6 +2835,7 @@ dependencies = [
 name = "gear-node-loader"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "arbitrary",
  "color-eyre",
  "futures",

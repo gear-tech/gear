@@ -1,5 +1,6 @@
 use std::marker::PhantomData;
 
+use anyhow::Result;
 use gear_program::api::Api;
 use tokio::task::JoinHandle;
 
@@ -11,7 +12,7 @@ mod upload_program;
 
 pub(crate) struct TaskPool<Rng: crate::Rng> {
     up_task_gen: UploadProgramTaskGen,
-    tasks: Vec<JoinHandle<SomeReporter>>,
+    tasks: Vec<JoinHandle<Result<SomeReporter>>>,
     _phantom: PhantomData<Rng>,
 }
 
@@ -23,10 +24,10 @@ impl<Rng: crate::Rng> TaskPool<Rng> {
         size: usize,
         seed_variant: Option<SeedVariant>,
         gear_api: Api,
-    ) -> Result<Self, String> {
+    ) -> Result<Self> {
         if size >= Self::MIN_SIZE && size <= Self::MAX_SIZE {
             Ok(Self {
-                up_task_gen: UploadProgramTaskGen::try_new(
+                up_task_gen: UploadProgramTaskGen::new(
                     gear_api,
                     generators::get_some_seed_generator::<Rng>(seed_variant),
                 ),
@@ -34,7 +35,7 @@ impl<Rng: crate::Rng> TaskPool<Rng> {
                 _phantom: PhantomData,
             })
         } else {
-            Err(format!(
+            Err(anyhow::anyhow!(
                 "Can't create task pool with such size {size:?}. \
                 Allowed minimum size is {:?} and maximum {:?}",
                 Self::MIN_SIZE,
@@ -43,7 +44,7 @@ impl<Rng: crate::Rng> TaskPool<Rng> {
         }
     }
 
-    pub(crate) async fn run(&mut self) -> Result<Vec<SomeReporter>, ()> {
+    pub(crate) async fn run(&mut self) -> Result<Vec<SomeReporter>> {
         let TaskPool { tasks, .. } = self;
         let mut results = Vec::with_capacity(tasks.capacity());
 
@@ -54,10 +55,10 @@ impl<Rng: crate::Rng> TaskPool<Rng> {
         }
 
         for task in tasks {
-            let res = task.await.map_err(|_| ())?;
+            let res = task.await?;
             results.push(res);
         }
 
-        Ok(results)
+        Ok(results.into_iter().filter_map(|v| v.ok()).collect())
     }
 }
