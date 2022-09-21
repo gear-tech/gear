@@ -227,6 +227,34 @@ pub fn main() -> Result<ChainSpec, String> {
                         hex!["a94919797c3cd522ab4de174b9bbd830020372f4c6445ba7d90b491c3547eabf"]
                             .unchecked_into(),
                     ),
+                    (
+                        // Stash account
+                        hex!["ec84321d9751c066fb923035073a73d467d44642c457915e7496c52f45db1f65"]
+                            .into(),
+                        // Controller account
+                        hex!["18785a9a9853652d403cfa7e89afb873c22c53e2f153c9fa5af856028de6a75f"]
+                            .into(),
+                        // 5FqG2TKEPQaqfQZ5hLk7auUYA9oNQeqMbDbUvMRpDZnxk4hr
+                        hex!["ec84321d9751c066fb923035073a73d467d44642c457915e7496c52f45db1f65"]
+                            .unchecked_into(),
+                        // 5H8iTsGjMAhMqJcscNiPme75SNFmKMYByi7vzBKixik6yFqx
+                        hex!["3a55ac67c147af497e9dc14debf7d5674969cc7cb2099fdf598ee6a7c36fe3b4"]
+                            .unchecked_into(),
+                    ),
+                    (
+                        // Stash account
+                        hex!["f85202a9d5727171623a417147625dcd317c7ecb7ce79f8b664dfac093efda19"]
+                            .into(),
+                        // Controller account
+                        hex!["06b0b7361b821f19c84c05a558d60a44a52d7ae350c3637b65df40baf66f4a64"]
+                            .into(),
+                        // 5FqG2TKEPQaqfQZ5hLk7auUYA9oNQeqMbDbUvMRpDZnxk4hr
+                        hex!["f85202a9d5727171623a417147625dcd317c7ecb7ce79f8b664dfac093efda19"]
+                            .unchecked_into(),
+                        // 5H8iTsGjMAhMqJcscNiPme75SNFmKMYByi7vzBKixik6yFqx
+                        hex!["e55cbde1cf31fe6b891ac4cffcce790015e77ddd0f6943653e9b4d722f72baa4"]
+                            .unchecked_into(),
+                    ),
                 ],
                 // Sudo account
                 // 5CtLwzLdsTZnyA3TN7FUV58FV4NZ1tUuTDM9yjwRuvt6ac1i
