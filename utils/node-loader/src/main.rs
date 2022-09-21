@@ -12,6 +12,7 @@ use rand::rngs::SmallRng;
 
 use args::{parse_cli_params, LoadParams, Params};
 use task::{generators, TaskPool};
+use anyhow::Result;
 
 mod args;
 mod reporter;
@@ -26,7 +27,7 @@ async fn main() {
     }
 }
 
-async fn run() -> Result<(), String> {
+async fn run() -> Result<()> {
     let params = parse_cli_params();
 
     match params {
@@ -36,14 +37,14 @@ async fn run() -> Result<(), String> {
 }
 
 // todo use anyhow?
-fn dump_with_seed(seed: u64) -> Result<(), String> {
+fn dump_with_seed(seed: u64) -> Result<()> {
     let code = generators::generate_gear_program::<SmallRng>(seed);
-    let mut file = File::create("out.wasm").map_err(|e| e.to_string())?;
-    file.write_all(&code).map_err(|e| e.to_string())?;
+    let mut file = File::create("out.wasm")?;
+    file.write_all(&code)?;
     Ok(())
 }
 
-async fn load_node(params: LoadParams) -> Result<(), String> {
+async fn load_node(params: LoadParams) -> Result<()> {
     let gear_api = utils::obtain_gear_api(&params.endpoint, &params.user).await?;
     let mut task_pool = TaskPool::try_new(params.workers, params.seed)?;
 

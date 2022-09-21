@@ -10,6 +10,7 @@ use tokio::{
     sync::mpsc::{self, Receiver},
     task::{JoinError, JoinHandle},
 };
+use anyhow::{Result, anyhow};
 
 use crate::{args::SeedVariant, reporter::SomeReporter};
 use upload_program::UploadProgramTaskGen;
@@ -35,7 +36,7 @@ impl TaskPool {
     pub(crate) const MIN_SIZE: usize = 1;
     pub(crate) const MAX_SIZE: usize = 100;
 
-    pub(crate) fn try_new(size: usize, seed_variant: Option<SeedVariant>) -> Result<Self, String> {
+    pub(crate) fn try_new(size: usize, seed_variant: Option<SeedVariant>) -> Result<Self> {
         if size >= Self::MIN_SIZE && size <= Self::MAX_SIZE {
             let seed_gen = Arc::new(Mutex::new(generators::get_some_seed_generator::<SmallRng>(
                 seed_variant,
@@ -47,12 +48,12 @@ impl TaskPool {
                 seed_gen,
             })
         } else {
-            Err(format!(
+            Err(anyhow!(format!(
                 "Can't create task pool with such size {size:?}. \
                 Allowed minimum size is {:?} and maximum {:?}",
                 Self::MIN_SIZE,
                 Self::MAX_SIZE,
-            ))
+            )))
         }
     }
 
