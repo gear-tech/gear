@@ -176,7 +176,7 @@ pub mod pallet {
         + pallet_gear_program::Config<Currency = <Self as Config>::Currency>
     {
         /// Because this pallet emits events, it depends on the runtime's definition of an event.
-        type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
+        type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
 
         /// Balances management trait for gas/value migrations.
         type Currency: LockableCurrency<Self::AccountId> + ReservableCurrency<Self::AccountId>;
@@ -424,7 +424,7 @@ pub mod pallet {
         fn on_initialize(bn: BlockNumberFor<T>) -> Weight {
             log::debug!(target: "runtime::gear", "⚙️ Initialization of block #{:?}", bn);
 
-            0
+            Weight::zero()
         }
 
         /// Finalization
@@ -447,7 +447,7 @@ pub mod pallet {
             //
             // This field already was affected by gas pallet within the block,
             // so we don't need to include that db write.
-            GasAllowanceOf::<T>::put(remaining_weight);
+            GasAllowanceOf::<T>::put(remaining_weight.ref_time());
 
             // Ext manager creation.
             // It will be processing messages execution results following its `JournalHandler` trait implementation.
@@ -461,7 +461,8 @@ pub mod pallet {
             Self::process_queue(ext_manager);
 
             // Calculating weight burned within the block.
-            let weight = remaining_weight.saturating_sub(GasAllowanceOf::<T>::get() as Weight);
+            let weight =
+                remaining_weight.saturating_sub(Weight::from_ref_time(GasAllowanceOf::<T>::get()));
 
             log::debug!(
                 target: "runtime::gear",
@@ -778,7 +779,7 @@ pub mod pallet {
             let schedule = T::Schedule::get();
 
             let allocations_config = AllocationsConfig {
-                max_pages: gear_core::memory::WasmPageNumber(schedule.limits.memory_pages),
+                max_pages: schedule.limits.memory_pages.into(),
                 init_cost: schedule.memory_weights.initial_cost,
                 alloc_cost: schedule.memory_weights.allocation_cost,
                 mem_grow_cost: schedule.memory_weights.grow_cost,
@@ -1032,12 +1033,12 @@ pub mod pallet {
             // over sorted bns set (that's the reason why `BTreeSet` used).
             let (missed_blocks, were_empty) = MissedBlocksOf::<T>::take()
                 .map(|mut set| {
-                    GasAllowanceOf::<T>::decrease(T::DbWeight::get().writes(1));
+                    GasAllowanceOf::<T>::decrease(T::DbWeight::get().writes(1).ref_time());
                     set.insert(bn);
                     (set, false)
                 })
                 .unwrap_or_else(|| {
-                    GasAllowanceOf::<T>::decrease(T::DbWeight::get().reads(1));
+                    GasAllowanceOf::<T>::decrease(T::DbWeight::get().reads(1).ref_time());
                     ([bn].into(), true)
                 });
 
@@ -1053,7 +1054,7 @@ pub mod pallet {
                 //
                 // Making sure we have gas to remove next task
                 // or update missed blocks.
-                if GasAllowanceOf::<T>::get() <= T::DbWeight::get().writes(2) {
+                if GasAllowanceOf::<T>::get() <= T::DbWeight::get().writes(2).ref_time() {
                     stopped_at = Some(*bn);
                     log::debug!("Stopping processing tasks at: {stopped_at:?}");
                     break;
@@ -1064,7 +1065,7 @@ pub mod pallet {
                     log::debug!("Processing task: {:?}", task);
 
                     // Decreasing gas allowance due to DB deletion.
-                    GasAllowanceOf::<T>::decrease(T::DbWeight::get().writes(1));
+                    GasAllowanceOf::<T>::decrease(T::DbWeight::get().writes(1).ref_time());
 
                     // Processing task.
                     //
@@ -1077,7 +1078,7 @@ pub mod pallet {
                     //
                     // Making sure we have gas to remove next task
                     // or update missed blocks.
-                    if GasAllowanceOf::<T>::get() <= T::DbWeight::get().writes(2) {
+                    if GasAllowanceOf::<T>::get() <= T::DbWeight::get().writes(2).ref_time() {
                         stopped_at = Some(*bn);
                         log::debug!("Stopping processing tasks at: {stopped_at:?}");
                         break;
@@ -1108,7 +1109,7 @@ pub mod pallet {
                 // Charging for inserting into missing blocks,
                 // if we were reading it only (they were empty).
                 if were_empty {
-                    GasAllowanceOf::<T>::decrease(T::DbWeight::get().writes(1));
+                    GasAllowanceOf::<T>::decrease(T::DbWeight::get().writes(1).ref_time());
                 }
 
                 MissedBlocksOf::<T>::put(actual_missed_blocks);
@@ -1127,7 +1128,7 @@ pub mod pallet {
             let schedule = T::Schedule::get();
 
             let allocations_config = AllocationsConfig {
-                max_pages: gear_core::memory::WasmPageNumber(schedule.limits.memory_pages),
+                max_pages: schedule.limits.memory_pages.into(),
                 init_cost: schedule.memory_weights.initial_cost,
                 alloc_cost: schedule.memory_weights.allocation_cost,
                 mem_grow_cost: schedule.memory_weights.grow_cost,

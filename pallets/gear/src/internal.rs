@@ -206,12 +206,6 @@ where
                         unreachable!("Failed to repatriate reserved funds: {:?}", e)
                     });
 
-            // TODO: Remove this once substrate bugfix PR merged
-            // (https://github.com/paritytech/substrate/pull/11875).
-            let unrevealed = (from != to)
-                .then_some(unrevealed)
-                .unwrap_or_else(|| value.saturating_sub(unrevealed));
-
             // Validating unrevealed funds after repatriation.
             if !unrevealed.is_zero() {
                 unreachable!("Reserved funds wasn't fully repatriated: {:?}", unrevealed)

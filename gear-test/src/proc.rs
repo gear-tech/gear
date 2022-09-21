@@ -93,12 +93,6 @@ where
     let code = Code::try_new(message.code.clone(), 1, |_| ConstantCostRules::default())
         .map_err(|e| anyhow::anyhow!("Error initialization: {:?}", &e))?;
 
-    if code.static_pages() > AllocationsConfig::default().max_pages {
-        return Err(anyhow::anyhow!(
-            "Error initialization: memory limit exceeded"
-        ));
-    }
-
     let program = journal_handler.store_program(message.id, code, message.message.id());
     let program_id = program.id();
     journal_handler.write_gas(message.message.id(), message.message.gas_limit());

@@ -23,7 +23,8 @@ use codec::Encode;
 use common::{storage::*, Origin};
 use frame_support::{
     assert_ok,
-    weights::{DispatchInfo, GetDispatchInfo, PostDispatchInfo, Weight},
+    dispatch::{DispatchInfo, GetDispatchInfo, PostDispatchInfo},
+    weights::Weight,
 };
 use gear_core::{
     ids::{MessageId, ProgramId},
@@ -45,10 +46,10 @@ macro_rules! assert_approx_eq {
     }};
 }
 
-fn info_from_weight(w: Weight) -> DispatchInfo {
+fn info_from_weight(w: u64) -> DispatchInfo {
     // DispatchInfo { weight: w, class: DispatchClass::Normal, pays_fee: Pays::Yes }
     DispatchInfo {
-        weight: w,
+        weight: Weight::from_ref_time(w),
         ..Default::default()
     }
 }
@@ -125,7 +126,7 @@ fn fee_rounding_error_bounded_by_multiplier() {
         // - relatively small weight, relatively large multiplier
 
         let test_case =
-            |call: &<Test as frame_system::Config>::Call, weights: Vec<u64>, mul: u64| {
+            |call: &<Test as frame_system::Config>::RuntimeCall, weights: Vec<u64>, mul: u64| {
                 // not charging for tx len to make rounding error more significant
                 let len = 0;
 
@@ -158,8 +159,8 @@ fn fee_rounding_error_bounded_by_multiplier() {
             };
 
         // rounding error only arises for calls that do not affect MQ
-        let call: &<Test as frame_system::Config>::Call =
-            &Call::Gear(pallet_gear::Call::claim_value {
+        let call: &<Test as frame_system::Config>::RuntimeCall =
+            &RuntimeCall::Gear(pallet_gear::Call::claim_value {
                 message_id: MessageId::from_origin(H256::from_low_u64_le(1)),
             });
 
@@ -199,8 +200,8 @@ fn mq_size_affecting_fee_works() {
 
         let program_id = ProgramId::from_origin(H256::random());
 
-        let call: &<Test as frame_system::Config>::Call =
-            &Call::Gear(pallet_gear::Call::send_message {
+        let call: &<Test as frame_system::Config>::RuntimeCall =
+            &RuntimeCall::Gear(pallet_gear::Call::send_message {
                 destination: program_id,
                 payload: Default::default(),
                 gas_limit: 100_000,
@@ -291,8 +292,8 @@ fn mq_size_not_affecting_fee_works() {
         let alice_initial_balance = Balances::free_balance(ALICE);
         let author_initial_balance = Balances::free_balance(BLOCK_AUTHOR);
 
-        let call: &<Test as frame_system::Config>::Call =
-            &Call::Gear(pallet_gear::Call::claim_value {
+        let call: &<Test as frame_system::Config>::RuntimeCall =
+            &RuntimeCall::Gear(pallet_gear::Call::claim_value {
                 message_id: MessageId::from_origin(H256::from_low_u64_le(1)),
             });
 
@@ -377,13 +378,13 @@ fn mq_size_not_affecting_fee_works() {
 #[allow(clippy::let_unit_value)]
 fn query_info_and_fee_details_work() {
     let program_id = ProgramId::from_origin(H256::random());
-    let call_affecting_mq = Call::Gear(pallet_gear::Call::send_message {
+    let call_affecting_mq = RuntimeCall::Gear(pallet_gear::Call::send_message {
         destination: program_id,
         payload: Default::default(),
         gas_limit: 100_000,
         value: 0,
     });
-    let call_not_affecting_mq = Call::Gear(pallet_gear::Call::claim_value {
+    let call_not_affecting_mq = RuntimeCall::Gear(pallet_gear::Call::claim_value {
         message_id: 1.into(),
     });
     let extra = ();
@@ -410,7 +411,7 @@ fn query_info_and_fee_details_work() {
                 class: info_affecting_mq.class,
                 partial_fee: 0 /* base_fee */
                     + len_affecting_mq as u128  /* len * 1 */
-                    + info_affecting_mq.weight as u128 /* weight */
+                    + info_affecting_mq.weight.ref_time() as u128 /* weight */
             },
         );
 
@@ -421,7 +422,7 @@ fn query_info_and_fee_details_work() {
                 class: info_not_affecting_mq.class,
                 partial_fee: 0 /* base_fee */
                     + len_not_affecting_mq as u128  /* len * 1 */
-                    + info_not_affecting_mq.weight as u128 /* weight */
+                    + info_not_affecting_mq.weight.ref_time() as u128 /* weight */
             },
         );
 
@@ -440,7 +441,7 @@ fn query_info_and_fee_details_work() {
                 inclusion_fee: Some(InclusionFee {
                     base_fee: 0,
                     len_fee: len_affecting_mq as u128,
-                    adjusted_weight_fee: info_affecting_mq.weight as u128
+                    adjusted_weight_fee: info_affecting_mq.weight.ref_time() as u128
                 }),
                 tip: 0,
             },
@@ -452,7 +453,7 @@ fn query_info_and_fee_details_work() {
                 inclusion_fee: Some(InclusionFee {
                     base_fee: 0,
                     len_fee: len_not_affecting_mq as u128,
-                    adjusted_weight_fee: info_not_affecting_mq.weight as u128
+                    adjusted_weight_fee: info_not_affecting_mq.weight.ref_time() as u128
                 }),
                 tip: 0,
             },
@@ -478,7 +479,7 @@ fn query_info_and_fee_details_work() {
                 class: info_affecting_mq.class,
                 partial_fee: 0 /* base_fee */
                     + len_affecting_mq as u128  /* len * 1 */
-                    + (info_affecting_mq.weight as u128) * 16_u128 /* weight * 16 */
+                    + (info_affecting_mq.weight.ref_time() as u128) * 16_u128 /* weight * 16 */
             },
         );
 
@@ -491,7 +492,7 @@ fn query_info_and_fee_details_work() {
                 class: info_not_affecting_mq.class,
                 partial_fee: 0 /* base_fee */
                     + len_not_affecting_mq as u128  /* len * 1 */
-                    + (info_not_affecting_mq.weight as u128 / 16) * 16 /* weight, with potential small rounding error */
+                    + (info_not_affecting_mq.weight.ref_time() as u128 / 16) * 16 /* weight, with potential small rounding error */
             },
         );
 
@@ -510,7 +511,7 @@ fn query_info_and_fee_details_work() {
                 inclusion_fee: Some(InclusionFee {
                     base_fee: 0,
                     len_fee: len_affecting_mq as u128,
-                    adjusted_weight_fee: (info_affecting_mq.weight as u128) * 16_u128
+                    adjusted_weight_fee: (info_affecting_mq.weight.ref_time() as u128) * 16_u128
                 }),
                 tip: 0,
             },
@@ -522,7 +523,7 @@ fn query_info_and_fee_details_work() {
                 inclusion_fee: Some(InclusionFee {
                     base_fee: 0,
                     len_fee: len_not_affecting_mq as u128,
-                    adjusted_weight_fee: (info_not_affecting_mq.weight as u128 / 16) * 16_u128
+                    adjusted_weight_fee: (info_not_affecting_mq.weight.ref_time() as u128 / 16) * 16_u128
                 }),
                 tip: 0,
             },

@@ -43,6 +43,7 @@ std = [
 	"codec/std",
 	"common/std",
 	"log/std",
+	"frame-benchmarking?/std",
 	"frame-support/std",
 	"frame-system/std",
 	"frame-benchmarking/std",
@@ -52,8 +53,9 @@ std = [
 	"sp-io/std",
 ]
 runtime-benchmarks = [
-	"frame-benchmarking",
+	"frame-benchmarking/runtime-benchmarks",
 	"frame-system/runtime-benchmarks",
 	"frame-support/runtime-benchmarks",
 	"common/runtime-benchmarks"
 ]
+try-runtime = ["frame-support/try-runtime"]

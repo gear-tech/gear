@@ -42,143 +42,105 @@ use std::{sync::Arc, time::Duration};
 /// This is not done as a trait function since the return type depends on the runtime.
 /// This macro therefore uses the same approach as [`with_client!`].
 macro_rules! with_signed_payload {
-	{
-		$self:ident,
-		{
-			$extra:ident,
-			$client:ident,
-			$raw_payload:ident
-		},
-		{
-			$( $setup:tt )*
-		},
-		(
-			$period:expr,
-			$current_block:expr,
-			$nonce:expr,
-			$call:expr,
-			$genesis:expr,
+    {
+        $self:ident,
+        {
+            $extra:ident,
+            $client:ident,
+            $raw_payload:ident
+        },
+        {
+            $( $setup:tt )*
+        },
+        (
+            $period:expr,
+            $current_block:expr,
+            $nonce:expr,
+            $call:expr,
+            $genesis:expr,
             $best_hash:expr,
             $tip:expr
-		),
-		{
-			$( $usage:tt )*
-		}
-	} => {
-		match $self.$client.as_ref() {
-			#[cfg(feature = "gear-native")]
-			Client::Gear($client) => {
-				use gear_runtime as runtime;
+        ),
+        {
+            $( $usage:tt )*
+        }
+    } => {
+        match $self.$client.as_ref() {
+            #[cfg(feature = "gear-native")]
+            Client::Gear($client) => {
+                use gear_runtime as runtime;
 
-				$( $setup )*
+                $( $setup )*
 
-				signed_payload!($extra, $raw_payload,
-					($period, $current_block, $nonce, $call, $genesis, $best_hash, $tip));
+                let $extra: runtime::SignedExtra = (
+                    frame_system::CheckNonZeroSender::<runtime::Runtime>::new(),
+                    frame_system::CheckSpecVersion::<runtime::Runtime>::new(),
+                    frame_system::CheckTxVersion::<runtime::Runtime>::new(),
+                    frame_system::CheckGenesis::<runtime::Runtime>::new(),
+                    frame_system::CheckMortality::<runtime::Runtime>::from(
+                        sp_runtime::generic::Era::mortal($period, $current_block),
+                    ),
+                    frame_system::CheckNonce::<runtime::Runtime>::from($nonce),
+                    frame_system::CheckWeight::<runtime::Runtime>::new(),
+                    pallet_gear_payment::CustomChargeTransactionPayment::<runtime::Runtime>::from($tip),
+                );
 
-				$( $usage )*
-			},
-			#[cfg(feature = "vara-native")]
-			Client::Vara($client) => {
-				use vara_runtime as runtime;
+                let $raw_payload = runtime::SignedPayload::from_raw(
+                    $call.clone(),
+                    $extra.clone(),
+                    (
+                        (),
+                        runtime::VERSION.spec_version,
+                        runtime::VERSION.transaction_version,
+                        $genesis,
+                        $best_hash,
+                        (),
+                        (),
+                        (),
+                    ),
+                );
 
-				$( $setup )*
+                $( $usage )*
+            },
+            #[cfg(feature = "vara-native")]
+            Client::Vara($client) => {
+                use vara_runtime as runtime;
 
-				signed_payload!($extra, $raw_payload,
-					($period, $current_block, $nonce, $call, $genesis, $best_hash, $tip),
-                    _prohibit_balances_call);
+                $( $setup )*
 
-				$( $usage )*
-			},
-		}
-	}
-}
+                let $extra: runtime::SignedExtra = (
+                    runtime::DisableValueTransfers,
+                    frame_system::CheckNonZeroSender::<runtime::Runtime>::new(),
+                    frame_system::CheckSpecVersion::<runtime::Runtime>::new(),
+                    frame_system::CheckTxVersion::<runtime::Runtime>::new(),
+                    frame_system::CheckGenesis::<runtime::Runtime>::new(),
+                    frame_system::CheckMortality::<runtime::Runtime>::from(
+                        sp_runtime::generic::Era::mortal($period, $current_block),
+                    ),
+                    frame_system::CheckNonce::<runtime::Runtime>::from($nonce),
+                    frame_system::CheckWeight::<runtime::Runtime>::new(),
+                    pallet_gear_payment::CustomChargeTransactionPayment::<runtime::Runtime>::from($tip),
+                );
 
-/// Generates a `SignedPayload` for the Gear and Vara runtimes.
-///
-/// Should only be used for benchmarking as it is not tested for regular usage.
-macro_rules! signed_payload {
-    (
-	$extra:ident, $raw_payload:ident,
-	(
-		$period:expr,
-		$current_block:expr,
-		$nonce:expr,
-		$call:expr,
-		$genesis:expr,
-        $best_hash:expr,
-        $tip:expr
-	)
-	) => {
-        let $extra: runtime::SignedExtra = (
-            frame_system::CheckNonZeroSender::<runtime::Runtime>::new(),
-            frame_system::CheckSpecVersion::<runtime::Runtime>::new(),
-            frame_system::CheckTxVersion::<runtime::Runtime>::new(),
-            frame_system::CheckGenesis::<runtime::Runtime>::new(),
-            frame_system::CheckMortality::<runtime::Runtime>::from(
-                sp_runtime::generic::Era::mortal($period, $current_block),
-            ),
-            frame_system::CheckNonce::<runtime::Runtime>::from($nonce),
-            frame_system::CheckWeight::<runtime::Runtime>::new(),
-            pallet_gear_payment::CustomChargeTransactionPayment::<runtime::Runtime>::from($tip),
-        );
+                let $raw_payload = runtime::SignedPayload::from_raw(
+                    $call.clone(),
+                    $extra.clone(),
+                    (
+                        (),
+                        (),
+                        runtime::VERSION.spec_version,
+                        runtime::VERSION.transaction_version,
+                        $genesis,
+                        $best_hash,
+                        (),
+                        (),
+                        (),
+                    ),
+                );
 
-        let $raw_payload = runtime::SignedPayload::from_raw(
-            $call.clone(),
-            $extra.clone(),
-            (
-                (),
-                runtime::VERSION.spec_version,
-                runtime::VERSION.transaction_version,
-                $genesis,
-                $best_hash,
-                (),
-                (),
-                (),
-            ),
-        );
-    };
-    (
-    $extra:ident, $raw_payload:ident,
-    (
-        $period:expr,
-        $current_block:expr,
-        $nonce:expr,
-        $call:expr,
-        $genesis:expr,
-        $best_hash:expr,
-        $tip:expr
-    ),
-    $custom_ext:ident
-    ) => {
-        let $extra: runtime::SignedExtra = (
-            runtime::DisableValueTransfers,
-            frame_system::CheckNonZeroSender::<runtime::Runtime>::new(),
-            frame_system::CheckSpecVersion::<runtime::Runtime>::new(),
-            frame_system::CheckTxVersion::<runtime::Runtime>::new(),
-            frame_system::CheckGenesis::<runtime::Runtime>::new(),
-            frame_system::CheckMortality::<runtime::Runtime>::from(
-                sp_runtime::generic::Era::mortal($period, $current_block),
-            ),
-            frame_system::CheckNonce::<runtime::Runtime>::from($nonce),
-            frame_system::CheckWeight::<runtime::Runtime>::new(),
-            pallet_gear_payment::CustomChargeTransactionPayment::<runtime::Runtime>::from($tip),
-        );
-
-        let $raw_payload = runtime::SignedPayload::from_raw(
-            $call.clone(),
-            $extra.clone(),
-            (
-                (),
-                (),
-                runtime::VERSION.spec_version,
-                runtime::VERSION.transaction_version,
-                $genesis,
-                $best_hash,
-                (),
-                (),
-                (),
-            ),
-        );
+                $( $usage )*
+            },
+        }
     };
 }
 
@@ -212,14 +174,14 @@ impl frame_benchmarking_cli::ExtrinsicBuilder for RemarkBuilder {
             {
                 // First the setup code to init all the variables that are needed
                 // to build the signed extras.
-                use runtime::{Call, SystemCall};
+                use runtime::{RuntimeCall, SystemCall};
 
                 let genesis_hash = client
                     .block_hash(0)
                     .ok()
                     .flatten()
                     .expect("Genesis block exists; qed");
-                let call = Call::System(SystemCall::remark { remark: vec![] });
+                let call = RuntimeCall::System(SystemCall::remark { remark: vec![] });
                 let bob = Sr25519Keyring::Bob.pair();
                 let period = gear_runtime_common::BlockHashCount::get()
                     .checked_next_power_of_two()
@@ -284,14 +246,14 @@ impl frame_benchmarking_cli::ExtrinsicBuilder for TransferKeepAliveBuilder {
             {
                 // First the setup code to init all the variables that are needed
                 // to build the signed extras.
-                use runtime::{Call, BalancesCall, EXISTENTIAL_DEPOSIT};
+                use runtime::{RuntimeCall, BalancesCall, EXISTENTIAL_DEPOSIT};
 
                 let genesis_hash = client
                     .block_hash(0)
                     .ok()
                     .flatten()
                     .expect("Genesis block exists; qed");
-                let call = Call::Balances(BalancesCall::transfer_keep_alive {
+                let call = RuntimeCall::Balances(BalancesCall::transfer_keep_alive {
                     dest: self.dest.clone().into(),
                     value: EXISTENTIAL_DEPOSIT,
                 });

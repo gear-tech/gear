@@ -82,7 +82,7 @@ jobs:
       - name: "Install: Build deps"
         run: |
           sudo apt update
-          sudo apt install -y git clang curl libssl-dev llvm libudev-dev cmake
+          sudo apt install -y git clang curl libssl-dev llvm libudev-dev cmake protobuf-compiler
           sudo wget -c https://github.com/WebAssembly/binaryen/releases/download/version_105/binaryen-version_105-x86_64-linux.tar.gz -O - | sudo tar -xz -C .
           cp binaryen-version_105/bin/wasm-opt /usr/bin/
 
@@ -177,7 +177,7 @@ jobs:
       - name: "Install: Build deps"
         run: |
           sudo apt update
-          sudo apt install -y git clang curl libssl-dev llvm libudev-dev cmake wabt
+          sudo apt install -y git clang curl libssl-dev llvm libudev-dev cmake wabt protobuf-compiler
           sudo wget -c https://github.com/WebAssembly/binaryen/releases/download/version_105/binaryen-version_105-x86_64-linux.tar.gz -O - | sudo tar -xz -C .
           cp binaryen-version_105/bin/wasm-opt /usr/bin/
 
@@ -244,17 +244,9 @@ jobs:
           cargo build -p gear-node --release --no-default-features --features=gear-native --out-dir target-no-lazy -Z unstable-options
           ./target-no-lazy/gear-node runtime-spec-tests ./gear-test/spec/*
 
-      - name: "Test (performance): node runtime testsuite"
-        if: ${{ github.ref != 'refs/heads/master' }}
-        id: test-performance-runtime
-        run: |
-          cp /root/cache/runtime-tests.json /tmp/
-          ./target/release/regression-analysis compare --disable-filter --data-path /tmp/runtime-tests.json --current-junit-path ./target/runtime-test-junit.xml > ./target/runtime-tests-diff.md
-          body="$(cat ./target/runtime-tests-diff.md)"
-          body="${body//'%'/'%25'}"
-          body="${body//$'\n'/'%0A'}"
-          body="${body//$'\r'/'%0D'}"
-          echo "::set-output name=body::$body"
+      # FIX ME: use vara runtime
+      # - name: "Test: Runtime upgrade and queue processing"
+      #   run: ./scripts/gear.sh test runtime-upgrade
 
       - name: "Test: Weight on client for loop"
         run: ./scripts/gear.sh test client-weights
@@ -267,6 +259,7 @@ jobs:
       #   run: |
       #     cargo build -p gear-node --release --features runtime-benchmarks
       #     ./target/release/gear-node benchmark pallet --chain=dev --steps=1 --repeat=1 --pallet=pallet_gear --extrinsic="*" --execution=wasm --wasm-execution=compiled --heap-pages=4096
+      
       - name: "Test: Upload programs"
         run: |
           ./scripts/gear.sh test uploads "$(pwd)/target/wat-examples/wrong_load.wasm"
@@ -353,6 +346,9 @@ jobs:
     if: github.ref == 'refs/heads/master'
     # needs: spec_version
     runs-on: ci-win
+    defaults: 
+      run: 
+        shell: msys2 {0}
     env:
       RUSTC_WRAPPER: "cachepot"
       CARGO_INCREMENTAL: 0
@@ -366,11 +362,20 @@ jobs:
       - name: "ACTIONS: Checkout"
         uses: actions/checkout@v2
 
+      - name: "Install: Setup MSYS2 environment"
+        uses: msys2/setup-msys2@v2
+        with:
+          path-type: inherit
+          install: >-
+            procps
+            mingw-w64-x86_64-protobuf
+
       - name: "Install: rustup 1.24.3"
         run: |
           Invoke-WebRequest "https://static.rust-lang.org/rustup/archive/1.24.3/x86_64-pc-windows-msvc/rustup-init.exe" -OutFile "rustup-init.exe"
           .\rustup-init.exe -y
           rustup --version
+        shell: powershell
 
       - name: "Install: Disable rustup auto-update"
         run: rustup set auto-self-update disable
@@ -388,12 +393,75 @@ jobs:
           $outputDir = if ($Env:CARGO_HOME) { Join-Path $Env:CARGO_HOME "bin" } else { "~/.cargo/bin" }
           $tmp | Expand-Archive -DestinationPath $outputDir -Force
           $tmp | Remove-Item
+        shell: powershell
+
+      - name: "Install: cargo-hack"
+        run: |
+          $tmp = New-TemporaryFile | Rename-Item -NewName { $_ -replace 'tmp$', 'tar.gz' } -PassThru
+          Invoke-WebRequest -OutFile $tmp https://github.com/taiki-e/cargo-hack/releases/latest/download/cargo-hack-x86_64-pc-windows-msvc.tar.gz
+          $outputDir = if ($Env:CARGO_HOME) { Join-Path $Env:CARGO_HOME "bin" } else { Resolve-Path "~/.cargo/bin" }
+          tar zxf $tmp -C $outputDir
+          $tmp | Remove-Item
+        shell: powershell
+
+      - name: "Install: binaryen"
+        run: |
+          $tmp = New-TemporaryFile | Rename-Item -NewName { $_ -replace 'tmp$', 'tar.gz' } -PassThru
+          Invoke-WebRequest -OutFile $tmp https://github.com/WebAssembly/binaryen/releases/download/version_110/binaryen-version_110-x86_64-windows.tar.gz
+          $outputDir = if ($Env:CARGO_HOME) { Join-Path $Env:CARGO_HOME "bin" } else { "~/.cargo/bin" }
+          tar zxf $tmp
+          cp ./binaryen-version_110/bin/* $outputDir
+          Remove-Item -Recurse ./binaryen-version_110
+          $tmp | Remove-Item
+        shell: powershell
+
+      - name: "Install: wabt"
+        run: |
+          $tmp = New-TemporaryFile | Rename-Item -NewName { $_ -replace 'tmp$', 'tar.gz' } -PassThru
+          Invoke-WebRequest -OutFile $tmp https://github.com/WebAssembly/wabt/releases/download/1.0.29/wabt-1.0.29-windows.tar.gz
+          $outputDir = if ($Env:CARGO_HOME) { Join-Path $Env:CARGO_HOME "bin" } else { "~/.cargo/bin" }
+          tar zxf $tmp
+          cp ./wabt-1.0.29/bin/* $outputDir
+          Remove-Item -Recurse ./wabt-1.0.29
+          $tmp | Remove-Item
+        shell: powershell
+
+      - name: "Install: Node.js"
+        uses: actions/setup-node@v2
+        with:
+          node-version: "16"
+
+      - name: "Install: Node.js packages"
+        run: ./scripts/gear.sh init js
 
       - name: "Build: Node"
-        uses: actions-rs/cargo@v1
-        with:
-          command: build
-          args: -p gear-node --features=lazy-pages
+        run: ./scripts/gear.sh build node --release --locked
+
+      - name: "Build: WAT examples"
+        run: ./scripts/gear.sh build wat-examples
+
+      - name: "Build: wasm-proc"
+        run: ./scripts/gear.sh build wasm-proc --locked
+
+      - name: "Build: Examples (WASM)"
+        run: ./scripts/gear.sh build examples --locked
+
+      - name: "Build: Split examples by .opt and .meta"
+        run: ./scripts/gear.sh build examples-proc
+
+      - name: "Test: Process node runtime testsuite"
+        run: ./scripts/gear.sh test rtest
+        
+      - name: "Test: Runtime upgrade and queue processing"
+        run: ./scripts/gear.sh test runtime-upgrade
+
+      - name: "Test: Weight on client for loop"
+        run: ./scripts/gear.sh test client-weights
+
+      - name: "Test: Upload programs"
+        run: |
+          ./scripts/gear.sh test uploads "$(pwd)/target/wat-examples/wrong_load.wasm"
+          ./scripts/gear.sh test uploads "$(pwd)/target/wat-examples/inf_recursion.wasm"
 
       - name: "Test: Lazy pages"
         uses: actions-rs/cargo@v1
@@ -407,6 +475,7 @@ jobs:
             -p gear-lazy-pages
             -p gear-runtime-interface
             --features=lazy-pages
+            --release            
 
   build-macos-x86:
     if: github.ref == 'refs/heads/master'
@@ -420,6 +489,7 @@ jobs:
 
       - name: "ACTIONS: Checkout"
         uses: actions/checkout@v2
+        
       - name: "ACTIONS: Setup caching"
         uses: actions/cache@v3
         with:
@@ -432,6 +502,9 @@ jobs:
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
             ${{ runner.os }}-cargo-
+
+      - name: "Install: protobuf"
+        run: brew install protobuf
 
       - name: "Install: Nightly toolchain"
         uses: actions-rs/toolchain@v1

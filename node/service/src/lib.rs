@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use sc_client_api::{BlockBackend, ExecutorProvider};
+use sc_client_api::{Backend as BackendT, BlockBackend, UsageProvider};
 use sc_executor::{NativeElseWasmExecutor, NativeExecutionDispatch};
 use sc_finality_grandpa::SharedVoterState;
 use sc_keystore::LocalKeystore;
@@ -25,11 +25,15 @@ use sc_service::{
 };
 use sc_telemetry::{Telemetry, TelemetryWorker};
 use sp_api::ConstructRuntimeApi;
-use sp_runtime::traits::BlakeTwo256;
+use sp_runtime::{traits::BlakeTwo256, OpaqueExtrinsic};
 use sp_trie::PrefixedMemoryDB;
 use std::{sync::Arc, time::Duration};
 
 pub use client::*;
+
+pub use sc_client_api::AuxStore;
+pub use sp_blockchain::{HeaderBackend, HeaderMetadata};
+pub use sp_consensus_babe::BabeApi;
 
 #[cfg(feature = "gear-native")]
 pub use gear_runtime;
@@ -215,7 +219,7 @@ where
     )?;
 
     let (import_queue, babe_block_import_setup) = {
-        let babe_config = sc_consensus_babe::Config::get(&*client)?;
+        let babe_config = sc_consensus_babe::configuration(&*client)?;
         let (babe_block_import, babe_link) = sc_consensus_babe::block_import(
             babe_config,
             grandpa_block_import.clone(),
@@ -242,7 +246,6 @@ where
                 },
                 &task_manager.spawn_essential_handle(),
                 config.prometheus_registry(),
-                sp_consensus::CanAuthorWithNativeVersion::new(client.executor().clone()),
                 telemetry.as_ref().map(|x| x.handle()),
             )?,
             (babe_block_import, babe_link),
@@ -414,9 +417,6 @@ where
             telemetry.as_ref().map(|x| x.handle()),
         );
 
-        let can_author_with =
-            sp_consensus::CanAuthorWithNativeVersion::new(client.executor().clone());
-
         {
             let slot_duration = babe_link.config().slot_duration();
 
@@ -442,7 +442,6 @@ where
                 force_authoring,
                 backoff_authoring_blocks,
                 babe_link,
-                can_author_with,
                 block_proposal_slot_portion: sc_consensus_babe::SlotProportion::new(2f32 / 3f32), // Substrate suggests 0.5
                 max_block_proposal_slot_portion: None,
                 telemetry: telemetry.as_ref().map(|x| x.handle()),
@@ -505,4 +504,56 @@ where
 
     network_starter.start_network();
     Ok(task_manager)
+}
+
+struct RevertConsensus {
+    blocks: BlockNumber,
+    backend: Arc<FullBackend>,
+}
+
+impl ExecuteWithClient for RevertConsensus {
+    type Output = sp_blockchain::Result<()>;
+
+    fn execute_with_client<Client, Api, Backend>(self, client: Arc<Client>) -> Self::Output
+    where
+        <Api as sp_api::ApiExt<Block>>::StateBackend: sp_api::StateBackend<BlakeTwo256>,
+        Backend: BackendT<Block> + 'static,
+        Backend::State: sp_api::StateBackend<BlakeTwo256>,
+        Api: RuntimeApiCollection<StateBackend = Backend::State>,
+        Client: AbstractClient<Block, Backend, Api = Api>
+            + 'static
+            + HeaderMetadata<
+                sp_runtime::generic::Block<
+                    sp_runtime::generic::Header<u32, BlakeTwo256>,
+                    OpaqueExtrinsic,
+                >,
+                Error = sp_blockchain::Error,
+            >
+            + AuxStore
+            + UsageProvider<
+                sp_runtime::generic::Block<
+                    sp_runtime::generic::Header<u32, BlakeTwo256>,
+                    OpaqueExtrinsic,
+                >,
+            >,
+    {
+        sc_consensus_babe::revert(client.clone(), self.backend, self.blocks)?;
+        sc_finality_grandpa::revert(client, self.blocks)?;
+        Ok(())
+    }
+}
+
+/// Reverts the node state down to at most the last finalized block.
+///
+/// In particular this reverts:
+/// - Low level Babe and Grandpa consensus data.
+pub fn revert_backend(
+    client: Arc<Client>,
+    backend: Arc<FullBackend>,
+    blocks: BlockNumber,
+    _config: Configuration,
+) -> Result<(), ServiceError> {
+    client.execute_with(RevertConsensus { blocks, backend })?;
+
+    Ok(())
 }
