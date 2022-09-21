@@ -88,12 +88,12 @@ pub enum GasReservationTask {
     CreateReservation {
         /// Amount of reserved gas.
         amount: u32,
-        /// Block number which reservation will be removed to.
+        /// How many blocks reservation will live.
         bn: u32,
     },
     /// Remove reservation.
     RemoveReservation {
-        /// Block number which reservation will be removed to.
+        /// How many blocks reservation will live.
         bn: u32,
     },
 }
