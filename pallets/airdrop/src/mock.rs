@@ -67,7 +67,7 @@ impl system::Config for Test {
     type BlockLength = ();
     type DbWeight = ();
     type Origin = Origin;
-    type Call = Call;
+    type RuntimeCall = RuntimeCall;
     type Index = u64;
     type BlockNumber = u64;
     type Hash = sp_core::H256;
@@ -75,7 +75,7 @@ impl system::Config for Test {
     type AccountId = u64;
     type Lookup = IdentityLookup<Self::AccountId>;
     type Header = Header;
-    type Event = Event;
+    type RuntimEvent = RuntimeEvent;
     type BlockHashCount = BlockHashCount;
     type Version = ();
     type PalletInfo = PalletInfo;
@@ -94,15 +94,15 @@ impl pallet_balances::Config for Test {
     type ReserveIdentifier = [u8; 8];
     type Balance = u128;
     type DustRemoval = ();
-    type Event = Event;
+    type RuntimEvent = RuntimeEvent;
     type ExistentialDeposit = ExistentialDeposit;
     type AccountStore = System;
     type WeightInfo = ();
 }
 
 impl pallet_sudo::Config for Test {
-    type Event = Event;
-    type Call = Call;
+    type RuntimEvent = RuntimeEvent;
+    type RuntimeCall = RuntimeCall;
 }
 
 impl pallet_timestamp::Config for Test {
@@ -128,7 +128,7 @@ impl pallet_gear_messenger::Config for Test {
 }
 
 impl pallet_gear_program::Config for Test {
-    type Event = Event;
+    type RuntimEvent = RuntimeEvent;
     type WeightInfo = ();
     type Currency = Balances;
     type Messenger = GearMessenger;
@@ -140,7 +140,7 @@ impl common::GasPrice for GasConverter {
 }
 
 impl pallet_gear::Config for Test {
-    type Event = Event;
+    type RuntimEvent = RuntimeEvent;
     type Currency = Balances;
     type GasPrice = GasConverter;
     type WeightInfo = ();
@@ -163,7 +163,7 @@ impl pallet_gear_scheduler::Config for Test {
 }
 
 impl pallet_airdrop::Config for Test {
-    type Event = Event;
+    type RuntimEvent = RuntimeEvent;
     type WeightInfo = ();
 }
 
