@@ -1536,7 +1536,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "demo-signal-entry"
+name = "demo-reserve-gas"
 version = "0.1.0"
 dependencies = [
  "gear-wasm-builder",
@@ -1546,7 +1546,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "demo-reserve-gas"
+name = "demo-signal-entry"
 version = "0.1.0"
 dependencies = [
  "gear-wasm-builder",
