@@ -245,6 +245,7 @@ impl PartialEq<Log> for CoreLog {
     }
 }
 
+#[derive(Debug)]
 pub struct RunResult {
     pub(crate) log: Vec<CoreLog>,
     pub(crate) main_failed: bool,

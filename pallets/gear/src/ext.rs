@@ -44,7 +44,11 @@ pub enum Error {
     LazyPages(lazy_pages::Error),
 }
 
-impl CoreError for Error {}
+impl CoreError for Error {
+    fn forbidden_function() -> Self {
+        Self::Processor(ProcessorError::forbidden_function())
+    }
+}
 
 impl IntoExtError for Error {
     fn into_ext_error(self) -> Result<ExtError, Self> {

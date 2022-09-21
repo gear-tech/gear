@@ -267,6 +267,11 @@ impl MessageContext {
         }
     }
 
+    /// Return reply destination.
+    pub fn reply_destination(&self) -> ProgramId {
+        self.outcome.source
+    }
+
     /// Wake message by it's message id.
     pub fn wake(&mut self, waker_id: MessageId) -> Result<(), Error> {
         if self.store.awaken.insert(waker_id) {

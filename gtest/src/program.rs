@@ -26,7 +26,7 @@ use codec::{Codec, Decode, Encode};
 use gear_core::{
     code::{Code, CodeAndId, InstrumentedCodeAndId},
     ids::{CodeId, MessageId, ProgramId},
-    message::{Dispatch, DispatchKind, Message},
+    message::{Dispatch, DispatchKind, ExitCode, Message, SignalMessage},
     program::Program as CoreProgram,
 };
 use gear_wasm_builder::optimize::{OptType, Optimizer};
@@ -88,6 +88,7 @@ pub trait WasmProgram: Debug {
     fn init(&mut self, payload: Vec<u8>) -> Result<Option<Vec<u8>>, &'static str>;
     fn handle(&mut self, payload: Vec<u8>) -> Result<Option<Vec<u8>>, &'static str>;
     fn handle_reply(&mut self, payload: Vec<u8>) -> Result<Option<Vec<u8>>, &'static str>;
+    fn handle_signal(&mut self, payload: Vec<u8>) -> Result<(), &'static str>;
     fn meta_state(&mut self, payload: Option<Vec<u8>>) -> Result<Vec<u8>, &'static str>;
     fn debug(&mut self, data: &str) {
         logger::debug!(target: "gwasm", "DEBUG: {}", data);
@@ -406,6 +407,34 @@ impl<'a> Program<'a> {
         };
 
         system.run_dispatch(Dispatch::new(kind, message))
+    }
+
+    pub fn send_signal<ID: Into<ProgramIdWrapper>>(
+        &self,
+        from: ID,
+        exit_code: ExitCode,
+    ) -> RunResult {
+        let mut system = self.manager.borrow_mut();
+
+        let source = from.into().0;
+
+        let message = SignalMessage::new(
+            MessageId::generate_from_user(
+                system.block_info.height,
+                source,
+                system.fetch_inc_message_nonce() as u128,
+            ),
+            exit_code,
+        );
+
+        let (actor, _) = system.actors.get_mut(&self.id).expect("Can't fail");
+
+        if let TestActor::Uninitialized(id @ None, _) = actor {
+            *id = Some(message.id());
+        };
+
+        let dispatch = message.into_dispatch(self.id);
+        system.run_dispatch(dispatch)
     }
 
     pub fn id(&self) -> ProgramId {
