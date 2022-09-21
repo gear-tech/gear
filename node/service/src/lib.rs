@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use sc_client_api::BlockBackend;
+use sc_client_api::{Backend as BackendT, BlockBackend, UsageProvider};
 use sc_executor::{NativeElseWasmExecutor, NativeExecutionDispatch};
 use sc_finality_grandpa::SharedVoterState;
 use sc_keystore::LocalKeystore;
@@ -25,11 +25,15 @@ use sc_service::{
 };
 use sc_telemetry::{Telemetry, TelemetryWorker};
 use sp_api::ConstructRuntimeApi;
-use sp_runtime::traits::BlakeTwo256;
+use sp_runtime::{traits::BlakeTwo256, OpaqueExtrinsic};
 use sp_trie::PrefixedMemoryDB;
 use std::{sync::Arc, time::Duration};
 
 pub use client::*;
+
+pub use sc_client_api::AuxStore;
+pub use sp_blockchain::{HeaderBackend, HeaderMetadata};
+pub use sp_consensus_babe::BabeApi;
 
 #[cfg(feature = "gear-native")]
 pub use gear_runtime;
@@ -500,4 +504,56 @@ where
 
     network_starter.start_network();
     Ok(task_manager)
+}
+
+struct RevertConsensus {
+    blocks: BlockNumber,
+    backend: Arc<FullBackend>,
+}
+
+impl ExecuteWithClient for RevertConsensus {
+    type Output = sp_blockchain::Result<()>;
+
+    fn execute_with_client<Client, Api, Backend>(self, client: Arc<Client>) -> Self::Output
+    where
+        <Api as sp_api::ApiExt<Block>>::StateBackend: sp_api::StateBackend<BlakeTwo256>,
+        Backend: BackendT<Block> + 'static,
+        Backend::State: sp_api::StateBackend<BlakeTwo256>,
+        Api: RuntimeApiCollection<StateBackend = Backend::State>,
+        Client: AbstractClient<Block, Backend, Api = Api>
+            + 'static
+            + HeaderMetadata<
+                sp_runtime::generic::Block<
+                    sp_runtime::generic::Header<u32, BlakeTwo256>,
+                    OpaqueExtrinsic,
+                >,
+                Error = sp_blockchain::Error,
+            >
+            + AuxStore
+            + UsageProvider<
+                sp_runtime::generic::Block<
+                    sp_runtime::generic::Header<u32, BlakeTwo256>,
+                    OpaqueExtrinsic,
+                >,
+            >,
+    {
+        sc_consensus_babe::revert(client.clone(), self.backend, self.blocks)?;
+        sc_finality_grandpa::revert(client, self.blocks)?;
+        Ok(())
+    }
+}
+
+/// Reverts the node state down to at most the last finalized block.
+///
+/// In particular this reverts:
+/// - Low level Babe and Grandpa consensus data.
+pub fn revert_backend(
+    client: Arc<Client>,
+    backend: Arc<FullBackend>,
+    blocks: BlockNumber,
+    _config: Configuration,
+) -> Result<(), ServiceError> {
+    client.execute_with(RevertConsensus { blocks, backend })?;
+
+    Ok(())
 }
