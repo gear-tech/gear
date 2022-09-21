@@ -145,7 +145,7 @@ where
         builder.add_func("gr_value_available", Funcs::value_available);
         builder.add_func("gr_wait", Funcs::wait);
         builder.add_func("gr_wait_for", Funcs::wait_for);
-        builder.add_func("gr_wait_no_more", Funcs::wait_no_more);
+        builder.add_func("gr_wait_up_to", Funcs::wait_up_to);
         builder.add_func("gr_wake", Funcs::wake);
         let mut env_builder: EnvironmentDefinitionBuilder<_> = builder.into();
 

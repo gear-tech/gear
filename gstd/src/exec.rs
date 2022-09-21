@@ -80,7 +80,7 @@
 use crate::{ActorId, MessageId};
 pub use gcore::exec::{
     block_height, block_timestamp, gas_available, leave, value_available, wait, wait_for,
-    wait_no_more,
+    wait_up_to,
 };
 
 /// Terminate the execution of a program.

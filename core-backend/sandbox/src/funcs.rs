@@ -782,14 +782,14 @@ where
         Err(HostError)
     }
 
-    pub fn wait_no_more(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
+    pub fn wait_up_to(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
         let mut args = args.iter();
 
         let duration_ptr = pop_i32(&mut args)?;
 
         let mut f = || {
             let duration: u32 = ctx.read_memory_as(duration_ptr)?;
-            ctx.ext.wait_no_more(duration).map_err(FuncError::Core)?;
+            ctx.ext.wait_up_to(duration).map_err(FuncError::Core)?;
             Ok(Some(duration))
         };
 

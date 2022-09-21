@@ -621,7 +621,7 @@ impl EnvExt for Ext {
         Ok(())
     }
 
-    fn wait_no_more(&mut self, duration: u32) -> Result<(), Self::Error> {
+    fn wait_up_to(&mut self, duration: u32) -> Result<(), Self::Error> {
         self.charge_gas_runtime(RuntimeCosts::WaitNoMore)?;
 
         if duration == 0 {

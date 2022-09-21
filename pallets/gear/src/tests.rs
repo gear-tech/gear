@@ -2634,12 +2634,12 @@ fn test_different_waits_success() {
             value
         ));
 
-        let wait_no_more_success = get_last_message_id();
+        let wait_up_to_success = get_last_message_id();
 
         run_to_next_block(None);
 
         assert_eq!(
-            get_waitlist_expiration(wait_no_more_success),
+            get_waitlist_expiration(wait_up_to_success),
             expiration(duration)
         );
     });
@@ -2760,12 +2760,12 @@ fn test_different_waits_fail() {
             value
         ));
 
-        let wait_no_more_gas = get_last_message_id();
+        let wait_up_to_gas = get_last_message_id();
 
         run_to_next_block(None);
 
         assert_failed(
-            wait_no_more_gas,
+            wait_up_to_gas,
             ExecutionErrorReason::Ext(TrapExplanation::Core(ExtError::Wait(
                 WaitError::NotEnoughGas,
             ))),
@@ -2832,12 +2832,12 @@ fn test_different_waits_fail() {
             value
         ));
 
-        let wait_no_more_arg = get_last_message_id();
+        let wait_up_to_arg = get_last_message_id();
 
         run_to_next_block(None);
 
         assert_failed(
-            wait_no_more_arg,
+            wait_up_to_arg,
             ExecutionErrorReason::Ext(TrapExplanation::Core(ExtError::Wait(
                 WaitError::InvalidArgument,
             ))),
