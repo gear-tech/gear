@@ -236,7 +236,7 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
     let WasmExecutionContext {
         gas_counter,
         gas_allowance_counter,
-        gas_reserver: gas_reservation_map,
+        gas_reserver,
         origin,
         program,
         mut pages_initial_data,
@@ -283,7 +283,7 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
     let context = ProcessorContext {
         gas_counter,
         gas_allowance_counter,
-        gas_reserver: gas_reservation_map,
+        gas_reserver,
         value_counter,
         allocations_context,
         message_context,
