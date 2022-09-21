@@ -23,10 +23,7 @@ use crate::{
 use frame_benchmarking_cli::{BenchmarkCmd, ExtrinsicFactory, SUBSTRATE_REFERENCE_HARDWARE};
 use runtime_primitives::Block;
 use sc_cli::{ChainSpec, RuntimeVersion, SubstrateCli};
-use sc_service::Arc;
-use service::{
-    chain_spec, FullBackend, FullClient, IdentifyVariant,
-};
+use service::{chain_spec, IdentifyVariant};
 use sp_keyring::Sr25519Keyring;
 
 impl SubstrateCli for Cli {
@@ -174,45 +171,11 @@ pub fn run() -> sc_cli::Result<()> {
             let runner = cli.create_runner(cmd)?;
             runner.async_run(|config| {
                 let (client, backend, _, task_manager) = service::new_chain_ops(&config)?;
-                match &config.chain_spec {
-                    #[cfg(feature = "gear-native")]
-                    spec if spec.is_gear() => {
-                        unwrap_client!(client, {
-                            let aux_revert = Box::new(
-                                |client: Arc<
-                                    FullClient<gear_runtime::RuntimeApi, service::GearExecutorDispatch>,
-                                >,
-                                 backend,
-                                 blocks: u32| {
-                                    sc_consensus_babe::revert(client.clone(), backend, blocks)?;
-                                    sc_finality_grandpa::revert(client, blocks)?;
-                                    Ok(())
-                                },
-                            );
-
-                            Ok((cmd.run(client.clone(), backend, Some(aux_revert)), task_manager))
-                        })
-                    }
-                    #[cfg(feature = "vara-native")]
-                    spec if spec.is_vara() => {
-                        unwrap_client!(client, {
-                            let aux_revert = Box::new(
-                                |client: Arc<
-                                    FullClient<vara_runtime::RuntimeApi, service::VaraExecutorDispatch>,
-                                >,
-                                 backend,
-                                 blocks: u32| {
-                                    sc_consensus_babe::revert(client.clone(), backend, blocks)?;
-                                    sc_finality_grandpa::revert(client, blocks)?;
-                                    Ok(())
-                                },
-                            );
-
-                            Ok((cmd.run(client.clone(), backend, Some(aux_revert)), task_manager))
-                        })
-                    },
-                    _ => panic!(),
-                }
+                let aux_revert = Box::new(|client, backend, blocks| {
+                    service::revert_backend(client, backend, blocks, config)
+                        .map_err(|err| sc_cli::Error::Application(err.into()))
+                });
+                Ok((cmd.run(client, backend, Some(aux_revert)), task_manager))
             })
         }
         Some(Subcommand::Benchmark(cmd)) => {

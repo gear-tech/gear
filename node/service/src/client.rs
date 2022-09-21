@@ -186,7 +186,22 @@ pub trait ExecuteWithClient {
         Backend: sc_client_api::Backend<Block> + 'static,
         Backend::State: sp_api::StateBackend<BlakeTwo256>,
         Api: crate::RuntimeApiCollection<StateBackend = Backend::State>,
-        Client: AbstractClient<Block, Backend, Api = Api> + 'static;
+        Client: AbstractClient<Block, Backend, Api = Api>
+            + 'static
+            + sp_blockchain::HeaderMetadata<
+                sp_runtime::generic::Block<
+                    sp_runtime::generic::Header<u32, sp_runtime::traits::BlakeTwo256>,
+                    sp_runtime::OpaqueExtrinsic,
+                >,
+                Error = sp_blockchain::Error,
+            >
+            + sc_client_api::AuxStore
+            + sc_client_api::UsageProvider<
+                sp_runtime::generic::Block<
+                    sp_runtime::generic::Header<u32, sp_runtime::traits::BlakeTwo256>,
+                    sp_runtime::OpaqueExtrinsic,
+                >,
+            >;
 }
 
 /// A handle to a Gear client instance.

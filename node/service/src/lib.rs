@@ -31,6 +31,10 @@ use std::{sync::Arc, time::Duration};
 
 pub use client::*;
 
+pub use sc_client_api::AuxStore;
+pub use sp_blockchain::{HeaderBackend, HeaderMetadata};
+pub use sp_consensus_babe::BabeApi;
+
 #[cfg(feature = "gear-native")]
 pub use gear_runtime;
 #[cfg(feature = "vara-native")]
@@ -500,4 +504,56 @@ where
 
     network_starter.start_network();
     Ok(task_manager)
+}
+
+struct RevertConsensus {
+    blocks: BlockNumber,
+    backend: Arc<FullBackend>,
+}
+
+impl ExecuteWithClient for RevertConsensus {
+    type Output = sp_blockchain::Result<()>;
+
+    fn execute_with_client<Client, Api, Backend>(self, client: Arc<Client>) -> Self::Output
+    where
+        <Api as sp_api::ApiExt<Block>>::StateBackend: sp_api::StateBackend<BlakeTwo256>,
+        Backend: sc_client_api::Backend<Block> + 'static,
+        Backend::State: sp_api::StateBackend<BlakeTwo256>,
+        Api: RuntimeApiCollection<StateBackend = Backend::State>,
+        Client: AbstractClient<Block, Backend, Api = Api>
+            + 'static
+            + sp_blockchain::HeaderMetadata<
+                sp_runtime::generic::Block<
+                    sp_runtime::generic::Header<u32, sp_runtime::traits::BlakeTwo256>,
+                    sp_runtime::OpaqueExtrinsic,
+                >,
+                Error = sp_blockchain::Error,
+            >
+            + sc_client_api::AuxStore
+            + sc_client_api::UsageProvider<
+                sp_runtime::generic::Block<
+                    sp_runtime::generic::Header<u32, sp_runtime::traits::BlakeTwo256>,
+                    sp_runtime::OpaqueExtrinsic,
+                >,
+            >,
+    {
+        sc_consensus_babe::revert(client.clone(), self.backend, self.blocks)?;
+        sc_finality_grandpa::revert(client, self.blocks)?;
+        Ok(())
+    }
+}
+
+/// Reverts the node state down to at most the last finalized block.
+///
+/// In particular this reverts:
+/// - Low level Babe and Grandpa consensus data.
+pub fn revert_backend(
+    client: Arc<Client>,
+    backend: Arc<FullBackend>,
+    blocks: BlockNumber,
+    _config: Configuration,
+) -> Result<(), ServiceError> {
+    client.execute_with(RevertConsensus { blocks, backend })?;
+
+    Ok(())
 }
