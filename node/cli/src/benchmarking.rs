@@ -109,6 +109,7 @@ macro_rules! signed_payload {
     )
     ) => {
         let $extra: runtime::SignedExtra = (
+            runtime::DisableValueTransfers,
             frame_system::CheckNonZeroSender::<runtime::Runtime>::new(),
             frame_system::CheckSpecVersion::<runtime::Runtime>::new(),
             frame_system::CheckTxVersion::<runtime::Runtime>::new(),
@@ -125,6 +126,7 @@ macro_rules! signed_payload {
             $call.clone(),
             $extra.clone(),
             (
+                (),
                 (),
                 runtime::VERSION.spec_version,
                 runtime::VERSION.transaction_version,

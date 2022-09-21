@@ -52,10 +52,17 @@ use scale_info::TypeInfo;
 use sp_api::impl_runtime_apis;
 use sp_core::{crypto::KeyTypeId, OpaqueMetadata, H256};
 use sp_runtime::{
-    create_runtime_str, generic, impl_opaque_keys,
-    traits::{AccountIdLookup, BlakeTwo256, Block as BlockT, NumberFor, OpaqueKeys},
-    transaction_validity::{TransactionSource, TransactionValidity},
-    ApplyExtrinsicResult,
+    create_runtime_str,
+    curve::PiecewiseLinear,
+    generic, impl_opaque_keys,
+    traits::{
+        AccountIdLookup, BlakeTwo256, Block as BlockT, DispatchInfoOf, NumberFor, OpaqueKeys,
+        SignedExtension, Zero,
+    },
+    transaction_validity::{
+        InvalidTransaction, TransactionSource, TransactionValidity, TransactionValidityError,
+    },
+    ApplyExtrinsicResult, Perbill,
 };
 use sp_std::{
     convert::{TryFrom, TryInto},
@@ -129,7 +136,7 @@ pub struct DisableValueTransfers;
 impl SignedExtension for DisableValueTransfers {
     const IDENTIFIER: &'static str = "DisableValueTransfers";
     type AccountId = AccountId;
-    type Call = Call;
+    type Call = RuntimeCall;
     type AdditionalSigned = ();
     type Pre = ();
     fn additional_signed(&self) -> Result<Self::AdditionalSigned, TransactionValidityError> {
@@ -143,11 +150,13 @@ impl SignedExtension for DisableValueTransfers {
         _: usize,
     ) -> TransactionValidity {
         match call {
-            Call::Balances(_) => Err(TransactionValidityError::Invalid(InvalidTransaction::Call)),
-            Call::Gear(pallet_gear::Call::create_program { value, .. })
-            | Call::Gear(pallet_gear::Call::upload_program { value, .. })
-            | Call::Gear(pallet_gear::Call::send_message { value, .. })
-            | Call::Gear(pallet_gear::Call::send_reply { value, .. }) => {
+            RuntimeCall::Balances(_) => {
+                Err(TransactionValidityError::Invalid(InvalidTransaction::Call))
+            }
+            RuntimeCall::Gear(pallet_gear::Call::create_program { value, .. })
+            | RuntimeCall::Gear(pallet_gear::Call::upload_program { value, .. })
+            | RuntimeCall::Gear(pallet_gear::Call::send_message { value, .. })
+            | RuntimeCall::Gear(pallet_gear::Call::send_reply { value, .. }) => {
                 if value.is_zero() {
                     Ok(Default::default())
                 } else {
@@ -333,7 +342,7 @@ impl pallet_session::Config for Runtime {
     type ValidatorIdOf = pallet_staking::StashOf<Self>;
     type ShouldEndSession = Babe;
     type NextSessionRotation = Babe;
-    type SessionManager = ();
+    type SessionManager = pallet_session_historical::NoteHistoricalRoot<Self, Staking>;
     type SessionHandler = <SessionKeys as OpaqueKeys>::KeyTypeIdProviders;
     type Keys = SessionKeys;
     type WeightInfo = pallet_session::weights::SubstrateWeight<Runtime>;
@@ -427,7 +436,7 @@ impl pallet_staking::Config for Runtime {
     type ElectionProvider = ElectNone<Staking>;
     type GenesisElectionProvider = ElectAll<Staking>;
     type RewardRemainder = (); // No rewards in stage 1 => can just burn
-    type Event = Event;
+    type RuntimeEvent = RuntimeEvent;
     type Slash = ();
     type Reward = ();
     type SessionsPerEra = SessionsPerEra;
@@ -455,7 +464,7 @@ parameter_types! {
 }
 
 impl pallet_bags_list::Config for Runtime {
-    type Event = Event;
+    type RuntimeEvent = RuntimeEvent;
     type ScoreProvider = Staking;
     type WeightInfo = pallet_bags_list::weights::SubstrateWeight<Runtime>;
     type BagThresholds = BagThresholds;
@@ -530,7 +539,7 @@ impl pallet_gear_messenger::Config for Runtime {
 }
 
 impl pallet_airdrop::Config for Runtime {
-    type Event = Event;
+    type RuntimeEvent = RuntimeEvent;
     type WeightInfo = pallet_airdrop::weights::AirdropWeight<Runtime>;
 }
 
@@ -579,7 +588,7 @@ construct_runtime!(
         BagsList: pallet_bags_list,
         Staking: pallet_staking,
         Session: pallet_session,
-        Historical: pallet_session_historical::{Pallet},
+        Historical: pallet_session_historical,
         Sudo: pallet_sudo,
         Utility: pallet_utility,
         GearProgram: pallet_gear_program,
@@ -614,7 +623,7 @@ construct_runtime!(
         BagsList: pallet_bags_list,
         Staking: pallet_staking,
         Session: pallet_session,
-        Historical: pallet_session_historical::{Pallet},
+        Historical: pallet_session_historical,
         Sudo: pallet_sudo,
         Utility: pallet_utility,
         GearProgram: pallet_gear_program,

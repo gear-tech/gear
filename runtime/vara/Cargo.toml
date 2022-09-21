@@ -143,6 +143,8 @@ runtime-benchmarks = [
 	"pallet-gear-program/runtime-benchmarks",
 	"sp-runtime/runtime-benchmarks",
 	"pallet-airdrop/runtime-benchmarks",
+	"pallet-bags-list/runtime-benchmarks",
+	"pallet-staking/runtime-benchmarks",
 ]
 try-runtime = [
 	"frame-executive/try-runtime",
