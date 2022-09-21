@@ -157,7 +157,11 @@ impl From<ExecutionError> for ProcessorError {
     }
 }
 
-impl CoreError for ProcessorError {}
+impl CoreError for ProcessorError {
+    fn forbidden_function() -> Self {
+        Self::Core(ExtError::forbidden_function())
+    }
+}
 
 impl IntoExtError for ProcessorError {
     fn into_ext_error(self) -> Result<ExtError, Self> {
@@ -329,6 +333,14 @@ impl Ext {
         Ok(())
     }
 
+    fn check_forbidden_call(&mut self, id: ProgramId) -> Result<(), ProcessorError> {
+        if id == ProgramId::SYSTEM {
+            self.return_and_store_err(Err(ExecutionError::ForbiddenFunction))
+        } else {
+            Ok(())
+        }
+    }
+
     fn check_charge_results(
         &mut self,
         common_charge: ChargeResult,
@@ -441,6 +453,7 @@ impl EnvExt for Ext {
     fn send_commit(&mut self, handle: usize, msg: HandlePacket) -> Result<MessageId, Self::Error> {
         self.charge_gas_runtime(RuntimeCosts::SendCommit(msg.payload().len() as u32))?;
 
+        self.check_forbidden_call(msg.destination())?;
         self.charge_expiring_resources(&msg)?;
 
         let result = self.context.message_context.send_commit(handle as u32, msg);
@@ -451,6 +464,7 @@ impl EnvExt for Ext {
     fn reply_commit(&mut self, msg: ReplyPacket) -> Result<MessageId, Self::Error> {
         self.charge_gas_runtime(RuntimeCosts::ReplyCommit(msg.payload().len() as u32))?;
 
+        self.check_forbidden_call(self.context.message_context.reply_destination())?;
         self.charge_expiring_resources(&msg)?;
 
         let result = self.context.message_context.reply_commit(msg);

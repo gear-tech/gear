@@ -481,19 +481,25 @@ impl ExtManager {
     }
 
     fn process_mock(&mut self, mut mock: Box<dyn WasmProgram>, dispatch: StoredDispatch) {
+        enum Mocked {
+            Reply(Option<Vec<u8>>),
+            Signal,
+        }
+
         let message_id = dispatch.id();
         let source = dispatch.source();
         let program_id = dispatch.destination();
         let payload = dispatch.payload().to_vec();
 
         let response = match dispatch.kind() {
-            DispatchKind::Init => mock.init(payload),
-            DispatchKind::Handle => mock.handle(payload),
-            DispatchKind::Reply => mock.handle_reply(payload),
+            DispatchKind::Init => mock.init(payload).map(Mocked::Reply),
+            DispatchKind::Handle => mock.handle(payload).map(Mocked::Reply),
+            DispatchKind::Reply => mock.handle_reply(payload).map(Mocked::Reply),
+            DispatchKind::Signal => mock.handle_signal(payload).map(|()| Mocked::Signal),
         };
 
         match response {
-            Ok(reply) => {
+            Ok(Mocked::Reply(reply)) => {
                 if let DispatchKind::Init = dispatch.kind() {
                     self.message_dispatched(
                         message_id,
@@ -513,6 +519,7 @@ impl ExtManager {
                     );
                 }
             }
+            Ok(Mocked::Signal) => {}
             Err(expl) => {
                 mock.debug(expl);
 
@@ -537,14 +544,16 @@ impl ExtManager {
                     )
                 }
 
-                let id = MessageId::generate_reply(message_id, 1);
-                let packet = ReplyPacket::new(Default::default(), 1);
-                let reply_message = ReplyMessage::from_packet(id, packet);
+                if !dispatch.kind().is_signal() {
+                    let id = MessageId::generate_reply(message_id, 1);
+                    let packet = ReplyPacket::new(Default::default(), 1);
+                    let reply_message = ReplyMessage::from_packet(id, packet);
 
-                self.send_dispatch(
-                    message_id,
-                    reply_message.into_dispatch(program_id, dispatch.source(), message_id),
-                );
+                    self.send_dispatch(
+                        message_id,
+                        reply_message.into_dispatch(program_id, dispatch.source(), message_id),
+                    );
+                }
             }
         }
 

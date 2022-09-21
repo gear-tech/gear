@@ -5207,7 +5207,10 @@ fn call_forbidden_function() {
 
         assert_eq!(
             res,
-            Err("Program terminated with a trap: Unable to call a forbidden function".to_string())
+            Err(format!(
+                "Program terminated with a trap: {}",
+                ExtError::Execution(ExecutionError::ForbiddenFunction)
+            ))
         );
     });
 }

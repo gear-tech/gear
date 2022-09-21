@@ -40,7 +40,7 @@ use gear_core::{
     ids::{MessageId, ProgramId, ReservationId},
     message::{HandlePacket, InitPacket, ReplyPacket},
 };
-use gear_core_errors::MemoryError;
+use gear_core_errors::{CoreError, MemoryError};
 use wasmi::{Error, RuntimeValue};
 
 pub(crate) type SyscallOutput<E> = Result<ReturnValue, FuncError<E>>;
@@ -977,8 +977,7 @@ where
     }
 
     pub fn forbidden(ctx: &mut Runtime<E>, _args: &[RuntimeValue]) -> SyscallOutput<E::Error> {
-        ctx.err =
-            FuncError::Terminated(TerminationReason::Trap(TrapExplanation::ForbiddenFunction));
+        ctx.err = FuncError::Core(E::Error::forbidden_function());
         Err(FuncError::HostError)
     }
 }

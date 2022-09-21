@@ -188,7 +188,11 @@ mod tests {
         }
     }
 
-    impl CoreError for AllocError {}
+    impl CoreError for AllocError {
+        fn forbidden_function() -> Self {
+            unreachable!()
+        }
+    }
 
     /// Struct with internal value to interact with ExtCarrier
     #[derive(Debug, PartialEq, Eq, Clone, Default)]
