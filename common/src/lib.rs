@@ -38,7 +38,7 @@ use core::{fmt, mem};
 use frame_support::{
     dispatch::DispatchError,
     traits::Get,
-    weights::{IdentityFee, WeightToFee},
+    weights::{IdentityFee, Weight, WeightToFee},
 };
 use gear_core::{
     ids::{CodeId, MessageId, ProgramId},
@@ -139,7 +139,7 @@ pub trait GasPrice {
     /// A price for the `gas` amount of gas.
     /// In general case, this doesn't necessarily has to be constant.
     fn gas_price(gas: u64) -> Self::Balance {
-        IdentityFee::<Self::Balance>::weight_to_fee(&gas)
+        IdentityFee::<Self::Balance>::weight_to_fee(&Weight::from_ref_time(gas))
     }
 }
 
@@ -354,7 +354,7 @@ pub fn get_program_page_data(program_id: H256, page: PageNumber) -> Result<PageB
     let key = page_key(program_id, page);
     let data =
         sp_io::storage::get(&key).ok_or(CommonError::CannotFindDataForPage { program_id, page })?;
-    PageBuf::new_from_vec(data).map_err(Into::into)
+    PageBuf::new_from_vec(data.to_vec()).map_err(Into::into)
 }
 
 /// Returns data for all program pages, that have data in storage.
@@ -375,7 +375,7 @@ pub fn get_program_data_for_pages<'a>(
         let key = page_key(program_id, page);
         let data = sp_io::storage::get(&key)
             .ok_or(CommonError::CannotFindDataForPage { program_id, page })?;
-        let page_buf = PageBuf::new_from_vec(data)?;
+        let page_buf = PageBuf::new_from_vec(data.to_vec())?;
         pages_data.insert(page, page_buf);
     }
     Ok(pages_data)
@@ -390,7 +390,7 @@ pub fn get_program_data_for_pages_optional(
     for page in pages {
         let key = page_key(program_id, page);
         if let Some(data) = sp_io::storage::get(&key) {
-            let page_buf = PageBuf::new_from_vec(data)?;
+            let page_buf = PageBuf::new_from_vec(data.to_vec())?;
             pages_data.insert(page, page_buf);
         }
     }

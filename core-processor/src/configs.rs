@@ -22,10 +22,9 @@ use crate::common::Actor;
 use alloc::collections::BTreeSet;
 use codec::{Decode, Encode};
 use gear_core::{
-    costs::HostFnWeights, ids::ProgramId, memory::WasmPageNumber, message::IncomingDispatch,
+    code, costs::HostFnWeights, ids::ProgramId, memory::WasmPageNumber, message::IncomingDispatch,
 };
 
-const MAX_WASM_PAGES: u32 = 512;
 const INIT_COST: u64 = 5000;
 const ALLOC_COST: u64 = 10000;
 const MEM_GROW_COST: u64 = 10000;
@@ -58,7 +57,7 @@ pub struct AllocationsConfig {
 impl Default for AllocationsConfig {
     fn default() -> Self {
         Self {
-            max_pages: WasmPageNumber(MAX_WASM_PAGES),
+            max_pages: WasmPageNumber(code::MAX_WASM_PAGE_COUNT),
             init_cost: INIT_COST,
             alloc_cost: ALLOC_COST,
             mem_grow_cost: MEM_GROW_COST,

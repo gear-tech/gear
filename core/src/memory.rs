@@ -48,7 +48,7 @@ const GEAR_PAGE_SIZE: usize = 0x1000;
 /// if some gear page has data in storage, then all gear
 /// pages, that are in the same granularity interval, must contain
 /// data in storage. For example:
-/// ````
+/// ````ignored
 ///   granularity interval no.0       interval no.1        interval no.2
 ///                |                    |                    |
 ///                {====|====|====|====}{====|====|====|====}{====|====|====|====}
