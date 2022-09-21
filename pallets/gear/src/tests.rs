@@ -2609,9 +2609,9 @@ fn test_different_waits_success() {
             expiration(duration)
         );
 
-        // Command::WaitNoMore case.
+        // Command::WaitUpTo case.
         let duration = 5;
-        let payload = Command::WaitNoMore(duration).encode();
+        let payload = Command::WaitUpTo(duration).encode();
         let wl_gas = duration_gas(duration) + reserve_gas + 100_000_000;
         let value = 0;
 
@@ -2736,8 +2736,8 @@ fn test_different_waits_fail() {
             ))),
         );
 
-        // Command::WaitNoMore case no gas.
-        let payload = Command::WaitNoMore(10).encode();
+        // Command::WaitUpTo case no gas.
+        let payload = Command::WaitUpTo(10).encode();
         let wl_gas = 0;
         let value = 0;
 
@@ -2807,8 +2807,8 @@ fn test_different_waits_fail() {
             ))),
         );
 
-        // Command::WaitNoMore case invalid argument.
-        let payload = Command::WaitNoMore(0).encode();
+        // Command::WaitUpTo case invalid argument.
+        let payload = Command::WaitUpTo(0).encode();
         let wl_gas = 10_000;
         let value = 0;
 
@@ -2816,7 +2816,7 @@ fn test_different_waits_fail() {
             USER_1.into_origin(),
             HandleKind::Handle(program_id),
             // Hack to avoid calculating gas info fail.
-            Command::WaitNoMore(1).encode(),
+            Command::WaitUpTo(1).encode(),
             value,
             false,
         )

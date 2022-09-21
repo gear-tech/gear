@@ -622,7 +622,7 @@ impl EnvExt for Ext {
     }
 
     fn wait_up_to(&mut self, duration: u32) -> Result<(), Self::Error> {
-        self.charge_gas_runtime(RuntimeCosts::WaitNoMore)?;
+        self.charge_gas_runtime(RuntimeCosts::WaitUpTo)?;
 
         if duration == 0 {
             return self.return_and_store_err(Err(WaitError::InvalidArgument));

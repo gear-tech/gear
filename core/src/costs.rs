@@ -208,7 +208,7 @@ pub enum RuntimeCosts {
     /// Weight of calling `gr_wait_for`.
     WaitFor,
     /// Weight of calling `gr_wait_up_to`.
-    WaitNoMore,
+    WaitUpTo,
     /// Weight of calling `gr_wake`.
     Wake,
     /// Weight of calling `gr_create_program_wgas`.
@@ -255,7 +255,7 @@ impl RuntimeCosts {
             Leave => s.gr_leave,
             Wait => s.gr_wait,
             WaitFor => s.gr_wait_for,
-            WaitNoMore => s.gr_wait_up_to,
+            WaitUpTo => s.gr_wait_up_to,
             Wake => s.gr_wake,
             CreateProgram(len) => s
                 .gr_create_program_wgas
