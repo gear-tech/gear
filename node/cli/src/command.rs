@@ -171,7 +171,11 @@ pub fn run() -> sc_cli::Result<()> {
             let runner = cli.create_runner(cmd)?;
             runner.async_run(|config| {
                 let (client, backend, _, task_manager) = service::new_chain_ops(&config)?;
-                Ok((cmd.run(client, backend, None), task_manager))
+                let aux_revert = Box::new(|client, backend, blocks| {
+                    service::revert_backend(client, backend, blocks, config)
+                        .map_err(|err| sc_cli::Error::Application(err.into()))
+                });
+                Ok((cmd.run(client, backend, Some(aux_revert)), task_manager))
             })
         }
         Some(Subcommand::Benchmark(cmd)) => {
