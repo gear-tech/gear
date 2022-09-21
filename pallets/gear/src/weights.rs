@@ -439,8 +439,18 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
             .saturating_add(Weight::from_ref_time(1_000_547 as u64).saturating_mul(n as u64))
             .saturating_add(T::DbWeight::get().reads(4 as u64))
     }
-    fn gr_reserve_gas(r: u32, ) -> Weight { Weight::from_ref_time(0) }
-    fn gr_unreserve_gas(r: u32, ) -> Weight { Weight::from_ref_time(0) }
+    /// The range of component `r` is `[0, 20]`.
+    fn gr_reserve_gas(r: u32, ) -> Weight {
+        Weight::from_ref_time(109_139_000 as u64)
+            // Standard Error: 45_206
+            .saturating_add(Weight::from_ref_time(209_812_779 as u64).saturating_mul(r as u64))
+    }
+    /// The range of component `r` is `[0, 20]`.
+    fn gr_unreserve_gas(r: u32, ) -> Weight {
+        Weight::from_ref_time(108_908_000 as u64)
+            // Standard Error: 71_761
+            .saturating_add(Weight::from_ref_time(6_205_212 as u64).saturating_mul(r as u64))
+    }
     /// The range of component `r` is `[0, 50]`.
     fn instr_i64const(r: u32, ) -> Weight {
         Weight::from_ref_time(3_067_000 as u64)
@@ -1044,8 +1054,18 @@ impl WeightInfo for () {
             .saturating_add(Weight::from_ref_time(1_000_547 as u64).saturating_mul(n as u64))
             .saturating_add(RocksDbWeight::get().reads(4 as u64))
     }
-    fn gr_reserve_gas(r: u32, ) -> Weight { Weight::from_ref_time(0) }
-    fn gr_unreserve_gas(r: u32, ) -> Weight { Weight::from_ref_time(0) }
+    /// The range of component `r` is `[0, 20]`.
+    fn gr_reserve_gas(r: u32, ) -> Weight {
+        Weight::from_ref_time(109_139_000 as u64)
+            // Standard Error: 45_206
+            .saturating_add(Weight::from_ref_time(209_812_779 as u64).saturating_mul(r as u64))
+    }
+    /// The range of component `r` is `[0, 20]`.
+    fn gr_unreserve_gas(r: u32, ) -> Weight {
+        Weight::from_ref_time(108_908_000 as u64)
+            // Standard Error: 71_761
+            .saturating_add(Weight::from_ref_time(6_205_212 as u64).saturating_mul(r as u64))
+    }
     /// The range of component `r` is `[0, 50]`.
     fn instr_i64const(r: u32, ) -> Weight {
         Weight::from_ref_time(3_067_000 as u64)

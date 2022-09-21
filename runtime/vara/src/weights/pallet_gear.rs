@@ -83,6 +83,8 @@ pub trait WeightInfo {
     fn gr_wake(r: u32, ) -> Weight;
     fn gr_create_program_wgas(r: u32, ) -> Weight;
     fn gr_create_program_wgas_per_kb(n: u32, ) -> Weight;
+    fn gr_reserve_gas(r: u32, ) -> Weight;
+    fn gr_unreserve_gas(r: u32, ) -> Weight;
     fn instr_i64const(r: u32, ) -> Weight;
     fn instr_i64load(r: u32, ) -> Weight;
     fn instr_i64store(r: u32, ) -> Weight;
@@ -138,8 +140,6 @@ pub trait WeightInfo {
 /// Weights for pallet_gear using the Substrate node and recommended hardware.
 pub struct SubstrateWeight<T>(PhantomData<T>);
 impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
-    fn gr_reserve_gas(r: u32, ) -> Weight { Weight::from_ref_time(0) }
-    fn gr_unreserve_gas(r: u32, ) -> Weight { Weight::from_ref_time(0) }
     fn allocation_cost() -> Weight {
         // To be changed with the proper value.
         T::DbWeight::get().writes(1)
@@ -438,6 +438,18 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
             // Standard Error: 2_297
             .saturating_add(Weight::from_ref_time(1_026_025 as u64).saturating_mul(n as u64))
             .saturating_add(T::DbWeight::get().reads(4 as u64))
+    }
+    /// The range of component `r` is `[0, 20]`.
+    fn gr_reserve_gas(r: u32, ) -> Weight {
+        Weight::from_ref_time(109_238_000 as u64)
+            // Standard Error: 44_745
+            .saturating_add(Weight::from_ref_time(212_601_318 as u64).saturating_mul(r as u64))
+    }
+    /// The range of component `r` is `[0, 20]`.
+    fn gr_unreserve_gas(r: u32, ) -> Weight {
+        Weight::from_ref_time(109_239_000 as u64)
+            // Standard Error: 73_028
+            .saturating_add(Weight::from_ref_time(6_279_978 as u64).saturating_mul(r as u64))
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_i64const(r: u32, ) -> Weight {
@@ -1041,6 +1053,18 @@ impl WeightInfo for () {
             // Standard Error: 2_297
             .saturating_add(Weight::from_ref_time(1_026_025 as u64).saturating_mul(n as u64))
             .saturating_add(RocksDbWeight::get().reads(4 as u64))
+    }
+    /// The range of component `r` is `[0, 20]`.
+    fn gr_reserve_gas(r: u32, ) -> Weight {
+        Weight::from_ref_time(109_238_000 as u64)
+            // Standard Error: 44_745
+            .saturating_add(Weight::from_ref_time(212_601_318 as u64).saturating_mul(r as u64))
+    }
+    /// The range of component `r` is `[0, 20]`.
+    fn gr_unreserve_gas(r: u32, ) -> Weight {
+        Weight::from_ref_time(109_239_000 as u64)
+            // Standard Error: 73_028
+            .saturating_add(Weight::from_ref_time(6_279_978 as u64).saturating_mul(r as u64))
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_i64const(r: u32, ) -> Weight {
