@@ -17,7 +17,9 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use super::*;
-use crate::mock::{new_test_ext, Airdrop, AirdropCall, Balances, Call, Origin, Sudo, ALICE, ROOT};
+use crate::mock::{
+    new_test_ext, Airdrop, AirdropCall, Balances, Origin, RuntimeCall, Sudo, ALICE, ROOT,
+};
 use frame_support::{assert_noop, assert_ok};
 
 #[test]
@@ -31,7 +33,7 @@ fn test_setup_works() {
 #[test]
 fn sudo_call_works() {
     new_test_ext().execute_with(|| {
-        let call = Box::new(Call::Airdrop(AirdropCall::transfer {
+        let call = Box::new(RuntimeCall::Airdrop(AirdropCall::transfer {
             source: ROOT,
             dest: ALICE,
             amount: 10_000_000,

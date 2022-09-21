@@ -25,18 +25,25 @@
 include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
 
 use codec::{Decode, Encode};
-use frame_election_provider_support::{ElectionDataProvider, ElectionProvider};
+use frame_election_provider_support::{
+    ElectionDataProvider, ElectionProvider, ElectionProviderBase,
+};
 #[cfg(feature = "try-runtime")]
 use frame_support::weights::Weight;
 use frame_support::{
-    construct_runtime, parameter_types,
+    construct_runtime,
+    dispatch::DispatchClass,
+    parameter_types,
     traits::{ConstU128, ConstU32, Contains, KeyOwnerProofSystem, U128CurrencyToVote},
     weights::{
-        constants::{RocksDbWeight, WEIGHT_PER_SECOND},
+        constants::{BlockExecutionWeight, ExtrinsicBaseWeight, RocksDbWeight, WEIGHT_PER_SECOND},
         IdentityFee,
     },
 };
-use frame_system::EnsureRoot;
+use frame_system::{
+    limits::{BlockLength, BlockWeights},
+    EnsureRoot,
+};
 pub use pallet_gear::manager::{ExtManager, HandleKind};
 use pallet_grandpa::{
     fg_primitives, AuthorityId as GrandpaId, AuthorityList as GrandpaAuthorityList,
@@ -64,7 +71,7 @@ use sp_runtime::{
     transaction_validity::{
         InvalidTransaction, TransactionSource, TransactionValidity, TransactionValidityError,
     },
-    ApplyExtrinsicResult, Perbill,
+    ApplyExtrinsicResult, Perbill, Percent,
 };
 use sp_std::{
     convert::{TryFrom, TryInto},
@@ -146,7 +153,7 @@ pub struct DisableValueTransfers;
 impl SignedExtension for DisableValueTransfers {
     const IDENTIFIER: &'static str = "DisableValueTransfers";
     type AccountId = AccountId;
-    type Call = Call;
+    type Call = RuntimeCall;
     type AdditionalSigned = ();
     type Pre = ();
     fn additional_signed(&self) -> Result<Self::AdditionalSigned, TransactionValidityError> {
@@ -160,11 +167,13 @@ impl SignedExtension for DisableValueTransfers {
         _: usize,
     ) -> TransactionValidity {
         match call {
-            Call::Balances(_) => Err(TransactionValidityError::Invalid(InvalidTransaction::Call)),
-            Call::Gear(pallet_gear::Call::create_program { value, .. })
-            | Call::Gear(pallet_gear::Call::upload_program { value, .. })
-            | Call::Gear(pallet_gear::Call::send_message { value, .. })
-            | Call::Gear(pallet_gear::Call::send_reply { value, .. }) => {
+            RuntimeCall::Balances(_) => {
+                Err(TransactionValidityError::Invalid(InvalidTransaction::Call))
+            }
+            RuntimeCall::Gear(pallet_gear::Call::create_program { value, .. })
+            | RuntimeCall::Gear(pallet_gear::Call::upload_program { value, .. })
+            | RuntimeCall::Gear(pallet_gear::Call::send_message { value, .. })
+            | RuntimeCall::Gear(pallet_gear::Call::send_reply { value, .. }) => {
                 if value.is_zero() {
                     Ok(Default::default())
                 } else {
@@ -427,7 +436,7 @@ impl pallet_staking::BenchmarkingConfig for StakingBenchmarkingConfig {
 
 pub struct ElectNone<DataProvider>(sp_std::marker::PhantomData<DataProvider>);
 
-impl<DataProvider> ElectionProvider for ElectNone<DataProvider>
+impl<DataProvider> ElectionProviderBase for ElectNone<DataProvider>
 where
     DataProvider: ElectionDataProvider<AccountId = AccountId, BlockNumber = BlockNumber>,
 {
@@ -436,6 +445,15 @@ where
     type Error = &'static str;
     type DataProvider = DataProvider;
 
+    fn ongoing() -> bool {
+        false
+    }
+}
+
+impl<DataProvider> ElectionProvider for ElectNone<DataProvider>
+where
+    DataProvider: ElectionDataProvider<AccountId = AccountId, BlockNumber = BlockNumber>,
+{
     fn elect() -> Result<sp_npos_elections::Supports<AccountId>, Self::Error> {
         Err("No election takes place at stage 1")
     }
@@ -443,7 +461,7 @@ where
 
 pub struct ElectAll<DataProvider>(sp_std::marker::PhantomData<DataProvider>);
 
-impl<DataProvider> ElectionProvider for ElectAll<DataProvider>
+impl<DataProvider> ElectionProviderBase for ElectAll<DataProvider>
 where
     DataProvider: ElectionDataProvider<AccountId = AccountId, BlockNumber = BlockNumber>,
 {
@@ -452,6 +470,15 @@ where
     type Error = &'static str;
     type DataProvider = DataProvider;
 
+    fn ongoing() -> bool {
+        false
+    }
+}
+
+impl<DataProvider: ElectionDataProvider> ElectionProvider for ElectAll<DataProvider>
+where
+    DataProvider: ElectionDataProvider<AccountId = AccountId, BlockNumber = BlockNumber>,
+{
     fn elect() -> Result<sp_npos_elections::Supports<AccountId>, Self::Error> {
         let targets = Self::DataProvider::electable_targets(None)?
             .into_iter()
@@ -459,6 +486,10 @@ where
             .collect();
         Ok(targets)
     }
+}
+
+parameter_types! {
+    pub HistoryDepth: u32 = 84;
 }
 
 impl pallet_staking::Config for Runtime {
@@ -470,7 +501,7 @@ impl pallet_staking::Config for Runtime {
     type ElectionProvider = ElectNone<Staking>;
     type GenesisElectionProvider = ElectAll<Staking>;
     type RewardRemainder = (); // No rewards in stage 1 => can just burn
-    type Event = Event;
+    type RuntimeEvent = RuntimeEvent;
     type Slash = ();
     type Reward = ();
     type SessionsPerEra = SessionsPerEra;
@@ -487,6 +518,8 @@ impl pallet_staking::Config for Runtime {
     type BenchmarkingConfig = StakingBenchmarkingConfig;
     type OnStakerSlash = ();
     type WeightInfo = pallet_staking::weights::SubstrateWeight<Runtime>;
+    type TargetList = pallet_staking::UseValidatorsMap<Self>;
+    type HistoryDepth = HistoryDepth;
 }
 
 // Mocked threshoulds
@@ -498,7 +531,7 @@ parameter_types! {
 }
 
 impl pallet_bags_list::Config for Runtime {
-    type Event = Event;
+    type RuntimeEvent = RuntimeEvent;
     type ScoreProvider = Staking;
     type WeightInfo = pallet_bags_list::weights::SubstrateWeight<Runtime>;
     type BagThresholds = BagThresholds;
@@ -587,7 +620,7 @@ impl pallet_gear_messenger::Config for Runtime {
 }
 
 impl pallet_airdrop::Config for Runtime {
-    type Event = Event;
+    type RuntimeEvent = RuntimeEvent;
     type WeightInfo = pallet_airdrop::weights::AirdropWeight<Runtime>;
 }
 
@@ -636,7 +669,7 @@ construct_runtime!(
         BagsList: pallet_bags_list,
         Staking: pallet_staking,
         Session: pallet_session,
-        Historical: pallet_session_historical::{Pallet},
+        Historical: pallet_session_historical,
         Sudo: pallet_sudo,
         Utility: pallet_utility,
         GearProgram: pallet_gear_program,
@@ -671,7 +704,7 @@ construct_runtime!(
         BagsList: pallet_bags_list,
         Staking: pallet_staking,
         Session: pallet_session,
-        Historical: pallet_session_historical::{Pallet},
+        Historical: pallet_session_historical,
         Sudo: pallet_sudo,
         Utility: pallet_utility,
         GearProgram: pallet_gear_program,
