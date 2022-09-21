@@ -250,7 +250,7 @@ pub enum JournalNote {
         /// Decreases gas allowance by that amount, burned for processing try.
         gas_burned: u64,
     },
-    /// Update gas reservation nodes.
+    /// Update gas reservations.
     UpdateGasReservations {
         /// Message which gas will be reserved from.
         message_id: MessageId,
@@ -307,7 +307,7 @@ pub trait JournalHandler {
     ///
     /// Pushes StoredDispatch back to the top of the queue and decreases gas allowance.
     fn stop_processing(&mut self, dispatch: StoredDispatch, gas_burned: u64);
-    /// Reserve gas.
+    /// Update gas reservations.
     fn update_gas_reservation(
         &mut self,
         message_id: MessageId,
