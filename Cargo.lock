@@ -1827,7 +1827,7 @@ dependencies = [
  "sp-std",
  "vara-runtime",
  "wasm-mutate",
- "wasmparser 0.90.0",
+ "wasmparser 0.91.0",
  "wasmprinter",
  "wat",
 ]
@@ -10264,9 +10264,9 @@ dependencies = [
 
 [[package]]
 name = "wasmparser"
-version = "0.90.0"
+version = "0.91.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b62c8d843f4423efee314dc75a1049886deba3214f7e7f9ff0e4e58b4d618581"
+checksum = "239cdca8b8f356af8118c522d5fea23da45b60832ed4e18ef90bb3c9d8dce24a"
 dependencies = [
  "indexmap",
 ]
