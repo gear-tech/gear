@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use sc_client_api::BlockBackend;
+use sc_client_api::{Backend as BackendT, BlockBackend, UsageProvider};
 use sc_executor::{NativeElseWasmExecutor, NativeExecutionDispatch};
 use sc_finality_grandpa::SharedVoterState;
 use sc_keystore::LocalKeystore;
@@ -25,7 +25,7 @@ use sc_service::{
 };
 use sc_telemetry::{Telemetry, TelemetryWorker};
 use sp_api::ConstructRuntimeApi;
-use sp_runtime::traits::BlakeTwo256;
+use sp_runtime::{traits::BlakeTwo256, OpaqueExtrinsic};
 use sp_trie::PrefixedMemoryDB;
 use std::{sync::Arc, time::Duration};
 
@@ -517,23 +517,23 @@ impl ExecuteWithClient for RevertConsensus {
     fn execute_with_client<Client, Api, Backend>(self, client: Arc<Client>) -> Self::Output
     where
         <Api as sp_api::ApiExt<Block>>::StateBackend: sp_api::StateBackend<BlakeTwo256>,
-        Backend: sc_client_api::Backend<Block> + 'static,
+        Backend: BackendT<Block> + 'static,
         Backend::State: sp_api::StateBackend<BlakeTwo256>,
         Api: RuntimeApiCollection<StateBackend = Backend::State>,
         Client: AbstractClient<Block, Backend, Api = Api>
             + 'static
-            + sp_blockchain::HeaderMetadata<
+            + HeaderMetadata<
                 sp_runtime::generic::Block<
-                    sp_runtime::generic::Header<u32, sp_runtime::traits::BlakeTwo256>,
-                    sp_runtime::OpaqueExtrinsic,
+                    sp_runtime::generic::Header<u32, BlakeTwo256>,
+                    OpaqueExtrinsic,
                 >,
                 Error = sp_blockchain::Error,
             >
-            + sc_client_api::AuxStore
-            + sc_client_api::UsageProvider<
+            + AuxStore
+            + UsageProvider<
                 sp_runtime::generic::Block<
-                    sp_runtime::generic::Header<u32, sp_runtime::traits::BlakeTwo256>,
-                    sp_runtime::OpaqueExtrinsic,
+                    sp_runtime::generic::Header<u32, BlakeTwo256>,
+                    OpaqueExtrinsic,
                 >,
             >,
     {
