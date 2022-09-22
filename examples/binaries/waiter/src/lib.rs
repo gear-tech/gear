@@ -36,5 +36,5 @@ mod wasm {
 pub enum Command {
     Wait,
     WaitFor(u32),
-    WaitNoMore(u32),
+    WaitUpTo(u32),
 }

@@ -156,7 +156,7 @@ pub trait Ext {
 
     /// Interrupt the program and reschedule execution for maximum,
     /// but not more than duration.
-    fn wait_no_more(&mut self, duration: u32) -> Result<(), Self::Error>;
+    fn wait_up_to(&mut self, duration: u32) -> Result<(), Self::Error>;
 
     /// Wake the waiting message and move it to the processing queue.
     fn wake(&mut self, waker_id: MessageId) -> Result<(), Self::Error>;
@@ -291,7 +291,7 @@ mod tests {
         fn wait_for(&mut self, _duration: u32) -> Result<(), Self::Error> {
             Ok(())
         }
-        fn wait_no_more(&mut self, _duration: u32) -> Result<(), Self::Error> {
+        fn wait_up_to(&mut self, _duration: u32) -> Result<(), Self::Error> {
             Ok(())
         }
         fn wake(&mut self, _waker_id: MessageId) -> Result<(), Self::Error> {
