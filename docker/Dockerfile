@@ -6,7 +6,8 @@ WORKDIR /gear
 
 COPY . /gear
 RUN apt-get update && apt-get install -y libsecp256k1-dev openssl wget
-#RUN wget https://static.rust-lang.org/rustup/archive/1.24.3/x86_64-unknown-linux-gnu/rustup-init
+RUN echo Y | rustup self uninstall
+RUN wget https://static.rust-lang.org/rustup/archive/1.24.3/x86_64-unknown-linux-gnu/rustup-init
 RUN cargo build -p gear-node --profile $PROFILE
 
 # ===== SECOND STAGE ======
