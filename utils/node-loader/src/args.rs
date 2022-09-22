@@ -32,12 +32,16 @@ pub(crate) struct LoadParams {
     /// used in every test, therefore generated input data (for example, program)
     /// for each test will be the same.
     /// Example value: `<seed_variant>=<seed_u64_value>`.
-    #[structopt(long, short)]
-    pub(crate) seed: Option<SeedVariant>,
+    #[structopt(long)]
+    pub(crate) code_seed_type: Option<SeedVariant>,
 
     /// Desirable amount of workers in task pool.
     #[structopt(long, short, default_value = "1")]
     pub(crate) workers: usize,
+
+    /// Desirable amount of calls in the sending batch.
+    #[structopt(long, short, default_value = "10")]
+    pub(crate) batch_size: usize,
 }
 
 pub(crate) fn parse_cli_params() -> Params {

@@ -2989,6 +2989,7 @@ dependencies = [
  "anyhow",
  "arbitrary",
  "color-eyre",
+ "dyn-clonable",
  "futures",
  "gear-program",
  "gear-wasm-gen",
@@ -2997,6 +2998,7 @@ dependencies = [
  "parking_lot 0.12.1",
  "rand 0.8.5",
  "structopt",
+ "strum",
  "tokio",
 ]
 
