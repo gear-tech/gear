@@ -128,6 +128,17 @@ impl System {
         self.0.borrow_mut().store_new_code(&code)
     }
 
+    pub fn submit_code_and_meta<P: AsRef<Path>>(&self, code_path: P, meta_path: P) -> CodeId {
+        let code_id = self.submit_code(code_path);
+        let meta_path = env::current_dir()
+            .expect("Unable to get root directory of the project")
+            .join(meta_path)
+            .clean();
+        let meta = fs::read(&meta_path).unwrap_or_else(|_| panic!("Failed to read file {:?}", meta_path));
+        self.0.borrow_mut().meta_binaries.insert(code_id, meta);
+        code_id
+    }
+
     pub fn get_mailbox<ID: Into<ProgramIdWrapper>>(&self, id: ID) -> Mailbox {
         let program_id = id.into().0;
         if !self.0.borrow().is_user(&program_id) {
