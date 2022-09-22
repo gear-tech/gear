@@ -7,12 +7,12 @@
 
 use std::{fs::File, io::Write};
 
-use futures::stream::StreamExt;
 use rand::rngs::SmallRng;
 
 use args::{parse_cli_params, LoadParams, Params};
 use task::{generators, TaskPool};
 use anyhow::Result;
+use utils::Rng;
 
 mod args;
 mod reporter;
@@ -36,7 +36,6 @@ async fn run() -> Result<()> {
     }
 }
 
-// todo use anyhow?
 fn dump_with_seed(seed: u64) -> Result<()> {
     let code = generators::generate_gear_program::<SmallRng>(seed);
     let mut file = File::create("out.wasm")?;
@@ -46,15 +45,8 @@ fn dump_with_seed(seed: u64) -> Result<()> {
 
 async fn load_node(params: LoadParams) -> Result<()> {
     let gear_api = utils::obtain_gear_api(&params.endpoint, &params.user).await?;
-    let mut task_pool = TaskPool::try_new(params.workers, params.seed)?;
+    let mut task_pool = TaskPool::<SmallRng>::try_new(gear_api, params.workers, params.seed)?;
 
-    task_pool.run(gear_api).await;
-
-    for rep in task_pool.next().await {
-        match rep {
-            Ok(r) => r.report()?,
-            Err(e) => println!("Error inside task: {e}"),
-        }
-    }
+    task_pool.run().await;
     Ok(())
 }

@@ -56,7 +56,7 @@ impl RngCore for ConstantGenerator {
 
 pub(crate) type FutureSomeReporter = Pin<Box<dyn Future<Output = crate::reporter::SomeReporter> + Send + 'static>>;
 
-pub(crate) trait TaskGen{
+pub(crate) trait TaskGen<Rng>{
     type Output;
     fn gen(self: &Self) -> Self::Output;
 }

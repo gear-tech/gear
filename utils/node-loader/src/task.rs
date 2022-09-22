@@ -1,16 +1,13 @@
 use std::{
-    pin::Pin,
+    marker::PhantomData,
     sync::{Arc, Mutex},
 };
 
-use futures::stream::FuturesUnordered;
+use anyhow::{anyhow, Result};
+use futures::{stream::FuturesUnordered, StreamExt};
 use gear_program::api::Api;
-use rand::{rngs::SmallRng, seq::SliceRandom, RngCore};
-use tokio::{
-    sync::mpsc::{self, Receiver},
-    task::{JoinError, JoinHandle},
-};
-use anyhow::{Result, anyhow};
+use rand::seq::SliceRandom;
+use tokio::task::JoinHandle;
 
 use crate::{args::SeedVariant, reporter::SomeReporter};
 use upload_program::UploadProgramTaskGen;
@@ -24,45 +21,29 @@ pub(crate) mod generators;
 mod upload_code;
 mod upload_program;
 
-type TaskGenVec = Vec<Box<dyn TaskGen<Output = FutureSomeReporter> + Send + Sync>>;
+type TaskGenVec<Rng> = Vec<Box<dyn TaskGen<Rng, Output = FutureSomeReporter> + Send + Sync>>;
 
-pub(crate) struct TaskPool {
-    rx: Option<Receiver<JoinHandle<SomeReporter>>>,
+pub(crate) struct TaskPool<Rng: crate::Rng> {
+    gens: TaskGenVec<Rng>,
     tasks: FuturesUnordered<JoinHandle<SomeReporter>>,
-    seed_gen: Arc<Mutex<Box<dyn RngCore + Send + Sync>>>,
+    _phantom: PhantomData<Rng>,
 }
 
-impl TaskPool {
+impl<Rng: crate::Rng> TaskPool<Rng> {
     pub(crate) const MIN_SIZE: usize = 1;
     pub(crate) const MAX_SIZE: usize = 100;
 
-    pub(crate) fn try_new(size: usize, seed_variant: Option<SeedVariant>) -> Result<Self> {
+    pub(crate) fn try_new(
+        gear_api: Api,
+        size: usize,
+        seed_variant: Option<SeedVariant>,
+    ) -> Result<Self> {
         if size >= Self::MIN_SIZE && size <= Self::MAX_SIZE {
-            let seed_gen = Arc::new(Mutex::new(generators::get_some_seed_generator::<SmallRng>(
+            let seed_gen = Arc::new(Mutex::new(generators::get_some_seed_generator::<Rng>(
                 seed_variant,
             )));
 
-            Ok(Self {
-                rx: None,
-                tasks: FuturesUnordered::<JoinHandle<SomeReporter>>::new(),
-                seed_gen,
-            })
-        } else {
-            Err(anyhow!(format!(
-                "Can't create task pool with such size {size:?}. \
-                Allowed minimum size is {:?} and maximum {:?}",
-                Self::MIN_SIZE,
-                Self::MAX_SIZE,
-            )))
-        }
-    }
-
-    pub(crate) async fn run(&mut self, gear_api: Api) {
-        let seed_gen = Arc::clone(&self.seed_gen);
-        let (tx, rx) = mpsc::channel::<JoinHandle<SomeReporter>>(10);
-
-        tokio::spawn(async move {
-            let gens: TaskGenVec = vec![
+            let gens: TaskGenVec<Rng> = vec![
                 Box::new(UploadProgramTaskGen::try_new(
                     gear_api.clone(),
                     Arc::clone(&seed_gen),
@@ -70,36 +51,46 @@ impl TaskPool {
                 Box::new(UploadCodeTaskGen::try_new(gear_api, Arc::clone(&seed_gen))),
             ];
 
-            loop {
-                let task_gen = gens.choose(&mut rand::thread_rng()).ok_or(()).unwrap();
-                if let Err(e) = tx.send(tokio::spawn(task_gen.gen())).await{
-                    println!("Receiver is closed: {e}");
-                };
-            }
-        });
-        self.rx = Some(rx);
+            Ok(Self {
+                gens,
+                tasks: FuturesUnordered::<JoinHandle<SomeReporter>>::new(),
+                _phantom: PhantomData,
+            })
+        } else {
+            Err(anyhow!(
+                "Can't create task pool with such size {size:?}. \
+                Allowed minimum size is {:?} and maximum {:?}",
+                Self::MIN_SIZE,
+                Self::MAX_SIZE,
+            ))
+        }
     }
-}
 
-impl futures::stream::Stream for TaskPool {
-    type Item = Result<SomeReporter, JoinError>;
+    pub(crate) async fn run(&mut self) {
+        // fill pool
+        while self.tasks.len() != 100 {
+            self.tasks.push(tokio::spawn(self.gen_task()))
+        }
 
-    fn poll_next(
-        self: std::pin::Pin<&mut Self>,
-        cx: &mut std::task::Context<'_>,
-    ) -> std::task::Poll<Option<Self::Item>> {
-        let s = Pin::get_mut(self);
-        if let Some(rx) = &mut s.rx {
-            while let Some(f) = rx.blocking_recv() {
-                s.tasks.push(f);
-                if s.tasks.len() >= 100 {
-                    break;
-                };
+        loop {
+            match self.tasks.next().await {
+                Some(r) => {
+                    if let Ok(reporter) = r {
+                        if let Err(e) = reporter.report() {
+                            println!("Reporter error: {e}")
+                        }
+                    } else {
+                        println!("Task join error");
+                    }
+                    self.tasks.push(tokio::spawn(self.gen_task()))
+                }
+                None => continue,
             }
         }
-        match Pin::new(&mut s.tasks).poll_next(cx) {
-            std::task::Poll::Pending => std::task::Poll::Pending,
-            std::task::Poll::Ready(r) => std::task::Poll::Ready(r),
-        }
+    }
+
+    fn gen_task(&self) -> FutureSomeReporter {
+        let task_gen = self.gens.choose(&mut rand::thread_rng()).ok_or(()).unwrap();
+        task_gen.gen()
     }
 }

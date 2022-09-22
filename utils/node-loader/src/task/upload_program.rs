@@ -1,7 +1,7 @@
 use std::sync::{Arc, Mutex};
 
 use gear_program::api::{generated::api::gear::calls::UploadProgram, Api};
-use rand::{RngCore, rngs::SmallRng};
+use rand::RngCore;
 
 use crate::{
     reporter::{Reporter, SomeReporter, StdoutReporter},
@@ -24,7 +24,7 @@ impl UploadProgramTaskGen {
     }
 }
 
-impl TaskGen for UploadProgramTaskGen {
+impl<Rng: crate::Rng> TaskGen<Rng> for UploadProgramTaskGen {
     type Output = FutureSomeReporter;
     fn gen(&self) -> Self::Output {
         let seed = self
@@ -33,17 +33,17 @@ impl TaskGen for UploadProgramTaskGen {
             .expect("code seed generator panic")
             .next_u64();
 
-        Box::pin(upload_program_task(self.gear_api.clone(), seed))
+        Box::pin(upload_program_task::<Rng>(self.gear_api.clone(), seed))
     }
 }
 
-async fn upload_program_task(gear_api: Api, code_gen_seed: u64) -> SomeReporter {
+async fn upload_program_task<Rng: crate::Rng>(gear_api: Api, code_gen_seed: u64) -> SomeReporter {
     // todo avoid panics
     let signer = gear_api.try_signer(None).unwrap();
 
     let mut reporter = StdoutReporter::new(code_gen_seed);
 
-    let code = generators::generate_gear_program::<SmallRng>(code_gen_seed);
+    let code = generators::generate_gear_program::<Rng>(code_gen_seed);
     let _ = reporter.record(format!("Gen code size = {}", code.len()));
 
     let payload = UploadProgram {
