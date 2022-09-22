@@ -215,7 +215,7 @@ test-release: test-gear-release test-js gtest rtest test-runtime-upgrade test-cl
 
 .PHONY: test-gear
 test-gear: init-js examples
-	@ ./scripts/gear.sh test gear
+	@ ./scripts/gear.sh test gear --exclude gclient
 
 .PHONY: test-gear-release
 test-gear-release: init-js examples

@@ -221,7 +221,7 @@ jobs:
           cargo test -p pallet-gear-payment --features=lazy-pages --release --locked
 
       - name: "Test: Gear workspace"
-        run: ./scripts/gear.sh test gear --release --locked
+        run: ./scripts/gear.sh test gear --exclude gclient --release --locked
         env:
           RUSTFLAGS: -Cinstrument-coverage
 
@@ -338,8 +338,8 @@ jobs:
     if: github.ref == 'refs/heads/master'
     needs: spec_version
     runs-on: ci-win
-    defaults: 
-      run: 
+    defaults:
+      run:
         shell: msys2 {0}
     env:
       RUSTC_WRAPPER: "cachepot"
@@ -443,7 +443,7 @@ jobs:
 
       - name: "Test: Process node runtime testsuite"
         run: ./scripts/gear.sh test rtest
-        
+
       - name: "Test: Runtime upgrade and queue processing"
         run: ./scripts/gear.sh test runtime-upgrade
 
@@ -467,7 +467,7 @@ jobs:
             -p gear-lazy-pages
             -p gear-runtime-interface
             --features=lazy-pages
-            --release            
+            --release
 
   build-macos-x86:
     if: github.ref == 'refs/heads/master'
@@ -482,7 +482,7 @@ jobs:
 
       - name: "ACTIONS: Checkout"
         uses: actions/checkout@v2
-        
+
       - name: "ACTIONS: Setup caching"
         uses: actions/cache@v3
         with:
