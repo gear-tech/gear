@@ -128,7 +128,7 @@ impl System {
         self.0.borrow_mut().store_new_code(&code)
     }
 
-    /// Saves code and associated to the storage and returns it's code hash.
+    /// Saves code and associated meta to the storage and returns it's code hash.
     pub fn submit_code_and_meta<P: AsRef<Path>>(&self, code_path: P, meta_path: P) -> CodeId {
         let code_id = self.submit_code(code_path);
         let meta_path = env::current_dir()
