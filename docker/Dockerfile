@@ -11,6 +11,7 @@ RUN wget https://static.rust-lang.org/rustup/archive/1.24.3/x86_64-unknown-linux
 RUN chmod +x rustup-init
 RUN ./rustup-init -y
 RUN chmod +x /usr/local/cargo/bin/cargo
+RUN /usr/local/cargo/bin/cargo install sccache
 RUN /usr/local/cargo/bin/cargo build -p gear-node --profile $PROFILE
 
 # ===== SECOND STAGE ======
