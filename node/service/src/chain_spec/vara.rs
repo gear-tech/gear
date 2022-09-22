@@ -248,10 +248,10 @@ pub fn main() -> Result<ChainSpec, String> {
                         // Controller account
                         hex!["06b0b7361b821f19c84c05a558d60a44a52d7ae350c3637b65df40baf66f4a64"]
                             .into(),
-                        // 5FqG2TKEPQaqfQZ5hLk7auUYA9oNQeqMbDbUvMRpDZnxk4hr
+                        // 5F7YisUTjnCAxNFS8nhjmVjDp5vbA2Wt18gpLrfgJMwtzmF9
                         hex!["f85202a9d5727171623a417147625dcd317c7ecb7ce79f8b664dfac093efda19"]
                             .unchecked_into(),
-                        // 5H8iTsGjMAhMqJcscNiPme75SNFmKMYByi7vzBKixik6yFqx
+                        // 5DEqMoECjfHFWLj9LxYtTjj7PiK3fFYbZ9ttxJBqP8YdcQ2U
                         hex!["e55cbde1cf31fe6b891ac4cffcce790015e77ddd0f6943653e9b4d722f72baa4"]
                             .unchecked_into(),
                     ),
