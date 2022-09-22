@@ -127,7 +127,7 @@ pub(crate) struct FuncsHandler<E: Ext + 'static> {
     _phantom: PhantomData<E>,
 }
 
-fn args_to_str<'a>(args: &[Value]) -> String {
+fn args_to_str(args: &[Value]) -> String {
     let mut res = String::new();
     for val in args {
         match val {
