@@ -2,6 +2,7 @@ use std::sync::{Arc, Mutex};
 
 use gear_program::api::{generated::api::gear::calls::UploadCode, Api};
 use rand::RngCore;
+use anyhow::Result;
 
 use crate::{
     reporter::{Reporter, SomeReporter, StdoutReporter},
@@ -36,8 +37,8 @@ impl<Rng: crate::Rng> TaskGen<Rng> for UploadCodeTaskGen {
     }
 }
 
-async fn upload_code_task<Rng: crate::Rng>(gear_api: Api, code_seed_gen: u64) -> SomeReporter {
-    let signer = gear_api.try_signer(None).unwrap();
+async fn upload_code_task<Rng: crate::Rng>(gear_api: Api, code_seed_gen: u64) -> Result<SomeReporter> {
+    let signer = gear_api.try_signer(None)?;
 
     let mut reporter = StdoutReporter::new(code_seed_gen);
 
@@ -52,5 +53,5 @@ async fn upload_code_task<Rng: crate::Rng>(gear_api: Api, code_seed_gen: u64) ->
         let _ = reporter.record("Successfully receive response".into());
     }
 
-    Box::new(reporter)
+    Ok(Box::new(reporter))
 }

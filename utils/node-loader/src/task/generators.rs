@@ -3,10 +3,11 @@ use std::pin::Pin;
 use arbitrary::Unstructured;
 use futures::Future;
 use rand::RngCore;
+use anyhow::Result;
 
 use crate::{
     args::SeedVariant,
-    utils::{self, now},
+    utils::{self, now}, reporter::SomeReporter,
 };
 
 pub(crate) fn get_some_seed_generator<Rng: utils::Rng>(
@@ -54,7 +55,7 @@ impl RngCore for ConstantGenerator {
     }
 }
 
-pub(crate) type FutureSomeReporter = Pin<Box<dyn Future<Output = crate::reporter::SomeReporter> + Send + 'static>>;
+pub(crate) type FutureSomeReporter = Pin<Box<dyn Future<Output = Result<SomeReporter>> + Send + 'static>>;
 
 pub(crate) trait TaskGen<Rng>{
     type Output;

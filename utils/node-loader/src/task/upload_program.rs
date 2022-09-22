@@ -2,6 +2,7 @@ use std::sync::{Arc, Mutex};
 
 use gear_program::api::{generated::api::gear::calls::UploadProgram, Api};
 use rand::RngCore;
+use anyhow::Result;
 
 use crate::{
     reporter::{Reporter, SomeReporter, StdoutReporter},
@@ -37,9 +38,8 @@ impl<Rng: crate::Rng> TaskGen<Rng> for UploadProgramTaskGen {
     }
 }
 
-async fn upload_program_task<Rng: crate::Rng>(gear_api: Api, code_gen_seed: u64) -> SomeReporter {
-    // todo avoid panics
-    let signer = gear_api.try_signer(None).unwrap();
+async fn upload_program_task<Rng: crate::Rng>(gear_api: Api, code_gen_seed: u64) -> Result<SomeReporter> {
+    let signer = gear_api.try_signer(None)?;
 
     let mut reporter = StdoutReporter::new(code_gen_seed);
 
@@ -48,8 +48,8 @@ async fn upload_program_task<Rng: crate::Rng>(gear_api: Api, code_gen_seed: u64)
 
     let payload = UploadProgram {
         code: code.clone(),
-        salt: hex::decode("00").unwrap(),
-        init_payload: hex::decode("00").unwrap(),
+        salt: hex::decode("00")?,
+        init_payload: hex::decode("00")?,
         gas_limit: 250_000_000_000,
         value: 0,
     };
@@ -60,5 +60,5 @@ async fn upload_program_task<Rng: crate::Rng>(gear_api: Api, code_gen_seed: u64)
         let _ = reporter.record("Successfully receive response".into());
     }
 
-    Box::new(reporter)
+    Ok(Box::new(reporter))
 }

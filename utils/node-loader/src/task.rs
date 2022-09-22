@@ -25,7 +25,7 @@ type TaskGenVec<Rng> = Vec<Box<dyn TaskGen<Rng, Output = FutureSomeReporter> + S
 
 pub(crate) struct TaskPool<Rng: crate::Rng> {
     gens: TaskGenVec<Rng>,
-    tasks: FuturesUnordered<JoinHandle<SomeReporter>>,
+    tasks: FuturesUnordered<JoinHandle<Result<SomeReporter>>>,
     _phantom: PhantomData<Rng>,
 }
 
@@ -53,7 +53,7 @@ impl<Rng: crate::Rng> TaskPool<Rng> {
 
             Ok(Self {
                 gens,
-                tasks: FuturesUnordered::<JoinHandle<SomeReporter>>::new(),
+                tasks: FuturesUnordered::<JoinHandle<Result<SomeReporter>>>::new(),
                 _phantom: PhantomData,
             })
         } else {
@@ -66,7 +66,7 @@ impl<Rng: crate::Rng> TaskPool<Rng> {
         }
     }
 
-    pub(crate) async fn run(&mut self) {
+    pub(crate) async fn run(&mut self) -> Result<()> {
         // fill pool
         while self.tasks.len() != 100 {
             self.tasks.push(tokio::spawn(self.gen_task()))
@@ -76,7 +76,7 @@ impl<Rng: crate::Rng> TaskPool<Rng> {
             match self.tasks.next().await {
                 Some(r) => {
                     if let Ok(reporter) = r {
-                        if let Err(e) = reporter.report() {
+                        if let Err(e) = reporter?.report() {
                             println!("Reporter error: {e}")
                         }
                     } else {

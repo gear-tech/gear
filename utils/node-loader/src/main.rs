@@ -22,13 +22,14 @@ mod utils;
 /// Main entry-point
 #[tokio::main]
 async fn main() {
-    if let Err(e) = run().await {
+    let params = parse_cli_params();
+    if let Err(e) = run(params).await {
         eprintln!("{e:}");
+        std::process::exit(1)
     }
 }
 
-async fn run() -> Result<()> {
-    let params = parse_cli_params();
+async fn run(params: Params) -> Result<()> {
 
     match params {
         Params::Dump { seed } => dump_with_seed(seed),
@@ -46,7 +47,6 @@ fn dump_with_seed(seed: u64) -> Result<()> {
 async fn load_node(params: LoadParams) -> Result<()> {
     let gear_api = utils::obtain_gear_api(&params.endpoint, &params.user).await?;
     let mut task_pool = TaskPool::<SmallRng>::try_new(gear_api, params.workers, params.seed)?;
-
-    task_pool.run().await;
+    task_pool.run().await?;
     Ok(())
 }

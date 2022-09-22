@@ -12,7 +12,7 @@ pub(crate) fn now() -> u64 {
 
 pub(crate) async fn obtain_gear_api(endpoint: &str, user: &str) -> Result<Api> {
     keystore::login(user, None)?;
-    Ok(Api::new(Some(endpoint)).await?)
+    Api::new(Some(endpoint)).await.map_err(|e| e.into())
 }
 
 pub(crate) trait Rng: RngCore + SeedableRng + Send + Sync + 'static {}
