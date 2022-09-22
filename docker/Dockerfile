@@ -6,14 +6,10 @@ WORKDIR /gear
 
 COPY . /gear
 RUN apt-get update && apt-get install -y libsecp256k1-dev openssl wget
-RUN rustup self uninstall -y
 RUN wget https://static.rust-lang.org/rustup/archive/1.24.3/x86_64-unknown-linux-gnu/rustup-init
 RUN chmod +x rustup-init
-RUN ./rustup-init -y
-RUN chmod +x /usr/local/cargo/bin/cargo
-RUN TMPDIR=$XDG_RUNTIME_DIR /usr/local/cargo/bin/cargo install CRATE
-RUN /usr/local/cargo/bin/cargo install sccache
-RUN /usr/local/cargo/bin/cargo build -p gear-node --profile $PROFILE
+RUN TMPDIR=$XDG_RUNTIME_DIR ./rustup-init -y
+RUN cargo build -p gear-node --profile $PROFILE
 
 # ===== SECOND STAGE ======
 
