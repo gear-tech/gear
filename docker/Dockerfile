@@ -10,6 +10,8 @@ RUN rustup self uninstall -y
 RUN wget https://static.rust-lang.org/rustup/archive/1.24.3/x86_64-unknown-linux-gnu/rustup-init
 RUN chmod +x rustup-init
 RUN ./rustup-init -y
+RUN cd /usr/local/cargo/bin
+RUN ls -ltr
 RUN ./usr/local/cargo/bin/cargo build -p gear-node --profile $PROFILE
 
 # ===== SECOND STAGE ======
