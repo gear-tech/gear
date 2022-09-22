@@ -1536,16 +1536,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "demo-signal-entry"
-version = "0.1.0"
-dependencies = [
- "gear-wasm-builder",
- "gstd",
- "gtest",
- "parity-scale-codec",
-]
-
-[[package]]
 name = "demo-syscall-error"
 version = "0.1.0"
 dependencies = [
@@ -1827,7 +1817,7 @@ dependencies = [
  "sp-std",
  "vara-runtime",
  "wasm-mutate",
- "wasmparser 0.91.0",
+ "wasmparser 0.90.0",
  "wasmprinter",
  "wat",
 ]
@@ -2225,6 +2215,33 @@ dependencies = [
  "tempfile",
  "thiserror",
  "thousands",
+]
+
+[[package]]
+name = "frame-election-provider-solution-type"
+version = "4.0.0-dev"
+source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#267d1ef24d675858090f7078868e96d24d4a105e"
+dependencies = [
+ "proc-macro-crate",
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
+name = "frame-election-provider-support"
+version = "4.0.0-dev"
+source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#267d1ef24d675858090f7078868e96d24d4a105e"
+dependencies = [
+ "frame-election-provider-solution-type",
+ "frame-support",
+ "frame-system",
+ "parity-scale-codec",
+ "scale-info",
+ "sp-arithmetic",
+ "sp-npos-elections",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -2887,6 +2904,7 @@ dependencies = [
  "jsonrpsee",
  "pallet-gear-rpc",
  "pallet-gear-rpc-runtime-api",
+ "pallet-staking",
  "pallet-transaction-payment",
  "pallet-transaction-payment-rpc",
  "pallet-transaction-payment-rpc-runtime-api",
@@ -5082,6 +5100,34 @@ dependencies = [
 ]
 
 [[package]]
+name = "pallet-airdrop"
+version = "1.0.0"
+dependencies = [
+ "env_logger",
+ "frame-benchmarking",
+ "frame-support",
+ "frame-system",
+ "gear-common",
+ "log",
+ "pallet-authorship",
+ "pallet-balances",
+ "pallet-gear",
+ "pallet-gear-gas",
+ "pallet-gear-messenger",
+ "pallet-gear-program",
+ "pallet-gear-scheduler",
+ "pallet-sudo",
+ "pallet-timestamp",
+ "parity-scale-codec",
+ "scale-info",
+ "serde",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
+]
+
+[[package]]
 name = "pallet-authorship"
 version = "4.0.0-dev"
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#267d1ef24d675858090f7078868e96d24d4a105e"
@@ -5118,6 +5164,26 @@ dependencies = [
  "sp-session",
  "sp-staking",
  "sp-std",
+]
+
+[[package]]
+name = "pallet-bags-list"
+version = "4.0.0-dev"
+source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#267d1ef24d675858090f7078868e96d24d4a105e"
+dependencies = [
+ "frame-benchmarking",
+ "frame-election-provider-support",
+ "frame-support",
+ "frame-system",
+ "log",
+ "pallet-balances",
+ "parity-scale-codec",
+ "scale-info",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
+ "sp-tracing",
 ]
 
 [[package]]
@@ -5192,6 +5258,7 @@ dependencies = [
  "scale-info",
  "serde",
  "sp-consensus-babe",
+ "sp-consensus-slots",
  "sp-core",
  "sp-externalities",
  "sp-io",
@@ -5441,6 +5508,40 @@ dependencies = [
  "sp-staking",
  "sp-std",
  "sp-trie",
+]
+
+[[package]]
+name = "pallet-staking"
+version = "4.0.0-dev"
+source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#267d1ef24d675858090f7078868e96d24d4a105e"
+dependencies = [
+ "frame-benchmarking",
+ "frame-election-provider-support",
+ "frame-support",
+ "frame-system",
+ "log",
+ "pallet-authorship",
+ "pallet-session",
+ "parity-scale-codec",
+ "rand_chacha 0.2.2",
+ "scale-info",
+ "serde",
+ "sp-application-crypto",
+ "sp-io",
+ "sp-runtime",
+ "sp-staking",
+ "sp-std",
+]
+
+[[package]]
+name = "pallet-staking-reward-curve"
+version = "4.0.0-dev"
+source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#267d1ef24d675858090f7078868e96d24d4a105e"
+dependencies = [
+ "proc-macro-crate",
+ "proc-macro2",
+ "quote",
+ "syn",
 ]
 
 [[package]]
@@ -8487,6 +8588,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "sp-npos-elections"
+version = "4.0.0-dev"
+source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#267d1ef24d675858090f7078868e96d24d4a105e"
+dependencies = [
+ "parity-scale-codec",
+ "scale-info",
+ "serde",
+ "sp-arithmetic",
+ "sp-core",
+ "sp-runtime",
+ "sp-std",
+]
+
+[[package]]
 name = "sp-offchain"
 version = "4.0.0-dev"
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#267d1ef24d675858090f7078868e96d24d4a105e"
@@ -9663,6 +9778,7 @@ name = "vara-runtime"
 version = "0.1.0"
 dependencies = [
  "frame-benchmarking",
+ "frame-election-provider-support",
  "frame-executive",
  "frame-support",
  "frame-system",
@@ -9674,8 +9790,10 @@ dependencies = [
  "gear-runtime-primitives",
  "hex-literal",
  "log",
+ "pallet-airdrop",
  "pallet-authorship",
  "pallet-babe",
+ "pallet-bags-list",
  "pallet-balances",
  "pallet-gear",
  "pallet-gear-debug",
@@ -9687,6 +9805,8 @@ dependencies = [
  "pallet-gear-scheduler",
  "pallet-grandpa",
  "pallet-session",
+ "pallet-staking",
+ "pallet-staking-reward-curve",
  "pallet-sudo",
  "pallet-timestamp",
  "pallet-transaction-payment",
@@ -9699,9 +9819,11 @@ dependencies = [
  "sp-consensus-babe",
  "sp-core",
  "sp-inherents",
+ "sp-npos-elections",
  "sp-offchain",
  "sp-runtime",
  "sp-session",
+ "sp-staking",
  "sp-std",
  "sp-transaction-pool",
  "sp-version",
@@ -10249,6 +10371,15 @@ name = "wasmparser"
 version = "0.88.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fb8cf7dd82407fe68161bedcd57fde15596f32ebf6e9b3bdbf3ae1da20e38e5e"
+dependencies = [
+ "indexmap",
+]
+
+[[package]]
+name = "wasmparser"
+version = "0.90.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b62c8d843f4423efee314dc75a1049886deba3214f7e7f9ff0e4e58b4d618581"
 dependencies = [
  "indexmap",
 ]
