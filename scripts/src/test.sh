@@ -22,8 +22,7 @@ test_usage() {
     rtest          run node runtime testing tool
     pallet         run pallet-gear tests
     runtime-upgrade run runtime-upgrade test for queue processing
-    client-weights run client weight test for infinite loop demo execution
-    uploads        run client upload code test
+    client         run client tests via gclient
     fuzz           run fuzzer with a fuzz target
 
 EOF
@@ -106,43 +105,16 @@ runtime_upgrade_test() {
   # Killing node process added in js script
 }
 
-# $1 - ROOT DIR
-client_weights_test() {
+client_tests() {
   ROOT_DIR="$1"
-  TEST_SCRIPT_PATH="$ROOT_DIR/scripts/test-utils"
-  DEMO_LOOP_PATH="$ROOT_DIR/target/wasm32-unknown-unknown/release/demo_loop.opt.wasm"
 
-  # Run node
-  RUST_LOG="gear=debug,gwasm=debug" $ROOT_DIR/target/release/gear-node \
-  --dev --tmp --unsafe-ws-external --unsafe-rpc-external --rpc-methods Unsafe --rpc-cors all & sleep 3
+  if [[ "$2" == "--run-node" ]]; then
+    # Run node
+    RUST_LOG="pallet_gear=debug,runtime::gear=debug" $ROOT_DIR/target/release/gear-node \
+      --dev --tmp --unsafe-ws-external --unsafe-rpc-external --rpc-methods Unsafe --rpc-cors all & sleep 3
+  fi
 
-  # Change dir to the js script dir
-  cd "$TEST_SCRIPT_PATH"
-
-  # Run test
-  npm run weights "$DEMO_LOOP_PATH"
-
-  # Killing node process added in js script
-}
-
-# $1 - ROOT DIR
-uploads_test() {
-  ROOT_DIR="$1"
-  shift
-
-  TEST_SCRIPT_PATH="$ROOT_DIR/scripts/test-utils"
-
-  # Run node
-  RUST_LOG="gear=debug,gwasm=debug" $ROOT_DIR/target/release/gear-node \
-  --dev --tmp --unsafe-ws-external --unsafe-rpc-external --rpc-methods Unsafe --rpc-cors all & sleep 3
-
-  # Change dir to the js script dir
-  cd "$TEST_SCRIPT_PATH"
-
-  # Run test
-  npm run uploads "$@"
-
-  # Killing node process added in js script
+  cargo test -p gclient || pgrep -f "gear-node" | xargs kill -9
 }
 
 run_fuzzer() {

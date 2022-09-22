@@ -447,13 +447,8 @@ jobs:
       - name: "Test: Runtime upgrade and queue processing"
         run: ./scripts/gear.sh test runtime-upgrade
 
-      - name: "Test: Weight on client for loop"
-        run: ./scripts/gear.sh test client-weights
-
-      - name: "Test: Upload programs"
-        run: |
-          ./scripts/gear.sh test uploads "$(pwd)/target/wat-examples/wrong_load.wasm"
-          ./scripts/gear.sh test uploads "$(pwd)/target/wat-examples/inf_recursion.wasm"
+      - name: "Test: Client tests"
+        run: ./scripts/gear.sh test client --run-node
 
       - name: "Test: Lazy pages"
         uses: actions-rs/cargo@v1
