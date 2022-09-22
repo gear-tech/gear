@@ -351,8 +351,8 @@ pub struct HostFnWeights<T: Config> {
     /// Weight of calling `gr_wait_for`.
     pub gr_wait_for: u64,
 
-    /// Weight of calling `gr_wait_no_more`.
-    pub gr_wait_no_more: u64,
+    /// Weight of calling `gr_wait_up_to`.
+    pub gr_wait_up_to: u64,
 
     /// Weight of calling `gr_wake`.
     pub gr_wake: u64,
@@ -587,7 +587,7 @@ impl<T: Config> HostFnWeights<T> {
             gr_leave: self.gr_leave,
             gr_wait: self.gr_wait,
             gr_wait_for: self.gr_wait_for,
-            gr_wait_no_more: self.gr_wait_no_more,
+            gr_wait_up_to: self.gr_wait_up_to,
             gr_wake: self.gr_wake,
             gr_create_program_wgas: self.gr_create_program_wgas,
             gr_create_program_wgas_per_byte: self.gr_create_program_wgas_per_byte,
@@ -630,7 +630,7 @@ impl<T: Config> Default for HostFnWeights<T> {
             gr_leave: cost!(gr_leave),
             gr_wait: cost!(gr_wait),
             gr_wait_for: cost!(gr_wait_for),
-            gr_wait_no_more: cost!(gr_wait_no_more),
+            gr_wait_up_to: cost!(gr_wait_up_to),
             gr_wake: cost_batched!(gr_wake),
             gr_create_program_wgas: cost!(gr_create_program_wgas),
             gr_create_program_wgas_per_byte: cost_byte_batched!(gr_create_program_wgas_per_kb),

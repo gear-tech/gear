@@ -350,8 +350,8 @@ impl EnvExt for LazyPagesExt {
         self.inner.wait_for(duration).map_err(Error::Processor)
     }
 
-    fn wait_no_more(&mut self, duration: u32) -> Result<(), Self::Error> {
-        self.inner.wait_no_more(duration).map_err(Error::Processor)
+    fn wait_up_to(&mut self, duration: u32) -> Result<(), Self::Error> {
+        self.inner.wait_up_to(duration).map_err(Error::Processor)
     }
 
     fn wake(&mut self, waker_id: MessageId) -> Result<(), Self::Error> {
