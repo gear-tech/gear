@@ -20,6 +20,7 @@ use crate::runtime::Runtime;
 #[cfg(not(feature = "std"))]
 use alloc::string::ToString;
 use alloc::{
+    format,
     string::{FromUtf8Error, String},
     vec,
     vec::Vec,
@@ -40,6 +41,7 @@ use gear_core::{
     env::Ext,
     ids::{MessageId, ProgramId},
     message::{HandlePacket, InitPacket, ReplyPacket},
+    RUNTIME_MAX_ALLOC_SIZE,
 };
 use gear_core_errors::{CoreError, MemoryError};
 use sp_sandbox::{HostError, ReturnValue, Value};
@@ -125,12 +127,26 @@ pub(crate) struct FuncsHandler<E: Ext + 'static> {
     _phantom: PhantomData<E>,
 }
 
+fn args_to_str<'a>(args: &[Value]) -> String {
+    let mut res = String::new();
+    for val in args {
+        match val {
+            Value::I32(x) => res.push_str(&format!(" I32({:#x}),", *x)),
+            Value::I64(x) => res.push_str(&format!(" I64({:#x}),", *x)),
+            Value::F32(x) => res.push_str(&format!(" F32({:#x}),", *x)),
+            Value::F64(x) => res.push_str(&format!(" F64({:#x}),", *x)),
+        }
+    }
+    res
+}
+
 impl<E> FuncsHandler<E>
 where
     E: Ext + IntoExtInfo + 'static,
     E::Error: AsTerminationReason + IntoExtError,
 {
     pub fn send(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
+        log::trace!(target: "syscall::gear", "send, args = {}", args_to_str(args));
         let mut args = args.iter();
 
         let program_id_ptr = pop_i32(&mut args)?;
@@ -162,6 +178,7 @@ where
     }
 
     pub fn send_wgas(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
+        log::trace!(target: "syscall::gear", "send_wgas, args = {}", args_to_str(args));
         let mut args = args.iter();
 
         let program_id_ptr = pop_i32(&mut args)?;
@@ -194,6 +211,7 @@ where
     }
 
     pub fn send_commit(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
+        log::trace!(target: "syscall::gear", "send_commit, args = {}", args_to_str(args));
         let mut args = args.iter();
 
         let handle_ptr = pop_i32(&mut args)?;
@@ -226,6 +244,7 @@ where
     }
 
     pub fn send_commit_wgas(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
+        log::trace!(target: "syscall::gear", "send_commit_wgas, args = {}", args_to_str(args));
         let mut args = args.iter();
 
         let handle_ptr = pop_i32(&mut args)?;
@@ -259,6 +278,7 @@ where
     }
 
     pub fn send_init(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
+        log::trace!(target: "syscall::gear", "send_init, args = {}", args_to_str(args));
         let mut args = args.iter();
 
         let handle_ptr = pop_i32(&mut args)?;
@@ -282,6 +302,7 @@ where
     }
 
     pub fn send_push(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
+        log::trace!(target: "syscall::gear", "send_push, args = {}", args_to_str(args));
         let mut args = args.iter();
 
         let handle_ptr = pop_i32(&mut args)?;
@@ -306,6 +327,7 @@ where
     }
 
     pub fn read(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
+        log::trace!(target: "syscall::gear", "read, args = {}", args_to_str(args));
         let mut args = args.iter();
 
         let at: usize = pop_i32(&mut args)?;
@@ -333,6 +355,7 @@ where
     }
 
     pub fn size(ctx: &mut Runtime<E>, _args: &[Value]) -> SyscallOutput {
+        log::trace!(target: "syscall::gear", "size");
         let size = ctx.ext.size().map_err(FuncError::Core);
 
         match size {
@@ -346,6 +369,7 @@ where
 
     pub fn exit(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
         let value_dest_ptr = pop_i32(&mut args.iter())?;
+        log::trace!(target: "syscall::gear", "exit, value_dest_ptr = {:#x}", value_dest_ptr);
 
         let mut res = || -> Result<(), _> {
             let value_dest: ProgramId = ctx.read_memory_as(value_dest_ptr)?;
@@ -360,6 +384,7 @@ where
     }
 
     pub fn exit_code(ctx: &mut Runtime<E>, _args: &[Value]) -> SyscallOutput {
+        log::trace!(target: "syscall::gear", "exit_code");
         let exit_code = ctx.ext.exit_code().map_err(FuncError::Core).map_err(|e| {
             ctx.err = e;
             HostError
@@ -374,6 +399,7 @@ where
     }
 
     pub fn gas(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
+        log::trace!(target: "gas::gear", "gas, args = {}", args_to_str(args));
         let mut args = args.iter();
 
         let val = pop_i32(&mut args)?;
@@ -395,6 +421,7 @@ where
     }
 
     pub fn alloc(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
+        log::trace!(target: "syscall::gear", "alloc, args = {:#x?}", args_to_str(args));
         let mut args = args.iter();
 
         let pages: u32 = pop_i32(&mut args)?;
@@ -411,6 +438,7 @@ where
     }
 
     pub fn free(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
+        log::trace!(target: "syscall::gear", "free, args = {:#x?}", args_to_str(args));
         let mut args = args.iter();
 
         let page: u32 = pop_i32(&mut args)?;
@@ -426,6 +454,7 @@ where
     }
 
     pub fn block_height(ctx: &mut Runtime<E>, _args: &[Value]) -> SyscallOutput {
+        log::trace!(target: "syscall::gear", "block_height");
         let block_height = ctx
             .ext
             .block_height()
@@ -439,6 +468,7 @@ where
     }
 
     pub fn block_timestamp(ctx: &mut Runtime<E>, _args: &[Value]) -> SyscallOutput {
+        log::trace!(target: "syscall::gear", "block_timestamp");
         let block_timestamp =
             ctx.ext
                 .block_timestamp()
@@ -452,6 +482,7 @@ where
     }
 
     pub fn origin(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
+        log::trace!(target: "syscall::gear", "origin, args = {}", args_to_str(args));
         let mut args = args.iter();
 
         let origin_ptr = pop_i32(&mut args)?;
@@ -469,6 +500,7 @@ where
     }
 
     pub fn reply(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
+        log::trace!(target: "syscall::gear", "reply, args = {}", args_to_str(args));
         let mut args = args.iter();
 
         let payload_ptr = pop_i32(&mut args)?;
@@ -497,6 +529,7 @@ where
     }
 
     pub fn reply_wgas(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
+        log::trace!(target: "syscall::gear", "reply_wgas, args = {}", args_to_str(args));
         let mut args = args.iter();
 
         let payload_ptr = pop_i32(&mut args)?;
@@ -526,6 +559,7 @@ where
     }
 
     pub fn reply_commit(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
+        log::trace!(target: "syscall::gear", "reply_commit, args = {}", args_to_str(args));
         let mut args = args.iter();
 
         let value_ptr = pop_i32(&mut args)?;
@@ -553,6 +587,7 @@ where
     }
 
     pub fn reply_commit_wgas(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
+        log::trace!(target: "syscall::gear", "reply_commit_wgas, args = {}", args_to_str(args));
         let mut args = args.iter();
 
         let gas_limit = pop_i64(&mut args)?;
@@ -583,6 +618,7 @@ where
     }
 
     pub fn reply_to(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
+        log::trace!(target: "syscall::gear", "reply_to, args = {}", args_to_str(args));
         let mut args = args.iter();
 
         let dest = pop_i32(&mut args)?;
@@ -606,6 +642,7 @@ where
     }
 
     pub fn reply_push(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
+        log::trace!(target: "syscall::gear", "reply_push, args = {}", args_to_str(args));
         let mut args = args.iter();
 
         let payload_ptr = pop_i32(&mut args)?;
@@ -629,12 +666,16 @@ where
     }
 
     pub fn debug(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
+        log::trace!(target: "syscall::gear", "debug, args = {}", args_to_str(args));
         let mut args = args.iter();
 
         let str_ptr = pop_i32(&mut args)?;
         let str_len = pop_i32(&mut args)?;
 
         let mut f = || {
+            if str_len > RUNTIME_MAX_ALLOC_SIZE {
+                return Err(FuncError::Memory(MemoryError::OutOfBounds));
+            }
             let mut data = vec![0u8; str_len];
             ctx.read_memory_into_buf(str_ptr, &mut data)?;
             let s = String::from_utf8(data).map_err(FuncError::DebugString)?;
@@ -648,6 +689,7 @@ where
     }
 
     pub fn gas_available(ctx: &mut Runtime<E>, _args: &[Value]) -> SyscallOutput {
+        log::trace!(target: "syscall::gear", "gas_available");
         let gas_available = ctx
             .ext
             .gas_available()
@@ -658,6 +700,7 @@ where
     }
 
     pub fn msg_id(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
+        log::trace!(target: "syscall::gear", "msg_id, args = {}", args_to_str(args));
         let mut args = args.iter();
 
         let msg_id_ptr = pop_i32(&mut args)?;
@@ -674,6 +717,7 @@ where
     }
 
     pub fn program_id(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
+        log::trace!(target: "syscall::gear", "program_id, args = {}", args_to_str(args));
         let mut args = args.iter();
 
         let program_id_ptr = pop_i32(&mut args)?;
@@ -690,6 +734,7 @@ where
     }
 
     pub fn source(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
+        log::trace!(target: "syscall::gear", "source, args = {}", args_to_str(args));
         let mut args = args.iter();
 
         let source_ptr = pop_i32(&mut args)?;
@@ -711,6 +756,7 @@ where
     }
 
     pub fn value(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
+        log::trace!(target: "syscall::gear", "value, args = {}", args_to_str(args));
         let mut args = args.iter();
 
         let value_ptr = pop_i32(&mut args)?;
@@ -727,6 +773,7 @@ where
     }
 
     pub fn value_available(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
+        log::trace!(target: "syscall::gear", "value_available, args = {}", args_to_str(args));
         let mut args = args.iter();
 
         let value_ptr = pop_i32(&mut args)?;
@@ -743,6 +790,7 @@ where
     }
 
     pub fn leave(ctx: &mut Runtime<E>, _args: &[Value]) -> SyscallOutput {
+        log::trace!(target: "syscall::gear", "leave");
         let err = ctx
             .ext
             .leave()
@@ -754,6 +802,7 @@ where
     }
 
     pub fn wait(ctx: &mut Runtime<E>, _args: &[Value]) -> SyscallOutput {
+        log::trace!(target: "syscall::gear", "wait");
         let err = ctx
             .ext
             .wait()
@@ -765,6 +814,7 @@ where
     }
 
     pub fn wait_for(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
+        log::trace!(target: "syscall::gear", "wait_for, args = {}", args_to_str(args));
         let mut args = args.iter();
 
         let duration_ptr = pop_i32(&mut args)?;
@@ -783,6 +833,7 @@ where
     }
 
     pub fn wait_up_to(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
+        log::trace!(target: "syscall::gear", "wait_up_to, args = {}", args_to_str(args));
         let mut args = args.iter();
 
         let duration_ptr = pop_i32(&mut args)?;
@@ -801,6 +852,7 @@ where
     }
 
     pub fn wake(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
+        log::trace!(target: "syscall::gear", "wake, args = {}", args_to_str(args));
         let mut args = args.iter();
 
         let waker_id_ptr = pop_i32(&mut args)?;
@@ -817,6 +869,7 @@ where
     }
 
     pub fn create_program(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
+        log::trace!(target: "syscall::gear", "create_program, args = {}", args_to_str(args));
         let mut args = args.iter();
 
         let code_hash_ptr = pop_i32(&mut args)?;
@@ -850,6 +903,7 @@ where
     }
 
     pub fn create_program_wgas(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
+        log::trace!(target: "syscall::gear", "create_program_wgas, args = {}", args_to_str(args));
         let mut args = args.iter();
 
         let code_hash_ptr = pop_i32(&mut args)?;
@@ -890,6 +944,7 @@ where
     }
 
     pub fn error(ctx: &mut Runtime<E>, args: &[Value]) -> Result<ReturnValue, HostError> {
+        log::trace!(target: "syscall::gear", "error, args = {}", args_to_str(args));
         let mut args = args.iter();
 
         let data_ptr = pop_i32(&mut args)?;
@@ -910,6 +965,7 @@ where
     }
 
     pub fn forbidden(ctx: &mut Runtime<E>, _args: &[Value]) -> SyscallOutput {
+        log::trace!(target: "syscall::gear", "forbidden");
         ctx.err = FuncError::Core(E::Error::forbidden_function());
         Err(HostError)
     }

@@ -31,7 +31,7 @@ pub const MAX_WASM_PAGE_COUNT: u32 = 512;
 /// Parse function exports from wasm module into [`DispatchKind`].
 fn get_exports(
     module: &Module,
-    reject_unnececery: bool,
+    reject_unnecessary: bool,
 ) -> Result<BTreeSet<DispatchKind>, CodeError> {
     let mut exports = BTreeSet::<DispatchKind>::new();
 
@@ -50,7 +50,7 @@ fn get_exports(
                 exports.insert(DispatchKind::Reply);
             } else if entry.field() == DispatchKind::Signal.into_entry() {
                 exports.insert(DispatchKind::Signal);
-            } else if reject_unnececery {
+            } else if reject_unnecessary {
                 return Err(CodeError::NonGearExportFnFound);
             }
         }
