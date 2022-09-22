@@ -8974,7 +8974,7 @@ dependencies = [
  "byteorder",
  "digest 0.10.5",
  "sha2 0.10.6",
- "sha3 0.10.5",
+ "sha3 0.10.4",
  "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
  "twox-hash",
 ]
@@ -9620,7 +9620,7 @@ dependencies = [
  "log",
  "parity-scale-codec",
  "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "wasmi 0.13.2",
+ "wasmi 0.13.0",
  "wasmtime 0.40.1",
 ]
 
