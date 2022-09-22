@@ -7,7 +7,7 @@ edition = "2018"
 [dependencies.schnorrkel]
 version = "0.10.2"
 features = [
-	"preaudit_deprecated",
-	"u64_backend",
+    "preaudit_deprecated",
+    "u64_backend",
 ]
 default-features = false
