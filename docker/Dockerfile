@@ -1,4 +1,4 @@
-FROM paritytech/ci-linux:staging as builder
+FROM paritytech/ci-linux:production as builder
 LABEL description="This is the build stage for Gear. Here we create the binary."
 
 ARG PROFILE=production
