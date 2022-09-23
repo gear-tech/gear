@@ -70,23 +70,23 @@ pub trait Ext {
     fn send_push(&mut self, handle: usize, buffer: &[u8]) -> Result<(), Self::Error>;
 
     /// Complete message and send it to another program.
-    fn send_commit(&mut self, handle: usize, msg: HandlePacket) -> Result<MessageId, Self::Error>;
+    fn send_commit(&mut self, handle: usize, msg: HandlePacket, delay: u32) -> Result<MessageId, Self::Error>;
 
     /// Send message to another program.
-    fn send(&mut self, msg: HandlePacket) -> Result<MessageId, Self::Error> {
+    fn send(&mut self, msg: HandlePacket, delay: u32) -> Result<MessageId, Self::Error> {
         let handle = self.send_init()?;
-        self.send_commit(handle, msg)
+        self.send_commit(handle, msg, delay)
     }
 
     /// Push an extra buffer into reply message.
     fn reply_push(&mut self, buffer: &[u8]) -> Result<(), Self::Error>;
 
     /// Complete reply message and send it to source program.
-    fn reply_commit(&mut self, msg: ReplyPacket) -> Result<MessageId, Self::Error>;
+    fn reply_commit(&mut self, msg: ReplyPacket, delay: u32) -> Result<MessageId, Self::Error>;
 
     /// Produce reply to the current message.
-    fn reply(&mut self, msg: ReplyPacket) -> Result<MessageId, Self::Error> {
-        self.reply_commit(msg)
+    fn reply(&mut self, msg: ReplyPacket, delay: u32) -> Result<MessageId, Self::Error> {
+        self.reply_commit(msg, delay)
     }
 
     /// Get the message id of the initial message.
@@ -159,10 +159,10 @@ pub trait Ext {
     fn wait_up_to(&mut self, duration: u32) -> Result<(), Self::Error>;
 
     /// Wake the waiting message and move it to the processing queue.
-    fn wake(&mut self, waker_id: MessageId) -> Result<(), Self::Error>;
+    fn wake(&mut self, waker_id: MessageId, delay: u32) -> Result<(), Self::Error>;
 
     /// Send init message to create a new program
-    fn create_program(&mut self, packet: InitPacket) -> Result<ProgramId, Self::Error>;
+    fn create_program(&mut self, packet: InitPacket, delay: u32) -> Result<ProgramId, Self::Error>;
 
     /// Return the set of functions that are forbidden to be called.
     fn forbidden_funcs(&self) -> &BTreeSet<&'static str>;
@@ -218,7 +218,7 @@ mod tests {
         fn send_push(&mut self, _handle: usize, _buffer: &[u8]) -> Result<(), Self::Error> {
             Ok(())
         }
-        fn reply_commit(&mut self, _msg: ReplyPacket) -> Result<MessageId, Self::Error> {
+        fn reply_commit(&mut self, _msg: ReplyPacket, _delay: u32) -> Result<MessageId, Self::Error> {
             Ok(MessageId::default())
         }
         fn reply_push(&mut self, _buffer: &[u8]) -> Result<(), Self::Error> {
@@ -228,6 +228,7 @@ mod tests {
             &mut self,
             _handle: usize,
             _msg: HandlePacket,
+            _delay: u32,
         ) -> Result<MessageId, Self::Error> {
             Ok(MessageId::default())
         }
@@ -294,10 +295,10 @@ mod tests {
         fn wait_up_to(&mut self, _duration: u32) -> Result<(), Self::Error> {
             Ok(())
         }
-        fn wake(&mut self, _waker_id: MessageId) -> Result<(), Self::Error> {
+        fn wake(&mut self, _waker_id: MessageId, _delay: u32) -> Result<(), Self::Error> {
             Ok(())
         }
-        fn create_program(&mut self, _packet: InitPacket) -> Result<ProgramId, Self::Error> {
+        fn create_program(&mut self, _packet: InitPacket, _delay: u32) -> Result<ProgramId, Self::Error> {
             Ok(Default::default())
         }
         fn forbidden_funcs(&self) -> &BTreeSet<&'static str> {

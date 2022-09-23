@@ -102,8 +102,8 @@ pub struct ExtInfo {
     pub gas_amount: GasAmount,
     pub allocations: Option<BTreeSet<WasmPageNumber>>,
     pub pages_data: BTreeMap<PageNumber, PageBuf>,
-    pub generated_dispatches: Vec<Dispatch>,
-    pub awakening: Vec<MessageId>,
+    pub generated_dispatches: Vec<(Dispatch, u32)>,
+    pub awakening: Vec<(MessageId, u32)>,
     pub program_candidates_data: BTreeMap<CodeId, Vec<(ProgramId, MessageId)>>,
     pub context_store: ContextStore,
 }
