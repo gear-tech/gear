@@ -207,7 +207,7 @@ where
         Pallet::<T>::consume_message(message_id)
     }
 
-    fn send_dispatch(&mut self, message_id: MessageId, dispatch: Dispatch) {
+    fn send_dispatch(&mut self, message_id: MessageId, dispatch: Dispatch, _delay: u32) {
         if self.check_program_id(&dispatch.destination()) {
             let gas_limit = dispatch.gas_limit();
             let dispatch = dispatch.into_stored();
@@ -272,6 +272,7 @@ where
         message_id: MessageId,
         program_id: ProgramId,
         awakening_id: MessageId,
+        _delay: u32,
     ) {
         if let Some(dispatch) = Pallet::<T>::wake_dispatch(
             program_id,

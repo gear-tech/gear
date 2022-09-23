@@ -99,7 +99,10 @@ impl ContextOutcome {
         }
 
         if let Some((msg, delay)) = self.reply {
-            dispatches.push((msg.into_dispatch(self.program_id, self.source, self.origin_msg_id), delay));
+            dispatches.push((
+                msg.into_dispatch(self.program_id, self.source, self.origin_msg_id),
+                delay,
+            ));
         };
 
         (dispatches, self.awakening)
@@ -154,7 +157,11 @@ impl MessageContext {
     ///
     /// Generates a new message from provided data packet.
     /// Returns message id and generated program id.
-    pub fn init_program(&mut self, packet: InitPacket, delay: u32) -> Result<(ProgramId, MessageId), Error> {
+    pub fn init_program(
+        &mut self,
+        packet: InitPacket,
+        delay: u32,
+    ) -> Result<(ProgramId, MessageId), Error> {
         let program_id = packet.destination();
 
         if self.store.initialized.contains(&program_id) {
@@ -181,7 +188,12 @@ impl MessageContext {
     ///
     /// Generates message from provided data packet and stored by handle payload.
     /// Returns message id.
-    pub fn send_commit(&mut self, handle: u32, packet: HandlePacket, delay: u32) -> Result<MessageId, Error> {
+    pub fn send_commit(
+        &mut self,
+        handle: u32,
+        packet: HandlePacket,
+        delay: u32,
+    ) -> Result<MessageId, Error> {
         if let Some(payload) = self.store.outgoing.get_mut(&handle) {
             if let Some(data) = payload.take() {
                 let packet = {

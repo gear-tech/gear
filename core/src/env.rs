@@ -70,7 +70,12 @@ pub trait Ext {
     fn send_push(&mut self, handle: usize, buffer: &[u8]) -> Result<(), Self::Error>;
 
     /// Complete message and send it to another program.
-    fn send_commit(&mut self, handle: usize, msg: HandlePacket, delay: u32) -> Result<MessageId, Self::Error>;
+    fn send_commit(
+        &mut self,
+        handle: usize,
+        msg: HandlePacket,
+        delay: u32,
+    ) -> Result<MessageId, Self::Error>;
 
     /// Send message to another program.
     fn send(&mut self, msg: HandlePacket, delay: u32) -> Result<MessageId, Self::Error> {
@@ -218,7 +223,11 @@ mod tests {
         fn send_push(&mut self, _handle: usize, _buffer: &[u8]) -> Result<(), Self::Error> {
             Ok(())
         }
-        fn reply_commit(&mut self, _msg: ReplyPacket, _delay: u32) -> Result<MessageId, Self::Error> {
+        fn reply_commit(
+            &mut self,
+            _msg: ReplyPacket,
+            _delay: u32,
+        ) -> Result<MessageId, Self::Error> {
             Ok(MessageId::default())
         }
         fn reply_push(&mut self, _buffer: &[u8]) -> Result<(), Self::Error> {
@@ -298,7 +307,11 @@ mod tests {
         fn wake(&mut self, _waker_id: MessageId, _delay: u32) -> Result<(), Self::Error> {
             Ok(())
         }
-        fn create_program(&mut self, _packet: InitPacket, _delay: u32) -> Result<ProgramId, Self::Error> {
+        fn create_program(
+            &mut self,
+            _packet: InitPacket,
+            _delay: u32,
+        ) -> Result<ProgramId, Self::Error> {
             Ok(Default::default())
         }
         fn forbidden_funcs(&self) -> &BTreeSet<&'static str> {

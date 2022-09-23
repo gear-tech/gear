@@ -198,7 +198,10 @@ where
 
             let error_len = ctx
                 .ext
-                .send(HandlePacket::new_with_gas(dest, payload, gas_limit, value), delay)
+                .send(
+                    HandlePacket::new_with_gas(dest, payload, gas_limit, value),
+                    delay,
+                )
                 .process_error()
                 .map_err(FuncError::Core)?
                 .error_len_on_success(|message_id| {
@@ -232,7 +235,7 @@ where
                 .send_commit(
                     handle_ptr,
                     HandlePacket::new(dest, Default::default(), value),
-                    delay
+                    delay,
                 )
                 .process_error()
                 .map_err(FuncError::Core)?
@@ -607,11 +610,10 @@ where
 
             let error_len = ctx
                 .ext
-                .reply_commit(ReplyPacket::new_with_gas(
-                    Default::default(),
-                    gas_limit,
-                    value,
-                ), delay)
+                .reply_commit(
+                    ReplyPacket::new_with_gas(Default::default(), gas_limit, value),
+                    delay,
+                )
                 .process_error()
                 .map_err(FuncError::Core)?
                 .error_len_on_success(|message_id| {
@@ -883,7 +885,10 @@ where
 
             let error_len = ctx
                 .ext
-                .create_program(InitPacket::new(code_hash.into(), salt, payload, value), delay)
+                .create_program(
+                    InitPacket::new(code_hash.into(), salt, payload, value),
+                    delay,
+                )
                 .process_error()
                 .map_err(FuncError::Core)?
                 .error_len_on_success(|new_actor_id| {
@@ -923,13 +928,10 @@ where
 
             let error_len = ctx
                 .ext
-                .create_program(InitPacket::new_with_gas(
-                    code_hash.into(),
-                    salt,
-                    payload,
-                    gas_limit,
-                    value,
-                ), delay)
+                .create_program(
+                    InitPacket::new_with_gas(code_hash.into(), salt, payload, gas_limit, value),
+                    delay,
+                )
                 .process_error()
                 .map_err(FuncError::Core)?
                 .error_len_on_success(|new_actor_id| {
