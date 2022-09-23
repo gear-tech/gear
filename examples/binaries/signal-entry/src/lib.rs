@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2022 Gear Technologies Inc.
+// Copyright (C) 2022 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -15,9 +15,10 @@
 
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
-#![no_std]
 
-use codec::{Decode, Encode};
+#![cfg_attr(not(feature = "std"), no_std)]
+
+use gstd::{msg, prelude::*};
 
 #[cfg(feature = "std")]
 mod code {
@@ -27,14 +28,28 @@ mod code {
 #[cfg(feature = "std")]
 pub use code::WASM_BINARY_OPT as WASM_BINARY;
 
-#[cfg(not(feature = "std"))]
-mod wasm {
-    include! {"./code.rs"}
+#[no_mangle]
+unsafe extern "C" fn init() {}
+
+#[no_mangle]
+unsafe extern "C" fn handle_signal() {
+    assert_eq!(msg::exit_code(), 0xBEEF);
 }
 
-#[derive(Debug, Encode, Decode)]
-pub enum Command {
-    Wait,
-    WaitFor(u32),
-    WaitUpTo(u32),
+#[cfg(test)]
+mod tests {
+    extern crate std;
+
+    use gtest::{Program, System};
+
+    #[test]
+    fn signal_can_be_sent() {
+        let system = System::new();
+        system.init_logger();
+
+        let program = Program::current(&system);
+
+        let res = program.send_signal(0, 0xBEEF);
+        assert!(!res.main_failed());
+    }
 }

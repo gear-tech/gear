@@ -23,6 +23,7 @@ use frame_support::{
     pallet_prelude::*,
     parameter_types,
     traits::{ConstU64, FindAuthor},
+    weights::RuntimeDbWeight,
 };
 use frame_system as system;
 use sp_core::H256;
@@ -67,7 +68,7 @@ impl pallet_balances::Config for Test {
     type ReserveIdentifier = [u8; 8];
     type Balance = u128;
     type DustRemoval = ();
-    type Event = Event;
+    type RuntimeEvent = RuntimeEvent;
     type ExistentialDeposit = ExistentialDeposit;
     type AccountStore = System;
     type WeightInfo = ();
@@ -77,15 +78,16 @@ parameter_types! {
     pub const BlockHashCount: u64 = 250;
     pub const SS58Prefix: u8 = 42;
     pub const ExistentialDeposit: u64 = 500;
+    pub const DbWeight: RuntimeDbWeight = RuntimeDbWeight { read: 111, write: 230 };
 }
 
 impl system::Config for Test {
     type BaseCallFilter = frame_support::traits::Everything;
     type BlockWeights = ();
     type BlockLength = ();
-    type DbWeight = ();
+    type DbWeight = DbWeight;
     type Origin = Origin;
-    type Call = Call;
+    type RuntimeCall = RuntimeCall;
     type Index = u64;
     type BlockNumber = u64;
     type Hash = H256;
@@ -93,7 +95,7 @@ impl system::Config for Test {
     type AccountId = AccountId;
     type Lookup = IdentityLookup<Self::AccountId>;
     type Header = Header;
-    type Event = Event;
+    type RuntimeEvent = RuntimeEvent;
     type BlockHashCount = BlockHashCount;
     type Version = ();
     type PalletInfo = PalletInfo;
@@ -112,7 +114,7 @@ impl common::GasPrice for GasConverter {
 }
 
 impl pallet_gear_program::Config for Test {
-    type Event = Event;
+    type RuntimeEvent = RuntimeEvent;
     type WeightInfo = ();
     type Currency = Balances;
     type Messenger = GearMessenger;
@@ -125,7 +127,7 @@ parameter_types! {
 }
 
 impl pallet_gear::Config for Test {
-    type Event = Event;
+    type RuntimeEvent = RuntimeEvent;
     type Currency = Balances;
     type GasPrice = GasConverter;
     type WeightInfo = ();
@@ -207,6 +209,36 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
     ext
 }
 
+pub fn get_min_weight() -> Weight {
+    new_test_ext().execute_with(|| {
+        Gear::on_idle(
+            System::block_number(),
+            Weight::from_ref_time(BlockGasLimitOf::<Test>::get()),
+        )
+    })
+}
+
+pub fn get_weight_of_adding_task() -> Weight {
+    let minimal_weight = get_min_weight();
+
+    new_test_ext().execute_with(|| {
+        let gas_allowance = GasAllowanceOf::<Test>::get();
+
+        Gear::on_idle(
+            System::block_number(),
+            Weight::from_ref_time(BlockGasLimitOf::<Test>::get()),
+        );
+
+        TaskPoolOf::<Test>::add(
+            100,
+            ScheduledTask::RemoveFromMailbox(USER_2, Default::default()),
+        )
+        .unwrap_or_else(|e| unreachable!("Scheduling logic invalidated! {:?}", e));
+
+        Weight::from_ref_time(gas_allowance - GasAllowanceOf::<Test>::get())
+    }) - minimal_weight
+}
+
 pub fn run_to_block(n: u64, remaining_weight: Option<u64>) {
     while System::block_number() < n {
         System::on_finalize(System::block_number());
@@ -224,7 +256,10 @@ pub fn run_to_block(n: u64, remaining_weight: Option<u64>) {
             remaining_weight
         );
 
-        Gear::on_idle(System::block_number(), remaining_weight);
+        Gear::on_idle(
+            System::block_number(),
+            Weight::from_ref_time(remaining_weight),
+        );
     }
 }
 

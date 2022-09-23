@@ -13,7 +13,7 @@ targets = ["x86_64-unknown-linux-gnu"]
 
 [dependencies]
 hex-literal = "0.3.4"
-jsonrpsee = { version = "0.14.0", features = ["server"] }
+jsonrpsee = { version = "0.15.1", features = ["server"] }
 serde = { version = "1.0.136", features = ["derive"] }
 
 # Gear
@@ -72,7 +72,7 @@ pallet-transaction-payment-rpc = { git = "https://github.com/paritytech/substrat
 pallet-transaction-payment-rpc-runtime-api = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.26" }
 
 # Substrate Other
-frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.26", optional = true }
+frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.26" }
 frame-benchmarking-cli = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.26" }
 substrate-frame-rpc-system = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.26" }
 frame-system = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.26" }
@@ -94,7 +94,8 @@ lazy-pages = [
 	"vara-runtime?/lazy-pages",
 ]
 runtime-benchmarks = [
-	"frame-benchmarking",
+ 	"frame-benchmarking/runtime-benchmarks",
+ 	"frame-benchmarking-cli/runtime-benchmarks",
 	"gear-runtime?/runtime-benchmarks",
 	"vara-runtime?/runtime-benchmarks",
 ]

@@ -52,8 +52,8 @@ pub mod pallet {
     #[pallet::config]
     pub trait Config: frame_system::Config {
         /// Because this pallet emits events, it depends on the runtime's definition of an event.
-        type Event: From<Event<Self>>
-            + IsType<<Self as frame_system::Config>::Event>
+        type RuntimeEvent: From<Event<Self>>
+            + IsType<<Self as frame_system::Config>::RuntimeEvent>
             + TryInto<Event<Self>>;
 
         /// Weight information for extrinsics in this pallet.
@@ -152,7 +152,7 @@ pub mod pallet {
     impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
         /// Initialization
         fn on_initialize(_bn: BlockNumberFor<T>) -> Weight {
-            0_u64
+            Weight::zero()
         }
 
         /// Finalization

@@ -154,7 +154,11 @@ impl From<ExecutionError> for ProcessorError {
     }
 }
 
-impl CoreError for ProcessorError {}
+impl CoreError for ProcessorError {
+    fn forbidden_function() -> Self {
+        Self::Core(ExtError::forbidden_function())
+    }
+}
 
 impl IntoExtError for ProcessorError {
     fn into_ext_error(self) -> Result<ExtError, Self> {
@@ -323,6 +327,14 @@ impl Ext {
         self.charge_message_value(packet.value())?;
         Ok(())
     }
+
+    fn check_forbidden_call(&mut self, id: ProgramId) -> Result<(), ProcessorError> {
+        if id == ProgramId::SYSTEM {
+            self.return_and_store_err(Err(ExecutionError::ForbiddenFunction))
+        } else {
+            Ok(())
+        }
+    }
 }
 
 impl EnvExt for Ext {
@@ -420,6 +432,7 @@ impl EnvExt for Ext {
     fn send_commit(&mut self, handle: usize, msg: HandlePacket) -> Result<MessageId, Self::Error> {
         self.charge_gas_runtime(RuntimeCosts::SendCommit(msg.payload().len() as u32))?;
 
+        self.check_forbidden_call(msg.destination())?;
         self.charge_expiring_resources(&msg)?;
 
         let result = self.context.message_context.send_commit(handle as u32, msg);
@@ -430,6 +443,7 @@ impl EnvExt for Ext {
     fn reply_commit(&mut self, msg: ReplyPacket) -> Result<MessageId, Self::Error> {
         self.charge_gas_runtime(RuntimeCosts::ReplyCommit(msg.payload().len() as u32))?;
 
+        self.check_forbidden_call(self.context.message_context.reply_destination())?;
         self.charge_expiring_resources(&msg)?;
 
         let result = self.context.message_context.reply_commit(msg);
@@ -607,8 +621,8 @@ impl EnvExt for Ext {
         Ok(())
     }
 
-    fn wait_no_more(&mut self, duration: u32) -> Result<(), Self::Error> {
-        self.charge_gas_runtime(RuntimeCosts::WaitNoMore)?;
+    fn wait_up_to(&mut self, duration: u32) -> Result<(), Self::Error> {
+        self.charge_gas_runtime(RuntimeCosts::WaitUpTo)?;
 
         if duration == 0 {
             return self.return_and_store_err(Err(WaitError::InvalidArgument));

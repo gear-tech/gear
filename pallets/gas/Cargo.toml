@@ -32,7 +32,7 @@ sp-std = { git = "https://github.com/paritytech/substrate", default-features = f
 pallet-balances = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-v0.9.26" }
 
 [dev-dependencies]
-serde = "1.0.144"
+serde = "1.0.145"
 env_logger = "0.9"
 wabt = "0.10"
 gear-core = { path = "../../core" }
@@ -45,6 +45,7 @@ std = [
 	"codec/std",
 	"log/std",
 	"common/std",
+	"frame-benchmarking?/std",
 	"frame-support/std",
 	"frame-system/std",
 	"scale-info/std",
@@ -54,8 +55,9 @@ std = [
 	"primitive-types/std",
 ]
 runtime-benchmarks = [
-	"frame-benchmarking",
+	"frame-benchmarking/runtime-benchmarks",
 	"frame-system/runtime-benchmarks",
 	"frame-support/runtime-benchmarks",
 	"parity-wasm",
 ]
+try-runtime = ["frame-support/try-runtime"]

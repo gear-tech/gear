@@ -40,7 +40,7 @@ use gear_core::{
     ids::{MessageId, ProgramId},
     message::{HandlePacket, InitPacket, ReplyPacket},
 };
-use gear_core_errors::MemoryError;
+use gear_core_errors::{CoreError, MemoryError};
 use wasmi::{Error, RuntimeValue};
 
 pub(crate) type SyscallOutput<E> = Result<ReturnValue, FuncError<E>>;
@@ -805,14 +805,14 @@ where
         Err(FuncError::HostError)
     }
 
-    pub fn wait_no_more(ctx: &mut Runtime<E>, args: &[RuntimeValue]) -> SyscallOutput<E::Error> {
+    pub fn wait_up_to(ctx: &mut Runtime<E>, args: &[RuntimeValue]) -> SyscallOutput<E::Error> {
         let mut args = args.iter();
 
         let duration_ptr = pop_i32(&mut args).map_err(|_| FuncError::HostError)?;
 
         let mut f = || {
             let duration: u32 = ctx.read_memory_as(duration_ptr)?;
-            ctx.ext.wait_no_more(duration).map_err(FuncError::Core)?;
+            ctx.ext.wait_up_to(duration).map_err(FuncError::Core)?;
             Ok(Some(duration))
         };
 
@@ -938,8 +938,7 @@ where
     }
 
     pub fn forbidden(ctx: &mut Runtime<E>, _args: &[RuntimeValue]) -> SyscallOutput<E::Error> {
-        ctx.err =
-            FuncError::Terminated(TerminationReason::Trap(TrapExplanation::ForbiddenFunction));
+        ctx.err = FuncError::Core(E::Error::forbidden_function());
         Err(FuncError::HostError)
     }
 }

@@ -31,7 +31,7 @@ pub const MAX_WASM_PAGE_COUNT: u32 = 512;
 /// Parse function exports from wasm module into [`DispatchKind`].
 fn get_exports(
     module: &Module,
-    reject_unnececery: bool,
+    reject_unnecessary: bool,
 ) -> Result<BTreeSet<DispatchKind>, CodeError> {
     let mut exports = BTreeSet::<DispatchKind>::new();
 
@@ -48,7 +48,9 @@ fn get_exports(
                 exports.insert(DispatchKind::Handle);
             } else if entry.field() == DispatchKind::Reply.into_entry() {
                 exports.insert(DispatchKind::Reply);
-            } else if reject_unnececery {
+            } else if entry.field() == DispatchKind::Signal.into_entry() {
+                exports.insert(DispatchKind::Signal);
+            } else if reject_unnecessary {
                 return Err(CodeError::NonGearExportFnFound);
             }
         }
@@ -85,8 +87,6 @@ pub enum CodeError {
     Encode,
     /// We restrict start sections in smart contracts.
     StartSectionExists,
-    /// We restrict custom sections in smart contracts.
-    CustomSectionsExist,
     /// The provided code has invalid count of static pages.
     InvalidStaticPageCount,
 }
@@ -122,11 +122,6 @@ impl Code {
         if module.start_section().is_some() {
             log::debug!("Found start section in contract code, which is not allowed");
             return Err(CodeError::StartSectionExists);
-        }
-
-        if module.custom_sections().count() != 0 {
-            log::debug!("Found custom sections in contract code, which is not allowed");
-            return Err(CodeError::CustomSectionsExist);
         }
 
         // get initial memory size from memory import.

@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2022 Gear Technologies Inc.
+// Copyright (C) 2021-2022 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -16,23 +16,6 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use frame_support::weights::{constants::RocksDbWeight, Weight};
-
-mod pallet_gear_program;
-pub use pallet_gear_program::SubstrateWeight;
-
-/// Weight functions for pallet_gear_program.
-pub trait WeightInfo {
-    fn resume_program(q: u32) -> Weight;
-}
-
-// For backwards compatibility and tests
-const SUBMIT_WEIGHT_PER_BYTE: u64 = 1_000_000;
-
-impl WeightInfo for () {
-    fn resume_program(q: u32) -> Weight {
-        (0u64)
-            .saturating_add(RocksDbWeight::get().writes(4u64))
-            .saturating_add(SUBMIT_WEIGHT_PER_BYTE.saturating_mul(q as Weight))
-    }
+fn main() {
+    gear_wasm_builder::build();
 }

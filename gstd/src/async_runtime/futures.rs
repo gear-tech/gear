@@ -68,6 +68,6 @@ where
         super::futures().remove(&crate::msg::id());
     } else {
         // TODO: make this call configurable (#1380)
-        crate::exec::wait_no_more(100)
+        crate::exec::wait_up_to(100)
     }
 }

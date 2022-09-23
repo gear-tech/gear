@@ -1598,15 +1598,15 @@ benchmarks! {
         >(&block_config, context, memory_pages);
     }
 
-    // We cannot call `gr_wait_no_more` multiple times. Therefore our weight determination is not
+    // We cannot call `gr_wait_up_to` multiple times. Therefore our weight determination is not
     // as precise as with other APIs.
-    gr_wait_no_more {
+    gr_wait_up_to {
         let r in 0 .. 1;
         let code = WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
             imported_functions: vec![ImportedFunction {
                 module: "env",
-                name: "gr_wait_no_more",
+                name: "gr_wait_up_to",
                 params: vec![ValueType::I32],
                 return_type: None,
             }],

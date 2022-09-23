@@ -17,13 +17,17 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use codec::Encode;
-use frame_support::traits::{Currency, GenesisBuild, OnFinalize, OnIdle, OnInitialize};
+use frame_support::{
+    traits::{Currency, GenesisBuild, OnFinalize, OnIdle, OnInitialize},
+    weights::Weight,
+};
 use frame_system as system;
 use gear_common::{storage::*, Origin};
 use gear_core::message::{StoredDispatch, StoredMessage};
 #[cfg(feature = "gear-native")]
 use gear_runtime::{
-    Authorship, Event, Gear, GearGas, GearMessenger, Runtime, SessionConfig, SessionKeys, System,
+    Authorship, Gear, GearGas, GearMessenger, Runtime, RuntimeEvent, SessionConfig, SessionKeys,
+    System,
 };
 use pallet_gear::{BlockGasLimitOf, Config, GasAllowanceOf};
 use pallet_gear_debug::DebugData;
@@ -41,7 +45,8 @@ use sp_runtime::{
 use system::pallet_prelude::BlockNumberFor;
 #[cfg(all(not(feature = "gear-native"), feature = "vara-native"))]
 use vara_runtime::{
-    Authorship, Event, Gear, GearGas, GearMessenger, Runtime, SessionConfig, SessionKeys, System,
+    Authorship, Gear, GearGas, GearMessenger, Runtime, RuntimeEvent, SessionConfig, SessionKeys,
+    System,
 };
 
 #[cfg(all(
@@ -68,13 +73,15 @@ pub fn process_queue(snapshots: &mut Vec<DebugData>, mailbox: &mut Vec<StoredMes
         run_to_block(System::block_number() + 1, None, false);
         // Parse data from events
         for event in System::events() {
-            if let Event::GearDebug(pallet_gear_debug::Event::DebugDataSnapshot(snapshot)) =
+            if let RuntimeEvent::GearDebug(pallet_gear_debug::Event::DebugDataSnapshot(snapshot)) =
                 &event.event
             {
                 snapshots.push(snapshot.clone());
             }
 
-            if let Event::Gear(pallet_gear::Event::UserMessageSent { message, .. }) = &event.event {
+            if let RuntimeEvent::Gear(pallet_gear::Event::UserMessageSent { message, .. }) =
+                &event.event
+            {
                 mailbox.push(message.clone());
             }
         }
@@ -273,7 +280,10 @@ pub fn run_to_block(n: u32, remaining_weight: Option<u64>, skip_process_queue: b
         if skip_process_queue {
             GasAllowanceOf::<Runtime>::put(remaining_weight);
         } else {
-            Gear::on_idle(System::block_number(), remaining_weight);
+            Gear::on_idle(
+                System::block_number(),
+                Weight::from_ref_time(remaining_weight),
+            );
         }
     }
 }
