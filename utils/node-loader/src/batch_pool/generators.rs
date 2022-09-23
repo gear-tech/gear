@@ -4,7 +4,7 @@ use crate::{
         context::TasksContext,
         gear_client,
         report::TaskReporter,
-        task::{upload_code_task, upload_program_task, Task},
+        task::{self, Task},
         Seed,
     },
     generators,
@@ -97,10 +97,11 @@ impl<Rng: LoaderRng> BatchGenerator for BatchGeneratorImpl<Rng> {
         let mut batch_rng = Rng::seed_from_u64(batch_seed);
         while batch.len() != batch.capacity() {
             let task = match batch_rng.gen_range(0u8..1) {
-                0 => {
-                    upload_program_task::<Rng>(self.code_seed_gen.next_u64(), batch_rng.next_u64())
-                }
-                1 => upload_code_task::<Rng>(self.code_seed_gen.next_u64()),
+                0 => task::upload_program_task::<Rng>(
+                    self.code_seed_gen.next_u64(),
+                    batch_rng.next_u64(),
+                ),
+                1 => task::upload_code_task::<Rng>(self.code_seed_gen.next_u64()),
                 2..=u8::MAX => unreachable!("Num of generators exhausted."),
             };
             batch.push(task);
