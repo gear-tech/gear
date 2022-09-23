@@ -830,9 +830,9 @@ dependencies = [
 
 [[package]]
 name = "clang-sys"
-version = "1.3.3"
+version = "1.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5a050e2153c5be08febd6734e29298e844fdb0fa21aeddd63b4eb7baa106c69b"
+checksum = "fa2e27ae6ab525c3d369ded447057bca5438d86dc3a68f6faafb8269ba82ebf3"
 dependencies = [
  "glob 0.3.0",
  "libc",
@@ -3682,14 +3682,13 @@ dependencies = [
 
 [[package]]
 name = "iana-time-zone"
-version = "0.1.48"
+version = "0.1.49"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "237a0714f28b1ee39ccec0770ccb544eb02c9ef2c82bb096230eefcffa6468b0"
+checksum = "3bbaead50122b06e9a973ac20bc7445074d99ad9a0a0654934876908a9cec82c"
 dependencies = [
  "android_system_properties",
  "core-foundation-sys",
  "js-sys",
- "once_cell",
  "wasm-bindgen",
  "winapi",
 ]
@@ -7127,9 +7126,9 @@ dependencies = [
 
 [[package]]
 name = "rustix"
-version = "0.35.9"
+version = "0.35.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "72c825b8aa8010eb9ee99b75f05e10180b9278d161583034d7574c9d617aeada"
+checksum = "af895b90e5c071badc3136fc10ff0bcfc98747eadbaf43ed8f214e07ba8f8477"
 dependencies = [
  "bitflags",
  "errno",
@@ -8873,6 +8872,53 @@ dependencies = [
 [[package]]
 name = "sp-core"
 version = "6.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "77963e2aa8fadb589118c3aede2e78b6c4bcf1c01d588fbf33e915b390825fbd"
+dependencies = [
+ "base58",
+ "bitflags",
+ "blake2-rfc",
+ "byteorder",
+ "dyn-clonable",
+ "ed25519-dalek",
+ "futures",
+ "hash-db",
+ "hash256-std-hasher",
+ "hex",
+ "impl-serde",
+ "lazy_static",
+ "libsecp256k1",
+ "log",
+ "merlin",
+ "num-traits",
+ "parity-scale-codec",
+ "parity-util-mem",
+ "parking_lot 0.12.1",
+ "primitive-types",
+ "rand 0.7.3",
+ "regex",
+ "scale-info",
+ "schnorrkel",
+ "secp256k1 0.21.3",
+ "secrecy",
+ "serde",
+ "sp-core-hashing 4.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "sp-debug-derive 4.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "sp-externalities 0.12.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "sp-runtime-interface 6.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "sp-std 4.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "sp-storage 6.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "ss58-registry",
+ "substrate-bip39",
+ "thiserror",
+ "tiny-bip39",
+ "wasmi 0.9.1",
+ "zeroize",
+]
+
+[[package]]
+name = "sp-core"
+version = "6.0.0"
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#267d1ef24d675858090f7078868e96d24d4a105e"
 dependencies = [
  "base58",
@@ -8919,13 +8965,27 @@ dependencies = [
 [[package]]
 name = "sp-core-hashing"
 version = "4.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ec864a6a67249f0c8dd3d5acab43623a61677e85ff4f2f9b04b802d2fe780e83"
+dependencies = [
+ "blake2-rfc",
+ "byteorder",
+ "sha2 0.9.9",
+ "sp-std 4.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "tiny-keccak",
+ "twox-hash",
+]
+
+[[package]]
+name = "sp-core-hashing"
+version = "4.0.0"
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#267d1ef24d675858090f7078868e96d24d4a105e"
 dependencies = [
  "blake2",
  "byteorder",
  "digest 0.10.5",
  "sha2 0.10.6",
- "sha3 0.10.4",
+ "sha3 0.10.5",
  "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
  "twox-hash",
 ]
@@ -8953,11 +9013,34 @@ dependencies = [
 [[package]]
 name = "sp-debug-derive"
 version = "4.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d676664972e22a0796176e81e7bec41df461d1edf52090955cdab55f2c956ff2"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
+name = "sp-debug-derive"
+version = "4.0.0"
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#267d1ef24d675858090f7078868e96d24d4a105e"
 dependencies = [
  "proc-macro2",
  "quote",
  "syn",
+]
+
+[[package]]
+name = "sp-externalities"
+version = "0.12.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0fcfd91f92a2a59224230a77c4a5d6f51709620c0aab4e51f108ccece6adc56f"
+dependencies = [
+ "environmental",
+ "parity-scale-codec",
+ "sp-std 4.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "sp-storage 6.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -9006,6 +9089,32 @@ dependencies = [
 [[package]]
 name = "sp-io"
 version = "6.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "935fd3c71bad6811a7984cabb74d323b8ca3107024024c3eabb610e0182ba8d3"
+dependencies = [
+ "futures",
+ "hash-db",
+ "libsecp256k1",
+ "log",
+ "parity-scale-codec",
+ "parking_lot 0.12.1",
+ "secp256k1 0.21.3",
+ "sp-core 6.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "sp-externalities 0.12.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "sp-keystore 0.12.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "sp-runtime-interface 6.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "sp-state-machine 0.12.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "sp-std 4.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "sp-tracing 5.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "sp-trie 6.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "sp-wasm-interface 6.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "tracing",
+ "tracing-core",
+]
+
+[[package]]
+name = "sp-io"
+version = "6.0.0"
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#267d1ef24d675858090f7078868e96d24d4a105e"
 dependencies = [
  "bytes",
@@ -9038,6 +9147,23 @@ dependencies = [
  "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
  "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
  "strum",
+]
+
+[[package]]
+name = "sp-keystore"
+version = "0.12.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3261eddca8c8926e3e1de136a7980cb3afc3455247d9d6f3119d9b292f73aaee"
+dependencies = [
+ "async-trait",
+ "futures",
+ "merlin",
+ "parity-scale-codec",
+ "parking_lot 0.12.1",
+ "schnorrkel",
+ "sp-core 6.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "sp-externalities 0.12.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "thiserror",
 ]
 
 [[package]]
@@ -9079,6 +9205,17 @@ dependencies = [
 [[package]]
 name = "sp-panic-handler"
 version = "4.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2101f3c555fceafcfcfb0e61c55ea9ed80dc60bd77d54d9f25b369edb029e9a4"
+dependencies = [
+ "backtrace",
+ "lazy_static",
+ "regex",
+]
+
+[[package]]
+name = "sp-panic-handler"
+version = "4.0.0"
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#267d1ef24d675858090f7078868e96d24d4a105e"
 dependencies = [
  "backtrace",
@@ -9094,6 +9231,29 @@ dependencies = [
  "rustc-hash",
  "serde",
  "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+]
+
+[[package]]
+name = "sp-runtime"
+version = "6.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bb7d8a8d5ab5d349c6cf9300af1721b7b6446ba63401dbb11c10a1d65197aa5f"
+dependencies = [
+ "either",
+ "hash256-std-hasher",
+ "impl-trait-for-tuples",
+ "log",
+ "parity-scale-codec",
+ "parity-util-mem",
+ "paste",
+ "rand 0.7.3",
+ "scale-info",
+ "serde",
+ "sp-application-crypto 6.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "sp-arithmetic 5.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "sp-core 6.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "sp-io 6.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "sp-std 4.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -9143,23 +9303,6 @@ version = "6.0.0"
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#267d1ef24d675858090f7078868e96d24d4a105e"
 dependencies = [
  "bytes",
- "impl-trait-for-tuples",
- "parity-scale-codec",
- "primitive-types",
- "sp-externalities 0.12.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "sp-runtime-interface-proc-macro 5.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "sp-std 4.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "sp-storage 6.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "sp-tracing 5.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "sp-wasm-interface 6.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "static_assertions",
-]
-
-[[package]]
-name = "sp-runtime-interface"
-version = "6.0.0"
-source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#fad75ee20b2a3dbfb54453463a7d50f08cc77f47"
-dependencies = [
  "impl-trait-for-tuples",
  "parity-scale-codec",
  "primitive-types",
@@ -9239,7 +9382,31 @@ dependencies = [
 [[package]]
 name = "sp-state-machine"
 version = "0.12.0"
-source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#fad75ee20b2a3dbfb54453463a7d50f08cc77f47"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ecee3b33eb78c99997676a571656bcc35db6886abecfddd13e76a73b5871c6c1"
+dependencies = [
+ "hash-db",
+ "log",
+ "num-traits",
+ "parity-scale-codec",
+ "parking_lot 0.12.1",
+ "rand 0.7.3",
+ "smallvec",
+ "sp-core 6.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "sp-externalities 0.12.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "sp-panic-handler 4.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "sp-std 4.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "sp-trie 6.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "thiserror",
+ "tracing",
+ "trie-db 0.23.1",
+ "trie-root",
+]
+
+[[package]]
+name = "sp-state-machine"
+version = "0.12.0"
+source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#267d1ef24d675858090f7078868e96d24d4a105e"
 dependencies = [
  "hash-db",
  "log",
@@ -9378,6 +9545,22 @@ dependencies = [
 [[package]]
 name = "sp-trie"
 version = "6.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d6fc34f4f291886914733e083b62708d829f3e6b8d7a7ca7fa8a55a3d7640b0b"
+dependencies = [
+ "hash-db",
+ "memory-db",
+ "parity-scale-codec",
+ "scale-info",
+ "sp-core 6.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "sp-std 4.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "trie-db 0.23.1",
+ "trie-root",
+]
+
+[[package]]
+name = "sp-trie"
+version = "6.0.0"
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#267d1ef24d675858090f7078868e96d24d4a105e"
 dependencies = [
  "ahash",
@@ -9448,7 +9631,7 @@ dependencies = [
  "log",
  "parity-scale-codec",
  "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "wasmi 0.13.0",
+ "wasmi 0.13.2",
  "wasmtime 0.40.1",
 ]
 
@@ -10189,6 +10372,19 @@ dependencies = [
 
 [[package]]
 name = "trie-db"
+version = "0.23.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d32d034c0d3db64b43c31de38e945f15b40cd4ca6d2dcfc26d4798ce8de4ab83"
+dependencies = [
+ "hash-db",
+ "hashbrown 0.12.3",
+ "log",
+ "rustc-hex",
+ "smallvec",
+]
+
+[[package]]
+name = "trie-db"
 version = "0.24.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "004e1e8f92535694b4cb1444dc5a8073ecf0815e3357f729638b9f8fc4062908"
@@ -10649,25 +10845,17 @@ checksum = "1c38c045535d93ec4f0b4defec448e4291638ee608530863b1e2ba115d4fff7f"
 
 [[package]]
 name = "wasm-encoder"
+version = "0.16.0"
+source = "git+https://github.com/gear-tech/wasm-tools.git?branch=gear-stable#cb7969e6b1a6b598f9ebdd0336a8e66dbc836d77"
+dependencies = [
+ "leb128",
+]
+
+[[package]]
+name = "wasm-encoder"
 version = "0.17.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7e7ca71c70a6de5b10968ae4d298e548366d9cd9588176e6ff8866f3c49c96ee"
-dependencies = [
- "leb128",
-]
-
-[[package]]
-name = "wasm-encoder"
-version = "0.16.0"
-source = "git+https://github.com/gear-tech/wasm-tools.git?branch=gear-stable#cb7969e6b1a6b598f9ebdd0336a8e66dbc836d77"
-dependencies = [
- "leb128",
-]
-
-[[package]]
-name = "wasm-encoder"
-version = "0.16.0"
-source = "git+https://github.com/gear-tech/wasm-tools.git?branch=gear-stable#cb7969e6b1a6b598f9ebdd0336a8e66dbc836d77"
 dependencies = [
  "leb128",
 ]
@@ -10719,16 +10907,8 @@ dependencies = [
  "log",
  "rand 0.8.5",
  "thiserror",
-<<<<<<< HEAD
-<<<<<<< HEAD
- "wasm-encoder",
+ "wasm-encoder 0.17.0",
  "wasmparser 0.91.0",
-=======
-=======
->>>>>>> 2abf96ac (Initial step to generate WASMs (#1442))
- "wasm-encoder 0.16.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "wasmparser 0.89.1",
->>>>>>> 2abf96ac (Initial step to generate WASMs (#1442))
 ]
 
 [[package]]
@@ -10752,7 +10932,7 @@ dependencies = [
  "flagset",
  "indexmap",
  "leb128",
- "wasm-encoder 0.16.0 (git+https://github.com/gear-tech/wasm-tools.git?branch=gear-stable)",
+ "wasm-encoder 0.16.0",
  "wasmparser 0.90.0 (git+https://github.com/gear-tech/wasm-tools.git?branch=gear-stable)",
 ]
 
@@ -11015,24 +11195,6 @@ dependencies = [
 [[package]]
 name = "wasmi"
 version = "0.9.1"
-<<<<<<< HEAD
-=======
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ca00c5147c319a8ec91ec1a0edbec31e566ce2c9cc93b3f9bb86a9efd0eb795d"
-dependencies = [
- "downcast-rs",
- "libc",
- "memory_units 0.3.0",
- "num-rational 0.2.4",
- "num-traits",
- "parity-wasm 0.42.2",
- "wasmi-validation 0.4.1",
-]
-
-[[package]]
-name = "wasmi"
-version = "0.13.0"
->>>>>>> 2abf96ac (Initial step to generate WASMs (#1442))
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ca00c5147c319a8ec91ec1a0edbec31e566ce2c9cc93b3f9bb86a9efd0eb795d"
 dependencies = [
@@ -11114,25 +11276,26 @@ dependencies = [
 
 [[package]]
 name = "wasmparser"
+version = "0.90.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b62c8d843f4423efee314dc75a1049886deba3214f7e7f9ff0e4e58b4d618581"
+dependencies = [
+ "indexmap",
+]
+
+[[package]]
+name = "wasmparser"
+version = "0.90.0"
+source = "git+https://github.com/gear-tech/wasm-tools.git?branch=gear-stable#cb7969e6b1a6b598f9ebdd0336a8e66dbc836d77"
+dependencies = [
+ "indexmap",
+]
+
+[[package]]
+name = "wasmparser"
 version = "0.91.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "239cdca8b8f356af8118c522d5fea23da45b60832ed4e18ef90bb3c9d8dce24a"
-dependencies = [
- "indexmap",
-]
-
-[[package]]
-name = "wasmparser"
-version = "0.90.0"
-source = "git+https://github.com/gear-tech/wasm-tools.git?branch=gear-stable#cb7969e6b1a6b598f9ebdd0336a8e66dbc836d77"
-dependencies = [
- "indexmap",
-]
-
-[[package]]
-name = "wasmparser"
-version = "0.90.0"
-source = "git+https://github.com/gear-tech/wasm-tools.git?branch=gear-stable#cb7969e6b1a6b598f9ebdd0336a8e66dbc836d77"
 dependencies = [
  "indexmap",
 ]
@@ -11201,21 +11364,11 @@ dependencies = [
  "serde",
  "target-lexicon",
  "wasmparser 0.88.0",
-<<<<<<< HEAD
  "wasmtime-cache 0.40.1",
  "wasmtime-cranelift 0.40.1",
  "wasmtime-environ 0.40.1",
  "wasmtime-jit 0.40.1",
  "wasmtime-runtime 0.40.1",
-=======
- "wasmtime-cache",
- "wasmtime-cranelift",
- "wasmtime-environ",
- "wasmtime-fiber",
- "wasmtime-jit",
- "wasmtime-runtime",
- "wat",
->>>>>>> 2abf96ac (Initial step to generate WASMs (#1442))
  "windows-sys 0.36.1",
 ]
 
@@ -11390,18 +11543,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "wasmtime-fiber"
-version = "0.39.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2f6aba0b317746e8213d1f36a4c51974e66e69c1f05bfc09ed29b4d4bda290eb"
-dependencies = [
- "cc",
- "cfg-if",
- "rustix",
- "windows-sys 0.36.1",
-]
-
-[[package]]
 name = "wasmtime-jit"
 version = "0.40.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -11413,7 +11554,6 @@ dependencies = [
  "cfg-if",
  "cpp_demangle",
  "gimli",
- "ittapi-rs",
  "log",
  "object 0.29.0",
  "rustc-demangle",
@@ -11496,14 +11636,8 @@ dependencies = [
  "rustix",
  "thiserror",
  "wasmtime-asm-macros",
-<<<<<<< HEAD
  "wasmtime-environ 0.40.1",
  "wasmtime-jit-debug 0.40.1",
-=======
- "wasmtime-environ",
- "wasmtime-fiber",
- "wasmtime-jit-debug",
->>>>>>> 2abf96ac (Initial step to generate WASMs (#1442))
  "windows-sys 0.36.1",
 ]
 
@@ -11540,7 +11674,7 @@ dependencies = [
  "leb128",
  "memchr",
  "unicode-width",
- "wasm-encoder 0.16.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "wasm-encoder 0.17.0",
 ]
 
 [[package]]
@@ -11603,18 +11737,11 @@ dependencies = [
 
 [[package]]
 name = "whoami"
-<<<<<<< HEAD
 version = "1.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d6631b6a2fd59b1841b622e8f1a7ad241ef0a46f2d580464ce8140ac94cbd571"
 dependencies = [
  "bumpalo",
-=======
-version = "1.2.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "524b58fa5a20a2fb3014dd6358b70e6579692a56ef6fce928834e488f42f65e8"
-dependencies = [
->>>>>>> 2abf96ac (Initial step to generate WASMs (#1442))
  "wasm-bindgen",
  "web-sys",
 ]
