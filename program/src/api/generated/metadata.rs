@@ -51,12 +51,10 @@ pub mod api {
         GearDebug(gear_debug::Event),
     }
     pub mod system {
-        use super::root_mod;
-        use super::runtime_types;
+        use super::{root_mod, runtime_types};
         #[doc = "Contains one variant per dispatchable that can be called by an extrinsic."]
         pub mod calls {
-            use super::root_mod;
-            use super::runtime_types;
+            use super::{root_mod, runtime_types};
             type DispatchError = runtime_types::sp_runtime::DispatchError;
             #[derive(:: subxt :: codec :: Decode, :: subxt :: codec :: Encode, Debug)]
             pub struct FillBlock {
@@ -1595,12 +1593,10 @@ pub mod api {
         }
     }
     pub mod timestamp {
-        use super::root_mod;
-        use super::runtime_types;
+        use super::{root_mod, runtime_types};
         #[doc = "Contains one variant per dispatchable that can be called by an extrinsic."]
         pub mod calls {
-            use super::root_mod;
-            use super::runtime_types;
+            use super::{root_mod, runtime_types};
             type DispatchError = runtime_types::sp_runtime::DispatchError;
             #[derive(:: subxt :: codec :: Decode, :: subxt :: codec :: Encode, Debug)]
             pub struct Set {
@@ -1801,12 +1797,10 @@ pub mod api {
         }
     }
     pub mod authorship {
-        use super::root_mod;
-        use super::runtime_types;
+        use super::{root_mod, runtime_types};
         #[doc = "Contains one variant per dispatchable that can be called by an extrinsic."]
         pub mod calls {
-            use super::root_mod;
-            use super::runtime_types;
+            use super::{root_mod, runtime_types};
             type DispatchError = runtime_types::sp_runtime::DispatchError;
             #[derive(:: subxt :: codec :: Decode, :: subxt :: codec :: Encode, Debug)]
             pub struct SetUncles {
@@ -2065,12 +2059,10 @@ pub mod api {
         }
     }
     pub mod babe {
-        use super::root_mod;
-        use super::runtime_types;
+        use super::{root_mod, runtime_types};
         #[doc = "Contains one variant per dispatchable that can be called by an extrinsic."]
         pub mod calls {
-            use super::root_mod;
-            use super::runtime_types;
+            use super::{root_mod, runtime_types};
             type DispatchError = runtime_types::sp_runtime::DispatchError;
             #[derive(:: subxt :: codec :: Decode, :: subxt :: codec :: Encode, Debug)]
             pub struct ReportEquivocation {
@@ -3154,12 +3146,10 @@ pub mod api {
         }
     }
     pub mod grandpa {
-        use super::root_mod;
-        use super::runtime_types;
+        use super::{root_mod, runtime_types};
         #[doc = "Contains one variant per dispatchable that can be called by an extrinsic."]
         pub mod calls {
-            use super::root_mod;
-            use super::runtime_types;
+            use super::{root_mod, runtime_types};
             type DispatchError = runtime_types::sp_runtime::DispatchError;
             #[derive(:: subxt :: codec :: Decode, :: subxt :: codec :: Encode, Debug)]
             pub struct ReportEquivocation {
@@ -3744,12 +3734,10 @@ pub mod api {
         }
     }
     pub mod balances {
-        use super::root_mod;
-        use super::runtime_types;
+        use super::{root_mod, runtime_types};
         #[doc = "Contains one variant per dispatchable that can be called by an extrinsic."]
         pub mod calls {
-            use super::root_mod;
-            use super::runtime_types;
+            use super::{root_mod, runtime_types};
             type DispatchError = runtime_types::sp_runtime::DispatchError;
             #[derive(:: subxt :: codec :: Decode, :: subxt :: codec :: Encode, Debug)]
             pub struct Transfer {
@@ -4731,8 +4719,7 @@ pub mod api {
         }
     }
     pub mod transaction_payment {
-        use super::root_mod;
-        use super::runtime_types;
+        use super::{root_mod, runtime_types};
         #[doc = "\n\t\t\tThe [event](https://docs.substrate.io/main-docs/build/events-errors/) emitted\n\t\t\tby this pallet.\n\t\t\t"]
         pub type Event = runtime_types::pallet_transaction_payment::pallet::Event;
         pub mod events {
@@ -4903,12 +4890,10 @@ pub mod api {
         }
     }
     pub mod session {
-        use super::root_mod;
-        use super::runtime_types;
+        use super::{root_mod, runtime_types};
         #[doc = "Contains one variant per dispatchable that can be called by an extrinsic."]
         pub mod calls {
-            use super::root_mod;
-            use super::runtime_types;
+            use super::{root_mod, runtime_types};
             type DispatchError = runtime_types::sp_runtime::DispatchError;
             #[derive(:: subxt :: codec :: Decode, :: subxt :: codec :: Encode, Debug)]
             pub struct SetKeys {
@@ -5464,12 +5449,10 @@ pub mod api {
         }
     }
     pub mod sudo {
-        use super::root_mod;
-        use super::runtime_types;
+        use super::{root_mod, runtime_types};
         #[doc = "Contains one variant per dispatchable that can be called by an extrinsic."]
         pub mod calls {
-            use super::root_mod;
-            use super::runtime_types;
+            use super::{root_mod, runtime_types};
             type DispatchError = runtime_types::sp_runtime::DispatchError;
             #[derive(:: subxt :: codec :: Decode, :: subxt :: codec :: Encode, Debug)]
             pub struct Sudo {
@@ -5781,12 +5764,10 @@ pub mod api {
         }
     }
     pub mod utility {
-        use super::root_mod;
-        use super::runtime_types;
+        use super::{root_mod, runtime_types};
         #[doc = "Contains one variant per dispatchable that can be called by an extrinsic."]
         pub mod calls {
-            use super::root_mod;
-            use super::runtime_types;
+            use super::{root_mod, runtime_types};
             type DispatchError = runtime_types::sp_runtime::DispatchError;
             #[derive(:: subxt :: codec :: Decode, :: subxt :: codec :: Encode, Debug)]
             pub struct Batch {
@@ -6171,12 +6152,10 @@ pub mod api {
         }
     }
     pub mod gear_program {
-        use super::root_mod;
-        use super::runtime_types;
+        use super::{root_mod, runtime_types};
         #[doc = "Contains one variant per dispatchable that can be called by an extrinsic."]
         pub mod calls {
-            use super::root_mod;
-            use super::runtime_types;
+            use super::{root_mod, runtime_types};
             type DispatchError = runtime_types::sp_runtime::DispatchError;
             #[derive(:: subxt :: codec :: Decode, :: subxt :: codec :: Encode, Debug)]
             pub struct ResumeProgram {
@@ -6624,8 +6603,7 @@ pub mod api {
         }
     }
     pub mod gear_messenger {
-        use super::root_mod;
-        use super::runtime_types;
+        use super::{root_mod, runtime_types};
         pub mod storage {
             use super::runtime_types;
             pub struct Dequeued;
@@ -7171,8 +7149,7 @@ pub mod api {
         }
     }
     pub mod gear_scheduler {
-        use super::root_mod;
-        use super::runtime_types;
+        use super::{root_mod, runtime_types};
         pub mod storage {
             use super::runtime_types;
             pub struct MissedBlocks;
@@ -7396,8 +7373,7 @@ pub mod api {
         }
     }
     pub mod gear_gas {
-        use super::root_mod;
-        use super::runtime_types;
+        use super::{root_mod, runtime_types};
         pub mod storage {
             use super::runtime_types;
             pub struct TotalIssuance;
@@ -7625,12 +7601,10 @@ pub mod api {
         }
     }
     pub mod gear {
-        use super::root_mod;
-        use super::runtime_types;
+        use super::{root_mod, runtime_types};
         #[doc = "Contains one variant per dispatchable that can be called by an extrinsic."]
         pub mod calls {
-            use super::root_mod;
-            use super::runtime_types;
+            use super::{root_mod, runtime_types};
             type DispatchError = runtime_types::sp_runtime::DispatchError;
             #[derive(:: subxt :: codec :: Decode, :: subxt :: codec :: Encode, Debug)]
             pub struct UploadCode {
@@ -8286,16 +8260,13 @@ pub mod api {
         }
     }
     pub mod gear_payment {
-        use super::root_mod;
-        use super::runtime_types;
+        use super::{root_mod, runtime_types};
     }
     pub mod gear_debug {
-        use super::root_mod;
-        use super::runtime_types;
+        use super::{root_mod, runtime_types};
         #[doc = "Contains one variant per dispatchable that can be called by an extrinsic."]
         pub mod calls {
-            use super::root_mod;
-            use super::runtime_types;
+            use super::{root_mod, runtime_types};
             type DispatchError = runtime_types::sp_runtime::DispatchError;
             #[derive(:: subxt :: codec :: Decode, :: subxt :: codec :: Encode, Debug)]
             pub struct EnableDebugMode {

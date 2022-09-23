@@ -40,7 +40,7 @@ pub struct Program {
 impl Program {
     /// Run command program.
     pub async fn exec(&self, api: Api) -> Result<()> {
-        let pid_bytes = hex::decode(&self.pid.trim_start_matches("0x"))?;
+        let pid_bytes = hex::decode(self.pid.trim_start_matches("0x"))?;
         let mut pid = [0; 32];
         pid.copy_from_slice(&pid_bytes);
 

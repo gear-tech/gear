@@ -58,13 +58,13 @@ pub unsafe extern "C" fn handle() {
 /// create rust project for gear program in `PWD`
 pub fn create(name: &str) -> Result<()> {
     let user_bytes = Command::new("git")
-        .args(&["config", "--global", "--get", "user.name"])
+        .args(["config", "--global", "--get", "user.name"])
         .output()?
         .stdout;
     let user = String::from_utf8_lossy(&user_bytes);
 
     let email_bytes = Command::new("git")
-        .args(&["config", "--global", "--get", "user.email"])
+        .args(["config", "--global", "--get", "user.email"])
         .output()?
         .stdout;
     let email = String::from_utf8_lossy(&email_bytes);

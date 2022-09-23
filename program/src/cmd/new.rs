@@ -48,7 +48,7 @@ impl New {
         if let Some(template) = &self.template {
             if TEMPLATES.contains(&template.as_ref()) {
                 if !Command::new("git")
-                    .args(&["clone", &Self::template(template)])
+                    .args(["clone", &Self::template(template)])
                     .status()?
                     .success()
                 {

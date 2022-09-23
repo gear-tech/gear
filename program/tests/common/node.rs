@@ -24,7 +24,7 @@ impl Node {
     pub fn dev() -> Result<Self> {
         let port = port::pick();
         let ps = Command::new(env!("CARGO_MANIFEST_DIR").to_owned() + GEAR_NODE_BIN_PATH)
-            .args(&["--ws-port", &port.to_string(), "--tmp", "--dev"])
+            .args(["--ws-port", &port.to_string(), "--tmp", "--dev"])
             .stderr(Stdio::piped())
             .stdout(Stdio::piped())
             .spawn()?;

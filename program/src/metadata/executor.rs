@@ -22,7 +22,7 @@ const META_STATE: &str = "meta_state";
 /// Exeucte wasm binary
 pub fn execute<R>(wasm: &[u8], f: impl Fn(Reader) -> Result<R>) -> Result<R> {
     let engine = Engine::default();
-    let module = Module::new(&engine, &mut &wasm[..])?;
+    let module = Module::new(&engine, wasm)?;
     let mut store = Store::new(&engine, Default::default());
 
     // 1. Construct linker.

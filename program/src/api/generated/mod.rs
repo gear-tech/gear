@@ -2,13 +2,14 @@ mod metadata;
 
 pub use metadata::*;
 
-use self::api::runtime_types::gear_runtime::RuntimeEvent;
-use self::api::Event as ApiEvent;
-use gear_core::message::ReplyDetails;
-use gear_core::message::StoredMessage;
-use gear_core::{ids, message};
+use self::api::{runtime_types::gear_runtime::RuntimeEvent, Event as ApiEvent};
+use gear_core::{
+    ids, message,
+    message::{ReplyDetails, StoredMessage},
+};
 use metadata::api::runtime_types::{
-    gear_common::event::*, gear_core::ids as generated_ids, gear_core::message as generated_message,
+    gear_common::event::*,
+    gear_core::{ids as generated_ids, message as generated_message},
 };
 use parity_scale_codec::{Decode, Encode};
 
