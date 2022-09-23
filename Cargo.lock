@@ -830,9 +830,9 @@ dependencies = [
 
 [[package]]
 name = "clang-sys"
-version = "1.3.3"
+version = "1.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5a050e2153c5be08febd6734e29298e844fdb0fa21aeddd63b4eb7baa106c69b"
+checksum = "fa2e27ae6ab525c3d369ded447057bca5438d86dc3a68f6faafb8269ba82ebf3"
 dependencies = [
  "glob 0.3.0",
  "libc",
@@ -2989,14 +2989,15 @@ dependencies = [
  "anyhow",
  "arbitrary",
  "color-eyre",
+ "dyn-clonable",
  "futures",
  "gear-program",
  "gear-wasm-gen",
  "hex",
  "log",
- "parking_lot 0.12.1",
  "rand 0.8.5",
  "structopt",
+ "strum",
  "tokio",
 ]
 
@@ -3680,14 +3681,13 @@ dependencies = [
 
 [[package]]
 name = "iana-time-zone"
-version = "0.1.48"
+version = "0.1.49"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "237a0714f28b1ee39ccec0770ccb544eb02c9ef2c82bb096230eefcffa6468b0"
+checksum = "3bbaead50122b06e9a973ac20bc7445074d99ad9a0a0654934876908a9cec82c"
 dependencies = [
  "android_system_properties",
  "core-foundation-sys",
  "js-sys",
- "once_cell",
  "wasm-bindgen",
  "winapi",
 ]
@@ -7125,9 +7125,9 @@ dependencies = [
 
 [[package]]
 name = "rustix"
-version = "0.35.9"
+version = "0.35.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "72c825b8aa8010eb9ee99b75f05e10180b9278d161583034d7574c9d617aeada"
+checksum = "af895b90e5c071badc3136fc10ff0bcfc98747eadbaf43ed8f214e07ba8f8477"
 dependencies = [
  "bitflags",
  "errno",
@@ -8984,7 +8984,7 @@ dependencies = [
  "byteorder",
  "digest 0.10.5",
  "sha2 0.10.6",
- "sha3 0.10.4",
+ "sha3 0.10.5",
  "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
  "twox-hash",
 ]
@@ -9630,7 +9630,7 @@ dependencies = [
  "log",
  "parity-scale-codec",
  "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "wasmi 0.13.0",
+ "wasmi 0.13.2",
  "wasmtime 0.40.1",
 ]
 
@@ -10844,17 +10844,17 @@ checksum = "1c38c045535d93ec4f0b4defec448e4291638ee608530863b1e2ba115d4fff7f"
 
 [[package]]
 name = "wasm-encoder"
-version = "0.17.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7e7ca71c70a6de5b10968ae4d298e548366d9cd9588176e6ff8866f3c49c96ee"
+version = "0.16.0"
+source = "git+https://github.com/gear-tech/wasm-tools.git?branch=gear-stable#cb7969e6b1a6b598f9ebdd0336a8e66dbc836d77"
 dependencies = [
  "leb128",
 ]
 
 [[package]]
 name = "wasm-encoder"
-version = "0.16.0"
-source = "git+https://github.com/gear-tech/wasm-tools.git?branch=gear-stable#cb7969e6b1a6b598f9ebdd0336a8e66dbc836d77"
+version = "0.17.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7e7ca71c70a6de5b10968ae4d298e548366d9cd9588176e6ff8866f3c49c96ee"
 dependencies = [
  "leb128",
 ]
@@ -10906,13 +10906,8 @@ dependencies = [
  "log",
  "rand 0.8.5",
  "thiserror",
-<<<<<<< HEAD
- "wasm-encoder",
+ "wasm-encoder 0.17.0",
  "wasmparser 0.91.0",
-=======
- "wasm-encoder 0.16.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "wasmparser 0.89.1",
->>>>>>> 2abf96ac (Initial step to generate WASMs (#1442))
 ]
 
 [[package]]
@@ -10936,7 +10931,7 @@ dependencies = [
  "flagset",
  "indexmap",
  "leb128",
- "wasm-encoder 0.16.0 (git+https://github.com/gear-tech/wasm-tools.git?branch=gear-stable)",
+ "wasm-encoder 0.16.0",
  "wasmparser 0.90.0 (git+https://github.com/gear-tech/wasm-tools.git?branch=gear-stable)",
 ]
 
@@ -11280,9 +11275,9 @@ dependencies = [
 
 [[package]]
 name = "wasmparser"
-version = "0.91.0"
+version = "0.90.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "239cdca8b8f356af8118c522d5fea23da45b60832ed4e18ef90bb3c9d8dce24a"
+checksum = "b62c8d843f4423efee314dc75a1049886deba3214f7e7f9ff0e4e58b4d618581"
 dependencies = [
  "indexmap",
 ]
@@ -11291,6 +11286,15 @@ dependencies = [
 name = "wasmparser"
 version = "0.90.0"
 source = "git+https://github.com/gear-tech/wasm-tools.git?branch=gear-stable#cb7969e6b1a6b598f9ebdd0336a8e66dbc836d77"
+dependencies = [
+ "indexmap",
+]
+
+[[package]]
+name = "wasmparser"
+version = "0.91.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "239cdca8b8f356af8118c522d5fea23da45b60832ed4e18ef90bb3c9d8dce24a"
 dependencies = [
  "indexmap",
 ]
@@ -11669,7 +11673,7 @@ dependencies = [
  "leb128",
  "memchr",
  "unicode-width",
- "wasm-encoder 0.16.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "wasm-encoder 0.17.0",
 ]
 
 [[package]]
