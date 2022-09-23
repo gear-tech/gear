@@ -3,7 +3,6 @@
 //! multithreaded environment.
 
 use anyhow::Result;
-
 pub(crate) type SomeReporter = Box<dyn Reporter>;
 
 pub(crate) trait Reporter: Send {

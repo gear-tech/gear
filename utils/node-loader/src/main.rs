@@ -9,9 +9,9 @@ use std::{fs::File, io::Write};
 
 use rand::rngs::SmallRng;
 
-use anyhow::Result;
 use args::{parse_cli_params, LoadParams, Params};
 use task::{generators, TaskPool};
+use anyhow::Result;
 use utils::Rng;
 
 mod args;
@@ -25,11 +25,12 @@ async fn main() {
     let params = parse_cli_params();
     if let Err(e) = run(params).await {
         eprintln!("{e:}");
-        std::process::exit(1);
+        std::process::exit(1)
     }
 }
 
 async fn run(params: Params) -> Result<()> {
+
     match params {
         Params::Dump { seed } => dump_with_seed(seed),
         Params::Load(load_params) => load_node(load_params).await,
@@ -45,13 +46,7 @@ fn dump_with_seed(seed: u64) -> Result<()> {
 
 async fn load_node(params: LoadParams) -> Result<()> {
     let gear_api = utils::obtain_gear_api(&params.endpoint, &params.user).await?;
-    let mut task_pool = TaskPool::<SmallRng>::try_new(params.workers, params.seed, gear_api)?;
-
-    loop {
-        let reporters = task_pool.run().await?;
-
-        for r in reporters {
-            r.report()?;
-        }
-    }
+    let mut task_pool = TaskPool::<SmallRng>::try_new(gear_api, params.workers, params.seed)?;
+    task_pool.run().await?;
+    Ok(())
 }
