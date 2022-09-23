@@ -5,12 +5,13 @@ use crate::{
         gear_client,
         report::TaskReporter,
         task::{upload_code_task, upload_program_task, Task},
+        Seed,
     },
+    generators,
     utils::{self, LoaderRng, LoaderRngCore},
 };
 use arbitrary::Unstructured;
 use rand::RngCore;
-use std::marker::PhantomData;
 
 pub(crate) fn get_some_seed_generator<Rng: LoaderRng>(
     code_seed_type: Option<SeedVariant>,
@@ -22,7 +23,7 @@ pub(crate) fn get_some_seed_generator<Rng: LoaderRng>(
     }
 }
 
-pub(crate) fn generate_gear_program<Rng: LoaderRng>(seed: u64) -> Vec<u8> {
+pub(crate) fn generate_gear_program<Rng: LoaderRng>(seed: Seed) -> Vec<u8> {
     let mut rng = Rng::seed_from_u64(seed);
     let mut buf = vec![0; 100_000];
     rng.fill_bytes(&mut buf);
@@ -61,25 +62,28 @@ impl RngCore for ConstantGenerator {
 pub(super) trait BatchGenerator {
     type Task: Into<gear_client::GearClientCall> + TaskReporter;
 
-    fn batch_size(&self) -> usize;
-    fn generate(&mut self) -> Vec<Self::Task>;
-    fn seed(&self) -> u64;
+    fn generate(&mut self) -> (Seed, Vec<Self::Task>);
 }
 
 pub(super) struct BatchGeneratorImpl<Rng: LoaderRng> {
-    pub(super) seed: u64,
+    pub(super) batch_gen_rng: Rng,
     pub(super) batch_size: usize,
-    pub(super) context: TasksContext,
-    _phantom: PhantomData<Rng>,
+    pub(super) _context: TasksContext,
+    code_seed_gen: Box<dyn LoaderRngCore>,
 }
 
 impl<Rng: LoaderRng> BatchGeneratorImpl<Rng> {
-    pub(super) fn new(seed: u64, batch_size: usize, context: TasksContext) -> Self {
+    pub(super) fn new(
+        seed: Seed,
+        batch_size: usize,
+        context: TasksContext,
+        code_seed_type: Option<SeedVariant>,
+    ) -> Self {
         Self {
-            seed,
+            batch_gen_rng: Rng::seed_from_u64(seed),
             batch_size,
-            context,
-            _phantom: PhantomData,
+            _context: context,
+            code_seed_gen: generators::get_some_seed_generator::<Rng>(code_seed_type),
         }
     }
 }
@@ -87,25 +91,20 @@ impl<Rng: LoaderRng> BatchGeneratorImpl<Rng> {
 impl<Rng: LoaderRng> BatchGenerator for BatchGeneratorImpl<Rng> {
     type Task = Task;
 
-    fn batch_size(&self) -> usize {
-        self.batch_size
-    }
-
-    fn seed(&self) -> u64 {
-        self.seed
-    }
-
-    fn generate(&mut self) -> Vec<Self::Task> {
+    fn generate(&mut self) -> (Seed, Vec<Self::Task>) {
+        let batch_seed = self.batch_gen_rng.next_u64();
         let mut batch = Vec::with_capacity(self.batch_size);
-        let mut batch_rng = Rng::seed_from_u64(self.seed);
+        let mut batch_rng = Rng::seed_from_u64(batch_seed);
         while batch.len() != batch.capacity() {
             let task = match batch_rng.gen_range(0u8..1) {
-                0 => upload_program_task::<Rng>(&mut self.context, batch_rng.next_u64()),
-                1 => upload_code_task::<Rng>(&mut self.context),
+                0 => {
+                    upload_program_task::<Rng>(self.code_seed_gen.next_u64(), batch_rng.next_u64())
+                }
+                1 => upload_code_task::<Rng>(self.code_seed_gen.next_u64()),
                 2..=u8::MAX => unreachable!("Num of generators exhausted."),
             };
             batch.push(task);
         }
-        batch
+        (batch_seed, batch)
     }
 }

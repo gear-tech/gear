@@ -1,14 +1,10 @@
-use super::{context::TasksContext, gear_client, report::TaskReporter};
+use super::{gear_client, generators, report::TaskReporter, Seed};
 use crate::utils::LoaderRng;
 
-pub(super) fn upload_program_task<Rng: LoaderRng>(
-    task_context: &mut TasksContext,
-    rng_seed: u64,
-) -> Task {
+pub(super) fn upload_program_task<Rng: LoaderRng>(code_seed: Seed, rng_seed: Seed) -> Task {
     let mut rng = Rng::seed_from_u64(rng_seed);
-    let code_seed = task_context.code_seed_gen.next_u64();
 
-    let code = crate::generators::generate_gear_program::<Rng>(code_seed);
+    let code = generators::generate_gear_program::<Rng>(code_seed);
     let mut salt = vec![0; rng.gen_range(1..=100)];
     rng.fill_bytes(&mut salt);
 
@@ -22,10 +18,8 @@ pub(super) fn upload_program_task<Rng: LoaderRng>(
     }
 }
 
-pub(super) fn upload_code_task<Rng: LoaderRng>(task_context: &mut TasksContext) -> Task {
-    let code_seed = task_context.code_seed_gen.next_u64();
-
-    let code = crate::generators::generate_gear_program::<Rng>(code_seed);
+pub(super) fn upload_code_task<Rng: LoaderRng>(code_seed: Seed) -> Task {
+    let code = generators::generate_gear_program::<Rng>(code_seed);
 
     Task::UploadCode { code }
 }

@@ -5,11 +5,14 @@ use gear_program::api::Api;
 use generators::{BatchGenerator, BatchGeneratorImpl};
 use report::{BatchRunReport, TaskReporter};
 use std::marker::PhantomData;
+use task::Task;
 
 mod context;
 pub(crate) mod generators;
 mod report;
 mod task;
+
+type Seed = u64;
 
 pub(crate) struct BatchPool<Rng: LoaderRng> {
     pool_size: usize,
@@ -20,49 +23,38 @@ pub(crate) struct BatchPool<Rng: LoaderRng> {
 }
 
 impl<Rng: LoaderRng> BatchPool<Rng> {
-    pub(crate) fn new(
-        pool_size: usize,
-        batch_size: usize,
-        code_seed_type: Option<SeedVariant>,
-        gear_api: Api,
-    ) -> Self {
+    pub(crate) fn new(pool_size: usize, batch_size: usize, gear_api: Api) -> Self {
         Self {
             pool_size,
             batch_size,
-            tasks_context: TasksContext::new::<Rng>(code_seed_type),
+            tasks_context: TasksContext::new::<Rng>(),
             gear_api,
             _phantom: PhantomData,
         }
     }
 
-    pub(crate) async fn run(&mut self) {
+    pub(crate) async fn run(&mut self, code_seed_type: Option<SeedVariant>) {
         let mut batches = FuturesUnordered::new();
 
         let seed = crate::utils::now();
         println!("Running task pool with seed {seed}");
-        let mut seed_gen = Rng::seed_from_u64(seed);
+
+        let mut batch_gen = BatchGeneratorImpl::<Rng>::new(
+            seed,
+            self.batch_size,
+            self.tasks_context.clone(),
+            code_seed_type,
+        );
 
         while batches.len() != self.pool_size {
-            batches.push(run_batch(
-                self.gear_api.clone(),
-                BatchGeneratorImpl::<Rng>::new(
-                    seed_gen.next_u64(),
-                    self.batch_size,
-                    self.tasks_context.clone(),
-                ),
-            ));
+            let (batch_seed, batch) = batch_gen.generate();
+            batches.push(run_batch(self.gear_api.clone(), batch_seed, batch));
         }
 
         while let Some(report) = batches.next().await {
             self.process_run_report(report);
-            batches.push(run_batch(
-                self.gear_api.clone(),
-                BatchGeneratorImpl::<Rng>::new(
-                    seed_gen.next_u64(),
-                    self.batch_size,
-                    self.tasks_context.clone(),
-                ),
-            ));
+            let (batch_seed, batch) = batch_gen.generate();
+            batches.push(run_batch(self.gear_api.clone(), batch_seed, batch));
         }
     }
 
@@ -84,10 +76,9 @@ impl<Rng: LoaderRng> BatchPool<Rng> {
     }
 }
 
-async fn run_batch(gear_api: Api, mut batch_gen: impl BatchGenerator) -> BatchRunReport {
-    let mut pre_run_report = Vec::with_capacity(batch_gen.batch_size());
-    let batch = batch_gen
-        .generate()
+async fn run_batch(gear_api: Api, batch_seed: u64, batch: Vec<Task>) -> BatchRunReport {
+    let mut pre_run_report = Vec::with_capacity(batch.len());
+    let batch = batch
         .into_iter()
         .map(|task| {
             pre_run_report.push(task.report());
@@ -95,12 +86,7 @@ async fn run_batch(gear_api: Api, mut batch_gen: impl BatchGenerator) -> BatchRu
         })
         .collect::<Vec<_>>();
     let (context_update, post_run_report) = run_batch_impl(gear_api, batch).await.into();
-    BatchRunReport::new(
-        batch_gen.seed(),
-        pre_run_report,
-        post_run_report,
-        context_update,
-    )
+    BatchRunReport::new(batch_seed, pre_run_report, post_run_report, context_update)
 }
 
 async fn run_batch_impl(
