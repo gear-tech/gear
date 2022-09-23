@@ -4,17 +4,17 @@ use crate::{
         context::TasksContext,
         gear_client,
         report::TaskReporter,
-        task::{upload_program_task, Task},
+        task::{upload_code_task, upload_program_task, Task},
     },
-    utils,
+    utils::{self, LoaderRng, LoaderRngCore},
 };
 use arbitrary::Unstructured;
 use rand::RngCore;
 use std::marker::PhantomData;
 
-pub(crate) fn get_some_seed_generator<Rng: crate::LoaderRng>(
+pub(crate) fn get_some_seed_generator<Rng: LoaderRng>(
     code_seed_type: Option<SeedVariant>,
-) -> Box<dyn crate::utils::LoaderRngCore> {
+) -> Box<dyn LoaderRngCore> {
     match code_seed_type {
         None => Box::new(Rng::seed_from_u64(utils::now())) as _,
         Some(SeedVariant::Dynamic(v)) => Box::new(Rng::seed_from_u64(v)) as _,
@@ -22,7 +22,7 @@ pub(crate) fn get_some_seed_generator<Rng: crate::LoaderRng>(
     }
 }
 
-pub(crate) fn generate_gear_program<Rng: crate::LoaderRng>(seed: u64) -> Vec<u8> {
+pub(crate) fn generate_gear_program<Rng: LoaderRng>(seed: u64) -> Vec<u8> {
     let mut rng = Rng::seed_from_u64(seed);
     let mut buf = vec![0; 100_000];
     rng.fill_bytes(&mut buf);
@@ -66,14 +66,14 @@ pub(super) trait BatchGenerator {
     fn seed(&self) -> u64;
 }
 
-pub(super) struct BatchGeneratorImpl<Rng: crate::LoaderRng> {
+pub(super) struct BatchGeneratorImpl<Rng: LoaderRng> {
     pub(super) seed: u64,
     pub(super) batch_size: usize,
     pub(super) context: TasksContext,
     _phantom: PhantomData<Rng>,
 }
 
-impl<Rng: crate::LoaderRng> BatchGeneratorImpl<Rng> {
+impl<Rng: LoaderRng> BatchGeneratorImpl<Rng> {
     pub(super) fn new(seed: u64, batch_size: usize, context: TasksContext) -> Self {
         Self {
             seed,
@@ -84,7 +84,7 @@ impl<Rng: crate::LoaderRng> BatchGeneratorImpl<Rng> {
     }
 }
 
-impl<Rng: crate::LoaderRng> BatchGenerator for BatchGeneratorImpl<Rng> {
+impl<Rng: LoaderRng> BatchGenerator for BatchGeneratorImpl<Rng> {
     type Task = Task;
 
     fn batch_size(&self) -> usize {
@@ -101,7 +101,8 @@ impl<Rng: crate::LoaderRng> BatchGenerator for BatchGeneratorImpl<Rng> {
         while batch.len() != batch.capacity() {
             let task = match batch_rng.gen_range(0u8..1) {
                 0 => upload_program_task::<Rng>(&mut self.context, batch_rng.next_u64()),
-                1..=u8::MAX => unreachable!("Num of generators exhausted."),
+                1 => upload_code_task::<Rng>(&mut self.context),
+                2..=u8::MAX => unreachable!("Num of generators exhausted."),
             };
             batch.push(task);
         }

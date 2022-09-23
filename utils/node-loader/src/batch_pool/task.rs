@@ -1,6 +1,7 @@
 use super::{context::TasksContext, gear_client, report::TaskReporter};
+use crate::utils::LoaderRng;
 
-pub(super) fn upload_program_task<Rng: crate::LoaderRng>(
+pub(super) fn upload_program_task<Rng: LoaderRng>(
     task_context: &mut TasksContext,
     rng_seed: u64,
 ) -> Task {
@@ -21,6 +22,14 @@ pub(super) fn upload_program_task<Rng: crate::LoaderRng>(
     }
 }
 
+pub(super) fn upload_code_task<Rng: LoaderRng>(task_context: &mut TasksContext) -> Task {
+    let code_seed = task_context.code_seed_gen.next_u64();
+
+    let code = crate::generators::generate_gear_program::<Rng>(code_seed);
+
+    Task::UploadCode { code }
+}
+
 #[derive(Debug)]
 pub(super) enum Task {
     UploadProgram {
@@ -28,7 +37,9 @@ pub(super) enum Task {
         salt: Vec<u8>,
         payload: Vec<u8>,
     },
-    // UploadCode,
+    UploadCode {
+        code: Vec<u8>,
+    },
     // SendMessage,
 }
 
@@ -36,6 +47,7 @@ impl From<Task> for gear_client::GearClientCall {
     fn from(v: Task) -> Self {
         match v {
             Task::UploadProgram { .. } => gear_client::GearClientCall,
+            Task::UploadCode { .. } => gear_client::GearClientCall,
         }
     }
 }
@@ -51,6 +63,9 @@ impl TaskReporter for Task {
                 "code - {:?}, salt - {:?} and payload - {:?}.",
                 code, salt, payload,
             ),
+            Task::UploadCode { code } => format! {
+                "code - {:?}", code
+            },
         }
     }
 }

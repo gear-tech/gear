@@ -1,9 +1,8 @@
-use std::time::{SystemTime, UNIX_EPOCH};
-
 use anyhow::Result;
 use dyn_clonable::*;
 use gear_program::{api::Api, keystore};
 use rand::{Rng, RngCore, SeedableRng};
+use std::time::{SystemTime, UNIX_EPOCH};
 
 pub(crate) fn now() -> u64 {
     let time_since_epoch = SystemTime::now()

@@ -1,19 +1,17 @@
-use std::marker::PhantomData;
-
+use crate::{args::SeedVariant, utils::LoaderRng};
+use context::{TaskContextUpdate, TasksContext};
 use futures::{stream::FuturesUnordered, StreamExt};
 use gear_program::api::Api;
-
-use crate::args::SeedVariant;
-use context::{TaskContextUpdate, TasksContext};
 use generators::{BatchGenerator, BatchGeneratorImpl};
 use report::{BatchRunReport, TaskReporter};
+use std::marker::PhantomData;
 
 mod context;
 pub(crate) mod generators;
 mod report;
 mod task;
 
-pub(crate) struct BatchPool<Rng: crate::LoaderRng> {
+pub(crate) struct BatchPool<Rng: LoaderRng> {
     pool_size: usize,
     batch_size: usize,
     tasks_context: TasksContext,
@@ -21,7 +19,7 @@ pub(crate) struct BatchPool<Rng: crate::LoaderRng> {
     _phantom: PhantomData<Rng>,
 }
 
-impl<Rng: crate::LoaderRng> BatchPool<Rng> {
+impl<Rng: LoaderRng> BatchPool<Rng> {
     pub(crate) fn new(
         pool_size: usize,
         batch_size: usize,

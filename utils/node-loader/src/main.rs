@@ -5,14 +5,11 @@
 //! gets properly structured data acceptable by the gear node and randomizes it's "fields".
 //! That's why generated data is called semi-random.
 
-use std::{fs::File, io::Write};
-
 use anyhow::Result;
-use rand::rngs::SmallRng;
-
 use args::{parse_cli_params, LoadParams, Params};
 use batch_pool::{generators, BatchPool};
-use utils::LoaderRng;
+use rand::rngs::SmallRng;
+use std::{fs::File, io::Write};
 
 mod args;
 mod batch_pool;
@@ -29,7 +26,6 @@ async fn main() {
 }
 
 async fn run(params: Params) -> Result<()> {
-
     match params {
         Params::Dump { seed } => dump_with_seed(seed),
         Params::Load(load_params) => load_node(load_params).await,
