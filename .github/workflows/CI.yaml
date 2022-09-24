@@ -276,6 +276,7 @@ jobs:
           --ignore "pallets/usage/src/migration.rs"
           --ignore "runtime/*"
           --ignore "gcore/*"
+          --ignore "gclient/*"
           --ignore "gstd/*"
           --ignore "galloc/*"
           --ignore "common/codegen/*"
