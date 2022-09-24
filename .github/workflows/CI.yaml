@@ -197,65 +197,65 @@ jobs:
           [ -d /root/cache/${{ github.event.pull_request.number }} ] && { tar -xf /root/cache/${{ github.event.pull_request.number }}/build_cache.tar -C /; tar -xf /root/cache/${{ github.event.pull_request.number }}/build_cargo_registry.tar -C /; tar -xf /root/cache/${{ github.event.pull_request.number }}/build_target.tar; }
           [ ! -d /root/cache/${{ github.event.pull_request.number }} ] && { tar -xf /root/cache/build_cache_${{ github.base_ref }}.tar -C /; tar -xf /root/cache/build_cargo_registry_${{ github.base_ref }}.tar -C /; tar -xf /root/cache/build_target_${{ github.base_ref }}.tar; }
 
-      - name: "Build: Gear"
-        run: ./scripts/gear.sh build gear --locked --release
-        env:
-          RUSTFLAGS: -Cinstrument-coverage
+      # - name: "Build: Gear"
+      #   run: ./scripts/gear.sh build gear --locked --release
+      #   env:
+      #     RUSTFLAGS: -Cinstrument-coverage
 
-      - name: "Build: WAT examples"
-        run: ./scripts/gear.sh build wat-examples
+      # - name: "Build: WAT examples"
+      #   run: ./scripts/gear.sh build wat-examples
 
-      - name: Check runtime imports
-        run: ./target/release/wasm-proc --check-runtime-imports --path target/release/wbuild/gear-runtime/gear_runtime.wasm
+      # - name: Check runtime imports
+      #   run: ./target/release/wasm-proc --check-runtime-imports --path target/release/wbuild/gear-runtime/gear_runtime.wasm
 
-      - name: "Build: Examples (WASM)"
-        run: ./scripts/gear.sh build examples --locked
+      # - name: "Build: Examples (WASM)"
+      #   run: ./scripts/gear.sh build examples --locked
 
-      - name: "Build: Split examples by .opt and .meta"
-        run: ./scripts/gear.sh build examples-proc
+      # - name: "Build: Split examples by .opt and .meta"
+      #   run: ./scripts/gear.sh build examples-proc
 
-      - name: "Test: Gear pallet tests with lazy pages"
-        run: |
-          cargo test -p pallet-gear --features=lazy-pages --release --locked
-          cargo test -p pallet-gear-debug --features=lazy-pages --release --locked
-          cargo test -p pallet-gear-payment --features=lazy-pages --release --locked
+      # - name: "Test: Gear pallet tests with lazy pages"
+      #   run: |
+      #     cargo test -p pallet-gear --features=lazy-pages --release --locked
+      #     cargo test -p pallet-gear-debug --features=lazy-pages --release --locked
+      #     cargo test -p pallet-gear-payment --features=lazy-pages --release --locked
 
-      - name: "Test: Gear workspace"
-        run: ./scripts/gear.sh test gear --release --locked
-        env:
-          RUSTFLAGS: -Cinstrument-coverage
+      # - name: "Test: Gear workspace"
+      #   run: ./scripts/gear.sh test gear --release --locked
+      #   env:
+      #     RUSTFLAGS: -Cinstrument-coverage
 
-      - name: "Test: JS metadata"
-        run: ./scripts/gear.sh test js
-        env:
-          RUSTFLAGS: -Cinstrument-coverage
+      # - name: "Test: JS metadata"
+      #   run: ./scripts/gear.sh test js
+      #   env:
+      #     RUSTFLAGS: -Cinstrument-coverage
 
-      - name: "Test: Process gear-test"
-        run: ./scripts/gear.sh test gtest
+      # - name: "Test: Process gear-test"
+      #   run: ./scripts/gear.sh test gtest
 
-      - name: "Test: Process node runtime testsuite"
-        run: ./scripts/gear.sh test rtest
+      # - name: "Test: Process node runtime testsuite"
+      #   run: ./scripts/gear.sh test rtest
 
-      - name: "Test: runtime spec tests no lazy pages"
-        run: |
-          cargo build -p gear-node --release --no-default-features --features=gear-native --out-dir target-no-lazy -Z unstable-options
-          ./target-no-lazy/gear-node runtime-spec-tests ./gear-test/spec/*
+      # - name: "Test: runtime spec tests no lazy pages"
+      #   run: |
+      #     cargo build -p gear-node --release --no-default-features --features=gear-native --out-dir target-no-lazy -Z unstable-options
+      #     ./target-no-lazy/gear-node runtime-spec-tests ./gear-test/spec/*
 
-      - name: "Test: Runtime upgrade and queue processing"
-        run: ./scripts/gear.sh test runtime-upgrade
+      # - name: "Test: Runtime upgrade and queue processing"
+      #   run: ./scripts/gear.sh test runtime-upgrade
 
-      - name: "Test: Weight on client for loop"
-        run: ./scripts/gear.sh test client-weights
+      # - name: "Test: Weight on client for loop"
+      #   run: ./scripts/gear.sh test client-weights
 
-      - name: "Test: Upload programs"
-        run: |
-          ./scripts/gear.sh test uploads "$(pwd)/target/wat-examples/wrong_load.wasm"
-          ./scripts/gear.sh test uploads "$(pwd)/target/wat-examples/inf_recursion.wasm"
+      # - name: "Test: Upload programs"
+      #   run: |
+      #     ./scripts/gear.sh test uploads "$(pwd)/target/wat-examples/wrong_load.wasm"
+      #     ./scripts/gear.sh test uploads "$(pwd)/target/wat-examples/inf_recursion.wasm"
 
-      - name: "Test: Runtime benchmarks work"
-        run: |
-          cargo build -p gear-node --release --features runtime-benchmarks
-          ./target/release/gear-node benchmark pallet --chain=dev --steps=2 --repeat=1 --pallet=pallet_gear --extrinsic="*" --execution=wasm --wasm-execution=compiled --heap-pages=4096
+      # - name: "Test: Runtime benchmarks work"
+      #   run: |
+      #     cargo build -p gear-node --release --features runtime-benchmarks
+      #     ./target/release/gear-node benchmark pallet --chain=dev --steps=2 --repeat=1 --pallet=pallet_gear --extrinsic="*" --execution=wasm --wasm-execution=compiled --heap-pages=4096
 
       - name: "Coverage: Aggregate"
         run: >-
@@ -276,7 +276,7 @@ jobs:
           --ignore "pallets/usage/src/migration.rs"
           --ignore "runtime/*"
           --ignore "gcore/*"
-          --ignore "gclient/*"
+          --ignore "program/*"
           --ignore "gstd/*"
           --ignore "galloc/*"
           --ignore "common/codegen/*"
@@ -290,50 +290,50 @@ jobs:
         with:
           file: ./lcov.info
 
-      - name: "Build: Production binaries"
-        if: github.event_name == 'push'
-        run: cargo build -p gear-node --profile production
+      # - name: "Build: Production binaries"
+      #   if: github.event_name == 'push'
+      #   run: cargo build -p gear-node --profile production
 
-      - name: "Cache: Pack"
-        if: ${{ github.event_name == 'push' }}
-        continue-on-error: true
-        run: |
-          tar -cf /tmp/build_target_${{ github.ref_name }}.tar ./target
-          tar -cf /tmp/build_cache_${{ github.ref_name }}.tar /tmp/cachepot
-          tar -cf /tmp/build_cargo_registry_${{ github.ref_name }}.tar /tmp/cargo/bin /tmp/cargo/registry/cache /tmp/cargo/registry/index /tmp/cargo/git
-          mv /tmp/*.tar /root/cache/
+      # - name: "Cache: Pack"
+      #   if: ${{ github.event_name == 'push' }}
+      #   continue-on-error: true
+      #   run: |
+      #     tar -cf /tmp/build_target_${{ github.ref_name }}.tar ./target
+      #     tar -cf /tmp/build_cache_${{ github.ref_name }}.tar /tmp/cachepot
+      #     tar -cf /tmp/build_cargo_registry_${{ github.ref_name }}.tar /tmp/cargo/bin /tmp/cargo/registry/cache /tmp/cargo/registry/index /tmp/cargo/git
+      #     mv /tmp/*.tar /root/cache/
 
-      - name: "Cache: Pack to temp"
-        if: ${{ github.event_name == 'pull_request' }}
-        continue-on-error: true
-        run: |
-          tar -cf /tmp/build_target.tar ./target
-          tar -cf /tmp/build_cache.tar /tmp/cachepot
-          tar -cf /tmp/build_cargo_registry.tar /tmp/cargo/bin /tmp/cargo/registry/cache /tmp/cargo/registry/index /tmp/cargo/git
-          mkdir -p /root/cache/${{ github.event.pull_request.number }} && mv /tmp/*.tar /root/cache/${{ github.event.pull_request.number }}/
+      # - name: "Cache: Pack to temp"
+      #   if: ${{ github.event_name == 'pull_request' }}
+      #   continue-on-error: true
+      #   run: |
+      #     tar -cf /tmp/build_target.tar ./target
+      #     tar -cf /tmp/build_cache.tar /tmp/cachepot
+      #     tar -cf /tmp/build_cargo_registry.tar /tmp/cargo/bin /tmp/cargo/registry/cache /tmp/cargo/registry/index /tmp/cargo/git
+      #     mkdir -p /root/cache/${{ github.event.pull_request.number }} && mv /tmp/*.tar /root/cache/${{ github.event.pull_request.number }}/
 
-      - name: Prepare artifacts
-        if: github.event_name == 'push'
-        run: |
-          mkdir -p artifact
-          cd target/wasm32-unknown-unknown/release
-          tar czvf ../../../artifact/examples.tar.gz *.wasm
-          cd ../../..
-          cp target/production/wbuild/gear-runtime/gear_runtime.compact.compressed.wasm artifact/
-          cp target/production/wbuild/gear-runtime/gear_runtime.compact.wasm artifact/
-          cp target/production/wbuild/gear-runtime/gear_runtime.wasm artifact/
-          cp target/production/gear-node artifact/
-          cp target/release/gear-test artifact/
-          cp target/release/wasm-proc artifact/
-          strip artifact/gear-node || true
-          strip artifact/gear-test || true
-          strip artifact/wasm-proc || true
+      # - name: Prepare artifacts
+      #   if: github.event_name == 'push'
+      #   run: |
+      #     mkdir -p artifact
+      #     cd target/wasm32-unknown-unknown/release
+      #     tar czvf ../../../artifact/examples.tar.gz *.wasm
+      #     cd ../../..
+      #     cp target/production/wbuild/gear-runtime/gear_runtime.compact.compressed.wasm artifact/
+      #     cp target/production/wbuild/gear-runtime/gear_runtime.compact.wasm artifact/
+      #     cp target/production/wbuild/gear-runtime/gear_runtime.wasm artifact/
+      #     cp target/production/gear-node artifact/
+      #     cp target/release/gear-test artifact/
+      #     cp target/release/wasm-proc artifact/
+      #     strip artifact/gear-node || true
+      #     strip artifact/gear-test || true
+      #     strip artifact/wasm-proc || true
 
-      - name: Upload artifacts
-        if: github.event_name == 'push'
-        uses: actions/upload-artifact@v2
-        with:
-          path: artifact
+      # - name: Upload artifacts
+      #   if: github.event_name == 'push'
+      #   uses: actions/upload-artifact@v2
+      #   with:
+      #     path: artifact
 
   build-win:
     if: github.ref == 'refs/heads/master'
