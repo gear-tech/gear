@@ -31,7 +31,7 @@ EOF
 }
 
 workspace_test() {
-  cargo nextest run --workspace "$@" --profile ci
+  cargo nextest run --workspace "$@" --profile ci --exclude gear-program
 }
 
 # $1 - ROOT DIR

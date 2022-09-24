@@ -21,6 +21,7 @@ members = [
     "gtest",
     "node",
     "pallets/*",
+    "program",
     "runtime/gear",
     "runtime/rococo-gear",
     "runtime/vara",
