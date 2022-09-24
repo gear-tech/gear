@@ -20,6 +20,7 @@ members = [
     "gtest",
     "node",
     "pallets/*",
+    "program",
     "runtime/gear",
     "runtime/vara",
     "utils/gear-runtime-test-cli",
