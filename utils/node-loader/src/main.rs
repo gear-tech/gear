@@ -41,9 +41,8 @@ fn dump_with_seed(seed: u64) -> Result<()> {
 
 async fn load_node(params: LoadParams) -> Result<()> {
     let gear_api = utils::obtain_gear_api(&params.endpoint, &params.user).await?;
-    Ok(
-        BatchPool::<SmallRng>::new(params.workers, params.batch_size, gear_api)
-            .run(params.code_seed_type)
-            .await,
-    )
+    BatchPool::<SmallRng>::new(params.workers, params.batch_size, gear_api)
+        .run(params.code_seed_type)
+        .await;
+    Ok(())
 }

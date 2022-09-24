@@ -134,12 +134,9 @@ pub fn gen_wasm_smith_module(u: &mut Unstructured, config: &SwarmConfig) -> Modu
 fn gen_mem_export(mut module: PModule, u: &mut Unstructured, config: &GearConfig) -> PModule {
     let mut mem_section_idx = None;
     for i in 0..module.sections().len() {
-        match module.sections()[i] {
-            Section::Memory(_) => {
-                mem_section_idx = Some(i);
-                break;
-            }
-            _ => {}
+        if let Section::Memory(_) = module.sections()[i] {
+            mem_section_idx = Some(i);
+            break;
         }
     }
     mem_section_idx.map(|index| module.sections_mut().remove(index));
@@ -160,9 +157,9 @@ fn gen_mem_export(mut module: PModule, u: &mut Unstructured, config: &GearConfig
         .build()
 }
 
-fn gen_init(module: PModule, u: &mut Unstructured, config: &GearConfig) -> (PModule, bool) {
+fn gen_init(module: PModule, u: &mut Unstructured, config: &GearConfig) -> PModule {
     if config.skip_init.get(u) {
-        return (module, false);
+        return module;
     }
 
     let funcs_len = module
@@ -170,12 +167,12 @@ fn gen_init(module: PModule, u: &mut Unstructured, config: &GearConfig) -> (PMod
         .map_or(0, |funcs| funcs.entries().len() as u32);
 
     if funcs_len == 0 && config.skip_init_when_no_funcs.get(u) {
-        return (module, false);
+        return module;
     }
 
     if funcs_len == 0 {
         let module = builder::from_module(module).function().build().build();
-        return (module, true);
+        return module;
     }
 
     let index = u.int_in_range(0..=funcs_len - 1).unwrap();
@@ -188,7 +185,7 @@ fn gen_init(module: PModule, u: &mut Unstructured, config: &GearConfig) -> (PMod
             .func(index)
             .build()
             .build();
-        return (module, true);
+        return module;
     }
 
     let func = module.function_section().unwrap().entries()[index as usize];
@@ -213,7 +210,7 @@ fn gen_init(module: PModule, u: &mut Unstructured, config: &GearConfig) -> (PMod
     code.extend(func_type.results().iter().map(|_| Instruction::Drop));
     code.push(Instruction::End);
 
-    let module = builder::from_module(module)
+    builder::from_module(module)
         .function()
         .body()
         .with_instructions(Instructions::new(code))
@@ -224,9 +221,7 @@ fn gen_init(module: PModule, u: &mut Unstructured, config: &GearConfig) -> (PMod
         .internal()
         .func(funcs_len)
         .build()
-        .build();
-
-    return (module, true);
+        .build()
 }
 
 pub fn gen_gear_program_module(u: &mut Unstructured, config: GearConfig) -> PModule {
@@ -244,11 +239,9 @@ pub fn gen_gear_program_module(u: &mut Unstructured, config: GearConfig) -> PMod
 
     let module = gen_mem_export(module, u, &config);
 
-    let (module, _) = gen_init(module, u, &config);
+    gen_init(module, u, &config)
 
     // println!("funcs num = {}", module.function_section().map(|f| f.entries().len()).unwrap_or(0));
-
-    return module;
 }
 
 pub fn gen_gear_program_code(u: &mut Unstructured, config: GearConfig) -> Vec<u8> {
