@@ -20,6 +20,7 @@ members = [
     "gtest",
     "node",
     "pallets/*",
+    "program",
     "runtime/gear",
     "runtime/vara",
     "utils/gear-runtime-test-cli",
@@ -30,7 +31,8 @@ members = [
     "utils/wasm-info",
     "utils/economic-checks",
     "utils/economic-checks/fuzz",
-    "program",
+    "utils/wasm-gen",
+    "utils/node-loader/",
 ]
 
 [profile.release]
