@@ -52,7 +52,7 @@ impl pallet_balances::Config for Test {
     type ReserveIdentifier = [u8; 8];
     type Balance = u128;
     type DustRemoval = ();
-    type RuntimeEvent = RuntimeEvent;
+    type Event = Event;
     type ExistentialDeposit = ExistentialDeposit;
     type AccountStore = System;
     type WeightInfo = ();
@@ -70,7 +70,7 @@ impl system::Config for Test {
     type BlockLength = ();
     type DbWeight = ();
     type Origin = Origin;
-    type RuntimeCall = RuntimeCall;
+    type Call = Call;
     type Index = u64;
     type BlockNumber = u64;
     type Hash = H256;
@@ -78,7 +78,7 @@ impl system::Config for Test {
     type AccountId = u64;
     type Lookup = IdentityLookup<Self::AccountId>;
     type Header = Header;
-    type RuntimeEvent = RuntimeEvent;
+    type Event = Event;
     type BlockHashCount = BlockHashCount;
     type Version = ();
     type PalletInfo = PalletInfo;

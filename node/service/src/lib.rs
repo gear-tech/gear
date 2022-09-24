@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use sc_client_api::{Backend as BackendT, BlockBackend, UsageProvider, ExecutorProvider};
+use sc_client_api::{Backend as BackendT, BlockBackend, ExecutorProvider, UsageProvider};
 use sc_executor::{NativeElseWasmExecutor, NativeExecutionDispatch};
 use sc_finality_grandpa::SharedVoterState;
 use sc_keystore::LocalKeystore;
@@ -418,7 +418,8 @@ where
             telemetry.as_ref().map(|x| x.handle()),
         );
 
-        let can_author_with = sp_consensus::CanAuthorWithNativeVersion::new(client.executor().clone());
+        let can_author_with =
+            sp_consensus::CanAuthorWithNativeVersion::new(client.executor().clone());
 
         {
             let slot_duration = babe_link.config().slot_duration();

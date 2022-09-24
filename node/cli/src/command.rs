@@ -16,7 +16,9 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{cli::{Cli, Subcommand}, inherent_benchmark_data, RemarkBuilder, TransferKeepAliveBuilder,
+use crate::{
+    cli::{Cli, Subcommand},
+    inherent_benchmark_data, RemarkBuilder, TransferKeepAliveBuilder,
 };
 use frame_benchmarking_cli::{BenchmarkCmd, ExtrinsicFactory, SUBSTRATE_REFERENCE_HARDWARE};
 use runtime_primitives::Block;

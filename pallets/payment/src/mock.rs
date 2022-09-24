@@ -67,7 +67,7 @@ impl pallet_balances::Config for Test {
     type ReserveIdentifier = [u8; 8];
     type Balance = u128;
     type DustRemoval = ();
-    type RuntimeEvent = RuntimeEvent;
+    type Event = Event;
     type ExistentialDeposit = ExistentialDeposit;
     type AccountStore = System;
     type WeightInfo = ();
@@ -116,7 +116,7 @@ impl system::Config for Test {
     type BlockLength = ();
     type DbWeight = ();
     type Origin = Origin;
-    type RuntimeCall = RuntimeCall;
+    type Call = Call;
     type Index = u64;
     type BlockNumber = u64;
     type Hash = H256;
@@ -124,7 +124,7 @@ impl system::Config for Test {
     type AccountId = u64;
     type Lookup = IdentityLookup<Self::AccountId>;
     type Header = Header;
-    type RuntimeEvent = RuntimeEvent;
+    type Event = Event;
     type BlockHashCount = BlockHashCount;
     type Version = ();
     type PalletInfo = PalletInfo;
@@ -143,7 +143,7 @@ parameter_types! {
 }
 
 impl pallet_transaction_payment::Config for Test {
-    type RuntimeEvent = RuntimeEvent;
+    type Event = Event;
     type OnChargeTransaction = CurrencyAdapter<Balances, DealWithFees>;
     type OperationalFeeMultiplier = ConstU8<5>;
     type WeightToFee = IdentityFee<u128>;
@@ -163,7 +163,7 @@ parameter_types! {
 }
 
 impl pallet_gear::Config for Test {
-    type RuntimeEvent = RuntimeEvent;
+    type Event = Event;
     type Currency = Balances;
     type GasPrice = GasConverter;
     type WeightInfo = ();
@@ -179,7 +179,7 @@ impl pallet_gear::Config for Test {
 }
 
 impl pallet_gear_program::Config for Test {
-    type RuntimeEvent = RuntimeEvent;
+    type Event = Event;
     type WeightInfo = ();
     type Currency = Balances;
     type Messenger = GearMessenger;
@@ -219,15 +219,15 @@ impl OnUnbalanced<NegativeImbalance> for DealWithFees {
 }
 
 pub struct ExtraFeeFilter;
-impl Contains<RuntimeCall> for ExtraFeeFilter {
-    fn contains(call: &RuntimeCall) -> bool {
+impl Contains<Call> for ExtraFeeFilter {
+    fn contains(call: &Call) -> bool {
         // Calls that affect message queue and are subject to extra fee
         matches!(
             call,
-            RuntimeCall::Gear(pallet_gear::Call::create_program { .. })
-                | RuntimeCall::Gear(pallet_gear::Call::upload_program { .. })
-                | RuntimeCall::Gear(pallet_gear::Call::send_message { .. })
-                | RuntimeCall::Gear(pallet_gear::Call::send_reply { .. })
+            Call::Gear(pallet_gear::Call::create_program { .. })
+                | Call::Gear(pallet_gear::Call::upload_program { .. })
+                | Call::Gear(pallet_gear::Call::send_message { .. })
+                | Call::Gear(pallet_gear::Call::send_reply { .. })
         )
     }
 }
@@ -264,8 +264,8 @@ pub fn run_to_block(n: u64) {
     }
 }
 
-impl crate::ExtractCall<RuntimeCall> for TestXt<RuntimeCall, ()> {
-    fn extract_call(&self) -> RuntimeCall {
+impl crate::ExtractCall<Call> for TestXt<Call, ()> {
+    fn extract_call(&self) -> Call {
         self.call.clone()
     }
 }

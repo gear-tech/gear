@@ -20,9 +20,9 @@ use crate::{
     internal::HoldBound,
     manager::HandleKind,
     mock::{
-        self, new_test_ext, run_to_block, run_to_next_block, Balances, Gear, GearProgram, Origin,
-        RuntimeEvent as MockRuntimeEvent, System, Test, BLOCK_AUTHOR, LOW_BALANCE_USER, USER_1,
-        USER_2, USER_3,
+        self, new_test_ext, run_to_block, run_to_next_block, Balances, Event as MockRuntimeEvent,
+        Gear, GearProgram, Origin, System, Test, BLOCK_AUTHOR, LOW_BALANCE_USER, USER_1, USER_2,
+        USER_3,
     },
     pallet, BlockGasLimitOf, Config, CostsPerBlockOf, Error, Event, GasAllowanceOf, GasHandlerOf,
     GasInfo, MailboxOf, WaitlistOf,
@@ -4700,7 +4700,7 @@ fn test_reply_to_terminated_program() {
         assert_eq!(MailboxOf::<Test>::len(&USER_1), 1);
 
         // Send reply
-        let reply_call = crate::mock::RuntimeCall::Gear(crate::Call::<Test>::send_reply {
+        let reply_call = crate::mock::Call::Gear(crate::Call::<Test>::send_reply {
             reply_to_id: mail_id,
             payload: EMPTY_PAYLOAD.to_vec(),
             gas_limit: 10_000_000,
@@ -5747,8 +5747,8 @@ mod utils {
         )
     }
 
-    pub(super) fn call_default_message(to: ProgramId) -> crate::mock::RuntimeCall {
-        crate::mock::RuntimeCall::Gear(crate::Call::<Test>::send_message {
+    pub(super) fn call_default_message(to: ProgramId) -> crate::mock::Call {
+        crate::mock::Call::Gear(crate::Call::<Test>::send_message {
             destination: to,
             payload: EMPTY_PAYLOAD.to_vec(),
             gas_limit: DEFAULT_GAS_LIMIT,

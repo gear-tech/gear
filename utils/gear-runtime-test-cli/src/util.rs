@@ -26,8 +26,7 @@ use gear_common::{storage::*, Origin};
 use gear_core::message::{StoredDispatch, StoredMessage};
 #[cfg(feature = "gear-native")]
 use gear_runtime::{
-    Authorship, Gear, GearGas, GearMessenger, Runtime, Event, SessionConfig, SessionKeys,
-    System,
+    Authorship, Event, Gear, GearGas, GearMessenger, Runtime, SessionConfig, SessionKeys, System,
 };
 use pallet_gear::{BlockGasLimitOf, Config, GasAllowanceOf};
 use pallet_gear_debug::DebugData;
@@ -45,8 +44,7 @@ use sp_runtime::{
 use system::pallet_prelude::BlockNumberFor;
 #[cfg(all(not(feature = "gear-native"), feature = "vara-native"))]
 use vara_runtime::{
-    Authorship, Gear, GearGas, GearMessenger, Runtime, Event, SessionConfig, SessionKeys,
-    System,
+    Authorship, Event, Gear, GearGas, GearMessenger, Runtime, SessionConfig, SessionKeys, System,
 };
 
 #[cfg(all(
@@ -79,9 +77,7 @@ pub fn process_queue(snapshots: &mut Vec<DebugData>, mailbox: &mut Vec<StoredMes
                 snapshots.push(snapshot.clone());
             }
 
-            if let Event::Gear(pallet_gear::Event::UserMessageSent { message, .. }) =
-                &event.event
-            {
+            if let Event::Gear(pallet_gear::Event::UserMessageSent { message, .. }) = &event.event {
                 mailbox.push(message.clone());
             }
         }
