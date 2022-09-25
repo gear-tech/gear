@@ -4745,6 +4745,41 @@ fn calculate_gas_info_for_wait_dispatch_works() {
 }
 
 #[test]
+#[should_panic(expected = "assertion failed: maybe_last_message(USER_1).is_none()")]
+fn delayed_sending() {
+    use demo_delayed_sender::WASM_BINARY;
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let delay = 3u32;
+        // Deploy program, which sends mail in "payload" amount of blocks.
+        assert_ok!(Gear::upload_program(
+            Origin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            delay.to_le_bytes().to_vec(),
+            BlockGasLimitOf::<Test>::get(),
+            0
+        ));
+
+        let prog = utils::get_last_program_id();
+
+        run_to_next_block(None);
+
+        assert!(Gear::is_active(prog));
+
+        assert!(maybe_last_message(USER_1).is_none());
+
+        for _ in 0..delay {
+            assert!(maybe_last_message(USER_1).is_none());
+            run_to_next_block(None);
+        }
+
+        assert_eq!(get_last_mail(USER_1).payload(), b"Delayed hello!");
+    });
+}
+
+#[test]
 fn cascading_messages_with_value_do_not_overcharge() {
     init_logger();
     new_test_ext().execute_with(|| {
