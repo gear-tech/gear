@@ -28,7 +28,7 @@ use common::{
 use core_processor::common::ExecutionErrorReason;
 use gear_core::{
     ids::{CodeId, MessageId, ProgramId},
-    message::ReplyMessage,
+    message::{ReplyMessage, StoredDispatch},
 };
 
 impl<T: Config> TaskHandler<T::AccountId> for ExtManager<T>
@@ -153,5 +153,14 @@ where
 
     fn wake_message(&mut self, _program_id: ProgramId, _message_id: MessageId) {
         todo!("issue #349");
+    }
+
+    fn send_message(&mut self, message_id: MessageId, dispatch: StoredDispatch) {
+        if self.check_program_id(&dispatch.destination()) {
+            QueueOf::<T>::queue(dispatch)
+                .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e));
+        } else {
+            Pallet::<T>::send_user_message(message_id, dispatch.into_parts().1, None);
+        }
     }
 }
