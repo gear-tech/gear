@@ -1362,7 +1362,7 @@ fn block_gas_limit_works() {
     // Same as `ProgramCodeKind::OutgoingWithValueInHandle`, but without value sending
     let wat1 = r#"
     (module
-        (import "env" "gr_send_wgas" (func $send (param i32 i32 i32 i64 i32 i32) (result i32)))
+        (import "env" "gr_send_wgas" (func $send (param i32 i32 i32 i64 i32 i32 i32) (result i32)))
         (import "env" "gr_source" (func $gr_source (param i32)))
         (import "env" "memory" (memory 1))
         (export "handle" (func $handle))
@@ -1379,7 +1379,7 @@ fn block_gas_limit_works() {
                 (get_local $msg_val)
                 (i32.const 0)
             )
-            (call $send (i32.const 2) (i32.const 0) (i32.const 32) (i64.const 10000000) (i32.const 10) (i32.const 40000))
+            (call $send (i32.const 2) (i32.const 0) (i32.const 32) (i64.const 10000000) (i32.const 10) (i32.const 40000) (i32.const 0))
             (if
                 (then unreachable)
                 (else)
@@ -5259,6 +5259,7 @@ fn test_async_messages() {
             // check the message sent from the program
             run_to_next_block(None);
             let last_mail = get_last_mail(USER_1);
+            println!("{:?}", String::from_utf8(last_mail.payload().to_vec()));
             assert_eq!(Kind::decode(&mut last_mail.payload()), Ok(*kind));
 
             // reply to the message
@@ -5287,7 +5288,7 @@ fn missing_functions_are_not_executed() {
     // handle is copied from ProgramCodeKind::OutgoingWithValueInHandle
     let wat = r#"
     (module
-        (import "env" "gr_send_wgas" (func $send (param i32 i32 i32 i64 i32 i32) (result i32)))
+        (import "env" "gr_send_wgas" (func $send (param i32 i32 i32 i64 i32 i32 i32) (result i32)))
         (import "env" "memory" (memory 10))
         (export "handle" (func $handle))
         (func $handle
@@ -5301,7 +5302,7 @@ fn missing_functions_are_not_executed() {
                 (get_local $msg_val)
                 (i32.const 1000)
             )
-            (call $send (i32.const 2) (i32.const 0) (i32.const 32) (i64.const 10000000) (i32.const 10) (i32.const 40000))
+            (call $send (i32.const 2) (i32.const 0) (i32.const 32) (i64.const 10000000) (i32.const 10) (i32.const 40000) (i32.const 0))
             (if
                 (then unreachable)
                 (else)
@@ -6006,7 +6007,7 @@ mod utils {
                     // [warning] - program payload data is inaccurate, don't make assumptions about it!
                     r#"
                     (module
-                        (import "env" "gr_send_wgas" (func $send (param i32 i32 i32 i64 i32 i32) (result i32)))
+                        (import "env" "gr_send_wgas" (func $send (param i32 i32 i32 i64 i32 i32 i32) (result i32)))
                         (import "env" "gr_source" (func $gr_source (param i32)))
                         (import "env" "memory" (memory 1))
                         (export "handle" (func $handle))
@@ -6023,7 +6024,7 @@ mod utils {
                                 (get_local $msg_val)
                                 (i32.const 1000)
                             )
-                            (call $send (i32.const 2) (i32.const 0) (i32.const 32) (i64.const 10000000) (i32.const 10) (i32.const 40000))
+                            (call $send (i32.const 2) (i32.const 0) (i32.const 32) (i64.const 10000000) (i32.const 10) (i32.const 40000) (i32.const 0))
                             (if
                                 (then unreachable)
                                 (else)

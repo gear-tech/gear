@@ -32,6 +32,7 @@ mod sys {
             data_len: u32,
             value_ptr: *const u8,
             program_id_ptr: *mut u8,
+            delay: *const u8,
         ) -> SyscallError;
 
         pub fn gr_create_program_wgas(
@@ -43,6 +44,7 @@ mod sys {
             gas_limit: u64,
             value_ptr: *const u8,
             program_id_ptr: *mut u8,
+            delay: *const u8,
         ) -> SyscallError;
     }
 }
@@ -64,6 +66,32 @@ pub fn create_program(
             payload.len() as _,
             value.to_le_bytes().as_ptr(),
             program_id.as_mut_slice().as_mut_ptr(),
+            0u32.to_le_bytes().as_ptr(),
+        )
+        .into_result()?;
+        Ok(program_id)
+    }
+}
+
+/// Same as [`create_program`], but sends delayed.
+pub fn create_program_delayed(
+    code_hash: CodeHash,
+    salt: &[u8],
+    payload: &[u8],
+    value: u128,
+    delay: u32,
+) -> Result<ActorId> {
+    unsafe {
+        let mut program_id = ActorId::default();
+        sys::gr_create_program(
+            code_hash.as_slice().as_ptr(),
+            salt.as_ptr(),
+            salt.len() as _,
+            payload.as_ptr(),
+            payload.len() as _,
+            value.to_le_bytes().as_ptr(),
+            program_id.as_mut_slice().as_mut_ptr(),
+            delay.to_le_bytes().as_ptr(),
         )
         .into_result()?;
         Ok(program_id)
@@ -155,6 +183,34 @@ pub fn create_program_with_gas(
             gas_limit,
             value.to_le_bytes().as_ptr(),
             program_id.as_mut_slice().as_mut_ptr(),
+            0u32.to_le_bytes().as_ptr(),
+        )
+        .into_result()?;
+        Ok(program_id)
+    }
+}
+
+/// Same as [`create_program_with_gas`], but sends delayed.
+pub fn create_program_with_gas_delayed(
+    code_hash: CodeHash,
+    salt: &[u8],
+    payload: &[u8],
+    gas_limit: u64,
+    value: u128,
+    delay: u32,
+) -> Result<ActorId> {
+    unsafe {
+        let mut program_id = ActorId::default();
+        sys::gr_create_program_wgas(
+            code_hash.as_slice().as_ptr(),
+            salt.as_ptr(),
+            salt.len() as _,
+            payload.as_ptr(),
+            payload.len() as _,
+            gas_limit,
+            value.to_le_bytes().as_ptr(),
+            program_id.as_mut_slice().as_mut_ptr(),
+            delay.to_le_bytes().as_ptr(),
         )
         .into_result()?;
         Ok(program_id)
