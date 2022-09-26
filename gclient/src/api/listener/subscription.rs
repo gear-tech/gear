@@ -40,11 +40,7 @@ impl<I: IntoIterator<Item = RuntimeEvent> + Clone> EventProcessor for I {
             }
         }
 
-        if let Some(res) = res {
-            Ok(res)
-        } else {
-            Err(Self::not_waited())
-        }
+        res.ok_or_else(Self::not_waited)
     }
 
     async fn proc_many<T>(

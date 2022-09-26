@@ -32,21 +32,17 @@ impl<'a> EventProcessor for EventListener<'a> {
     }
 
     async fn proc<T>(&mut self, predicate: impl Fn(Event) -> Option<T>) -> Result<T> {
-        let mut res = None;
-
         while let Some(events) = self.0.next().await {
-            for event in events?.iter() {
-                if let Some(data) = predicate(event?.event) {
-                    res = res.or(Some(data));
-                }
-            }
-
-            if res.is_some() {
-                break;
+            if let Some(res) = events?
+                .iter()
+                .filter_map(|event| predicate(event.ok()?.event))
+                .next()
+            {
+                return Ok(res);
             }
         }
 
-        Ok(res.expect("Checked above"))
+        unreachable!()
     }
 
     async fn proc_many<T>(
@@ -65,6 +61,7 @@ impl<'a> EventProcessor for EventListener<'a> {
 
             let finished: bool;
             (res, finished) = validate(res);
+
             if finished {
                 break;
             }

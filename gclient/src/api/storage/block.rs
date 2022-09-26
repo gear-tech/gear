@@ -83,7 +83,7 @@ impl GearApi {
         block_hash: H256,
         max_depth: usize,
     ) -> Result<Vec<RuntimeEvent>> {
-        let mut block_hashes = vec![];
+        let mut block_hashes = Vec::with_capacity(max_depth);
 
         let mut current = self.get_block_at(None).await?;
         for _ in 0..max_depth {

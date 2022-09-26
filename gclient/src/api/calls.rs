@@ -38,7 +38,7 @@ use subxt::sp_core::H256;
 
 impl GearApi {
     /// `pallet_balances::transfer`
-    pub async fn transfer(&self, destination: ProgramId, value: u128) -> Result<((), H256)> {
+    pub async fn transfer(&self, destination: ProgramId, value: u128) -> Result<H256> {
         let destination: [u8; 32] = destination.into();
 
         let tx = self.0.transfer(destination, value).await?;
@@ -51,7 +51,7 @@ impl GearApi {
 
         for event in tx.wait_for_success().await?.iter() {
             if event?.event == expected_event {
-                return Ok(((), tx.block_hash()));
+                return Ok(tx.block_hash());
             }
         }
 
@@ -133,12 +133,12 @@ impl GearApi {
     }
 
     /// `pallet_gear::reset`
-    pub async fn reset(&self) -> Result<((), H256)> {
+    pub async fn reset(&self) -> Result<H256> {
         let tx = self.0.reset().await?;
 
         for event in tx.wait_for_success().await?.iter() {
             if let Event::Gear(GearEvent::DatabaseWiped) = event?.event {
-                return Ok(((), tx.block_hash()));
+                return Ok(tx.block_hash());
             }
         }
 
@@ -327,21 +327,18 @@ impl GearApi {
             ),
         >,
     ) -> Result<(Vec<Result<(MessageId, ProgramId)>>, H256)> {
-        let mut calls = vec![];
-
-        for (code, salt, payload, gas_limit, value) in args {
-            let code = code.as_ref().to_vec();
-            let salt = salt.as_ref().to_vec();
-            let init_payload = payload.as_ref().to_vec();
-
-            calls.push(RuntimeCall::Gear(GearCall::upload_program {
-                code,
-                salt,
-                init_payload,
-                gas_limit,
-                value,
-            }))
-        }
+        let calls: Vec<_> = args
+            .into_iter()
+            .map(|(code, salt, payload, gas_limit, value)| {
+                RuntimeCall::Gear(GearCall::upload_program {
+                    code: code.as_ref().to_vec(),
+                    salt: salt.as_ref().to_vec(),
+                    init_payload: payload.as_ref().to_vec(),
+                    gas_limit,
+                    value,
+                })
+            })
+            .collect();
 
         let amount = calls.len();
 
@@ -350,7 +347,7 @@ impl GearApi {
 
         let account_id = self.0.account_id();
 
-        let mut res = vec![];
+        let mut res = Vec::with_capacity(amount);
 
         for event in tx.wait_for_success().await?.iter() {
             match event?.event {

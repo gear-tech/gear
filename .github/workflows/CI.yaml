@@ -278,6 +278,8 @@ jobs:
           --ignore "gcore/*"
           --ignore "gstd/*"
           --ignore "galloc/*"
+          --ignore "gtest/*"
+          --ignore "gclient/*"
           --ignore "common/codegen/*"
           -o ./lcov.info
 
