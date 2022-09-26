@@ -42,7 +42,7 @@ fn check_node() {
     let profile = std::env::var("PROFILE").unwrap();
     let node = env!("CARGO_MANIFEST_DIR").to_owned() + "../node";
 
-    cargo.args(&[
+    cargo.args([
         "build",
         "--manifest-path",
         &node,
@@ -57,7 +57,7 @@ fn update_api() {
     // format generated code
     let mut rustfmt = Command::new("rustfmt");
     let mut code = rustfmt
-        .args(&["--edition=2021"])
+        .args(["--edition=2021"])
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .spawn()
