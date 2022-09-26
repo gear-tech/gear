@@ -14,7 +14,6 @@ mod port;
 mod result;
 pub mod traits;
 
-const WASM_TARGET: &str = "target/wasm32-unknown-unknown/";
 pub const ALICE_SS58_ADDRESS: &str = "5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY";
 
 /// Run binary `gear`
@@ -57,22 +56,6 @@ pub fn program_id(bin: &[u8], salt: &[u8]) -> [u8; 32] {
     hash(&argument)
 }
 
-/// Get wasm binary path
-pub fn wasm_path(name: &str) -> String {
-    [
-        WASM_TARGET,
-        if cfg!(debug_assertions) {
-            "debug"
-        } else {
-            "release"
-        },
-        "/",
-        name,
-        ".opt.wasm",
-    ]
-    .concat()
-}
-
 /// AccountId32 of `addr`
 pub fn alice_account_id() -> AccountId32 {
     AccountId32::from_ss58check("5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY")
@@ -85,12 +68,12 @@ pub async fn create_messager() -> Result<Node> {
     let mut node = Node::dev()?;
     node.wait(logs::gear_node::IMPORTING_BLOCKS)?;
 
-    let messager = wasm_path("messager");
+    let messager = env::wasm_bin("messager");
     let _ = gear(&[
         "-e",
         &node.ws(),
         "upload-program",
-        &messager,
+        &messager.display().to_string(),
         "0x",
         "0x",
         "0",

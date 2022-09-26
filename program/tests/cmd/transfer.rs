@@ -34,14 +34,9 @@ async fn test_command_transfer_works() {
 
     // Run command transfer
     let value = 1_000_000_000u128;
-    let output = common::gear(&["-e", &node.ws(), "transfer", ADDRESS, &value.to_string()])
+    let _ = common::gear(&["-e", &node.ws(), "transfer", ADDRESS, &value.to_string()])
         .expect("transfer failed");
 
-    if !output.stderr.is_empty() {
-        panic!("{}", String::from_utf8_lossy(&output.stderr));
-    }
-
     let after = api.get_balance(ADDRESS).await.expect("get balance failed");
-
     assert_eq!(after.saturating_sub(before), value);
 }

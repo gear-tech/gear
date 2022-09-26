@@ -23,7 +23,7 @@ pub enum Action {
         #[clap(short, long)]
         timestamp: Option<u64>,
         /// Block height.
-        #[clap(short, long)]
+        #[clap(long)]
         height: Option<u64>,
     },
 }
