@@ -4,10 +4,7 @@ pub use self::{
     result::{Error, Result},
 };
 use blake2_rfc::blake2b;
-use std::{
-    path::PathBuf,
-    process::{Command, Output},
-};
+use std::process::{Command, Output};
 use subxt::{sp_core::crypto::Ss58Codec, sp_runtime::AccountId32};
 
 pub mod env;
@@ -15,7 +12,6 @@ pub mod logs;
 mod node;
 mod port;
 mod result;
-// pub mod spec_version;
 pub mod traits;
 
 const WASM_TARGET: &str = "target/wasm32-unknown-unknown/";

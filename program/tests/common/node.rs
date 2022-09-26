@@ -4,8 +4,6 @@ use std::{
     process::{Child, Command, Stdio},
 };
 
-pub const GEAR_NODE_BIN_PATH: &str = "/res/gear-node";
-
 /// Run gear-node with docker.
 pub struct Node {
     /// child process

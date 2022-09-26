@@ -1,5 +1,5 @@
 //! Integration tests for command `deploy`
-use crate::common::{self, logs, Result};
+use crate::common::{self, logs};
 use gear_program::api::Api;
 
 // Testing account

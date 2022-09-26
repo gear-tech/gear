@@ -3,7 +3,7 @@ use frame_metadata::RuntimeMetadataPrefixed;
 use parity_scale_codec::{Decode, Encode};
 use std::{
     env, fs,
-    io::{Read, Write},
+    io::Write,
     process::{Command, Stdio},
 };
 use subxt_codegen::DerivesRegistry;
@@ -53,7 +53,6 @@ fn check_node() {
 /// Update runtime api
 fn update_api() {
     let api = codegen(vec![]);
-    let generated = [env!("CARGO_MANIFEST_DIR"), "/src/api/generated/metadata.rs"].concat();
 
     // format generated code
     let mut rustfmt = Command::new("rustfmt");

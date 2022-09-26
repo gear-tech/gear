@@ -5,9 +5,6 @@ use std::path::PathBuf;
 /// target path from the root workspace
 const TARGET: &str = "target";
 
-/// wasm target path from the root workspace
-const WASM_TARGET: &str = "target/wasm32-unknown-unknown";
-
 lazy_static! {
     static ref ROOT: PathBuf = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("..");
 }
