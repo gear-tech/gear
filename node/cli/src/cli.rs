@@ -98,6 +98,7 @@ pub enum Subcommand {
     GearRuntimeTest(gear_runtime_test_cli::GearRuntimeTestCmd),
 
     /// Program CLI
+    #[cfg(feature = "program")]
     #[clap(name = "gear-program", about = "Run gear program cli.")]
     GearProgram(gear_program::cmd::Opt),
 }
