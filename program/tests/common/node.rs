@@ -1,4 +1,4 @@
-use crate::common::{port, Error, Result};
+use crate::common::{env, port, Error, Result};
 use std::{
     io::{BufRead, BufReader},
     process::{Child, Command, Stdio},
@@ -23,7 +23,7 @@ impl Node {
     /// Run gear-node with docker in development mode.
     pub fn dev() -> Result<Self> {
         let port = port::pick();
-        let ps = Command::new(env!("CARGO_MANIFEST_DIR").to_owned() + GEAR_NODE_BIN_PATH)
+        let ps = Command::new(env::bin("gear-node"))
             .args(["--ws-port", &port.to_string(), "--tmp", "--dev"])
             .stderr(Stdio::piped())
             .stdout(Stdio::piped())

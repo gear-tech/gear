@@ -15,21 +15,33 @@ const SURI: &str = "tumble tenant update heavy sad draw present tray atom chunk 
 const ADDRESS: &str = "5EJAhWN49JDfn58DpkERvCrtJ5X3sHue93a1hH4nB9KngGSs";
 
 #[tokio::test]
-async fn test_command_transfer_works() -> Result<()> {
+async fn test_command_transfer_works() {
     common::login_as_alice().expect("login failed");
-    let mut node = common::Node::dev()?;
-    node.wait(logs::gear_node::IMPORTING_BLOCKS)?;
+    let mut node = common::Node::dev().expect("start node failed");
+    node.wait(logs::gear_node::IMPORTING_BLOCKS)
+        .expect("node timeout");
 
     // Get balance of the testing address
-    let api = Api::new(Some(&node.ws())).await?.signer(SURI, None)?;
-    let before = api.get_balance(ADDRESS).await?;
+    let api = Api::new(Some(&node.ws()))
+        .await
+        .unwrap()
+        .signer(SURI, None)
+        .unwrap();
+    let before = api
+        .get_balance(ADDRESS)
+        .await
+        .expect("failed to get balance");
 
     // Run command transfer
     let value = 1_000_000_000u128;
-    let _ = common::gear(&["-e", &node.ws(), "transfer", ADDRESS, &value.to_string()])?;
+    let output = common::gear(&["-e", &node.ws(), "transfer", ADDRESS, &value.to_string()])
+        .expect("transfer failed");
 
-    let after = api.get_balance(ADDRESS).await?;
+    if !output.stderr.is_empty() {
+        panic!("{}", String::from_utf8_lossy(&output.stderr));
+    }
+
+    let after = api.get_balance(ADDRESS).await.expect("get balance failed");
 
     assert_eq!(after.saturating_sub(before), value);
-    Ok(())
 }

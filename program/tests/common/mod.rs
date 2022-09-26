@@ -10,11 +10,12 @@ use std::{
 };
 use subxt::{sp_core::crypto::Ss58Codec, sp_runtime::AccountId32};
 
+pub mod env;
 pub mod logs;
 mod node;
 mod port;
 mod result;
-pub mod spec_version;
+// pub mod spec_version;
 pub mod traits;
 
 const WASM_TARGET: &str = "target/wasm32-unknown-unknown/";
@@ -22,17 +23,7 @@ pub const ALICE_SS58_ADDRESS: &str = "5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoH
 
 /// Run binary `gear`
 pub fn gear(args: &[&str]) -> Result<Output> {
-    let profile = if cfg!(debug_assertions) {
-        "debug"
-    } else {
-        "release"
-    };
-
-    Ok(
-        Command::new(PathBuf::from("target/".to_owned() + profile + "/gear"))
-            .args(args)
-            .output()?,
-    )
+    Ok(Command::new(env::bin("gear")).args(args).output()?)
 }
 
 /// Creates a unique identifier by passing given argument to blake2b hash-function.

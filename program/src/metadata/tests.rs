@@ -69,7 +69,12 @@ fn test_parsing_metadata() {
     );
 }
 
+// # Note
+//
+// tests below are reserved for constructing metadata types in pure rust
+
 #[test]
+#[ignore]
 fn test_encode_depth1_1() {
     /// Depth 1 with 1 parameter
     #[derive(Encode, Decode)]
@@ -83,6 +88,7 @@ fn test_encode_depth1_1() {
 }
 
 #[test]
+#[ignore]
 fn test_encode_depth1_2() {
     /// Depth 1 with 2 parameters
     #[derive(Encode, Decode)]
@@ -97,6 +103,7 @@ fn test_encode_depth1_2() {
 }
 
 #[test]
+#[ignore]
 fn test_encode_depth2_2() {
     // Depth 1 with 2 paramters
     #[derive(Encode, Decode)]

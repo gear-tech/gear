@@ -1,7 +1,6 @@
 #![cfg(feature = "cli")]
-use common::Result;
+use common::env;
 use gear_program::{api::Api, result::Error};
-use std::fs::File;
 
 mod cmd;
 mod common;
@@ -14,4 +13,10 @@ async fn api_timeout() {
             jsonrpsee_client_transport::ws::WsHandshakeError::Timeout(..)
         ))
     ));
+}
+
+#[test]
+fn paths() {
+    assert!(env::bin("gear").exists());
+    assert!(env::bin("gear-node").exists());
 }
