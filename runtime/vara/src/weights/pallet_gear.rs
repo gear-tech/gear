@@ -79,7 +79,7 @@ pub trait WeightInfo {
     fn gr_leave(r: u32, ) -> Weight;
     fn gr_wait(r: u32, ) -> Weight;
     fn gr_wait_for(r: u32, ) -> Weight;
-    fn gr_wait_no_more(r: u32, ) -> Weight;
+    fn gr_wait_up_to(r: u32, ) -> Weight;
     fn gr_wake(r: u32, ) -> Weight;
     fn gr_create_program_wgas(r: u32, ) -> Weight;
     fn gr_create_program_wgas_per_kb(n: u32, ) -> Weight;
@@ -410,7 +410,7 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
             .saturating_add(T::DbWeight::get().reads((1 as u64).saturating_mul(r as u64)))
     }
     /// The range of component `r` is `[0, 1]`.
-    fn gr_wait_no_more(r: u32, ) -> Weight {
+    fn gr_wait_up_to(r: u32, ) -> Weight {
         Weight::from_ref_time(77_345_000 as u64)
             // Standard Error: 188_756
             .saturating_add(Weight::from_ref_time(38_571_100 as u64).saturating_mul(r as u64))
@@ -1013,7 +1013,7 @@ impl WeightInfo for () {
             .saturating_add(RocksDbWeight::get().reads((1 as u64).saturating_mul(r as u64)))
     }
     /// The range of component `r` is `[0, 1]`.
-    fn gr_wait_no_more(r: u32, ) -> Weight {
+    fn gr_wait_up_to(r: u32, ) -> Weight {
         Weight::from_ref_time(77_345_000 as u64)
             // Standard Error: 188_756
             .saturating_add(Weight::from_ref_time(38_571_100 as u64).saturating_mul(r as u64))

@@ -508,7 +508,9 @@ mod tests {
         let log = run_result.log();
         assert!(!log.is_empty());
 
-        assert_eq!(log[0].payload(), b"'Invalid input, should be three IDs separated by comma', futures-unordered/src/lib.rs:17:9");
+        assert!(log[0]
+            .payload()
+            .starts_with(b"'Invalid input, should be three IDs separated by comma'"));
 
         let run_result = prog.send(user_id, String::from("should_be_skipped"));
 

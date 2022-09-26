@@ -266,6 +266,7 @@ jobs:
           --ignore "target/*"
           --ignore "gear-test/*"
           --ignore "node/*"
+          --ignore "program/*"
           --ignore "pallets/gear/src/migration.rs"
           --ignore "pallets/gear/src/weights.rs"
           --ignore "pallets/gear-debug/src/weights.rs"

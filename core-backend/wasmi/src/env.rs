@@ -352,7 +352,7 @@ where
         builder.add_host_func("env", "gr_value_available", Funcs::value_available);
         builder.add_host_func("env", "gr_wait", Funcs::wait);
         builder.add_host_func("env", "gr_wait_for", Funcs::wait_for);
-        builder.add_host_func("env", "gr_wait_no_more", Funcs::wait_no_more);
+        builder.add_host_func("env", "gr_wait_up_to", Funcs::wait_up_to);
         builder.add_host_func("env", "gr_wake", Funcs::wake);
 
         let mem: MemoryRef = match MemoryInstance::alloc(Pages(mem_size.0 as usize), None) {

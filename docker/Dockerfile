@@ -1,4 +1,4 @@
-FROM paritytech/ci-linux:staging as builder
+FROM paritytech/ci-linux:production as builder
 LABEL description="This is the build stage for Gear. Here we create the binary."
 
 ARG PROFILE=production
@@ -6,8 +6,8 @@ WORKDIR /gear
 
 COPY . /gear
 RUN apt-get update && apt-get install -y libsecp256k1-dev openssl wget
-RUN wget https://static.rust-lang.org/rustup/archive/1.24.3/x86_64-unknown-linux-gnu/rustup-init
-RUN chmod +x rustup-init && ./rustup-init -y
+#RUN wget https://static.rust-lang.org/rustup/archive/1.24.3/x86_64-unknown-linux-gnu/rustup-init
+#RUN chmod +x rustup-init && ./rustup-init -y
 RUN cargo build -p gear-node --profile $PROFILE
 
 # ===== SECOND STAGE ======

@@ -6,8 +6,8 @@ edition = "2021"
 license = "GPL-3.0"
 
 [dependencies]
-gp = { package = "gear-program", git = "https://github.com/gear-tech/gear-program.git" }
-gear-core = { git = "https://github.com/gear-tech/gear.git" }
+gp = { package = "gear-program", path = "../program" }
+gear-core = { path = "../core" }
 futures = "0.3"
 anyhow = "1.0"
 hex = "0.4"

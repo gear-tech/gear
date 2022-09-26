@@ -3,7 +3,7 @@ use codec::{Decode, DecodeAll, MaxEncodedLen};
 use gear_backend_common::{
     error_processor::IntoExtError, AsTerminationReason, IntoExtInfo, RuntimeCtx,
 };
-use gear_core::env::Ext;
+use gear_core::{env::Ext, RUNTIME_MAX_ALLOC_SIZE};
 
 use gear_core_errors::MemoryError;
 use sp_sandbox::{default_executor::Memory as DefaultExecutorMemory, SandboxMemory};
@@ -47,6 +47,9 @@ where
     }
 
     fn read_memory(&self, ptr: u32, len: u32) -> Result<Vec<u8>, MemoryError> {
+        if len as usize > RUNTIME_MAX_ALLOC_SIZE {
+            return Err(MemoryError::OutOfBounds);
+        }
         let mut buf = vec![0u8; len as usize];
         self.memory
             .get(ptr, buf.as_mut_slice())
