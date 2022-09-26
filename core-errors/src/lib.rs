@@ -39,6 +39,10 @@ pub trait CoreError: fmt::Display + fmt::Debug + Sized {
 #[derive(Copy, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, derive_more::Display)]
 #[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo))]
 pub enum MessageError {
+    /// Message has bigger then allowed one message size
+    #[display(fmt = "Max message size exceed")]
+    MaxMessageSizeExceed,
+
     /// The error "Message limit exceeded" occurs when a program attempts to
     /// send more than the maximum amount of messages allowed within a single
     /// execution (current setting - 1024).

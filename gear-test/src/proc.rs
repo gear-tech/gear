@@ -39,6 +39,7 @@ use wasm_instrument::gas_metering::ConstantCostRules;
 
 pub const EXISTENTIAL_DEPOSIT: u128 = 500;
 pub const OUTGOING_LIMIT: u32 = 1024;
+pub const MAX_MESSAGE_SIZE: u32 = 8 * 1024 * 1024;
 pub const MAILBOX_THRESHOLD: u64 = 3000;
 pub const WAITLIST_COST: u64 = 100;
 pub const RESERVE_FOR: u32 = 1;
@@ -376,6 +377,7 @@ fn test_block_config(block_info: BlockInfo) -> BlockConfig {
         allocations_config: Default::default(),
         existential_deposit: EXISTENTIAL_DEPOSIT,
         outgoing_limit: OUTGOING_LIMIT,
+        max_message_size: MAX_MESSAGE_SIZE,
         host_fn_weights: Default::default(),
         forbidden_funcs: Default::default(),
         mailbox_threshold: MAILBOX_THRESHOLD,

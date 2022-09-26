@@ -195,6 +195,10 @@ pub mod pallet {
         #[pallet::constant]
         type OutgoingLimit: Get<u32>;
 
+        /// The maximum size of one message which smart contract .
+        #[pallet::constant]
+        type MaxMessageSize: Get<u32>;
+
         type DebugInfo: DebugInfo;
 
         type CodeStorage: CodeStorage;
@@ -791,6 +795,7 @@ pub mod pallet {
                 allocations_config,
                 existential_deposit,
                 outgoing_limit: T::OutgoingLimit::get(),
+                max_message_size: T::MaxMessageSize::get(),
                 host_fn_weights: schedule.host_fn_weights.into_core(),
                 forbidden_funcs: ["gr_gas_available"].into(),
                 mailbox_threshold: T::MailboxThreshold::get(),
@@ -1140,6 +1145,7 @@ pub mod pallet {
                 allocations_config,
                 existential_deposit,
                 outgoing_limit: T::OutgoingLimit::get(),
+                max_message_size: T::MaxMessageSize::get(),
                 host_fn_weights: schedule.host_fn_weights.into_core(),
                 forbidden_funcs: Default::default(),
                 mailbox_threshold: T::MailboxThreshold::get(),

@@ -104,6 +104,8 @@ pub struct BlockConfig {
     pub existential_deposit: u128,
     /// Outgoing limit.
     pub outgoing_limit: u32,
+    /// Max size of one message.
+    pub max_message_size: u32,
     /// Host function weights.
     pub host_fn_weights: HostFnWeights,
     /// Forbidden functions.
