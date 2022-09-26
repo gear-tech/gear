@@ -18,11 +18,20 @@
 
 use crate::{
     manager::ExtManager, Config, CurrencyOf, Event, GasAllowanceOf, GasHandlerOf,
-    GearProgramPallet, Pallet, QueueOf, SentOf, WaitlistOf,
+    GearProgramPallet, Pallet, QueueOf, SentOf, TaskPoolOf, WaitlistOf,
 };
-use common::{event::*, storage::*, CodeStorage, GasTree, Origin, Program};
+use common::{
+    event::*,
+    scheduler::{ScheduledTask, TaskPool},
+    storage::*,
+    CodeStorage, GasTree, Origin, Program,
+};
 use core_processor::common::{DispatchOutcome as CoreDispatchOutcome, JournalHandler};
-use frame_support::traits::{Currency, ExistenceRequirement, ReservableCurrency};
+use frame_support::{
+    sp_runtime::Saturating,
+    traits::{Currency, ExistenceRequirement, ReservableCurrency},
+};
+use frame_system::Pallet as SystemPallet;
 use gear_core::{
     ids::{CodeId, MessageId, ProgramId},
     memory::{PageBuf, PageNumber},
@@ -277,22 +286,37 @@ where
         message_id: MessageId,
         program_id: ProgramId,
         awakening_id: MessageId,
-        _delay: u32,
+        delay: u32,
     ) {
-        if let Some(dispatch) = Pallet::<T>::wake_dispatch(
-            program_id,
-            awakening_id,
-            MessageWokenRuntimeReason::WakeCalled.into_reason(),
-        ) {
-            QueueOf::<T>::queue(dispatch)
-                .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e));
-        } else {
-            log::debug!(
-                "Attempt to wake unknown message {:?} from {:?}",
+        if delay.is_zero() {
+            if let Some(dispatch) = Pallet::<T>::wake_dispatch(
+                program_id,
                 awakening_id,
-                message_id
-            );
+                MessageWokenRuntimeReason::WakeCalled.into_reason(),
+            ) {
+                QueueOf::<T>::queue(dispatch)
+                    .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e));
+
+                return;
+            }
+        } else if WaitlistOf::<T>::contains(&program_id, &message_id) {
+            let expected_bn =
+                SystemPallet::<T>::block_number().saturating_add(delay.unique_saturated_into());
+            let task = ScheduledTask::WakeMessage(program_id, message_id);
+
+            if !TaskPoolOf::<T>::contains(&expected_bn, &task) {
+                TaskPoolOf::<T>::add(expected_bn, task)
+                    .unwrap_or_else(|e| unreachable!("Scheduling logic invalidated! {:?}", e));
+            }
+
+            return;
         }
+
+        log::debug!(
+            "Attempt to wake unknown message {:?} from {:?}",
+            awakening_id,
+            message_id
+        );
     }
 
     fn update_pages_data(

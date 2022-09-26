@@ -20,7 +20,10 @@ use crate::{manager::ExtManager, Config, Event, GasHandlerOf, Pallet, QueueOf};
 use alloc::string::ToString;
 use codec::Encode;
 use common::{
-    event::{MessageWokenSystemReason, SystemReason, UserMessageReadSystemReason},
+    event::{
+        MessageWokenRuntimeReason, MessageWokenSystemReason, RuntimeReason, SystemReason,
+        UserMessageReadSystemReason,
+    },
     scheduler::*,
     storage::*,
     GasTree, Origin,
@@ -151,8 +154,15 @@ where
         todo!("#646");
     }
 
-    fn wake_message(&mut self, _program_id: ProgramId, _message_id: MessageId) {
-        todo!("issue #349");
+    fn wake_message(&mut self, program_id: ProgramId, message_id: MessageId) {
+        if let Some(dispatch) = Pallet::<T>::wake_dispatch(
+            program_id,
+            message_id,
+            MessageWokenRuntimeReason::WakeCalled.into_reason(),
+        ) {
+            QueueOf::<T>::queue(dispatch)
+                .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e));
+        }
     }
 
     fn send_dispatch(&mut self, dispatch: StoredDispatch) {
