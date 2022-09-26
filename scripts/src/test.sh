@@ -112,9 +112,11 @@ client_tests() {
     # Run node
     RUST_LOG="pallet_gear=debug,runtime::gear=debug" $ROOT_DIR/target/release/gear-node \
       --dev --tmp --unsafe-ws-external --unsafe-rpc-external --rpc-methods Unsafe --rpc-cors all & sleep 3
-  fi
 
-  cargo test -p gclient || pgrep -f "gear-node" | xargs kill -9
+    cargo test -p gclient || pgrep -f "gear-node" | xargs kill -9 && pgrep -f "gear-node" | xargs kill -9
+  else
+    cargo test -p gclient
+  fi
 }
 
 run_fuzzer() {
