@@ -9,6 +9,6 @@ unsafe extern "C" fn handle() {
     match cmd {
         Command::Wait => exec::wait(),
         Command::WaitFor(duration) => exec::wait_for(duration),
-        Command::WaitNoMore(duration) => exec::wait_no_more(duration),
+        Command::WaitUpTo(duration) => exec::wait_up_to(duration),
     }
 }

@@ -25,7 +25,7 @@ pub fn migrate<T: Config>() -> Weight {
     use frame_support::traits::StorageVersion;
 
     let _version = StorageVersion::get::<Pallet<T>>();
-    let weight: Weight = 0;
+    let weight: Weight = Weight::zero();
 
     weight
 }

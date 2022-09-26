@@ -190,7 +190,7 @@ pub mod pallet {
                 "TaskPool::OnChange; weight = {weight}, GasAllowance = {}",
                 GasAllowanceOf::<T>::get()
             );
-            GasAllowanceOf::<T>::decrease(weight);
+            GasAllowanceOf::<T>::decrease(weight.ref_time());
         }
     }
 

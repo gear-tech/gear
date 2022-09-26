@@ -28,6 +28,7 @@ mod handle;
 mod incoming;
 mod init;
 mod reply;
+mod signal;
 mod stored;
 
 pub use common::{Dispatch, Message, ReplyDetails};
@@ -36,6 +37,7 @@ pub use handle::{HandleMessage, HandlePacket};
 pub use incoming::{IncomingDispatch, IncomingMessage};
 pub use init::{InitMessage, InitPacket};
 pub use reply::{ReplyMessage, ReplyPacket};
+pub use signal::SignalMessage;
 pub use stored::{StoredDispatch, StoredMessage};
 
 /// Payload type for message.
@@ -62,6 +64,8 @@ pub enum DispatchKind {
     Handle,
     /// Handle reply.
     Reply,
+    /// System signal.
+    Signal,
 }
 
 impl DispatchKind {
@@ -71,6 +75,7 @@ impl DispatchKind {
             Self::Init => "init",
             Self::Handle => "handle",
             Self::Reply => "handle_reply",
+            Self::Signal => "handle_signal",
         }
     }
 
@@ -87,6 +92,11 @@ impl DispatchKind {
     /// Check if kind is reply.
     pub fn is_reply(&self) -> bool {
         matches!(self, Self::Reply)
+    }
+
+    /// Check if kind is signal.
+    pub fn is_signal(&self) -> bool {
+        matches!(self, Self::Signal)
     }
 }
 

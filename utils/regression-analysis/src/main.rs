@@ -114,7 +114,7 @@ struct WeightBenchmark(Vec<Weight>);
 
 impl WeightBenchmark {
     fn calc_weight(&self) -> Weight {
-        self.0.iter().sum()
+        Weight::from_ref_time(self.0.iter().map(|w| w.ref_time()).sum())
     }
 }
 
@@ -250,7 +250,7 @@ fn weights(kind: WeightsKind, input_file: PathBuf, output_file: PathBuf) {
         map.get(field).map(|weight| GithubActionBenchmark {
             name: field.to_string(),
             unit: "ns".to_string(),
-            value: weight.calc_weight() / 1000,
+            value: weight.calc_weight().ref_time() / 1000,
             range: None,
             extra: None,
         })
@@ -334,7 +334,7 @@ fn weights(kind: WeightsKind, input_file: PathBuf, output_file: PathBuf) {
                     gr_leave,
                     gr_wait,
                     gr_wait_for,
-                    gr_wait_no_more,
+                    gr_wait_up_to,
                     gr_wake,
                     gr_create_program_wgas,
                     gr_create_program_wgas_per_byte,
