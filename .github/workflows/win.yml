@@ -42,7 +42,7 @@ jobs:
       - name: "Install: Pin to specific nightly toolchain"
         if: ${{ env.NIGHTLY_TOOLCHAIN_VERSION != '' }}
         run: |
-          rm -rf %USERPROFILE%\.rustup\toolchains\nightly-x86_64-pc-windows-msvc
+          rm -r %USERPROFILE%\.rustup\toolchains\nightly-x86_64-pc-windows-msvc
           mv %USERPROFILE%\.rustup\toolchains\nightly-$NIGHTLY_TOOLCHAIN_VERSION-x86_64-pc-windows-msvc %USERPROFILE%\.rustup\toolchains\nightly-x86_64-pc-windows-msvc
 
       - name: Setup Rust for Win
