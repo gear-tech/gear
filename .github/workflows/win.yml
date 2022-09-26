@@ -1,13 +1,6 @@
 name: Win
 
-on:
-  schedule:
-    - cron: "0 3 * * *"
-  push:
-    branches: [master, vara-stage-1, vara-stage-2, vara-stage-3]
-  pull_request:
-    branches: [master, vara-stage-1, vara-stage-2, vara-stage-3]
-  workflow_dispatch:
+on: workflow_dispatch
 
 env:
   CARGO_TERM_COLOR: always
