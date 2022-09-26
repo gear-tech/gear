@@ -68,12 +68,12 @@ pub async fn create_messager() -> Result<Node> {
     let mut node = Node::dev()?;
     node.wait(logs::gear_node::IMPORTING_BLOCKS)?;
 
-    let messager = env::wasm_bin("messager");
+    let messager = env::wasm_bin("messager.opt.wasm");
     let _ = gear(&[
         "-e",
         &node.ws(),
         "upload-program",
-        &messager.display().to_string(),
+        &messager,
         "0x",
         "0x",
         "0",

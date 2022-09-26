@@ -1,5 +1,5 @@
 //! Integration tests for command `meta`
-use crate::common;
+use crate::common::{self, env};
 
 const DEMO_METADATA: &str = r#"
 Metadata {
@@ -37,8 +37,8 @@ Metadata {
 
 #[tokio::test]
 async fn test_display_metadata_works() {
-    let output =
-        common::gear(&["meta", "res/demo_meta.meta.wasm", "display"]).expect("Run command failed");
+    let output = common::gear(&["meta", &env::wasm_bin("demo_meta.meta.wasm"), "display"])
+        .expect("Run command failed");
 
     assert_eq!(
         DEMO_METADATA.trim(),

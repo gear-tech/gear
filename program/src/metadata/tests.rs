@@ -42,7 +42,7 @@ Metadata {
 
 #[test]
 fn test_parsing_metadata() {
-    let demo_meta = include_bytes!("../../res/demo_meta.meta.wasm");
+    let demo_meta = demo_meta::WASM_BINARY_META;
     let metadata = Metadata::of(demo_meta).expect("get metadata failed");
 
     assert_eq!(

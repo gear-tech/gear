@@ -255,15 +255,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "demo-meta"
-version = "0.1.0"
-dependencies = [
- "gstd",
- "parity-scale-codec",
- "scale-info",
-]
-
-[[package]]
 name = "demo-minimal"
 version = "0.1.0"
 dependencies = [

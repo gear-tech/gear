@@ -1,6 +1,7 @@
 #![cfg(feature = "bin")]
 use common::env;
 use gear_program::{api::Api, result::Error};
+use std::path::PathBuf;
 
 mod cmd;
 mod common;
@@ -17,6 +18,6 @@ async fn api_timeout() {
 
 #[test]
 fn paths() {
-    assert!(env::bin("gear").exists());
-    assert!(env::bin("gear-node").exists());
+    assert!(PathBuf::from(env::bin("gear")).exists());
+    assert!(PathBuf::from(env::bin("gear-node")).exists());
 }

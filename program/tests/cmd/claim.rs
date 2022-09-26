@@ -20,6 +20,7 @@ async fn test_command_claim_works() {
         .mailbox(common::alice_account_id(), 10)
         .await
         .expect("fetch mailbox failed");
+
     assert_eq!(mailbox.len(), 1);
     let id = hex::encode(mailbox[0].0.id.0);
 
