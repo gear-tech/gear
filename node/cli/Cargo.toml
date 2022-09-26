@@ -47,6 +47,9 @@ frame-benchmarking = { version = "4.0.0-dev", git = "https://github.com/gear-tec
 frame-benchmarking-cli = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", optional = true }
 try-runtime-cli = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", optional = true }
 
+# Program CLI
+gear-program = { path = "../../program", features = [ "cli" ], optional = true }
+
 [build-dependencies]
 substrate-build-script-utils = { version = "3.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
 
@@ -76,3 +79,4 @@ runtime-benchmarks = [
 ]
 debug-mode = ["service/debug-mode"]
 try-runtime = ["service/try-runtime", "try-runtime-cli"]
+program = [ "gear-program" ]

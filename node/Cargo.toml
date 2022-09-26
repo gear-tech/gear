@@ -19,7 +19,7 @@ gear-cli = { path = "cli" }
 gear-service = { path = "service", default-features = false }
 
 [features]
-default = ["gear-native", "vara-native", "lazy-pages"]
+default = ["gear-native", "vara-native", "lazy-pages", "program-cli"]
 gear-native = [
 	"gear-cli/gear-native",
 	"gear-service/gear-native",
@@ -41,3 +41,4 @@ debug-mode = [
 try-runtime = [
 	"gear-cli/try-runtime",
 ]
+program-cli = [ "gear-cli/program" ]

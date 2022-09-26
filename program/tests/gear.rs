@@ -1,4 +1,4 @@
-#![cfg(feature = "cli")]
+#![cfg(feature = "bin")]
 use common::env;
 use gear_program::{api::Api, result::Error};
 

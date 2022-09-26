@@ -96,4 +96,8 @@ pub enum Subcommand {
         about = "Run gear runtime tests with yaml."
     )]
     GearRuntimeTest(gear_runtime_test_cli::GearRuntimeTestCmd),
+
+    /// Program CLI
+    #[clap(name = "gear-program", about = "Run gear program cli.")]
+    GearProgram(gear_program::cmd::Opt),
 }

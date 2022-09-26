@@ -319,6 +319,13 @@ pub fn run() -> sc_cli::Result<()> {
             let runner = cli.create_runner(cmd)?;
             runner.sync_run(|config| cmd.run::<Block>(&config))
         }
+        Some(Subcommand::GearProgram(gp)) => {
+            // # NOTE
+            //
+            // unwrap here directly to show the error messages.
+            gp.exec_sync().unwrap();
+            Ok(())
+        }
         None => {
             let runner = cli.create_runner(&cli.run.base)?;
             runner.run_node_until_exit(|config| async move {

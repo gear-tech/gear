@@ -1,9 +1,9 @@
 //! Command `claim`
 use crate::{api::signer::Signer, result::Result, utils};
-use structopt::StructOpt;
+use clap::Parser;
 
 /// Claim value from mailbox.
-#[derive(StructOpt, Debug)]
+#[derive(Parser, Debug)]
 pub struct Claim {
     /// Claim value from.
     message_id: String,
