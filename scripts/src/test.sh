@@ -108,7 +108,7 @@ runtime_upgrade_test() {
 client_tests() {
   ROOT_DIR="$1"
 
-  if [[ "$2" == "--run-node" ]]; then
+  if [ "$2" == "--run-node" ]; then
     # Run node
     RUST_LOG="pallet_gear=debug,runtime::gear=debug" $ROOT_DIR/target/release/gear-node \
       --dev --tmp --unsafe-ws-external --unsafe-rpc-external --rpc-methods Unsafe --rpc-cors all & sleep 3
