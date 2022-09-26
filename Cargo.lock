@@ -1563,8 +1563,8 @@ dependencies = [
 name = "demo-delayed-sender"
 version = "0.1.0"
 dependencies = [
- "gear-wasm-builder",
- "gstd",
+ "gear-wasm-builder 0.1.2",
+ "gstd 0.1.0",
 ]
 
 [[package]]
