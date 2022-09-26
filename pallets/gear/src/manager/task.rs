@@ -155,12 +155,12 @@ where
         todo!("issue #349");
     }
 
-    fn send_message(&mut self, message_id: MessageId, dispatch: StoredDispatch) {
+    fn send_dispatch(&mut self, dispatch: StoredDispatch) {
         if self.check_program_id(&dispatch.destination()) {
             QueueOf::<T>::queue(dispatch)
                 .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e));
         } else {
-            Pallet::<T>::send_user_message(message_id, dispatch.into_parts().1, None);
+            Pallet::<T>::send_user_message_after_delay(dispatch.into_parts().1);
         }
     }
 }

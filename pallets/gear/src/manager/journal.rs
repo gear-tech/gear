@@ -207,8 +207,13 @@ where
         Pallet::<T>::consume_message(message_id)
     }
 
-    fn send_dispatch(&mut self, message_id: MessageId, dispatch: Dispatch, _delay: u32) {
-        if self.check_program_id(&dispatch.destination()) {
+    fn send_dispatch(&mut self, message_id: MessageId, dispatch: Dispatch, delay: u32) {
+        let to_user = self.check_user_id(&dispatch.destination());
+
+        if !delay.is_zero() {
+            log::debug!("Sending delayed for {delay} blocks dispatch");
+            Pallet::<T>::send_delayed_dispatch(message_id, dispatch, delay, to_user)
+        } else if !to_user {
             let gas_limit = dispatch.gas_limit();
             let dispatch = dispatch.into_stored();
 

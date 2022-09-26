@@ -1379,7 +1379,7 @@ fn block_gas_limit_works() {
                 (get_local $msg_val)
                 (i32.const 0)
             )
-            (call $send (i32.const 2) (i32.const 0) (i32.const 32) (i64.const 10000000) (i32.const 10) (i32.const 40000) (i32.const 0))
+            (call $send (i32.const 2) (i32.const 0) (i32.const 32) (i64.const 10000000) (i32.const 10) (i32.const 40000) (i32.const 10))
             (if
                 (then unreachable)
                 (else)
@@ -4745,7 +4745,6 @@ fn calculate_gas_info_for_wait_dispatch_works() {
 }
 
 #[test]
-#[should_panic(expected = "assertion failed: maybe_last_message(USER_1).is_none()")]
 fn delayed_sending() {
     use demo_delayed_sender::WASM_BINARY;
 
@@ -5329,6 +5328,7 @@ fn missing_functions_are_not_executed() {
         (func $handle
             (local $msg_source i32)
             (local $msg_val i32)
+            (local $delay i32)
             (i32.store offset=2
                 (get_local $msg_source)
                 (i32.const 1)
@@ -5337,7 +5337,11 @@ fn missing_functions_are_not_executed() {
                 (get_local $msg_val)
                 (i32.const 1000)
             )
-            (call $send (i32.const 2) (i32.const 0) (i32.const 32) (i64.const 10000000) (i32.const 10) (i32.const 40000) (i32.const 0))
+            (i32.store offset=20
+                (get_local $delay)
+                (i32.const 0)
+            )
+            (call $send (i32.const 2) (i32.const 0) (i32.const 32) (i64.const 10000000) (i32.const 10) (i32.const 40000) (i32.const 20))
             (if
                 (then unreachable)
                 (else)
@@ -6051,6 +6055,7 @@ mod utils {
                         (func $handle
                             (local $msg_source i32)
                             (local $msg_val i32)
+                            (local $delay i32)
                             (i32.store offset=2
                                 (get_local $msg_source)
                                 (i32.const 1)
@@ -6059,7 +6064,11 @@ mod utils {
                                 (get_local $msg_val)
                                 (i32.const 1000)
                             )
-                            (call $send (i32.const 2) (i32.const 0) (i32.const 32) (i64.const 10000000) (i32.const 10) (i32.const 40000) (i32.const 0))
+                            (i32.store offset=20
+                                (get_local $delay)
+                                (i32.const 0)
+                            )
+                            (call $send (i32.const 2) (i32.const 0) (i32.const 32) (i64.const 10000000) (i32.const 10) (i32.const 40000) (i32.const 20))
                             (if
                                 (then unreachable)
                                 (else)
