@@ -4767,14 +4767,74 @@ fn delayed_sending() {
 
         assert!(Gear::is_active(prog));
 
-        assert!(maybe_last_message(USER_1).is_none());
-
         for _ in 0..delay {
             assert!(maybe_last_message(USER_1).is_none());
             run_to_next_block(None);
         }
 
         assert_eq!(get_last_mail(USER_1).payload(), b"Delayed hello!");
+    });
+}
+
+#[test]
+fn delayed_wake() {
+    use demo_delayed_sender::WASM_BINARY;
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        assert_ok!(Gear::upload_program(
+            Origin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            0u32.to_le_bytes().to_vec(),
+            BlockGasLimitOf::<Test>::get(),
+            0
+        ));
+
+        let prog = utils::get_last_program_id();
+
+        run_to_next_block(None);
+
+        assert!(Gear::is_active(prog));
+
+        assert!(maybe_last_message(USER_1).is_some());
+
+        // This message will go into waitlist.
+        assert_ok!(Gear::send_message(
+            Origin::signed(USER_1),
+            prog,
+            vec![],
+            BlockGasLimitOf::<Test>::get(),
+            0
+        ));
+
+        let mid = get_last_message_id();
+
+        assert!(!WaitlistOf::<Test>::contains(&prog, &mid));
+
+        run_to_next_block(None);
+
+        assert!(WaitlistOf::<Test>::contains(&prog, &mid));
+
+        let delay = 3u32;
+
+        // This message will wake previous message in "payload" blocks
+        assert_ok!(Gear::send_message(
+            Origin::signed(USER_1),
+            prog,
+            delay.to_le_bytes().to_vec(),
+            BlockGasLimitOf::<Test>::get(),
+            0
+        ));
+
+        run_to_next_block(None);
+
+        for _ in 0..delay {
+            assert!(WaitlistOf::<Test>::contains(&prog, &mid));
+            run_to_next_block(None);
+        }
+
+        assert!(!WaitlistOf::<Test>::contains(&prog, &mid));
     });
 }
 
