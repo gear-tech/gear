@@ -252,6 +252,9 @@ jobs:
           ./scripts/gear.sh test uploads "$(pwd)/target/wat-examples/wrong_load.wasm"
           ./scripts/gear.sh test uploads "$(pwd)/target/wat-examples/inf_recursion.wasm"
 
+      - name: "Test: Program CLI"
+        run: cargo nextest run --release -p gear-program --features bin
+
       - name: "Test: Runtime benchmarks work"
         run: |
           cargo build -p gear-node --release --features runtime-benchmarks
