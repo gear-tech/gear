@@ -2945,7 +2945,7 @@ dependencies = [
 
 [[package]]
 name = "gear-program"
-version = "0.1.4"
+version = "0.1.5"
 dependencies = [
  "anyhow",
  "base64",
