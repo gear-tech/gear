@@ -22,7 +22,7 @@ use crate::{
 };
 use frame_benchmarking_cli::{BenchmarkCmd, ExtrinsicFactory, SUBSTRATE_REFERENCE_HARDWARE};
 use runtime_primitives::Block;
-use sc_cli::{ChainSpec, RuntimeVersion, SubstrateCli};
+use sc_cli::{ChainSpec, ExecutionStrategy, RuntimeVersion, SubstrateCli};
 use service::{chain_spec, IdentifyVariant};
 use sp_keyring::Sr25519Keyring;
 
@@ -127,7 +127,15 @@ macro_rules! unwrap_client {
 
 /// Parse and run command line arguments
 pub fn run() -> sc_cli::Result<()> {
-    let cli = Cli::from_args();
+    let mut cli = Cli::from_args();
+
+    // Force setting `Wasm` as default execution strategy.
+    cli.run
+        .base
+        .import_params
+        .execution_strategies
+        .execution
+        .get_or_insert(ExecutionStrategy::Wasm);
 
     match &cli.subcommand {
         Some(Subcommand::Key(cmd)) => cmd.run(&cli),

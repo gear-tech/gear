@@ -1,7 +1,7 @@
 [package]
 name = "gear-program"
 version = "0.1.4"
-authors = ["clearloop <clearloop@users.noreply.github.com>"]
+authors = ["Gear Technologies"]
 edition = "2021"
 description = "gear program cli"
 repository = "https://github.com/gear-tech/gear-program"

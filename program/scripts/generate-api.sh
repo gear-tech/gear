@@ -41,9 +41,6 @@ EOF
 # Check if the required binaries are installed in the machine.
 ###############################################################
 function pre-check() {
-    echo 'downloading the latest gear-node...';
-    ${SCRIPTS}/download-gear.sh "${ROOT_DIR}/res/"
-
     if ! [ -x "$(command -v subxt)" ]; then
         echo 'subxt not found, installing subxt...';
 
@@ -101,6 +98,8 @@ function main() {
 
     # 1. Run gear-node and capture spec version
     spec_version="$(spec-version)"
+
+    echo "a"
 
     # 2. generate code
     sleep 5
