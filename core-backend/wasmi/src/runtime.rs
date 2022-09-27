@@ -47,6 +47,7 @@ where
     }
 
     fn read_memory(&self, ptr: u32, len: u32) -> Result<Vec<u8>, MemoryError> {
+        // +_+_+
         let mut buf = vec![0u8; len as usize];
         self.memory
             .get_into(ptr, buf.as_mut_slice())

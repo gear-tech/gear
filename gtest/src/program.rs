@@ -33,6 +33,7 @@ use gear_wasm_builder::optimize::{OptType, Optimizer};
 use path_clean::PathClean;
 use std::{
     cell::RefCell,
+    convert::TryInto,
     env,
     ffi::OsStr,
     fmt::Debug,
@@ -391,7 +392,7 @@ impl<'a> Program<'a> {
             ),
             source,
             self.id,
-            payload.as_ref().to_vec(),
+            payload.as_ref().to_vec().try_into().unwrap(),
             Some(u64::MAX),
             value,
             None,
@@ -446,9 +447,11 @@ impl<'a> Program<'a> {
     }
 
     pub fn meta_state_with_bytes(&self, payload: impl AsRef<[u8]>) -> Result<Vec<u8>> {
-        self.manager
-            .borrow_mut()
-            .call_meta(&self.id, Some(payload.as_ref().into()), "meta_state")
+        self.manager.borrow_mut().call_meta(
+            &self.id,
+            Some(payload.as_ref().to_vec().try_into().unwrap()),
+            "meta_state",
+        )
     }
 
     pub fn meta_state_empty<D: Decode>(&self) -> Result<D> {

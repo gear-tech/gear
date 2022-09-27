@@ -86,7 +86,7 @@ pallet-gear-scheduler = { path = "../gear-scheduler" }
 gear-runtime-interface = { path = "../../runtime-interface" }
 
 [features]
-default = ['std']
+default = ['std', 'runtime-benchmarks']
 std = [
 	"codec/std",
 	"log/std",

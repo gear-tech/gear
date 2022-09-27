@@ -38,7 +38,7 @@ use gear_backend_common::{
 use gear_core::{
     env::Ext,
     ids::{MessageId, ProgramId},
-    message::{HandlePacket, InitPacket, ReplyPacket},
+    message::{HandlePacket, InitPacket, PayloadSizeError, ReplyPacket},
 };
 use gear_core_errors::{CoreError, MemoryError};
 use wasmi::{Error, RuntimeValue};
@@ -81,7 +81,7 @@ pub(crate) fn return_i64<T: TryInto<i64> + fmt::Display>(val: T) -> Result<Retur
         .map_err(|_| Error::Value("return_i64 err".to_string()))
 }
 
-#[derive(Debug, derive_more::Display)]
+#[derive(Debug, derive_more::Display, derive_more::From)]
 pub enum FuncError<E> {
     #[display(fmt = "{}", _0)]
     Core(E),
@@ -89,6 +89,9 @@ pub enum FuncError<E> {
     HostError,
     #[display(fmt = "{}", _0)]
     Memory(MemoryError),
+    #[from]
+    #[display(fmt = "Payload size limit overflow")]
+    PayloadSizeLimit(PayloadSizeError),
     #[display(fmt = "Cannot set u128: {}", _0)]
     SetU128(MemoryError),
     #[display(fmt = "Exit code ran into non-reply scenario")]
@@ -157,7 +160,7 @@ where
 
         let mut f = || {
             let dest: ProgramId = ctx.read_memory_as(program_id_ptr)?;
-            let payload = ctx.read_memory(payload_ptr, payload_len)?;
+            let payload = ctx.read_memory(payload_ptr, payload_len)?.try_into()?;
             let value: u128 = ctx.read_memory_as(value_ptr)?;
             let delay: u32 = ctx.read_memory_as(delay_ptr)?;
 
@@ -192,7 +195,7 @@ where
 
         let mut f = || {
             let dest: ProgramId = ctx.read_memory_as(program_id_ptr)?;
-            let payload = ctx.read_memory(payload_ptr, payload_len)?;
+            let payload = ctx.read_memory(payload_ptr, payload_len)?.try_into()?;
             let value: u128 = ctx.read_memory_as(value_ptr)?;
             let delay: u32 = ctx.read_memory_as(delay_ptr)?;
 
@@ -321,7 +324,7 @@ where
         let payload_len = pop_i32(&mut args).map_err(|_| FuncError::HostError)?;
 
         let mut f = || {
-            let payload: Vec<u8> = ctx.read_memory(payload_ptr, payload_len)?;
+            let payload = ctx.read_memory(payload_ptr, payload_len)?;
             let error_len = ctx
                 .ext
                 .send_push(handle_ptr, &payload)
@@ -512,7 +515,7 @@ where
         let delay_ptr = pop_i32(&mut args).map_err(|_| FuncError::HostError)?;
 
         let mut f = || {
-            let payload: Vec<u8> = ctx.read_memory(payload_ptr, payload_len)?;
+            let payload = ctx.read_memory(payload_ptr, payload_len)?.try_into()?;
             let value: u128 = ctx.read_memory_as(value_ptr)?;
             let delay: u32 = ctx.read_memory_as(delay_ptr)?;
 
@@ -544,7 +547,7 @@ where
         let delay_ptr = pop_i32(&mut args).map_err(|_| FuncError::HostError)?;
 
         let mut f = || {
-            let payload: Vec<u8> = ctx.read_memory(payload_ptr, payload_len)?;
+            let payload = ctx.read_memory(payload_ptr, payload_len)?.try_into()?;
             let value: u128 = ctx.read_memory_as(value_ptr)?;
             let delay: u32 = ctx.read_memory_as(delay_ptr)?;
 
@@ -658,7 +661,7 @@ where
         let payload_len = pop_i32(&mut args).map_err(|_| FuncError::HostError)?;
 
         let mut f = || {
-            let payload: Vec<u8> = ctx.read_memory(payload_ptr, payload_len)?;
+            let payload = ctx.read_memory(payload_ptr, payload_len)?;
             let error_len = ctx
                 .ext
                 .reply_push(&payload)
@@ -681,6 +684,7 @@ where
         let str_len = pop_i32(&mut args).map_err(|_| FuncError::HostError)?;
 
         let mut f = || {
+            // +_+_+
             let mut data = vec![0u8; str_len];
             ctx.read_memory_into_buf(str_ptr, &mut data)?;
             let s = String::from_utf8(data).map_err(FuncError::DebugString)?;
@@ -879,7 +883,7 @@ where
         let mut f = || {
             let code_hash: [u8; 32] = ctx.read_memory_as(code_hash_ptr)?;
             let salt = ctx.read_memory(salt_ptr, salt_len)?;
-            let payload = ctx.read_memory(payload_ptr, payload_len)?;
+            let payload = ctx.read_memory(payload_ptr, payload_len)?.try_into()?;
             let value: u128 = ctx.read_memory_as(value_ptr)?;
             let delay: u32 = ctx.read_memory_as(delay_ptr)?;
 
@@ -922,7 +926,7 @@ where
         let mut f = || {
             let code_hash: [u8; 32] = ctx.read_memory_as(code_hash_ptr)?;
             let salt = ctx.read_memory(salt_ptr, salt_len)?;
-            let payload = ctx.read_memory(payload_ptr, payload_len)?;
+            let payload = ctx.read_memory(payload_ptr, payload_len)?.try_into()?;
             let value: u128 = ctx.read_memory_as(value_ptr)?;
             let delay: u32 = ctx.read_memory_as(delay_ptr)?;
 

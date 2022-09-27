@@ -16,6 +16,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use core::convert::TryInto;
+
 use crate::{manager::ExtManager, Config, Event, GasHandlerOf, Pallet, QueueOf};
 use alloc::string::ToString;
 use codec::Encode;
@@ -93,7 +95,11 @@ where
         // Generate trap reply.
         if self.check_program_id(&waitlisted.source()) {
             // Sending trap reply to program, by enqueuing it to message queue.
-            let trap = trap.encode();
+            // Expect cannot panic unless error message is too large.
+            let trap = trap
+                .encode()
+                .try_into()
+                .expect("Error message is too large");
 
             // Creating reply message.
             //
@@ -126,7 +132,11 @@ where
 
             // Note: for users, trap replies always contain
             // string explanation of the error.
-            let trap = trap.to_string().into_bytes();
+            let trap = trap
+                .to_string()
+                .into_bytes()
+                .try_into()
+                .expect("Error message is too large");
 
             // Creating reply message.
             //

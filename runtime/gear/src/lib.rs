@@ -39,8 +39,8 @@ use pallet_grandpa::{
 pub use pallet_transaction_payment::{CurrencyAdapter, Multiplier};
 use runtime_common::{
     impl_runtime_apis_plus_common, BlockGasLimit, BlockHashCount, BlockLength, BlockWeights,
-    DealWithFees, MailboxCost, MailboxThreshold, OperationalFeeMultiplier, OutgoingLimit,
-    QueueLengthStep, ReserveThreshold, WaitlistCost, MaxMessageSize,
+    DealWithFees, MailboxCost, MailboxThreshold, MaxMessageSize, OperationalFeeMultiplier,
+    OutgoingLimit, QueueLengthStep, ReserveThreshold, WaitlistCost,
 };
 pub use runtime_primitives::{AccountId, Signature};
 use runtime_primitives::{Balance, BlockNumber, Hash, Index, Moment};

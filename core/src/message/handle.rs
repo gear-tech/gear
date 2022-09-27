@@ -94,7 +94,7 @@ impl HandleMessage {
 
     /// Message payload reference.
     pub fn payload(&self) -> &[u8] {
-        self.payload.as_ref()
+        self.payload.get()
     }
 
     /// Message optional gas limit.
@@ -150,8 +150,8 @@ impl HandlePacket {
     }
 
     /// Prepend payload.
-    pub(super) fn prepend(&mut self, data: Payload) {
-        self.payload.splice(0..0, data);
+    pub(super) fn prepend(&mut self, data: Payload) -> Result<(), super::PayloadSizeError> {
+        self.payload.prepend(data)
     }
 
     /// Packet destination.
@@ -162,7 +162,7 @@ impl HandlePacket {
 
 impl Packet for HandlePacket {
     fn payload(&self) -> &[u8] {
-        self.payload.as_ref()
+        self.payload.get()
     }
 
     fn gas_limit(&self) -> Option<GasLimit> {

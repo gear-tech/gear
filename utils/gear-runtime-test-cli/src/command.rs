@@ -48,6 +48,7 @@ use sp_core::H256;
 use sp_runtime::{app_crypto::UncheckedFrom, AccountId32};
 use std::{
     collections::BTreeMap,
+    convert::TryInto,
     sync::atomic::{AtomicUsize, Ordering},
     time::Instant,
 };
@@ -330,7 +331,7 @@ fn run_fixture(test: &'_ sample::Test, fixture: &sample::Fixture) -> ColoredStri
                 id,
                 ProgramId::from_origin(source),
                 dest,
-                payload,
+                payload.try_into().unwrap(),
                 value,
                 None,
             );
@@ -407,7 +408,7 @@ fn run_fixture(test: &'_ sample::Test, fixture: &sample::Fixture) -> ColoredStri
                         msg.id(),
                         msg.source(),
                         ProgramId::from(id.as_bytes()),
-                        msg.payload().to_vec(),
+                        msg.payload().to_vec().try_into().unwrap(),
                         msg.value(),
                         msg.reply(),
                     );

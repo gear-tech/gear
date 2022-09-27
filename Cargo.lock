@@ -6397,7 +6397,6 @@ dependencies = [
  "log",
  "pallet-authorship",
  "pallet-balances",
- "pallet-gear",
  "pallet-gear-gas",
  "pallet-gear-messenger",
  "pallet-gear-program",

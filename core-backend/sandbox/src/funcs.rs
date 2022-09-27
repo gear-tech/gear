@@ -23,7 +23,6 @@ use alloc::{
     format,
     string::{FromUtf8Error, String},
     vec,
-    vec::Vec,
 };
 use codec::Encode;
 use core::{
@@ -82,6 +81,8 @@ pub enum FuncError<E> {
     #[from]
     #[display(fmt = "{}", _0)]
     Memory(MemoryError),
+    #[display(fmt = "Payload size is bigger then allowed limits")]
+    PayloadSize,
     #[display(fmt = "Cannot set u128: {}", _0)]
     SetU128(MemoryError),
     #[display(fmt = "Exit code ran into non-reply scenario")]
@@ -158,7 +159,10 @@ where
 
         let mut f = || {
             let dest: ProgramId = ctx.read_memory_as(program_id_ptr)?;
-            let payload = ctx.read_memory(payload_ptr, payload_len)?;
+            let payload = ctx
+                .read_memory(payload_ptr, payload_len)?
+                .try_into()
+                .map_err(|_| FuncError::PayloadSize)?;
             let value: u128 = ctx.read_memory_as(value_ptr)?;
             let delay: u32 = ctx.read_memory_as(delay_ptr)?;
 
@@ -194,7 +198,10 @@ where
 
         let mut f = || {
             let dest: ProgramId = ctx.read_memory_as(program_id_ptr)?;
-            let payload = ctx.read_memory(payload_ptr, payload_len)?;
+            let payload = ctx
+                .read_memory(payload_ptr, payload_len)?
+                .try_into()
+                .map_err(|_| FuncError::PayloadSize)?;
             let value: u128 = ctx.read_memory_as(value_ptr)?;
             let delay: u32 = ctx.read_memory_as(delay_ptr)?;
 
@@ -324,7 +331,7 @@ where
         let payload_len = pop_i32(&mut args)?;
 
         let mut f = || {
-            let payload: Vec<u8> = ctx.read_memory(payload_ptr, payload_len)?;
+            let payload = ctx.read_memory(payload_ptr, payload_len)?;
             let error_len = ctx
                 .ext
                 .send_push(handle_ptr, &payload)
@@ -524,7 +531,10 @@ where
         let delay_ptr = pop_i32(&mut args)?;
 
         let mut f = || {
-            let payload: Vec<u8> = ctx.read_memory(payload_ptr, payload_len)?;
+            let payload = ctx
+                .read_memory(payload_ptr, payload_len)?
+                .try_into()
+                .map_err(|_| FuncError::PayloadSize)?;
             let value: u128 = ctx.read_memory_as(value_ptr)?;
             let delay: u32 = ctx.read_memory_as(delay_ptr)?;
 
@@ -557,7 +567,10 @@ where
         let delay_ptr = pop_i32(&mut args)?;
 
         let mut f = || {
-            let payload: Vec<u8> = ctx.read_memory(payload_ptr, payload_len)?;
+            let payload = ctx
+                .read_memory(payload_ptr, payload_len)?
+                .try_into()
+                .map_err(|_| FuncError::PayloadSize)?;
             let value: u128 = ctx.read_memory_as(value_ptr)?;
             let delay: u32 = ctx.read_memory_as(delay_ptr)?;
 
@@ -672,7 +685,7 @@ where
         let payload_len = pop_i32(&mut args)?;
 
         let mut f = || {
-            let payload: Vec<u8> = ctx.read_memory(payload_ptr, payload_len)?;
+            let payload = ctx.read_memory(payload_ptr, payload_len)?;
             let error_len = ctx
                 .ext
                 .reply_push(&payload)
@@ -911,7 +924,10 @@ where
         let mut f = || {
             let code_hash: [u8; 32] = ctx.read_memory_as(code_hash_ptr)?;
             let salt = ctx.read_memory(salt_ptr, salt_len)?;
-            let payload = ctx.read_memory(payload_ptr, payload_len)?;
+            let payload = ctx
+                .read_memory(payload_ptr, payload_len)?
+                .try_into()
+                .map_err(|_| FuncError::PayloadSize)?;
             let value: u128 = ctx.read_memory_as(value_ptr)?;
             let delay: u32 = ctx.read_memory_as(delay_ptr)?;
 
@@ -952,7 +968,10 @@ where
         let mut f = || {
             let code_hash: [u8; 32] = ctx.read_memory_as(code_hash_ptr)?;
             let salt = ctx.read_memory(salt_ptr, salt_len)?;
-            let payload = ctx.read_memory(payload_ptr, payload_len)?;
+            let payload = ctx
+                .read_memory(payload_ptr, payload_len)?
+                .try_into()
+                .map_err(|_| FuncError::PayloadSize)?;
             let value: u128 = ctx.read_memory_as(value_ptr)?;
             let delay: u32 = ctx.read_memory_as(delay_ptr)?;
 

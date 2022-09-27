@@ -16,6 +16,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use core::convert::TryInto;
+
 use super::*;
 use crate::mock::*;
 use common::{storage::*, ActiveProgram, CodeMetadata, CodeStorage, Origin as _, ProgramState};
@@ -401,7 +403,7 @@ fn resume_program_wrong_list_fails() {
                 message.id(),
                 message.source(),
                 message.destination(),
-                vec![0, 1, 2, 3, 4, 5],
+                vec![0, 1, 2, 3, 4, 5].try_into().unwrap(),
                 message.value(),
                 message.reply(),
             ),
