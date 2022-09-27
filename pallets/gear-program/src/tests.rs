@@ -60,7 +60,7 @@ fn pause_program_works() {
 
             pages
         };
-        let allocations = memory_pages.iter().map(|(p, _)| p.to_wasm_page()).collect();
+        let allocations = memory_pages.keys().map(|p| p.to_wasm_page()).collect();
         let pages_with_data = memory_pages.keys().copied().collect();
 
         let program_id: ProgramId = 1.into();
@@ -460,7 +460,7 @@ mod utils {
 
             pages
         };
-        let allocations = memory_pages.iter().map(|(p, _)| p.to_wasm_page()).collect();
+        let allocations = memory_pages.keys().map(|p| p.to_wasm_page()).collect();
         let pages_with_data = memory_pages.keys().copied().collect();
 
         let init_msg_id: MessageId = 3.into();
