@@ -31,7 +31,10 @@ use frame_support::weights::Weight;
 use frame_support::{
     construct_runtime, parameter_types,
     traits::{ConstU128, ConstU32, Contains, KeyOwnerProofSystem, U128CurrencyToVote},
-    weights::{constants::RocksDbWeight, IdentityFee},
+    weights::{
+        constants::{RocksDbWeight, WEIGHT_PER_MILLIS},
+        IdentityFee,
+    },
 };
 use frame_system::EnsureRoot;
 pub use pallet_gear::manager::{ExtManager, HandleKind};
@@ -42,9 +45,9 @@ use pallet_session::historical::{self as pallet_session_historical};
 pub use pallet_timestamp::Call as TimestampCall;
 pub use pallet_transaction_payment::{CurrencyAdapter, Multiplier};
 use runtime_common::{
-    impl_runtime_apis_plus_common, BlockGasLimit, BlockHashCount, BlockLength, BlockWeights,
-    DealWithFees, MailboxCost, MailboxThreshold, OperationalFeeMultiplier, OutgoingLimit,
-    QueueLengthStep, ReserveThreshold, WaitlistCost,
+    impl_runtime_apis_plus_common, BlockHashCount, BlockLength, DealWithFees,
+    GasLimitMaxPercentage, MailboxCost, MailboxThreshold, OperationalFeeMultiplier, OutgoingLimit,
+    QueueLengthStep, ReserveThreshold, WaitlistCost, NORMAL_DISPATCH_RATIO,
 };
 pub use runtime_primitives::{AccountId, Signature};
 use runtime_primitives::{Balance, BlockNumber, Hash, Index, Moment};
@@ -178,6 +181,14 @@ impl SignedExtension for DisableValueTransfers {
 }
 
 parameter_types! {
+    /// We allow for 1/3 of block time for computations.
+    ///
+    /// It's 2/3 sec for vara runtime with 2 second block duration.
+    pub BlockWeights: frame_system::limits::BlockWeights = frame_system::limits::BlockWeights
+        ::with_sensible_defaults(MILLISECS_PER_BLOCK * WEIGHT_PER_MILLIS / 3, NORMAL_DISPATCH_RATIO);
+
+    pub BlockGasLimit: u64 = GasLimitMaxPercentage::get() * BlockWeights::get().max_block.ref_time();
+
     pub const Version: RuntimeVersion = VERSION;
     pub const SS58Prefix: u8 = 42;
 }
