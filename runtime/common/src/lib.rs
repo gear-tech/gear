@@ -23,7 +23,6 @@ mod apis;
 pub use frame_support::{
     parameter_types,
     traits::{Currency, OnUnbalanced},
-    weights::constants::WEIGHT_PER_SECOND,
 };
 use runtime_primitives::{AccountId, Balance, BlockNumber};
 use sp_runtime::{Perbill, Percent};

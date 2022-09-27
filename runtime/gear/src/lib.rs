@@ -116,6 +116,7 @@ pub fn native_version() -> NativeVersion {
 
 parameter_types! {
     /// We allow for 1/3 of block time for computations.
+    ///
     /// It's 1/3 sec for gear runtime with 1 second block duration.
     pub BlockWeights: frame_system::limits::BlockWeights = frame_system::limits::BlockWeights
         ::with_sensible_defaults(MILLISECS_PER_BLOCK * WEIGHT_PER_MILLIS / 3, NORMAL_DISPATCH_RATIO);
