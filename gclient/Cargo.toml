@@ -11,7 +11,7 @@ gear-core = { path = "../core" }
 futures = "0.3"
 anyhow = "1.0"
 hex = "0.4"
-subxt = "0.22.0"
+subxt = "0.23.0"
 parity-scale-codec = "3.1.5"
 thiserror = "1.0.31"
 futures-timer = "3.0.2"
