@@ -12,7 +12,7 @@ path = "src/main.rs"
 [dependencies]
 gear-wasm-gen = { path = "../wasm-gen" }
 arbitrary = "1.1.6"
-gear-program = "0.1"
+gear-program = { path = "../../program" }
 hex = "0.4.3"
 tokio = { version = "1.18.2", features = [ "full" ] }
 color-eyre = { version = "0.6.2", optional = true }

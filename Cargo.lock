@@ -1496,8 +1496,8 @@ dependencies = [
 name = "demo-async-tester"
 version = "0.1.0"
 dependencies = [
- "gear-wasm-builder 0.1.2",
- "gstd 0.1.0",
+ "gear-wasm-builder",
+ "gstd",
  "parity-scale-codec",
 ]
 
@@ -1505,8 +1505,8 @@ dependencies = [
 name = "demo-btree"
 version = "0.1.0"
 dependencies = [
- "gear-wasm-builder 0.1.2",
- "gstd 0.1.0",
+ "gear-wasm-builder",
+ "gstd",
  "gtest",
  "parity-scale-codec",
 ]
@@ -1515,7 +1515,7 @@ dependencies = [
 name = "demo-calc-hash"
 version = "0.1.0"
 dependencies = [
- "gear-wasm-builder 0.1.2",
+ "gear-wasm-builder",
  "parity-scale-codec",
  "sha2 0.10.6",
 ]
@@ -1525,8 +1525,8 @@ name = "demo-calc-hash-in-one-block"
 version = "0.1.0"
 dependencies = [
  "demo-calc-hash",
- "gear-wasm-builder 0.1.2",
- "gstd 0.1.0",
+ "gear-wasm-builder",
+ "gstd",
  "parity-scale-codec",
 ]
 
@@ -1535,8 +1535,8 @@ name = "demo-calc-hash-over-blocks"
 version = "0.1.0"
 dependencies = [
  "demo-calc-hash",
- "gear-wasm-builder 0.1.2",
- "gstd 0.1.0",
+ "gear-wasm-builder",
+ "gstd",
  "parity-scale-codec",
 ]
 
@@ -1544,8 +1544,8 @@ dependencies = [
 name = "demo-compose"
 version = "0.1.0"
 dependencies = [
- "gear-wasm-builder 0.1.2",
- "gstd 0.1.0",
+ "gear-wasm-builder",
+ "gstd",
  "hex",
 ]
 
@@ -1553,8 +1553,8 @@ dependencies = [
 name = "demo-contract-template"
 version = "0.1.0"
 dependencies = [
- "gear-wasm-builder 0.1.2",
- "gstd 0.1.0",
+ "gear-wasm-builder",
+ "gstd",
  "hex",
  "rand 0.8.5",
 ]
@@ -1563,8 +1563,8 @@ dependencies = [
 name = "demo-distributor"
 version = "0.1.0"
 dependencies = [
- "gear-wasm-builder 0.1.2",
- "gstd 0.1.0",
+ "gear-wasm-builder",
+ "gstd",
  "gtest",
  "parity-scale-codec",
 ]
@@ -1573,16 +1573,16 @@ dependencies = [
 name = "demo-exit-handle"
 version = "0.1.0"
 dependencies = [
- "gear-wasm-builder 0.1.2",
- "gstd 0.1.0",
+ "gear-wasm-builder",
+ "gstd",
 ]
 
 [[package]]
 name = "demo-exit-handle-sender"
 version = "0.1.0"
 dependencies = [
- "gear-wasm-builder 0.1.2",
- "gstd 0.1.0",
+ "gear-wasm-builder",
+ "gstd",
  "parity-scale-codec",
 ]
 
@@ -1590,17 +1590,17 @@ dependencies = [
 name = "demo-exit-init"
 version = "0.1.0"
 dependencies = [
- "gcore 0.1.0",
- "gear-wasm-builder 0.1.2",
- "gstd 0.1.0",
+ "gcore",
+ "gear-wasm-builder",
+ "gstd",
 ]
 
 [[package]]
 name = "demo-gas-burned"
 version = "0.1.0"
 dependencies = [
- "gear-wasm-builder 0.1.2",
- "gstd 0.1.0",
+ "gear-wasm-builder",
+ "gstd",
  "gtest",
 ]
 
@@ -1608,8 +1608,8 @@ dependencies = [
 name = "demo-gasless-wasting"
 version = "0.1.0"
 dependencies = [
- "gear-wasm-builder 0.1.2",
- "gstd 0.1.0",
+ "gear-wasm-builder",
+ "gstd",
  "parity-scale-codec",
 ]
 
@@ -1617,32 +1617,32 @@ dependencies = [
 name = "demo-init-fail-sender"
 version = "0.1.0"
 dependencies = [
- "gear-wasm-builder 0.1.2",
- "gstd 0.1.0",
+ "gear-wasm-builder",
+ "gstd",
 ]
 
 [[package]]
 name = "demo-init-wait"
 version = "0.1.0"
 dependencies = [
- "gear-wasm-builder 0.1.2",
- "gstd 0.1.0",
+ "gear-wasm-builder",
+ "gstd",
 ]
 
 [[package]]
 name = "demo-init-wait-reply-exit"
 version = "0.1.0"
 dependencies = [
- "gear-wasm-builder 0.1.2",
- "gstd 0.1.0",
+ "gear-wasm-builder",
+ "gstd",
 ]
 
 [[package]]
 name = "demo-init-with-value"
 version = "0.1.0"
 dependencies = [
- "gear-wasm-builder 0.1.2",
- "gstd 0.1.0",
+ "gear-wasm-builder",
+ "gstd",
  "hex-literal",
  "parity-scale-codec",
 ]
@@ -1651,8 +1651,8 @@ dependencies = [
 name = "demo-mul-by-const"
 version = "0.1.0"
 dependencies = [
- "gear-wasm-builder 0.1.2",
- "gstd 0.1.0",
+ "gear-wasm-builder",
+ "gstd",
  "hex",
 ]
 
@@ -1660,8 +1660,8 @@ dependencies = [
 name = "demo-ncompose"
 version = "0.1.0"
 dependencies = [
- "gear-wasm-builder 0.1.2",
- "gstd 0.1.0",
+ "gear-wasm-builder",
+ "gstd",
  "hex",
 ]
 
@@ -1669,8 +1669,8 @@ dependencies = [
 name = "demo-node"
 version = "0.1.0"
 dependencies = [
- "gear-wasm-builder 0.1.2",
- "gstd 0.1.0",
+ "gear-wasm-builder",
+ "gstd",
  "gtest",
  "parity-scale-codec",
 ]
@@ -1679,8 +1679,8 @@ dependencies = [
 name = "demo-program-factory"
 version = "0.1.0"
 dependencies = [
- "gear-wasm-builder 0.1.2",
- "gstd 0.1.0",
+ "gear-wasm-builder",
+ "gstd",
  "gtest",
  "hex-literal",
  "parity-scale-codec",
@@ -1690,8 +1690,8 @@ dependencies = [
 name = "demo-proxy"
 version = "0.1.0"
 dependencies = [
- "gear-wasm-builder 0.1.2",
- "gstd 0.1.0",
+ "gear-wasm-builder",
+ "gstd",
  "parity-scale-codec",
  "scale-info",
 ]
@@ -1700,8 +1700,8 @@ dependencies = [
 name = "demo-proxy-with-gas"
 version = "0.1.0"
 dependencies = [
- "gear-wasm-builder 0.1.2",
- "gstd 0.1.0",
+ "gear-wasm-builder",
+ "gstd",
  "parity-scale-codec",
  "scale-info",
 ]
@@ -1710,8 +1710,8 @@ dependencies = [
 name = "demo-signal-entry"
 version = "0.1.0"
 dependencies = [
- "gear-wasm-builder 0.1.2",
- "gstd 0.1.0",
+ "gear-wasm-builder",
+ "gstd",
  "gtest",
  "parity-scale-codec",
 ]
@@ -1720,8 +1720,8 @@ dependencies = [
 name = "demo-syscall-error"
 version = "0.1.0"
 dependencies = [
- "gear-wasm-builder 0.1.2",
- "gstd 0.1.0",
+ "gear-wasm-builder",
+ "gstd",
  "gtest",
  "parity-scale-codec",
 ]
@@ -1730,16 +1730,16 @@ dependencies = [
 name = "demo-unchecked-mul"
 version = "0.1.0"
 dependencies = [
- "gear-wasm-builder 0.1.2",
- "gstd 0.1.0",
+ "gear-wasm-builder",
+ "gstd",
 ]
 
 [[package]]
 name = "demo-value-sender"
 version = "0.1.0"
 dependencies = [
- "gear-wasm-builder 0.1.2",
- "gstd 0.1.0",
+ "gear-wasm-builder",
+ "gstd",
  "parity-scale-codec",
 ]
 
@@ -1747,8 +1747,8 @@ dependencies = [
 name = "demo-wait-wake"
 version = "0.1.0"
 dependencies = [
- "gear-wasm-builder 0.1.2",
- "gstd 0.1.0",
+ "gear-wasm-builder",
+ "gstd",
  "gtest",
  "parity-scale-codec",
 ]
@@ -1757,8 +1757,8 @@ dependencies = [
 name = "demo-waiter"
 version = "0.1.0"
 dependencies = [
- "gear-wasm-builder 0.1.2",
- "gstd 0.1.0",
+ "gear-wasm-builder",
+ "gstd",
  "parity-scale-codec",
 ]
 
@@ -1766,8 +1766,8 @@ dependencies = [
 name = "demo-waiting-proxy"
 version = "0.1.0"
 dependencies = [
- "gear-wasm-builder 0.1.2",
- "gstd 0.1.0",
+ "gear-wasm-builder",
+ "gstd",
 ]
 
 [[package]]
@@ -2790,28 +2790,29 @@ dependencies = [
 ]
 
 [[package]]
-name = "galloc"
-version = "0.1.0"
-source = "git+https://github.com/gear-tech/gear#4c464d8748a56980395cf1236887c2b7435d81b0"
-dependencies = [
- "dlmalloc",
-]
-
-[[package]]
-name = "gcore"
+name = "gclient"
 version = "0.1.0"
 dependencies = [
- "gear-core-errors 0.1.0",
- "hex-literal",
+ "anyhow",
+ "async-trait",
+ "futures",
+ "futures-timer",
+ "gear-core",
+ "gear-program",
+ "hex",
  "parity-scale-codec",
+ "subxt",
+ "thiserror",
+ "tokio",
+ "wabt",
 ]
 
 [[package]]
 name = "gcore"
 version = "0.1.0"
-source = "git+https://github.com/gear-tech/gear#4c464d8748a56980395cf1236887c2b7435d81b0"
 dependencies = [
- "gear-core-errors 0.1.0 (git+https://github.com/gear-tech/gear)",
+ "gear-core-errors",
+ "hex-literal",
  "parity-scale-codec",
 ]
 
@@ -2821,7 +2822,7 @@ version = "0.1.0"
 dependencies = [
  "derive_more",
  "gear-core",
- "gear-core-errors 0.1.0",
+ "gear-core-errors",
  "log",
  "parity-scale-codec",
  "scale-info",
@@ -2834,7 +2835,7 @@ dependencies = [
  "derive_more",
  "gear-backend-common",
  "gear-core",
- "gear-core-errors 0.1.0",
+ "gear-core-errors",
  "log",
  "parity-scale-codec",
  "parity-wasm 0.45.0",
@@ -2848,7 +2849,7 @@ dependencies = [
  "derive_more",
  "gear-backend-common",
  "gear-core",
- "gear-core-errors 0.1.0",
+ "gear-core-errors",
  "log",
  "parity-scale-codec",
  "parity-wasm 0.45.0",
@@ -2923,7 +2924,7 @@ dependencies = [
  "blake2-rfc",
  "derive_more",
  "env_logger",
- "gear-core-errors 0.1.0",
+ "gear-core-errors",
  "hex",
  "log",
  "parity-scale-codec",
@@ -2945,16 +2946,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "gear-core-errors"
-version = "0.1.0"
-source = "git+https://github.com/gear-tech/gear#4c464d8748a56980395cf1236887c2b7435d81b0"
-dependencies = [
- "derive_more",
- "parity-scale-codec",
- "scale-info",
-]
-
-[[package]]
 name = "gear-core-processor"
 version = "0.1.0"
 dependencies = [
@@ -2963,7 +2954,7 @@ dependencies = [
  "derive_more",
  "gear-backend-common",
  "gear-core",
- "gear-core-errors 0.1.0",
+ "gear-core-errors",
  "hex",
  "log",
  "parity-scale-codec",
@@ -3018,7 +3009,7 @@ dependencies = [
  "color-eyre",
  "dyn-clonable",
  "futures",
- "gear-program 0.1.4 (registry+https://github.com/rust-lang/crates.io-index)",
+ "gear-program",
  "gear-wasm-gen",
  "hex",
  "log",
@@ -3051,38 +3042,6 @@ dependencies = [
  "parity-scale-codec",
  "parity-wasm 0.45.0",
  "rand 0.8.5",
- "scale-info",
- "schnorrkel",
- "serde",
- "serde_json",
- "structopt",
- "subxt",
- "thiserror",
- "tokio",
- "wasmtime 0.39.1",
- "whoami",
-]
-
-[[package]]
-name = "gear-program"
-version = "0.1.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a7a78fe9a7688a2112892886742e1e4c7e2d7a17a0d830ee682a1e1bd5ca3ce5"
-dependencies = [
- "anyhow",
- "base64",
- "blake2-rfc",
- "color-eyre",
- "dirs",
- "env_logger",
- "futures-util",
- "hex",
- "keyring",
- "lazy_static",
- "log",
- "nacl",
- "parity-scale-codec",
- "parity-wasm 0.45.0",
  "scale-info",
  "schnorrkel",
  "serde",
@@ -3322,22 +3281,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "gear-wasm-builder"
-version = "0.1.2"
-source = "git+https://github.com/gear-tech/gear#4c464d8748a56980395cf1236887c2b7435d81b0"
-dependencies = [
- "anyhow",
- "cargo_metadata 0.15.0",
- "colored",
- "log",
- "pathdiff",
- "pwasm-utils",
- "thiserror",
- "toml",
- "which",
-]
-
-[[package]]
 name = "gear-wasm-gen"
 version = "0.1.0"
 dependencies = [
@@ -3478,27 +3421,10 @@ version = "0.1.0"
 dependencies = [
  "bs58",
  "futures",
- "galloc 0.1.0",
- "gcore 0.1.0",
- "gear-core-errors 0.1.0",
- "gstd-codegen 0.1.0",
- "hex",
- "parity-scale-codec",
- "primitive-types",
- "scale-info",
-]
-
-[[package]]
-name = "gstd"
-version = "0.1.0"
-source = "git+https://github.com/gear-tech/gear#4c464d8748a56980395cf1236887c2b7435d81b0"
-dependencies = [
- "bs58",
- "futures",
- "galloc 0.1.0 (git+https://github.com/gear-tech/gear)",
- "gcore 0.1.0 (git+https://github.com/gear-tech/gear)",
- "gear-core-errors 0.1.0 (git+https://github.com/gear-tech/gear)",
- "gstd-codegen 0.1.0 (git+https://github.com/gear-tech/gear)",
+ "galloc",
+ "gcore",
+ "gear-core-errors",
+ "gstd-codegen",
  "hex",
  "parity-scale-codec",
  "primitive-types",
@@ -3508,16 +3434,6 @@ dependencies = [
 [[package]]
 name = "gstd-codegen"
 version = "0.1.0"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn",
-]
-
-[[package]]
-name = "gstd-codegen"
-version = "0.1.0"
-source = "git+https://github.com/gear-tech/gear#4c464d8748a56980395cf1236887c2b7435d81b0"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -3536,7 +3452,7 @@ dependencies = [
  "gear-backend-wasmi",
  "gear-core",
  "gear-core-processor",
- "gear-wasm-builder 0.1.2",
+ "gear-wasm-builder",
  "hex",
  "log",
  "parity-scale-codec",
@@ -5671,8 +5587,8 @@ dependencies = [
 name = "messager"
 version = "0.1.0"
 dependencies = [
- "gear-wasm-builder 0.1.2 (git+https://github.com/gear-tech/gear)",
- "gstd 0.1.0 (git+https://github.com/gear-tech/gear)",
+ "gear-wasm-builder",
+ "gstd",
 ]
 
 [[package]]
@@ -6258,7 +6174,7 @@ dependencies = [
  "gear-backend-sandbox",
  "gear-common",
  "gear-core",
- "gear-core-errors 0.1.0",
+ "gear-core-errors",
  "gear-core-processor",
  "gear-lazy-pages-common",
  "gear-runtime-interface",
@@ -11567,7 +11483,7 @@ version = "0.1.0"
 dependencies = [
  "clap 3.2.22",
  "env_logger",
- "gear-wasm-builder 0.1.2",
+ "gear-wasm-builder",
  "log",
  "parity-wasm 0.45.0",
  "thiserror",

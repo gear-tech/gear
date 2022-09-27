@@ -211,11 +211,11 @@ purge-dev-chain-release:
 test: test-gear test-js gtest # There should be no release builds (e.g. `rtest`) for fast checking.
 
 .PHONY: test-release
-test-release: test-gear-release test-js gtest rtest test-runtime-upgrade test-client-weights
+test-release: test-gear-release test-js gtest rtest test-runtime-upgrade
 
 .PHONY: test-gear
 test-gear: init-js examples
-	@ ./scripts/gear.sh test gear
+	@ ./scripts/gear.sh test gear --exclude gclient
 
 .PHONY: test-gear-release
 test-gear-release: init-js examples
@@ -249,9 +249,9 @@ test-pallet-release:
 test-runtime-upgrade: init-js examples node-release
 	@ ./scripts/gear.sh test runtime-upgrade
 
-.PHONY: test-client-weights
-test-client-weights: init-js examples node-release
-	@ ./scripts/gear.sh test client-weights
+.PHONY: test-client
+test-client: node-release examples wat-examples
+	@ ./scripts/gear.sh test client --run-node
 
 # Misc section
 .PHONY: doc
@@ -269,3 +269,7 @@ fuzz:
 .PHONY: fuzz-vara
 fuzz-vara:
 	@ ./scripts/gear.sh test fuzz --features=vara-native,lazy-pages --no-default-features $(target)
+
+.PHONY: kill
+kill:
+	@ pgrep -f "gear-node" | xargs kill -9
