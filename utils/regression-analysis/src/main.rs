@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use clap::{Parser, Subcommand};
-use frame_support::{dispatch::GetCallName, weights::Weight};
+use frame_support::dispatch::GetCallName;
 use junit_common::TestSuites;
 use pallet_gear::{HostFnWeights, InstructionWeights};
 use quick_xml::de::from_str;
@@ -110,11 +110,11 @@ struct GithubActionBenchmark {
 
 #[derive(Deserialize)]
 #[serde(transparent)]
-struct WeightBenchmark(Vec<Weight>);
+struct WeightBenchmark(Vec<u64>);
 
 impl WeightBenchmark {
-    fn calc_weight(&self) -> Weight {
-        Weight::from_ref_time(self.0.iter().map(|w| w.ref_time()).sum())
+    fn calc_weight(&self) -> u64 {
+        self.0.iter().sum()
     }
 }
 
@@ -250,7 +250,7 @@ fn weights(kind: WeightsKind, input_file: PathBuf, output_file: PathBuf) {
         map.get(field).map(|weight| GithubActionBenchmark {
             name: field.to_string(),
             unit: "ns".to_string(),
-            value: weight.calc_weight().ref_time() / 1000,
+            value: weight.calc_weight() / 1000,
             range: None,
             extra: None,
         })
