@@ -361,16 +361,6 @@ jobs:
             procps
             mingw-w64-x86_64-protobuf
 
-      - name: "Install: rustup 1.24.3"
-        run: |
-          Invoke-WebRequest "https://static.rust-lang.org/rustup/archive/1.24.3/x86_64-pc-windows-msvc/rustup-init.exe" -OutFile "rustup-init.exe"
-          .\rustup-init.exe -y
-          rustup --version
-        shell: powershell
-
-      - name: "Install: Disable rustup auto-update"
-        run: rustup set auto-self-update disable
-
       - name: "Install: Nightly toolchain"
         uses: actions-rs/toolchain@v1
         with:
