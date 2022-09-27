@@ -319,6 +319,7 @@ pub fn run() -> sc_cli::Result<()> {
             let runner = cli.create_runner(cmd)?;
             runner.sync_run(|config| cmd.run::<Block>(&config))
         }
+        #[cfg(feature = "program")]
         Some(Subcommand::GearProgram(gp)) => {
             // # NOTE
             //
