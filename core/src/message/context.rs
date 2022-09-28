@@ -234,14 +234,6 @@ impl MessageContext {
     pub fn send_push(&mut self, handle: u32, buffer: &[u8]) -> Result<(), Error> {
         match self.store.outgoing.get_mut(&handle) {
             Some(Some(data)) => {
-                // if data
-                //     .len()
-                //     .checked_add(buffer.len())
-                //     .ok_or(Error::MaxMessageSizeExceed)?
-                //     > self.settings.max_message_size as usize
-                // {
-                //     return Err(Error::MaxMessageSizeExceed);
-                // }
                 data.extend_from_slice(buffer)
                     .map_err(|_| Error::MaxMessageSizeExceed)?;
                 Ok(())
@@ -283,14 +275,6 @@ impl MessageContext {
     pub fn reply_push(&mut self, buffer: &[u8]) -> Result<(), Error> {
         if !self.store.reply_sent {
             let data = self.store.reply.get_or_insert_with(Default::default);
-            // if data
-            //     .len()
-            //     .checked_add(buffer.len())
-            //     .ok_or(Error::MaxMessageSizeExceed)?
-            //     > self.settings.max_message_size as usize
-            // {
-            //     return Err(Error::MaxMessageSizeExceed);
-            // }
             data.extend_from_slice(buffer)
                 .map_err(|_| Error::MaxMessageSizeExceed)?;
 

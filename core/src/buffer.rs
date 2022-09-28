@@ -18,10 +18,9 @@
 
 //! Vector with limited len realization.
 
-use core::{marker::PhantomData, convert::TryFrom, fmt::Display};
+use core::{convert::TryFrom, fmt::Display, marker::PhantomData};
 
-use alloc::vec::Vec;
-use alloc::vec;
+use alloc::{vec, vec::Vec};
 use codec::{Decode, Encode};
 use scale_info::TypeInfo;
 

@@ -1,9 +1,7 @@
 use alloc::vec::Vec;
 use codec::{Decode, DecodeAll, MaxEncodedLen};
-use gear_backend_common::{
-    error_processor::IntoExtError, AsTerminationReason, IntoExtInfo, RuntimeCtx,
-};
-use gear_core::{buffer::RuntimeBuffer, env::Ext};
+use gear_backend_common::{RuntimeCtx, RuntimeCtxError};
+use gear_core::{buffer::RuntimeBuffer, env::Ext, memory::WasmPageNumber};
 
 use gear_core_errors::MemoryError;
 use wasmi::MemoryRef;
@@ -17,11 +15,7 @@ pub struct Runtime<'a, E: Ext> {
     pub err: FuncError<E::Error>,
 }
 
-impl<'a, E> Runtime<'a, E>
-where
-    E: Ext + IntoExtInfo + 'static,
-    E::Error: AsTerminationReason + IntoExtError,
-{
+impl<'a, E: Ext> Runtime<'a, E> {
     pub(crate) fn write_validated_output(
         &mut self,
         out_ptr: u32,
@@ -37,16 +31,14 @@ where
     }
 }
 
-impl<'a, E> RuntimeCtx<E> for Runtime<'a, E>
-where
-    E: Ext + IntoExtInfo + 'static,
-    E::Error: AsTerminationReason + IntoExtError,
-{
-    fn alloc(&mut self, pages: u32) -> Result<gear_core::memory::WasmPageNumber, E::Error> {
-        (self.ext).alloc(pages.into(), self.memory_wrap)
+impl<'a, E: Ext> RuntimeCtx<E> for Runtime<'a, E> {
+    fn alloc(&mut self, pages: u32) -> Result<WasmPageNumber, RuntimeCtxError<E::Error>> {
+        (self.ext)
+            .alloc(pages.into(), self.memory_wrap)
+            .map_err(RuntimeCtxError::Ext)
     }
 
-    fn read_memory(&self, ptr: u32, len: u32) -> Result<Vec<u8>, MemoryError> {
+    fn read_memory(&self, ptr: u32, len: u32) -> Result<Vec<u8>, RuntimeCtxError<E::Error>> {
         let mut buf =
             RuntimeBuffer::new_empty(len as usize).map_err(|_| MemoryError::OutOfBounds)?;
         self.memory
@@ -55,19 +47,28 @@ where
         Ok(buf.into_vec())
     }
 
-    fn read_memory_into_buf(&self, ptr: u32, buf: &mut [u8]) -> Result<(), MemoryError> {
+    fn read_memory_into_buf(
+        &self,
+        ptr: u32,
+        buf: &mut [u8],
+    ) -> Result<(), RuntimeCtxError<E::Error>> {
         self.memory
             .get_into(ptr, buf)
-            .map_err(|_| MemoryError::OutOfBounds)
+            .map_err(|_| MemoryError::OutOfBounds)?;
+
+        Ok(())
     }
 
-    fn read_memory_as<D: Decode + MaxEncodedLen>(&self, ptr: u32) -> Result<D, MemoryError> {
+    fn read_memory_as<D: Decode + MaxEncodedLen>(
+        &self,
+        ptr: u32,
+    ) -> Result<D, RuntimeCtxError<E::Error>> {
         let buf = self.read_memory(ptr, D::max_encoded_len() as u32)?;
         let decoded = D::decode_all(&mut &buf[..]).map_err(|_| MemoryError::MemoryAccessError)?;
         Ok(decoded)
     }
 
-    fn write_output(&mut self, out_ptr: u32, buf: &[u8]) -> Result<(), MemoryError> {
+    fn write_output(&mut self, out_ptr: u32, buf: &[u8]) -> Result<(), RuntimeCtxError<E::Error>> {
         self.memory
             .set(out_ptr, buf)
             .map_err(|_| MemoryError::OutOfBounds)?;

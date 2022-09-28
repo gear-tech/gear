@@ -26,14 +26,15 @@ use alloc::{
 use codec::Encode;
 use core::{
     convert::{TryFrom, TryInto},
-    fmt,
+    fmt::{self, Display},
     marker::PhantomData,
     ops::Range,
     slice::Iter,
 };
 use gear_backend_common::{
     error_processor::{IntoExtError, ProcessError},
-    AsTerminationReason, IntoExtInfo, RuntimeCtx, TerminationReason, TrapExplanation,
+    AsTerminationReason, IntoExtInfo, RuntimeCtx, RuntimeCtxError, TerminationReason,
+    TrapExplanation,
 };
 use gear_core::{
     buffer::{RuntimeBuffer, RuntimeBufferSizeError},
@@ -74,9 +75,12 @@ pub(crate) fn return_i64<T: TryInto<i64>>(val: T) -> SyscallOutput {
 }
 
 #[derive(Debug, derive_more::Display, derive_more::From)]
-pub enum FuncError<E> {
+pub enum FuncError<E: Display> {
     #[display(fmt = "{}", _0)]
     Core(E),
+    #[from]
+    #[display(fmt = "{}", _0)]
+    RuntimeCtx(RuntimeCtxError<E>),
     #[from]
     #[display(fmt = "{}", _0)]
     Memory(MemoryError),
@@ -444,13 +448,12 @@ where
 
         let pages: u32 = pop_i32(&mut args)?;
         ctx.alloc(pages)
-            .map_err(FuncError::Core)
             .map(|page| {
                 log::debug!("ALLOC: {} pages at {:?}", pages, page);
                 Value::I32(page.0 as i32).into()
             })
             .map_err(|e| {
-                ctx.err = e;
+                ctx.err = e.into();
                 HostError
             })
     }
