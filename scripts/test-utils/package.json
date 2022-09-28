@@ -4,9 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "upgrade": "node processingMessageWithRuntimeUpgrade.js",
-    "weights": "node infiniteLoop.js",
-    "uploads": "node harmlessUploadDemos.js"
+    "upgrade": "node processingMessageWithRuntimeUpgrade.js"
   },
   "author": "",
   "license": "ISC",

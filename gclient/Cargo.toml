@@ -1,0 +1,22 @@
+[package]
+name = "gclient"
+version = "0.1.0"
+authors = ["Gear Technologies"]
+edition = "2021"
+license = "GPL-3.0"
+
+[dependencies]
+gp = { package = "gear-program", path = "../program" }
+gear-core = { path = "../core" }
+futures = "0.3"
+anyhow = "1.0"
+hex = "0.4"
+subxt = "0.22.0"
+parity-scale-codec = "3.1.5"
+thiserror = "1.0.37"
+futures-timer = "3.0.2"
+async-trait = "0.1.57"
+wabt = "0.10.0"
+
+[dev-dependencies]
+tokio = { version = "1.21.2", features = ["full"] }

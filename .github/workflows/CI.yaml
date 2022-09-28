@@ -221,7 +221,7 @@ jobs:
           cargo test -p pallet-gear-payment --features=lazy-pages --release --locked
 
       - name: "Test: Gear workspace"
-        run: ./scripts/gear.sh test gear --release --locked
+        run: ./scripts/gear.sh test gear --exclude gclient --release --locked
         env:
           RUSTFLAGS: -Cinstrument-coverage
 
@@ -244,13 +244,8 @@ jobs:
       - name: "Test: Runtime upgrade and queue processing"
         run: ./scripts/gear.sh test runtime-upgrade
 
-      - name: "Test: Weight on client for loop"
-        run: ./scripts/gear.sh test client-weights
-
-      - name: "Test: Upload programs"
-        run: |
-          ./scripts/gear.sh test uploads "$(pwd)/target/wat-examples/wrong_load.wasm"
-          ./scripts/gear.sh test uploads "$(pwd)/target/wat-examples/inf_recursion.wasm"
+      - name: "Test: Client tests"
+        run: ./scripts/gear.sh test client --run-node
 
       - name: "Test: Program CLI"
         run: cargo nextest run --release -p gear-program --features bin
@@ -282,6 +277,8 @@ jobs:
           --ignore "gcore/*"
           --ignore "gstd/*"
           --ignore "galloc/*"
+          --ignore "gtest/*"
+          --ignore "gclient/*"
           --ignore "common/codegen/*"
           -o ./lcov.info
 
@@ -342,8 +339,8 @@ jobs:
     if: github.ref == 'refs/heads/master'
     needs: spec_version
     runs-on: ci-win
-    defaults: 
-      run: 
+    defaults:
+      run:
         shell: msys2 {0}
     env:
       RUSTC_WRAPPER: "cachepot"
@@ -447,17 +444,12 @@ jobs:
 
       - name: "Test: Process node runtime testsuite"
         run: ./scripts/gear.sh test rtest
-        
+
       - name: "Test: Runtime upgrade and queue processing"
         run: ./scripts/gear.sh test runtime-upgrade
 
-      - name: "Test: Weight on client for loop"
-        run: ./scripts/gear.sh test client-weights
-
-      - name: "Test: Upload programs"
-        run: |
-          ./scripts/gear.sh test uploads "$(pwd)/target/wat-examples/wrong_load.wasm"
-          ./scripts/gear.sh test uploads "$(pwd)/target/wat-examples/inf_recursion.wasm"
+      - name: "Test: Client tests"
+        run: ./scripts/gear.sh test client --run-node
 
       - name: "Test: Lazy pages"
         uses: actions-rs/cargo@v1
@@ -471,7 +463,7 @@ jobs:
             -p gear-lazy-pages
             -p gear-runtime-interface
             --features=lazy-pages
-            --release            
+            --release
 
   build-macos-x86:
     if: github.ref == 'refs/heads/master'
@@ -486,7 +478,7 @@ jobs:
 
       - name: "ACTIONS: Checkout"
         uses: actions/checkout@v2
-        
+
       - name: "ACTIONS: Setup caching"
         uses: actions/cache@v3
         with:
