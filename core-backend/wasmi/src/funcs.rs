@@ -19,10 +19,7 @@
 use crate::{env::ReturnValue, runtime::Runtime};
 #[cfg(not(feature = "std"))]
 use alloc::string::ToString;
-use alloc::{
-    string::{FromUtf8Error, String},
-    vec,
-};
+use alloc::string::{FromUtf8Error, String};
 use codec::Encode;
 use core::{
     convert::{TryFrom, TryInto},
@@ -36,6 +33,7 @@ use gear_backend_common::{
     AsTerminationReason, IntoExtInfo, RuntimeCtx, TerminationReason, TrapExplanation,
 };
 use gear_core::{
+    buffer::{RuntimeBuffer, RuntimeBufferSizeError},
     env::Ext,
     ids::{MessageId, ProgramId},
     message::{HandlePacket, InitPacket, PayloadSizeError, ReplyPacket},
@@ -87,10 +85,14 @@ pub enum FuncError<E> {
     Core(E),
     #[display(fmt = "Runtime Error")]
     HostError,
+    #[from]
     #[display(fmt = "{}", _0)]
     Memory(MemoryError),
     #[from]
-    #[display(fmt = "Payload size limit overflow")]
+    #[display(fmt = "{}", _0)]
+    RuntimeBufferSize(RuntimeBufferSizeError),
+    #[from]
+    #[display(fmt = "{}", _0)]
     PayloadSizeLimit(PayloadSizeError),
     #[display(fmt = "Cannot set u128: {}", _0)]
     SetU128(MemoryError),
@@ -132,13 +134,6 @@ where
         }
     }
 }
-
-impl<E> From<MemoryError> for FuncError<E> {
-    fn from(err: MemoryError) -> Self {
-        Self::Memory(err)
-    }
-}
-
 pub struct FuncsHandler<E: Ext + 'static> {
     _phantom: PhantomData<E>,
 }
@@ -684,10 +679,9 @@ where
         let str_len = pop_i32(&mut args).map_err(|_| FuncError::HostError)?;
 
         let mut f = || {
-            // +_+_+
-            let mut data = vec![0u8; str_len];
-            ctx.read_memory_into_buf(str_ptr, &mut data)?;
-            let s = String::from_utf8(data).map_err(FuncError::DebugString)?;
+            let mut data = RuntimeBuffer::new_empty(str_len)?;
+            ctx.read_memory_into_buf(str_ptr, data.get_mut())?;
+            let s = String::from_utf8(data.into_vec()).map_err(FuncError::DebugString)?;
             ctx.ext.debug(&s).map_err(FuncError::Core)?;
             Ok(())
         };

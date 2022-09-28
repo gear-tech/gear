@@ -40,74 +40,12 @@ pub use reply::{ReplyMessage, ReplyPacket};
 pub use signal::SignalMessage;
 pub use stored::{StoredDispatch, StoredMessage};
 
-use core::{convert::TryFrom, fmt::Display, marker::PhantomData};
+use core::fmt::Display;
+
+use super::buffer::LimitVec;
 
 /// Max payload size which one message can have.
 const MAX_PAYLOAD_SIZE: usize = 8 * 1024 * 1024;
-
-/// Limited len vector.
-/// `T` is data type.
-/// `E` is overflow error type.
-/// `N` is max len which vector can have.
-#[derive(Clone, Default, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo)]
-pub struct LimitVec<T, E, const N: usize>(Vec<T>, PhantomData<E>);
-
-impl<T, E: Default, const N: usize> TryFrom<Vec<T>> for LimitVec<T, E, N> {
-    type Error = E;
-    fn try_from(x: Vec<T>) -> Result<Self, Self::Error> {
-        if x.len() > N {
-            Err(E::default())
-        } else {
-            Ok(Self(x, Default::default()))
-        }
-    }
-}
-
-impl<T: Clone, E: Default, const N: usize> LimitVec<T, E, N> {
-    /// Append `value` to the end of vector.
-    pub fn push(&mut self, value: T) -> Result<(), E> {
-        if self.0.len() == N {
-            Err(E::default())
-        } else {
-            self.0.push(value);
-            Ok(())
-        }
-    }
-    /// Append `values` to the end of vector.
-    pub fn extend_from_slice(&mut self, values: &[T]) -> Result<(), E> {
-        if self
-            .0
-            .len()
-            .checked_add(values.len())
-            .ok_or_else(E::default)?
-            > N
-        {
-            Err(E::default())
-        } else {
-            self.0.extend_from_slice(values);
-            Ok(())
-        }
-    }
-    /// Append `values` to the begin of vector.
-    pub fn prepend(&mut self, values: Self) -> Result<(), E> {
-        if self
-            .0
-            .len()
-            .checked_add(values.0.len())
-            .ok_or_else(E::default)?
-            > N
-        {
-            Err(E::default())
-        } else {
-            self.0.splice(0..0, values.0);
-            Ok(())
-        }
-    }
-    /// Returns ref to the internal data.
-    pub fn get(&self) -> &[T] {
-        &self.0
-    }
-}
 
 /// Payload size exceed error
 #[derive(

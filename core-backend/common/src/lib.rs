@@ -124,7 +124,7 @@ where
     E::Error: AsTerminationReason + IntoExtError,
 {
     /// Allocate new pages in instance memory.
-    fn alloc(&mut self, pages: u32) -> Result<gear_core::memory::WasmPageNumber, E::Error>;
+    fn alloc(&mut self, pages: u32) -> Result<WasmPageNumber, E::Error>;
 
     /// Read designated chunk from the memory.
     fn read_memory(&self, ptr: u32, len: u32) -> Result<Vec<u8>, MemoryError>;

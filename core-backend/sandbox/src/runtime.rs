@@ -1,9 +1,9 @@
-use alloc::{vec, vec::Vec};
+use alloc::vec::Vec;
 use codec::{Decode, DecodeAll, MaxEncodedLen};
 use gear_backend_common::{
     error_processor::IntoExtError, AsTerminationReason, IntoExtInfo, RuntimeCtx,
 };
-use gear_core::{env::Ext, RUNTIME_MAX_ALLOC_SIZE};
+use gear_core::{buffer::RuntimeBuffer, env::Ext, memory::WasmPageNumber};
 
 use gear_core_errors::MemoryError;
 use sp_sandbox::{default_executor::Memory as DefaultExecutorMemory, SandboxMemory};
@@ -42,19 +42,17 @@ where
     E: Ext + IntoExtInfo + 'static,
     E::Error: AsTerminationReason + IntoExtError,
 {
-    fn alloc(&mut self, pages: u32) -> Result<gear_core::memory::WasmPageNumber, E::Error> {
+    fn alloc(&mut self, pages: u32) -> Result<WasmPageNumber, E::Error> {
         self.ext.alloc(pages.into(), self.memory_wrap)
     }
 
     fn read_memory(&self, ptr: u32, len: u32) -> Result<Vec<u8>, MemoryError> {
-        if len as usize > RUNTIME_MAX_ALLOC_SIZE {
-            return Err(MemoryError::OutOfBounds);
-        }
-        let mut buf = vec![0u8; len as usize];
+        let mut buf =
+            RuntimeBuffer::new_empty(len as usize).map_err(|_| MemoryError::OutOfBounds)?;
         self.memory
-            .get(ptr, buf.as_mut_slice())
+            .get(ptr, buf.get_mut())
             .map_err(|_| MemoryError::OutOfBounds)?;
-        Ok(buf)
+        Ok(buf.into_vec())
     }
 
     fn read_memory_into_buf(&self, ptr: u32, buf: &mut [u8]) -> Result<(), MemoryError> {
