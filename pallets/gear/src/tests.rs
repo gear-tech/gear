@@ -6315,6 +6315,8 @@ fn check_gr_read_error_works() {
     });
 }
 
+/// Check that too large message, which is constructed by `gr_reply_push`,
+/// leads to program execution error.
 #[test]
 fn check_reply_push_payload_exceed() {
     let wat = r#"
