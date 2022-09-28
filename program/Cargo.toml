@@ -41,7 +41,7 @@ serde_json = "^1"
 structopt = { version = "0.3.26", optional = true }
 subxt = "0.22.0"
 thiserror = "1.0.36"
-tokio = { version = "1.18.2", features = [ "full" ] }
+tokio = { version = "1.21.2", features = [ "full" ] }
 wasmtime = "0.39"
 whoami = "1.2.1"
 
