@@ -38,9 +38,7 @@ use gear_core::{
     gas::{GasAllowanceCounter, GasCounter},
     ids::ProgramId,
     memory::{PageBuf, PageNumber, WasmPageNumber},
-    message::{
-        ContextSettings, DispatchKind, ExitCode, IncomingDispatch, ReplyMessage, StoredDispatch,
-    },
+    message::{DispatchKind, ExitCode, IncomingDispatch, ReplyMessage, StoredDispatch},
     program::Program,
 };
 
@@ -182,7 +180,6 @@ pub fn process<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environment<
         allocations_config,
         existential_deposit,
         outgoing_limit,
-        max_message_size,
         host_fn_weights,
         forbidden_funcs,
         mailbox_threshold,
@@ -212,11 +209,7 @@ pub fn process<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environment<
         pages_initial_data: memory_pages,
         memory_size: execution_context.memory_size,
     };
-    let msg_ctx_settings = ContextSettings {
-        sending_fee: 0,
-        outgoing_limit,
-        max_message_size,
-    };
+    let msg_ctx_settings = gear_core::message::ContextSettings::new(0, outgoing_limit);
 
     let exec_result = executor::execute_wasm::<A, E>(
         balance,

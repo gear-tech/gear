@@ -690,7 +690,6 @@ where
         };
         f().map(|code| Value::I32(code as i32).into())
             .map_err(|err| {
-                log::error!("push reply finish with error: {}", err);
                 ctx.err = err;
                 HostError
             })

@@ -123,7 +123,6 @@ impl pallet_gear_program::Config for Test {
 parameter_types! {
     pub const BlockGasLimit: u64 = 100_000_000_000;
     pub const OutgoingLimit: u32 = 1024;
-    pub const MaxMessageSize: u32 = 8 * 1024 * 1024;
     pub GearSchedule: pallet_gear::Schedule<Test> = <pallet_gear::Schedule<Test>>::default();
 }
 
@@ -134,7 +133,6 @@ impl pallet_gear::Config for Test {
     type WeightInfo = ();
     type Schedule = GearSchedule;
     type OutgoingLimit = OutgoingLimit;
-    type MaxMessageSize = MaxMessageSize;
     type DebugInfo = ();
     type CodeStorage = GearProgram;
     type MailboxThreshold = ConstU64<3000>;

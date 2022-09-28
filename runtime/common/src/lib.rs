@@ -59,7 +59,6 @@ parameter_types! {
     pub const MailboxCost: u64 = 100;
 
     pub const OutgoingLimit: u32 = 1024;
-    pub const MaxMessageSize: u32 = 8 * 1024 * 1024;
     pub const MailboxThreshold: u64 = 3000;
 }
 

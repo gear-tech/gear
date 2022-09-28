@@ -319,7 +319,6 @@ where
         },
         existential_deposit,
         outgoing_limit: 2048,
-        max_message_size: 8 * 1024 * 1024,
         host_fn_weights: Default::default(),
         forbidden_funcs: Default::default(),
         mailbox_threshold,

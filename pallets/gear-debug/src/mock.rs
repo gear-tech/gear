@@ -108,7 +108,6 @@ impl pallet_authorship::Config for Test {
 parameter_types! {
     pub const MinimumPeriod: u64 = 500;
     pub const OutgoingLimit: u32 = 1024;
-    pub const MaxMessageSize: u32 = 8 * 1024 * 1024;
     pub const BlockGasLimit: u64 = 100_000_000_000;
 }
 
@@ -137,7 +136,6 @@ impl pallet_gear::Config for Test {
     type GasPrice = GasConverter;
     type WeightInfo = ();
     type OutgoingLimit = OutgoingLimit;
-    type MaxMessageSize = MaxMessageSize;
     type DebugInfo = super::Pallet<Test>;
     type Schedule = ();
     type CodeStorage = GearProgram;

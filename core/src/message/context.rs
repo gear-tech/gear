@@ -32,26 +32,29 @@ use gear_core_errors::MessageError as Error;
 use scale_info::TypeInfo;
 
 pub const OUTGOING_LIMIT: u32 = 1024;
-pub const MAX_MESSAGE_SIZE: u32 = 8 * 1024 * 1024;
 
 /// Context settings.
 #[derive(Copy, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo)]
 pub struct ContextSettings {
     /// Fee for sending message.
-    pub sending_fee: u64,
+    sending_fee: u64,
     /// Limit of outgoing messages that program can send during execution of current message.
-    pub outgoing_limit: u32,
-    /// Max size in bytes which one message can have.
-    pub max_message_size: u32,
+    outgoing_limit: u32,
+}
+
+impl ContextSettings {
+    /// Create new ContextSettings.
+    pub fn new(sending_fee: u64, outgoing_limit: u32) -> Self {
+        Self {
+            sending_fee,
+            outgoing_limit,
+        }
+    }
 }
 
 impl Default for ContextSettings {
     fn default() -> Self {
-        Self {
-            sending_fee: 0,
-            outgoing_limit: OUTGOING_LIMIT,
-            max_message_size: MAX_MESSAGE_SIZE,
-        }
+        Self::new(0, OUTGOING_LIMIT)
     }
 }
 
@@ -181,7 +184,7 @@ impl MessageContext {
         Ok((program_id, message_id))
     }
 
-    /// For given `handle` finish message construction and store message in outcome.
+    /// Send a new program initialization message.
     ///
     /// Generates message from provided data packet and stored by handle payload.
     /// Returns message id.
@@ -375,11 +378,7 @@ mod tests {
 
         for n in 0..=max_n {
             // for outgoing_limit n checking that LimitExceeded will be after n's message.
-            let settings = ContextSettings {
-                sending_fee: 0,
-                outgoing_limit: n,
-                max_message_size: MAX_MESSAGE_SIZE,
-            };
+            let settings = ContextSettings::new(0, n);
 
             let mut message_context = MessageContext::new_with_settings(
                 Default::default(),
