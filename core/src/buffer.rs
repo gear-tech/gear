@@ -145,3 +145,65 @@ impl Display for RuntimeBufferSizeError {
 
 /// Buffer which size cannot be bigger then max allowed allocation size in runtime.
 pub type RuntimeBuffer = LimitVec<u8, RuntimeBufferSizeError, RUNTIME_MAX_BUFF_SIZE>;
+
+#[cfg(test)]
+mod test {
+    use super::{LimitVec, RuntimeBufferSizeError};
+    use alloc::{string::String, vec, vec::Vec};
+    use core::convert::{TryFrom, TryInto};
+
+    const N: usize = 1000;
+    type TestBuffer = LimitVec<u8, RuntimeBufferSizeError, N>;
+
+    #[test]
+    fn test_try_from() {
+        let v1 = vec![1; N];
+        let v2 = vec![1; N + 1];
+        let v3 = vec![1; N - 1];
+
+        let x = TestBuffer::try_from(v1).unwrap();
+        let _ = TestBuffer::try_from(v2).expect_err("Must be err because of size overflow");
+        let z = TestBuffer::try_from(v3).unwrap();
+
+        assert_eq!(x.get().len(), N);
+        assert_eq!(z.get().len(), N - 1);
+        assert_eq!(x.get()[N / 2], 1);
+        assert_eq!(z.get()[N / 2], 1);
+    }
+
+    #[test]
+    fn test_new_empty() {
+        let x = LimitVec::<String, RuntimeBufferSizeError, N>::new_empty(N).unwrap();
+        let _ = LimitVec::<u64, RuntimeBufferSizeError, N>::new_empty(N + 1)
+            .expect_err("Must be error because of size overflow");
+        let z = LimitVec::<Vec<u8>, RuntimeBufferSizeError, N>::new_empty(0).unwrap();
+
+        assert_eq!(x.get().len(), N);
+        assert_eq!(z.get().len(), 0);
+        assert_eq!(x.get()[N / 2], "");
+    }
+
+    #[test]
+    fn test_full() {
+        let mut x = TestBuffer::try_from(vec![1; N]).unwrap();
+        let mut y = TestBuffer::try_from(vec![2; N / 2]).unwrap();
+        let mut z = TestBuffer::try_from(vec![3; 0]).unwrap();
+
+        x.push(42).unwrap_err();
+        y.push(42).unwrap();
+        z.push(42).unwrap();
+
+        x.extend_from_slice(&[1, 2, 3]).unwrap_err();
+        y.extend_from_slice(&[1, 2, 3]).unwrap();
+        z.extend_from_slice(&[1, 2, 3]).unwrap();
+
+        x.prepend(vec![1, 2, 3].try_into().unwrap()).unwrap_err();
+        y.prepend(vec![1, 2, 3].try_into().unwrap()).unwrap();
+        z.prepend(vec![1, 2, 3].try_into().unwrap()).unwrap();
+
+        z.get_mut()[0] = 0;
+
+        assert_eq!(&z.into_vec(), &[0, 2, 3, 42, 1, 2, 3]);
+        assert_eq!(TestBuffer::max_len(), N);
+    }
+}
