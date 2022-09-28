@@ -26,7 +26,7 @@ env_logger = "0.9.0"
 futures-util = "0.3.21"
 gear-core = { path = "../core" }
 hex = "0.4.3"
-jsonrpsee-client-transport = { version = "^0.14", features = ["ws"] }
+jsonrpsee-client-transport = { version = "^0.15", features = ["ws"] }
 keyring = "1.2.0"
 lazy_static = "1.4.0"
 libp2p = { version = "0.48.0", features = [ "identify" ], optional = true }

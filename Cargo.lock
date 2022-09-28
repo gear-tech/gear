@@ -3032,7 +3032,7 @@ dependencies = [
  "futures-util",
  "gear-core",
  "hex",
- "jsonrpsee-client-transport 0.14.0",
+ "jsonrpsee-client-transport 0.15.1",
  "keyring",
  "lazy_static",
  "libp2p 0.48.0",
@@ -11059,7 +11059,7 @@ checksum = "97fee6b57c6a41524a810daee9286c02d7752c4253064d0b05472833a438f675"
 dependencies = [
  "cfg-if",
  "digest 0.10.5",
- "rand 0.8.5",
+ "rand 0.7.3",
  "static_assertions",
 ]
 
