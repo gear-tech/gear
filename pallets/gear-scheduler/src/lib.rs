@@ -24,12 +24,12 @@
 pub mod migration;
 
 // Runtime mock for running tests.
-// #[cfg(test)]
-// mod mock;
+#[cfg(test)]
+mod mock;
 
 // Unit tests module.
-// #[cfg(test)]
-// mod tests;
+#[cfg(test)]
+mod tests;
 
 // Public exports from pallet.
 pub use pallet::*;
