@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2022 Gear Technologies Inc.
+// Copyright (C) 2022 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -227,6 +227,52 @@ impl SysCallInfo {
     }
 }
 
+/// Check that all sys calls supports by backend.
+#[test]
+fn test_sys_calls_table() {
+    use gear_backend_common::{
+        mock::MockExt,
+        Environment,
+        TerminationReason,
+    };
+    use gear_backend_wasmi::WasmiEnvironment;
+    use gear_core::message::DispatchKind;
+
+    let config = GearConfig::default();
+    let table = sys_calls_table(&config);
+
+    let mut module = builder::module().function().signature().build().build().build();
+
+    for (name, info) in table {
+        let types = module.type_section_mut().unwrap().types_mut();
+        let type_no = types.len() as u32;
+        types.push(Type::Function(info.func_type()));
+
+        module = builder::from_module(module)
+            .import()
+            .module("env")
+            .external()
+            .func(type_no)
+            .field(name)
+            .build()
+            .build();
+    }
+
+    let code = module.into_bytes().unwrap();
+
+    let mut ext = MockExt::default();
+    let res = WasmiEnvironment::execute(
+        &mut ext,
+        &code,
+        Default::default(),
+        0.into(),
+        &DispatchKind::Init,
+        |_, _| -> Result<(), u32> { Ok(()) },
+    ).unwrap();
+
+    assert_eq!(res.termination_reason, TerminationReason::Success);
+}
+
 fn sys_calls_table(config: &GearConfig) -> BTreeMap<&'static str, SysCallInfo> {
     use ValueType::*;
     let mut res = BTreeMap::new();
@@ -370,7 +416,7 @@ fn sys_calls_table(config: &GearConfig) -> BTreeMap<&'static str, SysCallInfo> {
     );
     // pub fn gr_wait_no_more(duration: *const u8) -> !;
     res.insert(
-        "gr_wait_no_more",
+        "gr_wait_up_to",
         SysCallInfo {
             params: [I32].to_vec(),
             results: [].to_vec(),
