@@ -12,7 +12,8 @@ path = "src/main.rs"
 [dependencies]
 gear-wasm-gen = { path = "../wasm-gen" }
 arbitrary = "1.1.6"
-gear-program = { path = "../../program" }
+gear-core = { path = "../../core" }
+gclient = { path = "../../gclient" }
 hex = "0.4.3"
 tokio = { version = "1.21.2", features = [ "full" ] }
 color-eyre = { version = "0.6.2", optional = true }
