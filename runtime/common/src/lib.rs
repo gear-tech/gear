@@ -33,36 +33,17 @@ use frame_system::limits::BlockWeights;
 use runtime_primitives::{AccountId, Balance, BlockNumber};
 use sp_runtime::{Perbill, Percent};
 
-/// We assume that ~10% of the block weight is consumed by `on_initialize` handlers.
-/// This is used to limit the maximal weight of a single extrinsic.
-const AVERAGE_ON_INITIALIZE_RATIO: Perbill = Perbill::from_percent(10);
+pub const NORMAL_DISPATCH_RATIO_NUM: u8 = 25;
+pub const GAS_LIMIT_MIN_PERCENTAGE_NUM: u8 = 100 - NORMAL_DISPATCH_RATIO_NUM;
+
 // Extrinsics with DispatchClass::Normal only account for user messages
 // TODO: consider making the normal extrinsics share adjustable in runtime
-const NORMAL_DISPATCH_RATIO: Perbill = Perbill::from_percent(25);
-const MAXIMUM_BLOCK_WEIGHT: Weight = WEIGHT_PER_SECOND.saturating_div(2).set_proof_size(u64::MAX);
+pub const NORMAL_DISPATCH_RATIO: Perbill = Perbill::from_percent(NORMAL_DISPATCH_RATIO_NUM as u32);
 
 parameter_types! {
     pub const BlockHashCount: BlockNumber = 2400;
-    /// We allow for 1/3 of a second of compute with a 2 second average block time.
-    pub RuntimeBlockWeights: frame_system::limits::BlockWeights = BlockWeights::builder()
-    .base_block(BlockExecutionWeight::get())
-    .for_class(DispatchClass::all(), |weights| {
-        weights.base_extrinsic = ExtrinsicBaseWeight::get();
-    })
-    .for_class(DispatchClass::Normal, |weights| {
-        weights.max_total = Some(NORMAL_DISPATCH_RATIO * MAXIMUM_BLOCK_WEIGHT);
-    })
-    .for_class(DispatchClass::Operational, |weights| {
-        weights.max_total = Some(MAXIMUM_BLOCK_WEIGHT);
-        // Operational transactions have some extra reserved space, so that they
-        // are included even if block reached `MAXIMUM_BLOCK_WEIGHT`.
-        weights.reserved = Some(
-            MAXIMUM_BLOCK_WEIGHT - NORMAL_DISPATCH_RATIO * MAXIMUM_BLOCK_WEIGHT
-        );
-    })
-    .avg_block_initialization(AVERAGE_ON_INITIALIZE_RATIO)
-    .build_or_panic();
-    pub RuntimeBlockLength: frame_system::limits::BlockLength = frame_system::limits::BlockLength
+
+    pub BlockLength: frame_system::limits::BlockLength = frame_system::limits::BlockLength
         ::max_with_normal_ratio(5 * 1024 * 1024, NORMAL_DISPATCH_RATIO);
 }
 
@@ -72,8 +53,7 @@ impl gear_common::GasPrice for GasConverter {
 }
 
 parameter_types! {
-    pub const GasLimitMaxPercentage: Percent = Percent::from_percent(75);
-    pub BlockGasLimit: u64 = GasLimitMaxPercentage::get() * RuntimeBlockWeights::get().max_block.ref_time();
+    pub const GasLimitMaxPercentage: Percent = Percent::from_percent(GAS_LIMIT_MIN_PERCENTAGE_NUM);
 
     pub const TransactionByteFee: Balance = 1;
     pub const QueueLengthStep: u128 = 10;
