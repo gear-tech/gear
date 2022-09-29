@@ -2051,7 +2051,7 @@ dependencies = [
  "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
  "vara-runtime",
  "wasm-mutate",
- "wasmparser 0.91.0",
+ "wasmparser 0.92.0",
  "wasmprinter",
  "wat",
 ]
@@ -3314,9 +3314,6 @@ name = "gear-wasm-gen"
 version = "0.1.0"
 dependencies = [
  "arbitrary",
- "gear-backend-common",
- "gear-backend-wasmi",
- "gear-core",
  "indicatif",
  "parity-wasm 0.45.0",
  "rand 0.8.5",
@@ -11524,6 +11521,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "wasm-encoder"
+version = "0.18.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c64ac98d5d61192cc45c701b7e4bd0b9aff91e2edfc7a088406cfe2288581e2c"
+dependencies = [
+ "leb128",
+]
+
+[[package]]
 name = "wasm-gc-api"
 version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -11562,16 +11568,16 @@ dependencies = [
 
 [[package]]
 name = "wasm-mutate"
-version = "0.2.8"
+version = "0.2.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e8b98a1c3d9c5970ce9753e0e06c49974e01f5ab50cfca3c14010dd8bec2242d"
+checksum = "00f7cead43549f0307a400df44218c00ccd9b275ed87edb8862b99b000dc9011"
 dependencies = [
  "egg",
  "log",
  "rand 0.8.5",
  "thiserror",
- "wasm-encoder 0.17.0",
- "wasmparser 0.91.0",
+ "wasm-encoder 0.18.0",
+ "wasmparser 0.92.0",
 ]
 
 [[package]]
@@ -11955,13 +11961,22 @@ dependencies = [
 ]
 
 [[package]]
-name = "wasmprinter"
-version = "0.2.40"
+name = "wasmparser"
+version = "0.92.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "85b5931cf673c4bece6299719c024c08ebe52cbac7124160487a602c81e598c8"
+checksum = "7da34cec2a8c23db906cdf8b26e988d7a7f0d549eb5d51299129647af61a1b37"
+dependencies = [
+ "indexmap",
+]
+
+[[package]]
+name = "wasmprinter"
+version = "0.2.41"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ca4374ec27194a12b85aa0e1681a42d5800e97f11c036fa85dea8087c8ccb10b"
 dependencies = [
  "anyhow",
- "wasmparser 0.91.0",
+ "wasmparser 0.92.0",
 ]
 
 [[package]]
