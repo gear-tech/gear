@@ -2997,7 +2997,6 @@ dependencies = [
  "hex",
  "rand 0.8.5",
  "structopt",
- "strum",
  "tokio",
 ]
 

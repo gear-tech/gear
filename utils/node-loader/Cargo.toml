@@ -20,5 +20,4 @@ structopt = "0.3.26"
 rand = { version = "0.8.0", features = ["small_rng"] }
 futures = "0.3.24"
 anyhow = "1.0.65"
-strum = { version = "0.24", features = ["derive"] }
 dyn-clonable = "0.9.0"
