@@ -195,20 +195,20 @@ fn make_call_instructions_vec(
     };
 
     let mut code = Vec::new();
-    for index in 0..params.len() {
+    for (index, val) in params.iter().enumerate() {
         let instr = if let Some(rule) = params_rules.get(index) {
             if rule.restricted_ratio.get(u) {
-                gen_const_instr(u, params[index])
+                gen_const_instr(u, *val)
             } else {
                 let c = u.int_in_range(rule.allowed_values.clone()).unwrap();
-                match params[index] {
+                match val {
                     ValueType::I32 => Instruction::I32Const(c as i32),
                     ValueType::I64 => Instruction::I64Const(c),
                     _ => panic!("Cannot handle f32/f64"),
                 }
             }
         } else {
-            gen_const_instr(u, params[index])
+            gen_const_instr(u, *val)
         };
         code.push(instr);
     }
@@ -282,13 +282,10 @@ impl<'a> WasmGen<'a> {
 
     pub fn gen_mem_export(&mut self, mut module: Module) -> Module {
         let mut mem_section_idx = None;
-        for i in 0..module.sections().len() {
-            match module.sections()[i] {
-                Section::Memory(_) => {
-                    mem_section_idx = Some(i);
-                    break;
-                }
-                _ => {}
+        for (idx, section) in module.sections().iter().enumerate() {
+            if let Section::Memory(_) = section {
+                mem_section_idx = Some(idx);
+                break;
             }
         }
         mem_section_idx.map(|index| module.sections_mut().remove(index));
@@ -531,11 +528,6 @@ pub fn gen_gear_program_module<'a>(u: &'a mut Unstructured<'a>, config: GearConf
         }
     };
 
-    // println!(
-    //     "\n\n\n{}\n\n\n",
-    //     wasmprinter::print_bytes(&module.clone().into_bytes().unwrap()).unwrap()
-    // );
-
     let mut gen = WasmGen::new(&module, u, config);
     module = gen.gen_mem_export(module);
     let (mut module, has_init) = gen.gen_init(module);
@@ -544,7 +536,6 @@ pub fn gen_gear_program_module<'a>(u: &'a mut Unstructured<'a>, config: GearConf
     }
     module = gen.insert_sys_calls(module);
     gen.resolves_calls_indexes(module)
-    // println!("funcs num = {}", module.function_section().map(|f| f.entries().len()).unwrap_or(0));
 }
 
 pub fn gen_gear_program_code<'a>(u: &'a mut Unstructured<'a>, config: GearConfig) -> Vec<u8> {
