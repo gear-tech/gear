@@ -43,8 +43,8 @@ impl SysCallInfo {
 /// Syscalls config.
 #[derive(Debug, Clone)]
 pub struct SyscallsConfig {
-    pub alloc_param_rules: ParamRule,
-    pub free_param_rules: ParamRule,
+    pub alloc_param_rule: ParamRule,
+    pub free_param_rule: ParamRule,
     pub ptr_rule: ParamRule,
     pub memory_size_rule: ParamRule,
     pub no_rule: ParamRule,
@@ -53,11 +53,11 @@ pub struct SyscallsConfig {
 impl Default for SyscallsConfig {
     fn default() -> Self {
         Self {
-            alloc_param_rules: ParamRule {
+            alloc_param_rule: ParamRule {
                 allowed_values: 0..=512,
                 restricted_ratio: (1, 100).into(),
             },
-            free_param_rules: ParamRule {
+            free_param_rule: ParamRule {
                 allowed_values: 0..=512,
                 restricted_ratio: (1, 100).into(),
             },
@@ -93,7 +93,7 @@ pub(crate) fn sys_calls_table(config: &GearConfig) -> BTreeMap<&'static str, Sys
         SysCallInfo {
             params: [I32].to_vec(),
             results: [I32].to_vec(),
-            param_rules: [config.sys_calls.alloc_param_rules.clone()].to_vec(),
+            param_rules: [config.sys_calls.alloc_param_rule.clone()].to_vec(),
             frequency,
         },
     );
@@ -103,7 +103,7 @@ pub(crate) fn sys_calls_table(config: &GearConfig) -> BTreeMap<&'static str, Sys
         SysCallInfo {
             params: [I32].to_vec(),
             results: [].to_vec(),
-            param_rules: [config.sys_calls.free_param_rules.clone()].to_vec(),
+            param_rules: [config.sys_calls.free_param_rule.clone()].to_vec(),
             frequency,
         },
     );
