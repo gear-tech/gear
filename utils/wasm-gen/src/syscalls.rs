@@ -1,4 +1,3 @@
-
 // This file is part of Gear.
 
 // Copyright (C) 2022 Gear Technologies Inc.
@@ -19,7 +18,7 @@
 
 use std::collections::BTreeMap;
 
-use parity_wasm::elements::{ValueType, FunctionType};
+use parity_wasm::elements::{FunctionType, ValueType};
 
 use crate::{GearConfig, ParamRule, Ratio};
 
@@ -538,11 +537,7 @@ pub(crate) fn sys_calls_table(config: &GearConfig) -> BTreeMap<&'static str, Sys
 /// Check that all sys calls are supported by backend.
 #[test]
 fn test_sys_calls_table() {
-    use gear_backend_common::{
-        mock::MockExt,
-        Environment,
-        TerminationReason,
-    };
+    use gear_backend_common::{mock::MockExt, Environment, TerminationReason};
     use gear_backend_wasmi::WasmiEnvironment;
     use gear_core::message::DispatchKind;
     use wasm_instrument::parity_wasm::builder;
@@ -551,7 +546,12 @@ fn test_sys_calls_table() {
     let table = sys_calls_table(&config);
 
     // Make module with one empty function.
-    let mut module = builder::module().function().signature().build().build().build();
+    let mut module = builder::module()
+        .function()
+        .signature()
+        .build()
+        .build()
+        .build();
 
     // Insert syscalls imports.
     for (name, info) in table {
@@ -580,7 +580,8 @@ fn test_sys_calls_table() {
         0.into(),
         &DispatchKind::Init,
         |_, _| -> Result<(), u32> { Ok(()) },
-    ).unwrap();
+    )
+    .unwrap();
 
     assert_eq!(res.termination_reason, TerminationReason::Success);
 }

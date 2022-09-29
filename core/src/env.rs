@@ -172,7 +172,3 @@ pub trait Ext {
     /// Return the set of functions that are forbidden to be called.
     fn forbidden_funcs(&self) -> &BTreeSet<&'static str>;
 }
-
-/// For test usages
-pub mod mock {
-}

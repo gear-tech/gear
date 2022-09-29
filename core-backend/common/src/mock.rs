@@ -16,8 +16,11 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use core::fmt;
+use crate::{
+    error_processor::IntoExtError, AsTerminationReason, ExtInfo, IntoExtInfo, TerminationReason,
+};
 use alloc::collections::BTreeSet;
+use core::fmt;
 use gear_core::{
     costs::RuntimeCosts,
     env::Ext,
@@ -27,9 +30,6 @@ use gear_core::{
     message::{ExitCode, HandlePacket, InitPacket, ReplyPacket},
 };
 use gear_core_errors::{CoreError, ExtError, MemoryError};
-use crate::{
-    error_processor::IntoExtError, AsTerminationReason, ExtInfo, IntoExtInfo, TerminationReason,
-};
 
 /// Mock error
 #[derive(Debug)]
