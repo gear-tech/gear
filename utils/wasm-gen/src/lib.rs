@@ -67,7 +67,6 @@ impl Ratio {
 
 #[derive(Debug, Clone)]
 pub struct ParamRule {
-    // pub param_type: ValueType,
     pub allowed_values: RangeInclusive<i64>,
     pub restricted_ratio: Ratio,
 }
@@ -466,7 +465,6 @@ impl<'a> WasmGen<'a> {
         }
 
         let Self { calls_indexes, .. } = self;
-        // println!("{calls_indexes:?}");
 
         let import_funcs_num = module
             .import_section()
@@ -503,11 +501,11 @@ impl<'a> WasmGen<'a> {
                 }
             })
         {
-            // println!("func_no = {func_no:?}");
             if let FuncIdx::Func(code_func_no) = calls_indexes[*func_no as usize] {
                 *func_no = import_funcs_num + code_func_no;
             } else {
-                // TODO: check that case
+                // TODO: export can be to the import function by WASM specification,
+                // but we currently do not support this in wasm-gen.
                 panic!("Export cannot be to the import function");
             }
         }

@@ -87,7 +87,7 @@ pub(crate) fn sys_calls_table(config: &GearConfig) -> BTreeMap<&'static str, Sys
     let size_rule = || config.sys_calls.memory_size_rule.clone();
     let no_rule = || config.sys_calls.no_rule.clone();
 
-    // pub fn alloc(pages: u32) -> usize;
+    // alloc(pages: u32) -> usize;
     res.insert(
         "alloc",
         SysCallInfo {
@@ -97,7 +97,7 @@ pub(crate) fn sys_calls_table(config: &GearConfig) -> BTreeMap<&'static str, Sys
             frequency,
         },
     );
-    // pub fn free(page: u32);
+    // free(page: u32);
     res.insert(
         "free",
         SysCallInfo {
@@ -108,7 +108,7 @@ pub(crate) fn sys_calls_table(config: &GearConfig) -> BTreeMap<&'static str, Sys
         },
     );
 
-    // pub fn gr_debug(msg_ptr: *const u8, msg_len: u32);
+    // gr_debug(msg_ptr: *const u8, msg_len: u32);
     res.insert(
         "gr_debug",
         SysCallInfo {
@@ -118,7 +118,7 @@ pub(crate) fn sys_calls_table(config: &GearConfig) -> BTreeMap<&'static str, Sys
             frequency,
         },
     );
-    // pub fn gr_error(data: *mut u8);
+    // gr_error(data: *mut u8);
     res.insert(
         "gr_error",
         SysCallInfo {
@@ -129,7 +129,7 @@ pub(crate) fn sys_calls_table(config: &GearConfig) -> BTreeMap<&'static str, Sys
         },
     );
 
-    // pub fn gr_block_height() -> u32;
+    // gr_block_height() -> u32;
     res.insert(
         "gr_block_height",
         SysCallInfo {
@@ -139,7 +139,7 @@ pub(crate) fn sys_calls_table(config: &GearConfig) -> BTreeMap<&'static str, Sys
             frequency,
         },
     );
-    // pub fn gr_block_timestamp() -> u64;
+    // gr_block_timestamp() -> u64;
     res.insert(
         "gr_block_timestamp",
         SysCallInfo {
@@ -149,7 +149,7 @@ pub(crate) fn sys_calls_table(config: &GearConfig) -> BTreeMap<&'static str, Sys
             frequency,
         },
     );
-    // pub fn gr_exit(value_dest_ptr: *const u8) -> !;
+    // gr_exit(value_dest_ptr: *const u8) -> !;
     res.insert(
         "gr_exit",
         SysCallInfo {
@@ -159,7 +159,7 @@ pub(crate) fn sys_calls_table(config: &GearConfig) -> BTreeMap<&'static str, Sys
             frequency,
         },
     );
-    // pub fn gr_gas_available() -> u64;
+    // gr_gas_available() -> u64;
     res.insert(
         "gr_gas_available",
         SysCallInfo {
@@ -169,7 +169,7 @@ pub(crate) fn sys_calls_table(config: &GearConfig) -> BTreeMap<&'static str, Sys
             frequency,
         },
     );
-    // pub fn gr_program_id(val: *mut u8);
+    // gr_program_id(val: *mut u8);
     res.insert(
         "gr_program_id",
         SysCallInfo {
@@ -179,7 +179,7 @@ pub(crate) fn sys_calls_table(config: &GearConfig) -> BTreeMap<&'static str, Sys
             frequency,
         },
     );
-    // pub fn gr_origin(origin_ptr: *mut u8);
+    // gr_origin(origin_ptr: *mut u8);
     res.insert(
         "gr_origin",
         SysCallInfo {
@@ -189,7 +189,7 @@ pub(crate) fn sys_calls_table(config: &GearConfig) -> BTreeMap<&'static str, Sys
             frequency,
         },
     );
-    // pub fn gr_leave() -> !;
+    // gr_leave() -> !;
     res.insert(
         "gr_leave",
         SysCallInfo {
@@ -199,7 +199,7 @@ pub(crate) fn sys_calls_table(config: &GearConfig) -> BTreeMap<&'static str, Sys
             frequency,
         },
     );
-    // pub fn gr_value_available(val: *mut u8);
+    // gr_value_available(val: *mut u8);
     res.insert(
         "gr_value_available",
         SysCallInfo {
@@ -209,7 +209,7 @@ pub(crate) fn sys_calls_table(config: &GearConfig) -> BTreeMap<&'static str, Sys
             frequency,
         },
     );
-    // pub fn gr_wait() -> !;
+    // gr_wait() -> !;
     res.insert(
         "gr_wait",
         SysCallInfo {
@@ -219,7 +219,7 @@ pub(crate) fn sys_calls_table(config: &GearConfig) -> BTreeMap<&'static str, Sys
             frequency,
         },
     );
-    // pub fn gr_wait_up_to(duration: *const u8) -> !;
+    // gr_wait_up_to(duration: *const u8) -> !;
     res.insert(
         "gr_wait_up_to",
         SysCallInfo {
@@ -229,7 +229,7 @@ pub(crate) fn sys_calls_table(config: &GearConfig) -> BTreeMap<&'static str, Sys
             frequency,
         },
     );
-    // pub fn gr_wait_for(duration: *const u8) -> !;
+    // gr_wait_for(duration: *const u8) -> !;
     res.insert(
         "gr_wait_for",
         SysCallInfo {
@@ -239,7 +239,7 @@ pub(crate) fn sys_calls_table(config: &GearConfig) -> BTreeMap<&'static str, Sys
             frequency,
         },
     );
-    // pub fn gr_wake(waker_id_ptr: *const u8);
+    // gr_wake(waker_id_ptr: *const u8);
     res.insert(
         "gr_wake",
         SysCallInfo {
@@ -250,7 +250,7 @@ pub(crate) fn sys_calls_table(config: &GearConfig) -> BTreeMap<&'static str, Sys
         },
     );
 
-    // pub fn gr_exit_code() -> i32;
+    // gr_exit_code() -> i32;
     res.insert(
         "gr_exit_code",
         SysCallInfo {
@@ -260,7 +260,7 @@ pub(crate) fn sys_calls_table(config: &GearConfig) -> BTreeMap<&'static str, Sys
             frequency,
         },
     );
-    // pub fn gr_msg_id(val: *mut u8);
+    // gr_msg_id(val: *mut u8);
     res.insert(
         "gr_msg_id",
         SysCallInfo {
@@ -270,7 +270,7 @@ pub(crate) fn sys_calls_table(config: &GearConfig) -> BTreeMap<&'static str, Sys
             frequency,
         },
     );
-    // pub fn gr_read(at: u32, len: u32, dest: *mut u8);
+    // gr_read(at: u32, len: u32, dest: *mut u8);
     res.insert(
         "gr_exit_code",
         SysCallInfo {
@@ -280,7 +280,7 @@ pub(crate) fn sys_calls_table(config: &GearConfig) -> BTreeMap<&'static str, Sys
             frequency,
         },
     );
-    // pub fn gr_reply(data_ptr: *const u8, data_len: u32, value_ptr: *const u8, message_id_ptr: *mut u8) -> SyscallError;
+    // gr_reply(data_ptr: *const u8, data_len: u32, value_ptr: *const u8, message_id_ptr: *mut u8) -> SyscallError;
     res.insert(
         "gr_reply",
         SysCallInfo {
@@ -290,7 +290,7 @@ pub(crate) fn sys_calls_table(config: &GearConfig) -> BTreeMap<&'static str, Sys
             frequency,
         },
     );
-    // pub fn gr_reply_wgas(
+    // gr_reply_wgas(
     //     data_ptr: *const u8,
     //     data_len: u32,
     //     gas_limit: u64,
@@ -306,7 +306,7 @@ pub(crate) fn sys_calls_table(config: &GearConfig) -> BTreeMap<&'static str, Sys
             frequency,
         },
     );
-    // pub fn gr_reply_commit(value_ptr: *const u8, message_id_ptr: *mut u8) -> SyscallError;
+    // gr_reply_commit(value_ptr: *const u8, message_id_ptr: *mut u8) -> SyscallError;
     res.insert(
         "gr_reply_commit",
         SysCallInfo {
@@ -316,7 +316,7 @@ pub(crate) fn sys_calls_table(config: &GearConfig) -> BTreeMap<&'static str, Sys
             frequency,
         },
     );
-    // pub fn gr_reply_commit_wgas(
+    // gr_reply_commit_wgas(
     //     gas_limit: u64,
     //     value_ptr: *const u8,
     //     message_id_ptr: *mut u8,
@@ -330,7 +330,7 @@ pub(crate) fn sys_calls_table(config: &GearConfig) -> BTreeMap<&'static str, Sys
             frequency,
         },
     );
-    // pub fn gr_reply_push(data_ptr: *const u8, data_len: u32) -> SyscallError;
+    // gr_reply_push(data_ptr: *const u8, data_len: u32) -> SyscallError;
     res.insert(
         "gr_reply_push",
         SysCallInfo {
@@ -340,7 +340,7 @@ pub(crate) fn sys_calls_table(config: &GearConfig) -> BTreeMap<&'static str, Sys
             frequency,
         },
     );
-    // pub fn gr_reply_to(dest: *mut u8);
+    // gr_reply_to(dest: *mut u8);
     res.insert(
         "gr_reply_to",
         SysCallInfo {
@@ -350,7 +350,7 @@ pub(crate) fn sys_calls_table(config: &GearConfig) -> BTreeMap<&'static str, Sys
             frequency,
         },
     );
-    // pub fn gr_send(
+    // gr_send(
     //     program: *const u8,
     //     data_ptr: *const u8,
     //     data_len: u32,
@@ -366,7 +366,7 @@ pub(crate) fn sys_calls_table(config: &GearConfig) -> BTreeMap<&'static str, Sys
             frequency,
         },
     );
-    // pub fn gr_send_wgas(
+    // gr_send_wgas(
     //     program: *const u8,
     //     data_ptr: *const u8,
     //     data_len: u32,
@@ -391,7 +391,7 @@ pub(crate) fn sys_calls_table(config: &GearConfig) -> BTreeMap<&'static str, Sys
             frequency,
         },
     );
-    // pub fn gr_send_commit(
+    // gr_send_commit(
     //     handle: u32,
     //     message_id_ptr: *mut u8,
     //     program: *const u8,
@@ -406,7 +406,7 @@ pub(crate) fn sys_calls_table(config: &GearConfig) -> BTreeMap<&'static str, Sys
             frequency,
         },
     );
-    // pub fn gr_send_commit_wgas(
+    // gr_send_commit_wgas(
     //     handle: u32,
     //     message_id_ptr: *mut u8,
     //     program: *const u8,
@@ -422,7 +422,7 @@ pub(crate) fn sys_calls_table(config: &GearConfig) -> BTreeMap<&'static str, Sys
             frequency,
         },
     );
-    // pub fn gr_send_init(handle: *mut u32) -> SyscallError;
+    // gr_send_init(handle: *mut u32) -> SyscallError;
     res.insert(
         "gr_send_init",
         SysCallInfo {
@@ -432,7 +432,7 @@ pub(crate) fn sys_calls_table(config: &GearConfig) -> BTreeMap<&'static str, Sys
             frequency,
         },
     );
-    // pub fn gr_send_push(handle: u32, data_ptr: *const u8, data_len: u32) -> SyscallError;
+    // gr_send_push(handle: u32, data_ptr: *const u8, data_len: u32) -> SyscallError;
     res.insert(
         "gr_send_push",
         SysCallInfo {
@@ -442,7 +442,7 @@ pub(crate) fn sys_calls_table(config: &GearConfig) -> BTreeMap<&'static str, Sys
             frequency,
         },
     );
-    // pub fn gr_size() -> u32;
+    // gr_size() -> u32;
     res.insert(
         "gr_size",
         SysCallInfo {
@@ -452,7 +452,7 @@ pub(crate) fn sys_calls_table(config: &GearConfig) -> BTreeMap<&'static str, Sys
             frequency,
         },
     );
-    // pub fn gr_source(program: *mut u8);
+    // gr_source(program: *mut u8);
     res.insert(
         "gr_source",
         SysCallInfo {
@@ -462,7 +462,7 @@ pub(crate) fn sys_calls_table(config: &GearConfig) -> BTreeMap<&'static str, Sys
             frequency,
         },
     );
-    // pub fn gr_value(val: *mut u8);
+    // gr_value(val: *mut u8);
     res.insert(
         "gr_value",
         SysCallInfo {
@@ -473,7 +473,7 @@ pub(crate) fn sys_calls_table(config: &GearConfig) -> BTreeMap<&'static str, Sys
         },
     );
 
-    // pub fn gr_create_program(
+    // gr_create_program(
     //     code_hash: *const u8,
     //     salt_ptr: *const u8,
     //     salt_len: u32,
@@ -501,7 +501,7 @@ pub(crate) fn sys_calls_table(config: &GearConfig) -> BTreeMap<&'static str, Sys
         },
     );
 
-    // pub fn gr_create_program_wgas(
+    // gr_create_program_wgas(
     //     code_hash: *const u8,
     //     salt_ptr: *const u8,
     //     salt_len: u32,
