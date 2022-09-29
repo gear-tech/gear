@@ -34,7 +34,5 @@ async fn load_node(params: LoadParams) -> Result<()> {
 
     BatchPool::<SmallRng>::new(api, params.workers, params.batch_size)
         .run(params.code_seed_type)
-        .await?;
-
-    unreachable!()
+        .await
 }

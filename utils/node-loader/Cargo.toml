@@ -15,9 +15,7 @@ arbitrary = "1.1.7"
 gear-core = { path = "../../core" }
 gclient = { path = "../../gclient" }
 hex = "0.4.3"
-tokio = { version = "1.21.2", features = [ "full" ] }
-color-eyre = { version = "0.6.2", optional = true }
-log = "0.4.16"
+tokio = { version = "1.21.2", features = [ "macros" ] }
 structopt = "0.3.26"
 rand = { version = "0.8.0", features = ["small_rng"] }
 futures = "0.3.24"
