@@ -304,6 +304,7 @@ where
                 SystemPallet::<T>::block_number().saturating_add(delay.unique_saturated_into());
             let task = ScheduledTask::WakeMessage(program_id, awakening_id);
 
+            // This validation helps us to avoid returning error on insertion into `TaskPool` in case of duplicate wake.
             if !TaskPoolOf::<T>::contains(&expected_bn, &task) {
                 TaskPoolOf::<T>::add(expected_bn, task)
                     .unwrap_or_else(|e| unreachable!("Scheduling logic invalidated! {:?}", e));

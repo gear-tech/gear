@@ -508,6 +508,15 @@ where
     }
 
     /// Delays dispatch sending.
+    ///
+    /// This function adds message into `TaskPool`.
+    ///
+    /// If message should go into message queue or mailbox,
+    /// it creates gas node for it.
+    ///
+    /// On processing task at defined block, we check destination, in case of
+    /// user and absence of gas node,we don't append message into any storage,
+    /// propagating `UserMessageSent` event only.
     pub(crate) fn send_delayed_dispatch(
         origin_msg: MessageId,
         dispatch: Dispatch,
@@ -694,6 +703,9 @@ where
         //
         // Note: for users, trap replies always contain
         // string explanation of the error.
+        //
+        // We don't plan to send delayed error replies yet,
+        // but this logic appears here for future purposes.
         let message = match message.exit_code() {
             Some(0) | None => message,
             _ => message
