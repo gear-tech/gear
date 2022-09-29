@@ -26,6 +26,8 @@ use crate::{
 use codec::{Decode, Encode};
 use scale_info::TypeInfo;
 
+use super::PayloadSizeError;
+
 /// Message for Handle entry point.
 /// Represents a standard message that sends between actors.
 #[derive(Clone, Default, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo)]
@@ -150,8 +152,8 @@ impl HandlePacket {
     }
 
     /// Prepend payload.
-    pub(super) fn prepend(&mut self, data: Payload) -> Result<(), super::PayloadSizeError> {
-        self.payload.prepend(data)
+    pub(super) fn try_prepend(&mut self, data: Payload) -> Result<(), PayloadSizeError> {
+        self.payload.try_prepend(data)
     }
 
     /// Packet destination.

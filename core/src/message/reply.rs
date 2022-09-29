@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use super::common::ReplyDetails;
+use super::{common::ReplyDetails, PayloadSizeError};
 use crate::{
     ids::{MessageId, ProgramId},
     message::{
@@ -192,8 +192,8 @@ impl ReplyPacket {
     }
 
     /// Prepend payload.
-    pub(super) fn prepend(&mut self, data: Payload) -> Result<(), super::PayloadSizeError> {
-        self.payload.prepend(data)
+    pub(super) fn try_prepend(&mut self, data: Payload) -> Result<(), PayloadSizeError> {
+        self.payload.try_prepend(data)
     }
 
     /// Packet exit code.

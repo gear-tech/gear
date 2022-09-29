@@ -42,7 +42,7 @@ pub use stored::{StoredDispatch, StoredMessage};
 
 use core::fmt::Display;
 
-use super::buffer::LimitVec;
+use super::buffer::LimitedVec;
 
 /// Max payload size which one message can have.
 const MAX_PAYLOAD_SIZE: usize = 8 * 1024 * 1024;
@@ -66,7 +66,7 @@ impl Display for PayloadSizeError {
 }
 
 /// Payload type for message.
-pub type Payload = LimitVec<u8, PayloadSizeError, MAX_PAYLOAD_SIZE>;
+pub type Payload = LimitedVec<u8, PayloadSizeError, MAX_PAYLOAD_SIZE>;
 
 /// Gas limit type for message.
 pub type GasLimit = u64;

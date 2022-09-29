@@ -703,7 +703,7 @@ where
         let str_len = pop_i32(&mut args)?;
 
         let mut f = || {
-            let mut data = RuntimeBuffer::new_empty(str_len)?;
+            let mut data = RuntimeBuffer::try_new_default(str_len)?;
             ctx.read_memory_into_buf(str_ptr, data.get_mut())?;
             let s = String::from_utf8(data.into_vec()).map_err(FuncError::DebugString)?;
             ctx.ext.debug(&s).map_err(FuncError::Core)?;

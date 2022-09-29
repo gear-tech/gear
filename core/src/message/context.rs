@@ -199,7 +199,7 @@ impl MessageContext {
                 let packet = {
                     let mut packet = packet;
                     packet
-                        .prepend(data)
+                        .try_prepend(data)
                         .map_err(|_| Error::MaxMessageSizeExceed)?;
                     packet
                 };
@@ -237,7 +237,7 @@ impl MessageContext {
     pub fn send_push(&mut self, handle: u32, buffer: &[u8]) -> Result<(), Error> {
         match self.store.outgoing.get_mut(&handle) {
             Some(Some(data)) => {
-                data.extend_from_slice(buffer)
+                data.try_extend_from_slice(buffer)
                     .map_err(|_| Error::MaxMessageSizeExceed)?;
                 Ok(())
             }
@@ -257,7 +257,7 @@ impl MessageContext {
             let packet = {
                 let mut packet = packet;
                 packet
-                    .prepend(data)
+                    .try_prepend(data)
                     .map_err(|_| Error::MaxMessageSizeExceed)?;
                 packet
             };
@@ -278,7 +278,7 @@ impl MessageContext {
     pub fn reply_push(&mut self, buffer: &[u8]) -> Result<(), Error> {
         if !self.store.reply_sent {
             let data = self.store.reply.get_or_insert_with(Default::default);
-            data.extend_from_slice(buffer)
+            data.try_extend_from_slice(buffer)
                 .map_err(|_| Error::MaxMessageSizeExceed)?;
 
             Ok(())

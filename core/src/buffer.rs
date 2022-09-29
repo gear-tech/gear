@@ -29,69 +29,54 @@ use scale_info::TypeInfo;
 /// `E` is overflow error type.
 /// `N` is max len which a vector can have.
 #[derive(Clone, Default, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo)]
-pub struct LimitVec<T, E, const N: usize>(Vec<T>, PhantomData<E>);
+pub struct LimitedVec<T, E, const N: usize>(Vec<T>, PhantomData<E>);
 
-impl<T, E: Default, const N: usize> TryFrom<Vec<T>> for LimitVec<T, E, N> {
+impl<T, E: Default, const N: usize> TryFrom<Vec<T>> for LimitedVec<T, E, N> {
     type Error = E;
     fn try_from(x: Vec<T>) -> Result<Self, Self::Error> {
-        if x.len() > N {
-            Err(E::default())
-        } else {
-            Ok(Self(x, Default::default()))
-        }
+        (x.len() <= N).then_some(()).ok_or_else(E::default)?;
+        Ok(Self(x, PhantomData))
     }
 }
 
-impl<T: Clone + Default, E: Default, const N: usize> LimitVec<T, E, N> {
+impl<T: Clone + Default, E: Default, const N: usize> LimitedVec<T, E, N> {
     /// Returns new limited vector with default initialized elements.
-    pub fn new_empty(len: usize) -> Result<Self, E> {
-        if len > N {
-            Err(E::default())
-        } else {
-            Ok(Self(vec![T::default(); len], Default::default()))
-        }
+    pub fn try_new_default(len: usize) -> Result<Self, E> {
+        (len <= N).then_some(()).ok_or_else(E::default)?;
+        Ok(Self(vec![T::default(); len], PhantomData))
     }
 
     /// Append `value` to the end of vector.
-    pub fn push(&mut self, value: T) -> Result<(), E> {
-        if self.0.len() == N {
-            Err(E::default())
-        } else {
-            self.0.push(value);
-            Ok(())
-        }
+    pub fn try_push(&mut self, value: T) -> Result<(), E> {
+        (self.0.len() != N).then_some(()).ok_or_else(E::default)?;
+        self.0.push(value);
+        Ok(())
     }
 
     /// Append `values` to the end of vector.
-    pub fn extend_from_slice(&mut self, values: &[T]) -> Result<(), E> {
-        if self
-            .0
+    pub fn try_extend_from_slice(&mut self, values: &[T]) -> Result<(), E> {
+        self.0
             .len()
             .checked_add(values.len())
-            .ok_or_else(E::default)?
-            > N
-        {
-            Err(E::default())
-        } else {
-            self.0.extend_from_slice(values);
-            Ok(())
-        }
+            .and_then(|len| (len <= N).then_some(()))
+            .ok_or_else(E::default)?;
+
+        self.0.extend_from_slice(values);
+
+        Ok(())
     }
 
     /// Append `values` to the begin of vector.
-    pub fn prepend(&mut self, values: Self) -> Result<(), E> {
-        if self
-            .0
+    pub fn try_prepend(&mut self, values: Self) -> Result<(), E> {
+        self.0
             .len()
             .checked_add(values.0.len())
-            .ok_or_else(E::default)?
-            > N
-        {
-            Err(E::default())
-        } else {
-            self.0.splice(0..0, values.0);
-            Ok(())
-        }
+            .and_then(|len| (len <= N).then_some(()))
+            .ok_or_else(E::default)?;
+
+        self.0.splice(0..0, values.0);
+
+        Ok(())
     }
 
     /// Returns ref to the internal data.
@@ -125,7 +110,7 @@ const RUNTIME_MAX_ALLOC_SIZE: usize = 512 * 0x10000;
 /// Take half from [RUNTIME_MAX_ALLOC_SIZE] in order to avoid problems with capacity overflow.
 const RUNTIME_MAX_BUFF_SIZE: usize = RUNTIME_MAX_ALLOC_SIZE / 2;
 
-/// Payload size exceed error
+/// Runtime buffer size exceed error
 #[derive(
     Clone, Copy, Default, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo,
 )]
@@ -144,16 +129,16 @@ impl Display for RuntimeBufferSizeError {
 }
 
 /// Buffer which size cannot be bigger then max allowed allocation size in runtime.
-pub type RuntimeBuffer = LimitVec<u8, RuntimeBufferSizeError, RUNTIME_MAX_BUFF_SIZE>;
+pub type RuntimeBuffer = LimitedVec<u8, RuntimeBufferSizeError, RUNTIME_MAX_BUFF_SIZE>;
 
 #[cfg(test)]
 mod test {
-    use super::{LimitVec, RuntimeBufferSizeError};
+    use super::{LimitedVec, RuntimeBufferSizeError};
     use alloc::{string::String, vec, vec::Vec};
     use core::convert::{TryFrom, TryInto};
 
     const N: usize = 1000;
-    type TestBuffer = LimitVec<u8, RuntimeBufferSizeError, N>;
+    type TestBuffer = LimitedVec<u8, RuntimeBufferSizeError, N>;
 
     #[test]
     fn test_try_from() {
@@ -172,11 +157,11 @@ mod test {
     }
 
     #[test]
-    fn test_new_empty() {
-        let x = LimitVec::<String, RuntimeBufferSizeError, N>::new_empty(N).unwrap();
-        let _ = LimitVec::<u64, RuntimeBufferSizeError, N>::new_empty(N + 1)
+    fn test_new_default() {
+        let x = LimitedVec::<String, RuntimeBufferSizeError, N>::try_new_default(N).unwrap();
+        let _ = LimitedVec::<u64, RuntimeBufferSizeError, N>::try_new_default(N + 1)
             .expect_err("Must be error because of size overflow");
-        let z = LimitVec::<Vec<u8>, RuntimeBufferSizeError, N>::new_empty(0).unwrap();
+        let z = LimitedVec::<Vec<u8>, RuntimeBufferSizeError, N>::try_new_default(0).unwrap();
 
         assert_eq!(x.get().len(), N);
         assert_eq!(z.get().len(), 0);
@@ -189,17 +174,18 @@ mod test {
         let mut y = TestBuffer::try_from(vec![2; N / 2]).unwrap();
         let mut z = TestBuffer::try_from(vec![3; 0]).unwrap();
 
-        x.push(42).unwrap_err();
-        y.push(42).unwrap();
-        z.push(42).unwrap();
+        x.try_push(42).unwrap_err();
+        y.try_push(42).unwrap();
+        z.try_push(42).unwrap();
 
-        x.extend_from_slice(&[1, 2, 3]).unwrap_err();
-        y.extend_from_slice(&[1, 2, 3]).unwrap();
-        z.extend_from_slice(&[1, 2, 3]).unwrap();
+        x.try_extend_from_slice(&[1, 2, 3]).unwrap_err();
+        y.try_extend_from_slice(&[1, 2, 3]).unwrap();
+        z.try_extend_from_slice(&[1, 2, 3]).unwrap();
 
-        x.prepend(vec![1, 2, 3].try_into().unwrap()).unwrap_err();
-        y.prepend(vec![1, 2, 3].try_into().unwrap()).unwrap();
-        z.prepend(vec![1, 2, 3].try_into().unwrap()).unwrap();
+        x.try_prepend(vec![1, 2, 3].try_into().unwrap())
+            .unwrap_err();
+        y.try_prepend(vec![1, 2, 3].try_into().unwrap()).unwrap();
+        z.try_prepend(vec![1, 2, 3].try_into().unwrap()).unwrap();
 
         z.get_mut()[0] = 0;
 
