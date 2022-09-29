@@ -6,7 +6,7 @@ use structopt::StructOpt;
 
 #[derive(Debug, StructOpt)]
 #[structopt(name = "node-loader")]
-pub(crate) enum Params {
+pub enum Params {
     /// Dump the wasm program with provided seed to "out.wasm"
     Dump {
         /// Seed value used to generate program via wasm-gen
@@ -17,13 +17,14 @@ pub(crate) enum Params {
 }
 
 #[derive(Debug, StructOpt)]
-pub(crate) struct LoadParams {
+pub struct LoadParams {
     #[structopt(long, default_value = "ws://localhost:9944")]
-    pub(crate) endpoint: String,
+    pub endpoint: String,
 
-    /// User name
-    #[structopt(long, default_value = "//Alice")]
-    pub(crate) user: String,
+    // TODO: Add auth to gclient.
+    // /// User name
+    // #[structopt(long, default_value = "//Alice")]
+    // pub user: String,
 
     /// Seed used to generate random seeds for various internal generators.
     /// If the parameter isn't provided, then timestamp will be used by default.
@@ -33,23 +34,23 @@ pub(crate) struct LoadParams {
     /// for each test will be the same.
     /// Example value: `<seed_variant>=<seed_u64_value>`.
     #[structopt(long)]
-    pub(crate) code_seed_type: Option<SeedVariant>,
+    pub code_seed_type: Option<SeedVariant>,
 
     /// Desirable amount of workers in task pool.
-    #[structopt(long, short, default_value = "1")]
-    pub(crate) workers: usize,
+    #[structopt(long, short, default_value = "8")]
+    pub workers: usize,
 
     /// Desirable amount of calls in the sending batch.
-    #[structopt(long, short, default_value = "10")]
-    pub(crate) batch_size: usize,
+    #[structopt(long, short, default_value = "4")]
+    pub batch_size: usize,
 }
 
-pub(crate) fn parse_cli_params() -> Params {
+pub fn parse_cli_params() -> Params {
     Params::from_args()
 }
 
 #[derive(Debug)]
-pub(crate) enum SeedVariant {
+pub enum SeedVariant {
     Dynamic(u64),
     Constant(u64),
 }

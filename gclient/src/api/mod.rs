@@ -58,7 +58,12 @@ impl GearApi {
         self.0.signer.set_nonce(nonce)
     }
 
-    pub fn increment_nonce(&mut self) {
-        self.0.signer.increment_nonce()
+    pub async fn rpc_nonce(&self) -> Result<u32> {
+        self.0
+            .client
+            .rpc()
+            .system_account_next_index(self.0.signer.account_id())
+            .await
+            .map_err(Into::into)
     }
 }
