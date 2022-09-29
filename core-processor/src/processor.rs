@@ -313,6 +313,7 @@ fn process_error(
         journal.push(JournalNote::SendDispatch {
             message_id,
             dispatch,
+            delay: 0,
         });
     }
 
@@ -393,18 +394,20 @@ fn process_success(
         });
     }
 
-    for dispatch in generated_dispatches {
+    for (dispatch, delay) in generated_dispatches {
         journal.push(JournalNote::SendDispatch {
             message_id,
             dispatch,
+            delay,
         });
     }
 
-    for awakening_id in awakening {
+    for (awakening_id, delay) in awakening {
         journal.push(JournalNote::WakeMessage {
             message_id,
             program_id,
             awakening_id,
+            delay,
         });
     }
 
@@ -514,6 +517,7 @@ fn process_non_executable(
         journal.push(JournalNote::SendDispatch {
             message_id,
             dispatch,
+            delay: 0,
         });
     }
 

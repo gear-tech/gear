@@ -229,6 +229,9 @@ pub trait Tree {
         amount: Self::Balance,
     ) -> Result<(), Self::Error>;
 
+    /// Return bool, defining does node exist.
+    fn exists(key: Self::Key) -> bool;
+
     /// Removes all values.
     fn clear();
 }

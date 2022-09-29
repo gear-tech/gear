@@ -20,7 +20,10 @@ use crate::{manager::ExtManager, Config, Event, GasHandlerOf, Pallet, QueueOf};
 use alloc::string::ToString;
 use codec::Encode;
 use common::{
-    event::{MessageWokenSystemReason, SystemReason, UserMessageReadSystemReason},
+    event::{
+        MessageWokenRuntimeReason, MessageWokenSystemReason, RuntimeReason, SystemReason,
+        UserMessageReadSystemReason,
+    },
     scheduler::*,
     storage::*,
     GasTree, Origin,
@@ -28,7 +31,7 @@ use common::{
 use core_processor::common::ExecutionErrorReason;
 use gear_core::{
     ids::{CodeId, MessageId, ProgramId},
-    message::ReplyMessage,
+    message::{ReplyMessage, StoredDispatch},
 };
 
 impl<T: Config> TaskHandler<T::AccountId> for ExtManager<T>
@@ -151,7 +154,23 @@ where
         todo!("#646");
     }
 
-    fn wake_message(&mut self, _program_id: ProgramId, _message_id: MessageId) {
-        todo!("issue #349");
+    fn wake_message(&mut self, program_id: ProgramId, message_id: MessageId) {
+        if let Some(dispatch) = Pallet::<T>::wake_dispatch(
+            program_id,
+            message_id,
+            MessageWokenRuntimeReason::WakeCalled.into_reason(),
+        ) {
+            QueueOf::<T>::queue(dispatch)
+                .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e));
+        }
+    }
+
+    fn send_dispatch(&mut self, dispatch: StoredDispatch) {
+        if self.check_program_id(&dispatch.destination()) {
+            QueueOf::<T>::queue(dispatch)
+                .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e));
+        } else {
+            Pallet::<T>::send_user_message_after_delay(dispatch.into_parts().1);
+        }
     }
 }

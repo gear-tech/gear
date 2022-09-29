@@ -19,7 +19,7 @@ async fn main() {
                 .await
         }
         Kind::ReplyWithGas(gas) => {
-            msg::reply_with_gas_for_reply(&encoded_kind, gas, 0)
+            msg::reply_with_gas_for_reply(kind, gas, 0)
                 .expect("send message failed")
                 .await
         }

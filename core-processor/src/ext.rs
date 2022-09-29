@@ -429,24 +429,32 @@ impl EnvExt for Ext {
         self.return_and_store_err(result)
     }
 
-    fn send_commit(&mut self, handle: usize, msg: HandlePacket) -> Result<MessageId, Self::Error> {
+    fn send_commit(
+        &mut self,
+        handle: usize,
+        msg: HandlePacket,
+        delay: u32,
+    ) -> Result<MessageId, Self::Error> {
         self.charge_gas_runtime(RuntimeCosts::SendCommit(msg.payload().len() as u32))?;
 
         self.check_forbidden_call(msg.destination())?;
         self.charge_expiring_resources(&msg)?;
 
-        let result = self.context.message_context.send_commit(handle as u32, msg);
+        let result = self
+            .context
+            .message_context
+            .send_commit(handle as u32, msg, delay);
 
         self.return_and_store_err(result)
     }
 
-    fn reply_commit(&mut self, msg: ReplyPacket) -> Result<MessageId, Self::Error> {
+    fn reply_commit(&mut self, msg: ReplyPacket, delay: u32) -> Result<MessageId, Self::Error> {
         self.charge_gas_runtime(RuntimeCosts::ReplyCommit(msg.payload().len() as u32))?;
 
         self.check_forbidden_call(self.context.message_context.reply_destination())?;
         self.charge_expiring_resources(&msg)?;
 
-        let result = self.context.message_context.reply_commit(msg);
+        let result = self.context.message_context.reply_commit(msg, delay);
 
         self.return_and_store_err(result)
     }
@@ -638,14 +646,14 @@ impl EnvExt for Ext {
         Ok(())
     }
 
-    fn wake(&mut self, waker_id: MessageId) -> Result<(), Self::Error> {
+    fn wake(&mut self, waker_id: MessageId, delay: u32) -> Result<(), Self::Error> {
         self.charge_gas_runtime(RuntimeCosts::Wake)?;
-        let result = self.context.message_context.wake(waker_id);
+        let result = self.context.message_context.wake(waker_id, delay);
 
         self.return_and_store_err(result)
     }
 
-    fn create_program(&mut self, packet: InitPacket) -> Result<ProgramId, Self::Error> {
+    fn create_program(&mut self, packet: InitPacket, delay: u32) -> Result<ProgramId, Self::Error> {
         self.charge_gas_runtime(RuntimeCosts::CreateProgram(packet.payload().len() as u32))?;
 
         self.charge_expiring_resources(&packet)?;
@@ -653,21 +661,21 @@ impl EnvExt for Ext {
         let code_hash = packet.code_id();
 
         // Send a message for program creation
-        let result =
-            self.context
-                .message_context
-                .init_program(packet)
-                .map(|(new_prog_id, init_msg_id)| {
-                    // Save a program candidate for this run
-                    let entry = self
-                        .context
-                        .program_candidates_data
-                        .entry(code_hash)
-                        .or_default();
-                    entry.push((new_prog_id, init_msg_id));
+        let result = self
+            .context
+            .message_context
+            .init_program(packet, delay)
+            .map(|(new_prog_id, init_msg_id)| {
+                // Save a program candidate for this run
+                let entry = self
+                    .context
+                    .program_candidates_data
+                    .entry(code_hash)
+                    .or_default();
+                entry.push((new_prog_id, init_msg_id));
 
-                    new_prog_id
-                });
+                new_prog_id
+            });
 
         self.return_and_store_err(result)
     }

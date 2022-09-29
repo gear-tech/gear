@@ -1560,6 +1560,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "demo-delayed-sender"
+version = "0.1.0"
+dependencies = [
+ "gear-wasm-builder",
+ "gstd",
+]
+
+[[package]]
 name = "demo-distributor"
 version = "0.1.0"
 dependencies = [
@@ -6148,6 +6156,7 @@ dependencies = [
  "demo-calc-hash-in-one-block",
  "demo-calc-hash-over-blocks",
  "demo-compose",
+ "demo-delayed-sender",
  "demo-distributor",
  "demo-exit-handle",
  "demo-exit-handle-sender",

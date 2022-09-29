@@ -24,20 +24,38 @@ pub use generator::ProgramGenerator;
 
 use crate::{common::errors::Result, prelude::convert::AsRef, ActorId, CodeHash};
 
-pub fn create_program<T1: AsRef<[u8]>, T2: AsRef<[u8]>>(
+pub fn create_program(
     code_hash: CodeHash,
-    salt: T1,
-    payload: T2,
+    salt: impl AsRef<[u8]>,
+    payload: impl AsRef<[u8]>,
     value: u128,
 ) -> Result<ActorId> {
     let id = gcore::prog::create_program(code_hash.into(), salt.as_ref(), payload.as_ref(), value)?;
     Ok(id.into())
 }
 
-pub fn create_program_with_gas<T1: AsRef<[u8]>, T2: AsRef<[u8]>>(
+/// Same as [`create_program`], but sends delayed.
+pub fn create_program_delayed(
     code_hash: CodeHash,
-    salt: T1,
-    payload: T2,
+    salt: impl AsRef<[u8]>,
+    payload: impl AsRef<[u8]>,
+    value: u128,
+    delay: u32,
+) -> Result<ActorId> {
+    let id = gcore::prog::create_program_delayed(
+        code_hash.into(),
+        salt.as_ref(),
+        payload.as_ref(),
+        value,
+        delay,
+    )?;
+    Ok(id.into())
+}
+
+pub fn create_program_with_gas(
+    code_hash: CodeHash,
+    salt: impl AsRef<[u8]>,
+    payload: impl AsRef<[u8]>,
     gas_limit: u64,
     value: u128,
 ) -> Result<ActorId> {
@@ -47,6 +65,26 @@ pub fn create_program_with_gas<T1: AsRef<[u8]>, T2: AsRef<[u8]>>(
         payload.as_ref(),
         gas_limit,
         value,
+    )?;
+    Ok(id.into())
+}
+
+/// Same as [`create_program_with_gas`], but sends delayed.
+pub fn create_program_with_gas_delayed(
+    code_hash: CodeHash,
+    salt: impl AsRef<[u8]>,
+    payload: impl AsRef<[u8]>,
+    gas_limit: u64,
+    value: u128,
+    delay: u32,
+) -> Result<ActorId> {
+    let id = gcore::prog::create_program_with_gas_delayed(
+        code_hash.into(),
+        salt.as_ref(),
+        payload.as_ref(),
+        gas_limit,
+        value,
+        delay,
     )?;
     Ok(id.into())
 }
