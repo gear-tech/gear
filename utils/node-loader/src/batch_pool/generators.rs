@@ -85,9 +85,9 @@ impl<Rng: LoaderRng> BatchGenerator<Rng> {
 
         let spec = rng.next_u64();
 
-        // TODO: change to 2.
-        let batch = match spec % 1 {
-            0 => Batch::UploadProgram(
+        let batch = match spec % 2 {
+            // TODO: change to just 0.
+            0..=1 => Batch::UploadProgram(
                 (0..self.batch_size)
                     .map(|_| {
                         UploadProgramArgs::generate::<Rng>(

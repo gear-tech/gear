@@ -52,7 +52,7 @@ impl<Rng: LoaderRng> BatchPool<Rng> {
         let info = format!("Running task pool with seed {seed}\n\n");
         println!("{info}");
 
-        fs::write("logs", info.as_bytes()).expect("Failed to write into file");
+        fs::write(".log", info.as_bytes()).expect("Failed to write into file");
 
         let mut batch_gen = BatchGenerator::<Rng>::new(
             seed,
@@ -103,8 +103,9 @@ impl<Rng: LoaderRng> BatchPool<Rng> {
             .write(true)
             .append(true)
             .create(true)
-            .open("logs")
+            .open(".log")
             .expect("Failed to create a file");
+
         file.write_all(res.as_bytes())
             .expect("Failed to write into file");
 

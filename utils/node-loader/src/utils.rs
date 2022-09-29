@@ -28,7 +28,7 @@ pub fn dump_with_seed(seed: u64) -> Result<()> {
 pub fn str_to_wsaddr(endpoint: String) -> WSAddress {
     let endpoint = endpoint.replace("://", ":");
 
-    let mut addr_parts = endpoint.split(":");
+    let mut addr_parts = endpoint.split(':');
 
     let domain = format!(
         "{}://{}",
