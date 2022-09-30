@@ -19,8 +19,8 @@ static mut APPROVER_SECOND: ActorId = ActorId::new([0u8; 32]);
 static mut APPROVER_THIRD: ActorId = ActorId::new([0u8; 32]);
 
 #[derive(Debug, Decode, TypeInfo)]
-#[codec(crate = gstd)]
-#[scale_info(crate = gstd)]
+#[codec(crate = gstd::codec)]
+#[scale_info(crate = gstd::scale_info)]
 pub struct InputArgs {
     pub approver_first: ActorId,
     pub approver_second: ActorId,

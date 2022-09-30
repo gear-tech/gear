@@ -33,9 +33,9 @@ pub use core::{
 pub use alloc::str::FromStr;
 pub use borrow::ToOwned;
 pub use boxed::Box;
-pub use codec::{Decode, Encode, EncodeLike, Error, Input, Output};
+pub use codec::{self, Decode, Encode};
 pub use collections::{BTreeMap, BTreeSet, VecDeque};
 pub use convert::{Into, TryInto};
-pub use scale_info::{Path, Type, TypeInfo};
+pub use scale_info::{self, TypeInfo};
 pub use string::{String, ToString};
 pub use vec::Vec;
