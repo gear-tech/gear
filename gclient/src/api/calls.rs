@@ -452,9 +452,11 @@ impl GearApi {
     ) -> Result<(Vec<Result<CodeId>>, H256)> {
         let calls: Vec<_> = args
             .into_iter()
-            .map(|code| { RuntimeCall::Gear(GearCall::upload_code {
-                code: code.as_ref().to_vec()
-            })})
+            .map(|code| {
+                RuntimeCall::Gear(GearCall::upload_code {
+                    code: code.as_ref().to_vec(),
+                })
+            })
             .collect();
 
         let amount = calls.len();
@@ -469,8 +471,7 @@ impl GearApi {
                 Event::Gear(GearEvent::CodeChanged {
                     id,
                     change: CodeChangeKind::Active { .. },
-                }) =>
-                {
+                }) => {
                     res.push(Ok(id.into()));
                 }
                 Event::Utility(UtilityEvent::ItemFailed { error }) => res.push(Err(
