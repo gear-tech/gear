@@ -23,10 +23,20 @@ pub struct Signer {
 }
 
 impl Signer {
-    /// New signer api
+    /// New signer api.
     pub fn new(api: Api, suri: &str, passwd: Option<&str>) -> Result<Self> {
         Ok(Self {
             api,
+            signer: PairSigner::new(
+                Pair::from_string(suri, passwd).map_err(|_| Error::InvalidSecret)?,
+            ),
+        })
+    }
+
+    /// Change inner signer.
+    pub fn change(self, suri: &str, passwd: Option<&str>) -> Result<Self> {
+        Ok(Self {
+            api: self.api,
             signer: PairSigner::new(
                 Pair::from_string(suri, passwd).map_err(|_| Error::InvalidSecret)?,
             ),

@@ -25,6 +25,8 @@ const PATH: &str = "../target/wasm32-unknown-unknown/release/demo_loop.opt.wasm"
 #[tokio::test]
 async fn inf_loop() -> Result<()> {
     // Creating gear api.
+    //
+    // By default, login as Alice.
     let api = GearApi::dev().await?;
 
     // Taking block gas limit constant.
