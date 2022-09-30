@@ -269,6 +269,48 @@ impl GearApi {
         Err(Error::EventNotFound)
     }
 
+    /// `pallet_gear::upload_code` batched.
+    pub async fn upload_code_batch(
+        &self,
+        args: impl IntoIterator<Item = impl AsRef<[u8]>>,
+    ) -> Result<(Vec<Result<CodeId>>, H256)> {
+        let calls: Vec<_> = args
+            .into_iter()
+            .map(|code| { RuntimeCall::Gear(GearCall::upload_code {
+                code: code.as_ref().to_vec()
+            })})
+            .collect();
+
+        let amount = calls.len();
+
+        let ex = self.0.tx().utility().force_batch(calls)?;
+        let tx = self.0.process(ex).await?;
+
+        let mut res = Vec::with_capacity(amount);
+
+        for event in tx.wait_for_success().await?.iter() {
+            match event?.event {
+                Event::Gear(GearEvent::CodeChanged {
+                    id,
+                    change: CodeChangeKind::Active { .. },
+                }) =>
+                {
+                    res.push(Ok(id.into()));
+                }
+                Event::Utility(UtilityEvent::ItemFailed { error }) => res.push(Err(
+                    subxt::GenericError::Runtime(subxt::RuntimeError(error)).into(),
+                )),
+                _ => (),
+            }
+        }
+
+        if res.len() == amount {
+            Ok((res, tx.block_hash()))
+        } else {
+            Err(Error::IncompleteBatchResult(res.len(), amount))
+        }
+    }
+
     /// `pallet_gear::upload_code` from os path.
     ///
     /// This works with absolute and relative paths (relatively root dir of the repo).
@@ -314,7 +356,7 @@ impl GearApi {
         Err(Error::EventNotFound)
     }
 
-    /// `pallet_gear::upload_program` with bytes in payload.
+    /// `pallet_gear::upload_program` with bytes in payload batched.
     pub async fn upload_program_bytes_batch(
         &self,
         args: impl IntoIterator<
