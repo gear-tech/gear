@@ -27,7 +27,7 @@ use alloc::{
     collections::{BTreeMap, BTreeSet},
     string::{String, ToString},
 };
-use core::fmt;
+use core::fmt::{self, Display};
 use gear_backend_common::{
     calc_stack_end, error_processor::IntoExtError, AsTerminationReason, BackendReport, Environment,
     IntoExtInfo, StackEndError, TerminationReason, TrapExplanation, STACK_END_EXPORT_NAME,
@@ -66,11 +66,11 @@ struct HostFuncIndex(usize);
 /// supervisor in [`EnvironmentDefinitionBuilder`].
 pub type HostFuncType<T, E> = fn(&mut T, &[RuntimeValue]) -> Result<ReturnValue, FuncError<E>>;
 
-pub struct DefinedHostFunctions<T, E> {
+pub struct DefinedHostFunctions<T, E: Display> {
     funcs: Vec<HostFuncType<T, E>>,
 }
 
-impl<T, E> Clone for DefinedHostFunctions<T, E> {
+impl<T, E: Display> Clone for DefinedHostFunctions<T, E> {
     fn clone(&self) -> DefinedHostFunctions<T, E> {
         DefinedHostFunctions {
             funcs: self.funcs.clone(),
@@ -78,7 +78,7 @@ impl<T, E> Clone for DefinedHostFunctions<T, E> {
     }
 }
 
-impl<T, E> DefinedHostFunctions<T, E> {
+impl<T, E: Display> DefinedHostFunctions<T, E> {
     fn new() -> DefinedHostFunctions<T, E> {
         DefinedHostFunctions { funcs: Vec::new() }
     }
@@ -101,12 +101,12 @@ impl fmt::Display for DummyHostError {
 
 impl wasmi::HostError for DummyHostError {}
 
-pub struct GuestExternals<'a, T: 'a, E> {
+pub struct GuestExternals<'a, T: 'a, E: Display> {
     pub state: &'a mut T,
     pub defined_host_functions: &'a DefinedHostFunctions<T, E>,
 }
 
-impl<'a, T, E> Externals for GuestExternals<'a, T, E> {
+impl<'a, T, E: Display> Externals for GuestExternals<'a, T, E> {
     fn invoke_index(
         &mut self,
         index: usize,
@@ -148,13 +148,13 @@ enum ExternVal {
 }
 
 /// A builder for the environment of the WASM module.
-pub struct EnvironmentDefinitionBuilder<T, E> {
+pub struct EnvironmentDefinitionBuilder<T, E: Display> {
     map: BTreeMap<(Vec<u8>, Vec<u8>), ExternVal>,
     pub defined_host_functions: DefinedHostFunctions<T, E>,
     pub forbidden_funcs: BTreeSet<String>,
 }
 
-impl<T, E> EnvironmentDefinitionBuilder<T, E> {
+impl<T, E: Display> EnvironmentDefinitionBuilder<T, E> {
     pub fn new(forbidden_funcs: BTreeSet<String>) -> EnvironmentDefinitionBuilder<T, E> {
         EnvironmentDefinitionBuilder {
             map: BTreeMap::new(),
@@ -183,7 +183,7 @@ impl<T, E> EnvironmentDefinitionBuilder<T, E> {
     }
 }
 
-impl<T, E> ImportResolver for EnvironmentDefinitionBuilder<T, E> {
+impl<T, E: Display> ImportResolver for EnvironmentDefinitionBuilder<T, E> {
     fn resolve_func(
         &self,
         module_name: &str,

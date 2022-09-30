@@ -90,7 +90,7 @@ impl IncomingMessage {
 
     /// Message payload reference.
     pub fn payload(&self) -> &[u8] {
-        self.payload.as_ref()
+        self.payload.get()
     }
 
     /// Message gas limit.

@@ -61,7 +61,7 @@ impl From<generated_message::stored::StoredMessage> for message::StoredMessage {
             other.id.into(),
             other.source.into(),
             other.destination.into(),
-            other.payload,
+            other.payload.try_into().unwrap(),
             other.value,
             other.reply.map(Into::into),
         )

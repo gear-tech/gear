@@ -514,7 +514,9 @@ pub mod pallet {
             let packet = InitPacket::new_with_gas(
                 code_and_id.code_id(),
                 salt,
-                init_payload,
+                init_payload
+                    .try_into()
+                    .map_err(|err: PayloadSizeError| DispatchError::Other(err.into()))?,
                 gas_limit,
                 value.unique_saturated_into(),
             );
@@ -1451,7 +1453,9 @@ pub mod pallet {
             let packet = InitPacket::new_with_gas(
                 code_id,
                 salt,
-                init_payload,
+                init_payload
+                    .try_into()
+                    .map_err(|err: PayloadSizeError| DispatchError::Other(err.into()))?,
                 gas_limit,
                 value.unique_saturated_into(),
             );
@@ -1708,6 +1712,9 @@ pub mod pallet {
             gas_limit: u64,
             value: BalanceOf<T>,
         ) -> DispatchResultWithPostInfo {
+            let payload = payload
+                .try_into()
+                .map_err(|err: PayloadSizeError| DispatchError::Other(err.into()))?;
             let who = ensure_signed(origin)?;
             let origin = who.clone().into_origin();
 
@@ -1798,6 +1805,10 @@ pub mod pallet {
             gas_limit: u64,
             value: BalanceOf<T>,
         ) -> DispatchResultWithPostInfo {
+            let payload = payload
+                .try_into()
+                .map_err(|err: PayloadSizeError| DispatchError::Other(err.into()))?;
+
             // Validating origin.
             let origin = ensure_signed(origin)?;
 

@@ -198,7 +198,9 @@ impl MessageContext {
             if let Some(data) = payload.take() {
                 let packet = {
                     let mut packet = packet;
-                    packet.prepend(data);
+                    packet
+                        .try_prepend(data)
+                        .map_err(|_| Error::MaxMessageSizeExceed)?;
                     packet
                 };
 
@@ -235,7 +237,8 @@ impl MessageContext {
     pub fn send_push(&mut self, handle: u32, buffer: &[u8]) -> Result<(), Error> {
         match self.store.outgoing.get_mut(&handle) {
             Some(Some(data)) => {
-                data.extend_from_slice(buffer);
+                data.try_extend_from_slice(buffer)
+                    .map_err(|_| Error::MaxMessageSizeExceed)?;
                 Ok(())
             }
             Some(None) => Err(Error::LateAccess),
@@ -253,7 +256,9 @@ impl MessageContext {
 
             let packet = {
                 let mut packet = packet;
-                packet.prepend(data);
+                packet
+                    .try_prepend(data)
+                    .map_err(|_| Error::MaxMessageSizeExceed)?;
                 packet
             };
 
@@ -273,7 +278,8 @@ impl MessageContext {
     pub fn reply_push(&mut self, buffer: &[u8]) -> Result<(), Error> {
         if !self.store.reply_sent {
             let data = self.store.reply.get_or_insert_with(Default::default);
-            data.extend_from_slice(buffer);
+            data.try_extend_from_slice(buffer)
+                .map_err(|_| Error::MaxMessageSizeExceed)?;
 
             Ok(())
         } else {
@@ -317,6 +323,8 @@ impl MessageContext {
 
 #[cfg(test)]
 mod tests {
+    use core::convert::TryInto;
+
     use super::*;
     use crate::ids;
     use alloc::vec;
@@ -447,7 +455,7 @@ mod tests {
         let incoming_message = IncomingMessage::new(
             MessageId::from(INCOMING_MESSAGE_ID),
             ProgramId::from(INCOMING_MESSAGE_SOURCE),
-            vec![1, 2],
+            vec![1, 2].try_into().unwrap(),
             0,
             0,
             None,
@@ -466,7 +474,7 @@ mod tests {
         assert!(context.outcome.reply.is_none());
 
         // Creating a reply packet
-        let reply_packet = ReplyPacket::new(vec![0, 0], 0);
+        let reply_packet = ReplyPacket::new(vec![0, 0].try_into().unwrap(), 0);
 
         // Checking that we are able to initialize reply
         assert_ok!(context.reply_push(&[1, 2, 3]));

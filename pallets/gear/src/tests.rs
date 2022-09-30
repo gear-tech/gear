@@ -6272,6 +6272,7 @@ fn check_gear_stack_end_fail() {
     });
 }
 
+/// Test that error is generated in case `gr_read` requests out of bounds data from message.
 #[test]
 fn check_gr_read_error_works() {
     let wat = r#"
@@ -6307,6 +6308,62 @@ fn check_gr_read_error_works() {
             message_id,
             ExecutionErrorReason::Ext(TrapExplanation::Other(
                 FuncError::<<crate::Ext as ProcessorExt>::Error>::ReadWrongRange(0..10, 0)
+                    .to_string()
+                    .into(),
+            )),
+        );
+    });
+}
+
+/// Check that too large message, which is constructed by `gr_reply_push`,
+/// leads to program execution error.
+#[test]
+fn check_reply_push_payload_exceed() {
+    let wat = r#"
+        (module
+            (import "env" "memory" (memory 0x100))
+            (import "env" "gr_reply_push" (func $gr (param i32 i32) (result i32)))
+            (export "init" (func $init))
+            (func $init
+                ;; first reply push must be ok
+                (block
+                    i32.const 0
+                    i32.const 0x1000000
+                    call $gr
+                    i32.eqz
+                    br_if 0
+                    unreachable
+                )
+                ;; second must lead to overflow
+                (block
+                    i32.const 0
+                    i32.const 0x1000000
+                    call $gr
+                    unreachable
+                )
+            )
+        )"#;
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        Gear::upload_program(
+            Origin::signed(USER_1),
+            ProgramCodeKind::Custom(wat).to_bytes(),
+            DEFAULT_SALT.to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
+            50_000_000_000,
+            0,
+        )
+        .expect("Failed to upload program");
+
+        let message_id = get_last_message_id();
+
+        run_to_block(2, None);
+        assert_last_dequeued(1);
+        assert_failed(
+            message_id,
+            ExecutionErrorReason::Ext(TrapExplanation::Other(
+                ExtError::Message(MessageError::MaxMessageSizeExceed)
                     .to_string()
                     .into(),
             )),

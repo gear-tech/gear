@@ -22,7 +22,7 @@ use crate::{
 };
 use alloc::string::ToString;
 use codec::{Decode, Encode};
-use core::ops::Deref;
+use core::{convert::TryInto, ops::Deref};
 use scale_info::TypeInfo;
 
 /// An entity that is used for interaction between actors.
@@ -102,7 +102,7 @@ impl Message {
 
     /// Message payload reference.
     pub fn payload(&self) -> &[u8] {
-        self.payload.as_ref()
+        self.payload.get()
     }
 
     /// Message optional gas limit.
@@ -140,12 +140,15 @@ impl Message {
     /// contains string representation of initial bytes,
     /// decoded into given type.
     pub fn with_string_payload<D: Decode + ToString>(self) -> Result<Self, Self> {
-        D::decode(&mut self.payload.as_ref())
-            .map(|payload| {
-                let payload = payload.to_string().into_bytes();
-                Self { payload, ..self }
-            })
-            .map_err(|_| self)
+        if let Ok(decoded) = D::decode(&mut self.payload.get()) {
+            if let Ok(payload) = decoded.to_string().into_bytes().try_into() {
+                Ok(Self { payload, ..self })
+            } else {
+                Err(self)
+            }
+        } else {
+            Err(self)
+        }
     }
 
     /// Returns bool defining if message is error reply.

@@ -32,6 +32,7 @@ use gear_core::{
 };
 use regex::Regex;
 use std::{
+    convert::TryInto,
     io::{Error as IoError, ErrorKind as IoErrorKind},
     time::{SystemTime, UNIX_EPOCH},
 };
@@ -191,7 +192,7 @@ where
                 message: IncomingMessage::new(
                     message_id,
                     init_source,
-                    init_message,
+                    init_message.try_into().unwrap(),
                     program.init_gas_limit.unwrap_or(GAS_LIMIT),
                     program.init_value.unwrap_or(0) as u128,
                     None,
@@ -250,7 +251,7 @@ where
             message_id,
             message_source,
             message.destination.to_program_id(),
-            payload,
+            payload.try_into().unwrap(),
             Some(gas_limit),
             message.value.unwrap_or_default() as _,
             None,

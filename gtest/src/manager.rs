@@ -39,6 +39,7 @@ use gear_core::{
 };
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap, VecDeque},
+    convert::TryInto,
     time::{SystemTime, UNIX_EPOCH},
 };
 use wasm_instrument::gas_metering::ConstantCostRules;
@@ -499,7 +500,7 @@ impl ExtManager {
 
                 if let Some(payload) = reply {
                     let id = MessageId::generate_reply(message_id, 0);
-                    let packet = ReplyPacket::new(payload, 0);
+                    let packet = ReplyPacket::new(payload.try_into().unwrap(), 0);
                     let reply_message = ReplyMessage::from_packet(id, packet);
 
                     self.send_dispatch(
