@@ -11,16 +11,16 @@
  * If an approval is obtained the method replies with "PONG".
  */
 
-use codec::Decode;
 use futures::future;
 use gstd::{msg, prelude::*, ActorId};
-use scale_info::TypeInfo;
 
 static mut APPROVER_FIRST: ActorId = ActorId::new([0u8; 32]);
 static mut APPROVER_SECOND: ActorId = ActorId::new([0u8; 32]);
 static mut APPROVER_THIRD: ActorId = ActorId::new([0u8; 32]);
 
 #[derive(Debug, Decode, TypeInfo)]
+#[codec(crate = gstd)]
+#[scale_info(crate = gstd)]
 pub struct InputArgs {
     pub approver_first: ActorId,
     pub approver_second: ActorId,

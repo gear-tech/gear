@@ -49,3 +49,7 @@ pub use prelude::*;
 
 #[cfg(feature = "debug")]
 pub use gcore::ext;
+
+pub mod build {
+    pub use scale_info::build::Fields;
+}
