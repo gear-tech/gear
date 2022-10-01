@@ -61,7 +61,8 @@ impl From<generated_message::stored::StoredMessage> for message::StoredMessage {
             other.id.into(),
             other.source.into(),
             other.destination.into(),
-            other.payload.try_into().unwrap(),
+            // converting data from the same type
+            other.payload.0.try_into().expect("Infallible"),
             other.value,
             other.reply.map(Into::into),
         )

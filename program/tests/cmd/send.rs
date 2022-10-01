@@ -19,7 +19,7 @@ async fn test_command_send_works() -> Result<()> {
     assert_eq!(mailbox.len(), 2);
     assert!(mailbox
         .iter()
-        .any(|mail| mail.0.payload == messager::SEND_REPLY.encode()));
+        .any(|mail| mail.0.payload.0 == messager::SEND_REPLY.encode()));
 
     Ok(())
 }
