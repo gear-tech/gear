@@ -1,6 +1,6 @@
 use super::context::ContextUpdate;
 use gclient::Error;
-use gear_core::ids::ProgramId;
+use gear_core::ids::{ProgramId, CodeId};
 use std::collections::BTreeSet;
 
 // Todo DN maybe queue for guaranteeing the order?
@@ -8,6 +8,9 @@ pub type PreRunReport = Vec<String>;
 
 pub struct Report {
     pub logs: Vec<String>,
+    // todo Option
+    pub codes: BTreeSet<CodeId>,
+    // todo Option
     pub program_ids: BTreeSet<ProgramId>,
     pub blocks_stopped: bool,
 }

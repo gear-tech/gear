@@ -7,7 +7,7 @@ use crate::{
 use arbitrary::Unstructured;
 use rand::RngCore;
 
-use super::batch::{BatchWithSeed, UploadProgramArgs};
+use super::batch::{BatchWithSeed, UploadProgramArgs, UploadCodeArgs};
 
 pub fn get_some_seed_generator<Rng: LoaderRng>(
     code_seed_type: Option<SeedVariant>,
@@ -86,8 +86,7 @@ impl<Rng: LoaderRng> BatchGenerator<Rng> {
         let spec = rng.next_u64();
 
         let batch = match spec % 2 {
-            // TODO: change to just 0.
-            0..=1 => Batch::UploadProgram(
+            0 => Batch::UploadProgram(
                 (0..self.batch_size)
                     .map(|_| {
                         UploadProgramArgs::generate::<Rng>(
@@ -97,11 +96,11 @@ impl<Rng: LoaderRng> BatchGenerator<Rng> {
                     })
                     .collect(),
             ),
-            // 1 => Batch::UploadCode(
-            //     (0..self.batch_size)
-            //         .map(|_| UploadCodeArgs::generate::<Rng>(self.code_seed_gen.next_u64()))
-            //         .collect(),
-            // ),
+            1 => Batch::UploadCode(
+                (0..self.batch_size)
+                    .map(|_| UploadCodeArgs::generate::<Rng>(self.code_seed_gen.next_u64()))
+                    .collect(),
+            ),
             _ => unreachable!(),
         };
 

@@ -50,7 +50,7 @@ impl UploadCodeArgs {
 pub enum Batch {
     UploadProgram(Vec<UploadProgramArgs>),
     UploadCode(Vec<UploadCodeArgs>),
-    // SendMessage,
+    SendMessage,
 }
 
 impl From<BatchWithSeed> for Batch {
@@ -112,6 +112,7 @@ impl BatchReporter for BatchWithSeed {
                     report.push(format!("[#{:<2}] code: '0x{}'", i + 1, hex::encode(code)))
                 }
             }
+            _ => unimplemented!(),
         }
 
         report

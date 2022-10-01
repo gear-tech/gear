@@ -195,7 +195,32 @@ async fn run_batch_impl(api: GearApi, batch: Batch) -> Result<Report> {
                 logs,
                 program_ids,
                 blocks_stopped,
+                codes: BTreeSet::new(),
             })
+        }
+        Batch::UploadCode(args) => {
+            let args = args.into_iter().map(|v| Into::<Vec<_>>::into(v));
+            let (ex_results, _) = api.upload_code_batch(args).await?;
+
+            let mut codes = BTreeSet::new();
+
+            for r in ex_results {
+                match r {
+                    Ok(code_id) => {
+                        codes.insert(code_id);
+                    }
+                    Err(e) => logs.push(format!(
+                        "[#{:<2}] Extrinsic failure: '{:?}'",
+                        logs.len() + 1,
+                        e
+                    )),
+                }
+            }
+
+            let mut listener = api.subscribe().await?;
+            let blocks_stopped = !listener.blocks_running().await?;
+
+            Ok(Report { logs, program_ids: BTreeSet::new(), blocks_stopped, codes })
         }
         _ => unimplemented!(),
     }
