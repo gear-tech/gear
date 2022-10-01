@@ -17,6 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::stats::{average, median, std_dev};
+use std::borrow::Cow;
 use thousands::Separable;
 
 #[derive(Debug)]
@@ -68,7 +69,7 @@ impl Test {
 impl tabled::Tabled for Test {
     const LENGTH: usize = 7;
 
-    fn fields(&self) -> Vec<String> {
+    fn fields(&self) -> Vec<Cow<str>> {
         let current = self.current_time as f64;
         let median = self.median as f64;
 
@@ -82,7 +83,7 @@ impl tabled::Tabled for Test {
             ":bangbang:"
         };
 
-        vec![
+        [
             self.name.clone(),
             format!(
                 "{}; {:+.2}% {}",
@@ -100,17 +101,21 @@ impl tabled::Tabled for Test {
             self.min.separate_with_spaces(),
             self.max.separate_with_spaces(),
         ]
+        .map(Into::into)
+        .to_vec()
     }
 
-    fn headers() -> Vec<String> {
-        vec![
-            "name".to_owned(),
-            "current".to_owned(),
-            "median".to_owned(),
-            "average".to_owned(),
-            "lower/upper quartile".to_owned(),
-            "min".to_owned(),
-            "max".to_owned(),
+    fn headers() -> Vec<Cow<'static, str>> {
+        [
+            "name",
+            "current",
+            "median",
+            "average",
+            "lower/upper quartile",
+            "min",
+            "max",
         ]
+        .map(Into::into)
+        .to_vec()
     }
 }
