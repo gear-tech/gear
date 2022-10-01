@@ -208,6 +208,10 @@ async fn run_batch_impl(api: GearApi, batch: Batch) -> Result<Report> {
                 match r {
                     Ok(code_id) => {
                         codes.insert(code_id);
+                        logs.push(format!(
+                            "[#{:<2}] Successfully deployed code with id {code_id}",
+                            logs.len() + 1,
+                        ));
                     }
                     Err(e) => logs.push(format!(
                         "[#{:<2}] Extrinsic failure: '{:?}'",
