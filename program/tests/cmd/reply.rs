@@ -17,7 +17,7 @@ async fn test_command_reply_works() -> Result<()> {
     let _ = common::gear(&["-e", &node.ws(), "reply", &id, "0x", "20000000000"])?;
     let mailbox = api.mailbox(common::alice_account_id(), 10).await?;
     assert_eq!(mailbox.len(), 1);
-    assert_eq!(mailbox[0].0.payload, messager::REPLY_REPLY.encode());
+    assert_eq!(mailbox[0].0.payload.0, messager::REPLY_REPLY.encode());
 
     Ok(())
 }
