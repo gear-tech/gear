@@ -8,6 +8,7 @@ use std::{
     ops::Deref,
     time::{SystemTime, UNIX_EPOCH},
     ops::Deref,
+    time::{SystemTime, UNIX_EPOCH},
 };
 
 pub fn now() -> u64 {
