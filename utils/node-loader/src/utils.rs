@@ -7,6 +7,7 @@ use std::{
     io::Write,
     ops::Deref,
     time::{SystemTime, UNIX_EPOCH},
+    ops::Deref,
 };
 
 pub fn now() -> u64 {

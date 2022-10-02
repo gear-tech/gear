@@ -8,7 +8,11 @@ use arbitrary::Unstructured;
 use rand::RngCore;
 
 use super::batch::{
+<<<<<<< HEAD
     BatchWithSeed, CreateProgramArgs, SendMessageArgs, UploadCodeArgs, UploadProgramArgs,
+=======
+    BatchWithSeed, SendMessageArgs, UploadCodeArgs, UploadProgramArgs,
+>>>>>>> 736fe4a2 (Introduce send_message task, restructure `batch` module)
 };
 
 pub fn get_some_seed_generator<Rng: LoaderRng>(
@@ -80,7 +84,11 @@ impl<Rng: LoaderRng> BatchGenerator<Rng> {
 
         let spec = rng.next_u64();
 
+<<<<<<< HEAD
         let batch = match spec % 4 {
+=======
+        let batch = match spec % 3 {
+>>>>>>> 736fe4a2 (Introduce send_message task, restructure `batch` module)
             0 => Batch::UploadProgram(
                 (0..self.batch_size)
                     .map(|_| {

@@ -1,10 +1,16 @@
 use super::{report::BatchReporter, Seed};
+<<<<<<< HEAD
 pub use create_program::CreateProgramArgs;
+=======
+>>>>>>> 736fe4a2 (Introduce send_message task, restructure `batch` module)
 pub use send_message::SendMessageArgs;
 pub use upload_code::UploadCodeArgs;
 pub use upload_program::UploadProgramArgs;
 
+<<<<<<< HEAD
 mod create_program;
+=======
+>>>>>>> 736fe4a2 (Introduce send_message task, restructure `batch` module)
 mod send_message;
 mod upload_code;
 mod upload_program;
@@ -13,7 +19,10 @@ pub enum Batch {
     UploadProgram(Vec<UploadProgramArgs>),
     UploadCode(Vec<UploadCodeArgs>),
     SendMessage(Vec<SendMessageArgs>),
+<<<<<<< HEAD
     CreateProgram(Vec<CreateProgramArgs>),
+=======
+>>>>>>> 736fe4a2 (Introduce send_message task, restructure `batch` module)
 }
 
 pub struct BatchWithSeed {
