@@ -2,12 +2,14 @@ use crate::{
     args::SeedVariant,
     batch_pool::{batch::Batch, context::Context, Seed},
     generators,
-    utils::{self, LoaderRng, LoaderRngCore},
+    utils::{self, LoaderRng, LoaderRngCore, NonEmptyVec},
 };
 use arbitrary::Unstructured;
 use rand::RngCore;
 
-use super::batch::{BatchWithSeed, UploadProgramArgs, UploadCodeArgs};
+use super::batch::{
+    BatchWithSeed, SendMessageArgs, UploadCodeArgs, UploadProgramArgs,
+};
 
 pub fn get_some_seed_generator<Rng: LoaderRng>(
     code_seed_type: Option<SeedVariant>,
@@ -60,32 +62,25 @@ impl RngCore for ConstantGenerator {
 pub struct BatchGenerator<Rng: LoaderRng> {
     pub batch_gen_rng: Rng,
     pub batch_size: usize,
-    pub _context: Context,
     code_seed_gen: Box<dyn LoaderRngCore>,
 }
 
 impl<Rng: LoaderRng> BatchGenerator<Rng> {
-    pub fn new(
-        seed: Seed,
-        batch_size: usize,
-        context: Context,
-        code_seed_type: Option<SeedVariant>,
-    ) -> Self {
+    pub fn new(seed: Seed, batch_size: usize, code_seed_type: Option<SeedVariant>) -> Self {
         Self {
             batch_gen_rng: Rng::seed_from_u64(seed),
             batch_size,
-            _context: context,
             code_seed_gen: generators::get_some_seed_generator::<Rng>(code_seed_type),
         }
     }
 
-    pub fn generate(&mut self) -> BatchWithSeed {
+    pub fn generate(&mut self, context: Context) -> BatchWithSeed {
         let seed = self.batch_gen_rng.next_u64();
         let mut rng = Rng::seed_from_u64(seed);
 
         let spec = rng.next_u64();
 
-        let batch = match spec % 2 {
+        let batch = match spec % 3 {
             0 => Batch::UploadProgram(
                 (0..self.batch_size)
                     .map(|_| {
@@ -101,6 +96,33 @@ impl<Rng: LoaderRng> BatchGenerator<Rng> {
                     .map(|_| UploadCodeArgs::generate::<Rng>(self.code_seed_gen.next_u64()))
                     .collect(),
             ),
+            2 => {
+                if let Ok(existing_programs) =
+                    NonEmptyVec::try_from_iter(context.programs.iter().copied())
+                {
+                    Batch::SendMessage(
+                        (0..self.batch_size)
+                            .map(|_| {
+                                SendMessageArgs::generate::<Rng>(
+                                    existing_programs.clone(),
+                                    rng.next_u64(),
+                                )
+                            })
+                            .collect(),
+                    )
+                } else {
+                    Batch::UploadProgram(
+                        (0..self.batch_size)
+                            .map(|_| {
+                                UploadProgramArgs::generate::<Rng>(
+                                    self.code_seed_gen.next_u64(),
+                                    rng.next_u64(),
+                                )
+                            })
+                            .collect(),
+                    )
+                }
+            }
             _ => unreachable!(),
         };
 

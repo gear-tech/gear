@@ -1,6 +1,6 @@
 use super::context::ContextUpdate;
 use gclient::Error;
-use gear_core::ids::{ProgramId, CodeId};
+use gear_core::ids::{CodeId, ProgramId};
 use std::collections::BTreeSet;
 
 // Todo DN maybe queue for guaranteeing the order?

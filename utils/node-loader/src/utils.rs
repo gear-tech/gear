@@ -6,6 +6,7 @@ use std::{
     fs::File,
     io::Write,
     time::{SystemTime, UNIX_EPOCH},
+    ops::Deref,
 };
 
 pub fn now() -> u64 {
@@ -46,3 +47,38 @@ impl<T: RngCore + Clone> LoaderRngCore for T {}
 
 pub trait LoaderRng: Rng + SeedableRng + 'static + Clone {}
 impl<T: Rng + SeedableRng + 'static + Clone> LoaderRng for T {}
+
+// Todo copy paste from property tests will be removed
+pub trait RingGet<T> {
+    fn ring_get(&self, index: usize) -> Option<&T>;
+}
+
+#[derive(Debug, Clone)]
+pub struct NonEmptyVec<T>(Vec<T>);
+
+impl<T> NonEmptyVec<T> {
+    pub fn try_from_iter<I>(other: I) -> Result<Self, ()>
+    where
+        I: Iterator<Item = T>,
+    {
+        let mut peekable = other.peekable();
+        (peekable.peek().is_some())
+            .then_some(Self(peekable.collect()))
+            .ok_or(())
+    }
+}
+
+impl<T> Deref for NonEmptyVec<T> {
+    type Target = [T];
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl<T> RingGet<T> for NonEmptyVec<T> {
+    fn ring_get(&self, index: usize) -> Option<&T> {
+        assert!(!self.is_empty(), "NonEmptyVec instance is empty");
+        Some(&self[index % self.len()])
+    }
+}
