@@ -1,8 +1,10 @@
 use super::{report::BatchReporter, Seed};
+pub use create_program::CreateProgramArgs;
 pub use send_message::SendMessageArgs;
 pub use upload_code::UploadCodeArgs;
 pub use upload_program::UploadProgramArgs;
 
+mod create_program;
 mod send_message;
 mod upload_code;
 mod upload_program;
@@ -11,6 +13,7 @@ pub enum Batch {
     UploadProgram(Vec<UploadProgramArgs>),
     UploadCode(Vec<UploadCodeArgs>),
     SendMessage(Vec<SendMessageArgs>),
+    CreateProgram(Vec<CreateProgramArgs>),
 }
 
 pub struct BatchWithSeed {
@@ -84,6 +87,28 @@ impl BatchReporter for BatchWithSeed {
                         "[#{:<2}] destination: '{}', payload: '0x{}', gas_limit: '{}', value: '{}'",
                         i + 1,
                         destination,
+                        hex::encode(payload),
+                        gas_limit,
+                        value
+                    ))
+                }
+            }
+            Batch::CreateProgram(args) => {
+                report = Vec::with_capacity(args.len() + 1);
+
+                report.push(format!(
+                    "Batch of `create_program` with seed {}:",
+                    self.seed
+                ));
+
+                for (i, CreateProgramArgs((code, salt, payload, gas_limit, value))) in
+                    args.iter().enumerate()
+                {
+                    report.push(format!(
+                        "[#{:<2}] code id: '{}', salt: '0x{}', payload: '0x{}', gas_limit: '{}', value: '{}'",
+                        i + 1,
+                        code,
+                        hex::encode(salt),
                         hex::encode(payload),
                         gas_limit,
                         value

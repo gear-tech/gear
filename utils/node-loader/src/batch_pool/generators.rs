@@ -8,7 +8,7 @@ use arbitrary::Unstructured;
 use rand::RngCore;
 
 use super::batch::{
-    BatchWithSeed, SendMessageArgs, UploadCodeArgs, UploadProgramArgs,
+    BatchWithSeed, CreateProgramArgs, SendMessageArgs, UploadCodeArgs, UploadProgramArgs,
 };
 
 pub fn get_some_seed_generator<Rng: LoaderRng>(
@@ -80,7 +80,7 @@ impl<Rng: LoaderRng> BatchGenerator<Rng> {
 
         let spec = rng.next_u64();
 
-        let batch = match spec % 3 {
+        let batch = match spec % 4 {
             0 => Batch::UploadProgram(
                 (0..self.batch_size)
                     .map(|_| {
@@ -105,6 +105,33 @@ impl<Rng: LoaderRng> BatchGenerator<Rng> {
                             .map(|_| {
                                 SendMessageArgs::generate::<Rng>(
                                     existing_programs.clone(),
+                                    rng.next_u64(),
+                                )
+                            })
+                            .collect(),
+                    )
+                } else {
+                    Batch::UploadProgram(
+                        (0..self.batch_size)
+                            .map(|_| {
+                                UploadProgramArgs::generate::<Rng>(
+                                    self.code_seed_gen.next_u64(),
+                                    rng.next_u64(),
+                                )
+                            })
+                            .collect(),
+                    )
+                }
+            }
+            3 => {
+                if let Ok(existing_codes) =
+                    NonEmptyVec::try_from_iter(context.codes.iter().copied())
+                {
+                    Batch::CreateProgram(
+                        (0..self.batch_size)
+                            .map(|_| {
+                                CreateProgramArgs::generate::<Rng>(
+                                    existing_codes.clone(),
                                     rng.next_u64(),
                                 )
                             })

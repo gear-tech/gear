@@ -5,8 +5,8 @@ use rand::{Rng, RngCore, SeedableRng};
 use std::{
     fs::File,
     io::Write,
-    time::{SystemTime, UNIX_EPOCH},
     ops::Deref,
+    time::{SystemTime, UNIX_EPOCH},
 };
 
 pub fn now() -> u64 {

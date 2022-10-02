@@ -1,6 +1,9 @@
 //! Send message task
 
-use crate::{batch_pool::Seed, utils::{LoaderRng, RingGet, NonEmptyVec}};
+use crate::{
+    batch_pool::Seed,
+    utils::{LoaderRng, NonEmptyVec, RingGet},
+};
 use gear_core::ids::ProgramId;
 
 pub type SendMessageArgsInner = (ProgramId, Vec<u8>, u64, u128);

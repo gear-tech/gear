@@ -204,7 +204,7 @@ async fn run_batch_impl(api: GearApi, batch: Batch) -> Result<Report> {
                     Ok(code_id) => {
                         codes.insert(code_id);
                         logs.push(format!(
-                            "[#{:<2}] Successfully deployed code with id {code_id}",
+                            "[#{:<2}] Successfully deployed code with id '{code_id}'",
                             logs.len() + 1,
                         ));
                     }
@@ -295,6 +295,78 @@ async fn run_batch_impl(api: GearApi, batch: Batch) -> Result<Report> {
                 codes: BTreeSet::new(),
                 program_ids: BTreeSet::new(),
                 blocks_stopped,
+            })
+        }
+        Batch::CreateProgram(args) => {
+            let args = args.into_iter().map(|v| v.into());
+
+            let (ex_results, batch_block_hash) = api.create_program_bytes_batch(args).await?;
+
+            let mut init_messages = BTreeMap::new();
+
+            for r in ex_results {
+                match r {
+                    Ok((mid, pid)) => {
+                        init_messages.insert(mid, pid);
+                    }
+                    Err(e) => logs.push(format!(
+                        "[#{:<2}] Extrinsic failure: '{:?}'",
+                        logs.len() + 1,
+                        e
+                    )),
+                }
+            }
+
+            let results: Result<Vec<(MessageId, Option<String>)>>;
+
+            let now = utils::now();
+
+            loop {
+                let r = match api.events_since(batch_block_hash, 10).await {
+                    Ok(mut v) => v.err_or_succeed_batch(init_messages.keys().cloned()).await,
+                    Err(e) => Err(e),
+                };
+
+                if utils::now() - now > 1100 {
+                    results = Err(anyhow!("Out of time: probably blocks stopped.").into());
+                    break;
+                }
+
+                if matches!(r, Err(Error::EventNotFoundInIterator)) {
+                    continue;
+                } else {
+                    results = r;
+                    break;
+                }
+            }
+
+            let results = results?;
+
+            let mut listener = api.subscribe().await?;
+            let blocks_stopped = !listener.blocks_running().await?;
+
+            let mut program_ids = BTreeSet::new();
+
+            for (mid, maybe_err) in results {
+                let pid = init_messages.remove(&mid).expect("Infallible");
+
+                if let Some(expl) = maybe_err {
+                    logs.push(format!("[#{:<2}] Program with {pid:#.2} failed initialization on {mid:#.2} with a trap: '{expl}'", logs.len() + 1))
+                } else {
+                    // TODO: handle case of "NotExecuted". It's not actual for init messages, but will be useful in future.
+                    logs.push(format!(
+                        "[#{:<2}] {mid:#.2} successfully inited program with '{pid:#.2}'",
+                        logs.len() + 1
+                    ));
+                    program_ids.insert(pid);
+                }
+            }
+
+            Ok(Report {
+                logs,
+                program_ids,
+                blocks_stopped,
+                codes: BTreeSet::new(),
             })
         }
     }
