@@ -1,3 +1,6 @@
+use super::batch::{
+    BatchWithSeed, CreateProgramArgs, SendMessageArgs, UploadCodeArgs, UploadProgramArgs,
+};
 use crate::{
     args::SeedVariant,
     batch_pool::{batch::Batch, context::Context, Seed},
@@ -5,11 +8,8 @@ use crate::{
     utils::{self, LoaderRng, LoaderRngCore, NonEmptyVec},
 };
 use arbitrary::Unstructured;
+use gear_core::ids::{CodeId, ProgramId};
 use rand::RngCore;
-
-use super::batch::{
-    BatchWithSeed, CreateProgramArgs, SendMessageArgs, UploadCodeArgs, UploadProgramArgs,
-};
 
 pub fn get_some_seed_generator<Rng: LoaderRng>(
     code_seed_type: Option<SeedVariant>,
@@ -80,87 +80,69 @@ impl<Rng: LoaderRng> BatchGenerator<Rng> {
 
         let spec = rng.next_u64();
 
-<<<<<<< HEAD
-<<<<<<< HEAD
         let batch = match spec % 4 {
-=======
-        let batch = match spec % 3 {
->>>>>>> 736fe4a2 (Introduce send_message task, restructure `batch` module)
-=======
-        let batch = match spec % 4 {
->>>>>>> 4fabfeac (Introduce create_program task)
-            0 => Batch::UploadProgram(
-                (0..self.batch_size)
-                    .map(|_| {
-                        UploadProgramArgs::generate::<Rng>(
-                            self.code_seed_gen.next_u64(),
-                            rng.next_u64(),
-                        )
-                    })
-                    .collect(),
-            ),
-            1 => Batch::UploadCode(
-                (0..self.batch_size)
-                    .map(|_| UploadCodeArgs::generate::<Rng>(self.code_seed_gen.next_u64()))
-                    .collect(),
-            ),
-            2 => {
-                if let Ok(existing_programs) =
-                    NonEmptyVec::try_from_iter(context.programs.iter().copied())
-                {
-                    Batch::SendMessage(
-                        (0..self.batch_size)
-                            .map(|_| {
-                                SendMessageArgs::generate::<Rng>(
-                                    existing_programs.clone(),
-                                    rng.next_u64(),
-                                )
-                            })
-                            .collect(),
-                    )
-                } else {
-                    Batch::UploadProgram(
-                        (0..self.batch_size)
-                            .map(|_| {
-                                UploadProgramArgs::generate::<Rng>(
-                                    self.code_seed_gen.next_u64(),
-                                    rng.next_u64(),
-                                )
-                            })
-                            .collect(),
-                    )
-                }
-            }
-            3 => {
-                if let Ok(existing_codes) =
-                    NonEmptyVec::try_from_iter(context.codes.iter().copied())
-                {
-                    Batch::CreateProgram(
-                        (0..self.batch_size)
-                            .map(|_| {
-                                CreateProgramArgs::generate::<Rng>(
-                                    existing_codes.clone(),
-                                    rng.next_u64(),
-                                )
-                            })
-                            .collect(),
-                    )
-                } else {
-                    Batch::UploadProgram(
-                        (0..self.batch_size)
-                            .map(|_| {
-                                UploadProgramArgs::generate::<Rng>(
-                                    self.code_seed_gen.next_u64(),
-                                    rng.next_u64(),
-                                )
-                            })
-                            .collect(),
-                    )
-                }
-            }
+            0 => self.gen_upload_program_batch(&mut rng),
+            1 => self.gen_upload_code_batch(),
+            2 => match NonEmptyVec::try_from_iter(context.programs.iter().copied()) {
+                Ok(existing_programs) => self.gen_send_message_batch(existing_programs, &mut rng),
+                Err(_) => self.gen_upload_program_batch(&mut rng),
+            },
+            3 => match NonEmptyVec::try_from_iter(context.codes.iter().copied()) {
+                Ok(existing_codes) => self.gen_create_program_batch(existing_codes, &mut rng),
+                Err(_) => self.gen_upload_program_batch(&mut rng),
+            },
             _ => unreachable!(),
         };
 
         (seed, batch).into()
+    }
+
+    fn gen_upload_program_batch(&mut self, rng: &mut Rng) -> Batch {
+        let inner = utils::iterator_with_args(self.batch_size, || {
+            (self.code_seed_gen.next_u64(), rng.next_u64())
+        })
+        .map(|(code_seed, rng_seed)| UploadProgramArgs::generate::<Rng>(code_seed, rng_seed))
+        .collect();
+
+        Batch::UploadProgram(inner)
+    }
+
+    fn gen_upload_code_batch(&mut self) -> Batch {
+        let inner = utils::iterator_with_args(self.batch_size, || self.code_seed_gen.next_u64())
+            .map(|code_seed| UploadCodeArgs::generate::<Rng>(code_seed))
+            .collect();
+
+        Batch::UploadCode(inner)
+    }
+
+    fn gen_send_message_batch(
+        &mut self,
+        existing_programs: NonEmptyVec<ProgramId>,
+        rng: &mut Rng,
+    ) -> Batch {
+        let inner = utils::iterator_with_args(self.batch_size, || {
+            (existing_programs.clone(), rng.next_u64())
+        })
+        .map(|(existing_programs, rng_seed)| {
+            SendMessageArgs::generate::<Rng>(existing_programs, rng_seed)
+        })
+        .collect();
+
+        Batch::SendMessage(inner)
+    }
+
+    fn gen_create_program_batch(
+        &mut self,
+        existing_codes: NonEmptyVec<CodeId>,
+        rng: &mut Rng,
+    ) -> Batch {
+        let inner =
+            utils::iterator_with_args(self.batch_size, || (existing_codes.clone(), rng.next_u64()))
+                .map(|(existing_programs, rng_seed)| {
+                    CreateProgramArgs::generate::<Rng>(existing_programs, rng_seed)
+                })
+                .collect();
+
+        Batch::CreateProgram(inner)
     }
 }

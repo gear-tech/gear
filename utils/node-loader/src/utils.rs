@@ -5,6 +5,7 @@ use rand::{Rng, RngCore, SeedableRng};
 use std::{
     fs::File,
     io::Write,
+    iter,
     ops::Deref,
     time::{SystemTime, UNIX_EPOCH},
     ops::Deref,
@@ -43,6 +44,22 @@ pub fn str_to_wsaddr(endpoint: String) -> WSAddress {
     WSAddress::new(domain, port)
 }
 
+pub fn iterator_with_args<T, F: FnMut() -> T>(
+    max_size: usize,
+    mut args: F,
+) -> impl Iterator<Item = T> {
+    let mut size = 0;
+    iter::from_fn(move || {
+        if size >= max_size {
+            return None;
+        }
+
+        size += 1;
+
+        Some(args())
+    })
+}
+
 #[clonable]
 pub trait LoaderRngCore: RngCore + Clone {}
 impl<T: RngCore + Clone> LoaderRngCore for T {}
@@ -53,6 +70,13 @@ impl<T: Rng + SeedableRng + 'static + Clone> LoaderRng for T {}
 // Todo copy paste from property tests will be removed
 pub trait RingGet<T> {
     fn ring_get(&self, index: usize) -> Option<&T>;
+}
+
+impl<T> RingGet<T> for NonEmptyVec<T> {
+    fn ring_get(&self, index: usize) -> Option<&T> {
+        assert!(!self.is_empty(), "NonEmptyVec instance is empty");
+        Some(&self[index % self.len()])
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -75,12 +99,5 @@ impl<T> Deref for NonEmptyVec<T> {
 
     fn deref(&self) -> &Self::Target {
         &self.0
-    }
-}
-
-impl<T> RingGet<T> for NonEmptyVec<T> {
-    fn ring_get(&self, index: usize) -> Option<&T> {
-        assert!(!self.is_empty(), "NonEmptyVec instance is empty");
-        Some(&self[index % self.len()])
     }
 }
