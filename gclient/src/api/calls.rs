@@ -147,7 +147,7 @@ impl GearApi {
     /// `pallet_gear::claim_value`
     pub async fn claim_value(&self, message_id: MessageId) -> Result<(u128, H256)> {
         let value = self
-            .get_from_mailbox(self.0.account_id().clone(), message_id)
+            .get_from_mailbox(self.0.account_id(), message_id)
             .await?
             .map(|(message, _interval)| message.value());
 
@@ -170,28 +170,25 @@ impl GearApi {
         &self,
         args: impl IntoIterator<Item = MessageId>,
     ) -> Result<(Vec<Result<u128>>, H256)> {
-        let message_ids: Vec<_> = args.into_iter().collect();
+        let mut message_ids = args.into_iter();
+        let mut values = BTreeMap::new();
+
+        for message_id in message_ids.by_ref() {
+            values.insert(
+                message_id,
+                self.get_from_mailbox(self.0.account_id(), message_id)
+                    .await?
+                    .map(|(message, _interval)| message.value()),
+            );
+        }
 
         let calls: Vec<_> = message_ids
-            .clone()
-            .into_iter()
             .map(|message_id| {
                 RuntimeCall::Gear(GearCall::claim_value {
                     message_id: message_id.into(),
                 })
             })
             .collect();
-
-        let mut values = BTreeMap::new();
-
-        for message_id in message_ids {
-            values.insert(
-                message_id,
-                self.get_from_mailbox(self.0.account_id().clone(), message_id)
-                    .await?
-                    .map(|(message, _interval)| message.value()),
-            );
-        }
 
         let amount = calls.len();
 
@@ -330,10 +327,8 @@ impl GearApi {
     ) -> Result<(MessageId, u128, H256)> {
         let payload = payload.as_ref().to_vec();
 
-        let expected_source = self.0.account_id();
-
         let data = self
-            .get_from_mailbox(expected_source.clone(), reply_to_id)
+            .get_from_mailbox(self.0.account_id(), reply_to_id)
             .await?;
 
         let tx = self
@@ -364,12 +359,21 @@ impl GearApi {
         &self,
         args: impl IntoIterator<Item = (MessageId, impl AsRef<[u8]>, u64, u128)>,
     ) -> Result<(Vec<Result<(MessageId, u128)>>, H256)> {
-        let mut reply_to_ids = vec![];
+        let mut args = args.into_iter();
+        let mut values = BTreeMap::new();
+
+        for (message_id, _, _, _) in args.by_ref() {
+            values.insert(
+                message_id,
+                self.get_from_mailbox(self.0.account_id(), message_id)
+                    .await?
+                    .map(|(message, _interval)| message.value()),
+            );
+        }
 
         let calls: Vec<_> = args
             .into_iter()
             .map(|(reply_to_id, payload, gas_limit, value)| {
-                reply_to_ids.push(reply_to_id);
                 RuntimeCall::Gear(GearCall::send_reply {
                     reply_to_id: reply_to_id.into(),
                     payload: payload.as_ref().to_vec(),
@@ -378,17 +382,6 @@ impl GearApi {
                 })
             })
             .collect();
-
-        let mut values = BTreeMap::new();
-
-        for reply_to_id in reply_to_ids {
-            values.insert(
-                reply_to_id,
-                self.get_from_mailbox(self.0.account_id().clone(), reply_to_id)
-                    .await?
-                    .map(|(message, _interval)| message.value()),
-            );
-        }
 
         let amount = calls.len();
 
