@@ -5645,6 +5645,11 @@ fn gas_reservation_works() {
         let map = get_reservation_map(pid);
         assert_eq!(map.len(), 1);
 
+        run_to_block(3 + 2, None);
+
+        let map = get_reservation_map(pid);
+        assert_eq!(map.len(), 1);
+
         run_to_block(3 + 3, None);
 
         // gas unreserved automatically

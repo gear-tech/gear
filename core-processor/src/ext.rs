@@ -598,7 +598,7 @@ impl EnvExt for Ext {
         } = &mut self.context;
 
         let msg_id = message_context.current().id();
-        let bn = block_info.height + blocks;
+        let bn = block_info.height + blocks + 1;
         let id = gas_reserver.reserve(msg_id, amount, bn);
 
         Ok(id)
