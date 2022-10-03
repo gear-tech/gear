@@ -63,6 +63,9 @@ impl GasReserver {
     /// Unreserves gas.
     pub fn unreserve(&mut self, id: ReservationId) -> Option<u32> {
         let GasReservationSlot { amount, bn } = self.map.remove(&id)?;
+        // Only `AddReservation` task may exist here during current execution
+        // so when we do unreservation we just simply remove it
+        // so reservation + unreservation operations during one execution are just noop
         if self.tasks.remove(&id).is_none() {
             self.tasks
                 .insert(id, GasReservationTask::RemoveReservation { bn });
