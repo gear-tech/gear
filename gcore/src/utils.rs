@@ -16,15 +16,18 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-#[cfg(feature = "debug")]
-pub mod ext {
-    mod sys {
-        extern "C" {
-            pub fn gr_debug(data_ptr: *const u8, data_len: u32);
-        }
-    }
+use crate::error::{ExtError, Result};
 
-    pub fn debug(s: &str) {
-        unsafe { sys::gr_debug(s.as_ptr(), s.as_bytes().len() as _) }
+mod sys {
+    extern "C" {
+        pub fn gr_debug(data_ptr: *const u8, data_len: u32);
     }
+}
+
+pub fn debug(data: &str) -> Result<()> {
+    let data_len = data.len().try_into().map_err(|_| ExtError::SyscallUsage)?;
+
+    unsafe { sys::gr_debug(data.as_ptr(), data_len) }
+
+    Ok(())
 }

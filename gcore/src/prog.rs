@@ -18,12 +18,15 @@
 
 //! Program creation API for Gear programs.
 
-use crate::{error::Result, ActorId, CodeHash};
+use gear_core_errors::ExtError;
+
+use crate::{error::Result, ActorId, CodeId, MessageId};
 
 mod sys {
     use crate::error::SyscallError;
 
     extern "C" {
+        #[allow(improper_ctypes)]
         pub fn gr_create_program(
             code_id_ptr: *const [u8; 32],
             salt_ptr: *const u8,
@@ -36,6 +39,7 @@ mod sys {
             program_id_ptr: *mut [u8; 32],
         ) -> SyscallError;
 
+        #[allow(improper_ctypes)]
         pub fn gr_create_program_wgas(
             code_id_ptr: *const [u8; 32],
             salt_ptr: *const u8,
@@ -53,51 +57,48 @@ mod sys {
 
 /// Same as [`create_program_with_gas`], but without explicit gas limit.
 pub fn create_program(
-    code_hash: CodeHash,
+    code_id: CodeId,
     salt: &[u8],
     payload: &[u8],
     value: u128,
-) -> Result<ActorId> {
-    unsafe {
-        let mut program_id = ActorId::default();
-        sys::gr_create_program(
-            code_hash.as_slice().as_ptr(),
-            salt.as_ptr(),
-            salt.len() as _,
-            payload.as_ptr(),
-            payload.len() as _,
-            value.to_le_bytes().as_ptr(),
-            program_id.as_mut_slice().as_mut_ptr(),
-            0u32.to_le_bytes().as_ptr(),
-        )
-        .into_result()?;
-        Ok(program_id)
-    }
+) -> Result<(MessageId, ActorId)> {
+    create_program_delayed(code_id, salt, payload, value, 0)
 }
 
 /// Same as [`create_program`], but sends delayed.
 pub fn create_program_delayed(
-    code_hash: CodeHash,
+    code_id: CodeId,
     salt: &[u8],
     payload: &[u8],
     value: u128,
     delay: u32,
-) -> Result<ActorId> {
+) -> Result<(MessageId, ActorId)> {
+    let mut message_id = MessageId::default();
+    let mut program_id = ActorId::default();
+
+    let salt_len = salt.len().try_into().map_err(|_| ExtError::SyscallUsage)?;
+
+    let payload_len = payload
+        .len()
+        .try_into()
+        .map_err(|_| ExtError::SyscallUsage)?;
+
     unsafe {
-        let mut program_id = ActorId::default();
         sys::gr_create_program(
-            code_hash.as_slice().as_ptr(),
+            code_id.as_ptr(),
             salt.as_ptr(),
-            salt.len() as _,
+            salt_len,
             payload.as_ptr(),
-            payload.len() as _,
-            value.to_le_bytes().as_ptr(),
-            program_id.as_mut_slice().as_mut_ptr(),
-            delay.to_le_bytes().as_ptr(),
+            payload_len,
+            value.to_le_bytes().as_ptr() as *const u128,
+            delay,
+            message_id.as_mut_ptr(),
+            program_id.as_mut_ptr(),
         )
-        .into_result()?;
-        Ok(program_id)
+        .into_result()?
     }
+
+    Ok((message_id, program_id))
 }
 
 /// Creates a new program and returns its address, with gas limit.
@@ -109,7 +110,7 @@ pub fn create_program_delayed(
 /// "child" program; 2. `gas_limit`, provided for the program initialization;
 /// 3. `value`, sent with the message.
 /// Code of newly creating program must be represented as blake2b hash
-/// (`code_hash` parameter).
+/// (`code_id` parameter).
 ///
 /// # Examples
 ///
@@ -168,53 +169,49 @@ pub fn create_program_delayed(
 /// }
 /// ```
 pub fn create_program_with_gas(
-    code_hash: CodeHash,
+    code_id: CodeId,
     salt: &[u8],
     payload: &[u8],
     gas_limit: u64,
     value: u128,
-) -> Result<ActorId> {
-    unsafe {
-        let mut program_id = ActorId::default();
-        sys::gr_create_program_wgas(
-            code_hash.as_slice().as_ptr(),
-            salt.as_ptr(),
-            salt.len() as _,
-            payload.as_ptr(),
-            payload.len() as _,
-            gas_limit,
-            value.to_le_bytes().as_ptr(),
-            program_id.as_mut_slice().as_mut_ptr(),
-            0u32.to_le_bytes().as_ptr(),
-        )
-        .into_result()?;
-        Ok(program_id)
-    }
+) -> Result<(MessageId, ActorId)> {
+    create_program_with_gas_delayed(code_id, salt, payload, gas_limit, value, 0)
 }
 
 /// Same as [`create_program_with_gas`], but sends delayed.
 pub fn create_program_with_gas_delayed(
-    code_hash: CodeHash,
+    code_id: CodeId,
     salt: &[u8],
     payload: &[u8],
     gas_limit: u64,
     value: u128,
     delay: u32,
-) -> Result<ActorId> {
+) -> Result<(MessageId, ActorId)> {
+    let mut message_id = MessageId::default();
+    let mut program_id = ActorId::default();
+
+    let salt_len = salt.len().try_into().map_err(|_| ExtError::SyscallUsage)?;
+
+    let payload_len = payload
+        .len()
+        .try_into()
+        .map_err(|_| ExtError::SyscallUsage)?;
+
     unsafe {
-        let mut program_id = ActorId::default();
         sys::gr_create_program_wgas(
-            code_hash.as_slice().as_ptr(),
+            code_id.as_ptr(),
             salt.as_ptr(),
-            salt.len() as _,
+            salt_len,
             payload.as_ptr(),
-            payload.len() as _,
+            payload_len,
             gas_limit,
-            value.to_le_bytes().as_ptr(),
-            program_id.as_mut_slice().as_mut_ptr(),
-            delay.to_le_bytes().as_ptr(),
+            value.to_le_bytes().as_ptr() as *const u128,
+            delay,
+            message_id.as_mut_ptr(),
+            program_id.as_mut_ptr(),
         )
-        .into_result()?;
-        Ok(program_id)
+        .into_result()?
     }
+
+    Ok((message_id, program_id))
 }

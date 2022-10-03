@@ -25,7 +25,7 @@ mod sys {
     use crate::error::SyscallError;
 
     extern "C" {
-        pub fn gr_error(data_ptr: *mut u8) -> SyscallError;
+        pub fn gr_error(buffer_ptr: *mut u8) -> SyscallError;
     }
 }
 
@@ -58,7 +58,7 @@ impl SyscallError {
 
         unsafe { sys::gr_error(data.as_mut_ptr()).into_result()? }
 
-        Ok(ExtError::decode(&mut data.as_slice()).unwrap_or_else(|_| ExtError::Decode))
+        Ok(ExtError::decode(&mut data.as_slice()).unwrap_or(ExtError::Decode))
     }
 
     #[cfg(not(feature = "codec"))]
