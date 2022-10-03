@@ -18,7 +18,9 @@ region = "3.0.0"
 derive_more = "0.99.17"
 static_assertions = "1.1"
 once_cell = "1.14"
-mach = "0.3"
+
+[target."cfg(target_vendor = \"apple\")".dependencies.mach]
+version = "0.3.2"
 
 [target.'cfg(unix)'.dependencies]
 nix = "0.25"
