@@ -35,7 +35,7 @@ pub struct RwLock<T> {
     locked: UnsafeCell<Option<MessageId>>,
     value: UnsafeCell<T>,
     readers: Cell<ReadersCount>,
-    queueu: AccessQueue,
+    queue: AccessQueue,
 }
 
 impl<T> RwLock<T> {
@@ -52,7 +52,7 @@ impl<T> RwLock<T> {
             value: UnsafeCell::new(t),
             locked: UnsafeCell::new(None),
             readers: Cell::new(0),
-            queueu: AccessQueue::new(),
+            queue: AccessQueue::new(),
         }
     }
 }
@@ -75,8 +75,8 @@ impl<'a, T> Drop for RwLockReadGuard<'a, T> {
             if readers_count == 0 {
                 *self.lock.locked.get() = None;
 
-                if let Some(message_id) = self.lock.queueu.dequeue() {
-                    crate::exec::wake(message_id);
+                if let Some(message_id) = self.lock.queue.dequeue() {
+                    crate::exec::wake(message_id).expect("Failed to wake the message");
                 }
             }
         }
@@ -119,8 +119,8 @@ impl<'a, T> Drop for RwLockWriteGuard<'a, T> {
     fn drop(&mut self) {
         unsafe {
             *self.lock.locked.get() = None;
-            if let Some(message_id) = self.lock.queueu.dequeue() {
-                crate::exec::wake(message_id);
+            if let Some(message_id) = self.lock.queue.dequeue() {
+                crate::exec::wake(message_id).expect("Failed to wake the message");
             }
         }
     }
@@ -158,7 +158,7 @@ impl<'a, T> Future for RwLockReadFuture<'a, T> {
             readers.replace(readers_count);
             Poll::Ready(RwLockReadGuard { lock: self.lock })
         } else {
-            self.lock.queueu.enqueue(crate::msg::id());
+            self.lock.queue.enqueue(crate::msg::id());
             Poll::Pending
         }
     }
@@ -173,7 +173,7 @@ impl<'a, T> Future for RwLockWriteFuture<'a, T> {
             *lock = Some(crate::msg::id());
             Poll::Ready(RwLockWriteGuard { lock: self.lock })
         } else {
-            self.lock.queueu.enqueue(crate::msg::id());
+            self.lock.queue.enqueue(crate::msg::id());
             Poll::Pending
         }
     }

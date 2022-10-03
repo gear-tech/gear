@@ -389,9 +389,9 @@ fn process_success(
     }
 
     // Must be handled before handling generated dispatches.
-    for (code_hash, candidates) in program_candidates {
+    for (code_id, candidates) in program_candidates {
         journal.push(JournalNote::StoreNewPrograms {
-            code_hash,
+            code_id,
             candidates,
         });
     }

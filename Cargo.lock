@@ -3438,6 +3438,7 @@ dependencies = [
  "parity-scale-codec",
  "primitive-types",
  "scale-info",
+ "static_assertions",
 ]
 
 [[package]]

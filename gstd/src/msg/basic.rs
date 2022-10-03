@@ -88,7 +88,7 @@ impl MessageHandle {
     }
 
     pub fn push<T: AsRef<[u8]>>(&self, payload: T) -> Result<()> {
-        send_push(self, payload)
+        send_push(*self, payload)
     }
 
     pub fn commit(self, program: ActorId, value: u128) -> Result<MessageId> {
@@ -194,10 +194,10 @@ pub fn id() -> MessageId {
 ///     let payload_bytes = msg::load_bytes();
 /// }
 /// ```
-pub fn load_bytes() -> Vec<u8> {
-    let mut result = vec![0u8; size()];
-    gcore::msg::load(result.as_mut());
-    result
+pub fn load_bytes() -> Result<Vec<u8>> {
+    let mut result = vec![0u8; size() as usize];
+    gcore::msg::read(result.as_mut())?;
+    Ok(result)
 }
 
 /// Same as [`reply`](crate::msg::reply), without encoding payload.
@@ -353,8 +353,8 @@ pub fn reply_push<T: AsRef<[u8]>>(payload: T) -> Result<()> {
 /// # Panics
 ///
 /// Panics if called in a context other than `handle_reply()`.
-pub fn reply_to() -> MessageId {
-    gcore::msg::reply_to().into()
+pub fn reply_to() -> Result<MessageId> {
+    gcore::msg::reply_to().into_contract_result()
 }
 
 /// Send a new message to the program or user.
@@ -589,8 +589,8 @@ pub fn send_init() -> Result<MessageHandle> {
 ///
 /// [`send_init`], [`send_commit`] functions allows to form and send a message
 /// to send in parts.
-pub fn send_push<T: AsRef<[u8]>>(handle: &MessageHandle, payload: T) -> Result<()> {
-    gcore::msg::send_push(handle.as_ref(), payload.as_ref()).into_contract_result()
+pub fn send_push<T: AsRef<[u8]>>(handle: MessageHandle, payload: T) -> Result<()> {
+    gcore::msg::send_push(handle.0, payload.as_ref()).into_contract_result()
 }
 
 /// Get the payload size of the message being processed.
@@ -608,7 +608,7 @@ pub fn send_push<T: AsRef<[u8]>>(handle: &MessageHandle, payload: T) -> Result<(
 ///     let payload_size = msg::size();
 /// }
 /// ```
-pub fn size() -> usize {
+pub fn size() -> u32 {
     gcore::msg::size()
 }
 

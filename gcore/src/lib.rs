@@ -33,7 +33,7 @@ pub use general::*;
 #[cfg(feature = "debug")]
 mod utils;
 #[cfg(feature = "debug")]
-pub use utils::*;
+pub use utils::ext;
 
 use core::mem::size_of;
 use static_assertions::const_assert;

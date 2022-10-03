@@ -50,7 +50,7 @@ const CHILD_CODE_HASH: [u8; 32] =
 #[cfg(not(feature = "std"))]
 mod wasm {
     use super::{CreateProgram, CHILD_CODE_HASH};
-    use gstd::{debug, msg, prog, ActorId, CodeHash};
+    use gstd::{debug, msg, prog, ActorId, CodeId};
 
     static mut COUNTER: i32 = 0;
     static mut ORIGIN: Option<ActorId> = None;

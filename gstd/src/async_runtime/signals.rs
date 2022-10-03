@@ -16,8 +16,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Module for signal-magement and waking concrete message based on reply
-//! recieved.
+//! Module for signal-management and waking concrete message based on reply
+//! received.
 
 use crate::{
     prelude::{BTreeMap, Vec},
@@ -64,12 +64,20 @@ impl WakeSignals {
     }
 
     pub fn record_reply(&mut self) {
-        if let Some(signal) = self.signals.get_mut(&crate::msg::reply_to()) {
-            signal.payload = Some((crate::msg::load_bytes(), crate::msg::exit_code()));
+        if let Some(signal) = self
+            .signals
+            .get_mut(&crate::msg::reply_to().expect("Shouldn't be called with incorrect context"))
+        {
+            signal.payload = Some((
+                crate::msg::load_bytes().expect("Failed to load bytes"),
+                crate::msg::exit_code(),
+            ));
+
             if let Some(waker) = &signal.waker {
                 waker.wake_by_ref();
             }
-            crate::exec::wake(signal.message_id);
+
+            crate::exec::wake(signal.message_id).expect("Failed to wake the message")
         } else {
             crate::debug!("Received reply for the message we don't expect reply to or already processed before");
         }

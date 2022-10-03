@@ -195,9 +195,9 @@ impl From<gcore::MessageId> for MessageId {
 #[derive(
     Clone, Copy, Debug, Default, Hash, Ord, PartialEq, PartialOrd, Eq, TypeInfo, Decode, Encode,
 )]
-pub struct CodeHash([u8; 32]);
+pub struct CodeId([u8; 32]);
 
-impl CodeHash {
+impl CodeId {
     pub const fn new(arr: [u8; 32]) -> Self {
         Self(arr)
     }
@@ -214,49 +214,49 @@ impl CodeHash {
     }
 }
 
-impl AsRef<[u8]> for CodeHash {
+impl AsRef<[u8]> for CodeId {
     fn as_ref(&self) -> &[u8] {
         self.0.as_ref()
     }
 }
 
-impl AsMut<[u8]> for CodeHash {
+impl AsMut<[u8]> for CodeId {
     fn as_mut(&mut self) -> &mut [u8] {
         self.0.as_mut()
     }
 }
 
-impl From<[u8; 32]> for CodeHash {
+impl From<[u8; 32]> for CodeId {
     fn from(arr: [u8; 32]) -> Self {
         Self(arr)
     }
 }
 
-impl From<CodeHash> for [u8; 32] {
-    fn from(other: CodeHash) -> Self {
+impl From<CodeId> for [u8; 32] {
+    fn from(other: CodeId) -> Self {
         other.0
     }
 }
 
-impl From<H256> for CodeHash {
+impl From<H256> for CodeId {
     fn from(h256: H256) -> Self {
         Self::new(h256.to_fixed_bytes())
     }
 }
 
-impl From<gcore::CodeId> for CodeHash {
+impl From<gcore::CodeId> for CodeId {
     fn from(other: gcore::CodeId) -> Self {
         Self(other.0)
     }
 }
 
-impl From<CodeHash> for gcore::CodeId {
-    fn from(other: CodeHash) -> Self {
+impl From<CodeId> for gcore::CodeId {
+    fn from(other: CodeId) -> Self {
         Self(other.0)
     }
 }
 
-impl TryFrom<&[u8]> for CodeHash {
+impl TryFrom<&[u8]> for CodeId {
     type Error = ContractError;
 
     fn try_from(slice: &[u8]) -> Result<Self> {
