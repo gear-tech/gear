@@ -28,7 +28,10 @@ impl Key {
             .to_string_lossy()
             .to_string();
 
-        Ok(keyring::Entry::new(&application, &username))
+        let entry = keyring::Entry::new(&application, &username);
+        dbg!(&entry);
+        dbg!((username, application));
+        Ok(entry)
     }
 
     /// New key from string
