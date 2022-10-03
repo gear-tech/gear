@@ -422,14 +422,14 @@ pub mod pallet {
 
         /// Initialization
         fn on_initialize(bn: BlockNumberFor<T>) -> Weight {
-            log::debug!(target: "runtime::gear", "⚙️ Initialization of block #{:?}", bn);
+            log::debug!(target: "runtime::gear", "⚙️  Initialization of block #{:?}", bn);
 
             Weight::zero()
         }
 
         /// Finalization
         fn on_finalize(bn: BlockNumberFor<T>) {
-            log::debug!(target: "runtime::gear", "⚙️ Finalization of block #{:?}", bn);
+            log::debug!(target: "runtime::gear", "⚙️  Finalization of block #{:?}", bn);
         }
 
         /// Queue processing occurs after all normal extrinsics in the block
@@ -438,7 +438,7 @@ pub mod pallet {
         fn on_idle(bn: BlockNumberFor<T>, remaining_weight: Weight) -> Weight {
             log::debug!(
                 target: "runtime::gear",
-                "⚙️ Queue and tasks processing of block #{:?} with weight='{:?}'",
+                "⚙️  Queue and tasks processing of block #{:?} with {}",
                 bn,
                 remaining_weight,
             );
@@ -466,7 +466,7 @@ pub mod pallet {
 
             log::debug!(
                 target: "runtime::gear",
-                "⚙️ Weight '{:?}' burned in block #{:?}",
+                "⚙️  {} burned in block #{:?}",
                 weight,
                 bn,
             );
