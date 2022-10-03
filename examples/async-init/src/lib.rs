@@ -62,7 +62,7 @@ async fn init() {
 
 #[gstd::async_main]
 async fn main() {
-    let message = msg::load_bytes();
+    let message = msg::load_bytes().unwrap();
     if message != b"PING" {
         return;
     }

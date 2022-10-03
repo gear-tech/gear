@@ -191,7 +191,7 @@ pub fn id() -> MessageId {
 /// use gstd::msg;
 ///
 /// unsafe extern "C" fn handle() {
-///     let payload_bytes = msg::load_bytes();
+///     let payload_bytes = msg::load_bytes().unwrap();
 /// }
 /// ```
 pub fn load_bytes() -> Result<Vec<u8>> {

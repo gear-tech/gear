@@ -1,6 +1,6 @@
 #![no_std]
 
-use gstd::{debug, msg, prog, CodeHash, String};
+use gstd::{debug, msg, prog, CodeId, String};
 
 static mut COUNTER: i32 = 0;
 
@@ -17,8 +17,8 @@ static mut COUNTER: i32 = 0;
 /// ```
 #[no_mangle]
 unsafe extern "C" fn handle() {
-    let command = String::from_utf8(msg::load_bytes()).expect("Unable to decode string");
-    let submitted_code: CodeHash =
+    let command = String::from_utf8(msg::load_bytes().unwrap()).expect("Unable to decode string");
+    let submitted_code: CodeId =
         hex_literal::hex!("abf3746e72a6e8740bd9e12b879fbdd59e052cb390f116454e9116c22021ae4a")
             .into();
 
@@ -26,7 +26,7 @@ unsafe extern "C" fn handle() {
         "default" => {
             // Assume that the code of the deploying program was submitted by `submit_code`
             // extrinsic and we got its hash. For more details please read README file.
-            let new_program_id = prog::create_program_with_gas(
+            let (_message_id, new_program_id) = prog::create_program_with_gas(
                 submitted_code,
                 COUNTER.to_le_bytes(),
                 b"unique",
@@ -42,7 +42,7 @@ unsafe extern "C" fn handle() {
             COUNTER += 1;
         }
         "duplicate" => {
-            let new_program_id = prog::create_program_with_gas(
+            let (_message_id, new_program_id) = prog::create_program_with_gas(
                 submitted_code,
                 (COUNTER - 1).to_le_bytes(),
                 b"not_unique",

@@ -190,7 +190,7 @@ pub fn id() -> MessageId {
 /// use gcore::msg;
 ///
 /// unsafe extern "C" fn handle() {
-///     let mut result = vec![0u8; msg::size()];
+///     let mut result = vec![0u8; msg::size() as usize];
 ///     msg::read(&mut result[..]);
 /// }
 /// ```

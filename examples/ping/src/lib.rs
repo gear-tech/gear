@@ -10,8 +10,8 @@ use gcore::msg;
 
 #[no_mangle]
 unsafe extern "C" fn handle() {
-    let mut bytes = vec![0; msg::size()];
-    msg::load(&mut bytes);
+    let mut bytes = vec![0; msg::size() as usize];
+    msg::read(&mut bytes).unwrap();
 
     if let Ok(received_msg) = str::from_utf8(&bytes) {
         if received_msg == "PING" {

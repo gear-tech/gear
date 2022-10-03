@@ -119,7 +119,7 @@ pub fn create_program_delayed(
 ///
 /// Basically we can use "automatic" salt generation ("nonce"):
 /// ```
-/// use gcore::{prog, CodeHash};
+/// use gcore::{prog, CodeId};
 ///
 /// static mut NONCE: i32 = 0;
 ///
@@ -134,7 +134,7 @@ pub fn create_program_delayed(
 /// }
 ///
 /// unsafe extern "C" fn handle() {
-///     let submitted_code: CodeHash =
+///     let submitted_code: CodeId =
 ///         hex_literal::hex!("abf3746e72a6e8740bd9e12b879fbdd59e052cb390f116454e9116c22021ae4a")
 ///             .into();
 ///     let new_program_id =
@@ -145,11 +145,11 @@ pub fn create_program_delayed(
 /// Another case for salt is to receive it as an input:
 /// ```
 /// use gcore::{msg, prog};
-/// # use gcore::CodeHash;
+/// # use gcore::CodeId;
 ///
 /// unsafe extern "C" fn handle() {
-///     # let submitted_code: CodeHash = hex_literal::hex!("abf3746e72a6e8740bd9e12b879fbdd59e052cb390f116454e9116c22021ae4a").into();
-///     let mut salt = vec![0u8; msg::size()];
+///     # let submitted_code: CodeId = hex_literal::hex!("abf3746e72a6e8740bd9e12b879fbdd59e052cb390f116454e9116c22021ae4a").into();
+///     let mut salt = vec![0u8; msg::size() as usize];
 ///     msg::load(&mut salt[..]);
 ///     let new_program_id = prog::create_program_with_gas(submitted_code, &salt, b"", 10_000, 0).unwrap();
 /// }
@@ -158,11 +158,11 @@ pub fn create_program_delayed(
 /// What's more, messages can be sent to a new program:
 /// ```
 /// use gcore::{msg, prog};
-/// # use gcore::CodeHash;
+/// # use gcore::CodeId;
 ///
 /// unsafe extern "C" fn handle() {
-///     # let submitted_code: CodeHash = hex_literal::hex!("abf3746e72a6e8740bd9e12b879fbdd59e052cb390f116454e9116c22021ae4a").into();
-///     # let mut salt = vec![0u8; msg::size()];
+///     # let submitted_code: CodeId = hex_literal::hex!("abf3746e72a6e8740bd9e12b879fbdd59e052cb390f116454e9116c22021ae4a").into();
+///     # let mut salt = vec![0u8; msg::size() as usize];
 ///     # msg::load(&mut salt[..]);
 ///     let new_program_id = prog::create_program_with_gas(submitted_code, &salt, b"", 10_000, 0).unwrap();
 ///     msg::send_with_gas(new_program_id, b"payload for a new program", 10_000, 0).unwrap();

@@ -141,7 +141,7 @@ mod wasm {
 
     #[gstd::async_main]
     async fn main() {
-        let input = msg::load_bytes();
+        let input = msg::load_bytes().unwrap();
         debug!(
             "[0x{} ncompose::handle] input = {:?}, available gas: {}",
             hex::encode(unsafe { STATE.me.handle }),

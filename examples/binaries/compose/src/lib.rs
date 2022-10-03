@@ -120,7 +120,7 @@ mod wasm {
 
     #[gstd::async_main]
     async fn main() {
-        let input = msg::load_bytes();
+        let input = msg::load_bytes().unwrap();
         debug!(
             "[0x{} compose::handle] input = {:?}, gas_available = {}",
             hex::encode(exec::program_id()),

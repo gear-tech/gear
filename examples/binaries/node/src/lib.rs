@@ -246,7 +246,7 @@ fn process(request: Request) -> Reply {
 #[no_mangle]
 unsafe extern "C" fn handle_reply() {
     if let Some(ref mut transition) = state().transition {
-        if msg::reply_to() != transition.last_sent_message_id {
+        if msg::reply_to().unwrap() != transition.last_sent_message_id {
             return;
         }
 
@@ -257,12 +257,12 @@ unsafe extern "C" fn handle_reply() {
                 } else {
                     transition.state = TransitionState::Failed;
                 }
-                exec::wake(transition.message_id);
+                exec::wake(transition.message_id).unwrap();
             }
             Err(e) => {
                 transition.state = TransitionState::Failed;
                 debug!("Error processing reply: {:?}", e);
-                exec::wake(transition.message_id);
+                exec::wake(transition.message_id).unwrap();
             }
         }
     } else {
