@@ -27,14 +27,12 @@ mod report;
 type Seed = u64;
 
 /*
-1. GearApiProducer (создает новое гир апи из старого, при этом апдейтит нонсы)
-2. Лоадер - Репортер:
-2.1. При инициализации пишет в лог файл с каким сидом начала работать.
-2.2. Всю логику обработки репортов внутри process_run_report тоже засунь туда
-2.3. Измени как потребуется в зависимости от добавления новых тасок
-3. Упрости сам batch поделив его на подмодули
-5. report принимает в себя тип Reporter (который лоадер-репортер выше) и осуществляет все желаемые действия.
-6. ring_get copy paste
+1. GearApiProducer (should create gear api (clone) and update nonces)
+2. Loader - Reporter:
+2.1. On instantiation writes to stdout and file the seed it's running.
+2.2. reporting logic of process_run_report should be included
+5. report method should accept an arg with Reporter type (trait which is implemented for LoaderReporter, or just a type).
+6. Deal with in a separate crate ring_get copy paste
 */
 
 pub struct BatchPool<Rng: LoaderRng> {
