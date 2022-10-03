@@ -51,10 +51,73 @@ pub fn reply<E: Encode>(payload: E, value: u128) -> Result<MessageId> {
     super::reply_bytes(payload.encode(), value)
 }
 
+/// Same as [`reply`], but sends delayed.
+pub fn reply_delayed<E: Encode>(payload: E, value: u128, delay: u32) -> Result<MessageId> {
+    super::reply_bytes_delayed(payload.encode(), value, delay)
+}
+
+/// Same as [`reply`](crate::msg::reply), but with explicit gas limit.
+///
+/// Some programs can reply to other programs, i.e. check another program's
+/// state and use it as a parameter for its own business logic [`MessageId`].
+///
+/// This function allows sending such replies, which are similar to standard
+/// messages in terms of payload and different only in the way the message
+/// processing is handled by a separate program function called
+/// `handle_reply`.
+///
+/// First argument is the reply message payload in bytes.
+/// Second argument is `gas_limit`. It means the maximum amount of gas that you
+/// want to spend on message sending.
+/// Third argument `value` is the value to be transferred from the current
+/// program account to the reply message target account.
+///
+/// Reply message transactions will be posted only after processing is finished,
+/// similar to the standard message [`send`](crate::msg::send).
+///
+/// # Examples
+///
+/// ```
+/// use gstd::{exec, msg};
+///
+/// unsafe extern "C" fn handle() {
+///     // ...
+///     msg::reply_with_gas(b"PING", 0, 0).unwrap();
+/// }
+/// ```
+///
+/// # See also
+///
+/// [`reply_push`] function allows to form a reply message in parts.
+#[wait_for_reply]
+pub fn reply_with_gas<E: Encode>(payload: E, gas_limit: u64, value: u128) -> Result<MessageId> {
+    super::reply_bytes_with_gas(payload.encode(), gas_limit, value)
+}
+
+/// Same as [`reply_with_gas`], but sends delayed.
+pub fn reply_with_gas_delayed<E: Encode>(
+    payload: E,
+    gas_limit: u64,
+    value: u128,
+    delay: u32,
+) -> Result<MessageId> {
+    super::reply_bytes_with_gas_delayed(payload.encode(), gas_limit, value, delay)
+}
+
 /// Send a new message to the program or user.
 #[wait_for_reply]
 pub fn send<E: Encode>(program: ActorId, payload: E, value: u128) -> Result<MessageId> {
     super::send_bytes(program, payload.encode(), value)
+}
+
+/// Same as [`send`], but sends delayed.
+pub fn send_delayed<E: Encode>(
+    program: ActorId,
+    payload: E,
+    value: u128,
+    delay: u32,
+) -> Result<MessageId> {
+    super::send_bytes_delayed(program, payload.encode(), value, delay)
 }
 
 /// Same as [`send`], but with explicit gas limit.
@@ -66,4 +129,15 @@ pub fn send_with_gas<E: Encode>(
     value: u128,
 ) -> Result<MessageId> {
     super::send_bytes_with_gas(program, payload.encode(), gas_limit, value)
+}
+
+/// Same as [`send_with_gas`], but sends delayed.
+pub fn send_with_gas_delayed<E: Encode>(
+    program: ActorId,
+    payload: E,
+    gas_limit: u64,
+    value: u128,
+    delay: u32,
+) -> Result<MessageId> {
+    super::send_bytes_with_gas_delayed(program, payload.encode(), gas_limit, value, delay)
 }

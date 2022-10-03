@@ -238,7 +238,7 @@ impl JournalHandler for InMemoryExtManager {
             self.dispatch_queue.remove(index);
         }
     }
-    fn send_dispatch(&mut self, _message_id: MessageId, dispatch: Dispatch) {
+    fn send_dispatch(&mut self, _message_id: MessageId, dispatch: Dispatch, _delay: u32) {
         let destination = dispatch.destination();
         if self.actors.contains_key(&destination) || self.marked_destinations.contains(&destination)
         {
@@ -277,6 +277,7 @@ impl JournalHandler for InMemoryExtManager {
         _message_id: MessageId,
         program_id: ProgramId,
         awakening_id: MessageId,
+        _delay: u32,
     ) {
         if let Some(dispatch) = self.wait_list.remove(&(program_id, awakening_id)) {
             self.dispatch_queue.push_back(dispatch);

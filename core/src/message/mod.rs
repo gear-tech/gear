@@ -40,8 +40,33 @@ pub use reply::{ReplyMessage, ReplyPacket};
 pub use signal::SignalMessage;
 pub use stored::{StoredDispatch, StoredMessage};
 
+use core::fmt::Display;
+
+use super::buffer::LimitedVec;
+
+/// Max payload size which one message can have (8 MiB).
+const MAX_PAYLOAD_SIZE: usize = 8 * 1024 * 1024;
+
+/// Payload size exceed error
+#[derive(
+    Clone, Copy, Default, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo,
+)]
+pub struct PayloadSizeError;
+
+impl From<PayloadSizeError> for &str {
+    fn from(_: PayloadSizeError) -> Self {
+        "Payload size limit exceeded"
+    }
+}
+
+impl Display for PayloadSizeError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_str((*self).into())
+    }
+}
+
 /// Payload type for message.
-pub type Payload = Vec<u8>;
+pub type Payload = LimitedVec<u8, PayloadSizeError, MAX_PAYLOAD_SIZE>;
 
 /// Gas limit type for message.
 pub type GasLimit = u64;

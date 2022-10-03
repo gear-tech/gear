@@ -27,8 +27,11 @@ use common::{
     CodeStorage, GasTree, Origin, Program,
 };
 use core_processor::common::{DispatchOutcome as CoreDispatchOutcome, JournalHandler};
-use frame_support::traits::{Currency, ExistenceRequirement, ReservableCurrency};
-use frame_system::pallet_prelude::BlockNumberFor;
+use frame_support::{
+    sp_runtime::Saturating,
+    traits::{Currency, ExistenceRequirement, ReservableCurrency},
+};
+use frame_system::{pallet_prelude::BlockNumberFor, Pallet as SystemPallet};
 use gear_core::{
     ids::{CodeId, MessageId, ProgramId},
     memory::{PageBuf, PageNumber},
@@ -213,8 +216,13 @@ where
         Pallet::<T>::consume_and_retrieve(message_id)
     }
 
-    fn send_dispatch(&mut self, message_id: MessageId, dispatch: Dispatch) {
-        if self.check_program_id(&dispatch.destination()) {
+    fn send_dispatch(&mut self, message_id: MessageId, dispatch: Dispatch, delay: u32) {
+        let to_user = self.check_user_id(&dispatch.destination());
+
+        if !delay.is_zero() {
+            log::debug!("Sending delayed for {delay} blocks dispatch");
+            Pallet::<T>::send_delayed_dispatch(message_id, dispatch, delay, to_user)
+        } else if !to_user {
             let gas_limit = dispatch.gas_limit();
             let dispatch = dispatch.into_stored();
 
@@ -278,21 +286,38 @@ where
         message_id: MessageId,
         program_id: ProgramId,
         awakening_id: MessageId,
+        delay: u32,
     ) {
-        if let Some(dispatch) = Pallet::<T>::wake_dispatch(
-            program_id,
-            awakening_id,
-            MessageWokenRuntimeReason::WakeCalled.into_reason(),
-        ) {
-            QueueOf::<T>::queue(dispatch)
-                .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e));
-        } else {
-            log::debug!(
-                "Attempt to wake unknown message {:?} from {:?}",
+        if delay.is_zero() {
+            if let Some(dispatch) = Pallet::<T>::wake_dispatch(
+                program_id,
                 awakening_id,
-                message_id
-            );
+                MessageWokenRuntimeReason::WakeCalled.into_reason(),
+            ) {
+                QueueOf::<T>::queue(dispatch)
+                    .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e));
+
+                return;
+            }
+        } else if WaitlistOf::<T>::contains(&program_id, &awakening_id) {
+            let expected_bn =
+                SystemPallet::<T>::block_number().saturating_add(delay.unique_saturated_into());
+            let task = ScheduledTask::WakeMessage(program_id, awakening_id);
+
+            // This validation helps us to avoid returning error on insertion into `TaskPool` in case of duplicate wake.
+            if !TaskPoolOf::<T>::contains(&expected_bn, &task) {
+                TaskPoolOf::<T>::add(expected_bn, task)
+                    .unwrap_or_else(|e| unreachable!("Scheduling logic invalidated! {:?}", e));
+            }
+
+            return;
         }
+
+        log::debug!(
+            "Attempt to wake unknown message {:?} from {:?}",
+            awakening_id,
+            message_id
+        );
     }
 
     fn update_pages_data(

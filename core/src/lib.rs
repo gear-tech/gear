@@ -25,13 +25,6 @@
 #![cfg_attr(feature = "strict", deny(warnings))]
 #![doc(html_logo_url = "https://docs.gear.rs/logo.svg")]
 
-/// Max memory size, which runtime can allocate at once.
-/// Substrate allocator restrict allocations bigger then 512 wasm pages at once.
-/// See more information about:
-/// https://github.com/paritytech/substrate/blob/cc4d5cc8654d280f03a13421669ba03632e14aa7/client/allocator/src/freeing_bump.rs#L136-L149
-/// https://github.com/paritytech/substrate/blob/cc4d5cc8654d280f03a13421669ba03632e14aa7/primitives/core/src/lib.rs#L385-L388
-pub const RUNTIME_MAX_ALLOC_SIZE: usize = 512 * 0x10000;
-
 extern crate alloc;
 
 pub mod code;
@@ -43,3 +36,5 @@ pub mod memory;
 pub mod message;
 pub mod program;
 pub mod reservation;
+
+pub mod buffer;

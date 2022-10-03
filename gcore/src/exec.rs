@@ -38,7 +38,7 @@ mod sys {
         pub fn gr_wait() -> !;
         pub fn gr_wait_up_to(duration: *const u8) -> !;
         pub fn gr_wait_for(duration: *const u8) -> !;
-        pub fn gr_wake(waker_id_ptr: *const u8);
+        pub fn gr_wake(waker_id_ptr: *const u8, delay_ptr: *const u8);
     }
 }
 
@@ -261,7 +261,14 @@ pub fn wait_up_to(duration: u32) -> ! {
 /// ```
 pub fn wake(waker_id: MessageId) {
     unsafe {
-        sys::gr_wake(waker_id.as_slice().as_ptr());
+        sys::gr_wake(waker_id.as_slice().as_ptr(), 0u32.to_le_bytes().as_ptr());
+    }
+}
+
+/// Same as [`wake`], but wakes delayed.
+pub fn wake_delayed(waker_id: MessageId, delay: u32) {
+    unsafe {
+        sys::gr_wake(waker_id.as_slice().as_ptr(), delay.to_le_bytes().as_ptr());
     }
 }
 

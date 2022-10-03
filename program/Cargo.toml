@@ -1,0 +1,58 @@
+[package]
+name = "gear-program"
+version = "0.1.4"
+authors = ["Gear Technologies"]
+edition = "2021"
+description = "gear program cli"
+repository = "https://github.com/gear-tech/gear-program"
+license = "GPL-3.0"
+documentation = "https://docs.rs/gear-program"
+homepage = "https://github.com/gear-tech/gear-program"
+keywords = ["gear", "cli", "wasm"]
+readme = './README.md'
+
+[[bin]]
+path = "bin/gear.rs"
+name = "gear"
+required-features = [ "cli" ]
+
+[dependencies]
+anyhow = "1.0.60"
+blake2-rfc = "0.2.18"
+base64 = "0.13.0"
+color-eyre = { version = "0.6.2", optional = true }
+dirs = "4.0.0"
+env_logger = "0.9.0"
+futures-util = "0.3.21"
+gear-core = { path = "../core" }
+hex = "0.4.3"
+jsonrpsee-client-transport = { version = "^0.14", features = ["ws"] }
+keyring = "1.2.0"
+lazy_static = "1.4.0"
+libp2p = { version = "0.48.0", features = [ "identify" ], optional = true }
+log = "0.4.16"
+nacl = "0.5.3"
+parity-scale-codec = "3.1.5"
+parity-wasm = "0.45.0"
+scale-info = "2.1.2"
+schnorrkel = "0.9.1"
+serde = "^1"
+serde_json = "^1"
+structopt = { version = "0.3.26", optional = true }
+subxt = "0.22.0"
+thiserror = "1.0.37"
+tokio = { version = "1.21.2", features = [ "full" ] }
+wasmtime = "0.39"
+whoami = "1.2.1"
+
+[dev-dependencies]
+rand = "0.8.5"
+messager = { path = "./res/messager" }
+
+[features]
+default = [ "cli" ]
+cli = [ "color-eyre", "structopt" ]
+node-key = [ "libp2p" ]
+
+[package.metadata.docs.rs]
+all-features = true

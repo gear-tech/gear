@@ -62,9 +62,9 @@ pub struct DispatchResult {
     /// Context store after execution.
     pub context_store: ContextStore,
     /// List of generated messages.
-    pub generated_dispatches: Vec<Dispatch>,
+    pub generated_dispatches: Vec<(Dispatch, u32)>,
     /// List of messages that should be woken.
-    pub awakening: Vec<MessageId>,
+    pub awakening: Vec<(MessageId, u32)>,
     /// New programs to be created with additional data (corresponding code hash and init message id).
     pub program_candidates: BTreeMap<CodeId, Vec<(ProgramId, MessageId)>>,
     /// Gas amount after execution.
@@ -193,6 +193,8 @@ pub enum JournalNote {
         message_id: MessageId,
         /// New message with entry point that was generated.
         dispatch: Dispatch,
+        /// Amount of blocks to wait before sending.
+        delay: u32,
     },
     /// Put this dispatch in the wait list.
     WaitDispatch {
@@ -209,6 +211,8 @@ pub enum JournalNote {
         program_id: ProgramId,
         /// Message that should be woken.
         awakening_id: MessageId,
+        /// Amount of blocks to wait before waking.
+        delay: u32,
     },
     /// Update page.
     UpdatePage {
@@ -279,7 +283,7 @@ pub trait JournalHandler {
     /// Process message consumed.
     fn message_consumed(&mut self, message_id: MessageId);
     /// Process send dispatch.
-    fn send_dispatch(&mut self, message_id: MessageId, dispatch: Dispatch);
+    fn send_dispatch(&mut self, message_id: MessageId, dispatch: Dispatch, delay: u32);
     /// Process send message.
     fn wait_dispatch(&mut self, dispatch: StoredDispatch, duration: Option<u32>);
     /// Process send message.
@@ -288,6 +292,7 @@ pub trait JournalHandler {
         message_id: MessageId,
         program_id: ProgramId,
         awakening_id: MessageId,
+        delay: u32,
     );
     /// Process page update.
     fn update_pages_data(

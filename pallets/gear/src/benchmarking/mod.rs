@@ -68,7 +68,7 @@ use sp_runtime::{
     traits::{Bounded, One, UniqueSaturatedInto},
     Digest, DigestItem, Perbill,
 };
-use sp_std::prelude::*;
+use sp_std::{convert::TryInto, prelude::*};
 use wasm_instrument::parity_wasm::elements::{BlockType, BrTableData, Instruction, ValueType};
 
 const MAX_PAYLOAD_LEN: u32 = 64 * 1024;
@@ -227,7 +227,7 @@ where
                     root_message_id,
                     ProgramId::from_origin(source),
                     program_id,
-                    payload,
+                    payload.try_into()?,
                     Some(u64::MAX),
                     value,
                     None,
@@ -249,7 +249,7 @@ where
                     root_message_id,
                     ProgramId::from_origin(source),
                     program_id,
-                    payload,
+                    payload.try_into()?,
                     Some(u64::MAX),
                     value,
                     None,
@@ -262,7 +262,7 @@ where
                 root_message_id,
                 ProgramId::from_origin(source),
                 dest,
-                payload,
+                payload.try_into()?,
                 Some(u64::MAX),
                 value,
                 None,
@@ -278,7 +278,7 @@ where
                     root_message_id,
                     ProgramId::from_origin(source),
                     msg.source(),
-                    payload,
+                    payload.try_into()?,
                     Some(u64::MAX),
                     value,
                     Some(ReplyDetails::new(msg.id(), exit_code)),
@@ -1377,7 +1377,7 @@ benchmarks! {
         });
         let instance = Program::<T>::new(code, vec![])?;
         let msg_id = MessageId::from(10);
-        let msg = gear_core::message::Message::new(msg_id, instance.addr.as_bytes().into(), ProgramId::from(instance.caller.clone().into_origin().as_bytes()), vec![], Some(1_000_000), 0, None).into_stored();
+        let msg = gear_core::message::Message::new(msg_id, instance.addr.as_bytes().into(), ProgramId::from(instance.caller.clone().into_origin().as_bytes()), Default::default(), Some(1_000_000), 0, None).into_stored();
         MailboxOf::<T>::insert(msg, u32::MAX.unique_saturated_into()).expect("Error during mailbox insertion");
         let Exec {
             ext_manager,
@@ -1441,7 +1441,7 @@ benchmarks! {
         });
         let instance = Program::<T>::new(code, vec![])?;
         let msg_id = MessageId::from(10);
-        let msg = gear_core::message::Message::new(msg_id, instance.addr.as_bytes().into(), ProgramId::from(instance.caller.clone().into_origin().as_bytes()), vec![], Some(1_000_000), 0, None).into_stored();
+        let msg = gear_core::message::Message::new(msg_id, instance.addr.as_bytes().into(), ProgramId::from(instance.caller.clone().into_origin().as_bytes()), Default::default(), Some(1_000_000), 0, None).into_stored();
         MailboxOf::<T>::insert(msg, u32::MAX.unique_saturated_into()).expect("Error during mailbox insertion");
         let Exec {
             ext_manager,
@@ -1651,7 +1651,7 @@ benchmarks! {
         });
         let instance = Program::<T>::new(code, vec![])?;
         for message_id in message_ids {
-            let message = gear_core::message::Message::new(message_id, 1.into(), ProgramId::from(instance.addr.as_bytes()), vec![], Some(1_000_000), 0, None);
+            let message = gear_core::message::Message::new(message_id, 1.into(), ProgramId::from(instance.addr.as_bytes()), Default::default(), Some(1_000_000), 0, None);
             let dispatch = gear_core::message::Dispatch::new(gear_core::message::DispatchKind::Handle, message).into_stored();
             WaitlistOf::<T>::insert(dispatch.clone(), u32::MAX.unique_saturated_into()).expect("Duplicate wl message");
         }

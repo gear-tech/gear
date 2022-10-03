@@ -1362,7 +1362,7 @@ fn block_gas_limit_works() {
     // Same as `ProgramCodeKind::OutgoingWithValueInHandle`, but without value sending
     let wat1 = r#"
     (module
-        (import "env" "gr_send_wgas" (func $send (param i32 i32 i32 i64 i32 i32) (result i32)))
+        (import "env" "gr_send_wgas" (func $send (param i32 i32 i32 i64 i32 i32 i32) (result i32)))
         (import "env" "gr_source" (func $gr_source (param i32)))
         (import "env" "memory" (memory 1))
         (export "handle" (func $handle))
@@ -1379,7 +1379,7 @@ fn block_gas_limit_works() {
                 (get_local $msg_val)
                 (i32.const 0)
             )
-            (call $send (i32.const 2) (i32.const 0) (i32.const 32) (i64.const 10000000) (i32.const 10) (i32.const 40000))
+            (call $send (i32.const 2) (i32.const 0) (i32.const 32) (i64.const 10000000) (i32.const 10) (i32.const 40000) (i32.const 10))
             (if
                 (then unreachable)
                 (else)
@@ -4745,6 +4745,100 @@ fn calculate_gas_info_for_wait_dispatch_works() {
 }
 
 #[test]
+fn delayed_sending() {
+    use demo_delayed_sender::WASM_BINARY;
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let delay = 3u32;
+        // Deploy program, which sends mail in "payload" amount of blocks.
+        assert_ok!(Gear::upload_program(
+            Origin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            delay.to_le_bytes().to_vec(),
+            BlockGasLimitOf::<Test>::get(),
+            0
+        ));
+
+        let prog = utils::get_last_program_id();
+
+        run_to_next_block(None);
+
+        assert!(Gear::is_active(prog));
+
+        for _ in 0..delay {
+            assert!(maybe_last_message(USER_1).is_none());
+            run_to_next_block(None);
+        }
+
+        assert_eq!(get_last_mail(USER_1).payload(), b"Delayed hello!");
+    });
+}
+
+#[test]
+fn delayed_wake() {
+    use demo_delayed_sender::WASM_BINARY;
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        assert_ok!(Gear::upload_program(
+            Origin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            0u32.to_le_bytes().to_vec(),
+            BlockGasLimitOf::<Test>::get(),
+            0
+        ));
+
+        let prog = utils::get_last_program_id();
+
+        run_to_next_block(None);
+
+        assert!(Gear::is_active(prog));
+
+        assert!(maybe_last_message(USER_1).is_some());
+
+        // This message will go into waitlist.
+        assert_ok!(Gear::send_message(
+            Origin::signed(USER_1),
+            prog,
+            vec![],
+            BlockGasLimitOf::<Test>::get(),
+            0
+        ));
+
+        let mid = get_last_message_id();
+
+        assert!(!WaitlistOf::<Test>::contains(&prog, &mid));
+
+        run_to_next_block(None);
+
+        assert!(WaitlistOf::<Test>::contains(&prog, &mid));
+
+        let delay = 3u32;
+
+        // This message will wake previous message in "payload" blocks
+        assert_ok!(Gear::send_message(
+            Origin::signed(USER_1),
+            prog,
+            delay.to_le_bytes().to_vec(),
+            BlockGasLimitOf::<Test>::get(),
+            0
+        ));
+
+        run_to_next_block(None);
+
+        for _ in 0..delay {
+            assert!(WaitlistOf::<Test>::contains(&prog, &mid));
+            run_to_next_block(None);
+        }
+
+        assert!(!WaitlistOf::<Test>::contains(&prog, &mid));
+    });
+}
+
+#[test]
 fn cascading_messages_with_value_do_not_overcharge() {
     init_logger();
     new_test_ext().execute_with(|| {
@@ -5259,6 +5353,7 @@ fn test_async_messages() {
             // check the message sent from the program
             run_to_next_block(None);
             let last_mail = get_last_mail(USER_1);
+            println!("{:?}", String::from_utf8(last_mail.payload().to_vec()));
             assert_eq!(Kind::decode(&mut last_mail.payload()), Ok(*kind));
 
             // reply to the message
@@ -5287,12 +5382,13 @@ fn missing_functions_are_not_executed() {
     // handle is copied from ProgramCodeKind::OutgoingWithValueInHandle
     let wat = r#"
     (module
-        (import "env" "gr_send_wgas" (func $send (param i32 i32 i32 i64 i32 i32) (result i32)))
+        (import "env" "gr_send_wgas" (func $send (param i32 i32 i32 i64 i32 i32 i32) (result i32)))
         (import "env" "memory" (memory 10))
         (export "handle" (func $handle))
         (func $handle
             (local $msg_source i32)
             (local $msg_val i32)
+            (local $delay i32)
             (i32.store offset=2
                 (get_local $msg_source)
                 (i32.const 1)
@@ -5301,7 +5397,11 @@ fn missing_functions_are_not_executed() {
                 (get_local $msg_val)
                 (i32.const 1000)
             )
-            (call $send (i32.const 2) (i32.const 0) (i32.const 32) (i64.const 10000000) (i32.const 10) (i32.const 40000))
+            (i32.store offset=20
+                (get_local $delay)
+                (i32.const 0)
+            )
+            (call $send (i32.const 2) (i32.const 0) (i32.const 32) (i64.const 10000000) (i32.const 10) (i32.const 40000) (i32.const 20))
             (if
                 (then unreachable)
                 (else)
@@ -6048,7 +6148,7 @@ mod utils {
                     // [warning] - program payload data is inaccurate, don't make assumptions about it!
                     r#"
                     (module
-                        (import "env" "gr_send_wgas" (func $send (param i32 i32 i32 i64 i32 i32) (result i32)))
+                        (import "env" "gr_send_wgas" (func $send (param i32 i32 i32 i64 i32 i32 i32) (result i32)))
                         (import "env" "gr_source" (func $gr_source (param i32)))
                         (import "env" "memory" (memory 1))
                         (export "handle" (func $handle))
@@ -6057,6 +6157,7 @@ mod utils {
                         (func $handle
                             (local $msg_source i32)
                             (local $msg_val i32)
+                            (local $delay i32)
                             (i32.store offset=2
                                 (get_local $msg_source)
                                 (i32.const 1)
@@ -6065,7 +6166,11 @@ mod utils {
                                 (get_local $msg_val)
                                 (i32.const 1000)
                             )
-                            (call $send (i32.const 2) (i32.const 0) (i32.const 32) (i64.const 10000000) (i32.const 10) (i32.const 40000))
+                            (i32.store offset=20
+                                (get_local $delay)
+                                (i32.const 0)
+                            )
+                            (call $send (i32.const 2) (i32.const 0) (i32.const 32) (i64.const 10000000) (i32.const 10) (i32.const 40000) (i32.const 20))
                             (if
                                 (then unreachable)
                                 (else)
@@ -6209,6 +6314,7 @@ fn check_gear_stack_end_fail() {
     });
 }
 
+/// Test that error is generated in case `gr_read` requests out of bounds data from message.
 #[test]
 fn check_gr_read_error_works() {
     let wat = r#"
@@ -6244,6 +6350,62 @@ fn check_gr_read_error_works() {
             message_id,
             ExecutionErrorReason::Ext(TrapExplanation::Other(
                 FuncError::<<crate::Ext as ProcessorExt>::Error>::ReadWrongRange(0..10, 0)
+                    .to_string()
+                    .into(),
+            )),
+        );
+    });
+}
+
+/// Check that too large message, which is constructed by `gr_reply_push`,
+/// leads to program execution error.
+#[test]
+fn check_reply_push_payload_exceed() {
+    let wat = r#"
+        (module
+            (import "env" "memory" (memory 0x100))
+            (import "env" "gr_reply_push" (func $gr (param i32 i32) (result i32)))
+            (export "init" (func $init))
+            (func $init
+                ;; first reply push must be ok
+                (block
+                    i32.const 0
+                    i32.const 0x1000000
+                    call $gr
+                    i32.eqz
+                    br_if 0
+                    unreachable
+                )
+                ;; second must lead to overflow
+                (block
+                    i32.const 0
+                    i32.const 0x1000000
+                    call $gr
+                    unreachable
+                )
+            )
+        )"#;
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        Gear::upload_program(
+            Origin::signed(USER_1),
+            ProgramCodeKind::Custom(wat).to_bytes(),
+            DEFAULT_SALT.to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
+            50_000_000_000,
+            0,
+        )
+        .expect("Failed to upload program");
+
+        let message_id = get_last_message_id();
+
+        run_to_block(2, None);
+        assert_last_dequeued(1);
+        assert_failed(
+            message_id,
+            ExecutionErrorReason::Ext(TrapExplanation::Other(
+                ExtError::Message(MessageError::MaxMessageSizeExceed)
                     .to_string()
                     .into(),
             )),

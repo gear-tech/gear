@@ -94,7 +94,7 @@ impl InitMessage {
 
     /// Message payload reference.
     pub fn payload(&self) -> &[u8] {
-        self.payload.as_ref()
+        self.payload.get()
     }
 
     /// Message optional gas limit.
@@ -176,7 +176,7 @@ impl InitPacket {
 
 impl Packet for InitPacket {
     fn payload(&self) -> &[u8] {
-        self.payload.as_ref()
+        self.payload.get()
     }
 
     fn gas_limit(&self) -> Option<GasLimit> {
