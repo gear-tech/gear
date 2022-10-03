@@ -193,22 +193,18 @@ pub enum ExtError {
     Decode,
 
     /// Memory error.
-    #[cfg(feature = "codec")]
     #[display(fmt = "Memory error: {}", _0)]
     Memory(MemoryError),
 
     /// Message error.
-    #[cfg(feature = "codec")]
     #[display(fmt = "Message error: {}", _0)]
     Message(MessageError),
 
     /// Waiting error.
-    #[cfg(feature = "codec")]
     #[display(fmt = "Waiting error: {}", _0)]
     Wait(WaitError),
 
     /// Execution error.
-    #[cfg(feature = "codec")]
     #[display(fmt = "Execution error: {}", _0)]
     Execution(ExecutionError),
 }
