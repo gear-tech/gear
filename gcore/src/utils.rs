@@ -20,7 +20,7 @@
 pub mod ext {
     mod sys {
         extern "C" {
-            pub fn gr_debug(msg_ptr: *const u8, msg_len: u32);
+            pub fn gr_debug(data_ptr: *const u8, data_len: u32);
         }
     }
 

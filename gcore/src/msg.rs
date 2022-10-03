@@ -33,73 +33,90 @@ mod sys {
 
     extern "C" {
         pub fn gr_exit_code() -> i32;
-        pub fn gr_msg_id(val: *mut u8);
-        pub fn gr_read(at: u32, len: u32, dest: *mut u8);
+
+        pub fn gr_message_id(message_id_ptr: *mut [u8; 32]);
+
+        pub fn gr_read(at: u32, length: u32, buffer: *mut u8) -> SyscallError;
+
         pub fn gr_reply(
-            data_ptr: *const u8,
-            data_len: u32,
-            value_ptr: *const u8,
-            message_id_ptr: *mut u8,
-            delay_ptr: *const u8,
+            payload_ptr: *const u8,
+            payload_len: u32,
+            value_ptr: *const u128,
+            delay: u32,
+            message_id_ptr: *mut [u8; 32],
         ) -> SyscallError;
+
         pub fn gr_reply_wgas(
-            data_ptr: *const u8,
-            data_len: u32,
+            payload_ptr: *const u8,
+            payload_len: u32,
             gas_limit: u64,
-            value_ptr: *const u8,
-            message_id_ptr: *mut u8,
-            delay_ptr: *const u8,
+            value_ptr: *const u128,
+            delay: u32,
+            message_id_ptr: *mut [u8; 32],
         ) -> SyscallError;
+
         pub fn gr_reply_commit(
-            value_ptr: *const u8,
-            message_id_ptr: *mut u8,
-            delay_ptr: *const u8,
+            value_ptr: *const u128,
+            delay: u32,
+            message_id_ptr: *mut [u8; 32],
         ) -> SyscallError;
+
         pub fn gr_reply_commit_wgas(
             gas_limit: u64,
-            value_ptr: *const u8,
-            message_id_ptr: *mut u8,
-            delay_ptr: *const u8,
+            value_ptr: *const u128,
+            delay: u32,
+            message_id_ptr: *mut [u8; 32],
         ) -> SyscallError;
-        pub fn gr_reply_push(data_ptr: *const u8, data_len: u32) -> SyscallError;
-        pub fn gr_reply_to(dest: *mut u8);
+
+        pub fn gr_reply_push(payload_ptr: *const u8, payload_len: u32) -> SyscallError;
+
+        pub fn gr_reply_to(message_id_ptr: *mut [u8; 32]) -> SyscallError;
+
         pub fn gr_send(
-            program: *const u8,
-            data_ptr: *const u8,
-            data_len: u32,
-            value_ptr: *const u8,
-            message_id_ptr: *mut u8,
-            delay_ptr: *const u8,
+            destination_ptr: *const [u8; 32],
+            payload_ptr: *const u8,
+            payload_len: u32,
+            value_ptr: *const u128,
+            delay: u32,
+            message_id_ptr: *mut [u8; 32],
         ) -> SyscallError;
+
         pub fn gr_send_wgas(
-            program: *const u8,
-            data_ptr: *const u8,
+            destination_ptr: *const [u8; 32],
+            payload_ptr: *const u8,
             data_len: u32,
             gas_limit: u64,
-            value_ptr: *const u8,
-            message_id_ptr: *mut u8,
-            delay_ptr: *const u8,
+            value_ptr: *const u128,
+            delay: u32,
+            message_id_ptr: *mut [u8; 32],
         ) -> SyscallError;
+
         pub fn gr_send_commit(
             handle: u32,
-            message_id_ptr: *mut u8,
-            program: *const u8,
-            value_ptr: *const u8,
-            delay_ptr: *const u8,
+            destination_ptr: *const [u8; 32],
+            value_ptr: *const u128,
+            delay: u32,
+            message_id_ptr: *mut [u8; 32],
         ) -> SyscallError;
+
         pub fn gr_send_commit_wgas(
             handle: u32,
-            message_id_ptr: *mut u8,
-            program: *const u8,
+            destination_ptr: *const [u8; 32],
             gas_limit: u64,
-            value_ptr: *const u8,
-            delay_ptr: *const u8,
+            value_ptr: *const u128,
+            delay: u32,
+            message_id_ptr: *mut [u8; 32],
         ) -> SyscallError;
-        pub fn gr_send_init(handle: *mut u32) -> SyscallError;
-        pub fn gr_send_push(handle: u32, data_ptr: *const u8, data_len: u32) -> SyscallError;
+
+        pub fn gr_send_init(handle_ptr: *mut u32) -> SyscallError;
+
+        pub fn gr_send_push(handle: u32, payload_ptr: *const u8, payload_len: u32) -> SyscallError;
+
         pub fn gr_size() -> u32;
-        pub fn gr_source(program: *mut u8);
-        pub fn gr_value(val: *mut u8);
+
+        pub fn gr_source(source_ptr: *mut [u8; 32]);
+
+        pub fn gr_value(value_ptr: *mut u128);
     }
 }
 

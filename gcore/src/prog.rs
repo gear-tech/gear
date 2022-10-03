@@ -25,26 +25,28 @@ mod sys {
 
     extern "C" {
         pub fn gr_create_program(
-            code_hash: *const u8,
+            code_id_ptr: *const [u8; 32],
             salt_ptr: *const u8,
             salt_len: u32,
-            data_ptr: *const u8,
-            data_len: u32,
-            value_ptr: *const u8,
-            program_id_ptr: *mut u8,
-            delay: *const u8,
+            payload_ptr: *const u8,
+            payload_len: u32,
+            value_ptr: *const u128,
+            delay: u32,
+            message_id_ptr: *mut [u8; 32],
+            program_id_ptr: *mut [u8; 32],
         ) -> SyscallError;
 
         pub fn gr_create_program_wgas(
-            code_hash: *const u8,
+            code_id_ptr: *const [u8; 32],
             salt_ptr: *const u8,
             salt_len: u32,
-            data_ptr: *const u8,
-            data_len: u32,
+            payload_ptr: *const u8,
+            payload_len: u32,
             gas_limit: u64,
-            value_ptr: *const u8,
-            program_id_ptr: *mut u8,
-            delay: *const u8,
+            value_ptr: *const u128,
+            delay: u32,
+            message_id_ptr: *mut [u8; 32],
+            program_id_ptr: *mut [u8; 32],
         ) -> SyscallError;
     }
 }

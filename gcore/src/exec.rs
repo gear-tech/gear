@@ -23,19 +23,32 @@
 use crate::{ActorId, MessageId};
 
 mod sys {
+    use crate::error::SyscallError;
+
     extern "C" {
         pub fn gr_block_height() -> u32;
+
         pub fn gr_block_timestamp() -> u64;
-        pub fn gr_exit(value_dest_ptr: *const u8) -> !;
+
+        pub fn gr_exit(inheritor_id_ptr: *const [u8; 32]) -> !;
+
         pub fn gr_gas_available() -> u64;
-        pub fn gr_program_id(val: *mut u8);
-        pub fn gr_origin(origin_ptr: *mut u8);
+
+        pub fn gr_program_id(program_id_ptr: *mut [u8; 32]);
+
+        pub fn gr_origin(origin_ptr: *mut [u8; 32]);
+
         pub fn gr_leave() -> !;
-        pub fn gr_value_available(val: *mut u8);
+
+        pub fn gr_value_available(value_ptr: *mut u128);
+
         pub fn gr_wait() -> !;
-        pub fn gr_wait_up_to(duration: *const u8) -> !;
-        pub fn gr_wait_for(duration: *const u8) -> !;
-        pub fn gr_wake(waker_id_ptr: *const u8, delay_ptr: *const u8);
+
+        pub fn gr_wait_up_to(duration: u32) -> !;
+
+        pub fn gr_wait_for(duration: u32) -> !;
+
+        pub fn gr_wake(message_id_ptr: *const [u8; 32], delay: u32) -> SyscallError;
     }
 }
 

@@ -22,8 +22,10 @@ pub type Result<T, E = ExtError> = core::result::Result<T, E>;
 
 #[cfg(feature = "codec")]
 mod sys {
+    use crate::error::SyscallError;
+
     extern "C" {
-        pub fn gr_error(data: *mut u8);
+        pub fn gr_error(data_ptr: *mut u8) -> SyscallError;
     }
 }
 
