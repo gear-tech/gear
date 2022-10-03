@@ -125,7 +125,7 @@ impl InMemoryExtManager {
 }
 
 impl ExecutionContext for InMemoryExtManager {
-    fn store_code(&mut self, code_hash: CodeId, code: Code) {
+    fn store_code(&mut self, code_id: CodeId, code: Code) {
         self.codes.insert(code_hash, code);
     }
     fn store_original_code(&mut self, code: &[u8]) {
@@ -343,7 +343,7 @@ impl JournalHandler for InMemoryExtManager {
         };
     }
 
-    fn store_new_programs(&mut self, code_hash: CodeId, candidates: Vec<(ProgramId, MessageId)>) {
+    fn store_new_programs(&mut self, code_id: CodeId, candidates: Vec<(ProgramId, MessageId)>) {
         if let Some(code) = self.original_codes.get(&code_hash).cloned() {
             for (candidate_id, init_message_id) in candidates {
                 if !self.actors.contains_key(&candidate_id) {

@@ -483,7 +483,7 @@ impl<'a> Program<'a> {
     }
 }
 
-pub fn calculate_program_id(code_hash: CodeId, salt: &[u8]) -> ProgramId {
+pub fn calculate_program_id(code_id: CodeId, salt: &[u8]) -> ProgramId {
     ProgramId::generate(code_hash, salt)
 }
 

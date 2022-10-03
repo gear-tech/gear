@@ -239,7 +239,7 @@ pub enum JournalNote {
     /// Store programs requested by user to be initialized later
     StoreNewPrograms {
         /// Code hash used to create new programs with ids in `candidates` field
-        code_hash: CodeId,
+        code_id: CodeId,
         /// Collection of program candidate ids and their init message ids.
         candidates: Vec<(ProgramId, MessageId)>,
     },
@@ -294,7 +294,7 @@ pub trait JournalHandler {
     /// Store new programs in storage.
     ///
     /// Program ids are ids of _potential_ (planned to be initialized) programs.
-    fn store_new_programs(&mut self, code_hash: CodeId, candidates: Vec<(ProgramId, MessageId)>);
+    fn store_new_programs(&mut self, code_id: CodeId, candidates: Vec<(ProgramId, MessageId)>);
     /// Stop processing queue.
     ///
     /// Pushes StoredDispatch back to the top of the queue and decreases gas allowance.

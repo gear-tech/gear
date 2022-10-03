@@ -244,13 +244,13 @@ impl From<H256> for CodeHash {
     }
 }
 
-impl From<gcore::CodeHash> for CodeHash {
-    fn from(other: gcore::CodeHash) -> Self {
+impl From<gcore::CodeId> for CodeHash {
+    fn from(other: gcore::CodeId) -> Self {
         Self(other.0)
     }
 }
 
-impl From<CodeHash> for gcore::CodeHash {
+impl From<CodeHash> for gcore::CodeId {
     fn from(other: CodeHash) -> Self {
         Self(other.0)
     }

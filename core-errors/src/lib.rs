@@ -192,6 +192,11 @@ pub enum ExtError {
     #[display(fmt = "`ExtError` decoding error")]
     Decode,
 
+    // TODO: consider to create more complex one.
+    /// Syscall usage error.
+    #[display(fmt = "Syscall usage error")]
+    SyscallUsage,
+
     /// Memory error.
     #[display(fmt = "Memory error: {}", _0)]
     Memory(MemoryError),
