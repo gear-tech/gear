@@ -266,7 +266,7 @@ impl GearApi {
     pub async fn send_message_bytes_batch(
         &self,
         args: impl IntoIterator<Item = (ProgramId, impl AsRef<[u8]>, u64, u128)>,
-    ) -> Result<(Vec<Result<MessageId>>, H256)> {
+    ) -> Result<(Vec<Result<(MessageId, ProgramId)>>, H256)> {
         let calls: Vec<_> = args
             .into_iter()
             .map(|(destination, payload, gas_limit, value)| {
@@ -290,9 +290,10 @@ impl GearApi {
             match event?.event {
                 Event::Gear(GearEvent::MessageEnqueued {
                     id,
+                    destination,
                     entry: Entry::Handle,
                     ..
-                }) => res.push(Ok(id.into())),
+                }) => res.push(Ok((id.into(), destination.into()))),
                 Event::Utility(UtilityEvent::ItemFailed { error }) => res.push(Err(
                     subxt::GenericError::Runtime(subxt::RuntimeError(error)).into(),
                 )),

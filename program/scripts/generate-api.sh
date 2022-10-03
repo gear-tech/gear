@@ -99,8 +99,6 @@ function main() {
     # 1. Run gear-node and capture spec version
     spec_version="$(spec-version)"
 
-    echo "a"
-
     # 2. generate code
     sleep 5
     generate-header "${spec_version}" > "${GENERATED_RS}"
