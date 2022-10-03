@@ -586,7 +586,7 @@ impl EnvExt for Ext {
     fn reserve_gas(&mut self, amount: u32, blocks: u32) -> Result<ReservationId, Self::Error> {
         self.charge_gas_runtime(RuntimeCosts::ReserveGas)?;
 
-        let common_charge = self.context.gas_counter.decrease(amount as u64);
+        let common_charge = self.context.gas_counter.reduce(amount as u64);
         let allowance_charge = self.context.gas_allowance_counter.charge(amount as u64);
         self.check_charge_results(common_charge, allowance_charge)?;
 
