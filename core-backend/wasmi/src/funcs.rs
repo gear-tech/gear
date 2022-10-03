@@ -458,33 +458,34 @@ where
         }
     }
 
-    pub fn block_height(ctx: &mut Runtime<E>, _args: &[RuntimeValue]) -> SyscallOutput<E::Error> {
-        let block_height = ctx
-            .ext
-            .block_height()
-            .map_err(FuncError::Core)
-            .map_err(|err| {
-                ctx.err = err;
-                FuncError::HostError
-            })?;
+    pub fn block_height(ctx: &mut Runtime<E>, args: &[RuntimeValue]) -> SyscallOutput<E::Error> {
+        let mut args = args.iter();
+        let height_ptr = pop_i32(&mut args).map_err(|_| FuncError::HostError)?;
 
-        return_i32(block_height).map_err(|_| FuncError::HostError)
+        let mut f = || {
+            let block_height = ctx.ext.block_height().map_err(FuncError::Core)?;
+            ctx.write_output(height_ptr, &block_height.to_le_bytes())
+                .map_err(Into::into)
+        };
+        f().map(|()| ReturnValue::Unit).map_err(|err| {
+            ctx.err = err;
+            FuncError::HostError
+        })
     }
 
-    pub fn block_timestamp(
-        ctx: &mut Runtime<E>,
-        _args: &[RuntimeValue],
-    ) -> SyscallOutput<E::Error> {
-        let block_timestamp =
-            ctx.ext
-                .block_timestamp()
-                .map_err(FuncError::Core)
-                .map_err(|err| {
-                    ctx.err = err;
-                    FuncError::HostError
-                })?;
+    pub fn block_timestamp(ctx: &mut Runtime<E>, args: &[RuntimeValue]) -> SyscallOutput<E::Error> {
+        let mut args = args.iter();
+        let timestamp_ptr = pop_i32(&mut args).map_err(|_| FuncError::HostError)?;
 
-        return_i64(block_timestamp).map_err(|_| FuncError::HostError)
+        let mut f = || {
+            let block_timestamp = ctx.ext.block_timestamp().map_err(FuncError::Core)?;
+            ctx.write_output(timestamp_ptr, &block_timestamp.to_le_bytes())
+                .map_err(Into::into)
+        };
+        f().map(|()| ReturnValue::Unit).map_err(|err| {
+            ctx.err = err;
+            FuncError::HostError
+        })
     }
 
     pub fn origin(ctx: &mut Runtime<E>, args: &[RuntimeValue]) -> SyscallOutput<E::Error> {

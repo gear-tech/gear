@@ -474,32 +474,35 @@ where
         }
     }
 
-    pub fn block_height(ctx: &mut Runtime<E>, _args: &[Value]) -> SyscallOutput {
+    pub fn block_height(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
         log::trace!(target: "syscall::gear", "block_height");
-        let block_height = ctx
-            .ext
-            .block_height()
-            .map_err(FuncError::Core)
-            .map_err(|err| {
-                ctx.err = err;
-                HostError
-            })?;
+        let mut args = args.iter();
+        let height_ptr = pop_i32(&mut args)?;
 
-        return_i32(block_height)
+        let mut f = || {
+            let block_height = ctx.ext.block_height().map_err(FuncError::Core)?;
+            ctx.write_output(height_ptr, &block_height.to_le_bytes())
+                .map_err(Into::into)
+        };
+        f().map(|()| ReturnValue::Unit).map_err(|err| {
+            ctx.err = err;
+            HostError
+        })
     }
 
-    pub fn block_timestamp(ctx: &mut Runtime<E>, _args: &[Value]) -> SyscallOutput {
+    pub fn block_timestamp(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
         log::trace!(target: "syscall::gear", "block_timestamp");
-        let block_timestamp =
-            ctx.ext
-                .block_timestamp()
-                .map_err(FuncError::Core)
-                .map_err(|err| {
-                    ctx.err = err;
-                    HostError
-                })?;
-
-        return_i64(block_timestamp)
+        let mut args = args.iter();
+        let timestamp_ptr = pop_i32(&mut args)?;
+        let mut f = || {
+            let block_timestamp = ctx.ext.block_timestamp().map_err(FuncError::Core)?;
+            ctx.write_output(timestamp_ptr, &block_timestamp.to_le_bytes())
+                .map_err(Into::into)
+        };
+        f().map(|()| ReturnValue::Unit).map_err(|err| {
+            ctx.err = err;
+            HostError
+        })
     }
 
     pub fn origin(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {

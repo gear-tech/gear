@@ -1684,6 +1684,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "demo-overflow"
+version = "0.1.0"
+dependencies = [
+ "gear-wasm-builder",
+ "gstd",
+ "gtest",
+]
+
+[[package]]
 name = "demo-program-factory"
 version = "0.1.0"
 dependencies = [

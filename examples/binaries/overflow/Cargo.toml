@@ -1,0 +1,16 @@
+[package]
+name = "demo-overflow"
+version = "0.1.0"
+authors = ["Gear Technologies"]
+edition = "2021"
+license = "MIT"
+workspace = "../../../"
+
+[dependencies]
+gstd = { path = "../../../gstd", features = ["debug"] }
+
+[dev-dependencies]
+gtest = { path = "../../../gtest" }
+
+[build-dependencies]
+gear-wasm-builder = { path = "../../../utils/wasm-builder" }

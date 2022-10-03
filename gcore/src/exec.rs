@@ -24,8 +24,8 @@ use crate::{ActorId, MessageId};
 
 mod sys {
     extern "C" {
-        pub fn gr_block_height() -> u32;
-        pub fn gr_block_timestamp() -> u64;
+        pub fn gr_block_height(height_ptr: *mut u8);
+        pub fn gr_block_timestamp(timestamp_ptr: *mut u8);
         pub fn gr_exit(value_dest_ptr: *const u8) -> !;
         pub fn gr_gas_available() -> u64;
         pub fn gr_program_id(val: *mut u8);
@@ -58,7 +58,11 @@ mod sys {
 /// }
 /// ```
 pub fn block_height() -> u32 {
-    unsafe { sys::gr_block_height() }
+    let mut bytes = [0u8; 4];
+    unsafe {
+        sys::gr_block_height(bytes.as_mut_ptr());
+    }
+    u32::from_le_bytes(bytes)
 }
 
 /// Get the current block timestamp.
@@ -78,7 +82,11 @@ pub fn block_height() -> u32 {
 /// }
 /// ```
 pub fn block_timestamp() -> u64 {
-    unsafe { sys::gr_block_timestamp() }
+    let mut bytes = [0u8; 8];
+    unsafe {
+        sys::gr_block_timestamp(bytes.as_mut_ptr());
+    }
+    u64::from_le_bytes(bytes)
 }
 
 /// Terminate the execution of a program. The program and all corresponding data
