@@ -372,7 +372,6 @@ impl GearApi {
         }
 
         let calls: Vec<_> = args
-            .into_iter()
             .map(|(reply_to_id, payload, gas_limit, value)| {
                 RuntimeCall::Gear(GearCall::send_reply {
                     reply_to_id: reply_to_id.into(),
