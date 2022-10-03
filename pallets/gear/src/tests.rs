@@ -50,6 +50,7 @@ use gear_backend_sandbox::funcs::FuncError;
 use gear_core::{
     code::{self, Code},
     ids::{CodeId, MessageId, ProgramId},
+    reservation::GasReservationMap,
 };
 use gear_core_errors::*;
 use sp_runtime::{traits::UniqueSaturatedInto, SaturatedConversion};
@@ -5585,6 +5586,19 @@ fn test_mad_big_prog_instrumentation() {
 
 #[test]
 fn gas_reservation_works() {
+    fn get_reservation_map(pid: ProgramId) -> GasReservationMap {
+        let prog = common::get_program(pid.into_origin()).unwrap();
+        if let common::Program::Active(common::ActiveProgram {
+            gas_reservation_map,
+            ..
+        }) = prog
+        {
+            gas_reservation_map
+        } else {
+            panic!("program is not active")
+        }
+    }
+
     init_logger();
     new_test_ext().execute_with(|| {
         Gear::upload_program(
@@ -5600,6 +5614,10 @@ fn gas_reservation_works() {
         let pid = get_last_program_id();
 
         run_to_block(2, None);
+
+        // gas has been reserved 2 times
+        let map = get_reservation_map(pid);
+        assert_eq!(map.len(), 2);
 
         let GasInfo {
             min_limit: spent_gas,
@@ -5622,6 +5640,16 @@ fn gas_reservation_works() {
         ));
 
         run_to_block(3, None);
+
+        // gas unreserved manually
+        let map = get_reservation_map(pid);
+        assert_eq!(map.len(), 1);
+
+        run_to_block(3 + 3, None);
+
+        // gas unreserved automatically
+        let map = get_reservation_map(pid);
+        assert!(map.is_empty());
     });
 }
 

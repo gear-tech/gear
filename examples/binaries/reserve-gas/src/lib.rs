@@ -34,6 +34,10 @@ const RESERVATION_AMOUNT: u32 = 50_000_000;
 
 #[no_mangle]
 unsafe extern "C" fn init() {
+    // will be removed automatically
+    let _orphan_reservation = ReservationId::reserve(50_000, 3);
+
+    // no actual reservation and unreservation is occurred
     let noop_reservation = ReservationId::reserve(50_000, 10);
     noop_reservation.unreserve();
 

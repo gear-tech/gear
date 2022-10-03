@@ -409,6 +409,14 @@ where
     ) {
         let (gas_reservation_map, tasks) = gas_reserver.into_parts();
 
+        let pid = program_id.into_origin();
+        let prog = common::get_program(pid)
+            .expect("gas reservation update guaranteed to be called only on existing program");
+        if let Program::Active(mut prog) = prog {
+            prog.gas_reservation_map = gas_reservation_map;
+            common::set_program(pid, prog);
+        }
+
         for (id, task) in tasks {
             match task {
                 GasReservationTask::CreateReservation { amount, bn } => {
@@ -425,27 +433,21 @@ where
 
                     TaskPoolOf::<T>::add(
                         BlockNumberFor::<T>::from(bn),
-                        ScheduledTask::RemoveGasReservation(id),
+                        ScheduledTask::RemoveGasReservation(program_id, id),
                     )
                     .unwrap_or_else(|e| unreachable!("Scheduling logic invalidated! {:?}", e));
                 }
                 GasReservationTask::RemoveReservation { bn } => {
-                    <Self as TaskHandler<T::AccountId>>::remove_gas_reservation(self, id);
+                    <Self as TaskHandler<T::AccountId>>::remove_gas_reservation(
+                        self, program_id, id,
+                    );
 
                     let _ = TaskPoolOf::<T>::delete(
                         BlockNumberFor::<T>::from(bn),
-                        ScheduledTask::RemoveGasReservation(id),
+                        ScheduledTask::RemoveGasReservation(program_id, id),
                     );
                 }
             }
-        }
-
-        let program_id = program_id.into_origin();
-        let prog = common::get_program(program_id)
-            .expect("gas reservation update guaranteed to be called only on existing program");
-        if let Program::Active(mut prog) = prog {
-            prog.gas_reservation_map = gas_reservation_map;
-            common::set_program(program_id, prog);
         }
     }
 }

@@ -28,7 +28,7 @@ use common::{
     },
     scheduler::*,
     storage::*,
-    GasTree, Origin,
+    GasTree, Origin, Program,
 };
 use core_processor::common::ExecutionErrorReason;
 use gear_core::{
@@ -184,8 +184,15 @@ where
         }
     }
 
-    fn remove_gas_reservation(&mut self, reservation_id: ReservationId) {
-        log::debug!("Remove reservation with {:?}", reservation_id);
+    fn remove_gas_reservation(&mut self, program_id: ProgramId, reservation_id: ReservationId) {
+        let program_id = program_id.into_origin();
+        let prog = common::get_program(program_id)
+            .expect("gas reservation removing guaranteed to be called only on existing program");
+        if let Program::Active(mut prog) = prog {
+            prog.gas_reservation_map.remove(&reservation_id);
+            common::set_program(program_id, prog);
+        }
+
         Pallet::<T>::consume_and_retrieve(reservation_id);
     }
 }
