@@ -21,4 +21,4 @@ derive_more = { version = "0.99.17", features = ["add", "add_assign", "display",
 env_logger = "0.9.1"
 path-clean = "0.1.0"
 wasm-instrument = { version = "0.2.1", git = "https://github.com/gear-tech/wasm-instrument.git", branch = "gear-stable", default-features = false }
-wasmi = { version = "0.13.0", default-features = false }
+wasmi = { version = "0.18.0", default-features = false }
