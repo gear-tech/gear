@@ -28,7 +28,9 @@ const PATHS: [&str; 2] = [
 #[tokio::test]
 async fn harmless_upload() -> Result<()> {
     // Creating gear api.
-    let api = GearApi::dev().await?;
+    //
+    // By default, login as Alice, than re-login as Bob.
+    let api = GearApi::dev().await?.with("//Bob")?;
 
     // Taking block gas limit constant.
     let gas_limit = api.block_gas_limit().await?;
