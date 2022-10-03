@@ -34,6 +34,9 @@ mod sys {
     use crate::{error::SyscallError, MessageHandle};
 
     extern "C" {
+        // TODO: consider how to make this fallible.
+        //
+        // (?) `pub fn gr_exit_code(exit_code_ptr: *mut i32) -> SyscallError`
         pub fn gr_exit_code() -> i32;
 
         pub fn gr_message_id(message_id_ptr: *mut [u8; 32]);
