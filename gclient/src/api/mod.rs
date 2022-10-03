@@ -38,7 +38,7 @@ impl GearApi {
     //
     // Password for URI should be specified in the same str, separated with ':'.
     pub async fn init_with(address: WSAddress, suri: impl AsRef<str>) -> Result<Self> {
-        let mut suri = suri.as_ref().split(':');
+        let mut suri = suri.as_ref().splitn(2, ':');
 
         Api::new(Some(&address.url()))
             .await
@@ -51,7 +51,7 @@ impl GearApi {
     }
 
     pub fn with(self, suri: impl AsRef<str>) -> Result<Self> {
-        let mut suri = suri.as_ref().split(':');
+        let mut suri = suri.as_ref().splitn(2, ':');
 
         Ok(Self(
             self.0
