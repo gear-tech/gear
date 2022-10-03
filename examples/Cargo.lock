@@ -105,8 +105,6 @@ name = "demo-async"
 version = "0.1.0"
 dependencies = [
  "gstd",
- "parity-scale-codec",
- "scale-info",
 ]
 
 [[package]]
@@ -115,8 +113,6 @@ version = "0.1.0"
 dependencies = [
  "futures",
  "gstd",
- "parity-scale-codec",
- "scale-info",
 ]
 
 [[package]]
