@@ -967,6 +967,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "console"
+version = "0.15.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c050367d967ced717c04b65d8c619d863ef9292ce0c5760028655a2fb298718c"
+dependencies = [
+ "encode_unicode",
+ "lazy_static",
+ "libc",
+ "terminal_size",
+ "unicode-width",
+ "winapi",
+]
+
+[[package]]
 name = "const-oid"
 version = "0.7.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2132,6 +2146,12 @@ dependencies = [
  "subtle",
  "zeroize",
 ]
+
+[[package]]
+name = "encode_unicode"
+version = "0.3.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a357d28ed41a50f9c765dbfe56cbc04a64e53e5fc58ba79fbc34c10ef3df831f"
 
 [[package]]
 name = "enum-as-inner"
@@ -3313,11 +3333,15 @@ name = "gear-wasm-gen"
 version = "0.1.0"
 dependencies = [
  "arbitrary",
+ "gear-backend-common",
+ "gear-backend-wasmi",
+ "gear-core",
+ "indicatif",
  "parity-wasm 0.45.0",
  "rand 0.8.5",
  "wasm-instrument 0.2.1",
  "wasm-smith",
- "wasmparser 0.92.0",
+ "wasmparser 0.91.0",
  "wasmprinter",
 ]
 
@@ -3840,6 +3864,17 @@ dependencies = [
  "autocfg",
  "hashbrown 0.12.3",
  "serde",
+]
+
+[[package]]
+name = "indicatif"
+version = "0.17.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bfddc9561e8baf264e0e45e197fd7696320026eb10a8180340debc27b18f535b"
+dependencies = [
+ "console",
+ "number_prefix",
+ "unicode-width",
 ]
 
 [[package]]
@@ -6032,6 +6067,12 @@ dependencies = [
  "hermit-abi",
  "libc",
 ]
+
+[[package]]
+name = "number_prefix"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "830b246a0e5f20af87141b25c173cd1b609bd7779a4617d6ec582abaf90870f3"
 
 [[package]]
 name = "object"
@@ -10775,6 +10816,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "terminal_size"
+version = "0.1.17"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "633c1a546cee861a1a6d0dc69ebeca693bf4296661ba7852b9d21d159e0506df"
+dependencies = [
+ "libc",
+ "winapi",
+]
+
+[[package]]
 name = "textwrap"
 version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -12034,6 +12085,15 @@ dependencies = [
 name = "wasmparser"
 version = "0.90.0"
 source = "git+https://github.com/gear-tech/wasm-tools.git?branch=gear-stable#cb7969e6b1a6b598f9ebdd0336a8e66dbc836d77"
+dependencies = [
+ "indexmap",
+]
+
+[[package]]
+name = "wasmparser"
+version = "0.91.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "239cdca8b8f356af8118c522d5fea23da45b60832ed4e18ef90bb3c9d8dce24a"
 dependencies = [
  "indexmap",
 ]
