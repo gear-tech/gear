@@ -3484,6 +3484,7 @@ dependencies = [
  "gear-backend-common",
  "gear-backend-wasmi",
  "gear-core",
+ "gear-core-errors",
  "gear-core-processor",
  "gear-wasm-builder",
  "hex",
@@ -3491,7 +3492,6 @@ dependencies = [
  "parity-scale-codec",
  "path-clean",
  "wasm-instrument 0.2.1",
- "wasmi 0.13.2",
 ]
 
 [[package]]

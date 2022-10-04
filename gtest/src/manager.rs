@@ -649,7 +649,7 @@ impl ExtManager {
         WasmExecutor::update_ext(&mut ext, self);
 
         WasmExecutor::execute(
-            &mut ext,
+            ext,
             &data.program,
             meta_binary,
             &pages_initial_data,

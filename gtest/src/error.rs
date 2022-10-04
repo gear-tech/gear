@@ -16,10 +16,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use anyhow::Error as AnyhowError;
 use codec::Error as CodecError;
 use core_processor::ProcessorError;
 use gear_core::{ids::ProgramId, memory::WasmPageNumber};
+use gear_backend_wasmi::wasmi;
 
 /// Type alias for the testing functions running result.
 pub type Result<T, E = TestError> = core::result::Result<T, E>;
@@ -70,11 +70,11 @@ pub enum TestError {
 
     /// Wrapper for [`wasmi::Error`](https://paritytech.github.io/wasmi/wasmi/enum.Error.html).
     #[display(fmt = "{}", _0)]
-    MemoryError(wasmi::Error),
+    MemoryError(gear_core_errors::MemoryError),
 
     /// Wrapper for `wasmi` error (used [`anyhow::Error`] for that).
     #[display(fmt = "{}", _0)]
-    WasmiError(AnyhowError),
+    WasmiError(wasmi::Error),
 
     /// Wrapper for [`parity_scale_codec::Error`](https://docs.rs/parity-scale-codec/latest/parity_scale_codec/struct.Error.html).
     #[display(fmt = "{}", _0)]
