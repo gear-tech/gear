@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{env::ReturnValue, runtime::Runtime};
+// use crate::{env::ReturnValue, runtime::Runtime};
 #[cfg(not(feature = "std"))]
 use alloc::string::ToString;
 use alloc::string::{FromUtf8Error, String};
@@ -40,8 +40,8 @@ use gear_core::{
     message::{HandlePacket, InitPacket, PayloadSizeError, ReplyPacket},
 };
 use gear_core_errors::{CoreError, MemoryError};
-use wasmi::{Error, RuntimeValue};
-
+// use wasmi::{Error, RuntimeValue};
+/*
 pub(crate) type SyscallOutput<E> = Result<ReturnValue, FuncError<E>>;
 
 pub(crate) fn pop_i32<T: TryFrom<i32>>(arg: &mut Iter<'_, RuntimeValue>) -> Result<T, Error>
@@ -78,7 +78,7 @@ pub(crate) fn return_i64<T: TryInto<i64> + fmt::Display>(val: T) -> Result<Retur
     val.try_into()
         .map(|v| RuntimeValue::I64(v).into())
         .map_err(|_| Error::Value("return_i64 err".to_string()))
-}
+}*/
 
 #[derive(Debug, derive_more::Display, derive_more::From)]
 pub enum FuncError<E: Display> {
@@ -138,6 +138,8 @@ where
         }
     }
 }
+
+/*
 pub struct FuncsHandler<E: Ext + 'static> {
     _phantom: PhantomData<E>,
 }
@@ -975,3 +977,4 @@ where
         Err(FuncError::HostError)
     }
 }
+*/

@@ -1,7 +1,7 @@
 // This file is part of Gear.
 
 // Copyright (C) 2022 Gear Technologies Inc.
-// SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
+// SPDX-License-Identifier: GPL-3.0-or-lat&er WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
@@ -16,18 +16,14 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Provide wasmi support.
+use gear_backend_common::IntoExtInfo;
+use gear_core::env::Ext;
 
-#![cfg_attr(not(feature = "std"), no_std)]
+use crate::funcs::FuncError;
 
-extern crate alloc;
+pub type HostState<E> = Option<State<E>>;
 
-pub mod env;
-pub mod funcs;
-// pub mod funcs_tree;
-pub mod memory;
-pub mod state;
-
-pub use env::WasmiEnvironment;
-pub use memory::MemoryWrap;
-pub use wasmi;
+pub struct State<E: Ext + IntoExtInfo + 'static> {
+    pub ext: E,
+    pub err: FuncError<E::Error>,
+}
