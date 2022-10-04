@@ -1,5 +1,4 @@
 #![no_std]
-#![feature(const_btree_new)]
 
 //!
 //! Hi! I'm bot. I can be configured in `init` and then reply
