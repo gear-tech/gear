@@ -7,7 +7,7 @@ license = "GPL-3.0"
 
 [dependencies]
 wasm-smith = { version = "0.11.4", git = "https://github.com/gear-tech/wasm-tools.git", branch = "gear-stable" }
-wasmparser = { version = "0.90.0" }
+wasmparser = "0.92.0"
 arbitrary = { version = "1.1.6", features = ["derive"] }
 wasm-instrument = { version = "0.2.1", git = "https://github.com/gear-tech/wasm-instrument.git", branch = "gear-stable" }
 parity-wasm = { version = "0.45.0", default-features = false }
