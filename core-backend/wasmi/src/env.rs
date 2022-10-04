@@ -20,7 +20,7 @@
 
 use crate::{
     funcs::FuncError,
-    // funcs_tree,
+    funcs_tree,
     memory::MemoryWrap,
     state::{HostState, State},
 };
@@ -117,14 +117,14 @@ where
             .define("env", "memory", memory)
             .map_err(|e| Error::from((ext.gas_amount(), Linking(e))))?;
 
-        // let forbidden_funcs =
-        //     (!ext.forbidden_funcs().is_empty()).then(|| ext.forbidden_funcs().clone());
-        // let functions = funcs_tree::build(&mut store, memory, forbidden_funcs);
-        // for (name, function) in functions {
-        //     linker
-        //         .define("env", name, function)
-        //         .map_err(|e| Error::from((ext.gas_amount(), Linking(e))))?;
-        // }
+        let forbidden_funcs =
+            (!ext.forbidden_funcs().is_empty()).then(|| ext.forbidden_funcs().clone());
+        let functions = funcs_tree::build(&mut store, memory, forbidden_funcs);
+        for (name, function) in functions {
+            linker
+                .define("env", name, function)
+                .map_err(|e| Error::from((ext.gas_amount(), Linking(e))))?;
+        }
 
         let module = Module::new(store.engine(), &mut &binary[..])
             .map_err(|e| Error::from((ext.gas_amount(), ModuleInstantiation(e))))?;

@@ -24,7 +24,7 @@ extern crate alloc;
 
 pub mod env;
 pub mod funcs;
-// pub mod funcs_tree;
+pub mod funcs_tree;
 pub mod memory;
 pub mod state;
 
