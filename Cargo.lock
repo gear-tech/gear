@@ -6201,6 +6201,7 @@ dependencies = [
  "frame-system",
  "gear-backend-common",
  "gear-backend-sandbox",
+ "gear-backend-wasmi",
  "gear-common",
  "gear-core",
  "gear-core-errors",

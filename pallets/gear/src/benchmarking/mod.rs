@@ -37,8 +37,8 @@ use crate::{
     pallet,
     schedule::{API_BENCHMARK_BATCH_SIZE, INSTR_BENCHMARK_BATCH_SIZE},
     BTreeMap, BalanceOf, BlockGasLimitOf, Call, Config, CostsPerBlockOf, CurrencyOf,
-    Ext as Externalities, GasHandlerOf, MailboxOf, Pallet as Gear, Pallet, QueueOf,
-    SandboxEnvironment, Schedule, WaitlistOf,
+    ExecutionEnvironment, Ext as Externalities, GasHandlerOf, MailboxOf, Pallet as Gear, Pallet,
+    QueueOf, Schedule, WaitlistOf,
 };
 use codec::Encode;
 use common::{
@@ -588,7 +588,7 @@ benchmarks! {
     }: {
         core_processor::process::<
             Externalities,
-            SandboxEnvironment,
+            ExecutionEnvironment,
         >(&block_config, context, memory_pages);
     }
 
@@ -652,7 +652,7 @@ benchmarks! {
 
         core_processor::process::<
             Externalities,
-            SandboxEnvironment,
+            ExecutionEnvironment,
         >(&block_config, context, memory_pages);
     }
 
@@ -682,7 +682,7 @@ benchmarks! {
     }: {
         core_processor::process::<
             Externalities,
-            SandboxEnvironment,
+            ExecutionEnvironment,
         >(&block_config, context, memory_pages);
     }
 
@@ -700,7 +700,7 @@ benchmarks! {
     }: {
         core_processor::process::<
             Externalities,
-            SandboxEnvironment,
+            ExecutionEnvironment,
         >(&block_config, context, memory_pages);
     }
 
@@ -718,7 +718,7 @@ benchmarks! {
     }: {
         core_processor::process::<
             Externalities,
-            SandboxEnvironment,
+            ExecutionEnvironment,
         >(&block_config, context, memory_pages);
     }
 
@@ -736,7 +736,7 @@ benchmarks! {
     }: {
         core_processor::process::<
             Externalities,
-            SandboxEnvironment,
+            ExecutionEnvironment,
         >(&block_config, context, memory_pages);
     }
 
@@ -755,7 +755,7 @@ benchmarks! {
     }: {
         core_processor::process::<
             Externalities,
-            SandboxEnvironment,
+            ExecutionEnvironment,
         >(&block_config, context, memory_pages);
     }
 
@@ -773,7 +773,7 @@ benchmarks! {
     }: {
         core_processor::process::<
             Externalities,
-            SandboxEnvironment,
+            ExecutionEnvironment,
         >(&block_config, context, memory_pages);
     }
 
@@ -791,7 +791,7 @@ benchmarks! {
     }: {
         core_processor::process::<
             Externalities,
-            SandboxEnvironment,
+            ExecutionEnvironment,
         >(&block_config, context, memory_pages);
     }
 
@@ -821,7 +821,7 @@ benchmarks! {
     }: {
         core_processor::process::<
             Externalities,
-            SandboxEnvironment,
+            ExecutionEnvironment,
         >(&block_config, context, memory_pages);
     }
 
@@ -862,7 +862,7 @@ benchmarks! {
     }: {
         core_processor::process::<
             Externalities,
-            SandboxEnvironment,
+            ExecutionEnvironment,
         >(&block_config, context, memory_pages);
     }
 
@@ -907,7 +907,7 @@ benchmarks! {
     }: {
         core_processor::process::<
             Externalities,
-            SandboxEnvironment,
+            ExecutionEnvironment,
         >(&block_config, context, memory_pages);
     }
 
@@ -937,7 +937,7 @@ benchmarks! {
     }: {
         core_processor::process::<
             Externalities,
-            SandboxEnvironment,
+            ExecutionEnvironment,
         >(&block_config, context, memory_pages);
     }
 
@@ -967,7 +967,7 @@ benchmarks! {
     }: {
         core_processor::process::<
             Externalities,
-            SandboxEnvironment,
+            ExecutionEnvironment,
         >(&block_config, context, memory_pages);
     }
 
@@ -998,7 +998,7 @@ benchmarks! {
     }: {
         core_processor::process::<
             Externalities,
-            SandboxEnvironment,
+            ExecutionEnvironment,
         >(&block_config, context, memory_pages);
     }
 
@@ -1040,7 +1040,7 @@ benchmarks! {
     }: {
         core_processor::process::<
             Externalities,
-            SandboxEnvironment,
+            ExecutionEnvironment,
         >(&block_config, context, memory_pages);
     }
 
@@ -1082,7 +1082,7 @@ benchmarks! {
     }: {
         core_processor::process::<
             Externalities,
-            SandboxEnvironment,
+            ExecutionEnvironment,
         >(&block_config, context, memory_pages);
     }
 
@@ -1135,7 +1135,7 @@ benchmarks! {
     }: {
         core_processor::process::<
             Externalities,
-            SandboxEnvironment,
+            ExecutionEnvironment,
         >(&block_config, context, memory_pages);
     }
 
@@ -1188,7 +1188,7 @@ benchmarks! {
     }: {
         core_processor::process::<
             Externalities,
-            SandboxEnvironment,
+            ExecutionEnvironment,
         >(&block_config, context, memory_pages);
     }
 
@@ -1231,7 +1231,7 @@ benchmarks! {
     }: {
         core_processor::process::<
             Externalities,
-            SandboxEnvironment,
+            ExecutionEnvironment,
         >(&block_config, context, memory_pages);
     }
 
@@ -1272,7 +1272,7 @@ benchmarks! {
     }: {
         core_processor::process::<
             Externalities,
-            SandboxEnvironment,
+            ExecutionEnvironment,
         >(&block_config, context, memory_pages);
     }
 
@@ -1314,7 +1314,7 @@ benchmarks! {
     }: {
         core_processor::process::<
             Externalities,
-            SandboxEnvironment,
+            ExecutionEnvironment,
         >(&block_config, context, memory_pages);
     }
 
@@ -1354,7 +1354,7 @@ benchmarks! {
     }: {
         core_processor::process::<
             Externalities,
-            SandboxEnvironment,
+            ExecutionEnvironment,
         >(&block_config, context, memory_pages);
     }
 
@@ -1388,7 +1388,7 @@ benchmarks! {
     }: {
         core_processor::process::<
             Externalities,
-            SandboxEnvironment,
+            ExecutionEnvironment,
         >(&block_config, context, memory_pages);
     }
 
@@ -1419,7 +1419,7 @@ benchmarks! {
     }: {
         core_processor::process::<
             Externalities,
-            SandboxEnvironment,
+            ExecutionEnvironment,
         >(&block_config, context, memory_pages);
     }
 
@@ -1452,7 +1452,7 @@ benchmarks! {
     }: {
         core_processor::process::<
             Externalities,
-            SandboxEnvironment,
+            ExecutionEnvironment,
         >(&block_config, context, memory_pages);
     }
 
@@ -1492,7 +1492,7 @@ benchmarks! {
     }: {
         core_processor::process::<
             Externalities,
-            SandboxEnvironment,
+            ExecutionEnvironment,
         >(&block_config, context, memory_pages);
     }
 
@@ -1523,7 +1523,7 @@ benchmarks! {
     }: {
         core_processor::process::<
             Externalities,
-            SandboxEnvironment,
+            ExecutionEnvironment,
         >(&block_config, context, memory_pages);
     }
 
@@ -1554,7 +1554,7 @@ benchmarks! {
     }: {
         core_processor::process::<
             Externalities,
-            SandboxEnvironment,
+            ExecutionEnvironment,
         >(&block_config, context, memory_pages);
     }
 
@@ -1586,7 +1586,7 @@ benchmarks! {
     }: {
         core_processor::process::<
             Externalities,
-            SandboxEnvironment,
+            ExecutionEnvironment,
         >(&block_config, context, memory_pages);
     }
 
@@ -1618,7 +1618,7 @@ benchmarks! {
     }: {
         core_processor::process::<
             Externalities,
-            SandboxEnvironment,
+            ExecutionEnvironment,
         >(&block_config, context, memory_pages);
     }
 
@@ -1664,7 +1664,7 @@ benchmarks! {
     }: {
         core_processor::process::<
             Externalities,
-            SandboxEnvironment,
+            ExecutionEnvironment,
         >(&block_config, context, memory_pages);
     }
 
@@ -1728,7 +1728,7 @@ benchmarks! {
     }: {
         core_processor::process::<
             Externalities,
-            SandboxEnvironment,
+            ExecutionEnvironment,
         >(&block_config, context, memory_pages);
     }
 
@@ -1792,7 +1792,7 @@ benchmarks! {
     }: {
         core_processor::process::<
             Externalities,
-            SandboxEnvironment,
+            ExecutionEnvironment,
         >(&block_config, context, memory_pages);
     }
 
