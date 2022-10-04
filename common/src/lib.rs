@@ -352,6 +352,15 @@ pub fn get_program(id: H256) -> Option<Program> {
         .map(|val| Program::decode(&mut &val[..]).expect("values encoded correctly"))
 }
 
+pub fn get_active_program(id: H256) -> Result<ActiveProgram, CommonError> {
+    let program = get_program(id).ok_or(CommonError::DoesNotExist(id))?;
+    if let Program::Active(program) = program {
+        Ok(program)
+    } else {
+        Err(CommonError::InactiveProgram)
+    }
+}
+
 /// Returns mem page data from storage for program `id` and `page_idx`
 pub fn get_program_page_data(program_id: H256, page: PageNumber) -> Result<PageBuf, CommonError> {
     let key = page_key(program_id, page);

@@ -18,7 +18,8 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
-use gstd::{prelude::*, ReservationId};
+use codec::{Decode, Encode};
+use gstd::{exec, msg, prelude::*, ReservationId};
 
 #[cfg(feature = "std")]
 mod code {
@@ -32,10 +33,19 @@ static mut RESERVATION_ID: Option<ReservationId> = None;
 
 const RESERVATION_AMOUNT: u32 = 50_000_000;
 
+#[derive(Debug, Encode, Decode)]
+pub enum HandleAction {
+    Unreserve,
+    Exit,
+}
+
 #[no_mangle]
 unsafe extern "C" fn init() {
     // will be removed automatically
     let _orphan_reservation = ReservationId::reserve(50_000, 3);
+
+    // must be cleared during `gr_exit`
+    let _exit_reservation = ReservationId::reserve(25_000, 5);
 
     // no actual reservation and unreservation is occurred
     let noop_reservation = ReservationId::reserve(50_000, 10);
@@ -46,8 +56,16 @@ unsafe extern "C" fn init() {
 
 #[no_mangle]
 unsafe extern "C" fn handle() {
-    let id = RESERVATION_ID.take().unwrap();
-    id.unreserve();
+    let action: HandleAction = msg::load().unwrap();
+    match action {
+        HandleAction::Unreserve => {
+            let id = RESERVATION_ID.take().unwrap();
+            id.unreserve();
+        }
+        HandleAction::Exit => {
+            exec::exit(msg::source());
+        }
+    }
 }
 
 #[cfg(test)]

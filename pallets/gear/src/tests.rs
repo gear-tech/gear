@@ -25,7 +25,7 @@ use crate::{
         USER_2, USER_3,
     },
     pallet, BlockGasLimitOf, Config, CostsPerBlockOf, Error, Event, GasAllowanceOf, GasHandlerOf,
-    GasInfo, MailboxOf, WaitlistOf,
+    GasInfo, MailboxOf, TaskPoolOf, WaitlistOf,
 };
 use codec::{Decode, Encode};
 use common::{
@@ -5586,16 +5586,18 @@ fn test_mad_big_prog_instrumentation() {
 
 #[test]
 fn gas_reservation_works() {
-    fn get_reservation_map(pid: ProgramId) -> GasReservationMap {
+    use demo_reserve_gas::HandleAction;
+
+    fn get_reservation_map(pid: ProgramId) -> Option<GasReservationMap> {
         let prog = common::get_program(pid.into_origin()).unwrap();
         if let common::Program::Active(common::ActiveProgram {
             gas_reservation_map,
             ..
         }) = prog
         {
-            gas_reservation_map
+            Some(gas_reservation_map)
         } else {
-            panic!("program is not active")
+            None
         }
     }
 
@@ -5615,9 +5617,9 @@ fn gas_reservation_works() {
 
         run_to_block(2, None);
 
-        // gas has been reserved 2 times
-        let map = get_reservation_map(pid);
-        assert_eq!(map.len(), 2);
+        // gas has been reserved 3 times
+        let map = get_reservation_map(pid).unwrap();
+        assert_eq!(map.len(), 3);
 
         let GasInfo {
             min_limit: spent_gas,
@@ -5625,7 +5627,7 @@ fn gas_reservation_works() {
         } = Gear::calculate_gas_info(
             USER_1.into_origin(),
             HandleKind::Handle(pid),
-            EMPTY_PAYLOAD.to_vec(),
+            HandleAction::Unreserve.encode(),
             0,
             true,
         )
@@ -5634,7 +5636,7 @@ fn gas_reservation_works() {
         assert_ok!(Gear::send_message(
             Origin::signed(USER_1),
             pid,
-            EMPTY_PAYLOAD.to_vec(),
+            HandleAction::Unreserve.encode(),
             spent_gas,
             0
         ));
@@ -5642,19 +5644,42 @@ fn gas_reservation_works() {
         run_to_block(3, None);
 
         // gas unreserved manually
-        let map = get_reservation_map(pid);
-        assert_eq!(map.len(), 1);
+        let map = get_reservation_map(pid).unwrap();
+        assert_eq!(map.len(), 2);
 
         run_to_block(3 + 2, None);
 
-        let map = get_reservation_map(pid);
-        assert_eq!(map.len(), 1);
+        let map = get_reservation_map(pid).unwrap();
+        assert_eq!(map.len(), 2);
 
         run_to_block(3 + 3, None);
 
         // gas unreserved automatically
+        let map = get_reservation_map(pid).unwrap();
+        assert_eq!(map.len(), 1);
+        let (reservation_id, slot) = map.iter().next().unwrap();
+        let task = ScheduledTask::RemoveGasReservation(pid, *reservation_id);
+        assert!(TaskPoolOf::<Test>::contains(
+            &BlockNumberFor::<Test>::from(slot.bn),
+            &task
+        ));
+
+        assert_ok!(Gear::send_message(
+            Origin::signed(USER_1),
+            pid,
+            HandleAction::Exit.encode(),
+            50_000_000_000,
+            0
+        ));
+
+        run_to_block(3 + 5, None);
+
         let map = get_reservation_map(pid);
-        assert!(map.is_empty());
+        assert_eq!(map, None);
+        assert!(!TaskPoolOf::<Test>::contains(
+            &BlockNumberFor::<Test>::from(slot.bn),
+            &task
+        ));
     });
 }
 

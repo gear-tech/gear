@@ -107,6 +107,8 @@ pub type GasReservationMap = BTreeMap<ReservationId, GasReservationSlot>;
 /// Gas reservation slot.
 #[derive(Debug, Clone, Eq, PartialEq, Encode, Decode, TypeInfo)]
 pub struct GasReservationSlot {
-    amount: u32,
-    bn: u32,
+    /// Amount of reserved gas.
+    pub amount: u32,
+    /// How many blocks reservation will live.
+    pub bn: u32,
 }
