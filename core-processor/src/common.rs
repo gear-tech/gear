@@ -65,7 +65,7 @@ pub struct DispatchResult {
     /// List of messages that should be woken.
     pub awakening: Vec<(MessageId, u32)>,
     /// New programs to be created with additional data (corresponding code hash and init message id).
-    pub program_candidates: BTreeMap<CodeId, Vec<(ProgramId, MessageId)>>,
+    pub program_candidates: BTreeMap<CodeId, Vec<(MessageId, ProgramId)>>,
     /// Gas amount after execution.
     pub gas_amount: GasAmount,
     /// Page updates.
@@ -241,7 +241,7 @@ pub enum JournalNote {
         /// Code hash used to create new programs with ids in `candidates` field
         code_id: CodeId,
         /// Collection of program candidate ids and their init message ids.
-        candidates: Vec<(ProgramId, MessageId)>,
+        candidates: Vec<(MessageId, ProgramId)>,
     },
     /// Stop processing queue.
     StopProcessing {
@@ -294,7 +294,7 @@ pub trait JournalHandler {
     /// Store new programs in storage.
     ///
     /// Program ids are ids of _potential_ (planned to be initialized) programs.
-    fn store_new_programs(&mut self, code_id: CodeId, candidates: Vec<(ProgramId, MessageId)>);
+    fn store_new_programs(&mut self, code_id: CodeId, candidates: Vec<(MessageId, ProgramId)>);
     /// Stop processing queue.
     ///
     /// Pushes StoredDispatch back to the top of the queue and decreases gas allowance.

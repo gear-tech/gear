@@ -226,7 +226,10 @@ fn get_pages_to_be_updated<A: ProcessorExt>(
 
 #[allow(clippy::result_large_err)]
 /// Execute wasm with dispatch and return dispatch result.
-pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environment<A>>(
+pub fn execute_wasm<
+    A: ProcessorExt + EnvExt + IntoExtInfo<<A as EnvExt>::Error> + 'static,
+    E: Environment<A>,
+>(
     balance: u128,
     dispatch: IncomingDispatch,
     context: WasmExecutionContext,

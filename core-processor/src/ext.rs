@@ -62,7 +62,7 @@ pub struct ProcessorContext {
     pub program_id: ProgramId,
     /// Map of code hashes to program ids of future programs, which are planned to be
     /// initialized with the corresponding code (with the same code hash).
-    pub program_candidates_data: BTreeMap<CodeId, Vec<(ProgramId, MessageId)>>,
+    pub program_candidates_data: BTreeMap<CodeId, Vec<(MessageId, ProgramId)>>,
     /// Weights of host functions.
     pub host_fn_weights: HostFnWeights,
     /// Functions forbidden to be called.
@@ -211,7 +211,7 @@ impl ProcessorExt for Ext {
     }
 }
 
-impl IntoExtInfo for Ext {
+impl IntoExtInfo<<Ext as EnvExt>::Error> for Ext {
     fn into_ext_info(self, memory: &impl Memory) -> Result<ExtInfo, (MemoryError, GasAmount)> {
         let ProcessorContext {
             allocations_context,
@@ -255,10 +255,11 @@ impl IntoExtInfo for Ext {
         self.context.gas_counter.into()
     }
 
-    fn last_error(&self) -> Option<&ExtError> {
+    fn last_error(&self) -> Result<&ExtError, <Ext as EnvExt>::Error> {
         self.error_explanation
             .as_ref()
             .and_then(ProcessorError::as_ext_error)
+            .ok_or(ProcessorError::Core(ExtError::SyscallUsage))
     }
 
     fn trap_explanation(&self) -> Option<TrapExplanation> {
@@ -459,14 +460,15 @@ impl EnvExt for Ext {
         self.return_and_store_err(result)
     }
 
-    fn reply_to(&mut self) -> Result<Option<MessageId>, Self::Error> {
+    fn reply_to(&mut self) -> Result<MessageId, Self::Error> {
         self.charge_gas_runtime(RuntimeCosts::ReplyTo)?;
-        Ok(self
-            .context
+
+        self.context
             .message_context
             .current()
             .reply()
-            .map(|d| d.into_reply_to()))
+            .map(|d| d.into_reply_to())
+            .ok_or_else(|| MessageError::NoReplyContext.into())
     }
 
     fn source(&mut self) -> Result<ProgramId, Self::Error> {
@@ -479,14 +481,15 @@ impl EnvExt for Ext {
         Ok(())
     }
 
-    fn exit_code(&mut self) -> Result<Option<ExitCode>, Self::Error> {
+    fn exit_code(&mut self) -> Result<ExitCode, Self::Error> {
         self.charge_gas_runtime(RuntimeCosts::ExitCode)?;
-        Ok(self
-            .context
+
+        self.context
             .message_context
             .current()
             .reply()
-            .map(|d| d.into_exit_code()))
+            .map(|d| d.into_exit_code())
+            .ok_or_else(|| MessageError::NoReplyContext.into())
     }
 
     fn message_id(&mut self) -> Result<MessageId, Self::Error> {
@@ -653,7 +656,11 @@ impl EnvExt for Ext {
         self.return_and_store_err(result)
     }
 
-    fn create_program(&mut self, packet: InitPacket, delay: u32) -> Result<ProgramId, Self::Error> {
+    fn create_program(
+        &mut self,
+        packet: InitPacket,
+        delay: u32,
+    ) -> Result<(MessageId, ProgramId), Self::Error> {
         self.charge_gas_runtime(RuntimeCosts::CreateProgram(packet.payload().len() as u32))?;
 
         self.charge_expiring_resources(&packet)?;
@@ -665,16 +672,16 @@ impl EnvExt for Ext {
             .context
             .message_context
             .init_program(packet, delay)
-            .map(|(new_prog_id, init_msg_id)| {
+            .map(|(init_msg_id, new_prog_id)| {
                 // Save a program candidate for this run
                 let entry = self
                     .context
                     .program_candidates_data
                     .entry(code_hash)
                     .or_default();
-                entry.push((new_prog_id, init_msg_id));
+                entry.push((init_msg_id, new_prog_id));
 
-                new_prog_id
+                (init_msg_id, new_prog_id)
             });
 
         self.return_and_store_err(result)

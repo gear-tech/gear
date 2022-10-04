@@ -121,6 +121,10 @@ pub enum MessageError {
     /// The error occurs when program receives too big payload.
     #[display(fmt = "Received message with abnormal payload size")]
     IncomingPayloadTooBig,
+
+    /// The error occurs when functions related to reply context, used without it.
+    #[display(fmt = "Not running in reply context")]
+    NoReplyContext,
 }
 
 /// Error using waiting syscalls.

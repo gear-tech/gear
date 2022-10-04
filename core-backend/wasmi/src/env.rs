@@ -291,7 +291,7 @@ impl<T, E: Display> ImportResolver for EnvironmentDefinitionBuilder<T, E> {
 
 impl<E> Environment<E> for WasmiEnvironment
 where
-    E: Ext + IntoExtInfo + 'static,
+    E: Ext + IntoExtInfo<E::Error> + 'static,
     E::Error: AsTerminationReason + IntoExtError,
 {
     type Memory = MemoryWrap;

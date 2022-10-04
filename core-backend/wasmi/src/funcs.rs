@@ -144,7 +144,7 @@ pub struct FuncsHandler<E: Ext + 'static> {
 
 impl<E> FuncsHandler<E>
 where
-    E: Ext + IntoExtInfo + 'static,
+    E: Ext + IntoExtInfo<E::Error> + 'static,
     E::Error: AsTerminationReason + IntoExtError,
 {
     pub fn send(ctx: &mut Runtime<E>, args: &[RuntimeValue]) -> SyscallOutput<E::Error> {

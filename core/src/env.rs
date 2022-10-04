@@ -95,7 +95,7 @@ pub trait Ext {
     }
 
     /// Get the message id of the initial message.
-    fn reply_to(&mut self) -> Result<Option<MessageId>, Self::Error>;
+    fn reply_to(&mut self) -> Result<MessageId, Self::Error>;
 
     /// Get the source of the message currently being handled.
     fn source(&mut self) -> Result<ProgramId, Self::Error>;
@@ -104,7 +104,7 @@ pub trait Ext {
     fn exit(&mut self) -> Result<(), Self::Error>;
 
     /// Get the exit code of the message being processed.
-    fn exit_code(&mut self) -> Result<Option<ExitCode>, Self::Error>;
+    fn exit_code(&mut self) -> Result<ExitCode, Self::Error>;
 
     /// Get the id of the message currently being handled.
     fn message_id(&mut self) -> Result<MessageId, Self::Error>;
@@ -167,7 +167,11 @@ pub trait Ext {
     fn wake(&mut self, waker_id: MessageId, delay: u32) -> Result<(), Self::Error>;
 
     /// Send init message to create a new program
-    fn create_program(&mut self, packet: InitPacket, delay: u32) -> Result<ProgramId, Self::Error>;
+    fn create_program(
+        &mut self,
+        packet: InitPacket,
+        delay: u32,
+    ) -> Result<(MessageId, ProgramId), Self::Error>;
 
     /// Return the set of functions that are forbidden to be called.
     fn forbidden_funcs(&self) -> &BTreeSet<&'static str>;
@@ -241,8 +245,8 @@ mod tests {
         ) -> Result<MessageId, Self::Error> {
             Ok(MessageId::default())
         }
-        fn reply_to(&mut self) -> Result<Option<MessageId>, Self::Error> {
-            Ok(None)
+        fn reply_to(&mut self) -> Result<MessageId, Self::Error> {
+            Ok(Default::default())
         }
         fn source(&mut self) -> Result<ProgramId, Self::Error> {
             Ok(ProgramId::from(0))
@@ -250,8 +254,8 @@ mod tests {
         fn exit(&mut self) -> Result<(), Self::Error> {
             Ok(())
         }
-        fn exit_code(&mut self) -> Result<Option<ExitCode>, Self::Error> {
-            Ok(None)
+        fn exit_code(&mut self) -> Result<ExitCode, Self::Error> {
+            Ok(0)
         }
         fn message_id(&mut self) -> Result<MessageId, Self::Error> {
             Ok(0.into())
@@ -311,8 +315,8 @@ mod tests {
             &mut self,
             _packet: InitPacket,
             _delay: u32,
-        ) -> Result<ProgramId, Self::Error> {
-            Ok(Default::default())
+        ) -> Result<(MessageId, ProgramId), Self::Error> {
+            Ok((Default::default(), Default::default()))
         }
         fn forbidden_funcs(&self) -> &BTreeSet<&'static str> {
             &self.0

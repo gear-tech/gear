@@ -18,13 +18,13 @@ pub struct Runtime<'a, E: Ext> {
 impl<'a, E: Ext> Runtime<'a, E> {
     pub(crate) fn write_validated_output(
         &mut self,
-        out_ptr: u32,
+        out_ptr: i32,
         f: impl FnOnce(&mut E) -> Result<&[u8], FuncError<E::Error>>,
     ) -> Result<(), FuncError<E::Error>> {
         let buf = f(self.ext)?;
 
         self.memory
-            .set(out_ptr, buf)
+            .set(out_ptr as u32, buf)
             .map_err(|_| MemoryError::OutOfBounds)?;
 
         Ok(())
@@ -38,22 +38,22 @@ impl<'a, E: Ext> RuntimeCtx<E> for Runtime<'a, E> {
             .map_err(RuntimeCtxError::Ext)
     }
 
-    fn read_memory(&self, ptr: u32, len: u32) -> Result<Vec<u8>, RuntimeCtxError<E::Error>> {
+    fn read_memory(&self, ptr: i32, len: u32) -> Result<Vec<u8>, RuntimeCtxError<E::Error>> {
         let mut buf =
             RuntimeBuffer::try_new_default(len as usize).map_err(|_| MemoryError::OutOfBounds)?;
         self.memory
-            .get_into(ptr, buf.get_mut())
+            .get_into(ptr as u32, buf.get_mut())
             .map_err(|_| MemoryError::OutOfBounds)?;
         Ok(buf.into_vec())
     }
 
     fn read_memory_into_buf(
         &self,
-        ptr: u32,
+        ptr: i32,
         buf: &mut [u8],
     ) -> Result<(), RuntimeCtxError<E::Error>> {
         self.memory
-            .get_into(ptr, buf)
+            .get_into(ptr as u32, buf)
             .map_err(|_| MemoryError::OutOfBounds)?;
 
         Ok(())
@@ -61,16 +61,16 @@ impl<'a, E: Ext> RuntimeCtx<E> for Runtime<'a, E> {
 
     fn read_memory_as<D: Decode + MaxEncodedLen>(
         &self,
-        ptr: u32,
+        ptr: i32,
     ) -> Result<D, RuntimeCtxError<E::Error>> {
         let buf = self.read_memory(ptr, D::max_encoded_len() as u32)?;
         let decoded = D::decode_all(&mut &buf[..]).map_err(|_| MemoryError::MemoryAccessError)?;
         Ok(decoded)
     }
 
-    fn write_output(&mut self, out_ptr: u32, buf: &[u8]) -> Result<(), RuntimeCtxError<E::Error>> {
+    fn write_output(&mut self, out_ptr: i32, buf: &[u8]) -> Result<(), RuntimeCtxError<E::Error>> {
         self.memory
-            .set(out_ptr, buf)
+            .set(out_ptr as u32, buf)
             .map_err(|_| MemoryError::OutOfBounds)?;
 
         Ok(())

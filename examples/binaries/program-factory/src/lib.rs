@@ -50,7 +50,7 @@ const CHILD_CODE_HASH: [u8; 32] =
 #[cfg(not(feature = "std"))]
 mod wasm {
     use super::{CreateProgram, CHILD_CODE_HASH};
-    use gstd::{debug, msg, prog, ActorId, CodeId};
+    use gstd::{msg, prog, ActorId};
 
     static mut COUNTER: i32 = 0;
     static mut ORIGIN: Option<ActorId> = None;
@@ -91,7 +91,7 @@ mod wasm {
 
     #[no_mangle]
     unsafe extern "C" fn handle_reply() {
-        if msg::exit_code() != 0 {
+        if msg::exit_code().unwrap() != 0 {
             let origin = ORIGIN.clone().unwrap();
             msg::send_bytes(origin, [], 0).unwrap();
         }

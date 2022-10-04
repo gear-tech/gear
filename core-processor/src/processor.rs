@@ -168,7 +168,10 @@ pub fn prepare(
 }
 
 /// Process program & dispatch for it and return journal for updates.
-pub fn process<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environment<A>>(
+pub fn process<
+    A: ProcessorExt + EnvExt + IntoExtInfo<<A as EnvExt>::Error> + 'static,
+    E: Environment<A>,
+>(
     block_config: &BlockConfig,
     execution_context: Box<PreparedMessageExecutionContext>,
     memory_pages: BTreeMap<PageNumber, PageBuf>,

@@ -107,16 +107,20 @@ pub struct ExtInfo {
     pub pages_data: BTreeMap<PageNumber, PageBuf>,
     pub generated_dispatches: Vec<(Dispatch, u32)>,
     pub awakening: Vec<(MessageId, u32)>,
-    pub program_candidates_data: BTreeMap<CodeId, Vec<(ProgramId, MessageId)>>,
+    pub program_candidates_data: BTreeMap<CodeId, Vec<(MessageId, ProgramId)>>,
     pub context_store: ContextStore,
 }
 
-pub trait IntoExtInfo {
+pub trait IntoExtInfo<Error> {
     fn into_ext_info(self, memory: &impl Memory) -> Result<ExtInfo, (MemoryError, GasAmount)>;
 
     fn into_gas_amount(self) -> GasAmount;
 
-    fn last_error(&self) -> Option<&ExtError>;
+    fn last_error(&self) -> Result<&ExtError, Error>;
+
+    fn last_error_encoded(&self) -> Result<Vec<u8>, Error> {
+        self.last_error().map(Encode::encode)
+    }
 
     fn trap_explanation(&self) -> Option<TrapExplanation>;
 }
@@ -138,25 +142,25 @@ pub trait RuntimeCtx<E: Ext> {
     fn alloc(&mut self, pages: u32) -> Result<WasmPageNumber, RuntimeCtxError<E::Error>>;
 
     /// Read designated chunk from the memory.
-    fn read_memory(&self, ptr: u32, len: u32) -> Result<Vec<u8>, RuntimeCtxError<E::Error>>;
+    fn read_memory(&self, ptr: i32, len: u32) -> Result<Vec<u8>, RuntimeCtxError<E::Error>>;
 
     /// Read designated chunk from the memory into the supplied buffer.
     fn read_memory_into_buf(
         &self,
-        ptr: u32,
+        ptr: i32,
         buf: &mut [u8],
     ) -> Result<(), RuntimeCtxError<E::Error>>;
 
     /// Reads and decodes a type with a size fixed at compile time from program memory.
     fn read_memory_as<D: Decode + MaxEncodedLen>(
         &self,
-        ptr: u32,
+        ptr: i32,
     ) -> Result<D, RuntimeCtxError<E::Error>>;
 
     /// Write the given buffer and its length to the designated locations in memory.
     //
     /// `out_ptr` is the location in memory where `buf` should be written to.
-    fn write_output(&mut self, out_ptr: u32, buf: &[u8]) -> Result<(), RuntimeCtxError<E::Error>>;
+    fn write_output(&mut self, out_ptr: i32, buf: &[u8]) -> Result<(), RuntimeCtxError<E::Error>>;
 }
 
 pub struct BackendReport<T> {
@@ -175,7 +179,7 @@ pub enum StackEndError {
 // '__gear_stack_end' export is inserted in wasm-proc or wasm-builder
 pub const STACK_END_EXPORT_NAME: &str = "__gear_stack_end";
 
-pub trait Environment<E: Ext + IntoExtInfo + 'static>: Sized {
+pub trait Environment<E: Ext + IntoExtInfo<E::Error> + 'static>: Sized {
     /// Memory type for current environment.
     type Memory: Memory;
 
