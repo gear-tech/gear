@@ -88,13 +88,13 @@ pub trait ProcessorExt {
 
     /// Protect and save storage keys for pages which has no data
     fn lazy_pages_init_for_program(
-        mem: &impl Memory,
+        mem: &mut impl Memory,
         prog_id: ProgramId,
         stack_end: Option<WasmPageNumber>,
     ) -> Result<(), Self::Error>;
 
     /// Lazy pages contract post execution actions
-    fn lazy_pages_post_execution_actions(mem: &impl Memory) -> Result<(), Self::Error>;
+    fn lazy_pages_post_execution_actions(mem: &mut impl Memory) -> Result<(), Self::Error>;
 }
 
 /// [`Ext`](Ext)'s error
@@ -199,14 +199,14 @@ impl ProcessorExt for Ext {
     }
 
     fn lazy_pages_init_for_program(
-        _mem: &impl Memory,
+        _mem: &mut impl Memory,
         _prog_id: ProgramId,
         _stack_end: Option<WasmPageNumber>,
     ) -> Result<(), Self::Error> {
         unreachable!()
     }
 
-    fn lazy_pages_post_execution_actions(_mem: &impl Memory) -> Result<(), Self::Error> {
+    fn lazy_pages_post_execution_actions(_mem: &mut impl Memory) -> Result<(), Self::Error> {
         unreachable!()
     }
 }

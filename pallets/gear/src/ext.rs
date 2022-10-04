@@ -151,14 +151,14 @@ impl ProcessorExt for LazyPagesExt {
     }
 
     fn lazy_pages_init_for_program(
-        mem: &impl Memory,
+        mem: &mut impl Memory,
         prog_id: ProgramId,
         stack_end: Option<WasmPageNumber>,
     ) -> Result<(), Self::Error> {
         lazy_pages::init_for_program(mem, prog_id, stack_end).map_err(Into::into)
     }
 
-    fn lazy_pages_post_execution_actions(mem: &impl Memory) -> Result<(), Self::Error> {
+    fn lazy_pages_post_execution_actions(mem: &mut impl Memory) -> Result<(), Self::Error> {
         lazy_pages::remove_lazy_pages_prot(mem).map_err(Into::into)
     }
 }

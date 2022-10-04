@@ -320,12 +320,12 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
     ) {
         Ok(BackendReport {
             termination_reason: termination,
-            memory_wrap: memory,
+            memory_wrap: mut memory,
             ext,
         }) => {
             // released pages initial data will be added to `pages_initial_data` after execution.
             if A::LAZY_PAGES_ENABLED {
-                if let Err(e) = A::lazy_pages_post_execution_actions(&memory) {
+                if let Err(e) = A::lazy_pages_post_execution_actions(&mut memory) {
                     return Err(ExecutionError {
                         program_id,
                         gas_amount: ext.into_gas_amount(),

@@ -60,7 +60,7 @@ impl Memory for MemoryWrap {
         self.0.size() as usize * WasmPageNumber::size()
     }
 
-    unsafe fn get_buffer_host_addr_unsafe(&self) -> HostPointer {
+    unsafe fn get_buffer_host_addr_unsafe(&mut self) -> HostPointer {
         self.0.get_buff()
     }
 }
