@@ -41,7 +41,7 @@ use gstd::{debug, msg, prelude::*};
 static mut MESSAGE_LOG: Vec<String> = vec![];
 
 #[no_mangle]
-pub unsafe extern "C" fn handle() {
+unsafe extern "C" fn handle() {
     let new_msg = String::from_utf8(msg::load_bytes().unwrap()).expect("Invalid message");
 
     if new_msg == "PING" {
