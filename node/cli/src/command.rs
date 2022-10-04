@@ -330,7 +330,8 @@ pub fn run() -> sc_cli::Result<()> {
         None => {
             let runner = cli.create_runner(&cli.run.base)?;
             runner.run_node_until_exit(|config| async move {
-                service::build_full(config).map_err(sc_cli::Error::Service)
+                service::new_full(config, cli.no_hardware_benchmarks)
+                    .map_err(sc_cli::Error::Service)
             })
         }
     }
