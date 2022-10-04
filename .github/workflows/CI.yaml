@@ -35,7 +35,6 @@ jobs:
         run: ./scripts/check-spec.sh
 
   check:
-    if: github.ref == 'refs/heads/master'
     needs: spec_version
     runs-on: [self-hosted, cachepot, epyc]
     env:
@@ -118,7 +117,6 @@ jobs:
           mv /tmp/*.tar /root/cache/
 
   build:
-    if: github.ref == 'refs/heads/master'
     needs: spec_version
     runs-on: [self-hosted, cachepot, epyc]
     env:
@@ -335,6 +333,7 @@ jobs:
           path: artifact
 
   build-win:
+    if: github.ref == 'refs/heads/master'
     needs: spec_version
     runs-on: ci-win
     defaults:
