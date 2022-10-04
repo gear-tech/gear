@@ -70,7 +70,7 @@ impl WakeSignals {
         {
             signal.payload = Some((
                 crate::msg::load_bytes().expect("Failed to load bytes"),
-                crate::msg::exit_code(),
+                crate::msg::exit_code().expect("Shouldn't be called with incorrect context"),
             ));
 
             if let Some(waker) = &signal.waker {

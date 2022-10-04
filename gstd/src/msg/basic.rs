@@ -158,8 +158,8 @@ impl From<gcore::MessageHandle> for MessageHandle {
 ///     let exit_code = msg::exit_code();
 /// }
 /// ```
-pub fn exit_code() -> i32 {
-    gcore::msg::exit_code()
+pub fn exit_code() -> Result<i32> {
+    gcore::msg::exit_code().map_err(Into::into)
 }
 
 /// Obtain an identifier of the message currently being processed.

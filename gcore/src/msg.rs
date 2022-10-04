@@ -34,10 +34,7 @@ mod sys {
     use crate::{error::SyscallError, MessageHandle};
 
     extern "C" {
-        // TODO: consider how to make this fallible.
-        //
-        // (?) `pub fn gr_exit_code(exit_code_ptr: *mut i32) -> SyscallError`
-        pub fn gr_exit_code() -> i32;
+        pub fn gr_exit_code(exit_code_ptr: *mut i32) -> SyscallError;
 
         pub fn gr_message_id(message_id_ptr: *mut [u8; 32]);
 
@@ -150,11 +147,15 @@ mod sys {
 ///
 /// unsafe extern "C" fn handle_reply() {
 ///     // ...
-///     let exit_code = msg::exit_code();
+///     let exit_code = msg::exit_code().unwrap();
 /// }
 /// ```
-pub fn exit_code() -> i32 {
-    unsafe { sys::gr_exit_code() }
+pub fn exit_code() -> Result<i32> {
+    let mut bytes = 0i32.to_le_bytes();
+
+    unsafe { sys::gr_exit_code(bytes.as_mut_ptr() as *mut i32).into_result()? }
+
+    Ok(i32::from_le_bytes(bytes))
 }
 
 /// Obtain an identifier of the message currently being processed.
