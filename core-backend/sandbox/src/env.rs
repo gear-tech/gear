@@ -123,7 +123,7 @@ where
         builder.add_func("gr_exit_code", Funcs::exit_code);
         builder.add_func("gr_gas_available", Funcs::gas_available);
         builder.add_func("gr_leave", Funcs::leave);
-        builder.add_func("gr_msg_id", Funcs::msg_id);
+        builder.add_func("gr_message_id", Funcs::msg_id);
         builder.add_func("gr_origin", Funcs::origin);
         builder.add_func("gr_program_id", Funcs::program_id);
         builder.add_func("gr_read", Funcs::read);
