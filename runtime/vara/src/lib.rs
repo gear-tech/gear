@@ -24,16 +24,23 @@
 #[cfg(feature = "std")]
 include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
 
-#[cfg(feature = "try-runtime")]
-use frame_support::weights::Weight;
-use frame_support::{
-    construct_runtime, parameter_types,
-    traits::{ConstU128, ConstU32, Contains, KeyOwnerProofSystem, U128CurrencyToVote},
-    weights::{
-        constants::{RocksDbWeight, WEIGHT_PER_MILLIS},
-        IdentityFee,
+pub use frame_support::{
+    construct_runtime,
+    dispatch::{DispatchClass, WeighData},
+    parameter_types,
+    traits::{
+        ConstU128, ConstU32, Contains, FindAuthor, KeyOwnerProofSystem, Randomness, StorageInfo,
     },
+    weights::{
+        constants::{
+            BlockExecutionWeight, ExtrinsicBaseWeight, RocksDbWeight, WEIGHT_PER_MILLIS,
+            WEIGHT_PER_SECOND,
+        },
+        IdentityFee, Weight,
+    },
+    StorageValue,
 };
+use frame_system::limits::BlockWeights;
 pub use pallet_gear::manager::{ExtManager, HandleKind};
 use pallet_grandpa::{
     fg_primitives, AuthorityId as GrandpaId, AuthorityList as GrandpaAuthorityList,
@@ -41,9 +48,10 @@ use pallet_grandpa::{
 pub use pallet_timestamp::Call as TimestampCall;
 pub use pallet_transaction_payment::{CurrencyAdapter, Multiplier};
 use runtime_common::{
-    impl_runtime_apis_plus_common, BlockHashCount, BlockLength, DealWithFees,
-    GasLimitMaxPercentage, MailboxCost, MailboxThreshold, OperationalFeeMultiplier, OutgoingLimit,
-    QueueLengthStep, ReserveThreshold, WaitlistCost, NORMAL_DISPATCH_RATIO,
+    impl_runtime_apis_plus_common, BlockHashCount, DealWithFees, GasLimitMaxPercentage,
+    MailboxCost, MailboxThreshold, OperationalFeeMultiplier, OutgoingLimit, QueueLengthStep,
+    ReserveThreshold, RuntimeBlockLength, WaitlistCost, AVERAGE_ON_INITIALIZE_RATIO,
+    NORMAL_DISPATCH_RATIO,
 };
 pub use runtime_primitives::{AccountId, Signature};
 use runtime_primitives::{Balance, BlockNumber, Hash, Index, Moment};
@@ -106,6 +114,14 @@ pub const BABE_GENESIS_EPOCH_CONFIG: sp_consensus_babe::BabeEpochConfiguration =
         allowed_slots: sp_consensus_babe::AllowedSlots::PrimaryAndSecondaryPlainSlots,
     };
 
+/// We allow for 1/3 of block time for computations.
+///
+/// It's 2/3 sec for vara runtime with 2 second block duration.
+const MAXIMUM_BLOCK_WEIGHT: Weight = WEIGHT_PER_SECOND
+    .saturating_mul(2)
+    .saturating_div(3)
+    .set_proof_size(u64::MAX);
+
 /// The version information used to identify this runtime when compiled natively.
 #[cfg(feature = "std")]
 pub fn native_version() -> NativeVersion {
@@ -116,13 +132,26 @@ pub fn native_version() -> NativeVersion {
 }
 
 parameter_types! {
-    /// We allow for 1/3 of block time for computations.
-    ///
-    /// It's 2/3 sec for vara runtime with 2 second block duration.
-    pub BlockWeights: frame_system::limits::BlockWeights = frame_system::limits::BlockWeights
-        ::with_sensible_defaults(MILLISECS_PER_BLOCK * WEIGHT_PER_MILLIS / 3, NORMAL_DISPATCH_RATIO);
+    pub RuntimeBlockWeights: frame_system::limits::BlockWeights = BlockWeights::builder()
+        .base_block(BlockExecutionWeight::get())
+        .for_class(DispatchClass::all(), |weights| {
+            weights.base_extrinsic = ExtrinsicBaseWeight::get();
+        })
+        .for_class(DispatchClass::Normal, |weights| {
+            weights.max_total = Some(NORMAL_DISPATCH_RATIO * MAXIMUM_BLOCK_WEIGHT);
+        })
+        .for_class(DispatchClass::Operational, |weights| {
+            weights.max_total = Some(MAXIMUM_BLOCK_WEIGHT);
+            // Operational transactions have some extra reserved space, so that they
+            // are included even if block reached `MAXIMUM_BLOCK_WEIGHT`.
+            weights.reserved = Some(
+                MAXIMUM_BLOCK_WEIGHT - NORMAL_DISPATCH_RATIO * MAXIMUM_BLOCK_WEIGHT
+            );
+        })
+        .avg_block_initialization(AVERAGE_ON_INITIALIZE_RATIO)
+        .build_or_panic();
 
-    pub BlockGasLimit: u64 = GasLimitMaxPercentage::get() * BlockWeights::get().max_block.ref_time();
+    pub BlockGasLimit: u64 = GasLimitMaxPercentage::get() * RuntimeBlockWeights::get().max_block.ref_time();
 
     pub const Version: RuntimeVersion = VERSION;
     pub const SS58Prefix: u8 = 42;
