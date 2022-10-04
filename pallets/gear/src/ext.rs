@@ -21,6 +21,7 @@ use core_processor::{Ext, ProcessorContext, ProcessorError, ProcessorExt};
 use gear_backend_common::{
     error_processor::IntoExtError, AsTerminationReason, ExtInfo, IntoExtInfo, TerminationReason,
     TrapExplanation,
+    GetGasAmount,
 };
 use gear_core::{
     costs::RuntimeCosts,
@@ -128,6 +129,14 @@ impl IntoExtInfo for LazyPagesExt {
 
     fn trap_explanation(&self) -> Option<TrapExplanation> {
         self.inner.trap_explanation()
+    }
+}
+
+impl GetGasAmount for LazyPagesExt {
+    fn gas_amount(&self) -> GasAmount {
+        let gas_counter = self.inner.context.gas_counter.clone();
+
+        gas_counter.into()
     }
 }
 

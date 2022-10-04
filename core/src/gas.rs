@@ -46,9 +46,9 @@ pub enum ChargeResult {
 
 /// Gas counter with some predefined maximum gas.
 ///
-/// `Clone` and `Copy` traits aren't implemented for the type (however could be)
-/// in order to make the data only moveable, preventing implicit/explicit copying.
-#[derive(Debug)]
+/// `Copy` trait isn't implemented for the type (however could be)
+/// in order to make the data only moveable, preventing implicit copying.
+#[derive(Clone, Debug)]
 pub struct GasCounter {
     left: u64,
     burned: u64,

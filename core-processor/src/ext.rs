@@ -25,7 +25,7 @@ use alloc::{
 use core::fmt;
 use gear_backend_common::{
     error_processor::IntoExtError, AsTerminationReason, ExtInfo, IntoExtInfo, TerminationReason,
-    TrapExplanation,
+    TrapExplanation, GetGasAmount,
 };
 use gear_core::{
     charge_gas_token,
@@ -265,6 +265,14 @@ impl IntoExtInfo for Ext {
         self.error_explanation
             .clone()
             .and_then(ProcessorError::into_trap_explanation)
+    }
+}
+
+impl GetGasAmount for Ext {
+    fn gas_amount(&self) -> GasAmount {
+        let gas_counter = self.context.gas_counter.clone();
+
+        gas_counter.into()
     }
 }
 
