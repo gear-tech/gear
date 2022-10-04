@@ -197,10 +197,12 @@ jobs:
           [ -d /root/cache/${{ github.event.pull_request.number }} ] && { tar -xf /root/cache/${{ github.event.pull_request.number }}/build_cache.tar -C /; tar -xf /root/cache/${{ github.event.pull_request.number }}/build_cargo_registry.tar -C /; tar -xf /root/cache/${{ github.event.pull_request.number }}/build_target.tar; }
           [ ! -d /root/cache/${{ github.event.pull_request.number }} ] && { tar -xf /root/cache/build_cache_${{ github.base_ref }}.tar -C /; tar -xf /root/cache/build_cargo_registry_${{ github.base_ref }}.tar -C /; tar -xf /root/cache/build_target_${{ github.base_ref }}.tar; }
 
+      - name: "ACTIONS: Setup environment variable"
+        if: github.ref != 'refs/heads/master'
+        run: echo "RUSTFLAGS=-Cinstrument-coverage" >> $GITHUB_ENV
+
       - name: "Build: Gear"
         run: ./scripts/gear.sh build gear --locked --release
-        env:
-          RUSTFLAGS: -Cinstrument-coverage
 
       - name: "Build: WAT examples"
         run: ./scripts/gear.sh build wat-examples
@@ -222,13 +224,9 @@ jobs:
 
       - name: "Test: Gear workspace"
         run: ./scripts/gear.sh test gear --exclude gclient --release --locked
-        env:
-          RUSTFLAGS: -Cinstrument-coverage
 
       - name: "Test: JS metadata"
         run: ./scripts/gear.sh test js
-        env:
-          RUSTFLAGS: -Cinstrument-coverage
 
       - name: "Test: Process gear-test"
         run: ./scripts/gear.sh test gtest
@@ -253,6 +251,7 @@ jobs:
           ./target/release/gear-node benchmark pallet --chain=dev --steps=2 --repeat=1 --pallet=pallet_gear --extrinsic="*" --execution=wasm --wasm-execution=compiled --heap-pages=4096
 
       - name: "Coverage: Aggregate"
+        if: github.ref != 'refs/heads/master'
         run: >-
           ./grcov . --binary-path ./target/release/ -s . -t lcov --branch --ignore-not-existing
           --ignore "/*"
@@ -280,9 +279,11 @@ jobs:
           -o ./lcov.info
 
       - name: "Coverage: Fix report"
+        if: github.ref != 'refs/heads/master'
         run: ./rust-covfix -o lcov.info lcov.info
 
       - name: "Coverage: Publish"
+        if: github.ref != 'refs/heads/master'
         uses: codecov/codecov-action@v1
         with:
           file: ./lcov.info
