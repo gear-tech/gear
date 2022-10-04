@@ -256,6 +256,20 @@ pub fn main() -> Result<ChainSpec, String> {
                         hex!["e55cbde1cf31fe6b891ac4cffcce790015e77ddd0f6943653e9b4d722f72baa4"]
                             .unchecked_into(),
                     ),
+                    (
+                        // Stash account: 5EUtDCq49BQQG1HQkdZczrJSBynwtaksyGNcNQgiMRUbApBo
+                        hex!["6ae93625c928a59f1bf9f1c01548bbd72d9bb356c56c2bb070dda79590fd4a7f"]
+                            .into(),
+                        // Controller account: 5FyAdXbbFzvjx4cF25uo5ziBEDUiSgucsQwtXDPUDqmLhtNM
+                        hex!["acb796bd17e05ea7c1764355d3c524d8379dc88b910467379afab52776d8616a"]
+                            .into(),
+                        // Babe key: 5EUtDCq49BQQG1HQkdZczrJSBynwtaksyGNcNQgiMRUbApBo
+                        hex!["6ae93625c928a59f1bf9f1c01548bbd72d9bb356c56c2bb070dda79590fd4a7f"]
+                            .unchecked_into(),
+                        // Grandpa key: 5D6XHQGDEhmB2296VXza6m2gBfPvgpbbuAaHJsC72nZX5LdK
+                        hex!["2d9f2166122f449c2dcb92d4de97cca7043158968d82e27bacade4015ec55b00"]
+                            .unchecked_into(),
+                    ),
                 ],
                 // Sudo account
                 // 5CtLwzLdsTZnyA3TN7FUV58FV4NZ1tUuTDM9yjwRuvt6ac1i
