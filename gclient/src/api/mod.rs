@@ -30,10 +30,33 @@ pub struct GearApi(Signer);
 
 impl GearApi {
     pub async fn init(address: WSAddress) -> Result<Self> {
+        Self::init_with(address, "//Alice").await
+    }
+
+    // Suri is Substrate URI which identifies user with mnemonic
+    // or provides defaults from keyring: e.g. "//Alice".
+    //
+    // Password for URI should be specified in the same str, separated with ':'.
+    pub async fn init_with(address: WSAddress, suri: impl AsRef<str>) -> Result<Self> {
+        let mut suri = suri.as_ref().splitn(2, ':');
+
         Api::new(Some(&address.url()))
             .await
-            .and_then(|api| Ok(Self(api.try_signer(None)?)))
+            .and_then(|api| {
+                Ok(Self(
+                    api.signer(suri.next().expect("Infallible"), suri.next())?,
+                ))
+            })
             .map_err(Into::into)
+    }
+
+    pub fn with(self, suri: impl AsRef<str>) -> Result<Self> {
+        let mut suri = suri.as_ref().splitn(2, ':');
+
+        Ok(Self(
+            self.0
+                .change(suri.next().expect("Infallible"), suri.next())?,
+        ))
     }
 
     pub async fn dev() -> Result<Self> {
@@ -58,7 +81,12 @@ impl GearApi {
         self.0.signer.set_nonce(nonce)
     }
 
-    pub fn increment_nonce(&mut self) {
-        self.0.signer.increment_nonce()
+    pub async fn rpc_nonce(&self) -> Result<u32> {
+        self.0
+            .client
+            .rpc()
+            .system_account_next_index(self.0.signer.account_id())
+            .await
+            .map_err(Into::into)
     }
 }

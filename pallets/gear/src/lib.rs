@@ -54,7 +54,10 @@ use frame_support::{
     traits::{Currency, StorageVersion},
     weights::Weight,
 };
-use gear_backend_sandbox::SandboxEnvironment;
+#[cfg(not(feature = "std"))]
+use gear_backend_sandbox::SandboxEnvironment as ExecutionEnvironment;
+#[cfg(feature = "std")]
+use gear_backend_wasmi::WasmiEnvironment as ExecutionEnvironment;
 use gear_core::{
     code::{Code, CodeAndId, InstrumentedCode, InstrumentedCodeAndId},
     ids::{CodeId, MessageId, ProgramId, ReservationId},
@@ -422,14 +425,14 @@ pub mod pallet {
 
         /// Initialization
         fn on_initialize(bn: BlockNumberFor<T>) -> Weight {
-            log::debug!(target: "runtime::gear", "⚙️ Initialization of block #{:?}", bn);
+            log::debug!(target: "runtime::gear", "⚙️  Initialization of block #{:?}", bn);
 
             Weight::zero()
         }
 
         /// Finalization
         fn on_finalize(bn: BlockNumberFor<T>) {
-            log::debug!(target: "runtime::gear", "⚙️ Finalization of block #{:?}", bn);
+            log::debug!(target: "runtime::gear", "⚙️  Finalization of block #{:?}", bn);
         }
 
         /// Queue processing occurs after all normal extrinsics in the block
@@ -438,7 +441,7 @@ pub mod pallet {
         fn on_idle(bn: BlockNumberFor<T>, remaining_weight: Weight) -> Weight {
             log::debug!(
                 target: "runtime::gear",
-                "⚙️ Queue and tasks processing of block #{:?} with weight='{:?}'",
+                "⚙️  Queue and tasks processing of block #{:?} with {}",
                 bn,
                 remaining_weight,
             );
@@ -466,7 +469,7 @@ pub mod pallet {
 
             log::debug!(
                 target: "runtime::gear",
-                "⚙️ Weight '{:?}' burned in block #{:?}",
+                "⚙️  {} burned in block #{:?}",
                 weight,
                 bn,
             );
@@ -514,7 +517,9 @@ pub mod pallet {
             let packet = InitPacket::new_with_gas(
                 code_and_id.code_id(),
                 salt,
-                init_payload,
+                init_payload
+                    .try_into()
+                    .map_err(|err: PayloadSizeError| DispatchError::Other(err.into()))?,
                 gas_limit,
                 value.unique_saturated_into(),
             );
@@ -876,7 +881,7 @@ pub mod pallet {
                                 })
                                 .unwrap_or(0);
 
-                            core_processor::process::<Ext, SandboxEnvironment>(
+                            core_processor::process::<Ext, ExecutionEnvironment>(
                                 &block_config,
                                 context,
                                 memory_pages,
@@ -1296,7 +1301,7 @@ pub mod pallet {
 
                                 ext_manager.insert_program_id_loaded_pages(program_id);
 
-                                core_processor::process::<Ext, SandboxEnvironment>(
+                                core_processor::process::<Ext, ExecutionEnvironment>(
                                     &block_config,
                                     context,
                                     memory_pages,
@@ -1451,7 +1456,9 @@ pub mod pallet {
             let packet = InitPacket::new_with_gas(
                 code_id,
                 salt,
-                init_payload,
+                init_payload
+                    .try_into()
+                    .map_err(|err: PayloadSizeError| DispatchError::Other(err.into()))?,
                 gas_limit,
                 value.unique_saturated_into(),
             );
@@ -1708,6 +1715,9 @@ pub mod pallet {
             gas_limit: u64,
             value: BalanceOf<T>,
         ) -> DispatchResultWithPostInfo {
+            let payload = payload
+                .try_into()
+                .map_err(|err: PayloadSizeError| DispatchError::Other(err.into()))?;
             let who = ensure_signed(origin)?;
             let origin = who.clone().into_origin();
 
@@ -1798,6 +1808,10 @@ pub mod pallet {
             gas_limit: u64,
             value: BalanceOf<T>,
         ) -> DispatchResultWithPostInfo {
+            let payload = payload
+                .try_into()
+                .map_err(|err: PayloadSizeError| DispatchError::Other(err.into()))?;
+
             // Validating origin.
             let origin = ensure_signed(origin)?;
 

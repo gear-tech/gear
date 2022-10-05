@@ -27,15 +27,21 @@ pub mod error_processor;
 mod utils;
 pub use utils::calc_stack_end;
 
+#[cfg(feature = "mock")]
+pub mod mock;
+
 use alloc::{
     collections::{BTreeMap, BTreeSet},
     string::String,
     vec::Vec,
 };
 use codec::{Decode, Encode, MaxEncodedLen};
-use core::{fmt, ops::Deref};
-use error_processor::IntoExtError;
+use core::{
+    fmt::{self, Display},
+    ops::Deref,
+};
 use gear_core::{
+    buffer::RuntimeBufferSizeError,
     env::Ext,
     gas::GasAmount,
     ids::{CodeId, MessageId, ProgramId},
@@ -102,8 +108,8 @@ pub struct ExtInfo {
     pub gas_amount: GasAmount,
     pub allocations: Option<BTreeSet<WasmPageNumber>>,
     pub pages_data: BTreeMap<PageNumber, PageBuf>,
-    pub generated_dispatches: Vec<Dispatch>,
-    pub awakening: Vec<MessageId>,
+    pub generated_dispatches: Vec<(Dispatch, u32)>,
+    pub awakening: Vec<(MessageId, u32)>,
     pub program_candidates_data: BTreeMap<CodeId, Vec<(ProgramId, MessageId)>>,
     pub context_store: ContextStore,
 }
@@ -118,27 +124,42 @@ pub trait IntoExtInfo {
     fn trap_explanation(&self) -> Option<TrapExplanation>;
 }
 
-pub trait RuntimeCtx<E>
-where
-    E: Ext + IntoExtInfo + 'static,
-    E::Error: AsTerminationReason + IntoExtError,
-{
+#[derive(Debug, derive_more::Display, derive_more::From)]
+pub enum RuntimeCtxError<E: Display> {
+    #[display(fmt = "{}", _0)]
+    Ext(E),
+    #[from]
+    #[display(fmt = "{}", _0)]
+    Memory(MemoryError),
+    #[from]
+    #[display(fmt = "{}", _0)]
+    RuntimeBuffer(RuntimeBufferSizeError),
+}
+
+pub trait RuntimeCtx<E: Ext> {
     /// Allocate new pages in instance memory.
-    fn alloc(&mut self, pages: u32) -> Result<gear_core::memory::WasmPageNumber, E::Error>;
+    fn alloc(&mut self, pages: u32) -> Result<WasmPageNumber, RuntimeCtxError<E::Error>>;
 
     /// Read designated chunk from the memory.
-    fn read_memory(&self, ptr: u32, len: u32) -> Result<Vec<u8>, MemoryError>;
+    fn read_memory(&self, ptr: u32, len: u32) -> Result<Vec<u8>, RuntimeCtxError<E::Error>>;
 
     /// Read designated chunk from the memory into the supplied buffer.
-    fn read_memory_into_buf(&self, ptr: u32, buf: &mut [u8]) -> Result<(), MemoryError>;
+    fn read_memory_into_buf(
+        &self,
+        ptr: u32,
+        buf: &mut [u8],
+    ) -> Result<(), RuntimeCtxError<E::Error>>;
 
     /// Reads and decodes a type with a size fixed at compile time from program memory.
-    fn read_memory_as<D: Decode + MaxEncodedLen>(&self, ptr: u32) -> Result<D, MemoryError>;
+    fn read_memory_as<D: Decode + MaxEncodedLen>(
+        &self,
+        ptr: u32,
+    ) -> Result<D, RuntimeCtxError<E::Error>>;
 
     /// Write the given buffer and its length to the designated locations in memory.
     //
     /// `out_ptr` is the location in memory where `buf` should be written to.
-    fn write_output(&mut self, out_ptr: u32, buf: &[u8]) -> Result<(), MemoryError>;
+    fn write_output(&mut self, out_ptr: u32, buf: &[u8]) -> Result<(), RuntimeCtxError<E::Error>>;
 }
 
 pub struct BackendReport<T> {

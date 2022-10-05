@@ -39,6 +39,7 @@ use gear_core::{
 };
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap, VecDeque},
+    convert::TryInto,
     time::{SystemTime, UNIX_EPOCH},
 };
 use wasm_instrument::gas_metering::ConstantCostRules;
@@ -450,7 +451,7 @@ impl ExtManager {
     fn move_waiting_msgs_to_queue(&mut self, message_id: MessageId, program_id: ProgramId) {
         if let Some(ids) = self.wait_init_list.remove(&program_id) {
             for id in ids {
-                self.wake_message(message_id, program_id, id);
+                self.wake_message(message_id, program_id, id, 0);
             }
         }
     }
@@ -499,12 +500,13 @@ impl ExtManager {
 
                 if let Some(payload) = reply {
                     let id = MessageId::generate_reply(message_id, 0);
-                    let packet = ReplyPacket::new(payload, 0);
+                    let packet = ReplyPacket::new(payload.try_into().unwrap(), 0);
                     let reply_message = ReplyMessage::from_packet(id, packet);
 
                     self.send_dispatch(
                         message_id,
                         reply_message.into_dispatch(program_id, dispatch.source(), message_id),
+                        0,
                     );
                 }
             }
@@ -541,6 +543,7 @@ impl ExtManager {
                     self.send_dispatch(
                         message_id,
                         reply_message.into_dispatch(program_id, dispatch.source(), message_id),
+                        0,
                     );
                 }
             }
@@ -696,7 +699,7 @@ impl JournalHandler for ExtManager {
         }
     }
 
-    fn send_dispatch(&mut self, _message_id: MessageId, dispatch: Dispatch) {
+    fn send_dispatch(&mut self, _message_id: MessageId, dispatch: Dispatch, _delay: u32) {
         self.gas_limits.insert(dispatch.id(), dispatch.gas_limit());
 
         if !self.is_user(&dispatch.destination()) {
@@ -731,6 +734,7 @@ impl JournalHandler for ExtManager {
         _message_id: MessageId,
         program_id: ProgramId,
         awakening_id: MessageId,
+        _delay: u32,
     ) {
         if let Some(msg) = self.wait_list.remove(&(program_id, awakening_id)) {
             self.dispatches.push_back(msg);

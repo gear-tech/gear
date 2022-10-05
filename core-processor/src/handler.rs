@@ -44,7 +44,8 @@ pub fn handle_journal(
             JournalNote::SendDispatch {
                 message_id,
                 dispatch,
-            } => handler.send_dispatch(message_id, dispatch),
+                delay,
+            } => handler.send_dispatch(message_id, dispatch, delay),
             JournalNote::WaitDispatch { dispatch, duration } => {
                 handler.wait_dispatch(dispatch, duration)
             }
@@ -52,7 +53,8 @@ pub fn handle_journal(
                 message_id,
                 program_id,
                 awakening_id,
-            } => handler.wake_message(message_id, program_id, awakening_id),
+                delay,
+            } => handler.wake_message(message_id, program_id, awakening_id, delay),
             JournalNote::UpdatePage {
                 program_id,
                 page_number,

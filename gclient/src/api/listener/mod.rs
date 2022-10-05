@@ -156,8 +156,8 @@ pub trait EventProcessor {
                 reply_to.eq(&message_id).then(|| {
                     let res = exit_code
                         .eq(&0)
-                        .then_some(payload.clone())
-                        .ok_or_else(|| String::from_utf8(payload).expect("Infallible"));
+                        .then_some(payload.0.clone())
+                        .ok_or_else(|| String::from_utf8(payload.0).expect("Infallible"));
 
                     (id.into(), res, value)
                 })
@@ -186,7 +186,7 @@ pub trait EventProcessor {
                 ..
             }) => {
                 if reply_to == message_id && exit_code != 0 {
-                    Some(Some(String::from_utf8(payload).expect("Infallible")))
+                    Some(Some(String::from_utf8(payload.0).expect("Infallible")))
                 } else {
                     None
                 }
@@ -229,7 +229,7 @@ pub trait EventProcessor {
                         if message_ids.contains(&reply_to) && exit_code != 0 {
                             Some(vec![(
                                 reply_to.into(),
-                                Some(String::from_utf8(payload).expect("Infallible")),
+                                Some(String::from_utf8(payload.0).expect("Infallible")),
                             )])
                         } else {
                             None

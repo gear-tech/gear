@@ -24,19 +24,20 @@ use super::{GearApi, Result};
 use crate::Error;
 use gear_core::{ids::*, message::StoredMessage};
 use gp::api::generated::api::runtime_types::gear_common::storage::primitives::Interval;
+use std::borrow::Borrow;
 use subxt::sp_runtime::AccountId32;
 
 impl GearApi {
     pub async fn get_from_mailbox(
         &self,
-        account_id: AccountId32,
-        message_id: MessageId,
+        account_id: impl Borrow<AccountId32>,
+        message_id: impl Borrow<MessageId>,
     ) -> Result<Option<(StoredMessage, Interval<u32>)>> {
         let data = self
             .0
             .storage()
             .gear_messenger()
-            .mailbox(&account_id, &message_id.into(), None)
+            .mailbox(account_id.borrow(), &(*message_id.borrow()).into(), None)
             .await?;
 
         Ok(data.map(|(m, i)| (m.into(), i)))

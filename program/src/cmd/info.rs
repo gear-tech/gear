@@ -109,7 +109,7 @@ impl fmt::Debug for Mail {
             )
             .field(
                 "payload",
-                &["0x", &hex::encode(&self.message.payload)].concat(),
+                &["0x", &hex::encode(&self.message.payload.0)].concat(),
             )
             .field("value", &self.message.value)
             .field("reply", &self.message.reply.as_ref().map(DebugReplyDetails))
