@@ -86,7 +86,7 @@ fn debug_mode_works() {
         let program_id_2 = generate_program_id(&code_2);
 
         PalletGear::<Test>::upload_program(
-            Origin::signed(1),
+            RuntimeOrigin::signed(1),
             code_1.clone(),
             b"salt".to_vec(),
             Vec::new(),
@@ -120,7 +120,7 @@ fn debug_mode_works() {
         );
 
         PalletGear::<Test>::upload_program(
-            Origin::signed(1),
+            RuntimeOrigin::signed(1),
             code_2.clone(),
             b"salt".to_vec(),
             Vec::new(),
@@ -159,7 +159,7 @@ fn debug_mode_works() {
         );
 
         PalletGear::<Test>::send_message(
-            Origin::signed(1),
+            RuntimeOrigin::signed(1),
             program_id_1,
             vec![],
             1_000_000_000_u64,
@@ -170,7 +170,7 @@ fn debug_mode_works() {
         let message_id_1 = get_last_message_id();
 
         PalletGear::<Test>::send_message(
-            Origin::signed(1),
+            RuntimeOrigin::signed(1),
             program_id_2,
             vec![],
             1_000_000_000_u64,
@@ -414,7 +414,7 @@ fn check_not_allocated_pages() {
     new_test_ext().execute_with(|| {
         let code = parse_wat(wat);
         let program_id = generate_program_id(&code);
-        let origin = Origin::signed(1);
+        let origin = RuntimeOrigin::signed(1);
 
         assert_ok!(PalletGear::<Test>::upload_program(
             origin.clone(),
@@ -637,7 +637,7 @@ fn check_changed_pages_in_storage() {
     new_test_ext().execute_with(|| {
         let code = parse_wat(wat);
         let program_id = generate_program_id(&code);
-        let origin = Origin::signed(1);
+        let origin = RuntimeOrigin::signed(1);
 
         // Code info. Must be in consensus with wasm code.
         let static_pages = WasmPageNumber(8);
@@ -783,7 +783,7 @@ fn check_gear_stack_end() {
     new_test_ext().execute_with(|| {
         let code = parse_wat(wat);
         let program_id = generate_program_id(&code);
-        let origin = Origin::signed(1);
+        let origin = RuntimeOrigin::signed(1);
 
         assert_ok!(PalletGear::<Test>::upload_program(
             origin,
