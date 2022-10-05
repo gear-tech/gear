@@ -365,6 +365,9 @@ jobs:
         with:
           toolchain: nightly
           target: wasm32-unknown-unknown
+          
+      - name: "Install: Update toolchain"
+        run: rustup update
 
       - name: "Install: Show specific nightly version"
         if: ${{ env.NIGHTLY_TOOLCHAIN_VERSION != '' }}
