@@ -212,6 +212,8 @@ jobs:
 
       - name: "Build: Examples (WASM)"
         run: ./scripts/gear.sh build examples --locked
+        env:
+          RUSTFLAGS: ""
 
       - name: "Build: Split examples by .opt and .meta"
         run: ./scripts/gear.sh build examples-proc
