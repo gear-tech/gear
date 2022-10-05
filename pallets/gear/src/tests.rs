@@ -1379,7 +1379,7 @@ fn block_gas_limit_works() {
                 (get_local $msg_val)
                 (i32.const 0)
             )
-            (call $send (i32.const 2) (i32.const 0) (i32.const 32) (i64.const 10000000) (i32.const 10) (i32.const 40000) (i32.const 10))
+            (call $send (i32.const 2) (i32.const 0) (i32.const 32) (i64.const 10000000) (i32.const 10) (i32.const 0) (i32.const 40000))
             (if
                 (then unreachable)
                 (else)
@@ -5388,7 +5388,6 @@ fn missing_functions_are_not_executed() {
         (func $handle
             (local $msg_source i32)
             (local $msg_val i32)
-            (local $delay i32)
             (i32.store offset=2
                 (get_local $msg_source)
                 (i32.const 1)
@@ -5397,11 +5396,7 @@ fn missing_functions_are_not_executed() {
                 (get_local $msg_val)
                 (i32.const 1000)
             )
-            (i32.store offset=20
-                (get_local $delay)
-                (i32.const 0)
-            )
-            (call $send (i32.const 2) (i32.const 0) (i32.const 32) (i64.const 10000000) (i32.const 10) (i32.const 40000) (i32.const 20))
+            (call $send (i32.const 2) (i32.const 0) (i32.const 32) (i64.const 10000000) (i32.const 10) (i32.const 0) (i32.const 40000))
             (if
                 (then unreachable)
                 (else)
@@ -6115,7 +6110,6 @@ mod utils {
                         (func $handle
                             (local $msg_source i32)
                             (local $msg_val i32)
-                            (local $delay i32)
                             (i32.store offset=2
                                 (get_local $msg_source)
                                 (i32.const 1)
@@ -6124,11 +6118,7 @@ mod utils {
                                 (get_local $msg_val)
                                 (i32.const 1000)
                             )
-                            (i32.store offset=20
-                                (get_local $delay)
-                                (i32.const 0)
-                            )
-                            (call $send (i32.const 2) (i32.const 0) (i32.const 32) (i64.const 10000000) (i32.const 10) (i32.const 40000) (i32.const 20))
+                            (call $send (i32.const 2) (i32.const 0) (i32.const 32) (i64.const 10000000) (i32.const 10) (i32.const 0) (i32.const 40000))
                             (if
                                 (then unreachable)
                                 (else)
@@ -6278,13 +6268,20 @@ fn check_gr_read_error_works() {
     let wat = r#"
         (module
             (import "env" "memory" (memory 1))
-            (import "env" "gr_read" (func $gr_read (param i32 i32 i32)))
+            (import "env" "gr_read" (func $gr_read (param i32 i32 i32) (result i32)))
             (export "init" (func $init))
             (func $init
                 i32.const 0
                 i32.const 10
                 i32.const 0
                 call $gr_read
+                ;; validating that error len is not zero
+                (if
+                    (then)
+                    (else
+                        unreachable
+                    )
+                )
             )
         )"#;
 
@@ -6303,15 +6300,7 @@ fn check_gr_read_error_works() {
         let message_id = get_last_message_id();
 
         run_to_block(2, None);
-        assert_last_dequeued(1);
-        assert_failed(
-            message_id,
-            ExecutionErrorReason::Ext(TrapExplanation::Other(
-                FuncError::<<crate::Ext as ProcessorExt>::Error>::ReadWrongRange(0..10, 0)
-                    .to_string()
-                    .into(),
-            )),
-        );
+        assert_succeed(message_id);
     });
 }
 

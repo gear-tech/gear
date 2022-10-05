@@ -287,7 +287,7 @@ where
                         .set(buffer_ptr as u32, buffer)
                         .map_err(|_| MemoryError::OutOfBounds)?;
 
-                    Ok(0)
+                    Ok(0u32)
                 }
                 Err(_err) => Ok(1), // TODO: FIX IT.
             }
