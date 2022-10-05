@@ -124,24 +124,35 @@ impl<E: Ext + IntoExtInfo + 'static> Memory for MemoryWrap<E> {
         self.memory.data_mut(&mut self.store).as_mut().as_mut_ptr() as HostPointer
     }
 }
-/*
+
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use gear_backend_common::{assert_err, assert_ok};
-    use gear_core::memory::AllocationsContext;
-    use wasmi::{Store, Engine};
+    use crate::state::State;
 
-    fn new_test_memory<'a>(static_pages: u32, max_pages: u32) -> (AllocationsContext, MemoryWrap<Store<()>>) {
-        use wasmi::{MemoryType};
+    use super::*;
+    use gear_backend_common::{assert_err, assert_ok, mock::MockExt};
+    use gear_core::memory::AllocationsContext;
+    use wasmi::{Engine, Store};
+
+    fn new_test_memory(
+        static_pages: u32,
+        max_pages: u32,
+    ) -> (AllocationsContext, MemoryWrap<MockExt>) {
+        use wasmi::MemoryType;
 
         let memory_type = MemoryType::new(static_pages, Some(max_pages));
 
         let engine = Engine::default();
-        let mut store = Store::new(&engine, ());
+        let mut store = Store::new(
+            &engine,
+            Some(State {
+                ext: MockExt::default(),
+                err: crate::funcs::FuncError::HostError,
+            }),
+        );
 
         let memory = WasmiMemory::new(&mut store, memory_type).expect("Memory creation failed");
-        let memory = MemoryWrap::new(store, memory);
+        let memory = MemoryWrap::new(memory, store);
 
         (
             AllocationsContext::new(Default::default(), static_pages.into(), max_pages.into()),
@@ -182,4 +193,3 @@ mod tests {
         assert_err!(mem.alloc(2.into(), &mut mem_wrap), Error::OutOfBounds);
     }
 }
-*/

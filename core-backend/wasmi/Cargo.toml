@@ -8,7 +8,7 @@ license = "GPL-3.0"
 [dependencies]
 gear-core = { path = "../../core" }
 gear-core-errors = { path = "../../core-errors", features = ["codec"] }
-gear-backend-common = { path = "../common" }
+gear-backend-common = { path = "../common", features = ["mock"] }
 
 parity-wasm = { version = "0.45.0", default-features = false }
 wasmi = { version = "0.14.0", default-features = false }
