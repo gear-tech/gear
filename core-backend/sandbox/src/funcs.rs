@@ -672,7 +672,12 @@ where
         ctx.run(|ctx| {
             let message_id = ctx.read_memory_as(message_id_ptr)?;
 
-            ctx.ext.wake(message_id, delay).map_err(FuncError::Core)
+            Ok(ctx
+                .ext
+                .wake(message_id, delay)
+                .process_error()
+                .map_err(FuncError::Core)?
+                .error_len())
         })
     }
 
