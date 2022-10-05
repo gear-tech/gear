@@ -2,7 +2,6 @@
 // Implementation based on https://github.com/OpenZeppelin/openzeppelin-contracts/blob/master/contracts/token/ERC20/ERC20.sol
 
 #![no_std]
-#![feature(const_btree_new)]
 
 use codec::{Decode, Encode};
 use gstd::{debug, msg, prelude::*, ActorId};

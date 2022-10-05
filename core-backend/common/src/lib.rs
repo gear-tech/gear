@@ -27,6 +27,9 @@ pub mod error_processor;
 mod utils;
 pub use utils::calc_stack_end;
 
+#[cfg(feature = "mock")]
+pub mod mock;
+
 use alloc::{
     collections::{BTreeMap, BTreeSet},
     string::String,

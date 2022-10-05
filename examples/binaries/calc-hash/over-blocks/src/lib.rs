@@ -16,7 +16,6 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 #![no_std]
-#![cfg_attr(not(feature = "std"), feature(const_btree_new))]
 
 use codec::{Decode, Encode};
 use shared::PackageId;

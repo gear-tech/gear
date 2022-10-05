@@ -54,7 +54,10 @@ use frame_support::{
     traits::{Currency, StorageVersion},
     weights::Weight,
 };
-use gear_backend_sandbox::SandboxEnvironment;
+#[cfg(not(feature = "std"))]
+use gear_backend_sandbox::SandboxEnvironment as ExecutionEnvironment;
+#[cfg(feature = "std")]
+use gear_backend_wasmi::WasmiEnvironment as ExecutionEnvironment;
 use gear_core::{
     code::{Code, CodeAndId, InstrumentedCode, InstrumentedCodeAndId},
     ids::{CodeId, MessageId, ProgramId, ReservationId},
@@ -878,7 +881,7 @@ pub mod pallet {
                                 })
                                 .unwrap_or(0);
 
-                            core_processor::process::<Ext, SandboxEnvironment>(
+                            core_processor::process::<Ext, ExecutionEnvironment>(
                                 &block_config,
                                 context,
                                 memory_pages,
@@ -1298,7 +1301,7 @@ pub mod pallet {
 
                                 ext_manager.insert_program_id_loaded_pages(program_id);
 
-                                core_processor::process::<Ext, SandboxEnvironment>(
+                                core_processor::process::<Ext, ExecutionEnvironment>(
                                     &block_config,
                                     context,
                                     memory_pages,

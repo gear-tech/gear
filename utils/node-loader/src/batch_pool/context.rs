@@ -7,6 +7,7 @@ use super::report::Report;
 #[derive(Default)]
 pub struct ContextUpdate {
     program_ids: BTreeSet<ProgramId>,
+    codes: BTreeSet<CodeId>,
 }
 
 #[derive(Clone, Default)]
@@ -17,9 +18,10 @@ pub struct Context {
 }
 
 impl From<Report> for ContextUpdate {
-    fn from(other: Report) -> Self {
+    fn from(report: Report) -> Self {
         ContextUpdate {
-            program_ids: other.program_ids,
+            program_ids: report.program_ids,
+            codes: report.codes,
         }
     }
 }
@@ -30,6 +32,7 @@ impl Context {
     }
 
     pub fn update(&mut self, mut update: ContextUpdate) {
-        self.programs.append(&mut update.program_ids)
+        self.programs.append(&mut update.program_ids);
+        self.codes.append(&mut update.codes);
     }
 }
