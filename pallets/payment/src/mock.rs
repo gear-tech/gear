@@ -20,7 +20,7 @@ use crate as pallet_gear_payment;
 use frame_support::{
     construct_runtime, parameter_types,
     traits::{ConstU8, Contains, Currency, FindAuthor, OnFinalize, OnInitialize, OnUnbalanced},
-    weights::{IdentityFee, Weight},
+    weights::{constants::WEIGHT_PER_SECOND, IdentityFee},
 };
 use frame_system as system;
 use pallet_transaction_payment::CurrencyAdapter;
@@ -103,19 +103,20 @@ impl pallet_timestamp::Config for Test {
 }
 
 parameter_types! {
-    pub const BlockHashCount: u64 = 250;
+    pub const BlockHashCount: u64 = 2400;
     pub const SS58Prefix: u8 = 42;
     pub const ExistentialDeposit: u64 = 1;
-    pub BlockWeights: frame_system::limits::BlockWeights =
-        frame_system::limits::BlockWeights::simple_max(Weight::from_ref_time(1_000_000_000));
+    pub RuntimeBlockWeights: frame_system::limits::BlockWeights = frame_system::limits::BlockWeights::simple_max(
+        (WEIGHT_PER_SECOND/2).set_proof_size(u64::MAX)
+    );
 }
 
 impl system::Config for Test {
     type BaseCallFilter = frame_support::traits::Everything;
-    type BlockWeights = BlockWeights;
+    type BlockWeights = RuntimeBlockWeights;
     type BlockLength = ();
     type DbWeight = ();
-    type Origin = Origin;
+    type RuntimeOrigin = RuntimeOrigin;
     type RuntimeCall = RuntimeCall;
     type Index = u64;
     type BlockNumber = u64;
