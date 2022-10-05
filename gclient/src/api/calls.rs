@@ -631,7 +631,13 @@ impl GearApi {
             RuntimeCall::System(SystemCall::set_code {
                 code: code.as_ref().to_vec(),
             }),
-            Weight { ref_time: 0 },
+            Weight {
+                ref_time: 0,
+                // # TODO
+                //
+                // Check this field
+                proof_size: Default::default(),
+            },
         )?;
 
         let tx = self.0.process(ex).await?;

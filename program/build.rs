@@ -51,13 +51,9 @@ fn update_api() {
     let manifest = env!("CARGO_MANIFEST_DIR");
 
     // format generated code
-    let mut rustfmt = Command::new("rustfmt");
-    let mut code = rustfmt
-        .args([
-            "--edition=2021",
-            "--config-path",
-            &(manifest.to_owned() + "/../rustfmt.toml"),
-        ])
+    let mut cargo = Command::new("cargo");
+    let mut code = cargo
+        .args(["+nightly", "fmt", "--edition=2021"])
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .spawn()
