@@ -1,5 +1,5 @@
 //! Integration tests for command `deploy`
-use crate::common::{self, logs};
+use crate::common::{self, logs, Result};
 use gear_program::api::Api;
 
 // Testing account
@@ -15,11 +15,10 @@ const SURI: &str = "tumble tenant update heavy sad draw present tray atom chunk 
 const ADDRESS: &str = "5EJAhWN49JDfn58DpkERvCrtJ5X3sHue93a1hH4nB9KngGSs";
 
 #[tokio::test]
-async fn test_command_transfer_works() {
-    common::login_as_alice().expect("login failed");
-    let mut node = common::Node::dev().expect("start node failed");
-    node.wait(logs::gear_node::IMPORTING_BLOCKS)
-        .expect("node timeout");
+async fn test_command_transfer_works() -> Result<()> {
+    common::login_as_alice()?;
+    let mut node = common::Node::dev()?;
+    node.wait(logs::gear_node::IMPORTING_BLOCKS)?;
 
     // Get balance of the testing address
     let api = Api::new(Some(&node.ws()))
@@ -27,16 +26,14 @@ async fn test_command_transfer_works() {
         .unwrap()
         .signer(SURI, None)
         .unwrap();
-    let before = api
-        .get_balance(ADDRESS)
-        .await
-        .expect("failed to get balance");
+    let before = api.get_balance(ADDRESS).await?;
 
     // Run command transfer
     let value = 1_000_000_000u128;
-    let _ = common::gear(&["-e", &node.ws(), "transfer", ADDRESS, &value.to_string()])
-        .expect("transfer failed");
+    let _ = common::gear(&["-e", &node.ws(), "transfer", ADDRESS, &value.to_string()])?;
 
-    let after = api.get_balance(ADDRESS).await.expect("get balance failed");
+    let after = api.get_balance(ADDRESS).await?;
     assert_eq!(after.saturating_sub(before), value);
+
+    Ok(())
 }

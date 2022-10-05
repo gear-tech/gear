@@ -51,9 +51,9 @@ fn update_api() {
     let manifest = env!("CARGO_MANIFEST_DIR");
 
     // format generated code
-    let mut cargo = Command::new("cargo");
-    let mut code = cargo
-        .args(["+nightly", "fmt"])
+    let mut rustfmt = Command::new("rustfmt");
+    let mut code = rustfmt
+        .args(["--edition=2021"])
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .spawn()
@@ -70,7 +70,16 @@ fn update_api() {
             + "\n"
             + &String::from_utf8_lossy(&output.stdout),
     )
-    .expect("update api failed")
+    .expect("update api failed");
+
+    // # NOTE
+    //
+    // post format code since `cargo +nightly fmt` doesn't support pipe
+    let mut cargo = Command::new("cargo");
+    cargo
+        .args(["+nightly", "fmt"])
+        .status()
+        .expect("Format code failed.");
 }
 
 fn main() {
