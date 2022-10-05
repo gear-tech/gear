@@ -28,7 +28,9 @@ use alloc::{
     collections::{BTreeMap, BTreeSet},
     string::ToString,
 };
-use gear_backend_common::{BackendReport, Environment, IntoExtInfo, TerminationReason, GetGasAmount};
+use gear_backend_common::{
+    BackendReport, Environment, GetGasAmount, IntoExtInfo, TerminationReason,
+};
 use gear_core::{
     env::Ext as EnvExt,
     gas::{ChargeResult, GasAllowanceCounter, GasCounter, ValueCounter},

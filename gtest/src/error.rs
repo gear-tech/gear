@@ -18,8 +18,8 @@
 
 use codec::Error as CodecError;
 use core_processor::ProcessorError;
-use gear_core::{ids::ProgramId, memory::WasmPageNumber};
 use gear_backend_wasmi::wasmi;
+use gear_core::{ids::ProgramId, memory::WasmPageNumber};
 
 /// Type alias for the testing functions running result.
 pub type Result<T, E = TestError> = core::result::Result<T, E>;

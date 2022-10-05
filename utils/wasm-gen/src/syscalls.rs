@@ -572,9 +572,9 @@ fn test_sys_calls_table() {
     let code = module.into_bytes().unwrap();
 
     // Execute wasm and check success.
-    let mut ext = MockExt::default();
+    let ext = MockExt::default();
     let res = WasmiEnvironment::execute(
-        &mut ext,
+        ext,
         &code,
         Default::default(),
         0.into(),

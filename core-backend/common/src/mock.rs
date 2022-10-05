@@ -17,7 +17,8 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    error_processor::IntoExtError, AsTerminationReason, ExtInfo, IntoExtInfo, TerminationReason,
+    error_processor::IntoExtError, AsTerminationReason, ExtInfo, GetGasAmount, IntoExtInfo,
+    TerminationReason,
 };
 use alloc::collections::BTreeSet;
 use core::fmt;
@@ -203,5 +204,11 @@ impl IntoExtInfo for MockExt {
 
     fn trap_explanation(&self) -> Option<crate::TrapExplanation> {
         None
+    }
+}
+
+impl GetGasAmount for MockExt {
+    fn gas_amount(&self) -> GasAmount {
+        GasAmount::from(GasCounter::new(0))
     }
 }

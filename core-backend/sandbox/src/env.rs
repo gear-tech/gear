@@ -30,9 +30,10 @@ use alloc::{
 use core::fmt;
 use gear_backend_common::{
     calc_stack_end, error_processor::IntoExtError, AsTerminationReason, BackendReport, Environment,
-    IntoExtInfo, StackEndError, TerminationReason, TrapExplanation, STACK_END_EXPORT_NAME, GetGasAmount,
+    GetGasAmount, IntoExtInfo, StackEndError, TerminationReason, TrapExplanation,
+    STACK_END_EXPORT_NAME,
 };
-use gear_core::{env::Ext, memory::WasmPageNumber, message::DispatchKind, gas::GasAmount};
+use gear_core::{env::Ext, gas::GasAmount, memory::WasmPageNumber, message::DispatchKind};
 use sp_sandbox::{
     default_executor::{EnvironmentDefinitionBuilder, Instance, Memory as DefaultExecutorMemory},
     HostFuncType, ReturnValue, SandboxEnvironmentBuilder, SandboxInstance, SandboxMemory,

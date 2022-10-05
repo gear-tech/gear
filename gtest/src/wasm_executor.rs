@@ -60,19 +60,19 @@ impl WasmExecutor {
         let mut linker: Linker<HostState<Ext>> = Linker::new();
 
         let memory_type = MemoryType::new(program.static_pages().0, None);
-        let memory = WasmiMemory::new(&mut store, memory_type)
-            .map_err(|e| WasmiError::from(e))?;
+        let memory = WasmiMemory::new(&mut store, memory_type).map_err(WasmiError::from)?;
 
         linker
             .define("env", "memory", memory)
-            .map_err(|e| WasmiError::from(e))?;
+            .map_err(WasmiError::from)?;
 
         let forbidden_funcs =
             (!ext.forbidden_funcs().is_empty()).then(|| ext.forbidden_funcs().clone());
         let functions = funcs_tree::build(&mut store, memory, forbidden_funcs);
         for (name, function) in functions {
-            linker.define("env", name, function)
-                .map_err(|e| WasmiError::from(e))?;
+            linker
+                .define("env", name, function)
+                .map_err(WasmiError::from)?;
         }
 
         let runtime = State {
@@ -82,14 +82,16 @@ impl WasmExecutor {
 
         *store.state_mut() = Some(runtime);
 
-        let module = Module::new(store.engine(), &mut &meta_binary[..])
-            .map_err(|e| WasmiError::from(e))?;
+        let module =
+            Module::new(store.engine(), &mut &meta_binary[..]).map_err(WasmiError::from)?;
 
-        let instance_pre = linker.instantiate(&mut store, &module)
-            .map_err(|e| WasmiError::from(e))?;
+        let instance_pre = linker
+            .instantiate(&mut store, &module)
+            .map_err(WasmiError::from)?;
 
-        let instance = instance_pre.ensure_no_start(&mut store)
-            .map_err(|e| WasmiError::from(e))?;
+        let instance = instance_pre
+            .ensure_no_start(&mut store)
+            .map_err(WasmiError::from)?;
 
         let mut memory_wrap = MemoryWrap::new(memory, store);
         Self::set_pages(&mut memory_wrap, memory_pages)?;
@@ -176,11 +178,9 @@ impl WasmExecutor {
         let mut ptr = [0u8; mem::size_of::<i32>()];
         let mut len = [0u8; mem::size_of::<i32>()];
 
-        memory
-            .read(offset, &mut ptr)?;
+        memory.read(offset, &mut ptr)?;
 
-        memory
-            .read(offset + ptr.len(), &mut len)?;
+        memory.read(offset + ptr.len(), &mut len)?;
 
         let ptr = i32::from_ne_bytes(ptr) as usize;
         let len = i32::from_ne_bytes(len) as usize;
@@ -188,8 +188,7 @@ impl WasmExecutor {
         // Reading a vector from `ptr`
         let mut result = vec![0; len];
 
-        memory
-            .read(ptr, &mut result)?;
+        memory.read(ptr, &mut result)?;
 
         Ok(result)
     }

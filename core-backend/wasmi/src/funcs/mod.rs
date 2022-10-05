@@ -44,7 +44,7 @@ use gear_core::{
     env::Ext,
     ids::ProgramId,
     memory::Memory,
-    message::{HandlePacket, InitPacket, ReplyPacket, PayloadSizeError, Payload},
+    message::{HandlePacket, InitPacket, Payload, PayloadSizeError, ReplyPacket},
 };
 use gear_core_errors::{CoreError, MemoryError};
 use wasmi::{
@@ -213,18 +213,21 @@ where
             let message_id_ptr = message_id_ptr as u32 as usize;
             let delay_ptr = delay_ptr as u32 as usize;
 
-            let mut payload = Payload::try_new_default(payload_len)
-                .map_err(|e| {
-                    host_state_mut!(caller).err = FuncError::PayloadBufferSize(e);
-                    Trap::from(DummyHostError)
-                })?;
+            let mut payload = Payload::try_new_default(payload_len).map_err(|e| {
+                host_state_mut!(caller).err = FuncError::PayloadBufferSize(e);
+                Trap::from(DummyHostError)
+            })?;
             let read_result = {
                 let memory_wrap = get_caller_memory(&mut caller, &memory);
                 read_memory_as::<ProgramId>(&memory_wrap, program_id_ptr)
                     .and_then(|id| read_memory_as::<u128>(&memory_wrap, value_ptr).map(|v| (id, v)))
-                    .and_then(|(id, v)| read_memory_as::<u32>(&memory_wrap, delay_ptr).map(|d| (id, v, d)))
+                    .and_then(|(id, v)| {
+                        read_memory_as::<u32>(&memory_wrap, delay_ptr).map(|d| (id, v, d))
+                    })
                     .and_then(|(id, v, d)| {
-                        memory_wrap.read(payload_ptr, payload.get_mut()).map(|_| (id, v, d))
+                        memory_wrap
+                            .read(payload_ptr, payload.get_mut())
+                            .map(|_| (id, v, d))
                     })
             };
 
@@ -272,18 +275,21 @@ where
             let message_id_ptr = message_id_ptr as u32 as usize;
             let delay_ptr = delay_ptr as u32 as usize;
 
-            let mut payload = Payload::try_new_default(payload_len)
-                .map_err(|e| {
-                    host_state_mut!(caller).err = FuncError::PayloadBufferSize(e);
-                    Trap::from(DummyHostError)
-                })?;
+            let mut payload = Payload::try_new_default(payload_len).map_err(|e| {
+                host_state_mut!(caller).err = FuncError::PayloadBufferSize(e);
+                Trap::from(DummyHostError)
+            })?;
             let read_result = {
                 let memory_wrap = get_caller_memory(&mut caller, &memory);
                 read_memory_as::<ProgramId>(&memory_wrap, program_id_ptr)
                     .and_then(|id| read_memory_as::<u128>(&memory_wrap, value_ptr).map(|v| (id, v)))
-                    .and_then(|(id, v)| read_memory_as::<u32>(&memory_wrap, delay_ptr).map(|d| (id, v, d)))
+                    .and_then(|(id, v)| {
+                        read_memory_as::<u32>(&memory_wrap, delay_ptr).map(|d| (id, v, d))
+                    })
                     .and_then(|(id, v, d)| {
-                        memory_wrap.read(payload_ptr, payload.get_mut()).map(|_| (id, v, d))
+                        memory_wrap
+                            .read(payload_ptr, payload.get_mut())
+                            .map(|_| (id, v, d))
                     })
             };
 
@@ -299,12 +305,10 @@ where
                 caller,
                 memory,
                 |ext| {
-                    ext.send(HandlePacket::new_with_gas(
-                        destination,
-                        payload,
-                        gas_limit,
-                        value,
-                    ), delay)
+                    ext.send(
+                        HandlePacket::new_with_gas(destination, payload, gas_limit, value),
+                        delay,
+                    )
                 },
                 message_id_ptr
             )
@@ -339,7 +343,9 @@ where
                 let memory_wrap = get_caller_memory(&mut caller, &memory);
                 read_memory_as::<ProgramId>(&memory_wrap, program_id_ptr)
                     .and_then(|id| read_memory_as::<u128>(&memory_wrap, value_ptr).map(|v| (id, v)))
-                    .and_then(|(id, v)| read_memory_as::<u32>(&memory_wrap, delay_ptr).map(|d| (id, v, d)))
+                    .and_then(|(id, v)| {
+                        read_memory_as::<u32>(&memory_wrap, delay_ptr).map(|d| (id, v, d))
+                    })
             };
 
             let (destination, value, delay) = match read_result {
@@ -394,7 +400,9 @@ where
                 let memory_wrap = get_caller_memory(&mut caller, &memory);
                 read_memory_as::<ProgramId>(&memory_wrap, program_id_ptr)
                     .and_then(|id| read_memory_as::<u128>(&memory_wrap, value_ptr).map(|v| (id, v)))
-                    .and_then(|(id, v)| read_memory_as::<u32>(&memory_wrap, delay_ptr).map(|d| (id, v, d)))
+                    .and_then(|(id, v)| {
+                        read_memory_as::<u32>(&memory_wrap, delay_ptr).map(|d| (id, v, d))
+                    })
             };
 
             let (destination, value, delay) = match read_result {
@@ -795,11 +803,10 @@ where
             let message_id_ptr = message_id_ptr as u32 as usize;
             let delay_ptr = delay_ptr as u32 as usize;
 
-            let mut payload = Payload::try_new_default(payload_len)
-                .map_err(|e| {
-                    host_state_mut!(caller).err = FuncError::PayloadBufferSize(e);
-                    Trap::from(DummyHostError)
-                })?;
+            let mut payload = Payload::try_new_default(payload_len).map_err(|e| {
+                host_state_mut!(caller).err = FuncError::PayloadBufferSize(e);
+                Trap::from(DummyHostError)
+            })?;
             let read_result = {
                 let memory_wrap = get_caller_memory(&mut caller, &memory);
                 memory_wrap
@@ -850,11 +857,10 @@ where
             let message_id_ptr = message_id_ptr as u32 as usize;
             let delay_ptr = delay_ptr as u32 as usize;
 
-            let mut payload = Payload::try_new_default(payload_len)
-                .map_err(|e| {
-                    host_state_mut!(caller).err = FuncError::PayloadBufferSize(e);
-                    Trap::from(DummyHostError)
-                })?;
+            let mut payload = Payload::try_new_default(payload_len).map_err(|e| {
+                host_state_mut!(caller).err = FuncError::PayloadBufferSize(e);
+                Trap::from(DummyHostError)
+            })?;
             let read_result = {
                 let memory_wrap = get_caller_memory(&mut caller, &memory);
                 memory_wrap
@@ -962,12 +968,10 @@ where
                 caller,
                 memory,
                 |ext| {
-                    ext.reply_commit(ReplyPacket::new_with_gas(
-                        Default::default(),
-                        gas_limit,
-                        value,
-                    ),
-                    delay)
+                    ext.reply_commit(
+                        ReplyPacket::new_with_gas(Default::default(), gas_limit, value),
+                        delay,
+                    )
                 },
                 message_id_ptr
             )
@@ -1065,11 +1069,10 @@ where
                 let string_ptr = string_ptr as u32 as usize;
                 let string_len = string_len as u32 as usize;
 
-                let mut buffer = RuntimeBuffer::try_new_default(string_len)
-                    .map_err(|e| {
-                        host_state_mut!(caller).err = FuncError::RuntimeBufferSize(e);
-                        Trap::from(DummyHostError)
-                    })?;
+                let mut buffer = RuntimeBuffer::try_new_default(string_len).map_err(|e| {
+                    host_state_mut!(caller).err = FuncError::RuntimeBufferSize(e);
+                    Trap::from(DummyHostError)
+                })?;
                 let read_result = {
                     let memory_wrap = get_caller_memory(&mut caller, &memory);
                     memory_wrap.read(string_ptr, buffer.get_mut())
@@ -1430,8 +1433,9 @@ where
     }
 
     pub fn wake(store: &mut Store<HostState<E>>, forbidden: bool, memory: WasmiMemory) -> Func {
-        let func = move |mut caller: wasmi::Caller<'_, HostState<E>>, waker_id_ptr: i32,
-        delay_ptr: i32| {
+        let func = move |mut caller: wasmi::Caller<'_, HostState<E>>,
+                         waker_id_ptr: i32,
+                         delay_ptr: i32| {
             if forbidden {
                 host_state_mut!(caller).err = FuncError::Core(E::Error::forbidden_function());
                 return Err(DummyHostError.into());
@@ -1439,8 +1443,9 @@ where
 
             let read_result = {
                 let memory_wrap = get_caller_memory(&mut caller, &memory);
-                read_memory_as::<[u8; 32]>(&memory_wrap, waker_id_ptr as usize)
-                    .and_then(|a| read_memory_as::<u32>(&memory_wrap, delay_ptr as usize).map(|d| (a, d)))
+                read_memory_as::<[u8; 32]>(&memory_wrap, waker_id_ptr as usize).and_then(|a| {
+                    read_memory_as::<u32>(&memory_wrap, delay_ptr as usize).map(|d| (a, d))
+                })
             };
 
             let (waker_id, delay) = match read_result {
@@ -1496,11 +1501,10 @@ where
             let delay_ptr = delay_ptr as u32 as usize;
 
             let mut salt = vec![0u8; salt_len];
-            let mut payload = Payload::try_new_default(payload_len)
-                .map_err(|e| {
-                    host_state_mut!(caller).err = FuncError::PayloadBufferSize(e);
-                    Trap::from(DummyHostError)
-                })?;
+            let mut payload = Payload::try_new_default(payload_len).map_err(|e| {
+                host_state_mut!(caller).err = FuncError::PayloadBufferSize(e);
+                Trap::from(DummyHostError)
+            })?;
             let read_result = {
                 let memory_wrap = get_caller_memory(&mut caller, &memory);
                 memory_wrap
@@ -1527,7 +1531,10 @@ where
             process_call_result_as_ref!(
                 caller,
                 memory,
-                |ext| ext.create_program(InitPacket::new(code_hash.into(), salt, payload, value), delay),
+                |ext| ext.create_program(
+                    InitPacket::new(code_hash.into(), salt, payload, value),
+                    delay
+                ),
                 program_id_ptr
             )
         };
@@ -1565,11 +1572,10 @@ where
             let delay_ptr = delay_ptr as u32 as usize;
 
             let mut salt = vec![0u8; salt_len];
-            let mut payload = Payload::try_new_default(payload_len)
-                .map_err(|e| {
-                    host_state_mut!(caller).err = FuncError::PayloadBufferSize(e);
-                    Trap::from(DummyHostError)
-                })?;
+            let mut payload = Payload::try_new_default(payload_len).map_err(|e| {
+                host_state_mut!(caller).err = FuncError::PayloadBufferSize(e);
+                Trap::from(DummyHostError)
+            })?;
             let read_result = {
                 let memory_wrap = get_caller_memory(&mut caller, &memory);
                 memory_wrap
@@ -1597,13 +1603,10 @@ where
                 caller,
                 memory,
                 |ext| {
-                    ext.create_program(InitPacket::new_with_gas(
-                        code_hash.into(),
-                        salt,
-                        payload,
-                        gas_limit,
-                        value,
-                    ), delay)
+                    ext.create_program(
+                        InitPacket::new_with_gas(code_hash.into(), salt, payload, gas_limit, value),
+                        delay,
+                    )
                 },
                 program_id_ptr
             )

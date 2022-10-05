@@ -19,9 +19,8 @@
 use alloc::collections::BTreeSet;
 use core_processor::{Ext, ProcessorContext, ProcessorError, ProcessorExt};
 use gear_backend_common::{
-    error_processor::IntoExtError, AsTerminationReason, ExtInfo, IntoExtInfo, TerminationReason,
-    TrapExplanation,
-    GetGasAmount,
+    error_processor::IntoExtError, AsTerminationReason, ExtInfo, GetGasAmount, IntoExtInfo,
+    TerminationReason, TrapExplanation,
 };
 use gear_core::{
     costs::RuntimeCosts,
