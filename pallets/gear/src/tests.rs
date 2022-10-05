@@ -5631,7 +5631,7 @@ fn gas_reservation_works() {
     init_logger();
     new_test_ext().execute_with(|| {
         Gear::upload_program(
-            Origin::signed(USER_1),
+            RuntimeOrigin::signed(USER_1),
             demo_reserve_gas::WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
             EMPTY_PAYLOAD.to_vec(),
@@ -5661,7 +5661,7 @@ fn gas_reservation_works() {
         .expect("calculate_gas_info failed");
 
         assert_ok!(Gear::send_message(
-            Origin::signed(USER_1),
+            RuntimeOrigin::signed(USER_1),
             pid,
             HandleAction::Unreserve.encode(),
             spent_gas,
@@ -5692,7 +5692,7 @@ fn gas_reservation_works() {
         ));
 
         assert_ok!(Gear::send_message(
-            Origin::signed(USER_1),
+            RuntimeOrigin::signed(USER_1),
             pid,
             HandleAction::Exit.encode(),
             50_000_000_000,

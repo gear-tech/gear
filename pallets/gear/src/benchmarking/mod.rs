@@ -1832,7 +1832,7 @@ benchmarks! {
     }: {
         core_processor::process::<
             Externalities,
-            SandboxEnvironment,
+            ExecutionEnvironment,
         >(&block_config, context, memory_pages);
     }
 
@@ -1872,7 +1872,7 @@ benchmarks! {
     }: {
         core_processor::process::<
             Externalities,
-            SandboxEnvironment,
+            ExecutionEnvironment,
         >(&block_config, context, memory_pages);
     }
 
