@@ -18,7 +18,7 @@ pub const ALICE_SS58_ADDRESS: &str = "5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoH
 
 /// Run binary `gear`
 pub fn gear(args: &[&str]) -> Result<Output> {
-    Ok(Command::new(env::bin("gear")).args(args).output()?)
+    Ok(Command::new(env::bin("gprogram")).args(args).output()?)
 }
 
 /// Creates a unique identifier by passing given argument to blake2b hash-function.

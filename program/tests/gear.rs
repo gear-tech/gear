@@ -18,6 +18,6 @@ async fn api_timeout() {
 
 #[test]
 fn paths() {
-    assert!(PathBuf::from(env::bin("gear")).exists());
     assert!(PathBuf::from(env::bin("gear-node")).exists());
+    assert!(PathBuf::from(env::bin("gprogram")).exists());
 }
