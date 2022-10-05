@@ -10,10 +10,13 @@ name = "gear-node-loader"
 path = "src/main.rs"
 
 [dependencies]
-gear-wasm-gen = { path = "../wasm-gen" }
-arbitrary = "1.1.7"
+# internal dependencies
 gear-core = { path = "../../core" }
 gclient = { path = "../../gclient" }
+gear-wasm-gen = { path = "../wasm-gen" }
+
+# external dependencies
+arbitrary = "1.1.6"
 hex = "0.4.3"
 tokio = { version = "1.21.2", features = [ "macros" ] }
 structopt = "0.3.26"
@@ -21,3 +24,7 @@ rand = { version = "0.8.0", features = ["small_rng"] }
 futures = "0.3.24"
 anyhow = "1.0.65"
 dyn-clonable = "0.9.0"
+tracing = "0.1.36"
+tracing-subscriber = { version = "0.3.15", features = [ "env-filter", "json" ] }
+# todo remove
+tracing-attributes = "0.1.22"

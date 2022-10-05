@@ -9,13 +9,12 @@ use futures::{stream::FuturesUnordered, StreamExt};
 use gclient::{Error, EventProcessor, GearApi, Result};
 use gear_core::ids::MessageId;
 use generators::BatchGenerator;
-use report::{BatchReporter, BatchRunReport};
+use report::BatchRunReport;
 use std::{
     collections::{BTreeMap, BTreeSet},
-    fs::{self, File},
-    io::Write,
     marker::PhantomData,
 };
+use tracing::instrument;
 
 use self::{batch::BatchWithSeed, report::Report};
 
@@ -33,6 +32,11 @@ type Seed = u64;
 2.2. reporting logic of process_run_report should be included
 5. report method should accept an arg with Reporter type (trait which is implemented for LoaderReporter, or just a type).
 6. Deal with in a separate crate ring_get copy paste
+7. Logging todo:
+7.3. Implement logging to file
+7.4. Implement optional logging to file and stdout
+7.5. maybe implement pretty formatter
+8. anyhow everywhere
 */
 
 pub struct BatchPool<Rng: LoaderRng> {
@@ -54,14 +58,19 @@ impl<Rng: LoaderRng> BatchPool<Rng> {
         }
     }
 
+    #[instrument(skip_all)]
     pub async fn run(&mut self, code_seed_type: Option<SeedVariant>) -> Result<()> {
         let mut batches = FuturesUnordered::new();
 
         let seed = utils::now();
-        let info = format!("Running task pool with seed {seed}\n\n");
-        println!("{info}");
+        tracing::info!(
+            message = "Running task pool with params",
+            seed,
+            pool_size = self.pool_size,
+            batch_size = self.batch_size
+        );
 
-        fs::write(".log", info.as_bytes()).expect("Failed to write into file");
+        // fs::write(".log", "Start".as_bytes()).expect("Failed to write into file");
 
         let mut batch_gen = BatchGenerator::<Rng>::new(seed, self.batch_size, code_seed_type);
 
@@ -74,7 +83,7 @@ impl<Rng: LoaderRng> BatchPool<Rng> {
             api.set_nonce(num);
             num += 1;
 
-            batches.push(run_batch(api, batch_with_seed));
+            batches.push(run_batch(api.into(), batch_with_seed));
         }
 
         while let Some(report) = batches.next().await {
@@ -85,7 +94,7 @@ impl<Rng: LoaderRng> BatchPool<Rng> {
             api.set_nonce(num);
             num += 1;
 
-            batches.push(run_batch(api, batch_with_seed));
+            batches.push(run_batch(api.into(), batch_with_seed));
         }
 
         unreachable!()
@@ -93,42 +102,53 @@ impl<Rng: LoaderRng> BatchPool<Rng> {
 
     fn process_run_report(&mut self, report: BatchRunReport) {
         let BatchRunReport {
-            reports,
             context_update,
             blocks_stopped,
+            id: seed,
         } = report;
+
+        if blocks_stopped {
+            // todo should trigger remote process, which takes snapshot of the node
+            tracing::info!("Blocks production has stopped while executing messages of the batch with id: {seed}. \
+            Possibly, node panicked. Stopping loader");
+            panic!("Ending loader.")
+        }
 
         self.tasks_context.update(context_update);
 
-        let res = format!("\n{}\n", reports.join("\n"));
-        println!("{res}");
+        // let res = format!("\n{}\n", reports.join("\n"));
+        // println!("{res}");
 
-        let mut file = File::options()
-            .write(true)
-            .append(true)
-            .create(true)
-            .open(".log")
-            .expect("Failed to create a file");
+        // let mut file = File::options()
+        //     .write(true)
+        //     .append(true)
+        //     .create(true)
+        //     .open(".log")
+        //     .expect("Failed to create a file");
 
-        file.write_all(res.as_bytes())
-            .expect("Failed to write into file");
-
-        assert!(!blocks_stopped);
+        // file.write_all(res.as_bytes())
+        //     .expect("Failed to write into file");
     }
 }
 
+#[instrument(skip_all, fields(seed = batch.seed, batch_type = batch.batch_str()))]
 async fn run_batch(api: GearApi, batch: BatchWithSeed) -> BatchRunReport {
-    let pre_run_report = batch.report();
-
+    let (seed, batch) = batch.into();
     match run_batch_impl(api, batch.into()).await {
-        Ok(report) => BatchRunReport::new(pre_run_report, report),
-        Err(err) => BatchRunReport::from_err(pre_run_report, err),
+        Ok(report) => BatchRunReport::new(seed, report),
+        // todo (`BatchRunReport` having `err: Option<anyhow::Error>` field and log it)
+        Err(err) => {
+            tracing::debug!("Error occurred {err:?}");
+            BatchRunReport::default()
+        }
     }
 }
 
+#[instrument(skip_all)]
 async fn run_batch_impl(api: GearApi, batch: Batch) -> Result<Report> {
-    let mut logs = vec![];
-
+    // Order of the results of each extrinsic execution in the batch
+    // is the same as in the input set of calls in the batch.
+    // See: https://paritytech.github.io/substrate/master/src/pallet_utility/lib.rs.html#452-468
     match batch {
         Batch::UploadProgram(args) => {
             let args = args.into_iter().map(|v| v.into());
@@ -137,16 +157,13 @@ async fn run_batch_impl(api: GearApi, batch: Batch) -> Result<Report> {
 
             let mut init_messages = BTreeMap::new();
 
-            for r in ex_results {
+            for (i, r) in ex_results.into_iter().enumerate() {
+                let call_id = i + 1;
                 match r {
                     Ok((mid, pid)) => {
-                        init_messages.insert(mid, pid);
+                        init_messages.insert(mid, (pid, call_id));
                     }
-                    Err(e) => logs.push(format!(
-                        "[#{:<2}] Extrinsic failure: '{:?}'",
-                        logs.len() + 1,
-                        e
-                    )),
+                    Err(e) => tracing::debug!("[Call with id: {call_id}] Failed: '{e:?}'"),
                 }
             }
 
@@ -161,6 +178,7 @@ async fn run_batch_impl(api: GearApi, batch: Batch) -> Result<Report> {
                 };
 
                 if utils::now() - now > 1100 {
+                    tracing::debug!("Timeout is reached while waiting for events");
                     results = Err(anyhow!("Out of time: probably blocks stopped.").into());
                     break;
                 }
@@ -181,22 +199,18 @@ async fn run_batch_impl(api: GearApi, batch: Batch) -> Result<Report> {
             let mut program_ids = BTreeSet::new();
 
             for (mid, maybe_err) in results {
-                let pid = init_messages.remove(&mid).expect("Infallible");
+                let (pid, call_id) = init_messages.remove(&mid).expect("Infallible");
 
                 if let Some(expl) = maybe_err {
-                    logs.push(format!("[#{:<2}] Program with {pid:#.2} failed initialization on {mid:#.2} with a trap: '{expl}'", logs.len() + 1))
+                    tracing::debug!("[Call with id: {call_id}]: Program with {pid:#.2} failed initialization on {mid:#.2} with a trap: '{expl}'");
                 } else {
                     // TODO: handle case of "NotExecuted". It's not actual for init messages, but will be useful in future.
-                    logs.push(format!(
-                        "[#{:<2}] {mid:#.2} successfully inited program with '{pid:#.2}'",
-                        logs.len() + 1
-                    ));
+                    tracing::debug!("[Call with id: {call_id}]: {mid:#.2} successfully inited program with '{pid:#.2}'");
                     program_ids.insert(pid);
                 }
             }
 
             Ok(Report {
-                logs,
                 program_ids,
                 blocks_stopped,
                 codes: BTreeSet::new(),
@@ -208,20 +222,14 @@ async fn run_batch_impl(api: GearApi, batch: Batch) -> Result<Report> {
 
             let mut codes = BTreeSet::new();
 
-            for r in ex_results {
+            for (i, r) in ex_results.into_iter().enumerate() {
+                let call_id = i + 1;
                 match r {
                     Ok(code_id) => {
                         codes.insert(code_id);
-                        logs.push(format!(
-                            "[#{:<2}] Successfully deployed code with id '{code_id}'",
-                            logs.len() + 1,
-                        ));
+                        tracing::debug!("[Call with id: {call_id}]: Successfully deployed code with id '{code_id}'");
                     }
-                    Err(e) => logs.push(format!(
-                        "[#{:<2}] Extrinsic failure: '{:?}'",
-                        logs.len() + 1,
-                        e
-                    )),
+                    Err(e) => tracing::debug!("[Call with id: {call_id}]: Failed '{e:?}'"),
                 }
             }
 
@@ -229,7 +237,6 @@ async fn run_batch_impl(api: GearApi, batch: Batch) -> Result<Report> {
             let blocks_stopped = !listener.blocks_running().await?;
 
             Ok(Report {
-                logs,
                 program_ids: BTreeSet::new(),
                 blocks_stopped,
                 codes,
@@ -242,16 +249,13 @@ async fn run_batch_impl(api: GearApi, batch: Batch) -> Result<Report> {
 
             let mut handle_messages = BTreeMap::new();
 
-            for r in ex_results {
+            for (i, r) in ex_results.into_iter().enumerate() {
+                let call_id = i + 1;
                 match r {
                     Ok((mid, pid)) => {
-                        handle_messages.insert(mid, pid);
+                        handle_messages.insert(mid, (pid, call_id));
                     }
-                    Err(e) => logs.push(format!(
-                        "[#{:<2}] Extrinsic failure: '{:?}'",
-                        logs.len() + 1,
-                        e
-                    )),
+                    Err(e) => tracing::debug!("[Call with id: {call_id}]: Failed '{e:?}'"),
                 }
             }
 
@@ -269,6 +273,7 @@ async fn run_batch_impl(api: GearApi, batch: Batch) -> Result<Report> {
                 };
 
                 if utils::now() - now > 1100 {
+                    tracing::debug!("Timeout is reached while waiting for events");
                     results = Err(anyhow!("Out of time: probably blocks stopped.").into());
                     break;
                 }
@@ -287,20 +292,16 @@ async fn run_batch_impl(api: GearApi, batch: Batch) -> Result<Report> {
             let blocks_stopped = !listener.blocks_running().await?;
 
             for (mid, maybe_err) in results {
-                let pid = handle_messages.remove(&mid).expect("Infallible");
+                let (pid, call_id) = handle_messages.remove(&mid).expect("Infallible");
 
                 if let Some(expl) = maybe_err {
-                    logs.push(format!("[#{:<2}] Message {mid:#.2} sent to program {pid:#.2} failed execution with a trap: '{expl}'", logs.len() + 1))
+                    tracing::debug!("[Call with id: {call_id}]: Message {mid:#.2} sent to program {pid:#.2} failed execution with a trap: '{expl}'");
                 } else {
-                    logs.push(format!(
-                        "[#{:<2}] Successfully executed {mid:#.2} message for program '{pid:#.2}'",
-                        logs.len() + 1
-                    ));
+                    tracing::debug!("[Call with id: {call_id}]: Successfully executed {mid:#.2} message for program '{pid:#.2}'");
                 }
             }
 
             Ok(Report {
-                logs,
                 codes: BTreeSet::new(),
                 program_ids: BTreeSet::new(),
                 blocks_stopped,
@@ -313,16 +314,13 @@ async fn run_batch_impl(api: GearApi, batch: Batch) -> Result<Report> {
 
             let mut init_messages = BTreeMap::new();
 
-            for r in ex_results {
+            for (i, r) in ex_results.into_iter().enumerate() {
+                let call_id = i + 1;
                 match r {
                     Ok((mid, pid)) => {
-                        init_messages.insert(mid, pid);
+                        init_messages.insert(mid, (pid, call_id));
                     }
-                    Err(e) => logs.push(format!(
-                        "[#{:<2}] Extrinsic failure: '{:?}'",
-                        logs.len() + 1,
-                        e
-                    )),
+                    Err(e) => tracing::debug!("[Call with id: {call_id}]: Failed '{e:?}'"),
                 }
             }
 
@@ -337,6 +335,7 @@ async fn run_batch_impl(api: GearApi, batch: Batch) -> Result<Report> {
                 };
 
                 if utils::now() - now > 1100 {
+                    tracing::debug!("Timeout is reached while waiting for events");
                     results = Err(anyhow!("Out of time: probably blocks stopped.").into());
                     break;
                 }
@@ -357,22 +356,18 @@ async fn run_batch_impl(api: GearApi, batch: Batch) -> Result<Report> {
             let mut program_ids = BTreeSet::new();
 
             for (mid, maybe_err) in results {
-                let pid = init_messages.remove(&mid).expect("Infallible");
+                let (pid, call_id) = init_messages.remove(&mid).expect("Infallible");
 
                 if let Some(expl) = maybe_err {
-                    logs.push(format!("[#{:<2}] Program with {pid:#.2} failed initialization on {mid:#.2} with a trap: '{expl}'", logs.len() + 1))
+                    tracing::debug!("[Call with id: {call_id}]: Program with {pid:#.2} failed initialization on {mid:#.2} with a trap: '{expl}'");
                 } else {
+                    tracing::debug!("[Call with id: {call_id}]: {mid:#.2} successfully inited program with '{pid:#.2}'");
                     // TODO: handle case of "NotExecuted". It's not actual for init messages, but will be useful in future.
-                    logs.push(format!(
-                        "[#{:<2}] {mid:#.2} successfully inited program with '{pid:#.2}'",
-                        logs.len() + 1
-                    ));
                     program_ids.insert(pid);
                 }
             }
 
             Ok(Report {
-                logs,
                 program_ids,
                 blocks_stopped,
                 codes: BTreeSet::new(),

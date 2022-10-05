@@ -14,7 +14,7 @@ impl From<UploadProgramArgs> for UploadProgramArgsInner {
         (code, salt, payload, gas_limit, value)
     }
 }
-
+// TODO write code to file
 impl UploadProgramArgs {
     pub fn generate<Rng: LoaderRng>(code_seed: Seed, rng_seed: Seed) -> Self {
         let mut rng = Rng::seed_from_u64(rng_seed);
@@ -26,6 +26,12 @@ impl UploadProgramArgs {
 
         let mut payload = vec![0; rng.gen_range(1..=100)];
         rng.fill_bytes(&mut payload);
+
+        tracing::debug!(
+            "Generated `upload_program` batch with code seed = {code_seed}, salt = {} payload = {}",
+            hex::encode(&salt),
+            hex::encode(&payload)
+        );
 
         // TODO: add this.
         let gas_limit = 240_000_000_000;

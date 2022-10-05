@@ -1,4 +1,4 @@
-use super::{report::BatchReporter, Seed};
+use super::Seed;
 pub use create_program::CreateProgramArgs;
 pub use send_message::SendMessageArgs;
 pub use upload_code::UploadCodeArgs;
@@ -17,8 +17,19 @@ pub enum Batch {
 }
 
 pub struct BatchWithSeed {
-    seed: Seed,
-    batch: Batch,
+    pub seed: Seed,
+    pub batch: Batch,
+}
+
+impl BatchWithSeed {
+    pub fn batch_str(&self) -> &'static str {
+        match &self.batch {
+            Batch::UploadProgram(_) => "upload_program",
+            Batch::UploadCode(_) => "upload_code",
+            Batch::SendMessage(_) => "send_message",
+            Batch::CreateProgram(_) => "create_program",
+        }
+    }
 }
 
 impl From<BatchWithSeed> for Batch {
@@ -36,87 +47,5 @@ impl From<(Seed, Batch)> for BatchWithSeed {
 impl From<BatchWithSeed> for (Seed, Batch) {
     fn from(BatchWithSeed { seed, batch }: BatchWithSeed) -> Self {
         (seed, batch)
-    }
-}
-
-impl BatchReporter for BatchWithSeed {
-    fn report(&self) -> Vec<String> {
-        let mut report: Vec<_>;
-
-        match &self.batch {
-            Batch::UploadProgram(args) => {
-                report = Vec::with_capacity(args.len() + 1);
-
-                report.push(format!(
-                    "Batch of `upload_program` with seed {}:",
-                    self.seed
-                ));
-
-                for (i, UploadProgramArgs((code, salt, payload, gas_limit, value))) in
-                    args.iter().enumerate()
-                {
-                    report.push(format!(
-                        "[#{:<2}] code: '0x{}', salt: '0x{}', payload: '0x{}', gas_limit: '{}', value: '{}'",
-                        i + 1,
-                        hex::encode(code),
-                        hex::encode(salt),
-                        hex::encode(payload),
-                        gas_limit,
-                        value
-                    ))
-                }
-            }
-            Batch::UploadCode(args) => {
-                report = Vec::with_capacity(args.len() + 1);
-
-                report.push(format!("Batch of `upload_code` with seed {}:", self.seed));
-
-                for (i, UploadCodeArgs(code)) in args.iter().enumerate() {
-                    report.push(format!("[#{:<2}] code: '0x{}'", i + 1, hex::encode(code)))
-                }
-            }
-            Batch::SendMessage(args) => {
-                report = Vec::with_capacity(args.len() + 1);
-
-                report.push(format!("Batch of `send_message` with seed {}:", self.seed));
-
-                for (i, SendMessageArgs((destination, payload, gas_limit, value))) in
-                    args.iter().enumerate()
-                {
-                    report.push(format!(
-                        "[#{:<2}] destination: '{}', payload: '0x{}', gas_limit: '{}', value: '{}'",
-                        i + 1,
-                        destination,
-                        hex::encode(payload),
-                        gas_limit,
-                        value
-                    ))
-                }
-            }
-            Batch::CreateProgram(args) => {
-                report = Vec::with_capacity(args.len() + 1);
-
-                report.push(format!(
-                    "Batch of `create_program` with seed {}:",
-                    self.seed
-                ));
-
-                for (i, CreateProgramArgs((code, salt, payload, gas_limit, value))) in
-                    args.iter().enumerate()
-                {
-                    report.push(format!(
-                        "[#{:<2}] code id: '{}', salt: '0x{}', payload: '0x{}', gas_limit: '{}', value: '{}'",
-                        i + 1,
-                        code,
-                        hex::encode(salt),
-                        hex::encode(payload),
-                        gas_limit,
-                        value
-                    ))
-                }
-            }
-        }
-
-        report
     }
 }

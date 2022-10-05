@@ -8,6 +8,7 @@ use gear_core::ids::ProgramId;
 
 pub type SendMessageArgsInner = (ProgramId, Vec<u8>, u64, u128);
 
+#[derive(Debug)]
 pub struct SendMessageArgs(pub SendMessageArgsInner);
 
 impl From<SendMessageArgs> for SendMessageArgsInner {
@@ -31,6 +32,11 @@ impl SendMessageArgs {
 
         let mut payload = vec![0; rng.gen_range(1..=100)];
         rng.fill_bytes(&mut payload);
+
+        tracing::debug!(
+            "Generated `send_message` batch with destination = {destination}, payload = {}",
+            hex::encode(&payload)
+        );
 
         // TODO: add this.
         let gas_limit = 240_000_000_000;

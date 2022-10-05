@@ -5,10 +5,12 @@
 //! gets properly structured data acceptable by the gear node and randomizes it's "fields".
 //! That's why generated data is called semi-random.
 
+use anyhow::{anyhow, Result};
 use args::{parse_cli_params, LoadParams, Params};
 use batch_pool::{generators, BatchPool};
-use gclient::{GearApi, Result};
+use gclient::GearApi;
 use rand::rngs::SmallRng;
+use tracing::{Instrument, Metadata};
 
 mod args;
 mod batch_pool;
@@ -24,15 +26,21 @@ async fn main() -> Result<()> {
 
 async fn run(params: Params) -> Result<()> {
     match params {
-        Params::Dump { seed } => utils::dump_with_seed(seed),
+        Params::Dump { seed } => utils::dump_with_seed(seed).map_err(|e| e.into()),
         Params::Load(load_params) => load_node(load_params).await,
     }
 }
 
 async fn load_node(params: LoadParams) -> Result<()> {
     let api = GearApi::init(utils::str_to_wsaddr(params.endpoint)).await?;
+    tracing_subscriber::fmt()
+        .pretty()
+        .with_env_filter("gear_node_loader=debug")
+        .try_init()
+        .map_err(|_| anyhow!("Can't initialize logger"))?;
 
     BatchPool::<SmallRng>::new(api, params.workers, params.batch_size)
         .run(params.code_seed_type)
         .await
+        .map_err(|e| e.into())
 }

@@ -3,12 +3,13 @@ use std::collections::BTreeSet;
 
 use super::report::Report;
 
+#[derive(Default)]
 pub struct ContextUpdate {
     program_ids: BTreeSet<ProgramId>,
     codes: BTreeSet<CodeId>,
 }
 
-#[derive(Clone, Default)]
+#[derive(Debug, Clone, Default)]
 pub struct Context {
     pub programs: BTreeSet<ProgramId>,
     pub codes: BTreeSet<CodeId>,

@@ -9,6 +9,7 @@ use crate::{
 
 pub type CreateProgramArgsInner = (CodeId, Vec<u8>, Vec<u8>, u64, u128);
 
+#[derive(Debug)]
 pub struct CreateProgramArgs(pub CreateProgramArgsInner);
 
 impl From<CreateProgramArgs> for CreateProgramArgsInner {
@@ -34,6 +35,12 @@ impl CreateProgramArgs {
 
         let mut payload = vec![0; rng.gen_range(1..=100)];
         rng.fill_bytes(&mut payload);
+
+        tracing::debug!(
+            "Generated `create_program` batch with code id = {code}, salt = {} payload = {}",
+            hex::encode(&salt),
+            hex::encode(&payload)
+        );
 
         // TODO: add this.
         let gas_limit = 240_000_000_000;

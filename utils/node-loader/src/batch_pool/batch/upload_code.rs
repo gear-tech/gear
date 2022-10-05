@@ -5,6 +5,7 @@ use crate::{
     utils::LoaderRng,
 };
 
+#[derive(Debug)]
 pub struct UploadCodeArgs(pub Vec<u8>);
 
 impl From<UploadCodeArgs> for Vec<u8> {
@@ -16,6 +17,7 @@ impl From<UploadCodeArgs> for Vec<u8> {
 impl UploadCodeArgs {
     pub fn generate<Rng: LoaderRng>(code_seed: Seed) -> Self {
         let code = generators::generate_gear_program::<Rng>(code_seed);
+        tracing::debug!("Generated `upload_code` with code from seed = {code_seed}");
 
         Self(code)
     }
