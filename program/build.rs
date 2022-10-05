@@ -48,11 +48,16 @@ fn check_node() -> bool {
 /// Update runtime api
 fn update_api() {
     let api = codegen(vec![]);
+    let manifest = env!("CARGO_MANIFEST_DIR");
 
     // format generated code
     let mut rustfmt = Command::new("rustfmt");
     let mut code = rustfmt
-        .args(["--edition=2021"])
+        .args([
+            "--edition=2021",
+            "--config-path",
+            &(manifest.to_owned() + "/../rustfmt.toml"),
+        ])
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .spawn()
@@ -64,7 +69,7 @@ fn update_api() {
 
     // write api to disk
     fs::write(
-        &[env!("CARGO_MANIFEST_DIR"), "/src/api/generated/metadata.rs"].concat(),
+        &[manifest, "/src/api/generated/metadata.rs"].concat(),
         GENERATED_TITLE.to_owned().trim().to_owned()
             + "\n"
             + &String::from_utf8_lossy(&output.stdout),
