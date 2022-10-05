@@ -53,7 +53,7 @@ fn update_api() {
     // format generated code
     let mut cargo = Command::new("cargo");
     let mut code = cargo
-        .args(["+nightly", "fmt", "--edition=2021"])
+        .args(["+nightly", "fmt"])
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .spawn()
