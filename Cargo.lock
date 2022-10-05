@@ -3007,6 +3007,7 @@ dependencies = [
  "gear-core",
  "libc",
  "log",
+ "mach",
  "nix 0.25.0",
  "once_cell",
  "region 3.0.0",
