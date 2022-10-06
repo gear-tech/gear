@@ -118,6 +118,15 @@ macro_rules! process_read_result {
     };
 }
 
+macro_rules! exit_if {
+    ($forbidden:ident, $caller:ident) => {
+        if $forbidden {
+            host_state_mut!($caller).err = FuncError::Core(E::Error::forbidden_function());
+            return Err(DummyHostError.into());
+        }
+    };
+}
+
 #[derive(Debug, derive_more::Display)]
 pub enum FuncError<E> {
     #[display(fmt = "{}", _0)]
@@ -203,10 +212,7 @@ where
                          value_ptr: i32,
                          message_id_ptr: i32,
                          delay_ptr: i32| {
-            if forbidden {
-                host_state_mut!(caller).err = FuncError::Core(E::Error::forbidden_function());
-                return Err(DummyHostError.into());
-            }
+            exit_if!(forbidden, caller);
 
             let program_id_ptr = program_id_ptr as u32 as usize;
             let payload_ptr = payload_ptr as u32 as usize;
@@ -259,10 +265,7 @@ where
                          value_ptr: i32,
                          message_id_ptr: i32,
                          delay_ptr: i32| {
-            if forbidden {
-                host_state_mut!(caller).err = FuncError::Core(E::Error::forbidden_function());
-                return Err(DummyHostError.into());
-            }
+            exit_if!(forbidden, caller);
 
             let program_id_ptr = program_id_ptr as u32 as usize;
             let payload_ptr = payload_ptr as u32 as usize;
@@ -318,10 +321,7 @@ where
                          program_id_ptr: i32,
                          value_ptr: i32,
                          delay_ptr: i32| {
-            if forbidden {
-                host_state_mut!(caller).err = FuncError::Core(E::Error::forbidden_function());
-                return Err(DummyHostError.into());
-            }
+            exit_if!(forbidden, caller);
 
             let handle_ptr = handle_ptr as u32 as usize;
             let message_id_ptr = message_id_ptr as u32 as usize;
@@ -369,10 +369,7 @@ where
                          gas_limit: u64,
                          value_ptr: i32,
                          delay_ptr: i32| {
-            if forbidden {
-                host_state_mut!(caller).err = FuncError::Core(E::Error::forbidden_function());
-                return Err(DummyHostError.into());
-            }
+            exit_if!(forbidden, caller);
 
             let handle_ptr = handle_ptr as u32 as usize;
             let message_id_ptr = message_id_ptr as u32 as usize;
@@ -419,10 +416,7 @@ where
         memory: WasmiMemory,
     ) -> Func {
         let func = move |mut caller: wasmi::Caller<'_, HostState<E>>, handle_ptr: i32| {
-            if forbidden {
-                host_state_mut!(caller).err = FuncError::Core(E::Error::forbidden_function());
-                return Err(DummyHostError.into());
-            }
+            exit_if!(forbidden, caller);
 
             let handle_ptr = handle_ptr as u32 as usize;
 
@@ -446,10 +440,7 @@ where
                          handle_ptr: i32,
                          payload_ptr: i32,
                          payload_len: i32| {
-            if forbidden {
-                host_state_mut!(caller).err = FuncError::Core(E::Error::forbidden_function());
-                return Err(DummyHostError.into());
-            }
+            exit_if!(forbidden, caller);
 
             let handle_ptr = handle_ptr as u32 as usize;
             let payload_ptr = payload_ptr as u32 as usize;
@@ -474,15 +465,13 @@ where
                          at: i32,
                          len: i32,
                          destination_ptr: i32| {
-            let host_state = host_state_mut!(caller);
-            if forbidden {
-                host_state.err = FuncError::Core(E::Error::forbidden_function());
-                return Err(DummyHostError.into());
-            }
+            exit_if!(forbidden, caller);
 
             let at = at as u32 as usize;
             let len = len as u32 as usize;
             let destination_ptr = destination_ptr as u32 as usize;
+
+            let host_state = host_state_mut!(caller);
 
             let last_idx = match at.checked_add(len) {
                 Some(i) => i,
@@ -523,12 +512,9 @@ where
 
     pub fn size(store: &mut Store<HostState<E>>, forbidden: bool) -> Func {
         let func = move |mut caller: wasmi::Caller<'_, HostState<E>>| {
-            let host_state = host_state_mut!(caller);
-            if forbidden {
-                host_state.err = FuncError::Core(E::Error::forbidden_function());
-                return Err(DummyHostError.into());
-            }
+            exit_if!(forbidden, caller);
 
+            let host_state = host_state_mut!(caller);
             let size = host_state.ext.size();
             match size {
                 Ok(size) => match u32::try_from(size) {
@@ -552,10 +538,7 @@ where
         let func = move |mut caller: wasmi::Caller<'_, HostState<E>>,
                          value_dest_ptr: i32|
               -> Result<(), Trap> {
-            if forbidden {
-                host_state_mut!(caller).err = FuncError::Core(E::Error::forbidden_function());
-                return Err(DummyHostError.into());
-            }
+            exit_if!(forbidden, caller);
 
             let value_dest_ptr = value_dest_ptr as u32 as usize;
 
@@ -577,12 +560,9 @@ where
 
     pub fn exit_code(store: &mut Store<HostState<E>>, forbidden: bool) -> Func {
         let func = move |mut caller: wasmi::Caller<'_, HostState<E>>| {
-            let host_state = host_state_mut!(caller);
-            if forbidden {
-                host_state.err = FuncError::Core(E::Error::forbidden_function());
-                return Err(DummyHostError.into());
-            }
+            exit_if!(forbidden, caller);
 
+            let host_state = host_state_mut!(caller);
             let exit_code = match host_state.ext.exit_code() {
                 Ok(c) => c,
                 Err(e) => {
@@ -630,10 +610,7 @@ where
         let func = move |mut caller: wasmi::Caller<'_, HostState<E>>,
                          pages: u32|
               -> Result<(u32,), Trap> {
-            if forbidden {
-                host_state_mut!(caller).err = FuncError::Core(E::Error::forbidden_function());
-                return Err(DummyHostError.into());
-            }
+            exit_if!(forbidden, caller);
 
             let mut host_state = caller.host_data_mut().take();
 
@@ -665,12 +642,9 @@ where
 
     pub fn free(store: &mut Store<HostState<E>>, forbidden: bool) -> Func {
         let func = move |mut caller: wasmi::Caller<'_, HostState<E>>, page: u32| {
-            let host_state = host_state_mut!(caller);
-            if forbidden {
-                host_state.err = FuncError::Core(E::Error::forbidden_function());
-                return Err(DummyHostError.into());
-            }
+            exit_if!(forbidden, caller);
 
+            let host_state = host_state_mut!(caller);
             if let Err(e) = host_state.ext.free(page.into()).map_err(FuncError::Core) {
                 log::debug!("FREE ERROR: {e}");
                 host_state.err = e;
@@ -686,12 +660,9 @@ where
 
     pub fn block_height(store: &mut Store<HostState<E>>, forbidden: bool) -> Func {
         let func = move |mut caller: wasmi::Caller<'_, HostState<E>>| {
-            let host_state = host_state_mut!(caller);
-            if forbidden {
-                host_state.err = FuncError::Core(E::Error::forbidden_function());
-                return Err(DummyHostError.into());
-            }
+            exit_if!(forbidden, caller);
 
+            let host_state = host_state_mut!(caller);
             match host_state.ext.block_height() {
                 Ok(h) => Ok((h,)),
                 Err(e) => {
@@ -706,12 +677,9 @@ where
 
     pub fn block_timestamp(store: &mut Store<HostState<E>>, forbidden: bool) -> Func {
         let func = move |mut caller: wasmi::Caller<'_, HostState<E>>| {
-            let host_state = host_state_mut!(caller);
-            if forbidden {
-                host_state.err = FuncError::Core(E::Error::forbidden_function());
-                return Err(DummyHostError.into());
-            }
+            exit_if!(forbidden, caller);
 
+            let host_state = host_state_mut!(caller);
             match host_state.ext.block_timestamp() {
                 Ok(t) => Ok((t,)),
                 Err(e) => {
@@ -726,14 +694,11 @@ where
 
     pub fn origin(store: &mut Store<HostState<E>>, forbidden: bool, memory: WasmiMemory) -> Func {
         let func = move |mut caller: wasmi::Caller<'_, HostState<E>>, origin_ptr: i32| {
-            let host_state = host_state_mut!(caller);
-            if forbidden {
-                host_state.err = FuncError::Core(E::Error::forbidden_function());
-                return Err(DummyHostError.into());
-            }
+            exit_if!(forbidden, caller);
 
             let origin_ptr = origin_ptr as u32 as usize;
 
+            let host_state = host_state_mut!(caller);
             let origin = match host_state.ext.origin() {
                 Ok(o) => o,
                 Err(e) => {
@@ -763,10 +728,7 @@ where
                          value_ptr: i32,
                          message_id_ptr: i32,
                          delay_ptr: i32| {
-            if forbidden {
-                host_state_mut!(caller).err = FuncError::Core(E::Error::forbidden_function());
-                return Err(DummyHostError.into());
-            }
+            exit_if!(forbidden, caller);
 
             let payload_ptr = payload_ptr as u32 as usize;
             let payload_len = payload_len as u32 as usize;
@@ -811,10 +773,7 @@ where
                          value_ptr: i32,
                          message_id_ptr: i32,
                          delay_ptr: i32| {
-            if forbidden {
-                host_state_mut!(caller).err = FuncError::Core(E::Error::forbidden_function());
-                return Err(DummyHostError.into());
-            }
+            exit_if!(forbidden, caller);
 
             let payload_ptr = payload_ptr as u32 as usize;
             let payload_len = payload_len as u32 as usize;
@@ -856,10 +815,7 @@ where
                          value_ptr: i32,
                          message_id_ptr: i32,
                          delay_ptr: i32| {
-            if forbidden {
-                host_state_mut!(caller).err = FuncError::Core(E::Error::forbidden_function());
-                return Err(DummyHostError.into());
-            }
+            exit_if!(forbidden, caller);
 
             let value_ptr = value_ptr as u32 as usize;
             let message_id_ptr = message_id_ptr as u32 as usize;
@@ -894,10 +850,7 @@ where
                          value_ptr: i32,
                          message_id_ptr: i32,
                          delay_ptr: i32| {
-            if forbidden {
-                host_state_mut!(caller).err = FuncError::Core(E::Error::forbidden_function());
-                return Err(DummyHostError.into());
-            }
+            exit_if!(forbidden, caller);
 
             let value_ptr = value_ptr as u32 as usize;
             let message_id_ptr = message_id_ptr as u32 as usize;
@@ -929,16 +882,12 @@ where
 
     pub fn reply_to(store: &mut Store<HostState<E>>, forbidden: bool, memory: WasmiMemory) -> Func {
         let func = move |mut caller: wasmi::Caller<'_, HostState<E>>, destination_ptr: i32| {
-            let host_state = host_state_mut!(caller);
-            if forbidden {
-                host_state.err = FuncError::Core(E::Error::forbidden_function());
-                return Err(DummyHostError.into());
-            }
+            exit_if!(forbidden, caller);
 
             let destination_ptr = destination_ptr as u32 as usize;
 
+            let host_state = host_state_mut!(caller);
             let call_result = host_state.ext.reply_to();
-
             let message_id = match call_result {
                 Ok(m) => m,
                 Err(e) => {
@@ -977,10 +926,7 @@ where
         let func = move |mut caller: wasmi::Caller<'_, HostState<E>>,
                          payload_ptr: i32,
                          payload_len: i32| {
-            if forbidden {
-                host_state_mut!(caller).err = FuncError::Core(E::Error::forbidden_function());
-                return Err(DummyHostError.into());
-            }
+            exit_if!(forbidden, caller);
 
             let payload_ptr = payload_ptr as u32 as usize;
             let payload_len = payload_len as u32 as usize;
@@ -1002,10 +948,7 @@ where
     pub fn debug(store: &mut Store<HostState<E>>, forbidden: bool, memory: WasmiMemory) -> Func {
         let func =
             move |mut caller: wasmi::Caller<'_, HostState<E>>, string_ptr: i32, string_len: i32| {
-                if forbidden {
-                    host_state_mut!(caller).err = FuncError::Core(E::Error::forbidden_function());
-                    return Err(DummyHostError.into());
-                }
+                exit_if!(forbidden, caller);
 
                 let string_ptr = string_ptr as u32 as usize;
                 let string_len = string_len as u32 as usize;
@@ -1049,12 +992,9 @@ where
 
     pub fn gas_available(store: &mut Store<HostState<E>>, forbidden: bool) -> Func {
         let func = move |mut caller: wasmi::Caller<'_, HostState<E>>| {
-            let host_state = host_state_mut!(caller);
-            if forbidden {
-                host_state.err = FuncError::Core(E::Error::forbidden_function());
-                return Err(DummyHostError.into());
-            }
+            exit_if!(forbidden, caller);
 
+            let host_state = host_state_mut!(caller);
             match host_state.ext.gas_available() {
                 Ok(g) => Ok((g as i64,)),
                 Err(e) => {
@@ -1069,14 +1009,11 @@ where
 
     pub fn msg_id(store: &mut Store<HostState<E>>, forbidden: bool, memory: WasmiMemory) -> Func {
         let func = move |mut caller: wasmi::Caller<'_, HostState<E>>, msg_id_ptr: i32| {
-            let host_state = host_state_mut!(caller);
-            if forbidden {
-                host_state.err = FuncError::Core(E::Error::forbidden_function());
-                return Err(DummyHostError.into());
-            }
+            exit_if!(forbidden, caller);
 
             let msg_id_ptr = msg_id_ptr as u32 as usize;
 
+            let host_state = host_state_mut!(caller);
             let message_id = match host_state.ext.message_id() {
                 Ok(o) => o,
                 Err(e) => {
@@ -1105,14 +1042,11 @@ where
         memory: WasmiMemory,
     ) -> Func {
         let func = move |mut caller: wasmi::Caller<'_, HostState<E>>, program_id_ptr: i32| {
-            let host_state = host_state_mut!(caller);
-            if forbidden {
-                host_state.err = FuncError::Core(E::Error::forbidden_function());
-                return Err(DummyHostError.into());
-            }
+            exit_if!(forbidden, caller);
 
             let program_id_ptr = program_id_ptr as u32 as usize;
 
+            let host_state = host_state_mut!(caller);
             let program_id = match host_state.ext.program_id() {
                 Ok(pid) => pid,
                 Err(e) => {
@@ -1137,14 +1071,11 @@ where
 
     pub fn source(store: &mut Store<HostState<E>>, forbidden: bool, memory: WasmiMemory) -> Func {
         let func = move |mut caller: wasmi::Caller<'_, HostState<E>>, source_ptr: i32| {
-            let host_state = host_state_mut!(caller);
-            if forbidden {
-                host_state.err = FuncError::Core(E::Error::forbidden_function());
-                return Err(DummyHostError.into());
-            }
+            exit_if!(forbidden, caller);
 
             let source_ptr = source_ptr as u32 as usize;
 
+            let host_state = host_state_mut!(caller);
             let source = host_state.ext.source().map_err(|e| {
                 host_state.err = FuncError::Core(e);
 
@@ -1171,14 +1102,11 @@ where
 
     pub fn value(store: &mut Store<HostState<E>>, forbidden: bool, memory: WasmiMemory) -> Func {
         let func = move |mut caller: wasmi::Caller<'_, HostState<E>>, value_ptr: i32| {
-            let host_state = host_state_mut!(caller);
-            if forbidden {
-                host_state.err = FuncError::Core(E::Error::forbidden_function());
-                return Err(DummyHostError.into());
-            }
+            exit_if!(forbidden, caller);
 
             let value_ptr = value_ptr as u32 as usize;
 
+            let host_state = host_state_mut!(caller);
             let value = host_state.ext.value().map_err(|e| {
                 host_state.err = FuncError::Core(e);
 
@@ -1209,14 +1137,11 @@ where
         memory: WasmiMemory,
     ) -> Func {
         let func = move |mut caller: wasmi::Caller<'_, HostState<E>>, value_ptr: i32| {
-            let host_state = host_state_mut!(caller);
-            if forbidden {
-                host_state.err = FuncError::Core(E::Error::forbidden_function());
-                return Err(DummyHostError.into());
-            }
+            exit_if!(forbidden, caller);
 
             let value_ptr = value_ptr as u32 as usize;
 
+            let host_state = host_state_mut!(caller);
             let value_available = host_state.ext.value_available().map_err(|e| {
                 host_state.err = FuncError::Core(e);
 
@@ -1243,12 +1168,9 @@ where
 
     pub fn leave(store: &mut Store<HostState<E>>, forbidden: bool) -> Func {
         let func = move |mut caller: wasmi::Caller<'_, HostState<E>>| -> Result<(), Trap> {
-            let host_state = host_state_mut!(caller);
-            if forbidden {
-                host_state.err = FuncError::Core(E::Error::forbidden_function());
-                return Err(DummyHostError.into());
-            }
+            exit_if!(forbidden, caller);
 
+            let host_state = host_state_mut!(caller);
             host_state.err = match host_state.ext.leave() {
                 Ok(_) => FuncError::Terminated(TerminationReason::Leave),
                 Err(e) => FuncError::Core(e),
@@ -1262,12 +1184,9 @@ where
 
     pub fn wait(store: &mut Store<HostState<E>>, forbidden: bool) -> Func {
         let func = move |mut caller: wasmi::Caller<'_, HostState<E>>| -> Result<(), Trap> {
-            let host_state = host_state_mut!(caller);
-            if forbidden {
-                host_state.err = FuncError::Core(E::Error::forbidden_function());
-                return Err(DummyHostError.into());
-            }
+            exit_if!(forbidden, caller);
 
+            let host_state = host_state_mut!(caller);
             let err = host_state
                 .ext
                 .wait()
@@ -1286,10 +1205,7 @@ where
         let func = move |mut caller: wasmi::Caller<'_, HostState<E>>,
                          duration_ptr: i32|
               -> Result<(), Trap> {
-            if forbidden {
-                host_state_mut!(caller).err = FuncError::Core(E::Error::forbidden_function());
-                return Err(DummyHostError.into());
-            }
+            exit_if!(forbidden, caller);
 
             let duration_ptr = duration_ptr as u32 as usize;
 
@@ -1322,10 +1238,7 @@ where
         let func = move |mut caller: wasmi::Caller<'_, HostState<E>>,
                          duration_ptr: i32|
               -> Result<(), Trap> {
-            if forbidden {
-                host_state_mut!(caller).err = FuncError::Core(E::Error::forbidden_function());
-                return Err(DummyHostError.into());
-            }
+            exit_if!(forbidden, caller);
 
             let duration_ptr = duration_ptr as u32 as usize;
 
@@ -1354,10 +1267,7 @@ where
         let func = move |mut caller: wasmi::Caller<'_, HostState<E>>,
                          waker_id_ptr: i32,
                          delay_ptr: i32| {
-            if forbidden {
-                host_state_mut!(caller).err = FuncError::Core(E::Error::forbidden_function());
-                return Err(DummyHostError.into());
-            }
+            exit_if!(forbidden, caller);
 
             let read_result = {
                 let memory_wrap = get_caller_memory(&mut caller, &memory);
@@ -1397,10 +1307,7 @@ where
                          value_ptr: i32,
                          program_id_ptr: i32,
                          delay_ptr: i32| {
-            if forbidden {
-                host_state_mut!(caller).err = FuncError::Core(E::Error::forbidden_function());
-                return Err(DummyHostError.into());
-            }
+            exit_if!(forbidden, caller);
 
             let code_hash_ptr = code_hash_ptr as u32 as usize;
             let salt_ptr = salt_ptr as u32 as usize;
@@ -1461,10 +1368,7 @@ where
                          value_ptr: i32,
                          program_id_ptr: i32,
                          delay_ptr: i32| {
-            if forbidden {
-                host_state_mut!(caller).err = FuncError::Core(E::Error::forbidden_function());
-                return Err(DummyHostError.into());
-            }
+            exit_if!(forbidden, caller);
 
             let code_hash_ptr = code_hash_ptr as u32 as usize;
             let salt_ptr = salt_ptr as u32 as usize;
@@ -1514,14 +1418,11 @@ where
 
     pub fn error(store: &mut Store<HostState<E>>, forbidden: bool, memory: WasmiMemory) -> Func {
         let func = move |mut caller: wasmi::Caller<'_, HostState<E>>, data_ptr: i32| {
-            let host_state = host_state_mut!(caller);
-            if forbidden {
-                host_state.err = FuncError::Core(E::Error::forbidden_function());
-                return Err(DummyHostError.into());
-            }
+            exit_if!(forbidden, caller);
 
             let data_ptr = data_ptr as u32 as usize;
 
+            let host_state = host_state_mut!(caller);
             let error = match host_state.ext.last_error() {
                 Some(e) => e,
                 None => {
