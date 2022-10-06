@@ -2889,14 +2889,27 @@ fn test_requeue_after_wait_for_timeout() {
             0,
         ));
 
-        run_to_block(
-            System::block_number().saturating_add((duration + 1).into()),
-            None,
+        // Fast forward blocks.
+        run_to_next_block(None);
+        let now = System::block_number();
+        System::set_block_number(duration as u64 + now - 1);
+        run_to_next_block(None);
+
+        // Checking events.
+        let events = System::events();
+
+        // `MessageWoken` dispatched.
+        assert_eq!(
+            events
+                .iter()
+                .filter(|e| matches!(e.event, MockRuntimeEvent::Gear(Event::MessageWoken { .. })))
+                .count(),
+            1
         );
 
-        // the watied for message has been requeued
+        // The waited for message has been requeued.
         assert_eq!(
-            System::events()
+            events
                 .iter()
                 .filter(|e| matches!(e.event, MockRuntimeEvent::Gear(Event::MessageWaited { .. })))
                 .count(),
