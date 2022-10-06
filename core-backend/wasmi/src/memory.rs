@@ -131,7 +131,7 @@ mod tests {
 
     use super::*;
     use gear_backend_common::{assert_err, assert_ok, mock::MockExt};
-    use gear_core::memory::AllocationsContext;
+    use gear_core::memory::{AllocationsContext, GrowHandlerNothing};
     use wasmi::{Engine, Store};
 
     fn new_test_memory(
@@ -164,32 +164,47 @@ mod tests {
     fn smoky() {
         let (mut mem, mut mem_wrap) = new_test_memory(16, 256);
 
-        assert_ok!(mem.alloc(16.into(), &mut mem_wrap), 16.into());
+        assert_ok!(
+            mem.alloc::<GrowHandlerNothing>(16.into(), &mut mem_wrap),
+            16.into()
+        );
 
         // there is a space for 14 more
         for _ in 0..14 {
-            assert_ok!(mem.alloc(16.into(), &mut mem_wrap));
+            assert_ok!(mem.alloc::<GrowHandlerNothing>(16.into(), &mut mem_wrap));
         }
 
         // no more mem!
-        assert_err!(mem.alloc(1.into(), &mut mem_wrap), Error::OutOfBounds);
+        assert_err!(
+            mem.alloc::<GrowHandlerNothing>(1.into(), &mut mem_wrap),
+            Error::OutOfBounds
+        );
 
         // but we free some
         assert_ok!(mem.free(137.into()));
 
         // and now can allocate page that was freed
-        assert_ok!(mem.alloc(1.into(), &mut mem_wrap), 137.into());
+        assert_ok!(
+            mem.alloc::<GrowHandlerNothing>(1.into(), &mut mem_wrap),
+            137.into()
+        );
 
         // if we have 2 in a row we can allocate even 2
         assert_ok!(mem.free(117.into()));
         assert_ok!(mem.free(118.into()));
 
-        assert_ok!(mem.alloc(2.into(), &mut mem_wrap), 117.into());
+        assert_ok!(
+            mem.alloc::<GrowHandlerNothing>(2.into(), &mut mem_wrap),
+            117.into()
+        );
 
         // but if 2 are not in a row, bad luck
         assert_ok!(mem.free(117.into()));
         assert_ok!(mem.free(158.into()));
 
-        assert_err!(mem.alloc(2.into(), &mut mem_wrap), Error::OutOfBounds);
+        assert_err!(
+            mem.alloc::<GrowHandlerNothing>(2.into(), &mut mem_wrap),
+            Error::OutOfBounds
+        );
     }
 }

@@ -32,7 +32,7 @@ use common::{
     event::*, program_exists, scheduler::*, storage::*, CodeStorage, GasPrice as _, GasTree,
     Origin as _,
 };
-use core_processor::{common::ExecutionErrorReason, ProcessorExt};
+use core_processor::common::ExecutionErrorReason;
 use demo_compose::WASM_BINARY as COMPOSE_WASM_BINARY;
 use demo_distributor::{Request, WASM_BINARY};
 use demo_mul_by_const::WASM_BINARY as MUL_CONST_WASM_BINARY;
@@ -6334,7 +6334,7 @@ fn check_gr_read_error_works() {
         assert_failed(
             message_id,
             ExecutionErrorReason::Ext(TrapExplanation::Other(
-                FuncError::<<crate::Ext as ProcessorExt>::Error>::ReadWrongRange(0..10, 0)
+                FuncError::<u32>::ReadWrongRange(0..10, 0)
                     .to_string()
                     .into(),
             )),
