@@ -44,7 +44,7 @@ where
             Ok(ext_error) => Ok((ext_error.encoded_size() as u32,)),
             Err(e) => {
                 host_state.err = FuncError::Core(e);
-                Err(Error::Trap(DummyHostError.into()))
+                Err(Error::Trap(TrapCode::Unreachable.into()))
             }
         },
     }
@@ -76,7 +76,7 @@ where
             }
             Err(e) => {
                 host_state.err = FuncError::Core(e);
-                return Err(Error::Trap(DummyHostError.into()));
+                return Err(Error::Trap(TrapCode::Unreachable.into()));
             }
         },
     };
@@ -91,9 +91,13 @@ where
         Err(e) => {
             // this is safe since we own the caller, don't change its host_data
             // and checked for abscense before
-            caller.host_data_mut().as_mut().expect("host_data untouched").err = e.into();
+            caller
+                .host_data_mut()
+                .as_mut()
+                .expect("host_data untouched")
+                .err = e.into();
 
-            Err(Error::Trap(DummyHostError.into()))
+            Err(Error::Trap(TrapCode::Unreachable.into()))
         }
     }
 }

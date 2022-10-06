@@ -48,7 +48,7 @@ use gear_core::{
 };
 use gear_core_errors::{CoreError, MemoryError};
 use wasmi::{
-    core::{HostError, Trap},
+    core::{Trap, TrapCode},
     AsContextMut, Caller, Func, Memory as WasmiMemory, Store,
 };
 
@@ -65,18 +65,19 @@ fn get_caller_memory<'a, E: Ext + IntoExtInfo + 'static>(
 
 macro_rules! host_state_mut {
     ($caller:ident) => {
-        $caller.host_data_mut().as_mut().expect(
-            "host_state should be set before execution"
-        )
+        $caller
+            .host_data_mut()
+            .as_mut()
+            .expect("host_state should be set before execution")
     };
 }
 
 macro_rules! process_call_unit_result {
     ($caller:ident, $call:expr) => {
         internal::process_call_unit_result($caller, $call).map_err(|e| match e {
-            internal::Error::HostStateNone => unreachable!(
-                "host_state should be set before execution"
-            ),
+            internal::Error::HostStateNone => {
+                unreachable!("host_state should be set before execution")
+            }
             internal::Error::Trap(t) => t,
         })
     };
@@ -85,9 +86,9 @@ macro_rules! process_call_unit_result {
 macro_rules! process_call_result {
     ($caller:ident, $memory:ident, $call:expr, $write:expr) => {
         internal::process_call_result($caller, $memory, $call, $write).map_err(|e| match e {
-            internal::Error::HostStateNone => unreachable!(
-                "host_state should be set before execution"
-            ),
+            internal::Error::HostStateNone => {
+                unreachable!("host_state should be set before execution")
+            }
             internal::Error::Trap(t) => t,
         })
     };
@@ -97,9 +98,9 @@ macro_rules! process_call_result_as_ref {
     ($caller:ident, $memory:ident, $call:expr, $offset:ident) => {
         internal::process_call_result_as_ref($caller, $memory, $call, $offset).map_err(
             |e| match e {
-                internal::Error::HostStateNone => unreachable!(
-                    "host_state should be set before execution"
-                ),
+                internal::Error::HostStateNone => {
+                    unreachable!("host_state should be set before execution")
+                }
                 internal::Error::Trap(t) => t,
             },
         )
@@ -112,7 +113,7 @@ macro_rules! process_read_result {
             Ok(value) => value,
             Err(e) => {
                 host_state_mut!($caller).err = e.into();
-                return Err(DummyHostError.into());
+                return Err(TrapCode::Unreachable.into());
             }
         }
     };
@@ -122,7 +123,7 @@ macro_rules! exit_if {
     ($forbidden:ident, $caller:ident) => {
         if $forbidden {
             host_state_mut!($caller).err = FuncError::Core(E::Error::forbidden_function());
-            return Err(DummyHostError.into());
+            return Err(TrapCode::Unreachable.into());
         }
     };
 }
@@ -158,17 +159,6 @@ pub enum FuncError<E> {
     #[display(fmt = "Overflow at {} + len {} in `gr_read`", _0, _1)]
     ReadLenOverflow(usize, usize),
 }
-
-#[derive(Debug)]
-pub struct DummyHostError;
-
-impl fmt::Display for DummyHostError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "DummyHostError")
-    }
-}
-
-impl HostError for DummyHostError {}
 
 impl<E> FuncError<E>
 where
@@ -223,7 +213,7 @@ where
 
             let mut payload = Payload::try_new_default(payload_len).map_err(|e| {
                 host_state_mut!(caller).err = FuncError::PayloadBufferSize(e);
-                Trap::from(DummyHostError)
+                Trap::from(TrapCode::Unreachable)
             })?;
             let read_result = {
                 let memory_wrap = get_caller_memory(&mut caller, &memory);
@@ -276,7 +266,7 @@ where
 
             let mut payload = Payload::try_new_default(payload_len).map_err(|e| {
                 host_state_mut!(caller).err = FuncError::PayloadBufferSize(e);
-                Trap::from(DummyHostError)
+                Trap::from(TrapCode::Unreachable)
             })?;
             let read_result = {
                 let memory_wrap = get_caller_memory(&mut caller, &memory);
@@ -477,7 +467,7 @@ where
                 Some(i) => i,
                 None => {
                     host_state.err = FuncError::ReadLenOverflow(at, len);
-                    return Err(DummyHostError.into());
+                    return Err(TrapCode::Unreachable.into());
                 }
             };
 
@@ -486,13 +476,13 @@ where
                 Ok(m) => m,
                 Err(e) => {
                     host_state.err = FuncError::Core(e);
-                    return Err(DummyHostError.into());
+                    return Err(TrapCode::Unreachable.into());
                 }
             };
 
             if last_idx > message.len() {
                 host_state.err = FuncError::ReadWrongRange(at..last_idx, message.len());
-                return Err(DummyHostError.into());
+                return Err(TrapCode::Unreachable.into());
             }
 
             let buffer = message[at..last_idx].to_vec();
@@ -502,7 +492,7 @@ where
                 Err(e) => {
                     host_state_mut!(caller).err = e.into();
 
-                    Err(DummyHostError.into())
+                    Err(TrapCode::Unreachable.into())
                 }
             }
         };
@@ -521,12 +511,12 @@ where
                     Ok(size) => Ok((size,)),
                     Err(_) => {
                         host_state.err = FuncError::HostError;
-                        Err(DummyHostError.into())
+                        Err(TrapCode::Unreachable.into())
                     }
                 },
                 Err(e) => {
                     host_state.err = FuncError::Core(e);
-                    Err(DummyHostError.into())
+                    Err(TrapCode::Unreachable.into())
                 }
             }
         };
@@ -552,7 +542,7 @@ where
                 Err(e) => e.into(),
             };
 
-            Err(DummyHostError.into())
+            Err(TrapCode::Unreachable.into())
         };
 
         Func::wrap(store, func)
@@ -567,7 +557,7 @@ where
                 Ok(c) => c,
                 Err(e) => {
                     host_state.err = FuncError::Core(e);
-                    return Err(DummyHostError.into());
+                    return Err(TrapCode::Unreachable.into());
                 }
             };
 
@@ -575,7 +565,7 @@ where
                 Ok((exit_code,))
             } else {
                 host_state.err = FuncError::NonReplyExitCode;
-                Err(DummyHostError.into())
+                Err(TrapCode::Unreachable.into())
             }
         };
 
@@ -599,7 +589,7 @@ where
                             FuncError::Terminated(TerminationReason::GasAllowanceExceeded);
                     }
 
-                    DummyHostError.into()
+                    TrapCode::Unreachable.into()
                 })
         };
 
@@ -632,7 +622,7 @@ where
                 Err(e) => {
                     host_state_mut!(caller).err = FuncError::Core(e);
 
-                    Err(DummyHostError.into())
+                    Err(TrapCode::Unreachable.into())
                 }
             }
         };
@@ -648,7 +638,7 @@ where
             if let Err(e) = host_state.ext.free(page.into()).map_err(FuncError::Core) {
                 log::debug!("FREE ERROR: {e}");
                 host_state.err = e;
-                Err(DummyHostError.into())
+                Err(TrapCode::Unreachable.into())
             } else {
                 log::debug!("FREE: {page}");
                 Ok(())
@@ -667,7 +657,7 @@ where
                 Ok(h) => Ok((h,)),
                 Err(e) => {
                     host_state.err = FuncError::Core(e);
-                    Err(DummyHostError.into())
+                    Err(TrapCode::Unreachable.into())
                 }
             }
         };
@@ -684,7 +674,7 @@ where
                 Ok(t) => Ok((t,)),
                 Err(e) => {
                     host_state.err = FuncError::Core(e);
-                    Err(DummyHostError.into())
+                    Err(TrapCode::Unreachable.into())
                 }
             }
         };
@@ -703,7 +693,7 @@ where
                 Ok(o) => o,
                 Err(e) => {
                     host_state.err = FuncError::Core(e);
-                    return Err(DummyHostError.into());
+                    return Err(TrapCode::Unreachable.into());
                 }
             };
 
@@ -713,7 +703,7 @@ where
                 Err(e) => {
                     host_state_mut!(caller).err = e.into();
 
-                    Err(DummyHostError.into())
+                    Err(TrapCode::Unreachable.into())
                 }
             }
         };
@@ -738,7 +728,7 @@ where
 
             let mut payload = Payload::try_new_default(payload_len).map_err(|e| {
                 host_state_mut!(caller).err = FuncError::PayloadBufferSize(e);
-                Trap::from(DummyHostError)
+                Trap::from(TrapCode::Unreachable)
             })?;
             let read_result = {
                 let memory_wrap = get_caller_memory(&mut caller, &memory);
@@ -783,7 +773,7 @@ where
 
             let mut payload = Payload::try_new_default(payload_len).map_err(|e| {
                 host_state_mut!(caller).err = FuncError::PayloadBufferSize(e);
-                Trap::from(DummyHostError)
+                Trap::from(TrapCode::Unreachable)
             })?;
             let read_result = {
                 let memory_wrap = get_caller_memory(&mut caller, &memory);
@@ -892,14 +882,14 @@ where
                 Ok(m) => m,
                 Err(e) => {
                     host_state.err = FuncError::Core(e);
-                    return Err(DummyHostError.into());
+                    return Err(TrapCode::Unreachable.into());
                 }
             };
 
             let message_id = match message_id {
                 None => {
                     host_state.err = FuncError::NoReplyContext;
-                    return Err(DummyHostError.into());
+                    return Err(TrapCode::Unreachable.into());
                 }
                 Some(m) => m,
             };
@@ -910,7 +900,7 @@ where
                 Err(e) => {
                     host_state_mut!(caller).err = e.into();
 
-                    Err(DummyHostError.into())
+                    Err(TrapCode::Unreachable.into())
                 }
             }
         };
@@ -955,7 +945,7 @@ where
 
                 let mut buffer = RuntimeBuffer::try_new_default(string_len).map_err(|e| {
                     host_state_mut!(caller).err = FuncError::RuntimeBufferSize(e);
-                    Trap::from(DummyHostError)
+                    Trap::from(TrapCode::Unreachable)
                 })?;
                 let read_result = {
                     let memory_wrap = get_caller_memory(&mut caller, &memory);
@@ -971,7 +961,7 @@ where
                     Err(e) => {
                         host_state.err = FuncError::DebugString(e);
 
-                        return Err(DummyHostError.into());
+                        return Err(TrapCode::Unreachable.into());
                     }
                 };
 
@@ -982,7 +972,7 @@ where
                     Err(e) => {
                         host_state.err = FuncError::Core(e);
 
-                        Err(DummyHostError.into())
+                        Err(TrapCode::Unreachable.into())
                     }
                 }
             };
@@ -999,7 +989,7 @@ where
                 Ok(g) => Ok((g as i64,)),
                 Err(e) => {
                     host_state.err = FuncError::Core(e);
-                    Err(DummyHostError.into())
+                    Err(TrapCode::Unreachable.into())
                 }
             }
         };
@@ -1018,7 +1008,7 @@ where
                 Ok(o) => o,
                 Err(e) => {
                     host_state.err = FuncError::Core(e);
-                    return Err(DummyHostError.into());
+                    return Err(TrapCode::Unreachable.into());
                 }
             };
 
@@ -1028,7 +1018,7 @@ where
                 Err(e) => {
                     host_state_mut!(caller).err = e.into();
 
-                    Err(DummyHostError.into())
+                    Err(TrapCode::Unreachable.into())
                 }
             }
         };
@@ -1051,7 +1041,7 @@ where
                 Ok(pid) => pid,
                 Err(e) => {
                     host_state.err = FuncError::Core(e);
-                    return Err(DummyHostError.into());
+                    return Err(TrapCode::Unreachable.into());
                 }
             };
 
@@ -1061,7 +1051,7 @@ where
                 Err(e) => {
                     host_state_mut!(caller).err = e.into();
 
-                    Err(DummyHostError.into())
+                    Err(TrapCode::Unreachable.into())
                 }
             }
         };
@@ -1079,7 +1069,7 @@ where
             let source = host_state.ext.source().map_err(|e| {
                 host_state.err = FuncError::Core(e);
 
-                Trap::from(DummyHostError)
+                Trap::from(TrapCode::Unreachable)
             })?;
 
             let write_result = {
@@ -1092,7 +1082,7 @@ where
                 Err(e) => {
                     host_state_mut!(caller).err = e.into();
 
-                    Err(DummyHostError.into())
+                    Err(TrapCode::Unreachable.into())
                 }
             }
         };
@@ -1110,7 +1100,7 @@ where
             let value = host_state.ext.value().map_err(|e| {
                 host_state.err = FuncError::Core(e);
 
-                Trap::from(DummyHostError)
+                Trap::from(TrapCode::Unreachable)
             })?;
 
             let write_result = {
@@ -1123,7 +1113,7 @@ where
                 Err(e) => {
                     host_state_mut!(caller).err = e.into();
 
-                    Err(DummyHostError.into())
+                    Err(TrapCode::Unreachable.into())
                 }
             }
         };
@@ -1145,7 +1135,7 @@ where
             let value_available = host_state.ext.value_available().map_err(|e| {
                 host_state.err = FuncError::Core(e);
 
-                Trap::from(DummyHostError)
+                Trap::from(TrapCode::Unreachable)
             })?;
 
             let write_result = {
@@ -1158,7 +1148,7 @@ where
                 Err(e) => {
                     host_state_mut!(caller).err = e.into();
 
-                    Err(DummyHostError.into())
+                    Err(TrapCode::Unreachable.into())
                 }
             }
         };
@@ -1176,7 +1166,7 @@ where
                 Err(e) => FuncError::Core(e),
             };
 
-            Err(DummyHostError.into())
+            Err(TrapCode::Unreachable.into())
         };
 
         Func::wrap(store, func)
@@ -1195,7 +1185,7 @@ where
                 .unwrap_or(FuncError::Terminated(TerminationReason::Wait(None)));
             host_state.err = err;
 
-            Err(DummyHostError.into())
+            Err(TrapCode::Unreachable.into())
         };
 
         Func::wrap(store, func)
@@ -1224,7 +1214,7 @@ where
                 Err(e) => FuncError::Core(e),
             };
 
-            Err(DummyHostError.into())
+            Err(TrapCode::Unreachable.into())
         };
 
         Func::wrap(store, func)
@@ -1257,7 +1247,7 @@ where
                 Err(e) => FuncError::Core(e),
             };
 
-            Err(DummyHostError.into())
+            Err(TrapCode::Unreachable.into())
         };
 
         Func::wrap(store, func)
@@ -1285,7 +1275,7 @@ where
                 Err(e) => {
                     host_state.err = FuncError::Core(e);
 
-                    Err(DummyHostError.into())
+                    Err(TrapCode::Unreachable.into())
                 }
             }
         };
@@ -1321,7 +1311,7 @@ where
             let mut salt = vec![0u8; salt_len];
             let mut payload = Payload::try_new_default(payload_len).map_err(|e| {
                 host_state_mut!(caller).err = FuncError::PayloadBufferSize(e);
-                Trap::from(DummyHostError)
+                Trap::from(TrapCode::Unreachable)
             })?;
             let read_result = {
                 let memory_wrap = get_caller_memory(&mut caller, &memory);
@@ -1382,7 +1372,7 @@ where
             let mut salt = vec![0u8; salt_len];
             let mut payload = Payload::try_new_default(payload_len).map_err(|e| {
                 host_state_mut!(caller).err = FuncError::PayloadBufferSize(e);
-                Trap::from(DummyHostError)
+                Trap::from(TrapCode::Unreachable)
             })?;
             let read_result = {
                 let memory_wrap = get_caller_memory(&mut caller, &memory);
@@ -1427,7 +1417,7 @@ where
                 Some(e) => e,
                 None => {
                     host_state.err = FuncError::SyscallErrorExpected;
-                    return Err(DummyHostError.into());
+                    return Err(TrapCode::Unreachable.into());
                 }
             };
 
@@ -1438,7 +1428,7 @@ where
                 Err(e) => {
                     host_state_mut!(caller).err = e.into();
 
-                    Err(DummyHostError.into())
+                    Err(TrapCode::Unreachable.into())
                 }
             }
         };
