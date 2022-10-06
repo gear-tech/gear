@@ -41,4 +41,5 @@ debug-mode = [
 try-runtime = [
 	"gear-cli/try-runtime",
 ]
+runtime-test = [ "gear-cli/runtime-test" ]
 program-cli = [ "gear-cli/program" ]

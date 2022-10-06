@@ -91,6 +91,7 @@ pub enum Subcommand {
     /// Db meta columns information.
     ChainInfo(sc_cli::ChainInfoCmd),
 
+    #[cfg(feature = "runtime-test")]
     #[clap(
         name = "runtime-spec-tests",
         about = "Run gear runtime tests with yaml."

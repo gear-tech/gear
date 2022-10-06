@@ -278,6 +278,7 @@ pub fn run() -> sc_cli::Result<()> {
                 }
             })
         }
+        #[cfg(feature = "runtime-test")]
         Some(Subcommand::GearRuntimeTest(cmd)) => {
             let runner = cli.create_runner(cmd)?;
 

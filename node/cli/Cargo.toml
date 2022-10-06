@@ -10,13 +10,11 @@ targets = ["x86_64-unknown-linux-gnu"]
 
 [dependencies]
 clap = { version = "3.2", features = ["derive"] }
-scale-info = { version = "2.1.1", default-features = false, features = [
-	"derive",
-] }
+scale-info = { version = "2.1.1", default-features = false, features = ["derive"] }
 
 # Gear
 runtime-primitives = { package = "gear-runtime-primitives", version = "0.1.0", default-features = false, path = "../../runtime/primitives" }
-gear-runtime-test-cli = { path = "../../utils/gear-runtime-test-cli" }
+gear-runtime-test-cli = { path = "../../utils/gear-runtime-test-cli", optional = true }
 service = { package = "gear-service", path = "../service", default-features = false, optional = true }
 pallet-gear-payment = { version = "0.1.0", path = "../../pallets/payment" }
 
@@ -59,17 +57,15 @@ cli = [
 	"service",
 	"sc-cli",
 	"sc-service",
-	"frame-benchmarking-cli",
-	"try-runtime-cli",
 ]
 gear-native = [
 	"service/gear-native",
-	"gear-runtime-test-cli/gear-native",
+	"gear-runtime-test-cli?/gear-native",
 	"gear-runtime",
 ]
 vara-native = [
 	"service/vara-native",
-	"gear-runtime-test-cli/vara-native",
+	"gear-runtime-test-cli?/vara-native",
 	"vara-runtime",
 ]
 lazy-pages = ["service/lazy-pages"]
@@ -79,4 +75,5 @@ runtime-benchmarks = [
 ]
 debug-mode = ["service/debug-mode"]
 try-runtime = ["service/try-runtime", "try-runtime-cli"]
+runtime-test = [ "gear-runtime-test-cli" ]
 program = [ "gear-program" ]

@@ -115,7 +115,7 @@ debug-mode = [
 	"vara-runtime?/debug-mode",
 ]
 try-runtime = [
-	"gear-runtime/try-runtime",
+	"gear-runtime?/try-runtime",
 	"vara-runtime?/try-runtime",
 	"try-runtime-cli",
 ]
