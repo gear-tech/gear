@@ -89,9 +89,9 @@ where
     match write_result {
         Ok(_) => Ok((0u32,)),
         Err(e) => {
-            // this is safe to unwrap since we own the caller, don't change its host_data
+            // this is safe since we own the caller, don't change its host_data
             // and checked for abscense before
-            caller.host_data_mut().as_mut().unwrap().err = e.into();
+            caller.host_data_mut().as_mut().expect("host_data untouched").err = e.into();
 
             Err(Error::Trap(DummyHostError.into()))
         }
