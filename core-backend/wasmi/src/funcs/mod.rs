@@ -65,22 +65,18 @@ fn get_caller_memory<'a, E: Ext + IntoExtInfo + 'static>(
 
 macro_rules! host_state_mut {
     ($caller:ident) => {
-        $caller.host_data_mut().as_mut().expect(concat!(
-            "line ",
-            line!(),
-            "; host_state should be set before execution"
-        ))
+        $caller.host_data_mut().as_mut().expect(
+            "host_state should be set before execution"
+        )
     };
 }
 
 macro_rules! process_call_unit_result {
     ($caller:ident, $call:expr) => {
         internal::process_call_unit_result($caller, $call).map_err(|e| match e {
-            internal::Error::HostStateNone => unreachable!(concat!(
-                "line ",
-                line!(),
-                "; host_state should be set before execution"
-            )),
+            internal::Error::HostStateNone => unreachable!(
+                "host_state should be set before execution"
+            ),
             internal::Error::Trap(t) => t,
         })
     };
@@ -89,11 +85,9 @@ macro_rules! process_call_unit_result {
 macro_rules! process_call_result {
     ($caller:ident, $memory:ident, $call:expr, $write:expr) => {
         internal::process_call_result($caller, $memory, $call, $write).map_err(|e| match e {
-            internal::Error::HostStateNone => unreachable!(concat!(
-                "line ",
-                line!(),
-                "; host_state should be set before execution"
-            )),
+            internal::Error::HostStateNone => unreachable!(
+                "host_state should be set before execution"
+            ),
             internal::Error::Trap(t) => t,
         })
     };
@@ -103,11 +97,9 @@ macro_rules! process_call_result_as_ref {
     ($caller:ident, $memory:ident, $call:expr, $offset:ident) => {
         internal::process_call_result_as_ref($caller, $memory, $call, $offset).map_err(
             |e| match e {
-                internal::Error::HostStateNone => unreachable!(concat!(
-                    "line ",
-                    line!(),
-                    "; host_state should be set before execution"
-                )),
+                internal::Error::HostStateNone => unreachable!(
+                    "host_state should be set before execution"
+                ),
                 internal::Error::Trap(t) => t,
             },
         )
