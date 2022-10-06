@@ -165,9 +165,10 @@ pub fn default_swarm_config(u: &mut Unstructured, gear_config: &GearConfig) -> S
     cfg.max_imports = 0;
     cfg.min_imports = 0;
 
-    cfg.max_instructions = 10000000;
+    cfg.max_instructions = 100000;
     cfg.max_memory_pages = gear_config.max_mem_size as u64;
-    cfg.max_funcs = 1000;
+    cfg.max_funcs = 100;
+    cfg.min_funcs = u.int_in_range(0..=30).unwrap();
 
     cfg
 }
