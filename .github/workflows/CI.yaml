@@ -197,6 +197,9 @@ jobs:
           [ -d /root/cache/${{ github.event.pull_request.number }} ] && { tar -xf /root/cache/${{ github.event.pull_request.number }}/build_cache.tar -C /; tar -xf /root/cache/${{ github.event.pull_request.number }}/build_cargo_registry.tar -C /; tar -xf /root/cache/${{ github.event.pull_request.number }}/build_target.tar; }
           [ ! -d /root/cache/${{ github.event.pull_request.number }} ] && { tar -xf /root/cache/build_cache_${{ github.base_ref }}.tar -C /; tar -xf /root/cache/build_cargo_registry_${{ github.base_ref }}.tar -C /; tar -xf /root/cache/build_target_${{ github.base_ref }}.tar; }
 
+      - name: "Build: Examples (WASM)"
+        run: ./scripts/gear.sh build examples --locked
+
       - name: "ACTIONS: Setup environment variable"
         if: github.ref != 'refs/heads/master'
         run: echo "RUSTFLAGS=-Cinstrument-coverage" >> $GITHUB_ENV
@@ -209,11 +212,6 @@ jobs:
 
       - name: Check runtime imports
         run: ./target/release/wasm-proc --check-runtime-imports --path target/release/wbuild/gear-runtime/gear_runtime.wasm
-
-      - name: "Build: Examples (WASM)"
-        run: ./scripts/gear.sh build examples --locked
-        env:
-          RUSTFLAGS: ""
 
       - name: "Build: Split examples by .opt and .meta"
         run: ./scripts/gear.sh build examples-proc
