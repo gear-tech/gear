@@ -16,12 +16,16 @@ const ADDRESS: &str = "5EJAhWN49JDfn58DpkERvCrtJ5X3sHue93a1hH4nB9KngGSs";
 
 #[tokio::test]
 async fn test_command_transfer_works() -> Result<()> {
-    common::login_as_alice().expect("login failed");
+    common::login_as_alice()?;
     let mut node = common::Node::dev()?;
     node.wait(logs::gear_node::IMPORTING_BLOCKS)?;
 
     // Get balance of the testing address
-    let api = Api::new(Some(&node.ws())).await?.signer(SURI, None)?;
+    let api = Api::new(Some(&node.ws()))
+        .await
+        .unwrap()
+        .signer(SURI, None)
+        .unwrap();
     let before = api.get_balance(ADDRESS).await?;
 
     // Run command transfer
@@ -29,7 +33,7 @@ async fn test_command_transfer_works() -> Result<()> {
     let _ = common::gear(&["-e", &node.ws(), "transfer", ADDRESS, &value.to_string()])?;
 
     let after = api.get_balance(ADDRESS).await?;
-
     assert_eq!(after.saturating_sub(before), value);
+
     Ok(())
 }

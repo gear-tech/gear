@@ -1,7 +1,7 @@
 //! Command `upload`
 use crate::{api::signer::Signer, result::Result};
+use clap::Parser;
 use std::{fs, path::PathBuf};
-use structopt::StructOpt;
 
 /// Saves program `code` in storage.
 ///
@@ -19,7 +19,7 @@ use structopt::StructOpt;
 ///
 /// Emits the following events:
 /// - `SavedCode(H256)` - when the code is saved in storage.
-#[derive(StructOpt, Debug)]
+#[derive(Parser, Debug)]
 pub struct Upload {
     /// gear program code <*.wasm>
     code: PathBuf,

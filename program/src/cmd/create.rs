@@ -1,25 +1,25 @@
 //! command `create`
 use crate::{api::signer::Signer, result::Result, utils};
-use structopt::StructOpt;
+use clap::Parser;
 
 /// Deploy program to gear node
-#[derive(StructOpt, Debug)]
+#[derive(Parser, Debug)]
 pub struct Create {
     /// gear program code id
     code_id: String,
     /// gear program salt ( hex encoding )
-    #[structopt(default_value = "0x")]
+    #[clap(default_value = "0x")]
     salt: String,
     /// gear program init payload ( hex encoding )
-    #[structopt(default_value = "0x")]
+    #[clap(default_value = "0x")]
     init_payload: String,
     /// gear program gas limit
     ///
     /// if zero, gear will estimate this automatically
-    #[structopt(default_value = "0")]
+    #[clap(default_value = "0")]
     gas_limit: u64,
     /// gear program balance
-    #[structopt(default_value = "0")]
+    #[clap(default_value = "0")]
     value: u128,
 }
 
