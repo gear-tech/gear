@@ -71,6 +71,10 @@ node:
 node-release:
 	@ ./scripts/gear.sh build node --release
 
+.PHONY: node-release-rtest
+node-release-rtest:
+	@ ./scripts/gear.sh build node --release --no-default-features --features=gear-native,lazy-pages,program-cli,runtime-test
+
 .PHONY: vara
 vara:
 	@ ./scripts/gear.sh build node --no-default-features --features=vara-native,lazy-pages
@@ -230,7 +234,7 @@ gtest: init-js gear-test-release examples
 	@ ./scripts/gear.sh test gtest yamls="$(yamls)"
 
 .PHONY: rtest
-rtest: init-js node-release examples
+rtest: init-js node-release-rtest examples
 	@ ./scripts/gear.sh test rtest yamls="$(yamls)"
 
 .PHONY: rtest-vara

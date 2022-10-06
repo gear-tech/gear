@@ -238,7 +238,7 @@ jobs:
 
       - name: "Test: runtime spec tests no lazy pages"
         run: |
-          cargo build -p gear-node --release --no-default-features --features=gear-native --out-dir target-no-lazy -Z unstable-options
+          cargo build -p gear-node --release --no-default-features --features=runtime-test,gear-native --out-dir target-no-lazy -Z unstable-options
           ./target-no-lazy/gear-node runtime-spec-tests ./gear-test/spec/*
 
       - name: "Test: Runtime upgrade and queue processing"
