@@ -1,7 +1,7 @@
 //! command `new`
 use crate::result::Result;
+use clap::Parser;
 use std::process::{self, Command};
-use structopt::StructOpt;
 
 const ORG: &str = "https://github.com/gear-dapps/";
 const GIT_SUFFIX: &str = ".git";
@@ -28,7 +28,7 @@ const TEMPLATES: &[&str] = &[
 ];
 
 /// Create a new gear program
-#[derive(Debug, StructOpt)]
+#[derive(Debug, Parser)]
 pub struct New {
     /// Create gear program from templates
     pub template: Option<String>,

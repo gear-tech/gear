@@ -11,7 +11,7 @@ path = "src/main.rs"
 
 [dependencies]
 gear-wasm-gen = { path = "../wasm-gen" }
-arbitrary = "1.1.6"
+arbitrary = "1.1.7"
 gear-core = { path = "../../core" }
 gclient = { path = "../../gclient" }
 hex = "0.4.3"

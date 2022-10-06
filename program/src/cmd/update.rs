@@ -1,15 +1,15 @@
 //! command `update`
 use crate::result::Result;
+use clap::Parser;
 use std::process::{self, Command};
-use structopt::StructOpt;
 
 const REPO: &str = "https://github.com/gear-tech/gear-program";
 
 /// Update self from crates.io or github
-#[derive(Debug, StructOpt)]
+#[derive(Debug, Parser)]
 pub struct Update {
     /// Force update self from <https://github.com/gear-tech/gear-program>
-    #[structopt(short, long)]
+    #[clap(short, long)]
     pub force: bool,
 }
 

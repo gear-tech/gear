@@ -225,7 +225,7 @@ jobs:
           cargo test -p pallet-gear-payment --features=lazy-pages --release --locked
 
       - name: "Test: Gear workspace"
-        run: ./scripts/gear.sh test gear --exclude gclient --release --locked
+        run: ./scripts/gear.sh test gear --exclude gclient --exclude gprogram --release --locked
 
       - name: "Test: JS metadata"
         run: ./scripts/gear.sh test js
@@ -243,6 +243,9 @@ jobs:
 
       - name: "Test: Runtime upgrade and queue processing"
         run: ./scripts/gear.sh test runtime-upgrade
+
+      - name: "Test: Program CLI"
+        run: cargo nextest run --release -p gear-program --features bin
 
       - name: "Test: Client tests"
         run: ./scripts/gear.sh test client --run-node

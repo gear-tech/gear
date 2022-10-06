@@ -1,8 +1,40 @@
+// This file is part of Gear.
+
+// Copyright (C) 2021-2022 Gear Technologies Inc.
+// SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
+
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU General Public License for more details.
+
+// You should have received a copy of the GNU General Public License
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
 #![no_std]
 
 use codec::{Decode, Encode};
-use gstd::{msg, prelude::*};
+use gstd::{String, ToString, Vec};
 use scale_info::TypeInfo;
+
+#[cfg(feature = "std")]
+mod code {
+    include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
+}
+
+#[cfg(feature = "std")]
+pub use code::WASM_BINARY_META;
+#[cfg(feature = "std")]
+pub use code::WASM_BINARY_OPT as WASM_BINARY;
+
+#[cfg(not(feature = "std"))]
+mod wasm {
+    include! {"./code.rs"}
+}
 
 // Metatypes for input and output
 #[derive(TypeInfo, Decode)]
@@ -114,55 +146,3 @@ gstd::metadata! {
 }
 
 static mut WALLETS: Vec<Wallet> = Vec::new();
-
-#[no_mangle]
-unsafe extern "C" fn handle() {
-    let message_in: MessageIn = msg::load().unwrap();
-    let message_out: MessageOut = message_in.into();
-
-    msg::reply(message_out, 0).unwrap();
-}
-
-#[no_mangle]
-unsafe extern "C" fn init() {
-    WALLETS.push(Wallet {
-        id: Id {
-            decimal: 1,
-            hex: vec![1u8],
-        },
-        person: Person {
-            surname: "SomeSurname".into(),
-            name: "SomeName".into(),
-        },
-    });
-    WALLETS.push(Wallet {
-        id: Id {
-            decimal: 2,
-            hex: vec![2u8],
-        },
-        person: Person {
-            surname: "OtherName".into(),
-            name: "OtherSurname".into(),
-        },
-    });
-
-    let message_init_in: MessageInitIn = msg::load().unwrap();
-    let message_init_out: MessageInitOut = message_init_in.into();
-
-    msg::reply(message_init_out, 0).unwrap();
-}
-
-#[no_mangle]
-unsafe extern "C" fn meta_state() -> *mut [i32; 2] {
-    let person: Option<Id> = msg::load().expect("failed to decode input argument");
-    let encoded = match person {
-        None => WALLETS.encode(),
-        Some(lookup_id) => WALLETS
-            .iter()
-            .filter(|w| w.id == lookup_id)
-            .cloned()
-            .collect::<Vec<Wallet>>()
-            .encode(),
-    };
-    gstd::util::to_leak_ptr(encoded)
-}

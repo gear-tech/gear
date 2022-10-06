@@ -1,7 +1,7 @@
 //! command `key`
 use crate::{keystore::key::Key as KeyT, result::Result};
+use clap::Parser;
 use std::{fmt::Display, result::Result as StdResult, str::FromStr};
-use structopt::StructOpt;
 use subxt::{
     sp_core::{ecdsa, ed25519, sr25519, Pair},
     sp_runtime::traits::IdentifyAccount,
@@ -27,14 +27,14 @@ impl FromStr for Scheme {
     }
 }
 
-#[derive(Debug, StructOpt)]
+#[derive(Debug, Parser)]
 pub enum Action {
     /// Generate a random account
     Generate,
 
     /// Generate a random node libp2p key
     #[cfg(feature = "node-key")]
-    #[structopt(name = "generate-node-key")]
+    #[clap(name = "generate-node-key")]
     GenerateNodeKey,
 
     /// Gets a public key and a SS58 address from the provided Secret URI
@@ -70,13 +70,13 @@ pub enum Action {
 }
 
 /// Keypair utils
-#[derive(Debug, StructOpt)]
+#[derive(Debug, Parser)]
 pub struct Key {
     /// Cryptography scheme
-    #[structopt(short, long, default_value = "sr25519")]
+    #[clap(short, long, default_value = "sr25519")]
     scheme: Scheme,
     /// Key actions
-    #[structopt(subcommand)]
+    #[clap(subcommand)]
     action: Action,
 }
 
