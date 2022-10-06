@@ -130,8 +130,6 @@ pub enum FuncError<E> {
     RuntimeBufferSize(RuntimeBufferSizeError),
     #[display(fmt = "{}", _0)]
     PayloadBufferSize(PayloadSizeError),
-    #[display(fmt = "Cannot set u128: {}", _0)]
-    SetU128(MemoryError),
     #[display(fmt = "Exit code ran into non-reply scenario")]
     NonReplyExitCode,
     #[display(fmt = "Not running in reply context")]
