@@ -30,12 +30,19 @@ use core::fmt;
 use scale_info::TypeInfo;
 
 /// Core error.
-pub trait CoreError: fmt::Display + fmt::Debug {}
+pub trait CoreError: fmt::Display + fmt::Debug + Sized {
+    /// Attempt to call forbidden sys-call.
+    fn forbidden_function() -> Self;
+}
 
 /// Error using messages.
 #[derive(Copy, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, derive_more::Display)]
 #[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo))]
 pub enum MessageError {
+    /// Message has bigger then allowed one message size
+    #[display(fmt = "Max message size exceed")]
+    MaxMessageSizeExceed,
+
     /// The error "Message limit exceeded" occurs when a program attempts to
     /// send more than the maximum amount of messages allowed within a single
     /// execution (current setting - 1024).
@@ -162,6 +169,9 @@ pub enum ExecutionError {
     /// An error occurs in attempt to refund more gas than burned one.
     #[display(fmt = "Too many gas refunded")]
     TooManyGasAdded,
+    /// An error occurs in attempt to call forbidden sys-call.
+    #[display(fmt = "Unable to call a forbidden function")]
+    ForbiddenFunction,
 }
 
 /// An error occurred in API.
@@ -195,4 +205,8 @@ impl ExtError {
     }
 }
 
-impl CoreError for ExtError {}
+impl CoreError for ExtError {
+    fn forbidden_function() -> Self {
+        Self::Execution(ExecutionError::ForbiddenFunction)
+    }
+}

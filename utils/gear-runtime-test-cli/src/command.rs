@@ -48,15 +48,16 @@ use sp_core::H256;
 use sp_runtime::{app_crypto::UncheckedFrom, AccountId32};
 use std::{
     collections::BTreeMap,
+    convert::TryInto,
     sync::atomic::{AtomicUsize, Ordering},
     time::Instant,
 };
 
 // Runtime variants
 #[cfg(feature = "gear-native")]
-use gear_runtime::{Origin, Runtime, System};
+use gear_runtime::{Runtime, RuntimeOrigin, System};
 #[cfg(all(feature = "vara-native", not(feature = "gear-native")))]
-use vara_runtime::{Origin, Runtime, System};
+use vara_runtime::{Runtime, RuntimeOrigin, System};
 
 impl GearRuntimeTestCmd {
     /// Runs tests from `.yaml` files using the Gear pallet for interaction.
@@ -163,7 +164,7 @@ fn init_fixture(
             })?;
 
             if let Err(e) = GearPallet::<Runtime>::upload_code(
-                Origin::from(Some(AccountId32::unchecked_from(1000001.into_origin()))),
+                RuntimeOrigin::from(Some(AccountId32::unchecked_from(1000001.into_origin()))),
                 code_bytes,
             ) {
                 return Err(anyhow::format_err!("Submit code error: {:?}", e));
@@ -197,7 +198,7 @@ fn init_fixture(
         }
 
         if let Err(e) = GearPallet::<Runtime>::upload_program(
-            Origin::from(Some(AccountId32::unchecked_from(1000001.into_origin()))),
+            RuntimeOrigin::from(Some(AccountId32::unchecked_from(1000001.into_origin()))),
             code.clone(),
             program.id.to_program_id().as_ref().to_vec(),
             init_message,
@@ -330,7 +331,7 @@ fn run_fixture(test: &'_ sample::Test, fixture: &sample::Fixture) -> ColoredStri
                 id,
                 ProgramId::from_origin(source),
                 dest,
-                payload,
+                payload.try_into().unwrap(),
                 value,
                 None,
             );
@@ -339,7 +340,7 @@ fn run_fixture(test: &'_ sample::Test, fixture: &sample::Fixture) -> ColoredStri
                 .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e));
         } else {
             GearPallet::<Runtime>::send_message(
-                Origin::from(Some(AccountId32::unchecked_from(1000001.into_origin()))),
+                RuntimeOrigin::from(Some(AccountId32::unchecked_from(1000001.into_origin()))),
                 dest,
                 payload,
                 gas_limit,
@@ -407,7 +408,7 @@ fn run_fixture(test: &'_ sample::Test, fixture: &sample::Fixture) -> ColoredStri
                         msg.id(),
                         msg.source(),
                         ProgramId::from(id.as_bytes()),
-                        msg.payload().to_vec(),
+                        msg.payload().to_vec().try_into().unwrap(),
                         msg.value(),
                         msg.reply(),
                     );

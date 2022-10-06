@@ -32,6 +32,7 @@ use gear_core::{
 };
 use regex::Regex;
 use std::{
+    convert::TryInto,
     io::{Error as IoError, ErrorKind as IoErrorKind},
     time::{SystemTime, UNIX_EPOCH},
 };
@@ -92,12 +93,6 @@ where
 {
     let code = Code::try_new(message.code.clone(), 1, |_| ConstantCostRules::default())
         .map_err(|e| anyhow::anyhow!("Error initialization: {:?}", &e))?;
-
-    if code.static_pages() > AllocationsConfig::default().max_pages {
-        return Err(anyhow::anyhow!(
-            "Error initialization: memory limit exceeded"
-        ));
-    }
 
     let program = journal_handler.store_program(message.id, code, message.message.id());
     let program_id = program.id();
@@ -197,7 +192,7 @@ where
                 message: IncomingMessage::new(
                     message_id,
                     init_source,
-                    init_message,
+                    init_message.try_into().unwrap(),
                     program.init_gas_limit.unwrap_or(GAS_LIMIT),
                     program.init_value.unwrap_or(0) as u128,
                     None,
@@ -256,14 +251,14 @@ where
             message_id,
             message_source,
             message.destination.to_program_id(),
-            payload,
+            payload.try_into().unwrap(),
             Some(gas_limit),
             message.value.unwrap_or_default() as _,
             None,
         );
         let dispatch = Dispatch::new(DispatchKind::Handle, message);
 
-        journal_handler.send_dispatch(Default::default(), dispatch);
+        journal_handler.send_dispatch(Default::default(), dispatch, 0);
 
         nonce += 1;
     }

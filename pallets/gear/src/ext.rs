@@ -28,7 +28,7 @@ use gear_core::{
     gas::GasAmount,
     ids::{MessageId, ProgramId},
     memory::{Memory, PageBuf, WasmPageNumber},
-    message::{ExitCode, HandlePacket, ReplyPacket},
+    message::{ExitCode, HandlePacket, InitPacket, ReplyPacket},
 };
 use gear_core_errors::{CoreError, ExtError, MemoryError};
 use gear_lazy_pages_common as lazy_pages;
@@ -44,7 +44,11 @@ pub enum Error {
     LazyPages(lazy_pages::Error),
 }
 
-impl CoreError for Error {}
+impl CoreError for Error {
+    fn forbidden_function() -> Self {
+        Self::Processor(ProcessorError::forbidden_function())
+    }
+}
 
 impl IntoExtError for Error {
     fn into_ext_error(self) -> Result<ExtError, Self> {
@@ -252,14 +256,21 @@ impl EnvExt for LazyPagesExt {
         self.inner.reply_push(buffer).map_err(Error::Processor)
     }
 
-    fn send_commit(&mut self, handle: usize, msg: HandlePacket) -> Result<MessageId, Self::Error> {
+    fn send_commit(
+        &mut self,
+        handle: usize,
+        msg: HandlePacket,
+        delay: u32,
+    ) -> Result<MessageId, Self::Error> {
         self.inner
-            .send_commit(handle, msg)
+            .send_commit(handle, msg, delay)
             .map_err(Error::Processor)
     }
 
-    fn reply_commit(&mut self, msg: ReplyPacket) -> Result<MessageId, Self::Error> {
-        self.inner.reply_commit(msg).map_err(Error::Processor)
+    fn reply_commit(&mut self, msg: ReplyPacket, delay: u32) -> Result<MessageId, Self::Error> {
+        self.inner
+            .reply_commit(msg, delay)
+            .map_err(Error::Processor)
     }
 
     fn reply_to(&mut self) -> Result<Option<MessageId>, Self::Error> {
@@ -334,23 +345,22 @@ impl EnvExt for LazyPagesExt {
         self.inner.wait_for(duration).map_err(Error::Processor)
     }
 
-    fn wait_no_more(&mut self, duration: u32) -> Result<(), Self::Error> {
-        self.inner.wait_no_more(duration).map_err(Error::Processor)
+    fn wait_up_to(&mut self, duration: u32) -> Result<(), Self::Error> {
+        self.inner.wait_up_to(duration).map_err(Error::Processor)
     }
 
-    fn wake(&mut self, waker_id: MessageId) -> Result<(), Self::Error> {
-        self.inner.wake(waker_id).map_err(Error::Processor)
+    fn wake(&mut self, waker_id: MessageId, delay: u32) -> Result<(), Self::Error> {
+        self.inner.wake(waker_id, delay).map_err(Error::Processor)
     }
 
     fn value_available(&mut self) -> Result<u128, Self::Error> {
         self.inner.value_available().map_err(Error::Processor)
     }
 
-    fn create_program(
-        &mut self,
-        packet: gear_core::message::InitPacket,
-    ) -> Result<ProgramId, Self::Error> {
-        self.inner.create_program(packet).map_err(Error::Processor)
+    fn create_program(&mut self, packet: InitPacket, delay: u32) -> Result<ProgramId, Self::Error> {
+        self.inner
+            .create_program(packet, delay)
+            .map_err(Error::Processor)
     }
 
     fn charge_gas_runtime(&mut self, costs: RuntimeCosts) -> Result<(), Self::Error> {

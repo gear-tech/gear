@@ -26,7 +26,7 @@ use demo_ncompose::WASM_BINARY as NCOMPOSE_WASM_BINARY;
 use frame_support::dispatch::DispatchError;
 use gear_core::ids::ProgramId;
 #[cfg(feature = "gear-native")]
-use gear_runtime::{Gear, Origin, Runtime};
+use gear_runtime::{Gear, Runtime, RuntimeOrigin};
 use pallet_gear::GasHandlerOf;
 use primitive_types::H256;
 use rand::{rngs::StdRng, seq::SliceRandom, RngCore, SeedableRng};
@@ -34,7 +34,7 @@ use sp_core::sr25519;
 use sp_std::collections::btree_map::BTreeMap;
 use std::fmt;
 #[cfg(all(not(feature = "gear-native"), feature = "vara-native"))]
-use vara_runtime::{Gear, Origin, Runtime};
+use vara_runtime::{Gear, Runtime, RuntimeOrigin};
 use wasm_mutate::{ErrorKind, WasmMutate};
 use wasmparser::Validator;
 
@@ -110,7 +110,7 @@ pub fn composer_target(params: &Params) -> TargetOutcome {
             let mul_id = generate_program_id(MUL_CONST_WASM_BINARY, b"salt");
 
             Gear::upload_program(
-                Origin::signed(alice.clone()),
+                RuntimeOrigin::signed(alice.clone()),
                 MUL_CONST_WASM_BINARY.to_vec(),
                 b"salt".to_vec(),
                 params.intrinsic_value.encode(),
@@ -120,7 +120,7 @@ pub fn composer_target(params: &Params) -> TargetOutcome {
             .map_err(|e| e.error)?;
 
             Gear::upload_program(
-                Origin::signed(alice.clone()),
+                RuntimeOrigin::signed(alice.clone()),
                 NCOMPOSE_WASM_BINARY.to_vec(),
                 b"salt".to_vec(),
                 (<[u8; 32]>::from(mul_id), params.depth).encode(),
@@ -132,7 +132,7 @@ pub fn composer_target(params: &Params) -> TargetOutcome {
             run_to_block_with_ocw(2, &pool, None);
 
             Gear::send_message(
-                Origin::signed(alice.clone()),
+                RuntimeOrigin::signed(alice.clone()),
                 composer_id,
                 1_u64.to_le_bytes().to_vec(),
                 params.gas_limit,
@@ -297,7 +297,7 @@ pub fn simple_scenario(params: &Params) -> TargetOutcome {
                 };
 
                 Gear::upload_program(
-                    Origin::signed(author.clone()),
+                    RuntimeOrigin::signed(author.clone()),
                     c,
                     s,
                     payload.clone(),
@@ -375,7 +375,7 @@ pub fn simple_scenario(params: &Params) -> TargetOutcome {
                         _ => 0_u128,
                     };
                     Gear::send_message(
-                        Origin::signed(author.clone()),
+                        RuntimeOrigin::signed(author.clone()),
                         hashes[hash_id as usize],
                         seed.0.to_vec(),
                         params.gas_limit,
@@ -428,7 +428,7 @@ mod tests {
             let mul_id = generate_program_id(MUL_CONST_WASM_BINARY, b"salt");
 
             assert_ok!(Gear::upload_program(
-                Origin::signed(alice.clone()),
+                RuntimeOrigin::signed(alice.clone()),
                 MUL_CONST_WASM_BINARY.to_vec(),
                 b"salt".to_vec(),
                 100_u64.encode(),
@@ -437,7 +437,7 @@ mod tests {
             ));
 
             assert_ok!(Gear::upload_program(
-                Origin::signed(alice.clone()),
+                RuntimeOrigin::signed(alice.clone()),
                 NCOMPOSE_WASM_BINARY.to_vec(),
                 b"salt".to_vec(),
                 (<[u8; 32]>::from(mul_id), 8_u16).encode(), // 8 iterations
@@ -448,7 +448,7 @@ mod tests {
             run_to_block(2, None);
 
             assert_ok!(Gear::send_message(
-                Origin::signed(alice),
+                RuntimeOrigin::signed(alice),
                 composer_id,
                 10_u64.to_le_bytes().to_vec(),
                 100_000_000_000,
@@ -484,7 +484,7 @@ mod tests {
             let compose_id = generate_program_id(COMPOSE_WASM_BINARY, b"salt");
 
             assert_ok!(Gear::upload_program(
-                Origin::signed(alice.clone()),
+                RuntimeOrigin::signed(alice.clone()),
                 MUL_CONST_WASM_BINARY.to_vec(),
                 b"contract_a".to_vec(),
                 50_u64.encode(),
@@ -493,7 +493,7 @@ mod tests {
             ));
 
             assert_ok!(Gear::upload_program(
-                Origin::signed(alice.clone()),
+                RuntimeOrigin::signed(alice.clone()),
                 MUL_CONST_WASM_BINARY.to_vec(),
                 b"contract_b".to_vec(),
                 75_u64.encode(),
@@ -502,7 +502,7 @@ mod tests {
             ));
 
             assert_ok!(Gear::upload_program(
-                Origin::signed(alice.clone()),
+                RuntimeOrigin::signed(alice.clone()),
                 COMPOSE_WASM_BINARY.to_vec(),
                 b"salt".to_vec(),
                 (
@@ -517,7 +517,7 @@ mod tests {
             run_to_block(2, None);
 
             assert_ok!(Gear::send_message(
-                Origin::signed(alice.clone()),
+                RuntimeOrigin::signed(alice.clone()),
                 compose_id,
                 100_u64.to_le_bytes().to_vec(),
                 12_000_000_000,

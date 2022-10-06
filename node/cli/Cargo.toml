@@ -10,7 +10,9 @@ targets = ["x86_64-unknown-linux-gnu"]
 
 [dependencies]
 clap = { version = "3.2", features = ["derive"] }
-scale-info = { version = "2.1.1", default-features = false, features = ["derive"] }
+scale-info = { version = "2.1.1", default-features = false, features = [
+	"derive",
+] }
 
 # Gear
 runtime-primitives = { package = "gear-runtime-primitives", version = "0.1.0", default-features = false, path = "../../runtime/primitives" }
@@ -45,6 +47,9 @@ frame-benchmarking = { version = "4.0.0-dev", git = "https://github.com/gear-tec
 frame-benchmarking-cli = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", optional = true }
 try-runtime-cli = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", optional = true }
 
+# Program CLI
+gear-program = { path = "../../program", features = [ "cli" ], optional = true }
+
 [build-dependencies]
 substrate-build-script-utils = { version = "3.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
 
@@ -68,9 +73,10 @@ vara-native = [
 	"vara-runtime",
 ]
 lazy-pages = ["service/lazy-pages"]
-runtime-benchmarks = ["service/runtime-benchmarks"]
-debug-mode = ["service/debug-mode"]
-try-runtime = [
-	"service/try-runtime",
-	"try-runtime-cli",
+runtime-benchmarks = [
+	"service/runtime-benchmarks",
+	"frame-benchmarking-cli/runtime-benchmarks",
 ]
+debug-mode = ["service/debug-mode"]
+try-runtime = ["service/try-runtime", "try-runtime-cli"]
+program = [ "gear-program" ]

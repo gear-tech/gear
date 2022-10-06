@@ -19,28 +19,27 @@
 use crate::{env::ReturnValue, runtime::Runtime};
 #[cfg(not(feature = "std"))]
 use alloc::string::ToString;
-use alloc::{
-    string::{FromUtf8Error, String},
-    vec,
-};
+use alloc::string::{FromUtf8Error, String};
 use codec::Encode;
 use core::{
     convert::{TryFrom, TryInto},
-    fmt,
+    fmt::{self, Display},
     marker::PhantomData,
     ops::Range,
     slice::Iter,
 };
 use gear_backend_common::{
     error_processor::{IntoExtError, ProcessError},
-    AsTerminationReason, IntoExtInfo, RuntimeCtx, TerminationReason, TrapExplanation,
+    AsTerminationReason, IntoExtInfo, RuntimeCtx, RuntimeCtxError, TerminationReason,
+    TrapExplanation,
 };
 use gear_core::{
+    buffer::{RuntimeBuffer, RuntimeBufferSizeError},
     env::Ext,
     ids::{MessageId, ProgramId},
-    message::{HandlePacket, InitPacket, ReplyPacket},
+    message::{HandlePacket, InitPacket, PayloadSizeError, ReplyPacket},
 };
-use gear_core_errors::MemoryError;
+use gear_core_errors::{CoreError, MemoryError};
 use wasmi::{Error, RuntimeValue};
 
 pub(crate) type SyscallOutput<E> = Result<ReturnValue, FuncError<E>>;
@@ -81,14 +80,24 @@ pub(crate) fn return_i64<T: TryInto<i64> + fmt::Display>(val: T) -> Result<Retur
         .map_err(|_| Error::Value("return_i64 err".to_string()))
 }
 
-#[derive(Debug, derive_more::Display)]
-pub enum FuncError<E> {
+#[derive(Debug, derive_more::Display, derive_more::From)]
+pub enum FuncError<E: Display> {
     #[display(fmt = "{}", _0)]
     Core(E),
     #[display(fmt = "Runtime Error")]
     HostError,
+    #[from]
+    #[display(fmt = "{}", _0)]
+    RuntimeCtx(RuntimeCtxError<E>),
+    #[from]
     #[display(fmt = "{}", _0)]
     Memory(MemoryError),
+    #[from]
+    #[display(fmt = "{}", _0)]
+    RuntimeBufferSize(RuntimeBufferSizeError),
+    #[from]
+    #[display(fmt = "{}", _0)]
+    PayloadSizeLimit(PayloadSizeError),
     #[display(fmt = "Cannot set u128: {}", _0)]
     SetU128(MemoryError),
     #[display(fmt = "Exit code ran into non-reply scenario")]
@@ -129,13 +138,6 @@ where
         }
     }
 }
-
-impl<E> From<MemoryError> for FuncError<E> {
-    fn from(err: MemoryError) -> Self {
-        Self::Memory(err)
-    }
-}
-
 pub struct FuncsHandler<E: Ext + 'static> {
     _phantom: PhantomData<E>,
 }
@@ -153,14 +155,17 @@ where
         let payload_len = pop_i32(&mut args).map_err(|_| FuncError::HostError)?;
         let value_ptr = pop_i32(&mut args).map_err(|_| FuncError::HostError)?;
         let message_id_ptr = pop_i32(&mut args).map_err(|_| FuncError::HostError)?;
+        let delay_ptr = pop_i32(&mut args).map_err(|_| FuncError::HostError)?;
 
         let mut f = || {
             let dest: ProgramId = ctx.read_memory_as(program_id_ptr)?;
-            let payload = ctx.read_memory(payload_ptr, payload_len)?;
+            let payload = ctx.read_memory(payload_ptr, payload_len)?.try_into()?;
             let value: u128 = ctx.read_memory_as(value_ptr)?;
+            let delay: u32 = ctx.read_memory_as(delay_ptr)?;
+
             let error_len = ctx
                 .ext
-                .send(HandlePacket::new(dest, payload, value))
+                .send(HandlePacket::new(dest, payload, value), delay)
                 .process_error()
                 .map_err(FuncError::Core)?
                 .error_len_on_success(|message_id| {
@@ -185,15 +190,20 @@ where
         let gas_limit = pop_i64(&mut args).map_err(|_| FuncError::HostError)?;
         let value_ptr = pop_i32(&mut args).map_err(|_| FuncError::HostError)?;
         let message_id_ptr = pop_i32(&mut args).map_err(|_| FuncError::HostError)?;
+        let delay_ptr = pop_i32(&mut args).map_err(|_| FuncError::HostError)?;
 
         let mut f = || {
             let dest: ProgramId = ctx.read_memory_as(program_id_ptr)?;
-            let payload = ctx.read_memory(payload_ptr, payload_len)?;
+            let payload = ctx.read_memory(payload_ptr, payload_len)?.try_into()?;
             let value: u128 = ctx.read_memory_as(value_ptr)?;
+            let delay: u32 = ctx.read_memory_as(delay_ptr)?;
 
             let error_len = ctx
                 .ext
-                .send(HandlePacket::new_with_gas(dest, payload, gas_limit, value))
+                .send(
+                    HandlePacket::new_with_gas(dest, payload, gas_limit, value),
+                    delay,
+                )
                 .process_error()
                 .map_err(FuncError::Core)?
                 .error_len_on_success(|message_id| {
@@ -215,16 +225,19 @@ where
         let message_id_ptr = pop_i32(&mut args).map_err(|_| FuncError::HostError)?;
         let program_id_ptr = pop_i32(&mut args).map_err(|_| FuncError::HostError)?;
         let value_ptr = pop_i32(&mut args).map_err(|_| FuncError::HostError)?;
+        let delay_ptr = pop_i32(&mut args).map_err(|_| FuncError::HostError)?;
 
         let mut f = || {
             let dest: ProgramId = ctx.read_memory_as(program_id_ptr)?;
             let value: u128 = ctx.read_memory_as(value_ptr)?;
+            let delay: u32 = ctx.read_memory_as(delay_ptr)?;
 
             let error_len = ctx
                 .ext
                 .send_commit(
                     handle_ptr,
                     HandlePacket::new(dest, Default::default(), value),
+                    delay,
                 )
                 .process_error()
                 .map_err(FuncError::Core)?
@@ -251,16 +264,19 @@ where
         let program_id_ptr = pop_i32(&mut args).map_err(|_| FuncError::HostError)?;
         let gas_limit = pop_i64(&mut args).map_err(|_| FuncError::HostError)?;
         let value_ptr = pop_i32(&mut args).map_err(|_| FuncError::HostError)?;
+        let delay_ptr = pop_i32(&mut args).map_err(|_| FuncError::HostError)?;
 
         let mut f = || {
             let dest: ProgramId = ctx.read_memory_as(program_id_ptr)?;
             let value: u128 = ctx.read_memory_as(value_ptr)?;
+            let delay: u32 = ctx.read_memory_as(delay_ptr)?;
 
             let error_len = ctx
                 .ext
                 .send_commit(
                     handle_ptr,
                     HandlePacket::new_with_gas(dest, Default::default(), gas_limit, value),
+                    delay,
                 )
                 .process_error()
                 .map_err(FuncError::Core)?
@@ -307,7 +323,7 @@ where
         let payload_len = pop_i32(&mut args).map_err(|_| FuncError::HostError)?;
 
         let mut f = || {
-            let payload: Vec<u8> = ctx.read_memory(payload_ptr, payload_len)?;
+            let payload = ctx.read_memory(payload_ptr, payload_len)?;
             let error_len = ctx
                 .ext
                 .send_push(handle_ptr, &payload)
@@ -417,13 +433,12 @@ where
         let pages: u32 = pop_i32(&mut args).map_err(|_| FuncError::HostError)?;
 
         ctx.alloc(pages)
-            .map_err(FuncError::Core)
             .map(|page| {
                 log::debug!("ALLOC: {} pages at {:?}", pages, page);
                 RuntimeValue::I32(page.0 as i32).into()
             })
             .map_err(|e| {
-                ctx.err = e;
+                ctx.err = e.into();
                 FuncError::HostError
             })
     }
@@ -495,13 +510,16 @@ where
         let payload_len = pop_i32(&mut args).map_err(|_| FuncError::HostError)?;
         let value_ptr = pop_i32(&mut args).map_err(|_| FuncError::HostError)?;
         let message_id_ptr = pop_i32(&mut args).map_err(|_| FuncError::HostError)?;
+        let delay_ptr = pop_i32(&mut args).map_err(|_| FuncError::HostError)?;
 
         let mut f = || {
-            let payload: Vec<u8> = ctx.read_memory(payload_ptr, payload_len)?;
+            let payload = ctx.read_memory(payload_ptr, payload_len)?.try_into()?;
             let value: u128 = ctx.read_memory_as(value_ptr)?;
+            let delay: u32 = ctx.read_memory_as(delay_ptr)?;
+
             let error_len = ctx
                 .ext
-                .reply(ReplyPacket::new(payload, value))
+                .reply(ReplyPacket::new(payload, value), delay)
                 .process_error()
                 .map_err(FuncError::Core)?
                 .error_len_on_success(|message_id| {
@@ -524,13 +542,16 @@ where
         let gas_limit = pop_i64(&mut args).map_err(|_| FuncError::HostError)?;
         let value_ptr = pop_i32(&mut args).map_err(|_| FuncError::HostError)?;
         let message_id_ptr = pop_i32(&mut args).map_err(|_| FuncError::HostError)?;
+        let delay_ptr = pop_i32(&mut args).map_err(|_| FuncError::HostError)?;
 
         let mut f = || {
-            let payload: Vec<u8> = ctx.read_memory(payload_ptr, payload_len)?;
+            let payload = ctx.read_memory(payload_ptr, payload_len)?.try_into()?;
             let value: u128 = ctx.read_memory_as(value_ptr)?;
+            let delay: u32 = ctx.read_memory_as(delay_ptr)?;
+
             let error_len = ctx
                 .ext
-                .reply(ReplyPacket::new_with_gas(payload, gas_limit, value))
+                .reply(ReplyPacket::new_with_gas(payload, gas_limit, value), delay)
                 .process_error()
                 .map_err(FuncError::Core)?
                 .error_len_on_success(|message_id| {
@@ -550,14 +571,15 @@ where
 
         let value_ptr = pop_i32(&mut args).map_err(|_| FuncError::HostError)?;
         let message_id_ptr = pop_i32(&mut args).map_err(|_| FuncError::HostError)?;
+        let delay_ptr = pop_i32(&mut args).map_err(|_| FuncError::HostError)?;
 
         let mut f = || {
-            let mut value = [0u8; 16];
-            ctx.read_memory_into_buf(value_ptr, &mut value)?;
-            let value = u128::from_le_bytes(value);
+            let value: u128 = ctx.read_memory_as(value_ptr)?;
+            let delay: u32 = ctx.read_memory_as(delay_ptr)?;
+
             let error_len = ctx
                 .ext
-                .reply_commit(ReplyPacket::new(Default::default(), value))
+                .reply_commit(ReplyPacket::new(Default::default(), value), delay)
                 .process_error()
                 .map_err(FuncError::Core)?
                 .error_len_on_success(|message_id| {
@@ -581,16 +603,18 @@ where
         let gas_limit = pop_i64(&mut args).map_err(|_| FuncError::HostError)?;
         let value_ptr = pop_i32(&mut args).map_err(|_| FuncError::HostError)?;
         let message_id_ptr = pop_i32(&mut args).map_err(|_| FuncError::HostError)?;
+        let delay_ptr = pop_i32(&mut args).map_err(|_| FuncError::HostError)?;
 
         let mut f = || {
             let value: u128 = ctx.read_memory_as(value_ptr)?;
+            let delay: u32 = ctx.read_memory_as(delay_ptr)?;
+
             let error_len = ctx
                 .ext
-                .reply_commit(ReplyPacket::new_with_gas(
-                    Default::default(),
-                    gas_limit,
-                    value,
-                ))
+                .reply_commit(
+                    ReplyPacket::new_with_gas(Default::default(), gas_limit, value),
+                    delay,
+                )
                 .process_error()
                 .map_err(FuncError::Core)?
                 .error_len_on_success(|message_id| {
@@ -635,7 +659,7 @@ where
         let payload_len = pop_i32(&mut args).map_err(|_| FuncError::HostError)?;
 
         let mut f = || {
-            let payload: Vec<u8> = ctx.read_memory(payload_ptr, payload_len)?;
+            let payload = ctx.read_memory(payload_ptr, payload_len)?;
             let error_len = ctx
                 .ext
                 .reply_push(&payload)
@@ -658,9 +682,9 @@ where
         let str_len = pop_i32(&mut args).map_err(|_| FuncError::HostError)?;
 
         let mut f = || {
-            let mut data = vec![0u8; str_len];
-            ctx.read_memory_into_buf(str_ptr, &mut data)?;
-            let s = String::from_utf8(data).map_err(FuncError::DebugString)?;
+            let mut data = RuntimeBuffer::try_new_default(str_len)?;
+            ctx.read_memory_into_buf(str_ptr, data.get_mut())?;
+            let s = String::from_utf8(data.into_vec()).map_err(FuncError::DebugString)?;
             ctx.ext.debug(&s).map_err(FuncError::Core)?;
             Ok(())
         };
@@ -805,14 +829,14 @@ where
         Err(FuncError::HostError)
     }
 
-    pub fn wait_no_more(ctx: &mut Runtime<E>, args: &[RuntimeValue]) -> SyscallOutput<E::Error> {
+    pub fn wait_up_to(ctx: &mut Runtime<E>, args: &[RuntimeValue]) -> SyscallOutput<E::Error> {
         let mut args = args.iter();
 
         let duration_ptr = pop_i32(&mut args).map_err(|_| FuncError::HostError)?;
 
         let mut f = || {
             let duration: u32 = ctx.read_memory_as(duration_ptr)?;
-            ctx.ext.wait_no_more(duration).map_err(FuncError::Core)?;
+            ctx.ext.wait_up_to(duration).map_err(FuncError::Core)?;
             Ok(Some(duration))
         };
 
@@ -827,10 +851,13 @@ where
         let mut args = args.iter();
 
         let waker_id_ptr = pop_i32(&mut args).map_err(|_| FuncError::HostError)?;
+        let delay_ptr = pop_i32(&mut args).map_err(|_| FuncError::HostError)?;
 
         let mut f = || {
             let waker_id: MessageId = ctx.read_memory_as(waker_id_ptr)?;
-            ctx.ext.wake(waker_id).map_err(FuncError::Core)
+            let delay: u32 = ctx.read_memory_as(delay_ptr)?;
+
+            ctx.ext.wake(waker_id, delay).map_err(FuncError::Core)
         };
         f().map(|_| ReturnValue::Unit).map_err(|err| {
             ctx.err = err;
@@ -848,15 +875,21 @@ where
         let payload_len = pop_i32(&mut args).map_err(|_| FuncError::HostError)?;
         let value_ptr = pop_i32(&mut args).map_err(|_| FuncError::HostError)?;
         let program_id_ptr = pop_i32(&mut args).map_err(|_| FuncError::HostError)?;
+        let delay_ptr = pop_i32(&mut args).map_err(|_| FuncError::HostError)?;
 
         let mut f = || {
             let code_hash: [u8; 32] = ctx.read_memory_as(code_hash_ptr)?;
             let salt = ctx.read_memory(salt_ptr, salt_len)?;
-            let payload = ctx.read_memory(payload_ptr, payload_len)?;
+            let payload = ctx.read_memory(payload_ptr, payload_len)?.try_into()?;
             let value: u128 = ctx.read_memory_as(value_ptr)?;
+            let delay: u32 = ctx.read_memory_as(delay_ptr)?;
+
             let error_len = ctx
                 .ext
-                .create_program(InitPacket::new(code_hash.into(), salt, payload, value))
+                .create_program(
+                    InitPacket::new(code_hash.into(), salt, payload, value),
+                    delay,
+                )
                 .process_error()
                 .map_err(FuncError::Core)?
                 .error_len_on_success(|new_actor_id| {
@@ -885,21 +918,21 @@ where
         let gas_limit = pop_i64(&mut args).map_err(|_| FuncError::HostError)?;
         let value_ptr = pop_i32(&mut args).map_err(|_| FuncError::HostError)?;
         let program_id_ptr = pop_i32(&mut args).map_err(|_| FuncError::HostError)?;
+        let delay_ptr = pop_i32(&mut args).map_err(|_| FuncError::HostError)?;
 
         let mut f = || {
             let code_hash: [u8; 32] = ctx.read_memory_as(code_hash_ptr)?;
             let salt = ctx.read_memory(salt_ptr, salt_len)?;
-            let payload = ctx.read_memory(payload_ptr, payload_len)?;
+            let payload = ctx.read_memory(payload_ptr, payload_len)?.try_into()?;
             let value: u128 = ctx.read_memory_as(value_ptr)?;
+            let delay: u32 = ctx.read_memory_as(delay_ptr)?;
+
             let error_len = ctx
                 .ext
-                .create_program(InitPacket::new_with_gas(
-                    code_hash.into(),
-                    salt,
-                    payload,
-                    gas_limit,
-                    value,
-                ))
+                .create_program(
+                    InitPacket::new_with_gas(code_hash.into(), salt, payload, gas_limit, value),
+                    delay,
+                )
                 .process_error()
                 .map_err(FuncError::Core)?
                 .error_len_on_success(|new_actor_id| {
@@ -938,8 +971,7 @@ where
     }
 
     pub fn forbidden(ctx: &mut Runtime<E>, _args: &[RuntimeValue]) -> SyscallOutput<E::Error> {
-        ctx.err =
-            FuncError::Terminated(TerminationReason::Trap(TrapExplanation::ForbiddenFunction));
+        ctx.err = FuncError::Core(E::Error::forbidden_function());
         Err(FuncError::HostError)
     }
 }

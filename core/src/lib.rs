@@ -35,3 +35,5 @@ pub mod ids;
 pub mod memory;
 pub mod message;
 pub mod program;
+
+pub mod buffer;

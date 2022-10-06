@@ -33,9 +33,9 @@ mod sys {
         pub fn gr_leave() -> !;
         pub fn gr_value_available(val: *mut u8);
         pub fn gr_wait() -> !;
-        pub fn gr_wait_no_more(duration: *const u8) -> !;
+        pub fn gr_wait_up_to(duration: *const u8) -> !;
         pub fn gr_wait_for(duration: *const u8) -> !;
-        pub fn gr_wake(waker_id_ptr: *const u8);
+        pub fn gr_wake(waker_id_ptr: *const u8, delay_ptr: *const u8);
     }
 }
 
@@ -202,8 +202,8 @@ pub fn wait_for(duration: u32) -> ! {
 
 /// Same as [`wait`], but delays handling for maximal amount of blocks
 /// that could be payed, that doesn't exceed given duration.
-pub fn wait_no_more(duration: u32) -> ! {
-    unsafe { sys::gr_wait_no_more(duration.to_le_bytes().as_ptr()) }
+pub fn wait_up_to(duration: u32) -> ! {
+    unsafe { sys::gr_wait_up_to(duration.to_le_bytes().as_ptr()) }
 }
 
 /// Resume previously paused message handling.
@@ -225,7 +225,14 @@ pub fn wait_no_more(duration: u32) -> ! {
 /// ```
 pub fn wake(waker_id: MessageId) {
     unsafe {
-        sys::gr_wake(waker_id.as_slice().as_ptr());
+        sys::gr_wake(waker_id.as_slice().as_ptr(), 0u32.to_le_bytes().as_ptr());
+    }
+}
+
+/// Same as [`wake`], but wakes delayed.
+pub fn wake_delayed(waker_id: MessageId, delay: u32) {
+    unsafe {
+        sys::gr_wake(waker_id.as_slice().as_ptr(), delay.to_le_bytes().as_ptr());
     }
 }
 

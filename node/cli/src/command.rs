@@ -22,7 +22,7 @@ use crate::{
 };
 use frame_benchmarking_cli::{BenchmarkCmd, ExtrinsicFactory, SUBSTRATE_REFERENCE_HARDWARE};
 use runtime_primitives::Block;
-use sc_cli::{ChainSpec, RuntimeVersion, SubstrateCli};
+use sc_cli::{ChainSpec, ExecutionStrategy, RuntimeVersion, SubstrateCli};
 use service::{chain_spec, IdentifyVariant};
 use sp_keyring::Sr25519Keyring;
 
@@ -83,7 +83,7 @@ impl SubstrateCli for Cli {
                     }
 
                     #[cfg(not(feature = "vara-native"))]
-					return Err("Vara runtime is not available. Please compile the node with `--features vara-native` to enable it.".into());
+                    return Err("Vara runtime is not available. Please compile the node with `--features vara-native` to enable it.".into());
                 } else {
                     #[cfg(feature = "gear-native")]
                     {
@@ -91,7 +91,7 @@ impl SubstrateCli for Cli {
                     }
 
                     #[cfg(not(feature = "gear-native"))]
-					return Err("Gear runtime is not available. Please compile the node with default features to enable it.".into());
+                    return Err("Gear runtime is not available. Please compile the node with default features to enable it.".into());
                 }
             }
         })
@@ -111,9 +111,9 @@ impl SubstrateCli for Cli {
 /// Unwraps a [`service::Client`] into the concrete runtime client.
 macro_rules! unwrap_client {
     (
-		$client:ident,
-		$code:expr
-	) => {
+        $client:ident,
+        $code:expr
+    ) => {
         match $client.as_ref() {
             #[cfg(feature = "gear-native")]
             service::Client::Gear($client) => $code,
@@ -127,7 +127,15 @@ macro_rules! unwrap_client {
 
 /// Parse and run command line arguments
 pub fn run() -> sc_cli::Result<()> {
-    let cli = Cli::from_args();
+    let mut cli = Cli::from_args();
+
+    // Force setting `Wasm` as default execution strategy.
+    cli.run
+        .base
+        .import_params
+        .execution_strategies
+        .execution
+        .get_or_insert(ExecutionStrategy::Wasm);
 
     match &cli.subcommand {
         Some(Subcommand::Key(cmd)) => cmd.run(&cli),
@@ -171,7 +179,11 @@ pub fn run() -> sc_cli::Result<()> {
             let runner = cli.create_runner(cmd)?;
             runner.async_run(|config| {
                 let (client, backend, _, task_manager) = service::new_chain_ops(&config)?;
-                Ok((cmd.run(client, backend, None), task_manager))
+                let aux_revert = Box::new(|client, backend, blocks| {
+                    service::revert_backend(client, backend, blocks, config)
+                        .map_err(|err| sc_cli::Error::Application(err.into()))
+                });
+                Ok((cmd.run(client, backend, Some(aux_revert)), task_manager))
             })
         }
         Some(Subcommand::Benchmark(cmd)) => {
@@ -180,7 +192,6 @@ pub fn run() -> sc_cli::Result<()> {
             runner.sync_run(|config| {
                 // This switch needs to be in the client, since the client decides
                 // which sub-commands it wants to support.
-
                 match cmd {
                     BenchmarkCmd::Pallet(cmd) => {
                         if !cfg!(feature = "runtime-benchmarks") {
@@ -209,6 +220,12 @@ pub fn run() -> sc_cli::Result<()> {
 
                         unwrap_client!(client, cmd.run(client.clone()))
                     }
+                    #[cfg(not(feature = "runtime-benchmarks"))]
+                    BenchmarkCmd::Storage(_) => Err(
+                        "Storage benchmarking can be enabled with `--features runtime-benchmarks`."
+                            .into(),
+                    ),
+                    #[cfg(feature = "runtime-benchmarks")]
                     BenchmarkCmd::Storage(cmd) => {
                         let (client, backend, _, _) = service::new_chain_ops(&config)?;
                         let db = backend.expose_db();
@@ -227,8 +244,13 @@ pub fn run() -> sc_cli::Result<()> {
 
                         unwrap_client!(
                             client,
-                            // cmd.run(config, client.clone(), inherent_data, ext_builder)
-                            cmd.run(config, client.clone(), inherent_data, &ext_builder)
+                            cmd.run(
+                                config,
+                                client.clone(),
+                                inherent_data,
+                                Vec::new(),
+                                &ext_builder
+                            )
                         )
                     }
                     BenchmarkCmd::Extrinsic(cmd) => {
@@ -247,8 +269,7 @@ pub fn run() -> sc_cli::Result<()> {
 
                         unwrap_client!(
                             client,
-                            // cmd.run(config, client.clone(), inherent_data, ext_builder)
-                            cmd.run(client.clone(), inherent_data, &ext_factory)
+                            cmd.run(client.clone(), inherent_data, Vec::new(), &ext_factory)
                         )
                     }
                     BenchmarkCmd::Machine(cmd) => {
@@ -300,16 +321,25 @@ pub fn run() -> sc_cli::Result<()> {
         }
         #[cfg(not(feature = "try-runtime"))]
         Some(Subcommand::TryRuntime) => Err("TryRuntime wasn't enabled when building the node. \
-				You can enable it with `--features try-runtime`."
+                You can enable it with `--features try-runtime`."
             .into()),
         Some(Subcommand::ChainInfo(cmd)) => {
             let runner = cli.create_runner(cmd)?;
             runner.sync_run(|config| cmd.run::<Block>(&config))
         }
+        #[cfg(feature = "program")]
+        Some(Subcommand::GearProgram(gp)) => {
+            // # NOTE
+            //
+            // unwrap here directly to show the error messages.
+            gp.exec_sync().unwrap();
+            Ok(())
+        }
         None => {
             let runner = cli.create_runner(&cli.run.base)?;
             runner.run_node_until_exit(|config| async move {
-                service::build_full(config).map_err(sc_cli::Error::Service)
+                service::new_full(config, cli.no_hardware_benchmarks)
+                    .map_err(sc_cli::Error::Service)
             })
         }
     }

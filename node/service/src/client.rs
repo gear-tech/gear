@@ -19,16 +19,16 @@
 use gear_runtime_interface as gear_ri;
 pub use runtime_primitives::{AccountId, Balance, Block, BlockNumber, Hash, Header, Index};
 use sc_client_api::{
-    Backend as BackendT, BlockBackend, BlockchainEvents, KeyIterator, UsageProvider,
+    AuxStore, Backend as BackendT, BlockBackend, BlockchainEvents, KeyIterator, UsageProvider,
 };
 use sc_executor::NativeElseWasmExecutor;
 use sp_api::{CallApiAt, NumberFor, ProvideRuntimeApi};
-use sp_blockchain::HeaderBackend;
+use sp_blockchain::{HeaderBackend, HeaderMetadata};
 use sp_consensus::BlockStatus;
 use sp_runtime::{
     generic::{BlockId, SignedBlock},
     traits::{BlakeTwo256, Block as BlockT},
-    Justifications,
+    Justifications, OpaqueExtrinsic,
 };
 use sp_storage::{ChildInfo, StorageData, StorageKey};
 use std::sync::Arc;
@@ -183,10 +183,25 @@ pub trait ExecuteWithClient {
     fn execute_with_client<Client, Api, Backend>(self, client: Arc<Client>) -> Self::Output
     where
         <Api as sp_api::ApiExt<Block>>::StateBackend: sp_api::StateBackend<BlakeTwo256>,
-        Backend: sc_client_api::Backend<Block> + 'static,
+        Backend: BackendT<Block> + 'static,
         Backend::State: sp_api::StateBackend<BlakeTwo256>,
         Api: crate::RuntimeApiCollection<StateBackend = Backend::State>,
-        Client: AbstractClient<Block, Backend, Api = Api> + 'static;
+        Client: AbstractClient<Block, Backend, Api = Api>
+            + 'static
+            + HeaderMetadata<
+                sp_runtime::generic::Block<
+                    sp_runtime::generic::Header<u32, BlakeTwo256>,
+                    OpaqueExtrinsic,
+                >,
+                Error = sp_blockchain::Error,
+            >
+            + AuxStore
+            + UsageProvider<
+                sp_runtime::generic::Block<
+                    sp_runtime::generic::Header<u32, BlakeTwo256>,
+                    OpaqueExtrinsic,
+                >,
+            >;
 }
 
 /// A handle to a Gear client instance.
@@ -201,20 +216,20 @@ pub trait ClientHandle {
 }
 
 macro_rules! with_client {
-	{
-		$self:ident,
-		$client:ident,
-		{
-			$( $code:tt )*
-		}
-	} => {
-		match $self {
-			#[cfg(feature = "gear-native")]
-			Self::Gear($client) => { $( $code )* },
-			#[cfg(feature = "vara-native")]
-			Self::Vara($client) => { $( $code )* },
-		}
-	}
+    {
+        $self:ident,
+        $client:ident,
+        {
+            $( $code:tt )*
+        }
+    } => {
+        match $self {
+            #[cfg(feature = "gear-native")]
+            Self::Gear($client) => { $( $code )* },
+            #[cfg(feature = "vara-native")]
+            Self::Vara($client) => { $( $code )* },
+        }
+    }
 }
 
 /// A client instance of Gear.

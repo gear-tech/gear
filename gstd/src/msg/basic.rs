@@ -95,6 +95,10 @@ impl MessageHandle {
         send_commit(self, program, value)
     }
 
+    pub fn commit_delayed(self, program: ActorId, value: u128, delay: u32) -> Result<MessageId> {
+        send_commit_delayed(self, program, value, delay)
+    }
+
     pub fn commit_with_gas(
         self,
         program: ActorId,
@@ -102,6 +106,16 @@ impl MessageHandle {
         value: u128,
     ) -> Result<MessageId> {
         send_commit_with_gas(self, program, gas_limit, value)
+    }
+
+    pub fn commit_with_gas_delayed(
+        self,
+        program: ActorId,
+        gas_limit: u64,
+        value: u128,
+        delay: u32,
+    ) -> Result<MessageId> {
+        send_commit_with_gas_delayed(self, program, gas_limit, value, delay)
     }
 }
 
@@ -186,48 +200,19 @@ pub fn load_bytes() -> Vec<u8> {
     result
 }
 
-/// Same as [`reply`](crate::msg::reply), but with explicit gas limit.
-///
-/// Some programs can reply to other programs, i.e. check another program's
-/// state and use it as a parameter for its own business logic [`MessageId`].
-///
-/// This function allows sending such replies, which are similar to standard
-/// messages in terms of payload and different only in the way the message
-/// processing is handled by a separate program function called
-/// `handle_reply`.
-///
-/// First argument is the reply message payload in bytes.
-/// Second argument is `gas_limit`. It means the maximum amount of gas that you
-/// want to spend on message sending.
-/// Third argument `value` is the value to be transferred from the current
-/// program account to the reply message target account.
-///
-/// Reply message transactions will be posted only after processing is finished,
-/// similar to the standard message [`send`](crate::msg::send).
-///
-/// # Examples
-///
-/// ```
-/// use gcore::{exec, msg};
-///
-/// unsafe extern "C" fn handle() {
-///     // ...
-///     msg::reply_with_gas(b"PING", 0, 0).unwrap();
-/// }
-/// ```
-///
-/// # See also
-///
-/// [`reply_push`] function allows to form a reply message in parts.
-#[wait_for_reply]
-pub fn reply_with_gas(payload: &[u8], gas_limit: u64, value: u128) -> Result<MessageId> {
-    gcore::msg::reply_with_gas(payload, gas_limit, value).into_contract_result()
-}
-
 /// Same as [`reply`](crate::msg::reply), without encoding payload.
 #[wait_for_reply]
 pub fn reply_bytes(payload: impl AsRef<[u8]>, value: u128) -> Result<MessageId> {
     gcore::msg::reply(payload.as_ref(), value).into_contract_result()
+}
+
+/// Same as [`reply_bytes`], but sends delayed.
+pub fn reply_bytes_delayed(
+    payload: impl AsRef<[u8]>,
+    value: u128,
+    delay: u32,
+) -> Result<MessageId> {
+    gcore::msg::reply_delayed(payload.as_ref(), value, delay).into_contract_result()
 }
 
 /// Same as [`reply_bytes`], with gas limit.
@@ -238,6 +223,17 @@ pub fn reply_bytes_with_gas(
     value: u128,
 ) -> Result<MessageId> {
     gcore::msg::reply_with_gas(payload.as_ref(), gas_limit, value).into_contract_result()
+}
+
+/// Same as [`reply_bytes_with_gas`], but sends delayed.
+pub fn reply_bytes_with_gas_delayed(
+    payload: impl AsRef<[u8]>,
+    gas_limit: u64,
+    value: u128,
+    delay: u32,
+) -> Result<MessageId> {
+    gcore::msg::reply_with_gas_delayed(payload.as_ref(), gas_limit, value, delay)
+        .into_contract_result()
 }
 
 /// Finalize and send a current reply message.
@@ -275,6 +271,11 @@ pub fn reply_commit(value: u128) -> Result<MessageId> {
     gcore::msg::reply_commit(value).into_contract_result()
 }
 
+/// Same as [`reply_commit`], but sends delayed.
+pub fn reply_commit_delayed(value: u128, delay: u32) -> Result<MessageId> {
+    gcore::msg::reply_commit_delayed(value, delay).into_contract_result()
+}
+
 /// Same as [`reply_commit`], but with explicit gas limit.
 ///
 /// # Examples
@@ -298,6 +299,11 @@ pub fn reply_commit(value: u128) -> Result<MessageId> {
 #[wait_for_reply]
 pub fn reply_commit_with_gas(gas_limit: u64, value: u128) -> Result<MessageId> {
     gcore::msg::reply_commit_with_gas(gas_limit, value).into_contract_result()
+}
+
+/// Same as [`reply_commit_with_gas`], but sends delayed.
+pub fn reply_commit_with_gas_delayed(gas_limit: u64, value: u128, delay: u32) -> Result<MessageId> {
+    gcore::msg::reply_commit_with_gas_delayed(gas_limit, value, delay).into_contract_result()
 }
 
 /// Push a payload part to the current reply message.
@@ -386,6 +392,16 @@ pub fn send_bytes<T: AsRef<[u8]>>(program: ActorId, payload: T, value: u128) -> 
     gcore::msg::send(program.into(), payload.as_ref(), value).into_contract_result()
 }
 
+/// Same as [`send_bytes`], but sends delayed.
+pub fn send_bytes_delayed<T: AsRef<[u8]>>(
+    program: ActorId,
+    payload: T,
+    value: u128,
+    delay: u32,
+) -> Result<MessageId> {
+    gcore::msg::send_delayed(program.into(), payload.as_ref(), value, delay).into_contract_result()
+}
+
 /// Same as [`send_bytes`], but with explicit gas limit.
 ///
 /// # Examples
@@ -413,6 +429,18 @@ pub fn send_bytes_with_gas<T: AsRef<[u8]>>(
     value: u128,
 ) -> Result<MessageId> {
     gcore::msg::send_with_gas(program.into(), payload.as_ref(), gas_limit, value)
+        .into_contract_result()
+}
+
+/// Same as [`send_bytes_with_gas`], but sends delayed.
+pub fn send_bytes_with_gas_delayed<T: AsRef<[u8]>>(
+    program: ActorId,
+    payload: T,
+    gas_limit: u64,
+    value: u128,
+    delay: u32,
+) -> Result<MessageId> {
+    gcore::msg::send_with_gas_delayed(program.into(), payload.as_ref(), gas_limit, value, delay)
         .into_contract_result()
 }
 
@@ -453,6 +481,17 @@ pub fn send_commit(handle: MessageHandle, program: ActorId, value: u128) -> Resu
     gcore::msg::send_commit(handle.into(), program.into(), value).into_contract_result()
 }
 
+/// Same as [`send_commit`], but sends delayed.
+pub fn send_commit_delayed(
+    handle: MessageHandle,
+    program: ActorId,
+    value: u128,
+    delay: u32,
+) -> Result<MessageId> {
+    gcore::msg::send_commit_delayed(handle.into(), program.into(), value, delay)
+        .into_contract_result()
+}
+
 /// Same as [`send_commit`], but with explicit gas limit.
 ///
 /// # Examples
@@ -482,6 +521,18 @@ pub fn send_commit_with_gas(
     value: u128,
 ) -> Result<MessageId> {
     gcore::msg::send_commit_with_gas(handle.into(), program.into(), gas_limit, value)
+        .into_contract_result()
+}
+
+/// Same as [`send_commit_with_gas`], but sends delayed.
+pub fn send_commit_with_gas_delayed(
+    handle: MessageHandle,
+    program: ActorId,
+    gas_limit: u64,
+    value: u128,
+    delay: u32,
+) -> Result<MessageId> {
+    gcore::msg::send_commit_with_gas_delayed(handle.into(), program.into(), gas_limit, value, delay)
         .into_contract_result()
 }
 

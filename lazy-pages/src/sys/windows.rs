@@ -18,7 +18,10 @@
  * along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
 
-use crate::sys::{ExceptionInfo, UserSignalHandler};
+use crate::{
+    sys::{ExceptionInfo, UserSignalHandler},
+    Error,
+};
 use std::io;
 use winapi::{
     shared::ntdef::LONG,
@@ -50,11 +53,11 @@ where
     let is_write = match (*exception_record).ExceptionInformation[0] {
         0 /* read */ => Some(false),
         1 /* write */ => Some(true),
-        // we work with WASM memory which is handled by WASM executor 
+        // we work with WASM memory which is handled by WASM executor
         // (e.g. it reads and writes, but doesn't execute as native code)
         // that's why the case is impossible
         8 /* DEP */ => unreachable!("data execution prevention"),
-        // existence of other values is undocumented and I expect they should be treated as reserved 
+        // existence of other values is undocumented and I expect they should be treated as reserved
         _ => None,
     };
     let info = ExceptionInfo {
@@ -62,14 +65,22 @@ where
         is_write,
     };
 
-    H::handle(info)
-        .map_err(|err| err.to_string())
-        .expect("Memory exception handler failed");
+    if let Err(err) = H::handle(info) {
+        if let Error::SignalFromUnknownMemory { .. } | Error::WasmMemAddrIsNotSet = err {
+            return EXCEPTION_CONTINUE_SEARCH;
+        } else {
+            panic!("Signal handler failed: {}", err);
+        }
+    }
 
     EXCEPTION_CONTINUE_EXECUTION
 }
 
-pub unsafe fn setup_signal_handler<H>() -> io::Result<()>
+pub(crate) unsafe fn init_for_thread() -> Result<(), String> {
+    Ok(())
+}
+
+pub(crate) unsafe fn setup_signal_handler<H>() -> io::Result<()>
 where
     H: UserSignalHandler,
 {
