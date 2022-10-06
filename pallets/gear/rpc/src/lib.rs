@@ -20,7 +20,7 @@
 
 #![allow(clippy::too_many_arguments)]
 
-use gear_common::Origin;
+use gear_common::{ActiveProgram, Origin};
 use gear_core::ids::{CodeId, MessageId, ProgramId};
 use jsonrpsee::{
     core::{async_trait, Error as JsonRpseeError, RpcResult},
@@ -33,7 +33,7 @@ use sp_api::{ApiError, ApiRef, ProvideRuntimeApi};
 use sp_blockchain::HeaderBackend;
 use sp_core::{Bytes, H256};
 use sp_runtime::{generic::BlockId, traits::Block as BlockT};
-use std::sync::Arc;
+use std::{collections::BTreeMap, convert::TryFrom, sync::Arc};
 
 /// Converts a runtime trap into a [`CallError`].
 fn runtime_error_into_rpc_error(err: impl std::fmt::Debug) -> JsonRpseeError {
@@ -91,6 +91,9 @@ pub trait GearApi<BlockHash, ResponseType> {
         allow_other_panics: bool,
         at: Option<BlockHash>,
     ) -> RpcResult<GasInfo>;
+
+    #[method(name = "gear_getProgramPages")]
+    fn get_program_pages(&self, program_id: H256) -> RpcResult<BTreeMap<u32, Vec<u8>>>;
 }
 
 /// A struct that implements the [`GearApi`].
@@ -302,5 +305,24 @@ where
                 Some(min_limit),
             )
         })
+    }
+
+    fn get_program_pages(&self, program_id: H256) -> RpcResult<BTreeMap<u32, Vec<u8>>> {
+        let program = gear_common::get_program(program_id)
+            .ok_or_else(|| runtime_error_into_rpc_error("Failed to find program with given id"))?;
+
+        let active_program = ActiveProgram::try_from(program).map_err(|_| {
+            runtime_error_into_rpc_error("Program with given id is not an active one")
+        })?;
+
+        let data =
+            gear_common::get_program_pages_data(program_id, &active_program).map_err(|e| {
+                runtime_error_into_rpc_error(format!("Failed to get program pages data: '{e}'"))
+            })?;
+
+        Ok(data
+            .into_iter()
+            .map(|(k, v)| (k.0, (**v).to_vec()))
+            .collect())
     }
 }
