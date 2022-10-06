@@ -114,6 +114,18 @@ macro_rules! process_call_result_as_ref {
     };
 }
 
+macro_rules! process_read_result {
+    ($read_result:ident, $caller:ident) => {
+        match $read_result {
+            Ok(value) => value,
+            Err(e) => {
+                host_state_mut!($caller).err = e.into();
+                return Err(DummyHostError.into());
+            }
+        }
+    };
+}
+
 #[derive(Debug, derive_more::Display)]
 pub enum FuncError<E> {
     #[display(fmt = "{}", _0)]
@@ -231,13 +243,7 @@ where
                     })
             };
 
-            let (destination, value, delay) = match read_result {
-                Ok((id, v, d)) => (id, v, d),
-                Err(e) => {
-                    host_state_mut!(caller).err = e.into();
-                    return Err(DummyHostError.into());
-                }
-            };
+            let (destination, value, delay) = process_read_result!(read_result, caller);
 
             process_call_result_as_ref!(
                 caller,
@@ -293,13 +299,7 @@ where
                     })
             };
 
-            let (destination, value, delay) = match read_result {
-                Ok((id, v, d)) => (id, v, d),
-                Err(e) => {
-                    host_state_mut!(caller).err = e.into();
-                    return Err(DummyHostError.into());
-                }
-            };
+            let (destination, value, delay) = process_read_result!(read_result, caller);
 
             process_call_result_as_ref!(
                 caller,
@@ -348,13 +348,7 @@ where
                     })
             };
 
-            let (destination, value, delay) = match read_result {
-                Ok((id, v, d)) => (id, v, d),
-                Err(e) => {
-                    host_state_mut!(caller).err = e.into();
-                    return Err(DummyHostError.into());
-                }
-            };
+            let (destination, value, delay) = process_read_result!(read_result, caller);
 
             process_call_result_as_ref!(
                 caller,
@@ -405,13 +399,7 @@ where
                     })
             };
 
-            let (destination, value, delay) = match read_result {
-                Ok((id, v, d)) => (id, v, d),
-                Err(e) => {
-                    host_state_mut!(caller).err = e.into();
-                    return Err(DummyHostError.into());
-                }
-            };
+            let (destination, value, delay) = process_read_result!(read_result, caller);
 
             process_call_result_as_ref!(
                 caller,
@@ -483,14 +471,7 @@ where
                 memory_wrap.read(payload_ptr, &mut payload)
             };
 
-            match read_result {
-                Ok(_) => (),
-                Err(e) => {
-                    host_state_mut!(caller).err = e.into();
-
-                    return Err(DummyHostError.into());
-                }
-            };
+            process_read_result!(read_result, caller);
 
             process_call_unit_result!(caller, |ext| ext.send_push(handle_ptr, &payload))
         };
@@ -815,13 +796,7 @@ where
                     .and_then(|v| read_memory_as::<u32>(&memory_wrap, delay_ptr).map(|d| (v, d)))
             };
 
-            let (value, delay) = match read_result {
-                Ok((v, d)) => (v, d),
-                Err(e) => {
-                    host_state_mut!(caller).err = e.into();
-                    return Err(DummyHostError.into());
-                }
-            };
+            let (value, delay) = process_read_result!(read_result, caller);
 
             process_call_result_as_ref!(
                 caller,
@@ -869,13 +844,7 @@ where
                     .and_then(|v| read_memory_as::<u32>(&memory_wrap, delay_ptr).map(|d| (v, d)))
             };
 
-            let (value, delay) = match read_result {
-                Ok((v, d)) => (v, d),
-                Err(e) => {
-                    host_state_mut!(caller).err = e.into();
-                    return Err(DummyHostError.into());
-                }
-            };
+            let (value, delay) = process_read_result!(read_result, caller);
 
             process_call_result_as_ref!(
                 caller,
@@ -912,13 +881,7 @@ where
                     .and_then(|v| read_memory_as::<u32>(&memory_wrap, delay_ptr).map(|d| (v, d)))
             };
 
-            let (value, delay) = match read_result {
-                Ok((v, d)) => (v, d),
-                Err(e) => {
-                    host_state_mut!(caller).err = e.into();
-                    return Err(DummyHostError.into());
-                }
-            };
+            let (value, delay) = process_read_result!(read_result, caller);
 
             process_call_result_as_ref!(
                 caller,
@@ -956,13 +919,7 @@ where
                     .and_then(|v| read_memory_as::<u32>(&memory_wrap, delay_ptr).map(|d| (v, d)))
             };
 
-            let (value, delay) = match read_result {
-                Ok((v, d)) => (v, d),
-                Err(e) => {
-                    host_state_mut!(caller).err = e.into();
-                    return Err(DummyHostError.into());
-                }
-            };
+            let (value, delay) = process_read_result!(read_result, caller);
 
             process_call_result_as_ref!(
                 caller,
@@ -1044,13 +1001,7 @@ where
                 memory_wrap.read(payload_ptr, &mut payload)
             };
 
-            match read_result {
-                Ok(_) => (),
-                Err(e) => {
-                    host_state_mut!(caller).err = e.into();
-                    return Err(DummyHostError.into());
-                }
-            }
+            process_read_result!(read_result, caller);
 
             process_call_unit_result!(caller, |ext| ext.reply_push(&payload))
         };
@@ -1080,14 +1031,7 @@ where
 
                 let host_state = host_state_mut!(caller);
 
-                match read_result {
-                    Ok(_) => (),
-                    Err(e) => {
-                        host_state.err = FuncError::Memory(e);
-
-                        return Err(DummyHostError.into());
-                    }
-                };
+                process_read_result!(read_result, caller);
 
                 let debug_string = match String::from_utf8(buffer.into_vec()) {
                     Ok(s) => s,
@@ -1359,22 +1303,14 @@ where
 
             let duration_ptr = duration_ptr as u32 as usize;
 
-            let read_result: Result<u32, _> = {
+            let read_result = {
                 let memory_wrap = get_caller_memory(&mut caller, &memory);
-                read_memory_as(&memory_wrap, duration_ptr)
+                read_memory_as::<u32>(&memory_wrap, duration_ptr)
             };
+
+            let duration = process_read_result!(read_result, caller);
 
             let host_state = host_state_mut!(caller);
-
-            let duration = match read_result {
-                Ok(d) => d,
-                Err(e) => {
-                    host_state.err = FuncError::Memory(e);
-
-                    return Err(DummyHostError.into());
-                }
-            };
-
             let call_result = host_state.ext.wait_for(duration);
 
             host_state.err = match call_result {
@@ -1403,22 +1339,14 @@ where
 
             let duration_ptr = duration_ptr as u32 as usize;
 
-            let read_result: Result<u32, _> = {
+            let read_result = {
                 let memory_wrap = get_caller_memory(&mut caller, &memory);
-                read_memory_as(&memory_wrap, duration_ptr)
+                read_memory_as::<u32>(&memory_wrap, duration_ptr)
             };
+
+            let duration = process_read_result!(read_result, caller);
 
             let host_state = host_state_mut!(caller);
-
-            let duration = match read_result {
-                Ok(d) => d,
-                Err(e) => {
-                    host_state.err = FuncError::Memory(e);
-
-                    return Err(DummyHostError.into());
-                }
-            };
-
             let call_result = host_state.ext.wait_up_to(duration);
 
             host_state.err = match call_result {
@@ -1448,18 +1376,11 @@ where
                 })
             };
 
-            let (waker_id, delay) = match read_result {
-                Ok((a, d)) => (a.into(), d),
-                Err(e) => {
-                    host_state_mut!(caller).err = e.into();
-
-                    return Err(DummyHostError.into());
-                }
-            };
+            let (waker_id, delay) = process_read_result!(read_result, caller);
 
             let host_state = host_state_mut!(caller);
 
-            match host_state.ext.wake(waker_id, delay) {
+            match host_state.ext.wake(waker_id.into(), delay) {
                 Ok(_) => Ok(()),
                 Err(e) => {
                     host_state.err = FuncError::Core(e);
@@ -1519,14 +1440,7 @@ where
                     })
             };
 
-            let (value, code_hash, delay) = match read_result {
-                Ok((v, c, d)) => (v, c, d),
-                Err(e) => {
-                    host_state_mut!(caller).err = e.into();
-
-                    return Err(DummyHostError.into());
-                }
-            };
+            let (value, code_hash, delay) = process_read_result!(read_result, caller);
 
             process_call_result_as_ref!(
                 caller,
@@ -1590,14 +1504,7 @@ where
                     })
             };
 
-            let (value, code_hash, delay) = match read_result {
-                Ok((v, c, d)) => (v, c, d),
-                Err(e) => {
-                    host_state_mut!(caller).err = e.into();
-
-                    return Err(DummyHostError.into());
-                }
-            };
+            let (value, code_hash, delay) = process_read_result!(read_result, caller);
 
             process_call_result_as_ref!(
                 caller,
