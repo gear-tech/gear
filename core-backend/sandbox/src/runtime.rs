@@ -8,20 +8,20 @@ use sp_sandbox::{default_executor::Memory as DefaultExecutorMemory, SandboxMemor
 
 use crate::{funcs::FuncError, MemoryWrap};
 
-pub(crate) struct Runtime<'a, E: Ext> {
-    pub ext: &'a mut E,
-    pub memory: &'a DefaultExecutorMemory,
-    pub memory_wrap: &'a mut MemoryWrap,
+pub(crate) struct Runtime<E: Ext> {
+    pub ext: E,
+    pub memory: DefaultExecutorMemory,
+    pub memory_wrap: MemoryWrap,
     pub err: FuncError<E::Error>,
 }
 
-impl<'a, E: Ext> Runtime<'a, E> {
+impl<E: Ext> Runtime<E> {
     pub(crate) fn write_validated_output(
         &mut self,
         out_ptr: u32,
         f: impl FnOnce(&mut E) -> Result<&[u8], FuncError<E::Error>>,
     ) -> Result<(), FuncError<E::Error>> {
-        let buf = f(self.ext)?;
+        let buf = f(&mut self.ext)?;
 
         self.memory
             .set(out_ptr, buf)
@@ -31,10 +31,10 @@ impl<'a, E: Ext> Runtime<'a, E> {
     }
 }
 
-impl<'a, E: Ext> RuntimeCtx<E> for Runtime<'a, E> {
+impl<E: Ext> RuntimeCtx<E> for Runtime<E> {
     fn alloc(&mut self, pages: u32) -> Result<WasmPageNumber, RuntimeCtxError<E::Error>> {
         self.ext
-            .alloc(pages.into(), self.memory_wrap)
+            .alloc(pages.into(), &mut self.memory_wrap)
             .map_err(RuntimeCtxError::Ext)
     }
 

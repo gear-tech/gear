@@ -54,10 +54,6 @@ use frame_support::{
     traits::{Currency, StorageVersion},
     weights::Weight,
 };
-#[cfg(not(feature = "std"))]
-use gear_backend_sandbox::SandboxEnvironment as ExecutionEnvironment;
-#[cfg(feature = "std")]
-use gear_backend_wasmi::WasmiEnvironment as ExecutionEnvironment;
 use gear_core::{
     code::{Code, CodeAndId, InstrumentedCode, InstrumentedCodeAndId},
     ids::{CodeId, MessageId, ProgramId, ReservationId},
@@ -72,6 +68,12 @@ use sp_std::{
     convert::TryInto,
     prelude::*,
 };
+
+#[cfg(feature = "std")]
+type ExecutionEnvironment = gear_backend_wasmi::WasmiEnvironment<Ext>;
+
+#[cfg(not(feature = "std"))]
+type ExecutionEnvironment = gear_backend_sandbox::SandboxEnvironment<Ext>;
 
 pub(crate) use frame_system::Pallet as SystemPallet;
 

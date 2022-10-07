@@ -304,22 +304,23 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
     let ext = A::new(context);
 
     // Execute program in backend env.
-    let (termination, memory, ext) = match E::execute(
-        ext,
-        program.raw_code(),
-        program.code().exports().clone(),
-        memory_size,
-        &kind,
-        |memory, stack_end| {
-            prepare_memory::<A, E::Memory>(
-                program_id,
-                &mut pages_initial_data,
-                static_pages,
-                stack_end,
-                memory,
-            )
-        },
-    ) {
+    let f = || {
+        let env = E::new(ext, program.raw_code(), memory_size)?;
+        env.execute(
+            program.code().exports().clone(),
+            &kind,
+            |memory, stack_end| {
+                prepare_memory::<A, E::Memory>(
+                    program_id,
+                    &mut pages_initial_data,
+                    static_pages,
+                    stack_end,
+                    memory,
+                )
+            },
+        )
+    };
+    let (termination, memory, ext) = match f() {
         Ok(BackendReport {
             termination_reason: termination,
             memory_wrap: mut memory,

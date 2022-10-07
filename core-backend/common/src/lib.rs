@@ -194,12 +194,12 @@ pub trait Environment<E: Ext + IntoExtInfo + 'static>: Sized {
     /// 2) Creates wasm memory
     /// 3) Runs `pre_execution_handler` to fill the memory before running instance.
     /// 4) Instantiate external funcs for wasm module.
-    /// 5) Run instance setup starting at `entry_point` - wasm export function name.
+    fn new(ext: E, binary: &[u8], mem_size: WasmPageNumber) -> Result<Self, Self::Error>;
+
+    /// Run instance setup starting at `entry_point` - wasm export function name.
     fn execute<F, T>(
-        ext: E,
-        binary: &[u8],
+        self,
         entries: BTreeSet<DispatchKind>,
-        mem_size: WasmPageNumber,
         entry_point: &DispatchKind,
         pre_execution_handler: F,
     ) -> Result<BackendReport<Self::Memory, E>, Self::Error>

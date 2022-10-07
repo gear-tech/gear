@@ -35,7 +35,9 @@ use gear_backend_common::{
     STACK_END_EXPORT_NAME,
 };
 use gear_core::{env::Ext, gas::GasAmount, memory::WasmPageNumber, message::DispatchKind};
-use wasmi::{Engine, Extern, Linker, Memory as WasmiMemory, MemoryType, Module, Store};
+use wasmi::{
+    Engine, Extern, Instance, Linker, Memory as WasmiMemory, Memory, MemoryType, Module, Store,
+};
 
 #[derive(Debug, derive_more::Display, derive_more::From)]
 pub enum WasmiEnvironmentError {
@@ -80,9 +82,13 @@ macro_rules! gas_amount {
 }
 
 /// Environment to run one module at a time providing Ext.
-pub struct WasmiEnvironment;
+pub struct WasmiEnvironment<E: Ext> {
+    instance: Instance,
+    store: Store<HostState<E>>,
+    memory: Memory,
+}
 
-impl<E> Environment<E> for WasmiEnvironment
+impl<E> Environment<E> for WasmiEnvironment<E>
 where
     E: Ext + IntoExtInfo + GetGasAmount + 'static,
     E::Error: AsTerminationReason + IntoExtError,
@@ -90,18 +96,7 @@ where
     type Memory = MemoryWrap<E>;
     type Error = Error;
 
-    fn execute<F, T>(
-        ext: E,
-        binary: &[u8],
-        entries: BTreeSet<DispatchKind>,
-        mem_size: WasmPageNumber,
-        entry_point: &DispatchKind,
-        pre_execution_handler: F,
-    ) -> Result<BackendReport<Self::Memory, E>, Self::Error>
-    where
-        F: FnOnce(&mut Self::Memory, Option<WasmPageNumber>) -> Result<(), T>,
-        T: fmt::Display,
-    {
+    fn new(ext: E, binary: &[u8], mem_size: WasmPageNumber) -> Result<Self, Self::Error> {
         use WasmiEnvironmentError::*;
 
         let engine = Engine::default();
@@ -136,83 +131,104 @@ where
 
         *store.state_mut() = Some(runtime);
 
-        let (ext, memory_wrap, termination) = {
-            let instance_pre = linker
-                .instantiate(&mut store, &module)
-                .map_err(|e| (gas_amount!(store), ModuleInstantiation(e)))?;
+        let instance_pre = linker
+            .instantiate(&mut store, &module)
+            .map_err(|e| (gas_amount!(store), ModuleInstantiation(e)))?;
 
-            let instance = instance_pre
-                .ensure_no_start(&mut store)
-                .map_err(|e| (gas_amount!(store), ModuleInstantiation(e.into())))?;
+        let instance = instance_pre
+            .ensure_no_start(&mut store)
+            .map_err(|e| (gas_amount!(store), ModuleInstantiation(e.into())))?;
 
-            let stack_end = instance
-                .get_export(&store, STACK_END_EXPORT_NAME)
-                .and_then(Extern::into_global)
-                .and_then(|g| g.get(&store).try_into::<i32>());
-            let stack_end_page =
-                calc_stack_end(stack_end).map_err(|e| (gas_amount!(store), StackEnd(e)))?;
+        Ok(Self {
+            instance,
+            store,
+            memory,
+        })
+    }
 
-            let mut memory_wrap = MemoryWrap::new(memory, store);
-            pre_execution_handler(&mut memory_wrap, stack_end_page).map_err(|e| {
-                let store = &memory_wrap.store;
-                (gas_amount!(store), PreExecutionHandler(e.to_string()))
-            })?;
+    fn execute<F, T>(
+        self,
+        entries: BTreeSet<DispatchKind>,
+        entry_point: &DispatchKind,
+        pre_execution_handler: F,
+    ) -> Result<BackendReport<Self::Memory, E>, Self::Error>
+    where
+        F: FnOnce(&mut Self::Memory, Option<WasmPageNumber>) -> Result<(), T>,
+        T: fmt::Display,
+    {
+        use WasmiEnvironmentError::*;
 
-            let res = if entries.contains(entry_point) {
-                let func = instance
-                    .get_export(&memory_wrap.store, entry_point.into_entry())
-                    .and_then(Extern::into_func)
-                    .ok_or({
-                        let store = &memory_wrap.store;
-                        (
-                            gas_amount!(store),
-                            GetWasmExports(entry_point.into_entry().to_string()),
-                        )
-                    })?;
+        let Self {
+            instance,
+            store,
+            memory,
+        } = self;
 
-                let entry_func = func
-                    .typed::<(), (), _>(&mut memory_wrap.store)
-                    .map_err(|_| {
-                        let store = &memory_wrap.store;
-                        (
-                            gas_amount!(store),
-                            EntryPointWrongType(entry_point.into_entry().to_string()),
-                        )
-                    })?;
+        let stack_end = instance
+            .get_export(&store, STACK_END_EXPORT_NAME)
+            .and_then(Extern::into_global)
+            .and_then(|g| g.get(&store).try_into::<i32>());
+        let stack_end_page =
+            calc_stack_end(stack_end).map_err(|e| (gas_amount!(store), StackEnd(e)))?;
 
-                entry_func.call(&mut memory_wrap.store, ())
+        let mut memory_wrap = MemoryWrap::new(memory, store);
+        pre_execution_handler(&mut memory_wrap, stack_end_page).map_err(|e| {
+            let store = &memory_wrap.store;
+            (gas_amount!(store), PreExecutionHandler(e.to_string()))
+        })?;
+
+        let res = if entries.contains(entry_point) {
+            let func = instance
+                .get_export(&memory_wrap.store, entry_point.into_entry())
+                .and_then(Extern::into_func)
+                .ok_or({
+                    let store = &memory_wrap.store;
+                    (
+                        gas_amount!(store),
+                        GetWasmExports(entry_point.into_entry().to_string()),
+                    )
+                })?;
+
+            let entry_func = func
+                .typed::<(), (), _>(&mut memory_wrap.store)
+                .map_err(|_| {
+                    let store = &memory_wrap.store;
+                    (
+                        gas_amount!(store),
+                        EntryPointWrongType(entry_point.into_entry().to_string()),
+                    )
+                })?;
+
+            entry_func.call(&mut memory_wrap.store, ())
+        } else {
+            Ok(())
+        };
+
+        let runtime = memory_wrap
+            .store
+            .state_mut()
+            .take()
+            .expect("set before the block; qed");
+
+        let State { ext, err: trap, .. } = runtime;
+
+        log::debug!("WasmiEnvironment::execute result = {res:?}");
+
+        let trap_explanation = ext.trap_explanation();
+
+        let termination = if res.is_err() {
+            let reason = trap_explanation
+                .map(TerminationReason::Trap)
+                .unwrap_or_else(|| trap.into_termination_reason());
+
+            // success is unacceptable when there is an error
+            if let TerminationReason::Success = reason {
+                TerminationReason::Trap(TrapExplanation::Unknown)
             } else {
-                Ok(())
-            };
-
-            let runtime = memory_wrap
-                .store
-                .state_mut()
-                .take()
-                .expect("set before the block; qed");
-
-            let State { ext, err: trap, .. } = runtime;
-
-            log::debug!("WasmiEnvironment::execute result = {res:?}");
-
-            let trap_explanation = ext.trap_explanation();
-
-            let termination = if res.is_err() {
-                let reason = trap_explanation
-                    .map(TerminationReason::Trap)
-                    .unwrap_or_else(|| trap.into_termination_reason());
-
-                // success is unacceptable when there is an error
-                if let TerminationReason::Success = reason {
-                    TerminationReason::Trap(TrapExplanation::Unknown)
-                } else {
-                    reason
-                }
-            } else {
-                TerminationReason::Success
-            };
-
-            (ext, memory_wrap, termination)
+                reason
+            }
+        } else {
+            TerminationReason::Success
         };
 
         Ok(BackendReport {

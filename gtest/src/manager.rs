@@ -610,11 +610,10 @@ impl ExtManager {
 
         let journal = match core_processor::prepare(&block_config, message_execution_context) {
             PrepareResult::WontExecute(journal) | PrepareResult::Error(journal) => journal,
-            PrepareResult::Ok { context, .. } => core_processor::process::<Ext, WasmiEnvironment>(
-                &block_config,
-                context,
-                memory_pages,
-            ),
+            PrepareResult::Ok { context, .. } => core_processor::process::<
+                Ext,
+                WasmiEnvironment<Ext>,
+            >(&block_config, context, memory_pages),
         };
 
         core_processor::handle_journal(journal, self);
