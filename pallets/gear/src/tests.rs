@@ -6334,7 +6334,7 @@ fn check_gr_read_error_works() {
         assert_failed(
             message_id,
             ExecutionErrorReason::Ext(TrapExplanation::Other(
-                FuncError::<u32>::ReadWrongRange(0..10, 0)
+                FuncError::<&str>::ReadWrongRange(0..10, 0)
                     .to_string()
                     .into(),
             )),
