@@ -30,9 +30,10 @@ use alloc::{
 use core::fmt;
 use gear_backend_common::{
     calc_stack_end, error_processor::IntoExtError, AsTerminationReason, BackendReport, Environment,
-    IntoExtInfo, StackEndError, TerminationReason, TrapExplanation, STACK_END_EXPORT_NAME,
+    GetGasAmount, IntoExtInfo, StackEndError, TerminationReason, TrapExplanation,
+    STACK_END_EXPORT_NAME,
 };
-use gear_core::{env::Ext, memory::WasmPageNumber, message::DispatchKind};
+use gear_core::{env::Ext, gas::GasAmount, memory::WasmPageNumber, message::DispatchKind};
 use sp_sandbox::{
     default_executor::{EnvironmentDefinitionBuilder, Instance, Memory as DefaultExecutorMemory},
     HostFuncType, ReturnValue, SandboxEnvironmentBuilder, SandboxInstance, SandboxMemory,
@@ -54,6 +55,19 @@ pub enum SandboxEnvironmentError {
     PreExecutionHandler(String),
     #[from]
     StackEnd(StackEndError),
+}
+
+#[derive(Debug, derive_more::Display, derive_more::From)]
+#[display(fmt = "{}", error)]
+pub struct Error {
+    gas_amount: GasAmount,
+    error: SandboxEnvironmentError,
+}
+
+impl GetGasAmount for Error {
+    fn gas_amount(&self) -> GasAmount {
+        self.gas_amount.clone()
+    }
 }
 
 /// Environment to run one module at a time providing Ext.
@@ -88,20 +102,20 @@ impl<'a, E: Ext> From<EnvBuilder<'a, E>> for EnvironmentDefinitionBuilder<Runtim
 
 impl<E> Environment<E> for SandboxEnvironment
 where
-    E: Ext + IntoExtInfo + 'static,
+    E: Ext + IntoExtInfo + GetGasAmount + 'static,
     E::Error: AsTerminationReason + IntoExtError,
 {
     type Memory = MemoryWrap;
-    type Error = SandboxEnvironmentError;
+    type Error = Error;
 
     fn execute<F, T>(
-        ext: &mut E,
+        mut ext: E,
         binary: &[u8],
         entries: BTreeSet<DispatchKind>,
         mem_size: WasmPageNumber,
         entry_point: &DispatchKind,
         pre_execution_handler: F,
-    ) -> Result<BackendReport<Self::Memory>, Self::Error>
+    ) -> Result<BackendReport<Self::Memory, E>, Self::Error>
     where
         F: FnOnce(&mut Self::Memory, Option<WasmPageNumber>) -> Result<(), T>,
         T: fmt::Display,
@@ -153,7 +167,7 @@ where
 
         let mem: DefaultExecutorMemory = match SandboxMemory::new(mem_size.0, None) {
             Ok(mem) => mem,
-            Err(e) => return Err(CreateEnvMemory(e)),
+            Err(e) => return Err((ext.gas_amount(), CreateEnvMemory(e)).into()),
         };
 
         env_builder.add_memory("env", "memory", mem.clone());
@@ -163,7 +177,7 @@ where
 
         let mut memory_wrap = MemoryWrap::new(mem.clone());
         let mut runtime = Runtime {
-            ext,
+            ext: &mut ext,
             memory: &mem,
             memory_wrap: &mut memory_wrap,
             err: FuncError::Terminated(TerminationReason::Success),
@@ -171,16 +185,23 @@ where
 
         let mut instance = match Instance::new(binary, &env_builder, &mut runtime) {
             Ok(inst) => inst,
-            Err(e) => return Err(ModuleInstantiation(e)),
+            Err(e) => return Err((runtime.ext.gas_amount(), ModuleInstantiation(e)).into()),
         };
 
         let stack_end = instance
             .get_global_val(STACK_END_EXPORT_NAME)
             .and_then(|global| global.as_i32());
-        let stack_end_page = calc_stack_end(stack_end)?;
+        let stack_end_page = match calc_stack_end(stack_end) {
+            Ok(s) => s,
+            Err(e) => return Err((runtime.ext.gas_amount(), StackEnd(e)).into()),
+        };
 
-        pre_execution_handler(runtime.memory_wrap, stack_end_page)
-            .map_err(|e| PreExecutionHandler(e.to_string()))?;
+        match pre_execution_handler(runtime.memory_wrap, stack_end_page) {
+            Ok(_) => (),
+            Err(e) => {
+                return Err((runtime.ext.gas_amount(), PreExecutionHandler(e.to_string())).into());
+            }
+        }
 
         let res = if entries.contains(entry_point) {
             instance.invoke(entry_point.into_entry(), &[], &mut runtime)
@@ -188,7 +209,8 @@ where
             Ok(ReturnValue::Unit)
         };
 
-        let Runtime { ext, err: trap, .. } = runtime;
+        let Runtime { err: trap, .. } = runtime;
+        drop(instance);
 
         log::debug!("SandboxEnvironment::execute res = {res:?}");
 
@@ -209,10 +231,10 @@ where
             TerminationReason::Success
         };
 
-        drop(instance);
         Ok(BackendReport {
             termination_reason: termination,
             memory_wrap,
+            ext,
         })
     }
 }

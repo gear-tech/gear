@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2022 Gear Technologies Inc.
+// Copyright (C) 2021-2022 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -16,18 +16,6 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Provide wasmi support.
-
-#![cfg_attr(not(feature = "std"), no_std)]
-
-extern crate alloc;
-
-pub mod env;
-pub mod funcs;
-pub mod funcs_tree;
-pub mod memory;
-pub mod state;
-
-pub use env::WasmiEnvironment;
-pub use memory::MemoryWrap;
-pub use wasmi;
+fn main() {
+    gear_wasm_builder::build();
+}

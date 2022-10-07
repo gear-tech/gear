@@ -301,7 +301,7 @@ pub trait Memory {
     fn data_size(&self) -> usize;
 
     /// Returns native addr of wasm memory buffer in wasm executor
-    fn get_buffer_host_addr(&self) -> Option<HostPointer> {
+    fn get_buffer_host_addr(&mut self) -> Option<HostPointer> {
         if self.size() == 0.into() {
             None
         } else {
@@ -314,7 +314,7 @@ pub trait Memory {
     /// Get buffer addr unsafe.
     /// # Safety
     /// if memory size is 0 then buffer addr can be garbage
-    unsafe fn get_buffer_host_addr_unsafe(&self) -> HostPointer;
+    unsafe fn get_buffer_host_addr_unsafe(&mut self) -> HostPointer;
 }
 
 /// Pages allocations context for the running program.

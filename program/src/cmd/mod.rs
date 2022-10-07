@@ -1,9 +1,9 @@
 //! commands
 #![cfg(feature = "cli")]
 use crate::{api::Api, result::Result};
+use clap::Parser;
 use env_logger::{Builder, Env};
 use log::LevelFilter;
-use structopt::StructOpt;
 
 pub mod claim;
 pub mod create;
@@ -21,7 +21,7 @@ pub mod upload;
 pub mod upload_program;
 
 /// Commands of cli `gear`
-#[derive(Debug, StructOpt)]
+#[derive(Debug, Parser)]
 pub enum Command {
     Claim(claim::Claim),
     Create(create::Create),
@@ -40,20 +40,20 @@ pub enum Command {
 }
 
 /// Entrypoint of cli `gear`
-#[derive(Debug, StructOpt)]
-#[structopt(name = "gear-program")]
+#[derive(Debug, Parser)]
+#[clap(name = "gear-program")]
 pub struct Opt {
     /// Commands.
-    #[structopt(subcommand)]
+    #[clap(subcommand)]
     pub command: Command,
     /// Enable verbose logs.
-    #[structopt(short, long)]
+    #[clap(short, long)]
     pub verbose: bool,
     /// Gear node rpc endpoint.
-    #[structopt(short, long)]
+    #[clap(short, long)]
     pub endpoint: Option<String>,
     /// Password of the signer account.
-    #[structopt(short, long)]
+    #[clap(short, long)]
     pub passwd: Option<String>,
 }
 
@@ -100,6 +100,13 @@ impl Opt {
     /// Create api client from endpoint
     async fn api(&self) -> Result<Api> {
         Api::new(self.endpoint.as_deref()).await
+    }
+
+    /// Execute command sync
+    pub fn exec_sync(&self) -> color_eyre::Result<()> {
+        let rt = tokio::runtime::Runtime::new().unwrap();
+
+        rt.block_on(self.exec()).map_err(Into::into)
     }
 
     /// Execute command.

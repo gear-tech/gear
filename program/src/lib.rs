@@ -34,35 +34,33 @@
 //!
 //! ```sh
 //! $ gear
-//! gear-program 0.1.3
+//! gear-program 0.1.5
 //!
 //! USAGE:
-//!    gear [FLAGS] [OPTIONS] <SUBCOMMAND>
-//!
-//! FLAGS:
-//!    -h, --help       Prints help information
-//!    -V, --version    Prints version information
-//!    -v, --verbose    Enable verbose logs
+//!    gear [OPTIONS] <SUBCOMMAND>
 //!
 //! OPTIONS:
-//!    -e, --endpoint <endpoint>    Gear node rpc endpoint
-//!    -p, --passwd <passwd>        Password of the signer account
+//!    -e, --endpoint <ENDPOINT>    Gear node rpc endpoint
+//!    -h, --help                   Print help information
+//!    -p, --passwd <PASSWD>        Password of the signer account
+//!    -v, --verbose                Enable verbose logs
 //!
 //! SUBCOMMANDS:
-//!    claim       Claim value from mailbox
-//!    create      Deploy program to gear node
-//!    help        Prints this message or the help of the given subcommand(s)
-//!    info        Get account info from ss58address
-//!    key         Keypair utils
-//!    login       Log in to account
-//!    meta        Show metadata structure, read types from registry, etc
-//!    new         Create a new gear program
-//!    program     Read program state, etc
-//!    reply       Sends a reply message
-//!    send        Sends a message to a program or to another account
-//!    transfer    Transfer value
-//!    update      Update self from crates.io or github
-//!    upload      Saves program `code` in storage
+//!    claim             Claim value from mailbox
+//!    create            Deploy program to gear node
+//!    help              Print this message or the help of the given subcommand(s)
+//!    info              Get account info from ss58address
+//!    key               Keypair utils
+//!    login             Log in to account
+//!    meta              Show metadata structure, read types from registry, etc
+//!    new               Create a new gear program
+//!    program           Read program state, etc
+//!    reply             Sends a reply message
+//!    send              Sends a message to a program or to another account
+//!    transfer          Transfer value
+//!    update            Update self from crates.io or github
+//!    upload            Saves program `code` in storage
+//!    upload-program    Deploy program to gear node
 //! ```
 //!
 //! Now, let's create a <kbd>new</kbd> gear program and upload it to the staging testnet!

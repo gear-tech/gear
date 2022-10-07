@@ -126,6 +126,10 @@ pub trait IntoExtInfo {
     fn trap_explanation(&self) -> Option<TrapExplanation>;
 }
 
+pub trait GetGasAmount {
+    fn gas_amount(&self) -> GasAmount;
+}
+
 #[derive(Debug, derive_more::Display, derive_more::From)]
 pub enum RuntimeCtxError<E: Display> {
     #[display(fmt = "{}", _0)]
@@ -164,9 +168,10 @@ pub trait RuntimeCtx<E: Ext> {
     fn write_output(&mut self, out_ptr: u32, buf: &[u8]) -> Result<(), RuntimeCtxError<E::Error>>;
 }
 
-pub struct BackendReport<T> {
+pub struct BackendReport<T, E> {
     pub termination_reason: TerminationReason,
     pub memory_wrap: T,
+    pub ext: E,
 }
 
 #[derive(Debug, derive_more::Display)]
@@ -185,7 +190,7 @@ pub trait Environment<E: Ext + IntoExtInfo + 'static>: Sized {
     type Memory: Memory;
 
     /// An error issues in environment.
-    type Error: fmt::Display;
+    type Error: fmt::Display + GetGasAmount;
 
     /// 1) Instantiates wasm binary.
     /// 2) Creates wasm memory
@@ -193,13 +198,13 @@ pub trait Environment<E: Ext + IntoExtInfo + 'static>: Sized {
     /// 4) Instantiate external funcs for wasm module.
     /// 5) Run instance setup starting at `entry_point` - wasm export function name.
     fn execute<F, T>(
-        ext: &mut E,
+        ext: E,
         binary: &[u8],
         entries: BTreeSet<DispatchKind>,
         mem_size: WasmPageNumber,
         entry_point: &DispatchKind,
         pre_execution_handler: F,
-    ) -> Result<BackendReport<Self::Memory>, Self::Error>
+    ) -> Result<BackendReport<Self::Memory, E>, Self::Error>
     where
         F: FnOnce(&mut Self::Memory, Option<WasmPageNumber>) -> Result<(), T>,
         T: fmt::Display;

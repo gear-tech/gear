@@ -2,24 +2,17 @@
 
 use crate::result::Result;
 use anyhow::anyhow;
+use std::{fs, path::PathBuf};
 
-#[cfg(feature = "cli")]
-pub use cli::*;
+/// home directory of cli `gear`
+pub fn home() -> PathBuf {
+    let home = dirs::home_dir().unwrap_or_else(|| ".".into()).join(".gear");
 
-#[cfg(feature = "cli")]
-mod cli {
-    use std::{fs, path::PathBuf};
-
-    /// home directory of cli `gear`
-    pub fn home() -> PathBuf {
-        let home = dirs::home_dir().unwrap_or_else(|| ".".into()).join(".gear");
-
-        if !home.exists() {
-            fs::create_dir_all(&home).expect("Failed to create ~/.gear");
-        }
-
-        home
+    if !home.exists() {
+        fs::create_dir_all(&home).expect("Failed to create ~/.gear");
     }
+
+    home
 }
 
 pub fn hex_to_vec(string: impl AsRef<str>) -> Result<Vec<u8>> {

@@ -24,8 +24,8 @@ use alloc::{
 };
 use core::fmt;
 use gear_backend_common::{
-    error_processor::IntoExtError, AsTerminationReason, ExtInfo, IntoExtInfo, TerminationReason,
-    TrapExplanation,
+    error_processor::IntoExtError, AsTerminationReason, ExtInfo, GetGasAmount, IntoExtInfo,
+    TerminationReason, TrapExplanation,
 };
 use gear_core::{
     charge_gas_token,
@@ -91,13 +91,13 @@ pub trait ProcessorExt {
 
     /// Protect and save storage keys for pages which has no data
     fn lazy_pages_init_for_program(
-        mem: &impl Memory,
+        mem: &mut impl Memory,
         prog_id: ProgramId,
         stack_end: Option<WasmPageNumber>,
     ) -> Result<(), Self::Error>;
 
     /// Lazy pages contract post execution actions
-    fn lazy_pages_post_execution_actions(mem: &impl Memory) -> Result<(), Self::Error>;
+    fn lazy_pages_post_execution_actions(mem: &mut impl Memory) -> Result<(), Self::Error>;
 }
 
 /// [`Ext`](Ext)'s error
@@ -202,14 +202,14 @@ impl ProcessorExt for Ext {
     }
 
     fn lazy_pages_init_for_program(
-        _mem: &impl Memory,
+        _mem: &mut impl Memory,
         _prog_id: ProgramId,
         _stack_end: Option<WasmPageNumber>,
     ) -> Result<(), Self::Error> {
         unreachable!()
     }
 
-    fn lazy_pages_post_execution_actions(_mem: &impl Memory) -> Result<(), Self::Error> {
+    fn lazy_pages_post_execution_actions(_mem: &mut impl Memory) -> Result<(), Self::Error> {
         unreachable!()
     }
 }
@@ -270,6 +270,14 @@ impl IntoExtInfo for Ext {
         self.error_explanation
             .clone()
             .and_then(ProcessorError::into_trap_explanation)
+    }
+}
+
+impl GetGasAmount for Ext {
+    fn gas_amount(&self) -> GasAmount {
+        let gas_counter = self.context.gas_counter.clone();
+
+        gas_counter.into()
     }
 }
 
