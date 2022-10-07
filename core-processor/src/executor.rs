@@ -66,6 +66,22 @@ fn check_memory<'a>(
     Ok(())
 }
 
+pub(crate) fn charge_gas_for_instantiation(
+    amount: u64,
+    gas_counter: &mut GasCounter,
+    gas_allowance_counter: &mut GasAllowanceCounter,
+) -> Result<(), ExecutionErrorReason> {
+    if gas_allowance_counter.charge(amount) != ChargeResult::Enough {
+        return Err(ExecutionErrorReason::ModuleInstantiationBlockGasExceeded);
+    }
+
+    if gas_counter.charge(amount) != ChargeResult::Enough {
+        return Err(ExecutionErrorReason::ModuleInstantiationGasExceeded);
+    }
+
+    Ok(())
+}
+
 /// Charge gas for pages init/load/grow and checks that there is enough gas for that.
 /// Returns size of wasm memory buffer which must be created in execution environment.
 pub(crate) fn charge_gas_for_pages(

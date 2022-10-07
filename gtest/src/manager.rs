@@ -20,7 +20,8 @@ use crate::{
     log::{CoreLog, RunResult},
     program::{Gas, WasmProgram},
     wasm_executor::WasmExecutor,
-    Result, TestError, EXISTENTIAL_DEPOSIT, MAILBOX_THRESHOLD, RESERVE_FOR, WAITLIST_COST,
+    Result, TestError, EXISTENTIAL_DEPOSIT, MAILBOX_THRESHOLD, MODULE_INSTANTIATION, RESERVE_FOR,
+    WAITLIST_COST,
 };
 use core_processor::{
     common::*,
@@ -594,6 +595,7 @@ impl ExtManager {
             forbidden_funcs: Default::default(),
             mailbox_threshold: MAILBOX_THRESHOLD,
             waitlist_cost: WAITLIST_COST,
+            module_instantiation: MODULE_INSTANTIATION,
             reserve_for: RESERVE_FOR,
         };
         let message_execution_context = MessageExecutionContext {

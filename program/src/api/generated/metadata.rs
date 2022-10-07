@@ -8188,9 +8188,9 @@ pub mod api {
                     let metadata = locked_metadata.read();
                     if metadata.constant_hash("Gear", "Schedule")?
                         == [
-                            190u8, 249u8, 239u8, 138u8, 76u8, 42u8, 7u8, 80u8, 198u8, 241u8, 123u8,
-                            55u8, 30u8, 245u8, 2u8, 11u8, 199u8, 93u8, 105u8, 198u8, 118u8, 254u8,
-                            198u8, 41u8, 202u8, 168u8, 165u8, 146u8, 28u8, 56u8, 198u8, 124u8,
+                            3u8, 204u8, 112u8, 192u8, 162u8, 101u8, 149u8, 44u8, 1u8, 145u8, 205u8,
+                            145u8, 136u8, 19u8, 185u8, 180u8, 149u8, 126u8, 11u8, 121u8, 165u8,
+                            76u8, 214u8, 226u8, 51u8, 131u8, 151u8, 91u8, 32u8, 194u8, 173u8, 39u8,
                         ]
                     {
                         let pallet = metadata.pallet("Gear")?;
@@ -9786,6 +9786,7 @@ pub mod api {
                         runtime_types::pallet_gear::schedule::InstructionWeights,
                     pub host_fn_weights: runtime_types::pallet_gear::schedule::HostFnWeights,
                     pub memory_weights: runtime_types::pallet_gear::schedule::MemoryWeights,
+                    pub module_instantiation: ::core::primitive::u64,
                 }
             }
         }
@@ -11426,9 +11427,9 @@ pub mod api {
             };
             if runtime_metadata_hash
                 != [
-                    43u8, 193u8, 63u8, 146u8, 26u8, 183u8, 253u8, 98u8, 93u8, 60u8, 119u8, 237u8,
-                    114u8, 235u8, 187u8, 35u8, 65u8, 109u8, 244u8, 78u8, 23u8, 39u8, 250u8, 200u8,
-                    54u8, 243u8, 74u8, 44u8, 177u8, 77u8, 235u8, 126u8,
+                    14u8, 199u8, 50u8, 141u8, 247u8, 102u8, 174u8, 95u8, 50u8, 155u8, 248u8, 156u8,
+                    57u8, 241u8, 185u8, 169u8, 126u8, 137u8, 182u8, 54u8, 37u8, 122u8, 102u8,
+                    126u8, 162u8, 244u8, 3u8, 135u8, 239u8, 8u8, 68u8, 113u8,
                 ]
             {
                 Err(::subxt::MetadataError::IncompatibleMetadata)

@@ -802,6 +802,7 @@ pub mod pallet {
                 forbidden_funcs: ["gr_gas_available"].into(),
                 mailbox_threshold: T::MailboxThreshold::get(),
                 waitlist_cost: CostsPerBlockOf::<T>::waitlist(),
+                module_instantiation: schedule.module_instantiation,
                 reserve_for: CostsPerBlockOf::<T>::reserve_for().unique_saturated_into(),
             };
 
@@ -1151,6 +1152,7 @@ pub mod pallet {
                 forbidden_funcs: Default::default(),
                 mailbox_threshold: T::MailboxThreshold::get(),
                 waitlist_cost: CostsPerBlockOf::<T>::waitlist(),
+                module_instantiation: schedule.module_instantiation,
                 reserve_for: CostsPerBlockOf::<T>::reserve_for().unique_saturated_into(),
             };
 

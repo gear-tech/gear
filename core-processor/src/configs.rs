@@ -82,6 +82,8 @@ pub struct ExecutionSettings {
     pub mailbox_threshold: u64,
     /// Cost for single block waitlist holding.
     pub waitlist_cost: u64,
+    /// Cost for single WASM module instantiation.
+    pub module_instantiation: u64,
     /// Reserve for parameter of scheduling.
     pub reserve_for: u32,
 }
@@ -112,6 +114,8 @@ pub struct BlockConfig {
     pub mailbox_threshold: u64,
     /// Cost for single block waitlist holding.
     pub waitlist_cost: u64,
+    /// Cost for single WASM module instantiation.
+    pub module_instantiation: u64,
     /// Reserve for parameter of scheduling.
     pub reserve_for: u32,
 }

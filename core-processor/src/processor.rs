@@ -127,25 +127,35 @@ pub fn prepare(
     }
 
     let mut gas_allowance_counter = GasAllowanceCounter::new(gas_allowance);
-    let memory_size = match executor::charge_gas_for_pages(
-        &block_config.allocations_config,
-        &mut gas_counter,
-        &mut gas_allowance_counter,
-        program.get_allocations(),
-        program.static_pages(),
-        dispatch.context().is_none() && matches!(dispatch.kind(), DispatchKind::Init),
-        subsequent_execution,
-    ) {
+    let mut f = || {
+        let memory_size = executor::charge_gas_for_pages(
+            &block_config.allocations_config,
+            &mut gas_counter,
+            &mut gas_allowance_counter,
+            program.get_allocations(),
+            program.static_pages(),
+            dispatch.context().is_none() && matches!(dispatch.kind(), DispatchKind::Init),
+            subsequent_execution,
+        )?;
+        executor::charge_gas_for_instantiation(
+            block_config.module_instantiation,
+            &mut gas_counter,
+            &mut gas_allowance_counter,
+        )?;
+        Ok(memory_size)
+    };
+    let memory_size = match f() {
         Ok(size) => {
-            log::debug!("Charged for memory pages. Size: {size:?}");
+            log::debug!("Charged for module instantiation and memory pages. Size: {size:?}");
             size
         }
         Err(reason) => {
-            log::debug!("Failed to charge for memory pages: {reason:?}");
+            log::debug!("Failed to charge for module instantiation or memory pages: {reason:?}");
             return PrepareResult::Error(match reason {
                 ExecutionErrorReason::InitialMemoryBlockGasExceeded
                 | ExecutionErrorReason::GrowMemoryBlockGasExceeded
-                | ExecutionErrorReason::LoadMemoryBlockGasExceeded => {
+                | ExecutionErrorReason::LoadMemoryBlockGasExceeded
+                | ExecutionErrorReason::ModuleInstantiationBlockGasExceeded => {
                     process_allowance_exceed(dispatch, program_id, gas_counter.burned())
                 }
                 _ => process_error(dispatch, program_id, gas_counter.burned(), reason),
@@ -184,6 +194,7 @@ pub fn process<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environment<
         forbidden_funcs,
         mailbox_threshold,
         waitlist_cost,
+        module_instantiation,
         reserve_for,
     } = block_config.clone();
 
@@ -195,6 +206,7 @@ pub fn process<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environment<
         forbidden_funcs,
         mailbox_threshold,
         waitlist_cost,
+        module_instantiation,
         reserve_for,
     };
 

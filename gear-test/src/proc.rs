@@ -42,6 +42,7 @@ pub const EXISTENTIAL_DEPOSIT: u128 = 500;
 pub const OUTGOING_LIMIT: u32 = 1024;
 pub const MAILBOX_THRESHOLD: u64 = 3000;
 pub const WAITLIST_COST: u64 = 100;
+pub const MODULE_INSTANTIATION: u64 = 5000;
 pub const RESERVE_FOR: u32 = 1;
 
 pub fn parse_payload(payload: String) -> String {
@@ -381,6 +382,7 @@ fn test_block_config(block_info: BlockInfo) -> BlockConfig {
         forbidden_funcs: Default::default(),
         mailbox_threshold: MAILBOX_THRESHOLD,
         waitlist_cost: WAITLIST_COST,
+        module_instantiation: MODULE_INSTANTIATION,
         reserve_for: RESERVE_FOR,
     }
 }
