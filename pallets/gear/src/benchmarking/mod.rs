@@ -33,6 +33,7 @@ use self::{
     sandbox::Sandbox,
 };
 use crate::{
+    benchmarking::code::max_pages,
     manager::{ExtManager, HandleKind},
     pallet,
     schedule::{API_BENCHMARK_BATCH_SIZE, INSTR_BENCHMARK_BATCH_SIZE},
@@ -52,6 +53,7 @@ use core_processor::{
 use frame_benchmarking::{benchmarks, whitelisted_caller};
 use frame_support::traits::{Currency, Get, Hooks, ReservableCurrency};
 use frame_system::{Pallet as SystemPallet, RawOrigin};
+use gear_backend_common::{mock::MockExt, Environment};
 use gear_core::{
     code::{Code, CodeAndId},
     ids::{CodeId, MessageId, ProgramId},
@@ -361,6 +363,15 @@ benchmarks! {
 
     where_clause { where
         T::AccountId: Origin,
+    }
+
+    // `c`: Size of the code in kilobytes.
+    instantiate_module {
+        let c in 0 .. Perbill::from_percent(49).mul_ceil(T::Schedule::get().limits.code_len);
+        let WasmModule { code, .. } = WasmModule::<T>::sized(c, Location::Init);
+        let ext = MockExt::default();
+    }: {
+        gear_backend_sandbox::SandboxEnvironment::new(ext.clone(), &code, max_pages::<T>().into()).unwrap();
     }
 
     claim_value {
