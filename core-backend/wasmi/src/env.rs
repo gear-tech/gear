@@ -71,11 +71,11 @@ impl GetGasAmount for Error {
 macro_rules! gas_amount {
     ($store:ident) => {
         $store
-                        .state()
-                        .as_ref()
-                        .expect("set before the block; qed")
-                        .ext
-                        .gas_amount()
+            .state()
+            .as_ref()
+            .expect("set before the block; qed")
+            .ext
+            .gas_amount()
     };
 }
 
@@ -137,27 +137,26 @@ where
         *store.state_mut() = Some(runtime);
 
         let (ext, memory_wrap, termination) = {
-            let instance_pre = linker.instantiate(&mut store, &module)
-                .map_err(|e|
-                    (gas_amount!(store), ModuleInstantiation(e))
-                )?;
+            let instance_pre = linker
+                .instantiate(&mut store, &module)
+                .map_err(|e| (gas_amount!(store), ModuleInstantiation(e)))?;
 
-            let instance = instance_pre.ensure_no_start(&mut store)
+            let instance = instance_pre
+                .ensure_no_start(&mut store)
                 .map_err(|e| (gas_amount!(store), ModuleInstantiation(e.into())))?;
 
             let stack_end = instance
                 .get_export(&store, STACK_END_EXPORT_NAME)
                 .and_then(Extern::into_global)
                 .and_then(|g| g.get(&store).try_into::<i32>());
-            let stack_end_page = calc_stack_end(stack_end)
-                .map_err(|e| (gas_amount!(store), StackEnd(e)))?;
+            let stack_end_page =
+                calc_stack_end(stack_end).map_err(|e| (gas_amount!(store), StackEnd(e)))?;
 
             let mut memory_wrap = MemoryWrap::new(memory, store);
-            pre_execution_handler(&mut memory_wrap, stack_end_page)
-                .map_err(|e| {
-                    let store = &memory_wrap.store;
-                    (gas_amount!(store), PreExecutionHandler(e.to_string()))
-                })?;
+            pre_execution_handler(&mut memory_wrap, stack_end_page).map_err(|e| {
+                let store = &memory_wrap.store;
+                (gas_amount!(store), PreExecutionHandler(e.to_string()))
+            })?;
 
             let res = if entries.contains(entry_point) {
                 let func = instance
@@ -165,13 +164,20 @@ where
                     .and_then(Extern::into_func)
                     .ok_or({
                         let store = &memory_wrap.store;
-                        (gas_amount!(store), GetWasmExports(entry_point.into_entry().to_string()))
+                        (
+                            gas_amount!(store),
+                            GetWasmExports(entry_point.into_entry().to_string()),
+                        )
                     })?;
 
-                let entry_func = func.typed::<(), (), _>(&mut memory_wrap.store)
+                let entry_func = func
+                    .typed::<(), (), _>(&mut memory_wrap.store)
                     .map_err(|_| {
                         let store = &memory_wrap.store;
-                        (gas_amount!(store), EntryPointWrongType(entry_point.into_entry().to_string()))
+                        (
+                            gas_amount!(store),
+                            EntryPointWrongType(entry_point.into_entry().to_string()),
+                        )
                     })?;
 
                 entry_func.call(&mut memory_wrap.store, ())
