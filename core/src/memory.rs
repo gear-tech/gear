@@ -337,6 +337,26 @@ impl Clone for AllocationsContext {
     }
 }
 
+/// Before and after memory grow actions.
+pub trait GrowHandler {
+    /// Before grow action
+    fn before_grow_action(mem: &mut impl Memory) -> Self;
+    /// After grow action
+    fn after_grow_action(self, mem: &mut impl Memory) -> Result<(), Error>;
+}
+
+/// Grow handler do nothing implementation
+pub struct GrowHandlerNothing;
+
+impl GrowHandler for GrowHandlerNothing {
+    fn before_grow_action(_mem: &mut impl Memory) -> Self {
+        GrowHandlerNothing
+    }
+    fn after_grow_action(self, _mem: &mut impl Memory) -> Result<(), Error> {
+        Ok(())
+    }
+}
+
 impl AllocationsContext {
     /// New allocations context.
     ///
@@ -363,7 +383,7 @@ impl AllocationsContext {
     }
 
     /// Alloc specific number of pages for the currently running program.
-    pub fn alloc(
+    pub fn alloc<G: GrowHandler>(
         &mut self,
         pages: WasmPageNumber,
         mem: &mut impl Memory,
@@ -400,7 +420,9 @@ impl AllocationsContext {
 
         let extra_grow = final_page.saturating_sub(mem.size());
         if extra_grow > 0.into() {
+            let grow_handler = G::before_grow_action(mem);
             mem.grow(extra_grow)?;
+            grow_handler.after_grow_action(mem)?;
         }
 
         for page_num in at.0..final_page.0 {
@@ -434,8 +456,14 @@ impl AllocationsContext {
     }
 
     /// Decomposes this instance and returns allocations.
-    pub fn into_parts(self) -> (BTreeSet<WasmPageNumber>, BTreeSet<WasmPageNumber>) {
-        (self.init_allocations, self.allocations)
+    pub fn into_parts(
+        self,
+    ) -> (
+        WasmPageNumber,
+        BTreeSet<WasmPageNumber>,
+        BTreeSet<WasmPageNumber>,
+    ) {
+        (self.static_pages, self.init_allocations, self.allocations)
     }
 }
 
