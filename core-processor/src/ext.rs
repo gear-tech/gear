@@ -730,6 +730,7 @@ impl Ext {
             allocations_context,
             message_context,
             gas_counter,
+            gas_reserver,
             program_candidates_data,
             ..
         } = self.context;
@@ -749,6 +750,7 @@ impl Ext {
 
         let info = ExtInfo {
             gas_amount: gas_counter.into(),
+            gas_reserver,
             allocations: allocations.ne(&initial_allocations).then_some(allocations),
             pages_data,
             generated_dispatches,
