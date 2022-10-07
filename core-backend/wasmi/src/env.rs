@@ -68,6 +68,17 @@ impl GetGasAmount for Error {
     }
 }
 
+macro_rules! gas_amount {
+    ($store:ident) => {
+        $store
+                        .state()
+                        .as_ref()
+                        .expect("set before the block; qed")
+                        .ext
+                        .gas_amount()
+    };
+}
+
 /// Environment to run one module at a time providing Ext.
 pub struct WasmiEnvironment;
 
@@ -126,103 +137,42 @@ where
         *store.state_mut() = Some(runtime);
 
         let (ext, memory_wrap, termination) = {
-            let instance_pre = match linker.instantiate(&mut store, &module) {
-                Ok(i) => i,
-                Err(e) => {
-                    let gas_amount = store
-                        .state()
-                        .as_ref()
-                        .expect("set before; qed")
-                        .ext
-                        .gas_amount();
-                    return Err((gas_amount, ModuleInstantiation(e)).into());
-                }
-            };
+            let instance_pre = linker.instantiate(&mut store, &module)
+                .map_err(|e|
+                    (gas_amount!(store), ModuleInstantiation(e))
+                )?;
 
-            let instance = match instance_pre.ensure_no_start(&mut store) {
-                Ok(i) => i,
-                Err(e) => {
-                    let gas_amount = store
-                        .state()
-                        .as_ref()
-                        .expect("set before; qed")
-                        .ext
-                        .gas_amount();
-                    return Err((gas_amount, ModuleInstantiation(e.into())).into());
-                }
-            };
+            let instance = instance_pre.ensure_no_start(&mut store)
+                .map_err(|e| (gas_amount!(store), ModuleInstantiation(e.into())))?;
 
             let stack_end = instance
                 .get_export(&store, STACK_END_EXPORT_NAME)
                 .and_then(Extern::into_global)
                 .and_then(|g| g.get(&store).try_into::<i32>());
-            let stack_end_page = match calc_stack_end(stack_end) {
-                Ok(s) => s,
-                Err(e) => {
-                    let gas_amount = store
-                        .state()
-                        .as_ref()
-                        .expect("set before; qed")
-                        .ext
-                        .gas_amount();
-                    return Err((gas_amount, StackEnd(e)).into());
-                }
-            };
+            let stack_end_page = calc_stack_end(stack_end)
+                .map_err(|e| (gas_amount!(store), StackEnd(e)))?;
 
             let mut memory_wrap = MemoryWrap::new(memory, store);
-            match pre_execution_handler(&mut memory_wrap, stack_end_page) {
-                Ok(_) => (),
-                Err(e) => {
-                    let gas_amount = memory_wrap
-                        .store
-                        .state()
-                        .as_ref()
-                        .expect("set before; qed")
-                        .ext
-                        .gas_amount();
-                    return Err((gas_amount, PreExecutionHandler(e.to_string())).into());
-                }
-            };
+            pre_execution_handler(&mut memory_wrap, stack_end_page)
+                .map_err(|e| {
+                    let store = &memory_wrap.store;
+                    (gas_amount!(store), PreExecutionHandler(e.to_string()))
+                })?;
 
             let res = if entries.contains(entry_point) {
-                let func = match instance
+                let func = instance
                     .get_export(&memory_wrap.store, entry_point.into_entry())
                     .and_then(Extern::into_func)
-                {
-                    Some(f) => f,
-                    None => {
-                        let gas_amount = memory_wrap
-                            .store
-                            .state()
-                            .as_ref()
-                            .expect("set before; qed")
-                            .ext
-                            .gas_amount();
-                        return Err((
-                            gas_amount,
-                            GetWasmExports(entry_point.into_entry().to_string()),
-                        )
-                            .into());
-                    }
-                };
+                    .ok_or({
+                        let store = &memory_wrap.store;
+                        (gas_amount!(store), GetWasmExports(entry_point.into_entry().to_string()))
+                    })?;
 
-                let entry_func = match func.typed::<(), (), _>(&mut memory_wrap.store) {
-                    Ok(f) => f,
-                    Err(_) => {
-                        let gas_amount = memory_wrap
-                            .store
-                            .state()
-                            .as_ref()
-                            .expect("set before; qed")
-                            .ext
-                            .gas_amount();
-                        return Err((
-                            gas_amount,
-                            EntryPointWrongType(entry_point.into_entry().to_string()),
-                        )
-                            .into());
-                    }
-                };
+                let entry_func = func.typed::<(), (), _>(&mut memory_wrap.store)
+                    .map_err(|_| {
+                        let store = &memory_wrap.store;
+                        (gas_amount!(store), EntryPointWrongType(entry_point.into_entry().to_string()))
+                    })?;
 
                 entry_func.call(&mut memory_wrap.store, ())
             } else {
