@@ -123,6 +123,12 @@ where
             F::create_program_wgas(store, forbidden, memory)
         }),
         f.build("gr_error", |forbidden| F::error(store, forbidden, memory)),
+        f.build("gr_reserve_gas", |forbidden| {
+            F::reserve_gas(store, forbidden, memory)
+        }),
+        f.build("gr_unreserve_gas", |forbidden| {
+            F::unreserve_gas(store, forbidden, memory)
+        }),
     ]
     .into();
 
