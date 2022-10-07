@@ -156,8 +156,7 @@ fn prepare_memory<A: ProcessorExt, M: Memory>(
         if !pages_data.is_empty() {
             return Err(ExecutionErrorReason::InitialPagesContainsDataInLazyPagesMode);
         }
-        A::lazy_pages_init_for_program(mem, program_id, stack_end)
-            .map_err(|err| ExecutionErrorReason::LazyPagesInitFailed(err.to_string()))?;
+        A::lazy_pages_init_for_program(mem, program_id, stack_end);
     } else {
         // If we executes without lazy pages, then we have to save all initial data for static pages,
         // in order to be able to identify pages, which has been changed during execution.
@@ -327,13 +326,7 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
         }) => {
             // released pages initial data will be added to `pages_initial_data` after execution.
             if A::LAZY_PAGES_ENABLED {
-                if let Err(e) = A::lazy_pages_post_execution_actions(&mut memory) {
-                    return Err(ExecutionError {
-                        program_id,
-                        gas_amount: ext.into_gas_amount(),
-                        reason: ExecutionErrorReason::Backend(e.to_string()),
-                    });
-                }
+                A::lazy_pages_post_execution_actions(&mut memory);
             }
 
             (termination, memory, ext)
