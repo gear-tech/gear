@@ -36,7 +36,7 @@ pub enum Error {
     WasmMemBufferIsUndefined,
 }
 
-fn mprotect_lazy_pages(mem: &impl Memory, protect: bool) -> Result<(), Error> {
+fn mprotect_lazy_pages(mem: &mut impl Memory, protect: bool) -> Result<(), Error> {
     if mem.get_buffer_host_addr().is_none() {
         return Ok(());
     }
@@ -54,7 +54,7 @@ pub fn try_to_enable_lazy_pages() -> bool {
 
 /// Protect and save storage keys for pages which has no data
 pub fn init_for_program(
-    mem: &impl Memory,
+    mem: &mut impl Memory,
     prog_id: ProgramId,
     stack_end: Option<WasmPageNumber>,
 ) -> Result<(), Error> {
@@ -76,14 +76,14 @@ pub fn init_for_program(
 }
 
 /// Remove lazy-pages protection, returns wasm memory begin addr
-pub fn remove_lazy_pages_prot(mem: &impl Memory) -> Result<(), Error> {
+pub fn remove_lazy_pages_prot(mem: &mut impl Memory) -> Result<(), Error> {
     mprotect_lazy_pages(mem, false)
 }
 
 /// Protect lazy-pages and set new wasm mem addr and size,
 /// if they have been changed.
 pub fn update_lazy_pages_and_protect_again(
-    mem: &impl Memory,
+    mem: &mut impl Memory,
     old_mem_addr: Option<HostPointer>,
     old_mem_size: WasmPageNumber,
 ) -> Result<(), Error> {

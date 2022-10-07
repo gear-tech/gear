@@ -19,8 +19,8 @@
 use alloc::collections::BTreeSet;
 use core_processor::{Ext, ProcessorContext, ProcessorError, ProcessorExt};
 use gear_backend_common::{
-    error_processor::IntoExtError, AsTerminationReason, ExtInfo, IntoExtInfo, TerminationReason,
-    TrapExplanation,
+    error_processor::IntoExtError, AsTerminationReason, ExtInfo, GetGasAmount, IntoExtInfo,
+    TerminationReason, TrapExplanation,
 };
 use gear_core::{
     costs::RuntimeCosts,
@@ -131,6 +131,14 @@ impl IntoExtInfo for LazyPagesExt {
     }
 }
 
+impl GetGasAmount for LazyPagesExt {
+    fn gas_amount(&self) -> GasAmount {
+        let gas_counter = self.inner.context.gas_counter.clone();
+
+        gas_counter.into()
+    }
+}
+
 impl ProcessorExt for LazyPagesExt {
     type Error = Error;
     const LAZY_PAGES_ENABLED: bool = true;
@@ -142,14 +150,14 @@ impl ProcessorExt for LazyPagesExt {
     }
 
     fn lazy_pages_init_for_program(
-        mem: &impl Memory,
+        mem: &mut impl Memory,
         prog_id: ProgramId,
         stack_end: Option<WasmPageNumber>,
     ) -> Result<(), Self::Error> {
         lazy_pages::init_for_program(mem, prog_id, stack_end).map_err(Into::into)
     }
 
-    fn lazy_pages_post_execution_actions(mem: &impl Memory) -> Result<(), Self::Error> {
+    fn lazy_pages_post_execution_actions(mem: &mut impl Memory) -> Result<(), Self::Error> {
         lazy_pages::remove_lazy_pages_prot(mem).map_err(Into::into)
     }
 }

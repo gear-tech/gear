@@ -28,7 +28,9 @@ use alloc::{
     collections::{BTreeMap, BTreeSet},
     string::ToString,
 };
-use gear_backend_common::{BackendReport, Environment, IntoExtInfo, TerminationReason};
+use gear_backend_common::{
+    BackendReport, Environment, GetGasAmount, IntoExtInfo, TerminationReason,
+};
 use gear_core::{
     env::Ext as EnvExt,
     gas::{ChargeResult, GasAllowanceCounter, GasCounter, ValueCounter},
@@ -299,11 +301,11 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
     };
 
     // Creating externalities.
-    let mut ext = A::new(context);
+    let ext = A::new(context);
 
     // Execute program in backend env.
-    let (termination, memory) = match E::execute(
-        &mut ext,
+    let (termination, memory, ext) = match E::execute(
+        ext,
         program.raw_code(),
         program.code().exports().clone(),
         memory_size,
@@ -320,11 +322,12 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
     ) {
         Ok(BackendReport {
             termination_reason: termination,
-            memory_wrap: memory,
+            memory_wrap: mut memory,
+            ext,
         }) => {
             // released pages initial data will be added to `pages_initial_data` after execution.
             if A::LAZY_PAGES_ENABLED {
-                if let Err(e) = A::lazy_pages_post_execution_actions(&memory) {
+                if let Err(e) = A::lazy_pages_post_execution_actions(&mut memory) {
                     return Err(ExecutionError {
                         program_id,
                         gas_amount: ext.into_gas_amount(),
@@ -332,13 +335,14 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
                     });
                 }
             }
-            (termination, memory)
+
+            (termination, memory, ext)
         }
 
         Err(e) => {
             return Err(ExecutionError {
                 program_id,
-                gas_amount: ext.into_gas_amount(),
+                gas_amount: e.gas_amount(),
                 reason: ExecutionErrorReason::Backend(e.to_string()),
             })
         }
