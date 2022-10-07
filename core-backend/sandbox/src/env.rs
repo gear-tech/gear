@@ -57,27 +57,16 @@ pub enum SandboxEnvironmentError {
     StackEnd(StackEndError),
 }
 
-#[derive(Debug)]
+#[derive(Debug, derive_more::Display, derive_more::From)]
+#[display(fmt = "{}", error)]
 pub struct Error {
     gas_amount: GasAmount,
     error: SandboxEnvironmentError,
 }
 
-impl fmt::Display for Error {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        fmt::Display::fmt(&self.error, f)
-    }
-}
-
 impl GetGasAmount for Error {
     fn gas_amount(&self) -> GasAmount {
         self.gas_amount.clone()
-    }
-}
-
-impl From<(GasAmount, SandboxEnvironmentError)> for Error {
-    fn from((gas_amount, error): (GasAmount, SandboxEnvironmentError)) -> Self {
-        Self { gas_amount, error }
     }
 }
 
