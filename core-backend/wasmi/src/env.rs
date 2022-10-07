@@ -111,11 +111,11 @@ where
 
         let memory_type = MemoryType::new(mem_size.0, None);
         let memory = WasmiMemory::new(&mut store, memory_type)
-            .map_err(|e| Error::from((ext.gas_amount(), CreateEnvMemory(e))))?;
+            .map_err(|e| (ext.gas_amount(), CreateEnvMemory(e)))?;
 
         linker
             .define("env", "memory", memory)
-            .map_err(|e| Error::from((ext.gas_amount(), Linking(e))))?;
+            .map_err(|e| (ext.gas_amount(), Linking(e)))?;
 
         let forbidden_funcs =
             (!ext.forbidden_funcs().is_empty()).then(|| ext.forbidden_funcs().clone());
@@ -123,11 +123,11 @@ where
         for (name, function) in functions {
             linker
                 .define("env", name, function)
-                .map_err(|e| Error::from((ext.gas_amount(), Linking(e))))?;
+                .map_err(|e| (ext.gas_amount(), Linking(e)))?;
         }
 
         let module = Module::new(store.engine(), &mut &binary[..])
-            .map_err(|e| Error::from((ext.gas_amount(), ModuleInstantiation(e))))?;
+            .map_err(|e| (ext.gas_amount(), ModuleInstantiation(e)))?;
 
         let runtime = State {
             ext,
