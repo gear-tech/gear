@@ -46,3 +46,9 @@ junit-common = { path = "../junit-common" }
 [features]
 gear-native = ["gear-runtime"]
 vara-native = ["vara-runtime"]
+lazy-pages = [
+    "pallet-gear/lazy-pages",
+    "pallet-gear-debug/lazy-pages",
+    "gear-runtime?/lazy-pages",
+    "vara-runtime?/lazy-pages",
+]

@@ -59,21 +59,30 @@ cli = [
 	"sc-service",
 ]
 gear-native = [
-	"service/gear-native",
+	"service?/gear-native",
 	"gear-runtime-test-cli?/gear-native",
 	"gear-runtime",
 ]
 vara-native = [
-	"service/vara-native",
+	"service?/vara-native",
 	"gear-runtime-test-cli?/vara-native",
 	"vara-runtime",
 ]
-lazy-pages = ["service/lazy-pages"]
+lazy-pages = [
+	"service?/lazy-pages",
+	"gear-runtime-test-cli?/lazy-pages",
+	"vara-runtime?/lazy-pages",
+	"gear-runtime?/lazy-pages",
+]
 runtime-benchmarks = [
-	"service/runtime-benchmarks",
+	"service?/runtime-benchmarks",
 	"frame-benchmarking-cli/runtime-benchmarks",
 ]
-debug-mode = ["service/debug-mode"]
-try-runtime = ["service/try-runtime", "try-runtime-cli"]
+debug-mode = [
+	"service?/debug-mode",
+	"gear-runtime?/debug-mode",
+	"vara-runtime?/debug-mode",
+]
+try-runtime = ["service?/try-runtime", "try-runtime-cli"]
 runtime-test = [ "gear-runtime-test-cli" ]
 program = [ "gear-program" ]

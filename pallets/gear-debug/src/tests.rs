@@ -815,6 +815,12 @@ fn check_gear_stack_end() {
         persistent_pages.insert(gear_page3, page_data);
 
         #[cfg(feature = "lazy-pages")]
+        log::debug!("LAZY-PAGES IS ON");
+
+        #[cfg(not(feature = "lazy-pages"))]
+        log::debug!("LAZY-PAGES IS OFF");
+
+        #[cfg(feature = "lazy-pages")]
         [gear_page2, gear_page3]
             .into_iter()
             .for_each(|page| append_rest_psg_pages(page, &mut persistent_pages));
