@@ -199,7 +199,7 @@ macro_rules! command {
                     program.id.to_program_id().as_ref().to_vec(),
                     init_message,
                     program.init_gas_limit.unwrap_or(50_000_000_000),
-                    program.init_value.unwrap_or(0) as u128,
+                    program.init_value.unwrap_or(0),
                 ) {
                     return Err(anyhow::format_err!("Submit program error: {:?}", e));
                 }

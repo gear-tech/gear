@@ -284,7 +284,7 @@ fn get_last_message_id() -> MessageId {
 
 #[cfg(feature = "lazy-pages")]
 fn append_rest_psg_pages(page: PageNumber, pages_data: &mut BTreeMap<PageNumber, Vec<u8>>) {
-    let first_in_psg = PageNumber::new_from_addr((page.offset() as usize / PSG) * PSG);
+    let first_in_psg = PageNumber::new_from_addr((page.offset() / PSG) * PSG);
     (0..(PSG / PageNumber::size()) as u32)
         .map(|idx| first_in_psg + idx.into())
         .filter(|p| *p != page)

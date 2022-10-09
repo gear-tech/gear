@@ -372,7 +372,7 @@ where
 
             let last_idx = at
                 .checked_add(len)
-                .ok_or(FuncError::ReadLenOverflow(at, len))?;
+                .ok_or_else(|| FuncError::ReadLenOverflow(at, len))?;
 
             if last_idx > msg.len() {
                 return Err(FuncError::ReadWrongRange(at..last_idx, msg.len()));
@@ -834,7 +834,7 @@ where
             .leave()
             .map_err(FuncError::Core)
             .err()
-            .unwrap_or(FuncError::Terminated(TerminationReason::Leave));
+            .unwrap_or_else(|| FuncError::Terminated(TerminationReason::Leave));
         ctx.err = err;
         Err(HostError)
     }
@@ -846,7 +846,7 @@ where
             .wait()
             .map_err(FuncError::Core)
             .err()
-            .unwrap_or(FuncError::Terminated(TerminationReason::Wait(None)));
+            .unwrap_or_else(|| FuncError::Terminated(TerminationReason::Wait(None)));
         ctx.err = err;
         Err(HostError)
     }

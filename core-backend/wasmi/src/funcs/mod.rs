@@ -1182,7 +1182,7 @@ where
                 .wait()
                 .map_err(FuncError::Core)
                 .err()
-                .unwrap_or(FuncError::Terminated(TerminationReason::Wait(None)));
+                .unwrap_or_else(|| FuncError::Terminated(TerminationReason::Wait(None)));
             host_state.err = err;
 
             Err(TrapCode::Unreachable.into())
