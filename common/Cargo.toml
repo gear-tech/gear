@@ -16,7 +16,6 @@ parity-wasm = { version = "0.45.0", default-features = false, optional = true }
 # Internal deps
 gear-core = { path = "../core" }
 gear-common-codegen = { path = "./codegen" }
-substrate-test-runtime = { version = "2.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", optional = true }
 
 # Substrate deps
 sp-core = { version = "6.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false }
@@ -52,4 +51,3 @@ runtime-benchmarks = [
     "frame-support/runtime-benchmarks",
     "parity-wasm",
 ]
-test-runtime = ["substrate-test-runtime"]

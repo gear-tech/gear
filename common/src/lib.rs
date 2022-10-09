@@ -61,9 +61,6 @@ extern crate alloc;
 
 pub use gas_provider::{Provider as GasProvider, Tree as GasTree};
 
-#[cfg(feature = "test-runtime")]
-use sp_runtime::traits::Extrinsic;
-
 pub const STORAGE_PROGRAM_PREFIX: &[u8] = b"g::prog::";
 pub const STORAGE_PROGRAM_PAGES_PREFIX: &[u8] = b"g::pages::";
 pub const STORAGE_PROGRAM_STATE_WAIT_PREFIX: &[u8] = b"g::prog_wait::";
@@ -516,17 +513,4 @@ where
 /// Trait whose implementors may opt to generate dispatchable that concludes a block
 pub trait TerminalExtrinsicProvider<E> {
     fn extrinsic() -> Option<E>;
-}
-
-// For testing purpose only
-#[cfg(feature = "test-runtime")]
-impl TerminalExtrinsicProvider<substrate_test_runtime::Extrinsic>
-    for substrate_test_runtime::Runtime
-{
-    fn extrinsic() -> Option<substrate_test_runtime::Extrinsic> {
-        substrate_test_runtime::Extrinsic::new(
-            substrate_test_runtime::Extrinsic::Store(b"data".to_vec()),
-            None,
-        )
-    }
 }

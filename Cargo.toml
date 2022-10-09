@@ -37,6 +37,8 @@ members = [
     "utils/economic-checks/fuzz",
     "utils/wasm-gen",
     "utils/node-loader/",
+    "utils/test-runtime",
+    "utils/test-runtime/client",
 ]
 
 [profile.release]

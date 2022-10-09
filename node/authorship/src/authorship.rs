@@ -596,23 +596,26 @@ mod tests {
     use super::*;
 
     use futures::executor::block_on;
+    use sc_client_api::Backend;
     use sc_transaction_pool::BasicPool;
     use sc_transaction_pool_api::{ChainEvent, MaintainedTransactionPool, TransactionSource};
-    use sp_consensus::Proposer;
+    use sp_api::Core;
+    use sp_consensus::{BlockOrigin, Proposer};
     use sp_runtime::traits::NumberFor;
-    use substrate_test_runtime_client::{
+    use test_client::{
         prelude::*,
-        runtime::{Extrinsic, Runtime, Transfer},
+        runtime::{Block, Extrinsic, Message, Runtime, TestRuntimeAPI},
     };
+
+    type TestBackend = sc_client_api::in_mem::Backend<Block>;
 
     const SOURCE: TransactionSource = TransactionSource::External;
 
     fn extrinsic(nonce: u64) -> Extrinsic {
-        Transfer {
-            amount: Default::default(),
-            nonce,
+        Message {
             from: AccountKeyring::Alice.into(),
-            to: AccountKeyring::Bob.into(),
+            item: nonce,
+            nonce,
         }
         .into_signed_tx()
     }
@@ -630,7 +633,7 @@ mod tests {
     #[test]
     fn custom_extrinsic_is_placed_in_each_block() {
         // given
-        let client = Arc::new(substrate_test_runtime_client::new());
+        let client = Arc::new(test_client::new());
         let spawner = sp_core::testing::TaskExecutor::new();
         let txpool = BasicPool::new_full(
             Default::default(),
@@ -680,5 +683,205 @@ mod tests {
         // block should have exactly 2 extrinsics: a normal one and a mandatory one.
         assert_eq!(block.extrinsics().len(), 2);
         assert_eq!(txpool.ready().count(), 1);
+    }
+
+    #[test]
+    fn proposed_storage_changes_match_execute_block_storage_changes() {
+        let (client, backend) = TestClientBuilder::new().build_with_backend();
+        let client = Arc::new(client);
+        let spawner = sp_core::testing::TaskExecutor::new();
+        let txpool = BasicPool::new_full(
+            Default::default(),
+            true.into(),
+            None,
+            spawner.clone(),
+            client.clone(),
+        );
+
+        let genesis_hash = client.info().best_hash;
+        let block_id = BlockId::Hash(genesis_hash);
+
+        block_on(txpool.submit_at(&BlockId::number(0), SOURCE, vec![extrinsic(0)])).unwrap();
+
+        block_on(
+            txpool.maintain(chain_event(
+                client
+                    .header(&BlockId::Number(0u64))
+                    .expect("header get error")
+                    .expect("there should be header"),
+            )),
+        );
+
+        let mut proposer_factory = ProposerFactory::<_, _, _, _, Runtime, Extrinsic>::new(
+            spawner.clone(),
+            client.clone(),
+            txpool.clone(),
+            None,
+            None,
+        );
+
+        let proposer = proposer_factory.init_with_now(
+            &client.header(&block_id).unwrap().unwrap(),
+            Box::new(move || time::Instant::now()),
+        );
+
+        let deadline = time::Duration::from_secs(9);
+        let proposal =
+            block_on(proposer.propose(Default::default(), Default::default(), deadline, None))
+                .unwrap();
+
+        // 1 signed extrinsic + 1 terminal unsigned one
+        assert_eq!(proposal.block.extrinsics().len(), 2);
+
+        let api = client.runtime_api();
+        api.execute_block(&block_id, proposal.block).unwrap();
+
+        let state = backend.state_at(block_id).unwrap();
+
+        let storage_changes = api.into_storage_changes(&state, genesis_hash).unwrap();
+
+        assert_eq!(
+            proposal.storage_changes.transaction_storage_root,
+            storage_changes.transaction_storage_root,
+        );
+
+        // Ensure message queue is emptied in case terminal extrinsic completes
+        let queue = api.get_queue(&block_id).unwrap();
+        assert_eq!(queue.len(), 0);
+    }
+
+    #[test]
+    fn queue_remains_intact_if_processing_fails() {
+        let (client, _backend) = TestClientBuilder::new().build_with_backend();
+        let mut client = Arc::new(client);
+        let spawner = sp_core::testing::TaskExecutor::new();
+        let txpool = BasicPool::new_full(
+            Default::default(),
+            true.into(),
+            None,
+            spawner.clone(),
+            client.clone(),
+        );
+
+        let mut proposer_factory = ProposerFactory::<_, _, _, _, Runtime, Extrinsic>::new(
+            spawner.clone(),
+            client.clone(),
+            txpool.clone(),
+            None,
+            None,
+        );
+
+        // Initializing blockchain
+        let genesis_hash = client.info().best_hash;
+
+        // Preparing block #1
+        let block_id = BlockId::Hash(genesis_hash);
+
+        // Pushing 5 signed extrinsics that populate message queue with 5 messages
+        block_on(txpool.submit_at(
+            &block_id,
+            SOURCE,
+            vec![
+                extrinsic(0),
+                extrinsic(1),
+                extrinsic(2),
+                extrinsic(3),
+                extrinsic(4),
+            ],
+        ))
+        .unwrap();
+
+        block_on(
+            txpool.maintain(chain_event(
+                client
+                    .header(&block_id)
+                    .expect("header get error")
+                    .expect("there should be header"),
+            )),
+        );
+
+        let proposer = proposer_factory.init_with_now(
+            &client.header(&block_id).unwrap().unwrap(),
+            Box::new(move || time::Instant::now()),
+        );
+
+        let proposal = block_on(proposer.propose(
+            Default::default(),
+            Default::default(),
+            time::Duration::from_secs(10000),
+            None,
+        ))
+        .unwrap();
+
+        // Expecting to have 5 extrinsic in block: all the signed once;
+        // the unsigned one got invalidated and dropped by the proposer
+        assert_eq!(proposal.block.extrinsics().len(), 5);
+
+        // Importing block #1
+        block_on(client.import(BlockOrigin::Own, proposal.block.clone())).unwrap();
+
+        let best_hash = client.info().best_hash;
+        assert_eq!(best_hash, proposal.block.hash());
+
+        let best_block_id = BlockId::Hash(best_hash);
+
+        // Ensure message queue has not been drained and still has 5 messages
+        let queue = client.runtime_api().get_queue(&best_block_id).unwrap();
+        assert_eq!(queue.len(), 5);
+
+        // Preparing block #2
+
+        // Pushing 3 more signed extrinsics that add 3 more messages to the queue
+        block_on(txpool.submit_at(
+            &best_block_id,
+            SOURCE,
+            vec![extrinsic(5), extrinsic(6), extrinsic(7)],
+        ))
+        .unwrap();
+
+        block_on(
+            txpool.maintain(chain_event(
+                client
+                    .header(&best_block_id)
+                    .expect("header get error")
+                    .expect("there should be header"),
+            )),
+        );
+
+        let proposer = proposer_factory.init_with_now(
+            &client.header(&best_block_id).unwrap().unwrap(),
+            Box::new(move || time::Instant::now()),
+        );
+
+        let proposal = block_on(proposer.propose(
+            Default::default(),
+            Default::default(),
+            time::Duration::from_secs(10000),
+            None,
+        ))
+        .unwrap();
+
+        // Expecting to have 3 extrinsic in block: all the signed once;
+        // the unsigned one got invalidated and dropped by the proposer
+        assert_eq!(proposal.block.extrinsics().len(), 3);
+
+        // Importing block #2
+        block_on(client.import(BlockOrigin::Own, proposal.block.clone())).unwrap();
+
+        let best_hash = client.info().best_hash;
+        assert_eq!(best_hash, proposal.block.hash());
+
+        let best_block_id = BlockId::Hash(best_hash);
+
+        // Ensure message queue has not been drained and still has 8 messages (5 old plus 3 new)
+        let queue = client.runtime_api().get_queue(&best_block_id).unwrap();
+        assert_eq!(queue.len(), 8);
+    }
+
+    #[test]
+    fn test_client_produces_complex_block_tree() {
+        let backend = Arc::new(TestBackend::new());
+
+        test_client::trait_tests::test_leaves_for_backend(backend);
     }
 }
