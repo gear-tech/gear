@@ -343,9 +343,9 @@ impl JournalHandler for InMemoryExtManager {
         };
     }
 
-    fn store_new_programs(&mut self, code_id: CodeId, candidates: Vec<(ProgramId, MessageId)>) {
+    fn store_new_programs(&mut self, code_id: CodeId, candidates: Vec<(MessageId, ProgramId)>) {
         if let Some(code) = self.original_codes.get(&code_id).cloned() {
-            for (candidate_id, init_message_id) in candidates {
+            for (init_message_id, candidate_id) in candidates {
                 if !self.actors.contains_key(&candidate_id) {
                     let code =
                         Code::try_new(code.clone(), 1, |_| ConstantCostRules::default()).unwrap();
@@ -360,7 +360,7 @@ impl JournalHandler for InMemoryExtManager {
                 "No referencing code with code hash {} for candidate programs",
                 code_id
             );
-            for (invalid_candidate, _) in candidates {
+            for (_, invalid_candidate) in candidates {
                 self.marked_destinations.insert(invalid_candidate);
             }
         }

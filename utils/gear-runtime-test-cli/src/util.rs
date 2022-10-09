@@ -17,12 +17,9 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use codec::Encode;
-use frame_support::{
-    traits::{Currency, GenesisBuild, OnFinalize, OnIdle, OnInitialize},
-    weights::Weight,
-};
+use frame_support::traits::{Currency, GenesisBuild, OnFinalize, OnInitialize};
 use frame_system as system;
-use gear_common::{storage::*, Origin};
+use gear_common::{storage::*, Origin, QueueRunner};
 use gear_core::message::{StoredDispatch, StoredMessage};
 #[cfg(feature = "gear-native")]
 use gear_runtime::{
@@ -108,13 +105,13 @@ pub(crate) fn on_initialize() {
     Gear::on_initialize(System::block_number());
 }
 
-// Run on_finalize hooks (in pallets reverse order, as they appear in AllPalletsWithSystem)
-pub(crate) fn on_finalize() {
-    Gear::on_finalize(System::block_number());
-    GearMessenger::on_finalize(System::block_number());
-    GearGas::on_finalize(System::block_number());
-    Authorship::on_finalize(System::block_number());
-    System::on_finalize(System::block_number());
+// Run on_finalize hooks (in pallets reversed order, as they appear in AllPalletsWithSystem, without System pallet)
+pub(crate) fn on_finalize_without_system() {
+    let bn = System::block_number();
+    Gear::on_finalize(bn);
+    GearMessenger::on_finalize(bn);
+    GearGas::on_finalize(bn);
+    Authorship::on_finalize(bn);
 }
 
 // Generate a crypto pair from seed.
@@ -201,17 +198,15 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
 
 pub fn run_to_block(n: u32, remaining_weight: Option<u64>, skip_process_queue: bool) {
     while System::block_number() < n {
-        on_finalize();
+        System::on_finalize(System::block_number());
         initialize(System::block_number() + 1);
         on_initialize();
         let remaining_weight = remaining_weight.unwrap_or_else(BlockGasLimitOf::<Runtime>::get);
         if skip_process_queue {
             GasAllowanceOf::<Runtime>::put(remaining_weight);
         } else {
-            Gear::on_idle(
-                System::block_number(),
-                Weight::from_ref_time(remaining_weight),
-            );
+            Gear::run_queue(remaining_weight);
         }
+        on_finalize_without_system();
     }
 }

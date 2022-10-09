@@ -277,7 +277,7 @@ where
 
         let last_idx = at
             .checked_add(len)
-            .ok_or(FuncError::ReadLenOverflow(at, len))?;
+            .ok_or_else(|| FuncError::ReadLenOverflow(at, len))?;
 
         if last_idx as usize > msg.len() {
             return Err(FuncError::ReadWrongRange(at..last_idx, msg.len() as u32));
@@ -617,28 +617,26 @@ where
 
     pub fn leave(ctx: &mut Runtime<E>, _args: &[Value]) -> SyscallOutput {
         sys_trace!(target: "syscall::gear", "leave");
-
-        ctx.run(|ctx| -> Result<(), _> {
-            Err(ctx
-                .ext
-                .leave()
-                .map_err(FuncError::Core)
-                .err()
-                .unwrap_or(FuncError::Terminated(TerminationReason::Leave)))
-        })
+        let err = ctx
+            .ext
+            .leave()
+            .map_err(FuncError::Core)
+            .err()
+            .unwrap_or_else(|| FuncError::Terminated(TerminationReason::Leave));
+        ctx.err = err;
+        Err(HostError)
     }
 
     pub fn wait(ctx: &mut Runtime<E>, _args: &[Value]) -> SyscallOutput {
         sys_trace!(target: "syscall::gear", "wait");
-
-        ctx.run(|ctx| -> Result<(), _> {
-            Err(ctx
-                .ext
-                .wait()
-                .map_err(FuncError::Core)
-                .err()
-                .unwrap_or(FuncError::Terminated(TerminationReason::Wait(None))))
-        })
+        let err = ctx
+            .ext
+            .wait()
+            .map_err(FuncError::Core)
+            .err()
+            .unwrap_or_else(|| FuncError::Terminated(TerminationReason::Wait(None)));
+        ctx.err = err;
+        Err(HostError)
     }
 
     pub fn wait_for(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
@@ -652,9 +650,7 @@ where
                 .wait_for(duration)
                 .map_err(FuncError::Core)
                 .err()
-                .unwrap_or(FuncError::Terminated(TerminationReason::Wait(Some(
-                    duration,
-                )))))
+                .unwrap_or_else(|| FuncError::Terminated(TerminationReason::Wait(Some(duration)))))
         })
     }
 
@@ -669,9 +665,7 @@ where
                 .wait_up_to(duration)
                 .map_err(FuncError::Core)
                 .err()
-                .unwrap_or(FuncError::Terminated(TerminationReason::Wait(Some(
-                    duration,
-                )))))
+                .unwrap_or_else(|| FuncError::Terminated(TerminationReason::Wait(Some(duration)))))
         })
     }
 
@@ -1012,6 +1006,8 @@ impl WasmCompatible for u64 {
 
 #[test]
 fn i32_to_u32_conversion() {
+    use std::convert::TryFrom;
+
     let i32_var: i32 = 5;
     let u32_var: u32 = 5;
 

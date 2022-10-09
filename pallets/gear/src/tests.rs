@@ -32,7 +32,7 @@ use common::{
     event::*, program_exists, scheduler::*, storage::*, CodeStorage, GasPrice as _, GasTree,
     Origin as _,
 };
-use core_processor::{common::ExecutionErrorReason, ProcessorExt};
+use core_processor::common::ExecutionErrorReason;
 use demo_compose::WASM_BINARY as COMPOSE_WASM_BINARY;
 use demo_distributor::{Request, WASM_BINARY};
 use demo_mul_by_const::WASM_BINARY as MUL_CONST_WASM_BINARY;
@@ -46,7 +46,6 @@ use frame_support::{
 };
 use frame_system::{pallet_prelude::BlockNumberFor, Pallet as SystemPallet};
 use gear_backend_common::{StackEndError, TrapExplanation};
-use gear_backend_sandbox::funcs::FuncError;
 use gear_core::{
     code::{self, Code},
     ids::{CodeId, MessageId, ProgramId},

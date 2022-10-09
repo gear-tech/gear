@@ -69,6 +69,26 @@ pub fn gr_read(ctx: impl AsContextMut<Data = StoreData>, memory: Memory) -> Exte
     ))
 }
 
+/// # NOTE
+///
+/// Just for the compatible with the program metadata
+pub fn gr_reply(ctx: impl AsContextMut<Data = StoreData>, _memory: Memory) -> Extern {
+    Extern::Func(Func::wrap(
+        ctx,
+        move |mut _caller: Caller<'_, StoreData>, _ptr: i32, _len: i32, _val: i32, _msg: i32| 0,
+    ))
+}
+
+/// # NOTE
+///
+/// Just for the compatible with the program metadata
+pub fn gr_error(ctx: impl AsContextMut<Data = StoreData>, _memory: Memory) -> Extern {
+    Extern::Func(Func::wrap(
+        ctx,
+        move |mut _caller: Caller<'_, StoreData>, _ptr: i32| Ok(()),
+    ))
+}
+
 pub fn gr_size(ctx: impl AsContextMut<Data = StoreData>) -> Extern {
     Extern::Func(Func::wrap(ctx, |caller: Caller<'_, StoreData>| {
         caller.data().msg.len() as i32

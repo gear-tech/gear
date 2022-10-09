@@ -60,7 +60,7 @@ impl Memory for MemoryWrap {
         self.0.size() as usize * WasmPageNumber::size()
     }
 
-    unsafe fn get_buffer_host_addr_unsafe(&self) -> HostPointer {
+    unsafe fn get_buffer_host_addr_unsafe(&mut self) -> HostPointer {
         self.0.get_buff()
     }
 }
@@ -70,7 +70,7 @@ impl Memory for MemoryWrap {
 mod tests {
     use super::*;
     use gear_backend_common::{assert_err, assert_ok};
-    use gear_core::memory::AllocationsContext;
+    use gear_core::memory::{AllocationsContext, GrowHandlerNothing};
 
     fn new_test_memory(static_pages: u32, max_pages: u32) -> (AllocationsContext, MemoryWrap) {
         use sp_sandbox::SandboxMemory as WasmMemory;
@@ -89,32 +89,47 @@ mod tests {
     fn smoky() {
         let (mut mem, mut mem_wrap) = new_test_memory(16, 256);
 
-        assert_ok!(mem.alloc(16.into(), &mut mem_wrap), 16.into());
+        assert_ok!(
+            mem.alloc::<GrowHandlerNothing>(16.into(), &mut mem_wrap),
+            16.into()
+        );
 
         // there is a space for 14 more
         for _ in 0..14 {
-            assert_ok!(mem.alloc(16.into(), &mut mem_wrap));
+            assert_ok!(mem.alloc::<GrowHandlerNothing>(16.into(), &mut mem_wrap));
         }
 
         // no more mem!
-        assert_err!(mem.alloc(1.into(), &mut mem_wrap), Error::OutOfBounds);
+        assert_err!(
+            mem.alloc::<GrowHandlerNothing>(1.into(), &mut mem_wrap),
+            Error::OutOfBounds
+        );
 
         // but we free some
         assert_ok!(mem.free(137.into()));
 
         // and now can allocate page that was freed
-        assert_ok!(mem.alloc(1.into(), &mut mem_wrap), 137.into());
+        assert_ok!(
+            mem.alloc::<GrowHandlerNothing>(1.into(), &mut mem_wrap),
+            137.into()
+        );
 
         // if we have 2 in a row we can allocate even 2
         assert_ok!(mem.free(117.into()));
         assert_ok!(mem.free(118.into()));
 
-        assert_ok!(mem.alloc(2.into(), &mut mem_wrap), 117.into());
+        assert_ok!(
+            mem.alloc::<GrowHandlerNothing>(2.into(), &mut mem_wrap),
+            117.into()
+        );
 
         // but if 2 are not in a row, bad luck
         assert_ok!(mem.free(117.into()));
         assert_ok!(mem.free(158.into()));
 
-        assert_err!(mem.alloc(2.into(), &mut mem_wrap), Error::OutOfBounds);
+        assert_err!(
+            mem.alloc::<GrowHandlerNothing>(2.into(), &mut mem_wrap),
+            Error::OutOfBounds
+        );
     }
 }

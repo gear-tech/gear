@@ -1,6 +1,6 @@
 //! Command `send`
 use crate::{api::signer::Signer, result::Result, utils};
-use structopt::StructOpt;
+use clap::Parser;
 
 /// Sends a message to a program or to another account.
 ///
@@ -19,18 +19,18 @@ use structopt::StructOpt;
 ///
 /// Emits the following events:
 /// - `DispatchMessageEnqueued(MessageInfo)` when dispatch message is placed in the queue.
-#[derive(StructOpt, Debug)]
+#[derive(Parser, Debug)]
 pub struct Send {
     /// Send to
     pub destination: String,
     /// Send payload
-    #[structopt(default_value = "0x")]
+    #[clap(default_value = "0x")]
     pub payload: String,
     /// Send gas limit
-    #[structopt(default_value = "0")]
+    #[clap(default_value = "0")]
     pub gas_limit: u64,
     /// Send value
-    #[structopt(default_value = "0")]
+    #[clap(default_value = "0")]
     pub value: u128,
 }
 

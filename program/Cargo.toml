@@ -1,6 +1,6 @@
 [package]
 name = "gear-program"
-version = "0.1.4"
+version = "0.1.5"
 authors = ["Gear Technologies"]
 edition = "2021"
 description = "gear program cli"
@@ -12,9 +12,9 @@ keywords = ["gear", "cli", "wasm"]
 readme = './README.md'
 
 [[bin]]
-path = "bin/gear.rs"
-name = "gear"
-required-features = [ "cli" ]
+path = "bin/gprogram.rs"
+name = "gprogram"
+required-features = [ "bin" ]
 
 [dependencies]
 anyhow = "1.0.60"
@@ -38,20 +38,30 @@ scale-info = "2.1.2"
 schnorrkel = "0.9.1"
 serde = "^1"
 serde_json = "^1"
-structopt = { version = "0.3.26", optional = true }
+clap = { version = "3.2", features = ["derive"], optional = true }
 subxt = "0.22.0"
 thiserror = "1.0.37"
 tokio = { version = "1.21.2", features = [ "full" ] }
-wasmtime = "0.39"
+wasmtime = "1"
 whoami = "1.2.1"
 
 [dev-dependencies]
 rand = "0.8.5"
 messager = { path = "./res/messager" }
+cfg-if = "1"
+demo-meta = { path = "../examples/binaries/meta" }
+
+[build-dependencies]
+gear-runtime = { path = "../runtime/gear" }
+frame-metadata = "15.0.0"
+parity-scale-codec = "3.1.5"
+subxt-codegen = "0.22.0"
+syn = "1"
 
 [features]
-default = [ "cli" ]
-cli = [ "color-eyre", "structopt" ]
+default = [ ]
+bin = [ "cli" ]
+cli = [ "color-eyre", "clap" ]
 node-key = [ "libp2p" ]
 
 [package.metadata.docs.rs]

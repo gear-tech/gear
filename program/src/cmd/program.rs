@@ -5,35 +5,35 @@ use crate::{
     result::{Error, Result},
     utils,
 };
+use clap::Parser;
 use std::{fs, path::PathBuf};
-use structopt::StructOpt;
 use subxt::sp_core::H256;
 
 /// Read program state, etc.
-#[derive(Clone, Debug, StructOpt)]
+#[derive(Clone, Debug, Parser)]
 pub enum Action {
     /// Read program state.
     State {
         /// Path of "*.meta.wasm".
         metadata: PathBuf,
         /// Input message for reading program state.
-        #[structopt(short, long, default_value = "0x")]
+        #[clap(short, long, default_value = "0x")]
         msg: String,
         /// Block timestamp.
-        #[structopt(short, long)]
+        #[clap(short, long)]
         timestamp: Option<u64>,
         /// Block height.
-        #[structopt(short, long)]
+        #[clap(long)]
         height: Option<u64>,
     },
 }
 
 /// Read program state, etc.
-#[derive(Debug, StructOpt)]
+#[derive(Debug, Parser)]
 pub struct Program {
     /// Program id.
     pid: String,
-    #[structopt(subcommand)]
+    #[clap(subcommand)]
     action: Action,
 }
 

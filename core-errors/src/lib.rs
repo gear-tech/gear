@@ -161,6 +161,10 @@ pub enum MemoryError {
     /// WASM page does not contain all necessary Gear pages.
     #[display(fmt = "Page data has wrong size: {:#x}", _0)]
     InvalidPageDataSize(u64),
+
+    /// Memory size cannot be zero after grow is applied for memory
+    #[display(fmt = "Memory unexpectedly has zero size after grow")]
+    MemSizeIsZeroAfterGrow,
 }
 
 /// Execution error.

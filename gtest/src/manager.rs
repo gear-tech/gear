@@ -629,12 +629,12 @@ impl ExtManager {
         let (actor, _balance) = self
             .actors
             .get_mut(program_id)
-            .ok_or(TestError::ActorNotFound(*program_id))?;
+            .ok_or_else(|| TestError::ActorNotFound(*program_id))?;
 
         let code_id = actor.code_id();
         let (data, memory) = actor
             .get_executable_actor_data()
-            .ok_or(TestError::ActorIsNotExecutable(*program_id))?;
+            .ok_or_else(|| TestError::ActorIsNotExecutable(*program_id))?;
         let pages_initial_data = memory
             .into_iter()
             .map(|(page, data)| (page, Box::new(data)))
@@ -649,7 +649,7 @@ impl ExtManager {
         WasmExecutor::update_ext(&mut ext, self);
 
         WasmExecutor::execute(
-            &mut ext,
+            ext,
             &data.program,
             meta_binary,
             &pages_initial_data,
@@ -817,9 +817,9 @@ impl JournalHandler for ExtManager {
         }
     }
 
-    fn store_new_programs(&mut self, code_id: CodeId, candidates: Vec<(ProgramId, MessageId)>) {
+    fn store_new_programs(&mut self, code_id: CodeId, candidates: Vec<(MessageId, ProgramId)>) {
         if let Some(code) = self.opt_binaries.get(&code_id).cloned() {
-            for (candidate_id, init_message_id) in candidates {
+            for (init_message_id, candidate_id) in candidates {
                 if !self.actors.contains_key(&candidate_id) {
                     let code = Code::try_new(code.clone(), 1, |_| ConstantCostRules::default())
                         .expect("Program can't be constructed with provided code");
@@ -842,7 +842,7 @@ impl JournalHandler for ExtManager {
                 "No referencing code with code hash {:?} for candidate programs",
                 code_id
             );
-            for (invalid_candidate_id, _) in candidates {
+            for (_, invalid_candidate_id) in candidates {
                 self.actors
                     .insert(invalid_candidate_id, (TestActor::Dormant, 0));
             }

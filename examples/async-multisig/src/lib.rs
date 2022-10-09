@@ -46,7 +46,7 @@ unsafe extern "C" fn init() {
         .for_each(|s| SIGNATORIES.push(s));
 
     THRESHOLD = usize::try_from(args.threshold)
-        .map(|t| t.min(SIGNATORIES.len()).max(1))
+        .map(|t| t.clamp(1, SIGNATORIES.len()))
         .unwrap_or(1);
 }
 
