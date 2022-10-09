@@ -223,7 +223,7 @@ jobs:
           cargo test -p pallet-gear-payment --features=lazy-pages --release --locked
 
       - name: "Test: Gear workspace"
-        run: ./scripts/gear.sh test gear --exclude gclient --exclude gprogram --release --locked
+        run: ./scripts/gear.sh test gear --exclude gclient --exclude gprogram --features pallet-gear-debug/lazy-pages --release --locked
 
       - name: "Test: JS metadata"
         run: ./scripts/gear.sh test js
