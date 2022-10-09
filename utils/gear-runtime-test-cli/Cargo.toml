@@ -27,6 +27,7 @@ pallet-balances = { version = "4.0.0-dev", default-features = false, git = "http
 sp-consensus-slots = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
 sp-consensus-babe = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
 sp-finality-grandpa = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
+pallet-authorship = { version = "4.0.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
 
 # Gear
 runtime-primitives = { package = "gear-runtime-primitives", version = "0.1.0", default-features = false, path = "../../runtime/primitives" }
@@ -37,6 +38,7 @@ vara-runtime = { path = "../../runtime/vara", optional = true, features = ["debu
 gear-test = { path = "../../gear-test" }
 pallet-gear = { path = "../../pallets/gear" }
 pallet-gear-gas = { path = "../../pallets/gas" }
+pallet-gear-messenger = { version = "1.0.0", path = "../../pallets/gear-messenger" }
 pallet-gear-debug = { path = "../../pallets/gear-debug" }
 gear-core-processor = { path = "../../core-processor" }
 junit-common = { path = "../junit-common" }

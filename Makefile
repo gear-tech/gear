@@ -235,11 +235,11 @@ gtest: init-js gear-test-release examples
 
 .PHONY: rtest
 rtest: init-js node-release-rtest examples
-	@ ./scripts/gear.sh test rtest yamls="$(yamls)"
+	@ ./scripts/gear.sh test rtest gear yamls="$(yamls)"
 
 .PHONY: rtest-vara
 rtest-vara: init-js vara-release examples
-	@ ./scripts/gear.sh test rtest yamls="$(yamls)"
+	@ ./scripts/gear.sh test rtest vara yamls="$(yamls)"
 
 .PHONY: test-pallet
 test-pallet:
