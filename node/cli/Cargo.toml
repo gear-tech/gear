@@ -23,7 +23,6 @@ pallet-gear-payment = { version = "0.1.0", path = "../../pallets/payment" }
 # Gear Runtimes
 gear-runtime = { path = "../../runtime/gear", optional = true }
 vara-runtime = { path = "../../runtime/vara", optional = true }
-gear-runtime-common = { path = "../../runtime/common", default-features = false }
 
 # Substrate client
 sc-cli = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", features = [

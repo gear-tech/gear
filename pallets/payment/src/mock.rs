@@ -177,6 +177,7 @@ impl pallet_gear::Config for Test {
     type GasProvider = GearGas;
     type BlockLimiter = GearGas;
     type Scheduler = GearScheduler;
+    type QueueRunner = Gear;
 }
 
 impl pallet_gear_program::Config for Test {
@@ -265,7 +266,7 @@ pub fn run_to_block(n: u64) {
     }
 }
 
-impl crate::ExtractCall<RuntimeCall> for TestXt<RuntimeCall, ()> {
+impl common::ExtractCall<RuntimeCall> for TestXt<RuntimeCall, ()> {
     fn extract_call(&self) -> RuntimeCall {
         self.call.clone()
     }
