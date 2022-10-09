@@ -220,7 +220,7 @@ unsafe fn user_signal_handler_internal(
     let num_of_gear_pages_in_one_lazy = lazy_page_size / gear_ps;
 
     let native_addr = info.fault_addr as usize;
-    let wasm_mem_addr = ctx.wasm_mem_addr.ok_or(Error::WasmMemAddrIsNotSet)? as usize;
+    let wasm_mem_addr = ctx.wasm_mem_addr.ok_or(Error::WasmMemAddrIsNotSet)?;
     let wasm_mem_size = ctx.wasm_mem_size.ok_or(Error::WasmMemSizeIsNotSet)?;
     let stack_end = ctx.stack_end_wasm_addr;
     let mut prefix = PagePrefix::new_from_program_prefix(

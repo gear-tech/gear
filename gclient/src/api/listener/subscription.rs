@@ -32,7 +32,7 @@ impl<I: IntoIterator<Item = RuntimeEvent> + Clone> EventProcessor for I {
 
         for event in self.clone().into_iter() {
             if let Some(data) = predicate(event.into()) {
-                res = res.or(Some(data));
+                res = res.or_else(|| Some(data));
             }
 
             if res.is_some() {
