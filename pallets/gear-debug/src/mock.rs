@@ -17,6 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate as pallet_gear_debug;
+use common::QueueRunner;
 use frame_support::{
     construct_runtime, parameter_types,
     traits::{FindAuthor, OnFinalize, OnInitialize},
@@ -143,6 +144,7 @@ impl pallet_gear::Config for Test {
     type GasProvider = GearGas;
     type BlockLimiter = GearGas;
     type Scheduler = GearScheduler;
+    type QueueRunner = Gear;
 }
 
 impl pallet_gear_messenger::Config for Test {
@@ -213,7 +215,7 @@ pub fn run_to_block(n: u64, remaining_weight: Option<u64>) {
         let remaining_weight =
             remaining_weight.unwrap_or(pallet_gear::BlockGasLimitOf::<Test>::get());
 
-        Gear::do_run(remaining_weight);
+        Gear::run_queue(remaining_weight);
         Gear::on_finalize(System::block_number());
     }
 }

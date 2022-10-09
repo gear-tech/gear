@@ -49,7 +49,7 @@ pub use crate::{
 };
 pub use weights::WeightInfo;
 
-use common::{scheduler::*, storage::*, BlockLimiter, CodeStorage, GasProvider};
+use common::{scheduler::*, storage::*, BlockLimiter, CodeStorage, GasProvider, QueueRunner};
 use frame_support::{
     traits::{Currency, StorageVersion},
     weights::Weight,
@@ -94,7 +94,7 @@ pub type Authorship<T> = pallet_authorship::Pallet<T>;
 pub type GasAllowanceOf<T> = <<T as Config>::BlockLimiter as BlockLimiter>::GasAllowance;
 pub type GasHandlerOf<T> = <<T as Config>::GasProvider as GasProvider>::GasTree;
 pub type BlockGasLimitOf<T> = <<T as Config>::BlockLimiter as BlockLimiter>::BlockGasLimit;
-pub type WeightOf<T> = <<T as Config>::BlockLimiter as BlockLimiter>::Balance;
+pub type GasUnitOf<T> = <<T as Config>::BlockLimiter as BlockLimiter>::Balance;
 
 /// The current storage version.
 const GEAR_STORAGE_VERSION: StorageVersion = StorageVersion::new(1);
@@ -284,6 +284,9 @@ pub mod pallet {
             Task = ScheduledTask<Self::AccountId>,
             MissedBlocksCollection = BTreeSet<Self::BlockNumber>,
         >;
+
+        /// Message Queue processing routin provider
+        type QueueRunner: QueueRunner<Gas = GasUnitOf<Self>>;
     }
 
     #[pallet::pallet]
@@ -1580,25 +1583,6 @@ pub mod pallet {
 
             Ok(())
         }
-
-        pub fn do_run(remaining_weight: WeightOf<T>) -> WeightOf<T> {
-            // Setting adjusted initial gas allowance
-            GasAllowanceOf::<T>::put(remaining_weight);
-
-            // Ext manager creation.
-            // It will be processing messages execution results following its `JournalHandler` trait implementation.
-            // It also will handle delayed tasks following `TasksHandler`.
-            let mut ext_manager = Default::default();
-
-            // Processing regular and delayed tasks.
-            Self::process_tasks(&mut ext_manager);
-
-            // Processing message queue.
-            Self::process_queue(ext_manager);
-
-            // Calculating weight burned within the block.
-            remaining_weight.saturating_sub(GasAllowanceOf::<T>::get())
-        }
     }
 
     #[pallet::call]
@@ -2023,7 +2007,7 @@ pub mod pallet {
                 adjusted_gas,
             );
 
-            let actual_weight = Self::do_run(adjusted_gas);
+            let actual_weight = <T as Config>::QueueRunner::run_queue(adjusted_gas);
 
             log::debug!(
                 target: "runtime::gear",
@@ -2039,6 +2023,32 @@ pub mod pallet {
                 actual_weight: Some(Weight::from_ref_time(actual_weight)),
                 pays_fee: Pays::No,
             })
+        }
+    }
+
+    impl<T: Config> QueueRunner for Pallet<T>
+    where
+        T::AccountId: Origin,
+    {
+        type Gas = GasUnitOf<T>;
+
+        fn run_queue(initial_gas: GasUnitOf<T>) -> GasUnitOf<T> {
+            // Setting adjusted initial gas allowance
+            GasAllowanceOf::<T>::put(initial_gas);
+
+            // Ext manager creation.
+            // It will be processing messages execution results following its `JournalHandler` trait implementation.
+            // It also will handle delayed tasks following `TasksHandler`.
+            let mut ext_manager = Default::default();
+
+            // Processing regular and delayed tasks.
+            Self::process_tasks(&mut ext_manager);
+
+            // Processing message queue.
+            Self::process_queue(ext_manager);
+
+            // Calculating weight burned within the block.
+            initial_gas.saturating_sub(GasAllowanceOf::<T>::get())
         }
     }
 

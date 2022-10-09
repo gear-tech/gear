@@ -254,7 +254,7 @@ pub type Block = sp_runtime::generic::Block<Header, Extrinsic>;
 pub type Header = sp_runtime::generic::Header<BlockNumber, Hashing>;
 
 // A type that can not be decoded.
-#[derive(PartialEq)]
+#[derive(PartialEq, Eq)]
 pub struct DecodeFails<B: BlockT> {
     _phantom: PhantomData<B>,
 }

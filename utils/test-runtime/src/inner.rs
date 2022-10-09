@@ -108,8 +108,8 @@ pub fn nonce_of(who: AccountId) -> u64 {
 
 pub fn initialize_block(header: &Header) {
     // populate environment.
-    <Number<Runtime>>::put(&header.number);
-    <ParentHash<Runtime>>::put(&header.parent_hash);
+    <Number<Runtime>>::put(header.number);
+    <ParentHash<Runtime>>::put(header.parent_hash);
     <StorageDigest<Runtime>>::put(header.digest());
     storage::unhashed::put(well_known_keys::EXTRINSIC_INDEX, &0u32);
 
@@ -324,7 +324,7 @@ fn execute_process_backend() -> ApplyExtrinsicResult {
     // Iterating throuhg the queue
     loop {
         let queue = <Queue<Runtime>>::get();
-        if queue.len() == 0 {
+        if queue.is_empty() {
             return Ok(Ok(()));
         }
         if queue.len() == <<Runtime as Config>::PanicThreshold as Get<u32>>::get() as usize {

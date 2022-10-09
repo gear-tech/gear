@@ -135,7 +135,7 @@ impl substrate_test_client::GenesisInit for GenesisParameters {
             );
         }
 
-        let child_roots = storage.children_default.iter().map(|(_sk, child_content)| {
+        let child_roots = storage.children_default.values().map(|child_content| {
             let state_root =
                 <<<runtime::Block as BlockT>::Header as HeaderT>::Hashing as HashT>::trie_root(
                     child_content.data.clone().into_iter().collect(),

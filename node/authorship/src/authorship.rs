@@ -713,16 +713,16 @@ mod tests {
         );
 
         let mut proposer_factory = ProposerFactory::<_, _, _, _, Runtime, Extrinsic>::new(
-            spawner.clone(),
+            spawner,
             client.clone(),
-            txpool.clone(),
+            txpool,
             None,
             None,
         );
 
         let proposer = proposer_factory.init_with_now(
             &client.header(&block_id).unwrap().unwrap(),
-            Box::new(move || time::Instant::now()),
+            Box::new(time::Instant::now),
         );
 
         let deadline = time::Duration::from_secs(9);
@@ -764,7 +764,7 @@ mod tests {
         );
 
         let mut proposer_factory = ProposerFactory::<_, _, _, _, Runtime, Extrinsic>::new(
-            spawner.clone(),
+            spawner,
             client.clone(),
             txpool.clone(),
             None,
@@ -802,7 +802,7 @@ mod tests {
 
         let proposer = proposer_factory.init_with_now(
             &client.header(&block_id).unwrap().unwrap(),
-            Box::new(move || time::Instant::now()),
+            Box::new(time::Instant::now),
         );
 
         let proposal = block_on(proposer.propose(
@@ -850,7 +850,7 @@ mod tests {
 
         let proposer = proposer_factory.init_with_now(
             &client.header(&best_block_id).unwrap().unwrap(),
-            Box::new(move || time::Instant::now()),
+            Box::new(time::Instant::now),
         );
 
         let proposal = block_on(proposer.propose(

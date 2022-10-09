@@ -19,7 +19,7 @@
 use codec::Encode;
 use frame_support::traits::{Currency, GenesisBuild, OnFinalize, OnInitialize};
 use frame_system as system;
-use gear_common::{storage::*, Origin};
+use gear_common::{storage::*, Origin, QueueRunner};
 use gear_core::message::{StoredDispatch, StoredMessage};
 #[cfg(feature = "gear-native")]
 use gear_runtime::{
@@ -205,7 +205,7 @@ pub fn run_to_block(n: u32, remaining_weight: Option<u64>, skip_process_queue: b
         if skip_process_queue {
             GasAllowanceOf::<Runtime>::put(remaining_weight);
         } else {
-            Gear::do_run(remaining_weight);
+            Gear::run_queue(remaining_weight);
         }
         on_finalize_without_system();
     }

@@ -147,6 +147,12 @@ pub trait GasPrice {
     }
 }
 
+pub trait QueueRunner {
+    type Gas;
+
+    fn run_queue(initial_gas: Self::Gas) -> Self::Gas;
+}
+
 pub trait PaymentProvider<AccountId> {
     type Balance;
 
