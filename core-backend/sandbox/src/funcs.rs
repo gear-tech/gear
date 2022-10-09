@@ -617,26 +617,28 @@ where
 
     pub fn leave(ctx: &mut Runtime<E>, _args: &[Value]) -> SyscallOutput {
         sys_trace!(target: "syscall::gear", "leave");
-        let err = ctx
-            .ext
-            .leave()
-            .map_err(FuncError::Core)
-            .err()
-            .unwrap_or_else(|| FuncError::Terminated(TerminationReason::Leave));
-        ctx.err = err;
-        Err(HostError)
+
+        ctx.run(|ctx| -> Result<(), _> {
+            Err(ctx
+                .ext
+                .leave()
+                .map_err(FuncError::Core)
+                .err()
+                .unwrap_or_else(|| FuncError::Terminated(TerminationReason::Leave)))
+        })
     }
 
     pub fn wait(ctx: &mut Runtime<E>, _args: &[Value]) -> SyscallOutput {
         sys_trace!(target: "syscall::gear", "wait");
-        let err = ctx
-            .ext
-            .wait()
-            .map_err(FuncError::Core)
-            .err()
-            .unwrap_or_else(|| FuncError::Terminated(TerminationReason::Wait(None)));
-        ctx.err = err;
-        Err(HostError)
+
+        ctx.run(|ctx| -> Result<(), _> {
+            Err(ctx
+                .ext
+                .wait()
+                .map_err(FuncError::Core)
+                .err()
+                .unwrap_or_else(|| FuncError::Terminated(TerminationReason::Wait(None))))
+        })
     }
 
     pub fn wait_for(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
