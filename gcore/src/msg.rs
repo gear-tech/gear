@@ -40,6 +40,7 @@ mod sys {
             data_len: u32,
             value_ptr: *const u8,
             message_id_ptr: *mut u8,
+            delay_ptr: *const u8,
         ) -> SyscallError;
         pub fn gr_reply_wgas(
             data_ptr: *const u8,
@@ -47,12 +48,18 @@ mod sys {
             gas_limit: u64,
             value_ptr: *const u8,
             message_id_ptr: *mut u8,
+            delay_ptr: *const u8,
         ) -> SyscallError;
-        pub fn gr_reply_commit(value_ptr: *const u8, message_id_ptr: *mut u8) -> SyscallError;
+        pub fn gr_reply_commit(
+            value_ptr: *const u8,
+            message_id_ptr: *mut u8,
+            delay_ptr: *const u8,
+        ) -> SyscallError;
         pub fn gr_reply_commit_wgas(
             gas_limit: u64,
             value_ptr: *const u8,
             message_id_ptr: *mut u8,
+            delay_ptr: *const u8,
         ) -> SyscallError;
         pub fn gr_reply_push(data_ptr: *const u8, data_len: u32) -> SyscallError;
         pub fn gr_reply_to(dest: *mut u8);
@@ -62,6 +69,7 @@ mod sys {
             data_len: u32,
             value_ptr: *const u8,
             message_id_ptr: *mut u8,
+            delay_ptr: *const u8,
         ) -> SyscallError;
         pub fn gr_send_wgas(
             program: *const u8,
@@ -70,12 +78,14 @@ mod sys {
             gas_limit: u64,
             value_ptr: *const u8,
             message_id_ptr: *mut u8,
+            delay_ptr: *const u8,
         ) -> SyscallError;
         pub fn gr_send_commit(
             handle: u32,
             message_id_ptr: *mut u8,
             program: *const u8,
             value_ptr: *const u8,
+            delay_ptr: *const u8,
         ) -> SyscallError;
         pub fn gr_send_commit_wgas(
             handle: u32,
@@ -83,6 +93,7 @@ mod sys {
             program: *const u8,
             gas_limit: u64,
             value_ptr: *const u8,
+            delay_ptr: *const u8,
         ) -> SyscallError;
         pub fn gr_send_init(handle: *mut u32) -> SyscallError;
         pub fn gr_send_push(handle: u32, data_ptr: *const u8, data_len: u32) -> SyscallError;
@@ -198,6 +209,23 @@ pub fn reply(payload: &[u8], value: u128) -> Result<MessageId> {
             payload.len() as _,
             value.to_le_bytes().as_ptr(),
             message_id.as_mut_slice().as_mut_ptr(),
+            0u32.to_le_bytes().as_ptr(),
+        )
+        .into_result()?;
+        Ok(message_id)
+    }
+}
+
+/// Same as [`reply`], but sends delayed.
+pub fn reply_delayed(payload: &[u8], value: u128, delay: u32) -> Result<MessageId> {
+    unsafe {
+        let mut message_id = MessageId::default();
+        sys::gr_reply(
+            payload.as_ptr(),
+            payload.len() as _,
+            value.to_le_bytes().as_ptr(),
+            message_id.as_mut_slice().as_mut_ptr(),
+            delay.to_le_bytes().as_ptr(),
         )
         .into_result()?;
         Ok(message_id)
@@ -229,6 +257,29 @@ pub fn reply_with_gas(payload: &[u8], gas_limit: u64, value: u128) -> Result<Mes
             gas_limit,
             value.to_le_bytes().as_ptr(),
             message_id.as_mut_slice().as_mut_ptr(),
+            0u32.to_le_bytes().as_ptr(),
+        )
+        .into_result()?;
+        Ok(message_id)
+    }
+}
+
+/// Same as [`reply_with_gas`], but sends delayed.
+pub fn reply_with_gas_delayed(
+    payload: &[u8],
+    gas_limit: u64,
+    value: u128,
+    delay: u32,
+) -> Result<MessageId> {
+    unsafe {
+        let mut message_id = MessageId::default();
+        sys::gr_reply_wgas(
+            payload.as_ptr(),
+            payload.len() as _,
+            gas_limit,
+            value.to_le_bytes().as_ptr(),
+            message_id.as_mut_slice().as_mut_ptr(),
+            delay.to_le_bytes().as_ptr(),
         )
         .into_result()?;
         Ok(message_id)
@@ -271,6 +322,21 @@ pub fn reply_commit(value: u128) -> Result<MessageId> {
         sys::gr_reply_commit(
             value.to_le_bytes().as_ptr(),
             message_id.as_mut_slice().as_mut_ptr(),
+            0u32.to_le_bytes().as_ptr(),
+        )
+        .into_result()?;
+        Ok(message_id)
+    }
+}
+
+/// Same as [`reply_commit`], but sends delayed.
+pub fn reply_commit_delayed(value: u128, delay: u32) -> Result<MessageId> {
+    unsafe {
+        let mut message_id = MessageId::default();
+        sys::gr_reply_commit(
+            value.to_le_bytes().as_ptr(),
+            message_id.as_mut_slice().as_mut_ptr(),
+            delay.to_le_bytes().as_ptr(),
         )
         .into_result()?;
         Ok(message_id)
@@ -304,6 +370,22 @@ pub fn reply_commit_with_gas(gas_limit: u64, value: u128) -> Result<MessageId> {
             gas_limit,
             value.to_le_bytes().as_ptr(),
             message_id.as_mut_slice().as_mut_ptr(),
+            0u32.to_le_bytes().as_ptr(),
+        )
+        .into_result()?;
+        Ok(message_id)
+    }
+}
+
+/// Same as [`reply_commit_with_gas`], but sends delayed.
+pub fn reply_commit_with_gas_delayed(gas_limit: u64, value: u128, delay: u32) -> Result<MessageId> {
+    unsafe {
+        let mut message_id = MessageId::default();
+        sys::gr_reply_commit_wgas(
+            gas_limit,
+            value.to_le_bytes().as_ptr(),
+            message_id.as_mut_slice().as_mut_ptr(),
+            delay.to_le_bytes().as_ptr(),
         )
         .into_result()?;
         Ok(message_id)
@@ -404,6 +486,29 @@ pub fn send(program: ActorId, payload: &[u8], value: u128) -> Result<MessageId> 
             payload.len() as _,
             value.to_le_bytes().as_ptr(),
             message_id.as_mut_slice().as_mut_ptr(),
+            0u32.to_le_bytes().as_ptr(),
+        )
+        .into_result()?;
+        Ok(message_id)
+    }
+}
+
+/// Same as [`send`], but sends delayed.
+pub fn send_delayed(
+    program: ActorId,
+    payload: &[u8],
+    value: u128,
+    delay: u32,
+) -> Result<MessageId> {
+    unsafe {
+        let mut message_id = MessageId::default();
+        sys::gr_send(
+            program.as_slice().as_ptr(),
+            payload.as_ptr(),
+            payload.len() as _,
+            value.to_le_bytes().as_ptr(),
+            message_id.as_mut_slice().as_mut_ptr(),
+            delay.to_le_bytes().as_ptr(),
         )
         .into_result()?;
         Ok(message_id)
@@ -447,6 +552,31 @@ pub fn send_with_gas(
             gas_limit,
             value.to_le_bytes().as_ptr(),
             message_id.as_mut_slice().as_mut_ptr(),
+            0u32.to_le_bytes().as_ptr(),
+        )
+        .into_result()?;
+        Ok(message_id)
+    }
+}
+
+/// Same as [`send_with_gas`], but sends delayed.
+pub fn send_with_gas_delayed(
+    program: ActorId,
+    payload: &[u8],
+    gas_limit: u64,
+    value: u128,
+    delay: u32,
+) -> Result<MessageId> {
+    unsafe {
+        let mut message_id = MessageId::default();
+        sys::gr_send_wgas(
+            program.as_slice().as_ptr(),
+            payload.as_ptr(),
+            payload.len() as _,
+            gas_limit,
+            value.to_le_bytes().as_ptr(),
+            message_id.as_mut_slice().as_mut_ptr(),
+            delay.to_le_bytes().as_ptr(),
         )
         .into_result()?;
         Ok(message_id)
@@ -495,6 +625,28 @@ pub fn send_commit(handle: MessageHandle, program: ActorId, value: u128) -> Resu
             message_id.as_mut_slice().as_mut_ptr(),
             program.as_slice().as_ptr(),
             value.to_le_bytes().as_ptr(),
+            0u32.to_le_bytes().as_ptr(),
+        )
+        .into_result()?;
+        Ok(message_id)
+    }
+}
+
+/// Same as [`send_commit`], but with explicit gas limit.
+pub fn send_commit_delayed(
+    handle: MessageHandle,
+    program: ActorId,
+    value: u128,
+    delay: u32,
+) -> Result<MessageId> {
+    unsafe {
+        let mut message_id = MessageId::default();
+        sys::gr_send_commit(
+            handle.0,
+            message_id.as_mut_slice().as_mut_ptr(),
+            program.as_slice().as_ptr(),
+            value.to_le_bytes().as_ptr(),
+            delay.to_le_bytes().as_ptr(),
         )
         .into_result()?;
         Ok(message_id)
@@ -536,6 +688,30 @@ pub fn send_commit_with_gas(
             program.as_slice().as_ptr(),
             gas_limit,
             value.to_le_bytes().as_ptr(),
+            0u32.to_le_bytes().as_ptr(),
+        )
+        .into_result()?;
+        Ok(message_id)
+    }
+}
+
+/// Same as [`send_commit_with_gas`], but with explicit gas limit.
+pub fn send_commit_with_gas_delayed(
+    handle: MessageHandle,
+    program: ActorId,
+    gas_limit: u64,
+    value: u128,
+    delay: u32,
+) -> Result<MessageId> {
+    unsafe {
+        let mut message_id = MessageId::default();
+        sys::gr_send_commit_wgas(
+            handle.0,
+            message_id.as_mut_slice().as_mut_ptr(),
+            program.as_slice().as_ptr(),
+            gas_limit,
+            value.to_le_bytes().as_ptr(),
+            delay.to_le_bytes().as_ptr(),
         )
         .into_result()?;
         Ok(message_id)

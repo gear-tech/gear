@@ -20,48 +20,30 @@
 
 mod apis;
 
-pub use frame_support::{
+use frame_support::{
     parameter_types,
     traits::{Currency, OnUnbalanced},
-    weights::constants::WEIGHT_PER_SECOND,
 };
 use runtime_primitives::{AccountId, Balance, BlockNumber};
-use sp_runtime::{Perbill, Percent};
+use sp_runtime::Perbill;
+
+/// We assume that ~10% of the block weight is consumed by `on_initialize` handlers.
+/// This is used to limit the maximal weight of a single extrinsic.
+pub const AVERAGE_ON_INITIALIZE_RATIO: Perbill = Perbill::from_percent(10);
+pub const NORMAL_DISPATCH_RATIO_NUM: u8 = 25;
+pub const GAS_LIMIT_MIN_PERCENTAGE_NUM: u8 = 100 - NORMAL_DISPATCH_RATIO_NUM;
 
 // Extrinsics with DispatchClass::Normal only account for user messages
 // TODO: consider making the normal extrinsics share adjustable in runtime
-const NORMAL_DISPATCH_RATIO: Perbill = Perbill::from_percent(25);
+pub const NORMAL_DISPATCH_RATIO: Perbill = Perbill::from_percent(NORMAL_DISPATCH_RATIO_NUM as u32);
 
 parameter_types! {
     pub const BlockHashCount: BlockNumber = 2400;
-    /// We allow for 1/3 of a second of compute with a 2 second average block time.
-    pub BlockWeights: frame_system::limits::BlockWeights = frame_system::limits::BlockWeights
-        ::with_sensible_defaults(WEIGHT_PER_SECOND / 3, NORMAL_DISPATCH_RATIO);
-    pub BlockLength: frame_system::limits::BlockLength = frame_system::limits::BlockLength
-        ::max_with_normal_ratio(5 * 1024 * 1024, NORMAL_DISPATCH_RATIO);
 }
 
 pub struct GasConverter;
 impl gear_common::GasPrice for GasConverter {
     type Balance = Balance;
-}
-
-parameter_types! {
-    pub const GasLimitMaxPercentage: Percent = Percent::from_percent(75);
-    pub BlockGasLimit: u64 = GasLimitMaxPercentage::get() * BlockWeights::get().max_block.ref_time();
-
-    pub const TransactionByteFee: Balance = 1;
-    pub const QueueLengthStep: u128 = 10;
-    pub const OperationalFeeMultiplier: u8 = 5;
-
-    pub const ReserveThreshold: u32 = 1;
-    pub const WaitlistCost: u64 = 100;
-    pub const MailboxCost: u64 = 100;
-
-    pub const OutgoingLimit: u32 = 1024;
-    pub const MailboxThreshold: u64 = 3000;
-
-    pub const PerByteCost: u64 = 100;
 }
 
 pub type NegativeImbalance<T> = <pallet_balances::Pallet<T> as Currency<

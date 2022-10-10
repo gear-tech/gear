@@ -17,6 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate as pallet_gear_scheduler;
+use common::QueueRunner;
 use frame_support::{
     construct_runtime,
     pallet_prelude::*,
@@ -86,7 +87,7 @@ impl system::Config for Test {
     type BlockWeights = ();
     type BlockLength = ();
     type DbWeight = RocksDbWeight;
-    type Origin = Origin;
+    type RuntimeOrigin = RuntimeOrigin;
     type RuntimeCall = RuntimeCall;
     type Index = u64;
     type BlockNumber = u64;
@@ -141,6 +142,7 @@ impl pallet_gear::Config for Test {
     type GasProvider = GearGas;
     type BlockLimiter = GearGas;
     type Scheduler = GearScheduler;
+    type QueueRunner = Gear;
 }
 
 impl pallet_gear_scheduler::Config for Test {
@@ -220,16 +222,13 @@ pub fn run_to_block(n: u64, remaining_weight: Option<u64>) {
         Gear::on_initialize(System::block_number());
 
         let remaining_weight = remaining_weight.unwrap_or(BlockGasLimitOf::<Test>::get());
-
         log::debug!(
-            "🧱 Running on_idle block #{} with weight {}",
+            "🧱 Running run #{} with weight {}",
             System::block_number(),
             remaining_weight
         );
 
-        Gear::on_idle(
-            System::block_number(),
-            Weight::from_ref_time(remaining_weight),
-        );
+        Gear::run_queue(remaining_weight);
+        Gear::on_finalize(System::block_number());
     }
 }

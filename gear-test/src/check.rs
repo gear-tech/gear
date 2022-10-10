@@ -41,6 +41,7 @@ use log::{Log, Metadata, Record, SetLoggerError};
 use rayon::prelude::*;
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap},
+    convert::TryInto,
     fmt, fs,
     sync::{
         atomic::{AtomicUsize, Ordering},
@@ -286,7 +287,7 @@ pub fn check_messages(
                                         msg.id(),
                                         msg.source(),
                                         msg.destination(),
-                                        new_payload,
+                                        new_payload.try_into().unwrap(),
                                         msg.value(),
                                         msg.reply(),
                                     );

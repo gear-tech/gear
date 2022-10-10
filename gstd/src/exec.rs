@@ -80,7 +80,7 @@
 use crate::{ActorId, MessageId};
 pub use gcore::exec::{
     block_height, block_timestamp, gas_available, leave, value_available, wait, wait_for,
-    wait_no_more,
+    wait_up_to,
 };
 
 /// Terminate the execution of a program.
@@ -126,6 +126,11 @@ pub fn exit(value_destination: ActorId) -> ! {
 /// ```
 pub fn wake(waker_id: MessageId) {
     gcore::exec::wake(waker_id.into())
+}
+
+/// Same as [`wake`], but wakes delayed.
+pub fn wake_delayed(waker_id: MessageId, delay: u32) {
+    gcore::exec::wake_delayed(waker_id.into(), delay)
 }
 
 /// Return ID of the current program.

@@ -26,6 +26,8 @@ use crate::{
 use codec::{Decode, Encode};
 use scale_info::TypeInfo;
 
+use super::PayloadSizeError;
+
 /// Message for Handle entry point.
 /// Represents a standard message that sends between actors.
 #[derive(Clone, Default, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo)]
@@ -94,7 +96,7 @@ impl HandleMessage {
 
     /// Message payload reference.
     pub fn payload(&self) -> &[u8] {
-        self.payload.as_ref()
+        self.payload.get()
     }
 
     /// Message optional gas limit.
@@ -150,8 +152,8 @@ impl HandlePacket {
     }
 
     /// Prepend payload.
-    pub(super) fn prepend(&mut self, data: Payload) {
-        self.payload.splice(0..0, data);
+    pub(super) fn try_prepend(&mut self, data: Payload) -> Result<(), PayloadSizeError> {
+        self.payload.try_prepend(data)
     }
 
     /// Packet destination.
@@ -162,7 +164,7 @@ impl HandlePacket {
 
 impl Packet for HandlePacket {
     fn payload(&self) -> &[u8] {
-        self.payload.as_ref()
+        self.payload.get()
     }
 
     fn gas_limit(&self) -> Option<GasLimit> {

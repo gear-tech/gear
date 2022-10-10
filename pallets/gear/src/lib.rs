@@ -49,12 +49,15 @@ pub use crate::{
 };
 pub use weights::WeightInfo;
 
-use common::{scheduler::*, storage::*, BlockLimiter, CodeStorage, GasProvider};
+use common::{scheduler::*, storage::*, BlockLimiter, CodeStorage, GasProvider, QueueRunner};
 use frame_support::{
     traits::{Currency, StorageVersion},
     weights::Weight,
 };
-use gear_backend_sandbox::SandboxEnvironment;
+#[cfg(not(feature = "std"))]
+use gear_backend_sandbox::SandboxEnvironment as ExecutionEnvironment;
+#[cfg(feature = "std")]
+use gear_backend_wasmi::WasmiEnvironment as ExecutionEnvironment;
 use gear_core::{
     code::{Code, CodeAndId, InstrumentedCode, InstrumentedCodeAndId},
     ids::{CodeId, MessageId, ProgramId, ReservationId},
@@ -93,6 +96,7 @@ pub type Authorship<T> = pallet_authorship::Pallet<T>;
 pub type GasAllowanceOf<T> = <<T as Config>::BlockLimiter as BlockLimiter>::GasAllowance;
 pub type GasHandlerOf<T> = <<T as Config>::GasProvider as GasProvider>::GasTree;
 pub type BlockGasLimitOf<T> = <<T as Config>::BlockLimiter as BlockLimiter>::BlockGasLimit;
+pub type GasUnitOf<T> = <<T as Config>::BlockLimiter as BlockLimiter>::Balance;
 
 /// The current storage version.
 const GEAR_STORAGE_VERSION: StorageVersion = StorageVersion::new(1);
@@ -136,6 +140,44 @@ pub struct GasInfo {
     pub waited: bool,
 }
 
+/// Mode of forcing message queue processing
+#[derive(Copy, Clone, Debug, Decode, Encode, PartialEq, Eq, scale_info::TypeInfo)]
+#[cfg_attr(feature = "std", derive(serde::Deserialize, serde::Serialize))]
+pub enum Forcing {
+    /// Not forcing anything: queue gets processed if scheduled
+    NotForcing,
+    /// Avoid queue processing indefinitely
+    ForceNone,
+    /// Forcing once to recover from earlier error
+    ForceOnce,
+    /// Force queue processing regardless of anything
+    ForceAlways,
+}
+
+impl Default for Forcing {
+    fn default() -> Self {
+        Forcing::NotForcing
+    }
+}
+
+/// Possible queue processing states.
+#[derive(Clone, Debug, Decode, Encode, PartialEq, Eq, scale_info::TypeInfo)]
+#[cfg_attr(feature = "std", derive(serde::Deserialize, serde::Serialize))]
+pub enum ProcessStatus {
+    /// Scheduled to run in current block
+    Scheduled,
+    /// Processing completed
+    Completed,
+    /// Forced to not run or failed during last run
+    SkippedOrFailed,
+}
+
+impl Default for ProcessStatus {
+    fn default() -> Self {
+        ProcessStatus::Scheduled
+    }
+}
+
 #[frame_support::pallet]
 pub mod pallet {
     use super::*;
@@ -160,7 +202,7 @@ pub mod pallet {
         PrepareResult,
     };
     use frame_support::{
-        dispatch::{DispatchError, DispatchResultWithPostInfo},
+        dispatch::{DispatchError, DispatchResultWithPostInfo, PostDispatchInfo},
         ensure,
         pallet_prelude::*,
         traits::{
@@ -248,6 +290,9 @@ pub mod pallet {
             Task = ScheduledTask<Self::AccountId>,
             MissedBlocksCollection = BTreeSet<Self::BlockNumber>,
         >;
+
+        /// Message Queue processing routin provider
+        type QueueRunner: QueueRunner<Gas = GasUnitOf<Self>>;
     }
 
     #[pallet::pallet]
@@ -369,6 +414,9 @@ pub mod pallet {
             /// NOTE: See more docs about change kinds at `gear_common::event`.
             change: ProgramChangeKind<T::BlockNumber>,
         },
+
+        /// The extrinsic that runs queue processing rolled back
+        QueueProcessingReverted,
     }
 
     // Gear pallet error.
@@ -415,6 +463,14 @@ pub mod pallet {
         MessagesStorageCorrupted,
     }
 
+    #[pallet::storage]
+    #[pallet::getter(fn force_queue)]
+    pub type ForceQueue<T> = StorageValue<_, Forcing, ValueQuery>;
+
+    #[pallet::storage]
+    #[pallet::getter(fn queue_state)]
+    pub type QueueState<T> = StorageValue<_, ProcessStatus, ValueQuery>;
+
     #[pallet::hooks]
     impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T>
     where
@@ -428,56 +484,64 @@ pub mod pallet {
 
         /// Initialization
         fn on_initialize(bn: BlockNumberFor<T>) -> Weight {
-            log::debug!(target: "runtime::gear", "⚙️ Initialization of block #{:?}", bn);
+            log::debug!(target: "runtime::gear", "⚙️  Initialization of block #{:?}", bn);
 
-            Weight::zero()
+            // Decide whether queue processing should be scheduled or skipped for current block
+
+            // If some forcing mode is on
+            match ForceQueue::<T>::get() {
+                Forcing::ForceNone => {
+                    // Regardless of anything, forcing not to process queue
+                    QueueState::<T>::put(ProcessStatus::SkippedOrFailed);
+                    T::DbWeight::get().reads_writes(1, 1)
+                }
+                Forcing::ForceAlways => {
+                    // Regardless of anything, forcing the queue to be processed
+                    QueueState::<T>::put(ProcessStatus::Scheduled);
+                    T::DbWeight::get().reads_writes(1, 1)
+                }
+                Forcing::ForceOnce => {
+                    // Forcing queue processing in current block, subsequently not forcing anything
+                    ForceQueue::<T>::put(Forcing::default());
+                    QueueState::<T>::put(ProcessStatus::Scheduled);
+                    T::DbWeight::get().reads_writes(1, 2)
+                }
+                _ => T::DbWeight::get().reads(1),
+            }
         }
 
         /// Finalization
         fn on_finalize(bn: BlockNumberFor<T>) {
-            log::debug!(target: "runtime::gear", "⚙️ Finalization of block #{:?}", bn);
+            log::debug!(target: "runtime::gear", "⚙️  Finalization of block #{:?}", bn);
+
+            match QueueState::<T>::get() {
+                // Still in `Scheduled` state: last run didn't complete (likely, panicked)
+                ProcessStatus::Scheduled => {
+                    // Emitting event to signal queue processing transaction was rolled back
+                    Self::deposit_event(Event::QueueProcessingReverted);
+                    QueueState::<T>::put(ProcessStatus::SkippedOrFailed);
+                }
+                // Latest run succeeded; scheduling to run again in the next block
+                ProcessStatus::Completed => {
+                    QueueState::<T>::put(ProcessStatus::Scheduled);
+                }
+                // Otherwise keeping the status intact;
+                // Note: `SkippedOrFailed` can now only be overriden through forcing
+                _ => (),
+            }
         }
+    }
 
-        /// Queue processing occurs after all normal extrinsics in the block
-        ///
-        /// There should always remain enough weight for this hook to be invoked
-        fn on_idle(bn: BlockNumberFor<T>, remaining_weight: Weight) -> Weight {
-            log::debug!(
-                target: "runtime::gear",
-                "⚙️ Queue and tasks processing of block #{:?} with weight='{:?}'",
-                bn,
-                remaining_weight,
-            );
+    #[cfg_attr(feature = "std", derive(Default))]
+    #[pallet::genesis_config]
+    pub struct GenesisConfig {
+        pub force_queue: Forcing,
+    }
 
-            // Adjust the block gas allowance based on actual remaining weight.
-            //
-            // This field already was affected by gas pallet within the block,
-            // so we don't need to include that db write.
-            GasAllowanceOf::<T>::put(remaining_weight.ref_time());
-
-            // Ext manager creation.
-            // It will be processing messages execution results following its `JournalHandler` trait implementation.
-            // It also will handle delayed tasks following `TasksHandler`.
-            let mut ext_manager = Default::default();
-
-            // Processing regular and delayed tasks.
-            Self::process_tasks(&mut ext_manager);
-
-            // Processing message queue.
-            Self::process_queue(ext_manager);
-
-            // Calculating weight burned within the block.
-            let weight =
-                remaining_weight.saturating_sub(Weight::from_ref_time(GasAllowanceOf::<T>::get()));
-
-            log::debug!(
-                target: "runtime::gear",
-                "⚙️ Weight '{:?}' burned in block #{:?}",
-                weight,
-                bn,
-            );
-
-            weight
+    #[pallet::genesis_build]
+    impl<T: Config> GenesisBuild<T> for GenesisConfig {
+        fn build(&self) {
+            ForceQueue::<T>::put(self.force_queue);
         }
     }
 
@@ -521,7 +585,9 @@ pub mod pallet {
             let packet = InitPacket::new_with_gas(
                 code_and_id.code_id(),
                 salt,
-                init_payload,
+                init_payload
+                    .try_into()
+                    .map_err(|err: PayloadSizeError| DispatchError::Other(err.into()))?,
                 gas_limit,
                 value.unique_saturated_into(),
             );
@@ -874,7 +940,7 @@ pub mod pallet {
                                 })
                                 .unwrap_or(0);
 
-                            core_processor::process::<Ext, SandboxEnvironment>(
+                            core_processor::process::<Ext, ExecutionEnvironment>(
                                 &block_config,
                                 (context, actor_id, code).into(),
                                 memory_pages,
@@ -1258,7 +1324,7 @@ pub mod pallet {
                                     Some(c) => c,
                                 };
 
-                                core_processor::process::<Ext, SandboxEnvironment>(
+                                core_processor::process::<Ext, ExecutionEnvironment>(
                                     &block_config,
                                     (context, program_id, code).into(),
                                     memory_pages,
@@ -1469,7 +1535,9 @@ pub mod pallet {
             let packet = InitPacket::new_with_gas(
                 code_id,
                 salt,
-                init_payload,
+                init_payload
+                    .try_into()
+                    .map_err(|err: PayloadSizeError| DispatchError::Other(err.into()))?,
                 gas_limit,
                 value.unique_saturated_into(),
             );
@@ -1722,6 +1790,9 @@ pub mod pallet {
             gas_limit: u64,
             value: BalanceOf<T>,
         ) -> DispatchResultWithPostInfo {
+            let payload = payload
+                .try_into()
+                .map_err(|err: PayloadSizeError| DispatchError::Other(err.into()))?;
             let who = ensure_signed(origin)?;
             let origin = who.clone().into_origin();
 
@@ -1812,6 +1883,10 @@ pub mod pallet {
             gas_limit: u64,
             value: BalanceOf<T>,
         ) -> DispatchResultWithPostInfo {
+            let payload = payload
+                .try_into()
+                .map_err(|err: PayloadSizeError| DispatchError::Other(err.into()))?;
+
             // Validating origin.
             let origin = ensure_signed(origin)?;
 
@@ -1916,6 +1991,78 @@ pub mod pallet {
             Self::deposit_event(Event::DatabaseWiped);
 
             Ok(())
+        }
+
+        /// Process message queue
+        #[pallet::weight((Weight::zero(), DispatchClass::Mandatory))]
+        pub fn run(origin: OriginFor<T>) -> DispatchResultWithPostInfo {
+            ensure_none(origin)?;
+
+            if !matches!(QueueState::<T>::get(), ProcessStatus::Scheduled) {
+                return Ok(PostDispatchInfo {
+                    actual_weight: Some(Weight::zero()),
+                    pays_fee: Pays::No,
+                });
+            }
+
+            let bn = <frame_system::Pallet<T>>::block_number();
+
+            let weight_used = <frame_system::Pallet<T>>::block_weight();
+            let max_weight = <T as frame_system::Config>::BlockWeights::get().max_block;
+            let remaining_weight = max_weight.saturating_sub(weight_used.total());
+
+            // Remaining weight may exceed the minimum block gas limit determined by the Limiter trait
+            let adjusted_gas = GasAllowanceOf::<T>::get().max(remaining_weight.ref_time());
+
+            log::debug!(
+                target: "runtime::gear",
+                "⚙️  Queue and tasks processing of block #{:?} with {}",
+                bn,
+                adjusted_gas,
+            );
+
+            let actual_weight = <T as Config>::QueueRunner::run_queue(adjusted_gas);
+
+            log::debug!(
+                target: "runtime::gear",
+                "⚙️  {} burned in block #{:?}",
+                actual_weight,
+                bn,
+            );
+
+            // Set queue processing status to allow for a new run in the next block
+            QueueState::<T>::put(ProcessStatus::Completed);
+
+            Ok(PostDispatchInfo {
+                actual_weight: Some(Weight::from_ref_time(actual_weight)),
+                pays_fee: Pays::No,
+            })
+        }
+    }
+
+    impl<T: Config> QueueRunner for Pallet<T>
+    where
+        T::AccountId: Origin,
+    {
+        type Gas = GasUnitOf<T>;
+
+        fn run_queue(initial_gas: GasUnitOf<T>) -> GasUnitOf<T> {
+            // Setting adjusted initial gas allowance
+            GasAllowanceOf::<T>::put(initial_gas);
+
+            // Ext manager creation.
+            // It will be processing messages execution results following its `JournalHandler` trait implementation.
+            // It also will handle delayed tasks following `TasksHandler`.
+            let mut ext_manager = Default::default();
+
+            // Processing regular and delayed tasks.
+            Self::process_tasks(&mut ext_manager);
+
+            // Processing message queue.
+            Self::process_queue(ext_manager);
+
+            // Calculating weight burned within the block.
+            initial_gas.saturating_sub(GasAllowanceOf::<T>::get())
         }
     }
 

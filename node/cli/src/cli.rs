@@ -28,6 +28,15 @@ pub struct RunCmd {
     /// Force using Vara native runtime.
     #[clap(long = "force-vara")]
     pub force_vara: bool,
+}
+
+#[derive(Debug, Parser)]
+pub struct Cli {
+    #[clap(subcommand)]
+    pub subcommand: Option<Subcommand>,
+
+    #[clap(flatten)]
+    pub run: RunCmd,
 
     /// Disable automatic hardware benchmarks.
     ///
@@ -38,15 +47,6 @@ pub struct RunCmd {
     /// telemetry, if telemetry is enabled.
     #[clap(long)]
     pub no_hardware_benchmarks: bool,
-}
-
-#[derive(Debug, Parser)]
-pub struct Cli {
-    #[clap(subcommand)]
-    pub subcommand: Option<Subcommand>,
-
-    #[clap(flatten)]
-    pub run: RunCmd,
 }
 
 #[derive(Debug, clap::Subcommand)]
@@ -96,4 +96,9 @@ pub enum Subcommand {
         about = "Run gear runtime tests with yaml."
     )]
     GearRuntimeTest(gear_runtime_test_cli::GearRuntimeTestCmd),
+
+    /// Program CLI
+    #[cfg(feature = "program")]
+    #[clap(name = "gear-program", about = "Run gear program cli.")]
+    GearProgram(gear_program::cmd::Opt),
 }
