@@ -901,8 +901,8 @@ pub mod pallet {
                 };
 
                 let subsequent_execution = !subsequent_execution && actor_id == main_program_id;
-                let may_be_returned_context = subsequent_execution
-                    .then(|| MessageExecutionContext {
+                let may_be_returned_context =
+                    subsequent_execution.then(|| MessageExecutionContext {
                         subsequent_execution,
                         ..message_execution_context.clone()
                     });
@@ -919,10 +919,8 @@ pub mod pallet {
                                 Some(m) => m,
                             };
 
-                            let code = match Self::get_code(
-                                context.actor_data().code_id,
-                                actor_id,
-                            ) {
+                            let code = match Self::get_code(context.actor_data().code_id, actor_id)
+                            {
                                 None => continue,
                                 Some(c) => c,
                             };
@@ -1391,10 +1389,7 @@ pub mod pallet {
             Some(memory_pages)
         }
 
-        fn get_code(
-            code_id: CodeId,
-            program_id: ProgramId,
-        ) -> Option<InstrumentedCode> {
+        fn get_code(code_id: CodeId, program_id: ProgramId) -> Option<InstrumentedCode> {
             let code = match T::CodeStorage::get_code(code_id) {
                 None => {
                     log::error!("Code '{code_id:?}' not found for program '{program_id:?}'");

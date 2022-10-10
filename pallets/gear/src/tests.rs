@@ -2975,7 +2975,6 @@ fn terminated_locking_funds() {
 
         assert!(init_waited);
 
-
         assert_ok!(Gear::upload_code(
             RuntimeOrigin::signed(USER_1),
             WASM_BINARY.to_vec(),
@@ -2995,7 +2994,11 @@ fn terminated_locking_funds() {
             // additional gas for loading resources on next wake up
             gas_spent_init
                 + core_processor::calculate_gas_for_program(read_cost, 0)
-                + core_processor::calculate_gas_for_code(read_cost, PerByteCostOf::<Test>::get(), code_length as u64),
+                + core_processor::calculate_gas_for_code(
+                    read_cost,
+                    PerByteCostOf::<Test>::get(),
+                    code_length as u64
+                ),
             5_000u128
         ));
 

@@ -36,9 +36,9 @@ use crate::{
     manager::{CodeInfo, ExtManager, HandleKind},
     pallet,
     schedule::{API_BENCHMARK_BATCH_SIZE, INSTR_BENCHMARK_BATCH_SIZE},
-    BTreeMap, BalanceOf, BlockGasLimitOf, Call, Config, CostsPerBlockOf, CurrencyOf,
+    BTreeMap, BalanceOf, BlockGasLimitOf, Call, Config, CostsPerBlockOf, CurrencyOf, DbWeightOf,
     ExecutionEnvironment, Ext as Externalities, GasHandlerOf, MailboxOf, Pallet as Gear, Pallet,
-    QueueOf, Schedule, WaitlistOf, DbWeightOf, PerByteCostOf
+    PerByteCostOf, QueueOf, Schedule, WaitlistOf,
 };
 use codec::Encode;
 use common::{
