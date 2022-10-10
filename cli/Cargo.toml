@@ -3,7 +3,6 @@ name = "gear-cli"
 version = "0.1.0"
 authors = ["Gear Technologies"]
 edition = "2018"
-#build = "build.rs"
 
 [package.metadata.docs.rs]
 targets = ["x86_64-unknown-linux-gnu"]
