@@ -90,7 +90,7 @@ pub struct Schedule<T: Config> {
     /// The weights for memory interaction.
     pub memory_weights: MemoryWeights<T>,
 
-    pub module_instantiation: u64,
+    pub module_instantiation_per_byte: u64,
 }
 
 /// Describes the upper limits on various metrics.
@@ -476,7 +476,7 @@ impl<T: Config> Default for Schedule<T> {
             instruction_weights: Default::default(),
             host_fn_weights: Default::default(),
             memory_weights: Default::default(),
-            module_instantiation: cost!(instantiate_module),
+            module_instantiation_per_byte: cost!(instantiate_module),
         }
     }
 }

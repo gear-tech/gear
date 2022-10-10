@@ -83,7 +83,7 @@ pub struct ExecutionSettings {
     /// Cost for single block waitlist holding.
     pub waitlist_cost: u64,
     /// Cost for single WASM module instantiation.
-    pub module_instantiation: u64,
+    pub module_instantiation_per_byte: u64,
     /// Reserve for parameter of scheduling.
     pub reserve_for: u32,
 }
@@ -115,7 +115,7 @@ pub struct BlockConfig {
     /// Cost for single block waitlist holding.
     pub waitlist_cost: u64,
     /// Cost for single WASM module instantiation.
-    pub module_instantiation: u64,
+    pub module_instantiation_per_byte: u64,
     /// Reserve for parameter of scheduling.
     pub reserve_for: u32,
 }

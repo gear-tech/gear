@@ -325,7 +325,7 @@ where
         forbidden_funcs: Default::default(),
         mailbox_threshold,
         waitlist_cost,
-        module_instantiation: T::Schedule::get().module_instantiation,
+        module_instantiation_per_byte: T::Schedule::get().module_instantiation_per_byte,
         reserve_for,
     };
 
