@@ -88,7 +88,8 @@ pub fn reply_delayed<E: Encode>(payload: E, value: u128, delay: u32) -> Result<M
 ///
 /// # See also
 ///
-/// [`reply_push`] function allows to form a reply message in parts.
+/// [`reply_push`](crate::msg::reply_push) function allows to form a reply
+/// message in parts.
 #[wait_for_reply]
 pub fn reply_with_gas<E: Encode>(payload: E, gas_limit: u64, value: u128) -> Result<MessageId> {
     super::reply_bytes_with_gas(payload.encode(), gas_limit, value)
