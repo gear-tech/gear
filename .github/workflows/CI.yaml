@@ -240,6 +240,7 @@ jobs:
           ./target-no-lazy/gear runtime-spec-tests ./gear-test/spec/*
 
       - name: "Test: Runtime upgrade and queue processing"
+        if: false # FIXME: Remove after testing!
         run: ./scripts/gear.sh test runtime-upgrade
 
       - name: "Test: Program CLI"
@@ -254,7 +255,7 @@ jobs:
           ./target/release/gear benchmark pallet --chain=dev --steps=2 --repeat=1 --pallet=pallet_gear --extrinsic="*" --execution=wasm --wasm-execution=compiled --heap-pages=4096
 
       - name: "Coverage: Aggregate"
-        if: github.ref == 'refs/heads/master'
+        if: true # github.ref == 'refs/heads/master' # FIXME: Revert after testing!
         run: >-
           ./grcov . --binary-path ./target/release/ -s . -t lcov --branch --ignore-not-existing
           --ignore "/*"
@@ -292,7 +293,7 @@ jobs:
           file: ./lcov.info
 
       - name: "Build: Production binaries"
-        if: github.event_name == 'push'
+        if: true # github.event_name == 'push' # FIXME: Revert after testing!
         run: cargo build -p gear-cli --profile production
 
       - name: "Cache: Pack"
@@ -314,7 +315,7 @@ jobs:
           mkdir -p /root/cache/${{ github.event.pull_request.number }} && mv /tmp/*.tar /root/cache/${{ github.event.pull_request.number }}/
 
       - name: Prepare artifacts
-        if: github.event_name == 'push'
+        if: true # github.event_name == 'push' # FIXME: Revert after testing!
         run: |
           mkdir -p artifact
           cd target/wasm32-unknown-unknown/release
