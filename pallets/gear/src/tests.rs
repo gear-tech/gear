@@ -4373,6 +4373,7 @@ fn gas_spent_precalculated() {
         let add_cost = schedule.instruction_weights.i64add;
         let gas_cost = schedule.host_fn_weights.gas as u32; // gas call in handle and "add" func
         let load_page_cost = schedule.memory_weights.load_cost as u32;
+        let module_instantiation = schedule.module_instantiation as u32;
 
         let total_cost = call_cost
             + const_i64_cost * 2
@@ -4380,7 +4381,8 @@ fn gas_spent_precalculated() {
             + get_local_cost * 2
             + add_cost
             + gas_cost * 2
-            + load_page_cost;
+            + load_page_cost
+            + module_instantiation;
 
         assert_eq!(gas_spent_1, total_cost as u64);
 
