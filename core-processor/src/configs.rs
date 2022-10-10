@@ -22,7 +22,11 @@ use crate::common::Actor;
 use alloc::collections::BTreeSet;
 use codec::{Decode, Encode};
 use gear_core::{
-    code, costs::HostFnWeights, ids::ProgramId, memory::WasmPageNumber, message::IncomingDispatch,
+    code,
+    costs::{HostFnWeights, StaticHostFnWeights},
+    ids::ProgramId,
+    memory::WasmPageNumber,
+    message::IncomingDispatch,
 };
 
 const INIT_COST: u64 = 5000;
@@ -82,8 +86,6 @@ pub struct ExecutionSettings {
     pub mailbox_threshold: u64,
     /// Cost for single block waitlist holding.
     pub waitlist_cost: u64,
-    /// Cost for single WASM module instantiation.
-    pub module_instantiation_per_byte: u64,
     /// Reserve for parameter of scheduling.
     pub reserve_for: u32,
 }
@@ -108,14 +110,14 @@ pub struct BlockConfig {
     pub outgoing_limit: u32,
     /// Host function weights.
     pub host_fn_weights: HostFnWeights,
+    /// Static host function weights.
+    pub static_host_fn_weights: StaticHostFnWeights,
     /// Forbidden functions.
     pub forbidden_funcs: BTreeSet<&'static str>,
     /// Mailbox threshold.
     pub mailbox_threshold: u64,
     /// Cost for single block waitlist holding.
     pub waitlist_cost: u64,
-    /// Cost for single WASM module instantiation.
-    pub module_instantiation_per_byte: u64,
     /// Reserve for parameter of scheduling.
     pub reserve_for: u32,
 }

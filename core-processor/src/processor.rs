@@ -138,7 +138,8 @@ pub fn prepare(
             subsequent_execution,
         )?;
         executor::charge_gas_for_instantiation(
-            block_config.module_instantiation_per_byte,
+            &block_config.static_host_fn_weights,
+            program.raw_code(),
             &mut gas_counter,
             &mut gas_allowance_counter,
         )?;
@@ -191,10 +192,10 @@ pub fn process<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environment<
         existential_deposit,
         outgoing_limit,
         host_fn_weights,
+        static_host_fn_weights: _,
         forbidden_funcs,
         mailbox_threshold,
         waitlist_cost,
-        module_instantiation_per_byte,
         reserve_for,
     } = block_config.clone();
 
@@ -206,7 +207,6 @@ pub fn process<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environment<
         forbidden_funcs,
         mailbox_threshold,
         waitlist_cost,
-        module_instantiation_per_byte,
         reserve_for,
     };
 

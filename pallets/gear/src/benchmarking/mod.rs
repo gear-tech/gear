@@ -367,9 +367,9 @@ benchmarks! {
     }
 
     // `c`: Size of the code in kilobytes.
-    instantiate_module {
-        let c in 0 .. Perbill::from_percent(49).mul_ceil(T::Schedule::get().limits.code_len);
-        let WasmModule { code, .. } = WasmModule::<T>::sized(c, Location::Init);
+    instantiate_module_per_kb {
+        let c in 0 .. T::Schedule::get().limits.code_len / 1024;
+        let WasmModule { code, .. } = WasmModule::<T>::sized(c * 1024, Location::Init);
         let ext = MockExt::default();
     }: {
         gear_backend_sandbox::SandboxEnvironment::new(ext.clone(), &code, max_pages::<T>().into()).unwrap();

@@ -32,6 +32,7 @@ use gear_backend_common::{
     BackendReport, Environment, GetGasAmount, IntoExtInfo, TerminationReason,
 };
 use gear_core::{
+    costs::{StaticConsts, StaticHostFnWeights},
     env::Ext as EnvExt,
     gas::{ChargeResult, GasAllowanceCounter, GasCounter, ValueCounter},
     ids::ProgramId,
@@ -67,10 +68,13 @@ fn check_memory<'a>(
 }
 
 pub(crate) fn charge_gas_for_instantiation(
-    amount: u64,
+    weights: &StaticHostFnWeights,
+    binary: &[u8],
     gas_counter: &mut GasCounter,
     gas_allowance_counter: &mut GasAllowanceCounter,
 ) -> Result<(), ExecutionErrorReason> {
+    let amount = StaticConsts::ModuleInstantiation { len: binary.len() }.weight(weights);
+
     if gas_allowance_counter.charge(amount) != ChargeResult::Enough {
         return Err(ExecutionErrorReason::ModuleInstantiationBlockGasExceeded);
     }

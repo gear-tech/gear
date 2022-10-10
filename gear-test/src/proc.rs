@@ -379,10 +379,10 @@ fn test_block_config(block_info: BlockInfo) -> BlockConfig {
         existential_deposit: EXISTENTIAL_DEPOSIT,
         outgoing_limit: OUTGOING_LIMIT,
         host_fn_weights: Default::default(),
+        static_host_fn_weights: Default::default(),
         forbidden_funcs: Default::default(),
         mailbox_threshold: MAILBOX_THRESHOLD,
         waitlist_cost: WAITLIST_COST,
-        module_instantiation_per_byte: MODULE_INSTANTIATION_PER_BYTE,
         reserve_for: RESERVE_FOR,
     }
 }

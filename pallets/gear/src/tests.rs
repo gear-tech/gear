@@ -4347,10 +4347,15 @@ fn gas_spent_precalculated() {
 
     init_logger();
     new_test_ext().execute_with(|| {
-        let prog_id = upload_program_default(USER_1, ProgramCodeKind::Custom(wat))
-            .expect("submit result was asserted");
+        let prog = ProgramCodeKind::Custom(wat);
+        let prog_id =
+            upload_program_default(USER_1, prog.clone()).expect("submit result was asserted");
 
         run_to_block(2, None);
+
+        let code_id = CodeId::generate(&prog.to_bytes());
+        let code = <Test as Config>::CodeStorage::get_code(code_id).unwrap();
+        let code = code.code();
 
         let GasInfo {
             min_limit: gas_spent_1,
@@ -4372,8 +4377,9 @@ fn gas_spent_precalculated() {
         let get_local_cost = schedule.instruction_weights.local_get;
         let add_cost = schedule.instruction_weights.i64add;
         let gas_cost = schedule.host_fn_weights.gas as u32; // gas call in handle and "add" func
+        let module_instantiation =
+            schedule.static_host_fn_weights.instantiate_module_per_byte as u32 * code.len() as u32;
         let load_page_cost = schedule.memory_weights.load_cost as u32;
-        let module_instantiation_per_byte = schedule.module_instantiation_per_byte as u32;
 
         let total_cost = call_cost
             + const_i64_cost * 2
@@ -4382,7 +4388,7 @@ fn gas_spent_precalculated() {
             + add_cost
             + gas_cost * 2
             + load_page_cost
-            + module_instantiation_per_byte;
+            + module_instantiation;
 
         assert_eq!(gas_spent_1, total_cost as u64);
 

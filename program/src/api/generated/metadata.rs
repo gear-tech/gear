@@ -1544,10 +1544,10 @@ pub mod api {
                     let metadata = locked_metadata.read();
                     if metadata.constant_hash("System", "Version")?
                         == [
-                            67u8, 215u8, 49u8, 154u8, 163u8, 163u8, 13u8, 232u8, 106u8, 96u8,
-                            128u8, 91u8, 254u8, 243u8, 143u8, 250u8, 203u8, 221u8, 175u8, 142u8,
-                            134u8, 125u8, 149u8, 1u8, 147u8, 195u8, 92u8, 206u8, 186u8, 237u8,
-                            111u8, 166u8,
+                            135u8, 137u8, 222u8, 191u8, 223u8, 177u8, 79u8, 224u8, 20u8, 36u8,
+                            253u8, 182u8, 133u8, 120u8, 232u8, 154u8, 102u8, 5u8, 192u8, 104u8,
+                            152u8, 40u8, 121u8, 156u8, 114u8, 141u8, 186u8, 112u8, 229u8, 119u8,
+                            84u8, 128u8,
                         ]
                     {
                         let pallet = metadata.pallet("System")?;
@@ -8189,9 +8189,9 @@ pub mod api {
                     let metadata = locked_metadata.read();
                     if metadata.constant_hash("Gear", "Schedule")?
                         == [
-                            190u8, 249u8, 239u8, 138u8, 76u8, 42u8, 7u8, 80u8, 198u8, 241u8, 123u8,
-                            55u8, 30u8, 245u8, 2u8, 11u8, 199u8, 93u8, 105u8, 198u8, 118u8, 254u8,
-                            198u8, 41u8, 202u8, 168u8, 165u8, 146u8, 28u8, 56u8, 198u8, 124u8,
+                            47u8, 13u8, 5u8, 213u8, 217u8, 78u8, 45u8, 148u8, 222u8, 116u8, 217u8,
+                            119u8, 212u8, 178u8, 216u8, 26u8, 17u8, 108u8, 209u8, 92u8, 9u8, 203u8,
+                            112u8, 192u8, 26u8, 249u8, 9u8, 87u8, 139u8, 18u8, 204u8, 142u8,
                         ]
                     {
                         let pallet = metadata.pallet("Gear")?;
@@ -9786,7 +9786,18 @@ pub mod api {
                     pub instruction_weights:
                         runtime_types::pallet_gear::schedule::InstructionWeights,
                     pub host_fn_weights: runtime_types::pallet_gear::schedule::HostFnWeights,
+                    pub static_host_fn_weights:
+                        runtime_types::pallet_gear::schedule::StaticHostFnWeights,
                     pub memory_weights: runtime_types::pallet_gear::schedule::MemoryWeights,
+                }
+                #[derive(
+                    :: subxt :: codec :: CompactAs,
+                    :: subxt :: codec :: Decode,
+                    :: subxt :: codec :: Encode,
+                    Debug,
+                )]
+                pub struct StaticHostFnWeights {
+                    pub instantiate_module_per_byte: ::core::primitive::u64,
                 }
             }
         }
@@ -11427,9 +11438,9 @@ pub mod api {
             };
             if runtime_metadata_hash
                 != [
-                    206u8, 28u8, 41u8, 82u8, 159u8, 93u8, 70u8, 175u8, 157u8, 13u8, 130u8, 122u8,
-                    43u8, 44u8, 14u8, 196u8, 140u8, 111u8, 140u8, 168u8, 110u8, 239u8, 233u8,
-                    147u8, 216u8, 246u8, 32u8, 138u8, 242u8, 95u8, 218u8, 64u8,
+                    118u8, 199u8, 53u8, 82u8, 176u8, 18u8, 148u8, 125u8, 251u8, 43u8, 53u8, 203u8,
+                    137u8, 172u8, 33u8, 2u8, 55u8, 87u8, 185u8, 239u8, 226u8, 192u8, 235u8, 191u8,
+                    33u8, 166u8, 89u8, 48u8, 213u8, 167u8, 6u8, 121u8,
                 ]
             {
                 Err(::subxt::MetadataError::IncompatibleMetadata)

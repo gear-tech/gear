@@ -24,7 +24,11 @@
 use crate::{weights::WeightInfo, Config};
 
 use codec::{Decode, Encode};
-use gear_core::{code, costs::HostFnWeights as CoreHostFnWeights};
+use frame_support::DefaultNoBound;
+use gear_core::{
+    code,
+    costs::{HostFnWeights as CoreHostFnWeights, StaticHostFnWeights as CoreStaticHostFnWeights},
+};
 use pallet_gear_proc_macro::{ScheduleDebug, WeightDebug};
 use scale_info::TypeInfo;
 #[cfg(feature = "std")]
@@ -75,7 +79,7 @@ pub const INSTR_BENCHMARK_BATCH_SIZE: u32 = 100;
 /// changes are made to its values.
 #[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "std", serde(bound(serialize = "", deserialize = "")))]
-#[derive(Clone, Encode, Decode, PartialEq, Eq, ScheduleDebug, TypeInfo)]
+#[derive(Clone, Encode, Decode, PartialEq, Eq, ScheduleDebug, DefaultNoBound, TypeInfo)]
 #[scale_info(skip_type_params(T))]
 pub struct Schedule<T: Config> {
     /// Describes the upper limits on various metrics.
@@ -87,10 +91,11 @@ pub struct Schedule<T: Config> {
     /// The weights for each imported function a program is allowed to call.
     pub host_fn_weights: HostFnWeights<T>,
 
+    /// The weight for each function that is not called by a program.
+    pub static_host_fn_weights: StaticHostFnWeights<T>,
+
     /// The weights for memory interaction.
     pub memory_weights: MemoryWeights<T>,
-
-    pub module_instantiation_per_byte: u64,
 }
 
 /// Describes the upper limits on various metrics.
@@ -366,6 +371,17 @@ pub struct HostFnWeights<T: Config> {
     pub _phantom: PhantomData<T>,
 }
 
+/// Describes the weight for each function that is not called by a program.
+#[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
+#[derive(Clone, Encode, Decode, PartialEq, Eq, WeightDebug, TypeInfo)]
+#[scale_info(skip_type_params(T))]
+pub struct StaticHostFnWeights<T> {
+    /// Weight of WASM module creation per byte.
+    pub instantiate_module_per_byte: u64,
+
+    pub _phantom: PhantomData<T>,
+}
+
 /// Describes the weight for memory interaction.
 #[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
 #[derive(Clone, Encode, Decode, PartialEq, Eq, WeightDebug, TypeInfo)]
@@ -467,18 +483,6 @@ macro_rules! cost_byte_batched {
     ($name:ident) => {
         cost_byte_batched_args!($name, 1)
     };
-}
-
-impl<T: Config> Default for Schedule<T> {
-    fn default() -> Self {
-        Self {
-            limits: Default::default(),
-            instruction_weights: Default::default(),
-            host_fn_weights: Default::default(),
-            memory_weights: Default::default(),
-            module_instantiation_per_byte: cost!(instantiate_module),
-        }
-    }
 }
 
 impl Default for Limits {
@@ -650,6 +654,23 @@ impl<T: Config> Default for MemoryWeights<T> {
             allocation_cost: <T as Config>::WeightInfo::allocation_cost().ref_time(),
             grow_cost: <T as Config>::WeightInfo::grow_cost().ref_time(),
             load_cost: <T as Config>::WeightInfo::load_cost().ref_time(),
+            _phantom: PhantomData,
+        }
+    }
+}
+
+impl<T: Config> StaticHostFnWeights<T> {
+    pub fn into_core(self) -> CoreStaticHostFnWeights {
+        CoreStaticHostFnWeights {
+            instantiate_module_per_byte: self.instantiate_module_per_byte,
+        }
+    }
+}
+
+impl<T: Config> Default for StaticHostFnWeights<T> {
+    fn default() -> Self {
+        Self {
+            instantiate_module_per_byte: cost_byte!(instantiate_module_per_kb),
             _phantom: PhantomData,
         }
     }
