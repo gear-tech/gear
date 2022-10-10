@@ -38,10 +38,10 @@ fn codegen(raw_derives: Vec<String>) -> String {
     generator.generate_runtime(item_mod, derives).to_string()
 }
 
-/// Check if gear-node exists
+/// Check if gear exists
 fn check_node() -> bool {
     let profile = std::env::var("PROFILE").unwrap();
-    let node = PathBuf::from("../target").join(profile).join("gear-node");
+    let node = PathBuf::from("../target").join(profile).join("gear");
     node.exists()
 }
 

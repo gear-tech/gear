@@ -33,7 +33,7 @@ RUN rustc --version
 RUN rustup update nightly && rustup target add wasm32-unknown-unknown --toolchain nightly
 
 # Build
-RUN cargo build -p gear-node --profile $PROFILE
+RUN cargo build -p gear-cli --profile $PROFILE
 
 # ===== SECOND STAGE ======
 
@@ -41,7 +41,7 @@ FROM debian:stable-slim
 MAINTAINER GEAR
 LABEL description="This is the 2nd stage: a very small image where we copy the Gear binary."
 ARG PROFILE=production
-COPY --from=builder /gear/target/$PROFILE/gear-node /usr/local/bin
+COPY --from=builder /gear/target/$PROFILE/gear /usr/local/bin
 RUN apt-get update && apt-get install -y openssl
 RUN useradd -m -u 1000 -U -s /bin/sh -d /gear gear && \
 	mkdir -p /gear/.local/share && \
@@ -51,4 +51,4 @@ RUN useradd -m -u 1000 -U -s /bin/sh -d /gear gear && \
 
 USER root
 
-CMD ["/usr/local/bin/gear-node"]
+CMD ["/usr/local/bin/gear"]

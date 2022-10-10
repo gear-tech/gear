@@ -73,7 +73,7 @@ rtest() {
     YAMLS="$ROOT_DIR/gear-test/spec/*.yaml"
   fi
 
-  $ROOT_DIR/target/release/gear-node runtime-spec-tests $YAMLS -l0 --generate-junit "$TARGET_DIR"/runtime-test-junit.xml
+  $ROOT_DIR/target/release/gear runtime-spec-tests $YAMLS -l0 --generate-junit "$TARGET_DIR"/runtime-test-junit.xml
 }
 
 pallet_test() {
@@ -93,7 +93,7 @@ runtime_upgrade_test() {
   DEMO_PING_PATH="$ROOT_DIR/target/wasm32-unknown-unknown/release/demo_ping.opt.wasm"
 
   # Run node
-  RUST_LOG="pallet_gear=debug,runtime::gear=debug" $ROOT_DIR/target/release/gear-node \
+  RUST_LOG="pallet_gear=debug,runtime::gear=debug" $ROOT_DIR/target/release/gear \
   --dev --tmp --unsafe-ws-external --unsafe-rpc-external --rpc-methods Unsafe --rpc-cors all & sleep 3
 
   # Change dir to the js script dir
@@ -110,10 +110,10 @@ client_tests() {
 
   if [ "$2" = "--run-node" ]; then
     # Run node
-    RUST_LOG="pallet_gear=debug,runtime::gear=debug" $ROOT_DIR/target/release/gear-node \
+    RUST_LOG="pallet_gear=debug,runtime::gear=debug" $ROOT_DIR/target/release/gear \
       --dev --tmp --unsafe-ws-external --unsafe-rpc-external --rpc-methods Unsafe --rpc-cors all & sleep 3
 
-    cargo test -p gclient || pgrep -f "gear-node" | xargs kill -9 && pgrep -f "gear-node" | xargs kill -9
+    cargo test -p gclient || pgrep -f "gear" | xargs kill -9 && pgrep -f "gear" | xargs kill -9
   else
     cargo test -p gclient
   fi
