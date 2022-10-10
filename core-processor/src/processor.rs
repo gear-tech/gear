@@ -170,7 +170,7 @@ pub fn prepare(
         dispatch,
         origin,
         gas_allowance,
-        ..
+        subsequent_execution,
     } = execution_context;
     let Actor {
         balance,
@@ -246,6 +246,7 @@ pub fn prepare(
         &actor_data.allocations,
         actor_data.static_pages,
         dispatch.context().is_none() && matches!(dispatch.kind(), DispatchKind::Init),
+        subsequent_execution,
     ) {
         Ok(size) => {
             log::debug!("Charged for memory pages. Size: {size:?}");

@@ -110,6 +110,7 @@ where
         dispatch: message.into(),
         origin: Default::default(),
         gas_allowance: u64::MAX,
+        subsequent_execution: false,
     };
 
     let journal = match core_processor::prepare(&block_config, message_execution_context) {
@@ -303,6 +304,7 @@ where
                     dispatch: dispatch.into_incoming(gas_limit),
                     origin: Default::default(),
                     gas_allowance: u64::MAX,
+                    subsequent_execution: false,
                 };
 
                 let journal =
@@ -356,6 +358,7 @@ where
                 dispatch: dispatch.into_incoming(gas_limit),
                 origin: Default::default(),
                 gas_allowance: u64::MAX,
+                subsequent_execution: false,
             };
 
             let journal = match core_processor::prepare(&block_config, message_execution_context) {

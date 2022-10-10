@@ -622,6 +622,7 @@ impl ExtManager {
             dispatch: dispatch.into_incoming(gas_limit),
             origin: self.origin,
             gas_allowance: u64::MAX,
+            subsequent_execution: false,
         };
 
         let journal = match core_processor::prepare(&block_config, message_execution_context) {

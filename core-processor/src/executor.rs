@@ -132,6 +132,7 @@ pub(crate) fn charge_gas_for_pages(
     allocations: &BTreeSet<WasmPageNumber>,
     static_pages: WasmPageNumber,
     initial_execution: bool,
+    subsequent_execution: bool,
 ) -> Result<WasmPageNumber, ExecutionErrorReason> {
     if !initial_execution {
         let max_wasm_page = if let Some(page) = allocations.iter().next_back() {
@@ -142,14 +143,17 @@ pub(crate) fn charge_gas_for_pages(
             return Ok(0.into());
         };
 
-        // Charging gas for loaded pages
-        let amount = settings.load_page_cost * (allocations.len() as u64 + static_pages.0 as u64);
-        if gas_allowance_counter.charge(amount) != ChargeResult::Enough {
-            return Err(ExecutionErrorReason::LoadMemoryBlockGasExceeded);
-        }
+        if !subsequent_execution {
+            // Charging gas for loaded pages
+            let amount =
+                settings.load_page_cost * (allocations.len() as u64 + static_pages.0 as u64);
+            if gas_allowance_counter.charge(amount) != ChargeResult::Enough {
+                return Err(ExecutionErrorReason::LoadMemoryBlockGasExceeded);
+            }
 
-        if gas_counter.charge(amount) != ChargeResult::Enough {
-            return Err(ExecutionErrorReason::LoadMemoryGasExceeded);
+            if gas_counter.charge(amount) != ChargeResult::Enough {
+                return Err(ExecutionErrorReason::LoadMemoryGasExceeded);
+            }
         }
 
         // Charging gas for mem size

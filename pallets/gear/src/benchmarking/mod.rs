@@ -338,6 +338,7 @@ where
             dispatch: queued_dispatch.into_incoming(initial_gas),
             origin: ProgramId::from_origin(source),
             gas_allowance: u64::MAX,
+            subsequent_execution: false,
         };
 
         let (context, code) =
