@@ -2975,12 +2975,27 @@ fn terminated_locking_funds() {
 
         assert!(init_waited);
 
-        assert_ok!(Gear::upload_program(
+
+        assert_ok!(Gear::upload_code(
             RuntimeOrigin::signed(USER_1),
             WASM_BINARY.to_vec(),
+        ));
+
+        let code_id = get_last_code_id();
+        let code = <Test as Config>::CodeStorage::get_code(code_id)
+            .expect("code should be in the storage");
+        let code_length = code.code().len();
+        let read_cost = DbWeightOf::<Test>::get().reads(1).ref_time();
+
+        assert_ok!(Gear::create_program(
+            RuntimeOrigin::signed(USER_1),
+            code_id,
             DEFAULT_SALT.to_vec(),
             USER_3.into_origin().encode(),
-            gas_spent_init + 500_000_000,
+            // additional gas for loading resources on next wake up
+            gas_spent_init
+                + core_processor::calculate_gas_for_program(read_cost, 0)
+                + core_processor::calculate_gas_for_code(read_cost, PerByteCostOf::<Test>::get(), code_length as u64),
             5_000u128
         ));
 
@@ -3044,12 +3059,12 @@ fn terminated_locking_funds() {
             CostsPerBlockOf::<Test>::waitlist() * (100 + CostsPerBlockOf::<Test>::reserve_for());
         let gas_spent_in_wl = CostsPerBlockOf::<Test>::waitlist();
 
-        let _expected_balance = user_1_balance
+        let expected_balance = user_1_balance
             + prog_free
             + <Test as Config>::GasPrice::gas_price(locked_gas_to_wl - gas_spent_in_wl);
         let user_1_balance = Balances::free_balance(USER_1);
 
-        // assert_eq!(user_1_balance, expected_balance);
+        assert_eq!(user_1_balance, expected_balance);
 
         // Hack to fast spend blocks till expiration.
         System::set_block_number(interval.finish - 1);
