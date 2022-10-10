@@ -40,6 +40,7 @@ use gear_core::{
     message::{ExitCode, GasLimit, HandlePacket, InitPacket, MessageContext, Packet, ReplyPacket},
 };
 use gear_core_errors::{CoreError, ExecutionError, ExtError, MemoryError, MessageError, WaitError};
+use core::fmt::Display;
 
 /// Processor context.
 pub struct ProcessorContext {
