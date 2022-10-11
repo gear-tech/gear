@@ -159,7 +159,7 @@ impl Message {
 
 /// Reply details data.
 ///
-/// Part of [`ReplyMessage`] logic, containing data about on which message id
+/// Part of [`ReplyMessage`](crate::message::ReplyMessage) logic, containing data about on which message id
 /// this replies and its exit code.
 #[derive(
     Clone, Copy, Default, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo,

@@ -80,7 +80,6 @@ std = [
  	"frame-benchmarking?/std",
 	"frame-executive/std",
 	"frame-support/std",
-	"frame-try-runtime/std",
 	"frame-system/std",
 	"frame-system-rpc-runtime-api/std",
 	"runtime-primitives/std",
@@ -89,7 +88,7 @@ std = [
 	"pallet-balances/std",
 	"pallet-gear-gas/std",
 	"pallet-gear/std",
-	"pallet-gear-debug/std",
+	"pallet-gear-debug?/std",
 	"pallet-gear-messenger/std",
 	"pallet-gear-payment/std",
 	"pallet-gear-program/std",
@@ -139,7 +138,7 @@ try-runtime = [
 	"pallet-gear-program/try-runtime",
 	"pallet-gear-gas/try-runtime",
 	"pallet-gear-scheduler/try-runtime",
-	"pallet-gear-debug/try-runtime",
+	"pallet-gear-debug?/try-runtime",
 	"pallet-authorship/try-runtime",
 	"pallet-babe/try-runtime",
 	"pallet-balances/try-runtime",
@@ -153,5 +152,6 @@ try-runtime = [
 debug-mode = ["pallet-gear-debug"]
 lazy-pages = [
 	"pallet-gear/lazy-pages",
+	"pallet-gear-payment/lazy-pages",
 	"pallet-gear-debug?/lazy-pages",
 ]

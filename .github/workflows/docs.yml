@@ -20,15 +20,12 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
-      - name: "Install nightly toolchain"
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: nightly
-
       - name: "Install: Nightly toolchain"
         uses: actions-rs/toolchain@v1
         with:
           toolchain: nightly
+          components: clippy, rustfmt
+          target: wasm32-unknown-unknown
 
       - name: "Install: Show specific nightly version"
         if: ${{ env.NIGHTLY_TOOLCHAIN_VERSION != '' }}
