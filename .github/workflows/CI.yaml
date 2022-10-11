@@ -459,7 +459,7 @@ jobs:
 
       - name: "Test: Process node runtime spec tests"
         run: |
-          cargo build -p gear-node --release --features=runtime-test
+          cargo build -p gear-cli --release --features=runtime-test
           ./scripts/gear.sh test rtest gear
 
       - name: "Test: Runtime upgrade and queue processing"
