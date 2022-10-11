@@ -79,7 +79,7 @@ main(pathToRuntimeCode, pathToDemoPing)
     exitCode = 1;
   })
   .finally(() => {
-    exec('pgrep -f "gear[:space:]|gear$" | xargs kill -9', (err, stdout, stderr) => {
+    exec('pkill -f \'gear |gear$\' -9', (err, stdout, stderr) => {
       if (err) {
         console.log(`JS_TEST: Unable to execute kill command (${err})`);
       }
