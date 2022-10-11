@@ -821,8 +821,9 @@ impl JournalHandler for ExtManager {
         if let Some(code) = self.opt_binaries.get(&code_hash).cloned() {
             for (candidate_id, init_message_id) in candidates {
                 if !self.actors.contains_key(&candidate_id) {
-                    let code = Code::try_new(code.clone(), 1, |_| ConstantCostRules::default())
-                        .expect("Program can't be constructed with provided code");
+                    let code =
+                        Code::try_new(code.clone(), 1, |_| ConstantCostRules::default(), None)
+                            .expect("Program can't be constructed with provided code");
 
                     let code_and_id: InstrumentedCodeAndId =
                         CodeAndId::from_parts_unchecked(code, code_hash).into();

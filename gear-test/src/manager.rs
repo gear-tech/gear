@@ -348,7 +348,8 @@ impl JournalHandler for InMemoryExtManager {
             for (candidate_id, init_message_id) in candidates {
                 if !self.actors.contains_key(&candidate_id) {
                     let code =
-                        Code::try_new(code.clone(), 1, |_| ConstantCostRules::default()).unwrap();
+                        Code::try_new(code.clone(), 1, |_| ConstantCostRules::default(), None)
+                            .unwrap();
 
                     self.store_program(candidate_id, code, init_message_id);
                 } else {

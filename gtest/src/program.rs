@@ -329,7 +329,7 @@ impl<'a> Program<'a> {
         optimized: Vec<u8>,
         metadata: Option<Vec<u8>>,
     ) -> Self {
-        let code = Code::try_new(optimized, 1, |_| ConstantCostRules::default())
+        let code = Code::try_new(optimized, 1, |_| ConstantCostRules::default(), None)
             .expect("Failed to create Program from code");
 
         let code_and_id: InstrumentedCodeAndId = CodeAndId::new(code).into();

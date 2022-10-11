@@ -91,8 +91,13 @@ where
     E: Environment<Ext>,
     JH: JournalHandler + CollectState + ExecutionContext,
 {
-    let code = Code::try_new(message.code.clone(), 1, |_| ConstantCostRules::default())
-        .map_err(|e| anyhow::anyhow!("Error initialization: {:?}", &e))?;
+    let code = Code::try_new(
+        message.code.clone(),
+        1,
+        |_| ConstantCostRules::default(),
+        None,
+    )
+    .map_err(|e| anyhow::anyhow!("Error initialization: {:?}", &e))?;
 
     let program = journal_handler.store_program(message.id, code, message.message.id());
     let program_id = program.id();
@@ -142,8 +147,13 @@ where
         for code in codes {
             let code_bytes = std::fs::read(&code.path)
                 .map_err(|e| IoError::new(IoErrorKind::Other, format!("`{}': {}", code.path, e)))?;
-            let code = Code::try_new(code_bytes.clone(), 1, |_| ConstantCostRules::default())
-                .map_err(|e| anyhow::anyhow!("Error initialization: {:?}", &e))?;
+            let code = Code::try_new(
+                code_bytes.clone(),
+                1,
+                |_| ConstantCostRules::default(),
+                None,
+            )
+            .map_err(|e| anyhow::anyhow!("Error initialization: {:?}", &e))?;
 
             let (code, code_id) = CodeAndId::new(code).into_parts();
 

@@ -1452,6 +1452,7 @@ pub mod pallet {
                 original_code,
                 schedule.instruction_weights.version,
                 |module| schedule.rules(module),
+                schedule.limits.stack_height,
             )
             .unwrap_or_else(|e| unreachable!("Unexpected re-instrumentation failure: {:?}", e));
 
@@ -1470,9 +1471,12 @@ pub mod pallet {
                 Error::<T>::CodeTooLarge
             );
 
-            let code = Code::try_new(code, schedule.instruction_weights.version, |module| {
-                schedule.rules(module)
-            })
+            let code = Code::try_new(
+                code,
+                schedule.instruction_weights.version,
+                |module| schedule.rules(module),
+                schedule.limits.stack_height,
+            )
             .map_err(|e| {
                 log::debug!("Code failed to load: {:?}", e);
                 Error::<T>::FailedToConstructProgram
