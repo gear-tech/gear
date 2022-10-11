@@ -55,16 +55,17 @@ pub fn gr_read(ctx: impl AsContextMut<Data = StoreData>, memory: Memory) -> Exte
             let mut msg = vec![0; len];
             msg.copy_from_slice(&caller.data().msg[ptr..(ptr + len)]);
 
-            memory
+            let res = memory
                 .clone()
                 .write(caller.as_context_mut(), dest, &msg)
-                .map_err(|e| {
+                .map(|_| 0)
+                .unwrap_or_else(|e| {
                     log::error!("{:?}", e);
 
-                    Trap::i32_exit(1)
-                })?;
+                    1
+                });
 
-            Ok(())
+            Ok(res)
         },
     ))
 }
@@ -85,7 +86,7 @@ pub fn gr_reply(ctx: impl AsContextMut<Data = StoreData>, _memory: Memory) -> Ex
 pub fn gr_error(ctx: impl AsContextMut<Data = StoreData>, _memory: Memory) -> Extern {
     Extern::Func(Func::wrap(
         ctx,
-        move |mut _caller: Caller<'_, StoreData>, _ptr: i32| Ok(()),
+        move |mut _caller: Caller<'_, StoreData>, _ptr: i32| Ok(0u32),
     ))
 }
 
