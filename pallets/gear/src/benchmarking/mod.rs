@@ -34,6 +34,7 @@ use self::{
 };
 use crate::{
     benchmarking::code::max_pages,
+    ext::LazyPagesExt,
     manager::{ExtManager, HandleKind},
     pallet,
     schedule::{API_BENCHMARK_BATCH_SIZE, INSTR_BENCHMARK_BATCH_SIZE},
@@ -48,12 +49,12 @@ use common::{
 };
 use core_processor::{
     configs::{AllocationsConfig, BlockConfig, BlockInfo, MessageExecutionContext},
-    PrepareResult, PreparedMessageExecutionContext,
+    PrepareResult, PreparedMessageExecutionContext, ProcessorExt,
 };
 use frame_benchmarking::{benchmarks, whitelisted_caller};
 use frame_support::traits::{Currency, Get, Hooks, ReservableCurrency};
 use frame_system::{Pallet as SystemPallet, RawOrigin};
-use gear_backend_common::{mock::MockExt, Environment};
+use gear_backend_common::Environment;
 use gear_core::{
     code::{Code, CodeAndId},
     ids::{CodeId, MessageId, ProgramId},
@@ -370,7 +371,7 @@ benchmarks! {
     instantiate_module_per_kb {
         let c in 0 .. T::Schedule::get().limits.code_len / 1024;
         let WasmModule { code, .. } = WasmModule::<T>::sized(c * 1024, Location::Init);
-        let ext = MockExt::default();
+        let ext = LazyPagesExt::new(Default::default());
     }: {
         ExecutionEnvironment::new(ext.clone(), &code, max_pages::<T>().into()).unwrap();
     }

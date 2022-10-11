@@ -120,7 +120,7 @@ pub struct ContextStore {
 }
 
 /// Context of currently processing incoming message.
-#[derive(Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo)]
+#[derive(Debug, Default, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo)]
 pub struct MessageContext {
     current: IncomingMessage,
     outcome: ContextOutcome,

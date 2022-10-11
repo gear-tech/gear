@@ -318,6 +318,7 @@ pub trait Memory {
 }
 
 /// Pages allocations context for the running program.
+#[derive(Debug, Default)]
 pub struct AllocationsContext {
     /// Pages which has been in storage before execution
     init_allocations: BTreeSet<WasmPageNumber>,

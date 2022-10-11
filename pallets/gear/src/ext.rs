@@ -35,6 +35,18 @@ pub struct LazyPagesExt {
     inner: Ext,
 }
 
+#[cfg(feature = "runtime-benchmarks")]
+impl Clone for LazyPagesExt {
+    fn clone(&self) -> Self {
+        Self {
+            inner: Ext {
+                context: Default::default(),
+                error_explanation: None,
+            },
+        }
+    }
+}
+
 impl IntoExtInfo<<LazyPagesExt as EnvExt>::Error> for LazyPagesExt {
     fn into_ext_info(self, memory: &impl Memory) -> Result<ExtInfo, (MemoryError, GasAmount)> {
         let pages_for_data = |static_pages: WasmPageNumber,
