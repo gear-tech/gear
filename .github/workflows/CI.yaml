@@ -240,14 +240,12 @@ jobs:
           ./target-no-lazy/gear runtime-spec-tests ./gear-test/spec/*
 
       - name: "Test: Runtime upgrade and queue processing"
-        if: false # FIXME: Remove after testing!
         run: ./scripts/gear.sh test runtime-upgrade
 
       - name: "Test: Program CLI"
         run: cargo nextest run --release -p gear-program --features bin
 
       - name: "Test: Client tests"
-        if: false # FIXME: Remove after testing!
         run: ./scripts/gear.sh test client --run-node
 
       - name: "Test: Runtime benchmarks work"
@@ -294,7 +292,7 @@ jobs:
           file: ./lcov.info
 
       - name: "Build: Production binaries"
-        if: true # github.event_name == 'push' # FIXME: Revert after testing!
+        if: github.event_name == 'push'
         run: cargo build -p gear-cli --profile production
 
       - name: "Cache: Pack"
@@ -316,7 +314,7 @@ jobs:
           mkdir -p /root/cache/${{ github.event.pull_request.number }} && mv /tmp/*.tar /root/cache/${{ github.event.pull_request.number }}/
 
       - name: Prepare artifacts
-        if: true # github.event_name == 'push' # FIXME: Revert after testing!
+        if: github.event_name == 'push'
         run: |
           mkdir -p artifact
           cd target/wasm32-unknown-unknown/release
