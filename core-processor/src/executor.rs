@@ -75,6 +75,8 @@ pub(crate) fn charge_gas_for_instantiation(
 ) -> Result<(), ExecutionErrorReason> {
     let amount = StaticConsts::ModuleInstantiation { len: binary.len() }.weight(weights);
 
+    log::trace!("Charge {} for module instantiation", amount);
+
     if gas_allowance_counter.charge(amount) != ChargeResult::Enough {
         return Err(ExecutionErrorReason::ModuleInstantiationBlockGasExceeded);
     }

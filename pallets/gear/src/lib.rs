@@ -901,7 +901,7 @@ pub mod pallet {
                     GasHandlerOf::<T>::get_origin_key(msg_id)
                         .map_err(|_| b"Internal error: unable to get origin key".to_vec())
                 };
-
+                {}
                 let from_main_chain =
                     |msg_id| get_origin_msg_of(msg_id).map(|v| v == main_message_id);
 

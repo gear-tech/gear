@@ -46,6 +46,7 @@
 mod journal;
 mod task;
 
+use core::fmt;
 pub use journal::*;
 pub use task::*;
 
@@ -73,6 +74,17 @@ pub enum HandleKind {
     InitByHash(CodeId),
     Handle(ProgramId),
     Reply(MessageId, ExitCode),
+}
+
+impl fmt::Debug for HandleKind {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            HandleKind::Init(_) => f.debug_tuple("Init").field(&format_args!("[...]")).finish(),
+            HandleKind::InitByHash(id) => f.debug_tuple("InitByHash").field(id).finish(),
+            HandleKind::Handle(id) => f.debug_tuple("Handle").field(id).finish(),
+            HandleKind::Reply(id, code) => f.debug_tuple("Reply").field(id).field(code).finish(),
+        }
+    }
 }
 
 /// Journal handler implementation for `pallet_gear`.
