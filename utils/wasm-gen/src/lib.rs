@@ -111,6 +111,7 @@ impl ParamRule {
 pub struct GearConfig {
     pub process_when_no_funcs: Ratio,
     pub skip_init: Ratio,
+    pub skip_handle: Ratio,
     pub skip_init_when_no_funcs: Ratio,
     pub init_export_is_any_func: Ratio,
     pub max_mem_size: u32,
@@ -126,7 +127,8 @@ impl Default for GearConfig {
         let prob = (1, 100).into();
         Self {
             process_when_no_funcs: prob,
-            skip_init: prob,
+            skip_init: (1, 1000).into(),
+            skip_handle: prob,
             skip_init_when_no_funcs: prob,
             init_export_is_any_func: prob,
             max_mem_size: 1024,
@@ -144,6 +146,7 @@ impl GearConfig {
         let prob = (50, 100).into();
         Self {
             skip_init: prob,
+            skip_handle: prob,
             skip_init_when_no_funcs: prob,
             process_when_no_funcs: prob,
             init_export_is_any_func: prob,
@@ -157,15 +160,17 @@ impl GearConfig {
     }
     pub fn new_valid() -> Self {
         let prob = (1, 100).into();
+        let zero_prob = (0, 100).into();
         Self {
             process_when_no_funcs: prob,
-            skip_init: (0, 100).into(),
-            skip_init_when_no_funcs: (0, 100).into(),
-            init_export_is_any_func: (0, 100).into(),
+            skip_init: zero_prob,
+            skip_handle: zero_prob,
+            skip_init_when_no_funcs: zero_prob,
+            init_export_is_any_func: zero_prob,
             max_mem_size: 512,
             max_mem_delta: 256,
             has_mem_upper_bound: prob,
-            upper_bound_can_be_less_then: (0, 100).into(),
+            upper_bound_can_be_less_then: zero_prob,
             sys_call_freq: prob,
             sys_calls: Default::default(),
         }
@@ -353,7 +358,59 @@ impl<'a> WasmGen<'a> {
         module
     }
 
-    pub fn gen_init(&mut self, mut module: Module) -> (Module, bool) {
+    pub fn gen_export_func_which_call_func_no(&mut self, mut module: Module, name: &str, func_no: u32) -> Module {
+        let funcs_len = module
+            .function_section()
+            .map_or(0, |funcs| funcs.entries().len() as u32);
+        let func_type = get_func_type(&module, FuncIdx::Func(func_no));
+        let mut instructions = make_call_instructions_vec(
+            self.u,
+            func_type.params(),
+            func_type.results(),
+            Default::default(),
+            func_no,
+        );
+        instructions.push(Instruction::End);
+
+        module = builder::from_module(module)
+            .function()
+            .body()
+            .with_instructions(Instructions::new(instructions))
+            .build()
+            .signature()
+            .build()
+            .build()
+            .export()
+            .field(name)
+            .internal()
+            .func(funcs_len)
+            .build()
+            .build();
+
+        let init_function_no = module.function_section().unwrap().entries().len() as u32 - 1;
+        self.calls_indexes.push(FuncIdx::Func(init_function_no));
+
+        module
+    }
+
+    pub fn gen_handle(&mut self, module: Module) -> (Module, bool) {
+        if self.config.skip_handle.get(self.u) {
+            return (module, false);
+        }
+
+        let funcs_len = module
+            .function_section()
+            .map_or(0, |funcs| funcs.entries().len() as u32);
+
+        if funcs_len == 0 {
+            return (module, false);
+        }
+
+        let func_no = self.u.int_in_range(0..=funcs_len - 1).unwrap();
+        (self.gen_export_func_which_call_func_no(module, "handle", func_no), true)
+    }
+
+    pub fn gen_init(&mut self, module: Module) -> (Module, bool) {
         if self.config.skip_init.get(self.u) {
             return (module, false);
         }
@@ -399,35 +456,7 @@ impl<'a> WasmGen<'a> {
             );
         }
 
-        let func_type = get_func_type(&module, FuncIdx::Func(func_no));
-        let mut instructions = make_call_instructions_vec(
-            self.u,
-            func_type.params(),
-            func_type.results(),
-            Default::default(),
-            func_no,
-        );
-        instructions.push(Instruction::End);
-
-        module = builder::from_module(module)
-            .function()
-            .body()
-            .with_instructions(Instructions::new(instructions))
-            .build()
-            .signature()
-            .build()
-            .build()
-            .export()
-            .field("init")
-            .internal()
-            .func(funcs_len)
-            .build()
-            .build();
-
-        let init_function_no = module.function_section().unwrap().entries().len() as u32 - 1;
-        self.calls_indexes.push(FuncIdx::Func(init_function_no));
-
-        (module, true)
+        (self.gen_export_func_which_call_func_no(module, "init", func_no), true)
     }
 
     pub fn insert_sys_calls(&mut self, mut module: Module) -> Module {
@@ -555,6 +584,7 @@ pub fn gen_gear_program_module<'a>(u: &'a mut Unstructured<'a>, config: GearConf
     if !has_init {
         return gen.resolves_calls_indexes(module);
     }
+    module = gen.gen_handle(module).0;
     module = gen.insert_sys_calls(module);
     gen.resolves_calls_indexes(module)
 }
