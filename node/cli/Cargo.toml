@@ -65,11 +65,13 @@ gear-native = [
 	"service/gear-native",
 	"gear-runtime-test-cli/gear-native",
 	"gear-runtime",
+  "gear-program/gear"
 ]
 vara-native = [
 	"service/vara-native",
 	"gear-runtime-test-cli/vara-native",
 	"vara-runtime",
+  "gear-program/vara"
 ]
 lazy-pages = ["service/lazy-pages"]
 runtime-benchmarks = [

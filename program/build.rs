@@ -1,6 +1,7 @@
 //! build script for gear-program cli
+#![feature(stmt_expr_attributes)]
 use frame_metadata::RuntimeMetadataPrefixed;
-use parity_scale_codec::{Decode, Encode};
+use parity_scale_codec::Decode;
 use std::{
     env, fs,
     io::Write,
@@ -16,17 +17,38 @@ const GENERATED_TITLE: &str = r#"
 #![allow(clippy::all, missing_docs)]
 "#;
 
+mod runtime {
+    #[cfg(any(feature = "gear", feature = "vara"))]
+    use parity_scale_codec::Encode;
+
+    #[cfg(all(feature = "vara", not(feature = "gear")))]
+    pub fn metadata() -> Vec<u8> {
+        vara_runtime::Runtime::metadata().encode()
+    }
+
+    #[cfg(feature = "gear")]
+    pub fn metadata() -> Vec<u8> {
+        gear_runtime::Runtime::metadata().encode()
+    }
+
+    #[cfg(not(any(feature = "gear", feature = "vara")))]
+    pub fn metadata() -> Vec<u8> {
+        // Skip codegen.
+        std::process::exit(0);
+    }
+}
+
 /// Generate api
 fn codegen(raw_derives: Vec<String>) -> String {
-    let encoded = gear_runtime::Runtime::metadata().encode();
-
+    let encoded = runtime::metadata();
     let metadata = <RuntimeMetadataPrefixed as Decode>::decode(&mut encoded.as_ref())
         .expect("decode metadata failed");
+
+    // Constructor generator.
     let generator = subxt_codegen::RuntimeGenerator::new(metadata);
     let item_mod = syn::parse_quote!(
         pub mod api {}
     );
-
     let p = raw_derives
         .iter()
         .map(|raw| syn::parse_str(raw))
@@ -35,6 +57,7 @@ fn codegen(raw_derives: Vec<String>) -> String {
     let mut derives = DerivesRegistry::default();
     derives.extend_for_all(p.into_iter());
 
+    // Genreate code.
     generator.generate_runtime(item_mod, derives).to_string()
 }
 

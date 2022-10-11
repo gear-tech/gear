@@ -52,14 +52,18 @@ cfg-if = "1"
 demo-meta = { path = "../examples/binaries/meta" }
 
 [build-dependencies]
-gear-runtime = { path = "../runtime/gear" }
+cfg-if = "1.0.0"
+gear-runtime = { path = "../runtime/gear", optional = true }
+vara-runtime = { path = "../runtime/vara", optional = true }
 frame-metadata = "15.0.0"
 parity-scale-codec = "3.1.5"
 subxt-codegen = "0.22.0"
 syn = "1"
 
 [features]
-default = [ ]
+default = [ "gear" ]
+gear = [ "gear-runtime" ]
+vara = [ "vara-runtime" ]
 bin = [ "cli" ]
 cli = [ "color-eyre", "clap" ]
 node-key = [ "libp2p" ]
