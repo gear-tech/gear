@@ -44,7 +44,7 @@ fn codegen(raw_derives: Vec<String>) -> String {
     let metadata = <RuntimeMetadataPrefixed as Decode>::decode(&mut encoded.as_ref())
         .expect("decode metadata failed");
 
-    // Constructor generator.
+    // Construct generator.
     let generator = subxt_codegen::RuntimeGenerator::new(metadata);
     let item_mod = syn::parse_quote!(
         pub mod api {}
