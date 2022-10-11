@@ -32,5 +32,4 @@ pub use system::System;
 pub const EXISTENTIAL_DEPOSIT: u128 = 500;
 pub const MAILBOX_THRESHOLD: u64 = 3000;
 pub const WAITLIST_COST: u64 = 100;
-pub const MODULE_INSTANTIATION_PER_BYTE: u64 = 5000;
 pub const RESERVE_FOR: u32 = 1;

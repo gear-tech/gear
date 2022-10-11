@@ -4348,8 +4348,7 @@ fn gas_spent_precalculated() {
     init_logger();
     new_test_ext().execute_with(|| {
         let prog = ProgramCodeKind::Custom(wat);
-        let prog_id =
-            upload_program_default(USER_1, prog.clone()).expect("submit result was asserted");
+        let prog_id = upload_program_default(USER_1, prog).expect("submit result was asserted");
 
         run_to_block(2, None);
 

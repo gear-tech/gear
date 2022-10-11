@@ -20,8 +20,7 @@ use crate::{
     log::{CoreLog, RunResult},
     program::{Gas, WasmProgram},
     wasm_executor::WasmExecutor,
-    Result, TestError, EXISTENTIAL_DEPOSIT, MAILBOX_THRESHOLD, MODULE_INSTANTIATION_PER_BYTE,
-    RESERVE_FOR, WAITLIST_COST,
+    Result, TestError, EXISTENTIAL_DEPOSIT, MAILBOX_THRESHOLD, RESERVE_FOR, WAITLIST_COST,
 };
 use core_processor::{
     common::*,

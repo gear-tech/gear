@@ -322,10 +322,10 @@ where
         existential_deposit,
         outgoing_limit: 2048,
         host_fn_weights: Default::default(),
+        static_host_fn_weights: Default::default(),
         forbidden_funcs: Default::default(),
         mailbox_threshold,
         waitlist_cost,
-        module_instantiation_per_byte: T::Schedule::get().module_instantiation_per_byte,
         reserve_for,
     };
 
