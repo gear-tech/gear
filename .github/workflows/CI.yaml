@@ -226,7 +226,7 @@ jobs:
           cargo test -p pallet-gear-payment --features=lazy-pages --release --locked
 
       - name: "Test: Gear workspace"
-        run: ./scripts/gear.sh test gear --exclude gclient --exclude gprogram --release --locked
+        run: ./scripts/gear.sh test gear --exclude gclient --exclude gprogram --features pallet-gear-debug/lazy-pages --release --locked
 
       - name: "Test: JS metadata"
         run: ./scripts/gear.sh test js
@@ -456,14 +456,16 @@ jobs:
       - name: "Build: Split examples by .opt and .meta"
         run: ./scripts/gear.sh build examples-proc
 
-      - name: "Test: Process node runtime testsuite"
-        run: ./scripts/gear.sh test rtest
+      - name: "Test: Client tests"
+        run: ./scripts/gear.sh test client --run-node
+
+      - name: "Test: Process node runtime spec tests"
+        run: |
+          cargo build -p gear-node --release --features=runtime-test
+          ./scripts/gear.sh test rtest gear
 
       - name: "Test: Runtime upgrade and queue processing"
         run: ./scripts/gear.sh test runtime-upgrade
-
-      - name: "Test: Client tests"
-        run: ./scripts/gear.sh test client --run-node
 
       - name: "Test: Lazy pages"
         uses: actions-rs/cargo@v1
