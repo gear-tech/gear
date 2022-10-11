@@ -113,7 +113,7 @@ client_tests() {
     RUST_LOG="pallet_gear=debug,runtime::gear=debug" $ROOT_DIR/target/release/gear \
       --dev --tmp --unsafe-ws-external --unsafe-rpc-external --rpc-methods Unsafe --rpc-cors all & sleep 3
 
-    cargo test -p gclient || pgrep -f "gear" | xargs kill -sigint && pgrep -f "gear" | xargs kill -9
+    cargo test -p gclient || pgrep -f "release/gear" | xargs kill -9 && pgrep -f "release/gear" | xargs kill -9
   else
     cargo test -p gclient
   fi
