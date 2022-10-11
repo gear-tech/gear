@@ -173,12 +173,10 @@ where
             err: FuncError::Terminated(TerminationReason::Success),
         };
 
-        let instance = match Instance::new(binary, &env_builder, &mut runtime) {
-            Ok(inst) => inst,
-            Err(e) => return Err((runtime.ext.gas_amount(), ModuleInstantiation(e)).into()),
-        };
-
-        Ok(Self { instance, runtime })
+        match Instance::new(binary, &env_builder, &mut runtime) {
+            Ok(instance) => Ok(Self { instance, runtime }),
+            Err(e) => Err((runtime.ext.gas_amount(), ModuleInstantiation(e)).into()),
+        }
     }
 
     fn execute<F, T>(
