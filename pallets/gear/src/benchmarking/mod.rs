@@ -372,7 +372,7 @@ benchmarks! {
         let WasmModule { code, .. } = WasmModule::<T>::sized(c * 1024, Location::Init);
         let ext = MockExt::default();
     }: {
-        gear_backend_sandbox::SandboxEnvironment::new(ext.clone(), &code, max_pages::<T>().into()).unwrap();
+        ExecutionEnvironment::new(ext.clone(), &code, max_pages::<T>().into()).unwrap();
     }
 
     claim_value {
