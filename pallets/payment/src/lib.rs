@@ -18,7 +18,7 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
-use common::storage::*;
+use common::{storage::*, ExtractCall};
 use frame_support::{
     dispatch::{DispatchInfo, GetDispatchInfo, PostDispatchInfo},
     pallet_prelude::*,
@@ -29,7 +29,6 @@ use pallet_transaction_payment::{
     RuntimeDispatchInfo,
 };
 use sp_runtime::{
-    generic::{CheckedExtrinsic, UncheckedExtrinsic},
     traits::{Bounded, Convert, DispatchInfoOf, Dispatchable, PostDispatchInfoOf, SignedExtension},
     transaction_validity::TransactionValidityError,
     FixedPointNumber, FixedPointOperand, Perquintill, SaturatedConversion,
@@ -208,34 +207,6 @@ where
     }
     fn variability() -> Multiplier {
         Default::default()
-    }
-}
-
-/// A trait whose purpose is to extract the `Call` variant of an extrinsic
-pub trait ExtractCall<RuntimeCall> {
-    fn extract_call(&self) -> RuntimeCall;
-}
-
-/// Implementation for unchecked extrinsic.
-impl<Address, RuntimeCall, Signature, Extra> ExtractCall<RuntimeCall>
-    for UncheckedExtrinsic<Address, RuntimeCall, Signature, Extra>
-where
-    RuntimeCall: Dispatchable + Clone,
-    Extra: SignedExtension,
-{
-    fn extract_call(&self) -> RuntimeCall {
-        self.function.clone()
-    }
-}
-
-/// Implementation for checked extrinsic.
-impl<Address, RuntimeCall, Extra> ExtractCall<RuntimeCall>
-    for CheckedExtrinsic<Address, RuntimeCall, Extra>
-where
-    RuntimeCall: Dispatchable + Clone,
-{
-    fn extract_call(&self) -> RuntimeCall {
-        self.function.clone()
     }
 }
 

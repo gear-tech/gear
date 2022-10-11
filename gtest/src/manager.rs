@@ -39,6 +39,7 @@ use gear_core::{
 };
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap, VecDeque},
+    convert::TryInto,
     time::{SystemTime, UNIX_EPOCH},
 };
 use wasm_instrument::gas_metering::ConstantCostRules;
@@ -450,7 +451,7 @@ impl ExtManager {
     fn move_waiting_msgs_to_queue(&mut self, message_id: MessageId, program_id: ProgramId) {
         if let Some(ids) = self.wait_init_list.remove(&program_id) {
             for id in ids {
-                self.wake_message(message_id, program_id, id);
+                self.wake_message(message_id, program_id, id, 0);
             }
         }
     }
@@ -470,19 +471,25 @@ impl ExtManager {
     }
 
     fn process_mock(&mut self, mut mock: Box<dyn WasmProgram>, dispatch: StoredDispatch) {
+        enum Mocked {
+            Reply(Option<Vec<u8>>),
+            Signal,
+        }
+
         let message_id = dispatch.id();
         let source = dispatch.source();
         let program_id = dispatch.destination();
         let payload = dispatch.payload().to_vec();
 
         let response = match dispatch.kind() {
-            DispatchKind::Init => mock.init(payload),
-            DispatchKind::Handle => mock.handle(payload),
-            DispatchKind::Reply => mock.handle_reply(payload),
+            DispatchKind::Init => mock.init(payload).map(Mocked::Reply),
+            DispatchKind::Handle => mock.handle(payload).map(Mocked::Reply),
+            DispatchKind::Reply => mock.handle_reply(payload).map(Mocked::Reply),
+            DispatchKind::Signal => mock.handle_signal(payload).map(|()| Mocked::Signal),
         };
 
         match response {
-            Ok(reply) => {
+            Ok(Mocked::Reply(reply)) => {
                 if let DispatchKind::Init = dispatch.kind() {
                     self.message_dispatched(
                         message_id,
@@ -493,15 +500,17 @@ impl ExtManager {
 
                 if let Some(payload) = reply {
                     let id = MessageId::generate_reply(message_id, 0);
-                    let packet = ReplyPacket::new(payload, 0);
+                    let packet = ReplyPacket::new(payload.try_into().unwrap(), 0);
                     let reply_message = ReplyMessage::from_packet(id, packet);
 
                     self.send_dispatch(
                         message_id,
                         reply_message.into_dispatch(program_id, dispatch.source(), message_id),
+                        0,
                     );
                 }
             }
+            Ok(Mocked::Signal) => {}
             Err(expl) => {
                 mock.debug(expl);
 
@@ -526,14 +535,17 @@ impl ExtManager {
                     )
                 }
 
-                let id = MessageId::generate_reply(message_id, 1);
-                let packet = ReplyPacket::new(Default::default(), 1);
-                let reply_message = ReplyMessage::from_packet(id, packet);
+                if !dispatch.kind().is_signal() {
+                    let id = MessageId::generate_reply(message_id, 1);
+                    let packet = ReplyPacket::new(Default::default(), 1);
+                    let reply_message = ReplyMessage::from_packet(id, packet);
 
-                self.send_dispatch(
-                    message_id,
-                    reply_message.into_dispatch(program_id, dispatch.source(), message_id),
-                );
+                    self.send_dispatch(
+                        message_id,
+                        reply_message.into_dispatch(program_id, dispatch.source(), message_id),
+                        0,
+                    );
+                }
             }
         }
 
@@ -617,12 +629,12 @@ impl ExtManager {
         let (actor, _balance) = self
             .actors
             .get_mut(program_id)
-            .ok_or(TestError::ActorNotFound(*program_id))?;
+            .ok_or_else(|| TestError::ActorNotFound(*program_id))?;
 
         let code_id = actor.code_id();
         let (data, memory) = actor
             .get_executable_actor_data()
-            .ok_or(TestError::ActorIsNotExecutable(*program_id))?;
+            .ok_or_else(|| TestError::ActorIsNotExecutable(*program_id))?;
         let pages_initial_data = memory
             .into_iter()
             .map(|(page, data)| (page, Box::new(data)))
@@ -637,7 +649,7 @@ impl ExtManager {
         WasmExecutor::update_ext(&mut ext, self);
 
         WasmExecutor::execute(
-            &mut ext,
+            ext,
             &data.program,
             meta_binary,
             &pages_initial_data,
@@ -687,7 +699,7 @@ impl JournalHandler for ExtManager {
         }
     }
 
-    fn send_dispatch(&mut self, _message_id: MessageId, dispatch: Dispatch) {
+    fn send_dispatch(&mut self, _message_id: MessageId, dispatch: Dispatch, _delay: u32) {
         self.gas_limits.insert(dispatch.id(), dispatch.gas_limit());
 
         if !self.is_user(&dispatch.destination()) {
@@ -722,6 +734,7 @@ impl JournalHandler for ExtManager {
         _message_id: MessageId,
         program_id: ProgramId,
         awakening_id: MessageId,
+        _delay: u32,
     ) {
         if let Some(msg) = self.wait_list.remove(&(program_id, awakening_id)) {
             self.dispatches.push_back(msg);

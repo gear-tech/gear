@@ -1,0 +1,23 @@
+[package]
+name = "demo-signal-entry"
+version = "0.1.0"
+authors = ["Gear Technologies"]
+edition = "2018"
+license = "GPL-3.0"
+workspace = "../../../"
+
+[dependencies]
+gstd = { path = "../../../gstd", features = ["debug"] }
+codec = { package = "parity-scale-codec", version = "3.1.2", default-features = false, features = ["derive"] }
+
+[build-dependencies]
+gear-wasm-builder = { path = "../../../utils/wasm-builder" }
+
+[dev-dependencies]
+gtest = { path = "../../../gtest" }
+
+[lib]
+
+[features]
+std = ["codec/std"]
+default = ["std"]

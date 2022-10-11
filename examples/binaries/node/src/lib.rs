@@ -237,7 +237,7 @@ fn process(request: Request) -> Reply {
             }
         }
         Request::Add(sub_node) => {
-            state().sub_nodes.insert((sub_node as u64).into());
+            state().sub_nodes.insert(sub_node.into());
             Reply::Success
         }
     }

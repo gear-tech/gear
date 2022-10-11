@@ -71,7 +71,6 @@ macro_rules! with_signed_payload {
                 use gear_runtime as runtime;
 
                 $( $setup )*
-
                 let $extra: runtime::SignedExtra = (
                     frame_system::CheckNonZeroSender::<runtime::Runtime>::new(),
                     frame_system::CheckSpecVersion::<runtime::Runtime>::new(),
@@ -141,7 +140,7 @@ macro_rules! with_signed_payload {
                 $( $usage )*
             },
         }
-    };
+    }
 }
 
 /// Generates extrinsics for the `benchmark overhead` command.
@@ -183,7 +182,7 @@ impl frame_benchmarking_cli::ExtrinsicBuilder for RemarkBuilder {
                     .expect("Genesis block exists; qed");
                 let call = RuntimeCall::System(SystemCall::remark { remark: vec![] });
                 let bob = Sr25519Keyring::Bob.pair();
-                let period = gear_runtime_common::BlockHashCount::get()
+                let period = runtime::BlockHashCount::get()
                     .checked_next_power_of_two()
                     .map(|c| c / 2)
                     .unwrap_or(2) as u64;
@@ -258,7 +257,7 @@ impl frame_benchmarking_cli::ExtrinsicBuilder for TransferKeepAliveBuilder {
                     value: EXISTENTIAL_DEPOSIT,
                 });
                 let bob = Sr25519Keyring::Bob.pair();
-                let period = gear_runtime_common::BlockHashCount::get()
+                let period = runtime::BlockHashCount::get()
                     .checked_next_power_of_two()
                     .map(|c| c / 2)
                     .unwrap_or(2) as u64;
