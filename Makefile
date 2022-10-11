@@ -274,4 +274,4 @@ fuzz-vara:
 
 .PHONY: kill
 kill:
-	@ pgrep -f "release/gear" | xargs kill -9
+	@ pgrep -f "gear[:space:]|gear$" | xargs kill -9

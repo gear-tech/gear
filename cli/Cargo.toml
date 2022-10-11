@@ -83,7 +83,7 @@ runtime-benchmarks = [
 ]
 debug-mode = ["service/debug-mode"]
 try-runtime = [
-	"service/try-runtime",
+	"service?/try-runtime",
 	"try-runtime-cli",
 ]
 program = ["gear-program"]

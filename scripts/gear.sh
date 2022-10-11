@@ -57,7 +57,7 @@ gear_usage() {
     docker         docker functionality
     format         format gear parts via rustfmt
     init           initializes and updates packages and toolchains
-    run            run gear processing
+    run            run gear node
     test           test tool
     coverage       coverage utilities
 
