@@ -3,7 +3,7 @@
 
 #- name: remove db
 #  shell: >
-#    docker exec -it ec2-user_gear_1 gear-node purge-chain --base-path /gear/ --chain /gear/staging.json -y
+#    docker exec -it ec2-user_gear_1 gear purge-chain --base-path /gear/ --chain /gear/staging.json -y
 #  become: yes
 
 - name: Copy docker-compose
@@ -23,7 +23,7 @@
 
 - name: Remove old docker images
   shell:  docker image prune -f
-  become: yes 
+  become: yes
 
 - name: Run docker-compose
   shell: >

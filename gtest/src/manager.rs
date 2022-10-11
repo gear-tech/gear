@@ -629,12 +629,12 @@ impl ExtManager {
         let (actor, _balance) = self
             .actors
             .get_mut(program_id)
-            .ok_or(TestError::ActorNotFound(*program_id))?;
+            .ok_or_else(|| TestError::ActorNotFound(*program_id))?;
 
         let code_id = actor.code_id();
         let (data, memory) = actor
             .get_executable_actor_data()
-            .ok_or(TestError::ActorIsNotExecutable(*program_id))?;
+            .ok_or_else(|| TestError::ActorIsNotExecutable(*program_id))?;
         let pages_initial_data = memory
             .into_iter()
             .map(|(page, data)| (page, Box::new(data)))

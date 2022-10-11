@@ -1720,7 +1720,7 @@ benchmarks! {
             handle_body: Some(body::repeated_dyn(r, vec![
                 Regular(Instruction::I32Const(0)),
                 Regular(Instruction::I32Const(code_hash_len as i32)),
-                Counter(0_u32, r as u32), // salt len
+                Counter(0_u32, r), // salt len
                 Regular(Instruction::I32Const(0)),
                 Regular(Instruction::I32Const(0)), // payload_len
                 Regular(Instruction::I64Const(100000000)),
@@ -1784,7 +1784,7 @@ benchmarks! {
             handle_body: Some(body::repeated_dyn(API_BENCHMARK_BATCH_SIZE, vec![
                 Regular(Instruction::I32Const(0)),
                 Regular(Instruction::I32Const(code_hash_len as i32)),
-                Counter(0_u32, API_BENCHMARK_BATCH_SIZE as u32), // salt len
+                Counter(0_u32, API_BENCHMARK_BATCH_SIZE), // salt len
                 Regular(Instruction::I32Const(0)),
                 Regular(Instruction::I32Const((n * 1024) as i32)), // payload_len
                 Regular(Instruction::I64Const(100000000)),
