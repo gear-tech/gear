@@ -10,7 +10,7 @@ services:
     image: ghcr.io/gear-tech/node:latest
     volumes:
       - "gear-data:/data"
-    command: gear-node --dev
+    command: gear --dev
 
 volumes:
   gear-data:

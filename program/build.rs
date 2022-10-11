@@ -1,6 +1,4 @@
 //! build script for gear-program cli
-use frame_metadata::RuntimeMetadataPrefixed;
-use parity_scale_codec::{Decode, Encode};
 use std::{
     env, fs,
     io::Write,
@@ -18,10 +16,8 @@ const GENERATED_TITLE: &str = r#"
 
 /// Generate api
 fn codegen(raw_derives: Vec<String>) -> String {
-    let encoded = gear_runtime::Runtime::metadata().encode();
+    let metadata = gear_runtime::Runtime::metadata();
 
-    let metadata = <RuntimeMetadataPrefixed as Decode>::decode(&mut encoded.as_ref())
-        .expect("decode metadata failed");
     let generator = subxt_codegen::RuntimeGenerator::new(metadata);
     let item_mod = syn::parse_quote!(
         pub mod api {}
@@ -38,10 +34,10 @@ fn codegen(raw_derives: Vec<String>) -> String {
     generator.generate_runtime(item_mod, derives).to_string()
 }
 
-/// Check if gear-node exists
+/// Check if gear exists
 fn check_node() -> bool {
     let profile = std::env::var("PROFILE").unwrap();
-    let node = PathBuf::from("../target").join(profile).join("gear-node");
+    let node = PathBuf::from("../target").join(profile).join("gear");
     node.exists()
 }
 
