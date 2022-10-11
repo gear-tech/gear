@@ -20,14 +20,14 @@ clap = { version = "3.2", features = ["derive"] }
 scale-info = { version = "2.1.1", default-features = false, features = ["derive"] }
 
 # Gear
-runtime-primitives = { package = "gear-runtime-primitives", version = "0.1.0", default-features = false, path = "../runtime/primitives" }
-gear-runtime-test-cli = { path = "../utils/gear-runtime-test-cli" }
-service = { package = "gear-service", path = "service", default-features = false, optional = true }
-pallet-gear-payment = { version = "0.1.0", path = "../pallets/payment" }
+runtime-primitives = { package = "gear-runtime-primitives", version = "0.1.0", default-features = false, path = "../../runtime/primitives" }
+gear-runtime-test-cli = { path = "../../utils/gear-runtime-test-cli" }
+service = { package = "gear-service", path = "../service", default-features = false, optional = true }
+pallet-gear-payment = { version = "0.1.0", path = "../../pallets/payment" }
 
 # Gear Runtimes
-gear-runtime = { path = "../runtime/gear", optional = true }
-vara-runtime = { path = "../runtime/vara", optional = true }
+gear-runtime = { path = "../../runtime/gear", optional = true }
+vara-runtime = { path = "../../runtime/vara", optional = true }
 
 # Substrate client
 sc-cli = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", features = [
@@ -52,7 +52,7 @@ frame-benchmarking-cli = { version = "4.0.0-dev", git = "https://github.com/gear
 try-runtime-cli = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", optional = true }
 
 # Program CLI
-gear-program = { path = "../program", features = [ "cli" ], optional = true }
+gear-program = { path = "../../program", features = [ "cli" ], optional = true }
 
 [build-dependencies]
 substrate-build-script-utils = { version = "3.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }

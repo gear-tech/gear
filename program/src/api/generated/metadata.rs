@@ -1544,10 +1544,9 @@ pub mod api {
                     let metadata = locked_metadata.read();
                     if metadata.constant_hash("System", "Version")?
                         == [
-                            186u8, 139u8, 13u8, 220u8, 17u8, 157u8, 20u8, 113u8, 132u8, 196u8,
-                            164u8, 180u8, 199u8, 250u8, 17u8, 127u8, 222u8, 42u8, 71u8, 253u8,
-                            234u8, 78u8, 35u8, 220u8, 58u8, 97u8, 143u8, 200u8, 234u8, 169u8,
-                            209u8, 165u8,
+                            11u8, 117u8, 206u8, 47u8, 240u8, 216u8, 123u8, 154u8, 105u8, 65u8,
+                            67u8, 66u8, 143u8, 50u8, 36u8, 81u8, 20u8, 55u8, 23u8, 77u8, 143u8,
+                            77u8, 8u8, 150u8, 238u8, 166u8, 101u8, 183u8, 240u8, 85u8, 40u8, 178u8,
                         ]
                     {
                         let pallet = metadata.pallet("System")?;
@@ -11586,9 +11585,9 @@ pub mod api {
             };
             if runtime_metadata_hash
                 != [
-                    7u8, 99u8, 15u8, 63u8, 148u8, 57u8, 165u8, 254u8, 79u8, 186u8, 198u8, 83u8,
-                    229u8, 244u8, 147u8, 83u8, 74u8, 33u8, 145u8, 80u8, 93u8, 39u8, 103u8, 198u8,
-                    99u8, 89u8, 68u8, 40u8, 254u8, 113u8, 206u8, 24u8,
+                    104u8, 116u8, 103u8, 35u8, 166u8, 108u8, 99u8, 170u8, 227u8, 100u8, 234u8,
+                    149u8, 235u8, 170u8, 204u8, 49u8, 11u8, 220u8, 107u8, 177u8, 68u8, 75u8, 129u8,
+                    93u8, 119u8, 174u8, 245u8, 25u8, 4u8, 77u8, 76u8, 12u8,
                 ]
             {
                 Err(::subxt::MetadataError::IncompatibleMetadata)

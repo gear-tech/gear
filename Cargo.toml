@@ -1,7 +1,7 @@
 [workspace]
 resolver = "2"
 
-default-members = ["cli"]
+default-members = ["node/cli"]
 
 members = [
     "common",
@@ -19,9 +19,9 @@ members = [
     "gear-test",
     "gstd",
     "gtest",
-    "cli",
-    "cli/service",
-    "cli/authorship",
+    "node/cli",
+    "node/service",
+    "node/authorship",
     "pallets/*",
     "program",
     "runtime/gear",
