@@ -284,4 +284,4 @@ fuzz-vara:
 
 .PHONY: kill
 kill:
-	@ pgrep -f "gear-node" | xargs kill -9
+	@ pkill -f 'gear |gear$' -9

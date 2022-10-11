@@ -55,4 +55,4 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: build
-          args: -p gear-node --release --target x86_64-pc-windows-msvc
+          args: -p gear-cli --release --target x86_64-pc-windows-msvc

@@ -3,10 +3,17 @@ name = "gear-cli"
 version = "0.1.0"
 authors = ["Gear Technologies"]
 edition = "2018"
-build = "build.rs"
 
 [package.metadata.docs.rs]
 targets = ["x86_64-unknown-linux-gnu"]
+
+[lib]
+name = "gear_cli"
+path = "src/lib.rs"
+
+[[bin]]
+name = "gear"
+path = "src/main.rs"
 
 [dependencies]
 clap = { version = "3.2", features = ["derive"] }
@@ -51,7 +58,7 @@ gear-program = { path = "../../program", features = [ "cli" ], optional = true }
 substrate-build-script-utils = { version = "3.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
 
 [features]
-default = ["cli"]
+default = ["cli", "gear-native", "vara-native", "program"]
 cli = [
 	"service",
 	"sc-cli",
@@ -82,6 +89,9 @@ debug-mode = [
 	"gear-runtime?/debug-mode",
 	"vara-runtime?/debug-mode",
 ]
-try-runtime = ["service?/try-runtime", "try-runtime-cli"]
-runtime-test = [ "gear-runtime-test-cli" ]
-program = [ "gear-program" ]
+try-runtime = [
+	"service?/try-runtime",
+	"try-runtime-cli",
+]
+runtime-test = ["gear-runtime-test-cli"]
+program = ["gear-program"]

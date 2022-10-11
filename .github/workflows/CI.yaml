@@ -239,8 +239,8 @@ jobs:
 
       - name: "Test: runtime spec tests no lazy pages"
         run: |
-          cargo build -p gear-node --release --no-default-features --features=gear-native --out-dir target-no-lazy -Z unstable-options
-          ./target-no-lazy/gear-node runtime-spec-tests ./gear-test/spec/*
+          cargo build -p gear-cli --release --no-default-features --features=cli,gear-native --out-dir target-no-lazy -Z unstable-options
+          ./target-no-lazy/gear runtime-spec-tests ./gear-test/spec/*
 
       # FIX ME: use vara runtime
       # - name: "Test: Runtime upgrade and queue processing"
@@ -254,8 +254,8 @@ jobs:
 
       # - name: "Test: Runtime benchmarks work"
       #   run: |
-      #     cargo build -p gear-node --release --features runtime-benchmarks
-      #     ./target/release/gear-node benchmark pallet --chain=dev --steps=2 --repeat=1 --pallet=pallet_gear --extrinsic="*" --execution=wasm --wasm-execution=compiled --heap-pages=4096
+      #     cargo build -p gear-cli --release --features runtime-benchmarks
+      #     ./target/release/gear benchmark pallet --chain=dev --steps=2 --repeat=1 --pallet=pallet_gear --extrinsic="*" --execution=wasm --wasm-execution=compiled --heap-pages=4096
 
       - name: "Coverage: Aggregate"
         if: github.ref == 'refs/heads/master'
@@ -297,7 +297,7 @@ jobs:
 
       - name: "Build: Production binaries"
         if: github.event_name == 'push'
-        run: cargo build -p gear-node --profile production
+        run: cargo build -p gear-cli --profile production
 
       - name: "Cache: Pack"
         if: ${{ github.event_name == 'push' }}
@@ -327,10 +327,10 @@ jobs:
           cp target/production/wbuild/gear-runtime/gear_runtime.compact.compressed.wasm artifact/
           cp target/production/wbuild/gear-runtime/gear_runtime.compact.wasm artifact/
           cp target/production/wbuild/gear-runtime/gear_runtime.wasm artifact/
-          cp target/production/gear-node artifact/
+          cp target/production/gear artifact/
           cp target/release/gear-test artifact/
           cp target/release/wasm-proc artifact/
-          strip artifact/gear-node || true
+          strip artifact/gear || true
           strip artifact/gear-test || true
           strip artifact/wasm-proc || true
 
@@ -461,7 +461,7 @@ jobs:
 
       - name: "Test: Process node runtime spec tests"
         run: |
-          cargo build -p gear-node --release --features=runtime-test
+          cargo build -p gear-cli --release --features=runtime-test
           ./scripts/gear.sh test rtest gear
 
       - name: "Test: Runtime upgrade and queue processing"
@@ -523,7 +523,7 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: build
-          args: -p gear-node --features=lazy-pages
+          args: -p gear-cli --features=lazy-pages
 
       - name: "Test: Lazy pages"
         uses: actions-rs/cargo@v1

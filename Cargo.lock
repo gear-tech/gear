@@ -3029,14 +3029,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "gear-node"
-version = "0.1.0"
-dependencies = [
- "gear-cli",
- "gear-service",
-]
-
-[[package]]
 name = "gear-node-loader"
 version = "0.1.0"
 dependencies = [
