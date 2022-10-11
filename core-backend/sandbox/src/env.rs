@@ -83,7 +83,7 @@ struct EnvBuilder<'a, E: Ext> {
     forbidden_funcs: &'a BTreeSet<&'static str>,
 }
 
-impl<'a, E: Ext + IntoExtInfo + 'static> EnvBuilder<'a, E> {
+impl<'a, E: Ext + IntoExtInfo<E::Error> + 'static> EnvBuilder<'a, E> {
     fn add_func(&mut self, name: &str, f: HostFuncType<Runtime<E>>)
     where
         E::Error: AsTerminationReason + IntoExtError,
@@ -105,7 +105,7 @@ impl<'a, E: Ext> From<EnvBuilder<'a, E>> for EnvironmentDefinitionBuilder<Runtim
 
 impl<E> Environment<E> for SandboxEnvironment<E>
 where
-    E: Ext + IntoExtInfo + GetGasAmount + 'static,
+    E: Ext + IntoExtInfo<E::Error> + GetGasAmount + 'static,
     E::Error: AsTerminationReason + IntoExtError,
 {
     type Memory = MemoryWrap;
@@ -129,7 +129,7 @@ where
         builder.add_func("gr_exit_code", Funcs::exit_code);
         builder.add_func("gr_gas_available", Funcs::gas_available);
         builder.add_func("gr_leave", Funcs::leave);
-        builder.add_func("gr_msg_id", Funcs::msg_id);
+        builder.add_func("gr_message_id", Funcs::message_id);
         builder.add_func("gr_origin", Funcs::origin);
         builder.add_func("gr_program_id", Funcs::program_id);
         builder.add_func("gr_read", Funcs::read);

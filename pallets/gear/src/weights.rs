@@ -53,7 +53,7 @@ pub trait WeightInfo {
     fn alloc(r: u32, ) -> Weight;
     fn gas(r: u32, ) -> Weight;
     fn gr_gas_available(r: u32, ) -> Weight;
-    fn gr_msg_id(r: u32, ) -> Weight;
+    fn gr_message_id(r: u32, ) -> Weight;
     fn gr_origin(r: u32, ) -> Weight;
     fn gr_program_id(r: u32, ) -> Weight;
     fn gr_source(r: u32, ) -> Weight;
@@ -250,7 +250,7 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
             .saturating_add(Weight::from_ref_time(60_502_769 as u64).saturating_mul(r as u64))
     }
     /// The range of component `r` is `[0, 20]`.
-    fn gr_msg_id(r: u32, ) -> Weight {
+    fn gr_message_id(r: u32, ) -> Weight {
         Weight::from_ref_time(93_227_000 as u64)
             // Standard Error: 70_761
             .saturating_add(Weight::from_ref_time(74_230_266 as u64).saturating_mul(r as u64))
@@ -859,7 +859,7 @@ impl WeightInfo for () {
             .saturating_add(Weight::from_ref_time(60_502_769 as u64).saturating_mul(r as u64))
     }
     /// The range of component `r` is `[0, 20]`.
-    fn gr_msg_id(r: u32, ) -> Weight {
+    fn gr_message_id(r: u32, ) -> Weight {
         Weight::from_ref_time(93_227_000 as u64)
             // Standard Error: 70_761
             .saturating_add(Weight::from_ref_time(74_230_266 as u64).saturating_mul(r as u64))

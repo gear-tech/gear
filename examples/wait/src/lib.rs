@@ -25,8 +25,8 @@ unsafe extern "C" fn handle() {
         }
         2 => {
             STATE = 3;
-            exec::wake(MSG_ID_1);
-            exec::wake(MSG_ID_2);
+            exec::wake(MSG_ID_1).unwrap();
+            exec::wake(MSG_ID_2).unwrap();
         }
         _ => {
             msg::send(msg::source(), b"WAITED", 0).unwrap();

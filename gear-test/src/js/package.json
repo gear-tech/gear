@@ -1,6 +1,6 @@
 {
     "dependencies": {
-        "@gear-js/api": "^0.18.2",
+        "@gear-js/api": "^0.26.1",
         "yargs": "17.1.1"
     }
 }

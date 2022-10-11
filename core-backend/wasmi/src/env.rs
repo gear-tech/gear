@@ -28,6 +28,7 @@ use alloc::{
     collections::BTreeSet,
     string::{String, ToString},
 };
+use codec::Encode;
 use core::fmt;
 use gear_backend_common::{
     calc_stack_end, error_processor::IntoExtError, AsTerminationReason, BackendReport, Environment,
@@ -90,8 +91,8 @@ pub struct WasmiEnvironment<E: Ext> {
 
 impl<E> Environment<E> for WasmiEnvironment<E>
 where
-    E: Ext + IntoExtInfo + GetGasAmount + 'static,
-    E::Error: AsTerminationReason + IntoExtError,
+    E: Ext + IntoExtInfo<E::Error> + GetGasAmount + 'static,
+    E::Error: Encode + AsTerminationReason + IntoExtError,
 {
     type Memory = MemoryWrap<E>;
     type Error = Error;
