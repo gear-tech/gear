@@ -110,16 +110,20 @@ pub struct ExtInfo {
     pub pages_data: BTreeMap<PageNumber, PageBuf>,
     pub generated_dispatches: Vec<(Dispatch, u32)>,
     pub awakening: Vec<(MessageId, u32)>,
-    pub program_candidates_data: BTreeMap<CodeId, Vec<(ProgramId, MessageId)>>,
+    pub program_candidates_data: BTreeMap<CodeId, Vec<(MessageId, ProgramId)>>,
     pub context_store: ContextStore,
 }
 
-pub trait IntoExtInfo {
+pub trait IntoExtInfo<Error> {
     fn into_ext_info(self, memory: &impl Memory) -> Result<ExtInfo, (MemoryError, GasAmount)>;
 
     fn into_gas_amount(self) -> GasAmount;
 
-    fn last_error(&self) -> Option<&ExtError>;
+    fn last_error(&self) -> Result<&ExtError, Error>;
+
+    fn last_error_encoded(&self) -> Result<Vec<u8>, Error> {
+        self.last_error().map(Encode::encode)
+    }
 
     fn trap_explanation(&self) -> Option<TrapExplanation>;
 }
@@ -183,7 +187,7 @@ pub enum StackEndError {
 // '__gear_stack_end' export is inserted in wasm-proc or wasm-builder
 pub const STACK_END_EXPORT_NAME: &str = "__gear_stack_end";
 
-pub trait Environment<E: Ext + IntoExtInfo + 'static>: Sized {
+pub trait Environment<E: Ext + IntoExtInfo<E::Error> + 'static>: Sized {
     /// Memory type for current environment.
     type Memory: Memory;
 

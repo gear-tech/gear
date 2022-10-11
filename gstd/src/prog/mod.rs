@@ -22,69 +22,63 @@ mod generator;
 
 pub use generator::ProgramGenerator;
 
-use crate::{common::errors::Result, prelude::convert::AsRef, ActorId, CodeHash};
+use crate::{common::errors::Result, prelude::convert::AsRef, ActorId, CodeId, MessageId};
 
 pub fn create_program(
-    code_hash: CodeHash,
+    code_id: CodeId,
     salt: impl AsRef<[u8]>,
     payload: impl AsRef<[u8]>,
     value: u128,
-) -> Result<ActorId> {
-    let id = gcore::prog::create_program(code_hash.into(), salt.as_ref(), payload.as_ref(), value)?;
-    Ok(id.into())
+) -> Result<(MessageId, ActorId)> {
+    create_program_delayed(code_id, salt, payload, value, 0)
 }
 
 /// Same as [`create_program`], but sends delayed.
 pub fn create_program_delayed(
-    code_hash: CodeHash,
+    code_id: CodeId,
     salt: impl AsRef<[u8]>,
     payload: impl AsRef<[u8]>,
     value: u128,
     delay: u32,
-) -> Result<ActorId> {
-    let id = gcore::prog::create_program_delayed(
-        code_hash.into(),
+) -> Result<(MessageId, ActorId)> {
+    let (message_id, program_id) = gcore::prog::create_program_delayed(
+        code_id.into(),
         salt.as_ref(),
         payload.as_ref(),
         value,
         delay,
     )?;
-    Ok(id.into())
+
+    Ok((message_id.into(), program_id.into()))
 }
 
 pub fn create_program_with_gas(
-    code_hash: CodeHash,
+    code_id: CodeId,
     salt: impl AsRef<[u8]>,
     payload: impl AsRef<[u8]>,
     gas_limit: u64,
     value: u128,
-) -> Result<ActorId> {
-    let id = gcore::prog::create_program_with_gas(
-        code_hash.into(),
-        salt.as_ref(),
-        payload.as_ref(),
-        gas_limit,
-        value,
-    )?;
-    Ok(id.into())
+) -> Result<(MessageId, ActorId)> {
+    create_program_with_gas_delayed(code_id, salt, payload, gas_limit, value, 0)
 }
 
 /// Same as [`create_program_with_gas`], but sends delayed.
 pub fn create_program_with_gas_delayed(
-    code_hash: CodeHash,
+    code_id: CodeId,
     salt: impl AsRef<[u8]>,
     payload: impl AsRef<[u8]>,
     gas_limit: u64,
     value: u128,
     delay: u32,
-) -> Result<ActorId> {
-    let id = gcore::prog::create_program_with_gas_delayed(
-        code_hash.into(),
+) -> Result<(MessageId, ActorId)> {
+    let (message_id, program_id) = gcore::prog::create_program_with_gas_delayed(
+        code_id.into(),
         salt.as_ref(),
         payload.as_ref(),
         gas_limit,
         value,
         delay,
     )?;
-    Ok(id.into())
+
+    Ok((message_id.into(), program_id.into()))
 }

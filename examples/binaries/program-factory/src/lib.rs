@@ -50,7 +50,7 @@ const CHILD_CODE_HASH: [u8; 32] =
 #[cfg(not(feature = "std"))]
 mod wasm {
     use super::{CreateProgram, CHILD_CODE_HASH};
-    use gstd::{debug, msg, prog, ActorId, CodeHash};
+    use gstd::{msg, prog, ActorId};
 
     static mut COUNTER: i32 = 0;
     static mut ORIGIN: Option<ActorId> = None;
@@ -65,7 +65,7 @@ mod wasm {
         match msg::load().expect("provided invalid payload") {
             CreateProgram::Default => {
                 let submitted_code = CHILD_CODE_HASH.into();
-                let new_program_id = prog::create_program_with_gas(
+                let (_message_id, new_program_id) = prog::create_program_with_gas(
                     submitted_code,
                     COUNTER.to_le_bytes(),
                     [],
@@ -80,7 +80,7 @@ mod wasm {
             CreateProgram::Custom(custom_child_data) => {
                 for (code_hash, salt, gas_limit) in custom_child_data {
                     let submitted_code = code_hash.into();
-                    let new_program_id =
+                    let (_message_id, new_program_id) =
                         prog::create_program_with_gas(submitted_code, &salt, [], gas_limit, 0)
                             .unwrap();
                     let msg_id = msg::send_bytes(new_program_id, [], 0).unwrap();
@@ -91,7 +91,7 @@ mod wasm {
 
     #[no_mangle]
     unsafe extern "C" fn handle_reply() {
-        if msg::exit_code() != 0 {
+        if msg::exit_code().unwrap() != 0 {
             let origin = ORIGIN.clone().unwrap();
             msg::send_bytes(origin, [], 0).unwrap();
         }

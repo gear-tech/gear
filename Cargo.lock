@@ -2726,8 +2726,8 @@ name = "gcore"
 version = "0.1.0"
 dependencies = [
  "gear-core-errors",
- "hex-literal",
  "parity-scale-codec",
+ "static_assertions",
 ]
 
 [[package]]
@@ -3471,6 +3471,7 @@ dependencies = [
  "parity-scale-codec",
  "primitive-types",
  "scale-info",
+ "static_assertions",
 ]
 
 [[package]]

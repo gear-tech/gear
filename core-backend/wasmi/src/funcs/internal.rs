@@ -28,7 +28,7 @@ pub(super) fn process_call_unit_result<E, CallType>(
     call: CallType,
 ) -> Result<(u32,), Error>
 where
-    E: Ext + IntoExtInfo + 'static,
+    E: Ext + IntoExtInfo<E::Error> + 'static,
     E::Error: IntoExtError,
     CallType: Fn(&mut E) -> Result<(), <E as Ext>::Error>,
 {
@@ -57,7 +57,7 @@ pub(super) fn process_call_result<E, ResultType, CallType, WriteType>(
     write: WriteType,
 ) -> Result<(u32,), Error>
 where
-    E: Ext + IntoExtInfo + 'static,
+    E: Ext + IntoExtInfo<E::Error> + 'static,
     E::Error: IntoExtError,
     CallType: FnOnce(&mut E) -> Result<ResultType, <E as Ext>::Error>,
     WriteType: Fn(&mut MemoryWrapRef<'_, E>, ResultType) -> Result<(), MemoryError>,
@@ -90,7 +90,7 @@ where
         Ok(_) => Ok((0u32,)),
         Err(e) => {
             // this is safe since we own the caller, don't change its host_data
-            // and checked for abscense before
+            // and checked for absence before
             caller
                 .host_data_mut()
                 .as_mut()
@@ -106,15 +106,15 @@ pub(super) fn process_call_result_as_ref<E, ResultType, CallType>(
     caller: Caller<'_, HostState<E>>,
     memory: WasmiMemory,
     call: CallType,
-    offset: usize,
+    offset: u32,
 ) -> Result<(u32,), Error>
 where
-    E: Ext + IntoExtInfo + 'static,
+    E: Ext + IntoExtInfo<E::Error> + 'static,
     E::Error: IntoExtError,
     ResultType: AsRef<[u8]>,
     CallType: FnOnce(&mut E) -> Result<ResultType, <E as Ext>::Error>,
 {
     process_call_result(caller, memory, call, |memory_wrap, result| {
-        memory_wrap.write(offset, result.as_ref())
+        memory_wrap.write(offset as usize, result.as_ref())
     })
 }
