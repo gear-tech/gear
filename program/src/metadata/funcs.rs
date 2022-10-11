@@ -28,7 +28,7 @@ pub fn free(ctx: impl AsContextMut<Data = StoreData>) -> Extern {
 pub fn gr_debug(ctx: impl AsContextMut<Data = StoreData>, memory: Memory) -> Extern {
     Extern::Func(Func::wrap(
         ctx,
-        move |caller: Caller<'_, StoreData>, ptr: i32, len: i32| {
+        move |caller: Caller<'_, StoreData>, ptr: u32, len: i32| {
             let (ptr, len) = (ptr as usize, len as usize);
 
             let mut msg = vec![0; len];
@@ -49,7 +49,7 @@ pub fn gr_debug(ctx: impl AsContextMut<Data = StoreData>, memory: Memory) -> Ext
 pub fn gr_read(ctx: impl AsContextMut<Data = StoreData>, memory: Memory) -> Extern {
     Extern::Func(Func::wrap(
         ctx,
-        move |mut caller: Caller<'_, StoreData>, ptr: i32, len: i32, dest: i32| {
+        move |mut caller: Caller<'_, StoreData>, ptr: u32, len: i32, dest: i32| {
             let (ptr, len, dest) = (ptr as usize, len as usize, dest as usize);
 
             let mut msg = vec![0; len];
@@ -76,7 +76,7 @@ pub fn gr_read(ctx: impl AsContextMut<Data = StoreData>, memory: Memory) -> Exte
 pub fn gr_reply(ctx: impl AsContextMut<Data = StoreData>, _memory: Memory) -> Extern {
     Extern::Func(Func::wrap(
         ctx,
-        move |mut _caller: Caller<'_, StoreData>, _ptr: i32, _len: i32, _val: i32, _msg: i32| 0,
+        move |mut _caller: Caller<'_, StoreData>, _ptr: u32, _len: i32, _val: i32, _msg: i32| 0,
     ))
 }
 
@@ -86,7 +86,7 @@ pub fn gr_reply(ctx: impl AsContextMut<Data = StoreData>, _memory: Memory) -> Ex
 pub fn gr_error(ctx: impl AsContextMut<Data = StoreData>, _memory: Memory) -> Extern {
     Extern::Func(Func::wrap(
         ctx,
-        move |mut _caller: Caller<'_, StoreData>, _ptr: i32| Ok(0u32),
+        move |mut _caller: Caller<'_, StoreData>, _ptr: u32| Ok(0u32),
     ))
 }
 

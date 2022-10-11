@@ -30,7 +30,7 @@ use wasmi::{core::memory_units::Pages, Memory as WasmiMemory, Store, StoreContex
 
 pub fn read_memory_as<D: Decode + MaxEncodedLen>(
     memory: &impl Memory,
-    ptr: i32,
+    ptr: u32,
 ) -> Result<D, MemoryError> {
     let mut buffer = vec![0u8; D::max_encoded_len()];
     memory

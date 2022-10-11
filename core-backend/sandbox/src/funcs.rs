@@ -281,13 +281,13 @@ where
     pub fn read(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
         sys_trace!(target: "syscall::gear", "read, args = {}", args_to_str(args));
 
-        let (at, len, buffer_ptr): (_, _, i32) = args.iter().read_3()?;
+        let (at, len, buffer_ptr) = args.iter().read_3()?;
 
         ctx.run(|ctx| {
             match Self::validated(ctx.ext, at, len) {
                 Ok(buffer) => {
                     ctx.memory
-                        .set(buffer_ptr as u32, buffer)
+                        .set(buffer_ptr, buffer)
                         .map_err(|_| MemoryError::OutOfBounds)?;
 
                     Ok(0u32)

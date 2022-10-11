@@ -149,25 +149,25 @@ pub trait RuntimeCtx<E: Ext> {
     fn alloc(&mut self, pages: u32) -> Result<WasmPageNumber, RuntimeCtxError<E::Error>>;
 
     /// Read designated chunk from the memory.
-    fn read_memory(&self, ptr: i32, len: u32) -> Result<Vec<u8>, RuntimeCtxError<E::Error>>;
+    fn read_memory(&self, ptr: u32, len: u32) -> Result<Vec<u8>, RuntimeCtxError<E::Error>>;
 
     /// Read designated chunk from the memory into the supplied buffer.
     fn read_memory_into_buf(
         &self,
-        ptr: i32,
+        ptr: u32,
         buf: &mut [u8],
     ) -> Result<(), RuntimeCtxError<E::Error>>;
 
     /// Reads and decodes a type with a size fixed at compile time from program memory.
     fn read_memory_as<D: Decode + MaxEncodedLen>(
         &self,
-        ptr: i32,
+        ptr: u32,
     ) -> Result<D, RuntimeCtxError<E::Error>>;
 
     /// Write the given buffer and its length to the designated locations in memory.
     //
     /// `out_ptr` is the location in memory where `buf` should be written to.
-    fn write_output(&mut self, out_ptr: i32, buf: &[u8]) -> Result<(), RuntimeCtxError<E::Error>>;
+    fn write_output(&mut self, out_ptr: u32, buf: &[u8]) -> Result<(), RuntimeCtxError<E::Error>>;
 }
 
 pub struct BackendReport<T, E> {

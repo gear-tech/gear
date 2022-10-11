@@ -196,12 +196,12 @@ where
 {
     pub fn send(store: &mut Store<HostState<E>>, forbidden: bool, memory: WasmiMemory) -> Func {
         let func = move |mut caller: wasmi::Caller<'_, HostState<E>>,
-                         destination_ptr: i32,
-                         payload_ptr: i32,
+                         destination_ptr: u32,
+                         payload_ptr: u32,
                          payload_len: u32,
-                         value_ptr: i32,
+                         value_ptr: u32,
                          delay: u32,
-                         message_id_ptr: i32|
+                         message_id_ptr: u32|
               -> FallibleOutput {
             exit_if!(forbidden, caller);
 
@@ -217,7 +217,7 @@ where
                     .and_then(|id| read_memory_as(&memory_wrap, value_ptr).map(|value| (id, value)))
                     .and_then(|(id, value)| {
                         memory_wrap
-                            .read(payload_ptr as u32 as usize, payload.get_mut())
+                            .read(payload_ptr as usize, payload.get_mut())
                             .map(|_| (id, value))
                     })
             };
@@ -241,13 +241,13 @@ where
         memory: WasmiMemory,
     ) -> Func {
         let func = move |mut caller: wasmi::Caller<'_, HostState<E>>,
-                         destination_ptr: i32,
-                         payload_ptr: i32,
+                         destination_ptr: u32,
+                         payload_ptr: u32,
                          payload_len: u32,
                          gas_limit: u64,
-                         value_ptr: i32,
+                         value_ptr: u32,
                          delay: u32,
-                         message_id_ptr: i32|
+                         message_id_ptr: u32|
               -> FallibleOutput {
             exit_if!(forbidden, caller);
 
@@ -263,7 +263,7 @@ where
                     .and_then(|id| read_memory_as(&memory_wrap, value_ptr).map(|value| (id, value)))
                     .and_then(|(id, value)| {
                         memory_wrap
-                            .read(payload_ptr as u32 as usize, payload.get_mut())
+                            .read(payload_ptr as usize, payload.get_mut())
                             .map(|_| (id, value))
                     })
             };
@@ -293,10 +293,10 @@ where
     ) -> Func {
         let func = move |mut caller: wasmi::Caller<'_, HostState<E>>,
                          handle: u32,
-                         destination_ptr: i32,
-                         value_ptr: i32,
+                         destination_ptr: u32,
+                         value_ptr: u32,
                          delay: u32,
-                         message_id_ptr: i32|
+                         message_id_ptr: u32|
               -> FallibleOutput {
             exit_if!(forbidden, caller);
 
@@ -333,11 +333,11 @@ where
     ) -> Func {
         let func = move |mut caller: wasmi::Caller<'_, HostState<E>>,
                          handle: u32,
-                         destination_ptr: i32,
+                         destination_ptr: u32,
                          gas_limit: u64,
-                         value_ptr: i32,
+                         value_ptr: u32,
                          delay: u32,
-                         message_id_ptr: i32|
+                         message_id_ptr: u32|
               -> FallibleOutput {
             exit_if!(forbidden, caller);
 
@@ -377,18 +377,18 @@ where
         forbidden: bool,
         memory: WasmiMemory,
     ) -> Func {
-        let func =
-            move |mut caller: wasmi::Caller<'_, HostState<E>>, handle_ptr: i32| -> FallibleOutput {
-                exit_if!(forbidden, caller);
+        let func = move |mut caller: wasmi::Caller<'_, HostState<E>>,
+                         handle_ptr: u32|
+              -> FallibleOutput {
+            exit_if!(forbidden, caller);
 
-                process_call_result!(
-                    caller,
-                    memory,
-                    |ext| ext.send_init(),
-                    |memory_wrap, handle| memory_wrap
-                        .write(handle_ptr as u32 as usize, &handle.to_le_bytes())
-                )
-            };
+            process_call_result!(
+                caller,
+                memory,
+                |ext| ext.send_init(),
+                |memory_wrap, handle| memory_wrap.write(handle_ptr as usize, &handle.to_le_bytes())
+            )
+        };
 
         Func::wrap(store, func)
     }
@@ -400,7 +400,7 @@ where
     ) -> Func {
         let func = move |mut caller: wasmi::Caller<'_, HostState<E>>,
                          handle: u32,
-                         payload_ptr: i32,
+                         payload_ptr: u32,
                          payload_len: u32|
               -> FallibleOutput {
             exit_if!(forbidden, caller);
@@ -412,7 +412,7 @@ where
 
             let read_result = {
                 let memory_wrap = get_caller_memory(&mut caller, &memory);
-                memory_wrap.read(payload_ptr as u32 as usize, payload.get_mut())
+                memory_wrap.read(payload_ptr as usize, payload.get_mut())
             };
 
             process_read_result!(read_result, caller);
@@ -427,7 +427,7 @@ where
         let func = move |mut caller: wasmi::Caller<'_, HostState<E>>,
                          at: u32,
                          len: u32,
-                         buffer_ptr: i32|
+                         buffer_ptr: u32|
               -> FallibleOutput {
             exit_if!(forbidden, caller);
 
@@ -461,7 +461,7 @@ where
 
             let buffer = message[at as usize..last_idx as usize].to_vec();
             let mut memory_wrap = get_caller_memory(&mut caller, &memory);
-            match memory_wrap.write(buffer_ptr as u32 as usize, &buffer) {
+            match memory_wrap.write(buffer_ptr as usize, &buffer) {
                 Ok(_) => Ok((0,)),
                 Err(e) => {
                     host_state_mut!(caller).err = e.into();
@@ -500,7 +500,7 @@ where
 
     pub fn exit(store: &mut Store<HostState<E>>, forbidden: bool, memory: WasmiMemory) -> Func {
         let func = move |mut caller: wasmi::Caller<'_, HostState<E>>,
-                         inheritor_id_ptr: i32|
+                         inheritor_id_ptr: u32|
               -> EmptyOutput {
             exit_if!(forbidden, caller);
 
@@ -526,7 +526,7 @@ where
         memory: WasmiMemory,
     ) -> Func {
         let func = move |mut caller: wasmi::Caller<'_, HostState<E>>,
-                         exit_code_ptr: i32|
+                         exit_code_ptr: u32|
               -> FallibleOutput {
             exit_if!(forbidden, caller);
 
@@ -546,7 +546,7 @@ where
                 memory,
                 |_ext| Ok(exit_code),
                 |memory_wrap, exit_code| memory_wrap
-                    .write(exit_code_ptr as u32 as usize, &exit_code.to_le_bytes())
+                    .write(exit_code_ptr as usize, &exit_code.to_le_bytes())
             )
         };
 
@@ -664,7 +664,7 @@ where
 
     pub fn origin(store: &mut Store<HostState<E>>, forbidden: bool, memory: WasmiMemory) -> Func {
         let func =
-            move |mut caller: wasmi::Caller<'_, HostState<E>>, origin_ptr: i32| -> EmptyOutput {
+            move |mut caller: wasmi::Caller<'_, HostState<E>>, origin_ptr: u32| -> EmptyOutput {
                 exit_if!(forbidden, caller);
 
                 let host_state = host_state_mut!(caller);
@@ -677,7 +677,7 @@ where
                 };
 
                 let mut memory_wrap = get_caller_memory(&mut caller, &memory);
-                match memory_wrap.write(origin_ptr as u32 as usize, origin.as_ref()) {
+                match memory_wrap.write(origin_ptr as usize, origin.as_ref()) {
                     Ok(_) => Ok(()),
                     Err(e) => {
                         host_state_mut!(caller).err = e.into();
@@ -692,11 +692,11 @@ where
 
     pub fn reply(store: &mut Store<HostState<E>>, forbidden: bool, memory: WasmiMemory) -> Func {
         let func = move |mut caller: wasmi::Caller<'_, HostState<E>>,
-                         payload_ptr: i32,
+                         payload_ptr: u32,
                          payload_len: u32,
-                         value_ptr: i32,
+                         value_ptr: u32,
                          delay: u32,
-                         message_id_ptr: i32| {
+                         message_id_ptr: u32| {
             exit_if!(forbidden, caller);
 
             let mut payload = Payload::try_new_default(payload_len as usize).map_err(|e| {
@@ -708,7 +708,7 @@ where
                 let memory_wrap = get_caller_memory(&mut caller, &memory);
 
                 memory_wrap
-                    .read(payload_ptr as u32 as usize, payload.get_mut())
+                    .read(payload_ptr as usize, payload.get_mut())
                     .and_then(|_| read_memory_as(&memory_wrap, value_ptr))
             };
 
@@ -731,12 +731,12 @@ where
         memory: WasmiMemory,
     ) -> Func {
         let func = move |mut caller: wasmi::Caller<'_, HostState<E>>,
-                         payload_ptr: i32,
+                         payload_ptr: u32,
                          payload_len: u32,
                          gas_limit: u64,
-                         value_ptr: i32,
+                         value_ptr: u32,
                          delay: u32,
-                         message_id_ptr: i32|
+                         message_id_ptr: u32|
               -> FallibleOutput {
             exit_if!(forbidden, caller);
 
@@ -748,7 +748,7 @@ where
             let read_result = {
                 let memory_wrap = get_caller_memory(&mut caller, &memory);
                 memory_wrap
-                    .read(payload_ptr as u32 as usize, payload.get_mut())
+                    .read(payload_ptr as usize, payload.get_mut())
                     .and_then(|_| read_memory_as(&memory_wrap, value_ptr))
             };
 
@@ -771,9 +771,9 @@ where
         memory: WasmiMemory,
     ) -> Func {
         let func = move |mut caller: wasmi::Caller<'_, HostState<E>>,
-                         value_ptr: i32,
+                         value_ptr: u32,
                          delay: u32,
-                         message_id_ptr: i32| {
+                         message_id_ptr: u32| {
             exit_if!(forbidden, caller);
 
             let read_result = {
@@ -802,9 +802,9 @@ where
     ) -> Func {
         let func = move |mut caller: wasmi::Caller<'_, HostState<E>>,
                          gas_limit: u64,
-                         value_ptr: i32,
+                         value_ptr: u32,
                          delay: u32,
-                         message_id_ptr: i32|
+                         message_id_ptr: u32|
               -> FallibleOutput {
             exit_if!(forbidden, caller);
 
@@ -834,7 +834,7 @@ where
 
     pub fn reply_to(store: &mut Store<HostState<E>>, forbidden: bool, memory: WasmiMemory) -> Func {
         let func = move |mut caller: wasmi::Caller<'_, HostState<E>>,
-                         message_id_ptr: i32|
+                         message_id_ptr: u32|
               -> FallibleOutput {
             exit_if!(forbidden, caller);
 
@@ -851,7 +851,7 @@ where
             };
 
             let mut memory_wrap = get_caller_memory(&mut caller, &memory);
-            match memory_wrap.write(message_id_ptr as u32 as usize, message_id.as_ref()) {
+            match memory_wrap.write(message_id_ptr as usize, message_id.as_ref()) {
                 Ok(_) => Ok((0,)),
                 Err(e) => {
                     host_state_mut!(caller).err = e.into();
@@ -870,22 +870,24 @@ where
         memory: WasmiMemory,
     ) -> Func {
         let func = move |mut caller: wasmi::Caller<'_, HostState<E>>,
-                         payload_ptr: i32,
-                         payload_len: i32| {
+                         payload_ptr: u32,
+                         payload_len: u32| {
             exit_if!(forbidden, caller);
 
-            let payload_ptr = payload_ptr as u32 as usize;
-            let payload_len = payload_len as u32 as usize;
+            let mut payload =
+                RuntimeBuffer::try_new_default(payload_len as usize).map_err(|e| {
+                    host_state_mut!(caller).err = FuncError::RuntimeBufferSize(e);
+                    Trap::from(TrapCode::Unreachable)
+                })?;
 
-            let mut payload = vec![0u8; payload_len];
             let read_result = {
                 let memory_wrap = get_caller_memory(&mut caller, &memory);
-                memory_wrap.read(payload_ptr, &mut payload)
+                memory_wrap.read(payload_ptr as usize, payload.get_mut())
             };
 
             process_read_result!(read_result, caller);
 
-            process_call_unit_result!(caller, |ext| ext.reply_push(&payload))
+            process_call_unit_result!(caller, |ext| ext.reply_push(payload.get()))
         };
 
         Func::wrap(store, func)
@@ -893,7 +895,7 @@ where
 
     pub fn debug(store: &mut Store<HostState<E>>, forbidden: bool, memory: WasmiMemory) -> Func {
         let func = move |mut caller: wasmi::Caller<'_, HostState<E>>,
-                         string_ptr: i32,
+                         string_ptr: u32,
                          string_len: u32|
               -> EmptyOutput {
             exit_if!(forbidden, caller);
@@ -902,9 +904,10 @@ where
                 host_state_mut!(caller).err = FuncError::RuntimeBufferSize(e);
                 Trap::from(TrapCode::Unreachable)
             })?;
+
             let read_result = {
                 let memory_wrap = get_caller_memory(&mut caller, &memory);
-                memory_wrap.read(string_ptr as u32 as usize, buffer.get_mut())
+                memory_wrap.read(string_ptr as usize, buffer.get_mut())
             };
 
             let host_state = host_state_mut!(caller);
@@ -958,7 +961,7 @@ where
         memory: WasmiMemory,
     ) -> Func {
         let func = move |mut caller: wasmi::Caller<'_, HostState<E>>,
-                         message_id_ptr: i32|
+                         message_id_ptr: u32|
               -> EmptyOutput {
             exit_if!(forbidden, caller);
 
@@ -972,7 +975,7 @@ where
             };
 
             let mut memory_wrap = get_caller_memory(&mut caller, &memory);
-            match memory_wrap.write(message_id_ptr as u32 as usize, message_id.as_ref()) {
+            match memory_wrap.write(message_id_ptr as usize, message_id.as_ref()) {
                 Ok(_) => Ok(()),
                 Err(e) => {
                     host_state_mut!(caller).err = e.into();
@@ -991,7 +994,7 @@ where
         memory: WasmiMemory,
     ) -> Func {
         let func = move |mut caller: wasmi::Caller<'_, HostState<E>>,
-                         program_id_ptr: i32|
+                         program_id_ptr: u32|
               -> EmptyOutput {
             exit_if!(forbidden, caller);
 
@@ -1005,7 +1008,7 @@ where
             };
 
             let mut memory_wrap = get_caller_memory(&mut caller, &memory);
-            match memory_wrap.write(program_id_ptr as u32 as usize, program_id.as_ref()) {
+            match memory_wrap.write(program_id_ptr as usize, program_id.as_ref()) {
                 Ok(_) => Ok(()),
                 Err(e) => {
                     host_state_mut!(caller).err = e.into();
@@ -1020,7 +1023,7 @@ where
 
     pub fn source(store: &mut Store<HostState<E>>, forbidden: bool, memory: WasmiMemory) -> Func {
         let func =
-            move |mut caller: wasmi::Caller<'_, HostState<E>>, source_ptr: i32| -> EmptyOutput {
+            move |mut caller: wasmi::Caller<'_, HostState<E>>, source_ptr: u32| -> EmptyOutput {
                 exit_if!(forbidden, caller);
 
                 let host_state = host_state_mut!(caller);
@@ -1032,7 +1035,7 @@ where
 
                 let write_result = {
                     let mut memory_wrap = get_caller_memory(&mut caller, &memory);
-                    memory_wrap.write(source_ptr as u32 as usize, &source.encode())
+                    memory_wrap.write(source_ptr as usize, &source.encode())
                 };
 
                 match write_result {
@@ -1050,7 +1053,7 @@ where
 
     pub fn value(store: &mut Store<HostState<E>>, forbidden: bool, memory: WasmiMemory) -> Func {
         let func =
-            move |mut caller: wasmi::Caller<'_, HostState<E>>, value_ptr: i32| -> EmptyOutput {
+            move |mut caller: wasmi::Caller<'_, HostState<E>>, value_ptr: u32| -> EmptyOutput {
                 exit_if!(forbidden, caller);
 
                 let host_state = host_state_mut!(caller);
@@ -1062,7 +1065,7 @@ where
 
                 let write_result = {
                     let mut memory_wrap = get_caller_memory(&mut caller, &memory);
-                    memory_wrap.write(value_ptr as u32 as usize, &value.encode())
+                    memory_wrap.write(value_ptr as usize, &value.encode())
                 };
 
                 match write_result {
@@ -1084,7 +1087,7 @@ where
         memory: WasmiMemory,
     ) -> Func {
         let func =
-            move |mut caller: wasmi::Caller<'_, HostState<E>>, value_ptr: i32| -> EmptyOutput {
+            move |mut caller: wasmi::Caller<'_, HostState<E>>, value_ptr: u32| -> EmptyOutput {
                 exit_if!(forbidden, caller);
 
                 let host_state = host_state_mut!(caller);
@@ -1096,7 +1099,7 @@ where
 
                 let write_result = {
                     let mut memory_wrap = get_caller_memory(&mut caller, &memory);
-                    memory_wrap.write(value_ptr as u32 as usize, &value_available.encode())
+                    memory_wrap.write(value_ptr as usize, &value_available.encode())
                 };
 
                 match write_result {
@@ -1187,7 +1190,7 @@ where
 
     pub fn wake(store: &mut Store<HostState<E>>, forbidden: bool, memory: WasmiMemory) -> Func {
         let func = move |mut caller: wasmi::Caller<'_, HostState<E>>,
-                         message_id_ptr: i32,
+                         message_id_ptr: u32,
                          delay: u32|
               -> FallibleOutput {
             exit_if!(forbidden, caller);
@@ -1221,15 +1224,15 @@ where
         memory: WasmiMemory,
     ) -> Func {
         let func = move |mut caller: wasmi::Caller<'_, HostState<E>>,
-                         code_id_ptr: i32,
-                         salt_ptr: i32,
+                         code_id_ptr: u32,
+                         salt_ptr: u32,
                          salt_len: u32,
-                         payload_ptr: i32,
+                         payload_ptr: u32,
                          payload_len: u32,
-                         value_ptr: i32,
+                         value_ptr: u32,
                          delay: u32,
-                         message_id_ptr: i32,
-                         program_id_ptr: i32|
+                         message_id_ptr: u32,
+                         program_id_ptr: u32|
               -> FallibleOutput {
             exit_if!(forbidden, caller);
 
@@ -1243,8 +1246,8 @@ where
             let read_result = {
                 let memory_wrap = get_caller_memory(&mut caller, &memory);
                 memory_wrap
-                    .read(payload_ptr as u32 as usize, payload.get_mut())
-                    .and_then(|_| memory_wrap.read(salt_ptr as u32 as usize, salt.as_mut()))
+                    .read(payload_ptr as usize, payload.get_mut())
+                    .and_then(|_| memory_wrap.read(salt_ptr as usize, salt.as_mut()))
                     .and_then(|_| read_memory_as(&memory_wrap, value_ptr))
                     .and_then(|value| {
                         read_memory_as(&memory_wrap, code_id_ptr).map(|code_id| (value, code_id))
@@ -1276,10 +1279,8 @@ where
                 let mut memory_wrap = get_caller_memory(&mut caller, &memory);
 
                 memory_wrap
-                    .write(message_id_ptr as u32 as usize, message_id.as_ref())
-                    .and_then(|_| {
-                        memory_wrap.write(program_id_ptr as u32 as usize, program_id.as_ref())
-                    })
+                    .write(message_id_ptr as usize, message_id.as_ref())
+                    .and_then(|_| memory_wrap.write(program_id_ptr as usize, program_id.as_ref()))
             };
 
             match write_result {
@@ -1307,16 +1308,16 @@ where
         memory: WasmiMemory,
     ) -> Func {
         let func = move |mut caller: wasmi::Caller<'_, HostState<E>>,
-                         code_id_ptr: i32,
-                         salt_ptr: i32,
+                         code_id_ptr: u32,
+                         salt_ptr: u32,
                          salt_len: u32,
-                         payload_ptr: i32,
+                         payload_ptr: u32,
                          payload_len: u32,
                          gas_limit: u64,
-                         value_ptr: i32,
+                         value_ptr: u32,
                          delay: u32,
-                         message_id_ptr: i32,
-                         program_id_ptr: i32|
+                         message_id_ptr: u32,
+                         program_id_ptr: u32|
               -> FallibleOutput {
             exit_if!(forbidden, caller);
 
@@ -1331,8 +1332,8 @@ where
                 let memory_wrap = get_caller_memory(&mut caller, &memory);
 
                 memory_wrap
-                    .read(payload_ptr as u32 as usize, payload.get_mut())
-                    .and_then(|_| memory_wrap.read(salt_ptr as u32 as usize, &mut salt))
+                    .read(payload_ptr as usize, payload.get_mut())
+                    .and_then(|_| memory_wrap.read(salt_ptr as usize, &mut salt))
                     .and_then(|_| read_memory_as(&memory_wrap, value_ptr))
                     .and_then(|value| {
                         read_memory_as(&memory_wrap, code_id_ptr).map(|code_id| (code_id, value))
@@ -1365,10 +1366,8 @@ where
                 let mut memory_wrap = get_caller_memory(&mut caller, &memory);
 
                 memory_wrap
-                    .write(message_id_ptr as u32 as usize, message_id.as_ref())
-                    .and_then(|_| {
-                        memory_wrap.write(program_id_ptr as u32 as usize, program_id.as_ref())
-                    })
+                    .write(message_id_ptr as usize, message_id.as_ref())
+                    .and_then(|_| memory_wrap.write(program_id_ptr as usize, program_id.as_ref()))
             };
 
             match write_result {
@@ -1392,7 +1391,7 @@ where
 
     pub fn error(store: &mut Store<HostState<E>>, forbidden: bool, memory: WasmiMemory) -> Func {
         let func =
-            move |mut caller: wasmi::Caller<'_, HostState<E>>, buffer_ptr: i32| -> FallibleOutput {
+            move |mut caller: wasmi::Caller<'_, HostState<E>>, buffer_ptr: u32| -> FallibleOutput {
                 exit_if!(forbidden, caller);
 
                 let host_state = host_state_mut!(caller);
@@ -1408,7 +1407,7 @@ where
 
                 let encoded = error.encode();
                 let mut memory_wrap = get_caller_memory(&mut caller, &memory);
-                match memory_wrap.write(buffer_ptr as u32 as usize, &encoded) {
+                match memory_wrap.write(buffer_ptr as usize, &encoded) {
                     Ok(_) => Ok((0,)),
                     Err(e) => {
                         host_state_mut!(caller).err = e.into();
