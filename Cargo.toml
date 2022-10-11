@@ -9,7 +9,7 @@ members = [
     "core",
     "core-backend/common",
     "core-backend/sandbox",
-    # "core-backend/wasmi",
+    "core-backend/wasmi",
     "core-processor",
     "core-errors",
     "examples/binaries/*",
