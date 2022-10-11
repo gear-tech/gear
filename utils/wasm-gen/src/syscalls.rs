@@ -118,12 +118,12 @@ pub(crate) fn sys_calls_table(config: &GearConfig) -> BTreeMap<&'static str, Sys
             frequency,
         },
     );
-    // gr_error(data: *mut u8);
+    // gr_error(data: *mut u8) -> u32;
     res.insert(
         "gr_error",
         SysCallInfo {
             params: [I32].to_vec(),
-            results: [].to_vec(),
+            results: [I32].to_vec(),
             param_rules: [ptr_rule()].to_vec(),
             frequency,
         },
@@ -219,7 +219,7 @@ pub(crate) fn sys_calls_table(config: &GearConfig) -> BTreeMap<&'static str, Sys
             frequency,
         },
     );
-    // gr_wait_up_to(duration: *const u8) -> !;
+    // gr_wait_up_to(duration: u32) -> !;
     res.insert(
         "gr_wait_up_to",
         SysCallInfo {
@@ -229,7 +229,7 @@ pub(crate) fn sys_calls_table(config: &GearConfig) -> BTreeMap<&'static str, Sys
             frequency,
         },
     );
-    // gr_wait_for(duration: *const u8) -> !;
+    // gr_wait_for(duration: u32) -> !;
     res.insert(
         "gr_wait_for",
         SysCallInfo {
@@ -239,31 +239,30 @@ pub(crate) fn sys_calls_table(config: &GearConfig) -> BTreeMap<&'static str, Sys
             frequency,
         },
     );
-    // gr_wake(waker_id_ptr: *const u8,
-    //     delay_ptr: *const u8,);
+    // gr_wake(waker_id_ptr: *const u8, delay: u32) -> u32;
     res.insert(
         "gr_wake",
         SysCallInfo {
             params: [I32, I32].to_vec(),
-            results: [].to_vec(),
+            results: [I32].to_vec(),
             param_rules: [ptr_rule(), ptr_rule()].to_vec(),
             frequency,
         },
     );
 
-    // gr_exit_code() -> i32;
+    // gr_exit_code(exit_code_ptr: *const u8) -> u32;
     res.insert(
         "gr_exit_code",
         SysCallInfo {
-            params: [].to_vec(),
+            params: [I32].to_vec(),
             results: [I32].to_vec(),
             param_rules: [].to_vec(),
             frequency,
         },
     );
-    // gr_msg_id(val: *mut u8);
+    // gr_message_id(val: *mut u8);
     res.insert(
-        "gr_msg_id",
+        "gr_message_id",
         SysCallInfo {
             params: [I32].to_vec(),
             results: [].to_vec(),
@@ -271,18 +270,18 @@ pub(crate) fn sys_calls_table(config: &GearConfig) -> BTreeMap<&'static str, Sys
             frequency,
         },
     );
-    // gr_read(at: u32, len: u32, dest: *mut u8);
+    // gr_read(at: u32, len: u32, dest: *mut u8) -> u32;
     res.insert(
         "gr_read",
         SysCallInfo {
             params: [I32, I32, I32].to_vec(),
-            results: [].to_vec(),
+            results: [I32].to_vec(),
             param_rules: [no_rule(), size_rule(), ptr_rule()].to_vec(),
             frequency,
         },
     );
     // gr_reply(data_ptr: *const u8, data_len: u32, value_ptr: *const u8, message_id_ptr: *mut u8,
-    //     delay_ptr: *const u8,) -> SyscallError;
+    //     delay: u32) -> SyscallError;
     res.insert(
         "gr_reply",
         SysCallInfo {
@@ -297,8 +296,8 @@ pub(crate) fn sys_calls_table(config: &GearConfig) -> BTreeMap<&'static str, Sys
     //     data_len: u32,
     //     gas_limit: u64,
     //     value_ptr: *const u8,
+    //     delay: u32,
     //     message_id_ptr: *mut u8,
-    //     delay_ptr: *const u8,
     // ) -> SyscallError;
     res.insert(
         "gr_reply_wgas",
@@ -317,8 +316,7 @@ pub(crate) fn sys_calls_table(config: &GearConfig) -> BTreeMap<&'static str, Sys
             frequency,
         },
     );
-    // gr_reply_commit(value_ptr: *const u8, message_id_ptr: *mut u8,
-    //     delay_ptr: *const u8,
+    // gr_reply_commit(value_ptr: *const u8, delay: u32, message_id_ptr: *mut u8,
     // ) -> SyscallError;
     res.insert(
         "gr_reply_commit",
@@ -332,8 +330,8 @@ pub(crate) fn sys_calls_table(config: &GearConfig) -> BTreeMap<&'static str, Sys
     // gr_reply_commit_wgas(
     //     gas_limit: u64,
     //     value_ptr: *const u8,
+    //     delay: u32,
     //     message_id_ptr: *mut u8,
-    //     delay_ptr: *const u8,
     // ) -> SyscallError;
     res.insert(
         "gr_reply_commit_wgas",
@@ -354,12 +352,12 @@ pub(crate) fn sys_calls_table(config: &GearConfig) -> BTreeMap<&'static str, Sys
             frequency,
         },
     );
-    // gr_reply_to(dest: *mut u8);
+    // gr_reply_to(dest: *mut u8) -> u32;
     res.insert(
         "gr_reply_to",
         SysCallInfo {
             params: [I32].to_vec(),
-            results: [].to_vec(),
+            results: [I32].to_vec(),
             param_rules: [ptr_rule()].to_vec(),
             frequency,
         },
@@ -369,8 +367,8 @@ pub(crate) fn sys_calls_table(config: &GearConfig) -> BTreeMap<&'static str, Sys
     //     data_ptr: *const u8,
     //     data_len: u32,
     //     value_ptr: *const u8,
+    //     delay: u32,
     //     message_id_ptr: *mut u8,
-    //     delay_ptr: *const u8,
     // ) -> SyscallError;
     res.insert(
         "gr_send",
@@ -395,8 +393,8 @@ pub(crate) fn sys_calls_table(config: &GearConfig) -> BTreeMap<&'static str, Sys
     //     data_len: u32,
     //     gas_limit: u64,
     //     value_ptr: *const u8,
+    //     delay: u32,
     //     message_id_ptr: *mut u8,
-    //     delay_ptr: *const u8,
     // ) -> SyscallError;
     res.insert(
         "gr_send_wgas",
@@ -418,10 +416,10 @@ pub(crate) fn sys_calls_table(config: &GearConfig) -> BTreeMap<&'static str, Sys
     );
     // gr_send_commit(
     //     handle: u32,
-    //     message_id_ptr: *mut u8,
     //     program: *const u8,
     //     value_ptr: *const u8,
-    //     delay_ptr: *const u8,
+    //     delay: u32,
+    //     message_id_ptr: *mut u8,
     // ) -> SyscallError;
     res.insert(
         "gr_send_commit",
@@ -434,16 +432,16 @@ pub(crate) fn sys_calls_table(config: &GearConfig) -> BTreeMap<&'static str, Sys
     );
     // gr_send_commit_wgas(
     //     handle: u32,
-    //     message_id_ptr: *mut u8,
     //     program: *const u8,
     //     gas_limit: u64,
     //     value_ptr: *const u8,
-    //     delay_ptr: *const u8,
+    //     delay: u32,
+    //     message_id_ptr: *mut u8,
     // ) -> SyscallError;
     res.insert(
         "gr_send_commit_wgas",
         SysCallInfo {
-            params: [I32, I32, I32, I64, I32, I32].to_vec(),
+            params: [I32, I32, I64, I32, I32, I32].to_vec(),
             results: [I32].to_vec(),
             param_rules: [
                 no_rule(),
@@ -457,7 +455,7 @@ pub(crate) fn sys_calls_table(config: &GearConfig) -> BTreeMap<&'static str, Sys
             frequency,
         },
     );
-    // gr_send_init(handle: *mut u32) -> SyscallError;
+    // gr_send_init(handle: u32) -> SyscallError;
     res.insert(
         "gr_send_init",
         SysCallInfo {
@@ -515,13 +513,14 @@ pub(crate) fn sys_calls_table(config: &GearConfig) -> BTreeMap<&'static str, Sys
     //     data_ptr: *const u8,
     //     data_len: u32,
     //     value_ptr: *const u8,
+    //     delay: u32,
+    //     message_id_ptr: *mut u8,
     //     program_id_ptr: *mut u8,
-    //     delay_ptr: *const u8,
     // ) -> SyscallError;
     res.insert(
         "gr_create_program",
         SysCallInfo {
-            params: [I32, I32, I32, I32, I32, I32, I32, I32].to_vec(),
+            params: [I32, I32, I32, I32, I32, I32, I32, I32, I32].to_vec(),
             results: [I32].to_vec(),
             param_rules: [
                 ptr_rule(),
@@ -546,13 +545,14 @@ pub(crate) fn sys_calls_table(config: &GearConfig) -> BTreeMap<&'static str, Sys
     //     data_len: u32,
     //     gas_limit: u64,
     //     value_ptr: *const u8,
+    //     delay: u32,
+    //     message_id_ptr: *mut u8,
     //     program_id_ptr: *mut u8,
-    //     delay_ptr: *const u8,
     // ) -> SyscallError;
     res.insert(
         "gr_create_program_wgas",
         SysCallInfo {
-            params: [I32, I32, I32, I32, I32, I64, I32, I32, I32].to_vec(),
+            params: [I32, I32, I32, I32, I32, I64, I32, I32, I32, I32].to_vec(),
             results: [I32].to_vec(),
             param_rules: [
                 ptr_rule(),
