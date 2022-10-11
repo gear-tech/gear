@@ -19,8 +19,8 @@ gstd::metadata! {
 
 #[no_mangle]
 unsafe extern "C" fn init() {
-    let input =
-        String::from_utf8(msg::load_bytes().unwrap()).expect("Invalid message: should be utf-8");
+    let input = String::from_utf8(msg::load_bytes().expect("Failed to load payload bytes"))
+        .expect("Invalid message: should be utf-8");
     let dests: Vec<&str> = input.split(',').collect();
     if dests.len() != 3 {
         panic!("Invalid input, should be three IDs separated by comma");
@@ -48,8 +48,8 @@ fn decode_hex(s: &str) -> Result<Vec<u8>, ParseIntError> {
 
 #[gstd::async_main]
 async fn main() {
-    let message =
-        String::from_utf8(msg::load_bytes().unwrap()).expect("Invalid message: should be utf-8");
+    let message = String::from_utf8(msg::load_bytes().expect("Failed to load payload bytes"))
+        .expect("Invalid message: should be utf-8");
     if message == "START" {
         let reply1 = msg::send_bytes_for_reply(unsafe { DEST_0 }, b"PING", 0)
             .expect("Error in sending message")

@@ -160,7 +160,7 @@ gstd::metadata! {
 #[no_mangle]
 unsafe extern "C" fn handle() {
     let reply = &HANDLER_MAP
-        .get_mut(&msg::load_bytes().unwrap())
+        .get_mut(&msg::load_bytes().expect("Failed to load payload bytes"))
         .and_then(|i| i.next());
     if let Some(r) = reply {
         msg::reply_bytes(r, 0).unwrap();

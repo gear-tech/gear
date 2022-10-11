@@ -11,8 +11,8 @@ static mut COUNTER: usize = 0;
 
 #[no_mangle]
 unsafe extern "C" fn handle() {
-    let new_msg =
-        String::from_utf8(msg::load_bytes().unwrap()).expect("Invalid message: should be utf-8");
+    let new_msg = String::from_utf8(msg::load_bytes().expect("Failed to load payload bytes"))
+        .expect("Invalid message: should be utf-8");
     if new_msg == "log" {
         let collapsed = mem::take(&mut MY_COLLECTION)
             .into_iter()

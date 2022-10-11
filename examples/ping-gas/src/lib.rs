@@ -6,7 +6,8 @@ use gstd::{debug, msg, prelude::*};
 unsafe extern "C" fn handle() {
     debug!("Hello from ping handle");
 
-    let new_msg = String::from_utf8(msg::load_bytes().unwrap()).expect("Invalid message");
+    let new_msg = String::from_utf8(msg::load_bytes().expect("Failed to load payload bytes"))
+        .expect("Invalid message");
 
     match new_msg.as_str() {
         "PING_REPLY_WITH_GAS" => {

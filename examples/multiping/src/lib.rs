@@ -7,7 +7,7 @@ static mut COUNTER: usize = 0;
 
 #[no_mangle]
 unsafe extern "C" fn handle() {
-    let new_msg = String::from_utf8(gstd::msg::load_bytes().unwrap())
+    let new_msg = String::from_utf8(gstd::msg::load_bytes().expect("Failed to load payload bytes"))
         .expect("Invalid message: should be utf-8");
 
     if new_msg == "PING" {

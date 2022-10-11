@@ -17,7 +17,8 @@ static mut COUNTER: i32 = 0;
 /// ```
 #[no_mangle]
 unsafe extern "C" fn handle() {
-    let command = String::from_utf8(msg::load_bytes().unwrap()).expect("Unable to decode string");
+    let command = String::from_utf8(msg::load_bytes().expect("Failed to load payload bytes"))
+        .expect("Unable to decode string");
     let submitted_code: CodeId =
         hex_literal::hex!("abf3746e72a6e8740bd9e12b879fbdd59e052cb390f116454e9116c22021ae4a")
             .into();
