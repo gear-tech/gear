@@ -78,17 +78,7 @@ pub enum FuncError<E: Display> {
     ReadLenOverflow(u32, u32),
 }
 
-impl<E> FuncError<E>
-where
-    E: fmt::Display,
-{
-    // fn as_core(&self) -> Option<&E> {
-    //     match self {
-    //         Self::Core(err) => Some(err),
-    //         _ => None,
-    //     }
-    // }
-
+impl<E: fmt::Display> FuncError<E> {
     pub fn into_termination_reason(self) -> TerminationReason {
         match self {
             Self::Terminated(reason) => reason,
@@ -292,7 +282,8 @@ where
 
                     Ok(0u32)
                 }
-                Err(_err) => Ok(1), // TODO: FIX IT.
+                // TODO: issue #1652.
+                Err(_err) => Ok(1),
             }
         })
     }
