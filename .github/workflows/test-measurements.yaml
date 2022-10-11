@@ -96,7 +96,7 @@ jobs:
 
       - name: "Collect: pallet-gear benches"
         run: >-
-          ./target/release/gear-node benchmark pallet --pallet=pallet_gear
+          ./target/release/gear benchmark pallet --pallet=pallet_gear
           --steps=50
           --repeat=20
           --chain=dev

@@ -19,6 +19,7 @@
 use crate::cli::{Cli, Subcommand};
 use runtime_primitives::Block;
 use sc_cli::{ChainSpec, ExecutionStrategy, RuntimeVersion, SubstrateCli};
+use sc_service::config::BasePath;
 use service::{chain_spec, IdentifyVariant};
 
 impl SubstrateCli for Cli {
@@ -132,6 +133,13 @@ pub fn run() -> sc_cli::Result<()> {
         .execution_strategies
         .execution
         .get_or_insert(ExecutionStrategy::Wasm);
+
+    // Set default base directory to `gear-node`.
+    cli.run
+        .base
+        .shared_params
+        .base_path
+        .get_or_insert_with(|| BasePath::from_project("", "", "gear-node").path().into());
 
     match &cli.subcommand {
         Some(Subcommand::Key(cmd)) => cmd.run(&cli),
