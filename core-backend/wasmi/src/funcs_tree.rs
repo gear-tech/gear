@@ -18,6 +18,7 @@
 
 use crate::state::HostState;
 use alloc::collections::{BTreeMap, BTreeSet};
+use codec::Encode;
 use gear_backend_common::{error_processor::IntoExtError, AsTerminationReason, IntoExtInfo};
 use gear_core::env::Ext;
 use wasmi::{Func, Memory, Store};
@@ -41,7 +42,7 @@ pub fn build<'a, E>(
 ) -> BTreeMap<&'a str, Func>
 where
     E: Ext + IntoExtInfo<E::Error> + 'static,
-    E::Error: AsTerminationReason + IntoExtError,
+    E::Error: Encode + AsTerminationReason + IntoExtError,
 {
     use crate::funcs::FuncsHandler as F;
 
@@ -67,7 +68,9 @@ where
         f.build("gr_read", |forbidden| F::read(store, forbidden, memory)),
         f.build("gr_size", |forbidden| F::size(store, forbidden)),
         f.build("gr_exit", |forbidden| F::exit(store, forbidden, memory)),
-        f.build("gr_exit_code", |forbidden| F::exit_code(store, forbidden)),
+        f.build("gr_exit_code", |forbidden| {
+            F::exit_code(store, forbidden, memory)
+        }),
         f.build("gas", |_| F::gas(store)),
         f.build("alloc", |forbidden| F::alloc(store, forbidden, memory)),
         f.build("free", |forbidden| F::free(store, forbidden)),
@@ -98,7 +101,9 @@ where
         f.build("gr_gas_available", |forbidden| {
             F::gas_available(store, forbidden)
         }),
-        f.build("gr_msg_id", |forbidden| F::msg_id(store, forbidden, memory)),
+        f.build("gr_message_id", |forbidden| {
+            F::message_id(store, forbidden, memory)
+        }),
         f.build("gr_program_id", |forbidden| {
             F::program_id(store, forbidden, memory)
         }),
@@ -109,12 +114,8 @@ where
         }),
         f.build("gr_leave", |forbidden| F::leave(store, forbidden)),
         f.build("gr_wait", |forbidden| F::wait(store, forbidden)),
-        f.build("gr_wait_for", |forbidden| {
-            F::wait_for(store, forbidden, memory)
-        }),
-        f.build("gr_wait_up_to", |forbidden| {
-            F::wait_up_to(store, forbidden, memory)
-        }),
+        f.build("gr_wait_for", |forbidden| F::wait_for(store, forbidden)),
+        f.build("gr_wait_up_to", |forbidden| F::wait_up_to(store, forbidden)),
         f.build("gr_wake", |forbidden| F::wake(store, forbidden, memory)),
         f.build("gr_create_program", |forbidden| {
             F::create_program(store, forbidden, memory)

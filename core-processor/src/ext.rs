@@ -22,6 +22,7 @@ use alloc::{
     string::{String, ToString},
     vec::Vec,
 };
+use codec::{Decode, Encode};
 use gear_backend_common::{
     error_processor::IntoExtError, AsTerminationReason, ExtInfo, GetGasAmount, IntoExtInfo,
     TerminationReason, TrapExplanation,
@@ -98,7 +99,7 @@ pub trait ProcessorExt {
 }
 
 /// [`Ext`](Ext)'s error
-#[derive(Debug, Clone, Eq, PartialEq, derive_more::Display, derive_more::From)]
+#[derive(Debug, Clone, Eq, PartialEq, derive_more::Display, derive_more::From, Encode, Decode)]
 pub enum ProcessorError {
     /// Basic error
     #[display(fmt = "{}", _0)]

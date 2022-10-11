@@ -21,6 +21,7 @@ use crate::{
     TerminationReason,
 };
 use alloc::collections::BTreeSet;
+use codec::{Decode, Encode};
 use core::fmt;
 use gear_core::{
     costs::RuntimeCosts,
@@ -33,7 +34,7 @@ use gear_core::{
 use gear_core_errors::{CoreError, ExtError, MemoryError};
 
 /// Mock error
-#[derive(Debug)]
+#[derive(Debug, Encode, Decode)]
 pub struct Error;
 
 impl fmt::Display for Error {

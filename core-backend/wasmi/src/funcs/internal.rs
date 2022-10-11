@@ -106,7 +106,7 @@ pub(super) fn process_call_result_as_ref<E, ResultType, CallType>(
     caller: Caller<'_, HostState<E>>,
     memory: WasmiMemory,
     call: CallType,
-    offset: usize,
+    offset: i32,
 ) -> Result<(u32,), Error>
 where
     E: Ext + IntoExtInfo<E::Error> + 'static,
@@ -115,6 +115,6 @@ where
     CallType: FnOnce(&mut E) -> Result<ResultType, <E as Ext>::Error>,
 {
     process_call_result(caller, memory, call, |memory_wrap, result| {
-        memory_wrap.write(offset, result.as_ref())
+        memory_wrap.write(offset as u32 as usize, result.as_ref())
     })
 }
