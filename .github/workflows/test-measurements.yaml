@@ -72,7 +72,7 @@ jobs:
           tar -xf /tmp/build_target.tar
 
       - name: "Build: Gear"
-        run: ./scripts/gear.sh build gear --release --locked --features runtime-benchmarks,lazy-pages
+        run: ./scripts/gear.sh build gear --release --locked --features=runtime-test,runtime-benchmarks,lazy-pages
 
       - name: "Build: Examples (WASM)"
         run: ./scripts/gear.sh build examples --locked
@@ -84,27 +84,27 @@ jobs:
         run: |
           mkdir ./target/tests/
           mkdir ./target/tests-output/
-          for i in `seq 1 $COUNT`; do echo $i; ./scripts/gear.sh test gear --exclude gclient --release -j1 > ./target/tests-output/$i ; mv ./target/nextest/ci/junit.xml ./target/tests/$i; done
+          for i in `seq 1 $COUNT`; do echo $i; ./scripts/gear.sh test gear --exclude gclient --features pallet-gear-debug/lazy-pages --release -j1 > ./target/tests-output/$i ; mv ./target/nextest/ci/junit.xml ./target/tests/$i; done
           ./target/release/regression-analysis collect-data --data-folder-path ./target/tests/ --output-path ./target/pallet-tests.json
 
       - name: "Collect: Node runtime tests"
         run: |
           mkdir ./target/runtime-tests/
           mkdir ./target/runtime-tests-output/
-          for i in `seq 1 $COUNT`; do echo $i; ./scripts/gear.sh test rtest > ./target/runtime-tests-output/$i ; mv ./target/runtime-test-junit.xml ./target/runtime-tests/$i; done
+          for i in `seq 1 $COUNT`; do echo $i; ./scripts/gear.sh test rtest gear > ./target/runtime-tests-output/$i ; mv ./target/runtime-test-junit.xml ./target/runtime-tests/$i; done
           ./target/release/regression-analysis collect-data --disable-filter --data-folder-path ./target/runtime-tests/ --output-path ./target/runtime-tests.json
-          
+
       - name: "Collect: pallet-gear benches"
         run: >-
           ./target/release/gear-node benchmark pallet --pallet=pallet_gear
-          --steps=50 
-          --repeat=20 
-          --chain=dev  
-          --extrinsic=* 
+          --steps=50
+          --repeat=20
+          --chain=dev
+          --extrinsic=*
           --execution=wasm
           --wasm-execution=compiled
-          --heap-pages=4096 
-          --output ./target/weights.json 
+          --heap-pages=4096
+          --output ./target/weights.json
           --template ./.maintain/regression-analysis-weight-template.hbs
 
       - name: "Generate report: Gear workspace tests"
@@ -119,7 +119,7 @@ jobs:
           --disable-filter
           --data-folder-path ./target/runtime-tests/
           --output-file ./target/action-runtime-output.json
-          
+
       - name: "Generate report: pallet-gear benches"
         run: |
           ./target/release/regression-analysis weights --input-file ./target/weights.json --output-file ./target/action-hostfn-weights.json host-fn

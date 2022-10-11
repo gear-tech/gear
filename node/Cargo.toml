@@ -29,6 +29,7 @@ vara-native = [
 	"gear-service/vara-native",
 ]
 lazy-pages = [
+	"gear-cli/lazy-pages",
 	"gear-service/lazy-pages",
 ]
 runtime-benchmarks = [
@@ -36,9 +37,14 @@ runtime-benchmarks = [
 	"gear-service/runtime-benchmarks",
 ]
 debug-mode = [
+	"gear-cli/debug-mode",
 	"gear-service/debug-mode",
 ]
 try-runtime = [
 	"gear-cli/try-runtime",
+	"gear-service/try-runtime",
+]
+runtime-test = [
+	"gear-cli/runtime-test",
 ]
 program-cli = [ "gear-cli/program" ]
