@@ -77,6 +77,7 @@ pub enum Subcommand {
     Revert(sc_cli::RevertCmd),
 
     /// Sub-commands concerned with benchmarking.
+    #[cfg(feature = "runtime-benchmarks")]
     #[clap(subcommand)]
     Benchmark(frame_benchmarking_cli::BenchmarkCmd),
 
@@ -91,11 +92,12 @@ pub enum Subcommand {
     /// Db meta columns information.
     ChainInfo(sc_cli::ChainInfoCmd),
 
+    #[cfg(feature = "runtime-test")]
     #[clap(
         name = "runtime-spec-tests",
         about = "Run gear runtime tests with yaml."
     )]
-    GearRuntimeTest(gear_runtime_test_cli::GearRuntimeTestCmd),
+    GearRuntimeTest(gear_runtime_test_cli::RuntimeTestCmd),
 
     /// Program CLI
     #[cfg(feature = "program")]

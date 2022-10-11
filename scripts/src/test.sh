@@ -61,19 +61,21 @@ gtest() {
 
 # $1 - ROOT DIR
 # $2 - TARGET DIR
-# $3 - yamls list (optional)
+# $3 - runtime str (gear / vara)
+# $4 - yamls list (optional)
 rtest() {
   ROOT_DIR="$1"
   TARGET_DIR="$2"
+  RUNTIME_STR="$3"
 
-  YAMLS=$(parse_yamls_list "$3")
+  YAMLS=$(parse_yamls_list "$4")
 
   if [ -z "$YAMLS" ]
   then
     YAMLS="$ROOT_DIR/gear-test/spec/*.yaml"
   fi
 
-  $ROOT_DIR/target/release/gear runtime-spec-tests $YAMLS -l0 --generate-junit "$TARGET_DIR"/runtime-test-junit.xml
+  $ROOT_DIR/target/release/gear runtime-spec-tests $YAMLS -l0 --runtime "$RUNTIME_STR" --generate-junit "$TARGET_DIR"/runtime-test-junit.xml
 }
 
 pallet_test() {
