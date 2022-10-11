@@ -347,19 +347,16 @@ impl EnvExt for Ext {
         Ok(self.context.origin)
     }
 
-    fn send_init(&mut self) -> Result<usize, Self::Error> {
+    fn send_init(&mut self) -> Result<u32, Self::Error> {
         self.charge_gas_runtime(RuntimeCosts::SendInit)?;
         let result = self.context.message_context.send_init();
 
-        self.return_and_store_err(result.map(|v| v as usize))
+        self.return_and_store_err(result)
     }
 
-    fn send_push(&mut self, handle: usize, buffer: &[u8]) -> Result<(), Self::Error> {
+    fn send_push(&mut self, handle: u32, buffer: &[u8]) -> Result<(), Self::Error> {
         self.charge_gas_runtime(RuntimeCosts::SendPush(buffer.len() as u32))?;
-        let result = self
-            .context
-            .message_context
-            .send_push(handle as u32, buffer);
+        let result = self.context.message_context.send_push(handle, buffer);
 
         self.return_and_store_err(result)
     }
@@ -373,7 +370,7 @@ impl EnvExt for Ext {
 
     fn send_commit(
         &mut self,
-        handle: usize,
+        handle: u32,
         msg: HandlePacket,
         delay: u32,
     ) -> Result<MessageId, Self::Error> {
@@ -382,10 +379,7 @@ impl EnvExt for Ext {
         self.check_forbidden_call(msg.destination())?;
         self.charge_expiring_resources(&msg)?;
 
-        let result = self
-            .context
-            .message_context
-            .send_commit(handle as u32, msg, delay);
+        let result = self.context.message_context.send_commit(handle, msg, delay);
 
         self.return_and_store_err(result)
     }

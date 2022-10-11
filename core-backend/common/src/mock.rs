@@ -84,10 +84,10 @@ impl Ext for MockExt {
     fn origin(&mut self) -> Result<ProgramId, Self::Error> {
         Ok(ProgramId::from(0))
     }
-    fn send_init(&mut self) -> Result<usize, Self::Error> {
+    fn send_init(&mut self) -> Result<u32, Self::Error> {
         Ok(0)
     }
-    fn send_push(&mut self, _handle: usize, _buffer: &[u8]) -> Result<(), Self::Error> {
+    fn send_push(&mut self, _handle: u32, _buffer: &[u8]) -> Result<(), Self::Error> {
         Ok(())
     }
     fn reply_commit(&mut self, _msg: ReplyPacket, _delay: u32) -> Result<MessageId, Self::Error> {
@@ -98,7 +98,7 @@ impl Ext for MockExt {
     }
     fn send_commit(
         &mut self,
-        _handle: usize,
+        _handle: u32,
         _msg: HandlePacket,
         _delay: u32,
     ) -> Result<MessageId, Self::Error> {

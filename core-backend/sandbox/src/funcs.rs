@@ -191,12 +191,9 @@ where
             let destination = ctx.read_memory_as(destination_ptr)?;
             let value = ctx.read_memory_as(value_ptr)?;
 
-            // TODO: CHANGE SEND COMMITS SIGNATURES.
-            let handle: u32 = handle;
-
             ctx.ext
                 .send_commit(
-                    handle as usize,
+                    handle,
                     HandlePacket::new(destination, Default::default(), value),
                     delay,
                 )
@@ -218,12 +215,9 @@ where
             let destination = ctx.read_memory_as(destination_ptr)?;
             let value = ctx.read_memory_as(value_ptr)?;
 
-            // TODO: CHANGE SEND COMMITS SIGNATURES.
-            let handle: u32 = handle;
-
             ctx.ext
                 .send_commit(
-                    handle as usize,
+                    handle,
                     HandlePacket::new_with_gas(destination, Default::default(), gas_limit, value),
                     delay,
                 )
@@ -257,11 +251,9 @@ where
         ctx.run(|ctx| {
             let payload = ctx.read_memory(payload_ptr, payload_len)?;
 
-            let handle: u32 = handle;
-
             Ok(ctx
                 .ext
-                .send_push(handle as usize, &payload)
+                .send_push(handle, &payload)
                 .process_error()
                 .map_err(FuncError::Core)?
                 .error_len())
@@ -529,11 +521,9 @@ where
     pub fn debug(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
         sys_trace!(target: "syscall::gear", "debug, args = {}", args_to_str(args));
 
-        let (data_ptr, data_len) = args.iter().read_2()?;
+        let (data_ptr, data_len): (_, u32) = args.iter().read_2()?;
 
         ctx.run(|ctx| {
-            let data_len: u32 = data_len;
-
             let mut data = RuntimeBuffer::try_new_default(data_len as usize)?;
             ctx.read_memory_into_buf(data_ptr, data.get_mut())?;
 

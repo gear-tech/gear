@@ -314,7 +314,7 @@ where
                 memory,
                 |ext| {
                     ext.send_commit(
-                        handle as usize, // FIX ME (also for sandbox backend)
+                        handle,
                         HandlePacket::new(destination, Default::default(), value),
                         delay,
                     )
@@ -355,7 +355,7 @@ where
                 memory,
                 |ext| {
                     ext.send_commit(
-                        handle as usize,
+                        handle,
                         HandlePacket::new_with_gas(
                             destination,
                             Default::default(),
@@ -417,7 +417,7 @@ where
 
             process_read_result!(read_result, caller);
 
-            process_call_unit_result!(caller, |ext| ext.send_push(handle as usize, payload.get()))
+            process_call_unit_result!(caller, |ext| ext.send_push(handle, payload.get()))
         };
 
         Func::wrap(store, func)

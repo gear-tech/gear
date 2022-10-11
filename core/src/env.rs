@@ -64,15 +64,15 @@ pub trait Ext {
     fn origin(&mut self) -> Result<ProgramId, Self::Error>;
 
     /// Initialize a new incomplete message for another program and return its handle.
-    fn send_init(&mut self) -> Result<usize, Self::Error>;
+    fn send_init(&mut self) -> Result<u32, Self::Error>;
 
     /// Push an extra buffer into message payload by handle.
-    fn send_push(&mut self, handle: usize, buffer: &[u8]) -> Result<(), Self::Error>;
+    fn send_push(&mut self, handle: u32, buffer: &[u8]) -> Result<(), Self::Error>;
 
     /// Complete message and send it to another program.
     fn send_commit(
         &mut self,
-        handle: usize,
+        handle: u32,
         msg: HandlePacket,
         delay: u32,
     ) -> Result<MessageId, Self::Error>;

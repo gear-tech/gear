@@ -151,11 +151,11 @@ impl EnvExt for LazyPagesExt {
         self.inner.origin()
     }
 
-    fn send_init(&mut self) -> Result<usize, Self::Error> {
+    fn send_init(&mut self) -> Result<u32, Self::Error> {
         self.inner.send_init()
     }
 
-    fn send_push(&mut self, handle: usize, buffer: &[u8]) -> Result<(), Self::Error> {
+    fn send_push(&mut self, handle: u32, buffer: &[u8]) -> Result<(), Self::Error> {
         self.inner.send_push(handle, buffer)
     }
 
@@ -165,7 +165,7 @@ impl EnvExt for LazyPagesExt {
 
     fn send_commit(
         &mut self,
-        handle: usize,
+        handle: u32,
         msg: HandlePacket,
         delay: u32,
     ) -> Result<MessageId, Self::Error> {
