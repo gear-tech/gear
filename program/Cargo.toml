@@ -61,7 +61,7 @@ subxt-codegen = "0.22.0"
 syn = "1"
 
 [features]
-default = [ "gear" ]
+default = [ ]
 gear = [ "gear-runtime" ]
 vara = [ "vara-runtime" ]
 bin = [ "cli" ]

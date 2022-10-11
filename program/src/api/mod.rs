@@ -32,6 +32,14 @@ impl Api {
     }
 
     /// Build runtime api with timeout
+    ///
+    /// # TODO
+    ///
+    /// run [subscribe_to_updates](https://docs.rs/subxt/latest/subxt/client/struct.OnlineClient.html#method.subscribe_to_updates)
+    /// after #1629 since
+    ///
+    /// * the build may include both `gear` and `vara` features.
+    /// * users may have installed this CLI tool independently and the metadata is outdated.
     pub async fn new_with_timeout(url: Option<&str>, timeout: Option<u64>) -> Result<Self> {
         let (tx, rx) = WsTransportClientBuilder::default()
             .connection_timeout(Duration::from_millis(timeout.unwrap_or(60_000)))
