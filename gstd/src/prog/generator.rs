@@ -44,20 +44,46 @@ impl ProgramGenerator {
         [unique_key, message_id.as_ref(), &creator_nonce].concat()
     }
 
-    pub fn create_program_with_gas<T: AsRef<[u8]>>(
+    pub fn create_program_with_gas(
         code_hash: CodeHash,
-        payload: T,
+        payload: impl AsRef<[u8]>,
         gas_limit: u64,
         value: u128,
     ) -> Result<ActorId> {
         prog::create_program_with_gas(code_hash, Self::get_salt(), payload, gas_limit, value)
     }
 
-    pub fn create_program<T: AsRef<[u8]>>(
+    pub fn create_program_with_gas_delayed(
         code_hash: CodeHash,
-        payload: T,
+        payload: impl AsRef<[u8]>,
+        gas_limit: u64,
+        value: u128,
+        delay: u32,
+    ) -> Result<ActorId> {
+        prog::create_program_with_gas_delayed(
+            code_hash,
+            Self::get_salt(),
+            payload,
+            gas_limit,
+            value,
+            delay,
+        )
+    }
+
+    pub fn create_program(
+        code_hash: CodeHash,
+        payload: impl AsRef<[u8]>,
         value: u128,
     ) -> Result<ActorId> {
         prog::create_program(code_hash, Self::get_salt(), payload, value)
+    }
+
+    pub fn create_program_delayed(
+        code_hash: CodeHash,
+        payload: impl AsRef<[u8]>,
+        value: u128,
+        delay: u32,
+    ) -> Result<ActorId> {
+        prog::create_program_delayed(code_hash, Self::get_salt(), payload, value, delay)
     }
 }

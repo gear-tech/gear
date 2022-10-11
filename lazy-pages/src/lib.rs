@@ -261,6 +261,46 @@ pub enum InitError {
 unsafe fn init_for_process<H: UserSignalHandler>() -> Result<(), InitError> {
     use InitError::*;
 
+    #[cfg(target_vendor = "apple")]
+    {
+        // Support debugging under lldb on Darwin.
+        // When SIGBUS appears lldb will stuck on it forever, without this code.
+        // See also: https://github.com/mono/mono/commit/8e75f5a28e6537e56ad70bf870b86e22539c2fb7.
+
+        use mach::{
+            exception_types::*, kern_return::*, mach_types::*, port::*, thread_status::*, traps::*,
+        };
+
+        extern "C" {
+            // See https://web.mit.edu/darwin/src/modules/xnu/osfmk/man/task_set_exception_ports.html
+            fn task_set_exception_ports(
+                task: task_t,
+                exception_mask: exception_mask_t,
+                new_port: mach_port_t,
+                behavior: exception_behavior_t,
+                new_flavor: thread_state_flavor_t,
+            ) -> kern_return_t;
+        }
+
+        #[cfg(target_arch = "x86_64")]
+        static MACHINE_THREAD_STATE: i32 = x86_THREAD_STATE64 as i32;
+
+        // Took const value from https://opensource.apple.com/source/cctools/cctools-870/include/mach/arm/thread_status.h
+        // ```
+        // #define ARM_THREAD_STATE64		6
+        // ```
+        #[cfg(target_arch = "aarch64")]
+        static MACHINE_THREAD_STATE: i32 = 6;
+
+        task_set_exception_ports(
+            mach_task_self(),
+            EXC_MASK_BAD_ACCESS,
+            MACH_PORT_NULL,
+            EXCEPTION_STATE_IDENTITY as exception_behavior_t,
+            MACHINE_THREAD_STATE,
+        );
+    }
+
     LAZY_PAGES_INITIALIZED
         .get_or_init(|| {
             let ps = region::page::size();

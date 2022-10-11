@@ -72,33 +72,8 @@ macro_rules! with_signed_payload {
 
                 $( $setup )*
 
-                let $extra: runtime::SignedExtra = (
-                    frame_system::CheckNonZeroSender::<runtime::Runtime>::new(),
-                    frame_system::CheckSpecVersion::<runtime::Runtime>::new(),
-                    frame_system::CheckTxVersion::<runtime::Runtime>::new(),
-                    frame_system::CheckGenesis::<runtime::Runtime>::new(),
-                    frame_system::CheckMortality::<runtime::Runtime>::from(
-                        sp_runtime::generic::Era::mortal($period, $current_block),
-                    ),
-                    frame_system::CheckNonce::<runtime::Runtime>::from($nonce),
-                    frame_system::CheckWeight::<runtime::Runtime>::new(),
-                    pallet_gear_payment::CustomChargeTransactionPayment::<runtime::Runtime>::from($tip),
-                );
-
-                let $raw_payload = runtime::SignedPayload::from_raw(
-                    $call.clone(),
-                    $extra.clone(),
-                    (
-                        (),
-                        runtime::VERSION.spec_version,
-                        runtime::VERSION.transaction_version,
-                        $genesis,
-                        $best_hash,
-                        (),
-                        (),
-                        (),
-                    ),
-                );
+                signed_payload!($extra, $raw_payload,
+                    ($period, $current_block, $nonce, $call, $genesis, $best_hash, $tip));
 
                 $( $usage )*
             },
@@ -108,39 +83,60 @@ macro_rules! with_signed_payload {
 
                 $( $setup )*
 
-                let $extra: runtime::SignedExtra = (
-                    runtime::DisableValueTransfers,
-                    frame_system::CheckNonZeroSender::<runtime::Runtime>::new(),
-                    frame_system::CheckSpecVersion::<runtime::Runtime>::new(),
-                    frame_system::CheckTxVersion::<runtime::Runtime>::new(),
-                    frame_system::CheckGenesis::<runtime::Runtime>::new(),
-                    frame_system::CheckMortality::<runtime::Runtime>::from(
-                        sp_runtime::generic::Era::mortal($period, $current_block),
-                    ),
-                    frame_system::CheckNonce::<runtime::Runtime>::from($nonce),
-                    frame_system::CheckWeight::<runtime::Runtime>::new(),
-                    pallet_gear_payment::CustomChargeTransactionPayment::<runtime::Runtime>::from($tip),
-                );
-
-                let $raw_payload = runtime::SignedPayload::from_raw(
-                    $call.clone(),
-                    $extra.clone(),
-                    (
-                        (),
-                        (),
-                        runtime::VERSION.spec_version,
-                        runtime::VERSION.transaction_version,
-                        $genesis,
-                        $best_hash,
-                        (),
-                        (),
-                        (),
-                    ),
-                );
+                signed_payload!($extra, $raw_payload,
+                    ($period, $current_block, $nonce, $call, $genesis, $best_hash, $tip));
 
                 $( $usage )*
             },
         }
+    }
+}
+
+/// Generates a `SignedPayload` for the Gear and Vara runtimes.
+///
+/// Should only be used for benchmarking as it is not tested for regular usage.
+macro_rules! signed_payload {
+    (
+    $extra:ident, $raw_payload:ident,
+    (
+        $period:expr,
+        $current_block:expr,
+        $nonce:expr,
+        $call:expr,
+        $genesis:expr,
+        $best_hash:expr,
+        $tip:expr
+    )
+    ) => {
+        let $extra: runtime::SignedExtra = (
+            runtime::DisableValueTransfers,
+            frame_system::CheckNonZeroSender::<runtime::Runtime>::new(),
+            frame_system::CheckSpecVersion::<runtime::Runtime>::new(),
+            frame_system::CheckTxVersion::<runtime::Runtime>::new(),
+            frame_system::CheckGenesis::<runtime::Runtime>::new(),
+            frame_system::CheckMortality::<runtime::Runtime>::from(
+                sp_runtime::generic::Era::mortal($period, $current_block),
+            ),
+            frame_system::CheckNonce::<runtime::Runtime>::from($nonce),
+            frame_system::CheckWeight::<runtime::Runtime>::new(),
+            pallet_gear_payment::CustomChargeTransactionPayment::<runtime::Runtime>::from($tip),
+        );
+
+        let $raw_payload = runtime::SignedPayload::from_raw(
+            $call.clone(),
+            $extra.clone(),
+            (
+                (),
+                (),
+                runtime::VERSION.spec_version,
+                runtime::VERSION.transaction_version,
+                $genesis,
+                $best_hash,
+                (),
+                (),
+                (),
+            ),
+        );
     };
 }
 
@@ -183,7 +179,7 @@ impl frame_benchmarking_cli::ExtrinsicBuilder for RemarkBuilder {
                     .expect("Genesis block exists; qed");
                 let call = RuntimeCall::System(SystemCall::remark { remark: vec![] });
                 let bob = Sr25519Keyring::Bob.pair();
-                let period = gear_runtime_common::BlockHashCount::get()
+                let period = runtime::BlockHashCount::get()
                     .checked_next_power_of_two()
                     .map(|c| c / 2)
                     .unwrap_or(2) as u64;
@@ -258,7 +254,7 @@ impl frame_benchmarking_cli::ExtrinsicBuilder for TransferKeepAliveBuilder {
                     value: EXISTENTIAL_DEPOSIT,
                 });
                 let bob = Sr25519Keyring::Bob.pair();
-                let period = gear_runtime_common::BlockHashCount::get()
+                let period = runtime::BlockHashCount::get()
                     .checked_next_power_of_two()
                     .map(|c| c / 2)
                     .unwrap_or(2) as u64;

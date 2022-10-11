@@ -24,24 +24,32 @@
 #[cfg(feature = "std")]
 include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
 
-use frame_support::weights::constants::WEIGHT_PER_MILLIS;
+use common::TerminalExtrinsicProvider;
 pub use frame_support::{
-    construct_runtime, parameter_types,
+    construct_runtime,
+    dispatch::{DispatchClass, WeighData},
+    parameter_types,
     traits::{
         ConstU128, ConstU32, Contains, FindAuthor, KeyOwnerProofSystem, Randomness, StorageInfo,
     },
-    weights::{constants::RocksDbWeight, IdentityFee},
+    weights::{
+        constants::{
+            BlockExecutionWeight, ExtrinsicBaseWeight, RocksDbWeight, WEIGHT_PER_MILLIS,
+            WEIGHT_PER_SECOND,
+        },
+        IdentityFee, Weight,
+    },
     StorageValue,
 };
+use frame_system::limits::{BlockLength, BlockWeights};
 pub use pallet_gear::manager::{ExtManager, HandleKind};
 use pallet_grandpa::{
     fg_primitives, AuthorityId as GrandpaId, AuthorityList as GrandpaAuthorityList,
 };
 pub use pallet_transaction_payment::{CurrencyAdapter, Multiplier};
-use runtime_common::{
-    impl_runtime_apis_plus_common, BlockHashCount, BlockLength, DealWithFees,
-    GasLimitMaxPercentage, MailboxCost, MailboxThreshold, OperationalFeeMultiplier, OutgoingLimit,
-    QueueLengthStep, ReserveThreshold, WaitlistCost, NORMAL_DISPATCH_RATIO,
+pub use runtime_common::{
+    impl_runtime_apis_plus_common, BlockHashCount, DealWithFees, GasConverter,
+    AVERAGE_ON_INITIALIZE_RATIO, GAS_LIMIT_MIN_PERCENTAGE_NUM, NORMAL_DISPATCH_RATIO,
 };
 pub use runtime_primitives::{AccountId, Signature};
 use runtime_primitives::{Balance, BlockNumber, Hash, Index, Moment};
@@ -51,7 +59,7 @@ use sp_runtime::{
     create_runtime_str, generic, impl_opaque_keys,
     traits::{AccountIdLookup, BlakeTwo256, Block as BlockT, NumberFor, OpaqueKeys},
     transaction_validity::{TransactionSource, TransactionValidity},
-    ApplyExtrinsicResult,
+    ApplyExtrinsicResult, Percent,
 };
 use sp_std::{
     convert::{TryFrom, TryInto},
@@ -61,8 +69,6 @@ use sp_std::{
 use sp_version::NativeVersion;
 use sp_version::RuntimeVersion;
 
-#[cfg(feature = "try-runtime")]
-use frame_support::weights::Weight;
 pub use frame_system::Call as SystemCall;
 pub use pallet_balances::Call as BalancesCall;
 pub use pallet_timestamp::Call as TimestampCall;
@@ -92,7 +98,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
     impl_name: create_runtime_str!("gear"),
     apis: RUNTIME_API_VERSIONS,
     authoring_version: 1,
-    spec_version: 230,
+    spec_version: 390,
     impl_version: 1,
     transaction_version: 1,
     state_version: 1,
@@ -105,6 +111,11 @@ pub const BABE_GENESIS_EPOCH_CONFIG: sp_consensus_babe::BabeEpochConfiguration =
         allowed_slots: sp_consensus_babe::AllowedSlots::PrimaryAndSecondaryPlainSlots,
     };
 
+/// We allow for 1/3 of block time for computations.
+///
+/// It's 1/3 sec for gear runtime with 1 second block duration.
+const MAXIMUM_BLOCK_WEIGHT: Weight = WEIGHT_PER_SECOND.saturating_div(3).set_proof_size(u64::MAX);
+
 /// The version information used to identify this runtime when compiled natively.
 #[cfg(feature = "std")]
 pub fn native_version() -> NativeVersion {
@@ -115,16 +126,28 @@ pub fn native_version() -> NativeVersion {
 }
 
 parameter_types! {
-    /// We allow for 1/3 of block time for computations.
-    ///
-    /// It's 1/3 sec for gear runtime with 1 second block duration.
-    pub BlockWeights: frame_system::limits::BlockWeights = frame_system::limits::BlockWeights
-        ::with_sensible_defaults(MILLISECS_PER_BLOCK * WEIGHT_PER_MILLIS / 3, NORMAL_DISPATCH_RATIO);
-
-    pub BlockGasLimit: u64 = GasLimitMaxPercentage::get() * BlockWeights::get().max_block.ref_time();
-
     pub const Version: RuntimeVersion = VERSION;
     pub const SS58Prefix: u8 = 42;
+    pub RuntimeBlockLength: BlockLength =
+        BlockLength::max_with_normal_ratio(5 * 1024 * 1024, NORMAL_DISPATCH_RATIO);
+    pub RuntimeBlockWeights: BlockWeights = BlockWeights::builder()
+        .base_block(BlockExecutionWeight::get())
+        .for_class(DispatchClass::all(), |weights| {
+            weights.base_extrinsic = ExtrinsicBaseWeight::get();
+        })
+        .for_class(DispatchClass::Normal, |weights| {
+            weights.max_total = Some(NORMAL_DISPATCH_RATIO * MAXIMUM_BLOCK_WEIGHT);
+        })
+        .for_class(DispatchClass::Operational, |weights| {
+            weights.max_total = Some(MAXIMUM_BLOCK_WEIGHT);
+            // Operational transactions have some extra reserved space, so that they
+            // are included even if block reached `MAXIMUM_BLOCK_WEIGHT`.
+            weights.reserved = Some(
+                MAXIMUM_BLOCK_WEIGHT - NORMAL_DISPATCH_RATIO * MAXIMUM_BLOCK_WEIGHT
+            );
+        })
+        .avg_block_initialization(AVERAGE_ON_INITIALIZE_RATIO)
+        .build_or_panic();
 }
 
 // Configure FRAME pallets to include in runtime.
@@ -132,9 +155,9 @@ impl frame_system::Config for Runtime {
     /// The basic call filter to use in dispatchable.
     type BaseCallFilter = frame_support::traits::Everything;
     /// Block & extrinsics weights: base values and limits.
-    type BlockWeights = BlockWeights;
+    type BlockWeights = RuntimeBlockWeights;
     /// The maximum length of a block (in bytes).
-    type BlockLength = BlockLength;
+    type BlockLength = RuntimeBlockLength;
     /// The identifier used to distinguish between accounts.
     type AccountId = AccountId;
     /// The aggregated dispatch type that is available for extrinsics.
@@ -154,7 +177,7 @@ impl frame_system::Config for Runtime {
     /// The ubiquitous event type.
     type RuntimeEvent = RuntimeEvent;
     /// The ubiquitous origin type.
-    type Origin = Origin;
+    type RuntimeOrigin = RuntimeOrigin;
     /// Maximum number of block number to block hash mappings to keep (oldest pruned first).
     type BlockHashCount = BlockHashCount;
     /// The weight of database operations that the runtime can invoke.
@@ -262,6 +285,12 @@ impl pallet_balances::Config for Runtime {
     type WeightInfo = weights::pallet_balances::SubstrateWeight<Runtime>;
 }
 
+parameter_types! {
+    pub const TransactionByteFee: Balance = 1;
+    pub const QueueLengthStep: u128 = 10;
+    pub const OperationalFeeMultiplier: u8 = 5;
+}
+
 impl pallet_transaction_payment::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
     type OnChargeTransaction = CurrencyAdapter<Balances, DealWithFees<Runtime>>;
@@ -302,16 +331,24 @@ impl pallet_utility::Config for Runtime {
     type PalletsOrigin = OriginCaller;
 }
 
-pub struct GasConverter;
-impl gear_common::GasPrice for GasConverter {
-    type Balance = Balance;
-}
-
 impl pallet_gear_program::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
     type WeightInfo = weights::pallet_gear_program::SubstrateWeight<Runtime>;
     type Currency = Balances;
     type Messenger = GearMessenger;
+}
+
+parameter_types! {
+    pub const GasLimitMaxPercentage: Percent = Percent::from_percent(GAS_LIMIT_MIN_PERCENTAGE_NUM);
+    pub BlockGasLimit: u64 = GasLimitMaxPercentage::get() * RuntimeBlockWeights::get()
+        .max_block.ref_time();
+
+    pub const ReserveThreshold: u32 = 1;
+    pub const WaitlistCost: u64 = 100;
+    pub const MailboxCost: u64 = 100;
+
+    pub const OutgoingLimit: u32 = 1024;
+    pub const MailboxThreshold: u64 = 3000;
 }
 
 parameter_types! {
@@ -332,6 +369,7 @@ impl pallet_gear::Config for Runtime {
     type GasProvider = GearGas;
     type BlockLimiter = GearGas;
     type Scheduler = GearScheduler;
+    type QueueRunner = Gear;
 }
 
 #[cfg(feature = "debug-mode")]
@@ -382,6 +420,14 @@ where
 {
     type Extrinsic = UncheckedExtrinsic;
     type OverarchingCall = RuntimeCall;
+}
+
+impl TerminalExtrinsicProvider<UncheckedExtrinsic> for Runtime {
+    fn extrinsic() -> Option<UncheckedExtrinsic> {
+        Some(UncheckedExtrinsic::new_unsigned(RuntimeCall::Gear(
+            pallet_gear::Call::run {},
+        )))
+    }
 }
 
 // Create the runtime by composing the FRAME pallets that were previously configured.
@@ -551,7 +597,7 @@ impl_runtime_apis_plus_common! {
             // have a backtrace here. If any of the pre/post migration checks fail, we shall stop
             // right here and right now.
             let weight = Executive::try_runtime_upgrade().unwrap();
-            (weight, BlockWeights::get().max_block)
+            (weight, RuntimeBlockWeights::get().max_block)
         }
 
         fn execute_block(

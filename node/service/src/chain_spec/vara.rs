@@ -24,8 +24,8 @@ use sp_core::{crypto::UncheckedInto, sr25519};
 use sp_finality_grandpa::AuthorityId as GrandpaId;
 use sp_runtime::Perbill;
 use vara_runtime::{
-    constants::currency::UNITS as TOKEN, BabeConfig, BalancesConfig, GenesisConfig, GrandpaConfig,
-    SessionConfig, SessionKeys, StakerStatus, StakingConfig, SudoConfig, SystemConfig, WASM_BINARY,
+    constants::currency::UNITS as TOKEN, BabeConfig, BalancesConfig, GearConfig, GenesisConfig, GrandpaConfig, SessionConfig, SessionKeys, StakerStatus, StakingConfig,
+    SudoConfig, SystemConfig, WASM_BINARY,
 };
 
 // The URL for the telemetry server.
@@ -359,5 +359,8 @@ fn testnet_genesis(
             key: Some(root_key),
         },
         transaction_payment: Default::default(),
+        gear: GearConfig {
+            force_queue: Default::default(),
+        },
     }
 }
