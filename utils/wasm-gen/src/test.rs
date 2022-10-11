@@ -26,7 +26,7 @@ use indicatif::ProgressIterator;
 #[test]
 fn gen_wasm() {
     let mut rng = SmallRng::seed_from_u64(1234);
-    for _ in 0..10000 {
+    for _ in 0..100 {
         let mut buf = vec![0; 1000000];
         rng.fill_bytes(&mut buf);
         let mut u = Unstructured::new(&buf);

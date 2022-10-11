@@ -24,14 +24,14 @@ use crate::{GearConfig, ParamRule, Ratio};
 
 #[derive(Debug, Clone, Copy)]
 pub enum ParamType {
-    Size,            // i32 size rule
-    Ptr,             // i32 pointer rule
-    Gas,             // i64 gas rule
-    MessagePosition, // i32 for message position
-    Delay,           // i32 for delay in blocks
-    Handler,         // i32 for handler number
-    Alloc,           // i32 alloc
-    Free,            // i32 free
+    Size,            // i32 buffers size in memory
+    Ptr,             // i32 pointer
+    Gas,             // i64 gas amount
+    MessagePosition, // i32 message position
+    Delay,           // i32 delay in blocks
+    Handler,         // i32 handler number
+    Alloc,           // i32 alloc pages
+    Free,            // i32 free page
 }
 
 impl Into<ValueType> for ParamType {

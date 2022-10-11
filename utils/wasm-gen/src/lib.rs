@@ -71,6 +71,42 @@ pub struct ParamRule {
     pub restricted_ratio: Ratio,
 }
 
+impl Default for ParamRule {
+    fn default() -> Self {
+        Self {
+            allowed_values: 0..=0,
+            restricted_ratio: (100, 100).into(),
+        }
+    }
+}
+
+impl ParamRule {
+    pub fn get_i32(&self, u: &mut Unstructured) -> i32 {
+        if self.restricted_ratio.get(u) {
+            u.arbitrary().unwrap()
+        } else {
+            let start = if *self.allowed_values.start() < i32::MIN as i64 {
+                i32::MIN
+            } else {
+                *self.allowed_values.start() as i32
+            };
+            let end = if *self.allowed_values.end() > i32::MAX as i64 {
+                i32::MAX
+            } else {
+                *self.allowed_values.end() as i32
+            };
+            u.int_in_range(start..=end).unwrap()
+        }
+    }
+    pub fn get_i64(&self, u: &mut Unstructured) -> i64 {
+        if self.restricted_ratio.get(u) {
+            u.arbitrary().unwrap()
+        } else {
+            u.int_in_range(self.allowed_values.clone()).unwrap()
+        }
+    }
+}
+
 #[derive(Clone)]
 pub struct GearConfig {
     pub process_when_no_funcs: Ratio,
@@ -188,27 +224,13 @@ fn make_call_instructions_vec(
     params_rules: &[ParamRule],
     func_no: u32,
 ) -> Vec<Instruction> {
-    let gen_const_instr = |u: &mut Unstructured, param| match param {
-        ValueType::I32 => Instruction::I32Const(u.arbitrary().unwrap()),
-        ValueType::I64 => Instruction::I64Const(u.arbitrary().unwrap()),
-        _ => panic!("Cannot handle f32/f64"),
-    };
-
     let mut code = Vec::new();
     for (index, val) in params.iter().enumerate() {
-        let instr = if let Some(rule) = params_rules.get(index) {
-            if rule.restricted_ratio.get(u) {
-                gen_const_instr(u, *val)
-            } else {
-                let c = u.int_in_range(rule.allowed_values.clone()).unwrap();
-                match val {
-                    ValueType::I32 => Instruction::I32Const(c as i32),
-                    ValueType::I64 => Instruction::I64Const(c),
-                    _ => panic!("Cannot handle f32/f64"),
-                }
-            }
-        } else {
-            gen_const_instr(u, *val)
+        let rule = params_rules.get(index).cloned().unwrap_or_default();
+        let instr = match val {
+            ValueType::I32 => Instruction::I32Const(rule.get_i32(u)),
+            ValueType::I64 => Instruction::I64Const(rule.get_i64(u)),
+            _ => panic!("Cannot handle f32/f64"),
         };
         code.push(instr);
     }
