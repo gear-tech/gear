@@ -231,8 +231,16 @@ jobs:
       - name: "Test: Process gear-test"
         run: ./scripts/gear.sh test gtest
 
-      - name: "Test: Process node runtime testsuite"
-        run: ./scripts/gear.sh test rtest
+      - name: "Test: Program CLI"
+        run: cargo nextest run --release -p gear-program --features bin
+
+      - name: "Test: Client tests"
+        run: ./scripts/gear.sh test client --run-node
+
+      - name: "Test: Process node runtime spec tests"
+        run: |
+          cargo build -p gear-node --release --features=runtime-test
+          ./scripts/gear.sh test rtest gear
 
       - name: "Test: runtime spec tests no lazy pages"
         run: |
@@ -241,12 +249,6 @@ jobs:
 
       - name: "Test: Runtime upgrade and queue processing"
         run: ./scripts/gear.sh test runtime-upgrade
-
-      - name: "Test: Program CLI"
-        run: cargo nextest run --release -p gear-program --features bin
-
-      - name: "Test: Client tests"
-        run: ./scripts/gear.sh test client --run-node
 
       - name: "Test: Runtime benchmarks work"
         run: |
@@ -452,14 +454,16 @@ jobs:
       - name: "Build: Split examples by .opt and .meta"
         run: ./scripts/gear.sh build examples-proc
 
-      - name: "Test: Process node runtime testsuite"
-        run: ./scripts/gear.sh test rtest
+      - name: "Test: Client tests"
+        run: ./scripts/gear.sh test client --run-node
+
+      - name: "Test: Process node runtime spec tests"
+        run: |
+          cargo build -p gear-node --release --features=runtime-test
+          ./scripts/gear.sh test rtest gear
 
       - name: "Test: Runtime upgrade and queue processing"
         run: ./scripts/gear.sh test runtime-upgrade
-
-      - name: "Test: Client tests"
-        run: ./scripts/gear.sh test client --run-node
 
       - name: "Test: Lazy pages"
         uses: actions-rs/cargo@v1
