@@ -24,7 +24,7 @@ impl<E: Ext> Runtime<E> {
         T: WasmCompatible,
         F: FnOnce(&mut Self) -> Result<T, FuncError<E::Error>>,
     {
-        f(&mut self).map(WasmCompatible::throw_back).map_err(|err| {
+        f(self).map(WasmCompatible::throw_back).map_err(|err| {
             self.err = err;
             HostError
         })
