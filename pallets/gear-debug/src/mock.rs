@@ -23,7 +23,6 @@ use frame_support::{
     traits::{FindAuthor, OnFinalize, OnInitialize},
 };
 use frame_system as system;
-use pallet_gear_messenger::Weight;
 use primitive_types::H256;
 use sp_runtime::{
     testing::Header,

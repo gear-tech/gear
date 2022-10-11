@@ -26,13 +26,16 @@ include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
 
 use codec::{Decode, Encode};
 use common::TerminalExtrinsicProvider;
-use frame_election_provider_support::{ElectionDataProvider, ElectionProvider, ElectionProviderBase};
+use frame_election_provider_support::{
+    ElectionDataProvider, ElectionProvider, ElectionProviderBase,
+};
 pub use frame_support::{
     construct_runtime,
     dispatch::{DispatchClass, WeighData},
     parameter_types,
     traits::{
-        ConstU128, ConstU32, Contains, FindAuthor, KeyOwnerProofSystem, Randomness, StorageInfo, U128CurrencyToVote
+        ConstU128, ConstU32, Contains, FindAuthor, KeyOwnerProofSystem, Randomness, StorageInfo,
+        U128CurrencyToVote,
     },
     weights::{
         constants::{
@@ -43,8 +46,10 @@ pub use frame_support::{
     },
     StorageValue,
 };
-use frame_system::EnsureRoot;
-use frame_system::limits::{BlockLength, BlockWeights};
+use frame_system::{
+    limits::{BlockLength, BlockWeights},
+    EnsureRoot,
+};
 pub use pallet_gear::manager::{ExtManager, HandleKind};
 use pallet_grandpa::{
     fg_primitives, AuthorityId as GrandpaId, AuthorityList as GrandpaAuthorityList,
@@ -439,7 +444,7 @@ pub struct ElectNone<DataProvider>(sp_std::marker::PhantomData<DataProvider>);
 
 impl<DataProvider> ElectionProviderBase for ElectNone<DataProvider>
 where
-    DataProvider: ElectionDataProvider<AccountId = AccountId, BlockNumber = BlockNumber>
+    DataProvider: ElectionDataProvider<AccountId = AccountId, BlockNumber = BlockNumber>,
 {
     type AccountId = AccountId;
     type BlockNumber = BlockNumber;
@@ -453,7 +458,7 @@ where
 
 impl<DataProvider> ElectionProvider for ElectNone<DataProvider>
 where
-    DataProvider: ElectionDataProvider<AccountId = AccountId, BlockNumber = BlockNumber>
+    DataProvider: ElectionDataProvider<AccountId = AccountId, BlockNumber = BlockNumber>,
 {
     fn elect() -> Result<sp_npos_elections::Supports<AccountId>, Self::Error> {
         Err("No election takes place at stage 1")
@@ -464,7 +469,7 @@ pub struct ElectAll<DataProvider>(sp_std::marker::PhantomData<DataProvider>);
 
 impl<DataProvider> ElectionProviderBase for ElectAll<DataProvider>
 where
-    DataProvider: ElectionDataProvider<AccountId = AccountId, BlockNumber = BlockNumber>
+    DataProvider: ElectionDataProvider<AccountId = AccountId, BlockNumber = BlockNumber>,
 {
     type AccountId = AccountId;
     type BlockNumber = BlockNumber;
@@ -478,7 +483,7 @@ where
 
 impl<DataProvider: ElectionDataProvider> ElectionProvider for ElectAll<DataProvider>
 where
-    DataProvider: ElectionDataProvider<AccountId = AccountId, BlockNumber = BlockNumber>
+    DataProvider: ElectionDataProvider<AccountId = AccountId, BlockNumber = BlockNumber>,
 {
     fn elect() -> Result<sp_npos_elections::Supports<AccountId>, Self::Error> {
         let targets = Self::DataProvider::electable_targets(None)?
