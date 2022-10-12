@@ -2898,7 +2898,7 @@ fn test_requeue_after_wait_for_timeout() {
 
         // `MessageWoken` dispatched.
         System::assert_has_event(MockRuntimeEvent::Gear(Event::MessageWoken {
-            id: message_id.clone(),
+            id: message_id,
             reason: Reason::Runtime(MessageWokenRuntimeReason::WakeCalled),
         }));
 

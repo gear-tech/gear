@@ -259,7 +259,7 @@ where
 
         let last_idx = at
             .checked_add(len)
-            .ok_or_else(|| FuncError::ReadLenOverflow(at, len))?;
+            .ok_or(FuncError::ReadLenOverflow(at, len))?;
 
         if last_idx as usize > msg.len() {
             return Err(FuncError::ReadWrongRange(at..last_idx, msg.len() as u32));
@@ -605,7 +605,7 @@ where
                 .leave()
                 .map_err(FuncError::Core)
                 .err()
-                .unwrap_or_else(|| FuncError::Terminated(TerminationReason::Leave)))
+                .unwrap_or(FuncError::Terminated(TerminationReason::Leave)))
         })
     }
 
@@ -618,7 +618,7 @@ where
                 .wait()
                 .map_err(FuncError::Core)
                 .err()
-                .unwrap_or_else(|| FuncError::Terminated(TerminationReason::Wait(None, false))))
+                .unwrap_or(FuncError::Terminated(TerminationReason::Wait(None, false))))
         })
     }
 
@@ -632,9 +632,10 @@ where
                 .wait_for(duration)
                 .map_err(FuncError::Core)
                 .err()
-                .unwrap_or_else(|| {
-                    FuncError::Terminated(TerminationReason::Wait(Some(duration), true))
-                }))
+                .unwrap_or(FuncError::Terminated(TerminationReason::Wait(
+                    Some(duration),
+                    true,
+                ))))
         })
     }
 
@@ -649,9 +650,10 @@ where
                 .wait_up_to(duration)
                 .map_err(FuncError::Core)
                 .err()
-                .unwrap_or_else(|| {
-                    FuncError::Terminated(TerminationReason::Wait(Some(duration), true))
-                }))
+                .unwrap_or(FuncError::Terminated(TerminationReason::Wait(
+                    Some(duration),
+                    true,
+                ))))
         })
     }
 
