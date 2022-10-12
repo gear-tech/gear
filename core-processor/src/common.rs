@@ -444,12 +444,10 @@ pub struct PrechargedDispatch {
 impl PrechargedDispatch {
     /// Decompose this instance into dispatch and journal.
     pub fn into_dispatch_and_note(self) -> (IncomingDispatch, Vec<JournalNote>) {
-        let mut journal = Vec::with_capacity(1);
-
-        journal.push(JournalNote::GasBurned {
+        let journal = alloc::vec![JournalNote::GasBurned {
             message_id: self.dispatch.id(),
             amount: self.gas.burned(),
-        });
+        }];
 
         (self.dispatch, journal)
     }
@@ -461,7 +459,9 @@ impl PrechargedDispatch {
 }
 
 impl From<(IncomingDispatch, GasCounter, GasAllowanceCounter)> for PrechargedDispatch {
-    fn from((dispatch, gas, allowance): (IncomingDispatch, GasCounter, GasAllowanceCounter)) -> Self {
+    fn from(
+        (dispatch, gas, allowance): (IncomingDispatch, GasCounter, GasAllowanceCounter),
+    ) -> Self {
         Self {
             gas,
             allowance,

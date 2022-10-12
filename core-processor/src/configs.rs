@@ -21,9 +21,7 @@
 use crate::common::{Actor, PrechargedDispatch};
 use alloc::collections::BTreeSet;
 use codec::{Decode, Encode};
-use gear_core::{
-    code, costs::HostFnWeights, ids::ProgramId, memory::WasmPageNumber,
-};
+use gear_core::{code, costs::HostFnWeights, ids::ProgramId, memory::WasmPageNumber};
 
 const INIT_COST: u64 = 5000;
 const ALLOC_COST: u64 = 10000;

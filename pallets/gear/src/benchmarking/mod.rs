@@ -47,7 +47,7 @@ use common::{
 };
 use core_processor::{
     configs::{AllocationsConfig, BlockConfig, BlockInfo, MessageExecutionContext},
-    PrepareResult, ProcessExecutionContext,
+    PrechargeResult, PrepareResult, ProcessExecutionContext,
 };
 use frame_benchmarking::{benchmarks, whitelisted_caller};
 use frame_support::traits::{Currency, Get, Hooks, ReservableCurrency};
@@ -333,11 +333,22 @@ where
             .get_actor(actor_id)
             .ok_or("Program not found in the storage")?;
 
+        let precharged_dispatch = match core_processor::precharge(
+            &block_config,
+            u64::MAX,
+            queued_dispatch.into_incoming(initial_gas),
+            actor_id,
+        ) {
+            PrechargeResult::Ok(d) => d,
+            PrechargeResult::Error(_) => {
+                return Err("core_processor::precharge failed");
+            }
+        };
+
         let message_execution_context = MessageExecutionContext {
             actor,
-            dispatch: queued_dispatch.into_incoming(initial_gas),
+            precharged_dispatch,
             origin: ProgramId::from_origin(source),
-            gas_allowance: u64::MAX,
             subsequent_execution: false,
         };
 

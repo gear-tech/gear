@@ -26,7 +26,7 @@ use crate::{
 use core_processor::{
     common::*,
     configs::{BlockConfig, BlockInfo, MessageExecutionContext},
-    Ext, PrepareResult,
+    Ext, PrechargeResult, PrepareResult,
 };
 use gear_backend_wasmi::WasmiEnvironment;
 use gear_core::{
@@ -625,15 +625,27 @@ impl ExtManager {
             None => (None, None),
         };
 
+        let precharged_dispatch = match core_processor::precharge(
+            &block_config,
+            u64::MAX,
+            dispatch.into_incoming(gas_limit),
+            dest,
+        ) {
+            PrechargeResult::Ok(d) => d,
+            PrechargeResult::Error(journal) => {
+                core_processor::handle_journal(journal, self);
+                return;
+            }
+        };
+
         let message_execution_context = MessageExecutionContext {
             actor: Actor {
                 balance,
                 destination_program: dest,
                 executable_data: actor_data,
             },
-            dispatch: dispatch.into_incoming(gas_limit),
+            precharged_dispatch,
             origin: self.origin,
-            gas_allowance: u64::MAX,
             subsequent_execution: false,
         };
 

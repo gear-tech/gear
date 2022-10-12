@@ -19,7 +19,7 @@
 use crate::{
     common::{
         Actor, DispatchOutcome, DispatchResult, DispatchResultKind, ExecutableActorData,
-        ExecutionErrorReason, JournalNote, WasmExecutionContext, PrechargedDispatch,
+        ExecutionErrorReason, JournalNote, PrechargedDispatch, WasmExecutionContext,
     },
     configs::{BlockConfig, ExecutionSettings, MessageExecutionContext},
     executor,
@@ -182,18 +182,23 @@ pub fn precharge(
         &mut gas_counter,
         &mut gas_allowance_counter,
     ) {
-        Ok => PrechargeResult::Ok((
-            dispatch,
-            gas_counter,
-            gas_allowance_counter,
-        ).into()),
+        Ok => PrechargeResult::Ok((dispatch, gas_counter, gas_allowance_counter).into()),
         GasExceeded => {
             let gas_burned = gas_counter.burned();
-            PrechargeResult::Error(process_error(dispatch, destination_id, gas_burned, ExecutionErrorReason::ProgramDataGasExceeded))
+            PrechargeResult::Error(process_error(
+                dispatch,
+                destination_id,
+                gas_burned,
+                ExecutionErrorReason::ProgramDataGasExceeded,
+            ))
         }
         BlockGasExceeded => {
             let gas_burned = gas_counter.burned();
-            PrechargeResult::Error(process_allowance_exceed(dispatch, destination_id, gas_burned))
+            PrechargeResult::Error(process_allowance_exceed(
+                dispatch,
+                destination_id,
+                gas_burned,
+            ))
         }
     }
 }

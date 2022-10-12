@@ -23,7 +23,7 @@ use crate::{
     manager::{CollectState, State},
     sample::{PayloadVariant, Test},
 };
-use core_processor::{common::*, configs::*, Ext, PrepareResult};
+use core_processor::{common::*, configs::*, Ext, PrechargeResult, PrepareResult};
 use gear_backend_common::Environment;
 use gear_core::{
     code::{Code, CodeAndId},
@@ -102,15 +102,23 @@ where
 
     let block_config = test_block_config(block_info);
 
+    let precharged_dispatch =
+        match core_processor::precharge(&block_config, u64::MAX, message.into(), program_id) {
+            PrechargeResult::Ok(d) => d,
+            PrechargeResult::Error(journal) => {
+                core_processor::handle_journal(journal, journal_handler);
+                return Ok(());
+            }
+        };
+
     let message_execution_context = MessageExecutionContext {
         actor: Actor {
             balance: 0,
             destination_program: program_id,
             executable_data: Some(actor_data),
         },
-        dispatch: message.into(),
+        precharged_dispatch,
         origin: Default::default(),
-        gas_allowance: u64::MAX,
         subsequent_execution: false,
     };
 
@@ -282,6 +290,39 @@ where
     let mut state = journal_handler.collect();
     results.push((state.clone(), Ok(())));
 
+    let build_journal =
+        |block_config, dispatch, program_id, actor, memory_pages, journal_handler: &mut JH| {
+            let precharged_dispatch =
+                match core_processor::precharge(&block_config, u64::MAX, dispatch, program_id) {
+                    PrechargeResult::Ok(d) => d,
+                    PrechargeResult::Error(journal) => {
+                        return journal;
+                    }
+                };
+
+            let message_execution_context = MessageExecutionContext {
+                actor,
+                precharged_dispatch,
+                origin: Default::default(),
+                subsequent_execution: false,
+            };
+
+            match core_processor::prepare(&block_config, message_execution_context) {
+                PrepareResult::WontExecute(journal) | PrepareResult::Error(journal) => journal,
+                PrepareResult::Ok(context) => {
+                    let (code, ..) = journal_handler
+                        .load_code(context.actor_data().code_id)
+                        .expect("code not found in the collection")
+                        .into_parts();
+                    core_processor::process::<Ext, E>(
+                        &block_config,
+                        (context, program_id, code).into(),
+                        memory_pages,
+                    )
+                }
+            }
+        };
+
     if let Some(steps) = steps {
         for step_no in 0..steps {
             let height = step_no as u32;
@@ -289,8 +330,6 @@ where
                 .duration_since(UNIX_EPOCH)
                 .map(|d| d.as_millis())
                 .unwrap_or(0) as u64;
-
-            let block_config = test_block_config(BlockInfo { height, timestamp });
 
             if let Some((dispatch, gas_limit)) = state.dispatch_queue.pop_front() {
                 let program_id = dispatch.destination();
@@ -300,31 +339,16 @@ where
                 });
                 let (actor, memory_pages) = actor.into_parts(program_id);
 
-                let message_execution_context = MessageExecutionContext {
-                    actor,
-                    dispatch: dispatch.into_incoming(gas_limit),
-                    origin: Default::default(),
-                    gas_allowance: u64::MAX,
-                    subsequent_execution: false,
-                };
+                let block_config = test_block_config(BlockInfo { height, timestamp });
 
-                let journal =
-                    match core_processor::prepare(&block_config, message_execution_context) {
-                        PrepareResult::WontExecute(journal) | PrepareResult::Error(journal) => {
-                            journal
-                        }
-                        PrepareResult::Ok(context) => {
-                            let (code, ..) = journal_handler
-                                .load_code(context.actor_data().code_id)
-                                .expect("code not found in the collection")
-                                .into_parts();
-                            core_processor::process::<Ext, E>(
-                                &block_config,
-                                (context, program_id, code).into(),
-                                memory_pages,
-                            )
-                        }
-                    };
+                let journal = build_journal(
+                    block_config,
+                    dispatch.into_incoming(gas_limit),
+                    program_id,
+                    actor,
+                    memory_pages,
+                    journal_handler,
+                );
 
                 core_processor::handle_journal(journal, journal_handler);
 
@@ -354,28 +378,14 @@ where
                 timestamp,
             });
 
-            let message_execution_context = MessageExecutionContext {
+            let journal = build_journal(
+                block_config,
+                dispatch.into_incoming(gas_limit),
+                program_id,
                 actor,
-                dispatch: dispatch.into_incoming(gas_limit),
-                origin: Default::default(),
-                gas_allowance: u64::MAX,
-                subsequent_execution: false,
-            };
-
-            let journal = match core_processor::prepare(&block_config, message_execution_context) {
-                PrepareResult::WontExecute(journal) | PrepareResult::Error(journal) => journal,
-                PrepareResult::Ok(context) => {
-                    let (code, ..) = journal_handler
-                        .load_code(context.actor_data().code_id)
-                        .expect("code not found in the collection")
-                        .into_parts();
-                    core_processor::process::<Ext, E>(
-                        &block_config,
-                        (context, program_id, code).into(),
-                        memory_pages,
-                    )
-                }
-            };
+                memory_pages,
+                journal_handler,
+            );
 
             counter += 1;
 

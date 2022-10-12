@@ -199,7 +199,7 @@ pub mod pallet {
     use core_processor::{
         common::{Actor, DispatchOutcome as CoreDispatchOutcome, ExecutableActorData, JournalNote},
         configs::{AllocationsConfig, BlockConfig, BlockInfo, MessageExecutionContext},
-        PrepareResult,
+        PrechargeResult, PrepareResult,
     };
     use frame_support::{
         dispatch::{DispatchError, DispatchResultWithPostInfo, PostDispatchInfo},
@@ -895,12 +895,12 @@ pub mod pallet {
                     &block_config,
                     GasAllowanceOf::<T>::get(),
                     queued_dispatch.into_incoming(gas_limit),
-                    actor_id)
-                {
-                    core_processor::PrechargeResult::Ok(d) => d,
-                    core_processor::PrechargeResult::Error(_) => return {
-                        Err(b"Failed to charge message for Program".to_vec())
-                    },
+                    actor_id,
+                ) {
+                    PrechargeResult::Ok(d) => d,
+                    PrechargeResult::Error(_) => {
+                        return Err(b"Failed to charge message for Program".to_vec());
+                    }
                 };
 
                 let subsequent_execution = ext_manager.program_pages_loaded(&actor_id);
@@ -1253,10 +1253,10 @@ pub mod pallet {
                         &block_config,
                         GasAllowanceOf::<T>::get(),
                         dispatch.into_incoming(gas_limit),
-                        program_id)
-                    {
-                        core_processor::PrechargeResult::Ok(d) => d,
-                        core_processor::PrechargeResult::Error(journal) => {
+                        program_id,
+                    ) {
+                        PrechargeResult::Ok(d) => d,
+                        PrechargeResult::Error(journal) => {
                             core_processor::handle_journal(journal, &mut ext_manager);
 
                             if T::DebugInfo::is_enabled() {
@@ -1279,9 +1279,14 @@ pub mod pallet {
                             if matches!(prog.state, ProgramState::Uninitialized {message_id} if message_id != dispatch_id)
                                 && !dispatch_reply
                             {
-                                let (dispatch, journal) = precharged_dispatch.into_dispatch_and_note();
+                                let (dispatch, journal) =
+                                    precharged_dispatch.into_dispatch_and_note();
                                 let (kind, message, context) = dispatch.into();
-                                let dispatch = StoredDispatch::new(kind, message.into_stored(program_id), context);
+                                let dispatch = StoredDispatch::new(
+                                    kind,
+                                    message.into_stored(program_id),
+                                    context,
+                                );
 
                                 core_processor::handle_journal(journal, &mut ext_manager);
 
@@ -1334,11 +1339,10 @@ pub mod pallet {
                         None
                     };
 
-                    let balance =
-                        CurrencyOf::<T>::free_balance(&<T::AccountId as Origin>::from_origin(
-                            program_id.into_origin(),
-                        ))
-                        .unique_saturated_into();
+                    let balance = CurrencyOf::<T>::free_balance(
+                        &<T::AccountId as Origin>::from_origin(program_id.into_origin()),
+                    )
+                    .unique_saturated_into();
 
                     let message_execution_context = MessageExecutionContext {
                         actor: Actor {
