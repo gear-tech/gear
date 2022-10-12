@@ -295,19 +295,32 @@ where
     /// instrumentation runtime by nesting blocks as deeply as possible given the byte budget.
     /// `code_location`: Whether to place the code into `init` or `handle`.
     pub fn sized(target_bytes: u32, code_location: Location) -> Self {
-        use self::elements::Instruction::{End, I32Const, If, Return};
-        // Base size of a program is 63 bytes and each expansion adds 6 bytes.
+        use self::elements::Instruction::{Drop, End, I32Const, I64Const, I64Eq, If, Return};
+        // Base size of a program is 63 bytes and each expansion adds 20 bytes.
         // We do one expansion less to account for the code section and function body
         // size fields inside the binary wasm module representation which are leb128 encoded
         // and therefore grow in size when the contract grows. We are not allowed to overshoot
         // because of the maximum code size that is enforced by `instantiate_with_code`.
-        let expansions = (target_bytes.saturating_sub(63) / 6).saturating_sub(1);
-        const EXPANSION: [Instruction; 4] = [I32Const(0), If(BlockType::NoResult), Return, End];
+        let expansions = (target_bytes.saturating_sub(63) / 20).saturating_sub(1);
+        const EXPANSION: &[Instruction] = &[
+            I64Const(0),
+            I64Const(1),
+            I64Eq,
+            If(BlockType::NoResult),
+            Return,
+            End,
+            I32Const(0xffffff),
+            Drop,
+            I32Const(0),
+            If(BlockType::NoResult),
+            Return,
+            End,
+        ];
         let mut module = ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
             ..Default::default()
         };
-        let body = Some(body::repeated(expansions, &EXPANSION));
+        let body = Some(body::repeated(expansions, EXPANSION));
         match code_location {
             Location::Init => module.init_body = body,
             Location::Handle => module.handle_body = body,
