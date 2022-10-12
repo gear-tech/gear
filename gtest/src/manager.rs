@@ -33,7 +33,8 @@ use gear_core::{
     ids::{CodeId, MessageId, ProgramId},
     memory::{PageBuf, PageNumber, WasmPageNumber},
     message::{
-        Dispatch, DispatchKind, Payload, ReplyMessage, ReplyPacket, StoredDispatch, StoredMessage,
+        Dispatch, DispatchKind, MessageWaitedType, Payload, ReplyMessage, ReplyPacket,
+        StoredDispatch, StoredMessage,
     },
     program::Program as CoreProgram,
 };
@@ -317,7 +318,7 @@ impl ExtManager {
                     .entry(dest)
                     .or_default()
                     .push(message_id);
-                self.wait_dispatch(dispatch, None, false);
+                self.wait_dispatch(dispatch, None, MessageWaitedType::Wait);
 
                 continue;
             }
@@ -723,7 +724,12 @@ impl JournalHandler for ExtManager {
         }
     }
 
-    fn wait_dispatch(&mut self, dispatch: StoredDispatch, _duration: Option<u32>, _: bool) {
+    fn wait_dispatch(
+        &mut self,
+        dispatch: StoredDispatch,
+        _duration: Option<u32>,
+        _: MessageWaitedType,
+    ) {
         self.message_consumed(dispatch.id());
         self.wait_list
             .insert((dispatch.destination(), dispatch.id()), dispatch);

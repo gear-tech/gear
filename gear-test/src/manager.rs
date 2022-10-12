@@ -22,7 +22,7 @@ use gear_core::{
     code::{Code, CodeAndId, InstrumentedCodeAndId},
     ids::{CodeId, MessageId, ProgramId},
     memory::{PageBuf, PageNumber, WasmPageNumber},
-    message::{Dispatch, DispatchKind, GasLimit, StoredDispatch, StoredMessage},
+    message::{Dispatch, DispatchKind, GasLimit, MessageWaitedType, StoredDispatch, StoredMessage},
     program::Program,
 };
 use std::{
@@ -265,7 +265,12 @@ impl JournalHandler for InMemoryExtManager {
             self.log.push(dispatch.into_parts().1.into_stored());
         }
     }
-    fn wait_dispatch(&mut self, dispatch: StoredDispatch, _duration: Option<u32>, _: bool) {
+    fn wait_dispatch(
+        &mut self,
+        dispatch: StoredDispatch,
+        _duration: Option<u32>,
+        _: MessageWaitedType,
+    ) {
         self.message_consumed(dispatch.id());
         self.wait_list
             .insert((dispatch.destination(), dispatch.id()), dispatch);

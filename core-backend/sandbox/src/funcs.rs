@@ -37,7 +37,7 @@ use gear_backend_common::{
 use gear_core::{
     buffer::{RuntimeBuffer, RuntimeBufferSizeError},
     env::Ext,
-    message::{HandlePacket, InitPacket, PayloadSizeError, ReplyPacket, MessageWaitedType},
+    message::{HandlePacket, InitPacket, MessageWaitedType, PayloadSizeError, ReplyPacket},
 };
 use gear_core_errors::{CoreError, MemoryError};
 use sp_sandbox::{HostError, ReturnValue, SandboxMemory, Value};
@@ -618,7 +618,9 @@ where
                 .wait()
                 .map_err(FuncError::Core)
                 .err()
-                .unwrap_or_else(|| FuncError::Terminated(TerminationReason::Wait(None, MessageWaitedType::Wait))))
+                .unwrap_or_else(|| {
+                    FuncError::Terminated(TerminationReason::Wait(None, MessageWaitedType::Wait))
+                }))
         })
     }
 
@@ -633,7 +635,10 @@ where
                 .map_err(FuncError::Core)
                 .err()
                 .unwrap_or_else(|| {
-                    FuncError::Terminated(TerminationReason::Wait(Some(duration), MessageWaitedType::WaitFor))
+                    FuncError::Terminated(TerminationReason::Wait(
+                        Some(duration),
+                        MessageWaitedType::WaitFor,
+                    ))
                 }))
         })
     }
@@ -650,7 +655,10 @@ where
                 .map_err(FuncError::Core)
                 .err()
                 .unwrap_or_else(|| {
-                    FuncError::Terminated(TerminationReason::Wait(Some(duration), MessageWaitedType::WaitUpTo))
+                    FuncError::Terminated(TerminationReason::Wait(
+                        Some(duration),
+                        MessageWaitedType::WaitUpTo,
+                    ))
                 }))
         })
     }

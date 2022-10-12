@@ -8,7 +8,6 @@ license = "GPL-3.0"
 [dependencies]
 gear-core = { path = "../core" }
 gear-core-errors = { path = "../core-errors", features = ["codec"] }
-gear-common = { path = "../common" }
 gear-backend-common = { path = "../core-backend/common" }
 
 blake2-rfc = { version = "0.2.18", default-features = false }

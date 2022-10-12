@@ -2907,7 +2907,6 @@ dependencies = [
  "blake2-rfc",
  "derive_more",
  "gear-backend-common",
- "gear-common",
  "gear-core",
  "gear-core-errors",
  "hex",

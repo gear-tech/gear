@@ -40,7 +40,9 @@ use gear_core::{
     buffer::{RuntimeBuffer, RuntimeBufferSizeError},
     env::Ext,
     memory::Memory,
-    message::{HandlePacket, InitPacket, Payload, PayloadSizeError, ReplyPacket, MessageWaitedType},
+    message::{
+        HandlePacket, InitPacket, MessageWaitedType, Payload, PayloadSizeError, ReplyPacket,
+    },
 };
 use gear_core_errors::{CoreError, MemoryError};
 use wasmi::{
@@ -1141,7 +1143,9 @@ where
                 .wait()
                 .map_err(FuncError::Core)
                 .err()
-                .unwrap_or_else(|| FuncError::Terminated(TerminationReason::Wait(None, MessageWaitedType::Wait)));
+                .unwrap_or_else(|| {
+                    FuncError::Terminated(TerminationReason::Wait(None, MessageWaitedType::Wait))
+                });
             host_state.err = err;
 
             Err(TrapCode::Unreachable.into())
@@ -1159,7 +1163,10 @@ where
                 let call_result = host_state.ext.wait_for(duration);
 
                 host_state.err = match call_result {
-                    Ok(_) => FuncError::Terminated(TerminationReason::Wait(Some(duration), MessageWaitedType::WaitFor)),
+                    Ok(_) => FuncError::Terminated(TerminationReason::Wait(
+                        Some(duration),
+                        MessageWaitedType::WaitFor,
+                    )),
                     Err(e) => FuncError::Core(e),
                 };
 
@@ -1178,7 +1185,10 @@ where
                 let call_result = host_state.ext.wait_up_to(duration);
 
                 host_state.err = match call_result {
-                    Ok(_) => FuncError::Terminated(TerminationReason::Wait(Some(duration), MessageWaitedType::WaitUpTo)),
+                    Ok(_) => FuncError::Terminated(TerminationReason::Wait(
+                        Some(duration),
+                        MessageWaitedType::WaitUpTo,
+                    )),
                     Err(e) => FuncError::Core(e),
                 };
 

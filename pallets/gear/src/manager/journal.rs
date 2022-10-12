@@ -35,7 +35,7 @@ use frame_system::Pallet as SystemPallet;
 use gear_core::{
     ids::{CodeId, MessageId, ProgramId},
     memory::{PageBuf, PageNumber},
-    message::{Dispatch, StoredDispatch, MessageWaitedType},
+    message::{Dispatch, MessageWaitedType, StoredDispatch},
 };
 use sp_runtime::traits::{UniqueSaturatedInto, Zero};
 
