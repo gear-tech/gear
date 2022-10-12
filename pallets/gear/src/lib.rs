@@ -84,7 +84,7 @@ pub(crate) type DequeuedOf<T> = <<T as Config>::Messenger as Messenger>::Dequeue
 pub(crate) type QueueProcessingOf<T> = <<T as Config>::Messenger as Messenger>::QueueProcessing;
 pub(crate) type QueueOf<T> = <<T as Config>::Messenger as Messenger>::Queue;
 pub(crate) type MailboxOf<T> = <<T as Config>::Messenger as Messenger>::Mailbox;
-pub(crate) type PerByteCostOf<T> = <T as Config>::PerByteCost;
+pub(crate) type ReadPerByteCostOf<T> = <T as Config>::ReadPerByteCost;
 pub(crate) type WaitlistOf<T> = <<T as Config>::Messenger as Messenger>::Waitlist;
 pub(crate) type MessengerCapacityOf<T> = <<T as Config>::Messenger as Messenger>::Capacity;
 pub(crate) type TaskPoolOf<T> = <<T as Config>::Scheduler as Scheduler>::TaskPool;
@@ -255,7 +255,7 @@ pub mod pallet {
 
         /// The cost per loaded byte.
         #[pallet::constant]
-        type PerByteCost: Get<u64>;
+        type ReadPerByteCost: Get<u64>;
 
         /// Messenger.
         type Messenger: Messenger<
@@ -868,7 +868,7 @@ pub mod pallet {
                 waitlist_cost: CostsPerBlockOf::<T>::waitlist(),
                 reserve_for: CostsPerBlockOf::<T>::reserve_for().unique_saturated_into(),
                 read_cost: DbWeightOf::<T>::get().reads(1).ref_time(),
-                per_byte_cost: PerByteCostOf::<T>::get(),
+                per_byte_cost: ReadPerByteCostOf::<T>::get(),
             };
 
             let mut min_limit = 0;
@@ -1219,7 +1219,7 @@ pub mod pallet {
                 waitlist_cost: CostsPerBlockOf::<T>::waitlist(),
                 reserve_for: CostsPerBlockOf::<T>::reserve_for().unique_saturated_into(),
                 read_cost: DbWeightOf::<T>::get().reads(1).ref_time(),
-                per_byte_cost: PerByteCostOf::<T>::get(),
+                per_byte_cost: ReadPerByteCostOf::<T>::get(),
             };
 
             if T::DebugInfo::is_remap_id_enabled() {

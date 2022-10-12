@@ -81,7 +81,7 @@ pub enum HandleKind {
 
 #[derive(Debug)]
 pub struct CodeInfo {
-    hash: H256,
+    id: H256,
     length_bytes: u32,
     exports: BTreeSet<DispatchKind>,
     static_pages: WasmPageNumber,
@@ -90,7 +90,7 @@ pub struct CodeInfo {
 impl CodeInfo {
     pub fn from_code_and_id(code: &CodeAndId) -> Self {
         Self {
-            hash: code.code_id().into_origin(),
+            id: code.code_id().into_origin(),
             length_bytes: code.code().code().len() as u32,
             exports: code.code().exports().clone(),
             static_pages: code.code().static_pages(),
@@ -99,7 +99,7 @@ impl CodeInfo {
 
     pub fn from_code(id: &CodeId, code: &InstrumentedCode) -> Self {
         Self {
-            hash: id.into_origin(),
+            id: id.into_origin(),
             length_bytes: code.code().len() as u32,
             exports: code.exports().clone(),
             static_pages: code.static_pages(),
@@ -224,7 +224,7 @@ where
         //
         // Code can exist without program, but the latter can't exist without code.
         debug_assert!(
-            T::CodeStorage::exists(CodeId::from_origin(code_info.hash)),
+            T::CodeStorage::exists(CodeId::from_origin(code_info.id)),
             "Program set must be called only when code exists",
         );
 
@@ -232,7 +232,7 @@ where
         let program = common::ActiveProgram {
             allocations: Default::default(),
             pages_with_data: Default::default(),
-            code_hash: code_info.hash,
+            code_hash: code_info.id,
             code_length_bytes: code_info.length_bytes,
             code_exports: code_info.exports.clone(),
             static_pages: code_info.static_pages,

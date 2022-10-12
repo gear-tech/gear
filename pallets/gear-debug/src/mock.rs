@@ -140,7 +140,7 @@ impl pallet_gear::Config for Test {
     type Schedule = ();
     type CodeStorage = GearProgram;
     type MailboxThreshold = ConstU64<3000>;
-    type PerByteCost = ConstU64<10>;
+    type ReadPerByteCost = ConstU64<10>;
     type Messenger = GearMessenger;
     type GasProvider = GearGas;
     type BlockLimiter = GearGas;

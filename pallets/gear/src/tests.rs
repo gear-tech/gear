@@ -25,7 +25,7 @@ use crate::{
         LOW_BALANCE_USER, USER_1, USER_2, USER_3,
     },
     pallet, BlockGasLimitOf, Config, CostsPerBlockOf, DbWeightOf, Error, Event, GasAllowanceOf,
-    GasHandlerOf, GasInfo, MailboxOf, PerByteCostOf, WaitlistOf,
+    GasHandlerOf, GasInfo, MailboxOf, ReadPerByteCostOf, WaitlistOf,
 };
 use codec::{Decode, Encode};
 use common::{
@@ -2995,7 +2995,7 @@ fn terminated_locking_funds() {
                 + core_processor::calculate_gas_for_program(read_cost, 0)
                 + core_processor::calculate_gas_for_code(
                     read_cost,
-                    PerByteCostOf::<Test>::get(),
+                    ReadPerByteCostOf::<Test>::get(),
                     code_length as u64
                 ),
             5_000u128
@@ -4413,7 +4413,7 @@ fn gas_spent_precalculated() {
                 // cost for loading program
                 + core_processor::calculate_gas_for_program(read_cost, 0)
                 // cost for loading code
-                + core_processor::calculate_gas_for_code(read_cost, PerByteCostOf::<Test>::get(), code_len.into())
+                + core_processor::calculate_gas_for_code(read_cost, ReadPerByteCostOf::<Test>::get(), code_len.into())
                 + load_page_cost
         };
 
@@ -5488,7 +5488,7 @@ fn missing_functions_are_not_executed() {
 
         let program_cost = core_processor::calculate_gas_for_program(
             DbWeightOf::<Test>::get().reads(1).ref_time(),
-            PerByteCostOf::<Test>::get(),
+            ReadPerByteCostOf::<Test>::get(),
         );
         // there is no execution so the values should be equal
         assert_eq!(min_limit, program_cost);

@@ -38,7 +38,7 @@ use crate::{
     schedule::{API_BENCHMARK_BATCH_SIZE, INSTR_BENCHMARK_BATCH_SIZE},
     BTreeMap, BalanceOf, BlockGasLimitOf, Call, Config, CostsPerBlockOf, CurrencyOf, DbWeightOf,
     ExecutionEnvironment, Ext as Externalities, GasHandlerOf, MailboxOf, Pallet as Gear, Pallet,
-    PerByteCostOf, QueueOf, Schedule, WaitlistOf,
+    QueueOf, ReadPerByteCostOf, Schedule, WaitlistOf,
 };
 use codec::Encode;
 use common::{
@@ -324,7 +324,7 @@ where
         waitlist_cost,
         reserve_for,
         read_cost: DbWeightOf::<T>::get().reads(1).ref_time(),
-        per_byte_cost: PerByteCostOf::<T>::get(),
+        per_byte_cost: ReadPerByteCostOf::<T>::get(),
     };
 
     if let Some(queued_dispatch) = QueueOf::<T>::dequeue().map_err(|_| "MQ storage corrupted")? {
