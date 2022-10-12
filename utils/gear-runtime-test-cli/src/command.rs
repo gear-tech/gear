@@ -497,7 +497,9 @@ macro_rules! command {
                             allocations: &data.allocations,
                         })
                         .collect::<Vec<_>>();
-                    if let Err(alloc_errors) = gear_test::check::check_allocations(&allocations, alloc) {
+                    if let Err(alloc_errors) =
+                        gear_test::check::check_allocations(&allocations, alloc)
+                    {
                         errors.push(format!("step: {:?}", exp.step));
                         errors.extend(alloc_errors);
                     }
