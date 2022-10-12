@@ -80,6 +80,17 @@ pub type ExitCode = i32;
 /// Salt type for init message.
 pub type Salt = Vec<u8>;
 
+/// Composite wait type for messages waiting.
+#[derive(Debug, Encode, Decode, Clone, PartialEq, Eq, PartialOrd, Ord, TypeInfo)]
+pub enum MessageWaitedType {
+    /// Program called `gr_wait` while executing message.
+    Wait,
+    /// Program called `gr_wait_for` while executing message.
+    WaitFor,
+    /// Program called `gr_wait_up_to` while executing message.
+    WaitUpTo,
+}
+
 /// Entry point for dispatch processing.
 #[derive(Copy, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo)]
 pub enum DispatchKind {

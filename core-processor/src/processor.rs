@@ -38,14 +38,16 @@ use gear_core::{
     gas::{GasAllowanceCounter, GasCounter},
     ids::ProgramId,
     memory::{PageBuf, PageNumber, WasmPageNumber},
-    message::{DispatchKind, ExitCode, IncomingDispatch, ReplyMessage, StoredDispatch},
+    message::{
+        DispatchKind, ExitCode, IncomingDispatch, MessageWaitedType, ReplyMessage, StoredDispatch,
+    },
     program::Program,
 };
 
 #[derive(Debug)]
 enum SuccessfulDispatchResultKind {
     Exit(ProgramId),
-    Wait(Option<u32>, bool),
+    Wait(Option<u32>, MessageWaitedType),
     Success,
 }
 
@@ -235,8 +237,8 @@ pub fn process<
                 ExecutionErrorReason::Ext(reason),
             ),
             DispatchResultKind::Success => process_success(Success, res),
-            DispatchResultKind::Wait(duration, reincarnation) => {
-                process_success(Wait(duration, reincarnation), res)
+            DispatchResultKind::Wait(duration, ref waited_type) => {
+                process_success(Wait(duration, waited_type.clone()), res)
             }
             DispatchResultKind::Exit(value_destination) => {
                 process_success(Exit(value_destination), res)
@@ -434,11 +436,11 @@ fn process_success(
     }
 
     let outcome = match kind {
-        Wait(duration, reincarnation) => {
+        Wait(duration, waited_type) => {
             journal.push(JournalNote::WaitDispatch {
                 dispatch: dispatch.into_stored(program_id, context_store),
                 duration,
-                reincarnation,
+                waited_type,
             });
 
             return journal;

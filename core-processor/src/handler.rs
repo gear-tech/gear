@@ -49,8 +49,8 @@ pub fn handle_journal(
             JournalNote::WaitDispatch {
                 dispatch,
                 duration,
-                reincarnation,
-            } => handler.wait_dispatch(dispatch, duration, reincarnation),
+                waited_type,
+            } => handler.wait_dispatch(dispatch, duration, waited_type),
             JournalNote::WakeMessage {
                 message_id,
                 program_id,

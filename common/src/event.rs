@@ -24,7 +24,7 @@
 use codec::{Decode, Encode};
 use gear_core::{
     ids::MessageId,
-    message::{DispatchKind, StoredDispatch},
+    message::{DispatchKind, MessageWaitedType, StoredDispatch},
 };
 use primitive_types::H256;
 use scale_info::TypeInfo;
@@ -112,6 +112,18 @@ pub enum MessageWaitedRuntimeReason {
     WaitCalled,
     /// Program called `gr_wait_for` while executing message.
     WaitForCalled,
+    /// Program called `gr_wait_up_to` with maximum duration while executing message.
+    WaitUpToFull,
+}
+
+impl From<MessageWaitedType> for MessageWaitedRuntimeReason {
+    fn from(src: MessageWaitedType) -> Self {
+        match src {
+            MessageWaitedType::Wait => MessageWaitedRuntimeReason::WaitCalled,
+            MessageWaitedType::WaitFor => MessageWaitedRuntimeReason::WaitForCalled,
+            MessageWaitedType::WaitUpTo => MessageWaitedRuntimeReason::WaitUpToFull,
+        }
+    }
 }
 
 /// System reason for messages waiting.

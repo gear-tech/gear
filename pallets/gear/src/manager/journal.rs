@@ -35,7 +35,7 @@ use frame_system::Pallet as SystemPallet;
 use gear_core::{
     ids::{CodeId, MessageId, ProgramId},
     memory::{PageBuf, PageNumber},
-    message::{Dispatch, StoredDispatch},
+    message::{Dispatch, StoredDispatch, MessageWaitedType},
 };
 use sp_runtime::traits::{UniqueSaturatedInto, Zero};
 
@@ -277,17 +277,12 @@ where
         &mut self,
         dispatch: StoredDispatch,
         duration: Option<u32>,
-        reincarnation: bool,
+        waited_type: MessageWaitedType,
     ) {
         Pallet::<T>::wait_dispatch(
             dispatch,
             duration.map(UniqueSaturatedInto::unique_saturated_into),
-            if reincarnation {
-                MessageWaitedRuntimeReason::WaitForCalled
-            } else {
-                MessageWaitedRuntimeReason::WaitCalled
-            }
-            .into_reason(),
+            MessageWaitedRuntimeReason::from(waited_type).into_reason(),
         )
     }
 

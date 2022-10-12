@@ -46,7 +46,7 @@ use gear_core::{
     gas::GasAmount,
     ids::{CodeId, MessageId, ProgramId},
     memory::{Memory, PageBuf, PageNumber, WasmPageNumber},
-    message::{ContextStore, Dispatch, DispatchKind},
+    message::{ContextStore, Dispatch, DispatchKind, MessageWaitedType},
 };
 use gear_core_errors::{ExtError, MemoryError};
 use scale_info::TypeInfo;
@@ -87,7 +87,7 @@ pub enum TerminationReason {
     Leave,
     Success,
     Trap(TrapExplanation),
-    Wait(Option<u32>, bool),
+    Wait(Option<u32>, MessageWaitedType),
     GasAllowanceExceeded,
 }
 

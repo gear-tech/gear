@@ -29,7 +29,7 @@ use gear_core::{
     gas::{GasAllowanceCounter, GasAmount, GasCounter},
     ids::{CodeId, MessageId, ProgramId},
     memory::{PageBuf, PageNumber, WasmPageNumber},
-    message::{ContextStore, Dispatch, IncomingDispatch, StoredDispatch},
+    message::{ContextStore, Dispatch, IncomingDispatch, MessageWaitedType, StoredDispatch},
     program::Program,
 };
 use gear_core_errors::MemoryError;
@@ -43,7 +43,7 @@ pub enum DispatchResultKind {
     /// Trap dispatch.
     Trap(TrapExplanation),
     /// Wait dispatch.
-    Wait(Option<u32>, bool),
+    Wait(Option<u32>, MessageWaitedType),
     /// Exit dispatch.
     Exit(ProgramId),
     /// Gas allowance exceed.
@@ -199,7 +199,7 @@ pub enum JournalNote {
         /// Expected duration of holding.
         duration: Option<u32>,
         /// If this message is waiting for its reincarnation.
-        reincarnation: bool,
+        waited_type: MessageWaitedType,
     },
     /// Wake particular message.
     WakeMessage {
@@ -278,7 +278,7 @@ pub trait JournalHandler {
         &mut self,
         dispatch: StoredDispatch,
         duration: Option<u32>,
-        reincarnation: bool,
+        waited_type: MessageWaitedType,
     );
     /// Process send message.
     fn wake_message(
