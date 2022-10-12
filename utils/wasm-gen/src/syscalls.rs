@@ -165,7 +165,7 @@ pub(crate) fn sys_calls_table(config: &GearConfig) -> BTreeMap<&'static str, Sys
 
     res.insert(
         "gr_debug",
-        SysCallInfo::new(config, [Ptr, Size], [I32], frequency),
+        SysCallInfo::new(config, [Ptr, Size], [], frequency),
     );
     res.insert("gr_error", SysCallInfo::new(config, [Ptr], [I32], frequency));
 
