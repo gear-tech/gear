@@ -20,7 +20,7 @@ jobs:
         run: npm install -g @polkadot/api-cli
 
       - name: Send setCode extrinsic
-        run: polkadot-js-api --ws wss://rpc-node.gear-tech.io:443 --sudoUncheckedWeight 1 --seed "${{ secrets.ROOT_SEED }}" tx.system.setCode @gear_runtime.compact.compressed.wasm
+        run: polkadot-js-api --ws wss://rpc-node.gear-tech.io:443 --sudoUncheckedWeight 0x00 --seed "${{ secrets.ROOT_SEED }}" tx.system.setCode @gear_runtime.compact.compressed.wasm
 
       - name: Send reset extrinsic
         run: polkadot-js-api --ws wss://rpc-node.gear-tech.io:443 --sudo --seed "${{ secrets.ROOT_SEED }}" tx.gear.reset
