@@ -371,15 +371,12 @@ where
                 .unwrap_or_else(|e| unreachable!("Scheduling logic invalidated! {:?}", e));
             }
             MessageWaitedReason::Runtime(MessageWaitedRuntimeReason::WaitUpToFull) => {
-                if !TaskPoolOf::<T>::contains(
-                    hold.expected(),
-                    ScheduledTask::WakeMessage(dispatch.destination(), dispatch.id()),
-                ) {
-                    TaskPoolOf::<T>::add(
-                        hold.expected(),
-                        ScheduledTask::WakeMessage(dispatch.destination(), dispatch.id()),
-                    )
-                    .unwrap_or_else(|e| unreachable!("Scheduling logic invalidated! {:?}", e));
+                let expected = hold.expected();
+                let task = ScheduledTask::WakeMessage(dispatch.destination(), dispatch.id());
+
+                if !TaskPoolOf::<T>::contains(&expected, &task) {
+                    TaskPoolOf::<T>::add(expected, task)
+                        .unwrap_or_else(|e| unreachable!("Scheduling logic invalidated! {:?}", e));
                 }
             }
             _ => {

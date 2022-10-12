@@ -1157,10 +1157,10 @@ pub mod api {
                         };
                         if runtime_storage_hash
                             == [
-                                93u8, 188u8, 230u8, 17u8, 125u8, 241u8, 52u8, 242u8, 86u8, 215u8,
-                                35u8, 232u8, 246u8, 36u8, 91u8, 4u8, 104u8, 153u8, 51u8, 172u8,
-                                145u8, 128u8, 122u8, 143u8, 172u8, 35u8, 67u8, 166u8, 81u8, 75u8,
-                                74u8, 249u8,
+                                82u8, 66u8, 45u8, 199u8, 179u8, 234u8, 163u8, 115u8, 12u8, 141u8,
+                                46u8, 27u8, 109u8, 203u8, 134u8, 157u8, 193u8, 53u8, 92u8, 134u8,
+                                206u8, 138u8, 10u8, 118u8, 126u8, 191u8, 142u8, 217u8, 249u8, 11u8,
+                                175u8, 224u8,
                             ]
                         {
                             let entry = Events;
@@ -8753,6 +8753,8 @@ pub mod api {
                     WaitCalled,
                     #[codec(index = 1)]
                     WaitForCalled,
+                    #[codec(index = 2)]
+                    WaitUpToFull,
                 }
                 #[derive(:: subxt :: codec :: Decode, :: subxt :: codec :: Encode, Debug)]
                 pub enum MessageWaitedSystemReason {
@@ -11588,9 +11590,9 @@ pub mod api {
             };
             if runtime_metadata_hash
                 != [
-                    150u8, 217u8, 245u8, 189u8, 38u8, 16u8, 198u8, 81u8, 50u8, 86u8, 59u8, 241u8,
-                    156u8, 11u8, 92u8, 20u8, 0u8, 39u8, 220u8, 17u8, 14u8, 23u8, 153u8, 110u8,
-                    76u8, 2u8, 208u8, 226u8, 115u8, 252u8, 222u8, 223u8,
+                    177u8, 38u8, 49u8, 172u8, 58u8, 95u8, 108u8, 255u8, 194u8, 28u8, 114u8, 30u8,
+                    212u8, 76u8, 66u8, 83u8, 254u8, 50u8, 113u8, 146u8, 73u8, 148u8, 178u8, 127u8,
+                    81u8, 249u8, 81u8, 62u8, 163u8, 59u8, 88u8, 150u8,
                 ]
             {
                 Err(::subxt::MetadataError::IncompatibleMetadata)
