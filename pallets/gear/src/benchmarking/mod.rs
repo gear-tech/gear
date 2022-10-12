@@ -687,10 +687,10 @@ benchmarks! {
         >(&block_config, context, memory_pages);
     }
 
-    gr_msg_id {
+    gr_message_id {
         let r in 0 .. API_BENCHMARK_BATCHES;
         let instance = Program::<T>::new(WasmModule::getter(
-            "env", "gr_msg_id", r * API_BENCHMARK_BATCH_SIZE
+            "env", "gr_message_id", r * API_BENCHMARK_BATCH_SIZE
         ), vec![])?;
         let Exec {
             ext_manager,

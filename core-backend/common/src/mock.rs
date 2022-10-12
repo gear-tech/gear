@@ -21,6 +21,7 @@ use crate::{
     TerminationReason,
 };
 use alloc::collections::BTreeSet;
+use codec::{Decode, Encode};
 use core::fmt;
 use gear_core::{
     costs::RuntimeCosts,
@@ -33,7 +34,7 @@ use gear_core::{
 use gear_core_errors::{CoreError, ExtError, MemoryError};
 
 /// Mock error
-#[derive(Debug)]
+#[derive(Debug, Encode, Decode)]
 pub struct Error;
 
 impl fmt::Display for Error {
@@ -83,10 +84,10 @@ impl Ext for MockExt {
     fn origin(&mut self) -> Result<ProgramId, Self::Error> {
         Ok(ProgramId::from(0))
     }
-    fn send_init(&mut self) -> Result<usize, Self::Error> {
+    fn send_init(&mut self) -> Result<u32, Self::Error> {
         Ok(0)
     }
-    fn send_push(&mut self, _handle: usize, _buffer: &[u8]) -> Result<(), Self::Error> {
+    fn send_push(&mut self, _handle: u32, _buffer: &[u8]) -> Result<(), Self::Error> {
         Ok(())
     }
     fn reply_commit(&mut self, _msg: ReplyPacket, _delay: u32) -> Result<MessageId, Self::Error> {
@@ -97,14 +98,14 @@ impl Ext for MockExt {
     }
     fn send_commit(
         &mut self,
-        _handle: usize,
+        _handle: u32,
         _msg: HandlePacket,
         _delay: u32,
     ) -> Result<MessageId, Self::Error> {
         Ok(MessageId::default())
     }
-    fn reply_to(&mut self) -> Result<Option<MessageId>, Self::Error> {
-        Ok(None)
+    fn reply_to(&mut self) -> Result<MessageId, Self::Error> {
+        Ok(Default::default())
     }
     fn source(&mut self) -> Result<ProgramId, Self::Error> {
         Ok(ProgramId::from(0))
@@ -112,8 +113,8 @@ impl Ext for MockExt {
     fn exit(&mut self) -> Result<(), Self::Error> {
         Ok(())
     }
-    fn exit_code(&mut self) -> Result<Option<ExitCode>, Self::Error> {
-        Ok(None)
+    fn exit_code(&mut self) -> Result<ExitCode, Self::Error> {
+        Ok(Default::default())
     }
     fn message_id(&mut self) -> Result<MessageId, Self::Error> {
         Ok(0.into())
@@ -173,15 +174,15 @@ impl Ext for MockExt {
         &mut self,
         _packet: InitPacket,
         _delay: u32,
-    ) -> Result<ProgramId, Self::Error> {
-        Ok(Default::default())
+    ) -> Result<(MessageId, ProgramId), Self::Error> {
+        Ok((Default::default(), Default::default()))
     }
     fn forbidden_funcs(&self) -> &BTreeSet<&'static str> {
         &self.0
     }
 }
 
-impl IntoExtInfo for MockExt {
+impl IntoExtInfo<<MockExt as Ext>::Error> for MockExt {
     fn into_ext_info(self, _memory: &impl Memory) -> Result<ExtInfo, (MemoryError, GasAmount)> {
         Ok(ExtInfo {
             gas_amount: GasAmount::from(GasCounter::new(0)),
@@ -198,8 +199,8 @@ impl IntoExtInfo for MockExt {
         GasAmount::from(GasCounter::new(0))
     }
 
-    fn last_error(&self) -> Option<&gear_core_errors::ExtError> {
-        None
+    fn last_error(&self) -> Result<&gear_core_errors::ExtError, Error> {
+        Ok(&ExtError::SyscallUsage)
     }
 
     fn trap_explanation(&self) -> Option<crate::TrapExplanation> {

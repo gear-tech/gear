@@ -267,8 +267,8 @@ pub struct HostFnWeights<T: Config> {
     /// Weight of calling `gr_gas_available`.
     pub gr_gas_available: u64,
 
-    /// Weight of calling `gr_msg_id`.
-    pub gr_msg_id: u64,
+    /// Weight of calling `gr_message_id`.
+    pub gr_message_id: u64,
 
     /// Weight of calling `gr_origin`.
     pub gr_origin: u64,
@@ -553,7 +553,7 @@ impl<T: Config> HostFnWeights<T> {
         CoreHostFnWeights {
             alloc: self.alloc,
             gr_gas_available: self.gr_gas_available,
-            gr_msg_id: self.gr_msg_id,
+            gr_message_id: self.gr_message_id,
             gr_origin: self.gr_origin,
             gr_program_id: self.gr_program_id,
             gr_source: self.gr_source,
@@ -594,7 +594,7 @@ impl<T: Config> Default for HostFnWeights<T> {
         Self {
             alloc: cost_batched!(alloc),
             gr_gas_available: cost_batched!(gr_gas_available),
-            gr_msg_id: cost_batched!(gr_msg_id),
+            gr_message_id: cost_batched!(gr_message_id),
             gr_origin: cost_batched!(gr_origin),
             gr_program_id: cost_batched!(gr_program_id),
             gr_source: cost_batched!(gr_source),

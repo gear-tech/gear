@@ -39,7 +39,7 @@ unsafe extern "C" fn init() {
 
 #[gstd::async_main]
 async fn main() {
-    let message = msg::load_bytes();
+    let message = msg::load_bytes().expect("Failed to load payload bytes");
 
     let request = SignRequest { message };
 

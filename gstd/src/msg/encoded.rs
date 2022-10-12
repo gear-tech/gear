@@ -42,7 +42,7 @@ use gstd_codegen::wait_for_reply;
 /// let x: String = msg::load().expect("Unable to decode `String`");
 /// ```
 pub fn load<D: Decode>() -> Result<D> {
-    D::decode(&mut super::load_bytes().as_ref()).map_err(ContractError::Decode)
+    D::decode(&mut super::load_bytes()?.as_ref()).map_err(ContractError::Decode)
 }
 
 /// Send a new message as a reply to the message currently being processed.

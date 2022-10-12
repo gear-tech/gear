@@ -9810,7 +9810,7 @@ pub mod api {
                 pub struct HostFnWeights {
                     pub alloc: ::core::primitive::u64,
                     pub gr_gas_available: ::core::primitive::u64,
-                    pub gr_msg_id: ::core::primitive::u64,
+                    pub gr_message_id: ::core::primitive::u64,
                     pub gr_origin: ::core::primitive::u64,
                     pub gr_program_id: ::core::primitive::u64,
                     pub gr_source: ::core::primitive::u64,

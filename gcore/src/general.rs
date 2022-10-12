@@ -48,8 +48,9 @@
 ///     let msg_handle = msg::send_init();
 /// }
 /// ```
+#[repr(transparent)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct MessageHandle(pub u32);
+pub struct MessageHandle(pub(crate) u32);
 
 /// Message identifier.
 ///
@@ -89,8 +90,12 @@ impl MessageId {
         &self.0[..]
     }
 
-    pub(crate) fn as_mut_slice(&mut self) -> &mut [u8] {
-        &mut self.0[..]
+    pub(crate) const fn as_ptr(&self) -> *const [u8; 32] {
+        self.0.as_ptr() as *const [u8; 32]
+    }
+
+    pub(crate) fn as_mut_ptr(&mut self) -> *mut [u8; 32] {
+        self.0.as_mut_ptr() as *mut [u8; 32]
     }
 }
 
@@ -141,21 +146,25 @@ impl ActorId {
         &self.0[..]
     }
 
-    pub(crate) fn as_mut_slice(&mut self) -> &mut [u8] {
-        &mut self.0[..]
+    pub(crate) const fn as_ptr(&self) -> *const [u8; 32] {
+        self.0.as_ptr() as *const [u8; 32]
+    }
+
+    pub(crate) fn as_mut_ptr(&mut self) -> *mut [u8; 32] {
+        self.0.as_mut_ptr() as *mut [u8; 32]
     }
 }
 
 #[derive(Clone, Copy, Debug, Default, Hash, Ord, PartialEq, PartialOrd, Eq)]
-pub struct CodeHash(pub [u8; 32]);
+pub struct CodeId(pub [u8; 32]);
 
-impl From<[u8; 32]> for CodeHash {
+impl From<[u8; 32]> for CodeId {
     fn from(v: [u8; 32]) -> Self {
-        CodeHash(v)
+        CodeId(v)
     }
 }
 
-impl CodeHash {
+impl CodeId {
     /// Create a new `H256` from 32-byte slice `s`.
     ///
     /// Panics if the supplied slice length is other than 32.
@@ -163,7 +172,7 @@ impl CodeHash {
         if s.len() != 32 {
             panic!("The slice must contain 32 u8 to be casted to H256");
         }
-        let mut ret = CodeHash([0u8; 32]);
+        let mut ret = CodeId([0u8; 32]);
         ret.0[..].copy_from_slice(s);
         ret
     }
@@ -171,5 +180,9 @@ impl CodeHash {
     /// Get `H256` represented as a slice of `u8`.
     pub fn as_slice(&self) -> &[u8] {
         &self.0[..]
+    }
+
+    pub(crate) const fn as_ptr(&self) -> *const [u8; 32] {
+        self.0.as_ptr() as *const [u8; 32]
     }
 }

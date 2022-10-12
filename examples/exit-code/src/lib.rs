@@ -1,6 +1,6 @@
 #![no_std]
 
-use gstd::{msg, prelude::ToString, ActorId};
+use gstd::{msg, ActorId};
 
 static mut HOST: ActorId = ActorId::new([0u8; 32]);
 
@@ -13,5 +13,5 @@ unsafe extern "C" fn handle() {}
 
 #[no_mangle]
 unsafe extern "C" fn handle_reply() {
-    msg::send_bytes(HOST, msg::exit_code().to_string(), 0).unwrap();
+    msg::send_bytes(HOST, msg::exit_code().unwrap().to_le_bytes(), 0).unwrap();
 }
