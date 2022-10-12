@@ -18,11 +18,11 @@
 
 //! Configurations.
 
-use crate::common::Actor;
+use crate::common::{Actor, PrechargedDispatch};
 use alloc::collections::BTreeSet;
 use codec::{Decode, Encode};
 use gear_core::{
-    code, costs::HostFnWeights, ids::ProgramId, memory::WasmPageNumber, message::IncomingDispatch,
+    code, costs::HostFnWeights, ids::ProgramId, memory::WasmPageNumber,
 };
 
 const INIT_COST: u64 = 5000;
@@ -125,12 +125,10 @@ pub struct BlockConfig {
 pub struct MessageExecutionContext {
     /// Executable actor.
     pub actor: Actor,
-    /// Incoming dispatch.
-    pub dispatch: IncomingDispatch,
+    /// Precharged dispatch.
+    pub precharged_dispatch: PrechargedDispatch,
     /// The ID of the user who started interaction with programs.
     pub origin: ProgramId,
-    /// Gas allowance.
-    pub gas_allowance: u64,
     /// The program is being executed the second or next time in the block.
     pub subsequent_execution: bool,
 }

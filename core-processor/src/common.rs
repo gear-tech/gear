@@ -432,3 +432,40 @@ pub struct WasmExecutionContext {
     /// Size of the memory block.
     pub memory_size: WasmPageNumber,
 }
+
+/// Struct with dispatch and counters charged for program data.
+#[derive(Clone, Debug)]
+pub struct PrechargedDispatch {
+    gas: GasCounter,
+    allowance: GasAllowanceCounter,
+    dispatch: IncomingDispatch,
+}
+
+impl PrechargedDispatch {
+    /// Decompose this instance into dispatch and journal.
+    pub fn into_dispatch_and_note(self) -> (IncomingDispatch, Vec<JournalNote>) {
+        let mut journal = Vec::with_capacity(1);
+
+        journal.push(JournalNote::GasBurned {
+            message_id: self.dispatch.id(),
+            amount: self.gas.burned(),
+        });
+
+        (self.dispatch, journal)
+    }
+
+    /// Decompose the instance into parts.
+    pub fn into_parts(self) -> (IncomingDispatch, GasCounter, GasAllowanceCounter) {
+        (self.dispatch, self.gas, self.allowance)
+    }
+}
+
+impl From<(IncomingDispatch, GasCounter, GasAllowanceCounter)> for PrechargedDispatch {
+    fn from((dispatch, gas, allowance): (IncomingDispatch, GasCounter, GasAllowanceCounter)) -> Self {
+        Self {
+            gas,
+            allowance,
+            dispatch,
+        }
+    }
+}

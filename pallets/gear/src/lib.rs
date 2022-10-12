@@ -891,12 +891,23 @@ pub mod pallet {
                 let gas_limit = GasHandlerOf::<T>::get_limit(dispatch_id)
                     .map_err(|_| b"Internal error: unable to get gas limit".to_vec())?;
 
+                let precharged_dispatch = match core_processor::precharge(
+                    &block_config,
+                    GasAllowanceOf::<T>::get(),
+                    queued_dispatch.into_incoming(gas_limit),
+                    actor_id)
+                {
+                    core_processor::PrechargeResult::Ok(d) => d,
+                    core_processor::PrechargeResult::Error(_) => return {
+                        Err(b"Failed to charge message for Program".to_vec())
+                    },
+                };
+
                 let subsequent_execution = ext_manager.program_pages_loaded(&actor_id);
                 let message_execution_context = MessageExecutionContext {
                     actor,
-                    dispatch: queued_dispatch.into_incoming(gas_limit),
+                    precharged_dispatch,
                     origin: ProgramId::from_origin(source),
-                    gas_allowance: u64::MAX,
                     subsequent_execution,
                 };
 
@@ -1235,14 +1246,45 @@ pub mod pallet {
                         GasAllowanceOf::<T>::get(),
                     );
 
+                    let program_id = dispatch.destination();
+                    let dispatch_id = dispatch.id();
+                    let dispatch_reply = dispatch.reply().is_some();
+                    let precharged_dispatch = match core_processor::precharge(
+                        &block_config,
+                        GasAllowanceOf::<T>::get(),
+                        dispatch.into_incoming(gas_limit),
+                        program_id)
+                    {
+                        core_processor::PrechargeResult::Ok(d) => d,
+                        core_processor::PrechargeResult::Error(journal) => {
+                            core_processor::handle_journal(journal, &mut ext_manager);
+
+                            if T::DebugInfo::is_enabled() {
+                                T::DebugInfo::do_snapshot();
+                            }
+
+                            if T::DebugInfo::is_remap_id_enabled() {
+                                T::DebugInfo::remap_id();
+                            }
+
+                            continue;
+                        }
+                    };
+
                     let active_actor_data = if let Some(maybe_active_program) =
-                        common::get_program(dispatch.destination().into_origin())
+                        common::get_program(program_id.into_origin())
                     {
                         // Check whether message should be added to the wait list
                         if let Program::Active(prog) = maybe_active_program {
-                            if matches!(prog.state, ProgramState::Uninitialized {message_id} if message_id != dispatch.id())
-                                && dispatch.reply().is_none()
+                            if matches!(prog.state, ProgramState::Uninitialized {message_id} if message_id != dispatch_id)
+                                && !dispatch_reply
                             {
+                                let (dispatch, journal) = precharged_dispatch.into_dispatch_and_note();
+                                let (kind, message, context) = dispatch.into();
+                                let dispatch = StoredDispatch::new(kind, message.into_stored(program_id), context);
+
+                                core_processor::handle_journal(journal, &mut ext_manager);
+
                                 // Adding id in on-init wake list.
                                 common::waiting_init_append_message_id(
                                     dispatch.destination(),
@@ -1255,6 +1297,15 @@ pub mod pallet {
                                     MessageWaitedSystemReason::ProgramIsNotInitialized
                                         .into_reason(),
                                 );
+
+                                if T::DebugInfo::is_enabled() {
+                                    T::DebugInfo::do_snapshot();
+                                }
+
+                                if T::DebugInfo::is_remap_id_enabled() {
+                                    T::DebugInfo::remap_id();
+                                }
+
                                 continue;
                             }
 
@@ -1270,7 +1321,7 @@ pub mod pallet {
                         } else {
                             // Reaching this branch is possible when init message was processed with failure, while other kind of messages
                             // were already in the queue/were added to the queue (for example. moved from wait list in case of async init)
-                            log::debug!("Program '{:?}' is not active", dispatch.destination());
+                            log::debug!("Program '{program_id:?}' is not active");
                             None
                         }
                     } else {
@@ -1285,20 +1336,18 @@ pub mod pallet {
 
                     let balance =
                         CurrencyOf::<T>::free_balance(&<T::AccountId as Origin>::from_origin(
-                            dispatch.destination().into_origin(),
+                            program_id.into_origin(),
                         ))
                         .unique_saturated_into();
 
-                    let program_id = dispatch.destination();
                     let message_execution_context = MessageExecutionContext {
                         actor: Actor {
                             balance,
                             destination_program: program_id,
                             executable_data: active_actor_data,
                         },
-                        dispatch: dispatch.into_incoming(gas_limit),
+                        precharged_dispatch,
                         origin: ProgramId::from_origin(external.into_origin()),
-                        gas_allowance: GasAllowanceOf::<T>::get(),
                         subsequent_execution: ext_manager.program_pages_loaded(&program_id),
                     };
 

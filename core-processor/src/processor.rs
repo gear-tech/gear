@@ -19,7 +19,7 @@
 use crate::{
     common::{
         Actor, DispatchOutcome, DispatchResult, DispatchResultKind, ExecutableActorData,
-        ExecutionErrorReason, JournalNote, WasmExecutionContext,
+        ExecutionErrorReason, JournalNote, WasmExecutionContext, PrechargedDispatch,
     },
     configs::{BlockConfig, ExecutionSettings, MessageExecutionContext},
     executor,
@@ -153,8 +153,53 @@ fn prepare_allowance_exceed(
     PrepareResult::Error(process_allowance_exceed(dispatch, program_id, gas_burned))
 }
 
+/// Defines result variants of the function `precharge`.
+pub enum PrechargeResult {
+    /// Successfully pre-charged for resources.
+    Ok(PrechargedDispatch),
+    /// There is not enough gas for resources.
+    Error(Vec<JournalNote>),
+}
+
+/// Charge a message for program data beforehand.
+pub fn precharge(
+    block_config: &BlockConfig,
+    gas_allowance: u64,
+    dispatch: IncomingDispatch,
+    destination_id: ProgramId,
+) -> PrechargeResult {
+    use executor::ChargeForBytesResult::*;
+
+    let per_byte_cost = block_config.per_byte_cost;
+    let read_cost = block_config.read_cost;
+
+    let mut gas_counter = GasCounter::new(dispatch.gas_limit());
+    let mut gas_allowance_counter = GasAllowanceCounter::new(gas_allowance);
+
+    match executor::charge_gas_for_program(
+        read_cost,
+        per_byte_cost,
+        &mut gas_counter,
+        &mut gas_allowance_counter,
+    ) {
+        Ok => PrechargeResult::Ok((
+            dispatch,
+            gas_counter,
+            gas_allowance_counter,
+        ).into()),
+        GasExceeded => {
+            let gas_burned = gas_counter.burned();
+            PrechargeResult::Error(process_error(dispatch, destination_id, gas_burned, ExecutionErrorReason::ProgramDataGasExceeded))
+        }
+        BlockGasExceeded => {
+            let gas_burned = gas_counter.burned();
+            PrechargeResult::Error(process_allowance_exceed(dispatch, destination_id, gas_burned))
+        }
+    }
+}
+
 /// Prepares environment for the execution of a program.
-/// Checks if there is a required export and tries to pre-charge for memory pages.
+/// Checks if there is a required export and tries to charge for code and memory pages.
 /// Returns either `PreparedMessageExecutionContext` for `process` or an array of journal notes.
 /// See `PrepareResult` for details.
 pub fn prepare(
@@ -168,9 +213,8 @@ pub fn prepare(
 
     let MessageExecutionContext {
         actor,
-        dispatch,
+        precharged_dispatch,
         origin,
-        gas_allowance,
         subsequent_execution,
     } = execution_context;
     let Actor {
@@ -179,38 +223,14 @@ pub fn prepare(
         executable_data,
     } = actor;
 
+    let (dispatch, mut gas_counter, mut gas_allowance_counter) = precharged_dispatch.into_parts();
+
     let actor_data = match check_is_executable(executable_data, &dispatch) {
         Err(exit_code) => {
             return PrepareResult::Error(process_non_executable(dispatch, program_id, exit_code));
         }
         Ok(data) => data,
     };
-
-    let mut gas_counter = GasCounter::new(dispatch.gas_limit());
-    let mut gas_allowance_counter = GasAllowanceCounter::new(gas_allowance);
-
-    match executor::charge_gas_for_program(
-        read_cost,
-        per_byte_cost,
-        &mut gas_counter,
-        &mut gas_allowance_counter,
-    ) {
-        ChargeForBytesResult::Ok => (),
-        ChargeForBytesResult::GasExceeded => {
-            // program struct has already been loaded so charge anyway
-            gas_counter.charge(gas_counter.left());
-
-            return prepare_error(
-                dispatch,
-                program_id,
-                gas_counter,
-                ExecutionErrorReason::ProgramDataGasExceeded,
-            );
-        }
-        ChargeForBytesResult::BlockGasExceeded => {
-            return prepare_allowance_exceed(dispatch, program_id, gas_counter)
-        }
-    }
 
     if !actor_data.code_exports.contains(&dispatch.kind()) {
         return PrepareResult::WontExecute(process_success(
