@@ -4,7 +4,7 @@ use gear_core::ids::CodeId;
 
 use crate::{
     batch_pool::Seed,
-    utils::{LoaderRng, NonEmptyVec, RingGet},
+    utils::{LoaderRng, NonEmptyVec},
 };
 
 pub type CreateProgramArgsInner = (CodeId, Vec<u8>, Vec<u8>, u64, u128);
@@ -25,10 +25,7 @@ impl CreateProgramArgs {
         let mut rng = Rng::seed_from_u64(rng_seed);
 
         let code_idx = rng.next_u64() as usize;
-        let code = existing_codes
-            .ring_get(code_idx)
-            .copied()
-            .expect("Infallible");
+        let &code = existing_codes.ring_get(code_idx);
 
         let mut salt = vec![0; rng.gen_range(1..=100)];
         rng.fill_bytes(&mut salt);
@@ -42,10 +39,8 @@ impl CreateProgramArgs {
             hex::encode(&payload)
         );
 
-        // TODO: add this.
         let gas_limit = 240_000_000_000;
 
-        // TODO: add this.
         let value = 0;
 
         Self((code, salt, payload, gas_limit, value))

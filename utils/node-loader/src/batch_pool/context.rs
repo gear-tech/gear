@@ -13,7 +13,6 @@ pub struct ContextUpdate {
 pub struct Context {
     pub programs: BTreeSet<ProgramId>,
     pub codes: BTreeSet<CodeId>,
-    // pub mailbox: Vec<Mailbox>, // for send_reply and claim_value
 }
 
 impl From<Report> for ContextUpdate {

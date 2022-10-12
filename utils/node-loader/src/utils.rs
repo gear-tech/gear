@@ -1,6 +1,7 @@
 use crate::{batch_pool::generators, SmallRng};
+use anyhow::Result;
 use dyn_clonable::*;
-use gclient::{Result, WSAddress};
+use gclient::{GearApi, WSAddress};
 use rand::{Rng, RngCore, SeedableRng};
 use std::{
     fs::File,
@@ -11,6 +12,27 @@ use std::{
     ops::Deref,
     time::{SystemTime, UNIX_EPOCH},
 };
+
+pub struct GearApiProducer {
+    api: GearApi,
+    nonce: u32,
+}
+
+impl GearApiProducer {
+    pub async fn try_new(endpoint: String) -> Result<Self> {
+        let api = GearApi::init(str_to_wsaddr(endpoint)).await?;
+        let nonce = api.rpc_nonce().await?;
+        Ok(Self { api, nonce })
+    }
+
+    pub fn produce(&mut self) -> GearApi {
+        let mut api = self.api.clone();
+        api.set_nonce(self.nonce);
+        self.nonce += 1;
+
+        api
+    }
+}
 
 pub fn now() -> u64 {
     let time_since_epoch = SystemTime::now()
@@ -67,18 +89,6 @@ impl<T: RngCore + Clone> LoaderRngCore for T {}
 pub trait LoaderRng: Rng + SeedableRng + 'static + Clone {}
 impl<T: Rng + SeedableRng + 'static + Clone> LoaderRng for T {}
 
-// Todo copy paste from property tests will be removed
-pub trait RingGet<T> {
-    fn ring_get(&self, index: usize) -> Option<&T>;
-}
-
-impl<T> RingGet<T> for NonEmptyVec<T> {
-    fn ring_get(&self, index: usize) -> Option<&T> {
-        assert!(!self.is_empty(), "NonEmptyVec instance is empty");
-        Some(&self[index % self.len()])
-    }
-}
-
 #[derive(Debug, Clone)]
 pub struct NonEmptyVec<T>(Vec<T>);
 
@@ -91,6 +101,11 @@ impl<T> NonEmptyVec<T> {
         (peekable.peek().is_some())
             .then_some(Self(peekable.collect()))
             .ok_or(())
+    }
+
+    pub fn ring_get(&self, index: usize) -> &T {
+        assert!(!self.is_empty(), "NonEmptyVec instance is empty");
+        &self[index % self.len()]
     }
 }
 

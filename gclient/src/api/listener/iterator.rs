@@ -72,8 +72,8 @@ impl<'a> EventProcessor for EventListener<'a> {
 }
 
 impl<'a> EventListener<'a> {
-    // Max wait time for the event (15 seconds).
-    const WAIT_MILIS: u64 = 15000;
+    // Max wait time for the event (30 seconds).
+    const WAIT_MILIS: u64 = 30000;
 
     pub async fn blocks_running_since(&mut self, previous: H256) -> Result<bool> {
         let current = tokio::select! {
