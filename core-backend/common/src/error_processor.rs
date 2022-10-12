@@ -36,9 +36,10 @@ impl<T> ExtErrorProcessor<T> {
         }
     }
 
-    pub fn error_len_on_success<F, E>(self, f: F) -> Result<u32, E>
+    pub fn error_len_on_success<F, E, EO>(self, f: F) -> Result<u32, EO>
     where
         F: FnOnce(T) -> Result<(), E>,
+        EO: From<E>,
     {
         match self.inner {
             Ok(t) => {

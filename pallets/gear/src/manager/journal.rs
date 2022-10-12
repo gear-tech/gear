@@ -368,10 +368,10 @@ where
         Pallet::<T>::transfer_reserved(&from, &to, value);
     }
 
-    fn store_new_programs(&mut self, code_id: CodeId, candidates: Vec<(ProgramId, MessageId)>) {
+fn store_new_programs(&mut self, code_id: CodeId, candidates: Vec<(MessageId, ProgramId)>) {
         if let Some(code) = T::CodeStorage::get_code(code_id) {
             let code_info = CodeInfo::from_code(&code_id, &code);
-            for (candidate_id, init_message) in candidates {
+            for (init_message, candidate_id) in candidates {
                 if !GearProgramPallet::<T>::program_exists(candidate_id) {
                     self.set_program(candidate_id, &code_info, init_message);
                 } else {
@@ -383,7 +383,7 @@ where
                 "No referencing code with code hash {:?} for candidate programs",
                 code_id
             );
-            for (candidate, _) in candidates {
+            for (_, candidate) in candidates {
                 self.programs.insert(candidate);
             }
         }

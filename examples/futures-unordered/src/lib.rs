@@ -11,7 +11,8 @@ static mut DEMO_PING: ActorId = ActorId::new([0u8; 32]);
 
 #[no_mangle]
 unsafe extern "C" fn init() {
-    let input = String::from_utf8(msg::load_bytes()).expect("Invalid message: should be utf-8");
+    let input = String::from_utf8(msg::load_bytes().expect("Failed to load payload bytes"))
+        .expect("Invalid message: should be utf-8");
     let dests: Vec<&str> = input.split(',').collect();
     if dests.len() != 2 {
         panic!("Invalid input, should be three IDs separated by comma");
@@ -29,7 +30,8 @@ unsafe extern "C" fn init() {
 #[gstd::async_main]
 async fn main() {
     let source = msg::source();
-    let command = String::from_utf8(msg::load_bytes()).expect("Unable to decode string");
+    let command = String::from_utf8(msg::load_bytes().expect("Failed to load payload bytes"))
+        .expect("Unable to decode string");
 
     match command.as_ref() {
         // Directly using stream from futures unordered to step through each future done

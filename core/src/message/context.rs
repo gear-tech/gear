@@ -161,7 +161,7 @@ impl MessageContext {
         &mut self,
         packet: InitPacket,
         delay: u32,
-    ) -> Result<(ProgramId, MessageId), Error> {
+    ) -> Result<(MessageId, ProgramId), Error> {
         let program_id = packet.destination();
 
         if self.store.initialized.contains(&program_id) {
@@ -181,7 +181,7 @@ impl MessageContext {
         self.store.initialized.insert(program_id);
         self.outcome.init.push((message, delay));
 
-        Ok((program_id, message_id))
+        Ok((message_id, program_id))
     }
 
     /// Send a new program initialization message.

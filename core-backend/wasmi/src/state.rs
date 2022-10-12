@@ -23,7 +23,7 @@ use crate::funcs::FuncError;
 
 pub type HostState<E> = Option<State<E>>;
 
-pub struct State<E: Ext + IntoExtInfo + 'static> {
+pub struct State<E: Ext + IntoExtInfo<E::Error> + 'static> {
     pub ext: E,
     pub err: FuncError<E::Error>,
 }

@@ -309,7 +309,7 @@ fn weights(kind: WeightsKind, input_file: PathBuf, output_file: PathBuf) {
                     _phantom,
                     alloc,
                     gr_gas_available,
-                    gr_msg_id,
+                    gr_message_id,
                     gr_origin,
                     gr_program_id,
                     gr_source,

@@ -24,7 +24,7 @@
 //! EXECUTION: Some(Wasm), WASM-EXECUTION: Compiled, CHAIN: Some("vara-dev"), DB CACHE: 1024
 
 // Executed Command:
-// ./target/production/gear-node benchmark pallet --chain=vara-dev --steps=50 --repeat=20 --pallet=pallet_gear --extrinsic=* --execution=wasm --wasm-execution=compiled --heap-pages=4096 --output=./scripts/benchmarking/weights-output/pallet_gear.rs --template=.maintain/frame-weight-template.hbs
+// ./target/production/gear benchmark pallet --chain=vara-dev --steps=50 --repeat=20 --pallet=pallet_gear --extrinsic=* --execution=wasm --wasm-execution=compiled --heap-pages=4096 --output=./scripts/benchmarking/weights-output/pallet_gear.rs --template=.maintain/frame-weight-template.hbs
 
 #![cfg_attr(rustfmt, rustfmt_skip)]
 #![allow(unused_parens)]
@@ -52,7 +52,7 @@ pub trait WeightInfo {
     fn alloc(r: u32, ) -> Weight;
     fn gas(r: u32, ) -> Weight;
     fn gr_gas_available(r: u32, ) -> Weight;
-    fn gr_msg_id(r: u32, ) -> Weight;
+    fn gr_message_id(r: u32, ) -> Weight;
     fn gr_origin(r: u32, ) -> Weight;
     fn gr_program_id(r: u32, ) -> Weight;
     fn gr_source(r: u32, ) -> Weight;
@@ -243,7 +243,7 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
             .saturating_add(Weight::from_ref_time(59_354_801 as u64).saturating_mul(r as u64))
     }
     /// The range of component `r` is `[0, 20]`.
-    fn gr_msg_id(r: u32, ) -> Weight {
+    fn gr_message_id(r: u32, ) -> Weight {
         Weight::from_ref_time(93_327_000 as u64)
             // Standard Error: 63_649
             .saturating_add(Weight::from_ref_time(74_447_317 as u64).saturating_mul(r as u64))
@@ -846,7 +846,7 @@ impl WeightInfo for () {
             .saturating_add(Weight::from_ref_time(59_354_801 as u64).saturating_mul(r as u64))
     }
     /// The range of component `r` is `[0, 20]`.
-    fn gr_msg_id(r: u32, ) -> Weight {
+    fn gr_message_id(r: u32, ) -> Weight {
         Weight::from_ref_time(93_327_000 as u64)
             // Standard Error: 63_649
             .saturating_add(Weight::from_ref_time(74_447_317 as u64).saturating_mul(r as u64))

@@ -63,19 +63,19 @@ Gear node can run in a single Dev Net mode or you can create a Multi-Node local 
 2. Run Gear node without special arguments to get a node connected to the testnet:
 
     ```bash
-    gear-node
+    gear
     ```
 
 3. One may run a local node in development mode for testing purposes. This node will not be connected to any external network. Use `--dev` argument for running the node locally and `--tmp` for storing the state in temporary storage:
 
     ```bash
-    gear-node --dev --tmp
+    gear --dev --tmp
     ```
 
 4. Get more info about usage details, flags, available options and subcommands:
 
     ```bash
-    gear-node --help
+    gear --help
     ```
 
 ## Implement and run your own blockchain application

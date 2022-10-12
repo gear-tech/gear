@@ -2726,8 +2726,8 @@ name = "gcore"
 version = "0.1.0"
 dependencies = [
  "gear-core-errors",
- "hex-literal",
  "parity-scale-codec",
+ "static_assertions",
 ]
 
 [[package]]
@@ -2948,14 +2948,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "gear-node"
-version = "0.1.0"
-dependencies = [
- "gear-cli",
- "gear-service",
-]
-
-[[package]]
 name = "gear-node-loader"
 version = "0.1.0"
 dependencies = [
@@ -3126,10 +3118,12 @@ dependencies = [
  "gear-test",
  "junit-common",
  "log",
+ "pallet-authorship",
  "pallet-balances",
  "pallet-gear",
  "pallet-gear-debug",
  "pallet-gear-gas",
+ "pallet-gear-messenger",
  "parity-scale-codec",
  "quick-xml",
  "rayon",
@@ -3477,6 +3471,7 @@ dependencies = [
  "parity-scale-codec",
  "primitive-types",
  "scale-info",
+ "static_assertions",
 ]
 
 [[package]]
@@ -9112,9 +9107,9 @@ dependencies = [
 
 [[package]]
 name = "serde_json"
-version = "1.0.85"
+version = "1.0.86"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e55a28e3aaef9d5ce0506d0a14dbba8054ddc7e499ef522dd8b26859ec9d4a44"
+checksum = "41feea4228a6f1cd09ec7a3593a682276702cd67b5273544757dae23c096f074"
 dependencies = [
  "itoa 1.0.3",
  "ryu",

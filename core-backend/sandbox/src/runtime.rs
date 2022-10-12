@@ -4,9 +4,12 @@ use gear_backend_common::{RuntimeCtx, RuntimeCtxError};
 use gear_core::{buffer::RuntimeBuffer, env::Ext, memory::WasmPageNumber};
 
 use gear_core_errors::MemoryError;
-use sp_sandbox::{default_executor::Memory as DefaultExecutorMemory, SandboxMemory};
+use sp_sandbox::{default_executor::Memory as DefaultExecutorMemory, HostError, SandboxMemory};
 
-use crate::{funcs::FuncError, MemoryWrap};
+use crate::{
+    funcs::{FuncError, SyscallOutput, WasmCompatible},
+    MemoryWrap,
+};
 
 pub(crate) struct Runtime<'a, E: Ext> {
     pub ext: &'a mut E,
@@ -16,18 +19,15 @@ pub(crate) struct Runtime<'a, E: Ext> {
 }
 
 impl<'a, E: Ext> Runtime<'a, E> {
-    pub(crate) fn write_validated_output(
-        &mut self,
-        out_ptr: u32,
-        f: impl FnOnce(&mut E) -> Result<&[u8], FuncError<E::Error>>,
-    ) -> Result<(), FuncError<E::Error>> {
-        let buf = f(self.ext)?;
-
-        self.memory
-            .set(out_ptr, buf)
-            .map_err(|_| MemoryError::OutOfBounds)?;
-
-        Ok(())
+    pub(crate) fn run<T, F>(&mut self, f: F) -> SyscallOutput
+    where
+        T: WasmCompatible,
+        F: FnOnce(&mut Self) -> Result<T, FuncError<E::Error>>,
+    {
+        f(self).map(WasmCompatible::throw_back).map_err(|err| {
+            self.err = err;
+            HostError
+        })
     }
 }
 

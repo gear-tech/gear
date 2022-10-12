@@ -18,13 +18,19 @@
 
 #[cfg(feature = "debug")]
 pub mod ext {
+    use crate::error::{ExtError, Result};
+
     mod sys {
         extern "C" {
-            pub fn gr_debug(msg_ptr: *const u8, msg_len: u32);
+            pub fn gr_debug(data_ptr: *const u8, data_len: u32);
         }
     }
 
-    pub fn debug(s: &str) {
-        unsafe { sys::gr_debug(s.as_ptr(), s.as_bytes().len() as _) }
+    pub fn debug(data: &str) -> Result<()> {
+        let data_len = data.len().try_into().map_err(|_| ExtError::SyscallUsage)?;
+
+        unsafe { sys::gr_debug(data.as_ptr(), data_len) }
+
+        Ok(())
     }
 }
