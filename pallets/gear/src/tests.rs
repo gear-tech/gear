@@ -2890,30 +2890,33 @@ fn test_requeue_after_wait_for_timeout() {
 
         // Fast forward blocks.
         run_to_next_block(None);
+        let message_id = get_last_message_id();
         let now = System::block_number();
         System::set_block_number(duration as u64 + now - 1);
+        System::reset_events();
         run_to_next_block(None);
 
-        // Checking events.
-        let events = System::events();
-
         // `MessageWoken` dispatched.
-        assert_eq!(
-            events
-                .iter()
-                .filter(|e| matches!(e.event, MockRuntimeEvent::Gear(Event::MessageWoken { .. })))
-                .count(),
-            1
-        );
+        System::assert_has_event(MockRuntimeEvent::Gear(Event::MessageWoken {
+            id: message_id.clone(),
+            reason: Reason::Runtime(MessageWokenRuntimeReason::WakeCalled),
+        }));
 
-        // The waited for message has been requeued.
-        assert_eq!(
-            events
-                .iter()
-                .filter(|e| matches!(e.event, MockRuntimeEvent::Gear(Event::MessageWaited { .. })))
-                .count(),
-            2
-        );
+        // Message enqueued.
+        System::assert_has_event(MockRuntimeEvent::Gear(Event::MessageEnqueued {
+            id: message_id,
+            source: USER_1,
+            destination: program_id,
+            entry: Entry::Handle,
+        }));
+
+        // Message has been processed.
+        System::assert_has_event(MockRuntimeEvent::Gear(Event::MessageWaited {
+            id: message_id,
+            origin: None,
+            reason: Reason::Runtime(MessageWaitedRuntimeReason::WaitForCalled),
+            expiration: 23,
+        }));
     })
 }
 

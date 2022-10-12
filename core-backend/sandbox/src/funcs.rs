@@ -650,7 +650,7 @@ where
                 .map_err(FuncError::Core)
                 .err()
                 .unwrap_or_else(|| {
-                    FuncError::Terminated(TerminationReason::Wait(Some(duration), false))
+                    FuncError::Terminated(TerminationReason::Wait(Some(duration), true))
                 }))
         })
     }

@@ -1178,7 +1178,7 @@ where
                 let call_result = host_state.ext.wait_up_to(duration);
 
                 host_state.err = match call_result {
-                    Ok(_) => FuncError::Terminated(TerminationReason::Wait(Some(duration), false)),
+                    Ok(_) => FuncError::Terminated(TerminationReason::Wait(Some(duration), true)),
                     Err(e) => FuncError::Core(e),
                 };
 
