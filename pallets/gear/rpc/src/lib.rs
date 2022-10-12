@@ -93,7 +93,7 @@ pub trait GearApi<BlockHash, ResponseType> {
     ) -> RpcResult<GasInfo>;
 }
 
-/// A struct that implements the [`GearApi`].
+/// A struct that implements the [`GearApi`](/gclient/struct.GearApi.html).
 pub struct Gear<C, P> {
     // If you have more generics, no need to Gear<C, M, N, P, ...>
     // just use a tuple like Gear<C, (M, N, P, ...)>

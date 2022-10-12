@@ -110,18 +110,26 @@ pub struct ExtInfo {
     pub pages_data: BTreeMap<PageNumber, PageBuf>,
     pub generated_dispatches: Vec<(Dispatch, u32)>,
     pub awakening: Vec<(MessageId, u32)>,
-    pub program_candidates_data: BTreeMap<CodeId, Vec<(ProgramId, MessageId)>>,
+    pub program_candidates_data: BTreeMap<CodeId, Vec<(MessageId, ProgramId)>>,
     pub context_store: ContextStore,
 }
 
-pub trait IntoExtInfo {
+pub trait IntoExtInfo<Error> {
     fn into_ext_info(self, memory: &impl Memory) -> Result<ExtInfo, (MemoryError, GasAmount)>;
 
     fn into_gas_amount(self) -> GasAmount;
 
-    fn last_error(&self) -> Option<&ExtError>;
+    fn last_error(&self) -> Result<&ExtError, Error>;
+
+    fn last_error_encoded(&self) -> Result<Vec<u8>, Error> {
+        self.last_error().map(Encode::encode)
+    }
 
     fn trap_explanation(&self) -> Option<TrapExplanation>;
+}
+
+pub trait GetGasAmount {
+    fn gas_amount(&self) -> GasAmount;
 }
 
 #[derive(Debug, derive_more::Display, derive_more::From)]
@@ -162,9 +170,10 @@ pub trait RuntimeCtx<E: Ext> {
     fn write_output(&mut self, out_ptr: u32, buf: &[u8]) -> Result<(), RuntimeCtxError<E::Error>>;
 }
 
-pub struct BackendReport<T> {
+pub struct BackendReport<T, E> {
     pub termination_reason: TerminationReason,
     pub memory_wrap: T,
+    pub ext: E,
 }
 
 #[derive(Debug, derive_more::Display)]
@@ -178,12 +187,12 @@ pub enum StackEndError {
 // '__gear_stack_end' export is inserted in wasm-proc or wasm-builder
 pub const STACK_END_EXPORT_NAME: &str = "__gear_stack_end";
 
-pub trait Environment<E: Ext + IntoExtInfo + 'static>: Sized {
+pub trait Environment<E: Ext + IntoExtInfo<E::Error> + 'static>: Sized {
     /// Memory type for current environment.
     type Memory: Memory;
 
     /// An error issues in environment.
-    type Error: fmt::Display;
+    type Error: fmt::Display + GetGasAmount;
 
     /// 1) Instantiates wasm binary.
     /// 2) Creates wasm memory
@@ -191,13 +200,13 @@ pub trait Environment<E: Ext + IntoExtInfo + 'static>: Sized {
     /// 4) Instantiate external funcs for wasm module.
     /// 5) Run instance setup starting at `entry_point` - wasm export function name.
     fn execute<F, T>(
-        ext: &mut E,
+        ext: E,
         binary: &[u8],
         entries: BTreeSet<DispatchKind>,
         mem_size: WasmPageNumber,
         entry_point: &DispatchKind,
         pre_execution_handler: F,
-    ) -> Result<BackendReport<Self::Memory>, Self::Error>
+    ) -> Result<BackendReport<Self::Memory, E>, Self::Error>
     where
         F: FnOnce(&mut Self::Memory, Option<WasmPageNumber>) -> Result<(), T>,
         T: fmt::Display;

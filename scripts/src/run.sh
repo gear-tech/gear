@@ -13,7 +13,7 @@ run_usage() {
   Subcommands:
     help            show help message and exit
 
-    node            runs gear-node
+    node            runs gear
     purge-chain     purges gear node chain
     purge-dev-chain purges gear dev node chain
 
@@ -22,13 +22,13 @@ EOF
 
 run_node() {
   export RUST_LOG=${RUST_LOG:-"gwasm=debug,gear_core_backend=debug"}
-  cargo run -p gear-node "$@"
+  cargo run -p gear-cli "$@"
 }
 
 purge_chain() {
-  cargo run -p gear-node "$@" -- purge-chain
+  cargo run -p gear-cli "$@" -- purge-chain
 }
 
 purge_dev_chain() {
-  cargo run -p gear-node "$@" -- purge-chain --dev
+  cargo run -p gear-cli "$@" -- purge-chain --dev
 }

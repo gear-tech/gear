@@ -18,6 +18,7 @@
 
 use crate as pallet_gear;
 use crate::*;
+use common::QueueRunner;
 use frame_support::{
     construct_runtime,
     pallet_prelude::*,
@@ -42,6 +43,21 @@ pub(crate) const USER_2: AccountId = 2;
 pub(crate) const USER_3: AccountId = 3;
 pub(crate) const LOW_BALANCE_USER: AccountId = 4;
 pub(crate) const BLOCK_AUTHOR: AccountId = 255;
+
+macro_rules! dry_run {
+    (
+        $weight:ident,
+        $initial_weight:expr
+    ) => {
+        GasAllowanceOf::<Test>::put($initial_weight);
+
+        let mut ext_manager = Default::default();
+        pallet_gear::Pallet::<Test>::process_tasks(&mut ext_manager);
+        pallet_gear::Pallet::<Test>::process_queue(ext_manager);
+
+        let $weight = $initial_weight.saturating_sub(GasAllowanceOf::<Test>::get());
+    };
+}
 
 // Configure a mock runtime to test the pallet.
 construct_runtime!(
@@ -140,6 +156,7 @@ impl pallet_gear::Config for Test {
     type GasProvider = GearGas;
     type BlockLimiter = GearGas;
     type Scheduler = GearScheduler;
+    type QueueRunner = Gear;
 }
 
 impl pallet_gear_scheduler::Config for Test {
@@ -211,10 +228,8 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
 
 pub fn get_min_weight() -> Weight {
     new_test_ext().execute_with(|| {
-        Gear::on_idle(
-            System::block_number(),
-            Weight::from_ref_time(BlockGasLimitOf::<Test>::get()),
-        )
+        dry_run!(weight, BlockGasLimitOf::<Test>::get());
+        Weight::from_ref_time(weight)
     })
 }
 
@@ -224,10 +239,7 @@ pub fn get_weight_of_adding_task() -> Weight {
     new_test_ext().execute_with(|| {
         let gas_allowance = GasAllowanceOf::<Test>::get();
 
-        Gear::on_idle(
-            System::block_number(),
-            Weight::from_ref_time(BlockGasLimitOf::<Test>::get()),
-        );
+        dry_run!(_weight, BlockGasLimitOf::<Test>::get());
 
         TaskPoolOf::<Test>::add(
             100,
@@ -249,17 +261,14 @@ pub fn run_to_block(n: u64, remaining_weight: Option<u64>) {
         Gear::on_initialize(System::block_number());
 
         let remaining_weight = remaining_weight.unwrap_or(BlockGasLimitOf::<Test>::get());
-
         log::debug!(
-            "🧱 Running on_idle block #{} with weight {}",
+            "🧱 Running run #{} with weight {}",
             System::block_number(),
             remaining_weight
         );
 
-        Gear::on_idle(
-            System::block_number(),
-            Weight::from_ref_time(remaining_weight),
-        );
+        Gear::run_queue(remaining_weight);
+        Gear::on_finalize(System::block_number());
     }
 }
 

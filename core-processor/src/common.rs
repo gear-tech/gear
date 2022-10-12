@@ -65,7 +65,7 @@ pub struct DispatchResult {
     /// List of messages that should be woken.
     pub awakening: Vec<(MessageId, u32)>,
     /// New programs to be created with additional data (corresponding code hash and init message id).
-    pub program_candidates: BTreeMap<CodeId, Vec<(ProgramId, MessageId)>>,
+    pub program_candidates: BTreeMap<CodeId, Vec<(MessageId, ProgramId)>>,
     /// Gas amount after execution.
     pub gas_amount: GasAmount,
     /// Page updates.
@@ -241,9 +241,9 @@ pub enum JournalNote {
     /// Store programs requested by user to be initialized later
     StoreNewPrograms {
         /// Code hash used to create new programs with ids in `candidates` field
-        code_hash: CodeId,
+        code_id: CodeId,
         /// Collection of program candidate ids and their init message ids.
-        candidates: Vec<(ProgramId, MessageId)>,
+        candidates: Vec<(MessageId, ProgramId)>,
     },
     /// Stop processing queue.
     StopProcessing {
@@ -301,7 +301,7 @@ pub trait JournalHandler {
     /// Store new programs in storage.
     ///
     /// Program ids are ids of _potential_ (planned to be initialized) programs.
-    fn store_new_programs(&mut self, code_hash: CodeId, candidates: Vec<(ProgramId, MessageId)>);
+    fn store_new_programs(&mut self, code_id: CodeId, candidates: Vec<(MessageId, ProgramId)>);
     /// Stop processing queue.
     ///
     /// Pushes StoredDispatch back to the top of the queue and decreases gas allowance.
@@ -364,9 +364,6 @@ pub enum ExecutionErrorReason {
     /// Page with data is not allocated for program
     #[display(fmt = "{:?} is not allocated for program", _0)]
     PageIsNotAllocated(PageNumber),
-    /// Lazy pages init failed for current program.
-    #[display(fmt = "Cannot init lazy pages for program: {}", _0)]
-    LazyPagesInitFailed(String),
     /// Cannot read initial memory data from wasm memory.
     #[display(fmt = "Cannot read data for {:?}: {}", _0, _1)]
     InitialMemoryReadFailed(PageNumber, MemoryError),

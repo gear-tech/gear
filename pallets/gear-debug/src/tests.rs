@@ -20,9 +20,11 @@ use super::*;
 use crate::mock::*;
 use common::{self, Origin as _};
 use frame_support::assert_ok;
+#[cfg(feature = "lazy-pages")]
+use gear_core::memory::{PageNumber, PAGE_STORAGE_GRANULARITY as PSG};
 use gear_core::{
     ids::{CodeId, MessageId, ProgramId},
-    memory::{PageBuf, PageNumber, WasmPageNumber, PAGE_STORAGE_GRANULARITY as PSG},
+    memory::{PageBuf, WasmPageNumber},
     message::{DispatchKind, StoredDispatch, StoredMessage},
 };
 use pallet_gear::{DebugInfo, Pallet as PalletGear};
@@ -282,7 +284,7 @@ fn get_last_message_id() -> MessageId {
 
 #[cfg(feature = "lazy-pages")]
 fn append_rest_psg_pages(page: PageNumber, pages_data: &mut BTreeMap<PageNumber, Vec<u8>>) {
-    let first_in_psg = PageNumber::new_from_addr((page.offset() as usize / PSG) * PSG);
+    let first_in_psg = PageNumber::new_from_addr((page.offset() / PSG) * PSG);
     (0..(PSG / PageNumber::size()) as u32)
         .map(|idx| first_in_psg + idx.into())
         .filter(|p| *p != page)
@@ -811,6 +813,12 @@ fn check_gear_stack_end() {
 
         persistent_pages.insert(gear_page2, page_data.clone());
         persistent_pages.insert(gear_page3, page_data);
+
+        #[cfg(feature = "lazy-pages")]
+        log::debug!("LAZY-PAGES IS ON");
+
+        #[cfg(not(feature = "lazy-pages"))]
+        log::debug!("LAZY-PAGES IS OFF");
 
         #[cfg(feature = "lazy-pages")]
         [gear_page2, gear_page3]

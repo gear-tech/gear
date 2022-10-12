@@ -71,6 +71,10 @@ node:
 node-release:
 	@ ./scripts/gear.sh build node --release
 
+.PHONY: node-release-rtest
+node-release-rtest:
+	@ ./scripts/gear.sh build node --release --no-default-features --features=gear-native,lazy-pages,program-cli,runtime-test
+
 .PHONY: vara
 vara:
 	@ ./scripts/gear.sh build node --no-default-features --features=vara-native,lazy-pages
@@ -78,6 +82,10 @@ vara:
 .PHONY: vara-release
 vara-release:
 	@ ./scripts/gear.sh build node --release --no-default-features --features=vara-native,lazy-pages
+
+.PHONY: vara-release-rtest
+vara-release-rtest:
+	@ ./scripts/gear.sh build node --release --no-default-features --features=runtime-test,vara-native,lazy-pages
 
 # Check section
 .PHONY: check
@@ -214,8 +222,10 @@ test: test-gear test-js gtest # There should be no release builds (e.g. `rtest`)
 test-release: test-gear-release test-js gtest rtest test-runtime-upgrade
 
 .PHONY: test-gear
-test-gear: init-js examples
-	@ ./scripts/gear.sh test gear --exclude gclient
+test-gear: init-js examples # \
+	We use lazy-pages feature for pallet-gear-debug due to cargo building issue \
+	and fact that pallet-gear default is lazy-pages.
+	@ ./scripts/gear.sh test gear --exclude gclient --features pallet-gear-debug/lazy-pages
 
 .PHONY: test-gear-release
 test-gear-release: init-js examples
@@ -230,12 +240,12 @@ gtest: init-js gear-test-release examples
 	@ ./scripts/gear.sh test gtest yamls="$(yamls)"
 
 .PHONY: rtest
-rtest: init-js node-release examples
-	@ ./scripts/gear.sh test rtest yamls="$(yamls)"
+rtest: init-js node-release-rtest examples
+	@ ./scripts/gear.sh test rtest gear yamls="$(yamls)"
 
 .PHONY: rtest-vara
-rtest-vara: init-js vara-release examples
-	@ ./scripts/gear.sh test rtest yamls="$(yamls)"
+rtest-vara: init-js vara-release-rtest examples
+	@ ./scripts/gear.sh test rtest vara yamls="$(yamls)"
 
 .PHONY: test-pallet
 test-pallet:
@@ -257,9 +267,11 @@ test-client: node-release examples wat-examples
 .PHONY: doc
 doc:
 	@ RUSTDOCFLAGS="--enable-index-page -Zunstable-options" cargo +nightly doc --no-deps \
-		-p galloc -p gcore -p gear-backend-common -p gear-backend-sandbox \
+		-p galloc -p gclient -p gcore -p gear-backend-common -p gear-backend-sandbox \
 		-p gear-core -p gear-core-processor -p gear-lazy-pages -p gear-core-errors \
-		-p gstd -p gtest -p gear-wasm-builder -p gear-common
+		-p gstd -p gtest -p gear-wasm-builder -p gear-common \
+		-p pallet-gear -p pallet-gear-gas -p pallet-gear-messenger -p pallet-gear-payment \
+		-p pallet-gear-program -p pallet-gear-rpc -p pallet-gear-scheduler
 	@ cp -f images/logo.svg target/doc/rust-logo.svg
 
 .PHONY: fuzz
@@ -272,4 +284,4 @@ fuzz-vara:
 
 .PHONY: kill
 kill:
-	@ pgrep -f "gear-node" | xargs kill -9
+	@ pkill -f 'gear |gear$' -9

@@ -168,7 +168,10 @@ pub fn prepare(
 }
 
 /// Process program & dispatch for it and return journal for updates.
-pub fn process<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environment<A>>(
+pub fn process<
+    A: ProcessorExt + EnvExt + IntoExtInfo<<A as EnvExt>::Error> + 'static,
+    E: Environment<A>,
+>(
     block_config: &BlockConfig,
     execution_context: Box<PreparedMessageExecutionContext>,
     memory_pages: BTreeMap<PageNumber, PageBuf>,
@@ -391,9 +394,9 @@ fn process_success(
     }
 
     // Must be handled before handling generated dispatches.
-    for (code_hash, candidates) in program_candidates {
+    for (code_id, candidates) in program_candidates {
         journal.push(JournalNote::StoreNewPrograms {
-            code_hash,
+            code_id,
             candidates,
         });
     }

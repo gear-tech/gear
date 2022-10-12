@@ -33,7 +33,7 @@ unsafe extern "C" fn init() {}
 
 #[no_mangle]
 unsafe extern "C" fn handle_signal() {
-    assert_eq!(msg::exit_code(), 0xBEEF);
+    assert_eq!(msg::exit_code().unwrap(), 0xBEEF);
 }
 
 #[cfg(test)]
