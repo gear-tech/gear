@@ -1141,7 +1141,7 @@ where
                 .wait()
                 .map_err(FuncError::Core)
                 .err()
-                .unwrap_or(FuncError::Terminated(TerminationReason::Wait(None, false)));
+                .unwrap_or_else(|| FuncError::Terminated(TerminationReason::Wait(None, false)));
             host_state.err = err;
 
             Err(TrapCode::Unreachable.into())
