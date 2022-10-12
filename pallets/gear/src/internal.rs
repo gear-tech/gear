@@ -370,6 +370,18 @@ where
                 )
                 .unwrap_or_else(|e| unreachable!("Scheduling logic invalidated! {:?}", e));
             }
+            MessageWaitedReason::Runtime(MessageWaitedRuntimeReason::WaitUpToFull) => {
+                if !TaskPoolOf::<T>::contains(
+                    hold.expected(),
+                    ScheduledTask::WakeMessage(dispatch.destination(), dispatch.id()),
+                ) {
+                    TaskPoolOf::<T>::add(
+                        hold.expected(),
+                        ScheduledTask::WakeMessage(dispatch.destination(), dispatch.id()),
+                    )
+                    .unwrap_or_else(|e| unreachable!("Scheduling logic invalidated! {:?}", e));
+                }
+            }
             _ => {
                 TaskPoolOf::<T>::add(
                     hold.expected(),
