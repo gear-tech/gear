@@ -177,7 +177,7 @@ to the `setCode` function. Click the "code" input field, and select one of the W
 ```bash
 target/release/wbuild/gear-runtime/gear_runtime.compact.wasm
 ```
-Leave the value for the `_weight` parameter at the default of `0`. Click "Submit Transaction" and then "Sign and Submit".
+Leave the value for the `_weight` parameter at the default of `0x00`. Click "Submit Transaction" and then "Sign and Submit".
 
 <img src="../images/sudo-upgrade.png" alt="upgrade settings" style="width:100%;">
 
