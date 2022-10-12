@@ -24,8 +24,10 @@ use crate::{
         RuntimeEvent as MockRuntimeEvent, RuntimeOrigin, System, Test, BLOCK_AUTHOR,
         LOW_BALANCE_USER, USER_1, USER_2, USER_3,
     },
-    pallet, BlockGasLimitOf, Config, CostsPerBlockOf, Error, Event, GasAllowanceOf, GasHandlerOf,
-    GasInfo, MailboxOf, WaitlistOf,
+    pallet,
+    schedule::StaticHostFnWeights,
+    BlockGasLimitOf, Config, CostsPerBlockOf, Error, Event, GasAllowanceOf, GasHandlerOf, GasInfo,
+    MailboxOf, WaitlistOf,
 };
 use codec::{Decode, Encode};
 use common::{
@@ -48,6 +50,7 @@ use frame_system::{pallet_prelude::BlockNumberFor, Pallet as SystemPallet};
 use gear_backend_common::{StackEndError, TrapExplanation};
 use gear_core::{
     code::{self, Code},
+    costs::StaticConsts,
     ids::{CodeId, MessageId, ProgramId},
 };
 use gear_core_errors::*;
@@ -2883,7 +2886,7 @@ fn test_message_processing_for_non_existing_destination() {
 
         assert_not_executed(skipped_message_id);
 
-        assert_eq!(user_balance_before, Balances::free_balance(USER_1));
+        assert!(user_balance_before <= Balances::free_balance(USER_1));
 
         assert!(!Gear::is_active(program_id));
         assert!(<Test as Config>::CodeStorage::exists(code_hash));
@@ -2972,12 +2975,26 @@ fn terminated_locking_funds() {
 
         assert!(init_waited);
 
-        assert_ok!(Gear::upload_program(
+        assert_ok!(Gear::upload_code(
             RuntimeOrigin::signed(USER_1),
             WASM_BINARY.to_vec(),
+        ));
+
+        let code_id = get_last_code_id();
+        let code = <Test as Config>::CodeStorage::get_code(code_id)
+            .expect("code should be in the storage");
+        let code_length = code.code().len();
+        let static_weights = StaticHostFnWeights::<Test>::default().into_core();
+        let module_instantiation =
+            StaticConsts::ModuleInstantiation { len: code_length }.weight(&static_weights);
+
+        assert_ok!(Gear::create_program(
+            RuntimeOrigin::signed(USER_1),
+            code_id,
             DEFAULT_SALT.to_vec(),
             USER_3.into_origin().encode(),
-            gas_spent_init,
+            // additional gas for loading resources on next wake up
+            gas_spent_init + module_instantiation,
             5_000u128
         ));
 
