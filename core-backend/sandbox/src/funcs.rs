@@ -652,7 +652,7 @@ where
                 .err()
                 .unwrap_or(FuncError::Terminated(TerminationReason::Wait(
                     Some(duration),
-                    true,
+                    false,
                 ))))
         })
     }
