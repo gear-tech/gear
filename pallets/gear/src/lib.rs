@@ -930,11 +930,8 @@ pub mod pallet {
                                 Some(m) => m,
                             };
 
-                            let code = match Self::get_code(context.actor_data().code_id, actor_id)
-                            {
-                                None => continue,
-                                Some(c) => c,
-                            };
+                            let code = Self::get_code(context.actor_data().code_id, actor_id)
+                                .unwrap_or_else(|| unreachable!("Program exists so do code"));
 
                             may_be_returned += may_be_returned_context
                                 .map(|c| {
@@ -1367,13 +1364,8 @@ pub mod pallet {
                                     Some(m) => m,
                                 };
 
-                                let code = match Self::get_code(
-                                    context.actor_data().code_id,
-                                    program_id,
-                                ) {
-                                    None => continue,
-                                    Some(c) => c,
-                                };
+                                let code = Self::get_code(context.actor_data().code_id, program_id)
+                                    .unwrap_or_else(|| unreachable!("Program exists so do code"));
 
                                 core_processor::process::<Ext, ExecutionEnvironment>(
                                     &block_config,
