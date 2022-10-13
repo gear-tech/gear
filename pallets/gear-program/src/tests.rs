@@ -38,7 +38,7 @@ const CODE: &[u8] = &hex!("0061736d01000000010401600000020f0103656e76066d656d6f7
 #[test]
 fn pause_program_works() {
     new_test_ext().execute_with(|| {
-        let code = Code::try_new(CODE.to_vec(), 1, |_| ConstantCostRules::default())
+        let code = Code::try_new(CODE.to_vec(), 1, |_| ConstantCostRules::default(), None)
             .expect("Error creating Code");
 
         let code_and_id = CodeAndId::new(code);
@@ -136,7 +136,7 @@ fn pause_program_works() {
 #[test]
 fn pause_program_twice_fails() {
     new_test_ext().execute_with(|| {
-        let code = Code::try_new(CODE.to_vec(), 1, |_| ConstantCostRules::default())
+        let code = Code::try_new(CODE.to_vec(), 1, |_| ConstantCostRules::default(), None)
             .expect("Error creating Code");
 
         let code_and_id = CodeAndId::new(code);
@@ -169,7 +169,7 @@ fn pause_program_twice_fails() {
 #[test]
 fn pause_terminated_program_fails() {
     new_test_ext().execute_with(|| {
-        let code = Code::try_new(CODE.to_vec(), 1, |_| ConstantCostRules::default())
+        let code = Code::try_new(CODE.to_vec(), 1, |_| ConstantCostRules::default(), None)
             .expect("Error creating Code");
 
         let code_and_id = CodeAndId::new(code);
@@ -447,7 +447,7 @@ mod utils {
     pub fn create_uninitialized_program_messages(
         wasm_static_pages: WasmPageNumber,
     ) -> CreateProgramResult {
-        let code = Code::try_new(CODE.to_vec(), 1, |_| ConstantCostRules::default())
+        let code = Code::try_new(CODE.to_vec(), 1, |_| ConstantCostRules::default(), None)
             .expect("Error creating Code");
 
         let code_and_id = CodeAndId::new(code);

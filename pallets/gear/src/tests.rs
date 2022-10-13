@@ -2190,9 +2190,12 @@ fn test_code_submission_pass() {
         let saved_code = <Test as Config>::CodeStorage::get_code(code_id);
 
         let schedule = <Test as Config>::Schedule::get();
-        let code = Code::try_new(code, schedule.instruction_weights.version, |module| {
-            schedule.rules(module)
-        })
+        let code = Code::try_new(
+            code,
+            schedule.instruction_weights.version,
+            |module| schedule.rules(module),
+            schedule.limits.stack_height,
+        )
         .expect("Error creating Code");
         assert_eq!(saved_code.unwrap().code(), code.code());
 
@@ -3144,9 +3147,12 @@ fn test_create_program_works() {
 
         // Parse wasm code.
         let schedule = <Test as Config>::Schedule::get();
-        let code = Code::try_new(code, schedule.instruction_weights.version, |module| {
-            schedule.rules(module)
-        })
+        let code = Code::try_new(
+            code,
+            schedule.instruction_weights.version,
+            |module| schedule.rules(module),
+            schedule.limits.stack_height,
+        )
         .expect("Code failed to load");
 
         let code_id = CodeId::generate(code.raw_code());
@@ -5672,6 +5678,7 @@ fn test_mad_big_prog_instrumentation() {
             code_bytes,
             schedule.instruction_weights.version,
             |module| schedule.rules(module),
+            schedule.limits.stack_height,
         );
         // In any case of the defined weights on the platform, instrumentation of the valid
         // huge wasm mustn't fail
