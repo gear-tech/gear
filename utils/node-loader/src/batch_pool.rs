@@ -25,10 +25,6 @@ mod report;
 
 type Seed = u64;
 
-/* TODO
-1. Fix grishasobol's case and case discussed with breathx
-*/
-
 pub struct BatchPool<Rng: LoaderRng> {
     api_producer: GearApiProducer,
     pool_size: usize,
