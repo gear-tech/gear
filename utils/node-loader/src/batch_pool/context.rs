@@ -9,7 +9,7 @@ pub struct ContextUpdate {
     codes: BTreeSet<CodeId>,
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Clone, Default)]
 pub struct Context {
     pub programs: BTreeSet<ProgramId>,
     pub codes: BTreeSet<CodeId>,

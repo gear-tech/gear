@@ -5,7 +5,6 @@ use crate::{
     utils::LoaderRng,
 };
 
-#[derive(Debug)]
 pub struct UploadCodeArgs(pub Vec<u8>);
 
 impl From<UploadCodeArgs> for Vec<u8> {

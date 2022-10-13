@@ -9,7 +9,6 @@ use crate::{
 
 pub type CreateProgramArgsInner = (CodeId, Vec<u8>, Vec<u8>, u64, u128);
 
-#[derive(Debug)]
 pub struct CreateProgramArgs(pub CreateProgramArgsInner);
 
 impl From<CreateProgramArgs> for CreateProgramArgsInner {

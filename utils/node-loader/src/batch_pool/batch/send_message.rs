@@ -8,7 +8,6 @@ use gear_core::ids::ProgramId;
 
 pub type SendMessageArgsInner = (ProgramId, Vec<u8>, u64, u128);
 
-#[derive(Debug)]
 pub struct SendMessageArgs(pub SendMessageArgsInner);
 
 impl From<SendMessageArgs> for SendMessageArgsInner {
