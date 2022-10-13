@@ -33,12 +33,12 @@ use self::{
     sandbox::Sandbox,
 };
 use crate::{
-    manager::{ExtManager, HandleKind},
+    manager::{CodeInfo, ExtManager, HandleKind},
     pallet,
     schedule::{API_BENCHMARK_BATCH_SIZE, INSTR_BENCHMARK_BATCH_SIZE},
-    BTreeMap, BalanceOf, BlockGasLimitOf, Call, Config, CostsPerBlockOf, CurrencyOf,
+    BTreeMap, BalanceOf, BlockGasLimitOf, Call, Config, CostsPerBlockOf, CurrencyOf, DbWeightOf,
     ExecutionEnvironment, Ext as Externalities, GasHandlerOf, MailboxOf, Pallet as Gear, Pallet,
-    QueueOf, Schedule, WaitlistOf,
+    QueueOf, ReadPerByteCostOf, Schedule, WaitlistOf,
 };
 use codec::Encode;
 use common::{
@@ -47,7 +47,7 @@ use common::{
 };
 use core_processor::{
     configs::{AllocationsConfig, BlockConfig, BlockInfo, MessageExecutionContext},
-    PrepareResult, PreparedMessageExecutionContext,
+    PrechargeResult, PrepareResult, ProcessExecutionContext,
 };
 use frame_benchmarking::{benchmarks, whitelisted_caller};
 use frame_support::traits::{Currency, Get, Hooks, ReservableCurrency};
@@ -181,7 +181,7 @@ fn caller_funding<T: pallet::Config>() -> BalanceOf<T> {
 struct Exec<T: Config> {
     ext_manager: ExtManager<T>,
     block_config: BlockConfig,
-    context: Box<PreparedMessageExecutionContext>,
+    context: ProcessExecutionContext,
     memory_pages: BTreeMap<PageNumber, PageBuf>,
 }
 
@@ -215,11 +215,11 @@ where
             .map_err(|_| "Code failed to load")?;
 
             let code_and_id = CodeAndId::new(code);
-            let code_id = code_and_id.code_id();
+            let code_info = CodeInfo::from_code_and_id(&code_and_id);
 
             let _ = Gear::<T>::set_code_with_metadata(code_and_id, source);
 
-            ExtManager::<T>::default().set_program(program_id, code_id, root_message_id);
+            ExtManager::<T>::default().set_program(program_id, &code_info, root_message_id);
 
             Dispatch::new(
                 DispatchKind::Init,
@@ -237,11 +237,10 @@ where
         HandleKind::InitByHash(code_id) => {
             let program_id = ProgramId::generate(code_id, b"bench_salt");
 
-            if !T::CodeStorage::exists(code_id) {
-                return Err("Code not found in storage");
-            }
+            let code = T::CodeStorage::get_code(code_id).ok_or("Code not found in storage")?;
+            let code_info = CodeInfo::from_code(&code_id, &code);
 
-            ExtManager::<T>::default().set_program(program_id, code_id, root_message_id);
+            ExtManager::<T>::default().set_program(program_id, &code_info, root_message_id);
 
             Dispatch::new(
                 DispatchKind::Init,
@@ -324,6 +323,8 @@ where
         mailbox_threshold,
         waitlist_cost,
         reserve_for,
+        read_cost: DbWeightOf::<T>::get().reads(1).ref_time(),
+        per_byte_cost: ReadPerByteCostOf::<T>::get(),
     };
 
     if let Some(queued_dispatch) = QueueOf::<T>::dequeue().map_err(|_| "MQ storage corrupted")? {
@@ -332,23 +333,40 @@ where
             .get_actor(actor_id)
             .ok_or("Program not found in the storage")?;
 
+        let precharged_dispatch = match core_processor::precharge(
+            &block_config,
+            u64::MAX,
+            queued_dispatch.into_incoming(initial_gas),
+            actor_id,
+        ) {
+            PrechargeResult::Ok(d) => d,
+            PrechargeResult::Error(_) => {
+                return Err("core_processor::precharge failed");
+            }
+        };
+
         let message_execution_context = MessageExecutionContext {
             actor,
-            dispatch: queued_dispatch.into_incoming(initial_gas),
+            precharged_dispatch,
             origin: ProgramId::from_origin(source),
-            gas_allowance: u64::MAX,
             subsequent_execution: false,
         };
 
-        let context = match core_processor::prepare(&block_config, message_execution_context) {
-            PrepareResult::Ok { context, .. } => context,
-            _ => return Err("core_processor::prepare failed"),
-        };
+        let (context, code) =
+            match core_processor::prepare(&block_config, message_execution_context) {
+                PrepareResult::Ok(context) => {
+                    let code = T::CodeStorage::get_code(context.actor_data().code_id)
+                        .ok_or("Program code not found")?;
+
+                    (context, code)
+                }
+                _ => return Err("core_processor::prepare failed"),
+            };
 
         Ok(Exec {
             ext_manager,
             block_config,
-            context,
+            context: (context, actor_id, code).into(),
             // actor without pages data because of lazy pages enabled
             memory_pages: Default::default(),
         })
