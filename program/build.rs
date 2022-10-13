@@ -1,4 +1,6 @@
 //! build script for gear-program cli
+use frame_metadata::RuntimeMetadataPrefixed;
+use parity_scale_codec::Decode;
 use std::{
     env, fs,
     io::Write,
@@ -37,7 +39,11 @@ mod runtime {
 
 /// Generate api
 fn codegen(raw_derives: Vec<String>) -> String {
-    let metadata = runtime::metadata();
+    let encoded = runtime::metadata();
+    let metadata = <RuntimeMetadataPrefixed as Decode>::decode(&mut encoded.as_ref())
+        .expect("decode metadata failed");
+
+    // Construct generator.
     let generator = subxt_codegen::RuntimeGenerator::new(metadata);
     let item_mod = syn::parse_quote!(
         pub mod api {}
