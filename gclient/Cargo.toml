@@ -18,5 +18,10 @@ futures-timer = "3.0.2"
 async-trait = "0.1.57"
 wabt = "0.10.0"
 
+[features]
+default = [ "gear" ]
+gear = [ "gear-program/gear" ]
+vara = [ "gear-program/vara" ]
+
 [dev-dependencies]
 tokio = { version = "1.21.2", features = ["full"] }
