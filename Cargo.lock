@@ -2994,6 +2994,7 @@ dependencies = [
  "nacl",
  "parity-scale-codec",
  "parity-wasm 0.45.0",
+ "parking_lot 0.12.1",
  "rand 0.8.5",
  "scale-info",
  "schnorrkel",

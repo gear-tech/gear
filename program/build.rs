@@ -1,6 +1,6 @@
 //! build script for gear-program cli
 use frame_metadata::RuntimeMetadataPrefixed;
-use parity_scale_codec::Decode;
+use parity_scale_codec::{Decode, Encode};
 use std::{
     env, fs,
     io::Write,
@@ -16,49 +16,7 @@ const GENERATED_TITLE: &str = r#"
 #![allow(clippy::all, missing_docs)]
 "#;
 
-mod runtime {
-    #[cfg(any(feature = "gear", feature = "vara"))]
-    use parity_scale_codec::Encode;
-
-    #[cfg(all(feature = "vara", not(feature = "gear")))]
-    pub fn metadata() -> Vec<u8> {
-        vara_runtime::Runtime::metadata().encode()
-    }
-
-    #[cfg(feature = "gear")]
-    pub fn metadata() -> Vec<u8> {
-        gear_runtime::Runtime::metadata().encode()
-    }
-
-    #[cfg(not(any(feature = "gear", feature = "vara")))]
-    pub fn metadata() -> Vec<u8> {
-        // Skip codegen.
-        std::process::exit(0);
-    }
-}
-
-/// Generate api
-fn codegen(raw_derives: Vec<String>) -> String {
-    let encoded = runtime::metadata();
-    let metadata = <RuntimeMetadataPrefixed as Decode>::decode(&mut encoded.as_ref())
-        .expect("decode metadata failed");
-
-    // Construct generator.
-    let generator = subxt_codegen::RuntimeGenerator::new(metadata);
-    let item_mod = syn::parse_quote!(
-        pub mod api {}
-    );
-    let p = raw_derives
-        .iter()
-        .map(|raw| syn::parse_str(raw))
-        .collect::<Result<Vec<_>, _>>()
-        .expect("parse derives failed");
-    let mut derives = DerivesRegistry::default();
-    derives.extend_for_all(p.into_iter());
-
-    // Genreate code.
-    generator.generate_runtime(item_mod, derives).to_string()
-}
+const METADATA_PATH: &str = "/src/api/generated/metadata.rs";
 
 /// Check if gear exists
 fn check_node() -> bool {
@@ -67,9 +25,25 @@ fn check_node() -> bool {
     node.exists()
 }
 
-/// Update runtime api
-fn update_api() {
-    let api = codegen(vec![]);
+/// Generate api
+fn codegen(metadata: &[u8]) -> String {
+    let metadata = <RuntimeMetadataPrefixed as Decode>::decode(&mut metadata.as_ref())
+        .expect("decode metadata failed");
+
+    // Construct generator.
+    let generator = subxt_codegen::RuntimeGenerator::new(metadata);
+    let item_mod = syn::parse_quote!(
+        pub mod api {}
+    );
+
+    // Genreate code.
+    generator
+        .generate_runtime(item_mod, DerivesRegistry::default())
+        .to_string()
+}
+
+/// Write API to disk
+fn write_api(api: &str, path: &str) {
     let manifest = env!("CARGO_MANIFEST_DIR");
 
     // format generated code
@@ -87,12 +61,34 @@ fn update_api() {
 
     // write api to disk
     fs::write(
-        &[manifest, "/src/api/generated/metadata.rs"].concat(),
+        &[manifest, path].concat(),
         GENERATED_TITLE.to_owned().trim().to_owned()
             + "\n"
             + &String::from_utf8_lossy(&output.stdout),
     )
-    .expect("update api failed");
+    .expect("write api failed");
+}
+
+/// Update runtime api
+fn update_api() {
+    #[cfg(any(
+        all(feature = "gear", not(feature = "vara")),
+        all(feature = "gear", feature = "vara")
+    ))]
+    {
+        write_api(
+            &codegen(&gear_runtime::Runtime::metadata().encode()),
+            METADATA_PATH,
+        );
+    }
+
+    #[cfg(all(feature = "vara", not(feature = "gear")))]
+    {
+        write_api(
+            &codegen(&vara_runtime::Runtime::metadata().encode()),
+            METADATA_PATH,
+        );
+    }
 
     // # NOTE
     //

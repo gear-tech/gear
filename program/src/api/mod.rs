@@ -4,10 +4,12 @@ use crate::{
     result::Result,
 };
 use core::ops::{Deref, DerefMut};
-use std::{str::FromStr, time::Duration};
+use events::Events;
+use parking_lot::RwLock;
+use std::{str::FromStr, sync::Arc, time::Duration};
 use subxt::{
     rpc::{RpcClientBuilder, Uri, WsTransportClientBuilder},
-    ClientBuilder, PolkadotExtrinsicParams,
+    ClientBuilder, Metadata, PolkadotExtrinsicParams,
 };
 
 pub mod config;
@@ -23,7 +25,12 @@ const DEFAULT_GEAR_ENDPOINT: &str = "wss://rpc-node.gear-tech.io:443";
 
 /// gear api
 #[derive(Clone)]
-pub struct Api(RuntimeApi<GearConfig, PolkadotExtrinsicParams<GearConfig>>);
+pub struct Api {
+    // # NOTE
+    //
+    // Reserved this field to adapt both gear and vara.
+    gear: RuntimeApi<GearConfig, PolkadotExtrinsicParams<GearConfig>>,
+}
 
 impl Api {
     /// Build runtime api
@@ -49,10 +56,12 @@ impl Api {
         let rpc = RpcClientBuilder::default().build_with_tokio(tx, rx);
         let builder = ClientBuilder::new().set_client(rpc);
 
-        Ok(Self(builder.build().await?.to_runtime_api::<RuntimeApi<
-            GearConfig,
-            PolkadotExtrinsicParams<GearConfig>,
-        >>()))
+        Ok(Self {
+            gear: builder
+                .build()
+                .await?
+                .to_runtime_api::<RuntimeApi<GearConfig, PolkadotExtrinsicParams<GearConfig>>>(),
+        })
     }
 
     /// New signer from api
@@ -64,18 +73,28 @@ impl Api {
     pub fn try_signer(self, passwd: Option<&str>) -> Result<Signer> {
         Signer::try_new(self, passwd)
     }
+
+    /// Subscribe all events
+    pub async fn events(&self) -> Result<Events<'_>> {
+        Ok(self.gear.events().subscribe().await?)
+    }
+
+    /// Get metadata from client
+    pub fn metadata(&self) -> Arc<RwLock<Metadata>> {
+        self.gear.client.metadata()
+    }
 }
 
 impl Deref for Api {
     type Target = RuntimeApi<GearConfig, PolkadotExtrinsicParams<GearConfig>>;
 
     fn deref(&self) -> &Self::Target {
-        &self.0
+        &self.gear
     }
 }
 
 impl DerefMut for Api {
     fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.0
+        &mut self.gear
     }
 }
