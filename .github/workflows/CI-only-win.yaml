@@ -1,0 +1,247 @@
+name: CI
+
+on:
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+  TERM: xterm-256color
+  NIGHTLY_TOOLCHAIN_VERSION: ${{ secrets.NIGHTLY_TOOLCHAIN_VERSION }}
+
+jobs:
+  spec_version:
+    runs-on: [self-hosted, cachepot, epyc]
+    steps:
+      - name: Cancel Previous Runs
+        if: ${{ github.event_name == 'pull_request' }}
+        uses: styfle/cancel-workflow-action@0.9.1
+        with:
+          access_token: ${{ github.token }}
+
+      - name: "ACTIONS: Checkout"
+        uses: actions/checkout@v3
+
+      - name: "Fetch origin"
+        run: git fetch origin
+
+      - name: "Check spec version"
+        if: ${{ ! contains(github.event.pull_request.labels.*.name, 'A4-insubstantial') }}
+        run: ./scripts/check-spec.sh
+
+  check:
+    needs: spec_version
+    runs-on: [self-hosted, cachepot, epyc]
+    env:
+      RUSTUP_HOME: /tmp/rustup_home
+    steps:
+      - name: Cancel Previous Runs
+        if: ${{ github.event_name == 'pull_request' }}
+        uses: styfle/cancel-workflow-action@0.9.1
+        with:
+          access_token: ${{ github.token }}
+
+      - name: "ACTIONS: Checkout"
+        uses: actions/checkout@v3
+
+      - name: "Install: Set cargo path"
+        run: echo "/tmp/cargo/bin" >> $GITHUB_PATH
+
+      - name: "Install: Nightly toolchain"
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: nightly
+          components: clippy, rustfmt
+          target: wasm32-unknown-unknown
+
+      - name: "Install: Show specific nightly version"
+        if: ${{ env.NIGHTLY_TOOLCHAIN_VERSION != '' }}
+        run: echo $NIGHTLY_TOOLCHAIN_VERSION | sed 's/-/ - /g'
+
+      - name: "Install: Specific nightly toolchain"
+        if: ${{ env.NIGHTLY_TOOLCHAIN_VERSION != '' }}
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: nightly-${{ env.NIGHTLY_TOOLCHAIN_VERSION }}
+          target: wasm32-unknown-unknown
+          components: llvm-tools-preview
+
+      - name: "Install: Pin to specific nightly toolchain"
+        if: ${{ env.NIGHTLY_TOOLCHAIN_VERSION != '' }}
+        run: |
+          rm -rf $RUSTUP_HOME/toolchains/nightly-x86_64-unknown-linux-gnu
+          ln -s $RUSTUP_HOME/toolchains/nightly-$NIGHTLY_TOOLCHAIN_VERSION-x86_64-unknown-linux-gnu $RUSTUP_HOME/toolchains/nightly-x86_64-unknown-linux-gnu
+      - name: "Install: Build deps"
+        run: |
+          sudo apt update
+          sudo apt install -y git clang curl libssl-dev llvm libudev-dev cmake protobuf-compiler
+          sudo wget -c https://github.com/WebAssembly/binaryen/releases/download/version_105/binaryen-version_105-x86_64-linux.tar.gz -O - | sudo tar -xz -C .
+          cp binaryen-version_105/bin/wasm-opt /usr/bin/
+      - name: "Cache: Unpack"
+        if: ${{ github.event_name == 'pull_request' }}
+        continue-on-error: true
+        run: |
+          tar -xf /root/cache/check_cache_${{ github.base_ref }}.tar -C /
+          tar -xf /root/cache/check_cargo_registry_${{ github.base_ref }}.tar -C /
+          tar -xf /root/cache/check_target_${{ github.base_ref }}.tar
+      - name: "Check formatting: Gear"
+        run: ./scripts/gear.sh format gear --check
+
+      - name: "Check formatting: Examples"
+        run: ./scripts/gear.sh format examples --check
+
+      - name: "Check formatting: Doc"
+        run: ./scripts/gear.sh format doc --check
+
+      - name: "Check clippy: Gear"
+        run: ./scripts/gear.sh clippy gear --all-targets --all-features
+
+      - name: "Check clippy: Examples"
+        run: ./scripts/gear.sh clippy examples
+
+      - name: "Cache: Pack"
+        if: ${{ github.event_name == 'push' }}
+        continue-on-error: true
+        run: |
+          tar -cf /tmp/check_target_${{ github.ref_name }}.tar ./target
+          tar -cf /tmp/check_cache_${{ github.ref_name }}.tar /tmp/cachepot
+          tar -cf /tmp/check_cargo_registry_${{ github.ref_name }}.tar /tmp/cargo/bin /tmp/cargo/registry/cache /tmp/cargo/registry/index /tmp/cargo/git
+          mv /tmp/*.tar /root/cache/
+
+  build-win:
+    if: github.ref == 'refs/heads/master'
+    needs: spec_version
+    runs-on: ci-win
+    defaults:
+      run:
+        shell: msys2 {0}
+    env:
+      RUSTC_WRAPPER: "cachepot"
+      CARGO_INCREMENTAL: 0
+    steps:
+      - name: Cancel Previous Runs
+        if: ${{ github.event_name == 'pull_request' }}
+        uses: styfle/cancel-workflow-action@0.9.1
+        with:
+          access_token: ${{ github.token }}
+
+      - name: "ACTIONS: Checkout"
+        uses: actions/checkout@v2
+
+      - name: "Install: Setup MSYS2 environment"
+        uses: msys2/setup-msys2@v2
+        with:
+          path-type: inherit
+          install: >-
+            procps
+            mingw-w64-x86_64-protobuf
+      - name: "Install: Nightly toolchain"
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: nightly
+          target: wasm32-unknown-unknown
+
+      - name: "Install: Show specific nightly version"
+        if: ${{ env.NIGHTLY_TOOLCHAIN_VERSION != '' }}
+        run: echo $NIGHTLY_TOOLCHAIN_VERSION | sed 's/-/ - /g'
+
+      - name: "Install: Specific nightly toolchain"
+        if: ${{ env.NIGHTLY_TOOLCHAIN_VERSION != '' }}
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: nightly-${{ env.NIGHTLY_TOOLCHAIN_VERSION }}
+          target: wasm32-unknown-unknown
+          components: llvm-tools-preview
+
+      - name: "Install: Pin to specific nightly toolchain"
+        if: ${{ env.NIGHTLY_TOOLCHAIN_VERSION != '' }}
+        run: |
+          rm -r $env:USERPROFILE\.rustup\toolchains\nightly-x86_64-pc-windows-msvc
+          mv $env:USERPROFILE\.rustup\toolchains\nightly-$env:NIGHTLY_TOOLCHAIN_VERSION-x86_64-pc-windows-msvc $env:USERPROFILE\.rustup\toolchains\nightly-x86_64-pc-windows-msvc
+        shell: powershell
+
+      - name: "Install: cargo-nextest"
+        run: |
+          $tmp = New-TemporaryFile | Rename-Item -NewName { $_ -replace 'tmp$', 'zip' } -PassThru
+          Invoke-WebRequest -OutFile $tmp https://get.nexte.st/latest/windows
+          $outputDir = if ($Env:CARGO_HOME) { Join-Path $Env:CARGO_HOME "bin" } else { "~/.cargo/bin" }
+          $tmp | Expand-Archive -DestinationPath $outputDir -Force
+          $tmp | Remove-Item
+        shell: powershell
+
+      - name: "Install: cargo-hack"
+        run: |
+          $tmp = New-TemporaryFile | Rename-Item -NewName { $_ -replace 'tmp$', 'tar.gz' } -PassThru
+          Invoke-WebRequest -OutFile $tmp https://github.com/taiki-e/cargo-hack/releases/latest/download/cargo-hack-x86_64-pc-windows-msvc.tar.gz
+          $outputDir = if ($Env:CARGO_HOME) { Join-Path $Env:CARGO_HOME "bin" } else { Resolve-Path "~/.cargo/bin" }
+          tar zxf $tmp -C $outputDir
+          $tmp | Remove-Item
+        shell: powershell
+
+      - name: "Install: binaryen"
+        run: |
+          $tmp = New-TemporaryFile | Rename-Item -NewName { $_ -replace 'tmp$', 'tar.gz' } -PassThru
+          Invoke-WebRequest -OutFile $tmp https://github.com/WebAssembly/binaryen/releases/download/version_110/binaryen-version_110-x86_64-windows.tar.gz
+          $outputDir = if ($Env:CARGO_HOME) { Join-Path $Env:CARGO_HOME "bin" } else { "~/.cargo/bin" }
+          tar zxf $tmp
+          cp ./binaryen-version_110/bin/* $outputDir
+          Remove-Item -Recurse ./binaryen-version_110
+          $tmp | Remove-Item
+        shell: powershell
+
+      - name: "Install: wabt"
+        run: |
+          $tmp = New-TemporaryFile | Rename-Item -NewName { $_ -replace 'tmp$', 'tar.gz' } -PassThru
+          Invoke-WebRequest -OutFile $tmp https://github.com/WebAssembly/wabt/releases/download/1.0.29/wabt-1.0.29-windows.tar.gz
+          $outputDir = if ($Env:CARGO_HOME) { Join-Path $Env:CARGO_HOME "bin" } else { "~/.cargo/bin" }
+          tar zxf $tmp
+          cp ./wabt-1.0.29/bin/* $outputDir
+          Remove-Item -Recurse ./wabt-1.0.29
+          $tmp | Remove-Item
+        shell: powershell
+
+      - name: "Install: Node.js"
+        uses: actions/setup-node@v2
+        with:
+          node-version: "16"
+
+      - name: "Install: Node.js packages"
+        run: ./scripts/gear.sh init js
+
+      - name: "Build: Node"
+        run: ./scripts/gear.sh build node --release --locked
+
+      - name: "Build: WAT examples"
+        run: ./scripts/gear.sh build wat-examples
+
+      - name: "Build: wasm-proc"
+        run: ./scripts/gear.sh build wasm-proc --locked
+
+      - name: "Build: Examples (WASM)"
+        run: ./scripts/gear.sh build examples --locked
+
+      - name: "Build: Split examples by .opt and .meta"
+        run: ./scripts/gear.sh build examples-proc
+
+      - name: "Test: Client tests"
+        run: ./scripts/gear.sh test client --run-node
+
+      - name: "Test: Process node runtime spec tests"
+        run: |
+          cargo build -p gear-cli --release --features=runtime-test
+          ./scripts/gear.sh test rtest gear
+      - name: "Test: Runtime upgrade and queue processing"
+        run: ./scripts/gear.sh test runtime-upgrade
+
+      - name: "Test: Lazy pages"
+        uses: actions-rs/cargo@v1
+        with:
+          command: nextest
+          args: >-
+            run
+            -p pallet-gear
+            -p pallet-gear-debug
+            -p pallet-gear-payment
+            -p gear-lazy-pages
+            -p gear-runtime-interface
+            --features=lazy-pages
+            --release
