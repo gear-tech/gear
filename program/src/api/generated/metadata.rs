@@ -1544,9 +1544,9 @@ pub mod api {
                     let metadata = locked_metadata.read();
                     if metadata.constant_hash("System", "Version")?
                         == [
-                            11u8, 117u8, 206u8, 47u8, 240u8, 216u8, 123u8, 154u8, 105u8, 65u8,
-                            67u8, 66u8, 143u8, 50u8, 36u8, 81u8, 20u8, 55u8, 23u8, 77u8, 143u8,
-                            77u8, 8u8, 150u8, 238u8, 166u8, 101u8, 183u8, 240u8, 85u8, 40u8, 178u8,
+                            177u8, 162u8, 217u8, 244u8, 71u8, 27u8, 3u8, 212u8, 27u8, 99u8, 228u8,
+                            178u8, 51u8, 181u8, 107u8, 27u8, 217u8, 94u8, 72u8, 147u8, 30u8, 137u8,
+                            225u8, 2u8, 196u8, 249u8, 246u8, 42u8, 108u8, 120u8, 227u8, 75u8,
                         ]
                     {
                         let pallet = metadata.pallet("System")?;
@@ -6547,10 +6547,10 @@ pub mod api {
                         };
                         if runtime_storage_hash
                             == [
-                                13u8, 201u8, 57u8, 102u8, 238u8, 251u8, 200u8, 48u8, 0u8, 230u8,
-                                239u8, 55u8, 59u8, 1u8, 41u8, 201u8, 29u8, 252u8, 61u8, 174u8,
-                                130u8, 13u8, 33u8, 139u8, 218u8, 239u8, 211u8, 178u8, 89u8, 232u8,
-                                38u8, 2u8,
+                                129u8, 46u8, 63u8, 193u8, 41u8, 227u8, 150u8, 187u8, 245u8, 94u8,
+                                219u8, 158u8, 220u8, 216u8, 236u8, 217u8, 86u8, 191u8, 48u8, 56u8,
+                                74u8, 158u8, 108u8, 77u8, 231u8, 170u8, 36u8, 86u8, 214u8, 112u8,
+                                158u8, 228u8,
                             ]
                         {
                             let entry = PausedPrograms(_0);
@@ -6581,10 +6581,10 @@ pub mod api {
                         };
                         if runtime_storage_hash
                             == [
-                                13u8, 201u8, 57u8, 102u8, 238u8, 251u8, 200u8, 48u8, 0u8, 230u8,
-                                239u8, 55u8, 59u8, 1u8, 41u8, 201u8, 29u8, 252u8, 61u8, 174u8,
-                                130u8, 13u8, 33u8, 139u8, 218u8, 239u8, 211u8, 178u8, 89u8, 232u8,
-                                38u8, 2u8,
+                                129u8, 46u8, 63u8, 193u8, 41u8, 227u8, 150u8, 187u8, 245u8, 94u8,
+                                219u8, 158u8, 220u8, 216u8, 236u8, 217u8, 86u8, 191u8, 48u8, 56u8,
+                                74u8, 158u8, 108u8, 77u8, 231u8, 170u8, 36u8, 86u8, 214u8, 112u8,
+                                158u8, 228u8,
                             ]
                         {
                             client.storage().iter(block_hash).await
@@ -7238,10 +7238,10 @@ pub mod api {
                         };
                         if runtime_storage_hash
                             == [
-                                5u8, 140u8, 200u8, 253u8, 35u8, 112u8, 147u8, 219u8, 113u8, 57u8,
-                                98u8, 224u8, 160u8, 157u8, 0u8, 197u8, 219u8, 193u8, 31u8, 82u8,
-                                60u8, 128u8, 232u8, 0u8, 152u8, 202u8, 216u8, 178u8, 169u8, 229u8,
-                                203u8, 224u8,
+                                81u8, 209u8, 75u8, 138u8, 212u8, 20u8, 31u8, 140u8, 136u8, 66u8,
+                                237u8, 23u8, 9u8, 166u8, 52u8, 204u8, 17u8, 216u8, 143u8, 233u8,
+                                54u8, 43u8, 131u8, 201u8, 92u8, 30u8, 130u8, 14u8, 180u8, 213u8,
+                                154u8, 9u8,
                             ]
                         {
                             let entry = TaskPool(_0, _1);
@@ -7272,10 +7272,10 @@ pub mod api {
                         };
                         if runtime_storage_hash
                             == [
-                                5u8, 140u8, 200u8, 253u8, 35u8, 112u8, 147u8, 219u8, 113u8, 57u8,
-                                98u8, 224u8, 160u8, 157u8, 0u8, 197u8, 219u8, 193u8, 31u8, 82u8,
-                                60u8, 128u8, 232u8, 0u8, 152u8, 202u8, 216u8, 178u8, 169u8, 229u8,
-                                203u8, 224u8,
+                                81u8, 209u8, 75u8, 138u8, 212u8, 20u8, 31u8, 140u8, 136u8, 66u8,
+                                237u8, 23u8, 9u8, 166u8, 52u8, 204u8, 17u8, 216u8, 143u8, 233u8,
+                                54u8, 43u8, 131u8, 201u8, 92u8, 30u8, 130u8, 14u8, 180u8, 213u8,
+                                154u8, 9u8,
                             ]
                         {
                             client.storage().iter(block_hash).await
@@ -8321,9 +8321,10 @@ pub mod api {
                     let metadata = locked_metadata.read();
                     if metadata.constant_hash("Gear", "Schedule")?
                         == [
-                            190u8, 249u8, 239u8, 138u8, 76u8, 42u8, 7u8, 80u8, 198u8, 241u8, 123u8,
-                            55u8, 30u8, 245u8, 2u8, 11u8, 199u8, 93u8, 105u8, 198u8, 118u8, 254u8,
-                            198u8, 41u8, 202u8, 168u8, 165u8, 146u8, 28u8, 56u8, 198u8, 124u8,
+                            213u8, 55u8, 130u8, 110u8, 204u8, 194u8, 254u8, 185u8, 145u8, 107u8,
+                            41u8, 156u8, 26u8, 77u8, 108u8, 172u8, 153u8, 109u8, 248u8, 16u8,
+                            178u8, 59u8, 15u8, 60u8, 215u8, 123u8, 39u8, 147u8, 34u8, 246u8, 118u8,
+                            200u8,
                         ]
                     {
                         let pallet = metadata.pallet("Gear")?;
@@ -8872,6 +8873,11 @@ pub mod api {
                         ),
                         #[codec(index = 6)]
                         SendDispatch(runtime_types::gear_core::message::stored::StoredDispatch),
+                        #[codec(index = 7)]
+                        RemoveGasReservation(
+                            runtime_types::gear_core::ids::ProgramId,
+                            runtime_types::gear_core::ids::ReservationId,
+                        ),
                     }
                 }
             }
@@ -8903,6 +8909,10 @@ pub mod api {
             pub struct ActiveProgram {
                 pub allocations: ::std::vec::Vec<runtime_types::gear_core::memory::WasmPageNumber>,
                 pub pages_with_data: ::std::vec::Vec<runtime_types::gear_core::memory::PageNumber>,
+                pub gas_reservation_map: ::subxt::KeyedVec<
+                    runtime_types::gear_core::ids::ReservationId,
+                    runtime_types::gear_core::reservation::GasReservationSlot,
+                >,
                 pub code_hash: ::subxt::sp_core::H256,
                 pub state: runtime_types::gear_common::ProgramState,
             }
@@ -9043,6 +9053,14 @@ pub mod api {
                 }
                 #[derive(:: subxt :: codec :: Decode, :: subxt :: codec :: Encode, Debug)]
                 pub struct PayloadSizeError;
+            }
+            pub mod reservation {
+                use super::runtime_types;
+                #[derive(:: subxt :: codec :: Decode, :: subxt :: codec :: Encode, Debug)]
+                pub struct GasReservationSlot {
+                    pub amount: ::core::primitive::u32,
+                    pub bn: ::core::primitive::u32,
+                }
             }
         }
         pub mod gear_runtime {
@@ -9809,6 +9827,8 @@ pub mod api {
                 #[derive(:: subxt :: codec :: Decode, :: subxt :: codec :: Encode, Debug)]
                 pub struct HostFnWeights {
                     pub alloc: ::core::primitive::u64,
+                    pub gr_reserve_gas: ::core::primitive::u64,
+                    pub gr_unreserve_gas: ::core::primitive::u64,
                     pub gr_gas_available: ::core::primitive::u64,
                     pub gr_message_id: ::core::primitive::u64,
                     pub gr_origin: ::core::primitive::u64,
@@ -11585,9 +11605,9 @@ pub mod api {
             };
             if runtime_metadata_hash
                 != [
-                    104u8, 116u8, 103u8, 35u8, 166u8, 108u8, 99u8, 170u8, 227u8, 100u8, 234u8,
-                    149u8, 235u8, 170u8, 204u8, 49u8, 11u8, 220u8, 107u8, 177u8, 68u8, 75u8, 129u8,
-                    93u8, 119u8, 174u8, 245u8, 25u8, 4u8, 77u8, 76u8, 12u8,
+                    197u8, 89u8, 67u8, 222u8, 49u8, 250u8, 221u8, 59u8, 181u8, 150u8, 158u8, 216u8,
+                    46u8, 4u8, 214u8, 87u8, 152u8, 205u8, 54u8, 195u8, 27u8, 106u8, 132u8, 3u8,
+                    4u8, 181u8, 77u8, 115u8, 186u8, 223u8, 243u8, 221u8,
                 ]
             {
                 Err(::subxt::MetadataError::IncompatibleMetadata)
