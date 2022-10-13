@@ -37,7 +37,7 @@ use gear_backend_common::{
 use gear_core::{
     buffer::{RuntimeBuffer, RuntimeBufferSizeError},
     env::Ext,
-    ids::{MessageId, ProgramId, ReservationId},
+    ids::ReservationId,
     message::{HandlePacket, InitPacket, PayloadSizeError, ReplyPacket},
 };
 use gear_core_errors::{CoreError, MemoryError};
@@ -527,11 +527,7 @@ where
     }
 
     pub fn reserve_gas(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
-        let mut args = args.iter();
-
-        let id_ptr: u32 = pop_i32(&mut args)?;
-        let gas_amount: u32 = pop_i32(&mut args)?;
-        let blocks: u32 = pop_i32(&mut args)?;
+        let (id_ptr, gas_amount, blocks) = args.iter().read_3()?;
 
         let mut f = || {
             let id = ctx
@@ -549,9 +545,7 @@ where
     }
 
     pub fn unreserve_gas(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
-        let mut args = args.iter();
-
-        let id_ptr: u32 = pop_i32(&mut args)?;
+        let id_ptr: u32 = args.iter().read()?;
 
         let mut f = || {
             let id: ReservationId = ctx.read_memory_as(id_ptr)?;

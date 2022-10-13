@@ -39,7 +39,7 @@ use gear_backend_common::{
 use gear_core::{
     buffer::{RuntimeBuffer, RuntimeBufferSizeError},
     env::Ext,
-    ids::{ProgramId, ReservationId},
+    ids::ReservationId,
     memory::Memory,
     message::{HandlePacket, InitPacket, Payload, PayloadSizeError, ReplyPacket},
 };
@@ -980,10 +980,8 @@ where
         forbidden: bool,
         memory: WasmiMemory,
     ) -> Func {
-        let func = move |mut caller: wasmi::Caller<'_, HostState<E>>, id_ptr: i32| {
+        let func = move |mut caller: wasmi::Caller<'_, HostState<E>>, id_ptr: u32| {
             exit_if!(forbidden, caller);
-
-            let id_ptr = id_ptr as usize;
 
             let read_result = {
                 let memory_wrap = get_caller_memory(&mut caller, &memory);
