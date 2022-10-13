@@ -136,7 +136,7 @@ mod wasm {
 
     #[gstd::async_main]
     async fn main() {
-        let input = msg::load_bytes();
+        let input = msg::load_bytes().expect("Failed to load payload bytes");
         debug!(
             "[0x{} contract_template::handle] input = 0x{}, exec::gas_available(): {}",
             hex::encode(unsafe { STATE.me }),

@@ -11,8 +11,8 @@ pub use code::WASM_BINARY_OPT as WASM_BINARY;
 
 #[cfg(not(feature = "std"))]
 mod wasm {
-    use gcore::msg::load;
-    use gstd::{exec, msg};
+    use gcore::msg;
+    use gstd::exec;
 
     #[no_mangle]
     unsafe extern "C" fn handle() {}
@@ -21,14 +21,15 @@ mod wasm {
     unsafe extern "C" fn init() {
         let shall_reply_before_exit: bool = {
             let mut flag = [0u8];
-            load(&mut flag);
+            msg::read(&mut flag);
             u8::from_le_bytes(flag) == 1
         };
         if shall_reply_before_exit {
             msg::reply(b"If you read this, I'm dead", 0).unwrap();
-            exec::exit(msg::source());
+            exec::exit(gstd::msg::source());
         } else {
-            exec::exit(msg::source());
+            #[allow(unreachable_code)]
+            exec::exit(gstd::msg::source());
             // should not be executed
             msg::reply(b"reply", 0).unwrap();
         }

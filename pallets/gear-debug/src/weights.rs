@@ -23,7 +23,7 @@
 //! EXECUTION: Some(Wasm), WASM-EXECUTION: Compiled, CHAIN: Some("local"), DB CACHE: 128
 
 // Executed Command:
-// ./target/release/gear-node
+// ./target/release/gear
 // benchmark
 // --chain=local
 // --execution=wasm

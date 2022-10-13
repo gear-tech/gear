@@ -98,7 +98,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
     impl_name: create_runtime_str!("gear"),
     apis: RUNTIME_API_VERSIONS,
     authoring_version: 1,
-    spec_version: 390,
+    spec_version: 420,
     impl_version: 1,
     transaction_version: 1,
     state_version: 1,
