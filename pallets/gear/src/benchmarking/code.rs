@@ -527,6 +527,9 @@ where
 }
 
 fn inject_stack_metering<T: Config>(module: Module) -> Module {
-    let height = T::Schedule::get().limits.stack_height;
-    wasm_instrument::inject_stack_limiter(module, height).unwrap()
+    if let Some(height) = T::Schedule::get().limits.stack_height {
+        wasm_instrument::inject_stack_limiter(module, height).unwrap()
+    } else {
+        module
+    }
 }
