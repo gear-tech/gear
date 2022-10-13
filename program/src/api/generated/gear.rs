@@ -1544,10 +1544,10 @@ pub mod api {
                     let metadata = locked_metadata.read();
                     if metadata.constant_hash("System", "Version")?
                         == [
-                            164u8, 52u8, 124u8, 196u8, 109u8, 235u8, 65u8, 247u8, 215u8, 135u8,
-                            238u8, 131u8, 224u8, 206u8, 172u8, 67u8, 18u8, 233u8, 232u8, 26u8,
-                            92u8, 198u8, 169u8, 41u8, 115u8, 64u8, 111u8, 119u8, 148u8, 203u8,
-                            200u8, 14u8,
+                            252u8, 140u8, 38u8, 123u8, 210u8, 186u8, 188u8, 52u8, 161u8, 167u8,
+                            114u8, 133u8, 252u8, 224u8, 177u8, 150u8, 5u8, 96u8, 36u8, 26u8, 61u8,
+                            32u8, 245u8, 86u8, 178u8, 10u8, 212u8, 236u8, 232u8, 142u8, 36u8,
+                            187u8,
                         ]
                     {
                         let pallet = metadata.pallet("System")?;
@@ -6548,10 +6548,10 @@ pub mod api {
                         };
                         if runtime_storage_hash
                             == [
-                                13u8, 201u8, 57u8, 102u8, 238u8, 251u8, 200u8, 48u8, 0u8, 230u8,
-                                239u8, 55u8, 59u8, 1u8, 41u8, 201u8, 29u8, 252u8, 61u8, 174u8,
-                                130u8, 13u8, 33u8, 139u8, 218u8, 239u8, 211u8, 178u8, 89u8, 232u8,
-                                38u8, 2u8,
+                                85u8, 245u8, 180u8, 137u8, 173u8, 33u8, 39u8, 0u8, 93u8, 81u8,
+                                117u8, 68u8, 240u8, 149u8, 206u8, 147u8, 4u8, 228u8, 149u8, 171u8,
+                                170u8, 138u8, 72u8, 187u8, 74u8, 64u8, 148u8, 23u8, 194u8, 222u8,
+                                227u8, 239u8,
                             ]
                         {
                             let entry = PausedPrograms(_0);
@@ -6582,10 +6582,10 @@ pub mod api {
                         };
                         if runtime_storage_hash
                             == [
-                                13u8, 201u8, 57u8, 102u8, 238u8, 251u8, 200u8, 48u8, 0u8, 230u8,
-                                239u8, 55u8, 59u8, 1u8, 41u8, 201u8, 29u8, 252u8, 61u8, 174u8,
-                                130u8, 13u8, 33u8, 139u8, 218u8, 239u8, 211u8, 178u8, 89u8, 232u8,
-                                38u8, 2u8,
+                                85u8, 245u8, 180u8, 137u8, 173u8, 33u8, 39u8, 0u8, 93u8, 81u8,
+                                117u8, 68u8, 240u8, 149u8, 206u8, 147u8, 4u8, 228u8, 149u8, 171u8,
+                                170u8, 138u8, 72u8, 187u8, 74u8, 64u8, 148u8, 23u8, 194u8, 222u8,
+                                227u8, 239u8,
                             ]
                         {
                             client.storage().iter(block_hash).await
@@ -8322,9 +8322,10 @@ pub mod api {
                     let metadata = locked_metadata.read();
                     if metadata.constant_hash("Gear", "Schedule")?
                         == [
-                            2u8, 92u8, 241u8, 208u8, 134u8, 26u8, 93u8, 84u8, 242u8, 94u8, 155u8,
-                            49u8, 158u8, 231u8, 192u8, 14u8, 161u8, 127u8, 139u8, 140u8, 3u8, 71u8,
-                            209u8, 35u8, 75u8, 28u8, 153u8, 32u8, 33u8, 151u8, 91u8, 214u8,
+                            172u8, 140u8, 25u8, 127u8, 19u8, 228u8, 243u8, 34u8, 71u8, 170u8, 44u8,
+                            48u8, 165u8, 123u8, 232u8, 46u8, 41u8, 22u8, 246u8, 100u8, 173u8,
+                            160u8, 235u8, 5u8, 242u8, 184u8, 71u8, 254u8, 243u8, 226u8, 120u8,
+                            81u8,
                         ]
                     {
                         let pallet = metadata.pallet("Gear")?;
@@ -8380,6 +8381,29 @@ pub mod api {
                     {
                         let pallet = metadata.pallet("Gear")?;
                         let constant = pallet.constant("MailboxThreshold")?;
+                        let value = ::subxt::codec::Decode::decode(&mut &constant.value[..])?;
+                        Ok(value)
+                    } else {
+                        Err(::subxt::MetadataError::IncompatibleMetadata.into())
+                    }
+                }
+                #[doc = " The cost per loaded byte."]
+                pub fn read_per_byte_cost(
+                    &self,
+                ) -> ::core::result::Result<::core::primitive::u64, ::subxt::BasicError>
+                {
+                    let locked_metadata = self.client.metadata();
+                    let metadata = locked_metadata.read();
+                    if metadata.constant_hash("Gear", "ReadPerByteCost")?
+                        == [
+                            187u8, 170u8, 175u8, 60u8, 38u8, 70u8, 96u8, 130u8, 174u8, 35u8, 140u8,
+                            211u8, 34u8, 175u8, 75u8, 238u8, 57u8, 136u8, 142u8, 57u8, 115u8,
+                            130u8, 167u8, 234u8, 210u8, 176u8, 137u8, 130u8, 78u8, 18u8, 128u8,
+                            245u8,
+                        ]
+                    {
+                        let pallet = metadata.pallet("Gear")?;
+                        let constant = pallet.constant("ReadPerByteCost")?;
                         let value = ::subxt::codec::Decode::decode(&mut &constant.value[..])?;
                         Ok(value)
                     } else {
@@ -8905,6 +8929,9 @@ pub mod api {
                 pub allocations: ::std::vec::Vec<runtime_types::gear_core::memory::WasmPageNumber>,
                 pub pages_with_data: ::std::vec::Vec<runtime_types::gear_core::memory::PageNumber>,
                 pub code_hash: ::subxt::sp_core::H256,
+                pub code_length_bytes: ::core::primitive::u32,
+                pub code_exports: ::std::vec::Vec<runtime_types::gear_core::message::DispatchKind>,
+                pub static_pages: runtime_types::gear_core::memory::WasmPageNumber,
                 pub state: runtime_types::gear_common::ProgramState,
             }
             #[derive(:: subxt :: codec :: Decode, :: subxt :: codec :: Encode, Debug)]
@@ -9900,8 +9927,7 @@ pub mod api {
                 }
                 #[derive(:: subxt :: codec :: Decode, :: subxt :: codec :: Encode, Debug)]
                 pub struct Limits {
-                    pub event_topics: ::core::primitive::u32,
-                    pub stack_height: ::core::primitive::u32,
+                    pub stack_height: ::core::option::Option<::core::primitive::u32>,
                     pub globals: ::core::primitive::u32,
                     pub parameters: ::core::primitive::u32,
                     pub memory_pages: ::core::primitive::u32,
@@ -11586,9 +11612,9 @@ pub mod api {
             };
             if runtime_metadata_hash
                 != [
-                    187u8, 41u8, 12u8, 183u8, 7u8, 253u8, 40u8, 51u8, 162u8, 143u8, 171u8, 133u8,
-                    41u8, 72u8, 106u8, 121u8, 53u8, 81u8, 226u8, 96u8, 160u8, 154u8, 233u8, 115u8,
-                    139u8, 252u8, 34u8, 195u8, 19u8, 125u8, 78u8, 97u8,
+                    253u8, 71u8, 217u8, 253u8, 97u8, 72u8, 38u8, 98u8, 166u8, 235u8, 161u8, 11u8,
+                    74u8, 136u8, 220u8, 50u8, 202u8, 6u8, 87u8, 62u8, 24u8, 46u8, 61u8, 27u8, 3u8,
+                    99u8, 191u8, 185u8, 94u8, 119u8, 55u8, 251u8,
                 ]
             {
                 Err(::subxt::MetadataError::IncompatibleMetadata)
