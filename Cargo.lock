@@ -2991,6 +2991,7 @@ dependencies = [
  "arbitrary",
  "dyn-clonable",
  "futures",
+ "futures-timer",
  "gclient",
  "gear-core",
  "gear-wasm-gen",

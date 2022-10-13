@@ -17,11 +17,10 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{Error, Result};
-use futures_timer::Delay;
 use std::{
     fs,
     path::PathBuf,
-    time::{Duration, SystemTime, UNIX_EPOCH},
+    time::{SystemTime, UNIX_EPOCH},
 };
 use wabt::Wat2Wasm;
 
@@ -59,8 +58,4 @@ pub fn code_from_os(path: impl Into<PathBuf>) -> Result<Vec<u8>> {
 
     let path = fs::canonicalize(path)?;
     fs::read(path).map_err(Into::into)
-}
-
-pub fn wait_task(millis: u64) -> Delay {
-    Delay::new(Duration::from_millis(millis))
 }

@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use super::EventProcessor;
-use crate::{utils, Error, Result};
+use crate::{Error, Result};
 use async_trait::async_trait;
 use futures::stream::StreamExt;
 use gp::api::{events::Events, generated::api::Event};
@@ -72,31 +72,24 @@ impl<'a> EventProcessor for EventListener<'a> {
 }
 
 impl<'a> EventListener<'a> {
-    // Max wait time for the event (30 seconds).
-    const WAIT_MILIS: u64 = 30000;
-
     pub async fn blocks_running_since(&mut self, previous: H256) -> Result<bool> {
-        let current = tokio::select! {
-            maybe_events = self.0.next() => {
-                maybe_events
-                .ok_or(Error::EventNotFound)??
-                .block_hash()
-            },
-            _ = utils::wait_task(Self::WAIT_MILIS) => return Ok(false)
-        };
+        let current = self
+            .0
+            .next()
+            .await
+            .ok_or(Error::EventNotFound)??
+            .block_hash();
 
         Ok(current != previous)
     }
 
     pub async fn blocks_running(&mut self) -> Result<bool> {
-        let previous = tokio::select! {
-            maybe_events = self.0.next() => {
-                maybe_events
-                .ok_or(Error::EventNotFound)??
-                .block_hash()
-            },
-            _ = utils::wait_task(Self::WAIT_MILIS) => return Ok(false)
-        };
+        let previous = self
+            .0
+            .next()
+            .await
+            .ok_or(Error::EventNotFound)??
+            .block_hash();
 
         self.blocks_running_since(previous).await
     }

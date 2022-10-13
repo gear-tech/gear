@@ -3,10 +3,20 @@ use anyhow::Error;
 use gear_core::ids::{CodeId, ProgramId};
 use std::collections::BTreeSet;
 
+#[derive(Default)]
 pub struct Report {
     pub codes: BTreeSet<CodeId>,
     pub program_ids: BTreeSet<ProgramId>,
     pub blocks_stopped: bool,
+}
+
+impl Report {
+    pub fn blocks_stopped() -> Self {
+        Self {
+            blocks_stopped: true,
+            ..Default::default()
+        }
+    }
 }
 
 #[derive(Default)]

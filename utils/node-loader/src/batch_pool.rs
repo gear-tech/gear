@@ -92,8 +92,10 @@ impl<Rng: LoaderRng> BatchPool<Rng> {
 
         if blocks_stopped {
             // TODO should trigger remote process, which takes snapshot of the node
-            tracing::info!("Blocks production has stopped while executing messages of the batch with id: {seed}. \
-            Possibly, node panicked. Stopping loader");
+            tracing::info!(
+                "Blocks production has stopped while executing the batch with id: {seed}. \
+            Possibly, node panicked. Stopping loader"
+            );
             panic!("Ending loader.")
         }
 
@@ -120,7 +122,11 @@ async fn run_batch_impl(api: GearApi, batch: Batch) -> Result<Report> {
         Batch::UploadProgram(args) => {
             let args = args.into_iter().map(|v| v.into());
 
-            let (ex_results, batch_block_hash) = api.upload_program_bytes_batch(args).await?;
+            let (ex_results, batch_block_hash) =
+                match utils::run_with_timeout(api.upload_program_bytes_batch(args)).await {
+                    Ok(res) => res?,
+                    Err(_) => return Ok(Report::blocks_stopped()),
+                };
 
             let mut init_messages = BTreeMap::new();
 
@@ -161,7 +167,10 @@ async fn run_batch_impl(api: GearApi, batch: Batch) -> Result<Report> {
             let results = results?;
 
             let mut listener = api.subscribe().await?;
-            let blocks_stopped = !listener.blocks_running().await?;
+            let blocks_stopped = match utils::run_with_timeout(listener.blocks_running()).await {
+                Ok(blocks_running) => !blocks_running?,
+                Err(_) => true,
+            };
 
             let mut program_ids = BTreeSet::new();
 
@@ -185,7 +194,11 @@ async fn run_batch_impl(api: GearApi, batch: Batch) -> Result<Report> {
         }
         Batch::UploadCode(args) => {
             let args = args.into_iter().map(Into::<Vec<_>>::into);
-            let (ex_results, _) = api.upload_code_batch(args).await?;
+
+            let (ex_results, _) = match utils::run_with_timeout(api.upload_code_batch(args)).await {
+                Ok(res) => res?,
+                Err(_) => return Ok(Report::blocks_stopped()),
+            };
 
             let mut codes = BTreeSet::new();
 
@@ -201,7 +214,10 @@ async fn run_batch_impl(api: GearApi, batch: Batch) -> Result<Report> {
             }
 
             let mut listener = api.subscribe().await?;
-            let blocks_stopped = !listener.blocks_running().await?;
+            let blocks_stopped = match utils::run_with_timeout(listener.blocks_running()).await {
+                Ok(blocks_running) => !blocks_running?,
+                Err(_) => true,
+            };
 
             Ok(Report {
                 program_ids: BTreeSet::new(),
@@ -212,7 +228,11 @@ async fn run_batch_impl(api: GearApi, batch: Batch) -> Result<Report> {
         Batch::SendMessage(args) => {
             let args = args.into_iter().map(|v| v.into());
 
-            let (ex_results, batch_block_hash) = api.send_message_bytes_batch(args).await?;
+            let (ex_results, batch_block_hash) =
+                match utils::run_with_timeout(api.send_message_bytes_batch(args)).await {
+                    Ok(res) => res?,
+                    Err(_) => return Ok(Report::blocks_stopped()),
+                };
 
             let mut handle_messages = BTreeMap::new();
 
@@ -256,7 +276,10 @@ async fn run_batch_impl(api: GearApi, batch: Batch) -> Result<Report> {
             let results = results?;
 
             let mut listener = api.subscribe().await?;
-            let blocks_stopped = !listener.blocks_running().await?;
+            let blocks_stopped = match utils::run_with_timeout(listener.blocks_running()).await {
+                Ok(blocks_running) => !blocks_running?,
+                Err(_) => true,
+            };
 
             for (mid, maybe_err) in results {
                 let (pid, call_id) = handle_messages.remove(&mid).expect("Infallible");
@@ -277,7 +300,11 @@ async fn run_batch_impl(api: GearApi, batch: Batch) -> Result<Report> {
         Batch::CreateProgram(args) => {
             let args = args.into_iter().map(|v| v.into());
 
-            let (ex_results, batch_block_hash) = api.create_program_bytes_batch(args).await?;
+            let (ex_results, batch_block_hash) =
+                match utils::run_with_timeout(api.create_program_bytes_batch(args)).await {
+                    Ok(res) => res?,
+                    Err(_) => return Ok(Report::blocks_stopped()),
+                };
 
             let mut init_messages = BTreeMap::new();
 
@@ -318,7 +345,10 @@ async fn run_batch_impl(api: GearApi, batch: Batch) -> Result<Report> {
             let results = results?;
 
             let mut listener = api.subscribe().await?;
-            let blocks_stopped = !listener.blocks_running().await?;
+            let blocks_stopped = match utils::run_with_timeout(listener.blocks_running()).await {
+                Ok(blocks_running) => !blocks_running?,
+                Err(_) => true,
+            };
 
             let mut program_ids = BTreeSet::new();
 

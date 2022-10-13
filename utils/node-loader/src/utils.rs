@@ -1,6 +1,8 @@
 use crate::{batch_pool::generators, SmallRng};
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use dyn_clonable::*;
+use futures::Future;
+use futures_timer::Delay;
 use gclient::{GearApi, WSAddress};
 use rand::{Rng, RngCore, SeedableRng};
 use std::{
@@ -8,7 +10,7 @@ use std::{
     io::Write,
     iter,
     ops::Deref,
-    time::{SystemTime, UNIX_EPOCH},
+    time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
 pub struct GearApiProducer {
@@ -112,5 +114,15 @@ impl<T> Deref for NonEmptyVec<T> {
 
     fn deref(&self) -> &Self::Target {
         &self.0
+    }
+}
+
+pub async fn run_with_timeout<T>(fut: impl Future<Output = T>) -> Result<T> {
+    // 1 minute as default
+    let wait_task = Delay::new(Duration::from_millis(60_000));
+
+    tokio::select! {
+        output = fut => Ok(output),
+        _ = wait_task => Err(anyhow!("Timeout"))
     }
 }
