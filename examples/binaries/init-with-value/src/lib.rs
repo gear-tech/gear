@@ -36,6 +36,8 @@ mod code {
 #[cfg(feature = "std")]
 pub use code::WASM_BINARY_OPT as WASM_BINARY;
 
+pub const GAS_LIMIT: u64 = 200_000_001;
+
 #[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
 pub enum SendMessage {
     Init { value: u128 },
@@ -66,7 +68,7 @@ mod wasm {
                     submitted_code,
                     COUNTER.to_le_bytes(),
                     [],
-                    200_000_000,
+                    super::GAS_LIMIT,
                     value,
                 )
             } else {

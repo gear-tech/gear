@@ -26,8 +26,8 @@ use crate::{
     },
     pallet,
     schedule::StaticHostFnWeights,
-    BlockGasLimitOf, Config, CostsPerBlockOf, Error, Event, GasAllowanceOf, GasHandlerOf, GasInfo,
-    MailboxOf, WaitlistOf,
+    BlockGasLimitOf, Config, CostsPerBlockOf, DbWeightOf,Error, Event, GasAllowanceOf, GasHandlerOf, GasInfo,
+    MailboxOf, ReadPerByteCostOf, WaitlistOf,
 };
 use codec::{Decode, Encode};
 use common::{
@@ -55,6 +55,7 @@ use gear_core::{
 };
 use gear_core_errors::*;
 use sp_runtime::{traits::UniqueSaturatedInto, SaturatedConversion};
+use sp_std::convert::TryFrom;
 use utils::*;
 
 #[test]
@@ -2192,9 +2193,12 @@ fn test_code_submission_pass() {
         let saved_code = <Test as Config>::CodeStorage::get_code(code_id);
 
         let schedule = <Test as Config>::Schedule::get();
-        let code = Code::try_new(code, schedule.instruction_weights.version, |module| {
-            schedule.rules(module)
-        })
+        let code = Code::try_new(
+            code,
+            schedule.instruction_weights.version,
+            |module| schedule.rules(module),
+            schedule.limits.stack_height,
+        )
         .expect("Error creating Code");
         assert_eq!(saved_code.unwrap().code(), code.code());
 
@@ -2534,7 +2538,7 @@ fn test_different_waits_success() {
             WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
             EMPTY_PAYLOAD.to_vec(),
-            0u64,
+            100_000_000u64,
             0u128
         ));
 
@@ -2670,7 +2674,7 @@ fn test_different_waits_fail() {
             WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
             EMPTY_PAYLOAD.to_vec(),
-            0u64,
+            100_000_000u64,
             0u128
         ));
 
@@ -2876,7 +2880,7 @@ fn test_message_processing_for_non_existing_destination() {
             program_id,
             EMPTY_PAYLOAD.to_vec(),
             10_000,
-            1000
+            1_000
         ));
 
         let skipped_message_id = get_last_message_id();
@@ -2886,6 +2890,7 @@ fn test_message_processing_for_non_existing_destination() {
 
         assert_not_executed(skipped_message_id);
 
+        // some funds may be unreserved after processing init-message
         assert!(user_balance_before <= Balances::free_balance(USER_1));
 
         assert!(!Gear::is_active(program_id));
@@ -2984,6 +2989,17 @@ fn terminated_locking_funds() {
         let code = <Test as Config>::CodeStorage::get_code(code_id)
             .expect("code should be in the storage");
         let code_length = code.code().len();
+        let read_cost = DbWeightOf::<Test>::get().reads(1).ref_time();
+
+        assert_ok!(Gear::create_program(
+            RuntimeOrigin::signed(USER_1),
+            code_id,
+        ));
+
+        let code_id = get_last_code_id();
+        let code = <Test as Config>::CodeStorage::get_code(code_id)
+            .expect("code should be in the storage");
+        let code_length = code.code().len();
         let static_weights = StaticHostFnWeights::<Test>::default().into_core();
         let module_instantiation =
             StaticConsts::ModuleInstantiation { len: code_length }.weight(&static_weights);
@@ -2994,7 +3010,14 @@ fn terminated_locking_funds() {
             DEFAULT_SALT.to_vec(),
             USER_3.into_origin().encode(),
             // additional gas for loading resources on next wake up
-            gas_spent_init + module_instantiation,
+            gas_spent_init
+                + core_processor::calculate_gas_for_program(read_cost, 0)
+                + core_processor::calculate_gas_for_code(
+                    read_cost,
+                    ReadPerByteCostOf::<Test>::get(),
+                    code_length as u64
+                ) 
+                + module_instantiation,
             5_000u128
         ));
 
@@ -3141,9 +3164,12 @@ fn test_create_program_works() {
 
         // Parse wasm code.
         let schedule = <Test as Config>::Schedule::get();
-        let code = Code::try_new(code, schedule.instruction_weights.version, |module| {
-            schedule.rules(module)
-        })
+        let code = Code::try_new(
+            code,
+            schedule.instruction_weights.version,
+            |module| schedule.rules(module),
+            schedule.limits.stack_height,
+        )
         .expect("Code failed to load");
 
         let code_id = CodeId::generate(code.raw_code());
@@ -4083,7 +4109,7 @@ fn locking_gas_for_waitlist() {
         calculate_handle_and_send_with_extra(USER_1, sender, payload.encode(), None, 0);
         let origin_msg_id = get_last_message_id();
 
-        let message_to_be_waited = MessageId::generate_outgoing(origin_msg_id, 0);
+        let message_to_be_waited = MessageId::generate_outgoing(origin_msg_id, 1);
 
         run_to_block(3, None);
 
@@ -4391,21 +4417,37 @@ fn gas_spent_precalculated() {
         let set_local_cost = schedule.instruction_weights.local_set;
         let get_local_cost = schedule.instruction_weights.local_get;
         let add_cost = schedule.instruction_weights.i64add;
-        let gas_cost = schedule.host_fn_weights.gas as u32; // gas call in handle and "add" func
+        // gas call in handle and "add" func
+        let gas_cost = schedule.host_fn_weights.gas as u32;
         let module_instantiation =
             schedule.static_host_fn_weights.instantiate_module_per_byte as u32 * code.len() as u32;
-        let load_page_cost = schedule.memory_weights.load_cost as u32;
+        let load_page_cost = schedule.memory_weights.load_cost;
 
-        let total_cost = call_cost
-            + const_i64_cost * 2
-            + set_local_cost
-            + get_local_cost * 2
-            + add_cost
-            + gas_cost * 2
-            + load_page_cost
-            + module_instantiation;
+        let total_cost = {
+            let cost = call_cost
+                + const_i64_cost * 2
+                + set_local_cost
+                + get_local_cost * 2
+                + add_cost
+                + gas_cost * 2;
 
-        assert_eq!(gas_spent_1, total_cost as u64);
+            let code_len = common::get_program(prog_id.into_origin())
+                .and_then(|p| common::ActiveProgram::try_from(p).ok())
+                .expect("program must exist")
+                .code_length_bytes;
+
+            let read_cost = DbWeightOf::<Test>::get().reads(1).ref_time();
+
+            u64::from(cost)
+                // cost for loading program
+                + core_processor::calculate_gas_for_program(read_cost, 0)
+                // cost for loading code
+                + core_processor::calculate_gas_for_code(read_cost, ReadPerByteCostOf::<Test>::get(), code_len.into())
+                + load_page_cost
+                + module_instantiation
+        };
+
+        assert_eq!(gas_spent_1, total_cost);
 
         let GasInfo {
             min_limit: gas_spent_2,
@@ -4522,7 +4564,7 @@ fn test_create_program_with_value_lt_ed() {
                 ProgramCodeKind::Default.to_bytes(),
                 b"test0".to_vec(),
                 EMPTY_PAYLOAD.to_vec(),
-                10_000_000,
+                100_000_000,
                 ed - 1,
             ),
             Error::<Test>::ValueLessThanMinimal,
@@ -5455,8 +5497,9 @@ fn missing_functions_are_not_executed() {
     )"#;
 
     init_logger();
+
     new_test_ext().execute_with(|| {
-        let initial_balance = Balances::free_balance(USER_1);
+        let balance_before = Balances::free_balance(USER_1);
 
         let program_id = {
             let res = upload_program_default(USER_1, ProgramCodeKind::Custom(wat));
@@ -5473,13 +5516,21 @@ fn missing_functions_are_not_executed() {
         )
         .expect("calculate_gas_info failed");
 
-        assert_eq!(min_limit, 0);
+        let program_cost = core_processor::calculate_gas_for_program(
+            DbWeightOf::<Test>::get().reads(1).ref_time(),
+            ReadPerByteCostOf::<Test>::get(),
+        );
+        // there is no execution so the values should be equal
+        assert_eq!(min_limit, program_cost);
 
         run_to_next_block(None);
 
-        // there is no 'init' so memory pages don't get loaded and
-        // no execution is performed at all and hence user was not charged.
-        assert_eq!(initial_balance, Balances::free_balance(USER_1));
+        // there is no 'init' so memory pages and code don't get loaded and
+        // no execution is performed at all and hence user was not charged for program execution.
+        assert_eq!(
+            balance_before,
+            Balances::free_balance(USER_1) + GasPrice::gas_price(program_cost)
+        );
 
         // this value is actually a constant in the wat.
         let locked_value = 1_000;
@@ -5511,8 +5562,9 @@ fn missing_functions_are_not_executed() {
         )
         .expect("calculate_gas_info failed");
 
-        assert_eq!(min_limit, 0);
+        assert_eq!(min_limit, program_cost);
 
+        let balance_before = Balances::free_balance(USER_1);
         let reply_value = 1_500;
         assert_ok!(Gear::send_reply(
             RuntimeOrigin::signed(USER_1),
@@ -5524,10 +5576,9 @@ fn missing_functions_are_not_executed() {
 
         run_to_next_block(None);
 
-        // there is no 'handle_reply' too
         assert_eq!(
-            initial_balance - reply_value,
-            Balances::free_balance(USER_1)
+            balance_before - reply_value + locked_value,
+            Balances::free_balance(USER_1) + GasPrice::gas_price(program_cost)
         );
     });
 }
@@ -5539,6 +5590,15 @@ fn missing_handle_is_not_executed() {
         (import "env" "memory" (memory 2))
         (export "init" (func $init))
         (func $init)
+    )"#;
+
+    let wat_handle = r#"
+    (module
+        (import "env" "memory" (memory 2))
+        (export "init" (func $init))
+        (export "handle" (func $handle))
+        (func $init)
+        (func $handle)
     )"#;
 
     init_logger();
@@ -5554,9 +5614,21 @@ fn missing_handle_is_not_executed() {
         .map(|_| get_last_program_id())
         .expect("submit_program failed");
 
+        let program_handle_id = Gear::upload_program(
+            RuntimeOrigin::signed(USER_3),
+            ProgramCodeKind::Custom(wat_handle).to_bytes(),
+            vec![],
+            EMPTY_PAYLOAD.to_vec(),
+            1_000_000_000,
+            0,
+        )
+        .map(|_| get_last_program_id())
+        .expect("submit_program failed");
+
         run_to_next_block(None);
 
         let balance_before = Balances::free_balance(USER_1);
+        let balance_before_handle = Balances::free_balance(USER_3);
 
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(USER_1),
@@ -5566,11 +5638,20 @@ fn missing_handle_is_not_executed() {
             0,
         ));
 
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_3),
+            program_handle_id,
+            EMPTY_PAYLOAD.to_vec(),
+            1_000_000_000,
+            0,
+        ));
+
         run_to_next_block(None);
 
-        // there is no 'handle' so no memory pages are loaded and
-        // the program is not executed. Hence the user didn't pay for processing.
-        assert_eq!(balance_before, Balances::free_balance(USER_1));
+        let margin = balance_before - Balances::free_balance(USER_1);
+        let margin_handle = balance_before_handle - Balances::free_balance(USER_3);
+
+        assert!(margin < margin_handle);
     });
 }
 
@@ -5621,6 +5702,7 @@ fn test_mad_big_prog_instrumentation() {
             code_bytes,
             schedule.instruction_weights.version,
             |module| schedule.rules(module),
+            schedule.limits.stack_height,
         );
         // In any case of the defined weights on the platform, instrumentation of the valid
         // huge wasm mustn't fail
@@ -5661,7 +5743,7 @@ mod utils {
     use sp_runtime::traits::UniqueSaturatedInto;
     use sp_std::{convert::TryFrom, fmt::Debug};
 
-    pub(super) const DEFAULT_GAS_LIMIT: u64 = 1_000_000_000;
+    pub(super) const DEFAULT_GAS_LIMIT: u64 = 200_000_000;
     pub(super) const DEFAULT_SALT: &[u8; 4] = b"salt";
     pub(super) const EMPTY_PAYLOAD: &[u8; 0] = b"";
     pub(super) const OUTGOING_WITH_VALUE_IN_HANDLE_VALUE: u128 = 10000000;

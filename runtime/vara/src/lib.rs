@@ -357,6 +357,7 @@ parameter_types! {
 
     pub const OutgoingLimit: u32 = 1024;
     pub const MailboxThreshold: u64 = 3000;
+    pub const ReadPerByteCost: u64 = 100;
 }
 
 parameter_types! {
@@ -373,6 +374,7 @@ impl pallet_gear::Config for Runtime {
     type DebugInfo = DebugInfo;
     type CodeStorage = GearProgram;
     type MailboxThreshold = MailboxThreshold;
+    type ReadPerByteCost = ReadPerByteCost;
     type Messenger = GearMessenger;
     type GasProvider = GearGas;
     type BlockLimiter = GearGas;

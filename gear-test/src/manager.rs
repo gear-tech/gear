@@ -19,11 +19,10 @@
 use crate::check::ExecutionContext;
 use core_processor::common::*;
 use gear_core::{
-    code::{Code, CodeAndId, InstrumentedCodeAndId},
+    code::{Code, CodeAndId},
     ids::{CodeId, MessageId, ProgramId},
     memory::{PageBuf, PageNumber, WasmPageNumber},
     message::{Dispatch, DispatchKind, GasLimit, StoredDispatch, StoredMessage},
-    program::Program,
 };
 use std::{
     collections::{BTreeMap, BTreeSet, VecDeque},
@@ -58,7 +57,7 @@ impl fmt::Debug for State {
                         actor
                             .executable_data
                             .as_ref()
-                            .map(|data| (*id, (actor.balance, data.program.get_allocations())))
+                            .map(|data| (*id, (actor.balance, &data.allocations)))
                     })
                     .collect::<BTreeMap<ProgramId, (u128, &BTreeSet<WasmPageNumber>)>>(),
             )
@@ -128,33 +127,49 @@ impl ExecutionContext for InMemoryExtManager {
     fn store_code(&mut self, code_id: CodeId, code: Code) {
         self.codes.insert(code_id, code);
     }
+
+    fn load_code(&self, code_id: CodeId) -> Option<Code> {
+        self.codes.get(&code_id).cloned()
+    }
+
     fn store_original_code(&mut self, code: &[u8]) {
         self.original_codes
             .insert(CodeId::generate(code), code.to_vec());
     }
-    fn store_program(&mut self, id: ProgramId, code: Code, _init_message_id: MessageId) -> Program {
+    fn store_program(
+        &mut self,
+        id: ProgramId,
+        code: Code,
+        _init_message_id: MessageId,
+    ) -> ExecutableActorData {
         let code_and_id = CodeAndId::new(code);
+        let code_id = code_and_id.code_id();
 
         self.store_code(code_and_id.code_id(), code_and_id.code().clone());
 
-        let code_and_id: InstrumentedCodeAndId = code_and_id.into();
-        let (code, _) = code_and_id.into_parts();
-        let program = Program::new(id, code);
+        let actor_data = ExecutableActorData {
+            allocations: Default::default(),
+            code_id,
+            code_exports: code_and_id.code().exports().clone(),
+            code_length_bytes: code_and_id.code().code().len() as u32,
+            static_pages: code_and_id.code().static_pages(),
+            initialized: false,
+            pages_with_data: Default::default(),
+        };
 
-        self.waiting_init.insert(program.id(), vec![]);
+        self.waiting_init.insert(id, vec![]);
         self.actors.insert(
-            program.id(),
+            id,
             TestActor {
                 balance: 0,
-                executable_data: Some(ExecutableActorData {
-                    program: program.clone(),
-                    pages_with_data: Default::default(),
-                }),
+                executable_data: Some(actor_data.clone()),
                 memory_pages: Default::default(),
             },
         );
-        program
+
+        actor_data
     }
+
     fn write_gas(&mut self, message_id: MessageId, gas_limit: u64) {
         self.gas_limits.insert(message_id, gas_limit);
     }
@@ -213,7 +228,7 @@ impl JournalHandler for InMemoryExtManager {
                     ..
                 }) = self.actors.get_mut(&program_id)
                 {
-                    data.program.set_initialized();
+                    data.initialized = true;
                 }
                 self.move_waiting_msgs_to_queue(program_id);
                 false
@@ -313,15 +328,14 @@ impl JournalHandler for InMemoryExtManager {
             .expect("Program not found in storage")
         {
             for page in data
-                .program
-                .get_allocations()
+                .allocations
                 .difference(&allocations)
                 .flat_map(|p| p.to_gear_pages_iter())
             {
                 memory_pages.remove(&page);
             }
 
-            *data.program.get_allocations_mut() = allocations;
+            data.allocations = allocations;
         } else {
             unreachable!("Can't update allocations for terminated program");
         }
@@ -348,7 +362,8 @@ impl JournalHandler for InMemoryExtManager {
             for (init_message_id, candidate_id) in candidates {
                 if !self.actors.contains_key(&candidate_id) {
                     let code =
-                        Code::try_new(code.clone(), 1, |_| ConstantCostRules::default()).unwrap();
+                        Code::try_new(code.clone(), 1, |_| ConstantCostRules::default(), None)
+                            .unwrap();
 
                     self.store_program(candidate_id, code, init_message_id);
                 } else {

@@ -40,6 +40,65 @@ use gear_core::{
     message::{ContextSettings, IncomingDispatch, MessageContext},
 };
 
+pub(crate) enum ChargeForBytesResult {
+    Ok,
+    BlockGasExceeded,
+    GasExceeded,
+}
+
+/// Calculates gas amount required to charge for program loading.
+pub fn calculate_gas_for_program(read_cost: u64, _per_byte_cost: u64) -> u64 {
+    read_cost
+}
+
+/// Calculates gas amount required to charge for code loading.
+pub fn calculate_gas_for_code(read_cost: u64, per_byte_cost: u64, code_len_bytes: u64) -> u64 {
+    read_cost.saturating_add(code_len_bytes.saturating_mul(per_byte_cost))
+}
+
+fn charge_gas_for_bytes(
+    amount: u64,
+    gas_counter: &mut GasCounter,
+    gas_allowance_counter: &mut GasAllowanceCounter,
+) -> ChargeForBytesResult {
+    if gas_allowance_counter.charge(amount) != ChargeResult::Enough {
+        return ChargeForBytesResult::BlockGasExceeded;
+    }
+
+    if gas_counter.charge(amount) != ChargeResult::Enough {
+        return ChargeForBytesResult::GasExceeded;
+    }
+
+    ChargeForBytesResult::Ok
+}
+
+pub(crate) fn charge_gas_for_program(
+    read_cost: u64,
+    per_byte_cost: u64,
+    gas_counter: &mut GasCounter,
+    gas_allowance_counter: &mut GasAllowanceCounter,
+) -> ChargeForBytesResult {
+    charge_gas_for_bytes(
+        calculate_gas_for_program(read_cost, per_byte_cost),
+        gas_counter,
+        gas_allowance_counter,
+    )
+}
+
+pub(crate) fn charge_gas_for_code(
+    read_cost: u64,
+    per_byte_cost: u64,
+    code_len_bytes: u32,
+    gas_counter: &mut GasCounter,
+    gas_allowance_counter: &mut GasAllowanceCounter,
+) -> ChargeForBytesResult {
+    charge_gas_for_bytes(
+        calculate_gas_for_code(read_cost, per_byte_cost, code_len_bytes.into()),
+        gas_counter,
+        gas_allowance_counter,
+    )
+}
+
 /// Make checks that everything with memory goes well.
 fn check_memory<'a>(
     allocations: &BTreeSet<WasmPageNumber>,
