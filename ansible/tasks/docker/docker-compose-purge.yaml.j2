@@ -10,7 +10,7 @@ services:
     image: ghcr.io/gear-tech/node:latest
     volumes:
       - "/home/ec2-user/gear-data/:/gear/"
-    command: gear-node purge-chain --base-path /gear/ --chain /gear/staging.json -y
+    command: gear purge-chain --base-path /gear/ --chain /gear/staging.json -y
 
 volumes:
   gear-data:

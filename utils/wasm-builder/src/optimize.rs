@@ -27,7 +27,13 @@ const META_EXPORTS: [&str; 13] = [
     "meta_state_input",
     "meta_state_output",
 ];
-const OPTIMIZED_EXPORTS: [&str; 4] = ["handle", "handle_reply", "init", "__gear_stack_end"];
+const OPTIMIZED_EXPORTS: [&str; 5] = [
+    "handle",
+    "handle_reply",
+    "handle_signal",
+    "init",
+    "__gear_stack_end",
+];
 
 /// Type of the output wasm.
 #[derive(PartialEq, Eq)]

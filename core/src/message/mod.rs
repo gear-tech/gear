@@ -28,6 +28,7 @@ mod handle;
 mod incoming;
 mod init;
 mod reply;
+mod signal;
 mod stored;
 
 pub use common::{Dispatch, Message, ReplyDetails};
@@ -36,10 +37,36 @@ pub use handle::{HandleMessage, HandlePacket};
 pub use incoming::{IncomingDispatch, IncomingMessage};
 pub use init::{InitMessage, InitPacket};
 pub use reply::{ReplyMessage, ReplyPacket};
+pub use signal::SignalMessage;
 pub use stored::{StoredDispatch, StoredMessage};
 
+use core::fmt::Display;
+
+use super::buffer::LimitedVec;
+
+/// Max payload size which one message can have (8 MiB).
+const MAX_PAYLOAD_SIZE: usize = 8 * 1024 * 1024;
+
+/// Payload size exceed error
+#[derive(
+    Clone, Copy, Default, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo,
+)]
+pub struct PayloadSizeError;
+
+impl From<PayloadSizeError> for &str {
+    fn from(_: PayloadSizeError) -> Self {
+        "Payload size limit exceeded"
+    }
+}
+
+impl Display for PayloadSizeError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_str((*self).into())
+    }
+}
+
 /// Payload type for message.
-pub type Payload = Vec<u8>;
+pub type Payload = LimitedVec<u8, PayloadSizeError, MAX_PAYLOAD_SIZE>;
 
 /// Gas limit type for message.
 pub type GasLimit = u64;
@@ -62,6 +89,8 @@ pub enum DispatchKind {
     Handle,
     /// Handle reply.
     Reply,
+    /// System signal.
+    Signal,
 }
 
 impl DispatchKind {
@@ -71,6 +100,7 @@ impl DispatchKind {
             Self::Init => "init",
             Self::Handle => "handle",
             Self::Reply => "handle_reply",
+            Self::Signal => "handle_signal",
         }
     }
 
@@ -87,6 +117,11 @@ impl DispatchKind {
     /// Check if kind is reply.
     pub fn is_reply(&self) -> bool {
         matches!(self, Self::Reply)
+    }
+
+    /// Check if kind is signal.
+    pub fn is_signal(&self) -> bool {
+        matches!(self, Self::Signal)
     }
 }
 

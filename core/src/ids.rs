@@ -199,11 +199,22 @@ impl MessageId {
 
         hash(&argument).into()
     }
+
+    /// Generate MessageId for signal message depend on exit code
+    pub fn generate_signal(origin_msg_id: MessageId, exit_code: ExitCode) -> MessageId {
+        const SALT: &[u8] = b"signal";
+
+        let argument = [origin_msg_id.as_ref(), &exit_code.to_le_bytes(), SALT].concat();
+        hash(&argument).into()
+    }
 }
 
 declare_id!(ProgramId: "Program identifier");
 
 impl ProgramId {
+    /// System program ID
+    pub const SYSTEM: Self = Self(*b"geargeargeargeargeargeargeargear");
+
     /// Generate ProgramId from given CodeId and salt
     pub fn generate(code_id: CodeId, salt: &[u8]) -> Self {
         let code_id = code_id.as_ref();

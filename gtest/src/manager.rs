@@ -39,6 +39,7 @@ use gear_core::{
 };
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap, VecDeque},
+    convert::TryInto,
     time::{SystemTime, UNIX_EPOCH},
 };
 use wasm_instrument::gas_metering::ConstantCostRules;
@@ -233,9 +234,9 @@ impl ExtManager {
     }
 
     pub(crate) fn store_new_code(&mut self, code: &[u8]) -> CodeId {
-        let code_hash = CodeId::generate(code);
-        self.opt_binaries.insert(code_hash, code.to_vec());
-        code_hash
+        let code_id = CodeId::generate(code);
+        self.opt_binaries.insert(code_id, code.to_vec());
+        code_id
     }
 
     pub(crate) fn fetch_inc_message_nonce(&mut self) -> u64 {
@@ -450,7 +451,7 @@ impl ExtManager {
     fn move_waiting_msgs_to_queue(&mut self, message_id: MessageId, program_id: ProgramId) {
         if let Some(ids) = self.wait_init_list.remove(&program_id) {
             for id in ids {
-                self.wake_message(message_id, program_id, id);
+                self.wake_message(message_id, program_id, id, 0);
             }
         }
     }
@@ -470,19 +471,25 @@ impl ExtManager {
     }
 
     fn process_mock(&mut self, mut mock: Box<dyn WasmProgram>, dispatch: StoredDispatch) {
+        enum Mocked {
+            Reply(Option<Vec<u8>>),
+            Signal,
+        }
+
         let message_id = dispatch.id();
         let source = dispatch.source();
         let program_id = dispatch.destination();
         let payload = dispatch.payload().to_vec();
 
         let response = match dispatch.kind() {
-            DispatchKind::Init => mock.init(payload),
-            DispatchKind::Handle => mock.handle(payload),
-            DispatchKind::Reply => mock.handle_reply(payload),
+            DispatchKind::Init => mock.init(payload).map(Mocked::Reply),
+            DispatchKind::Handle => mock.handle(payload).map(Mocked::Reply),
+            DispatchKind::Reply => mock.handle_reply(payload).map(Mocked::Reply),
+            DispatchKind::Signal => mock.handle_signal(payload).map(|()| Mocked::Signal),
         };
 
         match response {
-            Ok(reply) => {
+            Ok(Mocked::Reply(reply)) => {
                 if let DispatchKind::Init = dispatch.kind() {
                     self.message_dispatched(
                         message_id,
@@ -493,15 +500,17 @@ impl ExtManager {
 
                 if let Some(payload) = reply {
                     let id = MessageId::generate_reply(message_id, 0);
-                    let packet = ReplyPacket::new(payload, 0);
+                    let packet = ReplyPacket::new(payload.try_into().unwrap(), 0);
                     let reply_message = ReplyMessage::from_packet(id, packet);
 
                     self.send_dispatch(
                         message_id,
                         reply_message.into_dispatch(program_id, dispatch.source(), message_id),
+                        0,
                     );
                 }
             }
+            Ok(Mocked::Signal) => {}
             Err(expl) => {
                 mock.debug(expl);
 
@@ -526,14 +535,17 @@ impl ExtManager {
                     )
                 }
 
-                let id = MessageId::generate_reply(message_id, 1);
-                let packet = ReplyPacket::new(Default::default(), 1);
-                let reply_message = ReplyMessage::from_packet(id, packet);
+                if !dispatch.kind().is_signal() {
+                    let id = MessageId::generate_reply(message_id, 1);
+                    let packet = ReplyPacket::new(Default::default(), 1);
+                    let reply_message = ReplyMessage::from_packet(id, packet);
 
-                self.send_dispatch(
-                    message_id,
-                    reply_message.into_dispatch(program_id, dispatch.source(), message_id),
-                );
+                    self.send_dispatch(
+                        message_id,
+                        reply_message.into_dispatch(program_id, dispatch.source(), message_id),
+                        0,
+                    );
+                }
             }
         }
 
@@ -617,12 +629,12 @@ impl ExtManager {
         let (actor, _balance) = self
             .actors
             .get_mut(program_id)
-            .ok_or(TestError::ActorNotFound(*program_id))?;
+            .ok_or_else(|| TestError::ActorNotFound(*program_id))?;
 
         let code_id = actor.code_id();
         let (data, memory) = actor
             .get_executable_actor_data()
-            .ok_or(TestError::ActorIsNotExecutable(*program_id))?;
+            .ok_or_else(|| TestError::ActorIsNotExecutable(*program_id))?;
         let pages_initial_data = memory
             .into_iter()
             .map(|(page, data)| (page, Box::new(data)))
@@ -637,7 +649,7 @@ impl ExtManager {
         WasmExecutor::update_ext(&mut ext, self);
 
         WasmExecutor::execute(
-            &mut ext,
+            ext,
             &data.program,
             meta_binary,
             &pages_initial_data,
@@ -687,7 +699,7 @@ impl JournalHandler for ExtManager {
         }
     }
 
-    fn send_dispatch(&mut self, _message_id: MessageId, dispatch: Dispatch) {
+    fn send_dispatch(&mut self, _message_id: MessageId, dispatch: Dispatch, _delay: u32) {
         self.gas_limits.insert(dispatch.id(), dispatch.gas_limit());
 
         if !self.is_user(&dispatch.destination()) {
@@ -722,6 +734,7 @@ impl JournalHandler for ExtManager {
         _message_id: MessageId,
         program_id: ProgramId,
         awakening_id: MessageId,
+        _delay: u32,
     ) {
         if let Some(msg) = self.wait_list.remove(&(program_id, awakening_id)) {
             self.dispatches.push_back(msg);
@@ -804,15 +817,15 @@ impl JournalHandler for ExtManager {
         }
     }
 
-    fn store_new_programs(&mut self, code_hash: CodeId, candidates: Vec<(ProgramId, MessageId)>) {
-        if let Some(code) = self.opt_binaries.get(&code_hash).cloned() {
-            for (candidate_id, init_message_id) in candidates {
+    fn store_new_programs(&mut self, code_id: CodeId, candidates: Vec<(MessageId, ProgramId)>) {
+        if let Some(code) = self.opt_binaries.get(&code_id).cloned() {
+            for (init_message_id, candidate_id) in candidates {
                 if !self.actors.contains_key(&candidate_id) {
                     let code = Code::try_new(code.clone(), 1, |_| ConstantCostRules::default())
                         .expect("Program can't be constructed with provided code");
 
                     let code_and_id: InstrumentedCodeAndId =
-                        CodeAndId::from_parts_unchecked(code, code_hash).into();
+                        CodeAndId::from_parts_unchecked(code, code_id).into();
                     let (code, code_id) = code_and_id.into_parts();
                     let candidate = CoreProgram::new(candidate_id, code);
                     self.store_new_actor(
@@ -827,9 +840,9 @@ impl JournalHandler for ExtManager {
         } else {
             logger::debug!(
                 "No referencing code with code hash {:?} for candidate programs",
-                code_hash
+                code_id
             );
-            for (invalid_candidate_id, _) in candidates {
+            for (_, invalid_candidate_id) in candidates {
                 self.actors
                     .insert(invalid_candidate_id, (TestActor::Dormant, 0));
             }

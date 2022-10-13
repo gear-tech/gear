@@ -19,7 +19,7 @@ async fn main() {
                 .await
         }
         Kind::ReplyWithGas(gas) => {
-            msg::reply_with_gas_for_reply(&encoded_kind, gas, 0)
+            msg::reply_with_gas_for_reply(kind, gas, 0)
                 .expect("send message failed")
                 .await
         }
@@ -67,14 +67,14 @@ async fn main() {
         }
         Kind::SendCommit => {
             let handle = msg::send_init().expect("init message failed");
-            msg::send_push(&handle, &encoded_kind).expect("push payload failed");
+            msg::send_push(handle, &encoded_kind).expect("push payload failed");
             msg::send_commit_for_reply(handle, msg::source(), 0)
                 .expect("send message failed")
                 .await
         }
         Kind::SendCommitWithGas(gas) => {
             let handle = msg::send_init().expect("init message failed");
-            msg::send_push(&handle, &encoded_kind).expect("push payload failed");
+            msg::send_push(handle, &encoded_kind).expect("push payload failed");
             msg::send_commit_with_gas_for_reply(handle, msg::source(), gas, 0)
                 .expect("send message failed")
                 .await

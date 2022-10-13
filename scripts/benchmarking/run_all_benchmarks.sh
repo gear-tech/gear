@@ -58,7 +58,7 @@ then
 fi
 
 # The executable to use.
-GEAR=./target/production/gear-node
+GEAR=./target/production/gear
 
 # Manually exclude some pallets.
 EXCLUDED_PALLETS=(

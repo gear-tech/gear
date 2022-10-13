@@ -18,7 +18,7 @@
 
 //! Program generation module
 
-use crate::{common::errors::Result, prog, ActorId, CodeHash};
+use crate::{common::errors::Result, prog, ActorId, CodeId, MessageId};
 use codec::alloc::vec::Vec;
 
 /// `ProgramGenerator` allows you to create programs
@@ -29,9 +29,10 @@ pub struct ProgramGenerator(u64);
 static mut PROGRAM_GENERATOR: ProgramGenerator = ProgramGenerator(0);
 
 impl ProgramGenerator {
+    // Prefix for not crossing with the user salt.
+    const UNIQUE_KEY: [u8; 14] = *b"salt_generator";
+
     pub fn get_salt() -> Vec<u8> {
-        // Prefix for not crossing with the user salt.
-        let unique_key = b"salt_generator";
         // Provide salt uniqueness across all programs from other messages.
         let message_id = crate::msg::id();
 
@@ -41,23 +42,49 @@ impl ProgramGenerator {
             PROGRAM_GENERATOR.0 = PROGRAM_GENERATOR.0.saturating_add(1);
         }
 
-        [unique_key, message_id.as_ref(), &creator_nonce].concat()
+        [&Self::UNIQUE_KEY, message_id.as_ref(), &creator_nonce].concat()
     }
 
-    pub fn create_program_with_gas<T: AsRef<[u8]>>(
-        code_hash: CodeHash,
-        payload: T,
+    pub fn create_program_with_gas(
+        code_id: CodeId,
+        payload: impl AsRef<[u8]>,
         gas_limit: u64,
         value: u128,
-    ) -> Result<ActorId> {
-        prog::create_program_with_gas(code_hash, Self::get_salt(), payload, gas_limit, value)
+    ) -> Result<(MessageId, ActorId)> {
+        Self::create_program_with_gas_delayed(code_id, payload, gas_limit, value, 0)
     }
 
-    pub fn create_program<T: AsRef<[u8]>>(
-        code_hash: CodeHash,
-        payload: T,
+    pub fn create_program_with_gas_delayed(
+        code_id: CodeId,
+        payload: impl AsRef<[u8]>,
+        gas_limit: u64,
         value: u128,
-    ) -> Result<ActorId> {
-        prog::create_program(code_hash, Self::get_salt(), payload, value)
+        delay: u32,
+    ) -> Result<(MessageId, ActorId)> {
+        prog::create_program_with_gas_delayed(
+            code_id,
+            Self::get_salt(),
+            payload,
+            gas_limit,
+            value,
+            delay,
+        )
+    }
+
+    pub fn create_program(
+        code_id: CodeId,
+        payload: impl AsRef<[u8]>,
+        value: u128,
+    ) -> Result<(MessageId, ActorId)> {
+        Self::create_program_delayed(code_id, payload, value, 0)
+    }
+
+    pub fn create_program_delayed(
+        code_id: CodeId,
+        payload: impl AsRef<[u8]>,
+        value: u128,
+        delay: u32,
+    ) -> Result<(MessageId, ActorId)> {
+        prog::create_program_delayed(code_id, Self::get_salt(), payload, value, delay)
     }
 }

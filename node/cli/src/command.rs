@@ -16,15 +16,11 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{
-    cli::{Cli, Subcommand},
-    inherent_benchmark_data, RemarkBuilder, TransferKeepAliveBuilder,
-};
-use frame_benchmarking_cli::{BenchmarkCmd, ExtrinsicFactory, SUBSTRATE_REFERENCE_HARDWARE};
+use crate::cli::{Cli, Subcommand};
 use runtime_primitives::Block;
-use sc_cli::{ChainSpec, RuntimeVersion, SubstrateCli};
+use sc_cli::{ChainSpec, ExecutionStrategy, RuntimeVersion, SubstrateCli};
+use sc_service::config::BasePath;
 use service::{chain_spec, IdentifyVariant};
-use sp_keyring::Sr25519Keyring;
 
 impl SubstrateCli for Cli {
     fn impl_name() -> String {
@@ -109,6 +105,7 @@ impl SubstrateCli for Cli {
 }
 
 /// Unwraps a [`service::Client`] into the concrete runtime client.
+#[allow(unused)]
 macro_rules! unwrap_client {
     (
         $client:ident,
@@ -127,7 +124,22 @@ macro_rules! unwrap_client {
 
 /// Parse and run command line arguments
 pub fn run() -> sc_cli::Result<()> {
-    let cli = Cli::from_args();
+    let mut cli = Cli::from_args();
+
+    // Force setting `Wasm` as default execution strategy.
+    cli.run
+        .base
+        .import_params
+        .execution_strategies
+        .execution
+        .get_or_insert(ExecutionStrategy::Wasm);
+
+    // Set default base directory to `gear-node`.
+    cli.run
+        .base
+        .shared_params
+        .base_path
+        .get_or_insert_with(|| BasePath::from_project("", "", "gear-node").path().into());
 
     match &cli.subcommand {
         Some(Subcommand::Key(cmd)) => cmd.run(&cli),
@@ -178,7 +190,14 @@ pub fn run() -> sc_cli::Result<()> {
                 Ok((cmd.run(client, backend, Some(aux_revert)), task_manager))
             })
         }
+        #[cfg(feature = "runtime-benchmarks")]
         Some(Subcommand::Benchmark(cmd)) => {
+            use crate::{inherent_benchmark_data, RemarkBuilder, TransferKeepAliveBuilder};
+            use frame_benchmarking_cli::{
+                BenchmarkCmd, ExtrinsicFactory, SUBSTRATE_REFERENCE_HARDWARE,
+            };
+            use sp_keyring::Sr25519Keyring;
+
             let runner = cli.create_runner(cmd)?;
 
             runner.sync_run(|config| {
@@ -231,7 +250,6 @@ pub fn run() -> sc_cli::Result<()> {
                         })?;
 
                         let (client, _, _, _) = service::new_chain_ops(&config)?;
-                        // let ext_builder = client.clone();
                         let ext_builder = RemarkBuilder::new(client.clone());
 
                         unwrap_client!(
@@ -270,6 +288,7 @@ pub fn run() -> sc_cli::Result<()> {
                 }
             })
         }
+        #[cfg(feature = "runtime-test")]
         Some(Subcommand::GearRuntimeTest(cmd)) => {
             let runner = cli.create_runner(cmd)?;
 
@@ -319,10 +338,19 @@ pub fn run() -> sc_cli::Result<()> {
             let runner = cli.create_runner(cmd)?;
             runner.sync_run(|config| cmd.run::<Block>(&config))
         }
+        #[cfg(feature = "program")]
+        Some(Subcommand::GearProgram(gp)) => {
+            // # NOTE
+            //
+            // unwrap here directly to show the error messages.
+            gp.exec_sync().unwrap();
+            Ok(())
+        }
         None => {
             let runner = cli.create_runner(&cli.run.base)?;
             runner.run_node_until_exit(|config| async move {
-                service::build_full(config).map_err(sc_cli::Error::Service)
+                service::new_full(config, cli.no_hardware_benchmarks)
+                    .map_err(sc_cli::Error::Service)
             })
         }
     }

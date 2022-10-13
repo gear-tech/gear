@@ -3,7 +3,7 @@
 extern crate alloc;
 
 use alloc::{collections::BTreeSet, vec::Vec};
-use gstd::{prog::ProgramGenerator, CodeHash};
+use gstd::{prog::ProgramGenerator, CodeId};
 
 fn salt_uniqueness_test() {
     let salts: Vec<_> = (0..10).map(|_| ProgramGenerator::get_salt()).collect();
@@ -17,7 +17,7 @@ fn salt_uniqueness_test() {
 
 #[no_mangle]
 unsafe extern "C" fn handle() {
-    let submitted_code: CodeHash =
+    let submitted_code: CodeId =
         hex_literal::hex!("abf3746e72a6e8740bd9e12b879fbdd59e052cb390f116454e9116c22021ae4a")
             .into();
 

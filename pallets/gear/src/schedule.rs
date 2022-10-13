@@ -264,8 +264,8 @@ pub struct HostFnWeights<T: Config> {
     /// Weight of calling `gr_gas_available`.
     pub gr_gas_available: u64,
 
-    /// Weight of calling `gr_msg_id`.
-    pub gr_msg_id: u64,
+    /// Weight of calling `gr_message_id`.
+    pub gr_message_id: u64,
 
     /// Weight of calling `gr_origin`.
     pub gr_origin: u64,
@@ -345,8 +345,8 @@ pub struct HostFnWeights<T: Config> {
     /// Weight of calling `gr_wait_for`.
     pub gr_wait_for: u64,
 
-    /// Weight of calling `gr_wait_no_more`.
-    pub gr_wait_no_more: u64,
+    /// Weight of calling `gr_wait_up_to`.
+    pub gr_wait_up_to: u64,
 
     /// Weight of calling `gr_wake`.
     pub gr_wake: u64,
@@ -552,7 +552,7 @@ impl<T: Config> HostFnWeights<T> {
         CoreHostFnWeights {
             alloc: self.alloc,
             gr_gas_available: self.gr_gas_available,
-            gr_msg_id: self.gr_msg_id,
+            gr_message_id: self.gr_message_id,
             gr_origin: self.gr_origin,
             gr_program_id: self.gr_program_id,
             gr_source: self.gr_source,
@@ -579,7 +579,7 @@ impl<T: Config> HostFnWeights<T> {
             gr_leave: self.gr_leave,
             gr_wait: self.gr_wait,
             gr_wait_for: self.gr_wait_for,
-            gr_wait_no_more: self.gr_wait_no_more,
+            gr_wait_up_to: self.gr_wait_up_to,
             gr_wake: self.gr_wake,
             gr_create_program_wgas: self.gr_create_program_wgas,
             gr_create_program_wgas_per_byte: self.gr_create_program_wgas_per_byte,
@@ -593,7 +593,7 @@ impl<T: Config> Default for HostFnWeights<T> {
         Self {
             alloc: cost_batched!(alloc),
             gr_gas_available: cost_batched!(gr_gas_available),
-            gr_msg_id: cost_batched!(gr_msg_id),
+            gr_message_id: cost_batched!(gr_message_id),
             gr_origin: cost_batched!(gr_origin),
             gr_program_id: cost_batched!(gr_program_id),
             gr_source: cost_batched!(gr_source),
@@ -620,7 +620,7 @@ impl<T: Config> Default for HostFnWeights<T> {
             gr_leave: cost!(gr_leave),
             gr_wait: cost!(gr_wait),
             gr_wait_for: cost!(gr_wait_for),
-            gr_wait_no_more: cost!(gr_wait_no_more),
+            gr_wait_up_to: cost!(gr_wait_up_to),
             gr_wake: cost_batched!(gr_wake),
             gr_create_program_wgas: cost!(gr_create_program_wgas),
             gr_create_program_wgas_per_byte: cost_byte_batched!(gr_create_program_wgas_per_kb),

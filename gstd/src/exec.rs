@@ -77,10 +77,11 @@
 //!     let _my_balance = exec::value_available();
 //! }
 //! ```
-use crate::{ActorId, MessageId};
+
+use crate::{common::errors::Result, ActorId, MessageId};
 pub use gcore::exec::{
     block_height, block_timestamp, gas_available, leave, value_available, wait, wait_for,
-    wait_no_more,
+    wait_up_to,
 };
 
 /// Terminate the execution of a program.
@@ -124,8 +125,13 @@ pub fn exit(value_destination: ActorId) -> ! {
 ///     exec::wake(msg_id);
 /// }
 /// ```
-pub fn wake(waker_id: MessageId) {
-    gcore::exec::wake(waker_id.into())
+pub fn wake(message_id: MessageId) -> Result<()> {
+    wake_delayed(message_id, 0)
+}
+
+/// Same as [`wake`], but wakes delayed.
+pub fn wake_delayed(message_id: MessageId, delay: u32) -> Result<()> {
+    gcore::exec::wake_delayed(message_id.into(), delay).map_err(Into::into)
 }
 
 /// Return ID of the current program.

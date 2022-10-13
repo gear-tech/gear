@@ -59,7 +59,7 @@ jobs:
       - name: "Install: Build deps"
         run: |
           sudo apt update
-          sudo apt install -y git clang curl libssl-dev llvm libudev-dev cmake
+          sudo apt install -y git clang curl libssl-dev llvm libudev-dev cmake protobuf-compiler
           sudo wget -c https://github.com/WebAssembly/binaryen/releases/download/version_105/binaryen-version_105-x86_64-linux.tar.gz -O - | sudo tar -xz -C .
           sudo cp binaryen-version_105/bin/wasm-opt /usr/bin/
 
@@ -72,7 +72,7 @@ jobs:
           tar -xf /tmp/build_target.tar
 
       - name: "Build: Gear"
-        run: ./scripts/gear.sh build gear --release --locked --features runtime-benchmarks,lazy-pages
+        run: ./scripts/gear.sh build gear --release --locked --features=runtime-test,runtime-benchmarks,lazy-pages
 
       - name: "Build: Examples (WASM)"
         run: ./scripts/gear.sh build examples --locked
@@ -84,14 +84,14 @@ jobs:
         run: |
           mkdir ./target/tests/
           mkdir ./target/tests-output/
-          for i in `seq 1 $COUNT`; do echo $i; ./scripts/gear.sh test gear --release -j1 > ./target/tests-output/$i ; mv ./target/nextest/ci/junit.xml ./target/tests/$i; done
+          for i in `seq 1 $COUNT`; do echo $i; ./scripts/gear.sh test gear --exclude gclient --features pallet-gear-debug/lazy-pages --release -j1 > ./target/tests-output/$i ; mv ./target/nextest/ci/junit.xml ./target/tests/$i; done
           ./target/release/regression-analysis collect-data --data-folder-path ./target/tests/ --output-path ./target/pallet-tests.json
 
       - name: "Collect: Node runtime tests"
         run: |
           mkdir ./target/runtime-tests/
           mkdir ./target/runtime-tests-output/
-          for i in `seq 1 $COUNT`; do echo $i; ./scripts/gear.sh test rtest > ./target/runtime-tests-output/$i ; mv ./target/runtime-test-junit.xml ./target/runtime-tests/$i; done
+          for i in `seq 1 $COUNT`; do echo $i; ./scripts/gear.sh test rtest gear > ./target/runtime-tests-output/$i ; mv ./target/runtime-test-junit.xml ./target/runtime-tests/$i; done
           ./target/release/regression-analysis collect-data --disable-filter --data-folder-path ./target/runtime-tests/ --output-path ./target/runtime-tests.json
           
       - name: "Collect: pallet-gear benches"
@@ -120,6 +120,78 @@ jobs:
           --data-folder-path ./target/runtime-tests/
           --output-file ./target/action-runtime-output.json
           
+      - name: "Generate report: pallet-gear benches"
+        run: |
+          ./target/release/regression-analysis weights --input-file ./target/weights.json --output-file ./target/action-hostfn-weights.json host-fn
+          ./target/release/regression-analysis weights --input-file ./target/weights.json --output-file ./target/action-instruction-weights.json instruction
+          ./target/release/regression-analysis weights --input-file ./target/weights.json --output-file ./target/action-extrinsic-weights.json extrinsic
+
+      - name: "Deploy: Gear workspace tests"
+        uses: ./.github/actions/deploy-benchmark
+        with:
+          name: Gear workspace tests
+          file: ./target/action-pallet-output.json
+          ssh-deploy-key: ${{ secrets.PERFORMANCE_CHARTS_DEPLOY_KEY }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: "Deploy: Node runtime tests"
+        uses: ./.github/actions/deploy-benchmark
+        with:
+          name: Node runtime tests
+          file: ./target/action-runtime-output.json
+          ssh-deploy-key: ${{ secrets.PERFORMANCE_CHARTS_DEPLOY_KEY }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: "Deploy: pallet-gear host function weights"
+        uses: ./.github/actions/deploy-benchmark
+        with:
+          name: pallet-gear host function weights
+          file: ./target/action-hostfn-weights.json
+          ssh-deploy-key: ${{ secrets.PERFORMANCE_CHARTS_DEPLOY_KEY }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: "Deploy: pallet-gear instruction weights"
+        uses: ./.github/actions/deploy-benchmark
+        with:
+          name: pallet-gear instruction weights
+          file: ./target/action-instruction-weights.json
+          ssh-deploy-key: ${{ secrets.PERFORMANCE_CHARTS_DEPLOY_KEY }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: "Deploy: pallet-gear instruction weights"
+        uses: ./.github/actions/deploy-benchmark
+        with:
+          name: pallet-gear extrinsic weights
+          file: ./target/action-extrinsic-weights.json
+          ssh-deploy-key: ${{ secrets.PERFORMANCE_CHARTS_DEPLOY_KEY }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: "Collect: pallet-gear benches"
+        run: >-
+          ./target/release/gear benchmark pallet --pallet=pallet_gear
+          --steps=50
+          --repeat=20
+          --chain=dev
+          --extrinsic=*
+          --execution=wasm
+          --wasm-execution=compiled
+          --heap-pages=4096
+          --output ./target/weights.json
+          --template ./.maintain/regression-analysis-weight-template.hbs
+
+      - name: "Generate report: Gear workspace tests"
+        run: >-
+          ./target/release/regression-analysis convert
+          --data-folder-path ./target/tests/
+          --output-file ./target/action-pallet-output.json
+
+      - name: "Generate report: Node runtime tests"
+        run: >-
+          ./target/release/regression-analysis convert
+          --disable-filter
+          --data-folder-path ./target/runtime-tests/
+          --output-file ./target/action-runtime-output.json
+
       - name: "Generate report: pallet-gear benches"
         run: |
           ./target/release/regression-analysis weights --input-file ./target/weights.json --output-file ./target/action-hostfn-weights.json host-fn

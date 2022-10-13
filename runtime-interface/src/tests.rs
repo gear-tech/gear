@@ -65,7 +65,7 @@ fn test_mprotect_pages() {
     // Set `OLD_VALUE` as value for each first byte of gear pages
     unsafe {
         for &p in pages_unprotected.iter().chain(pages_protected.iter()) {
-            let addr = page_begin as usize + p.0 as usize * PageNumber::size() + 1;
+            let addr = page_begin + p.0 as usize * PageNumber::size() + 1;
             *(addr as *mut u8) = OLD_VALUE;
         }
     }
@@ -81,14 +81,14 @@ fn test_mprotect_pages() {
 
     unsafe {
         for &p in pages_protected.iter() {
-            let addr = page_begin as usize + p.0 as usize * PageNumber::size() + 1;
+            let addr = page_begin + p.0 as usize * PageNumber::size() + 1;
             let x = *(addr as *mut u8);
             // value must be changed to `NEW_VALUE` in sig handler
             assert_eq!(x, NEW_VALUE);
         }
 
         for &p in pages_unprotected.iter() {
-            let addr = page_begin as usize + p.0 as usize * PageNumber::size() + 1;
+            let addr = page_begin + p.0 as usize * PageNumber::size() + 1;
             let x = *(addr as *mut u8);
             // value must not be changed
             assert_eq!(x, OLD_VALUE);

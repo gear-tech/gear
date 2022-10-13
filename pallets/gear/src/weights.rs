@@ -24,7 +24,7 @@
 //! EXECUTION: Some(Wasm), WASM-EXECUTION: Compiled, CHAIN: Some("gear-dev"), DB CACHE: 1024
 
 // Executed Command:
-// ./target/production/gear-node benchmark pallet --chain=gear-dev --steps=50 --repeat=20 --pallet=pallet_gear --extrinsic=* --execution=wasm --wasm-execution=compiled --heap-pages=4096 --output=./scripts/benchmarking/weights-output/pallet_gear.rs --template=.maintain/frame-weight-template.hbs
+// ./target/production/gear benchmark pallet --chain=gear-dev --steps=50 --repeat=20 --pallet=pallet_gear --extrinsic=* --execution=wasm --wasm-execution=compiled --heap-pages=4096 --output=./scripts/benchmarking/weights-output/pallet_gear.rs --template=.maintain/frame-weight-template.hbs
 
 #![cfg_attr(rustfmt, rustfmt_skip)]
 #![allow(unused_parens)]
@@ -52,7 +52,7 @@ pub trait WeightInfo {
     fn alloc(r: u32, ) -> Weight;
     fn gas(r: u32, ) -> Weight;
     fn gr_gas_available(r: u32, ) -> Weight;
-    fn gr_msg_id(r: u32, ) -> Weight;
+    fn gr_message_id(r: u32, ) -> Weight;
     fn gr_origin(r: u32, ) -> Weight;
     fn gr_program_id(r: u32, ) -> Weight;
     fn gr_source(r: u32, ) -> Weight;
@@ -79,7 +79,7 @@ pub trait WeightInfo {
     fn gr_leave(r: u32, ) -> Weight;
     fn gr_wait(r: u32, ) -> Weight;
     fn gr_wait_for(r: u32, ) -> Weight;
-    fn gr_wait_no_more(r: u32, ) -> Weight;
+    fn gr_wait_up_to(r: u32, ) -> Weight;
     fn gr_wake(r: u32, ) -> Weight;
     fn gr_create_program_wgas(r: u32, ) -> Weight;
     fn gr_create_program_wgas_per_kb(n: u32, ) -> Weight;
@@ -243,7 +243,7 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
             .saturating_add(Weight::from_ref_time(60_502_769 as u64).saturating_mul(r as u64))
     }
     /// The range of component `r` is `[0, 20]`.
-    fn gr_msg_id(r: u32, ) -> Weight {
+    fn gr_message_id(r: u32, ) -> Weight {
         Weight::from_ref_time(93_227_000 as u64)
             // Standard Error: 70_761
             .saturating_add(Weight::from_ref_time(74_230_266 as u64).saturating_mul(r as u64))
@@ -410,7 +410,7 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
             .saturating_add(T::DbWeight::get().reads((1 as u64).saturating_mul(r as u64)))
     }
     /// The range of component `r` is `[0, 1]`.
-    fn gr_wait_no_more(r: u32, ) -> Weight {
+    fn gr_wait_up_to(r: u32, ) -> Weight {
         Weight::from_ref_time(77_195_000 as u64)
             // Standard Error: 240_822
             .saturating_add(Weight::from_ref_time(38_296_200 as u64).saturating_mul(r as u64))
@@ -846,7 +846,7 @@ impl WeightInfo for () {
             .saturating_add(Weight::from_ref_time(60_502_769 as u64).saturating_mul(r as u64))
     }
     /// The range of component `r` is `[0, 20]`.
-    fn gr_msg_id(r: u32, ) -> Weight {
+    fn gr_message_id(r: u32, ) -> Weight {
         Weight::from_ref_time(93_227_000 as u64)
             // Standard Error: 70_761
             .saturating_add(Weight::from_ref_time(74_230_266 as u64).saturating_mul(r as u64))
@@ -1013,7 +1013,7 @@ impl WeightInfo for () {
             .saturating_add(RocksDbWeight::get().reads((1 as u64).saturating_mul(r as u64)))
     }
     /// The range of component `r` is `[0, 1]`.
-    fn gr_wait_no_more(r: u32, ) -> Weight {
+    fn gr_wait_up_to(r: u32, ) -> Weight {
         Weight::from_ref_time(77_195_000 as u64)
             // Standard Error: 240_822
             .saturating_add(Weight::from_ref_time(38_296_200 as u64).saturating_mul(r as u64))

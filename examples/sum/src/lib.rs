@@ -46,7 +46,8 @@ unsafe extern "C" fn handle() {
 
 #[no_mangle]
 unsafe extern "C" fn init() {
-    let input = String::from_utf8(msg::load_bytes()).expect("Invalid message: should be utf-8");
+    let input = String::from_utf8(msg::load_bytes().expect("Failed to load payload bytes"))
+        .expect("Invalid message: should be utf-8");
     let send_to = ActorId::from_slice(
         &decode_hex(&input).expect("INITIALIZATION FAILED: INVALID PROGRAM ID"),
     )

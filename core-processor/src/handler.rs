@@ -44,7 +44,8 @@ pub fn handle_journal(
             JournalNote::SendDispatch {
                 message_id,
                 dispatch,
-            } => handler.send_dispatch(message_id, dispatch),
+                delay,
+            } => handler.send_dispatch(message_id, dispatch, delay),
             JournalNote::WaitDispatch { dispatch, duration } => {
                 handler.wait_dispatch(dispatch, duration)
             }
@@ -52,7 +53,8 @@ pub fn handle_journal(
                 message_id,
                 program_id,
                 awakening_id,
-            } => handler.wake_message(message_id, program_id, awakening_id),
+                delay,
+            } => handler.wake_message(message_id, program_id, awakening_id, delay),
             JournalNote::UpdatePage {
                 program_id,
                 page_number,
@@ -69,9 +71,9 @@ pub fn handle_journal(
             }
             JournalNote::SendValue { from, to, value } => handler.send_value(from, to, value),
             JournalNote::StoreNewPrograms {
-                code_hash,
+                code_id,
                 candidates,
-            } => handler.store_new_programs(code_hash, candidates),
+            } => handler.store_new_programs(code_id, candidates),
             JournalNote::StopProcessing {
                 dispatch,
                 gas_burned,

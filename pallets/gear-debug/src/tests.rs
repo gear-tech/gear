@@ -20,9 +20,11 @@ use super::*;
 use crate::mock::*;
 use common::{self, Origin as _};
 use frame_support::assert_ok;
+#[cfg(feature = "lazy-pages")]
+use gear_core::memory::{PageNumber, PAGE_STORAGE_GRANULARITY as PSG};
 use gear_core::{
     ids::{CodeId, MessageId, ProgramId},
-    memory::{PageBuf, PageNumber, WasmPageNumber, PAGE_STORAGE_GRANULARITY as PSG},
+    memory::{PageBuf, WasmPageNumber},
     message::{DispatchKind, StoredDispatch, StoredMessage},
 };
 use pallet_gear::{DebugInfo, Pallet as PalletGear};
@@ -86,7 +88,7 @@ fn debug_mode_works() {
         let program_id_2 = generate_program_id(&code_2);
 
         PalletGear::<Test>::upload_program(
-            Origin::signed(1),
+            RuntimeOrigin::signed(1),
             code_1.clone(),
             b"salt".to_vec(),
             Vec::new(),
@@ -120,7 +122,7 @@ fn debug_mode_works() {
         );
 
         PalletGear::<Test>::upload_program(
-            Origin::signed(1),
+            RuntimeOrigin::signed(1),
             code_2.clone(),
             b"salt".to_vec(),
             Vec::new(),
@@ -159,7 +161,7 @@ fn debug_mode_works() {
         );
 
         PalletGear::<Test>::send_message(
-            Origin::signed(1),
+            RuntimeOrigin::signed(1),
             program_id_1,
             vec![],
             1_000_000_000_u64,
@@ -170,7 +172,7 @@ fn debug_mode_works() {
         let message_id_1 = get_last_message_id();
 
         PalletGear::<Test>::send_message(
-            Origin::signed(1),
+            RuntimeOrigin::signed(1),
             program_id_2,
             vec![],
             1_000_000_000_u64,
@@ -282,7 +284,7 @@ fn get_last_message_id() -> MessageId {
 
 #[cfg(feature = "lazy-pages")]
 fn append_rest_psg_pages(page: PageNumber, pages_data: &mut BTreeMap<PageNumber, Vec<u8>>) {
-    let first_in_psg = PageNumber::new_from_addr((page.offset() as usize / PSG) * PSG);
+    let first_in_psg = PageNumber::new_from_addr((page.offset() / PSG) * PSG);
     (0..(PSG / PageNumber::size()) as u32)
         .map(|idx| first_in_psg + idx.into())
         .filter(|p| *p != page)
@@ -414,7 +416,7 @@ fn check_not_allocated_pages() {
     new_test_ext().execute_with(|| {
         let code = parse_wat(wat);
         let program_id = generate_program_id(&code);
-        let origin = Origin::signed(1);
+        let origin = RuntimeOrigin::signed(1);
 
         assert_ok!(PalletGear::<Test>::upload_program(
             origin.clone(),
@@ -637,7 +639,7 @@ fn check_changed_pages_in_storage() {
     new_test_ext().execute_with(|| {
         let code = parse_wat(wat);
         let program_id = generate_program_id(&code);
-        let origin = Origin::signed(1);
+        let origin = RuntimeOrigin::signed(1);
 
         // Code info. Must be in consensus with wasm code.
         let static_pages = WasmPageNumber(8);
@@ -783,7 +785,7 @@ fn check_gear_stack_end() {
     new_test_ext().execute_with(|| {
         let code = parse_wat(wat);
         let program_id = generate_program_id(&code);
-        let origin = Origin::signed(1);
+        let origin = RuntimeOrigin::signed(1);
 
         assert_ok!(PalletGear::<Test>::upload_program(
             origin,
@@ -811,6 +813,12 @@ fn check_gear_stack_end() {
 
         persistent_pages.insert(gear_page2, page_data.clone());
         persistent_pages.insert(gear_page3, page_data);
+
+        #[cfg(feature = "lazy-pages")]
+        log::debug!("LAZY-PAGES IS ON");
+
+        #[cfg(not(feature = "lazy-pages"))]
+        log::debug!("LAZY-PAGES IS OFF");
 
         #[cfg(feature = "lazy-pages")]
         [gear_page2, gear_page3]

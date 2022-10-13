@@ -125,8 +125,8 @@ impl InMemoryExtManager {
 }
 
 impl ExecutionContext for InMemoryExtManager {
-    fn store_code(&mut self, code_hash: CodeId, code: Code) {
-        self.codes.insert(code_hash, code);
+    fn store_code(&mut self, code_id: CodeId, code: Code) {
+        self.codes.insert(code_id, code);
     }
     fn store_original_code(&mut self, code: &[u8]) {
         self.original_codes
@@ -236,7 +236,7 @@ impl JournalHandler for InMemoryExtManager {
             self.dispatch_queue.remove(index);
         }
     }
-    fn send_dispatch(&mut self, _message_id: MessageId, dispatch: Dispatch) {
+    fn send_dispatch(&mut self, _message_id: MessageId, dispatch: Dispatch, _delay: u32) {
         let destination = dispatch.destination();
         if self.actors.contains_key(&destination) || self.marked_destinations.contains(&destination)
         {
@@ -275,6 +275,7 @@ impl JournalHandler for InMemoryExtManager {
         _message_id: MessageId,
         program_id: ProgramId,
         awakening_id: MessageId,
+        _delay: u32,
     ) {
         if let Some(dispatch) = self.wait_list.remove(&(program_id, awakening_id)) {
             self.dispatch_queue.push_back(dispatch);
@@ -342,9 +343,9 @@ impl JournalHandler for InMemoryExtManager {
         };
     }
 
-    fn store_new_programs(&mut self, code_hash: CodeId, candidates: Vec<(ProgramId, MessageId)>) {
-        if let Some(code) = self.original_codes.get(&code_hash).cloned() {
-            for (candidate_id, init_message_id) in candidates {
+    fn store_new_programs(&mut self, code_id: CodeId, candidates: Vec<(MessageId, ProgramId)>) {
+        if let Some(code) = self.original_codes.get(&code_id).cloned() {
+            for (init_message_id, candidate_id) in candidates {
                 if !self.actors.contains_key(&candidate_id) {
                     let code =
                         Code::try_new(code.clone(), 1, |_| ConstantCostRules::default()).unwrap();
@@ -357,9 +358,9 @@ impl JournalHandler for InMemoryExtManager {
         } else {
             log::debug!(
                 "No referencing code with code hash {} for candidate programs",
-                code_hash
+                code_id
             );
-            for (invalid_candidate, _) in candidates {
+            for (_, invalid_candidate) in candidates {
                 self.marked_destinations.insert(invalid_candidate);
             }
         }

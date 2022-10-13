@@ -2,16 +2,14 @@
 name = "gcore"
 version = "0.1.0"
 authors = ["Gear Technologies"]
-edition = "2018"
+edition = "2021"
 license = "GPL-3.0"
-
-[features]
-debug = []
-codec = ["dep:codec", "gear-core-errors/codec"]
 
 [dependencies]
 gear-core-errors = { path = "../core-errors" }
 codec = { package = "parity-scale-codec", version = "3.1.2", default-features = false, optional = true }
+static_assertions = "1"
 
-[dev-dependencies]
-hex-literal = "0.3.4"
+[features]
+codec = ["dep:codec", "gear-core-errors/codec"]
+debug = []

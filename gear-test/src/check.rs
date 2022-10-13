@@ -42,6 +42,7 @@ use log::{Log, Metadata, Record, SetLoggerError};
 use rayon::prelude::*;
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap},
+    convert::TryInto,
     fmt, fs,
     sync::{
         atomic::{AtomicUsize, Ordering},
@@ -53,7 +54,7 @@ use std::{
 const FILTER_ENV: &str = "RUST_LOG";
 
 pub trait ExecutionContext {
-    fn store_code(&mut self, code_hash: CodeId, code: Code);
+    fn store_code(&mut self, code_id: CodeId, code: Code);
     fn store_original_code(&mut self, code: &[u8]);
     fn store_program(&mut self, id: ProgramId, code: Code, init_message_id: MessageId) -> Program;
     fn write_gas(&mut self, message_id: MessageId, gas_limit: u64);
@@ -281,7 +282,7 @@ pub fn check_messages(
                                         msg.id(),
                                         msg.source(),
                                         msg.destination(),
-                                        new_payload,
+                                        new_payload.try_into().unwrap(),
                                         msg.value(),
                                         msg.reply(),
                                     );

@@ -46,13 +46,13 @@ unsafe extern "C" fn init() {
         .for_each(|s| SIGNATORIES.push(s));
 
     THRESHOLD = usize::try_from(args.threshold)
-        .map(|t| t.min(SIGNATORIES.len()).max(1))
+        .map(|t| t.clamp(1, SIGNATORIES.len()))
         .unwrap_or(1);
 }
 
 #[gstd::async_main]
 async fn main() {
-    let message = msg::load_bytes();
+    let message = msg::load_bytes().expect("Failed to load payload bytes");
 
     let encoded = SignRequest {
         message: message.clone(),

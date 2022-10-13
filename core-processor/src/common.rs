@@ -61,11 +61,11 @@ pub struct DispatchResult {
     /// Context store after execution.
     pub context_store: ContextStore,
     /// List of generated messages.
-    pub generated_dispatches: Vec<Dispatch>,
+    pub generated_dispatches: Vec<(Dispatch, u32)>,
     /// List of messages that should be woken.
-    pub awakening: Vec<MessageId>,
+    pub awakening: Vec<(MessageId, u32)>,
     /// New programs to be created with additional data (corresponding code hash and init message id).
-    pub program_candidates: BTreeMap<CodeId, Vec<(ProgramId, MessageId)>>,
+    pub program_candidates: BTreeMap<CodeId, Vec<(MessageId, ProgramId)>>,
     /// Gas amount after execution.
     pub gas_amount: GasAmount,
     /// Page updates.
@@ -189,6 +189,8 @@ pub enum JournalNote {
         message_id: MessageId,
         /// New message with entry point that was generated.
         dispatch: Dispatch,
+        /// Amount of blocks to wait before sending.
+        delay: u32,
     },
     /// Put this dispatch in the wait list.
     WaitDispatch {
@@ -205,6 +207,8 @@ pub enum JournalNote {
         program_id: ProgramId,
         /// Message that should be woken.
         awakening_id: MessageId,
+        /// Amount of blocks to wait before waking.
+        delay: u32,
     },
     /// Update page.
     UpdatePage {
@@ -235,9 +239,9 @@ pub enum JournalNote {
     /// Store programs requested by user to be initialized later
     StoreNewPrograms {
         /// Code hash used to create new programs with ids in `candidates` field
-        code_hash: CodeId,
+        code_id: CodeId,
         /// Collection of program candidate ids and their init message ids.
-        candidates: Vec<(ProgramId, MessageId)>,
+        candidates: Vec<(MessageId, ProgramId)>,
     },
     /// Stop processing queue.
     StopProcessing {
@@ -266,7 +270,7 @@ pub trait JournalHandler {
     /// Process message consumed.
     fn message_consumed(&mut self, message_id: MessageId);
     /// Process send dispatch.
-    fn send_dispatch(&mut self, message_id: MessageId, dispatch: Dispatch);
+    fn send_dispatch(&mut self, message_id: MessageId, dispatch: Dispatch, delay: u32);
     /// Process send message.
     fn wait_dispatch(&mut self, dispatch: StoredDispatch, duration: Option<u32>);
     /// Process send message.
@@ -275,6 +279,7 @@ pub trait JournalHandler {
         message_id: MessageId,
         program_id: ProgramId,
         awakening_id: MessageId,
+        delay: u32,
     );
     /// Process page update.
     fn update_pages_data(
@@ -289,7 +294,7 @@ pub trait JournalHandler {
     /// Store new programs in storage.
     ///
     /// Program ids are ids of _potential_ (planned to be initialized) programs.
-    fn store_new_programs(&mut self, code_hash: CodeId, candidates: Vec<(ProgramId, MessageId)>);
+    fn store_new_programs(&mut self, code_id: CodeId, candidates: Vec<(MessageId, ProgramId)>);
     /// Stop processing queue.
     ///
     /// Pushes StoredDispatch back to the top of the queue and decreases gas allowance.
@@ -352,9 +357,6 @@ pub enum ExecutionErrorReason {
     /// Page with data is not allocated for program
     #[display(fmt = "{:?} is not allocated for program", _0)]
     PageIsNotAllocated(PageNumber),
-    /// Lazy pages init failed for current program.
-    #[display(fmt = "Cannot init lazy pages for program: {}", _0)]
-    LazyPagesInitFailed(String),
     /// Cannot read initial memory data from wasm memory.
     #[display(fmt = "Cannot read data for {:?}: {}", _0, _1)]
     InitialMemoryReadFailed(PageNumber, MemoryError),
