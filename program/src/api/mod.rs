@@ -5,11 +5,10 @@ use crate::{
 };
 use core::ops::{Deref, DerefMut};
 use events::Events;
-use parking_lot::RwLock;
-use std::{str::FromStr, sync::Arc, time::Duration};
+use std::{str::FromStr, time::Duration};
 use subxt::{
     rpc::{RpcClientBuilder, Uri, WsTransportClientBuilder},
-    ClientBuilder, Metadata, PolkadotExtrinsicParams,
+    ClientBuilder, PolkadotExtrinsicParams,
 };
 
 pub mod config;
@@ -25,12 +24,7 @@ const DEFAULT_GEAR_ENDPOINT: &str = "wss://rpc-node.gear-tech.io:443";
 
 /// gear api
 #[derive(Clone)]
-pub struct Api {
-    // # NOTE
-    //
-    // Reserved this field to adapt both gear and vara.
-    gear: RuntimeApi<GearConfig, PolkadotExtrinsicParams<GearConfig>>,
-}
+pub struct Api(RuntimeApi<GearConfig, PolkadotExtrinsicParams<GearConfig>>);
 
 impl Api {
     /// Build runtime api
@@ -56,12 +50,10 @@ impl Api {
         let rpc = RpcClientBuilder::default().build_with_tokio(tx, rx);
         let builder = ClientBuilder::new().set_client(rpc);
 
-        Ok(Self {
-            gear: builder
-                .build()
-                .await?
-                .to_runtime_api::<RuntimeApi<GearConfig, PolkadotExtrinsicParams<GearConfig>>>(),
-        })
+        Ok(Self(builder.build().await?.to_runtime_api::<RuntimeApi<
+            GearConfig,
+            PolkadotExtrinsicParams<GearConfig>,
+        >>()))
     }
 
     /// New signer from api
@@ -76,12 +68,7 @@ impl Api {
 
     /// Subscribe all events
     pub async fn events(&self) -> Result<Events<'_>> {
-        Ok(self.gear.events().subscribe().await?)
-    }
-
-    /// Get metadata from client
-    pub fn metadata(&self) -> Arc<RwLock<Metadata>> {
-        self.gear.client.metadata()
+        Ok(self.0.events().subscribe().await?)
     }
 }
 
@@ -89,12 +76,12 @@ impl Deref for Api {
     type Target = RuntimeApi<GearConfig, PolkadotExtrinsicParams<GearConfig>>;
 
     fn deref(&self) -> &Self::Target {
-        &self.gear
+        &self.0
     }
 }
 
 impl DerefMut for Api {
     fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.gear
+        &mut self.0
     }
 }
