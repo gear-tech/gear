@@ -636,7 +636,7 @@ pub mod api {
                 const STORAGE: &'static str = "Events";
                 type Value = ::std::vec::Vec<
                     runtime_types::frame_system::EventRecord<
-                        runtime_types::gear_runtime::RuntimeEvent,
+                        runtime_types::vara_runtime::RuntimeEvent,
                         ::subxt::sp_core::H256,
                     >,
                 >;
@@ -1138,7 +1138,7 @@ pub mod api {
                     Output = ::core::result::Result<
                         ::std::vec::Vec<
                             runtime_types::frame_system::EventRecord<
-                                runtime_types::gear_runtime::RuntimeEvent,
+                                runtime_types::vara_runtime::RuntimeEvent,
                                 ::subxt::sp_core::H256,
                             >,
                         >,
@@ -1447,10 +1447,10 @@ pub mod api {
                     let metadata = locked_metadata.read();
                     if metadata.constant_hash("System", "BlockWeights")?
                         == [
-                            17u8, 61u8, 188u8, 101u8, 77u8, 208u8, 113u8, 245u8, 244u8, 63u8,
-                            160u8, 168u8, 163u8, 33u8, 219u8, 52u8, 63u8, 107u8, 161u8, 193u8,
-                            113u8, 120u8, 77u8, 75u8, 40u8, 90u8, 62u8, 149u8, 134u8, 177u8, 150u8,
-                            83u8,
+                            242u8, 166u8, 200u8, 176u8, 225u8, 160u8, 101u8, 184u8, 87u8, 28u8,
+                            28u8, 206u8, 216u8, 98u8, 153u8, 15u8, 34u8, 109u8, 249u8, 111u8,
+                            206u8, 0u8, 10u8, 159u8, 157u8, 127u8, 73u8, 1u8, 32u8, 245u8, 29u8,
+                            67u8,
                         ]
                     {
                         let pallet = metadata.pallet("System")?;
@@ -1544,10 +1544,10 @@ pub mod api {
                     let metadata = locked_metadata.read();
                     if metadata.constant_hash("System", "Version")?
                         == [
-                            164u8, 52u8, 124u8, 196u8, 109u8, 235u8, 65u8, 247u8, 215u8, 135u8,
-                            238u8, 131u8, 224u8, 206u8, 172u8, 67u8, 18u8, 233u8, 232u8, 26u8,
-                            92u8, 198u8, 169u8, 41u8, 115u8, 64u8, 111u8, 119u8, 148u8, 203u8,
-                            200u8, 14u8,
+                            181u8, 188u8, 10u8, 148u8, 253u8, 154u8, 226u8, 149u8, 161u8, 111u8,
+                            232u8, 186u8, 42u8, 79u8, 254u8, 56u8, 104u8, 215u8, 141u8, 159u8,
+                            243u8, 120u8, 183u8, 76u8, 255u8, 232u8, 46u8, 129u8, 161u8, 217u8,
+                            55u8, 99u8,
                         ]
                     {
                         let pallet = metadata.pallet("System")?;
@@ -4651,9 +4651,10 @@ pub mod api {
                     let metadata = locked_metadata.read();
                     if metadata.constant_hash("Balances", "ExistentialDeposit")?
                         == [
-                            206u8, 122u8, 40u8, 104u8, 118u8, 1u8, 145u8, 94u8, 87u8, 187u8, 206u8,
-                            187u8, 221u8, 67u8, 67u8, 160u8, 167u8, 24u8, 24u8, 132u8, 126u8, 27u8,
-                            134u8, 98u8, 118u8, 35u8, 196u8, 219u8, 25u8, 123u8, 34u8, 37u8,
+                            208u8, 236u8, 203u8, 69u8, 252u8, 203u8, 187u8, 143u8, 53u8, 168u8,
+                            161u8, 241u8, 21u8, 6u8, 108u8, 93u8, 154u8, 246u8, 202u8, 150u8,
+                            234u8, 208u8, 121u8, 187u8, 213u8, 143u8, 11u8, 192u8, 252u8, 20u8,
+                            0u8, 99u8,
                         ]
                     {
                         let pallet = metadata.pallet("Balances")?;
@@ -4892,7 +4893,7 @@ pub mod api {
             type DispatchError = runtime_types::sp_runtime::DispatchError;
             #[derive(:: subxt :: codec :: Decode, :: subxt :: codec :: Encode, Debug)]
             pub struct SetKeys {
-                pub keys: runtime_types::gear_runtime::SessionKeys,
+                pub keys: runtime_types::vara_runtime::SessionKeys,
                 pub proof: ::std::vec::Vec<::core::primitive::u8>,
             }
             impl ::subxt::Call for SetKeys {
@@ -4936,7 +4937,7 @@ pub mod api {
                 #[doc = "# </weight>"]
                 pub fn set_keys(
                     &self,
-                    keys: runtime_types::gear_runtime::SessionKeys,
+                    keys: runtime_types::vara_runtime::SessionKeys,
                     proof: ::std::vec::Vec<::core::primitive::u8>,
                 ) -> Result<
                     ::subxt::SubmittableExtrinsic<
@@ -5072,7 +5073,7 @@ pub mod api {
                 const STORAGE: &'static str = "QueuedKeys";
                 type Value = ::std::vec::Vec<(
                     ::subxt::sp_core::crypto::AccountId32,
-                    runtime_types::gear_runtime::SessionKeys,
+                    runtime_types::vara_runtime::SessionKeys,
                 )>;
                 fn key(&self) -> ::subxt::StorageEntryKey {
                     ::subxt::StorageEntryKey::Plain
@@ -5091,7 +5092,7 @@ pub mod api {
             impl ::subxt::StorageEntry for NextKeys<'_> {
                 const PALLET: &'static str = "Session";
                 const STORAGE: &'static str = "NextKeys";
-                type Value = runtime_types::gear_runtime::SessionKeys;
+                type Value = runtime_types::vara_runtime::SessionKeys;
                 fn key(&self) -> ::subxt::StorageEntryKey {
                     ::subxt::StorageEntryKey::Map(vec![::subxt::StorageMapKey::new(
                         &self.0,
@@ -5230,7 +5231,7 @@ pub mod api {
                     Output = ::core::result::Result<
                         ::std::vec::Vec<(
                             ::subxt::sp_core::crypto::AccountId32,
-                            runtime_types::gear_runtime::SessionKeys,
+                            runtime_types::vara_runtime::SessionKeys,
                         )>,
                         ::subxt::BasicError,
                     >,
@@ -5306,7 +5307,7 @@ pub mod api {
                     block_hash: ::core::option::Option<T::Hash>,
                 ) -> impl ::core::future::Future<
                     Output = ::core::result::Result<
-                        ::core::option::Option<runtime_types::gear_runtime::SessionKeys>,
+                        ::core::option::Option<runtime_types::vara_runtime::SessionKeys>,
                         ::subxt::BasicError,
                     >,
                 > + 'a {
@@ -5451,7 +5452,7 @@ pub mod api {
             type DispatchError = runtime_types::sp_runtime::DispatchError;
             #[derive(:: subxt :: codec :: Decode, :: subxt :: codec :: Encode, Debug)]
             pub struct Sudo {
-                pub call: ::std::boxed::Box<runtime_types::gear_runtime::RuntimeCall>,
+                pub call: ::std::boxed::Box<runtime_types::vara_runtime::RuntimeCall>,
             }
             impl ::subxt::Call for Sudo {
                 const PALLET: &'static str = "Sudo";
@@ -5459,7 +5460,7 @@ pub mod api {
             }
             #[derive(:: subxt :: codec :: Decode, :: subxt :: codec :: Encode, Debug)]
             pub struct SudoUncheckedWeight {
-                pub call: ::std::boxed::Box<runtime_types::gear_runtime::RuntimeCall>,
+                pub call: ::std::boxed::Box<runtime_types::vara_runtime::RuntimeCall>,
                 pub weight: runtime_types::sp_weights::weight_v2::Weight,
             }
             impl ::subxt::Call for SudoUncheckedWeight {
@@ -5479,7 +5480,7 @@ pub mod api {
             pub struct SudoAs {
                 pub who:
                     ::subxt::sp_runtime::MultiAddress<::subxt::sp_core::crypto::AccountId32, ()>,
-                pub call: ::std::boxed::Box<runtime_types::gear_runtime::RuntimeCall>,
+                pub call: ::std::boxed::Box<runtime_types::vara_runtime::RuntimeCall>,
             }
             impl ::subxt::Call for SudoAs {
                 const PALLET: &'static str = "Sudo";
@@ -5512,7 +5513,7 @@ pub mod api {
                 #[doc = "# </weight>"]
                 pub fn sudo(
                     &self,
-                    call: runtime_types::gear_runtime::RuntimeCall,
+                    call: runtime_types::vara_runtime::RuntimeCall,
                 ) -> Result<
                     ::subxt::SubmittableExtrinsic<'a, T, X, Sudo, DispatchError, root_mod::Event>,
                     ::subxt::BasicError,
@@ -5549,7 +5550,7 @@ pub mod api {
                 #[doc = "# </weight>"]
                 pub fn sudo_unchecked_weight(
                     &self,
-                    call: runtime_types::gear_runtime::RuntimeCall,
+                    call: runtime_types::vara_runtime::RuntimeCall,
                     weight: runtime_types::sp_weights::weight_v2::Weight,
                 ) -> Result<
                     ::subxt::SubmittableExtrinsic<
@@ -5639,7 +5640,7 @@ pub mod api {
                         ::subxt::sp_core::crypto::AccountId32,
                         (),
                     >,
-                    call: runtime_types::gear_runtime::RuntimeCall,
+                    call: runtime_types::vara_runtime::RuntimeCall,
                 ) -> Result<
                     ::subxt::SubmittableExtrinsic<'a, T, X, SudoAs, DispatchError, root_mod::Event>,
                     ::subxt::BasicError,
@@ -5766,7 +5767,7 @@ pub mod api {
             type DispatchError = runtime_types::sp_runtime::DispatchError;
             #[derive(:: subxt :: codec :: Decode, :: subxt :: codec :: Encode, Debug)]
             pub struct Batch {
-                pub calls: ::std::vec::Vec<runtime_types::gear_runtime::RuntimeCall>,
+                pub calls: ::std::vec::Vec<runtime_types::vara_runtime::RuntimeCall>,
             }
             impl ::subxt::Call for Batch {
                 const PALLET: &'static str = "Utility";
@@ -5775,7 +5776,7 @@ pub mod api {
             #[derive(:: subxt :: codec :: Decode, :: subxt :: codec :: Encode, Debug)]
             pub struct AsDerivative {
                 pub index: ::core::primitive::u16,
-                pub call: ::std::boxed::Box<runtime_types::gear_runtime::RuntimeCall>,
+                pub call: ::std::boxed::Box<runtime_types::vara_runtime::RuntimeCall>,
             }
             impl ::subxt::Call for AsDerivative {
                 const PALLET: &'static str = "Utility";
@@ -5783,7 +5784,7 @@ pub mod api {
             }
             #[derive(:: subxt :: codec :: Decode, :: subxt :: codec :: Encode, Debug)]
             pub struct BatchAll {
-                pub calls: ::std::vec::Vec<runtime_types::gear_runtime::RuntimeCall>,
+                pub calls: ::std::vec::Vec<runtime_types::vara_runtime::RuntimeCall>,
             }
             impl ::subxt::Call for BatchAll {
                 const PALLET: &'static str = "Utility";
@@ -5791,8 +5792,8 @@ pub mod api {
             }
             #[derive(:: subxt :: codec :: Decode, :: subxt :: codec :: Encode, Debug)]
             pub struct DispatchAs {
-                pub as_origin: ::std::boxed::Box<runtime_types::gear_runtime::OriginCaller>,
-                pub call: ::std::boxed::Box<runtime_types::gear_runtime::RuntimeCall>,
+                pub as_origin: ::std::boxed::Box<runtime_types::vara_runtime::OriginCaller>,
+                pub call: ::std::boxed::Box<runtime_types::vara_runtime::RuntimeCall>,
             }
             impl ::subxt::Call for DispatchAs {
                 const PALLET: &'static str = "Utility";
@@ -5800,7 +5801,7 @@ pub mod api {
             }
             #[derive(:: subxt :: codec :: Decode, :: subxt :: codec :: Encode, Debug)]
             pub struct ForceBatch {
-                pub calls: ::std::vec::Vec<runtime_types::gear_runtime::RuntimeCall>,
+                pub calls: ::std::vec::Vec<runtime_types::vara_runtime::RuntimeCall>,
             }
             impl ::subxt::Call for ForceBatch {
                 const PALLET: &'static str = "Utility";
@@ -5842,7 +5843,7 @@ pub mod api {
                 #[doc = "event is deposited."]
                 pub fn batch(
                     &self,
-                    calls: ::std::vec::Vec<runtime_types::gear_runtime::RuntimeCall>,
+                    calls: ::std::vec::Vec<runtime_types::vara_runtime::RuntimeCall>,
                 ) -> Result<
                     ::subxt::SubmittableExtrinsic<'a, T, X, Batch, DispatchError, root_mod::Event>,
                     ::subxt::BasicError,
@@ -5881,7 +5882,7 @@ pub mod api {
                 pub fn as_derivative(
                     &self,
                     index: ::core::primitive::u16,
-                    call: runtime_types::gear_runtime::RuntimeCall,
+                    call: runtime_types::vara_runtime::RuntimeCall,
                 ) -> Result<
                     ::subxt::SubmittableExtrinsic<
                         'a,
@@ -5931,7 +5932,7 @@ pub mod api {
                 #[doc = "# </weight>"]
                 pub fn batch_all(
                     &self,
-                    calls: ::std::vec::Vec<runtime_types::gear_runtime::RuntimeCall>,
+                    calls: ::std::vec::Vec<runtime_types::vara_runtime::RuntimeCall>,
                 ) -> Result<
                     ::subxt::SubmittableExtrinsic<
                         'a,
@@ -5973,8 +5974,8 @@ pub mod api {
                 #[doc = "# </weight>"]
                 pub fn dispatch_as(
                     &self,
-                    as_origin: runtime_types::gear_runtime::OriginCaller,
-                    call: runtime_types::gear_runtime::RuntimeCall,
+                    as_origin: runtime_types::vara_runtime::OriginCaller,
+                    call: runtime_types::vara_runtime::RuntimeCall,
                 ) -> Result<
                     ::subxt::SubmittableExtrinsic<
                         'a,
@@ -6024,7 +6025,7 @@ pub mod api {
                 #[doc = "# </weight>"]
                 pub fn force_batch(
                     &self,
-                    calls: ::std::vec::Vec<runtime_types::gear_runtime::RuntimeCall>,
+                    calls: ::std::vec::Vec<runtime_types::vara_runtime::RuntimeCall>,
                 ) -> Result<
                     ::subxt::SubmittableExtrinsic<
                         'a,
@@ -7546,10 +7547,10 @@ pub mod api {
                         };
                         if runtime_storage_hash
                             == [
-                                86u8, 150u8, 89u8, 215u8, 149u8, 141u8, 95u8, 7u8, 74u8, 16u8, 6u8,
-                                85u8, 247u8, 220u8, 22u8, 107u8, 191u8, 248u8, 157u8, 6u8, 49u8,
-                                156u8, 10u8, 159u8, 50u8, 179u8, 153u8, 95u8, 141u8, 17u8, 6u8,
-                                166u8,
+                                113u8, 163u8, 21u8, 249u8, 125u8, 5u8, 149u8, 199u8, 166u8, 236u8,
+                                138u8, 247u8, 137u8, 59u8, 96u8, 171u8, 44u8, 215u8, 72u8, 156u8,
+                                250u8, 216u8, 224u8, 66u8, 109u8, 28u8, 138u8, 79u8, 56u8, 96u8,
+                                176u8, 104u8,
                             ]
                         {
                             let entry = Allowance;
@@ -7579,9 +7580,10 @@ pub mod api {
                     let metadata = locked_metadata.read();
                     if metadata.constant_hash("GearGas", "BlockGasLimit")?
                         == [
-                            238u8, 78u8, 114u8, 61u8, 170u8, 104u8, 123u8, 124u8, 134u8, 230u8,
-                            226u8, 21u8, 123u8, 201u8, 93u8, 97u8, 54u8, 247u8, 187u8, 65u8, 16u8,
-                            252u8, 152u8, 92u8, 136u8, 64u8, 32u8, 25u8, 16u8, 207u8, 69u8, 121u8,
+                            201u8, 123u8, 62u8, 19u8, 66u8, 224u8, 177u8, 188u8, 106u8, 26u8,
+                            110u8, 183u8, 5u8, 46u8, 43u8, 161u8, 165u8, 216u8, 110u8, 219u8,
+                            219u8, 184u8, 114u8, 129u8, 215u8, 239u8, 51u8, 9u8, 165u8, 190u8,
+                            243u8, 183u8,
                         ]
                     {
                         let pallet = metadata.pallet("GearGas")?;
@@ -8322,9 +8324,9 @@ pub mod api {
                     let metadata = locked_metadata.read();
                     if metadata.constant_hash("Gear", "Schedule")?
                         == [
-                            2u8, 92u8, 241u8, 208u8, 134u8, 26u8, 93u8, 84u8, 242u8, 94u8, 155u8,
-                            49u8, 158u8, 231u8, 192u8, 14u8, 161u8, 127u8, 139u8, 140u8, 3u8, 71u8,
-                            209u8, 35u8, 75u8, 28u8, 153u8, 32u8, 33u8, 151u8, 91u8, 214u8,
+                            23u8, 9u8, 163u8, 232u8, 181u8, 22u8, 142u8, 213u8, 96u8, 185u8, 26u8,
+                            42u8, 233u8, 162u8, 2u8, 61u8, 52u8, 49u8, 230u8, 172u8, 101u8, 239u8,
+                            146u8, 221u8, 225u8, 211u8, 146u8, 106u8, 141u8, 56u8, 232u8, 189u8,
                         ]
                     {
                         let pallet = metadata.pallet("Gear")?;
@@ -9044,73 +9046,6 @@ pub mod api {
                 }
                 #[derive(:: subxt :: codec :: Decode, :: subxt :: codec :: Encode, Debug)]
                 pub struct PayloadSizeError;
-            }
-        }
-        pub mod gear_runtime {
-            use super::runtime_types;
-            #[derive(:: subxt :: codec :: Decode, :: subxt :: codec :: Encode, Debug)]
-            pub enum OriginCaller {
-                #[codec(index = 0)]
-                system(
-                    runtime_types::frame_support::dispatch::RawOrigin<
-                        ::subxt::sp_core::crypto::AccountId32,
-                    >,
-                ),
-                #[codec(index = 1)]
-                Void(runtime_types::sp_core::Void),
-            }
-            #[derive(:: subxt :: codec :: Decode, :: subxt :: codec :: Encode, Debug)]
-            pub struct Runtime;
-            #[derive(:: subxt :: codec :: Decode, :: subxt :: codec :: Encode, Debug)]
-            pub enum RuntimeCall {
-                #[codec(index = 0)]
-                System(runtime_types::frame_system::pallet::Call),
-                #[codec(index = 1)]
-                Timestamp(runtime_types::pallet_timestamp::pallet::Call),
-                #[codec(index = 2)]
-                Authorship(runtime_types::pallet_authorship::pallet::Call),
-                #[codec(index = 3)]
-                Babe(runtime_types::pallet_babe::pallet::Call),
-                #[codec(index = 4)]
-                Grandpa(runtime_types::pallet_grandpa::pallet::Call),
-                #[codec(index = 5)]
-                Balances(runtime_types::pallet_balances::pallet::Call),
-                #[codec(index = 7)]
-                Session(runtime_types::pallet_session::pallet::Call),
-                #[codec(index = 8)]
-                Sudo(runtime_types::pallet_sudo::pallet::Call),
-                #[codec(index = 9)]
-                Utility(runtime_types::pallet_utility::pallet::Call),
-                #[codec(index = 10)]
-                GearProgram(runtime_types::pallet_gear_program::pallet::Call),
-                #[codec(index = 14)]
-                Gear(runtime_types::pallet_gear::pallet::Call),
-            }
-            #[derive(:: subxt :: codec :: Decode, :: subxt :: codec :: Encode, Debug)]
-            pub enum RuntimeEvent {
-                #[codec(index = 0)]
-                System(runtime_types::frame_system::pallet::Event),
-                #[codec(index = 4)]
-                Grandpa(runtime_types::pallet_grandpa::pallet::Event),
-                #[codec(index = 5)]
-                Balances(runtime_types::pallet_balances::pallet::Event),
-                #[codec(index = 6)]
-                TransactionPayment(runtime_types::pallet_transaction_payment::pallet::Event),
-                #[codec(index = 7)]
-                Session(runtime_types::pallet_session::pallet::Event),
-                #[codec(index = 8)]
-                Sudo(runtime_types::pallet_sudo::pallet::Event),
-                #[codec(index = 9)]
-                Utility(runtime_types::pallet_utility::pallet::Event),
-                #[codec(index = 10)]
-                GearProgram(runtime_types::pallet_gear_program::pallet::Event),
-                #[codec(index = 14)]
-                Gear(runtime_types::pallet_gear::pallet::Event),
-            }
-            #[derive(:: subxt :: codec :: Decode, :: subxt :: codec :: Encode, Debug)]
-            pub struct SessionKeys {
-                pub babe: runtime_types::sp_consensus_babe::app::Public,
-                pub grandpa: runtime_types::sp_finality_grandpa::app::Public,
             }
         }
         pub mod pallet_authorship {
@@ -10294,7 +10229,7 @@ pub mod api {
                     #[doc = "- DbWrites per key id: `KeyOwner`"]
                     #[doc = "# </weight>"]
                     set_keys {
-                        keys: runtime_types::gear_runtime::SessionKeys,
+                        keys: runtime_types::vara_runtime::SessionKeys,
                         proof: ::std::vec::Vec<::core::primitive::u8>,
                     },
                     #[codec(index = 1)]
@@ -10366,7 +10301,7 @@ pub mod api {
                     #[doc = "- Weight of derivative `call` execution + 10,000."]
                     #[doc = "# </weight>"]
                     sudo {
-                        call: ::std::boxed::Box<runtime_types::gear_runtime::RuntimeCall>,
+                        call: ::std::boxed::Box<runtime_types::vara_runtime::RuntimeCall>,
                     },
                     #[codec(index = 1)]
                     #[doc = "Authenticates the sudo key and dispatches a function call with `Root` origin."]
@@ -10380,7 +10315,7 @@ pub mod api {
                     #[doc = "- The weight of this call is defined by the caller."]
                     #[doc = "# </weight>"]
                     sudo_unchecked_weight {
-                        call: ::std::boxed::Box<runtime_types::gear_runtime::RuntimeCall>,
+                        call: ::std::boxed::Box<runtime_types::vara_runtime::RuntimeCall>,
                         weight: runtime_types::sp_weights::weight_v2::Weight,
                     },
                     #[codec(index = 2)]
@@ -10417,7 +10352,7 @@ pub mod api {
                             ::subxt::sp_core::crypto::AccountId32,
                             (),
                         >,
-                        call: ::std::boxed::Box<runtime_types::gear_runtime::RuntimeCall>,
+                        call: ::std::boxed::Box<runtime_types::vara_runtime::RuntimeCall>,
                     },
                 }
                 #[derive(:: subxt :: codec :: Decode, :: subxt :: codec :: Encode, Debug)]
@@ -10536,7 +10471,7 @@ pub mod api {
                     #[doc = "and the error of the failed call. If all were successful, then the `BatchCompleted`"]
                     #[doc = "event is deposited."]
                     batch {
-                        calls: ::std::vec::Vec<runtime_types::gear_runtime::RuntimeCall>,
+                        calls: ::std::vec::Vec<runtime_types::vara_runtime::RuntimeCall>,
                     },
                     #[codec(index = 1)]
                     #[doc = "Send a call through an indexed pseudonym of the sender."]
@@ -10554,7 +10489,7 @@ pub mod api {
                     #[doc = "The dispatch origin for this call must be _Signed_."]
                     as_derivative {
                         index: ::core::primitive::u16,
-                        call: ::std::boxed::Box<runtime_types::gear_runtime::RuntimeCall>,
+                        call: ::std::boxed::Box<runtime_types::vara_runtime::RuntimeCall>,
                     },
                     #[codec(index = 2)]
                     #[doc = "Send a batch of dispatch calls and atomically execute them."]
@@ -10572,7 +10507,7 @@ pub mod api {
                     #[doc = "- Complexity: O(C) where C is the number of calls to be batched."]
                     #[doc = "# </weight>"]
                     batch_all {
-                        calls: ::std::vec::Vec<runtime_types::gear_runtime::RuntimeCall>,
+                        calls: ::std::vec::Vec<runtime_types::vara_runtime::RuntimeCall>,
                     },
                     #[codec(index = 3)]
                     #[doc = "Dispatches a function call with a provided origin."]
@@ -10586,8 +10521,8 @@ pub mod api {
                     #[doc = "- Weight of derivative `call` execution + T::WeightInfo::dispatch_as()."]
                     #[doc = "# </weight>"]
                     dispatch_as {
-                        as_origin: ::std::boxed::Box<runtime_types::gear_runtime::OriginCaller>,
-                        call: ::std::boxed::Box<runtime_types::gear_runtime::RuntimeCall>,
+                        as_origin: ::std::boxed::Box<runtime_types::vara_runtime::OriginCaller>,
+                        call: ::std::boxed::Box<runtime_types::vara_runtime::RuntimeCall>,
                     },
                     #[codec(index = 4)]
                     #[doc = "Send a batch of dispatch calls."]
@@ -10605,7 +10540,7 @@ pub mod api {
                     #[doc = "- Complexity: O(C) where C is the number of calls to be batched."]
                     #[doc = "# </weight>"]
                     force_batch {
-                        calls: ::std::vec::Vec<runtime_types::gear_runtime::RuntimeCall>,
+                        calls: ::std::vec::Vec<runtime_types::vara_runtime::RuntimeCall>,
                     },
                 }
                 #[derive(:: subxt :: codec :: Decode, :: subxt :: codec :: Encode, Debug)]
@@ -11534,6 +11469,73 @@ pub mod api {
                 pub write: ::core::primitive::u64,
             }
         }
+        pub mod vara_runtime {
+            use super::runtime_types;
+            #[derive(:: subxt :: codec :: Decode, :: subxt :: codec :: Encode, Debug)]
+            pub enum OriginCaller {
+                #[codec(index = 0)]
+                system(
+                    runtime_types::frame_support::dispatch::RawOrigin<
+                        ::subxt::sp_core::crypto::AccountId32,
+                    >,
+                ),
+                #[codec(index = 1)]
+                Void(runtime_types::sp_core::Void),
+            }
+            #[derive(:: subxt :: codec :: Decode, :: subxt :: codec :: Encode, Debug)]
+            pub struct Runtime;
+            #[derive(:: subxt :: codec :: Decode, :: subxt :: codec :: Encode, Debug)]
+            pub enum RuntimeCall {
+                #[codec(index = 0)]
+                System(runtime_types::frame_system::pallet::Call),
+                #[codec(index = 1)]
+                Timestamp(runtime_types::pallet_timestamp::pallet::Call),
+                #[codec(index = 2)]
+                Authorship(runtime_types::pallet_authorship::pallet::Call),
+                #[codec(index = 3)]
+                Babe(runtime_types::pallet_babe::pallet::Call),
+                #[codec(index = 4)]
+                Grandpa(runtime_types::pallet_grandpa::pallet::Call),
+                #[codec(index = 5)]
+                Balances(runtime_types::pallet_balances::pallet::Call),
+                #[codec(index = 7)]
+                Session(runtime_types::pallet_session::pallet::Call),
+                #[codec(index = 8)]
+                Sudo(runtime_types::pallet_sudo::pallet::Call),
+                #[codec(index = 9)]
+                Utility(runtime_types::pallet_utility::pallet::Call),
+                #[codec(index = 10)]
+                GearProgram(runtime_types::pallet_gear_program::pallet::Call),
+                #[codec(index = 14)]
+                Gear(runtime_types::pallet_gear::pallet::Call),
+            }
+            #[derive(:: subxt :: codec :: Decode, :: subxt :: codec :: Encode, Debug)]
+            pub enum RuntimeEvent {
+                #[codec(index = 0)]
+                System(runtime_types::frame_system::pallet::Event),
+                #[codec(index = 4)]
+                Grandpa(runtime_types::pallet_grandpa::pallet::Event),
+                #[codec(index = 5)]
+                Balances(runtime_types::pallet_balances::pallet::Event),
+                #[codec(index = 6)]
+                TransactionPayment(runtime_types::pallet_transaction_payment::pallet::Event),
+                #[codec(index = 7)]
+                Session(runtime_types::pallet_session::pallet::Event),
+                #[codec(index = 8)]
+                Sudo(runtime_types::pallet_sudo::pallet::Event),
+                #[codec(index = 9)]
+                Utility(runtime_types::pallet_utility::pallet::Event),
+                #[codec(index = 10)]
+                GearProgram(runtime_types::pallet_gear_program::pallet::Event),
+                #[codec(index = 14)]
+                Gear(runtime_types::pallet_gear::pallet::Event),
+            }
+            #[derive(:: subxt :: codec :: Decode, :: subxt :: codec :: Encode, Debug)]
+            pub struct SessionKeys {
+                pub babe: runtime_types::sp_consensus_babe::app::Public,
+                pub grandpa: runtime_types::sp_finality_grandpa::app::Public,
+            }
+        }
     }
     #[doc = r" The default error type returned when there is a runtime issue."]
     pub type DispatchError = runtime_types::sp_runtime::DispatchError;
@@ -11586,9 +11588,9 @@ pub mod api {
             };
             if runtime_metadata_hash
                 != [
-                    187u8, 41u8, 12u8, 183u8, 7u8, 253u8, 40u8, 51u8, 162u8, 143u8, 171u8, 133u8,
-                    41u8, 72u8, 106u8, 121u8, 53u8, 81u8, 226u8, 96u8, 160u8, 154u8, 233u8, 115u8,
-                    139u8, 252u8, 34u8, 195u8, 19u8, 125u8, 78u8, 97u8,
+                    108u8, 111u8, 178u8, 163u8, 47u8, 43u8, 110u8, 38u8, 92u8, 229u8, 221u8, 19u8,
+                    242u8, 202u8, 180u8, 156u8, 86u8, 121u8, 165u8, 34u8, 101u8, 216u8, 162u8,
+                    252u8, 8u8, 85u8, 37u8, 244u8, 204u8, 2u8, 38u8, 214u8,
                 ]
             {
                 Err(::subxt::MetadataError::IncompatibleMetadata)

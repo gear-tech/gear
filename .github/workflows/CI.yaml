@@ -232,7 +232,9 @@ jobs:
         run: ./scripts/gear.sh test gtest
 
       - name: "Test: Program CLI"
-        run: cargo nextest run --release -p gear-program --features bin
+        run: |
+          cargo nextest run --release -p gear-program --features bin
+          cargo nextest run --release --no-default-features --features bin,vara
 
       - name: "Test: Client tests"
         run: ./scripts/gear.sh test client --run-node

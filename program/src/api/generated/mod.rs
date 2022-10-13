@@ -2,7 +2,12 @@ mod metadata;
 
 pub use metadata::*;
 
-use self::api::{runtime_types::gear_runtime::RuntimeEvent, Event as ApiEvent};
+#[cfg(all(feature = "gear", feature = "vara"))]
+use self::api::runtime_types::gear_runtime::RuntimeEvent;
+#[cfg(all(feature = "vara", not(feature = "gear")))]
+use self::api::runtime_types::vara_runtime::RuntimeEvent;
+
+use self::api::Event as ApiEvent;
 use gear_core::{
     ids, message,
     message::{ReplyDetails, StoredMessage},

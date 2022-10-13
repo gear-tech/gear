@@ -21,8 +21,16 @@ impl Node {
     /// Run gear with docker in development mode.
     pub fn dev() -> Result<Self> {
         let port = port::pick();
+        let port_string = port.to_string();
+        let mut args = vec!["--ws-port", &port_string, "--tmp", "--dev"];
+
+        #[cfg(all(feature = "vara", not(feature = "gear")))]
+        {
+            args.push("--force-vara")
+        }
+
         let ps = Command::new(env::bin("gear"))
-            .args(["--ws-port", &port.to_string(), "--tmp", "--dev"])
+            .args(args)
             .stderr(Stdio::piped())
             .stdout(Stdio::piped())
             .spawn()?;
