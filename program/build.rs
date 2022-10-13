@@ -26,9 +26,9 @@ fn check_node() -> bool {
 }
 
 /// Generate api
-fn codegen(metadata: &[u8]) -> String {
+fn codegen(mut encoded: &[u8]) -> String {
     let metadata =
-        <RuntimeMetadataPrefixed as Decode>::decode(&mut metadata).expect("decode metadata failed");
+        <RuntimeMetadataPrefixed as Decode>::decode(&mut encoded).expect("decode metadata failed");
 
     // Construct generator.
     let generator = subxt_codegen::RuntimeGenerator::new(metadata);
