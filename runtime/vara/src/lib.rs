@@ -25,14 +25,17 @@
 include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
 
 use codec::{Decode, Encode};
-use frame_election_provider_support::{ElectionDataProvider, ElectionProvider};
 use common::TerminalExtrinsicProvider;
+use frame_election_provider_support::{
+    ElectionDataProvider, ElectionProvider, ElectionProviderBase,
+};
 pub use frame_support::{
     construct_runtime,
     dispatch::{DispatchClass, WeighData},
     parameter_types,
     traits::{
         ConstU128, ConstU32, Contains, FindAuthor, KeyOwnerProofSystem, Randomness, StorageInfo,
+        U128CurrencyToVote,
     },
     weights::{
         constants::{
@@ -43,8 +46,10 @@ pub use frame_support::{
     },
     StorageValue,
 };
-use frame_system::limits::{BlockLength, BlockWeights};
-use frame_system::EnsureRoot;
+use frame_system::{
+    limits::{BlockLength, BlockWeights},
+    EnsureRoot,
+};
 pub use pallet_gear::manager::{ExtManager, HandleKind};
 use pallet_grandpa::{
     fg_primitives, AuthorityId as GrandpaId, AuthorityList as GrandpaAuthorityList,
@@ -72,7 +77,7 @@ use sp_runtime::{
     transaction_validity::{
         InvalidTransaction, TransactionSource, TransactionValidity, TransactionValidityError,
     },
-    ApplyExtrinsicResult, Perbill,
+    ApplyExtrinsicResult, Perbill, Percent,
 };
 use sp_std::{
     convert::{TryFrom, TryInto},
@@ -196,14 +201,6 @@ impl SignedExtension for DisableValueTransfers {
 }
 
 parameter_types! {
-    /// We allow for 1/3 of block time for computations.
-    ///
-    /// It's 2/3 sec for vara runtime with 2 second block duration.
-    pub BlockWeights: frame_system::limits::BlockWeights = frame_system::limits::BlockWeights
-        ::with_sensible_defaults(MILLISECS_PER_BLOCK * WEIGHT_PER_MILLIS / 3, NORMAL_DISPATCH_RATIO);
-
-    pub BlockGasLimit: u64 = GasLimitMaxPercentage::get() * BlockWeights::get().max_block.ref_time();
-
     pub const Version: RuntimeVersion = VERSION;
     pub const SS58Prefix: u8 = 42;
     pub RuntimeBlockLength: BlockLength =
@@ -445,7 +442,7 @@ impl pallet_staking::BenchmarkingConfig for StakingBenchmarkingConfig {
 
 pub struct ElectNone<DataProvider>(sp_std::marker::PhantomData<DataProvider>);
 
-impl<DataProvider> ElectionProvider for ElectNone<DataProvider>
+impl<DataProvider> ElectionProviderBase for ElectNone<DataProvider>
 where
     DataProvider: ElectionDataProvider<AccountId = AccountId, BlockNumber = BlockNumber>,
 {
@@ -454,6 +451,15 @@ where
     type Error = &'static str;
     type DataProvider = DataProvider;
 
+    fn ongoing() -> bool {
+        false
+    }
+}
+
+impl<DataProvider> ElectionProvider for ElectNone<DataProvider>
+where
+    DataProvider: ElectionDataProvider<AccountId = AccountId, BlockNumber = BlockNumber>,
+{
     fn elect() -> Result<sp_npos_elections::Supports<AccountId>, Self::Error> {
         Err("No election takes place at stage 1")
     }
@@ -461,7 +467,7 @@ where
 
 pub struct ElectAll<DataProvider>(sp_std::marker::PhantomData<DataProvider>);
 
-impl<DataProvider> ElectionProvider for ElectAll<DataProvider>
+impl<DataProvider> ElectionProviderBase for ElectAll<DataProvider>
 where
     DataProvider: ElectionDataProvider<AccountId = AccountId, BlockNumber = BlockNumber>,
 {
@@ -470,6 +476,15 @@ where
     type Error = &'static str;
     type DataProvider = DataProvider;
 
+    fn ongoing() -> bool {
+        false
+    }
+}
+
+impl<DataProvider: ElectionDataProvider> ElectionProvider for ElectAll<DataProvider>
+where
+    DataProvider: ElectionDataProvider<AccountId = AccountId, BlockNumber = BlockNumber>,
+{
     fn elect() -> Result<sp_npos_elections::Supports<AccountId>, Self::Error> {
         let targets = Self::DataProvider::electable_targets(None)?
             .into_iter()
@@ -477,6 +492,10 @@ where
             .collect();
         Ok(targets)
     }
+}
+
+parameter_types! {
+    pub HistoryDepth: u32 = 84;
 }
 
 impl pallet_staking::Config for Runtime {
@@ -505,6 +524,8 @@ impl pallet_staking::Config for Runtime {
     type BenchmarkingConfig = StakingBenchmarkingConfig;
     type OnStakerSlash = ();
     type WeightInfo = pallet_staking::weights::SubstrateWeight<Runtime>;
+    type TargetList = pallet_staking::UseValidatorsMap<Self>;
+    type HistoryDepth = HistoryDepth;
 }
 
 // Mocked threshoulds
