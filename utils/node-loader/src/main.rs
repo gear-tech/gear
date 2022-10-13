@@ -32,7 +32,7 @@ async fn run(params: Params) -> Result<()> {
 }
 
 async fn load_node(params: LoadParams) -> Result<()> {
-    let api_producer = GearApiProducer::try_new(params.endpoint).await?;
+    let api_producer = GearApiProducer::try_new(params.endpoint, params.user).await?;
     // this should not be dropped, until the loader works
     let _guard = log::init_log()?;
 

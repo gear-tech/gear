@@ -25,8 +25,8 @@ mod report;
 
 type Seed = u64;
 
-/*
-1. Simplify run_batch_impl
+/* TODO
+1. Fix grishasobol's case and case discussed with breathx
 */
 
 pub struct BatchPool<Rng: LoaderRng> {
@@ -91,7 +91,7 @@ impl<Rng: LoaderRng> BatchPool<Rng> {
         }
 
         if blocks_stopped {
-            // todo should trigger remote process, which takes snapshot of the node
+            // TODO should trigger remote process, which takes snapshot of the node
             tracing::info!("Blocks production has stopped while executing messages of the batch with id: {seed}. \
             Possibly, node panicked. Stopping loader");
             panic!("Ending loader.")
@@ -111,6 +111,7 @@ async fn run_batch(api: GearApi, batch: BatchWithSeed) -> BatchRunReport {
 }
 
 #[instrument(skip_all)]
+// TODO Simplify when the tool is stabilized
 async fn run_batch_impl(api: GearApi, batch: Batch) -> Result<Report> {
     // Order of the results of each extrinsic execution in the batch
     // is the same as in the input set of calls in the batch.

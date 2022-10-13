@@ -9,8 +9,6 @@ use std::{
     iter,
     ops::Deref,
     time::{SystemTime, UNIX_EPOCH},
-    ops::Deref,
-    time::{SystemTime, UNIX_EPOCH},
 };
 
 pub struct GearApiProducer {
@@ -19,8 +17,8 @@ pub struct GearApiProducer {
 }
 
 impl GearApiProducer {
-    pub async fn try_new(endpoint: String) -> Result<Self> {
-        let api = GearApi::init(str_to_wsaddr(endpoint)).await?;
+    pub async fn try_new(endpoint: String, user: String) -> Result<Self> {
+        let api = GearApi::init_with(str_to_wsaddr(endpoint), user).await?;
         let nonce = api.rpc_nonce().await?;
         Ok(Self { api, nonce })
     }
