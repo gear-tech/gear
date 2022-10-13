@@ -456,6 +456,10 @@ jobs:
 
       - name: "Test: Client tests"
         run: ./scripts/gear.sh test client --run-node
+        
+      - name: Stop Gear Node Force
+        shell: powershell
+        run: Get-Process gear* | Stop-Process -Force
 
       - name: "Test: Process node runtime spec tests"
         run: |
