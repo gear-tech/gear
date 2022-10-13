@@ -245,9 +245,9 @@ impl ExtManager {
     }
 
     pub(crate) fn store_new_code(&mut self, code: &[u8]) -> CodeId {
-        let code_hash = CodeId::generate(code);
-        self.opt_binaries.insert(code_hash, code.to_vec());
-        code_hash
+        let code_id = CodeId::generate(code);
+        self.opt_binaries.insert(code_id, code.to_vec());
+        code_id
     }
 
     pub(crate) fn fetch_inc_message_nonce(&mut self) -> u64 {
@@ -640,12 +640,12 @@ impl ExtManager {
         let (actor, _balance) = self
             .actors
             .get_mut(program_id)
-            .ok_or(TestError::ActorNotFound(*program_id))?;
+            .ok_or_else(|| TestError::ActorNotFound(*program_id))?;
 
         let code_id = actor.code_id();
         let (data, memory) = actor
             .get_executable_actor_data()
-            .ok_or(TestError::ActorIsNotExecutable(*program_id))?;
+            .ok_or_else(|| TestError::ActorIsNotExecutable(*program_id))?;
         let pages_initial_data = memory
             .into_iter()
             .map(|(page, data)| (page, Box::new(data)))
@@ -828,15 +828,15 @@ impl JournalHandler for ExtManager {
         }
     }
 
-    fn store_new_programs(&mut self, code_hash: CodeId, candidates: Vec<(ProgramId, MessageId)>) {
-        if let Some(code) = self.opt_binaries.get(&code_hash).cloned() {
-            for (candidate_id, init_message_id) in candidates {
+    fn store_new_programs(&mut self, code_id: CodeId, candidates: Vec<(MessageId, ProgramId)>) {
+        if let Some(code) = self.opt_binaries.get(&code_id).cloned() {
+            for (init_message_id, candidate_id) in candidates {
                 if !self.actors.contains_key(&candidate_id) {
                     let code = Code::try_new(code.clone(), 1, |_| ConstantCostRules::default())
                         .expect("Program can't be constructed with provided code");
 
                     let code_and_id: InstrumentedCodeAndId =
-                        CodeAndId::from_parts_unchecked(code, code_hash).into();
+                        CodeAndId::from_parts_unchecked(code, code_id).into();
                     let (code, code_id) = code_and_id.into_parts();
                     let candidate = CoreProgram::new(candidate_id, code);
                     self.store_new_actor(
@@ -851,9 +851,9 @@ impl JournalHandler for ExtManager {
         } else {
             logger::debug!(
                 "No referencing code with code hash {:?} for candidate programs",
-                code_hash
+                code_id
             );
-            for (invalid_candidate_id, _) in candidates {
+            for (_, invalid_candidate_id) in candidates {
                 self.actors
                     .insert(invalid_candidate_id, (TestActor::Dormant, 0));
             }

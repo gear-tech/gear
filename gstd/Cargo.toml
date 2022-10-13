@@ -18,5 +18,7 @@ primitive-types = { version = "0.11.1", default-features = false, features = ["s
 scale-info = { version = "2.1.1", default-features = false, features = ["derive"] }
 futures = { version = "0.3", default-features = false, features = ["alloc"] }
 
+static_assertions = "1"
+
 [features]
 debug = ["galloc/debug", "gcore/debug"]

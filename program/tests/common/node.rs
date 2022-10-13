@@ -4,7 +4,7 @@ use std::{
     process::{Child, Command, Stdio},
 };
 
-/// Run gear-node with docker.
+/// Run gear with docker.
 pub struct Node {
     /// child process
     ps: Child,
@@ -18,10 +18,10 @@ impl Node {
         format!("ws://{}:{}", port::LOCALHOST, self.port)
     }
 
-    /// Run gear-node with docker in development mode.
+    /// Run gear with docker in development mode.
     pub fn dev() -> Result<Self> {
         let port = port::pick();
-        let ps = Command::new(env::bin("gear-node"))
+        let ps = Command::new(env::bin("gear"))
             .args(["--ws-port", &port.to_string(), "--tmp", "--dev"])
             .stderr(Stdio::piped())
             .stdout(Stdio::piped())

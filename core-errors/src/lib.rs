@@ -121,6 +121,10 @@ pub enum MessageError {
     /// The error occurs when program receives too big payload.
     #[display(fmt = "Received message with abnormal payload size")]
     IncomingPayloadTooBig,
+
+    /// The error occurs when functions related to reply context, used without it.
+    #[display(fmt = "Not running in reply context")]
+    NoReplyContext,
 }
 
 /// Error using waiting syscalls.
@@ -188,25 +192,42 @@ pub enum ExecutionError {
 #[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo))]
 pub enum ExtError {
     /// We got some error but don't know which exactly because of disabled gcore's `codec` feature
+    #[cfg(not(feature = "codec"))]
     #[display(fmt = "Some error")]
     Some,
+
+    /// Decode error.
+    ///
+    /// Supposed to be unreachable.
+    #[cfg(feature = "codec")]
+    #[display(fmt = "`ExtError` decoding error")]
+    Decode,
+
+    // TODO: consider to create more complex one.
+    /// Syscall usage error.
+    #[display(fmt = "Syscall usage error")]
+    SyscallUsage,
+
     /// Memory error.
     #[display(fmt = "Memory error: {}", _0)]
     Memory(MemoryError),
+
     /// Message error.
     #[display(fmt = "Message error: {}", _0)]
     Message(MessageError),
+
     /// Waiting error.
     #[display(fmt = "Waiting error: {}", _0)]
     Wait(WaitError),
+
     /// Execution error.
     #[display(fmt = "Execution error: {}", _0)]
     Execution(ExecutionError),
 }
 
+#[cfg(feature = "codec")]
 impl ExtError {
     /// Size of error encoded in SCALE codec
-    #[cfg(feature = "codec")]
     pub fn encoded_size(&self) -> usize {
         Encode::encoded_size(self)
     }

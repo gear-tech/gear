@@ -195,7 +195,7 @@ where
                     init_source,
                     init_message.try_into().unwrap(),
                     program.init_gas_limit.unwrap_or(GAS_LIMIT),
-                    program.init_value.unwrap_or(0) as u128,
+                    program.init_value.unwrap_or(0),
                     None,
                 ),
             },

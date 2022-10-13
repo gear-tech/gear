@@ -4,9 +4,9 @@
 
 ### Generate custom chain spec
 
-The compiled runtime code as well as the genesis block configuration (the initial network state) should be placed in a "chain spec" JSON file that would later be supplied as a command line argumnet to the ```gear-node``` command:
+The compiled runtime code as well as the genesis block configuration (the initial network state) should be placed in a "chain spec" JSON file that would later be supplied as a command line argumnet to the `gear` command:
 ```bash
-./target/release/gear-node \
+./target/release/gear \
   --base-path /tmp/data \
   --chain=chain_spec.json \
   ...
@@ -21,7 +21,7 @@ A custom chain spec can be created in a few simple steps:
 2. Export the chain spec as a [raw] JSON.\
 Note that we specifically request not to export the bootnodnes - this section will be filled out manually later.
 ```bash
-./target/release/gear-node build-spec --raw --disable-default-bootnode --chain staging > staging.json
+./target/release/gear build-spec --raw --disable-default-bootnode --chain staging > staging.json
 ```
 The resulting ```staging.json``` file will contain a very long segment of binary data - the runtime wasm code, and will look similar to this:
 ```

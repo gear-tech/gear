@@ -29,7 +29,7 @@ fixtures:
             kind: id
             value: 1
           payload:
-            kind: utf-8
+            kind: i32
             value: 0
 
   - title: panic
@@ -50,6 +50,5 @@ fixtures:
             kind: id
             value: 1
           payload:
-            kind: utf-8
+            kind: i32
             value: 1
-

@@ -35,7 +35,7 @@ pub struct LazyPagesExt {
     inner: Ext,
 }
 
-impl IntoExtInfo for LazyPagesExt {
+impl IntoExtInfo<<LazyPagesExt as EnvExt>::Error> for LazyPagesExt {
     fn into_ext_info(self, memory: &impl Memory) -> Result<ExtInfo, (MemoryError, GasAmount)> {
         let pages_for_data = |static_pages: WasmPageNumber,
                               allocations: &BTreeSet<WasmPageNumber>|
@@ -56,7 +56,7 @@ impl IntoExtInfo for LazyPagesExt {
         self.inner.context.gas_counter.into()
     }
 
-    fn last_error(&self) -> Option<&ExtError> {
+    fn last_error(&self) -> Result<&ExtError, <LazyPagesExt as EnvExt>::Error> {
         self.inner.last_error()
     }
 
@@ -151,11 +151,11 @@ impl EnvExt for LazyPagesExt {
         self.inner.origin()
     }
 
-    fn send_init(&mut self) -> Result<usize, Self::Error> {
+    fn send_init(&mut self) -> Result<u32, Self::Error> {
         self.inner.send_init()
     }
 
-    fn send_push(&mut self, handle: usize, buffer: &[u8]) -> Result<(), Self::Error> {
+    fn send_push(&mut self, handle: u32, buffer: &[u8]) -> Result<(), Self::Error> {
         self.inner.send_push(handle, buffer)
     }
 
@@ -165,7 +165,7 @@ impl EnvExt for LazyPagesExt {
 
     fn send_commit(
         &mut self,
-        handle: usize,
+        handle: u32,
         msg: HandlePacket,
         delay: u32,
     ) -> Result<MessageId, Self::Error> {
@@ -176,7 +176,7 @@ impl EnvExt for LazyPagesExt {
         self.inner.reply_commit(msg, delay)
     }
 
-    fn reply_to(&mut self) -> Result<Option<MessageId>, Self::Error> {
+    fn reply_to(&mut self) -> Result<MessageId, Self::Error> {
         self.inner.reply_to()
     }
 
@@ -188,7 +188,7 @@ impl EnvExt for LazyPagesExt {
         self.inner.exit()
     }
 
-    fn exit_code(&mut self) -> Result<Option<ExitCode>, Self::Error> {
+    fn exit_code(&mut self) -> Result<ExitCode, Self::Error> {
         self.inner.exit_code()
     }
 
@@ -268,7 +268,11 @@ impl EnvExt for LazyPagesExt {
         self.inner.value_available()
     }
 
-    fn create_program(&mut self, packet: InitPacket, delay: u32) -> Result<ProgramId, Self::Error> {
+    fn create_program(
+        &mut self,
+        packet: InitPacket,
+        delay: u32,
+    ) -> Result<(MessageId, ProgramId), Self::Error> {
         self.inner.create_program(packet, delay)
     }
 

@@ -23,8 +23,8 @@ use sp_consensus_babe::AuthorityId as BabeId;
 use sp_core::{crypto::UncheckedInto, sr25519};
 use sp_finality_grandpa::AuthorityId as GrandpaId;
 use vara_runtime::{
-    BabeConfig, BalancesConfig, GenesisConfig, GrandpaConfig, SessionConfig, SessionKeys,
-    SudoConfig, SystemConfig, WASM_BINARY,
+    BabeConfig, BalancesConfig, GearConfig, GenesisConfig, GrandpaConfig, SessionConfig,
+    SessionKeys, SudoConfig, SystemConfig, WASM_BINARY,
 };
 
 // The URL for the telemetry server.
@@ -269,5 +269,8 @@ fn testnet_genesis(
             key: Some(root_key),
         },
         transaction_payment: Default::default(),
+        gear: GearConfig {
+            force_queue: Default::default(),
+        },
     }
 }

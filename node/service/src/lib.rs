@@ -16,6 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use common::TerminalExtrinsicProvider;
 use sc_client_api::{Backend as BackendT, BlockBackend, UsageProvider};
 use sc_executor::{NativeElseWasmExecutor, NativeExecutionDispatch};
 use sc_network::NetworkService;
@@ -353,7 +354,7 @@ where
 }
 
 /// Creates a full service from the configuration.
-pub fn new_full_base<RuntimeApi, ExecutorDispatch>(
+pub fn new_full_base<RuntimeApi, ExecutorDispatch, Runtime, Extrinsic>(
     mut config: Configuration,
     disable_hardware_benchmarks: bool,
     with_startup_data: impl FnOnce(
@@ -373,6 +374,9 @@ where
     RuntimeApi::RuntimeApi:
         RuntimeApiCollection<StateBackend = sc_client_api::StateBackendFor<FullBackend, Block>>,
     ExecutorDispatch: NativeExecutionDispatch + 'static,
+    Runtime: frame_system::Config + TerminalExtrinsicProvider<Extrinsic> + Send + Sync + 'static,
+    Extrinsic: Send + Sync + 'static,
+    OpaqueExtrinsic: From<Extrinsic>,
 {
     let hwbench = if !disable_hardware_benchmarks {
         config.database.path().map(|database_path| {
@@ -475,7 +479,7 @@ where
     (with_startup_data)(&block_import, &babe_link);
 
     if let sc_service::config::Role::Authority { .. } = &role {
-        let proposer = sc_basic_authorship::ProposerFactory::new(
+        let proposer = authorship::ProposerFactory::<_, _, _, _, Runtime, Extrinsic>::new(
             task_manager.spawn_handle(),
             client.clone(),
             transaction_pool.clone(),
@@ -622,18 +626,20 @@ pub fn new_full(
 ) -> Result<TaskManager, ServiceError> {
     match &config.chain_spec {
         #[cfg(feature = "gear-native")]
-        spec if spec.is_gear() => new_full_base::<gear_runtime::RuntimeApi, GearExecutorDispatch>(
-            config,
-            disable_hardware_benchmarks,
-            |_, _| (),
-        )
+        spec if spec.is_gear() => new_full_base::<
+            gear_runtime::RuntimeApi,
+            GearExecutorDispatch,
+            gear_runtime::Runtime,
+            gear_runtime::UncheckedExtrinsic,
+        >(config, disable_hardware_benchmarks, |_, _| ())
         .map(|NewFullBase { task_manager, .. }| task_manager),
         #[cfg(feature = "vara-native")]
-        spec if spec.is_vara() => new_full_base::<vara_runtime::RuntimeApi, VaraExecutorDispatch>(
-            config,
-            disable_hardware_benchmarks,
-            |_, _| (),
-        )
+        spec if spec.is_vara() => new_full_base::<
+            vara_runtime::RuntimeApi,
+            VaraExecutorDispatch,
+            vara_runtime::Runtime,
+            vara_runtime::UncheckedExtrinsic,
+        >(config, disable_hardware_benchmarks, |_, _| ())
         .map(|NewFullBase { task_manager, .. }| task_manager),
         _ => Err(ServiceError::Other("Invalid chain spec".into())),
     }

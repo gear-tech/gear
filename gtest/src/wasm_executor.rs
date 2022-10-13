@@ -199,7 +199,7 @@ impl WasmExecutor {
         memory: &mut MemoryWrap<Ext>,
         pages: &BTreeMap<PageNumber, Box<PageBuf>>,
     ) -> Result<()> {
-        let memory_size = WasmPageNumber(memory.size().0 as u32);
+        let memory_size = WasmPageNumber(memory.size().0);
         for (page_number, buffer) in pages {
             let wasm_page_number = page_number.to_wasm_page();
             if memory_size <= wasm_page_number {

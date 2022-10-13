@@ -30,22 +30,22 @@ use wasmi::{core::memory_units::Pages, Memory as WasmiMemory, Store, StoreContex
 
 pub fn read_memory_as<D: Decode + MaxEncodedLen>(
     memory: &impl Memory,
-    ptr: usize,
+    ptr: u32,
 ) -> Result<D, MemoryError> {
     let mut buffer = vec![0u8; D::max_encoded_len()];
     memory
-        .read(ptr, &mut buffer)
+        .read(ptr as usize, &mut buffer)
         .map_err(|_| MemoryError::OutOfBounds)?;
     let decoded = D::decode_all(&mut &buffer[..]).map_err(|_| MemoryError::MemoryAccessError)?;
     Ok(decoded)
 }
 
-pub struct MemoryWrapRef<'a, E: Ext + IntoExtInfo + 'static> {
+pub struct MemoryWrapRef<'a, E: Ext + IntoExtInfo<E::Error> + 'static> {
     pub memory: WasmiMemory,
     pub store: StoreContextMut<'a, HostState<E>>,
 }
 
-impl<'a, E: Ext + IntoExtInfo + 'static> Memory for MemoryWrapRef<'a, E> {
+impl<'a, E: Ext + IntoExtInfo<E::Error> + 'static> Memory for MemoryWrapRef<'a, E> {
     fn grow(&mut self, pages: WasmPageNumber) -> Result<PageNumber, Error> {
         self.memory
             .grow(&mut self.store, Pages(pages.0 as usize))
@@ -79,12 +79,12 @@ impl<'a, E: Ext + IntoExtInfo + 'static> Memory for MemoryWrapRef<'a, E> {
 }
 
 /// Wrapper for [`wasmi::Memory`].
-pub struct MemoryWrap<E: Ext + IntoExtInfo + 'static> {
+pub struct MemoryWrap<E: Ext + IntoExtInfo<E::Error> + 'static> {
     pub memory: WasmiMemory,
     pub store: Store<HostState<E>>,
 }
 
-impl<E: Ext + IntoExtInfo + 'static> MemoryWrap<E> {
+impl<E: Ext + IntoExtInfo<E::Error> + 'static> MemoryWrap<E> {
     /// Wrap [`wasmi::Memory`] for Memory trait.
     pub fn new(memory: WasmiMemory, store: Store<HostState<E>>) -> Self {
         MemoryWrap { memory, store }
@@ -92,7 +92,7 @@ impl<E: Ext + IntoExtInfo + 'static> MemoryWrap<E> {
 }
 
 /// Memory interface for the allocator.
-impl<E: Ext + IntoExtInfo + 'static> Memory for MemoryWrap<E> {
+impl<E: Ext + IntoExtInfo<E::Error> + 'static> Memory for MemoryWrap<E> {
     fn grow(&mut self, pages: WasmPageNumber) -> Result<PageNumber, Error> {
         self.memory
             .grow(&mut self.store, Pages(pages.0 as usize))
