@@ -1,4 +1,6 @@
 //! build script for gear-program cli
+#![allow(dead_code)]
+
 use frame_metadata::RuntimeMetadataPrefixed;
 use parity_scale_codec::{Decode, Encode};
 use std::{
@@ -16,7 +18,8 @@ const GENERATED_TITLE: &str = r#"
 #![allow(clippy::all, missing_docs)]
 "#;
 
-const METADATA_PATH: &str = "/src/api/generated/metadata.rs";
+const GEAR_METADATA_PATH: &str = "/src/api/generated/gear.rs";
+const VARA_METADATA_PATH: &str = "/src/api/generated/vara.rs";
 
 /// Check if gear exists
 fn check_node() -> bool {
@@ -78,7 +81,7 @@ fn update_api() {
     {
         write_api(
             &codegen(&gear_runtime::Runtime::metadata().encode()),
-            METADATA_PATH,
+            GEAR_METADATA_PATH,
         );
     }
 
@@ -86,7 +89,7 @@ fn update_api() {
     {
         write_api(
             &codegen(&vara_runtime::Runtime::metadata().encode()),
-            METADATA_PATH,
+            VARA_METADATA_PATH,
         );
     }
 

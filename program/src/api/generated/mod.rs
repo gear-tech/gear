@@ -1,20 +1,38 @@
-mod metadata;
+#[cfg(any(
+    all(feature = "gear", feature = "vara"),
+    all(feature = "gear", not(feature = "vara"))
+))]
+mod gear;
 
-pub use metadata::*;
+#[cfg(any(
+    all(feature = "gear", feature = "vara"),
+    all(feature = "gear", not(feature = "vara"))
+))]
+pub use gear::*;
 
-#[cfg(all(feature = "gear", feature = "vara"))]
+#[cfg(any(
+    all(feature = "gear", feature = "vara"),
+    all(feature = "gear", not(feature = "vara"))
+))]
 use self::api::runtime_types::gear_runtime::RuntimeEvent;
+
+#[cfg(all(feature = "vara", not(feature = "gear")))]
+mod vara;
+
+#[cfg(all(feature = "vara", not(feature = "gear")))]
+pub use vara::*;
+
 #[cfg(all(feature = "vara", not(feature = "gear")))]
 use self::api::runtime_types::vara_runtime::RuntimeEvent;
 
 use self::api::Event as ApiEvent;
+use api::runtime_types::{
+    gear_common::event::*,
+    gear_core::{ids as generated_ids, message as generated_message},
+};
 use gear_core::{
     ids, message,
     message::{ReplyDetails, StoredMessage},
-};
-use metadata::api::runtime_types::{
-    gear_common::event::*,
-    gear_core::{ids as generated_ids, message as generated_message},
 };
 use parity_scale_codec::{Decode, Encode};
 
