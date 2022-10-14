@@ -61,8 +61,8 @@ use gear_backend_wasmi::WasmiEnvironment as ExecutionEnvironment;
 use gear_core::{
     code::{Code, CodeAndId, InstrumentedCode, InstrumentedCodeAndId},
     ids::{CodeId, MessageId, ProgramId, ReservationId},
+    memory::{PageBuf, PageNumber},
     message::*,
-    program::Program as NativeProgram,
 };
 use pallet_gear_program::Pallet as GearProgramPallet;
 use primitive_types::H256;
@@ -79,10 +79,12 @@ pub(crate) type CurrencyOf<T> = <T as Config>::Currency;
 pub(crate) type BalanceOf<T> =
     <<T as Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
 pub(crate) type SentOf<T> = <<T as Config>::Messenger as Messenger>::Sent;
+pub(crate) type DbWeightOf<T> = <T as frame_system::Config>::DbWeight;
 pub(crate) type DequeuedOf<T> = <<T as Config>::Messenger as Messenger>::Dequeued;
 pub(crate) type QueueProcessingOf<T> = <<T as Config>::Messenger as Messenger>::QueueProcessing;
 pub(crate) type QueueOf<T> = <<T as Config>::Messenger as Messenger>::Queue;
 pub(crate) type MailboxOf<T> = <<T as Config>::Messenger as Messenger>::Mailbox;
+pub(crate) type ReadPerByteCostOf<T> = <T as Config>::ReadPerByteCost;
 pub(crate) type WaitlistOf<T> = <<T as Config>::Messenger as Messenger>::Waitlist;
 pub(crate) type MessengerCapacityOf<T> = <<T as Config>::Messenger as Messenger>::Capacity;
 pub(crate) type TaskPoolOf<T> = <<T as Config>::Scheduler as Scheduler>::TaskPool;
@@ -188,7 +190,7 @@ pub mod pallet {
     #[cfg(feature = "lazy-pages")]
     use gear_lazy_pages_common as lazy_pages;
 
-    use crate::manager::{ExtManager, HandleKind, QueuePostProcessingData};
+    use crate::manager::{CodeInfo, ExtManager, HandleKind, QueuePostProcessingData};
     use alloc::format;
     use common::{
         self, event::*, BlockLimiter, CodeMetadata, GasPrice, GasProvider, GasTree, Origin,
@@ -197,7 +199,7 @@ pub mod pallet {
     use core_processor::{
         common::{Actor, DispatchOutcome as CoreDispatchOutcome, ExecutableActorData, JournalNote},
         configs::{AllocationsConfig, BlockConfig, BlockInfo, MessageExecutionContext},
-        PrepareResult,
+        PrechargeResult, PrepareResult,
     };
     use frame_support::{
         dispatch::{DispatchError, DispatchResultWithPostInfo, PostDispatchInfo},
@@ -250,6 +252,10 @@ pub mod pallet {
         /// but will be seen in events.
         #[pallet::constant]
         type MailboxThreshold: Get<u64>;
+
+        /// The cost per loaded byte.
+        #[pallet::constant]
+        type ReadPerByteCost: Get<u64>;
 
         /// Messenger.
         type Messenger: Messenger<
@@ -574,6 +580,7 @@ pub mod pallet {
             })?;
 
             let code_and_id = CodeAndId::new(code);
+            let code_info = CodeInfo::from_code_and_id(&code_and_id);
 
             let packet = InitPacket::new_with_gas(
                 code_and_id.code_id(),
@@ -601,8 +608,6 @@ pub mod pallet {
 
             let origin = who.clone().into_origin();
 
-            let code_id = code_and_id.code_id();
-
             // By that call we follow the guarantee that we have in `Self::upload_code` -
             // if there's code in storage, there's also metadata for it.
             if let Ok(code_id) = Self::set_code_with_metadata(code_and_id, origin) {
@@ -617,7 +622,7 @@ pub mod pallet {
 
             let message_id = Self::next_message_id(origin);
 
-            ExtManager::<T>::default().set_program(program_id, code_id, message_id);
+            ExtManager::<T>::default().set_program(program_id, &code_info, message_id);
 
             // # Safety
             //
@@ -862,6 +867,8 @@ pub mod pallet {
                 mailbox_threshold: T::MailboxThreshold::get(),
                 waitlist_cost: CostsPerBlockOf::<T>::waitlist(),
                 reserve_for: CostsPerBlockOf::<T>::reserve_for().unique_saturated_into(),
+                read_cost: DbWeightOf::<T>::get().reads(1).ref_time(),
+                per_byte_cost: ReadPerByteCostOf::<T>::get(),
             };
 
             let mut min_limit = 0;
@@ -884,55 +891,52 @@ pub mod pallet {
                 let gas_limit = GasHandlerOf::<T>::get_limit(dispatch_id)
                     .map_err(|_| b"Internal error: unable to get gas limit".to_vec())?;
 
+                let precharged_dispatch = match core_processor::precharge(
+                    &block_config,
+                    GasAllowanceOf::<T>::get(),
+                    queued_dispatch.into_incoming(gas_limit),
+                    actor_id,
+                ) {
+                    PrechargeResult::Ok(d) => d,
+                    PrechargeResult::Error(_) => {
+                        return Err(b"Failed to charge message for Program".to_vec());
+                    }
+                };
+
                 let subsequent_execution = ext_manager.program_pages_loaded(&actor_id);
                 let message_execution_context = MessageExecutionContext {
                     actor,
-                    dispatch: queued_dispatch.into_incoming(gas_limit),
+                    precharged_dispatch,
                     origin: ProgramId::from_origin(source),
-                    gas_allowance: u64::MAX,
                     subsequent_execution,
                 };
 
-                let may_be_returned_context = (!subsequent_execution
-                    && actor_id == main_program_id)
-                    .then(|| MessageExecutionContext {
-                        subsequent_execution: true,
+                let subsequent_execution = !subsequent_execution && actor_id == main_program_id;
+                let may_be_returned_context =
+                    subsequent_execution.then(|| MessageExecutionContext {
+                        subsequent_execution,
                         ..message_execution_context.clone()
                     });
 
                 let journal =
                     match core_processor::prepare(&block_config, message_execution_context) {
-                        PrepareResult::Ok {
-                            context,
-                            pages_with_data,
-                        } => {
-                            #[cfg(feature = "lazy-pages")]
-                            let memory_pages = {
-                                let _ = pages_with_data;
-                                assert!(lazy_pages::try_to_enable_lazy_pages());
-                                Default::default()
-                            };
-                            #[cfg(not(feature = "lazy-pages"))]
-                            let memory_pages = match common::get_program_data_for_pages(
-                                actor_id.into_origin(),
-                                pages_with_data.iter(),
+                        PrepareResult::Ok(context) => {
+                            let memory_pages = match Self::get_and_track_memory_pages(
+                                &mut ext_manager,
+                                actor_id,
+                                &context.actor_data().pages_with_data,
                             ) {
-                                Ok(data) => data,
-                                Err(err) => {
-                                    log::error!(
-                                        "Page data in storage is in invalid state: {}",
-                                        err
-                                    );
-                                    continue;
-                                }
+                                None => continue,
+                                Some(m) => m,
                             };
 
-                            ext_manager.insert_program_id_loaded_pages(actor_id);
+                            let code = Self::get_code(context.actor_data().code_id, actor_id)
+                                .unwrap_or_else(|| unreachable!("Program exists so do code"));
 
                             may_be_returned += may_be_returned_context
                                 .map(|c| {
                                     let burned = match core_processor::prepare(&block_config, c) {
-                                        PrepareResult::Ok { context, .. } => {
+                                        PrepareResult::Ok(context) => {
                                             context.gas_counter().burned()
                                         }
                                         _ => context.gas_counter().burned(),
@@ -944,7 +948,7 @@ pub mod pallet {
 
                             core_processor::process::<Ext, ExecutionEnvironment>(
                                 &block_config,
-                                context,
+                                (context, actor_id, code).into(),
                                 memory_pages,
                             )
                         }
@@ -1099,12 +1103,12 @@ pub mod pallet {
             // over sorted bns set (that's the reason why `BTreeSet` used).
             let (missed_blocks, were_empty) = MissedBlocksOf::<T>::take()
                 .map(|mut set| {
-                    GasAllowanceOf::<T>::decrease(T::DbWeight::get().writes(1).ref_time());
+                    GasAllowanceOf::<T>::decrease(DbWeightOf::<T>::get().writes(1).ref_time());
                     set.insert(bn);
                     (set, false)
                 })
                 .unwrap_or_else(|| {
-                    GasAllowanceOf::<T>::decrease(T::DbWeight::get().reads(1).ref_time());
+                    GasAllowanceOf::<T>::decrease(DbWeightOf::<T>::get().reads(1).ref_time());
                     ([bn].into(), true)
                 });
 
@@ -1120,7 +1124,7 @@ pub mod pallet {
                 //
                 // Making sure we have gas to remove next task
                 // or update missed blocks.
-                if GasAllowanceOf::<T>::get() <= T::DbWeight::get().writes(2).ref_time() {
+                if GasAllowanceOf::<T>::get() <= DbWeightOf::<T>::get().writes(2).ref_time() {
                     stopped_at = Some(*bn);
                     log::debug!("Stopping processing tasks at: {stopped_at:?}");
                     break;
@@ -1131,7 +1135,7 @@ pub mod pallet {
                     log::debug!("Processing task: {:?}", task);
 
                     // Decreasing gas allowance due to DB deletion.
-                    GasAllowanceOf::<T>::decrease(T::DbWeight::get().writes(1).ref_time());
+                    GasAllowanceOf::<T>::decrease(DbWeightOf::<T>::get().writes(1).ref_time());
 
                     // Processing task.
                     //
@@ -1144,7 +1148,7 @@ pub mod pallet {
                     //
                     // Making sure we have gas to remove next task
                     // or update missed blocks.
-                    if GasAllowanceOf::<T>::get() <= T::DbWeight::get().writes(2).ref_time() {
+                    if GasAllowanceOf::<T>::get() <= DbWeightOf::<T>::get().writes(2).ref_time() {
                         stopped_at = Some(*bn);
                         log::debug!("Stopping processing tasks at: {stopped_at:?}");
                         break;
@@ -1175,7 +1179,7 @@ pub mod pallet {
                 // Charging for inserting into missing blocks,
                 // if we were reading it only (they were empty).
                 if were_empty {
-                    GasAllowanceOf::<T>::decrease(T::DbWeight::get().writes(1).ref_time());
+                    GasAllowanceOf::<T>::decrease(DbWeightOf::<T>::get().writes(1).ref_time());
                 }
 
                 MissedBlocksOf::<T>::put(actual_missed_blocks);
@@ -1211,6 +1215,8 @@ pub mod pallet {
                 mailbox_threshold: T::MailboxThreshold::get(),
                 waitlist_cost: CostsPerBlockOf::<T>::waitlist(),
                 reserve_for: CostsPerBlockOf::<T>::reserve_for().unique_saturated_into(),
+                read_cost: DbWeightOf::<T>::get().reads(1).ref_time(),
+                per_byte_cost: ReadPerByteCostOf::<T>::get(),
             };
 
             if T::DebugInfo::is_remap_id_enabled() {
@@ -1237,44 +1243,50 @@ pub mod pallet {
                         GasAllowanceOf::<T>::get(),
                     );
 
+                    let program_id = dispatch.destination();
+                    let dispatch_id = dispatch.id();
+                    let dispatch_reply = dispatch.reply().is_some();
+                    let precharged_dispatch = match core_processor::precharge(
+                        &block_config,
+                        GasAllowanceOf::<T>::get(),
+                        dispatch.into_incoming(gas_limit),
+                        program_id,
+                    ) {
+                        PrechargeResult::Ok(d) => d,
+                        PrechargeResult::Error(journal) => {
+                            core_processor::handle_journal(journal, &mut ext_manager);
+
+                            if T::DebugInfo::is_enabled() {
+                                T::DebugInfo::do_snapshot();
+                            }
+
+                            if T::DebugInfo::is_remap_id_enabled() {
+                                T::DebugInfo::remap_id();
+                            }
+
+                            continue;
+                        }
+                    };
+
                     let active_actor_data = if let Some(maybe_active_program) =
-                        common::get_program(dispatch.destination().into_origin())
+                        common::get_program(program_id.into_origin())
                     {
                         // Check whether message should be added to the wait list
                         if let Program::Active(prog) = maybe_active_program {
-                            let schedule = T::Schedule::get();
-                            let code_id = CodeId::from_origin(prog.code_hash);
-                            let code = if let Some(code) = T::CodeStorage::get_code(code_id) {
-                                if code.instruction_weights_version()
-                                    == schedule.instruction_weights.version
-                                {
-                                    code
-                                } else {
-                                    // todo: charge for code instrumenting
-                                    // If instrumented code exists, re-instrumentation can't fail
-                                    Self::reinstrument_code(code_id, &schedule).unwrap_or_else(
-                                        |e| unreachable!("Code storage corrupted {:?}", e),
-                                    )
-                                }
-                            } else {
-                                // This branch is considered unreachable,
-                                // because there can't be a program
-                                // without code.
-                                //
-                                // Reaching this code is a sign of a serious
-                                // storage or logic corruption.
-                                log::error!(
-                                    "Code '{:?}' not found for program '{:?}'",
-                                    code_id,
-                                    dispatch.destination()
+                            if matches!(prog.state, ProgramState::Uninitialized {message_id} if message_id != dispatch_id)
+                                && !dispatch_reply
+                            {
+                                let (dispatch, journal) =
+                                    precharged_dispatch.into_dispatch_and_note();
+                                let (kind, message, context) = dispatch.into();
+                                let dispatch = StoredDispatch::new(
+                                    kind,
+                                    message.into_stored(program_id),
+                                    context,
                                 );
 
-                                continue;
-                            };
+                                core_processor::handle_journal(journal, &mut ext_manager);
 
-                            if matches!(prog.state, ProgramState::Uninitialized {message_id} if message_id != dispatch.id())
-                                && dispatch.reply().is_none()
-                            {
                                 // Adding id in on-init wake list.
                                 common::waiting_init_append_message_id(
                                     dispatch.destination(),
@@ -1287,25 +1299,32 @@ pub mod pallet {
                                     MessageWaitedSystemReason::ProgramIsNotInitialized
                                         .into_reason(),
                                 );
+
+                                if T::DebugInfo::is_enabled() {
+                                    T::DebugInfo::do_snapshot();
+                                }
+
+                                if T::DebugInfo::is_remap_id_enabled() {
+                                    T::DebugInfo::remap_id();
+                                }
+
                                 continue;
                             }
 
-                            let program = NativeProgram::from_parts(
-                                dispatch.destination(),
-                                code,
-                                prog.allocations,
-                                matches!(prog.state, ProgramState::Initialized),
-                            );
-
                             Some(ExecutableActorData {
-                                program,
+                                allocations: prog.allocations,
+                                code_id: CodeId::from_origin(prog.code_hash),
+                                code_exports: prog.code_exports,
+                                code_length_bytes: prog.code_length_bytes,
+                                static_pages: prog.static_pages,
+                                initialized: matches!(prog.state, ProgramState::Initialized),
                                 pages_with_data: prog.pages_with_data,
                                 gas_reservation_map: prog.gas_reservation_map,
                             })
                         } else {
                             // Reaching this branch is possible when init message was processed with failure, while other kind of messages
                             // were already in the queue/were added to the queue (for example. moved from wait list in case of async init)
-                            log::debug!("Program '{:?}' is not active", dispatch.destination());
+                            log::debug!("Program '{program_id:?}' is not active");
                             None
                         }
                     } else {
@@ -1318,54 +1337,40 @@ pub mod pallet {
                         None
                     };
 
-                    let balance =
-                        CurrencyOf::<T>::free_balance(&<T::AccountId as Origin>::from_origin(
-                            dispatch.destination().into_origin(),
-                        ))
-                        .unique_saturated_into();
+                    let balance = CurrencyOf::<T>::free_balance(
+                        &<T::AccountId as Origin>::from_origin(program_id.into_origin()),
+                    )
+                    .unique_saturated_into();
 
-                    let program_id = dispatch.destination();
                     let message_execution_context = MessageExecutionContext {
                         actor: Actor {
                             balance,
                             destination_program: program_id,
                             executable_data: active_actor_data,
                         },
-                        dispatch: dispatch.into_incoming(gas_limit),
+                        precharged_dispatch,
                         origin: ProgramId::from_origin(external.into_origin()),
-                        gas_allowance: GasAllowanceOf::<T>::get(),
                         subsequent_execution: ext_manager.program_pages_loaded(&program_id),
                     };
 
                     let journal =
                         match core_processor::prepare(&block_config, message_execution_context) {
-                            PrepareResult::Ok {
-                                context,
-                                pages_with_data,
-                            } => {
-                                #[cfg(feature = "lazy-pages")]
-                                let memory_pages = {
-                                    let _ = pages_with_data;
-                                    assert!(lazy_pages::try_to_enable_lazy_pages());
-                                    Default::default()
-                                };
-                                #[cfg(not(feature = "lazy-pages"))]
-                                let memory_pages = match common::get_program_data_for_pages(
-                                    program_id.into_origin(),
-                                    pages_with_data.iter(),
+                            PrepareResult::Ok(context) => {
+                                let memory_pages = match Self::get_and_track_memory_pages(
+                                    &mut ext_manager,
+                                    program_id,
+                                    &context.actor_data().pages_with_data,
                                 ) {
-                                    Ok(data) => data,
-                                    Err(err) => {
-                                        log::error!("Cannot get data for program pages: {err}");
-                                        continue;
-                                    }
+                                    None => continue,
+                                    Some(m) => m,
                                 };
 
-                                ext_manager.insert_program_id_loaded_pages(program_id);
+                                let code = Self::get_code(context.actor_data().code_id, program_id)
+                                    .unwrap_or_else(|| unreachable!("Program exists so do code"));
 
                                 core_processor::process::<Ext, ExecutionEnvironment>(
                                     &block_config,
-                                    context,
+                                    (context, program_id, code).into(),
                                     memory_pages,
                                 )
                             }
@@ -1398,6 +1403,59 @@ pub mod pallet {
                     state_changes: post_data.state_changes,
                 });
             }
+        }
+
+        fn get_and_track_memory_pages(
+            manager: &mut ExtManager<T>,
+            program_id: ProgramId,
+            pages_with_data: &BTreeSet<PageNumber>,
+        ) -> Option<BTreeMap<PageNumber, PageBuf>> {
+            #[cfg(feature = "lazy-pages")]
+            let memory_pages = {
+                let _ = program_id;
+                let _ = pages_with_data;
+                assert!(lazy_pages::try_to_enable_lazy_pages());
+                Default::default()
+            };
+
+            #[cfg(not(feature = "lazy-pages"))]
+            let memory_pages = match common::get_program_data_for_pages(
+                program_id.into_origin(),
+                pages_with_data.iter(),
+            ) {
+                Ok(data) => data,
+                Err(err) => {
+                    log::error!("Cannot get data for program pages: {err}");
+                    return None;
+                }
+            };
+
+            manager.insert_program_id_loaded_pages(program_id);
+
+            Some(memory_pages)
+        }
+
+        fn get_code(code_id: CodeId, program_id: ProgramId) -> Option<InstrumentedCode> {
+            let code = match T::CodeStorage::get_code(code_id) {
+                None => {
+                    log::error!("Code '{code_id:?}' not found for program '{program_id:?}'");
+                    return None;
+                }
+                Some(c) => c,
+            };
+
+            let schedule = T::Schedule::get();
+            let code = if code.instruction_weights_version() == schedule.instruction_weights.version
+            {
+                code
+            } else {
+                // todo: charge for code instrumenting
+                // If instrumented code exists, re-instrumentation can't fail
+                Self::reinstrument_code(code_id, &schedule)
+                    .unwrap_or_else(|e| unreachable!("Code storage corrupted {:?}", e))
+            };
+
+            Some(code)
         }
 
         /// Sets `code` and metadata, if code doesn't exist in storage.
@@ -1453,6 +1511,7 @@ pub mod pallet {
                 original_code,
                 schedule.instruction_weights.version,
                 |module| schedule.rules(module),
+                schedule.limits.stack_height,
             )
             .unwrap_or_else(|e| unreachable!("Unexpected re-instrumentation failure: {:?}", e));
 
@@ -1471,9 +1530,12 @@ pub mod pallet {
                 Error::<T>::CodeTooLarge
             );
 
-            let code = Code::try_new(code, schedule.instruction_weights.version, |module| {
-                schedule.rules(module)
-            })
+            let code = Code::try_new(
+                code,
+                schedule.instruction_weights.version,
+                |module| schedule.rules(module),
+                schedule.limits.stack_height,
+            )
             .map_err(|e| {
                 log::debug!("Code failed to load: {:?}", e);
                 Error::<T>::FailedToConstructProgram
@@ -1545,20 +1607,17 @@ pub mod pallet {
         pub(crate) fn do_create_program(
             who: T::AccountId,
             packet: InitPacket,
+            code_info: CodeInfo,
         ) -> Result<(), DispatchError> {
             let origin = who.clone().into_origin();
 
             let message_id = Self::next_message_id(origin);
 
-            ExtManager::<T>::default().set_program(
-                packet.destination(),
-                packet.code_id(),
-                message_id,
-            );
+            ExtManager::<T>::default().set_program(packet.destination(), &code_info, message_id);
 
             // # Safety
             //
-            // This is unreachable since the `message_id is new generated
+            // This is unreachable since the `message_id` is new generated
             // with `Self::next_message_id`.
             let _ = GasHandlerOf::<T>::create(
                 who.clone(),
@@ -1680,6 +1739,7 @@ pub mod pallet {
             Self::check_gas_limit_and_value(gas_limit, value)?;
 
             let code_and_id = Self::check_code(code)?;
+            let code_info = CodeInfo::from_code_and_id(&code_and_id);
             let packet = Self::init_packet(
                 who.clone(),
                 code_and_id.code_id(),
@@ -1704,7 +1764,7 @@ pub mod pallet {
                 });
             }
 
-            Self::do_create_program(who, packet)?;
+            Self::do_create_program(who, packet, code_info)?;
 
             Ok(().into())
         }
@@ -1737,9 +1797,7 @@ pub mod pallet {
             let who = ensure_signed(origin)?;
 
             // Check if code exists.
-            if !T::CodeStorage::exists(code_id) {
-                return Err(Error::<T>::CodeNotExists.into());
-            }
+            let code = T::CodeStorage::get_code(code_id).ok_or(Error::<T>::CodeNotExists)?;
 
             // Check `gas_limit` and `value`
             Self::check_gas_limit_and_value(gas_limit, value)?;
@@ -1748,7 +1806,7 @@ pub mod pallet {
             let packet =
                 Self::init_packet(who.clone(), code_id, salt, init_payload, gas_limit, value)?;
 
-            Self::do_create_program(who, packet)?;
+            Self::do_create_program(who, packet, CodeInfo::from_code(&code_id, &code))?;
             Ok(().into())
         }
 

@@ -24,16 +24,15 @@ use crate::{
 };
 use colored::{ColoredString, Colorize};
 use frame_support::traits::ReservableCurrency;
-use gear_common::{storage::*, CodeStorage, GasPrice, GasTree, Origin as _};
+use gear_common::{storage::*, GasPrice, GasTree, Origin as _};
 use gear_core::{
     ids::{CodeId, ProgramId},
     memory::vec_page_data_map_to_page_buf_map,
     message::{DispatchKind, GasLimit, StoredDispatch, StoredMessage},
-    program::Program as CoreProgram,
 };
 use gear_core_processor::common::ExecutableActorData;
 use gear_test::{
-    check::read_test_from_file,
+    check::{read_test_from_file, ProgramAllocations},
     js::{MetaData, MetaType},
     proc::*,
     sample::{self, ChainProgram, PayloadVariant},
@@ -244,6 +243,9 @@ macro_rules! command {
                     allocations: Default::default(),
                     pages_with_data: Default::default(),
                     code_hash: H256::default(),
+                    code_exports: Default::default(),
+                    code_length_bytes: 0,
+                    static_pages: 0.into(),
                     state: gear_common::ProgramState::Initialized,
                     gas_reservation_map: Default::default(),
                 };
@@ -447,16 +449,14 @@ macro_rules! command {
                                 .iter()
                                 .find(|(_, &v)| ProgramId::from_origin(v) == p.id)?;
                             let code_id = CodeId::from_origin(info.code_hash);
-                            let code =
-                                <Runtime as pallet_gear::Config>::CodeStorage::get_code(code_id)
-                                    .expect("code should be in the storage");
+
                             let pages = info
                                 .persistent_pages
                                 .keys()
                                 .copied()
                                 .map(|p| p.to_wasm_page())
                                 .collect();
-                            let program = CoreProgram::from_parts(*pid, code, pages, true);
+
                             let memory =
                                 vec_page_data_map_to_page_buf_map(info.persistent_pages.clone())
                                     .unwrap();
@@ -473,8 +473,14 @@ macro_rules! command {
                                 }
                             };
                             Some((
+                                *pid,
                                 ExecutableActorData {
-                                    program,
+                                    allocations: pages,
+                                    code_id,
+                                    code_exports: Default::default(),
+                                    code_length_bytes: Default::default(),
+                                    static_pages: info.static_pages,
+                                    initialized: true,
                                     pages_with_data: memory.keys().cloned().collect(),
                                     gas_reservation_map,
                                 },
@@ -496,13 +502,17 @@ macro_rules! command {
                 }
 
                 if let Some(alloc) = &exp.allocations {
-                    if let Err(alloc_errors) = gear_test::check::check_allocations(
-                        &actors_data
-                            .into_iter()
-                            .map(|(d, _)| d.program)
-                            .collect::<Vec<gear_core::program::Program>>(),
-                        alloc,
-                    ) {
+                    let allocations = actors_data
+                        .iter()
+                        .map(|(id, data, _)| ProgramAllocations {
+                            id: *id,
+                            static_pages: data.static_pages,
+                            allocations: &data.allocations,
+                        })
+                        .collect::<Vec<_>>();
+                    if let Err(alloc_errors) =
+                        gear_test::check::check_allocations(&allocations, alloc)
+                    {
                         errors.push(format!("step: {:?}", exp.step));
                         errors.extend(alloc_errors);
                     }

@@ -43,6 +43,7 @@ use frame_support::{
 use gear_core::{
     ids::{CodeId, MessageId, ProgramId},
     memory::{Error as MemoryError, PageBuf, PageNumber, WasmPageNumber},
+    message::DispatchKind,
     reservation::GasReservationMap,
 };
 use primitive_types::H256;
@@ -257,6 +258,9 @@ pub struct ActiveProgram {
     pub pages_with_data: BTreeSet<PageNumber>,
     pub gas_reservation_map: GasReservationMap,
     pub code_hash: H256,
+    pub code_length_bytes: u32,
+    pub code_exports: BTreeSet<DispatchKind>,
+    pub static_pages: WasmPageNumber,
     pub state: ProgramState,
 }
 

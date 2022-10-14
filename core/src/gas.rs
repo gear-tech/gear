@@ -227,7 +227,7 @@ impl ValueCounter {
 }
 
 /// Gas allowance counter with some predefined maximum value.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct GasAllowanceCounter(u128);
 
 impl GasAllowanceCounter {
