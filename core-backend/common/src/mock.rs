@@ -181,7 +181,7 @@ impl Ext for MockExt {
     fn forbidden_funcs(&self) -> &BTreeSet<&'static str> {
         &self.0
     }
-    fn reserve_gas(&mut self, _amount: u32, _blocks: u32) -> Result<ReservationId, Self::Error> {
+    fn reserve_gas(&mut self, _amount: u64, _duration: u32) -> Result<ReservationId, Self::Error> {
         Ok(ReservationId::default())
     }
     fn unreserve_gas(&mut self, _id: ReservationId) -> Result<(), Self::Error> {

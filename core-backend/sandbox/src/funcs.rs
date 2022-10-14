@@ -527,12 +527,12 @@ where
     }
 
     pub fn reserve_gas(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
-        let (id_ptr, gas_amount, blocks) = args.iter().read_3()?;
+        let (id_ptr, gas_amount, duration) = args.iter().read_3()?;
 
         let mut f = || {
             let id = ctx
                 .ext
-                .reserve_gas(gas_amount, blocks)
+                .reserve_gas(gas_amount, duration)
                 .map_err(FuncError::Core)?;
             ctx.write_output(id_ptr, id.as_ref())?;
             Ok(())

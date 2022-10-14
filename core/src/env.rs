@@ -145,7 +145,7 @@ pub trait Ext {
     fn refund_gas(&mut self, amount: u64) -> Result<(), Self::Error>;
 
     /// Reserve some gas for a few blocks.
-    fn reserve_gas(&mut self, amount: u32, blocks: u32) -> Result<ReservationId, Self::Error>;
+    fn reserve_gas(&mut self, amount: u64, duration: u32) -> Result<ReservationId, Self::Error>;
 
     /// Unreserve gas using reservation ID.
     fn unreserve_gas(&mut self, id: ReservationId) -> Result<(), Self::Error>;

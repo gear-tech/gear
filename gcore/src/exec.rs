@@ -33,7 +33,7 @@ mod sys {
 
         pub fn gr_exit(inheritor_id_ptr: *const [u8; 32]) -> !;
 
-        pub fn gr_reserve_gas(id_ptr: *mut u8, amount: u32, blocks: u32);
+        pub fn gr_reserve_gas(id_ptr: *mut u8, amount: u64, duration: u32);
 
         pub fn gr_unreserve_gas(id_ptr: *const u8);
 
@@ -137,10 +137,10 @@ pub fn exit(inheritor_id: ActorId) -> ! {
 ///     exec::unreserve_gas(RESERVED);
 /// }
 /// ```
-pub fn reserve_gas(amount: u32, blocks: u32) -> ReservationId {
+pub fn reserve_gas(amount: u64, duration: u32) -> ReservationId {
     unsafe {
         let mut id = MaybeUninit::uninit();
-        sys::gr_reserve_gas(id.as_mut_ptr() as *mut u8, amount, blocks);
+        sys::gr_reserve_gas(id.as_mut_ptr() as *mut u8, amount, duration);
         id.assume_init()
     }
 }

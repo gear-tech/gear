@@ -288,8 +288,8 @@ impl TryFrom<&[u8]> for CodeId {
 pub struct ReservationId([u8; 32]);
 
 impl ReservationId {
-    pub fn reserve(amount: u32, blocks: u32) -> Self {
-        gcore::exec::reserve_gas(amount, blocks).into()
+    pub fn reserve(amount: u64, duration: u32) -> Self {
+        gcore::exec::reserve_gas(amount, duration).into()
     }
 
     pub fn unreserve(self) {

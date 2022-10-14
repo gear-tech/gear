@@ -31,7 +31,7 @@ pub use code::WASM_BINARY_OPT as WASM_BINARY;
 
 static mut RESERVATION_ID: Option<ReservationId> = None;
 
-const RESERVATION_AMOUNT: u32 = 50_000_000;
+const RESERVATION_AMOUNT: u64 = 50_000_000;
 
 #[derive(Debug, Encode, Decode)]
 pub enum HandleAction {

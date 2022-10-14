@@ -946,14 +946,14 @@ where
     ) -> Func {
         let func = move |mut caller: wasmi::Caller<'_, HostState<E>>,
                          id_ptr: i32,
-                         gas_amount: u32,
-                         blocks: u32| {
+                         gas_amount: u64,
+                         duration: u32| {
             exit_if!(forbidden, caller);
 
             let id_ptr = id_ptr as usize;
 
             let host_state = host_state_mut!(caller);
-            let id = match host_state.ext.reserve_gas(gas_amount, blocks) {
+            let id = match host_state.ext.reserve_gas(gas_amount, duration) {
                 Ok(o) => o,
                 Err(e) => {
                     host_state.err = FuncError::Core(e);
