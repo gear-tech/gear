@@ -2874,7 +2874,7 @@ fn test_requeue_after_wait_for_timeout() {
             WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
             EMPTY_PAYLOAD.to_vec(),
-            0u64,
+            100_000_000u64,
             0u128
         ));
 
