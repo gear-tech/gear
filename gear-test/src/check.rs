@@ -34,9 +34,8 @@ use gear_backend_common::Environment;
 use gear_core::{
     code::Code,
     ids::{CodeId, MessageId, ProgramId},
-    memory::{PageBuf, PageNumber},
+    memory::{PageBuf, PageNumber, WasmPageNumber},
     message::*,
-    program::Program,
 };
 use log::{Log, Metadata, Record, SetLoggerError};
 use rayon::prelude::*;
@@ -55,8 +54,14 @@ const FILTER_ENV: &str = "RUST_LOG";
 
 pub trait ExecutionContext {
     fn store_code(&mut self, code_id: CodeId, code: Code);
+    fn load_code(&self, code_id: CodeId) -> Option<Code>;
     fn store_original_code(&mut self, code: &[u8]);
-    fn store_program(&mut self, id: ProgramId, code: Code, init_message_id: MessageId) -> Program;
+    fn store_program(
+        &mut self,
+        id: ProgramId,
+        code: Code,
+        init_message_id: MessageId,
+    ) -> ExecutableActorData;
     fn write_gas(&mut self, message_id: MessageId, gas_limit: u64);
 }
 
@@ -332,93 +337,99 @@ pub fn check_messages(
     }
 }
 
+pub struct ProgramAllocations<'a> {
+    pub id: ProgramId,
+    pub static_pages: WasmPageNumber,
+    pub allocations: &'a BTreeSet<WasmPageNumber>,
+}
+
 pub fn check_allocations(
-    programs: &[Program],
+    allocations: &[ProgramAllocations<'_>],
     expected_allocations: &[sample::Allocations],
 ) -> Result<(), Vec<String>> {
-    let mut errors = Vec::new();
+    let mut errors = Vec::with_capacity(3 * allocations.len());
 
     for exp in expected_allocations {
         let target_program_id = exp.id.to_program_id();
-        if let Some(program) = programs.iter().find(|p| p.id() == target_program_id) {
-            let actual_pages = program
-                .get_allocations()
-                .iter()
-                .filter(|page| match exp.filter {
-                    Some(AllocationFilter::Static) => **page < program.static_pages(),
-                    Some(AllocationFilter::Dynamic) => **page >= program.static_pages(),
-                    None => true,
-                })
-                .collect::<BTreeSet<_>>();
+        let program_allocations = match allocations.iter().find(|&p| p.id == target_program_id) {
+            None => {
+                log::error!("Program not found");
+                errors.push(format!(
+                    "Expectation error (Program id not found: {target_program_id})",
+                ));
 
-            match exp.kind {
-                AllocationExpectationKind::PageCount(expected_page_count) => {
-                    if actual_pages.len() != expected_page_count as usize {
+                continue;
+            }
+            Some(a) => a,
+        };
+
+        let static_pages = program_allocations.static_pages;
+        let actual_pages = program_allocations
+            .allocations
+            .iter()
+            .filter(|&page| match exp.filter {
+                Some(AllocationFilter::Static) => *page < static_pages,
+                Some(AllocationFilter::Dynamic) => *page >= static_pages,
+                None => true,
+            })
+            .collect::<BTreeSet<_>>();
+
+        match exp.kind {
+            AllocationExpectationKind::PageCount(expected_page_count) => {
+                if actual_pages.len() != expected_page_count as usize {
+                    errors.push(format!(
+                        "Expectation error (Allocation page count does not match, expected: {expected_page_count}; actual: {}. Program id: {target_program_id})",
+                        actual_pages.len(),
+                    ));
+                }
+            }
+            AllocationExpectationKind::ExactPages(ref expected_pages) => {
+                let mut actual_pages = actual_pages.iter().map(|page| page.0).collect::<Vec<_>>();
+                let mut expected_pages = expected_pages.clone();
+
+                actual_pages.sort_unstable();
+                expected_pages.sort_unstable();
+
+                if actual_pages != expected_pages {
+                    errors.push(format!(
+                        "Expectation error (Following allocation pages expected: {expected_pages:?}; actual: {actual_pages:?}. Program id: {target_program_id})",
+                    ))
+                }
+            }
+            AllocationExpectationKind::ContainsPages(ref expected_pages) => {
+                for &expected_page in expected_pages {
+                    if !actual_pages
+                        .iter()
+                        .map(|page| page.0)
+                        .any(|actual_page| actual_page == expected_page)
+                    {
                         errors.push(format!(
-                            "Expectation error (Allocation page count does not match, expected: {}; actual: {}. Program id: {})",
-                            expected_page_count,
-                            actual_pages.len(),
-                            exp.id.to_program_id(),
+                            "Expectation error (Allocation page {expected_page} expected, but not found. Program id: {target_program_id})",
                         ));
                     }
                 }
-                AllocationExpectationKind::ExactPages(ref expected_pages) => {
-                    let mut actual_pages =
-                        actual_pages.iter().map(|page| page.0).collect::<Vec<_>>();
-                    let mut expected_pages = expected_pages.clone();
-
-                    actual_pages.sort_unstable();
-                    expected_pages.sort_unstable();
-
-                    if actual_pages != expected_pages {
-                        errors.push(format!(
-                            "Expectation error (Following allocation pages expected: {:?}; actual: {:?}. Program id: {})",
-                            expected_pages,
-                            actual_pages,
-                            exp.id.to_program_id(),
-                        ))
-                    }
-                }
-                AllocationExpectationKind::ContainsPages(ref expected_pages) => {
-                    for &expected_page in expected_pages {
-                        if !actual_pages
-                            .iter()
-                            .map(|page| page.0)
-                            .any(|actual_page| actual_page == expected_page)
-                        {
-                            errors.push(format!(
-                                "Expectation error (Allocation page {} expected, but not found. Program id: {})",
-                                expected_page,
-                                exp.id.to_program_id(),
-                            ));
-                        }
-                    }
-                }
             }
-        } else {
-            log::error!("Program not found");
-            errors.push(format!(
-                "Expectation error (Program id not found: {})",
-                exp.id.to_program_id()
-            ))
         }
     }
 
-    if errors.is_empty() {
-        Ok(())
-    } else {
-        Err(errors)
+    match errors.is_empty() {
+        true => Ok(()),
+        false => Err(errors),
     }
 }
 
 pub fn check_memory(
-    actors_data: &Vec<(ExecutableActorData, BTreeMap<PageNumber, PageBuf>)>,
+    actors_data: &Vec<(
+        ProgramId,
+        ExecutableActorData,
+        BTreeMap<PageNumber, PageBuf>,
+    )>,
     expected_memory: &[sample::BytesAt],
 ) -> Result<(), Vec<String>> {
     let mut errors = Vec::new();
     for case in expected_memory {
-        for (data, memory) in actors_data {
-            if data.program.id() == case.id.to_program_id() {
+        for (program_id, _data, memory) in actors_data {
+            if *program_id == case.id.to_program_id() {
                 let page = PageNumber::new_from_addr(case.address);
                 if let Some(page_buf) = memory.get(&page) {
                     let begin_byte = case.address - page.offset();
@@ -606,29 +617,35 @@ where
                 );
             }
         }
+
         if !skip_allocations {
             if let Some(alloc) = &exp.allocations {
-                let progs: Vec<Program> = final_state
+                let progs: Vec<ProgramAllocations<'_>> = final_state
                     .actors
-                    .clone()
-                    .into_iter()
-                    .filter_map(|(_, actor)| actor.executable_data)
-                    .map(|data| data.program)
+                    .iter()
+                    .filter_map(|(id, actor)| actor.executable_data.as_ref().map(|d| (*id, d)))
+                    .map(|(id, data)| ProgramAllocations {
+                        id,
+                        static_pages: data.static_pages,
+                        allocations: &data.allocations,
+                    })
                     .collect();
+
                 if let Err(alloc_errors) = check_allocations(&progs, alloc) {
                     errors.push(format!("step: {:?}", exp.step));
                     errors.extend(alloc_errors);
                 }
             }
         }
+
         if !skip_memory {
             if let Some(mem) = &exp.memory {
                 let data = final_state
                     .actors
                     .into_iter()
-                    .filter_map(|(_, actor)| match actor.executable_data {
+                    .filter_map(|(actor_id, actor)| match actor.executable_data {
                         None => None,
-                        Some(d) => Some((d, actor.memory_pages)),
+                        Some(d) => Some((actor_id, d, actor.memory_pages)),
                     })
                     .collect();
                 if let Err(mem_errors) = check_memory(&data, mem) {

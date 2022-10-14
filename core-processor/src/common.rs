@@ -29,7 +29,9 @@ use gear_core::{
     gas::{GasAllowanceCounter, GasAmount, GasCounter},
     ids::{CodeId, MessageId, ProgramId},
     memory::{PageBuf, PageNumber, WasmPageNumber},
-    message::{ContextStore, Dispatch, IncomingDispatch, MessageWaitedType, StoredDispatch},
+    message::{
+        ContextStore, Dispatch, DispatchKind, IncomingDispatch, MessageWaitedType, StoredDispatch,
+    },
     program::Program,
 };
 use gear_core_errors::MemoryError;
@@ -355,6 +357,12 @@ pub enum ExecutionErrorReason {
     /// Not enough gas in block for initial memory handling
     #[display(fmt = "Not enough gas in block for initial memory handling")]
     InitialMemoryBlockGasExceeded,
+    /// Not enough gas for basic program data handling
+    #[display(fmt = "Not enough gas for basic program data handling")]
+    ProgramDataGasExceeded,
+    /// Not enough gas for loading a program code
+    #[display(fmt = "Not enough gas for loading a program code")]
+    ProgramCodeGasExceeded,
     /// Mem size less then static pages num
     #[display(fmt = "Mem size less then static pages num")]
     InsufficientMemorySize,
@@ -402,10 +410,20 @@ pub struct Actor {
 /// Executable actor data.
 #[derive(Clone, Debug, Decode, Encode)]
 pub struct ExecutableActorData {
-    /// Program aggregated data.
-    pub program: Program,
-    /// Numbers of allocated memory pages that have non-default data.
+    /// Set of dynamic wasm page numbers, which are allocated by the program.
+    pub allocations: BTreeSet<WasmPageNumber>,
+    /// Set of gear pages numbers, which has data in storage.
     pub pages_with_data: BTreeSet<PageNumber>,
+    /// Id of the program code.
+    pub code_id: CodeId,
+    /// Length in bytes of the program code.
+    pub code_length_bytes: u32,
+    /// Exported functions by the program code.
+    pub code_exports: BTreeSet<DispatchKind>,
+    /// Count of static memory pages.
+    pub static_pages: WasmPageNumber,
+    /// Flag indicates if the program is initialized.
+    pub initialized: bool,
 }
 
 /// Execution context.
@@ -422,4 +440,41 @@ pub struct WasmExecutionContext {
     pub pages_initial_data: BTreeMap<PageNumber, PageBuf>,
     /// Size of the memory block.
     pub memory_size: WasmPageNumber,
+}
+
+/// Struct with dispatch and counters charged for program data.
+#[derive(Clone, Debug)]
+pub struct PrechargedDispatch {
+    gas: GasCounter,
+    allowance: GasAllowanceCounter,
+    dispatch: IncomingDispatch,
+}
+
+impl PrechargedDispatch {
+    /// Decompose this instance into dispatch and journal.
+    pub fn into_dispatch_and_note(self) -> (IncomingDispatch, Vec<JournalNote>) {
+        let journal = alloc::vec![JournalNote::GasBurned {
+            message_id: self.dispatch.id(),
+            amount: self.gas.burned(),
+        }];
+
+        (self.dispatch, journal)
+    }
+
+    /// Decompose the instance into parts.
+    pub fn into_parts(self) -> (IncomingDispatch, GasCounter, GasAllowanceCounter) {
+        (self.dispatch, self.gas, self.allowance)
+    }
+}
+
+impl From<(IncomingDispatch, GasCounter, GasAllowanceCounter)> for PrechargedDispatch {
+    fn from(
+        (dispatch, gas, allowance): (IncomingDispatch, GasCounter, GasAllowanceCounter),
+    ) -> Self {
+        Self {
+            gas,
+            allowance,
+            dispatch,
+        }
+    }
 }
