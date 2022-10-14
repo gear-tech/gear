@@ -16,7 +16,7 @@ name = "gear"
 path = "src/main.rs"
 
 [dependencies]
-clap = { version = "3.2", features = ["derive"] }
+clap = { version = "4.0", features = ["derive"] }
 scale-info = { version = "2.1.1", default-features = false, features = ["derive"] }
 
 # Gear
