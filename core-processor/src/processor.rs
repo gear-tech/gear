@@ -50,7 +50,6 @@ enum SuccessfulDispatchResultKind {
 pub struct PreparedMessageExecutionContext {
     gas_counter: GasCounter,
     gas_allowance_counter: GasAllowanceCounter,
-    gas_reserver: GasReserver,
     dispatch: IncomingDispatch,
     origin: ProgramId,
     balance: u128,
@@ -74,6 +73,7 @@ impl PreparedMessageExecutionContext {
 pub struct ProcessExecutionContext {
     gas_counter: GasCounter,
     gas_allowance_counter: GasAllowanceCounter,
+    gas_reserver: GasReserver,
     dispatch: IncomingDispatch,
     origin: ProgramId,
     balance: u128,
@@ -114,9 +114,12 @@ impl
             actor_data.initialized,
         );
 
+        let gas_reserver = GasReserver::new(actor_data.gas_reservation_map);
+
         Self {
             gas_counter,
             gas_allowance_counter,
+            gas_reserver,
             dispatch,
             origin,
             balance,
@@ -293,12 +296,9 @@ pub fn prepare(
         }
     };
 
-    let gas_reserver = GasReserver::new(gas_reservation_map);
-
     PrepareResult::Ok(Box::new(PreparedMessageExecutionContext {
         gas_counter,
         gas_allowance_counter,
-        gas_reserver,
         dispatch,
         origin,
         balance,
