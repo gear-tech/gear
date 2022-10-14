@@ -551,9 +551,10 @@ impl EnvExt for Ext {
         // this statement is like in `Self::refund_gas()` but it won't affect "burned" counter
         // because we don't actually refund we just rise "left" counter during unreservation
         // and it won't affect gas allowance counter because we don't make any actual calculations
-        if !self.context.gas_counter.increase(amount) {
+        // TODO: uncomment when unreserving in current message features is discussed
+        /*if !self.context.gas_counter.increase(amount) {
             return Err(ExecutionError::TooManyGasAdded.into());
-        }
+        }*/
 
         Ok(())
     }

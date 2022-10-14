@@ -108,7 +108,8 @@ impl GasCounter {
     ///
     /// Called when gas unreservation is occurred.
     // We don't decrease `burn` counter because `GasTree` manipulation is handled by separated function
-    pub fn increase(&mut self, amount: u64) -> bool {
+    // TODO: uncomment when unreserving in current message features is discussed
+    /*pub fn increase(&mut self, amount: u64) -> bool {
         match self.left.checked_add(amount) {
             None => false,
             Some(new_left) => {
@@ -116,7 +117,7 @@ impl GasCounter {
                 true
             }
         }
-    }
+    }*/
 
     /// Reduce gas by `amount`.
     ///
