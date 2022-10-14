@@ -163,8 +163,6 @@ where
         builder.add_func("gr_wait_for", Funcs::wait_for);
         builder.add_func("gr_wait_up_to", Funcs::wait_up_to);
         builder.add_func("gr_wake", Funcs::wake);
-        builder.add_func("gr_reserve_gas", Funcs::reserve_gas);
-        builder.add_func("gr_unreserve_gas", Funcs::unreserve_gas);
         let mut env_builder: EnvironmentDefinitionBuilder<_> = builder.into();
 
         let mem: DefaultExecutorMemory = match SandboxMemory::new(mem_size.0, None) {
