@@ -202,6 +202,9 @@ where
     fn min() -> Multiplier {
         Default::default()
     }
+    fn max() -> Multiplier {
+        Default::default()
+    }
     fn target() -> Perquintill {
         Default::default()
     }
