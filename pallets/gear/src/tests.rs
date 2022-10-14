@@ -26,8 +26,8 @@ use crate::{
     },
     pallet,
     schedule::StaticHostFnWeights,
-    BlockGasLimitOf, Config, CostsPerBlockOf, DbWeightOf,Error, Event, GasAllowanceOf, GasHandlerOf, GasInfo,
-    MailboxOf, ReadPerByteCostOf, WaitlistOf,
+    BlockGasLimitOf, Config, CostsPerBlockOf, DbWeightOf, Error, Event, GasAllowanceOf,
+    GasHandlerOf, GasInfo, MailboxOf, ReadPerByteCostOf, WaitlistOf,
 };
 use codec::{Decode, Encode};
 use common::{
@@ -2990,16 +2990,6 @@ fn terminated_locking_funds() {
             .expect("code should be in the storage");
         let code_length = code.code().len();
         let read_cost = DbWeightOf::<Test>::get().reads(1).ref_time();
-
-        assert_ok!(Gear::create_program(
-            RuntimeOrigin::signed(USER_1),
-            code_id,
-        ));
-
-        let code_id = get_last_code_id();
-        let code = <Test as Config>::CodeStorage::get_code(code_id)
-            .expect("code should be in the storage");
-        let code_length = code.code().len();
         let static_weights = StaticHostFnWeights::<Test>::default().into_core();
         let module_instantiation =
             StaticConsts::ModuleInstantiation { len: code_length }.weight(&static_weights);
@@ -3016,7 +3006,7 @@ fn terminated_locking_funds() {
                     read_cost,
                     ReadPerByteCostOf::<Test>::get(),
                     code_length as u64
-                ) 
+                )
                 + module_instantiation,
             5_000u128
         ));
@@ -4420,7 +4410,7 @@ fn gas_spent_precalculated() {
         // gas call in handle and "add" func
         let gas_cost = schedule.host_fn_weights.gas as u32;
         let module_instantiation =
-            schedule.static_host_fn_weights.instantiate_module_per_byte as u32 * code.len() as u32;
+            schedule.static_host_fn_weights.instantiate_module_per_byte * code.len() as u64;
         let load_page_cost = schedule.memory_weights.load_cost;
 
         let total_cost = {

@@ -277,7 +277,7 @@ pub fn prepare(
         )?;
         executor::charge_gas_for_instantiation(
             &block_config.static_host_fn_weights,
-            program.raw_code(),
+            actor_data.code_length_bytes,
             &mut gas_counter,
             &mut gas_allowance_counter,
         )?;
@@ -295,7 +295,7 @@ pub fn prepare(
                 | ExecutionErrorReason::GrowMemoryBlockGasExceeded
                 | ExecutionErrorReason::LoadMemoryBlockGasExceeded
                 | ExecutionErrorReason::ModuleInstantiationBlockGasExceeded => {
-                    prepare_allowance_exceed(dispatch, program_id, gas_counter.burned())
+                    prepare_allowance_exceed(dispatch, program_id, gas_counter)
                 }
                 _ => prepare_error(dispatch, program_id, gas_counter, reason),
             };

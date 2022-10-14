@@ -128,11 +128,14 @@ fn check_memory<'a>(
 
 pub(crate) fn charge_gas_for_instantiation(
     weights: &StaticHostFnWeights,
-    binary: &[u8],
+    code_length: u32,
     gas_counter: &mut GasCounter,
     gas_allowance_counter: &mut GasAllowanceCounter,
 ) -> Result<(), ExecutionErrorReason> {
-    let amount = StaticConsts::ModuleInstantiation { len: binary.len() }.weight(weights);
+    let amount = StaticConsts::ModuleInstantiation {
+        len: code_length as usize,
+    }
+    .weight(weights);
 
     log::trace!("Charge {} for module instantiation", amount);
 

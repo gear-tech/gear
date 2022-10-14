@@ -54,6 +54,7 @@ pub use task::*;
 use crate::{Config, CurrencyOf, GearProgramPallet};
 use codec::{Decode, Encode};
 use common::{event::*, ActiveProgram, CodeStorage, Origin, ProgramState};
+use core::fmt;
 use core_processor::common::{Actor, ExecutableActorData};
 use frame_support::traits::Currency;
 use gear_core::{
