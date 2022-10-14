@@ -51,11 +51,16 @@ mod task;
 pub use journal::*;
 pub use task::*;
 
-use crate::{Config, CurrencyOf, GearProgramPallet};
+use crate::{Config, CurrencyOf, GearProgramPallet, TaskPoolOf};
 use codec::{Decode, Encode};
-use common::{event::*, ActiveProgram, CodeStorage, Origin, ProgramState};
+use common::{
+    event::*,
+    scheduler::{ScheduledTask, TaskHandler, TaskPool},
+    ActiveProgram, CodeStorage, Origin, ProgramState,
+};
 use core_processor::common::{Actor, ExecutableActorData};
 use frame_support::traits::Currency;
+use frame_system::pallet_prelude::BlockNumberFor;
 use gear_core::{
     code::{CodeAndId, InstrumentedCode},
     ids::{CodeId, MessageId, ProgramId},
@@ -242,5 +247,22 @@ where
         };
 
         common::set_program(program_id.into_origin(), program);
+    }
+
+    fn clean_reservation_tasks(&mut self, program_id: ProgramId) {
+        let active_program = common::get_active_program(program_id.into_origin())
+            .expect("`exit` can be called only from active program; qed");
+        for (reservation_id, reservation_slot) in active_program.gas_reservation_map {
+            <Self as TaskHandler<T::AccountId>>::remove_gas_reservation(
+                self,
+                program_id,
+                reservation_id,
+            );
+
+            let _ = TaskPoolOf::<T>::delete(
+                BlockNumberFor::<T>::from(reservation_slot.bn),
+                ScheduledTask::RemoveGasReservation(program_id, reservation_id),
+            );
+        }
     }
 }

@@ -138,6 +138,8 @@ where
                 // dequeued. The other case is async init.
                 wake_waiting_init_msgs(program_id);
 
+                self.clean_reservation_tasks(program_id);
+
                 common::set_program_terminated_status(program_id.into_origin(), origin)
                     .expect("Only active program can cause init failure");
 
@@ -191,20 +193,7 @@ where
 
         let _ = common::waiting_init_take_messages(id_exited);
 
-        let active_program = common::get_active_program(id_exited.into_origin())
-            .expect("`exit` can be called only from active program; qed");
-        for (reservation_id, reservation_slot) in active_program.gas_reservation_map {
-            <Self as TaskHandler<T::AccountId>>::remove_gas_reservation(
-                self,
-                id_exited,
-                reservation_id,
-            );
-
-            let _ = TaskPoolOf::<T>::delete(
-                BlockNumberFor::<T>::from(reservation_slot.bn),
-                ScheduledTask::RemoveGasReservation(id_exited, reservation_id),
-            );
-        }
+        self.clean_reservation_tasks(id_exited);
 
         let id_exited = id_exited.into_origin();
 

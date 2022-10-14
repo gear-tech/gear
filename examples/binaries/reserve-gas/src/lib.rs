@@ -19,7 +19,7 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
 use codec::{Decode, Encode};
-use gstd::{exec, msg, prelude::*, ReservationId};
+use gstd::{exec, msg, prelude::*, MessageId, ReservationId};
 
 #[cfg(feature = "std")]
 mod code {
@@ -30,8 +30,22 @@ mod code {
 pub use code::WASM_BINARY_OPT as WASM_BINARY;
 
 static mut RESERVATION_ID: Option<ReservationId> = None;
+static mut INIT_MSG: MessageId = MessageId::new([0; 32]);
+static mut WAKE_STATE: WakeState = WakeState::FirstExecution;
 
 const RESERVATION_AMOUNT: u64 = 50_000_000;
+
+#[derive(Debug, Eq, PartialEq)]
+enum WakeState {
+    FirstExecution,
+    SecondExecution,
+}
+
+#[derive(Debug, Encode, Decode)]
+pub enum InitAction {
+    Normal,
+    Wait,
+}
 
 #[derive(Debug, Encode, Decode)]
 pub enum HandleAction {
@@ -41,17 +55,35 @@ pub enum HandleAction {
 
 #[no_mangle]
 unsafe extern "C" fn init() {
-    // will be removed automatically
-    let _orphan_reservation = ReservationId::reserve(50_000, 3);
+    INIT_MSG = msg::id();
 
-    // must be cleared during `gr_exit`
-    let _exit_reservation = ReservationId::reserve(25_000, 5);
+    let action: InitAction = msg::load().unwrap();
 
-    // no actual reservation and unreservation is occurred
-    let noop_reservation = ReservationId::reserve(50_000, 10);
-    noop_reservation.unreserve();
+    match action {
+        InitAction::Normal => {
+            // will be removed automatically
+            let _orphan_reservation = ReservationId::reserve(50_000, 3);
 
-    RESERVATION_ID = Some(ReservationId::reserve(RESERVATION_AMOUNT, 5));
+            // must be cleared during `gr_exit`
+            let _exit_reservation = ReservationId::reserve(25_000, 5);
+
+            // no actual reservation and unreservation is occurred
+            let noop_reservation = ReservationId::reserve(50_000, 10);
+            noop_reservation.unreserve();
+
+            RESERVATION_ID = Some(ReservationId::reserve(RESERVATION_AMOUNT, 5));
+        }
+        InitAction::Wait => {
+            if WAKE_STATE == WakeState::SecondExecution {
+                panic!();
+            }
+
+            let _reservation = ReservationId::reserve(50_000, 10);
+            // to find message to reply to in test
+            msg::send(msg::source(), (), 0).unwrap();
+            exec::wait();
+        }
+    }
 }
 
 #[no_mangle]
@@ -66,6 +98,13 @@ unsafe extern "C" fn handle() {
             exec::exit(msg::source());
         }
     }
+}
+
+// must be called after `InitAction::Wait`
+#[no_mangle]
+unsafe extern "C" fn handle_reply() {
+    WAKE_STATE = WakeState::SecondExecution;
+    exec::wake(INIT_MSG).unwrap();
 }
 
 #[cfg(test)]

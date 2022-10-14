@@ -49,7 +49,6 @@ use gear_backend_common::{StackEndError, TrapExplanation};
 use gear_core::{
     code::{self, Code},
     ids::{CodeId, MessageId, ProgramId},
-    reservation::GasReservationMap,
 };
 use gear_core_errors::*;
 use sp_runtime::{traits::UniqueSaturatedInto, SaturatedConversion};
@@ -5689,20 +5688,7 @@ fn test_mad_big_prog_instrumentation() {
 
 #[test]
 fn gas_reservation_works() {
-    use demo_reserve_gas::HandleAction;
-
-    fn get_reservation_map(pid: ProgramId) -> Option<GasReservationMap> {
-        let prog = common::get_program(pid.into_origin()).unwrap();
-        if let common::Program::Active(common::ActiveProgram {
-            gas_reservation_map,
-            ..
-        }) = prog
-        {
-            Some(gas_reservation_map)
-        } else {
-            None
-        }
-    }
+    use demo_reserve_gas::{HandleAction, InitAction};
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -5710,7 +5696,7 @@ fn gas_reservation_works() {
             RuntimeOrigin::signed(USER_1),
             demo_reserve_gas::WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
-            EMPTY_PAYLOAD.to_vec(),
+            InitAction::Normal.encode(),
             10_000_000_000,
             0,
         )
@@ -5752,6 +5738,7 @@ fn gas_reservation_works() {
 
         run_to_block(3 + 2, None);
 
+        // gas not yet unreserved automatically
         let map = get_reservation_map(pid).unwrap();
         assert_eq!(map.len(), 2);
 
@@ -5760,6 +5747,8 @@ fn gas_reservation_works() {
         // gas unreserved automatically
         let map = get_reservation_map(pid).unwrap();
         assert_eq!(map.len(), 1);
+
+        // check task is exist yet
         let (reservation_id, slot) = map.iter().next().unwrap();
         let task = ScheduledTask::RemoveGasReservation(pid, *reservation_id);
         assert!(TaskPoolOf::<Test>::contains(
@@ -5767,6 +5756,7 @@ fn gas_reservation_works() {
             &task
         ));
 
+        // `gr_exit` occurs
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(USER_1),
             pid,
@@ -5776,6 +5766,64 @@ fn gas_reservation_works() {
         ));
 
         run_to_block(3 + 5, None);
+
+        // check task was cleared after `gr_exit` happened
+        let map = get_reservation_map(pid);
+        assert_eq!(map, None);
+        assert!(!TaskPoolOf::<Test>::contains(
+            &BlockNumberFor::<Test>::from(slot.bn),
+            &task
+        ));
+    });
+}
+
+#[test]
+fn gas_reservations_cleaned_in_terminated_program() {
+    use demo_reserve_gas::InitAction;
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            demo_reserve_gas::WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            InitAction::Wait.encode(),
+            10_000_000_000,
+            0,
+        )
+        .expect("submit_program failed");
+
+        let pid = get_last_program_id();
+
+        run_to_block(2, None);
+
+        let message_id = MailboxOf::<Test>::iter_key(USER_1)
+            .next()
+            .map(|(msg, _bn)| msg.id())
+            .expect("Element should be");
+
+        assert!(!Gear::is_initialized(pid));
+        assert!(Gear::is_active(pid));
+
+        let map = get_reservation_map(pid).unwrap();
+        assert_eq!(map.len(), 1);
+
+        let (reservation_id, slot) = map.iter().next().unwrap();
+        let task = ScheduledTask::RemoveGasReservation(pid, *reservation_id);
+        assert!(TaskPoolOf::<Test>::contains(
+            &BlockNumberFor::<Test>::from(slot.bn),
+            &task
+        ));
+
+        assert_ok!(Gear::send_reply(
+            RuntimeOrigin::signed(USER_1),
+            message_id,
+            EMPTY_PAYLOAD.to_vec(),
+            DEFAULT_GAS_LIMIT * 10,
+            0,
+        ));
+
+        run_to_block(3, None);
 
         let map = get_reservation_map(pid);
         assert_eq!(map, None);
@@ -5813,6 +5861,7 @@ mod utils {
     use gear_core::{
         ids::{CodeId, MessageId, ProgramId},
         message::StoredMessage,
+        reservation::GasReservationMap,
     };
     use gear_core_errors::ExtError;
     use sp_core::H256;
@@ -6248,6 +6297,19 @@ mod utils {
             .last()
             .map(|(msg, _bn)| msg)
             .expect("Element should be")
+    }
+
+    pub(super) fn get_reservation_map(pid: ProgramId) -> Option<GasReservationMap> {
+        let prog = common::get_program(pid.into_origin()).unwrap();
+        if let common::Program::Active(common::ActiveProgram {
+            gas_reservation_map,
+            ..
+        }) = prog
+        {
+            Some(gas_reservation_map)
+        } else {
+            None
+        }
     }
 
     #[derive(Debug, Copy, Clone)]
