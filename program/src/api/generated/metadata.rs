@@ -6548,10 +6548,10 @@ pub mod api {
                         };
                         if runtime_storage_hash
                             == [
-                                59u8, 158u8, 3u8, 44u8, 68u8, 53u8, 211u8, 161u8, 8u8, 39u8, 245u8,
-                                133u8, 52u8, 238u8, 225u8, 120u8, 174u8, 37u8, 121u8, 78u8, 159u8,
-                                38u8, 84u8, 121u8, 160u8, 115u8, 157u8, 246u8, 29u8, 204u8, 187u8,
-                                72u8,
+                                101u8, 64u8, 226u8, 43u8, 135u8, 172u8, 163u8, 107u8, 26u8, 90u8,
+                                127u8, 58u8, 154u8, 8u8, 16u8, 6u8, 54u8, 14u8, 98u8, 129u8, 243u8,
+                                46u8, 116u8, 205u8, 226u8, 217u8, 253u8, 11u8, 99u8, 76u8, 113u8,
+                                247u8,
                             ]
                         {
                             let entry = PausedPrograms(_0);
@@ -6582,10 +6582,10 @@ pub mod api {
                         };
                         if runtime_storage_hash
                             == [
-                                59u8, 158u8, 3u8, 44u8, 68u8, 53u8, 211u8, 161u8, 8u8, 39u8, 245u8,
-                                133u8, 52u8, 238u8, 225u8, 120u8, 174u8, 37u8, 121u8, 78u8, 159u8,
-                                38u8, 84u8, 121u8, 160u8, 115u8, 157u8, 246u8, 29u8, 204u8, 187u8,
-                                72u8,
+                                101u8, 64u8, 226u8, 43u8, 135u8, 172u8, 163u8, 107u8, 26u8, 90u8,
+                                127u8, 58u8, 154u8, 8u8, 16u8, 6u8, 54u8, 14u8, 98u8, 129u8, 243u8,
+                                46u8, 116u8, 205u8, 226u8, 217u8, 253u8, 11u8, 99u8, 76u8, 113u8,
+                                247u8,
                             ]
                         {
                             client.storage().iter(block_hash).await
@@ -9084,7 +9084,7 @@ pub mod api {
                 use super::runtime_types;
                 #[derive(:: subxt :: codec :: Decode, :: subxt :: codec :: Encode, Debug)]
                 pub struct GasReservationSlot {
-                    pub amount: ::core::primitive::u32,
+                    pub amount: ::core::primitive::u64,
                     pub bn: ::core::primitive::u32,
                 }
             }
@@ -11630,9 +11630,9 @@ pub mod api {
             };
             if runtime_metadata_hash
                 != [
-                    76u8, 122u8, 25u8, 121u8, 218u8, 0u8, 93u8, 27u8, 105u8, 39u8, 152u8, 33u8,
-                    216u8, 165u8, 16u8, 171u8, 0u8, 125u8, 23u8, 65u8, 173u8, 130u8, 246u8, 140u8,
-                    224u8, 127u8, 188u8, 209u8, 121u8, 39u8, 73u8, 206u8,
+                    255u8, 210u8, 133u8, 183u8, 173u8, 74u8, 33u8, 207u8, 227u8, 240u8, 147u8,
+                    182u8, 251u8, 189u8, 248u8, 51u8, 86u8, 165u8, 53u8, 208u8, 112u8, 4u8, 213u8,
+                    122u8, 46u8, 15u8, 214u8, 152u8, 59u8, 15u8, 230u8, 7u8,
                 ]
             {
                 Err(::subxt::MetadataError::IncompatibleMetadata)
