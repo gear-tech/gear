@@ -523,8 +523,7 @@ impl EnvExt for Ext {
         self.charge_gas_runtime(RuntimeCosts::ReserveGas)?;
 
         let common_charge = self.context.gas_counter.reduce(amount as u64);
-        let allowance_charge = self.context.gas_allowance_counter.charge(amount as u64);
-        self.check_charge_results(common_charge, allowance_charge)?;
+        self.check_charge_results(common_charge, ChargeResult::Enough)?;
 
         let ProcessorContext {
             message_context,
@@ -552,9 +551,8 @@ impl EnvExt for Ext {
 
         // this statement is like in `Self::refund_gas()` but it won't affect "burned" counter
         // because we don't actually refund we just rise "left" counter during unreservation
-        if self.context.gas_counter.increase(amount) {
-            self.context.gas_allowance_counter.refund(amount);
-        } else {
+        // and it won't affect gas allowance counter because we don't make any actual calculations
+        if !self.context.gas_counter.increase(amount) {
             return Err(ExecutionError::TooManyGasAdded.into());
         }
 
