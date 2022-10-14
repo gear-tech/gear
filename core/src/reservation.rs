@@ -40,7 +40,7 @@ impl GasReserver {
     }
 
     /// Reserves gas.
-    pub fn reserve(&mut self, msg_id: MessageId, amount: u32, bn: u32) -> ReservationId {
+    pub fn reserve(&mut self, msg_id: MessageId, amount: u64, bn: u32) -> ReservationId {
         let idx = self.map.len();
         let id = ReservationId::generate(msg_id, idx as u64);
 
@@ -61,7 +61,7 @@ impl GasReserver {
     }
 
     /// Unreserves gas.
-    pub fn unreserve(&mut self, id: ReservationId) -> Option<u32> {
+    pub fn unreserve(&mut self, id: ReservationId) -> Option<u64> {
         let GasReservationSlot { amount, bn } = self.map.remove(&id)?;
         // Only `AddReservation` task may exist here during current execution
         // so when we do unreservation we just simply remove it
@@ -90,7 +90,7 @@ pub enum GasReservationTask {
     /// Create a new reservation.
     CreateReservation {
         /// Amount of reserved gas.
-        amount: u32,
+        amount: u64,
         /// How many blocks reservation will live.
         bn: u32,
     },
@@ -108,7 +108,7 @@ pub type GasReservationMap = BTreeMap<ReservationId, GasReservationSlot>;
 #[derive(Debug, Clone, Eq, PartialEq, Encode, Decode, TypeInfo)]
 pub struct GasReservationSlot {
     /// Amount of reserved gas.
-    pub amount: u32,
+    pub amount: u64,
     /// How many blocks reservation will live.
     pub bn: u32,
 }
