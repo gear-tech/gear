@@ -20,8 +20,8 @@ wabt = "0.10.0"
 
 [features]
 default = [ "gear" ]
-gear = [ "gear-program/gear" ]
-vara = [ "gear-program/vara" ]
+gear = [ "gp/gear" ]
+vara = [ "gp/vara" ]
 
 [dev-dependencies]
 tokio = { version = "1.21.2", features = ["full"] }
