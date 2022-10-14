@@ -322,13 +322,13 @@ where
         existential_deposit,
         outgoing_limit: 2048,
         host_fn_weights: Default::default(),
-        static_host_fn_weights: Default::default(),
         forbidden_funcs: Default::default(),
         mailbox_threshold,
         waitlist_cost,
         reserve_for,
         read_cost: DbWeightOf::<T>::get().reads(1).ref_time(),
         per_byte_cost: ReadPerByteCostOf::<T>::get(),
+        module_instantiation_byte_cost: T::Schedule::get().module_instantiation_per_byte,
     };
 
     if let Some(queued_dispatch) = QueueOf::<T>::dequeue().map_err(|_| "MQ storage corrupted")? {

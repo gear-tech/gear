@@ -21,12 +21,7 @@
 use crate::common::{Actor, PrechargedDispatch};
 use alloc::collections::BTreeSet;
 use codec::{Decode, Encode};
-use gear_core::{
-    code,
-    costs::{HostFnWeights, StaticHostFnWeights},
-    ids::ProgramId,
-    memory::WasmPageNumber,
-};
+use gear_core::{code, costs::HostFnWeights, ids::ProgramId, memory::WasmPageNumber};
 
 const INIT_COST: u64 = 5000;
 const ALLOC_COST: u64 = 10000;
@@ -109,8 +104,6 @@ pub struct BlockConfig {
     pub outgoing_limit: u32,
     /// Host function weights.
     pub host_fn_weights: HostFnWeights,
-    /// Static host function weights.
-    pub static_host_fn_weights: StaticHostFnWeights,
     /// Forbidden functions.
     pub forbidden_funcs: BTreeSet<&'static str>,
     /// Mailbox threshold.
@@ -123,6 +116,8 @@ pub struct BlockConfig {
     pub read_cost: u64,
     /// Per loaded byte cost.
     pub per_byte_cost: u64,
+    /// WASM module instantiation byte cost.
+    pub module_instantiation_byte_cost: u64,
 }
 
 /// Unstable parameters for message execution across processing runs.

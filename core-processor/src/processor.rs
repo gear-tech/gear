@@ -276,7 +276,7 @@ pub fn prepare(
             subsequent_execution,
         )?;
         executor::charge_gas_for_instantiation(
-            &block_config.static_host_fn_weights,
+            block_config.module_instantiation_byte_cost,
             actor_data.code_length_bytes,
             &mut gas_counter,
             &mut gas_allowance_counter,
@@ -330,7 +330,6 @@ pub fn process<
         existential_deposit,
         outgoing_limit,
         host_fn_weights,
-        static_host_fn_weights: _,
         forbidden_funcs,
         mailbox_threshold,
         waitlist_cost,

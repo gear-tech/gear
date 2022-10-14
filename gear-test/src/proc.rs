@@ -45,6 +45,7 @@ pub const WAITLIST_COST: u64 = 100;
 pub const RESERVE_FOR: u32 = 1;
 pub const READ_COST: u64 = 20;
 pub const PER_BYTE_COST: u64 = 10;
+pub const MODULE_INSTANTIATION_BYTE_COST: u64 = 20;
 
 pub fn parse_payload(payload: String) -> String {
     let program_id_regex = Regex::new(r"\{(?P<id>[0-9]+)\}").unwrap();
@@ -418,12 +419,12 @@ fn test_block_config(block_info: BlockInfo) -> BlockConfig {
         existential_deposit: EXISTENTIAL_DEPOSIT,
         outgoing_limit: OUTGOING_LIMIT,
         host_fn_weights: Default::default(),
-        static_host_fn_weights: Default::default(),
         forbidden_funcs: Default::default(),
         mailbox_threshold: MAILBOX_THRESHOLD,
         waitlist_cost: WAITLIST_COST,
         reserve_for: RESERVE_FOR,
         read_cost: READ_COST,
         per_byte_cost: PER_BYTE_COST,
+        module_instantiation_byte_cost: MODULE_INSTANTIATION_BYTE_COST,
     }
 }

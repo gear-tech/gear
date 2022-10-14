@@ -24,10 +24,8 @@ use crate::{
         RuntimeEvent as MockRuntimeEvent, RuntimeOrigin, System, Test, BLOCK_AUTHOR,
         LOW_BALANCE_USER, USER_1, USER_2, USER_3,
     },
-    pallet,
-    schedule::StaticHostFnWeights,
-    BlockGasLimitOf, Config, CostsPerBlockOf, DbWeightOf, Error, Event, GasAllowanceOf,
-    GasHandlerOf, GasInfo, MailboxOf, ReadPerByteCostOf, WaitlistOf,
+    pallet, BlockGasLimitOf, Config, CostsPerBlockOf, DbWeightOf, Error, Event, GasAllowanceOf,
+    GasHandlerOf, GasInfo, MailboxOf, ReadPerByteCostOf, Schedule, WaitlistOf,
 };
 use codec::{Decode, Encode};
 use common::{
@@ -50,7 +48,6 @@ use frame_system::{pallet_prelude::BlockNumberFor, Pallet as SystemPallet};
 use gear_backend_common::{StackEndError, TrapExplanation};
 use gear_core::{
     code::{self, Code},
-    costs::StaticConsts,
     ids::{CodeId, MessageId, ProgramId},
 };
 use gear_core_errors::*;
@@ -2985,14 +2982,13 @@ fn terminated_locking_funds() {
             WASM_BINARY.to_vec(),
         ));
 
+        let schedule = Schedule::<Test>::default();
         let code_id = get_last_code_id();
         let code = <Test as Config>::CodeStorage::get_code(code_id)
             .expect("code should be in the storage");
         let code_length = code.code().len();
         let read_cost = DbWeightOf::<Test>::get().reads(1).ref_time();
-        let static_weights = StaticHostFnWeights::<Test>::default().into_core();
-        let module_instantiation =
-            StaticConsts::ModuleInstantiation { len: code_length }.weight(&static_weights);
+        let module_instantiation = schedule.module_instantiation_per_byte * code_length as u64;
 
         assert_ok!(Gear::create_program(
             RuntimeOrigin::signed(USER_1),
@@ -4410,7 +4406,7 @@ fn gas_spent_precalculated() {
         // gas call in handle and "add" func
         let gas_cost = schedule.host_fn_weights.gas as u32;
         let module_instantiation =
-            schedule.static_host_fn_weights.instantiate_module_per_byte * code.len() as u64;
+            schedule.module_instantiation_per_byte * code.len() as u64;
         let load_page_cost = schedule.memory_weights.load_cost;
 
         let total_cost = {

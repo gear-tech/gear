@@ -865,13 +865,13 @@ pub mod pallet {
                 existential_deposit,
                 outgoing_limit: T::OutgoingLimit::get(),
                 host_fn_weights: schedule.host_fn_weights.into_core(),
-                static_host_fn_weights: schedule.static_host_fn_weights.into_core(),
                 forbidden_funcs: ["gr_gas_available"].into(),
                 mailbox_threshold: T::MailboxThreshold::get(),
                 waitlist_cost: CostsPerBlockOf::<T>::waitlist(),
                 reserve_for: CostsPerBlockOf::<T>::reserve_for().unique_saturated_into(),
                 read_cost: DbWeightOf::<T>::get().reads(1).ref_time(),
                 per_byte_cost: ReadPerByteCostOf::<T>::get(),
+                module_instantiation_byte_cost: schedule.module_instantiation_per_byte,
             };
 
             let mut min_limit = 0;
@@ -1214,13 +1214,13 @@ pub mod pallet {
                 existential_deposit,
                 outgoing_limit: T::OutgoingLimit::get(),
                 host_fn_weights: schedule.host_fn_weights.into_core(),
-                static_host_fn_weights: schedule.static_host_fn_weights.into_core(),
                 forbidden_funcs: Default::default(),
                 mailbox_threshold: T::MailboxThreshold::get(),
                 waitlist_cost: CostsPerBlockOf::<T>::waitlist(),
                 reserve_for: CostsPerBlockOf::<T>::reserve_for().unique_saturated_into(),
                 read_cost: DbWeightOf::<T>::get().reads(1).ref_time(),
                 per_byte_cost: ReadPerByteCostOf::<T>::get(),
+                module_instantiation_byte_cost: schedule.module_instantiation_per_byte,
             };
 
             if T::DebugInfo::is_remap_id_enabled() {

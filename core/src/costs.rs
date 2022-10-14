@@ -264,31 +264,3 @@ impl RuntimeCosts {
         RuntimeToken { weight }
     }
 }
-
-/// Describes the weight for each function that is not called by a program.
-#[derive(Clone, Encode, Decode, PartialEq, Eq, Default)]
-pub struct StaticHostFnWeights {
-    /// Weight of WASM module creation per byte.
-    pub instantiate_module_per_byte: u64,
-}
-
-/// Enumerates expensive actions that must be charged.
-#[derive(Debug, Copy, Clone, Eq, PartialEq)]
-pub enum StaticConsts {
-    /// Weight of calling WASM module instantiation.
-    ModuleInstantiation {
-        /// WASM module binary length.
-        len: usize,
-    },
-}
-
-impl StaticConsts {
-    /// Returns a weight of function
-    pub fn weight(self, s: &StaticHostFnWeights) -> u64 {
-        match self {
-            StaticConsts::ModuleInstantiation { len } => {
-                s.instantiate_module_per_byte.saturating_mul(len as u64)
-            }
-        }
-    }
-}

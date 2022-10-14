@@ -32,7 +32,6 @@ use gear_backend_common::{
     BackendReport, Environment, GetGasAmount, IntoExtInfo, TerminationReason,
 };
 use gear_core::{
-    costs::{StaticConsts, StaticHostFnWeights},
     env::Ext as EnvExt,
     gas::{ChargeResult, GasAllowanceCounter, GasCounter, ValueCounter},
     ids::ProgramId,
@@ -127,15 +126,12 @@ fn check_memory<'a>(
 }
 
 pub(crate) fn charge_gas_for_instantiation(
-    weights: &StaticHostFnWeights,
+    weight: u64,
     code_length: u32,
     gas_counter: &mut GasCounter,
     gas_allowance_counter: &mut GasAllowanceCounter,
 ) -> Result<(), ExecutionErrorReason> {
-    let amount = StaticConsts::ModuleInstantiation {
-        len: code_length as usize,
-    }
-    .weight(weights);
+    let amount = weight * code_length as u64;
 
     log::trace!("Charge {} for module instantiation", amount);
 
