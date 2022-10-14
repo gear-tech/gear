@@ -91,12 +91,12 @@ pub enum GasReservationTask {
     CreateReservation {
         /// Amount of reserved gas.
         amount: u64,
-        /// How many blocks reservation will live.
+        /// Block number until reservation will live.
         bn: u32,
     },
     /// Remove reservation.
     RemoveReservation {
-        /// How many blocks reservation will live.
+        /// Block number until reservation will live.
         bn: u32,
     },
 }
@@ -109,6 +109,6 @@ pub type GasReservationMap = BTreeMap<ReservationId, GasReservationSlot>;
 pub struct GasReservationSlot {
     /// Amount of reserved gas.
     pub amount: u64,
-    /// How many blocks reservation will live.
+    /// Block number until reservation will live.
     pub bn: u32,
 }
