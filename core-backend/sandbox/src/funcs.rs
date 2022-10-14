@@ -649,17 +649,14 @@ where
         let duration = args.iter().read()?;
 
         ctx.run(|ctx| -> Result<(), _> {
-            Err(ctx
-                .ext
-                .wait_up_to(duration)
-                .map_err(FuncError::Core)
-                .err()
-                .unwrap_or_else(|| {
-                    FuncError::Terminated(TerminationReason::Wait(
-                        Some(duration),
-                        MessageWaitedType::WaitUpTo,
-                    ))
-                }))
+            Err(FuncError::Terminated(TerminationReason::Wait(
+                Some(duration),
+                if ctx.ext.wait_up_to(duration).map_err(FuncError::Core)? {
+                    MessageWaitedType::WaitUpToFull
+                } else {
+                    MessageWaitedType::WaitUpTo
+                },
+            )))
         })
     }
 

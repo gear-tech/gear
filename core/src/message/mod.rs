@@ -89,6 +89,8 @@ pub enum MessageWaitedType {
     WaitFor,
     /// Program called `gr_wait_up_to` while executing message.
     WaitUpTo,
+    /// Program called `gr_wait_up_to` with enough gas while executing message.
+    WaitUpToFull,
 }
 
 /// Entry point for dispatch processing.

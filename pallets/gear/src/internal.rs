@@ -370,7 +370,7 @@ where
                 )
                 .unwrap_or_else(|e| unreachable!("Scheduling logic invalidated! {:?}", e));
             }
-            MessageWaitedReason::Runtime(MessageWaitedRuntimeReason::WaitUpToFull) => {
+            MessageWaitedReason::Runtime(MessageWaitedRuntimeReason::WaitUpToCalledFull) => {
                 let expected = hold.expected();
                 let task = ScheduledTask::WakeMessage(dispatch.destination(), dispatch.id());
 

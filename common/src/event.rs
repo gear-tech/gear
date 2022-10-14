@@ -98,8 +98,10 @@ pub enum MessageWaitedRuntimeReason {
     WaitCalled,
     /// Program called `gr_wait_for` while executing message.
     WaitForCalled,
-    /// Program called `gr_wait_up_to` with maximum duration while executing message.
-    WaitUpToFull,
+    /// Program called `gr_wait_up_to` while executing message.
+    WaitUpToCalled,
+    /// Program called `gr_wait_up_to` with enough gas while executing message.
+    WaitUpToCalledFull,
 }
 
 impl From<MessageWaitedType> for MessageWaitedRuntimeReason {
@@ -107,7 +109,8 @@ impl From<MessageWaitedType> for MessageWaitedRuntimeReason {
         match src {
             MessageWaitedType::Wait => MessageWaitedRuntimeReason::WaitCalled,
             MessageWaitedType::WaitFor => MessageWaitedRuntimeReason::WaitForCalled,
-            MessageWaitedType::WaitUpTo => MessageWaitedRuntimeReason::WaitUpToFull,
+            MessageWaitedType::WaitUpTo => MessageWaitedRuntimeReason::WaitUpToCalled,
+            MessageWaitedType::WaitUpToFull => MessageWaitedRuntimeReason::WaitUpToCalledFull,
         }
     }
 }
