@@ -22,10 +22,7 @@
 //! and extensive data about actions happen.
 
 use codec::{Decode, Encode};
-use gear_core::{
-    ids::MessageId,
-    message::{DispatchKind, MessageWaitedType, StoredDispatch},
-};
+use gear_core::{ids::MessageId, message::MessageWaitedType};
 use primitive_types::H256;
 use scale_info::TypeInfo;
 
@@ -43,17 +40,6 @@ pub enum Entry {
     Reply(MessageId),
     /// System signal entry point.
     Signal,
-}
-
-impl From<&StoredDispatch> for Entry {
-    fn from(dispatch: &StoredDispatch) -> Self {
-        match dispatch.kind() {
-            DispatchKind::Init => Entry::Init,
-            DispatchKind::Handle => Entry::Handle,
-            DispatchKind::Reply => Entry::Reply(dispatch.message().id()),
-            DispatchKind::Signal => Entry::Signal,
-        }
-    }
 }
 
 /// Status of dispatch dequeue and execution.

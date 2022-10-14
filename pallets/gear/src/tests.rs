@@ -2894,6 +2894,7 @@ fn test_requeue_after_wait_for_timeout() {
         let now = System::block_number();
         System::set_block_number(duration as u64 + now - 1);
         System::reset_events();
+
         run_to_next_block(None);
 
         // `MessageWoken` dispatched.
@@ -2902,15 +2903,7 @@ fn test_requeue_after_wait_for_timeout() {
             reason: Reason::Runtime(MessageWokenRuntimeReason::WakeCalled),
         }));
 
-        // Message enqueued.
-        System::assert_has_event(MockRuntimeEvent::Gear(Event::MessageEnqueued {
-            id: message_id,
-            source: USER_1,
-            destination: program_id,
-            entry: Entry::Handle,
-        }));
-
-        // Message has been processed.
+        // Message waited again.
         System::assert_has_event(MockRuntimeEvent::Gear(Event::MessageWaited {
             id: message_id,
             origin: None,

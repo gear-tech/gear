@@ -170,13 +170,6 @@ where
             message_id,
             MessageWokenRuntimeReason::WakeCalled.into_reason(),
         ) {
-            Pallet::<T>::deposit_event(Event::MessageEnqueued {
-                id: dispatch.message().id(),
-                source: T::AccountId::from_origin(dispatch.message().source().into_origin()),
-                destination: dispatch.message().destination(),
-                entry: (&dispatch).into(),
-            });
-
             QueueOf::<T>::queue(dispatch)
                 .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e));
         }
