@@ -25,7 +25,8 @@ use gear_core::{
     code,
     costs::{HostFnWeights, StaticHostFnWeights},
     ids::ProgramId,
-    memory::WasmPageNumber};
+    memory::WasmPageNumber,
+};
 
 const INIT_COST: u64 = 5000;
 const ALLOC_COST: u64 = 10000;
