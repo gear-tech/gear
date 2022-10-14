@@ -434,7 +434,7 @@ where
                         bn
                     );
 
-                    GasHandlerOf::<T>::reserve(message_id, id, amount as u64)
+                    GasHandlerOf::<T>::reserve(message_id, id, amount)
                         .unwrap_or_else(|e| unreachable!("GasTree corrupted: {:?}", e));
 
                     TaskPoolOf::<T>::add(
