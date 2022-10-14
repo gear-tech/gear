@@ -234,11 +234,11 @@ jobs:
       - name: "Test: Process gear-test"
         run: ./scripts/gear.sh test gtest
 
-      - name: "Test: Program CLI"
-        run: cargo nextest run --release -p gear-program --features bin
+      # - name: "Test: Program CLI"
+      #   run: cargo nextest run --release -p gear-program --features bin
 
-      - name: "Test: Client tests"
-        run: ./scripts/gear.sh test client --run-node
+      # - name: "Test: Client tests"
+      #   run: ./scripts/gear.sh test client --run-node
 
       - name: "Test: Process node runtime spec tests"
         run: |
