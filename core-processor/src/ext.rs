@@ -542,7 +542,7 @@ impl EnvExt for Ext {
     fn unreserve_gas(&mut self, id: ReservationId) -> Result<(), Self::Error> {
         self.charge_gas_runtime(RuntimeCosts::UnreserveGas)?;
 
-        let amount = self
+        let _amount = self
             .context
             .gas_reserver
             .unreserve(id)
