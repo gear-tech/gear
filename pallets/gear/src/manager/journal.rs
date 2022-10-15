@@ -218,6 +218,9 @@ where
     }
 
     fn send_dispatch(&mut self, message_id: MessageId, dispatch: Dispatch, delay: u32) {
+        // This method shouldn't reduce gas allowance for enqueueing dispatch,
+        // because message already charged for it within the env.
+
         let to_user = self.check_user_id(&dispatch.destination());
 
         if !delay.is_zero() {
@@ -275,6 +278,9 @@ where
     }
 
     fn wait_dispatch(&mut self, dispatch: StoredDispatch, duration: Option<u32>) {
+        // This method shouldn't reduce gas allowance for waiting dispatch,
+        // because message already charged for it within the env.
+
         Pallet::<T>::wait_dispatch(
             dispatch,
             duration.map(UniqueSaturatedInto::unique_saturated_into),
@@ -289,6 +295,9 @@ where
         awakening_id: MessageId,
         delay: u32,
     ) {
+        // This method shouldn't reduce gas allowance for waking dispatch,
+        // because message already charged for it within the env.
+
         if delay.is_zero() {
             if let Some(dispatch) = Pallet::<T>::wake_dispatch(
                 program_id,

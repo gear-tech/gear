@@ -352,8 +352,20 @@ pub fn process<
         memory_size: execution_context.memory_size,
     };
 
-    // We charge here double write cost for addition and removal from queue.
-    let msg_ctx_settings = ContextSettings::new(write_cost * 2, outgoing_limit);
+    // Sending fee: double write cost for addition and removal some time soon
+    // from queue.
+    //
+    // Waiting fee: triple write cost for addition and removal some time soon
+    // from waitlist and enqueuing / sending error reply afterward.
+    //
+    // Waking fee: double write cost for removal from waitlist
+    // and further enqueueing.
+    let msg_ctx_settings = ContextSettings::new(
+        write_cost.saturating_mul(2),
+        write_cost.saturating_mul(3),
+        write_cost.saturating_mul(2),
+        outgoing_limit,
+    );
 
     let exec_result = executor::execute_wasm::<A, E>(
         balance,

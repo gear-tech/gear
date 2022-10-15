@@ -157,7 +157,7 @@ impl WasmExecutor {
                 IncomingMessage::new(Default::default(), Default::default(), payload, 0, 0, None),
                 program.id(),
                 None,
-                ContextSettings::new(WRITE_COST * 2, 1024),
+                ContextSettings::new(WRITE_COST * 2, WRITE_COST * 3, WRITE_COST * 2, 1024),
             ),
             block_info: Default::default(),
             config: Default::default(),
