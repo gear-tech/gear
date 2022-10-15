@@ -31,33 +31,48 @@ jobs:
           toolchain: nightly-${{ env.NIGHTLY_TOOLCHAIN_VERSION }}
           target: wasm32-unknown-unknown
 
+      - name: Pin to specific nightly toolchain
+        if: ${{ env.NIGHTLY_TOOLCHAIN_VERSION != '' }}
+        run: |
+          rm -rf $RUSTUP_HOME/toolchains/nightly-x86_64-unknown-linux-gnu
+          ln -s $RUSTUP_HOME/toolchains/nightly-$NIGHTLY_TOOLCHAIN_VERSION-x86_64-unknown-linux-gnu \
+            $RUSTUP_HOME/toolchains/nightly-x86_64-unknown-linux-gnu
+
       - name: Install Protoc
         uses: arduino/setup-protoc@v1
 
-      - name: Build binaries
+      - name: Build Gear runtime
         run: |
-          cargo build -p gear-cli -p wasm-proc --profile production
-          cp -vf target/production/wasm-proc ./
+          cargo build -p gear-runtime --profile production
           cp -vf target/production/wbuild/gear-runtime/gear_runtime.compact.compressed.wasm ./
           cp -vf target/production/wbuild/gear-runtime/gear_runtime.wasm ./
+
+      - name: Build wasm-proc
+        run: |
+          cargo build -p wasm-proc --release
+          cp -vf target/release/wasm-proc ./
 
       - name: Test runtime
         run: ./wasm-proc --check-runtime-imports --path gear_runtime.wasm
 
       - name: Install Node.js
+        if: false # FIXME: Remove after test
         uses: actions/setup-node@v2
         with:
           node-version: "16"
 
       - name: Install polkadot-js-api
+        if: false # FIXME: Remove after test
         run: npm install -g @polkadot/api-cli
 
       - name: Send setCode extrinsic
+        if: false # FIXME: Remove after test
         run: >-
           polkadot-js-api --ws wss://rpc-node.gear-tech.io:443 --sudoUncheckedWeight 0x00
           --seed "${{ secrets.ROOT_SEED }}" tx.system.setCode @gear_runtime.compact.compressed.wasm
 
       - name: Send reset extrinsic
+        if: false # FIXME: Remove after test
         run: >-
           polkadot-js-api --ws wss://rpc-node.gear-tech.io:443 --sudo
           --seed "${{ secrets.ROOT_SEED }}" tx.gear.reset
