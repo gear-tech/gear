@@ -17,8 +17,9 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    manager::ExtManager, Config, CurrencyOf, Event, GasAllowanceOf, GasHandlerOf,
-    GearProgramPallet, Pallet, QueueOf, SentOf, TaskPoolOf, WaitlistOf,
+    manager::{CodeInfo, ExtManager},
+    Config, CurrencyOf, Event, GasAllowanceOf, GasHandlerOf, GearProgramPallet, Pallet, QueueOf,
+    SentOf, TaskPoolOf, WaitlistOf,
 };
 use common::{
     event::*,
@@ -368,10 +369,11 @@ where
     }
 
     fn store_new_programs(&mut self, code_id: CodeId, candidates: Vec<(MessageId, ProgramId)>) {
-        if T::CodeStorage::get_code(code_id).is_some() {
+        if let Some(code) = T::CodeStorage::get_code(code_id) {
+            let code_info = CodeInfo::from_code(&code_id, &code);
             for (init_message, candidate_id) in candidates {
                 if !GearProgramPallet::<T>::program_exists(candidate_id) {
-                    self.set_program(candidate_id, code_id, init_message);
+                    self.set_program(candidate_id, &code_info, init_message);
                 } else {
                     log::debug!("Program with id {:?} already exists", candidate_id);
                 }

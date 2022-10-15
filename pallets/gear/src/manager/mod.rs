@@ -57,10 +57,12 @@ use common::{event::*, ActiveProgram, CodeStorage, Origin, ProgramState};
 use core_processor::common::{Actor, ExecutableActorData};
 use frame_support::traits::Currency;
 use gear_core::{
+    code::{CodeAndId, InstrumentedCode},
     ids::{CodeId, MessageId, ProgramId},
-    message::ExitCode,
-    program::Program as NativeProgram,
+    memory::WasmPageNumber,
+    message::{DispatchKind, ExitCode},
 };
+use primitive_types::H256;
 use sp_runtime::traits::UniqueSaturatedInto;
 use sp_std::{
     collections::{btree_map::BTreeMap, btree_set::BTreeSet},
@@ -75,6 +77,34 @@ pub enum HandleKind {
     InitByHash(CodeId),
     Handle(ProgramId),
     Reply(MessageId, ExitCode),
+}
+
+#[derive(Debug)]
+pub struct CodeInfo {
+    id: H256,
+    length_bytes: u32,
+    exports: BTreeSet<DispatchKind>,
+    static_pages: WasmPageNumber,
+}
+
+impl CodeInfo {
+    pub fn from_code_and_id(code: &CodeAndId) -> Self {
+        Self {
+            id: code.code_id().into_origin(),
+            length_bytes: code.code().code().len() as u32,
+            exports: code.code().exports().clone(),
+            static_pages: code.code().static_pages(),
+        }
+    }
+
+    pub fn from_code(id: &CodeId, code: &InstrumentedCode) -> Self {
+        Self {
+            id: id.into_origin(),
+            length_bytes: code.code().len() as u32,
+            exports: code.exports().clone(),
+            static_pages: code.static_pages(),
+        }
+    }
 }
 
 /// Journal handler implementation for `pallet_gear`.
@@ -159,25 +189,15 @@ where
     /// Adds program's id to the collection of programs with
     /// loaded memory pages.
     pub fn insert_program_id_loaded_pages(&mut self, id: ProgramId) {
-        assert!(self.check_program_id(&id));
+        debug_assert!(self.check_program_id(&id));
 
         self.program_loaded_pages.insert(id);
     }
-
     /// NOTE: By calling this function we can't differ whether `None` returned, because
     /// program with `id` doesn't exist or it's terminated
     pub fn get_actor(&self, id: ProgramId) -> Option<Actor> {
         let active: ActiveProgram = common::get_program(id.into_origin())?.try_into().ok()?;
-        let program = {
-            let code_id = CodeId::from_origin(active.code_hash);
-            let code = T::CodeStorage::get_code(code_id)?;
-            NativeProgram::from_parts(
-                id,
-                code,
-                active.allocations,
-                matches!(active.state, ProgramState::Initialized),
-            )
-        };
+        let code_id = CodeId::from_origin(active.code_hash);
 
         let balance =
             CurrencyOf::<T>::free_balance(&<T::AccountId as Origin>::from_origin(id.into_origin()))
@@ -187,19 +207,24 @@ where
             balance,
             destination_program: id,
             executable_data: Some(ExecutableActorData {
-                program,
+                allocations: active.allocations.clone(),
+                code_id,
+                code_exports: active.code_exports,
+                code_length_bytes: active.code_length_bytes,
+                static_pages: active.static_pages,
+                initialized: matches!(active.state, ProgramState::Initialized),
                 pages_with_data: active.pages_with_data,
             }),
         })
     }
 
-    pub fn set_program(&self, program_id: ProgramId, code_id: CodeId, message_id: MessageId) {
+    pub fn set_program(&self, program_id: ProgramId, code_info: &CodeInfo, message_id: MessageId) {
         // Program can be added to the storage only with code, which is done in
         // `submit_program` or `upload_code` extrinsic.
         //
         // Code can exist without program, but the latter can't exist without code.
-        assert!(
-            T::CodeStorage::exists(code_id),
+        debug_assert!(
+            T::CodeStorage::exists(CodeId::from_origin(code_info.id)),
             "Program set must be called only when code exists",
         );
 
@@ -207,7 +232,10 @@ where
         let program = common::ActiveProgram {
             allocations: Default::default(),
             pages_with_data: Default::default(),
-            code_hash: code_id.into_origin(),
+            code_hash: code_info.id,
+            code_length_bytes: code_info.length_bytes,
+            code_exports: code_info.exports.clone(),
+            static_pages: code_info.static_pages,
             state: common::ProgramState::Uninitialized { message_id },
         };
 

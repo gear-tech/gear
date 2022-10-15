@@ -244,7 +244,7 @@ jobs:
 
       - name: "Test: runtime spec tests no lazy pages"
         run: |
-          cargo build -p gear-cli --release --no-default-features --features=cli,runtime-test,gear-native --out-dir target-no-lazy -Z unstable-options
+          cargo build -p gear-cli --release --no-default-features --features=runtime-test,gear-native --out-dir target-no-lazy -Z unstable-options
           ./target-no-lazy/gear runtime-spec-tests ./gear-test/spec/* --runtime gear
 
       - name: "Test: Runtime upgrade and queue processing"
@@ -456,6 +456,10 @@ jobs:
 
       - name: "Test: Client tests"
         run: ./scripts/gear.sh test client --run-node
+        
+      - name: Stop Gear Node Force
+        shell: powershell
+        run: Get-Process gear* | Stop-Process -Force
 
       - name: "Test: Process node runtime spec tests"
         run: |
