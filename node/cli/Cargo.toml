@@ -22,7 +22,7 @@ scale-info = { version = "2.1.1", default-features = false, features = ["derive"
 # Gear
 runtime-primitives = { package = "gear-runtime-primitives", version = "0.1.0", default-features = false, path = "../../runtime/primitives" }
 gear-runtime-test-cli = { path = "../../utils/gear-runtime-test-cli", optional = true }
-service = { package = "gear-service", path = "../service", default-features = false, optional = true }
+service = { package = "gear-service", path = "../service", default-features = false }
 pallet-gear-payment = { version = "0.1.0", path = "../../pallets/payment" }
 
 # Gear Runtimes
@@ -32,10 +32,10 @@ vara-runtime = { path = "../../runtime/vara", optional = true }
 # Substrate client
 sc-cli = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", features = [
 	"wasmtime",
-], optional = true }
+] }
 sc-service = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", features = [
 	"wasmtime",
-], optional = true }
+] }
 sc-client-api = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
 
 # Substrate primitives
@@ -58,39 +58,34 @@ try-runtime-cli = { version = "0.10.0-dev", git = "https://github.com/gear-tech/
 substrate-build-script-utils = { version = "3.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
 
 [features]
-default = ["cli", "gear-native", "vara-native", "runtime-test"]
-cli = [
-	"service",
-	"sc-cli",
-	"sc-service",
-]
+default = ["gear-native", "vara-native", "program"]
 gear-native = [
-	"service?/gear-native",
+	"service/gear-native",
 	"gear-runtime-test-cli?/gear-native",
 	"gear-runtime",
 ]
 vara-native = [
-	"service?/vara-native",
+	"service/vara-native",
 	"gear-runtime-test-cli?/vara-native",
 	"vara-runtime",
 ]
 lazy-pages = [
-	"service?/lazy-pages",
+	"service/lazy-pages",
 	"gear-runtime-test-cli?/lazy-pages",
 	"vara-runtime?/lazy-pages",
 	"gear-runtime?/lazy-pages",
 ]
 runtime-benchmarks = [
-	"service?/runtime-benchmarks",
+	"service/runtime-benchmarks",
 	"frame-benchmarking-cli/runtime-benchmarks",
 ]
 debug-mode = [
-	"service?/debug-mode",
+	"service/debug-mode",
 	"gear-runtime?/debug-mode",
 	"vara-runtime?/debug-mode",
 ]
 try-runtime = [
-	"service?/try-runtime",
+	"service/try-runtime",
 	"try-runtime-cli",
 ]
 runtime-test = ["gear-runtime-test-cli"]

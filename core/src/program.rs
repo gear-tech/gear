@@ -159,7 +159,7 @@ mod tests {
 
         let binary: Vec<u8> = parse_wat(wat);
 
-        let code = Code::try_new(binary, 1, |_| ConstantCostRules::default()).unwrap();
+        let code = Code::try_new(binary, 1, |_| ConstantCostRules::default(), None).unwrap();
         let (code, _) = code.into_parts();
         let program = Program::new(ProgramId::from(1), code);
 

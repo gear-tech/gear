@@ -73,15 +73,15 @@ node-release:
 
 .PHONY: node-release-rtest
 node-release-rtest:
-	@ ./scripts/gear.sh build node --release --no-default-features --features=gear-native,lazy-pages,program-cli,runtime-test
+	@ ./scripts/gear.sh build node --release --no-default-features --features=gear-native,lazy-pages,runtime-test
 
 .PHONY: vara
 vara:
-	@ ./scripts/gear.sh build node --no-default-features --features=vara-native,lazy-pages
+	@ ./scripts/gear.sh build node --no-default-features --features=vara-native,lazy-pages,program
 
 .PHONY: vara-release
 vara-release:
-	@ ./scripts/gear.sh build node --release --no-default-features --features=vara-native,lazy-pages
+	@ ./scripts/gear.sh build node --release --no-default-features --features=vara-native,lazy-pages,program
 
 .PHONY: vara-release-rtest
 vara-release-rtest:
