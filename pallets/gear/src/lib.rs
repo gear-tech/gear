@@ -469,7 +469,10 @@ pub mod pallet {
     #[pallet::getter(fn queue_state)]
     pub(crate) type QueueState<T> = StorageValue<_, ProcessStatus, ValueQuery>;
 
-    /// The current block number being processed. Set by `execute_block`.
+    /// The current block number being processed.
+    ///
+    /// It shows block number in which queue is processed.
+    /// May be less than system pallet block number if panic occurred previously.
     #[pallet::storage]
     #[pallet::getter(fn block_number)]
     pub(crate) type BlockNumber<T: Config> = StorageValue<_, T::BlockNumber, ValueQuery>;
