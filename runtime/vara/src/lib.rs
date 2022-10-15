@@ -403,6 +403,7 @@ impl pallet_gear_gas::Config for Runtime {
 
 impl pallet_gear_messenger::Config for Runtime {
     type BlockLimiter = GearGas;
+    type CurrentBlockNumber = Gear;
 }
 
 pub struct ExtraFeeFilter;

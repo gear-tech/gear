@@ -301,7 +301,7 @@ fn mailbox_rent_claimed() {
             assert!(!MailboxOf::<Test>::is_empty(&USER_2));
 
             run_to_block(
-                System::block_number() + duration.saturated_into::<BlockNumberFor<Test>>(),
+                Gear::block_number() + duration.saturated_into::<BlockNumberFor<Test>>(),
                 None,
             );
 
@@ -2006,7 +2006,7 @@ fn claim_value_works() {
         let reply_to_id = populate_mailbox_from_program(prog_id, USER_2, 2, gas_sent, value_sent);
         assert!(!MailboxOf::<Test>::is_empty(&USER_1));
 
-        let bn_of_insertion = System::block_number();
+        let bn_of_insertion = Gear::block_number();
         let holding_duration = 4;
 
         let GasInfo {
@@ -2556,7 +2556,7 @@ fn test_different_waits_success() {
         };
 
         let expiration = |duration: u32| -> BlockNumberFor<Test> {
-            System::block_number().saturating_add(duration.unique_saturated_into())
+            Gear::block_number().saturating_add(duration.unique_saturated_into())
         };
 
         // Command::Wait case.

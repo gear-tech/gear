@@ -8225,6 +8225,15 @@ pub mod api {
                     ::subxt::StorageEntryKey::Plain
                 }
             }
+            pub struct BlockNumber;
+            impl ::subxt::StorageEntry for BlockNumber {
+                const PALLET: &'static str = "Gear";
+                const STORAGE: &'static str = "BlockNumber";
+                type Value = ::core::primitive::u32;
+                fn key(&self) -> ::subxt::StorageEntryKey {
+                    ::subxt::StorageEntryKey::Plain
+                }
+            }
             pub struct StorageApi<'a, T: ::subxt::Config> {
                 client: &'a ::subxt::Client<T>,
             }
@@ -8294,6 +8303,38 @@ pub mod api {
                             ]
                         {
                             let entry = QueueState;
+                            client.storage().fetch_or_default(&entry, block_hash).await
+                        } else {
+                            Err(::subxt::MetadataError::IncompatibleMetadata.into())
+                        }
+                    }
+                }
+                #[doc = " The current block number being processed. Set by `execute_block`."]
+                pub fn block_number(
+                    &self,
+                    block_hash: ::core::option::Option<T::Hash>,
+                ) -> impl ::core::future::Future<
+                    Output = ::core::result::Result<::core::primitive::u32, ::subxt::BasicError>,
+                > + 'a {
+                    let client = self.client;
+                    async move {
+                        let runtime_storage_hash = {
+                            let locked_metadata = client.metadata();
+                            let metadata = locked_metadata.read();
+                            match metadata.storage_hash::<BlockNumber>() {
+                                Ok(hash) => hash,
+                                Err(e) => return Err(e.into()),
+                            }
+                        };
+                        if runtime_storage_hash
+                            == [
+                                22u8, 57u8, 154u8, 249u8, 197u8, 8u8, 14u8, 84u8, 65u8, 224u8,
+                                197u8, 248u8, 135u8, 80u8, 26u8, 97u8, 3u8, 163u8, 53u8, 108u8,
+                                47u8, 124u8, 88u8, 211u8, 85u8, 72u8, 109u8, 194u8, 165u8, 146u8,
+                                163u8, 187u8,
+                            ]
+                        {
+                            let entry = BlockNumber;
                             client.storage().fetch_or_default(&entry, block_hash).await
                         } else {
                             Err(::subxt::MetadataError::IncompatibleMetadata.into())
@@ -11612,9 +11653,9 @@ pub mod api {
             };
             if runtime_metadata_hash
                 != [
-                    175u8, 130u8, 80u8, 50u8, 194u8, 174u8, 13u8, 78u8, 26u8, 88u8, 128u8, 209u8,
-                    249u8, 105u8, 124u8, 203u8, 249u8, 213u8, 62u8, 54u8, 181u8, 0u8, 200u8, 215u8,
-                    56u8, 62u8, 71u8, 110u8, 99u8, 18u8, 140u8, 0u8,
+                    83u8, 99u8, 229u8, 247u8, 65u8, 82u8, 147u8, 2u8, 79u8, 38u8, 47u8, 219u8,
+                    151u8, 247u8, 178u8, 51u8, 192u8, 105u8, 184u8, 71u8, 121u8, 162u8, 104u8,
+                    59u8, 214u8, 133u8, 104u8, 216u8, 76u8, 227u8, 138u8, 252u8,
                 ]
             {
                 Err(::subxt::MetadataError::IncompatibleMetadata)

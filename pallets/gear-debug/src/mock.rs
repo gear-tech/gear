@@ -150,6 +150,7 @@ impl pallet_gear::Config for Test {
 
 impl pallet_gear_messenger::Config for Test {
     type BlockLimiter = GearGas;
+    type CurrentBlockNumber = Gear;
 }
 
 impl pallet_gear_scheduler::Config for Test {

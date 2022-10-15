@@ -158,6 +158,7 @@ impl pallet_gear_gas::Config for Test {
 
 impl pallet_gear_messenger::Config for Test {
     type BlockLimiter = GearGas;
+    type CurrentBlockNumber = Gear;
 }
 
 pub struct FixedBlockAuthor;
