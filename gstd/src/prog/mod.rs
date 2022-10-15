@@ -22,8 +22,19 @@ mod generator;
 
 pub use generator::ProgramGenerator;
 
-use crate::{common::errors::Result, prelude::convert::AsRef, ActorId, CodeId, MessageId};
+use crate::{
+    async_runtime::signals,
+    common::errors::Result,
+    msg::{CodecCreateProgramFuture, CreateProgramFuture},
+    prelude::convert::AsRef,
+    ActorId, CodeId, MessageId,
+};
+use codec::Decode;
+use gstd_codegen::wait_create_program_for_reply;
 
+/// Creates new program from already existing on-chain code id,
+/// returning initial message id and newly created actor id.
+#[wait_create_program_for_reply]
 pub fn create_program(
     code_id: CodeId,
     salt: impl AsRef<[u8]>,
@@ -52,6 +63,8 @@ pub fn create_program_delayed(
     Ok((message_id.into(), program_id.into()))
 }
 
+/// Same as [`create_program`], but with explicit gas limit.
+#[wait_create_program_for_reply]
 pub fn create_program_with_gas(
     code_id: CodeId,
     salt: impl AsRef<[u8]>,

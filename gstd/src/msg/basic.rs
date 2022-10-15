@@ -21,7 +21,7 @@
 use crate::{
     async_runtime::signals,
     errors::{ContractError, Result},
-    msg::r#async::{CodecMessageFuture, MessageFuture},
+    msg::{CodecMessageFuture, MessageFuture},
     prelude::{convert::AsRef, vec, Vec},
     ActorId, MessageId,
 };
