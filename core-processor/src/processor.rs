@@ -34,7 +34,9 @@ use gear_core::{
     gas::{GasAllowanceCounter, GasCounter},
     ids::ProgramId,
     memory::{PageBuf, PageNumber, WasmPageNumber},
-    message::{DispatchKind, ExitCode, IncomingDispatch, ReplyMessage, StoredDispatch},
+    message::{
+        ContextSettings, DispatchKind, ExitCode, IncomingDispatch, ReplyMessage, StoredDispatch,
+    },
     program::Program,
 };
 
@@ -323,6 +325,7 @@ pub fn process<
         mailbox_threshold,
         waitlist_cost,
         reserve_for,
+        write_cost,
         ..
     } = block_config.clone();
 
@@ -348,7 +351,9 @@ pub fn process<
         pages_initial_data: memory_pages,
         memory_size: execution_context.memory_size,
     };
-    let msg_ctx_settings = gear_core::message::ContextSettings::new(0, outgoing_limit);
+
+    // We charge here double write cost for addition and removal from queue.
+    let msg_ctx_settings = ContextSettings::new(write_cost * 2, outgoing_limit);
 
     let exec_result = executor::execute_wasm::<A, E>(
         balance,
