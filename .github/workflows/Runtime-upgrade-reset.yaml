@@ -58,23 +58,19 @@ jobs:
         run: ./wasm-proc --check-runtime-imports --path gear_runtime.wasm
 
       - name: Install Node.js
-        if: false # FIXME: Remove after test
         uses: actions/setup-node@v2
         with:
           node-version: "16"
 
       - name: Install polkadot-js-api
-        if: false # FIXME: Remove after test
         run: npm install -g @polkadot/api-cli
 
       - name: Send setCode extrinsic
-        if: false # FIXME: Remove after test
         run: >-
           polkadot-js-api --ws wss://rpc-node.gear-tech.io:443 --sudoUncheckedWeight 0x00
           --seed "${{ secrets.ROOT_SEED }}" tx.system.setCode @gear_runtime.compact.compressed.wasm
 
       - name: Send reset extrinsic
-        if: false # FIXME: Remove after test
         run: >-
           polkadot-js-api --ws wss://rpc-node.gear-tech.io:443 --sudo
           --seed "${{ secrets.ROOT_SEED }}" tx.gear.reset
