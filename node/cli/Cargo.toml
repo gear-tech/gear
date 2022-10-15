@@ -58,7 +58,7 @@ try-runtime-cli = { version = "0.10.0-dev", git = "https://github.com/gear-tech/
 substrate-build-script-utils = { version = "3.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
 
 [features]
-default = ["gear-native", "vara-native", "program"]
+default = ["gear-native", "vara-native"]
 gear-native = [
 	"service/gear-native",
 	"gear-runtime-test-cli?/gear-native",
