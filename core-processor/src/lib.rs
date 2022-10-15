@@ -50,7 +50,10 @@ pub const UNAVAILABLE_DEST_EXIT_CODE: ExitCode = 2;
 /// A try to init again initialized, existing program.
 pub const RE_INIT_EXIT_CODE: ExitCode = 3;
 
-pub use executor::execute_wasm;
+pub use executor::{calculate_gas_for_code, calculate_gas_for_program, execute_wasm};
 pub use ext::{Ext, ProcessorContext, ProcessorError, ProcessorExt};
 pub use handler::handle_journal;
-pub use processor::{prepare, process, PrepareResult, PreparedMessageExecutionContext};
+pub use processor::{
+    precharge, prepare, process, PrechargeResult, PrepareResult, PreparedMessageExecutionContext,
+    ProcessExecutionContext,
+};
