@@ -43,6 +43,7 @@ use frame_support::{
 use gear_core::{
     ids::{CodeId, MessageId, ProgramId},
     memory::{Error as MemoryError, PageBuf, PageNumber, WasmPageNumber},
+    message::DispatchKind,
 };
 use primitive_types::H256;
 use scale_info::TypeInfo;
@@ -254,6 +255,9 @@ pub struct ActiveProgram {
     /// Set of gear pages numbers, which has data in storage.
     pub pages_with_data: BTreeSet<PageNumber>,
     pub code_hash: H256,
+    pub code_length_bytes: u32,
+    pub code_exports: BTreeSet<DispatchKind>,
+    pub static_pages: WasmPageNumber,
     pub state: ProgramState,
 }
 

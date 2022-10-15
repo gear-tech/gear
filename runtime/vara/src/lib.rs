@@ -118,7 +118,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
     // The version of the runtime specification. A full node will not attempt to use its native
     //   runtime in substitute for the on-chain Wasm runtime unless all of `spec_name`,
     //   `spec_version`, and `authoring_version` are the same between Wasm and native.
-    spec_version: 420,
+    spec_version: 430,
     impl_version: 1,
     apis: RUNTIME_API_VERSIONS,
     transaction_version: 1,
@@ -574,6 +574,7 @@ parameter_types! {
 
     pub const OutgoingLimit: u32 = 1024;
     pub const MailboxThreshold: u64 = 3000;
+    pub const ReadPerByteCost: u64 = 100;
 }
 
 parameter_types! {
@@ -590,6 +591,7 @@ impl pallet_gear::Config for Runtime {
     type DebugInfo = DebugInfo;
     type CodeStorage = GearProgram;
     type MailboxThreshold = MailboxThreshold;
+    type ReadPerByteCost = ReadPerByteCost;
     type Messenger = GearMessenger;
     type GasProvider = GearGas;
     type BlockLimiter = GearGas;

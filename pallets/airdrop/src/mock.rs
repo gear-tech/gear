@@ -149,6 +149,7 @@ impl pallet_gear::Config for Test {
     type DebugInfo = ();
     type CodeStorage = GearProgram;
     type MailboxThreshold = ConstU64<100>;
+    type ReadPerByteCost = ConstU64<10>;
     type Messenger = GearMessenger;
     type GasProvider = GearGas;
     type BlockLimiter = GearGas;
