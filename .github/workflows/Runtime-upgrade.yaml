@@ -9,6 +9,8 @@ env:
 jobs:
   upgrade-runtime:
     runs-on: ubuntu-latest
+    env:
+      RUSTUP_HOME: /tmp/rustup_home
     steps:
       - name: Checkout
         uses: actions/checkout@v3
