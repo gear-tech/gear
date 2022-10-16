@@ -28,6 +28,8 @@ sp-consensus-slots = { version = "0.10.0-dev", git = "https://github.com/gear-te
 sp-consensus-babe = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
 sp-finality-grandpa = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
 pallet-authorship = { version = "4.0.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
+sp-authority-discovery = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", optional = true }
+pallet-im-online = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", optional = true }
 
 # Gear
 runtime-primitives = { package = "gear-runtime-primitives", version = "0.1.0", default-features = false, path = "../../runtime/primitives" }
@@ -45,7 +47,11 @@ junit-common = { path = "../junit-common" }
 
 [features]
 gear-native = ["gear-runtime"]
-vara-native = ["vara-runtime"]
+vara-native = [
+    "vara-runtime",
+    "pallet-im-online",
+    "sp-authority-discovery",
+]
 lazy-pages = [
     "pallet-gear/lazy-pages",
     "pallet-gear-debug/lazy-pages",

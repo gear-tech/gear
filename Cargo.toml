@@ -38,6 +38,7 @@ members = [
     # "utils/node-loader/",
     "utils/test-runtime",
     "utils/test-runtime/client",
+    "utils/bags-thresholds",
 ]
 
 [profile.release]
