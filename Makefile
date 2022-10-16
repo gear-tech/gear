@@ -228,8 +228,10 @@ test-gear: init-js examples # \
 	@ ./scripts/gear.sh test gear --exclude gclient --features pallet-gear-debug/lazy-pages
 
 .PHONY: test-gear-release
-test-gear-release: init-js examples
-	@ ./scripts/gear.sh test gear --release
+test-gear-release: init-js examples # \
+	We use lazy-pages feature for pallet-gear-debug due to cargo building issue \
+	and fact that pallet-gear default is lazy-pages.
+	@ ./scripts/gear.sh test gear --release --exclude gclient --features pallet-gear-debug/lazy-pages
 
 .PHONY: test-js
 test-js: init-js
