@@ -40,7 +40,6 @@ use gear_core::{
     message::{ExitCode, GasLimit, HandlePacket, InitPacket, MessageContext, Packet, ReplyPacket},
 };
 use gear_core_errors::{CoreError, ExecutionError, ExtError, MemoryError, MessageError, WaitError};
-use core::fmt::Display;
 
 /// Processor context.
 pub struct ProcessorContext {
@@ -255,12 +254,11 @@ impl GetGasAmount for Ext {
 
 impl Ext {
     /// Return result and store error info in field
-    pub fn return_and_store_err<T, E: Display>(&mut self, result: Result<T, E>) -> Result<T, ProcessorError>
+    pub fn return_and_store_err<T, E>(&mut self, result: Result<T, E>) -> Result<T, ProcessorError>
     where
         E: Into<ProcessorError>,
     {
         result.map_err(Into::into).map_err(|err| {
-            log::trace!("ext error = {err}");
             self.error_explanation = Some(err.clone());
             err
         })

@@ -210,7 +210,6 @@ where
         let Runtime { err: trap, .. } = runtime;
         drop(instance);
 
-        // let res_string = res.map(|v| format!("{:?}", v)).unwrap_or_else(|err| format!("{}", err));
         log::debug!("SandboxEnvironment::execute res = {res:?}");
 
         let trap_explanation = ext.trap_explanation();
@@ -219,8 +218,6 @@ where
             let reason = trap_explanation
                 .map(TerminationReason::Trap)
                 .unwrap_or_else(|| trap.into_termination_reason());
-
-            log::trace!("termination reason = {reason:?}");
 
             // success is unacceptable when there is error
             if let TerminationReason::Success = reason {

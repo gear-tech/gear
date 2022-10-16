@@ -336,9 +336,6 @@ fn test_sys_calls_table() {
 
     let code = module.into_bytes().unwrap();
 
-    let s = wasmprinter::print_bytes(code.clone()).unwrap();
-    println!("{s}");
-
     // Execute wasm and check success.
     let ext = MockExt::default();
     let res = WasmiEnvironment::execute(

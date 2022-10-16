@@ -32,7 +32,6 @@ fn gen_wasm() {
         let mut u = Unstructured::new(&buf);
         let code = gen_gear_program_code(&mut u, GearConfig::default());
         let _wat = wasmprinter::print_bytes(&code).unwrap();
-        println!("code size = {} KiB", code.len() / 1024);
     }
 }
 
