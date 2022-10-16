@@ -1,40 +1,40 @@
-#[cfg(any(
-    all(feature = "gear", feature = "vara"),
-    all(feature = "gear", not(feature = "vara"))
-))]
-mod gear;
+#[allow(clippy::all, missing_docs)]
+pub mod api {
+    include!(concat!(env!("OUT_DIR"), "/metadata.rs"));
 
-#[cfg(any(
-    all(feature = "gear", feature = "vara"),
-    all(feature = "gear", not(feature = "vara"))
-))]
-pub use gear::*;
+    #[cfg(any(
+        all(feature = "gear", feature = "vara"),
+        all(feature = "gear", not(feature = "vara"))
+    ))]
+    pub use gear_metadata::*;
 
-#[cfg(any(
-    all(feature = "gear", feature = "vara"),
-    all(feature = "gear", not(feature = "vara"))
-))]
-use self::api::runtime_types::gear_runtime::RuntimeEvent;
+    #[cfg(any(
+        all(feature = "gear", feature = "vara"),
+        all(feature = "gear", not(feature = "vara"))
+    ))]
+    pub use gear_metadata::runtime_types::gear_runtime::RuntimeEvent;
 
-#[cfg(all(feature = "vara", not(feature = "gear")))]
-mod vara;
+    #[cfg(all(feature = "vara", not(feature = "gear")))]
+    pub use vara_metadata::*;
 
-#[cfg(all(feature = "vara", not(feature = "gear")))]
-pub use vara::*;
+    #[cfg(all(feature = "vara", not(feature = "gear")))]
+    pub use vara_metadata::runtime_types::vara_runtime::RuntimeEvent;
+}
 
-#[cfg(all(feature = "vara", not(feature = "gear")))]
-use self::api::runtime_types::vara_runtime::RuntimeEvent;
-
-use self::api::Event as ApiEvent;
-use api::runtime_types::{
-    gear_common::event::*,
-    gear_core::{ids as generated_ids, message as generated_message},
+use api::{
+    runtime_types::{
+        gear_common::event::*,
+        gear_core::{ids as generated_ids, message as generated_message},
+    },
+    RuntimeEvent,
 };
 use gear_core::{
     ids, message,
     message::{ReplyDetails, StoredMessage},
 };
 use parity_scale_codec::{Decode, Encode};
+
+type ApiEvent = api::Event;
 
 impl From<ids::MessageId> for generated_ids::MessageId {
     fn from(other: ids::MessageId) -> Self {
