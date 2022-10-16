@@ -21,7 +21,7 @@ const GENERATED_TITLE: &str = r#"
 /// Check if gear exists
 fn check_node() -> bool {
     let profile = std::env::var("PROFILE").unwrap();
-    let node = PathBuf::from("../target").join(profile).join("gear-node");
+    let node = PathBuf::from("../target").join(profile).join("gear");
     node.exists()
 }
 
