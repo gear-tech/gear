@@ -22,7 +22,7 @@ use frame_support::{
     traits::{OnFinalize, OnInitialize},
 };
 use frame_system as system;
-use sp_core::{H256, Get};
+use sp_core::{Get, H256};
 use sp_runtime::{
     testing::Header,
     traits::{BlakeTwo256, IdentityLookup},
