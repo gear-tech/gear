@@ -18,13 +18,6 @@ const GENERATED_TITLE: &str = r#"
 // subxt codegen | rustfmt --edition=2021
 "#;
 
-/// Check if gear exists
-fn check_node() -> bool {
-    let profile = std::env::var("PROFILE").unwrap();
-    let node = PathBuf::from("../target").join(profile).join("gear");
-    node.exists()
-}
-
 /// Generate api
 fn codegen(mut encoded: &[u8], item_mod: ItemMod) -> String {
     let metadata =
@@ -112,8 +105,5 @@ fn main() {
     println!("cargo:rerun-if-changed=../runtime");
     println!("cargo:rerun-if-changed=../pallets/gear");
 
-    // check if node exists
-    if check_node() {
-        update_api()
-    }
+    update_api()
 }
