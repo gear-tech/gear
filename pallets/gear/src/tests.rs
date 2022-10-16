@@ -16,6 +16,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use core::convert::TryInto;
+
 use crate::{
     internal::HoldBound,
     manager::HandleKind,
@@ -3073,6 +3075,8 @@ fn terminated_locking_funds() {
 
         // Hack to fast spend blocks till expiration.
         System::set_block_number(interval.finish - 1);
+        Gear::set_block_number((interval.finish - 1).try_into().unwrap());
+
         run_to_next_block(None);
 
         assert!(MailboxOf::<Test>::is_empty(&USER_3));
@@ -4120,6 +4124,7 @@ fn locking_gas_for_waitlist() {
         // close block number to it to check that messages keeps in
         // waitlist before and leaves it as expected.
         System::set_block_number(expiration - 2);
+        Gear::set_block_number((expiration - 2).try_into().unwrap());
 
         run_to_next_block(None);
 

@@ -224,7 +224,11 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
     .unwrap();
 
     let mut ext = sp_io::TestExternalities::new(t);
-    ext.execute_with(|| System::set_block_number(1));
+    ext.execute_with(|| {
+        Gear::force_always();
+        System::set_block_number(1);
+        Gear::on_initialize(System::block_number());
+    });
     ext
 }
 
@@ -264,12 +268,14 @@ pub fn run_to_block(n: u64, remaining_weight: Option<u64>) {
 
         let remaining_weight = remaining_weight.unwrap_or(BlockGasLimitOf::<Test>::get());
         log::debug!(
-            "🧱 Running run #{} with weight {}",
+            "🧱 Running run #{} (gear #{}) with weight {}",
             System::block_number(),
+            Gear::block_number(),
             remaining_weight
         );
 
         Gear::run_queue(remaining_weight);
+        Gear::processing_completed();
         Gear::on_finalize(System::block_number());
     }
 }

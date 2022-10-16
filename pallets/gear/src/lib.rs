@@ -522,7 +522,7 @@ pub mod pallet {
                     QueueState::<T>::put(ProcessStatus::Scheduled);
                     T::DbWeight::get().reads_writes(1, 3)
                 }
-                _ => T::DbWeight::get().reads_writes(1, 1),
+                Forcing::NotForcing => T::DbWeight::get().reads_writes(1, 1),
             }
         }
 
@@ -535,6 +535,7 @@ pub mod pallet {
                 ProcessStatus::Scheduled => {
                     // Emitting event to signal queue processing transaction was rolled back.
                     Self::deposit_event(Event::QueueProcessingReverted);
+                    log::debug!(target: "runtime::gear", "⚙️  Decreasing gear block number due to process status scheduled");
                     BlockNumber::<T>::mutate(|bn| *bn = bn.saturating_sub(One::one()));
                     QueueState::<T>::put(ProcessStatus::SkippedOrFailed);
                 }
@@ -544,7 +545,8 @@ pub mod pallet {
                 }
                 // Otherwise keeping the status intact;
                 // Note: `SkippedOrFailed` can now only be overridden through forcing
-                _ => {
+                ProcessStatus::SkippedOrFailed => {
+                    log::debug!(target: "runtime::gear", "⚙️ Decreasing gear block number due to process status skipped or failed");
                     BlockNumber::<T>::mutate(|bn| *bn = bn.saturating_sub(One::one()));
                 }
             }
@@ -568,6 +570,32 @@ pub mod pallet {
     where
         T::AccountId: Origin,
     {
+        /// Set force always strategy.
+        ///
+        /// For tests only.
+        #[cfg(test)]
+        pub fn force_always() {
+            <ForceQueue<T>>::put(Forcing::ForceAlways);
+        }
+
+        /// Set completed result of queue processing.
+        ///
+        /// For tests only.
+        #[cfg(test)]
+        pub fn processing_completed() {
+            <QueueState<T>>::put(ProcessStatus::Completed);
+        }
+
+        /// Set gear block number.
+        ///
+        /// For tests only.
+        #[cfg(test)]
+        pub fn set_block_number(bn: u32) {
+            use sp_runtime::SaturatedConversion;
+
+            <BlockNumber<T>>::put(bn.saturated_into::<T::BlockNumber>());
+        }
+
         /// Submit program for benchmarks which does not check nor instrument the code.
         #[cfg(feature = "runtime-benchmarks")]
         pub fn upload_program_raw(
