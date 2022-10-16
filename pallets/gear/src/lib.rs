@@ -573,7 +573,7 @@ pub mod pallet {
         /// Set force always strategy.
         ///
         /// For tests only.
-        #[cfg(test)]
+        #[cfg(any(feature = "std", feature = "runtime-benchmarks", test))]
         pub fn force_always() {
             <ForceQueue<T>>::put(Forcing::ForceAlways);
         }
@@ -581,7 +581,7 @@ pub mod pallet {
         /// Set completed result of queue processing.
         ///
         /// For tests only.
-        #[cfg(test)]
+        #[cfg(any(feature = "std", feature = "runtime-benchmarks", test))]
         pub fn processing_completed() {
             <QueueState<T>>::put(ProcessStatus::Completed);
         }
@@ -589,7 +589,7 @@ pub mod pallet {
         /// Set gear block number.
         ///
         /// For tests only.
-        #[cfg(test)]
+        #[cfg(any(feature = "std", feature = "runtime-benchmarks", test))]
         pub fn set_block_number(bn: u32) {
             use sp_runtime::SaturatedConversion;
 

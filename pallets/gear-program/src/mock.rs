@@ -22,7 +22,7 @@ use frame_support::{
     traits::{OnFinalize, OnInitialize},
 };
 use frame_system as system;
-use sp_core::H256;
+use sp_core::{H256, Get};
 use sp_runtime::{
     testing::Header,
     traits::{BlakeTwo256, IdentityLookup},
@@ -98,9 +98,17 @@ impl pallet_balances::Config for Test {
     type WeightInfo = ();
 }
 
+pub struct CurrentBlockNumber;
+
+impl Get<u64> for CurrentBlockNumber {
+    fn get() -> u64 {
+        System::block_number()
+    }
+}
+
 impl pallet_gear_messenger::Config for Test {
     type BlockLimiter = GearGas;
-    type CurrentBlockNumber = ();
+    type CurrentBlockNumber = CurrentBlockNumber;
 }
 
 impl pallet_gear_program::Config for Test {
