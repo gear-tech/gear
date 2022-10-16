@@ -178,6 +178,8 @@ impl Default for ProcessStatus {
 
 #[frame_support::pallet]
 pub mod pallet {
+    use core::marker::PhantomData;
+
     use super::*;
 
     #[cfg(feature = "lazy-pages")]
@@ -289,7 +291,7 @@ pub mod pallet {
             MissedBlocksCollection = BTreeSet<Self::BlockNumber>,
         >;
 
-        /// Message Queue processing routin provider
+        /// Message Queue processing routing provider.
         type QueueRunner: QueueRunner<Gas = GasUnitOf<Self>>;
     }
 
@@ -496,6 +498,8 @@ pub mod pallet {
 
         /// Initialization
         fn on_initialize(bn: BlockNumberFor<T>) -> Weight {
+            BlockNumber::<T>::mutate(|bn| *bn = bn.saturating_add(One::one()));
+
             log::debug!(target: "runtime::gear", "⚙️  Initialization of block #{bn:?} (gear #{:?})", Self::block_number());
 
             // Decide whether queue processing should be scheduled or skipped for current block
@@ -505,20 +509,20 @@ pub mod pallet {
                 Forcing::ForceNone => {
                     // Regardless of anything, forcing not to process queue
                     QueueState::<T>::put(ProcessStatus::SkippedOrFailed);
-                    T::DbWeight::get().reads_writes(1, 1)
+                    T::DbWeight::get().reads_writes(1, 2)
                 }
                 Forcing::ForceAlways => {
                     // Regardless of anything, forcing the queue to be processed
                     QueueState::<T>::put(ProcessStatus::Scheduled);
-                    T::DbWeight::get().reads_writes(1, 1)
+                    T::DbWeight::get().reads_writes(1, 2)
                 }
                 Forcing::ForceOnce => {
                     // Forcing queue processing in current block, subsequently not forcing anything
                     ForceQueue::<T>::put(Forcing::default());
                     QueueState::<T>::put(ProcessStatus::Scheduled);
-                    T::DbWeight::get().reads_writes(1, 2)
+                    T::DbWeight::get().reads_writes(1, 3)
                 }
-                _ => T::DbWeight::get().reads(1),
+                _ => T::DbWeight::get().reads_writes(1, 1),
             }
         }
 
@@ -529,18 +533,20 @@ pub mod pallet {
             match QueueState::<T>::get() {
                 // Still in `Scheduled` state: last run didn't complete (likely, panicked)
                 ProcessStatus::Scheduled => {
-                    // Emitting event to signal queue processing transaction was rolled back
+                    // Emitting event to signal queue processing transaction was rolled back.
                     Self::deposit_event(Event::QueueProcessingReverted);
+                    BlockNumber::<T>::mutate(|bn| *bn = bn.saturating_sub(One::one()));
                     QueueState::<T>::put(ProcessStatus::SkippedOrFailed);
                 }
                 // Latest run succeeded; scheduling to run again in the next block
                 ProcessStatus::Completed => {
-                    BlockNumber::<T>::mutate(|bn| *bn = bn.saturating_add(One::one()));
                     QueueState::<T>::put(ProcessStatus::Scheduled);
                 }
                 // Otherwise keeping the status intact;
-                // Note: `SkippedOrFailed` can now only be overriden through forcing
-                _ => (),
+                // Note: `SkippedOrFailed` can now only be overridden through forcing
+                _ => {
+                    BlockNumber::<T>::mutate(|bn| *bn = bn.saturating_sub(One::one()));
+                }
             }
         }
     }

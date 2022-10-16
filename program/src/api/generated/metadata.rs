@@ -8309,7 +8309,10 @@ pub mod api {
                         }
                     }
                 }
-                #[doc = " The current block number being processed. Set by `execute_block`."]
+                #[doc = " The current block number being processed."]
+                #[doc = ""]
+                #[doc = " It shows block number in which queue is processed."]
+                #[doc = " May be less than system pallet block number if panic occurred previously."]
                 pub fn block_number(
                     &self,
                     block_hash: ::core::option::Option<T::Hash>,
