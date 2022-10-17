@@ -17,15 +17,15 @@ jobs:
             ls -l .
             ls -l ../..
             pwd
-      - name: Send telegram notify before run playbook
-        uses: appleboy/telegram-action@master
-        with:
-          to: ${{ secrets.TELEGRAM_CHANNEL_ID }}
-          token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          message: |
-            Attention! Instances will be temporarily unavailable!
-            ${{ github.actor }} run build with commit: "${{ github.event.commits[0].message }}"
-            Build number: ${{ github.run_number }}
+#      - name: Send telegram notify before run playbook
+#        uses: appleboy/telegram-action@master
+#        with:
+#          to: ${{ secrets.TELEGRAM_CHANNEL_ID }}
+#          token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+#          message: |
+#            Attention! Instances will be temporarily unavailable!
+#            ${{ github.actor }} run build with commit: "${{ github.event.commits[0].message }}"
+#            Build number: ${{ github.run_number }}
       - name: Run playbook
         uses: dawidd6/action-ansible-playbook@v2
         with:
