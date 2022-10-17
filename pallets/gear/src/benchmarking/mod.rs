@@ -59,7 +59,7 @@ use gear_core::{
     gas::{GasAllowanceCounter, GasCounter, ValueCounter},
     ids::{CodeId, MessageId, ProgramId},
     memory::{AllocationsContext, PageBuf, PageNumber},
-    message::{Dispatch, DispatchKind, Message, ReplyDetails},
+    message::{Dispatch, DispatchKind, Message, MessageContext, ReplyDetails},
 };
 use pallet_authorship::Pallet as AuthorshipPallet;
 use sp_consensus_babe::{
@@ -129,7 +129,7 @@ fn default_processor_context() -> ProcessorContext {
             Default::default(),
             Default::default(),
         ),
-        message_context: Default::default(),
+        message_context: MessageContext::new(Default::default(), Default::default(), None),
         block_info: Default::default(),
         config: Default::default(),
         existential_deposit: 0,
