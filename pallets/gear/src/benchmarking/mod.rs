@@ -33,7 +33,6 @@ use self::{
     sandbox::Sandbox,
 };
 use crate::{
-    benchmarking::code::max_pages,
     manager::{CodeInfo, ExtManager, HandleKind},
     pallet,
     schedule::{API_BENCHMARK_BATCH_SIZE, INSTR_BENCHMARK_BATCH_SIZE},
@@ -60,6 +59,7 @@ use gear_core::{
     ids::{CodeId, MessageId, ProgramId},
     memory::{AllocationsContext, PageBuf, PageNumber},
     message::{Dispatch, DispatchKind, Message, MessageContext, ReplyDetails},
+    program::Program as CoreProgram,
 };
 use pallet_authorship::Pallet as AuthorshipPallet;
 use sp_consensus_babe::{
@@ -422,9 +422,12 @@ benchmarks! {
         type Ext = core_processor::Ext;
 
         let WasmModule { code, .. } = WasmModule::<T>::sized(c * 1024, Location::Init);
+        let code = Code::new_raw(code, 1, None, false).unwrap();
+        let (code, _) = code.into_parts();
+        let program = CoreProgram::new(Default::default(), code);
     }: {
         let ext = Ext::new(default_processor_context());
-        ExecutionEnvironment::new(ext, &code, max_pages::<T>().into()).unwrap();
+        ExecutionEnvironment::new(ext, &program).unwrap();
     }
 
     claim_value {

@@ -33,7 +33,9 @@ use gear_backend_common::{
     GetGasAmount, IntoExtInfo, StackEndError, TerminationReason, TrapExplanation,
     STACK_END_EXPORT_NAME,
 };
-use gear_core::{env::Ext, gas::GasAmount, memory::WasmPageNumber, message::DispatchKind};
+use gear_core::{
+    env::Ext, gas::GasAmount, memory::WasmPageNumber, message::DispatchKind, program::Program,
+};
 use sp_sandbox::{
     default_executor::{EnvironmentDefinitionBuilder, Instance, Memory as DefaultExecutorMemory},
     HostFuncType, ReturnValue, SandboxEnvironmentBuilder, SandboxInstance, SandboxMemory,
@@ -74,6 +76,7 @@ impl GetGasAmount for Error {
 pub struct SandboxEnvironment<E: Ext> {
     instance: Instance<Runtime<E>>,
     runtime: Runtime<E>,
+    entries: BTreeSet<DispatchKind>,
 }
 
 // A helping wrapper for `EnvironmentDefinitionBuilder` and `forbidden_funcs`.
@@ -111,8 +114,12 @@ where
     type Memory = MemoryWrap;
     type Error = Error;
 
-    fn new(ext: E, binary: &[u8], mem_size: WasmPageNumber) -> Result<Self, Self::Error> {
+    fn new(ext: E, program: &Program) -> Result<Self, Self::Error> {
         use SandboxEnvironmentError::*;
+
+        let entries = program.code().exports().clone();
+        let binary = program.code().code();
+        let mem_size = program.static_pages();
 
         let mut builder = EnvBuilder::<E> {
             env_def_builder: EnvironmentDefinitionBuilder::new(),
@@ -174,14 +181,17 @@ where
         };
 
         match Instance::new(binary, &env_builder, &mut runtime) {
-            Ok(instance) => Ok(Self { instance, runtime }),
+            Ok(instance) => Ok(Self {
+                instance,
+                runtime,
+                entries,
+            }),
             Err(e) => Err((runtime.ext.gas_amount(), ModuleInstantiation(e)).into()),
         }
     }
 
     fn execute<F, T>(
         self,
-        entries: BTreeSet<DispatchKind>,
         entry_point: &DispatchKind,
         pre_execution_handler: F,
     ) -> Result<BackendReport<Self::Memory, E>, Self::Error>
@@ -194,6 +204,7 @@ where
         let Self {
             mut instance,
             mut runtime,
+            entries,
         } = self;
 
         let stack_end = instance

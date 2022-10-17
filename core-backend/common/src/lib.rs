@@ -47,6 +47,7 @@ use gear_core::{
     ids::{CodeId, MessageId, ProgramId},
     memory::{Memory, PageBuf, PageNumber, WasmPageNumber},
     message::{ContextStore, Dispatch, DispatchKind},
+    program::Program,
 };
 use gear_core_errors::{ExtError, MemoryError};
 use scale_info::TypeInfo;
@@ -198,12 +199,11 @@ pub trait Environment<E: Ext + IntoExtInfo<E::Error> + 'static>: Sized {
     /// 2) Creates wasm memory
     /// 3) Runs `pre_execution_handler` to fill the memory before running instance.
     /// 4) Instantiate external funcs for wasm module.
-    fn new(ext: E, binary: &[u8], mem_size: WasmPageNumber) -> Result<Self, Self::Error>;
+    fn new(ext: E, program: &Program) -> Result<Self, Self::Error>;
 
     /// Run instance setup starting at `entry_point` - wasm export function name.
     fn execute<F, T>(
         self,
-        entries: BTreeSet<DispatchKind>,
         entry_point: &DispatchKind,
         pre_execution_handler: F,
     ) -> Result<BackendReport<Self::Memory, E>, Self::Error>

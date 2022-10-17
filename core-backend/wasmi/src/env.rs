@@ -35,7 +35,9 @@ use gear_backend_common::{
     GetGasAmount, IntoExtInfo, StackEndError, TerminationReason, TrapExplanation,
     STACK_END_EXPORT_NAME,
 };
-use gear_core::{env::Ext, gas::GasAmount, memory::WasmPageNumber, message::DispatchKind};
+use gear_core::{
+    env::Ext, gas::GasAmount, memory::WasmPageNumber, message::DispatchKind, program::Program,
+};
 use wasmi::{
     Engine, Extern, Instance, Linker, Memory as WasmiMemory, Memory, MemoryType, Module, Store,
 };
@@ -87,6 +89,7 @@ pub struct WasmiEnvironment<E: Ext> {
     instance: Instance,
     store: Store<HostState<E>>,
     memory: Memory,
+    entries: BTreeSet<DispatchKind>,
 }
 
 impl<E> Environment<E> for WasmiEnvironment<E>
@@ -97,8 +100,12 @@ where
     type Memory = MemoryWrap<E>;
     type Error = Error;
 
-    fn new(ext: E, binary: &[u8], mem_size: WasmPageNumber) -> Result<Self, Self::Error> {
+    fn new(ext: E, program: &Program) -> Result<Self, Self::Error> {
         use WasmiEnvironmentError::*;
+
+        let entries = program.code().exports().clone();
+        let binary = program.code().code();
+        let mem_size = program.static_pages();
 
         let engine = Engine::default();
         let mut store: Store<HostState<E>> = Store::new(&engine, None);
@@ -144,12 +151,12 @@ where
             instance,
             store,
             memory,
+            entries,
         })
     }
 
     fn execute<F, T>(
         self,
-        entries: BTreeSet<DispatchKind>,
         entry_point: &DispatchKind,
         pre_execution_handler: F,
     ) -> Result<BackendReport<Self::Memory, E>, Self::Error>
@@ -163,6 +170,7 @@ where
             instance,
             store,
             memory,
+            entries,
         } = self;
 
         let stack_end = instance
