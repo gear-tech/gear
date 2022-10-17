@@ -1,0 +1,19 @@
+[package]
+name = "gear-wasm-instrument"
+version = "0.1.0"
+authors = ["Gear Technologies"]
+edition = "2018"
+license = "GPL-3.0"
+
+[dependencies]
+wasm-instrument = { version = "0.2.1", git = "https://github.com/gear-tech/wasm-instrument.git", branch = "gshep/issue-1607", default-features = false }
+
+[dev-dependencies]
+wasmparser = "0.90"
+wat = "1.0.49"
+
+[features]
+default = ["std"]
+std = [
+    "wasm-instrument/std",
+]
