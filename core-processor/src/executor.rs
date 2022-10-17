@@ -353,7 +353,7 @@ pub fn execute_wasm<
         AllocationsContext::new(allocations.clone(), static_pages, settings.max_pages());
 
     // Creating message context.
-    let message_context = MessageContext::new_with_settings(
+    let message_context = MessageContext::new(
         dispatch.message().clone(),
         program_id,
         dispatch.context().clone(),

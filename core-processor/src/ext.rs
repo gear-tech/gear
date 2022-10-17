@@ -378,6 +378,7 @@ impl EnvExt for Ext {
 
         self.check_forbidden_call(msg.destination())?;
         self.charge_expiring_resources(&msg)?;
+        self.charge_gas(self.context.message_context.settings().sending_fee())?;
 
         let result = self.context.message_context.send_commit(handle, msg, delay);
 
@@ -389,6 +390,7 @@ impl EnvExt for Ext {
 
         self.check_forbidden_call(self.context.message_context.reply_destination())?;
         self.charge_expiring_resources(&msg)?;
+        self.charge_gas(self.context.message_context.settings().sending_fee())?;
 
         let result = self.context.message_context.reply_commit(msg, delay);
 
@@ -539,6 +541,7 @@ impl EnvExt for Ext {
 
     fn wait(&mut self) -> Result<(), Self::Error> {
         self.charge_gas_runtime(RuntimeCosts::Wait)?;
+        self.charge_gas(self.context.message_context.settings().waiting_fee())?;
 
         let reserve = u64::from(self.context.reserve_for.saturating_add(1))
             .saturating_mul(self.context.waitlist_cost);
@@ -552,6 +555,7 @@ impl EnvExt for Ext {
 
     fn wait_for(&mut self, duration: u32) -> Result<(), Self::Error> {
         self.charge_gas_runtime(RuntimeCosts::WaitFor)?;
+        self.charge_gas(self.context.message_context.settings().waiting_fee())?;
 
         if duration == 0 {
             return self.return_and_store_err(Err(WaitError::InvalidArgument));
@@ -569,6 +573,7 @@ impl EnvExt for Ext {
 
     fn wait_up_to(&mut self, duration: u32) -> Result<(), Self::Error> {
         self.charge_gas_runtime(RuntimeCosts::WaitUpTo)?;
+        self.charge_gas(self.context.message_context.settings().waiting_fee())?;
 
         if duration == 0 {
             return self.return_and_store_err(Err(WaitError::InvalidArgument));
@@ -586,6 +591,8 @@ impl EnvExt for Ext {
 
     fn wake(&mut self, waker_id: MessageId, delay: u32) -> Result<(), Self::Error> {
         self.charge_gas_runtime(RuntimeCosts::Wake)?;
+        self.charge_gas(self.context.message_context.settings().waking_fee())?;
+
         let result = self.context.message_context.wake(waker_id, delay);
 
         self.return_and_store_err(result)

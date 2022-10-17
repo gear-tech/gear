@@ -114,6 +114,8 @@ pub struct BlockConfig {
     pub reserve_for: u32,
     /// One-time db-read cost.
     pub read_cost: u64,
+    /// One-time db-write cost.
+    pub write_cost: u64,
     /// Per loaded byte cost.
     pub per_byte_cost: u64,
     /// WASM module instantiation byte cost.

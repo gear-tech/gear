@@ -18,8 +18,15 @@
 
 //! Program generation module
 
-use crate::{common::errors::Result, prog, ActorId, CodeId, MessageId};
-use codec::alloc::vec::Vec;
+use crate::{
+    async_runtime::signals,
+    common::errors::Result,
+    msg::{CodecCreateProgramFuture, CreateProgramFuture},
+    prelude::convert::AsRef,
+    prog, ActorId, CodeId, MessageId,
+};
+use codec::{alloc::vec::Vec, Decode};
+use gstd_codegen::wait_create_program_for_reply;
 
 /// `ProgramGenerator` allows you to create programs
 /// without need to set the salt manually.
@@ -45,6 +52,7 @@ impl ProgramGenerator {
         [&Self::UNIQUE_KEY, message_id.as_ref(), &creator_nonce].concat()
     }
 
+    #[wait_create_program_for_reply(Self)]
     pub fn create_program_with_gas(
         code_id: CodeId,
         payload: impl AsRef<[u8]>,
@@ -71,6 +79,7 @@ impl ProgramGenerator {
         )
     }
 
+    #[wait_create_program_for_reply(Self)]
     pub fn create_program(
         code_id: CodeId,
         payload: impl AsRef<[u8]>,

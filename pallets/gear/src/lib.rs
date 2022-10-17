@@ -876,6 +876,7 @@ pub mod pallet {
                 waitlist_cost: CostsPerBlockOf::<T>::waitlist(),
                 reserve_for: CostsPerBlockOf::<T>::reserve_for().unique_saturated_into(),
                 read_cost: DbWeightOf::<T>::get().reads(1).ref_time(),
+                write_cost: DbWeightOf::<T>::get().writes(1).ref_time(),
                 per_byte_cost: ReadPerByteCostOf::<T>::get(),
                 module_instantiation_byte_cost: schedule.module_instantiation_per_byte,
             };
@@ -1224,6 +1225,7 @@ pub mod pallet {
                 waitlist_cost: CostsPerBlockOf::<T>::waitlist(),
                 reserve_for: CostsPerBlockOf::<T>::reserve_for().unique_saturated_into(),
                 read_cost: DbWeightOf::<T>::get().reads(1).ref_time(),
+                write_cost: DbWeightOf::<T>::get().writes(1).ref_time(),
                 per_byte_cost: ReadPerByteCostOf::<T>::get(),
                 module_instantiation_byte_cost: schedule.module_instantiation_per_byte,
             };
