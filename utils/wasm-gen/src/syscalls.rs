@@ -28,6 +28,7 @@ pub enum ParamType {
     Ptr,             // i32 pointer
     Gas,             // i64 gas amount
     MessagePosition, // i32 message position
+    Duration,        // i32 duration in blocks
     Delay,           // i32 delay in blocks
     Handler,         // i32 handler number
     Alloc,           // i32 alloc pages
@@ -50,7 +51,8 @@ impl ParamType {
             ParamType::Ptr => config.sys_calls.ptr_rule.clone(),
             ParamType::Gas => config.sys_calls.gas_rule.clone(),
             ParamType::MessagePosition => config.sys_calls.message_position.clone(),
-            ParamType::Delay => config.sys_calls.delay_in_blocks.clone(),
+            ParamType::Duration => config.sys_calls.duration_in_blocks.clone(),
+            ParamType::Delay => config.sys_calls.duration_in_blocks.clone(),
             ParamType::Handler => config.sys_calls.handler.clone(),
             ParamType::Alloc => config.sys_calls.alloc_param_rule.clone(),
             ParamType::Free => config.sys_calls.free_param_rule.clone(),
@@ -104,7 +106,7 @@ pub struct SyscallsConfig {
     pub no_rule: ParamRule,
     pub gas_rule: ParamRule,
     pub message_position: ParamRule,
-    pub delay_in_blocks: ParamRule,
+    pub duration_in_blocks: ParamRule,
     pub handler: ParamRule,
 }
 
@@ -140,7 +142,7 @@ impl Default for SyscallsConfig {
                 allowed_values: 0..=10,
                 restricted_ratio,
             },
-            delay_in_blocks: ParamRule {
+            duration_in_blocks: ParamRule {
                 allowed_values: 0..=10000,
                 restricted_ratio,
             },
@@ -197,11 +199,11 @@ pub(crate) fn sys_calls_table(config: &GearConfig) -> BTreeMap<&'static str, Sys
     res.insert("gr_wait", SysCallInfo::new(config, [], [], frequency));
     res.insert(
         "gr_wait_up_to",
-        SysCallInfo::new(config, [Size], [], frequency),
+        SysCallInfo::new(config, [Duration], [], frequency),
     );
     res.insert(
         "gr_wait_for",
-        SysCallInfo::new(config, [Delay], [], frequency),
+        SysCallInfo::new(config, [Duration], [], frequency),
     );
     res.insert(
         "gr_wake",
