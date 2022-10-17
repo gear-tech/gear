@@ -22,7 +22,7 @@ use crate::{
     async_runtime::{signals, ReplyPoll},
     errors::{ContractError, Result},
     prelude::{convert::AsRef, Vec},
-    MessageId,
+    ActorId, MessageId,
 };
 use codec::Decode;
 use core::{
@@ -51,7 +51,7 @@ pub struct CodecMessageFuture<T> {
     ///
     /// Need to `pub` this field because we are constructing this
     /// field in other files
-    pub(super) _marker: PhantomData<T>,
+    pub(crate) _marker: PhantomData<T>,
 }
 
 impl<D: Decode> Future for CodecMessageFuture<D> {
@@ -74,6 +74,47 @@ impl<D: Decode> Future for CodecMessageFuture<D> {
 }
 
 impl<D: Decode> FusedFuture for CodecMessageFuture<D> {
+    fn is_terminated(&self) -> bool {
+        !signals().waits_for(self.waiting_reply_to)
+    }
+}
+
+/// Same as [`CodecMessageFuture`], but also contains program id
+/// for functions that create programs.
+pub struct CodecCreateProgramFuture<T> {
+    /// Waiting reply to this the message id.
+    pub waiting_reply_to: MessageId,
+    /// Id of newly created program.
+    pub program_id: ActorId,
+    /// Marker
+    ///
+    /// # Note
+    ///
+    /// Need to `pub` this field because we are constructing this
+    /// field in other files.
+    pub(crate) _marker: PhantomData<T>,
+}
+
+impl<D: Decode> Future for CodecCreateProgramFuture<D> {
+    type Output = Result<(ActorId, D)>;
+
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        let fut = &mut self;
+        match signals().poll(fut.waiting_reply_to, cx) {
+            ReplyPoll::None => panic!("Somebody created CodecCreateProgramFuture with the MessageId that never ended in static replies!"),
+            ReplyPoll::Pending => Poll::Pending,
+            ReplyPoll::Some((actual_reply, exit_code)) => {
+                if exit_code != 0 {
+                    return Poll::Ready(Err(ContractError::ExitCode(exit_code)));
+                }
+
+                Poll::Ready(D::decode(&mut actual_reply.as_ref()).map(|payload| (self.program_id, payload)).map_err(ContractError::Decode))
+            },
+        }
+    }
+}
+
+impl<D: Decode> FusedFuture for CodecCreateProgramFuture<D> {
     fn is_terminated(&self) -> bool {
         !signals().waits_for(self.waiting_reply_to)
     }
@@ -113,6 +154,41 @@ impl Future for MessageFuture {
 }
 
 impl FusedFuture for MessageFuture {
+    fn is_terminated(&self) -> bool {
+        !signals().waits_for(self.waiting_reply_to)
+    }
+}
+
+/// Same as [`MessageFuture`], but also contains program id
+/// for functions that create programs.
+
+pub struct CreateProgramFuture {
+    /// Waiting reply to this the message id
+    pub waiting_reply_to: MessageId,
+    /// Id of newly created program.
+    pub program_id: ActorId,
+}
+
+impl Future for CreateProgramFuture {
+    type Output = Result<(ActorId, Vec<u8>)>;
+
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        let fut = &mut *self;
+        match signals().poll(fut.waiting_reply_to, cx) {
+            ReplyPoll::None => panic!("Somebody created CreateProgramFuture with the MessageId that never ended in static replies!"),
+            ReplyPoll::Pending => Poll::Pending,
+            ReplyPoll::Some((actual_reply, exit_code)) => {
+                if exit_code != 0 {
+                    return Poll::Ready(Err(ContractError::ExitCode(exit_code)));
+                }
+
+                Poll::Ready(Ok((self.program_id, actual_reply)))
+            },
+        }
+    }
+}
+
+impl FusedFuture for CreateProgramFuture {
     fn is_terminated(&self) -> bool {
         !signals().waits_for(self.waiting_reply_to)
     }
