@@ -6208,7 +6208,7 @@ mod utils {
                             end $while
                         )
                         (func $init
-                            i32.const 1024
+                            i32.const 0xffffffff
                             call $doWork
                         )
                     )"#
