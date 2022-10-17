@@ -2883,7 +2883,7 @@ fn test_requeue_after_wait_for_timeout() {
         run_to_next_block(None);
 
         let duration = 10;
-        let payload = Command::WaitFor(duration).encode();
+        let payload = Command::SendAndWaitFor(duration, USER_1.into()).encode();
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(USER_1),
             program_id,
@@ -2894,11 +2894,16 @@ fn test_requeue_after_wait_for_timeout() {
 
         // Fast forward blocks.
         run_to_next_block(None);
-        let message_id = get_last_message_id();
+        let message_id = filter_event_rev(|e| match e {
+            Event::MessageEnqueued { id, .. } => Some(id),
+            _ => None,
+        });
         let now = System::block_number();
         System::set_block_number(duration as u64 + now - 1);
-        System::reset_events();
 
+        // Clean previous events and mailbox.
+        System::reset_events();
+        MailboxOf::<Test>::clear();
         run_to_next_block(None);
 
         // `MessageWoken` dispatched.
@@ -2914,6 +2919,9 @@ fn test_requeue_after_wait_for_timeout() {
             reason: Reason::Runtime(MessageWaitedRuntimeReason::WaitForCalled),
             expiration: 23,
         }));
+
+        // Message processed.
+        assert_eq!(get_last_mail(USER_1).payload(), b"ping");
     })
 }
 
@@ -6127,7 +6135,10 @@ mod utils {
         }
     }
 
-    pub(super) fn get_last_message_id() -> MessageId {
+    pub(super) fn filter_event_rev<F, R>(f: F) -> R
+    where
+        F: Fn(Event<Test>) -> Option<R>,
+    {
         System::events()
             .iter()
             .rev()
@@ -6138,12 +6149,16 @@ mod utils {
                     None
                 }
             })
-            .find_map(|e| match e {
-                Event::MessageEnqueued { id, .. } => Some(id),
-                Event::UserMessageSent { message, .. } => Some(message.id()),
-                _ => None,
-            })
+            .find_map(f)
             .expect("can't find message send event")
+    }
+
+    pub(super) fn get_last_message_id() -> MessageId {
+        filter_event_rev(|e| match e {
+            Event::MessageEnqueued { id, .. } => Some(id),
+            Event::UserMessageSent { message, .. } => Some(message.id()),
+            _ => None,
+        })
     }
 
     pub(super) fn get_waitlist_expiration(message_id: MessageId) -> BlockNumberFor<Test> {
