@@ -58,7 +58,7 @@ use gear_core::{
     code::{Code, CodeAndId},
     gas::{GasAllowanceCounter, GasCounter, ValueCounter},
     ids::{CodeId, MessageId, ProgramId},
-    memory::{PageBuf, PageNumber},
+    memory::{AllocationsContext, PageBuf, PageNumber},
     message::{Dispatch, DispatchKind, Message, ReplyDetails},
 };
 use pallet_authorship::Pallet as AuthorshipPallet;
@@ -124,7 +124,11 @@ fn default_processor_context() -> ProcessorContext {
         gas_counter: GasCounter::new(0),
         gas_allowance_counter: GasAllowanceCounter::new(0),
         value_counter: ValueCounter::new(0),
-        allocations_context: Default::default(),
+        allocations_context: AllocationsContext::new(
+            Default::default(),
+            Default::default(),
+            Default::default(),
+        ),
         message_context: Default::default(),
         block_info: Default::default(),
         config: Default::default(),
