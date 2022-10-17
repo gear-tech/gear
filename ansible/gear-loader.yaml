@@ -1,24 +1,30 @@
-- name: "deploy to aws"
+- name: Stop docker compose
   hosts: all
   become: yes
   remote_user: ec2-user
-  vars:
-
-- name: Stop docker compose
   shell: >
     /usr/local/bin/docker-compose -f "/home/ec2-user/docker-compose.yaml" down
   become: yes
 
 - name: Pull docker images
+  hosts: all
+  become: yes
+  remote_user: ec2-user
   shell: >
      /usr/local/bin/docker-compose -f "/home/ec2-user/docker-compose.yaml" pull
   become: yes
 
 - name: Remove old docker images
+  hosts: all
+  become: yes
+  remote_user: ec2-user
   shell:  docker image prune -f
   become: yes
 
 - name: Run docker-compose
+  hosts: all
+  become: yes
+  remote_user: ec2-user
   shell: >
     /usr/local/bin/docker-compose -f "/home/ec2-user/docker-compose.yaml" up -d
   become: yes
