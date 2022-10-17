@@ -1,23 +1,11 @@
-- name: Stop docker compose
-  remote_user: ec2-user
-  ansible.builtin.shell: |
-    /usr/local/bin/docker-compose -f "/home/ec2-user/docker-compose.yaml" down
+- name: "deploy to aws"
+  hosts: all
   become: yes
+  remote_user: ec2-user
+  vars:
 
-- name: Pull docker images
-  remote_user: ec2-user
-  ansible.builtin.shell: |
-     /usr/local/bin/docker-compose -f "/home/ec2-user/docker-compose.yaml" pull
-  become: yes
-
-- name: Remove old docker images
-  remote_user: ec2-user
-  ansible.builtin.shell: |
-    docker image prune -f
-  become: yes
-
-- name: Run docker-compose
-  remote_user: ec2-user
-  ansible.builtin.shell: |
-    /usr/local/bin/docker-compose -f "/home/ec2-user/docker-compose.yaml" up -d
-  become: yes
+  tasks:
+  - name: Stop docker compose
+    shell: >
+        /usr/local/bin/docker-compose -f "/home/ec2-user/docker-compose.yaml" down
+    become: yes
