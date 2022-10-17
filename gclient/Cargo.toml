@@ -22,6 +22,8 @@ wabt = "0.10.0"
 default = [ "gear" ]
 gear = [ "gp/gear" ]
 vara = [ "gp/vara" ]
+debug-mode = [ "gp/debug-mode" ]
+lazy-pages = [ "gp/lazy-pages" ]
 
 [dev-dependencies]
 tokio = { version = "1.21.2", features = ["full"] }

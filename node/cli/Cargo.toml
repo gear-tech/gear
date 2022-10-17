@@ -76,6 +76,7 @@ lazy-pages = [
 	"gear-runtime-test-cli?/lazy-pages",
 	"vara-runtime?/lazy-pages",
 	"gear-runtime?/lazy-pages",
+	"gear-program/lazy-pages",
 ]
 runtime-benchmarks = [
 	"service/runtime-benchmarks",
@@ -85,6 +86,7 @@ debug-mode = [
 	"service/debug-mode",
 	"gear-runtime?/debug-mode",
 	"vara-runtime?/debug-mode",
+	"gear-program/debug-mode",
 ]
 try-runtime = [
 	"service/try-runtime",
