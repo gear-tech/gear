@@ -58,7 +58,7 @@ use gear_core::{
     gas::{GasAllowanceCounter, GasCounter, ValueCounter},
     ids::{CodeId, MessageId, ProgramId},
     memory::{AllocationsContext, PageBuf, PageNumber},
-    message::{Dispatch, DispatchKind, Message, MessageContext, ReplyDetails},
+    message::{ContextSettings, Dispatch, DispatchKind, Message, MessageContext, ReplyDetails},
     program::Program as CoreProgram,
 };
 use pallet_authorship::Pallet as AuthorshipPallet;
@@ -129,7 +129,12 @@ fn default_processor_context() -> ProcessorContext {
             Default::default(),
             Default::default(),
         ),
-        message_context: MessageContext::new(Default::default(), Default::default(), None),
+        message_context: MessageContext::new(
+            Default::default(),
+            Default::default(),
+            None,
+            ContextSettings::new(0, 0, 0, 0),
+        ),
         block_info: Default::default(),
         config: Default::default(),
         existential_deposit: 0,
