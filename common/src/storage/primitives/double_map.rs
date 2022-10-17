@@ -114,7 +114,7 @@ macro_rules! wrap_storage_double_map {
                 $storage::<T>::insert(key1, key2, value)
             }
 
-            fn iter_keys() -> KeyPrefixIterator<(Self::Key1, Self::Key2)> {
+            fn iter_keys() -> frame_support::storage::KeyPrefixIterator<(Self::Key1, Self::Key2)> {
                 $storage::<T>::iter_keys()
             }
 
