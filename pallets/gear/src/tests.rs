@@ -5995,7 +5995,7 @@ mod utils {
         let status =
             dispatch_status(message_id).expect("Message not found in `Event::MessagesDispatched`");
 
-        assert_eq!(status, DispatchStatus::Failed);
+        assert_eq!(status, DispatchStatus::Failed, "Expected: {}", error);
 
         let mut actual_error = None;
 
@@ -6208,7 +6208,7 @@ mod utils {
                             end $while
                         )
                         (func $init
-                            i32.const 0xffffffff
+                            i32.const 0x7fff_ffff
                             call $doWork
                         )
                     )"#
