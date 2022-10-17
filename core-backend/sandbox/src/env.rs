@@ -223,7 +223,6 @@ where
             memory_wrap,
             ..
         } = runtime;
-        drop(instance);
 
         log::debug!("SandboxEnvironment::execute res = {res:?}");
 
