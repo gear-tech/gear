@@ -34,11 +34,10 @@ pub enum ParamType {
     Free,            // i32 free page
 }
 
-impl Into<ValueType> for ParamType {
-    fn into(self) -> ValueType {
-        use ParamType::*;
-        match self {
-            Gas => ValueType::I64,
+impl From<ParamType> for ValueType {
+    fn from(value: ParamType) -> Self {
+        match value {
+            ParamType::Gas => ValueType::I64,
             _ => ValueType::I32,
         }
     }
@@ -167,7 +166,10 @@ pub(crate) fn sys_calls_table(config: &GearConfig) -> BTreeMap<&'static str, Sys
         "gr_debug",
         SysCallInfo::new(config, [Ptr, Size], [], frequency),
     );
-    res.insert("gr_error", SysCallInfo::new(config, [Ptr], [I32], frequency));
+    res.insert(
+        "gr_error",
+        SysCallInfo::new(config, [Ptr], [I32], frequency),
+    );
 
     res.insert(
         "gr_block_height",
@@ -210,7 +212,10 @@ pub(crate) fn sys_calls_table(config: &GearConfig) -> BTreeMap<&'static str, Sys
         "gr_exit_code",
         SysCallInfo::new(config, [Ptr], [I32], frequency),
     );
-    res.insert("gr_message_id", SysCallInfo::new(config, [Ptr], [], frequency));
+    res.insert(
+        "gr_message_id",
+        SysCallInfo::new(config, [Ptr], [], frequency),
+    );
     res.insert(
         "gr_read",
         SysCallInfo::new(config, [MessagePosition, Size, Ptr], [I32], frequency),
@@ -307,7 +312,7 @@ fn test_sys_calls_table() {
     use gear_core::message::DispatchKind;
     use wasm_instrument::parity_wasm::builder;
 
-    let config = GearConfig::default();
+    let config = GearConfig::new_normal();
     let table = sys_calls_table(&config);
 
     // Make module with one empty function.

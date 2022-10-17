@@ -123,8 +123,8 @@ pub struct GearConfig {
     pub print_test_info: Option<String>,
 }
 
-impl Default for GearConfig {
-    fn default() -> Self {
+impl GearConfig {
+    pub fn new_normal() -> Self {
         let prob = (1, 100).into();
         Self {
             process_when_no_funcs: prob,
@@ -141,9 +141,6 @@ impl Default for GearConfig {
             print_test_info: None,
         }
     }
-}
-
-impl GearConfig {
     pub fn new_for_rare_cases() -> Self {
         let prob = (50, 100).into();
         Self {
