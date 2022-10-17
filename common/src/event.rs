@@ -98,9 +98,11 @@ pub enum MessageWaitedRuntimeReason {
     WaitCalled,
     /// Program called `gr_wait_for` while executing message.
     WaitForCalled,
-    /// Program called `gr_wait_up_to` while executing message.
+    /// Program called `gr_wait_up_to` with insufficient gas for full
+    /// duration while executing message.
     WaitUpToCalled,
-    /// Program called `gr_wait_up_to` with enough gas while executing message.
+    /// Program called `gr_wait_up_to` with enough gas for full duration
+    /// storing while executing message.
     WaitUpToCalledFull,
 }
 

@@ -581,19 +581,11 @@ impl EnvExt for Ext {
             return self.return_and_store_err(Err(WaitError::NotEnoughGas));
         }
 
-        Ok(self
-            .context
-            .gas_counter
-            .left()
-            .checked_sub(
-                u64::from(
-                    self.context
-                        .reserve_for
-                        .saturating_add(duration.saturating_sub(1)),
-                )
-                .saturating_mul(self.context.waitlist_cost),
-            )
-            .is_some())
+        let reserve_full = u64::from(self.context.reserve_for.saturating_add(duration))
+            .saturating_mul(self.context.waitlist_cost);
+        let reserve_diff = reserve_full - reserve;
+
+        Ok(self.context.gas_counter.reduce(reserve_diff) == ChargeResult::Enough)
     }
 
     fn wake(&mut self, waker_id: MessageId, delay: u32) -> Result<(), Self::Error> {

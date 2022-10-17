@@ -26,8 +26,8 @@ use alloc::collections::BTreeSet;
 use codec::{Decode, Encode};
 use common::{
     event::{
-        MessageWaitedReason, MessageWaitedRuntimeReason, MessageWokenReason, Reason,
-        UserMessageReadReason, UserMessageReadRuntimeReason,
+        MessageWaitedReason, MessageWaitedRuntimeReason, MessageWaitedSystemReason,
+        MessageWokenReason, Reason, UserMessageReadReason, UserMessageReadRuntimeReason,
     },
     gas_provider::GasNodeId,
     scheduler::*,
@@ -363,23 +363,19 @@ where
             .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
 
         match reason {
-            MessageWaitedReason::Runtime(MessageWaitedRuntimeReason::WaitForCalled) => {
-                TaskPoolOf::<T>::add(
-                    hold.expected(),
-                    ScheduledTask::WakeMessage(dispatch.destination(), dispatch.id()),
-                )
-                .unwrap_or_else(|e| unreachable!("Scheduling logic invalidated! {:?}", e));
-            }
-            MessageWaitedReason::Runtime(MessageWaitedRuntimeReason::WaitUpToCalledFull) => {
+            MessageWaitedReason::Runtime(MessageWaitedRuntimeReason::WaitForCalled)
+            | MessageWaitedReason::Runtime(MessageWaitedRuntimeReason::WaitUpToCalledFull) => {
                 let expected = hold.expected();
                 let task = ScheduledTask::WakeMessage(dispatch.destination(), dispatch.id());
 
-                if !TaskPoolOf::<T>::contains(&expected, &task) {
-                    TaskPoolOf::<T>::add(expected, task)
-                        .unwrap_or_else(|e| unreachable!("Scheduling logic invalidated! {:?}", e));
-                }
+                TaskPoolOf::<T>::remove(task.clone())
+                    .unwrap_or_else(|e| unreachable!("Scheduling logic invalidated! {:?}", e));
+                TaskPoolOf::<T>::add(expected, task)
+                    .unwrap_or_else(|e| unreachable!("Scheduling logic invalidated! {:?}", e));
             }
-            _ => {
+            MessageWaitedReason::Runtime(MessageWaitedRuntimeReason::WaitCalled)
+            | MessageWaitedReason::Runtime(MessageWaitedRuntimeReason::WaitUpToCalled)
+            | MessageWaitedReason::System(MessageWaitedSystemReason::ProgramIsNotInitialized) => {
                 TaskPoolOf::<T>::add(
                     hold.expected(),
                     ScheduledTask::RemoveFromWaitlist(dispatch.destination(), dispatch.id()),

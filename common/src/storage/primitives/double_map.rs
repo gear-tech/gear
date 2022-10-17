@@ -20,6 +20,7 @@
 //!
 //! This primitive defines interface of interaction
 //! with globally stored double-key map (Key1 -> Key2 -> Value).
+use frame_support::storage::KeyPrefixIterator;
 
 /// Represents logic of managing globally stored
 /// double-key map for more complicated logic.
@@ -42,6 +43,9 @@ pub trait DoubleMapStorage {
 
     /// Inserts value with given keys.
     fn insert(key1: Self::Key1, key2: Self::Key2, value: Self::Value);
+
+    // Enumerate all keys `k1` and `k2` in the map in no particular order.
+    fn iter_keys() -> KeyPrefixIterator<(Self::Key1, Self::Key2)>;
 
     /// Mutates value by `Option` reference, which stored (or not
     /// in `None` case) under given keys with given function.
@@ -108,6 +112,10 @@ macro_rules! wrap_storage_double_map {
 
             fn insert(key1: Self::Key1, key2: Self::Key2, value: Self::Value) {
                 $storage::<T>::insert(key1, key2, value)
+            }
+
+            fn iter_keys() -> KeyPrefixIterator<(Self::Key1, Self::Key2)> {
+                $storage::<T>::iter_keys()
             }
 
             fn mutate<R, F: FnOnce(&mut Option<Self::Value>) -> R>(
