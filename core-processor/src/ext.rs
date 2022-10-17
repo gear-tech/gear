@@ -78,29 +78,6 @@ pub struct ProcessorContext {
     pub reserve_for: u32,
 }
 
-impl Default for ProcessorContext {
-    fn default() -> Self {
-        Self {
-            gas_counter: GasCounter::new(0),
-            gas_allowance_counter: GasAllowanceCounter::new(0),
-            value_counter: ValueCounter::new(0),
-            allocations_context: Default::default(),
-            message_context: Default::default(),
-            block_info: Default::default(),
-            config: Default::default(),
-            existential_deposit: 0,
-            origin: Default::default(),
-            program_id: Default::default(),
-            program_candidates_data: Default::default(),
-            host_fn_weights: Default::default(),
-            forbidden_funcs: Default::default(),
-            mailbox_threshold: 0,
-            waitlist_cost: 0,
-            reserve_for: 0,
-        }
-    }
-}
-
 /// Trait to which ext must have to work in processor wasm executor.
 /// Currently used only for lazy-pages support.
 pub trait ProcessorExt {

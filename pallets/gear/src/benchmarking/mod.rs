@@ -48,7 +48,7 @@ use common::{
 };
 use core_processor::{
     configs::{AllocationsConfig, BlockConfig, BlockInfo, MessageExecutionContext},
-    PrechargeResult, PrepareResult, ProcessExecutionContext, ProcessorExt,
+    PrechargeResult, PrepareResult, ProcessExecutionContext, ProcessorContext, ProcessorExt,
 };
 use frame_benchmarking::{benchmarks, whitelisted_caller};
 use frame_support::traits::{Currency, Get, Hooks, ReservableCurrency};
@@ -56,6 +56,7 @@ use frame_system::{Pallet as SystemPallet, RawOrigin};
 use gear_backend_common::Environment;
 use gear_core::{
     code::{Code, CodeAndId},
+    gas::{GasAllowanceCounter, GasCounter, ValueCounter},
     ids::{CodeId, MessageId, ProgramId},
     memory::{PageBuf, PageNumber},
     message::{Dispatch, DispatchKind, Message, ReplyDetails},
@@ -116,6 +117,27 @@ where
     init_block::<T>();
 
     Gear::<T>::process_queue(Default::default());
+}
+
+fn default_processor_context() -> ProcessorContext {
+    ProcessorContext {
+        gas_counter: GasCounter::new(0),
+        gas_allowance_counter: GasAllowanceCounter::new(0),
+        value_counter: ValueCounter::new(0),
+        allocations_context: Default::default(),
+        message_context: Default::default(),
+        block_info: Default::default(),
+        config: Default::default(),
+        existential_deposit: 0,
+        origin: Default::default(),
+        program_id: Default::default(),
+        program_candidates_data: Default::default(),
+        host_fn_weights: Default::default(),
+        forbidden_funcs: Default::default(),
+        mailbox_threshold: 0,
+        waitlist_cost: 0,
+        reserve_for: 0,
+    }
 }
 
 /// An instantiated and deployed program.
@@ -397,7 +419,7 @@ benchmarks! {
 
         let WasmModule { code, .. } = WasmModule::<T>::sized(c * 1024, Location::Init);
     }: {
-        let ext = Ext::new(Default::default());
+        let ext = Ext::new(default_processor_context());
         ExecutionEnvironment::new(ext, &code, max_pages::<T>().into()).unwrap();
     }
 
