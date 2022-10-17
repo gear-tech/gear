@@ -8,37 +8,8 @@ on:
 env:
   CARGO_TERM_COLOR: always
 jobs:
-  docker:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout repo
-        uses: actions/checkout@v3
-      
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v2
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v2
-
-      - name: Login to DockerHub
-        uses: docker/login-action@v1
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Build and push
-        id: docker_build
-        uses: docker/build-push-action@v3
-        with:
-          context: .
-          file: ./docker/Dockerfile
-          push: true
-          tags: ghcr.io/gear-tech/node:latest
-
   deploy:
     runs-on: ubuntu-latest
-    needs: docker
     steps:
       - name: Checkout
         uses: actions/checkout@v3
@@ -62,7 +33,7 @@ jobs:
         with:
           # Required, playbook filepath
           directory: ./ansible/
-          playbook: main.yaml
+          playbook: gear-loader.yaml
           # Optional, SSH private key
           key: ${{secrets.SSH_PRIVATE_KEY}}
           # Optional, literal inventory file contents
