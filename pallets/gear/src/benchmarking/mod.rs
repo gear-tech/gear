@@ -325,6 +325,7 @@ where
         waitlist_cost,
         reserve_for,
         read_cost: DbWeightOf::<T>::get().reads(1).ref_time(),
+        write_cost: DbWeightOf::<T>::get().writes(1).ref_time(),
         per_byte_cost: ReadPerByteCostOf::<T>::get(),
     };
 

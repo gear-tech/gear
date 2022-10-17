@@ -215,28 +215,28 @@ pub fn wait_for_reply(_: TokenStream, item: TokenStream) -> TokenStream {
     let function = syn::parse_macro_input!(item as syn::ItemFn);
     let ident = function.sig.ident.clone();
 
-    // generate functions' idents
+    // Generate functions' idents.
     let (for_reply, for_reply_as) = (
         utils::with_suffix(&function.sig.ident, "_for_reply"),
         utils::with_suffix(&function.sig.ident, "_for_reply_as"),
     );
 
-    // generate docs
+    // Generate docs.
     let (for_reply_docs, for_reply_as_docs) = utils::wait_for_reply_docs(ident.to_string());
 
-    // generate arguments
+    // Generate arguments.
     let (inputs, variadic) = (function.sig.inputs.clone(), function.sig.variadic.clone());
     let args = utils::get_args(&inputs);
 
-    // generate generics
-    let decodeable_ty = utils::ident("D");
-    let decodeable_traits = vec![utils::ident("Decode")];
+    // Generate generics.
+    let decodable_ty = utils::ident("D");
+    let decodable_traits = vec![utils::ident("Decode")];
     let (for_reply_generics, for_reply_as_generics) = (
         function.sig.generics.clone(),
         utils::append_generic(
             function.sig.generics.clone(),
-            decodeable_ty,
-            decodeable_traits,
+            decodable_ty,
+            decodable_traits,
         ),
     );
 
@@ -257,6 +257,73 @@ pub fn wait_for_reply(_: TokenStream, item: TokenStream) -> TokenStream {
             signals().register_signal(waiting_reply_to);
 
             Ok(CodecMessageFuture::<D> { waiting_reply_to, _marker: Default::default() })
+        }
+    }
+    .into()
+}
+
+/// Same as `wait_for_reply`, but works with functions, that create programs:
+/// returns message id with newly created program id.
+#[proc_macro_attribute]
+pub fn wait_create_program_for_reply(attr: TokenStream, item: TokenStream) -> TokenStream {
+    let function = syn::parse_macro_input!(item as syn::ItemFn);
+
+    let ident = function.sig.ident.clone();
+
+    let ident = if !attr.is_empty() {
+        assert_eq!(
+            attr.to_string(),
+            "Self",
+            "Proc macro attribute should be used only to specify Self source of the function"
+        );
+
+        quote! { Self::#ident }
+    } else {
+        quote! { #ident }
+    };
+
+    // Generate functions' idents.
+    let (for_reply, for_reply_as) = (
+        utils::with_suffix(&function.sig.ident, "_for_reply"),
+        utils::with_suffix(&function.sig.ident, "_for_reply_as"),
+    );
+
+    // Generate docs.
+    let (for_reply_docs, for_reply_as_docs) = utils::wait_for_reply_docs(ident.to_string());
+
+    // Generate arguments.
+    let (inputs, variadic) = (function.sig.inputs.clone(), function.sig.variadic.clone());
+    let args = utils::get_args(&inputs);
+
+    // Generate generics.
+    let decodable_ty = utils::ident("D");
+    let decodable_traits = vec![utils::ident("Decode")];
+    let (for_reply_generics, for_reply_as_generics) = (
+        function.sig.generics.clone(),
+        utils::append_generic(
+            function.sig.generics.clone(),
+            decodable_ty,
+            decodable_traits,
+        ),
+    );
+
+    quote! {
+        #function
+
+        #[doc = #for_reply_docs]
+        pub fn #for_reply #for_reply_generics ( #inputs #variadic ) -> Result<CreateProgramFuture> {
+            let (waiting_reply_to, program_id) = #ident #args ?;
+            signals().register_signal(waiting_reply_to);
+
+            Ok(CreateProgramFuture { waiting_reply_to, program_id })
+        }
+
+        #[doc = #for_reply_as_docs]
+        pub fn #for_reply_as #for_reply_as_generics ( #inputs #variadic ) -> Result<CodecCreateProgramFuture<D>> {
+            let (waiting_reply_to, program_id) = #ident #args ?;
+            signals().register_signal(waiting_reply_to);
+
+            Ok(CodecCreateProgramFuture::<D> { waiting_reply_to, program_id, _marker: Default::default() })
         }
     }
     .into()

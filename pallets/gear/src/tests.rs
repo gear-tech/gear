@@ -1511,8 +1511,8 @@ fn block_gas_limit_works() {
         assert_succeed(succeed2);
         assert_failed(
             failed1,
-            ExecutionErrorReason::Ext(TrapExplanation::Core(ExtError::Message(
-                MessageError::NotEnoughGas,
+            ExecutionErrorReason::Ext(TrapExplanation::Core(ExtError::Execution(
+                ExecutionError::GasLimitExceeded,
             ))),
         );
         assert_failed(

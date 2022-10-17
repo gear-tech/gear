@@ -35,7 +35,7 @@ use gear_core::{
     ids::ProgramId,
     memory::{PageBuf, PageNumber, WasmPageNumber},
     message::{
-        DispatchKind, ExitCode, IncomingDispatch, MessageWaitedType, ReplyMessage, StoredDispatch,
+        ContextSettings, DispatchKind, ExitCode, IncomingDispatch, ReplyMessage, StoredDispatch, MessageWaitedType, 
     },
     program::Program,
 };
@@ -325,6 +325,7 @@ pub fn process<
         mailbox_threshold,
         waitlist_cost,
         reserve_for,
+        write_cost,
         ..
     } = block_config.clone();
 
@@ -350,7 +351,21 @@ pub fn process<
         pages_initial_data: memory_pages,
         memory_size: execution_context.memory_size,
     };
-    let msg_ctx_settings = gear_core::message::ContextSettings::new(0, outgoing_limit);
+
+    // Sending fee: double write cost for addition and removal some time soon
+    // from queue.
+    //
+    // Waiting fee: triple write cost for addition and removal some time soon
+    // from waitlist and enqueuing / sending error reply afterward.
+    //
+    // Waking fee: double write cost for removal from waitlist
+    // and further enqueueing.
+    let msg_ctx_settings = ContextSettings::new(
+        write_cost.saturating_mul(2),
+        write_cost.saturating_mul(3),
+        write_cost.saturating_mul(2),
+        outgoing_limit,
+    );
 
     let exec_result = executor::execute_wasm::<A, E>(
         balance,
