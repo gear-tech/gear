@@ -52,8 +52,8 @@ cfg-if = "1"
 demo-meta = { path = "../examples/binaries/meta" }
 
 [build-dependencies]
-gear-runtime = { path = "../runtime/gear", default-features = false, optional = true }
-vara-runtime = { path = "../runtime/vara", default-features = false, optional = true }
+gear-runtime = { path = "../runtime/gear", optional = true }
+vara-runtime = { path = "../runtime/vara", optional = true }
 frame-metadata = "15.0.0"
 parity-scale-codec = "3.1.5"
 subxt-codegen = "0.22.0"
