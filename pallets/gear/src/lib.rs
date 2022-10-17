@@ -75,6 +75,12 @@ type ExecutionEnvironment = gear_backend_wasmi::WasmiEnvironment<Ext>;
 #[cfg(not(feature = "std"))]
 type ExecutionEnvironment = gear_backend_sandbox::SandboxEnvironment<Ext>;
 
+#[cfg(feature = "lazy-pages")]
+use crate::ext::LazyPagesExt as Ext;
+
+#[cfg(not(feature = "lazy-pages"))]
+use core_processor::Ext;
+
 pub(crate) use frame_system::Pallet as SystemPallet;
 
 pub(crate) type CurrencyOf<T> = <T as Config>::Currency;
