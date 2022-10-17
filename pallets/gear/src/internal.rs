@@ -26,8 +26,9 @@ use alloc::collections::BTreeSet;
 use codec::{Decode, Encode};
 use common::{
     event::{
-        MessageWaitedReason, MessageWaitedRuntimeReason, MessageWaitedSystemReason,
-        MessageWokenReason, Reason, UserMessageReadReason, UserMessageReadRuntimeReason,
+        MessageWaitedReason, MessageWaitedRuntimeReason::*,
+        MessageWaitedSystemReason::ProgramIsNotInitialized, MessageWokenReason, Reason, Reason::*,
+        UserMessageReadReason, UserMessageReadRuntimeReason,
     },
     gas_provider::GasNodeId,
     scheduler::*,
@@ -363,19 +364,16 @@ where
             .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
 
         match reason {
-            MessageWaitedReason::Runtime(MessageWaitedRuntimeReason::WaitForCalled)
-            | MessageWaitedReason::Runtime(MessageWaitedRuntimeReason::WaitUpToCalledFull) => {
+            Runtime(WaitForCalled | WaitUpToCalledFull) => {
                 let expected = hold.expected();
                 let task = ScheduledTask::WakeMessage(dispatch.destination(), dispatch.id());
 
-                TaskPoolOf::<T>::remove(task.clone())
-                    .unwrap_or_else(|e| unreachable!("Scheduling logic invalidated! {:?}", e));
-                TaskPoolOf::<T>::add(expected, task)
-                    .unwrap_or_else(|e| unreachable!("Scheduling logic invalidated! {:?}", e));
+                if !TaskPoolOf::<T>::contains(&expected, &task) {
+                    TaskPoolOf::<T>::add(expected, task)
+                        .unwrap_or_else(|e| unreachable!("Scheduling logic invalidated! {:?}", e));
+                }
             }
-            MessageWaitedReason::Runtime(MessageWaitedRuntimeReason::WaitCalled)
-            | MessageWaitedReason::Runtime(MessageWaitedRuntimeReason::WaitUpToCalled)
-            | MessageWaitedReason::System(MessageWaitedSystemReason::ProgramIsNotInitialized) => {
+            Runtime(WaitCalled | WaitUpToCalled) | System(ProgramIsNotInitialized) => {
                 TaskPoolOf::<T>::add(
                     hold.expected(),
                     ScheduledTask::RemoveFromWaitlist(dispatch.destination(), dispatch.id()),

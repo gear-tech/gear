@@ -42,9 +42,6 @@ pub trait TaskPool {
     /// Removes task from task pool by given keys,
     /// if present, else returns error.
     fn delete(bn: Self::BlockNumber, task: Self::Task) -> Result<(), Self::OutputError>;
-
-    /// Removes specified task from task pool.
-    fn remove(task: Self::Task) -> Result<(), Self::OutputError>;
 }
 
 /// Represents store of task pool's action callbacks.
@@ -121,16 +118,6 @@ where
         } else {
             Err(Self::Error::task_not_found().into())
         }
-    }
-
-    fn remove(task: Self::Task) -> Result<(), Self::OutputError> {
-        for (bn, rhs) in T::iter_keys() {
-            if task == rhs {
-                Self::delete(bn, rhs)?;
-            }
-        }
-
-        Ok(())
     }
 }
 

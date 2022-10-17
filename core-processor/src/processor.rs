@@ -35,7 +35,8 @@ use gear_core::{
     ids::ProgramId,
     memory::{PageBuf, PageNumber, WasmPageNumber},
     message::{
-        ContextSettings, DispatchKind, ExitCode, IncomingDispatch, ReplyMessage, StoredDispatch, MessageWaitedType, 
+        ContextSettings, DispatchKind, ExitCode, IncomingDispatch, MessageWaitedType, ReplyMessage,
+        StoredDispatch,
     },
     program::Program,
 };
