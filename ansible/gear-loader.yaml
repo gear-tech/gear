@@ -10,7 +10,7 @@
   become: yes
 
 - name: Pull docker images
-   shell: >
+  shell: >
      /usr/local/bin/docker-compose -f "/home/ec2-user/docker-compose.yaml" pull
   become: yes
 
