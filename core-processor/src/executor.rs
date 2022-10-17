@@ -126,12 +126,12 @@ fn check_memory<'a>(
 }
 
 pub(crate) fn charge_gas_for_instantiation(
-    weight: u64,
+    gas_per_byte: u64,
     code_length: u32,
     gas_counter: &mut GasCounter,
     gas_allowance_counter: &mut GasAllowanceCounter,
 ) -> Result<(), ExecutionErrorReason> {
-    let amount = weight * code_length as u64;
+    let amount = gas_per_byte * code_length as u64;
 
     log::trace!("Charge {} for module instantiation", amount);
 
