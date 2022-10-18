@@ -186,8 +186,11 @@ where
 
     fn remove_gas_reservation(&mut self, program_id: ProgramId, reservation_id: ReservationId) {
         let program_id = program_id.into_origin();
-        let prog = common::get_program(program_id)
-            .expect("gas reservation removing guaranteed to be called only on existing program");
+        let prog = common::get_program(program_id).unwrap_or_else(|| {
+            unreachable!(
+                "gas reservation removing guaranteed to be called only on existing program"
+            )
+        });
         if let Program::Active(mut prog) = prog {
             prog.gas_reservation_map.remove(&reservation_id);
             common::set_program(program_id, prog);
