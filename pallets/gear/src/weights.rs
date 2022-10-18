@@ -40,6 +40,7 @@ pub trait WeightInfo {
     fn grow_cost() -> Weight;
     fn initial_cost() -> Weight;
     fn load_cost() -> Weight;
+    fn instantiate_module_per_kb(c: u32, ) -> Weight;
     fn claim_value() -> Weight;
     fn upload_code(c: u32, ) -> Weight;
     fn create_program(s: u32, ) -> Weight;
@@ -153,6 +154,12 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
     }
     fn load_cost() -> Weight {
         T::DbWeight::get().reads(1)
+    }
+    /// The range of component `c` is `[0, 256902]`.
+    fn instantiate_module_per_kb(c: u32, ) -> Weight {
+        Weight::from_ref_time(57_625_000 as u64)
+            // Standard Error: 2
+            .saturating_add(Weight::from_ref_time(1_504 as u64).saturating_mul(c as u64))
     }
     fn claim_value() -> Weight {
         Weight::from_ref_time(181_473_000 as u64)
@@ -768,6 +775,12 @@ impl WeightInfo for () {
     }
     fn load_cost() -> Weight {
         RocksDbWeight::get().reads(1)
+    }
+    /// The range of component `c` is `[0, 256902]`.
+    fn instantiate_module_per_kb(c: u32, ) -> Weight {
+        Weight::from_ref_time(57_625_000 as u64)
+            // Standard Error: 2
+            .saturating_add(Weight::from_ref_time(1_504 as u64).saturating_mul(c as u64))
     }
     fn claim_value() -> Weight {
         Weight::from_ref_time(181_473_000 as u64)

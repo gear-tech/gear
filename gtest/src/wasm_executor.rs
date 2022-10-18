@@ -32,7 +32,7 @@ use gear_core::{
     env::Ext as ExtTrait,
     gas::{GasAllowanceCounter, GasCounter, ValueCounter},
     memory::{AllocationsContext, Memory, PageBuf, PageNumber, WasmPageNumber},
-    message::{IncomingMessage, MessageContext, Payload},
+    message::{ContextSettings, IncomingMessage, MessageContext, Payload},
     program::Program,
     reservation::GasReserver,
 };
@@ -40,6 +40,7 @@ use std::{collections::BTreeMap, mem};
 
 use crate::{
     manager::ExtManager, Result, TestError, MAILBOX_THRESHOLD, RESERVE_FOR, WAITLIST_COST,
+    WRITE_COST,
 };
 
 /// Binary meta-functions executor for testing purposes
@@ -158,6 +159,7 @@ impl WasmExecutor {
                 IncomingMessage::new(Default::default(), Default::default(), payload, 0, 0, None),
                 program.id(),
                 None,
+                ContextSettings::new(WRITE_COST * 2, WRITE_COST * 3, WRITE_COST * 2, 1024),
             ),
             block_info: Default::default(),
             config: Default::default(),

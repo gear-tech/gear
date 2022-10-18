@@ -10,7 +10,7 @@ programs:
           zerokey: 0
           lonelykey: 1
           couplekey: 2
-    init_value: 100000    
+    init_value: 10000000000
 
 fixtures:
   - title: gui

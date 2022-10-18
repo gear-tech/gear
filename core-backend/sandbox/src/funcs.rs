@@ -275,7 +275,7 @@ where
         let (at, len, buffer_ptr) = args.iter().read_3()?;
 
         ctx.run(|ctx| {
-            match Self::validated(ctx.ext, at, len) {
+            match Self::validated(&mut ctx.ext, at, len) {
                 Ok(buffer) => {
                     ctx.memory
                         .set(buffer_ptr, buffer)

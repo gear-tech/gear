@@ -374,6 +374,12 @@ pub enum ExecutionErrorReason {
     /// Not enough gas for loading a program code
     #[display(fmt = "Not enough gas for loading a program code")]
     ProgramCodeGasExceeded,
+    /// Not enough gas for WASM module instantiation
+    #[display(fmt = "Not enough gas for WASM module instantiation")]
+    ModuleInstantiationGasExceeded,
+    /// Not enough gas in block for WASM module instantiation
+    #[display(fmt = "Not enough gas in block for WASM module instantiation")]
+    ModuleInstantiationBlockGasExceeded,
     /// Mem size less then static pages num
     #[display(fmt = "Mem size less then static pages num")]
     InsufficientMemorySize,

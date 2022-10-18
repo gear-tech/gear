@@ -58,6 +58,7 @@ use common::{
     scheduler::{ScheduledTask, TaskHandler, TaskPool},
     ActiveProgram, CodeStorage, Origin, ProgramState,
 };
+use core::fmt;
 use core_processor::common::{Actor, ExecutableActorData};
 use frame_support::traits::Currency;
 use frame_system::pallet_prelude::BlockNumberFor;
@@ -82,6 +83,17 @@ pub enum HandleKind {
     InitByHash(CodeId),
     Handle(ProgramId),
     Reply(MessageId, ExitCode),
+}
+
+impl fmt::Debug for HandleKind {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            HandleKind::Init(_) => f.debug_tuple("Init").field(&format_args!("[...]")).finish(),
+            HandleKind::InitByHash(id) => f.debug_tuple("InitByHash").field(id).finish(),
+            HandleKind::Handle(id) => f.debug_tuple("Handle").field(id).finish(),
+            HandleKind::Reply(id, code) => f.debug_tuple("Reply").field(id).field(code).finish(),
+        }
+    }
 }
 
 #[derive(Debug)]
