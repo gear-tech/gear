@@ -18,9 +18,6 @@
 
 //! Gas module.
 
-use codec::{Decode, Encode};
-use scale_info::TypeInfo;
-
 /// This trait represents a token that can be used for charging `GasCounter`.
 ///
 /// Implementing type is expected to be super lightweight hence `Copy` (`Clone` is added
@@ -51,7 +48,7 @@ pub enum ChargeResult {
 ///
 /// `Copy` trait isn't implemented for the type (however could be)
 /// in order to make the data only moveable, preventing implicit copying.
-#[derive(Clone, Debug, Eq, PartialEq, Encode, Decode, TypeInfo)]
+#[derive(Clone, Debug)]
 pub struct GasCounter {
     left: u64,
     burned: u64,
