@@ -578,7 +578,7 @@ pub(crate) fn sys_calls_table(config: &GearConfig) -> BTreeMap<&'static str, Sys
 fn test_sys_calls_table() {
     use gear_backend_common::{mock::MockExt, Environment, TerminationReason};
     use gear_backend_wasmi::WasmiEnvironment;
-    use gear_core::{code::Code, message::DispatchKind, program::Program};
+    use gear_core::message::DispatchKind;
     use wasm_instrument::parity_wasm::builder;
 
     let config = GearConfig::default();
@@ -609,15 +609,16 @@ fn test_sys_calls_table() {
     }
 
     let code = module.into_bytes().unwrap();
-    let code = Code::new_raw(code, 1, None, false).unwrap();
-    let (code, _) = code.into_parts();
-    let program = Program::new(Default::default(), code);
 
     // Execute wasm and check success.
     let ext = MockExt::default();
-    let env = WasmiEnvironment::new(ext, &program).unwrap();
+    let env = WasmiEnvironment::new(ext, &code, 0.into()).unwrap();
     let res = env
-        .execute(&DispatchKind::Init, |_, _| -> Result<(), u32> { Ok(()) })
+        .execute(
+            Default::default(),
+            &DispatchKind::Init,
+            |_, _| -> Result<(), u32> { Ok(()) },
+        )
         .unwrap();
 
     assert_eq!(res.termination_reason, TerminationReason::Success);
