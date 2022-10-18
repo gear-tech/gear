@@ -2947,7 +2947,6 @@ dependencies = [
  "log",
  "parity-scale-codec",
  "parity-wasm 0.45.0",
- "primitive-types",
  "pwasm-utils",
  "scale-info",
  "static_assertions",
