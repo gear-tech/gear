@@ -297,6 +297,12 @@ impl ReservationId {
     }
 }
 
+impl AsRef<[u8]> for ReservationId {
+    fn as_ref(&self) -> &[u8] {
+        self.0.as_ref()
+    }
+}
+
 impl From<gcore::ReservationId> for ReservationId {
     fn from(id: gcore::ReservationId) -> Self {
         Self(id.0)
