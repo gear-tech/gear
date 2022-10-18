@@ -525,7 +525,9 @@ impl EnvExt for Ext {
         self.charge_gas_runtime(RuntimeCosts::ReserveGas)?;
 
         let common_charge = self.context.gas_counter.reduce(amount);
-        self.check_charge_results(common_charge, ChargeResult::Enough)?;
+        if common_charge == ChargeResult::NotEnough {
+            return Err(ExecutionError::TooManyGasReserved.into());
+        }
 
         let ProcessorContext {
             gas_reserver,
@@ -542,11 +544,7 @@ impl EnvExt for Ext {
     fn unreserve_gas(&mut self, id: ReservationId) -> Result<u64, Self::Error> {
         self.charge_gas_runtime(RuntimeCosts::UnreserveGas)?;
 
-        let amount = self
-            .context
-            .gas_reserver
-            .unreserve(id)
-            .ok_or_else::<Self::Error, _>(|| ExecutionError::InvalidReservationId.into())?;
+        let amount = self.context.gas_reserver.unreserve(id)?;
 
         // this statement is like in `Self::refund_gas()` but it won't affect "burned" counter
         // because we don't actually refund we just rise "left" counter during unreservation

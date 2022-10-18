@@ -21,6 +21,7 @@
 use crate::ids::{MessageId, ReservationId};
 use alloc::collections::BTreeMap;
 use codec::{Decode, Encode};
+use gear_core_errors::ExecutionError;
 use scale_info::TypeInfo;
 
 /// Gas reserver.
@@ -63,8 +64,12 @@ impl GasReserver {
     }
 
     /// Unreserves gas.
-    pub fn unreserve(&mut self, id: ReservationId) -> Option<u64> {
-        let GasReservationSlot { amount, bn } = self.map.remove(&id)?;
+    pub fn unreserve(&mut self, id: ReservationId) -> Result<u64, ExecutionError> {
+        let GasReservationSlot { amount, bn } = self
+            .map
+            .remove(&id)
+            .ok_or(ExecutionError::InvalidReservationId)?;
+
         // Only `AddReservation` task may exist here during current execution
         // so when we do unreservation we just simply remove it
         // so reservation + unreservation operations during one execution are just noop
@@ -72,7 +77,8 @@ impl GasReserver {
             self.tasks
                 .insert(id, GasReservationTask::RemoveReservation { bn });
         }
-        Some(amount)
+
+        Ok(amount)
     }
 
     /// Split reserver into parts.
