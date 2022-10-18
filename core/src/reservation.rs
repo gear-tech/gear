@@ -50,7 +50,7 @@ impl GasReserver {
         let slot = GasReservationSlot { amount, bn };
 
         let old_amount = self.map.insert(id, slot);
-        assert!(
+        debug_assert!(
             old_amount.is_none(),
             "reservation ID expected to be unique; qed"
         );
@@ -58,7 +58,7 @@ impl GasReserver {
         let prev_task = self
             .tasks
             .insert(id, GasReservationTask::CreateReservation { amount, bn });
-        assert_eq!(prev_task, None, "reservation ID collision; qed");
+        debug_assert_eq!(prev_task, None, "reservation ID collision; qed");
 
         id
     }
