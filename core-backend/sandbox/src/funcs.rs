@@ -529,35 +529,24 @@ where
     pub fn reserve_gas(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
         let (id_ptr, gas_amount, duration) = args.iter().read_3()?;
 
-        let mut f = || {
+        ctx.run(|ctx| {
             let id = ctx
                 .ext
                 .reserve_gas(gas_amount, duration)
                 .map_err(FuncError::Core)?;
             ctx.write_output(id_ptr, id.as_ref())?;
             Ok(())
-        };
-
-        f().map(|()| ReturnValue::Unit).map_err(|err| {
-            ctx.err = err;
-            HostError
         })
     }
 
     pub fn unreserve_gas(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
         let id_ptr: u32 = args.iter().read()?;
 
-        let mut f = || {
+        ctx.run(|ctx| {
             let id: ReservationId = ctx.read_memory_as(id_ptr)?;
             let amount = ctx.ext.unreserve_gas(id).map_err(FuncError::Core)?;
             Ok(amount)
-        };
-
-        f().map(|amount| ReturnValue::Value(Value::I64(amount as i64)))
-            .map_err(|err| {
-                ctx.err = err;
-                HostError
-            })
+        })
     }
 
     pub fn gas_available(ctx: &mut Runtime<E>, _args: &[Value]) -> SyscallOutput {
