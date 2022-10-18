@@ -111,6 +111,7 @@ unsafe extern "C" fn handle_reply() {
 mod tests {
     extern crate std;
 
+    use crate::InitAction;
     use gtest::{Program, System};
 
     #[test]
@@ -120,7 +121,7 @@ mod tests {
 
         let program = Program::current(&system);
 
-        let res = program.send_bytes(0, b"dummy");
+        let res = program.send(0, InitAction::Normal);
         assert!(!res.main_failed());
     }
 }
