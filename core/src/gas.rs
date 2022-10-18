@@ -139,7 +139,6 @@ impl GasCounter {
     }
 
     /// Refund `amount` of gas.
-    // FIXME: don't use `ChargeResult`. It's semantically wrong to return it
     pub fn refund(&mut self, amount: u64) -> ChargeResult {
         if amount > u64::MAX - self.left || amount > self.burned {
             return ChargeResult::NotEnough;
