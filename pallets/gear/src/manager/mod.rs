@@ -262,8 +262,10 @@ where
     }
 
     fn clean_reservation_tasks(&mut self, program_id: ProgramId) {
-        let active_program = common::get_active_program(program_id.into_origin())
-            .expect("`exit` can be called only from active program; qed");
+        let active_program =
+            common::get_active_program(program_id.into_origin()).unwrap_or_else(|e| {
+                unreachable!("`exit` can be called only from active program: {}", e)
+            });
         for (reservation_id, reservation_slot) in active_program.gas_reservation_map {
             <Self as TaskHandler<T::AccountId>>::remove_gas_reservation(
                 self,
