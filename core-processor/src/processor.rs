@@ -38,7 +38,7 @@ use gear_core::{
         ContextSettings, DispatchKind, ExitCode, IncomingDispatch, ReplyMessage, StoredDispatch,
     },
     program::Program,
-    reservation::GasReserver,
+    reservation::{GasReservationTask, GasReserver},
 };
 
 #[derive(Debug)]
@@ -546,10 +546,25 @@ fn process_success(
         amount: gas_amount.burned(),
     });
 
+    let (gas_reservation_map, tasks) = gas_reserver.into_parts();
+    journal.extend(tasks.into_iter().map(|(id, task)| match task {
+        GasReservationTask::CreateReservation { amount, bn } => JournalNote::ReserveGas {
+            message_id,
+            reservation_id: id,
+            program_id,
+            amount,
+            bn,
+        },
+        GasReservationTask::RemoveReservation { bn } => JournalNote::UnreserveGas {
+            reservation_id: id,
+            program_id,
+            bn,
+        },
+    }));
+
     journal.push(JournalNote::UpdateGasReservations {
-        message_id,
         program_id,
-        gas_reserver,
+        map: gas_reservation_map,
     });
 
     // We check if value is greater than zero to don't provide

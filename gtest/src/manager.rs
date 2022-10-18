@@ -31,13 +31,13 @@ use core_processor::{
 use gear_backend_wasmi::WasmiEnvironment;
 use gear_core::{
     code::{Code, CodeAndId, InstrumentedCode, InstrumentedCodeAndId},
-    ids::{CodeId, MessageId, ProgramId},
+    ids::{CodeId, MessageId, ProgramId, ReservationId},
     memory::{PageBuf, PageNumber, WasmPageNumber},
     message::{
         Dispatch, DispatchKind, Payload, ReplyMessage, ReplyPacket, StoredDispatch, StoredMessage,
     },
     program::Program as CoreProgram,
-    reservation::{GasReservationMap, GasReserver},
+    reservation::GasReservationMap,
 };
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap, VecDeque},
@@ -909,18 +909,27 @@ impl JournalHandler for ExtManager {
         panic!("Processing stopped. Used for on-chain logic only.")
     }
 
-    fn update_gas_reservation(
+    fn reserve_gas(
         &mut self,
         _message_id: MessageId,
+        _reservation_id: ReservationId,
+        _program_id: ProgramId,
+        _amount: u64,
+        _bn: u32,
+    ) {
+    }
+
+    fn unreserve_gas(&mut self, _reservation_id: ReservationId, _program_id: ProgramId, _bn: u32) {}
+
+    fn update_gas_reservation(
+        &mut self,
         program_id: ProgramId,
-        gas_reserver: GasReserver,
+        gas_reservation_map: GasReservationMap,
     ) {
         let (actor, _) = self
             .actors
             .get_mut(&program_id)
             .expect("gas reservation update guaranteed to be called only on existing program");
-
-        let (gas_reservation_map, _) = gas_reserver.into_parts();
 
         if let TestActor::Initialized(Program::Genuine {
             gas_reservation_map: prog_gas_reservation_map,

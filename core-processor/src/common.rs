@@ -27,7 +27,7 @@ use codec::{Decode, Encode};
 use gear_backend_common::TrapExplanation;
 use gear_core::{
     gas::{GasAllowanceCounter, GasAmount, GasCounter},
-    ids::{CodeId, MessageId, ProgramId},
+    ids::{CodeId, MessageId, ProgramId, ReservationId},
     memory::{PageBuf, PageNumber, WasmPageNumber},
     message::{ContextStore, Dispatch, DispatchKind, IncomingDispatch, StoredDispatch},
     program::Program,
@@ -254,14 +254,34 @@ pub enum JournalNote {
         /// Decreases gas allowance by that amount, burned for processing try.
         gas_burned: u64,
     },
-    /// Update gas reservations.
-    UpdateGasReservations {
-        /// Message which gas will be reserved from.
+    /// Reserve gas.
+    ReserveGas {
+        /// Message from which gas is reserved.
         message_id: MessageId,
-        /// Program ID.
+        /// Reservation ID
+        reservation_id: ReservationId,
+        /// Program which contains reservation.
         program_id: ProgramId,
-        /// Gas reservation map.
-        gas_reserver: GasReserver,
+        /// Amount of reserved gas.
+        amount: u64,
+        /// Block number until reservation will live.
+        bn: u32,
+    },
+    /// Unreserve gas.
+    UnreserveGas {
+        /// Reservation ID
+        reservation_id: ReservationId,
+        /// Program which contains reservation.
+        program_id: ProgramId,
+        /// Block number until reservation will live.
+        bn: u32,
+    },
+    /// Update gas reservation map in program.
+    UpdateGasReservations {
+        /// Program whose map will be updated.
+        program_id: ProgramId,
+        /// Map with reservations.
+        map: GasReservationMap,
     },
 }
 
@@ -312,13 +332,19 @@ pub trait JournalHandler {
     ///
     /// Pushes StoredDispatch back to the top of the queue and decreases gas allowance.
     fn stop_processing(&mut self, dispatch: StoredDispatch, gas_burned: u64);
-    /// Update gas reservations.
-    fn update_gas_reservation(
+    /// Reserve gas.
+    fn reserve_gas(
         &mut self,
         message_id: MessageId,
+        reservation_id: ReservationId,
         program_id: ProgramId,
-        gas_reserver: GasReserver,
+        amount: u64,
+        bn: u32,
     );
+    /// Unreserve gas.
+    fn unreserve_gas(&mut self, reservation_id: ReservationId, program_id: ProgramId, bn: u32);
+    /// Update gas reservations.
+    fn update_gas_reservation(&mut self, program_id: ProgramId, map: GasReservationMap);
 }
 
 /// Execution error.

@@ -20,10 +20,10 @@ use crate::check::ExecutionContext;
 use core_processor::common::*;
 use gear_core::{
     code::{Code, CodeAndId},
-    ids::{CodeId, MessageId, ProgramId},
+    ids::{CodeId, MessageId, ProgramId, ReservationId},
     memory::{PageBuf, PageNumber, WasmPageNumber},
     message::{Dispatch, DispatchKind, GasLimit, StoredDispatch, StoredMessage},
-    reservation::GasReserver,
+    reservation::GasReservationMap,
 };
 use std::{
     collections::{BTreeMap, BTreeSet, VecDeque},
@@ -387,18 +387,27 @@ impl JournalHandler for InMemoryExtManager {
         panic!("Processing stopped. Used for on-chain logic only.");
     }
 
-    fn update_gas_reservation(
+    fn reserve_gas(
         &mut self,
         _message_id: MessageId,
+        _reservation_id: ReservationId,
+        _program_id: ProgramId,
+        _amount: u64,
+        _bn: u32,
+    ) {
+    }
+
+    fn unreserve_gas(&mut self, _reservation_id: ReservationId, _program_id: ProgramId, _bn: u32) {}
+
+    fn update_gas_reservation(
+        &mut self,
         program_id: ProgramId,
-        gas_reserver: GasReserver,
+        gas_reservation_map: GasReservationMap,
     ) {
         let actor = self
             .actors
             .get_mut(&program_id)
             .expect("gas reservation update guaranteed to be called only on existing program");
-
-        let (gas_reservation_map, _) = gas_reserver.into_parts();
 
         if let TestActor {
             executable_data: Some(executable_data),
