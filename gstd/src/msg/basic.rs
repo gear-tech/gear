@@ -20,27 +20,13 @@
 
 use crate::{
     async_runtime::signals,
-    errors::{ContractError, Result},
+    errors::{IntoContractResult, Result},
     msg::{CodecMessageFuture, MessageFuture},
     prelude::{convert::AsRef, vec, Vec},
     ActorId, MessageId,
 };
 use codec::{Decode, Output};
 use gstd_codegen::wait_for_reply;
-
-trait IntoContractResult<T> {
-    fn into_contract_result(self) -> Result<T>;
-}
-
-impl<T, E, V> IntoContractResult<V> for core::result::Result<T, E>
-where
-    T: Into<V>,
-    E: Into<ContractError>,
-{
-    fn into_contract_result(self) -> Result<V> {
-        self.map(Into::into).map_err(Into::into)
-    }
-}
 
 /// Message handle.
 ///

@@ -945,9 +945,9 @@ where
         memory: WasmiMemory,
     ) -> Func {
         let func = move |mut caller: wasmi::Caller<'_, HostState<E>>,
-                         id_ptr: i32,
                          gas_amount: u64,
-                         duration: u32| {
+                         duration: u32,
+                         id_ptr: i32| {
             exit_if!(forbidden, caller);
 
             let id_ptr = id_ptr as usize;
@@ -956,14 +956,16 @@ where
             let id = match host_state.ext.reserve_gas(gas_amount, duration) {
                 Ok(o) => o,
                 Err(e) => {
-                    host_state.err = FuncError::Core(e);
-                    return Err(TrapCode::Unreachable.into());
+                    let err = FuncError::Core(e);
+                    let size = Encode::encoded_size(&err) as u32;
+                    host_state.err = err;
+                    return Ok((size,));
                 }
             };
 
             let mut memory_wrap = get_caller_memory(&mut caller, &memory);
             match memory_wrap.write(id_ptr, id.as_ref()) {
-                Ok(_) => Ok(()),
+                Ok(_) => Ok((0,)),
                 Err(e) => {
                     host_state_mut!(caller).err = e.into();
 
@@ -980,25 +982,38 @@ where
         forbidden: bool,
         memory: WasmiMemory,
     ) -> Func {
-        let func = move |mut caller: wasmi::Caller<'_, HostState<E>>, id_ptr: u32| {
-            exit_if!(forbidden, caller);
+        let func =
+            move |mut caller: wasmi::Caller<'_, HostState<E>>, id_ptr: u32, amount_ptr: u32| {
+                exit_if!(forbidden, caller);
 
-            let read_result = {
-                let memory_wrap = get_caller_memory(&mut caller, &memory);
-                read_memory_as::<ReservationId>(&memory_wrap, id_ptr)
-            };
+                let read_result = {
+                    let memory_wrap = get_caller_memory(&mut caller, &memory);
+                    read_memory_as::<ReservationId>(&memory_wrap, id_ptr)
+                };
 
-            let id = process_read_result!(read_result, caller);
+                let id = process_read_result!(read_result, caller);
 
-            let host_state = host_state_mut!(caller);
-            match host_state.ext.unreserve_gas(id) {
-                Ok(gas_amount) => Ok((gas_amount,)),
-                Err(e) => {
-                    host_state.err = FuncError::Core(e);
-                    Err(TrapCode::Unreachable.into())
+                let host_state = host_state_mut!(caller);
+                let gas_amount = match host_state.ext.unreserve_gas(id) {
+                    Ok(gas_amount) => gas_amount,
+                    Err(e) => {
+                        let err = FuncError::Core(e);
+                        let size = Encode::encoded_size(&err) as u32;
+                        host_state.err = err;
+                        return Ok((size,));
+                    }
+                };
+
+                let mut memory_wrap = get_caller_memory(&mut caller, &memory);
+                if let Err(e) =
+                    memory_wrap.write(amount_ptr as usize, gas_amount.to_le_bytes().as_ref())
+                {
+                    host_state_mut!(caller).err = e.into();
+                    return Err(TrapCode::Unreachable.into());
                 }
-            }
-        };
+
+                Ok((0,))
+            };
 
         Func::wrap(store, func)
     }

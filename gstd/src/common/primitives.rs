@@ -36,7 +36,7 @@
 //! ```
 
 use crate::{
-    errors::{ContractError, Result},
+    errors::{ContractError, IntoContractResult, Result},
     prelude::{convert::TryFrom, String},
 };
 use codec::{Decode, Encode};
@@ -288,12 +288,12 @@ impl TryFrom<&[u8]> for CodeId {
 pub struct ReservationId([u8; 32]);
 
 impl ReservationId {
-    pub fn reserve(amount: u64, duration: u32) -> Self {
-        gcore::exec::reserve_gas(amount, duration).into()
+    pub fn reserve(amount: u64, duration: u32) -> Result<Self> {
+        gcore::exec::reserve_gas(amount, duration).into_contract_result()
     }
 
-    pub fn unreserve(self) -> u64 {
-        gcore::exec::unreserve_gas(self.into())
+    pub fn unreserve(self) -> Result<u64> {
+        gcore::exec::unreserve_gas(self.into()).into_contract_result()
     }
 }
 

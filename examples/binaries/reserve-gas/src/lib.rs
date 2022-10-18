@@ -68,10 +68,11 @@ unsafe extern "C" fn init() {
             let _exit_reservation = ReservationId::reserve(25_000, 5);
 
             // no actual reservation and unreservation is occurred
-            let noop_reservation = ReservationId::reserve(50_000, 10);
-            assert_eq!(noop_reservation.unreserve(), 50_000);
+            let noop_reservation = ReservationId::reserve(50_000, 10).unwrap();
+            let unreserved_amount = noop_reservation.unreserve().unwrap();
+            assert_eq!(unreserved_amount, 50_000);
 
-            RESERVATION_ID = Some(ReservationId::reserve(RESERVATION_AMOUNT, 5));
+            RESERVATION_ID = Some(ReservationId::reserve(RESERVATION_AMOUNT, 5).unwrap());
         }
         InitAction::Wait => {
             if WAKE_STATE == WakeState::SecondExecution {
@@ -92,7 +93,7 @@ unsafe extern "C" fn handle() {
     match action {
         HandleAction::Unreserve => {
             let id = RESERVATION_ID.take().unwrap();
-            id.unreserve();
+            id.unreserve().unwrap();
         }
         HandleAction::Exit => {
             exec::exit(msg::source());
