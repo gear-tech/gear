@@ -197,8 +197,9 @@ where
 
         let id_exited = id_exited.into_origin();
 
-        common::set_program_exited_status(id_exited, value_destination)
-            .expect("`exit` can be called only from active program; qed");
+        common::set_program_exited_status(id_exited, value_destination).unwrap_or_else(|e| {
+            unreachable!("`exit` can be called only from active program: {}", e)
+        });
 
         let program_account = &<T::AccountId as Origin>::from_origin(id_exited);
         let balance = CurrencyOf::<T>::free_balance(program_account);
