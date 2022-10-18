@@ -458,8 +458,9 @@ where
 
     fn update_gas_reservation(&mut self, program_id: ProgramId, map: GasReservationMap) {
         let pid = program_id.into_origin();
-        let prog = common::get_program(pid)
-            .expect("gas reservation update guaranteed to be called only on existing program");
+        let prog = common::get_program(pid).unwrap_or_else(|| {
+            unreachable!("gas reservation update guaranteed to be called only on existing program")
+        });
         if let Program::Active(mut prog) = prog {
             prog.gas_reservation_map = map;
             common::set_program(pid, prog);
