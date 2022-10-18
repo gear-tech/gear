@@ -430,7 +430,7 @@ benchmarks! {
         let WasmModule { code, .. } = WasmModule::<T>::sized(c * 1024, Location::Init);
     }: {
         let ext = Ext::new(default_processor_context());
-        ExecutionEnvironment::new(ext, &code, max_pages::<T>().into()).unwrap();
+        ExecutionEnvironment::new(ext, &code, Default::default(), max_pages::<T>().into()).unwrap();
     }
 
     claim_value {

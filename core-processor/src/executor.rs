@@ -387,20 +387,21 @@ pub fn execute_wasm<
 
     // Execute program in backend env.
     let f = || {
-        let env = E::new(ext, program.raw_code(), memory_size)?;
-        env.execute(
+        let env = E::new(
+            ext,
+            program.raw_code(),
             program.code().exports().clone(),
-            &kind,
-            |memory, stack_end| {
-                prepare_memory::<A, E::Memory>(
-                    program_id,
-                    &mut pages_initial_data,
-                    static_pages,
-                    stack_end,
-                    memory,
-                )
-            },
-        )
+            memory_size,
+        )?;
+        env.execute(&kind, |memory, stack_end| {
+            prepare_memory::<A, E::Memory>(
+                program_id,
+                &mut pages_initial_data,
+                static_pages,
+                stack_end,
+                memory,
+            )
+        })
     };
     let (termination, memory, ext) = match f() {
         Ok(BackendReport {

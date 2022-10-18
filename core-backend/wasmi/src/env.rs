@@ -87,6 +87,7 @@ pub struct WasmiEnvironment<E: Ext> {
     instance: Instance,
     store: Store<HostState<E>>,
     memory: Memory,
+    entries: BTreeSet<DispatchKind>,
 }
 
 impl<E> Environment<E> for WasmiEnvironment<E>
@@ -97,7 +98,12 @@ where
     type Memory = MemoryWrap<E>;
     type Error = Error;
 
-    fn new(ext: E, binary: &[u8], mem_size: WasmPageNumber) -> Result<Self, Self::Error> {
+    fn new(
+        ext: E,
+        binary: &[u8],
+        entries: BTreeSet<DispatchKind>,
+        mem_size: WasmPageNumber,
+    ) -> Result<Self, Self::Error> {
         use WasmiEnvironmentError::*;
 
         let engine = Engine::default();
@@ -144,12 +150,12 @@ where
             instance,
             store,
             memory,
+            entries,
         })
     }
 
     fn execute<F, T>(
         self,
-        entries: BTreeSet<DispatchKind>,
         entry_point: &DispatchKind,
         pre_execution_handler: F,
     ) -> Result<BackendReport<Self::Memory, E>, Self::Error>
@@ -163,6 +169,7 @@ where
             instance,
             store,
             memory,
+            entries,
         } = self;
 
         let stack_end = instance
