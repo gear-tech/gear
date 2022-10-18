@@ -35,6 +35,9 @@ pub use wasm_instrument::{self, parity_wasm};
 #[cfg(test)]
 mod tests;
 
+pub const GLOBAL_NAME_GAS: &str = "gear_gas";
+pub const GLOBAL_NAME_ALLOWANCE: &str = "gear_allowance";
+
 pub fn inject<R: Rules>(
     module: elements::Module,
     rules: &R,
@@ -92,7 +95,7 @@ pub fn inject<R: Rules>(
 
     mbuilder.push_export(
         builder::export()
-            .field("gear_gas")
+            .field(GLOBAL_NAME_GAS)
             .internal()
             .global(gas_index)
             .build(),
@@ -109,7 +112,7 @@ pub fn inject<R: Rules>(
 
     mbuilder.push_export(
         builder::export()
-            .field("gear_allowance")
+            .field(GLOBAL_NAME_ALLOWANCE)
             .internal()
             .global(allowance_index)
             .build(),
