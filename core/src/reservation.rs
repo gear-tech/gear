@@ -26,23 +26,25 @@ use scale_info::TypeInfo;
 /// Gas reserver.
 #[derive(Debug, Clone)]
 pub struct GasReserver {
+    message_id: MessageId,
     map: GasReservationMap,
     tasks: BTreeMap<ReservationId, GasReservationTask>,
 }
 
 impl GasReserver {
     /// Creates a new gas reserver.
-    pub fn new(map: GasReservationMap) -> Self {
+    pub fn new(message_id: MessageId, map: GasReservationMap) -> Self {
         Self {
+            message_id,
             map,
             tasks: Default::default(),
         }
     }
 
     /// Reserves gas.
-    pub fn reserve(&mut self, msg_id: MessageId, amount: u64, bn: u32) -> ReservationId {
+    pub fn reserve(&mut self, amount: u64, bn: u32) -> ReservationId {
         let idx = self.map.len();
-        let id = ReservationId::generate(msg_id, idx as u64);
+        let id = ReservationId::generate(self.message_id, idx as u64);
 
         let slot = GasReservationSlot { amount, bn };
 

@@ -105,6 +105,7 @@ impl DispatchResult {
         program_id: ProgramId,
         gas_amount: GasAmount,
     ) -> Self {
+        let message_id = dispatch.id();
         Self {
             kind: DispatchResultKind::Success,
             dispatch,
@@ -114,7 +115,7 @@ impl DispatchResult {
             awakening: Default::default(),
             program_candidates: Default::default(),
             gas_amount,
-            gas_reserver: GasReserver::new(Default::default()),
+            gas_reserver: GasReserver::new(message_id, Default::default()),
             page_update: Default::default(),
             allocations: Default::default(),
         }

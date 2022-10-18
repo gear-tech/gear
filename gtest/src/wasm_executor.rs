@@ -145,10 +145,12 @@ impl WasmExecutor {
     }
 
     pub(crate) fn build_ext(program: &Program, payload: Payload) -> Ext {
+        let message =
+            IncomingMessage::new(Default::default(), Default::default(), payload, 0, 0, None);
         Ext::new(ProcessorContext {
             gas_counter: GasCounter::new(u64::MAX),
             gas_allowance_counter: GasAllowanceCounter::new(u64::MAX),
-            gas_reserver: GasReserver::new(Default::default()),
+            gas_reserver: GasReserver::new(message.id(), Default::default()),
             value_counter: ValueCounter::new(u128::MAX),
             allocations_context: AllocationsContext::new(
                 program.get_allocations().clone(),
@@ -156,7 +158,7 @@ impl WasmExecutor {
                 WasmPageNumber(512u32),
             ),
             message_context: MessageContext::new(
-                IncomingMessage::new(Default::default(), Default::default(), payload, 0, 0, None),
+                message,
                 program.id(),
                 None,
                 ContextSettings::new(WRITE_COST * 2, WRITE_COST * 3, WRITE_COST * 2, 1024),

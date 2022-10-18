@@ -116,7 +116,7 @@ impl
             actor_data.initialized,
         );
 
-        let gas_reserver = GasReserver::new(actor_data.gas_reservation_map);
+        let gas_reserver = GasReserver::new(dispatch.id(), actor_data.gas_reservation_map);
 
         Self {
             gas_counter,

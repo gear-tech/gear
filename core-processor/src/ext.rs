@@ -528,15 +528,13 @@ impl EnvExt for Ext {
         self.check_charge_results(common_charge, ChargeResult::Enough)?;
 
         let ProcessorContext {
-            message_context,
             gas_reserver,
             block_info,
             ..
         } = &mut self.context;
 
-        let msg_id = message_context.current().id();
         let bn = block_info.height + duration + 1;
-        let id = gas_reserver.reserve(msg_id, amount, bn);
+        let id = gas_reserver.reserve(amount, bn);
 
         Ok(id)
     }
