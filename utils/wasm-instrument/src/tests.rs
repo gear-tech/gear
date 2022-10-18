@@ -19,7 +19,7 @@
 use super::*;
 use elements::Instruction::*;
 use gas_metering::ConstantCostRules;
-use wasm_instrument::parity_wasm::serialize;
+use parity_wasm::serialize;
 
 fn get_function_body(module: &elements::Module, index: usize) -> Option<&[elements::Instruction]> {
     module
