@@ -148,7 +148,7 @@ pub trait Ext {
     fn reserve_gas(&mut self, amount: u64, duration: u32) -> Result<ReservationId, Self::Error>;
 
     /// Unreserve gas using reservation ID.
-    fn unreserve_gas(&mut self, id: ReservationId) -> Result<(), Self::Error>;
+    fn unreserve_gas(&mut self, id: ReservationId) -> Result<u64, Self::Error>;
 
     /// Tell how much gas is left in running context.
     fn gas_available(&mut self) -> Result<u64, Self::Error>;

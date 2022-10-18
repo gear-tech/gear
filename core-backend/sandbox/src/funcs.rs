@@ -549,14 +549,15 @@ where
 
         let mut f = || {
             let id: ReservationId = ctx.read_memory_as(id_ptr)?;
-            ctx.ext.unreserve_gas(id).map_err(FuncError::Core)?;
-            Ok(())
+            let amount = ctx.ext.unreserve_gas(id).map_err(FuncError::Core)?;
+            Ok(amount)
         };
 
-        f().map(|()| ReturnValue::Unit).map_err(|err| {
-            ctx.err = err;
-            HostError
-        })
+        f().map(|amount| ReturnValue::Value(Value::I64(amount as i64)))
+            .map_err(|err| {
+                ctx.err = err;
+                HostError
+            })
     }
 
     pub fn gas_available(ctx: &mut Runtime<E>, _args: &[Value]) -> SyscallOutput {

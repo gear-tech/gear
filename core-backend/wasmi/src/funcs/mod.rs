@@ -992,7 +992,7 @@ where
 
             let host_state = host_state_mut!(caller);
             match host_state.ext.unreserve_gas(id) {
-                Ok(()) => Ok(()),
+                Ok(gas_amount) => Ok((gas_amount,)),
                 Err(e) => {
                     host_state.err = FuncError::Core(e);
                     Err(TrapCode::Unreachable.into())

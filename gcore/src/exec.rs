@@ -35,7 +35,7 @@ mod sys {
 
         pub fn gr_reserve_gas(id_ptr: *mut u8, amount: u64, duration: u32);
 
-        pub fn gr_unreserve_gas(id_ptr: *const u8);
+        pub fn gr_unreserve_gas(id_ptr: *const u8) -> u64;
 
         pub fn gr_gas_available() -> u64;
 
@@ -147,9 +147,11 @@ pub fn reserve_gas(amount: u64, duration: u32) -> ReservationId {
 
 /// Unreserve gas using reservation ID
 ///
+/// Returns reserved gas amount.
+///
 /// # Examples
 /// See [`reserve_gas`] example.
-pub fn unreserve_gas(id: ReservationId) {
+pub fn unreserve_gas(id: ReservationId) -> u64 {
     unsafe { sys::gr_unreserve_gas(id.as_slice().as_ptr()) }
 }
 

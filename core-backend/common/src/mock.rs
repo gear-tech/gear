@@ -184,8 +184,8 @@ impl Ext for MockExt {
     fn reserve_gas(&mut self, _amount: u64, _duration: u32) -> Result<ReservationId, Self::Error> {
         Ok(ReservationId::default())
     }
-    fn unreserve_gas(&mut self, _id: ReservationId) -> Result<(), Self::Error> {
-        Ok(())
+    fn unreserve_gas(&mut self, _id: ReservationId) -> Result<u64, Self::Error> {
+        Ok(0)
     }
 }
 

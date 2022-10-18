@@ -541,10 +541,10 @@ impl EnvExt for Ext {
         Ok(id)
     }
 
-    fn unreserve_gas(&mut self, id: ReservationId) -> Result<(), Self::Error> {
+    fn unreserve_gas(&mut self, id: ReservationId) -> Result<u64, Self::Error> {
         self.charge_gas_runtime(RuntimeCosts::UnreserveGas)?;
 
-        let _amount = self
+        let amount = self
             .context
             .gas_reserver
             .unreserve(id)
@@ -558,7 +558,7 @@ impl EnvExt for Ext {
             return Err(ExecutionError::TooManyGasAdded.into());
         }*/
 
-        Ok(())
+        Ok(amount)
     }
 
     fn gas_available(&mut self) -> Result<u64, Self::Error> {

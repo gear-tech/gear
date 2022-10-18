@@ -1920,7 +1920,7 @@ benchmarks! {
                 module: "env",
                 name: "gr_unreserve_gas",
                 params: vec![ValueType::I32],
-                return_type: None,
+                return_type: Some(ValueType::I64),
             }],
             data_segments: vec![
                 DataSegment {
@@ -1931,6 +1931,7 @@ benchmarks! {
             handle_body: Some(body::repeated(r, &[
                 Instruction::I32Const(0), // id ptr
                 Instruction::Call(0),
+                Instruction::Drop,
             ])),
             ..Default::default()
         });

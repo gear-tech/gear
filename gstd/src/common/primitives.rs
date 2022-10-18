@@ -292,7 +292,7 @@ impl ReservationId {
         gcore::exec::reserve_gas(amount, duration).into()
     }
 
-    pub fn unreserve(self) {
+    pub fn unreserve(self) -> u64 {
         gcore::exec::unreserve_gas(self.into())
     }
 }

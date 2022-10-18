@@ -69,7 +69,7 @@ unsafe extern "C" fn init() {
 
             // no actual reservation and unreservation is occurred
             let noop_reservation = ReservationId::reserve(50_000, 10);
-            noop_reservation.unreserve();
+            assert_eq!(noop_reservation.unreserve(), 50_000);
 
             RESERVATION_ID = Some(ReservationId::reserve(RESERVATION_AMOUNT, 5));
         }
