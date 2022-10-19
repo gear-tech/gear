@@ -949,7 +949,7 @@ where
         let func = move |mut caller: wasmi::Caller<'_, HostState<E>>,
                          gas_amount: u64,
                          duration: u32,
-                         id_ptr: i32| {
+                         id_ptr: u32| {
             exit_if!(forbidden, caller);
 
             let id_ptr = id_ptr as usize;
