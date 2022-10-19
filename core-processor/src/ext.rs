@@ -22,7 +22,6 @@ use alloc::{
     string::{String, ToString},
     vec::Vec,
 };
-use blake2_rfc::blake2b::blake2b;
 use codec::{Decode, Encode};
 use gear_backend_common::{
     error_processor::IntoExtError, AsTerminationReason, ExtInfo, GetGasAmount, IntoExtInfo,
@@ -640,14 +639,12 @@ impl EnvExt for Ext {
         &self.context.forbidden_funcs
     }
 
-    fn random(&self, subject: &[u8]) -> (Vec<u8>, u32) {
-        let mut subject = subject.to_vec();
-        subject.reserve(32);
-        subject.extend_from_slice(&self.context.random_data.0);
-        (
-            blake2b(32, &[], &subject).as_bytes().to_vec(),
-            self.context.random_data.1,
-        )
+    fn random(&self) -> Vec<u8> {
+        self.context.random_data.0.clone()
+    }
+
+    fn random_bn(&self) -> u32 {
+        self.context.random_data.1
     }
 }
 

@@ -146,7 +146,7 @@ fn default_processor_context() -> ProcessorContext {
         mailbox_threshold: 0,
         waitlist_cost: 0,
         reserve_for: 0,
-        random_data: (Vec::new(), 0),
+        random_data: ([0u8; 32].to_vec(), 0),
     }
 }
 
@@ -660,7 +660,7 @@ benchmarks! {
         core_processor::process::<
             Externalities,
             ExecutionEnvironment,
-        >(&block_config, context, (Vec::new(), 0), memory_pages);
+        >(&block_config, context, ([0u8; 32].to_vec(), 0), memory_pages);
     }
 
     // TODO: benchmark batches and size is bigger than memory limits
@@ -724,7 +724,7 @@ benchmarks! {
         core_processor::process::<
             Externalities,
             ExecutionEnvironment,
-        >(&block_config, context, (Vec::new(), 0), memory_pages);
+        >(&block_config, context, ([0u8; 32].to_vec(), 0), memory_pages);
     }
 
     gr_gas_available {
@@ -754,7 +754,7 @@ benchmarks! {
         core_processor::process::<
             Externalities,
             ExecutionEnvironment,
-        >(&block_config, context, (Vec::new(), 0), memory_pages);
+        >(&block_config, context, ([0u8; 32].to_vec(), 0), memory_pages);
     }
 
     gr_message_id {
@@ -772,7 +772,7 @@ benchmarks! {
         core_processor::process::<
             Externalities,
             ExecutionEnvironment,
-        >(&block_config, context, (Vec::new(), 0), memory_pages);
+        >(&block_config, context, ([0u8; 32].to_vec(), 0), memory_pages);
     }
 
     gr_origin {
@@ -790,7 +790,7 @@ benchmarks! {
         core_processor::process::<
             Externalities,
             ExecutionEnvironment,
-        >(&block_config, context, (Vec::new(), 0), memory_pages);
+        >(&block_config, context, ([0u8; 32].to_vec(), 0), memory_pages);
     }
 
     gr_program_id {
@@ -808,7 +808,7 @@ benchmarks! {
         core_processor::process::<
             Externalities,
             ExecutionEnvironment,
-        >(&block_config, context, (Vec::new(), 0), memory_pages);
+        >(&block_config, context, ([0u8; 32].to_vec(), 0), memory_pages);
     }
 
     gr_source {
@@ -827,7 +827,7 @@ benchmarks! {
         core_processor::process::<
             Externalities,
             ExecutionEnvironment,
-        >(&block_config, context, (Vec::new(), 0), memory_pages);
+        >(&block_config, context, ([0u8; 32].to_vec(), 0), memory_pages);
     }
 
     gr_value {
@@ -845,7 +845,7 @@ benchmarks! {
         core_processor::process::<
             Externalities,
             ExecutionEnvironment,
-        >(&block_config, context, (Vec::new(), 0), memory_pages);
+        >(&block_config, context, ([0u8; 32].to_vec(), 0), memory_pages);
     }
 
     gr_value_available {
@@ -863,7 +863,7 @@ benchmarks! {
         core_processor::process::<
             Externalities,
             ExecutionEnvironment,
-        >(&block_config, context, (Vec::new(), 0), memory_pages);
+        >(&block_config, context, ([0u8; 32].to_vec(), 0), memory_pages);
     }
 
     gr_size {
@@ -893,7 +893,7 @@ benchmarks! {
         core_processor::process::<
             Externalities,
             ExecutionEnvironment,
-        >(&block_config, context, (Vec::new(), 0), memory_pages);
+        >(&block_config, context, ([0u8; 32].to_vec(), 0), memory_pages);
     }
 
     gr_read {
@@ -934,7 +934,7 @@ benchmarks! {
         core_processor::process::<
             Externalities,
             ExecutionEnvironment,
-        >(&block_config, context, (Vec::new(), 0), memory_pages);
+        >(&block_config, context, ([0u8; 32].to_vec(), 0), memory_pages);
     }
 
     gr_read_per_kb {
@@ -979,7 +979,7 @@ benchmarks! {
         core_processor::process::<
             Externalities,
             ExecutionEnvironment,
-        >(&block_config, context, (Vec::new(), 0), memory_pages);
+        >(&block_config, context, ([0u8; 32].to_vec(), 0), memory_pages);
     }
 
     gr_random {
@@ -1022,7 +1022,7 @@ benchmarks! {
         core_processor::process::<
             Externalities,
             ExecutionEnvironment,
-        >(&block_config, context, (Vec::new(), 0), memory_pages);
+        >(&block_config, context, ([0u8; 32].to_vec(), 0), memory_pages);
     }
 
     gr_block_height {
@@ -1052,7 +1052,7 @@ benchmarks! {
         core_processor::process::<
             Externalities,
             ExecutionEnvironment,
-        >(&block_config, context, (Vec::new(), 0), memory_pages);
+        >(&block_config, context, ([0u8; 32].to_vec(), 0), memory_pages);
     }
 
     gr_block_timestamp {
@@ -1082,7 +1082,7 @@ benchmarks! {
         core_processor::process::<
             Externalities,
             ExecutionEnvironment,
-        >(&block_config, context, (Vec::new(), 0), memory_pages);
+        >(&block_config, context, ([0u8; 32].to_vec(), 0), memory_pages);
     }
 
     gr_send_init {
@@ -1113,7 +1113,7 @@ benchmarks! {
         core_processor::process::<
             Externalities,
             ExecutionEnvironment,
-        >(&block_config, context, (Vec::new(), 0), memory_pages);
+        >(&block_config, context, ([0u8; 32].to_vec(), 0), memory_pages);
     }
 
     gr_send_push {
@@ -1155,7 +1155,7 @@ benchmarks! {
         core_processor::process::<
             Externalities,
             ExecutionEnvironment,
-        >(&block_config, context, (Vec::new(), 0), memory_pages);
+        >(&block_config, context, ([0u8; 32].to_vec(), 0), memory_pages);
     }
 
     gr_send_push_per_kb {
@@ -1197,7 +1197,7 @@ benchmarks! {
         core_processor::process::<
             Externalities,
             ExecutionEnvironment,
-        >(&block_config, context, (Vec::new(), 0), memory_pages);
+        >(&block_config, context, ([0u8; 32].to_vec(), 0), memory_pages);
     }
 
     // Benchmark the `gr_send_commit` call.
@@ -1250,7 +1250,7 @@ benchmarks! {
         core_processor::process::<
             Externalities,
             ExecutionEnvironment,
-        >(&block_config, context, (Vec::new(), 0), memory_pages);
+        >(&block_config, context, ([0u8; 32].to_vec(), 0), memory_pages);
     }
 
     // Benchmark the `gr_send_commit` call.
@@ -1303,7 +1303,7 @@ benchmarks! {
         core_processor::process::<
             Externalities,
             ExecutionEnvironment,
-        >(&block_config, context, (Vec::new(), 0), memory_pages);
+        >(&block_config, context, ([0u8; 32].to_vec(), 0), memory_pages);
     }
 
     // Benchmark the `gr_reply_commit` call.
@@ -1346,7 +1346,7 @@ benchmarks! {
         core_processor::process::<
             Externalities,
             ExecutionEnvironment,
-        >(&block_config, context, (Vec::new(), 0), memory_pages);
+        >(&block_config, context, ([0u8; 32].to_vec(), 0), memory_pages);
     }
 
     gr_reply_commit_per_kb {
@@ -1387,7 +1387,7 @@ benchmarks! {
         core_processor::process::<
             Externalities,
             ExecutionEnvironment,
-        >(&block_config, context, (Vec::new(), 0), memory_pages);
+        >(&block_config, context, ([0u8; 32].to_vec(), 0), memory_pages);
     }
 
     // Benchmark the `gr_reply_push` call.
@@ -1429,7 +1429,7 @@ benchmarks! {
         core_processor::process::<
             Externalities,
             ExecutionEnvironment,
-        >(&block_config, context, (Vec::new(), 0), memory_pages);
+        >(&block_config, context, ([0u8; 32].to_vec(), 0), memory_pages);
     }
 
     gr_reply_push_per_kb {
@@ -1469,7 +1469,7 @@ benchmarks! {
         core_processor::process::<
             Externalities,
             ExecutionEnvironment,
-        >(&block_config, context, (Vec::new(), 0), memory_pages);
+        >(&block_config, context, ([0u8; 32].to_vec(), 0), memory_pages);
     }
 
     gr_reply_to {
@@ -1503,7 +1503,7 @@ benchmarks! {
         core_processor::process::<
             Externalities,
             ExecutionEnvironment,
-        >(&block_config, context, (Vec::new(), 0), memory_pages);
+        >(&block_config, context, ([0u8; 32].to_vec(), 0), memory_pages);
     }
 
     gr_debug {
@@ -1534,7 +1534,7 @@ benchmarks! {
         core_processor::process::<
             Externalities,
             ExecutionEnvironment,
-        >(&block_config, context, (Vec::new(), 0), memory_pages);
+        >(&block_config, context, ([0u8; 32].to_vec(), 0), memory_pages);
     }
 
     gr_exit_code {
@@ -1567,7 +1567,7 @@ benchmarks! {
         core_processor::process::<
             Externalities,
             ExecutionEnvironment,
-        >(&block_config, context, (Vec::new(), 0), memory_pages);
+        >(&block_config, context, ([0u8; 32].to_vec(), 0), memory_pages);
     }
 
     // We cannot call `gr_exit` multiple times. Therefore our weight determination is not
@@ -1607,7 +1607,7 @@ benchmarks! {
         core_processor::process::<
             Externalities,
             ExecutionEnvironment,
-        >(&block_config, context, (Vec::new(), 0), memory_pages);
+        >(&block_config, context, ([0u8; 32].to_vec(), 0), memory_pages);
     }
 
     // We cannot call `gr_leave` multiple times. Therefore our weight determination is not
@@ -1638,7 +1638,7 @@ benchmarks! {
         core_processor::process::<
             Externalities,
             ExecutionEnvironment,
-        >(&block_config, context, (Vec::new(), 0), memory_pages);
+        >(&block_config, context, ([0u8; 32].to_vec(), 0), memory_pages);
     }
 
     // We cannot call `gr_wait` multiple times. Therefore our weight determination is not
@@ -1669,7 +1669,7 @@ benchmarks! {
         core_processor::process::<
             Externalities,
             ExecutionEnvironment,
-        >(&block_config, context, (Vec::new(), 0), memory_pages);
+        >(&block_config, context, ([0u8; 32].to_vec(), 0), memory_pages);
     }
 
     // We cannot call `gr_wait_for` multiple times. Therefore our weight determination is not
@@ -1701,7 +1701,7 @@ benchmarks! {
         core_processor::process::<
             Externalities,
             ExecutionEnvironment,
-        >(&block_config, context, (Vec::new(), 0), memory_pages);
+        >(&block_config, context, ([0u8; 32].to_vec(), 0), memory_pages);
     }
 
     // We cannot call `gr_wait_up_to` multiple times. Therefore our weight determination is not
@@ -1733,7 +1733,7 @@ benchmarks! {
         core_processor::process::<
             Externalities,
             ExecutionEnvironment,
-        >(&block_config, context, (Vec::new(), 0), memory_pages);
+        >(&block_config, context, ([0u8; 32].to_vec(), 0), memory_pages);
     }
 
     gr_wake {
@@ -1779,7 +1779,7 @@ benchmarks! {
         core_processor::process::<
             Externalities,
             ExecutionEnvironment,
-        >(&block_config, context, (Vec::new(), 0), memory_pages);
+        >(&block_config, context, ([0u8; 32].to_vec(), 0), memory_pages);
     }
 
     gr_create_program_wgas {
@@ -1843,7 +1843,7 @@ benchmarks! {
         core_processor::process::<
             Externalities,
             ExecutionEnvironment,
-        >(&block_config, context, (Vec::new(), 0), memory_pages);
+        >(&block_config, context, ([0u8; 32].to_vec(), 0), memory_pages);
     }
 
     gr_create_program_wgas_per_kb {
@@ -1907,7 +1907,7 @@ benchmarks! {
         core_processor::process::<
             Externalities,
             ExecutionEnvironment,
-        >(&block_config, context, (Vec::new(), 0), memory_pages);
+        >(&block_config, context, ([0u8; 32].to_vec(), 0), memory_pages);
     }
 
     // We make the assumption that pushing a constant and dropping a value takes roughly

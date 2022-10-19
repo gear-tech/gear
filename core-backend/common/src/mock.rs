@@ -20,7 +20,7 @@ use crate::{
     error_processor::IntoExtError, AsTerminationReason, ExtInfo, GetGasAmount, IntoExtInfo,
     TerminationReason,
 };
-use alloc::{collections::BTreeSet, vec, vec::Vec};
+use alloc::{collections::BTreeSet, vec::Vec};
 use codec::{Decode, Encode};
 use core::fmt;
 use gear_core::{
@@ -155,8 +155,11 @@ impl Ext for MockExt {
     fn value_available(&mut self) -> Result<u128, Self::Error> {
         Ok(1_000_000)
     }
-    fn random(&self, _subject: &[u8]) -> (Vec<u8>, u32) {
-        (vec![], 0)
+    fn random(&self) -> Vec<u8> {
+        [0u8; 32].to_vec()
+    }
+    fn random_bn(&self) -> u32 {
+        0
     }
     fn leave(&mut self) -> Result<(), Self::Error> {
         Ok(())

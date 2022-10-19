@@ -25,6 +25,7 @@ use crate::{
 #[cfg(not(feature = "std"))]
 use alloc::string::ToString;
 use alloc::{string::String, vec};
+use blake2_rfc::blake2b::blake2b;
 use codec::{Decode, Encode};
 use core::{
     convert::TryFrom,
@@ -1135,18 +1136,22 @@ where
 
             process_read_result!(read_result, caller);
 
+            subject.reserve(32);
+
             let host_state = caller
                 .host_data()
                 .as_ref()
                 .expect("host_state should be set before execution");
 
-            let (random, bn) = host_state.ext.random(&subject);
+            let random = host_state.ext.random();
+            let random_bn = host_state.ext.random_bn();
+            subject.extend_from_slice(&random);
 
             let write_result = {
                 let mut memory_wrap = get_caller_memory(&mut caller, &memory);
                 memory_wrap
-                    .write(random_ptr as usize, &random)
-                    .and_then(|_| memory_wrap.write(bn_ptr as usize, &bn.to_le_bytes()))
+                    .write(random_ptr as usize, blake2b(32, &[], &subject).as_bytes())
+                    .and_then(|_| memory_wrap.write(bn_ptr as usize, &random_bn.to_le_bytes()))
             };
 
             match write_result {

@@ -23,6 +23,7 @@ use alloc::{
     format,
     string::{FromUtf8Error, String},
 };
+use blake2_rfc::blake2b::blake2b;
 use core::{
     convert::TryInto,
     fmt::{self, Display},
@@ -406,11 +407,15 @@ where
         let (random_ptr, subject_ptr, subject_len, bn_ptr) = args.iter().read_4()?;
 
         ctx.run(|ctx| {
-            let subject = ctx.read_memory(subject_ptr, subject_len)?;
-            let (random, bn) = ctx.ext.random(&subject);
+            let mut subject = ctx.read_memory(subject_ptr, subject_len)?;
+            subject.reserve(32);
+            let random = ctx.ext.random();
+            let random_bn = ctx.ext.random_bn();
 
-            ctx.write_output(random_ptr, &random)?;
-            ctx.write_output(bn_ptr, &bn.to_le_bytes())
+            subject.extend_from_slice(&random);
+
+            ctx.write_output(random_ptr, blake2b(32, &[], &subject).as_bytes())?;
+            ctx.write_output(bn_ptr, &random_bn.to_le_bytes())
                 .map_err(Into::into)
         })
     }

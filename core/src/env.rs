@@ -176,6 +176,9 @@ pub trait Ext {
     /// Return the set of functions that are forbidden to be called.
     fn forbidden_funcs(&self) -> &BTreeSet<&'static str>;
 
-    /// Returns a random number for the current block with the given subject.
-    fn random(&self, subject: &[u8]) -> (Vec<u8>, u32);
+    /// Returns a random seed for the current block with message id as a subject.
+    fn random(&self) -> Vec<u8>;
+
+    /// Returns the block number since the chain observers could determine a random seed.
+    fn random_bn(&self) -> u32;
 }

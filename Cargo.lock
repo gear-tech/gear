@@ -2886,6 +2886,7 @@ dependencies = [
 name = "gear-backend-sandbox"
 version = "0.1.0"
 dependencies = [
+ "blake2-rfc",
  "derive_more",
  "gear-backend-common",
  "gear-core",
@@ -2900,6 +2901,7 @@ dependencies = [
 name = "gear-backend-wasmi"
 version = "0.1.0"
 dependencies = [
+ "blake2-rfc",
  "derive_more",
  "gear-backend-common",
  "gear-core",
@@ -3004,7 +3006,6 @@ name = "gear-core-processor"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "blake2-rfc",
  "derive_more",
  "gear-backend-common",
  "gear-core",
@@ -6337,7 +6338,6 @@ dependencies = [
 name = "pallet-gear"
 version = "2.0.0"
 dependencies = [
- "blake2-rfc",
  "demo-async-tester",
  "demo-btree",
  "demo-calc-hash",
