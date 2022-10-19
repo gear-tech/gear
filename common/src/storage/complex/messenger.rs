@@ -181,5 +181,6 @@ pub trait Messenger {
         Self::Queue::clear();
         Self::Mailbox::clear();
         Self::Waitlist::clear();
+        Self::DispatchStash::clear();
     }
 }
