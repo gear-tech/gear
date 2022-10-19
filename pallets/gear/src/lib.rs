@@ -54,10 +54,6 @@ use frame_support::{
     traits::{Currency, StorageVersion},
     weights::Weight,
 };
-#[cfg(not(feature = "std"))]
-use gear_backend_sandbox::SandboxEnvironment as ExecutionEnvironment;
-#[cfg(feature = "std")]
-use gear_backend_wasmi::WasmiEnvironment as ExecutionEnvironment;
 use gear_core::{
     code::{Code, CodeAndId, InstrumentedCode, InstrumentedCodeAndId},
     ids::{CodeId, MessageId, ProgramId, ReservationId},
@@ -72,6 +68,18 @@ use sp_std::{
     convert::TryInto,
     prelude::*,
 };
+
+#[cfg(feature = "std")]
+type ExecutionEnvironment = gear_backend_wasmi::WasmiEnvironment<Ext>;
+
+#[cfg(not(feature = "std"))]
+type ExecutionEnvironment = gear_backend_sandbox::SandboxEnvironment<Ext>;
+
+#[cfg(feature = "lazy-pages")]
+use crate::ext::LazyPagesExt as Ext;
+
+#[cfg(not(feature = "lazy-pages"))]
+use core_processor::Ext;
 
 pub(crate) use frame_system::Pallet as SystemPallet;
 
@@ -871,7 +879,9 @@ pub mod pallet {
                 waitlist_cost: CostsPerBlockOf::<T>::waitlist(),
                 reserve_for: CostsPerBlockOf::<T>::reserve_for().unique_saturated_into(),
                 read_cost: DbWeightOf::<T>::get().reads(1).ref_time(),
+                write_cost: DbWeightOf::<T>::get().writes(1).ref_time(),
                 per_byte_cost: ReadPerByteCostOf::<T>::get(),
+                module_instantiation_byte_cost: schedule.module_instantiation_per_byte,
             };
 
             let mut min_limit = 0;
@@ -968,7 +978,6 @@ pub mod pallet {
                     GasHandlerOf::<T>::get_origin_key(msg_id)
                         .map_err(|_| b"Internal error: unable to get origin key".to_vec())
                 };
-
                 let from_main_chain =
                     |msg_id| get_origin_msg_of(msg_id).map(|v| v == main_message_id);
 
@@ -1221,7 +1230,9 @@ pub mod pallet {
                 waitlist_cost: CostsPerBlockOf::<T>::waitlist(),
                 reserve_for: CostsPerBlockOf::<T>::reserve_for().unique_saturated_into(),
                 read_cost: DbWeightOf::<T>::get().reads(1).ref_time(),
+                write_cost: DbWeightOf::<T>::get().writes(1).ref_time(),
                 per_byte_cost: ReadPerByteCostOf::<T>::get(),
+                module_instantiation_byte_cost: schedule.module_instantiation_per_byte,
             };
 
             if T::DebugInfo::is_remap_id_enabled() {

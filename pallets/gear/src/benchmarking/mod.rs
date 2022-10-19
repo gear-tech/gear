@@ -33,6 +33,7 @@ use self::{
     sandbox::Sandbox,
 };
 use crate::{
+    benchmarking::code::max_pages,
     manager::{CodeInfo, ExtManager, HandleKind},
     pallet,
     schedule::{API_BENCHMARK_BATCH_SIZE, INSTR_BENCHMARK_BATCH_SIZE},
@@ -47,16 +48,18 @@ use common::{
 };
 use core_processor::{
     configs::{AllocationsConfig, BlockConfig, BlockInfo, MessageExecutionContext},
-    PrechargeResult, PrepareResult, ProcessExecutionContext,
+    PrechargeResult, PrepareResult, ProcessExecutionContext, ProcessorContext, ProcessorExt,
 };
 use frame_benchmarking::{benchmarks, whitelisted_caller};
 use frame_support::traits::{Currency, Get, Hooks, ReservableCurrency};
 use frame_system::{Pallet as SystemPallet, RawOrigin};
+use gear_backend_common::Environment;
 use gear_core::{
     code::{Code, CodeAndId},
+    gas::{GasAllowanceCounter, GasCounter, ValueCounter},
     ids::{CodeId, MessageId, ProgramId},
-    memory::{PageBuf, PageNumber},
-    message::{Dispatch, DispatchKind, Message, ReplyDetails},
+    memory::{AllocationsContext, PageBuf, PageNumber},
+    message::{ContextSettings, Dispatch, DispatchKind, Message, MessageContext, ReplyDetails},
 };
 use pallet_authorship::Pallet as AuthorshipPallet;
 use sp_consensus_babe::{
@@ -114,6 +117,36 @@ where
     init_block::<T>();
 
     Gear::<T>::process_queue(Default::default());
+}
+
+fn default_processor_context() -> ProcessorContext {
+    ProcessorContext {
+        gas_counter: GasCounter::new(0),
+        gas_allowance_counter: GasAllowanceCounter::new(0),
+        value_counter: ValueCounter::new(0),
+        allocations_context: AllocationsContext::new(
+            Default::default(),
+            Default::default(),
+            Default::default(),
+        ),
+        message_context: MessageContext::new(
+            Default::default(),
+            Default::default(),
+            None,
+            ContextSettings::new(0, 0, 0, 0),
+        ),
+        block_info: Default::default(),
+        config: Default::default(),
+        existential_deposit: 0,
+        origin: Default::default(),
+        program_id: Default::default(),
+        program_candidates_data: Default::default(),
+        host_fn_weights: Default::default(),
+        forbidden_funcs: Default::default(),
+        mailbox_threshold: 0,
+        waitlist_cost: 0,
+        reserve_for: 0,
+    }
 }
 
 /// An instantiated and deployed program.
@@ -325,7 +358,9 @@ where
         waitlist_cost,
         reserve_for,
         read_cost: DbWeightOf::<T>::get().reads(1).ref_time(),
+        write_cost: DbWeightOf::<T>::get().writes(1).ref_time(),
         per_byte_cost: ReadPerByteCostOf::<T>::get(),
+        module_instantiation_byte_cost: T::Schedule::get().module_instantiation_per_byte,
     };
 
     if let Some(queued_dispatch) = QueueOf::<T>::dequeue().map_err(|_| "MQ storage corrupted")? {
@@ -380,6 +415,22 @@ benchmarks! {
 
     where_clause { where
         T::AccountId: Origin,
+    }
+
+    // `c`: Size of the code in kilobytes.
+    instantiate_module_per_kb {
+        let c in 0 .. T::Schedule::get().limits.code_len / 1024;
+
+        #[cfg(feature = "lazy-pages")]
+        type Ext = crate::ext::LazyPagesExt;
+
+        #[cfg(not(feature = "lazy-pages"))]
+        type Ext = core_processor::Ext;
+
+        let WasmModule { code, .. } = WasmModule::<T>::sized(c * 1024, Location::Init);
+    }: {
+        let ext = Ext::new(default_processor_context());
+        ExecutionEnvironment::new(ext, &code, Default::default(), max_pages::<T>().into()).unwrap();
     }
 
     claim_value {

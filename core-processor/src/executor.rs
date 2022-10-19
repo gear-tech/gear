@@ -125,6 +125,27 @@ fn check_memory<'a>(
     Ok(())
 }
 
+pub(crate) fn charge_gas_for_instantiation(
+    gas_per_byte: u64,
+    code_length: u32,
+    gas_counter: &mut GasCounter,
+    gas_allowance_counter: &mut GasAllowanceCounter,
+) -> Result<(), ExecutionErrorReason> {
+    let amount = gas_per_byte * code_length as u64;
+
+    log::trace!("Charge {} for module instantiation", amount);
+
+    if gas_allowance_counter.charge(amount) != ChargeResult::Enough {
+        return Err(ExecutionErrorReason::ModuleInstantiationBlockGasExceeded);
+    }
+
+    if gas_counter.charge(amount) != ChargeResult::Enough {
+        return Err(ExecutionErrorReason::ModuleInstantiationGasExceeded);
+    }
+
+    Ok(())
+}
+
 /// Charge gas for pages init/load/grow and checks that there is enough gas for that.
 /// Returns size of wasm memory buffer which must be created in execution environment.
 pub(crate) fn charge_gas_for_pages(
@@ -332,7 +353,7 @@ pub fn execute_wasm<
         AllocationsContext::new(allocations.clone(), static_pages, settings.max_pages());
 
     // Creating message context.
-    let message_context = MessageContext::new_with_settings(
+    let message_context = MessageContext::new(
         dispatch.message().clone(),
         program_id,
         dispatch.context().clone(),
@@ -366,13 +387,14 @@ pub fn execute_wasm<
     let ext = A::new(context);
 
     // Execute program in backend env.
-    let (termination, memory, ext) = match E::execute(
-        ext,
-        program.raw_code(),
-        program.code().exports().clone(),
-        memory_size,
-        &kind,
-        |memory, stack_end| {
+    let f = || {
+        let env = E::new(
+            ext,
+            program.raw_code(),
+            program.code().exports().clone(),
+            memory_size,
+        )?;
+        env.execute(&kind, |memory, stack_end| {
             prepare_memory::<A, E::Memory>(
                 program_id,
                 &mut pages_initial_data,
@@ -380,8 +402,9 @@ pub fn execute_wasm<
                 stack_end,
                 memory,
             )
-        },
-    ) {
+        })
+    };
+    let (termination, memory, ext) = match f() {
         Ok(BackendReport {
             termination_reason: termination,
             memory_wrap: mut memory,
@@ -435,7 +458,9 @@ pub fn execute_wasm<
 
             DispatchResultKind::Trap(explanation)
         }
-        TerminationReason::Wait(duration) => DispatchResultKind::Wait(duration),
+        TerminationReason::Wait(duration, waited_type) => {
+            DispatchResultKind::Wait(duration, waited_type)
+        }
         TerminationReason::GasAllowanceExceeded => DispatchResultKind::GasAllowanceExceed,
     };
 

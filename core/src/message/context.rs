@@ -31,30 +31,48 @@ use codec::{Decode, Encode};
 use gear_core_errors::MessageError as Error;
 use scale_info::TypeInfo;
 
-pub const OUTGOING_LIMIT: u32 = 1024;
-
 /// Context settings.
 #[derive(Copy, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo)]
 pub struct ContextSettings {
     /// Fee for sending message.
     sending_fee: u64,
+    /// Fee for calling wait.
+    waiting_fee: u64,
+    /// Fee for waking messages.
+    waking_fee: u64,
     /// Limit of outgoing messages that program can send during execution of current message.
     outgoing_limit: u32,
 }
 
 impl ContextSettings {
     /// Create new ContextSettings.
-    pub fn new(sending_fee: u64, outgoing_limit: u32) -> Self {
+    pub fn new(sending_fee: u64, waiting_fee: u64, waking_fee: u64, outgoing_limit: u32) -> Self {
         Self {
             sending_fee,
+            waiting_fee,
+            waking_fee,
             outgoing_limit,
         }
     }
-}
 
-impl Default for ContextSettings {
-    fn default() -> Self {
-        Self::new(0, OUTGOING_LIMIT)
+    /// Getter for inner sending fee field.
+    pub fn sending_fee(&self) -> u64 {
+        self.sending_fee
+    }
+
+    /// Getter for inner waiting fee field.
+    pub fn waiting_fee(&self) -> u64 {
+        self.waiting_fee
+    }
+
+    /// Getter for inner waking fee field.
+    pub fn waking_fee(&self) -> u64 {
+        self.waking_fee
+    }
+
+    /// Getter for inner outgoing limit field.
+    pub fn outgoing_limit(&self) -> u32 {
+        self.outgoing_limit
     }
 }
 
@@ -129,17 +147,8 @@ pub struct MessageContext {
 }
 
 impl MessageContext {
-    /// Create new MessageContext with default ContextSettings.
-    pub fn new(
-        message: IncomingMessage,
-        program_id: ProgramId,
-        store: Option<ContextStore>,
-    ) -> Self {
-        Self::new_with_settings(message, program_id, store, Default::default())
-    }
-
     /// Create new MessageContext with given ContextSettings.
-    pub fn new_with_settings(
+    pub fn new(
         message: IncomingMessage,
         program_id: ProgramId,
         store: Option<ContextStore>,
@@ -151,6 +160,11 @@ impl MessageContext {
             store: store.unwrap_or_default(),
             settings,
         }
+    }
+
+    /// Getter for inner settings.
+    pub fn settings(&self) -> &ContextSettings {
+        &self.settings
     }
 
     /// Send a new program initialization message.
@@ -349,18 +363,14 @@ mod tests {
     }
 
     #[test]
-    fn default_message_context() {
-        let message_context =
-            MessageContext::new(Default::default(), Default::default(), Default::default());
-
-        // Check that created in new ContextSettings have valid outgoing_limit.
-        assert_eq!(message_context.settings.outgoing_limit, OUTGOING_LIMIT);
-    }
-
-    #[test]
     fn duplicated_init() {
-        let mut message_context =
-            MessageContext::new(Default::default(), Default::default(), Default::default());
+        let mut message_context = MessageContext::new(
+            Default::default(),
+            Default::default(),
+            Default::default(),
+            ContextSettings::new(0, 0, 0, 1024),
+        );
+
         // first init to default ProgramId.
         assert_ok!(message_context.init_program(Default::default(), 0));
 
@@ -378,9 +388,9 @@ mod tests {
 
         for n in 0..=max_n {
             // for outgoing_limit n checking that LimitExceeded will be after n's message.
-            let settings = ContextSettings::new(0, n);
+            let settings = ContextSettings::new(0, 0, 0, n);
 
-            let mut message_context = MessageContext::new_with_settings(
+            let mut message_context = MessageContext::new(
                 Default::default(),
                 Default::default(),
                 Default::default(),
@@ -408,8 +418,12 @@ mod tests {
 
     #[test]
     fn invalid_out_of_bounds() {
-        let mut message_context =
-            MessageContext::new(Default::default(), Default::default(), Default::default());
+        let mut message_context = MessageContext::new(
+            Default::default(),
+            Default::default(),
+            Default::default(),
+            ContextSettings::new(0, 0, 0, 1024),
+        );
 
         // Use invalid handle 0.
         let out_of_bounds = message_context.send_commit(0, Default::default(), 0);
@@ -431,8 +445,12 @@ mod tests {
 
     #[test]
     fn double_reply() {
-        let mut message_context =
-            MessageContext::new(Default::default(), Default::default(), Default::default());
+        let mut message_context = MessageContext::new(
+            Default::default(),
+            Default::default(),
+            Default::default(),
+            ContextSettings::new(0, 0, 0, 1024),
+        );
 
         // First reply.
         assert_ok!(message_context.reply_commit(Default::default(), 0));
@@ -466,6 +484,7 @@ mod tests {
             incoming_message,
             ids::ProgramId::from(INCOMING_MESSAGE_ID),
             None,
+            ContextSettings::new(0, 0, 0, 1024),
         );
 
         // Checking that the initial parameters of the context match the passed constants

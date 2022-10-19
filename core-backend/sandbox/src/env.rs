@@ -71,17 +71,21 @@ impl GetGasAmount for Error {
 }
 
 /// Environment to run one module at a time providing Ext.
-pub struct SandboxEnvironment;
+pub struct SandboxEnvironment<E: Ext> {
+    instance: Instance<Runtime<E>>,
+    runtime: Runtime<E>,
+    entries: BTreeSet<DispatchKind>,
+}
 
 // A helping wrapper for `EnvironmentDefinitionBuilder` and `forbidden_funcs`.
 // It makes adding functions to `EnvironmentDefinitionBuilder` shorter.
 struct EnvBuilder<'a, E: Ext> {
-    env_def_builder: EnvironmentDefinitionBuilder<Runtime<'a, E>>,
+    env_def_builder: EnvironmentDefinitionBuilder<Runtime<E>>,
     forbidden_funcs: &'a BTreeSet<&'static str>,
 }
 
 impl<'a, E: Ext + IntoExtInfo<E::Error> + 'static> EnvBuilder<'a, E> {
-    fn add_func(&mut self, name: &str, f: HostFuncType<Runtime<'a, E>>)
+    fn add_func(&mut self, name: &str, f: HostFuncType<Runtime<E>>)
     where
         E::Error: AsTerminationReason + IntoExtError,
     {
@@ -94,13 +98,13 @@ impl<'a, E: Ext + IntoExtInfo<E::Error> + 'static> EnvBuilder<'a, E> {
     }
 }
 
-impl<'a, E: Ext> From<EnvBuilder<'a, E>> for EnvironmentDefinitionBuilder<Runtime<'a, E>> {
+impl<'a, E: Ext> From<EnvBuilder<'a, E>> for EnvironmentDefinitionBuilder<Runtime<E>> {
     fn from(builder: EnvBuilder<'a, E>) -> Self {
         builder.env_def_builder
     }
 }
 
-impl<E> Environment<E> for SandboxEnvironment
+impl<E> Environment<E> for SandboxEnvironment<E>
 where
     E: Ext + IntoExtInfo<E::Error> + GetGasAmount + 'static,
     E::Error: AsTerminationReason + IntoExtError,
@@ -108,18 +112,12 @@ where
     type Memory = MemoryWrap;
     type Error = Error;
 
-    fn execute<F, T>(
-        mut ext: E,
+    fn new(
+        ext: E,
         binary: &[u8],
         entries: BTreeSet<DispatchKind>,
         mem_size: WasmPageNumber,
-        entry_point: &DispatchKind,
-        pre_execution_handler: F,
-    ) -> Result<BackendReport<Self::Memory, E>, Self::Error>
-    where
-        F: FnOnce(&mut Self::Memory, Option<WasmPageNumber>) -> Result<(), T>,
-        T: fmt::Display,
-    {
+    ) -> Result<Self, Self::Error> {
         use SandboxEnvironmentError::*;
 
         let mut builder = EnvBuilder::<E> {
@@ -174,18 +172,40 @@ where
         env_builder.add_host_func("env", "free", Funcs::free);
         env_builder.add_host_func("env", "gas", Funcs::gas);
 
-        let mut memory_wrap = MemoryWrap::new(mem.clone());
+        let memory_wrap = MemoryWrap::new(mem.clone());
         let mut runtime = Runtime {
-            ext: &mut ext,
-            memory: &mem,
-            memory_wrap: &mut memory_wrap,
+            ext,
+            memory: mem,
+            memory_wrap,
             err: FuncError::Terminated(TerminationReason::Success),
         };
 
-        let mut instance = match Instance::new(binary, &env_builder, &mut runtime) {
-            Ok(inst) => inst,
-            Err(e) => return Err((runtime.ext.gas_amount(), ModuleInstantiation(e)).into()),
-        };
+        match Instance::new(binary, &env_builder, &mut runtime) {
+            Ok(instance) => Ok(Self {
+                instance,
+                runtime,
+                entries,
+            }),
+            Err(e) => Err((runtime.ext.gas_amount(), ModuleInstantiation(e)).into()),
+        }
+    }
+
+    fn execute<F, T>(
+        self,
+        entry_point: &DispatchKind,
+        pre_execution_handler: F,
+    ) -> Result<BackendReport<Self::Memory, E>, Self::Error>
+    where
+        F: FnOnce(&mut Self::Memory, Option<WasmPageNumber>) -> Result<(), T>,
+        T: fmt::Display,
+    {
+        use SandboxEnvironmentError::*;
+
+        let Self {
+            mut instance,
+            mut runtime,
+            entries,
+        } = self;
 
         let stack_end = instance
             .get_global_val(STACK_END_EXPORT_NAME)
@@ -195,7 +215,7 @@ where
             Err(e) => return Err((runtime.ext.gas_amount(), StackEnd(e)).into()),
         };
 
-        match pre_execution_handler(runtime.memory_wrap, stack_end_page) {
+        match pre_execution_handler(&mut runtime.memory_wrap, stack_end_page) {
             Ok(_) => (),
             Err(e) => {
                 return Err((runtime.ext.gas_amount(), PreExecutionHandler(e.to_string())).into());
@@ -208,8 +228,12 @@ where
             Ok(ReturnValue::Unit)
         };
 
-        let Runtime { err: trap, .. } = runtime;
-        drop(instance);
+        let Runtime {
+            err: trap,
+            ext,
+            memory_wrap,
+            ..
+        } = runtime;
 
         log::debug!("SandboxEnvironment::execute res = {res:?}");
 

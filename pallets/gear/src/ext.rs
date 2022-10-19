@@ -249,7 +249,7 @@ impl EnvExt for LazyPagesExt {
         self.inner.wait_for(duration)
     }
 
-    fn wait_up_to(&mut self, duration: u32) -> Result<(), Self::Error> {
+    fn wait_up_to(&mut self, duration: u32) -> Result<bool, Self::Error> {
         self.inner.wait_up_to(duration)
     }
 

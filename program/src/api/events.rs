@@ -27,11 +27,6 @@ pub type Events<'a> =
 pub type InBlockEvents = TransactionEvents<GearConfig, Event>;
 
 impl Api {
-    /// Subscribe all events
-    pub async fn events(&self) -> Result<Events<'_>> {
-        Ok(self.0.events().subscribe().await?)
-    }
-
     /// Capture the dispatch info of any extrinsic and display the weight spent
     pub async fn capture_dispatch_info<'e>(
         &'e self,
@@ -47,7 +42,7 @@ impl Api {
                 let dispatch_error = DispatchError::decode(&mut &*ev.data)?;
                 if let Some(error_data) = dispatch_error.module_error_data() {
                     // Error index is utilized as the first byte from the error array.
-                    let locked_metadata = self.0.client.metadata();
+                    let locked_metadata = self.client.metadata();
                     let metadata = locked_metadata.read();
                     let details =
                         metadata.error(error_data.pallet_index, error_data.error_index())?;

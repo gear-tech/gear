@@ -29,7 +29,9 @@ use gear_core::{
     gas::{GasAllowanceCounter, GasAmount, GasCounter},
     ids::{CodeId, MessageId, ProgramId},
     memory::{PageBuf, PageNumber, WasmPageNumber},
-    message::{ContextStore, Dispatch, DispatchKind, IncomingDispatch, StoredDispatch},
+    message::{
+        ContextStore, Dispatch, DispatchKind, IncomingDispatch, MessageWaitedType, StoredDispatch,
+    },
     program::Program,
 };
 use gear_core_errors::MemoryError;
@@ -43,7 +45,7 @@ pub enum DispatchResultKind {
     /// Trap dispatch.
     Trap(TrapExplanation),
     /// Wait dispatch.
-    Wait(Option<u32>),
+    Wait(Option<u32>, MessageWaitedType),
     /// Exit dispatch.
     Exit(ProgramId),
     /// Gas allowance exceed.
@@ -198,6 +200,8 @@ pub enum JournalNote {
         dispatch: StoredDispatch,
         /// Expected duration of holding.
         duration: Option<u32>,
+        /// If this message is waiting for its reincarnation.
+        waited_type: MessageWaitedType,
     },
     /// Wake particular message.
     WakeMessage {
@@ -272,7 +276,12 @@ pub trait JournalHandler {
     /// Process send dispatch.
     fn send_dispatch(&mut self, message_id: MessageId, dispatch: Dispatch, delay: u32);
     /// Process send message.
-    fn wait_dispatch(&mut self, dispatch: StoredDispatch, duration: Option<u32>);
+    fn wait_dispatch(
+        &mut self,
+        dispatch: StoredDispatch,
+        duration: Option<u32>,
+        waited_type: MessageWaitedType,
+    );
     /// Process send message.
     fn wake_message(
         &mut self,
@@ -354,6 +363,12 @@ pub enum ExecutionErrorReason {
     /// Not enough gas for loading a program code
     #[display(fmt = "Not enough gas for loading a program code")]
     ProgramCodeGasExceeded,
+    /// Not enough gas for WASM module instantiation
+    #[display(fmt = "Not enough gas for WASM module instantiation")]
+    ModuleInstantiationGasExceeded,
+    /// Not enough gas in block for WASM module instantiation
+    #[display(fmt = "Not enough gas in block for WASM module instantiation")]
+    ModuleInstantiationBlockGasExceeded,
     /// Mem size less then static pages num
     #[display(fmt = "Mem size less then static pages num")]
     InsufficientMemorySize,
