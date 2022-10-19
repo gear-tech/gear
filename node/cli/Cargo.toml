@@ -81,7 +81,7 @@ lazy-pages = [
 runtime-benchmarks = [
 	"service/runtime-benchmarks",
 	"frame-benchmarking-cli/runtime-benchmarks",
-  "gear-program/runtime-benchmarks",
+	"gear-program/runtime-benchmarks",
 ]
 debug-mode = [
 	"service/debug-mode",
@@ -92,7 +92,7 @@ debug-mode = [
 try-runtime = [
 	"service/try-runtime",
 	"try-runtime-cli",
-  "gear-program/try-runtime",
+	"gear-program/try-runtime",
 ]
 runtime-test = ["gear-runtime-test-cli"]
 program = ["gear-program"]
