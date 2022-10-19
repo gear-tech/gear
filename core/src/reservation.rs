@@ -51,8 +51,8 @@ impl GasReserver {
 
     /// Reserves gas.
     pub fn reserve(&mut self, amount: u64, duration: u32) -> ReservationId {
-        let idx = self.nonce.saturating_add(1);
-        self.nonce = idx;
+        let idx = self.nonce;
+        self.nonce = idx.saturating_add(1);
         let id = ReservationId::generate(self.message_id, idx);
 
         self.states
