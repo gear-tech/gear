@@ -35,9 +35,13 @@ use gear_runtime::{
 };
 use pallet_gear::{BlockGasLimitOf, GasAllowanceOf, GasHandlerOf};
 use pallet_gear_gas::Error as GasError;
+#[cfg(all(not(feature = "gear-native"), feature = "vara-native"))]
+use pallet_im_online::sr25519::AuthorityId as ImOnlineId;
 use parking_lot::RwLock;
 use rand::{rngs::StdRng, RngCore};
 use runtime_primitives::AccountPublic;
+#[cfg(all(not(feature = "gear-native"), feature = "vara-native"))]
+use sp_authority_discovery::AuthorityId as AuthorityDiscoveryId;
 use sp_consensus_babe::{
     digests::{PreDigest, SecondaryPlainPreDigest},
     AuthorityId as BabeId, BABE_ENGINE_ID,
@@ -86,11 +90,33 @@ where
 type AuthorityId = BabeId;
 
 // Generate authority keys.
+#[cfg(feature = "gear-native")]
 pub(crate) fn authority_keys_from_seed(s: &str) -> (AccountId32, AuthorityId, GrandpaId) {
     (
         get_account_id_from_seed::<sr25519::Public>(s),
         get_from_seed::<AuthorityId>(s),
         get_from_seed::<GrandpaId>(s),
+    )
+}
+
+#[cfg(all(not(feature = "gear-native"), feature = "vara-native"))]
+pub fn authority_keys_from_seed(
+    s: &str,
+) -> (
+    AccountId32,
+    AccountId32,
+    BabeId,
+    GrandpaId,
+    ImOnlineId,
+    AuthorityDiscoveryId,
+) {
+    (
+        get_account_id_from_seed::<sr25519::Public>(&format!("{}//stash", s)),
+        get_account_id_from_seed::<sr25519::Public>(s),
+        get_from_seed::<BabeId>(s),
+        get_from_seed::<GrandpaId>(s),
+        get_from_seed::<ImOnlineId>(s),
+        get_from_seed::<AuthorityDiscoveryId>(s),
     )
 }
 
@@ -204,6 +230,7 @@ pub(crate) fn new_test_ext(
         );
     });
 
+    #[cfg(feature = "gear-native")]
     SessionConfig {
         keys: initial_authorities
             .iter()
@@ -217,7 +244,28 @@ pub(crate) fn new_test_ext(
                     },
                 )
             })
-            .collect::<Vec<_>>(),
+            .collect(),
+    }
+    .assimilate_storage(&mut t)
+    .unwrap();
+
+    #[cfg(all(not(feature = "gear-native"), feature = "vara-native"))]
+    SessionConfig {
+        keys: initial_authorities
+            .iter()
+            .map(|x| {
+                (
+                    x.0.clone(),
+                    x.0.clone(),
+                    SessionKeys {
+                        babe: x.2.clone(),
+                        grandpa: x.3.clone(),
+                        im_online: x.4.clone(),
+                        authority_discovery: x.5.clone(),
+                    },
+                )
+            })
+            .collect(),
     }
     .assimilate_storage(&mut t)
     .unwrap();
