@@ -18,6 +18,7 @@
 #![no_std]
 
 use codec::{Decode, Encode};
+use gstd::ActorId;
 
 #[cfg(feature = "std")]
 mod code {
@@ -37,4 +38,5 @@ pub enum Command {
     Wait,
     WaitFor(u32),
     WaitUpTo(u32),
+    SendAndWaitFor(u32, ActorId),
 }
