@@ -378,7 +378,17 @@ impl EnvExt for Ext {
 
         self.check_forbidden_call(msg.destination())?;
         self.charge_expiring_resources(&msg)?;
-        self.charge_gas(self.context.message_context.settings().sending_fee())?;
+
+        if delay == 0 {
+            self.charge_gas(self.context.message_context.settings().sending_fee())?;
+        } else {
+            self.charge_gas(
+                self.context
+                    .message_context
+                    .settings()
+                    .scheduled_sending_fee(),
+            )?;
+        }
 
         let result = self.context.message_context.send_commit(handle, msg, delay);
 
@@ -390,7 +400,17 @@ impl EnvExt for Ext {
 
         self.check_forbidden_call(self.context.message_context.reply_destination())?;
         self.charge_expiring_resources(&msg)?;
-        self.charge_gas(self.context.message_context.settings().sending_fee())?;
+
+        if delay == 0 {
+            self.charge_gas(self.context.message_context.settings().sending_fee())?;
+        } else {
+            self.charge_gas(
+                self.context
+                    .message_context
+                    .settings()
+                    .scheduled_sending_fee(),
+            )?;
+        }
 
         let result = self.context.message_context.reply_commit(msg, delay);
 
