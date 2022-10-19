@@ -47,10 +47,7 @@ impl GasReserver {
         let idx = self.map.len();
         let id = ReservationId::generate(self.message_id, idx as u64);
 
-        let slot = GasReservationSlot {
-            amount,
-            bn: duration,
-        };
+        let slot = GasReservationSlot { amount };
 
         let old_amount = self.map.insert(id, slot);
         debug_assert!(
@@ -69,7 +66,7 @@ impl GasReserver {
 
     /// Unreserves gas.
     pub fn unreserve(&mut self, id: ReservationId) -> Result<u64, ExecutionError> {
-        let GasReservationSlot { amount, bn } = self
+        let GasReservationSlot { amount } = self
             .map
             .remove(&id)
             .ok_or(ExecutionError::InvalidReservationId)?;
@@ -78,8 +75,7 @@ impl GasReserver {
         // so when we do unreservation we just simply remove it
         // so reservation + unreservation operations during one execution are just noop
         if self.tasks.remove(&id).is_none() {
-            self.tasks
-                .insert(id, GasReservationTask::RemoveReservation { bn });
+            self.tasks.insert(id, GasReservationTask::RemoveReservation);
         }
 
         Ok(amount)
@@ -107,10 +103,7 @@ pub enum GasReservationTask {
         duration: u32,
     },
     /// Remove reservation.
-    RemoveReservation {
-        /// Block number until reservation will live.
-        bn: u32,
-    },
+    RemoveReservation,
 }
 
 /// Gas reservation map.
@@ -121,6 +114,4 @@ pub type GasReservationMap = BTreeMap<ReservationId, GasReservationSlot>;
 pub struct GasReservationSlot {
     /// Amount of reserved gas.
     pub amount: u64,
-    /// Block number until reservation will live.
-    pub bn: u32,
 }

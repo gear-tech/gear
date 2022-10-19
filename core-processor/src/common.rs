@@ -274,8 +274,6 @@ pub enum JournalNote {
         reservation_id: ReservationId,
         /// Program which contains reservation.
         program_id: ProgramId,
-        /// Block number until reservation will live.
-        bn: u32,
     },
     /// Update gas reservation map in program.
     UpdateGasReservations {
@@ -343,7 +341,7 @@ pub trait JournalHandler {
         bn: u32,
     );
     /// Unreserve gas.
-    fn unreserve_gas(&mut self, reservation_id: ReservationId, program_id: ProgramId, bn: u32);
+    fn unreserve_gas(&mut self, reservation_id: ReservationId, program_id: ProgramId);
     /// Update gas reservations.
     fn update_gas_reservation(&mut self, program_id: ProgramId, map: GasReservationMap);
 }

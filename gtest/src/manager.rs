@@ -920,7 +920,7 @@ impl JournalHandler for ExtManager {
     ) {
     }
 
-    fn unreserve_gas(&mut self, _reservation_id: ReservationId, _program_id: ProgramId, _bn: u32) {}
+    fn unreserve_gas(&mut self, _reservation_id: ReservationId, _program_id: ProgramId) {}
 
     fn update_gas_reservation(
         &mut self,

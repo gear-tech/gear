@@ -25,7 +25,8 @@ use crate::{
         LOW_BALANCE_USER, USER_1, USER_2, USER_3,
     },
     pallet, BlockGasLimitOf, Config, CostsPerBlockOf, DbWeightOf, Error, Event, GasAllowanceOf,
-    GasHandlerOf, GasInfo, MailboxOf, ReadPerByteCostOf, Schedule, TaskPoolOf, WaitlistOf,
+    GasHandlerOf, GasInfo, MailboxOf, ReadPerByteCostOf, ReservationPoolOf, Schedule, TaskPoolOf,
+    WaitlistOf,
 };
 use codec::{Decode, Encode};
 use common::{
@@ -5759,13 +5760,10 @@ fn gas_reservation_works() {
         assert_eq!(map.len(), 1);
 
         // check task is exist yet
-        let (reservation_id, slot) = map.iter().next().unwrap();
-        log::error!("{:?}", slot);
+        let (reservation_id, _slot) = map.iter().next().unwrap();
+        let bn = ReservationPoolOf::<Test>::get(*reservation_id).unwrap();
         let task = ScheduledTask::RemoveGasReservation(pid, *reservation_id);
-        assert!(TaskPoolOf::<Test>::contains(
-            &BlockNumberFor::<Test>::from(slot.bn),
-            &task
-        ));
+        assert!(TaskPoolOf::<Test>::contains(&bn, &task));
 
         // `gr_exit` occurs
         assert_ok!(Gear::send_message(
@@ -5781,10 +5779,8 @@ fn gas_reservation_works() {
         // check task was cleared after `gr_exit` happened
         let map = get_reservation_map(pid);
         assert_eq!(map, None);
-        assert!(!TaskPoolOf::<Test>::contains(
-            &BlockNumberFor::<Test>::from(slot.bn),
-            &task
-        ));
+        assert!(!ReservationPoolOf::<Test>::contains(reservation_id));
+        assert!(!TaskPoolOf::<Test>::contains(&bn, &task));
     });
 }
 
@@ -5819,12 +5815,10 @@ fn gas_reservations_cleaned_in_terminated_program() {
         let map = get_reservation_map(pid).unwrap();
         assert_eq!(map.len(), 1);
 
-        let (reservation_id, slot) = map.iter().next().unwrap();
+        let (reservation_id, _slot) = map.iter().next().unwrap();
+        let bn = ReservationPoolOf::<Test>::get(*reservation_id).unwrap();
         let task = ScheduledTask::RemoveGasReservation(pid, *reservation_id);
-        assert!(TaskPoolOf::<Test>::contains(
-            &BlockNumberFor::<Test>::from(slot.bn),
-            &task
-        ));
+        assert!(TaskPoolOf::<Test>::contains(&bn, &task));
 
         assert_ok!(Gear::send_reply(
             RuntimeOrigin::signed(USER_1),
@@ -5838,10 +5832,8 @@ fn gas_reservations_cleaned_in_terminated_program() {
 
         let map = get_reservation_map(pid);
         assert_eq!(map, None);
-        assert!(!TaskPoolOf::<Test>::contains(
-            &BlockNumberFor::<Test>::from(slot.bn),
-            &task
-        ));
+        assert!(!ReservationPoolOf::<Test>::contains(reservation_id));
+        assert!(!TaskPoolOf::<Test>::contains(&bn, &task));
     });
 }
 

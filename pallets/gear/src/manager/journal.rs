@@ -20,7 +20,7 @@ use crate::{
     internal::HoldBound,
     manager::{CodeInfo, ExtManager},
     Config, CostsPerBlockOf, CurrencyOf, Event, GasAllowanceOf, GasHandlerOf, GearProgramPallet,
-    Pallet, QueueOf, SentOf, TaskPoolOf, WaitlistOf,
+    Pallet, QueueOf, ReservationPoolOf, SentOf, TaskPoolOf, WaitlistOf,
 };
 use common::{
     event::*,
@@ -442,8 +442,6 @@ where
             unreachable!("Threshold for reservation invalidated")
         }
 
-        log::error!("!!!TEST!!! {:?}", hold.expected());
-
         let total_amount = amount.saturating_add(hold.lock());
 
         GasHandlerOf::<T>::reserve(message_id, reservation_id, total_amount)
@@ -452,6 +450,9 @@ where
         GasHandlerOf::<T>::lock(reservation_id, hold.lock())
             .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
 
+        ReservationPoolOf::<T>::add(reservation_id, hold.deadline())
+            .unwrap_or_else(|e| unreachable!("Reservations corrupted! {:?}", e));
+
         TaskPoolOf::<T>::add(
             hold.deadline(),
             ScheduledTask::RemoveGasReservation(program_id, reservation_id),
@@ -459,7 +460,7 @@ where
         .unwrap_or_else(|e| unreachable!("Scheduling logic invalidated! {:?}", e));
     }
 
-    fn unreserve_gas(&mut self, reservation_id: ReservationId, program_id: ProgramId, bn: u32) {
+    fn unreserve_gas(&mut self, reservation_id: ReservationId, program_id: ProgramId) {
         // TODO: consider move `TaskPool::delete` into `remove_gas_reservation`
         <Self as TaskHandler<T::AccountId>>::remove_gas_reservation(
             self,
@@ -467,8 +468,11 @@ where
             reservation_id,
         );
 
+        let bn = ReservationPoolOf::<T>::delete(reservation_id)
+            .unwrap_or_else(|e| unreachable!("Reservations corrupted! {:?}", e));
+
         let _ = TaskPoolOf::<T>::delete(
-            BlockNumberFor::<T>::from(bn),
+            bn,
             ScheduledTask::RemoveGasReservation(program_id, reservation_id),
         );
     }

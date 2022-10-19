@@ -6547,10 +6547,10 @@ pub mod api {
                         };
                         if runtime_storage_hash
                             == [
-                                101u8, 64u8, 226u8, 43u8, 135u8, 172u8, 163u8, 107u8, 26u8, 90u8,
-                                127u8, 58u8, 154u8, 8u8, 16u8, 6u8, 54u8, 14u8, 98u8, 129u8, 243u8,
-                                46u8, 116u8, 205u8, 226u8, 217u8, 253u8, 11u8, 99u8, 76u8, 113u8,
-                                247u8,
+                                99u8, 182u8, 170u8, 26u8, 246u8, 183u8, 201u8, 79u8, 230u8, 96u8,
+                                164u8, 39u8, 241u8, 105u8, 80u8, 232u8, 128u8, 127u8, 207u8, 149u8,
+                                91u8, 122u8, 200u8, 97u8, 47u8, 239u8, 181u8, 254u8, 103u8, 19u8,
+                                54u8, 216u8,
                             ]
                         {
                             let entry = PausedPrograms(_0);
@@ -6581,10 +6581,10 @@ pub mod api {
                         };
                         if runtime_storage_hash
                             == [
-                                101u8, 64u8, 226u8, 43u8, 135u8, 172u8, 163u8, 107u8, 26u8, 90u8,
-                                127u8, 58u8, 154u8, 8u8, 16u8, 6u8, 54u8, 14u8, 98u8, 129u8, 243u8,
-                                46u8, 116u8, 205u8, 226u8, 217u8, 253u8, 11u8, 99u8, 76u8, 113u8,
-                                247u8,
+                                99u8, 182u8, 170u8, 26u8, 246u8, 183u8, 201u8, 79u8, 230u8, 96u8,
+                                164u8, 39u8, 241u8, 105u8, 80u8, 232u8, 128u8, 127u8, 207u8, 149u8,
+                                91u8, 122u8, 200u8, 97u8, 47u8, 239u8, 181u8, 254u8, 103u8, 19u8,
+                                54u8, 216u8,
                             ]
                         {
                             client.storage().iter(block_hash).await
@@ -6707,6 +6707,18 @@ pub mod api {
                         ::subxt::StorageMapKey::new(&self.0, ::subxt::StorageHasher::Identity),
                         ::subxt::StorageMapKey::new(&self.1, ::subxt::StorageHasher::Identity),
                     ])
+                }
+            }
+            pub struct ReservationPool<'a>(pub &'a runtime_types::gear_core::ids::ReservationId);
+            impl ::subxt::StorageEntry for ReservationPool<'_> {
+                const PALLET: &'static str = "GearMessenger";
+                const STORAGE: &'static str = "ReservationPool";
+                type Value = ::core::primitive::u32;
+                fn key(&self) -> ::subxt::StorageEntryKey {
+                    ::subxt::StorageEntryKey::Map(vec![::subxt::StorageMapKey::new(
+                        &self.0,
+                        ::subxt::StorageHasher::Identity,
+                    )])
                 }
             }
             pub struct StorageApi<'a, T: ::subxt::Config> {
@@ -7131,6 +7143,74 @@ pub mod api {
                                 38u8, 83u8, 9u8, 15u8, 14u8, 51u8, 86u8, 238u8, 51u8, 55u8, 186u8,
                                 169u8, 245u8, 218u8, 108u8, 140u8, 153u8, 12u8, 67u8, 198u8, 145u8,
                                 151u8,
+                            ]
+                        {
+                            client.storage().iter(block_hash).await
+                        } else {
+                            Err(::subxt::MetadataError::IncompatibleMetadata.into())
+                        }
+                    }
+                }
+                pub fn reservation_pool(
+                    &self,
+                    _0: &'a runtime_types::gear_core::ids::ReservationId,
+                    block_hash: ::core::option::Option<T::Hash>,
+                ) -> impl ::core::future::Future<
+                    Output = ::core::result::Result<
+                        ::core::option::Option<::core::primitive::u32>,
+                        ::subxt::BasicError,
+                    >,
+                > + 'a {
+                    let client = self.client;
+                    async move {
+                        let runtime_storage_hash = {
+                            let locked_metadata = client.metadata();
+                            let metadata = locked_metadata.read();
+                            match metadata.storage_hash::<ReservationPool>() {
+                                Ok(hash) => hash,
+                                Err(e) => return Err(e.into()),
+                            }
+                        };
+                        if runtime_storage_hash
+                            == [
+                                185u8, 142u8, 108u8, 34u8, 36u8, 238u8, 229u8, 254u8, 39u8, 188u8,
+                                225u8, 105u8, 144u8, 34u8, 143u8, 0u8, 249u8, 213u8, 184u8, 94u8,
+                                105u8, 28u8, 167u8, 28u8, 204u8, 215u8, 49u8, 197u8, 46u8, 142u8,
+                                177u8, 1u8,
+                            ]
+                        {
+                            let entry = ReservationPool(_0);
+                            client.storage().fetch(&entry, block_hash).await
+                        } else {
+                            Err(::subxt::MetadataError::IncompatibleMetadata.into())
+                        }
+                    }
+                }
+                pub fn reservation_pool_iter(
+                    &self,
+                    block_hash: ::core::option::Option<T::Hash>,
+                ) -> impl ::core::future::Future<
+                    Output = ::core::result::Result<
+                        ::subxt::KeyIter<'a, T, ReservationPool<'a>>,
+                        ::subxt::BasicError,
+                    >,
+                > + 'a {
+                    let client = self.client;
+                    async move {
+                        let runtime_storage_hash = {
+                            let locked_metadata = client.metadata();
+                            let metadata = locked_metadata.read();
+                            match metadata.storage_hash::<ReservationPool>() {
+                                Ok(hash) => hash,
+                                Err(e) => return Err(e.into()),
+                            }
+                        };
+                        if runtime_storage_hash
+                            == [
+                                185u8, 142u8, 108u8, 34u8, 36u8, 238u8, 229u8, 254u8, 39u8, 188u8,
+                                225u8, 105u8, 144u8, 34u8, 143u8, 0u8, 249u8, 213u8, 184u8, 94u8,
+                                105u8, 28u8, 167u8, 28u8, 204u8, 215u8, 49u8, 197u8, 46u8, 142u8,
+                                177u8, 1u8,
                             ]
                         {
                             client.storage().iter(block_hash).await
@@ -9103,10 +9183,14 @@ pub mod api {
             }
             pub mod reservation {
                 use super::runtime_types;
-                #[derive(:: subxt :: codec :: Decode, :: subxt :: codec :: Encode, Debug)]
+                #[derive(
+                    :: subxt :: codec :: CompactAs,
+                    :: subxt :: codec :: Decode,
+                    :: subxt :: codec :: Encode,
+                    Debug,
+                )]
                 pub struct GasReservationSlot {
                     pub amount: ::core::primitive::u64,
-                    pub bn: ::core::primitive::u32,
                 }
             }
         }
@@ -10111,6 +10195,12 @@ pub mod api {
                     #[codec(index = 11)]
                     #[doc = "Occurs when waitlist's element wasn't found in storage."]
                     WaitlistElementNotFound,
+                    #[codec(index = 12)]
+                    #[doc = "Occurs when given value already exists in reservation pool."]
+                    ReservationPoolDuplicateKey,
+                    #[codec(index = 13)]
+                    #[doc = "Occurs when reservation wasn't found in pool storage."]
+                    ReservationNotFound,
                 }
             }
         }
@@ -11652,9 +11742,9 @@ pub mod api {
             };
             if runtime_metadata_hash
                 != [
-                    89u8, 173u8, 127u8, 213u8, 249u8, 217u8, 28u8, 180u8, 204u8, 121u8, 109u8,
-                    47u8, 235u8, 150u8, 143u8, 61u8, 208u8, 219u8, 133u8, 8u8, 5u8, 47u8, 225u8,
-                    31u8, 197u8, 118u8, 3u8, 205u8, 26u8, 122u8, 214u8, 27u8,
+                    133u8, 206u8, 37u8, 75u8, 197u8, 132u8, 165u8, 16u8, 2u8, 49u8, 47u8, 42u8,
+                    42u8, 119u8, 153u8, 147u8, 29u8, 39u8, 147u8, 67u8, 203u8, 8u8, 76u8, 196u8,
+                    206u8, 68u8, 215u8, 127u8, 20u8, 255u8, 50u8, 234u8,
                 ]
             {
                 Err(::subxt::MetadataError::IncompatibleMetadata)

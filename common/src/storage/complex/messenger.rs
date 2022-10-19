@@ -22,7 +22,7 @@
 
 use crate::storage::{
     Counted, CountedByKey, Counter, DequeueError, Interval, IterableByKeyMap, IterableMap, Mailbox,
-    MailboxError, Queue, Toggler, Waitlist, WaitlistError,
+    MailboxError, Queue, ReservationPool, Toggler, Waitlist, WaitlistError,
 };
 use core::fmt::Debug;
 
@@ -71,6 +71,10 @@ pub trait Messenger {
     ///
     /// Present to clarify compiler behavior over associated types.
     type WaitlistedMessage;
+    /// Key of the reservation pool storage.
+    ///
+    /// Present to clarify compiler behavior over associated types.
+    type ReservationPoolKey;
 
     /// Amount of messages sent from outside (from users)
     /// within the current block.
@@ -161,6 +165,16 @@ pub trait Messenger {
             Key = Self::WaitlistFirstKey,
         >;
 
+    /// Gear reservation pool.
+    ///
+    /// Pool contains gas reservations.
+    type ReservationPool: ReservationPool<
+        ReservationId = Self::ReservationPoolKey,
+        BlockNumber = Self::BlockNumber,
+        Error = Self::Error,
+        OutputError = Self::OutputError,
+    >;
+
     /// Resets all related to messenger storages.
     ///
     /// It's a temporary production solution to avoid DB migrations
@@ -172,5 +186,6 @@ pub trait Messenger {
         Self::Queue::clear();
         Self::Mailbox::clear();
         Self::Waitlist::clear();
+        Self::ReservationPool::clear();
     }
 }
