@@ -367,6 +367,29 @@ pub struct ExecutionError {
     pub reason: ExecutionErrorReason,
 }
 
+/// Operation related to gas charging.
+#[derive(Encode, Decode, TypeInfo, Debug, PartialEq, Eq, PartialOrd, Ord, derive_more::Display)]
+pub enum GasOperation {
+    /// Load exisisting memory.
+    #[display(fmt = "load memory")]
+    LoadMemory,
+    /// Grow memory size.
+    #[display(fmt = "grow memory size")]
+    GrowMemory,
+    /// Handle initial memory.
+    #[display(fmt = "handle initial memory")]
+    InitialMemory,
+    /// Handle program data.
+    #[display(fmt = "handle program data")]
+    ProgramData,
+    /// Handle program code.
+    #[display(fmt = "handle program code")]
+    ProgramCode,
+    /// Instantiate Wasm module.
+    #[display(fmt = "instantiate Wasm module")]
+    ModuleInstantiation,
+}
+
 /// Reason of execution error
 #[derive(Encode, Decode, TypeInfo, Debug, PartialEq, Eq, PartialOrd, Ord, derive_more::Display)]
 pub enum ExecutionErrorReason {
@@ -385,36 +408,12 @@ pub enum ExecutionErrorReason {
     /// Program's max page is not last page in wasm page
     #[display(fmt = "Program's max page is not last page in wasm page")]
     NotLastPage,
-    /// Not enough gas to load memory
-    #[display(fmt = "Not enough gas to load memory")]
-    LoadMemoryGasExceeded,
-    /// Not enough gas in block to load memory
-    #[display(fmt = "Not enough gas in block to load memory")]
-    LoadMemoryBlockGasExceeded,
-    /// Not enough gas to grow memory size
-    #[display(fmt = "Not enough gas to grow memory size")]
-    GrowMemoryGasExceeded,
-    /// Not enough gas in block to grow memory size
-    #[display(fmt = "Not enough gas in block to grow memory size")]
-    GrowMemoryBlockGasExceeded,
-    /// Not enough gas for initial memory handling
-    #[display(fmt = "Not enough gas for initial memory handling")]
-    InitialMemoryGasExceeded,
-    /// Not enough gas in block for initial memory handling
-    #[display(fmt = "Not enough gas in block for initial memory handling")]
-    InitialMemoryBlockGasExceeded,
-    /// Not enough gas for basic program data handling
-    #[display(fmt = "Not enough gas for basic program data handling")]
-    ProgramDataGasExceeded,
-    /// Not enough gas for loading a program code
-    #[display(fmt = "Not enough gas for loading a program code")]
-    ProgramCodeGasExceeded,
-    /// Not enough gas for WASM module instantiation
-    #[display(fmt = "Not enough gas for WASM module instantiation")]
-    ModuleInstantiationGasExceeded,
-    /// Not enough gas in block for WASM module instantiation
-    #[display(fmt = "Not enough gas in block for WASM module instantiation")]
-    ModuleInstantiationBlockGasExceeded,
+    /// Not enough gas to perform an operation.
+    #[display(fmt = "Not enough gas to {}", _0)]
+    GasExceeded(GasOperation),
+    /// Not enough gas in block to perform an operation.
+    #[display(fmt = "Not enough gas in block to {}", _0)]
+    BlockGasExceeded(GasOperation),
     /// Mem size less then static pages num
     #[display(fmt = "Mem size less then static pages num")]
     InsufficientMemorySize,

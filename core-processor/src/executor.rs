@@ -18,7 +18,7 @@
 
 use crate::{
     common::{
-        DispatchResult, DispatchResultKind, ExecutionError, ExecutionErrorReason,
+        DispatchResult, DispatchResultKind, ExecutionError, ExecutionErrorReason, GasOperation,
         WasmExecutionContext,
     },
     configs::{AllocationsConfig, ExecutionSettings},
@@ -53,6 +53,23 @@ pub fn calculate_gas_for_program(read_cost: u64, _per_byte_cost: u64) -> u64 {
 /// Calculates gas amount required to charge for code loading.
 pub fn calculate_gas_for_code(read_cost: u64, per_byte_cost: u64, code_len_bytes: u64) -> u64 {
     read_cost.saturating_add(code_len_bytes.saturating_mul(per_byte_cost))
+}
+
+fn charge_gas(
+    operation: GasOperation,
+    amount: u64,
+    gas_counter: &mut GasCounter,
+    gas_allowance_counter: &mut GasAllowanceCounter,
+) -> Result<(), ExecutionErrorReason> {
+    if gas_allowance_counter.charge(amount) != ChargeResult::Enough {
+        return Err(ExecutionErrorReason::BlockGasExceeded(operation));
+    }
+
+    if gas_counter.charge(amount) != ChargeResult::Enough {
+        return Err(ExecutionErrorReason::GasExceeded(operation));
+    }
+
+    Ok(())
 }
 
 fn charge_gas_for_bytes(
@@ -105,14 +122,6 @@ fn check_memory<'a>(
     static_pages: WasmPageNumber,
     memory_size: WasmPageNumber,
 ) -> Result<(), ExecutionErrorReason> {
-    // Checks that all pages with data are in allocations set.
-    for page in pages_with_data {
-        let wasm_page = page.to_wasm_page();
-        if wasm_page >= static_pages && !allocations.contains(&wasm_page) {
-            return Err(ExecutionErrorReason::PageIsNotAllocated(*page));
-        }
-    }
-
     if memory_size < static_pages {
         log::error!(
             "Mem size less then static pages num: mem_size = {:?}, static_pages = {:?}",
@@ -120,6 +129,14 @@ fn check_memory<'a>(
             static_pages
         );
         return Err(ExecutionErrorReason::InsufficientMemorySize);
+    }
+
+    // Checks that all pages with data are in allocations set.
+    for page in pages_with_data {
+        let wasm_page = page.to_wasm_page();
+        if wasm_page >= static_pages && !allocations.contains(&wasm_page) {
+            return Err(ExecutionErrorReason::PageIsNotAllocated(*page));
+        }
     }
 
     Ok(())
@@ -135,15 +152,12 @@ pub(crate) fn charge_gas_for_instantiation(
 
     log::trace!("Charge {} for module instantiation", amount);
 
-    if gas_allowance_counter.charge(amount) != ChargeResult::Enough {
-        return Err(ExecutionErrorReason::ModuleInstantiationBlockGasExceeded);
-    }
-
-    if gas_counter.charge(amount) != ChargeResult::Enough {
-        return Err(ExecutionErrorReason::ModuleInstantiationGasExceeded);
-    }
-
-    Ok(())
+    charge_gas(
+        GasOperation::ModuleInstantiation,
+        amount,
+        gas_counter,
+        gas_allowance_counter,
+    )
 }
 
 /// Charge gas for pages init/load/grow and checks that there is enough gas for that.
@@ -157,56 +171,51 @@ pub(crate) fn charge_gas_for_pages(
     initial_execution: bool,
     subsequent_execution: bool,
 ) -> Result<WasmPageNumber, ExecutionErrorReason> {
-    if !initial_execution {
-        let max_wasm_page = if let Some(page) = allocations.iter().next_back() {
-            *page
-        } else if static_pages != WasmPageNumber(0) {
-            static_pages - 1.into()
-        } else {
-            return Ok(0.into());
-        };
-
-        if !subsequent_execution {
-            // Charging gas for loaded pages
-            let amount =
-                settings.load_page_cost * (allocations.len() as u64 + static_pages.0 as u64);
-            if gas_allowance_counter.charge(amount) != ChargeResult::Enough {
-                return Err(ExecutionErrorReason::LoadMemoryBlockGasExceeded);
-            }
-
-            if gas_counter.charge(amount) != ChargeResult::Enough {
-                return Err(ExecutionErrorReason::LoadMemoryGasExceeded);
-            }
-        }
-
-        // Charging gas for mem size
-        let amount = settings.mem_grow_cost * (max_wasm_page.0 as u64 + 1 - static_pages.0 as u64);
-
-        if gas_allowance_counter.charge(amount) != ChargeResult::Enough {
-            return Err(ExecutionErrorReason::GrowMemoryBlockGasExceeded);
-        }
-
-        if gas_counter.charge(amount) != ChargeResult::Enough {
-            return Err(ExecutionErrorReason::GrowMemoryGasExceeded);
-        }
-
-        // +1 because pages numeration begins from 0
-        Ok(max_wasm_page + 1.into())
-    } else {
+    // Initial execution: just charge for static pages
+    if initial_execution {
         // Charging gas for initial pages
         let amount = settings.init_cost * static_pages.0 as u64;
         log::trace!("Charge {} for initial pages", amount);
+        charge_gas(
+            GasOperation::InitialMemory,
+            amount,
+            gas_counter,
+            gas_allowance_counter,
+        )?;
 
-        if gas_allowance_counter.charge(amount) != ChargeResult::Enough {
-            return Err(ExecutionErrorReason::InitialMemoryBlockGasExceeded);
-        }
-
-        if gas_counter.charge(amount) != ChargeResult::Enough {
-            return Err(ExecutionErrorReason::InitialMemoryGasExceeded);
-        }
-
-        Ok(static_pages)
+        return Ok(static_pages);
     }
+
+    let max_wasm_page = if let Some(page) = allocations.last() {
+        *page
+    } else if static_pages != WasmPageNumber(0) {
+        static_pages - 1.into()
+    } else {
+        return Ok(0.into());
+    };
+
+    if !subsequent_execution {
+        // Charging gas for loaded pages
+        let amount = settings.load_page_cost * (allocations.len() as u64 + static_pages.0 as u64);
+        charge_gas(
+            GasOperation::LoadMemory,
+            amount,
+            gas_counter,
+            gas_allowance_counter,
+        )?;
+    }
+
+    // Charging gas for mem size
+    let amount = settings.mem_grow_cost * (max_wasm_page.0 as u64 + 1 - static_pages.0 as u64);
+    charge_gas(
+        GasOperation::GrowMemory,
+        amount,
+        gas_counter,
+        gas_allowance_counter,
+    )?;
+
+    // +1 because pages numeration begins from 0
+    Ok(max_wasm_page + 1.into())
 }
 
 /// Writes initial pages data to memory and prepare memory for execution.
@@ -266,40 +275,45 @@ fn prepare_memory<A: ProcessorExt, M: Memory>(
 
 /// Returns pages and their new data, which must be updated or uploaded to storage.
 fn get_pages_to_be_updated<A: ProcessorExt>(
-    mut old_pages_data: BTreeMap<PageNumber, PageBuf>,
+    old_pages_data: BTreeMap<PageNumber, PageBuf>,
     new_pages_data: BTreeMap<PageNumber, PageBuf>,
     static_pages: WasmPageNumber,
 ) -> BTreeMap<PageNumber, PageBuf> {
+    if A::LAZY_PAGES_ENABLED {
+        // In lazy pages mode we update some page data in storage,
+        // when it has been write accessed, so no need to compare old and new page data.
+        // FIXME: I'd add a `cfg` attr here, as it is not cheap
+        new_pages_data.keys().for_each(|page| {
+            log::trace!("{:?} has been write accessed, update it in storage", page)
+        });
+        return new_pages_data;
+    }
+
     let mut page_update = BTreeMap::new();
+    let mut old_pages_data = old_pages_data;
+    let static_gear_pages = static_pages.to_gear_page();
     for (page, new_data) in new_pages_data {
-        if A::LAZY_PAGES_ENABLED {
-            // In lazy pages mode we update some page data in storage,
-            // when it has been write accessed, so no need to compare old and new page data.
-            log::trace!("{:?} has been write accessed, update it in storage", page);
-            page_update.insert(page, new_data);
+        let initial_data = if let Some(initial_data) = old_pages_data.remove(&page) {
+            initial_data
         } else {
-            let initial_data = if let Some(initial_data) = old_pages_data.remove(&page) {
-                initial_data
-            } else {
-                // If it's static page without initial data,
-                // then it's stack page and we skip this page update.
-                if page < static_pages.to_gear_page() {
-                    continue;
-                }
-
-                // If page has no data in `pages_initial_data` then data is zeros.
-                // Because it's default data for wasm pages which is not static,
-                // and for all static pages we save data in `pages_initial_data` in E::new.
-                PageBuf::new_zeroed()
-            };
-
-            if new_data != initial_data {
-                page_update.insert(page, new_data);
-                log::trace!(
-                    "Page {} has been changed - will be updated in storage",
-                    page.0
-                );
+            // If it's static page without initial data,
+            // then it's stack page and we skip this page update.
+            if page < static_gear_pages {
+                continue;
             }
+
+            // If page has no data in `pages_initial_data` then data is zeros.
+            // Because it's default data for wasm pages which is not static,
+            // and for all static pages we save data in `pages_initial_data` in E::new.
+            PageBuf::new_zeroed()
+        };
+
+        if new_data != initial_data {
+            page_update.insert(page, new_data);
+            log::trace!(
+                "Page {} has been changed - will be updated in storage",
+                page.0
+            );
         }
     }
     page_update

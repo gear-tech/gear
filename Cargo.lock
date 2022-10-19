@@ -3070,12 +3070,10 @@ dependencies = [
 name = "gear-core-processor"
 version = "0.1.0"
 dependencies = [
- "anyhow",
  "derive_more",
  "gear-backend-common",
  "gear-core",
  "gear-core-errors",
- "hex",
  "log",
  "parity-scale-codec",
  "scale-info",
