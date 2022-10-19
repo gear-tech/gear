@@ -54,9 +54,9 @@ mod sys {
         pub fn gr_wake(message_id_ptr: *const [u8; 32], delay: u32) -> SyscallError;
 
         pub fn gr_random(
-            random_seed_ptr: *mut [u8; 32],
             subject_ptr: *const u8,
             subject_len: u32,
+            random_ptr: *mut [u8; 32],
             bn: *mut u32,
         );
     }
@@ -309,9 +309,9 @@ pub fn random(subject: &[u8]) -> Result<([u8; 32], u32)> {
 
     unsafe {
         sys::gr_random(
-            bytes.as_mut_ptr() as *mut [u8; 32],
             subject.as_ptr(),
             subject_len,
+            bytes.as_mut_ptr() as *mut [u8; 32],
             bn.as_mut_ptr() as *mut u32,
         );
     }

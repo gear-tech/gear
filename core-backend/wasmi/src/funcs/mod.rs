@@ -1119,9 +1119,9 @@ where
 
     pub fn random(store: &mut Store<HostState<E>>, forbidden: bool, memory: WasmiMemory) -> Func {
         let func = move |mut caller: wasmi::Caller<'_, HostState<E>>,
-                         random_ptr: u32,
                          subject_ptr: u32,
                          subject_len: u32,
+                         random_ptr: u32,
                          bn_ptr: u32|
               -> EmptyOutput {
             exit_if!(forbidden, caller);

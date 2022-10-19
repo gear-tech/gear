@@ -1003,9 +1003,9 @@ benchmarks! {
                 },
             ],
             handle_body: Some(body::repeated(r * API_BENCHMARK_BATCH_SIZE, &[
-                Instruction::I32Const(0), // random_ptr
                 Instruction::I32Const(0), // subject_ptr
                 Instruction::I32Const(0), // subject_len
+                Instruction::I32Const(0), // random_ptr
                 Instruction::I32Const(32), // bn_ptr
                 Instruction::Call(0),
             ])),
