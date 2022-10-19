@@ -20,6 +20,8 @@
 //!
 //! Provides API for low-level async implementation.
 
+use gear_core_errors::ExtError;
+
 use crate::{error::Result, ActorId, MessageId};
 
 mod sys {
@@ -50,6 +52,13 @@ mod sys {
         pub fn gr_wait_for(duration: u32) -> !;
 
         pub fn gr_wake(message_id_ptr: *const [u8; 32], delay: u32) -> SyscallError;
+
+        pub fn gr_random(
+            random_seed_ptr: *mut [u8; 32],
+            subject_ptr: *const u8,
+            subject_len: u32,
+            bn: *mut u32,
+        );
     }
 }
 
@@ -285,4 +294,27 @@ pub fn origin() -> ActorId {
     unsafe { sys::gr_origin(origin.as_mut_ptr()) }
 
     origin
+}
+
+/// Get the random seed.
+pub fn random(subject: &[u8]) -> Result<([u8; 32], u32)> {
+    let mut bytes = [0u8; 32];
+
+    let subject_len = subject
+        .len()
+        .try_into()
+        .map_err(|_| ExtError::SyscallUsage)?;
+
+    let mut bn = 0u32.to_le_bytes();
+
+    unsafe {
+        sys::gr_random(
+            bytes.as_mut_ptr() as *mut [u8; 32],
+            subject.as_ptr(),
+            subject_len,
+            bn.as_mut_ptr() as *mut u32,
+        );
+    }
+
+    Ok((bytes, u32::from_le_bytes(bn)))
 }
