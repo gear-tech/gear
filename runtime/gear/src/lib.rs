@@ -54,7 +54,7 @@ pub use runtime_common::{
 pub use runtime_primitives::{AccountId, Signature};
 use runtime_primitives::{Balance, BlockNumber, Hash, Index, Moment};
 use sp_api::impl_runtime_apis;
-use sp_core::{crypto::KeyTypeId, OpaqueMetadata, H256};
+use sp_core::{crypto::KeyTypeId, ConstU64, OpaqueMetadata, H256};
 use sp_runtime::{
     create_runtime_str, generic, impl_opaque_keys,
     traits::{AccountIdLookup, BlakeTwo256, Block as BlockT, NumberFor, OpaqueKeys},
@@ -367,6 +367,7 @@ impl pallet_gear::Config for Runtime {
     type DebugInfo = DebugInfo;
     type CodeStorage = GearProgram;
     type MailboxThreshold = MailboxThreshold;
+    type ReservationsLimit = ConstU64<256>;
     type ReadPerByteCost = ReadPerByteCost;
     type Messenger = GearMessenger;
     type GasProvider = GearGas;

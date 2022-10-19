@@ -39,8 +39,8 @@ use gear_core::{
 use std::{collections::BTreeMap, mem};
 
 use crate::{
-    manager::ExtManager, Result, TestError, MAILBOX_THRESHOLD, RESERVATION_COST, RESERVE_FOR,
-    WAITLIST_COST, WRITE_COST,
+    manager::ExtManager, Result, TestError, MAILBOX_THRESHOLD, MAX_RESERVATIONS, RESERVATION_COST,
+    RESERVE_FOR, WAITLIST_COST, WRITE_COST,
 };
 
 /// Binary meta-functions executor for testing purposes
@@ -150,7 +150,7 @@ impl WasmExecutor {
         Ext::new(ProcessorContext {
             gas_counter: GasCounter::new(u64::MAX),
             gas_allowance_counter: GasAllowanceCounter::new(u64::MAX),
-            gas_reserver: GasReserver::new(message.id(), 0, Default::default()),
+            gas_reserver: GasReserver::new(message.id(), 0, Default::default(), MAX_RESERVATIONS),
             value_counter: ValueCounter::new(u128::MAX),
             allocations_context: AllocationsContext::new(
                 program.get_allocations().clone(),

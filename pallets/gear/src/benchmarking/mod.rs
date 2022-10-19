@@ -120,11 +120,16 @@ where
     Gear::<T>::process_queue(Default::default());
 }
 
-fn default_processor_context() -> ProcessorContext {
+fn default_processor_context<T: Config>() -> ProcessorContext {
     ProcessorContext {
         gas_counter: GasCounter::new(0),
         gas_allowance_counter: GasAllowanceCounter::new(0),
-        gas_reserver: GasReserver::new(Default::default(), 0, Default::default()),
+        gas_reserver: GasReserver::new(
+            Default::default(),
+            0,
+            Default::default(),
+            T::ReservationsLimit::get(),
+        ),
         value_counter: ValueCounter::new(0),
         allocations_context: AllocationsContext::new(
             Default::default(),
@@ -366,6 +371,7 @@ where
         write_cost: DbWeightOf::<T>::get().writes(1).ref_time(),
         per_byte_cost: ReadPerByteCostOf::<T>::get(),
         module_instantiation_byte_cost: T::Schedule::get().module_instantiation_per_byte,
+        max_reservations: T::ReservationsLimit::get(),
     };
 
     if let Some(queued_dispatch) = QueueOf::<T>::dequeue().map_err(|_| "MQ storage corrupted")? {
@@ -434,7 +440,7 @@ benchmarks! {
 
         let WasmModule { code, .. } = WasmModule::<T>::sized(c * 1024, Location::Init);
     }: {
-        let ext = Ext::new(default_processor_context());
+        let ext = Ext::new(default_processor_context::<T>());
         ExecutionEnvironment::new(ext, &code, Default::default(), max_pages::<T>().into()).unwrap();
     }
 

@@ -48,6 +48,7 @@ pub const READ_COST: u64 = 20;
 pub const WRITE_COST: u64 = 100;
 pub const PER_BYTE_COST: u64 = 10;
 pub const MODULE_INSTANTIATION_BYTE_COST: u64 = 20;
+pub const MAX_RESERVATIONS: u64 = 256;
 
 pub fn parse_payload(payload: String) -> String {
     let program_id_regex = Regex::new(r"\{(?P<id>[0-9]+)\}").unwrap();
@@ -430,5 +431,6 @@ fn test_block_config(block_info: BlockInfo) -> BlockConfig {
         write_cost: WRITE_COST,
         per_byte_cost: PER_BYTE_COST,
         module_instantiation_byte_cost: MODULE_INSTANTIATION_BYTE_COST,
+        max_reservations: MAX_RESERVATIONS,
     }
 }

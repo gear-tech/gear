@@ -58,6 +58,7 @@ pub struct PreparedMessageExecutionContext {
     balance: u128,
     actor_data: ExecutableActorData,
     memory_size: WasmPageNumber,
+    max_reservations: u64,
 }
 
 impl PreparedMessageExecutionContext {
@@ -108,6 +109,7 @@ impl
             balance,
             actor_data,
             memory_size,
+            max_reservations,
         } = *context;
 
         let program = Program::from_parts(
@@ -125,6 +127,7 @@ impl
                 .map(|ctx| ctx.fetch_inc_nonce())
                 .unwrap_or(0),
             actor_data.gas_reservation_map,
+            max_reservations,
         );
 
         Self {
@@ -231,6 +234,7 @@ pub fn prepare(
 
     let per_byte_cost = block_config.per_byte_cost;
     let read_cost = block_config.read_cost;
+    let max_reservations = block_config.max_reservations;
 
     let MessageExecutionContext {
         actor,
@@ -326,6 +330,7 @@ pub fn prepare(
         balance,
         actor_data,
         memory_size,
+        max_reservations,
     }))
 }
 

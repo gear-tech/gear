@@ -261,6 +261,10 @@ pub mod pallet {
         #[pallet::constant]
         type MailboxThreshold: Get<u64>;
 
+        /// Amount of reservations can exist for 1 program.
+        #[pallet::constant]
+        type ReservationsLimit: Get<u64>;
+
         /// The cost per loaded byte.
         #[pallet::constant]
         type ReadPerByteCost: Get<u64>;
@@ -880,6 +884,7 @@ pub mod pallet {
                 write_cost: DbWeightOf::<T>::get().writes(1).ref_time(),
                 per_byte_cost: ReadPerByteCostOf::<T>::get(),
                 module_instantiation_byte_cost: schedule.module_instantiation_per_byte,
+                max_reservations: T::ReservationsLimit::get(),
             };
 
             let mut min_limit = 0;
@@ -1230,6 +1235,7 @@ pub mod pallet {
                 write_cost: DbWeightOf::<T>::get().writes(1).ref_time(),
                 per_byte_cost: ReadPerByteCostOf::<T>::get(),
                 module_instantiation_byte_cost: schedule.module_instantiation_per_byte,
+                max_reservations: T::ReservationsLimit::get(),
             };
 
             if T::DebugInfo::is_remap_id_enabled() {

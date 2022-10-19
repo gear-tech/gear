@@ -32,11 +32,17 @@ pub struct GasReserver {
     message_id: MessageId,
     nonce: u64,
     states: GasReservationStates,
+    max_reservations: u64,
 }
 
 impl GasReserver {
     /// Creates a new gas reserver.
-    pub fn new(message_id: MessageId, nonce: u64, map: GasReservationMap) -> Self {
+    pub fn new(
+        message_id: MessageId,
+        nonce: u64,
+        map: GasReservationMap,
+        max_reservations: u64,
+    ) -> Self {
         Self {
             message_id,
             nonce,
@@ -46,11 +52,26 @@ impl GasReserver {
                     (id, GasReservationState::Exists { amount, expiration })
                 })
                 .collect(),
+            max_reservations,
         }
     }
 
     /// Reserves gas.
-    pub fn reserve(&mut self, amount: u64, duration: u32) -> ReservationId {
+    pub fn reserve(&mut self, amount: u64, duration: u32) -> Result<ReservationId, ExecutionError> {
+        let current_reservations = self
+            .states
+            .values()
+            .map(|state| {
+                matches!(
+                    state,
+                    GasReservationState::Exists { .. } | GasReservationState::Created { .. }
+                ) as u64
+            })
+            .sum::<u64>();
+        if current_reservations > self.max_reservations {
+            return Err(ExecutionError::ReservationsLimitReached);
+        }
+
         let nonce = self.nonce;
         self.nonce = nonce.saturating_add(1);
         let id = ReservationId::generate(self.message_id, nonce);
@@ -58,7 +79,7 @@ impl GasReserver {
         self.states
             .insert(id, GasReservationState::Created { amount, duration });
 
-        id
+        Ok(id)
     }
 
     /// Unreserves gas.
@@ -150,4 +171,18 @@ pub struct GasReservationSlot {
     pub amount: u64,
     /// Block number when reservation will expire.
     pub expiration: u32,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    #[should_panic = "LimitReached"]
+    fn max_reservations_limit_works() {
+        let mut reserver = GasReserver::new(Default::default(), 0, Default::default(), 256);
+        for _ in 0..usize::MAX {
+            reserver.reserve(100, 10).unwrap();
+        }
+    }
 }

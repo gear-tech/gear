@@ -20,8 +20,9 @@ use crate::{
     log::{CoreLog, RunResult},
     program::{Gas, WasmProgram},
     wasm_executor::WasmExecutor,
-    Result, TestError, EXISTENTIAL_DEPOSIT, MAILBOX_THRESHOLD, MODULE_INSTANTIATION_BYTE_COST,
-    PER_BYTE_COST, READ_COST, RESERVATION_COST, RESERVE_FOR, WAITLIST_COST, WRITE_COST,
+    Result, TestError, EXISTENTIAL_DEPOSIT, MAILBOX_THRESHOLD, MAX_RESERVATIONS,
+    MODULE_INSTANTIATION_BYTE_COST, PER_BYTE_COST, READ_COST, RESERVATION_COST, RESERVE_FOR,
+    WAITLIST_COST, WRITE_COST,
 };
 use core_processor::{
     common::*,
@@ -634,6 +635,7 @@ impl ExtManager {
             write_cost: WRITE_COST,
             per_byte_cost: PER_BYTE_COST,
             module_instantiation_byte_cost: MODULE_INSTANTIATION_BYTE_COST,
+            max_reservations: MAX_RESERVATIONS,
         };
 
         let (actor_data, code) = match data {
