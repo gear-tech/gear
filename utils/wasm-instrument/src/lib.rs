@@ -47,10 +47,7 @@ pub fn inject<R: Rules>(
     let mut mbuilder = builder::from_module(module);
 
     // fn out_of_...() -> ();
-    let import_sig = mbuilder.push_signature(
-        builder::signature()
-            .build_sig(),
-    );
+    let import_sig = mbuilder.push_signature(builder::signature().build_sig());
 
     mbuilder.push_import(
         builder::import()
@@ -161,13 +158,9 @@ pub fn inject<R: Rules>(
     ];
 
     // determine cost for successful execution
-    let cost_check_blocks = match elements
-        .iter()
-        .take(7)
-        .try_fold(0u64, |cost, instruction| {
-            rules.instruction_cost(instruction).map(|c| cost + c as u64)
-        })
-    {
+    let cost_check_blocks = match elements.iter().take(7).try_fold(0u64, |cost, instruction| {
+        rules.instruction_cost(instruction).map(|c| cost + c as u64)
+    }) {
         Some(c) => 2 * c,
         None => return Err(mbuilder.build()),
     };
@@ -178,8 +171,7 @@ pub fn inject<R: Rules>(
         .take(7)
         .try_fold(0u64, |cost, instruction| {
             rules.instruction_cost(instruction).map(|c| cost + c as u64)
-        })
-    {
+        }) {
         Some(c) => 2 * c,
         None => return Err(mbuilder.build()),
     };

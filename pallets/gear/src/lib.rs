@@ -563,10 +563,11 @@ pub mod pallet {
 
             let schedule = T::Schedule::get();
 
-            let module = wasm_instrument::parity_wasm::deserialize_buffer(&code).map_err(|e| {
-                log::debug!("Module failed to load: {:?}", e);
-                Error::<T>::FailedToConstructProgram
-            })?;
+            let module =
+                gear_wasm_instrument::parity_wasm::deserialize_buffer(&code).map_err(|e| {
+                    log::debug!("Module failed to load: {:?}", e);
+                    Error::<T>::FailedToConstructProgram
+                })?;
 
             let code = Code::new_raw(
                 code,

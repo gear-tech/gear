@@ -38,12 +38,12 @@ use gear_core::{
     },
     program::Program as CoreProgram,
 };
+use gear_wasm_instrument::wasm_instrument::gas_metering::ConstantCostRules;
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap, VecDeque},
     convert::TryInto,
     time::{SystemTime, UNIX_EPOCH},
 };
-use wasm_instrument::gas_metering::ConstantCostRules;
 
 const OUTGOING_LIMIT: u32 = 1024;
 

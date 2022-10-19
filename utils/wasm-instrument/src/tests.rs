@@ -130,7 +130,13 @@ fn grow_no_gas_no_track() {
 
     assert_eq!(
         get_function_body(&injected_module, 0).unwrap(),
-        &vec![I32Const(2), Call(gas_charge_index), GetGlobal(0), GrowMemory(0), End][..]
+        &vec![
+            I32Const(2),
+            Call(gas_charge_index),
+            GetGlobal(0),
+            GrowMemory(0),
+            End
+        ][..]
     );
 
     assert_eq!(injected_module.functions_space(), 4);

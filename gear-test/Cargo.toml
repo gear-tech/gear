@@ -18,7 +18,7 @@ serde = { version = "*", features = ["derive"] }
 serde_json = "*"
 log = "0.4.17"
 rayon = "1.5"
-wasm-instrument = { version = "0.2.1", git = "https://github.com/gear-tech/wasm-instrument.git", branch = "gear-stable", default-features = false }
+gear-wasm-instrument = { path = "../utils/wasm-instrument", default-features = false }
 primitive-types = { version = "0.11.1", default-features = false, features = ["scale-info"] }
 once_cell = "1.15.0"
 

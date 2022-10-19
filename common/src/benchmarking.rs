@@ -19,7 +19,7 @@
 use super::*;
 
 use gear_core::memory::{PageNumber, WasmPageNumber};
-use parity_wasm::elements::*;
+use gear_wasm_instrument::parity_wasm::{self, elements::*};
 use sp_io::hashing::blake2_256;
 use sp_std::borrow::ToOwned;
 

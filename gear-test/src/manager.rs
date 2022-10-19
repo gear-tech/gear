@@ -24,11 +24,11 @@ use gear_core::{
     memory::{PageBuf, PageNumber, WasmPageNumber},
     message::{Dispatch, DispatchKind, GasLimit, StoredDispatch, StoredMessage},
 };
+use gear_wasm_instrument::wasm_instrument::gas_metering::ConstantCostRules;
 use std::{
     collections::{BTreeMap, BTreeSet, VecDeque},
     fmt,
 };
-use wasm_instrument::gas_metering::ConstantCostRules;
 
 #[derive(Clone, Default)]
 /// In-memory state.

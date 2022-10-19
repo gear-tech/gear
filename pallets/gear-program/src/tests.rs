@@ -28,10 +28,10 @@ use gear_core::{
     memory::{PageBuf, PageNumber, WasmPageNumber},
     message::{DispatchKind, StoredDispatch, StoredMessage},
 };
+use gear_wasm_instrument::wasm_instrument::gas_metering::ConstantCostRules;
 use hex_literal::hex;
 use sp_std::collections::btree_map::BTreeMap;
 use utils::CreateProgramResult;
-use wasm_instrument::gas_metering::ConstantCostRules;
 
 const CODE: &[u8] = &hex!("0061736d01000000010401600000020f0103656e76066d656d6f727902000103020100070a010668616e646c6500000a040102000b");
 
