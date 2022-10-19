@@ -294,9 +294,13 @@ impl<ExternalId: Clone, Id: Clone + Copy, Balance: Zero + Clone + Copy>
         matches!(self, Self::Reserved { .. })
     }
 
+    pub(crate) fn is_lockable(&self) -> bool {
+        self.lock().is_some()
+    }
+
     /// Returns whether the node is detached and isn't part of the tree structure
     pub(crate) fn is_detached(&self) -> bool {
-        self.is_cut()
+        self.is_reserved() | self.is_cut()
     }
 
     fn adjust_refs(&mut self, increase: bool, spec: bool) {

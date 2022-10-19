@@ -719,7 +719,7 @@ where
         let node = Self::get_node(key).ok_or_else(InternalError::node_not_found)?;
 
         // Validating node type to be able to lock.
-        if node.is_detached() {
+        if !node.is_lockable() {
             return Err(InternalError::forbidden().into());
         }
 
@@ -788,7 +788,7 @@ where
         let mut node = Self::get_node(key).ok_or_else(InternalError::node_not_found)?;
 
         // Validating node type to be able to lock.
-        if node.is_detached() {
+        if !node.is_lockable() {
             return Err(InternalError::forbidden().into());
         }
 
