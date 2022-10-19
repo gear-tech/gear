@@ -1,0 +1,13 @@
+[package]
+name = "gear-bags-thresholds"
+version = "1.0.0"
+authors = ["Gear Technologies"]
+edition = "2021"
+license = "GPL-3.0"
+
+[dependencies]
+vara-runtime = { version = "0.1.0", path = "../../runtime/vara" }
+generate-bags = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
+
+# third-party
+clap = { version = "3.2", features = ["derive"] }
