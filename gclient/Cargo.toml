@@ -18,5 +18,14 @@ futures-timer = "3.0.2"
 async-trait = "0.1.58"
 wabt = "0.10.0"
 
+[features]
+default = [ "gear" ]
+gear = [ "gp/gear" ]
+vara = [ "gp/vara" ]
+debug-mode = [ "gp/debug-mode" ]
+lazy-pages = [ "gp/lazy-pages" ]
+runtime-benchmarks = [ "gp/runtime-benchmarks" ]
+try-runtime = [ "gp/try-runtime" ]
+
 [dev-dependencies]
 tokio = { version = "1.21.2", features = ["full"] }

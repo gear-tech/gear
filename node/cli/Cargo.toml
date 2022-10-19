@@ -63,30 +63,36 @@ gear-native = [
 	"service/gear-native",
 	"gear-runtime-test-cli?/gear-native",
 	"gear-runtime",
+	"gear-program/gear"
 ]
 vara-native = [
 	"service/vara-native",
 	"gear-runtime-test-cli?/vara-native",
 	"vara-runtime",
+	"gear-program/vara"
 ]
 lazy-pages = [
 	"service/lazy-pages",
 	"gear-runtime-test-cli?/lazy-pages",
 	"vara-runtime?/lazy-pages",
 	"gear-runtime?/lazy-pages",
+	"gear-program/lazy-pages",
 ]
 runtime-benchmarks = [
 	"service/runtime-benchmarks",
 	"frame-benchmarking-cli/runtime-benchmarks",
+	"gear-program/runtime-benchmarks",
 ]
 debug-mode = [
 	"service/debug-mode",
 	"gear-runtime?/debug-mode",
 	"vara-runtime?/debug-mode",
+	"gear-program/debug-mode",
 ]
 try-runtime = [
 	"service/try-runtime",
 	"try-runtime-cli",
+	"gear-program/try-runtime",
 ]
 runtime-test = ["gear-runtime-test-cli"]
 program = ["gear-program"]
