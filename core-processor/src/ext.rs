@@ -528,7 +528,7 @@ impl EnvExt for Ext {
 
         let common_charge = self.context.gas_counter.reduce(amount);
         if common_charge == ChargeResult::NotEnough {
-            return Err(ExecutionError::TooManyGasReserved.into());
+            return Err(ExecutionError::InsufficientGasForReservation.into());
         }
 
         let gas_reserver = &mut self.context.gas_reserver;

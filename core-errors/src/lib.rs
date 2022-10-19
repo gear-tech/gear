@@ -184,8 +184,8 @@ pub enum ExecutionError {
     #[display(fmt = "Invalid reservation ID")]
     InvalidReservationId,
     /// An error occurs in attempt to reserve more gas than available.
-    #[display(fmt = "Too many gas reserved")]
-    TooManyGasReserved,
+    #[display(fmt = "Insufficient gas for reservation")]
+    InsufficientGasForReservation,
 }
 
 /// An error occurred in API.
