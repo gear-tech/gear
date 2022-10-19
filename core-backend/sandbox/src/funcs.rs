@@ -651,11 +651,11 @@ where
         ctx.run(|ctx| -> Result<(), _> {
             Err(FuncError::Terminated(TerminationReason::Wait(
                 Some(duration),
-                if ctx.ext.wait_up_to(duration).map_err(FuncError::Core)? {
-                    MessageWaitedType::WaitUpToFull
-                } else {
-                    MessageWaitedType::WaitUpTo
-                },
+                ctx.ext
+                    .wait_up_to(duration)
+                    .map_err(FuncError::Core)?
+                    .then_some(MessageWaitedType::WaitUpToFull)
+                    .unwrap_or(MessageWaitedType::WaitUpTo),
             )))
         })
     }

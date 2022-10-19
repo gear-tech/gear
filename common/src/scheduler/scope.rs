@@ -82,7 +82,6 @@ impl<T, Task, Error, OutputError, Callbacks> TaskPool
     for TaskPoolImpl<T, Task, Error, OutputError, Callbacks>
 where
     T: DoubleMapStorage<Key2 = Task, Value = ()>,
-    Task: PartialEq + Eq,
     Error: TaskPoolError,
     OutputError: From<Error>,
     Callbacks: TaskPoolCallbacks,

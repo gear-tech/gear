@@ -1187,11 +1187,9 @@ where
                 host_state.err = match call_result {
                     Ok(enough) => FuncError::Terminated(TerminationReason::Wait(
                         Some(duration),
-                        if enough {
-                            MessageWaitedType::WaitUpToFull
-                        } else {
-                            MessageWaitedType::WaitUpTo
-                        },
+                        enough
+                            .then_some(MessageWaitedType::WaitUpToFull)
+                            .unwrap_or(MessageWaitedType::WaitUpTo),
                     )),
                     Err(e) => FuncError::Core(e),
                 };

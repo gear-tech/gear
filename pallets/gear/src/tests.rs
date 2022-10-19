@@ -2893,11 +2893,8 @@ fn test_requeue_after_wait_for_timeout() {
         ));
 
         // Fast forward blocks.
+        let message_id = get_last_message_id();
         run_to_next_block(None);
-        let message_id = filter_event_rev(|e| match e {
-            Event::MessageEnqueued { id, .. } => Some(id),
-            _ => None,
-        });
         let now = System::block_number();
         System::set_block_number(duration as u64 + now - 1);
 
@@ -6154,11 +6151,22 @@ mod utils {
     }
 
     pub(super) fn get_last_message_id() -> MessageId {
-        filter_event_rev(|e| match e {
-            Event::MessageEnqueued { id, .. } => Some(id),
-            Event::UserMessageSent { message, .. } => Some(message.id()),
-            _ => None,
-        })
+        System::events()
+            .iter()
+            .rev()
+            .filter_map(|r| {
+                if let MockRuntimeEvent::Gear(e) = r.event.clone() {
+                    Some(e)
+                } else {
+                    None
+                }
+            })
+            .find_map(|e| match e {
+                Event::MessageEnqueued { id, .. } => Some(id),
+                Event::UserMessageSent { message, .. } => Some(message.id()),
+                _ => None,
+            })
+            .expect("can't find message send event")
     }
 
     pub(super) fn get_waitlist_expiration(message_id: MessageId) -> BlockNumberFor<Test> {
