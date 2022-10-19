@@ -73,15 +73,15 @@ node-release:
 
 .PHONY: node-release-rtest
 node-release-rtest:
-	@ ./scripts/gear.sh build node --release --no-default-features --features=gear-native,lazy-pages,program-cli,runtime-test
+	@ ./scripts/gear.sh build node --release --no-default-features --features=gear-native,lazy-pages,runtime-test
 
 .PHONY: vara
 vara:
-	@ ./scripts/gear.sh build node --no-default-features --features=vara-native,lazy-pages
+	@ ./scripts/gear.sh build node --no-default-features --features=vara-native,lazy-pages,program
 
 .PHONY: vara-release
 vara-release:
-	@ ./scripts/gear.sh build node --release --no-default-features --features=vara-native,lazy-pages
+	@ ./scripts/gear.sh build node --release --no-default-features --features=vara-native,lazy-pages,program
 
 .PHONY: vara-release-rtest
 vara-release-rtest:
@@ -228,8 +228,10 @@ test-gear: init-js examples # \
 	@ ./scripts/gear.sh test gear --exclude gclient --features pallet-gear-debug/lazy-pages
 
 .PHONY: test-gear-release
-test-gear-release: init-js examples
-	@ ./scripts/gear.sh test gear --release
+test-gear-release: init-js examples # \
+	We use lazy-pages feature for pallet-gear-debug due to cargo building issue \
+	and fact that pallet-gear default is lazy-pages.
+	@ ./scripts/gear.sh test gear --release --exclude gclient --features pallet-gear-debug/lazy-pages
 
 .PHONY: test-js
 test-js: init-js

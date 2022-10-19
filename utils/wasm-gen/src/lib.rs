@@ -71,10 +71,47 @@ pub struct ParamRule {
     pub restricted_ratio: Ratio,
 }
 
+impl Default for ParamRule {
+    fn default() -> Self {
+        Self {
+            allowed_values: 0..=0,
+            restricted_ratio: (100, 100).into(),
+        }
+    }
+}
+
+impl ParamRule {
+    pub fn get_i32(&self, u: &mut Unstructured) -> i32 {
+        if self.restricted_ratio.get(u) {
+            u.arbitrary().unwrap()
+        } else {
+            let start = if *self.allowed_values.start() < i32::MIN as i64 {
+                i32::MIN
+            } else {
+                *self.allowed_values.start() as i32
+            };
+            let end = if *self.allowed_values.end() > i32::MAX as i64 {
+                i32::MAX
+            } else {
+                *self.allowed_values.end() as i32
+            };
+            u.int_in_range(start..=end).unwrap()
+        }
+    }
+    pub fn get_i64(&self, u: &mut Unstructured) -> i64 {
+        if self.restricted_ratio.get(u) {
+            u.arbitrary().unwrap()
+        } else {
+            u.int_in_range(self.allowed_values.clone()).unwrap()
+        }
+    }
+}
+
 #[derive(Clone)]
 pub struct GearConfig {
     pub process_when_no_funcs: Ratio,
     pub skip_init: Ratio,
+    pub skip_handle: Ratio,
     pub skip_init_when_no_funcs: Ratio,
     pub init_export_is_any_func: Ratio,
     pub max_mem_size: u32,
@@ -83,31 +120,32 @@ pub struct GearConfig {
     pub upper_bound_can_be_less_then: Ratio,
     pub sys_call_freq: Ratio,
     pub sys_calls: SyscallsConfig,
+    pub print_test_info: Option<String>,
 }
 
-impl Default for GearConfig {
-    fn default() -> Self {
+impl GearConfig {
+    pub fn new_normal() -> Self {
         let prob = (1, 100).into();
         Self {
             process_when_no_funcs: prob,
-            skip_init: prob,
+            skip_init: (1, 1000).into(),
+            skip_handle: prob,
             skip_init_when_no_funcs: prob,
             init_export_is_any_func: prob,
             max_mem_size: 1024,
             max_mem_delta: 1024,
             has_mem_upper_bound: prob,
             upper_bound_can_be_less_then: prob,
-            sys_call_freq: prob,
+            sys_call_freq: (1, 1000).into(),
             sys_calls: Default::default(),
+            print_test_info: None,
         }
     }
-}
-
-impl GearConfig {
     pub fn new_for_rare_cases() -> Self {
         let prob = (50, 100).into();
         Self {
             skip_init: prob,
+            skip_handle: prob,
             skip_init_when_no_funcs: prob,
             process_when_no_funcs: prob,
             init_export_is_any_func: prob,
@@ -115,23 +153,27 @@ impl GearConfig {
             max_mem_delta: 1024,
             has_mem_upper_bound: prob,
             upper_bound_can_be_less_then: prob,
-            sys_call_freq: (1, 100).into(),
+            sys_call_freq: (1, 1000).into(),
             sys_calls: Default::default(),
+            print_test_info: None,
         }
     }
     pub fn new_valid() -> Self {
         let prob = (1, 100).into();
+        let zero_prob = (0, 100).into();
         Self {
             process_when_no_funcs: prob,
-            skip_init: (0, 100).into(),
-            skip_init_when_no_funcs: (0, 100).into(),
-            init_export_is_any_func: (0, 100).into(),
+            skip_init: zero_prob,
+            skip_handle: zero_prob,
+            skip_init_when_no_funcs: zero_prob,
+            init_export_is_any_func: zero_prob,
             max_mem_size: 512,
             max_mem_delta: 256,
             has_mem_upper_bound: prob,
-            upper_bound_can_be_less_then: (0, 100).into(),
-            sys_call_freq: prob,
+            upper_bound_can_be_less_then: zero_prob,
+            sys_call_freq: (1, 1000).into(),
             sys_calls: Default::default(),
+            print_test_info: None,
         }
     }
 }
@@ -165,9 +207,10 @@ pub fn default_swarm_config(u: &mut Unstructured, gear_config: &GearConfig) -> S
     cfg.max_imports = 0;
     cfg.min_imports = 0;
 
-    cfg.max_instructions = 10000000;
+    cfg.max_instructions = 100000;
     cfg.max_memory_pages = gear_config.max_mem_size as u64;
-    cfg.max_funcs = 1000;
+    cfg.max_funcs = 100;
+    cfg.min_funcs = u.int_in_range(0..=30).unwrap();
 
     cfg
 }
@@ -187,27 +230,13 @@ fn make_call_instructions_vec(
     params_rules: &[ParamRule],
     func_no: u32,
 ) -> Vec<Instruction> {
-    let gen_const_instr = |u: &mut Unstructured, param| match param {
-        ValueType::I32 => Instruction::I32Const(u.arbitrary().unwrap()),
-        ValueType::I64 => Instruction::I64Const(u.arbitrary().unwrap()),
-        _ => panic!("Cannot handle f32/f64"),
-    };
-
     let mut code = Vec::new();
     for (index, val) in params.iter().enumerate() {
-        let instr = if let Some(rule) = params_rules.get(index) {
-            if rule.restricted_ratio.get(u) {
-                gen_const_instr(u, *val)
-            } else {
-                let c = u.int_in_range(rule.allowed_values.clone()).unwrap();
-                match val {
-                    ValueType::I32 => Instruction::I32Const(c as i32),
-                    ValueType::I64 => Instruction::I64Const(c),
-                    _ => panic!("Cannot handle f32/f64"),
-                }
-            }
-        } else {
-            gen_const_instr(u, *val)
+        let rule = params_rules.get(index).cloned().unwrap_or_default();
+        let instr = match val {
+            ValueType::I32 => Instruction::I32Const(rule.get_i32(u)),
+            ValueType::I64 => Instruction::I64Const(rule.get_i64(u)),
+            _ => panic!("Cannot handle f32/f64"),
         };
         code.push(instr);
     }
@@ -330,7 +359,67 @@ impl<'a> WasmGen<'a> {
         module
     }
 
-    pub fn gen_init(&mut self, mut module: Module) -> (Module, bool) {
+    pub fn gen_export_func_which_call_func_no(
+        &mut self,
+        mut module: Module,
+        name: &str,
+        func_no: u32,
+    ) -> Module {
+        let funcs_len = module
+            .function_section()
+            .map_or(0, |funcs| funcs.entries().len() as u32);
+        let func_type = get_func_type(&module, FuncIdx::Func(func_no));
+        let mut instructions = make_call_instructions_vec(
+            self.u,
+            func_type.params(),
+            func_type.results(),
+            Default::default(),
+            func_no,
+        );
+        instructions.push(Instruction::End);
+
+        module = builder::from_module(module)
+            .function()
+            .body()
+            .with_instructions(Instructions::new(instructions))
+            .build()
+            .signature()
+            .build()
+            .build()
+            .export()
+            .field(name)
+            .internal()
+            .func(funcs_len)
+            .build()
+            .build();
+
+        let init_function_no = module.function_section().unwrap().entries().len() as u32 - 1;
+        self.calls_indexes.push(FuncIdx::Func(init_function_no));
+
+        module
+    }
+
+    pub fn gen_handle(&mut self, module: Module) -> (Module, bool) {
+        if self.config.skip_handle.get(self.u) {
+            return (module, false);
+        }
+
+        let funcs_len = module
+            .function_section()
+            .map_or(0, |funcs| funcs.entries().len() as u32);
+
+        if funcs_len == 0 {
+            return (module, false);
+        }
+
+        let func_no = self.u.int_in_range(0..=funcs_len - 1).unwrap();
+        (
+            self.gen_export_func_which_call_func_no(module, "handle", func_no),
+            true,
+        )
+    }
+
+    pub fn gen_init(&mut self, module: Module) -> (Module, bool) {
         if self.config.skip_init.get(self.u) {
             return (module, false);
         }
@@ -376,35 +465,10 @@ impl<'a> WasmGen<'a> {
             );
         }
 
-        let func_type = get_func_type(&module, FuncIdx::Func(func_no));
-        let mut instructions = make_call_instructions_vec(
-            self.u,
-            func_type.params(),
-            func_type.results(),
-            Default::default(),
-            func_no,
-        );
-        instructions.push(Instruction::End);
-
-        module = builder::from_module(module)
-            .function()
-            .body()
-            .with_instructions(Instructions::new(instructions))
-            .build()
-            .signature()
-            .build()
-            .build()
-            .export()
-            .field("init")
-            .internal()
-            .func(funcs_len)
-            .build()
-            .build();
-
-        let init_function_no = module.function_section().unwrap().entries().len() as u32 - 1;
-        self.calls_indexes.push(FuncIdx::Func(init_function_no));
-
-        (module, true)
+        (
+            self.gen_export_func_which_call_func_no(module, "init", func_no),
+            true,
+        )
     }
 
     pub fn insert_sys_calls(&mut self, mut module: Module) -> Module {
@@ -419,9 +483,11 @@ impl<'a> WasmGen<'a> {
         let sys_calls_table = sys_calls_table(&self.config);
 
         for (name, info) in sys_calls_table {
-            let sys_call_max_number = info.frequency.mult(code_size);
-            let sys_call_number = self.u.int_in_range(0..=sys_call_max_number).unwrap();
-            if sys_call_number == 0 {
+            let sys_call_max_amount = info.frequency.mult(code_size);
+            let sys_call_amount = self.u.int_in_range(0..=sys_call_max_amount).unwrap();
+            if sys_call_amount == 0
+                && !(name == "gr_debug" && self.config.print_test_info.is_some())
+            {
                 continue;
             }
 
@@ -445,7 +511,7 @@ impl<'a> WasmGen<'a> {
 
             let func_no = self.calls_indexes.len() as u32 - 1;
 
-            // insert sys call any where in the code
+            // insert sys call anywhere in the code
             let instructions = make_call_instructions_vec(
                 self.u,
                 &info.params,
@@ -453,8 +519,91 @@ impl<'a> WasmGen<'a> {
                 &info.param_rules,
                 func_no,
             );
-            module = self.insert_instructions_in_random_place(module, &instructions);
+
+            for _ in 0..sys_call_amount {
+                module = self.insert_instructions_in_random_place(module, &instructions);
+            }
         }
+
+        module
+    }
+
+    pub fn make_print_test_info(&mut self, mut module: Module) -> Module {
+        let text = if let Some(text) = &self.config.print_test_info {
+            text
+        } else {
+            return module;
+        };
+
+        if let External::Memory(mem_type) = module
+            .import_section()
+            .unwrap()
+            .entries()
+            .iter()
+            .find(|section| section.field() == "memory")
+            .unwrap()
+            .external()
+        {
+            if mem_type.limits().initial() == 0 {
+                return module;
+            }
+        }
+
+        let mut init_func_no = None;
+        if let Some(export_section) = module.export_section() {
+            for export in export_section.entries().iter() {
+                if export.field() == "init" {
+                    init_func_no = if let Internal::Function(func_no) = export.internal() {
+                        Some(*func_no)
+                    } else {
+                        panic!("init export is not a func, very strange -_-");
+                    }
+                }
+            }
+        }
+        if init_func_no.is_none() {
+            return module;
+        }
+
+        let bytes = text.as_bytes();
+        module = builder::from_module(module)
+            .data()
+            .offset(Instruction::I32Const(0))
+            .value(bytes.to_vec())
+            .build()
+            .build();
+
+        let gr_debug_import_no = module
+            .import_section()
+            .unwrap()
+            .entries()
+            .iter()
+            .position(|import| import.field() == "gr_debug")
+            .unwrap() as u32;
+        let gr_debug_call_no = self
+            .calls_indexes
+            .iter()
+            .position(|func_idx| {
+                if let FuncIdx::Import(import_no) = func_idx {
+                    *import_no == gr_debug_import_no - 1 // TODO: first is memory import, so need to do `- 1`.
+                                                         // Make more common solution.
+                } else {
+                    false
+                }
+            })
+            .unwrap() as u32;
+
+        let init_code = module.code_section_mut().unwrap().bodies_mut()
+            [init_func_no.unwrap() as usize]
+            .code_mut()
+            .elements_mut();
+        let print_code = [
+            Instruction::I32Const(0),
+            Instruction::I32Const(bytes.len() as i32),
+            Instruction::Call(gr_debug_call_no),
+        ];
+
+        init_code.splice(0..0, print_code);
 
         module
     }
@@ -532,7 +681,10 @@ pub fn gen_gear_program_module<'a>(u: &'a mut Unstructured<'a>, config: GearConf
     if !has_init {
         return gen.resolves_calls_indexes(module);
     }
+    module = gen.gen_handle(module).0;
     module = gen.insert_sys_calls(module);
+    module = gen.make_print_test_info(module);
+
     gen.resolves_calls_indexes(module)
 }
 

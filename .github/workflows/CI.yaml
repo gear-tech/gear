@@ -232,7 +232,9 @@ jobs:
         run: ./scripts/gear.sh test gtest
 
       - name: "Test: Program CLI"
-        run: cargo nextest run --release -p gear-program --features bin
+        run: |
+          cargo nextest run --release -p gear-program --features bin
+          cargo nextest run --release -p gear-program --no-default-features --features bin,vara
 
       - name: "Test: Client tests"
         run: ./scripts/gear.sh test client --run-node
@@ -244,7 +246,7 @@ jobs:
 
       - name: "Test: runtime spec tests no lazy pages"
         run: |
-          cargo build -p gear-cli --release --no-default-features --features=cli,runtime-test,gear-native --out-dir target-no-lazy -Z unstable-options
+          cargo build -p gear-cli --release --no-default-features --features=runtime-test,gear-native --out-dir target-no-lazy -Z unstable-options
           ./target-no-lazy/gear runtime-spec-tests ./gear-test/spec/* --runtime gear
 
       - name: "Test: Runtime upgrade and queue processing"

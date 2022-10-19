@@ -22,6 +22,44 @@ use gear_wasm_instrument::parity_wasm::elements::{FunctionType, ValueType};
 
 use crate::{GearConfig, ParamRule, Ratio};
 
+#[derive(Debug, Clone, Copy)]
+pub enum ParamType {
+    Size,            // i32 buffers size in memory
+    Ptr,             // i32 pointer
+    Gas,             // i64 gas amount
+    MessagePosition, // i32 message position
+    Duration,        // i32 duration in blocks
+    Delay,           // i32 delay in blocks
+    Handler,         // i32 handler number
+    Alloc,           // i32 alloc pages
+    Free,            // i32 free page
+}
+
+impl From<ParamType> for ValueType {
+    fn from(value: ParamType) -> Self {
+        match value {
+            ParamType::Gas => ValueType::I64,
+            _ => ValueType::I32,
+        }
+    }
+}
+
+impl ParamType {
+    pub fn into_param_rule(self, config: &GearConfig) -> ParamRule {
+        match self {
+            ParamType::Size => config.sys_calls.memory_size_rule.clone(),
+            ParamType::Ptr => config.sys_calls.ptr_rule.clone(),
+            ParamType::Gas => config.sys_calls.gas_rule.clone(),
+            ParamType::MessagePosition => config.sys_calls.message_position.clone(),
+            ParamType::Duration => config.sys_calls.duration_in_blocks.clone(),
+            ParamType::Delay => config.sys_calls.duration_in_blocks.clone(),
+            ParamType::Handler => config.sys_calls.handler.clone(),
+            ParamType::Alloc => config.sys_calls.alloc_param_rule.clone(),
+            ParamType::Free => config.sys_calls.free_param_rule.clone(),
+        }
+    }
+}
+
 /// Syscall function info and config.
 pub struct SysCallInfo {
     /// Syscall signature params.
@@ -35,6 +73,24 @@ pub struct SysCallInfo {
 }
 
 impl SysCallInfo {
+    pub fn new<const N: usize, const M: usize>(
+        config: &GearConfig,
+        params: [ParamType; N],
+        results: [ValueType; M],
+        frequency: Ratio,
+    ) -> Self {
+        Self {
+            params: params.iter().copied().map(Into::into).collect(),
+            results: results.to_vec(),
+            param_rules: params
+                .iter()
+                .copied()
+                .map(|param| param.into_param_rule(config))
+                .collect(),
+            frequency,
+        }
+    }
+
     pub fn func_type(&self) -> FunctionType {
         FunctionType::new(self.params.clone(), self.results.clone())
     }
@@ -48,22 +104,27 @@ pub struct SyscallsConfig {
     pub ptr_rule: ParamRule,
     pub memory_size_rule: ParamRule,
     pub no_rule: ParamRule,
+    pub gas_rule: ParamRule,
+    pub message_position: ParamRule,
+    pub duration_in_blocks: ParamRule,
+    pub handler: ParamRule,
 }
 
 impl Default for SyscallsConfig {
     fn default() -> Self {
+        let restricted_ratio = (1, 100).into();
         Self {
             alloc_param_rule: ParamRule {
                 allowed_values: 0..=512,
-                restricted_ratio: (1, 100).into(),
+                restricted_ratio,
             },
             free_param_rule: ParamRule {
                 allowed_values: 0..=512,
-                restricted_ratio: (1, 100).into(),
+                restricted_ratio,
             },
             ptr_rule: ParamRule {
                 allowed_values: 0..=513 * 0x10000 - 1,
-                restricted_ratio: (1, 100).into(),
+                restricted_ratio,
             },
             memory_size_rule: ParamRule {
                 allowed_values: 0..=0x10000,
@@ -73,501 +134,173 @@ impl Default for SyscallsConfig {
                 allowed_values: 0..=0,
                 restricted_ratio: (100, 100).into(),
             },
+            gas_rule: ParamRule {
+                allowed_values: 0..=250_000_000_000,
+                restricted_ratio,
+            },
+            message_position: ParamRule {
+                allowed_values: 0..=10,
+                restricted_ratio,
+            },
+            duration_in_blocks: ParamRule {
+                allowed_values: 0..=10000,
+                restricted_ratio,
+            },
+            handler: ParamRule {
+                allowed_values: 0..=100,
+                restricted_ratio,
+            },
         }
     }
 }
 
 /// Make syscalls table for given config.
 pub(crate) fn sys_calls_table(config: &GearConfig) -> BTreeMap<&'static str, SysCallInfo> {
+    use ParamType::*;
     use ValueType::*;
     let mut res = BTreeMap::new();
     let frequency = config.sys_call_freq;
 
-    let ptr_rule = || config.sys_calls.ptr_rule.clone();
-    let size_rule = || config.sys_calls.memory_size_rule.clone();
-    let no_rule = || config.sys_calls.no_rule.clone();
+    res.insert("alloc", SysCallInfo::new(config, [Alloc], [I32], frequency));
+    res.insert("free", SysCallInfo::new(config, [Free], [], frequency));
 
-    // alloc(pages: u32) -> usize;
-    res.insert(
-        "alloc",
-        SysCallInfo {
-            params: [I32].to_vec(),
-            results: [I32].to_vec(),
-            param_rules: [config.sys_calls.alloc_param_rule.clone()].to_vec(),
-            frequency,
-        },
-    );
-    // free(page: u32);
-    res.insert(
-        "free",
-        SysCallInfo {
-            params: [I32].to_vec(),
-            results: [].to_vec(),
-            param_rules: [config.sys_calls.free_param_rule.clone()].to_vec(),
-            frequency,
-        },
-    );
-
-    // gr_debug(msg_ptr: *const u8, msg_len: u32);
     res.insert(
         "gr_debug",
-        SysCallInfo {
-            params: [I32, I32].to_vec(),
-            results: [].to_vec(),
-            param_rules: [ptr_rule(), size_rule()].to_vec(),
-            frequency,
-        },
+        SysCallInfo::new(config, [Ptr, Size], [], frequency),
     );
-    // gr_error(data: *mut u8) -> u32;
     res.insert(
         "gr_error",
-        SysCallInfo {
-            params: [I32].to_vec(),
-            results: [I32].to_vec(),
-            param_rules: [ptr_rule()].to_vec(),
-            frequency,
-        },
+        SysCallInfo::new(config, [Ptr], [I32], frequency),
     );
 
-    // gr_block_height() -> u32;
     res.insert(
         "gr_block_height",
-        SysCallInfo {
-            params: [].to_vec(),
-            results: [I32].to_vec(),
-            param_rules: [].to_vec(),
-            frequency,
-        },
+        SysCallInfo::new(config, [], [I32], frequency),
     );
-    // gr_block_timestamp() -> u64;
     res.insert(
         "gr_block_timestamp",
-        SysCallInfo {
-            params: [].to_vec(),
-            results: [I64].to_vec(),
-            param_rules: [].to_vec(),
-            frequency,
-        },
+        SysCallInfo::new(config, [], [I64], frequency),
     );
-    // gr_exit(value_dest_ptr: *const u8) -> !;
-    res.insert(
-        "gr_exit",
-        SysCallInfo {
-            params: [I32].to_vec(),
-            results: [].to_vec(),
-            param_rules: [ptr_rule()].to_vec(),
-            frequency,
-        },
-    );
-    // gr_gas_available() -> u64;
+    res.insert("gr_exit", SysCallInfo::new(config, [Ptr], [], frequency));
     res.insert(
         "gr_gas_available",
-        SysCallInfo {
-            params: [].to_vec(),
-            results: [I64].to_vec(),
-            param_rules: [].to_vec(),
-            frequency,
-        },
+        SysCallInfo::new(config, [], [I64], frequency),
     );
-    // gr_program_id(val: *mut u8);
     res.insert(
         "gr_program_id",
-        SysCallInfo {
-            params: [I32].to_vec(),
-            results: [].to_vec(),
-            param_rules: [ptr_rule()].to_vec(),
-            frequency,
-        },
+        SysCallInfo::new(config, [Ptr], [], frequency),
     );
-    // gr_origin(origin_ptr: *mut u8);
-    res.insert(
-        "gr_origin",
-        SysCallInfo {
-            params: [I32].to_vec(),
-            results: [].to_vec(),
-            param_rules: [ptr_rule()].to_vec(),
-            frequency,
-        },
-    );
-    // gr_leave() -> !;
-    res.insert(
-        "gr_leave",
-        SysCallInfo {
-            params: [].to_vec(),
-            results: [].to_vec(),
-            param_rules: [].to_vec(),
-            frequency,
-        },
-    );
-    // gr_value_available(val: *mut u8);
+    res.insert("gr_origin", SysCallInfo::new(config, [Ptr], [], frequency));
+    res.insert("gr_leave", SysCallInfo::new(config, [], [], frequency));
     res.insert(
         "gr_value_available",
-        SysCallInfo {
-            params: [I32].to_vec(),
-            results: [].to_vec(),
-            param_rules: [ptr_rule()].to_vec(),
-            frequency,
-        },
+        SysCallInfo::new(config, [Ptr], [], frequency),
     );
-    // gr_wait() -> !;
-    res.insert(
-        "gr_wait",
-        SysCallInfo {
-            params: [].to_vec(),
-            results: [].to_vec(),
-            param_rules: [].to_vec(),
-            frequency,
-        },
-    );
-    // gr_wait_up_to(duration: u32) -> !;
+    res.insert("gr_wait", SysCallInfo::new(config, [], [], frequency));
     res.insert(
         "gr_wait_up_to",
-        SysCallInfo {
-            params: [I32].to_vec(),
-            results: [].to_vec(),
-            param_rules: [ptr_rule()].to_vec(),
-            frequency,
-        },
+        SysCallInfo::new(config, [Duration], [], frequency),
     );
-    // gr_wait_for(duration: u32) -> !;
     res.insert(
         "gr_wait_for",
-        SysCallInfo {
-            params: [I32].to_vec(),
-            results: [].to_vec(),
-            param_rules: [ptr_rule()].to_vec(),
-            frequency,
-        },
+        SysCallInfo::new(config, [Duration], [], frequency),
     );
-    // gr_wake(waker_id_ptr: *const u8, delay: u32) -> u32;
     res.insert(
         "gr_wake",
-        SysCallInfo {
-            params: [I32, I32].to_vec(),
-            results: [I32].to_vec(),
-            param_rules: [ptr_rule(), ptr_rule()].to_vec(),
-            frequency,
-        },
+        SysCallInfo::new(config, [Ptr, Delay], [I32], frequency),
     );
 
-    // gr_exit_code(exit_code_ptr: *const u8) -> u32;
     res.insert(
         "gr_exit_code",
-        SysCallInfo {
-            params: [I32].to_vec(),
-            results: [I32].to_vec(),
-            param_rules: [].to_vec(),
-            frequency,
-        },
+        SysCallInfo::new(config, [Ptr], [I32], frequency),
     );
-    // gr_message_id(val: *mut u8);
     res.insert(
         "gr_message_id",
-        SysCallInfo {
-            params: [I32].to_vec(),
-            results: [].to_vec(),
-            param_rules: [ptr_rule()].to_vec(),
-            frequency,
-        },
+        SysCallInfo::new(config, [Ptr], [], frequency),
     );
-    // gr_read(at: u32, len: u32, dest: *mut u8) -> u32;
     res.insert(
         "gr_read",
-        SysCallInfo {
-            params: [I32, I32, I32].to_vec(),
-            results: [I32].to_vec(),
-            param_rules: [no_rule(), size_rule(), ptr_rule()].to_vec(),
-            frequency,
-        },
+        SysCallInfo::new(config, [MessagePosition, Size, Ptr], [I32], frequency),
     );
-    // gr_reply(data_ptr: *const u8, data_len: u32, value_ptr: *const u8, message_id_ptr: *mut u8,
-    //     delay: u32) -> SyscallError;
     res.insert(
         "gr_reply",
-        SysCallInfo {
-            params: [I32, I32, I32, I32, I32].to_vec(),
-            results: [I32].to_vec(),
-            param_rules: [ptr_rule(), size_rule(), ptr_rule(), ptr_rule(), ptr_rule()].to_vec(),
-            frequency,
-        },
+        SysCallInfo::new(config, [Ptr, Size, Ptr, Ptr, Delay], [I32], frequency),
     );
-    // gr_reply_wgas(
-    //     data_ptr: *const u8,
-    //     data_len: u32,
-    //     gas_limit: u64,
-    //     value_ptr: *const u8,
-    //     delay: u32,
-    //     message_id_ptr: *mut u8,
-    // ) -> SyscallError;
     res.insert(
         "gr_reply_wgas",
-        SysCallInfo {
-            params: [I32, I32, I64, I32, I32, I32].to_vec(),
-            results: [I32].to_vec(),
-            param_rules: [
-                ptr_rule(),
-                size_rule(),
-                no_rule(),
-                ptr_rule(),
-                ptr_rule(),
-                ptr_rule(),
-            ]
-            .to_vec(),
-            frequency,
-        },
+        SysCallInfo::new(config, [Ptr, Size, Gas, Ptr, Delay, Ptr], [I32], frequency),
     );
-    // gr_reply_commit(value_ptr: *const u8, delay: u32, message_id_ptr: *mut u8,
-    // ) -> SyscallError;
     res.insert(
         "gr_reply_commit",
-        SysCallInfo {
-            params: [I32, I32, I32].to_vec(),
-            results: [I32].to_vec(),
-            param_rules: [ptr_rule(), ptr_rule(), ptr_rule()].to_vec(),
-            frequency,
-        },
+        SysCallInfo::new(config, [Ptr, Delay, Ptr], [I32], frequency),
     );
-    // gr_reply_commit_wgas(
-    //     gas_limit: u64,
-    //     value_ptr: *const u8,
-    //     delay: u32,
-    //     message_id_ptr: *mut u8,
-    // ) -> SyscallError;
     res.insert(
         "gr_reply_commit_wgas",
-        SysCallInfo {
-            params: [I64, I32, I32, I32].to_vec(),
-            results: [I32].to_vec(),
-            param_rules: [no_rule(), ptr_rule(), ptr_rule(), ptr_rule()].to_vec(),
-            frequency,
-        },
+        SysCallInfo::new(config, [Gas, Ptr, Delay, Ptr], [I32], frequency),
     );
-    // gr_reply_push(data_ptr: *const u8, data_len: u32) -> SyscallError;
     res.insert(
         "gr_reply_push",
-        SysCallInfo {
-            params: [I32, I32].to_vec(),
-            results: [I32].to_vec(),
-            param_rules: [ptr_rule(), size_rule()].to_vec(),
-            frequency,
-        },
+        SysCallInfo::new(config, [Ptr, Size], [I32], frequency),
     );
-    // gr_reply_to(dest: *mut u8) -> u32;
     res.insert(
         "gr_reply_to",
-        SysCallInfo {
-            params: [I32].to_vec(),
-            results: [I32].to_vec(),
-            param_rules: [ptr_rule()].to_vec(),
-            frequency,
-        },
+        SysCallInfo::new(config, [Ptr], [I32], frequency),
     );
-    // gr_send(
-    //     program: *const u8,
-    //     data_ptr: *const u8,
-    //     data_len: u32,
-    //     value_ptr: *const u8,
-    //     delay: u32,
-    //     message_id_ptr: *mut u8,
-    // ) -> SyscallError;
     res.insert(
         "gr_send",
-        SysCallInfo {
-            params: [I32, I32, I32, I32, I32, I32].to_vec(),
-            results: [I32].to_vec(),
-            param_rules: [
-                ptr_rule(),
-                ptr_rule(),
-                size_rule(),
-                ptr_rule(),
-                ptr_rule(),
-                ptr_rule(),
-            ]
-            .to_vec(),
-            frequency,
-        },
+        SysCallInfo::new(config, [Ptr, Ptr, Size, Ptr, Delay, Ptr], [I32], frequency),
     );
-    // gr_send_wgas(
-    //     program: *const u8,
-    //     data_ptr: *const u8,
-    //     data_len: u32,
-    //     gas_limit: u64,
-    //     value_ptr: *const u8,
-    //     delay: u32,
-    //     message_id_ptr: *mut u8,
-    // ) -> SyscallError;
     res.insert(
         "gr_send_wgas",
-        SysCallInfo {
-            params: [I32, I32, I32, I64, I32, I32, I32].to_vec(),
-            results: [I32].to_vec(),
-            param_rules: [
-                ptr_rule(),
-                ptr_rule(),
-                size_rule(),
-                no_rule(),
-                ptr_rule(),
-                ptr_rule(),
-                ptr_rule(),
-            ]
-            .to_vec(),
+        SysCallInfo::new(
+            config,
+            [Ptr, Ptr, Size, Gas, Ptr, Delay, Ptr],
+            [I32],
             frequency,
-        },
+        ),
     );
-    // gr_send_commit(
-    //     handle: u32,
-    //     program: *const u8,
-    //     value_ptr: *const u8,
-    //     delay: u32,
-    //     message_id_ptr: *mut u8,
-    // ) -> SyscallError;
     res.insert(
         "gr_send_commit",
-        SysCallInfo {
-            params: [I32, I32, I32, I32, I32].to_vec(),
-            results: [I32].to_vec(),
-            param_rules: [no_rule(), ptr_rule(), ptr_rule(), ptr_rule(), ptr_rule()].to_vec(),
-            frequency,
-        },
+        SysCallInfo::new(config, [Handler, Ptr, Ptr, Delay, Ptr], [I32], frequency),
     );
-    // gr_send_commit_wgas(
-    //     handle: u32,
-    //     program: *const u8,
-    //     gas_limit: u64,
-    //     value_ptr: *const u8,
-    //     delay: u32,
-    //     message_id_ptr: *mut u8,
-    // ) -> SyscallError;
     res.insert(
         "gr_send_commit_wgas",
-        SysCallInfo {
-            params: [I32, I32, I64, I32, I32, I32].to_vec(),
-            results: [I32].to_vec(),
-            param_rules: [
-                no_rule(),
-                ptr_rule(),
-                ptr_rule(),
-                no_rule(),
-                ptr_rule(),
-                ptr_rule(),
-            ]
-            .to_vec(),
+        SysCallInfo::new(
+            config,
+            [Handler, Ptr, Gas, Ptr, Delay, Ptr],
+            [I32],
             frequency,
-        },
+        ),
     );
-    // gr_send_init(handle: u32) -> SyscallError;
     res.insert(
         "gr_send_init",
-        SysCallInfo {
-            params: [I32].to_vec(),
-            results: [I32].to_vec(),
-            param_rules: [ptr_rule()].to_vec(),
-            frequency,
-        },
+        SysCallInfo::new(config, [Handler], [I32], frequency),
     );
-    // gr_send_push(handle: u32, data_ptr: *const u8, data_len: u32) -> SyscallError;
     res.insert(
         "gr_send_push",
-        SysCallInfo {
-            params: [I32, I32, I32].to_vec(),
-            results: [I32].to_vec(),
-            param_rules: [no_rule(), ptr_rule(), size_rule()].to_vec(),
-            frequency,
-        },
+        SysCallInfo::new(config, [Handler, Ptr, Size], [I32], frequency),
     );
-    // gr_size() -> u32;
-    res.insert(
-        "gr_size",
-        SysCallInfo {
-            params: [].to_vec(),
-            results: [I32].to_vec(),
-            param_rules: [].to_vec(),
-            frequency,
-        },
-    );
-    // gr_source(program: *mut u8);
-    res.insert(
-        "gr_source",
-        SysCallInfo {
-            params: [I32].to_vec(),
-            results: [].to_vec(),
-            param_rules: [ptr_rule()].to_vec(),
-            frequency,
-        },
-    );
-    // gr_value(val: *mut u8);
-    res.insert(
-        "gr_value",
-        SysCallInfo {
-            params: [I32].to_vec(),
-            results: [].to_vec(),
-            param_rules: [ptr_rule()].to_vec(),
-            frequency,
-        },
-    );
+    res.insert("gr_size", SysCallInfo::new(config, [], [I32], frequency));
+    res.insert("gr_source", SysCallInfo::new(config, [Ptr], [], frequency));
+    res.insert("gr_value", SysCallInfo::new(config, [Ptr], [], frequency));
 
-    // gr_create_program(
-    //     code_hash: *const u8,
-    //     salt_ptr: *const u8,
-    //     salt_len: u32,
-    //     data_ptr: *const u8,
-    //     data_len: u32,
-    //     value_ptr: *const u8,
-    //     delay: u32,
-    //     message_id_ptr: *mut u8,
-    //     program_id_ptr: *mut u8,
-    // ) -> SyscallError;
     res.insert(
         "gr_create_program",
-        SysCallInfo {
-            params: [I32, I32, I32, I32, I32, I32, I32, I32, I32].to_vec(),
-            results: [I32].to_vec(),
-            param_rules: [
-                ptr_rule(),
-                ptr_rule(),
-                size_rule(),
-                ptr_rule(),
-                size_rule(),
-                ptr_rule(),
-                ptr_rule(),
-                ptr_rule(),
-            ]
-            .to_vec(),
+        SysCallInfo::new(
+            config,
+            [Ptr, Ptr, Size, Ptr, Size, Ptr, Delay, Ptr, Ptr],
+            [I32],
             frequency,
-        },
+        ),
     );
-
-    // gr_create_program_wgas(
-    //     code_hash: *const u8,
-    //     salt_ptr: *const u8,
-    //     salt_len: u32,
-    //     data_ptr: *const u8,
-    //     data_len: u32,
-    //     gas_limit: u64,
-    //     value_ptr: *const u8,
-    //     delay: u32,
-    //     message_id_ptr: *mut u8,
-    //     program_id_ptr: *mut u8,
-    // ) -> SyscallError;
     res.insert(
         "gr_create_program_wgas",
-        SysCallInfo {
-            params: [I32, I32, I32, I32, I32, I64, I32, I32, I32, I32].to_vec(),
-            results: [I32].to_vec(),
-            param_rules: [
-                ptr_rule(),
-                ptr_rule(),
-                size_rule(),
-                ptr_rule(),
-                size_rule(),
-                no_rule(),
-                ptr_rule(),
-                ptr_rule(),
-                ptr_rule(),
-            ]
-            .to_vec(),
+        SysCallInfo::new(
+            config,
+            [Ptr, Ptr, Size, Ptr, Size, Gas, Ptr, Delay, Ptr, Ptr],
+            [I32],
             frequency,
-        },
+        ),
     );
 
     res
@@ -581,7 +314,7 @@ fn test_sys_calls_table() {
     use gear_core::message::DispatchKind;
     use gear_wasm_instrument::parity_wasm::{self, builder};
 
-    let config = GearConfig::default();
+    let config = GearConfig::new_normal();
     let table = sys_calls_table(&config);
 
     // Make module with one empty function.
@@ -612,15 +345,10 @@ fn test_sys_calls_table() {
 
     // Execute wasm and check success.
     let ext = MockExt::default();
-    let res = WasmiEnvironment::execute(
-        ext,
-        &code,
-        Default::default(),
-        0.into(),
-        &DispatchKind::Init,
-        |_, _| -> Result<(), u32> { Ok(()) },
-    )
-    .unwrap();
+    let env = WasmiEnvironment::new(ext, &code, Default::default(), 0.into()).unwrap();
+    let res = env
+        .execute(&DispatchKind::Init, |_, _| -> Result<(), u32> { Ok(()) })
+        .unwrap();
 
     assert_eq!(res.termination_reason, TerminationReason::Success);
 }

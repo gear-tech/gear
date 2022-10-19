@@ -34,4 +34,6 @@ pub const MAILBOX_THRESHOLD: u64 = 3000;
 pub const WAITLIST_COST: u64 = 100;
 pub const RESERVE_FOR: u32 = 1;
 pub const READ_COST: u64 = 20;
+pub const WRITE_COST: u64 = 100;
 pub const PER_BYTE_COST: u64 = 10;
+pub const MODULE_INSTANTIATION_BYTE_COST: u64 = 20;

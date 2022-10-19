@@ -34,14 +34,17 @@ use gear_core::{
     gas::{GasAllowanceCounter, GasCounter},
     ids::ProgramId,
     memory::{PageBuf, PageNumber, WasmPageNumber},
-    message::{DispatchKind, ExitCode, IncomingDispatch, ReplyMessage, StoredDispatch},
+    message::{
+        ContextSettings, DispatchKind, ExitCode, IncomingDispatch, MessageWaitedType, ReplyMessage,
+        StoredDispatch,
+    },
     program::Program,
 };
 
 #[derive(Debug)]
 enum SuccessfulDispatchResultKind {
     Exit(ProgramId),
-    Wait(Option<u32>),
+    Wait(Option<u32>, MessageWaitedType),
     Success,
 }
 
@@ -265,25 +268,36 @@ pub fn prepare(
         }
     }
 
-    let memory_size = match executor::charge_gas_for_pages(
-        &block_config.allocations_config,
-        &mut gas_counter,
-        &mut gas_allowance_counter,
-        &actor_data.allocations,
-        actor_data.static_pages,
-        dispatch.context().is_none() && matches!(dispatch.kind(), DispatchKind::Init),
-        subsequent_execution,
-    ) {
+    let mut f = || {
+        let memory_size = executor::charge_gas_for_pages(
+            &block_config.allocations_config,
+            &mut gas_counter,
+            &mut gas_allowance_counter,
+            &actor_data.allocations,
+            actor_data.static_pages,
+            dispatch.context().is_none() && matches!(dispatch.kind(), DispatchKind::Init),
+            subsequent_execution,
+        )?;
+        executor::charge_gas_for_instantiation(
+            block_config.module_instantiation_byte_cost,
+            actor_data.code_length_bytes,
+            &mut gas_counter,
+            &mut gas_allowance_counter,
+        )?;
+        Ok(memory_size)
+    };
+    let memory_size = match f() {
         Ok(size) => {
-            log::debug!("Charged for memory pages. Size: {size:?}");
+            log::debug!("Charged for module instantiation and memory pages. Size: {size:?}");
             size
         }
         Err(reason) => {
-            log::debug!("Failed to charge for memory pages: {reason:?}");
+            log::debug!("Failed to charge for module instantiation or memory pages: {reason:?}");
             return match reason {
                 ExecutionErrorReason::InitialMemoryBlockGasExceeded
                 | ExecutionErrorReason::GrowMemoryBlockGasExceeded
-                | ExecutionErrorReason::LoadMemoryBlockGasExceeded => {
+                | ExecutionErrorReason::LoadMemoryBlockGasExceeded
+                | ExecutionErrorReason::ModuleInstantiationBlockGasExceeded => {
                     prepare_allowance_exceed(dispatch, program_id, gas_counter)
                 }
                 _ => prepare_error(dispatch, program_id, gas_counter, reason),
@@ -323,6 +337,7 @@ pub fn process<
         mailbox_threshold,
         waitlist_cost,
         reserve_for,
+        write_cost,
         ..
     } = block_config.clone();
 
@@ -348,7 +363,21 @@ pub fn process<
         pages_initial_data: memory_pages,
         memory_size: execution_context.memory_size,
     };
-    let msg_ctx_settings = gear_core::message::ContextSettings::new(0, outgoing_limit);
+
+    // Sending fee: double write cost for addition and removal some time soon
+    // from queue.
+    //
+    // Waiting fee: triple write cost for addition and removal some time soon
+    // from waitlist and enqueuing / sending error reply afterward.
+    //
+    // Waking fee: double write cost for removal from waitlist
+    // and further enqueueing.
+    let msg_ctx_settings = ContextSettings::new(
+        write_cost.saturating_mul(2),
+        write_cost.saturating_mul(3),
+        write_cost.saturating_mul(2),
+        outgoing_limit,
+    );
 
     let exec_result = executor::execute_wasm::<A, E>(
         balance,
@@ -371,7 +400,9 @@ pub fn process<
                 ExecutionErrorReason::Ext(reason),
             ),
             DispatchResultKind::Success => process_success(Success, res),
-            DispatchResultKind::Wait(duration) => process_success(Wait(duration), res),
+            DispatchResultKind::Wait(duration, ref waited_type) => {
+                process_success(Wait(duration, waited_type.clone()), res)
+            }
             DispatchResultKind::Exit(value_destination) => {
                 process_success(Exit(value_destination), res)
             }
@@ -568,10 +599,11 @@ fn process_success(
     }
 
     let outcome = match kind {
-        Wait(duration) => {
+        Wait(duration, waited_type) => {
             journal.push(JournalNote::WaitDispatch {
                 dispatch: dispatch.into_stored(program_id, context_store),
                 duration,
+                waited_type,
             });
 
             return journal;

@@ -4,6 +4,7 @@ use crate::{
     result::Result,
 };
 use core::ops::{Deref, DerefMut};
+use events::Events;
 use std::{str::FromStr, time::Duration};
 use subxt::{
     rpc::{RpcClientBuilder, Uri, WsTransportClientBuilder},
@@ -32,6 +33,14 @@ impl Api {
     }
 
     /// Build runtime api with timeout
+    ///
+    /// # TODO
+    ///
+    /// run [subscribe_to_updates](https://docs.rs/subxt/latest/subxt/client/struct.OnlineClient.html#method.subscribe_to_updates)
+    /// after #1629 since
+    ///
+    /// * the build may include both `gear` and `vara` features.
+    /// * users may have installed this CLI tool independently and the metadata is outdated.
     pub async fn new_with_timeout(url: Option<&str>, timeout: Option<u64>) -> Result<Self> {
         let (tx, rx) = WsTransportClientBuilder::default()
             .connection_timeout(Duration::from_millis(timeout.unwrap_or(60_000)))
@@ -55,6 +64,11 @@ impl Api {
     /// Try new signer from api
     pub fn try_signer(self, passwd: Option<&str>) -> Result<Signer> {
         Signer::try_new(self, passwd)
+    }
+
+    /// Subscribe all events
+    pub async fn events(&self) -> Result<Events<'_>> {
+        Ok(self.0.events().subscribe().await?)
     }
 }
 

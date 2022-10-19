@@ -37,7 +37,7 @@ use gear_backend_common::{
 use gear_core::{
     buffer::{RuntimeBuffer, RuntimeBufferSizeError},
     env::Ext,
-    message::{HandlePacket, InitPacket, PayloadSizeError, ReplyPacket},
+    message::{HandlePacket, InitPacket, MessageWaitedType, PayloadSizeError, ReplyPacket},
 };
 use gear_core_errors::{CoreError, MemoryError};
 use sp_sandbox::{HostError, ReturnValue, SandboxMemory, Value};
@@ -274,7 +274,7 @@ where
         let (at, len, buffer_ptr) = args.iter().read_3()?;
 
         ctx.run(|ctx| {
-            match Self::validated(ctx.ext, at, len) {
+            match Self::validated(&mut ctx.ext, at, len) {
                 Ok(buffer) => {
                     ctx.memory
                         .set(buffer_ptr, buffer)
@@ -618,7 +618,9 @@ where
                 .wait()
                 .map_err(FuncError::Core)
                 .err()
-                .unwrap_or_else(|| FuncError::Terminated(TerminationReason::Wait(None))))
+                .unwrap_or_else(|| {
+                    FuncError::Terminated(TerminationReason::Wait(None, MessageWaitedType::Wait))
+                }))
         })
     }
 
@@ -626,14 +628,18 @@ where
         sys_trace!(target: "syscall::gear", "wait_for, args = {}", args_to_str(args));
 
         let duration = args.iter().read()?;
-
         ctx.run(|ctx| -> Result<(), _> {
             Err(ctx
                 .ext
                 .wait_for(duration)
                 .map_err(FuncError::Core)
                 .err()
-                .unwrap_or_else(|| FuncError::Terminated(TerminationReason::Wait(Some(duration)))))
+                .unwrap_or_else(|| {
+                    FuncError::Terminated(TerminationReason::Wait(
+                        Some(duration),
+                        MessageWaitedType::WaitFor,
+                    ))
+                }))
         })
     }
 
@@ -643,12 +649,14 @@ where
         let duration = args.iter().read()?;
 
         ctx.run(|ctx| -> Result<(), _> {
-            Err(ctx
-                .ext
-                .wait_up_to(duration)
-                .map_err(FuncError::Core)
-                .err()
-                .unwrap_or_else(|| FuncError::Terminated(TerminationReason::Wait(Some(duration)))))
+            Err(FuncError::Terminated(TerminationReason::Wait(
+                Some(duration),
+                if ctx.ext.wait_up_to(duration).map_err(FuncError::Core)? {
+                    MessageWaitedType::WaitUpToFull
+                } else {
+                    MessageWaitedType::WaitUpTo
+                },
+            )))
         })
     }
 
