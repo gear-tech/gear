@@ -400,6 +400,21 @@ where
         })
     }
 
+    pub fn random(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
+        sys_trace!(target: "syscall::gear", "random, args = {}", args_to_str(args));
+
+        let (random_ptr, subject_ptr, subject_len, bn_ptr) = args.iter().read_4()?;
+
+        ctx.run(|ctx| {
+            let subject = ctx.read_memory(subject_ptr, subject_len)?;
+            let (random, bn) = ctx.ext.random(&subject);
+
+            ctx.write_output(random_ptr, &random)?;
+            ctx.write_output(bn_ptr, &bn.to_le_bytes())
+                .map_err(Into::into)
+        })
+    }
+
     pub fn reply(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
         sys_trace!(target: "syscall::gear", "reply, args = {}", args_to_str(args));
 

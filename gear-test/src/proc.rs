@@ -134,6 +134,7 @@ where
             core_processor::process::<Ext, E>(
                 &block_config,
                 (context, program_id, code).into(),
+                (vec![0u8; 32], block_config.block_info.height),
                 Default::default(),
             )
         }
@@ -327,6 +328,7 @@ where
                     core_processor::process::<Ext, E>(
                         &block_config,
                         (context, program_id, code).into(),
+                        (vec![0u8; 32], block_config.block_info.height),
                         memory_pages,
                     )
                 }

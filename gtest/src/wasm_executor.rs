@@ -168,6 +168,7 @@ impl WasmExecutor {
             mailbox_threshold: MAILBOX_THRESHOLD,
             waitlist_cost: WAITLIST_COST,
             reserve_for: RESERVE_FOR,
+            random_data: (Vec::new(), 0),
         })
     }
 

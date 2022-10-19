@@ -17,6 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use alloc::{collections::BTreeSet, vec::Vec};
+use blake2_rfc::blake2b::blake2b;
 use core_processor::{Ext, ProcessorContext, ProcessorError, ProcessorExt};
 use gear_backend_common::{ExtInfo, GetGasAmount, IntoExtInfo, TrapExplanation};
 use gear_core::{
@@ -274,5 +275,15 @@ impl EnvExt for LazyPagesExt {
 
     fn forbidden_funcs(&self) -> &BTreeSet<&'static str> {
         &self.inner.context.forbidden_funcs
+    }
+
+    fn random(&self, subject: &[u8]) -> (Vec<u8>, u32) {
+        let mut subject = subject.to_vec();
+        subject.reserve(32);
+        subject.extend_from_slice(&self.inner.context.random_data.0);
+        (
+            blake2b(32, &[], &subject).as_bytes().to_vec(),
+            self.inner.context.random_data.1,
+        )
     }
 }

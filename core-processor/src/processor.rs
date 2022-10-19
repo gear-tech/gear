@@ -309,6 +309,7 @@ pub fn process<
 >(
     block_config: &BlockConfig,
     execution_context: ProcessExecutionContext,
+    random_data: (Vec<u8>, u32),
     memory_pages: BTreeMap<PageNumber, PageBuf>,
 ) -> Vec<JournalNote> {
     use SuccessfulDispatchResultKind::*;
@@ -335,6 +336,7 @@ pub fn process<
         mailbox_threshold,
         waitlist_cost,
         reserve_for,
+        random_data,
     };
 
     let dispatch = execution_context.dispatch;

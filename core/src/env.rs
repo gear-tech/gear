@@ -24,7 +24,7 @@ use crate::{
     memory::{Memory, WasmPageNumber},
     message::{ExitCode, HandlePacket, InitPacket, ReplyPacket},
 };
-use alloc::collections::BTreeSet;
+use alloc::{collections::BTreeSet, vec::Vec};
 use codec::{Decode, Encode};
 use gear_core_errors::CoreError;
 
@@ -175,4 +175,7 @@ pub trait Ext {
 
     /// Return the set of functions that are forbidden to be called.
     fn forbidden_funcs(&self) -> &BTreeSet<&'static str>;
+
+    /// Returns a random number for the current block with the given subject.
+    fn random(&self, subject: &[u8]) -> (Vec<u8>, u32);
 }

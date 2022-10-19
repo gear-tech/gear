@@ -654,6 +654,7 @@ impl ExtManager {
             PrepareResult::Ok(context) => core_processor::process::<Ext, WasmiEnvironment>(
                 &block_config,
                 (context, dest, code.unwrap()).into(),
+                (Vec::new(), 0),
                 memory_pages,
             ),
         };

@@ -19,7 +19,7 @@
 //! Configurations.
 
 use crate::common::{Actor, PrechargedDispatch};
-use alloc::collections::BTreeSet;
+use alloc::{collections::BTreeSet, vec::Vec};
 use codec::{Decode, Encode};
 use gear_core::{code, costs::HostFnWeights, ids::ProgramId, memory::WasmPageNumber};
 
@@ -82,6 +82,8 @@ pub struct ExecutionSettings {
     pub waitlist_cost: u64,
     /// Reserve for parameter of scheduling.
     pub reserve_for: u32,
+    /// Most recently determined random seed, along with the time in the past since when it was determinable by chain observers.
+    pub random_data: (Vec<u8>, u32),
 }
 
 impl ExecutionSettings {

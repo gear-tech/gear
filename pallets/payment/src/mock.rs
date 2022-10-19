@@ -22,6 +22,7 @@ use frame_support::{
     traits::{ConstU8, Contains, Currency, FindAuthor, OnFinalize, OnInitialize, OnUnbalanced},
     weights::{constants::WEIGHT_PER_SECOND, IdentityFee},
 };
+use frame_support_test::TestRandomness;
 use frame_system as system;
 use pallet_transaction_payment::CurrencyAdapter;
 use primitive_types::H256;
@@ -165,6 +166,7 @@ parameter_types! {
 
 impl pallet_gear::Config for Test {
     type RuntimeEvent = RuntimeEvent;
+    type Randomness = TestRandomness<Self>;
     type Currency = Balances;
     type GasPrice = GasConverter;
     type WeightInfo = ();

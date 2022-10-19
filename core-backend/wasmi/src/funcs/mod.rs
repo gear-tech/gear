@@ -1115,6 +1115,51 @@ where
         Func::wrap(store, func)
     }
 
+    pub fn random(store: &mut Store<HostState<E>>, forbidden: bool, memory: WasmiMemory) -> Func {
+        let func = move |mut caller: wasmi::Caller<'_, HostState<E>>,
+                         random_ptr: u32,
+                         subject_ptr: u32,
+                         subject_len: u32,
+                         bn_ptr: u32|
+              -> EmptyOutput {
+            exit_if!(forbidden, caller);
+
+            let mut subject = vec![0; subject_len as usize];
+
+            let read_result = {
+                let memory_wrap = get_caller_memory(&mut caller, &memory);
+                memory_wrap.read(subject_ptr as usize, subject.as_mut())
+            };
+
+            process_read_result!(read_result, caller);
+
+            let host_state = caller
+                .host_data()
+                .as_ref()
+                .expect("host_state should be set before execution");
+
+            let (random, bn) = host_state.ext.random(&subject);
+
+            let write_result = {
+                let mut memory_wrap = get_caller_memory(&mut caller, &memory);
+                memory_wrap
+                    .write(random_ptr as usize, &random)
+                    .and_then(|_| memory_wrap.write(bn_ptr as usize, &bn.to_le_bytes()))
+            };
+
+            match write_result {
+                Ok(_) => Ok(()),
+                Err(e) => {
+                    host_state_mut!(caller).err = e.into();
+
+                    Err(TrapCode::Unreachable.into())
+                }
+            }
+        };
+
+        Func::wrap(store, func)
+    }
+
     pub fn leave(store: &mut Store<HostState<E>>, forbidden: bool) -> Func {
         let func = move |mut caller: wasmi::Caller<'_, HostState<E>>| -> EmptyOutput {
             exit_if!(forbidden, caller);

@@ -22,6 +22,7 @@ use alloc::{
     string::{String, ToString},
     vec::Vec,
 };
+use blake2_rfc::blake2b::blake2b;
 use codec::{Decode, Encode};
 use gear_backend_common::{
     error_processor::IntoExtError, AsTerminationReason, ExtInfo, GetGasAmount, IntoExtInfo,
@@ -76,6 +77,8 @@ pub struct ProcessorContext {
     pub waitlist_cost: u64,
     /// Reserve for parameter of scheduling.
     pub reserve_for: u32,
+    /// Output from Randomness.
+    pub random_data: (Vec<u8>, u32),
 }
 
 /// Trait to which ext must have to work in processor wasm executor.
@@ -624,6 +627,16 @@ impl EnvExt for Ext {
 
     fn forbidden_funcs(&self) -> &BTreeSet<&'static str> {
         &self.context.forbidden_funcs
+    }
+
+    fn random(&self, subject: &[u8]) -> (Vec<u8>, u32) {
+        let mut subject = subject.to_vec();
+        subject.reserve(32);
+        subject.extend_from_slice(&self.context.random_data.0);
+        (
+            blake2b(32, &[], &subject).as_bytes().to_vec(),
+            self.context.random_data.1,
+        )
     }
 }
 

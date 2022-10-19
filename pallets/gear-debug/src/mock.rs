@@ -22,6 +22,7 @@ use frame_support::{
     construct_runtime, parameter_types,
     traits::{FindAuthor, OnFinalize, OnInitialize},
 };
+use frame_support_test::TestRandomness;
 use frame_system as system;
 use primitive_types::H256;
 use sp_runtime::{
@@ -132,6 +133,7 @@ impl pallet_gear_program::Config for Test {
 
 impl pallet_gear::Config for Test {
     type RuntimeEvent = RuntimeEvent;
+    type Randomness = TestRandomness<Self>;
     type Currency = Balances;
     type GasPrice = GasConverter;
     type WeightInfo = ();
