@@ -446,8 +446,6 @@ where
             unreachable!("Threshold for reservation invalidated")
         }
 
-        log::error!("!!!TEST!!! {:?}", hold.expected());
-
         let total_amount = amount.saturating_add(hold.lock());
 
         GasHandlerOf::<T>::reserve(message_id, reservation_id, total_amount)
@@ -464,7 +462,6 @@ where
     }
 
     fn unreserve_gas(&mut self, reservation_id: ReservationId, program_id: ProgramId, bn: u32) {
-        // TODO: consider move `TaskPool::delete` into `remove_gas_reservation`
         <Self as TaskHandler<T::AccountId>>::remove_gas_reservation(
             self,
             program_id,
