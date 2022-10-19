@@ -45,11 +45,10 @@ pub fn inject<R: Rules>(
 ) -> Result<elements::Module, elements::Module> {
     // Injecting gas counting external
     let mut mbuilder = builder::from_module(module);
-    // fn out_of_gas(gas: i32, gas_counter: i64)
+
+    // fn out_of_...() -> ();
     let import_sig = mbuilder.push_signature(
         builder::signature()
-            .with_param(ValueType::I32)
-            .with_param(ValueType::I64)
             .build_sig(),
     );
 
@@ -127,8 +126,6 @@ pub fn inject<R: Rules>(
         Instruction::I64Add,
         Instruction::I64LtU,
         Instruction::If(elements::BlockType::NoResult),
-        Instruction::GetLocal(0),
-        Instruction::GetGlobal(gas_index),
         Instruction::Call(out_of_gas_index),
         Instruction::Unreachable,
         Instruction::End,
@@ -148,8 +145,6 @@ pub fn inject<R: Rules>(
         Instruction::I64Add,
         Instruction::I64LtU,
         Instruction::If(elements::BlockType::NoResult),
-        Instruction::GetLocal(0),
-        Instruction::GetGlobal(allowance_index),
         Instruction::Call(out_of_allowance_index),
         Instruction::Unreachable,
         Instruction::End,
@@ -179,7 +174,7 @@ pub fn inject<R: Rules>(
 
     let cost_set_blocks = match elements
         .iter()
-        .skip(12)
+        .skip(10)
         .take(7)
         .try_fold(0u64, |cost, instruction| {
             rules.instruction_cost(instruction).map(|c| cost + c as u64)
