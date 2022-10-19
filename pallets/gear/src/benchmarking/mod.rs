@@ -1880,8 +1880,8 @@ benchmarks! {
             imported_functions: vec![ImportedFunction {
                 module: "env",
                 name: "gr_reserve_gas",
-                params: vec![ValueType::I32, ValueType::I32, ValueType::I32],
-                return_type: None,
+                params: vec![ValueType::I64, ValueType::I32, ValueType::I32],
+                return_type: Some(ValueType::I32),
             }],
             data_segments: vec![
                 DataSegment {
@@ -1890,10 +1890,11 @@ benchmarks! {
                 },
             ],
             handle_body: Some(body::repeated(r, &[
-                Instruction::I32Const(0), // id ptr
                 Instruction::I32Const(50_000_000), // gas amount
-                Instruction::I32Const(10), // blocks
+                Instruction::I32Const(10), // duration
+                Instruction::I32Const(0), // id ptr
                 Instruction::Call(0),
+                Instruction::Drop,
             ])),
             ..Default::default()
         });
@@ -1917,22 +1918,29 @@ benchmarks! {
         let r in 0 .. 1;
         let id_bytes = 0_u128.encode();
         let id_len = id_bytes.len();
+        let amount_bytes = 0_u64.encode();
+        let amount_len = amount_bytes.len();
         let code = WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
             imported_functions: vec![ImportedFunction {
                 module: "env",
                 name: "gr_unreserve_gas",
-                params: vec![ValueType::I32],
-                return_type: Some(ValueType::I64),
+                params: vec![ValueType::I32, ValueType::I32],
+                return_type: Some(ValueType::I32),
             }],
             data_segments: vec![
                 DataSegment {
                     offset: 0,
                     value: id_bytes,
                 },
+                DataSegment {
+                    offset: id_len as u32,
+                    value: amount_bytes,
+                }
             ],
             handle_body: Some(body::repeated(r, &[
                 Instruction::I32Const(0), // id ptr
+                Instruction::I32Const(id_len as i32), // unreserved amount ptr
                 Instruction::Call(0),
                 Instruction::Drop,
             ])),
