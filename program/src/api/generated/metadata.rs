@@ -1157,10 +1157,10 @@ pub mod api {
                         };
                         if runtime_storage_hash
                             == [
-                                208u8, 215u8, 217u8, 63u8, 214u8, 29u8, 173u8, 237u8, 100u8, 254u8,
-                                221u8, 21u8, 104u8, 149u8, 108u8, 181u8, 115u8, 0u8, 242u8, 175u8,
-                                244u8, 185u8, 124u8, 217u8, 60u8, 199u8, 67u8, 220u8, 163u8, 121u8,
-                                30u8, 56u8,
+                                160u8, 240u8, 184u8, 206u8, 73u8, 121u8, 30u8, 200u8, 236u8, 84u8,
+                                176u8, 58u8, 21u8, 190u8, 70u8, 127u8, 46u8, 26u8, 100u8, 176u8,
+                                131u8, 103u8, 35u8, 21u8, 5u8, 100u8, 3u8, 112u8, 197u8, 55u8,
+                                195u8, 164u8,
                             ]
                         {
                             let entry = Events;
@@ -8774,6 +8774,12 @@ pub mod api {
                 pub enum MessageWaitedRuntimeReason {
                     #[codec(index = 0)]
                     WaitCalled,
+                    #[codec(index = 1)]
+                    WaitForCalled,
+                    #[codec(index = 2)]
+                    WaitUpToCalled,
+                    #[codec(index = 3)]
+                    WaitUpToCalledFull,
                 }
                 #[derive(:: subxt :: codec :: Decode, :: subxt :: codec :: Encode, Debug)]
                 pub enum MessageWaitedSystemReason {
@@ -11612,9 +11618,9 @@ pub mod api {
             };
             if runtime_metadata_hash
                 != [
-                    66u8, 2u8, 220u8, 190u8, 76u8, 58u8, 26u8, 9u8, 136u8, 93u8, 78u8, 11u8, 205u8,
-                    205u8, 50u8, 213u8, 173u8, 134u8, 178u8, 155u8, 132u8, 78u8, 67u8, 120u8, 9u8,
-                    192u8, 114u8, 237u8, 71u8, 123u8, 104u8, 70u8,
+                    232u8, 72u8, 76u8, 92u8, 208u8, 70u8, 82u8, 1u8, 190u8, 105u8, 225u8, 126u8,
+                    49u8, 123u8, 123u8, 45u8, 204u8, 99u8, 207u8, 59u8, 121u8, 160u8, 116u8, 160u8,
+                    40u8, 24u8, 80u8, 21u8, 118u8, 50u8, 199u8, 53u8,
                 ]
             {
                 Err(::subxt::MetadataError::IncompatibleMetadata)

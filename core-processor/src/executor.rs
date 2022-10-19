@@ -457,7 +457,9 @@ pub fn execute_wasm<
 
             DispatchResultKind::Trap(explanation)
         }
-        TerminationReason::Wait(duration) => DispatchResultKind::Wait(duration),
+        TerminationReason::Wait(duration, waited_type) => {
+            DispatchResultKind::Wait(duration, waited_type)
+        }
         TerminationReason::GasAllowanceExceeded => DispatchResultKind::GasAllowanceExceed,
     };
 
