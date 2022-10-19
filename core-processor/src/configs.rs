@@ -118,6 +118,8 @@ pub struct BlockConfig {
     pub write_cost: u64,
     /// Per loaded byte cost.
     pub per_byte_cost: u64,
+    /// WASM module instantiation byte cost.
+    pub module_instantiation_byte_cost: u64,
 }
 
 /// Unstable parameters for message execution across processing runs.

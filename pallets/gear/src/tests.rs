@@ -25,7 +25,7 @@ use crate::{
         LOW_BALANCE_USER, USER_1, USER_2, USER_3,
     },
     pallet, BlockGasLimitOf, Config, CostsPerBlockOf, DbWeightOf, Error, Event, GasAllowanceOf,
-    GasHandlerOf, GasInfo, MailboxOf, ReadPerByteCostOf, WaitlistOf,
+    GasHandlerOf, GasInfo, MailboxOf, ReadPerByteCostOf, Schedule, WaitlistOf,
 };
 use codec::{Decode, Encode};
 use common::{
@@ -3044,11 +3044,13 @@ fn terminated_locking_funds() {
             WASM_BINARY.to_vec(),
         ));
 
+        let schedule = Schedule::<Test>::default();
         let code_id = get_last_code_id();
         let code = <Test as Config>::CodeStorage::get_code(code_id)
             .expect("code should be in the storage");
         let code_length = code.code().len();
         let read_cost = DbWeightOf::<Test>::get().reads(1).ref_time();
+        let module_instantiation = schedule.module_instantiation_per_byte * code_length as u64;
 
         assert_ok!(Gear::create_program(
             RuntimeOrigin::signed(USER_1),
@@ -3062,7 +3064,8 @@ fn terminated_locking_funds() {
                     read_cost,
                     ReadPerByteCostOf::<Test>::get(),
                     code_length as u64
-                ),
+                )
+                + module_instantiation,
             5_000u128
         ));
 
@@ -4434,10 +4437,14 @@ fn gas_spent_precalculated() {
 
     init_logger();
     new_test_ext().execute_with(|| {
-        let prog_id = upload_program_default(USER_1, ProgramCodeKind::Custom(wat))
-            .expect("submit result was asserted");
+        let prog = ProgramCodeKind::Custom(wat);
+        let prog_id = upload_program_default(USER_1, prog).expect("submit result was asserted");
 
         run_to_block(2, None);
+
+        let code_id = CodeId::generate(&prog.to_bytes());
+        let code = <Test as Config>::CodeStorage::get_code(code_id).unwrap();
+        let code = code.code();
 
         let GasInfo {
             min_limit: gas_spent_1,
@@ -4460,6 +4467,8 @@ fn gas_spent_precalculated() {
         let add_cost = schedule.instruction_weights.i64add;
         // gas call in handle and "add" func
         let gas_cost = schedule.host_fn_weights.gas as u32;
+        let module_instantiation =
+            schedule.module_instantiation_per_byte * code.len() as u64;
         let load_page_cost = schedule.memory_weights.load_cost;
 
         let total_cost = {
@@ -4483,6 +4492,7 @@ fn gas_spent_precalculated() {
                 // cost for loading code
                 + core_processor::calculate_gas_for_code(read_cost, ReadPerByteCostOf::<Test>::get(), code_len.into())
                 + load_page_cost
+                + module_instantiation
         };
 
         assert_eq!(gas_spent_1, total_cost);
@@ -6047,7 +6057,7 @@ mod utils {
         let status =
             dispatch_status(message_id).expect("Message not found in `Event::MessagesDispatched`");
 
-        assert_eq!(status, DispatchStatus::Failed);
+        assert_eq!(status, DispatchStatus::Failed, "Expected: {}", error);
 
         let mut actual_error = None;
 
@@ -6278,7 +6288,7 @@ mod utils {
                             end $while
                         )
                         (func $init
-                            i32.const 100
+                            i32.const 0x7fff_ffff
                             call $doWork
                         )
                     )"#
