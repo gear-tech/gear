@@ -267,25 +267,36 @@ pub fn prepare(
         }
     }
 
-    let memory_size = match executor::charge_gas_for_pages(
-        &block_config.allocations_config,
-        &mut gas_counter,
-        &mut gas_allowance_counter,
-        &actor_data.allocations,
-        actor_data.static_pages,
-        dispatch.context().is_none() && matches!(dispatch.kind(), DispatchKind::Init),
-        subsequent_execution,
-    ) {
+    let mut f = || {
+        let memory_size = executor::charge_gas_for_pages(
+            &block_config.allocations_config,
+            &mut gas_counter,
+            &mut gas_allowance_counter,
+            &actor_data.allocations,
+            actor_data.static_pages,
+            dispatch.context().is_none() && matches!(dispatch.kind(), DispatchKind::Init),
+            subsequent_execution,
+        )?;
+        executor::charge_gas_for_instantiation(
+            block_config.module_instantiation_byte_cost,
+            actor_data.code_length_bytes,
+            &mut gas_counter,
+            &mut gas_allowance_counter,
+        )?;
+        Ok(memory_size)
+    };
+    let memory_size = match f() {
         Ok(size) => {
-            log::debug!("Charged for memory pages. Size: {size:?}");
+            log::debug!("Charged for module instantiation and memory pages. Size: {size:?}");
             size
         }
         Err(reason) => {
-            log::debug!("Failed to charge for memory pages: {reason:?}");
+            log::debug!("Failed to charge for module instantiation or memory pages: {reason:?}");
             return match reason {
                 ExecutionErrorReason::InitialMemoryBlockGasExceeded
                 | ExecutionErrorReason::GrowMemoryBlockGasExceeded
-                | ExecutionErrorReason::LoadMemoryBlockGasExceeded => {
+                | ExecutionErrorReason::LoadMemoryBlockGasExceeded
+                | ExecutionErrorReason::ModuleInstantiationBlockGasExceeded => {
                     prepare_allowance_exceed(dispatch, program_id, gas_counter)
                 }
                 _ => prepare_error(dispatch, program_id, gas_counter, reason),

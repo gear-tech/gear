@@ -24,13 +24,13 @@ use rand::{rngs::SmallRng, RngCore, SeedableRng};
 use indicatif::ProgressIterator;
 
 #[test]
-fn gen_wasm() {
+fn gen_wasm_normal() {
     let mut rng = SmallRng::seed_from_u64(1234);
     for _ in 0..100 {
         let mut buf = vec![0; 1000000];
         rng.fill_bytes(&mut buf);
         let mut u = Unstructured::new(&buf);
-        let code = gen_gear_program_code(&mut u, GearConfig::default());
+        let code = gen_gear_program_code(&mut u, GearConfig::new_normal());
         let _wat = wasmprinter::print_bytes(&code).unwrap();
     }
 }
@@ -50,11 +50,13 @@ fn gen_wasm_rare() {
 #[test]
 fn gen_wasm_valid() {
     let mut rng = SmallRng::seed_from_u64(33333);
+    let mut config = GearConfig::new_valid();
+    config.print_test_info = Some("HEY GEAR".to_owned());
     for _ in 0..100 {
         let mut buf = vec![0; 1000000];
         rng.fill_bytes(&mut buf);
         let mut u = Unstructured::new(&buf);
-        let code = gen_gear_program_code(&mut u, GearConfig::new_valid());
+        let code = gen_gear_program_code(&mut u, config.clone());
         let _wat = wasmprinter::print_bytes(&code).unwrap();
         wasmparser::validate(&code).unwrap();
     }
