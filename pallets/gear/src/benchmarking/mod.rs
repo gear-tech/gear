@@ -75,7 +75,7 @@ use sp_runtime::{
 };
 use sp_std::{convert::TryInto, prelude::*};
 
-const MAX_PAYLOAD_LEN: u32 = 64 * 1024;
+const MAX_PAYLOAD_LEN: u32 = 16 * 64 * 1024;
 const MAX_PAGES: u32 = 512;
 
 /// How many batches we do per API benchmark.
@@ -1562,8 +1562,8 @@ benchmarks! {
         >(&block_config, context, memory_pages);
     }
 
-    gr_debug {
-        let r in 0 .. API_BENCHMARK_BATCHES;
+    gr_debug_per_kb {
+        let n in 0 .. T::Schedule::get().limits.payload_len / 1024;
         let code = WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
             imported_functions: vec![ImportedFunction {
@@ -1572,9 +1572,9 @@ benchmarks! {
                 params: vec![ValueType::I32, ValueType::I32],
                 return_type: None,
             }],
-            handle_body: Some(body::repeated(r * API_BENCHMARK_BATCH_SIZE, &[
+            handle_body: Some(body::repeated(API_BENCHMARK_BATCH_SIZE, &[
                 Instruction::I32Const(0),
-                Instruction::I32Const(0),
+                Instruction::I32Const((n * 1024) as i32),
                 Instruction::Call(0),
             ])),
             .. Default::default()

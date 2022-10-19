@@ -492,6 +492,7 @@ impl EnvExt for Ext {
     }
 
     fn debug(&mut self, data: &str) -> Result<(), Self::Error> {
+        // +_+_+ data size
         self.charge_gas_runtime(RuntimeCosts::Debug)?;
 
         if let Some(data) = data.strip_prefix("panic occurred: ") {
@@ -656,6 +657,7 @@ impl EnvExt for Ext {
         packet: InitPacket,
         delay: u32,
     ) -> Result<(MessageId, ProgramId), Self::Error> {
+        // +_+_+ salt size
         self.charge_gas_runtime(RuntimeCosts::CreateProgram(packet.payload().len() as u32))?;
 
         self.charge_expiring_resources(&packet)?;

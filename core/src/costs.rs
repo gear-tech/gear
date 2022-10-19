@@ -193,7 +193,7 @@ pub enum RuntimeCosts {
     BlockHeight,
     /// Weight of calling `gr_block_timestamp`.
     BlockTimestamp,
-    /// Weight of calling `gr_value_available`.
+    /// Weight of calling `gr_send_init`.
     SendInit,
     /// Weight of calling `gr_send_push`.
     SendPush(u32),
@@ -206,6 +206,7 @@ pub enum RuntimeCosts {
     /// Weight of calling `gr_reply_to`.
     ReplyTo,
     /// Weight of calling `gr_debug`.
+    // TODO: size of debug string
     Debug,
     /// Weight of calling `gr_exit_code`.
     ExitCode,
@@ -222,6 +223,7 @@ pub enum RuntimeCosts {
     /// Weight of calling `gr_wake`.
     Wake,
     /// Weight of calling `gr_create_program_wgas`.
+    // TODO: size of salt
     CreateProgram(u32),
 }
 

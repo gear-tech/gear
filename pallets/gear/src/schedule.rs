@@ -511,7 +511,7 @@ impl Default for Limits {
             br_table_size: 256,
             subject_len: 32,
             call_depth: 32,
-            payload_len: 64 * 1024,
+            payload_len: 16 * 64 * 1024,
             code_len: 512 * 1024,
         }
     }
