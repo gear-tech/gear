@@ -62,17 +62,21 @@ unsafe extern "C" fn init() {
     match action {
         InitAction::Normal => {
             // will be removed automatically
-            let _orphan_reservation = ReservationId::reserve(50_000, 3);
+            let _orphan_reservation =
+                ReservationId::reserve(50_000, 3).expect("orphan reservation");
 
             // must be cleared during `gr_exit`
-            let _exit_reservation = ReservationId::reserve(25_000, 5);
+            let _exit_reservation = ReservationId::reserve(25_000, 5).expect("exit reservation");
 
             // no actual reservation and unreservation is occurred
-            let noop_reservation = ReservationId::reserve(50_000, 10).unwrap();
-            let unreserved_amount = noop_reservation.unreserve().unwrap();
+            let noop_reservation = ReservationId::reserve(50_000, 10).expect("noop reservation");
+            let unreserved_amount = noop_reservation.unreserve().expect("noop unreservation");
             assert_eq!(unreserved_amount, 50_000);
 
-            RESERVATION_ID = Some(ReservationId::reserve(RESERVATION_AMOUNT, 5).unwrap());
+            RESERVATION_ID = Some(
+                ReservationId::reserve(RESERVATION_AMOUNT, 5)
+                    .expect("reservation across executions"),
+            );
         }
         InitAction::Wait => {
             if WAKE_STATE == WakeState::SecondExecution {
@@ -93,7 +97,7 @@ unsafe extern "C" fn handle() {
     match action {
         HandleAction::Unreserve => {
             let id = RESERVATION_ID.take().unwrap();
-            id.unreserve().unwrap();
+            id.unreserve().expect("unreservation across executions");
         }
         HandleAction::Exit => {
             exec::exit(msg::source());
