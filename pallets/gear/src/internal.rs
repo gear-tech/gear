@@ -19,8 +19,9 @@
 //! Internal details of Gear Pallet implementation.
 
 use crate::{
-    Authorship, BalanceOf, Config, CostsPerBlockOf, CurrencyOf, Event, GasBalanceOf, GasHandlerOf,
-    MailboxOf, Pallet, SchedulingCostOf, SystemPallet, TaskPoolOf, WaitlistOf,
+    Authorship, BalanceOf, Config, CostsPerBlockOf, CurrencyOf, DispatchStashOf, Event,
+    GasBalanceOf, GasHandlerOf, MailboxOf, Pallet, SchedulingCostOf, SystemPallet, TaskPoolOf,
+    WaitlistOf,
 };
 use alloc::collections::BTreeSet;
 use codec::{Decode, Encode};
@@ -607,10 +608,19 @@ where
                 .unwrap_or_else(|e| unreachable!("Unable to reserve requested value {:?}", e));
         }
 
+        let message_id = dispatch.id();
+
+        // Adding message into the stash with validation.
+        if DispatchStashOf::<T>::contains_key(&message_id) {
+            unreachable!("Stash logic invalidated!")
+        }
+
+        DispatchStashOf::<T>::insert(message_id, dispatch.into_stored());
+
         // Adding removal request in task pool.
         TaskPoolOf::<T>::add(
             SystemPallet::<T>::block_number().saturating_add(delay.unique_saturated_into()),
-            ScheduledTask::SendDispatch(dispatch.into_stored()),
+            ScheduledTask::SendDispatch(message_id),
         )
         .unwrap_or_else(|e| unreachable!("Scheduling logic invalidated! {:?}", e));
     }

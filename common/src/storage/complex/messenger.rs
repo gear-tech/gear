@@ -22,7 +22,7 @@
 
 use crate::storage::{
     Counted, CountedByKey, Counter, DequeueError, Interval, IterableByKeyMap, IterableMap, Mailbox,
-    MailboxError, Queue, Toggler, Waitlist, WaitlistError, MapStorage,
+    MailboxError, MapStorage, Queue, Toggler, Waitlist, WaitlistError,
 };
 use core::fmt::Debug;
 
@@ -165,10 +165,7 @@ pub trait Messenger {
             Key = Self::WaitlistFirstKey,
         >;
 
-    type DispatchStash: MapStorage<
-            Key = Self::DispatchStashKey,
-            Value = Self::QueuedDispatch,
-        >;
+    type DispatchStash: MapStorage<Key = Self::DispatchStashKey, Value = Self::QueuedDispatch>;
 
     /// Resets all related to messenger storages.
     ///

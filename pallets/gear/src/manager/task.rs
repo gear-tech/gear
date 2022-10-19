@@ -18,7 +18,7 @@
 
 use core::convert::TryInto;
 
-use crate::{manager::ExtManager, Config, Event, GasHandlerOf, Pallet, QueueOf};
+use crate::{manager::ExtManager, Config, DispatchStashOf, Event, GasHandlerOf, Pallet, QueueOf};
 use alloc::string::ToString;
 use codec::Encode;
 use common::{
@@ -33,7 +33,7 @@ use common::{
 use core_processor::common::ExecutionErrorReason;
 use gear_core::{
     ids::{CodeId, MessageId, ProgramId},
-    message::{ReplyMessage, StoredDispatch},
+    message::ReplyMessage,
 };
 
 impl<T: Config> TaskHandler<T::AccountId> for ExtManager<T>
@@ -175,7 +175,10 @@ where
         }
     }
 
-    fn send_dispatch(&mut self, dispatch: StoredDispatch) {
+    fn send_dispatch(&mut self, stashed_message_id: MessageId) {
+        let dispatch = DispatchStashOf::<T>::take(stashed_message_id)
+            .unwrap_or_else(|| unreachable!("Scheduler & Stash logic invalidated!"));
+
         if self.check_program_id(&dispatch.destination()) {
             QueueOf::<T>::queue(dispatch)
                 .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e));
