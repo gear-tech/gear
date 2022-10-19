@@ -146,6 +146,7 @@ fn default_processor_context() -> ProcessorContext {
         mailbox_threshold: 0,
         waitlist_cost: 0,
         reserve_for: 0,
+        random_data: (Vec::new(), 0),
     }
 }
 
