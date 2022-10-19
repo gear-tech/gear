@@ -38,7 +38,7 @@ use gear_core::{
     ids::{CodeId, MessageId, ProgramId, ReservationId},
     memory::{PageBuf, PageNumber},
     message::{Dispatch, StoredDispatch},
-    reservation::GasReservationMap,
+    reservation::GasReserver,
 };
 use sp_runtime::traits::{UniqueSaturatedInto, Zero};
 use sp_std::{
@@ -473,13 +473,18 @@ where
         );
     }
 
-    fn update_gas_reservation(&mut self, program_id: ProgramId, map: GasReservationMap) {
+    fn update_gas_reservation(&mut self, program_id: ProgramId, reserver: GasReserver) {
         let pid = program_id.into_origin();
         let prog = common::get_program(pid).unwrap_or_else(|| {
             unreachable!("gas reservation update guaranteed to be called only on existing program")
         });
         if let Program::Active(mut prog) = prog {
-            prog.gas_reservation_map = map;
+            prog.gas_reservation_map = reserver.into_map(|duration| {
+                HoldBound::<T>::by(CostsPerBlockOf::<T>::reservation())
+                    .duration(BlockNumberFor::<T>::from(duration))
+                    .deadline()
+                    .unique_saturated_into()
+            });
             common::set_program(pid, prog);
         }
     }

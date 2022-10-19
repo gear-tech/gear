@@ -23,7 +23,7 @@ use gear_core::{
     ids::{CodeId, MessageId, ProgramId, ReservationId},
     memory::{PageBuf, PageNumber, WasmPageNumber},
     message::{Dispatch, DispatchKind, GasLimit, StoredDispatch, StoredMessage},
-    reservation::GasReservationMap,
+    reservation::GasReserver,
 };
 use std::{
     collections::{BTreeMap, BTreeSet, VecDeque},
@@ -399,11 +399,7 @@ impl JournalHandler for InMemoryExtManager {
 
     fn unreserve_gas(&mut self, _reservation_id: ReservationId, _program_id: ProgramId, _bn: u32) {}
 
-    fn update_gas_reservation(
-        &mut self,
-        program_id: ProgramId,
-        gas_reservation_map: GasReservationMap,
-    ) {
+    fn update_gas_reservation(&mut self, program_id: ProgramId, reserver: GasReserver) {
         let actor = self
             .actors
             .get_mut(&program_id)
@@ -414,7 +410,7 @@ impl JournalHandler for InMemoryExtManager {
             ..
         } = actor
         {
-            executable_data.gas_reservation_map = gas_reservation_map;
+            executable_data.gas_reservation_map = reserver.into_map(|duration| duration);
         } else {
             panic!("no gas reservation map found in program");
         }

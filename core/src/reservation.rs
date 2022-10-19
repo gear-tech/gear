@@ -25,11 +25,13 @@ use gear_core_errors::ExecutionError;
 use scale_info::TypeInfo;
 
 /// Gas reserver.
+///
+/// Controls gas reservations states.
 #[derive(Debug, Clone)]
 pub struct GasReserver {
     message_id: MessageId,
-    map: GasReservationMap,
-    tasks: BTreeMap<ReservationId, GasReservationTask>,
+    nonce: u64,
+    states: GasReservationStates,
 }
 
 impl GasReserver {
@@ -37,83 +39,108 @@ impl GasReserver {
     pub fn new(message_id: MessageId, map: GasReservationMap) -> Self {
         Self {
             message_id,
-            map,
-            tasks: Default::default(),
+            nonce: 0,
+            states: map
+                .into_iter()
+                .map(|(id, GasReservationSlot { amount, expiration })| {
+                    (id, GasReservationState::Exists { amount, expiration })
+                })
+                .collect(),
         }
     }
 
     /// Reserves gas.
     pub fn reserve(&mut self, amount: u64, duration: u32) -> ReservationId {
-        let idx = self.map.len();
-        let id = ReservationId::generate(self.message_id, idx as u64);
+        let idx = self.nonce.saturating_add(1);
+        self.nonce = idx;
+        let id = ReservationId::generate(self.message_id, idx);
 
-        let slot = GasReservationSlot {
-            amount,
-            bn: duration,
-        };
-
-        let old_amount = self.map.insert(id, slot);
-        debug_assert!(
-            old_amount.is_none(),
-            "reservation ID expected to be unique; qed"
-        );
-
-        let prev_task = self.tasks.insert(
-            id,
-            GasReservationTask::CreateReservation { amount, duration },
-        );
-        debug_assert_eq!(prev_task, None, "reservation ID collision; qed");
+        self.states
+            .insert(id, GasReservationState::Created { amount, duration });
 
         id
     }
 
     /// Unreserves gas.
     pub fn unreserve(&mut self, id: ReservationId) -> Result<u64, ExecutionError> {
-        let GasReservationSlot { amount, bn } = self
-            .map
+        let state = self
+            .states
             .remove(&id)
             .ok_or(ExecutionError::InvalidReservationId)?;
 
-        // Only `AddReservation` task may exist here during current execution
-        // so when we do unreservation we just simply remove it
-        // so reservation + unreservation operations during one execution are just noop
-        if self.tasks.remove(&id).is_none() {
-            self.tasks
-                .insert(id, GasReservationTask::RemoveReservation { bn });
-        }
+        let amount = match state {
+            GasReservationState::Exists { amount, expiration } => {
+                self.states
+                    .insert(id, GasReservationState::Removed { expiration });
+                amount
+            }
+            GasReservationState::Created { amount, .. } => amount,
+            GasReservationState::Removed { .. } => {
+                return Err(ExecutionError::InvalidReservationId);
+            }
+        };
 
         Ok(amount)
     }
 
-    /// Split reserver into parts.
-    pub fn into_parts(
-        self,
-    ) -> (
-        GasReservationMap,
-        BTreeMap<ReservationId, GasReservationTask>,
-    ) {
-        (self.map, self.tasks)
+    /// Get gas reservation states.
+    pub fn states(&self) -> &GasReservationStates {
+        &self.states
+    }
+
+    /// Convert into gas reservation map.
+    pub fn into_map<F>(self, duration_into_expiration: F) -> GasReservationMap
+    where
+        F: Fn(u32) -> u32,
+    {
+        self.states
+            .into_iter()
+            .flat_map(|(id, state)| match state {
+                GasReservationState::Exists { amount, expiration } => {
+                    Some((id, GasReservationSlot { amount, expiration }))
+                }
+                GasReservationState::Created { amount, duration } => {
+                    let expiration = duration_into_expiration(duration);
+                    Some((id, GasReservationSlot { amount, expiration }))
+                }
+                GasReservationState::Removed { .. } => None,
+            })
+            .collect()
     }
 }
 
-/// Gas reservation task.
-#[derive(Debug, Clone, Eq, PartialEq)]
-pub enum GasReservationTask {
-    /// Create a new reservation.
-    CreateReservation {
+/// Gas reservation states.
+pub type GasReservationStates = BTreeMap<ReservationId, GasReservationState>;
+
+/// Gas reservation state.
+///
+/// Used to control what reservation created, removed or nothing happened.
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+pub enum GasReservationState {
+    /// Reservation exists.
+    Exists {
+        /// Amount of reserved gas.
+        amount: u64,
+        /// Block number when reservation will expire.
+        expiration: u32,
+    },
+    /// Reservation will be created.
+    Created {
         /// Amount of reserved gas.
         amount: u64,
         /// How many blocks reservation will live.
         duration: u32,
     },
-    /// Remove reservation.
-    RemoveReservation {
-        /// Block number until reservation will live.
-        bn: u32,
+    /// Reservation will be removed.
+    Removed {
+        /// Block number when reservation will expire.
+        expiration: u32,
     },
 }
 
 /// Gas reservation map.
+///
+/// Used across execution and exists in storage.
 pub type GasReservationMap = BTreeMap<ReservationId, GasReservationSlot>;
 
 /// Gas reservation slot.
@@ -121,6 +148,6 @@ pub type GasReservationMap = BTreeMap<ReservationId, GasReservationSlot>;
 pub struct GasReservationSlot {
     /// Amount of reserved gas.
     pub amount: u64,
-    /// Block number until reservation will live.
-    pub bn: u32,
+    /// Block number when reservation will expire.
+    pub expiration: u32,
 }

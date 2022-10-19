@@ -37,7 +37,7 @@ use gear_core::{
         Dispatch, DispatchKind, Payload, ReplyMessage, ReplyPacket, StoredDispatch, StoredMessage,
     },
     program::Program as CoreProgram,
-    reservation::GasReservationMap,
+    reservation::{GasReservationMap, GasReserver},
 };
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap, VecDeque},
@@ -922,11 +922,8 @@ impl JournalHandler for ExtManager {
 
     fn unreserve_gas(&mut self, _reservation_id: ReservationId, _program_id: ProgramId, _bn: u32) {}
 
-    fn update_gas_reservation(
-        &mut self,
-        program_id: ProgramId,
-        gas_reservation_map: GasReservationMap,
-    ) {
+    fn update_gas_reservation(&mut self, program_id: ProgramId, reserver: GasReserver) {
+        let block_height = self.block_info.height;
         let (actor, _) = self
             .actors
             .get_mut(&program_id)
@@ -944,7 +941,7 @@ impl JournalHandler for ExtManager {
             }),
         ) = actor
         {
-            *prog_gas_reservation_map = gas_reservation_map;
+            *prog_gas_reservation_map = reserver.into_map(|duration| block_height + duration);
         } else {
             panic!("no gas reservation map found in program");
         }

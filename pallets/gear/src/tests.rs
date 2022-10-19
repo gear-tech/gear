@@ -5763,7 +5763,7 @@ fn gas_reservation_works() {
         log::error!("{:?}", slot);
         let task = ScheduledTask::RemoveGasReservation(pid, *reservation_id);
         assert!(TaskPoolOf::<Test>::contains(
-            &BlockNumberFor::<Test>::from(slot.bn),
+            &BlockNumberFor::<Test>::from(slot.expiration),
             &task
         ));
 
@@ -5782,7 +5782,7 @@ fn gas_reservation_works() {
         let map = get_reservation_map(pid);
         assert_eq!(map, None);
         assert!(!TaskPoolOf::<Test>::contains(
-            &BlockNumberFor::<Test>::from(slot.bn),
+            &BlockNumberFor::<Test>::from(slot.expiration),
             &task
         ));
     });
@@ -5822,7 +5822,7 @@ fn gas_reservations_cleaned_in_terminated_program() {
         let (reservation_id, slot) = map.iter().next().unwrap();
         let task = ScheduledTask::RemoveGasReservation(pid, *reservation_id);
         assert!(TaskPoolOf::<Test>::contains(
-            &BlockNumberFor::<Test>::from(slot.bn),
+            &BlockNumberFor::<Test>::from(slot.expiration),
             &task
         ));
 
@@ -5839,7 +5839,7 @@ fn gas_reservations_cleaned_in_terminated_program() {
         let map = get_reservation_map(pid);
         assert_eq!(map, None);
         assert!(!TaskPoolOf::<Test>::contains(
-            &BlockNumberFor::<Test>::from(slot.bn),
+            &BlockNumberFor::<Test>::from(slot.expiration),
             &task
         ));
     });

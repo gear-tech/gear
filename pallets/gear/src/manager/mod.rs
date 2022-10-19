@@ -274,7 +274,7 @@ where
             );
 
             let _ = TaskPoolOf::<T>::delete(
-                BlockNumberFor::<T>::from(reservation_slot.bn),
+                BlockNumberFor::<T>::from(reservation_slot.expiration),
                 ScheduledTask::RemoveGasReservation(program_id, reservation_id),
             );
         }
