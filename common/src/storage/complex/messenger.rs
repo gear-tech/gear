@@ -22,7 +22,7 @@
 
 use crate::storage::{
     Counted, CountedByKey, Counter, DequeueError, Interval, IterableByKeyMap, IterableMap, Mailbox,
-    MailboxError, Queue, Toggler, Waitlist, WaitlistError,
+    MailboxError, Queue, Toggler, Waitlist, WaitlistError, MapStorage,
 };
 use core::fmt::Debug;
 
@@ -71,6 +71,10 @@ pub trait Messenger {
     ///
     /// Present to clarify compiler behavior over associated types.
     type WaitlistedMessage;
+    /// Key for value types for `Self::DispatchStash`.
+    ///
+    /// Present to clarify compiler behavior over associated types.
+    type DispatchStashKey;
 
     /// Amount of messages sent from outside (from users)
     /// within the current block.
@@ -159,6 +163,11 @@ pub trait Messenger {
         + IterableByKeyMap<
             (Self::WaitlistedMessage, Interval<Self::BlockNumber>),
             Key = Self::WaitlistFirstKey,
+        >;
+
+    type DispatchStash: MapStorage<
+            Key = Self::DispatchStashKey,
+            Value = Self::QueuedDispatch,
         >;
 
     /// Resets all related to messenger storages.
