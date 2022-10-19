@@ -1896,7 +1896,7 @@ benchmarks! {
                 },
             ],
             handle_body: Some(body::repeated(r, &[
-                Instruction::I32Const(50_000_000), // gas amount
+                Instruction::I64Const(50_000_000), // gas amount
                 Instruction::I32Const(10), // duration
                 Instruction::I32Const(0), // id ptr
                 Instruction::Call(0),
