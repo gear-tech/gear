@@ -41,7 +41,9 @@ use gear_core::{
     env::Ext,
     ids::ReservationId,
     memory::Memory,
-    message::{HandlePacket, InitPacket, Payload, PayloadSizeError, ReplyPacket},
+    message::{
+        HandlePacket, InitPacket, MessageWaitedType, Payload, PayloadSizeError, ReplyPacket,
+    },
 };
 use gear_core_errors::{CoreError, MemoryError};
 use wasmi::{
@@ -1221,7 +1223,9 @@ where
                 .wait()
                 .map_err(FuncError::Core)
                 .err()
-                .unwrap_or_else(|| FuncError::Terminated(TerminationReason::Wait(None)));
+                .unwrap_or_else(|| {
+                    FuncError::Terminated(TerminationReason::Wait(None, MessageWaitedType::Wait))
+                });
             host_state.err = err;
 
             Err(TrapCode::Unreachable.into())
@@ -1239,7 +1243,10 @@ where
                 let call_result = host_state.ext.wait_for(duration);
 
                 host_state.err = match call_result {
-                    Ok(_) => FuncError::Terminated(TerminationReason::Wait(Some(duration))),
+                    Ok(_) => FuncError::Terminated(TerminationReason::Wait(
+                        Some(duration),
+                        MessageWaitedType::WaitFor,
+                    )),
                     Err(e) => FuncError::Core(e),
                 };
 
@@ -1258,7 +1265,14 @@ where
                 let call_result = host_state.ext.wait_up_to(duration);
 
                 host_state.err = match call_result {
-                    Ok(_) => FuncError::Terminated(TerminationReason::Wait(Some(duration))),
+                    Ok(enough) => FuncError::Terminated(TerminationReason::Wait(
+                        Some(duration),
+                        if enough {
+                            MessageWaitedType::WaitUpToFull
+                        } else {
+                            MessageWaitedType::WaitUpTo
+                        },
+                    )),
                     Err(e) => FuncError::Core(e),
                 };
 

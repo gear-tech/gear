@@ -165,8 +165,8 @@ impl Ext for MockExt {
     fn wait_for(&mut self, _duration: u32) -> Result<(), Self::Error> {
         Ok(())
     }
-    fn wait_up_to(&mut self, _duration: u32) -> Result<(), Self::Error> {
-        Ok(())
+    fn wait_up_to(&mut self, _duration: u32) -> Result<bool, Self::Error> {
+        Ok(false)
     }
     fn wake(&mut self, _waker_id: MessageId, _delay: u32) -> Result<(), Self::Error> {
         Ok(())

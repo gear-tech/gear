@@ -9,8 +9,8 @@
 [c1]: https://img.shields.io/crates/v/gear-program.svg
 [c2]: https://crates.io/crates/gear-program
 
-[ci1]: https://github.com/clearloop/gear-program/workflows/CI/badge.svg
-[ci2]: https://github.com/clearloop/gear-program/actions/workflows/CI.yaml
+[ci1]: https://github.com/gear-tech/gear/workflows/CI/badge.svg
+[ci2]: https://github.com/gear-tech/gear/actions/workflows/CI.yaml
 
 [docs1]: https://img.shields.io/badge/current-docs-brightgreen.svg
 [docs2]: https://docs.rs/gear-program/
@@ -27,7 +27,7 @@
 To install gear-program via <kbd>cargo</kbd>
 
 ```sh
-$ cargo install gear-program
+$ cargo install --git https://github.com/gear-tech/gear gear-program --features bin,gear
 ```
 
 Usages:

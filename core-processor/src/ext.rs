@@ -605,7 +605,7 @@ impl EnvExt for Ext {
         Ok(())
     }
 
-    fn wait_up_to(&mut self, duration: u32) -> Result<(), Self::Error> {
+    fn wait_up_to(&mut self, duration: u32) -> Result<bool, Self::Error> {
         self.charge_gas_runtime(RuntimeCosts::WaitUpTo)?;
         self.charge_gas(self.context.message_context.settings().waiting_fee())?;
 
@@ -620,7 +620,11 @@ impl EnvExt for Ext {
             return self.return_and_store_err(Err(WaitError::NotEnoughGas));
         }
 
-        Ok(())
+        let reserve_full = u64::from(self.context.reserve_for.saturating_add(duration))
+            .saturating_mul(self.context.waitlist_cost);
+        let reserve_diff = reserve_full - reserve;
+
+        Ok(self.context.gas_counter.reduce(reserve_diff) == ChargeResult::Enough)
     }
 
     fn wake(&mut self, waker_id: MessageId, delay: u32) -> Result<(), Self::Error> {

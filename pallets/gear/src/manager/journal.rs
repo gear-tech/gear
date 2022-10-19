@@ -37,7 +37,7 @@ use frame_system::{pallet_prelude::BlockNumberFor, Pallet as SystemPallet};
 use gear_core::{
     ids::{CodeId, MessageId, ProgramId, ReservationId},
     memory::{PageBuf, PageNumber},
-    message::{Dispatch, StoredDispatch},
+    message::{Dispatch, MessageWaitedType, StoredDispatch},
     reservation::GasReserver,
 };
 use sp_runtime::traits::{UniqueSaturatedInto, Zero};
@@ -283,14 +283,18 @@ where
         }
     }
 
-    fn wait_dispatch(&mut self, dispatch: StoredDispatch, duration: Option<u32>) {
+    fn wait_dispatch(
+        &mut self,
+        dispatch: StoredDispatch,
+        duration: Option<u32>,
+        waited_type: MessageWaitedType,
+    ) {
         // This method shouldn't reduce gas allowance for waiting dispatch,
         // because message already charged for it within the env.
-
         Pallet::<T>::wait_dispatch(
             dispatch,
             duration.map(UniqueSaturatedInto::unique_saturated_into),
-            MessageWaitedRuntimeReason::WaitCalled.into_reason(),
+            MessageWaitedRuntimeReason::from(waited_type).into_reason(),
         )
     }
 

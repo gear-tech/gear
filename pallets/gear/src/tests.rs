@@ -2860,6 +2860,68 @@ fn test_different_waits_fail() {
     });
 }
 
+// TODO:
+//
+// introduce new tests for this in #1485
+#[test]
+fn test_requeue_after_wait_for_timeout() {
+    use demo_waiter::{Command, WASM_BINARY};
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
+            100_000_000u64,
+            0u128
+        ));
+
+        let program_id = get_last_program_id();
+
+        run_to_next_block(None);
+
+        let duration = 10;
+        let payload = Command::SendAndWaitFor(duration, USER_1.into()).encode();
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            program_id,
+            payload,
+            2_500_000_000,
+            0,
+        ));
+
+        // Fast forward blocks.
+        let message_id = get_last_message_id();
+        run_to_next_block(None);
+        let now = System::block_number();
+        System::set_block_number(duration as u64 + now - 1);
+
+        // Clean previous events and mailbox.
+        System::reset_events();
+        MailboxOf::<Test>::clear();
+        run_to_next_block(None);
+
+        // `MessageWoken` dispatched.
+        System::assert_has_event(MockRuntimeEvent::Gear(Event::MessageWoken {
+            id: message_id,
+            reason: Reason::Runtime(MessageWokenRuntimeReason::WakeCalled),
+        }));
+
+        // Message waited again.
+        System::assert_has_event(MockRuntimeEvent::Gear(Event::MessageWaited {
+            id: message_id,
+            origin: None,
+            reason: Reason::Runtime(MessageWaitedRuntimeReason::WaitForCalled),
+            expiration: 23,
+        }));
+
+        // Message processed.
+        assert_eq!(get_last_mail(USER_1).payload(), b"ping");
+    })
+}
+
 #[test]
 fn test_message_processing_for_non_existing_destination() {
     init_logger();
@@ -6228,6 +6290,24 @@ mod utils {
         } else {
             unreachable!("expect Event::CodeChanged")
         }
+    }
+
+    pub(super) fn filter_event_rev<F, R>(f: F) -> R
+    where
+        F: Fn(Event<Test>) -> Option<R>,
+    {
+        System::events()
+            .iter()
+            .rev()
+            .filter_map(|r| {
+                if let MockRuntimeEvent::Gear(e) = r.event.clone() {
+                    Some(e)
+                } else {
+                    None
+                }
+            })
+            .find_map(f)
+            .expect("can't find message send event")
     }
 
     pub(super) fn get_last_message_id() -> MessageId {
