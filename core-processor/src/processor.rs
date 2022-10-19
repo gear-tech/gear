@@ -103,7 +103,7 @@ impl
         let PreparedMessageExecutionContext {
             gas_counter,
             gas_allowance_counter,
-            dispatch,
+            mut dispatch,
             origin,
             balance,
             actor_data,
@@ -117,7 +117,15 @@ impl
             actor_data.initialized,
         );
 
-        let gas_reserver = GasReserver::new(dispatch.id(), actor_data.gas_reservation_map);
+        let gas_reserver = GasReserver::new(
+            dispatch.id(),
+            dispatch
+                .context_mut()
+                .as_mut()
+                .map(|ctx| ctx.fetch_inc_nonce())
+                .unwrap_or(0),
+            actor_data.gas_reservation_map,
+        );
 
         Self {
             gas_counter,

@@ -193,7 +193,7 @@ impl IntoExtInfo<<MockExt as Ext>::Error> for MockExt {
     fn into_ext_info(self, _memory: &impl Memory) -> Result<ExtInfo, (MemoryError, GasAmount)> {
         Ok(ExtInfo {
             gas_amount: GasAmount::from(GasCounter::new(0)),
-            gas_reserver: GasReserver::new(Default::default(), Default::default()),
+            gas_reserver: GasReserver::new(Default::default(), 0, Default::default()),
             allocations: Default::default(),
             pages_data: Default::default(),
             generated_dispatches: Default::default(),

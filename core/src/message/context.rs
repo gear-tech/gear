@@ -135,6 +135,16 @@ pub struct ContextStore {
     initialized: BTreeSet<ProgramId>,
     awaken: BTreeSet<MessageId>,
     reply_sent: bool,
+    nonce: u64,
+}
+
+impl ContextStore {
+    /// Fetch incremented nonce.
+    pub fn fetch_inc_nonce(&mut self) -> u64 {
+        let nonce = self.nonce;
+        self.nonce = nonce.saturating_add(1);
+        nonce
+    }
 }
 
 /// Context of currently processing incoming message.

@@ -117,7 +117,7 @@ impl DispatchResult {
             awakening: Default::default(),
             program_candidates: Default::default(),
             gas_amount,
-            gas_reserver: GasReserver::new(message_id, Default::default()),
+            gas_reserver: GasReserver::new(message_id, 0, Default::default()),
             page_update: Default::default(),
             allocations: Default::default(),
         }

@@ -36,10 +36,10 @@ pub struct GasReserver {
 
 impl GasReserver {
     /// Creates a new gas reserver.
-    pub fn new(message_id: MessageId, map: GasReservationMap) -> Self {
+    pub fn new(message_id: MessageId, nonce: u64, map: GasReservationMap) -> Self {
         Self {
             message_id,
-            nonce: 0,
+            nonce,
             states: map
                 .into_iter()
                 .map(|(id, GasReservationSlot { amount, expiration })| {
@@ -51,9 +51,9 @@ impl GasReserver {
 
     /// Reserves gas.
     pub fn reserve(&mut self, amount: u64, duration: u32) -> ReservationId {
-        let idx = self.nonce;
-        self.nonce = idx.saturating_add(1);
-        let id = ReservationId::generate(self.message_id, idx);
+        let nonce = self.nonce;
+        self.nonce = nonce.saturating_add(1);
+        let id = ReservationId::generate(self.message_id, nonce);
 
         self.states
             .insert(id, GasReservationState::Created { amount, duration });
