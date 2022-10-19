@@ -412,7 +412,7 @@ where
             let random = ctx.ext.random();
             let random_bn = ctx.ext.random_bn();
 
-            subject.extend_from_slice(&random);
+            subject.extend_from_slice(random);
 
             ctx.write_output(random_ptr, blake2b(32, &[], &subject).as_bytes())?;
             ctx.write_output(bn_ptr, &random_bn.to_le_bytes())

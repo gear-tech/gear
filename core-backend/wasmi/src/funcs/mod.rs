@@ -1145,7 +1145,7 @@ where
 
             let random = host_state.ext.random();
             let random_bn = host_state.ext.random_bn();
-            subject.extend_from_slice(&random);
+            subject.extend_from_slice(random);
 
             let write_result = {
                 let mut memory_wrap = get_caller_memory(&mut caller, &memory);

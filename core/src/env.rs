@@ -24,7 +24,7 @@ use crate::{
     memory::{Memory, WasmPageNumber},
     message::{ExitCode, HandlePacket, InitPacket, ReplyPacket},
 };
-use alloc::{collections::BTreeSet, vec::Vec};
+use alloc::collections::BTreeSet;
 use codec::{Decode, Encode};
 use gear_core_errors::CoreError;
 
@@ -177,7 +177,7 @@ pub trait Ext {
     fn forbidden_funcs(&self) -> &BTreeSet<&'static str>;
 
     /// Returns a random seed for the current block with message id as a subject.
-    fn random(&self) -> Vec<u8>;
+    fn random(&self) -> &[u8];
 
     /// Returns the block number since the chain observers could determine a random seed.
     fn random_bn(&self) -> u32;

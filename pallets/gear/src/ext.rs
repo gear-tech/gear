@@ -276,8 +276,8 @@ impl EnvExt for LazyPagesExt {
         &self.inner.context.forbidden_funcs
     }
 
-    fn random(&self) -> Vec<u8> {
-        self.inner.context.random_data.0.clone()
+    fn random(&self) -> &[u8] {
+        &self.inner.context.random_data.0
     }
 
     fn random_bn(&self) -> u32 {

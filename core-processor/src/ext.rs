@@ -639,8 +639,8 @@ impl EnvExt for Ext {
         &self.context.forbidden_funcs
     }
 
-    fn random(&self) -> Vec<u8> {
-        self.context.random_data.0.clone()
+    fn random(&self) -> &[u8] {
+        &self.context.random_data.0
     }
 
     fn random_bn(&self) -> u32 {
