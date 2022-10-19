@@ -382,6 +382,7 @@ pub fn execute_wasm<
         mailbox_threshold: settings.mailbox_threshold,
         waitlist_cost: settings.waitlist_cost,
         reserve_for: settings.reserve_for,
+        reservation: settings.reservation,
     };
 
     // Creating externalities.

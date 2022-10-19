@@ -17,13 +17,14 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
+    internal::HoldBound,
     manager::{CodeInfo, ExtManager},
-    Config, CurrencyOf, Event, GasAllowanceOf, GasHandlerOf, GearProgramPallet, Pallet, QueueOf,
-    SentOf, TaskPoolOf, WaitlistOf,
+    Config, CostsPerBlockOf, CurrencyOf, Event, GasAllowanceOf, GasHandlerOf, GearProgramPallet,
+    Pallet, QueueOf, SentOf, TaskPoolOf, WaitlistOf,
 };
 use common::{
     event::*,
-    scheduler::{ScheduledTask, TaskHandler, TaskPool},
+    scheduler::{ScheduledTask, SchedulingCostsPerBlock, TaskHandler, TaskPool},
     storage::*,
     CodeStorage, GasTree, Origin, Program,
 };
@@ -423,27 +424,43 @@ where
         reservation_id: ReservationId,
         program_id: ProgramId,
         amount: u64,
-        bn: u32,
+        duration: u32,
     ) {
         log::debug!(
             "Reserved: {:?} from {:?} with {:?} for {} blocks",
             amount,
             message_id,
             reservation_id,
-            bn
+            duration
         );
 
-        GasHandlerOf::<T>::reserve(message_id, reservation_id, amount)
+        let hold = HoldBound::<T>::by(CostsPerBlockOf::<T>::reservation())
+            .duration(BlockNumberFor::<T>::from(duration));
+
+        // Validating holding duration.
+        if hold.expected_duration().is_zero() {
+            unreachable!("Threshold for reservation invalidated")
+        }
+
+        log::error!("!!!TEST!!! {:?}", hold.expected());
+
+        let total_amount = amount.saturating_add(hold.lock());
+
+        GasHandlerOf::<T>::reserve(message_id, reservation_id, total_amount)
             .unwrap_or_else(|e| unreachable!("GasTree corrupted: {:?}", e));
 
+        GasHandlerOf::<T>::lock(reservation_id, hold.lock())
+            .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
+
         TaskPoolOf::<T>::add(
-            BlockNumberFor::<T>::from(bn),
+            hold.deadline(),
             ScheduledTask::RemoveGasReservation(program_id, reservation_id),
         )
         .unwrap_or_else(|e| unreachable!("Scheduling logic invalidated! {:?}", e));
     }
 
     fn unreserve_gas(&mut self, reservation_id: ReservationId, program_id: ProgramId, bn: u32) {
+        // TODO: consider move `TaskPool::delete` into `remove_gas_reservation`
         <Self as TaskHandler<T::AccountId>>::remove_gas_reservation(
             self,
             program_id,

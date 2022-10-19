@@ -195,7 +195,7 @@ pub trait Tree {
     /// locked under that key, an error is returned.
     ///
     /// This can't create imbalance as no value is burned or created.
-    fn lock(key: Self::Key, amount: Self::Balance) -> Result<(), Self::Error>;
+    fn lock(key: impl Into<GasNodeIdOf<Self>>, amount: Self::Balance) -> Result<(), Self::Error>;
 
     /// Unlocking some value from node's locked balance.
     ///
@@ -203,12 +203,13 @@ pub trait Tree {
     /// locked under that key, an error is returned.
     ///
     /// This can't create imbalance as no value is burned or created.
-    fn unlock(key: Self::Key, amount: Self::Balance) -> Result<(), Self::Error>;
+    fn unlock(key: impl Into<GasNodeIdOf<Self>>, amount: Self::Balance) -> Result<(), Self::Error>;
 
     /// Unlocking all value from node's locked balance.
     ///
     /// See [`unlock`](Self::unlock) for details.
-    fn unlock_all(key: Self::Key) -> Result<(), Self::Error> {
+    fn unlock_all(key: impl Into<GasNodeIdOf<Self>>) -> Result<(), Self::Error> {
+        let key = key.into();
         let amount = Self::get_lock(key.clone())?;
         Self::unlock(key, amount)
     }
@@ -218,7 +219,7 @@ pub trait Tree {
     /// Returns errors in cases of absence associated with given key node,
     /// or if such functionality is forbidden for specific node type:
     /// for example, for `GasNode::ReservedLocal`.
-    fn get_lock(key: Self::Key) -> Result<Self::Balance, Self::Error>;
+    fn get_lock(key: impl Into<GasNodeIdOf<Self>>) -> Result<Self::Balance, Self::Error>;
 
     /// Reserve some value from underlying balance.
     ///

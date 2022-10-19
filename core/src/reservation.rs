@@ -43,11 +43,14 @@ impl GasReserver {
     }
 
     /// Reserves gas.
-    pub fn reserve(&mut self, amount: u64, bn: u32) -> ReservationId {
+    pub fn reserve(&mut self, amount: u64, duration: u32) -> ReservationId {
         let idx = self.map.len();
         let id = ReservationId::generate(self.message_id, idx as u64);
 
-        let slot = GasReservationSlot { amount, bn };
+        let slot = GasReservationSlot {
+            amount,
+            bn: duration,
+        };
 
         let old_amount = self.map.insert(id, slot);
         debug_assert!(
@@ -55,9 +58,10 @@ impl GasReserver {
             "reservation ID expected to be unique; qed"
         );
 
-        let prev_task = self
-            .tasks
-            .insert(id, GasReservationTask::CreateReservation { amount, bn });
+        let prev_task = self.tasks.insert(
+            id,
+            GasReservationTask::CreateReservation { amount, duration },
+        );
         debug_assert_eq!(prev_task, None, "reservation ID collision; qed");
 
         id
@@ -99,8 +103,8 @@ pub enum GasReservationTask {
     CreateReservation {
         /// Amount of reserved gas.
         amount: u64,
-        /// Block number until reservation will live.
-        bn: u32,
+        /// How many blocks reservation will live.
+        duration: u32,
     },
     /// Remove reservation.
     RemoveReservation {

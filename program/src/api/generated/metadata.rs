@@ -7363,6 +7363,28 @@ pub mod api {
                         Err(::subxt::MetadataError::IncompatibleMetadata.into())
                     }
                 }
+                #[doc = " Cost for reservation holding."]
+                pub fn reservation_cost(
+                    &self,
+                ) -> ::core::result::Result<::core::primitive::u64, ::subxt::BasicError>
+                {
+                    let locked_metadata = self.client.metadata();
+                    let metadata = locked_metadata.read();
+                    if metadata.constant_hash("GearScheduler", "ReservationCost")?
+                        == [
+                            38u8, 174u8, 236u8, 237u8, 30u8, 81u8, 82u8, 224u8, 30u8, 233u8, 111u8,
+                            144u8, 248u8, 215u8, 13u8, 108u8, 216u8, 160u8, 200u8, 88u8, 148u8,
+                            55u8, 69u8, 69u8, 194u8, 129u8, 42u8, 127u8, 53u8, 170u8, 30u8, 90u8,
+                        ]
+                    {
+                        let pallet = metadata.pallet("GearScheduler")?;
+                        let constant = pallet.constant("ReservationCost")?;
+                        let value = ::subxt::codec::Decode::decode(&mut &constant.value[..])?;
+                        Ok(value)
+                    } else {
+                        Err(::subxt::MetadataError::IncompatibleMetadata.into())
+                    }
+                }
             }
         }
     }
@@ -7481,10 +7503,10 @@ pub mod api {
                         };
                         if runtime_storage_hash
                             == [
-                                57u8, 91u8, 183u8, 208u8, 112u8, 32u8, 28u8, 146u8, 55u8, 22u8,
-                                92u8, 103u8, 94u8, 102u8, 43u8, 117u8, 72u8, 197u8, 28u8, 60u8,
-                                111u8, 228u8, 82u8, 197u8, 74u8, 180u8, 98u8, 217u8, 49u8, 59u8,
-                                164u8, 161u8,
+                                221u8, 138u8, 81u8, 138u8, 171u8, 81u8, 201u8, 21u8, 59u8, 66u8,
+                                27u8, 151u8, 111u8, 122u8, 249u8, 141u8, 166u8, 63u8, 233u8, 119u8,
+                                175u8, 149u8, 215u8, 85u8, 241u8, 187u8, 158u8, 166u8, 129u8,
+                                126u8, 8u8, 125u8,
                             ]
                         {
                             let entry = GasNodes(_0);
@@ -7515,10 +7537,10 @@ pub mod api {
                         };
                         if runtime_storage_hash
                             == [
-                                57u8, 91u8, 183u8, 208u8, 112u8, 32u8, 28u8, 146u8, 55u8, 22u8,
-                                92u8, 103u8, 94u8, 102u8, 43u8, 117u8, 72u8, 197u8, 28u8, 60u8,
-                                111u8, 228u8, 82u8, 197u8, 74u8, 180u8, 98u8, 217u8, 49u8, 59u8,
-                                164u8, 161u8,
+                                221u8, 138u8, 81u8, 138u8, 171u8, 81u8, 201u8, 21u8, 59u8, 66u8,
+                                27u8, 151u8, 111u8, 122u8, 249u8, 141u8, 166u8, 63u8, 233u8, 119u8,
+                                175u8, 149u8, 215u8, 85u8, 241u8, 187u8, 158u8, 166u8, 129u8,
+                                126u8, 8u8, 125u8,
                             ]
                         {
                             client.storage().iter(block_hash).await
@@ -8848,7 +8870,7 @@ pub mod api {
                         #[codec(index = 1)]
                         Cut { id: _0, value: _2 },
                         #[codec(index = 2)]
-                        Reserved { id: _0, value: _2 },
+                        Reserved { id: _0, value: _2, lock: _2 },
                         #[codec(index = 3)]
                         SpecifiedLocal {
                             parent: _1,
@@ -11630,9 +11652,9 @@ pub mod api {
             };
             if runtime_metadata_hash
                 != [
-                    190u8, 252u8, 69u8, 28u8, 250u8, 7u8, 48u8, 170u8, 86u8, 234u8, 177u8, 75u8,
-                    166u8, 235u8, 54u8, 130u8, 86u8, 35u8, 126u8, 59u8, 21u8, 182u8, 180u8, 237u8,
-                    61u8, 226u8, 202u8, 10u8, 41u8, 58u8, 197u8, 22u8,
+                    89u8, 173u8, 127u8, 213u8, 249u8, 217u8, 28u8, 180u8, 204u8, 121u8, 109u8,
+                    47u8, 235u8, 150u8, 143u8, 61u8, 208u8, 219u8, 133u8, 8u8, 5u8, 47u8, 225u8,
+                    31u8, 197u8, 118u8, 3u8, 205u8, 26u8, 122u8, 214u8, 27u8,
                 ]
             {
                 Err(::subxt::MetadataError::IncompatibleMetadata)

@@ -346,6 +346,7 @@ parameter_types! {
     pub const ReserveThreshold: u32 = 1;
     pub const WaitlistCost: u64 = 100;
     pub const MailboxCost: u64 = 100;
+    pub const ReservationCost: u64 = 100;
 
     pub const OutgoingLimit: u32 = 1024;
     pub const MailboxThreshold: u64 = 3000;
@@ -387,6 +388,7 @@ impl pallet_gear_scheduler::Config for Runtime {
     type ReserveThreshold = ReserveThreshold;
     type WaitlistCost = WaitlistCost;
     type MailboxCost = MailboxCost;
+    type ReservationCost = ReservationCost;
 }
 
 impl pallet_gear_gas::Config for Runtime {

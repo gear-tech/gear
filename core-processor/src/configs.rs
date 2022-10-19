@@ -82,6 +82,8 @@ pub struct ExecutionSettings {
     pub waitlist_cost: u64,
     /// Reserve for parameter of scheduling.
     pub reserve_for: u32,
+    /// Cost for reservation holding.
+    pub reservation: u64,
 }
 
 impl ExecutionSettings {
@@ -112,6 +114,8 @@ pub struct BlockConfig {
     pub waitlist_cost: u64,
     /// Reserve for parameter of scheduling.
     pub reserve_for: u32,
+    /// Cost for reservation holding.
+    pub reservation: u64,
     /// One-time db-read cost.
     pub read_cost: u64,
     /// One-time db-write cost.

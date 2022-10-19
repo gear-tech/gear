@@ -21,7 +21,7 @@ use crate::{
     program::{Gas, WasmProgram},
     wasm_executor::WasmExecutor,
     Result, TestError, EXISTENTIAL_DEPOSIT, MAILBOX_THRESHOLD, MODULE_INSTANTIATION_BYTE_COST,
-    PER_BYTE_COST, READ_COST, RESERVE_FOR, WAITLIST_COST, WRITE_COST,
+    PER_BYTE_COST, READ_COST, RESERVATION_COST, RESERVE_FOR, WAITLIST_COST, WRITE_COST,
 };
 use core_processor::{
     common::*,
@@ -628,6 +628,7 @@ impl ExtManager {
             mailbox_threshold: MAILBOX_THRESHOLD,
             waitlist_cost: WAITLIST_COST,
             reserve_for: RESERVE_FOR,
+            reservation: RESERVATION_COST,
             read_cost: READ_COST,
             write_cost: WRITE_COST,
             per_byte_cost: PER_BYTE_COST,

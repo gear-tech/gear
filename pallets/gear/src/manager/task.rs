@@ -196,6 +196,9 @@ where
             common::set_program(program_id, prog);
         }
 
+        GasHandlerOf::<T>::unlock_all(reservation_id)
+            .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
+
         Pallet::<T>::consume_and_retrieve(reservation_id);
     }
 }

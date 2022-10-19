@@ -83,7 +83,7 @@ pub fn handle_journal(
                 reservation_id,
                 program_id,
                 amount,
-                bn,
+                duration: bn,
             } => handler.reserve_gas(message_id, reservation_id, program_id, amount, bn),
             JournalNote::UnreserveGas {
                 reservation_id,

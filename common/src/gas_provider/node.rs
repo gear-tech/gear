@@ -79,7 +79,11 @@ pub enum GasNode<ExternalId: Clone, Id: Clone, Balance: Zero + Clone> {
     ///
     /// Such node types are detached and aren't part of the tree structure
     /// (not node's parent, not node's child).
-    Reserved { id: ExternalId, value: Balance },
+    Reserved {
+        id: ExternalId,
+        value: Balance,
+        lock: Balance,
+    },
 
     /// A node, which is a part of the tree structure, that can be
     /// a parent and/or a child.
@@ -212,8 +216,9 @@ impl<ExternalId: Clone, Id: Clone + Copy, Balance: Zero + Clone + Copy>
         match self {
             Self::External { lock, .. }
             | Self::UnspecifiedLocal { lock, .. }
-            | Self::SpecifiedLocal { lock, .. } => Some(*lock),
-            Self::Cut { .. } | Self::Reserved { .. } => None,
+            | Self::SpecifiedLocal { lock, .. }
+            | Self::Reserved { lock, .. } => Some(*lock),
+            Self::Cut { .. } => None,
         }
     }
 
@@ -222,8 +227,9 @@ impl<ExternalId: Clone, Id: Clone + Copy, Balance: Zero + Clone + Copy>
         match self {
             Self::External { ref mut lock, .. }
             | Self::UnspecifiedLocal { ref mut lock, .. }
-            | Self::SpecifiedLocal { ref mut lock, .. } => Some(lock),
-            Self::Cut { .. } | Self::Reserved { .. } => None,
+            | Self::SpecifiedLocal { ref mut lock, .. }
+            | Self::Reserved { ref mut lock, .. } => Some(lock),
+            Self::Cut { .. } => None,
         }
     }
 
@@ -289,7 +295,7 @@ impl<ExternalId: Clone, Id: Clone + Copy, Balance: Zero + Clone + Copy>
 
     /// Returns whether the node is detached and isn't part of the tree structure
     pub(crate) fn is_detached(&self) -> bool {
-        self.is_reserved() | self.is_cut()
+        self.is_cut()
     }
 
     fn adjust_refs(&mut self, increase: bool, spec: bool) {

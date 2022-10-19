@@ -265,8 +265,8 @@ pub enum JournalNote {
         program_id: ProgramId,
         /// Amount of reserved gas.
         amount: u64,
-        /// Block number until reservation will live.
-        bn: u32,
+        /// How many blocks reservation will live.
+        duration: u32,
     },
     /// Unreserve gas.
     UnreserveGas {

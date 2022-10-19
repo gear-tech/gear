@@ -39,8 +39,8 @@ use gear_core::{
 use std::{collections::BTreeMap, mem};
 
 use crate::{
-    manager::ExtManager, Result, TestError, MAILBOX_THRESHOLD, RESERVE_FOR, WAITLIST_COST,
-    WRITE_COST,
+    manager::ExtManager, Result, TestError, MAILBOX_THRESHOLD, RESERVATION_COST, RESERVE_FOR,
+    WAITLIST_COST, WRITE_COST,
 };
 
 /// Binary meta-functions executor for testing purposes
@@ -174,6 +174,7 @@ impl WasmExecutor {
             mailbox_threshold: MAILBOX_THRESHOLD,
             waitlist_cost: WAITLIST_COST,
             reserve_for: RESERVE_FOR,
+            reservation: RESERVATION_COST,
         })
     }
 

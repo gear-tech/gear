@@ -5760,6 +5760,7 @@ fn gas_reservation_works() {
 
         // check task is exist yet
         let (reservation_id, slot) = map.iter().next().unwrap();
+        log::error!("{:?}", slot);
         let task = ScheduledTask::RemoveGasReservation(pid, *reservation_id);
         assert!(TaskPoolOf::<Test>::contains(
             &BlockNumberFor::<Test>::from(slot.bn),

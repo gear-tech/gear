@@ -79,6 +79,8 @@ pub struct ProcessorContext {
     pub waitlist_cost: u64,
     /// Reserve for parameter of scheduling.
     pub reserve_for: u32,
+    /// Cost for reservation holding.
+    pub reservation: u64,
 }
 
 /// Trait to which ext must have to work in processor wasm executor.
@@ -529,14 +531,8 @@ impl EnvExt for Ext {
             return Err(ExecutionError::TooManyGasReserved.into());
         }
 
-        let ProcessorContext {
-            gas_reserver,
-            block_info,
-            ..
-        } = &mut self.context;
-
-        let bn = block_info.height + duration + 1;
-        let id = gas_reserver.reserve(amount, bn);
+        let gas_reserver = &mut self.context.gas_reserver;
+        let id = gas_reserver.reserve(amount, duration);
 
         Ok(id)
     }

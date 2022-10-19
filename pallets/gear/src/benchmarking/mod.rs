@@ -148,6 +148,7 @@ fn default_processor_context() -> ProcessorContext {
         mailbox_threshold: 0,
         waitlist_cost: 0,
         reserve_for: 0,
+        reservation: 0,
     }
 }
 
@@ -342,6 +343,7 @@ where
     let mailbox_threshold = <T as Config>::MailboxThreshold::get();
     let waitlist_cost = CostsPerBlockOf::<T>::waitlist();
     let reserve_for = CostsPerBlockOf::<T>::reserve_for().unique_saturated_into();
+    let reservation = CostsPerBlockOf::<T>::reservation().unique_saturated_into();
 
     let block_config = BlockConfig {
         block_info,
@@ -359,6 +361,7 @@ where
         mailbox_threshold,
         waitlist_cost,
         reserve_for,
+        reservation,
         read_cost: DbWeightOf::<T>::get().reads(1).ref_time(),
         write_cost: DbWeightOf::<T>::get().writes(1).ref_time(),
         per_byte_cost: ReadPerByteCostOf::<T>::get(),

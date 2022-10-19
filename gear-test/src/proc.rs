@@ -43,6 +43,7 @@ pub const OUTGOING_LIMIT: u32 = 1024;
 pub const MAILBOX_THRESHOLD: u64 = 3000;
 pub const WAITLIST_COST: u64 = 100;
 pub const RESERVE_FOR: u32 = 1;
+pub const RESERVATION_COST: u64 = 100;
 pub const READ_COST: u64 = 20;
 pub const WRITE_COST: u64 = 100;
 pub const PER_BYTE_COST: u64 = 10;
@@ -424,6 +425,7 @@ fn test_block_config(block_info: BlockInfo) -> BlockConfig {
         mailbox_threshold: MAILBOX_THRESHOLD,
         waitlist_cost: WAITLIST_COST,
         reserve_for: RESERVE_FOR,
+        reservation: RESERVATION_COST,
         read_cost: READ_COST,
         write_cost: WRITE_COST,
         per_byte_cost: PER_BYTE_COST,

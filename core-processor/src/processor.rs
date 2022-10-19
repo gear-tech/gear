@@ -341,6 +341,7 @@ pub fn process<
         mailbox_threshold,
         waitlist_cost,
         reserve_for,
+        reservation,
         write_cost,
         ..
     } = block_config.clone();
@@ -354,6 +355,7 @@ pub fn process<
         mailbox_threshold,
         waitlist_cost,
         reserve_for,
+        reservation,
     };
 
     let dispatch = execution_context.dispatch;
@@ -548,12 +550,12 @@ fn process_success(
 
     let (gas_reservation_map, tasks) = gas_reserver.into_parts();
     journal.extend(tasks.into_iter().map(|(id, task)| match task {
-        GasReservationTask::CreateReservation { amount, bn } => JournalNote::ReserveGas {
+        GasReservationTask::CreateReservation { amount, duration } => JournalNote::ReserveGas {
             message_id,
             reservation_id: id,
             program_id,
             amount,
-            bn,
+            duration,
         },
         GasReservationTask::RemoveReservation { bn } => JournalNote::UnreserveGas {
             reservation_id: id,
