@@ -289,6 +289,7 @@ impl<ExternalId: Clone, Id: Clone + Copy, Balance: Zero + Clone + Copy>
     }
 
     /// Returns whether the node is of `Reserve` type
+    #[allow(unused)] // TODO: remove when used
     pub(crate) fn is_reserved(&self) -> bool {
         matches!(self, Self::Reserved { .. })
     }
