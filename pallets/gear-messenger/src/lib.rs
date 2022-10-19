@@ -159,7 +159,7 @@ pub mod pallet {
     };
     use frame_system::{pallet_prelude::*, Pallet as SystemPallet};
     use gear_core::{
-        ids::{MessageId, ProgramId, ReservationId},
+        ids::{MessageId, ProgramId},
         message::{StoredDispatch, StoredMessage},
     };
     use sp_std::{convert::TryInto, marker::PhantomData};
@@ -220,10 +220,6 @@ pub mod pallet {
         WaitlistDuplicateKey,
         /// Occurs when waitlist's element wasn't found in storage.
         WaitlistElementNotFound,
-        /// Occurs when given value already exists in reservation pool.
-        ReservationPoolDuplicateKey,
-        /// Occurs when reservation wasn't found in pool storage.
-        ReservationNotFound,
     }
 
     // Implementation of `DequeueError` for `Error<T>`
@@ -283,16 +279,6 @@ pub mod pallet {
 
         fn element_not_found() -> Self {
             Self::WaitlistElementNotFound
-        }
-    }
-
-    impl<T: crate::Config> ReservationPoolError for Error<T> {
-        fn duplicate_reservation() -> Self {
-            Self::ReservationPoolDuplicateKey
-        }
-
-        fn reservation_not_found() -> Self {
-            Self::ReservationNotFound
         }
     }
 
@@ -416,18 +402,6 @@ pub mod pallet {
         key2: MessageId,
         value: (StoredDispatch, Interval<T::BlockNumber>),
         length: usize
-    );
-
-    // Private storage for gas reservations.
-    #[pallet::storage]
-    type ReservationPool<T: Config> = StorageMap<_, Identity, ReservationId, BlockNumberFor<T>>;
-
-    // Public wrap of gas reservations.
-    common::wrap_storage_map!(
-        storage: ReservationPool,
-        name: ReservationPoolWrap,
-        key: ReservationId,
-        value: BlockNumberFor<T>
     );
 
     // ----
@@ -601,7 +575,6 @@ pub mod pallet {
         type WaitlistFirstKey = ProgramId;
         type WaitlistSecondKey = MessageId;
         type WaitlistedMessage = StoredDispatch;
-        type ReservationPoolKey = ReservationId;
 
         type Sent = CounterImpl<Self::Capacity, SentWrap<T>>;
 
@@ -641,14 +614,6 @@ pub mod pallet {
             DispatchError,
             WaitListCallbacks<T>,
             WaitlistKeyGen,
-        >;
-
-        type ReservationPool = ReservationPoolImpl<
-            ReservationPoolWrap<T>,
-            Self::BlockNumber,
-            Self::ReservationPoolKey,
-            Self::Error,
-            Self::OutputError,
         >;
     }
 

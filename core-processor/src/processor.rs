@@ -557,9 +557,10 @@ fn process_success(
             amount,
             duration,
         },
-        GasReservationTask::RemoveReservation => JournalNote::UnreserveGas {
+        GasReservationTask::RemoveReservation { bn } => JournalNote::UnreserveGas {
             reservation_id: id,
             program_id,
+            bn,
         },
     }));
 

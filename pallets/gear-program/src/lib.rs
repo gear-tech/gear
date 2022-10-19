@@ -56,7 +56,7 @@ pub mod pallet {
     use frame_system::pallet_prelude::*;
     use gear_core::{
         code::InstrumentedCode,
-        ids::{CodeId, MessageId, ProgramId, ReservationId},
+        ids::{CodeId, MessageId, ProgramId},
         memory::{vec_page_data_map_to_page_buf_map, PageNumber},
         message::StoredDispatch,
     };
@@ -84,7 +84,6 @@ pub mod pallet {
             WaitlistFirstKey = ProgramId,
             WaitlistSecondKey = MessageId,
             WaitlistedMessage = StoredDispatch,
-            ReservationPoolKey = ReservationId,
         >;
     }
 

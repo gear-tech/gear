@@ -94,7 +94,6 @@ pub(crate) type QueueOf<T> = <<T as Config>::Messenger as Messenger>::Queue;
 pub(crate) type MailboxOf<T> = <<T as Config>::Messenger as Messenger>::Mailbox;
 pub(crate) type ReadPerByteCostOf<T> = <T as Config>::ReadPerByteCost;
 pub(crate) type WaitlistOf<T> = <<T as Config>::Messenger as Messenger>::Waitlist;
-pub(crate) type ReservationPoolOf<T> = <<T as Config>::Messenger as Messenger>::ReservationPool;
 pub(crate) type MessengerCapacityOf<T> = <<T as Config>::Messenger as Messenger>::Capacity;
 pub(crate) type TaskPoolOf<T> = <<T as Config>::Scheduler as Scheduler>::TaskPool;
 pub(crate) type MissedBlocksOf<T> = <<T as Config>::Scheduler as Scheduler>::MissedBlocks;
@@ -278,7 +277,6 @@ pub mod pallet {
             WaitlistFirstKey = ProgramId,
             WaitlistSecondKey = MessageId,
             WaitlistedMessage = StoredDispatch,
-            ReservationPoolKey = ReservationId,
         >;
 
         /// Implementation of a ledger to account for gas creation and consumption

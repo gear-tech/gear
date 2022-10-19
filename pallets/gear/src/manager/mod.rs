@@ -51,17 +51,17 @@ mod task;
 pub use journal::*;
 pub use task::*;
 
-use crate::{Config, CurrencyOf, GearProgramPallet, ReservationPoolOf, TaskPoolOf};
+use crate::{Config, CurrencyOf, GearProgramPallet, TaskPoolOf};
 use codec::{Decode, Encode};
 use common::{
     event::*,
     scheduler::{ScheduledTask, TaskHandler, TaskPool},
-    storage::ReservationPool,
     ActiveProgram, CodeStorage, Origin, ProgramState,
 };
 use core::fmt;
 use core_processor::common::{Actor, ExecutableActorData};
 use frame_support::traits::Currency;
+use frame_system::pallet_prelude::BlockNumberFor;
 use gear_core::{
     code::{CodeAndId, InstrumentedCode},
     ids::{CodeId, MessageId, ProgramId},
@@ -266,18 +266,15 @@ where
             common::get_active_program(program_id.into_origin()).unwrap_or_else(|e| {
                 unreachable!("`exit` can be called only from active program: {}", e)
             });
-        for (reservation_id, _reservation_slot) in active_program.gas_reservation_map {
+        for (reservation_id, reservation_slot) in active_program.gas_reservation_map {
             <Self as TaskHandler<T::AccountId>>::remove_gas_reservation(
                 self,
                 program_id,
                 reservation_id,
             );
 
-            let bn = ReservationPoolOf::<T>::delete(reservation_id)
-                .unwrap_or_else(|e| unreachable!("Reservations corrupted! {:?}", e));
-
             let _ = TaskPoolOf::<T>::delete(
-                bn,
+                BlockNumberFor::<T>::from(reservation_slot.bn),
                 ScheduledTask::RemoveGasReservation(program_id, reservation_id),
             );
         }

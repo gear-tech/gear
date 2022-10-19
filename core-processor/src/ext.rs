@@ -531,7 +531,8 @@ impl EnvExt for Ext {
             return Err(ExecutionError::TooManyGasReserved.into());
         }
 
-        let id = self.context.gas_reserver.reserve(amount, duration);
+        let gas_reserver = &mut self.context.gas_reserver;
+        let id = gas_reserver.reserve(amount, duration);
 
         Ok(id)
     }

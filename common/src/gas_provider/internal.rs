@@ -820,7 +820,7 @@ where
         // If provider is a current node, we save it to storage, otherwise mutating
         // provider node further, saving it afterward.
         let (mut ancestor_node, ancestor_id) = if let Some(ancestor_id) = ancestor_id {
-            StorageMap::insert(key, node);
+            StorageMap::insert(key.into(), node);
 
             (ancestor_node, ancestor_id.into())
         } else {
@@ -833,7 +833,7 @@ where
 
         *ancestor_value = ancestor_value.saturating_add(amount);
 
-        StorageMap::insert(ancestor_id, ancestor_node);
+        StorageMap::insert(ancestor_id.into(), ancestor_node);
 
         Ok(())
     }
