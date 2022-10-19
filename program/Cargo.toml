@@ -74,6 +74,14 @@ lazy-pages = [
   "gear-runtime?/lazy-pages",
   "vara-runtime?/lazy-pages"
 ]
+runtime-benchmarks = [
+  "gear-runtime?/runtime-benchmarks",
+  "vara-runtime?/runtime-benchmarks"
+]
+try-runtime = [
+  "gear-runtime?/try-runtime",
+  "vara-runtime?/try-runtime"
+]
 
 [package.metadata.docs.rs]
 all-features = true
