@@ -5904,6 +5904,8 @@ fn gas_reservations_cleaned_in_terminated_program() {
             &BlockNumberFor::<Test>::from(slot.expiration),
             &task
         ));
+        assert!(!Gear::is_initialized(pid));
+        assert!(!Gear::is_active(pid));
     });
 }
 
