@@ -5759,153 +5759,30 @@ fn test_mad_big_prog_instrumentation() {
 }
 
 #[test]
-fn gas_reservation_works() {
-    use demo_reserve_gas::{HandleAction, InitAction};
+fn reject_incorrect_binary() {
+    let wat = r#"
+    (module
+        (import "env" "memory" (memory 1))
+        (export "handle" (func $handle))
+        (func $handle
+            i32.const 5
+        )
+    )"#;
 
     init_logger();
     new_test_ext().execute_with(|| {
-        Gear::upload_program(
-            RuntimeOrigin::signed(USER_1),
-            demo_reserve_gas::WASM_BINARY.to_vec(),
-            DEFAULT_SALT.to_vec(),
-            InitAction::Normal.encode(),
-            10_000_000_000,
-            0,
-        )
-        .expect("submit_program failed");
+        assert_noop!(
+            Gear::upload_code(
+                RuntimeOrigin::signed(USER_1),
+                ProgramCodeKind::Custom(wat).to_bytes()
+            ),
+            Error::<Test>::FailedToConstructProgram
+        );
 
-        let pid = get_last_program_id();
-
-        run_to_block(2, None);
-
-        // gas has been reserved 3 times
-        let map = get_reservation_map(pid).unwrap();
-        assert_eq!(map.len(), 3);
-
-        let GasInfo {
-            min_limit: spent_gas,
-            ..
-        } = Gear::calculate_gas_info(
-            USER_1.into_origin(),
-            HandleKind::Handle(pid),
-            HandleAction::Unreserve.encode(),
-            0,
-            true,
-        )
-        .expect("calculate_gas_info failed");
-
-        assert_ok!(Gear::send_message(
-            RuntimeOrigin::signed(USER_1),
-            pid,
-            HandleAction::Unreserve.encode(),
-            spent_gas,
-            0
-        ));
-
-        run_to_block(3, None);
-
-        // gas unreserved manually
-        let map = get_reservation_map(pid).unwrap();
-        assert_eq!(map.len(), 2);
-
-        run_to_block(3 + 2, None);
-
-        // gas not yet unreserved automatically
-        let map = get_reservation_map(pid).unwrap();
-        assert_eq!(map.len(), 2);
-
-        run_to_block(3 + 3, None);
-
-        // gas unreserved automatically
-        let map = get_reservation_map(pid).unwrap();
-        assert_eq!(map.len(), 1);
-
-        // check task is exist yet
-        let (reservation_id, slot) = map.iter().next().unwrap();
-        log::error!("{:?}", slot);
-        let task = ScheduledTask::RemoveGasReservation(pid, *reservation_id);
-        assert!(TaskPoolOf::<Test>::contains(
-            &BlockNumberFor::<Test>::from(slot.expiration),
-            &task
-        ));
-
-        // `gr_exit` occurs
-        assert_ok!(Gear::send_message(
-            RuntimeOrigin::signed(USER_1),
-            pid,
-            HandleAction::Exit.encode(),
-            50_000_000_000,
-            0
-        ));
-
-        run_to_block(3 + 5, None);
-
-        // check task was cleared after `gr_exit` happened
-        let map = get_reservation_map(pid);
-        assert_eq!(map, None);
-        assert!(!TaskPoolOf::<Test>::contains(
-            &BlockNumberFor::<Test>::from(slot.expiration),
-            &task
-        ));
-    });
-}
-
-#[test]
-fn gas_reservations_cleaned_in_terminated_program() {
-    use demo_reserve_gas::InitAction;
-
-    init_logger();
-    new_test_ext().execute_with(|| {
-        Gear::upload_program(
-            RuntimeOrigin::signed(USER_1),
-            demo_reserve_gas::WASM_BINARY.to_vec(),
-            DEFAULT_SALT.to_vec(),
-            InitAction::Wait.encode(),
-            10_000_000_000,
-            0,
-        )
-        .expect("submit_program failed");
-
-        let pid = get_last_program_id();
-
-        run_to_block(2, None);
-
-        let message_id = MailboxOf::<Test>::iter_key(USER_1)
-            .next()
-            .map(|(msg, _bn)| msg.id())
-            .expect("Element should be");
-
-        assert!(!Gear::is_initialized(pid));
-        assert!(Gear::is_active(pid));
-
-        let map = get_reservation_map(pid).unwrap();
-        assert_eq!(map.len(), 1);
-
-        let (reservation_id, slot) = map.iter().next().unwrap();
-        let task = ScheduledTask::RemoveGasReservation(pid, *reservation_id);
-        assert!(TaskPoolOf::<Test>::contains(
-            &BlockNumberFor::<Test>::from(slot.expiration),
-            &task
-        ));
-
-        assert_ok!(Gear::send_reply(
-            RuntimeOrigin::signed(USER_1),
-            message_id,
-            EMPTY_PAYLOAD.to_vec(),
-            DEFAULT_GAS_LIMIT * 10,
-            0,
-        ));
-
-        run_to_block(3, None);
-
-        let map = get_reservation_map(pid);
-        assert_eq!(map, None);
-        assert!(!TaskPoolOf::<Test>::contains(
-            &BlockNumberFor::<Test>::from(slot.expiration),
-            &task
-        ));
-        assert!(!Gear::is_initialized(pid));
-        assert!(!Gear::is_active(pid));
+        assert_noop!(
+            upload_program_default(USER_1, ProgramCodeKind::Custom(wat)),
+            Error::<Test>::FailedToConstructProgram
+        );
     });
 }
 
