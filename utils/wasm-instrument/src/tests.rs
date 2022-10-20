@@ -146,6 +146,41 @@ fn grow_no_gas_no_track() {
 }
 
 #[test]
+fn duplicate_import() {
+    let wat = format!(
+        r#"(module
+            (import "env" "{IMPORT_NAME_OUT_OF_GAS}" (func))
+            (func (result i32)
+                global.get 0
+                memory.grow)
+            (global i32 (i32.const 42))
+            (memory 0 1)
+            )"#,
+    );
+    let module = parse_wat(&wat);
+
+    assert!(inject(module, &ConstantCostRules::default(), "env").is_err());
+}
+
+#[test]
+fn duplicate_export() {
+    let wat = format!(
+        r#"(module
+        (func (result i32)
+            global.get 0
+            memory.grow)
+        (global (;0;) i32 (i32.const 42))
+        (memory 0 1)
+        (global (;1;) (mut i32) (i32.const 0))
+        (export "{GLOBAL_NAME_ALLOWANCE}" (global 0))
+        )"#
+    );
+    let module = parse_wat(&wat);
+
+    assert!(inject(module, &ConstantCostRules::default(), "env").is_err());
+}
+
+#[test]
 fn call_index() {
     let injected_module = inject(
         prebuilt_simple_module(),

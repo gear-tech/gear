@@ -38,12 +38,40 @@ mod tests;
 pub const GLOBAL_NAME_GAS: &str = "gear_gas";
 pub const GLOBAL_NAME_ALLOWANCE: &str = "gear_allowance";
 
+pub const IMPORT_NAME_OUT_OF_GAS: &str = "out_of_gas";
+pub const IMPORT_NAME_OUT_OF_ALLOWANCE: &str = "out_of_allowance";
+
 pub fn inject<R: Rules>(
     module: elements::Module,
     rules: &R,
     gas_module_name: &str,
 ) -> Result<elements::Module, elements::Module> {
-    // Injecting gas counting external
+    if module
+        .import_section()
+        .map(|section| {
+            section.entries().iter().any(|entry| {
+                entry.module() == gas_module_name
+                    && (entry.field() == IMPORT_NAME_OUT_OF_GAS
+                        || entry.field() == IMPORT_NAME_OUT_OF_ALLOWANCE)
+            })
+        })
+        .unwrap_or(false)
+    {
+        return Err(module);
+    }
+
+    if module
+        .export_section()
+        .map(|section| {
+            section.entries().iter().any(|entry| {
+                entry.field() == GLOBAL_NAME_ALLOWANCE || entry.field() == GLOBAL_NAME_GAS
+            })
+        })
+        .unwrap_or(false)
+    {
+        return Err(module);
+    }
+
     let mut mbuilder = builder::from_module(module);
 
     // fn out_of_...() -> ();
@@ -52,7 +80,7 @@ pub fn inject<R: Rules>(
     mbuilder.push_import(
         builder::import()
             .module(gas_module_name)
-            .field("out_of_gas")
+            .field(IMPORT_NAME_OUT_OF_GAS)
             .external()
             .func(import_sig)
             .build(),
@@ -61,7 +89,7 @@ pub fn inject<R: Rules>(
     mbuilder.push_import(
         builder::import()
             .module(gas_module_name)
-            .field("out_of_allowance")
+            .field(IMPORT_NAME_OUT_OF_ALLOWANCE)
             .external()
             .func(import_sig)
             .build(),
