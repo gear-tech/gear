@@ -124,7 +124,7 @@ impl
             dispatch
                 .context_mut()
                 .as_mut()
-                .map(|ctx| ctx.fetch_inc_nonce())
+                .map(|ctx| ctx.fetch_inc_reservation_nonce())
                 .unwrap_or(0),
             actor_data.gas_reservation_map,
             max_reservations,

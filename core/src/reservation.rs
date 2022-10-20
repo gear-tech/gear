@@ -104,6 +104,11 @@ impl GasReserver {
         Ok(amount)
     }
 
+    /// Return reservation nonce.
+    pub fn nonce(&self) -> u64 {
+        self.nonce
+    }
+
     /// Get gas reservation states.
     pub fn states(&self) -> &GasReservationStates {
         &self.states

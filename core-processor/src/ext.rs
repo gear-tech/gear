@@ -747,8 +747,10 @@ impl Ext {
             pages_data.insert(page, buf);
         }
 
-        let (outcome, context_store) = message_context.drain();
+        let (outcome, mut context_store) = message_context.drain();
         let (generated_dispatches, awakening) = outcome.drain();
+
+        context_store.set_reservation_nonce(gas_reserver.nonce());
 
         let info = ExtInfo {
             gas_amount: gas_counter.into(),
