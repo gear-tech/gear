@@ -20,8 +20,8 @@
 //!
 //! Provides API for low-level async implementation.
 
-use gear_core_errors::ExtError;
 use crate::{error::Result, ActorId, MessageId, ReservationId};
+use gear_core_errors::ExtError;
 
 mod sys {
     use crate::error::SyscallError;

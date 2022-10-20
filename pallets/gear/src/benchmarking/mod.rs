@@ -806,7 +806,7 @@ benchmarks! {
         core_processor::process::<
             Externalities,
             ExecutionEnvironment,
-        >(&block_config, context, memory_pages);
+        >(&block_config, context, ([0u8; 32].to_vec(), 0), memory_pages);
     }
 
     // We cannot call `gr_unreserve_gas` multiple times. Therefore our weight determination is not
@@ -854,7 +854,7 @@ benchmarks! {
         core_processor::process::<
             Externalities,
             ExecutionEnvironment,
-        >(&block_config, context, memory_pages);
+        >(&block_config, context, ([0u8; 32].to_vec(), 0), memory_pages);
     }
 
     gr_message_id {
