@@ -62,7 +62,7 @@ use gear_core::{
 };
 use pallet_gear_program::Pallet as GearProgramPallet;
 use primitive_types::H256;
-use sp_runtime::traits::{Saturating, UniqueSaturatedInto, Zero};
+use sp_runtime::traits::{One, Saturating, UniqueSaturatedInto, Zero};
 use sp_std::{
     collections::{btree_map::BTreeMap, btree_set::BTreeSet},
     convert::TryInto,
@@ -80,8 +80,6 @@ use crate::ext::LazyPagesExt as Ext;
 
 #[cfg(not(feature = "lazy-pages"))]
 use core_processor::Ext;
-
-pub(crate) use frame_system::Pallet as SystemPallet;
 
 pub(crate) type CurrencyOf<T> = <T as Config>::Currency;
 pub(crate) type BalanceOf<T> =
@@ -189,12 +187,9 @@ impl Default for ProcessStatus {
 
 #[frame_support::pallet]
 pub mod pallet {
-    use super::*;
+    use core::marker::PhantomData;
 
-    #[cfg(feature = "lazy-pages")]
-    pub(crate) use crate::ext::LazyPagesExt as Ext;
-    #[cfg(not(feature = "lazy-pages"))]
-    pub(crate) use core_processor::Ext;
+    use super::*;
 
     #[cfg(feature = "lazy-pages")]
     use gear_lazy_pages_common as lazy_pages;
@@ -219,7 +214,7 @@ pub mod pallet {
             ReservableCurrency,
         },
     };
-    use frame_system::pallet_prelude::*;
+    use frame_system::pallet_prelude::{BlockNumberFor, *};
 
     #[pallet::config]
     pub trait Config:
@@ -305,7 +300,7 @@ pub mod pallet {
             MissedBlocksCollection = BTreeSet<Self::BlockNumber>,
         >;
 
-        /// Message Queue processing routin provider
+        /// Message Queue processing routing provider.
         type QueueRunner: QueueRunner<Gas = GasUnitOf<Self>>;
     }
 
@@ -479,11 +474,25 @@ pub mod pallet {
 
     #[pallet::storage]
     #[pallet::getter(fn force_queue)]
-    pub type ForceQueue<T> = StorageValue<_, Forcing, ValueQuery>;
+    pub(crate) type ForceQueue<T> = StorageValue<_, Forcing, ValueQuery>;
 
     #[pallet::storage]
     #[pallet::getter(fn queue_state)]
-    pub type QueueState<T> = StorageValue<_, ProcessStatus, ValueQuery>;
+    pub(crate) type QueueState<T> = StorageValue<_, ProcessStatus, ValueQuery>;
+
+    /// The current block number being processed.
+    ///
+    /// It shows block number in which queue is processed.
+    /// May be less than system pallet block number if panic occurred previously.
+    #[pallet::storage]
+    #[pallet::getter(fn block_number)]
+    pub(crate) type BlockNumber<T: Config> = StorageValue<_, T::BlockNumber, ValueQuery>;
+
+    impl<T: Config> Get<BlockNumberFor<T>> for Pallet<T> {
+        fn get() -> BlockNumberFor<T> {
+            Self::block_number()
+        }
+    }
 
     #[pallet::hooks]
     impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T>
@@ -498,7 +507,9 @@ pub mod pallet {
 
         /// Initialization
         fn on_initialize(bn: BlockNumberFor<T>) -> Weight {
-            log::debug!(target: "runtime::gear", "⚙️  Initialization of block #{:?}", bn);
+            BlockNumber::<T>::mutate(|bn| *bn = bn.saturating_add(One::one()));
+
+            log::debug!(target: "runtime::gear", "⚙️  Initialization of block #{bn:?} (gear #{:?})", Self::block_number());
 
             // Decide whether queue processing should be scheduled or skipped for current block
 
@@ -507,32 +518,34 @@ pub mod pallet {
                 Forcing::ForceNone => {
                     // Regardless of anything, forcing not to process queue
                     QueueState::<T>::put(ProcessStatus::SkippedOrFailed);
-                    T::DbWeight::get().reads_writes(1, 1)
+                    T::DbWeight::get().reads_writes(1, 2)
                 }
                 Forcing::ForceAlways => {
                     // Regardless of anything, forcing the queue to be processed
                     QueueState::<T>::put(ProcessStatus::Scheduled);
-                    T::DbWeight::get().reads_writes(1, 1)
+                    T::DbWeight::get().reads_writes(1, 2)
                 }
                 Forcing::ForceOnce => {
                     // Forcing queue processing in current block, subsequently not forcing anything
                     ForceQueue::<T>::put(Forcing::default());
                     QueueState::<T>::put(ProcessStatus::Scheduled);
-                    T::DbWeight::get().reads_writes(1, 2)
+                    T::DbWeight::get().reads_writes(1, 3)
                 }
-                _ => T::DbWeight::get().reads(1),
+                Forcing::NotForcing => T::DbWeight::get().reads_writes(1, 1),
             }
         }
 
         /// Finalization
         fn on_finalize(bn: BlockNumberFor<T>) {
-            log::debug!(target: "runtime::gear", "⚙️  Finalization of block #{:?}", bn);
+            log::debug!(target: "runtime::gear", "⚙️  Finalization of block #{bn:?} (gear #{:?})", Self::block_number());
 
             match QueueState::<T>::get() {
                 // Still in `Scheduled` state: last run didn't complete (likely, panicked)
                 ProcessStatus::Scheduled => {
-                    // Emitting event to signal queue processing transaction was rolled back
+                    // Emitting event to signal queue processing transaction was rolled back.
                     Self::deposit_event(Event::QueueProcessingReverted);
+                    log::debug!(target: "runtime::gear", "⚙️  Decreasing gear block number due to process status scheduled");
+                    BlockNumber::<T>::mutate(|bn| *bn = bn.saturating_sub(One::one()));
                     QueueState::<T>::put(ProcessStatus::SkippedOrFailed);
                 }
                 // Latest run succeeded; scheduling to run again in the next block
@@ -540,8 +553,11 @@ pub mod pallet {
                     QueueState::<T>::put(ProcessStatus::Scheduled);
                 }
                 // Otherwise keeping the status intact;
-                // Note: `SkippedOrFailed` can now only be overriden through forcing
-                _ => (),
+                // Note: `SkippedOrFailed` can now only be overridden through forcing
+                ProcessStatus::SkippedOrFailed => {
+                    log::debug!(target: "runtime::gear", "⚙️ Decreasing gear block number due to process status skipped or failed");
+                    BlockNumber::<T>::mutate(|bn| *bn = bn.saturating_sub(One::one()));
+                }
             }
         }
     }
@@ -563,6 +579,32 @@ pub mod pallet {
     where
         T::AccountId: Origin,
     {
+        /// Set force always strategy.
+        ///
+        /// For tests only.
+        #[cfg(any(feature = "std", feature = "runtime-benchmarks", test))]
+        pub fn force_always() {
+            <ForceQueue<T>>::put(Forcing::ForceAlways);
+        }
+
+        /// Set completed result of queue processing.
+        ///
+        /// For tests only.
+        #[cfg(any(feature = "std", feature = "runtime-benchmarks", test))]
+        pub fn processing_completed() {
+            <QueueState<T>>::put(ProcessStatus::Completed);
+        }
+
+        /// Set gear block number.
+        ///
+        /// For tests only.
+        #[cfg(any(feature = "std", feature = "runtime-benchmarks", test))]
+        pub fn set_block_number(bn: u32) {
+            use sp_runtime::SaturatedConversion;
+
+            <BlockNumber<T>>::put(bn.saturated_into::<T::BlockNumber>());
+        }
+
         /// Submit program for benchmarks which does not check nor instrument the code.
         #[cfg(feature = "runtime-benchmarks")]
         pub fn upload_program_raw(
@@ -855,7 +897,7 @@ pub mod pallet {
                 })?;
 
             let block_info = BlockInfo {
-                height: <frame_system::Pallet<T>>::block_number().unique_saturated_into(),
+                height: Self::block_number().unique_saturated_into(),
                 timestamp: <pallet_timestamp::Pallet<T>>::get().unique_saturated_into(),
             };
 
@@ -1109,7 +1151,7 @@ pub mod pallet {
         /// Delayed tasks processing.
         pub fn process_tasks(ext_manager: &mut ExtManager<T>) {
             // Current block number.
-            let bn = <frame_system::Pallet<T>>::block_number();
+            let bn = Self::block_number();
 
             // Taking block numbers, where some incomplete tasks held.
             // If there are no such values, we charge for single read, because
@@ -1206,7 +1248,7 @@ pub mod pallet {
         /// Message Queue processing.
         pub fn process_queue(mut ext_manager: ExtManager<T>) {
             let block_info = BlockInfo {
-                height: <frame_system::Pallet<T>>::block_number().unique_saturated_into(),
+                height: Self::block_number().unique_saturated_into(),
                 timestamp: <pallet_timestamp::Pallet<T>>::get().unique_saturated_into(),
             };
 
@@ -1493,8 +1535,7 @@ pub mod pallet {
             let code_id = code_and_id.code_id();
 
             let metadata = {
-                let block_number =
-                    <frame_system::Pallet<T>>::block_number().unique_saturated_into();
+                let block_number = Self::block_number().unique_saturated_into();
                 CodeMetadata::new(who, block_number)
             };
 
@@ -2071,8 +2112,6 @@ pub mod pallet {
                 });
             }
 
-            let bn = <frame_system::Pallet<T>>::block_number();
-
             let weight_used = <frame_system::Pallet<T>>::block_weight();
             let max_weight = <T as frame_system::Config>::BlockWeights::get().max_block;
             let remaining_weight = max_weight.saturating_sub(weight_used.total());
@@ -2082,18 +2121,17 @@ pub mod pallet {
 
             log::debug!(
                 target: "runtime::gear",
-                "⚙️  Queue and tasks processing of block #{:?} with {}",
-                bn,
-                adjusted_gas,
+                "⚙️  Queue and tasks processing of gear block #{:?} with {adjusted_gas}",
+                Self::block_number(),
             );
 
             let actual_weight = <T as Config>::QueueRunner::run_queue(adjusted_gas);
 
             log::debug!(
                 target: "runtime::gear",
-                "⚙️  {} burned in block #{:?}",
+                "⚙️  {} burned in gear block #{:?}",
                 actual_weight,
-                bn,
+                Self::block_number(),
             );
 
             // Set queue processing status to allow for a new run in the next block

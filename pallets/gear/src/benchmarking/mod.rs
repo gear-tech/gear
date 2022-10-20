@@ -240,7 +240,7 @@ where
     assert!(gear_lazy_pages_common::try_to_enable_lazy_pages());
 
     let ext_manager = ExtManager::<T>::default();
-    let bn: u64 = <frame_system::Pallet<T>>::block_number().unique_saturated_into();
+    let bn: u64 = Pallet::<T>::block_number().unique_saturated_into();
     let root_message_id = MessageId::from(bn);
 
     let dispatch = match kind {
@@ -340,7 +340,7 @@ where
     QueueOf::<T>::queue(dispatch).map_err(|_| "Messages storage corrupted")?;
 
     let block_info = BlockInfo {
-        height: <frame_system::Pallet<T>>::block_number().unique_saturated_into(),
+        height: Pallet::<T>::block_number().unique_saturated_into(),
         timestamp: <pallet_timestamp::Pallet<T>>::get().unique_saturated_into(),
     };
 
@@ -630,8 +630,7 @@ benchmarks! {
 
         let caller: T::AccountId = benchmarking::account("caller", 0, 0);
         let metadata = {
-            let block_number =
-                <frame_system::Pallet<T>>::block_number().unique_saturated_into();
+            let block_number = Pallet::<T>::block_number().unique_saturated_into();
             CodeMetadata::new(caller.into_origin(), block_number)
         };
 

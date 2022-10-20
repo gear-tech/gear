@@ -157,7 +157,7 @@ pub mod pallet {
     use frame_support::{
         dispatch::DispatchError, pallet_prelude::*, storage::PrefixIterator, traits::StorageVersion,
     };
-    use frame_system::{pallet_prelude::*, Pallet as SystemPallet};
+    use frame_system::pallet_prelude::BlockNumberFor;
     use gear_core::{
         ids::{MessageId, ProgramId},
         message::{StoredDispatch, StoredMessage},
@@ -172,6 +172,9 @@ pub mod pallet {
     pub trait Config: frame_system::Config {
         /// Block limits.
         type BlockLimiter: BlockLimiter<Balance = u64>;
+
+        /// Custom block number tracker.
+        type CurrentBlockNumber: Get<BlockNumberFor<Self>>;
     }
 
     // Gear Messenger Pallet itself.
@@ -537,7 +540,7 @@ pub mod pallet {
         T::AccountId: Origin,
     {
         fn call() -> T::BlockNumber {
-            SystemPallet::<T>::block_number()
+            T::CurrentBlockNumber::get()
         }
     }
 
