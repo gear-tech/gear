@@ -180,7 +180,8 @@ impl Code {
         }
     }
 
-    /// Create the code without checks.
+    /// Create the code without instrumentation or instrumented
+    /// with `ConstantCostRules`. There is also no check for static memory pages.
     pub fn new_raw(
         original_code: Vec<u8>,
         version: u32,
