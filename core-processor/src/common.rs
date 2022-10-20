@@ -72,7 +72,7 @@ pub struct DispatchResult {
     /// Gas amount after execution.
     pub gas_amount: GasAmount,
     /// Gas amount programs reserved.
-    pub gas_reserver: GasReserver,
+    pub gas_reserver: Option<GasReserver>,
     /// Page updates.
     pub page_update: BTreeMap<PageNumber, PageBuf>,
     /// New allocations set for program if it has been changed.
@@ -107,7 +107,6 @@ impl DispatchResult {
         program_id: ProgramId,
         gas_amount: GasAmount,
     ) -> Self {
-        let message_id = dispatch.id();
         Self {
             kind: DispatchResultKind::Success,
             dispatch,
@@ -117,7 +116,7 @@ impl DispatchResult {
             awakening: Default::default(),
             program_candidates: Default::default(),
             gas_amount,
-            gas_reserver: GasReserver::new(message_id, 0, Default::default(), 0),
+            gas_reserver: None,
             page_update: Default::default(),
             allocations: Default::default(),
         }

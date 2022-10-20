@@ -564,28 +564,32 @@ fn process_success(
         amount: gas_amount.burned(),
     });
 
-    journal.extend(gas_reserver.states().iter().flat_map(
-        |(&reservation_id, &state)| match state {
-            GasReservationState::Exists { .. } => None,
-            GasReservationState::Created { amount, duration } => Some(JournalNote::ReserveGas {
-                message_id,
-                reservation_id,
-                program_id,
-                amount,
-                duration,
-            }),
-            GasReservationState::Removed { expiration } => Some(JournalNote::UnreserveGas {
-                reservation_id,
-                program_id,
-                expiration,
-            }),
-        },
-    ));
+    if let Some(gas_reserver) = gas_reserver {
+        journal.extend(gas_reserver.states().iter().flat_map(
+            |(&reservation_id, &state)| match state {
+                GasReservationState::Exists { .. } => None,
+                GasReservationState::Created { amount, duration } => {
+                    Some(JournalNote::ReserveGas {
+                        message_id,
+                        reservation_id,
+                        program_id,
+                        amount,
+                        duration,
+                    })
+                }
+                GasReservationState::Removed { expiration } => Some(JournalNote::UnreserveGas {
+                    reservation_id,
+                    program_id,
+                    expiration,
+                }),
+            },
+        ));
 
-    journal.push(JournalNote::UpdateGasReservations {
-        program_id,
-        reserver: gas_reserver,
-    });
+        journal.push(JournalNote::UpdateGasReservations {
+            program_id,
+            reserver: gas_reserver,
+        });
+    }
 
     // We check if value is greater than zero to don't provide
     // no-op journal note.

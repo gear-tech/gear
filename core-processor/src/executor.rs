@@ -482,7 +482,7 @@ pub fn execute_wasm<
         awakening: info.awakening,
         program_candidates,
         gas_amount: info.gas_amount,
-        gas_reserver: info.gas_reserver,
+        gas_reserver: Some(info.gas_reserver),
         page_update,
         allocations: info.allocations,
     })
