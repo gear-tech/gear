@@ -4,8 +4,8 @@ use crate::{exec, prelude::BTreeMap, Config, MessageId};
 /// Type of wait locks.
 #[derive(Debug, PartialEq, Eq)]
 pub(crate) enum LockType {
-    For(u32),
-    NoMore(u32),
+    WaitFor(u32),
+    WaitUpTo(u32),
 }
 
 /// Wait lock
@@ -21,36 +21,36 @@ impl Lock {
     pub fn exactly(b: u32) -> Self {
         Self {
             at: exec::block_height(),
-            ty: LockType::For(b),
+            ty: LockType::WaitFor(b),
         }
     }
 
     /// Wait no more
-    pub fn no_more(b: u32) -> Self {
+    pub fn up_to(b: u32) -> Self {
         Self {
             at: exec::block_height(),
-            ty: LockType::NoMore(b),
+            ty: LockType::WaitUpTo(b),
         }
     }
 
     /// Call wait functions by the lock type.
     pub fn wait(&self) {
         match self.ty {
-            LockType::For(d) => exec::wait_for(d),
-            LockType::NoMore(d) => exec::wait_no_more(d),
+            LockType::WaitFor(d) => exec::wait_for(d),
+            LockType::WaitUpTo(d) => exec::wait_up_to(d),
         }
     }
 
     /// Get bound of the current lock
     pub fn bound(&self) -> u32 {
         match &self.ty {
-            LockType::For(d) => {
+            LockType::WaitFor(d) => {
                 // TODO:
                 //
                 // Calculate the bound with the hold cost per block
                 self.at + *d * 2
             }
-            LockType::NoMore(d) => self.at + *d,
+            LockType::WaitUpTo(d) => self.at + *d,
         }
     }
 
@@ -69,7 +69,13 @@ impl Lock {
 
 impl Default for Lock {
     fn default() -> Self {
-        Lock::no_more(Config::wait_duration())
+        Lock::up_to(Config::wait_duration())
+    }
+}
+
+impl Default for LockType {
+    fn default() -> Self {
+        LockType::WaitUpTo(Config::wait_duration())
     }
 }
 

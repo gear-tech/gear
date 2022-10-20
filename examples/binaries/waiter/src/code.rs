@@ -19,13 +19,13 @@ async fn main() {
         Command::SendNoMore(to, duration) => {
             msg::send_bytes_for_reply(to, [], 0)
                 .expect("send message failed")
-                .no_more(duration)
+                .up_to(duration)
                 .await;
         }
         Command::SendNoMoreWait(to, duration) => {
             msg::send_bytes_for_reply(to, [], 0)
                 .expect("send message failed")
-                .no_more(duration)
+                .up_to(duration)
                 .await;
 
             // after waking, wait again.

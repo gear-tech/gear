@@ -28,7 +28,7 @@ async fn main() {
             let reply =
                 msg::send_bytes_for_reply(exec::program_id(), Command::Wait(to).encode(), 0)
                     .expect("send message failed")
-                    .no_more(duration)
+                    .up_to(duration)
                     .await;
 
             if let Err(ContractError::Timeout(..)) = reply {
