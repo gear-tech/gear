@@ -5758,6 +5758,34 @@ fn test_mad_big_prog_instrumentation() {
     })
 }
 
+#[test]
+fn reject_incorrect_binary() {
+    let wat = r#"
+    (module
+        (import "env" "memory" (memory 1))
+        (export "handle" (func $handle))
+        (func $handle
+            i32.const 5
+        )
+    )"#;
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        assert_noop!(
+            Gear::upload_code(
+                RuntimeOrigin::signed(USER_1),
+                ProgramCodeKind::Custom(wat).to_bytes()
+            ),
+            Error::<Test>::FailedToConstructProgram
+        );
+
+        assert_noop!(
+            upload_program_default(USER_1, ProgramCodeKind::Custom(wat)),
+            Error::<Test>::FailedToConstructProgram
+        );
+    });
+}
+
 mod utils {
     #![allow(unused)]
 

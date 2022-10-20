@@ -127,6 +127,8 @@ impl Code {
         R: Rules,
         GetRulesFn: FnMut(&Module) -> R,
     {
+        wasmparser::validate(&raw_code).map_err(|_| CodeError::Decode)?;
+
         let module: Module =
             parity_wasm::deserialize_buffer(&raw_code).map_err(|_| CodeError::Decode)?;
 
@@ -186,13 +188,16 @@ impl Code {
         }
     }
 
-    /// Create the code without checks.
+    /// Create the code without instrumentation or instrumented
+    /// with `ConstantCostRules`. There is also no check for static memory pages.
     pub fn new_raw(
         original_code: Vec<u8>,
         version: u32,
         module: Option<Module>,
         instrument_with_const_rules: bool,
     ) -> Result<Self, CodeError> {
+        wasmparser::validate(&original_code).map_err(|_| CodeError::Decode)?;
+
         let module = module.unwrap_or(
             parity_wasm::deserialize_buffer(&original_code).map_err(|_| CodeError::Decode)?,
         );
