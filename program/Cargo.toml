@@ -23,13 +23,13 @@ base64 = "0.13.0"
 color-eyre = { version = "0.6.2", optional = true }
 dirs = "4.0.0"
 env_logger = "0.9.0"
-futures-util = "0.3.21"
+futures-util = "0.3.25"
 gear-core = { path = "../core" }
 hex = "0.4.3"
 jsonrpsee-client-transport = { version = "^0.14", features = ["ws"] }
 keyring = "1.2.0"
 lazy_static = "1.4.0"
-libp2p = { version = "0.48.0", features = [ "identify" ], optional = true }
+libp2p = { version = "0.49.0", features = [ "identify" ], optional = true }
 log = "0.4.16"
 nacl = "0.5.3"
 parity-scale-codec = "3.1.5"
