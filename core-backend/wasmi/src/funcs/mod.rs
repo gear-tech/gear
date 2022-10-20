@@ -512,9 +512,14 @@ where
                 read_memory_as(&memory_wrap, inheritor_id_ptr)
             };
 
-            host_state_mut!(caller).err = match read_result {
-                Ok(id) => FuncError::Terminated(TerminationReason::Exit(id)),
-                Err(e) => e.into(),
+            let call_result = host_state_mut!(caller).ext.exit();
+
+            host_state_mut!(caller).err = match call_result {
+                Err(e) => FuncError::Core(e),
+                Ok(_) => match read_result {
+                    Ok(id) => FuncError::Terminated(TerminationReason::Exit(id)),
+                    Err(e) => e.into(),
+                }
             };
 
             Err(TrapCode::Unreachable.into())
