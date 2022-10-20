@@ -162,7 +162,7 @@ impl Code {
         if exports.contains(&DispatchKind::Init) || exports.contains(&DispatchKind::Handle) {
             let gas_rules = get_gas_rules(&module);
             let instrumented_module =
-                wasm_instrument::gas_metering::inject(module, &gas_rules, "env")
+                gear_wasm_instrument::inject(module, &gas_rules, "env")
                     .map_err(|_| CodeError::GasInjection)?;
 
             let instrumented = if let Some(limit) = stack_height {
@@ -222,7 +222,7 @@ impl Code {
 
         if exports.contains(&DispatchKind::Init) || exports.contains(&DispatchKind::Handle) {
             if instrument_with_const_rules {
-                let instrumented_module = wasm_instrument::gas_metering::inject(
+                let instrumented_module = gear_wasm_instrument::inject(
                     module,
                     &ConstantCostRules::default(),
                     "env",

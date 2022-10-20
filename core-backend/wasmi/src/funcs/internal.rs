@@ -23,6 +23,38 @@ pub(super) enum Error {
     Trap(Trap),
 }
 
+macro_rules! host_state_mut {
+    ($caller:ident) => {
+        $caller
+            .host_data_mut()
+            .as_mut()
+            .expect("host_state should be set before execution")
+    };
+}
+
+macro_rules! update_globals {
+    ($caller:ident) => {{
+        let (gas, allowance) = host_state_mut!($caller).ext.counters();
+
+        match $caller.get_export(GLOBAL_NAME_GAS)
+            .and_then(Extern::into_global)
+            .and_then(|g| g.set(&mut $caller, Value::I64(gas as i64)).ok())
+            .and_then(|_| $caller.get_export(GLOBAL_NAME_ALLOWANCE))
+            .and_then(Extern::into_global)
+            .and_then(|g| g.set(&mut $caller, Value::I64(allowance as i64)).ok())
+        {
+            Some(_) => Ok(()),
+            None => {
+                host_state_mut!($caller).err = FuncError::HostError;
+                Err(Trap::from(TrapCode::Unreachable))
+            }
+        }
+    }};
+}
+
+pub(super) use host_state_mut;
+pub(super) use update_globals;
+
 pub(super) fn process_call_unit_result<E, CallType>(
     mut caller: Caller<'_, HostState<E>>,
     call: CallType,
@@ -38,7 +70,7 @@ where
         .ok_or(Error::HostStateNone)?;
 
     let call_result = call(&mut host_state.ext);
-    match call_result {
+    let result = match call_result {
         Ok(_) => Ok((0u32,)),
         Err(e) => match e.into_ext_error() {
             Ok(ext_error) => Ok((ext_error.encoded_size() as u32,)),
@@ -47,7 +79,9 @@ where
                 Err(Error::Trap(TrapCode::Unreachable.into()))
             }
         },
-    }
+    };
+
+    update_globals!(caller).map_err(Error::Trap).and(result)
 }
 
 pub(super) fn process_call_result<E, ResultType, CallType, WriteType>(
@@ -68,38 +102,34 @@ where
         .ok_or(Error::HostStateNone)?;
 
     let call_result = call(&mut host_state.ext);
-    let return_value = match call_result {
-        Ok(r) => r,
+    let result = match call_result {
+        Ok(return_value) => {
+            let write_result = {
+                let mut memory_wrap = get_caller_memory(&mut caller, &memory);
+                write(&mut memory_wrap, return_value)
+            };
+
+            match write_result {
+                Ok(_) => Ok((0u32,)),
+                Err(e) => {
+                    host_state_mut!(caller).err = e.into();
+
+                    Err(Error::Trap(TrapCode::Unreachable.into()))
+                }
+            }
+        }
         Err(e) => match e.into_ext_error() {
             Ok(ext_error) => {
-                return Ok((ext_error.encoded_size() as u32,));
+                Ok((ext_error.encoded_size() as u32,))
             }
             Err(e) => {
                 host_state.err = FuncError::Core(e);
-                return Err(Error::Trap(TrapCode::Unreachable.into()));
+                Err(Error::Trap(TrapCode::Unreachable.into()))
             }
         },
     };
 
-    let write_result = {
-        let mut memory_wrap = get_caller_memory(&mut caller, &memory);
-        write(&mut memory_wrap, return_value)
-    };
-
-    match write_result {
-        Ok(_) => Ok((0u32,)),
-        Err(e) => {
-            // this is safe since we own the caller, don't change its host_data
-            // and checked for absence before
-            caller
-                .host_data_mut()
-                .as_mut()
-                .expect("host_data untouched")
-                .err = e.into();
-
-            Err(Error::Trap(TrapCode::Unreachable.into()))
-        }
-    }
+    update_globals!(caller).map_err(Error::Trap).and(result)
 }
 
 pub(super) fn process_call_result_as_ref<E, ResultType, CallType>(
@@ -117,4 +147,47 @@ where
     process_call_result(caller, memory, call, |memory_wrap, result| {
         memory_wrap.write(offset as usize, result.as_ref())
     })
+}
+
+pub(super) fn process_infalliable_call<E, ResultType, CallType, WriteType>(
+    mut caller: Caller<'_, HostState<E>>,
+    memory: WasmiMemory,
+    call: CallType,
+    write: WriteType,
+) -> Result<(), Error>
+where
+    E: Ext + IntoExtInfo<E::Error> + 'static,
+    E::Error: IntoExtError,
+    CallType: FnOnce(&mut E) -> Result<ResultType, <E as Ext>::Error>,
+    WriteType: Fn(&mut MemoryWrapRef<'_, E>, ResultType) -> Result<(), MemoryError>,
+{
+    let host_state = caller
+        .host_data_mut()
+        .as_mut()
+        .ok_or(Error::HostStateNone)?;
+
+    let call_result = call(&mut host_state.ext);
+    let result = match call_result {
+        Ok(return_value) => {
+            let write_result = {
+                let mut memory_wrap = get_caller_memory(&mut caller, &memory);
+                write(&mut memory_wrap, return_value)
+            };
+
+            match write_result {
+                Ok(_) => Ok(()),
+                Err(e) => {
+                    host_state_mut!(caller).err = e.into();
+
+                    Err(Error::Trap(TrapCode::Unreachable.into()))
+                }
+            }
+        }
+        Err(e) => {
+            host_state.err = FuncError::Core(e);
+            Err(Error::Trap(TrapCode::Unreachable.into()))
+        },
+    };
+
+    update_globals!(caller).map_err(Error::Trap).and(result)
 }

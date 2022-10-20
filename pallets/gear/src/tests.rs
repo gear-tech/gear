@@ -5346,7 +5346,7 @@ fn execution_over_blocks() {
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(USER_1),
             in_one_block,
-            Package::new(1024, src).encode(),
+            Package::new(8_192, src).encode(),
             block_gas_limit,
             0,
         ));
@@ -5383,7 +5383,7 @@ fn execution_over_blocks() {
 
         assert!(program_exists(over_blocks.into_origin()));
 
-        let (src, id, expected) = ([0; 32], sha2_512_256(b"42"), 1024);
+        let (src, id, expected) = ([0; 32], sha2_512_256(b"42"), 8_192);
 
         // trigger calculation
         assert_ok!(Gear::send_message(
