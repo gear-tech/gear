@@ -25,7 +25,7 @@ use crate::{
         LOW_BALANCE_USER, USER_1, USER_2, USER_3,
     },
     pallet, BlockGasLimitOf, Config, CostsPerBlockOf, DbWeightOf, Error, Event, GasAllowanceOf,
-    GasHandlerOf, GasInfo, MailboxOf, ReadPerByteCostOf, Schedule, TaskPoolOf, WaitlistOf,
+    GasHandlerOf, GasInfo, MailboxOf, ReadPerByteCostOf, Schedule, WaitlistOf,
 };
 use codec::{Decode, Encode};
 use common::{
