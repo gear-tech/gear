@@ -616,7 +616,7 @@ impl<T: Config> Default for HostFnWeights<T> {
         Self {
             alloc: cost_batched!(alloc),
             gr_reserve_gas: cost_batched!(gr_reserve_gas),
-            gr_unreserve_gas: cost_batched!(gr_unreserve_gas),
+            gr_unreserve_gas: cost!(gr_unreserve_gas),
             gr_gas_available: cost_batched!(gr_gas_available),
             gr_message_id: cost_batched!(gr_message_id),
             gr_origin: cost_batched!(gr_origin),

@@ -1878,7 +1878,7 @@ benchmarks! {
     }
 
     gr_reserve_gas {
-        let r in 0 .. 1;
+        let r in 0 .. API_BENCHMARK_BATCHES;
         let id_bytes = 0_u128.encode();
         let id_len = id_bytes.len();
         let code = WasmModule::<T>::from(ModuleDefinition {
@@ -1895,7 +1895,7 @@ benchmarks! {
                     value: id_bytes,
                 },
             ],
-            handle_body: Some(body::repeated(r, &[
+            handle_body: Some(body::repeated(r * API_BENCHMARK_BATCHES, &[
                 Instruction::I64Const(50_000_000), // gas amount
                 Instruction::I32Const(10), // duration
                 Instruction::I32Const(0), // id ptr
