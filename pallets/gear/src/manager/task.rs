@@ -28,11 +28,11 @@ use common::{
     },
     scheduler::*,
     storage::*,
-    GasTree, Origin,
+    GasTree, Origin, Program,
 };
 use core_processor::common::ExecutionErrorReason;
 use gear_core::{
-    ids::{CodeId, MessageId, ProgramId},
+    ids::{CodeId, MessageId, ProgramId, ReservationId},
     message::ReplyMessage,
 };
 
@@ -77,7 +77,7 @@ where
         // }
 
         // Consuming gas handler for mailboxed message.
-        Pallet::<T>::consume_message(mailboxed.id());
+        Pallet::<T>::consume_and_retrieve(mailboxed.id());
     }
 
     // TODO: Generate system signal (instead of reply?) (issue #647).
@@ -157,7 +157,7 @@ where
         }
 
         // Consuming gas handler for waitlisted message.
-        Pallet::<T>::consume_message(waitlisted.id());
+        Pallet::<T>::consume_and_retrieve(waitlisted.id());
     }
 
     fn remove_paused_program(&mut self, _program_id: ProgramId) {
@@ -185,5 +185,23 @@ where
         } else {
             Pallet::<T>::send_user_message_after_delay(dispatch.into_parts().1);
         }
+    }
+
+    fn remove_gas_reservation(&mut self, program_id: ProgramId, reservation_id: ReservationId) {
+        let program_id = program_id.into_origin();
+        let prog = common::get_program(program_id).unwrap_or_else(|| {
+            unreachable!(
+                "gas reservation removing guaranteed to be called only on existing program"
+            )
+        });
+        if let Program::Active(mut prog) = prog {
+            prog.gas_reservation_map.remove(&reservation_id);
+            common::set_program(program_id, prog);
+        }
+
+        GasHandlerOf::<T>::unlock_all(reservation_id)
+            .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
+
+        Pallet::<T>::consume_and_retrieve(reservation_id);
     }
 }

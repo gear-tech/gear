@@ -58,7 +58,7 @@ gear-program = { path = "../../program", features = [ "cli" ], optional = true }
 substrate-build-script-utils = { version = "3.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
 
 [features]
-default = ["gear-native", "vara-native", "program"]
+default = ["gear-native", "vara-native", "lazy-pages", "program"]
 gear-native = [
 	"service/gear-native",
 	"gear-runtime-test-cli?/gear-native",

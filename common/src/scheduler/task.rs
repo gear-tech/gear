@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use codec::{Decode, Encode, MaxEncodedLen};
-use gear_core::ids::{CodeId, MessageId, ProgramId};
+use gear_core::ids::{CodeId, MessageId, ProgramId, ReservationId};
 use scale_info::TypeInfo;
 
 /// Scheduled task sense and required data for processing action.
@@ -51,6 +51,9 @@ pub enum ScheduledTask<AccountId> {
     ///
     /// The message itself stored in DispatchStash.
     SendDispatch(MessageId),
+
+    /// Remove gas reservation.
+    RemoveGasReservation(ProgramId, ReservationId),
 }
 
 impl<AccountId> ScheduledTask<AccountId> {
@@ -69,6 +72,9 @@ impl<AccountId> ScheduledTask<AccountId> {
             RemovePausedProgram(program_id) => handler.remove_paused_program(program_id),
             WakeMessage(program_id, message_id) => handler.wake_message(program_id, message_id),
             SendDispatch(message_id) => handler.send_dispatch(message_id),
+            RemoveGasReservation(program_id, reservation_id) => {
+                handler.remove_gas_reservation(program_id, reservation_id)
+            }
         }
     }
 }
@@ -95,6 +101,9 @@ pub trait TaskHandler<AccountId> {
 
     // Send delayed message action.
     fn send_dispatch(&mut self, stashed_message_id: MessageId);
+
+    /// Remove gas reservation action.
+    fn remove_gas_reservation(&mut self, program_id: ProgramId, reservation_id: ReservationId);
 }
 
 #[test]

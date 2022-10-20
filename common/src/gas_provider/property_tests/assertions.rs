@@ -99,7 +99,7 @@ fn assert_removed_nodes_have_no_lock(removed_nodes: &RemovedNodes) {
     for node in removed_nodes.values() {
         let lock = node.lock();
 
-        if node.is_detached() {
+        if !node.is_lockable() {
             assert!(lock.is_none());
         } else {
             assert_eq!(lock, Some(0));

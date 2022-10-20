@@ -5758,6 +5758,34 @@ fn test_mad_big_prog_instrumentation() {
     })
 }
 
+#[test]
+fn reject_incorrect_binary() {
+    let wat = r#"
+    (module
+        (import "env" "memory" (memory 1))
+        (export "handle" (func $handle))
+        (func $handle
+            i32.const 5
+        )
+    )"#;
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        assert_noop!(
+            Gear::upload_code(
+                RuntimeOrigin::signed(USER_1),
+                ProgramCodeKind::Custom(wat).to_bytes()
+            ),
+            Error::<Test>::FailedToConstructProgram
+        );
+
+        assert_noop!(
+            upload_program_default(USER_1, ProgramCodeKind::Custom(wat)),
+            Error::<Test>::FailedToConstructProgram
+        );
+    });
+}
+
 mod utils {
     #![allow(unused)]
 
@@ -5785,6 +5813,7 @@ mod utils {
     use gear_core::{
         ids::{CodeId, MessageId, ProgramId},
         message::StoredMessage,
+        reservation::GasReservationMap,
     };
     use gear_core_errors::ExtError;
     use sp_core::H256;
@@ -6238,6 +6267,19 @@ mod utils {
             .last()
             .map(|(msg, _bn)| msg)
             .expect("Element should be")
+    }
+
+    pub(super) fn get_reservation_map(pid: ProgramId) -> Option<GasReservationMap> {
+        let prog = common::get_program(pid.into_origin()).unwrap();
+        if let common::Program::Active(common::ActiveProgram {
+            gas_reservation_map,
+            ..
+        }) = prog
+        {
+            Some(gas_reservation_map)
+        } else {
+            None
+        }
     }
 
     #[derive(Debug, Copy, Clone)]

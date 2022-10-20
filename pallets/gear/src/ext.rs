@@ -23,7 +23,7 @@ use gear_core::{
     costs::RuntimeCosts,
     env::Ext as EnvExt,
     gas::GasAmount,
-    ids::{MessageId, ProgramId},
+    ids::{MessageId, ProgramId, ReservationId},
     memory::{GrowHandler, Memory, PageNumber, WasmPageNumber},
     message::{ExitCode, HandlePacket, InitPacket, ReplyPacket},
 };
@@ -226,6 +226,14 @@ impl EnvExt for LazyPagesExt {
 
     fn gas(&mut self, val: u32) -> Result<(), Self::Error> {
         self.inner.gas(val)
+    }
+
+    fn reserve_gas(&mut self, amount: u64, blocks: u32) -> Result<ReservationId, Self::Error> {
+        self.inner.reserve_gas(amount, blocks)
+    }
+
+    fn unreserve_gas(&mut self, id: ReservationId) -> Result<u64, Self::Error> {
+        self.inner.unreserve_gas(id)
     }
 
     fn gas_available(&mut self) -> Result<u64, Self::Error> {

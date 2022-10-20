@@ -55,7 +55,7 @@ pub use runtime_common::{
 pub use runtime_primitives::{AccountId, Signature};
 use runtime_primitives::{Balance, BlockNumber, Hash, Index, Moment};
 use sp_api::impl_runtime_apis;
-use sp_core::{crypto::KeyTypeId, OpaqueMetadata, H256};
+use sp_core::{crypto::KeyTypeId, ConstU64, OpaqueMetadata, H256};
 use sp_runtime::{
     create_runtime_str, generic, impl_opaque_keys,
     traits::{AccountIdLookup, BlakeTwo256, Block as BlockT, NumberFor, OpaqueKeys},
@@ -99,7 +99,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
     // The version of the runtime specification. A full node will not attempt to use its native
     //   runtime in substitute for the on-chain Wasm runtime unless all of `spec_name`,
     //   `spec_version`, and `authoring_version` are the same between Wasm and native.
-    spec_version: 480,
+    spec_version: 500,
     impl_version: 1,
     apis: RUNTIME_API_VERSIONS,
     transaction_version: 1,
@@ -354,6 +354,7 @@ parameter_types! {
     pub const ReserveThreshold: u32 = 1;
     pub const WaitlistCost: u64 = 100;
     pub const MailboxCost: u64 = 100;
+    pub const ReservationCost: u64 = 100;
 
     pub const OutgoingLimit: u32 = 1024;
     pub const MailboxThreshold: u64 = 3000;
@@ -374,6 +375,7 @@ impl pallet_gear::Config for Runtime {
     type DebugInfo = DebugInfo;
     type CodeStorage = GearProgram;
     type MailboxThreshold = MailboxThreshold;
+    type ReservationsLimit = ConstU64<256>;
     type ReadPerByteCost = ReadPerByteCost;
     type Messenger = GearMessenger;
     type GasProvider = GearGas;
@@ -395,6 +397,7 @@ impl pallet_gear_scheduler::Config for Runtime {
     type ReserveThreshold = ReserveThreshold;
     type WaitlistCost = WaitlistCost;
     type MailboxCost = MailboxCost;
+    type ReservationCost = ReservationCost;
 }
 
 impl pallet_gear_gas::Config for Runtime {

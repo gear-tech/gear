@@ -137,6 +137,7 @@ impl pallet_gear::Config for Test {
     type DebugInfo = ();
     type CodeStorage = GearProgram;
     type MailboxThreshold = ConstU64<3000>;
+    type ReservationsLimit = ConstU64<256>;
     type ReadPerByteCost = ConstU64<10>;
     type Messenger = GearMessenger;
     type GasProvider = GearGas;
@@ -150,6 +151,7 @@ impl pallet_gear_scheduler::Config for Test {
     type ReserveThreshold = ConstU64<1>;
     type WaitlistCost = ConstU64<100>;
     type MailboxCost = ConstU64<100>;
+    type ReservationCost = ConstU64<100>;
 }
 
 impl pallet_gear_gas::Config for Test {

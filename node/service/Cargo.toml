@@ -13,7 +13,7 @@ targets = ["x86_64-unknown-linux-gnu"]
 
 [dependencies]
 codec = { package = "parity-scale-codec", version = "3.1.2", features = ["derive"] }
-futures = "0.3.21"
+futures = "0.3.25"
 futures-timer = "3.0.1"
 hex-literal = "0.3.4"
 jsonrpsee = { version = "0.15.1", features = ["server"] }
