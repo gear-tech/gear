@@ -409,6 +409,20 @@ pub mod pallet {
 
     // ----
 
+    // Private storage for dispatch stash elements.
+    #[pallet::storage]
+    type DispatchStash<T> = StorageMap<_, Identity, MessageId, StoredDispatch>;
+
+    // Public wrap of the dispatch stash elements.
+    common::wrap_storage_map!(
+        storage: DispatchStash,
+        name: DispatchStashWrap,
+        key: MessageId,
+        value: StoredDispatch
+    );
+
+    // ----
+
     // Below goes callbacks, used for queue algorithm.
     //
     // Note, that they are public like storage wrappers
@@ -578,6 +592,7 @@ pub mod pallet {
         type WaitlistFirstKey = ProgramId;
         type WaitlistSecondKey = MessageId;
         type WaitlistedMessage = StoredDispatch;
+        type DispatchStashKey = MessageId;
 
         type Sent = CounterImpl<Self::Capacity, SentWrap<T>>;
 
@@ -618,6 +633,8 @@ pub mod pallet {
             WaitListCallbacks<T>,
             WaitlistKeyGen,
         >;
+
+        type DispatchStash = DispatchStashWrap<T>;
     }
 
     // Gear Messenger Pallet hooks.
