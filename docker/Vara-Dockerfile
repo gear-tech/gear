@@ -8,14 +8,14 @@ COPY . /gear
 RUN apt-get update && apt-get install -y libsecp256k1-dev openssl wget
 RUN wget https://static.rust-lang.org/rustup/archive/1.24.3/x86_64-unknown-linux-gnu/rustup-init
 RUN chmod +x rustup-init && ./rustup-init -y
-RUN cargo build -p gear-node --no-default-features --features=vara-native,lazy-pages --profile $PROFILE
+RUN cargo build -p gear-cli --no-default-features --features=vara-native,lazy-pages --profile $PROFILE
 
 # ===== SECOND STAGE ======
 
 FROM debian:stable-slim
 LABEL description="This is the 2nd stage: a very small image where we copy the Gear binary."
 ARG PROFILE=production
-COPY --from=builder /gear/target/$PROFILE/gear-node /usr/local/bin
+COPY --from=builder /gear/target/$PROFILE/gear /usr/local/bin
 RUN apt-get update && apt-get install -y openssl
 RUN useradd -m -u 1000 -U -s /bin/sh -d /gear gear && \
 	mkdir -p /gear/.local/share && \
@@ -25,4 +25,4 @@ RUN useradd -m -u 1000 -U -s /bin/sh -d /gear gear && \
 
 USER root
 
-CMD ["/usr/local/bin/gear-node"]
+CMD ["/usr/local/bin/gear"]

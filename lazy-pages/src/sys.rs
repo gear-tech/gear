@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Lazy pages signal handler functionality.
+//! Lazy-pages signal handler functionality.
 
 use cfg_if::cfg_if;
 use region::Protection;
@@ -30,19 +30,19 @@ use gear_core::memory::{PageNumber, PAGE_STORAGE_GRANULARITY};
 // so we make here additional checks. If somebody would change these values
 // in runtime, then he also should pay attention to support new values here:
 // 1) must rebuild node after that.
-// 2) must support old runtimes: need to make lazy pages version with old constants values.
+// 2) must support old runtimes: need to make lazy-pages version with old constants values.
 static_assertions::const_assert_eq!(PageNumber::size(), 0x1000);
 static_assertions::const_assert_eq!(PAGE_STORAGE_GRANULARITY, 0x4000);
 
 cfg_if! {
     if #[cfg(windows)] {
         mod windows;
-        pub use windows::*;
+        pub(crate) use windows::*;
     } else if #[cfg(unix)] {
         mod unix;
-        pub use unix::*;
+        pub(crate) use unix::*;
     } else {
-        compile_error!("lazy pages are not supported on your system. Disable `lazy-pages` feature");
+        compile_error!("lazy-pages are not supported on your system. Disable `lazy-pages` feature");
     }
 }
 
@@ -220,7 +220,7 @@ unsafe fn user_signal_handler_internal(
     let num_of_gear_pages_in_one_lazy = lazy_page_size / gear_ps;
 
     let native_addr = info.fault_addr as usize;
-    let wasm_mem_addr = ctx.wasm_mem_addr.ok_or(Error::WasmMemAddrIsNotSet)? as usize;
+    let wasm_mem_addr = ctx.wasm_mem_addr.ok_or(Error::WasmMemAddrIsNotSet)?;
     let wasm_mem_size = ctx.wasm_mem_size.ok_or(Error::WasmMemSizeIsNotSet)?;
     let stack_end = ctx.stack_end_wasm_addr;
     let mut prefix = PagePrefix::new_from_program_prefix(
@@ -327,8 +327,8 @@ unsafe fn user_signal_handler_internal(
     Ok(())
 }
 
-/// User signal handler. Logic depends on lazy pages version.
-/// For the most recent logic see "self::user_signal_handler_internal_v2"
+/// User signal handler. Logic depends on lazy-pages version.
+/// For the most recent logic see "self::user_signal_handler_internal"
 pub unsafe fn user_signal_handler(info: ExceptionInfo) -> Result<(), Error> {
     log::debug!("Interrupted, exception info = {:?}", info);
     LAZY_PAGES_CONTEXT.with(|ctx| user_signal_handler_internal(ctx.borrow_mut(), info))

@@ -62,7 +62,7 @@ impl<'a, T> Drop for MutexGuard<'a, T> {
         unsafe {
             *self.mutex.locked.get() = None;
             if let Some(message_id) = self.mutex.queue.dequeue() {
-                crate::exec::wake(message_id);
+                crate::exec::wake(message_id).expect("Failed to wake the message");
             }
         }
     }

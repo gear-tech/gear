@@ -20,22 +20,36 @@
 //!
 //! Provides API for low-level async implementation.
 
-use crate::{ActorId, MessageId};
+use crate::{error::Result, ActorId, MessageId};
 
 mod sys {
+    use crate::error::SyscallError;
+
     extern "C" {
         pub fn gr_block_height() -> u32;
+
         pub fn gr_block_timestamp() -> u64;
-        pub fn gr_exit(value_dest_ptr: *const u8) -> !;
+
+        pub fn gr_exit(inheritor_id_ptr: *const [u8; 32]) -> !;
+
         pub fn gr_gas_available() -> u64;
-        pub fn gr_program_id(val: *mut u8);
-        pub fn gr_origin(origin_ptr: *mut u8);
+
+        pub fn gr_program_id(program_id_ptr: *mut [u8; 32]);
+
+        pub fn gr_origin(origin_ptr: *mut [u8; 32]);
+
         pub fn gr_leave() -> !;
-        pub fn gr_value_available(val: *mut u8);
+
+        #[allow(improper_ctypes)]
+        pub fn gr_value_available(value_ptr: *mut u128);
+
         pub fn gr_wait() -> !;
-        pub fn gr_wait_no_more(duration: *const u8) -> !;
-        pub fn gr_wait_for(duration: *const u8) -> !;
-        pub fn gr_wake(waker_id_ptr: *const u8);
+
+        pub fn gr_wait_up_to(duration: u32) -> !;
+
+        pub fn gr_wait_for(duration: u32) -> !;
+
+        pub fn gr_wake(message_id_ptr: *const [u8; 32], delay: u32) -> SyscallError;
     }
 }
 
@@ -97,8 +111,8 @@ pub fn block_timestamp() -> u64 {
 ///     exec::exit(msg::source());
 /// }
 /// ```
-pub fn exit(value_destination: ActorId) -> ! {
-    unsafe { sys::gr_exit(value_destination.as_slice().as_ptr()) }
+pub fn exit(inheritor_id: ActorId) -> ! {
+    unsafe { sys::gr_exit(inheritor_id.as_ptr()) }
 }
 
 /// Get the current value of the gas available for execution.
@@ -160,11 +174,11 @@ pub fn leave() -> ! {
 /// }
 /// ```
 pub fn value_available() -> u128 {
-    let mut value_data = [0u8; 16];
-    unsafe {
-        sys::gr_value_available(value_data.as_mut_ptr());
-    }
-    u128::from_le_bytes(value_data)
+    let mut bytes = 0u128.to_le_bytes();
+
+    unsafe { sys::gr_value_available(bytes.as_mut_ptr() as *mut u128) }
+
+    u128::from_le_bytes(bytes)
 }
 
 /// Pause the current message handling.
@@ -197,13 +211,13 @@ pub fn wait() -> ! {
 ///
 /// NOTE: It panics, if given duration couldn't be totally payed.
 pub fn wait_for(duration: u32) -> ! {
-    unsafe { sys::gr_wait_for(duration.to_le_bytes().as_ptr()) }
+    unsafe { sys::gr_wait_for(duration) }
 }
 
 /// Same as [`wait`], but delays handling for maximal amount of blocks
 /// that could be payed, that doesn't exceed given duration.
-pub fn wait_no_more(duration: u32) -> ! {
-    unsafe { sys::gr_wait_no_more(duration.to_le_bytes().as_ptr()) }
+pub fn wait_up_to(duration: u32) -> ! {
+    unsafe { sys::gr_wait_up_to(duration) }
 }
 
 /// Resume previously paused message handling.
@@ -218,15 +232,18 @@ pub fn wait_no_more(duration: u32) -> ! {
 /// ```
 /// use gcore::{exec, MessageId};
 ///
-/// unsafe extern "C" fn handle() {
+/// extern "C" fn handle() {
 ///     // ...
-///     exec::wake(MessageId::default());
+///     exec::wake(MessageId::default()).unwrap();
 /// }
 /// ```
-pub fn wake(waker_id: MessageId) {
-    unsafe {
-        sys::gr_wake(waker_id.as_slice().as_ptr());
-    }
+pub fn wake(message_id: MessageId) -> Result<()> {
+    wake_delayed(message_id, 0)
+}
+
+/// Same as [`wake`], but wakes delayed.
+pub fn wake_delayed(message_id: MessageId, delay: u32) -> Result<()> {
+    unsafe { sys::gr_wake(message_id.as_ptr(), delay).into_result() }
 }
 
 /// Return ID of the current program.
@@ -242,9 +259,11 @@ pub fn wake(waker_id: MessageId) {
 /// }
 /// ```
 pub fn program_id() -> ActorId {
-    let mut actor_id = ActorId::default();
-    unsafe { sys::gr_program_id(actor_id.as_mut_slice().as_mut_ptr()) }
-    actor_id
+    let mut program_id = ActorId::default();
+
+    unsafe { sys::gr_program_id(program_id.as_mut_ptr()) }
+
+    program_id
 }
 
 /// Return the id of original user who initiated communication with blockchain,
@@ -261,7 +280,9 @@ pub fn program_id() -> ActorId {
 /// }
 /// ```
 pub fn origin() -> ActorId {
-    let mut actor_id = ActorId::default();
-    unsafe { sys::gr_origin(actor_id.as_mut_slice().as_mut_ptr()) };
-    actor_id
+    let mut origin = ActorId::default();
+
+    unsafe { sys::gr_origin(origin.as_mut_ptr()) }
+
+    origin
 }

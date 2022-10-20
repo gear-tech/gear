@@ -64,33 +64,38 @@ pub trait Ext {
     fn origin(&mut self) -> Result<ProgramId, Self::Error>;
 
     /// Initialize a new incomplete message for another program and return its handle.
-    fn send_init(&mut self) -> Result<usize, Self::Error>;
+    fn send_init(&mut self) -> Result<u32, Self::Error>;
 
     /// Push an extra buffer into message payload by handle.
-    fn send_push(&mut self, handle: usize, buffer: &[u8]) -> Result<(), Self::Error>;
+    fn send_push(&mut self, handle: u32, buffer: &[u8]) -> Result<(), Self::Error>;
 
     /// Complete message and send it to another program.
-    fn send_commit(&mut self, handle: usize, msg: HandlePacket) -> Result<MessageId, Self::Error>;
+    fn send_commit(
+        &mut self,
+        handle: u32,
+        msg: HandlePacket,
+        delay: u32,
+    ) -> Result<MessageId, Self::Error>;
 
     /// Send message to another program.
-    fn send(&mut self, msg: HandlePacket) -> Result<MessageId, Self::Error> {
+    fn send(&mut self, msg: HandlePacket, delay: u32) -> Result<MessageId, Self::Error> {
         let handle = self.send_init()?;
-        self.send_commit(handle, msg)
+        self.send_commit(handle, msg, delay)
     }
 
     /// Push an extra buffer into reply message.
     fn reply_push(&mut self, buffer: &[u8]) -> Result<(), Self::Error>;
 
     /// Complete reply message and send it to source program.
-    fn reply_commit(&mut self, msg: ReplyPacket) -> Result<MessageId, Self::Error>;
+    fn reply_commit(&mut self, msg: ReplyPacket, delay: u32) -> Result<MessageId, Self::Error>;
 
     /// Produce reply to the current message.
-    fn reply(&mut self, msg: ReplyPacket) -> Result<MessageId, Self::Error> {
-        self.reply_commit(msg)
+    fn reply(&mut self, msg: ReplyPacket, delay: u32) -> Result<MessageId, Self::Error> {
+        self.reply_commit(msg, delay)
     }
 
     /// Get the message id of the initial message.
-    fn reply_to(&mut self) -> Result<Option<MessageId>, Self::Error>;
+    fn reply_to(&mut self) -> Result<MessageId, Self::Error>;
 
     /// Get the source of the message currently being handled.
     fn source(&mut self) -> Result<ProgramId, Self::Error>;
@@ -99,7 +104,7 @@ pub trait Ext {
     fn exit(&mut self) -> Result<(), Self::Error>;
 
     /// Get the exit code of the message being processed.
-    fn exit_code(&mut self) -> Result<Option<ExitCode>, Self::Error>;
+    fn exit_code(&mut self) -> Result<ExitCode, Self::Error>;
 
     /// Get the id of the message currently being handled.
     fn message_id(&mut self) -> Result<MessageId, Self::Error>;
@@ -156,148 +161,18 @@ pub trait Ext {
 
     /// Interrupt the program and reschedule execution for maximum,
     /// but not more than duration.
-    fn wait_no_more(&mut self, duration: u32) -> Result<(), Self::Error>;
+    fn wait_up_to(&mut self, duration: u32) -> Result<bool, Self::Error>;
 
     /// Wake the waiting message and move it to the processing queue.
-    fn wake(&mut self, waker_id: MessageId) -> Result<(), Self::Error>;
+    fn wake(&mut self, waker_id: MessageId, delay: u32) -> Result<(), Self::Error>;
 
     /// Send init message to create a new program
-    fn create_program(&mut self, packet: InitPacket) -> Result<ProgramId, Self::Error>;
+    fn create_program(
+        &mut self,
+        packet: InitPacket,
+        delay: u32,
+    ) -> Result<(MessageId, ProgramId), Self::Error>;
 
     /// Return the set of functions that are forbidden to be called.
     fn forbidden_funcs(&self) -> &BTreeSet<&'static str>;
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use core::fmt;
-
-    #[derive(Debug)]
-    struct AllocError;
-
-    impl fmt::Display for AllocError {
-        fn fmt(&self, _f: &mut fmt::Formatter) -> fmt::Result {
-            unreachable!()
-        }
-    }
-
-    impl CoreError for AllocError {}
-
-    /// Struct with internal value to interact with ExtCarrier
-    #[derive(Debug, PartialEq, Eq, Clone, Default)]
-    struct ExtImplementedStruct(BTreeSet<&'static str>);
-
-    /// Empty Ext implementation for test struct
-    impl Ext for ExtImplementedStruct {
-        type Error = AllocError;
-
-        fn alloc(
-            &mut self,
-            _pages: WasmPageNumber,
-            _mem: &mut impl Memory,
-        ) -> Result<WasmPageNumber, Self::Error> {
-            Err(AllocError)
-        }
-        fn block_height(&mut self) -> Result<u32, Self::Error> {
-            Ok(0)
-        }
-        fn block_timestamp(&mut self) -> Result<u64, Self::Error> {
-            Ok(0)
-        }
-        fn origin(&mut self) -> Result<ProgramId, Self::Error> {
-            Ok(ProgramId::from(0))
-        }
-        fn send_init(&mut self) -> Result<usize, Self::Error> {
-            Ok(0)
-        }
-        fn send_push(&mut self, _handle: usize, _buffer: &[u8]) -> Result<(), Self::Error> {
-            Ok(())
-        }
-        fn reply_commit(&mut self, _msg: ReplyPacket) -> Result<MessageId, Self::Error> {
-            Ok(MessageId::default())
-        }
-        fn reply_push(&mut self, _buffer: &[u8]) -> Result<(), Self::Error> {
-            Ok(())
-        }
-        fn send_commit(
-            &mut self,
-            _handle: usize,
-            _msg: HandlePacket,
-        ) -> Result<MessageId, Self::Error> {
-            Ok(MessageId::default())
-        }
-        fn reply_to(&mut self) -> Result<Option<MessageId>, Self::Error> {
-            Ok(None)
-        }
-        fn source(&mut self) -> Result<ProgramId, Self::Error> {
-            Ok(ProgramId::from(0))
-        }
-        fn exit(&mut self) -> Result<(), Self::Error> {
-            Ok(())
-        }
-        fn exit_code(&mut self) -> Result<Option<ExitCode>, Self::Error> {
-            Ok(None)
-        }
-        fn message_id(&mut self) -> Result<MessageId, Self::Error> {
-            Ok(0.into())
-        }
-        fn program_id(&mut self) -> Result<ProgramId, Self::Error> {
-            Ok(0.into())
-        }
-        fn free(&mut self, _page: WasmPageNumber) -> Result<(), Self::Error> {
-            Ok(())
-        }
-        fn debug(&mut self, _data: &str) -> Result<(), Self::Error> {
-            Ok(())
-        }
-        fn read(&mut self) -> Result<&[u8], Self::Error> {
-            Ok(&[])
-        }
-        fn size(&mut self) -> Result<usize, Self::Error> {
-            Ok(0)
-        }
-        fn gas(&mut self, _amount: u32) -> Result<(), Self::Error> {
-            Ok(())
-        }
-        fn charge_gas(&mut self, _amount: u64) -> Result<(), Self::Error> {
-            Ok(())
-        }
-        fn charge_gas_runtime(&mut self, _costs: RuntimeCosts) -> Result<(), Self::Error> {
-            Ok(())
-        }
-        fn refund_gas(&mut self, _amount: u64) -> Result<(), Self::Error> {
-            Ok(())
-        }
-        fn gas_available(&mut self) -> Result<u64, Self::Error> {
-            Ok(1_000_000)
-        }
-        fn value(&mut self) -> Result<u128, Self::Error> {
-            Ok(0)
-        }
-        fn value_available(&mut self) -> Result<u128, Self::Error> {
-            Ok(1_000_000)
-        }
-        fn leave(&mut self) -> Result<(), Self::Error> {
-            Ok(())
-        }
-        fn wait(&mut self) -> Result<(), Self::Error> {
-            Ok(())
-        }
-        fn wait_for(&mut self, _duration: u32) -> Result<(), Self::Error> {
-            Ok(())
-        }
-        fn wait_no_more(&mut self, _duration: u32) -> Result<(), Self::Error> {
-            Ok(())
-        }
-        fn wake(&mut self, _waker_id: MessageId) -> Result<(), Self::Error> {
-            Ok(())
-        }
-        fn create_program(&mut self, _packet: InitPacket) -> Result<ProgramId, Self::Error> {
-            Ok(Default::default())
-        }
-        fn forbidden_funcs(&self) -> &BTreeSet<&'static str> {
-            &self.0
-        }
-    }
 }

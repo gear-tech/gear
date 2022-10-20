@@ -4,13 +4,11 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "upgrade": "node processingMessageWithRuntimeUpgrade.js",
-    "weights": "node infiniteLoop.js",
-    "uploads": "node harmlessUploadDemos.js"
+    "upgrade": "node processingMessageWithRuntimeUpgrade.js"
   },
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "@polkadot/api": "^8.14.1"
+    "@polkadot/api": "^9.5.1"
   }
 }

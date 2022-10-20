@@ -28,7 +28,9 @@ use alloc::{
     collections::{BTreeMap, BTreeSet},
     string::ToString,
 };
-use gear_backend_common::{BackendReport, Environment, IntoExtInfo, TerminationReason};
+use gear_backend_common::{
+    BackendReport, Environment, GetGasAmount, IntoExtInfo, TerminationReason,
+};
 use gear_core::{
     env::Ext as EnvExt,
     gas::{ChargeResult, GasAllowanceCounter, GasCounter, ValueCounter},
@@ -36,6 +38,65 @@ use gear_core::{
     memory::{AllocationsContext, Memory, PageBuf, PageNumber, WasmPageNumber},
     message::{ContextSettings, IncomingDispatch, MessageContext},
 };
+
+pub(crate) enum ChargeForBytesResult {
+    Ok,
+    BlockGasExceeded,
+    GasExceeded,
+}
+
+/// Calculates gas amount required to charge for program loading.
+pub fn calculate_gas_for_program(read_cost: u64, _per_byte_cost: u64) -> u64 {
+    read_cost
+}
+
+/// Calculates gas amount required to charge for code loading.
+pub fn calculate_gas_for_code(read_cost: u64, per_byte_cost: u64, code_len_bytes: u64) -> u64 {
+    read_cost.saturating_add(code_len_bytes.saturating_mul(per_byte_cost))
+}
+
+fn charge_gas_for_bytes(
+    amount: u64,
+    gas_counter: &mut GasCounter,
+    gas_allowance_counter: &mut GasAllowanceCounter,
+) -> ChargeForBytesResult {
+    if gas_allowance_counter.charge(amount) != ChargeResult::Enough {
+        return ChargeForBytesResult::BlockGasExceeded;
+    }
+
+    if gas_counter.charge(amount) != ChargeResult::Enough {
+        return ChargeForBytesResult::GasExceeded;
+    }
+
+    ChargeForBytesResult::Ok
+}
+
+pub(crate) fn charge_gas_for_program(
+    read_cost: u64,
+    per_byte_cost: u64,
+    gas_counter: &mut GasCounter,
+    gas_allowance_counter: &mut GasAllowanceCounter,
+) -> ChargeForBytesResult {
+    charge_gas_for_bytes(
+        calculate_gas_for_program(read_cost, per_byte_cost),
+        gas_counter,
+        gas_allowance_counter,
+    )
+}
+
+pub(crate) fn charge_gas_for_code(
+    read_cost: u64,
+    per_byte_cost: u64,
+    code_len_bytes: u32,
+    gas_counter: &mut GasCounter,
+    gas_allowance_counter: &mut GasAllowanceCounter,
+) -> ChargeForBytesResult {
+    charge_gas_for_bytes(
+        calculate_gas_for_code(read_cost, per_byte_cost, code_len_bytes.into()),
+        gas_counter,
+        gas_allowance_counter,
+    )
+}
 
 /// Make checks that everything with memory goes well.
 fn check_memory<'a>(
@@ -59,6 +120,27 @@ fn check_memory<'a>(
             static_pages
         );
         return Err(ExecutionErrorReason::InsufficientMemorySize);
+    }
+
+    Ok(())
+}
+
+pub(crate) fn charge_gas_for_instantiation(
+    gas_per_byte: u64,
+    code_length: u32,
+    gas_counter: &mut GasCounter,
+    gas_allowance_counter: &mut GasAllowanceCounter,
+) -> Result<(), ExecutionErrorReason> {
+    let amount = gas_per_byte * code_length as u64;
+
+    log::trace!("Charge {} for module instantiation", amount);
+
+    if gas_allowance_counter.charge(amount) != ChargeResult::Enough {
+        return Err(ExecutionErrorReason::ModuleInstantiationBlockGasExceeded);
+    }
+
+    if gas_counter.charge(amount) != ChargeResult::Enough {
+        return Err(ExecutionErrorReason::ModuleInstantiationGasExceeded);
     }
 
     Ok(())
@@ -154,8 +236,7 @@ fn prepare_memory<A: ProcessorExt, M: Memory>(
         if !pages_data.is_empty() {
             return Err(ExecutionErrorReason::InitialPagesContainsDataInLazyPagesMode);
         }
-        A::lazy_pages_init_for_program(mem, program_id, stack_end)
-            .map_err(|err| ExecutionErrorReason::LazyPagesInitFailed(err.to_string()))?;
+        A::lazy_pages_init_for_program(mem, program_id, stack_end);
     } else {
         // If we executes without lazy pages, then we have to save all initial data for static pages,
         // in order to be able to identify pages, which has been changed during execution.
@@ -226,7 +307,10 @@ fn get_pages_to_be_updated<A: ProcessorExt>(
 
 #[allow(clippy::result_large_err)]
 /// Execute wasm with dispatch and return dispatch result.
-pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environment<A>>(
+pub fn execute_wasm<
+    A: ProcessorExt + EnvExt + IntoExtInfo<<A as EnvExt>::Error> + 'static,
+    E: Environment<A>,
+>(
     balance: u128,
     dispatch: IncomingDispatch,
     context: WasmExecutionContext,
@@ -269,7 +353,7 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
         AllocationsContext::new(allocations.clone(), static_pages, settings.max_pages());
 
     // Creating message context.
-    let message_context = MessageContext::new_with_settings(
+    let message_context = MessageContext::new(
         dispatch.message().clone(),
         program_id,
         dispatch.context().clone(),
@@ -299,16 +383,17 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
     };
 
     // Creating externalities.
-    let mut ext = A::new(context);
+    let ext = A::new(context);
 
     // Execute program in backend env.
-    let (termination, memory) = match E::execute(
-        &mut ext,
-        program.raw_code(),
-        program.code().exports().clone(),
-        memory_size,
-        &kind,
-        |memory, stack_end| {
+    let f = || {
+        let env = E::new(
+            ext,
+            program.raw_code(),
+            program.code().exports().clone(),
+            memory_size,
+        )?;
+        env.execute(&kind, |memory, stack_end| {
             prepare_memory::<A, E::Memory>(
                 program_id,
                 &mut pages_initial_data,
@@ -316,29 +401,26 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
                 stack_end,
                 memory,
             )
-        },
-    ) {
+        })
+    };
+    let (termination, memory, ext) = match f() {
         Ok(BackendReport {
             termination_reason: termination,
-            memory_wrap: memory,
+            memory_wrap: mut memory,
+            ext,
         }) => {
             // released pages initial data will be added to `pages_initial_data` after execution.
             if A::LAZY_PAGES_ENABLED {
-                if let Err(e) = A::lazy_pages_post_execution_actions(&memory) {
-                    return Err(ExecutionError {
-                        program_id,
-                        gas_amount: ext.into_gas_amount(),
-                        reason: ExecutionErrorReason::Backend(e.to_string()),
-                    });
-                }
+                A::lazy_pages_post_execution_actions(&mut memory);
             }
-            (termination, memory)
+
+            (termination, memory, ext)
         }
 
         Err(e) => {
             return Err(ExecutionError {
                 program_id,
-                gas_amount: ext.into_gas_amount(),
+                gas_amount: e.gas_amount(),
                 reason: ExecutionErrorReason::Backend(e.to_string()),
             })
         }
@@ -375,7 +457,9 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
 
             DispatchResultKind::Trap(explanation)
         }
-        TerminationReason::Wait(duration) => DispatchResultKind::Wait(duration),
+        TerminationReason::Wait(duration, waited_type) => {
+            DispatchResultKind::Wait(duration, waited_type)
+        }
         TerminationReason::GasAllowanceExceeded => DispatchResultKind::GasAllowanceExceed,
     };
 

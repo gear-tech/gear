@@ -22,7 +22,7 @@
 //! and extensive data about actions happen.
 
 use codec::{Decode, Encode};
-use gear_core::ids::MessageId;
+use gear_core::{ids::MessageId, message::MessageWaitedType};
 use primitive_types::H256;
 use scale_info::TypeInfo;
 
@@ -38,6 +38,8 @@ pub enum Entry {
     Handle,
     /// Handle reply entry point.
     Reply(MessageId),
+    /// System signal entry point.
+    Signal,
 }
 
 /// Status of dispatch dequeue and execution.
@@ -94,6 +96,25 @@ pub enum Reason<R: RuntimeReason, S: SystemReason> {
 pub enum MessageWaitedRuntimeReason {
     /// Program called `gr_wait` while executing message.
     WaitCalled,
+    /// Program called `gr_wait_for` while executing message.
+    WaitForCalled,
+    /// Program called `gr_wait_up_to` with insufficient gas for full
+    /// duration while executing message.
+    WaitUpToCalled,
+    /// Program called `gr_wait_up_to` with enough gas for full duration
+    /// storing while executing message.
+    WaitUpToCalledFull,
+}
+
+impl From<MessageWaitedType> for MessageWaitedRuntimeReason {
+    fn from(src: MessageWaitedType) -> Self {
+        match src {
+            MessageWaitedType::Wait => MessageWaitedRuntimeReason::WaitCalled,
+            MessageWaitedType::WaitFor => MessageWaitedRuntimeReason::WaitForCalled,
+            MessageWaitedType::WaitUpTo => MessageWaitedRuntimeReason::WaitUpToCalled,
+            MessageWaitedType::WaitUpToFull => MessageWaitedRuntimeReason::WaitUpToCalledFull,
+        }
+    }
 }
 
 /// System reason for messages waiting.

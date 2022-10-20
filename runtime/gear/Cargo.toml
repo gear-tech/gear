@@ -52,6 +52,7 @@ frame-system-benchmarking = { version = "4.0.0-dev", default-features = false, g
 hex-literal = { version = "0.3.4", optional = true }
 
 # Internal deps
+common = { package = "gear-common", version = "0.1.0", default-features = false, path = "../../common" }
 runtime-common = { package = "gear-runtime-common", version = "0.1.0", default-features = false, path = "../common" }
 pallet-gear-scheduler = { version = "1.0.0", default-features = false, path = "../../pallets/gear-scheduler" }
 pallet-gear-messenger = { version = "1.0.0", default-features = false, path = "../../pallets/gear-messenger" }
@@ -61,7 +62,6 @@ pallet-gear-debug = { version = "2.0.0", default-features = false, path = "../..
 pallet-gear-gas = { version = "2.0.0", default-features = false, path = "../../pallets/gas" }
 pallet-gear-payment = { version = "0.1.0", default-features = false, path = "../../pallets/payment" }
 pallet-gear-rpc-runtime-api = { version = "2.0.0", default-features = false, path = "../../pallets/gear/rpc/runtime-api" }
-gear-common = { version = "0.1.0", default-features = false, path = "../../common" }
 runtime-primitives = { package = "gear-runtime-primitives", version = "0.1.0", default-features = false, path = "../primitives" }
 
 [build-dependencies]
@@ -71,9 +71,12 @@ substrate-wasm-builder = { version = "5.0.0-dev", git = "https://github.com/gear
 default = ["std"]
 std = [
 	"codec/std",
+	"common/std",
+ 	"frame-try-runtime?/std",
+ 	"frame-system-benchmarking?/std",
+ 	"frame-benchmarking?/std",
 	"frame-executive/std",
 	"frame-support/std",
-	"frame-try-runtime/std",
 	"frame-system/std",
 	"frame-system-rpc-runtime-api/std",
 	"pallet-authorship/std",
@@ -82,11 +85,10 @@ std = [
 	"pallet-gear-program/std",
 	"pallet-gear-scheduler/std",
 	"pallet-gear/std",
-	"pallet-gear-debug/std",
+	"pallet-gear-debug?/std",
 	"pallet-gear-gas/std",
 	"pallet-gear-payment/std",
 	"pallet-gear-rpc-runtime-api/std",
-	"gear-common/std",
 	"runtime-primitives/std",
 	"pallet-grandpa/std",
 	"pallet-session/std",
@@ -110,14 +112,14 @@ std = [
 	"sp-version/std",
 ]
 runtime-benchmarks = [
-	"frame-benchmarking",
+	"frame-benchmarking/runtime-benchmarks",
 	"frame-support/runtime-benchmarks",
 	"frame-system/runtime-benchmarks",
-	"frame-system-benchmarking",
+	"frame-system-benchmarking/runtime-benchmarks",
 	"hex-literal",
 	"pallet-balances/runtime-benchmarks",
 	"pallet-timestamp/runtime-benchmarks",
-  	"pallet-utility/runtime-benchmarks",
+	"pallet-utility/runtime-benchmarks",
 	"pallet-gear/runtime-benchmarks",
 	"pallet-gear-program/runtime-benchmarks",
 	"sp-runtime/runtime-benchmarks",
@@ -126,6 +128,15 @@ try-runtime = [
 	"frame-executive/try-runtime",
 	"frame-try-runtime",
 	"frame-system/try-runtime",
+	"frame-support/try-runtime",
+	"pallet-gear/try-runtime",
+	"pallet-gear-messenger/try-runtime",
+	"pallet-gear-payment/try-runtime",
+	"pallet-gear-program/try-runtime",
+	"pallet-gear-gas/try-runtime",
+	"pallet-gear-scheduler/try-runtime",
+	"pallet-gear-debug?/try-runtime",
+	"pallet-authorship/try-runtime",
 	"pallet-babe/try-runtime",
 	"pallet-balances/try-runtime",
 	"pallet-grandpa/try-runtime",
@@ -133,9 +144,11 @@ try-runtime = [
 	"pallet-sudo/try-runtime",
 	"pallet-timestamp/try-runtime",
 	"pallet-transaction-payment/try-runtime",
+	"pallet-utility/try-runtime",
 ]
 debug-mode = ["pallet-gear-debug"]
 lazy-pages = [
 	"pallet-gear/lazy-pages",
+	"pallet-gear-payment/lazy-pages",
 	"pallet-gear-debug?/lazy-pages",
 ]

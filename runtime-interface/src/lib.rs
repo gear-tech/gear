@@ -110,11 +110,11 @@ fn mprotect_mem_interval_except_pages(
         unsafe { sys_mprotect_interval(addr, size, !protect, !protect, false) }
     };
 
-    if start_offset as usize > mem_size {
+    if start_offset > mem_size {
         return Err(MprotectError::OffsetOverflow(start_offset, mem_size));
     }
 
-    let mut interval_offset = start_offset as usize;
+    let mut interval_offset = start_offset;
     for page in except_pages {
         let page_offset = page.offset();
         if page_offset > interval_offset {
@@ -133,7 +133,7 @@ fn mprotect_mem_interval_except_pages(
 /// Note: name is expanded as gear_ri
 #[runtime_interface]
 pub trait GearRI {
-    /// Init lazy pages for `on_idle`.
+    /// Init lazy-pages.
     /// Returns whether initialization was successful.
     fn init_lazy_pages() -> bool {
         use lazy_pages::{DefaultUserSignalHandler, LazyPagesVersion};

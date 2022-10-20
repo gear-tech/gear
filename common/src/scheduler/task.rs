@@ -17,7 +17,10 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use codec::{Decode, Encode};
-use gear_core::ids::{CodeId, MessageId, ProgramId};
+use gear_core::{
+    ids::{CodeId, MessageId, ProgramId},
+    message::StoredDispatch,
+};
 use scale_info::TypeInfo;
 
 /// Scheduled task sense and required data for processing action.
@@ -44,6 +47,9 @@ pub enum ScheduledTask<AccountId> {
     // -----
     /// Delayed wake of the message at concrete block.
     WakeMessage(ProgramId, MessageId),
+
+    /// Delayed message sending.
+    SendDispatch(StoredDispatch),
 }
 
 impl<AccountId> ScheduledTask<AccountId> {
@@ -61,6 +67,7 @@ impl<AccountId> ScheduledTask<AccountId> {
             }
             RemovePausedProgram(program_id) => handler.remove_paused_program(program_id),
             WakeMessage(program_id, message_id) => handler.wake_message(program_id, message_id),
+            SendDispatch(dispatch) => handler.send_dispatch(dispatch),
         }
     }
 }
@@ -84,4 +91,7 @@ pub trait TaskHandler<AccountId> {
     // -----
     /// Wake message action.
     fn wake_message(&mut self, program_id: ProgramId, message_id: MessageId);
+
+    // Send delayed message action.
+    fn send_dispatch(&mut self, dispatch: StoredDispatch);
 }
