@@ -1,7 +1,7 @@
 // This file is part of Gear.
 
-// Copyright (C) 2022 Gear Technologies Inc.
-// SPDX-License-Identifier: GPL-3.0-or-lat&er WITH Classpath-exception-2.0
+// Copyright (C) 2021-2022 Gear Technologies Inc.
+// SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
@@ -16,13 +16,6 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use gear_core::env::Ext;
-
-use crate::funcs::FuncError;
-
-pub type HostState<E> = Option<State<E>>;
-
-pub struct State<E: Ext> {
-    pub ext: E,
-    pub err: FuncError<E::Error>,
+fn main() {
+    gear_wasm_builder::build();
 }

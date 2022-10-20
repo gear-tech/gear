@@ -23,7 +23,7 @@ base64 = "0.13.0"
 color-eyre = { version = "0.6.2", optional = true }
 dirs = "4.0.0"
 env_logger = "0.9.0"
-futures-util = "0.3.21"
+futures-util = "0.3.25"
 gear-core = { path = "../core" }
 hex = "0.4.3"
 jsonrpsee-client-transport = { version = "^0.14", features = ["ws"] }
@@ -52,17 +52,36 @@ cfg-if = "1"
 demo-meta = { path = "../examples/binaries/meta" }
 
 [build-dependencies]
-gear-runtime = { path = "../runtime/gear" }
+gear-runtime = { path = "../runtime/gear", optional = true }
+vara-runtime = { path = "../runtime/vara", optional = true }
 frame-metadata = "15.0.0"
 parity-scale-codec = "3.1.5"
 subxt-codegen = "0.22.0"
 syn = "1"
 
 [features]
-default = [ ]
+default = [ "gear" ]
 bin = [ "cli" ]
 cli = [ "color-eyre", "clap" ]
 node-key = [ "libp2p" ]
+gear = [ "gear-runtime" ]
+vara = [ "vara-runtime" ]
+debug-mode = [
+  "gear-runtime?/debug-mode",
+  "vara-runtime?/debug-mode"
+]
+lazy-pages = [
+  "gear-runtime?/lazy-pages",
+  "vara-runtime?/lazy-pages"
+]
+runtime-benchmarks = [
+  "gear-runtime?/runtime-benchmarks",
+  "vara-runtime?/runtime-benchmarks"
+]
+try-runtime = [
+  "gear-runtime?/try-runtime",
+  "vara-runtime?/try-runtime"
+]
 
 [package.metadata.docs.rs]
 all-features = true

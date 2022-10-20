@@ -24,7 +24,6 @@
 use crate::{weights::WeightInfo, Config};
 
 use codec::{Decode, Encode};
-use frame_support::DefaultNoBound;
 use gear_core::{code, costs::HostFnWeights as CoreHostFnWeights};
 use pallet_gear_proc_macro::{ScheduleDebug, WeightDebug};
 use scale_info::TypeInfo;
@@ -76,7 +75,7 @@ pub const INSTR_BENCHMARK_BATCH_SIZE: u32 = 100;
 /// changes are made to its values.
 #[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "std", serde(bound(serialize = "", deserialize = "")))]
-#[derive(Clone, Encode, Decode, PartialEq, Eq, ScheduleDebug, DefaultNoBound, TypeInfo)]
+#[derive(Clone, Encode, Decode, PartialEq, Eq, ScheduleDebug, TypeInfo)]
 #[scale_info(skip_type_params(T))]
 pub struct Schedule<T: Config> {
     /// Describes the upper limits on various metrics.
@@ -90,6 +89,9 @@ pub struct Schedule<T: Config> {
 
     /// The weights for memory interaction.
     pub memory_weights: MemoryWeights<T>,
+
+    /// WASM module instantiation per byte cost.
+    pub module_instantiation_per_byte: u64,
 }
 
 /// Describes the upper limits on various metrics.
@@ -263,6 +265,12 @@ pub struct InstructionWeights<T: Config> {
 pub struct HostFnWeights<T: Config> {
     /// Weight of calling `alloc`.
     pub alloc: u64,
+
+    /// Weight of calling `gr_reserve_gas`.
+    pub gr_reserve_gas: u64,
+
+    /// Weight of calling `gr_unreserve_gas`
+    pub gr_unreserve_gas: u64,
 
     /// Weight of calling `gr_gas_available`.
     pub gr_gas_available: u64,
@@ -471,6 +479,18 @@ macro_rules! cost_byte_batched {
     };
 }
 
+impl<T: Config> Default for Schedule<T> {
+    fn default() -> Self {
+        Self {
+            limits: Default::default(),
+            instruction_weights: Default::default(),
+            host_fn_weights: Default::default(),
+            memory_weights: Default::default(),
+            module_instantiation_per_byte: cost_byte!(instantiate_module_per_kb),
+        }
+    }
+}
+
 impl Default for Limits {
     fn default() -> Self {
         Self {
@@ -552,6 +572,8 @@ impl<T: Config> HostFnWeights<T> {
     pub fn into_core(self) -> CoreHostFnWeights {
         CoreHostFnWeights {
             alloc: self.alloc,
+            gr_reserve_gas: self.gr_reserve_gas,
+            gr_unreserve_gas: self.gr_unreserve_gas,
             gr_gas_available: self.gr_gas_available,
             gr_message_id: self.gr_message_id,
             gr_origin: self.gr_origin,
@@ -593,6 +615,8 @@ impl<T: Config> Default for HostFnWeights<T> {
     fn default() -> Self {
         Self {
             alloc: cost_batched!(alloc),
+            gr_reserve_gas: cost_batched!(gr_reserve_gas),
+            gr_unreserve_gas: cost!(gr_unreserve_gas),
             gr_gas_available: cost_batched!(gr_gas_available),
             gr_message_id: cost_batched!(gr_message_id),
             gr_origin: cost_batched!(gr_origin),

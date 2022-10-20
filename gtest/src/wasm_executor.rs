@@ -32,13 +32,15 @@ use gear_core::{
     env::Ext as ExtTrait,
     gas::{GasAllowanceCounter, GasCounter, ValueCounter},
     memory::{AllocationsContext, Memory, PageBuf, PageNumber, WasmPageNumber},
-    message::{IncomingMessage, MessageContext, Payload},
+    message::{ContextSettings, IncomingMessage, MessageContext, Payload},
     program::Program,
+    reservation::GasReserver,
 };
 use std::{collections::BTreeMap, mem};
 
 use crate::{
-    manager::ExtManager, Result, TestError, MAILBOX_THRESHOLD, RESERVE_FOR, WAITLIST_COST,
+    manager::ExtManager, Result, TestError, MAILBOX_THRESHOLD, MAX_RESERVATIONS, RESERVATION_COST,
+    RESERVE_FOR, WAITLIST_COST, WRITE_COST,
 };
 
 /// Binary meta-functions executor for testing purposes
@@ -143,9 +145,12 @@ impl WasmExecutor {
     }
 
     pub(crate) fn build_ext(program: &Program, payload: Payload) -> Ext {
+        let message =
+            IncomingMessage::new(Default::default(), Default::default(), payload, 0, 0, None);
         Ext::new(ProcessorContext {
             gas_counter: GasCounter::new(u64::MAX),
             gas_allowance_counter: GasAllowanceCounter::new(u64::MAX),
+            gas_reserver: GasReserver::new(message.id(), 0, Default::default(), MAX_RESERVATIONS),
             value_counter: ValueCounter::new(u128::MAX),
             allocations_context: AllocationsContext::new(
                 program.get_allocations().clone(),
@@ -153,9 +158,10 @@ impl WasmExecutor {
                 WasmPageNumber(512u32),
             ),
             message_context: MessageContext::new(
-                IncomingMessage::new(Default::default(), Default::default(), payload, 0, 0, None),
+                message,
                 program.id(),
                 None,
+                ContextSettings::new(WRITE_COST * 2, WRITE_COST * 3, WRITE_COST * 2, 1024),
             ),
             block_info: Default::default(),
             config: Default::default(),
@@ -168,6 +174,7 @@ impl WasmExecutor {
             mailbox_threshold: MAILBOX_THRESHOLD,
             waitlist_cost: WAITLIST_COST,
             reserve_for: RESERVE_FOR,
+            reservation: RESERVATION_COST,
         })
     }
 

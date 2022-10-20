@@ -27,7 +27,7 @@ use crate::{
         LOW_BALANCE_USER, USER_1, USER_2, USER_3,
     },
     pallet, BlockGasLimitOf, Config, CostsPerBlockOf, DbWeightOf, Error, Event, GasAllowanceOf,
-    GasHandlerOf, GasInfo, MailboxOf, ReadPerByteCostOf, WaitlistOf,
+    GasHandlerOf, GasInfo, MailboxOf, ReadPerByteCostOf, Schedule, WaitlistOf,
 };
 use codec::{Decode, Encode};
 use common::{
@@ -46,7 +46,7 @@ use frame_support::{
     sp_runtime::traits::{TypedGet, Zero},
     traits::Currency,
 };
-use frame_system::{pallet_prelude::BlockNumberFor, Pallet as SystemPallet};
+use frame_system::pallet_prelude::BlockNumberFor;
 use gear_backend_common::{StackEndError, TrapExplanation};
 use gear_core::{
     code::{self, Code},
@@ -1513,8 +1513,8 @@ fn block_gas_limit_works() {
         assert_succeed(succeed2);
         assert_failed(
             failed1,
-            ExecutionErrorReason::Ext(TrapExplanation::Core(ExtError::Message(
-                MessageError::NotEnoughGas,
+            ExecutionErrorReason::Ext(TrapExplanation::Core(ExtError::Execution(
+                ExecutionError::GasLimitExceeded,
             ))),
         );
         assert_failed(
@@ -2862,6 +2862,70 @@ fn test_different_waits_fail() {
     });
 }
 
+// TODO:
+//
+// introduce new tests for this in #1485
+#[test]
+fn test_requeue_after_wait_for_timeout() {
+    use demo_waiter::{Command, WASM_BINARY};
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
+            100_000_000u64,
+            0u128
+        ));
+
+        let program_id = get_last_program_id();
+
+        run_to_next_block(None);
+
+        let duration = 10;
+        let payload = Command::SendAndWaitFor(duration, USER_1.into()).encode();
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            program_id,
+            payload,
+            2_500_000_000,
+            0,
+        ));
+
+        // Fast forward blocks.
+        let message_id = get_last_message_id();
+        run_to_next_block(None);
+        let now = System::block_number();
+
+        System::set_block_number(duration as u64 + now - 1);
+        Gear::set_block_number((duration as u64 + now - 1).try_into().unwrap());
+
+        // Clean previous events and mailbox.
+        System::reset_events();
+        MailboxOf::<Test>::clear();
+        run_to_next_block(None);
+
+        // `MessageWoken` dispatched.
+        System::assert_has_event(MockRuntimeEvent::Gear(Event::MessageWoken {
+            id: message_id,
+            reason: Reason::Runtime(MessageWokenRuntimeReason::WakeCalled),
+        }));
+
+        // Message waited again.
+        System::assert_has_event(MockRuntimeEvent::Gear(Event::MessageWaited {
+            id: message_id,
+            origin: None,
+            reason: Reason::Runtime(MessageWaitedRuntimeReason::WaitForCalled),
+            expiration: 23,
+        }));
+
+        // Message processed.
+        assert_eq!(get_last_mail(USER_1).payload(), b"ping");
+    })
+}
+
 #[test]
 fn test_message_processing_for_non_existing_destination() {
     init_logger();
@@ -2984,11 +3048,13 @@ fn terminated_locking_funds() {
             WASM_BINARY.to_vec(),
         ));
 
+        let schedule = Schedule::<Test>::default();
         let code_id = get_last_code_id();
         let code = <Test as Config>::CodeStorage::get_code(code_id)
             .expect("code should be in the storage");
         let code_length = code.code().len();
         let read_cost = DbWeightOf::<Test>::get().reads(1).ref_time();
+        let module_instantiation = schedule.module_instantiation_per_byte * code_length as u64;
 
         assert_ok!(Gear::create_program(
             RuntimeOrigin::signed(USER_1),
@@ -3002,7 +3068,8 @@ fn terminated_locking_funds() {
                     read_cost,
                     ReadPerByteCostOf::<Test>::get(),
                     code_length as u64
-                ),
+                )
+                + module_instantiation,
             5_000u128
         ));
 
@@ -4377,10 +4444,14 @@ fn gas_spent_precalculated() {
 
     init_logger();
     new_test_ext().execute_with(|| {
-        let prog_id = upload_program_default(USER_1, ProgramCodeKind::Custom(wat))
-            .expect("submit result was asserted");
+        let prog = ProgramCodeKind::Custom(wat);
+        let prog_id = upload_program_default(USER_1, prog).expect("submit result was asserted");
 
         run_to_block(2, None);
+
+        let code_id = CodeId::generate(&prog.to_bytes());
+        let code = <Test as Config>::CodeStorage::get_code(code_id).unwrap();
+        let code = code.code();
 
         let GasInfo {
             min_limit: gas_spent_1,
@@ -4403,6 +4474,8 @@ fn gas_spent_precalculated() {
         let add_cost = schedule.instruction_weights.i64add;
         // gas call in handle and "add" func
         let gas_cost = schedule.host_fn_weights.gas as u32;
+        let module_instantiation =
+            schedule.module_instantiation_per_byte * code.len() as u64;
         let load_page_cost = schedule.memory_weights.load_cost;
 
         let total_cost = {
@@ -4426,6 +4499,7 @@ fn gas_spent_precalculated() {
                 // cost for loading code
                 + core_processor::calculate_gas_for_code(read_cost, ReadPerByteCostOf::<Test>::get(), code_len.into())
                 + load_page_cost
+                + module_instantiation
         };
 
         assert_eq!(gas_spent_1, total_cost);
@@ -5691,12 +5765,39 @@ fn test_mad_big_prog_instrumentation() {
     })
 }
 
+#[test]
+fn reject_incorrect_binary() {
+    let wat = r#"
+    (module
+        (import "env" "memory" (memory 1))
+        (export "handle" (func $handle))
+        (func $handle
+            i32.const 5
+        )
+    )"#;
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        assert_noop!(
+            Gear::upload_code(
+                RuntimeOrigin::signed(USER_1),
+                ProgramCodeKind::Custom(wat).to_bytes()
+            ),
+            Error::<Test>::FailedToConstructProgram
+        );
+
+        assert_noop!(
+            upload_program_default(USER_1, ProgramCodeKind::Custom(wat)),
+            Error::<Test>::FailedToConstructProgram
+        );
+    });
+}
+
 mod utils {
     #![allow(unused)]
 
     use super::{
-        assert_ok, pallet, run_to_block, Event, MailboxOf, MockRuntimeEvent, RuntimeOrigin,
-        SystemPallet, Test,
+        assert_ok, pallet, run_to_block, Event, MailboxOf, MockRuntimeEvent, RuntimeOrigin, Test,
     };
     use crate::{
         mock::{Balances, Gear, System},
@@ -5718,6 +5819,7 @@ mod utils {
     use gear_core::{
         ids::{CodeId, MessageId, ProgramId},
         message::StoredMessage,
+        reservation::GasReservationMap,
     };
     use gear_core_errors::ExtError;
     use sp_core::H256;
@@ -5990,7 +6092,7 @@ mod utils {
         let status =
             dispatch_status(message_id).expect("Message not found in `Event::MessagesDispatched`");
 
-        assert_eq!(status, DispatchStatus::Failed);
+        assert_eq!(status, DispatchStatus::Failed, "Expected: {}", error);
 
         let mut actual_error = None;
 
@@ -6075,6 +6177,24 @@ mod utils {
         }
     }
 
+    pub(super) fn filter_event_rev<F, R>(f: F) -> R
+    where
+        F: Fn(Event<Test>) -> Option<R>,
+    {
+        System::events()
+            .iter()
+            .rev()
+            .filter_map(|r| {
+                if let MockRuntimeEvent::Gear(e) = r.event.clone() {
+                    Some(e)
+                } else {
+                    None
+                }
+            })
+            .find_map(f)
+            .expect("can't find message send event")
+    }
+
     pub(super) fn get_last_message_id() -> MessageId {
         System::events()
             .iter()
@@ -6155,6 +6275,19 @@ mod utils {
             .expect("Element should be")
     }
 
+    pub(super) fn get_reservation_map(pid: ProgramId) -> Option<GasReservationMap> {
+        let prog = common::get_program(pid.into_origin()).unwrap();
+        if let common::Program::Active(common::ActiveProgram {
+            gas_reservation_map,
+            ..
+        }) = prog
+        {
+            Some(gas_reservation_map)
+        } else {
+            None
+        }
+    }
+
     #[derive(Debug, Copy, Clone)]
     pub(super) enum ProgramCodeKind<'a> {
         Default,
@@ -6203,7 +6336,7 @@ mod utils {
                             end $while
                         )
                         (func $init
-                            i32.const 100
+                            i32.const 0x7fff_ffff
                             call $doWork
                         )
                     )"#

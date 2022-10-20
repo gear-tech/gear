@@ -37,7 +37,8 @@ use gear_backend_common::{
 use gear_core::{
     buffer::{RuntimeBuffer, RuntimeBufferSizeError},
     env::Ext,
-    message::{HandlePacket, InitPacket, PayloadSizeError, ReplyPacket},
+    ids::ReservationId,
+    message::{HandlePacket, InitPacket, MessageWaitedType, PayloadSizeError, ReplyPacket},
 };
 use gear_core_errors::{CoreError, MemoryError};
 use sp_sandbox::{HostError, ReturnValue, SandboxMemory, Value};
@@ -274,7 +275,7 @@ where
         let (at, len, buffer_ptr) = args.iter().read_3()?;
 
         ctx.run(|ctx| {
-            match Self::validated(ctx.ext, at, len) {
+            match Self::validated(&mut ctx.ext, at, len) {
                 Ok(buffer) => {
                     ctx.memory
                         .set(buffer_ptr, buffer)
@@ -525,6 +526,33 @@ where
         })
     }
 
+    pub fn reserve_gas(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
+        let (gas_amount, duration, id_ptr) = args.iter().read_3()?;
+
+        ctx.run(|ctx| {
+            ctx.ext
+                .reserve_gas(gas_amount, duration)
+                .process_error()
+                .map_err(FuncError::Core)?
+                .error_len_on_success(|id| ctx.write_output(id_ptr, id.as_ref()))
+        })
+    }
+
+    pub fn unreserve_gas(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
+        let (id_ptr, amount_ptr) = args.iter().read_2()?;
+
+        ctx.run(|ctx| {
+            let id: ReservationId = ctx.read_memory_as(id_ptr)?;
+            ctx.ext
+                .unreserve_gas(id)
+                .process_error()
+                .map_err(FuncError::Core)?
+                .error_len_on_success(|amount| {
+                    ctx.write_output(amount_ptr, amount.to_le_bytes().as_ref())
+                })
+        })
+    }
+
     pub fn gas_available(ctx: &mut Runtime<E>, _args: &[Value]) -> SyscallOutput {
         sys_trace!(target: "syscall::gear", "gas_available");
 
@@ -618,7 +646,9 @@ where
                 .wait()
                 .map_err(FuncError::Core)
                 .err()
-                .unwrap_or_else(|| FuncError::Terminated(TerminationReason::Wait(None))))
+                .unwrap_or_else(|| {
+                    FuncError::Terminated(TerminationReason::Wait(None, MessageWaitedType::Wait))
+                }))
         })
     }
 
@@ -626,14 +656,18 @@ where
         sys_trace!(target: "syscall::gear", "wait_for, args = {}", args_to_str(args));
 
         let duration = args.iter().read()?;
-
         ctx.run(|ctx| -> Result<(), _> {
             Err(ctx
                 .ext
                 .wait_for(duration)
                 .map_err(FuncError::Core)
                 .err()
-                .unwrap_or_else(|| FuncError::Terminated(TerminationReason::Wait(Some(duration)))))
+                .unwrap_or_else(|| {
+                    FuncError::Terminated(TerminationReason::Wait(
+                        Some(duration),
+                        MessageWaitedType::WaitFor,
+                    ))
+                }))
         })
     }
 
@@ -643,12 +677,14 @@ where
         let duration = args.iter().read()?;
 
         ctx.run(|ctx| -> Result<(), _> {
-            Err(ctx
-                .ext
-                .wait_up_to(duration)
-                .map_err(FuncError::Core)
-                .err()
-                .unwrap_or_else(|| FuncError::Terminated(TerminationReason::Wait(Some(duration)))))
+            Err(FuncError::Terminated(TerminationReason::Wait(
+                Some(duration),
+                if ctx.ext.wait_up_to(duration).map_err(FuncError::Core)? {
+                    MessageWaitedType::WaitUpToFull
+                } else {
+                    MessageWaitedType::WaitUpTo
+                },
+            )))
         })
     }
 

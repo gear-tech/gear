@@ -54,10 +54,6 @@ use frame_support::{
     traits::{Currency, StorageVersion},
     weights::Weight,
 };
-#[cfg(not(feature = "std"))]
-use gear_backend_sandbox::SandboxEnvironment as ExecutionEnvironment;
-#[cfg(feature = "std")]
-use gear_backend_wasmi::WasmiEnvironment as ExecutionEnvironment;
 use gear_core::{
     code::{Code, CodeAndId, InstrumentedCode, InstrumentedCodeAndId},
     ids::{CodeId, MessageId, ProgramId, ReservationId},
@@ -72,6 +68,18 @@ use sp_std::{
     convert::TryInto,
     prelude::*,
 };
+
+#[cfg(feature = "std")]
+type ExecutionEnvironment = gear_backend_wasmi::WasmiEnvironment<Ext>;
+
+#[cfg(not(feature = "std"))]
+type ExecutionEnvironment = gear_backend_sandbox::SandboxEnvironment<Ext>;
+
+#[cfg(feature = "lazy-pages")]
+use crate::ext::LazyPagesExt as Ext;
+
+#[cfg(not(feature = "lazy-pages"))]
+use core_processor::Ext;
 
 pub(crate) type CurrencyOf<T> = <T as Config>::Currency;
 pub(crate) type BalanceOf<T> =
@@ -183,11 +191,6 @@ pub mod pallet {
     use super::*;
 
     #[cfg(feature = "lazy-pages")]
-    pub(crate) use crate::ext::LazyPagesExt as Ext;
-    #[cfg(not(feature = "lazy-pages"))]
-    pub(crate) use core_processor::Ext;
-
-    #[cfg(feature = "lazy-pages")]
     use gear_lazy_pages_common as lazy_pages;
 
     use crate::manager::{CodeInfo, ExtManager, HandleKind, QueuePostProcessingData};
@@ -252,6 +255,10 @@ pub mod pallet {
         /// but will be seen in events.
         #[pallet::constant]
         type MailboxThreshold: Get<u64>;
+
+        /// Amount of reservations can exist for 1 program.
+        #[pallet::constant]
+        type ReservationsLimit: Get<u64>;
 
         /// The cost per loaded byte.
         #[pallet::constant]
@@ -914,8 +921,12 @@ pub mod pallet {
                 mailbox_threshold: T::MailboxThreshold::get(),
                 waitlist_cost: CostsPerBlockOf::<T>::waitlist(),
                 reserve_for: CostsPerBlockOf::<T>::reserve_for().unique_saturated_into(),
+                reservation: CostsPerBlockOf::<T>::reservation().unique_saturated_into(),
                 read_cost: DbWeightOf::<T>::get().reads(1).ref_time(),
+                write_cost: DbWeightOf::<T>::get().writes(1).ref_time(),
                 per_byte_cost: ReadPerByteCostOf::<T>::get(),
+                module_instantiation_byte_cost: schedule.module_instantiation_per_byte,
+                max_reservations: T::ReservationsLimit::get(),
             };
 
             let mut min_limit = 0;
@@ -1010,7 +1021,6 @@ pub mod pallet {
                     GasHandlerOf::<T>::get_origin_key(msg_id)
                         .map_err(|_| b"Internal error: unable to get origin key".to_vec())
                 };
-
                 let from_main_chain =
                     |msg_id| get_origin_msg_of(msg_id).map(|v| v == main_message_id);
 
@@ -1262,8 +1272,12 @@ pub mod pallet {
                 mailbox_threshold: T::MailboxThreshold::get(),
                 waitlist_cost: CostsPerBlockOf::<T>::waitlist(),
                 reserve_for: CostsPerBlockOf::<T>::reserve_for().unique_saturated_into(),
+                reservation: CostsPerBlockOf::<T>::reservation().unique_saturated_into(),
                 read_cost: DbWeightOf::<T>::get().reads(1).ref_time(),
+                write_cost: DbWeightOf::<T>::get().writes(1).ref_time(),
                 per_byte_cost: ReadPerByteCostOf::<T>::get(),
+                module_instantiation_byte_cost: schedule.module_instantiation_per_byte,
+                max_reservations: T::ReservationsLimit::get(),
             };
 
             if T::DebugInfo::is_remap_id_enabled() {
@@ -1366,6 +1380,7 @@ pub mod pallet {
                                 static_pages: prog.static_pages,
                                 initialized: matches!(prog.state, ProgramState::Initialized),
                                 pages_with_data: prog.pages_with_data,
+                                gas_reservation_map: prog.gas_reservation_map,
                             })
                         } else {
                             // Reaching this branch is possible when init message was processed with failure, while other kind of messages

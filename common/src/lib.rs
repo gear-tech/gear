@@ -44,6 +44,7 @@ use gear_core::{
     ids::{CodeId, MessageId, ProgramId},
     memory::{Error as MemoryError, PageBuf, PageNumber, WasmPageNumber},
     message::DispatchKind,
+    reservation::GasReservationMap,
 };
 use primitive_types::H256;
 use scale_info::TypeInfo;
@@ -57,6 +58,7 @@ use sp_std::{
     collections::{btree_map::BTreeMap, btree_set::BTreeSet},
     prelude::*,
 };
+
 use storage::ValueStorage;
 extern crate alloc;
 
@@ -254,6 +256,7 @@ pub struct ActiveProgram {
     pub allocations: BTreeSet<WasmPageNumber>,
     /// Set of gear pages numbers, which has data in storage.
     pub pages_with_data: BTreeSet<PageNumber>,
+    pub gas_reservation_map: GasReservationMap,
     pub code_hash: H256,
     pub code_length_bytes: u32,
     pub code_exports: BTreeSet<DispatchKind>,
@@ -361,6 +364,15 @@ pub fn set_program_exited_status(id: H256, inheritor: ProgramId) -> Result<(), C
 pub fn get_program(id: H256) -> Option<Program> {
     sp_io::storage::get(&program_key(id))
         .map(|val| Program::decode(&mut &val[..]).expect("values encoded correctly"))
+}
+
+pub fn get_active_program(id: H256) -> Result<ActiveProgram, CommonError> {
+    let program = get_program(id).ok_or(CommonError::DoesNotExist(id))?;
+    if let Program::Active(program) = program {
+        Ok(program)
+    } else {
+        Err(CommonError::InactiveProgram)
+    }
 }
 
 /// Returns mem page data from storage for program `id` and `page_idx`

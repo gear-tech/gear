@@ -51,11 +51,17 @@ mod task;
 pub use journal::*;
 pub use task::*;
 
-use crate::{Config, CurrencyOf, GearProgramPallet};
+use crate::{Config, CurrencyOf, GearProgramPallet, TaskPoolOf};
 use codec::{Decode, Encode};
-use common::{event::*, ActiveProgram, CodeStorage, Origin, ProgramState};
+use common::{
+    event::*,
+    scheduler::{ScheduledTask, TaskHandler, TaskPool},
+    ActiveProgram, CodeStorage, Origin, ProgramState,
+};
+use core::fmt;
 use core_processor::common::{Actor, ExecutableActorData};
 use frame_support::traits::Currency;
+use frame_system::pallet_prelude::BlockNumberFor;
 use gear_core::{
     code::{CodeAndId, InstrumentedCode},
     ids::{CodeId, MessageId, ProgramId},
@@ -77,6 +83,17 @@ pub enum HandleKind {
     InitByHash(CodeId),
     Handle(ProgramId),
     Reply(MessageId, ExitCode),
+}
+
+impl fmt::Debug for HandleKind {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            HandleKind::Init(_) => f.debug_tuple("Init").field(&format_args!("[...]")).finish(),
+            HandleKind::InitByHash(id) => f.debug_tuple("InitByHash").field(id).finish(),
+            HandleKind::Handle(id) => f.debug_tuple("Handle").field(id).finish(),
+            HandleKind::Reply(id, code) => f.debug_tuple("Reply").field(id).field(code).finish(),
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -214,6 +231,7 @@ where
                 static_pages: active.static_pages,
                 initialized: matches!(active.state, ProgramState::Initialized),
                 pages_with_data: active.pages_with_data,
+                gas_reservation_map: active.gas_reservation_map,
             }),
         })
     }
@@ -237,8 +255,28 @@ where
             code_exports: code_info.exports.clone(),
             static_pages: code_info.static_pages,
             state: common::ProgramState::Uninitialized { message_id },
+            gas_reservation_map: Default::default(),
         };
 
         common::set_program(program_id.into_origin(), program);
+    }
+
+    fn clean_reservation_tasks(&mut self, program_id: ProgramId) {
+        let active_program =
+            common::get_active_program(program_id.into_origin()).unwrap_or_else(|e| {
+                unreachable!("`exit` can be called only from active program: {}", e)
+            });
+        for (reservation_id, reservation_slot) in active_program.gas_reservation_map {
+            <Self as TaskHandler<T::AccountId>>::remove_gas_reservation(
+                self,
+                program_id,
+                reservation_id,
+            );
+
+            let _ = TaskPoolOf::<T>::delete(
+                BlockNumberFor::<T>::from(reservation_slot.expiration),
+                ScheduledTask::RemoveGasReservation(program_id, reservation_id),
+            );
+        }
     }
 }

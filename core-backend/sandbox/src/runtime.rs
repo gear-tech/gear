@@ -11,14 +11,14 @@ use crate::{
     MemoryWrap,
 };
 
-pub(crate) struct Runtime<'a, E: Ext> {
-    pub ext: &'a mut E,
-    pub memory: &'a DefaultExecutorMemory,
-    pub memory_wrap: &'a mut MemoryWrap,
+pub(crate) struct Runtime<E: Ext> {
+    pub ext: E,
+    pub memory: DefaultExecutorMemory,
+    pub memory_wrap: MemoryWrap,
     pub err: FuncError<E::Error>,
 }
 
-impl<'a, E: Ext> Runtime<'a, E> {
+impl<E: Ext> Runtime<E> {
     pub(crate) fn run<T, F>(&mut self, f: F) -> SyscallOutput
     where
         T: WasmCompatible,
@@ -31,10 +31,10 @@ impl<'a, E: Ext> Runtime<'a, E> {
     }
 }
 
-impl<'a, E: Ext> RuntimeCtx<E> for Runtime<'a, E> {
+impl<E: Ext> RuntimeCtx<E> for Runtime<E> {
     fn alloc(&mut self, pages: u32) -> Result<WasmPageNumber, RuntimeCtxError<E::Error>> {
         self.ext
-            .alloc(pages.into(), self.memory_wrap)
+            .alloc(pages.into(), &mut self.memory_wrap)
             .map_err(RuntimeCtxError::Ext)
     }
 

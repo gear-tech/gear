@@ -34,14 +34,18 @@ use gear_core::{
     gas::{GasAllowanceCounter, GasCounter},
     ids::ProgramId,
     memory::{PageBuf, PageNumber, WasmPageNumber},
-    message::{DispatchKind, ExitCode, IncomingDispatch, ReplyMessage, StoredDispatch},
+    message::{
+        ContextSettings, DispatchKind, ExitCode, IncomingDispatch, MessageWaitedType, ReplyMessage,
+        StoredDispatch,
+    },
     program::Program,
+    reservation::{GasReservationState, GasReserver},
 };
 
 #[derive(Debug)]
 enum SuccessfulDispatchResultKind {
     Exit(ProgramId),
-    Wait(Option<u32>),
+    Wait(Option<u32>, MessageWaitedType),
     Success,
 }
 
@@ -54,6 +58,7 @@ pub struct PreparedMessageExecutionContext {
     balance: u128,
     actor_data: ExecutableActorData,
     memory_size: WasmPageNumber,
+    max_reservations: u64,
 }
 
 impl PreparedMessageExecutionContext {
@@ -72,6 +77,7 @@ impl PreparedMessageExecutionContext {
 pub struct ProcessExecutionContext {
     gas_counter: GasCounter,
     gas_allowance_counter: GasAllowanceCounter,
+    gas_reserver: GasReserver,
     dispatch: IncomingDispatch,
     origin: ProgramId,
     balance: u128,
@@ -98,11 +104,12 @@ impl
         let PreparedMessageExecutionContext {
             gas_counter,
             gas_allowance_counter,
-            dispatch,
+            mut dispatch,
             origin,
             balance,
             actor_data,
             memory_size,
+            max_reservations,
         } = *context;
 
         let program = Program::from_parts(
@@ -112,9 +119,21 @@ impl
             actor_data.initialized,
         );
 
+        let gas_reserver = GasReserver::new(
+            dispatch.id(),
+            dispatch
+                .context_mut()
+                .as_mut()
+                .map(|ctx| ctx.fetch_inc_reservation_nonce())
+                .unwrap_or(0),
+            actor_data.gas_reservation_map,
+            max_reservations,
+        );
+
         Self {
             gas_counter,
             gas_allowance_counter,
+            gas_reserver,
             dispatch,
             origin,
             balance,
@@ -215,6 +234,7 @@ pub fn prepare(
 
     let per_byte_cost = block_config.per_byte_cost;
     let read_cost = block_config.read_cost;
+    let max_reservations = block_config.max_reservations;
 
     let MessageExecutionContext {
         actor,
@@ -265,25 +285,36 @@ pub fn prepare(
         }
     }
 
-    let memory_size = match executor::charge_gas_for_pages(
-        &block_config.allocations_config,
-        &mut gas_counter,
-        &mut gas_allowance_counter,
-        &actor_data.allocations,
-        actor_data.static_pages,
-        dispatch.context().is_none() && matches!(dispatch.kind(), DispatchKind::Init),
-        subsequent_execution,
-    ) {
+    let mut f = || {
+        let memory_size = executor::charge_gas_for_pages(
+            &block_config.allocations_config,
+            &mut gas_counter,
+            &mut gas_allowance_counter,
+            &actor_data.allocations,
+            actor_data.static_pages,
+            dispatch.context().is_none() && matches!(dispatch.kind(), DispatchKind::Init),
+            subsequent_execution,
+        )?;
+        executor::charge_gas_for_instantiation(
+            block_config.module_instantiation_byte_cost,
+            actor_data.code_length_bytes,
+            &mut gas_counter,
+            &mut gas_allowance_counter,
+        )?;
+        Ok(memory_size)
+    };
+    let memory_size = match f() {
         Ok(size) => {
-            log::debug!("Charged for memory pages. Size: {size:?}");
+            log::debug!("Charged for module instantiation and memory pages. Size: {size:?}");
             size
         }
         Err(reason) => {
-            log::debug!("Failed to charge for memory pages: {reason:?}");
+            log::debug!("Failed to charge for module instantiation or memory pages: {reason:?}");
             return match reason {
                 ExecutionErrorReason::InitialMemoryBlockGasExceeded
                 | ExecutionErrorReason::GrowMemoryBlockGasExceeded
-                | ExecutionErrorReason::LoadMemoryBlockGasExceeded => {
+                | ExecutionErrorReason::LoadMemoryBlockGasExceeded
+                | ExecutionErrorReason::ModuleInstantiationBlockGasExceeded => {
                     prepare_allowance_exceed(dispatch, program_id, gas_counter)
                 }
                 _ => prepare_error(dispatch, program_id, gas_counter, reason),
@@ -299,6 +330,7 @@ pub fn prepare(
         balance,
         actor_data,
         memory_size,
+        max_reservations,
     }))
 }
 
@@ -323,6 +355,8 @@ pub fn process<
         mailbox_threshold,
         waitlist_cost,
         reserve_for,
+        reservation,
+        write_cost,
         ..
     } = block_config.clone();
 
@@ -335,6 +369,7 @@ pub fn process<
         mailbox_threshold,
         waitlist_cost,
         reserve_for,
+        reservation,
     };
 
     let dispatch = execution_context.dispatch;
@@ -344,11 +379,26 @@ pub fn process<
         origin: execution_context.origin,
         gas_counter: execution_context.gas_counter,
         gas_allowance_counter: execution_context.gas_allowance_counter,
+        gas_reserver: execution_context.gas_reserver,
         program: execution_context.program,
         pages_initial_data: memory_pages,
         memory_size: execution_context.memory_size,
     };
-    let msg_ctx_settings = gear_core::message::ContextSettings::new(0, outgoing_limit);
+
+    // Sending fee: double write cost for addition and removal some time soon
+    // from queue.
+    //
+    // Waiting fee: triple write cost for addition and removal some time soon
+    // from waitlist and enqueuing / sending error reply afterward.
+    //
+    // Waking fee: double write cost for removal from waitlist
+    // and further enqueueing.
+    let msg_ctx_settings = ContextSettings::new(
+        write_cost.saturating_mul(2),
+        write_cost.saturating_mul(3),
+        write_cost.saturating_mul(2),
+        outgoing_limit,
+    );
 
     let exec_result = executor::execute_wasm::<A, E>(
         balance,
@@ -371,7 +421,9 @@ pub fn process<
                 ExecutionErrorReason::Ext(reason),
             ),
             DispatchResultKind::Success => process_success(Success, res),
-            DispatchResultKind::Wait(duration) => process_success(Wait(duration), res),
+            DispatchResultKind::Wait(duration, ref waited_type) => {
+                process_success(Wait(duration, waited_type.clone()), res)
+            }
             DispatchResultKind::Exit(value_destination) => {
                 process_success(Exit(value_destination), res)
             }
@@ -493,6 +545,7 @@ fn process_success(
         awakening,
         program_candidates,
         gas_amount,
+        gas_reserver,
         page_update,
         program_id,
         context_store,
@@ -510,6 +563,33 @@ fn process_success(
         message_id,
         amount: gas_amount.burned(),
     });
+
+    if let Some(gas_reserver) = gas_reserver {
+        journal.extend(gas_reserver.states().iter().flat_map(
+            |(&reservation_id, &state)| match state {
+                GasReservationState::Exists { .. } => None,
+                GasReservationState::Created { amount, duration } => {
+                    Some(JournalNote::ReserveGas {
+                        message_id,
+                        reservation_id,
+                        program_id,
+                        amount,
+                        duration,
+                    })
+                }
+                GasReservationState::Removed { expiration } => Some(JournalNote::UnreserveGas {
+                    reservation_id,
+                    program_id,
+                    expiration,
+                }),
+            },
+        ));
+
+        journal.push(JournalNote::UpdateGasReservations {
+            program_id,
+            reserver: gas_reserver,
+        });
+    }
 
     // We check if value is greater than zero to don't provide
     // no-op journal note.
@@ -568,10 +648,11 @@ fn process_success(
     }
 
     let outcome = match kind {
-        Wait(duration) => {
+        Wait(duration, waited_type) => {
             journal.push(JournalNote::WaitDispatch {
                 dispatch: dispatch.into_stored(program_id, context_store),
                 duration,
+                waited_type,
             });
 
             return journal;
