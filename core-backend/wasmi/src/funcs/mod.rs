@@ -1127,16 +1127,18 @@ where
               -> EmptyOutput {
             exit_if!(forbidden, caller);
 
-            let mut subject = vec![0; subject_len as usize];
+            let mut subject =
+                RuntimeBuffer::try_new_default(subject_len as usize).map_err(|e| {
+                    host_state_mut!(caller).err = FuncError::RuntimeBufferSize(e);
+                    Trap::from(TrapCode::Unreachable)
+                })?;
 
             let read_result = {
                 let memory_wrap = get_caller_memory(&mut caller, &memory);
-                memory_wrap.read(subject_ptr as usize, subject.as_mut())
+                memory_wrap.read(subject_ptr as usize, subject.get_mut())
             };
 
             process_read_result!(read_result, caller);
-
-            subject.reserve(32);
 
             let host_state = caller
                 .host_data()
@@ -1144,12 +1146,19 @@ where
                 .expect("host_state should be set before execution");
 
             let (random, random_bn) = host_state.ext.random();
-            subject.extend_from_slice(random);
+
+            subject.try_extend_from_slice(random).map_err(|e| {
+                host_state_mut!(caller).err = FuncError::RuntimeBufferSize(e);
+                Trap::from(TrapCode::Unreachable)
+            })?;
 
             let write_result = {
                 let mut memory_wrap = get_caller_memory(&mut caller, &memory);
                 memory_wrap
-                    .write(random_ptr as usize, blake2b(32, &[], &subject).as_bytes())
+                    .write(
+                        random_ptr as usize,
+                        blake2b(32, &[], subject.get()).as_bytes(),
+                    )
                     .and_then(|_| memory_wrap.write(bn_ptr as usize, &random_bn.to_le_bytes()))
             };
 

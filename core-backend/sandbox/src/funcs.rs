@@ -404,16 +404,17 @@ where
     pub fn random(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
         sys_trace!(target: "syscall::gear", "random, args = {}", args_to_str(args));
 
-        let (random_ptr, subject_ptr, subject_len, bn_ptr) = args.iter().read_4()?;
+        let (random_ptr, subject_ptr, subject_len, bn_ptr): (u32, u32, u32, u32) =
+            args.iter().read_4()?;
 
         ctx.run(|ctx| {
-            let mut subject = ctx.read_memory(subject_ptr, subject_len)?;
-            subject.reserve(32);
+            let mut subject = RuntimeBuffer::try_new_default(subject_len as usize)?;
+            ctx.read_memory_into_buf(subject_ptr, subject.get_mut())?;
 
             let (random, random_bn) = ctx.ext.random();
-            subject.extend_from_slice(random);
+            subject.try_extend_from_slice(random)?;
 
-            ctx.write_output(random_ptr, blake2b(32, &[], &subject).as_bytes())?;
+            ctx.write_output(random_ptr, blake2b(32, &[], subject.get()).as_bytes())?;
             ctx.write_output(bn_ptr, &random_bn.to_le_bytes())
                 .map_err(Into::into)
         })
