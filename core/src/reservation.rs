@@ -56,8 +56,9 @@ impl GasReserver {
         }
     }
 
-    /// Reserves gas.
-    pub fn reserve(&mut self, amount: u64, duration: u32) -> Result<ReservationId, ExecutionError> {
+    fn check_execution_limit(&self) -> Result<(), ExecutionError> {
+        // operation might very expensive in the future
+        // so we will store 2 numerics to optimize it maybe
         let current_reservations = self
             .states
             .values()
@@ -69,8 +70,15 @@ impl GasReserver {
             })
             .sum::<u64>();
         if current_reservations > self.max_reservations {
-            return Err(ExecutionError::ReservationsLimitReached);
+            Err(ExecutionError::ReservationsLimitReached)
+        } else {
+            Ok(())
         }
+    }
+
+    /// Reserves gas.
+    pub fn reserve(&mut self, amount: u64, duration: u32) -> Result<ReservationId, ExecutionError> {
+        self.check_execution_limit()?;
 
         let nonce = self.nonce;
         self.nonce = nonce.saturating_add(1);
