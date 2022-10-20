@@ -76,13 +76,17 @@ impl GasReserver {
         }
     }
 
+    fn fetch_inc_nonce(&mut self) -> u64 {
+        let nonce = self.nonce;
+        self.nonce = nonce.saturating_add(1);
+        nonce
+    }
+
     /// Reserves gas.
     pub fn reserve(&mut self, amount: u64, duration: u32) -> Result<ReservationId, ExecutionError> {
         self.check_execution_limit()?;
 
-        let nonce = self.nonce;
-        self.nonce = nonce.saturating_add(1);
-        let id = ReservationId::generate(self.message_id, nonce);
+        let id = ReservationId::generate(self.message_id, self.fetch_inc_nonce());
 
         self.states
             .insert(id, GasReservationState::Created { amount, duration });
