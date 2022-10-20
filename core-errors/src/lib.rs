@@ -30,12 +30,19 @@ use core::fmt;
 use scale_info::TypeInfo;
 
 /// Core error.
-pub trait CoreError: fmt::Display + fmt::Debug {}
+pub trait CoreError: fmt::Display + fmt::Debug + Sized {
+    /// Attempt to call forbidden sys-call.
+    fn forbidden_function() -> Self;
+}
 
 /// Error using messages.
 #[derive(Copy, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, derive_more::Display)]
 #[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo))]
 pub enum MessageError {
+    /// Message has bigger then allowed one message size
+    #[display(fmt = "Max message size exceed")]
+    MaxMessageSizeExceed,
+
     /// The error "Message limit exceeded" occurs when a program attempts to
     /// send more than the maximum amount of messages allowed within a single
     /// execution (current setting - 1024).
@@ -114,6 +121,10 @@ pub enum MessageError {
     /// The error occurs when program receives too big payload.
     #[display(fmt = "Received message with abnormal payload size")]
     IncomingPayloadTooBig,
+
+    /// The error occurs when functions related to reply context, used without it.
+    #[display(fmt = "Not running in reply context")]
+    NoReplyContext,
 }
 
 /// Error using waiting syscalls.
@@ -150,6 +161,10 @@ pub enum MemoryError {
     /// WASM page does not contain all necessary Gear pages.
     #[display(fmt = "Page data has wrong size: {:#x}", _0)]
     InvalidPageDataSize(u64),
+
+    /// Memory size cannot be zero after grow is applied for memory
+    #[display(fmt = "Memory unexpectedly has zero size after grow")]
+    MemSizeIsZeroAfterGrow,
 }
 
 /// Execution error.
@@ -162,6 +177,9 @@ pub enum ExecutionError {
     /// An error occurs in attempt to refund more gas than burned one.
     #[display(fmt = "Too many gas refunded")]
     TooManyGasAdded,
+    /// An error occurs in attempt to call forbidden sys-call.
+    #[display(fmt = "Unable to call a forbidden function")]
+    ForbiddenFunction,
 }
 
 /// An error occurred in API.
@@ -171,28 +189,49 @@ pub enum ExecutionError {
 #[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo))]
 pub enum ExtError {
     /// We got some error but don't know which exactly because of disabled gcore's `codec` feature
+    #[cfg(not(feature = "codec"))]
     #[display(fmt = "Some error")]
     Some,
+
+    /// Decode error.
+    ///
+    /// Supposed to be unreachable.
+    #[cfg(feature = "codec")]
+    #[display(fmt = "`ExtError` decoding error")]
+    Decode,
+
+    // TODO: consider to create more complex one.
+    /// Syscall usage error.
+    #[display(fmt = "Syscall usage error")]
+    SyscallUsage,
+
     /// Memory error.
     #[display(fmt = "Memory error: {}", _0)]
     Memory(MemoryError),
+
     /// Message error.
     #[display(fmt = "Message error: {}", _0)]
     Message(MessageError),
+
     /// Waiting error.
     #[display(fmt = "Waiting error: {}", _0)]
     Wait(WaitError),
+
     /// Execution error.
     #[display(fmt = "Execution error: {}", _0)]
     Execution(ExecutionError),
 }
 
+#[cfg(feature = "codec")]
 impl ExtError {
     /// Size of error encoded in SCALE codec
-    #[cfg(feature = "codec")]
     pub fn encoded_size(&self) -> usize {
         Encode::encoded_size(self)
     }
 }
 
-impl CoreError for ExtError {}
+impl CoreError for ExtError {
+    fn forbidden_function() -> Self {
+        Self::Execution(ExecutionError::ForbiddenFunction)
+    }
+}

@@ -18,14 +18,11 @@
 
 //! Configurations.
 
-use crate::common::Actor;
+use crate::common::{Actor, PrechargedDispatch};
 use alloc::collections::BTreeSet;
 use codec::{Decode, Encode};
-use gear_core::{
-    costs::HostFnWeights, ids::ProgramId, memory::WasmPageNumber, message::IncomingDispatch,
-};
+use gear_core::{code, costs::HostFnWeights, ids::ProgramId, memory::WasmPageNumber};
 
-const MAX_WASM_PAGES: u32 = 512;
 const INIT_COST: u64 = 5000;
 const ALLOC_COST: u64 = 10000;
 const MEM_GROW_COST: u64 = 10000;
@@ -58,7 +55,7 @@ pub struct AllocationsConfig {
 impl Default for AllocationsConfig {
     fn default() -> Self {
         Self {
-            max_pages: WasmPageNumber(MAX_WASM_PAGES),
+            max_pages: WasmPageNumber(code::MAX_WASM_PAGE_COUNT),
             init_cost: INIT_COST,
             alloc_cost: ALLOC_COST,
             mem_grow_cost: MEM_GROW_COST,
@@ -115,19 +112,25 @@ pub struct BlockConfig {
     pub waitlist_cost: u64,
     /// Reserve for parameter of scheduling.
     pub reserve_for: u32,
+    /// One-time db-read cost.
+    pub read_cost: u64,
+    /// One-time db-write cost.
+    pub write_cost: u64,
+    /// Per loaded byte cost.
+    pub per_byte_cost: u64,
+    /// WASM module instantiation byte cost.
+    pub module_instantiation_byte_cost: u64,
 }
 
 /// Unstable parameters for message execution across processing runs.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct MessageExecutionContext {
     /// Executable actor.
     pub actor: Actor,
-    /// Incoming dispatch.
-    pub dispatch: IncomingDispatch,
+    /// Precharged dispatch.
+    pub precharged_dispatch: PrechargedDispatch,
     /// The ID of the user who started interaction with programs.
     pub origin: ProgramId,
-    /// Gas allowance.
-    pub gas_allowance: u64,
     /// The program is being executed the second or next time in the block.
     pub subsequent_execution: bool,
 }

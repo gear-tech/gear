@@ -9,7 +9,7 @@ async fn main() {
     match cmd {
         Command::Wait => exec::wait(),
         Command::WaitFor(duration) => exec::wait_for(duration),
-        Command::WaitNoMore(duration) => exec::wait_no_more(duration),
+        Command::WaitUpTo(duration) => exec::wait_up_to(duration),
         Command::SendFor(to, duration) => {
             msg::send_bytes_for_reply(to, [], 0)
                 .expect("send message failed")
@@ -32,6 +32,10 @@ async fn main() {
             msg::send_bytes_for_reply(to, [], 0)
                 .expect("send message failed")
                 .await;
+        }
+        Command::SendAndWaitFor(duration, to) => {
+            msg::send(to, b"ping", 0);
+            exec::wait_for(duration);
         }
     }
 }

@@ -24,7 +24,7 @@ let findingType = argv.type;
 
 getWasmMetadata(wasmBytes).then( meta => {
     let type = meta[findingType];
-    let encoded = CreateType.encode('bytes', '0x' + String(argv.bytes))
-    let decoded = CreateType.decode(type, encoded, meta);
+    let encoded = CreateType.create('bytes', '0x' + String(argv.bytes))
+    let decoded = CreateType.create(type, encoded, meta);
     process.stdout.write(JSON.stringify(decoded));
 });

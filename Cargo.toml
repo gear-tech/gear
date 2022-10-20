@@ -1,7 +1,7 @@
 [workspace]
 resolver = "2"
 
-default-members = ["node"]
+default-members = ["node/cli"]
 
 members = [
     "common",
@@ -14,12 +14,16 @@ members = [
     "core-errors",
     "examples/binaries/*",
     "galloc",
+    "gclient",
     "gcore",
     "gear-test",
     "gstd",
     "gtest",
-    "node",
+    "node/cli",
+    "node/service",
+    "node/authorship",
     "pallets/*",
+    "program",
     "runtime/gear",
     "runtime/vara",
     "utils/gear-runtime-test-cli",
@@ -30,6 +34,10 @@ members = [
     "utils/wasm-info",
     "utils/economic-checks",
     "utils/economic-checks/fuzz",
+    "utils/wasm-gen",
+    "utils/node-loader/",
+    "utils/test-runtime",
+    "utils/test-runtime/client",
 ]
 
 [profile.release]

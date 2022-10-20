@@ -17,16 +17,26 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    manager::ExtManager, Config, CurrencyOf, Event, GasAllowanceOf, GasHandlerOf,
-    GearProgramPallet, Pallet, QueueOf, SentOf, WaitlistOf,
+    manager::{CodeInfo, ExtManager},
+    Config, CurrencyOf, Event, GasAllowanceOf, GasHandlerOf, GearProgramPallet, Pallet, QueueOf,
+    SentOf, TaskPoolOf, WaitlistOf,
 };
-use common::{event::*, storage::*, CodeStorage, GasTree, Origin, Program};
+use common::{
+    event::*,
+    scheduler::{ScheduledTask, TaskPool},
+    storage::*,
+    CodeStorage, GasTree, Origin, Program,
+};
 use core_processor::common::{DispatchOutcome as CoreDispatchOutcome, JournalHandler};
-use frame_support::traits::{Currency, ExistenceRequirement, ReservableCurrency};
+use frame_support::{
+    sp_runtime::Saturating,
+    traits::{Currency, ExistenceRequirement, ReservableCurrency},
+};
+use frame_system::Pallet as SystemPallet;
 use gear_core::{
     ids::{CodeId, MessageId, ProgramId},
     memory::{PageBuf, PageNumber},
-    message::{Dispatch, StoredDispatch},
+    message::{Dispatch, MessageWaitedType, StoredDispatch},
 };
 use sp_runtime::traits::{UniqueSaturatedInto, Zero};
 
@@ -207,8 +217,16 @@ where
         Pallet::<T>::consume_message(message_id)
     }
 
-    fn send_dispatch(&mut self, message_id: MessageId, dispatch: Dispatch) {
-        if self.check_program_id(&dispatch.destination()) {
+    fn send_dispatch(&mut self, message_id: MessageId, dispatch: Dispatch, delay: u32) {
+        // This method shouldn't reduce gas allowance for enqueueing dispatch,
+        // because message already charged for it within the env.
+
+        let to_user = self.check_user_id(&dispatch.destination());
+
+        if !delay.is_zero() {
+            log::debug!("Sending delayed for {delay} blocks dispatch");
+            Pallet::<T>::send_delayed_dispatch(message_id, dispatch, delay, to_user)
+        } else if !to_user {
             let gas_limit = dispatch.gas_limit();
             let dispatch = dispatch.into_stored();
 
@@ -259,11 +277,18 @@ where
         }
     }
 
-    fn wait_dispatch(&mut self, dispatch: StoredDispatch, duration: Option<u32>) {
+    fn wait_dispatch(
+        &mut self,
+        dispatch: StoredDispatch,
+        duration: Option<u32>,
+        waited_type: MessageWaitedType,
+    ) {
+        // This method shouldn't reduce gas allowance for waiting dispatch,
+        // because message already charged for it within the env.
         Pallet::<T>::wait_dispatch(
             dispatch,
             duration.map(UniqueSaturatedInto::unique_saturated_into),
-            MessageWaitedRuntimeReason::WaitCalled.into_reason(),
+            MessageWaitedRuntimeReason::from(waited_type).into_reason(),
         )
     }
 
@@ -272,21 +297,41 @@ where
         message_id: MessageId,
         program_id: ProgramId,
         awakening_id: MessageId,
+        delay: u32,
     ) {
-        if let Some(dispatch) = Pallet::<T>::wake_dispatch(
-            program_id,
-            awakening_id,
-            MessageWokenRuntimeReason::WakeCalled.into_reason(),
-        ) {
-            QueueOf::<T>::queue(dispatch)
-                .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e));
-        } else {
-            log::debug!(
-                "Attempt to wake unknown message {:?} from {:?}",
+        // This method shouldn't reduce gas allowance for waking dispatch,
+        // because message already charged for it within the env.
+
+        if delay.is_zero() {
+            if let Some(dispatch) = Pallet::<T>::wake_dispatch(
+                program_id,
                 awakening_id,
-                message_id
-            );
+                MessageWokenRuntimeReason::WakeCalled.into_reason(),
+            ) {
+                QueueOf::<T>::queue(dispatch)
+                    .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e));
+
+                return;
+            }
+        } else if WaitlistOf::<T>::contains(&program_id, &awakening_id) {
+            let expected_bn =
+                SystemPallet::<T>::block_number().saturating_add(delay.unique_saturated_into());
+            let task = ScheduledTask::WakeMessage(program_id, awakening_id);
+
+            // This validation helps us to avoid returning error on insertion into `TaskPool` in case of duplicate wake.
+            if !TaskPoolOf::<T>::contains(&expected_bn, &task) {
+                TaskPoolOf::<T>::add(expected_bn, task)
+                    .unwrap_or_else(|e| unreachable!("Scheduling logic invalidated! {:?}", e));
+            }
+
+            return;
         }
+
+        log::debug!(
+            "Attempt to wake unknown message {:?} from {:?}",
+            awakening_id,
+            message_id
+        );
     }
 
     fn update_pages_data(
@@ -336,11 +381,12 @@ where
         Pallet::<T>::transfer_reserved(&from, &to, value);
     }
 
-    fn store_new_programs(&mut self, code_id: CodeId, candidates: Vec<(ProgramId, MessageId)>) {
-        if T::CodeStorage::get_code(code_id).is_some() {
-            for (candidate_id, init_message) in candidates {
+    fn store_new_programs(&mut self, code_id: CodeId, candidates: Vec<(MessageId, ProgramId)>) {
+        if let Some(code) = T::CodeStorage::get_code(code_id) {
+            let code_info = CodeInfo::from_code(&code_id, &code);
+            for (init_message, candidate_id) in candidates {
                 if !GearProgramPallet::<T>::program_exists(candidate_id) {
-                    self.set_program(candidate_id, code_id, init_message);
+                    self.set_program(candidate_id, &code_info, init_message);
                 } else {
                     log::debug!("Program with id {:?} already exists", candidate_id);
                 }
@@ -350,7 +396,7 @@ where
                 "No referencing code with code hash {:?} for candidate programs",
                 code_id
             );
-            for (candidate, _) in candidates {
+            for (_, candidate) in candidates {
                 self.programs.insert(candidate);
             }
         }

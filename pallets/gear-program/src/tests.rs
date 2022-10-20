@@ -16,6 +16,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use core::convert::TryInto;
+
 use super::*;
 use crate::mock::*;
 use common::{storage::*, ActiveProgram, CodeMetadata, CodeStorage, Origin as _, ProgramState};
@@ -36,14 +38,12 @@ const CODE: &[u8] = &hex!("0061736d01000000010401600000020f0103656e76066d656d6f7
 #[test]
 fn pause_program_works() {
     new_test_ext().execute_with(|| {
-        let code = Code::try_new(CODE.to_vec(), 1, |_| ConstantCostRules::default())
+        let code = Code::try_new(CODE.to_vec(), 1, |_| ConstantCostRules::default(), None)
             .expect("Error creating Code");
 
         let code_and_id = CodeAndId::new(code);
         let code_id = code_and_id.code_id();
         let code_hash = code_id.into_origin();
-
-        GearProgram::add_code(code_and_id, CodeMetadata::new([0; 32].into(), 1)).unwrap();
 
         let wasm_static_pages = WasmPageNumber(16);
         let memory_pages = {
@@ -60,19 +60,26 @@ fn pause_program_works() {
 
             pages
         };
-        let allocations = memory_pages.iter().map(|(p, _)| p.to_wasm_page()).collect();
+        let allocations = memory_pages.keys().map(|p| p.to_wasm_page()).collect();
         let pages_with_data = memory_pages.keys().copied().collect();
+
+        let active_program = ActiveProgram {
+            allocations,
+            pages_with_data,
+            code_hash,
+            code_exports: code_and_id.code().exports().clone(),
+            code_length_bytes: code_and_id.code().code().len() as u32,
+            static_pages: code_and_id.code().static_pages(),
+            state: ProgramState::Initialized,
+        };
+
+        GearProgram::add_code(code_and_id, CodeMetadata::new([0; 32].into(), 1)).unwrap();
 
         let program_id: ProgramId = 1.into();
 
         common::set_program_and_pages_data(
             program_id.into_origin(),
-            ActiveProgram {
-                allocations,
-                pages_with_data,
-                code_hash,
-                state: ProgramState::Initialized,
-            },
+            active_program,
             memory_pages.clone(),
         )
         .expect("memory pages are not valid");
@@ -129,24 +136,25 @@ fn pause_program_works() {
 #[test]
 fn pause_program_twice_fails() {
     new_test_ext().execute_with(|| {
-        let code = Code::try_new(CODE.to_vec(), 1, |_| ConstantCostRules::default())
+        let code = Code::try_new(CODE.to_vec(), 1, |_| ConstantCostRules::default(), None)
             .expect("Error creating Code");
 
         let code_and_id = CodeAndId::new(code);
         let code_hash = code_and_id.code_id().into_origin();
+        let active_program = ActiveProgram {
+            allocations: Default::default(),
+            pages_with_data: Default::default(),
+            code_hash,
+            code_exports: code_and_id.code().exports().clone(),
+            code_length_bytes: code_and_id.code().code().len() as u32,
+            static_pages: code_and_id.code().static_pages(),
+            state: ProgramState::Initialized,
+        };
 
         GearProgram::add_code(code_and_id, CodeMetadata::new([0; 32].into(), 1)).unwrap();
 
         let program_id: ProgramId = 1.into();
-        common::set_program(
-            program_id.into_origin(),
-            ActiveProgram {
-                allocations: Default::default(),
-                pages_with_data: Default::default(),
-                code_hash,
-                state: ProgramState::Initialized,
-            },
-        );
+        common::set_program(program_id.into_origin(), active_program);
 
         run_to_block(2, None);
 
@@ -161,24 +169,25 @@ fn pause_program_twice_fails() {
 #[test]
 fn pause_terminated_program_fails() {
     new_test_ext().execute_with(|| {
-        let code = Code::try_new(CODE.to_vec(), 1, |_| ConstantCostRules::default())
+        let code = Code::try_new(CODE.to_vec(), 1, |_| ConstantCostRules::default(), None)
             .expect("Error creating Code");
 
         let code_and_id = CodeAndId::new(code);
         let code_hash = code_and_id.code_id().into_origin();
+        let active_program = ActiveProgram {
+            allocations: Default::default(),
+            pages_with_data: Default::default(),
+            code_hash,
+            code_exports: code_and_id.code().exports().clone(),
+            code_length_bytes: code_and_id.code().code().len() as u32,
+            static_pages: code_and_id.code().static_pages(),
+            state: ProgramState::Initialized,
+        };
 
         GearProgram::add_code(code_and_id, CodeMetadata::new([0; 32].into(), 1)).unwrap();
 
         let program_id: ProgramId = 1.into();
-        common::set_program(
-            program_id.into_origin(),
-            ActiveProgram {
-                allocations: Default::default(),
-                pages_with_data: Default::default(),
-                code_hash,
-                state: ProgramState::Initialized,
-            },
-        );
+        common::set_program(program_id.into_origin(), active_program);
 
         run_to_block(2, None);
 
@@ -401,7 +410,7 @@ fn resume_program_wrong_list_fails() {
                 message.id(),
                 message.source(),
                 message.destination(),
-                vec![0, 1, 2, 3, 4, 5],
+                vec![0, 1, 2, 3, 4, 5].try_into().unwrap(),
                 message.value(),
                 message.reply(),
             ),
@@ -438,13 +447,11 @@ mod utils {
     pub fn create_uninitialized_program_messages(
         wasm_static_pages: WasmPageNumber,
     ) -> CreateProgramResult {
-        let code = Code::try_new(CODE.to_vec(), 1, |_| ConstantCostRules::default())
+        let code = Code::try_new(CODE.to_vec(), 1, |_| ConstantCostRules::default(), None)
             .expect("Error creating Code");
 
         let code_and_id = CodeAndId::new(code);
         let code_id = code_and_id.code_id();
-
-        GearProgram::add_code(code_and_id, CodeMetadata::new([0; 32].into(), 1)).unwrap();
 
         let memory_pages = {
             let mut pages = BTreeMap::new();
@@ -460,21 +467,28 @@ mod utils {
 
             pages
         };
-        let allocations = memory_pages.iter().map(|(p, _)| p.to_wasm_page()).collect();
+        let allocations = memory_pages.keys().map(|p| p.to_wasm_page()).collect();
         let pages_with_data = memory_pages.keys().copied().collect();
 
         let init_msg_id: MessageId = 3.into();
+
+        let active_program = ActiveProgram {
+            allocations,
+            pages_with_data,
+            code_hash: code_id.into_origin(),
+            code_exports: code_and_id.code().exports().clone(),
+            code_length_bytes: code_and_id.code().code().len() as u32,
+            static_pages: code_and_id.code().static_pages(),
+            state: ProgramState::Uninitialized {
+                message_id: init_msg_id,
+            },
+        };
+
+        GearProgram::add_code(code_and_id, CodeMetadata::new([0; 32].into(), 1)).unwrap();
         let program_id: ProgramId = 1.into();
         common::set_program_and_pages_data(
             program_id.into_origin(),
-            ActiveProgram {
-                allocations,
-                pages_with_data,
-                code_hash: code_id.into_origin(),
-                state: ProgramState::Uninitialized {
-                    message_id: init_msg_id,
-                },
-            },
+            active_program,
             memory_pages.clone(),
         )
         .expect("memory_pages has invalid pages number");

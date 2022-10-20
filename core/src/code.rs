@@ -25,10 +25,13 @@ use parity_wasm::elements::{Internal, Module};
 use scale_info::TypeInfo;
 use wasm_instrument::gas_metering::Rules;
 
+/// Defines maximal permitted count of memory pages.
+pub const MAX_WASM_PAGE_COUNT: u32 = 512;
+
 /// Parse function exports from wasm module into [`DispatchKind`].
 fn get_exports(
     module: &Module,
-    reject_unnececery: bool,
+    reject_unnecessary: bool,
 ) -> Result<BTreeSet<DispatchKind>, CodeError> {
     let mut exports = BTreeSet::<DispatchKind>::new();
 
@@ -45,7 +48,9 @@ fn get_exports(
                 exports.insert(DispatchKind::Handle);
             } else if entry.field() == DispatchKind::Reply.into_entry() {
                 exports.insert(DispatchKind::Reply);
-            } else if reject_unnececery {
+            } else if entry.field() == DispatchKind::Signal.into_entry() {
+                exports.insert(DispatchKind::Signal);
+            } else if reject_unnecessary {
                 return Err(CodeError::NonGearExportFnFound);
             }
         }
@@ -76,14 +81,16 @@ pub enum CodeError {
     /// This might be due to program contained unsupported/non-deterministic instructions
     /// (floats, manual memory grow, etc.).
     GasInjection,
+    /// Error occurred during stack height instrumentation.
+    StackLimitInjection,
     /// Error occurred during encoding instrumented program.
     ///
     /// The only possible reason for that might be OOM.
     Encode,
     /// We restrict start sections in smart contracts.
     StartSectionExists,
-    /// We restrict custom sections in smart contracts.
-    CustomSectionsExist,
+    /// The provided code has invalid count of static pages.
+    InvalidStaticPageCount,
 }
 
 /// Contains instrumented binary code of a program and initial memory size from memory import.
@@ -106,6 +113,7 @@ impl Code {
         raw_code: Vec<u8>,
         version: u32,
         mut get_gas_rules: GetRulesFn,
+        stack_height: Option<u32>,
     ) -> Result<Self, CodeError>
     where
         R: Rules,
@@ -117,11 +125,6 @@ impl Code {
         if module.start_section().is_some() {
             log::debug!("Found start section in contract code, which is not allowed");
             return Err(CodeError::StartSectionExists);
-        }
-
-        if module.custom_sections().count() != 0 {
-            log::debug!("Found custom sections in contract code, which is not allowed");
-            return Err(CodeError::CustomSectionsExist);
         }
 
         // get initial memory size from memory import.
@@ -140,6 +143,10 @@ impl Code {
                 .ok_or(CodeError::MemoryEntryNotFound)?,
         );
 
+        if static_pages > MAX_WASM_PAGE_COUNT.into() {
+            return Err(CodeError::InvalidStaticPageCount);
+        }
+
         let exports = get_exports(&module, true)?;
 
         if exports.contains(&DispatchKind::Init) || exports.contains(&DispatchKind::Handle) {
@@ -148,9 +155,16 @@ impl Code {
                 wasm_instrument::gas_metering::inject(module, &gas_rules, "env")
                     .map_err(|_| CodeError::GasInjection)?;
 
-            let instrumented =
+            let instrumented = if let Some(limit) = stack_height {
+                let instrumented_module =
+                    wasm_instrument::inject_stack_limiter(instrumented_module, limit)
+                        .map_err(|_| CodeError::StackLimitInjection)?;
                 wasm_instrument::parity_wasm::elements::serialize(instrumented_module)
-                    .map_err(|_| CodeError::Encode)?;
+                    .map_err(|_| CodeError::Encode)?
+            } else {
+                wasm_instrument::parity_wasm::elements::serialize(instrumented_module)
+                    .map_err(|_| CodeError::Encode)?
+            };
 
             Ok(Self {
                 code: instrumented,
@@ -283,7 +297,7 @@ impl CodeAndId {
 
     /// Creates the instance from the precalculated hash without checks.
     pub fn from_parts_unchecked(code: Code, code_id: CodeId) -> Self {
-        assert_eq!(code_id, CodeId::generate(code.raw_code()));
+        debug_assert_eq!(code_id, CodeId::generate(code.raw_code()));
         Self { code, code_id }
     }
 

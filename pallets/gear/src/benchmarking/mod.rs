@@ -33,12 +33,13 @@ use self::{
     sandbox::Sandbox,
 };
 use crate::{
-    manager::{ExtManager, HandleKind},
+    benchmarking::code::max_pages,
+    manager::{CodeInfo, ExtManager, HandleKind},
     pallet,
     schedule::{API_BENCHMARK_BATCH_SIZE, INSTR_BENCHMARK_BATCH_SIZE},
-    BTreeMap, BalanceOf, BlockGasLimitOf, Call, Config, CostsPerBlockOf, CurrencyOf,
-    Ext as Externalities, GasHandlerOf, MailboxOf, Pallet as Gear, Pallet, QueueOf,
-    SandboxEnvironment, Schedule, WaitlistOf,
+    BTreeMap, BalanceOf, BlockGasLimitOf, Call, Config, CostsPerBlockOf, CurrencyOf, DbWeightOf,
+    ExecutionEnvironment, Ext as Externalities, GasHandlerOf, MailboxOf, Pallet as Gear, Pallet,
+    QueueOf, ReadPerByteCostOf, Schedule, WaitlistOf,
 };
 use codec::Encode;
 use common::{
@@ -47,16 +48,18 @@ use common::{
 };
 use core_processor::{
     configs::{AllocationsConfig, BlockConfig, BlockInfo, MessageExecutionContext},
-    PrepareResult, PreparedMessageExecutionContext,
+    PrechargeResult, PrepareResult, ProcessExecutionContext, ProcessorContext, ProcessorExt,
 };
 use frame_benchmarking::{benchmarks, whitelisted_caller};
 use frame_support::traits::{Currency, Get, Hooks, ReservableCurrency};
 use frame_system::{Pallet as SystemPallet, RawOrigin};
+use gear_backend_common::Environment;
 use gear_core::{
     code::{Code, CodeAndId},
+    gas::{GasAllowanceCounter, GasCounter, ValueCounter},
     ids::{CodeId, MessageId, ProgramId},
-    memory::{PageBuf, PageNumber},
-    message::{Dispatch, DispatchKind, Message, ReplyDetails},
+    memory::{AllocationsContext, PageBuf, PageNumber},
+    message::{ContextSettings, Dispatch, DispatchKind, Message, MessageContext, ReplyDetails},
 };
 use pallet_authorship::Pallet as AuthorshipPallet;
 use sp_consensus_babe::{
@@ -68,7 +71,7 @@ use sp_runtime::{
     traits::{Bounded, One, UniqueSaturatedInto},
     Digest, DigestItem, Perbill,
 };
-use sp_std::prelude::*;
+use sp_std::{convert::TryInto, prelude::*};
 use wasm_instrument::parity_wasm::elements::{BlockType, BrTableData, Instruction, ValueType};
 
 const MAX_PAYLOAD_LEN: u32 = 64 * 1024;
@@ -114,6 +117,36 @@ where
     init_block::<T>();
 
     Gear::<T>::process_queue(Default::default());
+}
+
+fn default_processor_context() -> ProcessorContext {
+    ProcessorContext {
+        gas_counter: GasCounter::new(0),
+        gas_allowance_counter: GasAllowanceCounter::new(0),
+        value_counter: ValueCounter::new(0),
+        allocations_context: AllocationsContext::new(
+            Default::default(),
+            Default::default(),
+            Default::default(),
+        ),
+        message_context: MessageContext::new(
+            Default::default(),
+            Default::default(),
+            None,
+            ContextSettings::new(0, 0, 0, 0),
+        ),
+        block_info: Default::default(),
+        config: Default::default(),
+        existential_deposit: 0,
+        origin: Default::default(),
+        program_id: Default::default(),
+        program_candidates_data: Default::default(),
+        host_fn_weights: Default::default(),
+        forbidden_funcs: Default::default(),
+        mailbox_threshold: 0,
+        waitlist_cost: 0,
+        reserve_for: 0,
+    }
 }
 
 /// An instantiated and deployed program.
@@ -181,7 +214,7 @@ fn caller_funding<T: pallet::Config>() -> BalanceOf<T> {
 struct Exec<T: Config> {
     ext_manager: ExtManager<T>,
     block_config: BlockConfig,
-    context: Box<PreparedMessageExecutionContext>,
+    context: ProcessExecutionContext,
     memory_pages: BTreeMap<PageNumber, PageBuf>,
 }
 
@@ -211,15 +244,16 @@ where
                 code.clone(),
                 schedule.instruction_weights.version,
                 |module| schedule.rules(module),
+                schedule.limits.stack_height,
             )
             .map_err(|_| "Code failed to load")?;
 
             let code_and_id = CodeAndId::new(code);
-            let code_id = code_and_id.code_id();
+            let code_info = CodeInfo::from_code_and_id(&code_and_id);
 
             let _ = Gear::<T>::set_code_with_metadata(code_and_id, source);
 
-            ExtManager::<T>::default().set_program(program_id, code_id, root_message_id);
+            ExtManager::<T>::default().set_program(program_id, &code_info, root_message_id);
 
             Dispatch::new(
                 DispatchKind::Init,
@@ -227,7 +261,7 @@ where
                     root_message_id,
                     ProgramId::from_origin(source),
                     program_id,
-                    payload,
+                    payload.try_into()?,
                     Some(u64::MAX),
                     value,
                     None,
@@ -237,11 +271,10 @@ where
         HandleKind::InitByHash(code_id) => {
             let program_id = ProgramId::generate(code_id, b"bench_salt");
 
-            if !T::CodeStorage::exists(code_id) {
-                return Err("Code not found in storage");
-            }
+            let code = T::CodeStorage::get_code(code_id).ok_or("Code not found in storage")?;
+            let code_info = CodeInfo::from_code(&code_id, &code);
 
-            ExtManager::<T>::default().set_program(program_id, code_id, root_message_id);
+            ExtManager::<T>::default().set_program(program_id, &code_info, root_message_id);
 
             Dispatch::new(
                 DispatchKind::Init,
@@ -249,7 +282,7 @@ where
                     root_message_id,
                     ProgramId::from_origin(source),
                     program_id,
-                    payload,
+                    payload.try_into()?,
                     Some(u64::MAX),
                     value,
                     None,
@@ -262,7 +295,7 @@ where
                 root_message_id,
                 ProgramId::from_origin(source),
                 dest,
-                payload,
+                payload.try_into()?,
                 Some(u64::MAX),
                 value,
                 None,
@@ -278,7 +311,7 @@ where
                     root_message_id,
                     ProgramId::from_origin(source),
                     msg.source(),
-                    payload,
+                    payload.try_into()?,
                     Some(u64::MAX),
                     value,
                     Some(ReplyDetails::new(msg.id(), exit_code)),
@@ -324,6 +357,10 @@ where
         mailbox_threshold,
         waitlist_cost,
         reserve_for,
+        read_cost: DbWeightOf::<T>::get().reads(1).ref_time(),
+        write_cost: DbWeightOf::<T>::get().writes(1).ref_time(),
+        per_byte_cost: ReadPerByteCostOf::<T>::get(),
+        module_instantiation_byte_cost: T::Schedule::get().module_instantiation_per_byte,
     };
 
     if let Some(queued_dispatch) = QueueOf::<T>::dequeue().map_err(|_| "MQ storage corrupted")? {
@@ -332,23 +369,40 @@ where
             .get_actor(actor_id)
             .ok_or("Program not found in the storage")?;
 
+        let precharged_dispatch = match core_processor::precharge(
+            &block_config,
+            u64::MAX,
+            queued_dispatch.into_incoming(initial_gas),
+            actor_id,
+        ) {
+            PrechargeResult::Ok(d) => d,
+            PrechargeResult::Error(_) => {
+                return Err("core_processor::precharge failed");
+            }
+        };
+
         let message_execution_context = MessageExecutionContext {
             actor,
-            dispatch: queued_dispatch.into_incoming(initial_gas),
+            precharged_dispatch,
             origin: ProgramId::from_origin(source),
-            gas_allowance: u64::MAX,
             subsequent_execution: false,
         };
 
-        let context = match core_processor::prepare(&block_config, message_execution_context) {
-            PrepareResult::Ok { context, .. } => context,
-            _ => return Err("core_processor::prepare failed"),
-        };
+        let (context, code) =
+            match core_processor::prepare(&block_config, message_execution_context) {
+                PrepareResult::Ok(context) => {
+                    let code = T::CodeStorage::get_code(context.actor_data().code_id)
+                        .ok_or("Program code not found")?;
+
+                    (context, code)
+                }
+                _ => return Err("core_processor::prepare failed"),
+            };
 
         Ok(Exec {
             ext_manager,
             block_config,
-            context,
+            context: (context, actor_id, code).into(),
             // actor without pages data because of lazy pages enabled
             memory_pages: Default::default(),
         })
@@ -361,6 +415,22 @@ benchmarks! {
 
     where_clause { where
         T::AccountId: Origin,
+    }
+
+    // `c`: Size of the code in kilobytes.
+    instantiate_module_per_kb {
+        let c in 0 .. T::Schedule::get().limits.code_len / 1024;
+
+        #[cfg(feature = "lazy-pages")]
+        type Ext = crate::ext::LazyPagesExt;
+
+        #[cfg(not(feature = "lazy-pages"))]
+        type Ext = core_processor::Ext;
+
+        let WasmModule { code, .. } = WasmModule::<T>::sized(c * 1024, Location::Init);
+    }: {
+        let ext = Ext::new(default_processor_context());
+        ExecutionEnvironment::new(ext, &code, Default::default(), max_pages::<T>().into()).unwrap();
     }
 
     claim_value {
@@ -588,7 +658,7 @@ benchmarks! {
     }: {
         core_processor::process::<
             Externalities,
-            SandboxEnvironment,
+            ExecutionEnvironment,
         >(&block_config, context, memory_pages);
     }
 
@@ -652,7 +722,7 @@ benchmarks! {
 
         core_processor::process::<
             Externalities,
-            SandboxEnvironment,
+            ExecutionEnvironment,
         >(&block_config, context, memory_pages);
     }
 
@@ -682,14 +752,14 @@ benchmarks! {
     }: {
         core_processor::process::<
             Externalities,
-            SandboxEnvironment,
+            ExecutionEnvironment,
         >(&block_config, context, memory_pages);
     }
 
-    gr_msg_id {
+    gr_message_id {
         let r in 0 .. API_BENCHMARK_BATCHES;
         let instance = Program::<T>::new(WasmModule::getter(
-            "env", "gr_msg_id", r * API_BENCHMARK_BATCH_SIZE
+            "env", "gr_message_id", r * API_BENCHMARK_BATCH_SIZE
         ), vec![])?;
         let Exec {
             ext_manager,
@@ -700,7 +770,7 @@ benchmarks! {
     }: {
         core_processor::process::<
             Externalities,
-            SandboxEnvironment,
+            ExecutionEnvironment,
         >(&block_config, context, memory_pages);
     }
 
@@ -718,7 +788,7 @@ benchmarks! {
     }: {
         core_processor::process::<
             Externalities,
-            SandboxEnvironment,
+            ExecutionEnvironment,
         >(&block_config, context, memory_pages);
     }
 
@@ -736,7 +806,7 @@ benchmarks! {
     }: {
         core_processor::process::<
             Externalities,
-            SandboxEnvironment,
+            ExecutionEnvironment,
         >(&block_config, context, memory_pages);
     }
 
@@ -755,7 +825,7 @@ benchmarks! {
     }: {
         core_processor::process::<
             Externalities,
-            SandboxEnvironment,
+            ExecutionEnvironment,
         >(&block_config, context, memory_pages);
     }
 
@@ -773,7 +843,7 @@ benchmarks! {
     }: {
         core_processor::process::<
             Externalities,
-            SandboxEnvironment,
+            ExecutionEnvironment,
         >(&block_config, context, memory_pages);
     }
 
@@ -791,7 +861,7 @@ benchmarks! {
     }: {
         core_processor::process::<
             Externalities,
-            SandboxEnvironment,
+            ExecutionEnvironment,
         >(&block_config, context, memory_pages);
     }
 
@@ -821,7 +891,7 @@ benchmarks! {
     }: {
         core_processor::process::<
             Externalities,
-            SandboxEnvironment,
+            ExecutionEnvironment,
         >(&block_config, context, memory_pages);
     }
 
@@ -862,7 +932,7 @@ benchmarks! {
     }: {
         core_processor::process::<
             Externalities,
-            SandboxEnvironment,
+            ExecutionEnvironment,
         >(&block_config, context, memory_pages);
     }
 
@@ -907,7 +977,7 @@ benchmarks! {
     }: {
         core_processor::process::<
             Externalities,
-            SandboxEnvironment,
+            ExecutionEnvironment,
         >(&block_config, context, memory_pages);
     }
 
@@ -937,7 +1007,7 @@ benchmarks! {
     }: {
         core_processor::process::<
             Externalities,
-            SandboxEnvironment,
+            ExecutionEnvironment,
         >(&block_config, context, memory_pages);
     }
 
@@ -967,7 +1037,7 @@ benchmarks! {
     }: {
         core_processor::process::<
             Externalities,
-            SandboxEnvironment,
+            ExecutionEnvironment,
         >(&block_config, context, memory_pages);
     }
 
@@ -998,7 +1068,7 @@ benchmarks! {
     }: {
         core_processor::process::<
             Externalities,
-            SandboxEnvironment,
+            ExecutionEnvironment,
         >(&block_config, context, memory_pages);
     }
 
@@ -1040,7 +1110,7 @@ benchmarks! {
     }: {
         core_processor::process::<
             Externalities,
-            SandboxEnvironment,
+            ExecutionEnvironment,
         >(&block_config, context, memory_pages);
     }
 
@@ -1082,7 +1152,7 @@ benchmarks! {
     }: {
         core_processor::process::<
             Externalities,
-            SandboxEnvironment,
+            ExecutionEnvironment,
         >(&block_config, context, memory_pages);
     }
 
@@ -1135,7 +1205,7 @@ benchmarks! {
     }: {
         core_processor::process::<
             Externalities,
-            SandboxEnvironment,
+            ExecutionEnvironment,
         >(&block_config, context, memory_pages);
     }
 
@@ -1188,7 +1258,7 @@ benchmarks! {
     }: {
         core_processor::process::<
             Externalities,
-            SandboxEnvironment,
+            ExecutionEnvironment,
         >(&block_config, context, memory_pages);
     }
 
@@ -1231,7 +1301,7 @@ benchmarks! {
     }: {
         core_processor::process::<
             Externalities,
-            SandboxEnvironment,
+            ExecutionEnvironment,
         >(&block_config, context, memory_pages);
     }
 
@@ -1272,7 +1342,7 @@ benchmarks! {
     }: {
         core_processor::process::<
             Externalities,
-            SandboxEnvironment,
+            ExecutionEnvironment,
         >(&block_config, context, memory_pages);
     }
 
@@ -1314,7 +1384,7 @@ benchmarks! {
     }: {
         core_processor::process::<
             Externalities,
-            SandboxEnvironment,
+            ExecutionEnvironment,
         >(&block_config, context, memory_pages);
     }
 
@@ -1354,7 +1424,7 @@ benchmarks! {
     }: {
         core_processor::process::<
             Externalities,
-            SandboxEnvironment,
+            ExecutionEnvironment,
         >(&block_config, context, memory_pages);
     }
 
@@ -1377,7 +1447,7 @@ benchmarks! {
         });
         let instance = Program::<T>::new(code, vec![])?;
         let msg_id = MessageId::from(10);
-        let msg = gear_core::message::Message::new(msg_id, instance.addr.as_bytes().into(), ProgramId::from(instance.caller.clone().into_origin().as_bytes()), vec![], Some(1_000_000), 0, None).into_stored();
+        let msg = gear_core::message::Message::new(msg_id, instance.addr.as_bytes().into(), ProgramId::from(instance.caller.clone().into_origin().as_bytes()), Default::default(), Some(1_000_000), 0, None).into_stored();
         MailboxOf::<T>::insert(msg, u32::MAX.unique_saturated_into()).expect("Error during mailbox insertion");
         let Exec {
             ext_manager,
@@ -1388,7 +1458,7 @@ benchmarks! {
     }: {
         core_processor::process::<
             Externalities,
-            SandboxEnvironment,
+            ExecutionEnvironment,
         >(&block_config, context, memory_pages);
     }
 
@@ -1419,7 +1489,7 @@ benchmarks! {
     }: {
         core_processor::process::<
             Externalities,
-            SandboxEnvironment,
+            ExecutionEnvironment,
         >(&block_config, context, memory_pages);
     }
 
@@ -1441,7 +1511,7 @@ benchmarks! {
         });
         let instance = Program::<T>::new(code, vec![])?;
         let msg_id = MessageId::from(10);
-        let msg = gear_core::message::Message::new(msg_id, instance.addr.as_bytes().into(), ProgramId::from(instance.caller.clone().into_origin().as_bytes()), vec![], Some(1_000_000), 0, None).into_stored();
+        let msg = gear_core::message::Message::new(msg_id, instance.addr.as_bytes().into(), ProgramId::from(instance.caller.clone().into_origin().as_bytes()), Default::default(), Some(1_000_000), 0, None).into_stored();
         MailboxOf::<T>::insert(msg, u32::MAX.unique_saturated_into()).expect("Error during mailbox insertion");
         let Exec {
             ext_manager,
@@ -1452,7 +1522,7 @@ benchmarks! {
     }: {
         core_processor::process::<
             Externalities,
-            SandboxEnvironment,
+            ExecutionEnvironment,
         >(&block_config, context, memory_pages);
     }
 
@@ -1492,7 +1562,7 @@ benchmarks! {
     }: {
         core_processor::process::<
             Externalities,
-            SandboxEnvironment,
+            ExecutionEnvironment,
         >(&block_config, context, memory_pages);
     }
 
@@ -1523,7 +1593,7 @@ benchmarks! {
     }: {
         core_processor::process::<
             Externalities,
-            SandboxEnvironment,
+            ExecutionEnvironment,
         >(&block_config, context, memory_pages);
     }
 
@@ -1554,7 +1624,7 @@ benchmarks! {
     }: {
         core_processor::process::<
             Externalities,
-            SandboxEnvironment,
+            ExecutionEnvironment,
         >(&block_config, context, memory_pages);
     }
 
@@ -1586,19 +1656,19 @@ benchmarks! {
     }: {
         core_processor::process::<
             Externalities,
-            SandboxEnvironment,
+            ExecutionEnvironment,
         >(&block_config, context, memory_pages);
     }
 
-    // We cannot call `gr_wait_no_more` multiple times. Therefore our weight determination is not
+    // We cannot call `gr_wait_up_to` multiple times. Therefore our weight determination is not
     // as precise as with other APIs.
-    gr_wait_no_more {
+    gr_wait_up_to {
         let r in 0 .. 1;
         let code = WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
             imported_functions: vec![ImportedFunction {
                 module: "env",
-                name: "gr_wait_no_more",
+                name: "gr_wait_up_to",
                 params: vec![ValueType::I32],
                 return_type: None,
             }],
@@ -1618,7 +1688,7 @@ benchmarks! {
     }: {
         core_processor::process::<
             Externalities,
-            SandboxEnvironment,
+            ExecutionEnvironment,
         >(&block_config, context, memory_pages);
     }
 
@@ -1651,7 +1721,7 @@ benchmarks! {
         });
         let instance = Program::<T>::new(code, vec![])?;
         for message_id in message_ids {
-            let message = gear_core::message::Message::new(message_id, 1.into(), ProgramId::from(instance.addr.as_bytes()), vec![], Some(1_000_000), 0, None);
+            let message = gear_core::message::Message::new(message_id, 1.into(), ProgramId::from(instance.addr.as_bytes()), Default::default(), Some(1_000_000), 0, None);
             let dispatch = gear_core::message::Dispatch::new(gear_core::message::DispatchKind::Handle, message).into_stored();
             WaitlistOf::<T>::insert(dispatch.clone(), u32::MAX.unique_saturated_into()).expect("Duplicate wl message");
         }
@@ -1664,7 +1734,7 @@ benchmarks! {
     }: {
         core_processor::process::<
             Externalities,
-            SandboxEnvironment,
+            ExecutionEnvironment,
         >(&block_config, context, memory_pages);
     }
 
@@ -1708,7 +1778,7 @@ benchmarks! {
             handle_body: Some(body::repeated_dyn(r, vec![
                 Regular(Instruction::I32Const(0)),
                 Regular(Instruction::I32Const(code_hash_len as i32)),
-                Counter(0_u32, r as u32), // salt len
+                Counter(0_u32, r), // salt len
                 Regular(Instruction::I32Const(0)),
                 Regular(Instruction::I32Const(0)), // payload_len
                 Regular(Instruction::I64Const(100000000)),
@@ -1728,7 +1798,7 @@ benchmarks! {
     }: {
         core_processor::process::<
             Externalities,
-            SandboxEnvironment,
+            ExecutionEnvironment,
         >(&block_config, context, memory_pages);
     }
 
@@ -1772,7 +1842,7 @@ benchmarks! {
             handle_body: Some(body::repeated_dyn(API_BENCHMARK_BATCH_SIZE, vec![
                 Regular(Instruction::I32Const(0)),
                 Regular(Instruction::I32Const(code_hash_len as i32)),
-                Counter(0_u32, API_BENCHMARK_BATCH_SIZE as u32), // salt len
+                Counter(0_u32, API_BENCHMARK_BATCH_SIZE), // salt len
                 Regular(Instruction::I32Const(0)),
                 Regular(Instruction::I32Const((n * 1024) as i32)), // payload_len
                 Regular(Instruction::I64Const(100000000)),
@@ -1792,7 +1862,7 @@ benchmarks! {
     }: {
         core_processor::process::<
             Externalities,
-            SandboxEnvironment,
+            ExecutionEnvironment,
         >(&block_config, context, memory_pages);
     }
 
@@ -2090,7 +2160,7 @@ benchmarks! {
     // w_local_get = w_bench - 1 * w_param
     instr_local_get {
         let r in 0 .. INSTR_BENCHMARK_BATCHES;
-        let max_locals = T::Schedule::get().limits.stack_height;
+        let max_locals = T::Schedule::get().limits.stack_height.unwrap_or(512);
         let mut handle_body = body::repeated_dyn(r * INSTR_BENCHMARK_BATCH_SIZE, vec![
             RandomGetLocal(0, max_locals),
             Regular(Instruction::Drop),
@@ -2107,7 +2177,7 @@ benchmarks! {
     // w_local_set = w_bench - 1 * w_param
     instr_local_set {
         let r in 0 .. INSTR_BENCHMARK_BATCHES;
-        let max_locals = T::Schedule::get().limits.stack_height;
+        let max_locals = T::Schedule::get().limits.stack_height.unwrap_or(512);
         let mut handle_body = body::repeated_dyn(r * INSTR_BENCHMARK_BATCH_SIZE, vec![
             RandomI64Repeated(1),
             RandomSetLocal(0, max_locals),
@@ -2124,7 +2194,7 @@ benchmarks! {
     // w_local_tee = w_bench - 2 * w_param
     instr_local_tee {
         let r in 0 .. INSTR_BENCHMARK_BATCHES;
-        let max_locals = T::Schedule::get().limits.stack_height;
+        let max_locals = T::Schedule::get().limits.stack_height.unwrap_or(512);
         let mut handle_body = body::repeated_dyn(r * INSTR_BENCHMARK_BATCH_SIZE, vec![
             RandomI64Repeated(1),
             RandomTeeLocal(0, max_locals),

@@ -60,7 +60,8 @@ fn bot(message: MemberMessage) {
 
 #[no_mangle]
 unsafe extern "C" fn init() {
-    let input = String::from_utf8(msg::load_bytes()).expect("Invalid message: should be utf-8");
+    let input = String::from_utf8(msg::load_bytes().expect("Failed to load payload bytes"))
+        .expect("Invalid message: should be utf-8");
 
     let split = input.split(' ').collect::<Vec<_>>();
     match split.len() {

@@ -49,7 +49,7 @@ fn process_request(request: Request) {
             };
             exec::wait();
         }
-        Request::Wake(id) => exec::wake(id),
+        Request::Wake(id) => exec::wake(id).unwrap(),
     }
 }
 

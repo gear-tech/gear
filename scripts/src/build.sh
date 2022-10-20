@@ -36,11 +36,11 @@ gear_test_build() {
 }
 
 node_build() {
-  cargo build -p gear-node "$@"
+  cargo build -p gear-cli "$@"
 }
 
 wasm_proc_build() {
-  cargo build -p wasm-proc --release
+  cargo build -p wasm-proc --release "$@"
 }
 
 # $1 = TARGET DIR

@@ -42,8 +42,9 @@ pub fn default_wait_duration() -> u32 {
 pub enum Command {
     Wait,
     WaitFor(u32),
-    WaitNoMore(u32),
+    WaitUpTo(u32),
     SendFor(ActorId, u32),
     SendNoMore(ActorId, u32),
     SendNoMoreWait(ActorId, u32),
+    SendAndWaitFor(u32, ActorId),
 }

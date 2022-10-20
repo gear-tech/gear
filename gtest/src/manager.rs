@@ -20,25 +20,28 @@ use crate::{
     log::{CoreLog, RunResult},
     program::{Gas, WasmProgram},
     wasm_executor::WasmExecutor,
-    Result, TestError, EXISTENTIAL_DEPOSIT, MAILBOX_THRESHOLD, RESERVE_FOR, WAITLIST_COST,
+    Result, TestError, EXISTENTIAL_DEPOSIT, MAILBOX_THRESHOLD, MODULE_INSTANTIATION_BYTE_COST,
+    PER_BYTE_COST, READ_COST, RESERVE_FOR, WAITLIST_COST, WRITE_COST,
 };
 use core_processor::{
     common::*,
     configs::{BlockConfig, BlockInfo, MessageExecutionContext},
-    Ext, PrepareResult,
+    Ext, PrechargeResult, PrepareResult,
 };
 use gear_backend_wasmi::WasmiEnvironment;
 use gear_core::{
-    code::{Code, CodeAndId, InstrumentedCodeAndId},
+    code::{Code, CodeAndId, InstrumentedCode, InstrumentedCodeAndId},
     ids::{CodeId, MessageId, ProgramId},
     memory::{PageBuf, PageNumber, WasmPageNumber},
     message::{
-        Dispatch, DispatchKind, Payload, ReplyMessage, ReplyPacket, StoredDispatch, StoredMessage,
+        Dispatch, DispatchKind, MessageWaitedType, Payload, ReplyMessage, ReplyPacket,
+        StoredDispatch, StoredMessage,
     },
     program::Program as CoreProgram,
 };
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap, VecDeque},
+    convert::TryInto,
     time::{SystemTime, UNIX_EPOCH},
 };
 use wasm_instrument::gas_metering::ConstantCostRules;
@@ -118,11 +121,16 @@ impl TestActor {
     // Gets a new executable actor derived from the inner program.
     fn get_executable_actor_data(
         &self,
-    ) -> Option<(ExecutableActorData, BTreeMap<PageNumber, PageBuf>)> {
-        let (program, pages_data) = match self {
+    ) -> Option<(
+        ExecutableActorData,
+        CoreProgram,
+        BTreeMap<PageNumber, PageBuf>,
+    )> {
+        let (program, pages_data, code_id) = match self {
             TestActor::Initialized(Program::Genuine {
                 program,
                 pages_data,
+                code_id,
                 ..
             })
             | TestActor::Uninitialized(
@@ -130,16 +138,24 @@ impl TestActor {
                 Some(Program::Genuine {
                     program,
                     pages_data,
+                    code_id,
                     ..
                 }),
-            ) => (program.clone(), pages_data.clone()),
+            ) => (program.clone(), pages_data.clone(), code_id),
             _ => return None,
         };
+
         Some((
             ExecutableActorData {
-                program,
+                allocations: program.get_allocations().clone(),
+                code_id: *code_id,
+                code_exports: program.code().exports().clone(),
+                code_length_bytes: program.code().code().len() as u32,
+                static_pages: program.code().static_pages(),
+                initialized: program.is_initialized(),
                 pages_with_data: pages_data.keys().copied().collect(),
             },
+            program,
             pages_data,
         ))
     }
@@ -233,9 +249,9 @@ impl ExtManager {
     }
 
     pub(crate) fn store_new_code(&mut self, code: &[u8]) -> CodeId {
-        let code_hash = CodeId::generate(code);
-        self.opt_binaries.insert(code_hash, code.to_vec());
-        code_hash
+        let code_id = CodeId::generate(code);
+        self.opt_binaries.insert(code_id, code.to_vec());
+        code_id
     }
 
     pub(crate) fn fetch_inc_message_nonce(&mut self) -> u64 {
@@ -316,7 +332,7 @@ impl ExtManager {
                     .entry(dest)
                     .or_default()
                     .push(message_id);
-                self.wait_dispatch(dispatch, None);
+                self.wait_dispatch(dispatch, None, MessageWaitedType::Wait);
 
                 continue;
             }
@@ -329,8 +345,14 @@ impl ExtManager {
 
             if actor.is_dormant() {
                 self.process_dormant(balance, dispatch);
-            } else if let Some((data, memory_pages)) = actor.get_executable_actor_data() {
-                self.process_normal(balance, data, memory_pages, dispatch);
+            } else if let Some((data, program, memory_pages)) = actor.get_executable_actor_data() {
+                self.process_normal(
+                    balance,
+                    data,
+                    program.code().clone(),
+                    memory_pages,
+                    dispatch,
+                );
             } else if let Some(mock) = actor.take_mock() {
                 self.process_mock(mock, dispatch);
             } else {
@@ -450,7 +472,7 @@ impl ExtManager {
     fn move_waiting_msgs_to_queue(&mut self, message_id: MessageId, program_id: ProgramId) {
         if let Some(ids) = self.wait_init_list.remove(&program_id) {
             for id in ids {
-                self.wake_message(message_id, program_id, id);
+                self.wake_message(message_id, program_id, id, 0);
             }
         }
     }
@@ -470,19 +492,25 @@ impl ExtManager {
     }
 
     fn process_mock(&mut self, mut mock: Box<dyn WasmProgram>, dispatch: StoredDispatch) {
+        enum Mocked {
+            Reply(Option<Vec<u8>>),
+            Signal,
+        }
+
         let message_id = dispatch.id();
         let source = dispatch.source();
         let program_id = dispatch.destination();
         let payload = dispatch.payload().to_vec();
 
         let response = match dispatch.kind() {
-            DispatchKind::Init => mock.init(payload),
-            DispatchKind::Handle => mock.handle(payload),
-            DispatchKind::Reply => mock.handle_reply(payload),
+            DispatchKind::Init => mock.init(payload).map(Mocked::Reply),
+            DispatchKind::Handle => mock.handle(payload).map(Mocked::Reply),
+            DispatchKind::Reply => mock.handle_reply(payload).map(Mocked::Reply),
+            DispatchKind::Signal => mock.handle_signal(payload).map(|()| Mocked::Signal),
         };
 
         match response {
-            Ok(reply) => {
+            Ok(Mocked::Reply(reply)) => {
                 if let DispatchKind::Init = dispatch.kind() {
                     self.message_dispatched(
                         message_id,
@@ -493,15 +521,17 @@ impl ExtManager {
 
                 if let Some(payload) = reply {
                     let id = MessageId::generate_reply(message_id, 0);
-                    let packet = ReplyPacket::new(payload, 0);
+                    let packet = ReplyPacket::new(payload.try_into().unwrap(), 0);
                     let reply_message = ReplyMessage::from_packet(id, packet);
 
                     self.send_dispatch(
                         message_id,
                         reply_message.into_dispatch(program_id, dispatch.source(), message_id),
+                        0,
                     );
                 }
             }
+            Ok(Mocked::Signal) => {}
             Err(expl) => {
                 mock.debug(expl);
 
@@ -526,14 +556,17 @@ impl ExtManager {
                     )
                 }
 
-                let id = MessageId::generate_reply(message_id, 1);
-                let packet = ReplyPacket::new(Default::default(), 1);
-                let reply_message = ReplyMessage::from_packet(id, packet);
+                if !dispatch.kind().is_signal() {
+                    let id = MessageId::generate_reply(message_id, 1);
+                    let packet = ReplyPacket::new(Default::default(), 1);
+                    let reply_message = ReplyMessage::from_packet(id, packet);
 
-                self.send_dispatch(
-                    message_id,
-                    reply_message.into_dispatch(program_id, dispatch.source(), message_id),
-                );
+                    self.send_dispatch(
+                        message_id,
+                        reply_message.into_dispatch(program_id, dispatch.source(), message_id),
+                        0,
+                    );
+                }
             }
         }
 
@@ -550,10 +583,11 @@ impl ExtManager {
         &mut self,
         balance: u128,
         data: ExecutableActorData,
+        code: InstrumentedCode,
         memory_pages: BTreeMap<PageNumber, PageBuf>,
         dispatch: StoredDispatch,
     ) {
-        self.process_dispatch(balance, Some(data), memory_pages, dispatch);
+        self.process_dispatch(balance, Some((data, code)), memory_pages, dispatch);
     }
 
     fn process_dormant(&mut self, balance: u128, dispatch: StoredDispatch) {
@@ -563,7 +597,7 @@ impl ExtManager {
     fn process_dispatch(
         &mut self,
         balance: u128,
-        data: Option<ExecutableActorData>,
+        data: Option<(ExecutableActorData, InstrumentedCode)>,
         memory_pages: BTreeMap<PageNumber, PageBuf>,
         dispatch: StoredDispatch,
     ) {
@@ -583,24 +617,46 @@ impl ExtManager {
             mailbox_threshold: MAILBOX_THRESHOLD,
             waitlist_cost: WAITLIST_COST,
             reserve_for: RESERVE_FOR,
+            read_cost: READ_COST,
+            write_cost: WRITE_COST,
+            per_byte_cost: PER_BYTE_COST,
+            module_instantiation_byte_cost: MODULE_INSTANTIATION_BYTE_COST,
         };
+
+        let (actor_data, code) = match data {
+            Some((a, c)) => (Some(a), Some(c)),
+            None => (None, None),
+        };
+
+        let precharged_dispatch = match core_processor::precharge(
+            &block_config,
+            u64::MAX,
+            dispatch.into_incoming(gas_limit),
+            dest,
+        ) {
+            PrechargeResult::Ok(d) => d,
+            PrechargeResult::Error(journal) => {
+                core_processor::handle_journal(journal, self);
+                return;
+            }
+        };
+
         let message_execution_context = MessageExecutionContext {
             actor: Actor {
                 balance,
                 destination_program: dest,
-                executable_data: data,
+                executable_data: actor_data,
             },
-            dispatch: dispatch.into_incoming(gas_limit),
+            precharged_dispatch,
             origin: self.origin,
-            gas_allowance: u64::MAX,
             subsequent_execution: false,
         };
 
         let journal = match core_processor::prepare(&block_config, message_execution_context) {
             PrepareResult::WontExecute(journal) | PrepareResult::Error(journal) => journal,
-            PrepareResult::Ok { context, .. } => core_processor::process::<Ext, WasmiEnvironment>(
+            PrepareResult::Ok(context) => core_processor::process::<Ext, WasmiEnvironment<Ext>>(
                 &block_config,
-                context,
+                (context, dest, code.unwrap()).into(),
                 memory_pages,
             ),
         };
@@ -617,12 +673,12 @@ impl ExtManager {
         let (actor, _balance) = self
             .actors
             .get_mut(program_id)
-            .ok_or(TestError::ActorNotFound(*program_id))?;
+            .ok_or_else(|| TestError::ActorNotFound(*program_id))?;
 
         let code_id = actor.code_id();
-        let (data, memory) = actor
+        let (_data, program, memory) = actor
             .get_executable_actor_data()
-            .ok_or(TestError::ActorIsNotExecutable(*program_id))?;
+            .ok_or_else(|| TestError::ActorIsNotExecutable(*program_id))?;
         let pages_initial_data = memory
             .into_iter()
             .map(|(page, data)| (page, Box::new(data)))
@@ -632,13 +688,13 @@ impl ExtManager {
             .map(Vec::as_slice)
             .ok_or(TestError::MetaBinaryNotProvided)?;
 
-        let mut ext = WasmExecutor::build_ext(&data.program, payload.unwrap_or_default());
+        let mut ext = WasmExecutor::build_ext(&program, payload.unwrap_or_default());
 
         WasmExecutor::update_ext(&mut ext, self);
 
         WasmExecutor::execute(
-            &mut ext,
-            &data.program,
+            ext,
+            &program,
             meta_binary,
             &pages_initial_data,
             function_name,
@@ -687,7 +743,7 @@ impl JournalHandler for ExtManager {
         }
     }
 
-    fn send_dispatch(&mut self, _message_id: MessageId, dispatch: Dispatch) {
+    fn send_dispatch(&mut self, _message_id: MessageId, dispatch: Dispatch, _delay: u32) {
         self.gas_limits.insert(dispatch.id(), dispatch.gas_limit());
 
         if !self.is_user(&dispatch.destination()) {
@@ -711,7 +767,12 @@ impl JournalHandler for ExtManager {
         }
     }
 
-    fn wait_dispatch(&mut self, dispatch: StoredDispatch, _duration: Option<u32>) {
+    fn wait_dispatch(
+        &mut self,
+        dispatch: StoredDispatch,
+        _duration: Option<u32>,
+        _: MessageWaitedType,
+    ) {
         self.message_consumed(dispatch.id());
         self.wait_list
             .insert((dispatch.destination(), dispatch.id()), dispatch);
@@ -722,6 +783,7 @@ impl JournalHandler for ExtManager {
         _message_id: MessageId,
         program_id: ProgramId,
         awakening_id: MessageId,
+        _delay: u32,
     ) {
         if let Some(msg) = self.wait_list.remove(&(program_id, awakening_id)) {
             self.dispatches.push_back(msg);
@@ -804,15 +866,16 @@ impl JournalHandler for ExtManager {
         }
     }
 
-    fn store_new_programs(&mut self, code_hash: CodeId, candidates: Vec<(ProgramId, MessageId)>) {
-        if let Some(code) = self.opt_binaries.get(&code_hash).cloned() {
-            for (candidate_id, init_message_id) in candidates {
+    fn store_new_programs(&mut self, code_id: CodeId, candidates: Vec<(MessageId, ProgramId)>) {
+        if let Some(code) = self.opt_binaries.get(&code_id).cloned() {
+            for (init_message_id, candidate_id) in candidates {
                 if !self.actors.contains_key(&candidate_id) {
-                    let code = Code::try_new(code.clone(), 1, |_| ConstantCostRules::default())
-                        .expect("Program can't be constructed with provided code");
+                    let code =
+                        Code::try_new(code.clone(), 1, |_| ConstantCostRules::default(), None)
+                            .expect("Program can't be constructed with provided code");
 
                     let code_and_id: InstrumentedCodeAndId =
-                        CodeAndId::from_parts_unchecked(code, code_hash).into();
+                        CodeAndId::from_parts_unchecked(code, code_id).into();
                     let (code, code_id) = code_and_id.into_parts();
                     let candidate = CoreProgram::new(candidate_id, code);
                     self.store_new_actor(
@@ -827,9 +890,9 @@ impl JournalHandler for ExtManager {
         } else {
             logger::debug!(
                 "No referencing code with code hash {:?} for candidate programs",
-                code_hash
+                code_id
             );
-            for (invalid_candidate_id, _) in candidates {
+            for (_, invalid_candidate_id) in candidates {
                 self.actors
                     .insert(invalid_candidate_id, (TestActor::Dormant, 0));
             }

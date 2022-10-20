@@ -21,7 +21,7 @@ exports.getWasmMetadata = async (wasmBytes) => {
             gr_exit: () => { },
             gr_exit_code: () => { },
             gr_program_id: () => { },
-            gr_msg_id: () => { },
+            gr_message_id: () => { },
             gr_size: () => { },
             gr_read: () => { },
             gr_source: () => { },
@@ -41,7 +41,7 @@ exports.getWasmMetadata = async (wasmBytes) => {
             gr_value: () => { },
             gr_wait: () => { },
             gr_wait_for: () => { },
-            gr_wait_no_more: () => { },
+            gr_wait_up_to: () => { },
             gr_wake: () => { },
             gr_error: () => { },
         }

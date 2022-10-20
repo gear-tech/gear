@@ -71,13 +71,21 @@ node:
 node-release:
 	@ ./scripts/gear.sh build node --release
 
+.PHONY: node-release-rtest
+node-release-rtest:
+	@ ./scripts/gear.sh build node --release --no-default-features --features=gear-native,lazy-pages,runtime-test
+
 .PHONY: vara
 vara:
-	@ ./scripts/gear.sh build node --no-default-features --features=vara-native,lazy-pages
+	@ ./scripts/gear.sh build node --no-default-features --features=vara-native,lazy-pages,program
 
 .PHONY: vara-release
 vara-release:
-	@ ./scripts/gear.sh build node --release --no-default-features --features=vara-native,lazy-pages
+	@ ./scripts/gear.sh build node --release --no-default-features --features=vara-native,lazy-pages,program
+
+.PHONY: vara-release-rtest
+vara-release-rtest:
+	@ ./scripts/gear.sh build node --release --no-default-features --features=runtime-test,vara-native,lazy-pages
 
 # Check section
 .PHONY: check
@@ -184,11 +192,11 @@ run-node-release:
 
 .PHONY: run-dev-node
 run-dev-node:
-	@ RUST_LOG="gear_core_processor=debug,gwasm=debug,pallet_gas=debug,pallet_gear=debug" ./scripts/gear.sh run node -- --dev -l0
+	@ RUST_LOG="gear_core_processor=debug,gwasm=debug,pallet_gas=debug,pallet_gear=debug" ./scripts/gear.sh run node -- --dev
 
 .PHONY: run-dev-node-release
 run-dev-node-release:
-	@ RUST_LOG="gear_core_processor=debug,gwasm=debug,pallet_gas=debug,pallet_gear=debug" ./scripts/gear.sh run node --release -- --dev -l0
+	@ RUST_LOG="gear_core_processor=debug,gwasm=debug,pallet_gas=debug,pallet_gear=debug" ./scripts/gear.sh run node --release -- --dev
 
 .PHONY: purge-chain
 purge-chain:
@@ -211,15 +219,19 @@ purge-dev-chain-release:
 test: test-gear test-js gtest # There should be no release builds (e.g. `rtest`) for fast checking.
 
 .PHONY: test-release
-test-release: test-gear-release test-js gtest rtest test-runtime-upgrade test-client-weights
+test-release: test-gear-release test-js gtest rtest test-runtime-upgrade
 
 .PHONY: test-gear
-test-gear: init-js examples
-	@ ./scripts/gear.sh test gear
+test-gear: init-js examples # \
+	We use lazy-pages feature for pallet-gear-debug due to cargo building issue \
+	and fact that pallet-gear default is lazy-pages.
+	@ ./scripts/gear.sh test gear --exclude gclient --features pallet-gear-debug/lazy-pages
 
 .PHONY: test-gear-release
-test-gear-release: init-js examples
-	@ ./scripts/gear.sh test gear --release
+test-gear-release: init-js examples # \
+	We use lazy-pages feature for pallet-gear-debug due to cargo building issue \
+	and fact that pallet-gear default is lazy-pages.
+	@ ./scripts/gear.sh test gear --release --exclude gclient --features pallet-gear-debug/lazy-pages
 
 .PHONY: test-js
 test-js: init-js
@@ -230,12 +242,12 @@ gtest: init-js gear-test-release examples
 	@ ./scripts/gear.sh test gtest yamls="$(yamls)"
 
 .PHONY: rtest
-rtest: init-js node-release examples
-	@ ./scripts/gear.sh test rtest yamls="$(yamls)"
+rtest: init-js node-release-rtest examples
+	@ ./scripts/gear.sh test rtest gear yamls="$(yamls)"
 
 .PHONY: rtest-vara
-rtest-vara: init-js vara-release examples
-	@ ./scripts/gear.sh test rtest yamls="$(yamls)"
+rtest-vara: init-js vara-release-rtest examples
+	@ ./scripts/gear.sh test rtest vara yamls="$(yamls)"
 
 .PHONY: test-pallet
 test-pallet:
@@ -249,17 +261,19 @@ test-pallet-release:
 test-runtime-upgrade: init-js examples node-release
 	@ ./scripts/gear.sh test runtime-upgrade
 
-.PHONY: test-client-weights
-test-client-weights: init-js examples node-release
-	@ ./scripts/gear.sh test client-weights
+.PHONY: test-client
+test-client: node-release examples wat-examples
+	@ ./scripts/gear.sh test client --run-node
 
 # Misc section
 .PHONY: doc
 doc:
 	@ RUSTDOCFLAGS="--enable-index-page -Zunstable-options" cargo +nightly doc --no-deps \
-		-p galloc -p gcore -p gear-backend-common -p gear-backend-sandbox \
+		-p galloc -p gclient -p gcore -p gear-backend-common -p gear-backend-sandbox \
 		-p gear-core -p gear-core-processor -p gear-lazy-pages -p gear-core-errors \
-		-p gstd -p gtest -p gear-wasm-builder -p gear-common
+		-p gstd -p gtest -p gear-wasm-builder -p gear-common \
+		-p pallet-gear -p pallet-gear-gas -p pallet-gear-messenger -p pallet-gear-payment \
+		-p pallet-gear-program -p pallet-gear-rpc -p pallet-gear-scheduler
 	@ cp -f images/logo.svg target/doc/rust-logo.svg
 
 .PHONY: fuzz
@@ -269,3 +283,7 @@ fuzz:
 .PHONY: fuzz-vara
 fuzz-vara:
 	@ ./scripts/gear.sh test fuzz --features=vara-native,lazy-pages --no-default-features $(target)
+
+.PHONY: kill
+kill:
+	@ pkill -f 'gear |gear$' -9

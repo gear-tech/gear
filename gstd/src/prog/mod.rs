@@ -22,31 +22,76 @@ mod generator;
 
 pub use generator::ProgramGenerator;
 
-use crate::{common::errors::Result, prelude::convert::AsRef, ActorId, CodeHash};
+use crate::{
+    async_runtime::signals,
+    common::errors::Result,
+    msg::{CodecCreateProgramFuture, CreateProgramFuture},
+    prelude::convert::AsRef,
+    ActorId, CodeId, MessageId,
+};
+use codec::Decode;
+use gstd_codegen::wait_create_program_for_reply;
 
-pub fn create_program<T1: AsRef<[u8]>, T2: AsRef<[u8]>>(
-    code_hash: CodeHash,
-    salt: T1,
-    payload: T2,
+/// Creates new program from already existing on-chain code id,
+/// returning initial message id and newly created actor id.
+#[wait_create_program_for_reply]
+pub fn create_program(
+    code_id: CodeId,
+    salt: impl AsRef<[u8]>,
+    payload: impl AsRef<[u8]>,
     value: u128,
-) -> Result<ActorId> {
-    let id = gcore::prog::create_program(code_hash.into(), salt.as_ref(), payload.as_ref(), value)?;
-    Ok(id.into())
+) -> Result<(MessageId, ActorId)> {
+    create_program_delayed(code_id, salt, payload, value, 0)
 }
 
-pub fn create_program_with_gas<T1: AsRef<[u8]>, T2: AsRef<[u8]>>(
-    code_hash: CodeHash,
-    salt: T1,
-    payload: T2,
+/// Same as [`create_program`], but sends delayed.
+pub fn create_program_delayed(
+    code_id: CodeId,
+    salt: impl AsRef<[u8]>,
+    payload: impl AsRef<[u8]>,
+    value: u128,
+    delay: u32,
+) -> Result<(MessageId, ActorId)> {
+    let (message_id, program_id) = gcore::prog::create_program_delayed(
+        code_id.into(),
+        salt.as_ref(),
+        payload.as_ref(),
+        value,
+        delay,
+    )?;
+
+    Ok((message_id.into(), program_id.into()))
+}
+
+/// Same as [`create_program`], but with explicit gas limit.
+#[wait_create_program_for_reply]
+pub fn create_program_with_gas(
+    code_id: CodeId,
+    salt: impl AsRef<[u8]>,
+    payload: impl AsRef<[u8]>,
     gas_limit: u64,
     value: u128,
-) -> Result<ActorId> {
-    let id = gcore::prog::create_program_with_gas(
-        code_hash.into(),
+) -> Result<(MessageId, ActorId)> {
+    create_program_with_gas_delayed(code_id, salt, payload, gas_limit, value, 0)
+}
+
+/// Same as [`create_program_with_gas`], but sends delayed.
+pub fn create_program_with_gas_delayed(
+    code_id: CodeId,
+    salt: impl AsRef<[u8]>,
+    payload: impl AsRef<[u8]>,
+    gas_limit: u64,
+    value: u128,
+    delay: u32,
+) -> Result<(MessageId, ActorId)> {
+    let (message_id, program_id) = gcore::prog::create_program_with_gas_delayed(
+        code_id.into(),
         salt.as_ref(),
         payload.as_ref(),
         gas_limit,
         value,
+        delay,
     )?;
-    Ok(id.into())
+
+    Ok((message_id.into(), program_id.into()))
 }

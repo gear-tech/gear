@@ -18,18 +18,17 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
-use common::storage::*;
+use common::{storage::*, ExtractCall};
 use frame_support::{
+    dispatch::{DispatchInfo, GetDispatchInfo, PostDispatchInfo},
     pallet_prelude::*,
     traits::Contains,
-    weights::{DispatchInfo, GetDispatchInfo, PostDispatchInfo},
 };
 use pallet_transaction_payment::{
     ChargeTransactionPayment, FeeDetails, Multiplier, MultiplierUpdate, OnChargeTransaction,
     RuntimeDispatchInfo,
 };
 use sp_runtime::{
-    generic::{CheckedExtrinsic, UncheckedExtrinsic},
     traits::{Bounded, Convert, DispatchInfoOf, Dispatchable, PostDispatchInfoOf, SignedExtension},
     transaction_validity::TransactionValidityError,
     FixedPointNumber, FixedPointOperand, Perquintill, SaturatedConversion,
@@ -40,7 +39,7 @@ pub use pallet::*;
 
 type BalanceOf<T> =
     <<T as pallet_transaction_payment::Config>::OnChargeTransaction as OnChargeTransaction<T>>::Balance;
-type CallOf<T> = <T as frame_system::Config>::Call;
+type CallOf<T> = <T as frame_system::Config>::RuntimeCall;
 pub(crate) type QueueOf<T> = <<T as Config>::Messenger as Messenger>::Queue;
 pub type TransactionPayment<T> = pallet_transaction_payment::Pallet<T>;
 
@@ -144,9 +143,9 @@ where
     CallOf<T>: Dispatchable<Info = DispatchInfo, PostInfo = PostDispatchInfo>,
 {
     fn pre_dispatch_info<'a>(
-        call: &'a <T as frame_system::Config>::Call,
-        info: &'a DispatchInfoOf<<T as frame_system::Config>::Call>,
-    ) -> Cow<'a, DispatchInfoOf<<T as frame_system::Config>::Call>> {
+        call: &'a <T as frame_system::Config>::RuntimeCall,
+        info: &'a DispatchInfoOf<<T as frame_system::Config>::RuntimeCall>,
+    ) -> Cow<'a, DispatchInfoOf<<T as frame_system::Config>::RuntimeCall>> {
         // If the call is not subject to fee multiplication, divide weight by fee multiplier.
         // This action will effectively be cancelled out at the time the fee is calculated.
         //
@@ -162,10 +161,12 @@ where
             let multiplier = TransactionPayment::<T>::next_fee_multiplier();
             if multiplier > Multiplier::saturating_from_integer(1) {
                 let mut info: DispatchInfo = *info;
-                info.weight = multiplier
-                    .reciprocal() // take inverse
-                    .unwrap_or_else(Multiplier::max_value)
-                    .saturating_mul_int(info.weight);
+                info.weight = Weight::from_ref_time(
+                    multiplier
+                        .reciprocal() // take inverse
+                        .unwrap_or_else(Multiplier::max_value)
+                        .saturating_mul_int(info.weight.ref_time()),
+                );
                 Cow::Owned(info)
             } else {
                 Cow::Borrowed(info)
@@ -209,33 +210,6 @@ where
     }
 }
 
-/// A trait whose purpose is to extract the `Call` variant of an extrinsic
-pub trait ExtractCall<Call> {
-    fn extract_call(&self) -> Call;
-}
-
-/// Implementation for unchecked extrinsic.
-impl<Address, Call, Signature, Extra> ExtractCall<Call>
-    for UncheckedExtrinsic<Address, Call, Signature, Extra>
-where
-    Call: Dispatchable + Clone,
-    Extra: SignedExtension,
-{
-    fn extract_call(&self) -> Call {
-        self.function.clone()
-    }
-}
-
-/// Implementation for checked extrinsic.
-impl<Address, Call, Extra> ExtractCall<Call> for CheckedExtrinsic<Address, Call, Extra>
-where
-    Call: Dispatchable + Clone,
-{
-    fn extract_call(&self) -> Call {
-        self.function.clone()
-    }
-}
-
 impl<T: Config> Pallet<T> {
     /// Modification of the `pallet_transaction_payment::Pallet<T>::query_info()`
     /// that is aware of the transaction fee customization based on a specific call
@@ -260,10 +234,12 @@ impl<T: Config> Pallet<T> {
                 <Extrinsic as ExtractCall<CallOf<T>>>::extract_call(&unchecked_extrinsic);
             // If call is exempted from weight multiplication pre-divide it with the fee multiplier
             let adjusted_weight = if !T::ExtraFeeCallFilter::contains(&call) {
-                TransactionPayment::<T>::next_fee_multiplier()
-                    .reciprocal()
-                    .unwrap_or_else(Multiplier::max_value)
-                    .saturating_mul_int(weight)
+                Weight::from_ref_time(
+                    TransactionPayment::<T>::next_fee_multiplier()
+                        .reciprocal()
+                        .unwrap_or_else(Multiplier::max_value)
+                        .saturating_mul_int(weight.ref_time()),
+                )
             } else {
                 weight
             };
@@ -311,10 +287,12 @@ impl<T: Config> Pallet<T> {
             let call: CallOf<T> =
                 <Extrinsic as ExtractCall<CallOf<T>>>::extract_call(&unchecked_extrinsic);
             let adjusted_weight = if !T::ExtraFeeCallFilter::contains(&call) {
-                TransactionPayment::<T>::next_fee_multiplier()
-                    .reciprocal()
-                    .unwrap_or_else(Multiplier::max_value)
-                    .saturating_mul_int(weight)
+                Weight::from_ref_time(
+                    TransactionPayment::<T>::next_fee_multiplier()
+                        .reciprocal()
+                        .unwrap_or_else(Multiplier::max_value)
+                        .saturating_mul_int(weight.ref_time()),
+                )
             } else {
                 weight
             };

@@ -1,5 +1,4 @@
 #![no_std]
-#![feature(const_btree_new)]
 
 //!
 //! Hi! I'm bot. I can be configured in `init` and then reply
@@ -161,7 +160,7 @@ gstd::metadata! {
 #[no_mangle]
 unsafe extern "C" fn handle() {
     let reply = &HANDLER_MAP
-        .get_mut(&msg::load_bytes())
+        .get_mut(&msg::load_bytes().expect("Failed to load payload bytes"))
         .and_then(|i| i.next());
     if let Some(r) = reply {
         msg::reply_bytes(r, 0).unwrap();

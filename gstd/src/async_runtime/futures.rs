@@ -72,5 +72,8 @@ where
             .entry(msg_id)
             .or_insert_with(Default::default)
             .wait();
+
+        // // TODO: make this call configurable (#1380)
+        // crate::exec::wait_up_to(100)
     }
 }

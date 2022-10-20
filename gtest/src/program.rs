@@ -26,13 +26,14 @@ use codec::{Codec, Decode, Encode};
 use gear_core::{
     code::{Code, CodeAndId, InstrumentedCodeAndId},
     ids::{CodeId, MessageId, ProgramId},
-    message::{Dispatch, DispatchKind, Message},
+    message::{Dispatch, DispatchKind, ExitCode, Message, SignalMessage},
     program::Program as CoreProgram,
 };
 use gear_wasm_builder::optimize::{OptType, Optimizer};
 use path_clean::PathClean;
 use std::{
     cell::RefCell,
+    convert::TryInto,
     env,
     ffi::OsStr,
     fmt::Debug,
@@ -88,6 +89,7 @@ pub trait WasmProgram: Debug {
     fn init(&mut self, payload: Vec<u8>) -> Result<Option<Vec<u8>>, &'static str>;
     fn handle(&mut self, payload: Vec<u8>) -> Result<Option<Vec<u8>>, &'static str>;
     fn handle_reply(&mut self, payload: Vec<u8>) -> Result<Option<Vec<u8>>, &'static str>;
+    fn handle_signal(&mut self, payload: Vec<u8>) -> Result<(), &'static str>;
     fn meta_state(&mut self, payload: Option<Vec<u8>>) -> Result<Vec<u8>, &'static str>;
     fn debug(&mut self, data: &str) {
         logger::debug!(target: "gwasm", "DEBUG: {}", data);
@@ -327,7 +329,7 @@ impl<'a> Program<'a> {
         optimized: Vec<u8>,
         metadata: Option<Vec<u8>>,
     ) -> Self {
-        let code = Code::try_new(optimized, 1, |_| ConstantCostRules::default())
+        let code = Code::try_new(optimized, 1, |_| ConstantCostRules::default(), None)
             .expect("Failed to create Program from code");
 
         let code_and_id: InstrumentedCodeAndId = CodeAndId::new(code).into();
@@ -390,7 +392,7 @@ impl<'a> Program<'a> {
             ),
             source,
             self.id,
-            payload.as_ref().to_vec(),
+            payload.as_ref().to_vec().try_into().unwrap(),
             Some(u64::MAX),
             value,
             None,
@@ -408,6 +410,34 @@ impl<'a> Program<'a> {
         system.run_dispatch(Dispatch::new(kind, message))
     }
 
+    pub fn send_signal<ID: Into<ProgramIdWrapper>>(
+        &self,
+        from: ID,
+        exit_code: ExitCode,
+    ) -> RunResult {
+        let mut system = self.manager.borrow_mut();
+
+        let source = from.into().0;
+
+        let message = SignalMessage::new(
+            MessageId::generate_from_user(
+                system.block_info.height,
+                source,
+                system.fetch_inc_message_nonce() as u128,
+            ),
+            exit_code,
+        );
+
+        let (actor, _) = system.actors.get_mut(&self.id).expect("Can't fail");
+
+        if let TestActor::Uninitialized(id @ None, _) = actor {
+            *id = Some(message.id());
+        };
+
+        let dispatch = message.into_dispatch(self.id);
+        system.run_dispatch(dispatch)
+    }
+
     pub fn id(&self) -> ProgramId {
         self.id
     }
@@ -417,9 +447,11 @@ impl<'a> Program<'a> {
     }
 
     pub fn meta_state_with_bytes(&self, payload: impl AsRef<[u8]>) -> Result<Vec<u8>> {
-        self.manager
-            .borrow_mut()
-            .call_meta(&self.id, Some(payload.as_ref().into()), "meta_state")
+        self.manager.borrow_mut().call_meta(
+            &self.id,
+            Some(payload.as_ref().to_vec().try_into().unwrap()),
+            "meta_state",
+        )
     }
 
     pub fn meta_state_empty<D: Decode>(&self) -> Result<D> {
@@ -451,8 +483,8 @@ impl<'a> Program<'a> {
     }
 }
 
-pub fn calculate_program_id(code_hash: CodeId, salt: &[u8]) -> ProgramId {
-    ProgramId::generate(code_hash, salt)
+pub fn calculate_program_id(code_id: CodeId, salt: &[u8]) -> ProgramId {
+    ProgramId::generate(code_id, salt)
 }
 
 #[cfg(test)]
@@ -479,7 +511,9 @@ mod tests {
         let log = run_result.log();
         assert!(!log.is_empty());
 
-        assert_eq!(log[0].payload(), b"'Invalid input, should be three IDs separated by comma', futures-unordered/src/lib.rs:17:9");
+        assert!(log[0]
+            .payload()
+            .starts_with(b"'Invalid input, should be three IDs separated by comma'"));
 
         let run_result = prog.send(user_id, String::from("should_be_skipped"));
 
