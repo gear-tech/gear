@@ -18,7 +18,7 @@
 
 use codec::{Decode, Encode};
 use gear_core::{
-    ids::{CodeId, MessageId, ProgramId},
+    ids::{CodeId, MessageId, ProgramId, ReservationId},
     message::StoredDispatch,
 };
 use scale_info::TypeInfo;
@@ -50,6 +50,9 @@ pub enum ScheduledTask<AccountId> {
 
     /// Delayed message sending.
     SendDispatch(StoredDispatch),
+
+    /// Remove gas reservation.
+    RemoveGasReservation(ProgramId, ReservationId),
 }
 
 impl<AccountId> ScheduledTask<AccountId> {
@@ -68,6 +71,9 @@ impl<AccountId> ScheduledTask<AccountId> {
             RemovePausedProgram(program_id) => handler.remove_paused_program(program_id),
             WakeMessage(program_id, message_id) => handler.wake_message(program_id, message_id),
             SendDispatch(dispatch) => handler.send_dispatch(dispatch),
+            RemoveGasReservation(program_id, reservation_id) => {
+                handler.remove_gas_reservation(program_id, reservation_id)
+            }
         }
     }
 }
@@ -94,4 +100,7 @@ pub trait TaskHandler<AccountId> {
 
     // Send delayed message action.
     fn send_dispatch(&mut self, dispatch: StoredDispatch);
+
+    /// Remove gas reservation action.
+    fn remove_gas_reservation(&mut self, program_id: ProgramId, reservation_id: ReservationId);
 }

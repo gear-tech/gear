@@ -97,4 +97,6 @@ pub trait SchedulingCostsPerBlock {
     fn program() -> Self::Cost;
     /// Cost for storing message in waitlist per block.
     fn waitlist() -> Self::Cost;
+    /// Cost for reservation holding.
+    fn reservation() -> Self::Cost;
 }

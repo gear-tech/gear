@@ -320,6 +320,7 @@ pub fn execute_wasm<
     let WasmExecutionContext {
         gas_counter,
         gas_allowance_counter,
+        gas_reserver,
         origin,
         program,
         mut pages_initial_data,
@@ -366,6 +367,7 @@ pub fn execute_wasm<
     let context = ProcessorContext {
         gas_counter,
         gas_allowance_counter,
+        gas_reserver,
         value_counter,
         allocations_context,
         message_context,
@@ -380,6 +382,7 @@ pub fn execute_wasm<
         mailbox_threshold: settings.mailbox_threshold,
         waitlist_cost: settings.waitlist_cost,
         reserve_for: settings.reserve_for,
+        reservation: settings.reservation,
     };
 
     // Creating externalities.
@@ -479,6 +482,7 @@ pub fn execute_wasm<
         awakening: info.awakening,
         program_candidates,
         gas_amount: info.gas_amount,
+        gas_reserver: Some(info.gas_reserver),
         page_update,
         allocations: info.allocations,
     })

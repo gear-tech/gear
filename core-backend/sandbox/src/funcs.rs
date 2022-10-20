@@ -37,6 +37,7 @@ use gear_backend_common::{
 use gear_core::{
     buffer::{RuntimeBuffer, RuntimeBufferSizeError},
     env::Ext,
+    ids::ReservationId,
     message::{HandlePacket, InitPacket, MessageWaitedType, PayloadSizeError, ReplyPacket},
 };
 use gear_core_errors::{CoreError, MemoryError};
@@ -522,6 +523,33 @@ where
             ctx.ext.debug(&s).map_err(FuncError::Core)?;
 
             Ok(())
+        })
+    }
+
+    pub fn reserve_gas(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
+        let (gas_amount, duration, id_ptr) = args.iter().read_3()?;
+
+        ctx.run(|ctx| {
+            ctx.ext
+                .reserve_gas(gas_amount, duration)
+                .process_error()
+                .map_err(FuncError::Core)?
+                .error_len_on_success(|id| ctx.write_output(id_ptr, id.as_ref()))
+        })
+    }
+
+    pub fn unreserve_gas(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
+        let (id_ptr, amount_ptr) = args.iter().read_2()?;
+
+        ctx.run(|ctx| {
+            let id: ReservationId = ctx.read_memory_as(id_ptr)?;
+            ctx.ext
+                .unreserve_gas(id)
+                .process_error()
+                .map_err(FuncError::Core)?
+                .error_len_on_success(|amount| {
+                    ctx.write_output(amount_ptr, amount.to_le_bytes().as_ref())
+                })
         })
     }
 

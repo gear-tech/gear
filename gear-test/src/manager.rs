@@ -20,9 +20,10 @@ use crate::check::ExecutionContext;
 use core_processor::common::*;
 use gear_core::{
     code::{Code, CodeAndId},
-    ids::{CodeId, MessageId, ProgramId},
+    ids::{CodeId, MessageId, ProgramId, ReservationId},
     memory::{PageBuf, PageNumber, WasmPageNumber},
     message::{Dispatch, DispatchKind, GasLimit, MessageWaitedType, StoredDispatch, StoredMessage},
+    reservation::GasReserver,
 };
 use std::{
     collections::{BTreeMap, BTreeSet, VecDeque},
@@ -155,6 +156,7 @@ impl ExecutionContext for InMemoryExtManager {
             static_pages: code_and_id.code().static_pages(),
             initialized: false,
             pages_with_data: Default::default(),
+            gas_reservation_map: Default::default(),
         };
 
         self.waiting_init.insert(id, vec![]);
@@ -388,5 +390,34 @@ impl JournalHandler for InMemoryExtManager {
 
     fn stop_processing(&mut self, _dispatch: StoredDispatch, _gas_burned: u64) {
         panic!("Processing stopped. Used for on-chain logic only.");
+    }
+
+    fn reserve_gas(
+        &mut self,
+        _message_id: MessageId,
+        _reservation_id: ReservationId,
+        _program_id: ProgramId,
+        _amount: u64,
+        _bn: u32,
+    ) {
+    }
+
+    fn unreserve_gas(&mut self, _reservation_id: ReservationId, _program_id: ProgramId, _bn: u32) {}
+
+    fn update_gas_reservation(&mut self, program_id: ProgramId, reserver: GasReserver) {
+        let actor = self
+            .actors
+            .get_mut(&program_id)
+            .expect("gas reservation update guaranteed to be called only on existing program");
+
+        if let TestActor {
+            executable_data: Some(executable_data),
+            ..
+        } = actor
+        {
+            executable_data.gas_reservation_map = reserver.into_map(|duration| duration);
+        } else {
+            panic!("no gas reservation map found in program");
+        }
     }
 }

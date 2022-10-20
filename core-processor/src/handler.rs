@@ -80,6 +80,22 @@ pub fn handle_journal(
                 dispatch,
                 gas_burned,
             } => handler.stop_processing(dispatch, gas_burned),
+            JournalNote::ReserveGas {
+                message_id,
+                reservation_id,
+                program_id,
+                amount,
+                duration: bn,
+            } => handler.reserve_gas(message_id, reservation_id, program_id, amount, bn),
+            JournalNote::UnreserveGas {
+                reservation_id,
+                program_id,
+                expiration: bn,
+            } => handler.unreserve_gas(reservation_id, program_id, bn),
+            JournalNote::UpdateGasReservations {
+                program_id,
+                reserver,
+            } => handler.update_gas_reservation(program_id, reserver),
         }
     }
 

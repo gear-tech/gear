@@ -103,7 +103,7 @@ where
         Key = GasNodeId<MapKey, MapReservationKey>,
         Value = GasNode<ExternalId, MapKey, Balance>,
     >,
-    GasNodeId<MapKey, MapReservationKey>: From<MapKey>,
+    GasNodeId<MapKey, MapReservationKey>: From<MapKey> + From<MapReservationKey>,
 {
     pub(super) fn get_node(
         key: impl Into<GasNodeId<MapKey, MapReservationKey>>,
@@ -433,7 +433,11 @@ where
             }
             NodeCreationKey::Reserved(_) => {
                 let id = Self::get_external(key)?;
-                GasNode::Reserved { id, value: amount }
+                GasNode::Reserved {
+                    id,
+                    value: amount,
+                    lock: Zero::zero(),
+                }
             }
         };
 
@@ -474,7 +478,7 @@ where
         Key = GasNodeId<MapKey, MapReservationKey>,
         Value = GasNode<ExternalId, MapKey, Balance>,
     >,
-    GasNodeId<MapKey, MapReservationKey>: From<MapKey>,
+    GasNodeId<MapKey, MapReservationKey>: From<MapKey> + From<MapReservationKey>,
 {
     type ExternalOrigin = ExternalId;
     type Key = MapKey;
@@ -708,12 +712,14 @@ where
         Self::create_from_with_value(key, NodeCreationKey::Cut(new_key), amount)
     }
 
-    fn lock(key: Self::Key, amount: Self::Balance) -> Result<(), Self::Error> {
+    fn lock(key: impl Into<GasNodeIdOf<Self>>, amount: Self::Balance) -> Result<(), Self::Error> {
+        let key = key.into();
+
         // Taking node to lock into.
         let node = Self::get_node(key).ok_or_else(InternalError::node_not_found)?;
 
         // Validating node type to be able to lock.
-        if node.is_detached() {
+        if !node.is_lockable() {
             return Err(InternalError::forbidden().into());
         }
 
@@ -758,7 +764,7 @@ where
 
         *node_lock = node_lock.saturating_add(amount);
 
-        StorageMap::insert(key.into(), node);
+        StorageMap::insert(key, node);
 
         Ok(())
     }
@@ -775,12 +781,14 @@ where
     // unspecified node, referring it.
     //
     // - For reservation type (`GasNode::ReservedLocal`) locking is denied.
-    fn unlock(key: Self::Key, amount: Self::Balance) -> Result<(), Self::Error> {
+    fn unlock(key: impl Into<GasNodeIdOf<Self>>, amount: Self::Balance) -> Result<(), Self::Error> {
+        let key = key.into();
+
         // Taking node to unlock from.
         let mut node = Self::get_node(key).ok_or_else(InternalError::node_not_found)?;
 
         // Validating node type to be able to lock.
-        if node.is_detached() {
+        if !node.is_lockable() {
             return Err(InternalError::forbidden().into());
         }
 
@@ -812,9 +820,9 @@ where
         // If provider is a current node, we save it to storage, otherwise mutating
         // provider node further, saving it afterward.
         let (mut ancestor_node, ancestor_id) = if let Some(ancestor_id) = ancestor_id {
-            StorageMap::insert(key.into(), node);
+            StorageMap::insert(key, node);
 
-            (ancestor_node, ancestor_id)
+            (ancestor_node, ancestor_id.into())
         } else {
             (node, key)
         };
@@ -825,12 +833,13 @@ where
 
         *ancestor_value = ancestor_value.saturating_add(amount);
 
-        StorageMap::insert(ancestor_id.into(), ancestor_node);
+        StorageMap::insert(ancestor_id, ancestor_node);
 
         Ok(())
     }
 
-    fn get_lock(key: Self::Key) -> Result<Self::Balance, Self::Error> {
+    fn get_lock(key: impl Into<GasNodeIdOf<Self>>) -> Result<Self::Balance, Self::Error> {
+        let key = key.into();
         let node = Self::get_node(key).ok_or_else(InternalError::node_not_found)?;
 
         node.lock().ok_or_else(|| InternalError::forbidden().into())

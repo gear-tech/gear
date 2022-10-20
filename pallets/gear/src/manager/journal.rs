@@ -17,13 +17,14 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
+    internal::HoldBound,
     manager::{CodeInfo, ExtManager},
-    Config, CurrencyOf, Event, GasAllowanceOf, GasHandlerOf, GearProgramPallet, Pallet, QueueOf,
-    SentOf, TaskPoolOf, WaitlistOf,
+    Config, CostsPerBlockOf, CurrencyOf, Event, GasAllowanceOf, GasHandlerOf, GearProgramPallet,
+    Pallet, QueueOf, SentOf, TaskPoolOf, WaitlistOf,
 };
 use common::{
     event::*,
-    scheduler::{ScheduledTask, TaskPool},
+    scheduler::{ScheduledTask, SchedulingCostsPerBlock, TaskHandler, TaskPool},
     storage::*,
     CodeStorage, GasTree, Origin, Program,
 };
@@ -32,14 +33,14 @@ use frame_support::{
     sp_runtime::Saturating,
     traits::{Currency, ExistenceRequirement, ReservableCurrency},
 };
-use frame_system::Pallet as SystemPallet;
+use frame_system::{pallet_prelude::BlockNumberFor, Pallet as SystemPallet};
 use gear_core::{
-    ids::{CodeId, MessageId, ProgramId},
+    ids::{CodeId, MessageId, ProgramId, ReservationId},
     memory::{PageBuf, PageNumber},
     message::{Dispatch, MessageWaitedType, StoredDispatch},
+    reservation::GasReserver,
 };
 use sp_runtime::traits::{UniqueSaturatedInto, Zero};
-
 use sp_std::{
     collections::{btree_map::BTreeMap, btree_set::BTreeSet},
     prelude::*,
@@ -138,6 +139,8 @@ where
                 // dequeued. The other case is async init.
                 wake_waiting_init_msgs(program_id);
 
+                self.clean_reservation_tasks(program_id);
+
                 common::set_program_terminated_status(program_id.into_origin(), origin)
                     .expect("Only active program can cause init failure");
 
@@ -191,10 +194,13 @@ where
 
         let _ = common::waiting_init_take_messages(id_exited);
 
+        self.clean_reservation_tasks(id_exited);
+
         let id_exited = id_exited.into_origin();
 
-        common::set_program_exited_status(id_exited, value_destination)
-            .expect("`exit` can be called only from active program; qed");
+        common::set_program_exited_status(id_exited, value_destination).unwrap_or_else(|e| {
+            unreachable!("`exit` can be called only from active program: {}", e)
+        });
 
         let program_account = &<T::AccountId as Origin>::from_origin(id_exited);
         let balance = CurrencyOf::<T>::free_balance(program_account);
@@ -214,7 +220,7 @@ where
     }
 
     fn message_consumed(&mut self, message_id: MessageId) {
-        Pallet::<T>::consume_message(message_id)
+        Pallet::<T>::consume_and_retrieve(message_id)
     }
 
     fn send_dispatch(&mut self, message_id: MessageId, dispatch: Dispatch, delay: u32) {
@@ -414,5 +420,73 @@ where
         GasAllowanceOf::<T>::decrease(gas_burned);
         QueueOf::<T>::requeue(dispatch)
             .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e));
+    }
+
+    fn reserve_gas(
+        &mut self,
+        message_id: MessageId,
+        reservation_id: ReservationId,
+        program_id: ProgramId,
+        amount: u64,
+        duration: u32,
+    ) {
+        log::debug!(
+            "Reserved: {:?} from {:?} with {:?} for {} blocks",
+            amount,
+            message_id,
+            reservation_id,
+            duration
+        );
+
+        let hold = HoldBound::<T>::by(CostsPerBlockOf::<T>::reservation())
+            .duration(BlockNumberFor::<T>::from(duration));
+
+        // Validating holding duration.
+        if hold.expected_duration().is_zero() {
+            unreachable!("Threshold for reservation invalidated")
+        }
+
+        let total_amount = amount.saturating_add(hold.lock());
+
+        GasHandlerOf::<T>::reserve(message_id, reservation_id, total_amount)
+            .unwrap_or_else(|e| unreachable!("GasTree corrupted: {:?}", e));
+
+        GasHandlerOf::<T>::lock(reservation_id, hold.lock())
+            .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
+
+        TaskPoolOf::<T>::add(
+            hold.expected(),
+            ScheduledTask::RemoveGasReservation(program_id, reservation_id),
+        )
+        .unwrap_or_else(|e| unreachable!("Scheduling logic invalidated! {:?}", e));
+    }
+
+    fn unreserve_gas(&mut self, reservation_id: ReservationId, program_id: ProgramId, bn: u32) {
+        <Self as TaskHandler<T::AccountId>>::remove_gas_reservation(
+            self,
+            program_id,
+            reservation_id,
+        );
+
+        let _ = TaskPoolOf::<T>::delete(
+            BlockNumberFor::<T>::from(bn),
+            ScheduledTask::RemoveGasReservation(program_id, reservation_id),
+        );
+    }
+
+    fn update_gas_reservation(&mut self, program_id: ProgramId, reserver: GasReserver) {
+        let pid = program_id.into_origin();
+        let prog = common::get_program(pid).unwrap_or_else(|| {
+            unreachable!("gas reservation update guaranteed to be called only on existing program")
+        });
+        if let Program::Active(mut prog) = prog {
+            prog.gas_reservation_map = reserver.into_map(|duration| {
+                HoldBound::<T>::by(CostsPerBlockOf::<T>::reservation())
+                    .duration(BlockNumberFor::<T>::from(duration))
+                    .expected()
+                    .unique_saturated_into()
+            });
+            common::set_program(pid, prog);
+        }
     }
 }

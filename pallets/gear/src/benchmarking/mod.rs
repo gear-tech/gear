@@ -60,6 +60,7 @@ use gear_core::{
     ids::{CodeId, MessageId, ProgramId},
     memory::{AllocationsContext, PageBuf, PageNumber},
     message::{ContextSettings, Dispatch, DispatchKind, Message, MessageContext, ReplyDetails},
+    reservation::GasReserver,
 };
 use pallet_authorship::Pallet as AuthorshipPallet;
 use sp_consensus_babe::{
@@ -119,10 +120,16 @@ where
     Gear::<T>::process_queue(Default::default());
 }
 
-fn default_processor_context() -> ProcessorContext {
+fn default_processor_context<T: Config>() -> ProcessorContext {
     ProcessorContext {
         gas_counter: GasCounter::new(0),
         gas_allowance_counter: GasAllowanceCounter::new(0),
+        gas_reserver: GasReserver::new(
+            Default::default(),
+            0,
+            Default::default(),
+            T::ReservationsLimit::get(),
+        ),
         value_counter: ValueCounter::new(0),
         allocations_context: AllocationsContext::new(
             Default::default(),
@@ -146,6 +153,7 @@ fn default_processor_context() -> ProcessorContext {
         mailbox_threshold: 0,
         waitlist_cost: 0,
         reserve_for: 0,
+        reservation: 0,
     }
 }
 
@@ -340,6 +348,7 @@ where
     let mailbox_threshold = <T as Config>::MailboxThreshold::get();
     let waitlist_cost = CostsPerBlockOf::<T>::waitlist();
     let reserve_for = CostsPerBlockOf::<T>::reserve_for().unique_saturated_into();
+    let reservation = CostsPerBlockOf::<T>::reservation().unique_saturated_into();
 
     let block_config = BlockConfig {
         block_info,
@@ -357,10 +366,12 @@ where
         mailbox_threshold,
         waitlist_cost,
         reserve_for,
+        reservation,
         read_cost: DbWeightOf::<T>::get().reads(1).ref_time(),
         write_cost: DbWeightOf::<T>::get().writes(1).ref_time(),
         per_byte_cost: ReadPerByteCostOf::<T>::get(),
         module_instantiation_byte_cost: T::Schedule::get().module_instantiation_per_byte,
+        max_reservations: T::ReservationsLimit::get(),
     };
 
     if let Some(queued_dispatch) = QueueOf::<T>::dequeue().map_err(|_| "MQ storage corrupted")? {
@@ -429,7 +440,7 @@ benchmarks! {
 
         let WasmModule { code, .. } = WasmModule::<T>::sized(c * 1024, Location::Init);
     }: {
-        let ext = Ext::new(default_processor_context());
+        let ext = Ext::new(default_processor_context::<T>());
         ExecutionEnvironment::new(ext, &code, Default::default(), max_pages::<T>().into()).unwrap();
     }
 
@@ -741,6 +752,95 @@ benchmarks! {
                 Instruction::Drop,
             ])),
             .. Default::default()
+        });
+        let instance = Program::<T>::new(code, vec![])?;
+        let Exec {
+            ext_manager,
+            block_config,
+            context,
+            memory_pages,
+        } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 0u32.into())?;
+    }: {
+        core_processor::process::<
+            Externalities,
+            ExecutionEnvironment,
+        >(&block_config, context, memory_pages);
+    }
+
+    gr_reserve_gas {
+        let r in 0 .. API_BENCHMARK_BATCHES;
+        let id_bytes = 0_u128.encode();
+        let id_len = id_bytes.len();
+        let code = WasmModule::<T>::from(ModuleDefinition {
+            memory: Some(ImportedMemory::max::<T>()),
+            imported_functions: vec![ImportedFunction {
+                module: "env",
+                name: "gr_reserve_gas",
+                params: vec![ValueType::I64, ValueType::I32, ValueType::I32],
+                return_type: Some(ValueType::I32),
+            }],
+            data_segments: vec![
+                DataSegment {
+                    offset: 0,
+                    value: id_bytes,
+                },
+            ],
+            handle_body: Some(body::repeated(r * API_BENCHMARK_BATCHES, &[
+                Instruction::I64Const(50_000_000), // gas amount
+                Instruction::I32Const(10), // duration
+                Instruction::I32Const(0), // id ptr
+                Instruction::Call(0),
+                Instruction::Drop,
+            ])),
+            ..Default::default()
+        });
+        let instance = Program::<T>::new(code, vec![])?;
+        let Exec {
+            ext_manager,
+            block_config,
+            context,
+            memory_pages,
+        } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 0u32.into())?;
+    }: {
+        core_processor::process::<
+            Externalities,
+            ExecutionEnvironment,
+        >(&block_config, context, memory_pages);
+    }
+
+    // We cannot call `gr_unreserve_gas` multiple times. Therefore our weight determination is not
+    // as precise as with other APIs.
+    gr_unreserve_gas {
+        let r in 0 .. 1;
+        let id_bytes = 0_u128.encode();
+        let id_len = id_bytes.len();
+        let amount_bytes = 0_u64.encode();
+        let amount_len = amount_bytes.len();
+        let code = WasmModule::<T>::from(ModuleDefinition {
+            memory: Some(ImportedMemory::max::<T>()),
+            imported_functions: vec![ImportedFunction {
+                module: "env",
+                name: "gr_unreserve_gas",
+                params: vec![ValueType::I32, ValueType::I32],
+                return_type: Some(ValueType::I32),
+            }],
+            data_segments: vec![
+                DataSegment {
+                    offset: 0,
+                    value: id_bytes,
+                },
+                DataSegment {
+                    offset: id_len as u32,
+                    value: amount_bytes,
+                }
+            ],
+            handle_body: Some(body::repeated(r, &[
+                Instruction::I32Const(0), // id ptr
+                Instruction::I32Const(id_len as i32), // unreserved amount ptr
+                Instruction::Call(0),
+                Instruction::Drop,
+            ])),
+            ..Default::default()
         });
         let instance = Program::<T>::new(code, vec![])?;
         let Exec {

@@ -1669,6 +1669,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "demo-reserve-gas"
+version = "0.1.0"
+dependencies = [
+ "gear-wasm-builder",
+ "gstd",
+ "gtest",
+ "parity-scale-codec",
+]
+
+[[package]]
 name = "demo-signal-entry"
 version = "0.1.0"
 dependencies = [
@@ -5950,6 +5960,7 @@ dependencies = [
  "demo-program-factory",
  "demo-proxy",
  "demo-proxy-with-gas",
+ "demo-reserve-gas",
  "demo-value-sender",
  "demo-waiter",
  "demo-waiting-proxy",
