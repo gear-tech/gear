@@ -235,9 +235,9 @@ impl ReservationId {
     /// Create a new reservation ID
     pub fn generate(msg_id: MessageId, nonce: u64) -> Self {
         let argument = [
+            b"reservation_id_salt",
             msg_id.as_ref(),
             &nonce.to_le_bytes(),
-            b"reservation_id_salt",
         ]
         .concat();
         hash(&argument).into()
