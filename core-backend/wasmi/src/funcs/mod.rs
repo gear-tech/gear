@@ -1330,7 +1330,8 @@ where
               -> FallibleOutput {
             exit_if!(forbidden, caller);
 
-            let mut salt = vec![0; salt_len as usize]; // Consider using here `LimitedVec`.
+            // Consider using here `LimitedVec`.
+            let mut salt = vec![0; salt_len as usize];
 
             let mut payload = Payload::try_new_default(payload_len as usize).map_err(|e| {
                 host_state_mut!(caller).err = FuncError::PayloadBufferSize(e);
@@ -1350,47 +1351,15 @@ where
 
             let (value, code_id) = process_read_result!(read_result, caller);
 
-            let host_state = host_state_mut!(caller);
-
-            let call_result = host_state
-                .ext
-                .create_program(InitPacket::new(code_id, salt, payload, value), delay);
-
-            let (message_id, program_id) = match call_result {
-                Ok(r) => r,
-                Err(e) => match e.into_ext_error() {
-                    Ok(ext_error) => {
-                        return Ok((ext_error.encoded_size() as u32,));
-                    }
-                    Err(e) => {
-                        host_state.err = FuncError::Core(e);
-                        return Err(TrapCode::Unreachable.into());
-                    }
-                },
-            };
-
-            let write_result = {
-                let mut memory_wrap = get_caller_memory(&mut caller, &memory);
-
-                memory_wrap
-                    .write(message_id_ptr as usize, message_id.as_ref())
-                    .and_then(|_| memory_wrap.write(program_id_ptr as usize, program_id.as_ref()))
-            };
-
-            match write_result {
-                Ok(_) => Ok((0,)),
-                Err(e) => {
-                    // this is safe since we own the caller, don't change its host_data
-                    // and checked for absence before
-                    caller
-                        .host_data_mut()
-                        .as_mut()
-                        .expect("host_data untouched")
-                        .err = e.into();
-
-                    Err(TrapCode::Unreachable.into())
+            process_call_result!(
+                caller,
+                memory,
+                |ext| ext.create_program(InitPacket::new(code_id, salt, payload, value), delay),
+                |memory_wrap, (message_id, program_id)| {
+                    memory_wrap.write(message_id_ptr as usize, message_id.as_ref())
+                        .and_then(|_| memory_wrap.write(program_id_ptr as usize, program_id.as_ref()))
                 }
-            }
+            )
         };
 
         Func::wrap(store, func)
@@ -1436,48 +1405,15 @@ where
 
             let (code_id, value) = process_read_result!(read_result, caller);
 
-            let host_state = host_state_mut!(caller);
-
-            let call_result = host_state.ext.create_program(
-                InitPacket::new_with_gas(code_id, salt, payload, gas_limit, value),
-                delay,
-            );
-
-            let (message_id, program_id) = match call_result {
-                Ok(r) => r,
-                Err(e) => match e.into_ext_error() {
-                    Ok(ext_error) => {
-                        return Ok((ext_error.encoded_size() as u32,));
-                    }
-                    Err(e) => {
-                        host_state.err = FuncError::Core(e);
-                        return Err(TrapCode::Unreachable.into());
-                    }
-                },
-            };
-
-            let write_result = {
-                let mut memory_wrap = get_caller_memory(&mut caller, &memory);
-
-                memory_wrap
-                    .write(message_id_ptr as usize, message_id.as_ref())
-                    .and_then(|_| memory_wrap.write(program_id_ptr as usize, program_id.as_ref()))
-            };
-
-            match write_result {
-                Ok(_) => Ok((0,)),
-                Err(e) => {
-                    // this is safe since we own the caller, don't change its host_data
-                    // and checked for absence before
-                    caller
-                        .host_data_mut()
-                        .as_mut()
-                        .expect("host_data untouched")
-                        .err = e.into();
-
-                    Err(TrapCode::Unreachable.into())
+            process_call_result!(
+                caller,
+                memory,
+                |ext| ext.create_program(InitPacket::new_with_gas(code_id, salt, payload, gas_limit, value), delay),
+                |memory_wrap, (message_id, program_id)| {
+                    memory_wrap.write(message_id_ptr as usize, message_id.as_ref())
+                        .and_then(|_| memory_wrap.write(program_id_ptr as usize, program_id.as_ref()))
                 }
-            }
+            )
         };
 
         Func::wrap(store, func)
