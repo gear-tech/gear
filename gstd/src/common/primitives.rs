@@ -36,7 +36,7 @@
 //! ```
 
 use crate::{
-    errors::{ContractError, Result},
+    errors::{ContractError, IntoContractResult, Result},
     prelude::{convert::TryFrom, String},
 };
 use codec::{Decode, Encode};
@@ -261,6 +261,57 @@ impl TryFrom<&[u8]> for CodeId {
 
     fn try_from(slice: &[u8]) -> Result<Self> {
         Self::from_slice(slice)
+    }
+}
+
+/// Reservation identifier.
+///
+/// The ID is used to get reserve and unreserve gas.
+///
+/// # Examples
+///
+/// ```
+/// use gstd::ReservationId;
+///
+/// static mut RESERVED: Option<ReservationId> = None;
+///
+/// unsafe extern "C" fn init() {
+///     RESERVED = Some(ReservationId::reserve(50_000_000, 7));
+/// }
+///
+/// unsafe extern "C" fn handle() {
+///     let reservation_id = RESERVED.take().expect("create in init()");
+///     reservation_id.unreserve();
+/// }
+/// ```
+#[derive(Debug, Hash, Ord, PartialEq, PartialOrd, Eq, TypeInfo, Decode, Encode)]
+pub struct ReservationId([u8; 32]);
+
+impl ReservationId {
+    pub fn reserve(amount: u64, duration: u32) -> Result<Self> {
+        gcore::exec::reserve_gas(amount, duration).into_contract_result()
+    }
+
+    pub fn unreserve(self) -> Result<u64> {
+        gcore::exec::unreserve_gas(self.into()).into_contract_result()
+    }
+}
+
+impl AsRef<[u8]> for ReservationId {
+    fn as_ref(&self) -> &[u8] {
+        self.0.as_ref()
+    }
+}
+
+impl From<gcore::ReservationId> for ReservationId {
+    fn from(id: gcore::ReservationId) -> Self {
+        Self(id.0)
+    }
+}
+
+impl From<ReservationId> for gcore::ReservationId {
+    fn from(id: ReservationId) -> Self {
+        gcore::ReservationId(id.0)
     }
 }
 

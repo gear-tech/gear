@@ -188,6 +188,11 @@ impl IncomingDispatch {
     pub fn context(&self) -> &Option<ContextStore> {
         &self.context
     }
+
+    /// Previous execution context mutable reference, if exists.
+    pub fn context_mut(&mut self) -> &mut Option<ContextStore> {
+        &mut self.context
+    }
 }
 
 impl Deref for IncomingDispatch {

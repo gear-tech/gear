@@ -32,12 +32,13 @@ use gear_core::{
     costs::{HostFnWeights, RuntimeCosts},
     env::Ext as EnvExt,
     gas::{ChargeResult, GasAllowanceCounter, GasAmount, GasCounter, ValueCounter},
-    ids::{CodeId, MessageId, ProgramId},
+    ids::{CodeId, MessageId, ProgramId, ReservationId},
     memory::{
         AllocationsContext, GrowHandler, GrowHandlerNothing, Memory, PageBuf, PageNumber,
         WasmPageNumber,
     },
     message::{ExitCode, GasLimit, HandlePacket, InitPacket, MessageContext, Packet, ReplyPacket},
+    reservation::GasReserver,
 };
 use gear_core_errors::{CoreError, ExecutionError, ExtError, MemoryError, MessageError, WaitError};
 
@@ -47,6 +48,8 @@ pub struct ProcessorContext {
     pub gas_counter: GasCounter,
     /// Gas allowance counter.
     pub gas_allowance_counter: GasAllowanceCounter,
+    /// Reserved gas counter.
+    pub gas_reserver: GasReserver,
     /// Value counter.
     pub value_counter: ValueCounter,
     /// Allocations context.
@@ -76,6 +79,8 @@ pub struct ProcessorContext {
     pub waitlist_cost: u64,
     /// Reserve for parameter of scheduling.
     pub reserve_for: u32,
+    /// Cost for reservation holding.
+    pub reservation: u64,
     /// Output from Randomness.
     pub random_data: (Vec<u8>, u32),
 }
@@ -321,6 +326,22 @@ impl Ext {
             Ok(())
         }
     }
+
+    fn check_charge_results(
+        &mut self,
+        common_charge: ChargeResult,
+        allowance_charge: ChargeResult,
+    ) -> Result<(), ProcessorError> {
+        use ChargeResult::*;
+
+        let res: Result<(), ProcessorError> = match (common_charge, allowance_charge) {
+            (NotEnough, _) => Err(ExecutionError::GasLimitExceeded.into()),
+            (Enough, NotEnough) => Err(TerminationReason::GasAllowanceExceeded.into()),
+            (Enough, Enough) => Ok(()),
+        };
+
+        self.return_and_store_err(res)
+    }
 }
 
 impl EnvExt for Ext {
@@ -485,31 +506,14 @@ impl EnvExt for Ext {
     }
 
     fn charge_gas(&mut self, val: u64) -> Result<(), Self::Error> {
-        use ChargeResult::*;
-
         let common_charge = self.context.gas_counter.charge(val);
         let allowance_charge = self.context.gas_allowance_counter.charge(val);
-
-        let res: Result<(), ProcessorError> = match (common_charge, allowance_charge) {
-            (NotEnough, _) => Err(ExecutionError::GasLimitExceeded.into()),
-            (Enough, NotEnough) => Err(TerminationReason::GasAllowanceExceeded.into()),
-            (Enough, Enough) => Ok(()),
-        };
-
-        self.return_and_store_err(res)
+        self.check_charge_results(common_charge, allowance_charge)
     }
 
     fn charge_gas_runtime(&mut self, costs: RuntimeCosts) -> Result<(), Self::Error> {
-        use ChargeResult::*;
         let (common_charge, allowance_charge) = charge_gas_token!(self, costs);
-
-        let res: Result<(), ProcessorError> = match (common_charge, allowance_charge) {
-            (NotEnough, _) => Err(ExecutionError::GasLimitExceeded.into()),
-            (Enough, NotEnough) => Err(TerminationReason::GasAllowanceExceeded.into()),
-            (Enough, Enough) => Ok(()),
-        };
-
-        self.return_and_store_err(res)
+        self.check_charge_results(common_charge, allowance_charge)
     }
 
     fn refund_gas(&mut self, val: u64) -> Result<(), Self::Error> {
@@ -519,6 +523,35 @@ impl EnvExt for Ext {
         } else {
             self.return_and_store_err(Err(ExecutionError::TooManyGasAdded))
         }
+    }
+
+    fn reserve_gas(&mut self, amount: u64, duration: u32) -> Result<ReservationId, Self::Error> {
+        self.charge_gas_runtime(RuntimeCosts::ReserveGas)?;
+
+        let common_charge = self.context.gas_counter.reduce(amount);
+        if common_charge == ChargeResult::NotEnough {
+            return Err(ExecutionError::InsufficientGasForReservation.into());
+        }
+
+        let id = self.context.gas_reserver.reserve(amount, duration)?;
+
+        Ok(id)
+    }
+
+    fn unreserve_gas(&mut self, id: ReservationId) -> Result<u64, Self::Error> {
+        self.charge_gas_runtime(RuntimeCosts::UnreserveGas)?;
+
+        let amount = self.context.gas_reserver.unreserve(id)?;
+
+        // this statement is like in `Self::refund_gas()` but it won't affect "burned" counter
+        // because we don't actually refund we just rise "left" counter during unreservation
+        // and it won't affect gas allowance counter because we don't make any actual calculations
+        // TODO: uncomment when unreserving in current message features is discussed
+        /*if !self.context.gas_counter.increase(amount) {
+            return Err(ExecutionError::TooManyGasAdded.into());
+        }*/
+
+        Ok(amount)
     }
 
     fn gas_available(&mut self) -> Result<u64, Self::Error> {
@@ -705,6 +738,7 @@ impl Ext {
             allocations_context,
             message_context,
             gas_counter,
+            gas_reserver,
             program_candidates_data,
             ..
         } = self.context;
@@ -719,11 +753,14 @@ impl Ext {
             pages_data.insert(page, buf);
         }
 
-        let (outcome, context_store) = message_context.drain();
+        let (outcome, mut context_store) = message_context.drain();
         let (generated_dispatches, awakening) = outcome.drain();
+
+        context_store.set_reservation_nonce(gas_reserver.nonce());
 
         let info = ExtInfo {
             gas_amount: gas_counter.into(),
+            gas_reserver,
             allocations: allocations.ne(&initial_allocations).then_some(allocations),
             pages_data,
             generated_dispatches,

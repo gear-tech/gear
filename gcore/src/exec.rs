@@ -21,8 +21,7 @@
 //! Provides API for low-level async implementation.
 
 use gear_core_errors::ExtError;
-
-use crate::{error::Result, ActorId, MessageId};
+use crate::{error::Result, ActorId, MessageId, ReservationId};
 
 mod sys {
     use crate::error::SyscallError;
@@ -33,6 +32,17 @@ mod sys {
         pub fn gr_block_timestamp() -> u64;
 
         pub fn gr_exit(inheritor_id_ptr: *const [u8; 32]) -> !;
+
+        pub fn gr_reserve_gas(
+            amount: u64,
+            duration: u32,
+            reservation_id_ptr: *mut [u8; 32],
+        ) -> SyscallError;
+
+        pub fn gr_unreserve_gas(
+            reservation_id_ptr: *const [u8; 32],
+            unreserved_amount: *mut u64,
+        ) -> SyscallError;
 
         pub fn gr_gas_available() -> u64;
 
@@ -122,6 +132,45 @@ pub fn block_timestamp() -> u64 {
 /// ```
 pub fn exit(inheritor_id: ActorId) -> ! {
     unsafe { sys::gr_exit(inheritor_id.as_ptr()) }
+}
+
+/// Reserve gas for further usage.
+///
+/// # Examples
+///
+/// ```
+/// use gcore::{exec, ReservationId};
+///
+/// static mut RESERVED: ReservationId = ReservationId::default();
+///
+/// unsafe extern "C" fn init() {
+///     RESERVED = exec::reserve_gas(50_000_000, 7).unwrap();
+/// }
+///
+/// unsafe extern "C" fn handle() {
+///     exec::unreserve_gas(RESERVED);
+/// }
+/// ```
+pub fn reserve_gas(amount: u64, duration: u32) -> Result<ReservationId> {
+    let mut id = ReservationId::default();
+    unsafe {
+        sys::gr_reserve_gas(amount, duration, id.as_mut_ptr()).into_result()?;
+    }
+    Ok(id)
+}
+
+/// Unreserve gas using reservation ID
+///
+/// Returns reserved gas amount.
+///
+/// # Examples
+/// See [`reserve_gas`] example.
+pub fn unreserve_gas(id: ReservationId) -> Result<u64> {
+    let mut amount = 0u64.to_le_bytes();
+    unsafe {
+        sys::gr_unreserve_gas(id.as_ptr(), amount.as_mut_ptr() as *mut u64).into_result()?;
+    }
+    Ok(u64::from_le_bytes(amount))
 }
 
 /// Get the current value of the gas available for execution.

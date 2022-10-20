@@ -77,6 +77,10 @@ pub mod pallet {
         /// Cost for storing in mailbox per block.
         #[pallet::constant]
         type MailboxCost: Get<Cost>;
+
+        /// Cost for reservation holding.
+        #[pallet::constant]
+        type ReservationCost: Get<Cost>;
     }
 
     // Gear Scheduler Pallet itself.
@@ -234,6 +238,10 @@ pub mod pallet {
 
         fn waitlist() -> Self::Cost {
             T::WaitlistCost::get()
+        }
+
+        fn reservation() -> Self::Cost {
+            T::ReservationCost::get()
         }
     }
 

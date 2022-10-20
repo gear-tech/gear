@@ -47,6 +47,7 @@ use gear_core::{
     ids::{CodeId, MessageId, ProgramId},
     memory::{Memory, PageBuf, PageNumber, WasmPageNumber},
     message::{ContextStore, Dispatch, DispatchKind, MessageWaitedType},
+    reservation::GasReserver,
 };
 use gear_core_errors::{ExtError, MemoryError};
 use scale_info::TypeInfo;
@@ -106,6 +107,7 @@ pub enum TrapExplanation {
 #[derive(Debug)]
 pub struct ExtInfo {
     pub gas_amount: GasAmount,
+    pub gas_reserver: GasReserver,
     pub allocations: Option<BTreeSet<WasmPageNumber>>,
     pub pages_data: BTreeMap<PageNumber, PageBuf>,
     pub generated_dispatches: Vec<(Dispatch, u32)>,
