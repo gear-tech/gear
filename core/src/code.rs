@@ -119,6 +119,8 @@ impl Code {
         R: Rules,
         GetRulesFn: FnMut(&Module) -> R,
     {
+        wasmparser::validate(&raw_code).map_err(|_| CodeError::Decode)?;
+
         let module: Module = wasm_instrument::parity_wasm::deserialize_buffer(&raw_code)
             .map_err(|_| CodeError::Decode)?;
 
@@ -185,6 +187,8 @@ impl Code {
         module: Option<Module>,
         instrument_with_const_rules: bool,
     ) -> Result<Self, CodeError> {
+        wasmparser::validate(&original_code).map_err(|_| CodeError::Decode)?;
+
         let module = module.unwrap_or(
             wasm_instrument::parity_wasm::deserialize_buffer(&original_code)
                 .map_err(|_| CodeError::Decode)?,

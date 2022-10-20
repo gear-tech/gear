@@ -17,7 +17,7 @@ derive_more = "0.99.17"
 log = { version = "0.4.17", default-features = false }
 parity-wasm = { version = "0.45.0", default-features = false }
 wasm-instrument = { version = "0.2.1", git = "https://github.com/gear-tech/wasm-instrument.git", branch = "gear-stable", default-features = false }
-pwasm-utils = { version = "0.19.0", default-features = false }
+wasmparser = { package = "wasmparser-nostd", version = "0.91.0", default-features = false }
 hex = { version = "0.4.3", default-features = false, features = ["alloc"] }
 static_assertions = "1"
 
