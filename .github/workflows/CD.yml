@@ -37,7 +37,7 @@ jobs:
           tags: ghcr.io/gear-tech/node:latest
 
   deploy:
-    runs-on: xeon
+    runs-on: ubuntu-latest
     needs: docker
     steps:
       - name: Checkout
