@@ -181,4 +181,16 @@ pub trait Ext {
 
     /// Return the set of functions that are forbidden to be called.
     fn forbidden_funcs(&self) -> &BTreeSet<&'static str>;
+
+    /// Return gas and gas allowance left in the counters.
+    fn counters(&self) -> (u64, u64);
+
+    /// Update counters with the provided values.
+    fn update_counters(&mut self, gas: u64, allowance: u64);
+
+    /// Handler for the case when gas is out.
+    fn out_of_gas(&mut self) -> Self::Error;
+
+    /// Handler for the case when gas allowance is out.
+    fn out_of_allowance(&mut self) -> Self::Error;
 }

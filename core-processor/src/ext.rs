@@ -689,6 +689,39 @@ impl EnvExt for Ext {
     fn forbidden_funcs(&self) -> &BTreeSet<&'static str> {
         &self.context.forbidden_funcs
     }
+
+    fn counters(&self) -> (u64, u64) {
+        (
+            self.context.gas_counter.left(),
+            self.context.gas_allowance_counter.left(),
+        )
+    }
+
+    fn update_counters(&mut self, gas: u64, allowance: u64) {
+        let gas_left = self.context.gas_counter.left();
+        if gas_left > gas {
+            self.context.gas_counter.charge(gas_left - gas);
+        } else {
+            self.context.gas_counter.refund(gas - gas_left);
+        }
+
+        let allowance_left = self.context.gas_allowance_counter.left();
+        if allowance_left > allowance {
+            self.context.gas_allowance_counter.charge(allowance_left - allowance);
+        } else {
+            self.context.gas_allowance_counter.refund(allowance - allowance_left);
+        }
+    }
+
+    fn out_of_gas(&mut self) -> Self::Error {
+        self.error_explanation = Some(ExecutionError::GasLimitExceeded.into());
+        ExecutionError::GasLimitExceeded.into()
+    }
+
+    fn out_of_allowance(&mut self) -> Self::Error {
+        self.error_explanation = Some(TerminationReason::GasAllowanceExceeded.into());
+        TerminationReason::GasAllowanceExceeded.into()
+    }
 }
 
 impl Ext {
