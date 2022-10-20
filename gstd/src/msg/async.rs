@@ -75,15 +75,15 @@ impl<D: Decode> Future for CodecMessageFuture<D> {
 
 impl<D: Decode> CodecMessageFuture<D> {
     /// Delays handling for given specific amount of blocks.
-    pub fn no_more(self, duration: u32) -> Self {
-        async_runtime::locks().insert(crate::msg::id(), Lock::NoMore(duration));
+    pub fn up_to(self, duration: u32) -> Self {
+        async_runtime::locks().insert(crate::msg::id(), Lock::WaitUpTo(duration));
         self
     }
 
     /// Delays handling for maximal amount of blocks that could be payed, that
     /// doesn't exceed given duration.
     pub fn exactly(self, duration: u32) -> Self {
-        async_runtime::locks().insert(crate::msg::id(), Lock::For(duration));
+        async_runtime::locks().insert(crate::msg::id(), Lock::WaitFor(duration));
         self
     }
 }
@@ -173,15 +173,15 @@ impl Future for MessageFuture {
 
 impl MessageFuture {
     /// Delays handling for given specific amount of blocks.
-    pub fn no_more(self, duration: u32) -> Self {
-        async_runtime::locks().insert(crate::msg::id(), Lock::NoMore(duration));
+    pub fn up_to(self, duration: u32) -> Self {
+        async_runtime::locks().insert(crate::msg::id(), Lock::WaitUpTo(duration));
         self
     }
 
     /// Delays handling for maximal amount of blocks that could be payed, that
     /// doesn't exceed given duration.
     pub fn exactly(self, duration: u32) -> Self {
-        async_runtime::locks().insert(crate::msg::id(), Lock::For(duration));
+        async_runtime::locks().insert(crate::msg::id(), Lock::WaitFor(duration));
         self
     }
 }

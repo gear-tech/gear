@@ -4,23 +4,23 @@ use crate::{exec, prelude::BTreeMap, Config, MessageId};
 /// Wait locks.
 #[derive(Debug, PartialEq, Eq)]
 pub(crate) enum Lock {
-    For(u32),
-    NoMore(u32),
+    WaitFor(u32),
+    WaitUpTo(u32),
 }
 
 impl Lock {
     /// Call wait functions by the lock type.
     pub fn wait(&self) {
         match self {
-            Lock::For(d) => exec::wait_for(*d),
-            Lock::NoMore(d) => exec::wait_no_more(*d),
+            Lock::WaitFor(d) => exec::wait_for(*d),
+            Lock::WaitUpTo(d) => exec::wait_up_to(*d),
         }
     }
 }
 
 impl Default for Lock {
     fn default() -> Self {
-        Lock::NoMore(Config::wait_duration())
+        Lock::WaitUpTo(Config::wait_duration())
     }
 }
 

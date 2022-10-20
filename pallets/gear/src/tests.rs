@@ -2935,11 +2935,11 @@ fn test_sending_waits() {
 
         // upload program
         assert_ok!(Gear::upload_program(
-            Origin::signed(USER_1),
+            RuntimeOrigin::signed(USER_1),
             WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
             EMPTY_PAYLOAD.to_vec(),
-            0u64,
+            1_000_000_000u64,
             0u128
         ));
 
@@ -2953,7 +2953,7 @@ fn test_sending_waits() {
         let payload = Command::SendFor(USER_1.into(), duration).encode();
 
         assert_ok!(Gear::send_message(
-            Origin::signed(USER_1),
+            RuntimeOrigin::signed(USER_1),
             program_id,
             payload,
             // # Note
@@ -2976,7 +2976,7 @@ fn test_sending_waits() {
         let duration = 10;
         let payload = Command::SendNoMore(USER_1.into(), duration).encode();
         assert_ok!(Gear::send_message(
-            Origin::signed(USER_1),
+            RuntimeOrigin::signed(USER_1),
             program_id,
             payload,
             // # Note
@@ -2999,7 +2999,7 @@ fn test_sending_waits() {
         let duration = 10;
         let payload = Command::SendNoMoreWait(USER_2.into(), duration).encode();
         assert_ok!(Gear::send_message(
-            Origin::signed(USER_1),
+            RuntimeOrigin::signed(USER_1),
             program_id,
             payload,
             // # Note
@@ -3022,7 +3022,7 @@ fn test_sending_waits() {
 
         // wake `wait_wait`
         assert_ok!(Gear::send_reply(
-            Origin::signed(USER_2),
+            RuntimeOrigin::signed(USER_2),
             reply_to_id,
             vec![],
             // # Note
