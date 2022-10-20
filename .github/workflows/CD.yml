@@ -9,7 +9,7 @@ env:
   CARGO_TERM_COLOR: always
 jobs:
   docker:
-    runs-on: epyc
+    runs-on: xeon
     steps:
       - name: Checkout repo
         uses: actions/checkout@v3
@@ -37,7 +37,7 @@ jobs:
           tags: ghcr.io/gear-tech/node:latest
 
   deploy:
-    runs-on: epyc
+    runs-on: xeon
     needs: docker
     steps:
       - name: Checkout
