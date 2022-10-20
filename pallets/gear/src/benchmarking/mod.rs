@@ -1017,7 +1017,7 @@ benchmarks! {
             handle_body: Some(body::repeated(r * API_BENCHMARK_BATCH_SIZE, &[
                 Instruction::I32Const(0), // at
                 Instruction::I32Const(0), // len
-                Instruction::I32Const(0), // output ptr
+                Instruction::I32Const(0), // buffer ptr
                 Instruction::Call(0),
                 ])),
                 .. Default::default()
@@ -1062,7 +1062,7 @@ benchmarks! {
             handle_body: Some(body::repeated(API_BENCHMARK_BATCH_SIZE, &[
                 Instruction::I32Const(0), // at
                 Instruction::I32Const((n * 1024) as i32), // len
-                Instruction::I32Const(0), // output ptr
+                Instruction::I32Const(0), // buffer ptr
                 Instruction::Call(0),
                 ])),
                 .. Default::default()
@@ -1192,7 +1192,7 @@ benchmarks! {
                 Instruction::I32Const(0), // handle ptr
                 Instruction::Call(0), // get handle
                 Instruction::Drop,
-                Instruction::I32Const(0), // handle ptr
+                Instruction::I32Const(0), // message handle
                 Instruction::I32Const(0), // payload ptr
                 Instruction::I32Const(0), // payload len
                 Instruction::Call(1), // send_push
@@ -1234,7 +1234,7 @@ benchmarks! {
                 Instruction::I32Const(0), // handle ptr
                 Instruction::Call(0), // get handle
                 Instruction::Drop,
-                Instruction::I32Const(0), // handle ptr
+                Instruction::I32Const(0), // message handle
                 Instruction::I32Const(0), // payload ptr
                 Instruction::I32Const((n * 1024) as i32), // payload_len
                 Instruction::Call(1), // send_push
@@ -1284,11 +1284,11 @@ benchmarks! {
                 },
             ],
             handle_body: Some(body::repeated(r * API_BENCHMARK_BATCHES, &[
-                Instruction::I32Const(0), // program_id_ptr
-                Instruction::I32Const(0), // payload_ptr
-                Instruction::I32Const(0), // payload_len
-                Instruction::I32Const(pid_len as i32), // value_ptr
-                Instruction::I32Const((pid_len + value_len) as i32), // message_id_ptr
+                Instruction::I32Const(0), // destination ptr
+                Instruction::I32Const(0), // payload ptr
+                Instruction::I32Const(0), // payload len
+                Instruction::I32Const(pid_len as i32), // value ptr
+                Instruction::I32Const((pid_len + value_len) as i32), // message_id ptr
                 Instruction::Call(0),
                 Instruction::Drop,
                 ])),
@@ -1337,11 +1337,11 @@ benchmarks! {
                 },
             ],
             handle_body: Some(body::plain(vec![
-                Instruction::I32Const(0), // program_id_ptr
-                Instruction::I32Const(0), // payload_ptr
-                Instruction::I32Const((n * 1024) as i32), // payload_len
-                Instruction::I32Const(pid_len as i32), // value_ptr
-                Instruction::I32Const((pid_len + value_len) as i32), // message_id_ptr
+                Instruction::I32Const(0), // destination ptr
+                Instruction::I32Const(0), // payload ptr
+                Instruction::I32Const((n * 1024) as i32), // payload len
+                Instruction::I32Const(pid_len as i32), // value ptr
+                Instruction::I32Const((pid_len + value_len) as i32), // message_id ptr
                 Instruction::Call(0),
                 Instruction::Drop,
                 Instruction::End,
@@ -1383,50 +1383,9 @@ benchmarks! {
                 },
             ],
             handle_body: Some(body::repeated(r * API_BENCHMARK_BATCH_SIZE, &[
-                Instruction::I32Const(0), // payload_ptr
-                Instruction::I32Const(0), // payload_len
-                Instruction::I32Const(0), // value_ptr
-                Instruction::Call(0),
-                Instruction::Drop,
-                ])),
-                .. Default::default()
-        });
-        let instance = Program::<T>::new(code, vec![])?;
-        let Exec {
-            ext_manager,
-            block_config,
-            context,
-            memory_pages,
-        } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 10000000u32.into())?;
-    }: {
-        core_processor::process::<
-            Externalities,
-            ExecutionEnvironment,
-        >(&block_config, context, memory_pages);
-    }
-
-    gr_reply_commit_per_kb {
-        let n in 0 .. T::Schedule::get().limits.payload_len / 1024;
-        let value_bytes = 0_u128.encode();
-        let value_len = value_bytes.len();
-        let code = WasmModule::<T>::from(ModuleDefinition {
-            memory: Some(ImportedMemory::max::<T>()),
-            imported_functions: vec![ImportedFunction {
-                module: "env",
-                name: "gr_reply_commit",
-                params: vec![ValueType::I32, ValueType::I32, ValueType::I32],
-                return_type: Some(ValueType::I32),
-            }],
-            data_segments: vec![
-                DataSegment {
-                    offset: 0u32,
-                    value: value_bytes,
-                },
-            ],
-            handle_body: Some(body::repeated(API_BENCHMARK_BATCH_SIZE, &[
-                Instruction::I32Const(0), // payload_ptr
-                Instruction::I32Const((n * 1024) as i32), // payload_len
-                Instruction::I32Const(0), // value_ptr
+                Instruction::I32Const(0), // value ptr
+                Instruction::I32Const(0), // delay
+                Instruction::I32Const(0), // message_id ptr
                 Instruction::Call(0),
                 Instruction::Drop,
                 ])),
@@ -1555,6 +1514,37 @@ benchmarks! {
             context,
             memory_pages,
         } = prepare::<T>(instance.caller.into_origin(), HandleKind::Reply(msg_id, 0), vec![], 0u32.into())?;
+    }: {
+        core_processor::process::<
+            Externalities,
+            ExecutionEnvironment,
+        >(&block_config, context, memory_pages);
+    }
+
+    gr_debug {
+        let r in 0 .. API_BENCHMARK_BATCHES;
+        let code = WasmModule::<T>::from(ModuleDefinition {
+            memory: Some(ImportedMemory::max::<T>()),
+            imported_functions: vec![ImportedFunction {
+                module: "env",
+                name: "gr_debug",
+                params: vec![ValueType::I32, ValueType::I32],
+                return_type: None,
+            }],
+            handle_body: Some(body::repeated(r * API_BENCHMARK_BATCH_SIZE, &[
+                Instruction::I32Const(0),
+                Instruction::I32Const(0),
+                Instruction::Call(0),
+            ])),
+            .. Default::default()
+        });
+        let instance = Program::<T>::new(code, vec![])?;
+        let Exec {
+            ext_manager,
+            block_config,
+            context,
+            memory_pages,
+        } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 0u32.into())?;
     }: {
         core_processor::process::<
             Externalities,
@@ -1841,50 +1831,62 @@ benchmarks! {
     gr_create_program_wgas {
         let r in 0 .. 1;
         let module = WasmModule::<T>::dummy();
+
         let code_hash_bytes = module.hash.encode();
         let code_hash_len = code_hash_bytes.len();
-        let salt_bytes = r.encode();
+        let code_hash_offset= 0u32;
+
+        let salt_bytes = 1u8.encode();
         let salt_bytes_len = salt_bytes.len();
-        let value_bytes = 0_u128.encode();
+        let salt_offset = code_hash_offset + code_hash_len as u32;
+
+        let value_bytes = 0u128.encode();
         let value_bytes_len = value_bytes.len();
-        let pid_bytes = ProgramId::from(101).encode();
+        let value_offset = salt_offset + salt_bytes_len as u32;
+
+        let payload = vec![1, 2, 3];
+        let payload_len = payload.len();
+        let payload_offset = value_offset + value_bytes_len as u32;
+
         let _ = Gear::<T>::upload_code_raw(RawOrigin::Signed(benchmarking::account("instantiator", 0, 0)).into(), module.code);
         let code = WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
             imported_functions: vec![ImportedFunction {
                 module: "env",
                 name: "gr_create_program_wgas",
-                params: vec![ValueType::I32, ValueType::I32, ValueType::I32, ValueType::I32, ValueType::I32, ValueType::I64, ValueType::I32, ValueType::I32],
+                params: vec![ValueType::I32, ValueType::I32, ValueType::I32, ValueType::I32, ValueType::I32, ValueType::I64, ValueType::I32, ValueType::I32, ValueType::I32, ValueType::I32],
                 return_type: None,
             }],
             data_segments: vec![
                 DataSegment {
-                    offset: 0_u32,
+                    offset: code_hash_offset,
                     value: code_hash_bytes,
                 },
                 DataSegment {
-                    offset: code_hash_len as u32,
+                    offset: salt_offset,
                     value: salt_bytes,
                 },
                 DataSegment {
-                    offset: (salt_bytes_len + code_hash_len) as u32,
+                    offset: value_offset,
                     value: value_bytes,
                 },
                 DataSegment {
-                    offset: (value_bytes_len + salt_bytes_len + code_hash_len) as u32,
-                    value: pid_bytes,
+                    offset: payload_offset,
+                    value: payload,
                 },
             ],
-            handle_body: Some(body::repeated_dyn(r, vec![
-                Regular(Instruction::I32Const(0)),
-                Regular(Instruction::I32Const(code_hash_len as i32)),
-                Counter(0_u32, r), // salt len
-                Regular(Instruction::I32Const(0)),
-                Regular(Instruction::I32Const(0)), // payload_len
-                Regular(Instruction::I64Const(100000000)),
-                Regular(Instruction::I32Const((salt_bytes_len + code_hash_len) as i32)),
-                Regular(Instruction::I32Const((value_bytes_len + salt_bytes_len + code_hash_len) as i32)),
-                Regular(Instruction::Call(0)),
+            handle_body: Some(body::repeated(r, &vec![
+                Instruction::I32Const(code_hash_offset as i32), // code_id ptr
+                Instruction::I32Const(salt_offset as i32), // salt ptr
+                Instruction::I32Const(salt_bytes_len as i32), // salt len
+                Instruction::I32Const(payload_offset as i32), // payload ptr
+                Instruction::I32Const(payload_len as i32), // payload len
+                Instruction::I64Const(100000000), // gas limit
+                Instruction::I32Const(value_offset as i32), // value ptr
+                Instruction::I32Const(10), // delay
+                Instruction::I32Const(0), // message_id ptr
+                Instruction::I32Const(0), // program_id ptr
+                Instruction::Call(0),
             ])),
             .. Default::default()
         });
@@ -1907,51 +1909,65 @@ benchmarks! {
         let module = WasmModule::<T>::dummy();
         let code_hash_bytes = module.hash.encode();
         let code_hash_len = code_hash_bytes.len();
-        let salt_bytes = n.encode();
+        let salt_bytes = vec![1; (n as usize / 2) * 1024];
         let salt_bytes_len = salt_bytes.len();
-        let value_bytes = 0_u128.encode();
+        let value_bytes = 0u128.encode();
         let value_bytes_len = value_bytes.len();
-        let pid_bytes = ProgramId::from(101).encode();
+        let payload_bytes = vec![2; (n as usize / 2) * 1024];
+        let payload_len = payload_bytes.len();
+
+        let code_hash_offset = 0u32;
+        let salt_offset = code_hash_offset + code_hash_len as u32;
+        let value_offset = salt_offset + salt_bytes_len as u32;
+        let payload_offset = value_offset + value_bytes_len as u32;
+
         let _ = Gear::<T>::upload_code_raw(RawOrigin::Signed(benchmarking::account("instantiator", 0, 0)).into(), module.code);
         let code = WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
             imported_functions: vec![ImportedFunction {
                 module: "env",
                 name: "gr_create_program_wgas",
-                params: vec![ValueType::I32, ValueType::I32, ValueType::I32, ValueType::I32, ValueType::I32, ValueType::I64, ValueType::I32, ValueType::I32],
-                return_type: None,
+                params: vec![ValueType::I32, ValueType::I32, ValueType::I32, ValueType::I32, ValueType::I32, ValueType::I64, ValueType::I32, ValueType::I32, ValueType::I32, ValueType::I32],
+                return_type: Some(ValueType::I32),
             }],
             data_segments: vec![
                 DataSegment {
-                    offset: 0_u32,
+                    offset: code_hash_offset,
                     value: code_hash_bytes,
                 },
                 DataSegment {
-                    offset: code_hash_len as u32,
+                    offset: salt_offset,
                     value: salt_bytes,
                 },
                 DataSegment {
-                    offset: (salt_bytes_len + code_hash_len) as u32,
+                    offset: value_offset,
                     value: value_bytes,
                 },
                 DataSegment {
-                    offset: (value_bytes_len + salt_bytes_len + code_hash_len) as u32,
-                    value: pid_bytes,
+                    offset: payload_offset,
+                    value: payload_bytes,
                 },
             ],
-            handle_body: Some(body::repeated_dyn(API_BENCHMARK_BATCH_SIZE, vec![
-                Regular(Instruction::I32Const(0)),
-                Regular(Instruction::I32Const(code_hash_len as i32)),
-                Counter(0_u32, API_BENCHMARK_BATCH_SIZE), // salt len
-                Regular(Instruction::I32Const(0)),
-                Regular(Instruction::I32Const((n * 1024) as i32)), // payload_len
-                Regular(Instruction::I64Const(100000000)),
-                Regular(Instruction::I32Const((salt_bytes_len + code_hash_len) as i32)),
-                Regular(Instruction::I32Const((value_bytes_len + salt_bytes_len + code_hash_len) as i32)),
-                Regular(Instruction::Call(0)),
+            handle_body: Some(body::repeated(API_BENCHMARK_BATCH_SIZE, &vec![
+                Instruction::I32Const(code_hash_offset as i32), // code_hash ptr
+                Instruction::I32Const(salt_offset as i32),      // salt ptr
+                Instruction::I32Const(salt_bytes_len as i32),   // salt len
+                Instruction::I32Const(payload_offset as i32),   // payload ptr
+                Instruction::I32Const(payload_len as i32),      // payload len
+                Instruction::I64Const(100000000),               // gas limit
+                Instruction::I32Const(value_offset as i32),     // value ptr
+                Instruction::I32Const(10),                      // delay
+                Instruction::I32Const(0),                       // message_id ptr
+                Instruction::I32Const(0),                       // program_id ptr
             ])),
             .. Default::default()
         });
+
+        // use std::io::Write;
+        // use std::fs::File;
+        // let mut file = File::create("out.wasm").expect("LOL");
+        // let _ = file.write(&code.code);
+
         let instance = Program::<T>::new(code, vec![])?;
         let Exec {
             ext_manager,

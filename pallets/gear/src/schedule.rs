@@ -332,9 +332,6 @@ pub struct HostFnWeights<T: Config> {
     /// Weight of calling `gr_reply_commit`.
     pub gr_reply_commit: u64,
 
-    /// Weight per payload byte by `gr_reply_commit`.
-    pub gr_reply_commit_per_byte: u64,
-
     /// Weight of calling `gr_reply_push`.
     pub gr_reply_push: u64,
 
@@ -600,7 +597,6 @@ impl<T: Config> HostFnWeights<T> {
             gr_send_commit: self.gr_send_commit,
             gr_send_commit_per_byte: self.gr_send_commit_per_byte,
             gr_reply_commit: self.gr_reply_commit,
-            gr_reply_commit_per_byte: self.gr_reply_commit_per_byte,
             gr_reply_push: self.gr_reply_push,
             gr_reply_push_per_byte: self.gr_reply_push_per_byte,
             gr_debug: self.gr_debug,
@@ -643,7 +639,6 @@ impl<T: Config> Default for HostFnWeights<T> {
             gr_send_commit: cost_batched!(gr_send_commit),
             gr_send_commit_per_byte: cost_byte!(gr_send_commit_per_kb),
             gr_reply_commit: cost_batched!(gr_reply_commit),
-            gr_reply_commit_per_byte: cost_byte_batched!(gr_reply_commit_per_kb),
             gr_reply_push: cost_batched!(gr_reply_push),
             gr_reply_push_per_byte: cost_byte_batched!(gr_reply_push_per_kb),
             gr_debug: cost_batched!(gr_debug),

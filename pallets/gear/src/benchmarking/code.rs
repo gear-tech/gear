@@ -267,6 +267,8 @@ where
         }
 
         let code = code.into_bytes().unwrap();
+        log::info!("{code:?}");
+
         let hash = CodeId::generate(&code);
         Self {
             code: code.to_vec(),
