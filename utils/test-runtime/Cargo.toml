@@ -59,7 +59,7 @@ common = { package = "gear-common", path = "../../common", default-features = fa
 sc-block-builder = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
 sc-executor = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
 sp-consensus = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
-futures = "0.3.21"
+futures = "0.3.25"
 test-client = { package = "gear-test-client", path = "./client" }
 
 [build-dependencies]
