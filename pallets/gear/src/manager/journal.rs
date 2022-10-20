@@ -455,7 +455,7 @@ where
             .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
 
         TaskPoolOf::<T>::add(
-            hold.deadline(),
+            hold.expected(),
             ScheduledTask::RemoveGasReservation(program_id, reservation_id),
         )
         .unwrap_or_else(|e| unreachable!("Scheduling logic invalidated! {:?}", e));
@@ -483,7 +483,7 @@ where
             prog.gas_reservation_map = reserver.into_map(|duration| {
                 HoldBound::<T>::by(CostsPerBlockOf::<T>::reservation())
                     .duration(BlockNumberFor::<T>::from(duration))
-                    .deadline()
+                    .expected()
                     .unique_saturated_into()
             });
             common::set_program(pid, prog);
