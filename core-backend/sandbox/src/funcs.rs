@@ -409,9 +409,8 @@ where
         ctx.run(|ctx| {
             let mut subject = ctx.read_memory(subject_ptr, subject_len)?;
             subject.reserve(32);
-            let random = ctx.ext.random();
-            let random_bn = ctx.ext.random_bn();
 
+            let (random, random_bn) = ctx.ext.random();
             subject.extend_from_slice(random);
 
             ctx.write_output(random_ptr, blake2b(32, &[], &subject).as_bytes())?;

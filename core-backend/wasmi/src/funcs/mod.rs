@@ -1143,8 +1143,7 @@ where
                 .as_ref()
                 .expect("host_state should be set before execution");
 
-            let random = host_state.ext.random();
-            let random_bn = host_state.ext.random_bn();
+            let (random, random_bn) = host_state.ext.random();
             subject.extend_from_slice(random);
 
             let write_result = {
