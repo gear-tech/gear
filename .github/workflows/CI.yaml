@@ -332,7 +332,7 @@ jobs:
           path: artifact
 
   build-win:
-    if: github.ref == 'refs/heads/master'
+    if: github.ref == 'refs/heads/master' || github.event.label.name == 'E1-forcewindows'
     needs: spec_version
     runs-on: ci-win
     defaults:
@@ -477,7 +477,7 @@ jobs:
             --release
 
   build-macos-x86:
-    if: github.ref == 'refs/heads/master'
+    if: github.ref == 'refs/heads/master' || github.event.label.name == 'E2-forcemacos'
     needs: spec_version
     runs-on: macos-latest
     steps:
