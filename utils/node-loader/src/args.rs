@@ -19,7 +19,11 @@ pub enum Params {
 #[derive(Debug, StructOpt)]
 pub struct LoadParams {
     #[structopt(long, default_value = "ws://localhost:9944")]
-    pub endpoint: String,
+    pub node: String,
+
+    /// Node stopping service.
+    #[structopt(long, default_value = "http://localhost:5000/executions/start")]
+    pub node_stopper: String,
 
     /// User name
     #[structopt(long, default_value = "//Alice")]

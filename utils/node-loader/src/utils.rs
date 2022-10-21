@@ -1,10 +1,14 @@
-use crate::{batch_pool::generators, SmallRng};
-use anyhow::{anyhow, Result};
+use crate::{
+    batch_pool::{generators, CrashAlert},
+    SmallRng,
+};
+use anyhow::{anyhow, Error, Result};
 use dyn_clonable::*;
 use futures::Future;
 use futures_timer::Delay;
-use gclient::{GearApi, WSAddress};
+use gclient::{Error as GClientError, GearApi, WSAddress};
 use rand::{Rng, RngCore, SeedableRng};
+use reqwest::Client;
 use std::{
     fs::File,
     io::Write,
@@ -31,6 +35,10 @@ impl GearApiProducer {
         self.nonce += 1;
 
         api
+    }
+
+    pub fn current(&self) -> GearApi {
+        self.api.clone()
     }
 }
 
@@ -82,6 +90,10 @@ pub fn iterator_with_args<T, F: FnMut() -> T>(
     })
 }
 
+pub fn convert_iter<V, T: Into<V>>(args: Vec<T>) -> impl IntoIterator<Item = V> {
+    args.into_iter().map(|t| t.into())
+}
+
 #[clonable]
 pub trait LoaderRngCore: RngCore + Clone {}
 impl<T: RngCore + Clone> LoaderRngCore for T {}
@@ -117,7 +129,7 @@ impl<T> Deref for NonEmptyVec<T> {
     }
 }
 
-pub async fn run_with_timeout<T>(fut: impl Future<Output = T>) -> Result<T> {
+pub async fn with_timeout<T>(fut: impl Future<Output = T>) -> Result<T> {
     // 1 minute as default
     let wait_task = Delay::new(Duration::from_millis(60_000));
 
@@ -125,4 +137,23 @@ pub async fn run_with_timeout<T>(fut: impl Future<Output = T>) -> Result<T> {
         output = fut => Ok(output),
         _ = wait_task => Err(anyhow!("Timeout"))
     }
+}
+
+pub fn try_node_dead_err(err: GClientError) -> Error {
+    if err.to_string().contains("Rpc error: The background task been terminated because: Networking or low-level protocol error") {
+        CrashAlert::NodeIsDead.into()
+    } else {
+        err.into()
+    }
+}
+
+pub async fn stop_node(monitor_url: String) -> Result<()> {
+    let client = Client::new();
+    client
+        .post(monitor_url)
+        .body("gear-node-loader=stop-gear")
+        .send()
+        .await?;
+
+    Ok(())
 }

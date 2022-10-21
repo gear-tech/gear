@@ -1,8 +1,8 @@
 use super::Seed;
-pub use create_program::CreateProgramArgs;
-pub use send_message::SendMessageArgs;
+pub use create_program::{CreateProgramArgs, CreateProgramArgsInner};
+pub use send_message::{SendMessageArgs, SendMessageArgsInner};
 pub use upload_code::UploadCodeArgs;
-pub use upload_program::UploadProgramArgs;
+pub use upload_program::{UploadProgramArgs, UploadProgramArgsInner};
 
 mod create_program;
 mod send_message;
