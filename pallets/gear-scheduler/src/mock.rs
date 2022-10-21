@@ -27,7 +27,7 @@ use frame_support::{
 };
 use frame_system as system;
 use pallet_gear::BlockGasLimitOf;
-use sp_core::H256;
+use sp_core::{ConstU128, H256};
 use sp_runtime::{
     testing::Header,
     traits::{BlakeTwo256, IdentityLookup},
@@ -112,6 +112,7 @@ impl system::Config for Test {
 pub struct GasConverter;
 impl common::GasPrice for GasConverter {
     type Balance = u128;
+    type GasToBalanceMultiplier = ConstU128<1_000>;
 }
 
 impl pallet_gear_program::Config for Test {

@@ -24,6 +24,7 @@ use frame_support::{
 };
 use frame_system as system;
 use primitive_types::H256;
+use sp_core::ConstU128;
 use sp_runtime::{
     testing::Header,
     traits::{BlakeTwo256, ConstU64, IdentityLookup},
@@ -121,6 +122,7 @@ impl pallet_timestamp::Config for Test {
 pub struct GasConverter;
 impl common::GasPrice for GasConverter {
     type Balance = u128;
+    type GasToBalanceMultiplier = ConstU128<1_000>;
 }
 
 impl pallet_gear_program::Config for Test {

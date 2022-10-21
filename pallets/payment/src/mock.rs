@@ -19,7 +19,9 @@
 use crate as pallet_gear_payment;
 use frame_support::{
     construct_runtime, parameter_types,
-    traits::{ConstU8, Contains, Currency, FindAuthor, OnFinalize, OnInitialize, OnUnbalanced},
+    traits::{
+        ConstU128, ConstU8, Contains, Currency, FindAuthor, OnFinalize, OnInitialize, OnUnbalanced,
+    },
     weights::{constants::WEIGHT_PER_SECOND, IdentityFee},
 };
 use frame_system as system;
@@ -155,6 +157,7 @@ impl pallet_transaction_payment::Config for Test {
 pub struct GasConverter;
 impl common::GasPrice for GasConverter {
     type Balance = u128;
+    type GasToBalanceMultiplier = ConstU128<1_000>;
 }
 
 parameter_types! {
