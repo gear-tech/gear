@@ -145,10 +145,14 @@ pub fn inject<R: Rules>(
     let mut elements = vec![
         // check if there is enough gas
         Instruction::GetGlobal(gas_index),
+        // calculate gas_to_charge + cost_for_func
+        // {
         Instruction::GetLocal(0),
         Instruction::I64ExtendUI32,
         Instruction::I64Const(i64::MAX),
         Instruction::I64Add,
+        // }
+        // if gas < (gas_to_charge + cost_for_func)
         Instruction::I64LtU,
         Instruction::If(elements::BlockType::NoResult),
         Instruction::Call(out_of_gas_index),
@@ -156,18 +160,28 @@ pub fn inject<R: Rules>(
         Instruction::End,
         // update gas
         Instruction::GetGlobal(gas_index),
+        // calculate gas_to_charge + cost_for_func
+        // {
         Instruction::GetLocal(0),
         Instruction::I64ExtendUI32,
         Instruction::I64Const(i64::MAX),
         Instruction::I64Add,
+        // }
+        // gas -= (gas_to_charge + cost_for_func)
+        // {
         Instruction::I64Sub,
         Instruction::SetGlobal(gas_index),
+        // }
         // check if there is enough gas allowance
         Instruction::GetGlobal(allowance_index),
+        // calculate gas_to_charge + cost_for_func
+        // {
         Instruction::GetLocal(0),
         Instruction::I64ExtendUI32,
         Instruction::I64Const(i64::MAX),
         Instruction::I64Add,
+        // }
+        // if allowance < (gas_to_charge + cost_for_func)
         Instruction::I64LtU,
         Instruction::If(elements::BlockType::NoResult),
         Instruction::Call(out_of_allowance_index),
@@ -175,13 +189,18 @@ pub fn inject<R: Rules>(
         Instruction::End,
         // update gas allowance
         Instruction::GetGlobal(allowance_index),
+        // calculate gas_to_charge + cost_for_func
+        // {
         Instruction::GetLocal(0),
         Instruction::I64ExtendUI32,
         Instruction::I64Const(i64::MAX),
         Instruction::I64Add,
+        // }
+        // allowance -= (gas_to_charge + cost_for_func)
+        // {
         Instruction::I64Sub,
         Instruction::SetGlobal(allowance_index),
-        //
+        // }
         Instruction::End,
     ];
 
