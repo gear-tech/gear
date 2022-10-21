@@ -185,11 +185,6 @@ jobs:
           xargs curl -L |
           tar xj
 
-      - name: "Install: rust-covfix"
-        run: |
-          curl -L https://github.com/Kogia-sima/rust-covfix/releases/download/v0.2.2/rust-covfix-linux-x86_64.tar.xz | tar Jxf -
-          mv rust-covfix-linux-x86_64/rust-covfix ./
-
       - name: "Cache: Unpack"
         if: ${{ github.event_name == 'pull_request' }}
         continue-on-error: true
@@ -284,10 +279,6 @@ jobs:
           --ignore "gclient/*"
           --ignore "common/codegen/*"
           -o ./lcov.info
-
-      - name: "Coverage: Fix report"
-        if: github.ref == 'refs/heads/master'
-        run: ./rust-covfix -o lcov.info lcov.info
 
       - name: "Coverage: Publish"
         if: github.ref == 'refs/heads/master'
