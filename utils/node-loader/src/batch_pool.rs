@@ -83,16 +83,16 @@ impl<Rng: LoaderRng> BatchPool<Rng> {
             batches.push(run_batch(api, batch_with_seed));
         }
 
-        loop {
-            if let Some(report_res) = batches.next().await {
-                self.process_run_report(report_res?).await;
+        while let Some(report_res) = batches.next().await {
+            self.process_run_report(report_res?).await;
 
-                let batch_with_seed = batch_gen.generate(self.tasks_context.clone());
-                let api = self.api_producer.produce();
+            let batch_with_seed = batch_gen.generate(self.tasks_context.clone());
+            let api = self.api_producer.produce();
 
-                batches.push(run_batch(api, batch_with_seed));
-            }
+            batches.push(run_batch(api, batch_with_seed));
         }
+
+        unreachable!()
     }
 
     async fn process_run_report(&mut self, report: BatchRunReport) {

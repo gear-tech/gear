@@ -16,17 +16,10 @@ gear-core = { path = "../../core" }
 gear-wasm-gen = { path = "../wasm-gen" }
 
 # external dependencies
-hex = "0.4.3"
-tokio = { version = "1.21.2", features = [ "full" ] }
-color-eyre = { version = "0.6.2", optional = true }
-log = "0.4.16"
-structopt = "0.3.26"
-rand = { version = "0.8.0", features = ["small_rng"] }
-futures = "0.3.25"
 anyhow = "1.0.65"
 arbitrary = "1.1.6"
 dyn-clonable = "0.9.0"
-futures = "0.3.24"
+futures = "0.3.25"
 futures-timer = "3.0.2"
 hex = "0.4.3"
 primitive-types = { version = "0.11.1", default-features = false, features = ["scale-info"] }
