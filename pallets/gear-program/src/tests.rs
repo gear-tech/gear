@@ -71,6 +71,7 @@ fn pause_program_works() {
             code_length_bytes: code_and_id.code().code().len() as u32,
             static_pages: code_and_id.code().static_pages(),
             state: ProgramState::Initialized,
+            gas_reservation_map: Default::default(),
         };
 
         GearProgram::add_code(code_and_id, CodeMetadata::new([0; 32].into(), 1)).unwrap();
@@ -149,6 +150,7 @@ fn pause_program_twice_fails() {
             code_length_bytes: code_and_id.code().code().len() as u32,
             static_pages: code_and_id.code().static_pages(),
             state: ProgramState::Initialized,
+            gas_reservation_map: Default::default(),
         };
 
         GearProgram::add_code(code_and_id, CodeMetadata::new([0; 32].into(), 1)).unwrap();
@@ -182,6 +184,7 @@ fn pause_terminated_program_fails() {
             code_length_bytes: code_and_id.code().code().len() as u32,
             static_pages: code_and_id.code().static_pages(),
             state: ProgramState::Initialized,
+            gas_reservation_map: Default::default(),
         };
 
         GearProgram::add_code(code_and_id, CodeMetadata::new([0; 32].into(), 1)).unwrap();
@@ -482,6 +485,7 @@ mod utils {
             state: ProgramState::Uninitialized {
                 message_id: init_msg_id,
             },
+            gas_reservation_map: Default::default(),
         };
 
         GearProgram::add_code(code_and_id, CodeMetadata::new([0; 32].into(), 1)).unwrap();

@@ -19,8 +19,8 @@
 //! Internal details of Gear Pallet implementation.
 
 use crate::{
-    Authorship, BalanceOf, Config, CostsPerBlockOf, CurrencyOf, Event, GasBalanceOf, GasHandlerOf,
-    MailboxOf, Pallet, SchedulingCostOf, SystemPallet, TaskPoolOf, WaitlistOf,
+    Authorship, BalanceOf, Config, CostsPerBlockOf, CurrencyOf, DispatchStashOf, Event,
+    GasBalanceOf, GasHandlerOf, MailboxOf, Pallet, SchedulingCostOf, TaskPoolOf, WaitlistOf,
 };
 use alloc::collections::BTreeSet;
 use codec::{Decode, Encode};
@@ -30,7 +30,7 @@ use common::{
         MessageWaitedSystemReason::ProgramIsNotInitialized, MessageWokenReason, Reason, Reason::*,
         UserMessageReadReason, UserMessageReadRuntimeReason,
     },
-    gas_provider::GasNodeId,
+    gas_provider::{GasNodeId, GasNodeIdOf},
     scheduler::*,
     storage::*,
     GasPrice, GasTree, Origin,
@@ -70,7 +70,7 @@ impl<T: Config> HoldBoundCost<T> {
 
     /// Creates bound for given duration since current block.
     pub fn duration(self, duration: BlockNumberFor<T>) -> HoldBound<T> {
-        let expected = SystemPallet::<T>::block_number().saturating_add(duration);
+        let expected = Pallet::<T>::block_number().saturating_add(duration);
 
         self.at(expected)
     }
@@ -81,7 +81,7 @@ impl<T: Config> HoldBoundCost<T> {
             .saturating_div(self.0.max(One::one()))
             .saturated_into::<BlockNumberFor<T>>();
 
-        let deadline = SystemPallet::<T>::block_number().saturating_add(deadline_duration);
+        let deadline = Pallet::<T>::block_number().saturating_add(deadline_duration);
 
         self.deadline(deadline)
     }
@@ -98,7 +98,7 @@ impl<T: Config> HoldBoundCost<T> {
 
     // Zero-duration hold bound.
     pub fn zero(self) -> HoldBound<T> {
-        self.at(SystemPallet::<T>::block_number())
+        self.at(Pallet::<T>::block_number())
     }
 }
 
@@ -134,8 +134,7 @@ impl<T: Config> HoldBound<T> {
 
     /// Returns expected duration before task will be processed, since now.
     pub fn expected_duration(&self) -> BlockNumberFor<T> {
-        self.expected
-            .saturating_sub(SystemPallet::<T>::block_number())
+        self.expected.saturating_sub(Pallet::<T>::block_number())
     }
 
     /// Returns the deadline for tasks to be processed.
@@ -149,8 +148,7 @@ impl<T: Config> HoldBound<T> {
 
     /// Returns deadline duration before task will be processed, since now.
     pub fn deadline_duration(&self) -> BlockNumberFor<T> {
-        self.deadline()
-            .saturating_sub(SystemPallet::<T>::block_number())
+        self.deadline().saturating_sub(Pallet::<T>::block_number())
     }
 
     /// Returns amount of gas should be locked for rent of the hold afterward.
@@ -255,12 +253,12 @@ where
         Self::transfer_reserved(&external, &block_author, value);
     }
 
-    /// Consumes message by given `MessageId`.
+    /// Consumes message by given `MessageId` or gas reservation by `ReservationId`.
     ///
     /// Updates currency and balances data on imbalance creation.
-    pub(crate) fn consume_message(message_id: MessageId) {
+    pub(crate) fn consume_and_retrieve(id: impl Into<GasNodeIdOf<GasHandlerOf<T>>>) {
         // Consuming `GasNode`, returning optional outcome with imbalance.
-        let outcome = GasHandlerOf::<T>::consume(message_id)
+        let outcome = GasHandlerOf::<T>::consume(id)
             .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
 
         // Unreserving funds, if imbalance returned.
@@ -270,11 +268,7 @@ where
 
             // Unreserving funds, if left non-zero amount of gas.
             if !gas_left.is_zero() {
-                log::debug!(
-                    "Message consumed. Unreserving {} from {:?}",
-                    gas_left,
-                    external
-                );
+                log::debug!("Consumed. Unreserving {} from {:?}", gas_left, external);
 
                 // Converting gas amount into value.
                 let value = T::GasPrice::gas_price(gas_left);
@@ -297,7 +291,7 @@ where
         cost: SchedulingCostOf<T>,
     ) {
         // Current block number.
-        let current = SystemPallet::<T>::block_number();
+        let current = Self::block_number();
 
         // Deadline of the task.
         //
@@ -480,7 +474,7 @@ where
         let user_queries = matches!(reason, Reason::Runtime(MessageClaimed | MessageReplied));
 
         // Optionally consuming message.
-        user_queries.then(|| Self::consume_message(mailboxed.id()));
+        user_queries.then(|| Self::consume_and_retrieve(mailboxed.id()));
 
         // Taking data for funds transfer.
         let user_id = mailboxed.destination();
@@ -607,10 +601,19 @@ where
                 .unwrap_or_else(|e| unreachable!("Unable to reserve requested value {:?}", e));
         }
 
+        let message_id = dispatch.id();
+
+        // Adding message into the stash with validation.
+        if DispatchStashOf::<T>::contains_key(&message_id) {
+            unreachable!("Stash logic invalidated!")
+        }
+
+        DispatchStashOf::<T>::insert(message_id, dispatch.into_stored());
+
         // Adding removal request in task pool.
         TaskPoolOf::<T>::add(
-            SystemPallet::<T>::block_number().saturating_add(delay.unique_saturated_into()),
-            ScheduledTask::SendDispatch(dispatch.into_stored()),
+            Self::block_number().saturating_add(delay.unique_saturated_into()),
+            ScheduledTask::SendDispatch(message_id),
         )
         .unwrap_or_else(|e| unreachable!("Scheduling logic invalidated! {:?}", e));
     }

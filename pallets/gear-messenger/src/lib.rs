@@ -157,7 +157,7 @@ pub mod pallet {
     use frame_support::{
         dispatch::DispatchError, pallet_prelude::*, storage::PrefixIterator, traits::StorageVersion,
     };
-    use frame_system::{pallet_prelude::*, Pallet as SystemPallet};
+    use frame_system::pallet_prelude::BlockNumberFor;
     use gear_core::{
         ids::{MessageId, ProgramId},
         message::{StoredDispatch, StoredMessage},
@@ -172,6 +172,9 @@ pub mod pallet {
     pub trait Config: frame_system::Config {
         /// Block limits.
         type BlockLimiter: BlockLimiter<Balance = u64>;
+
+        /// Custom block number tracker.
+        type CurrentBlockNumber: Get<BlockNumberFor<Self>>;
     }
 
     // Gear Messenger Pallet itself.
@@ -406,6 +409,20 @@ pub mod pallet {
 
     // ----
 
+    // Private storage for dispatch stash elements.
+    #[pallet::storage]
+    type DispatchStash<T> = StorageMap<_, Identity, MessageId, StoredDispatch>;
+
+    // Public wrap of the dispatch stash elements.
+    common::wrap_storage_map!(
+        storage: DispatchStash,
+        name: DispatchStashWrap,
+        key: MessageId,
+        value: StoredDispatch
+    );
+
+    // ----
+
     // Below goes callbacks, used for queue algorithm.
     //
     // Note, that they are public like storage wrappers
@@ -523,7 +540,7 @@ pub mod pallet {
         T::AccountId: Origin,
     {
         fn call() -> T::BlockNumber {
-            SystemPallet::<T>::block_number()
+            T::CurrentBlockNumber::get()
         }
     }
 
@@ -575,6 +592,7 @@ pub mod pallet {
         type WaitlistFirstKey = ProgramId;
         type WaitlistSecondKey = MessageId;
         type WaitlistedMessage = StoredDispatch;
+        type DispatchStashKey = MessageId;
 
         type Sent = CounterImpl<Self::Capacity, SentWrap<T>>;
 
@@ -615,6 +633,8 @@ pub mod pallet {
             WaitListCallbacks<T>,
             WaitlistKeyGen,
         >;
+
+        type DispatchStash = DispatchStashWrap<T>;
     }
 
     // Gear Messenger Pallet hooks.

@@ -20,8 +20,9 @@ use crate::{
     log::{CoreLog, RunResult},
     program::{Gas, WasmProgram},
     wasm_executor::WasmExecutor,
-    Result, TestError, EXISTENTIAL_DEPOSIT, MAILBOX_THRESHOLD, MODULE_INSTANTIATION_BYTE_COST,
-    PER_BYTE_COST, READ_COST, RESERVE_FOR, WAITLIST_COST, WRITE_COST,
+    Result, TestError, EXISTENTIAL_DEPOSIT, MAILBOX_THRESHOLD, MAX_RESERVATIONS,
+    MODULE_INSTANTIATION_BYTE_COST, PER_BYTE_COST, READ_COST, RESERVATION_COST, RESERVE_FOR,
+    WAITLIST_COST, WRITE_COST,
 };
 use core_processor::{
     common::*,
@@ -31,13 +32,14 @@ use core_processor::{
 use gear_backend_wasmi::WasmiEnvironment;
 use gear_core::{
     code::{Code, CodeAndId, InstrumentedCode, InstrumentedCodeAndId},
-    ids::{CodeId, MessageId, ProgramId},
+    ids::{CodeId, MessageId, ProgramId, ReservationId},
     memory::{PageBuf, PageNumber, WasmPageNumber},
     message::{
         Dispatch, DispatchKind, MessageWaitedType, Payload, ReplyMessage, ReplyPacket,
         StoredDispatch, StoredMessage,
     },
     program::Program as CoreProgram,
+    reservation::{GasReservationMap, GasReserver},
 };
 use gear_wasm_instrument::wasm_instrument::gas_metering::ConstantCostRules;
 use std::{
@@ -126,11 +128,12 @@ impl TestActor {
         CoreProgram,
         BTreeMap<PageNumber, PageBuf>,
     )> {
-        let (program, pages_data, code_id) = match self {
+        let (program, pages_data, code_id, gas_reservation_map) = match self {
             TestActor::Initialized(Program::Genuine {
                 program,
                 pages_data,
                 code_id,
+                gas_reservation_map,
                 ..
             })
             | TestActor::Uninitialized(
@@ -139,9 +142,15 @@ impl TestActor {
                     program,
                     pages_data,
                     code_id,
+                    gas_reservation_map,
                     ..
                 }),
-            ) => (program.clone(), pages_data.clone(), code_id),
+            ) => (
+                program.clone(),
+                pages_data.clone(),
+                code_id,
+                gas_reservation_map.clone(),
+            ),
             _ => return None,
         };
 
@@ -154,6 +163,7 @@ impl TestActor {
                 static_pages: program.code().static_pages(),
                 initialized: program.is_initialized(),
                 pages_with_data: pages_data.keys().copied().collect(),
+                gas_reservation_map,
             },
             program,
             pages_data,
@@ -167,6 +177,7 @@ pub(crate) enum Program {
         program: CoreProgram,
         code_id: CodeId,
         pages_data: BTreeMap<PageNumber, PageBuf>,
+        gas_reservation_map: GasReservationMap,
     },
     // Contract: is always `Some`, option is used to take ownership
     Mock(Option<Box<dyn WasmProgram>>),
@@ -177,11 +188,13 @@ impl Program {
         program: CoreProgram,
         code_id: CodeId,
         pages_data: BTreeMap<PageNumber, PageBuf>,
+        gas_reservation_map: GasReservationMap,
     ) -> Self {
         Program::Genuine {
             program,
             code_id,
             pages_data,
+            gas_reservation_map,
         }
     }
 
@@ -617,10 +630,12 @@ impl ExtManager {
             mailbox_threshold: MAILBOX_THRESHOLD,
             waitlist_cost: WAITLIST_COST,
             reserve_for: RESERVE_FOR,
+            reservation: RESERVATION_COST,
             read_cost: READ_COST,
             write_cost: WRITE_COST,
             per_byte_cost: PER_BYTE_COST,
             module_instantiation_byte_cost: MODULE_INSTANTIATION_BYTE_COST,
+            max_reservations: MAX_RESERVATIONS,
         };
 
         let (actor_data, code) = match data {
@@ -880,7 +895,7 @@ impl JournalHandler for ExtManager {
                     let candidate = CoreProgram::new(candidate_id, code);
                     self.store_new_actor(
                         candidate_id,
-                        Program::new(candidate, code_id, Default::default()),
+                        Program::new(candidate, code_id, Default::default(), Default::default()),
                         Some(init_message_id),
                     );
                 } else {
@@ -901,5 +916,42 @@ impl JournalHandler for ExtManager {
 
     fn stop_processing(&mut self, _dispatch: StoredDispatch, _gas_burned: u64) {
         panic!("Processing stopped. Used for on-chain logic only.")
+    }
+
+    fn reserve_gas(
+        &mut self,
+        _message_id: MessageId,
+        _reservation_id: ReservationId,
+        _program_id: ProgramId,
+        _amount: u64,
+        _bn: u32,
+    ) {
+    }
+
+    fn unreserve_gas(&mut self, _reservation_id: ReservationId, _program_id: ProgramId, _bn: u32) {}
+
+    fn update_gas_reservation(&mut self, program_id: ProgramId, reserver: GasReserver) {
+        let block_height = self.block_info.height;
+        let (actor, _) = self
+            .actors
+            .get_mut(&program_id)
+            .expect("gas reservation update guaranteed to be called only on existing program");
+
+        if let TestActor::Initialized(Program::Genuine {
+            gas_reservation_map: prog_gas_reservation_map,
+            ..
+        })
+        | TestActor::Uninitialized(
+            _,
+            Some(Program::Genuine {
+                gas_reservation_map: prog_gas_reservation_map,
+                ..
+            }),
+        ) = actor
+        {
+            *prog_gas_reservation_map = reserver.into_map(|duration| block_height + duration);
+        } else {
+            panic!("no gas reservation map found in program");
+        }
     }
 }

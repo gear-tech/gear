@@ -36,6 +36,8 @@ use scale_info::TypeInfo;
 pub struct ContextSettings {
     /// Fee for sending message.
     sending_fee: u64,
+    /// Fee for sending scheduled message.
+    scheduled_sending_fee: u64,
     /// Fee for calling wait.
     waiting_fee: u64,
     /// Fee for waking messages.
@@ -46,9 +48,16 @@ pub struct ContextSettings {
 
 impl ContextSettings {
     /// Create new ContextSettings.
-    pub fn new(sending_fee: u64, waiting_fee: u64, waking_fee: u64, outgoing_limit: u32) -> Self {
+    pub fn new(
+        sending_fee: u64,
+        scheduled_sending_fee: u64,
+        waiting_fee: u64,
+        waking_fee: u64,
+        outgoing_limit: u32,
+    ) -> Self {
         Self {
             sending_fee,
+            scheduled_sending_fee,
             waiting_fee,
             waking_fee,
             outgoing_limit,
@@ -58,6 +67,11 @@ impl ContextSettings {
     /// Getter for inner sending fee field.
     pub fn sending_fee(&self) -> u64 {
         self.sending_fee
+    }
+
+    /// Getter for inner scheduled sending fee field.
+    pub fn scheduled_sending_fee(&self) -> u64 {
+        self.scheduled_sending_fee
     }
 
     /// Getter for inner waiting fee field.
@@ -135,6 +149,21 @@ pub struct ContextStore {
     initialized: BTreeSet<ProgramId>,
     awaken: BTreeSet<MessageId>,
     reply_sent: bool,
+    reservation_nonce: u64,
+}
+
+impl ContextStore {
+    /// Set reservation nonce.
+    pub fn set_reservation_nonce(&mut self, nonce: u64) {
+        self.reservation_nonce = nonce;
+    }
+
+    /// Fetch incremented nonce.
+    pub fn fetch_inc_reservation_nonce(&mut self) -> u64 {
+        let nonce = self.reservation_nonce;
+        self.reservation_nonce = nonce.saturating_add(1);
+        nonce
+    }
 }
 
 /// Context of currently processing incoming message.
@@ -368,7 +397,7 @@ mod tests {
             Default::default(),
             Default::default(),
             Default::default(),
-            ContextSettings::new(0, 0, 0, 1024),
+            ContextSettings::new(0, 0, 0, 0, 1024),
         );
 
         // first init to default ProgramId.
@@ -388,7 +417,7 @@ mod tests {
 
         for n in 0..=max_n {
             // for outgoing_limit n checking that LimitExceeded will be after n's message.
-            let settings = ContextSettings::new(0, 0, 0, n);
+            let settings = ContextSettings::new(0, 0, 0, 0, n);
 
             let mut message_context = MessageContext::new(
                 Default::default(),
@@ -422,7 +451,7 @@ mod tests {
             Default::default(),
             Default::default(),
             Default::default(),
-            ContextSettings::new(0, 0, 0, 1024),
+            ContextSettings::new(0, 0, 0, 0, 1024),
         );
 
         // Use invalid handle 0.
@@ -449,7 +478,7 @@ mod tests {
             Default::default(),
             Default::default(),
             Default::default(),
-            ContextSettings::new(0, 0, 0, 1024),
+            ContextSettings::new(0, 0, 0, 0, 1024),
         );
 
         // First reply.
@@ -484,7 +513,7 @@ mod tests {
             incoming_message,
             ids::ProgramId::from(INCOMING_MESSAGE_ID),
             None,
-            ContextSettings::new(0, 0, 0, 1024),
+            ContextSettings::new(0, 0, 0, 0, 1024),
         );
 
         // Checking that the initial parameters of the context match the passed constants
