@@ -1994,11 +1994,11 @@ dependencies = [
  "serde",
  "sp-consensus-babe",
  "sp-consensus-slots",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-core",
  "sp-finality-grandpa",
- "sp-io 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
  "vara-runtime",
  "wasm-mutate",
  "wasmparser 0.92.0",
@@ -2384,13 +2384,13 @@ dependencies = [
  "scale-info",
  "serde",
  "sp-api",
- "sp-application-crypto 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-io 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-runtime-interface 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-storage 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-application-crypto",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
+ "sp-runtime-interface",
+ "sp-std",
+ "sp-storage",
 ]
 
 [[package]]
@@ -2430,15 +2430,15 @@ dependencies = [
  "serde_nanos",
  "sp-api",
  "sp-blockchain",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-core",
  "sp-database",
- "sp-externalities 0.12.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-externalities",
  "sp-inherents",
- "sp-keystore 0.12.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-state-machine 0.12.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-storage 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-trie 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-keystore",
+ "sp-runtime",
+ "sp-state-machine",
+ "sp-storage",
+ "sp-trie",
  "tempfile",
  "thiserror",
  "thousands",
@@ -2454,11 +2454,11 @@ dependencies = [
  "frame-try-runtime",
  "parity-scale-codec",
  "scale-info",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-io 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-tracing 5.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
+ "sp-tracing",
 ]
 
 [[package]]
@@ -2491,16 +2491,16 @@ dependencies = [
  "serde",
  "smallvec",
  "sp-api",
- "sp-arithmetic 5.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-arithmetic",
+ "sp-core",
  "sp-core-hashing-proc-macro",
  "sp-inherents",
- "sp-io 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-io",
+ "sp-runtime",
  "sp-staking",
- "sp-state-machine 0.12.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-tracing 5.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-state-machine",
+ "sp-std",
+ "sp-tracing",
  "sp-weights",
  "tt-call",
 ]
@@ -2551,10 +2551,10 @@ dependencies = [
  "parity-scale-codec",
  "scale-info",
  "serde",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-io 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
  "sp-version",
  "sp-weights",
 ]
@@ -2569,9 +2569,9 @@ dependencies = [
  "frame-system",
  "parity-scale-codec",
  "scale-info",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-core",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -2591,8 +2591,8 @@ dependencies = [
  "frame-support",
  "parity-scale-codec",
  "sp-api",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -2826,11 +2826,11 @@ dependencies = [
  "sp-api",
  "sp-blockchain",
  "sp-consensus",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-core",
  "sp-inherents",
- "sp-io 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
  "substrate-prometheus-endpoint",
 ]
 
@@ -2892,10 +2892,10 @@ dependencies = [
  "sc-client-api",
  "sc-service",
  "scale-info",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-core",
  "sp-inherents",
  "sp-keyring",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-runtime",
  "sp-timestamp",
  "substrate-build-script-utils",
  "try-runtime-cli",
@@ -2919,11 +2919,11 @@ dependencies = [
  "primitive-types",
  "proptest",
  "scale-info",
- "sp-arithmetic 5.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-io 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-arithmetic",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
  "wasm-instrument 0.2.1",
 ]
 
@@ -2993,8 +2993,8 @@ dependencies = [
  "nix 0.25.0",
  "once_cell",
  "region",
- "sp-io 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-io",
+ "sp-std",
  "static_assertions",
  "winapi",
 ]
@@ -3008,7 +3008,7 @@ dependencies = [
  "gear-core",
  "gear-runtime-interface",
  "log",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-std",
 ]
 
 [[package]]
@@ -3112,12 +3112,12 @@ dependencies = [
  "sp-api",
  "sp-block-builder",
  "sp-consensus-babe",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-core",
  "sp-inherents",
  "sp-offchain",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-runtime",
  "sp-session",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-std",
  "sp-transaction-pool",
  "sp-version",
  "substrate-wasm-builder",
@@ -3135,8 +3135,8 @@ dependencies = [
  "gear-runtime-primitives",
  "pallet-authorship",
  "pallet-balances",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -3152,8 +3152,8 @@ dependencies = [
  "nix 0.24.2",
  "parity-scale-codec",
  "region",
- "sp-runtime-interface 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-runtime-interface",
+ "sp-std",
  "static_assertions",
  "winapi",
 ]
@@ -3162,8 +3162,8 @@ dependencies = [
 name = "gear-runtime-primitives"
 version = "0.1.0"
 dependencies = [
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-core",
+ "sp-runtime",
 ]
 
 [[package]]
@@ -3197,10 +3197,10 @@ dependencies = [
  "serde_json",
  "sp-consensus-babe",
  "sp-consensus-slots",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-core",
  "sp-finality-grandpa",
- "sp-io 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-io",
+ "sp-runtime",
  "vara-runtime",
 ]
 
@@ -3260,16 +3260,16 @@ dependencies = [
  "sp-blockchain",
  "sp-consensus",
  "sp-consensus-babe",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-core",
  "sp-finality-grandpa",
- "sp-keystore 0.12.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-keystore",
  "sp-offchain",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-runtime",
  "sp-session",
- "sp-storage 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-storage",
  "sp-timestamp",
  "sp-transaction-pool",
- "sp-trie 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-trie",
  "substrate-build-script-utils",
  "substrate-frame-rpc-system",
  "substrate-prometheus-endpoint",
@@ -3318,8 +3318,8 @@ dependencies = [
  "sp-api",
  "sp-blockchain",
  "sp-consensus",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-core",
+ "sp-runtime",
  "substrate-test-client",
 ]
 
@@ -3346,26 +3346,26 @@ dependencies = [
  "scale-info",
  "serde",
  "sp-api",
- "sp-application-crypto 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-application-crypto",
  "sp-block-builder",
  "sp-consensus",
  "sp-consensus-babe",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-externalities 0.12.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-core",
+ "sp-externalities",
  "sp-finality-grandpa",
  "sp-inherents",
- "sp-io 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-io",
  "sp-keyring",
  "sp-offchain",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-runtime",
  "sp-session",
- "sp-state-machine 0.12.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-state-machine",
+ "sp-std",
  "sp-transaction-pool",
- "sp-trie 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-trie",
  "sp-version",
  "substrate-wasm-builder",
- "trie-db 0.24.0",
+ "trie-db",
 ]
 
 [[package]]
@@ -5338,12 +5338,6 @@ dependencies = [
 
 [[package]]
 name = "memory_units"
-version = "0.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "71d96e3f3c0b6325d8ccd83c33b28acb183edcb6c67938ba104ec546854b0882"
-
-[[package]]
-name = "memory_units"
 version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8452105ba047068f40ff7093dd1d9da90898e63dd61736462e9cdda6a90ad3c3"
@@ -5892,8 +5886,8 @@ dependencies = [
  "parity-scale-codec",
  "scale-info",
  "sp-authorship",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -5910,14 +5904,14 @@ dependencies = [
  "pallet-timestamp",
  "parity-scale-codec",
  "scale-info",
- "sp-application-crypto 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-application-crypto",
  "sp-consensus-babe",
  "sp-consensus-vrf",
- "sp-io 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-io",
+ "sp-runtime",
  "sp-session",
  "sp-staking",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-std",
 ]
 
 [[package]]
@@ -5931,8 +5925,8 @@ dependencies = [
  "log",
  "parity-scale-codec",
  "scale-info",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -5995,12 +5989,12 @@ dependencies = [
  "scale-info",
  "serde",
  "sp-consensus-babe",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-externalities 0.12.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-io 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-core",
+ "sp-externalities",
+ "sp-io",
+ "sp-runtime",
  "sp-sandbox",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-std",
  "wabt",
  "wasm-instrument 0.2.1",
 ]
@@ -6030,10 +6024,10 @@ dependencies = [
  "primitive-types",
  "scale-info",
  "serde",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-io 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
  "wabt",
 ]
 
@@ -6055,9 +6049,9 @@ dependencies = [
  "primitive-types",
  "scale-info",
  "serde",
- "sp-io 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
  "wabt",
 ]
 
@@ -6079,9 +6073,9 @@ dependencies = [
  "parity-scale-codec",
  "primitive-types",
  "scale-info",
- "sp-io 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -6109,9 +6103,9 @@ dependencies = [
  "primitive-types",
  "scale-info",
  "serde",
- "sp-io 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
  "wabt",
 ]
 
@@ -6142,10 +6136,10 @@ dependencies = [
  "parity-scale-codec",
  "primitive-types",
  "scale-info",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-io 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
  "wasm-instrument 0.2.1",
 ]
 
@@ -6159,9 +6153,9 @@ dependencies = [
  "pallet-gear-rpc-runtime-api",
  "sp-api",
  "sp-blockchain",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-core",
  "sp-rpc",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-runtime",
 ]
 
 [[package]]
@@ -6170,8 +6164,8 @@ version = "2.0.0"
 dependencies = [
  "pallet-gear",
  "sp-api",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-core",
+ "sp-std",
 ]
 
 [[package]]
@@ -6196,10 +6190,10 @@ dependencies = [
  "parity-scale-codec",
  "primitive-types",
  "scale-info",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-io 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -6215,14 +6209,14 @@ dependencies = [
  "pallet-session",
  "parity-scale-codec",
  "scale-info",
- "sp-application-crypto 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-application-crypto",
+ "sp-core",
  "sp-finality-grandpa",
- "sp-io 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-io",
+ "sp-runtime",
  "sp-session",
  "sp-staking",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-std",
 ]
 
 [[package]]
@@ -6237,13 +6231,13 @@ dependencies = [
  "pallet-timestamp",
  "parity-scale-codec",
  "scale-info",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-io 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
  "sp-session",
  "sp-staking",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-trie 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-std",
+ "sp-trie",
 ]
 
 [[package]]
@@ -6255,9 +6249,9 @@ dependencies = [
  "frame-system",
  "parity-scale-codec",
  "scale-info",
- "sp-io 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -6272,9 +6266,9 @@ dependencies = [
  "parity-scale-codec",
  "scale-info",
  "sp-inherents",
- "sp-io 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
  "sp-timestamp",
 ]
 
@@ -6288,10 +6282,10 @@ dependencies = [
  "parity-scale-codec",
  "scale-info",
  "serde",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-io 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -6304,9 +6298,9 @@ dependencies = [
  "parity-scale-codec",
  "sp-api",
  "sp-blockchain",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-core",
  "sp-rpc",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-runtime",
 ]
 
 [[package]]
@@ -6317,7 +6311,7 @@ dependencies = [
  "pallet-transaction-payment",
  "parity-scale-codec",
  "sp-api",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-runtime",
 ]
 
 [[package]]
@@ -6330,10 +6324,10 @@ dependencies = [
  "frame-system",
  "parity-scale-codec",
  "scale-info",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-io 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -7331,9 +7325,9 @@ dependencies = [
  "parity-scale-codec",
  "serde",
  "serde_json",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-io 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
  "sp-version",
 ]
 
@@ -7584,8 +7578,8 @@ version = "4.1.0-dev"
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#584706a5b850f3b469ca16bffb8b6a86f29aa8b9"
 dependencies = [
  "log",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-wasm-interface 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-core",
+ "sp-wasm-interface",
  "thiserror",
 ]
 
@@ -7609,9 +7603,9 @@ dependencies = [
  "sp-api",
  "sp-authority-discovery",
  "sp-blockchain",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-keystore 0.12.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-core",
+ "sp-keystore",
+ "sp-runtime",
  "substrate-prometheus-endpoint",
  "thiserror",
 ]
@@ -7626,10 +7620,10 @@ dependencies = [
  "sp-api",
  "sp-block-builder",
  "sp-blockchain",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-core",
  "sp-inherents",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-state-machine 0.12.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-runtime",
+ "sp-state-machine",
 ]
 
 [[package]]
@@ -7645,8 +7639,8 @@ dependencies = [
  "sc-telemetry",
  "serde",
  "serde_json",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-core",
+ "sp-runtime",
 ]
 
 [[package]]
@@ -7689,11 +7683,11 @@ dependencies = [
  "serde",
  "serde_json",
  "sp-blockchain",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-core",
  "sp-keyring",
- "sp-keystore 0.12.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-panic-handler 4.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-keystore",
+ "sp-panic-handler",
+ "sp-runtime",
  "sp-version",
  "thiserror",
  "tiny-bip39",
@@ -7717,14 +7711,14 @@ dependencies = [
  "sp-api",
  "sp-blockchain",
  "sp-consensus",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-core",
  "sp-database",
- "sp-externalities 0.12.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-keystore 0.12.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-state-machine 0.12.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-storage 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-trie 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-externalities",
+ "sp-keystore",
+ "sp-runtime",
+ "sp-state-machine",
+ "sp-storage",
+ "sp-trie",
  "substrate-prometheus-endpoint",
 ]
 
@@ -7744,13 +7738,13 @@ dependencies = [
  "parking_lot 0.12.1",
  "sc-client-api",
  "sc-state-db",
- "sp-arithmetic 5.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-arithmetic",
  "sp-blockchain",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-core",
  "sp-database",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-state-machine 0.12.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-trie 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-runtime",
+ "sp-state-machine",
+ "sp-trie",
 ]
 
 [[package]]
@@ -7770,9 +7764,9 @@ dependencies = [
  "sp-api",
  "sp-blockchain",
  "sp-consensus",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-state-machine 0.12.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-core",
+ "sp-runtime",
+ "sp-state-machine",
  "substrate-prometheus-endpoint",
  "thiserror",
 ]
@@ -7802,18 +7796,18 @@ dependencies = [
  "schnorrkel",
  "serde",
  "sp-api",
- "sp-application-crypto 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-application-crypto",
  "sp-block-builder",
  "sp-blockchain",
  "sp-consensus",
  "sp-consensus-babe",
  "sp-consensus-slots",
  "sp-consensus-vrf",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-core",
  "sp-inherents",
- "sp-io 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-keystore 0.12.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-io",
+ "sp-keystore",
+ "sp-runtime",
  "sp-version",
  "substrate-prometheus-endpoint",
  "thiserror",
@@ -7831,13 +7825,13 @@ dependencies = [
  "sc-rpc-api",
  "serde",
  "sp-api",
- "sp-application-crypto 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-application-crypto",
  "sp-blockchain",
  "sp-consensus",
  "sp-consensus-babe",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-keystore 0.12.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-core",
+ "sp-keystore",
+ "sp-runtime",
  "thiserror",
 ]
 
@@ -7851,7 +7845,7 @@ dependencies = [
  "sc-client-api",
  "sc-consensus",
  "sp-blockchain",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-runtime",
 ]
 
 [[package]]
@@ -7867,14 +7861,14 @@ dependencies = [
  "sc-client-api",
  "sc-consensus",
  "sc-telemetry",
- "sp-arithmetic 5.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-arithmetic",
  "sp-blockchain",
  "sp-consensus",
  "sp-consensus-slots",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-core",
  "sp-inherents",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-state-machine 0.12.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-runtime",
+ "sp-state-machine",
  "thiserror",
 ]
 
@@ -7891,16 +7885,16 @@ dependencies = [
  "sc-executor-wasmi",
  "sc-executor-wasmtime",
  "sp-api",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-core",
  "sp-core-hashing-proc-macro",
- "sp-externalities 0.12.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-io 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-panic-handler 4.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-runtime-interface 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-externalities",
+ "sp-io",
+ "sp-panic-handler",
+ "sp-runtime-interface",
  "sp-tasks",
- "sp-trie 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-trie",
  "sp-version",
- "sp-wasm-interface 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-wasm-interface",
  "tracing",
  "wasmi 0.13.2",
 ]
@@ -7916,7 +7910,7 @@ dependencies = [
  "sc-allocator",
  "sp-maybe-compressed-blob",
  "sp-sandbox",
- "sp-wasm-interface 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-wasm-interface",
  "thiserror",
  "wasm-instrument 0.3.0",
  "wasmer",
@@ -7934,9 +7928,9 @@ dependencies = [
  "parity-scale-codec",
  "sc-allocator",
  "sc-executor-common",
- "sp-runtime-interface 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-runtime-interface",
  "sp-sandbox",
- "sp-wasm-interface 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-wasm-interface",
  "wasmi 0.13.2",
 ]
 
@@ -7954,9 +7948,9 @@ dependencies = [
  "rustix",
  "sc-allocator",
  "sc-executor-common",
- "sp-runtime-interface 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-runtime-interface",
  "sp-sandbox",
- "sp-wasm-interface 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-wasm-interface",
  "wasmtime",
 ]
 
@@ -7989,14 +7983,14 @@ dependencies = [
  "sc-utils",
  "serde_json",
  "sp-api",
- "sp-application-crypto 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-arithmetic 5.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-application-crypto",
+ "sp-arithmetic",
  "sp-blockchain",
  "sp-consensus",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-core",
  "sp-finality-grandpa",
- "sp-keystore 0.12.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-keystore",
+ "sp-runtime",
  "substrate-prometheus-endpoint",
  "thiserror",
 ]
@@ -8017,8 +8011,8 @@ dependencies = [
  "serde",
  "serde_json",
  "sp-blockchain",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-core",
+ "sp-runtime",
  "thiserror",
 ]
 
@@ -8036,7 +8030,7 @@ dependencies = [
  "sc-network-common",
  "sc-transaction-pool-api",
  "sp-blockchain",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-runtime",
 ]
 
 [[package]]
@@ -8048,9 +8042,9 @@ dependencies = [
  "async-trait",
  "parking_lot 0.12.1",
  "serde_json",
- "sp-application-crypto 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-keystore 0.12.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-application-crypto",
+ "sp-core",
+ "sp-keystore",
  "thiserror",
 ]
 
@@ -8090,11 +8084,11 @@ dependencies = [
  "serde",
  "serde_json",
  "smallvec",
- "sp-arithmetic 5.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-arithmetic",
  "sp-blockchain",
  "sp-consensus",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-core",
+ "sp-runtime",
  "substrate-prometheus-endpoint",
  "thiserror",
  "unsigned-varint",
@@ -8115,7 +8109,7 @@ dependencies = [
  "sc-client-api",
  "sc-network-common",
  "sp-blockchain",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-runtime",
  "thiserror",
  "unsigned-varint",
  "void",
@@ -8142,7 +8136,7 @@ dependencies = [
  "sp-blockchain",
  "sp-consensus",
  "sp-finality-grandpa",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-runtime",
  "substrate-prometheus-endpoint",
  "thiserror",
 ]
@@ -8160,7 +8154,7 @@ dependencies = [
  "lru 0.7.8",
  "sc-network-common",
  "sc-peerset",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-runtime",
  "substrate-prometheus-endpoint",
  "tracing",
 ]
@@ -8181,8 +8175,8 @@ dependencies = [
  "sc-network-common",
  "sc-peerset",
  "sp-blockchain",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-core",
+ "sp-runtime",
  "thiserror",
 ]
 
@@ -8205,12 +8199,12 @@ dependencies = [
  "sc-network-common",
  "sc-peerset",
  "smallvec",
- "sp-arithmetic 5.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-arithmetic",
  "sp-blockchain",
  "sp-consensus",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-core",
  "sp-finality-grandpa",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-runtime",
  "thiserror",
 ]
 
@@ -8229,7 +8223,7 @@ dependencies = [
  "sc-network-common",
  "sc-peerset",
  "sp-consensus",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-runtime",
  "substrate-prometheus-endpoint",
 ]
 
@@ -8256,9 +8250,9 @@ dependencies = [
  "sc-peerset",
  "sc-utils",
  "sp-api",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-core",
  "sp-offchain",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-runtime",
  "threadpool",
  "tracing",
 ]
@@ -8306,11 +8300,11 @@ dependencies = [
  "serde_json",
  "sp-api",
  "sp-blockchain",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-keystore 0.12.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-core",
+ "sp-keystore",
  "sp-offchain",
  "sp-rpc",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-runtime",
  "sp-session",
  "sp-version",
 ]
@@ -8330,10 +8324,10 @@ dependencies = [
  "scale-info",
  "serde",
  "serde_json",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-core",
  "sp-rpc",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-tracing 5.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-runtime",
+ "sp-tracing",
  "sp-version",
  "thiserror",
 ]
@@ -8405,22 +8399,22 @@ dependencies = [
  "serde",
  "serde_json",
  "sp-api",
- "sp-application-crypto 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-application-crypto",
  "sp-block-builder",
  "sp-blockchain",
  "sp-consensus",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-externalities 0.12.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-core",
+ "sp-externalities",
  "sp-inherents",
- "sp-keystore 0.12.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-keystore",
+ "sp-runtime",
  "sp-session",
- "sp-state-machine 0.12.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-storage 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-tracing 5.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-state-machine",
+ "sp-storage",
+ "sp-tracing",
  "sp-transaction-pool",
  "sp-transaction-storage-proof",
- "sp-trie 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-trie",
  "sp-version",
  "static_init",
  "substrate-prometheus-endpoint",
@@ -8442,7 +8436,7 @@ dependencies = [
  "parity-util-mem-derive",
  "parking_lot 0.12.1",
  "sc-client-api",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-core",
 ]
 
 [[package]]
@@ -8460,7 +8454,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sp-blockchain",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-runtime",
  "thiserror",
 ]
 
@@ -8478,9 +8472,9 @@ dependencies = [
  "sc-telemetry",
  "serde",
  "serde_json",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-io 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-core",
+ "sp-io",
+ "sp-std",
 ]
 
 [[package]]
@@ -8522,10 +8516,10 @@ dependencies = [
  "serde",
  "sp-api",
  "sp-blockchain",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-core",
  "sp-rpc",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-tracing 5.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-runtime",
+ "sp-tracing",
  "thiserror",
  "tracing",
  "tracing-log",
@@ -8561,9 +8555,9 @@ dependencies = [
  "serde",
  "sp-api",
  "sp-blockchain",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-tracing 5.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-core",
+ "sp-runtime",
+ "sp-tracing",
  "sp-transaction-pool",
  "substrate-prometheus-endpoint",
  "thiserror",
@@ -8578,7 +8572,7 @@ dependencies = [
  "log",
  "serde",
  "sp-blockchain",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-runtime",
  "thiserror",
 ]
 
@@ -8698,29 +8692,11 @@ dependencies = [
 
 [[package]]
 name = "secp256k1"
-version = "0.21.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9c42e6f1735c5f00f51e43e28d6634141f2bcad10931b2609ddd74a86d751260"
-dependencies = [
- "secp256k1-sys 0.4.2",
-]
-
-[[package]]
-name = "secp256k1"
 version = "0.24.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b7649a0b3ffb32636e60c7ce0d70511eda9c52c658cd0634e194d5a19943aeff"
 dependencies = [
- "secp256k1-sys 0.6.0",
-]
-
-[[package]]
-name = "secp256k1-sys"
-version = "0.4.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "957da2573cde917463ece3570eab4a0b3f19de6f1646cde62e6fd3868f566036"
-dependencies = [
- "cc",
+ "secp256k1-sys",
 ]
 
 [[package]]
@@ -9097,11 +9073,11 @@ dependencies = [
  "log",
  "parity-scale-codec",
  "sp-api-proc-macro",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-state-machine 0.12.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-trie 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-core",
+ "sp-runtime",
+ "sp-state-machine",
+ "sp-std",
+ "sp-trie",
  "sp-version",
  "thiserror",
 ]
@@ -9121,44 +9097,14 @@ dependencies = [
 [[package]]
 name = "sp-application-crypto"
 version = "6.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "acb4490364cb3b097a6755343e552495b0013778152300714be4647d107e9a2e"
-dependencies = [
- "parity-scale-codec",
- "scale-info",
- "serde",
- "sp-core 6.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "sp-io 6.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "sp-std 4.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
-]
-
-[[package]]
-name = "sp-application-crypto"
-version = "6.0.0"
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#584706a5b850f3b469ca16bffb8b6a86f29aa8b9"
 dependencies = [
  "parity-scale-codec",
  "scale-info",
  "serde",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-io 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
-]
-
-[[package]]
-name = "sp-arithmetic"
-version = "5.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "31ef21f82cc10f75ed046b65e2f8048080ee76e59f1b8aed55c7150daebfd35b"
-dependencies = [
- "integer-sqrt",
- "num-traits",
- "parity-scale-codec",
- "scale-info",
- "serde",
- "sp-debug-derive 4.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "sp-std 4.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "static_assertions",
+ "sp-core",
+ "sp-io",
+ "sp-std",
 ]
 
 [[package]]
@@ -9171,8 +9117,8 @@ dependencies = [
  "parity-scale-codec",
  "scale-info",
  "serde",
- "sp-debug-derive 4.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-debug-derive",
+ "sp-std",
  "static_assertions",
 ]
 
@@ -9184,9 +9130,9 @@ dependencies = [
  "parity-scale-codec",
  "scale-info",
  "sp-api",
- "sp-application-crypto 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-application-crypto",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -9197,8 +9143,8 @@ dependencies = [
  "async-trait",
  "parity-scale-codec",
  "sp-inherents",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -9209,8 +9155,8 @@ dependencies = [
  "parity-scale-codec",
  "sp-api",
  "sp-inherents",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -9226,8 +9172,8 @@ dependencies = [
  "sp-api",
  "sp-consensus",
  "sp-database",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-state-machine 0.12.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-runtime",
+ "sp-state-machine",
  "thiserror",
 ]
 
@@ -9241,11 +9187,11 @@ dependencies = [
  "futures-timer",
  "log",
  "parity-scale-codec",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-core",
  "sp-inherents",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-state-machine 0.12.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-runtime",
+ "sp-state-machine",
+ "sp-std",
  "sp-version",
  "thiserror",
 ]
@@ -9261,15 +9207,15 @@ dependencies = [
  "scale-info",
  "serde",
  "sp-api",
- "sp-application-crypto 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-application-crypto",
  "sp-consensus",
  "sp-consensus-slots",
  "sp-consensus-vrf",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-core",
  "sp-inherents",
- "sp-keystore 0.12.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-keystore",
+ "sp-runtime",
+ "sp-std",
  "sp-timestamp",
 ]
 
@@ -9281,9 +9227,9 @@ dependencies = [
  "parity-scale-codec",
  "scale-info",
  "serde",
- "sp-arithmetic 5.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-arithmetic",
+ "sp-runtime",
+ "sp-std",
  "sp-timestamp",
 ]
 
@@ -9295,56 +9241,9 @@ dependencies = [
  "parity-scale-codec",
  "scale-info",
  "schnorrkel",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
-]
-
-[[package]]
-name = "sp-core"
-version = "6.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "77963e2aa8fadb589118c3aede2e78b6c4bcf1c01d588fbf33e915b390825fbd"
-dependencies = [
- "base58",
- "bitflags",
- "blake2-rfc",
- "byteorder",
- "dyn-clonable",
- "ed25519-dalek",
- "futures",
- "hash-db",
- "hash256-std-hasher",
- "hex",
- "impl-serde",
- "lazy_static",
- "libsecp256k1",
- "log",
- "merlin",
- "num-traits",
- "parity-scale-codec",
- "parity-util-mem",
- "parking_lot 0.12.1",
- "primitive-types",
- "rand 0.7.3",
- "regex",
- "scale-info",
- "schnorrkel",
- "secp256k1 0.21.3",
- "secrecy",
- "serde",
- "sp-core-hashing 4.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "sp-debug-derive 4.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "sp-externalities 0.12.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "sp-runtime-interface 6.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "sp-std 4.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "sp-storage 6.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "ss58-registry",
- "substrate-bip39",
- "thiserror",
- "tiny-bip39",
- "wasmi 0.9.1",
- "zeroize",
+ "sp-core",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -9376,35 +9275,21 @@ dependencies = [
  "regex",
  "scale-info",
  "schnorrkel",
- "secp256k1 0.24.0",
+ "secp256k1",
  "secrecy",
  "serde",
- "sp-core-hashing 4.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-debug-derive 4.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-externalities 0.12.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-runtime-interface 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-storage 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-core-hashing",
+ "sp-debug-derive",
+ "sp-externalities",
+ "sp-runtime-interface",
+ "sp-std",
+ "sp-storage",
  "ss58-registry",
  "substrate-bip39",
  "thiserror",
  "tiny-bip39",
  "wasmi 0.13.2",
  "zeroize",
-]
-
-[[package]]
-name = "sp-core-hashing"
-version = "4.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ec864a6a67249f0c8dd3d5acab43623a61677e85ff4f2f9b04b802d2fe780e83"
-dependencies = [
- "blake2-rfc",
- "byteorder",
- "sha2 0.9.9",
- "sp-std 4.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "tiny-keccak",
- "twox-hash",
 ]
 
 [[package]]
@@ -9417,7 +9302,7 @@ dependencies = [
  "digest 0.10.5",
  "sha2 0.10.6",
  "sha3 0.10.5",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-std",
  "twox-hash",
 ]
 
@@ -9428,7 +9313,7 @@ source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#5847
 dependencies = [
  "proc-macro2",
  "quote",
- "sp-core-hashing 4.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-core-hashing",
  "syn",
 ]
 
@@ -9444,17 +9329,6 @@ dependencies = [
 [[package]]
 name = "sp-debug-derive"
 version = "4.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d676664972e22a0796176e81e7bec41df461d1edf52090955cdab55f2c956ff2"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn",
-]
-
-[[package]]
-name = "sp-debug-derive"
-version = "4.0.0"
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#584706a5b850f3b469ca16bffb8b6a86f29aa8b9"
 dependencies = [
  "proc-macro2",
@@ -9465,24 +9339,12 @@ dependencies = [
 [[package]]
 name = "sp-externalities"
 version = "0.12.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0fcfd91f92a2a59224230a77c4a5d6f51709620c0aab4e51f108ccece6adc56f"
-dependencies = [
- "environmental",
- "parity-scale-codec",
- "sp-std 4.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "sp-storage 6.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
-]
-
-[[package]]
-name = "sp-externalities"
-version = "0.12.0"
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#584706a5b850f3b469ca16bffb8b6a86f29aa8b9"
 dependencies = [
  "environmental",
  "parity-scale-codec",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-storage 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-std",
+ "sp-storage",
 ]
 
 [[package]]
@@ -9496,11 +9358,11 @@ dependencies = [
  "scale-info",
  "serde",
  "sp-api",
- "sp-application-crypto 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-keystore 0.12.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-application-crypto",
+ "sp-core",
+ "sp-keystore",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -9511,36 +9373,10 @@ dependencies = [
  "async-trait",
  "impl-trait-for-tuples",
  "parity-scale-codec",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-core",
+ "sp-runtime",
+ "sp-std",
  "thiserror",
-]
-
-[[package]]
-name = "sp-io"
-version = "6.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "935fd3c71bad6811a7984cabb74d323b8ca3107024024c3eabb610e0182ba8d3"
-dependencies = [
- "futures",
- "hash-db",
- "libsecp256k1",
- "log",
- "parity-scale-codec",
- "parking_lot 0.12.1",
- "secp256k1 0.21.3",
- "sp-core 6.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "sp-externalities 0.12.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "sp-keystore 0.12.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "sp-runtime-interface 6.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "sp-state-machine 0.12.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "sp-std 4.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "sp-tracing 5.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "sp-trie 6.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "sp-wasm-interface 6.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "tracing",
- "tracing-core",
 ]
 
 [[package]]
@@ -9555,16 +9391,16 @@ dependencies = [
  "log",
  "parity-scale-codec",
  "parking_lot 0.12.1",
- "secp256k1 0.24.0",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-externalities 0.12.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-keystore 0.12.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-runtime-interface 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-state-machine 0.12.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-tracing 5.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-trie 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-wasm-interface 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "secp256k1",
+ "sp-core",
+ "sp-externalities",
+ "sp-keystore",
+ "sp-runtime-interface",
+ "sp-state-machine",
+ "sp-std",
+ "sp-tracing",
+ "sp-trie",
+ "sp-wasm-interface",
  "tracing",
  "tracing-core",
 ]
@@ -9575,26 +9411,9 @@ version = "6.0.0"
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#584706a5b850f3b469ca16bffb8b6a86f29aa8b9"
 dependencies = [
  "lazy_static",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-core",
+ "sp-runtime",
  "strum",
-]
-
-[[package]]
-name = "sp-keystore"
-version = "0.12.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3261eddca8c8926e3e1de136a7980cb3afc3455247d9d6f3119d9b292f73aaee"
-dependencies = [
- "async-trait",
- "futures",
- "merlin",
- "parity-scale-codec",
- "parking_lot 0.12.1",
- "schnorrkel",
- "sp-core 6.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "sp-externalities 0.12.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "thiserror",
 ]
 
 [[package]]
@@ -9609,8 +9428,8 @@ dependencies = [
  "parking_lot 0.12.1",
  "schnorrkel",
  "serde",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-externalities 0.12.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-core",
+ "sp-externalities",
  "thiserror",
 ]
 
@@ -9629,19 +9448,8 @@ version = "4.0.0-dev"
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#584706a5b850f3b469ca16bffb8b6a86f29aa8b9"
 dependencies = [
  "sp-api",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
-]
-
-[[package]]
-name = "sp-panic-handler"
-version = "4.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2101f3c555fceafcfcfb0e61c55ea9ed80dc60bd77d54d9f25b369edb029e9a4"
-dependencies = [
- "backtrace",
- "lazy_static",
- "regex",
+ "sp-core",
+ "sp-runtime",
 ]
 
 [[package]]
@@ -9661,30 +9469,7 @@ source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#5847
 dependencies = [
  "rustc-hash",
  "serde",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
-]
-
-[[package]]
-name = "sp-runtime"
-version = "6.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bb7d8a8d5ab5d349c6cf9300af1721b7b6446ba63401dbb11c10a1d65197aa5f"
-dependencies = [
- "either",
- "hash256-std-hasher",
- "impl-trait-for-tuples",
- "log",
- "parity-scale-codec",
- "parity-util-mem",
- "paste",
- "rand 0.7.3",
- "scale-info",
- "serde",
- "sp-application-crypto 6.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "sp-arithmetic 5.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "sp-core 6.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "sp-io 6.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "sp-std 4.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "sp-core",
 ]
 
 [[package]]
@@ -9702,30 +9487,12 @@ dependencies = [
  "rand 0.7.3",
  "scale-info",
  "serde",
- "sp-application-crypto 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-arithmetic 5.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-io 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-application-crypto",
+ "sp-arithmetic",
+ "sp-core",
+ "sp-io",
+ "sp-std",
  "sp-weights",
-]
-
-[[package]]
-name = "sp-runtime-interface"
-version = "6.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "158bf0305c75a50fc0e334b889568f519a126e32b87900c3f4251202dece7b4b"
-dependencies = [
- "impl-trait-for-tuples",
- "parity-scale-codec",
- "primitive-types",
- "sp-externalities 0.12.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "sp-runtime-interface-proc-macro 5.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "sp-std 4.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "sp-storage 6.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "sp-tracing 5.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "sp-wasm-interface 6.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "static_assertions",
 ]
 
 [[package]]
@@ -9737,26 +9504,13 @@ dependencies = [
  "impl-trait-for-tuples",
  "parity-scale-codec",
  "primitive-types",
- "sp-externalities 0.12.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-runtime-interface-proc-macro 5.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-storage 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-tracing 5.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-wasm-interface 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-externalities",
+ "sp-runtime-interface-proc-macro",
+ "sp-std",
+ "sp-storage",
+ "sp-tracing",
+ "sp-wasm-interface",
  "static_assertions",
-]
-
-[[package]]
-name = "sp-runtime-interface-proc-macro"
-version = "5.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "22ecb916b9664ed9f90abef0ff5a3e61454c1efea5861b2997e03f39b59b955f"
-dependencies = [
- "Inflector",
- "proc-macro-crate 1.2.1",
- "proc-macro2",
- "quote",
- "syn",
 ]
 
 [[package]]
@@ -9778,10 +9532,10 @@ source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#5847
 dependencies = [
  "log",
  "parity-scale-codec",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-io 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-wasm-interface 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-core",
+ "sp-io",
+ "sp-std",
+ "sp-wasm-interface",
  "wasmi 0.13.2",
 ]
 
@@ -9793,10 +9547,10 @@ dependencies = [
  "parity-scale-codec",
  "scale-info",
  "sp-api",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-core",
+ "sp-runtime",
  "sp-staking",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-std",
 ]
 
 [[package]]
@@ -9806,32 +9560,8 @@ source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#5847
 dependencies = [
  "parity-scale-codec",
  "scale-info",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
-]
-
-[[package]]
-name = "sp-state-machine"
-version = "0.12.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ecee3b33eb78c99997676a571656bcc35db6886abecfddd13e76a73b5871c6c1"
-dependencies = [
- "hash-db",
- "log",
- "num-traits",
- "parity-scale-codec",
- "parking_lot 0.12.1",
- "rand 0.7.3",
- "smallvec",
- "sp-core 6.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "sp-externalities 0.12.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "sp-panic-handler 4.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "sp-std 4.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "sp-trie 6.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "thiserror",
- "tracing",
- "trie-db 0.23.1",
- "trie-root",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -9846,11 +9576,11 @@ dependencies = [
  "parking_lot 0.12.1",
  "rand 0.7.3",
  "smallvec",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-externalities 0.12.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-panic-handler 4.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-trie 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-core",
+ "sp-externalities",
+ "sp-panic-handler",
+ "sp-std",
+ "sp-trie",
  "thiserror",
  "tracing",
  "trie-root",
@@ -9859,27 +9589,7 @@ dependencies = [
 [[package]]
 name = "sp-std"
 version = "4.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "14804d6069ee7a388240b665f17908d98386ffb0b5d39f89a4099fc7a2a4c03f"
-
-[[package]]
-name = "sp-std"
-version = "4.0.0"
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#584706a5b850f3b469ca16bffb8b6a86f29aa8b9"
-
-[[package]]
-name = "sp-storage"
-version = "6.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5dab53af846068e3e0716d3ccc70ea0db44035c79b2ed5821aaa6635039efa37"
-dependencies = [
- "impl-serde",
- "parity-scale-codec",
- "ref-cast",
- "serde",
- "sp-debug-derive 4.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "sp-std 4.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
-]
 
 [[package]]
 name = "sp-storage"
@@ -9890,8 +9600,8 @@ dependencies = [
  "parity-scale-codec",
  "ref-cast",
  "serde",
- "sp-debug-derive 4.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-debug-derive",
+ "sp-std",
 ]
 
 [[package]]
@@ -9900,11 +9610,11 @@ version = "4.0.0-dev"
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#584706a5b850f3b469ca16bffb8b6a86f29aa8b9"
 dependencies = [
  "log",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-externalities 0.12.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-io 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-runtime-interface 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-core",
+ "sp-externalities",
+ "sp-io",
+ "sp-runtime-interface",
+ "sp-std",
 ]
 
 [[package]]
@@ -9918,22 +9628,9 @@ dependencies = [
  "parity-scale-codec",
  "sp-api",
  "sp-inherents",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-runtime",
+ "sp-std",
  "thiserror",
-]
-
-[[package]]
-name = "sp-tracing"
-version = "5.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "69a67e555d171c4238bd223393cda747dd20ec7d4f5fe5c042c056cb7fde9eda"
-dependencies = [
- "parity-scale-codec",
- "sp-std 4.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "tracing",
- "tracing-core",
- "tracing-subscriber 0.2.25",
 ]
 
 [[package]]
@@ -9942,7 +9639,7 @@ version = "5.0.0"
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#584706a5b850f3b469ca16bffb8b6a86f29aa8b9"
 dependencies = [
  "parity-scale-codec",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-std",
  "tracing",
  "tracing-core",
  "tracing-subscriber 0.2.25",
@@ -9954,7 +9651,7 @@ version = "4.0.0-dev"
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#584706a5b850f3b469ca16bffb8b6a86f29aa8b9"
 dependencies = [
  "sp-api",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-runtime",
 ]
 
 [[package]]
@@ -9966,27 +9663,11 @@ dependencies = [
  "log",
  "parity-scale-codec",
  "scale-info",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-core",
  "sp-inherents",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-trie 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
-]
-
-[[package]]
-name = "sp-trie"
-version = "6.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d6fc34f4f291886914733e083b62708d829f3e6b8d7a7ca7fa8a55a3d7640b0b"
-dependencies = [
- "hash-db",
- "memory-db",
- "parity-scale-codec",
- "scale-info",
- "sp-core 6.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "sp-std 4.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "trie-db 0.23.1",
- "trie-root",
+ "sp-runtime",
+ "sp-std",
+ "sp-trie",
 ]
 
 [[package]]
@@ -10004,11 +9685,11 @@ dependencies = [
  "parity-scale-codec",
  "parking_lot 0.12.1",
  "scale-info",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-core",
+ "sp-std",
  "thiserror",
  "tracing",
- "trie-db 0.24.0",
+ "trie-db",
  "trie-root",
 ]
 
@@ -10023,8 +9704,8 @@ dependencies = [
  "scale-info",
  "serde",
  "sp-core-hashing-proc-macro",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-runtime",
+ "sp-std",
  "sp-version-proc-macro",
  "thiserror",
 ]
@@ -10043,25 +9724,12 @@ dependencies = [
 [[package]]
 name = "sp-wasm-interface"
 version = "6.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "10d88debe690c2b24eaa9536a150334fcef2ae184c21a0e5b3e80135407a7d52"
-dependencies = [
- "impl-trait-for-tuples",
- "log",
- "parity-scale-codec",
- "sp-std 4.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "wasmi 0.9.1",
-]
-
-[[package]]
-name = "sp-wasm-interface"
-version = "6.0.0"
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#584706a5b850f3b469ca16bffb8b6a86f29aa8b9"
 dependencies = [
  "impl-trait-for-tuples",
  "log",
  "parity-scale-codec",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-std",
  "wasmi 0.13.2",
  "wasmtime",
 ]
@@ -10076,10 +9744,10 @@ dependencies = [
  "scale-info",
  "serde",
  "smallvec",
- "sp-arithmetic 5.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-debug-derive 4.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-arithmetic",
+ "sp-core",
+ "sp-debug-derive",
+ "sp-std",
 ]
 
 [[package]]
@@ -10274,8 +9942,8 @@ dependencies = [
  "sp-api",
  "sp-block-builder",
  "sp-blockchain",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-core",
+ "sp-runtime",
 ]
 
 [[package]]
@@ -10303,13 +9971,13 @@ dependencies = [
  "sc-rpc-api",
  "scale-info",
  "serde",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-io 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-state-machine 0.12.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-trie 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "trie-db 0.24.0",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
+ "sp-state-machine",
+ "sp-std",
+ "sp-trie",
+ "trie-db",
 ]
 
 [[package]]
@@ -10331,11 +9999,11 @@ dependencies = [
  "serde_json",
  "sp-blockchain",
  "sp-consensus",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-core",
  "sp-keyring",
- "sp-keystore 0.12.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-state-machine 0.12.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-keystore",
+ "sp-runtime",
+ "sp-state-machine",
 ]
 
 [[package]]
@@ -10378,8 +10046,8 @@ dependencies = [
  "scale-info",
  "serde",
  "serde_json",
- "sp-core 6.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "sp-runtime 6.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "sp-core",
+ "sp-runtime",
  "subxt-macro",
  "subxt-metadata",
  "thiserror",
@@ -10425,7 +10093,7 @@ dependencies = [
  "frame-metadata",
  "parity-scale-codec",
  "scale-info",
- "sp-core 6.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "sp-core",
 ]
 
 [[package]]
@@ -10648,15 +10316,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "tiny-keccak"
-version = "2.0.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2c9d3793400a45f954c52e73d068316d76b6f4e36977e3fcebb13a2721e80237"
-dependencies = [
- "crunchy",
-]
-
-[[package]]
 name = "tinyvec"
 version = "1.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -10865,19 +10524,6 @@ dependencies = [
 
 [[package]]
 name = "trie-db"
-version = "0.23.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d32d034c0d3db64b43c31de38e945f15b40cd4ca6d2dcfc26d4798ce8de4ab83"
-dependencies = [
- "hash-db",
- "hashbrown 0.12.3",
- "log",
- "rustc-hex",
- "smallvec",
-]
-
-[[package]]
-name = "trie-db"
 version = "0.24.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "004e1e8f92535694b4cb1444dc5a8073ecf0815e3357f729638b9f8fc4062908"
@@ -10963,12 +10609,12 @@ dependencies = [
  "sc-executor",
  "sc-service",
  "serde",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-externalities 0.12.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-io 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-keystore 0.12.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-state-machine 0.12.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-core",
+ "sp-externalities",
+ "sp-io",
+ "sp-keystore",
+ "sp-runtime",
+ "sp-state-machine",
  "sp-version",
  "zstd",
 ]
@@ -11157,12 +10803,12 @@ dependencies = [
  "sp-api",
  "sp-block-builder",
  "sp-consensus-babe",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-core",
  "sp-inherents",
  "sp-offchain",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-runtime",
  "sp-session",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-std",
  "sp-transaction-pool",
  "sp-version",
  "static_assertions",
@@ -11687,27 +11333,12 @@ dependencies = [
 
 [[package]]
 name = "wasmi"
-version = "0.9.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ca00c5147c319a8ec91ec1a0edbec31e566ce2c9cc93b3f9bb86a9efd0eb795d"
-dependencies = [
- "downcast-rs",
- "libc",
- "memory_units 0.3.0",
- "num-rational 0.2.4",
- "num-traits",
- "parity-wasm 0.42.2",
- "wasmi-validation 0.4.1",
-]
-
-[[package]]
-name = "wasmi"
 version = "0.13.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "06c326c93fbf86419608361a2c925a31754cf109da1b8b55737070b4d6669422"
 dependencies = [
  "parity-wasm 0.45.0",
- "wasmi-validation 0.5.0",
+ "wasmi-validation",
  "wasmi_core",
 ]
 
@@ -11720,15 +11351,6 @@ dependencies = [
  "spin 0.9.4",
  "wasmi_core",
  "wasmparser-nostd 0.83.0",
-]
-
-[[package]]
-name = "wasmi-validation"
-version = "0.4.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "165343ecd6c018fc09ebcae280752702c9a2ef3e6f8d02f1cfcbdb53ef6d7937"
-dependencies = [
- "parity-wasm 0.42.2",
 ]
 
 [[package]]
@@ -11748,7 +11370,7 @@ checksum = "57d20cb3c59b788653d99541c646c561c9dd26506f25c0cebfe810659c54c6d7"
 dependencies = [
  "downcast-rs",
  "libm",
- "memory_units 0.4.0",
+ "memory_units",
  "num-rational 0.4.1",
  "num-traits",
  "region",
