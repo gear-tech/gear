@@ -38,8 +38,8 @@ mod tests;
 pub const GLOBAL_NAME_GAS: &str = "gear_gas";
 pub const GLOBAL_NAME_ALLOWANCE: &str = "gear_allowance";
 
-pub const IMPORT_NAME_OUT_OF_GAS: &str = "out_of_gas";
-pub const IMPORT_NAME_OUT_OF_ALLOWANCE: &str = "out_of_allowance";
+pub const IMPORT_NAME_OUT_OF_GAS: &str = "gr_out_of_gas";
+pub const IMPORT_NAME_OUT_OF_ALLOWANCE: &str = "gr_out_of_allowance";
 
 pub fn inject<R: Rules>(
     module: elements::Module,
