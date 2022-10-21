@@ -39,6 +39,65 @@ use gear_core::{
     message::{ContextSettings, IncomingDispatch, MessageContext},
 };
 
+pub(crate) enum ChargeForBytesResult {
+    Ok,
+    BlockGasExceeded,
+    GasExceeded,
+}
+
+/// Calculates gas amount required to charge for program loading.
+pub fn calculate_gas_for_program(read_cost: u64, _per_byte_cost: u64) -> u64 {
+    read_cost
+}
+
+/// Calculates gas amount required to charge for code loading.
+pub fn calculate_gas_for_code(read_cost: u64, per_byte_cost: u64, code_len_bytes: u64) -> u64 {
+    read_cost.saturating_add(code_len_bytes.saturating_mul(per_byte_cost))
+}
+
+fn charge_gas_for_bytes(
+    amount: u64,
+    gas_counter: &mut GasCounter,
+    gas_allowance_counter: &mut GasAllowanceCounter,
+) -> ChargeForBytesResult {
+    if gas_allowance_counter.charge(amount) != ChargeResult::Enough {
+        return ChargeForBytesResult::BlockGasExceeded;
+    }
+
+    if gas_counter.charge(amount) != ChargeResult::Enough {
+        return ChargeForBytesResult::GasExceeded;
+    }
+
+    ChargeForBytesResult::Ok
+}
+
+pub(crate) fn charge_gas_for_program(
+    read_cost: u64,
+    per_byte_cost: u64,
+    gas_counter: &mut GasCounter,
+    gas_allowance_counter: &mut GasAllowanceCounter,
+) -> ChargeForBytesResult {
+    charge_gas_for_bytes(
+        calculate_gas_for_program(read_cost, per_byte_cost),
+        gas_counter,
+        gas_allowance_counter,
+    )
+}
+
+pub(crate) fn charge_gas_for_code(
+    read_cost: u64,
+    per_byte_cost: u64,
+    code_len_bytes: u32,
+    gas_counter: &mut GasCounter,
+    gas_allowance_counter: &mut GasAllowanceCounter,
+) -> ChargeForBytesResult {
+    charge_gas_for_bytes(
+        calculate_gas_for_code(read_cost, per_byte_cost, code_len_bytes.into()),
+        gas_counter,
+        gas_allowance_counter,
+    )
+}
+
 /// Make checks that everything with memory goes well.
 fn check_memory<'a>(
     allocations: &BTreeSet<WasmPageNumber>,
@@ -61,6 +120,27 @@ fn check_memory<'a>(
             static_pages
         );
         return Err(ExecutionErrorReason::InsufficientMemorySize);
+    }
+
+    Ok(())
+}
+
+pub(crate) fn charge_gas_for_instantiation(
+    gas_per_byte: u64,
+    code_length: u32,
+    gas_counter: &mut GasCounter,
+    gas_allowance_counter: &mut GasAllowanceCounter,
+) -> Result<(), ExecutionErrorReason> {
+    let amount = gas_per_byte * code_length as u64;
+
+    log::trace!("Charge {} for module instantiation", amount);
+
+    if gas_allowance_counter.charge(amount) != ChargeResult::Enough {
+        return Err(ExecutionErrorReason::ModuleInstantiationBlockGasExceeded);
+    }
+
+    if gas_counter.charge(amount) != ChargeResult::Enough {
+        return Err(ExecutionErrorReason::ModuleInstantiationGasExceeded);
     }
 
     Ok(())
@@ -240,6 +320,7 @@ pub fn execute_wasm<
     let WasmExecutionContext {
         gas_counter,
         gas_allowance_counter,
+        gas_reserver,
         origin,
         program,
         mut pages_initial_data,
@@ -273,7 +354,7 @@ pub fn execute_wasm<
         AllocationsContext::new(allocations.clone(), static_pages, settings.max_pages());
 
     // Creating message context.
-    let message_context = MessageContext::new_with_settings(
+    let message_context = MessageContext::new(
         dispatch.message().clone(),
         program_id,
         dispatch.context().clone(),
@@ -286,6 +367,7 @@ pub fn execute_wasm<
     let context = ProcessorContext {
         gas_counter,
         gas_allowance_counter,
+        gas_reserver,
         value_counter,
         allocations_context,
         message_context,
@@ -300,19 +382,21 @@ pub fn execute_wasm<
         mailbox_threshold: settings.mailbox_threshold,
         waitlist_cost: settings.waitlist_cost,
         reserve_for: settings.reserve_for,
+        reservation: settings.reservation,
     };
 
     // Creating externalities.
     let ext = A::new(context);
 
     // Execute program in backend env.
-    let (termination, memory, ext) = match E::execute(
-        ext,
-        program.raw_code(),
-        program.code().exports().clone(),
-        memory_size,
-        &kind,
-        |memory, stack_end| {
+    let f = || {
+        let env = E::new(
+            ext,
+            program.raw_code(),
+            program.code().exports().clone(),
+            memory_size,
+        )?;
+        env.execute(&kind, |memory, stack_end| {
             prepare_memory::<A, E::Memory>(
                 program_id,
                 &mut pages_initial_data,
@@ -320,8 +404,9 @@ pub fn execute_wasm<
                 stack_end,
                 memory,
             )
-        },
-    ) {
+        })
+    };
+    let (termination, memory, ext) = match f() {
         Ok(BackendReport {
             termination_reason: termination,
             memory_wrap: mut memory,
@@ -375,7 +460,9 @@ pub fn execute_wasm<
 
             DispatchResultKind::Trap(explanation)
         }
-        TerminationReason::Wait(duration) => DispatchResultKind::Wait(duration),
+        TerminationReason::Wait(duration, waited_type) => {
+            DispatchResultKind::Wait(duration, waited_type)
+        }
         TerminationReason::GasAllowanceExceeded => DispatchResultKind::GasAllowanceExceed,
     };
 
@@ -395,6 +482,7 @@ pub fn execute_wasm<
         awakening: info.awakening,
         program_candidates,
         gas_amount: info.gas_amount,
+        gas_reserver: Some(info.gas_reserver),
         page_update,
         allocations: info.allocations,
     })

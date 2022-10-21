@@ -54,7 +54,7 @@ pub use runtime_common::{
 pub use runtime_primitives::{AccountId, Signature};
 use runtime_primitives::{Balance, BlockNumber, Hash, Index, Moment};
 use sp_api::impl_runtime_apis;
-use sp_core::{crypto::KeyTypeId, OpaqueMetadata, H256};
+use sp_core::{crypto::KeyTypeId, ConstU64, OpaqueMetadata, H256};
 use sp_runtime::{
     create_runtime_str, generic, impl_opaque_keys,
     traits::{AccountIdLookup, BlakeTwo256, Block as BlockT, NumberFor, OpaqueKeys},
@@ -98,7 +98,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
     impl_name: create_runtime_str!("gear"),
     apis: RUNTIME_API_VERSIONS,
     authoring_version: 1,
-    spec_version: 420,
+    spec_version: 510,
     impl_version: 1,
     transaction_version: 1,
     state_version: 1,
@@ -346,9 +346,11 @@ parameter_types! {
     pub const ReserveThreshold: u32 = 1;
     pub const WaitlistCost: u64 = 100;
     pub const MailboxCost: u64 = 100;
+    pub const ReservationCost: u64 = 100;
 
     pub const OutgoingLimit: u32 = 1024;
     pub const MailboxThreshold: u64 = 3000;
+    pub const ReadPerByteCost: u64 = 100;
 }
 
 parameter_types! {
@@ -365,6 +367,8 @@ impl pallet_gear::Config for Runtime {
     type DebugInfo = DebugInfo;
     type CodeStorage = GearProgram;
     type MailboxThreshold = MailboxThreshold;
+    type ReservationsLimit = ConstU64<256>;
+    type ReadPerByteCost = ReadPerByteCost;
     type Messenger = GearMessenger;
     type GasProvider = GearGas;
     type BlockLimiter = GearGas;
@@ -385,6 +389,7 @@ impl pallet_gear_scheduler::Config for Runtime {
     type ReserveThreshold = ReserveThreshold;
     type WaitlistCost = WaitlistCost;
     type MailboxCost = MailboxCost;
+    type ReservationCost = ReservationCost;
 }
 
 impl pallet_gear_gas::Config for Runtime {
@@ -393,6 +398,7 @@ impl pallet_gear_gas::Config for Runtime {
 
 impl pallet_gear_messenger::Config for Runtime {
     type BlockLimiter = GearGas;
+    type CurrentBlockNumber = Gear;
 }
 
 pub struct ExtraFeeFilter;

@@ -27,10 +27,13 @@ use codec::{Decode, Encode};
 use gear_backend_common::TrapExplanation;
 use gear_core::{
     gas::{GasAllowanceCounter, GasAmount, GasCounter},
-    ids::{CodeId, MessageId, ProgramId},
+    ids::{CodeId, MessageId, ProgramId, ReservationId},
     memory::{PageBuf, PageNumber, WasmPageNumber},
-    message::{ContextStore, Dispatch, IncomingDispatch, StoredDispatch},
+    message::{
+        ContextStore, Dispatch, DispatchKind, IncomingDispatch, MessageWaitedType, StoredDispatch,
+    },
     program::Program,
+    reservation::{GasReservationMap, GasReserver},
 };
 use gear_core_errors::MemoryError;
 use scale_info::TypeInfo;
@@ -43,7 +46,7 @@ pub enum DispatchResultKind {
     /// Trap dispatch.
     Trap(TrapExplanation),
     /// Wait dispatch.
-    Wait(Option<u32>),
+    Wait(Option<u32>, MessageWaitedType),
     /// Exit dispatch.
     Exit(ProgramId),
     /// Gas allowance exceed.
@@ -68,6 +71,8 @@ pub struct DispatchResult {
     pub program_candidates: BTreeMap<CodeId, Vec<(MessageId, ProgramId)>>,
     /// Gas amount after execution.
     pub gas_amount: GasAmount,
+    /// Gas amount programs reserved.
+    pub gas_reserver: Option<GasReserver>,
     /// Page updates.
     pub page_update: BTreeMap<PageNumber, PageBuf>,
     /// New allocations set for program if it has been changed.
@@ -111,6 +116,7 @@ impl DispatchResult {
             awakening: Default::default(),
             program_candidates: Default::default(),
             gas_amount,
+            gas_reserver: None,
             page_update: Default::default(),
             allocations: Default::default(),
         }
@@ -198,6 +204,8 @@ pub enum JournalNote {
         dispatch: StoredDispatch,
         /// Expected duration of holding.
         duration: Option<u32>,
+        /// If this message is waiting for its reincarnation.
+        waited_type: MessageWaitedType,
     },
     /// Wake particular message.
     WakeMessage {
@@ -250,6 +258,35 @@ pub enum JournalNote {
         /// Decreases gas allowance by that amount, burned for processing try.
         gas_burned: u64,
     },
+    /// Reserve gas.
+    ReserveGas {
+        /// Message from which gas is reserved.
+        message_id: MessageId,
+        /// Reservation ID
+        reservation_id: ReservationId,
+        /// Program which contains reservation.
+        program_id: ProgramId,
+        /// Amount of reserved gas.
+        amount: u64,
+        /// How many blocks reservation will live.
+        duration: u32,
+    },
+    /// Unreserve gas.
+    UnreserveGas {
+        /// Reservation ID
+        reservation_id: ReservationId,
+        /// Program which contains reservation.
+        program_id: ProgramId,
+        /// Block number until reservation will live.
+        expiration: u32,
+    },
+    /// Update gas reservation map in program.
+    UpdateGasReservations {
+        /// Program whose map will be updated.
+        program_id: ProgramId,
+        /// Map with reservations.
+        reserver: GasReserver,
+    },
 }
 
 /// Journal handler.
@@ -272,7 +309,12 @@ pub trait JournalHandler {
     /// Process send dispatch.
     fn send_dispatch(&mut self, message_id: MessageId, dispatch: Dispatch, delay: u32);
     /// Process send message.
-    fn wait_dispatch(&mut self, dispatch: StoredDispatch, duration: Option<u32>);
+    fn wait_dispatch(
+        &mut self,
+        dispatch: StoredDispatch,
+        duration: Option<u32>,
+        waited_type: MessageWaitedType,
+    );
     /// Process send message.
     fn wake_message(
         &mut self,
@@ -299,6 +341,19 @@ pub trait JournalHandler {
     ///
     /// Pushes StoredDispatch back to the top of the queue and decreases gas allowance.
     fn stop_processing(&mut self, dispatch: StoredDispatch, gas_burned: u64);
+    /// Reserve gas.
+    fn reserve_gas(
+        &mut self,
+        message_id: MessageId,
+        reservation_id: ReservationId,
+        program_id: ProgramId,
+        amount: u64,
+        bn: u32,
+    );
+    /// Unreserve gas.
+    fn unreserve_gas(&mut self, reservation_id: ReservationId, program_id: ProgramId, bn: u32);
+    /// Update gas reservations.
+    fn update_gas_reservation(&mut self, program_id: ProgramId, reserver: GasReserver);
 }
 
 /// Execution error.
@@ -348,6 +403,18 @@ pub enum ExecutionErrorReason {
     /// Not enough gas in block for initial memory handling
     #[display(fmt = "Not enough gas in block for initial memory handling")]
     InitialMemoryBlockGasExceeded,
+    /// Not enough gas for basic program data handling
+    #[display(fmt = "Not enough gas for basic program data handling")]
+    ProgramDataGasExceeded,
+    /// Not enough gas for loading a program code
+    #[display(fmt = "Not enough gas for loading a program code")]
+    ProgramCodeGasExceeded,
+    /// Not enough gas for WASM module instantiation
+    #[display(fmt = "Not enough gas for WASM module instantiation")]
+    ModuleInstantiationGasExceeded,
+    /// Not enough gas in block for WASM module instantiation
+    #[display(fmt = "Not enough gas in block for WASM module instantiation")]
+    ModuleInstantiationBlockGasExceeded,
     /// Mem size less then static pages num
     #[display(fmt = "Mem size less then static pages num")]
     InsufficientMemorySize,
@@ -395,10 +462,22 @@ pub struct Actor {
 /// Executable actor data.
 #[derive(Clone, Debug, Decode, Encode)]
 pub struct ExecutableActorData {
-    /// Program aggregated data.
-    pub program: Program,
-    /// Numbers of allocated memory pages that have non-default data.
+    /// Set of dynamic wasm page numbers, which are allocated by the program.
+    pub allocations: BTreeSet<WasmPageNumber>,
+    /// Set of gear pages numbers, which has data in storage.
     pub pages_with_data: BTreeSet<PageNumber>,
+    /// Id of the program code.
+    pub code_id: CodeId,
+    /// Length in bytes of the program code.
+    pub code_length_bytes: u32,
+    /// Exported functions by the program code.
+    pub code_exports: BTreeSet<DispatchKind>,
+    /// Count of static memory pages.
+    pub static_pages: WasmPageNumber,
+    /// Flag indicates if the program is initialized.
+    pub initialized: bool,
+    /// Gas reservation map.
+    pub gas_reservation_map: GasReservationMap,
 }
 
 /// Execution context.
@@ -409,10 +488,49 @@ pub struct WasmExecutionContext {
     pub gas_counter: GasCounter,
     /// A counter for gas allowance.
     pub gas_allowance_counter: GasAllowanceCounter,
+    /// Gas reserver.
+    pub gas_reserver: GasReserver,
     /// Program to be executed.
     pub program: Program,
     /// Memory pages with initial data.
     pub pages_initial_data: BTreeMap<PageNumber, PageBuf>,
     /// Size of the memory block.
     pub memory_size: WasmPageNumber,
+}
+
+/// Struct with dispatch and counters charged for program data.
+#[derive(Clone, Debug)]
+pub struct PrechargedDispatch {
+    gas: GasCounter,
+    allowance: GasAllowanceCounter,
+    dispatch: IncomingDispatch,
+}
+
+impl PrechargedDispatch {
+    /// Decompose this instance into dispatch and journal.
+    pub fn into_dispatch_and_note(self) -> (IncomingDispatch, Vec<JournalNote>) {
+        let journal = alloc::vec![JournalNote::GasBurned {
+            message_id: self.dispatch.id(),
+            amount: self.gas.burned(),
+        }];
+
+        (self.dispatch, journal)
+    }
+
+    /// Decompose the instance into parts.
+    pub fn into_parts(self) -> (IncomingDispatch, GasCounter, GasAllowanceCounter) {
+        (self.dispatch, self.gas, self.allowance)
+    }
+}
+
+impl From<(IncomingDispatch, GasCounter, GasAllowanceCounter)> for PrechargedDispatch {
+    fn from(
+        (dispatch, gas, allowance): (IncomingDispatch, GasCounter, GasAllowanceCounter),
+    ) -> Self {
+        Self {
+            gas,
+            allowance,
+            dispatch,
+        }
+    }
 }

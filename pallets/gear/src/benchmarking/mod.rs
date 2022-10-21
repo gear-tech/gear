@@ -33,12 +33,13 @@ use self::{
     sandbox::Sandbox,
 };
 use crate::{
-    manager::{ExtManager, HandleKind},
+    benchmarking::code::max_pages,
+    manager::{CodeInfo, ExtManager, HandleKind},
     pallet,
     schedule::{API_BENCHMARK_BATCH_SIZE, INSTR_BENCHMARK_BATCH_SIZE},
-    BTreeMap, BalanceOf, BlockGasLimitOf, Call, Config, CostsPerBlockOf, CurrencyOf,
+    BTreeMap, BalanceOf, BlockGasLimitOf, Call, Config, CostsPerBlockOf, CurrencyOf, DbWeightOf,
     ExecutionEnvironment, Ext as Externalities, GasHandlerOf, MailboxOf, Pallet as Gear, Pallet,
-    QueueOf, Schedule, WaitlistOf,
+    QueueOf, ReadPerByteCostOf, Schedule, WaitlistOf,
 };
 use codec::Encode;
 use common::{
@@ -47,16 +48,19 @@ use common::{
 };
 use core_processor::{
     configs::{AllocationsConfig, BlockConfig, BlockInfo, MessageExecutionContext},
-    PrepareResult, PreparedMessageExecutionContext,
+    PrechargeResult, PrepareResult, ProcessExecutionContext, ProcessorContext, ProcessorExt,
 };
 use frame_benchmarking::{benchmarks, whitelisted_caller};
 use frame_support::traits::{Currency, Get, Hooks, ReservableCurrency};
 use frame_system::{Pallet as SystemPallet, RawOrigin};
+use gear_backend_common::Environment;
 use gear_core::{
     code::{Code, CodeAndId},
+    gas::{GasAllowanceCounter, GasCounter, ValueCounter},
     ids::{CodeId, MessageId, ProgramId},
-    memory::{PageBuf, PageNumber},
-    message::{Dispatch, DispatchKind, Message, ReplyDetails},
+    memory::{AllocationsContext, PageBuf, PageNumber},
+    message::{ContextSettings, Dispatch, DispatchKind, Message, MessageContext, ReplyDetails},
+    reservation::GasReserver,
 };
 use pallet_authorship::Pallet as AuthorshipPallet;
 use sp_consensus_babe::{
@@ -114,6 +118,43 @@ where
     init_block::<T>();
 
     Gear::<T>::process_queue(Default::default());
+}
+
+fn default_processor_context<T: Config>() -> ProcessorContext {
+    ProcessorContext {
+        gas_counter: GasCounter::new(0),
+        gas_allowance_counter: GasAllowanceCounter::new(0),
+        gas_reserver: GasReserver::new(
+            Default::default(),
+            0,
+            Default::default(),
+            T::ReservationsLimit::get(),
+        ),
+        value_counter: ValueCounter::new(0),
+        allocations_context: AllocationsContext::new(
+            Default::default(),
+            Default::default(),
+            Default::default(),
+        ),
+        message_context: MessageContext::new(
+            Default::default(),
+            Default::default(),
+            None,
+            ContextSettings::new(0, 0, 0, 0, 0),
+        ),
+        block_info: Default::default(),
+        config: Default::default(),
+        existential_deposit: 0,
+        origin: Default::default(),
+        program_id: Default::default(),
+        program_candidates_data: Default::default(),
+        host_fn_weights: Default::default(),
+        forbidden_funcs: Default::default(),
+        mailbox_threshold: 0,
+        waitlist_cost: 0,
+        reserve_for: 0,
+        reservation: 0,
+    }
 }
 
 /// An instantiated and deployed program.
@@ -181,7 +222,7 @@ fn caller_funding<T: pallet::Config>() -> BalanceOf<T> {
 struct Exec<T: Config> {
     ext_manager: ExtManager<T>,
     block_config: BlockConfig,
-    context: Box<PreparedMessageExecutionContext>,
+    context: ProcessExecutionContext,
     memory_pages: BTreeMap<PageNumber, PageBuf>,
 }
 
@@ -199,7 +240,7 @@ where
     assert!(gear_lazy_pages_common::try_to_enable_lazy_pages());
 
     let ext_manager = ExtManager::<T>::default();
-    let bn: u64 = <frame_system::Pallet<T>>::block_number().unique_saturated_into();
+    let bn: u64 = Pallet::<T>::block_number().unique_saturated_into();
     let root_message_id = MessageId::from(bn);
 
     let dispatch = match kind {
@@ -211,15 +252,16 @@ where
                 code.clone(),
                 schedule.instruction_weights.version,
                 |module| schedule.rules(module),
+                schedule.limits.stack_height,
             )
             .map_err(|_| "Code failed to load")?;
 
             let code_and_id = CodeAndId::new(code);
-            let code_id = code_and_id.code_id();
+            let code_info = CodeInfo::from_code_and_id(&code_and_id);
 
             let _ = Gear::<T>::set_code_with_metadata(code_and_id, source);
 
-            ExtManager::<T>::default().set_program(program_id, code_id, root_message_id);
+            ExtManager::<T>::default().set_program(program_id, &code_info, root_message_id);
 
             Dispatch::new(
                 DispatchKind::Init,
@@ -237,11 +279,10 @@ where
         HandleKind::InitByHash(code_id) => {
             let program_id = ProgramId::generate(code_id, b"bench_salt");
 
-            if !T::CodeStorage::exists(code_id) {
-                return Err("Code not found in storage");
-            }
+            let code = T::CodeStorage::get_code(code_id).ok_or("Code not found in storage")?;
+            let code_info = CodeInfo::from_code(&code_id, &code);
 
-            ExtManager::<T>::default().set_program(program_id, code_id, root_message_id);
+            ExtManager::<T>::default().set_program(program_id, &code_info, root_message_id);
 
             Dispatch::new(
                 DispatchKind::Init,
@@ -299,7 +340,7 @@ where
     QueueOf::<T>::queue(dispatch).map_err(|_| "Messages storage corrupted")?;
 
     let block_info = BlockInfo {
-        height: <frame_system::Pallet<T>>::block_number().unique_saturated_into(),
+        height: Pallet::<T>::block_number().unique_saturated_into(),
         timestamp: <pallet_timestamp::Pallet<T>>::get().unique_saturated_into(),
     };
 
@@ -307,6 +348,7 @@ where
     let mailbox_threshold = <T as Config>::MailboxThreshold::get();
     let waitlist_cost = CostsPerBlockOf::<T>::waitlist();
     let reserve_for = CostsPerBlockOf::<T>::reserve_for().unique_saturated_into();
+    let reservation = CostsPerBlockOf::<T>::reservation().unique_saturated_into();
 
     let block_config = BlockConfig {
         block_info,
@@ -324,6 +366,12 @@ where
         mailbox_threshold,
         waitlist_cost,
         reserve_for,
+        reservation,
+        read_cost: DbWeightOf::<T>::get().reads(1).ref_time(),
+        write_cost: DbWeightOf::<T>::get().writes(1).ref_time(),
+        per_byte_cost: ReadPerByteCostOf::<T>::get(),
+        module_instantiation_byte_cost: T::Schedule::get().module_instantiation_per_byte,
+        max_reservations: T::ReservationsLimit::get(),
     };
 
     if let Some(queued_dispatch) = QueueOf::<T>::dequeue().map_err(|_| "MQ storage corrupted")? {
@@ -332,23 +380,40 @@ where
             .get_actor(actor_id)
             .ok_or("Program not found in the storage")?;
 
+        let precharged_dispatch = match core_processor::precharge(
+            &block_config,
+            u64::MAX,
+            queued_dispatch.into_incoming(initial_gas),
+            actor_id,
+        ) {
+            PrechargeResult::Ok(d) => d,
+            PrechargeResult::Error(_) => {
+                return Err("core_processor::precharge failed");
+            }
+        };
+
         let message_execution_context = MessageExecutionContext {
             actor,
-            dispatch: queued_dispatch.into_incoming(initial_gas),
+            precharged_dispatch,
             origin: ProgramId::from_origin(source),
-            gas_allowance: u64::MAX,
             subsequent_execution: false,
         };
 
-        let context = match core_processor::prepare(&block_config, message_execution_context) {
-            PrepareResult::Ok { context, .. } => context,
-            _ => return Err("core_processor::prepare failed"),
-        };
+        let (context, code) =
+            match core_processor::prepare(&block_config, message_execution_context) {
+                PrepareResult::Ok(context) => {
+                    let code = T::CodeStorage::get_code(context.actor_data().code_id)
+                        .ok_or("Program code not found")?;
+
+                    (context, code)
+                }
+                _ => return Err("core_processor::prepare failed"),
+            };
 
         Ok(Exec {
             ext_manager,
             block_config,
-            context,
+            context: (context, actor_id, code).into(),
             // actor without pages data because of lazy pages enabled
             memory_pages: Default::default(),
         })
@@ -361,6 +426,22 @@ benchmarks! {
 
     where_clause { where
         T::AccountId: Origin,
+    }
+
+    // `c`: Size of the code in kilobytes.
+    instantiate_module_per_kb {
+        let c in 0 .. T::Schedule::get().limits.code_len / 1024;
+
+        #[cfg(feature = "lazy-pages")]
+        type Ext = crate::ext::LazyPagesExt;
+
+        #[cfg(not(feature = "lazy-pages"))]
+        type Ext = core_processor::Ext;
+
+        let WasmModule { code, .. } = WasmModule::<T>::sized(c * 1024, Location::Init);
+    }: {
+        let ext = Ext::new(default_processor_context::<T>());
+        ExecutionEnvironment::new(ext, &code, Default::default(), max_pages::<T>().into()).unwrap();
     }
 
     claim_value {
@@ -549,8 +630,7 @@ benchmarks! {
 
         let caller: T::AccountId = benchmarking::account("caller", 0, 0);
         let metadata = {
-            let block_number =
-                <frame_system::Pallet<T>>::block_number().unique_saturated_into();
+            let block_number = Pallet::<T>::block_number().unique_saturated_into();
             CodeMetadata::new(caller.into_origin(), block_number)
         };
 
@@ -671,6 +751,95 @@ benchmarks! {
                 Instruction::Drop,
             ])),
             .. Default::default()
+        });
+        let instance = Program::<T>::new(code, vec![])?;
+        let Exec {
+            ext_manager,
+            block_config,
+            context,
+            memory_pages,
+        } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 0u32.into())?;
+    }: {
+        core_processor::process::<
+            Externalities,
+            ExecutionEnvironment,
+        >(&block_config, context, memory_pages);
+    }
+
+    gr_reserve_gas {
+        let r in 0 .. API_BENCHMARK_BATCHES;
+        let id_bytes = 0_u128.encode();
+        let id_len = id_bytes.len();
+        let code = WasmModule::<T>::from(ModuleDefinition {
+            memory: Some(ImportedMemory::max::<T>()),
+            imported_functions: vec![ImportedFunction {
+                module: "env",
+                name: "gr_reserve_gas",
+                params: vec![ValueType::I64, ValueType::I32, ValueType::I32],
+                return_type: Some(ValueType::I32),
+            }],
+            data_segments: vec![
+                DataSegment {
+                    offset: 0,
+                    value: id_bytes,
+                },
+            ],
+            handle_body: Some(body::repeated(r * API_BENCHMARK_BATCHES, &[
+                Instruction::I64Const(50_000_000), // gas amount
+                Instruction::I32Const(10), // duration
+                Instruction::I32Const(0), // id ptr
+                Instruction::Call(0),
+                Instruction::Drop,
+            ])),
+            ..Default::default()
+        });
+        let instance = Program::<T>::new(code, vec![])?;
+        let Exec {
+            ext_manager,
+            block_config,
+            context,
+            memory_pages,
+        } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 0u32.into())?;
+    }: {
+        core_processor::process::<
+            Externalities,
+            ExecutionEnvironment,
+        >(&block_config, context, memory_pages);
+    }
+
+    // We cannot call `gr_unreserve_gas` multiple times. Therefore our weight determination is not
+    // as precise as with other APIs.
+    gr_unreserve_gas {
+        let r in 0 .. 1;
+        let id_bytes = 0_u128.encode();
+        let id_len = id_bytes.len();
+        let amount_bytes = 0_u64.encode();
+        let amount_len = amount_bytes.len();
+        let code = WasmModule::<T>::from(ModuleDefinition {
+            memory: Some(ImportedMemory::max::<T>()),
+            imported_functions: vec![ImportedFunction {
+                module: "env",
+                name: "gr_unreserve_gas",
+                params: vec![ValueType::I32, ValueType::I32],
+                return_type: Some(ValueType::I32),
+            }],
+            data_segments: vec![
+                DataSegment {
+                    offset: 0,
+                    value: id_bytes,
+                },
+                DataSegment {
+                    offset: id_len as u32,
+                    value: amount_bytes,
+                }
+            ],
+            handle_body: Some(body::repeated(r, &[
+                Instruction::I32Const(0), // id ptr
+                Instruction::I32Const(id_len as i32), // unreserved amount ptr
+                Instruction::Call(0),
+                Instruction::Drop,
+            ])),
+            ..Default::default()
         });
         let instance = Program::<T>::new(code, vec![])?;
         let Exec {
@@ -2090,7 +2259,7 @@ benchmarks! {
     // w_local_get = w_bench - 1 * w_param
     instr_local_get {
         let r in 0 .. INSTR_BENCHMARK_BATCHES;
-        let max_locals = T::Schedule::get().limits.stack_height;
+        let max_locals = T::Schedule::get().limits.stack_height.unwrap_or(512);
         let mut handle_body = body::repeated_dyn(r * INSTR_BENCHMARK_BATCH_SIZE, vec![
             RandomGetLocal(0, max_locals),
             Regular(Instruction::Drop),
@@ -2107,7 +2276,7 @@ benchmarks! {
     // w_local_set = w_bench - 1 * w_param
     instr_local_set {
         let r in 0 .. INSTR_BENCHMARK_BATCHES;
-        let max_locals = T::Schedule::get().limits.stack_height;
+        let max_locals = T::Schedule::get().limits.stack_height.unwrap_or(512);
         let mut handle_body = body::repeated_dyn(r * INSTR_BENCHMARK_BATCH_SIZE, vec![
             RandomI64Repeated(1),
             RandomSetLocal(0, max_locals),
@@ -2124,7 +2293,7 @@ benchmarks! {
     // w_local_tee = w_bench - 2 * w_param
     instr_local_tee {
         let r in 0 .. INSTR_BENCHMARK_BATCHES;
-        let max_locals = T::Schedule::get().limits.stack_height;
+        let max_locals = T::Schedule::get().limits.stack_height.unwrap_or(512);
         let mut handle_body = body::repeated_dyn(r * INSTR_BENCHMARK_BATCH_SIZE, vec![
             RandomI64Repeated(1),
             RandomTeeLocal(0, max_locals),

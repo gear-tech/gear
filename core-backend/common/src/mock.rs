@@ -27,9 +27,10 @@ use gear_core::{
     costs::RuntimeCosts,
     env::Ext,
     gas::{GasAmount, GasCounter},
-    ids::{MessageId, ProgramId},
+    ids::{MessageId, ProgramId, ReservationId},
     memory::{Memory, WasmPageNumber},
     message::{ExitCode, HandlePacket, InitPacket, ReplyPacket},
+    reservation::GasReserver,
 };
 use gear_core_errors::{CoreError, ExtError, MemoryError};
 
@@ -164,8 +165,8 @@ impl Ext for MockExt {
     fn wait_for(&mut self, _duration: u32) -> Result<(), Self::Error> {
         Ok(())
     }
-    fn wait_up_to(&mut self, _duration: u32) -> Result<(), Self::Error> {
-        Ok(())
+    fn wait_up_to(&mut self, _duration: u32) -> Result<bool, Self::Error> {
+        Ok(false)
     }
     fn wake(&mut self, _waker_id: MessageId, _delay: u32) -> Result<(), Self::Error> {
         Ok(())
@@ -180,12 +181,19 @@ impl Ext for MockExt {
     fn forbidden_funcs(&self) -> &BTreeSet<&'static str> {
         &self.0
     }
+    fn reserve_gas(&mut self, _amount: u64, _duration: u32) -> Result<ReservationId, Self::Error> {
+        Ok(ReservationId::default())
+    }
+    fn unreserve_gas(&mut self, _id: ReservationId) -> Result<u64, Self::Error> {
+        Ok(0)
+    }
 }
 
 impl IntoExtInfo<<MockExt as Ext>::Error> for MockExt {
     fn into_ext_info(self, _memory: &impl Memory) -> Result<ExtInfo, (MemoryError, GasAmount)> {
         Ok(ExtInfo {
             gas_amount: GasAmount::from(GasCounter::new(0)),
+            gas_reserver: GasReserver::new(Default::default(), 0, Default::default(), 1024),
             allocations: Default::default(),
             pages_data: Default::default(),
             generated_dispatches: Default::default(),

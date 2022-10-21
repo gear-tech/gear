@@ -16,6 +16,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use core::convert::TryInto;
+
 use crate::{
     internal::HoldBound,
     manager::HandleKind,
@@ -24,8 +26,8 @@ use crate::{
         RuntimeEvent as MockRuntimeEvent, RuntimeOrigin, System, Test, BLOCK_AUTHOR,
         LOW_BALANCE_USER, USER_1, USER_2, USER_3,
     },
-    pallet, BlockGasLimitOf, Config, CostsPerBlockOf, Error, Event, GasAllowanceOf, GasHandlerOf,
-    GasInfo, MailboxOf, WaitlistOf,
+    pallet, BlockGasLimitOf, Config, CostsPerBlockOf, DbWeightOf, Error, Event, GasAllowanceOf,
+    GasHandlerOf, GasInfo, MailboxOf, ReadPerByteCostOf, Schedule, WaitlistOf,
 };
 use codec::{Decode, Encode};
 use common::{
@@ -44,7 +46,7 @@ use frame_support::{
     sp_runtime::traits::{TypedGet, Zero},
     traits::Currency,
 };
-use frame_system::{pallet_prelude::BlockNumberFor, Pallet as SystemPallet};
+use frame_system::pallet_prelude::BlockNumberFor;
 use gear_backend_common::{StackEndError, TrapExplanation};
 use gear_core::{
     code::{self, Code},
@@ -52,6 +54,7 @@ use gear_core::{
 };
 use gear_core_errors::*;
 use sp_runtime::{traits::UniqueSaturatedInto, SaturatedConversion};
+use sp_std::convert::TryFrom;
 use utils::*;
 
 #[test]
@@ -300,7 +303,7 @@ fn mailbox_rent_claimed() {
             assert!(!MailboxOf::<Test>::is_empty(&USER_2));
 
             run_to_block(
-                System::block_number() + duration.saturated_into::<BlockNumberFor<Test>>(),
+                Gear::block_number() + duration.saturated_into::<BlockNumberFor<Test>>(),
                 None,
             );
 
@@ -1510,8 +1513,8 @@ fn block_gas_limit_works() {
         assert_succeed(succeed2);
         assert_failed(
             failed1,
-            ExecutionErrorReason::Ext(TrapExplanation::Core(ExtError::Message(
-                MessageError::NotEnoughGas,
+            ExecutionErrorReason::Ext(TrapExplanation::Core(ExtError::Execution(
+                ExecutionError::GasLimitExceeded,
             ))),
         );
         assert_failed(
@@ -2005,7 +2008,7 @@ fn claim_value_works() {
         let reply_to_id = populate_mailbox_from_program(prog_id, USER_2, 2, gas_sent, value_sent);
         assert!(!MailboxOf::<Test>::is_empty(&USER_1));
 
-        let bn_of_insertion = System::block_number();
+        let bn_of_insertion = Gear::block_number();
         let holding_duration = 4;
 
         let GasInfo {
@@ -2189,9 +2192,12 @@ fn test_code_submission_pass() {
         let saved_code = <Test as Config>::CodeStorage::get_code(code_id);
 
         let schedule = <Test as Config>::Schedule::get();
-        let code = Code::try_new(code, schedule.instruction_weights.version, |module| {
-            schedule.rules(module)
-        })
+        let code = Code::try_new(
+            code,
+            schedule.instruction_weights.version,
+            |module| schedule.rules(module),
+            schedule.limits.stack_height,
+        )
         .expect("Error creating Code");
         assert_eq!(saved_code.unwrap().code(), code.code());
 
@@ -2531,7 +2537,7 @@ fn test_different_waits_success() {
             WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
             EMPTY_PAYLOAD.to_vec(),
-            0u64,
+            100_000_000u64,
             0u128
         ));
 
@@ -2552,7 +2558,7 @@ fn test_different_waits_success() {
         };
 
         let expiration = |duration: u32| -> BlockNumberFor<Test> {
-            System::block_number().saturating_add(duration.unique_saturated_into())
+            Gear::block_number().saturating_add(duration.unique_saturated_into())
         };
 
         // Command::Wait case.
@@ -2667,7 +2673,7 @@ fn test_different_waits_fail() {
             WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
             EMPTY_PAYLOAD.to_vec(),
-            0u64,
+            100_000_000u64,
             0u128
         ));
 
@@ -2856,6 +2862,70 @@ fn test_different_waits_fail() {
     });
 }
 
+// TODO:
+//
+// introduce new tests for this in #1485
+#[test]
+fn test_requeue_after_wait_for_timeout() {
+    use demo_waiter::{Command, WASM_BINARY};
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
+            100_000_000u64,
+            0u128
+        ));
+
+        let program_id = get_last_program_id();
+
+        run_to_next_block(None);
+
+        let duration = 10;
+        let payload = Command::SendAndWaitFor(duration, USER_1.into()).encode();
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            program_id,
+            payload,
+            2_500_000_000,
+            0,
+        ));
+
+        // Fast forward blocks.
+        let message_id = get_last_message_id();
+        run_to_next_block(None);
+        let now = System::block_number();
+
+        System::set_block_number(duration as u64 + now - 1);
+        Gear::set_block_number((duration as u64 + now - 1).try_into().unwrap());
+
+        // Clean previous events and mailbox.
+        System::reset_events();
+        MailboxOf::<Test>::clear();
+        run_to_next_block(None);
+
+        // `MessageWoken` dispatched.
+        System::assert_has_event(MockRuntimeEvent::Gear(Event::MessageWoken {
+            id: message_id,
+            reason: Reason::Runtime(MessageWokenRuntimeReason::WakeCalled),
+        }));
+
+        // Message waited again.
+        System::assert_has_event(MockRuntimeEvent::Gear(Event::MessageWaited {
+            id: message_id,
+            origin: None,
+            reason: Reason::Runtime(MessageWaitedRuntimeReason::WaitForCalled),
+            expiration: 23,
+        }));
+
+        // Message processed.
+        assert_eq!(get_last_mail(USER_1).payload(), b"ping");
+    })
+}
+
 #[test]
 fn test_message_processing_for_non_existing_destination() {
     init_logger();
@@ -2873,7 +2943,7 @@ fn test_message_processing_for_non_existing_destination() {
             program_id,
             EMPTY_PAYLOAD.to_vec(),
             10_000,
-            1000
+            1_000
         ));
 
         let skipped_message_id = get_last_message_id();
@@ -2883,7 +2953,8 @@ fn test_message_processing_for_non_existing_destination() {
 
         assert_not_executed(skipped_message_id);
 
-        assert_eq!(user_balance_before, Balances::free_balance(USER_1));
+        // some funds may be unreserved after processing init-message
+        assert!(user_balance_before <= Balances::free_balance(USER_1));
 
         assert!(!Gear::is_active(program_id));
         assert!(<Test as Config>::CodeStorage::exists(code_hash));
@@ -2972,12 +3043,33 @@ fn terminated_locking_funds() {
 
         assert!(init_waited);
 
-        assert_ok!(Gear::upload_program(
+        assert_ok!(Gear::upload_code(
             RuntimeOrigin::signed(USER_1),
             WASM_BINARY.to_vec(),
+        ));
+
+        let schedule = Schedule::<Test>::default();
+        let code_id = get_last_code_id();
+        let code = <Test as Config>::CodeStorage::get_code(code_id)
+            .expect("code should be in the storage");
+        let code_length = code.code().len();
+        let read_cost = DbWeightOf::<Test>::get().reads(1).ref_time();
+        let module_instantiation = schedule.module_instantiation_per_byte * code_length as u64;
+
+        assert_ok!(Gear::create_program(
+            RuntimeOrigin::signed(USER_1),
+            code_id,
             DEFAULT_SALT.to_vec(),
             USER_3.into_origin().encode(),
-            gas_spent_init,
+            // additional gas for loading resources on next wake up
+            gas_spent_init
+                + core_processor::calculate_gas_for_program(read_cost, 0)
+                + core_processor::calculate_gas_for_code(
+                    read_cost,
+                    ReadPerByteCostOf::<Test>::get(),
+                    code_length as u64
+                )
+                + module_instantiation,
             5_000u128
         ));
 
@@ -3050,6 +3142,8 @@ fn terminated_locking_funds() {
 
         // Hack to fast spend blocks till expiration.
         System::set_block_number(interval.finish - 1);
+        Gear::set_block_number((interval.finish - 1).try_into().unwrap());
+
         run_to_next_block(None);
 
         assert!(MailboxOf::<Test>::is_empty(&USER_3));
@@ -3124,9 +3218,12 @@ fn test_create_program_works() {
 
         // Parse wasm code.
         let schedule = <Test as Config>::Schedule::get();
-        let code = Code::try_new(code, schedule.instruction_weights.version, |module| {
-            schedule.rules(module)
-        })
+        let code = Code::try_new(
+            code,
+            schedule.instruction_weights.version,
+            |module| schedule.rules(module),
+            schedule.limits.stack_height,
+        )
         .expect("Code failed to load");
 
         let code_id = CodeId::generate(code.raw_code());
@@ -3328,8 +3425,8 @@ fn test_create_program_simple() {
             RuntimeOrigin::signed(USER_1),
             factory_id,
             CreateProgram::Custom(vec![
-                (child_code_hash, b"salt1".to_vec(), 100_000_000),
-                (child_code_hash, b"salt2".to_vec(), 100_000_000),
+                (child_code_hash, b"salt1".to_vec(), 200_000_000),
+                (child_code_hash, b"salt2".to_vec(), 200_000_000),
             ])
             .encode(),
             50_000_000_000,
@@ -3565,7 +3662,7 @@ fn test_create_program_miscellaneous() {
             factory_id,
             CreateProgram::Custom(vec![
                 // one successful init with one handle message (+2 dequeued, +1 dispatched, +1 successful init)
-                (child1_code_hash, b"salt1".to_vec(), 100_000_000),
+                (child1_code_hash, b"salt1".to_vec(), 200_000_000),
                 // init fail (not enough gas) and reply generated (+2 dequeued, +1 dispatched),
                 // handle message is processed, but not executed, reply generated (+2 dequeued, +1 dispatched)
                 (child1_code_hash, b"salt2".to_vec(), 100_000),
@@ -3585,7 +3682,7 @@ fn test_create_program_miscellaneous() {
                 // handle message is processed, but not executed, reply generated (+2 dequeued, +1 dispatched)
                 (child2_code_hash, b"salt1".to_vec(), 300_000),
                 // one successful init with one handle message (+2 dequeued, +1 dispatched, +1 successful init)
-                (child2_code_hash, b"salt2".to_vec(), 100_000_000),
+                (child2_code_hash, b"salt2".to_vec(), 200_000_000),
             ])
             .encode(),
             50_000_000_000,
@@ -3599,9 +3696,9 @@ fn test_create_program_miscellaneous() {
             factory_id,
             CreateProgram::Custom(vec![
                 // duplicate in the next block: init not executed, nor the handle (because destination is terminated), replies are generated (+4 dequeue, +2 dispatched)
-                (child2_code_hash, b"salt1".to_vec(), 100_000_000),
+                (child2_code_hash, b"salt1".to_vec(), 200_000_000),
                 // one successful init with one handle message (+2 dequeued, +1 dispatched, +1 successful init)
-                (child2_code_hash, b"salt3".to_vec(), 100_000_000),
+                (child2_code_hash, b"salt3".to_vec(), 200_000_000),
             ])
             .encode(),
             50_000_000_000,
@@ -4066,7 +4163,7 @@ fn locking_gas_for_waitlist() {
         calculate_handle_and_send_with_extra(USER_1, sender, payload.encode(), None, 0);
         let origin_msg_id = get_last_message_id();
 
-        let message_to_be_waited = MessageId::generate_outgoing(origin_msg_id, 0);
+        let message_to_be_waited = MessageId::generate_outgoing(origin_msg_id, 1);
 
         run_to_block(3, None);
 
@@ -4094,6 +4191,7 @@ fn locking_gas_for_waitlist() {
         // close block number to it to check that messages keeps in
         // waitlist before and leaves it as expected.
         System::set_block_number(expiration - 2);
+        Gear::set_block_number((expiration - 2).try_into().unwrap());
 
         run_to_next_block(None);
 
@@ -4346,10 +4444,14 @@ fn gas_spent_precalculated() {
 
     init_logger();
     new_test_ext().execute_with(|| {
-        let prog_id = upload_program_default(USER_1, ProgramCodeKind::Custom(wat))
-            .expect("submit result was asserted");
+        let prog = ProgramCodeKind::Custom(wat);
+        let prog_id = upload_program_default(USER_1, prog).expect("submit result was asserted");
 
         run_to_block(2, None);
+
+        let code_id = CodeId::generate(&prog.to_bytes());
+        let code = <Test as Config>::CodeStorage::get_code(code_id).unwrap();
+        let code = code.code();
 
         let GasInfo {
             min_limit: gas_spent_1,
@@ -4370,18 +4472,37 @@ fn gas_spent_precalculated() {
         let set_local_cost = schedule.instruction_weights.local_set;
         let get_local_cost = schedule.instruction_weights.local_get;
         let add_cost = schedule.instruction_weights.i64add;
-        let gas_cost = schedule.host_fn_weights.gas as u32; // gas call in handle and "add" func
-        let load_page_cost = schedule.memory_weights.load_cost as u32;
+        // gas call in handle and "add" func
+        let gas_cost = schedule.host_fn_weights.gas as u32;
+        let module_instantiation =
+            schedule.module_instantiation_per_byte * code.len() as u64;
+        let load_page_cost = schedule.memory_weights.load_cost;
 
-        let total_cost = call_cost
-            + const_i64_cost * 2
-            + set_local_cost
-            + get_local_cost * 2
-            + add_cost
-            + gas_cost * 2
-            + load_page_cost;
+        let total_cost = {
+            let cost = call_cost
+                + const_i64_cost * 2
+                + set_local_cost
+                + get_local_cost * 2
+                + add_cost
+                + gas_cost * 2;
 
-        assert_eq!(gas_spent_1, total_cost as u64);
+            let code_len = common::get_program(prog_id.into_origin())
+                .and_then(|p| common::ActiveProgram::try_from(p).ok())
+                .expect("program must exist")
+                .code_length_bytes;
+
+            let read_cost = DbWeightOf::<Test>::get().reads(1).ref_time();
+
+            u64::from(cost)
+                // cost for loading program
+                + core_processor::calculate_gas_for_program(read_cost, 0)
+                // cost for loading code
+                + core_processor::calculate_gas_for_code(read_cost, ReadPerByteCostOf::<Test>::get(), code_len.into())
+                + load_page_cost
+                + module_instantiation
+        };
+
+        assert_eq!(gas_spent_1, total_cost);
 
         let GasInfo {
             min_limit: gas_spent_2,
@@ -4498,7 +4619,7 @@ fn test_create_program_with_value_lt_ed() {
                 ProgramCodeKind::Default.to_bytes(),
                 b"test0".to_vec(),
                 EMPTY_PAYLOAD.to_vec(),
-                10_000_000,
+                100_000_000,
                 ed - 1,
             ),
             Error::<Test>::ValueLessThanMinimal,
@@ -5431,8 +5552,9 @@ fn missing_functions_are_not_executed() {
     )"#;
 
     init_logger();
+
     new_test_ext().execute_with(|| {
-        let initial_balance = Balances::free_balance(USER_1);
+        let balance_before = Balances::free_balance(USER_1);
 
         let program_id = {
             let res = upload_program_default(USER_1, ProgramCodeKind::Custom(wat));
@@ -5449,13 +5571,21 @@ fn missing_functions_are_not_executed() {
         )
         .expect("calculate_gas_info failed");
 
-        assert_eq!(min_limit, 0);
+        let program_cost = core_processor::calculate_gas_for_program(
+            DbWeightOf::<Test>::get().reads(1).ref_time(),
+            ReadPerByteCostOf::<Test>::get(),
+        );
+        // there is no execution so the values should be equal
+        assert_eq!(min_limit, program_cost);
 
         run_to_next_block(None);
 
-        // there is no 'init' so memory pages don't get loaded and
-        // no execution is performed at all and hence user was not charged.
-        assert_eq!(initial_balance, Balances::free_balance(USER_1));
+        // there is no 'init' so memory pages and code don't get loaded and
+        // no execution is performed at all and hence user was not charged for program execution.
+        assert_eq!(
+            balance_before,
+            Balances::free_balance(USER_1) + GasPrice::gas_price(program_cost)
+        );
 
         // this value is actually a constant in the wat.
         let locked_value = 1_000;
@@ -5487,8 +5617,9 @@ fn missing_functions_are_not_executed() {
         )
         .expect("calculate_gas_info failed");
 
-        assert_eq!(min_limit, 0);
+        assert_eq!(min_limit, program_cost);
 
+        let balance_before = Balances::free_balance(USER_1);
         let reply_value = 1_500;
         assert_ok!(Gear::send_reply(
             RuntimeOrigin::signed(USER_1),
@@ -5500,10 +5631,9 @@ fn missing_functions_are_not_executed() {
 
         run_to_next_block(None);
 
-        // there is no 'handle_reply' too
         assert_eq!(
-            initial_balance - reply_value,
-            Balances::free_balance(USER_1)
+            balance_before - reply_value + locked_value,
+            Balances::free_balance(USER_1) + GasPrice::gas_price(program_cost)
         );
     });
 }
@@ -5515,6 +5645,15 @@ fn missing_handle_is_not_executed() {
         (import "env" "memory" (memory 2))
         (export "init" (func $init))
         (func $init)
+    )"#;
+
+    let wat_handle = r#"
+    (module
+        (import "env" "memory" (memory 2))
+        (export "init" (func $init))
+        (export "handle" (func $handle))
+        (func $init)
+        (func $handle)
     )"#;
 
     init_logger();
@@ -5530,9 +5669,21 @@ fn missing_handle_is_not_executed() {
         .map(|_| get_last_program_id())
         .expect("submit_program failed");
 
+        let program_handle_id = Gear::upload_program(
+            RuntimeOrigin::signed(USER_3),
+            ProgramCodeKind::Custom(wat_handle).to_bytes(),
+            vec![],
+            EMPTY_PAYLOAD.to_vec(),
+            1_000_000_000,
+            0,
+        )
+        .map(|_| get_last_program_id())
+        .expect("submit_program failed");
+
         run_to_next_block(None);
 
         let balance_before = Balances::free_balance(USER_1);
+        let balance_before_handle = Balances::free_balance(USER_3);
 
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(USER_1),
@@ -5542,11 +5693,20 @@ fn missing_handle_is_not_executed() {
             0,
         ));
 
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_3),
+            program_handle_id,
+            EMPTY_PAYLOAD.to_vec(),
+            1_000_000_000,
+            0,
+        ));
+
         run_to_next_block(None);
 
-        // there is no 'handle' so no memory pages are loaded and
-        // the program is not executed. Hence the user didn't pay for processing.
-        assert_eq!(balance_before, Balances::free_balance(USER_1));
+        let margin = balance_before - Balances::free_balance(USER_1);
+        let margin_handle = balance_before_handle - Balances::free_balance(USER_3);
+
+        assert!(margin < margin_handle);
     });
 }
 
@@ -5597,6 +5757,7 @@ fn test_mad_big_prog_instrumentation() {
             code_bytes,
             schedule.instruction_weights.version,
             |module| schedule.rules(module),
+            schedule.limits.stack_height,
         );
         // In any case of the defined weights on the platform, instrumentation of the valid
         // huge wasm mustn't fail
@@ -5604,12 +5765,39 @@ fn test_mad_big_prog_instrumentation() {
     })
 }
 
+#[test]
+fn reject_incorrect_binary() {
+    let wat = r#"
+    (module
+        (import "env" "memory" (memory 1))
+        (export "handle" (func $handle))
+        (func $handle
+            i32.const 5
+        )
+    )"#;
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        assert_noop!(
+            Gear::upload_code(
+                RuntimeOrigin::signed(USER_1),
+                ProgramCodeKind::Custom(wat).to_bytes()
+            ),
+            Error::<Test>::FailedToConstructProgram
+        );
+
+        assert_noop!(
+            upload_program_default(USER_1, ProgramCodeKind::Custom(wat)),
+            Error::<Test>::FailedToConstructProgram
+        );
+    });
+}
+
 mod utils {
     #![allow(unused)]
 
     use super::{
-        assert_ok, pallet, run_to_block, Event, MailboxOf, MockRuntimeEvent, RuntimeOrigin,
-        SystemPallet, Test,
+        assert_ok, pallet, run_to_block, Event, MailboxOf, MockRuntimeEvent, RuntimeOrigin, Test,
     };
     use crate::{
         mock::{Balances, Gear, System},
@@ -5631,13 +5819,14 @@ mod utils {
     use gear_core::{
         ids::{CodeId, MessageId, ProgramId},
         message::StoredMessage,
+        reservation::GasReservationMap,
     };
     use gear_core_errors::ExtError;
     use sp_core::H256;
     use sp_runtime::traits::UniqueSaturatedInto;
     use sp_std::{convert::TryFrom, fmt::Debug};
 
-    pub(super) const DEFAULT_GAS_LIMIT: u64 = 100_000_000;
+    pub(super) const DEFAULT_GAS_LIMIT: u64 = 200_000_000;
     pub(super) const DEFAULT_SALT: &[u8; 4] = b"salt";
     pub(super) const EMPTY_PAYLOAD: &[u8; 0] = b"";
     pub(super) const OUTGOING_WITH_VALUE_IN_HANDLE_VALUE: u128 = 10000000;
@@ -5903,7 +6092,7 @@ mod utils {
         let status =
             dispatch_status(message_id).expect("Message not found in `Event::MessagesDispatched`");
 
-        assert_eq!(status, DispatchStatus::Failed);
+        assert_eq!(status, DispatchStatus::Failed, "Expected: {}", error);
 
         let mut actual_error = None;
 
@@ -5988,6 +6177,24 @@ mod utils {
         }
     }
 
+    pub(super) fn filter_event_rev<F, R>(f: F) -> R
+    where
+        F: Fn(Event<Test>) -> Option<R>,
+    {
+        System::events()
+            .iter()
+            .rev()
+            .filter_map(|r| {
+                if let MockRuntimeEvent::Gear(e) = r.event.clone() {
+                    Some(e)
+                } else {
+                    None
+                }
+            })
+            .find_map(f)
+            .expect("can't find message send event")
+    }
+
     pub(super) fn get_last_message_id() -> MessageId {
         System::events()
             .iter()
@@ -6068,6 +6275,19 @@ mod utils {
             .expect("Element should be")
     }
 
+    pub(super) fn get_reservation_map(pid: ProgramId) -> Option<GasReservationMap> {
+        let prog = common::get_program(pid.into_origin()).unwrap();
+        if let common::Program::Active(common::ActiveProgram {
+            gas_reservation_map,
+            ..
+        }) = prog
+        {
+            Some(gas_reservation_map)
+        } else {
+            None
+        }
+    }
+
     #[derive(Debug, Copy, Clone)]
     pub(super) enum ProgramCodeKind<'a> {
         Default,
@@ -6116,7 +6336,7 @@ mod utils {
                             end $while
                         )
                         (func $init
-                            i32.const 4
+                            i32.const 0x7fff_ffff
                             call $doWork
                         )
                     )"#

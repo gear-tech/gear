@@ -101,10 +101,29 @@ impl GasCounter {
         }
     }
 
+    /// Increase gas by `amount`.
+    ///
+    /// Called when gas unreservation is occurred.
+    // We don't decrease `burn` counter because `GasTree` manipulation is handled by separated function
+    // TODO: uncomment when unreserving in current message features is discussed
+    /*pub fn increase(&mut self, amount: u64) -> bool {
+        match self.left.checked_add(amount) {
+            None => false,
+            Some(new_left) => {
+                self.left = new_left;
+                true
+            }
+        }
+    }*/
+
     /// Reduce gas by `amount`.
     ///
     /// Called when message is sent to another program, so the gas `amount` is sent to
     /// receiving program.
+    /// Or called when gas reservation is occurred.
+    ///
+    /// In case of gas reservation:
+    /// We don't increase `burn` counter because `GasTree` manipulation is handled by separated function
     pub fn reduce(&mut self, amount: u64) -> ChargeResult {
         match self.left.checked_sub(amount) {
             None => ChargeResult::NotEnough,
@@ -205,7 +224,7 @@ impl ValueCounter {
 }
 
 /// Gas allowance counter with some predefined maximum value.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct GasAllowanceCounter(u128);
 
 impl GasAllowanceCounter {

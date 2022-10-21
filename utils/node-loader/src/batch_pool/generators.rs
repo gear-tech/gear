@@ -30,7 +30,10 @@ pub fn generate_gear_program<Rng: LoaderRng>(seed: Seed) -> Vec<u8> {
 
     let mut u = Unstructured::new(&buf);
 
-    gear_wasm_gen::gen_gear_program_code(&mut u, gear_wasm_gen::GearConfig::default())
+    let mut config = gear_wasm_gen::GearConfig::new_normal();
+    config.print_test_info = Some(format!("Gear program seed = '{seed}'"));
+
+    gear_wasm_gen::gen_gear_program_code(&mut u, config)
 }
 
 #[derive(Debug, Clone, Copy)]

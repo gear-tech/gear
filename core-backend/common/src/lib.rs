@@ -46,7 +46,8 @@ use gear_core::{
     gas::GasAmount,
     ids::{CodeId, MessageId, ProgramId},
     memory::{Memory, PageBuf, PageNumber, WasmPageNumber},
-    message::{ContextStore, Dispatch, DispatchKind},
+    message::{ContextStore, Dispatch, DispatchKind, MessageWaitedType},
+    reservation::GasReserver,
 };
 use gear_core_errors::{ExtError, MemoryError};
 use scale_info::TypeInfo;
@@ -87,7 +88,7 @@ pub enum TerminationReason {
     Leave,
     Success,
     Trap(TrapExplanation),
-    Wait(Option<u32>),
+    Wait(Option<u32>, MessageWaitedType),
     GasAllowanceExceeded,
 }
 
@@ -106,6 +107,7 @@ pub enum TrapExplanation {
 #[derive(Debug)]
 pub struct ExtInfo {
     pub gas_amount: GasAmount,
+    pub gas_reserver: GasReserver,
     pub allocations: Option<BTreeSet<WasmPageNumber>>,
     pub pages_data: BTreeMap<PageNumber, PageBuf>,
     pub generated_dispatches: Vec<(Dispatch, u32)>,
@@ -198,12 +200,16 @@ pub trait Environment<E: Ext + IntoExtInfo<E::Error> + 'static>: Sized {
     /// 2) Creates wasm memory
     /// 3) Runs `pre_execution_handler` to fill the memory before running instance.
     /// 4) Instantiate external funcs for wasm module.
-    /// 5) Run instance setup starting at `entry_point` - wasm export function name.
-    fn execute<F, T>(
+    fn new(
         ext: E,
         binary: &[u8],
         entries: BTreeSet<DispatchKind>,
         mem_size: WasmPageNumber,
+    ) -> Result<Self, Self::Error>;
+
+    /// Run instance setup starting at `entry_point` - wasm export function name.
+    fn execute<F, T>(
+        self,
         entry_point: &DispatchKind,
         pre_execution_handler: F,
     ) -> Result<BackendReport<Self::Memory, E>, Self::Error>

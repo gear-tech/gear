@@ -20,7 +20,7 @@
 
 use crate::{
     costs::RuntimeCosts,
-    ids::{MessageId, ProgramId},
+    ids::{MessageId, ProgramId, ReservationId},
     memory::{Memory, WasmPageNumber},
     message::{ExitCode, HandlePacket, InitPacket, ReplyPacket},
 };
@@ -144,6 +144,12 @@ pub trait Ext {
     /// Refund some gas.
     fn refund_gas(&mut self, amount: u64) -> Result<(), Self::Error>;
 
+    /// Reserve some gas for a few blocks.
+    fn reserve_gas(&mut self, amount: u64, duration: u32) -> Result<ReservationId, Self::Error>;
+
+    /// Unreserve gas using reservation ID.
+    fn unreserve_gas(&mut self, id: ReservationId) -> Result<u64, Self::Error>;
+
     /// Tell how much gas is left in running context.
     fn gas_available(&mut self) -> Result<u64, Self::Error>;
 
@@ -161,7 +167,7 @@ pub trait Ext {
 
     /// Interrupt the program and reschedule execution for maximum,
     /// but not more than duration.
-    fn wait_up_to(&mut self, duration: u32) -> Result<(), Self::Error>;
+    fn wait_up_to(&mut self, duration: u32) -> Result<bool, Self::Error>;
 
     /// Wake the waiting message and move it to the processing queue.
     fn wake(&mut self, waker_id: MessageId, delay: u32) -> Result<(), Self::Error>;

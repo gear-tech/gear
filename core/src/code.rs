@@ -81,6 +81,8 @@ pub enum CodeError {
     /// This might be due to program contained unsupported/non-deterministic instructions
     /// (floats, manual memory grow, etc.).
     GasInjection,
+    /// Error occurred during stack height instrumentation.
+    StackLimitInjection,
     /// Error occurred during encoding instrumented program.
     ///
     /// The only possible reason for that might be OOM.
@@ -111,11 +113,14 @@ impl Code {
         raw_code: Vec<u8>,
         version: u32,
         mut get_gas_rules: GetRulesFn,
+        stack_height: Option<u32>,
     ) -> Result<Self, CodeError>
     where
         R: Rules,
         GetRulesFn: FnMut(&Module) -> R,
     {
+        wasmparser::validate(&raw_code).map_err(|_| CodeError::Decode)?;
+
         let module: Module = wasm_instrument::parity_wasm::deserialize_buffer(&raw_code)
             .map_err(|_| CodeError::Decode)?;
 
@@ -152,9 +157,16 @@ impl Code {
                 wasm_instrument::gas_metering::inject(module, &gas_rules, "env")
                     .map_err(|_| CodeError::GasInjection)?;
 
-            let instrumented =
+            let instrumented = if let Some(limit) = stack_height {
+                let instrumented_module =
+                    wasm_instrument::inject_stack_limiter(instrumented_module, limit)
+                        .map_err(|_| CodeError::StackLimitInjection)?;
                 wasm_instrument::parity_wasm::elements::serialize(instrumented_module)
-                    .map_err(|_| CodeError::Encode)?;
+                    .map_err(|_| CodeError::Encode)?
+            } else {
+                wasm_instrument::parity_wasm::elements::serialize(instrumented_module)
+                    .map_err(|_| CodeError::Encode)?
+            };
 
             Ok(Self {
                 code: instrumented,
@@ -168,13 +180,16 @@ impl Code {
         }
     }
 
-    /// Create the code without checks.
+    /// Create the code without instrumentation or instrumented
+    /// with `ConstantCostRules`. There is also no check for static memory pages.
     pub fn new_raw(
         original_code: Vec<u8>,
         version: u32,
         module: Option<Module>,
         instrument_with_const_rules: bool,
     ) -> Result<Self, CodeError> {
+        wasmparser::validate(&original_code).map_err(|_| CodeError::Decode)?;
+
         let module = module.unwrap_or(
             wasm_instrument::parity_wasm::deserialize_buffer(&original_code)
                 .map_err(|_| CodeError::Decode)?,
@@ -287,7 +302,7 @@ impl CodeAndId {
 
     /// Creates the instance from the precalculated hash without checks.
     pub fn from_parts_unchecked(code: Code, code_id: CodeId) -> Self {
-        assert_eq!(code_id, CodeId::generate(code.raw_code()));
+        debug_assert_eq!(code_id, CodeId::generate(code.raw_code()));
         Self { code, code_id }
     }
 

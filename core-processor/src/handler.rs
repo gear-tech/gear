@@ -46,9 +46,11 @@ pub fn handle_journal(
                 dispatch,
                 delay,
             } => handler.send_dispatch(message_id, dispatch, delay),
-            JournalNote::WaitDispatch { dispatch, duration } => {
-                handler.wait_dispatch(dispatch, duration)
-            }
+            JournalNote::WaitDispatch {
+                dispatch,
+                duration,
+                waited_type,
+            } => handler.wait_dispatch(dispatch, duration, waited_type),
             JournalNote::WakeMessage {
                 message_id,
                 program_id,
@@ -78,6 +80,22 @@ pub fn handle_journal(
                 dispatch,
                 gas_burned,
             } => handler.stop_processing(dispatch, gas_burned),
+            JournalNote::ReserveGas {
+                message_id,
+                reservation_id,
+                program_id,
+                amount,
+                duration: bn,
+            } => handler.reserve_gas(message_id, reservation_id, program_id, amount, bn),
+            JournalNote::UnreserveGas {
+                reservation_id,
+                program_id,
+                expiration: bn,
+            } => handler.unreserve_gas(reservation_id, program_id, bn),
+            JournalNote::UpdateGasReservations {
+                program_id,
+                reserver,
+            } => handler.update_gas_reservation(program_id, reserver),
         }
     }
 
