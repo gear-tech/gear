@@ -135,9 +135,6 @@ impl Ext for MockExt {
     fn size(&mut self) -> Result<usize, Self::Error> {
         Ok(0)
     }
-    fn gas(&mut self, _amount: u32) -> Result<(), Self::Error> {
-        Ok(())
-    }
     fn charge_gas(&mut self, _amount: u64) -> Result<(), Self::Error> {
         Ok(())
     }

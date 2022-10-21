@@ -4,18 +4,27 @@ use gear_backend_common::{RuntimeCtx, RuntimeCtxError};
 use gear_core::{buffer::RuntimeBuffer, env::Ext, memory::WasmPageNumber};
 
 use gear_core_errors::MemoryError;
-use sp_sandbox::{default_executor::Memory as DefaultExecutorMemory, HostError, SandboxMemory};
+use sp_sandbox::{default_executor::Memory as DefaultExecutorMemory, HostError, SandboxMemory, InstanceGlobals, Value};
+use gear_wasm_instrument::{GLOBAL_NAME_ALLOWANCE, GLOBAL_NAME_GAS};
 
 use crate::{
     funcs::{FuncError, SyscallOutput, WasmCompatible},
     MemoryWrap,
 };
 
+pub(crate) fn as_i64(v: Value) -> Option<i64> {
+    match v {
+        Value::I64(i) => Some(i),
+        _ => None,
+    }
+}
+
 pub(crate) struct Runtime<E: Ext> {
     pub ext: E,
     pub memory: DefaultExecutorMemory,
     pub memory_wrap: MemoryWrap,
     pub err: FuncError<E::Error>,
+    pub globals: sp_sandbox::default_executor::InstanceGlobals,
 }
 
 impl<E: Ext> Runtime<E> {
@@ -24,10 +33,44 @@ impl<E: Ext> Runtime<E> {
         T: WasmCompatible,
         F: FnOnce(&mut Self) -> Result<T, FuncError<E::Error>>,
     {
-        f(self).map(WasmCompatible::throw_back).map_err(|err| {
+        let gas = self.globals.get_global_val(GLOBAL_NAME_GAS)
+            .and_then(as_i64)
+            .ok_or({
+                self.err = FuncError::WrongInstrumentation;
+                HostError
+            })?;
+
+        let allowance = self.globals.get_global_val(GLOBAL_NAME_ALLOWANCE)
+            .and_then(as_i64)
+            .ok_or({
+                self.err = FuncError::WrongInstrumentation;
+                HostError
+            })?;
+
+        self.ext.update_counters(gas as u64, allowance as u64);
+
+        let result = f(self).map(WasmCompatible::throw_back).map_err(|err| {
             self.err = err;
             HostError
-        })
+        });
+
+        let (gas, allowance) = self.ext.counters();
+
+        self.globals
+            .set_global_val(GLOBAL_NAME_GAS, Value::I64(gas as i64))
+            .map_err(|_| {
+                self.err = FuncError::WrongInstrumentation;
+                HostError
+            })?;
+
+        self.globals
+            .set_global_val(GLOBAL_NAME_ALLOWANCE, Value::I64(allowance as i64))
+            .map_err(|_| {
+                self.err = FuncError::WrongInstrumentation;
+                HostError
+            })?;
+
+        result
     }
 }
 

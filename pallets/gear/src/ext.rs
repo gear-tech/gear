@@ -224,10 +224,6 @@ impl EnvExt for LazyPagesExt {
         self.inner.refund_gas(val)
     }
 
-    fn gas(&mut self, val: u32) -> Result<(), Self::Error> {
-        self.inner.gas(val)
-    }
-
     fn reserve_gas(&mut self, amount: u64, blocks: u32) -> Result<ReservationId, Self::Error> {
         self.inner.reserve_gas(amount, blocks)
     }

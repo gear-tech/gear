@@ -132,9 +132,6 @@ pub trait Ext {
     /// Size of currently handled message payload.
     fn size(&mut self) -> Result<usize, Self::Error>;
 
-    /// Default gas host call.
-    fn gas(&mut self, amount: u32) -> Result<(), Self::Error>;
-
     /// Charge some extra gas.
     fn charge_gas(&mut self, amount: u64) -> Result<(), Self::Error>;
 

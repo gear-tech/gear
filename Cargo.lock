@@ -2851,9 +2851,9 @@ dependencies = [
  "gear-backend-common",
  "gear-core",
  "gear-core-errors",
+ "gear-wasm-instrument",
  "log",
  "parity-scale-codec",
- "parity-wasm 0.45.0",
  "sp-sandbox",
 ]
 

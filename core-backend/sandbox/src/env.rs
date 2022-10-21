@@ -21,7 +21,7 @@
 use crate::{
     funcs::{FuncError, FuncsHandler as Funcs},
     memory::MemoryWrap,
-    runtime::Runtime,
+    runtime::{self, Runtime},
 };
 use alloc::{
     collections::BTreeSet,
@@ -36,8 +36,10 @@ use gear_backend_common::{
 use gear_core::{env::Ext, gas::GasAmount, memory::WasmPageNumber, message::DispatchKind};
 use sp_sandbox::{
     default_executor::{EnvironmentDefinitionBuilder, Instance, Memory as DefaultExecutorMemory},
-    HostFuncType, ReturnValue, SandboxEnvironmentBuilder, SandboxInstance, SandboxMemory,
+    HostFuncType, ReturnValue, SandboxEnvironmentBuilder, SandboxInstance, SandboxMemory, InstanceGlobals,
+    Value,
 };
+use gear_wasm_instrument::{GLOBAL_NAME_ALLOWANCE, GLOBAL_NAME_GAS, IMPORT_NAME_OUT_OF_ALLOWANCE, IMPORT_NAME_OUT_OF_GAS};
 
 #[derive(Debug, derive_more::Display, derive_more::From)]
 pub enum SandboxEnvironmentError {
@@ -55,6 +57,12 @@ pub enum SandboxEnvironmentError {
     PreExecutionHandler(String),
     #[from]
     StackEnd(StackEndError),
+    #[display(fmt = "Mutable globals are not supported")]
+    MutableGlobalsNotSupported,
+    #[display(fmt = "Gas counter not found or has wrong type")]
+    WrongInjectedGas,
+    #[display(fmt = "Allowance counter not found or has wrong type")]
+    WrongInjectedAllowance,
 }
 
 #[derive(Debug, derive_more::Display, derive_more::From)]
@@ -171,7 +179,8 @@ where
         env_builder.add_memory("env", "memory", mem.clone());
         env_builder.add_host_func("env", "alloc", Funcs::alloc);
         env_builder.add_host_func("env", "free", Funcs::free);
-        env_builder.add_host_func("env", "gas", Funcs::gas);
+        env_builder.add_host_func("env", IMPORT_NAME_OUT_OF_GAS, Funcs::out_of_gas);
+        env_builder.add_host_func("env", IMPORT_NAME_OUT_OF_ALLOWANCE, Funcs::out_of_allowance);
 
         let memory_wrap = MemoryWrap::new(mem.clone());
         let mut runtime = Runtime {
@@ -179,6 +188,7 @@ where
             memory: mem,
             memory_wrap,
             err: FuncError::Terminated(TerminationReason::Success),
+            globals: Default::default(),
         };
 
         match Instance::new(binary, &env_builder, &mut runtime) {
@@ -216,6 +226,21 @@ where
             Err(e) => return Err((runtime.ext.gas_amount(), StackEnd(e)).into()),
         };
 
+        runtime.globals = instance.instance_globals()
+            .ok_or((runtime.ext.gas_amount(), MutableGlobalsNotSupported))?;
+
+        let (gas, allowance) = runtime.ext.counters();
+
+        runtime
+            .globals
+            .set_global_val(GLOBAL_NAME_GAS, Value::I64(gas as i64))
+            .map_err(|_| (runtime.ext.gas_amount(), WrongInjectedGas))?;
+
+        runtime
+            .globals
+            .set_global_val(GLOBAL_NAME_ALLOWANCE, Value::I64(allowance as i64))
+            .map_err(|_| (runtime.ext.gas_amount(), WrongInjectedAllowance))?;
+
         match pre_execution_handler(&mut runtime.memory_wrap, stack_end_page) {
             Ok(_) => (),
             Err(e) => {
@@ -229,12 +254,22 @@ where
             Ok(ReturnValue::Unit)
         };
 
+        let gas = runtime.globals.get_global_val(GLOBAL_NAME_GAS)
+            .and_then(runtime::as_i64)
+            .ok_or((runtime.ext.gas_amount(), WrongInjectedGas))?;
+
+        let allowance = runtime.globals.get_global_val(GLOBAL_NAME_ALLOWANCE)
+            .and_then(runtime::as_i64)
+            .ok_or((runtime.ext.gas_amount(), WrongInjectedAllowance))?;
+
         let Runtime {
             err: trap,
-            ext,
+            mut ext,
             memory_wrap,
             ..
         } = runtime;
+
+        ext.update_counters(gas as u64, allowance as u64);
 
         log::debug!("SandboxEnvironment::execute res = {res:?}");
 

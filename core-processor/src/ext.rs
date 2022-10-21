@@ -519,10 +519,6 @@ impl EnvExt for Ext {
         Ok(self.context.message_context.current().payload().len())
     }
 
-    fn gas(&mut self, val: u32) -> Result<(), Self::Error> {
-        self.charge_gas_runtime(RuntimeCosts::MeteringBlock(val))
-    }
-
     fn charge_gas(&mut self, val: u64) -> Result<(), Self::Error> {
         let common_charge = self.context.gas_counter.charge(val);
         let allowance_charge = self.context.gas_allowance_counter.charge(val);
