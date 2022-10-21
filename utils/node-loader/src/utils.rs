@@ -130,8 +130,8 @@ impl<T> Deref for NonEmptyVec<T> {
 }
 
 pub async fn with_timeout<T>(fut: impl Future<Output = T>) -> Result<T> {
-    // 1 minute as default
-    let wait_task = Delay::new(Duration::from_millis(60_000));
+    // 5 minute as default
+    let wait_task = Delay::new(Duration::from_millis(5 * 60 * 1_000));
 
     tokio::select! {
         output = fut => Ok(output),
