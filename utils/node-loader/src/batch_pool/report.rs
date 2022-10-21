@@ -1,5 +1,4 @@
 use super::context::ContextUpdate;
-use anyhow::Error;
 use gear_core::ids::{CodeId, ProgramId};
 use std::collections::BTreeSet;
 
@@ -24,7 +23,6 @@ pub struct BatchRunReport {
     /// Seed of the batch is the id.
     pub id: u64,
     pub context_update: ContextUpdate,
-    pub err: Option<Error>,
 }
 
 impl BatchRunReport {
@@ -32,14 +30,12 @@ impl BatchRunReport {
         Self {
             id,
             context_update: report.into(),
-            err: None,
         }
     }
 
-    pub fn from_err(id: u64, err: Error) -> Self {
+    pub fn empty(id: u64) -> Self {
         Self {
             id,
-            err: Some(err),
             ..Default::default()
         }
     }

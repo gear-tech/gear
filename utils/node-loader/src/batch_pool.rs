@@ -96,18 +96,7 @@ impl<Rng: LoaderRng> BatchPool<Rng> {
     }
 
     async fn process_run_report(&mut self, report: BatchRunReport) {
-        let BatchRunReport {
-            context_update,
-            id: seed,
-            err,
-            ..
-        } = report;
-
-        if let Some(err) = err {
-            tracing::debug!("Error occurred while running batch[{seed}]: {err}");
-        }
-
-        self.tasks_context.update(context_update);
+        self.tasks_context.update(report.context_update);
     }
 }
 
@@ -123,7 +112,9 @@ async fn run_batch(api: GearApi, batch: BatchWithSeed) -> Result<BatchRunReport>
 
                 Err(err)
             } else {
-                Ok(BatchRunReport::from_err(seed, err))
+                tracing::debug!("Error occurred while running batch: {err}");
+
+                Ok(BatchRunReport::empty(seed))
             }
         }
     }
@@ -269,18 +260,12 @@ async fn process_events(
 
 async fn inspect_crash_events(api: GearApi, node_stopper: String) -> Result<()> {
     let mut event_listener = api.subscribe().await?;
-    let res = event_listener
-        .queue_processing_reverted()
-        .await
-        .map_err(|e| e.into());
-    if res.is_ok() {
-        let crash_err = CrashAlert::MsgProcessingStopped;
-        tracing::info!("{crash_err}");
+    event_listener.queue_processing_reverted().await?;
 
-        utils::stop_node(node_stopper).await?;
+    let crash_err = CrashAlert::MsgProcessingStopped;
+    tracing::info!("{crash_err}");
 
-        Err(crash_err.into())
-    } else {
-        res
-    }
+    utils::stop_node(node_stopper).await?;
+
+    Err(crash_err.into())
 }
