@@ -204,7 +204,12 @@ pub fn inject<R: Rules>(
         None => return Err(mbuilder.build()),
     };
 
-    let cost = (cost_check_blocks + cost_set_blocks) as i64;
+    let cost_call = match rules.instruction_cost(&Instruction::Call(0)) {
+        Some(c) => c as u64,
+        None => return Err(mbuilder.build()),
+    };
+
+    let cost = (cost_call + cost_check_blocks + cost_set_blocks) as i64;
 
     // update cost for 'gas_charge' function itself
     for instruction in elements
