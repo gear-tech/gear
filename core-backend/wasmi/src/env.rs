@@ -36,10 +36,8 @@ use gear_backend_common::{
     STACK_END_EXPORT_NAME,
 };
 use gear_core::{env::Ext, gas::GasAmount, memory::WasmPageNumber, message::DispatchKind};
-use wasmi::{
-    Engine, Extern, Instance, Linker, Memory, MemoryType, Module, Store, core::Value,
-};
 use gear_wasm_instrument::{GLOBAL_NAME_ALLOWANCE, GLOBAL_NAME_GAS};
+use wasmi::{core::Value, Engine, Extern, Instance, Linker, Memory, MemoryType, Module, Store};
 
 #[derive(Debug, derive_more::Display, derive_more::From)]
 pub enum WasmiEnvironmentError {
@@ -240,13 +238,12 @@ where
             Ok(())
         };
 
-        let gas = gear_gas.get(&memory_wrap.store)
-            .try_into::<i64>()
-            .ok_or({
-                let store = &memory_wrap.store;
-                (gas_amount!(store), WrongInjectedGas)
-            })?;
-        let allowance = gear_allowance.get(&memory_wrap.store)
+        let gas = gear_gas.get(&memory_wrap.store).try_into::<i64>().ok_or({
+            let store = &memory_wrap.store;
+            (gas_amount!(store), WrongInjectedGas)
+        })?;
+        let allowance = gear_allowance
+            .get(&memory_wrap.store)
             .try_into::<i64>()
             .ok_or({
                 let store = &memory_wrap.store;
@@ -259,7 +256,9 @@ where
             .take()
             .expect("set before the block; qed");
 
-        let State { mut ext, err: trap, .. } = runtime;
+        let State {
+            mut ext, err: trap, ..
+        } = runtime;
 
         ext.update_counters(gas as u64, allowance as u64);
 

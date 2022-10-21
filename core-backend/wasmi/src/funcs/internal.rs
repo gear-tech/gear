@@ -36,7 +36,8 @@ macro_rules! update_globals {
     ($caller:ident) => {{
         let (gas, allowance) = host_state_mut!($caller).ext.counters();
 
-        match $caller.get_export(GLOBAL_NAME_GAS)
+        match $caller
+            .get_export(GLOBAL_NAME_GAS)
             .and_then(Extern::into_global)
             .and_then(|g| g.set(&mut $caller, Value::I64(gas as i64)).ok())
             .and_then(|_| $caller.get_export(GLOBAL_NAME_ALLOWANCE))
@@ -119,9 +120,7 @@ where
             }
         }
         Err(e) => match e.into_ext_error() {
-            Ok(ext_error) => {
-                Ok((ext_error.encoded_size() as u32,))
-            }
+            Ok(ext_error) => Ok((ext_error.encoded_size() as u32,)),
             Err(e) => {
                 host_state.err = FuncError::Core(e);
                 Err(Error::Trap(TrapCode::Unreachable.into()))
@@ -186,7 +185,7 @@ where
         Err(e) => {
             host_state.err = FuncError::Core(e);
             Err(Error::Trap(TrapCode::Unreachable.into()))
-        },
+        }
     };
 
     update_globals!(caller).map_err(Error::Trap).and(result)

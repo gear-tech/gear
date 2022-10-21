@@ -189,8 +189,7 @@ impl Ext for MockExt {
         (0, 0)
     }
 
-    fn update_counters(&mut self, _gas: u64, _allowance: u64) {
-    }
+    fn update_counters(&mut self, _gas: u64, _allowance: u64) {}
 
     fn out_of_allowance(&mut self) -> Self::Error {
         Error

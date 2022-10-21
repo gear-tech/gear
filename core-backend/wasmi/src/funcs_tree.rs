@@ -21,8 +21,8 @@ use alloc::collections::{BTreeMap, BTreeSet};
 use codec::Encode;
 use gear_backend_common::{error_processor::IntoExtError, AsTerminationReason, IntoExtInfo};
 use gear_core::env::Ext;
-use wasmi::{Func, Memory, Store};
 use gear_wasm_instrument::{IMPORT_NAME_OUT_OF_ALLOWANCE, IMPORT_NAME_OUT_OF_GAS};
+use wasmi::{Func, Memory, Store};
 
 struct FunctionBuilder<'a>(Option<&'a BTreeSet<&'a str>>);
 

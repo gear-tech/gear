@@ -4,8 +4,11 @@ use gear_backend_common::{RuntimeCtx, RuntimeCtxError};
 use gear_core::{buffer::RuntimeBuffer, env::Ext, memory::WasmPageNumber};
 
 use gear_core_errors::MemoryError;
-use sp_sandbox::{default_executor::Memory as DefaultExecutorMemory, HostError, SandboxMemory, InstanceGlobals, Value};
 use gear_wasm_instrument::{GLOBAL_NAME_ALLOWANCE, GLOBAL_NAME_GAS};
+use sp_sandbox::{
+    default_executor::Memory as DefaultExecutorMemory, HostError, InstanceGlobals, SandboxMemory,
+    Value,
+};
 
 use crate::{
     funcs::{FuncError, SyscallOutput, WasmCompatible},
@@ -33,14 +36,18 @@ impl<E: Ext> Runtime<E> {
         T: WasmCompatible,
         F: FnOnce(&mut Self) -> Result<T, FuncError<E::Error>>,
     {
-        let gas = self.globals.get_global_val(GLOBAL_NAME_GAS)
+        let gas = self
+            .globals
+            .get_global_val(GLOBAL_NAME_GAS)
             .and_then(as_i64)
             .ok_or({
                 self.err = FuncError::WrongInstrumentation;
                 HostError
             })?;
 
-        let allowance = self.globals.get_global_val(GLOBAL_NAME_ALLOWANCE)
+        let allowance = self
+            .globals
+            .get_global_val(GLOBAL_NAME_ALLOWANCE)
             .and_then(as_i64)
             .ok_or({
                 self.err = FuncError::WrongInstrumentation;

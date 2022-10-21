@@ -4467,8 +4467,9 @@ fn gas_spent_precalculated() {
 
         let init_gas_id = upload_program_default(USER_3, ProgramCodeKind::Custom(wat_init))
             .expect("submit result was asserted");
-        let init_no_counter_id = upload_program_default(USER_3, ProgramCodeKind::Custom(wat_no_counter))
-            .expect("submit result was asserted");
+        let init_no_counter_id =
+            upload_program_default(USER_3, ProgramCodeKind::Custom(wat_no_counter))
+                .expect("submit result was asserted");
 
         run_to_block(2, None);
 
@@ -4479,11 +4480,13 @@ fn gas_spent_precalculated() {
         let init_code_len: u64 = common::get_program(init_gas_id.into_origin())
             .and_then(|p| common::ActiveProgram::try_from(p).ok())
             .expect("program must exist")
-            .code_length_bytes.into();
+            .code_length_bytes
+            .into();
         let init_no_gas_code_len: u64 = common::get_program(init_no_counter_id.into_origin())
             .and_then(|p| common::ActiveProgram::try_from(p).ok())
             .expect("program must exist")
-            .code_length_bytes.into();
+            .code_length_bytes
+            .into();
         // binaries have the same memory amount but different lengths
         // so take this into account in gas calculations
         let length_margin = init_code_len - init_no_gas_code_len;
@@ -4520,7 +4523,8 @@ fn gas_spent_precalculated() {
         let module_instantiation_per_byte = schedule.module_instantiation_per_byte;
 
         // gas_charge call in handle and "add" func
-        let gas_cost = gas_spent_init - gas_spent_no_counter
+        let gas_cost = gas_spent_init
+            - gas_spent_no_counter
             - const_i64_cost as u64
             - set_local_cost as u64
             - core_processor::calculate_gas_for_code(0, per_byte_cost, length_margin)
@@ -4541,8 +4545,7 @@ fn gas_spent_precalculated() {
         let call_cost = schedule.instruction_weights.call;
         let get_local_cost = schedule.instruction_weights.local_get;
         let add_cost = schedule.instruction_weights.i64add;
-        let module_instantiation =
-            module_instantiation_per_byte * code.len() as u64;
+        let module_instantiation = module_instantiation_per_byte * code.len() as u64;
         let load_page_cost = schedule.memory_weights.load_cost;
 
         let total_cost = {

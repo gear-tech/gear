@@ -703,9 +703,13 @@ impl EnvExt for Ext {
 
         let allowance_left = self.context.gas_allowance_counter.left();
         if allowance_left > allowance {
-            self.context.gas_allowance_counter.charge(allowance_left - allowance);
+            self.context
+                .gas_allowance_counter
+                .charge(allowance_left - allowance);
         } else {
-            self.context.gas_allowance_counter.refund(allowance - allowance_left);
+            self.context
+                .gas_allowance_counter
+                .refund(allowance - allowance_left);
         }
     }
 

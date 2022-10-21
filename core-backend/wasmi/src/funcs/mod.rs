@@ -46,12 +46,12 @@ use gear_core::{
     },
 };
 use gear_core_errors::{CoreError, MemoryError};
+use gear_wasm_instrument::{GLOBAL_NAME_ALLOWANCE, GLOBAL_NAME_GAS};
 use internal::host_state_mut;
 use wasmi::{
     core::{Trap, TrapCode, Value},
-    AsContextMut, Caller, Func, Memory as WasmiMemory, Store, Extern,
+    AsContextMut, Caller, Extern, Func, Memory as WasmiMemory, Store,
 };
-use gear_wasm_instrument::{GLOBAL_NAME_ALLOWANCE, GLOBAL_NAME_GAS};
 
 fn get_caller_memory<'a, E: Ext + IntoExtInfo<E::Error> + 'static>(
     caller: &'a mut Caller<'_, HostState<E>>,
@@ -129,7 +129,8 @@ macro_rules! update_or_exit_if {
             return Err(TrapCode::Unreachable.into());
         }
 
-        let gas = $caller.get_export(GLOBAL_NAME_GAS)
+        let gas = $caller
+            .get_export(GLOBAL_NAME_GAS)
             .and_then(Extern::into_global)
             .and_then(|g| g.get(&$caller).try_into::<i64>())
             .ok_or({
@@ -137,7 +138,8 @@ macro_rules! update_or_exit_if {
                 Trap::from(TrapCode::Unreachable)
             })? as u64;
 
-        let allowance = $caller.get_export(GLOBAL_NAME_ALLOWANCE)
+        let allowance = $caller
+            .get_export(GLOBAL_NAME_ALLOWANCE)
             .and_then(Extern::into_global)
             .and_then(|g| g.get(&$caller).try_into::<i64>())
             .ok_or({
@@ -548,7 +550,7 @@ where
                 Ok(_) => match read_result {
                     Ok(id) => FuncError::Terminated(TerminationReason::Exit(id)),
                     Err(e) => e.into(),
-                }
+                },
             };
 
             Err(TrapCode::Unreachable.into())
@@ -684,12 +686,14 @@ where
     }
 
     pub fn origin(store: &mut Store<HostState<E>>, forbidden: bool, memory: WasmiMemory) -> Func {
-        let func =
-            move |mut caller: wasmi::Caller<'_, HostState<E>>, origin_ptr: u32| -> EmptyOutput {
-                update_or_exit_if!(forbidden, caller);
+        let func = move |mut caller: wasmi::Caller<'_, HostState<E>>,
+                         origin_ptr: u32|
+              -> EmptyOutput {
+            update_or_exit_if!(forbidden, caller);
 
-                process_infalliable_call!(caller, memory, |ext| ext.origin(), |memory, origin| memory.write(origin_ptr as usize, origin.as_ref()))
-            };
+            process_infalliable_call!(caller, memory, |ext| ext.origin(), |memory, origin| memory
+                .write(origin_ptr as usize, origin.as_ref()))
+        };
 
         Func::wrap(store, func)
     }
@@ -1054,7 +1058,10 @@ where
               -> EmptyOutput {
             update_or_exit_if!(forbidden, caller);
 
-            process_infalliable_call!(caller, memory, |ext| ext.message_id(),
+            process_infalliable_call!(
+                caller,
+                memory,
+                |ext| ext.message_id(),
                 |memory, message_id| memory.write(message_id_ptr as usize, message_id.as_ref())
             )
         };
@@ -1072,7 +1079,10 @@ where
               -> EmptyOutput {
             update_or_exit_if!(forbidden, caller);
 
-            process_infalliable_call!(caller, memory, |ext| ext.program_id(),
+            process_infalliable_call!(
+                caller,
+                memory,
+                |ext| ext.program_id(),
                 |memory, program_id| memory.write(program_id_ptr as usize, program_id.as_ref())
             )
         };
@@ -1081,14 +1091,14 @@ where
     }
 
     pub fn source(store: &mut Store<HostState<E>>, forbidden: bool, memory: WasmiMemory) -> Func {
-        let func =
-            move |mut caller: wasmi::Caller<'_, HostState<E>>, source_ptr: u32| -> EmptyOutput {
-                update_or_exit_if!(forbidden, caller);
+        let func = move |mut caller: wasmi::Caller<'_, HostState<E>>,
+                         source_ptr: u32|
+              -> EmptyOutput {
+            update_or_exit_if!(forbidden, caller);
 
-                process_infalliable_call!(caller, memory, |ext| ext.source(),
-                    |memory, source| memory.write(source_ptr as usize, &source.encode())
-                )
-            };
+            process_infalliable_call!(caller, memory, |ext| ext.source(), |memory, source| memory
+                .write(source_ptr as usize, &source.encode()))
+        };
 
         Func::wrap(store, func)
     }
@@ -1098,9 +1108,8 @@ where
             move |mut caller: wasmi::Caller<'_, HostState<E>>, value_ptr: u32| -> EmptyOutput {
                 update_or_exit_if!(forbidden, caller);
 
-                process_infalliable_call!(caller, memory, |ext| ext.value(),
-                    |memory, value| memory.write(value_ptr as usize, &value.encode())
-                )
+                process_infalliable_call!(caller, memory, |ext| ext.value(), |memory, value| memory
+                    .write(value_ptr as usize, &value.encode()))
             };
 
         Func::wrap(store, func)
@@ -1115,8 +1124,12 @@ where
             move |mut caller: wasmi::Caller<'_, HostState<E>>, value_ptr: u32| -> EmptyOutput {
                 update_or_exit_if!(forbidden, caller);
 
-                process_infalliable_call!(caller, memory, |ext| ext.value_available(),
-                    |memory, value_available| memory.write(value_ptr as usize, &value_available.encode())
+                process_infalliable_call!(
+                    caller,
+                    memory,
+                    |ext| ext.value_available(),
+                    |memory, value_available| memory
+                        .write(value_ptr as usize, &value_available.encode())
                 )
             };
 
@@ -1149,7 +1162,9 @@ where
             update_globals!(caller);
 
             host_state_mut!(caller).err = match call_result {
-                Ok(_) => FuncError::Terminated(TerminationReason::Wait(None, MessageWaitedType::Wait)),
+                Ok(_) => {
+                    FuncError::Terminated(TerminationReason::Wait(None, MessageWaitedType::Wait))
+                }
                 Err(e) => FuncError::Core(e),
             };
 
@@ -1282,8 +1297,11 @@ where
                 memory,
                 |ext| ext.create_program(InitPacket::new(code_id, salt, payload, value), delay),
                 |memory_wrap, (message_id, program_id)| {
-                    memory_wrap.write(message_id_ptr as usize, message_id.as_ref())
-                        .and_then(|_| memory_wrap.write(program_id_ptr as usize, program_id.as_ref()))
+                    memory_wrap
+                        .write(message_id_ptr as usize, message_id.as_ref())
+                        .and_then(|_| {
+                            memory_wrap.write(program_id_ptr as usize, program_id.as_ref())
+                        })
                 }
             )
         };
@@ -1334,10 +1352,16 @@ where
             process_call_result!(
                 caller,
                 memory,
-                |ext| ext.create_program(InitPacket::new_with_gas(code_id, salt, payload, gas_limit, value), delay),
+                |ext| ext.create_program(
+                    InitPacket::new_with_gas(code_id, salt, payload, gas_limit, value),
+                    delay
+                ),
                 |memory_wrap, (message_id, program_id)| {
-                    memory_wrap.write(message_id_ptr as usize, message_id.as_ref())
-                        .and_then(|_| memory_wrap.write(program_id_ptr as usize, program_id.as_ref()))
+                    memory_wrap
+                        .write(message_id_ptr as usize, message_id.as_ref())
+                        .and_then(|_| {
+                            memory_wrap.write(program_id_ptr as usize, program_id.as_ref())
+                        })
                 }
             )
         };

@@ -34,12 +34,14 @@ use gear_backend_common::{
     STACK_END_EXPORT_NAME,
 };
 use gear_core::{env::Ext, gas::GasAmount, memory::WasmPageNumber, message::DispatchKind};
+use gear_wasm_instrument::{
+    GLOBAL_NAME_ALLOWANCE, GLOBAL_NAME_GAS, IMPORT_NAME_OUT_OF_ALLOWANCE, IMPORT_NAME_OUT_OF_GAS,
+};
 use sp_sandbox::{
     default_executor::{EnvironmentDefinitionBuilder, Instance, Memory as DefaultExecutorMemory},
-    HostFuncType, ReturnValue, SandboxEnvironmentBuilder, SandboxInstance, SandboxMemory, InstanceGlobals,
-    Value,
+    HostFuncType, InstanceGlobals, ReturnValue, SandboxEnvironmentBuilder, SandboxInstance,
+    SandboxMemory, Value,
 };
-use gear_wasm_instrument::{GLOBAL_NAME_ALLOWANCE, GLOBAL_NAME_GAS, IMPORT_NAME_OUT_OF_ALLOWANCE, IMPORT_NAME_OUT_OF_GAS};
 
 #[derive(Debug, derive_more::Display, derive_more::From)]
 pub enum SandboxEnvironmentError {
@@ -226,7 +228,8 @@ where
             Err(e) => return Err((runtime.ext.gas_amount(), StackEnd(e)).into()),
         };
 
-        runtime.globals = instance.instance_globals()
+        runtime.globals = instance
+            .instance_globals()
             .ok_or((runtime.ext.gas_amount(), MutableGlobalsNotSupported))?;
 
         let (gas, allowance) = runtime.ext.counters();
@@ -254,11 +257,15 @@ where
             Ok(ReturnValue::Unit)
         };
 
-        let gas = runtime.globals.get_global_val(GLOBAL_NAME_GAS)
+        let gas = runtime
+            .globals
+            .get_global_val(GLOBAL_NAME_GAS)
             .and_then(runtime::as_i64)
             .ok_or((runtime.ext.gas_amount(), WrongInjectedGas))?;
 
-        let allowance = runtime.globals.get_global_val(GLOBAL_NAME_ALLOWANCE)
+        let allowance = runtime
+            .globals
+            .get_global_val(GLOBAL_NAME_ALLOWANCE)
             .and_then(runtime::as_i64)
             .ok_or((runtime.ext.gas_amount(), WrongInjectedAllowance))?;
 
