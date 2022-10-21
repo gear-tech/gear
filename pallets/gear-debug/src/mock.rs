@@ -189,7 +189,6 @@ construct_runtime!(
 );
 
 // Build genesis storage according to the mock runtime.
-#[allow(unused)]
 pub fn new_test_ext() -> sp_io::TestExternalities {
     let mut t = system::GenesisConfig::default()
         .build_storage::<Test>()
@@ -197,16 +196,20 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
 
     pallet_balances::GenesisConfig::<Test> {
         balances: vec![
-            (1, 100_000_000_000_u128),
-            (2, 2_u128),
-            (BLOCK_AUTHOR, 1_u128),
+            (1, 100_000_000_000_000_u128),
+            (2, 2_000_u128),
+            (BLOCK_AUTHOR, 1_000_u128),
         ],
     }
     .assimilate_storage(&mut t)
     .unwrap();
 
     let mut ext = sp_io::TestExternalities::new(t);
-    ext.execute_with(|| System::set_block_number(1));
+    ext.execute_with(|| {
+        Gear::force_always();
+        System::set_block_number(1);
+        Gear::on_initialize(System::block_number());
+    });
     ext
 }
 
