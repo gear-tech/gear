@@ -142,6 +142,7 @@ pub fn inject<R: Rules>(
             .build(),
     );
 
+    // TODO: #1706
     let mut elements = vec![
         // check if there is enough gas
         Instruction::GetGlobal(gas_index),
