@@ -2912,10 +2912,10 @@ dependencies = [
  "frame-system",
  "gear-common-codegen",
  "gear-core",
+ "gear-wasm-instrument",
  "hex-literal",
  "log",
  "parity-scale-codec",
- "parity-wasm 0.45.0",
  "primitive-types",
  "proptest",
  "scale-info",
@@ -2924,7 +2924,6 @@ dependencies = [
  "sp-io",
  "sp-runtime",
  "sp-std",
- "wasm-instrument 0.2.1",
 ]
 
 [[package]]
@@ -2943,14 +2942,13 @@ dependencies = [
  "derive_more",
  "env_logger",
  "gear-core-errors",
+ "gear-wasm-instrument",
  "hex",
  "log",
  "parity-scale-codec",
- "parity-wasm 0.45.0",
  "scale-info",
  "static_assertions",
  "wabt",
- "wasm-instrument 0.2.1",
  "wasmparser-nostd 0.91.0",
 ]
 
@@ -3292,6 +3290,7 @@ dependencies = [
  "gear-common",
  "gear-core",
  "gear-core-processor",
+ "gear-wasm-instrument",
  "hex",
  "log",
  "once_cell",
@@ -3302,7 +3301,6 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_yaml",
- "wasm-instrument 0.2.1",
 ]
 
 [[package]]
@@ -3391,13 +3389,21 @@ dependencies = [
  "gear-backend-common",
  "gear-backend-wasmi",
  "gear-core",
+ "gear-wasm-instrument",
  "indicatif",
- "parity-wasm 0.45.0",
  "rand 0.8.5",
- "wasm-instrument 0.2.1",
  "wasm-smith",
  "wasmparser 0.92.0",
  "wasmprinter",
+]
+
+[[package]]
+name = "gear-wasm-instrument"
+version = "0.1.0"
+dependencies = [
+ "wasm-instrument 0.2.1",
+ "wasmparser 0.90.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "wat",
 ]
 
 [[package]]
@@ -3562,11 +3568,11 @@ dependencies = [
  "gear-core-errors",
  "gear-core-processor",
  "gear-wasm-builder",
+ "gear-wasm-instrument",
  "hex",
  "log",
  "parity-scale-codec",
  "path-clean",
- "wasm-instrument 0.2.1",
 ]
 
 [[package]]
@@ -5972,6 +5978,7 @@ dependencies = [
  "gear-core-processor",
  "gear-lazy-pages-common",
  "gear-runtime-interface",
+ "gear-wasm-instrument",
  "log",
  "page_size",
  "pallet-authorship",
@@ -5996,7 +6003,6 @@ dependencies = [
  "sp-sandbox",
  "sp-std",
  "wabt",
- "wasm-instrument 0.2.1",
 ]
 
 [[package]]
@@ -6128,6 +6134,7 @@ dependencies = [
  "frame-system",
  "gear-common",
  "gear-core",
+ "gear-wasm-instrument",
  "hex-literal",
  "log",
  "pallet-balances",
@@ -6140,7 +6147,6 @@ dependencies = [
  "sp-io",
  "sp-runtime",
  "sp-std",
- "wasm-instrument 0.2.1",
 ]
 
 [[package]]
@@ -11022,7 +11028,7 @@ dependencies = [
 [[package]]
 name = "wasm-instrument"
 version = "0.2.1"
-source = "git+https://github.com/gear-tech/wasm-instrument.git?branch=gear-stable#7cceecba3c5904855cbb3930fba0a8349e2824f9"
+source = "git+https://github.com/gear-tech/wasm-instrument.git?branch=gear-stable#bd0e309bcf1b50ad0f986bf886c30711ec2d09ca"
 dependencies = [
  "parity-wasm 0.45.0",
 ]
@@ -11072,7 +11078,7 @@ dependencies = [
  "indexmap",
  "leb128",
  "wasm-encoder 0.16.0",
- "wasmparser 0.90.0",
+ "wasmparser 0.90.0 (git+https://github.com/gear-tech/wasm-tools.git?branch=gear-stable)",
 ]
 
 [[package]]
@@ -11387,6 +11393,15 @@ name = "wasmparser"
 version = "0.89.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ab5d3e08b13876f96dd55608d03cd4883a0545884932d5adf11925876c96daef"
+dependencies = [
+ "indexmap",
+]
+
+[[package]]
+name = "wasmparser"
+version = "0.90.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b62c8d843f4423efee314dc75a1049886deba3214f7e7f9ff0e4e58b4d618581"
 dependencies = [
  "indexmap",
 ]

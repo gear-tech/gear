@@ -25,13 +25,13 @@ use crate::{weights::WeightInfo, Config};
 
 use codec::{Decode, Encode};
 use gear_core::{code, costs::HostFnWeights as CoreHostFnWeights};
+use gear_wasm_instrument::{parity_wasm::elements, wasm_instrument::gas_metering};
 use pallet_gear_proc_macro::{ScheduleDebug, WeightDebug};
 use scale_info::TypeInfo;
 #[cfg(feature = "std")]
 use serde::{Deserialize, Serialize};
 use sp_runtime::RuntimeDebug;
 use sp_std::{marker::PhantomData, vec::Vec};
-use wasm_instrument::{gas_metering, parity_wasm::elements};
 
 /// How many API calls are executed in a single batch. The reason for increasing the amount
 /// of API calls in batches (per benchmark component increase) is so that the linear regression

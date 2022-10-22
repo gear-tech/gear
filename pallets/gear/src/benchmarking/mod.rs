@@ -62,6 +62,7 @@ use gear_core::{
     message::{ContextSettings, Dispatch, DispatchKind, Message, MessageContext, ReplyDetails},
     reservation::GasReserver,
 };
+use gear_wasm_instrument::parity_wasm::elements::{BlockType, BrTableData, Instruction, ValueType};
 use pallet_authorship::Pallet as AuthorshipPallet;
 use sp_consensus_babe::{
     digests::{PreDigest, SecondaryPlainPreDigest},
@@ -73,7 +74,6 @@ use sp_runtime::{
     Digest, DigestItem, Perbill,
 };
 use sp_std::{convert::TryInto, prelude::*};
-use wasm_instrument::parity_wasm::elements::{BlockType, BrTableData, Instruction, ValueType};
 
 const MAX_PAYLOAD_LEN: u32 = 64 * 1024;
 const MAX_PAGES: u32 = 512;

@@ -17,7 +17,7 @@ codec = { package = "parity-scale-codec", version = "3.1.2", default-features = 
 scale-info = { version = "2.1.1", default-features = false, features = ["derive"] }
 log = { version = "0.4.17", default-features = false }
 primitive-types = { version = "0.11.1", default-features = false, features = ["scale-info"] }
-wasm-instrument = { version = "0.2.1", git = "https://github.com/gear-tech/wasm-instrument.git", branch = "gear-stable", default-features = false }
+gear-wasm-instrument = { path = "../../utils/wasm-instrument", default-features = false }
 derive_more = "0.99.17"
 
 # Internal deps
@@ -96,7 +96,7 @@ std = [
 	"frame-benchmarking?/std",
 	"frame-support/std",
 	"frame-system/std",
-	"wasm-instrument/std",
+	"gear-wasm-instrument/std",
 	"gear-backend-sandbox/std",
 	"gear-backend-wasmi/std",
 	"scale-info/std",

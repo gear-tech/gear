@@ -11,7 +11,6 @@ scale-info = { version = "2.1.1", default-features = false, features = ["derive"
 primitive-types = { version = "0.11.1", default-features = false, features = ["scale-info"] }
 log = "0.4.17"
 derive_more = "0.99.17"
-parity-wasm = { version = "0.45.0", default-features = false, optional = true }
 
 # Internal deps
 gear-core = { path = "../core" }
@@ -26,10 +25,10 @@ sp-arithmetic = { version = "5.0.0", git = "https://github.com/gear-tech/substra
 frame-support = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false }
 frame-system = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false, optional = true }
 frame-benchmarking = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false, optional = true }
+gear-wasm-instrument = { path = "../utils/wasm-instrument", default-features = false, optional = true }
 
 [dev-dependencies]
 hex-literal = "0.3.3"
-wasm-instrument = { version = "0.2.1", git = "https://github.com/gear-tech/wasm-instrument.git", branch = "gear-stable", default-features = false }
 proptest = "1.0.0"
 
 [features]
@@ -44,10 +43,11 @@ std = [
     "sp-arithmetic/std",
     "frame-support/std",
     "primitive-types/std",
+    "gear-wasm-instrument?/std",
 ]
 runtime-benchmarks = [
     "frame-benchmarking",
     "frame-system/runtime-benchmarks",
     "frame-support/runtime-benchmarks",
-    "parity-wasm",
+    "gear-wasm-instrument",
 ]
