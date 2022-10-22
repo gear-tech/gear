@@ -206,19 +206,15 @@ pub fn inject<R: Rules>(
     ];
 
     // determine cost for successful execution
-    let cost_check_blocks = match elements.iter().take(7).try_fold(0u64, |cost, instruction| {
-        rules.instruction_cost(instruction).map(|c| cost + c as u64)
-    }) {
-        Some(c) => 2 * c,
-        None => return Err(mbuilder.build()),
-    };
-
-    let cost_set_blocks = match elements
+    let cost_blocks = match elements
         .iter()
-        .skip(10)
         .take(7)
+        // block with update instructions
+        .chain(elements.iter().skip(10).take(7))
         .try_fold(0u64, |cost, instruction| {
-            rules.instruction_cost(instruction).map(|c| cost + c as u64)
+            rules
+                .instruction_cost(instruction)
+                .and_then(|c| cost.checked_add(c.into()))
         }) {
         Some(c) => 2 * c,
         None => return Err(mbuilder.build()),
@@ -229,14 +225,20 @@ pub fn inject<R: Rules>(
         None => return Err(mbuilder.build()),
     };
 
-    let cost = (cost_call + cost_check_blocks + cost_set_blocks) as i64;
+    let cost = cost_call + cost_blocks;
+    // the cost is added to gas_to_charge which cannot
+    // exceed u32::MAX value. This check ensures
+    // there is no u64 overflow.
+    if cost > u64::MAX - u64::from(u32::MAX) {
+        return Err(mbuilder.build());
+    }
 
     // update cost for 'gas_charge' function itself
     for instruction in elements
         .iter_mut()
         .filter(|i| matches!(i, Instruction::I64Const(_)))
     {
-        *instruction = Instruction::I64Const(cost);
+        *instruction = Instruction::I64Const(cost as i64);
     }
 
     // gas_charge function
