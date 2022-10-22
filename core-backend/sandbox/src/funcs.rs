@@ -405,7 +405,7 @@ where
     pub fn random(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
         sys_trace!(target: "syscall::gear", "random, args = {}", args_to_str(args));
 
-        let (random_ptr, subject_ptr, subject_len, bn_ptr): (u32, u32, u32, u32) =
+        let (subject_ptr, subject_len, random_ptr, bn_ptr): (u32, u32, u32, u32) =
             args.iter().read_4()?;
 
         ctx.run(|ctx| {
