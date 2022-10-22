@@ -345,7 +345,32 @@ pub fn origin() -> ActorId {
     origin
 }
 
-/// Get the random seed.
+/// Get the random seed, along with the time in the past
+/// since when it was determinable by chain observers.
+/// The random seed is determined from the random seed of the block with the message id as the subject.
+///
+/// `subject` is a context identifier and allows you to get a different results within the execution.
+/// use it like `random(&b"my context"[..])`.
+/// 
+/// # Security
+///
+/// This MUST NOT be used for gambling, as it can be influenced by a
+/// malicious validator in the short term. It MAY be used in many
+/// cryptographic protocols, however, so long as one remembers that this
+/// (like everything else on-chain) it is public. For example, it can be
+/// used where a number is needed that cannot have been chosen by an
+/// adversary, for purposes such as public-coin zero-knowledge proofs.
+/// 
+/// # Examples
+///
+/// ```
+/// use gcore::exec;
+///
+/// unsafe extern "C" fn handle() {
+///     // ...
+///     let (seed, block_number) = exec::random(&b"my context"[..]);
+/// }
+/// ```
 pub fn random(subject: &[u8]) -> Result<([u8; 32], u32)> {
     let mut bytes = [0u8; 32];
 

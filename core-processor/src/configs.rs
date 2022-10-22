@@ -85,6 +85,7 @@ pub struct ExecutionSettings {
     /// Cost for reservation holding.
     pub reservation: u64,
     /// Most recently determined random seed, along with the time in the past since when it was determinable by chain observers.
+    /// TODO: find a way to put a random seed inside block config.
     pub random_data: (Vec<u8>, u32),
 }
 

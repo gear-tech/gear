@@ -285,9 +285,6 @@ impl EnvExt for LazyPagesExt {
     }
 
     fn random(&self) -> (&[u8], u32) {
-        (
-            &self.inner.context.random_data.0,
-            self.inner.context.random_data.1,
-        )
+        self.inner.random()
     }
 }
