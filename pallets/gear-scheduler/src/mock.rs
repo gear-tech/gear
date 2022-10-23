@@ -162,6 +162,7 @@ impl pallet_gear_gas::Config for Test {
 
 impl pallet_gear_messenger::Config for Test {
     type BlockLimiter = GearGas;
+    type CurrentBlockNumber = Gear;
 }
 
 pub struct FixedBlockAuthor;
@@ -212,7 +213,11 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
     .unwrap();
 
     let mut ext = sp_io::TestExternalities::new(t);
-    ext.execute_with(|| System::set_block_number(1));
+    ext.execute_with(|| {
+        Gear::force_always();
+        System::set_block_number(1);
+        Gear::on_initialize(System::block_number());
+    });
     ext
 }
 
@@ -233,6 +238,14 @@ pub fn run_to_block(n: u64, remaining_weight: Option<u64>) {
         );
 
         Gear::run_queue(remaining_weight);
+        Gear::processing_completed();
         Gear::on_finalize(System::block_number());
+
+        assert!(!System::events().iter().any(|e| {
+            matches!(
+                e.event,
+                RuntimeEvent::Gear(pallet_gear::Event::QueueProcessingReverted)
+            )
+        }))
     }
 }

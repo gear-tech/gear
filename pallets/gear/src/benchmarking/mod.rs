@@ -62,6 +62,7 @@ use gear_core::{
     message::{ContextSettings, Dispatch, DispatchKind, Message, MessageContext, ReplyDetails},
     reservation::GasReserver,
 };
+use gear_wasm_instrument::parity_wasm::elements::{BlockType, BrTableData, Instruction, ValueType};
 use pallet_authorship::Pallet as AuthorshipPallet;
 use sp_consensus_babe::{
     digests::{PreDigest, SecondaryPlainPreDigest},
@@ -73,7 +74,6 @@ use sp_runtime::{
     Digest, DigestItem, Perbill,
 };
 use sp_std::{convert::TryInto, prelude::*};
-use wasm_instrument::parity_wasm::elements::{BlockType, BrTableData, Instruction, ValueType};
 
 const MAX_PAYLOAD_LEN: u32 = 64 * 1024;
 const MAX_PAGES: u32 = 512;
@@ -140,7 +140,7 @@ fn default_processor_context<T: Config>() -> ProcessorContext {
             Default::default(),
             Default::default(),
             None,
-            ContextSettings::new(0, 0, 0, 0),
+            ContextSettings::new(0, 0, 0, 0, 0),
         ),
         block_info: Default::default(),
         config: Default::default(),
@@ -241,7 +241,7 @@ where
     assert!(gear_lazy_pages_common::try_to_enable_lazy_pages());
 
     let ext_manager = ExtManager::<T>::default();
-    let bn: u64 = <frame_system::Pallet<T>>::block_number().unique_saturated_into();
+    let bn: u64 = Pallet::<T>::block_number().unique_saturated_into();
     let root_message_id = MessageId::from(bn);
 
     let dispatch = match kind {
@@ -341,7 +341,7 @@ where
     QueueOf::<T>::queue(dispatch).map_err(|_| "Messages storage corrupted")?;
 
     let block_info = BlockInfo {
-        height: <frame_system::Pallet<T>>::block_number().unique_saturated_into(),
+        height: Pallet::<T>::block_number().unique_saturated_into(),
         timestamp: <pallet_timestamp::Pallet<T>>::get().unique_saturated_into(),
     };
 
@@ -631,8 +631,7 @@ benchmarks! {
 
         let caller: T::AccountId = benchmarking::account("caller", 0, 0);
         let metadata = {
-            let block_number =
-                <frame_system::Pallet<T>>::block_number().unique_saturated_into();
+            let block_number = Pallet::<T>::block_number().unique_saturated_into();
             CodeMetadata::new(caller.into_origin(), block_number)
         };
 

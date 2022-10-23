@@ -205,6 +205,7 @@ impl pallet_gear_scheduler::Config for Test {
 
 impl pallet_gear_messenger::Config for Test {
     type BlockLimiter = GearGas;
+    type CurrentBlockNumber = Gear;
 }
 
 type NegativeImbalance = <Balances as Currency<u64>>::NegativeImbalance;

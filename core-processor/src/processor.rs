@@ -390,6 +390,9 @@ pub fn process<
     // Sending fee: double write cost for addition and removal some time soon
     // from queue.
     //
+    // Scheduled sending fee: double write cost for addition and removal some time soon
+    // from queue and double write cost (addition and removal) for dispatch stash.
+    //
     // Waiting fee: triple write cost for addition and removal some time soon
     // from waitlist and enqueuing / sending error reply afterward.
     //
@@ -397,6 +400,7 @@ pub fn process<
     // and further enqueueing.
     let msg_ctx_settings = ContextSettings::new(
         write_cost.saturating_mul(2),
+        write_cost.saturating_mul(4),
         write_cost.saturating_mul(3),
         write_cost.saturating_mul(2),
         outgoing_limit,

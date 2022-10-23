@@ -153,6 +153,7 @@ impl pallet_gear::Config for Test {
 
 impl pallet_gear_messenger::Config for Test {
     type BlockLimiter = GearGas;
+    type CurrentBlockNumber = Gear;
 }
 
 impl pallet_gear_scheduler::Config for Test {
@@ -221,6 +222,14 @@ pub fn run_to_block(n: u64, remaining_weight: Option<u64>) {
             remaining_weight.unwrap_or(pallet_gear::BlockGasLimitOf::<Test>::get());
 
         Gear::run_queue(remaining_weight);
+        Gear::processing_completed();
         Gear::on_finalize(System::block_number());
+
+        assert!(!System::events().iter().any(|e| {
+            matches!(
+                e.event,
+                RuntimeEvent::Gear(pallet_gear::Event::QueueProcessingReverted)
+            )
+        }))
     }
 }
