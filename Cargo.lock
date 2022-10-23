@@ -5995,6 +5995,7 @@ dependencies = [
 name = "pallet-gear"
 version = "2.0.0"
 dependencies = [
+ "blake2-rfc",
  "demo-async-tester",
  "demo-btree",
  "demo-calc-hash",

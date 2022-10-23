@@ -50,6 +50,13 @@ mod sys {
 
         pub fn gr_origin(origin_ptr: *mut [u8; 32]);
 
+        pub fn gr_random(
+            subject_ptr: *const u8,
+            subject_len: u32,
+            random_ptr: *mut [u8; 32],
+            bn: *mut u32,
+        );
+
         pub fn gr_leave() -> !;
 
         #[allow(improper_ctypes)]
@@ -62,13 +69,6 @@ mod sys {
         pub fn gr_wait_for(duration: u32) -> !;
 
         pub fn gr_wake(message_id_ptr: *const [u8; 32], delay: u32) -> SyscallError;
-
-        pub fn gr_random(
-            subject_ptr: *const u8,
-            subject_len: u32,
-            random_ptr: *mut [u8; 32],
-            bn: *mut u32,
-        );
     }
 }
 
