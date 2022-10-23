@@ -266,8 +266,10 @@ where
             code = inject_stack_metering::<T>(code);
         }
 
+        use alloc::format;
         let code = code.into_bytes().unwrap();
-        log::info!("{code:?}");
+        let hex = code.iter().fold("".to_owned(), |mut hex, x| { hex.insert_str(hex.len(), format!("{:02X}", x).as_str()); hex });
+        log::trace!("{hex}");
 
         let hash = CodeId::generate(&code);
         Self {
