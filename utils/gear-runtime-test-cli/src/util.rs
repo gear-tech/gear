@@ -21,7 +21,7 @@
 use codec::Encode;
 use frame_support::traits::{Currency, GenesisBuild, OnFinalize, OnInitialize};
 use frame_system as system;
-use gear_common::{storage::*, Origin, QueueRunner};
+use gear_common::{storage::*, GasPrice, Origin, QueueRunner};
 use gear_core::message::{StoredDispatch, StoredMessage};
 use pallet_gear::{BlockGasLimitOf, Config, GasAllowanceOf};
 use pallet_gear_debug::DebugData;
@@ -152,11 +152,15 @@ macro_rules! utils {
             let balances = vec![
                 (
                     AccountId32::unchecked_from(1000001.into_origin()),
-                    (BlockGasLimitOf::<Runtime>::get() * 20) as u128,
+                    <Runtime as Config>::GasPrice::gas_price(
+                        BlockGasLimitOf::<Runtime>::get() * 20,
+                    ),
                 ),
                 (
                     AccountId32::unchecked_from(crate::HACK.into_origin()),
-                    (BlockGasLimitOf::<Runtime>::get() * 20) as u128,
+                    <Runtime as Config>::GasPrice::gas_price(
+                        BlockGasLimitOf::<Runtime>::get() * 20,
+                    ),
                 ),
             ];
 
