@@ -420,6 +420,7 @@ pub mod body {
     /// to change those instructions on each repetition. The variants of this enum describe
     /// various ways in which this can happen.
     pub enum DynInstr {
+        ConstU32(u32),
         /// Insert the associated instruction.
         Regular(Instruction),
         /// Insert a I32Const with incrementing value for each insertion.
@@ -484,6 +485,7 @@ pub mod body {
             .cycle()
             .take(instructions.len() * usize::try_from(repetitions).unwrap())
             .flat_map(|idx| match &mut instructions[idx] {
+                DynInstr::ConstU32(c) => vec![Instruction::I32Const(*c as i32)],
                 DynInstr::Regular(instruction) => vec![instruction.clone()],
                 DynInstr::Counter(offset, increment_by) => {
                     let current = *offset;
