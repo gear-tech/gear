@@ -9,6 +9,7 @@ pub(crate) enum LockType {
 }
 
 /// Wait lock
+#[derive(Debug)]
 pub struct Lock {
     /// The start block number of this lock.
     pub at: u32,

@@ -155,17 +155,14 @@ impl Future for MessageFuture {
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let fut = &mut *self;
-        // crate::debug!("\n\n polling");
 
         // check if message is timeout
         if let Some((expected, now)) = async_runtime::locks()
-            .get(&fut.waiting_reply_to)
+            .get(&crate::msg::id())
             .map(|lock| lock.timeout())
             .flatten()
         {
             return Poll::Ready(Err(ContractError::Timeout(expected, now)));
-        } else {
-            // crate::debug!("\n\n not timeout {:?}", fut.waiting_reply_to);
         }
 
         // do polling
@@ -192,11 +189,13 @@ impl MessageFuture {
         let locks = async_runtime::locks();
         let msg_id = crate::msg::id();
         if let Some(_) = locks.get(&msg_id) {
-            // crate::debug!("\n\n resetting locks {}", duration);
+            // # TODO
+            //
+            // resetting locks
         } else {
-            // async_runtime::locks().insert(crate::msg::id(), Lock::up_to(duration));
+            async_runtime::locks().insert(msg_id, Lock::up_to(duration));
         }
-        async_runtime::locks().insert(crate::msg::id(), Lock::up_to(duration));
+
         self
     }
 

@@ -3023,24 +3023,18 @@ fn test_sending_waits() {
 }
 
 #[test]
-#[ignore]
 fn test_wait_timeout() {
     use demo_wait_timeout::{Command, WASM_BINARY};
 
     init_logger();
     new_test_ext().execute_with(|| {
-        // utils
-        // let expiration = |duration: u32| -> BlockNumberFor<Test> {
-        //     System::block_number().saturating_add(duration.unique_saturated_into())
-        // };
-
         // upload program
         assert_ok!(Gear::upload_program(
             RuntimeOrigin::signed(USER_1),
             WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
             EMPTY_PAYLOAD.to_vec(),
-            1_000_000_000u64,
+            10_000_000u64,
             0u128
         ));
 
@@ -3056,30 +3050,13 @@ fn test_wait_timeout() {
             RuntimeOrigin::signed(USER_3),
             program_id,
             payload,
-            8_500_000_000,
+            3_000_000_000,
             0,
         ));
 
         // wait till timeout
-        run_to_block(
-            System::block_number().saturating_add((duration + 1).into()),
-            None,
-        );
-
-        // trigger the timeout message
-        let reply_to_id = MailboxOf::<Test>::iter_key(USER_3)
-            .next()
-            .map(|(msg, _bn)| msg.id())
-            .expect("Element should be");
-
-        assert_ok!(Gear::send_reply(
-            RuntimeOrigin::signed(USER_3),
-            reply_to_id,
-            vec![],
-            5_500_000_000,
-            0,
-        ));
-
+        run_to_next_block(None);
+        System::set_block_number(System::block_number().saturating_add((duration - 1).into()));
         run_to_next_block(None);
 
         let payload = MailboxOf::<Test>::iter_key(USER_3)

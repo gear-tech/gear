@@ -25,11 +25,10 @@ async fn main() {
         Command::SendTimeout(to, duration) => {
             unsafe { TIMEOUT_MESSAGE_ID = Some(msg::id()) };
 
-            let reply =
-                msg::send_bytes_for_reply(exec::program_id(), Command::Wait(to).encode(), 0)
-                    .expect("send message failed")
-                    .up_to(duration)
-                    .await;
+            let reply = msg::send_bytes_for_reply(to, b"", 0)
+                .expect("send message failed")
+                .up_to(duration)
+                .await;
 
             if let Err(ContractError::Timeout(..)) = reply {
                 let _ = msg::send(to, b"timeout", 0).expect("send message failed");
