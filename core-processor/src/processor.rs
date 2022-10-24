@@ -39,6 +39,7 @@ use gear_core::{
         StoredDispatch,
     },
     program::Program,
+    reservation::{GasReservationState, GasReserver},
 };
 
 #[derive(Debug)]
@@ -57,6 +58,7 @@ pub struct PreparedMessageExecutionContext {
     balance: u128,
     actor_data: ExecutableActorData,
     memory_size: WasmPageNumber,
+    max_reservations: u64,
 }
 
 impl PreparedMessageExecutionContext {
@@ -75,6 +77,7 @@ impl PreparedMessageExecutionContext {
 pub struct ProcessExecutionContext {
     gas_counter: GasCounter,
     gas_allowance_counter: GasAllowanceCounter,
+    gas_reserver: GasReserver,
     dispatch: IncomingDispatch,
     origin: ProgramId,
     balance: u128,
@@ -101,11 +104,12 @@ impl
         let PreparedMessageExecutionContext {
             gas_counter,
             gas_allowance_counter,
-            dispatch,
+            mut dispatch,
             origin,
             balance,
             actor_data,
             memory_size,
+            max_reservations,
         } = *context;
 
         let program = Program::from_parts(
@@ -115,9 +119,21 @@ impl
             actor_data.initialized,
         );
 
+        let gas_reserver = GasReserver::new(
+            dispatch.id(),
+            dispatch
+                .context_mut()
+                .as_mut()
+                .map(|ctx| ctx.fetch_inc_reservation_nonce())
+                .unwrap_or(0),
+            actor_data.gas_reservation_map,
+            max_reservations,
+        );
+
         Self {
             gas_counter,
             gas_allowance_counter,
+            gas_reserver,
             dispatch,
             origin,
             balance,
@@ -218,6 +234,7 @@ pub fn prepare(
 
     let per_byte_cost = block_config.per_byte_cost;
     let read_cost = block_config.read_cost;
+    let max_reservations = block_config.max_reservations;
 
     let MessageExecutionContext {
         actor,
@@ -313,6 +330,7 @@ pub fn prepare(
         balance,
         actor_data,
         memory_size,
+        max_reservations,
     }))
 }
 
@@ -337,6 +355,7 @@ pub fn process<
         mailbox_threshold,
         waitlist_cost,
         reserve_for,
+        reservation,
         write_cost,
         ..
     } = block_config.clone();
@@ -350,6 +369,7 @@ pub fn process<
         mailbox_threshold,
         waitlist_cost,
         reserve_for,
+        reservation,
     };
 
     let dispatch = execution_context.dispatch;
@@ -359,6 +379,7 @@ pub fn process<
         origin: execution_context.origin,
         gas_counter: execution_context.gas_counter,
         gas_allowance_counter: execution_context.gas_allowance_counter,
+        gas_reserver: execution_context.gas_reserver,
         program: execution_context.program,
         pages_initial_data: memory_pages,
         memory_size: execution_context.memory_size,
@@ -367,6 +388,9 @@ pub fn process<
     // Sending fee: double write cost for addition and removal some time soon
     // from queue.
     //
+    // Scheduled sending fee: double write cost for addition and removal some time soon
+    // from queue and double write cost (addition and removal) for dispatch stash.
+    //
     // Waiting fee: triple write cost for addition and removal some time soon
     // from waitlist and enqueuing / sending error reply afterward.
     //
@@ -374,6 +398,7 @@ pub fn process<
     // and further enqueueing.
     let msg_ctx_settings = ContextSettings::new(
         write_cost.saturating_mul(2),
+        write_cost.saturating_mul(4),
         write_cost.saturating_mul(3),
         write_cost.saturating_mul(2),
         outgoing_limit,
@@ -524,6 +549,7 @@ fn process_success(
         awakening,
         program_candidates,
         gas_amount,
+        gas_reserver,
         page_update,
         program_id,
         context_store,
@@ -541,6 +567,33 @@ fn process_success(
         message_id,
         amount: gas_amount.burned(),
     });
+
+    if let Some(gas_reserver) = gas_reserver {
+        journal.extend(gas_reserver.states().iter().flat_map(
+            |(&reservation_id, &state)| match state {
+                GasReservationState::Exists { .. } => None,
+                GasReservationState::Created { amount, duration } => {
+                    Some(JournalNote::ReserveGas {
+                        message_id,
+                        reservation_id,
+                        program_id,
+                        amount,
+                        duration,
+                    })
+                }
+                GasReservationState::Removed { expiration } => Some(JournalNote::UnreserveGas {
+                    reservation_id,
+                    program_id,
+                    expiration,
+                }),
+            },
+        ));
+
+        journal.push(JournalNote::UpdateGasReservations {
+            program_id,
+            reserver: gas_reserver,
+        });
+    }
 
     // We check if value is greater than zero to don't provide
     // no-op journal note.

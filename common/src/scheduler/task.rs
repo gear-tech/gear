@@ -16,15 +16,14 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use codec::{Decode, Encode};
-use gear_core::{
-    ids::{CodeId, MessageId, ProgramId},
-    message::StoredDispatch,
-};
+use codec::{Decode, Encode, MaxEncodedLen};
+use gear_core::ids::{CodeId, MessageId, ProgramId, ReservationId};
 use scale_info::TypeInfo;
 
 /// Scheduled task sense and required data for processing action.
-#[derive(Clone, Debug, Eq, PartialEq, PartialOrd, Ord, Encode, Decode, TypeInfo)]
+///
+/// CAUTION: NEVER ALLOW `ScheduledTask<AccountId>` BE A BIG DATA.
+#[derive(Clone, Debug, Eq, PartialEq, PartialOrd, Ord, Encode, Decode, TypeInfo, MaxEncodedLen)]
 pub enum ScheduledTask<AccountId> {
     // Rent charging section.
     // -----
@@ -49,7 +48,12 @@ pub enum ScheduledTask<AccountId> {
     WakeMessage(ProgramId, MessageId),
 
     /// Delayed message sending.
-    SendDispatch(StoredDispatch),
+    ///
+    /// The message itself stored in DispatchStash.
+    SendDispatch(MessageId),
+
+    /// Remove gas reservation.
+    RemoveGasReservation(ProgramId, ReservationId),
 }
 
 impl<AccountId> ScheduledTask<AccountId> {
@@ -67,7 +71,10 @@ impl<AccountId> ScheduledTask<AccountId> {
             }
             RemovePausedProgram(program_id) => handler.remove_paused_program(program_id),
             WakeMessage(program_id, message_id) => handler.wake_message(program_id, message_id),
-            SendDispatch(dispatch) => handler.send_dispatch(dispatch),
+            SendDispatch(message_id) => handler.send_dispatch(message_id),
+            RemoveGasReservation(program_id, reservation_id) => {
+                handler.remove_gas_reservation(program_id, reservation_id)
+            }
         }
     }
 }
@@ -93,5 +100,19 @@ pub trait TaskHandler<AccountId> {
     fn wake_message(&mut self, program_id: ProgramId, message_id: MessageId);
 
     // Send delayed message action.
-    fn send_dispatch(&mut self, dispatch: StoredDispatch);
+    fn send_dispatch(&mut self, stashed_message_id: MessageId);
+
+    /// Remove gas reservation action.
+    fn remove_gas_reservation(&mut self, program_id: ProgramId, reservation_id: ReservationId);
+}
+
+#[test]
+fn task_encoded_size() {
+    // We will force represent task with no more then 2^8 (256) bytes.
+    const MAX_SIZE: usize = 256;
+
+    // For example we will take `AccountId` = `ProgramId` from `gear_core`.
+    type AccountId = ProgramId;
+
+    assert!(ScheduledTask::<AccountId>::max_encoded_len() <= MAX_SIZE);
 }

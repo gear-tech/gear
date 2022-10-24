@@ -28,10 +28,10 @@ use gear_core::{
     memory::{PageBuf, PageNumber, WasmPageNumber},
     message::{DispatchKind, StoredDispatch, StoredMessage},
 };
+use gear_wasm_instrument::wasm_instrument::gas_metering::ConstantCostRules;
 use hex_literal::hex;
 use sp_std::collections::btree_map::BTreeMap;
 use utils::CreateProgramResult;
-use wasm_instrument::gas_metering::ConstantCostRules;
 
 const CODE: &[u8] = &hex!("0061736d01000000010401600000020f0103656e76066d656d6f727902000103020100070a010668616e646c6500000a040102000b");
 
@@ -71,6 +71,7 @@ fn pause_program_works() {
             code_length_bytes: code_and_id.code().code().len() as u32,
             static_pages: code_and_id.code().static_pages(),
             state: ProgramState::Initialized,
+            gas_reservation_map: Default::default(),
         };
 
         GearProgram::add_code(code_and_id, CodeMetadata::new([0; 32].into(), 1)).unwrap();
@@ -149,6 +150,7 @@ fn pause_program_twice_fails() {
             code_length_bytes: code_and_id.code().code().len() as u32,
             static_pages: code_and_id.code().static_pages(),
             state: ProgramState::Initialized,
+            gas_reservation_map: Default::default(),
         };
 
         GearProgram::add_code(code_and_id, CodeMetadata::new([0; 32].into(), 1)).unwrap();
@@ -182,6 +184,7 @@ fn pause_terminated_program_fails() {
             code_length_bytes: code_and_id.code().code().len() as u32,
             static_pages: code_and_id.code().static_pages(),
             state: ProgramState::Initialized,
+            gas_reservation_map: Default::default(),
         };
 
         GearProgram::add_code(code_and_id, CodeMetadata::new([0; 32].into(), 1)).unwrap();
@@ -482,6 +485,7 @@ mod utils {
             state: ProgramState::Uninitialized {
                 message_id: init_msg_id,
             },
+            gas_reservation_map: Default::default(),
         };
 
         GearProgram::add_code(code_and_id, CodeMetadata::new([0; 32].into(), 1)).unwrap();

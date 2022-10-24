@@ -16,6 +16,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use core::convert::TryInto;
+
 use crate::{
     internal::HoldBound,
     manager::HandleKind,
@@ -44,7 +46,7 @@ use frame_support::{
     sp_runtime::traits::{TypedGet, Zero},
     traits::Currency,
 };
-use frame_system::{pallet_prelude::BlockNumberFor, Pallet as SystemPallet};
+use frame_system::pallet_prelude::BlockNumberFor;
 use gear_backend_common::{StackEndError, TrapExplanation};
 use gear_core::{
     code::{self, Code},
@@ -301,7 +303,7 @@ fn mailbox_rent_claimed() {
             assert!(!MailboxOf::<Test>::is_empty(&USER_2));
 
             run_to_block(
-                System::block_number() + duration.saturated_into::<BlockNumberFor<Test>>(),
+                Gear::block_number() + duration.saturated_into::<BlockNumberFor<Test>>(),
                 None,
             );
 
@@ -2006,7 +2008,7 @@ fn claim_value_works() {
         let reply_to_id = populate_mailbox_from_program(prog_id, USER_2, 2, gas_sent, value_sent);
         assert!(!MailboxOf::<Test>::is_empty(&USER_1));
 
-        let bn_of_insertion = System::block_number();
+        let bn_of_insertion = Gear::block_number();
         let holding_duration = 4;
 
         let GasInfo {
@@ -2556,7 +2558,7 @@ fn test_different_waits_success() {
         };
 
         let expiration = |duration: u32| -> BlockNumberFor<Test> {
-            System::block_number().saturating_add(duration.unique_saturated_into())
+            Gear::block_number().saturating_add(duration.unique_saturated_into())
         };
 
         // Command::Wait case.
@@ -2896,7 +2898,9 @@ fn test_requeue_after_wait_for_timeout() {
         let message_id = get_last_message_id();
         run_to_next_block(None);
         let now = System::block_number();
+
         System::set_block_number(duration as u64 + now - 1);
+        Gear::set_block_number((duration as u64 + now - 1).try_into().unwrap());
 
         // Clean previous events and mailbox.
         System::reset_events();
@@ -3284,6 +3288,8 @@ fn terminated_locking_funds() {
 
         // Hack to fast spend blocks till expiration.
         System::set_block_number(interval.finish - 1);
+        Gear::set_block_number((interval.finish - 1).try_into().unwrap());
+
         run_to_next_block(None);
 
         assert!(MailboxOf::<Test>::is_empty(&USER_3));
@@ -4331,6 +4337,7 @@ fn locking_gas_for_waitlist() {
         // close block number to it to check that messages keeps in
         // waitlist before and leaves it as expected.
         System::set_block_number(expiration - 2);
+        Gear::set_block_number((expiration - 2).try_into().unwrap());
 
         run_to_next_block(None);
 
@@ -5904,12 +5911,39 @@ fn test_mad_big_prog_instrumentation() {
     })
 }
 
+#[test]
+fn reject_incorrect_binary() {
+    let wat = r#"
+    (module
+        (import "env" "memory" (memory 1))
+        (export "handle" (func $handle))
+        (func $handle
+            i32.const 5
+        )
+    )"#;
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        assert_noop!(
+            Gear::upload_code(
+                RuntimeOrigin::signed(USER_1),
+                ProgramCodeKind::Custom(wat).to_bytes()
+            ),
+            Error::<Test>::FailedToConstructProgram
+        );
+
+        assert_noop!(
+            upload_program_default(USER_1, ProgramCodeKind::Custom(wat)),
+            Error::<Test>::FailedToConstructProgram
+        );
+    });
+}
+
 mod utils {
     #![allow(unused)]
 
     use super::{
-        assert_ok, pallet, run_to_block, Event, MailboxOf, MockRuntimeEvent, RuntimeOrigin,
-        SystemPallet, Test,
+        assert_ok, pallet, run_to_block, Event, MailboxOf, MockRuntimeEvent, RuntimeOrigin, Test,
     };
     use crate::{
         mock::{Balances, Gear, System},
@@ -5931,6 +5965,7 @@ mod utils {
     use gear_core::{
         ids::{CodeId, MessageId, ProgramId},
         message::StoredMessage,
+        reservation::GasReservationMap,
     };
     use gear_core_errors::ExtError;
     use sp_core::H256;
@@ -6384,6 +6419,19 @@ mod utils {
             .last()
             .map(|(msg, _bn)| msg)
             .expect("Element should be")
+    }
+
+    pub(super) fn get_reservation_map(pid: ProgramId) -> Option<GasReservationMap> {
+        let prog = common::get_program(pid.into_origin()).unwrap();
+        if let common::Program::Active(common::ActiveProgram {
+            gas_reservation_map,
+            ..
+        }) = prog
+        {
+            Some(gas_reservation_map)
+        } else {
+            None
+        }
     }
 
     #[derive(Debug, Copy, Clone)]

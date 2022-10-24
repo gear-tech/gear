@@ -19,8 +19,8 @@
 use std::ops::RangeInclusive;
 
 use arbitrary::Unstructured;
-use parity_wasm::{
-    builder,
+use gear_wasm_instrument::parity_wasm::{
+    self, builder,
     elements::{
         External, FunctionType, Instruction, Instructions, Internal, Module, Section, Type,
         ValueType,
@@ -669,7 +669,7 @@ pub fn gen_gear_program_module<'a>(u: &'a mut Unstructured<'a>, config: GearConf
     let mut module = loop {
         let module = gen_wasm_smith_module(u, &swarm_config);
         let wasm_bytes = module.to_bytes();
-        let module: Module = wasm_instrument::parity_wasm::deserialize_buffer(&wasm_bytes).unwrap();
+        let module: Module = parity_wasm::deserialize_buffer(&wasm_bytes).unwrap();
         if module.function_section().is_some() || config.process_when_no_funcs.get(u) {
             break module;
         }

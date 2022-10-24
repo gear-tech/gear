@@ -247,6 +247,7 @@ macro_rules! command {
                     code_length_bytes: 0,
                     static_pages: 0.into(),
                     state: gear_common::ProgramState::Initialized,
+                    gas_reservation_map: Default::default(),
                 };
                 gear_common::set_program(*id, program);
             }
@@ -459,7 +460,18 @@ macro_rules! command {
                             let memory =
                                 vec_page_data_map_to_page_buf_map(info.persistent_pages.clone())
                                     .unwrap();
-
+                            let gas_reservation_map = {
+                                let prog = gear_common::get_program(pid.into_origin()).unwrap();
+                                if let gear_common::Program::Active(gear_common::ActiveProgram {
+                                    gas_reservation_map,
+                                    ..
+                                }) = prog
+                                {
+                                    gas_reservation_map
+                                } else {
+                                    panic!("no gas reservation map found in program")
+                                }
+                            };
                             Some((
                                 *pid,
                                 ExecutableActorData {
@@ -470,6 +482,7 @@ macro_rules! command {
                                     static_pages: info.static_pages,
                                     initialized: true,
                                     pages_with_data: memory.keys().cloned().collect(),
+                                    gas_reservation_map,
                                 },
                                 memory,
                             ))

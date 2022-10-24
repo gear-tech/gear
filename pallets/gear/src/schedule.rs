@@ -25,13 +25,13 @@ use crate::{weights::WeightInfo, Config};
 
 use codec::{Decode, Encode};
 use gear_core::{code, costs::HostFnWeights as CoreHostFnWeights};
+use gear_wasm_instrument::{parity_wasm::elements, wasm_instrument::gas_metering};
 use pallet_gear_proc_macro::{ScheduleDebug, WeightDebug};
 use scale_info::TypeInfo;
 #[cfg(feature = "std")]
 use serde::{Deserialize, Serialize};
 use sp_runtime::RuntimeDebug;
 use sp_std::{marker::PhantomData, vec::Vec};
-use wasm_instrument::{gas_metering, parity_wasm::elements};
 
 /// How many API calls are executed in a single batch. The reason for increasing the amount
 /// of API calls in batches (per benchmark component increase) is so that the linear regression
@@ -265,6 +265,12 @@ pub struct InstructionWeights<T: Config> {
 pub struct HostFnWeights<T: Config> {
     /// Weight of calling `alloc`.
     pub alloc: u64,
+
+    /// Weight of calling `gr_reserve_gas`.
+    pub gr_reserve_gas: u64,
+
+    /// Weight of calling `gr_unreserve_gas`
+    pub gr_unreserve_gas: u64,
 
     /// Weight of calling `gr_gas_available`.
     pub gr_gas_available: u64,
@@ -566,6 +572,8 @@ impl<T: Config> HostFnWeights<T> {
     pub fn into_core(self) -> CoreHostFnWeights {
         CoreHostFnWeights {
             alloc: self.alloc,
+            gr_reserve_gas: self.gr_reserve_gas,
+            gr_unreserve_gas: self.gr_unreserve_gas,
             gr_gas_available: self.gr_gas_available,
             gr_message_id: self.gr_message_id,
             gr_origin: self.gr_origin,
@@ -607,6 +615,8 @@ impl<T: Config> Default for HostFnWeights<T> {
     fn default() -> Self {
         Self {
             alloc: cost_batched!(alloc),
+            gr_reserve_gas: cost_batched!(gr_reserve_gas),
+            gr_unreserve_gas: cost!(gr_unreserve_gas),
             gr_gas_available: cost_batched!(gr_gas_available),
             gr_message_id: cost_batched!(gr_message_id),
             gr_origin: cost_batched!(gr_origin),

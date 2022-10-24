@@ -155,6 +155,34 @@ impl ActorId {
     }
 }
 
+/// Reservation identifier.
+///
+/// The ID is used to get reserved gas.
+/// See [`exec::reserve_gas`](crate::exec::reserve_gas).
+#[derive(Clone, Copy, Debug, Default, Hash, Ord, PartialEq, PartialOrd, Eq)]
+pub struct ReservationId(pub [u8; 32]);
+
+impl ReservationId {
+    /// Get `H256` represented as a slice of `u8`.
+    pub fn as_slice(&self) -> &[u8] {
+        self.0.as_slice()
+    }
+
+    pub(crate) const fn as_ptr(&self) -> *const [u8; 32] {
+        self.0.as_ptr() as *const [u8; 32]
+    }
+
+    pub(crate) fn as_mut_ptr(&mut self) -> *mut [u8; 32] {
+        self.0.as_mut_ptr() as *mut [u8; 32]
+    }
+}
+
+impl From<[u8; 32]> for ReservationId {
+    fn from(id: [u8; 32]) -> Self {
+        Self(id)
+    }
+}
+
 #[derive(Clone, Copy, Debug, Default, Hash, Ord, PartialEq, PartialOrd, Eq)]
 pub struct CodeId(pub [u8; 32]);
 

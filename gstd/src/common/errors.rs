@@ -55,3 +55,17 @@ impl From<ExtError> for ContractError {
         Self::Ext(err)
     }
 }
+
+pub(crate) trait IntoContractResult<T> {
+    fn into_contract_result(self) -> Result<T>;
+}
+
+impl<T, E, V> IntoContractResult<V> for core::result::Result<T, E>
+where
+    T: Into<V>,
+    E: Into<ContractError>,
+{
+    fn into_contract_result(self) -> Result<V> {
+        self.map(Into::into).map_err(Into::into)
+    }
+}

@@ -19,7 +19,7 @@
 use super::*;
 
 use gear_core::memory::{PageNumber, WasmPageNumber};
-use parity_wasm::elements::*;
+use gear_wasm_instrument::parity_wasm::{self, elements::*};
 use sp_io::hashing::blake2_256;
 use sp_std::borrow::ToOwned;
 
@@ -150,6 +150,7 @@ pub fn set_program(program_id: H256, code: Vec<u8>, static_pages: WasmPageNumber
             code_length_bytes: code.len() as u32,
             static_pages,
             state: ProgramState::Initialized,
+            gas_reservation_map: GasReservationMap::default(),
         },
         persistent_pages_data,
     )

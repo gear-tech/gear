@@ -16,8 +16,8 @@ targets = ["x86_64-unknown-linux-gnu"]
 codec = { package = "parity-scale-codec", version = "3.1.2", default-features = false, features = ["derive"] }
 scale-info = { version = "2.1.1", default-features = false, features = ["derive"] }
 log = { version = "0.4.17", default-features = false }
-primitive-types = { version = "0.11.1", default-features = false, features = ["scale-info"] }
-wasm-instrument = { version = "0.2.1", git = "https://github.com/gear-tech/wasm-instrument.git", branch = "gear-stable", default-features = false }
+primitive-types = { version = "0.12.0", default-features = false, features = ["scale-info"] }
+gear-wasm-instrument = { path = "../../utils/wasm-instrument", default-features = false }
 derive_more = "0.99.17"
 
 # Internal deps
@@ -81,6 +81,7 @@ demo-mul-by-const = { path = "../../examples/binaries/mul-by-const" }
 demo-value-sender = { path = "../../examples/binaries/value-sender" }
 demo-waiter = { path = "../../examples/binaries/waiter" }
 demo-wait-timeout = { path = "../../examples/binaries/wait-timeout" }
+demo-reserve-gas = { path = "../../examples/binaries/reserve-gas" }
 page_size = "0.4.2"
 pallet-gear-gas = { path = "../gas" }
 pallet-gear-messenger = { path = "../gear-messenger" }
@@ -96,7 +97,7 @@ std = [
 	"frame-benchmarking?/std",
 	"frame-support/std",
 	"frame-system/std",
-	"wasm-instrument/std",
+	"gear-wasm-instrument/std",
 	"gear-backend-sandbox/std",
 	"gear-backend-wasmi/std",
 	"scale-info/std",
