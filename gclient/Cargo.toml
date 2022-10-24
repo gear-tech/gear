@@ -18,6 +18,11 @@ futures-timer = "3.0.2"
 async-trait = "0.1.58"
 wabt = "0.10.0"
 
+[dev-dependencies]
+tokio = { version = "1.21.2", features = ["full"] }
+wat = "1.0.49"
+async-std = "1.12"
+
 [features]
 default = [ "gear" ]
 gear = [ "gp/gear" ]
@@ -26,6 +31,3 @@ debug-mode = [ "gp/debug-mode" ]
 lazy-pages = [ "gp/lazy-pages" ]
 runtime-benchmarks = [ "gp/runtime-benchmarks" ]
 try-runtime = [ "gp/try-runtime" ]
-
-[dev-dependencies]
-tokio = { version = "1.21.2", features = ["full"] }
