@@ -1,6 +1,6 @@
 use crate::Command;
 
-use gstd::{exec, msg};
+use gstd::{errors::ContractError, exec, msg, MessageId};
 
 #[gstd::async_main]
 async fn main() {

@@ -75,15 +75,16 @@ impl<D: Decode> Future for CodecMessageFuture<D> {
 
 impl<D: Decode> CodecMessageFuture<D> {
     /// Delays handling for given specific amount of blocks.
+
     pub fn up_to(self, duration: u32) -> Self {
-        async_runtime::locks().insert(crate::msg::id(), Lock::WaitUpTo(duration));
+        async_runtime::locks().insert(crate::msg::id(), Lock::up_to(duration));
         self
     }
 
     /// Delays handling for maximal amount of blocks that could be payed, that
     /// doesn't exceed given duration.
     pub fn exactly(self, duration: u32) -> Self {
-        async_runtime::locks().insert(crate::msg::id(), Lock::WaitFor(duration));
+        async_runtime::locks().insert(crate::msg::id(), Lock::exactly(duration));
         self
     }
 }
@@ -154,6 +155,17 @@ impl Future for MessageFuture {
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let fut = &mut *self;
+
+        // check if message is timeout
+        if let Some((expected, now)) = async_runtime::locks()
+            .get(&crate::msg::id())
+            .map(|lock| lock.timeout())
+            .flatten()
+        {
+            return Poll::Ready(Err(ContractError::Timeout(expected, now)));
+        }
+
+        // do polling
         match signals().poll(fut.waiting_reply_to, cx) {
             ReplyPoll::None => panic!("Somebody created MessageFuture with the MessageId that never ended in static replies!"),
             ReplyPoll::Pending => Poll::Pending,
@@ -174,14 +186,14 @@ impl Future for MessageFuture {
 impl MessageFuture {
     /// Delays handling for given specific amount of blocks.
     pub fn up_to(self, duration: u32) -> Self {
-        async_runtime::locks().insert(crate::msg::id(), Lock::WaitUpTo(duration));
+        async_runtime::locks().insert(self.waiting_reply_to, Lock::up_to(duration));
         self
     }
 
     /// Delays handling for maximal amount of blocks that could be payed, that
     /// doesn't exceed given duration.
     pub fn exactly(self, duration: u32) -> Self {
-        async_runtime::locks().insert(crate::msg::id(), Lock::WaitFor(duration));
+        async_runtime::locks().insert(crate::msg::id(), Lock::exactly(duration));
         self
     }
 }

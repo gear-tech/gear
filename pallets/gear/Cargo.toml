@@ -80,6 +80,7 @@ demo-compose = { path = "../../examples/binaries/compose" }
 demo-mul-by-const = { path = "../../examples/binaries/mul-by-const" }
 demo-value-sender = { path = "../../examples/binaries/value-sender" }
 demo-waiter = { path = "../../examples/binaries/waiter" }
+demo-wait-timeout = { path = "../../examples/binaries/wait-timeout" }
 page_size = "0.4.2"
 pallet-gear-gas = { path = "../gas" }
 pallet-gear-messenger = { path = "../gear-messenger" }

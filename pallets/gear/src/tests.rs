@@ -2939,7 +2939,7 @@ fn test_sending_waits() {
             WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
             EMPTY_PAYLOAD.to_vec(),
-            1_000_000_000u64,
+            2_000_000_000u64,
             0u128
         ));
 
@@ -2956,12 +2956,7 @@ fn test_sending_waits() {
             RuntimeOrigin::signed(USER_1),
             program_id,
             payload,
-            // # Note
-            //
-            // just using `gas_limit` which is enough to process this message
-            // since the end cases around the `gas_limit` have already been
-            // tested in other tests.
-            1_500_000_000,
+            2_500_000_000,
             0,
         ));
 
@@ -2979,12 +2974,7 @@ fn test_sending_waits() {
             RuntimeOrigin::signed(USER_1),
             program_id,
             payload,
-            // # Note
-            //
-            // just using `gas_limit` which is enough to process this message
-            // since the end cases around the `gas_limit` have already been
-            // tested in other tests.
-            1_500_000_000,
+            2_500_000_000,
             0,
         ));
 
@@ -3002,11 +2992,6 @@ fn test_sending_waits() {
             RuntimeOrigin::signed(USER_1),
             program_id,
             payload,
-            // # Note
-            //
-            // just using `gas_limit` which is enough to process this message
-            // since the end cases around the `gas_limit` have already been
-            // tested in other tests.
             2_500_000_000,
             0,
         ));
@@ -3025,12 +3010,7 @@ fn test_sending_waits() {
             RuntimeOrigin::signed(USER_2),
             reply_to_id,
             vec![],
-            // # Note
-            //
-            // just using `gas_limit` which is enough to process this message
-            // since the end cases around the `gas_limit` have already been
-            // tested in other tests.
-            1_500_000_000,
+            2_000_000_000,
             0,
         ));
 
@@ -3040,6 +3020,52 @@ fn test_sending_waits() {
             expiration(demo_waiter::default_wait_duration())
         );
     });
+}
+
+#[test]
+fn test_wait_timeout() {
+    use demo_wait_timeout::{Command, WASM_BINARY};
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        // upload program
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
+            10_000_000u64,
+            0u128
+        ));
+
+        let program_id = get_last_program_id();
+        run_to_next_block(None);
+
+        // `Command::SendTimeout`
+        //
+        // Emits error when locks are timeout
+        let duration = 10;
+        let payload = Command::SendTimeout(USER_3.into(), duration).encode();
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_3),
+            program_id,
+            payload,
+            3_000_000_000,
+            0,
+        ));
+
+        // wait till timeout
+        run_to_next_block(None);
+        System::set_block_number(System::block_number().saturating_add((duration - 1).into()));
+        run_to_next_block(None);
+
+        let payload = MailboxOf::<Test>::iter_key(USER_3)
+            .next()
+            .map(|(msg, _bn)| msg.payload().to_vec())
+            .expect("Element should be");
+
+        assert_eq!(payload, b"timeout");
+    })
 }
 
 #[test]
