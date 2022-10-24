@@ -3054,15 +3054,29 @@ fn test_wait_timeout() {
             RuntimeOrigin::signed(USER_3),
             program_id,
             payload,
-            3_000_000_000,
+            10_000_000_000,
             0,
         ));
 
-        // wait till timeout
         run_to_next_block(None);
-        System::set_block_number(System::block_number().saturating_add((duration - 1).into()));
+        let now = System::block_number();
+        let target = duration as u64 + now - 1;
+
+        // Try waking the processed message.
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_3),
+            program_id,
+            Command::Wake.encode(),
+            10_000_000,
+            0,
+        ));
+
+        run_to_next_block(None);
+        System::set_block_number(target);
+        Gear::set_block_number(target.try_into().unwrap());
         run_to_next_block(None);
 
+        // Timeout still works.
         let payload = MailboxOf::<Test>::iter_key(USER_3)
             .next()
             .map(|(msg, _bn)| msg.payload().to_vec())

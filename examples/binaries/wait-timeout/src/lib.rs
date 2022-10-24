@@ -41,6 +41,5 @@ pub fn default_wait_duration() -> u32 {
 #[derive(Debug, Encode, Decode)]
 pub enum Command {
     Wake,
-    Wait(ActorId),
     SendTimeout(ActorId, u32),
 }

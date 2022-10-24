@@ -45,13 +45,7 @@ impl Lock {
     /// Get bound of the current lock
     pub fn bound(&self) -> u32 {
         match &self.ty {
-            LockType::WaitFor(d) => {
-                // TODO:
-                //
-                // Calculate the bound with the hold cost per block
-                self.at + *d * 2
-            }
-            LockType::WaitUpTo(d) => self.at + *d,
+            LockType::WaitFor(d) | LockType::WaitUpTo(d) => self.at + *d,
         }
     }
 

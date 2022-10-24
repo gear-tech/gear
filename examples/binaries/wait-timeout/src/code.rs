@@ -15,13 +15,6 @@ async fn main() {
                 exec::wake(id);
             }
         },
-        Command::Wait(to) => {
-            msg::send_bytes_for_reply(to, b"", 0)
-                .expect("send reply failed")
-                .await;
-
-            msg::reply(b"", 0).expect("failed to send reply");
-        }
         Command::SendTimeout(to, duration) => {
             unsafe { TIMEOUT_MESSAGE_ID = Some(msg::id()) };
 
