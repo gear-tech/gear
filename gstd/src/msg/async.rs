@@ -186,16 +186,7 @@ impl Future for MessageFuture {
 impl MessageFuture {
     /// Delays handling for given specific amount of blocks.
     pub fn up_to(self, duration: u32) -> Self {
-        let locks = async_runtime::locks();
-        let msg_id = crate::msg::id();
-        if let Some(_) = locks.get(&msg_id) {
-            // # TODO
-            //
-            // resetting locks
-        } else {
-            async_runtime::locks().insert(msg_id, Lock::up_to(duration));
-        }
-
+        async_runtime::locks().insert(self.waiting_reply_to, Lock::up_to(duration));
         self
     }
 
