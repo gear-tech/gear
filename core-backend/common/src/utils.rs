@@ -19,7 +19,6 @@
 use crate::StackEndError;
 use alloc::string::String;
 use gear_core::memory::WasmPageNumber;
-use rand::RngCore;
 
 #[macro_export]
 macro_rules! assert_ok {
@@ -71,7 +70,7 @@ pub fn calc_stack_end(stack_end: Option<i32>) -> Result<Option<WasmPageNumber>, 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rand::{distributions::Standard, thread_rng, Rng};
+    use rand::{distributions::Standard, Rng};
 
     fn assert_result(string: &'static str, max_bytes: usize, expectation: &'static str) {
         let mut string = string.into();
