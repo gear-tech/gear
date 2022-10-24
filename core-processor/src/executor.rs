@@ -64,7 +64,6 @@ fn charge_gas(
     if gas_allowance_counter.charge(amount) != ChargeResult::Enough {
         return Err(ExecutionErrorReason::BlockGasExceeded(operation));
     }
-
     if gas_counter.charge(amount) != ChargeResult::Enough {
         return Err(ExecutionErrorReason::GasExceeded(operation));
     }
@@ -80,7 +79,6 @@ fn charge_gas_for_bytes(
     if gas_allowance_counter.charge(amount) != ChargeResult::Enough {
         return ChargeForBytesResult::BlockGasExceeded;
     }
-
     if gas_counter.charge(amount) != ChargeResult::Enough {
         return ChargeForBytesResult::GasExceeded;
     }
@@ -149,9 +147,7 @@ pub(crate) fn charge_gas_for_instantiation(
     gas_allowance_counter: &mut GasAllowanceCounter,
 ) -> Result<(), ExecutionErrorReason> {
     let amount = gas_per_byte * code_length as u64;
-
     log::trace!("Charge {} for module instantiation", amount);
-
     charge_gas(
         GasOperation::ModuleInstantiation,
         amount,
@@ -283,6 +279,7 @@ fn get_pages_to_be_updated<A: ProcessorExt>(
         // In lazy pages mode we update some page data in storage,
         // when it has been write accessed, so no need to compare old and new page data.
         // FIXME: I'd add a `cfg` attr here, as it is not cheap
+        #[cfg(verbose)]
         new_pages_data.keys().for_each(|page| {
             log::trace!("{:?} has been write accessed, update it in storage", page)
         });
@@ -348,7 +345,7 @@ pub fn execute_wasm<
     log::debug!("Executing dispatch {:?}", dispatch);
 
     let static_pages = program.static_pages();
-    let allocations = program.get_allocations();
+    let allocations = program.allocations();
 
     if let Err(reason) = check_memory(
         allocations,
@@ -501,4 +498,30 @@ pub fn execute_wasm<
         page_update,
         allocations: info.allocations,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn check_memory_insufficient() {
+        let res = check_memory(&[].into(), [].iter(), 8.into(), 4.into());
+        assert_eq!(res, Err(ExecutionErrorReason::InsufficientMemorySize));
+    }
+
+    #[test]
+    fn check_memory_ok() {
+        let pages = [0, 1, 2, 8, 18, 25, 27, 28];
+        let allocations = pages
+            .iter()
+            .map(|p| WasmPageNumber(p / PageNumber::num_in_one_wasm_page()));
+        let res = check_memory(
+            &allocations.collect(),
+            pages.map(PageNumber).iter(),
+            4.into(),
+            8.into(),
+        );
+        assert!(res.is_ok());
+    }
 }

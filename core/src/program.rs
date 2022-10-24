@@ -93,13 +93,13 @@ impl Program {
     }
 
     /// Get reference to memory pages.
-    pub fn get_allocations(&self) -> &BTreeSet<WasmPageNumber> {
+    pub fn allocations(&self) -> &BTreeSet<WasmPageNumber> {
         &self.allocations
     }
 
-    /// Get mut reference to memory pages.
-    pub fn get_allocations_mut(&mut self) -> &mut BTreeSet<WasmPageNumber> {
-        &mut self.allocations
+    /// Set reference to memory pages.
+    pub fn set_allocations(&mut self, allocations: BTreeSet<WasmPageNumber>) {
+        self.allocations = allocations;
     }
 
     /// Clear static area of this program.
@@ -167,6 +167,6 @@ mod tests {
         assert_eq!(program.static_pages(), 2.into());
 
         // Has no allocations because we do not set them in new
-        assert_eq!(program.get_allocations().len(), 0);
+        assert_eq!(program.allocations().len(), 0);
     }
 }
