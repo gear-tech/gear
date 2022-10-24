@@ -33,7 +33,6 @@ use crate::{
         RuntimeEvent as MockRuntimeEvent,
         RuntimeOrigin,
         System,
-        SystemConfig,
         Test,
         BLOCK_AUTHOR,
         LOW_BALANCE_USER,
@@ -59,8 +58,7 @@ use frame_support::{
     assert_noop, assert_ok,
     dispatch::Dispatchable,
     sp_runtime::traits::{TypedGet, Zero},
-    traits::Currency,
-    traits::Randomness,
+    traits::{Currency, Randomness},
 };
 use frame_system::pallet_prelude::BlockNumberFor;
 use gear_backend_common::{StackEndError, TrapExplanation};
@@ -6674,7 +6672,7 @@ fn check_random_works() {
 
         let mut random_data = Vec::new();
 
-        (1..10).for_each(|n| {
+        (1..10).for_each(|_| {
             assert_ok!(Gear::send_message(
                 RuntimeOrigin::signed(USER_1),
                 sender,
@@ -6696,10 +6694,14 @@ fn check_random_works() {
             MailboxOf::<Test>::iter_key(USER_1).collect();
         sorted_mailbox.sort_by(|a, b| a.1.finish.cmp(&b.1.finish));
 
-        sorted_mailbox.iter()
+        sorted_mailbox
+            .iter()
             .zip(random_data.iter())
-            .for_each(|((msg, bn), random_data)| {
-                assert_eq!(blake2b(32, &[], &random_data.encode()).as_bytes(), msg.payload());
+            .for_each(|((msg, _bn), random_data)| {
+                assert_eq!(
+                    blake2b(32, &[], &random_data.encode()).as_bytes(),
+                    msg.payload()
+                );
             });
 
         // // assert_last_dequeued(1);

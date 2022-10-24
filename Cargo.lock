@@ -2565,7 +2565,7 @@ dependencies = [
 [[package]]
 name = "frame-support-test"
 version = "3.0.0"
-source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#584706a5b850f3b469ca16bffb8b6a86f29aa8b9"
+source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#988411fe2cbf47e09014c8e1512e05f28f08d941"
 dependencies = [
  "frame-support",
  "frame-support-test-pallet",
@@ -2575,12 +2575,12 @@ dependencies = [
  "rustversion",
  "scale-info",
  "serde",
- "sp-arithmetic 5.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-core 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-io 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-runtime 6.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-state-machine 0.12.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
- "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-arithmetic",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
+ "sp-state-machine",
+ "sp-std",
  "sp-version",
  "trybuild",
 ]
@@ -2588,7 +2588,7 @@ dependencies = [
 [[package]]
 name = "frame-support-test-pallet"
 version = "4.0.0-dev"
-source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#584706a5b850f3b469ca16bffb8b6a86f29aa8b9"
+source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#988411fe2cbf47e09014c8e1512e05f28f08d941"
 dependencies = [
  "frame-support",
  "frame-system",
@@ -3340,6 +3340,7 @@ dependencies = [
  "once_cell",
  "parity-scale-codec",
  "primitive-types",
+ "rand 0.8.5",
  "rayon",
  "regex",
  "serde",
@@ -3617,6 +3618,7 @@ dependencies = [
  "log",
  "parity-scale-codec",
  "path-clean",
+ "rand 0.8.5",
 ]
 
 [[package]]

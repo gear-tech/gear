@@ -347,11 +347,12 @@ pub fn origin() -> ActorId {
 
 /// Get the random seed, along with the time in the past
 /// since when it was determinable by chain observers.
-/// The random seed is determined from the random seed of the block with the message id as the subject.
+/// The random seed is determined from the random seed of the block with the
+/// message id as the subject.
 ///
-/// `subject` is a context identifier and allows you to get a different results within the execution.
-/// use it like `random(&b"my context"[..])`.
-/// 
+/// `subject` is a context identifier and allows you to get a different results
+/// within the execution. use it like `random(&b"my context"[..])`.
+///
 /// # Security
 ///
 /// This MUST NOT be used for gambling, as it can be influenced by a
@@ -360,7 +361,7 @@ pub fn origin() -> ActorId {
 /// (like everything else on-chain) it is public. For example, it can be
 /// used where a number is needed that cannot have been chosen by an
 /// adversary, for purposes such as public-coin zero-knowledge proofs.
-/// 
+///
 /// # Examples
 ///
 /// ```
