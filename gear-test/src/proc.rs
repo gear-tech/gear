@@ -30,13 +30,13 @@ use gear_core::{
     ids::{MessageId, ProgramId},
     message::{Dispatch, DispatchKind, IncomingDispatch, IncomingMessage, Message},
 };
+use gear_wasm_instrument::wasm_instrument::gas_metering::ConstantCostRules;
 use regex::Regex;
 use std::{
     convert::TryInto,
     io::{Error as IoError, ErrorKind as IoErrorKind},
     time::{SystemTime, UNIX_EPOCH},
 };
-use wasm_instrument::gas_metering::ConstantCostRules;
 
 pub const EXISTENTIAL_DEPOSIT: u128 = 500;
 pub const OUTGOING_LIMIT: u32 = 1024;
