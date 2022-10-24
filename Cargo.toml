@@ -35,6 +35,7 @@ members = [
     "utils/economic-checks",
     "utils/economic-checks/fuzz",
     "utils/wasm-gen",
+    "utils/wasm-instrument",
     "utils/node-loader/",
     "utils/test-runtime",
     "utils/test-runtime/client",

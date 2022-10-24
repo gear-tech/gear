@@ -18,7 +18,7 @@
 
 use std::collections::BTreeMap;
 
-use parity_wasm::elements::{FunctionType, ValueType};
+use gear_wasm_instrument::parity_wasm::elements::{FunctionType, ValueType};
 
 use crate::{GearConfig, ParamRule, Ratio};
 
@@ -312,7 +312,7 @@ fn test_sys_calls_table() {
     use gear_backend_common::{mock::MockExt, Environment, TerminationReason};
     use gear_backend_wasmi::WasmiEnvironment;
     use gear_core::message::DispatchKind;
-    use wasm_instrument::parity_wasm::builder;
+    use gear_wasm_instrument::parity_wasm::{self, builder};
 
     let config = GearConfig::new_normal();
     let table = sys_calls_table(&config);
