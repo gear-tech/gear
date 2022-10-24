@@ -81,11 +81,9 @@ async fn harmless_upload() -> Result<()> {
     Ok(())
 }
 
-#[test]
-fn alloc_zero_pages() {
-    #[tokio::main()]
-    async fn start_tokio() -> Result<()> {
-        let wat_code = r#"
+#[tokio::test]
+async fn alloc_zero_pages() -> Result<()> {
+    let wat_code = r#"
         (module
             (import "env" "memory" (memory 0))
             (import "env" "alloc" (func $alloc (param i32) (result i32)))
@@ -96,19 +94,12 @@ fn alloc_zero_pages() {
                 drop
             )
         )"#;
-        let api = GearApi::dev().await?.with("//Bob")?;
-        let codes = vec![wat::parse_str(wat_code).unwrap()];
-        upload_programs_and_check(&api, codes).await
-    }
-
-    let t = std::thread::spawn(start_tokio);
-
-    // Wait 5 seconds - if node correctly handle program upload, then thread would finish execution.
-    std::thread::sleep(Duration::from_secs(5));
-
-    if !t.is_finished() {
-        panic!("Alloc zero pages test running too long");
-    } else {
-        t.join().unwrap().unwrap();
-    }
+    let api = GearApi::dev().await?.with("//Bob")?;
+    let codes = vec![wat::parse_str(wat_code).unwrap()];
+    async_std::future::timeout(
+        Duration::from_secs(5),
+        upload_programs_and_check(&api, codes),
+    )
+    .await
+    .expect("Too long test upload time - something goes wrong.")
 }
