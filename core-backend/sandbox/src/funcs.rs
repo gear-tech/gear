@@ -72,6 +72,8 @@ pub enum FuncError<E: Display> {
     ReadWrongRange(Range<u32>, u32),
     #[display(fmt = "Overflow at {_0} + len {_1} in `gr_read`")]
     ReadLenOverflow(u32, u32),
+    #[display(fmt = "Binary code has wrong instrumentation")]
+    WrongInstrumentation,
 }
 
 impl<E: Display> FuncError<E> {
@@ -317,25 +319,6 @@ where
                 .error_len_on_success(|exit_code| {
                     ctx.write_output(exit_code_ptr, exit_code.to_le_bytes().as_ref())
                 })
-        })
-    }
-
-    pub fn gas(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
-        sys_trace!(target: "gas::gear", "gas, args = {}", args_to_str(args));
-
-        let gas = args.iter().read()?;
-
-        ctx.run(|ctx| {
-            ctx.ext.gas(gas).map_err(|e| {
-                if matches!(
-                    e.as_termination_reason(),
-                    Some(&TerminationReason::GasAllowanceExceeded)
-                ) {
-                    FuncError::Terminated(TerminationReason::GasAllowanceExceeded)
-                } else {
-                    FuncError::Core(e)
-                }
-            })
         })
     }
 
@@ -768,7 +751,7 @@ where
         })
     }
 
-    pub fn error(ctx: &mut Runtime<E>, args: &[Value]) -> Result<ReturnValue, HostError> {
+    pub fn error(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
         sys_trace!(target: "syscall::gear", "error, args = {}", args_to_str(args));
 
         let buffer_ptr = args.iter().read()?;
@@ -786,6 +769,23 @@ where
         sys_trace!(target: "syscall::gear", "forbidden");
 
         ctx.run(|_ctx| -> Result<(), _> { Err(FuncError::Core(E::Error::forbidden_function())) })
+    }
+
+    pub fn out_of_gas(ctx: &mut Runtime<E>, _args: &[Value]) -> SyscallOutput {
+        sys_trace!(target: "syscall::gear", "out_of_gas");
+
+        ctx.err = FuncError::Core(ctx.ext.out_of_gas());
+
+        Err(HostError)
+    }
+
+    pub fn out_of_allowance(ctx: &mut Runtime<E>, _args: &[Value]) -> SyscallOutput {
+        sys_trace!(target: "syscall::gear", "out_of_allowance");
+
+        ctx.ext.out_of_allowance();
+        ctx.err = FuncError::Terminated(TerminationReason::GasAllowanceExceeded);
+
+        Err(HostError)
     }
 }
 

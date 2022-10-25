@@ -36,9 +36,8 @@ use gear_backend_common::{
     STACK_END_EXPORT_NAME,
 };
 use gear_core::{env::Ext, gas::GasAmount, memory::WasmPageNumber, message::DispatchKind};
-use wasmi::{
-    Engine, Extern, Instance, Linker, Memory as WasmiMemory, Memory, MemoryType, Module, Store,
-};
+use gear_wasm_instrument::{GLOBAL_NAME_ALLOWANCE, GLOBAL_NAME_GAS};
+use wasmi::{core::Value, Engine, Extern, Instance, Linker, Memory, MemoryType, Module, Store};
 
 #[derive(Debug, derive_more::Display, derive_more::From)]
 pub enum WasmiEnvironmentError {
@@ -56,6 +55,10 @@ pub enum WasmiEnvironmentError {
     PreExecutionHandler(String),
     #[from]
     StackEnd(StackEndError),
+    #[display(fmt = "Gas counter not found or has wrong type")]
+    WrongInjectedGas,
+    #[display(fmt = "Allowance counter not found or has wrong type")]
+    WrongInjectedAllowance,
 }
 
 #[derive(Debug, derive_more::Display, derive_more::From)]
@@ -112,7 +115,7 @@ where
         let mut linker: Linker<HostState<E>> = Linker::new();
 
         let memory_type = MemoryType::new(mem_size.0, None);
-        let memory = WasmiMemory::new(&mut store, memory_type)
+        let memory = Memory::new(&mut store, memory_type)
             .map_err(|e| (ext.gas_amount(), CreateEnvMemory(e)))?;
 
         linker
@@ -167,7 +170,7 @@ where
 
         let Self {
             instance,
-            store,
+            mut store,
             memory,
             entries,
         } = self;
@@ -178,6 +181,29 @@ where
             .and_then(|g| g.get(&store).try_into::<i32>());
         let stack_end_page =
             calc_stack_end(stack_end).map_err(|e| (gas_amount!(store), StackEnd(e)))?;
+
+        let (gas, allowance) = store
+            .state()
+            .as_ref()
+            .expect("should be set")
+            .ext
+            .counters();
+
+        let gear_gas = instance
+            .get_export(&store, GLOBAL_NAME_GAS)
+            .and_then(Extern::into_global)
+            .and_then(|g| g.set(&mut store, Value::I64(gas as i64)).map(|_| g).ok())
+            .ok_or((gas_amount!(store), WrongInjectedGas))?;
+
+        let gear_allowance = instance
+            .get_export(&store, GLOBAL_NAME_ALLOWANCE)
+            .and_then(Extern::into_global)
+            .and_then(|g| {
+                g.set(&mut store, Value::I64(allowance as i64))
+                    .map(|_| g)
+                    .ok()
+            })
+            .ok_or((gas_amount!(store), WrongInjectedAllowance))?;
 
         let mut memory_wrap = MemoryWrap::new(memory, store);
         pre_execution_handler(&mut memory_wrap, stack_end_page).map_err(|e| {
@@ -212,13 +238,29 @@ where
             Ok(())
         };
 
+        let gas = gear_gas.get(&memory_wrap.store).try_into::<i64>().ok_or({
+            let store = &memory_wrap.store;
+            (gas_amount!(store), WrongInjectedGas)
+        })?;
+        let allowance = gear_allowance
+            .get(&memory_wrap.store)
+            .try_into::<i64>()
+            .ok_or({
+                let store = &memory_wrap.store;
+                (gas_amount!(store), WrongInjectedAllowance)
+            })?;
+
         let runtime = memory_wrap
             .store
             .state_mut()
             .take()
             .expect("set before the block; qed");
 
-        let State { ext, err: trap, .. } = runtime;
+        let State {
+            mut ext, err: trap, ..
+        } = runtime;
+
+        ext.update_counters(gas as u64, allowance as u64);
 
         log::debug!("WasmiEnvironment::execute result = {res:?}");
 
