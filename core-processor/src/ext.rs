@@ -107,13 +107,13 @@ pub trait ProcessorExt {
 #[derive(Debug, Clone, Eq, PartialEq, derive_more::Display, derive_more::From, Encode, Decode)]
 pub enum ProcessorError {
     /// Basic error
-    #[display(fmt = "{}", _0)]
+    #[display(fmt = "{_0}")]
     Core(ExtError),
     /// Termination reason occurred in a syscall
-    #[display(fmt = "Terminated: {:?}", _0)]
+    #[display(fmt = "Terminated: {_0:?}")]
     Terminated(TerminationReason),
     /// User's code panicked
-    #[display(fmt = "Panic occurred: {}", _0)]
+    #[display(fmt = "Panic occurred: {_0}")]
     Panic(String),
 }
 

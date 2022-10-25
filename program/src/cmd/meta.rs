@@ -26,7 +26,7 @@ impl Meta {
         let meta = Metadata::of(&wasm)?;
 
         match self.action {
-            Action::Display => println!("{}", format!("{:#}", meta).replace('"', "")),
+            Action::Display => println!("{}", format!("{meta:#}").replace('"', "")),
         }
 
         Ok(())

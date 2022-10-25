@@ -58,7 +58,7 @@ impl New {
                 crate::template::create(template)?;
             }
 
-            println!("Successfully created {}!", template);
+            println!("Successfully created {template}!");
         } else {
             Self::help();
         }

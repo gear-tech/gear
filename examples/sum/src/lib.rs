@@ -32,7 +32,7 @@ fn decode_hex(s: &str) -> Result<Vec<u8>, ParseIntError> {
 #[no_mangle]
 unsafe extern "C" fn handle() {
     let new_msg: i32 = msg::load().expect("Should be i32");
-    MESSAGE_LOG.push(format!("(sum) New msg: {:?}", new_msg));
+    MESSAGE_LOG.push(format!("(sum) New msg: {new_msg:?}"));
     debug!("sum gas_available: {}", exec::gas_available());
 
     msg::send(STATE.send_to(), new_msg + new_msg, 0).unwrap();

@@ -209,7 +209,7 @@ mod tests {
         let value = serde_yaml::from_str::<Value>(yaml).expect("Unable to create serde Value");
         let json = serde_json::to_string(&value).expect("Unable to create json from serde Value");
 
-        println!("{}", json);
+        println!("{json}");
 
         let json = MetaData::Json(json);
 
@@ -252,7 +252,7 @@ mod tests {
         let value = serde_yaml::from_str::<Value>(yaml).expect("Unable to create serde Value");
         let json = serde_json::to_string(&value).expect("Unable to create json from serde Value");
 
-        println!("{}", json);
+        println!("{json}");
 
         let json = MetaData::Json(json);
 
