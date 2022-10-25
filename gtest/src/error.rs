@@ -79,4 +79,8 @@ pub enum TestError {
     /// Wrapper for [`parity_scale_codec::Error`](https://docs.rs/parity-scale-codec/latest/parity_scale_codec/struct.Error.html).
     #[display(fmt = "{_0}")]
     ScaleCodecError(CodecError),
+
+    /// Instrumentation of binary code failed.
+    #[display(fmt = "Instrumentation of binary code failed.")]
+    Instrumentation,
 }

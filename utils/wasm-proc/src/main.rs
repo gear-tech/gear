@@ -21,7 +21,7 @@ use gear_wasm_builder::optimize::{OptType, Optimizer};
 use parity_wasm::elements::External;
 use std::{collections::HashSet, fs, path::PathBuf};
 
-const RT_ALLOWED_IMPORTS: [&str; 49] = [
+const RT_ALLOWED_IMPORTS: [&str; 50] = [
     // From `Allocator` (substrate/primitives/io/src/lib.rs)
     "ext_allocator_free_version_1",
     "ext_allocator_malloc_version_1",
@@ -56,6 +56,7 @@ const RT_ALLOWED_IMPORTS: [&str; 49] = [
     // From `Sandbox` (substrate/primitives/io/src/lib.rs)
     "ext_sandbox_get_buff_version_1",
     "ext_sandbox_get_global_val_version_1",
+    "ext_sandbox_set_global_val_version_1",
     "ext_sandbox_instance_teardown_version_1",
     "ext_sandbox_instantiate_version_1",
     "ext_sandbox_invoke_version_1",

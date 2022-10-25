@@ -605,7 +605,7 @@ pub mod pallet {
             <BlockNumber<T>>::put(bn.saturated_into::<T::BlockNumber>());
         }
 
-        /// Submit program for benchmarks which does not check nor instrument the code.
+        /// Submit program for benchmarks which does not check the code.
         #[cfg(feature = "runtime-benchmarks")]
         pub fn upload_program_raw(
             origin: OriginFor<T>,
@@ -629,7 +629,7 @@ pub mod pallet {
                 code,
                 schedule.instruction_weights.version,
                 Some(module),
-                false,
+                true,
             )
             .map_err(|e| {
                 log::debug!("Code failed to load: {:?}", e);
