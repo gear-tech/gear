@@ -7,7 +7,7 @@ static mut MESSAGE_LOG: Vec<String> = vec![];
 #[no_mangle]
 unsafe extern "C" fn handle() {
     let new_msg: i32 = msg::load().expect("Should be i32");
-    MESSAGE_LOG.push(format!("(vec) New msg: {:?}", new_msg));
+    MESSAGE_LOG.push(format!("(vec) New msg: {new_msg:?}"));
     let v = vec![1u8; new_msg as usize];
     debug!("v.len() = {:?}", v.len());
     debug!(
