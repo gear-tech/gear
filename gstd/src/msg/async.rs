@@ -187,6 +187,7 @@ impl Future for MessageFuture {
         if let Some((expected, now)) =
             async_runtime::locks().is_timeout(msg_id, fut.waiting_reply_to)
         {
+            async_runtime::locks().remove_all(msg_id);
             return Poll::Ready(Err(ContractError::Timeout(expected, now)));
         }
 

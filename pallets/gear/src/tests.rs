@@ -3049,9 +3049,9 @@ fn test_wait_timeout() {
         //
         // Emits error when locks are timeout
         let duration = 10;
-        let payload = Command::SendTimeout(USER_3.into(), duration).encode();
+        let payload = Command::SendTimeout(USER_1.into(), duration).encode();
         assert_ok!(Gear::send_message(
-            RuntimeOrigin::signed(USER_3),
+            RuntimeOrigin::signed(USER_1),
             program_id,
             payload,
             10_000_000_000,
@@ -3064,7 +3064,7 @@ fn test_wait_timeout() {
 
         // Try waking the processed message.
         assert_ok!(Gear::send_message(
-            RuntimeOrigin::signed(USER_3),
+            RuntimeOrigin::signed(USER_1),
             program_id,
             Command::Wake.encode(),
             10_000_000,
@@ -3074,15 +3074,113 @@ fn test_wait_timeout() {
         run_to_next_block(None);
         System::set_block_number(target);
         Gear::set_block_number(target.try_into().unwrap());
+        System::reset_events();
         run_to_next_block(None);
 
         // Timeout still works.
-        let payload = MailboxOf::<Test>::iter_key(USER_3)
-            .next()
-            .map(|(msg, _bn)| msg.payload().to_vec())
-            .expect("Element should be");
+        assert!(MailboxOf::<Test>::iter_key(USER_1)
+            .any(|(msg, _bn)| msg.payload().to_vec() == b"timeout"));
+    })
+}
 
-        assert_eq!(payload, b"timeout");
+#[test]
+fn test_join_wait_timeout() {
+    use demo_wait_timeout::{Command, WASM_BINARY};
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
+            10_000_000u64,
+            0u128
+        ));
+
+        let program_id = get_last_program_id();
+        run_to_next_block(None);
+
+        let duration_a = 5;
+        let duration_b = 10;
+        let payload = Command::JoinTimeout(USER_1.into(), duration_a, duration_b).encode();
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            program_id,
+            payload,
+            10_000_000_000,
+            0,
+        ));
+
+        run_to_next_block(None);
+
+        // Run to each of the targets and check if we can get the timeout result.
+        let now = System::block_number();
+        let targets = [duration_a, duration_b].map(|target| target as u64 + now - 1);
+        let run_to_target = |target: u64| {
+            System::set_block_number(target);
+            Gear::set_block_number(target.try_into().unwrap());
+            run_to_next_block(None);
+        };
+
+        // Run to the end of the first duration.
+        //
+        // The timeout message has not been triggered yet.
+        run_to_target(targets[0]);
+        assert!(!MailboxOf::<Test>::iter_key(USER_1)
+            .any(|(msg, _bn)| msg.payload().to_vec() == b"timeout"));
+
+        // Run to the end of the second duration.
+        //
+        // The timeout message has been triggered.
+        run_to_target(targets[1]);
+        assert!(MailboxOf::<Test>::iter_key(USER_1)
+            .any(|(msg, _bn)| msg.payload().to_vec() == b"timeout"));
+    })
+}
+
+#[test]
+fn test_select_wait_timeout() {
+    use demo_wait_timeout::{Command, WASM_BINARY};
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
+            10_000_000u64,
+            0u128
+        ));
+
+        let program_id = get_last_program_id();
+        run_to_next_block(None);
+
+        let duration_a = 5;
+        let duration_b = 10;
+        let payload = Command::SelectTimeout(USER_1.into(), duration_a, duration_b).encode();
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            program_id,
+            payload,
+            10_000_000_000,
+            0,
+        ));
+
+        run_to_next_block(None);
+
+        // Run to the end of the first duration.
+        //
+        // The timeout message has been triggered.
+        let now = System::block_number();
+        let target = duration_b as u64 + now - 1;
+        System::set_block_number(target);
+        Gear::set_block_number(target.try_into().unwrap());
+        run_to_next_block(None);
+
+        assert!(MailboxOf::<Test>::iter_key(USER_1)
+            .any(|(msg, _bn)| msg.payload().to_vec() == b"timeout"));
     })
 }
 

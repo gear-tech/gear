@@ -75,7 +75,7 @@ impl Default for LockType {
 }
 
 /// DoubleMap for wait locks.
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct LocksMap(BTreeMap<MessageId, BTreeMap<MessageId, Lock>>);
 
 impl LocksMap {
@@ -95,6 +95,11 @@ impl LocksMap {
     pub fn lock(&mut self, message_id: MessageId, waiting_reply_to: MessageId, lock: Lock) {
         let locks = self.0.entry(message_id).or_insert_with(Default::default);
         locks.insert(waiting_reply_to, lock);
+    }
+
+    /// Remove all locks of message.
+    pub fn remove_all(&mut self, message_id: MessageId) {
+        self.0.remove(&message_id);
     }
 
     /// Remove lock of message.

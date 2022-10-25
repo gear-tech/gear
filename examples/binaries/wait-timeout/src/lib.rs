@@ -42,4 +42,6 @@ pub fn default_wait_duration() -> u32 {
 pub enum Command {
     Wake,
     SendTimeout(ActorId, u32),
+    JoinTimeout(ActorId, u32, u32),
+    SelectTimeout(ActorId, u32, u32),
 }
