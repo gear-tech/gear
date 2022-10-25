@@ -132,9 +132,6 @@ pub trait Ext {
     /// Size of currently handled message payload.
     fn size(&mut self) -> Result<usize, Self::Error>;
 
-    /// Default gas host call.
-    fn gas(&mut self, amount: u32) -> Result<(), Self::Error>;
-
     /// Charge some extra gas.
     fn charge_gas(&mut self, amount: u64) -> Result<(), Self::Error>;
 
@@ -181,4 +178,16 @@ pub trait Ext {
 
     /// Return the set of functions that are forbidden to be called.
     fn forbidden_funcs(&self) -> &BTreeSet<&'static str>;
+
+    /// Return gas and gas allowance left in the counters.
+    fn counters(&self) -> (u64, u64);
+
+    /// Update counters with the provided values.
+    fn update_counters(&mut self, gas: u64, allowance: u64);
+
+    /// Handler for the case when gas is out.
+    fn out_of_gas(&mut self) -> Self::Error;
+
+    /// Handler for the case when gas allowance is out.
+    fn out_of_allowance(&mut self) -> Self::Error;
 }

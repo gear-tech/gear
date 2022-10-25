@@ -2,7 +2,7 @@
 use crate::common::{self, Result, ALICE_SS58_ADDRESS as ADDRESS};
 use gear_program::api::Api;
 
-const REWARD_PER_BLOCK: u128 = 3000;
+const REWARD_PER_BLOCK: u128 = 3_000_000; // 3_000 gas * 1_000 value per gas
 
 #[tokio::test]
 async fn test_command_claim_works() -> Result<()> {

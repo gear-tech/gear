@@ -64,11 +64,15 @@ fn unstoppable_block_execution_works() {
     let minimal_weight = mock::get_min_weight();
 
     new_test_ext().execute_with(|| {
-        let user_balance = Balances::free_balance(USER_1) as u64;
-        let executions_amount = 10;
-        let balance_for_each_execution = user_balance / executions_amount;
+        let user_balance = Balances::free_balance(USER_1);
+        let user_gas = Balances::free_balance(USER_1) as u64 / 1_000;
 
-        assert!(balance_for_each_execution < BlockGasLimitOf::<Test>::get());
+        // This manipulations are required due to we have only gas to value conversion.
+        assert_eq!(GasPrice::gas_price(user_gas), user_balance);
+        let executions_amount = 10;
+        let gas_for_each_execution = user_gas / executions_amount;
+
+        assert!(gas_for_each_execution < BlockGasLimitOf::<Test>::get());
 
         let program_id = {
             let res = upload_program_default(USER_2, ProgramCodeKind::Default);
@@ -91,14 +95,14 @@ fn unstoppable_block_execution_works() {
         )
         .expect("calculate_gas_info failed");
 
-        assert!(balance_for_each_execution > expected_burned_gas);
+        assert!(gas_for_each_execution > expected_burned_gas);
 
         for _ in 0..executions_amount {
             assert_ok!(Gear::send_message(
                 RuntimeOrigin::signed(USER_1),
                 program_id,
                 EMPTY_PAYLOAD.to_vec(),
-                balance_for_each_execution,
+                gas_for_each_execution,
                 0,
             ));
         }
@@ -106,7 +110,7 @@ fn unstoppable_block_execution_works() {
         let real_gas_to_burn = expected_burned_gas
             + executions_amount.saturating_sub(1) * (expected_burned_gas - may_be_returned);
 
-        assert!(balance_for_each_execution * executions_amount > real_gas_to_burn);
+        assert!(gas_for_each_execution * executions_amount > real_gas_to_burn);
 
         run_to_block(3, Some(minimal_weight.ref_time() + real_gas_to_burn));
 
@@ -115,8 +119,8 @@ fn unstoppable_block_execution_works() {
         assert_eq!(GasAllowanceOf::<Test>::get(), 0);
 
         assert_eq!(
-            Balances::free_balance(USER_1) as u64,
-            user_balance - real_gas_to_burn
+            Balances::free_balance(USER_1),
+            GasPrice::gas_price(user_gas - real_gas_to_burn)
         );
     })
 }
@@ -1593,7 +1597,7 @@ fn mailbox_works() {
 
         assert_eq!(
             Balances::reserved_balance(USER_1),
-            OUTGOING_WITH_VALUE_IN_HANDLE_VALUE
+            GasPrice::gas_price(OUTGOING_WITH_VALUE_IN_HANDLE_VALUE_GAS)
         );
 
         let (mailbox_message, _bn) = {
@@ -1607,10 +1611,10 @@ fn mailbox_works() {
         // Gas limit should have been ignored by the code that puts a message into a mailbox
         assert_eq!(mailbox_message.value(), 1000);
 
-        // Gas is passed into mailboxed messages with reserved value `OUTGOING_WITH_VALUE_IN_HANDLE_VALUE`
+        // Gas is passed into mailboxed messages with reserved value `OUTGOING_WITH_VALUE_IN_HANDLE_VALUE_GAS`
         assert_eq!(
-            <Test as Config>::GasPrice::gas_price(GasHandlerOf::<Test>::total_supply()),
-            OUTGOING_WITH_VALUE_IN_HANDLE_VALUE
+            GasHandlerOf::<Test>::total_supply(),
+            OUTGOING_WITH_VALUE_IN_HANDLE_VALUE_GAS
         );
     })
 }
@@ -1938,7 +1942,7 @@ fn send_reply_value_claiming_works() {
 
         for (gas_limit_to_reply, value_to_reply) in user_messages_data {
             // user 2 triggers program to send message to user 1
-            // user 2 after this contains += OUTGOING_WITH_VALUE_IN_HANDLE_VALUE
+            // user 2 after this contains += OUTGOING_WITH_VALUE_IN_HANDLE_VALUE_GAS
             // reserved as MB holding fee
             //
             // here we also run process queue, so on second iteration user 1's
@@ -1954,7 +1958,7 @@ fn send_reply_value_claiming_works() {
 
             assert_eq!(
                 Balances::reserved_balance(USER_2),
-                OUTGOING_WITH_VALUE_IN_HANDLE_VALUE
+                GasPrice::gas_price(OUTGOING_WITH_VALUE_IN_HANDLE_VALUE_GAS)
             );
 
             // nothing changed
@@ -2041,7 +2045,8 @@ fn claim_value_works() {
         let expected_claimer_balance = claimer_balance + value_sent;
         assert_eq!(Balances::free_balance(USER_1), expected_claimer_balance);
 
-        let burned_for_hold = (holding_duration * CostsPerBlockOf::<Test>::mailbox()) as u128;
+        let burned_for_hold =
+            GasPrice::gas_price(holding_duration * CostsPerBlockOf::<Test>::mailbox());
         // Gas left returns to sender from consuming of value tree while claiming.
         let expected_sender_balance = sender_balance - value_sent - gas_burned - burned_for_hold;
         assert_eq!(Balances::free_balance(USER_2), expected_sender_balance);
@@ -4074,7 +4079,7 @@ fn no_redundant_gas_value_after_exiting() {
         // before execution
         let free_after_send = Balances::free_balance(USER_1);
         let reserved_after_send = Balances::reserved_balance(USER_1);
-        assert_eq!(reserved_after_send, gas_spent as u128);
+        assert_eq!(reserved_after_send, GasPrice::gas_price(gas_spent));
 
         run_to_block(3, None);
 
@@ -4088,7 +4093,7 @@ fn no_redundant_gas_value_after_exiting() {
         let free_after_execution = Balances::free_balance(USER_1);
         assert_eq!(
             free_after_execution,
-            free_after_send + (reserved_after_send - gas_spent as u128)
+            free_after_send + (reserved_after_send - GasPrice::gas_price(gas_spent))
         );
 
         // reserved balance after execution is zero
@@ -4298,7 +4303,7 @@ fn replies_to_paused_program_skipped() {
         let actual_balance = Balances::free_balance(USER_1);
 
         // On message read, USER_1 unlocks mailbox-related funds from initial message.
-        let mb_threshold = <Test as Config>::MailboxThreshold::get() as u128;
+        let mb_threshold = GasPrice::gas_price(<Test as Config>::MailboxThreshold::get());
 
         assert_eq!(before_balance + mb_threshold, actual_balance);
     })
@@ -4654,8 +4659,8 @@ fn gas_spent_vs_balance() {
         assert_eq!(total_balance_after_handle, Balances::total_balance(&USER_1));
 
         assert_eq!(
-            (initial_balance - balance_after_init) as u64,
-            init_gas_spent
+            (initial_balance - balance_after_init),
+            GasPrice::gas_price(init_gas_spent)
         );
 
         run_to_block(4, None);
@@ -4674,7 +4679,7 @@ fn gas_spent_vs_balance() {
 
         assert_eq!(
             balance_after_init - balance_after_handle,
-            handle_gas_spent as u128
+            GasPrice::gas_price(handle_gas_spent)
         );
     });
 }
@@ -4700,16 +4705,93 @@ fn gas_spent_precalculated() {
         )
     )"#;
 
+    let wat_no_counter = r#"
+    (module
+        (import "env" "memory" (memory 1))
+        (export "init" (func $init))
+        (func $init)
+    )"#;
+
+    let wat_init = r#"
+    (module
+        (import "env" "memory" (memory 1))
+        (export "init" (func $init))
+        (func $init
+            (local $1 i32)
+            i32.const 1
+            set_local $1
+        )
+    )"#;
+
     init_logger();
     new_test_ext().execute_with(|| {
         let prog = ProgramCodeKind::Custom(wat);
         let prog_id = upload_program_default(USER_1, prog).expect("submit result was asserted");
+
+        let init_gas_id = upload_program_default(USER_3, ProgramCodeKind::Custom(wat_init))
+            .expect("submit result was asserted");
+        let init_no_counter_id =
+            upload_program_default(USER_3, ProgramCodeKind::Custom(wat_no_counter))
+                .expect("submit result was asserted");
 
         run_to_block(2, None);
 
         let code_id = CodeId::generate(&prog.to_bytes());
         let code = <Test as Config>::CodeStorage::get_code(code_id).unwrap();
         let code = code.code();
+
+        let init_code_len: u64 = common::get_program(init_gas_id.into_origin())
+            .and_then(|p| common::ActiveProgram::try_from(p).ok())
+            .expect("program must exist")
+            .code_length_bytes
+            .into();
+        let init_no_gas_code_len: u64 = common::get_program(init_no_counter_id.into_origin())
+            .and_then(|p| common::ActiveProgram::try_from(p).ok())
+            .expect("program must exist")
+            .code_length_bytes
+            .into();
+        // binaries have the same memory amount but different lengths
+        // so take this into account in gas calculations
+        let length_margin = init_code_len - init_no_gas_code_len;
+
+        let GasInfo {
+            min_limit: gas_spent_init,
+            ..
+        } = Gear::calculate_gas_info(
+            USER_1.into_origin(),
+            HandleKind::Init(ProgramCodeKind::Custom(wat_init).to_bytes()),
+            EMPTY_PAYLOAD.to_vec(),
+            0,
+            true,
+        )
+        .unwrap();
+
+        let GasInfo {
+            min_limit: gas_spent_no_counter,
+            ..
+        } = Gear::calculate_gas_info(
+            USER_1.into_origin(),
+            HandleKind::Init(ProgramCodeKind::Custom(wat_no_counter).to_bytes()),
+            EMPTY_PAYLOAD.to_vec(),
+            0,
+            true,
+        )
+        .unwrap();
+
+        let per_byte_cost = ReadPerByteCostOf::<Test>::get();
+
+        let schedule = <Test as Config>::Schedule::get();
+        let const_i64_cost = schedule.instruction_weights.i64const;
+        let set_local_cost = schedule.instruction_weights.local_set;
+        let module_instantiation_per_byte = schedule.module_instantiation_per_byte;
+
+        // gas_charge call in handle and "add" func
+        let gas_cost = gas_spent_init
+            - gas_spent_no_counter
+            - const_i64_cost as u64
+            - set_local_cost as u64
+            - core_processor::calculate_gas_for_code(0, per_byte_cost, length_margin)
+            - module_instantiation_per_byte * length_margin;
 
         let GasInfo {
             min_limit: gas_spent_1,
@@ -4723,17 +4805,10 @@ fn gas_spent_precalculated() {
         )
         .unwrap();
 
-        let schedule = <Test as Config>::Schedule::get();
-
-        let const_i64_cost = schedule.instruction_weights.i64const;
         let call_cost = schedule.instruction_weights.call;
-        let set_local_cost = schedule.instruction_weights.local_set;
         let get_local_cost = schedule.instruction_weights.local_get;
         let add_cost = schedule.instruction_weights.i64add;
-        // gas call in handle and "add" func
-        let gas_cost = schedule.host_fn_weights.gas as u32;
-        let module_instantiation =
-            schedule.module_instantiation_per_byte * code.len() as u64;
+        let module_instantiation = module_instantiation_per_byte * code.len() as u64;
         let load_page_cost = schedule.memory_weights.load_cost;
 
         let total_cost = {
@@ -4742,7 +4817,7 @@ fn gas_spent_precalculated() {
                 + set_local_cost
                 + get_local_cost * 2
                 + add_cost
-                + gas_cost * 2;
+                + gas_cost as u32 * 2;
 
             let code_len = common::get_program(prog_id.into_origin())
                 .and_then(|p| common::ActiveProgram::try_from(p).ok())
@@ -4755,7 +4830,7 @@ fn gas_spent_precalculated() {
                 // cost for loading program
                 + core_processor::calculate_gas_for_program(read_cost, 0)
                 // cost for loading code
-                + core_processor::calculate_gas_for_code(read_cost, ReadPerByteCostOf::<Test>::get(), code_len.into())
+                + core_processor::calculate_gas_for_code(read_cost, per_byte_cost, code_len.into())
                 + load_page_cost
                 + module_instantiation
         };
@@ -5604,7 +5679,7 @@ fn execution_over_blocks() {
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(USER_1),
             in_one_block,
-            Package::new(1024, src).encode(),
+            Package::new(8_192, src).encode(),
             block_gas_limit,
             0,
         ));
@@ -5641,7 +5716,7 @@ fn execution_over_blocks() {
 
         assert!(program_exists(over_blocks.into_origin()));
 
-        let (src, id, expected) = ([0; 32], sha2_512_256(b"42"), 1024);
+        let (src, id, expected) = ([0; 32], sha2_512_256(b"42"), 8_192);
 
         // trigger calculation
         assert_ok!(Gear::send_message(
@@ -6087,7 +6162,7 @@ mod utils {
     pub(super) const DEFAULT_GAS_LIMIT: u64 = 200_000_000;
     pub(super) const DEFAULT_SALT: &[u8; 4] = b"salt";
     pub(super) const EMPTY_PAYLOAD: &[u8; 0] = b"";
-    pub(super) const OUTGOING_WITH_VALUE_IN_HANDLE_VALUE: u128 = 10000000;
+    pub(super) const OUTGOING_WITH_VALUE_IN_HANDLE_VALUE_GAS: u64 = 10000000;
 
     pub(super) type DispatchCustomResult<T> = Result<T, DispatchErrorWithPostInfo>;
     pub(super) type AccountId = <Test as frame_system::Config>::AccountId;

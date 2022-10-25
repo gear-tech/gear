@@ -23,8 +23,8 @@ use gear_backend_wasmi::{
     funcs_tree,
     state::{HostState, State},
     wasmi::{
-        Engine, Error as WasmiError, Extern, Linker, Memory as WasmiMemory, MemoryType, Module,
-        Store,
+        core::Value, Engine, Error as WasmiError, Extern, Linker, Memory as WasmiMemory,
+        MemoryType, Module, Store,
     },
     MemoryWrap,
 };
@@ -36,6 +36,7 @@ use gear_core::{
     program::Program,
     reservation::GasReserver,
 };
+use gear_wasm_instrument::{GLOBAL_NAME_ALLOWANCE, GLOBAL_NAME_GAS};
 use std::{collections::BTreeMap, mem};
 
 use crate::{
@@ -94,6 +95,26 @@ impl WasmExecutor {
         let instance = instance_pre
             .ensure_no_start(&mut store)
             .map_err(WasmiError::from)?;
+
+        let _gear_gas = instance
+            .get_export(&store, GLOBAL_NAME_GAS)
+            .and_then(Extern::into_global)
+            .and_then(|g| {
+                g.set(&mut store, Value::I64(u64::MAX as i64))
+                    .map(|_| g)
+                    .ok()
+            })
+            .ok_or(TestError::Instrumentation)?;
+
+        let _gear_allowance = instance
+            .get_export(&store, GLOBAL_NAME_ALLOWANCE)
+            .and_then(Extern::into_global)
+            .and_then(|g| {
+                g.set(&mut store, Value::I64(u64::MAX as i64))
+                    .map(|_| g)
+                    .ok()
+            })
+            .ok_or(TestError::Instrumentation)?;
 
         let mut memory_wrap = MemoryWrap::new(memory, store);
         Self::set_pages(&mut memory_wrap, memory_pages)?;

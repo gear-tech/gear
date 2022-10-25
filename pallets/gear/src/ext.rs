@@ -224,10 +224,6 @@ impl EnvExt for LazyPagesExt {
         self.inner.refund_gas(val)
     }
 
-    fn gas(&mut self, val: u32) -> Result<(), Self::Error> {
-        self.inner.gas(val)
-    }
-
     fn reserve_gas(&mut self, amount: u64, blocks: u32) -> Result<ReservationId, Self::Error> {
         self.inner.reserve_gas(amount, blocks)
     }
@@ -282,5 +278,21 @@ impl EnvExt for LazyPagesExt {
 
     fn forbidden_funcs(&self) -> &BTreeSet<&'static str> {
         &self.inner.context.forbidden_funcs
+    }
+
+    fn counters(&self) -> (u64, u64) {
+        self.inner.counters()
+    }
+
+    fn update_counters(&mut self, gas: u64, allowance: u64) {
+        self.inner.update_counters(gas, allowance)
+    }
+
+    fn out_of_gas(&mut self) -> Self::Error {
+        self.inner.out_of_gas()
+    }
+
+    fn out_of_allowance(&mut self) -> Self::Error {
+        self.inner.out_of_allowance()
     }
 }
