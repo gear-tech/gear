@@ -82,12 +82,6 @@ impl<D: Decode> Future for CodecMessageFuture<D> {
     }
 }
 
-impl<D: Decode> FusedFuture for CodecMessageFuture<D> {
-    fn is_terminated(&self) -> bool {
-        !signals().waits_for(self.waiting_reply_to)
-    }
-}
-
 /// Same as [`CodecMessageFuture`], but also contains program id
 /// for functions that create programs.
 pub struct CodecCreateProgramFuture<T> {
@@ -117,11 +111,11 @@ impl<D: Decode> Future for CodecCreateProgramFuture<D> {
     }
 }
 
-impl<D: Decode> FusedFuture for CodecCreateProgramFuture<D> {
-    fn is_terminated(&self) -> bool {
-        !signals().waits_for(self.waiting_reply_to)
-    }
-}
+// impl<D: Decode> FusedFuture for CodecCreateProgramFuture<D> {
+//     fn is_terminated(&self) -> bool {
+//         !signals().waits_for(self.waiting_reply_to)
+//     }
+// }
 
 /// To interrupt a program execution waiting for a reply on a previous message,
 /// one needs to call an `.await` expression.
@@ -146,12 +140,6 @@ impl Future for MessageFuture {
     }
 }
 
-impl FusedFuture for MessageFuture {
-    fn is_terminated(&self) -> bool {
-        !signals().waits_for(self.waiting_reply_to)
-    }
-}
-
 /// Same as [`MessageFuture`], but also contains program id
 /// for functions that create programs.
 
@@ -173,8 +161,32 @@ impl Future for CreateProgramFuture {
     }
 }
 
-impl FusedFuture for CreateProgramFuture {
-    fn is_terminated(&self) -> bool {
-        !signals().waits_for(self.waiting_reply_to)
-    }
+macro_rules! impl_futures {
+    ($f:ident) => {
+        impl FusedFuture for $f {
+            fn is_terminated(&self) -> bool {
+                !signals().waits_for(self.waiting_reply_to)
+            }
+        }
+    };
+    (($f:ident)) => {
+        impl<D: Decode> FusedFuture for $f <D> {
+            fn is_terminated(&self) -> bool {
+                !signals().waits_for(self.waiting_reply_to)
+            }
+        }
+    };
+    ( $($f:ident),* ) => {
+        $(
+            impl_futures!($f);
+        )*
+    };
+    (( $($f:ident),* )) => {
+        $(
+            impl_futures!(($f));
+        )*
+    };
 }
+
+impl_futures!(CreateProgramFuture, MessageFuture);
+impl_futures!((CodecCreateProgramFuture, CodecMessageFuture));
