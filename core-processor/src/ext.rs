@@ -727,10 +727,8 @@ impl Ext {
             .saturating_mul((pages_num - grow_pages_num).0 as u64);
 
         // Returns back greedily used gas for allocations
-        let first_page = page_number;
-        let last_page = first_page + pages_num - 1.into();
         let mut new_allocated_pages_num = 0;
-        for page in first_page.0..=last_page.0 {
+        for page in page_number.0..page_number.0 + pages_num.0 {
             if !self.context.allocations_context.is_init_page(page.into()) {
                 new_allocated_pages_num += 1;
             }
