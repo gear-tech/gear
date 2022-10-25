@@ -21,6 +21,7 @@
 use crate::{
     async_runtime::{signals, ReplyPoll},
     errors::{ContractError, Result},
+    msg::macros::{impl_codec_futures, impl_futures},
     prelude::{convert::AsRef, Vec},
     ActorId, MessageId,
 };
@@ -71,16 +72,16 @@ pub struct CodecMessageFuture<T> {
     pub(crate) _marker: PhantomData<T>,
 }
 
-impl<D: Decode> Future for CodecMessageFuture<D> {
-    type Output = Result<D>;
-
-    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        let fut = &mut self;
+impl_codec_futures!(
+    CodecMessageFuture,
+    D,
+    D,
+    |fut, cx| => {
         poll(fut.waiting_reply_to, cx, |reply| {
             D::decode(&mut reply.as_ref()).map_err(ContractError::Decode)
         })
     }
-}
+);
 
 /// Same as [`CodecMessageFuture`], but also contains program id
 /// for functions that create programs.
@@ -98,24 +99,18 @@ pub struct CodecCreateProgramFuture<T> {
     pub(crate) _marker: PhantomData<T>,
 }
 
-impl<D: Decode> Future for CodecCreateProgramFuture<D> {
-    type Output = Result<(ActorId, D)>;
-
-    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        let fut = &mut self;
+impl_codec_futures!(
+    CodecCreateProgramFuture,
+    D,
+    (ActorId, D),
+    |fut, cx| => {
         poll(fut.waiting_reply_to, cx, |reply| {
             D::decode(&mut reply.as_ref())
                 .map(|payload| (fut.program_id, payload))
                 .map_err(ContractError::Decode)
         })
     }
-}
-
-// impl<D: Decode> FusedFuture for CodecCreateProgramFuture<D> {
-//     fn is_terminated(&self) -> bool {
-//         !signals().waits_for(self.waiting_reply_to)
-//     }
-// }
+);
 
 /// To interrupt a program execution waiting for a reply on a previous message,
 /// one needs to call an `.await` expression.
@@ -131,18 +126,16 @@ pub struct MessageFuture {
     pub waiting_reply_to: MessageId,
 }
 
-impl Future for MessageFuture {
-    type Output = Result<Vec<u8>>;
-
-    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        let fut = &mut *self;
+impl_futures!(
+    MessageFuture,
+    Vec<u8>,
+    |fut, cx| => {
         poll(fut.waiting_reply_to, cx, |reply| Ok(reply))
     }
-}
+);
 
 /// Same as [`MessageFuture`], but also contains program id
 /// for functions that create programs.
-
 pub struct CreateProgramFuture {
     /// Waiting reply to this the message id
     pub waiting_reply_to: MessageId,
@@ -150,43 +143,12 @@ pub struct CreateProgramFuture {
     pub program_id: ActorId,
 }
 
-impl Future for CreateProgramFuture {
-    type Output = Result<(ActorId, Vec<u8>)>;
-
-    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        let fut = &mut *self;
+impl_futures!(
+    CreateProgramFuture,
+    (ActorId, Vec<u8>),
+    |fut, cx| => {
         poll(fut.waiting_reply_to, cx, |reply| {
             Ok((fut.program_id, reply))
         })
     }
-}
-
-macro_rules! impl_futures {
-    ($f:ident) => {
-        impl FusedFuture for $f {
-            fn is_terminated(&self) -> bool {
-                !signals().waits_for(self.waiting_reply_to)
-            }
-        }
-    };
-    (($f:ident)) => {
-        impl<D: Decode> FusedFuture for $f <D> {
-            fn is_terminated(&self) -> bool {
-                !signals().waits_for(self.waiting_reply_to)
-            }
-        }
-    };
-    ( $($f:ident),* ) => {
-        $(
-            impl_futures!($f);
-        )*
-    };
-    (( $($f:ident),* )) => {
-        $(
-            impl_futures!(($f));
-        )*
-    };
-}
-
-impl_futures!(CreateProgramFuture, MessageFuture);
-impl_futures!((CodecCreateProgramFuture, CodecMessageFuture));
+);
