@@ -72,7 +72,7 @@ impl<'t, T: Form<Type = UntrackedSymbol<TypeId>>> fmt::Debug for LocalType<'t, T
                 debug.finish()
             }
             TypeDef::Primitive(primitive) => {
-                write!(fmt, "{}", format!("{:?}", primitive).to_lowercase())
+                write!(fmt, "{}", format!("{primitive:?}").to_lowercase())
             }
             TypeDef::Sequence(sequence) => {
                 write!(

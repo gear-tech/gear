@@ -113,11 +113,11 @@ use errno::Errno;
 
 #[derive(Debug, Clone, Copy, derive_more::Display)]
 enum ThreadInitError {
-    #[display(fmt = "Cannot get information about old signal stack: {}", _0)]
+    #[display(fmt = "Cannot get information about old signal stack: {_0}")]
     OldStack(Errno),
-    #[display(fmt = "Cannot mmap space for signal stack: {}", _0)]
+    #[display(fmt = "Cannot mmap space for signal stack: {_0}")]
     Mmap(Errno),
-    #[display(fmt = "Cannot set new signal stack: {}", _0)]
+    #[display(fmt = "Cannot set new signal stack: {_0}")]
     SigAltStack(Errno),
 }
 

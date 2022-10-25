@@ -42,10 +42,7 @@ mod tests;
 #[derive(Debug, derive_more::Display)]
 pub enum MprotectError {
     #[display(
-        fmt = "Syscall mprotect error for interval {:#x?}, mask = {}, reason: {}",
-        interval,
-        mask,
-        reason
+        fmt = "Syscall mprotect error for interval {interval:#x?}, mask = {mask}, reason: {reason}"
     )]
     SyscallError {
         interval: RangeInclusive<usize>,
@@ -54,7 +51,7 @@ pub enum MprotectError {
     },
     #[display(fmt = "Zero size is restricted for mprotect")]
     ZeroSizeError,
-    #[display(fmt = "Offset {:#x} is bigger then wasm mem size {:#x}", _0, _1)]
+    #[display(fmt = "Offset {_0:#x} is bigger then wasm mem size {_1:#x}")]
     OffsetOverflow(usize, usize),
 }
 

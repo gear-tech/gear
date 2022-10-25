@@ -96,9 +96,9 @@ pub enum TerminationReason {
     Decode, Encode, TypeInfo, Debug, Clone, PartialEq, Eq, PartialOrd, Ord, derive_more::Display,
 )]
 pub enum TrapExplanation {
-    #[display(fmt = "{}", _0)]
+    #[display(fmt = "{_0}")]
     Core(ExtError),
-    #[display(fmt = "{}", _0)]
+    #[display(fmt = "{_0}")]
     Other(TrimmedString),
     #[display(fmt = "Reason is unknown. Possibly `unreachable` instruction is occurred")]
     Unknown,
@@ -136,13 +136,13 @@ pub trait GetGasAmount {
 
 #[derive(Debug, derive_more::Display, derive_more::From)]
 pub enum RuntimeCtxError<E: Display> {
-    #[display(fmt = "{}", _0)]
+    #[display(fmt = "{_0}")]
     Ext(E),
     #[from]
-    #[display(fmt = "{}", _0)]
+    #[display(fmt = "{_0}")]
     Memory(MemoryError),
     #[from]
-    #[display(fmt = "{}", _0)]
+    #[display(fmt = "{_0}")]
     RuntimeBuffer(RuntimeBufferSizeError),
 }
 
@@ -180,9 +180,9 @@ pub struct BackendReport<T, E> {
 
 #[derive(Debug, derive_more::Display)]
 pub enum StackEndError {
-    #[display(fmt = "Stack end addr {:#x} cannot be negative", _0)]
+    #[display(fmt = "Stack end addr {_0:#x} cannot be negative")]
     IsNegative(i32),
-    #[display(fmt = "Stack end addr {:#x} must be aligned to WASM page size", _0)]
+    #[display(fmt = "Stack end addr {_0:#x} must be aligned to WASM page size")]
     IsNotAligned(i32),
 }
 

@@ -42,10 +42,10 @@ impl fmt::Display for ContractError {
             ContractError::Timeout(expected, now) => {
                 write!(f, "Wait lock timeout at {expected}, now is {now}")
             }
-            ContractError::Convert(e) => write!(f, "Conversion error: {:?}", e),
-            ContractError::Decode(e) => write!(f, "Decoding codec bytes error: {}", e),
-            ContractError::ExitCode(e) => write!(f, "Reply returned exit code {}", e),
-            ContractError::Ext(e) => write!(f, "API error: {}", e),
+            ContractError::Convert(e) => write!(f, "Conversion error: {e:?}"),
+            ContractError::Decode(e) => write!(f, "Decoding codec bytes error: {e}"),
+            ContractError::ExitCode(e) => write!(f, "Reply returned exit code {e}"),
+            ContractError::Ext(e) => write!(f, "API error: {e}"),
         }
     }
 }

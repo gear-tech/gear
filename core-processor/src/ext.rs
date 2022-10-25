@@ -107,13 +107,13 @@ pub trait ProcessorExt {
 #[derive(Debug, Clone, Eq, PartialEq, derive_more::Display, derive_more::From, Encode, Decode)]
 pub enum ProcessorError {
     /// Basic error
-    #[display(fmt = "{}", _0)]
+    #[display(fmt = "{_0}")]
     Core(ExtError),
     /// Termination reason occurred in a syscall
-    #[display(fmt = "Terminated: {:?}", _0)]
+    #[display(fmt = "Terminated: {_0:?}")]
     Terminated(TerminationReason),
     /// User's code panicked
-    #[display(fmt = "Panic occurred: {}", _0)]
+    #[display(fmt = "Panic occurred: {_0}")]
     Panic(String),
 }
 
@@ -721,10 +721,8 @@ impl Ext {
             .saturating_mul((pages_num - grow_pages_num).0 as u64);
 
         // Returns back greedily used gas for allocations
-        let first_page = page_number;
-        let last_page = first_page + pages_num - 1.into();
         let mut new_allocated_pages_num = 0;
-        for page in first_page.0..=last_page.0 {
+        for page in page_number.0..page_number.0 + pages_num.0 {
             if !self.context.allocations_context.is_init_page(page.into()) {
                 new_allocated_pages_num += 1;
             }

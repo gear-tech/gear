@@ -721,15 +721,16 @@ dependencies = [
 
 [[package]]
 name = "cargo_metadata"
-version = "0.15.0"
+version = "0.15.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3abb7553d5b9b8421c6de7cb02606ff15e0c6eea7d8eadd75ef013fd636bec36"
+checksum = "406c859255d568f4f742b3146d51851f3bfd49f734a2c289d9107c4395ee0062"
 dependencies = [
  "camino",
  "cargo-platform",
  "semver 1.0.14",
  "serde",
  "serde_json",
+ "thiserror",
 ]
 
 [[package]]
@@ -2779,6 +2780,7 @@ name = "gclient"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "async-std",
  "async-trait",
  "futures",
  "futures-timer",
@@ -2790,6 +2792,7 @@ dependencies = [
  "thiserror",
  "tokio",
  "wabt",
+ "wat",
 ]
 
 [[package]]
@@ -2850,6 +2853,7 @@ dependencies = [
  "gear-core-errors",
  "log",
  "parity-scale-codec",
+ "rand 0.8.5",
  "scale-info",
 ]
 
@@ -3378,7 +3382,7 @@ name = "gear-wasm-builder"
 version = "0.1.2"
 dependencies = [
  "anyhow",
- "cargo_metadata 0.15.0",
+ "cargo_metadata 0.15.1",
  "colored",
  "log",
  "pathdiff",
@@ -7046,9 +7050,9 @@ checksum = "a993555f31e5a609f617c12db6250dedcac1b0a85076912c436e6fc9b2c8e6a3"
 
 [[package]]
 name = "quick-xml"
-version = "0.25.0"
+version = "0.26.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "58e21a144a0ffb5fad7b464babcdab934a325ad69b7c0373bcfef5cbd9799ca9"
+checksum = "7f50b1c63b38611e7d4d7f68b82d3ad0cc71a2ad2e7f61fc10f1328d917c93cd"
 dependencies = [
  "memchr",
  "serde",

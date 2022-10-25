@@ -16,7 +16,7 @@ unsafe extern "C" fn handle() {
     if new_msg == "log" {
         let collapsed = mem::take(&mut MY_COLLECTION)
             .into_iter()
-            .map(|(number, msg)| format!("{}: {};", number, msg))
+            .map(|(number, msg)| format!("{number}: {msg};"))
             .fold(String::new(), |mut acc, n| {
                 acc.push_str(&n);
                 acc

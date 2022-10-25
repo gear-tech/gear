@@ -42,24 +42,24 @@ use wasmi::{
 
 #[derive(Debug, derive_more::Display, derive_more::From)]
 pub enum WasmiEnvironmentError {
-    #[display(fmt = "Failed to create env memory: {:?}", _0)]
+    #[display(fmt = "Failed to create env memory: {_0:?}")]
     CreateEnvMemory(wasmi::errors::MemoryError),
-    #[display(fmt = "Unable to link item: {:?}", _0)]
+    #[display(fmt = "Unable to link item: {_0:?}")]
     Linking(wasmi::errors::LinkerError),
-    #[display(fmt = "Unable to instantiate module: {:?}", _0)]
+    #[display(fmt = "Unable to instantiate module: {_0:?}")]
     ModuleInstantiation(wasmi::Error),
-    #[display(fmt = "Unable to get wasm module exports: {}", _0)]
+    #[display(fmt = "Unable to get wasm module exports: {_0}")]
     GetWasmExports(String),
-    #[display(fmt = "Entry point has wrong type: {}", _0)]
+    #[display(fmt = "Entry point has wrong type: {_0}")]
     EntryPointWrongType(String),
-    #[display(fmt = "{}", _0)]
+    #[display(fmt = "{_0}")]
     PreExecutionHandler(String),
     #[from]
     StackEnd(StackEndError),
 }
 
 #[derive(Debug, derive_more::Display, derive_more::From)]
-#[display(fmt = "{}", error)]
+#[display(fmt = "{error}")]
 pub struct Error {
     gas_amount: GasAmount,
     error: WasmiEnvironmentError,

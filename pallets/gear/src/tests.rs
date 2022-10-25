@@ -6252,7 +6252,7 @@ mod utils {
         let status =
             dispatch_status(message_id).expect("Message not found in `Event::MessagesDispatched`");
 
-        assert_eq!(status, DispatchStatus::Failed, "Expected: {}", error);
+        assert_eq!(status, DispatchStatus::Failed, "Expected: {error}");
 
         let mut actual_error = None;
 
@@ -6280,7 +6280,7 @@ mod utils {
         if actual_error.starts_with('\'') {
             let j = actual_error.rfind('\'').expect("Checked above");
             actual_error = String::from(&actual_error[..(j + 1)]);
-            expectations = format!("'{}'", expectations);
+            expectations = format!("'{expectations}'");
         }
 
         assert_eq!(expectations, actual_error)
@@ -6554,7 +6554,7 @@ mod utils {
 
         println!("Gear events");
         for (pos, line) in v.iter().enumerate() {
-            println!("{}). {:?}", pos, line);
+            println!("{pos}). {line:?}");
         }
     }
 
