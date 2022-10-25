@@ -130,7 +130,7 @@ impl_futures!(
     MessageFuture,
     Vec<u8>,
     |fut, cx| => {
-        poll(fut.waiting_reply_to, cx, |reply| Ok(reply))
+        poll(fut.waiting_reply_to, cx, Ok)
     }
 );
 
