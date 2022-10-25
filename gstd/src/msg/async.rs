@@ -33,6 +33,23 @@ use core::{
 };
 use futures::future::FusedFuture;
 
+fn poll<F, R>(waiting_reply_to: MessageId, cx: &mut Context<'_>, f: F) -> Poll<Result<R>>
+where
+    F: Fn(Vec<u8>) -> Result<R>,
+{
+    match signals().poll(waiting_reply_to, cx) {
+        ReplyPoll::None => panic!("Somebody created CodecMessageFuture with the MessageId that never ended in static replies!"),
+        ReplyPoll::Pending => Poll::Pending,
+        ReplyPoll::Some((actual_reply, exit_code)) => {
+            if exit_code != 0 {
+                return Poll::Ready(Err(ContractError::ExitCode(exit_code)));
+            }
+
+            Poll::Ready(f(actual_reply))
+        },
+    }
+}
+
 /// To interrupt a program execution waiting for a reply on a previous message,
 /// one needs to call an `.await` expression.
 /// The initial message that requires a reply is sent instantly.
@@ -59,17 +76,9 @@ impl<D: Decode> Future for CodecMessageFuture<D> {
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let fut = &mut self;
-        match signals().poll(fut.waiting_reply_to, cx) {
-            ReplyPoll::None => panic!("Somebody created CodecMessageFuture with the MessageId that never ended in static replies!"),
-            ReplyPoll::Pending => Poll::Pending,
-            ReplyPoll::Some((actual_reply, exit_code)) => {
-                if exit_code != 0 {
-                    return Poll::Ready(Err(ContractError::ExitCode(exit_code)));
-                }
-
-                Poll::Ready(D::decode(&mut actual_reply.as_ref()).map_err(ContractError::Decode))
-            },
-        }
+        poll(fut.waiting_reply_to, cx, |reply| {
+            D::decode(&mut reply.as_ref()).map_err(ContractError::Decode)
+        })
     }
 }
 
@@ -100,17 +109,11 @@ impl<D: Decode> Future for CodecCreateProgramFuture<D> {
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let fut = &mut self;
-        match signals().poll(fut.waiting_reply_to, cx) {
-            ReplyPoll::None => panic!("Somebody created CodecCreateProgramFuture with the MessageId that never ended in static replies!"),
-            ReplyPoll::Pending => Poll::Pending,
-            ReplyPoll::Some((actual_reply, exit_code)) => {
-                if exit_code != 0 {
-                    return Poll::Ready(Err(ContractError::ExitCode(exit_code)));
-                }
-
-                Poll::Ready(D::decode(&mut actual_reply.as_ref()).map(|payload| (self.program_id, payload)).map_err(ContractError::Decode))
-            },
-        }
+        poll(fut.waiting_reply_to, cx, |reply| {
+            D::decode(&mut reply.as_ref())
+                .map(|payload| (fut.program_id, payload))
+                .map_err(ContractError::Decode)
+        })
     }
 }
 
@@ -139,17 +142,7 @@ impl Future for MessageFuture {
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let fut = &mut *self;
-        match signals().poll(fut.waiting_reply_to, cx) {
-            ReplyPoll::None => panic!("Somebody created MessageFuture with the MessageId that never ended in static replies!"),
-            ReplyPoll::Pending => Poll::Pending,
-            ReplyPoll::Some((actual_reply, exit_code)) => {
-                if exit_code != 0 {
-                    return Poll::Ready(Err(ContractError::ExitCode(exit_code)));
-                }
-
-                Poll::Ready(Ok(actual_reply))
-            },
-        }
+        poll(fut.waiting_reply_to, cx, |reply| Ok(reply))
     }
 }
 
@@ -174,17 +167,9 @@ impl Future for CreateProgramFuture {
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let fut = &mut *self;
-        match signals().poll(fut.waiting_reply_to, cx) {
-            ReplyPoll::None => panic!("Somebody created CreateProgramFuture with the MessageId that never ended in static replies!"),
-            ReplyPoll::Pending => Poll::Pending,
-            ReplyPoll::Some((actual_reply, exit_code)) => {
-                if exit_code != 0 {
-                    return Poll::Ready(Err(ContractError::ExitCode(exit_code)));
-                }
-
-                Poll::Ready(Ok((self.program_id, actual_reply)))
-            },
-        }
+        poll(fut.waiting_reply_to, cx, |reply| {
+            Ok((fut.program_id, reply))
+        })
     }
 }
 
