@@ -28,7 +28,6 @@ macro_rules! impl_futures {
     ($f:ident, $g: tt, $r:ty, |$fut:ident, $cx:ident| => { $p:expr }) => {
         impl_futures!($f, $r, ($fut, $cx), $p, $g);
     };
-    // impl FusedFuture
     ($f:ident, $r:ty, ($fut:ident, $cx:ident), $p:expr, $($g:tt)?) => {
         impl $( <$g: Decode> )? FusedFuture for $f $( < $g > )? {
             fn is_terminated(&self) -> bool {
