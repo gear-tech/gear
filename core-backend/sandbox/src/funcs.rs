@@ -23,12 +23,7 @@ use alloc::{
     format,
     string::{FromUtf8Error, String},
 };
-use core::{
-    convert::TryInto,
-    fmt::{self, Display},
-    marker::PhantomData,
-    ops::Range,
-};
+use core::{convert::TryInto, fmt::Display, marker::PhantomData, ops::Range};
 use gear_backend_common::{
     error_processor::{IntoExtError, ProcessError},
     AsTerminationReason, IntoExtInfo, RuntimeCtx, RuntimeCtxError, TerminationReason,
@@ -47,27 +42,27 @@ pub(crate) type SyscallOutput = Result<ReturnValue, HostError>;
 
 #[derive(Debug, derive_more::Display, derive_more::From)]
 pub enum FuncError<E: Display> {
-    #[display(fmt = "{}", _0)]
+    #[display(fmt = "{_0}")]
     Core(E),
     #[from]
-    #[display(fmt = "{}", _0)]
+    #[display(fmt = "{_0}")]
     RuntimeCtx(RuntimeCtxError<E>),
     #[from]
-    #[display(fmt = "{}", _0)]
+    #[display(fmt = "{_0}")]
     Memory(MemoryError),
     #[from]
-    #[display(fmt = "{}", _0)]
+    #[display(fmt = "{_0}")]
     PayloadSize(PayloadSizeError),
     #[from]
-    #[display(fmt = "{}", _0)]
+    #[display(fmt = "{_0}")]
     RuntimeBufferSize(RuntimeBufferSizeError),
-    #[display(fmt = "Cannot set u128: {}", _0)]
+    #[display(fmt = "Cannot set u128: {_0}")]
     SetU128(MemoryError),
-    #[display(fmt = "Failed to parse debug string: {}", _0)]
+    #[display(fmt = "Failed to parse debug string: {_0}")]
     DebugString(FromUtf8Error),
     #[display(fmt = "`gr_error` expects error occurred earlier")]
     SyscallErrorExpected,
-    #[display(fmt = "Terminated: {:?}", _0)]
+    #[display(fmt = "Terminated: {_0:?}")]
     Terminated(TerminationReason),
     #[display(
         fmt = "Cannot take data by indexes {:?} from message with size {}",
@@ -75,13 +70,13 @@ pub enum FuncError<E: Display> {
         _1
     )]
     ReadWrongRange(Range<u32>, u32),
-    #[display(fmt = "Overflow at {} + len {} in `gr_read`", _0, _1)]
+    #[display(fmt = "Overflow at {_0} + len {_1} in `gr_read`")]
     ReadLenOverflow(u32, u32),
     #[display(fmt = "Binary code has wrong instrumentation")]
     WrongInstrumentation,
 }
 
-impl<E: fmt::Display> FuncError<E> {
+impl<E: Display> FuncError<E> {
     pub fn into_termination_reason(self) -> TerminationReason {
         match self {
             Self::Terminated(reason) => reason,

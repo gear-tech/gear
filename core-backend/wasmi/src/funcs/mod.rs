@@ -28,7 +28,7 @@ use alloc::{string::String, vec};
 use codec::{Decode, Encode};
 use core::{
     convert::TryFrom,
-    fmt::{self, Debug},
+    fmt::{Debug, Display},
     marker::PhantomData,
     ops::Range,
 };
@@ -161,16 +161,16 @@ macro_rules! update_globals {
 }
 
 #[derive(Debug, derive_more::Display, Encode, Decode)]
-pub enum FuncError<E> {
-    #[display(fmt = "{}", _0)]
+pub enum FuncError<E: Display> {
+    #[display(fmt = "{_0}")]
     Core(E),
     #[display(fmt = "Runtime Error")]
     HostError,
-    #[display(fmt = "{}", _0)]
+    #[display(fmt = "{_0}")]
     Memory(MemoryError),
-    #[display(fmt = "{}", _0)]
+    #[display(fmt = "{_0}")]
     RuntimeBufferSize(RuntimeBufferSizeError),
-    #[display(fmt = "{}", _0)]
+    #[display(fmt = "{_0}")]
     PayloadBufferSize(PayloadSizeError),
     #[display(fmt = "Exit code ran into non-reply scenario")]
     NonReplyExitCode,
@@ -180,7 +180,7 @@ pub enum FuncError<E> {
     DebugStringParsing,
     #[display(fmt = "`gr_error` expects error occurred earlier")]
     SyscallErrorExpected,
-    #[display(fmt = "Terminated: {:?}", _0)]
+    #[display(fmt = "Terminated: {_0:?}")]
     Terminated(TerminationReason),
     #[display(
         fmt = "Cannot take data by indexes {:?} from message with size {}",
@@ -188,13 +188,13 @@ pub enum FuncError<E> {
         _1
     )]
     ReadWrongRange(Range<u32>, u32),
-    #[display(fmt = "Overflow at {} + len {} in `gr_read`", _0, _1)]
+    #[display(fmt = "Overflow at {_0} + len {_1} in `gr_read`")]
     ReadLenOverflow(u32, u32),
 }
 
 impl<E> FuncError<E>
 where
-    E: fmt::Display,
+    E: Display,
 {
     pub fn into_termination_reason(self) -> TerminationReason {
         match self {
@@ -204,7 +204,7 @@ where
     }
 }
 
-impl<E> From<MemoryError> for FuncError<E> {
+impl<E: Display> From<MemoryError> for FuncError<E> {
     fn from(err: MemoryError) -> Self {
         Self::Memory(err)
     }

@@ -363,7 +363,7 @@ mod meta_tests {
             .borrow_mut()
             .call_meta(&program.id, None, unknown_function_name);
         if let Err(ref err) = result {
-            println!("{:?}", err);
+            println!("{err:?}");
         }
         assert!(
             matches!(result, Err(TestError::FunctionNotFound(func)) if func == unknown_function_name)

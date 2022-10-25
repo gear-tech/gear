@@ -162,7 +162,7 @@ where
     if let Some(codes) = &test.codes {
         for code in codes {
             let code_bytes = std::fs::read(&code.path)
-                .map_err(|e| IoError::new(IoErrorKind::Other, format!("`{}': {}", code.path, e)))?;
+                .map_err(|e| IoError::new(IoErrorKind::Other, format!("`{}': {e}", code.path)))?;
             let code = Code::try_new(
                 code_bytes.clone(),
                 1,
@@ -181,7 +181,7 @@ where
     for program in &test.programs {
         let program_path = program.path.clone();
         let code = std::fs::read(&program_path)
-            .map_err(|e| IoError::new(IoErrorKind::Other, format!("`{}': {}", program_path, e)))?;
+            .map_err(|e| IoError::new(IoErrorKind::Other, format!("`{program_path}': {e}")))?;
         let mut init_message = Vec::new();
         if let Some(init_msg) = &program.init_message {
             init_message = match init_msg {

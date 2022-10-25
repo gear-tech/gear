@@ -53,10 +53,10 @@ impl WasmBuilder {
             return;
         }
         if let Err(e) = self.build_project() {
-            eprintln!("error: {}", e);
+            eprintln!("error: {e}");
             e.chain()
                 .skip(1)
-                .for_each(|cause| eprintln!("|      {}", cause));
+                .for_each(|cause| eprintln!("|      {cause}"));
             process::exit(1);
         }
     }

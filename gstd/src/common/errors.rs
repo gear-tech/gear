@@ -38,10 +38,10 @@ pub enum ContractError {
 impl fmt::Display for ContractError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            ContractError::Convert(e) => write!(f, "Conversion error: {:?}", e),
-            ContractError::Decode(e) => write!(f, "Decoding codec bytes error: {}", e),
-            ContractError::ExitCode(e) => write!(f, "Reply returned exit code {}", e),
-            ContractError::Ext(e) => write!(f, "API error: {}", e),
+            ContractError::Convert(e) => write!(f, "Conversion error: {e:?}"),
+            ContractError::Decode(e) => write!(f, "Decoding codec bytes error: {e}"),
+            ContractError::ExitCode(e) => write!(f, "Reply returned exit code {e}"),
+            ContractError::Ext(e) => write!(f, "API error: {e}"),
         }
     }
 }

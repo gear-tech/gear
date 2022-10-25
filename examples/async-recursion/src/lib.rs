@@ -32,7 +32,7 @@ async fn rec_func(val: usize) {
         .await
         .expect("Error in async message processing");
 
-    msg::send_bytes(msg::source(), format!("Hello, val = {}", val), 0).unwrap();
+    msg::send_bytes(msg::source(), format!("Hello, val = {val}"), 0).unwrap();
 
     if val - reply.len() > 0 {
         rec_func(val - reply.len()).await;

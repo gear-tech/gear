@@ -157,7 +157,7 @@ impl WasmProject {
         // Copy original `Cargo.lock` if any
         let from_lock = self.original_dir.join("Cargo.lock");
         let to_lock = self.out_dir.join("Cargo.lock");
-        let _ = fs::copy(&from_lock, &to_lock);
+        let _ = fs::copy(from_lock, to_lock);
 
         Ok(())
     }
@@ -199,12 +199,12 @@ impl WasmProject {
         // Remove extension
         relative_path.set_extension("");
 
-        fs::write(&wasm_binary_path, format!("{}", relative_path.display()))
+        fs::write(wasm_binary_path, format!("{}", relative_path.display()))
             .context("unable to write `.binpath`")?;
 
         let wasm_binary_rs = self.out_dir.join("wasm_binary.rs");
         fs::write(
-            &wasm_binary_rs,
+            wasm_binary_rs,
             format!(
                 r#"#[allow(unused)]
 pub const WASM_BINARY: &[u8] = include_bytes!("{}");

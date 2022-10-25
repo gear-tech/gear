@@ -49,7 +49,7 @@ fn check_signature(name: &str, function: &syn::ItemFn) -> Result<(), TokenStream
     if function.sig.ident != name {
         return Err(compile_error(
             &function.sig.ident,
-            format!("function must be called `{}`", name),
+            format!("function must be called `{name}`"),
         ));
     }
 
