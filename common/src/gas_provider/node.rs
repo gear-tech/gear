@@ -74,7 +74,11 @@ pub enum GasNode<ExternalId: Clone, Id: Clone, Balance: Zero + Clone> {
     ///
     /// Such node types are detached and aren't part of the tree structure
     /// (not node's parent, not node's child).
-    Cut { id: ExternalId, value: Balance },
+    Cut {
+        id: ExternalId,
+        value: Balance,
+        system_reserved: Balance,
+    },
 
     /// A node used for gas reservation feature.
     ///
@@ -251,8 +255,11 @@ impl<ExternalId: Clone, Id: Clone + Copy, Balance: Zero + Clone + Copy>
             }
             | GasNode::UnspecifiedLocal {
                 system_reserved, ..
+            }
+            | GasNode::Cut {
+                system_reserved, ..
             } => Some(*system_reserved),
-            GasNode::Cut { .. } | GasNode::Reserved { .. } => None,
+            GasNode::Reserved { .. } => None,
         }
     }
 
@@ -267,8 +274,11 @@ impl<ExternalId: Clone, Id: Clone + Copy, Balance: Zero + Clone + Copy>
             }
             | GasNode::UnspecifiedLocal {
                 system_reserved, ..
+            }
+            | GasNode::Cut {
+                system_reserved, ..
             } => Some(system_reserved),
-            GasNode::Cut { .. } | GasNode::Reserved { .. } => None,
+            GasNode::Reserved { .. } => None,
         }
     }
 
@@ -334,9 +344,8 @@ impl<ExternalId: Clone, Id: Clone + Copy, Balance: Zero + Clone + Copy>
     }
 
     /// Returns whether the node has system reserved gas.
-    #[allow(unused)] // TODO: remove when used
     pub(crate) fn is_system_reserved(&self) -> bool {
-        self.system_reserved().is_none()
+        self.system_reserved().is_some()
     }
 
     /// Returns whether the node is lockable.

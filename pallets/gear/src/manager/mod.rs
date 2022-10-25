@@ -51,12 +51,13 @@ mod task;
 pub use journal::*;
 pub use task::*;
 
-use crate::{Config, CurrencyOf, GearProgramPallet, TaskPoolOf};
+use crate::{Config, CurrencyOf, GasHandlerOf, GearProgramPallet, QueueOf, TaskPoolOf};
 use codec::{Decode, Encode};
 use common::{
     event::*,
     scheduler::{ScheduledTask, TaskHandler, TaskPool},
-    ActiveProgram, CodeStorage, Origin, ProgramState,
+    storage::Queue,
+    ActiveProgram, CodeStorage, GasTree, Origin, ProgramState,
 };
 use core::fmt;
 use core_processor::common::{Actor, ExecutableActorData};
@@ -66,7 +67,7 @@ use gear_core::{
     code::{CodeAndId, InstrumentedCode},
     ids::{CodeId, MessageId, ProgramId},
     memory::WasmPageNumber,
-    message::{DispatchKind, ExitCode},
+    message::{DispatchKind, ExitCode, SignalMessage},
 };
 use primitive_types::H256;
 use sp_runtime::traits::UniqueSaturatedInto;
@@ -277,6 +278,27 @@ where
                 BlockNumberFor::<T>::from(reservation_slot.expiration),
                 ScheduledTask::RemoveGasReservation(program_id, reservation_id),
             );
+        }
+    }
+
+    fn send_signal(&mut self, message_id: MessageId, destination: ProgramId) {
+        let reserved = GasHandlerOf::<T>::system_unreserve(message_id)
+            .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
+        if reserved != 0 {
+            log::debug!("Send signal issued by {} to {}", message_id, destination);
+
+            // Creating signal message.
+            let trap_signal = SignalMessage::new(message_id, core_processor::ERR_EXIT_CODE)
+                .into_dispatch(destination)
+                .into_stored();
+
+            // Splitting gas for newly created reply message.
+            GasHandlerOf::<T>::split(message_id, trap_signal.id())
+                .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
+
+            // Enqueueing dispatch into message queue.
+            QueueOf::<T>::queue(trap_signal)
+                .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e));
         }
     }
 }
