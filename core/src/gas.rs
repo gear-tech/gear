@@ -233,6 +233,11 @@ impl GasAllowanceCounter {
         Self(initial_amount as u128)
     }
 
+    /// Report how much gas allowance is left.
+    pub fn left(&self) -> u64 {
+        self.0 as u64
+    }
+
     /// Charge `amount` of gas.
     #[inline]
     pub fn charge(&mut self, amount: u64) -> ChargeResult {

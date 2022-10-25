@@ -10,7 +10,7 @@ gear-core = { path = "../../core" }
 gear-core-errors = { path = "../../core-errors", features = ["codec"] }
 gear-backend-common = { path = "../common" }
 
-parity-wasm = { version = "0.45.0", default-features = false }
+gear-wasm-instrument = { path = "../../utils/wasm-instrument", default-features = false }
 sp-sandbox = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false, features = ["host-sandbox"] }
 # Use max_level_debug feature to remove tracing in sys-calls by default.
 log = { version = "0.4.17", default-features = false }
@@ -19,5 +19,5 @@ codec = { package = "parity-scale-codec", version = "3.1.3", default-features = 
 
 [features]
 default = ["std"]
-std = ["sp-sandbox/std", "parity-wasm/std", "log/std"]
+std = ["sp-sandbox/std", "gear-wasm-instrument/std", "log/std"]
 sys-trace = []
