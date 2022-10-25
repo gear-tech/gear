@@ -189,9 +189,9 @@ pub enum Program {
 pub enum CommonError {
     #[display(fmt = "Program is not active one")]
     InactiveProgram,
-    #[display(fmt = "Program does not exist for id = {}", _0)]
+    #[display(fmt = "Program does not exist for id = {_0}")]
     DoesNotExist(H256),
-    #[display(fmt = "Cannot find data for {:?}, program {}", page, program_id)]
+    #[display(fmt = "Cannot find data for {page:?}, program {program_id}")]
     CannotFindDataForPage {
         program_id: H256,
         page: PageNumber,

@@ -148,7 +148,7 @@ fn collect_data(
 ) -> BTreeMap<String, BTreeMap<String, Vec<u64>>> {
     let mut statistics: BTreeMap<_, BTreeMap<_, Vec<_>>> = BTreeMap::default();
     for entry in fs::read_dir(data_folder_path).unwrap() {
-        let executions = build_tree(disable_filter, &entry.unwrap().path());
+        let executions = build_tree(disable_filter, entry.unwrap().path());
         for (ref key, ref times) in executions {
             if !statistics.contains_key(key) {
                 statistics.insert(key.clone(), Default::default());
@@ -204,15 +204,15 @@ fn compare(data_path: PathBuf, current_junit_path: PathBuf, disable_filter: bool
         println!("Total execution time");
         let mut table = Table::new(total_time);
         table.with(Style::markdown());
-        println!("{}", table);
+        println!("{table}");
         println!();
     }
 
     for (name, stats) in compared {
-        println!("name = {}", name);
+        println!("name = {name}");
         let mut table = Table::new(stats);
         table.with(Style::markdown());
-        println!("{}", table);
+        println!("{table}");
         println!();
     }
 }
@@ -226,7 +226,7 @@ fn convert(data_folder_path: PathBuf, output_file: PathBuf, disable_filter: bool
             let test_name = if section_name == TEST_SUITES_TEXT {
                 test_name
             } else {
-                format!("{} - {}", section_name, test_name)
+                format!("{section_name} - {test_name}")
             };
 
             output::Test::new_for_github(test_name, &mut times)

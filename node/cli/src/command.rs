@@ -246,7 +246,7 @@ pub fn run() -> sc_cli::Result<()> {
                     }
                     BenchmarkCmd::Overhead(cmd) => {
                         let inherent_data = inherent_benchmark_data().map_err(|e| {
-                            sc_cli::Error::from(format!("generating inherent data: {:?}", e))
+                            sc_cli::Error::from(format!("generating inherent data: {e:?}"))
                         })?;
 
                         let (client, _, _, _) = service::new_chain_ops(&config)?;
@@ -265,7 +265,7 @@ pub fn run() -> sc_cli::Result<()> {
                     }
                     BenchmarkCmd::Extrinsic(cmd) => {
                         let inherent_data = inherent_benchmark_data().map_err(|e| {
-                            sc_cli::Error::from(format!("generating inherent data: {:?}", e))
+                            sc_cli::Error::from(format!("generating inherent data: {e:?}"))
                         })?;
                         let (client, _, _, _) = service::new_chain_ops(&config)?;
                         // Register the *Remark* and *TKA* builders.

@@ -12,7 +12,7 @@ pub fn pick() -> u16 {
 
     loop {
         let port = rng.gen_range(PORT_RANGE);
-        if TcpListener::bind(&format!("{}:{}", LOCALHOST, port)).is_ok() {
+        if TcpListener::bind(format!("{LOCALHOST}:{port}")).is_ok() {
             return port;
         }
     }

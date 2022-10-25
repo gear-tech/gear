@@ -41,24 +41,24 @@ use sp_sandbox::{
 
 #[derive(Debug, derive_more::Display, derive_more::From)]
 pub enum SandboxEnvironmentError {
-    #[display(fmt = "Failed to create env memory: {:?}", _0)]
+    #[display(fmt = "Failed to create env memory: {_0:?}")]
     CreateEnvMemory(sp_sandbox::Error),
-    #[display(fmt = "Unable to instantiate module: {:?}", _0)]
+    #[display(fmt = "Unable to instantiate module: {_0:?}")]
     ModuleInstantiation(sp_sandbox::Error),
-    #[display(fmt = "Unable to get wasm module exports: {}", _0)]
+    #[display(fmt = "Unable to get wasm module exports: {_0}")]
     GetWasmExports(String),
     #[display(fmt = "Unable to set module memory data")]
     SetModuleMemoryData,
     #[display(fmt = "Unable to save static pages initial data")]
     SaveStaticPagesInitialData,
-    #[display(fmt = "{}", _0)]
+    #[display(fmt = "{_0}")]
     PreExecutionHandler(String),
     #[from]
     StackEnd(StackEndError),
 }
 
 #[derive(Debug, derive_more::Display, derive_more::From)]
-#[display(fmt = "{}", error)]
+#[display(fmt = "{error}")]
 pub struct Error {
     gas_amount: GasAmount,
     error: SandboxEnvironmentError,
