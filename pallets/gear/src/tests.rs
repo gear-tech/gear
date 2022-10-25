@@ -3174,7 +3174,7 @@ fn test_select_wait_timeout() {
         //
         // The timeout message has been triggered.
         let now = System::block_number();
-        let target = duration_b as u64 + now - 1;
+        let target = duration_a as u64 + now - 1;
         System::set_block_number(target);
         Gear::set_block_number(target.try_into().unwrap());
         run_to_next_block(None);

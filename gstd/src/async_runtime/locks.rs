@@ -1,5 +1,10 @@
 //! Wait duration registry
-use crate::{exec, prelude::BTreeMap, Config, MessageId};
+use crate::{
+    exec,
+    prelude::{BTreeMap, Vec},
+    Config, MessageId,
+};
+use core::cmp::Ordering;
 
 /// Type of wait locks.
 #[derive(Debug, PartialEq, Eq)]
@@ -9,7 +14,7 @@ pub(crate) enum LockType {
 }
 
 /// Wait lock
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct Lock {
     /// The start block number of this lock.
     pub at: u32,
@@ -36,9 +41,11 @@ impl Lock {
 
     /// Call wait functions by the lock type.
     pub fn wait(&self) {
-        match self.ty {
-            LockType::WaitFor(d) => exec::wait_for(d),
-            LockType::WaitUpTo(d) => exec::wait_up_to(d),
+        if let Some(blocks) = self.bound().checked_sub(exec::block_height()) {
+            match self.ty {
+                LockType::WaitFor(_) => exec::wait_for(blocks),
+                LockType::WaitUpTo(_) => exec::wait_up_to(blocks),
+            }
         }
     }
 
@@ -62,6 +69,18 @@ impl Lock {
     }
 }
 
+impl PartialOrd for Lock {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        self.bound().partial_cmp(&other.bound())
+    }
+}
+
+impl Ord for Lock {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.partial_cmp(other).unwrap_or(Ordering::Equal)
+    }
+}
+
 impl Default for Lock {
     fn default() -> Self {
         Lock::up_to(Config::wait_duration())
@@ -81,25 +100,27 @@ pub struct LocksMap(BTreeMap<MessageId, BTreeMap<MessageId, Lock>>);
 impl LocksMap {
     /// Trigger waiting for the message.
     pub fn wait(&mut self, message_id: MessageId) {
-        let locks = self.0.entry(message_id).or_insert_with(Default::default);
-        if locks.is_empty() {
+        let map = self.0.entry(message_id).or_insert_with(Default::default);
+        if map.is_empty() {
             // If there is no `waiting_reply_to` id specfied, use
             // the message id as key for the message lock.
-            locks.insert(message_id, Default::default());
+            map.insert(message_id, Default::default());
         }
 
-        locks.iter().for_each(|(_, l)| l.wait());
+        let now = exec::block_height();
+        let mut locks: Vec<&Lock> = map
+            .iter()
+            .filter_map(|(_, l)| (l.bound() > now).then(|| Some(l)))
+            .flatten()
+            .collect();
+        locks.sort();
+        locks.first().expect("checked before").wait();
     }
 
     /// Lock message.
     pub fn lock(&mut self, message_id: MessageId, waiting_reply_to: MessageId, lock: Lock) {
         let locks = self.0.entry(message_id).or_insert_with(Default::default);
         locks.insert(waiting_reply_to, lock);
-    }
-
-    /// Remove all locks of message.
-    pub fn remove_all(&mut self, message_id: MessageId) {
-        self.0.remove(&message_id);
     }
 
     /// Remove lock of message.
