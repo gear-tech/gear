@@ -25,6 +25,9 @@ macro_rules! impl_futures {
     ($f:ident, $r:ty, |$fut:ident, $cx:ident| => { $p:expr }) => {
         impl_futures!($f, $r, ($fut, $cx), $p, );
     };
+    ($f:ident, $g: tt, $r:ty, |$fut:ident, $cx:ident| => { $p:expr }) => {
+        impl_futures!($f, $r, ($fut, $cx), $p, $g);
+    };
     // impl FusedFuture
     ($f:ident, $r:ty, ($fut:ident, $cx:ident), $p:expr, $($g:tt)?) => {
         impl $( <$g: Decode> )? FusedFuture for $f $( < $g > )? {
@@ -49,10 +52,4 @@ macro_rules! impl_futures {
     }
 }
 
-macro_rules! impl_codec_futures {
-    ($f:ident, $g: tt, $r:ty, |$fut:ident, $cx:ident| => { $p:expr }) => {
-        impl_futures!($f, $r, ($fut, $cx), $p, $g);
-    };
-}
-
-pub(super) use {impl_codec_futures, impl_futures};
+pub(super) use impl_futures;

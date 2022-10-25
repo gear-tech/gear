@@ -21,7 +21,7 @@
 use crate::{
     async_runtime::{signals, ReplyPoll},
     errors::{ContractError, Result},
-    msg::macros::{impl_codec_futures, impl_futures},
+    msg::macros::impl_futures,
     prelude::{convert::AsRef, Vec},
     ActorId, MessageId,
 };
@@ -72,7 +72,7 @@ pub struct CodecMessageFuture<T> {
     pub(crate) _marker: PhantomData<T>,
 }
 
-impl_codec_futures!(
+impl_futures!(
     CodecMessageFuture,
     D,
     D,
@@ -99,7 +99,7 @@ pub struct CodecCreateProgramFuture<T> {
     pub(crate) _marker: PhantomData<T>,
 }
 
-impl_codec_futures!(
+impl_futures!(
     CodecCreateProgramFuture,
     D,
     (ActorId, D),
