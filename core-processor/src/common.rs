@@ -371,13 +371,13 @@ pub struct ExecutionError {
 #[derive(Encode, Decode, TypeInfo, Debug, PartialEq, Eq, PartialOrd, Ord, derive_more::Display)]
 pub enum ExecutionErrorReason {
     /// Memory error
-    #[display(fmt = "{}", _0)]
+    #[display(fmt = "{_0}")]
     Memory(MemoryError),
     /// Backend error
-    #[display(fmt = "{}", _0)]
+    #[display(fmt = "{_0}")]
     Backend(String),
     /// Ext error
-    #[display(fmt = "{}", _0)]
+    #[display(fmt = "{_0}")]
     Ext(TrapExplanation),
     /// Not executable actor.
     #[display(fmt = "Not executable actor")]
@@ -422,13 +422,13 @@ pub enum ExecutionErrorReason {
     #[display(fmt = "Changed page has no data in initial pages")]
     PageNoData,
     /// Page with data is not allocated for program
-    #[display(fmt = "{:?} is not allocated for program", _0)]
+    #[display(fmt = "{_0:?} is not allocated for program")]
     PageIsNotAllocated(PageNumber),
     /// Cannot read initial memory data from wasm memory.
-    #[display(fmt = "Cannot read data for {:?}: {}", _0, _1)]
+    #[display(fmt = "Cannot read data for {_0:?}: {_1}")]
     InitialMemoryReadFailed(PageNumber, MemoryError),
     /// Cannot write initial data to wasm memory.
-    #[display(fmt = "Cannot write initial data for {:?}: {}", _0, _1)]
+    #[display(fmt = "Cannot write initial data for {_0:?}: {_1}")]
     InitialDataWriteFailed(PageNumber, MemoryError),
     /// Message killed from storage as out of rent.
     #[display(fmt = "Out of rent")]

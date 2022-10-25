@@ -65,7 +65,7 @@ fn test_parsing_metadata() {
 
     assert_eq!(
         DEMO_METADATA.trim(),
-        &format!("{:#}", metadata).replace('"', "")
+        &format!("{metadata:#}").replace('"', "")
     );
 }
 

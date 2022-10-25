@@ -23,7 +23,7 @@ unsafe extern "C" fn init() {
     for (i, item) in v.iter_mut().enumerate() {
         *item = i * i;
     }
-    msg::reply_bytes(&format!("init: {}", v.into_iter().sum::<usize>()), 0).unwrap();
+    msg::reply_bytes(format!("init: {}", v.into_iter().sum::<usize>()), 0).unwrap();
 }
 
 #[no_mangle]
@@ -48,12 +48,12 @@ mod tests {
         let program = Program::current(&system);
         let res = program.send_bytes(from, "init");
         let init_gas_burned = res.main_gas_burned();
-        println!("Init gas burned: {}", init_gas_burned);
+        println!("Init gas burned: {init_gas_burned}");
         assert!(init_gas_burned > Gas::zero());
 
         let res = program.send_bytes(from, "handle");
         let handle_gas_burned = res.main_gas_burned();
-        println!("Handle gas burned: {}", handle_gas_burned);
+        println!("Handle gas burned: {handle_gas_burned}");
         assert!(handle_gas_burned > init_gas_burned);
     }
 }

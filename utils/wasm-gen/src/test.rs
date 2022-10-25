@@ -31,7 +31,7 @@ fn gen_wasm_normal() {
         rng.fill_bytes(&mut buf);
         let mut u = Unstructured::new(&buf);
         let code = gen_gear_program_code(&mut u, GearConfig::new_normal());
-        let _wat = wasmprinter::print_bytes(&code).unwrap();
+        let _wat = wasmprinter::print_bytes(code).unwrap();
     }
 }
 
@@ -43,7 +43,7 @@ fn gen_wasm_rare() {
         rng.fill_bytes(&mut buf);
         let mut u = Unstructured::new(&buf);
         let code = gen_gear_program_code(&mut u, GearConfig::new_for_rare_cases());
-        let _wat = wasmprinter::print_bytes(&code).unwrap();
+        let _wat = wasmprinter::print_bytes(code).unwrap();
     }
 }
 

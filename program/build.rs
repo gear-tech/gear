@@ -42,7 +42,7 @@ fn write_api(api: &str, path: PathBuf) {
         .unwrap();
 
     // pipe api to rustfmt
-    write!(code.stdin.as_mut().unwrap(), "{}", api).unwrap();
+    write!(code.stdin.as_mut().unwrap(), "{api}").unwrap();
     let output = code.wait_with_output().unwrap();
 
     // write api to disk

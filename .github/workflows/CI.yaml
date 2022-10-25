@@ -187,7 +187,7 @@ jobs:
 
       - name: "Install: rust-covfix"
         run: |
-          curl -L https://github.com/Kogia-sima/rust-covfix/releases/download/v0.2.2/rust-covfix-linux-x86_64.tar.xz | tar Jxf -
+          curl -L https://github.com/gear-tech/rust-covfix/releases/download/deploy/rust-covfix-linux-x86_64.tar.xz | tar Jxf -
           mv rust-covfix-linux-x86_64/rust-covfix ./
 
       - name: "Cache: Unpack"
@@ -201,7 +201,7 @@ jobs:
         run: ./scripts/gear.sh build examples --locked
 
       - name: "ACTIONS: Setup environment variable"
-        if: github.ref == 'refs/heads/master'
+        if: github.ref == 'refs/heads/master' || contains(github.event.pull_request.labels.*.name, 'E0-forcecoverage')
         run: echo "RUSTFLAGS=-Cinstrument-coverage" >> $GITHUB_ENV
 
       - name: "Build: Gear"
@@ -258,7 +258,7 @@ jobs:
           ./target/release/gear benchmark pallet --chain=dev --steps=2 --repeat=1 --pallet=pallet_gear --extrinsic="*" --execution=wasm --wasm-execution=compiled --heap-pages=4096
 
       - name: "Coverage: Aggregate"
-        if: github.ref == 'refs/heads/master'
+        if: github.ref == 'refs/heads/master' || contains(github.event.pull_request.labels.*.name, 'E0-forcecoverage')
         run: >-
           ./grcov . --binary-path ./target/release/ -s . -t lcov --branch --ignore-not-existing
           --ignore "/*"
@@ -282,15 +282,14 @@ jobs:
           --ignore "galloc/*"
           --ignore "gtest/*"
           --ignore "gclient/*"
-          --ignore "common/codegen/*"
           -o ./lcov.info
 
       - name: "Coverage: Fix report"
-        if: github.ref == 'refs/heads/master'
+        if: github.ref == 'refs/heads/master' || contains(github.event.pull_request.labels.*.name, 'E0-forcecoverage')
         run: ./rust-covfix -o lcov.info lcov.info
 
       - name: "Coverage: Publish"
-        if: github.ref == 'refs/heads/master'
+        if: github.ref == 'refs/heads/master' || contains(github.event.pull_request.labels.*.name, 'E0-forcecoverage')
         uses: codecov/codecov-action@v1
         with:
           file: ./lcov.info
@@ -341,7 +340,7 @@ jobs:
           path: artifact
 
   build-win:
-    if: github.ref == 'refs/heads/master'
+    if: github.ref == 'refs/heads/master' || contains(github.event.pull_request.labels.*.name, 'E1-forcewindows')
     needs: spec_version
     runs-on: ci-win
     defaults:
@@ -486,7 +485,7 @@ jobs:
             --release
 
   build-macos-x86:
-    if: github.ref == 'refs/heads/master'
+    if: github.ref == 'refs/heads/master' || contains(github.event.pull_request.labels.*.name, 'E2-forcemacos')
     needs: spec_version
     runs-on: macos-latest
     steps:
