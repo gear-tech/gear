@@ -38,7 +38,7 @@ use core::{fmt, mem};
 use frame_support::{
     dispatch::DispatchError,
     traits::Get,
-    weights::{IdentityFee, Weight, WeightToFee},
+    weights::{ConstantMultiplier, Weight, WeightToFee},
 };
 use gear_core::{
     ids::{CodeId, MessageId, ProgramId},
@@ -143,10 +143,14 @@ impl Origin for CodeId {
 pub trait GasPrice {
     type Balance: BaseArithmetic + From<u32> + Copy + Unsigned;
 
+    type GasToBalanceMultiplier: Get<Self::Balance>;
+
     /// A price for the `gas` amount of gas.
     /// In general case, this doesn't necessarily has to be constant.
     fn gas_price(gas: u64) -> Self::Balance {
-        IdentityFee::<Self::Balance>::weight_to_fee(&Weight::from_ref_time(gas))
+        ConstantMultiplier::<Self::Balance, Self::GasToBalanceMultiplier>::weight_to_fee(
+            &Weight::from_ref_time(gas),
+        )
     }
 }
 

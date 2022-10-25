@@ -22,7 +22,7 @@ mod apis;
 
 use frame_support::{
     parameter_types,
-    traits::{Currency, OnUnbalanced},
+    traits::{ConstU128, Currency, OnUnbalanced},
 };
 use runtime_primitives::{AccountId, Balance, BlockNumber};
 use sp_runtime::Perbill;
@@ -44,6 +44,7 @@ parameter_types! {
 pub struct GasConverter;
 impl gear_common::GasPrice for GasConverter {
     type Balance = Balance;
+    type GasToBalanceMultiplier = ConstU128<1_000>;
 }
 
 pub type NegativeImbalance<T> = <pallet_balances::Pallet<T> as Currency<
