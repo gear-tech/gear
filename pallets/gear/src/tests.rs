@@ -2996,7 +2996,7 @@ fn test_sending_waits() {
             RuntimeOrigin::signed(USER_1),
             program_id,
             payload,
-            2_500_000_000,
+            3_000_000_000,
             0,
         ));
 
@@ -3014,7 +3014,7 @@ fn test_sending_waits() {
             RuntimeOrigin::signed(USER_2),
             reply_to_id,
             vec![],
-            2_000_000_000,
+            1_000_000_000,
             0,
         ));
 

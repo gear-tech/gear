@@ -74,5 +74,42 @@ impl Default for LockType {
     }
 }
 
-/// Map of wait locks.
-pub(crate) type LocksMap = BTreeMap<MessageId, Lock>;
+/// DoubleMap for wait locks.
+#[derive(Default)]
+pub struct LocksMap(BTreeMap<MessageId, BTreeMap<MessageId, Lock>>);
+
+impl LocksMap {
+    /// Trigger waiting for the message.
+    pub fn wait(&mut self, message_id: MessageId) {
+        let locks = self.0.entry(message_id).or_insert_with(Default::default);
+        if locks.is_empty() {
+            // If there is no `waiting_reply_to` id specfied, use
+            // the message id as key for the message lock.
+            locks.insert(message_id, Default::default());
+        }
+
+        locks.iter().for_each(|(_, l)| l.wait());
+    }
+
+    /// Lock message.
+    pub fn lock(&mut self, message_id: MessageId, waiting_reply_to: MessageId, lock: Lock) {
+        let locks = self.0.entry(message_id).or_insert_with(Default::default);
+        locks.insert(waiting_reply_to, lock);
+    }
+
+    /// Remove lock of message.
+    pub fn remove(&mut self, message_id: MessageId, waiting_reply_to: MessageId) {
+        let locks = self.0.entry(message_id).or_insert_with(Default::default);
+        locks.remove(&waiting_reply_to);
+    }
+
+    /// Check if message is timeout.
+    pub fn is_timeout(
+        &mut self,
+        message_id: MessageId,
+        waiting_reply_to: MessageId,
+    ) -> Option<(u32, u32)> {
+        let locks = self.0.entry(message_id).or_insert_with(Default::default);
+        locks.get(&waiting_reply_to).and_then(|l| l.timeout())
+    }
+}

@@ -68,9 +68,6 @@ where
     if Pin::new(&mut task.future).poll(&mut cx).is_ready() {
         super::futures().remove(&msg_id);
     } else {
-        super::locks()
-            .entry(msg_id)
-            .or_insert_with(Default::default)
-            .wait();
+        super::locks().wait(msg_id);
     }
 }

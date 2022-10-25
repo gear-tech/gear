@@ -48,7 +48,7 @@ static mut LOCKS: Option<LocksMap> = None;
 
 /// Get all wait locks.
 pub(crate) fn locks() -> &'static mut LocksMap {
-    unsafe { LOCKS.get_or_insert_with(BTreeMap::new) }
+    unsafe { LOCKS.get_or_insert_with(LocksMap::default) }
 }
 
 pub fn record_reply() {
