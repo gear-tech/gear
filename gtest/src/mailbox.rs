@@ -113,7 +113,7 @@ impl<'a> MessageReplier<'a> {
             value,
             self.log
                 .exit_code()
-                .map(|exit_code| ReplyDetails::new(self.log.id(), exit_code)),
+                .map(|exit_code| ReplyDetails::new(self.log.id(), exit_code).into()),
         );
 
         self.manager

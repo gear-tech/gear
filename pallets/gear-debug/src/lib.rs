@@ -189,7 +189,7 @@ pub mod pallet {
             ProgramId::from_origin(destination),
             (*msg.payload()).to_vec().try_into().unwrap(),
             msg.value(),
-            msg.reply(),
+            msg.details(),
         );
 
         StoredDispatch::new(kind, message, context)

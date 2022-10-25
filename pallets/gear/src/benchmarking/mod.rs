@@ -322,7 +322,7 @@ where
                     payload.try_into()?,
                     Some(u64::MAX),
                     value,
-                    Some(ReplyDetails::new(msg.id(), exit_code)),
+                    Some(ReplyDetails::new(msg.id(), exit_code).into()),
                 ),
             )
         }

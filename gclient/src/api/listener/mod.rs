@@ -31,7 +31,10 @@ use gp::api::generated::api::{
         gear_common::event::DispatchStatus as GenDispatchStatus,
         gear_core::{
             ids::MessageId as GenMId,
-            message::{common::ReplyDetails, stored::StoredMessage as GenStoredMessage},
+            message::{
+                common::{MessageDetails, ReplyDetails},
+                stored::StoredMessage as GenStoredMessage,
+            },
         },
     },
     Event,
@@ -143,11 +146,11 @@ pub trait EventProcessor {
                         id,
                         payload,
                         value,
-                        reply:
-                            Some(ReplyDetails {
+                        details:
+                            Some(MessageDetails::Reply(ReplyDetails {
                                 reply_to,
                                 exit_code,
-                            }),
+                            })),
                         ..
                     },
                 ..
@@ -176,11 +179,11 @@ pub trait EventProcessor {
                 message:
                     GenStoredMessage {
                         payload,
-                        reply:
-                            Some(ReplyDetails {
+                        details:
+                            Some(MessageDetails::Reply(ReplyDetails {
                                 reply_to,
                                 exit_code,
-                            }),
+                            })),
                         ..
                     },
                 ..
@@ -217,11 +220,11 @@ pub trait EventProcessor {
                         message:
                             GenStoredMessage {
                                 payload,
-                                reply:
-                                    Some(ReplyDetails {
+                                details:
+                                    Some(MessageDetails::Reply(ReplyDetails {
                                         reply_to,
                                         exit_code,
-                                    }),
+                                    })),
                                 ..
                             },
                         ..

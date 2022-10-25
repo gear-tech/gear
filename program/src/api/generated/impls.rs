@@ -1,3 +1,20 @@
+// Copyright (C)  2022 Gear Technologies Inc.
+// SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
+//
+
 use crate::api::generated::api;
 use api::{
     runtime_types::{
@@ -6,10 +23,7 @@ use api::{
     },
     RuntimeEvent,
 };
-use gear_core::{
-    ids, message,
-    message::{ReplyDetails, StoredMessage},
-};
+use gear_core::{ids, message, message::StoredMessage};
 use parity_scale_codec::{Decode, Encode};
 
 type ApiEvent = api::Event;
@@ -52,7 +66,24 @@ impl From<generated_ids::CodeId> for ids::CodeId {
 
 impl From<generated_message::common::ReplyDetails> for message::ReplyDetails {
     fn from(other: generated_message::common::ReplyDetails) -> Self {
-        ReplyDetails::new(other.reply_to.into(), other.exit_code)
+        message::ReplyDetails::new(other.reply_to.into(), other.exit_code)
+    }
+}
+
+impl From<generated_message::common::SignalDetails> for message::SignalDetails {
+    fn from(other: generated_message::common::SignalDetails) -> Self {
+        message::SignalDetails::new(other.from.into(), other.exit_code)
+    }
+}
+
+impl From<generated_message::common::MessageDetails> for message::MessageDetails {
+    fn from(other: generated_message::common::MessageDetails) -> Self {
+        match other {
+            generated_message::common::MessageDetails::Reply(reply) => Self::Reply(reply.into()),
+            generated_message::common::MessageDetails::Signal(signal) => {
+                Self::Signal(signal.into())
+            }
+        }
     }
 }
 
@@ -65,7 +96,7 @@ impl From<generated_message::stored::StoredMessage> for message::StoredMessage {
             // converting data from the same type
             other.payload.0.try_into().expect("Infallible"),
             other.value,
-            other.reply.map(Into::into),
+            other.details.map(Into::into),
         )
     }
 }

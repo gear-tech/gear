@@ -41,8 +41,8 @@ pub struct Message {
     gas_limit: Option<GasLimit>,
     /// Message value.
     value: Value,
-    /// Message id replied on with exit code.
-    reply: Option<ReplyDetails>,
+    /// Message details like reply message ID, exit code, etc.
+    details: Option<MessageDetails>,
 }
 
 impl From<Message> for StoredMessage {
@@ -53,7 +53,7 @@ impl From<Message> for StoredMessage {
             message.destination,
             message.payload,
             message.value,
-            message.reply,
+            message.details,
         )
     }
 }
@@ -67,7 +67,7 @@ impl Message {
         payload: Payload,
         gas_limit: Option<GasLimit>,
         value: Value,
-        reply: Option<ReplyDetails>,
+        details: Option<MessageDetails>,
     ) -> Self {
         Self {
             id,
@@ -76,7 +76,7 @@ impl Message {
             payload,
             gas_limit,
             value,
-            reply,
+            details,
         }
     }
 
@@ -117,22 +117,12 @@ impl Message {
 
     /// Message reply.
     pub fn reply(&self) -> Option<ReplyDetails> {
-        self.reply
-    }
-
-    /// Check if this message is reply.
-    pub fn is_reply(&self) -> bool {
-        self.reply.is_some()
-    }
-
-    /// Message id what this message replies to, if reply.
-    pub fn reply_to(&self) -> Option<MessageId> {
-        self.reply.map(|v| v.reply_to())
+        self.details.and_then(|d| d.to_reply())
     }
 
     /// Exit code of the message, if reply.
     pub fn exit_code(&self) -> Option<ExitCode> {
-        self.reply.map(|v| v.exit_code())
+        self.details.map(|d| d.exit_code())
     }
 
     #[allow(clippy::result_large_err)]
@@ -153,7 +143,70 @@ impl Message {
 
     /// Returns bool defining if message is error reply.
     pub fn is_error_reply(&self) -> bool {
-        !matches!(self.exit_code(), Some(0) | None)
+        self.details.map(|d| d.is_error_reply()).unwrap_or(false)
+    }
+}
+
+/// Message details data.
+#[derive(
+    Clone,
+    Copy,
+    Debug,
+    Eq,
+    Hash,
+    Ord,
+    PartialEq,
+    PartialOrd,
+    Decode,
+    Encode,
+    TypeInfo,
+    derive_more::From,
+)]
+pub enum MessageDetails {
+    /// Reply details.
+    Reply(ReplyDetails),
+    /// Message details.
+    Signal(SignalDetails),
+}
+
+impl MessageDetails {
+    /// Returns bool defining if message is error reply.
+    pub fn is_error_reply(&self) -> bool {
+        self.is_reply() && self.exit_code() != 0
+    }
+
+    /// Returns exit code.
+    pub fn exit_code(&self) -> ExitCode {
+        match self {
+            MessageDetails::Reply(ReplyDetails { exit_code, .. })
+            | MessageDetails::Signal(SignalDetails { exit_code, .. }) => *exit_code,
+        }
+    }
+
+    /// Check if kind is reply.
+    pub fn is_reply(&self) -> bool {
+        matches!(self, Self::Reply(_))
+    }
+
+    /// Returns reply details.
+    pub fn to_reply(self) -> Option<ReplyDetails> {
+        match self {
+            MessageDetails::Reply(reply) => Some(reply),
+            MessageDetails::Signal(_) => None,
+        }
+    }
+
+    /// Check if kind is signal.
+    pub fn is_signal(&self) -> bool {
+        matches!(self, Self::Signal(_))
+    }
+
+    /// Reply signal details.
+    pub fn to_signal(self) -> Option<SignalDetails> {
+        match self {
+            MessageDetails::Reply(_) => None,
+            MessageDetails::Signal(signal) => Some(signal),
+        }
     }
 }
 
@@ -198,6 +251,49 @@ impl ReplyDetails {
     /// Destructs self in `MessageId` replied to.
     pub fn into_reply_to(self) -> MessageId {
         self.reply_to
+    }
+
+    /// Destructs self in `ExitCode` replied with.
+    pub fn into_exit_code(self) -> ExitCode {
+        self.exit_code
+    }
+}
+
+/// Signal details data.
+#[derive(
+    Clone, Copy, Default, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo,
+)]
+pub struct SignalDetails {
+    /// Message id, which issues signal.
+    from: MessageId,
+    /// Exit code of the reply.
+    exit_code: ExitCode,
+}
+
+impl SignalDetails {
+    /// Constructor for details.
+    pub fn new(from: MessageId, exit_code: ExitCode) -> Self {
+        Self { from, exit_code }
+    }
+
+    /// Message id getter.
+    pub fn from(&self) -> MessageId {
+        self.from
+    }
+
+    /// Exit code getter.
+    pub fn exit_code(&self) -> ExitCode {
+        self.exit_code
+    }
+
+    /// Destructs self in parts of components.
+    pub fn into_parts(self) -> (MessageId, ExitCode) {
+        (self.from, self.exit_code)
+    }
+
+    /// Destructs self in `MessageId` which issues signal.
+    pub fn into_from(self) -> MessageId {
+        self.from
     }
 
     /// Destructs self in `ExitCode` replied with.

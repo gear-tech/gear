@@ -289,7 +289,7 @@ pub fn check_messages(
                                         msg.destination(),
                                         new_payload.try_into().unwrap(),
                                         msg.value(),
-                                        msg.reply(),
+                                        msg.details(),
                                     );
                                 };
 

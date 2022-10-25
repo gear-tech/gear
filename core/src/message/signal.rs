@@ -49,7 +49,7 @@ impl SignalMessage {
             Default::default(),
             None,
             0,
-            Some(ReplyDetails::new(self.id, self.exit_code)),
+            Some(ReplyDetails::new(self.id, self.exit_code).into()),
         )
     }
 

@@ -426,6 +426,7 @@ where
                 GasNode::SpecifiedLocal {
                     value: amount,
                     lock: Zero::zero(),
+                    system_reserved: Default::default(),
                     parent: node_id,
                     refs: Default::default(),
                     consumed: false,
@@ -698,6 +699,7 @@ where
         let new_node = GasNode::UnspecifiedLocal {
             parent: node_id,
             lock: Zero::zero(),
+            system_reserved: Default::default(),
         };
 
         // Save new node

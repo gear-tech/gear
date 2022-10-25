@@ -16,12 +16,11 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use super::common::ReplyDetails;
 use crate::{
     ids::{MessageId, ProgramId},
     message::{
-        ContextStore, DispatchKind, ExitCode, GasLimit, IncomingDispatch, IncomingMessage, Payload,
-        Value,
+        common::MessageDetails, ContextStore, DispatchKind, ExitCode, GasLimit, IncomingDispatch,
+        IncomingMessage, Payload, ReplyDetails, Value,
     },
 };
 use alloc::string::ToString;
@@ -45,8 +44,8 @@ pub struct StoredMessage {
     /// Message value.
     #[codec(compact)]
     value: Value,
-    /// Message id replied on with exit code.
-    reply: Option<ReplyDetails>,
+    /// Message details like reply message ID, exit code, etc.
+    details: Option<MessageDetails>,
 }
 
 impl StoredMessage {
@@ -57,7 +56,7 @@ impl StoredMessage {
         destination: ProgramId,
         payload: Payload,
         value: Value,
-        reply: Option<ReplyDetails>,
+        details: Option<MessageDetails>,
     ) -> Self {
         Self {
             id,
@@ -65,7 +64,7 @@ impl StoredMessage {
             destination,
             payload,
             value,
-            reply,
+            details,
         }
     }
 
@@ -77,7 +76,7 @@ impl StoredMessage {
             self.payload,
             gas_limit,
             self.value,
-            self.reply,
+            self.details,
         )
     }
 
@@ -106,24 +105,19 @@ impl StoredMessage {
         self.value
     }
 
+    /// Message details.
+    pub fn details(&self) -> Option<MessageDetails> {
+        self.details
+    }
+
     /// Message reply.
     pub fn reply(&self) -> Option<ReplyDetails> {
-        self.reply
-    }
-
-    /// Check if this message is reply.
-    pub fn is_reply(&self) -> bool {
-        self.reply.is_some()
-    }
-
-    /// Message id what this message replies to, if reply.
-    pub fn reply_to(&self) -> Option<MessageId> {
-        self.reply.map(|v| v.reply_to())
+        self.details.and_then(|d| d.to_reply())
     }
 
     /// Exit code of the message, if reply.
     pub fn exit_code(&self) -> Option<ExitCode> {
-        self.reply.map(|v| v.exit_code())
+        self.details.map(|d| d.exit_code())
     }
 
     #[allow(clippy::result_large_err)]
@@ -144,7 +138,7 @@ impl StoredMessage {
 
     /// Returns bool defining if message is error reply.
     pub fn is_error_reply(&self) -> bool {
-        !matches!(self.exit_code(), Some(0) | None)
+        self.details.map(|d| d.is_error_reply()).unwrap_or(false)
     }
 }
 

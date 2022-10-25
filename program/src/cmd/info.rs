@@ -3,7 +3,10 @@ use crate::{
     api::{
         generated::api::runtime_types::{
             gear_common::storage::primitives::Interval,
-            gear_core::message::{common::ReplyDetails, stored::StoredMessage},
+            gear_core::message::{
+                common::{MessageDetails, ReplyDetails, SignalDetails},
+                stored::StoredMessage,
+            },
         },
         signer::Signer,
     },
@@ -112,9 +115,25 @@ impl fmt::Debug for Mail {
                 &["0x", &hex::encode(&self.message.payload.0)].concat(),
             )
             .field("value", &self.message.value)
-            .field("reply", &self.message.reply.as_ref().map(DebugReplyDetails))
+            .field(
+                "destination",
+                &self.message.details.as_ref().map(DebugMessageDestination),
+            )
             .field("interval", &self.interval)
             .finish()
+    }
+}
+
+struct DebugMessageDestination<'d>(pub &'d MessageDetails);
+
+impl<'d> fmt::Debug for DebugMessageDestination<'d> {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        let mut d = fmt.debug_tuple("MessageDetails");
+        match self.0 {
+            MessageDetails::Reply(reply) => d.field(&DebugReplyDetails(reply)),
+            MessageDetails::Signal(signal) => d.field(&DebugSignalDestination(signal)),
+        };
+        d.finish()
     }
 }
 
@@ -124,6 +143,17 @@ impl<'d> fmt::Debug for DebugReplyDetails<'d> {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         fmt.debug_struct("ReplyDetails")
             .field("reply_to", &hex::encode(self.0.reply_to.0))
+            .field("exit_code", &self.0.exit_code.to_string())
+            .finish()
+    }
+}
+
+struct DebugSignalDestination<'d>(pub &'d SignalDetails);
+
+impl<'d> fmt::Debug for DebugSignalDestination<'d> {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        fmt.debug_struct("SignalDetails")
+            .field("from", &hex::encode(self.0.from.0))
             .field("exit_code", &self.0.exit_code.to_string())
             .finish()
     }

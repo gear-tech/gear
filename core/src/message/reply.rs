@@ -79,7 +79,7 @@ impl ReplyMessage {
             self.payload,
             self.gas_limit,
             self.value,
-            Some(ReplyDetails::new(origin_msg_id, self.exit_code)),
+            Some(ReplyDetails::new(origin_msg_id, self.exit_code).into()),
         )
     }
 
