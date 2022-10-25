@@ -39,7 +39,9 @@ where
     F: Fn(Vec<u8>) -> Result<R>,
 {
     match signals().poll(waiting_reply_to, cx) {
-        ReplyPoll::None => panic!("Somebody created CodecMessageFuture with the MessageId that never ended in static replies!"),
+        ReplyPoll::None => panic!(
+            "Somebody created a future with the MessageId that never ended in static replies!"
+        ),
         ReplyPoll::Pending => Poll::Pending,
         ReplyPoll::Some((actual_reply, exit_code)) => {
             if exit_code != 0 {
@@ -47,7 +49,7 @@ where
             }
 
             Poll::Ready(f(actual_reply))
-        },
+        }
     }
 }
 

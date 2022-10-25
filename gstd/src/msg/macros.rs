@@ -17,11 +17,6 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 macro_rules! impl_futures {
-    ( $($f:ident),* ) => {
-        $(
-            impl_futures!(($f,));
-        )*
-    };
     ($f:ident, $r:ty, |$fut:ident, $cx:ident| => { $p:expr }) => {
         impl_futures!($f, $r, ($fut, $cx), $p, );
     };
@@ -46,9 +41,6 @@ macro_rules! impl_futures {
             }
         }
     };
-    ($r:ident, $p:expr) => {
-
-    }
 }
 
 pub(super) use impl_futures;
