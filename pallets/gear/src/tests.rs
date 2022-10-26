@@ -2974,11 +2974,11 @@ fn test_sending_waits() {
 
         assert_eq!(get_waitlist_expiration(wait_for), expiration(duration));
 
-        // Case 2 - `Command::SendNoMore`
+        // Case 2 - `Command::SendUpTo`
         //
-        // Send message and then wait no_more.
+        // Send message and then wait_up_to.
         let duration = 10;
-        let payload = Command::SendNoMore(USER_1.into(), duration).encode();
+        let payload = Command::SendUpTo(USER_1.into(), duration).encode();
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(USER_1),
             program_id,
@@ -2992,11 +2992,11 @@ fn test_sending_waits() {
 
         assert_eq!(get_waitlist_expiration(wait_no_more), expiration(duration));
 
-        // Case 3 - `Command::SendNoMoreWait`
+        // Case 3 - `Command::SendUpToWait`
         //
         // Send message and then wait no_more, wake, wait no_more again.
         let duration = 10;
-        let payload = Command::SendNoMoreWait(USER_2.into(), duration).encode();
+        let payload = Command::SendUpToWait(USER_2.into(), duration).encode();
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(USER_1),
             program_id,

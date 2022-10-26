@@ -62,6 +62,7 @@ pub use config::Config;
 pub mod config {
     /// `gstd` configuration
     pub struct Config {
+        /// Default wait duration for waited messages.
         pub wait_duration: u32,
     }
 
@@ -77,9 +78,6 @@ pub mod config {
 
         /// Set wait duration
         pub fn set_wait_duration(duration: u32) {
-            // # TODO
-            //
-            // check duration
             unsafe { CONFIG.wait_duration = duration };
         }
     }

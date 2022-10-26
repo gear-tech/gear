@@ -44,7 +44,7 @@ pub enum Command {
     WaitFor(u32),
     WaitUpTo(u32),
     SendFor(ActorId, u32),
-    SendNoMore(ActorId, u32),
-    SendNoMoreWait(ActorId, u32),
+    SendUpTo(ActorId, u32),
+    SendUpToWait(ActorId, u32),
     SendAndWaitFor(u32, ActorId),
 }

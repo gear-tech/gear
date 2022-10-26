@@ -16,13 +16,13 @@ async fn main() {
                 .exactly(duration)
                 .await;
         }
-        Command::SendNoMore(to, duration) => {
+        Command::SendUpTo(to, duration) => {
             msg::send_bytes_for_reply(to, [], 0)
                 .expect("send message failed")
                 .up_to(duration)
                 .await;
         }
-        Command::SendNoMoreWait(to, duration) => {
+        Command::SendUpToWait(to, duration) => {
             msg::send_bytes_for_reply(to, [], 0)
                 .expect("send message failed")
                 .up_to(duration)

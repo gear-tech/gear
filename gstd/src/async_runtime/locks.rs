@@ -31,7 +31,7 @@ impl Lock {
         }
     }
 
-    /// Wait no more
+    /// Wait up to
     pub fn up_to(b: u32) -> Self {
         Self {
             at: exec::block_height(),
@@ -103,14 +103,19 @@ impl LocksMap {
         let map = self.0.entry(message_id).or_insert_with(Default::default);
         if map.is_empty() {
             // If there is no `waiting_reply_to` id specfied, use
-            // the message id as key for the message lock.
+            // the message id as the key of the message lock.
+            // (the key should to `waiting_replay_to` in general )
+            //
+            // # TODO
+            //
+            // refactor this implementation when we got better solution.
             map.insert(message_id, Default::default());
         }
 
         let now = exec::block_height();
         let mut locks: Vec<&Lock> = map
             .iter()
-            .filter_map(|(_, l)| (l.bound() > now).then(|| Some(l)))
+            .filter_map(|(_, l)| (l.bound() > now).then_some(Some(l)))
             .flatten()
             .collect();
         locks.sort();
