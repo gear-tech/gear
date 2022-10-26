@@ -11051,16 +11051,16 @@ dependencies = [
 
 [[package]]
 name = "wasm-mutate"
-version = "0.2.9"
+version = "0.2.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "00f7cead43549f0307a400df44218c00ccd9b275ed87edb8862b99b000dc9011"
+checksum = "95d890340857014cfaad5db9d37154416de7110520ee515b0d9b1d7f29c7b137"
 dependencies = [
  "egg",
  "log",
  "rand 0.8.5",
  "thiserror",
- "wasm-encoder 0.18.0",
- "wasmparser 0.92.0",
+ "wasm-encoder 0.19.0",
+ "wasmparser 0.93.0",
 ]
 
 [[package]]
