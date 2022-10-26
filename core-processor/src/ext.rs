@@ -417,7 +417,7 @@ impl EnvExt for Ext {
     }
 
     fn reply_commit(&mut self, msg: ReplyPacket, delay: u32) -> Result<MessageId, Self::Error> {
-        self.charge_gas_runtime(RuntimeCosts::ReplyCommit(msg.payload().len() as u32))?;
+        self.charge_gas_runtime(RuntimeCosts::ReplyCommit)?;
 
         self.check_forbidden_call(self.context.message_context.reply_destination())?;
         self.charge_expiring_resources(&msg)?;
@@ -658,7 +658,10 @@ impl EnvExt for Ext {
         delay: u32,
     ) -> Result<(MessageId, ProgramId), Self::Error> {
         // +_+_+ salt size
-        self.charge_gas_runtime(RuntimeCosts::CreateProgram(packet.payload().len() as u32))?;
+        self.charge_gas_runtime(RuntimeCosts::CreateProgram(
+            packet.payload().len() as u32,
+            packet.salt().len() as u32,
+        ))?;
 
         self.charge_expiring_resources(&packet)?;
 

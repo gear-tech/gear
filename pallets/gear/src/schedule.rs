@@ -369,10 +369,10 @@ pub struct HostFnWeights<T: Config> {
     pub gr_create_program_wgas: u64,
 
     /// Weight per payload byte by `create_program_wgas`.
-    pub gr_create_program_wgas_per_byte: u64,
+    pub gr_create_program_wgas_payload_per_byte: u64,
 
-    /// Weight of calling `gas`.
-    pub gas: u64,
+    /// Weight per salt byte by `create_program_wgas`.
+    pub gr_create_program_wgas_salt_per_byte: u64,
 
     /// The type parameter is used in the default implementation.
     #[codec(skip)]
@@ -609,8 +609,8 @@ impl<T: Config> HostFnWeights<T> {
             gr_wait_up_to: self.gr_wait_up_to,
             gr_wake: self.gr_wake,
             gr_create_program_wgas: self.gr_create_program_wgas,
-            gr_create_program_wgas_per_byte: self.gr_create_program_wgas_per_byte,
-            gas: self.gas,
+            gr_create_program_wgas_payload_per_byte: self.gr_create_program_wgas_payload_per_byte,
+            gr_create_program_wgas_salt_per_byte: self.gr_create_program_wgas_salt_per_byte,
         }
     }
 }
@@ -651,8 +651,16 @@ impl<T: Config> Default for HostFnWeights<T> {
             gr_wait_up_to: cost!(gr_wait_up_to),
             gr_wake: cost_batched!(gr_wake),
             gr_create_program_wgas: cost!(gr_create_program_wgas),
-            gr_create_program_wgas_per_byte: cost_byte_batched!(gr_create_program_wgas_per_kb),
-            gas: cost_batched!(gas),
+            gr_create_program_wgas_payload_per_byte: cost_byte_batched_args!(
+                gr_create_program_wgas_per_kb,
+                1,
+                0
+            ),
+            gr_create_program_wgas_salt_per_byte: cost_byte_batched_args!(
+                gr_create_program_wgas_per_kb,
+                0,
+                1
+            ),
             _phantom: PhantomData,
         }
     }
