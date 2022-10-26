@@ -40,6 +40,8 @@ pub trait WeightInfo {
     fn grow_cost() -> Weight;
     fn initial_cost() -> Weight;
     fn load_cost() -> Weight;
+    fn db_write_per_kb(c: u32, ) -> Weight;
+    fn db_read_per_kb(c: u32, ) -> Weight;
     fn instantiate_module_per_kb(c: u32, ) -> Weight;
     fn claim_value() -> Weight;
     fn upload_code(c: u32, ) -> Weight;
@@ -154,6 +156,20 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
     }
     fn load_cost() -> Weight {
         T::DbWeight::get().reads(1)
+    }
+    /// The range of component `c` is `[0, 512]`.
+    fn db_write_per_kb(c: u32, ) -> Weight {
+        Weight::from_ref_time(1_000_000 as u64)
+            // Standard Error: 211
+            .saturating_add(Weight::from_ref_time(140_336 as u64).saturating_mul(c as u64))
+            .saturating_add(T::DbWeight::get().writes(1 as u64))
+    }
+    /// The range of component `c` is `[0, 512]`.
+    fn db_read_per_kb(c: u32, ) -> Weight {
+        Weight::from_ref_time(4_000_000 as u64)
+            // Standard Error: 559
+            .saturating_add(Weight::from_ref_time(361_781 as u64).saturating_mul(c as u64))
+            .saturating_add(T::DbWeight::get().reads(1 as u64))
     }
     /// The range of component `c` is `[0, 256902]`.
     fn instantiate_module_per_kb(c: u32, ) -> Weight {
@@ -775,6 +791,20 @@ impl WeightInfo for () {
     }
     fn load_cost() -> Weight {
         RocksDbWeight::get().reads(1)
+    }
+    /// The range of component `c` is `[0, 512]`.
+    fn db_write_per_kb(c: u32, ) -> Weight {
+        Weight::from_ref_time(1_000_000 as u64)
+            // Standard Error: 211
+            .saturating_add(Weight::from_ref_time(140_336 as u64).saturating_mul(c as u64))
+            .saturating_add(RocksDbWeight::get().writes(1 as u64))
+    }
+    /// The range of component `c` is `[0, 512]`.
+    fn db_read_per_kb(c: u32, ) -> Weight {
+        Weight::from_ref_time(4_000_000 as u64)
+            // Standard Error: 559
+            .saturating_add(Weight::from_ref_time(361_781 as u64).saturating_mul(c as u64))
+            .saturating_add(RocksDbWeight::get().reads(1 as u64))
     }
     /// The range of component `c` is `[0, 256902]`.
     fn instantiate_module_per_kb(c: u32, ) -> Weight {
