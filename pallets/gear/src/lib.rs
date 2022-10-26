@@ -90,7 +90,6 @@ pub(crate) type DequeuedOf<T> = <<T as Config>::Messenger as Messenger>::Dequeue
 pub(crate) type QueueProcessingOf<T> = <<T as Config>::Messenger as Messenger>::QueueProcessing;
 pub(crate) type QueueOf<T> = <<T as Config>::Messenger as Messenger>::Queue;
 pub(crate) type MailboxOf<T> = <<T as Config>::Messenger as Messenger>::Mailbox;
-pub(crate) type ReadPerByteCostOf<T> = <T as Config>::ReadPerByteCost;
 pub(crate) type WaitlistOf<T> = <<T as Config>::Messenger as Messenger>::Waitlist;
 pub(crate) type MessengerCapacityOf<T> = <<T as Config>::Messenger as Messenger>::Capacity;
 pub(crate) type TaskPoolOf<T> = <<T as Config>::Scheduler as Scheduler>::TaskPool;
@@ -260,10 +259,6 @@ pub mod pallet {
         /// Amount of reservations can exist for 1 program.
         #[pallet::constant]
         type ReservationsLimit: Get<u64>;
-
-        /// The cost per loaded byte.
-        #[pallet::constant]
-        type ReadPerByteCost: Get<u64>;
 
         /// Messenger.
         type Messenger: Messenger<
@@ -930,7 +925,8 @@ pub mod pallet {
                 reservation: CostsPerBlockOf::<T>::reservation().unique_saturated_into(),
                 read_cost: DbWeightOf::<T>::get().reads(1).ref_time(),
                 write_cost: DbWeightOf::<T>::get().writes(1).ref_time(),
-                per_byte_cost: ReadPerByteCostOf::<T>::get(),
+                write_per_byte_cost: schedule.db_write_per_byte,
+                read_per_byte_cost: schedule.db_read_per_byte,
                 module_instantiation_byte_cost: schedule.module_instantiation_per_byte,
                 max_reservations: T::ReservationsLimit::get(),
             };
@@ -1281,7 +1277,8 @@ pub mod pallet {
                 reservation: CostsPerBlockOf::<T>::reservation().unique_saturated_into(),
                 read_cost: DbWeightOf::<T>::get().reads(1).ref_time(),
                 write_cost: DbWeightOf::<T>::get().writes(1).ref_time(),
-                per_byte_cost: ReadPerByteCostOf::<T>::get(),
+                write_per_byte_cost: schedule.db_write_per_byte,
+                read_per_byte_cost: schedule.db_read_per_byte,
                 module_instantiation_byte_cost: schedule.module_instantiation_per_byte,
                 max_reservations: T::ReservationsLimit::get(),
             };

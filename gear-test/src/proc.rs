@@ -46,7 +46,8 @@ pub const RESERVE_FOR: u32 = 1;
 pub const RESERVATION_COST: u64 = 100;
 pub const READ_COST: u64 = 20;
 pub const WRITE_COST: u64 = 100;
-pub const PER_BYTE_COST: u64 = 10;
+pub const READ_PER_BYTE_COST: u64 = 10;
+pub const WRITE_PER_BYTE_COST: u64 = 10;
 pub const MODULE_INSTANTIATION_BYTE_COST: u64 = 20;
 pub const MAX_RESERVATIONS: u64 = 256;
 
@@ -429,7 +430,8 @@ fn test_block_config(block_info: BlockInfo) -> BlockConfig {
         reservation: RESERVATION_COST,
         read_cost: READ_COST,
         write_cost: WRITE_COST,
-        per_byte_cost: PER_BYTE_COST,
+        read_per_byte_cost: READ_PER_BYTE_COST,
+        write_per_byte_cost: WRITE_PER_BYTE_COST,
         module_instantiation_byte_cost: MODULE_INSTANTIATION_BYTE_COST,
         max_reservations: MAX_RESERVATIONS,
     }

@@ -39,7 +39,7 @@ use crate::{
     schedule::{API_BENCHMARK_BATCH_SIZE, INSTR_BENCHMARK_BATCH_SIZE},
     BTreeMap, BalanceOf, BenchmarkStorage, BlockGasLimitOf, Call, Config, CostsPerBlockOf,
     CurrencyOf, DbWeightOf, ExecutionEnvironment, Ext as Externalities, GasHandlerOf, MailboxOf,
-    Pallet as Gear, Pallet, QueueOf, ReadPerByteCostOf, Schedule, WaitlistOf,
+    Pallet as Gear, Pallet, QueueOf, Schedule, WaitlistOf,
 };
 use codec::Encode;
 use common::{
@@ -350,6 +350,8 @@ where
     let reserve_for = CostsPerBlockOf::<T>::reserve_for().unique_saturated_into();
     let reservation = CostsPerBlockOf::<T>::reservation().unique_saturated_into();
 
+    let schedule = T::Schedule::get();
+
     let block_config = BlockConfig {
         block_info,
         allocations_config: AllocationsConfig {
@@ -369,8 +371,9 @@ where
         reservation,
         read_cost: DbWeightOf::<T>::get().reads(1).ref_time(),
         write_cost: DbWeightOf::<T>::get().writes(1).ref_time(),
-        per_byte_cost: ReadPerByteCostOf::<T>::get(),
-        module_instantiation_byte_cost: T::Schedule::get().module_instantiation_per_byte,
+        write_per_byte_cost: schedule.db_write_per_byte,
+        read_per_byte_cost: schedule.db_read_per_byte,
+        module_instantiation_byte_cost: schedule.module_instantiation_per_byte,
         max_reservations: T::ReservationsLimit::get(),
     };
 
