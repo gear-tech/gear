@@ -1,10 +1,13 @@
-FROM ubuntu:latest
-LABEL description="Gear container"
+FROM amazonlinux:latest as builder
+LABEL description="This is the build stage for Gear. Here we create the binary."
 
+ARG PROFILE=production
 WORKDIR /gear
 
+COPY . /gear
+
 # Install dependecies
-RUN apt-get update -y && apt-get install -y clang gcc git gzip make tar wget unzip curl apt-utils
+RUN yum update -y && yum install -y amazon-linux-extras clang gcc git gzip make tar wget unzip
 
 ARG PROTOC_ZIP=protoc-3.14.0-linux-x86_64.zip
 RUN curl -OL https://github.com/protocolbuffers/protobuf/releases/download/v3.14.0/$PROTOC_ZIP
@@ -20,7 +23,7 @@ RUN rm cmake-3.24.0-linux-x86_64.sh
 RUN cmake --version
 
 # Install Rust and toolchains
-RUN wget https://sh.rustup.rs/rustup-init.sh
+RUN  wget https://sh.rustup.rs/rustup-init.sh
 RUN chmod +x rustup-init.sh
 RUN ./rustup-init.sh -y
 ENV PATH="/root/.cargo/bin:$PATH"
@@ -29,4 +32,23 @@ RUN cargo --version
 RUN rustc --version
 RUN rustup update nightly && rustup target add wasm32-unknown-unknown --toolchain nightly
 
-RUN sh -c "$(wget -O- https://github.com/deluan/zsh-in-docker/releases/download/v1.1.3/zsh-in-docker.sh)"
+# Build
+RUN cargo build -p gear-cli --profile $PROFILE
+
+# ===== SECOND STAGE ======
+
+FROM debian:stable-slim
+MAINTAINER GEAR
+LABEL description="This is the 2nd stage: a very small image where we copy the Gear binary."
+ARG PROFILE=production
+COPY --from=builder /gear/target/$PROFILE/gear /usr/local/bin
+RUN apt-get update && apt-get install -y openssl
+RUN useradd -m -u 1000 -U -s /bin/sh -d /gear gear && \
+	mkdir -p /gear/.local/share && \
+	mkdir /data && \
+	chown -R gear:gear /data && \
+	ln -s /data /gear/.local/share/gear
+
+USER root
+
+CMD ["/usr/local/bin/gear"]

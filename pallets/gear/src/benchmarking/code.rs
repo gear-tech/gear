@@ -266,11 +266,7 @@ where
             code = inject_stack_metering::<T>(code);
         }
 
-        use alloc::format;
         let code = code.into_bytes().unwrap();
-        let hex = code.iter().fold("".to_owned(), |mut hex, x| { hex.insert_str(hex.len(), format!("{:02X}", x).as_str()); hex });
-        log::trace!("{hex}");
-
         let hash = CodeId::generate(&code);
         Self {
             code: code.to_vec(),
@@ -420,7 +416,6 @@ pub mod body {
     /// to change those instructions on each repetition. The variants of this enum describe
     /// various ways in which this can happen.
     pub enum DynInstr {
-        ConstU32(u32),
         /// Insert the associated instruction.
         Regular(Instruction),
         /// Insert a I32Const with incrementing value for each insertion.
@@ -485,7 +480,6 @@ pub mod body {
             .cycle()
             .take(instructions.len() * usize::try_from(repetitions).unwrap())
             .flat_map(|idx| match &mut instructions[idx] {
-                DynInstr::ConstU32(c) => vec![Instruction::I32Const(*c as i32)],
                 DynInstr::Regular(instruction) => vec![instruction.clone()],
                 DynInstr::Counter(offset, increment_by) => {
                     let current = *offset;

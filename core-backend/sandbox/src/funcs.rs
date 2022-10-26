@@ -269,7 +269,7 @@ where
     pub fn read(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
         sys_trace!(target: "syscall::gear", "read, args = {}", args_to_str(args));
 
-        let (at, len, buffer_ptr) = args.iter().read_3().expect("Cannot parse args");
+        let (at, len, buffer_ptr) = args.iter().read_3()?;
 
         ctx.run(|ctx| {
             match Self::validated(&mut ctx.ext, at, len) {
