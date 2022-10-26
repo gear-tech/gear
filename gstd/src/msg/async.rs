@@ -21,6 +21,7 @@
 use crate::{
     async_runtime::{self, signals, Lock, ReplyPoll},
     errors::{ContractError, Result},
+    msg::macros::impl_futures,
     prelude::{convert::AsRef, Vec},
     ActorId, MessageId,
 };
@@ -32,6 +33,35 @@ use core::{
     task::{Context, Poll},
 };
 use futures::future::FusedFuture;
+
+fn poll<F, R>(waiting_reply_to: MessageId, cx: &mut Context<'_>, f: F) -> Poll<Result<R>>
+where
+    F: Fn(Vec<u8>) -> Result<R>,
+{
+    let msg_id = crate::msg::id();
+
+    // check if message is timeout
+    if let Some((expected, now)) = async_runtime::locks().is_timeout(msg_id, waiting_reply_to) {
+        return Poll::Ready(Err(ContractError::Timeout(expected, now)));
+    }
+
+    match signals().poll(waiting_reply_to, cx) {
+        ReplyPoll::None => panic!(
+            "Somebody created a future with the MessageId that never ended in static replies!"
+        ),
+        ReplyPoll::Pending => Poll::Pending,
+        ReplyPoll::Some((actual_reply, exit_code)) => {
+            if exit_code != 0 {
+                return Poll::Ready(Err(ContractError::ExitCode(exit_code)));
+            }
+
+            // Remove lock after waking.
+            async_runtime::locks().remove(msg_id, waiting_reply_to);
+
+            Poll::Ready(f(actual_reply))
+        }
+    }
+}
 
 /// To interrupt a program execution waiting for a reply on a previous message,
 /// one needs to call an `.await` expression.
@@ -54,65 +84,16 @@ pub struct CodecMessageFuture<T> {
     pub(crate) _marker: PhantomData<T>,
 }
 
-impl<D: Decode> Future for CodecMessageFuture<D> {
-    type Output = Result<D>;
-
-    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        let fut = &mut self;
-        let msg_id = crate::msg::id();
-
-        // check if message is timeout
-        if let Some((expected, now)) =
-            async_runtime::locks().is_timeout(msg_id, fut.waiting_reply_to)
-        {
-            return Poll::Ready(Err(ContractError::Timeout(expected, now)));
-        }
-
-        match signals().poll(fut.waiting_reply_to, cx) {
-            ReplyPoll::None => panic!("Somebody created CodecMessageFuture with the MessageId that never ended in static replies!"),
-            ReplyPoll::Pending => Poll::Pending,
-            ReplyPoll::Some((actual_reply, exit_code)) => {
-                if exit_code != 0 {
-                    return Poll::Ready(Err(ContractError::ExitCode(exit_code)));
-                }
-
-                // Remove lock after waking.
-                async_runtime::locks().remove(msg_id, fut.waiting_reply_to);
-
-                Poll::Ready(D::decode(&mut actual_reply.as_ref()).map_err(ContractError::Decode))
-            },
-        }
+impl_futures!(
+    CodecMessageFuture,
+    D,
+    D,
+    |fut, cx| => {
+        poll(fut.waiting_reply_to, cx, |reply| {
+            D::decode(&mut reply.as_ref()).map_err(ContractError::Decode)
+        })
     }
-}
-
-impl<D: Decode> CodecMessageFuture<D> {
-    /// Delays handling for given specific amount of blocks.
-    pub fn up_to(self, duration: u32) -> Self {
-        async_runtime::locks().lock(
-            crate::msg::id(),
-            self.waiting_reply_to,
-            Lock::up_to(duration),
-        );
-        self
-    }
-
-    /// Delays handling for maximal amount of blocks that could be payed, that
-    /// doesn't exceed given duration.
-    pub fn exactly(self, duration: u32) -> Self {
-        async_runtime::locks().lock(
-            crate::msg::id(),
-            self.waiting_reply_to,
-            Lock::exactly(duration),
-        );
-        self
-    }
-}
-
-impl<D: Decode> FusedFuture for CodecMessageFuture<D> {
-    fn is_terminated(&self) -> bool {
-        !signals().waits_for(self.waiting_reply_to)
-    }
-}
+);
 
 /// Same as [`CodecMessageFuture`], but also contains program id
 /// for functions that create programs.
@@ -130,66 +111,18 @@ pub struct CodecCreateProgramFuture<T> {
     pub(crate) _marker: PhantomData<T>,
 }
 
-impl<D: Decode> Future for CodecCreateProgramFuture<D> {
-    type Output = Result<(ActorId, D)>;
-
-    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        let fut = &mut self;
-        let msg_id = crate::msg::id();
-
-        // check if message is timeout
-        if let Some((expected, now)) =
-            async_runtime::locks().is_timeout(msg_id, fut.waiting_reply_to)
-        {
-            return Poll::Ready(Err(ContractError::Timeout(expected, now)));
-        }
-
-        // do polling
-        match signals().poll(fut.waiting_reply_to, cx) {
-            ReplyPoll::None => panic!("Somebody created CodecCreateProgramFuture with the MessageId that never ended in static replies!"),
-            ReplyPoll::Pending => Poll::Pending,
-            ReplyPoll::Some((actual_reply, exit_code)) => {
-                if exit_code != 0 {
-                    return Poll::Ready(Err(ContractError::ExitCode(exit_code)));
-                }
-
-                // Remove lock after waking.
-                async_runtime::locks().remove(msg_id, fut.waiting_reply_to);
-
-                Poll::Ready(D::decode(&mut actual_reply.as_ref()).map(|payload| (self.program_id, payload)).map_err(ContractError::Decode))
-            },
-        }
+impl_futures!(
+    CodecCreateProgramFuture,
+    D,
+    (ActorId, D),
+    |fut, cx| => {
+        poll(fut.waiting_reply_to, cx, |reply| {
+            D::decode(&mut reply.as_ref())
+                .map(|payload| (fut.program_id, payload))
+                .map_err(ContractError::Decode)
+        })
     }
-}
-
-impl<D: Decode> CodecCreateProgramFuture<D> {
-    /// Delays handling for given specific amount of blocks.
-    pub fn up_to(self, duration: u32) -> Self {
-        async_runtime::locks().lock(
-            crate::msg::id(),
-            self.waiting_reply_to,
-            Lock::up_to(duration),
-        );
-        self
-    }
-
-    /// Delays handling for maximal amount of blocks that could be payed, that
-    /// doesn't exceed given duration.
-    pub fn exactly(self, duration: u32) -> Self {
-        async_runtime::locks().lock(
-            crate::msg::id(),
-            self.waiting_reply_to,
-            Lock::exactly(duration),
-        );
-        self
-    }
-}
-
-impl<D: Decode> FusedFuture for CodecCreateProgramFuture<D> {
-    fn is_terminated(&self) -> bool {
-        !signals().waits_for(self.waiting_reply_to)
-    }
-}
+);
 
 /// To interrupt a program execution waiting for a reply on a previous message,
 /// one needs to call an `.await` expression.
@@ -205,66 +138,13 @@ pub struct MessageFuture {
     pub waiting_reply_to: MessageId,
 }
 
-impl Future for MessageFuture {
-    type Output = Result<Vec<u8>>;
-
-    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        let fut = &mut *self;
-        let msg_id = crate::msg::id();
-
-        // check if message is timeout
-        if let Some((expected, now)) =
-            async_runtime::locks().is_timeout(msg_id, fut.waiting_reply_to)
-        {
-            return Poll::Ready(Err(ContractError::Timeout(expected, now)));
-        }
-
-        // do polling
-        match signals().poll(fut.waiting_reply_to, cx) {
-            ReplyPoll::None => panic!("Somebody created MessageFuture with the MessageId that never ended in static replies!"),
-            ReplyPoll::Pending => Poll::Pending,
-            ReplyPoll::Some((actual_reply, exit_code)) => {
-                if exit_code != 0 {
-                    return Poll::Ready(Err(ContractError::ExitCode(exit_code)));
-                }
-
-                // Remove lock after waking.
-                async_runtime::locks().remove(msg_id, fut.waiting_reply_to);
-
-                Poll::Ready(Ok(actual_reply))
-            },
-        }
+impl_futures!(
+    MessageFuture,
+    Vec<u8>,
+    |fut, cx| => {
+        poll(fut.waiting_reply_to, cx, Ok)
     }
-}
-
-impl MessageFuture {
-    /// Delays handling for given specific amount of blocks.
-    pub fn up_to(self, duration: u32) -> Self {
-        async_runtime::locks().lock(
-            crate::msg::id(),
-            self.waiting_reply_to,
-            Lock::up_to(duration),
-        );
-        self
-    }
-
-    /// Delays handling for maximal amount of blocks that could be payed, that
-    /// doesn't exceed given duration.
-    pub fn exactly(self, duration: u32) -> Self {
-        async_runtime::locks().lock(
-            crate::msg::id(),
-            self.waiting_reply_to,
-            Lock::exactly(duration),
-        );
-        self
-    }
-}
-
-impl FusedFuture for MessageFuture {
-    fn is_terminated(&self) -> bool {
-        !signals().waits_for(self.waiting_reply_to)
-    }
-}
+);
 
 /// Same as [`MessageFuture`], but also contains program id
 /// for functions that create programs.
@@ -275,62 +155,12 @@ pub struct CreateProgramFuture {
     pub program_id: ActorId,
 }
 
-impl Future for CreateProgramFuture {
-    type Output = Result<(ActorId, Vec<u8>)>;
-
-    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        let fut = &mut *self;
-        let msg_id = crate::msg::id();
-
-        // check if message is timeout
-        if let Some((expected, now)) =
-            async_runtime::locks().is_timeout(msg_id, fut.waiting_reply_to)
-        {
-            return Poll::Ready(Err(ContractError::Timeout(expected, now)));
-        }
-
-        match signals().poll(fut.waiting_reply_to, cx) {
-            ReplyPoll::None => panic!("Somebody created CreateProgramFuture with the MessageId that never ended in static replies!"),
-            ReplyPoll::Pending => Poll::Pending,
-            ReplyPoll::Some((actual_reply, exit_code)) => {
-                if exit_code != 0 {
-                    return Poll::Ready(Err(ContractError::ExitCode(exit_code)));
-                }
-
-                // Remove lock after waking.
-                async_runtime::locks().remove(msg_id, fut.waiting_reply_to);
-
-                Poll::Ready(Ok((self.program_id, actual_reply)))
-            },
-        }
+impl_futures!(
+    CreateProgramFuture,
+    (ActorId, Vec<u8>),
+    |fut, cx| => {
+        poll(fut.waiting_reply_to, cx, |reply| {
+            Ok((fut.program_id, reply))
+        })
     }
-}
-
-impl CreateProgramFuture {
-    /// Delays handling for given specific amount of blocks.
-    pub fn up_to(self, duration: u32) -> Self {
-        async_runtime::locks().lock(
-            crate::msg::id(),
-            self.waiting_reply_to,
-            Lock::up_to(duration),
-        );
-        self
-    }
-
-    /// Delays handling for maximal amount of blocks that could be payed, that
-    /// doesn't exceed given duration.
-    pub fn exactly(self, duration: u32) -> Self {
-        async_runtime::locks().lock(
-            crate::msg::id(),
-            self.waiting_reply_to,
-            Lock::exactly(duration),
-        );
-        self
-    }
-}
-
-impl FusedFuture for CreateProgramFuture {
-    fn is_terminated(&self) -> bool {
-        !signals().waits_for(self.waiting_reply_to)
-    }
-}
+);
