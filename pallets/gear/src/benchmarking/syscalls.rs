@@ -22,7 +22,6 @@ use frame_system::RawOrigin;
 use gear_core::{
     code::{Code, CodeAndId},
     ids::{CodeId, MessageId, ProgramId},
-    memory::{PageNumber, WasmPageNumber},
     message::{Dispatch, DispatchKind, Message, ReplyDetails},
 };
 use sp_core::H256;
@@ -32,17 +31,7 @@ use wasm_instrument::parity_wasm::elements::{Instruction, ValueType};
 
 use super::{Exec, Program};
 
-const BAD_OFFSET: u32 = PageNumber::size() as u32 - 1;
-
-fn safe_offset_delta(max_pages: u32, data_size: u32, r: u32) -> u32 {
-    if r == 0 {
-        0
-    } else {
-        ((max_pages - 2) * WasmPageNumber::size() as u32 - data_size) / r
-    }
-}
-
-pub fn prepare<T>(
+fn prepare<T>(
     source: H256,
     kind: HandleKind,
     payload: Vec<u8>,
@@ -320,42 +309,13 @@ where
     )
 }
 
-pub fn gr_gas_available_bench<T>(r: u32) -> Result<Exec<T>, &'static str>
-where
-    T: Config,
-    T::AccountId: Origin,
-{
-    let code = WasmModule::<T>::from(ModuleDefinition {
-        memory: Some(ImportedMemory::max::<T>()),
-        imported_functions: vec![ImportedFunction {
-            module: "env",
-            name: "gr_gas_available",
-            params: vec![],
-            return_type: Some(ValueType::I64),
-        }],
-        handle_body: Some(body::repeated(
-            r * API_BENCHMARK_BATCH_SIZE,
-            &[Instruction::Call(0), Instruction::Drop],
-        )),
-        ..Default::default()
-    });
-    let instance = Program::<T>::new(code, vec![])?;
-    prepare::<T>(
-        instance.caller.into_origin(),
-        HandleKind::Handle(ProgramId::from_origin(instance.addr)),
-        vec![],
-        0u32.into(),
-    )
-}
-
 pub fn gr_reserve_gas_bench<T>(r: u32) -> Result<Exec<T>, &'static str>
 where
     T: Config,
     T::AccountId: Origin,
 {
+    let id_offset = 1;
     let id_bytes = u128::MAX.encode();
-
-    let id_offset = BAD_OFFSET;
 
     let code = WasmModule::<T>::from(ModuleDefinition {
         memory: Some(ImportedMemory::max::<T>()),
@@ -390,18 +350,18 @@ where
     )
 }
 
+// TODO: currently each syscall execution returns error: ExecutionError::InvalidReservationId.
+// We need to fill reservations set with data first.
 pub fn gr_unreserve_gas_bench<T>(r: u32) -> Result<Exec<T>, &'static str>
 where
     T: Config,
     T::AccountId: Origin,
 {
-    assert!(r <= 1);
-
-    let id_bytes = 0_u128.encode();
-    let amount_bytes = 0_u64.encode();
-
-    let id_offset = BAD_OFFSET;
-    let amount_offset = BAD_OFFSET + WasmPageNumber::size() as u32;
+    let id_bytes = u128::MAX.encode();
+    let id_len = id_bytes.len() as u32;
+    let id_offset = 1;
+    let amount_bytes = 1000u64.encode();
+    let amount_offset = id_offset + id_len;
 
     let code = WasmModule::<T>::from(ModuleDefinition {
         memory: Some(ImportedMemory::max::<T>()),
@@ -422,7 +382,7 @@ where
             },
         ],
         handle_body: Some(body::repeated(
-            r,
+            r * API_BENCHMARK_BATCH_SIZE,
             &[
                 Instruction::I32Const(id_offset as i32),     // id ptr
                 Instruction::I32Const(amount_offset as i32), // unreserved amount ptr
@@ -441,27 +401,11 @@ where
     )
 }
 
-pub fn getter_bench<T>(
-    name: &'static str,
-    ret: Option<ValueType>,
-    r: u32,
-) -> Result<Exec<T>, &'static str>
+pub fn getter_bench<T>(name: &'static str, r: u32) -> Result<Exec<T>, &'static str>
 where
     T: Config,
     T::AccountId: Origin,
 {
-    let r = r * API_BENCHMARK_BATCH_SIZE;
-    let offset = BAD_OFFSET;
-    let offset_delta = safe_offset_delta(max_pages::<T>(), 0x1000, r);
-
-    let mut instructions = vec![
-        Counter(offset, offset_delta), // ptr where to store output
-        Regular(Instruction::Call(0)), // call the imported function
-    ];
-    if ret.is_some() {
-        instructions.push(Regular(Instruction::Drop));
-    }
-
     let code = WasmModule::<T>::from(ModuleDefinition {
         memory: Some(ImportedMemory::max::<T>()),
         imported_functions: vec![ImportedFunction {
@@ -470,7 +414,10 @@ where
             params: vec![ValueType::I32],
             return_type: None,
         }],
-        handle_body: Some(body::repeated_dyn(r, instructions)),
+        handle_body: Some(body::repeated(
+            r * API_BENCHMARK_BATCH_SIZE,
+            &[Instruction::I32Const(0), Instruction::Call(0)],
+        )),
         ..Default::default()
     });
     let instance = Program::<T>::new(code, vec![])?;
@@ -519,10 +466,9 @@ where
     T: Config,
     T::AccountId: Origin,
 {
-    let r = r * API_BENCHMARK_BATCH_SIZE;
+    let buffer_offset = 1;
     let payload = vec![1u8; 100];
-    let offset = BAD_OFFSET;
-    let offset_delta = safe_offset_delta(max_pages::<T>(), payload.len() as u32, r);
+
     let code = WasmModule::<T>::from(ModuleDefinition {
         memory: Some(ImportedMemory::max::<T>()),
         imported_functions: vec![ImportedFunction {
@@ -531,14 +477,14 @@ where
             params: vec![ValueType::I32, ValueType::I32, ValueType::I32],
             return_type: Some(ValueType::I32),
         }],
-        handle_body: Some(body::repeated_dyn(
-            r,
-            vec![
-                Regular(Instruction::I32Const(0)),  // at
-                Regular(Instruction::I32Const(10)), // len
-                Counter(offset, offset_delta),      // buffer ptr
-                Regular(Instruction::Call(0)),
-                Regular(Instruction::Drop),
+        handle_body: Some(body::repeated(
+            r * API_BENCHMARK_BATCH_SIZE,
+            &[
+                Instruction::I32Const(0),
+                Instruction::I32Const(payload.len() as i32),
+                Instruction::I32Const(buffer_offset),
+                Instruction::Call(0),
+                Instruction::Drop,
             ],
         )),
         ..Default::default()
@@ -557,10 +503,9 @@ where
     T: Config,
     T::AccountId: Origin,
 {
-    let r = API_BENCHMARK_BATCH_SIZE;
+    let buffer_offset = 1;
     let payload = vec![0xff; (n * 1024) as usize];
-    let offset = BAD_OFFSET;
-    let offset_delta = safe_offset_delta(max_pages::<T>(), payload.len() as u32, r);
+
     let code = WasmModule::<T>::from(ModuleDefinition {
         memory: Some(ImportedMemory::max::<T>()),
         imported_functions: vec![ImportedFunction {
@@ -569,14 +514,14 @@ where
             params: vec![ValueType::I32, ValueType::I32, ValueType::I32],
             return_type: Some(ValueType::I32),
         }],
-        handle_body: Some(body::repeated_dyn(
-            r,
-            vec![
-                Regular(Instruction::I32Const(0)),                    // at
-                Regular(Instruction::I32Const(payload.len() as i32)), // len
-                Counter(offset, offset_delta),                        // buffer ptr
-                Regular(Instruction::Call(0)),
-                Regular(Instruction::Drop),
+        handle_body: Some(body::repeated(
+            API_BENCHMARK_BATCH_SIZE,
+            &[
+                Instruction::I32Const(0),
+                Instruction::I32Const(payload.len() as i32),
+                Instruction::I32Const(buffer_offset),
+                Instruction::Call(0),
+                Instruction::Drop,
             ],
         )),
         ..Default::default()
@@ -627,10 +572,9 @@ where
     T: Config,
     T::AccountId: Origin,
 {
-    let r = r * API_BENCHMARK_BATCH_SIZE;
-    let payload = vec![1u8; 100];
-    let offset = BAD_OFFSET;
-    let offset_delta = safe_offset_delta(max_pages::<T>(), payload.len() as u32, r);
+    let payload_offset = 1;
+    let payload_len = 100;
+
     let code = WasmModule::<T>::from(ModuleDefinition {
         memory: Some(ImportedMemory::max::<T>()),
         imported_functions: vec![
@@ -647,17 +591,17 @@ where
                 return_type: Some(ValueType::I32),
             },
         ],
-        handle_body: Some(body::repeated_dyn(
-            r,
-            vec![
-                Regular(Instruction::I32Const(0)), // handle
-                Regular(Instruction::Call(0)),
-                Regular(Instruction::Drop),
-                Regular(Instruction::I32Const(0)), // message handle
-                Counter(offset, offset_delta),     // payload ptr
-                Regular(Instruction::I32Const(100)), // payload len
-                Regular(Instruction::Call(1)),
-                Regular(Instruction::Drop),
+        handle_body: Some(body::repeated(
+            r * API_BENCHMARK_BATCH_SIZE,
+            &[
+                Instruction::I32Const(0), // handle
+                Instruction::Call(0),
+                Instruction::Drop,
+                Instruction::I32Const(0), // handle
+                Instruction::I32Const(payload_offset),
+                Instruction::I32Const(payload_len),
+                Instruction::Call(1),
+                Instruction::Drop,
             ],
         )),
         ..Default::default()
@@ -671,15 +615,15 @@ where
     )
 }
 
+// TODO: investigate how handle changes can affect on syscall perf.
 pub fn gr_send_push_per_kb_bench<T>(n: u32) -> Result<Exec<T>, &'static str>
 where
     T: Config,
     T::AccountId: Origin,
 {
-    let r = API_BENCHMARK_BATCH_SIZE;
+    let payload_offset = 1;
     let payload_len = n * 1024;
-    let offset = BAD_OFFSET;
-    let offset_delta = safe_offset_delta(max_pages::<T>(), payload_len, r);
+
     let code = WasmModule::<T>::from(ModuleDefinition {
         memory: Some(ImportedMemory::max::<T>()),
         imported_functions: vec![
@@ -696,17 +640,17 @@ where
                 return_type: Some(ValueType::I32),
             },
         ],
-        handle_body: Some(body::repeated_dyn(
-            r,
-            vec![
-                Regular(Instruction::I32Const(0)), // handle // TODO: changing handler
-                Regular(Instruction::Call(0)),
-                Regular(Instruction::Drop),
-                Regular(Instruction::I32Const(0)), // message handle
-                Counter(offset, offset_delta),     // payload ptr
-                Regular(Instruction::I32Const(payload_len as i32)), // payload len
-                Regular(Instruction::Call(1)),
-                Regular(Instruction::Drop),
+        handle_body: Some(body::repeated(
+            API_BENCHMARK_BATCH_SIZE,
+            &[
+                Instruction::I32Const(0), // handle
+                Instruction::Call(0),
+                Instruction::Drop,
+                Instruction::I32Const(0), // handle
+                Instruction::I32Const(payload_offset),
+                Instruction::I32Const(payload_len as i32),
+                Instruction::Call(1),
+                Instruction::Drop,
             ],
         )),
         ..Default::default()
@@ -727,15 +671,8 @@ where
     T: Config,
     T::AccountId: Origin,
 {
-    let r = r * API_BENCHMARK_BATCH_SIZE;
-
-    let dest_offset = 1;
-    let value_offset = 0xff;
-    let message_id_offset = 0x1ff;
-    let payload_offset = BAD_OFFSET;
+    let offset = 1;
     let payload_len = 100;
-
-    let offset_delta = safe_offset_delta(max_pages::<T>(), payload_len, r);
 
     let code = WasmModule::<T>::from(ModuleDefinition {
         memory: Some(ImportedMemory::max::<T>()),
@@ -752,17 +689,17 @@ where
             ],
             return_type: Some(ValueType::I32),
         }],
-        handle_body: Some(body::repeated_dyn(
-            r,
-            vec![
-                Counter(dest_offset, offset_delta),
-                Counter(payload_offset, offset_delta),
-                ConstU32(payload_len),
-                Counter(value_offset, offset_delta),
-                ConstU32(10), // delay
-                Counter(message_id_offset, offset_delta),
-                Regular(Instruction::Call(0)),
-                Regular(Instruction::Drop),
+        handle_body: Some(body::repeated(
+            r * API_BENCHMARK_BATCH_SIZE,
+            &[
+                Instruction::I32Const(offset), // dest ptr
+                Instruction::I32Const(offset), // payload ptr
+                Instruction::I32Const(payload_len),
+                Instruction::I32Const(offset), // value ptr
+                Instruction::I32Const(10),     // delay
+                Instruction::I32Const(offset), // message_id ptr
+                Instruction::Call(0),
+                Instruction::Drop,
             ],
         )),
         ..Default::default()
@@ -783,15 +720,8 @@ where
     T: Config,
     T::AccountId: Origin,
 {
-    let r = API_BENCHMARK_BATCH_SIZE;
-
-    let dest_offset = 1;
-    let value_offset = 0xff;
-    let message_id_offset = 0x1ff;
-    let payload_offset = BAD_OFFSET;
-    let payload_len = n * 1024;
-
-    let offset_delta = safe_offset_delta(max_pages::<T>(), payload_len, r);
+    let offset = 1;
+    let payload_len = n as i32 * 1024;
 
     let code = WasmModule::<T>::from(ModuleDefinition {
         memory: Some(ImportedMemory::max::<T>()),
@@ -808,17 +738,17 @@ where
             ],
             return_type: Some(ValueType::I32),
         }],
-        handle_body: Some(body::repeated_dyn(
-            r,
-            vec![
-                Counter(dest_offset, offset_delta),
-                Counter(payload_offset, offset_delta),
-                ConstU32(payload_len),
-                Counter(value_offset, offset_delta),
-                ConstU32(10), // delay
-                Counter(message_id_offset, offset_delta),
-                Regular(Instruction::Call(0)),
-                Regular(Instruction::Drop),
+        handle_body: Some(body::repeated(
+            API_BENCHMARK_BATCH_SIZE,
+            &[
+                Instruction::I32Const(offset), // dest ptr
+                Instruction::I32Const(offset), // payload ptr
+                Instruction::I32Const(payload_len),
+                Instruction::I32Const(offset), // value ptr
+                Instruction::I32Const(10),     // delay
+                Instruction::I32Const(offset), // message_id ptr
+                Instruction::Call(0),
+                Instruction::Drop,
             ],
         )),
         ..Default::default()
@@ -837,11 +767,7 @@ where
     T: Config,
     T::AccountId: Origin,
 {
-    let r = r * API_BENCHMARK_BATCH_SIZE;
-
-    let value_offset = 0x1;
-    let message_id_offset = BAD_OFFSET;
-    let increment = safe_offset_delta(max_pages::<T>(), 0, r);
+    let offset = 1;
 
     let code = WasmModule::<T>::from(ModuleDefinition {
         memory: Some(ImportedMemory::max::<T>()),
@@ -851,14 +777,14 @@ where
             params: vec![ValueType::I32, ValueType::I32, ValueType::I32],
             return_type: Some(ValueType::I32),
         }],
-        handle_body: Some(body::repeated_dyn(
-            r,
-            vec![
-                Counter(value_offset, increment),
-                ConstU32(10), // delay
-                Counter(message_id_offset, increment),
-                Regular(Instruction::Call(0)),
-                Regular(Instruction::Drop),
+        handle_body: Some(body::repeated(
+            r * API_BENCHMARK_BATCH_SIZE,
+            &[
+                Instruction::I32Const(offset), // value ptr
+                Instruction::I32Const(10),     // delay
+                Instruction::I32Const(offset), // result: message_id ptr
+                Instruction::Call(0),
+                Instruction::Drop,
             ],
         )),
         ..Default::default()
@@ -877,10 +803,8 @@ where
     T: Config,
     T::AccountId: Origin,
 {
-    let r = r * API_BENCHMARK_BATCH_SIZE;
-    let payload_offset = BAD_OFFSET;
+    let payload_offset = 1;
     let payload_len = 100;
-    let increment = safe_offset_delta(max_pages::<T>(), 100, r);
 
     let code = WasmModule::<T>::from(ModuleDefinition {
         memory: Some(ImportedMemory::max::<T>()),
@@ -890,13 +814,13 @@ where
             params: vec![ValueType::I32, ValueType::I32],
             return_type: Some(ValueType::I32),
         }],
-        handle_body: Some(body::repeated_dyn(
-            r,
-            vec![
-                Counter(payload_offset, increment),
-                ConstU32(payload_len),
-                Regular(Instruction::Call(0)),
-                Regular(Instruction::Drop),
+        handle_body: Some(body::repeated(
+            r * API_BENCHMARK_BATCH_SIZE,
+            &[
+                Instruction::I32Const(payload_offset),
+                Instruction::I32Const(payload_len),
+                Instruction::Call(0),
+                Instruction::Drop,
             ],
         )),
         ..Default::default()
@@ -915,10 +839,8 @@ where
     T: Config,
     T::AccountId: Origin,
 {
-    let r = API_BENCHMARK_BATCH_SIZE;
-    let payload_offset = BAD_OFFSET;
-    let payload_len = n * 1024;
-    let increment = safe_offset_delta(max_pages::<T>(), payload_len, r);
+    let payload_offset = 1;
+    let payload_len = n as i32 * 1024;
 
     let code = WasmModule::<T>::from(ModuleDefinition {
         memory: Some(ImportedMemory::max::<T>()),
@@ -928,13 +850,13 @@ where
             params: vec![ValueType::I32, ValueType::I32],
             return_type: Some(ValueType::I32),
         }],
-        handle_body: Some(body::repeated_dyn(
-            r,
-            vec![
-                Counter(payload_offset, increment),
-                ConstU32(payload_len),
-                Regular(Instruction::Call(0)),
-                Regular(Instruction::Drop),
+        handle_body: Some(body::repeated(
+            API_BENCHMARK_BATCH_SIZE,
+            &[
+                Instruction::I32Const(payload_offset),
+                Instruction::I32Const(payload_len),
+                Instruction::Call(0),
+                Instruction::Drop,
             ],
         )),
         ..Default::default()
@@ -953,9 +875,7 @@ where
     T: Config,
     T::AccountId: Origin,
 {
-    let r = r * API_BENCHMARK_BATCH_SIZE;
-    let message_id_offset = BAD_OFFSET;
-    let increment = safe_offset_delta(max_pages::<T>(), 32, r);
+    let message_id_offset = 1;
 
     let code = WasmModule::<T>::from(ModuleDefinition {
         memory: Some(ImportedMemory::max::<T>()),
@@ -965,12 +885,12 @@ where
             params: vec![ValueType::I32],
             return_type: Some(ValueType::I32),
         }],
-        reply_body: Some(body::repeated_dyn(
-            r,
-            vec![
-                Counter(message_id_offset, increment),
-                Regular(Instruction::Call(0)),
-                Regular(Instruction::Drop),
+        reply_body: Some(body::repeated(
+            r * API_BENCHMARK_BATCH_SIZE,
+            &[
+                Instruction::I32Const(message_id_offset),
+                Instruction::Call(0),
+                Instruction::Drop,
             ],
         )),
         ..Default::default()
@@ -1002,9 +922,7 @@ where
     T: Config,
     T::AccountId: Origin,
 {
-    let r = r * API_BENCHMARK_BATCH_SIZE;
-    let exit_code_offset = BAD_OFFSET;
-    let increment = safe_offset_delta(max_pages::<T>(), 4, r);
+    let exit_code_offset = 1;
 
     let code = WasmModule::<T>::from(ModuleDefinition {
         memory: Some(ImportedMemory::max::<T>()),
@@ -1014,12 +932,12 @@ where
             params: vec![ValueType::I32],
             return_type: Some(ValueType::I32),
         }],
-        reply_body: Some(body::repeated_dyn(
-            r,
-            vec![
-                Counter(exit_code_offset, increment),
-                Regular(Instruction::Call(0)),
-                Regular(Instruction::Drop),
+        reply_body: Some(body::repeated(
+            r * API_BENCHMARK_BATCH_SIZE,
+            &[
+                Instruction::I32Const(exit_code_offset),
+                Instruction::Call(0),
+                Instruction::Drop,
             ],
         )),
         ..Default::default()
@@ -1051,10 +969,8 @@ where
     T: Config,
     T::AccountId: Origin,
 {
-    let r = r * API_BENCHMARK_BATCH_SIZE;
-    let string_offset = BAD_OFFSET;
+    let string_offset = 1;
     let string_len = 100;
-    let increment = safe_offset_delta(max_pages::<T>(), string_len, r);
 
     let code = WasmModule::<T>::from(ModuleDefinition {
         memory: Some(ImportedMemory::max::<T>()),
@@ -1064,12 +980,12 @@ where
             params: vec![ValueType::I32, ValueType::I32],
             return_type: None,
         }],
-        handle_body: Some(body::repeated_dyn(
-            r,
-            vec![
-                Counter(string_offset, increment),
-                ConstU32(string_len),
-                Regular(Instruction::Call(0)),
+        handle_body: Some(body::repeated(
+            r * API_BENCHMARK_BATCH_SIZE,
+            &[
+                Instruction::I32Const(string_offset),
+                Instruction::I32Const(string_len),
+                Instruction::Call(0),
             ],
         )),
         ..Default::default()
@@ -1088,10 +1004,8 @@ where
     T: Config,
     T::AccountId: Origin,
 {
-    let r = API_BENCHMARK_BATCH_SIZE;
-    let string_offset = BAD_OFFSET;
-    let string_len = n * 1024;
-    let increment = safe_offset_delta(max_pages::<T>(), string_len, r);
+    let string_offset = 1;
+    let string_len = n as i32 * 1024;
 
     let code = WasmModule::<T>::from(ModuleDefinition {
         memory: Some(ImportedMemory::max::<T>()),
@@ -1101,12 +1015,12 @@ where
             params: vec![ValueType::I32, ValueType::I32],
             return_type: None,
         }],
-        handle_body: Some(body::repeated_dyn(
-            r,
-            vec![
-                Counter(string_offset, increment),
-                ConstU32(string_len),
-                Regular(Instruction::Call(0)),
+        handle_body: Some(body::repeated(
+            API_BENCHMARK_BATCH_SIZE,
+            &[
+                Instruction::I32Const(string_offset),
+                Instruction::I32Const(string_len),
+                Instruction::Call(0),
             ],
         )),
         ..Default::default()
@@ -1165,8 +1079,7 @@ where
     T: Config,
     T::AccountId: Origin,
 {
-    let r = r * API_BENCHMARK_BATCH_SIZE;
-    let offset = 0xf;
+    let offset = 1;
     let message_ids = (0..r)
         .map(|i| MessageId::from(i as u64))
         .collect::<Vec<_>>();
@@ -1185,7 +1098,7 @@ where
             value: message_id_bytes,
         }],
         handle_body: Some(body::repeated_dyn(
-            r,
+            r * API_BENCHMARK_BATCH_SIZE,
             vec![
                 Counter(offset, size_of::<MessageId>() as u32), // message_id ptr
                 Regular(Instruction::I32Const(10)),             // delay

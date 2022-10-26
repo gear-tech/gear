@@ -522,17 +522,6 @@ benchmarks! {
         verify_process(res.unwrap());
     }
 
-    gr_gas_available {
-        let r in 0 .. API_BENCHMARK_BATCHES;
-        let mut res = None;
-        let exec = gr_gas_available_bench::<T>(r)?;
-    }: {
-        res.replace(run_process(exec));
-    }
-    verify {
-        verify_process(res.unwrap());
-    }
-
     gr_reserve_gas {
         let r in 0 .. API_BENCHMARK_BATCHES;
         let mut res = None;
@@ -544,10 +533,8 @@ benchmarks! {
         verify_process(res.unwrap());
     }
 
-    // We cannot call `gr_unreserve_gas` multiple times.
-    // Therefore our weight determination is not as precise as with other APIs.
     gr_unreserve_gas {
-        let r in 0 .. 1;
+        let r in 0 .. API_BENCHMARK_BATCHES;
         let mut res = None;
         let exec = gr_unreserve_gas_bench::<T>(r)?;
     }: {
@@ -560,7 +547,7 @@ benchmarks! {
     gr_message_id {
         let r in 0 .. API_BENCHMARK_BATCHES;
         let mut res = None;
-        let exec = getter_bench::<T>("gr_message_id", None, r)?;
+        let exec = getter_bench::<T>("gr_message_id", r)?;
     }: {
         res.replace(run_process(exec));
     }
@@ -571,7 +558,7 @@ benchmarks! {
     gr_origin {
         let r in 0 .. API_BENCHMARK_BATCHES;
         let mut res = None;
-        let exec = getter_bench::<T>("gr_origin", None, r)?;
+        let exec = getter_bench::<T>("gr_origin", r)?;
     }: {
         res.replace(run_process(exec));
     }
@@ -582,7 +569,7 @@ benchmarks! {
     gr_program_id {
         let r in 0 .. API_BENCHMARK_BATCHES;
         let mut res = None;
-        let exec = getter_bench::<T>("gr_program_id", None, r)?;
+        let exec = getter_bench::<T>("gr_program_id", r)?;
     }: {
         res.replace(run_process(exec));
     }
@@ -593,7 +580,7 @@ benchmarks! {
     gr_source {
         let r in 0 .. API_BENCHMARK_BATCHES;
         let mut res = None;
-        let exec = getter_bench::<T>("gr_source", None, r)?;
+        let exec = getter_bench::<T>("gr_source", r)?;
     }: {
         res.replace(run_process(exec));
     }
@@ -604,7 +591,7 @@ benchmarks! {
     gr_value {
         let r in 0 .. API_BENCHMARK_BATCHES;
         let mut res = None;
-        let exec = getter_bench::<T>("gr_value", None, r)?;
+        let exec = getter_bench::<T>("gr_value", r)?;
     }: {
         res.replace(run_process(exec));
     }
@@ -615,7 +602,18 @@ benchmarks! {
     gr_value_available {
         let r in 0 .. API_BENCHMARK_BATCHES;
         let mut res = None;
-        let exec = getter_bench::<T>("gr_value_available", None, r)?;
+        let exec = getter_bench::<T>("gr_value_available", r)?;
+    }: {
+        res.replace(run_process(exec));
+    }
+    verify {
+        verify_process(res.unwrap());
+    }
+
+    gr_gas_available {
+        let r in 0 .. API_BENCHMARK_BATCHES;
+        let mut res = None;
+        let exec = number_getter_bench::<T>("gr_gas_available", ValueType::I64, r)?;
     }: {
         res.replace(run_process(exec));
     }
@@ -900,10 +898,10 @@ benchmarks! {
     }
 
     gr_create_program_wgas_per_kb {
-        let r in 0 .. T::Schedule::get().limits.payload_len / 1024;
-        let n in 0 .. T::Schedule::get().limits.payload_len / 1024;
+        let p in 0 .. T::Schedule::get().limits.payload_len / 1024;
+        let s in 0 .. T::Schedule::get().limits.payload_len / 1024;
         let mut res = None;
-        let exec = gr_create_program_wgas_per_kb_bench::<T>(r, n)?;
+        let exec = gr_create_program_wgas_per_kb_bench::<T>(p, s)?;
     }: {
         res.replace(run_process(exec));
     }
