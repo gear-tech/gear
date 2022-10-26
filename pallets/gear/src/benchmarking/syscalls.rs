@@ -27,7 +27,7 @@ use gear_core::{
 use sp_core::H256;
 use sp_runtime::traits::UniqueSaturatedInto;
 use sp_std::{convert::TryInto, prelude::*};
-use wasm_instrument::parity_wasm::elements::{Instruction, ValueType};
+use gear_wasm_instrument::parity_wasm::elements::{Instruction, ValueType};
 
 use super::{Exec, Program};
 
