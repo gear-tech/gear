@@ -18,7 +18,7 @@
 
 //! Vector with limited len realization.
 
-use core::{convert::TryFrom, fmt::Display, marker::PhantomData};
+use core::{convert::TryFrom, fmt, fmt::Display, marker::PhantomData};
 
 use alloc::{vec, vec::Vec};
 use codec::{Decode, Encode};
@@ -28,8 +28,14 @@ use scale_info::TypeInfo;
 /// `T` is data type.
 /// `E` is overflow error type.
 /// `N` is max len which a vector can have.
-#[derive(Clone, Default, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo)]
+#[derive(Clone, Default, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo)]
 pub struct LimitedVec<T, E, const N: usize>(Vec<T>, PhantomData<E>);
+
+impl<T: fmt::Debug, E, const N: usize> fmt::Debug for LimitedVec<T, E, N> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        fmt::Debug::fmt(&self.0, f)
+    }
+}
 
 impl<T, E: Default, const N: usize> TryFrom<Vec<T>> for LimitedVec<T, E, N> {
     type Error = E;
