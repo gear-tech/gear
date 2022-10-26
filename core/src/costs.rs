@@ -100,6 +100,9 @@ pub struct HostFnWeights {
     /// Weight of calling `gr_debug`.
     pub gr_debug: u64,
 
+    /// Weight per payload byte by `gr_debug`.
+    pub gr_debug_per_byte: u64,
+
     /// Weight of calling `gr_exit_code`.
     pub gr_exit_code: u64,
 
@@ -200,8 +203,7 @@ pub enum RuntimeCosts {
     /// Weight of calling `gr_reply_to`.
     ReplyTo,
     /// Weight of calling `gr_debug`.
-    // TODO: size of debug string
-    Debug,
+    Debug(u32),
     /// Weight of calling `gr_exit_code`.
     ExitCode,
     /// Weight of calling `gr_exit`.
@@ -253,7 +255,9 @@ impl RuntimeCosts {
                 .gr_reply_push
                 .saturating_add(s.gr_reply_push_per_byte.saturating_mul(len.into())),
             ReplyTo => s.gr_reply_to,
-            Debug => s.gr_debug,
+            Debug(len) => s
+                .gr_debug
+                .saturating_add(s.gr_debug_per_byte.saturating_mul(len.into())),
             ExitCode => s.gr_exit_code,
             Exit => s.gr_exit,
             Leave => s.gr_leave,

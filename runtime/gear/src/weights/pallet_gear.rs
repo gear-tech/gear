@@ -53,6 +53,7 @@ pub trait WeightInfo {
     fn alloc_in_handle(q: u32, ) -> Weight;
     fn reinstrument(c: u32, ) -> Weight;
     fn alloc(r: u32, ) -> Weight;
+    fn free(r: u32, ) -> Weight;
     fn gr_gas_available(r: u32, ) -> Weight;
     fn gr_message_id(r: u32, ) -> Weight;
     fn gr_origin(r: u32, ) -> Weight;
@@ -995,7 +996,7 @@ impl WeightInfo for () {
         Weight::from_ref_time(629_228_000 as u64)
             // Standard Error: 116_829
             .saturating_add(Weight::from_ref_time(19_724_675 as u64).saturating_mul(n as u64))
-            .saturating_add(T::DbWeight::get().reads(4 as u64))
+            .saturating_add(RocksDbWeight::get().reads(4 as u64))
     }
     /// The range of component `r` is `[0, 20]`.
     fn gr_send_commit(r: u32, ) -> Weight {
@@ -1008,7 +1009,7 @@ impl WeightInfo for () {
         Weight::from_ref_time(473_788_000 as u64)
             // Standard Error: 4_607
             .saturating_add(Weight::from_ref_time(15_193_381 as u64).saturating_mul(n as u64))
-            .saturating_add(T::DbWeight::get().reads(4 as u64))
+            .saturating_add(RocksDbWeight::get().reads(4 as u64))
     }
     /// The range of component `r` is `[0, 20]`.
     fn gr_reply_commit(r: u32, ) -> Weight {
@@ -1057,7 +1058,7 @@ impl WeightInfo for () {
         Weight::from_ref_time(103_467_000 as u64)
             // Standard Error: 233_755
             .saturating_add(Weight::from_ref_time(37_839_799 as u64).saturating_mul(r as u64))
-            .saturating_add(T::DbWeight::get().reads((1 as u64).saturating_mul(r as u64)))
+            .saturating_add(RocksDbWeight::get().reads((1 as u64).saturating_mul(r as u64)))
     }
     /// The range of component `r` is `[0, 1]`.
     fn gr_leave(r: u32, ) -> Weight {
@@ -1088,7 +1089,7 @@ impl WeightInfo for () {
         Weight::from_ref_time(105_050_000 as u64)
             // Standard Error: 90_934
             .saturating_add(Weight::from_ref_time(254_460_164 as u64).saturating_mul(r as u64))
-            .saturating_add(T::DbWeight::get().reads((1 as u64).saturating_mul(r as u64)))
+            .saturating_add(RocksDbWeight::get().reads((1 as u64).saturating_mul(r as u64)))
     }
     /// The range of component `r` is `[0, 20]`.
     fn gr_create_program_wgas(r: u32, ) -> Weight {
@@ -1104,7 +1105,7 @@ impl WeightInfo for () {
             .saturating_add(Weight::from_ref_time(5_326_618 as u64).saturating_mul(p as u64))
             // Standard Error: 158_940
             .saturating_add(Weight::from_ref_time(222_888_093 as u64).saturating_mul(s as u64))
-            .saturating_add(T::DbWeight::get().reads(257 as u64))
+            .saturating_add(RocksDbWeight::get().reads(257 as u64))
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_i64const(r: u32, ) -> Weight {

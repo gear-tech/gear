@@ -492,8 +492,7 @@ impl EnvExt for Ext {
     }
 
     fn debug(&mut self, data: &str) -> Result<(), Self::Error> {
-        // +_+_+ data size
-        self.charge_gas_runtime(RuntimeCosts::Debug)?;
+        self.charge_gas_runtime(RuntimeCosts::Debug(data.len() as u32))?;
 
         if let Some(data) = data.strip_prefix("panic occurred: ") {
             self.error_explanation = Some(ProcessorError::Panic(data.to_string()));
