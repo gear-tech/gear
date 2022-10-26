@@ -10,7 +10,7 @@ wasm-instrument = { version = "0.2.1", git = "https://github.com/gear-tech/wasm-
 
 [dev-dependencies]
 wasmparser = "0.90"
-wat = "1.0.49"
+wat = "1.0.50"
 
 [features]
 default = ["std"]
