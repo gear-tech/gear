@@ -171,11 +171,11 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
             .saturating_add(Weight::from_ref_time(361_781 as u64).saturating_mul(c as u64))
             .saturating_add(T::DbWeight::get().reads(1 as u64))
     }
-    /// The range of component `c` is `[0, 256902]`.
+    /// The range of component `c` is `[0, 512]`.
     fn instantiate_module_per_kb(c: u32, ) -> Weight {
-        Weight::from_ref_time(57_625_000 as u64)
-            // Standard Error: 2
-            .saturating_add(Weight::from_ref_time(1_504 as u64).saturating_mul(c as u64))
+        Weight::from_ref_time(62_000_000 as u64)
+            // Standard Error: 1_474
+            .saturating_add(Weight::from_ref_time(1_234_747 as u64).saturating_mul(c as u64))
     }
     fn claim_value() -> Weight {
         Weight::from_ref_time(181_473_000 as u64)
@@ -806,11 +806,11 @@ impl WeightInfo for () {
             .saturating_add(Weight::from_ref_time(361_781 as u64).saturating_mul(c as u64))
             .saturating_add(RocksDbWeight::get().reads(1 as u64))
     }
-    /// The range of component `c` is `[0, 256902]`.
+    /// The range of component `c` is `[0, 512]`.
     fn instantiate_module_per_kb(c: u32, ) -> Weight {
-        Weight::from_ref_time(57_625_000 as u64)
-            // Standard Error: 2
-            .saturating_add(Weight::from_ref_time(1_504 as u64).saturating_mul(c as u64))
+        Weight::from_ref_time(62_000_000 as u64)
+            // Standard Error: 1_474
+            .saturating_add(Weight::from_ref_time(1_234_747 as u64).saturating_mul(c as u64))
     }
     fn claim_value() -> Weight {
         Weight::from_ref_time(181_473_000 as u64)
