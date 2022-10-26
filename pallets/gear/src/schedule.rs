@@ -272,6 +272,9 @@ pub struct HostFnWeights<T: Config> {
     /// Weight of calling `alloc`.
     pub alloc: u64,
 
+    /// Weight of calling `alloc`.
+    pub free: u64,
+
     /// Weight of calling `gr_reserve_gas`.
     pub gr_reserve_gas: u64,
 
@@ -580,6 +583,7 @@ impl<T: Config> HostFnWeights<T> {
     pub fn into_core(self) -> CoreHostFnWeights {
         CoreHostFnWeights {
             alloc: self.alloc,
+            free: self.free,
             gr_reserve_gas: self.gr_reserve_gas,
             gr_unreserve_gas: self.gr_unreserve_gas,
             gr_gas_available: self.gr_gas_available,
@@ -623,8 +627,9 @@ impl<T: Config> Default for HostFnWeights<T> {
     fn default() -> Self {
         Self {
             alloc: cost_batched!(alloc),
+            free: cost_batched!(free),
             gr_reserve_gas: cost_batched!(gr_reserve_gas),
-            gr_unreserve_gas: cost!(gr_unreserve_gas),
+            gr_unreserve_gas: cost_batched!(gr_unreserve_gas),
             gr_gas_available: cost_batched!(gr_gas_available),
             gr_message_id: cost_batched!(gr_message_id),
             gr_origin: cost_batched!(gr_origin),
@@ -655,7 +660,7 @@ impl<T: Config> Default for HostFnWeights<T> {
             gr_wait_for: cost!(gr_wait_for),
             gr_wait_up_to: cost!(gr_wait_up_to),
             gr_wake: cost_batched!(gr_wake),
-            gr_create_program_wgas: cost!(gr_create_program_wgas),
+            gr_create_program_wgas: cost_batched!(gr_create_program_wgas),
             gr_create_program_wgas_payload_per_byte: cost_byte_batched_args!(
                 gr_create_program_wgas_per_kb,
                 1,

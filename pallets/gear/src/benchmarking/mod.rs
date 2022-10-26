@@ -158,14 +158,13 @@ fn verify_process(notes: Vec<JournalNote>) {
         "Journal notes cannot be empty after execution"
     );
     for note in notes {
-        match note {
-            JournalNote::MessageDispatched { outcome, .. } => match outcome {
+        if let JournalNote::MessageDispatched { outcome, .. } = note {
+            match outcome {
                 DispatchOutcome::InitFailure { .. } | DispatchOutcome::MessageTrap { .. } => {
                     panic!("Process was not successful")
                 }
                 _ => {}
-            },
-            _ => {}
+            }
         }
     }
 }

@@ -481,6 +481,8 @@ impl EnvExt for Ext {
     }
 
     fn free(&mut self, page: WasmPageNumber) -> Result<(), Self::Error> {
+        self.charge_gas_runtime(RuntimeCosts::Free)?;
+
         let result = self.context.allocations_context.free(page);
 
         // Returns back gas for allocated page if it's new

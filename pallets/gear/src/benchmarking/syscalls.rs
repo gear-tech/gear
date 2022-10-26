@@ -1202,7 +1202,7 @@ where
         ],
         handle_body: Some(body::repeated(
             r * API_BENCHMARK_BATCH_SIZE,
-            &vec![
+            &[
                 Instruction::I32Const(code_hash_offset as i32), // code_id ptr
                 Instruction::I32Const(salt_offset as i32),      // salt ptr
                 Instruction::I32Const(salt_bytes_len as i32),   // salt len
@@ -1283,11 +1283,11 @@ where
         ],
         handle_body: Some(body::repeated(
             API_BENCHMARK_BATCH_SIZE,
-            &vec![
+            &[
                 Instruction::I32Const(code_hash_offset as i32), // code_hash ptr
-                Instruction::I32Const(salt_offset as i32),      // salt ptr
+                Instruction::I32Const(salt_offset),             // salt ptr
                 Instruction::I32Const(salt_bytes_len as i32),   // salt len
-                Instruction::I32Const(payload_offset as i32),   // payload ptr
+                Instruction::I32Const(payload_offset),          // payload ptr
                 Instruction::I32Const(payload_len as i32),      // payload len
                 Instruction::I64Const(100000000),               // gas limit
                 Instruction::I32Const(value_offset as i32),     // value ptr

@@ -28,6 +28,9 @@ pub struct HostFnWeights {
     /// Weight of calling `alloc`.
     pub alloc: u64,
 
+    /// Weight of calling `alloc`.
+    pub free: u64,
+
     /// Weight of calling `gr_reserve_gas`.
     pub gr_reserve_gas: u64,
 
@@ -164,6 +167,8 @@ impl Token for RuntimeToken {
 pub enum RuntimeCosts {
     /// Weight of calling `alloc`.
     Alloc,
+    /// Weight of calling `free`.
+    Free,
     /// Weight of calling `gr_reserve_gas`
     ReserveGas,
     /// Weight of calling `gr_unreserve_gas`
@@ -228,6 +233,7 @@ impl RuntimeCosts {
         use self::RuntimeCosts::*;
         let weight = match *self {
             Alloc => s.alloc,
+            Free => s.free,
             ReserveGas => s.gr_reserve_gas,
             UnreserveGas => s.gr_unreserve_gas,
             GasAvailable => s.gr_gas_available,
