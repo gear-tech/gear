@@ -472,6 +472,10 @@ pub mod pallet {
         MessagesStorageCorrupted,
     }
 
+    #[cfg(feature = "runtime-benchmarks")]
+    #[pallet::storage]
+    pub(crate) type BenchmarkStorage<T> = StorageMap<_, Identity, u32, Vec<u8>>;
+
     #[pallet::storage]
     #[pallet::getter(fn force_queue)]
     pub(crate) type ForceQueue<T> = StorageValue<_, Forcing, ValueQuery>;

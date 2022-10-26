@@ -37,9 +37,9 @@ use crate::{
     manager::{CodeInfo, ExtManager, HandleKind},
     pallet,
     schedule::{API_BENCHMARK_BATCH_SIZE, INSTR_BENCHMARK_BATCH_SIZE},
-    BTreeMap, BalanceOf, BlockGasLimitOf, Call, Config, CostsPerBlockOf, CurrencyOf, DbWeightOf,
-    ExecutionEnvironment, Ext as Externalities, GasHandlerOf, MailboxOf, Pallet as Gear, Pallet,
-    QueueOf, ReadPerByteCostOf, Schedule, WaitlistOf,
+    BTreeMap, BalanceOf, BenchmarkStorage, BlockGasLimitOf, Call, Config, CostsPerBlockOf,
+    CurrencyOf, DbWeightOf, ExecutionEnvironment, Ext as Externalities, GasHandlerOf, MailboxOf,
+    Pallet as Gear, Pallet, QueueOf, ReadPerByteCostOf, Schedule, WaitlistOf,
 };
 use codec::Encode;
 use common::{
@@ -426,6 +426,35 @@ benchmarks! {
 
     where_clause { where
         T::AccountId: Origin,
+    }
+
+    // This bench uses `StorageMap` as a storage, due to the fact that
+    // the most of the gear storages represented with this type.
+    db_write_per_kb {
+        // Code is the biggest data could be written into storage in gear runtime.
+        let c in 0 .. T::Schedule::get().limits.code_len / 1024;
+
+        // Data to be written.
+        let data = vec![c as u8; 1024 * c as usize];
+    }: {
+        // Inserting data into the storage.
+        BenchmarkStorage::<T>::insert(c, data);
+    }
+
+    // This bench uses `StorageMap` as a storage, due to the fact that
+    // the most of the gear storages represented with this type.
+    db_read_per_kb {
+        // Code is the biggest data could be written into storage in gear runtime.
+        let c in 0 .. T::Schedule::get().limits.code_len / 1024;
+
+        // Data to be queried further.
+        let data = vec![c as u8; 1024 * c as usize];
+
+        // Placing data in storage to be able to query it.
+        BenchmarkStorage::<T>::insert(c, data);
+    }: {
+        // Querying data from storage.
+        BenchmarkStorage::<T>::get(c).expect("Infallible: Key not found in storage");
     }
 
     // `c`: Size of the code in kilobytes.
