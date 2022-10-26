@@ -658,7 +658,6 @@ impl EnvExt for Ext {
         packet: InitPacket,
         delay: u32,
     ) -> Result<(MessageId, ProgramId), Self::Error> {
-        // +_+_+ salt size
         self.charge_gas_runtime(RuntimeCosts::CreateProgram(
             packet.payload().len() as u32,
             packet.salt().len() as u32,

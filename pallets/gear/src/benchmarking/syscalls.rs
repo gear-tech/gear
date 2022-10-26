@@ -244,7 +244,7 @@ where
         handle_body: Some(body::repeated(
             r * API_BENCHMARK_BATCH_SIZE,
             &[
-                Instruction::I32Const(0),
+                Instruction::I32Const(10),
                 Instruction::Call(0),
                 Instruction::Drop,
             ],
@@ -351,7 +351,7 @@ where
 }
 
 // TODO: currently each syscall execution returns error: ExecutionError::InvalidReservationId.
-// We need to fill reservations set with data first.
+// We need to fill reservations set with data first. (issue #1724)
 pub fn gr_unreserve_gas_bench<T>(r: u32) -> Result<Exec<T>, &'static str>
 where
     T: Config,
@@ -615,7 +615,7 @@ where
     )
 }
 
-// TODO: investigate how handle changes can affect on syscall perf.
+// TODO: investigate how handle changes can affect on syscall perf (issue #1722).
 pub fn gr_send_push_per_kb_bench<T>(n: u32) -> Result<Exec<T>, &'static str>
 where
     T: Config,
