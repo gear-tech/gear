@@ -591,6 +591,12 @@ where
             }
         }
 
+        if let Some(system_reserved) = node.system_reserved() {
+            if !system_reserved.is_zero() {
+                return Err(InternalError::consumed_with_system_reservation().into());
+            }
+        }
+
         node.mark_consumed();
         let catch_output = Self::catch_value(&mut node)?;
         let external = Self::get_external(key)?;

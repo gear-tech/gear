@@ -196,6 +196,9 @@ pub mod pallet {
 
         /// `GasTree::consume` called on node, which has some balance locked.
         ConsumedWithLock,
+
+        /// `GasTree::consume` called on node, which has some system reservation.
+        ConsumedWithSystemReservation,
     }
 
     impl<T: Config> GasError for Error<T> {
@@ -249,6 +252,10 @@ pub mod pallet {
 
         fn consumed_with_lock() -> Self {
             Self::ConsumedWithLock
+        }
+
+        fn consumed_with_system_reservation() -> Self {
+            Self::ConsumedWithSystemReservation
         }
     }
 
