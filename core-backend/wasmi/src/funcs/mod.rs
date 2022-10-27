@@ -1029,6 +1029,27 @@ where
         Func::wrap(store, func)
     }
 
+    pub fn system_reserve_gas(store: &mut Store<HostState<E>>, forbidden: bool) -> Func {
+        let func = move |mut caller: wasmi::Caller<'_, HostState<E>>, gas_amount: u64| {
+            update_or_exit_if!(forbidden, caller);
+
+            let call_result = host_state_mut!(caller).ext.system_reserve_gas(gas_amount);
+            update_globals!(caller);
+
+            match call_result {
+                Ok(()) => Ok((0,)),
+                Err(e) => {
+                    let err = FuncError::Core(e);
+                    let size = Encode::encoded_size(&err) as u32;
+                    host_state_mut!(caller).err = err;
+                    Ok((size,))
+                }
+            }
+        };
+
+        Func::wrap(store, func)
+    }
+
     pub fn gas_available(store: &mut Store<HostState<E>>, forbidden: bool) -> Func {
         let func = move |mut caller: wasmi::Caller<'_, HostState<E>>| -> FnResult<u64> {
             update_or_exit_if!(forbidden, caller);

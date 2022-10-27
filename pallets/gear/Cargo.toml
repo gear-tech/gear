@@ -81,6 +81,7 @@ demo-mul-by-const = { path = "../../examples/binaries/mul-by-const" }
 demo-value-sender = { path = "../../examples/binaries/value-sender" }
 demo-waiter = { path = "../../examples/binaries/waiter" }
 demo-reserve-gas = { path = "../../examples/binaries/reserve-gas" }
+demo-signal-entry = { path = "../../examples/binaries/signal-entry" }
 page_size = "0.4.2"
 pallet-gear-gas = { path = "../gas" }
 pallet-gear-messenger = { path = "../gear-messenger" }

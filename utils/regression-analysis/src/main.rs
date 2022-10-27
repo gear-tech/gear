@@ -342,6 +342,7 @@ fn weights(kind: WeightsKind, input_file: PathBuf, output_file: PathBuf) {
                     gr_create_program_wgas_per_byte,
                     gr_reserve_gas,
                     gr_unreserve_gas,
+                    gr_system_reserve_gas,
                     gas,
                 }
             }

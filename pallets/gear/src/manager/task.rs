@@ -55,7 +55,7 @@ where
         let mailboxed = Pallet::<T>::read_message(user_id, message_id, reason)
             .unwrap_or_else(|| unreachable!("Scheduling logic invalidated!"));
 
-        self.send_signal(message_id, mailboxed.source());
+        // TODO: consider send signal to program itself
 
         // Consuming gas handler for mailboxed message.
         Pallet::<T>::consume_and_retrieve(mailboxed.id());
@@ -69,12 +69,14 @@ where
         let waitlisted = Pallet::<T>::wake_dispatch(program_id, message_id, reason)
             .unwrap_or_else(|| unreachable!("Scheduling logic invalidated!"));
 
+        self.send_signal(message_id, waitlisted.destination());
+
         // Trap explanation.
         let trap = ExecutionErrorReason::OutOfRent;
 
         // Generate trap reply.
         if self.check_program_id(&waitlisted.source()) {
-            self.send_signal(message_id, waitlisted.source());
+            // TODO: consider wether alert `waitlisted.source()` and how
         } else {
             // Sending trap reply to user, by depositing event.
             //

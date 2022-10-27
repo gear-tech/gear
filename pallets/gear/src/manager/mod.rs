@@ -285,7 +285,12 @@ where
         let reserved = GasHandlerOf::<T>::system_unreserve(message_id)
             .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
         if reserved != 0 {
-            log::debug!("Send signal issued by {} to {}", message_id, destination);
+            log::debug!(
+                "Send signal issued by {} to {} with {} supply",
+                message_id,
+                destination,
+                reserved
+            );
 
             // Creating signal message.
             let trap_signal = SignalMessage::new(message_id, core_processor::ERR_EXIT_CODE)
@@ -299,6 +304,8 @@ where
             // Enqueueing dispatch into message queue.
             QueueOf::<T>::queue(trap_signal)
                 .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e));
+        } else {
+            log::trace!("Signal wasn't sent due to inappropriate supply");
         }
     }
 }

@@ -108,6 +108,7 @@ pub enum TrapExplanation {
 pub struct ExtInfo {
     pub gas_amount: GasAmount,
     pub gas_reserver: GasReserver,
+    pub system_reservation: Option<u64>,
     pub allocations: Option<BTreeSet<WasmPageNumber>>,
     pub pages_data: BTreeMap<PageNumber, PageBuf>,
     pub generated_dispatches: Vec<(Dispatch, u32)>,

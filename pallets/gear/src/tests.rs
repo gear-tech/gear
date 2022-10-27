@@ -5868,6 +5868,58 @@ fn reject_incorrect_binary() {
     });
 }
 
+#[test]
+fn signal_works() {
+    use demo_signal_entry::WASM_BINARY;
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
+            10_000_000_000,
+            0,
+        ));
+
+        let pid = get_last_program_id();
+
+        run_to_block(2, None);
+
+        assert!(Gear::is_initialized(pid));
+        assert!(Gear::is_active(pid));
+
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            pid,
+            EMPTY_PAYLOAD.to_vec(),
+            10_000_000_000,
+            0,
+        ));
+
+        let mut expiration = None;
+
+        run_to_block(3, None);
+
+        System::events().iter().for_each(|e| {
+            if let MockRuntimeEvent::Gear(Event::MessageWaited {
+                expiration: exp, ..
+            }) = e.event
+            {
+                expiration = Some(exp);
+            }
+        });
+
+        let expiration = expiration.unwrap();
+
+        System::set_block_number(expiration - 1);
+        Gear::set_block_number((expiration - 1).try_into().unwrap());
+
+        run_to_next_block(None);
+    });
+}
+
 mod utils {
     #![allow(unused)]
 
@@ -5919,6 +5971,7 @@ mod utils {
             .try_init();
     }
 
+    #[track_caller]
     pub(super) fn assert_balance(
         origin: impl common::Origin,
         free: impl Into<BalanceOf<Test>>,

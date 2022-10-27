@@ -961,4 +961,8 @@ impl JournalHandler for ExtManager {
             panic!("no gas reservation map found in program");
         }
     }
+
+    fn system_reserve_gas(&mut self, _message_id: MessageId, _amount: u64) {}
+
+    fn system_unreserve_gas(&mut self, _message_id: MessageId) {}
 }

@@ -73,6 +73,8 @@ pub struct DispatchResult {
     pub gas_amount: GasAmount,
     /// Gas amount programs reserved.
     pub gas_reserver: Option<GasReserver>,
+    /// Do system reservation?
+    pub system_reservation: Option<u64>,
     /// Page updates.
     pub page_update: BTreeMap<PageNumber, PageBuf>,
     /// New allocations set for program if it has been changed.
@@ -117,6 +119,7 @@ impl DispatchResult {
             program_candidates: Default::default(),
             gas_amount,
             gas_reserver: None,
+            system_reservation: None,
             page_update: Default::default(),
             allocations: Default::default(),
         }
@@ -287,6 +290,18 @@ pub enum JournalNote {
         /// Map with reservations.
         reserver: GasReserver,
     },
+    /// Do system reservation.
+    SystemReserveGas {
+        /// Message ID which system reservation will be made from.
+        message_id: MessageId,
+        /// Amount of reserved gas.
+        amount: u64,
+    },
+    /// Do system unreservation in case it is created but not used.
+    SystemUnreserveGas {
+        /// Message ID which system reservation was made from.
+        message_id: MessageId,
+    },
 }
 
 /// Journal handler.
@@ -354,6 +369,10 @@ pub trait JournalHandler {
     fn unreserve_gas(&mut self, reservation_id: ReservationId, program_id: ProgramId, bn: u32);
     /// Update gas reservations.
     fn update_gas_reservation(&mut self, program_id: ProgramId, reserver: GasReserver);
+    /// Do system reservation.
+    fn system_reserve_gas(&mut self, message_id: MessageId, amount: u64);
+    /// Do system unreservation.
+    fn system_unreserve_gas(&mut self, message_id: MessageId);
 }
 
 /// Execution error.

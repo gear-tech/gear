@@ -18,7 +18,7 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
-use gstd::{msg, prelude::*};
+use gstd::{exec, msg, prelude::*};
 
 #[cfg(feature = "std")]
 mod code {
@@ -29,11 +29,15 @@ mod code {
 pub use code::WASM_BINARY_OPT as WASM_BINARY;
 
 #[no_mangle]
-unsafe extern "C" fn init() {}
+unsafe extern "C" fn handle() {
+    exec::system_reserve_gas(500_000_000).unwrap();
+    exec::wait();
+}
 
 #[no_mangle]
 unsafe extern "C" fn handle_signal() {
-    assert_eq!(msg::exit_code().unwrap(), 0xBEEF);
+    // TODO: use msg::signal_code() instead
+    assert_eq!(msg::exit_code().unwrap(), 1);
 }
 
 #[cfg(test)]
@@ -49,7 +53,7 @@ mod tests {
 
         let program = Program::current(&system);
 
-        let res = program.send_signal(0, 0xBEEF);
+        let res = program.send_signal(0, 1);
         assert!(!res.main_failed());
     }
 }

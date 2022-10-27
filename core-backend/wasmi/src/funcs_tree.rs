@@ -130,6 +130,9 @@ where
         f.build("gr_unreserve_gas", |forbidden| {
             F::unreserve_gas(store, forbidden, memory)
         }),
+        f.build("gr_system_reserve_gas", |forbidden| {
+            F::system_reserve_gas(store, forbidden)
+        }),
         f.build(IMPORT_NAME_OUT_OF_GAS, |_| F::out_of_gas(store)),
         f.build(IMPORT_NAME_OUT_OF_ALLOWANCE, |_| F::out_of_allowance(store)),
     ]

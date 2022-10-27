@@ -198,6 +198,10 @@ impl Ext for MockExt {
     fn out_of_gas(&mut self) -> Self::Error {
         Error
     }
+
+    fn system_reserve_gas(&mut self, _amount: u64) -> Result<(), Self::Error> {
+        Ok(())
+    }
 }
 
 impl IntoExtInfo<<MockExt as Ext>::Error> for MockExt {
@@ -205,6 +209,7 @@ impl IntoExtInfo<<MockExt as Ext>::Error> for MockExt {
         Ok(ExtInfo {
             gas_amount: GasAmount::from(GasCounter::new(0)),
             gas_reserver: GasReserver::new(Default::default(), 0, Default::default(), 1024),
+            system_reservation: None,
             allocations: Default::default(),
             pages_data: Default::default(),
             generated_dispatches: Default::default(),

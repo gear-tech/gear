@@ -531,6 +531,19 @@ where
         })
     }
 
+    pub fn system_reserve_gas(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
+        let amount = args.iter().read()?;
+
+        ctx.run(|ctx| {
+            Ok(ctx
+                .ext
+                .system_reserve_gas(amount)
+                .process_error()
+                .map_err(FuncError::Core)?
+                .error_len())
+        })
+    }
+
     pub fn gas_available(ctx: &mut Runtime<E>, _args: &[Value]) -> SyscallOutput {
         sys_trace!(target: "syscall::gear", "gas_available");
 

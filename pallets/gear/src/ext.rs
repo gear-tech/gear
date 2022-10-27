@@ -232,6 +232,10 @@ impl EnvExt for LazyPagesExt {
         self.inner.unreserve_gas(id)
     }
 
+    fn system_reserve_gas(&mut self, amount: u64) -> Result<(), Self::Error> {
+        self.inner.system_reserve_gas(amount)
+    }
+
     fn gas_available(&mut self) -> Result<u64, Self::Error> {
         self.inner.gas_available()
     }

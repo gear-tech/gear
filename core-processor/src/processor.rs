@@ -554,6 +554,7 @@ fn process_success(
         program_id,
         context_store,
         allocations,
+        system_reservation,
         ..
     } = dispatch_result;
 
@@ -593,6 +594,10 @@ fn process_success(
             program_id,
             reserver: gas_reserver,
         });
+    }
+
+    if let Some(amount) = system_reservation {
+        journal.push(JournalNote::SystemReserveGas { message_id, amount });
     }
 
     // We check if value is greater than zero to don't provide
@@ -675,6 +680,8 @@ fn process_success(
         }
     };
 
+    // TODO: merge with MessageConsumed
+    journal.push(JournalNote::SystemUnreserveGas { message_id });
     journal.push(JournalNote::MessageDispatched {
         message_id,
         source: origin,
