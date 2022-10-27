@@ -339,7 +339,7 @@ pub fn run() -> sc_cli::Result<()> {
             runner.sync_run(|config| cmd.run::<Block>(&config))
         }
         #[cfg(feature = "program")]
-        Some(Subcommand::GearProgram(gp)) => {
+        Some(Subcommand::Program(gp)) => {
             // # NOTE
             //
             // unwrap here directly to show the error messages.
