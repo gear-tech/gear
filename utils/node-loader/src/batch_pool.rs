@@ -4,6 +4,7 @@ use crate::{
 };
 use anyhow::{anyhow, Result};
 use batch::{Batch, BatchWithSeed};
+use batch_sender::BatchSender;
 use context::Context;
 use futures::{stream::FuturesUnordered, StreamExt};
 use gclient::{Error as GClientError, EventProcessor, GearApi, Result as GClientResult};
@@ -18,9 +19,8 @@ use std::{
 };
 use tracing::instrument;
 
-use self::batch::BatchSender;
-
 mod batch;
+mod batch_sender;
 mod context;
 pub mod generators;
 mod report;
