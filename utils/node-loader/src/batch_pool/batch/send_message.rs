@@ -4,9 +4,12 @@ use crate::{
     batch_pool::Seed,
     utils::{LoaderRng, NonEmptyVec},
 };
-use gear_core::ids::ProgramId;
+use gclient::Result as GClientResult;
+use gear_core::ids::{MessageId, ProgramId};
+use primitive_types::H256;
 
 pub type SendMessageArgsInner = (ProgramId, Vec<u8>, u64, u128);
+pub type SendMessageBatchOutput = (Vec<GClientResult<(MessageId, ProgramId)>>, H256);
 
 pub struct SendMessageArgs(pub SendMessageArgsInner);
 

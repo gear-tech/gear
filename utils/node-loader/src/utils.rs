@@ -2,11 +2,11 @@ use crate::{
     batch_pool::{generators, CrashAlert},
     SmallRng,
 };
-use anyhow::{anyhow, Error, Result};
+use anyhow::{Error, Result};
 use dyn_clonable::*;
 use futures::Future;
 use futures_timer::Delay;
-use gclient::{Error as GClientError, GearApi, WSAddress};
+use gclient::{Error as GClientError, WSAddress};
 use rand::{Rng, RngCore, SeedableRng};
 use reqwest::Client;
 use std::{
@@ -17,30 +17,9 @@ use std::{
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
-pub struct GearApiProducer {
-    api: GearApi,
-    nonce: u32,
-}
-
-impl GearApiProducer {
-    pub async fn try_new(endpoint: String, user: String) -> Result<Self> {
-        let api = GearApi::init_with(str_to_wsaddr(endpoint), user).await?;
-        let nonce = api.rpc_nonce().await?;
-        Ok(Self { api, nonce })
-    }
-
-    pub fn produce(&mut self) -> GearApi {
-        let mut api = self.api.clone();
-        api.set_nonce(self.nonce);
-        self.nonce += 1;
-
-        api
-    }
-
-    pub fn current(&self) -> GearApi {
-        self.api.clone()
-    }
-}
+// todo decide how to return errors and convert them
+pub const DEAD_NODE_ERROR_STR: &str = "Rpc error: The background task been terminated because: Networking or low-level protocol error";
+pub const EXHAUST_BLOCK_LIMIT_ERROR_STR: &str = "Transaction would exhaust the block limits";
 
 pub fn now() -> u64 {
     let time_since_epoch = SystemTime::now()
@@ -135,12 +114,12 @@ pub async fn with_timeout<T>(fut: impl Future<Output = T>) -> Result<T> {
 
     tokio::select! {
         output = fut => Ok(output),
-        _ = wait_task => Err(anyhow!("Timeout"))
+        _ = wait_task => Err(CrashAlert::Timeout.into())
     }
 }
 
 pub fn try_node_dead_err(err: GClientError) -> Error {
-    if err.to_string().contains("Rpc error: The background task been terminated because: Networking or low-level protocol error") {
+    if err.to_string().contains(DEAD_NODE_ERROR_STR) {
         CrashAlert::NodeIsDead.into()
     } else {
         err.into()

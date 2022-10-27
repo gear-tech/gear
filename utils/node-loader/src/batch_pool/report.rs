@@ -4,11 +4,11 @@ use std::collections::BTreeSet;
 
 #[derive(Debug, Clone, Copy, thiserror::Error)]
 pub enum CrashAlert {
-    #[error("Message processing has been stopped")]
+    #[error("Crash alert: Message processing has been stopped")]
     MsgProcessingStopped,
-    #[error("Timeout occurred while processing batch")]
+    #[error("Crash alert: Timeout occurred while processing batch")]
     Timeout,
-    #[error("Can't reach the node, considered to be dead")]
+    #[error("Crash alert: Can't reach the node, considered to be dead")]
     NodeIsDead,
 }
 

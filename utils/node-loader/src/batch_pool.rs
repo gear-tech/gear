@@ -1,6 +1,6 @@
 use crate::{
-    args::SeedVariant,
-    utils::{self, GearApiProducer, LoaderRng},
+    args::{LoadParams, SeedVariant},
+    utils::{self, LoaderRng},
 };
 use anyhow::Result;
 use batch::{Batch, BatchWithSeed};
@@ -18,6 +18,8 @@ use std::{
 };
 use tracing::instrument;
 
+use self::batch::BatchSender;
+
 mod batch;
 mod context;
 pub mod generators;
@@ -27,7 +29,7 @@ type Seed = u64;
 type CallId = usize;
 
 pub struct BatchPool<Rng: LoaderRng> {
-    api_producer: GearApiProducer,
+    batch_sender: BatchSender,
     pool_size: usize,
     batch_size: usize,
     tasks_context: Context,
@@ -35,9 +37,9 @@ pub struct BatchPool<Rng: LoaderRng> {
 }
 
 impl<Rng: LoaderRng> BatchPool<Rng> {
-    pub fn new(api_producer: GearApiProducer, pool_size: usize, batch_size: usize) -> Self {
+    fn new(batch_sender: BatchSender, batch_size: usize, pool_size: usize) -> Self {
         Self {
-            api_producer,
+            batch_sender,
             pool_size,
             batch_size,
             tasks_context: Context::new(),
@@ -45,21 +47,24 @@ impl<Rng: LoaderRng> BatchPool<Rng> {
         }
     }
 
-    #[instrument(skip_all)]
-    pub async fn run(
-        &mut self,
-        code_seed_type: Option<SeedVariant>,
-        node_stopper: String,
-    ) -> Result<()> {
-        let api = self.api_producer.current();
+    pub async fn run(params: LoadParams) -> Result<()> {
+        let batch_sender = BatchSender::try_new(params.node, params.user).await?;
+        let mut batch_pool = Self::new(batch_sender.clone(), params.batch_size, params.workers);
 
-        let run_pool_task = self.run_pool_loop(code_seed_type);
-        let inspect_crash_task = inspect_crash_events(api, node_stopper);
+        let run_pool_task = batch_pool.run_pool_loop(params.code_seed_type);
+        let inspect_crash_task =
+            inspect_crash_events(batch_sender.into_gear_api(), params.node_stopper);
 
-        tokio::select! {
+        let run_result = tokio::select! {
             r = run_pool_task => r,
             r = inspect_crash_task => r,
+        };
+
+        if let Err(ref e) = run_result {
+            tracing::info!("Pool run ends up with an error: {e}");
         }
+
+        run_result
     }
 
     #[instrument(skip_all)]
@@ -77,19 +82,19 @@ impl<Rng: LoaderRng> BatchPool<Rng> {
         let mut batch_gen = BatchGenerator::<Rng>::new(seed, self.batch_size, code_seed_type);
 
         while batches.len() != self.pool_size {
+            let batch_sender = self.batch_sender.clone();
             let batch_with_seed = batch_gen.generate(self.tasks_context.clone());
-            let api = self.api_producer.produce();
 
-            batches.push(run_batch(api, batch_with_seed));
+            batches.push(run_batch(batch_sender, batch_with_seed));
         }
 
         while let Some(report_res) = batches.next().await {
             self.process_run_report(report_res?).await;
 
+            let batch_sender = self.batch_sender.clone();
             let batch_with_seed = batch_gen.generate(self.tasks_context.clone());
-            let api = self.api_producer.produce();
 
-            batches.push(run_batch(api, batch_with_seed));
+            batches.push(run_batch(batch_sender, batch_with_seed));
         }
 
         unreachable!()
@@ -101,9 +106,9 @@ impl<Rng: LoaderRng> BatchPool<Rng> {
 }
 
 #[instrument(skip_all, fields(seed = batch.seed, batch_type = batch.batch_str()))]
-async fn run_batch(api: GearApi, batch: BatchWithSeed) -> Result<BatchRunReport> {
+async fn run_batch(batch_sender: BatchSender, batch: BatchWithSeed) -> Result<BatchRunReport> {
     let (seed, batch) = batch.into();
-    match run_batch_impl(api, batch).await {
+    match run_batch_impl(batch_sender, batch).await {
         Ok(report) => Ok(BatchRunReport::new(seed, report)),
         Err(err) => {
             if err.is::<CrashAlert>() {
@@ -121,64 +126,42 @@ async fn run_batch(api: GearApi, batch: BatchWithSeed) -> Result<BatchRunReport>
 }
 
 #[instrument(skip_all)]
-async fn run_batch_impl(api: GearApi, batch: Batch) -> Result<Report> {
+async fn run_batch_impl(mut batch_sender: BatchSender, batch: Batch) -> Result<Report> {
     // Order of the results of each extrinsic execution in the batch
     // is the same as in the input set of calls in the batch.
     // See: https://paritytech.github.io/substrate/master/src/pallet_utility/lib.rs.html#452-468
     match batch {
         Batch::UploadProgram(args) => {
-            if let Ok(r) =
-                utils::with_timeout(api.upload_program_bytes_batch(utils::convert_iter(args))).await
-            {
-                let (ex_results, block_hash) = r.map_err(utils::try_node_dead_err)?;
-                let messages = process_ex_results(ex_results);
-                return process_events(api, messages, block_hash, true).await;
-            }
+            let (ex_results, block_hash) = batch_sender.upload_program_batch(args).await?;
+            let messages = process_ex_results(ex_results);
+            process_events(batch_sender.into_gear_api(), messages, block_hash, true).await
         }
         Batch::UploadCode(args) => {
-            if let Ok(r) =
-                utils::with_timeout(api.upload_code_batch(utils::convert_iter::<Vec<_>, _>(args)))
-                    .await
-            {
-                let ex_results = r
-                    .map_err(utils::try_node_dead_err)?
-                    .0
-                    .into_iter()
-                    .map(|r| r.map(|code| (code, ())));
-                let codes = process_ex_results(ex_results);
-                for (code_id, (_, call_id)) in codes.iter() {
-                    tracing::debug!(
-                        "[Call with id: {call_id}]: Successfully deployed code with id '{code_id}'"
-                    );
-                }
-
-                return Ok(Report {
-                    codes: codes.keys().copied().collect(),
-                    ..Default::default()
-                });
+            let (ex_results, _) = batch_sender.upload_code_batch(args).await?;
+            let ex_results = ex_results.into_iter().map(|r| r.map(|code| (code, ())));
+            let codes = process_ex_results(ex_results);
+            for (code_id, (_, call_id)) in codes.iter() {
+                tracing::debug!(
+                    "[Call with id: {call_id}]: Successfully deployed code with id '{code_id}'"
+                );
             }
+
+            Ok(Report {
+                codes: codes.keys().copied().collect(),
+                ..Default::default()
+            })
         }
         Batch::SendMessage(args) => {
-            if let Ok(r) =
-                utils::with_timeout(api.send_message_bytes_batch(utils::convert_iter(args))).await
-            {
-                let (ex_results, block_hash) = r.map_err(utils::try_node_dead_err)?;
-                let messages = process_ex_results(ex_results);
-                return process_events(api, messages, block_hash, false).await;
-            }
+            let (ex_results, block_hash) = batch_sender.send_message_batch(args).await?;
+            let messages = process_ex_results(ex_results);
+            process_events(batch_sender.into_gear_api(), messages, block_hash, false).await
         }
         Batch::CreateProgram(args) => {
-            if let Ok(r) =
-                utils::with_timeout(api.create_program_bytes_batch(utils::convert_iter(args))).await
-            {
-                let (ex_results, block_hash) = r.map_err(utils::try_node_dead_err)?;
-                let messages = process_ex_results(ex_results);
-                return process_events(api, messages, block_hash, false).await;
-            }
+            let (ex_results, block_hash) = batch_sender.create_program_batch(args).await?;
+            let messages = process_ex_results(ex_results);
+            process_events(batch_sender.into_gear_api(), messages, block_hash, true).await
         }
     }
-
-    Err(CrashAlert::Timeout.into())
 }
 
 fn process_ex_results<Key: Ord, Value>(

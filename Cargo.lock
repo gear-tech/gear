@@ -3069,6 +3069,8 @@ dependencies = [
  "gear-core",
  "gear-wasm-gen",
  "hex",
+ "once_cell",
+ "parking_lot 0.12.1",
  "primitive-types",
  "rand 0.8.5",
  "reqwest",

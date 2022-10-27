@@ -9,7 +9,6 @@ use anyhow::Result;
 use args::{parse_cli_params, LoadParams, Params};
 use batch_pool::{generators, BatchPool};
 use rand::rngs::SmallRng;
-use utils::GearApiProducer;
 
 mod args;
 mod batch_pool;
@@ -34,10 +33,5 @@ async fn run(params: Params) -> Result<()> {
 async fn load_node(params: LoadParams) -> Result<()> {
     // this should not be dropped, until the loader works
     let _guard = log::init_log()?;
-
-    let api_producer = GearApiProducer::try_new(params.node, params.user).await?;
-
-    BatchPool::<SmallRng>::new(api_producer, params.workers, params.batch_size)
-        .run(params.code_seed_type, params.node_stopper)
-        .await
+    BatchPool::<SmallRng>::run(params).await
 }
