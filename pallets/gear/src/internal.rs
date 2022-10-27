@@ -647,7 +647,7 @@ where
         //
         // Note: for users, trap replies always contain
         // string explanation of the error.
-        let message = match message.exit_code() {
+        let message = match message.status_code() {
             Some(0) | None => message,
             _ => message
                 .with_string_payload::<ExecutionErrorReason>()
@@ -722,7 +722,7 @@ where
         //
         // We don't plan to send delayed error replies yet,
         // but this logic appears here for future purposes.
-        let message = match message.exit_code() {
+        let message = match message.status_code() {
             Some(0) | None => message,
             _ => message
                 .with_string_payload::<ExecutionErrorReason>()

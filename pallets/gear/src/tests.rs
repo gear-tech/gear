@@ -6227,7 +6227,7 @@ mod utils {
         System::events().into_iter().for_each(|e| {
             if let MockRuntimeEvent::Gear(Event::UserMessageSent { message, .. }) = e.event {
                 if let Some(details) = message.reply() {
-                    if details.reply_to() == message_id && details.exit_code() != 0 {
+                    if details.reply_to() == message_id && details.status_code() != 0 {
                         actual_error = Some(
                             String::from_utf8(message.payload().to_vec())
                                 .expect("Unable to decode string from error reply"),

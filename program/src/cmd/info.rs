@@ -143,7 +143,7 @@ impl<'d> fmt::Debug for DebugReplyDetails<'d> {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         fmt.debug_struct("ReplyDetails")
             .field("reply_to", &hex::encode(self.0.reply_to.0))
-            .field("exit_code", &self.0.exit_code.to_string())
+            .field("status_code", &self.0.status_code.to_string())
             .finish()
     }
 }
@@ -154,7 +154,7 @@ impl<'d> fmt::Debug for DebugSignalDestination<'d> {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         fmt.debug_struct("SignalDetails")
             .field("from", &hex::encode(self.0.from.0))
-            .field("exit_code", &self.0.exit_code.to_string())
+            .field("status_code", &self.0.status_code.to_string())
             .finish()
     }
 }

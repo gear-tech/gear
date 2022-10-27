@@ -38,8 +38,8 @@ use futures::future::FusedFuture;
 /// The initial message that requires a reply is sent instantly.
 /// Function `send_for_reply` returns `CodecMessageFuture` which
 /// implements `Future` trait. Program interrupts until the reply is received.
-/// As soon as the reply is received, the function checks it's exit code and
-/// returns `Ok()` with decoded structure inside or `Err()` in case of exit code
+/// As soon as the reply is received, the function checks it's status code and
+/// returns `Ok()` with decoded structure inside or `Err()` in case of status code
 /// does not equal 0. For decode-related errors (<https://docs.rs/parity-scale-codec/2.3.1/parity_scale_codec/struct.Error.html>),
 /// Gear returns the native one after decode.
 pub struct CodecMessageFuture<T> {
@@ -62,9 +62,9 @@ impl<D: Decode> Future for CodecMessageFuture<D> {
         match signals().poll(fut.waiting_reply_to, cx) {
             ReplyPoll::None => panic!("Somebody created CodecMessageFuture with the MessageId that never ended in static replies!"),
             ReplyPoll::Pending => Poll::Pending,
-            ReplyPoll::Some((actual_reply, exit_code)) => {
-                if exit_code != 0 {
-                    return Poll::Ready(Err(ContractError::ExitCode(exit_code)));
+            ReplyPoll::Some((actual_reply, status_code)) => {
+                if status_code != 0 {
+                    return Poll::Ready(Err(ContractError::StatusCode(status_code)));
                 }
 
                 Poll::Ready(D::decode(&mut actual_reply.as_ref()).map_err(ContractError::Decode))
@@ -103,9 +103,9 @@ impl<D: Decode> Future for CodecCreateProgramFuture<D> {
         match signals().poll(fut.waiting_reply_to, cx) {
             ReplyPoll::None => panic!("Somebody created CodecCreateProgramFuture with the MessageId that never ended in static replies!"),
             ReplyPoll::Pending => Poll::Pending,
-            ReplyPoll::Some((actual_reply, exit_code)) => {
-                if exit_code != 0 {
-                    return Poll::Ready(Err(ContractError::ExitCode(exit_code)));
+            ReplyPoll::Some((actual_reply, status_code)) => {
+                if status_code != 0 {
+                    return Poll::Ready(Err(ContractError::StatusCode(status_code)));
                 }
 
                 Poll::Ready(D::decode(&mut actual_reply.as_ref()).map(|payload| (self.program_id, payload)).map_err(ContractError::Decode))
@@ -125,8 +125,8 @@ impl<D: Decode> FusedFuture for CodecCreateProgramFuture<D> {
 /// The initial message that requires a reply is sent instantly.
 /// Function `send_bytes_for_reply` returns `MessageFuture` which
 /// implements `Future` trait. Program interrupts until the reply is received.
-/// As soon as the reply is received, the function checks it's exit code and
-/// returns `Ok()` with raw bytes inside or `Err()` in case of exit code does
+/// As soon as the reply is received, the function checks it's status code and
+/// returns `Ok()` with raw bytes inside or `Err()` in case of status code does
 /// not equal 0. For decode-related errors (<https://docs.rs/parity-scale-codec/2.3.1/parity_scale_codec/struct.Error.html>),
 /// Gear returns the native one after decode.
 pub struct MessageFuture {
@@ -142,9 +142,9 @@ impl Future for MessageFuture {
         match signals().poll(fut.waiting_reply_to, cx) {
             ReplyPoll::None => panic!("Somebody created MessageFuture with the MessageId that never ended in static replies!"),
             ReplyPoll::Pending => Poll::Pending,
-            ReplyPoll::Some((actual_reply, exit_code)) => {
-                if exit_code != 0 {
-                    return Poll::Ready(Err(ContractError::ExitCode(exit_code)));
+            ReplyPoll::Some((actual_reply, status_code)) => {
+                if status_code != 0 {
+                    return Poll::Ready(Err(ContractError::StatusCode(status_code)));
                 }
 
                 Poll::Ready(Ok(actual_reply))
@@ -177,9 +177,9 @@ impl Future for CreateProgramFuture {
         match signals().poll(fut.waiting_reply_to, cx) {
             ReplyPoll::None => panic!("Somebody created CreateProgramFuture with the MessageId that never ended in static replies!"),
             ReplyPoll::Pending => Poll::Pending,
-            ReplyPoll::Some((actual_reply, exit_code)) => {
-                if exit_code != 0 {
-                    return Poll::Ready(Err(ContractError::ExitCode(exit_code)));
+            ReplyPoll::Some((actual_reply, status_code)) => {
+                if status_code != 0 {
+                    return Poll::Ready(Err(ContractError::StatusCode(status_code)));
                 }
 
                 Poll::Ready(Ok((self.program_id, actual_reply)))

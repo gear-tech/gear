@@ -101,7 +101,7 @@ impl Signer {
     pub async fn calculate_reply_gas(
         &self,
         message_id: MessageId,
-        exit_code: i32,
+        status_code: i32,
         payload: Vec<u8>,
         value: u128,
         allow_other_panics: bool,
@@ -113,7 +113,7 @@ impl Signer {
                 rpc_params![
                     self.source(),
                     H256(message_id.into()),
-                    exit_code,
+                    status_code,
                     hex::encode(payload),
                     u64::try_from(value).unwrap_or(u64::MAX),
                     allow_other_panics,

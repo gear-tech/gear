@@ -69,8 +69,8 @@ where
         f.build("gr_read", |forbidden| F::read(store, forbidden, memory)),
         f.build("gr_size", |forbidden| F::size(store, forbidden)),
         f.build("gr_exit", |forbidden| F::exit(store, forbidden, memory)),
-        f.build("gr_exit_code", |forbidden| {
-            F::exit_code(store, forbidden, memory)
+        f.build("gr_status_code", |forbidden| {
+            F::status_code(store, forbidden, memory)
         }),
         f.build("alloc", |forbidden| F::alloc(store, forbidden, memory)),
         f.build("free", |forbidden| F::free(store, forbidden)),

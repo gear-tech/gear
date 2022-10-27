@@ -74,8 +74,8 @@ pub type GasLimit = u64;
 /// Value type for message.
 pub type Value = u128;
 
-/// Exit code type for message replies.
-pub type ExitCode = i32;
+/// Status code type for message replies.
+pub type StatusCode = i32;
 
 /// Salt type for init message.
 pub type Salt = Vec<u8>;

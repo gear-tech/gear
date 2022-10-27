@@ -66,13 +66,13 @@ impl From<generated_ids::CodeId> for ids::CodeId {
 
 impl From<generated_message::common::ReplyDetails> for message::ReplyDetails {
     fn from(other: generated_message::common::ReplyDetails) -> Self {
-        message::ReplyDetails::new(other.reply_to.into(), other.exit_code)
+        message::ReplyDetails::new(other.reply_to.into(), other.status_code)
     }
 }
 
 impl From<generated_message::common::SignalDetails> for message::SignalDetails {
     fn from(other: generated_message::common::SignalDetails) -> Self {
-        message::SignalDetails::new(other.from.into(), other.exit_code)
+        message::SignalDetails::new(other.from.into(), other.status_code)
     }
 }
 

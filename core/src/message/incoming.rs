@@ -42,7 +42,7 @@ pub struct IncomingMessage {
     gas_limit: GasLimit,
     /// Message value.
     value: Value,
-    /// Message details like reply message ID, exit code, etc.
+    /// Message details like reply message ID, status code, etc.
     details: Option<MessageDetails>,
 }
 

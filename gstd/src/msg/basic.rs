@@ -129,7 +129,7 @@ impl From<gcore::MessageHandle> for MessageHandle {
     }
 }
 
-/// Get the exit code of the message being processed.
+/// Get the status code of the message being processed.
 ///
 /// This function is used to check the reply message was processed
 /// successfully or not.
@@ -141,11 +141,11 @@ impl From<gcore::MessageHandle> for MessageHandle {
 ///
 /// unsafe extern "C" fn handle() {
 ///     // ...
-///     let exit_code = msg::exit_code();
+///     let status_code = msg::status_code();
 /// }
 /// ```
-pub fn exit_code() -> Result<i32> {
-    gcore::msg::exit_code().map_err(Into::into)
+pub fn status_code() -> Result<i32> {
+    gcore::msg::status_code().map_err(Into::into)
 }
 
 /// Obtain an identifier of the message currently being processed.

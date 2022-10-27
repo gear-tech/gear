@@ -211,7 +211,7 @@ pub(crate) fn sys_calls_table(config: &GearConfig) -> BTreeMap<&'static str, Sys
     );
 
     res.insert(
-        "gr_exit_code",
+        "gr_status_code",
         SysCallInfo::new(config, [Ptr], [I32], frequency),
     );
     res.insert(

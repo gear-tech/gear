@@ -106,8 +106,8 @@ pub struct HostFnWeights {
     /// Weight of calling `gr_debug`.
     pub gr_debug: u64,
 
-    /// Weight of calling `gr_exit_code`.
-    pub gr_exit_code: u64,
+    /// Weight of calling `gr_status_code`.
+    pub gr_status_code: u64,
 
     /// Weight of calling `gr_exit`.
     pub gr_exit: u64,
@@ -212,8 +212,8 @@ pub enum RuntimeCosts {
     ReplyTo,
     /// Weight of calling `gr_debug`.
     Debug,
-    /// Weight of calling `gr_exit_code`.
-    ExitCode,
+    /// Weight of calling `gr_status_code`.
+    StatusCode,
     /// Weight of calling `gr_exit`.
     Exit,
     /// Weight of calling `gr_leave`.
@@ -268,7 +268,7 @@ impl RuntimeCosts {
                 .saturating_add(s.gr_reply_push_per_byte.saturating_mul(len.into())),
             ReplyTo => s.gr_reply_to,
             Debug => s.gr_debug,
-            ExitCode => s.gr_exit_code,
+            StatusCode => s.gr_status_code,
             Exit => s.gr_exit,
             Leave => s.gr_leave,
             Wait => s.gr_wait,

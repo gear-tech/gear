@@ -18,7 +18,7 @@
 
 use crate::{
     ids::{MessageId, ProgramId},
-    message::{DispatchKind, ExitCode, GasLimit, Payload, StoredDispatch, StoredMessage, Value},
+    message::{DispatchKind, GasLimit, Payload, StatusCode, StoredDispatch, StoredMessage, Value},
 };
 use alloc::string::ToString;
 use codec::{Decode, Encode};
@@ -41,7 +41,7 @@ pub struct Message {
     gas_limit: Option<GasLimit>,
     /// Message value.
     value: Value,
-    /// Message details like reply message ID, exit code, etc.
+    /// Message details like reply message ID, status code, etc.
     details: Option<MessageDetails>,
 }
 
@@ -120,9 +120,9 @@ impl Message {
         self.details.and_then(|d| d.to_reply())
     }
 
-    /// Exit code of the message, if reply.
-    pub fn exit_code(&self) -> Option<ExitCode> {
-        self.details.map(|d| d.exit_code())
+    /// Status code of the message, if reply.
+    pub fn status_code(&self) -> Option<StatusCode> {
+        self.details.map(|d| d.status_code())
     }
 
     #[allow(clippy::result_large_err)]
@@ -172,14 +172,14 @@ pub enum MessageDetails {
 impl MessageDetails {
     /// Returns bool defining if message is error reply.
     pub fn is_error_reply(&self) -> bool {
-        self.is_reply() && self.exit_code() != 0
+        self.is_reply() && self.status_code() != 0
     }
 
-    /// Returns exit code.
-    pub fn exit_code(&self) -> ExitCode {
+    /// Returns status code.
+    pub fn status_code(&self) -> StatusCode {
         match self {
-            MessageDetails::Reply(ReplyDetails { exit_code, .. })
-            | MessageDetails::Signal(SignalDetails { exit_code, .. }) => *exit_code,
+            MessageDetails::Reply(ReplyDetails { status_code, .. })
+            | MessageDetails::Signal(SignalDetails { status_code, .. }) => *status_code,
         }
     }
 
@@ -213,23 +213,23 @@ impl MessageDetails {
 /// Reply details data.
 ///
 /// Part of [`ReplyMessage`](crate::message::ReplyMessage) logic, containing data about on which message id
-/// this replies and its exit code.
+/// this replies and its status code.
 #[derive(
     Clone, Copy, Default, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo,
 )]
 pub struct ReplyDetails {
     /// Message id, this message replies on.
     reply_to: MessageId,
-    /// Exit code of the reply.
-    exit_code: ExitCode,
+    /// Status code of the reply.
+    status_code: StatusCode,
 }
 
 impl ReplyDetails {
     /// Constructor for details.
-    pub fn new(reply_to: MessageId, exit_code: ExitCode) -> Self {
+    pub fn new(reply_to: MessageId, status_code: StatusCode) -> Self {
         Self {
             reply_to,
-            exit_code,
+            status_code,
         }
     }
 
@@ -238,14 +238,14 @@ impl ReplyDetails {
         self.reply_to
     }
 
-    /// Exit code getter.
-    pub fn exit_code(&self) -> ExitCode {
-        self.exit_code
+    /// Status code getter.
+    pub fn status_code(&self) -> StatusCode {
+        self.status_code
     }
 
     /// Destructs self in parts of components.
-    pub fn into_parts(self) -> (MessageId, ExitCode) {
-        (self.reply_to, self.exit_code)
+    pub fn into_parts(self) -> (MessageId, StatusCode) {
+        (self.reply_to, self.status_code)
     }
 
     /// Destructs self in `MessageId` replied to.
@@ -253,9 +253,9 @@ impl ReplyDetails {
         self.reply_to
     }
 
-    /// Destructs self in `ExitCode` replied with.
-    pub fn into_exit_code(self) -> ExitCode {
-        self.exit_code
+    /// Destructs self in `StatusCode` replied with.
+    pub fn into_status_code(self) -> StatusCode {
+        self.status_code
     }
 }
 
@@ -266,14 +266,14 @@ impl ReplyDetails {
 pub struct SignalDetails {
     /// Message id, which issues signal.
     from: MessageId,
-    /// Exit code of the reply.
-    exit_code: ExitCode,
+    /// Status code of the reply.
+    status_code: StatusCode,
 }
 
 impl SignalDetails {
     /// Constructor for details.
-    pub fn new(from: MessageId, exit_code: ExitCode) -> Self {
-        Self { from, exit_code }
+    pub fn new(from: MessageId, status_code: StatusCode) -> Self {
+        Self { from, status_code }
     }
 
     /// Message id getter.
@@ -281,14 +281,14 @@ impl SignalDetails {
         self.from
     }
 
-    /// Exit code getter.
-    pub fn exit_code(&self) -> ExitCode {
-        self.exit_code
+    /// Status code getter.
+    pub fn status_code(&self) -> StatusCode {
+        self.status_code
     }
 
     /// Destructs self in parts of components.
-    pub fn into_parts(self) -> (MessageId, ExitCode) {
-        (self.from, self.exit_code)
+    pub fn into_parts(self) -> (MessageId, StatusCode) {
+        (self.from, self.status_code)
     }
 
     /// Destructs self in `MessageId` which issues signal.
@@ -296,9 +296,9 @@ impl SignalDetails {
         self.from
     }
 
-    /// Destructs self in `ExitCode` replied with.
-    pub fn into_exit_code(self) -> ExitCode {
-        self.exit_code
+    /// Destructs self in `StatusCode` replied with.
+    pub fn into_status_code(self) -> StatusCode {
+        self.status_code
     }
 }
 

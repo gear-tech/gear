@@ -29,7 +29,7 @@ use gear_core::{
     gas::{GasAmount, GasCounter},
     ids::{MessageId, ProgramId, ReservationId},
     memory::{Memory, WasmPageNumber},
-    message::{ExitCode, HandlePacket, InitPacket, ReplyPacket},
+    message::{HandlePacket, InitPacket, ReplyPacket, StatusCode},
     reservation::GasReserver,
 };
 use gear_core_errors::{CoreError, ExtError, MemoryError};
@@ -114,7 +114,7 @@ impl Ext for MockExt {
     fn exit(&mut self) -> Result<(), Self::Error> {
         Ok(())
     }
-    fn exit_code(&mut self) -> Result<ExitCode, Self::Error> {
+    fn status_code(&mut self) -> Result<StatusCode, Self::Error> {
         Ok(Default::default())
     }
     fn message_id(&mut self) -> Result<MessageId, Self::Error> {

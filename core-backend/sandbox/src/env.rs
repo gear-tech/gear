@@ -142,7 +142,7 @@ where
         builder.add_func("gr_debug", Funcs::debug);
         builder.add_func("gr_error", Funcs::error);
         builder.add_func("gr_exit", Funcs::exit);
-        builder.add_func("gr_exit_code", Funcs::exit_code);
+        builder.add_func("gr_status_code", Funcs::status_code);
         builder.add_func("gr_reserve_gas", Funcs::reserve_gas);
         builder.add_func("gr_unreserve_gas", Funcs::unreserve_gas);
         builder.add_func("gr_system_reserve_gas", Funcs::system_reserve_gas);

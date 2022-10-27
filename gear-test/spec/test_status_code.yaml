@@ -1,8 +1,8 @@
-title: Exit code
+title: Status code
 
 programs:
   - id: 1
-    path: target/wasm32-unknown-unknown/release/demo_exit_code.opt.wasm
+    path: target/wasm32-unknown-unknown/release/demo_status_code.opt.wasm
 
   - id: 2
     path: target/wasm32-unknown-unknown/release/demo_panicker.opt.wasm

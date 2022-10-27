@@ -310,7 +310,7 @@ where
                 None,
             ),
         ),
-        HandleKind::Reply(msg_id, exit_code) => {
+        HandleKind::Reply(msg_id, status_code) => {
             let (msg, _bn) =
                 MailboxOf::<T>::remove(<T::AccountId as Origin>::from_origin(source), msg_id)
                     .map_err(|_| "Internal error: unable to find message in mailbox")?;
@@ -323,7 +323,7 @@ where
                     payload.try_into()?,
                     Some(u64::MAX),
                     value,
-                    Some(ReplyDetails::new(msg.id(), exit_code).into()),
+                    Some(ReplyDetails::new(msg.id(), status_code).into()),
                 ),
             )
         }
@@ -1562,13 +1562,13 @@ benchmarks! {
         >(&block_config, context, memory_pages);
     }
 
-    gr_exit_code {
+    gr_status_code {
         let r in 0 .. API_BENCHMARK_BATCHES;
         let code = WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
             imported_functions: vec![ImportedFunction {
                 module: "env",
-                name: "gr_exit_code",
+                name: "gr_status_code",
                 params: vec![],
                 return_type: Some(ValueType::I32),
             }],

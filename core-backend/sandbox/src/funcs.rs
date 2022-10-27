@@ -306,18 +306,18 @@ where
         })
     }
 
-    pub fn exit_code(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
-        sys_trace!(target: "syscall::gear", "exit_code, args = {}", args_to_str(args));
+    pub fn status_code(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
+        sys_trace!(target: "syscall::gear", "status_code, args = {}", args_to_str(args));
 
-        let exit_code_ptr = args.iter().read()?;
+        let status_code_ptr = args.iter().read()?;
 
         ctx.run(|ctx| {
             ctx.ext
-                .exit_code()
+                .status_code()
                 .process_error()
                 .map_err(FuncError::Core)?
-                .error_len_on_success(|exit_code| {
-                    ctx.write_output(exit_code_ptr, exit_code.to_le_bytes().as_ref())
+                .error_len_on_success(|status_code| {
+                    ctx.write_output(status_code_ptr, status_code.to_le_bytes().as_ref())
                 })
         })
     }

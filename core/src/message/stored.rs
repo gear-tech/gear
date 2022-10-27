@@ -19,8 +19,8 @@
 use crate::{
     ids::{MessageId, ProgramId},
     message::{
-        common::MessageDetails, ContextStore, DispatchKind, ExitCode, GasLimit, IncomingDispatch,
-        IncomingMessage, Payload, ReplyDetails, Value,
+        common::MessageDetails, ContextStore, DispatchKind, GasLimit, IncomingDispatch,
+        IncomingMessage, Payload, ReplyDetails, StatusCode, Value,
     },
 };
 use alloc::string::ToString;
@@ -44,7 +44,7 @@ pub struct StoredMessage {
     /// Message value.
     #[codec(compact)]
     value: Value,
-    /// Message details like reply message ID, exit code, etc.
+    /// Message details like reply message ID, status code, etc.
     details: Option<MessageDetails>,
 }
 
@@ -115,9 +115,9 @@ impl StoredMessage {
         self.details.and_then(|d| d.to_reply())
     }
 
-    /// Exit code of the message, if reply.
-    pub fn exit_code(&self) -> Option<ExitCode> {
-        self.details.map(|d| d.exit_code())
+    /// Status code of the message, if reply.
+    pub fn status_code(&self) -> Option<StatusCode> {
+        self.details.map(|d| d.status_code())
     }
 
     #[allow(clippy::result_large_err)]

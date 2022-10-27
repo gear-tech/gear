@@ -18,7 +18,7 @@
 
 use crate::{
     ids::{MessageId, ProgramId},
-    message::{Dispatch, DispatchKind, ExitCode, Message, ReplyDetails},
+    message::{Dispatch, DispatchKind, Message, ReplyDetails, StatusCode},
 };
 use codec::{Decode, Encode};
 use scale_info::TypeInfo;
@@ -28,16 +28,16 @@ use scale_info::TypeInfo;
 pub struct SignalMessage {
     /// Message id.
     id: MessageId,
-    /// Reply exit code.
-    exit_code: ExitCode,
+    /// Reply status code.
+    status_code: StatusCode,
 }
 
 impl SignalMessage {
     /// Creates a new [`SignalMessage`].
-    pub fn new(origin_msg_id: MessageId, exit_code: ExitCode) -> Self {
-        let id = MessageId::generate_signal(origin_msg_id, exit_code);
+    pub fn new(origin_msg_id: MessageId, status_code: StatusCode) -> Self {
+        let id = MessageId::generate_signal(origin_msg_id, status_code);
 
-        Self { id, exit_code }
+        Self { id, status_code }
     }
 
     /// Convert [`SignalMessage`] into [`Message`].
@@ -49,7 +49,7 @@ impl SignalMessage {
             Default::default(),
             None,
             0,
-            Some(ReplyDetails::new(self.id, self.exit_code).into()),
+            Some(ReplyDetails::new(self.id, self.status_code).into()),
         )
     }
 
@@ -63,8 +63,8 @@ impl SignalMessage {
         self.id
     }
 
-    /// Exit code of the reply message.
-    pub fn exit_code(&self) -> ExitCode {
-        self.exit_code
+    /// Status code of the reply message.
+    pub fn status_code(&self) -> StatusCode {
+        self.status_code
     }
 }

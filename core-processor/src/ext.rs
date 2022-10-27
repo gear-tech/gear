@@ -37,7 +37,9 @@ use gear_core::{
         AllocationsContext, GrowHandler, GrowHandlerNothing, Memory, PageBuf, PageNumber,
         WasmPageNumber,
     },
-    message::{ExitCode, GasLimit, HandlePacket, InitPacket, MessageContext, Packet, ReplyPacket},
+    message::{
+        GasLimit, HandlePacket, InitPacket, MessageContext, Packet, ReplyPacket, StatusCode,
+    },
     reservation::GasReserver,
 };
 use gear_core_errors::{CoreError, ExecutionError, ExtError, MemoryError, MessageError, WaitError};
@@ -462,16 +464,15 @@ impl EnvExt for Ext {
         Ok(())
     }
 
-    fn exit_code(&mut self) -> Result<ExitCode, Self::Error> {
-        self.charge_gas_runtime(RuntimeCosts::ExitCode)?;
+    fn status_code(&mut self) -> Result<StatusCode, Self::Error> {
+        self.charge_gas_runtime(RuntimeCosts::StatusCode)?;
 
         self.context
             .message_context
             .current()
             .details()
-            .and_then(|d| d.to_reply())
-            .map(|d| d.into_exit_code())
-            .ok_or_else(|| MessageError::NoReplyContext.into())
+            .map(|d| d.status_code())
+            .ok_or_else(|| MessageError::NoStatusCodeContext.into())
     }
 
     fn message_id(&mut self) -> Result<MessageId, Self::Error> {

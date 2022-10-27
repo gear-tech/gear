@@ -18,7 +18,7 @@
 
 //! Gear common errors module.
 //! Enumerates errors that can occur in smart-contracts `ContractError`.
-//! Errors related to conversion, decoding, message exit code, other internal
+//! Errors related to conversion, decoding, message status code, other internal
 //! errors.
 
 use core::fmt;
@@ -31,7 +31,7 @@ pub type Result<T> = core::result::Result<T, ContractError>;
 pub enum ContractError {
     Convert(&'static str),
     Decode(codec::Error),
-    ExitCode(i32),
+    StatusCode(i32),
     Ext(ExtError),
 }
 
@@ -40,7 +40,7 @@ impl fmt::Display for ContractError {
         match self {
             ContractError::Convert(e) => write!(f, "Conversion error: {e:?}"),
             ContractError::Decode(e) => write!(f, "Decoding codec bytes error: {e}"),
-            ContractError::ExitCode(e) => write!(f, "Reply returned exit code {e}"),
+            ContractError::StatusCode(e) => write!(f, "Reply returned exit code {e}"),
             ContractError::Ext(e) => write!(f, "API error: {e}"),
         }
     }

@@ -141,7 +141,7 @@ pub enum MessageContentMismatch {
     Payload(ContentMismatch<DisplayedPayload>),
     GasLimit(ContentMismatch<u64>),
     Value(ContentMismatch<u128>),
-    ExitCode(ContentMismatch<i32>),
+    StatusCode(ContentMismatch<i32>),
 }
 
 #[derive(Debug, Display)]
@@ -190,10 +190,10 @@ impl MessagesError {
         }
     }
 
-    fn exit_code(at: usize, expected: i32, actual: i32) -> Self {
+    fn status_code(at: usize, expected: i32, actual: i32) -> Self {
         Self::AtPosition {
             at,
-            mismatch: MessageContentMismatch::ExitCode(ContentMismatch { expected, actual }),
+            mismatch: MessageContentMismatch::StatusCode(ContentMismatch { expected, actual }),
         }
     }
 }
@@ -232,14 +232,14 @@ pub fn check_messages(
                 let is_init = exp.init.unwrap_or(false);
 
                 match_or_else(
-                    exp.exit_code,
-                    msg.exit_code().unwrap_or(0),
+                    exp.status_code,
+                    msg.status_code().unwrap_or(0),
                     |expected, actual| {
-                        errors.push(MessagesError::exit_code(position, expected, actual))
+                        errors.push(MessagesError::status_code(position, expected, actual))
                     },
                 );
 
-                if msg.exit_code().unwrap_or(0) == 0
+                if msg.status_code().unwrap_or(0) == 0
                     && exp
                         .payload
                         .as_mut()

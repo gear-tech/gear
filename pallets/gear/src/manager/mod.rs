@@ -67,7 +67,7 @@ use gear_core::{
     code::{CodeAndId, InstrumentedCode},
     ids::{CodeId, MessageId, ProgramId},
     memory::WasmPageNumber,
-    message::{DispatchKind, ExitCode, SignalMessage},
+    message::{DispatchKind, SignalMessage, StatusCode},
 };
 use primitive_types::H256;
 use sp_runtime::traits::UniqueSaturatedInto;
@@ -83,7 +83,7 @@ pub enum HandleKind {
     Init(Vec<u8>),
     InitByHash(CodeId),
     Handle(ProgramId),
-    Reply(MessageId, ExitCode),
+    Reply(MessageId, StatusCode),
 }
 
 impl fmt::Debug for HandleKind {
@@ -293,7 +293,7 @@ where
             );
 
             // Creating signal message.
-            let trap_signal = SignalMessage::new(message_id, core_processor::ERR_EXIT_CODE)
+            let trap_signal = SignalMessage::new(message_id, core_processor::ERR_STATUS_CODE)
                 .into_dispatch(destination)
                 .into_stored();
 

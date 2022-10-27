@@ -26,7 +26,7 @@ use codec::{Codec, Decode, Encode};
 use gear_core::{
     code::{Code, CodeAndId, InstrumentedCodeAndId},
     ids::{CodeId, MessageId, ProgramId},
-    message::{Dispatch, DispatchKind, ExitCode, Message, SignalMessage},
+    message::{Dispatch, DispatchKind, Message, SignalMessage, StatusCode},
     program::Program as CoreProgram,
 };
 use gear_wasm_builder::optimize::{OptType, Optimizer};
@@ -413,7 +413,7 @@ impl<'a> Program<'a> {
     pub fn send_signal<ID: Into<ProgramIdWrapper>>(
         &self,
         from: ID,
-        exit_code: ExitCode,
+        status_code: StatusCode,
     ) -> RunResult {
         let mut system = self.manager.borrow_mut();
 
@@ -425,7 +425,7 @@ impl<'a> Program<'a> {
                 source,
                 system.fetch_inc_message_nonce() as u128,
             ),
-            exit_code,
+            status_code,
         );
 
         let (actor, _) = system.actors.get_mut(&self.id).expect("Can't fail");

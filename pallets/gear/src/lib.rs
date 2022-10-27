@@ -879,7 +879,7 @@ pub mod pallet {
                             format!("Internal error: send_message failed with '{e:?}'").into_bytes()
                         })?;
                 }
-                HandleKind::Reply(reply_to_id, _exit_code) => {
+                HandleKind::Reply(reply_to_id, _status_code) => {
                     Self::send_reply(who.into(), reply_to_id, payload, initial_gas, value)
                         .map_err(|e| {
                             format!("Internal error: send_reply failed with '{e:?}'").into_bytes()

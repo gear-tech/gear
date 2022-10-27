@@ -36,8 +36,7 @@ unsafe extern "C" fn handle() {
 
 #[no_mangle]
 unsafe extern "C" fn handle_signal() {
-    // TODO: use msg::signal_code() instead
-    assert_eq!(msg::exit_code().unwrap(), 1);
+    assert_eq!(msg::status_code().unwrap(), 1);
 }
 
 #[cfg(test)]

@@ -25,7 +25,7 @@ use gear_core::{
     gas::GasAmount,
     ids::{MessageId, ProgramId, ReservationId},
     memory::{GrowHandler, Memory, PageNumber, WasmPageNumber},
-    message::{ExitCode, HandlePacket, InitPacket, ReplyPacket},
+    message::{HandlePacket, InitPacket, ReplyPacket, StatusCode},
 };
 use gear_core_errors::{ExtError, MemoryError};
 use gear_lazy_pages_common as lazy_pages;
@@ -188,8 +188,8 @@ impl EnvExt for LazyPagesExt {
         self.inner.exit()
     }
 
-    fn exit_code(&mut self) -> Result<ExitCode, Self::Error> {
-        self.inner.exit_code()
+    fn status_code(&mut self) -> Result<StatusCode, Self::Error> {
+        self.inner.status_code()
     }
 
     fn message_id(&mut self) -> Result<MessageId, Self::Error> {
