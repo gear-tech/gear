@@ -197,13 +197,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "demo-exit-code"
-version = "0.1.0"
-dependencies = [
- "gstd",
-]
-
-[[package]]
 name = "demo-fib"
 version = "0.1.0"
 dependencies = [
@@ -334,6 +327,13 @@ dependencies = [
 
 [[package]]
 name = "demo-state-rollback"
+version = "0.1.0"
+dependencies = [
+ "gstd",
+]
+
+[[package]]
+name = "demo-status-code"
 version = "0.1.0"
 dependencies = [
  "gstd",
