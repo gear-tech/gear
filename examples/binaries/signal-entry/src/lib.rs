@@ -18,8 +18,6 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
-use gstd::{exec, msg, prelude::*};
-
 #[cfg(feature = "std")]
 mod code {
     include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
@@ -28,15 +26,20 @@ mod code {
 #[cfg(feature = "std")]
 pub use code::WASM_BINARY_OPT as WASM_BINARY;
 
-#[no_mangle]
-unsafe extern "C" fn handle() {
-    exec::system_reserve_gas(500_000_000).unwrap();
-    exec::wait();
-}
+#[cfg(not(feature = "std"))]
+mod wasm {
+    use gstd::{exec, msg, prelude::*};
 
-#[no_mangle]
-unsafe extern "C" fn handle_signal() {
-    assert_eq!(msg::status_code().unwrap(), 1);
+    #[no_mangle]
+    unsafe extern "C" fn handle() {
+        exec::system_reserve_gas(500_000_000).unwrap();
+        exec::wait();
+    }
+
+    #[no_mangle]
+    unsafe extern "C" fn handle_signal() {
+        assert_eq!(msg::status_code().unwrap(), 1);
+    }
 }
 
 #[cfg(test)]
