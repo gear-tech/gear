@@ -86,6 +86,7 @@ pub trait WeightInfo {
     fn gr_create_program_wgas_per_kb(n: u32, ) -> Weight;
     fn gr_reserve_gas(r: u32, ) -> Weight;
     fn gr_unreserve_gas(r: u32, ) -> Weight;
+    fn gr_system_reserve_gas(r: u32, ) -> Weight;
     fn instr_i64const(r: u32, ) -> Weight;
     fn instr_i64load(r: u32, ) -> Weight;
     fn instr_i64store(r: u32, ) -> Weight;
@@ -457,6 +458,10 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
         Weight::from_ref_time(108_908_000 as u64)
             // Standard Error: 71_761
             .saturating_add(Weight::from_ref_time(6_205_212 as u64).saturating_mul(r as u64))
+    }
+    /// The range of component `r` is `[0, 20]`.
+    fn gr_system_reserve_gas(_r: u32, ) -> Weight {
+        Weight::from_ref_time(11_441_000_000 as u64)
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_i64const(r: u32, ) -> Weight {
@@ -1078,6 +1083,10 @@ impl WeightInfo for () {
         Weight::from_ref_time(108_908_000 as u64)
             // Standard Error: 71_761
             .saturating_add(Weight::from_ref_time(6_205_212 as u64).saturating_mul(r as u64))
+    }
+    /// The range of component `r` is `[0, 20]`.
+    fn gr_system_reserve_gas(_r: u32, ) -> Weight {
+        Weight::from_ref_time(11_441_000_000 as u64)
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_i64const(r: u32, ) -> Weight {
