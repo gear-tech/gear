@@ -244,7 +244,7 @@ where
         handle_body: Some(body::repeated(
             r * API_BENCHMARK_BATCH_SIZE,
             &[
-                Instruction::I32Const(10),
+                Instruction::I32Const(1),
                 Instruction::Call(0),
                 Instruction::Drop,
             ],
