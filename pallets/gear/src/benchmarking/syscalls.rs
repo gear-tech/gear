@@ -244,7 +244,8 @@ where
         handle_body: Some(body::repeated(
             r * API_BENCHMARK_BATCH_SIZE,
             &[
-                Instruction::I32Const(1),
+                // Alloc 0 pages take almost the same amount of resources as another amount.
+                Instruction::I32Const(0),
                 Instruction::Call(0),
                 Instruction::Drop,
             ],
