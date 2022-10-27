@@ -113,6 +113,8 @@ pub mod constants;
 
 pub use constants::{currency::*, time::*};
 
+mod migrations;
+
 // Weights used in the runtime.
 mod weights;
 
@@ -1268,6 +1270,7 @@ pub type Executive = frame_executive::Executive<
     frame_system::ChainContext<Runtime>,
     Runtime,
     AllPalletsWithSystem,
+    migrations::Migrations,
 >;
 
 #[cfg(feature = "debug-mode")]
