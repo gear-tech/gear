@@ -680,8 +680,10 @@ fn process_success(
         }
     };
 
-    // TODO: merge with MessageConsumed
-    journal.push(JournalNote::SystemUnreserveGas { message_id });
+    if system_reservation.is_some() {
+        journal.push(JournalNote::SystemUnreserveGas { message_id });
+    }
+
     journal.push(JournalNote::MessageDispatched {
         message_id,
         source: origin,
