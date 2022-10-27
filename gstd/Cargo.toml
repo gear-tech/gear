@@ -14,7 +14,7 @@ gear-core-errors = { path = "../core-errors" }
 bs58 = { version = "0.4.0", default-features = false, features = ["alloc"] }
 codec = { package = "parity-scale-codec", version = "~3.1.2", default-features = false, features = ["derive", "full"]}
 hex = { version = "0.4.3", default-features = false, features = ["alloc"] }
-primitive-types = { version = "0.12.0", default-features = false, features = ["scale-info"]}
+primitive-types = { version = "0.12.1", default-features = false, features = ["scale-info"]}
 scale-info = { version = "2.1.1", default-features = false, features = ["derive"] }
 futures = { version = "0.3", default-features = false, features = ["alloc"] }
 
