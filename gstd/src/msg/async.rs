@@ -59,8 +59,8 @@ where
 /// Function `send_for_reply` returns `CodecMessageFuture` which
 /// implements `Future` trait. Program interrupts until the reply is received.
 /// As soon as the reply is received, the function checks it's status code and
-/// returns `Ok()` with decoded structure inside or `Err()` in case of status code
-/// does not equal 0. For decode-related errors (<https://docs.rs/parity-scale-codec/2.3.1/parity_scale_codec/struct.Error.html>),
+/// returns `Ok()` with decoded structure inside or `Err()` in case of status
+/// code does not equal 0. For decode-related errors (<https://docs.rs/parity-scale-codec/2.3.1/parity_scale_codec/struct.Error.html>),
 /// Gear returns the native one after decode.
 pub struct CodecMessageFuture<T> {
     /// Waiting reply to this the message id
