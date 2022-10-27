@@ -43,9 +43,9 @@ where
             "Somebody created a future with the MessageId that never ended in static replies!"
         ),
         ReplyPoll::Pending => Poll::Pending,
-        ReplyPoll::Some((actual_reply, exit_code)) => {
-            if exit_code != 0 {
-                return Poll::Ready(Err(ContractError::ExitCode(exit_code)));
+        ReplyPoll::Some((actual_reply, status_code)) => {
+            if status_code != 0 {
+                return Poll::Ready(Err(ContractError::StatusCode(status_code)));
             }
 
             Poll::Ready(f(actual_reply))

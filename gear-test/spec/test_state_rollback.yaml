@@ -33,7 +33,7 @@ fixtures:
               kind: utf-8
               value: A
           - destination: 1000001
-            exitCode: 1
+            statusCode: 1
           - destination: 1000001
             payload:
               kind: utf-8
