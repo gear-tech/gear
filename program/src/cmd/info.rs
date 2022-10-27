@@ -116,7 +116,7 @@ impl fmt::Debug for Mail {
             )
             .field("value", &self.message.value)
             .field(
-                "destination",
+                "details",
                 &self.message.details.as_ref().map(DebugMessageDestination),
             )
             .field("interval", &self.interval)
