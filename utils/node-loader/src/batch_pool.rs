@@ -2,7 +2,7 @@ use crate::{
     args::{LoadParams, SeedVariant},
     utils::{self, LoaderRng},
 };
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use batch::{Batch, BatchWithSeed};
 use context::Context;
 use futures::{stream::FuturesUnordered, StreamExt};
@@ -111,16 +111,17 @@ async fn run_batch(batch_sender: BatchSender, batch: BatchWithSeed) -> Result<Ba
     match run_batch_impl(batch_sender, batch).await {
         Ok(report) => Ok(BatchRunReport::new(seed, report)),
         Err(err) => {
-            if err.is::<CrashAlert>() {
-                // Report crash error
-                tracing::info!("{err}");
+            // Propagate crash error or return report
+            utils::swap_res_types(
+                CrashAlert::try_from(err)
+                    .map(|crash_err| {
+                        tracing::info!("{crash_err}");
+                        crash_err
+                    })
+                    .map_err(|err| tracing::debug!("Error occurred while running batch: {err}")),
+            )?;
 
-                Err(err)
-            } else {
-                tracing::debug!("Error occurred while running batch: {err}");
-
-                Ok(BatchRunReport::empty(seed))
-            }
+            Ok(BatchRunReport::empty(seed))
         }
     }
 }
@@ -204,7 +205,7 @@ async fn process_events(
         // We also multiply it on the 5 just to be 100% sure if no events occurred, than node is crashed
         if (utils::now() - now) as usize > wait_for_events_blocks * 1000 * 5 {
             tracing::debug!("Timeout is reached while waiting for events");
-            return Err(CrashAlert::Timeout.into());
+            return Err(anyhow!(utils::TIMEOUT_ERR_STR));
         }
 
         if matches!(r, Err(GClientError::EventNotFoundInIterator)) {
@@ -221,7 +222,7 @@ async fn process_events(
         None
     };
 
-    for (mid, maybe_err) in results.map_err(utils::try_node_dead_err)? {
+    for (mid, maybe_err) in results? {
         let (pid, call_id) = messages.remove(&mid).expect("Infallible");
 
         if let Some(expl) = maybe_err {

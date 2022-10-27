@@ -71,8 +71,7 @@ impl From<BatchWithSeed> for (Seed, Batch) {
     }
 }
 
-// todo decide how to return errors and convert them
-// todo possible restructure
+// todo possibly restructure nonces management
 #[derive(Clone)]
 pub struct BatchSender {
     api: GearApi,
@@ -149,9 +148,9 @@ impl BatchSender {
         let (api, nonce) = self.prepare_api_for_call();
 
         let r = utils::with_timeout(f(api)).await?;
-        catch_missed_nonce(&r, nonce);
+        catch_missed_nonce(&r, nonce).expect("missed nonces storage is initialized");
 
-        r.map_err(utils::try_node_dead_err)
+        r.map_err(Into::into)
     }
 
     fn prepare_api_for_call(&self) -> (GearApi, u32) {
@@ -184,7 +183,7 @@ fn is_empty_missed_nonce() -> Result<bool> {
 fn increment_nonce() -> Result<u32> {
     AVAILABLE_NONCE
         .get()
-        .ok_or(anyhow!("Not initialized missed nonces storage"))
+        .ok_or_else(|| anyhow!("Not initialized missed nonces storage"))
         .map(|an| an.fetch_add(1, Ordering::Relaxed))
 }
 
@@ -192,30 +191,24 @@ fn pop_missed_nonce() -> Result<u32> {
     hold_missed_nonces()?
         .pop()
         .map(|Reverse(v)| v)
-        .ok_or(anyhow!("empty missed nonce storage"))
+        .ok_or_else(|| anyhow!("empty missed nonce storage"))
 }
 
 fn hold_missed_nonces<'a>() -> Result<MissedNoncesGuard<'a>> {
     MISSED_NONCES
         .get()
         .map(|m| m.lock())
-        .ok_or(anyhow!("Not initialized missed nonces storage"))
+        .ok_or_else(|| anyhow!("Not initialized missed nonces storage"))
 }
 
-fn catch_missed_nonce<T>(batch_res: &GClientResult<T>, nonce: u32) {
-    match batch_res {
-        Err(err) => {
-            if err
-                .to_string()
-                .contains(utils::EXHAUST_BLOCK_LIMIT_ERROR_STR)
-            {
-                hold_missed_nonces()
-                    .expect("initialized")
-                    .push(Reverse(nonce));
-            }
+fn catch_missed_nonce<T>(batch_res: &GClientResult<T>, nonce: u32) -> Result<()> {
+    if let Err(err) = batch_res {
+        if err.to_string().contains(utils::SUBXT_RPC_CALL_ERR_STR) {
+            hold_missed_nonces()?.push(Reverse(nonce));
         }
-        _ => {}
     }
+
+    Ok(())
 }
 
 #[test]

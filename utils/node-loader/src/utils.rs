@@ -1,12 +1,9 @@
-use crate::{
-    batch_pool::{generators, CrashAlert},
-    SmallRng,
-};
-use anyhow::{Error, Result};
+use crate::{batch_pool::generators, SmallRng};
+use anyhow::{anyhow, Result};
 use dyn_clonable::*;
 use futures::Future;
 use futures_timer::Delay;
-use gclient::{Error as GClientError, WSAddress};
+use gclient::WSAddress;
 use rand::{Rng, RngCore, SeedableRng};
 use reqwest::Client;
 use std::{
@@ -14,12 +11,15 @@ use std::{
     io::Write,
     iter,
     ops::Deref,
+    result::Result as StdResult,
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
-// todo decide how to return errors and convert them
-pub const DEAD_NODE_ERROR_STR: &str = "Rpc error: The background task been terminated because: Networking or low-level protocol error";
-pub const EXHAUST_BLOCK_LIMIT_ERROR_STR: &str = "Transaction would exhaust the block limits";
+/// subxt's GenericError::Rpc::RequestError::RestartNeeded
+pub const SUBXT_RPC_REQUEST_ERR_STR: &str = "Rpc error: The background task been terminated because: Networking or low-level protocol error";
+/// subxt's GenericError::Rpc::RequestError::Call (CallError::Failed)
+pub const SUBXT_RPC_CALL_ERR_STR: &str = "Transaction would exhaust the block limits";
+pub const TIMEOUT_ERR_STR: &str = "Timeout";
 
 pub fn now() -> u64 {
     let time_since_epoch = SystemTime::now()
@@ -108,21 +108,23 @@ impl<T> Deref for NonEmptyVec<T> {
     }
 }
 
+pub fn swap_res_types<T, E>(result: StdResult<T, E>) -> StdResult<E, T> {
+    match result {
+        Ok(t) => Err(t),
+        Err(e) => Ok(e),
+    }
+}
+
 pub async fn with_timeout<T>(fut: impl Future<Output = T>) -> Result<T> {
     // 5 minute as default
     let wait_task = Delay::new(Duration::from_millis(5 * 60 * 1_000));
 
     tokio::select! {
         output = fut => Ok(output),
-        _ = wait_task => Err(CrashAlert::Timeout.into())
-    }
-}
-
-pub fn try_node_dead_err(err: GClientError) -> Error {
-    if err.to_string().contains(DEAD_NODE_ERROR_STR) {
-        CrashAlert::NodeIsDead.into()
-    } else {
-        err.into()
+        _ = wait_task => {
+            tracing::debug!("Timeout occurred while running the action");
+            Err(anyhow!(TIMEOUT_ERR_STR))
+        }
     }
 }
 

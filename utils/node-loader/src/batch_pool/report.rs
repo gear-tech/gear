@@ -1,4 +1,6 @@
 use super::context::ContextUpdate;
+use crate::utils;
+use anyhow::Error;
 use gear_core::ids::{CodeId, ProgramId};
 use std::collections::BTreeSet;
 
@@ -10,6 +12,21 @@ pub enum CrashAlert {
     Timeout,
     #[error("Crash alert: Can't reach the node, considered to be dead")]
     NodeIsDead,
+}
+
+impl TryFrom<Error> for CrashAlert {
+    type Error = Error;
+
+    fn try_from(err: Error) -> Result<Self, Self::Error> {
+        let err_string = err.to_string();
+        if err_string.contains(utils::TIMEOUT_ERR_STR) {
+            Ok(CrashAlert::Timeout)
+        } else if err_string.contains(utils::SUBXT_RPC_REQUEST_ERR_STR) {
+            Ok(CrashAlert::NodeIsDead)
+        } else {
+            Err(err)
+        }
+    }
 }
 
 #[derive(Default)]
