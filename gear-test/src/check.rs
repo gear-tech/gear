@@ -121,7 +121,7 @@ pub struct DisplayedPayload(Vec<u8>);
 impl fmt::Display for DisplayedPayload {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         if let Ok(utf8) = std::str::from_utf8(&self.0[..]) {
-            write!(f, "utf-8 ({}) bytes(0x{})", utf8, hex::encode(&self.0))
+            write!(f, "utf-8 ({utf8}) bytes(0x{})", hex::encode(&self.0))
         } else {
             write!(f, "bytes (0x{})", hex::encode(&self.0))
         }
@@ -129,7 +129,7 @@ impl fmt::Display for DisplayedPayload {
 }
 
 #[derive(Debug, Display)]
-#[display(fmt = "expected: {}, actual: {}", expected, actual)]
+#[display(fmt = "expected: {expected}, actual: {actual}")]
 pub struct ContentMismatch<T: std::fmt::Display + std::fmt::Debug> {
     expected: T,
     actual: T,
@@ -147,7 +147,7 @@ pub enum MessageContentMismatch {
 #[derive(Debug, Display)]
 pub enum MessagesError {
     Count(ContentMismatch<usize>),
-    #[display(fmt = "at position: {}, mismatch {}", at, mismatch)]
+    #[display(fmt = "at position: {at}, mismatch {mismatch}")]
     AtPosition {
         at: usize,
         mismatch: MessageContentMismatch,
@@ -485,7 +485,7 @@ pub fn check_programs_state(
                 ));
             }
         } else {
-            errors.push(format!("Invalid program id {:?}.", id));
+            errors.push(format!("Invalid program id {id:?}."));
         }
     }
 
@@ -522,7 +522,7 @@ where
 {
     if let Err(err) = proc::init_fixture::<E, JH>(test, fixture_no, &mut journal_handler) {
         total_failed.fetch_add(1, Ordering::SeqCst);
-        return format!("Initialization error ({})", err).bright_red();
+        return format!("Initialization error ({err})").bright_red();
     }
 
     let expected = match &test.fixtures[fixture_no].expected {
@@ -557,7 +557,7 @@ where
                     errors.extend(
                         msg_errors
                             .into_iter()
-                            .map(|err| format!("Messages check [{}]", err)),
+                            .map(|err| format!("Messages check [{err}]")),
                     );
                 }
             }
@@ -582,7 +582,7 @@ where
                 errors.extend(
                     log_errors
                         .into_iter()
-                        .map(|err| format!("Log check [{}]", err)),
+                        .map(|err| format!("Log check [{err}]")),
                 );
             }
         }
@@ -613,7 +613,7 @@ where
                 errors.extend(
                     prog_id_errors
                         .into_iter()
-                        .map(|err| format!("Program ids check: [{}]", err)),
+                        .map(|err| format!("Program ids check: [{err}]")),
                 );
             }
         }
@@ -685,14 +685,14 @@ where
 {
     let map = Arc::new(RwLock::new(HashMap::new()));
     if let Err(e) = FixtureLogger::init(Arc::clone(&map)) {
-        println!("Logger err: {}", e);
+        println!("Logger err: {e}");
     }
     let mut tests = Vec::new();
 
     for path in files {
         if path.is_dir() {
             for entry in path.read_dir().expect("read_dir call failed").flatten() {
-                tests.push(read_test_from_file(&entry.path())?);
+                tests.push(read_test_from_file(entry.path())?);
             }
         } else {
             tests.push(read_test_from_file(&path)?);
@@ -702,7 +702,7 @@ where
     let total_fixtures: usize = tests.iter().map(|t| t.fixtures.len()).sum();
     let total_failed = AtomicUsize::new(0);
 
-    println!("Total fixtures: {}", total_fixtures);
+    println!("Total fixtures: {total_fixtures}");
 
     tests.par_iter().for_each(|test| {
         let progs_n_paths: Vec<(&str, ProgramId)> = test
@@ -745,7 +745,7 @@ where
                         .unwrap()
                         .iter()
                         .for_each(|line| {
-                            println!("{}", line);
+                            println!("{line}");
                         });
                 }
                 println!(

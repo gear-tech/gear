@@ -18,6 +18,8 @@
 
 //! Test for harmful demos, checking their init can't brake the chain.
 
+use std::time::Duration;
+
 use gclient::{EventProcessor, GearApi, Result};
 
 const PATHS: [&str; 2] = [
@@ -25,33 +27,20 @@ const PATHS: [&str; 2] = [
     "../target/wat-examples/inf_recursion.wasm",
 ];
 
-#[tokio::test]
-async fn harmless_upload() -> Result<()> {
-    // Creating gear api.
-    //
-    // By default, login as Alice, than re-login as Bob.
-    let api = GearApi::dev().await?.with("//Bob")?;
-
+async fn upload_programs_and_check(api: &GearApi, codes: Vec<Vec<u8>>) -> Result<()> {
     // Taking block gas limit constant.
     let gas_limit = api.block_gas_limit().await?;
-
-    // Creating batch arguments.
-    let mut args = vec![];
-
-    for path in &PATHS {
-        args.push((
-            gclient::code_from_os(path)?,
-            gclient::bytes_now(),
-            "",
-            gas_limit,
-            0,
-        ));
-    }
 
     // Subscribing for events.
     let mut listener = api.subscribe().await?;
 
+    let codes_len = codes.len();
+
     // Sending batch.
+    let args: Vec<_> = codes
+        .into_iter()
+        .map(|code| (code, gclient::bytes_now(), "", gas_limit, 0))
+        .collect();
     let (ex_res, _) = api.upload_program_bytes_batch(args).await?;
 
     // Ids of initial messages.
@@ -61,16 +50,56 @@ async fn harmless_upload() -> Result<()> {
         .collect();
 
     // Checking that all upload program calls succeed in batch.
-    assert_eq!(PATHS.len(), mids.len());
+    assert_eq!(codes_len, mids.len());
 
     // Checking that all batch got processed.
     assert_eq!(
+        codes_len,
         listener.message_processed_batch(mids).await?.len(),
-        PATHS.len()
     );
 
     // Checking that blocks still running.
     assert!(listener.blocks_running().await?);
 
     Ok(())
+}
+
+#[tokio::test]
+async fn harmless_upload() -> Result<()> {
+    let mut codes = vec![];
+    for path in &PATHS {
+        codes.push(gclient::code_from_os(path)?);
+    }
+
+    // Creating gear api.
+    //
+    // By default, login as Alice, than re-login as Bob.
+    let api = GearApi::dev().await?.with("//Bob")?;
+
+    upload_programs_and_check(&api, codes).await?;
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn alloc_zero_pages() -> Result<()> {
+    let wat_code = r#"
+        (module
+            (import "env" "memory" (memory 0))
+            (import "env" "alloc" (func $alloc (param i32) (result i32)))
+            (export "init" (func $init))
+            (func $init
+                i32.const 0
+                call $alloc
+                drop
+            )
+        )"#;
+    let api = GearApi::dev().await?.with("//Bob")?;
+    let codes = vec![wat::parse_str(wat_code).unwrap()];
+    async_std::future::timeout(
+        Duration::from_secs(5),
+        upload_programs_and_check(&api, codes),
+    )
+    .await
+    .expect("Too long test upload time - something goes wrong.")
 }

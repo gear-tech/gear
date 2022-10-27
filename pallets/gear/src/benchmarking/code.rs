@@ -29,18 +29,18 @@ use crate::Config;
 use common::Origin;
 use frame_support::traits::Get;
 use gear_core::ids::CodeId;
-use sp_sandbox::{
-    default_executor::{EnvironmentDefinitionBuilder, Memory},
-    SandboxEnvironmentBuilder, SandboxMemory,
-};
-use sp_std::{borrow::ToOwned, convert::TryFrom, marker::PhantomData, prelude::*};
-use wasm_instrument::parity_wasm::{
+use gear_wasm_instrument::parity_wasm::{
     builder,
     elements::{
         self, BlockType, CustomSection, FuncBody, Instruction, Instructions, Module, Section,
         ValueType,
     },
 };
+use sp_sandbox::{
+    default_executor::{EnvironmentDefinitionBuilder, Memory},
+    SandboxEnvironmentBuilder, SandboxMemory,
+};
+use sp_std::{borrow::ToOwned, convert::TryFrom, marker::PhantomData, prelude::*};
 
 /// The location where to put the generated code.
 pub enum Location {
@@ -541,7 +541,7 @@ where
 
 fn inject_stack_metering<T: Config>(module: Module) -> Module {
     if let Some(height) = T::Schedule::get().limits.stack_height {
-        wasm_instrument::inject_stack_limiter(module, height).unwrap()
+        gear_wasm_instrument::wasm_instrument::inject_stack_limiter(module, height).unwrap()
     } else {
         module
     }

@@ -30,6 +30,7 @@ use gear_core::{
     program::Program as CoreProgram,
 };
 use gear_wasm_builder::optimize::{OptType, Optimizer};
+use gear_wasm_instrument::wasm_instrument::gas_metering::ConstantCostRules;
 use path_clean::PathClean;
 use std::{
     cell::RefCell,
@@ -40,7 +41,6 @@ use std::{
     fs,
     path::{Path, PathBuf},
 };
-use wasm_instrument::gas_metering::ConstantCostRules;
 
 #[derive(
     Default,
@@ -312,7 +312,7 @@ impl<'a> Program<'a> {
                 .clean();
 
             let filename = path.file_name().and_then(OsStr::to_str).unwrap_or_default();
-            assert!(filename.ends_with(ext), "Wrong file extension: {}", ext);
+            assert!(filename.ends_with(ext), "{}", "Wrong file extension: {ext}");
 
             fs::read(&path).unwrap_or_else(|_| panic!("Failed to read file {:?}", path))
         };

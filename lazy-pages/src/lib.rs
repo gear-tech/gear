@@ -86,9 +86,9 @@ pub enum Error {
     )]
     InvalidPageDataSize { expected: usize, actual: u32 },
     /// Found a write signal from same page twice - see more in head comment.
-    #[display(fmt = "Any page cannot be released twice: {:?}", _0)]
+    #[display(fmt = "Any page cannot be released twice: {_0:?}")]
     DoubleRelease(PageNumber),
-    #[display(fmt = "Protection error: {}", _0)]
+    #[display(fmt = "Protection error: {_0}")]
     #[from]
     MemoryProtection(region::Error),
 }
@@ -140,9 +140,9 @@ pub enum InitializeForProgramError {
         _0
     )]
     WasmMemAddrIsNotAligned(usize),
-    #[display(fmt = "WASM memory size {:?} is bigger than u32::MAX bytes", _0)]
+    #[display(fmt = "WASM memory size {_0:?} is bigger than u32::MAX bytes")]
     WasmMemSizeBiggerThenU32Max(WasmPageNumber),
-    #[display(fmt = "WASM stack end addr {:?} > wasm mem size {:?}", _0, _1)]
+    #[display(fmt = "WASM stack end addr {_0:?} > wasm mem size {_1:?}")]
     StackEndAddrBiggerThenSize(WasmPageNumber, WasmPageNumber),
 }
 
@@ -210,7 +210,7 @@ pub fn get_wasm_mem_size() -> Option<u32> {
 }
 
 #[derive(derive_more::Display)]
-#[display(fmt = "Wasm mem addr {:#x} is not aligned by native page", _0)]
+#[display(fmt = "Wasm mem addr {_0:#x} is not aligned by native page")]
 pub struct WasmMemAddrError(usize);
 
 /// Set current wasm memory begin addr in global context
@@ -227,7 +227,7 @@ pub fn set_wasm_mem_begin_addr(wasm_mem_addr: usize) -> Result<(), WasmMemAddrEr
 }
 
 #[derive(derive_more::Display)]
-#[display(fmt = "Wasm mem size {:?} is bigger then u32::MAX bytes", _0)]
+#[display(fmt = "Wasm mem size {_0:?} is bigger then u32::MAX bytes")]
 pub struct WasmMemSizeError(WasmPageNumber);
 
 /// Set current wasm memory size in global context
@@ -246,9 +246,9 @@ pub fn get_released_pages() -> Vec<PageNumber> {
 
 #[derive(Debug, Clone, derive_more::Display)]
 pub enum InitError {
-    #[display(fmt = "Native page size {:#x} is not suitable for lazy-pages", _0)]
+    #[display(fmt = "Native page size {_0:#x} is not suitable for lazy-pages")]
     NativePageSizeIsNotSuitable(usize),
-    #[display(fmt = "Can not set signal handler: {}", _0)]
+    #[display(fmt = "Can not set signal handler: {_0}")]
     CanNotSetUpSignalHandler(String),
 }
 

@@ -199,6 +199,9 @@ where
     T: Config,
     S: Get<u128>,
 {
+    fn max() -> Multiplier {
+        Default::default()
+    }
     fn min() -> Multiplier {
         Default::default()
     }

@@ -62,6 +62,7 @@ use gear_core::{
     message::{ContextSettings, Dispatch, DispatchKind, Message, MessageContext, ReplyDetails},
     reservation::GasReserver,
 };
+use gear_wasm_instrument::parity_wasm::elements::{BlockType, BrTableData, Instruction, ValueType};
 use pallet_authorship::Pallet as AuthorshipPallet;
 use sp_consensus_babe::{
     digests::{PreDigest, SecondaryPlainPreDigest},
@@ -73,7 +74,6 @@ use sp_runtime::{
     Digest, DigestItem, Perbill,
 };
 use sp_std::{convert::TryInto, prelude::*};
-use wasm_instrument::parity_wasm::elements::{BlockType, BrTableData, Instruction, ValueType};
 
 const MAX_PAYLOAD_LEN: u32 = 64 * 1024;
 const MAX_PAGES: u32 = 512;
@@ -704,37 +704,6 @@ benchmarks! {
     // }: {
     //     Gear::<T>::process_message(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 0u32.into())?;
     // }
-
-    gas {
-        let r in 0 .. API_BENCHMARK_BATCHES;
-        let code = WasmModule::<T>::from(ModuleDefinition {
-            memory: Some(ImportedMemory::max::<T>()),
-            imported_functions: vec![ImportedFunction {
-                module: "env",
-                name: "gas",
-                params: vec![ValueType::I32],
-                return_type: None,
-            }],
-            handle_body: Some(body::repeated(r * API_BENCHMARK_BATCH_SIZE, &[
-                Instruction::I32Const(42),
-                Instruction::Call(0),
-            ])),
-            .. Default::default()
-        });
-        let instance = Program::<T>::new(code, vec![])?;
-        let Exec {
-            ext_manager,
-            block_config,
-            context,
-            memory_pages,
-        } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 0u32.into())?;
-    }: {
-
-        core_processor::process::<
-            Externalities,
-            ExecutionEnvironment,
-        >(&block_config, context, memory_pages);
-    }
 
     gr_gas_available {
         let r in 0 .. API_BENCHMARK_BATCHES;

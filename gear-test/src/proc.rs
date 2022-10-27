@@ -30,13 +30,13 @@ use gear_core::{
     ids::{MessageId, ProgramId},
     message::{Dispatch, DispatchKind, IncomingDispatch, IncomingMessage, Message},
 };
+use gear_wasm_instrument::wasm_instrument::gas_metering::ConstantCostRules;
 use regex::Regex;
 use std::{
     convert::TryInto,
     io::{Error as IoError, ErrorKind as IoErrorKind},
     time::{SystemTime, UNIX_EPOCH},
 };
-use wasm_instrument::gas_metering::ConstantCostRules;
 
 pub const EXISTENTIAL_DEPOSIT: u128 = 500;
 pub const OUTGOING_LIMIT: u32 = 1024;
@@ -162,7 +162,7 @@ where
     if let Some(codes) = &test.codes {
         for code in codes {
             let code_bytes = std::fs::read(&code.path)
-                .map_err(|e| IoError::new(IoErrorKind::Other, format!("`{}': {}", code.path, e)))?;
+                .map_err(|e| IoError::new(IoErrorKind::Other, format!("`{}': {e}", code.path)))?;
             let code = Code::try_new(
                 code_bytes.clone(),
                 1,
@@ -181,7 +181,7 @@ where
     for program in &test.programs {
         let program_path = program.path.clone();
         let code = std::fs::read(&program_path)
-            .map_err(|e| IoError::new(IoErrorKind::Other, format!("`{}': {}", program_path, e)))?;
+            .map_err(|e| IoError::new(IoErrorKind::Other, format!("`{program_path}': {e}")))?;
         let mut init_message = Vec::new();
         if let Some(init_msg) = &program.init_message {
             init_message = match init_msg {

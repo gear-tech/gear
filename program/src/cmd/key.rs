@@ -127,7 +127,7 @@ impl Key {
             let (pair, phrase, seed) = res;
             let signer = pair.signer();
 
-            Self::info(&format!("Secret Phrase `{}`", phrase), signer, Some(seed));
+            Self::info(&format!("Secret Phrase `{phrase}`"), signer, Some(seed));
         });
 
         Ok(())
@@ -163,11 +163,7 @@ impl Key {
         let key = KeyT::from_string(suri);
         let key_ref = &key;
         match_scheme!(self.scheme, pair(key_ref, passwd), pair, {
-            Self::info(
-                &format!("Secret Key URI `{}`", suri),
-                pair.0.signer(),
-                pair.1,
-            )
+            Self::info(&format!("Secret Key URI `{suri}`"), pair.0.signer(), pair.1)
         });
 
         Ok(())
@@ -190,7 +186,7 @@ impl Key {
             let signer = pair.0.signer();
             let sig = signer.sign(message.as_bytes());
 
-            println!("Message: {}", message);
+            println!("Message: {message}");
             println!("Signature: {}", hex::encode::<&[u8]>(sig.as_ref()));
             Self::info("The signer of this signature", signer, pair.1)
         });
@@ -206,7 +202,7 @@ impl Key {
         let [sig, msg, pubkey] = [&arr[0], message.as_bytes(), &arr[1]];
 
         match_scheme!(self.scheme, verify(sig, msg, pubkey), res, {
-            println!("Result: {}", res);
+            println!("Result: {res}");
         });
 
         Ok(())

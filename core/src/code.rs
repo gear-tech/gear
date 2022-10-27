@@ -21,9 +21,17 @@
 use crate::{ids::CodeId, memory::WasmPageNumber, message::DispatchKind};
 use alloc::{collections::BTreeSet, vec::Vec};
 use codec::{Decode, Encode};
-use parity_wasm::elements::{Internal, Module};
+use gear_wasm_instrument::{
+    parity_wasm::{
+        self,
+        elements::{Internal, Module},
+    },
+    wasm_instrument::{
+        self,
+        gas_metering::{ConstantCostRules, Rules},
+    },
+};
 use scale_info::TypeInfo;
-use wasm_instrument::gas_metering::Rules;
 
 /// Defines maximal permitted count of memory pages.
 pub const MAX_WASM_PAGE_COUNT: u32 = 512;
@@ -121,8 +129,8 @@ impl Code {
     {
         wasmparser::validate(&raw_code).map_err(|_| CodeError::Decode)?;
 
-        let module: Module = wasm_instrument::parity_wasm::deserialize_buffer(&raw_code)
-            .map_err(|_| CodeError::Decode)?;
+        let module: Module =
+            parity_wasm::deserialize_buffer(&raw_code).map_err(|_| CodeError::Decode)?;
 
         if module.start_section().is_some() {
             log::debug!("Found start section in contract code, which is not allowed");
@@ -153,18 +161,17 @@ impl Code {
 
         if exports.contains(&DispatchKind::Init) || exports.contains(&DispatchKind::Handle) {
             let gas_rules = get_gas_rules(&module);
-            let instrumented_module =
-                wasm_instrument::gas_metering::inject(module, &gas_rules, "env")
-                    .map_err(|_| CodeError::GasInjection)?;
+            let instrumented_module = gear_wasm_instrument::inject(module, &gas_rules, "env")
+                .map_err(|_| CodeError::GasInjection)?;
 
             let instrumented = if let Some(limit) = stack_height {
                 let instrumented_module =
                     wasm_instrument::inject_stack_limiter(instrumented_module, limit)
                         .map_err(|_| CodeError::StackLimitInjection)?;
-                wasm_instrument::parity_wasm::elements::serialize(instrumented_module)
+                parity_wasm::elements::serialize(instrumented_module)
                     .map_err(|_| CodeError::Encode)?
             } else {
-                wasm_instrument::parity_wasm::elements::serialize(instrumented_module)
+                parity_wasm::elements::serialize(instrumented_module)
                     .map_err(|_| CodeError::Encode)?
             };
 
@@ -191,8 +198,7 @@ impl Code {
         wasmparser::validate(&original_code).map_err(|_| CodeError::Decode)?;
 
         let module = module.unwrap_or(
-            wasm_instrument::parity_wasm::deserialize_buffer(&original_code)
-                .map_err(|_| CodeError::Decode)?,
+            parity_wasm::deserialize_buffer(&original_code).map_err(|_| CodeError::Decode)?,
         );
 
         // get initial memory size from memory import.
@@ -215,16 +221,12 @@ impl Code {
 
         if exports.contains(&DispatchKind::Init) || exports.contains(&DispatchKind::Handle) {
             if instrument_with_const_rules {
-                let instrumented_module = wasm_instrument::gas_metering::inject(
-                    module,
-                    &wasm_instrument::gas_metering::ConstantCostRules::default(),
-                    "env",
-                )
-                .map_err(|_| CodeError::GasInjection)?;
+                let instrumented_module =
+                    gear_wasm_instrument::inject(module, &ConstantCostRules::default(), "env")
+                        .map_err(|_| CodeError::GasInjection)?;
 
-                let instrumented =
-                    wasm_instrument::parity_wasm::elements::serialize(instrumented_module)
-                        .map_err(|_| CodeError::Encode)?;
+                let instrumented = parity_wasm::elements::serialize(instrumented_module)
+                    .map_err(|_| CodeError::Encode)?;
 
                 Ok(Self {
                     raw_code: original_code,

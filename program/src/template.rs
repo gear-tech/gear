@@ -69,16 +69,16 @@ pub fn create(name: &str) -> Result<()> {
         .stdout;
     let email = String::from_utf8_lossy(&email_bytes);
 
-    fs::create_dir_all(format!("{}/src", name))?;
+    fs::create_dir_all(format!("{name}/src"))?;
 
     fs::write(
-        format!("{}/Cargo.toml", name),
+        format!("{name}/Cargo.toml"),
         CARTO_TOML
             .replace(NAME, name)
             .replace(USER, &format!("{} <{}>", user.trim(), email.trim())),
     )?;
-    fs::write(format!("{}/build.rs", name), BUILD_RS)?;
-    fs::write(format!("{}/src/lib.rs", name), LIB_RS)?;
+    fs::write(format!("{name}/build.rs"), BUILD_RS)?;
+    fs::write(format!("{name}/src/lib.rs"), LIB_RS)?;
 
     Ok(())
 }

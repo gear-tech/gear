@@ -25,11 +25,11 @@ use gear_core::{
     message::{Dispatch, DispatchKind, GasLimit, MessageWaitedType, StoredDispatch, StoredMessage},
     reservation::GasReserver,
 };
+use gear_wasm_instrument::wasm_instrument::gas_metering::ConstantCostRules;
 use std::{
     collections::{BTreeMap, BTreeSet, VecDeque},
     fmt,
 };
-use wasm_instrument::gas_metering::ConstantCostRules;
 
 #[derive(Clone, Default)]
 /// In-memory state.

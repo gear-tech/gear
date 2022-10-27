@@ -199,7 +199,7 @@ pub fn do_optimization(
     let mut command = Command::new(wasm_opt_path);
     command
         .arg(dest_wasm)
-        .arg(format!("-O{}", optimization_level))
+        .arg(format!("-O{optimization_level}"))
         .arg("-o")
         .arg(dest_optimized)
         // the memory in our module is imported, `wasm-opt` needs to be told that

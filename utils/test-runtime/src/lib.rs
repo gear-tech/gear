@@ -38,8 +38,9 @@ use trie_db::{Trie, TrieMut};
 
 use cfg_if::cfg_if;
 use frame_support::{
+    dispatch::RawOrigin,
     parameter_types,
-    traits::{ConstU32, ConstU64, CrateVersion, KeyOwnerProofSystem},
+    traits::{CallerTrait, ConstU32, ConstU64, CrateVersion, KeyOwnerProofSystem},
     weights::{RuntimeDbWeight, Weight},
 };
 use frame_system::limits::{BlockLength, BlockWeights};
@@ -173,7 +174,7 @@ impl<'a> serde::Deserialize<'a> for Extrinsic {
     {
         let r = sp_core::bytes::deserialize(de)?;
         Decode::decode(&mut &r[..])
-            .map_err(|e| serde::de::Error::custom(format!("Decode error: {}", e)))
+            .map_err(|e| serde::de::Error::custom(format!("Decode error: {e}")))
     }
 }
 
@@ -345,6 +346,16 @@ impl From<RuntimeOrigin> for Result<frame_system::Origin<Runtime>, RuntimeOrigin
     }
 }
 
+impl CallerTrait<<Runtime as frame_system::Config>::AccountId> for RuntimeOrigin {
+    fn into_system(self) -> Option<RawOrigin<<Runtime as frame_system::Config>::AccountId>> {
+        unimplemented!("Not required in tests!")
+    }
+
+    fn as_system_ref(&self) -> Option<&RawOrigin<<Runtime as frame_system::Config>::AccountId>> {
+        unimplemented!("Not required in tests!")
+    }
+}
+
 impl frame_support::traits::OriginTrait for RuntimeOrigin {
     type Call = <Runtime as frame_system::Config>::RuntimeCall;
     type PalletsOrigin = RuntimeOrigin;
@@ -367,6 +378,10 @@ impl frame_support::traits::OriginTrait for RuntimeOrigin {
     }
 
     fn caller(&self) -> &Self::PalletsOrigin {
+        unimplemented!("Not required in tests!")
+    }
+
+    fn into_caller(self) -> Self::PalletsOrigin {
         unimplemented!("Not required in tests!")
     }
 
@@ -469,6 +484,12 @@ parameter_types! {
         BlockLength::max(4 * 1024 * 1024);
     pub RuntimeBlockWeights: BlockWeights =
         BlockWeights::with_sensible_defaults(Weight::from_ref_time(4 * 1024 * 1024), Perbill::from_percent(75));
+}
+
+impl From<frame_system::Call<Runtime>> for Extrinsic {
+    fn from(_: frame_system::Call<Runtime>) -> Self {
+        unimplemented!("Not required in tests!")
+    }
 }
 
 impl frame_system::Config for Runtime {
