@@ -1,14 +1,11 @@
-use gclient::{GearApi, Result as GClientResult};
-use crate::utils;
-use anyhow::{anyhow, Result};
 use super::batch::{
     CreateProgramArgs, CreateProgramBatchOutput, SendMessageArgs, SendMessageBatchOutput,
     UploadCodeArgs, UploadCodeBatchOutput, UploadProgramArgs, UploadProgramBatchOutput,
 };
+use crate::utils;
+use anyhow::Result;
 use futures::Future;
-use std::sync::atomic::{AtomicU32, Ordering};
-use parking_lot::Mutex;
-use nonce::{AVAILABLE_NONCE, MISSED_NONCES, MinHeap};
+use gclient::{GearApi, Result as GClientResult};
 
 mod nonce;
 
@@ -24,12 +21,7 @@ impl BatchSender {
 
         tracing::info!("Batch sender starts with nonce {available_nonce}");
 
-        // todo init in nonce module
-        let an = AVAILABLE_NONCE.get_or_init(|| AtomicU32::new(available_nonce));
-        let mn = MISSED_NONCES.get_or_init(|| Mutex::new(MinHeap::new()));
-        if an.load(Ordering::Relaxed) != available_nonce || !mn.lock().is_empty() {
-            return Err(anyhow!("Duplicate batch sender."));
-        }
+        nonce::init_nonces(available_nonce)?;
 
         Ok(Self { api })
     }

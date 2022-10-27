@@ -1,4 +1,5 @@
-use anyhow::{Result, anyhow};
+use crate::utils;
+use anyhow::{anyhow, Result};
 use gclient::Result as GClientResult;
 use once_cell::sync::OnceCell;
 use parking_lot::{Mutex, MutexGuard};
@@ -7,7 +8,6 @@ use std::{
     collections::BinaryHeap,
     sync::atomic::{AtomicU32, Ordering},
 };
-use crate::utils;
 
 pub static AVAILABLE_NONCE: OnceCell<AtomicU32> = OnceCell::new();
 pub static MISSED_NONCES: OnceCell<Mutex<MinHeap>> = OnceCell::new();
@@ -15,6 +15,16 @@ pub static MISSED_NONCES: OnceCell<Mutex<MinHeap>> = OnceCell::new();
 pub type MinHeap = BinaryHeap<Reverse<u32>>;
 type MissedNoncesGuard<'a> = MutexGuard<'a, MinHeap>;
 
+pub fn init_nonces(available_nonce: u32) -> Result<()> {
+    let an = AVAILABLE_NONCE.get_or_init(|| AtomicU32::new(available_nonce));
+    let mn = MISSED_NONCES.get_or_init(|| Mutex::new(MinHeap::new()));
+
+    if an.load(Ordering::Relaxed) != available_nonce || !mn.lock().is_empty() {
+        Err(anyhow!("Duplicate batch sender."))
+    } else {
+        Ok(())
+    }
+}
 
 pub fn is_empty_missed_nonce() -> Result<bool> {
     hold_missed_nonces().map(|mn| mn.is_empty())
