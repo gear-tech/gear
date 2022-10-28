@@ -20,7 +20,7 @@
 
 use gclient::{EventProcessor, GearApi, Result};
 
-const PATH: &str = "./tests/large_scheduled.opt.wasm";
+const PATH: &str = "../target/wat-examples/large_scheduled.opt.wasm";
 
 #[tokio::test]
 async fn key_hasher_size_exceed() -> Result<()> {
