@@ -92,6 +92,12 @@ pub struct Schedule<T: Config> {
 
     /// WASM module instantiation per byte cost.
     pub module_instantiation_per_byte: u64,
+
+    /// Single db write per byte cost.
+    pub db_write_per_byte: u64,
+
+    /// Single db read per byte cost.
+    pub db_read_per_byte: u64,
 }
 
 /// Describes the upper limits on various metrics.
@@ -486,6 +492,8 @@ impl<T: Config> Default for Schedule<T> {
             instruction_weights: Default::default(),
             host_fn_weights: Default::default(),
             memory_weights: Default::default(),
+            db_write_per_byte: cost_byte!(db_write_per_kb),
+            db_read_per_byte: cost_byte!(db_read_per_kb),
             module_instantiation_per_byte: cost_byte!(instantiate_module_per_kb),
         }
     }

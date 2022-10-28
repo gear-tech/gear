@@ -98,7 +98,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
     impl_name: create_runtime_str!("gear"),
     apis: RUNTIME_API_VERSIONS,
     authoring_version: 1,
-    spec_version: 590,
+    spec_version: 600,
     impl_version: 1,
     transaction_version: 1,
     state_version: 1,
@@ -350,7 +350,6 @@ parameter_types! {
 
     pub const OutgoingLimit: u32 = 1024;
     pub const MailboxThreshold: u64 = 3000;
-    pub const ReadPerByteCost: u64 = 100;
 }
 
 parameter_types! {
@@ -368,7 +367,6 @@ impl pallet_gear::Config for Runtime {
     type CodeStorage = GearProgram;
     type MailboxThreshold = MailboxThreshold;
     type ReservationsLimit = ConstU64<256>;
-    type ReadPerByteCost = ReadPerByteCost;
     type Messenger = GearMessenger;
     type GasProvider = GearGas;
     type BlockLimiter = GearGas;

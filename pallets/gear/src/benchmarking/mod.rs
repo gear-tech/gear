@@ -37,9 +37,9 @@ use crate::{
     manager::{CodeInfo, ExtManager, HandleKind},
     pallet,
     schedule::{API_BENCHMARK_BATCH_SIZE, INSTR_BENCHMARK_BATCH_SIZE},
-    BTreeMap, BalanceOf, BlockGasLimitOf, Call, Config, CostsPerBlockOf, CurrencyOf, DbWeightOf,
-    ExecutionEnvironment, Ext as Externalities, GasHandlerOf, MailboxOf, Pallet as Gear, Pallet,
-    QueueOf, ReadPerByteCostOf, Schedule, WaitlistOf,
+    BTreeMap, BalanceOf, BenchmarkStorage, BlockGasLimitOf, Call, Config, CostsPerBlockOf,
+    CurrencyOf, DbWeightOf, ExecutionEnvironment, Ext as Externalities, GasHandlerOf, MailboxOf,
+    Pallet as Gear, Pallet, QueueOf, Schedule, WaitlistOf,
 };
 use codec::Encode;
 use common::{
@@ -350,6 +350,8 @@ where
     let reserve_for = CostsPerBlockOf::<T>::reserve_for().unique_saturated_into();
     let reservation = CostsPerBlockOf::<T>::reservation().unique_saturated_into();
 
+    let schedule = T::Schedule::get();
+
     let block_config = BlockConfig {
         block_info,
         allocations_config: AllocationsConfig {
@@ -369,8 +371,9 @@ where
         reservation,
         read_cost: DbWeightOf::<T>::get().reads(1).ref_time(),
         write_cost: DbWeightOf::<T>::get().writes(1).ref_time(),
-        per_byte_cost: ReadPerByteCostOf::<T>::get(),
-        module_instantiation_byte_cost: T::Schedule::get().module_instantiation_per_byte,
+        write_per_byte_cost: schedule.db_write_per_byte,
+        read_per_byte_cost: schedule.db_read_per_byte,
+        module_instantiation_byte_cost: schedule.module_instantiation_per_byte,
         max_reservations: T::ReservationsLimit::get(),
     };
 
@@ -426,6 +429,35 @@ benchmarks! {
 
     where_clause { where
         T::AccountId: Origin,
+    }
+
+    // This bench uses `StorageMap` as a storage, due to the fact that
+    // the most of the gear storages represented with this type.
+    db_write_per_kb {
+        // Code is the biggest data could be written into storage in gear runtime.
+        let c in 0 .. T::Schedule::get().limits.code_len / 1024;
+
+        // Data to be written.
+        let data = vec![c as u8; 1024 * c as usize];
+    }: {
+        // Inserting data into the storage.
+        BenchmarkStorage::<T>::insert(c, data);
+    }
+
+    // This bench uses `StorageMap` as a storage, due to the fact that
+    // the most of the gear storages represented with this type.
+    db_read_per_kb {
+        // Code is the biggest data could be written into storage in gear runtime.
+        let c in 0 .. T::Schedule::get().limits.code_len / 1024;
+
+        // Data to be queried further.
+        let data = vec![c as u8; 1024 * c as usize];
+
+        // Placing data in storage to be able to query it.
+        BenchmarkStorage::<T>::insert(c, data);
+    }: {
+        // Querying data from storage.
+        BenchmarkStorage::<T>::get(c).expect("Infallible: Key not found in storage");
     }
 
     // `c`: Size of the code in kilobytes.
