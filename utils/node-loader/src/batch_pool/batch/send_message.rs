@@ -23,6 +23,7 @@ impl SendMessageArgs {
     pub fn generate<Rng: LoaderRng>(
         existing_programs: NonEmptyVec<ProgramId>,
         rng_seed: Seed,
+        gas_limit: u64,
     ) -> Self {
         let mut rng = Rng::seed_from_u64(rng_seed);
 
@@ -36,8 +37,6 @@ impl SendMessageArgs {
             "Generated `send_message` batch with destination = {destination}, payload = {}",
             hex::encode(&payload)
         );
-
-        let gas_limit = 240_000_000_000;
 
         let value = 0;
 

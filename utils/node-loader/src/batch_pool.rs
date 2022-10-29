@@ -3,13 +3,13 @@ use crate::{
     utils::{self, LoaderRng},
 };
 use anyhow::{anyhow, Result};
+use api::GearApiFacade;
 use batch::{Batch, BatchWithSeed};
-use batch_sender::BatchSender;
 use context::Context;
 use futures::{stream::FuturesUnordered, StreamExt};
 use gclient::{Error as GClientError, EventProcessor, GearApi, Result as GClientResult};
 use gear_core::ids::{MessageId, ProgramId};
-use generators::BatchGenerator;
+use generators::{BatchGenerator, RuntimeSettings};
 use primitive_types::H256;
 pub use report::CrashAlert;
 use report::{BatchRunReport, Report};
@@ -19,8 +19,8 @@ use std::{
 };
 use tracing::instrument;
 
+mod api;
 mod batch;
-mod batch_sender;
 mod context;
 pub mod generators;
 mod report;
@@ -29,7 +29,7 @@ type Seed = u64;
 type CallId = usize;
 
 pub struct BatchPool<Rng: LoaderRng> {
-    batch_sender: BatchSender,
+    api: GearApiFacade,
     pool_size: usize,
     batch_size: usize,
     tasks_context: Context,
@@ -37,9 +37,9 @@ pub struct BatchPool<Rng: LoaderRng> {
 }
 
 impl<Rng: LoaderRng> BatchPool<Rng> {
-    fn new(batch_sender: BatchSender, batch_size: usize, pool_size: usize) -> Self {
+    fn new(api: GearApiFacade, batch_size: usize, pool_size: usize) -> Self {
         Self {
-            batch_sender,
+            api,
             pool_size,
             batch_size,
             tasks_context: Context::new(),
@@ -48,12 +48,11 @@ impl<Rng: LoaderRng> BatchPool<Rng> {
     }
 
     pub async fn run(params: LoadParams) -> Result<()> {
-        let batch_sender = BatchSender::try_new(params.node, params.user).await?;
-        let mut batch_pool = Self::new(batch_sender.clone(), params.batch_size, params.workers);
+        let api = GearApiFacade::try_new(params.node, params.user).await?;
+        let mut batch_pool = Self::new(api.clone(), params.batch_size, params.workers);
 
         let run_pool_task = batch_pool.run_pool_loop(params.code_seed_type);
-        let inspect_crash_task =
-            inspect_crash_events(batch_sender.into_gear_api(), params.node_stopper);
+        let inspect_crash_task = inspect_crash_events(api.into_gear_api(), params.node_stopper);
 
         let run_result = tokio::select! {
             r = run_pool_task => r,
@@ -79,22 +78,24 @@ impl<Rng: LoaderRng> BatchPool<Rng> {
             batch_size = self.batch_size
         );
 
-        let mut batch_gen = BatchGenerator::<Rng>::new(seed, self.batch_size, code_seed_type);
+        let rt_settings = RuntimeSettings::new(&self.api).await?;
+        let mut batch_gen =
+            BatchGenerator::<Rng>::new(seed, self.batch_size, code_seed_type, rt_settings);
 
         while batches.len() != self.pool_size {
-            let batch_sender = self.batch_sender.clone();
+            let api = self.api.clone();
             let batch_with_seed = batch_gen.generate(self.tasks_context.clone());
 
-            batches.push(run_batch(batch_sender, batch_with_seed));
+            batches.push(run_batch(api, batch_with_seed));
         }
 
         while let Some(report_res) = batches.next().await {
             self.process_run_report(report_res?).await;
 
-            let batch_sender = self.batch_sender.clone();
+            let api = self.api.clone();
             let batch_with_seed = batch_gen.generate(self.tasks_context.clone());
 
-            batches.push(run_batch(batch_sender, batch_with_seed));
+            batches.push(run_batch(api, batch_with_seed));
         }
 
         unreachable!()
@@ -106,9 +107,9 @@ impl<Rng: LoaderRng> BatchPool<Rng> {
 }
 
 #[instrument(skip_all, fields(seed = batch.seed, batch_type = batch.batch_str()))]
-async fn run_batch(batch_sender: BatchSender, batch: BatchWithSeed) -> Result<BatchRunReport> {
+async fn run_batch(api: GearApiFacade, batch: BatchWithSeed) -> Result<BatchRunReport> {
     let (seed, batch) = batch.into();
-    match run_batch_impl(batch_sender, batch).await {
+    match run_batch_impl(api, batch).await {
         Ok(report) => Ok(BatchRunReport::new(seed, report)),
         Err(err) => {
             // Propagate crash error or return report
@@ -127,18 +128,18 @@ async fn run_batch(batch_sender: BatchSender, batch: BatchWithSeed) -> Result<Ba
 }
 
 #[instrument(skip_all)]
-async fn run_batch_impl(mut batch_sender: BatchSender, batch: Batch) -> Result<Report> {
+async fn run_batch_impl(mut api: GearApiFacade, batch: Batch) -> Result<Report> {
     // Order of the results of each extrinsic execution in the batch
     // is the same as in the input set of calls in the batch.
     // See: https://paritytech.github.io/substrate/master/src/pallet_utility/lib.rs.html#452-468
     match batch {
         Batch::UploadProgram(args) => {
-            let (ex_results, block_hash) = batch_sender.upload_program_batch(args).await?;
+            let (ex_results, block_hash) = api.upload_program_batch(args).await?;
             let messages = process_ex_results(ex_results);
-            process_events(batch_sender.into_gear_api(), messages, block_hash, true).await
+            process_events(api.into_gear_api(), messages, block_hash, true).await
         }
         Batch::UploadCode(args) => {
-            let (ex_results, _) = batch_sender.upload_code_batch(args).await?;
+            let (ex_results, _) = api.upload_code_batch(args).await?;
             let ex_results = ex_results.into_iter().map(|r| r.map(|code| (code, ())));
             let codes = process_ex_results(ex_results);
             for (code_id, (_, call_id)) in codes.iter() {
@@ -153,14 +154,14 @@ async fn run_batch_impl(mut batch_sender: BatchSender, batch: Batch) -> Result<R
             })
         }
         Batch::SendMessage(args) => {
-            let (ex_results, block_hash) = batch_sender.send_message_batch(args).await?;
+            let (ex_results, block_hash) = api.send_message_batch(args).await?;
             let messages = process_ex_results(ex_results);
-            process_events(batch_sender.into_gear_api(), messages, block_hash, false).await
+            process_events(api.into_gear_api(), messages, block_hash, false).await
         }
         Batch::CreateProgram(args) => {
-            let (ex_results, block_hash) = batch_sender.create_program_batch(args).await?;
+            let (ex_results, block_hash) = api.create_program_batch(args).await?;
             let messages = process_ex_results(ex_results);
-            process_events(batch_sender.into_gear_api(), messages, block_hash, true).await
+            process_events(api.into_gear_api(), messages, block_hash, true).await
         }
     }
 }
@@ -216,11 +217,7 @@ async fn process_events(
         }
     }
 
-    let mut program_ids = if collect_programs {
-        Some(BTreeSet::new())
-    } else {
-        None
-    };
+    let mut program_ids = collect_programs.then(BTreeSet::new);
 
     for (mid, maybe_err) in results? {
         let (pid, call_id) = messages.remove(&mid).expect("Infallible");

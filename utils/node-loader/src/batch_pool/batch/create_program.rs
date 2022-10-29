@@ -22,7 +22,11 @@ impl From<CreateProgramArgs> for CreateProgramArgsInner {
 }
 
 impl CreateProgramArgs {
-    pub fn generate<Rng: LoaderRng>(existing_codes: NonEmptyVec<CodeId>, rng_seed: Seed) -> Self {
+    pub fn generate<Rng: LoaderRng>(
+        existing_codes: NonEmptyVec<CodeId>,
+        rng_seed: Seed,
+        gas_limit: u64,
+    ) -> Self {
         let mut rng = Rng::seed_from_u64(rng_seed);
 
         let code_idx = rng.next_u64() as usize;
@@ -39,8 +43,6 @@ impl CreateProgramArgs {
             hex::encode(&salt),
             hex::encode(&payload)
         );
-
-        let gas_limit = 240_000_000_000;
 
         let value = 0;
 

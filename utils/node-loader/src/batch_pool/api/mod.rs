@@ -4,17 +4,17 @@ use super::batch::{
 };
 use crate::utils;
 use anyhow::Result;
-use futures::Future;
+use futures::{future::BoxFuture, Future};
 use gclient::{GearApi, Result as GClientResult};
 
 mod nonce;
 
 #[derive(Clone)]
-pub struct BatchSender {
+pub struct GearApiFacade {
     api: GearApi,
 }
 
-impl BatchSender {
+impl GearApiFacade {
     pub async fn try_new(endpoint: String, user: String) -> Result<Self> {
         let api = GearApi::init_with(utils::str_to_wsaddr(endpoint), user).await?;
         let available_nonce = api.rpc_nonce().await?;
@@ -28,6 +28,13 @@ impl BatchSender {
 
     pub fn into_gear_api(self) -> GearApi {
         self.api
+    }
+
+    pub async fn raw_call<C, T>(&self, f: C) -> T
+    where
+        C: Fn(&GearApi) -> BoxFuture<'_, T>,
+    {
+        f(&self.api).await
     }
 
     pub async fn upload_program_batch(

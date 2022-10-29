@@ -7,7 +7,7 @@
 
 use anyhow::Result;
 use args::{parse_cli_params, LoadParams, Params};
-use batch_pool::{generators, BatchPool};
+use batch_pool::BatchPool;
 use rand::rngs::SmallRng;
 
 mod args;
