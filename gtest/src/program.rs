@@ -312,7 +312,7 @@ impl<'a> Program<'a> {
                 .clean();
 
             let filename = path.file_name().and_then(OsStr::to_str).unwrap_or_default();
-            assert!(filename.ends_with(ext), "Wrong file extension: {}", ext);
+            assert!(filename.ends_with(ext), "{}", "Wrong file extension: {ext}");
 
             fs::read(&path).unwrap_or_else(|_| panic!("Failed to read file {:?}", path))
         };

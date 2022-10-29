@@ -109,13 +109,13 @@ pub trait ProcessorExt {
 #[derive(Debug, Clone, Eq, PartialEq, derive_more::Display, derive_more::From, Encode, Decode)]
 pub enum ProcessorError {
     /// Basic error
-    #[display(fmt = "{}", _0)]
+    #[display(fmt = "{_0}")]
     Core(ExtError),
     /// Termination reason occurred in a syscall
-    #[display(fmt = "Terminated: {:?}", _0)]
+    #[display(fmt = "Terminated: {_0:?}")]
     Terminated(TerminationReason),
     /// User's code panicked
-    #[display(fmt = "Panic occurred: {}", _0)]
+    #[display(fmt = "Panic occurred: {_0}")]
     Panic(String),
 }
 
@@ -521,10 +521,6 @@ impl EnvExt for Ext {
         Ok(self.context.message_context.current().payload().len())
     }
 
-    fn gas(&mut self, val: u32) -> Result<(), Self::Error> {
-        self.charge_gas_runtime(RuntimeCosts::MeteringBlock(val))
-    }
-
     fn charge_gas(&mut self, val: u64) -> Result<(), Self::Error> {
         let common_charge = self.context.gas_counter.charge(val);
         let allowance_charge = self.context.gas_allowance_counter.charge(val);
@@ -687,13 +683,50 @@ impl EnvExt for Ext {
 
         self.return_and_store_err(result)
     }
+    
+    fn random(&self) -> (&[u8], u32) {
+        (&self.context.random_data.0, self.context.random_data.1)
+    }
 
     fn forbidden_funcs(&self) -> &BTreeSet<&'static str> {
         &self.context.forbidden_funcs
     }
 
-    fn random(&self) -> (&[u8], u32) {
-        (&self.context.random_data.0, self.context.random_data.1)
+    fn counters(&self) -> (u64, u64) {
+        (
+            self.context.gas_counter.left(),
+            self.context.gas_allowance_counter.left(),
+        )
+    }
+
+    fn update_counters(&mut self, gas: u64, allowance: u64) {
+        let gas_left = self.context.gas_counter.left();
+        if gas_left > gas {
+            self.context.gas_counter.charge(gas_left - gas);
+        } else {
+            self.context.gas_counter.refund(gas - gas_left);
+        }
+
+        let allowance_left = self.context.gas_allowance_counter.left();
+        if allowance_left > allowance {
+            self.context
+                .gas_allowance_counter
+                .charge(allowance_left - allowance);
+        } else {
+            self.context
+                .gas_allowance_counter
+                .refund(allowance - allowance_left);
+        }
+    }
+
+    fn out_of_gas(&mut self) -> Self::Error {
+        self.error_explanation = Some(ExecutionError::GasLimitExceeded.into());
+        ExecutionError::GasLimitExceeded.into()
+    }
+
+    fn out_of_allowance(&mut self) -> Self::Error {
+        self.error_explanation = Some(TerminationReason::GasAllowanceExceeded.into());
+        TerminationReason::GasAllowanceExceeded.into()
     }
 }
 

@@ -47,7 +47,8 @@ pub const RESERVE_FOR: u32 = 1;
 pub const RESERVATION_COST: u64 = 100;
 pub const READ_COST: u64 = 20;
 pub const WRITE_COST: u64 = 100;
-pub const PER_BYTE_COST: u64 = 10;
+pub const READ_PER_BYTE_COST: u64 = 10;
+pub const WRITE_PER_BYTE_COST: u64 = 10;
 pub const MODULE_INSTANTIATION_BYTE_COST: u64 = 20;
 pub const MAX_RESERVATIONS: u64 = 256;
 pub const INITIAL_RADNOM_SEED: u64 = 42;
@@ -169,7 +170,7 @@ where
     if let Some(codes) = &test.codes {
         for code in codes {
             let code_bytes = std::fs::read(&code.path)
-                .map_err(|e| IoError::new(IoErrorKind::Other, format!("`{}': {}", code.path, e)))?;
+                .map_err(|e| IoError::new(IoErrorKind::Other, format!("`{}': {e}", code.path)))?;
             let code = Code::try_new(
                 code_bytes.clone(),
                 1,
@@ -188,7 +189,7 @@ where
     for program in &test.programs {
         let program_path = program.path.clone();
         let code = std::fs::read(&program_path)
-            .map_err(|e| IoError::new(IoErrorKind::Other, format!("`{}': {}", program_path, e)))?;
+            .map_err(|e| IoError::new(IoErrorKind::Other, format!("`{program_path}': {e}")))?;
         let mut init_message = Vec::new();
         if let Some(init_msg) = &program.init_message {
             init_message = match init_msg {
@@ -441,7 +442,8 @@ fn test_block_config(block_info: BlockInfo) -> BlockConfig {
         reservation: RESERVATION_COST,
         read_cost: READ_COST,
         write_cost: WRITE_COST,
-        per_byte_cost: PER_BYTE_COST,
+        read_per_byte_cost: READ_PER_BYTE_COST,
+        write_per_byte_cost: WRITE_PER_BYTE_COST,
         module_instantiation_byte_cost: MODULE_INSTANTIATION_BYTE_COST,
         max_reservations: MAX_RESERVATIONS,
     }

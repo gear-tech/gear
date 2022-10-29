@@ -135,9 +135,6 @@ impl Ext for MockExt {
     fn size(&mut self) -> Result<usize, Self::Error> {
         Ok(0)
     }
-    fn gas(&mut self, _amount: u32) -> Result<(), Self::Error> {
-        Ok(())
-    }
     fn charge_gas(&mut self, _amount: u64) -> Result<(), Self::Error> {
         Ok(())
     }
@@ -189,6 +186,20 @@ impl Ext for MockExt {
     }
     fn unreserve_gas(&mut self, _id: ReservationId) -> Result<u64, Self::Error> {
         Ok(0)
+    }
+
+    fn counters(&self) -> (u64, u64) {
+        (0, 0)
+    }
+
+    fn update_counters(&mut self, _gas: u64, _allowance: u64) {}
+
+    fn out_of_allowance(&mut self) -> Self::Error {
+        Error
+    }
+
+    fn out_of_gas(&mut self) -> Self::Error {
+        Error
     }
 }
 

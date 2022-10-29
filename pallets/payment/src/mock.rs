@@ -19,7 +19,9 @@
 use crate as pallet_gear_payment;
 use frame_support::{
     construct_runtime, parameter_types,
-    traits::{ConstU8, Contains, Currency, FindAuthor, OnFinalize, OnInitialize, OnUnbalanced},
+    traits::{
+        ConstU128, ConstU8, Contains, Currency, FindAuthor, OnFinalize, OnInitialize, OnUnbalanced,
+    },
     weights::{constants::WEIGHT_PER_SECOND, IdentityFee},
 };
 use frame_support_test::TestRandomness;
@@ -156,6 +158,7 @@ impl pallet_transaction_payment::Config for Test {
 pub struct GasConverter;
 impl common::GasPrice for GasConverter {
     type Balance = u128;
+    type GasToBalanceMultiplier = ConstU128<1_000>;
 }
 
 parameter_types! {
@@ -176,7 +179,6 @@ impl pallet_gear::Config for Test {
     type CodeStorage = GearProgram;
     type MailboxThreshold = ConstU64<3000>;
     type ReservationsLimit = ConstU64<256>;
-    type ReadPerByteCost = ConstU64<10>;
     type Messenger = GearMessenger;
     type GasProvider = GearGas;
     type BlockLimiter = GearGas;
@@ -258,7 +260,11 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
     .unwrap();
 
     let mut ext = sp_io::TestExternalities::new(t);
-    ext.execute_with(|| System::set_block_number(1));
+    ext.execute_with(|| {
+        Gear::force_always();
+        System::set_block_number(1);
+        Gear::on_initialize(System::block_number());
+    });
     ext
 }
 

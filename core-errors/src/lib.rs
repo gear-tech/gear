@@ -150,7 +150,7 @@ pub enum MemoryError {
 
     /// The error occurs in attempt to free-up a memory page from static area or
     /// outside additionally allocated for this program.
-    #[display(fmt = "Page {} cannot be freed by the current program", _0)]
+    #[display(fmt = "Page {_0} cannot be freed by the current program")]
     InvalidFree(u32),
 
     /// The error occurs in attempt to access memory page outside pages area
@@ -159,7 +159,7 @@ pub enum MemoryError {
     MemoryAccessError,
 
     /// WASM page does not contain all necessary Gear pages.
-    #[display(fmt = "Page data has wrong size: {:#x}", _0)]
+    #[display(fmt = "Page data has wrong size: {_0:#x}")]
     InvalidPageDataSize(u64),
 
     /// Memory size cannot be zero after grow is applied for memory
@@ -215,19 +215,19 @@ pub enum ExtError {
     SyscallUsage,
 
     /// Memory error.
-    #[display(fmt = "Memory error: {}", _0)]
+    #[display(fmt = "Memory error: {_0}")]
     Memory(MemoryError),
 
     /// Message error.
-    #[display(fmt = "Message error: {}", _0)]
+    #[display(fmt = "Message error: {_0}")]
     Message(MessageError),
 
     /// Waiting error.
-    #[display(fmt = "Waiting error: {}", _0)]
+    #[display(fmt = "Waiting error: {_0}")]
     Wait(WaitError),
 
     /// Execution error.
-    #[display(fmt = "Execution error: {}", _0)]
+    #[display(fmt = "Execution error: {_0}")]
     Execution(ExecutionError),
 }
 

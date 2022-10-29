@@ -12,7 +12,7 @@ unsafe extern "C" fn handle() {
     debug!("Timestamp: {:?}", bt);
 
     let bh = exec::block_height();
-    msg::reply_bytes(format!("{}_{}", payload, bh), 0).unwrap();
+    msg::reply_bytes(format!("{payload}_{bh}"), 0).unwrap();
 }
 
 #[no_mangle]

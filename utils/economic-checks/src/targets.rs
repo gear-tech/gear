@@ -560,7 +560,7 @@ mod tests {
                     .push((contract_num % 16, Seed(seed)));
             });
 
-        println!("queue_len: {:?}, queue: {:?}", queue.len(), queue,);
+        println!("queue_len: {:?}, queue: {queue:?}", queue.len());
     }
 
     #[test]
@@ -611,7 +611,7 @@ mod tests {
                 match validator.validate_all(&mutated[..]) {
                     Ok(_) => {}
                     Err(e) => {
-                        println!("Got error {} where was not supposed to", e)
+                        println!("Got error {e} where was not supposed to")
                     }
                 };
 
@@ -620,9 +620,9 @@ mod tests {
                     let text = wasmprinter::print_bytes(&mutated)
                         .expect("Failed to print wasm bytes into String");
                     let mut path = String::new();
-                    write!(path, "contract_{}.wat", count).expect("Failed to write to String");
+                    write!(path, "contract_{count}.wat").expect("Failed to write to String");
                     let mut output = File::create(path).expect("Failed to create file");
-                    write!(output, "{}", text).expect("Failed to write to file");
+                    write!(output, "{text}").expect("Failed to write to file");
                 }
 
                 let salt = &count.to_le_bytes()[..];
@@ -640,7 +640,7 @@ mod tests {
             let text = wasmprinter::print_bytes(original_code)
                 .expect("Failed to print wasm bytes into String");
             let mut output = File::create("contract_0.wat").expect("Failed to create file");
-            write!(output, "{}", text).expect("Failed to write to file");
+            write!(output, "{text}").expect("Failed to write to file");
         }
 
         // In case we have fewer contracts than desired, fill the empty slots with the original

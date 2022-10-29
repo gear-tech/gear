@@ -21,6 +21,7 @@ use alloc::collections::{BTreeMap, BTreeSet};
 use codec::Encode;
 use gear_backend_common::{error_processor::IntoExtError, AsTerminationReason, IntoExtInfo};
 use gear_core::env::Ext;
+use gear_wasm_instrument::{IMPORT_NAME_OUT_OF_ALLOWANCE, IMPORT_NAME_OUT_OF_GAS};
 use wasmi::{Func, Memory, Store};
 
 struct FunctionBuilder<'a>(Option<&'a BTreeSet<&'a str>>);
@@ -71,7 +72,6 @@ where
         f.build("gr_exit_code", |forbidden| {
             F::exit_code(store, forbidden, memory)
         }),
-        f.build("gas", |_| F::gas(store)),
         f.build("alloc", |forbidden| F::alloc(store, forbidden, memory)),
         f.build("free", |forbidden| F::free(store, forbidden)),
         f.build("gr_block_height", |forbidden| {
@@ -131,6 +131,8 @@ where
         f.build("gr_unreserve_gas", |forbidden| {
             F::unreserve_gas(store, forbidden, memory)
         }),
+        f.build(IMPORT_NAME_OUT_OF_GAS, |_| F::out_of_gas(store)),
+        f.build(IMPORT_NAME_OUT_OF_ALLOWANCE, |_| F::out_of_allowance(store)),
     ]
     .into();
 

@@ -20,9 +20,9 @@ use crate::{
     log::{CoreLog, RunResult},
     program::{Gas, WasmProgram},
     wasm_executor::WasmExecutor,
-    Result, TestError, EXISTENTIAL_DEPOSIT, INITIAL_RADNOM_SEED, MAILBOX_THRESHOLD,
-    MAX_RESERVATIONS, MODULE_INSTANTIATION_BYTE_COST, PER_BYTE_COST, READ_COST, RESERVATION_COST,
-    RESERVE_FOR, WAITLIST_COST, WRITE_COST,
+    Result, TestError, EXISTENTIAL_DEPOSIT, INITIAL_RADNOM_SEED, MAILBOX_THRESHOLD, MAX_RESERVATIONS,
+    MODULE_INSTANTIATION_BYTE_COST, READ_COST, READ_PER_BYTE_COST, RESERVATION_COST, RESERVE_FOR,
+    WAITLIST_COST, WRITE_COST, WRITE_PER_BYTE_COST,
 };
 use core_processor::{
     common::*,
@@ -41,7 +41,7 @@ use gear_core::{
     program::Program as CoreProgram,
     reservation::{GasReservationMap, GasReserver},
 };
-use gear_wasm_instrument::wasm_instrument::gas_metering::ConstantCostRules;
+use gear_wasm_instrument::{parity_wasm, wasm_instrument::gas_metering::ConstantCostRules};
 use rand::{rngs::StdRng, RngCore, SeedableRng};
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap, VecDeque},
@@ -645,7 +645,8 @@ impl ExtManager {
             reservation: RESERVATION_COST,
             read_cost: READ_COST,
             write_cost: WRITE_COST,
-            per_byte_cost: PER_BYTE_COST,
+            read_per_byte_cost: READ_PER_BYTE_COST,
+            write_per_byte_cost: WRITE_PER_BYTE_COST,
             module_instantiation_byte_cost: MODULE_INSTANTIATION_BYTE_COST,
             max_reservations: MAX_RESERVATIONS,
         };
@@ -720,10 +721,17 @@ impl ExtManager {
 
         WasmExecutor::update_ext(&mut ext, self);
 
+        let module =
+            parity_wasm::deserialize_buffer(meta_binary).map_err(|_| TestError::Instrumentation)?;
+        let module = gear_wasm_instrument::inject(module, &ConstantCostRules::default(), "env")
+            .map_err(|_| TestError::Instrumentation)?;
+        let instrumented =
+            parity_wasm::elements::serialize(module).map_err(|_| TestError::Instrumentation)?;
+
         WasmExecutor::execute(
             ext,
             &program,
-            meta_binary,
+            &instrumented,
             &pages_initial_data,
             function_name,
         )

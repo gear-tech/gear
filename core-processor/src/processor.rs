@@ -189,7 +189,7 @@ pub fn precharge(
 ) -> PrechargeResult {
     use executor::ChargeForBytesResult::*;
 
-    let per_byte_cost = block_config.per_byte_cost;
+    let read_per_byte_cost = block_config.read_per_byte_cost;
     let read_cost = block_config.read_cost;
 
     let mut gas_counter = GasCounter::new(dispatch.gas_limit());
@@ -197,7 +197,7 @@ pub fn precharge(
 
     match executor::charge_gas_for_program(
         read_cost,
-        per_byte_cost,
+        read_per_byte_cost,
         &mut gas_counter,
         &mut gas_allowance_counter,
     ) {
@@ -232,7 +232,7 @@ pub fn prepare(
 ) -> PrepareResult {
     use executor::ChargeForBytesResult;
 
-    let per_byte_cost = block_config.per_byte_cost;
+    let read_per_byte_cost = block_config.read_per_byte_cost;
     let read_cost = block_config.read_cost;
     let max_reservations = block_config.max_reservations;
 
@@ -266,7 +266,7 @@ pub fn prepare(
 
     match executor::charge_gas_for_code(
         read_cost,
-        per_byte_cost,
+        read_per_byte_cost,
         actor_data.code_length_bytes,
         &mut gas_counter,
         &mut gas_allowance_counter,

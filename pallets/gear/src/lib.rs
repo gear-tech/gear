@@ -90,7 +90,6 @@ pub(crate) type DequeuedOf<T> = <<T as Config>::Messenger as Messenger>::Dequeue
 pub(crate) type QueueProcessingOf<T> = <<T as Config>::Messenger as Messenger>::QueueProcessing;
 pub(crate) type QueueOf<T> = <<T as Config>::Messenger as Messenger>::Queue;
 pub(crate) type MailboxOf<T> = <<T as Config>::Messenger as Messenger>::Mailbox;
-pub(crate) type ReadPerByteCostOf<T> = <T as Config>::ReadPerByteCost;
 pub(crate) type WaitlistOf<T> = <<T as Config>::Messenger as Messenger>::Waitlist;
 pub(crate) type MessengerCapacityOf<T> = <<T as Config>::Messenger as Messenger>::Capacity;
 pub(crate) type TaskPoolOf<T> = <<T as Config>::Scheduler as Scheduler>::TaskPool;
@@ -263,10 +262,6 @@ pub mod pallet {
         /// Amount of reservations can exist for 1 program.
         #[pallet::constant]
         type ReservationsLimit: Get<u64>;
-
-        /// The cost per loaded byte.
-        #[pallet::constant]
-        type ReadPerByteCost: Get<u64>;
 
         /// Messenger.
         type Messenger: Messenger<
@@ -475,6 +470,10 @@ pub mod pallet {
         MessagesStorageCorrupted,
     }
 
+    #[cfg(feature = "runtime-benchmarks")]
+    #[pallet::storage]
+    pub(crate) type BenchmarkStorage<T> = StorageMap<_, Identity, u32, Vec<u8>>;
+
     #[pallet::storage]
     #[pallet::getter(fn force_queue)]
     pub(crate) type ForceQueue<T> = StorageValue<_, Forcing, ValueQuery>;
@@ -608,7 +607,7 @@ pub mod pallet {
             <BlockNumber<T>>::put(bn.saturated_into::<T::BlockNumber>());
         }
 
-        /// Submit program for benchmarks which does not check nor instrument the code.
+        /// Submit program for benchmarks which does not check the code.
         #[cfg(feature = "runtime-benchmarks")]
         pub fn upload_program_raw(
             origin: OriginFor<T>,
@@ -632,7 +631,7 @@ pub mod pallet {
                 code,
                 schedule.instruction_weights.version,
                 Some(module),
-                false,
+                true,
             )
             .map_err(|e| {
                 log::debug!("Code failed to load: {:?}", e);
@@ -864,7 +863,7 @@ pub mod pallet {
                     let salt = b"calculate_gas_salt".to_vec();
                     Self::upload_program(who.into(), code, salt, payload, initial_gas, value)
                         .map_err(|e| {
-                            format!("Internal error: upload_program failed with '{:?}'", e)
+                            format!("Internal error: upload_program failed with '{e:?}'")
                                 .into_bytes()
                         })?;
                 }
@@ -872,21 +871,20 @@ pub mod pallet {
                     let salt = b"calculate_gas_salt".to_vec();
                     Self::create_program(who.into(), code_id, salt, payload, initial_gas, value)
                         .map_err(|e| {
-                            format!("Internal error: create_program failed with '{:?}'", e)
+                            format!("Internal error: create_program failed with '{e:?}'")
                                 .into_bytes()
                         })?;
                 }
                 HandleKind::Handle(destination) => {
                     Self::send_message(who.into(), destination, payload, initial_gas, value)
                         .map_err(|e| {
-                            format!("Internal error: send_message failed with '{:?}'", e)
-                                .into_bytes()
+                            format!("Internal error: send_message failed with '{e:?}'").into_bytes()
                         })?;
                 }
                 HandleKind::Reply(reply_to_id, _exit_code) => {
                     Self::send_reply(who.into(), reply_to_id, payload, initial_gas, value)
                         .map_err(|e| {
-                            format!("Internal error: send_reply failed with '{:?}'", e).into_bytes()
+                            format!("Internal error: send_reply failed with '{e:?}'").into_bytes()
                         })?;
                 }
             };
@@ -930,7 +928,8 @@ pub mod pallet {
                 reservation: CostsPerBlockOf::<T>::reservation().unique_saturated_into(),
                 read_cost: DbWeightOf::<T>::get().reads(1).ref_time(),
                 write_cost: DbWeightOf::<T>::get().writes(1).ref_time(),
-                per_byte_cost: ReadPerByteCostOf::<T>::get(),
+                write_per_byte_cost: schedule.db_write_per_byte,
+                read_per_byte_cost: schedule.db_read_per_byte,
                 module_instantiation_byte_cost: schedule.module_instantiation_per_byte,
                 max_reservations: T::ReservationsLimit::get(),
             };
@@ -1070,7 +1069,7 @@ pub mod pallet {
                             ..
                         } if program_id == main_program_id || !allow_other_panics => {
                             return Err(
-                                format!("Program terminated with a trap: {}", trap).into_bytes()
+                                format!("Program terminated with a trap: {trap}").into_bytes()
                             );
                         }
 
@@ -1283,7 +1282,8 @@ pub mod pallet {
                 reservation: CostsPerBlockOf::<T>::reservation().unique_saturated_into(),
                 read_cost: DbWeightOf::<T>::get().reads(1).ref_time(),
                 write_cost: DbWeightOf::<T>::get().writes(1).ref_time(),
-                per_byte_cost: ReadPerByteCostOf::<T>::get(),
+                write_per_byte_cost: schedule.db_write_per_byte,
+                read_per_byte_cost: schedule.db_read_per_byte,
                 module_instantiation_byte_cost: schedule.module_instantiation_per_byte,
                 max_reservations: T::ReservationsLimit::get(),
             };

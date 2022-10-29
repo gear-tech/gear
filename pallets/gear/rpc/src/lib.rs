@@ -40,7 +40,7 @@ fn runtime_error_into_rpc_error(err: impl std::fmt::Debug) -> JsonRpseeError {
     CallError::Custom(ErrorObject::owned(
         8000,
         "Runtime error",
-        Some(format!("{:?}", err)),
+        Some(format!("{err:?}")),
     ))
     .into()
 }
