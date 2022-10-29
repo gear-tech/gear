@@ -25,7 +25,7 @@ pub struct RuntimeSettings {
 impl RuntimeSettings {
     pub async fn new(api: &GearApiFacade) -> Result<Self> {
         let gas_limit = api
-            .raw_call(|gear_api| gear_api.block_gas_limit().boxed())
+            .raw_call(|gear_api| async { gear_api.block_gas_limit() }.boxed())
             .await?;
 
         Ok(Self { gas_limit })

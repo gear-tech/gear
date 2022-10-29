@@ -195,6 +195,8 @@ async fn process_events(
     let now = utils::now();
     // States what amount of blocks we should wait for taking all the events about successful `messages` execution
     let wait_for_events_blocks = 10;
+    // Multiply on five to be 100% sure if no events occurred, than node is crashed
+    let wait_for_events_millisec = api.expected_block_time()? as usize * wait_for_events_blocks * 5;
 
     loop {
         let r = match api.events_since(block_hash, wait_for_events_blocks).await {
@@ -202,9 +204,7 @@ async fn process_events(
             Err(e) => Err(e),
         };
 
-        // If one block is considered to be produced in 1 second, than we wait for 10000 millis (1 sec) * `wait_for_events_blocks`
-        // We also multiply it on the 5 just to be 100% sure if no events occurred, than node is crashed
-        if (utils::now() - now) as usize > wait_for_events_blocks * 1000 * 5 {
+        if (utils::now() - now) as usize > wait_for_events_millisec {
             tracing::debug!("Timeout is reached while waiting for events");
             return Err(anyhow!(utils::TIMEOUT_ERR_STR));
         }

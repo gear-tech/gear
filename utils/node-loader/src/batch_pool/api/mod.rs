@@ -41,7 +41,7 @@ impl GearApiFacade {
         &mut self,
         args: Vec<UploadProgramArgs>,
     ) -> Result<UploadProgramBatchOutput> {
-        self.call(|api| async move {
+        self.batch_call_impl(|api| async move {
             api.upload_program_bytes_batch(utils::convert_iter(args))
                 .await
         })
@@ -52,7 +52,7 @@ impl GearApiFacade {
         &mut self,
         args: Vec<UploadCodeArgs>,
     ) -> Result<UploadCodeBatchOutput> {
-        self.call(|api| async move {
+        self.batch_call_impl(|api| async move {
             api.upload_code_batch(utils::convert_iter::<Vec<_>, _>(args))
                 .await
         })
@@ -63,7 +63,7 @@ impl GearApiFacade {
         &mut self,
         args: Vec<SendMessageArgs>,
     ) -> Result<SendMessageBatchOutput> {
-        self.call(|api| async move {
+        self.batch_call_impl(|api| async move {
             api.send_message_bytes_batch(utils::convert_iter(args))
                 .await
         })
@@ -74,20 +74,20 @@ impl GearApiFacade {
         &mut self,
         args: Vec<CreateProgramArgs>,
     ) -> Result<CreateProgramBatchOutput> {
-        self.call(|api| async move {
+        self.batch_call_impl(|api| async move {
             api.create_program_bytes_batch(utils::convert_iter(args))
                 .await
         })
         .await
     }
 
-    async fn call<T, F: Future<Output = GClientResult<T>>>(
+    async fn batch_call_impl<T, F: Future<Output = GClientResult<T>>>(
         &mut self,
-        f: impl FnOnce(GearApi) -> F,
+        batch_call: impl FnOnce(GearApi) -> F,
     ) -> Result<T> {
         let (api, nonce) = self.prepare_api_for_call();
 
-        let r = utils::with_timeout(f(api)).await?;
+        let r = utils::with_timeout(batch_call(api)).await?;
         nonce::catch_missed_nonce(&r, nonce).expect("missed nonces storage is initialized");
 
         r.map_err(Into::into)
