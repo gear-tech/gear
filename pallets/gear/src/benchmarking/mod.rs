@@ -34,9 +34,9 @@ use self::{
     sandbox::Sandbox,
 };
 use crate::{
-    manager::ExtManager, pallet, schedule::INSTR_BENCHMARK_BATCH_SIZE, BTreeMap, BalanceOf, Call,
-    Config, ExecutionEnvironment, Ext as Externalities, GasHandlerOf, MailboxOf, Pallet as Gear,
-    Pallet, QueueOf, Schedule,
+    manager::ExtManager, pallet, schedule::INSTR_BENCHMARK_BATCH_SIZE, BTreeMap, BalanceOf,
+    BenchmarkStorage, Call, Config, ExecutionEnvironment, Ext as Externalities, GasHandlerOf,
+    MailboxOf, Pallet as Gear, Pallet, QueueOf, Schedule,
 };
 use codec::Encode;
 use common::{benchmarking, storage::*, CodeMetadata, CodeStorage, GasPrice, GasTree, Origin};

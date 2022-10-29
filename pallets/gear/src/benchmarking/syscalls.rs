@@ -6,7 +6,7 @@ use crate::{
     manager::{CodeInfo, ExtManager, HandleKind},
     schedule::API_BENCHMARK_BATCH_SIZE,
     BlockGasLimitOf, Config, CostsPerBlockOf, CurrencyOf, DbWeightOf, GasHandlerOf, MailboxOf,
-    Pallet as Gear, QueueOf, ReadPerByteCostOf, WaitlistOf,
+    Pallet as Gear, QueueOf, WaitlistOf,
 };
 use codec::Encode;
 use common::{
@@ -155,6 +155,7 @@ where
     let reserve_for = CostsPerBlockOf::<T>::reserve_for().unique_saturated_into();
     let reservation = CostsPerBlockOf::<T>::reservation().unique_saturated_into();
 
+    let schedule = T::Schedule::get();
     let block_config = BlockConfig {
         block_info,
         allocations_config: AllocationsConfig {
