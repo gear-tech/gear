@@ -21,7 +21,7 @@ use crate::{
     mailbox::Mailbox,
     manager::{Balance, ExtManager},
     program::{Program, ProgramIdWrapper},
-    EPOCH_DURATION_IN_BLOCKS, INITIAL_RADNOM_SEED,
+    EPOCH_DURATION_IN_BLOCKS, INITIAL_RANDOM_SEED,
 };
 use colored::Colorize;
 use env_logger::{Builder, Env};
@@ -83,7 +83,7 @@ impl System {
         let mut manager = self.0.borrow_mut();
         if manager.block_info.height % EPOCH_DURATION_IN_BLOCKS == 0 {
             let mut rng = StdRng::seed_from_u64(
-                INITIAL_RADNOM_SEED + (manager.block_info.height / EPOCH_DURATION_IN_BLOCKS) as u64,
+                INITIAL_RANDOM_SEED + (manager.block_info.height / EPOCH_DURATION_IN_BLOCKS) as u64,
             );
             let mut random = [0u8; 32];
             rng.fill_bytes(&mut random);

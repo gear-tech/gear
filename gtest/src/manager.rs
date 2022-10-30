@@ -20,9 +20,9 @@ use crate::{
     log::{CoreLog, RunResult},
     program::{Gas, WasmProgram},
     wasm_executor::WasmExecutor,
-    Result, TestError, EXISTENTIAL_DEPOSIT, INITIAL_RADNOM_SEED, MAILBOX_THRESHOLD, MAX_RESERVATIONS,
-    MODULE_INSTANTIATION_BYTE_COST, READ_COST, READ_PER_BYTE_COST, RESERVATION_COST, RESERVE_FOR,
-    WAITLIST_COST, WRITE_COST, WRITE_PER_BYTE_COST,
+    Result, TestError, EXISTENTIAL_DEPOSIT, INITIAL_RANDOM_SEED, MAILBOX_THRESHOLD,
+    MAX_RESERVATIONS, MODULE_INSTANTIATION_BYTE_COST, READ_COST, READ_PER_BYTE_COST,
+    RESERVATION_COST, RESERVE_FOR, WAITLIST_COST, WRITE_COST, WRITE_PER_BYTE_COST,
 };
 use core_processor::{
     common::*,
@@ -248,7 +248,7 @@ impl ExtManager {
             },
             random_data: (
                 {
-                    let mut rng = StdRng::seed_from_u64(INITIAL_RADNOM_SEED);
+                    let mut rng = StdRng::seed_from_u64(INITIAL_RANDOM_SEED);
                     let mut random = [0u8; 32];
                     rng.fill_bytes(&mut random);
 

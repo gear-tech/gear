@@ -1144,7 +1144,7 @@ where
                          random_ptr: u32,
                          bn_ptr: u32|
               -> EmptyOutput {
-            exit_if!(forbidden, caller);
+            update_or_exit_if!(forbidden, caller);
 
             let mut subject =
                 RuntimeBuffer::try_new_default(subject_len as usize).map_err(|e| {

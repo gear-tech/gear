@@ -98,7 +98,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
     impl_name: create_runtime_str!("gear"),
     apis: RUNTIME_API_VERSIONS,
     authoring_version: 1,
-    spec_version: 600,
+    spec_version: 610,
     impl_version: 1,
     transaction_version: 1,
     state_version: 1,
@@ -358,6 +358,7 @@ parameter_types! {
 
 impl pallet_gear::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
+    type Randomness = pallet_babe::RandomnessFromOneEpochAgo<Runtime>;
     type Currency = Balances;
     type GasPrice = GasConverter;
     type WeightInfo = weights::pallet_gear::SubstrateWeight<Runtime>;

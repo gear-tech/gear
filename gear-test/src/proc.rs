@@ -51,7 +51,7 @@ pub const READ_PER_BYTE_COST: u64 = 10;
 pub const WRITE_PER_BYTE_COST: u64 = 10;
 pub const MODULE_INSTANTIATION_BYTE_COST: u64 = 20;
 pub const MAX_RESERVATIONS: u64 = 256;
-pub const INITIAL_RADNOM_SEED: u64 = 42;
+pub const INITIAL_RANDOM_SEED: u64 = 42;
 
 pub fn parse_payload(payload: String) -> String {
     let program_id_regex = Regex::new(r"\{(?P<id>[0-9]+)\}").unwrap();
@@ -134,7 +134,7 @@ where
         subsequent_execution: false,
     };
 
-    let mut rng = StdRng::seed_from_u64(INITIAL_RADNOM_SEED);
+    let mut rng = StdRng::seed_from_u64(INITIAL_RANDOM_SEED);
     let mut random = [0u8; 32];
     rng.fill_bytes(&mut random);
 
@@ -329,7 +329,7 @@ where
                 subsequent_execution: false,
             };
 
-            let mut rng = StdRng::seed_from_u64(INITIAL_RADNOM_SEED);
+            let mut rng = StdRng::seed_from_u64(INITIAL_RANDOM_SEED);
             let mut random = [0u8; 32];
             rng.fill_bytes(&mut random);
 
