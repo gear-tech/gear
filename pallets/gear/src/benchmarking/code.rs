@@ -29,14 +29,16 @@ use crate::Config;
 use common::Origin;
 use frame_support::traits::Get;
 use gear_core::ids::CodeId;
-use gear_wasm_instrument::parity_wasm::{
-    builder,
-    elements::{
-        self, BlockType, CustomSection, FuncBody, Instruction, Instructions, Module, Section,
-        ValueType,
+use gear_wasm_instrument::{
+    parity_wasm::{
+        builder,
+        elements::{
+            self, BlockType, CustomSection, FuncBody, Instruction, Instructions, Module, Section,
+            ValueType,
+        },
     },
+    syscalls,
 };
-use gear_wasm_instrument::syscalls;
 use sp_sandbox::{
     default_executor::{EnvironmentDefinitionBuilder, Memory},
     SandboxEnvironmentBuilder, SandboxMemory,

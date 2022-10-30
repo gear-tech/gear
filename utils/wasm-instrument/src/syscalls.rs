@@ -19,7 +19,9 @@
 //! Gear syscalls for smart contracts execution signatures.
 
 use crate::parity_wasm::elements::{FunctionType, ValueType};
+use alloc::{vec, vec::Vec};
 
+/// Syscall param type.
 #[derive(Debug, Clone, Copy)]
 pub enum ParamType {
     Size,            // i32 buffers size in memory
@@ -42,6 +44,7 @@ impl From<ParamType> for ValueType {
     }
 }
 
+/// Syscall signature.
 #[derive(Debug, Clone)]
 pub struct SysCallSignature {
     pub params: Vec<ParamType>,
@@ -67,6 +70,7 @@ impl SysCallSignature {
     }
 }
 
+/// Returns list of all syscall names (actually supported by this module syscalls).
 pub fn syscalls_name_list() -> Vec<&'static str> {
     vec![
         "alloc",
@@ -108,6 +112,7 @@ pub fn syscalls_name_list() -> Vec<&'static str> {
     ]
 }
 
+/// Returns signature for syscall by name.
 pub fn syscall_signature(name: &str) -> SysCallSignature {
     use ParamType::*;
     use ValueType::{I32, I64};

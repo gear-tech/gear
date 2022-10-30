@@ -599,12 +599,12 @@ test_gas_counter_injection! {
 /// Check that all sys calls are supported by backend.
 #[test]
 fn test_sys_calls_table() {
-    use parity_wasm::builder;
     use gas_metering::ConstantCostRules;
-    use syscalls::{syscalls_name_list, syscall_signature};
     use gear_backend_common::{mock::MockExt, Environment, TerminationReason};
     use gear_backend_wasmi::WasmiEnvironment;
     use gear_core::message::DispatchKind;
+    use parity_wasm::builder;
+    use syscalls::{syscall_signature, syscalls_name_list};
 
     // Make module with one empty function.
     let mut module = builder::module()
