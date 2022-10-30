@@ -32,6 +32,7 @@ use gear_core::{
     env::Ext as EnvExt,
     gas::{ChargeResult, GasAllowanceCounter, GasAmount, GasCounter, Token, ValueCounter},
     ids::{CodeId, MessageId, ProgramId, ReservationId},
+    lazy_pages::{AccessError, GlobalsCtx, Status},
     memory::{
         AllocInfo, AllocationsContext, GrowHandler, GrowHandlerNothing, Memory, PageBuf,
         PageNumber, PageU32Size, WasmPageNumber,
@@ -103,10 +104,14 @@ pub trait ProcessorExt {
         mem: &mut impl Memory,
         prog_id: ProgramId,
         stack_end: Option<WasmPageNumber>,
+        globals_ctx: Option<GlobalsCtx>,
     );
 
     /// Lazy pages contract post execution actions
     fn lazy_pages_post_execution_actions(mem: &mut impl Memory);
+
+    /// Returns lazy pages status
+    fn lazy_pages_status() -> Option<Status>;
 }
 
 /// [`Ext`](Ext)'s error
@@ -213,11 +218,16 @@ impl ProcessorExt for Ext {
         _mem: &mut impl Memory,
         _prog_id: ProgramId,
         _stack_end: Option<WasmPageNumber>,
+        _globals_ctx: Option<GlobalsCtx>,
     ) {
         unreachable!()
     }
 
     fn lazy_pages_post_execution_actions(_mem: &mut impl Memory) {
+        unreachable!()
+    }
+
+    fn lazy_pages_status() -> Option<Status> {
         unreachable!()
     }
 }
@@ -873,6 +883,13 @@ impl EnvExt for Ext {
 
     fn runtime_cost(&self, costs: RuntimeCosts) -> u64 {
         costs.token(&self.context.host_fn_weights).weight()
+    }
+
+    fn pre_process_memory_accesses(
+        _reads: &[(u32, u32)],
+        _writes: &[(u32, u32)],
+    ) -> Result<(), AccessError> {
+        Ok(())
     }
 }
 

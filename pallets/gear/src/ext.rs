@@ -24,6 +24,7 @@ use gear_core::{
     env::Ext as EnvExt,
     gas::GasAmount,
     ids::{MessageId, ProgramId, ReservationId},
+    lazy_pages::{AccessError, GlobalsCtx, Status},
     memory::{GrowHandler, Memory, PageNumber, PageU32Size, WasmPageNumber},
     message::{HandlePacket, InitPacket, ReplyPacket, StatusCode},
 };
@@ -87,12 +88,17 @@ impl ProcessorExt for LazyPagesExt {
         mem: &mut impl Memory,
         prog_id: ProgramId,
         stack_end: Option<WasmPageNumber>,
+        globals_ctx: Option<GlobalsCtx>,
     ) {
-        lazy_pages::init_for_program(mem, prog_id, stack_end);
+        lazy_pages::init_for_program(mem, prog_id, stack_end, globals_ctx);
     }
 
     fn lazy_pages_post_execution_actions(mem: &mut impl Memory) {
         lazy_pages::remove_lazy_pages_prot(mem);
+    }
+
+    fn lazy_pages_status() -> Option<Status> {
+        lazy_pages::get_status()
     }
 }
 
@@ -342,5 +348,12 @@ impl EnvExt for LazyPagesExt {
 
     fn runtime_cost(&self, costs: RuntimeCosts) -> u64 {
         self.inner.runtime_cost(costs)
+    }
+
+    fn pre_process_memory_accesses(
+        reads: &[(u32, u32)],
+        writes: &[(u32, u32)],
+    ) -> Result<(), AccessError> {
+        lazy_pages::pre_process_memory_accesses(reads, writes)
     }
 }

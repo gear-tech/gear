@@ -18,8 +18,20 @@
 
 //! Lazy-pages signal handler functionality.
 
+use crate::{
+    utils, Error, GranularityPage, LazyPage, LazyPagesExecutionContext, LAZY_PAGES_CONTEXT,
+};
 use cfg_if::cfg_if;
+use core::any::Any;
+use gear_core::{
+    lazy_pages::{GlobalsAccessError, GlobalsAccessMod, GlobalsAccessTrait, GlobalsCtx, Status},
+    memory::{
+        PageNumber, PageU32Size, PagesIterInclusive, GEAR_PAGE_SIZE, PAGE_STORAGE_GRANULARITY,
+    },
+};
 use region::Protection;
+use sc_executor_common::sandbox::SandboxInstance;
+use sp_wasm_interface::Value;
 use std::{
     cell::RefMut,
     collections::BTreeSet,
@@ -107,6 +119,157 @@ pub(crate) enum AccessedPagesInfo {
     FromSignal(LazyPage),
 }
 
+struct GlobalsAccessSandbox<'a> {
+    pub instance: &'a mut SandboxInstance,
+}
+
+impl<'a> GlobalsAccessTrait for GlobalsAccessSandbox<'a> {
+    fn get_i64(&self, name: &str) -> Result<i64, GlobalsAccessError> {
+        self.instance
+            .get_global_val(name)
+            .and_then(|value| {
+                if let Value::I64(value) = value {
+                    Some(value)
+                } else {
+                    None
+                }
+            })
+            .ok_or(GlobalsAccessError)
+    }
+
+    fn set_i64(&mut self, name: &str, value: i64) -> Result<(), GlobalsAccessError> {
+        self.instance
+            .set_global_val(name, Value::I64(value))
+            .ok()
+            .flatten()
+            .ok_or(GlobalsAccessError)?;
+        Ok(())
+    }
+
+    fn get_i32(&self, _name: &str) -> Result<i32, GlobalsAccessError> {
+        todo!("Currently useless")
+    }
+
+    fn set_i32(&mut self, _name: &str, _value: i32) -> Result<(), GlobalsAccessError> {
+        todo!("Currently useless")
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
+        unreachable!()
+    }
+}
+
+struct GlobalsAccessDyn<'a, 'b> {
+    pub inner_access_provider: &'a mut &'b mut dyn GlobalsAccessTrait,
+}
+
+impl<'a, 'b> GlobalsAccessTrait for GlobalsAccessDyn<'a, 'b> {
+    fn get_i64(&self, name: &str) -> Result<i64, GlobalsAccessError> {
+        self.inner_access_provider.get_i64(name)
+    }
+
+    fn set_i64(&mut self, name: &str, value: i64) -> Result<(), GlobalsAccessError> {
+        self.inner_access_provider.set_i64(name, value)
+    }
+
+    fn get_i32(&self, _name: &str) -> Result<i32, GlobalsAccessError> {
+        todo!("Currently useless")
+    }
+
+    fn set_i32(&mut self, _name: &str, _value: i32) -> Result<(), GlobalsAccessError> {
+        todo!("Currently useless")
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        unreachable!()
+    }
+}
+
+fn charge_gas_internal(
+    mut globals_access_provider: impl GlobalsAccessTrait,
+    global_gas: &str,
+    global_allowance: &str,
+    amount: u64,
+) -> Result<Status, Error> {
+    let mut sub_global = |name, value| {
+        let current_value = globals_access_provider.get_i64(name).ok()? as u64;
+        let (new_value, exceed) = current_value
+            .checked_sub(value)
+            .map(|val| (val, false))
+            .unwrap_or((0, true));
+        globals_access_provider
+            .set_i64(name, new_value as i64)
+            .ok()?;
+
+        log::trace!("Change global {name}: {current_value} -> {new_value}, exceeded: {exceed}");
+
+        Some(exceed)
+    };
+    if sub_global(global_gas, amount).ok_or(Error::CannotChargeGas)? {
+        return Ok(Status::GasLimitExceeded);
+    }
+    if sub_global(global_allowance, amount).ok_or(Error::CannotChargeGasAllowance)? {
+        return Ok(Status::GasAllowanceExceeded);
+    }
+    Ok(Status::Normal)
+}
+
+unsafe fn charge_gas(
+    globals_ctx: Option<&GlobalsCtx>,
+    gear_pages_amount: u32,
+    is_write: bool,
+    is_second_access: bool,
+) -> Result<Status, Error> {
+    let globals_ctx = if let Some(ctx) = globals_ctx {
+        ctx
+    } else {
+        return Ok(Status::Normal);
+    };
+    let amount = match (is_write, is_second_access) {
+        (false, _) => globals_ctx.lazy_pages_weights.read,
+        (true, false) => globals_ctx.lazy_pages_weights.write,
+        (true, true) => globals_ctx.lazy_pages_weights.write_after_read,
+    };
+    let amount = amount.saturating_mul(gear_pages_amount as u64);
+    match globals_ctx.globals_access_mod {
+        GlobalsAccessMod::WasmRuntime => {
+            let instance = (globals_ctx.globals_access_ptr as *mut SandboxInstance)
+                .as_mut()
+                .ok_or(Error::HostInstancePointerIsInvalid)?;
+            charge_gas_internal(
+                GlobalsAccessSandbox { instance },
+                &globals_ctx.global_gas_name,
+                &globals_ctx.global_allowance_name,
+                amount,
+            )
+        }
+        GlobalsAccessMod::NativeRuntime => {
+            let inner_access_provider = (globals_ctx.globals_access_ptr
+                as *mut &mut dyn GlobalsAccessTrait)
+                .as_mut()
+                .ok_or(Error::DynGlobalsAccessPointerIsInvalid)?;
+            charge_gas_internal(
+                GlobalsAccessDyn {
+                    inner_access_provider,
+                },
+                &globals_ctx.global_gas_name,
+                &globals_ctx.global_allowance_name,
+                amount,
+            )
+        }
+    }
+}
+
+fn process_status(status: Status) -> Option<()> {
+    match status {
+        Status::Normal => Some(()),
+        Status::GasLimitExceeded | Status::GasAllowanceExceeded => {
+            log::trace!("Gas limit or allowance exceed, so set exceed status and work in this mod until the end of execution");
+            None
+        }
+    }
+}
+
 pub(crate) unsafe fn process_lazy_pages(
     mut ctx: RefMut<LazyPagesExecutionContext>,
     accessed_pages: AccessedPagesInfo,
@@ -163,6 +326,7 @@ pub(crate) unsafe fn process_lazy_pages(
         });
 
         for lazy_page in pages {
+            let granularity_page = GranularityPage::from_offset(lazy_page.offset());
             if lazy_page.offset() < stack_end.offset() {
                 // Nothing to do, page has r/w accesses and data is in correct state.
                 if is_signal {
@@ -175,6 +339,20 @@ pub(crate) unsafe fn process_lazy_pages(
                 }
             } else if ctx.accessed_pages.contains(&lazy_page) {
                 if is_write {
+                    if is_signal && !ctx.read_after_write_charged.contains(&granularity_page) {
+                        // Charge gas for "write after read", because page has been already read accessed.
+                        let status = charge_gas(
+                            ctx.globals_ctx.as_ref(),
+                            GranularityPage::size() / PageNumber::size(),
+                            true,
+                            true,
+                        )?;
+                        ctx.status.replace(status);
+                        if process_status(status).is_none() {
+                            return Ok(());
+                        }
+                        ctx.read_after_write_charged.insert(granularity_page);
+                    }
                     // Set read/write access for page and add page to released.
                     region::protect(
                         (wasm_mem_addr + lazy_page.offset() as usize) as *mut (),
@@ -192,6 +370,27 @@ pub(crate) unsafe fn process_lazy_pages(
                     }
                 }
             } else {
+                if is_signal
+                    && ((is_write && !ctx.write_charged.contains(&granularity_page))
+                        || (!is_write && !ctx.read_charged.contains(&granularity_page)))
+                {
+                    let status = charge_gas(
+                        ctx.globals_ctx.as_ref(),
+                        GranularityPage::size() / PageNumber::size(),
+                        is_write,
+                        false,
+                    )?;
+                    ctx.status.replace(status);
+                    if process_status(status).is_none() {
+                        return Ok(());
+                    }
+                    if is_write {
+                        ctx.write_charged.insert(granularity_page);
+                    } else {
+                        ctx.read_charged.insert(granularity_page);
+                    }
+                }
+
                 // Need to set read/write access,
                 // download data for `lazy_page` from storage and add `lazy_page` to accessed pages.
                 region::protect(
@@ -283,6 +482,12 @@ unsafe fn user_signal_handler_internal(
     ctx: RefMut<LazyPagesExecutionContext>,
     info: ExceptionInfo,
 ) -> Result<(), Error> {
+    let status = ctx.status.as_ref().ok_or(Error::StatusIsNone)?;
+    match status {
+        Status::Normal => {}
+        Status::GasLimitExceeded | Status::GasAllowanceExceeded => return Ok(()),
+    }
+
     let native_addr = info.fault_addr as usize;
     let is_write = info.is_write.ok_or(Error::ReadOrWriteIsUnknown)?;
     let wasm_mem_addr = ctx.wasm_mem_addr.ok_or(Error::WasmMemAddrIsNotSet)?;

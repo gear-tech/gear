@@ -1,16 +1,34 @@
+// This file is part of Gear.
+
+// Copyright (C) 2021-2022 Gear Technologies Inc.
+// SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
+
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU General Public License for more details.
+
+// You should have received a copy of the GNU General Public License
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+//! sp-sandbox runtime (here it's contract execution state) realization.
+
 use crate::{
     funcs::{FuncError, SyscallOutput},
     MemoryWrap,
 };
 use alloc::vec::Vec;
-use codec::{Decode, DecodeAll, MaxEncodedLen};
-use gear_backend_common::{RuntimeCtx, RuntimeCtxError};
-use gear_core::{
-    buffer::RuntimeBuffer,
-    env::Ext,
-    memory::{Memory, WasmPageNumber},
+use codec::{Decode, MaxEncodedLen};
+use gear_backend_common::memory::{
+    MemoryAccessError, MemoryAccessManager, WasmMemoryRead, WasmMemoryReadAs,
+    WasmMemoryReadDecoded, WasmMemoryWrite, WasmMemoryWriteAs,
 };
-use gear_core_errors::MemoryError;
+use gear_core::env::Ext;
 use gear_wasm_instrument::{GLOBAL_NAME_ALLOWANCE, GLOBAL_NAME_GAS};
 use sp_sandbox::{HostError, InstanceGlobals, ReturnValue, Value};
 
@@ -26,6 +44,7 @@ pub(crate) struct Runtime<E: Ext> {
     pub memory: MemoryWrap,
     pub err: FuncError<E::Error>,
     pub globals: sp_sandbox::default_executor::InstanceGlobals,
+    pub memory_manager: MemoryAccessManager<E>,
 }
 
 impl<E: Ext> Runtime<E> {
@@ -33,6 +52,8 @@ impl<E: Ext> Runtime<E> {
     where
         F: FnOnce(&mut Self) -> Result<T, FuncError<E::Error>>,
     {
+        self.memory_manager = Default::default();
+
         let gas = self
             .globals
             .get_global_val(GLOBAL_NAME_GAS)
@@ -85,58 +106,31 @@ impl<E: Ext> Runtime<E> {
     }
 }
 
-impl<E: Ext> RuntimeCtx<E> for Runtime<E> {
-    fn alloc(
-        &mut self,
-        pages: WasmPageNumber,
-    ) -> Result<WasmPageNumber, RuntimeCtxError<E::Error>> {
-        self.ext
-            .alloc(pages, &mut self.memory)
-            .map_err(RuntimeCtxError::Ext)
-    }
-
-    fn read_memory(&self, ptr: u32, len: u32) -> Result<Vec<u8>, RuntimeCtxError<E::Error>> {
-        let mut buf = RuntimeBuffer::try_new_default(len as usize)?;
-
-        self.memory.read(ptr, buf.get_mut())?;
-
-        Ok(buf.into_vec())
-    }
-
-    fn read_memory_into_buf(
-        &self,
-        ptr: u32,
-        buf: &mut [u8],
-    ) -> Result<(), RuntimeCtxError<E::Error>> {
-        self.memory.read(ptr, buf)?;
-
-        Ok(())
-    }
-
-    fn read_memory_decoded<D: Decode + MaxEncodedLen>(
-        &self,
-        ptr: u32,
-    ) -> Result<D, RuntimeCtxError<E::Error>> {
-        let buf = self.read_memory(ptr, D::max_encoded_len() as u32)?;
-        let decoded = D::decode_all(&mut &buf[..]).map_err(|_| MemoryError::MemoryAccessError)?;
-        Ok(decoded)
-    }
-
-    fn write_output(&mut self, out_ptr: u32, buf: &[u8]) -> Result<(), RuntimeCtxError<E::Error>> {
-        self.memory.write(out_ptr, buf).map_err(Into::into)
-    }
-}
-
 impl<E: Ext> Runtime<E> {
-    pub fn write_memory_as<T: Sized>(
-        &mut self,
-        ptr: u32,
-        obj: T,
-    ) -> Result<(), RuntimeCtxError<E::Error>> {
-        gear_backend_common::write_memory_as(&mut self.memory, ptr, obj).map_err(Into::into)
+    pub fn read(&mut self, read: WasmMemoryRead) -> Result<Vec<u8>, MemoryAccessError> {
+        self.memory_manager.read(&self.memory, read)
     }
 
-    pub fn read_memory_as<T: Sized>(&self, ptr: u32) -> Result<T, RuntimeCtxError<E::Error>> {
-        gear_backend_common::read_memory_as(&self.memory, ptr).map_err(Into::into)
+    pub fn read_as<T: Sized>(&mut self, read: WasmMemoryReadAs<T>) -> Result<T, MemoryAccessError> {
+        self.memory_manager.read_as(&self.memory, read)
+    }
+
+    pub fn read_decoded<T: Decode + MaxEncodedLen>(
+        &mut self,
+        read: WasmMemoryReadDecoded<T>,
+    ) -> Result<T, MemoryAccessError> {
+        self.memory_manager.read_decoded(&self.memory, read)
+    }
+
+    pub fn write(&mut self, write: WasmMemoryWrite, buff: &[u8]) -> Result<(), MemoryAccessError> {
+        self.memory_manager.write(&mut self.memory, write, buff)
+    }
+
+    pub fn write_as<T: Sized>(
+        &mut self,
+        write: WasmMemoryWriteAs<T>,
+        obj: T,
+    ) -> Result<(), MemoryAccessError> {
+        self.memory_manager.write_as(&mut self.memory, write, obj)
     }
 }

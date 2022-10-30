@@ -24,6 +24,7 @@
 #![warn(missing_docs)]
 #![cfg_attr(feature = "strict", deny(warnings))]
 #![doc(html_logo_url = "https://docs.gear.rs/logo.svg")]
+#![feature(step_trait)]
 
 extern crate alloc;
 
@@ -32,6 +33,7 @@ pub mod costs;
 pub mod env;
 pub mod gas;
 pub mod ids;
+pub mod lazy_pages;
 pub mod memory;
 pub mod message;
 pub mod program;

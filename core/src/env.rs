@@ -21,6 +21,7 @@
 use crate::{
     costs::RuntimeCosts,
     ids::{MessageId, ProgramId, ReservationId},
+    lazy_pages::AccessError,
     memory::{Memory, WasmPageNumber},
     message::{HandlePacket, InitPacket, ReplyPacket, StatusCode},
 };
@@ -250,4 +251,10 @@ pub trait Ext {
 
     /// Get runtime cost weight.
     fn runtime_cost(&self, costs: RuntimeCosts) -> u64;
+
+    /// Pre-process memory access if need.
+    fn pre_process_memory_accesses(
+        reads: &[(u32, u32)],
+        writes: &[(u32, u32)],
+    ) -> Result<(), AccessError>;
 }

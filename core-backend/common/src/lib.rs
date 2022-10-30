@@ -30,6 +30,8 @@ pub use utils::calc_stack_end;
 #[cfg(feature = "mock")]
 pub mod mock;
 
+pub mod memory;
+
 use alloc::{
     collections::{BTreeMap, BTreeSet},
     string::String,
@@ -47,6 +49,7 @@ use gear_core::{
     env::Ext,
     gas::GasAmount,
     ids::{CodeId, MessageId, ProgramId, ReservationId},
+    lazy_pages::GlobalsCtx,
     memory::{Memory, PageBuf, PageNumber, WasmPageNumber},
     message::{
         ContextStore, Dispatch, DispatchKind, IncomingDispatch, MessageWaitedType, WasmEntry,
@@ -296,7 +299,7 @@ where
         pre_execution_handler: F,
     ) -> Result<BackendReport<Self::Memory, E>, Self::Error>
     where
-        F: FnOnce(&mut Self::Memory, Option<WasmPageNumber>) -> Result<(), T>,
+        F: FnOnce(&mut Self::Memory, Option<WasmPageNumber>, Option<GlobalsCtx>) -> Result<(), T>,
         T: fmt::Display;
 }
 

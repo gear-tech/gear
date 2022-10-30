@@ -24,6 +24,7 @@ use core::fmt;
 use gear_common::{pages_prefix, Origin};
 use gear_core::{
     ids::ProgramId,
+    lazy_pages::{AccessError, GlobalsCtx, Status},
     memory::{HostPointer, Memory, PageNumber, PageU32Size, WasmPageNumber},
 };
 use gear_runtime_interface::gear_ri;
@@ -47,20 +48,21 @@ pub fn try_to_enable_lazy_pages() -> bool {
 pub fn init_for_program(
     mem: &mut impl Memory,
     prog_id: ProgramId,
-    stack_end: Option<WasmPageNumber>,
+    stack_end_page: Option<WasmPageNumber>,
+    globals_ctx: Option<GlobalsCtx>,
 ) {
     let program_prefix = crate::pages_prefix(prog_id.into_origin());
     let wasm_mem_addr = mem.get_buffer_host_addr();
     let wasm_mem_size = mem.size();
-    let stack_end_page = stack_end.map(|page| page.raw());
 
     // Cannot panic unless OS allocates buffer in not aligned by native page addr, or
     // something goes wrong with pages protection.
     gear_ri::init_lazy_pages_for_program(
         wasm_mem_addr,
-        wasm_mem_size.raw(),
+        wasm_mem_size.into(),
         stack_end_page,
         program_prefix,
+        globals_ctx,
     );
 }
 
@@ -102,7 +104,7 @@ pub fn update_lazy_pages_and_protect_again(
 
     let new_mem_size = mem.size();
     if new_mem_size > old_mem_size {
-        gear_ri::set_wasm_mem_size(new_mem_size.raw());
+        gear_ri::set_wasm_mem_size(new_mem_size.into());
     }
 
     mprotect_lazy_pages(mem, true);
@@ -110,12 +112,18 @@ pub fn update_lazy_pages_and_protect_again(
 
 /// Returns list of released pages numbers.
 pub fn get_released_pages() -> Vec<PageNumber> {
-    // Use panic here, because producing block with contract execution error,
-    // because of problems in native backend is not good idea. Better to stop
-    // process queue and wait until native backend will be fixed.
-    // TODO: (issue #1731) use wrapper to transfer PageNumber safely from native to runtime.
     gear_ri::get_released_pages()
-        .into_iter()
-        .map(|p| PageNumber::new(p).expect("Unexpected lazy pages behavior"))
-        .collect()
+}
+
+/// Returns lazy pages actual status.
+pub fn get_status() -> Option<Status> {
+    gear_ri::get_lazy_pages_status()
+}
+
+/// Pre-process memory access in syscalls in lazy-pages.
+pub fn pre_process_memory_accesses(
+    reads: &[(u32, u32)],
+    writes: &[(u32, u32)],
+) -> Result<(), AccessError> {
+    gear_ri::pre_process_memory_accesses(reads, writes)
 }

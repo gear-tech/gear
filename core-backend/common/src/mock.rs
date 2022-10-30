@@ -28,6 +28,7 @@ use gear_core::{
     env::Ext,
     gas::{GasAmount, GasCounter},
     ids::{MessageId, ProgramId, ReservationId},
+    lazy_pages::AccessError,
     memory::{Memory, WasmPageNumber},
     message::{HandlePacket, InitPacket, ReplyPacket, StatusCode},
     reservation::GasReserver,
@@ -246,6 +247,13 @@ impl Ext for MockExt {
 
     fn runtime_cost(&self, _costs: RuntimeCosts) -> u64 {
         0
+    }
+
+    fn pre_process_memory_accesses(
+        _reads: &[(u32, u32)],
+        _writes: &[(u32, u32)],
+    ) -> Result<(), AccessError> {
+        Ok(())
     }
 }
 
