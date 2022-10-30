@@ -38,7 +38,7 @@ use gear_backend_common::{
 use gear_core::{
     env::Ext,
     gas::GasAmount,
-    memory::WasmPageNumber,
+    memory::{PageU32Size, WasmPageNumber},
     message::{DispatchKind, WasmEntry},
 };
 use gear_wasm_instrument::{GLOBAL_NAME_ALLOWANCE, GLOBAL_NAME_GAS};
@@ -126,7 +126,7 @@ where
 
         let mut linker: Linker<HostState<E>> = Linker::new();
 
-        let memory_type = MemoryType::new(mem_size.0, None);
+        let memory_type = MemoryType::new(mem_size.raw(), None);
         let memory = Memory::new(&mut store, memory_type)
             .map_err(|e| (ext.gas_amount(), CreateEnvMemory(e)))?;
 
@@ -240,50 +240,45 @@ where
             .map(|kind| entries.contains(&kind))
             .unwrap_or(true);
 
+        let mut store = memory_wrap.into_store();
         let res = if needs_execution {
             let func = instance
-                .get_export(&memory_wrap.store, entry_point.as_entry())
+                .get_export(&store, entry_point.into_entry())
                 .and_then(Extern::into_func)
                 .ok_or({
-                    let store = &memory_wrap.store;
+                    let store = &store;
                     (
                         gas_amount!(store),
                         GetWasmExports(entry_point.as_entry().to_string()),
                     )
                 })?;
 
-            let entry_func = func
-                .typed::<(), (), _>(&mut memory_wrap.store)
-                .map_err(|_| {
-                    let store = &memory_wrap.store;
-                    (
-                        gas_amount!(store),
-                        EntryPointWrongType(entry_point.as_entry().to_string()),
-                    )
-                })?;
+            let entry_func = func.typed::<(), (), _>(&mut store).map_err(|_| {
+                let store = &store;
+                (
+                    gas_amount!(store),
+                    EntryPointWrongType(entry_point.into_entry().to_string()),
+                )
+            })?;
 
-            entry_func.call(&mut memory_wrap.store, ())
+            entry_func.call(&mut store, ())
         } else {
             Ok(())
         };
 
-        let gas = gear_gas.get(&memory_wrap.store).try_into::<i64>().ok_or({
-            let store = &memory_wrap.store;
+        let gas = gear_gas.get(&store).try_into::<i64>().ok_or({
+            let store = &store;
             (gas_amount!(store), WrongInjectedGas)
         })?;
-        let allowance = gear_allowance
-            .get(&memory_wrap.store)
-            .try_into::<i64>()
-            .ok_or({
-                let store = &memory_wrap.store;
-                (gas_amount!(store), WrongInjectedAllowance)
-            })?;
+        let allowance = gear_allowance.get(&store).try_into::<i64>().ok_or({
+            let store = &store;
+            (gas_amount!(store), WrongInjectedAllowance)
+        })?;
 
-        let runtime = memory_wrap
-            .store
+        let runtime = store
             .state_mut()
             .take()
-            .expect("set before the block; qed");
+            .expect("is set before in `new`; qed");
 
         let State {
             mut ext, err: trap, ..
@@ -295,7 +290,7 @@ where
 
         let trap_explanation = ext.trap_explanation();
 
-        let termination = if res.is_err() {
+        let termination_reason = if res.is_err() {
             let reason = trap_explanation
                 .map(TerminationReason::Trap)
                 .unwrap_or_else(|| trap.into_termination_reason());
@@ -311,8 +306,8 @@ where
         };
 
         Ok(BackendReport {
-            termination_reason: termination,
-            memory_wrap,
+            termination_reason,
+            memory_wrap: MemoryWrap::new(memory, store),
             ext,
         })
     }

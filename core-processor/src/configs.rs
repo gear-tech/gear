@@ -56,7 +56,7 @@ pub struct AllocationsConfig {
 impl Default for AllocationsConfig {
     fn default() -> Self {
         Self {
-            max_pages: WasmPageNumber(code::MAX_WASM_PAGE_COUNT),
+            max_pages: code::MAX_WASM_PAGE_COUNT.into(),
             init_cost: INIT_COST,
             alloc_cost: ALLOC_COST,
             mem_grow_cost: MEM_GROW_COST,

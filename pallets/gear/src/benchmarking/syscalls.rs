@@ -22,6 +22,7 @@ use frame_system::RawOrigin;
 use gear_core::{
     code::{Code, CodeAndId},
     ids::{CodeId, MessageId, ProgramId, ReservationId},
+    memory::WasmPageNumber,
     message::{Dispatch, DispatchKind, Message, ReplyDetails, SignalDetails},
     reservation::GasReservationSlot,
 };
@@ -177,7 +178,7 @@ where
     let block_config = BlockConfig {
         block_info,
         allocations_config: AllocationsConfig {
-            max_pages: gear_core::memory::WasmPageNumber(T::Schedule::get().limits.memory_pages),
+            max_pages: T::Schedule::get().limits.memory_pages.into(),
             init_cost: T::Schedule::get().memory_weights.initial_cost,
             alloc_cost: T::Schedule::get().memory_weights.allocation_cost,
             mem_grow_cost: T::Schedule::get().memory_weights.grow_cost,
@@ -294,7 +295,7 @@ where
     }
 
     pub fn free(r: u32) -> Result<Exec<T>, &'static str> {
-        assert!(r <= max_pages::<T>());
+        assert!(r <= max_pages::<T>() as u32);
 
         use Instruction::*;
         let mut instructions = vec![];
@@ -1490,7 +1491,7 @@ where
         Self::prepare_handle(code, 0)
     }
 
-    pub fn lazy_pages_read_access(wasm_pages: u32) -> Result<Exec<T>, &'static str> {
+    pub fn lazy_pages_read_access(wasm_pages: WasmPageNumber) -> Result<Exec<T>, &'static str> {
         let instrs = body::read_access_all_pages_instrs(wasm_pages, vec![]);
         let code = WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
@@ -1500,8 +1501,8 @@ where
         Self::prepare_handle(code, 0)
     }
 
-    pub fn lazy_pages_write_access(wasm_pages: u32) -> Result<Exec<T>, &'static str> {
-        let mut instrs = body::read_access_all_pages_instrs(max_pages::<T>(), vec![]);
+    pub fn lazy_pages_write_access(wasm_pages: WasmPageNumber) -> Result<Exec<T>, &'static str> {
+        let mut instrs = body::read_access_all_pages_instrs(max_pages::<T>().into(), vec![]);
         instrs = body::write_access_all_pages_instrs(wasm_pages, instrs);
         let code = WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),

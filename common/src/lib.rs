@@ -42,7 +42,7 @@ use frame_support::{
 };
 use gear_core::{
     ids::{CodeId, MessageId, ProgramId},
-    memory::{Error as MemoryError, PageBuf, PageNumber, WasmPageNumber},
+    memory::{Error as MemoryError, PageBuf, PageNumber, PageU32Size, WasmPageNumber},
     message::DispatchKind,
     reservation::GasReservationMap,
 };
@@ -319,7 +319,7 @@ fn page_key(id: H256, page: PageNumber) -> Vec<u8> {
     key.extend(STORAGE_PROGRAM_PAGES_PREFIX);
     key.extend(id.as_fixed_bytes());
     key.extend(b"::");
-    key.extend(page.0.to_le_bytes());
+    key.extend(page.raw().to_le_bytes());
 
     key
 }
@@ -435,11 +435,7 @@ pub struct PageIsNotAllocatedErr(pub PageNumber);
 
 impl fmt::Display for PageIsNotAllocatedErr {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(
-            f,
-            "Page #{:?} is not allocated for current program",
-            self.0 .0
-        )
+        write!(f, "{:?} is not allocated for current program", self.0)
     }
 }
 

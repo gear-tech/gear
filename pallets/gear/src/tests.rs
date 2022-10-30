@@ -64,6 +64,7 @@ use gear_backend_common::{StackEndError, TrapExplanation};
 use gear_core::{
     code::{self, Code},
     ids::{CodeId, MessageId, ProgramId},
+    memory::{PageU32Size, WasmPageNumber},
 };
 use gear_core_errors::*;
 use sp_runtime::{traits::UniqueSaturatedInto, SaturatedConversion};
@@ -1698,7 +1699,7 @@ fn memory_access_cases() {
 #[cfg(feature = "lazy-pages")]
 #[test]
 fn lazy_pages() {
-    use gear_core::memory::{PageNumber, PAGE_STORAGE_GRANULARITY};
+    use gear_core::memory::{PageNumber, PageU32Size, PAGE_STORAGE_GRANULARITY};
     use gear_runtime_interface as gear_ri;
     use std::collections::BTreeSet;
 
@@ -1784,19 +1785,19 @@ fn lazy_pages() {
             gear_ri::gear_ri::get_released_pages().into_iter().collect();
 
         // checks accessed pages set
-        let native_size = page_size::get();
+        let native_size = page_size::get() as u32;
         let mut expected_released = BTreeSet::new();
 
         let page_to_released = |p: u32, is_first_access: bool| {
             // is the minimum memory interval, which must be in storage for any page.
             let granularity = if is_first_access {
-                PAGE_STORAGE_GRANULARITY
+                PAGE_STORAGE_GRANULARITY as u32
             } else {
                 native_size
             };
             if granularity > PageNumber::size() {
                 // `x` is a number of gear pages in granularity
-                let x = (granularity / PageNumber::size()) as u32;
+                let x = granularity / PageNumber::size();
                 // is first gear page in granularity interval
                 let first_gear_page = (p / x) * x;
                 // accessed gear pages range:
@@ -1810,16 +1811,16 @@ fn lazy_pages() {
         expected_released.extend(page_to_released(0, false));
 
         // released from 2 wasm page:
-        let first_page = (0x23ffe / PageNumber::size()) as u32;
-        let second_page = (0x24001 / PageNumber::size()) as u32;
+        let first_page = 0x23ffe / PageNumber::size();
+        let second_page = 0x24001 / PageNumber::size();
         expected_released.extend(page_to_released(first_page, true));
         expected_released.extend(page_to_released(second_page, true));
 
         // nothing for 5 wasm page, because it's just read access
 
         // released from 8 and 9 wasm pages, must be several gear pages:
-        let first_page = (0x8fffc / PageNumber::size()) as u32;
-        let second_page = (0x90003 / PageNumber::size()) as u32;
+        let first_page = 0x8fffc / PageNumber::size();
+        let second_page = 0x90003 / PageNumber::size();
         expected_released.extend(page_to_released(first_page, true));
         expected_released.extend(page_to_released(second_page, true));
 
@@ -1847,14 +1848,14 @@ fn lazy_pages() {
         expected_released.extend(page_to_released(0, false));
 
         // released from 2 wasm page:
-        let first_page = (0x23ffe / PageNumber::size()) as u32;
-        let second_page = (0x24001 / PageNumber::size()) as u32;
+        let first_page = 0x23ffe / PageNumber::size();
+        let second_page = 0x24001 / PageNumber::size();
         expected_released.extend(page_to_released(first_page, false));
         expected_released.extend(page_to_released(second_page, false));
 
         // released from 8 and 9 wasm pages, must be several gear pages:
-        let first_page = (0x8fffc / PageNumber::size()) as u32;
-        let second_page = (0x90003 / PageNumber::size()) as u32;
+        let first_page = 0x8fffc / PageNumber::size();
+        let second_page = 0x90003 / PageNumber::size();
         expected_released.extend(page_to_released(first_page, false));
         expected_released.extend(page_to_released(second_page, false));
 
@@ -8884,28 +8885,10 @@ fn check_gear_stack_end_fail() {
         assert_last_dequeued(1);
         assert_failed(
             message_id,
-            ExecutionErrorReason::StackEndPageBiggerWasmMemSize(5.into(), 4.into()),
-        );
-
-        // Check error when stack end is negative
-        let wat = format!(wat_template!(), "-0x10000");
-        Gear::upload_program(
-            RuntimeOrigin::signed(USER_1),
-            ProgramCodeKind::Custom(wat.as_str()).to_bytes(),
-            DEFAULT_SALT.to_vec(),
-            EMPTY_PAYLOAD.to_vec(),
-            50_000_000_000,
-            0,
-        )
-        .expect("Failed to upload program");
-
-        let message_id = get_last_message_id();
-
-        run_to_next_block(None);
-        assert_last_dequeued(1);
-        assert_failed(
-            message_id,
-            ExecutionErrorReason::Backend(StackEndError::IsNegative(-65536).to_string()),
+            ExecutionErrorReason::StackEndPageBiggerWasmMemSize(
+                WasmPageNumber::new(5).unwrap(),
+                WasmPageNumber::new(4).unwrap(),
+            ),
         );
 
         // Check error when stack end is not aligned

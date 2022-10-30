@@ -25,7 +25,7 @@ use frame_support::{assert_noop, assert_ok};
 use gear_core::{
     code::{Code, CodeAndId},
     ids::{CodeId, MessageId, ProgramId},
-    memory::{PageBuf, PageNumber, WasmPageNumber},
+    memory::{to_page_iter, PageBuf, PageNumber, PageU32Size, WasmPageNumber},
     message::{DispatchKind, StoredDispatch, StoredMessage},
 };
 use gear_wasm_instrument::wasm_instrument::gas_metering::ConstantCostRules;
@@ -45,22 +45,22 @@ fn pause_program_works() {
         let code_id = code_and_id.code_id();
         let code_hash = code_id.into_origin();
 
-        let wasm_static_pages = WasmPageNumber(16);
+        let wasm_static_pages: WasmPageNumber = 16.into();
         let memory_pages = {
             let mut pages = BTreeMap::new();
-            for page in wasm_static_pages.to_gear_pages_iter() {
+            for page in to_page_iter(wasm_static_pages) {
                 pages.insert(page, PageBuf::new_zeroed());
             }
-            for page in (wasm_static_pages + 2.into()).to_gear_pages_iter() {
+            for page in to_page_iter(wasm_static_pages.add_raw(2).unwrap()) {
                 pages.insert(page, PageBuf::new_zeroed());
             }
-            for i in 0..wasm_static_pages.to_gear_page().0 {
-                pages.insert(i.into(), PageBuf::new_zeroed());
+            for p in PageNumber::zero()..wasm_static_pages.to_page() {
+                pages.insert(p, PageBuf::new_zeroed());
             }
 
             pages
         };
-        let allocations = memory_pages.keys().map(|p| p.to_wasm_page()).collect();
+        let allocations = memory_pages.keys().map(|p| p.to_page()).collect();
         let pages_with_data = memory_pages.keys().copied().collect();
 
         let active_program = ActiveProgram {
@@ -209,7 +209,7 @@ fn pause_terminated_program_fails() {
 #[test]
 fn pause_uninitialized_program_works() {
     new_test_ext().execute_with(|| {
-        let static_pages = WasmPageNumber(16);
+        let static_pages = 16.into();
         let CreateProgramResult {
             program_id,
             code_id,
@@ -260,7 +260,7 @@ fn resume_uninitialized_program_works() {
         .format_level(true)
         .try_init();
     new_test_ext().execute_with(|| {
-        let static_pages = WasmPageNumber(16);
+        let static_pages = 16.into();
         let CreateProgramResult {
             program_id,
             init_msg,
@@ -322,7 +322,7 @@ fn resume_uninitialized_program_works() {
 #[test]
 fn resume_program_twice_fails() {
     new_test_ext().execute_with(|| {
-        let static_pages = WasmPageNumber(16);
+        let static_pages = 16.into();
         let CreateProgramResult {
             program_id,
             memory_pages,
@@ -357,7 +357,7 @@ fn resume_program_twice_fails() {
 #[test]
 fn resume_program_wrong_memory_fails() {
     new_test_ext().execute_with(|| {
-        let static_pages = WasmPageNumber(16);
+        let static_pages = 16.into();
         let CreateProgramResult {
             program_id,
             mut memory_pages,
@@ -389,7 +389,7 @@ fn resume_program_wrong_memory_fails() {
 #[test]
 fn resume_program_wrong_list_fails() {
     new_test_ext().execute_with(|| {
-        let static_pages = WasmPageNumber(16);
+        let static_pages = 16.into();
         let CreateProgramResult {
             program_id,
             memory_pages,
@@ -458,19 +458,19 @@ mod utils {
 
         let memory_pages = {
             let mut pages = BTreeMap::new();
-            for page in wasm_static_pages.to_gear_pages_iter() {
+            for page in to_page_iter(wasm_static_pages) {
                 pages.insert(page, PageBuf::new_zeroed());
             }
-            for page in (wasm_static_pages + 2.into()).to_gear_pages_iter() {
+            for page in to_page_iter(wasm_static_pages.add_raw(2).unwrap()) {
                 pages.insert(page, PageBuf::new_zeroed());
             }
-            for i in 0..wasm_static_pages.to_gear_page().0 {
-                pages.insert(i.into(), PageBuf::new_zeroed());
+            for p in PageNumber::zero()..wasm_static_pages.to_page() {
+                pages.insert(p, PageBuf::new_zeroed());
             }
 
             pages
         };
-        let allocations = memory_pages.keys().map(|p| p.to_wasm_page()).collect();
+        let allocations = memory_pages.keys().map(|p| p.to_page()).collect();
         let pages_with_data = memory_pages.keys().copied().collect();
 
         let init_msg_id: MessageId = 3.into();
