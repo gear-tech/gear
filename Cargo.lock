@@ -3486,14 +3486,11 @@ name = "gear-wasm-gen"
 version = "0.1.0"
 dependencies = [
  "arbitrary",
- "gear-backend-common",
- "gear-backend-wasmi",
- "gear-core",
  "gear-wasm-instrument",
  "indicatif",
  "rand 0.8.5",
  "wasm-smith",
- "wasmparser 0.92.0",
+ "wasmparser 0.93.0",
  "wasmprinter",
 ]
 
