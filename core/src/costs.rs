@@ -28,6 +28,9 @@ pub struct HostFnWeights {
     /// Weight of calling `alloc`.
     pub alloc: u64,
 
+    /// Weight of calling `alloc`.
+    pub free: u64,
+
     /// Weight of calling `gr_reserve_gas`.
     pub gr_reserve_gas: u64,
 
@@ -88,9 +91,6 @@ pub struct HostFnWeights {
     /// Weight of calling `gr_reply_commit`.
     pub gr_reply_commit: u64,
 
-    /// Weight per payload byte by `gr_reply_commit`.
-    pub gr_reply_commit_per_byte: u64,
-
     /// Weight of calling `gr_reply_push`.
     pub gr_reply_push: u64,
 
@@ -102,6 +102,9 @@ pub struct HostFnWeights {
 
     /// Weight of calling `gr_debug`.
     pub gr_debug: u64,
+
+    /// Weight per payload byte by `gr_debug`.
+    pub gr_debug_per_byte: u64,
 
     /// Weight of calling `gr_exit_code`.
     pub gr_exit_code: u64,
@@ -128,10 +131,10 @@ pub struct HostFnWeights {
     pub gr_create_program_wgas: u64,
 
     /// Weight per payload byte by `gr_create_program_wgas`.
-    pub gr_create_program_wgas_per_byte: u64,
+    pub gr_create_program_wgas_payload_per_byte: u64,
 
-    /// Weight of calling `gas`.
-    pub gas: u64,
+    /// Weight per salt byte by `gr_create_program_wgas`.
+    pub gr_create_program_wgas_salt_per_byte: u64,
 }
 
 /// We need this access as a macro because sometimes hiding the lifetimes behind
@@ -162,11 +165,10 @@ impl Token for RuntimeToken {
 /// Enumerates syscalls that can be charged by gas meter.
 #[derive(Copy, Clone)]
 pub enum RuntimeCosts {
-    /// Charge the gas meter with the cost of a metering block. The charged costs are
-    /// the supplied cost of the block plus the overhead of the metering itself.
-    MeteringBlock(u32),
     /// Weight of calling `alloc`.
     Alloc,
+    /// Weight of calling `free`.
+    Free,
     /// Weight of calling `gr_reserve_gas`
     ReserveGas,
     /// Weight of calling `gr_unreserve_gas`
@@ -193,20 +195,20 @@ pub enum RuntimeCosts {
     BlockHeight,
     /// Weight of calling `gr_block_timestamp`.
     BlockTimestamp,
-    /// Weight of calling `gr_value_available`.
+    /// Weight of calling `gr_send_init`.
     SendInit,
     /// Weight of calling `gr_send_push`.
     SendPush(u32),
     /// Weight of calling `gr_send_commit`.
     SendCommit(u32),
     /// Weight of calling `gr_reply_commit`.
-    ReplyCommit(u32),
+    ReplyCommit,
     /// Weight of calling `gr_reply_push`.
     ReplyPush(u32),
     /// Weight of calling `gr_reply_to`.
     ReplyTo,
     /// Weight of calling `gr_debug`.
-    Debug,
+    Debug(u32),
     /// Weight of calling `gr_exit_code`.
     ExitCode,
     /// Weight of calling `gr_exit`.
@@ -222,7 +224,7 @@ pub enum RuntimeCosts {
     /// Weight of calling `gr_wake`.
     Wake,
     /// Weight of calling `gr_create_program_wgas`.
-    CreateProgram(u32),
+    CreateProgram(u32, u32),
 }
 
 impl RuntimeCosts {
@@ -230,8 +232,8 @@ impl RuntimeCosts {
     pub fn token(&self, s: &HostFnWeights) -> RuntimeToken {
         use self::RuntimeCosts::*;
         let weight = match *self {
-            MeteringBlock(amount) => s.gas.saturating_add(amount.into()),
             Alloc => s.alloc,
+            Free => s.free,
             ReserveGas => s.gr_reserve_gas,
             UnreserveGas => s.gr_unreserve_gas,
             GasAvailable => s.gr_gas_available,
@@ -254,14 +256,14 @@ impl RuntimeCosts {
             SendCommit(len) => s
                 .gr_send_commit
                 .saturating_add(s.gr_send_commit_per_byte.saturating_mul(len.into())),
-            ReplyCommit(len) => s
-                .gr_reply_commit
-                .saturating_add(s.gr_reply_commit_per_byte.saturating_mul(len.into())),
+            ReplyCommit => s.gr_reply_commit,
             ReplyPush(len) => s
                 .gr_reply_push
                 .saturating_add(s.gr_reply_push_per_byte.saturating_mul(len.into())),
             ReplyTo => s.gr_reply_to,
-            Debug => s.gr_debug,
+            Debug(len) => s
+                .gr_debug
+                .saturating_add(s.gr_debug_per_byte.saturating_mul(len.into())),
             ExitCode => s.gr_exit_code,
             Exit => s.gr_exit,
             Leave => s.gr_leave,
@@ -269,9 +271,16 @@ impl RuntimeCosts {
             WaitFor => s.gr_wait_for,
             WaitUpTo => s.gr_wait_up_to,
             Wake => s.gr_wake,
-            CreateProgram(len) => s
+            CreateProgram(payload_len, salt_len) => s
                 .gr_create_program_wgas
-                .saturating_add(s.gr_create_program_wgas_per_byte.saturating_mul(len.into())),
+                .saturating_add(
+                    s.gr_create_program_wgas_payload_per_byte
+                        .saturating_mul(payload_len.into()),
+                )
+                .saturating_add(
+                    s.gr_create_program_wgas_salt_per_byte
+                        .saturating_mul(salt_len.into()),
+                ),
         };
         RuntimeToken { weight }
     }

@@ -771,6 +771,7 @@ where
         })
     }
 
+    // TODO: charge gas for gr_error (issue #1723)
     pub fn error(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
         sys_trace!(target: "syscall::gear", "error, args = {}", args_to_str(args));
 
