@@ -39,7 +39,7 @@ use sp_std::{marker::PhantomData, vec::Vec};
 pub const API_BENCHMARK_BATCH_SIZE: u32 = 100;
 
 /// How many instructions are executed in a single batch.
-pub const INSTR_BENCHMARK_BATCH_SIZE: u32 = 100;
+pub const INSTR_BENCHMARK_BATCH_SIZE: u32 = 1000;
 
 /// Definition of the cost schedule and other parameterization for the wasm vm.
 ///
@@ -440,6 +440,12 @@ macro_rules! cost_instr_no_params_with_batch_size {
     };
 }
 
+macro_rules! cost_instr_batched {
+    ($name:ident) => {
+        (cost_args!($name, 1) / INSTR_BENCHMARK_BATCH_SIZE as u64) as u32
+    };
+}
+
 macro_rules! cost_instr_with_batch_size {
     ($name:ident, $num_params:expr, $batch_size:expr) => {
         cost_instr_no_params_with_batch_size!($name, $batch_size).saturating_sub(
@@ -525,18 +531,29 @@ impl Default for Limits {
 
 impl<T: Config> Default for InstructionWeights<T> {
     fn default() -> Self {
+        let const_and_ctz_cost = cost_instr_batched!(instr_const_ctz) as u32;
+        let ctz_cost = cost_instr_batched!(instr_no_const_ctz) as u32;
+        let i64const = const_and_ctz_cost.saturating_sub(ctz_cost);
+
+        macro_rules! cost {
+            // $name.BenchWeight - $num * I64ConstWeight
+            ($name:ident, $num:expr) => {
+                (cost_instr_batched!($name).saturating_sub(i64const.saturating_mul($num)))
+            };
+        }
+
         Self {
-            version: 4,
-            i64const: cost_instr!(instr_i64const, 1),
-            i64load: cost_instr!(instr_i64load, 2),
-            i64store: cost_instr!(instr_i64store, 2),
-            select: cost_instr!(instr_select, 4),
-            r#if: cost_instr!(instr_if, 3),
-            br: cost_instr!(instr_br, 2),
-            br_if: cost_instr!(instr_br_if, 3),
-            br_table: cost_instr!(instr_br_table, 3),
-            br_table_per_entry: cost_instr!(instr_br_table_per_entry, 0),
-            call: cost_instr!(instr_call, 2),
+            version: 5,
+            i64const,
+            i64load: cost!(instr_i64load, 1),
+            i64store: cost!(instr_i64store, 2),
+            select: cost!(instr_select, 3),
+            r#if: cost!(instr_if, 2),
+            br: cost!(instr_br, 1),
+            br_if: cost!(instr_br_if, 2),
+            br_table: cost!(instr_br_table, 2),
+            br_table_per_entry: cost!(instr_br_table_per_entry, 0),
+            call: cost!(instr_call, 1),
             call_indirect: cost_instr!(instr_call_indirect, 3),
             call_indirect_per_param: cost_instr!(instr_call_indirect_per_param, 1),
             local_get: cost_instr!(instr_local_get, 1),

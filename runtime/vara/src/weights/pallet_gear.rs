@@ -139,6 +139,8 @@ pub trait WeightInfo {
     fn instr_i64shru(r: u32, ) -> Weight;
     fn instr_i64rotl(r: u32, ) -> Weight;
     fn instr_i64rotr(r: u32, ) -> Weight;
+    fn instr_const_ctz(r: u32, ) -> Weight;
+    fn instr_no_const_ctz(r: u32, ) -> Weight;
 }
 
 /// Weights for pallet_gear using the Substrate node and recommended hardware.
@@ -780,6 +782,18 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
             // Standard Error: 405
             .saturating_add(Weight::from_ref_time(86_333 as u64).saturating_mul(r as u64))
     }
+    /// The range of component `r` is `[0, 50]`.
+    fn instr_const_ctz(r: u32, ) -> Weight {
+        Weight::from_ref_time(6_000_000 as u64)
+            // Standard Error: 3_960
+            .saturating_add(Weight::from_ref_time(7_550_239 as u64).saturating_mul(r as u64))
+    }
+    /// The range of component `r` is `[0, 50]`.
+    fn instr_no_const_ctz(r: u32, ) -> Weight {
+        Weight::from_ref_time(6_000_000 as u64)
+            // Standard Error: 2_302
+            .saturating_add(Weight::from_ref_time(2_489_416 as u64).saturating_mul(r as u64))
+    }
 }
 
 // For backwards compatibility and tests
@@ -1419,5 +1433,17 @@ impl WeightInfo for () {
         Weight::from_ref_time(3_097_000 as u64)
             // Standard Error: 405
             .saturating_add(Weight::from_ref_time(86_333 as u64).saturating_mul(r as u64))
+    }
+    /// The range of component `r` is `[0, 50]`.
+    fn instr_const_ctz(r: u32, ) -> Weight {
+        Weight::from_ref_time(6_000_000 as u64)
+            // Standard Error: 3_960
+            .saturating_add(Weight::from_ref_time(7_550_239 as u64).saturating_mul(r as u64))
+    }
+    /// The range of component `r` is `[0, 50]`.
+    fn instr_no_const_ctz(r: u32, ) -> Weight {
+        Weight::from_ref_time(6_000_000 as u64)
+            // Standard Error: 2_302
+            .saturating_add(Weight::from_ref_time(2_489_416 as u64).saturating_mul(r as u64))
     }
 }
