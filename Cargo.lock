@@ -3292,6 +3292,7 @@ dependencies = [
  "derive_more",
  "env_logger 0.10.0",
  "errno",
+ "gear-backend-common",
  "gear-core",
  "libc",
  "log",
@@ -3312,6 +3313,7 @@ name = "gear-lazy-pages-common"
 version = "0.1.0"
 dependencies = [
  "derive_more",
+ "gear-backend-common",
  "gear-common",
  "gear-core",
  "gear-runtime-interface",
@@ -3462,6 +3464,7 @@ name = "gear-runtime-interface"
 version = "0.1.0"
 dependencies = [
  "derive_more",
+ "gear-backend-common",
  "gear-core",
  "gear-lazy-pages",
  "libc",

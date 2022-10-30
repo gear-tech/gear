@@ -59,7 +59,7 @@ use common::{
 use core::marker::PhantomData;
 use core_processor::{
     common::{DispatchOutcome as CoreDispatchOutcome, ExecutableActorData, JournalNote},
-    configs::{AllocationsConfig, BlockConfig, BlockInfo},
+    configs::{BlockConfig, BlockInfo, PagesConfig},
     ContextChargedForInstrumentation,
 };
 use frame_support::{
@@ -73,6 +73,7 @@ use frame_support::{
     weights::Weight,
 };
 use frame_system::pallet_prelude::{BlockNumberFor, *};
+use gear_backend_common::lazy_pages::LazyPagesWeights;
 use gear_core::{
     code::{Code, CodeAndId, InstrumentedCode, InstrumentedCodeAndId},
     ids::{CodeId, MessageId, ProgramId, ReservationId},
@@ -992,8 +993,14 @@ pub mod pallet {
 
             let schedule = T::Schedule::get();
 
-            let allocations_config = AllocationsConfig {
+            let allocations_config = PagesConfig {
                 max_pages: schedule.limits.memory_pages.into(),
+                lazy_pages_weights: LazyPagesWeights {
+                    read: schedule.memory_weights.lazy_pages_read,
+                    write: schedule.memory_weights.lazy_pages_write,
+                    write_after_read: schedule.memory_weights.lazy_pages_write_after_read,
+                    read_data_from_storage: 0, // +_+_+
+                },
                 init_cost: schedule.memory_weights.initial_cost,
                 alloc_cost: schedule.memory_weights.allocation_cost,
                 mem_grow_cost: schedule.memory_weights.grow_cost,

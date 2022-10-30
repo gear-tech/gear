@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::configs::{AllocationsConfig, BlockInfo};
+use crate::configs::{BlockInfo, PagesConfig};
 use alloc::{
     collections::{BTreeMap, BTreeSet},
     string::{String, ToString},
@@ -24,8 +24,11 @@ use alloc::{
 };
 use codec::{Decode, Encode};
 use gear_backend_common::{
-    error_processor::IntoExtError, memory::OutOfMemoryAccessError, AsTerminationReason, ExtInfo,
-    GetGasAmount, IntoExtInfo, SystemReservationContext, TerminationReason, TrapExplanation,
+    error_processor::IntoExtError,
+    lazy_pages::{GlobalsCtx, Status, LazyPagesWeights},
+    memory::OutOfMemoryAccessError,
+    AsTerminationReason, ExtInfo, GetGasAmount, IntoExtInfo, SystemReservationContext,
+    TerminationReason, TrapExplanation,
 };
 use gear_core::{
     costs::{HostFnWeights, RuntimeCosts},
@@ -63,7 +66,7 @@ pub struct ProcessorContext {
     /// Block info.
     pub block_info: BlockInfo,
     /// Allocations config.
-    pub config: AllocationsConfig,
+    pub config: PagesConfig,
     /// Account existential deposit
     pub existential_deposit: u128,
     /// Communication origin
@@ -103,10 +106,14 @@ pub trait ProcessorExt {
         mem: &mut impl Memory,
         prog_id: ProgramId,
         stack_end: Option<WasmPageNumber>,
+        globals_ctx: Option<GlobalsCtx>,
     );
 
     /// Lazy pages contract post execution actions
     fn lazy_pages_post_execution_actions(mem: &mut impl Memory);
+
+    /// Returns lazy pages status
+    fn lazy_pages_status() -> Option<Status>;
 }
 
 /// [`Ext`](Ext)'s error
@@ -213,11 +220,16 @@ impl ProcessorExt for Ext {
         _mem: &mut impl Memory,
         _prog_id: ProgramId,
         _stack_end: Option<WasmPageNumber>,
+        _globals_ctx: Option<GlobalsCtx>,
     ) {
         unreachable!()
     }
 
     fn lazy_pages_post_execution_actions(_mem: &mut impl Memory) {
+        unreachable!()
+    }
+
+    fn lazy_pages_status() -> Option<Status> {
         unreachable!()
     }
 }
@@ -259,6 +271,10 @@ impl IntoExtInfo<<Ext as EnvExt>::Error> for Ext {
         _writes: &[MemoryInterval],
     ) -> Result<(), OutOfMemoryAccessError> {
         Ok(())
+    }
+
+    fn lazy_pages_weights(&self) -> LazyPagesWeights {
+        self.context.config.lazy_pages_weights.clone()
     }
 }
 

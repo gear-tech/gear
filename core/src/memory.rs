@@ -59,6 +59,7 @@ pub const GEAR_PAGE_SIZE: usize = 0x1000;
 /// native page sizes. You can see an example of using in crate `gear-lazy-pages`.
 pub const PAGE_STORAGE_GRANULARITY: usize = 0x4000;
 
+static_assertions::const_assert!(WASM_PAGE_SIZE < u32::MAX as usize);
 static_assertions::const_assert_eq!(WASM_PAGE_SIZE % GEAR_PAGE_SIZE, 0);
 static_assertions::const_assert_eq!(WASM_PAGE_SIZE % PAGE_STORAGE_GRANULARITY, 0);
 static_assertions::const_assert_eq!(PAGE_STORAGE_GRANULARITY % GEAR_PAGE_SIZE, 0);

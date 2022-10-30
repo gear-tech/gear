@@ -18,7 +18,7 @@
 
 use crate::{
     error_processor::IntoExtError, memory::OutOfMemoryAccessError, AsTerminationReason, ExtInfo,
-    GetGasAmount, IntoExtInfo, SystemReservationContext, TerminationReason,
+    GetGasAmount, IntoExtInfo, SystemReservationContext, TerminationReason, lazy_pages::LazyPagesWeights,
 };
 use alloc::collections::BTreeSet;
 use codec::{Decode, Encode};
@@ -281,6 +281,10 @@ impl IntoExtInfo<<MockExt as Ext>::Error> for MockExt {
         _writes: &[MemoryInterval],
     ) -> Result<(), OutOfMemoryAccessError> {
         Ok(())
+    }
+
+    fn lazy_pages_weights(&self) -> LazyPagesWeights {
+        LazyPagesWeights { read: 0, write: 0, write_after_read: 0, read_data_from_storage: 0 }
     }
 }
 

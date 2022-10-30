@@ -429,6 +429,15 @@ pub struct HostFnWeights<T: Config> {
 #[derive(Clone, Encode, Decode, PartialEq, Eq, WeightDebug, TypeInfo)]
 #[scale_info(skip_type_params(T))]
 pub struct MemoryWeights<T: Config> {
+    /// +_+_+
+    pub lazy_pages_read: u64,
+
+    /// +_+_+
+    pub lazy_pages_write: u64,
+
+    /// +_+_+
+    pub lazy_pages_write_after_read: u64,
+
     /// Weight of initial page.
     pub initial_cost: u64,
 
@@ -667,10 +676,6 @@ impl<T: Config> HostFnWeights<T> {
             gr_send_push_input_per_byte: self.gr_send_push_input_per_byte,
             gr_reply_push_input: self.gr_reply_push_input,
             gr_reply_push_input_per_byte: self.gr_reply_push_input_per_byte,
-            lazy_pages_read: 100,             // TODO: #1893
-            lazy_pages_write: 100,            // TODO: #1893
-            lazy_pages_write_after_read: 100, // TODO: #1893
-            update_page_in_storage: 100,      // TODO: #1731
         }
     }
 }
@@ -745,6 +750,10 @@ impl<T: Config> Default for HostFnWeights<T> {
 impl<T: Config> Default for MemoryWeights<T> {
     fn default() -> Self {
         Self {
+            // +_+_+
+            lazy_pages_read: 100,
+            lazy_pages_write: 100,
+            lazy_pages_write_after_read: 100,
             initial_cost: <T as Config>::WeightInfo::initial_cost().ref_time(),
             allocation_cost: <T as Config>::WeightInfo::allocation_cost().ref_time(),
             grow_cost: <T as Config>::WeightInfo::grow_cost().ref_time(),

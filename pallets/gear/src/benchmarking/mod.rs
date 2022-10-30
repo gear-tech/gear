@@ -39,6 +39,7 @@ mod code;
 mod sandbox;
 
 mod syscalls;
+mod utils;
 use syscalls::Benches;
 
 mod tests;
@@ -307,6 +308,7 @@ fn caller_funding<T: pallet::Config>() -> BalanceOf<T> {
     BalanceOf::<T>::max_value() / 2u32.into()
 }
 
+#[derive(Clone)]
 pub struct Exec<T: Config> {
     #[allow(unused)]
     ext_manager: ExtManager<T>,
@@ -326,6 +328,11 @@ benchmarks! {
     #[extra]
     check_syscalls_integrity {
         syscalls_integrity::main_test::<T>();
+    }: {}
+
+    #[extra]
+    check_lazy_pages_charging {
+        Benches::<T>::check_lazy_pages_charging();
     }: {}
 
     // This bench uses `StorageMap` as a storage, due to the fact that

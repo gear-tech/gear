@@ -29,9 +29,11 @@ use alloc::{
 };
 use core::fmt;
 use gear_backend_common::{
-    calc_stack_end, error_processor::IntoExtError, AsTerminationReason, BackendReport, Environment,
-    GetGasAmount, IntoExtInfo, StackEndError, TerminationReason, TrapExplanation,
-    STACK_END_EXPORT_NAME,
+    calc_stack_end,
+    error_processor::IntoExtError,
+    lazy_pages::{GlobalsAccessMod, GlobalsCtx},
+    AsTerminationReason, BackendReport, Environment, GetGasAmount, IntoExtInfo, StackEndError,
+    TerminationReason, TrapExplanation, STACK_END_EXPORT_NAME,
 };
 use gear_core::{
     env::Ext,
@@ -41,7 +43,7 @@ use gear_core::{
 };
 use gear_wasm_instrument::{
     syscalls::SysCallName::{self, *},
-    GLOBAL_NAME_ALLOWANCE, GLOBAL_NAME_GAS,
+    GLOBAL_NAME_ALLOWANCE, GLOBAL_NAME_GAS, GLOBAL_NAME_STATUS,
 };
 use sp_sandbox::{
     default_executor::{EnvironmentDefinitionBuilder, Instance, Memory as DefaultExecutorMemory},
@@ -268,7 +270,7 @@ where
         pre_execution_handler: F,
     ) -> Result<BackendReport<Self::Memory, E>, Self::Error>
     where
-        F: FnOnce(&mut Self::Memory, Option<WasmPageNumber>) -> Result<(), T>,
+        F: FnOnce(&mut Self::Memory, Option<WasmPageNumber>, Option<GlobalsCtx>) -> Result<(), T>,
         T: fmt::Display,
     {
         use SandboxEnvironmentError::*;
@@ -304,7 +306,20 @@ where
             .set_global_val(GLOBAL_NAME_ALLOWANCE, Value::I64(allowance as i64))
             .map_err(|_| (runtime.ext.gas_amount(), WrongInjectedAllowance))?;
 
-        match pre_execution_handler(&mut runtime.memory, stack_end_page) {
+        let globals_ctx = if cfg!(not(feature = "std")) {
+            Some(GlobalsCtx {
+                global_gas_name: GLOBAL_NAME_GAS.to_string(),
+                global_allowance_name: GLOBAL_NAME_ALLOWANCE.to_string(),
+                global_state_name: GLOBAL_NAME_STATUS.to_string(),
+                lazy_pages_weights: runtime.ext.lazy_pages_weights(),
+                globals_access_ptr: instance.get_instance_ptr(),
+                globals_access_mod: GlobalsAccessMod::WasmRuntime,
+            })
+        } else {
+            None
+        };
+
+        match pre_execution_handler(&mut runtime.memory, stack_end_page, globals_ctx) {
             Ok(_) => (),
             Err(e) => {
                 return Err((runtime.ext.gas_amount(), PreExecutionHandler(e.to_string())).into());

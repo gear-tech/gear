@@ -1,265 +1,52 @@
-use super::code::{
-    body::{self, DynInstr::*},
-    max_pages, DataSegment, ImportedMemory, ModuleDefinition, WasmModule,
+// This file is part of Gear.
+
+// Copyright (C) 2022 Gear Technologies Inc.
+// SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
+
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU General Public License for more details.
+
+// You should have received a copy of the GNU General Public License
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+//! Benchmarks for gear sys-calls.
+
+use super::{
+    code::{
+        body::{self, DynInstr::*},
+        max_pages, DataSegment, ImportedMemory, ModuleDefinition, WasmModule,
+    },
+    utils::prepare_exec,
+    Exec, Program,
 };
 use crate::{
-    manager::{CodeInfo, ExtManager, HandleKind},
-    schedule::API_BENCHMARK_BATCH_SIZE,
-    Config, CostsPerBlockOf, CurrencyOf, DbWeightOf, GasHandlerOf, MailboxOf, Pallet as Gear,
-    ProgramStorageOf, QueueOf,
+    manager::HandleKind, schedule::API_BENCHMARK_BATCH_SIZE, Config, ExecutionEnvironment, Ext,
+    MailboxOf, Pallet as Gear,
 };
+use alloc::{collections::BTreeSet, vec, vec::Vec};
 use codec::Encode;
-use common::{
-    benchmarking, scheduler::SchedulingCostsPerBlock, storage::*, CodeStorage, GasTree, Origin,
-    ProgramStorage,
-};
+use common::{benchmarking, storage::*, Origin};
 use core::{marker::PhantomData, mem, mem::size_of, ops::Range};
-use core_processor::{
-    configs::{AllocationsConfig, BlockConfig, BlockInfo},
-    ContextChargedForCode, ContextChargedForInstrumentation,
-};
-use frame_support::traits::{Currency, Get};
+use core_processor::common::JournalNote;
 use frame_system::RawOrigin;
+use gear_backend_common::lazy_pages::LazyPagesWeights;
 use gear_core::{
-    code::{Code, CodeAndId},
-    ids::{CodeId, MessageId, ProgramId, ReservationId},
-    memory::WasmPageNumber,
-    message::{Dispatch, DispatchKind, Message, ReplyDetails, SignalDetails},
+    ids::{MessageId, ProgramId, ReservationId},
+    memory::{GranularityPage, PageNumber, PageU32Size, WasmPageNumber},
+    message::Message,
     reservation::GasReservationSlot,
 };
 use gear_wasm_instrument::{parity_wasm::elements::Instruction, syscalls::SysCallName};
-use sp_core::H256;
+use rand::{Rng, SeedableRng};
 use sp_runtime::traits::UniqueSaturatedInto;
-use sp_std::{convert::TryInto, prelude::*};
-
-use super::{Exec, Program};
-
-fn prepare<T>(
-    source: H256,
-    kind: HandleKind,
-    payload: Vec<u8>,
-    value: u128,
-    err_len_ptrs: Range<u32>,
-) -> Result<Exec<T>, &'static str>
-where
-    T: Config,
-    T::AccountId: Origin,
-{
-    #[cfg(feature = "lazy-pages")]
-    assert!(gear_lazy_pages_common::try_to_enable_lazy_pages(
-        ProgramStorageOf::<T>::pages_final_prefix()
-    ));
-
-    // to see logs in bench tests
-    #[cfg(feature = "std")]
-    let _ = env_logger::try_init();
-
-    let ext_manager = ExtManager::<T>::default();
-    let bn: u64 = Gear::<T>::block_number().unique_saturated_into();
-    let root_message_id = MessageId::from(bn);
-
-    let dispatch = match kind {
-        HandleKind::Init(ref code) => {
-            let program_id = ProgramId::generate(CodeId::generate(code), b"bench_salt");
-
-            let schedule = T::Schedule::get();
-            let code = Code::try_new(
-                code.clone(),
-                schedule.instruction_weights.version,
-                |module| schedule.rules(module),
-                schedule.limits.stack_height,
-            )
-            .map_err(|_| "Code failed to load")?;
-
-            let code_and_id = CodeAndId::new(code);
-            let code_info = CodeInfo::from_code_and_id(&code_and_id);
-
-            let _ = Gear::<T>::set_code_with_metadata(code_and_id, source);
-
-            ExtManager::<T>::default().set_program(program_id, &code_info, root_message_id);
-
-            Dispatch::new(
-                DispatchKind::Init,
-                Message::new(
-                    root_message_id,
-                    ProgramId::from_origin(source),
-                    program_id,
-                    payload.try_into()?,
-                    Some(u64::MAX),
-                    value,
-                    None,
-                ),
-            )
-        }
-        HandleKind::InitByHash(code_id) => {
-            let program_id = ProgramId::generate(code_id, b"bench_salt");
-
-            let code = T::CodeStorage::get_code(code_id).ok_or("Code not found in storage")?;
-            let code_info = CodeInfo::from_code(&code_id, &code);
-
-            ExtManager::<T>::default().set_program(program_id, &code_info, root_message_id);
-
-            Dispatch::new(
-                DispatchKind::Init,
-                Message::new(
-                    root_message_id,
-                    ProgramId::from_origin(source),
-                    program_id,
-                    payload.try_into()?,
-                    Some(u64::MAX),
-                    value,
-                    None,
-                ),
-            )
-        }
-        HandleKind::Handle(dest) => Dispatch::new(
-            DispatchKind::Handle,
-            Message::new(
-                root_message_id,
-                ProgramId::from_origin(source),
-                dest,
-                payload.try_into()?,
-                Some(u64::MAX),
-                value,
-                None,
-            ),
-        ),
-        HandleKind::Reply(msg_id, exit_code) => {
-            let (msg, _bn) =
-                MailboxOf::<T>::remove(<T::AccountId as Origin>::from_origin(source), msg_id)
-                    .map_err(|_| "Internal error: unable to find message in mailbox")?;
-            Dispatch::new(
-                DispatchKind::Reply,
-                Message::new(
-                    root_message_id,
-                    ProgramId::from_origin(source),
-                    msg.source(),
-                    payload.try_into()?,
-                    Some(u64::MAX),
-                    value,
-                    Some(ReplyDetails::new(msg.id(), exit_code).into()),
-                ),
-            )
-        }
-        HandleKind::Signal(msg_id, status_code) => {
-            let (msg, _bn) =
-                MailboxOf::<T>::remove(<T::AccountId as Origin>::from_origin(source), msg_id)
-                    .map_err(|_| "Internal error: unable to find message in mailbox")?;
-            Dispatch::new(
-                DispatchKind::Signal,
-                Message::new(
-                    root_message_id,
-                    ProgramId::from_origin(source),
-                    msg.source(),
-                    payload.try_into()?,
-                    Some(u64::MAX),
-                    value,
-                    Some(SignalDetails::new(msg.id(), status_code).into()),
-                ),
-            )
-        }
-    };
-
-    let initial_gas = u64::MAX;
-    let origin = <T::AccountId as Origin>::from_origin(source);
-    GasHandlerOf::<T>::create(origin, root_message_id, initial_gas)
-        .map_err(|_| "Internal error: unable to create gas handler")?;
-
-    let dispatch = dispatch.into_stored();
-
-    QueueOf::<T>::clear();
-
-    QueueOf::<T>::queue(dispatch).map_err(|_| "Messages storage corrupted")?;
-
-    let block_info = BlockInfo {
-        height: Gear::<T>::block_number().unique_saturated_into(),
-        timestamp: <pallet_timestamp::Pallet<T>>::get().unique_saturated_into(),
-    };
-
-    let existential_deposit = CurrencyOf::<T>::minimum_balance().unique_saturated_into();
-    let mailbox_threshold = <T as Config>::MailboxThreshold::get();
-    let waitlist_cost = CostsPerBlockOf::<T>::waitlist();
-    let reserve_for = CostsPerBlockOf::<T>::reserve_for().unique_saturated_into();
-    let reservation = CostsPerBlockOf::<T>::reservation().unique_saturated_into();
-
-    let schedule = T::Schedule::get();
-    let block_config = BlockConfig {
-        block_info,
-        allocations_config: AllocationsConfig {
-            max_pages: T::Schedule::get().limits.memory_pages.into(),
-            init_cost: T::Schedule::get().memory_weights.initial_cost,
-            alloc_cost: T::Schedule::get().memory_weights.allocation_cost,
-            mem_grow_cost: T::Schedule::get().memory_weights.grow_cost,
-            load_page_cost: T::Schedule::get().memory_weights.load_cost,
-        },
-        existential_deposit,
-        outgoing_limit: 2048,
-        host_fn_weights: Default::default(),
-        forbidden_funcs: Default::default(),
-        mailbox_threshold,
-        waitlist_cost,
-        reserve_for,
-        reservation,
-        read_cost: DbWeightOf::<T>::get().reads(1).ref_time(),
-        write_cost: DbWeightOf::<T>::get().writes(1).ref_time(),
-        write_per_byte_cost: schedule.db_write_per_byte,
-        read_per_byte_cost: schedule.db_read_per_byte,
-        module_instantiation_byte_cost: schedule.module_instantiation_per_byte,
-        max_reservations: u64::MAX,
-        code_instrumentation_cost: schedule.code_instrumentation_cost,
-        code_instrumentation_byte_cost: schedule.code_instrumentation_byte_cost,
-    };
-
-    let queued_dispatch = match QueueOf::<T>::dequeue().map_err(|_| "MQ storage corrupted")? {
-        Some(d) => d,
-        None => return Err("Dispatch not found"),
-    };
-
-    let actor_id = queued_dispatch.destination();
-    let actor = ext_manager
-        .get_actor(actor_id)
-        .ok_or("Program not found in the storage")?;
-
-    let precharged_dispatch = core_processor::precharge_for_program(
-        &block_config,
-        u64::MAX,
-        queued_dispatch.into_incoming(initial_gas),
-        actor_id,
-    )
-    .map_err(|_| "core_processor::precharge_for_program failed")?;
-
-    let balance = actor.balance;
-    let context = core_processor::precharge_for_code_length(
-        &block_config,
-        precharged_dispatch,
-        actor_id,
-        actor.executable_data,
-    )
-    .map_err(|_| "core_processor::precharge_for_code failed")?;
-
-    let code =
-        T::CodeStorage::get_code(context.actor_data().code_id).ok_or("Program code not found")?;
-
-    let context = ContextChargedForCode::from((context, code.code().len() as u32));
-    let context = core_processor::precharge_for_memory(
-        &block_config,
-        ContextChargedForInstrumentation::from(context),
-        false,
-    )
-    .map_err(|_| "core_processor::precharge_for_memory failed")?;
-
-    let origin = ProgramId::from_origin(source);
-
-    Ok(Exec {
-        ext_manager,
-        block_config,
-        context: (context, code, balance, origin).into(),
-        random_data: (vec![0u8; 32], 0),
-        // actor without pages data because of lazy pages enabled
-        memory_pages: Default::default(),
-        err_len_ptrs,
-    })
-}
+use sp_std::prelude::*;
 
 pub(crate) struct Benches<T>
 where
@@ -284,12 +71,13 @@ where
     ) -> Result<Exec<T>, &'static str> {
         let instance = Program::<T>::new(code, vec![])?;
 
-        prepare::<T>(
+        prepare_exec::<T>(
             instance.caller.into_origin(),
             HandleKind::Handle(ProgramId::from_origin(instance.addr)),
             vec![],
             value.into(),
             err_len_ptrs,
+            None,
         )
     }
 
@@ -415,12 +203,13 @@ where
         })
         .unwrap();
 
-        prepare::<T>(
+        prepare_exec::<T>(
             instance.caller.into_origin(),
             HandleKind::Handle(program_id),
             vec![],
             0,
             err_ptrs,
+            None,
         )
     }
 
@@ -444,12 +233,13 @@ where
             ..Default::default()
         });
         let instance = Program::<T>::new(code, vec![])?;
-        prepare::<T>(
+        prepare_exec::<T>(
             instance.caller.into_origin(),
             HandleKind::Handle(ProgramId::from_origin(instance.addr)),
             vec![],
             0u32.into(),
             err_ptrs,
+            None,
         )
     }
 
@@ -501,12 +291,13 @@ where
 
         let instance = Program::<T>::new(code, vec![])?;
 
-        prepare::<T>(
+        prepare_exec::<T>(
             instance.caller.into_origin(),
             HandleKind::Handle(ProgramId::from_origin(instance.addr)),
             vec![0; (buffer_len + buffer_offset) as usize],
             0,
             err_len_ptrs,
+            None,
         )
     }
 
@@ -545,12 +336,13 @@ where
 
         let instance = Program::<T>::new(code, vec![])?;
 
-        prepare::<T>(
+        prepare_exec::<T>(
             instance.caller.into_origin(),
             HandleKind::Handle(ProgramId::from_origin(instance.addr)),
             vec![0; (buffer_len + buffer_len) as usize],
             0,
             err_len_ptrs,
+            None,
         )
     }
 
@@ -819,12 +611,13 @@ where
         })
         .unwrap();
 
-        prepare::<T>(
+        prepare_exec::<T>(
             instance.caller.into_origin(),
             HandleKind::Handle(program_id),
             vec![],
             0,
             err_len_ptrs,
+            None,
         )
     }
 
@@ -892,12 +685,13 @@ where
         })
         .unwrap();
 
-        prepare::<T>(
+        prepare_exec::<T>(
             instance.caller.into_origin(),
             HandleKind::Handle(program_id),
             vec![],
             0,
             err_len_ptrs,
+            None,
         )
     }
 
@@ -1037,12 +831,13 @@ where
         })
         .unwrap();
 
-        prepare::<T>(
+        prepare_exec::<T>(
             instance.caller.into_origin(),
             HandleKind::Handle(program_id),
             vec![],
             0,
             err_len_ptrs,
+            None,
         )
     }
 
@@ -1078,12 +873,13 @@ where
         .into_stored();
         MailboxOf::<T>::insert(msg, u32::MAX.unique_saturated_into())
             .expect("Error during mailbox insertion");
-        prepare::<T>(
+        prepare_exec::<T>(
             instance.caller.into_origin(),
             HandleKind::Reply(msg_id, 0),
             vec![],
             0u32.into(),
             err_len_ptrs,
+            None,
         )
     }
 
@@ -1119,12 +915,13 @@ where
         .into_stored();
         MailboxOf::<T>::insert(msg, u32::MAX.unique_saturated_into())
             .expect("Error during mailbox insertion");
-        prepare::<T>(
+        prepare_exec::<T>(
             instance.caller.into_origin(),
             HandleKind::Signal(msg_id, 1),
             vec![],
             0u32.into(),
             err_len_ptrs,
+            None,
         )
     }
 
@@ -1154,12 +951,13 @@ where
         });
 
         let instance = Program::<T>::new(code, vec![])?;
-        prepare::<T>(
+        prepare_exec::<T>(
             instance.caller.into_origin(),
             HandleKind::Handle(ProgramId::from_origin(instance.addr)),
             vec![1u8; payload_len as usize],
             0u32.into(),
             err_len_ptrs,
+            None,
         )
     }
 
@@ -1185,12 +983,13 @@ where
         });
 
         let instance = Program::<T>::new(code, vec![])?;
-        prepare::<T>(
+        prepare_exec::<T>(
             instance.caller.into_origin(),
             HandleKind::Handle(ProgramId::from_origin(instance.addr)),
             vec![1u8; payload_len as usize],
             0u32.into(),
             err_len_ptrs,
+            None,
         )
     }
 
@@ -1232,12 +1031,13 @@ where
         });
 
         let instance = Program::<T>::new(code, vec![])?;
-        prepare::<T>(
+        prepare_exec::<T>(
             instance.caller.into_origin(),
             HandleKind::Handle(ProgramId::from_origin(instance.addr)),
             vec![1u8; payload_len as usize],
             0u32.into(),
             err_len_ptrs,
+            None,
         )
     }
 
@@ -1279,12 +1079,13 @@ where
         });
 
         let instance = Program::<T>::new(code, vec![])?;
-        prepare::<T>(
+        prepare_exec::<T>(
             instance.caller.into_origin(),
             HandleKind::Handle(ProgramId::from_origin(instance.addr)),
             vec![1u8; payload_len as usize],
             0u32.into(),
             err_len_ptrs,
+            None,
         )
     }
 
@@ -1320,12 +1121,13 @@ where
         .into_stored();
         MailboxOf::<T>::insert(msg, u32::MAX.unique_saturated_into())
             .expect("Error during mailbox insertion");
-        prepare::<T>(
+        prepare_exec::<T>(
             instance.caller.into_origin(),
             HandleKind::Reply(msg_id, 0),
             vec![],
             0u32.into(),
             err_len_ptrs,
+            None,
         )
     }
 
@@ -1464,12 +1266,13 @@ where
 
         let instance = Program::<T>::new(code, vec![])?;
 
-        prepare::<T>(
+        prepare_exec::<T>(
             instance.caller.into_origin(),
             HandleKind::Handle(ProgramId::from_origin(instance.addr)),
             vec![],
             0,
             err_len_ptrs,
+            None,
         )
     }
 
@@ -1612,5 +1415,191 @@ where
             ..Default::default()
         });
         Self::prepare_handle(code, 0, 0..0)
+    }
+
+    pub fn check_lazy_pages_charging() {
+
+        let test = |seed: u64| {
+            const MAX_ACCESSES_NUMBER: u32 = 1000;
+            const LOAD_PROB: f64 = 1.0 / 2.0;
+            const MAX_COST: u64 = 1000;
+
+            let gear_in_psg = GranularityPage::size() / PageNumber::size();
+            let access_size = size_of::<u32>() as u32;
+            let max_addr =
+                ImportedMemory::max::<T>().min_pages * WasmPageNumber::size() - access_size;
+
+            let mut instrs = vec![];
+            let mut read_pages = BTreeSet::new();
+            let mut write_pages = BTreeSet::new();
+            let mut write_after_read_pages = BTreeSet::new();
+
+            let mut rng = rand_pcg::Pcg32::seed_from_u64(seed);
+
+            let accesses_number = rng.gen_range(1..MAX_ACCESSES_NUMBER);
+            for _ in 0..accesses_number {
+                let addr = rng.gen_range(0..max_addr) as i32;
+                let accessed_pages: BTreeSet<_> = vec![
+                    GranularityPage::from_offset(addr as u32),
+                    GranularityPage::from_offset(addr as u32 + access_size - 1),
+                ]
+                .into_iter()
+                .collect();
+                if rng.gen_bool(1.0 / 2.0) {
+                    instrs.push(Instruction::I32Const(addr));
+                    instrs.push(Instruction::I32Load(2, 0));
+                    instrs.push(Instruction::Drop);
+
+                    for page in accessed_pages {
+                        if !write_pages.contains(&page) && !write_after_read_pages.contains(&page) {
+                            read_pages.insert(page);
+                        }
+                    }
+                } else {
+                    instrs.push(Instruction::I32Const(addr));
+                    instrs.push(Instruction::I32Const(u32::MAX as i32));
+                    instrs.push(Instruction::I32Store(2, 0));
+
+                    for page in accessed_pages {
+                        if !write_pages.contains(&page) {
+                            if read_pages.contains(&page) {
+                                write_after_read_pages.insert(page);
+                            } else if !write_after_read_pages.contains(&page) {
+                                write_pages.insert(page);
+                            }
+                        }
+                    }
+                }
+            }
+
+            let code = WasmModule::<T>::from(ModuleDefinition {
+                memory: Some(ImportedMemory::max::<T>()),
+                handle_body: Some(body::from_instructions(instrs)),
+                ..Default::default()
+            });
+            let instance = Program::<T>::new(code, vec![]).unwrap();
+            let exec = prepare_exec::<T>(
+                instance.caller.into_origin(),
+                HandleKind::Handle(ProgramId::from_origin(instance.addr)),
+                vec![],
+                0,
+                0..0,
+                None,
+            )
+            .unwrap();
+
+            let charged: Vec<(u64, u64)> = (0..2)
+                .map(|i| {
+                    let mut exec = exec.clone();
+                    let weights = LazyPagesWeights {
+                        read: rng.gen_range(0..MAX_COST),
+                        write: rng.gen_range(0..MAX_COST),
+                        write_after_read: rng.gen_range(0..MAX_COST),
+                        read_data_from_storage: rng.gen_range(0..MAX_COST),
+                    };
+                    exec.block_config.allocations_config.lazy_pages_weights = weights.clone();
+
+                    let charged_for_pages =
+                        weights.read * gear_in_psg as u64 * read_pages.len() as u64
+                            + weights.write * gear_in_psg as u64 * write_pages.len() as u64
+                            + weights.write_after_read
+                                * gear_in_psg as u64
+                                * write_after_read_pages.len() as u64;
+
+                    let notes = core_processor::process::<Ext, ExecutionEnvironment>(
+                        &exec.block_config,
+                        exec.context,
+                        exec.random_data,
+                        exec.memory_pages,
+                    );
+
+                    let mut gas_burned = 0;
+                    for note in notes.into_iter() {
+                        match note {
+                            JournalNote::GasBurned { amount, .. } => gas_burned = amount,
+                            _ => {}
+                        }
+                    }
+
+                    (charged_for_pages, gas_burned)
+                })
+                .collect();
+
+            assert_eq!(
+                charged[0].0.abs_diff(charged[1].0),
+                charged[0].1.abs_diff(charged[1].1)
+            );
+        };
+
+        for seed in 0..100 {
+            test(seed);
+        }
+
+    }
+
+
+    // +_+_+
+    #[allow(unused)]
+    pub fn check_lazy_pages_charging_special() {
+        // let psg = PAGE_STORAGE_GRANULARITY as i32;
+        // let instrs = vec![
+        //     Instruction::I32Const(0),
+        //     Instruction::I32Load(2, 0),
+        //     Instruction::Drop,
+        //     Instruction::I32Const(psg - 1),
+        //     Instruction::I32Load(2, 0),
+        //     Instruction::Drop,
+        //     Instruction::I32Const(psg * 10 - 1),
+        //     Instruction::I32Load(2, 0),
+        //     Instruction::Drop,
+        // ];
+        // let code = WasmModule::<T>::from(ModuleDefinition {
+        //     memory: Some(ImportedMemory::max::<T>()),
+        //     handle_body: Some(body::from_instructions(instrs)),
+        //     ..Default::default()
+        // });
+        // let instance = Program::<T>::new(code, vec![]).unwrap();
+        // let exec = prepare_exec::<T>(
+        //     instance.caller.into_origin(),
+        //     HandleKind::Handle(ProgramId::from_origin(instance.addr)),
+        //     vec![],
+        //     0,
+        //     0..0,
+        //     None,
+        // )
+        // .unwrap();
+
+        // {
+        //     let mut exec = exec.clone();
+        //     exec.block_config.allocations_config.lazy_pages_weights = LazyPagesWeights {
+        //         read: 1,
+        //         write: 10,
+        //         write_after_read: 100,
+        //         read_data_from_storage: 100,
+        //     };
+        //     let res = core_processor::process::<Ext, ExecutionEnvironment>(
+        //         &exec.block_config,
+        //         exec.context,
+        //         exec.random_data,
+        //         exec.memory_pages,
+        //     );
+        //     log::trace!("lol = {:?}", res);
+        // }
+        // {
+        //     let mut exec = exec.clone();
+        //     exec.block_config.allocations_config.lazy_pages_weights = LazyPagesWeights {
+        //         read: 0,
+        //         write: 0,
+        //         write_after_read: 0,
+        //         read_data_from_storage: 0,
+        //     };
+        //     let res = core_processor::process::<Ext, ExecutionEnvironment>(
+        //         &exec.block_config,
+        //         exec.context,
+        //         exec.random_data,
+        //         exec.memory_pages,
+        //     );
+        //     log::trace!("kek = {:?}", res);
+        // }
     }
 }

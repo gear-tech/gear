@@ -23,6 +23,7 @@
 extern crate alloc;
 
 pub mod error_processor;
+pub mod lazy_pages;
 
 mod utils;
 use memory::OutOfMemoryAccessError;
@@ -30,6 +31,8 @@ pub use utils::calc_stack_end;
 
 #[cfg(feature = "mock")]
 pub mod mock;
+
+pub mod memory;
 
 use alloc::{
     collections::{BTreeMap, BTreeSet},
@@ -55,6 +58,7 @@ use gear_core::{
     reservation::GasReserver,
 };
 use gear_core_errors::{ExtError, MemoryError};
+use lazy_pages::{GlobalsCtx, LazyPagesWeights};
 use scale_info::TypeInfo;
 
 pub mod memory;
@@ -166,6 +170,9 @@ pub trait IntoExtInfo<Error> {
         reads: &[MemoryInterval],
         writes: &[MemoryInterval],
     ) -> Result<(), OutOfMemoryAccessError>;
+
+    /// +_+_+
+    fn lazy_pages_weights(&self) -> LazyPagesWeights;
 }
 
 pub trait GetGasAmount {
@@ -305,7 +312,7 @@ where
         pre_execution_handler: F,
     ) -> Result<BackendReport<Self::Memory, E>, Self::Error>
     where
-        F: FnOnce(&mut Self::Memory, Option<WasmPageNumber>) -> Result<(), T>,
+        F: FnOnce(&mut Self::Memory, Option<WasmPageNumber>, Option<GlobalsCtx>) -> Result<(), T>,
         T: fmt::Display;
 }
 

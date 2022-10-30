@@ -20,6 +20,7 @@
 
 use alloc::{collections::BTreeSet, vec::Vec};
 use codec::{Decode, Encode};
+use gear_backend_common::lazy_pages::LazyPagesWeights;
 use gear_core::{code, costs::HostFnWeights, memory::WasmPageNumber};
 use gear_wasm_instrument::syscalls::SysCallName;
 
@@ -27,6 +28,12 @@ const INIT_COST: u64 = 5000;
 const ALLOC_COST: u64 = 10000;
 const MEM_GROW_COST: u64 = 10000;
 const LOAD_PAGE_COST: u64 = 3000;
+const LAZY_PAGES_WEIGHTS: LazyPagesWeights = LazyPagesWeights {
+    read: 10,
+    write: 10,
+    write_after_read: 10,
+    read_data_from_storage: 10,
+};
 
 /// Contextual block information.
 #[derive(Clone, Copy, Debug, Encode, Decode, Default)]
@@ -39,9 +46,11 @@ pub struct BlockInfo {
 
 /// Memory/allocation config.
 #[derive(Clone, Debug, Decode, Encode)]
-pub struct AllocationsConfig {
+pub struct PagesConfig {
     /// Max amount of pages.
     pub max_pages: WasmPageNumber,
+    /// +_+_+
+    pub lazy_pages_weights: LazyPagesWeights,
     /// Cost of initial memory.
     pub init_cost: u64,
     /// Cost of allocating memory.
@@ -52,10 +61,11 @@ pub struct AllocationsConfig {
     pub load_page_cost: u64,
 }
 
-impl Default for AllocationsConfig {
+impl Default for PagesConfig {
     fn default() -> Self {
         Self {
             max_pages: code::MAX_WASM_PAGE_COUNT.into(),
+            lazy_pages_weights: LAZY_PAGES_WEIGHTS,
             init_cost: INIT_COST,
             alloc_cost: ALLOC_COST,
             mem_grow_cost: MEM_GROW_COST,
@@ -69,7 +79,7 @@ pub struct ExecutionSettings {
     /// Contextual block information.
     pub block_info: BlockInfo,
     /// Allocation config.
-    pub allocations_config: AllocationsConfig,
+    pub allocations_config: PagesConfig,
     /// Minimal amount of existence for account.
     pub existential_deposit: u128,
     /// Weights of host functions.
@@ -102,7 +112,7 @@ pub struct BlockConfig {
     /// Block info.
     pub block_info: BlockInfo,
     /// Allocations config.
-    pub allocations_config: AllocationsConfig,
+    pub allocations_config: PagesConfig,
     /// Existential deposit.
     pub existential_deposit: u128,
     /// Outgoing limit.

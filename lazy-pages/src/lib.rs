@@ -25,15 +25,20 @@
 //! Currently we restrict twice write signal from same page during one execution.
 //! It's not necessary behavior, but more simple and safe.
 
+use gear_backend_common::{
+    lazy_pages::{GlobalsCtx, Status},
+    memory::OutOfMemoryAccessError,
+};
 use gear_core::memory::{
-    PageNumber, PageU32Size, WasmPageNumber, GEAR_PAGE_SIZE, PAGE_STORAGE_GRANULARITY,
+    GranularityPage, PageNumber, PageU32Size, WasmPageNumber, GEAR_PAGE_SIZE,
+    PAGE_STORAGE_GRANULARITY,
 };
 use once_cell::sync::OnceCell;
 use sp_std::vec::Vec;
 use std::{cell::RefCell, collections::BTreeSet, num::NonZeroU32};
 
 mod sys;
-use sys::{DefaultUserSignalHandler, UserSignalHandler};
+use sys::{AccessedPagesInfo, DefaultUserSignalHandler, UserSignalHandler};
 
 mod mprotect;
 use mprotect::MprotectError;
@@ -69,6 +74,16 @@ pub(crate) enum Error {
     #[display(fmt = "Protection error: {_0}")]
     #[from]
     MemoryProtection(region::Error),
+    #[display(fmt = "Given instance host pointer is invalid")]
+    HostInstancePointerIsInvalid,
+    #[display(fmt = "Given pointer to globals access provider dyn object is invalid")]
+    DynGlobalsAccessPointerIsInvalid,
+    #[display(fmt = "Cannot charge gas from gas limit global")]
+    CannotChargeGas,
+    #[display(fmt = "Cannot charge gas from gas allowance global")]
+    CannotChargeGasAllowance,
+    #[display(fmt = "Status must be set before program execution")]
+    StatusIsNone,
     #[display(fmt = "It's unknown wether memory access is read or write")]
     ReadOrWriteIsUnknown,
 }
@@ -89,6 +104,12 @@ pub(crate) struct LazyPagesExecutionContext {
     /// Wasm addresses of lazy-pages, that have been read or write accessed at least once.
     /// Lazy page here is page, which has `size = max(native_page_size, gear_page_size)`.
     pub accessed_pages: BTreeSet<LazyPage>,
+    /// Granularity pages, for which we have already charge gas for read after write.
+    pub read_after_write_charged: BTreeSet<GranularityPage>,
+    /// Granularity pages, for which we have already charge gas for read.
+    pub read_charged: BTreeSet<GranularityPage>,
+    /// Granularity pages, for which we have already charge gas for write.
+    pub write_charged: BTreeSet<GranularityPage>,
     /// End of stack wasm address. Default is `0`, which means,
     /// that wasm data has no stack region. It's not necessary to specify
     /// this value, `lazy-pages` uses it to identify memory, for which we
@@ -98,6 +119,10 @@ pub(crate) struct LazyPagesExecutionContext {
     pub stack_end_wasm_page: WasmPageNumber,
     /// Gear pages, which has been write accessed.
     pub released_pages: BTreeSet<LazyPage>,
+    /// Context to access globals and works with them: charge gas, set status global.
+    pub globals_ctx: Option<GlobalsCtx>,
+    /// Lazy-pages status: indicates in which mod lazy-pages works actually.
+    pub status: Option<Status>,
 }
 
 thread_local! {
@@ -133,6 +158,7 @@ pub fn initialize_for_program(
     wasm_mem_size: WasmPageNumber,
     stack_end_page: Option<WasmPageNumber>,
     program_id: Vec<u8>,
+    globals_ctx: Option<GlobalsCtx>,
 ) -> Result<(), InitializeForProgramError> {
     use InitializeForProgramError::*;
 
@@ -147,6 +173,7 @@ pub fn initialize_for_program(
 
         program_storage_prefix.extend_from_slice(&program_id);
         ctx.program_storage_prefix = Some(program_storage_prefix);
+        ctx.status.replace(Status::Normal);
 
         if let Some(addr) = wasm_mem_addr {
             if addr % region::page::size() != 0 {
@@ -170,6 +197,8 @@ pub fn initialize_for_program(
         } else {
             WasmPageNumber::zero()
         };
+
+        ctx.globals_ctx = globals_ctx;
 
         // Set protection if wasm memory exist.
         if let Some(addr) = wasm_mem_addr {
@@ -204,6 +233,54 @@ impl PageU32Size for LazyPage {
     unsafe fn new_unchecked(num: u32) -> Self {
         Self(num)
     }
+}
+
+fn get_access_pages(accesses: &[(u32, u32)]) -> Result<BTreeSet<LazyPage>, OutOfMemoryAccessError> {
+    let mut set = BTreeSet::new();
+    for access in accesses {
+        let first_page = LazyPage::from_offset(access.0);
+        let byte_after_last = access
+            .0
+            .checked_add(access.1)
+            .ok_or(OutOfMemoryAccessError)?;
+        // TODO: here we suppose zero byte access like one byte access, because
+        // backend memory impl can access memory even in case access has size 0.
+        // We can optimize this if will ignore zero bytes access in core-backend.
+        let last_byte = byte_after_last.checked_sub(1).unwrap_or(byte_after_last);
+        let last_page = LazyPage::from_offset(last_byte);
+        set.extend((first_page.0..=last_page.0).map(LazyPage));
+    }
+    Ok(set)
+}
+
+pub fn pre_process_memory_accesses(
+    reads: &[(u32, u32)],
+    writes: &[(u32, u32)],
+    _in_buffers: Option<&[&mut [u8]]>,
+    _out_buffers: Option<&[&mut [u8]]>,
+) -> Result<(), OutOfMemoryAccessError> {
+    let mut read_pages = get_access_pages(reads)?;
+    let write_pages = get_access_pages(writes)?;
+    for page in write_pages.iter() {
+        read_pages.remove(page);
+    }
+    LAZY_PAGES_CONTEXT
+        .with(|ctx| unsafe {
+            sys::process_lazy_pages(
+                ctx.borrow_mut(),
+                AccessedPagesInfo::FromHostFunc(read_pages),
+                false,
+            )?;
+            sys::process_lazy_pages(
+                ctx.borrow_mut(),
+                AccessedPagesInfo::FromHostFunc(write_pages),
+                true,
+            )
+        })
+        .map_err(|err| match err {
+            Error::OutOfWasmMemoryAccess | Error::WasmMemSizeIsNotSet => OutOfMemoryAccessError,
+            err => panic!("Lazy-pages unexpected error: {}", err),
+        })
 }
 
 #[derive(Debug, derive_more::Display, derive_more::From)]
@@ -304,6 +381,10 @@ pub fn get_released_pages() -> Vec<PageNumber> {
             .flat_map(|page| page.to_pages_iter())
             .collect()
     })
+}
+
+pub fn get_status() -> Option<Status> {
+    LAZY_PAGES_CONTEXT.with(|ctx| ctx.borrow().status)
 }
 
 #[derive(Debug, Clone, derive_more::Display)]
