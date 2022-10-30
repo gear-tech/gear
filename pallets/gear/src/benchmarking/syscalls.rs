@@ -24,7 +24,7 @@ use gear_core::{
     ids::{CodeId, MessageId, ProgramId},
     message::{Dispatch, DispatchKind, Message, ReplyDetails},
 };
-use gear_wasm_instrument::parity_wasm::elements::Instruction;
+use gear_wasm_instrument::{parity_wasm::elements::Instruction, syscalls::syscall_signature};
 use sp_core::H256;
 use sp_runtime::traits::UniqueSaturatedInto;
 use sp_std::{convert::TryInto, prelude::*};
@@ -773,8 +773,10 @@ where
         assert!(r <= 1);
 
         let instructions = if let Some(c) = param {
+            assert!(syscall_signature(name).params.len() == 1);
             vec![Instruction::I32Const(c as i32), Instruction::Call(0)]
         } else {
+            assert!(syscall_signature(name).params.is_empty());
             vec![Instruction::Call(0)]
         };
 

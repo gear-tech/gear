@@ -109,6 +109,8 @@ pub fn syscalls_name_list() -> Vec<&'static str> {
         "gr_value",
         "gr_create_program",
         "gr_create_program_wgas",
+        "gr_reserve_gas",
+        "gr_unreserve_gas",
     ]
 }
 
@@ -158,6 +160,8 @@ pub fn syscall_signature(name: &str) -> SysCallSignature {
             [Ptr, Ptr, Size, Ptr, Size, Gas, Ptr, Delay, Ptr, Ptr],
             [I32],
         ),
+        "gr_reserve_gas" => SysCallSignature::new([Gas, Duration, Ptr], [I32]),
+        "gr_unreserve_gas" => SysCallSignature::new([Ptr, Ptr], [I32]),
         other => panic!("Unknown syscall name: '{}'", other),
     }
 }

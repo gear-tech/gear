@@ -841,7 +841,7 @@ benchmarks! {
     gr_leave {
         let r in 0 .. 1;
         let mut res = None;
-        let exec = Benches::<T>::no_return_bench("gr_leave", Some(0xff), r)?;
+        let exec = Benches::<T>::no_return_bench("gr_leave", None, r)?;
     }: {
         res.replace(run_process(exec));
     }
@@ -854,7 +854,7 @@ benchmarks! {
     gr_wait {
         let r in 0 .. 1;
         let mut res = None;
-        let exec = Benches::<T>::no_return_bench("gr_wait", Some(0xff), r)?;
+        let exec = Benches::<T>::no_return_bench("gr_wait", None, r)?;
     }: {
         res.replace(run_process(exec));
     }
@@ -867,7 +867,7 @@ benchmarks! {
     gr_wait_for {
         let r in 0 .. 1;
         let mut res = None;
-        let exec = Benches::<T>::no_return_bench("gr_wait_for", Some(0xff), r)?;
+        let exec = Benches::<T>::no_return_bench("gr_wait_for", Some(10), r)?;
     }: {
         res.replace(run_process(exec));
     }
@@ -880,7 +880,7 @@ benchmarks! {
     gr_wait_up_to {
         let r in 0 .. 1;
         let mut res = None;
-        let exec = Benches::<T>::no_return_bench("gr_wait_up_to", Some(0xff), r)?;
+        let exec = Benches::<T>::no_return_bench("gr_wait_up_to", Some(100), r)?;
     }: {
         res.replace(run_process(exec));
     }
