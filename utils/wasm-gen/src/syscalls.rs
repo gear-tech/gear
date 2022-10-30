@@ -18,45 +18,24 @@
 
 use std::collections::BTreeMap;
 
-use gear_wasm_instrument::parity_wasm::elements::{FunctionType, ValueType};
+use gear_wasm_instrument::{
+    parity_wasm::elements::{FunctionType, ValueType},
+    syscalls::{syscall_signature, syscalls_name_list, ParamType, SysCallSignature},
+};
 
 use crate::{GearConfig, ParamRule, Ratio};
 
-#[derive(Debug, Clone, Copy)]
-pub enum ParamType {
-    Size,            // i32 buffers size in memory
-    Ptr,             // i32 pointer
-    Gas,             // i64 gas amount
-    MessagePosition, // i32 message position
-    Duration,        // i32 duration in blocks
-    Delay,           // i32 delay in blocks
-    Handler,         // i32 handler number
-    Alloc,           // i32 alloc pages
-    Free,            // i32 free page
-}
-
-impl From<ParamType> for ValueType {
-    fn from(value: ParamType) -> Self {
-        match value {
-            ParamType::Gas => ValueType::I64,
-            _ => ValueType::I32,
-        }
-    }
-}
-
-impl ParamType {
-    pub fn into_param_rule(self, config: &GearConfig) -> ParamRule {
-        match self {
-            ParamType::Size => config.sys_calls.memory_size_rule.clone(),
-            ParamType::Ptr => config.sys_calls.ptr_rule.clone(),
-            ParamType::Gas => config.sys_calls.gas_rule.clone(),
-            ParamType::MessagePosition => config.sys_calls.message_position.clone(),
-            ParamType::Duration => config.sys_calls.duration_in_blocks.clone(),
-            ParamType::Delay => config.sys_calls.duration_in_blocks.clone(),
-            ParamType::Handler => config.sys_calls.handler.clone(),
-            ParamType::Alloc => config.sys_calls.alloc_param_rule.clone(),
-            ParamType::Free => config.sys_calls.free_param_rule.clone(),
-        }
+pub fn param_to_rule(param: ParamType, config: &GearConfig) -> ParamRule {
+    match param {
+        ParamType::Size => config.sys_calls.memory_size_rule.clone(),
+        ParamType::Ptr => config.sys_calls.ptr_rule.clone(),
+        ParamType::Gas => config.sys_calls.gas_rule.clone(),
+        ParamType::MessagePosition => config.sys_calls.message_position.clone(),
+        ParamType::Duration => config.sys_calls.duration_in_blocks.clone(),
+        ParamType::Delay => config.sys_calls.duration_in_blocks.clone(),
+        ParamType::Handler => config.sys_calls.handler.clone(),
+        ParamType::Alloc => config.sys_calls.alloc_param_rule.clone(),
+        ParamType::Free => config.sys_calls.free_param_rule.clone(),
     }
 }
 
@@ -73,19 +52,15 @@ pub struct SysCallInfo {
 }
 
 impl SysCallInfo {
-    pub fn new<const N: usize, const M: usize>(
-        config: &GearConfig,
-        params: [ParamType; N],
-        results: [ValueType; M],
-        frequency: Ratio,
-    ) -> Self {
+    pub fn new(config: &GearConfig, signature: SysCallSignature, frequency: Ratio) -> Self {
         Self {
-            params: params.iter().copied().map(Into::into).collect(),
-            results: results.to_vec(),
-            param_rules: params
+            params: signature.params.iter().copied().map(Into::into).collect(),
+            results: signature.results.to_vec(),
+            param_rules: signature
+                .params
                 .iter()
                 .copied()
-                .map(|param| param.into_param_rule(config))
+                .map(|param| param_to_rule(param, config))
                 .collect(),
             frequency,
         }
@@ -156,204 +131,13 @@ impl Default for SyscallsConfig {
 
 /// Make syscalls table for given config.
 pub(crate) fn sys_calls_table(config: &GearConfig) -> BTreeMap<&'static str, SysCallInfo> {
-    use ParamType::*;
-    use ValueType::*;
-    let mut res = BTreeMap::new();
-    let frequency = config.sys_call_freq;
-
-    res.insert("alloc", SysCallInfo::new(config, [Alloc], [I32], frequency));
-    res.insert("free", SysCallInfo::new(config, [Free], [], frequency));
-
-    res.insert(
-        "gr_debug",
-        SysCallInfo::new(config, [Ptr, Size], [], frequency),
-    );
-    res.insert(
-        "gr_error",
-        SysCallInfo::new(config, [Ptr], [I32], frequency),
-    );
-
-    res.insert(
-        "gr_block_height",
-        SysCallInfo::new(config, [], [I32], frequency),
-    );
-    res.insert(
-        "gr_block_timestamp",
-        SysCallInfo::new(config, [], [I64], frequency),
-    );
-    res.insert("gr_exit", SysCallInfo::new(config, [Ptr], [], frequency));
-    res.insert(
-        "gr_gas_available",
-        SysCallInfo::new(config, [], [I64], frequency),
-    );
-    res.insert(
-        "gr_program_id",
-        SysCallInfo::new(config, [Ptr], [], frequency),
-    );
-    res.insert("gr_origin", SysCallInfo::new(config, [Ptr], [], frequency));
-    res.insert("gr_leave", SysCallInfo::new(config, [], [], frequency));
-    res.insert(
-        "gr_value_available",
-        SysCallInfo::new(config, [Ptr], [], frequency),
-    );
-    res.insert("gr_wait", SysCallInfo::new(config, [], [], frequency));
-    res.insert(
-        "gr_wait_up_to",
-        SysCallInfo::new(config, [Duration], [], frequency),
-    );
-    res.insert(
-        "gr_wait_for",
-        SysCallInfo::new(config, [Duration], [], frequency),
-    );
-    res.insert(
-        "gr_wake",
-        SysCallInfo::new(config, [Ptr, Delay], [I32], frequency),
-    );
-
-    res.insert(
-        "gr_exit_code",
-        SysCallInfo::new(config, [Ptr], [I32], frequency),
-    );
-    res.insert(
-        "gr_message_id",
-        SysCallInfo::new(config, [Ptr], [], frequency),
-    );
-    res.insert(
-        "gr_read",
-        SysCallInfo::new(config, [MessagePosition, Size, Ptr], [I32], frequency),
-    );
-    res.insert(
-        "gr_reply",
-        SysCallInfo::new(config, [Ptr, Size, Ptr, Ptr, Delay], [I32], frequency),
-    );
-    res.insert(
-        "gr_reply_wgas",
-        SysCallInfo::new(config, [Ptr, Size, Gas, Ptr, Delay, Ptr], [I32], frequency),
-    );
-    res.insert(
-        "gr_reply_commit",
-        SysCallInfo::new(config, [Ptr, Delay, Ptr], [I32], frequency),
-    );
-    res.insert(
-        "gr_reply_commit_wgas",
-        SysCallInfo::new(config, [Gas, Ptr, Delay, Ptr], [I32], frequency),
-    );
-    res.insert(
-        "gr_reply_push",
-        SysCallInfo::new(config, [Ptr, Size], [I32], frequency),
-    );
-    res.insert(
-        "gr_reply_to",
-        SysCallInfo::new(config, [Ptr], [I32], frequency),
-    );
-    res.insert(
-        "gr_send",
-        SysCallInfo::new(config, [Ptr, Ptr, Size, Ptr, Delay, Ptr], [I32], frequency),
-    );
-    res.insert(
-        "gr_send_wgas",
-        SysCallInfo::new(
-            config,
-            [Ptr, Ptr, Size, Gas, Ptr, Delay, Ptr],
-            [I32],
-            frequency,
-        ),
-    );
-    res.insert(
-        "gr_send_commit",
-        SysCallInfo::new(config, [Handler, Ptr, Ptr, Delay, Ptr], [I32], frequency),
-    );
-    res.insert(
-        "gr_send_commit_wgas",
-        SysCallInfo::new(
-            config,
-            [Handler, Ptr, Gas, Ptr, Delay, Ptr],
-            [I32],
-            frequency,
-        ),
-    );
-    res.insert(
-        "gr_send_init",
-        SysCallInfo::new(config, [Handler], [I32], frequency),
-    );
-    res.insert(
-        "gr_send_push",
-        SysCallInfo::new(config, [Handler, Ptr, Size], [I32], frequency),
-    );
-    res.insert("gr_size", SysCallInfo::new(config, [], [I32], frequency));
-    res.insert("gr_source", SysCallInfo::new(config, [Ptr], [], frequency));
-    res.insert("gr_value", SysCallInfo::new(config, [Ptr], [], frequency));
-
-    res.insert(
-        "gr_create_program",
-        SysCallInfo::new(
-            config,
-            [Ptr, Ptr, Size, Ptr, Size, Ptr, Delay, Ptr, Ptr],
-            [I32],
-            frequency,
-        ),
-    );
-    res.insert(
-        "gr_create_program_wgas",
-        SysCallInfo::new(
-            config,
-            [Ptr, Ptr, Size, Ptr, Size, Gas, Ptr, Delay, Ptr, Ptr],
-            [I32],
-            frequency,
-        ),
-    );
-
-    res
-}
-
-/// Check that all sys calls are supported by backend.
-#[test]
-fn test_sys_calls_table() {
-    use gear_backend_common::{mock::MockExt, Environment, TerminationReason};
-    use gear_backend_wasmi::WasmiEnvironment;
-    use gear_core::message::DispatchKind;
-    use gear_wasm_instrument::{
-        parity_wasm::{self, builder},
-        wasm_instrument::gas_metering::ConstantCostRules,
-    };
-
-    let config = GearConfig::new_normal();
-    let table = sys_calls_table(&config);
-
-    // Make module with one empty function.
-    let mut module = builder::module()
-        .function()
-        .signature()
-        .build()
-        .build()
-        .build();
-
-    // Insert syscalls imports.
-    for (name, info) in table {
-        let types = module.type_section_mut().unwrap().types_mut();
-        let type_no = types.len() as u32;
-        types.push(parity_wasm::elements::Type::Function(info.func_type()));
-
-        module = builder::from_module(module)
-            .import()
-            .module("env")
-            .external()
-            .func(type_no)
-            .field(name)
-            .build()
-            .build();
-    }
-
-    let module =
-        gear_wasm_instrument::inject(module, &ConstantCostRules::default(), "env").unwrap();
-    let code = module.into_bytes().unwrap();
-
-    // Execute wasm and check success.
-    let ext = MockExt::default();
-    let env = WasmiEnvironment::new(ext, &code, Default::default(), 0.into()).unwrap();
-    let res = env
-        .execute(&DispatchKind::Init, |_, _| -> Result<(), u32> { Ok(()) })
-        .unwrap();
-
-    assert_eq!(res.termination_reason, TerminationReason::Success);
+    syscalls_name_list()
+        .iter()
+        .map(|name| {
+            (
+                *name,
+                SysCallInfo::new(config, syscall_signature(name), config.sys_call_freq),
+            )
+        })
+        .collect()
 }

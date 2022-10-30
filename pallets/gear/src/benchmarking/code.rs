@@ -36,6 +36,7 @@ use gear_wasm_instrument::parity_wasm::{
         ValueType,
     },
 };
+use gear_wasm_instrument::syscalls;
 use sp_sandbox::{
     default_executor::{EnvironmentDefinitionBuilder, Memory},
     SandboxEnvironmentBuilder, SandboxMemory,
@@ -63,8 +64,8 @@ pub struct ModuleDefinition {
     pub data_segments: Vec<DataSegment>,
     /// Creates the supplied amount of i64 mutable globals initialized with random values.
     pub num_globals: u32,
-    /// List of functions that the module should import. They start with index 0.
-    pub imported_functions: Vec<ImportedFunction>,
+    /// List of syscalls that the module should import. They start with index 0.
+    pub imported_functions: Vec<&'static str>,
     /// Function body of the exported `init` function. Body is empty if `None`.
     /// Its index is `imported_functions.len()`.
     pub init_body: Option<FuncBody>,
@@ -204,16 +205,17 @@ where
         }
 
         // Import supervisor functions. They start with idx 0.
-        for func in def.imported_functions {
+        for name in def.imported_functions {
+            let sign = syscalls::syscall_signature(name);
             let sig = builder::signature()
-                .with_params(func.params)
-                .with_results(func.return_type.into_iter().collect::<Vec<_>>())
+                .with_params(sign.params.into_iter().map(Into::into))
+                .with_results(sign.results.into_iter())
                 .build_sig();
             let sig = program.push_signature(sig);
             program = program
                 .import()
-                .module(func.module)
-                .field(func.name)
+                .module("env")
+                .field(name)
                 .with_external(elements::External::Function(sig))
                 .build();
         }
@@ -326,39 +328,6 @@ where
             Location::Handle => module.handle_body = body,
         }
         module.into()
-    }
-
-    /// Creates a wasm module that calls the imported function named `getter_name` `repeat`
-    /// times. The imported function is expected to have the "getter signature" of
-    /// (out_ptr: u32) -> ().
-    pub fn getter(module_name: &'static str, getter_name: &'static str, repeat: u32) -> Self {
-        let pages = max_pages::<T>();
-        ModuleDefinition {
-            memory: Some(ImportedMemory::max::<T>()),
-            imported_functions: vec![ImportedFunction {
-                module: module_name,
-                name: getter_name,
-                params: vec![ValueType::I32],
-                return_type: None,
-            }],
-            // Write the output buffer size. The output size will be overwritten by the
-            // supervisor with the real size when calling the getter. Since this size does not
-            // change between calls it suffices to start with an initial value and then just
-            // leave as whatever value was written there.
-            data_segments: vec![DataSegment {
-                offset: 0,
-                value: (pages * 64 * 1024 - 4).to_le_bytes().to_vec(),
-            }],
-            handle_body: Some(body::repeated(
-                repeat,
-                &[
-                    Instruction::I32Const(4), // ptr where to store output
-                    Instruction::Call(0),     // call the imported function
-                ],
-            )),
-            ..Default::default()
-        }
-        .into()
     }
 
     /// Creates a memory instance for use in a sandbox with dimensions declared in this module

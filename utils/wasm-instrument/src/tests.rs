@@ -595,3 +595,51 @@ test_gas_counter_injection! {
     )
     "#
 }
+
+/// Check that all sys calls are supported by backend.
+#[test]
+fn test_sys_calls_table() {
+    use parity_wasm::builder;
+    use gas_metering::ConstantCostRules;
+    use syscalls::{syscalls_name_list, syscall_signature};
+    use gear_backend_common::{mock::MockExt, Environment, TerminationReason};
+    use gear_backend_wasmi::WasmiEnvironment;
+    use gear_core::message::DispatchKind;
+
+    // Make module with one empty function.
+    let mut module = builder::module()
+        .function()
+        .signature()
+        .build()
+        .build()
+        .build();
+
+    // Insert syscalls imports.
+    for name in syscalls_name_list() {
+        let sign = syscall_signature(name);
+        let types = module.type_section_mut().unwrap().types_mut();
+        let type_no = types.len() as u32;
+        types.push(parity_wasm::elements::Type::Function(sign.func_type()));
+
+        module = builder::from_module(module)
+            .import()
+            .module("env")
+            .external()
+            .func(type_no)
+            .field(name)
+            .build()
+            .build();
+    }
+
+    let module = inject(module, &ConstantCostRules::default(), "env").unwrap();
+    let code = module.into_bytes().unwrap();
+
+    // Execute wasm and check success.
+    let ext = MockExt::default();
+    let env = WasmiEnvironment::new(ext, &code, Default::default(), 0.into()).unwrap();
+    let res = env
+        .execute(&DispatchKind::Init, |_, _| -> Result<(), u32> { Ok(()) })
+        .unwrap();
+
+    assert_eq!(res.termination_reason, TerminationReason::Success);
+}

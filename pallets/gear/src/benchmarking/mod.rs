@@ -615,7 +615,7 @@ benchmarks! {
     gr_gas_available {
         let r in 0 .. API_BENCHMARK_BATCHES;
         let mut res = None;
-        let exec = number_getter_bench::<T>("gr_gas_available", ValueType::I64, r)?;
+        let exec = number_getter_bench::<T>("gr_gas_available", r)?;
     }: {
         res.replace(run_process(exec));
     }
@@ -626,7 +626,7 @@ benchmarks! {
     gr_size {
         let r in 0 .. API_BENCHMARK_BATCHES;
         let mut res = None;
-        let exec = number_getter_bench::<T>("gr_size", ValueType::I32, r)?;
+        let exec = number_getter_bench::<T>("gr_size", r)?;
     }: {
         res.replace(run_process(exec));
     }
@@ -659,7 +659,7 @@ benchmarks! {
     gr_block_height {
         let r in 0 .. API_BENCHMARK_BATCHES;
         let mut res = None;
-        let exec = number_getter_bench::<T>("gr_block_height", ValueType::I32, r)?;
+        let exec = number_getter_bench::<T>("gr_block_height", r)?;
     }: {
         res.replace(run_process(exec));
     }
@@ -670,7 +670,7 @@ benchmarks! {
     gr_block_timestamp {
         let r in 0 .. API_BENCHMARK_BATCHES;
         let mut res = None;
-        let exec = number_getter_bench::<T>("gr_block_timestamp", ValueType::I64, r)?;
+        let exec = number_getter_bench::<T>("gr_block_timestamp", r)?;
     }: {
         res.replace(run_process(exec));
     }

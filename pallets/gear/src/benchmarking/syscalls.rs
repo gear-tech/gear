@@ -1,6 +1,6 @@
 use super::code::{
     body::{self, DynInstr::*},
-    max_pages, DataSegment, ImportedFunction, ImportedMemory, ModuleDefinition, WasmModule,
+    max_pages, DataSegment, ImportedMemory, ModuleDefinition, WasmModule,
 };
 use crate::{
     manager::{CodeInfo, ExtManager, HandleKind},
@@ -24,7 +24,7 @@ use gear_core::{
     ids::{CodeId, MessageId, ProgramId},
     message::{Dispatch, DispatchKind, Message, ReplyDetails},
 };
-use gear_wasm_instrument::parity_wasm::elements::{Instruction, ValueType};
+use gear_wasm_instrument::parity_wasm::elements::Instruction;
 use sp_core::H256;
 use sp_runtime::traits::UniqueSaturatedInto;
 use sp_std::{convert::TryInto, prelude::*};
@@ -237,12 +237,7 @@ where
 {
     let code = WasmModule::<T>::from(ModuleDefinition {
         memory: Some(ImportedMemory { min_pages: 0 }),
-        imported_functions: vec![ImportedFunction {
-            module: "env",
-            name: "alloc",
-            params: vec![ValueType::I32],
-            return_type: Some(ValueType::I32),
-        }],
+        imported_functions: vec!["alloc"],
         handle_body: Some(body::repeated(
             r * API_BENCHMARK_BATCH_SIZE,
             &[
@@ -285,20 +280,7 @@ where
 
     let code = WasmModule::<T>::from(ModuleDefinition {
         memory: Some(ImportedMemory { min_pages: 0 }),
-        imported_functions: vec![
-            ImportedFunction {
-                module: "env",
-                name: "alloc",
-                params: vec![ValueType::I32],
-                return_type: Some(ValueType::I32),
-            },
-            ImportedFunction {
-                module: "env",
-                name: "free",
-                params: vec![ValueType::I32],
-                return_type: None,
-            },
-        ],
+        imported_functions: vec!["alloc", "free"],
         init_body: None,
         handle_body: Some(body::plain(instructions)),
         ..Default::default()
@@ -322,12 +304,7 @@ where
 
     let code = WasmModule::<T>::from(ModuleDefinition {
         memory: Some(ImportedMemory::max::<T>()),
-        imported_functions: vec![ImportedFunction {
-            module: "env",
-            name: "gr_reserve_gas",
-            params: vec![ValueType::I64, ValueType::I32, ValueType::I32],
-            return_type: Some(ValueType::I32),
-        }],
+        imported_functions: vec!["gr_reserve_gas"],
         data_segments: vec![DataSegment {
             offset: id_offset,
             value: id_bytes,
@@ -368,12 +345,7 @@ where
 
     let code = WasmModule::<T>::from(ModuleDefinition {
         memory: Some(ImportedMemory::max::<T>()),
-        imported_functions: vec![ImportedFunction {
-            module: "env",
-            name: "gr_unreserve_gas",
-            params: vec![ValueType::I32, ValueType::I32],
-            return_type: Some(ValueType::I32),
-        }],
+        imported_functions: vec!["gr_unreserve_gas"],
         data_segments: vec![
             DataSegment {
                 offset: id_offset,
@@ -411,12 +383,7 @@ where
 {
     let code = WasmModule::<T>::from(ModuleDefinition {
         memory: Some(ImportedMemory::max::<T>()),
-        imported_functions: vec![ImportedFunction {
-            module: "env",
-            name,
-            params: vec![ValueType::I32],
-            return_type: None,
-        }],
+        imported_functions: vec![name],
         handle_body: Some(body::repeated(
             r * API_BENCHMARK_BATCH_SIZE,
             &[Instruction::I32Const(0), Instruction::Call(0)],
@@ -432,23 +399,14 @@ where
     )
 }
 
-pub fn number_getter_bench<T>(
-    name: &'static str,
-    return_type: ValueType,
-    r: u32,
-) -> Result<Exec<T>, &'static str>
+pub fn number_getter_bench<T>(name: &'static str, r: u32) -> Result<Exec<T>, &'static str>
 where
     T: Config,
     T::AccountId: Origin,
 {
     let code = WasmModule::<T>::from(ModuleDefinition {
         memory: Some(ImportedMemory::max::<T>()),
-        imported_functions: vec![ImportedFunction {
-            module: "env",
-            name,
-            params: vec![],
-            return_type: Some(return_type),
-        }],
+        imported_functions: vec![name],
         handle_body: Some(body::repeated(
             r * API_BENCHMARK_BATCH_SIZE,
             &[Instruction::Call(0), Instruction::Drop],
@@ -474,12 +432,7 @@ where
 
     let code = WasmModule::<T>::from(ModuleDefinition {
         memory: Some(ImportedMemory::max::<T>()),
-        imported_functions: vec![ImportedFunction {
-            module: "env",
-            name: "gr_read",
-            params: vec![ValueType::I32, ValueType::I32, ValueType::I32],
-            return_type: Some(ValueType::I32),
-        }],
+        imported_functions: vec!["gr_read"],
         handle_body: Some(body::repeated(
             r * API_BENCHMARK_BATCH_SIZE,
             &[
@@ -511,12 +464,7 @@ where
 
     let code = WasmModule::<T>::from(ModuleDefinition {
         memory: Some(ImportedMemory::max::<T>()),
-        imported_functions: vec![ImportedFunction {
-            module: "env",
-            name: "gr_read",
-            params: vec![ValueType::I32, ValueType::I32, ValueType::I32],
-            return_type: Some(ValueType::I32),
-        }],
+        imported_functions: vec!["gr_read"],
         handle_body: Some(body::repeated(
             API_BENCHMARK_BATCH_SIZE,
             &[
@@ -584,12 +532,7 @@ where
 {
     let code = WasmModule::<T>::from(ModuleDefinition {
         memory: Some(ImportedMemory::max::<T>()),
-        imported_functions: vec![ImportedFunction {
-            module: "env",
-            name: "gr_send_init",
-            params: vec![ValueType::I32],
-            return_type: Some(ValueType::I32),
-        }],
+        imported_functions: vec!["gr_send_init"],
         handle_body: Some(body::repeated(
             r * API_BENCHMARK_BATCH_SIZE,
             &[
@@ -619,20 +562,7 @@ where
 
     let code = WasmModule::<T>::from(ModuleDefinition {
         memory: Some(ImportedMemory::max::<T>()),
-        imported_functions: vec![
-            ImportedFunction {
-                module: "env",
-                name: "gr_send_init",
-                params: vec![ValueType::I32],
-                return_type: Some(ValueType::I32),
-            },
-            ImportedFunction {
-                module: "env",
-                name: "gr_send_push",
-                params: vec![ValueType::I32, ValueType::I32, ValueType::I32],
-                return_type: Some(ValueType::I32),
-            },
-        ],
+        imported_functions: vec!["gr_send_init", "gr_send_push"],
         handle_body: Some(body::repeated(
             r * API_BENCHMARK_BATCH_SIZE,
             &[
@@ -668,20 +598,7 @@ where
 
     let code = WasmModule::<T>::from(ModuleDefinition {
         memory: Some(ImportedMemory::max::<T>()),
-        imported_functions: vec![
-            ImportedFunction {
-                module: "env",
-                name: "gr_send_init",
-                params: vec![ValueType::I32],
-                return_type: Some(ValueType::I32),
-            },
-            ImportedFunction {
-                module: "env",
-                name: "gr_send_push",
-                params: vec![ValueType::I32, ValueType::I32, ValueType::I32],
-                return_type: Some(ValueType::I32),
-            },
-        ],
+        imported_functions: vec!["gr_send_init", "gr_send_push"],
         handle_body: Some(body::repeated(
             API_BENCHMARK_BATCH_SIZE,
             &[
@@ -718,19 +635,7 @@ where
 
     let code = WasmModule::<T>::from(ModuleDefinition {
         memory: Some(ImportedMemory::max::<T>()),
-        imported_functions: vec![ImportedFunction {
-            module: "env",
-            name: "gr_send",
-            params: vec![
-                ValueType::I32,
-                ValueType::I32,
-                ValueType::I32,
-                ValueType::I32,
-                ValueType::I32,
-                ValueType::I32,
-            ],
-            return_type: Some(ValueType::I32),
-        }],
+        imported_functions: vec!["gr_send"],
         handle_body: Some(body::repeated(
             r * API_BENCHMARK_BATCH_SIZE,
             &[
@@ -767,19 +672,7 @@ where
 
     let code = WasmModule::<T>::from(ModuleDefinition {
         memory: Some(ImportedMemory::max::<T>()),
-        imported_functions: vec![ImportedFunction {
-            module: "env",
-            name: "gr_send",
-            params: vec![
-                ValueType::I32,
-                ValueType::I32,
-                ValueType::I32,
-                ValueType::I32,
-                ValueType::I32,
-                ValueType::I32,
-            ],
-            return_type: Some(ValueType::I32),
-        }],
+        imported_functions: vec!["gr_send"],
         handle_body: Some(body::repeated(
             API_BENCHMARK_BATCH_SIZE,
             &[
@@ -813,12 +706,7 @@ where
 
     let code = WasmModule::<T>::from(ModuleDefinition {
         memory: Some(ImportedMemory::max::<T>()),
-        imported_functions: vec![ImportedFunction {
-            module: "env",
-            name: "gr_reply_commit",
-            params: vec![ValueType::I32, ValueType::I32, ValueType::I32],
-            return_type: Some(ValueType::I32),
-        }],
+        imported_functions: vec!["gr_reply_commit"],
         handle_body: Some(body::repeated(
             r * API_BENCHMARK_BATCH_SIZE,
             &[
@@ -850,12 +738,7 @@ where
 
     let code = WasmModule::<T>::from(ModuleDefinition {
         memory: Some(ImportedMemory::max::<T>()),
-        imported_functions: vec![ImportedFunction {
-            module: "env",
-            name: "gr_reply_push",
-            params: vec![ValueType::I32, ValueType::I32],
-            return_type: Some(ValueType::I32),
-        }],
+        imported_functions: vec!["gr_reply_push"],
         handle_body: Some(body::repeated(
             r * API_BENCHMARK_BATCH_SIZE,
             &[
@@ -886,12 +769,7 @@ where
 
     let code = WasmModule::<T>::from(ModuleDefinition {
         memory: Some(ImportedMemory::max::<T>()),
-        imported_functions: vec![ImportedFunction {
-            module: "env",
-            name: "gr_reply_push",
-            params: vec![ValueType::I32, ValueType::I32],
-            return_type: Some(ValueType::I32),
-        }],
+        imported_functions: vec!["gr_reply_push"],
         handle_body: Some(body::repeated(
             API_BENCHMARK_BATCH_SIZE,
             &[
@@ -921,12 +799,7 @@ where
 
     let code = WasmModule::<T>::from(ModuleDefinition {
         memory: Some(ImportedMemory::max::<T>()),
-        imported_functions: vec![ImportedFunction {
-            module: "env",
-            name: "gr_reply_to",
-            params: vec![ValueType::I32],
-            return_type: Some(ValueType::I32),
-        }],
+        imported_functions: vec!["gr_reply_to"],
         reply_body: Some(body::repeated(
             r * API_BENCHMARK_BATCH_SIZE,
             &[
@@ -968,12 +841,7 @@ where
 
     let code = WasmModule::<T>::from(ModuleDefinition {
         memory: Some(ImportedMemory::max::<T>()),
-        imported_functions: vec![ImportedFunction {
-            module: "env",
-            name: "gr_exit_code",
-            params: vec![ValueType::I32],
-            return_type: Some(ValueType::I32),
-        }],
+        imported_functions: vec!["gr_exit_code"],
         reply_body: Some(body::repeated(
             r * API_BENCHMARK_BATCH_SIZE,
             &[
@@ -1016,12 +884,7 @@ where
 
     let code = WasmModule::<T>::from(ModuleDefinition {
         memory: Some(ImportedMemory::max::<T>()),
-        imported_functions: vec![ImportedFunction {
-            module: "env",
-            name: "gr_debug",
-            params: vec![ValueType::I32, ValueType::I32],
-            return_type: None,
-        }],
+        imported_functions: vec!["gr_debug"],
         handle_body: Some(body::repeated(
             r * API_BENCHMARK_BATCH_SIZE,
             &[
@@ -1051,12 +914,7 @@ where
 
     let code = WasmModule::<T>::from(ModuleDefinition {
         memory: Some(ImportedMemory::max::<T>()),
-        imported_functions: vec![ImportedFunction {
-            module: "env",
-            name: "gr_debug",
-            params: vec![ValueType::I32, ValueType::I32],
-            return_type: None,
-        }],
+        imported_functions: vec!["gr_debug"],
         handle_body: Some(body::repeated(
             API_BENCHMARK_BATCH_SIZE,
             &[
@@ -1087,23 +945,15 @@ where
 {
     assert!(r <= 1);
 
-    let (instructions, params) = if let Some(c) = param {
-        (
-            vec![Instruction::I32Const(c as i32), Instruction::Call(0)],
-            vec![ValueType::I32],
-        )
+    let instructions = if let Some(c) = param {
+        vec![Instruction::I32Const(c as i32), Instruction::Call(0)]
     } else {
-        (vec![Instruction::Call(0)], vec![])
+        vec![Instruction::Call(0)]
     };
 
     let code = WasmModule::<T>::from(ModuleDefinition {
         memory: Some(ImportedMemory::max::<T>()),
-        imported_functions: vec![ImportedFunction {
-            module: "env",
-            name,
-            params,
-            return_type: None,
-        }],
+        imported_functions: vec![name],
         handle_body: Some(body::repeated(r, &instructions)),
         ..Default::default()
     });
@@ -1129,12 +979,7 @@ where
 
     let code = WasmModule::<T>::from(ModuleDefinition {
         memory: Some(ImportedMemory::max::<T>()),
-        imported_functions: vec![ImportedFunction {
-            module: "env",
-            name: "gr_wake",
-            params: vec![ValueType::I32, ValueType::I32],
-            return_type: Some(ValueType::I32),
-        }],
+        imported_functions: vec!["gr_wake"],
         data_segments: vec![DataSegment {
             offset,
             value: message_id_bytes,
@@ -1207,23 +1052,7 @@ where
     );
     let code = WasmModule::<T>::from(ModuleDefinition {
         memory: Some(ImportedMemory::max::<T>()),
-        imported_functions: vec![ImportedFunction {
-            module: "env",
-            name: "gr_create_program_wgas",
-            params: vec![
-                ValueType::I32,
-                ValueType::I32,
-                ValueType::I32,
-                ValueType::I32,
-                ValueType::I32,
-                ValueType::I64,
-                ValueType::I32,
-                ValueType::I32,
-                ValueType::I32,
-                ValueType::I32,
-            ],
-            return_type: Some(ValueType::I32),
-        }],
+        imported_functions: vec!["gr_create_program_wgas"],
         data_segments: vec![
             DataSegment {
                 offset: code_hash_offset,
@@ -1296,23 +1125,7 @@ where
     );
     let code = WasmModule::<T>::from(ModuleDefinition {
         memory: Some(ImportedMemory::max::<T>()),
-        imported_functions: vec![ImportedFunction {
-            module: "env",
-            name: "gr_create_program_wgas",
-            params: vec![
-                ValueType::I32,
-                ValueType::I32,
-                ValueType::I32,
-                ValueType::I32,
-                ValueType::I32,
-                ValueType::I64,
-                ValueType::I32,
-                ValueType::I32,
-                ValueType::I32,
-                ValueType::I32,
-            ],
-            return_type: Some(ValueType::I32),
-        }],
+        imported_functions: vec!["gr_create_program_wgas"],
         data_segments: vec![
             DataSegment {
                 offset: code_hash_offset,
