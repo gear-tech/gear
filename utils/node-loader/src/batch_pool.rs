@@ -191,14 +191,13 @@ async fn process_events(
     block_hash: H256,
     collect_programs: bool,
 ) -> Result<Report> {
-    let results: GClientResult<Vec<(MessageId, Option<String>)>>;
     let now = utils::now();
     // States what amount of blocks we should wait for taking all the events about successful `messages` execution
     let wait_for_events_blocks = 10;
     // Multiply on five to be 100% sure if no events occurred, than node is crashed
     let wait_for_events_millisec = api.expected_block_time()? as usize * wait_for_events_blocks * 5;
 
-    loop {
+    let results = loop {
         let r = match api.events_since(block_hash, wait_for_events_blocks).await {
             Ok(mut v) => v.err_or_succeed_batch(messages.keys().copied()).await,
             Err(e) => Err(e),
@@ -212,10 +211,9 @@ async fn process_events(
         if matches!(r, Err(GClientError::EventNotFoundInIterator)) {
             continue;
         } else {
-            results = r;
-            break;
+            break r;
         }
-    }
+    };
 
     let mut program_ids = collect_programs.then(BTreeSet::new);
 
@@ -226,10 +224,7 @@ async fn process_events(
             tracing::debug!("[Call with id: {call_id}]: {mid:#.2} executing within program '{pid:#.2}' ended with a trap: '{expl}'");
         } else {
             tracing::debug!("[Call with id: {call_id}]: {mid:#.2} successfully executed within program '{pid:#.2}'");
-            program_ids = program_ids.map(|mut ids| {
-                ids.insert(pid);
-                ids
-            });
+            program_ids.as_mut().map(|ids| ids.insert(pid));
         }
     }
 
