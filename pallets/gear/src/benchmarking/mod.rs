@@ -23,32 +23,27 @@
 #[allow(dead_code)]
 mod code;
 mod sandbox;
+mod syscalls;
+use syscalls::*;
 
 use self::{
     code::{
         body::{self, DynInstr::*},
-        DataSegment, ImportedFunction, ImportedMemory, Location, ModuleDefinition, WasmModule,
-        OFFSET_AUX,
+        max_pages, ImportedMemory, Location, ModuleDefinition, WasmModule, OFFSET_AUX,
     },
     sandbox::Sandbox,
 };
 use crate::{
-    benchmarking::code::max_pages,
-    manager::{CodeInfo, ExtManager, HandleKind},
-    pallet,
-    schedule::{API_BENCHMARK_BATCH_SIZE, INSTR_BENCHMARK_BATCH_SIZE},
-    BTreeMap, BalanceOf, BlockGasLimitOf, Call, Config, CostsPerBlockOf, CurrencyOf, DbWeightOf,
-    ExecutionEnvironment, Ext as Externalities, GasHandlerOf, MailboxOf, Pallet as Gear, Pallet,
-    QueueOf, ReadPerByteCostOf, Schedule, WaitlistOf,
+    manager::ExtManager, pallet, schedule::INSTR_BENCHMARK_BATCH_SIZE, BTreeMap, BalanceOf,
+    BenchmarkStorage, Call, Config, ExecutionEnvironment, Ext as Externalities, GasHandlerOf,
+    MailboxOf, Pallet as Gear, Pallet, QueueOf, Schedule,
 };
 use codec::Encode;
-use common::{
-    benchmarking, scheduler::SchedulingCostsPerBlock, storage::*, CodeMetadata, CodeStorage,
-    GasPrice, GasTree, Origin,
-};
+use common::{benchmarking, storage::*, CodeMetadata, CodeStorage, GasPrice, GasTree, Origin};
 use core_processor::{
-    configs::{AllocationsConfig, BlockConfig, BlockInfo, MessageExecutionContext},
-    PrechargeResult, PrepareResult, ProcessExecutionContext, ProcessorContext, ProcessorExt,
+    common::{DispatchOutcome, JournalNote},
+    configs::BlockConfig,
+    ProcessExecutionContext, ProcessorContext, ProcessorExt,
 };
 use frame_benchmarking::{benchmarks, whitelisted_caller};
 use frame_support::traits::{Currency, Get, Hooks, ReservableCurrency};
@@ -57,9 +52,9 @@ use gear_backend_common::Environment;
 use gear_core::{
     code::{Code, CodeAndId},
     gas::{GasAllowanceCounter, GasCounter, ValueCounter},
-    ids::{CodeId, MessageId, ProgramId},
+    ids::{MessageId, ProgramId},
     memory::{AllocationsContext, PageBuf, PageNumber},
-    message::{ContextSettings, Dispatch, DispatchKind, Message, MessageContext, ReplyDetails},
+    message::{ContextSettings, MessageContext},
     reservation::GasReserver,
 };
 use gear_wasm_instrument::parity_wasm::elements::{BlockType, BrTableData, Instruction, ValueType};
@@ -73,9 +68,9 @@ use sp_runtime::{
     traits::{Bounded, One, UniqueSaturatedInto},
     Digest, DigestItem, Perbill,
 };
-use sp_std::{convert::TryInto, prelude::*};
+use sp_std::prelude::*;
 
-const MAX_PAYLOAD_LEN: u32 = 64 * 1024;
+const MAX_PAYLOAD_LEN: u32 = 16 * 64 * 1024;
 const MAX_PAGES: u32 = 512;
 
 /// How many batches we do per API benchmark.
@@ -157,6 +152,35 @@ fn default_processor_context<T: Config>() -> ProcessorContext {
     }
 }
 
+fn verify_process(notes: Vec<JournalNote>) {
+    assert!(
+        !notes.is_empty(),
+        "Journal notes cannot be empty after execution"
+    );
+    for note in notes {
+        if let JournalNote::MessageDispatched { outcome, .. } = note {
+            match outcome {
+                DispatchOutcome::InitFailure { .. } | DispatchOutcome::MessageTrap { .. } => {
+                    panic!("Process was not successful")
+                }
+                _ => {}
+            }
+        }
+    }
+}
+
+fn run_process<T>(exec: Exec<T>) -> Vec<JournalNote>
+where
+    T: Config,
+    T::AccountId: Origin,
+{
+    core_processor::process::<Externalities, ExecutionEnvironment>(
+        &exec.block_config,
+        exec.context,
+        exec.memory_pages,
+    )
+}
+
 /// An instantiated and deployed program.
 struct Program<T: Config> {
     addr: H256,
@@ -219,213 +243,47 @@ fn caller_funding<T: pallet::Config>() -> BalanceOf<T> {
     BalanceOf::<T>::max_value() / 2u32.into()
 }
 
-struct Exec<T: Config> {
+pub struct Exec<T: Config> {
+    #[allow(unused)]
     ext_manager: ExtManager<T>,
     block_config: BlockConfig,
     context: ProcessExecutionContext,
     memory_pages: BTreeMap<PageNumber, PageBuf>,
 }
 
-fn prepare<T>(
-    source: H256,
-    kind: HandleKind,
-    payload: Vec<u8>,
-    value: u128,
-) -> Result<Exec<T>, &'static str>
-where
-    T: Config,
-    T::AccountId: Origin,
-{
-    #[cfg(feature = "lazy-pages")]
-    assert!(gear_lazy_pages_common::try_to_enable_lazy_pages());
-
-    let ext_manager = ExtManager::<T>::default();
-    let bn: u64 = Pallet::<T>::block_number().unique_saturated_into();
-    let root_message_id = MessageId::from(bn);
-
-    let dispatch = match kind {
-        HandleKind::Init(ref code) => {
-            let program_id = ProgramId::generate(CodeId::generate(code), b"bench_salt");
-
-            let schedule = T::Schedule::get();
-            let code = Code::try_new(
-                code.clone(),
-                schedule.instruction_weights.version,
-                |module| schedule.rules(module),
-                schedule.limits.stack_height,
-            )
-            .map_err(|_| "Code failed to load")?;
-
-            let code_and_id = CodeAndId::new(code);
-            let code_info = CodeInfo::from_code_and_id(&code_and_id);
-
-            let _ = Gear::<T>::set_code_with_metadata(code_and_id, source);
-
-            ExtManager::<T>::default().set_program(program_id, &code_info, root_message_id);
-
-            Dispatch::new(
-                DispatchKind::Init,
-                Message::new(
-                    root_message_id,
-                    ProgramId::from_origin(source),
-                    program_id,
-                    payload.try_into()?,
-                    Some(u64::MAX),
-                    value,
-                    None,
-                ),
-            )
-        }
-        HandleKind::InitByHash(code_id) => {
-            let program_id = ProgramId::generate(code_id, b"bench_salt");
-
-            let code = T::CodeStorage::get_code(code_id).ok_or("Code not found in storage")?;
-            let code_info = CodeInfo::from_code(&code_id, &code);
-
-            ExtManager::<T>::default().set_program(program_id, &code_info, root_message_id);
-
-            Dispatch::new(
-                DispatchKind::Init,
-                Message::new(
-                    root_message_id,
-                    ProgramId::from_origin(source),
-                    program_id,
-                    payload.try_into()?,
-                    Some(u64::MAX),
-                    value,
-                    None,
-                ),
-            )
-        }
-        HandleKind::Handle(dest) => Dispatch::new(
-            DispatchKind::Handle,
-            Message::new(
-                root_message_id,
-                ProgramId::from_origin(source),
-                dest,
-                payload.try_into()?,
-                Some(u64::MAX),
-                value,
-                None,
-            ),
-        ),
-        HandleKind::Reply(msg_id, exit_code) => {
-            let (msg, _bn) =
-                MailboxOf::<T>::remove(<T::AccountId as Origin>::from_origin(source), msg_id)
-                    .map_err(|_| "Internal error: unable to find message in mailbox")?;
-            Dispatch::new(
-                DispatchKind::Reply,
-                Message::new(
-                    root_message_id,
-                    ProgramId::from_origin(source),
-                    msg.source(),
-                    payload.try_into()?,
-                    Some(u64::MAX),
-                    value,
-                    Some(ReplyDetails::new(msg.id(), exit_code)),
-                ),
-            )
-        }
-    };
-
-    let initial_gas = BlockGasLimitOf::<T>::get();
-    let origin = <T::AccountId as Origin>::from_origin(source);
-    GasHandlerOf::<T>::create(origin, root_message_id, initial_gas)
-        .map_err(|_| "Internal error: unable to create gas handler")?;
-
-    let dispatch = dispatch.into_stored();
-
-    QueueOf::<T>::clear();
-
-    QueueOf::<T>::queue(dispatch).map_err(|_| "Messages storage corrupted")?;
-
-    let block_info = BlockInfo {
-        height: Pallet::<T>::block_number().unique_saturated_into(),
-        timestamp: <pallet_timestamp::Pallet<T>>::get().unique_saturated_into(),
-    };
-
-    let existential_deposit = CurrencyOf::<T>::minimum_balance().unique_saturated_into();
-    let mailbox_threshold = <T as Config>::MailboxThreshold::get();
-    let waitlist_cost = CostsPerBlockOf::<T>::waitlist();
-    let reserve_for = CostsPerBlockOf::<T>::reserve_for().unique_saturated_into();
-    let reservation = CostsPerBlockOf::<T>::reservation().unique_saturated_into();
-
-    let block_config = BlockConfig {
-        block_info,
-        allocations_config: AllocationsConfig {
-            max_pages: gear_core::memory::WasmPageNumber(T::Schedule::get().limits.memory_pages),
-            init_cost: T::Schedule::get().memory_weights.initial_cost,
-            alloc_cost: T::Schedule::get().memory_weights.allocation_cost,
-            mem_grow_cost: T::Schedule::get().memory_weights.grow_cost,
-            load_page_cost: T::Schedule::get().memory_weights.load_cost,
-        },
-        existential_deposit,
-        outgoing_limit: 2048,
-        host_fn_weights: Default::default(),
-        forbidden_funcs: Default::default(),
-        mailbox_threshold,
-        waitlist_cost,
-        reserve_for,
-        reservation,
-        read_cost: DbWeightOf::<T>::get().reads(1).ref_time(),
-        write_cost: DbWeightOf::<T>::get().writes(1).ref_time(),
-        per_byte_cost: ReadPerByteCostOf::<T>::get(),
-        module_instantiation_byte_cost: T::Schedule::get().module_instantiation_per_byte,
-        max_reservations: T::ReservationsLimit::get(),
-    };
-
-    if let Some(queued_dispatch) = QueueOf::<T>::dequeue().map_err(|_| "MQ storage corrupted")? {
-        let actor_id = queued_dispatch.destination();
-        let actor = ext_manager
-            .get_actor(actor_id)
-            .ok_or("Program not found in the storage")?;
-
-        let precharged_dispatch = match core_processor::precharge(
-            &block_config,
-            u64::MAX,
-            queued_dispatch.into_incoming(initial_gas),
-            actor_id,
-        ) {
-            PrechargeResult::Ok(d) => d,
-            PrechargeResult::Error(_) => {
-                return Err("core_processor::precharge failed");
-            }
-        };
-
-        let message_execution_context = MessageExecutionContext {
-            actor,
-            precharged_dispatch,
-            origin: ProgramId::from_origin(source),
-            subsequent_execution: false,
-        };
-
-        let (context, code) =
-            match core_processor::prepare(&block_config, message_execution_context) {
-                PrepareResult::Ok(context) => {
-                    let code = T::CodeStorage::get_code(context.actor_data().code_id)
-                        .ok_or("Program code not found")?;
-
-                    (context, code)
-                }
-                _ => return Err("core_processor::prepare failed"),
-            };
-
-        Ok(Exec {
-            ext_manager,
-            block_config,
-            context: (context, actor_id, code).into(),
-            // actor without pages data because of lazy pages enabled
-            memory_pages: Default::default(),
-        })
-    } else {
-        Err("Dispatch not found")
-    }
-}
-
 benchmarks! {
 
     where_clause { where
         T::AccountId: Origin,
+    }
+
+    // This bench uses `StorageMap` as a storage, due to the fact that
+    // the most of the gear storages represented with this type.
+    db_write_per_kb {
+        // Code is the biggest data could be written into storage in gear runtime.
+        let c in 0 .. T::Schedule::get().limits.code_len / 1024;
+
+        // Data to be written.
+        let data = vec![c as u8; 1024 * c as usize];
+    }: {
+        // Inserting data into the storage.
+        BenchmarkStorage::<T>::insert(c, data);
+    }
+
+    // This bench uses `StorageMap` as a storage, due to the fact that
+    // the most of the gear storages represented with this type.
+    db_read_per_kb {
+        // Code is the biggest data could be written into storage in gear runtime.
+        let c in 0 .. T::Schedule::get().limits.code_len / 1024;
+
+        // Data to be queried further.
+        let data = vec![c as u8; 1024 * c as usize];
+
+        // Placing data in storage to be able to query it.
+        BenchmarkStorage::<T>::insert(c, data);
+    }: {
+        // Querying data from storage.
+        BenchmarkStorage::<T>::get(c).expect("Infallible: Key not found in storage");
     }
 
     // `c`: Size of the code in kilobytes.
@@ -643,1295 +501,411 @@ benchmarks! {
 
     alloc {
         let r in 0 .. API_BENCHMARK_BATCHES;
-        let code = WasmModule::<T>::from(ModuleDefinition {
-            memory: Some(ImportedMemory::max::<T>()),
-            imported_functions: vec![ImportedFunction {
-                module: "env",
-                name: "alloc",
-                params: vec![ValueType::I32],
-                return_type: Some(ValueType::I32),
-            }],
-            handle_body: Some(body::repeated(r * API_BENCHMARK_BATCH_SIZE, &[
-                Instruction::I32Const(0),
-                Instruction::Call(0),
-                Instruction::Drop,
-            ])),
-            .. Default::default()
-        });
-        let instance = Program::<T>::new(code, vec![])?;
-        let Exec {
-            ext_manager,
-            block_config,
-            context,
-            memory_pages,
-        } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 0u32.into())?;
+        let mut res = None;
+        let exec = alloc_bench::<T>(r)?;
     }: {
-        core_processor::process::<
-            Externalities,
-            ExecutionEnvironment,
-        >(&block_config, context, memory_pages);
+        res.replace(run_process(exec));
+    }
+    verify {
+        verify_process(res.unwrap());
     }
 
-    // TODO: benchmark batches and size is bigger than memory limits
-    // free {
-    //     let r in 0 .. API_BENCHMARK_BATCHES;
-    //     let code = WasmModule::<T>::from(ModuleDefinition {
-    //         memory: Some(ImportedMemory::max::<T>()),
-    //         imported_functions: vec![ImportedFunction {
-    //             module: "env",
-    //             name: "alloc",
-    //             params: vec![ValueType::I32],
-    //             return_type: Some(ValueType::I32),
-    //         },
-    //         ImportedFunction {
-    //             module: "env",
-    //             name: "free",
-    //             params: vec![ValueType::I32],
-    //             return_type: None,
-    //         }],
-    //         init_body: Some(body::plain(vec![
-    //             Instruction::I32Const(1),
-    //             Instruction::Call(0),
-    //             Instruction::Drop,
-    //         ])),
-    //         handle_body: Some(body::repeated(r * API_BENCHMARK_BATCH_SIZE, &[
-    //             Instruction::I32Const(1),
-    //             Instruction::Call(0),
-    //         ])),
-    //         .. Default::default()
-    //     });
-    //     let instance = Program::<T>::new(code, vec![])?;
-    // }: {
-    //     Gear::<T>::process_message(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 0u32.into())?;
-    // }
-
-    gr_gas_available {
+    free {
         let r in 0 .. API_BENCHMARK_BATCHES;
-        let code = WasmModule::<T>::from(ModuleDefinition {
-            memory: Some(ImportedMemory::max::<T>()),
-            imported_functions: vec![ImportedFunction {
-                module: "env",
-                name: "gr_gas_available",
-                params: vec![],
-                return_type: Some(ValueType::I64),
-            }],
-            handle_body: Some(body::repeated(r * API_BENCHMARK_BATCH_SIZE, &[
-                Instruction::Call(0),
-                Instruction::Drop,
-            ])),
-            .. Default::default()
-        });
-        let instance = Program::<T>::new(code, vec![])?;
-        let Exec {
-            ext_manager,
-            block_config,
-            context,
-            memory_pages,
-        } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 0u32.into())?;
+        let mut res = None;
+        let exec = free_bench::<T>(r)?;
     }: {
-        core_processor::process::<
-            Externalities,
-            ExecutionEnvironment,
-        >(&block_config, context, memory_pages);
+        res.replace(run_process(exec));
+    }
+    verify {
+        verify_process(res.unwrap());
     }
 
     gr_reserve_gas {
         let r in 0 .. API_BENCHMARK_BATCHES;
-        let id_bytes = 0_u128.encode();
-        let id_len = id_bytes.len();
-        let code = WasmModule::<T>::from(ModuleDefinition {
-            memory: Some(ImportedMemory::max::<T>()),
-            imported_functions: vec![ImportedFunction {
-                module: "env",
-                name: "gr_reserve_gas",
-                params: vec![ValueType::I64, ValueType::I32, ValueType::I32],
-                return_type: Some(ValueType::I32),
-            }],
-            data_segments: vec![
-                DataSegment {
-                    offset: 0,
-                    value: id_bytes,
-                },
-            ],
-            handle_body: Some(body::repeated(r * API_BENCHMARK_BATCHES, &[
-                Instruction::I64Const(50_000_000), // gas amount
-                Instruction::I32Const(10), // duration
-                Instruction::I32Const(0), // id ptr
-                Instruction::Call(0),
-                Instruction::Drop,
-            ])),
-            ..Default::default()
-        });
-        let instance = Program::<T>::new(code, vec![])?;
-        let Exec {
-            ext_manager,
-            block_config,
-            context,
-            memory_pages,
-        } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 0u32.into())?;
+        let mut res = None;
+        let exec = gr_reserve_gas_bench::<T>(r)?;
     }: {
-        core_processor::process::<
-            Externalities,
-            ExecutionEnvironment,
-        >(&block_config, context, memory_pages);
+        res.replace(run_process(exec));
+    }
+    verify {
+        verify_process(res.unwrap());
     }
 
-    // We cannot call `gr_unreserve_gas` multiple times. Therefore our weight determination is not
-    // as precise as with other APIs.
     gr_unreserve_gas {
-        let r in 0 .. 1;
-        let id_bytes = 0_u128.encode();
-        let id_len = id_bytes.len();
-        let amount_bytes = 0_u64.encode();
-        let amount_len = amount_bytes.len();
-        let code = WasmModule::<T>::from(ModuleDefinition {
-            memory: Some(ImportedMemory::max::<T>()),
-            imported_functions: vec![ImportedFunction {
-                module: "env",
-                name: "gr_unreserve_gas",
-                params: vec![ValueType::I32, ValueType::I32],
-                return_type: Some(ValueType::I32),
-            }],
-            data_segments: vec![
-                DataSegment {
-                    offset: 0,
-                    value: id_bytes,
-                },
-                DataSegment {
-                    offset: id_len as u32,
-                    value: amount_bytes,
-                }
-            ],
-            handle_body: Some(body::repeated(r, &[
-                Instruction::I32Const(0), // id ptr
-                Instruction::I32Const(id_len as i32), // unreserved amount ptr
-                Instruction::Call(0),
-                Instruction::Drop,
-            ])),
-            ..Default::default()
-        });
-        let instance = Program::<T>::new(code, vec![])?;
-        let Exec {
-            ext_manager,
-            block_config,
-            context,
-            memory_pages,
-        } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 0u32.into())?;
+        let r in 0 .. API_BENCHMARK_BATCHES;
+        let mut res = None;
+        let exec = gr_unreserve_gas_bench::<T>(r)?;
     }: {
-        core_processor::process::<
-            Externalities,
-            ExecutionEnvironment,
-        >(&block_config, context, memory_pages);
+        res.replace(run_process(exec));
+    }
+    verify {
+        verify_process(res.unwrap());
     }
 
     gr_message_id {
         let r in 0 .. API_BENCHMARK_BATCHES;
-        let instance = Program::<T>::new(WasmModule::getter(
-            "env", "gr_message_id", r * API_BENCHMARK_BATCH_SIZE
-        ), vec![])?;
-        let Exec {
-            ext_manager,
-            block_config,
-            context,
-            memory_pages,
-        } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 0u32.into())?;
+        let mut res = None;
+        let exec = getter_bench::<T>("gr_message_id", r)?;
     }: {
-        core_processor::process::<
-            Externalities,
-            ExecutionEnvironment,
-        >(&block_config, context, memory_pages);
+        res.replace(run_process(exec));
+    }
+    verify {
+        verify_process(res.unwrap());
     }
 
     gr_origin {
         let r in 0 .. API_BENCHMARK_BATCHES;
-        let instance = Program::<T>::new(WasmModule::getter(
-            "env", "gr_origin", r * API_BENCHMARK_BATCH_SIZE
-        ), vec![])?;
-        let Exec {
-            ext_manager,
-            block_config,
-            context,
-            memory_pages,
-        } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 0u32.into())?;
+        let mut res = None;
+        let exec = getter_bench::<T>("gr_origin", r)?;
     }: {
-        core_processor::process::<
-            Externalities,
-            ExecutionEnvironment,
-        >(&block_config, context, memory_pages);
+        res.replace(run_process(exec));
+    }
+    verify {
+        verify_process(res.unwrap());
     }
 
     gr_program_id {
         let r in 0 .. API_BENCHMARK_BATCHES;
-        let instance = Program::<T>::new(WasmModule::getter(
-            "env", "gr_program_id", r * API_BENCHMARK_BATCH_SIZE
-        ), vec![])?;
-        let Exec {
-            ext_manager,
-            block_config,
-            context,
-            memory_pages,
-        } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 0u32.into())?;
+        let mut res = None;
+        let exec = getter_bench::<T>("gr_program_id", r)?;
     }: {
-        core_processor::process::<
-            Externalities,
-            ExecutionEnvironment,
-        >(&block_config, context, memory_pages);
+        res.replace(run_process(exec));
+    }
+    verify {
+        verify_process(res.unwrap());
     }
 
     gr_source {
         let r in 0 .. API_BENCHMARK_BATCHES;
-        let instance = Program::<T>::new(WasmModule::getter(
-            "env", "gr_source", r * API_BENCHMARK_BATCH_SIZE
-        ), vec![])?;
-
-        let Exec {
-            ext_manager,
-            block_config,
-            context,
-            memory_pages,
-        } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 0u32.into())?;
+        let mut res = None;
+        let exec = getter_bench::<T>("gr_source", r)?;
     }: {
-        core_processor::process::<
-            Externalities,
-            ExecutionEnvironment,
-        >(&block_config, context, memory_pages);
+        res.replace(run_process(exec));
+    }
+    verify {
+        verify_process(res.unwrap());
     }
 
     gr_value {
         let r in 0 .. API_BENCHMARK_BATCHES;
-        let instance = Program::<T>::new(WasmModule::getter(
-            "env", "gr_value", r * API_BENCHMARK_BATCH_SIZE
-        ), vec![])?;
-        let Exec {
-            ext_manager,
-            block_config,
-            context,
-            memory_pages,
-        } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 0u32.into())?;
+        let mut res = None;
+        let exec = getter_bench::<T>("gr_value", r)?;
     }: {
-        core_processor::process::<
-            Externalities,
-            ExecutionEnvironment,
-        >(&block_config, context, memory_pages);
+        res.replace(run_process(exec));
+    }
+    verify {
+        verify_process(res.unwrap());
     }
 
     gr_value_available {
         let r in 0 .. API_BENCHMARK_BATCHES;
-        let instance = Program::<T>::new(WasmModule::getter(
-            "env", "gr_value_available", r * API_BENCHMARK_BATCH_SIZE
-        ), vec![])?;
-        let Exec {
-            ext_manager,
-            block_config,
-            context,
-            memory_pages,
-        } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 0u32.into())?;
+        let mut res = None;
+        let exec = getter_bench::<T>("gr_value_available", r)?;
     }: {
-        core_processor::process::<
-            Externalities,
-            ExecutionEnvironment,
-        >(&block_config, context, memory_pages);
+        res.replace(run_process(exec));
+    }
+    verify {
+        verify_process(res.unwrap());
+    }
+
+    gr_gas_available {
+        let r in 0 .. API_BENCHMARK_BATCHES;
+        let mut res = None;
+        let exec = number_getter_bench::<T>("gr_gas_available", ValueType::I64, r)?;
+    }: {
+        res.replace(run_process(exec));
+    }
+    verify {
+        verify_process(res.unwrap());
     }
 
     gr_size {
         let r in 0 .. API_BENCHMARK_BATCHES;
-        let code = WasmModule::<T>::from(ModuleDefinition {
-            memory: Some(ImportedMemory::max::<T>()),
-            imported_functions: vec![ImportedFunction {
-                module: "env",
-                name: "gr_size",
-                params: vec![],
-                return_type: Some(ValueType::I32),
-            }],
-            handle_body: Some(body::repeated(r * API_BENCHMARK_BATCH_SIZE, &[
-                Instruction::Call(0),
-                Instruction::Drop,
-            ])),
-            .. Default::default()
-        });
-        let instance = Program::<T>::new(code, vec![])?;
-        let Exec {
-            ext_manager,
-            block_config,
-            context,
-            memory_pages,
-        } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 0u32.into())?;
+        let mut res = None;
+        let exec = number_getter_bench::<T>("gr_size", ValueType::I32, r)?;
     }: {
-        core_processor::process::<
-            Externalities,
-            ExecutionEnvironment,
-        >(&block_config, context, memory_pages);
+        res.replace(run_process(exec));
+    }
+    verify {
+        verify_process(res.unwrap());
     }
 
     gr_read {
         let r in 0 .. API_BENCHMARK_BATCHES;
-        let pages = 1u32;
-        let buffer_size = pages * 64 * 1024 - 4;
-        let instance = Program::<T>::new(WasmModule::<T>::dummy(), vec![])?;
-        let code = WasmModule::<T>::from(ModuleDefinition {
-            memory: Some(ImportedMemory::max::<T>()),
-            imported_functions: vec![ImportedFunction {
-                module: "env",
-                name: "gr_read",
-                params: vec![ValueType::I32, ValueType::I32, ValueType::I32],
-                return_type: None,
-            }],
-            data_segments: vec![
-                DataSegment {
-                    offset: 0,
-                    value: buffer_size.to_le_bytes().to_vec(),
-                },
-            ],
-            handle_body: Some(body::repeated(r * API_BENCHMARK_BATCH_SIZE, &[
-                Instruction::I32Const(0), // at
-                Instruction::I32Const(0), // len
-                Instruction::I32Const(0), // output ptr
-                Instruction::Call(0),
-                ])),
-                .. Default::default()
-        });
-        let instance = Program::<T>::new(code, vec![])?;
-        let Exec {
-            ext_manager,
-            block_config,
-            context,
-            memory_pages,
-        } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 0u32.into())?;
+        let mut res = None;
+        let exec = gr_read_bench::<T>(r)?;
     }: {
-        core_processor::process::<
-            Externalities,
-            ExecutionEnvironment,
-        >(&block_config, context, memory_pages);
+        res.replace(run_process(exec));
+    }
+    verify {
+        verify_process(res.unwrap());
     }
 
     gr_read_per_kb {
         let n in 0 .. T::Schedule::get().limits.payload_len / 1024;
-        let pages = 16u32;
-        let buffer_size = pages * 64 * 1024 - 4;
-        let instance = Program::<T>::new(WasmModule::<T>::dummy(), vec![])?;
-        let pid_bytes = instance.addr.encode();
-        let pid_len = pid_bytes.len();
-        let value_bytes = 0_u128.encode();
-        let value_len = value_bytes.len();
-        let code = WasmModule::<T>::from(ModuleDefinition {
-            memory: Some(ImportedMemory::max::<T>()),
-            imported_functions: vec![ImportedFunction {
-                module: "env",
-                name: "gr_read",
-                params: vec![ValueType::I32, ValueType::I32, ValueType::I32],
-                return_type: None,
-            }],
-            data_segments: vec![
-                DataSegment {
-                    offset: 0,
-                    value: buffer_size.to_le_bytes().to_vec(),
-                },
-            ],
-            handle_body: Some(body::repeated(API_BENCHMARK_BATCH_SIZE, &[
-                Instruction::I32Const(0), // at
-                Instruction::I32Const((n * 1024) as i32), // len
-                Instruction::I32Const(0), // output ptr
-                Instruction::Call(0),
-                ])),
-                .. Default::default()
-        });
-        let instance = Program::<T>::new(code, vec![])?;
-        let Exec {
-            ext_manager,
-            block_config,
-            context,
-            memory_pages,
-        } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![0xff; (n * 1024) as usize], 0u32.into())?;
+        let mut res = None;
+        let exec = gr_read_per_kb_bench::<T>(n)?;
     }: {
-        core_processor::process::<
-            Externalities,
-            ExecutionEnvironment,
-        >(&block_config, context, memory_pages);
+        res.replace(run_process(exec));
+    }
+    verify {
+        verify_process(res.unwrap());
     }
 
     gr_block_height {
         let r in 0 .. API_BENCHMARK_BATCHES;
-        let code = WasmModule::<T>::from(ModuleDefinition {
-            memory: Some(ImportedMemory::max::<T>()),
-            imported_functions: vec![ImportedFunction {
-                module: "env",
-                name: "gr_block_height",
-                params: vec![],
-                return_type: Some(ValueType::I32),
-            }],
-            handle_body: Some(body::repeated(r * API_BENCHMARK_BATCH_SIZE, &[
-                Instruction::Call(0),
-                Instruction::Drop,
-            ])),
-            .. Default::default()
-        });
-        let instance = Program::<T>::new(code, vec![])?;
-        let Exec {
-            ext_manager,
-            block_config,
-            context,
-            memory_pages,
-        } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 0u32.into())?;
+        let mut res = None;
+        let exec = number_getter_bench::<T>("gr_block_height", ValueType::I32, r)?;
     }: {
-        core_processor::process::<
-            Externalities,
-            ExecutionEnvironment,
-        >(&block_config, context, memory_pages);
+        res.replace(run_process(exec));
+    }
+    verify {
+        verify_process(res.unwrap());
     }
 
     gr_block_timestamp {
         let r in 0 .. API_BENCHMARK_BATCHES;
-        let code = WasmModule::<T>::from(ModuleDefinition {
-            memory: Some(ImportedMemory::max::<T>()),
-            imported_functions: vec![ImportedFunction {
-                module: "env",
-                name: "gr_block_timestamp",
-                params: vec![],
-                return_type: Some(ValueType::I64),
-            }],
-            handle_body: Some(body::repeated(r * API_BENCHMARK_BATCH_SIZE, &[
-                Instruction::Call(0),
-                Instruction::Drop,
-            ])),
-            .. Default::default()
-        });
-        let instance = Program::<T>::new(code, vec![])?;
-        let Exec {
-            ext_manager,
-            block_config,
-            context,
-            memory_pages,
-        } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 0u32.into())?;
+        let mut res = None;
+        let exec = number_getter_bench::<T>("gr_block_timestamp", ValueType::I64, r)?;
     }: {
-        core_processor::process::<
-            Externalities,
-            ExecutionEnvironment,
-        >(&block_config, context, memory_pages);
+        res.replace(run_process(exec));
+    }
+    verify {
+        verify_process(res.unwrap());
     }
 
     gr_send_init {
         let r in 0 .. API_BENCHMARK_BATCHES;
-        let code = WasmModule::<T>::from(ModuleDefinition {
-            memory: Some(ImportedMemory::max::<T>()),
-            imported_functions: vec![ImportedFunction {
-                module: "env",
-                name: "gr_send_init",
-                params: vec![ValueType::I32],
-                return_type: Some(ValueType::I32),
-            }],
-            handle_body: Some(body::repeated(r * API_BENCHMARK_BATCH_SIZE, &[
-                Instruction::I32Const(0), // handle ptr
-                Instruction::Call(0),
-                Instruction::Drop,
-            ])),
-            .. Default::default()
-        });
-        let instance = Program::<T>::new(code, vec![])?;
-        let Exec {
-            ext_manager,
-            block_config,
-            context,
-            memory_pages,
-        } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 0u32.into())?;
+        let mut res = None;
+        let exec = gr_send_init_bench::<T>(r)?;
     }: {
-        core_processor::process::<
-            Externalities,
-            ExecutionEnvironment,
-        >(&block_config, context, memory_pages);
+        res.replace(run_process(exec));
+    }
+    verify {
+        verify_process(res.unwrap());
     }
 
     gr_send_push {
         let r in 0 .. API_BENCHMARK_BATCHES;
-        let code = WasmModule::<T>::from(ModuleDefinition {
-            memory: Some(ImportedMemory::max::<T>()),
-            imported_functions: vec![ImportedFunction {
-                module: "env",
-                name: "gr_send_init",
-                params: vec![ValueType::I32],
-                return_type: Some(ValueType::I32),
-            },
-            ImportedFunction {
-                module: "env",
-                name: "gr_send_push",
-                params: vec![ValueType::I32, ValueType::I32, ValueType::I32],
-                return_type: Some(ValueType::I32),
-            }],
-            handle_body: Some(body::repeated(r * API_BENCHMARK_BATCH_SIZE, &[
-                Instruction::I32Const(0), // handle ptr
-                Instruction::Call(0), // get handle
-                Instruction::Drop,
-                Instruction::I32Const(0), // handle ptr
-                Instruction::I32Const(0), // payload ptr
-                Instruction::I32Const(0), // payload len
-                Instruction::Call(1), // send_push
-                Instruction::Drop,
-            ])),
-            .. Default::default()
-        });
-        let instance = Program::<T>::new(code, vec![])?;
-        let Exec {
-            ext_manager,
-            block_config,
-            context,
-            memory_pages,
-        } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 0u32.into())?;
+        let mut res = None;
+        let exec = gr_send_push_bench::<T>(r)?;
     }: {
-        core_processor::process::<
-            Externalities,
-            ExecutionEnvironment,
-        >(&block_config, context, memory_pages);
+        res.replace(run_process(exec));
+    }
+    verify {
+        verify_process(res.unwrap());
     }
 
     gr_send_push_per_kb {
         let n in 0 .. T::Schedule::get().limits.payload_len / 1024;
-        let code = WasmModule::<T>::from(ModuleDefinition {
-            memory: Some(ImportedMemory::max::<T>()),
-            imported_functions: vec![ImportedFunction {
-                module: "env",
-                name: "gr_send_init",
-                params: vec![ValueType::I32],
-                return_type: Some(ValueType::I32),
-            },
-            ImportedFunction {
-                module: "env",
-                name: "gr_send_push",
-                params: vec![ValueType::I32, ValueType::I32, ValueType::I32],
-                return_type: Some(ValueType::I32),
-            }],
-            handle_body: Some(body::repeated(API_BENCHMARK_BATCH_SIZE, &[
-                Instruction::I32Const(0), // handle ptr
-                Instruction::Call(0), // get handle
-                Instruction::Drop,
-                Instruction::I32Const(0), // handle ptr
-                Instruction::I32Const(0), // payload ptr
-                Instruction::I32Const((n * 1024) as i32), // payload_len
-                Instruction::Call(1), // send_push
-                Instruction::Drop,
-            ])),
-            .. Default::default()
-        });
-        let instance = Program::<T>::new(code, vec![])?;
-        let Exec {
-            ext_manager,
-            block_config,
-            context,
-            memory_pages,
-        } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 0u32.into())?;
+        let mut res = None;
+        let exec = gr_send_push_per_kb_bench::<T>(n)?;
     }: {
-        core_processor::process::<
-            Externalities,
-            ExecutionEnvironment,
-        >(&block_config, context, memory_pages);
+        res.replace(run_process(exec));
+    }
+    verify {
+        verify_process(res.unwrap());
     }
 
-    // Benchmark the `gr_send_commit` call.
-    // `gr_send` call is shortcut for `gr_send_init` + `gr_send_commit`
     gr_send_commit {
         let r in 0 .. API_BENCHMARK_BATCHES;
-        let instance = Program::<T>::new(WasmModule::<T>::dummy(), vec![])?;
-        let pid_bytes = instance.addr.encode();
-        let pid_len = pid_bytes.len();
-        let value_bytes = 0_u128.encode();
-        let value_len = value_bytes.len();
-        let code = WasmModule::<T>::from(ModuleDefinition {
-            memory: Some(ImportedMemory::max::<T>()),
-            imported_functions: vec![ImportedFunction {
-                module: "env",
-                name: "gr_send",
-                params: vec![ValueType::I32, ValueType::I32, ValueType::I32, ValueType::I32, ValueType::I32],
-                return_type: Some(ValueType::I32),
-            }],
-            data_segments: vec![
-                DataSegment {
-                    offset: 0_u32,
-                    value: pid_bytes,
-                },
-                DataSegment {
-                    offset: pid_len as u32,
-                    value: value_bytes,
-                },
-            ],
-            handle_body: Some(body::repeated(r * API_BENCHMARK_BATCHES, &[
-                Instruction::I32Const(0), // program_id_ptr
-                Instruction::I32Const(0), // payload_ptr
-                Instruction::I32Const(0), // payload_len
-                Instruction::I32Const(pid_len as i32), // value_ptr
-                Instruction::I32Const((pid_len + value_len) as i32), // message_id_ptr
-                Instruction::Call(0),
-                Instruction::Drop,
-                ])),
-                .. Default::default()
-        });
-        let instance = Program::<T>::new(code, vec![])?;
-
-        let Exec {
-            ext_manager,
-            block_config,
-            context,
-            memory_pages,
-        } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 10000000u32.into())?;
+        let mut res = None;
+        let exec = gr_send_commit_bench::<T>(r)?;
     }: {
-        core_processor::process::<
-            Externalities,
-            ExecutionEnvironment,
-        >(&block_config, context, memory_pages);
+        res.replace(run_process(exec));
+    }
+    verify {
+        verify_process(res.unwrap());
     }
 
-    // Benchmark the `gr_send_commit` call.
-    // `n`: Size of message payload in kb
     gr_send_commit_per_kb {
         let n in 0 .. T::Schedule::get().limits.payload_len / 1024;
-        let instance = Program::<T>::new(WasmModule::<T>::dummy(), vec![])?;
-        let pid_bytes = instance.addr.encode();
-        let pid_len = pid_bytes.len();
-        let value_bytes = 0_u128.encode();
-        let value_len = value_bytes.len();
-        let code = WasmModule::<T>::from(ModuleDefinition {
-            memory: Some(ImportedMemory::max::<T>()),
-            imported_functions: vec![ImportedFunction {
-                module: "env",
-                name: "gr_send",
-                params: vec![ValueType::I32, ValueType::I32, ValueType::I32, ValueType::I32, ValueType::I32],
-                return_type: Some(ValueType::I32),
-            }],
-            data_segments: vec![
-                DataSegment {
-                    offset: 0_u32,
-                    value: pid_bytes,
-                },
-                DataSegment {
-                    offset: pid_len as u32,
-                    value: value_bytes,
-                },
-            ],
-            handle_body: Some(body::plain(vec![
-                Instruction::I32Const(0), // program_id_ptr
-                Instruction::I32Const(0), // payload_ptr
-                Instruction::I32Const((n * 1024) as i32), // payload_len
-                Instruction::I32Const(pid_len as i32), // value_ptr
-                Instruction::I32Const((pid_len + value_len) as i32), // message_id_ptr
-                Instruction::Call(0),
-                Instruction::Drop,
-                Instruction::End,
-            ])),
-            .. Default::default()
-        });
-        let instance = Program::<T>::new(code, vec![])?;
-        let Exec {
-            ext_manager,
-            block_config,
-            context,
-            memory_pages,
-        } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 10000000u32.into())?;
+        let mut res = None;
+        let exec = gr_send_commit_per_kb_bench::<T>(n)?;
     }: {
-        core_processor::process::<
-            Externalities,
-            ExecutionEnvironment,
-        >(&block_config, context, memory_pages);
+        res.replace(run_process(exec));
+    }
+    verify {
+        verify_process(res.unwrap());
     }
 
     // Benchmark the `gr_reply_commit` call.
     gr_reply_commit {
         let r in 0 .. API_BENCHMARK_BATCHES;
-        let instance = Program::<T>::new(WasmModule::<T>::dummy(), vec![])?;
-        let value_bytes = 0_u128.encode();
-        let value_len = value_bytes.len();
-        let code = WasmModule::<T>::from(ModuleDefinition {
-            memory: Some(ImportedMemory::max::<T>()),
-            imported_functions: vec![ImportedFunction {
-                module: "env",
-                name: "gr_reply_commit",
-                params: vec![ValueType::I32, ValueType::I32, ValueType::I32],
-                return_type: Some(ValueType::I32),
-            }],
-            data_segments: vec![
-                DataSegment {
-                    offset: 0u32,
-                    value: value_bytes,
-                },
-            ],
-            handle_body: Some(body::repeated(r * API_BENCHMARK_BATCH_SIZE, &[
-                Instruction::I32Const(0), // payload_ptr
-                Instruction::I32Const(0), // payload_len
-                Instruction::I32Const(0), // value_ptr
-                Instruction::Call(0),
-                Instruction::Drop,
-                ])),
-                .. Default::default()
-        });
-        let instance = Program::<T>::new(code, vec![])?;
-        let Exec {
-            ext_manager,
-            block_config,
-            context,
-            memory_pages,
-        } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 10000000u32.into())?;
+        let mut res = None;
+        let exec = gr_reply_commit_bench::<T>(r)?;
     }: {
-        core_processor::process::<
-            Externalities,
-            ExecutionEnvironment,
-        >(&block_config, context, memory_pages);
+        res.replace(run_process(exec));
     }
-
-    gr_reply_commit_per_kb {
-        let n in 0 .. T::Schedule::get().limits.payload_len / 1024;
-        let value_bytes = 0_u128.encode();
-        let value_len = value_bytes.len();
-        let code = WasmModule::<T>::from(ModuleDefinition {
-            memory: Some(ImportedMemory::max::<T>()),
-            imported_functions: vec![ImportedFunction {
-                module: "env",
-                name: "gr_reply_commit",
-                params: vec![ValueType::I32, ValueType::I32, ValueType::I32],
-                return_type: Some(ValueType::I32),
-            }],
-            data_segments: vec![
-                DataSegment {
-                    offset: 0u32,
-                    value: value_bytes,
-                },
-            ],
-            handle_body: Some(body::repeated(API_BENCHMARK_BATCH_SIZE, &[
-                Instruction::I32Const(0), // payload_ptr
-                Instruction::I32Const((n * 1024) as i32), // payload_len
-                Instruction::I32Const(0), // value_ptr
-                Instruction::Call(0),
-                Instruction::Drop,
-                ])),
-                .. Default::default()
-        });
-        let instance = Program::<T>::new(code, vec![])?;
-        let Exec {
-            ext_manager,
-            block_config,
-            context,
-            memory_pages,
-        } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 10000000u32.into())?;
-    }: {
-        core_processor::process::<
-            Externalities,
-            ExecutionEnvironment,
-        >(&block_config, context, memory_pages);
+    verify {
+        verify_process(res.unwrap());
     }
 
     // Benchmark the `gr_reply_push` call.
     gr_reply_push {
         let r in 0 .. API_BENCHMARK_BATCHES;
-        let instance = Program::<T>::new(WasmModule::<T>::dummy(), vec![])?;
-        let value_bytes = 0_u128.encode();
-        let value_len = value_bytes.len();
-        let code = WasmModule::<T>::from(ModuleDefinition {
-            memory: Some(ImportedMemory::max::<T>()),
-            imported_functions: vec![ImportedFunction {
-                module: "env",
-                name: "gr_reply_push",
-                params: vec![ValueType::I32, ValueType::I32],
-                return_type: Some(ValueType::I32),
-            }],
-            data_segments: vec![
-                DataSegment {
-                    offset: 0u32,
-                    value: value_bytes,
-                },
-            ],
-            handle_body: Some(body::repeated(r * API_BENCHMARK_BATCH_SIZE, &[
-                Instruction::I32Const(0), // payload_ptr
-                Instruction::I32Const(0), // payload_len
-                Instruction::Call(0),
-                Instruction::Drop,
-                ])),
-                .. Default::default()
-        });
-        let instance = Program::<T>::new(code, vec![])?;
-        let Exec {
-            ext_manager,
-            block_config,
-            context,
-            memory_pages,
-        } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 10000000u32.into())?;
+        let mut res = None;
+        let exec = gr_reply_push_bench::<T>(r)?;
     }: {
-        core_processor::process::<
-            Externalities,
-            ExecutionEnvironment,
-        >(&block_config, context, memory_pages);
+        res.replace(run_process(exec));
+    }
+    verify {
+        verify_process(res.unwrap());
     }
 
     gr_reply_push_per_kb {
         let n in 0 .. T::Schedule::get().limits.payload_len / 1024;
-        let value_bytes = 0_u128.encode();
-        let value_len = value_bytes.len();
-        let code = WasmModule::<T>::from(ModuleDefinition {
-            memory: Some(ImportedMemory::max::<T>()),
-            imported_functions: vec![ImportedFunction {
-                module: "env",
-                name: "gr_reply_push",
-                params: vec![ValueType::I32, ValueType::I32],
-                return_type: Some(ValueType::I32),
-            }],
-            data_segments: vec![
-                DataSegment {
-                    offset: 0u32,
-                    value: value_bytes,
-                },
-            ],
-            handle_body: Some(body::repeated(API_BENCHMARK_BATCH_SIZE, &[
-                Instruction::I32Const(0), // payload_ptr
-                Instruction::I32Const((n * 1024) as i32), // payload_len
-                Instruction::Call(0),
-                Instruction::Drop,
-                ])),
-                .. Default::default()
-        });
-        let instance = Program::<T>::new(code, vec![])?;
-        let Exec {
-            ext_manager,
-            block_config,
-            context,
-            memory_pages,
-        } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 10000000u32.into())?;
+        let mut res = None;
+        let exec = gr_reply_push_per_kb_bench::<T>(n)?;
     }: {
-        core_processor::process::<
-            Externalities,
-            ExecutionEnvironment,
-        >(&block_config, context, memory_pages);
+        res.replace(run_process(exec));
+    }
+    verify {
+        verify_process(res.unwrap());
     }
 
     gr_reply_to {
         let r in 0 .. API_BENCHMARK_BATCHES;
-        let code = WasmModule::<T>::from(ModuleDefinition {
-            memory: Some(ImportedMemory::max::<T>()),
-            imported_functions: vec![ImportedFunction {
-                module: "env",
-                name: "gr_reply_to",
-                params: vec![ValueType::I32],
-                return_type: None,
-            }],
-            reply_body: Some(body::repeated(r * API_BENCHMARK_BATCH_SIZE, &[
-                // dest_ptr
-                Instruction::I32Const(0),
-                Instruction::Call(0),
-                ])),
-            .. Default::default()
-        });
-        let instance = Program::<T>::new(code, vec![])?;
-        let msg_id = MessageId::from(10);
-        let msg = gear_core::message::Message::new(msg_id, instance.addr.as_bytes().into(), ProgramId::from(instance.caller.clone().into_origin().as_bytes()), Default::default(), Some(1_000_000), 0, None).into_stored();
-        MailboxOf::<T>::insert(msg, u32::MAX.unique_saturated_into()).expect("Error during mailbox insertion");
-        let Exec {
-            ext_manager,
-            block_config,
-            context,
-            memory_pages,
-        } = prepare::<T>(instance.caller.into_origin(), HandleKind::Reply(msg_id, 0), vec![], 0u32.into())?;
+        let mut res = None;
+        let exec = gr_reply_to_bench::<T>(r)?;
     }: {
-        core_processor::process::<
-            Externalities,
-            ExecutionEnvironment,
-        >(&block_config, context, memory_pages);
+        res.replace(run_process(exec));
+    }
+    verify {
+        verify_process(res.unwrap());
     }
 
     gr_debug {
         let r in 0 .. API_BENCHMARK_BATCHES;
-        let code = WasmModule::<T>::from(ModuleDefinition {
-            memory: Some(ImportedMemory::max::<T>()),
-            imported_functions: vec![ImportedFunction {
-                module: "env",
-                name: "gr_debug",
-                params: vec![ValueType::I32, ValueType::I32],
-                return_type: None,
-            }],
-            handle_body: Some(body::repeated(r * API_BENCHMARK_BATCH_SIZE, &[
-                Instruction::I32Const(0),
-                Instruction::I32Const(0),
-                Instruction::Call(0),
-            ])),
-            .. Default::default()
-        });
-        let instance = Program::<T>::new(code, vec![])?;
-        let Exec {
-            ext_manager,
-            block_config,
-            context,
-            memory_pages,
-        } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 0u32.into())?;
+        let mut res = None;
+        let exec = gr_debug_bench::<T>(r)?;
     }: {
-        core_processor::process::<
-            Externalities,
-            ExecutionEnvironment,
-        >(&block_config, context, memory_pages);
+        res.replace(run_process(exec));
+    }
+    verify {
+        verify_process(res.unwrap());
+    }
+
+    gr_debug_per_kb {
+        let n in 0 .. T::Schedule::get().limits.payload_len / 1024;
+        let mut res = None;
+        let exec = gr_debug_per_kb_bench::<T>(n)?;
+    }: {
+        res.replace(run_process(exec));
+    }
+    verify {
+        verify_process(res.unwrap());
     }
 
     gr_exit_code {
         let r in 0 .. API_BENCHMARK_BATCHES;
-        let code = WasmModule::<T>::from(ModuleDefinition {
-            memory: Some(ImportedMemory::max::<T>()),
-            imported_functions: vec![ImportedFunction {
-                module: "env",
-                name: "gr_exit_code",
-                params: vec![],
-                return_type: Some(ValueType::I32),
-            }],
-            reply_body: Some(body::repeated(r * API_BENCHMARK_BATCH_SIZE, &[
-                Instruction::Call(0),
-                Instruction::Drop,
-            ])),
-            .. Default::default()
-        });
-        let instance = Program::<T>::new(code, vec![])?;
-        let msg_id = MessageId::from(10);
-        let msg = gear_core::message::Message::new(msg_id, instance.addr.as_bytes().into(), ProgramId::from(instance.caller.clone().into_origin().as_bytes()), Default::default(), Some(1_000_000), 0, None).into_stored();
-        MailboxOf::<T>::insert(msg, u32::MAX.unique_saturated_into()).expect("Error during mailbox insertion");
-        let Exec {
-            ext_manager,
-            block_config,
-            context,
-            memory_pages,
-        } = prepare::<T>(instance.caller.into_origin(), HandleKind::Reply(msg_id, 0), vec![], 0u32.into())?;
+        let mut res = None;
+        let exec = gr_exit_code_bench::<T>(r)?;
     }: {
-        core_processor::process::<
-            Externalities,
-            ExecutionEnvironment,
-        >(&block_config, context, memory_pages);
+        res.replace(run_process(exec));
+    }
+    verify {
+        verify_process(res.unwrap());
     }
 
     // We cannot call `gr_exit` multiple times. Therefore our weight determination is not
     // as precise as with other APIs.
     gr_exit {
         let r in 0 .. 1;
-        let pid_bytes = ProgramId::from(1).encode();
-        let pid_len = pid_bytes.len();
-        let code = WasmModule::<T>::from(ModuleDefinition {
-            memory: Some(ImportedMemory::max::<T>()),
-            imported_functions: vec![ImportedFunction {
-                module: "env",
-                name: "gr_exit",
-                params: vec![ValueType::I32],
-                return_type: None,
-            }],
-            data_segments: vec![
-                DataSegment {
-                    offset: 0_u32,
-                    value: pid_bytes,
-                },
-            ],
-            handle_body: Some(body::repeated(r, &[
-                Instruction::I32Const(0),
-                Instruction::Call(0),
-            ])),
-            .. Default::default()
-        });
-        let instance = Program::<T>::new(code, vec![])?;
-        let Exec {
-            ext_manager,
-            block_config,
-            context,
-            memory_pages,
-        } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 0u32.into())?;
+        let mut res = None;
+        let exec = no_return_bench::<T>("gr_exit", Some(0xff), r)?;
     }: {
-        core_processor::process::<
-            Externalities,
-            ExecutionEnvironment,
-        >(&block_config, context, memory_pages);
+        res.replace(run_process(exec));
+    }
+    verify {
+        verify_process(res.unwrap());
     }
 
     // We cannot call `gr_leave` multiple times. Therefore our weight determination is not
     // as precise as with other APIs.
     gr_leave {
         let r in 0 .. 1;
-        let code = WasmModule::<T>::from(ModuleDefinition {
-            memory: Some(ImportedMemory::max::<T>()),
-            imported_functions: vec![ImportedFunction {
-                module: "env",
-                name: "gr_leave",
-                params: vec![],
-                return_type: None,
-            }],
-            handle_body: Some(body::repeated(r, &[
-                Instruction::Call(0),
-            ])),
-            .. Default::default()
-        });
-        let instance = Program::<T>::new(code, vec![])?;
-        let Exec {
-            ext_manager,
-            block_config,
-            context,
-            memory_pages,
-        } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 0u32.into())?;
+        let mut res = None;
+        let exec = no_return_bench::<T>("gr_leave", None, r)?;
     }: {
-        core_processor::process::<
-            Externalities,
-            ExecutionEnvironment,
-        >(&block_config, context, memory_pages);
+        res.replace(run_process(exec));
+    }
+    verify {
+        verify_process(res.unwrap());
     }
 
     // We cannot call `gr_wait` multiple times. Therefore our weight determination is not
     // as precise as with other APIs.
     gr_wait {
         let r in 0 .. 1;
-        let code = WasmModule::<T>::from(ModuleDefinition {
-            memory: Some(ImportedMemory::max::<T>()),
-            imported_functions: vec![ImportedFunction {
-                module: "env",
-                name: "gr_wait",
-                params: vec![],
-                return_type: None,
-            }],
-            handle_body: Some(body::repeated(r, &[
-                Instruction::Call(0),
-            ])),
-            .. Default::default()
-        });
-        let instance = Program::<T>::new(code, vec![])?;
-        let Exec {
-            ext_manager,
-            block_config,
-            context,
-            memory_pages,
-        } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 0u32.into())?;
+        let mut res = None;
+        let exec = no_return_bench::<T>("gr_wait", None, r)?;
     }: {
-        core_processor::process::<
-            Externalities,
-            ExecutionEnvironment,
-        >(&block_config, context, memory_pages);
+        res.replace(run_process(exec));
+    }
+    verify {
+        verify_process(res.unwrap());
     }
 
     // We cannot call `gr_wait_for` multiple times. Therefore our weight determination is not
     // as precise as with other APIs.
     gr_wait_for {
         let r in 0 .. 1;
-        let code = WasmModule::<T>::from(ModuleDefinition {
-            memory: Some(ImportedMemory::max::<T>()),
-            imported_functions: vec![ImportedFunction {
-                module: "env",
-                name: "gr_wait_for",
-                params: vec![ValueType::I32],
-                return_type: None,
-            }],
-            handle_body: Some(body::repeated(r, &[
-                Instruction::I32Const(100),
-                Instruction::Call(0),
-            ])),
-            .. Default::default()
-        });
-        let instance = Program::<T>::new(code, vec![])?;
-        let Exec {
-            ext_manager,
-            block_config,
-            context,
-            memory_pages,
-        } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 0u32.into())?;
+        let mut res = None;
+        let exec = no_return_bench::<T>("gr_wait_for", Some(10), r)?;
     }: {
-        core_processor::process::<
-            Externalities,
-            ExecutionEnvironment,
-        >(&block_config, context, memory_pages);
+        res.replace(run_process(exec));
+    }
+    verify {
+        verify_process(res.unwrap());
     }
 
     // We cannot call `gr_wait_up_to` multiple times. Therefore our weight determination is not
     // as precise as with other APIs.
     gr_wait_up_to {
         let r in 0 .. 1;
-        let code = WasmModule::<T>::from(ModuleDefinition {
-            memory: Some(ImportedMemory::max::<T>()),
-            imported_functions: vec![ImportedFunction {
-                module: "env",
-                name: "gr_wait_up_to",
-                params: vec![ValueType::I32],
-                return_type: None,
-            }],
-            handle_body: Some(body::repeated(r, &[
-                Instruction::I32Const(100),
-                Instruction::Call(0),
-            ])),
-            .. Default::default()
-        });
-        let instance = Program::<T>::new(code, vec![])?;
-        let Exec {
-            ext_manager,
-            block_config,
-            context,
-            memory_pages,
-        } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 0u32.into())?;
+        let mut res = None;
+        let exec = no_return_bench::<T>("gr_wait_up_to", Some(100), r)?;
     }: {
-        core_processor::process::<
-            Externalities,
-            ExecutionEnvironment,
-        >(&block_config, context, memory_pages);
+        res.replace(run_process(exec));
+    }
+    verify {
+        verify_process(res.unwrap());
     }
 
     gr_wake {
         let r in 0 .. API_BENCHMARK_BATCHES;
-        let message_ids = (0..r * API_BENCHMARK_BATCH_SIZE)
-            .map(|i| gear_core::ids::MessageId::from(i as u64))
-            .collect::<Vec<_>>();
-        let message_id_len = message_ids.get(0).map(|i| i.encode().len()).unwrap_or(0);
-        let message_id_bytes = message_ids.iter().flat_map(|x| x.encode()).collect();
-        let code = WasmModule::<T>::from(ModuleDefinition {
-            memory: Some(ImportedMemory::max::<T>()),
-            imported_functions: vec![ImportedFunction {
-                module: "env",
-                name: "gr_wake",
-                params: vec![ValueType::I32],
-                return_type: None,
-            }],
-            data_segments: vec![
-                DataSegment {
-                    offset: 0_u32,
-                    value: message_id_bytes,
-                },
-            ],
-            handle_body: Some(body::repeated_dyn(r * API_BENCHMARK_BATCH_SIZE, vec![
-                Counter(0_u32, message_id_len as u32), // message_id_ptr
-                Regular(Instruction::Call(0)),
-            ])),
-            .. Default::default()
-        });
-        let instance = Program::<T>::new(code, vec![])?;
-        for message_id in message_ids {
-            let message = gear_core::message::Message::new(message_id, 1.into(), ProgramId::from(instance.addr.as_bytes()), Default::default(), Some(1_000_000), 0, None);
-            let dispatch = gear_core::message::Dispatch::new(gear_core::message::DispatchKind::Handle, message).into_stored();
-            WaitlistOf::<T>::insert(dispatch.clone(), u32::MAX.unique_saturated_into()).expect("Duplicate wl message");
-        }
-        let Exec {
-            ext_manager,
-            block_config,
-            context,
-            memory_pages,
-        } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 0u32.into())?;
+        let mut res = None;
+        let exec = gr_wake_bench::<T>(r)?;
     }: {
-        core_processor::process::<
-            Externalities,
-            ExecutionEnvironment,
-        >(&block_config, context, memory_pages);
+        res.replace(run_process(exec));
+    }
+    verify {
+        verify_process(res.unwrap());
     }
 
     gr_create_program_wgas {
-        let r in 0 .. 1;
-        let module = WasmModule::<T>::dummy();
-        let code_hash_bytes = module.hash.encode();
-        let code_hash_len = code_hash_bytes.len();
-        let salt_bytes = r.encode();
-        let salt_bytes_len = salt_bytes.len();
-        let value_bytes = 0_u128.encode();
-        let value_bytes_len = value_bytes.len();
-        let pid_bytes = ProgramId::from(101).encode();
-        let _ = Gear::<T>::upload_code_raw(RawOrigin::Signed(benchmarking::account("instantiator", 0, 0)).into(), module.code);
-        let code = WasmModule::<T>::from(ModuleDefinition {
-            memory: Some(ImportedMemory::max::<T>()),
-            imported_functions: vec![ImportedFunction {
-                module: "env",
-                name: "gr_create_program_wgas",
-                params: vec![ValueType::I32, ValueType::I32, ValueType::I32, ValueType::I32, ValueType::I32, ValueType::I64, ValueType::I32, ValueType::I32],
-                return_type: None,
-            }],
-            data_segments: vec![
-                DataSegment {
-                    offset: 0_u32,
-                    value: code_hash_bytes,
-                },
-                DataSegment {
-                    offset: code_hash_len as u32,
-                    value: salt_bytes,
-                },
-                DataSegment {
-                    offset: (salt_bytes_len + code_hash_len) as u32,
-                    value: value_bytes,
-                },
-                DataSegment {
-                    offset: (value_bytes_len + salt_bytes_len + code_hash_len) as u32,
-                    value: pid_bytes,
-                },
-            ],
-            handle_body: Some(body::repeated_dyn(r, vec![
-                Regular(Instruction::I32Const(0)),
-                Regular(Instruction::I32Const(code_hash_len as i32)),
-                Counter(0_u32, r), // salt len
-                Regular(Instruction::I32Const(0)),
-                Regular(Instruction::I32Const(0)), // payload_len
-                Regular(Instruction::I64Const(100000000)),
-                Regular(Instruction::I32Const((salt_bytes_len + code_hash_len) as i32)),
-                Regular(Instruction::I32Const((value_bytes_len + salt_bytes_len + code_hash_len) as i32)),
-                Regular(Instruction::Call(0)),
-            ])),
-            .. Default::default()
-        });
-        let instance = Program::<T>::new(code, vec![])?;
-        let Exec {
-            ext_manager,
-            block_config,
-            context,
-            memory_pages,
-        } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 0u32.into())?;
+        let r in 0 .. API_BENCHMARK_BATCHES;
+        let mut res = None;
+        let exec = gr_create_program_wgas_bench::<T>(r)?;
     }: {
-        core_processor::process::<
-            Externalities,
-            ExecutionEnvironment,
-        >(&block_config, context, memory_pages);
+        res.replace(run_process(exec));
+    }
+    verify {
+        verify_process(res.unwrap());
     }
 
     gr_create_program_wgas_per_kb {
-        let n in 0 .. T::Schedule::get().limits.payload_len / 1024;
-        let module = WasmModule::<T>::dummy();
-        let code_hash_bytes = module.hash.encode();
-        let code_hash_len = code_hash_bytes.len();
-        let salt_bytes = n.encode();
-        let salt_bytes_len = salt_bytes.len();
-        let value_bytes = 0_u128.encode();
-        let value_bytes_len = value_bytes.len();
-        let pid_bytes = ProgramId::from(101).encode();
-        let _ = Gear::<T>::upload_code_raw(RawOrigin::Signed(benchmarking::account("instantiator", 0, 0)).into(), module.code);
-        let code = WasmModule::<T>::from(ModuleDefinition {
-            memory: Some(ImportedMemory::max::<T>()),
-            imported_functions: vec![ImportedFunction {
-                module: "env",
-                name: "gr_create_program_wgas",
-                params: vec![ValueType::I32, ValueType::I32, ValueType::I32, ValueType::I32, ValueType::I32, ValueType::I64, ValueType::I32, ValueType::I32],
-                return_type: None,
-            }],
-            data_segments: vec![
-                DataSegment {
-                    offset: 0_u32,
-                    value: code_hash_bytes,
-                },
-                DataSegment {
-                    offset: code_hash_len as u32,
-                    value: salt_bytes,
-                },
-                DataSegment {
-                    offset: (salt_bytes_len + code_hash_len) as u32,
-                    value: value_bytes,
-                },
-                DataSegment {
-                    offset: (value_bytes_len + salt_bytes_len + code_hash_len) as u32,
-                    value: pid_bytes,
-                },
-            ],
-            handle_body: Some(body::repeated_dyn(API_BENCHMARK_BATCH_SIZE, vec![
-                Regular(Instruction::I32Const(0)),
-                Regular(Instruction::I32Const(code_hash_len as i32)),
-                Counter(0_u32, API_BENCHMARK_BATCH_SIZE), // salt len
-                Regular(Instruction::I32Const(0)),
-                Regular(Instruction::I32Const((n * 1024) as i32)), // payload_len
-                Regular(Instruction::I64Const(100000000)),
-                Regular(Instruction::I32Const((salt_bytes_len + code_hash_len) as i32)),
-                Regular(Instruction::I32Const((value_bytes_len + salt_bytes_len + code_hash_len) as i32)),
-                Regular(Instruction::Call(0)),
-            ])),
-            .. Default::default()
-        });
-        let instance = Program::<T>::new(code, vec![])?;
-        let Exec {
-            ext_manager,
-            block_config,
-            context,
-            memory_pages,
-        } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 0u32.into())?;
+        let p in 0 .. T::Schedule::get().limits.payload_len / 1024;
+        let s in 0 .. T::Schedule::get().limits.payload_len / 1024;
+        let mut res = None;
+        let exec = gr_create_program_wgas_per_kb_bench::<T>(p, s)?;
     }: {
-        core_processor::process::<
-            Externalities,
-            ExecutionEnvironment,
-        >(&block_config, context, memory_pages);
+        res.replace(run_process(exec));
+    }
+    verify {
+        verify_process(res.unwrap());
     }
 
     // We make the assumption that pushing a constant and dropping a value takes roughly

@@ -40,6 +40,8 @@ pub trait WeightInfo {
     fn grow_cost() -> Weight;
     fn initial_cost() -> Weight;
     fn load_cost() -> Weight;
+    fn db_write_per_kb(c: u32, ) -> Weight;
+    fn db_read_per_kb(c: u32, ) -> Weight;
     fn instantiate_module_per_kb(c: u32, ) -> Weight;
     fn claim_value() -> Weight;
     fn upload_code(c: u32, ) -> Weight;
@@ -51,7 +53,7 @@ pub trait WeightInfo {
     fn alloc_in_handle(q: u32, ) -> Weight;
     fn reinstrument(c: u32, ) -> Weight;
     fn alloc(r: u32, ) -> Weight;
-    fn gas(r: u32, ) -> Weight;
+    fn free(r: u32, ) -> Weight;
     fn gr_gas_available(r: u32, ) -> Weight;
     fn gr_message_id(r: u32, ) -> Weight;
     fn gr_origin(r: u32, ) -> Weight;
@@ -70,11 +72,11 @@ pub trait WeightInfo {
     fn gr_send_commit(r: u32, ) -> Weight;
     fn gr_send_commit_per_kb(n: u32, ) -> Weight;
     fn gr_reply_commit(r: u32, ) -> Weight;
-    fn gr_reply_commit_per_kb(n: u32, ) -> Weight;
     fn gr_reply_push(r: u32, ) -> Weight;
     fn gr_reply_push_per_kb(n: u32, ) -> Weight;
     fn gr_reply_to(r: u32, ) -> Weight;
     fn gr_debug(r: u32, ) -> Weight;
+    fn gr_debug_per_kb(n: u32, ) -> Weight;
     fn gr_exit_code(r: u32, ) -> Weight;
     fn gr_exit(r: u32, ) -> Weight;
     fn gr_leave(r: u32, ) -> Weight;
@@ -83,7 +85,7 @@ pub trait WeightInfo {
     fn gr_wait_up_to(r: u32, ) -> Weight;
     fn gr_wake(r: u32, ) -> Weight;
     fn gr_create_program_wgas(r: u32, ) -> Weight;
-    fn gr_create_program_wgas_per_kb(n: u32, ) -> Weight;
+    fn gr_create_program_wgas_per_kb(p: u32, s: u32, ) -> Weight;
     fn gr_reserve_gas(r: u32, ) -> Weight;
     fn gr_unreserve_gas(r: u32, ) -> Weight;
     fn instr_i64const(r: u32, ) -> Weight;
@@ -155,11 +157,25 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
     fn load_cost() -> Weight {
         T::DbWeight::get().reads(1)
     }
-    /// The range of component `c` is `[0, 256902]`.
+    /// The range of component `c` is `[0, 512]`.
+    fn db_write_per_kb(c: u32, ) -> Weight {
+        Weight::from_ref_time(1_000_000 as u64)
+            // Standard Error: 211
+            .saturating_add(Weight::from_ref_time(140_336 as u64).saturating_mul(c as u64))
+            .saturating_add(T::DbWeight::get().writes(1 as u64))
+    }
+    /// The range of component `c` is `[0, 512]`.
+    fn db_read_per_kb(c: u32, ) -> Weight {
+        Weight::from_ref_time(4_000_000 as u64)
+            // Standard Error: 559
+            .saturating_add(Weight::from_ref_time(361_781 as u64).saturating_mul(c as u64))
+            .saturating_add(T::DbWeight::get().reads(1 as u64))
+    }
+    /// The range of component `c` is `[0, 512]`.
     fn instantiate_module_per_kb(c: u32, ) -> Weight {
-        Weight::from_ref_time(57_625_000 as u64)
-            // Standard Error: 2
-            .saturating_add(Weight::from_ref_time(1_504 as u64).saturating_mul(c as u64))
+        Weight::from_ref_time(62_000_000 as u64)
+            // Standard Error: 1_474
+            .saturating_add(Weight::from_ref_time(1_234_747 as u64).saturating_mul(c as u64))
     }
     fn claim_value() -> Weight {
         Weight::from_ref_time(104_749_000 as u64)
@@ -235,228 +251,227 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
     }
     /// The range of component `r` is `[0, 20]`.
     fn alloc(r: u32, ) -> Weight {
-        Weight::from_ref_time(78_497_000 as u64)
-            // Standard Error: 52_347
-            .saturating_add(Weight::from_ref_time(172_831_538 as u64).saturating_mul(r as u64))
+        Weight::from_ref_time(101_523_000 as u64)
+            // Standard Error: 45_067
+            .saturating_add(Weight::from_ref_time(235_608_959 as u64).saturating_mul(r as u64))
     }
     /// The range of component `r` is `[0, 20]`.
-    fn gas(r: u32, ) -> Weight {
-        Weight::from_ref_time(77_705_000 as u64)
-            // Standard Error: 21_167
-            .saturating_add(Weight::from_ref_time(61_690_912 as u64).saturating_mul(r as u64))
+    fn free(r: u32, ) -> Weight {
+        Weight::from_ref_time(342_476_000 as u64)
+            // Standard Error: 52_330
+            .saturating_add(Weight::from_ref_time(223_414_269 as u64).saturating_mul(r as u64))
     }
     /// The range of component `r` is `[0, 20]`.
-    fn gr_gas_available(r: u32, ) -> Weight {
-        Weight::from_ref_time(77_836_000 as u64)
-            // Standard Error: 25_434
-            .saturating_add(Weight::from_ref_time(59_354_801 as u64).saturating_mul(r as u64))
+    fn gr_reserve_gas(r: u32, ) -> Weight {
+        Weight::from_ref_time(120_251_000 as u64)
+            // Standard Error: 340_030
+            .saturating_add(Weight::from_ref_time(339_766_624 as u64).saturating_mul(r as u64))
+    }
+    /// The range of component `r` is `[0, 20]`.
+    fn gr_unreserve_gas(r: u32, ) -> Weight {
+        Weight::from_ref_time(118_216_000 as u64)
+            // Standard Error: 64_090
+            .saturating_add(Weight::from_ref_time(240_474_822 as u64).saturating_mul(r as u64))
     }
     /// The range of component `r` is `[0, 20]`.
     fn gr_message_id(r: u32, ) -> Weight {
-        Weight::from_ref_time(93_327_000 as u64)
-            // Standard Error: 63_649
-            .saturating_add(Weight::from_ref_time(74_447_317 as u64).saturating_mul(r as u64))
+        Weight::from_ref_time(101_243_000 as u64)
+            // Standard Error: 93_442
+            .saturating_add(Weight::from_ref_time(229_039_972 as u64).saturating_mul(r as u64))
     }
     /// The range of component `r` is `[0, 20]`.
     fn gr_origin(r: u32, ) -> Weight {
-        Weight::from_ref_time(92_966_000 as u64)
-            // Standard Error: 60_508
-            .saturating_add(Weight::from_ref_time(74_680_312 as u64).saturating_mul(r as u64))
+        Weight::from_ref_time(101_212_000 as u64)
+            // Standard Error: 95_334
+            .saturating_add(Weight::from_ref_time(229_233_185 as u64).saturating_mul(r as u64))
     }
     /// The range of component `r` is `[0, 20]`.
     fn gr_program_id(r: u32, ) -> Weight {
-        Weight::from_ref_time(92_786_000 as u64)
-            // Standard Error: 62_009
-            .saturating_add(Weight::from_ref_time(74_589_854 as u64).saturating_mul(r as u64))
+        Weight::from_ref_time(100_992_000 as u64)
+            // Standard Error: 85_481
+            .saturating_add(Weight::from_ref_time(228_907_757 as u64).saturating_mul(r as u64))
     }
     /// The range of component `r` is `[0, 20]`.
     fn gr_source(r: u32, ) -> Weight {
-        Weight::from_ref_time(92_845_000 as u64)
-            // Standard Error: 61_790
-            .saturating_add(Weight::from_ref_time(74_102_981 as u64).saturating_mul(r as u64))
+        Weight::from_ref_time(100_541_000 as u64)
+            // Standard Error: 86_698
+            .saturating_add(Weight::from_ref_time(230_506_094 as u64).saturating_mul(r as u64))
     }
     /// The range of component `r` is `[0, 20]`.
     fn gr_value(r: u32, ) -> Weight {
-        Weight::from_ref_time(92_665_000 as u64)
-            // Standard Error: 60_562
-            .saturating_add(Weight::from_ref_time(80_640_972 as u64).saturating_mul(r as u64))
+        Weight::from_ref_time(100_291_000 as u64)
+            // Standard Error: 86_269
+            .saturating_add(Weight::from_ref_time(229_588_300 as u64).saturating_mul(r as u64))
     }
     /// The range of component `r` is `[0, 20]`.
     fn gr_value_available(r: u32, ) -> Weight {
-        Weight::from_ref_time(93_047_000 as u64)
-            // Standard Error: 61_975
-            .saturating_add(Weight::from_ref_time(80_715_113 as u64).saturating_mul(r as u64))
+        Weight::from_ref_time(100_131_000 as u64)
+            // Standard Error: 93_224
+            .saturating_add(Weight::from_ref_time(228_955_827 as u64).saturating_mul(r as u64))
+    }
+    /// The range of component `r` is `[0, 20]`.
+    fn gr_gas_available(r: u32, ) -> Weight {
+        Weight::from_ref_time(100_381_000 as u64)
+            // Standard Error: 37_375
+            .saturating_add(Weight::from_ref_time(203_974_107 as u64).saturating_mul(r as u64))
     }
     /// The range of component `r` is `[0, 20]`.
     fn gr_size(r: u32, ) -> Weight {
-        Weight::from_ref_time(77_595_000 as u64)
-            // Standard Error: 18_252
-            .saturating_add(Weight::from_ref_time(51_066_635 as u64).saturating_mul(r as u64))
+        Weight::from_ref_time(100_781_000 as u64)
+            // Standard Error: 42_127
+            .saturating_add(Weight::from_ref_time(196_519_183 as u64).saturating_mul(r as u64))
     }
     /// The range of component `r` is `[0, 20]`.
     fn gr_read(r: u32, ) -> Weight {
-        Weight::from_ref_time(93_086_000 as u64)
-            // Standard Error: 23_879
-            .saturating_add(Weight::from_ref_time(76_323_714 as u64).saturating_mul(r as u64))
+        Weight::from_ref_time(102_084_000 as u64)
+            // Standard Error: 82_231
+            .saturating_add(Weight::from_ref_time(238_271_015 as u64).saturating_mul(r as u64))
     }
-    /// The range of component `n` is `[0, 64]`.
+    /// The range of component `n` is `[0, 1024]`.
     fn gr_read_per_kb(n: u32, ) -> Weight {
-        Weight::from_ref_time(174_920_000 as u64)
-            // Standard Error: 15_383
-            .saturating_add(Weight::from_ref_time(7_261_361 as u64).saturating_mul(n as u64))
+        Weight::from_ref_time(338_087_000 as u64)
+            // Standard Error: 5_590
+            .saturating_add(Weight::from_ref_time(7_943_194 as u64).saturating_mul(n as u64))
     }
     /// The range of component `r` is `[0, 20]`.
     fn gr_block_height(r: u32, ) -> Weight {
-        Weight::from_ref_time(77_786_000 as u64)
-            // Standard Error: 17_337
-            .saturating_add(Weight::from_ref_time(50_592_257 as u64).saturating_mul(r as u64))
+        Weight::from_ref_time(100_350_000 as u64)
+            // Standard Error: 36_095
+            .saturating_add(Weight::from_ref_time(195_570_954 as u64).saturating_mul(r as u64))
     }
     /// The range of component `r` is `[0, 20]`.
     fn gr_block_timestamp(r: u32, ) -> Weight {
-        Weight::from_ref_time(77_585_000 as u64)
-            // Standard Error: 20_285
-            .saturating_add(Weight::from_ref_time(59_218_576 as u64).saturating_mul(r as u64))
+        Weight::from_ref_time(100_982_000 as u64)
+            // Standard Error: 35_778
+            .saturating_add(Weight::from_ref_time(203_432_163 as u64).saturating_mul(r as u64))
     }
     /// The range of component `r` is `[0, 20]`.
     fn gr_send_init(r: u32, ) -> Weight {
-        Weight::from_ref_time(78_337_000 as u64)
-            // Standard Error: 73_076
-            .saturating_add(Weight::from_ref_time(90_601_450 as u64).saturating_mul(r as u64))
+        Weight::from_ref_time(101_503_000 as u64)
+            // Standard Error: 72_966
+            .saturating_add(Weight::from_ref_time(242_969_444 as u64).saturating_mul(r as u64))
     }
     /// The range of component `r` is `[0, 20]`.
     fn gr_send_push(r: u32, ) -> Weight {
-        Weight::from_ref_time(80_491_000 as u64)
-            // Standard Error: 84_954
-            .saturating_add(Weight::from_ref_time(175_889_470 as u64).saturating_mul(r as u64))
+        Weight::from_ref_time(102_996_000 as u64)
+            // Standard Error: 109_173
+            .saturating_add(Weight::from_ref_time(501_662_397 as u64).saturating_mul(r as u64))
     }
-    /// The range of component `n` is `[0, 64]`.
+    /// The range of component `n` is `[0, 1024]`.
     fn gr_send_push_per_kb(n: u32, ) -> Weight {
-        Weight::from_ref_time(290_952_000 as u64)
-            // Standard Error: 26_478
-            .saturating_add(Weight::from_ref_time(50_488_285 as u64).saturating_mul(n as u64))
+        Weight::from_ref_time(624_099_000 as u64)
+            // Standard Error: 116_168
+            .saturating_add(Weight::from_ref_time(19_714_357 as u64).saturating_mul(n as u64))
             .saturating_add(T::DbWeight::get().reads(4 as u64))
     }
     /// The range of component `r` is `[0, 20]`.
     fn gr_send_commit(r: u32, ) -> Weight {
-        Weight::from_ref_time(93_407_000 as u64)
-            // Standard Error: 70_366
-            .saturating_add(Weight::from_ref_time(51_780_107 as u64).saturating_mul(r as u64))
+        Weight::from_ref_time(101_183_000 as u64)
+            // Standard Error: 92_722
+            .saturating_add(Weight::from_ref_time(340_404_440 as u64).saturating_mul(r as u64))
     }
-    /// The range of component `n` is `[0, 64]`.
+    /// The range of component `n` is `[0, 1024]`.
     fn gr_send_commit_per_kb(n: u32, ) -> Weight {
-        Weight::from_ref_time(129_279_000 as u64)
-            // Standard Error: 1_831
-            .saturating_add(Weight::from_ref_time(1_031_489 as u64).saturating_mul(n as u64))
+        Weight::from_ref_time(471_374_000 as u64)
+            // Standard Error: 5_434
+            .saturating_add(Weight::from_ref_time(15_260_017 as u64).saturating_mul(n as u64))
             .saturating_add(T::DbWeight::get().reads(4 as u64))
     }
     /// The range of component `r` is `[0, 20]`.
     fn gr_reply_commit(r: u32, ) -> Weight {
-        Weight::from_ref_time(93_246_000 as u64)
-            // Standard Error: 75_902
-            .saturating_add(Weight::from_ref_time(92_583_393 as u64).saturating_mul(r as u64))
-    }
-    /// The range of component `n` is `[0, 64]`.
-    fn gr_reply_commit_per_kb(n: u32, ) -> Weight {
-        Weight::from_ref_time(219_309_000 as u64)
-            // Standard Error: 2_122
-            .saturating_add(Weight::from_ref_time(102_412 as u64).saturating_mul(n as u64))
-            .saturating_add(T::DbWeight::get().reads(4 as u64))
+        Weight::from_ref_time(101_022_000 as u64)
+            // Standard Error: 91_481
+            .saturating_add(Weight::from_ref_time(251_002_556 as u64).saturating_mul(r as u64))
     }
     /// The range of component `r` is `[0, 20]`.
     fn gr_reply_push(r: u32, ) -> Weight {
-        Weight::from_ref_time(93_186_000 as u64)
-            // Standard Error: 26_853
-            .saturating_add(Weight::from_ref_time(79_670_698 as u64).saturating_mul(r as u64))
+        Weight::from_ref_time(100_731_000 as u64)
+            // Standard Error: 75_936
+            .saturating_add(Weight::from_ref_time(250_793_013 as u64).saturating_mul(r as u64))
     }
-    /// The range of component `n` is `[0, 64]`.
+    /// The range of component `n` is `[0, 1024]`.
     fn gr_reply_push_per_kb(n: u32, ) -> Weight {
-        Weight::from_ref_time(177_816_000 as u64)
-            // Standard Error: 26_243
-            .saturating_add(Weight::from_ref_time(51_234_883 as u64).saturating_mul(n as u64))
+        Weight::from_ref_time(335_952_000 as u64)
+            // Standard Error: 115_616
+            .saturating_add(Weight::from_ref_time(19_700_260 as u64).saturating_mul(n as u64))
     }
     /// The range of component `r` is `[0, 20]`.
     fn gr_reply_to(r: u32, ) -> Weight {
-        Weight::from_ref_time(77_996_000 as u64)
-            // Standard Error: 73_532
-            .saturating_add(Weight::from_ref_time(77_578_594 as u64).saturating_mul(r as u64))
+        Weight::from_ref_time(100_772_000 as u64)
+            // Standard Error: 93_592
+            .saturating_add(Weight::from_ref_time(232_196_234 as u64).saturating_mul(r as u64))
     }
     /// The range of component `r` is `[0, 20]`.
     fn gr_debug(r: u32, ) -> Weight {
-        Weight::from_ref_time(77_575_000 as u64)
-            // Standard Error: 20_995
-            .saturating_add(Weight::from_ref_time(72_699_362 as u64).saturating_mul(r as u64))
+        Weight::from_ref_time(100_000_000 as u64)
+            // Standard Error: 73_053
+            .saturating_add(Weight::from_ref_time(245_355_850 as u64).saturating_mul(r as u64))
+    }
+    /// The range of component `n` is `[0, 1024]`.
+    fn gr_debug_per_kb(n: u32, ) -> Weight {
+        Weight::from_ref_time(331_253_000 as u64)
+            // Standard Error: 7_469
+            .saturating_add(Weight::from_ref_time(26_784_815 as u64).saturating_mul(n as u64))
     }
     /// The range of component `r` is `[0, 20]`.
     fn gr_exit_code(r: u32, ) -> Weight {
-        Weight::from_ref_time(77_605_000 as u64)
-            // Standard Error: 20_831
-            .saturating_add(Weight::from_ref_time(50_947_704 as u64).saturating_mul(r as u64))
+        Weight::from_ref_time(100_671_000 as u64)
+            // Standard Error: 86_868
+            .saturating_add(Weight::from_ref_time(231_830_464 as u64).saturating_mul(r as u64))
     }
     /// The range of component `r` is `[0, 1]`.
     fn gr_exit(r: u32, ) -> Weight {
-        Weight::from_ref_time(93_026_000 as u64)
-            // Standard Error: 186_559
-            .saturating_add(Weight::from_ref_time(29_027_300 as u64).saturating_mul(r as u64))
+        Weight::from_ref_time(99_699_000 as u64)
+            // Standard Error: 260_245
+            .saturating_add(Weight::from_ref_time(38_833_099 as u64).saturating_mul(r as u64))
             .saturating_add(T::DbWeight::get().reads((1 as u64).saturating_mul(r as u64)))
     }
     /// The range of component `r` is `[0, 1]`.
     fn gr_leave(r: u32, ) -> Weight {
-        Weight::from_ref_time(76_754_000 as u64)
-            // Standard Error: 172_346
-            .saturating_add(Weight::from_ref_time(15_431_400 as u64).saturating_mul(r as u64))
+        Weight::from_ref_time(99_379_000 as u64)
+            // Standard Error: 205_564
+            .saturating_add(Weight::from_ref_time(15_875_800 as u64).saturating_mul(r as u64))
     }
     /// The range of component `r` is `[0, 1]`.
     fn gr_wait(r: u32, ) -> Weight {
-        Weight::from_ref_time(76_763_000 as u64)
-            // Standard Error: 188_048
-            .saturating_add(Weight::from_ref_time(15_563_700 as u64).saturating_mul(r as u64))
+        Weight::from_ref_time(99_499_000 as u64)
+            // Standard Error: 192_772
+            .saturating_add(Weight::from_ref_time(16_390_900 as u64).saturating_mul(r as u64))
     }
     /// The range of component `r` is `[0, 1]`.
     fn gr_wait_for(r: u32, ) -> Weight {
-        Weight::from_ref_time(77_335_000 as u64)
-            // Standard Error: 178_794
-            .saturating_add(Weight::from_ref_time(38_466_500 as u64).saturating_mul(r as u64))
-            .saturating_add(T::DbWeight::get().reads((1 as u64).saturating_mul(r as u64)))
+        Weight::from_ref_time(100_200_000 as u64)
+            // Standard Error: 274_052
+            .saturating_add(Weight::from_ref_time(17_932_400 as u64).saturating_mul(r as u64))
     }
     /// The range of component `r` is `[0, 1]`.
     fn gr_wait_up_to(r: u32, ) -> Weight {
-        Weight::from_ref_time(77_345_000 as u64)
-            // Standard Error: 188_756
-            .saturating_add(Weight::from_ref_time(38_571_100 as u64).saturating_mul(r as u64))
-            .saturating_add(T::DbWeight::get().reads((1 as u64).saturating_mul(r as u64)))
+        Weight::from_ref_time(99_890_000 as u64)
+            // Standard Error: 288_353
+            .saturating_add(Weight::from_ref_time(17_621_099 as u64).saturating_mul(r as u64))
     }
     /// The range of component `r` is `[0, 20]`.
     fn gr_wake(r: u32, ) -> Weight {
-        Weight::from_ref_time(77_485_000 as u64)
-            // Standard Error: 132_167
-            .saturating_add(Weight::from_ref_time(121_667_754 as u64).saturating_mul(r as u64))
+        Weight::from_ref_time(101_413_000 as u64)
+            // Standard Error: 78_059
+            .saturating_add(Weight::from_ref_time(258_183_022 as u64).saturating_mul(r as u64))
             .saturating_add(T::DbWeight::get().reads((1 as u64).saturating_mul(r as u64)))
     }
-    /// The range of component `r` is `[0, 1]`.
+    /// The range of component `r` is `[0, 20]`.
     fn gr_create_program_wgas(r: u32, ) -> Weight {
-        Weight::from_ref_time(94_719_000 as u64)
-            // Standard Error: 205_376
-            .saturating_add(Weight::from_ref_time(49_393_400 as u64).saturating_mul(r as u64))
-            .saturating_add(T::DbWeight::get().reads((4 as u64).saturating_mul(r as u64)))
+        Weight::from_ref_time(117_585_000 as u64)
+            // Standard Error: 110_326
+            .saturating_add(Weight::from_ref_time(423_886_964 as u64).saturating_mul(r as u64))
     }
-    /// The range of component `n` is `[0, 64]`.
-    fn gr_create_program_wgas_per_kb(n: u32, ) -> Weight {
-        Weight::from_ref_time(151_443_000 as u64)
-            // Standard Error: 2_297
-            .saturating_add(Weight::from_ref_time(1_026_025 as u64).saturating_mul(n as u64))
-            .saturating_add(T::DbWeight::get().reads(4 as u64))
-    }
-    /// The range of component `r` is `[0, 20]`.
-    fn gr_reserve_gas(r: u32, ) -> Weight {
-        Weight::from_ref_time(109_238_000 as u64)
-            // Standard Error: 44_745
-            .saturating_add(Weight::from_ref_time(212_601_318 as u64).saturating_mul(r as u64))
-    }
-    /// The range of component `r` is `[0, 20]`.
-    fn gr_unreserve_gas(r: u32, ) -> Weight {
-        Weight::from_ref_time(109_239_000 as u64)
-            // Standard Error: 73_028
-            .saturating_add(Weight::from_ref_time(6_279_978 as u64).saturating_mul(r as u64))
+    /// The range of component `p` is `[0, 1024]`.
+    /// The range of component `s` is `[0, 1024]`.
+    fn gr_create_program_wgas_per_kb(p: u32, s: u32, ) -> Weight {
+        Weight::from_ref_time(16_169_786_000 as u64)
+            // Standard Error: 160_729
+            .saturating_add(Weight::from_ref_time(5_382_721 as u64).saturating_mul(p as u64))
+            // Standard Error: 160_729
+            .saturating_add(Weight::from_ref_time(222_803_421 as u64).saturating_mul(s as u64))
+            .saturating_add(T::DbWeight::get().reads(257 as u64))
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_i64const(r: u32, ) -> Weight {
@@ -776,11 +791,25 @@ impl WeightInfo for () {
     fn load_cost() -> Weight {
         RocksDbWeight::get().reads(1)
     }
-    /// The range of component `c` is `[0, 256902]`.
+    /// The range of component `c` is `[0, 512]`.
+    fn db_write_per_kb(c: u32, ) -> Weight {
+        Weight::from_ref_time(1_000_000 as u64)
+            // Standard Error: 211
+            .saturating_add(Weight::from_ref_time(140_336 as u64).saturating_mul(c as u64))
+            .saturating_add(RocksDbWeight::get().writes(1 as u64))
+    }
+    /// The range of component `c` is `[0, 512]`.
+    fn db_read_per_kb(c: u32, ) -> Weight {
+        Weight::from_ref_time(4_000_000 as u64)
+            // Standard Error: 559
+            .saturating_add(Weight::from_ref_time(361_781 as u64).saturating_mul(c as u64))
+            .saturating_add(RocksDbWeight::get().reads(1 as u64))
+    }
+    /// The range of component `c` is `[0, 512]`.
     fn instantiate_module_per_kb(c: u32, ) -> Weight {
-        Weight::from_ref_time(57_625_000 as u64)
-            // Standard Error: 2
-            .saturating_add(Weight::from_ref_time(1_504 as u64).saturating_mul(c as u64))
+        Weight::from_ref_time(62_000_000 as u64)
+            // Standard Error: 1_474
+            .saturating_add(Weight::from_ref_time(1_234_747 as u64).saturating_mul(c as u64))
     }
     fn claim_value() -> Weight {
         Weight::from_ref_time(104_749_000 as u64)
@@ -856,228 +885,227 @@ impl WeightInfo for () {
     }
     /// The range of component `r` is `[0, 20]`.
     fn alloc(r: u32, ) -> Weight {
-        Weight::from_ref_time(78_497_000 as u64)
-            // Standard Error: 52_347
-            .saturating_add(Weight::from_ref_time(172_831_538 as u64).saturating_mul(r as u64))
+        Weight::from_ref_time(101_523_000 as u64)
+            // Standard Error: 45_067
+            .saturating_add(Weight::from_ref_time(235_608_959 as u64).saturating_mul(r as u64))
     }
     /// The range of component `r` is `[0, 20]`.
-    fn gas(r: u32, ) -> Weight {
-        Weight::from_ref_time(77_705_000 as u64)
-            // Standard Error: 21_167
-            .saturating_add(Weight::from_ref_time(61_690_912 as u64).saturating_mul(r as u64))
+    fn free(r: u32, ) -> Weight {
+        Weight::from_ref_time(342_476_000 as u64)
+            // Standard Error: 52_330
+            .saturating_add(Weight::from_ref_time(223_414_269 as u64).saturating_mul(r as u64))
     }
     /// The range of component `r` is `[0, 20]`.
-    fn gr_gas_available(r: u32, ) -> Weight {
-        Weight::from_ref_time(77_836_000 as u64)
-            // Standard Error: 25_434
-            .saturating_add(Weight::from_ref_time(59_354_801 as u64).saturating_mul(r as u64))
+    fn gr_reserve_gas(r: u32, ) -> Weight {
+        Weight::from_ref_time(120_251_000 as u64)
+            // Standard Error: 340_030
+            .saturating_add(Weight::from_ref_time(339_766_624 as u64).saturating_mul(r as u64))
+    }
+    /// The range of component `r` is `[0, 20]`.
+    fn gr_unreserve_gas(r: u32, ) -> Weight {
+        Weight::from_ref_time(118_216_000 as u64)
+            // Standard Error: 64_090
+            .saturating_add(Weight::from_ref_time(240_474_822 as u64).saturating_mul(r as u64))
     }
     /// The range of component `r` is `[0, 20]`.
     fn gr_message_id(r: u32, ) -> Weight {
-        Weight::from_ref_time(93_327_000 as u64)
-            // Standard Error: 63_649
-            .saturating_add(Weight::from_ref_time(74_447_317 as u64).saturating_mul(r as u64))
+        Weight::from_ref_time(101_243_000 as u64)
+            // Standard Error: 93_442
+            .saturating_add(Weight::from_ref_time(229_039_972 as u64).saturating_mul(r as u64))
     }
     /// The range of component `r` is `[0, 20]`.
     fn gr_origin(r: u32, ) -> Weight {
-        Weight::from_ref_time(92_966_000 as u64)
-            // Standard Error: 60_508
-            .saturating_add(Weight::from_ref_time(74_680_312 as u64).saturating_mul(r as u64))
+        Weight::from_ref_time(101_212_000 as u64)
+            // Standard Error: 95_334
+            .saturating_add(Weight::from_ref_time(229_233_185 as u64).saturating_mul(r as u64))
     }
     /// The range of component `r` is `[0, 20]`.
     fn gr_program_id(r: u32, ) -> Weight {
-        Weight::from_ref_time(92_786_000 as u64)
-            // Standard Error: 62_009
-            .saturating_add(Weight::from_ref_time(74_589_854 as u64).saturating_mul(r as u64))
+        Weight::from_ref_time(100_992_000 as u64)
+            // Standard Error: 85_481
+            .saturating_add(Weight::from_ref_time(228_907_757 as u64).saturating_mul(r as u64))
     }
     /// The range of component `r` is `[0, 20]`.
     fn gr_source(r: u32, ) -> Weight {
-        Weight::from_ref_time(92_845_000 as u64)
-            // Standard Error: 61_790
-            .saturating_add(Weight::from_ref_time(74_102_981 as u64).saturating_mul(r as u64))
+        Weight::from_ref_time(100_541_000 as u64)
+            // Standard Error: 86_698
+            .saturating_add(Weight::from_ref_time(230_506_094 as u64).saturating_mul(r as u64))
     }
     /// The range of component `r` is `[0, 20]`.
     fn gr_value(r: u32, ) -> Weight {
-        Weight::from_ref_time(92_665_000 as u64)
-            // Standard Error: 60_562
-            .saturating_add(Weight::from_ref_time(80_640_972 as u64).saturating_mul(r as u64))
+        Weight::from_ref_time(100_291_000 as u64)
+            // Standard Error: 86_269
+            .saturating_add(Weight::from_ref_time(229_588_300 as u64).saturating_mul(r as u64))
     }
     /// The range of component `r` is `[0, 20]`.
     fn gr_value_available(r: u32, ) -> Weight {
-        Weight::from_ref_time(93_047_000 as u64)
-            // Standard Error: 61_975
-            .saturating_add(Weight::from_ref_time(80_715_113 as u64).saturating_mul(r as u64))
+        Weight::from_ref_time(100_131_000 as u64)
+            // Standard Error: 93_224
+            .saturating_add(Weight::from_ref_time(228_955_827 as u64).saturating_mul(r as u64))
+    }
+    /// The range of component `r` is `[0, 20]`.
+    fn gr_gas_available(r: u32, ) -> Weight {
+        Weight::from_ref_time(100_381_000 as u64)
+            // Standard Error: 37_375
+            .saturating_add(Weight::from_ref_time(203_974_107 as u64).saturating_mul(r as u64))
     }
     /// The range of component `r` is `[0, 20]`.
     fn gr_size(r: u32, ) -> Weight {
-        Weight::from_ref_time(77_595_000 as u64)
-            // Standard Error: 18_252
-            .saturating_add(Weight::from_ref_time(51_066_635 as u64).saturating_mul(r as u64))
+        Weight::from_ref_time(100_781_000 as u64)
+            // Standard Error: 42_127
+            .saturating_add(Weight::from_ref_time(196_519_183 as u64).saturating_mul(r as u64))
     }
     /// The range of component `r` is `[0, 20]`.
     fn gr_read(r: u32, ) -> Weight {
-        Weight::from_ref_time(93_086_000 as u64)
-            // Standard Error: 23_879
-            .saturating_add(Weight::from_ref_time(76_323_714 as u64).saturating_mul(r as u64))
+        Weight::from_ref_time(102_084_000 as u64)
+            // Standard Error: 82_231
+            .saturating_add(Weight::from_ref_time(238_271_015 as u64).saturating_mul(r as u64))
     }
-    /// The range of component `n` is `[0, 64]`.
+    /// The range of component `n` is `[0, 1024]`.
     fn gr_read_per_kb(n: u32, ) -> Weight {
-        Weight::from_ref_time(174_920_000 as u64)
-            // Standard Error: 15_383
-            .saturating_add(Weight::from_ref_time(7_261_361 as u64).saturating_mul(n as u64))
+        Weight::from_ref_time(338_087_000 as u64)
+            // Standard Error: 5_590
+            .saturating_add(Weight::from_ref_time(7_943_194 as u64).saturating_mul(n as u64))
     }
     /// The range of component `r` is `[0, 20]`.
     fn gr_block_height(r: u32, ) -> Weight {
-        Weight::from_ref_time(77_786_000 as u64)
-            // Standard Error: 17_337
-            .saturating_add(Weight::from_ref_time(50_592_257 as u64).saturating_mul(r as u64))
+        Weight::from_ref_time(100_350_000 as u64)
+            // Standard Error: 36_095
+            .saturating_add(Weight::from_ref_time(195_570_954 as u64).saturating_mul(r as u64))
     }
     /// The range of component `r` is `[0, 20]`.
     fn gr_block_timestamp(r: u32, ) -> Weight {
-        Weight::from_ref_time(77_585_000 as u64)
-            // Standard Error: 20_285
-            .saturating_add(Weight::from_ref_time(59_218_576 as u64).saturating_mul(r as u64))
+        Weight::from_ref_time(100_982_000 as u64)
+            // Standard Error: 35_778
+            .saturating_add(Weight::from_ref_time(203_432_163 as u64).saturating_mul(r as u64))
     }
     /// The range of component `r` is `[0, 20]`.
     fn gr_send_init(r: u32, ) -> Weight {
-        Weight::from_ref_time(78_337_000 as u64)
-            // Standard Error: 73_076
-            .saturating_add(Weight::from_ref_time(90_601_450 as u64).saturating_mul(r as u64))
+        Weight::from_ref_time(101_503_000 as u64)
+            // Standard Error: 72_966
+            .saturating_add(Weight::from_ref_time(242_969_444 as u64).saturating_mul(r as u64))
     }
     /// The range of component `r` is `[0, 20]`.
     fn gr_send_push(r: u32, ) -> Weight {
-        Weight::from_ref_time(80_491_000 as u64)
-            // Standard Error: 84_954
-            .saturating_add(Weight::from_ref_time(175_889_470 as u64).saturating_mul(r as u64))
+        Weight::from_ref_time(102_996_000 as u64)
+            // Standard Error: 109_173
+            .saturating_add(Weight::from_ref_time(501_662_397 as u64).saturating_mul(r as u64))
     }
-    /// The range of component `n` is `[0, 64]`.
+    /// The range of component `n` is `[0, 1024]`.
     fn gr_send_push_per_kb(n: u32, ) -> Weight {
-        Weight::from_ref_time(290_952_000 as u64)
-            // Standard Error: 26_478
-            .saturating_add(Weight::from_ref_time(50_488_285 as u64).saturating_mul(n as u64))
+        Weight::from_ref_time(624_099_000 as u64)
+            // Standard Error: 116_168
+            .saturating_add(Weight::from_ref_time(19_714_357 as u64).saturating_mul(n as u64))
             .saturating_add(RocksDbWeight::get().reads(4 as u64))
     }
     /// The range of component `r` is `[0, 20]`.
     fn gr_send_commit(r: u32, ) -> Weight {
-        Weight::from_ref_time(93_407_000 as u64)
-            // Standard Error: 70_366
-            .saturating_add(Weight::from_ref_time(51_780_107 as u64).saturating_mul(r as u64))
+        Weight::from_ref_time(101_183_000 as u64)
+            // Standard Error: 92_722
+            .saturating_add(Weight::from_ref_time(340_404_440 as u64).saturating_mul(r as u64))
     }
-    /// The range of component `n` is `[0, 64]`.
+    /// The range of component `n` is `[0, 1024]`.
     fn gr_send_commit_per_kb(n: u32, ) -> Weight {
-        Weight::from_ref_time(129_279_000 as u64)
-            // Standard Error: 1_831
-            .saturating_add(Weight::from_ref_time(1_031_489 as u64).saturating_mul(n as u64))
+        Weight::from_ref_time(471_374_000 as u64)
+            // Standard Error: 5_434
+            .saturating_add(Weight::from_ref_time(15_260_017 as u64).saturating_mul(n as u64))
             .saturating_add(RocksDbWeight::get().reads(4 as u64))
     }
     /// The range of component `r` is `[0, 20]`.
     fn gr_reply_commit(r: u32, ) -> Weight {
-        Weight::from_ref_time(93_246_000 as u64)
-            // Standard Error: 75_902
-            .saturating_add(Weight::from_ref_time(92_583_393 as u64).saturating_mul(r as u64))
-    }
-    /// The range of component `n` is `[0, 64]`.
-    fn gr_reply_commit_per_kb(n: u32, ) -> Weight {
-        Weight::from_ref_time(219_309_000 as u64)
-            // Standard Error: 2_122
-            .saturating_add(Weight::from_ref_time(102_412 as u64).saturating_mul(n as u64))
-            .saturating_add(RocksDbWeight::get().reads(4 as u64))
+        Weight::from_ref_time(101_022_000 as u64)
+            // Standard Error: 91_481
+            .saturating_add(Weight::from_ref_time(251_002_556 as u64).saturating_mul(r as u64))
     }
     /// The range of component `r` is `[0, 20]`.
     fn gr_reply_push(r: u32, ) -> Weight {
-        Weight::from_ref_time(93_186_000 as u64)
-            // Standard Error: 26_853
-            .saturating_add(Weight::from_ref_time(79_670_698 as u64).saturating_mul(r as u64))
+        Weight::from_ref_time(100_731_000 as u64)
+            // Standard Error: 75_936
+            .saturating_add(Weight::from_ref_time(250_793_013 as u64).saturating_mul(r as u64))
     }
-    /// The range of component `n` is `[0, 64]`.
+    /// The range of component `n` is `[0, 1024]`.
     fn gr_reply_push_per_kb(n: u32, ) -> Weight {
-        Weight::from_ref_time(177_816_000 as u64)
-            // Standard Error: 26_243
-            .saturating_add(Weight::from_ref_time(51_234_883 as u64).saturating_mul(n as u64))
+        Weight::from_ref_time(335_952_000 as u64)
+            // Standard Error: 115_616
+            .saturating_add(Weight::from_ref_time(19_700_260 as u64).saturating_mul(n as u64))
     }
     /// The range of component `r` is `[0, 20]`.
     fn gr_reply_to(r: u32, ) -> Weight {
-        Weight::from_ref_time(77_996_000 as u64)
-            // Standard Error: 73_532
-            .saturating_add(Weight::from_ref_time(77_578_594 as u64).saturating_mul(r as u64))
+        Weight::from_ref_time(100_772_000 as u64)
+            // Standard Error: 93_592
+            .saturating_add(Weight::from_ref_time(232_196_234 as u64).saturating_mul(r as u64))
     }
     /// The range of component `r` is `[0, 20]`.
     fn gr_debug(r: u32, ) -> Weight {
-        Weight::from_ref_time(77_575_000 as u64)
-            // Standard Error: 20_995
-            .saturating_add(Weight::from_ref_time(72_699_362 as u64).saturating_mul(r as u64))
+        Weight::from_ref_time(100_000_000 as u64)
+            // Standard Error: 73_053
+            .saturating_add(Weight::from_ref_time(245_355_850 as u64).saturating_mul(r as u64))
+    }
+    /// The range of component `n` is `[0, 1024]`.
+    fn gr_debug_per_kb(n: u32, ) -> Weight {
+        Weight::from_ref_time(331_253_000 as u64)
+            // Standard Error: 7_469
+            .saturating_add(Weight::from_ref_time(26_784_815 as u64).saturating_mul(n as u64))
     }
     /// The range of component `r` is `[0, 20]`.
     fn gr_exit_code(r: u32, ) -> Weight {
-        Weight::from_ref_time(77_605_000 as u64)
-            // Standard Error: 20_831
-            .saturating_add(Weight::from_ref_time(50_947_704 as u64).saturating_mul(r as u64))
+        Weight::from_ref_time(100_671_000 as u64)
+            // Standard Error: 86_868
+            .saturating_add(Weight::from_ref_time(231_830_464 as u64).saturating_mul(r as u64))
     }
     /// The range of component `r` is `[0, 1]`.
     fn gr_exit(r: u32, ) -> Weight {
-        Weight::from_ref_time(93_026_000 as u64)
-            // Standard Error: 186_559
-            .saturating_add(Weight::from_ref_time(29_027_300 as u64).saturating_mul(r as u64))
+        Weight::from_ref_time(99_699_000 as u64)
+            // Standard Error: 260_245
+            .saturating_add(Weight::from_ref_time(38_833_099 as u64).saturating_mul(r as u64))
             .saturating_add(RocksDbWeight::get().reads((1 as u64).saturating_mul(r as u64)))
     }
     /// The range of component `r` is `[0, 1]`.
     fn gr_leave(r: u32, ) -> Weight {
-        Weight::from_ref_time(76_754_000 as u64)
-            // Standard Error: 172_346
-            .saturating_add(Weight::from_ref_time(15_431_400 as u64).saturating_mul(r as u64))
+        Weight::from_ref_time(99_379_000 as u64)
+            // Standard Error: 205_564
+            .saturating_add(Weight::from_ref_time(15_875_800 as u64).saturating_mul(r as u64))
     }
     /// The range of component `r` is `[0, 1]`.
     fn gr_wait(r: u32, ) -> Weight {
-        Weight::from_ref_time(76_763_000 as u64)
-            // Standard Error: 188_048
-            .saturating_add(Weight::from_ref_time(15_563_700 as u64).saturating_mul(r as u64))
+        Weight::from_ref_time(99_499_000 as u64)
+            // Standard Error: 192_772
+            .saturating_add(Weight::from_ref_time(16_390_900 as u64).saturating_mul(r as u64))
     }
     /// The range of component `r` is `[0, 1]`.
     fn gr_wait_for(r: u32, ) -> Weight {
-        Weight::from_ref_time(77_335_000 as u64)
-            // Standard Error: 178_794
-            .saturating_add(Weight::from_ref_time(38_466_500 as u64).saturating_mul(r as u64))
-            .saturating_add(RocksDbWeight::get().reads((1 as u64).saturating_mul(r as u64)))
+        Weight::from_ref_time(100_200_000 as u64)
+            // Standard Error: 274_052
+            .saturating_add(Weight::from_ref_time(17_932_400 as u64).saturating_mul(r as u64))
     }
     /// The range of component `r` is `[0, 1]`.
     fn gr_wait_up_to(r: u32, ) -> Weight {
-        Weight::from_ref_time(77_345_000 as u64)
-            // Standard Error: 188_756
-            .saturating_add(Weight::from_ref_time(38_571_100 as u64).saturating_mul(r as u64))
-            .saturating_add(RocksDbWeight::get().reads((1 as u64).saturating_mul(r as u64)))
+        Weight::from_ref_time(99_890_000 as u64)
+            // Standard Error: 288_353
+            .saturating_add(Weight::from_ref_time(17_621_099 as u64).saturating_mul(r as u64))
     }
     /// The range of component `r` is `[0, 20]`.
     fn gr_wake(r: u32, ) -> Weight {
-        Weight::from_ref_time(77_485_000 as u64)
-            // Standard Error: 132_167
-            .saturating_add(Weight::from_ref_time(121_667_754 as u64).saturating_mul(r as u64))
+        Weight::from_ref_time(101_413_000 as u64)
+            // Standard Error: 78_059
+            .saturating_add(Weight::from_ref_time(258_183_022 as u64).saturating_mul(r as u64))
             .saturating_add(RocksDbWeight::get().reads((1 as u64).saturating_mul(r as u64)))
     }
-    /// The range of component `r` is `[0, 1]`.
+    /// The range of component `r` is `[0, 20]`.
     fn gr_create_program_wgas(r: u32, ) -> Weight {
-        Weight::from_ref_time(94_719_000 as u64)
-            // Standard Error: 205_376
-            .saturating_add(Weight::from_ref_time(49_393_400 as u64).saturating_mul(r as u64))
-            .saturating_add(RocksDbWeight::get().reads((4 as u64).saturating_mul(r as u64)))
+        Weight::from_ref_time(117_585_000 as u64)
+            // Standard Error: 110_326
+            .saturating_add(Weight::from_ref_time(423_886_964 as u64).saturating_mul(r as u64))
     }
-    /// The range of component `n` is `[0, 64]`.
-    fn gr_create_program_wgas_per_kb(n: u32, ) -> Weight {
-        Weight::from_ref_time(151_443_000 as u64)
-            // Standard Error: 2_297
-            .saturating_add(Weight::from_ref_time(1_026_025 as u64).saturating_mul(n as u64))
-            .saturating_add(RocksDbWeight::get().reads(4 as u64))
-    }
-    /// The range of component `r` is `[0, 20]`.
-    fn gr_reserve_gas(r: u32, ) -> Weight {
-        Weight::from_ref_time(109_238_000 as u64)
-            // Standard Error: 44_745
-            .saturating_add(Weight::from_ref_time(212_601_318 as u64).saturating_mul(r as u64))
-    }
-    /// The range of component `r` is `[0, 20]`.
-    fn gr_unreserve_gas(r: u32, ) -> Weight {
-        Weight::from_ref_time(109_239_000 as u64)
-            // Standard Error: 73_028
-            .saturating_add(Weight::from_ref_time(6_279_978 as u64).saturating_mul(r as u64))
+    /// The range of component `p` is `[0, 1024]`.
+    /// The range of component `s` is `[0, 1024]`.
+    fn gr_create_program_wgas_per_kb(p: u32, s: u32, ) -> Weight {
+        Weight::from_ref_time(16_169_786_000 as u64)
+            // Standard Error: 160_729
+            .saturating_add(Weight::from_ref_time(5_382_721 as u64).saturating_mul(p as u64))
+            // Standard Error: 160_729
+            .saturating_add(Weight::from_ref_time(222_803_421 as u64).saturating_mul(s as u64))
+            .saturating_add(RocksDbWeight::get().reads(257 as u64))
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_i64const(r: u32, ) -> Weight {

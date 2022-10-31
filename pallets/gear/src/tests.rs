@@ -27,7 +27,7 @@ use crate::{
         LOW_BALANCE_USER, USER_1, USER_2, USER_3,
     },
     pallet, BlockGasLimitOf, Config, CostsPerBlockOf, DbWeightOf, Error, Event, GasAllowanceOf,
-    GasHandlerOf, GasInfo, MailboxOf, ReadPerByteCostOf, Schedule, WaitlistOf,
+    GasHandlerOf, GasInfo, MailboxOf, Schedule, WaitlistOf,
 };
 use codec::{Decode, Encode};
 use common::{
@@ -3071,7 +3071,7 @@ fn terminated_locking_funds() {
                 + core_processor::calculate_gas_for_program(read_cost, 0)
                 + core_processor::calculate_gas_for_code(
                     read_cost,
-                    ReadPerByteCostOf::<Test>::get(),
+                    <Test as Config>::Schedule::get().db_read_per_byte,
                     code_length as u64
                 )
                 + module_instantiation,
@@ -4520,9 +4520,8 @@ fn gas_spent_precalculated() {
         )
         .unwrap();
 
-        let per_byte_cost = ReadPerByteCostOf::<Test>::get();
-
         let schedule = <Test as Config>::Schedule::get();
+        let per_byte_cost = schedule.db_read_per_byte;
         let const_i64_cost = schedule.instruction_weights.i64const;
         let set_local_cost = schedule.instruction_weights.local_set;
         let module_instantiation_per_byte = schedule.module_instantiation_per_byte;
@@ -5648,7 +5647,7 @@ fn missing_functions_are_not_executed() {
 
         let program_cost = core_processor::calculate_gas_for_program(
             DbWeightOf::<Test>::get().reads(1).ref_time(),
-            ReadPerByteCostOf::<Test>::get(),
+            <Test as Config>::Schedule::get().db_read_per_byte,
         );
         // there is no execution so the values should be equal
         assert_eq!(min_limit, program_cost);

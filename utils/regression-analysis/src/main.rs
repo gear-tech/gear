@@ -308,6 +308,7 @@ fn weights(kind: WeightsKind, input_file: PathBuf, output_file: PathBuf) {
                 HostFnWeights {
                     _phantom,
                     alloc,
+                    free,
                     gr_gas_available,
                     gr_message_id,
                     gr_origin,
@@ -326,11 +327,11 @@ fn weights(kind: WeightsKind, input_file: PathBuf, output_file: PathBuf) {
                     gr_send_commit,
                     gr_send_commit_per_byte,
                     gr_reply_commit,
-                    gr_reply_commit_per_byte,
                     gr_reply_push,
                     gr_reply_push_per_byte,
                     gr_reply_to,
                     gr_debug,
+                    gr_debug_per_byte,
                     gr_exit_code,
                     gr_exit,
                     gr_leave,
@@ -339,10 +340,10 @@ fn weights(kind: WeightsKind, input_file: PathBuf, output_file: PathBuf) {
                     gr_wait_up_to,
                     gr_wake,
                     gr_create_program_wgas,
-                    gr_create_program_wgas_per_byte,
+                    gr_create_program_wgas_payload_per_byte,
+                    gr_create_program_wgas_salt_per_byte,
                     gr_reserve_gas,
                     gr_unreserve_gas,
-                    gas,
                 }
             }
         }
