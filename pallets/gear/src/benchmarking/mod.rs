@@ -548,35 +548,14 @@ benchmarks! {
     }
 
     gr_system_reserve_gas {
-        // TODO: refactor into new style
         let r in 0 .. API_BENCHMARK_BATCHES;
-        let code = WasmModule::<T>::from(ModuleDefinition {
-            memory: Some(ImportedMemory::max::<T>()),
-            imported_functions: vec![ImportedFunction {
-                module: "env",
-                name: "gr_system_reserve_gas",
-                params: vec![ValueType::I64],
-                return_type: Some(ValueType::I32),
-            }],
-            handle_body: Some(body::repeated(r * API_BENCHMARK_BATCHES, &[
-                Instruction::I64Const(50_000_000), // gas amount
-                Instruction::Call(0),
-                Instruction::Drop,
-            ])),
-            ..Default::default()
-        });
-        let instance = Program::<T>::new(code, vec![])?;
-        let Exec {
-            ext_manager,
-            block_config,
-            context,
-            memory_pages,
-        } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 0u32.into())?;
+        let mut res = None;
+        let exec = gr_system_reserve_gas_bench::<T>(r)?;
     }: {
-        core_processor::process::<
-            Externalities,
-            ExecutionEnvironment,
-        >(&block_config, context, memory_pages);
+        res.replace(run_process(exec));
+    }
+    verify {
+        verify_process(res.unwrap());
     }
 
     gr_message_id {
@@ -848,8 +827,7 @@ benchmarks! {
     gr_status_code {
         let r in 0 .. API_BENCHMARK_BATCHES;
         let mut res = None;
-        // TODO: rename
-        let exec = gr_exit_code_bench::<T>(r)?;
+        let exec = gr_status_code_bench::<T>(r)?;
     }: {
         res.replace(run_process(exec));
     }

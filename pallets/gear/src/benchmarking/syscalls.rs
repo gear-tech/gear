@@ -127,7 +127,7 @@ where
                     payload.try_into()?,
                     Some(u64::MAX),
                     value,
-                    Some(ReplyDetails::new(msg.id(), exit_code)),
+                    Some(ReplyDetails::new(msg.id(), exit_code).into()),
                 ),
             )
         }
@@ -389,6 +389,38 @@ where
             &[
                 Instruction::I32Const(id_offset as i32),     // id ptr
                 Instruction::I32Const(amount_offset as i32), // unreserved amount ptr
+                Instruction::Call(0),
+                Instruction::Drop,
+            ],
+        )),
+        ..Default::default()
+    });
+    let instance = Program::<T>::new(code, vec![])?;
+    prepare::<T>(
+        instance.caller.into_origin(),
+        HandleKind::Handle(ProgramId::from_origin(instance.addr)),
+        vec![],
+        0u32.into(),
+    )
+}
+
+pub fn gr_system_reserve_gas_bench<T>(r: u32) -> Result<Exec<T>, &'static str>
+where
+    T: Config,
+    T::AccountId: Origin,
+{
+    let code = WasmModule::<T>::from(ModuleDefinition {
+        memory: Some(ImportedMemory::max::<T>()),
+        imported_functions: vec![ImportedFunction {
+            module: "env",
+            name: "gr_system_reserve_gas",
+            params: vec![ValueType::I64],
+            return_type: Some(ValueType::I32),
+        }],
+        handle_body: Some(body::repeated(
+            r * API_BENCHMARK_BATCH_SIZE,
+            &[
+                Instruction::I64Const(50_000_000), // gas amount
                 Instruction::Call(0),
                 Instruction::Drop,
             ],
@@ -959,7 +991,7 @@ where
     )
 }
 
-pub fn gr_exit_code_bench<T>(r: u32) -> Result<Exec<T>, &'static str>
+pub fn gr_status_code_bench<T>(r: u32) -> Result<Exec<T>, &'static str>
 where
     T: Config,
     T::AccountId: Origin,
