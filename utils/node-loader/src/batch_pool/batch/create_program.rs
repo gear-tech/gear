@@ -4,12 +4,12 @@ use crate::{
     batch_pool::Seed,
     utils::{LoaderRng, NonEmptyVec},
 };
-use gclient::Result as GClientResult;
+use gclient::Result;
 use gear_core::ids::{CodeId, MessageId, ProgramId};
 use primitive_types::H256;
 
 pub type CreateProgramArgsInner = (CodeId, Vec<u8>, Vec<u8>, u64, u128);
-pub type CreateProgramBatchOutput = (Vec<GClientResult<(MessageId, ProgramId)>>, H256);
+pub type CreateProgramBatchOutput = (Vec<Result<(MessageId, ProgramId)>>, H256);
 
 pub struct CreateProgramArgs(pub CreateProgramArgsInner);
 

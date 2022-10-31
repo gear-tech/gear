@@ -4,12 +4,12 @@ use crate::{
     batch_pool::{generators, Seed},
     utils::LoaderRng,
 };
-use gclient::Result as GClientResult;
+use gclient::Result;
 use gear_core::ids::{MessageId, ProgramId};
 use primitive_types::H256;
 
 pub type UploadProgramArgsInner = (Vec<u8>, Vec<u8>, Vec<u8>, u64, u128);
-pub type UploadProgramBatchOutput = (Vec<GClientResult<(MessageId, ProgramId)>>, H256);
+pub type UploadProgramBatchOutput = (Vec<Result<(MessageId, ProgramId)>>, H256);
 
 pub struct UploadProgramArgs(pub UploadProgramArgsInner);
 

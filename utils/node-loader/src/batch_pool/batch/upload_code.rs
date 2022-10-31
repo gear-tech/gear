@@ -4,11 +4,11 @@ use crate::{
     batch_pool::{generators, Seed},
     utils::LoaderRng,
 };
-use gclient::Result as GClientResult;
+use gclient::Result;
 use gear_core::ids::CodeId;
 use primitive_types::H256;
 
-pub type UploadCodeBatchOutput = (Vec<GClientResult<CodeId>>, H256);
+pub type UploadCodeBatchOutput = (Vec<Result<CodeId>>, H256);
 
 pub struct UploadCodeArgs(pub Vec<u8>);
 
