@@ -236,6 +236,10 @@ async fn process_events(
 
 async fn inspect_crash_events(api: GearApi, node_stopper: String) -> Result<()> {
     let mut event_listener = api.subscribe().await?;
+    // Waits until the queue processing reverted event is found.
+    // Error means either event is not found an can't be found
+    // in the listener, or some other error during event 
+    // parsing occurred.
     event_listener.queue_processing_reverted().await?;
 
     let crash_err = CrashAlert::MsgProcessingStopped;
