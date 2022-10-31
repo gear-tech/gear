@@ -149,6 +149,7 @@ fn default_processor_context<T: Config>() -> ProcessorContext {
         waitlist_cost: 0,
         reserve_for: 0,
         reservation: 0,
+        random_data: ([0u8; 32].to_vec(), 0),
     }
 }
 
@@ -177,6 +178,7 @@ where
     core_processor::process::<Externalities, ExecutionEnvironment>(
         &exec.block_config,
         exec.context,
+        exec.random_data,
         exec.memory_pages,
     )
 }
@@ -248,6 +250,7 @@ pub struct Exec<T: Config> {
     ext_manager: ExtManager<T>,
     block_config: BlockConfig,
     context: ProcessExecutionContext,
+    random_data: (Vec<u8>, u32),
     memory_pages: BTreeMap<PageNumber, PageBuf>,
 }
 
@@ -668,6 +671,17 @@ benchmarks! {
         let r in 0 .. API_BENCHMARK_BATCHES;
         let mut res = None;
         let exec = number_getter_bench::<T>("gr_block_timestamp", ValueType::I64, r)?;
+    }: {
+        res.replace(run_process(exec));
+    }
+    verify {
+        verify_process(res.unwrap());
+    }
+
+    gr_random {
+        let r in 0 .. API_BENCHMARK_BATCHES;
+        let mut res = None;
+        let exec = gr_random_bench::<T>(r)?;
     }: {
         res.replace(run_process(exec));
     }

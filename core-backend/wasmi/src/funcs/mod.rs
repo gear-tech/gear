@@ -25,6 +25,7 @@ use crate::{
 #[cfg(not(feature = "std"))]
 use alloc::string::ToString;
 use alloc::{string::String, vec};
+use blake2_rfc::blake2b::blake2b;
 use codec::{Decode, Encode};
 use core::{
     convert::TryFrom,
@@ -1132,6 +1133,62 @@ where
                         .write(value_ptr as usize, &value_available.encode())
                 )
             };
+
+        Func::wrap(store, func)
+    }
+
+    pub fn random(store: &mut Store<HostState<E>>, forbidden: bool, memory: WasmiMemory) -> Func {
+        let func = move |mut caller: wasmi::Caller<'_, HostState<E>>,
+                         subject_ptr: u32,
+                         subject_len: u32,
+                         random_ptr: u32,
+                         bn_ptr: u32|
+              -> EmptyOutput {
+            update_or_exit_if!(forbidden, caller);
+
+            let mut subject =
+                RuntimeBuffer::try_new_default(subject_len as usize).map_err(|e| {
+                    host_state_mut!(caller).err = FuncError::RuntimeBufferSize(e);
+                    Trap::from(TrapCode::Unreachable)
+                })?;
+
+            let read_result = {
+                let memory_wrap = get_caller_memory(&mut caller, &memory);
+                memory_wrap.read(subject_ptr as usize, subject.get_mut())
+            };
+
+            process_read_result!(read_result, caller);
+
+            let host_state = host_state_mut!(caller);
+
+            let (random, random_bn) = host_state.ext.random();
+
+            subject.try_extend_from_slice(random).map_err(|e| {
+                host_state.err = FuncError::RuntimeBufferSize(e);
+                Trap::from(TrapCode::Unreachable)
+            })?;
+
+            update_globals!(caller);
+
+            let write_result = {
+                let mut memory_wrap = get_caller_memory(&mut caller, &memory);
+                memory_wrap
+                    .write(
+                        random_ptr as usize,
+                        blake2b(32, &[], subject.get()).as_bytes(),
+                    )
+                    .and_then(|_| memory_wrap.write(bn_ptr as usize, &random_bn.to_le_bytes()))
+            };
+
+            match write_result {
+                Ok(_) => Ok(()),
+                Err(e) => {
+                    host_state_mut!(caller).err = e.into();
+
+                    Err(TrapCode::Unreachable.into())
+                }
+            }
+        };
 
         Func::wrap(store, func)
     }

@@ -31,6 +31,7 @@ use gear_core::{
     message::{Dispatch, DispatchKind, IncomingDispatch, IncomingMessage, Message},
 };
 use gear_wasm_instrument::wasm_instrument::gas_metering::ConstantCostRules;
+use rand::{rngs::StdRng, RngCore, SeedableRng};
 use regex::Regex;
 use std::{
     convert::TryInto,
@@ -50,6 +51,7 @@ pub const READ_PER_BYTE_COST: u64 = 10;
 pub const WRITE_PER_BYTE_COST: u64 = 10;
 pub const MODULE_INSTANTIATION_BYTE_COST: u64 = 20;
 pub const MAX_RESERVATIONS: u64 = 256;
+pub const INITIAL_RANDOM_SEED: u64 = 42;
 
 pub fn parse_payload(payload: String) -> String {
     let program_id_regex = Regex::new(r"\{(?P<id>[0-9]+)\}").unwrap();
@@ -132,6 +134,10 @@ where
         subsequent_execution: false,
     };
 
+    let mut rng = StdRng::seed_from_u64(INITIAL_RANDOM_SEED);
+    let mut random = [0u8; 32];
+    rng.fill_bytes(&mut random);
+
     let journal = match core_processor::prepare(&block_config, message_execution_context) {
         PrepareResult::WontExecute(journal) | PrepareResult::Error(journal) => journal,
         PrepareResult::Ok(context) => {
@@ -139,6 +145,7 @@ where
             core_processor::process::<Ext, E>(
                 &block_config,
                 (context, program_id, code).into(),
+                (random.to_vec(), block_config.block_info.height),
                 Default::default(),
             )
         }
@@ -322,6 +329,10 @@ where
                 subsequent_execution: false,
             };
 
+            let mut rng = StdRng::seed_from_u64(INITIAL_RANDOM_SEED);
+            let mut random = [0u8; 32];
+            rng.fill_bytes(&mut random);
+
             match core_processor::prepare(&block_config, message_execution_context) {
                 PrepareResult::WontExecute(journal) | PrepareResult::Error(journal) => journal,
                 PrepareResult::Ok(context) => {
@@ -332,6 +343,7 @@ where
                     core_processor::process::<Ext, E>(
                         &block_config,
                         (context, program_id, code).into(),
+                        (random.to_vec(), block_config.block_info.height),
                         memory_pages,
                     )
                 }

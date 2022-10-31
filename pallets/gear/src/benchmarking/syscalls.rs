@@ -221,6 +221,7 @@ where
             ext_manager,
             block_config,
             context: (context, actor_id, code).into(),
+            random_data: (vec![0u8; 32], 0),
             // actor without pages data because of lazy pages enabled
             memory_pages: Default::default(),
         })
@@ -533,6 +534,45 @@ where
         instance.caller.into_origin(),
         HandleKind::Handle(ProgramId::from_origin(instance.addr)),
         payload,
+        0u32.into(),
+    )
+}
+
+pub fn gr_random_bench<T>(r: u32) -> Result<Exec<T>, &'static str>
+where
+    T: Config,
+    T::AccountId: Origin,
+{
+    let code = WasmModule::<T>::from(ModuleDefinition {
+        memory: Some(ImportedMemory::max::<T>()),
+        imported_functions: vec![ImportedFunction {
+            module: "env",
+            name: "gr_random",
+            params: vec![
+                ValueType::I32,
+                ValueType::I32,
+                ValueType::I32,
+                ValueType::I32,
+            ],
+            return_type: None,
+        }],
+        handle_body: Some(body::repeated(
+            r * API_BENCHMARK_BATCH_SIZE,
+            &[
+                Instruction::I32Const(0),  // subject ptr
+                Instruction::I32Const(32), // subject len
+                Instruction::I32Const(33), // random ptr
+                Instruction::I32Const(0),  // bn ptr
+                Instruction::Call(0),
+            ],
+        )),
+        ..Default::default()
+    });
+    let instance = Program::<T>::new(code, vec![])?;
+    prepare::<T>(
+        instance.caller.into_origin(),
+        HandleKind::Handle(ProgramId::from_origin(instance.addr)),
+        vec![],
         0u32.into(),
     )
 }

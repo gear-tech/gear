@@ -56,6 +56,7 @@ rand_pcg = { version = "0.3", optional = true }
 [dev-dependencies]
 env_logger = "0.9"
 wabt = "0.10"
+blake2-rfc = { version = "0.2.18", default-features = false }
 demo-async-tester = { path = "../../examples/binaries/async-tester" }
 demo-btree = { path = "../../examples/binaries/btree" }
 demo-delayed-sender = { path = "../../examples/binaries/delayed-sender" }
@@ -82,6 +83,7 @@ demo-value-sender = { path = "../../examples/binaries/value-sender" }
 demo-waiter = { path = "../../examples/binaries/waiter" }
 demo-reserve-gas = { path = "../../examples/binaries/reserve-gas" }
 page_size = "0.4.2"
+frame-support-test = { version = "3.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
 pallet-gear-gas = { path = "../gas" }
 pallet-gear-messenger = { path = "../gear-messenger" }
 pallet-gear-scheduler = { path = "../gear-scheduler" }

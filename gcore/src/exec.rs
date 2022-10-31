@@ -21,6 +21,7 @@
 //! Provides API for low-level async implementation.
 
 use crate::{error::Result, ActorId, MessageId, ReservationId};
+use gear_core_errors::ExtError;
 
 mod sys {
     use crate::error::SyscallError;
@@ -48,6 +49,13 @@ mod sys {
         pub fn gr_program_id(program_id_ptr: *mut [u8; 32]);
 
         pub fn gr_origin(origin_ptr: *mut [u8; 32]);
+
+        pub fn gr_random(
+            subject_ptr: *const u8,
+            subject_len: u32,
+            random_ptr: *mut [u8; 32],
+            bn: *mut u32,
+        );
 
         pub fn gr_leave() -> !;
 
@@ -335,4 +343,53 @@ pub fn origin() -> ActorId {
     unsafe { sys::gr_origin(origin.as_mut_ptr()) }
 
     origin
+}
+
+/// Get the random seed, along with the time in the past
+/// since when it was determinable by chain observers.
+/// The random seed is determined from the random seed of the block with the
+/// message id as the subject.
+///
+/// `subject` is a context identifier and allows you to get a different results
+/// within the execution. use it like `random(&b"my context"[..])`.
+///
+/// # Security
+///
+/// This MUST NOT be used for gambling, as it can be influenced by a
+/// malicious validator in the short term. It MAY be used in many
+/// cryptographic protocols, however, so long as one remembers that this
+/// (like everything else on-chain) it is public. For example, it can be
+/// used where a number is needed that cannot have been chosen by an
+/// adversary, for purposes such as public-coin zero-knowledge proofs.
+///
+/// # Examples
+///
+/// ```
+/// use gcore::exec;
+///
+/// unsafe extern "C" fn handle() {
+///     // ...
+///     let (seed, block_number) = exec::random(&b"my context"[..]);
+/// }
+/// ```
+pub fn random(subject: &[u8]) -> Result<([u8; 32], u32)> {
+    let mut bytes = [0u8; 32];
+
+    let subject_len = subject
+        .len()
+        .try_into()
+        .map_err(|_| ExtError::SyscallUsage)?;
+
+    let mut bn = 0u32.to_le_bytes();
+
+    unsafe {
+        sys::gr_random(
+            subject.as_ptr(),
+            subject_len,
+            bytes.as_mut_ptr() as *mut [u8; 32],
+            bn.as_mut_ptr() as *mut u32,
+        );
+    }
+
+    Ok((bytes, u32::from_le_bytes(bn)))
 }
