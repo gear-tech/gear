@@ -5,7 +5,6 @@ impl Api {
     /// pallet gas constants
     ///
     /// get gas limit
-    // todo remove async
     pub fn gas_limit(&self) -> Result<u64> {
         self.constants()
             .gear_gas()
