@@ -30,7 +30,7 @@ async fn inf_loop() -> Result<()> {
     let api = GearApi::dev().await?;
 
     // Taking block gas limit constant.
-    let gas_limit = api.block_gas_limit().await?;
+    let gas_limit = api.block_gas_limit()?;
 
     // Subscribing for events.
     let mut listener = api.subscribe().await?;

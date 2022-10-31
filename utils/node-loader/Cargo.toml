@@ -10,17 +10,26 @@ name = "gear-node-loader"
 path = "src/main.rs"
 
 [dependencies]
-gear-wasm-gen = { path = "../wasm-gen" }
-arbitrary = "1.1.7"
-gear-core = { path = "../../core" }
+# internal dependencies
 gclient = { path = "../../gclient" }
-hex = "0.4.3"
-tokio = { version = "1.21.2", features = [ "full" ] }
-color-eyre = { version = "0.6.2", optional = true }
-log = "0.4.16"
-structopt = "0.3.26"
-rand = { version = "0.8.0", features = ["small_rng"] }
-futures = "0.3.25"
+gear-core = { path = "../../core" }
+gear-wasm-gen = { path = "../wasm-gen" }
+
+# external dependencies
 anyhow = "1.0.65"
-strum = { version = "0.24", features = ["derive"] }
+arbitrary = "1.1.6"
 dyn-clonable = "0.9.0"
+futures = "0.3.25"
+futures-timer = "3.0.2"
+hex = "0.4.3"
+once_cell = "1.15.0"
+parking_lot = "0.12.1"
+primitive-types = { version = "0.12.0", default-features = false, features = ["scale-info"] }
+rand = { version = "0.8.0", features = ["small_rng"] }
+reqwest = { version = "0.11.12", default-features = false }
+structopt = "0.3.26"
+thiserror = "1.0.37"
+tokio = { version = "1.21.2", features = [ "macros" ] }
+tracing = "0.1.36"
+tracing-appender = "0.2"
+tracing-subscriber = { version = "0.3.15", features = [ "env-filter", "json" ] }
