@@ -1159,17 +1159,16 @@ where
 
             process_read_result!(read_result, caller);
 
-            let host_state = caller
-                .host_data()
-                .as_ref()
-                .expect("host_state should be set before execution");
+            let host_state = host_state_mut!(caller);
 
             let (random, random_bn) = host_state.ext.random();
 
             subject.try_extend_from_slice(random).map_err(|e| {
-                host_state_mut!(caller).err = FuncError::RuntimeBufferSize(e);
+                host_state.err = FuncError::RuntimeBufferSize(e);
                 Trap::from(TrapCode::Unreachable)
             })?;
+
+            update_globals!(caller);
 
             let write_result = {
                 let mut memory_wrap = get_caller_memory(&mut caller, &memory);
