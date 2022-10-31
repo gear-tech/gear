@@ -20,9 +20,9 @@ use crate::{
     log::{CoreLog, RunResult},
     program::{Gas, WasmProgram},
     wasm_executor::WasmExecutor,
-    Result, TestError, EXISTENTIAL_DEPOSIT, MAILBOX_THRESHOLD, MAX_RESERVATIONS,
-    MODULE_INSTANTIATION_BYTE_COST, PER_BYTE_COST, READ_COST, RESERVATION_COST, RESERVE_FOR,
-    WAITLIST_COST, WRITE_COST,
+    Result, TestError, EXISTENTIAL_DEPOSIT, INITIAL_RANDOM_SEED, MAILBOX_THRESHOLD,
+    MAX_RESERVATIONS, MODULE_INSTANTIATION_BYTE_COST, READ_COST, READ_PER_BYTE_COST,
+    RESERVATION_COST, RESERVE_FOR, WAITLIST_COST, WRITE_COST, WRITE_PER_BYTE_COST,
 };
 use core_processor::{
     common::*,
@@ -42,6 +42,7 @@ use gear_core::{
     reservation::{GasReservationMap, GasReserver},
 };
 use gear_wasm_instrument::{parity_wasm, wasm_instrument::gas_metering::ConstantCostRules};
+use rand::{rngs::StdRng, RngCore, SeedableRng};
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap, VecDeque},
     convert::TryInto,
@@ -207,6 +208,7 @@ impl Program {
 pub(crate) struct ExtManager {
     // State metadata
     pub(crate) block_info: BlockInfo,
+    pub(crate) random_data: (Vec<u8>, u32),
 
     // Messaging and programs meta
     pub(crate) msg_nonce: u64,
@@ -244,6 +246,16 @@ impl ExtManager {
                     .expect("Time went backwards")
                     .as_millis() as u64,
             },
+            random_data: (
+                {
+                    let mut rng = StdRng::seed_from_u64(INITIAL_RANDOM_SEED);
+                    let mut random = [0u8; 32];
+                    rng.fill_bytes(&mut random);
+
+                    random.to_vec()
+                },
+                0,
+            ),
             ..Default::default()
         }
     }
@@ -633,7 +645,8 @@ impl ExtManager {
             reservation: RESERVATION_COST,
             read_cost: READ_COST,
             write_cost: WRITE_COST,
-            per_byte_cost: PER_BYTE_COST,
+            read_per_byte_cost: READ_PER_BYTE_COST,
+            write_per_byte_cost: WRITE_PER_BYTE_COST,
             module_instantiation_byte_cost: MODULE_INSTANTIATION_BYTE_COST,
             max_reservations: MAX_RESERVATIONS,
         };
@@ -672,6 +685,7 @@ impl ExtManager {
             PrepareResult::Ok(context) => core_processor::process::<Ext, WasmiEnvironment<Ext>>(
                 &block_config,
                 (context, dest, code.unwrap()).into(),
+                self.random_data.clone(),
                 memory_pages,
             ),
         };

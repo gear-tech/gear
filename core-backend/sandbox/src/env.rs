@@ -151,6 +151,7 @@ where
         builder.add_func("gr_message_id", Funcs::message_id);
         builder.add_func("gr_origin", Funcs::origin);
         builder.add_func("gr_program_id", Funcs::program_id);
+        builder.add_func("gr_random", Funcs::random);
         builder.add_func("gr_read", Funcs::read);
         builder.add_func("gr_reply", Funcs::reply);
         builder.add_func("gr_reply_commit", Funcs::reply_commit);

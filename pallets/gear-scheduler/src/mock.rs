@@ -25,6 +25,7 @@ use frame_support::{
     traits::{ConstU64, FindAuthor},
     weights::constants::RocksDbWeight,
 };
+use frame_support_test::TestRandomness;
 use frame_system as system;
 use pallet_gear::BlockGasLimitOf;
 use sp_core::{ConstU128, H256};
@@ -130,6 +131,7 @@ parameter_types! {
 
 impl pallet_gear::Config for Test {
     type RuntimeEvent = RuntimeEvent;
+    type Randomness = TestRandomness<Self>;
     type Currency = Balances;
     type GasPrice = GasConverter;
     type WeightInfo = ();
@@ -139,7 +141,6 @@ impl pallet_gear::Config for Test {
     type CodeStorage = GearProgram;
     type MailboxThreshold = ConstU64<3000>;
     type ReservationsLimit = ConstU64<256>;
-    type ReadPerByteCost = ConstU64<10>;
     type Messenger = GearMessenger;
     type GasProvider = GearGas;
     type BlockLimiter = GearGas;

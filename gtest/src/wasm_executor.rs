@@ -203,6 +203,7 @@ impl WasmExecutor {
             waitlist_cost: WAITLIST_COST,
             reserve_for: RESERVE_FOR,
             reservation: RESERVATION_COST,
+            random_data: ([0u8; 32].to_vec(), 0),
         })
     }
 

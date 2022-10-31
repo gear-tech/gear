@@ -384,6 +384,7 @@ pub fn execute_wasm<
         waitlist_cost: settings.waitlist_cost,
         reserve_for: settings.reserve_for,
         reservation: settings.reservation,
+        random_data: settings.random_data,
     };
 
     // Creating externalities.

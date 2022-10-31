@@ -23,6 +23,7 @@ use alloc::{
     format,
     string::{FromUtf8Error, String},
 };
+use blake2_rfc::blake2b::blake2b;
 use core::{convert::TryInto, fmt::Display, marker::PhantomData, ops::Range};
 use gear_backend_common::{
     error_processor::{IntoExtError, ProcessError},
@@ -376,6 +377,25 @@ where
             ctx.write_output(origin_ptr, origin.as_ref())?;
 
             Ok(())
+        })
+    }
+
+    pub fn random(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
+        sys_trace!(target: "syscall::gear", "random, args = {}", args_to_str(args));
+
+        let (subject_ptr, subject_len, random_ptr, bn_ptr): (u32, u32, u32, u32) =
+            args.iter().read_4()?;
+
+        ctx.run(|ctx| {
+            let mut subject = RuntimeBuffer::try_new_default(subject_len as usize)?;
+            ctx.read_memory_into_buf(subject_ptr, subject.get_mut())?;
+
+            let (random, random_bn) = ctx.ext.random();
+            subject.try_extend_from_slice(random)?;
+
+            ctx.write_output(random_ptr, blake2b(32, &[], subject.get()).as_bytes())?;
+            ctx.write_output(bn_ptr, &random_bn.to_le_bytes())
+                .map_err(Into::into)
         })
     }
 
@@ -764,6 +784,7 @@ where
         })
     }
 
+    // TODO: charge gas for gr_error (issue #1723)
     pub fn error(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
         sys_trace!(target: "syscall::gear", "error, args = {}", args_to_str(args));
 

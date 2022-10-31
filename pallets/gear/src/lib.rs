@@ -90,7 +90,6 @@ pub(crate) type DequeuedOf<T> = <<T as Config>::Messenger as Messenger>::Dequeue
 pub(crate) type QueueProcessingOf<T> = <<T as Config>::Messenger as Messenger>::QueueProcessing;
 pub(crate) type QueueOf<T> = <<T as Config>::Messenger as Messenger>::Queue;
 pub(crate) type MailboxOf<T> = <<T as Config>::Messenger as Messenger>::Mailbox;
-pub(crate) type ReadPerByteCostOf<T> = <T as Config>::ReadPerByteCost;
 pub(crate) type WaitlistOf<T> = <<T as Config>::Messenger as Messenger>::Waitlist;
 pub(crate) type MessengerCapacityOf<T> = <<T as Config>::Messenger as Messenger>::Capacity;
 pub(crate) type TaskPoolOf<T> = <<T as Config>::Scheduler as Scheduler>::TaskPool;
@@ -210,7 +209,7 @@ pub mod pallet {
         ensure,
         pallet_prelude::*,
         traits::{
-            BalanceStatus, Currency, ExistenceRequirement, Get, LockableCurrency,
+            BalanceStatus, Currency, ExistenceRequirement, Get, LockableCurrency, Randomness,
             ReservableCurrency,
         },
     };
@@ -225,6 +224,9 @@ pub mod pallet {
     {
         /// Because this pallet emits events, it depends on the runtime's definition of an event.
         type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
+
+        /// The generator used to supply randomness to contracts through `seal_random`
+        type Randomness: Randomness<Self::Hash, Self::BlockNumber>;
 
         /// Balances management trait for gas/value migrations.
         type Currency: LockableCurrency<Self::AccountId> + ReservableCurrency<Self::AccountId>;
@@ -260,10 +262,6 @@ pub mod pallet {
         /// Amount of reservations can exist for 1 program.
         #[pallet::constant]
         type ReservationsLimit: Get<u64>;
-
-        /// The cost per loaded byte.
-        #[pallet::constant]
-        type ReadPerByteCost: Get<u64>;
 
         /// Messenger.
         type Messenger: Messenger<
@@ -471,6 +469,10 @@ pub mod pallet {
         /// Messages storage corrupted.
         MessagesStorageCorrupted,
     }
+
+    #[cfg(feature = "runtime-benchmarks")]
+    #[pallet::storage]
+    pub(crate) type BenchmarkStorage<T> = StorageMap<_, Identity, u32, Vec<u8>>;
 
     #[pallet::storage]
     #[pallet::getter(fn force_queue)]
@@ -926,7 +928,8 @@ pub mod pallet {
                 reservation: CostsPerBlockOf::<T>::reservation().unique_saturated_into(),
                 read_cost: DbWeightOf::<T>::get().reads(1).ref_time(),
                 write_cost: DbWeightOf::<T>::get().writes(1).ref_time(),
-                per_byte_cost: ReadPerByteCostOf::<T>::get(),
+                write_per_byte_cost: schedule.db_write_per_byte,
+                read_per_byte_cost: schedule.db_read_per_byte,
                 module_instantiation_byte_cost: schedule.module_instantiation_per_byte,
                 max_reservations: T::ReservationsLimit::get(),
             };
@@ -1006,9 +1009,11 @@ pub mod pallet {
                                 })
                                 .unwrap_or(0);
 
+                            let (random, bn) = T::Randomness::random(dispatch_id.as_ref());
                             core_processor::process::<Ext, ExecutionEnvironment>(
                                 &block_config,
                                 (context, actor_id, code).into(),
+                                (random.encode(), bn.unique_saturated_into()),
                                 memory_pages,
                             )
                         }
@@ -1277,7 +1282,8 @@ pub mod pallet {
                 reservation: CostsPerBlockOf::<T>::reservation().unique_saturated_into(),
                 read_cost: DbWeightOf::<T>::get().reads(1).ref_time(),
                 write_cost: DbWeightOf::<T>::get().writes(1).ref_time(),
-                per_byte_cost: ReadPerByteCostOf::<T>::get(),
+                write_per_byte_cost: schedule.db_write_per_byte,
+                read_per_byte_cost: schedule.db_read_per_byte,
                 module_instantiation_byte_cost: schedule.module_instantiation_per_byte,
                 max_reservations: T::ReservationsLimit::get(),
             };
@@ -1430,10 +1436,11 @@ pub mod pallet {
 
                                 let code = Self::get_code(context.actor_data().code_id, program_id)
                                     .unwrap_or_else(|| unreachable!("Program exists so do code"));
-
+                                let (random, bn) = T::Randomness::random(dispatch_id.as_ref());
                                 core_processor::process::<Ext, ExecutionEnvironment>(
                                     &block_config,
                                     (context, program_id, code).into(),
+                                    (random.encode(), bn.unique_saturated_into()),
                                     memory_pages,
                                 )
                             }

@@ -150,7 +150,7 @@ pub enum DispatchOutcome {
     },
     /// Message was a trap.
     MessageTrap {
-        /// Program that was failed initializing.
+        /// Program that was failed.
         program_id: ProgramId,
         /// Reason of the fail.
         trap: String,
