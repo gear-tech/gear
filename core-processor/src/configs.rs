@@ -19,7 +19,7 @@
 //! Configurations.
 
 use crate::common::{Actor, PrechargedDispatch};
-use alloc::collections::BTreeSet;
+use alloc::{collections::BTreeSet, vec::Vec};
 use codec::{Decode, Encode};
 use gear_core::{code, costs::HostFnWeights, ids::ProgramId, memory::WasmPageNumber};
 
@@ -84,6 +84,9 @@ pub struct ExecutionSettings {
     pub reserve_for: u32,
     /// Cost for reservation holding.
     pub reservation: u64,
+    /// Most recently determined random seed, along with the time in the past since when it was determinable by chain observers.
+    /// TODO: find a way to put a random seed inside block config.
+    pub random_data: (Vec<u8>, u32),
 }
 
 impl ExecutionSettings {
@@ -120,8 +123,10 @@ pub struct BlockConfig {
     pub read_cost: u64,
     /// One-time db-write cost.
     pub write_cost: u64,
+    /// Per written byte cost.
+    pub write_per_byte_cost: u64,
     /// Per loaded byte cost.
-    pub per_byte_cost: u64,
+    pub read_per_byte_cost: u64,
     /// WASM module instantiation byte cost.
     pub module_instantiation_byte_cost: u64,
     /// Amount of reservations can exist for 1 program.

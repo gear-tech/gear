@@ -132,6 +132,9 @@ pub trait Ext {
     /// Size of currently handled message payload.
     fn size(&mut self) -> Result<usize, Self::Error>;
 
+    /// Returns a random seed for the current block with message id as a subject, along with the time in the past since when it was determinable by chain observers.
+    fn random(&self) -> (&[u8], u32);
+
     /// Charge some extra gas.
     fn charge_gas(&mut self, amount: u64) -> Result<(), Self::Error>;
 
