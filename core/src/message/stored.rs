@@ -112,7 +112,7 @@ impl StoredMessage {
 
     /// Message reply.
     pub fn reply(&self) -> Option<ReplyDetails> {
-        self.details.and_then(|d| d.to_reply())
+        self.details.and_then(|d| d.to_reply_details())
     }
 
     /// Status code of the message, if reply.

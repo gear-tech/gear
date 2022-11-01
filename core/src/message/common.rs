@@ -117,7 +117,7 @@ impl Message {
 
     /// Message reply.
     pub fn reply(&self) -> Option<ReplyDetails> {
-        self.details.and_then(|d| d.to_reply())
+        self.details.and_then(|d| d.to_reply_details())
     }
 
     /// Status code of the message, if reply or signal.
@@ -172,7 +172,7 @@ pub enum MessageDetails {
 impl MessageDetails {
     /// Returns bool defining if message is error reply.
     pub fn is_error_reply(&self) -> bool {
-        self.is_reply() && self.status_code() != 0
+        self.is_reply_details() && self.status_code() != 0
     }
 
     /// Returns status code.
@@ -184,12 +184,12 @@ impl MessageDetails {
     }
 
     /// Check if kind is reply.
-    pub fn is_reply(&self) -> bool {
+    pub fn is_reply_details(&self) -> bool {
         matches!(self, Self::Reply(_))
     }
 
     /// Returns reply details.
-    pub fn to_reply(self) -> Option<ReplyDetails> {
+    pub fn to_reply_details(self) -> Option<ReplyDetails> {
         match self {
             MessageDetails::Reply(reply) => Some(reply),
             MessageDetails::Signal(_) => None,
@@ -197,12 +197,12 @@ impl MessageDetails {
     }
 
     /// Check if kind is signal.
-    pub fn is_signal(&self) -> bool {
+    pub fn is_signal_details(&self) -> bool {
         matches!(self, Self::Signal(_))
     }
 
     /// Reply signal details.
-    pub fn to_signal(self) -> Option<SignalDetails> {
+    pub fn to_signal_details(self) -> Option<SignalDetails> {
         match self {
             MessageDetails::Reply(_) => None,
             MessageDetails::Signal(signal) => Some(signal),

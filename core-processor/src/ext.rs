@@ -449,7 +449,7 @@ impl EnvExt for Ext {
             .message_context
             .current()
             .details()
-            .and_then(|d| d.to_reply())
+            .and_then(|d| d.to_reply_details())
             .map(|d| d.into_reply_to())
             .ok_or_else(|| MessageError::NoReplyContext.into())
     }
