@@ -8,12 +8,12 @@ static mut TIMEOUT_MESSAGE_ID: Option<MessageId> = None;
 
 #[gstd::async_main]
 async fn main() {
-    let cmd: Command = msg::load().unwrap();
+    let cmd: Command = msg::load().expect("Failed to decode input");
 
     match cmd {
         Command::Wake => unsafe {
             if let Some(id) = TIMEOUT_MESSAGE_ID {
-                exec::wake(id);
+                exec::wake(id).expect("Failed to wake the message");
             }
         },
         Command::SendTimeout(to, duration) => {

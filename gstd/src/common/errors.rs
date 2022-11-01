@@ -36,6 +36,13 @@ pub enum ContractError {
     Ext(ExtError),
 }
 
+impl ContractError {
+    /// If is timed out error.
+    pub fn timed_out(&self) -> bool {
+        matches!(self, ContractError::Timeout(..))
+    }
+}
+
 impl fmt::Display for ContractError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {

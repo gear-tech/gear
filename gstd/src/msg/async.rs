@@ -42,6 +42,9 @@ where
 
     // check if message is timeout
     if let Some((expected, now)) = async_runtime::locks().is_timeout(msg_id, waiting_reply_to) {
+        // Remove lock after timeout.
+        async_runtime::locks().remove(msg_id, waiting_reply_to);
+
         return Poll::Ready(Err(ContractError::Timeout(expected, now)));
     }
 
@@ -51,12 +54,12 @@ where
         ),
         ReplyPoll::Pending => Poll::Pending,
         ReplyPoll::Some((actual_reply, exit_code)) => {
+            // Remove lock after waking.
+            async_runtime::locks().remove(msg_id, waiting_reply_to);
+
             if exit_code != 0 {
                 return Poll::Ready(Err(ContractError::ExitCode(exit_code)));
             }
-
-            // Remove lock after waking.
-            async_runtime::locks().remove(msg_id, waiting_reply_to);
 
             Poll::Ready(f(actual_reply))
         }

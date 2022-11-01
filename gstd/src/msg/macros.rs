@@ -42,7 +42,8 @@ macro_rules! impl_futures {
         }
 
         impl $( <$g: Decode> )? $f $( < $g > )? {
-            /// Delays handling for given specific amount of blocks.
+            /// Delays handling for maximal amount of blocks that could be payed, that
+            /// doesn't exceed given duration.
             pub fn up_to(self, duration: u32) -> Self {
                 async_runtime::locks().lock(
                     crate::msg::id(),
@@ -52,8 +53,7 @@ macro_rules! impl_futures {
                 self
             }
 
-            /// Delays handling for maximal amount of blocks that could be payed, that
-            /// doesn't exceed given duration.
+            /// Delays handling for given specific amount of blocks.
             pub fn exactly(self, duration: u32) -> Self {
                 async_runtime::locks().lock(
                     crate::msg::id(),

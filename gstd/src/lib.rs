@@ -59,7 +59,7 @@ const_assert!(size_of::<u32>() <= size_of::<usize>());
 pub use config::Config;
 
 /// This module is for configuring `gstd` inside gear programs.
-pub mod config {
+mod config {
     /// `gstd` configuration
     pub struct Config {
         /// Default wait duration for waited messages.
@@ -82,7 +82,7 @@ pub mod config {
         }
     }
 
-    /// Private `gstd` configuration, only could be modified
-    /// with the public interfaces of `Config`.
+    // Private `gstd` configuration, only could be modified
+    // with the public interfaces of `Config`.
     static mut CONFIG: Config = Config::default();
 }

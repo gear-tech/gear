@@ -1,3 +1,21 @@
+// This file is part of Gear.
+
+// Copyright (C) 2021-2022 Gear Technologies Inc.
+// SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
+
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU General Public License for more details.
+
+// You should have received a copy of the GNU General Public License
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
+
 //! Wait duration registry
 use crate::{
     exec,
@@ -41,7 +59,7 @@ impl Lock {
 
     /// Call wait functions by the lock type.
     pub fn wait(&self) {
-        if let Some(blocks) = self.bound().checked_sub(exec::block_height()) {
+        if let Some(blocks) = self.deadline().checked_sub(exec::block_height()) {
             match self.ty {
                 LockType::WaitFor(_) => exec::wait_for(blocks),
                 LockType::WaitUpTo(_) => exec::wait_up_to(blocks),
@@ -49,14 +67,14 @@ impl Lock {
         }
     }
 
-    /// Get bound of the current lock
-    pub fn bound(&self) -> u32 {
+    /// Get deadline of the current lock
+    pub fn deadline(&self) -> u32 {
         match &self.ty {
-            LockType::WaitFor(d) | LockType::WaitUpTo(d) => self.at + *d,
+            LockType::WaitFor(d) | LockType::WaitUpTo(d) => self.at.saturating_add(*d),
         }
     }
 
-    /// Check if this lock is timeout
+    /// Check if this lock is timed out.
     pub fn timeout(&self) -> Option<(u32, u32)> {
         let current = exec::block_height();
         let expected = self.bound();
@@ -102,21 +120,19 @@ impl LocksMap {
     pub fn wait(&mut self, message_id: MessageId) {
         let map = self.0.entry(message_id).or_insert_with(Default::default);
         if map.is_empty() {
-            // If there is no `waiting_reply_to` id specfied, use
+            // If there is no `waiting_reply_to` id specified, use
             // the message id as the key of the message lock.
-            // (the key should to `waiting_replay_to` in general )
             //
-            // # TODO
+            // (this key should be `waiting_reply_to` in general )
             //
-            // refactor this implementation when we got better solution.
+            // # TODO: refactor it better (#1737)
             map.insert(message_id, Default::default());
         }
 
         let now = exec::block_height();
         let mut locks: Vec<&Lock> = map
             .iter()
-            .filter_map(|(_, l)| (l.bound() > now).then_some(Some(l)))
-            .flatten()
+            .filter_map(|(_, l)| (l.bound() > now).then_some(l))
             .collect();
         locks.sort();
         locks.first().expect("checked before").wait();
@@ -140,7 +156,10 @@ impl LocksMap {
         message_id: MessageId,
         waiting_reply_to: MessageId,
     ) -> Option<(u32, u32)> {
-        let locks = self.0.entry(message_id).or_insert_with(Default::default);
-        locks.get(&waiting_reply_to).and_then(|l| l.timeout())
+        self.0
+            .entry(message_id)
+            .or_insert_with(Default::default)
+            .get(&waiting_reply_to)
+            .and_then(|l| l.timeout())
     }
 }
