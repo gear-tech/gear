@@ -285,7 +285,6 @@ where
         log::debug!("Send signal issued by {} to {}", message_id, destination);
 
         let signal_msg_id = MessageId::generate_signal(message_id);
-        log::debug!("!!!TEST!!! {}", signal_msg_id);
 
         // Creating signal message.
         let trap_signal = SignalMessage::new(signal_msg_id, core_processor::ERR_STATUS_CODE)
