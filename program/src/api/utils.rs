@@ -5,7 +5,7 @@ use crate::{
 };
 use parity_scale_codec::Encode;
 use std::mem;
-use subxt::sp_core::H256;
+use subxt::ext::sp_core::H256;
 
 const STORAGE_PROGRAM_PREFIX: &[u8] = b"g::prog::";
 const STORAGE_PROGRAM_PAGES_PREFIX: &[u8] = b"g::pages::";
@@ -32,8 +32,8 @@ pub fn page_key(id: H256, page: PageNumber) -> Vec<u8> {
 
 impl Api {
     /// compare gas limit
-    pub async fn cmp_gas_limit(&self, gas: u64) -> Result<u64> {
-        if let Ok(limit) = self.gas_limit().await {
+    pub fn cmp_gas_limit(&self, gas: u64) -> Result<u64> {
+        if let Ok(limit) = self.gas_limit() {
             Ok(if gas > limit {
                 log::warn!("gas limit too high, use {} from the chain config", limit);
                 limit

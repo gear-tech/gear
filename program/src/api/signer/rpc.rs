@@ -6,8 +6,8 @@ use crate::{
 use gear_core::ids::{CodeId, MessageId, ProgramId};
 use std::sync::Arc;
 use subxt::{
+    ext::sp_core::H256,
     rpc::{rpc_params, ClientT},
-    sp_core::H256,
     RpcClient,
 };
 

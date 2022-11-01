@@ -109,9 +109,9 @@
 //! GPL v3.0
 
 pub mod api;
-pub mod cmd;
-pub mod keystore;
-pub mod metadata;
+// pub mod cmd;
+// pub mod keystore;
+// pub mod metadata;
 pub mod result;
-pub mod template;
-pub mod utils;
+// pub mod template;
+// pub mod utils;

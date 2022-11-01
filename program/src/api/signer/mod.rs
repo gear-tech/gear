@@ -6,8 +6,10 @@ use crate::{
 };
 use std::ops::{Deref, DerefMut};
 use subxt::{
-    sp_core::{crypto::Ss58Codec, sr25519::Pair, Pair as PairT},
-    sp_runtime::AccountId32,
+    ext::{
+        sp_core::{crypto::Ss58Codec, sr25519::Pair, Pair as PairT},
+        sp_runtime::AccountId32,
+    },
     PairSigner,
 };
 

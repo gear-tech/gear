@@ -12,7 +12,12 @@ use crate::{
 use parity_scale_codec::{Decode, Encode};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use subxt::TransactionInBlock;
+use subxt::{
+    events::EventSubscription,
+    ext::sp_runtime::{generic::Header, traits::BlakeTwo256},
+    rpc::Subscription,
+    OnlineClient,
+};
 
 /// Information of gas
 #[derive(Clone, Debug, Decode, Encode, PartialEq, Eq, Serialize, Deserialize)]
@@ -25,11 +30,14 @@ pub struct GasInfo {
     pub burned: u64,
 }
 
+pub type Events =
+    EventSubscription<GearConfig, OnlineClient<GearConfig>, Subscription<Header<u32, BlakeTwo256>>>;
+
 /// Gear pages.
 pub type GearPages = HashMap<u32, Vec<u8>>;
 
-/// Transaction in block
-pub type InBlock<'i> = Result<TransactionInBlock<'i, GearConfig, DispatchError, Event>>;
+// /// Transaction in block
+// pub type InBlock<'i> = Result<TransactionInBlock<'i, GearConfig, DispatchError, Event>>;
 
 /// Gear Program
 #[derive(Debug, Decode)]
