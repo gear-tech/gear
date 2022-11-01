@@ -150,6 +150,7 @@ pub struct ContextStore {
     awaken: BTreeSet<MessageId>,
     reply_sent: bool,
     reservation_nonce: u64,
+    system_reservation: Option<u64>,
 }
 
 impl ContextStore {
@@ -163,6 +164,11 @@ impl ContextStore {
         let nonce = self.reservation_nonce;
         self.reservation_nonce = nonce.saturating_add(1);
         nonce
+    }
+
+    /// Get system reservation.
+    pub fn system_reservation(&self) -> Option<u64> {
+        self.system_reservation
     }
 }
 
@@ -344,6 +350,11 @@ impl MessageContext {
         } else {
             Err(Error::DuplicateWaking)
         }
+    }
+
+    /// Current system reservation.
+    pub fn system_reservation_mut(&mut self) -> &mut Option<u64> {
+        &mut self.store.system_reservation
     }
 
     /// Current processing incoming message.

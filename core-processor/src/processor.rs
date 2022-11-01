@@ -160,7 +160,7 @@ fn prepare_error(
     err: ExecutionErrorReason,
 ) -> PrepareResult {
     let gas_burned = gas_counter.burned();
-    PrepareResult::Error(process_error(dispatch, program_id, gas_burned, err))
+    PrepareResult::Error(process_error(dispatch, program_id, gas_burned, None, err))
 }
 
 fn prepare_allowance_exceed(
@@ -208,6 +208,7 @@ pub fn precharge(
                 dispatch,
                 destination_id,
                 gas_burned,
+                None,
                 ExecutionErrorReason::ProgramDataGasExceeded,
             ))
         }
@@ -424,6 +425,7 @@ pub fn process<
                 res.dispatch,
                 program_id,
                 res.gas_amount.burned(),
+                res.context_store.system_reservation(),
                 ExecutionErrorReason::Ext(reason),
             ),
             DispatchResultKind::Success => process_success(Success, res),
@@ -443,7 +445,7 @@ pub fn process<
             | ExecutionErrorReason::LoadMemoryBlockGasExceeded => {
                 process_allowance_exceed(dispatch, program_id, e.gas_amount.burned())
             }
-            _ => process_error(dispatch, program_id, e.gas_amount.burned(), e.reason),
+            _ => process_error(dispatch, program_id, e.gas_amount.burned(), None, e.reason),
         },
     }
 }
@@ -468,6 +470,7 @@ fn process_error(
     dispatch: IncomingDispatch,
     program_id: ProgramId,
     gas_burned: u64,
+    system_reservation: Option<u64>,
     err: ExecutionErrorReason,
 ) -> Vec<JournalNote> {
     let mut journal = Vec::new();
@@ -528,6 +531,10 @@ fn process_error(
         },
     };
 
+    if system_reservation.is_some() {
+        journal.push(JournalNote::SystemUnreserveGas { message_id });
+    }
+
     journal.push(JournalNote::MessageDispatched {
         message_id,
         source: origin,
@@ -556,7 +563,6 @@ fn process_success(
         program_id,
         context_store,
         allocations,
-        system_reservation,
         ..
     } = dispatch_result;
 
@@ -598,6 +604,7 @@ fn process_success(
         });
     }
 
+    let system_reservation = context_store.system_reservation();
     if let Some(amount) = system_reservation {
         journal.push(JournalNote::SystemReserveGas { message_id, amount });
     }

@@ -73,8 +73,6 @@ pub struct DispatchResult {
     pub gas_amount: GasAmount,
     /// Gas amount programs reserved.
     pub gas_reserver: Option<GasReserver>,
-    /// Do system reservation?
-    pub system_reservation: Option<u64>,
     /// Page updates.
     pub page_update: BTreeMap<PageNumber, PageBuf>,
     /// New allocations set for program if it has been changed.
@@ -119,7 +117,6 @@ impl DispatchResult {
             program_candidates: Default::default(),
             gas_amount,
             gas_reserver: None,
-            system_reservation: None,
             page_update: Default::default(),
             allocations: Default::default(),
         }

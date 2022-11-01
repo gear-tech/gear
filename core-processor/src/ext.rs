@@ -52,8 +52,6 @@ pub struct ProcessorContext {
     pub gas_allowance_counter: GasAllowanceCounter,
     /// Reserved gas counter.
     pub gas_reserver: GasReserver,
-    /// Do system reservation?
-    pub system_reservation: Option<u64>,
     /// Value counter.
     pub value_counter: ValueCounter,
     /// Allocations context.
@@ -584,7 +582,11 @@ impl EnvExt for Ext {
             return Err(ExecutionError::InsufficientGasForReservation.into());
         }
 
-        let reservation = self.context.system_reservation.get_or_insert(0);
+        let reservation = self
+            .context
+            .message_context
+            .system_reservation_mut()
+            .get_or_insert(0);
         *reservation = reservation.saturating_add(amount);
 
         Ok(())
@@ -814,7 +816,6 @@ impl Ext {
             gas_counter,
             gas_reserver,
             program_candidates_data,
-            system_reservation,
             ..
         } = self.context;
 
@@ -836,7 +837,6 @@ impl Ext {
         let info = ExtInfo {
             gas_amount: gas_counter.into(),
             gas_reserver,
-            system_reservation,
             allocations: allocations.ne(&initial_allocations).then_some(allocations),
             pages_data,
             generated_dispatches,
