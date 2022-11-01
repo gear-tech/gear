@@ -312,7 +312,7 @@ impl<ExternalId: Clone, Id: Clone + Copy, Balance: Zero + Clone + Copy>
     }
 
     /// Returns whether the node has system reserved gas.
-    pub(crate) fn is_system_reserved(&self) -> bool {
+    pub(crate) fn is_system_reservable(&self) -> bool {
         matches!(self, Self::SystemReserved { .. })
     }
 
