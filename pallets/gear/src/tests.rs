@@ -5941,7 +5941,7 @@ fn signal_wait_works() {
 }
 
 #[test]
-fn signal_unreserve_works() {
+fn system_reservation_unreserve_works() {
     use demo_signal_entry::{HandleAction, WASM_BINARY};
 
     init_logger();
@@ -5980,7 +5980,7 @@ fn signal_unreserve_works() {
 }
 
 #[test]
-fn signal_wait_and_panic_works() {
+fn system_reservation_wait_and_panic_works() {
     use demo_signal_entry::{HandleAction, WASM_BINARY};
 
     init_logger();
@@ -6033,7 +6033,7 @@ fn signal_wait_and_panic_works() {
 }
 
 #[test]
-fn signal_accumulate_works() {
+fn system_reservation_accumulate_works() {
     use demo_signal_entry::{HandleAction, WASM_BINARY};
 
     init_logger();
