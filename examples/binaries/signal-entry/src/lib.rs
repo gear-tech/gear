@@ -18,6 +18,8 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
+use gstd::{Decode, Encode};
+
 #[cfg(feature = "std")]
 mod code {
     include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
@@ -26,14 +28,30 @@ mod code {
 #[cfg(feature = "std")]
 pub use code::WASM_BINARY_OPT as WASM_BINARY;
 
+#[derive(Debug, Encode, Decode)]
+pub enum HandleAction {
+    Simple,
+    Wait,
+}
+
 #[cfg(not(feature = "std"))]
 mod wasm {
+    use super::*;
     use gstd::{exec, msg, prelude::*};
 
     #[no_mangle]
     unsafe extern "C" fn handle() {
-        exec::system_reserve_gas(500_000_000).unwrap();
-        exec::wait();
+        let action: HandleAction = msg::load().unwrap();
+        match action {
+            HandleAction::Simple => {
+                // must be unreserved as unused
+                exec::system_reserve_gas(100).unwrap();
+            }
+            HandleAction::Wait => {
+                exec::system_reserve_gas(5_000_000_000).unwrap();
+                exec::wait();
+            }
+        }
     }
 
     #[no_mangle]

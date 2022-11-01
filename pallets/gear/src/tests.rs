@@ -5882,8 +5882,8 @@ fn reject_incorrect_binary() {
 }
 
 #[test]
-fn signal_works() {
-    use demo_signal_entry::WASM_BINARY;
+fn signal_wait_works() {
+    use demo_signal_entry::{HandleAction, WASM_BINARY};
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -5906,14 +5906,19 @@ fn signal_works() {
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(USER_1),
             pid,
-            EMPTY_PAYLOAD.to_vec(),
+            HandleAction::Wait.encode(),
             10_000_000_000,
             0,
         ));
 
+        let mid = get_last_message_id();
+        let signal_msg_id = MessageId::generate_signal(mid);
+
         let mut expiration = None;
 
         run_to_block(3, None);
+
+        assert!(GasHandlerOf::<Test>::exists(signal_msg_id));
 
         System::events().iter().for_each(|e| {
             if let MockRuntimeEvent::Gear(Event::MessageWaited {
@@ -5930,6 +5935,47 @@ fn signal_works() {
         Gear::set_block_number((expiration - 1).try_into().unwrap());
 
         run_to_next_block(None);
+
+        assert!(!GasHandlerOf::<Test>::exists(signal_msg_id));
+    });
+}
+
+#[test]
+fn signal_unreserve_works() {
+    use demo_signal_entry::{HandleAction, WASM_BINARY};
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
+            10_000_000_000,
+            0,
+        ));
+
+        let pid = get_last_program_id();
+
+        run_to_block(2, None);
+
+        assert!(Gear::is_initialized(pid));
+        assert!(Gear::is_active(pid));
+
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            pid,
+            HandleAction::Simple.encode(),
+            10_000_000_000,
+            0,
+        ));
+
+        let mid = get_last_message_id();
+        let signal_msg_id = MessageId::generate_signal(mid);
+
+        run_to_block(3, None);
+
+        assert!(!GasHandlerOf::<Test>::exists(signal_msg_id));
     });
 }
 
