@@ -120,7 +120,7 @@ impl Message {
         self.details.and_then(|d| d.to_reply())
     }
 
-    /// Status code of the message, if reply.
+    /// Status code of the message, if reply or signal.
     pub fn status_code(&self) -> Option<StatusCode> {
         self.details.map(|d| d.status_code())
     }
