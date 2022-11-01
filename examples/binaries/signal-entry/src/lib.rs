@@ -32,15 +32,21 @@ pub use code::WASM_BINARY_OPT as WASM_BINARY;
 pub enum HandleAction {
     Simple,
     Wait,
+    WaitAndPanic,
 }
 
 #[cfg(not(feature = "std"))]
 mod wasm {
     use super::*;
-    use gstd::{exec, msg, prelude::*};
+    use gstd::{exec, msg, prelude::*, MessageId};
+
+    static mut HANDLE_MSG: MessageId = MessageId::new([0; 32]);
+    static mut DO_PANIC: bool = false;
 
     #[no_mangle]
     unsafe extern "C" fn handle() {
+        HANDLE_MSG = msg::id();
+
         let action: HandleAction = msg::load().unwrap();
         match action {
             HandleAction::Simple => {
@@ -51,12 +57,29 @@ mod wasm {
                 exec::system_reserve_gas(5_000_000_000).unwrap();
                 exec::wait();
             }
+            HandleAction::WaitAndPanic => {
+                if DO_PANIC {
+                    panic!();
+                }
+
+                DO_PANIC = !DO_PANIC;
+
+                exec::system_reserve_gas(200).unwrap();
+                // used to found message id in test
+                msg::send(msg::source(), 0, 0).unwrap();
+                exec::wait();
+            }
         }
     }
 
     #[no_mangle]
     unsafe extern "C" fn handle_signal() {
         assert_eq!(msg::status_code().unwrap(), 1);
+    }
+
+    #[no_mangle]
+    unsafe extern "C" fn handle_reply() {
+        exec::wake(HANDLE_MSG);
     }
 }
 
