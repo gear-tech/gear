@@ -33,6 +33,7 @@ extern crate galloc;
 
 mod async_runtime;
 mod common;
+mod config;
 pub mod exec;
 pub mod lock;
 pub mod macros;
@@ -42,6 +43,7 @@ pub mod prog;
 
 pub use async_runtime::{message_loop, record_reply};
 pub use common::{errors, handlers::*, primitives::*};
+pub use config::Config;
 pub use gstd_codegen::{async_init, async_main};
 pub use macros::util;
 
@@ -55,34 +57,3 @@ use static_assertions::const_assert;
 
 // This allows all casts from u32 into usize be safe.
 const_assert!(size_of::<u32>() <= size_of::<usize>());
-
-pub use config::Config;
-
-/// This module is for configuring `gstd` inside gear programs.
-mod config {
-    /// `gstd` configuration
-    pub struct Config {
-        /// Default wait duration for waited messages.
-        pub wait_duration: u32,
-    }
-
-    impl Config {
-        const fn default() -> Self {
-            Self { wait_duration: 100 }
-        }
-
-        /// Get wait duration
-        pub fn wait_duration() -> u32 {
-            unsafe { CONFIG.wait_duration }
-        }
-
-        /// Set wait duration
-        pub fn set_wait_duration(duration: u32) {
-            unsafe { CONFIG.wait_duration = duration };
-        }
-    }
-
-    // Private `gstd` configuration, only could be modified
-    // with the public interfaces of `Config`.
-    static mut CONFIG: Config = Config::default();
-}

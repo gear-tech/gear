@@ -21,11 +21,13 @@ async fn main() {
 
             let reply = msg::send_bytes_for_reply(to, b"", 0)
                 .expect("send message failed")
-                .up_to(duration)
+                .up_to(Some(duration))
                 .await;
 
-            if let Err(ContractError::Timeout(..)) = reply {
-                let _ = msg::send(to, b"timeout", 0).expect("send message failed");
+            if let Err(e) = reply {
+                if e.timed_out() {
+                    let _ = msg::send(to, b"timeout", 0).expect("send message failed");
+                }
             }
         }
         Command::JoinTimeout(to, duration_a, duration_b) => {
@@ -33,28 +35,30 @@ async fn main() {
                 let (a, b) = future::join(
                     msg::send_bytes_for_reply(to, b"", 0)
                         .expect("send message failed")
-                        .up_to(duration_a),
+                        .up_to(Some(duration_a)),
                     msg::send_bytes_for_reply(to, b"", 0)
                         .expect("send message failed")
-                        .up_to(duration_b),
+                        .up_to(Some(duration_b)),
                 )
                 .await;
 
                 a.and_then(|ra| b.and_then(|rb| Ok((ra, rb))))
             };
 
-            if let Err(ContractError::Timeout(..)) = reply {
-                let _ = msg::send(to, b"timeout", 0).expect("send message failed");
+            if let Err(e) = reply {
+                if e.timed_out() {
+                    let _ = msg::send(to, b"timeout", 0).expect("send message failed");
+                }
             }
         }
         Command::SelectTimeout(to, duration_a, duration_b) => {
             let reply = match future::select(
                 msg::send_bytes_for_reply(to, b"", 0)
                     .expect("send message failed")
-                    .up_to(duration_a),
+                    .up_to(Some(duration_a)),
                 msg::send_bytes_for_reply(to, b"", 0)
                     .expect("send message failed")
-                    .up_to(duration_b),
+                    .up_to(Some(duration_b)),
             )
             .await
             {

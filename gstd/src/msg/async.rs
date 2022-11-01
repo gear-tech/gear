@@ -23,7 +23,7 @@ use crate::{
     errors::{ContractError, Result},
     msg::macros::impl_futures,
     prelude::{convert::AsRef, Vec},
-    ActorId, MessageId,
+    ActorId, Config, MessageId,
 };
 use codec::Decode;
 use core::{

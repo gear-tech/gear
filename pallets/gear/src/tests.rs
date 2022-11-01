@@ -3040,7 +3040,7 @@ fn test_sending_waits() {
         run_to_next_block(None);
         assert_eq!(
             get_waitlist_expiration(wait_wait),
-            expiration(demo_waiter::default_wait_duration())
+            expiration(demo_waiter::default_wait_up_to_duration())
         );
     });
 }
@@ -5843,7 +5843,6 @@ fn test_async_messages() {
             // check the message sent from the program
             run_to_next_block(None);
             let last_mail = get_last_mail(USER_1);
-            println!("{:?}", String::from_utf8(last_mail.payload().to_vec()));
             assert_eq!(Kind::decode(&mut last_mail.payload()), Ok(*kind));
 
             // reply to the message

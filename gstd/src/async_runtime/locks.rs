@@ -77,7 +77,7 @@ impl Lock {
     /// Check if this lock is timed out.
     pub fn timeout(&self) -> Option<(u32, u32)> {
         let current = exec::block_height();
-        let expected = self.bound();
+        let expected = self.deadline();
 
         if current >= expected {
             Some((expected, current))
@@ -89,7 +89,7 @@ impl Lock {
 
 impl PartialOrd for Lock {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        self.bound().partial_cmp(&other.bound())
+        self.deadline().partial_cmp(&other.deadline())
     }
 }
 
@@ -101,13 +101,13 @@ impl Ord for Lock {
 
 impl Default for Lock {
     fn default() -> Self {
-        Lock::up_to(Config::wait_duration())
+        Lock::up_to(Config::wait_up_to())
     }
 }
 
 impl Default for LockType {
     fn default() -> Self {
-        LockType::WaitUpTo(Config::wait_duration())
+        LockType::WaitUpTo(Config::wait_up_to())
     }
 }
 
@@ -132,7 +132,7 @@ impl LocksMap {
         let now = exec::block_height();
         let mut locks: Vec<&Lock> = map
             .iter()
-            .filter_map(|(_, l)| (l.bound() > now).then_some(l))
+            .filter_map(|(_, l)| (l.deadline() > now).then_some(l))
             .collect();
         locks.sort();
         locks.first().expect("checked before").wait();
@@ -150,16 +150,14 @@ impl LocksMap {
         locks.remove(&waiting_reply_to);
     }
 
-    /// Check if message is timeout.
+    /// Check if message is timed out.
     pub fn is_timeout(
         &mut self,
         message_id: MessageId,
         waiting_reply_to: MessageId,
     ) -> Option<(u32, u32)> {
         self.0
-            .entry(message_id)
-            .or_insert_with(Default::default)
-            .get(&waiting_reply_to)
-            .and_then(|l| l.timeout())
+            .get(&message_id)
+            .and_then(|locks| locks.get(&waiting_reply_to).and_then(|l| l.timeout()))
     }
 }

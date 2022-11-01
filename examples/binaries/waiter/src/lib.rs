@@ -34,8 +34,8 @@ mod wasm {
 }
 
 // Re-exports for testing
-pub fn default_wait_duration() -> u32 {
-    gstd::Config::wait_duration()
+pub fn default_wait_up_to_duration() -> u32 {
+    gstd::Config::wait_up_to()
 }
 
 #[derive(Debug, Encode, Decode)]
