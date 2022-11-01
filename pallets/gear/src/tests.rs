@@ -6032,6 +6032,48 @@ fn signal_wait_and_panic_works() {
     });
 }
 
+#[test]
+fn signal_accumulate_works() {
+    use demo_signal_entry::{HandleAction, WASM_BINARY};
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        const REPETITIONS: usize = 5;
+
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
+            10_000_000_000,
+            0,
+        ));
+
+        let pid = get_last_program_id();
+
+        run_to_block(2, None);
+
+        assert!(Gear::is_initialized(pid));
+        assert!(Gear::is_active(pid));
+
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            pid,
+            HandleAction::Accumulate.encode(),
+            10_000_000_000,
+            0,
+        ));
+
+        let mid = get_last_message_id();
+        let signal_msg_id = MessageId::generate_signal(mid);
+
+        run_to_block(3, None);
+
+        let balance = GasHandlerOf::<Test>::get_limit(signal_msg_id).unwrap();
+        assert_eq!(balance, 1234);
+    });
+}
+
 mod utils {
     #![allow(unused)]
 

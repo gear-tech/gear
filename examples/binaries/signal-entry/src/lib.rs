@@ -33,6 +33,7 @@ pub enum HandleAction {
     Simple,
     Wait,
     WaitAndPanic,
+    Accumulate,
 }
 
 #[cfg(not(feature = "std"))]
@@ -67,6 +68,11 @@ mod wasm {
                 exec::system_reserve_gas(200).unwrap();
                 // used to found message id in test
                 msg::send(msg::source(), 0, 0).unwrap();
+                exec::wait();
+            }
+            HandleAction::Accumulate => {
+                exec::system_reserve_gas(1000).unwrap();
+                exec::system_reserve_gas(234).unwrap();
                 exec::wait();
             }
         }
