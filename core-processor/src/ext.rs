@@ -584,7 +584,8 @@ impl EnvExt for Ext {
             return Err(ExecutionError::InsufficientGasForReservation.into());
         }
 
-        self.context.system_reservation = Some(amount);
+        let reservation = self.context.system_reservation.get_or_insert(0);
+        *reservation = reservation.saturating_add(amount);
 
         Ok(())
     }

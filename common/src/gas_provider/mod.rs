@@ -233,12 +233,11 @@ pub trait Tree {
     /// Reserve some value from underlying balance.
     ///
     /// Used in gas reservation for system signal.
-    fn system_reserve(key: Self::Key, amount: Self::Balance) -> Result<(), Self::Error>;
-
-    /// Unreserve some value from underlying balance.
-    ///
-    /// Used in gas reservation for system signal.
-    fn system_unreserve(key: Self::Key) -> Result<Self::Balance, Self::Error>;
+    fn system_reserve(
+        key: Self::Key,
+        new_key: Self::Key,
+        amount: Self::Balance,
+    ) -> Result<(), Self::Error>;
 
     /// Return bool, defining does node exist.
     fn exists(key: Self::Key) -> bool;

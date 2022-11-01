@@ -299,7 +299,7 @@ pub enum JournalNote {
     },
     /// Do system unreservation in case it is created but not used.
     SystemUnreserveGas {
-        /// Message ID which system reservation was made from.
+        /// Message ID which system reservation will be made from.
         message_id: MessageId,
     },
 }

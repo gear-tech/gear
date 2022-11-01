@@ -61,6 +61,7 @@ pub(crate) enum NodeCreationKey<MapKey, MapReservationKey> {
     Cut(MapKey),
     SpecifiedLocal(MapKey),
     Reserved(MapReservationKey),
+    SystemReserved(MapKey),
 }
 
 impl<MapKey, MapReservationKey> NodeCreationKey<MapKey, MapReservationKey>
@@ -73,6 +74,7 @@ where
             NodeCreationKey::Cut(key) => GasNodeId::Node(key),
             NodeCreationKey::SpecifiedLocal(key) => GasNodeId::Node(key),
             NodeCreationKey::Reserved(key) => GasNodeId::Reservation(key),
+            NodeCreationKey::SystemReserved(key) => GasNodeId::Node(key),
         }
     }
 }
@@ -243,7 +245,10 @@ where
         node: &StorageMap::Value,
     ) -> Result<Option<(StorageMap::Value, MapKey)>, Error> {
         match node {
-            GasNode::External { .. } | GasNode::Cut { .. } | GasNode::Reserved { .. } => Ok(None),
+            GasNode::External { .. }
+            | GasNode::Cut { .. }
+            | GasNode::Reserved { .. }
+            | GasNode::SystemReserved { .. } => Ok(None),
             GasNode::SpecifiedLocal { parent, .. } => {
                 let mut ret_id = *parent;
                 let mut ret_node =
@@ -418,11 +423,7 @@ where
         let new_node = match new_node_key {
             NodeCreationKey::Cut(_) => {
                 let id = Self::get_external(key)?;
-                GasNode::Cut {
-                    id,
-                    value: amount,
-                    system_reserved: Default::default(),
-                }
+                GasNode::Cut { id, value: amount }
             }
             NodeCreationKey::SpecifiedLocal(_) => {
                 node.increase_spec_refs();
@@ -430,7 +431,6 @@ where
                 GasNode::SpecifiedLocal {
                     value: amount,
                     lock: Zero::zero(),
-                    system_reserved: Default::default(),
                     parent: node_id,
                     refs: Default::default(),
                     consumed: false,
@@ -439,6 +439,14 @@ where
             NodeCreationKey::Reserved(_) => {
                 let id = Self::get_external(key)?;
                 GasNode::Reserved {
+                    id,
+                    value: amount,
+                    lock: Zero::zero(),
+                }
+            }
+            NodeCreationKey::SystemReserved(_) => {
+                let id = Self::get_external(key)?;
+                GasNode::SystemReserved {
                     id,
                     value: amount,
                     lock: Zero::zero(),
@@ -530,7 +538,8 @@ where
 
         if let GasNode::External { id, .. }
         | GasNode::Cut { id, .. }
-        | GasNode::Reserved { id, .. } = root
+        | GasNode::Reserved { id, .. }
+        | GasNode::SystemReserved { id, .. } = root
         {
             Ok((id, maybe_key.map(GasNodeId::Node).unwrap_or(key)))
         } else {
@@ -591,12 +600,6 @@ where
             }
         }
 
-        if let Some(system_reserved) = node.system_reserved() {
-            if !system_reserved.is_zero() {
-                return Err(InternalError::consumed_with_system_reservation().into());
-            }
-        }
-
         node.mark_consumed();
         let catch_output = Self::catch_value(&mut node)?;
         let external = Self::get_external(key)?;
@@ -606,7 +609,10 @@ where
             StorageMap::remove(key);
 
             match node {
-                GasNode::External { .. } | GasNode::Cut { .. } | GasNode::Reserved { .. } => {
+                GasNode::External { .. }
+                | GasNode::Cut { .. }
+                | GasNode::Reserved { .. }
+                | GasNode::SystemReserved { .. } => {
                     if !catch_output.is_caught() {
                         return Err(InternalError::value_is_not_caught().into());
                     }
@@ -709,7 +715,6 @@ where
         let new_node = GasNode::UnspecifiedLocal {
             parent: node_id,
             lock: Zero::zero(),
-            system_reserved: Default::default(),
         };
 
         // Save new node
@@ -865,119 +870,12 @@ where
         Self::create_from_with_value(key, NodeCreationKey::Reserved(new_key), amount)
     }
 
-    fn system_reserve(key: Self::Key, amount: Self::Balance) -> Result<(), Self::Error> {
-        let key = key.into();
-
-        // Taking node to lock into.
-        let node = Self::get_node(key).ok_or_else(InternalError::node_not_found)?;
-
-        // Validating node type to be able to contain system reservation.
-        if !node.is_system_reserved() {
-            return Err(InternalError::forbidden().into());
-        }
-
-        // Validating that node is not consumed.
-        if node.is_consumed() {
-            return Err(InternalError::node_was_consumed().into());
-        }
-
-        // Quick quit on queried zero lock.
-        if amount.is_zero() {
-            return Ok(());
-        }
-
-        // Taking value provider for this node.
-        let (mut ancestor_node, ancestor_id) = Self::node_with_value(node)?;
-
-        // Mutating value of provider.
-        let ancestor_node_value = ancestor_node
-            .value_mut()
-            .ok_or_else(InternalError::unexpected_node_type)?;
-
-        if *ancestor_node_value < amount {
-            return Err(InternalError::insufficient_balance().into());
-        }
-
-        *ancestor_node_value = ancestor_node_value.saturating_sub(amount);
-
-        // If provider is a parent, we save it to storage, otherwise mutating
-        // current node further, saving it afterward.
-        let mut node = if let Some(ancestor_id) = ancestor_id {
-            StorageMap::insert(ancestor_id.into(), ancestor_node);
-
-            // Unreachable error: the same queried at the beginning of function.
-            Self::get_node(key).ok_or_else(InternalError::node_not_found)?
-        } else {
-            ancestor_node
-        };
-
-        let system_reservation = node
-            .system_reserved_mut()
-            .ok_or_else(InternalError::unexpected_node_type)?;
-
-        *system_reservation = system_reservation.saturating_add(amount);
-
-        StorageMap::insert(key, node);
-
-        Ok(())
-    }
-
-    fn system_unreserve(key: Self::Key) -> Result<Self::Balance, Self::Error> {
-        let key = key.into();
-
-        // Taking node to unlock from.
-        let mut node = Self::get_node(key).ok_or_else(InternalError::node_not_found)?;
-
-        // Validating node type to be able to contain system reservation.
-        if !node.is_system_reserved() {
-            return Err(InternalError::forbidden().into());
-        }
-
-        // Validating that node is not consumed.
-        if node.is_consumed() {
-            return Err(InternalError::node_was_consumed().into());
-        }
-
-        let amount = node
-            .system_reserved()
-            .ok_or_else(InternalError::unexpected_node_type)?;
-
-        // Quick quit on queried zero unlock.
-        if amount.is_zero() {
-            return Ok(Zero::zero());
-        }
-
-        // Mutating locked value of queried node.
-        let system_reservation = node
-            .system_reserved_mut()
-            .ok_or_else(InternalError::unexpected_node_type)?;
-
-        *system_reservation = Zero::zero();
-
-        // Taking value provider for this node.
-        let (ancestor_node, ancestor_id) = Self::node_with_value(node.clone())?;
-
-        // Mutating value of provider.
-        // If provider is a current node, we save it to storage, otherwise mutating
-        // provider node further, saving it afterward.
-        let (mut ancestor_node, ancestor_id) = if let Some(ancestor_id) = ancestor_id {
-            StorageMap::insert(key, node);
-
-            (ancestor_node, ancestor_id.into())
-        } else {
-            (node, key)
-        };
-
-        let ancestor_value = ancestor_node
-            .value_mut()
-            .ok_or_else(InternalError::unexpected_node_type)?;
-
-        *ancestor_value = ancestor_value.saturating_add(amount);
-        let amount = *ancestor_value;
-
-        StorageMap::insert(ancestor_id, ancestor_node);
-
-        Ok(amount)
+    fn system_reserve(
+        key: Self::Key,
+        new_key: Self::Key,
+        amount: Self::Balance,
+    ) -> Result<(), Self::Error> {
+        Self::create_from_with_value(key, NodeCreationKey::SystemReserved(new_key), amount)
     }
 
     fn exists(key: Self::Key) -> bool {

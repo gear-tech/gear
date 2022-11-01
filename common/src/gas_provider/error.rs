@@ -73,7 +73,4 @@ pub trait Error {
 
     /// `GasTree::consume` called on node, which has some balance locked.
     fn consumed_with_lock() -> Self;
-
-    /// `GasTree::consume` called on node, which has some system reservation.
-    fn consumed_with_system_reservation() -> Self;
 }
