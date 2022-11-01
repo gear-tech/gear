@@ -3,7 +3,6 @@ use std::collections::BTreeSet;
 
 use super::report::Report;
 
-// TODO DN
 #[derive(Default)]
 pub struct ContextUpdate {
     program_ids: BTreeSet<ProgramId>,
@@ -12,9 +11,8 @@ pub struct ContextUpdate {
 
 #[derive(Clone, Default)]
 pub struct Context {
-    pub programs: BTreeSet<ProgramId>, // for send_message/send_reply
+    pub programs: BTreeSet<ProgramId>,
     pub codes: BTreeSet<CodeId>,
-    // pub mailbox: Vec<Mailbox>, // for send_reply and claim_value
 }
 
 impl From<Report> for ContextUpdate {

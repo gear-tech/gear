@@ -81,6 +81,8 @@ pub struct ProcessorContext {
     pub reserve_for: u32,
     /// Cost for reservation holding.
     pub reservation: u64,
+    /// Output from Randomness.
+    pub random_data: (Vec<u8>, u32),
 }
 
 /// Trait to which ext must have to work in processor wasm executor.
@@ -417,7 +419,7 @@ impl EnvExt for Ext {
     }
 
     fn reply_commit(&mut self, msg: ReplyPacket, delay: u32) -> Result<MessageId, Self::Error> {
-        self.charge_gas_runtime(RuntimeCosts::ReplyCommit(msg.payload().len() as u32))?;
+        self.charge_gas_runtime(RuntimeCosts::ReplyCommit)?;
 
         self.check_forbidden_call(self.context.message_context.reply_destination())?;
         self.charge_expiring_resources(&msg)?;
@@ -481,6 +483,8 @@ impl EnvExt for Ext {
     }
 
     fn free(&mut self, page: WasmPageNumber) -> Result<(), Self::Error> {
+        self.charge_gas_runtime(RuntimeCosts::Free)?;
+
         let result = self.context.allocations_context.free(page);
 
         // Returns back gas for allocated page if it's new
@@ -492,7 +496,7 @@ impl EnvExt for Ext {
     }
 
     fn debug(&mut self, data: &str) -> Result<(), Self::Error> {
-        self.charge_gas_runtime(RuntimeCosts::Debug)?;
+        self.charge_gas_runtime(RuntimeCosts::Debug(data.len() as u32))?;
 
         if let Some(data) = data.strip_prefix("panic occurred: ") {
             self.error_explanation = Some(ProcessorError::Panic(data.to_string()));
@@ -656,7 +660,10 @@ impl EnvExt for Ext {
         packet: InitPacket,
         delay: u32,
     ) -> Result<(MessageId, ProgramId), Self::Error> {
-        self.charge_gas_runtime(RuntimeCosts::CreateProgram(packet.payload().len() as u32))?;
+        self.charge_gas_runtime(RuntimeCosts::CreateProgram(
+            packet.payload().len() as u32,
+            packet.salt().len() as u32,
+        ))?;
 
         self.charge_expiring_resources(&packet)?;
 
@@ -680,6 +687,10 @@ impl EnvExt for Ext {
             });
 
         self.return_and_store_err(result)
+    }
+
+    fn random(&self) -> (&[u8], u32) {
+        (&self.context.random_data.0, self.context.random_data.1)
     }
 
     fn forbidden_funcs(&self) -> &BTreeSet<&'static str> {
