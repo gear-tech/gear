@@ -266,4 +266,9 @@ pub trait EventProcessor {
             .flatten()
             .collect())
     }
+
+    async fn queue_processing_reverted(&mut self) -> Result<()> {
+        self.proc(|e| matches!(e, Event::Gear(GearEvent::QueueProcessingReverted)).then_some(()))
+            .await
+    }
 }

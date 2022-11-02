@@ -19,13 +19,16 @@ pub enum Params {
 #[derive(Debug, StructOpt)]
 pub struct LoadParams {
     #[structopt(long, default_value = "ws://localhost:9944")]
-    pub endpoint: String,
+    pub node: String,
 
-    // TODO: Add auth to gclient.
-    // /// User name
-    // #[structopt(long, default_value = "//Alice")]
-    // pub user: String,
-    // ----------------------
+    /// Node stopping service.
+    #[structopt(long, default_value = "http://localhost:5000/executions/start")]
+    pub node_stopper: String,
+
+    /// User name
+    #[structopt(long, default_value = "//Alice")]
+    pub user: String,
+
     /// Seed used to generate random seeds for various internal generators.
     /// If the parameter isn't provided, then timestamp will be used by default.
     /// There are either 2 seed variants: start or constant. Start sets starting

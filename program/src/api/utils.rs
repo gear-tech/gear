@@ -32,8 +32,8 @@ pub fn page_key(id: H256, page: PageNumber) -> Vec<u8> {
 
 impl Api {
     /// compare gas limit
-    pub async fn cmp_gas_limit(&self, gas: u64) -> Result<u64> {
-        if let Ok(limit) = self.gas_limit().await {
+    pub fn cmp_gas_limit(&self, gas: u64) -> Result<u64> {
+        if let Ok(limit) = self.gas_limit() {
             Ok(if gas > limit {
                 log::warn!("gas limit too high, use {} from the chain config", limit);
                 limit
