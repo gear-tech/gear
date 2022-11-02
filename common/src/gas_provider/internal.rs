@@ -872,7 +872,7 @@ where
         let node = Self::get_node(key).ok_or_else(InternalError::node_not_found)?;
 
         // Validating node type to be able to contain system reservation.
-        if !node.is_system_reserved() {
+        if !node.is_system_reservable() {
             return Err(InternalError::forbidden().into());
         }
 
@@ -929,7 +929,7 @@ where
         let mut node = Self::get_node(key).ok_or_else(InternalError::node_not_found)?;
 
         // Validating node type to be able to contain system reservation.
-        if !node.is_system_reserved() {
+        if !node.is_system_reservable() {
             return Err(InternalError::forbidden().into());
         }
 

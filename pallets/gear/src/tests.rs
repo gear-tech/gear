@@ -5912,7 +5912,7 @@ fn signal_wait_works() {
         ));
 
         let mid = get_last_message_id();
-        let signal_msg_id = MessageId::generate_signal(mid);
+        let signal_msg_id = MessageId::generate_signal(mid, 1);
 
         let mut expiration = None;
 
@@ -5971,7 +5971,7 @@ fn signal_gas_limit_exceeded_works() {
         ));
 
         let mid = get_last_message_id();
-        let signal_msg_id = MessageId::generate_signal(mid);
+        let signal_msg_id = MessageId::generate_signal(mid, 1);
 
         run_to_block(3, None);
 
@@ -6010,7 +6010,7 @@ fn system_reservation_unreserve_works() {
         ));
 
         let mid = get_last_message_id();
-        let signal_msg_id = MessageId::generate_signal(mid);
+        let signal_msg_id = MessageId::generate_signal(mid, 1);
 
         run_to_block(3, None);
 
@@ -6049,7 +6049,7 @@ fn system_reservation_wait_and_panic_works() {
         ));
 
         let mid = get_last_message_id();
-        let signal_msg_id = MessageId::generate_signal(mid);
+        let signal_msg_id = MessageId::generate_signal(mid, 1);
 
         run_to_block(3, None);
 
@@ -6104,7 +6104,7 @@ fn system_reservation_accumulate_works() {
         ));
 
         let mid = get_last_message_id();
-        let signal_msg_id = MessageId::generate_signal(mid);
+        let signal_msg_id = MessageId::generate_signal(mid, 1);
 
         run_to_block(3, None);
 
