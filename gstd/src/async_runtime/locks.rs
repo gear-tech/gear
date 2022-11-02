@@ -157,6 +157,8 @@ impl LocksMap {
 
         if let Some(msg) = locks.first() {
             msg.wait();
+        } else {
+            unreachable!("Checked at the head of this function.");
         }
     }
 
