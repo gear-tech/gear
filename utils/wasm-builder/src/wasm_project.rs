@@ -139,12 +139,6 @@ impl WasmProject {
         dependencies.insert("orig-project".into(), crate_package.into());
 
         let mut features = Table::new();
-        if crate_info.features.contains_key("default") {
-            features.insert(
-                "default".into(),
-                crate_info.features["default"].clone().into(),
-            );
-        }
         for feature in crate_info.features.keys() {
             if feature != "default" {
                 features.insert(
