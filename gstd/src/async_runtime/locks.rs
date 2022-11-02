@@ -71,7 +71,7 @@ impl Lock {
         if let Some(blocks) = self.deadline().checked_sub(exec::block_height()) {
             if blocks == 0 {
                 unreachable!(
-                    "Checked in `crate::msg::async`, will trigger the tiemout error automatically."
+                    "Checked in `crate::msg::async::poll`, will trigger the tiemout error automatically."
                 );
             }
 
@@ -81,7 +81,7 @@ impl Lock {
             }
         } else {
             unreachable!(
-                "Checked in `crate::msg::async`, will trigger the tiemout error automatically."
+                "Checked in `crate::msg::async::poll`, will trigger the tiemout error automatically."
             );
         }
     }
@@ -120,7 +120,7 @@ impl Ord for Lock {
 
 impl Default for Lock {
     fn default() -> Self {
-        Lock::up_to(Config::wait_up_to()).expect("Checked zero case in config")
+        Lock::up_to(Config::wait_up_to()).expect("Checked zero case in config.")
     }
 }
 
@@ -148,18 +148,20 @@ impl LocksMap {
             map.insert(message_id, Default::default());
         }
 
+        // For `deadline <= now`, we are checking them in `crate::msg::async::poll`.
+        //
+        // Locks with `deadline < now`, they should already been removed since
+        // the node will trigger timeout when locks reaching their deadline.
+        //
+        // Locks with `deadline == now`, they will be removed in the following
+        // pollings.
         let now = exec::block_height();
         let mut locks: Vec<&Lock> = map
             .iter()
             .filter_map(|(_, l)| (l.deadline() > now).then_some(l))
             .collect();
         locks.sort();
-
-        if let Some(msg) = locks.first() {
-            msg.wait();
-        } else {
-            unreachable!("Checked at the head of this function.");
-        }
+        locks.first().expect("Checked before").wait();
     }
 
     /// Lock message.

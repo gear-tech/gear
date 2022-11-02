@@ -3120,8 +3120,8 @@ fn test_join_wait_timeout() {
         let program_id = get_last_program_id();
         run_to_next_block(None);
 
-        // Join two waited messages, both of them will
-        // finish at the same time.
+        // Join two waited messages, futures complete at
+        // the same time when both of them are finished.
         let duration_a = 5;
         let duration_b = 10;
         let payload = Command::JoinTimeout(USER_1.into(), duration_a, duration_b).encode();
@@ -3178,8 +3178,8 @@ fn test_select_wait_timeout() {
         let program_id = get_last_program_id();
         run_to_next_block(None);
 
-        // Select from two waited messages, futures complete
-        // when one of them get failed.
+        // Select from two waited messages, futures complete at
+        // the same time when one of them getting failed.
         let duration_a = 5;
         let duration_b = 10;
         let payload = Command::SelectTimeout(USER_1.into(), duration_a, duration_b).encode();
