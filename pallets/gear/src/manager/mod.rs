@@ -51,13 +51,13 @@ mod task;
 pub use journal::*;
 pub use task::*;
 
-use crate::{Config, CurrencyOf, GearProgramPallet, QueueOf, TaskPoolOf};
+use crate::{Config, CurrencyOf, GasHandlerOf, GearProgramPallet, QueueOf, TaskPoolOf};
 use codec::{Decode, Encode};
 use common::{
     event::*,
     scheduler::{ScheduledTask, TaskHandler, TaskPool},
     storage::Queue,
-    ActiveProgram, CodeStorage, Origin, ProgramState,
+    ActiveProgram, CodeStorage, GasTree, Origin, ProgramState,
 };
 use core::fmt;
 use core_processor::common::{Actor, ExecutableActorData};
@@ -282,17 +282,30 @@ where
     }
 
     fn send_signal(&mut self, message_id: MessageId, destination: ProgramId) {
-        log::debug!("Send signal issued by {} to {}", message_id, destination);
+        let reserved = GasHandlerOf::<T>::system_unreserve(message_id)
+            .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
+        if reserved != 0 {
+            log::debug!(
+                "Send signal issued by {} to {} with {} supply",
+                message_id,
+                destination,
+                reserved
+            );
 
-        let signal_msg_id = MessageId::generate_signal(message_id);
+            // Creating signal message.
+            let trap_signal = SignalMessage::new(message_id, core_processor::ERR_STATUS_CODE)
+                .into_dispatch(destination)
+                .into_stored();
 
-        // Creating signal message.
-        let trap_signal = SignalMessage::new(signal_msg_id, core_processor::ERR_STATUS_CODE)
-            .into_dispatch(destination)
-            .into_stored();
+            // Splitting gas for newly created reply message.
+            GasHandlerOf::<T>::split(message_id, trap_signal.id())
+                .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
 
-        // Enqueueing dispatch into message queue.
-        QueueOf::<T>::queue(trap_signal)
-            .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e));
+            // Enqueueing dispatch into message queue.
+            QueueOf::<T>::queue(trap_signal)
+                .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e));
+        } else {
+            log::trace!("Signal wasn't sent due to inappropriate supply");
+        }
     }
 }

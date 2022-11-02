@@ -253,6 +253,10 @@ pub mod pallet {
         fn consumed_with_lock() -> Self {
             Self::ConsumedWithLock
         }
+
+        fn consumed_with_system_reservation() -> Self {
+            Self::ConsumedWithSystemReservation
+        }
     }
 
     pub type Balance = u64;

@@ -494,15 +494,16 @@ where
     fn system_reserve_gas(&mut self, message_id: MessageId, amount: u64) {
         log::debug!("Reserve {} of gas for system from {}", amount, message_id);
 
-        let signal_msg_id = MessageId::generate_signal(message_id);
-        GasHandlerOf::<T>::system_reserve(message_id, signal_msg_id, amount)
-            .unwrap_or_else(|e| unreachable!("GasTree corrupted: {:?}", e));
+        GasHandlerOf::<T>::system_reserve(message_id, amount)
+            .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
     }
 
     fn system_unreserve_gas(&mut self, message_id: MessageId) {
-        log::debug!("Unreserve system gas from {}", message_id);
+        let amount = GasHandlerOf::<T>::system_unreserve(message_id)
+            .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
 
-        let signal_msg_id = MessageId::generate_signal(message_id);
-        Pallet::<T>::consume_and_retrieve(signal_msg_id)
+        if amount != 0 {
+            log::debug!("Unreserved {} gas for system from {}", amount, message_id);
+        }
     }
 }
