@@ -418,11 +418,7 @@ where
         let new_node = match new_node_key {
             NodeCreationKey::Cut(_) => {
                 let id = Self::get_external(key)?;
-                GasNode::Cut {
-                    id,
-                    value: amount,
-                    system_reserve: Default::default(),
-                }
+                GasNode::Cut { id, value: amount }
             }
             NodeCreationKey::SpecifiedLocal(_) => {
                 node.increase_spec_refs();

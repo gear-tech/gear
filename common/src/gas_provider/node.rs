@@ -74,11 +74,7 @@ pub enum GasNode<ExternalId: Clone, Id: Clone, Balance: Zero + Clone> {
     ///
     /// Such node types are detached and aren't part of the tree structure
     /// (not node's parent, not node's child).
-    Cut {
-        id: ExternalId,
-        value: Balance,
-        system_reserve: Balance,
-    },
+    Cut { id: ExternalId, value: Balance },
 
     /// A node used for gas reservation feature.
     ///
@@ -249,9 +245,8 @@ impl<ExternalId: Clone, Id: Clone + Copy, Balance: Zero + Clone + Copy>
         match self {
             GasNode::External { system_reserve, .. }
             | GasNode::SpecifiedLocal { system_reserve, .. }
-            | GasNode::UnspecifiedLocal { system_reserve, .. }
-            | GasNode::Cut { system_reserve, .. } => Some(*system_reserve),
-            GasNode::Reserved { .. } => None,
+            | GasNode::UnspecifiedLocal { system_reserve, .. } => Some(*system_reserve),
+            GasNode::Cut { .. } | GasNode::Reserved { .. } => None,
         }
     }
 
@@ -260,9 +255,8 @@ impl<ExternalId: Clone, Id: Clone + Copy, Balance: Zero + Clone + Copy>
         match self {
             GasNode::External { system_reserve, .. }
             | GasNode::SpecifiedLocal { system_reserve, .. }
-            | GasNode::UnspecifiedLocal { system_reserve, .. }
-            | GasNode::Cut { system_reserve, .. } => Some(system_reserve),
-            GasNode::Reserved { .. } => None,
+            | GasNode::UnspecifiedLocal { system_reserve, .. } => Some(system_reserve),
+            GasNode::Cut { .. } | GasNode::Reserved { .. } => None,
         }
     }
 
