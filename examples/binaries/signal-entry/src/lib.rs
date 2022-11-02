@@ -40,10 +40,16 @@ pub enum HandleAction {
 #[cfg(not(feature = "std"))]
 mod wasm {
     use super::*;
-    use gstd::{exec, msg, prelude::*, MessageId};
+    use gstd::{exec, msg, prelude::*, ActorId, MessageId};
 
+    static mut INITIATOR: ActorId = ActorId::zero();
     static mut HANDLE_MSG: MessageId = MessageId::new([0; 32]);
     static mut DO_PANIC: bool = false;
+
+    #[no_mangle]
+    unsafe extern "C" fn init() {
+        INITIATOR = msg::source();
+    }
 
     #[no_mangle]
     unsafe extern "C" fn handle() {
@@ -85,6 +91,7 @@ mod wasm {
 
     #[no_mangle]
     unsafe extern "C" fn handle_signal() {
+        msg::send(INITIATOR, b"handle_signal", 0).unwrap();
         assert_eq!(msg::status_code().unwrap(), 1);
     }
 
