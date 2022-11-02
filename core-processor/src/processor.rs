@@ -500,7 +500,7 @@ fn process_error(
         });
     }
 
-    if !dispatch.is_error_reply() {
+    if !dispatch.is_error_reply() && dispatch.kind() != DispatchKind::Signal {
         // This expect panic is unreachable, unless error message is too large or max payload size is too small.
         let err_payload = err.encode().try_into().expect("Error message is too large");
         // # Safety
