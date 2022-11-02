@@ -55,7 +55,7 @@ where
         let mailboxed = Pallet::<T>::read_message(user_id, message_id, reason)
             .unwrap_or_else(|| unreachable!("Scheduling logic invalidated!"));
 
-        // TODO: consider send signal to program itself
+        // TODO: consider send signal to program itself (#1742)
 
         // Consuming gas handler for mailboxed message.
         Pallet::<T>::consume_and_retrieve(mailboxed.id());
@@ -76,7 +76,7 @@ where
 
         // Generate trap reply.
         if self.check_program_id(&waitlisted.source()) {
-            // TODO: consider wether alert `waitlisted.source()` and how
+            // TODO: consider wether alert `waitlisted.source()` and how (#1741)
         } else {
             // Sending trap reply to user, by depositing event.
             //
