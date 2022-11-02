@@ -503,6 +503,14 @@ pub fn execute_wasm<
 #[cfg(test)]
 mod tests {
     use super::*;
+    use alloc::vec::Vec;
+
+    fn generate_pages_and_allocs() -> (Vec<PageNumber>, BTreeSet<WasmPageNumber>) {
+        let data = [0, 1, 2, 8, 18, 25, 27, 28, 93, 146, 240, 518];
+        let pages = data.map(PageNumber);
+        let allocs = data.map(|p| WasmPageNumber(p / PageNumber::num_in_one_wasm_page()));
+        (pages.to_vec(), allocs.into())
+    }
 
     #[test]
     fn check_memory_insufficient() {
@@ -511,17 +519,26 @@ mod tests {
     }
 
     #[test]
-    fn check_memory_ok() {
-        let pages = [0, 1, 2, 8, 18, 25, 27, 28];
-        let allocations = pages
-            .iter()
-            .map(|p| WasmPageNumber(p / PageNumber::num_in_one_wasm_page()));
-        let res = check_memory(
-            &allocations.collect(),
-            pages.map(PageNumber).iter(),
-            4.into(),
-            8.into(),
+    fn check_memory_not_allocated() {
+        let (pages, mut allocs) = generate_pages_and_allocs();
+        let last = *allocs.last().unwrap();
+        allocs.remove(&last);
+        let res = check_memory(&allocs, pages.iter(), 2.into(), 4.into());
+        assert_eq!(
+            res,
+            Err(ExecutionErrorReason::PageIsNotAllocated(
+                *pages.last().unwrap()
+            ))
         );
+    }
+
+    #[test]
+    fn check_memory_ok() {
+        let (pages, allocs) = generate_pages_and_allocs();
+        let res = check_memory(&allocs, pages.iter(), 4.into(), 8.into());
         assert!(res.is_ok());
     }
+
+    #[test]
+    fn gas_for_pages() {}
 }

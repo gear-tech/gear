@@ -409,10 +409,10 @@ pub enum ExecutionErrorReason {
     #[display(fmt = "Program's max page is not last page in wasm page")]
     NotLastPage,
     /// Not enough gas to perform an operation.
-    #[display(fmt = "Not enough gas to {}", _0)]
+    #[display(fmt = "Not enough gas to {_0}")]
     GasExceeded(GasOperation),
     /// Not enough gas in block to perform an operation.
-    #[display(fmt = "Not enough gas in block to {}", _0)]
+    #[display(fmt = "Not enough gas in block to {_0}")]
     BlockGasExceeded(GasOperation),
     /// Mem size less then static pages num
     #[display(fmt = "Mem size less then static pages num")]
@@ -436,11 +436,7 @@ pub enum ExecutionErrorReason {
     #[display(fmt = "Initial pages data must be empty when execute with lazy pages")]
     InitialPagesContainsDataInLazyPagesMode,
     /// Stack end page, which value is specified in WASM code, cannot be bigger than static memory size.
-    #[display(
-        fmt = "Stack end page {:?} is bigger then WASM static memory size {:?}",
-        _0,
-        _1
-    )]
+    #[display(fmt = "Stack end page {_0:?} is bigger then WASM static memory size {_1:?}")]
     StackEndPageBiggerWasmMemSize(WasmPageNumber, WasmPageNumber),
     /// It's not allowed to set initial data for stack memory pages, if they are specified in WASM code.
     #[display(fmt = "Set initial data for stack pages is restricted")]
