@@ -16,12 +16,38 @@ async fn main() {
                 exec::wake(id).expect("Failed to wake the message");
             }
         },
+        Command::WaitLost(to) => {
+            let wait = msg::send_bytes_for_reply(to, b"ping", 0)
+                .expect("send message failed")
+                .up_to(Some(5))
+                .expect("Invalid wait duration.");
+
+            if let Err(e) = msg::send_bytes_for_reply(to, b"", 0)
+                .expect("send message failed")
+                .up_to(Some(10))
+                .expect("Invalid wait duration.")
+                .await
+            {
+                if e.timed_out() {
+                    let _ = msg::send(to, b"timeout", 0).expect("send message failed");
+                }
+            }
+
+            if let Err(e) = wait.await {
+                if e.timed_out() {
+                    msg::send(to, b"timeout2", 0).expect("send message failed");
+                }
+            }
+
+            msg::send(to, b"success", 0).expect("send message failed");
+        }
         Command::SendTimeout(to, duration) => {
             unsafe { TIMEOUT_MESSAGE_ID = Some(msg::id()) };
 
             let reply = msg::send_bytes_for_reply(to, b"", 0)
                 .expect("send message failed")
-                .up_to(Some(duration))?
+                .up_to(Some(duration))
+                .expect("Invalid wait duration.")
                 .await;
 
             if let Err(e) = reply {
@@ -35,10 +61,12 @@ async fn main() {
                 let (a, b) = future::join(
                     msg::send_bytes_for_reply(to, b"", 0)
                         .expect("send message failed")
-                        .up_to(Some(duration_a))?,
+                        .up_to(Some(duration_a))
+                        .expect("Invalid wait duration."),
                     msg::send_bytes_for_reply(to, b"", 0)
                         .expect("send message failed")
-                        .up_to(Some(duration_b))?,
+                        .up_to(Some(duration_b))
+                        .expect("Invalid wait duration."),
                 )
                 .await;
 
@@ -55,10 +83,12 @@ async fn main() {
             let reply = match future::select(
                 msg::send_bytes_for_reply(to, b"", 0)
                     .expect("send message failed")
-                    .up_to(Some(duration_a))?,
+                    .up_to(Some(duration_a))
+                    .expect("Invalid wait duration."),
                 msg::send_bytes_for_reply(to, b"", 0)
                     .expect("send message failed")
-                    .up_to(Some(duration_b))?,
+                    .up_to(Some(duration_b))
+                    .expect("Invalid wait duration."),
             )
             .await
             {

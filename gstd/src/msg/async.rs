@@ -40,7 +40,7 @@ where
 {
     let msg_id = crate::msg::id();
 
-    // check if message is timeout
+    // check if message is timed out.
     if let Some((expected, now)) = async_runtime::locks().is_timeout(msg_id, waiting_reply_to) {
         // Remove lock after timeout.
         async_runtime::locks().remove(msg_id, waiting_reply_to);

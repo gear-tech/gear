@@ -3204,6 +3204,79 @@ fn test_select_wait_timeout() {
 }
 
 #[test]
+fn test_wait_lost() {
+    use demo_wait_timeout::{Command, WASM_BINARY};
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
+            10_000_000u64,
+            0u128
+        ));
+
+        let program_id = get_last_program_id();
+        run_to_next_block(None);
+
+        let duration_a = 5;
+        let duration_b = 10;
+        let payload = Command::WaitLost(USER_1.into()).encode();
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            program_id,
+            payload,
+            10_000_000_000,
+            0,
+        ));
+
+        run_to_next_block(None);
+
+        assert!(MailboxOf::<Test>::iter_key(USER_1).any(|(msg, _bn)| {
+            if msg.payload() == b"ping" {
+                assert_ok!(Gear::send_reply(
+                    RuntimeOrigin::signed(USER_1),
+                    msg.id(),
+                    b"ping".to_vec(),
+                    100_000_000,
+                    0
+                ));
+
+                true
+            } else {
+                false
+            }
+        }));
+
+        let now = System::block_number();
+        let targets = [duration_a, duration_b].map(|target| target as u64 + now - 1);
+        let run_to_target = |target: u64| {
+            System::set_block_number(target);
+            Gear::set_block_number(target.try_into().unwrap());
+            run_to_next_block(None);
+        };
+
+        // Run to the end of the first duration.
+        //
+        // The timeout message has been triggered.
+        run_to_target(targets[0]);
+        assert!(
+            !MailboxOf::<Test>::iter_key(USER_1).any(|(msg, _bn)| msg.payload() == b"unreachable")
+        );
+
+        // Run to the end of the second duration.
+        //
+        // The timeout message has been triggered.
+        run_to_target(targets[1]);
+        assert!(MailboxOf::<Test>::iter_key(USER_1).any(|(msg, _bn)| msg.payload() == b"timeout"));
+        assert!(MailboxOf::<Test>::iter_key(USER_1).any(|(msg, _bn)| msg.payload() == b"timeout2"));
+        assert!(MailboxOf::<Test>::iter_key(USER_1).any(|(msg, _bn)| msg.payload() == b"success"));
+    })
+}
+
+#[test]
 fn test_message_processing_for_non_existing_destination() {
     init_logger();
     new_test_ext().execute_with(|| {
