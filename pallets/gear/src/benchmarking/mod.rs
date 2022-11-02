@@ -681,7 +681,7 @@ benchmarks! {
     gr_random {
         let r in 0 .. API_BENCHMARK_BATCHES;
         let mut res = None;
-        let exec = gr_random_bench::<T>(r)?;
+        let exec = Benches::<T>::gr_random(r)?;
     }: {
         res.replace(run_process(exec));
     }

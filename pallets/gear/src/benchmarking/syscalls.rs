@@ -429,20 +429,10 @@ where
         Self::prepare_handle(code, 0)
     }
 
-    pub fn gr_random_bench(r: u32) -> Result<Exec<T>, &'static str> {
+    pub fn gr_random(r: u32) -> Result<Exec<T>, &'static str> {
         let code = WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
-            imported_functions: vec![ImportedFunction {
-                module: "env",
-                name: "gr_random",
-                params: vec![
-                    ValueType::I32,
-                    ValueType::I32,
-                    ValueType::I32,
-                    ValueType::I32,
-                ],
-                return_type: None,
-            }],
+            imported_functions: vec!["gr_random"],
             handle_body: Some(body::repeated(
                 r * API_BENCHMARK_BATCH_SIZE,
                 &[
