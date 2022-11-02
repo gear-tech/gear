@@ -980,6 +980,13 @@ where
         Ok(amount)
     }
 
+    fn get_system_reserve(key: Self::Key) -> Result<Self::Balance, Self::Error> {
+        let node = Self::get_node(key).ok_or_else(InternalError::node_not_found)?;
+
+        node.system_reserved()
+            .ok_or_else(|| InternalError::forbidden().into())
+    }
+
     fn exists(key: Self::Key) -> bool {
         Self::get_node(key).is_some()
     }
