@@ -20,6 +20,7 @@
 //! Gear libs are `#![no_std]`, which makes them lightweight.
 
 //! This module is for configuring `gstd` inside gear programs.
+use crate::errors::{ContractError, Result};
 
 /// `gstd` configuration
 pub struct Config {
@@ -49,13 +50,23 @@ impl Config {
     }
 
     /// Set `wait_for` duration
-    pub fn set_wait_for(duration: u32) {
+    pub fn set_wait_for(duration: u32) -> Result<()> {
+        if duration == 0 {
+            return Err(ContractError::EmptyWaitDuration);
+        }
+
         unsafe { CONFIG.wait_for = duration };
+        Ok(())
     }
 
     /// Set `wait_up_to` duration
-    pub fn set_wait_up_to(duration: u32) {
+    pub fn set_wait_up_to(duration: u32) -> Result<()> {
+        if duration == 0 {
+            return Err(ContractError::EmptyWaitDuration);
+        }
+
         unsafe { CONFIG.wait_up_to = duration };
+        Ok(())
     }
 }
 

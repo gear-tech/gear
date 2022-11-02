@@ -18,6 +18,7 @@
 
 //! Wait duration registry
 use crate::{
+    errors::{ContractError, Result},
     exec,
     prelude::{BTreeMap, Vec},
     Config, MessageId,
@@ -42,19 +43,27 @@ pub struct Lock {
 
 impl Lock {
     /// Wait for
-    pub fn exactly(b: u32) -> Self {
-        Self {
+    pub fn exactly(b: u32) -> Result<Self> {
+        if b == 0 {
+            return Err(ContractError::EmptyWaitDuration);
+        }
+
+        Ok(Self {
             at: exec::block_height(),
             ty: LockType::WaitFor(b),
-        }
+        })
     }
 
     /// Wait up to
-    pub fn up_to(b: u32) -> Self {
-        Self {
+    pub fn up_to(b: u32) -> Result<Self> {
+        if b == 0 {
+            return Err(ContractError::EmptyWaitDuration);
+        }
+
+        Ok(Self {
             at: exec::block_height(),
             ty: LockType::WaitUpTo(b),
-        }
+        })
     }
 
     /// Call wait functions by the lock type.
@@ -67,7 +76,7 @@ impl Lock {
         }
     }
 
-    /// Get deadline of the current lock
+    /// Get deadline of the current lock.
     pub fn deadline(&self) -> u32 {
         match &self.ty {
             LockType::WaitFor(d) | LockType::WaitUpTo(d) => self.at.saturating_add(*d),
@@ -101,7 +110,7 @@ impl Ord for Lock {
 
 impl Default for Lock {
     fn default() -> Self {
-        Lock::up_to(Config::wait_up_to())
+        Lock::up_to(Config::wait_up_to()).expect("Checked zero case in config")
     }
 }
 

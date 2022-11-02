@@ -21,7 +21,7 @@ async fn main() {
 
             let reply = msg::send_bytes_for_reply(to, b"", 0)
                 .expect("send message failed")
-                .up_to(Some(duration))
+                .up_to(Some(duration))?
                 .await;
 
             if let Err(e) = reply {
@@ -35,10 +35,10 @@ async fn main() {
                 let (a, b) = future::join(
                     msg::send_bytes_for_reply(to, b"", 0)
                         .expect("send message failed")
-                        .up_to(Some(duration_a)),
+                        .up_to(Some(duration_a))?,
                     msg::send_bytes_for_reply(to, b"", 0)
                         .expect("send message failed")
-                        .up_to(Some(duration_b)),
+                        .up_to(Some(duration_b))?,
                 )
                 .await;
 
@@ -55,10 +55,10 @@ async fn main() {
             let reply = match future::select(
                 msg::send_bytes_for_reply(to, b"", 0)
                     .expect("send message failed")
-                    .up_to(Some(duration_a)),
+                    .up_to(Some(duration_a))?,
                 msg::send_bytes_for_reply(to, b"", 0)
                     .expect("send message failed")
-                    .up_to(Some(duration_b)),
+                    .up_to(Some(duration_b))?,
             )
             .await
             {
