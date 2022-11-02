@@ -5944,7 +5944,7 @@ fn signal_wait_works() {
 }
 
 #[test]
-#[ignore] // will be done in another PR
+#[ignore] // FIXME: will be done in another PR (#1744)
 fn signal_gas_limit_exceeded_works() {
     use demo_signal_entry::{HandleAction, WASM_BINARY};
 
