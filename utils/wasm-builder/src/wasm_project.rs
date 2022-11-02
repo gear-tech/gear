@@ -138,11 +138,28 @@ impl WasmProject {
         let mut dependencies = Table::new();
         dependencies.insert("orig-project".into(), crate_package.into());
 
+        let mut features = Table::new();
+        if crate_info.features.contains_key("default") {
+            features.insert(
+                "default".into(),
+                crate_info.features["default"].clone().into(),
+            );
+        }
+        for feature in crate_info.features.keys() {
+            if feature != "default" {
+                features.insert(
+                    feature.into(),
+                    vec![format!("orig-project/{feature}")].into(),
+                );
+            }
+        }
+
         let mut cargo_toml = Table::new();
         cargo_toml.insert("package".into(), package.into());
         cargo_toml.insert("lib".into(), lib.into());
         cargo_toml.insert("dependencies".into(), dependencies.into());
         cargo_toml.insert("profile".into(), profile.into());
+        cargo_toml.insert("features".into(), features.into());
         cargo_toml.insert("workspace".into(), Table::new().into());
 
         fs::write(self.manifest_path(), toml::to_string_pretty(&cargo_toml)?)?;
