@@ -1126,7 +1126,7 @@ benchmarks! {
         let mut sbox = Sandbox::from(&WasmModule::<T>::from(ModuleDefinition {
             handle_body: Some(body::repeated_dyn(r * INSTR_BENCHMARK_BATCH_SIZE, vec![
                 Regular(Instruction::Block(BlockType::NoResult)),
-                RandomI64(0, 2),
+                RandomI32(0, 2),
                 Regular(Instruction::BrIf(0)),
                 Regular(Instruction::End),
             ])),
