@@ -34,6 +34,7 @@ pub enum HandleAction {
     Wait,
     WaitAndPanic,
     Accumulate,
+    OutOfGas,
 }
 
 #[cfg(not(feature = "std"))]
@@ -74,6 +75,10 @@ mod wasm {
                 exec::system_reserve_gas(1000).unwrap();
                 exec::system_reserve_gas(234).unwrap();
                 exec::wait();
+            }
+            HandleAction::OutOfGas => {
+                exec::system_reserve_gas(5_000_000_000).unwrap();
+                loop {}
             }
         }
     }
