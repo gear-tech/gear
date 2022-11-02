@@ -549,7 +549,7 @@ benchmarks! {
     gr_system_reserve_gas {
         let r in 0 .. API_BENCHMARK_BATCHES;
         let mut res = None;
-        let exec = Benches::<T>::gr_system_reserve_gas::<T>(r)?;
+        let exec = Benches::<T>::gr_system_reserve_gas(r)?;
     }: {
         res.replace(run_process(exec));
     }

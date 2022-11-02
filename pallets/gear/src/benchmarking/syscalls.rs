@@ -359,19 +359,10 @@ where
         Self::prepare_handle(code, 0)
     }
 
-    pub fn gr_system_reserve_gas_bench<T>(r: u32) -> Result<Exec<T>, &'static str>
-    where
-        T: Config,
-        T::AccountId: Origin,
-    {
+    pub fn gr_system_reserve_gas(r: u32) -> Result<Exec<T>, &'static str> {
         let code = WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
-            imported_functions: vec![ImportedFunction {
-                module: "env",
-                name: "gr_system_reserve_gas",
-                params: vec![ValueType::I64],
-                return_type: Some(ValueType::I32),
-            }],
+            imported_functions: vec!["gr_system_reserve_gas"],
             handle_body: Some(body::repeated(
                 r * API_BENCHMARK_BATCH_SIZE,
                 &[
@@ -714,7 +705,7 @@ where
 
         let code = WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
-            imported_functions: vec!["gr_exit_code"],
+            imported_functions: vec!["gr_status_code"],
             reply_body: Some(body::repeated(
                 r * API_BENCHMARK_BATCH_SIZE,
                 &[
