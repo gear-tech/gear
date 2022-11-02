@@ -65,7 +65,7 @@ pub enum GasNode<ExternalId: Clone, Id: Clone, Balance: Zero + Clone> {
         id: ExternalId,
         value: Balance,
         lock: Balance,
-        system_reserved: Balance,
+        system_reserve: Balance,
         refs: ChildrenRefs,
         consumed: bool,
     },
@@ -77,7 +77,7 @@ pub enum GasNode<ExternalId: Clone, Id: Clone, Balance: Zero + Clone> {
     Cut {
         id: ExternalId,
         value: Balance,
-        system_reserved: Balance,
+        system_reserve: Balance,
     },
 
     /// A node used for gas reservation feature.
@@ -102,7 +102,7 @@ pub enum GasNode<ExternalId: Clone, Id: Clone, Balance: Zero + Clone> {
         parent: Id,
         value: Balance,
         lock: Balance,
-        system_reserved: Balance,
+        system_reserve: Balance,
         refs: ChildrenRefs,
         consumed: bool,
     },
@@ -114,7 +114,7 @@ pub enum GasNode<ExternalId: Clone, Id: Clone, Balance: Zero + Clone> {
     UnspecifiedLocal {
         parent: Id,
         lock: Balance,
-        system_reserved: Balance,
+        system_reserve: Balance,
     },
 }
 
@@ -134,7 +134,7 @@ impl<ExternalId: Clone, Id: Clone + Copy, Balance: Zero + Clone + Copy>
             id: origin,
             value,
             lock: Zero::zero(),
-            system_reserved: Zero::zero(),
+            system_reserve: Zero::zero(),
             refs: Default::default(),
             consumed: false,
         }
@@ -245,39 +245,23 @@ impl<ExternalId: Clone, Id: Clone + Copy, Balance: Zero + Clone + Copy>
     }
 
     /// Returns node's system reserved gas balance, if it can have any.
-    pub fn system_reserved(&self) -> Option<Balance> {
+    pub fn system_reserve(&self) -> Option<Balance> {
         match self {
-            GasNode::External {
-                system_reserved, ..
-            }
-            | GasNode::SpecifiedLocal {
-                system_reserved, ..
-            }
-            | GasNode::UnspecifiedLocal {
-                system_reserved, ..
-            }
-            | GasNode::Cut {
-                system_reserved, ..
-            } => Some(*system_reserved),
+            GasNode::External { system_reserve, .. }
+            | GasNode::SpecifiedLocal { system_reserve, .. }
+            | GasNode::UnspecifiedLocal { system_reserve, .. }
+            | GasNode::Cut { system_reserve, .. } => Some(*system_reserve),
             GasNode::Reserved { .. } => None,
         }
     }
 
     /// Gets a mutable access to node's system reserved gas balance, if it can have any.
-    pub fn system_reserved_mut(&mut self) -> Option<&mut Balance> {
+    pub fn system_reserve_mut(&mut self) -> Option<&mut Balance> {
         match self {
-            GasNode::External {
-                system_reserved, ..
-            }
-            | GasNode::SpecifiedLocal {
-                system_reserved, ..
-            }
-            | GasNode::UnspecifiedLocal {
-                system_reserved, ..
-            }
-            | GasNode::Cut {
-                system_reserved, ..
-            } => Some(system_reserved),
+            GasNode::External { system_reserve, .. }
+            | GasNode::SpecifiedLocal { system_reserve, .. }
+            | GasNode::UnspecifiedLocal { system_reserve, .. }
+            | GasNode::Cut { system_reserve, .. } => Some(system_reserve),
             GasNode::Reserved { .. } => None,
         }
     }
@@ -345,7 +329,7 @@ impl<ExternalId: Clone, Id: Clone + Copy, Balance: Zero + Clone + Copy>
 
     /// Returns whether the node has system reserved gas.
     pub(crate) fn is_system_reservable(&self) -> bool {
-        self.system_reserved().is_some()
+        self.system_reserve().is_some()
     }
 
     /// Returns whether the node is lockable.

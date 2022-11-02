@@ -421,7 +421,7 @@ where
                 GasNode::Cut {
                     id,
                     value: amount,
-                    system_reserved: Default::default(),
+                    system_reserve: Default::default(),
                 }
             }
             NodeCreationKey::SpecifiedLocal(_) => {
@@ -430,7 +430,7 @@ where
                 GasNode::SpecifiedLocal {
                     value: amount,
                     lock: Zero::zero(),
-                    system_reserved: Default::default(),
+                    system_reserve: Default::default(),
                     parent: node_id,
                     refs: Default::default(),
                     consumed: false,
@@ -591,8 +591,8 @@ where
             }
         }
 
-        if let Some(system_reserved) = node.system_reserved() {
-            if !system_reserved.is_zero() {
+        if let Some(system_reserve) = node.system_reserve() {
+            if !system_reserve.is_zero() {
                 return Err(InternalError::consumed_with_system_reservation().into());
             }
         }
@@ -709,7 +709,7 @@ where
         let new_node = GasNode::UnspecifiedLocal {
             parent: node_id,
             lock: Zero::zero(),
-            system_reserved: Default::default(),
+            system_reserve: Default::default(),
         };
 
         // Save new node
@@ -912,7 +912,7 @@ where
         };
 
         let system_reservation = node
-            .system_reserved_mut()
+            .system_reserve_mut()
             .ok_or_else(InternalError::unexpected_node_type)?;
 
         *system_reservation = system_reservation.saturating_add(amount);
@@ -939,7 +939,7 @@ where
         }
 
         let amount = node
-            .system_reserved()
+            .system_reserve()
             .ok_or_else(InternalError::unexpected_node_type)?;
 
         // Quick quit on queried zero unlock.
@@ -949,7 +949,7 @@ where
 
         // Mutating locked value of queried node.
         let system_reservation = node
-            .system_reserved_mut()
+            .system_reserve_mut()
             .ok_or_else(InternalError::unexpected_node_type)?;
 
         *system_reservation = Zero::zero();
@@ -983,7 +983,7 @@ where
     fn get_system_reserve(key: Self::Key) -> Result<Self::Balance, Self::Error> {
         let node = Self::get_node(key).ok_or_else(InternalError::node_not_found)?;
 
-        node.system_reserved()
+        node.system_reserve()
             .ok_or_else(|| InternalError::forbidden().into())
     }
 
