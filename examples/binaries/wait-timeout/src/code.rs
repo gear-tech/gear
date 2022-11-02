@@ -57,6 +57,8 @@ async fn main() {
             }
         }
         Command::JoinTimeout(to, duration_a, duration_b) => {
+            // Join two waited messages, both of them will
+            // finish at the same time.
             let reply = {
                 let (a, b) = future::join(
                     msg::send_bytes_for_reply(to, b"", 0)
@@ -80,6 +82,8 @@ async fn main() {
             }
         }
         Command::SelectTimeout(to, duration_a, duration_b) => {
+            // Select from two waited messages, futures complete
+            // when one of them get failed.
             let reply = match future::select(
                 msg::send_bytes_for_reply(to, b"", 0)
                     .expect("send message failed")

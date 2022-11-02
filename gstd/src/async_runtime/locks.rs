@@ -69,10 +69,20 @@ impl Lock {
     /// Call wait functions by the lock type.
     pub fn wait(&self) {
         if let Some(blocks) = self.deadline().checked_sub(exec::block_height()) {
+            if blocks == 0 {
+                unreachable!(
+                    "Checked in `crate::msg::async`, will trigger the tiemout error automatically."
+                );
+            }
+
             match self.ty {
                 LockType::WaitFor(_) => exec::wait_for(blocks),
                 LockType::WaitUpTo(_) => exec::wait_up_to(blocks),
             }
+        } else {
+            unreachable!(
+                "Checked in `crate::msg::async`, will trigger the tiemout error automatically."
+            );
         }
     }
 
@@ -144,7 +154,10 @@ impl LocksMap {
             .filter_map(|(_, l)| (l.deadline() > now).then_some(l))
             .collect();
         locks.sort();
-        locks.first().expect("checked before").wait();
+
+        if let Some(msg) = locks.first() {
+            msg.wait();
+        }
     }
 
     /// Lock message.
