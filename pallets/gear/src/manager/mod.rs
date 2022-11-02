@@ -51,13 +51,13 @@ mod task;
 pub use journal::*;
 pub use task::*;
 
-use crate::{Config, CurrencyOf, GasHandlerOf, GearProgramPallet, QueueOf, TaskPoolOf};
+use crate::{Config, CurrencyOf, GearProgramPallet, QueueOf, TaskPoolOf};
 use codec::{Decode, Encode};
 use common::{
     event::*,
     scheduler::{ScheduledTask, TaskHandler, TaskPool},
     storage::Queue,
-    ActiveProgram, CodeStorage, GasTree, Origin, ProgramState,
+    ActiveProgram, CodeStorage, Origin, ProgramState,
 };
 use core::fmt;
 use core_processor::common::{Actor, ExecutableActorData};
@@ -282,25 +282,17 @@ where
     }
 
     fn send_signal(&mut self, message_id: MessageId, destination: ProgramId) {
+        log::debug!("Send signal issued by {} to {}", message_id, destination);
+
         let signal_msg_id = MessageId::generate_signal(message_id);
 
-        if GasHandlerOf::<T>::exists(signal_msg_id) {
-            log::debug!("Send signal issued by {} to {}", message_id, destination);
+        // Creating signal message.
+        let trap_signal = SignalMessage::new(signal_msg_id, core_processor::ERR_STATUS_CODE)
+            .into_dispatch(destination)
+            .into_stored();
 
-            // Creating signal message.
-            let trap_signal = SignalMessage::new(signal_msg_id, core_processor::ERR_STATUS_CODE)
-                .into_dispatch(destination)
-                .into_stored();
-
-            // Enqueueing dispatch into message queue.
-            QueueOf::<T>::queue(trap_signal)
-                .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e));
-        } else {
-            log::trace!(
-                "Signal wasn't sent by {} to {} because there are no supply",
-                message_id,
-                destination
-            )
-        }
+        // Enqueueing dispatch into message queue.
+        QueueOf::<T>::queue(trap_signal)
+            .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e));
     }
 }
