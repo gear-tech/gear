@@ -298,7 +298,7 @@ where
                 .into_stored();
 
             // Splitting gas for newly created reply message.
-            GasHandlerOf::<T>::split(message_id, trap_signal.id())
+            GasHandlerOf::<T>::split_with_value(message_id, trap_signal.id(), reserved)
                 .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
 
             // Enqueueing dispatch into message queue.
