@@ -10,7 +10,7 @@ Gear substrate-based node, ready for hacking :rocket:
 ```
 sudo apt update
 # May prompt for location information
-sudo apt install -y git clang curl libssl-dev llvm libudev-dev
+sudo apt install -y git clang curl libssl-dev llvm libudev-dev cmake protobuf-compiler
 ```
 
 #### MacOS
