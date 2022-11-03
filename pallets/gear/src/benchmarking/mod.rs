@@ -964,8 +964,7 @@ benchmarks! {
         let body = body::repeated_dyn(
             r * INSTR_BENCHMARK_BATCH_SIZE,
             vec![
-                RandomI64Repeated(1),
-                RandomI64Repeated(1),
+                RandomI64Repeated(2),
                 Regular(Instruction::I64Add),
                 Regular(Instruction::Drop),
             ],
@@ -984,8 +983,7 @@ benchmarks! {
         let body = body::repeated_dyn(
             r * INSTR_BENCHMARK_BATCH_SIZE,
             vec![
-                RandomI64Repeated(1),
-                RandomI64Repeated(1),
+                RandomI64Repeated(2),
                 Regular(Instruction::I64Ctz),
                 Regular(Instruction::I64Add),
                 Regular(Instruction::Drop),
@@ -1018,15 +1016,17 @@ benchmarks! {
         sbox.invoke();
     }
 
-    // w_i32ctz = w_bench
-    instr_i32ctz {
+    // w_bench = 2 * w_i32const + w_i32add
+    instr_const_const_i32add {
         let r in 0 .. INSTR_BENCHMARK_BATCHES;
-        let mut instructions = vec![Instruction::I32Const(0xFFFFF)];
-        for _ in 0..r * INSTR_BENCHMARK_BATCH_SIZE {
-            instructions.push(Instruction::I32Ctz);
-        }
-        instructions.push(Instruction::Drop);
-        let body = body::from_instructions(instructions);
+        let body = body::repeated_dyn(
+            r * INSTR_BENCHMARK_BATCH_SIZE,
+            vec![
+                RandomI32Repeated(2),
+                Regular(Instruction::I64Add),
+                Regular(Instruction::Drop),
+            ],
+        );
         let mut sbox = Sandbox::from(&WasmModule::<T>::from(ModuleDefinition {
             handle_body: Some(body),
             ..Default::default()
@@ -1035,15 +1035,18 @@ benchmarks! {
         sbox.invoke();
     }
 
-    // w_i64ctz = w_bench
-    instr_i64ctz {
+    // w_bench = 2 * w_i32const + w_i32ctz + w_i32add
+    instr_const_const_ctz_i32add {
         let r in 0 .. INSTR_BENCHMARK_BATCHES;
-        let mut instructions = vec![Instruction::I64Const(0xFFFFFFFF)];
-        for _ in 0..r * INSTR_BENCHMARK_BATCH_SIZE {
-            instructions.push(Instruction::I64Ctz);
-        }
-        instructions.push(Instruction::Drop);
-        let body = body::from_instructions(instructions);
+        let body = body::repeated_dyn(
+            r * INSTR_BENCHMARK_BATCH_SIZE,
+            vec![
+                RandomI32Repeated(2),
+                Regular(Instruction::I32Ctz),
+                Regular(Instruction::I32Add),
+                Regular(Instruction::Drop),
+            ],
+        );
         let mut sbox = Sandbox::from(&WasmModule::<T>::from(ModuleDefinition {
             handle_body: Some(body),
             ..Default::default()
@@ -1052,7 +1055,7 @@ benchmarks! {
         sbox.invoke();
     }
 
-    // w_i32const = w_bench - w_i32ctz
+    // w_bench = w_i32const + w_i32ctz
     instr_const_i32ctz {
         let r in 0 .. INSTR_BENCHMARK_BATCHES;
         let body = body::repeated_dyn(
@@ -1070,6 +1073,59 @@ benchmarks! {
     }: {
         sbox.invoke();
     }
+
+    // w_i32ctz = w_bench
+    // instr_i32ctz {
+    //     let r in 0 .. INSTR_BENCHMARK_BATCHES;
+    //     let mut instructions = vec![Instruction::I32Const(0xFFFFF)];
+    //     for _ in 0..r * INSTR_BENCHMARK_BATCH_SIZE {
+    //         instructions.push(Instruction::I32Ctz);
+    //     }
+    //     instructions.push(Instruction::Drop);
+    //     let body = body::from_instructions(instructions);
+    //     let mut sbox = Sandbox::from(&WasmModule::<T>::from(ModuleDefinition {
+    //         handle_body: Some(body),
+    //         ..Default::default()
+    //     }));
+    // }: {
+    //     sbox.invoke();
+    // }
+
+    // w_i64ctz = w_bench
+    // instr_i64ctz {
+    //     let r in 0 .. INSTR_BENCHMARK_BATCHES;
+    //     let mut instructions = vec![Instruction::I64Const(0xFFFFFFFF)];
+    //     for _ in 0..r * INSTR_BENCHMARK_BATCH_SIZE {
+    //         instructions.push(Instruction::I64Ctz);
+    //     }
+    //     instructions.push(Instruction::Drop);
+    //     let body = body::from_instructions(instructions);
+    //     let mut sbox = Sandbox::from(&WasmModule::<T>::from(ModuleDefinition {
+    //         handle_body: Some(body),
+    //         ..Default::default()
+    //     }));
+    // }: {
+    //     sbox.invoke();
+    // }
+
+    // // w_i32const = w_bench - w_i32ctz
+    // instr_const_i32ctz {
+    //     let r in 0 .. INSTR_BENCHMARK_BATCHES;
+    //     let body = body::repeated_dyn(
+    //         r * INSTR_BENCHMARK_BATCH_SIZE,
+    //         vec![
+    //             RandomI32Repeated(1),
+    //             Regular(Instruction::I32Ctz),
+    //             Regular(Instruction::Drop),
+    //         ],
+    //     );
+    //     let mut sbox = Sandbox::from(&WasmModule::<T>::from(ModuleDefinition {
+    //         handle_body: Some(body),
+    //         ..Default::default()
+    //     }));
+    // }: {
+    //     sbox.invoke();
+    // }
 
 
     // TODO: fix it
