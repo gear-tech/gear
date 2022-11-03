@@ -5,7 +5,6 @@ use crate::result::Result;
 //     result::Result,
 // };
 use core::ops::{Deref, DerefMut};
-// use events::Events;
 // use std::{str::FromStr, time::Duration};
 // use subxt::{
 //     rpc::{RpcClientBuilder, Uri, WsTransportClientBuilder},

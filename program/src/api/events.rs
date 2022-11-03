@@ -3,8 +3,13 @@ use crate::{
     api::{
         config::GearConfig,
         generated::api::{
-            gear::Event as GearEvent, system::events::ExtrinsicSuccess,
-            system::Event as SystemEvent, DispatchError, Event,
+            gear::Event as GearEvent,
+            runtime_types::frame_support::dispatch::DispatchInfo,
+            system::{
+                events::{ExtrinsicFailed, ExtrinsicSuccess},
+                Event as SystemEvent,
+            },
+            Event,
         },
         types::Events,
         Api,
@@ -15,8 +20,8 @@ use futures_util::StreamExt;
 use parity_scale_codec::Decode;
 use subxt::{
     // HasModuleError, ModuleError, RuntimeError,
-    error::ModuleError,
-    events::{EventSubscription, StaticEvent},
+    error::{DispatchError, Error, ModuleError},
+    events::{EventDetails, EventSubscription, StaticEvent},
     ext::sp_runtime::{generic::Header, traits::BlakeTwo256},
     rpc::Subscription,
     tx::{TxEvents, TxInBlock},
@@ -31,48 +36,40 @@ impl Api {
     ) -> Result<TxEvents<GearConfig>> {
         let events = tx.fetch_events().await?;
 
-        if let Ok(Some(success)) = events.find_first::<ExtrinsicSuccess>() {
-            // let event = success.
-        }
+        for ev in events.iter() {
+            let ev = ev?;
+            if ev.pallet_name() == "System" {
+                if ev.variant_name() == "ExtrinsicFailed" {
+                    Self::capture_weight_info(&ev);
 
-        // // Try to find any errors; return the first one we encounter.
-        // for event in events.iter() {
-        //     let ev = event?;
-        //     if ev.pallet_name() == "System" && ev.variant_name() == "ExtrinsicFailed" {
-        //         // // Self::capture_weight_info(event?.event);
-        //         // let dispatch_error = DispatchError::decode(&mut &*ev.data)?;
-        //         // if let Some(error_data) = dispatch_error.module_error_data() {
-        //         //     // Error index is utilized as the first byte from the error array.
-        //         //     let metadata = self.metadata();
-        //         //     let details =
-        //         //         metadata.error(error_data.pallet_index, error_data.error_index())?;
-        //         //     return Err(subxt::Error::Module(ModuleError {
-        //         //         pallet: details.pallet().to_string(),
-        //         //         error: details.error().to_string(),
-        //         //         description: details.description().to_vec(),
-        //         //         error_data,
-        //         //     })
-        //         //     .into());
-        //         // } else {
-        //         //     return Err(subxt::Error::Runtime(dispatch_error).into());
-        //         // }
-        //     } else if ev.pallet_name() == "System" && ev.variant_name() == "ExtrinsicSuccess" {
-        //         Self::capture_weight_info(ev);
-        //
-        //         break;
-        //     }
-        // }
+                    return Err(Error::from(DispatchError::decode_from(
+                        ev.field_bytes(),
+                        &self.metadata(),
+                    ))
+                    .into());
+                }
+
+                if ev.variant_name() == "ExtrinsicSuccess" {
+                    Self::capture_weight_info(&ev);
+                    break;
+                }
+            }
+        }
 
         Ok(events)
     }
 
     /// Parse transaction fee from InBlockEvents
-    pub fn capture_weight_info(event: Event) {
+    pub fn capture_weight_info(details: &EventDetails) -> Result<()> {
+        let event: Event = details.as_root_event()?;
+
         if let Event::System(SystemEvent::ExtrinsicSuccess { dispatch_info })
         | Event::System(SystemEvent::ExtrinsicFailed { dispatch_info, .. }) = event
         {
             log::info!("\tWeight cost: {:?}", dispatch_info.weight);
         }
+
+        Ok(())
     }
 
     /// Wait for GearEvent.
