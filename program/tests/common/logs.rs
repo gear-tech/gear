@@ -5,5 +5,5 @@ pub mod gear_node {
 }
 
 pub mod gear_program {
-    pub const EX_UPLOAD_PROGRAM: &str = "Successfully submitted call Gear::upload_program";
+    pub const EX_UPLOAD_PROGRAM: &str = "Successfully submitted call gear::upload_program";
 }
