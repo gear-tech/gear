@@ -737,6 +737,109 @@ pub mod pallet {
             Ok(().into())
         }
 
+        pub fn read_state(program_id: ProgramId) -> Result<Vec<u8>, &'static str> {
+            log::debug!("Reading state of {program_id:?}");
+
+            let mut block_config = Self::block_config();
+            block_config.outgoing_limit = 1;
+
+            let dispatch = IncomingDispatch::new(
+                DispatchKind::State,
+                IncomingMessage::new(
+                    Default::default(),
+                    Default::default(),
+                    Default::default(),
+                    BlockGasLimitOf::<T>::get(),
+                    Default::default(),
+                    Default::default(),
+                ),
+                None,
+            );
+
+            let precharged_dispatch = match core_processor::precharge(
+                &block_config,
+                BlockGasLimitOf::<T>::get(),
+                dispatch,
+                program_id,
+            ) {
+                PrechargeResult::Ok(dispatch) => dispatch,
+                _ => return Err("Pre-charging error. Unreachable."),
+            };
+
+            let active_program = common::get_program(program_id.into_origin())
+                .ok_or("Program with given id not found")?;
+
+            let active_actor_data = if let Program::Active(prog) = active_program {
+                Some(ExecutableActorData {
+                    allocations: prog.allocations,
+                    code_id: CodeId::from_origin(prog.code_hash),
+                    code_exports: prog.code_exports,
+                    code_length_bytes: prog.code_length_bytes,
+                    static_pages: prog.static_pages,
+                    initialized: matches!(prog.state, ProgramState::Initialized),
+                    pages_with_data: prog.pages_with_data,
+                    gas_reservation_map: prog.gas_reservation_map,
+                })
+            } else {
+                return Err("Inactive program");
+            };
+
+            let message_execution_context = MessageExecutionContext {
+                actor: Actor {
+                    balance: u128::MAX,
+                    destination_program: program_id,
+                    executable_data: active_actor_data,
+                },
+                precharged_dispatch,
+                origin: Default::default(),
+                subsequent_execution: false,
+            };
+
+            let mut ext_manager = ExtManager::<T>::default();
+
+            match core_processor::prepare(&block_config, message_execution_context) {
+                PrepareResult::Ok(context) => {
+                    let memory_pages = Self::get_and_track_memory_pages(
+                        &mut ext_manager,
+                        program_id,
+                        &context.actor_data().pages_with_data,
+                    )
+                    .ok_or("Failed to get memory pages")?;
+
+                    let code = Self::get_code(context.actor_data().code_id, program_id)
+                        .unwrap_or_else(|| unreachable!("Program exists so do code"));
+                    let (random, bn) = T::Randomness::random(program_id.as_ref());
+                    let journal = core_processor::process::<Ext, ExecutionEnvironment>(
+                        &block_config,
+                        (context, program_id, code).into(),
+                        (random.encode(), bn.unique_saturated_into()),
+                        memory_pages,
+                    );
+
+                    for note in journal {
+                        match note {
+                            JournalNote::MessageDispatched {
+                                outcome: CoreDispatchOutcome::MessageTrap { .. },
+                                ..
+                            } => return Err("Error occurred during execution"),
+                            JournalNote::SendDispatch { dispatch, .. } => {
+                                if dispatch.is_reply()
+                                    && dispatch.exit_code().expect("Checked before") == 0
+                                {
+                                    return Ok(dispatch.payload().to_vec());
+                                }
+                            }
+                            _ => (),
+                        }
+                    }
+
+                    Err("Response not found")
+                }
+                PrepareResult::WontExecute(_) => Err("Entry `state` not found"),
+                PrepareResult::Error(_) => Err("Error occurred during preparations"),
+            }
+        }
+
         #[cfg(not(test))]
         pub fn calculate_gas_info(
             source: H256,
