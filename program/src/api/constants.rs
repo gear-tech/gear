@@ -19,8 +19,7 @@ impl Api {
     /// get expected block time
     pub fn expected_block_time(&self) -> Result<u64> {
         self.constants()
-            .babe()
-            .expected_block_time()
+            .at(&constants().babe().expected_block_time())
             .map_err(Into::into)
     }
 }
