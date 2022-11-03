@@ -72,7 +72,7 @@ impl GearApi {
     }
 
     // This stuff to be considered.
-    pub async fn subscribe(&self) -> Result<EventListener<'_>> {
+    pub async fn subscribe(&self) -> Result<EventListener> {
         let events = self.0.events().await?;
         Ok(EventListener(events))
     }
@@ -83,7 +83,6 @@ impl GearApi {
 
     pub async fn rpc_nonce(&self) -> Result<u32> {
         self.0
-            .client
             .rpc()
             .system_account_next_index(self.0.signer.account_id())
             .await

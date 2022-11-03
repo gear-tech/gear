@@ -1,11 +1,17 @@
 //! gear api utils
 use crate::{
-    api::{generated::api::runtime_types::gear_core::memory::PageNumber, Api},
+    api::{
+        generated::api::runtime_types::{gear_core::memory::PageNumber, sp_runtime::DispatchError},
+        Api,
+    },
     result::Result,
 };
 use parity_scale_codec::Encode;
 use std::mem;
-use subxt::ext::sp_core::H256;
+use subxt::{
+    error::{DispatchError as SubxtDispatchError, Error, ModuleError, ModuleErrorData},
+    ext::sp_core::H256,
+};
 
 const STORAGE_PROGRAM_PREFIX: &[u8] = b"g::prog::";
 const STORAGE_PROGRAM_PAGES_PREFIX: &[u8] = b"g::pages::";
@@ -43,5 +49,25 @@ impl Api {
         } else {
             Ok(gas)
         }
+    }
+
+    /// Decode `DispatchError` to `subxt::error::Error`.
+    pub fn decode_error(&self, dispatch_error: DispatchError) -> Error {
+        if let DispatchError::Module(ref err) = dispatch_error {
+            if let Ok(error_details) = self.metadata().error(err.index, err.error[0]) {
+                return SubxtDispatchError::Module(ModuleError {
+                    pallet: error_details.pallet().to_string(),
+                    error: error_details.error().to_string(),
+                    description: error_details.docs().to_vec(),
+                    error_data: ModuleErrorData {
+                        pallet_index: err.index,
+                        error: err.error,
+                    },
+                })
+                .into();
+            }
+        }
+
+        SubxtDispatchError::Other(dispatch_error.encode()).into()
     }
 }
