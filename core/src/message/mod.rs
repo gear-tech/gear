@@ -106,17 +106,34 @@ pub enum DispatchKind {
     Reply,
     /// System signal.
     Signal,
+    /// State sharing entry.
+    State,
 }
 
 impl DispatchKind {
-    /// Convert DispatchKind into entry point function name.
-    pub fn into_entry(self) -> &'static str {
+    /// Convert `DispatchKind` into entry point function name.
+    pub const fn into_entry(self) -> &'static str {
         match self {
             Self::Init => "init",
             Self::Handle => "handle",
             Self::Reply => "handle_reply",
             Self::Signal => "handle_signal",
+            Self::State => "state",
         }
+    }
+
+    /// Convert `str` into `DispatchKind`, if valid, otherwise returns `None`.
+    pub fn try_from_entry(entry: &str) -> Option<Self> {
+        let kind = match entry {
+            "init" => Self::Init,
+            "handle" => Self::Handle,
+            "handle_reply" => Self::Reply,
+            "handle_signal" => Self::Signal,
+            "state" => Self::State,
+            _ => return None,
+        };
+
+        Some(kind)
     }
 
     /// Check if kind is init.
@@ -137,6 +154,11 @@ impl DispatchKind {
     /// Check if kind is signal.
     pub fn is_signal(&self) -> bool {
         matches!(self, Self::Signal)
+    }
+
+    /// Check if kind is state.
+    pub fn is_state(&self) -> bool {
+        matches!(self, Self::State)
     }
 }
 

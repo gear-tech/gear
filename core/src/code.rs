@@ -50,19 +50,14 @@ fn get_exports(
         .iter()
     {
         if let Internal::Function(_) = entry.internal() {
-            if entry.field() == DispatchKind::Init.into_entry() {
-                exports.insert(DispatchKind::Init);
-            } else if entry.field() == DispatchKind::Handle.into_entry() {
-                exports.insert(DispatchKind::Handle);
-            } else if entry.field() == DispatchKind::Reply.into_entry() {
-                exports.insert(DispatchKind::Reply);
-            } else if entry.field() == DispatchKind::Signal.into_entry() {
-                exports.insert(DispatchKind::Signal);
+            if let Some(kind) = DispatchKind::try_from_entry(entry.field()) {
+                exports.insert(kind);
             } else if reject_unnecessary {
                 return Err(CodeError::NonGearExportFnFound);
             }
         }
     }
+
     Ok(exports)
 }
 

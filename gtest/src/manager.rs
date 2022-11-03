@@ -532,6 +532,7 @@ impl ExtManager {
             DispatchKind::Handle => mock.handle(payload).map(Mocked::Reply),
             DispatchKind::Reply => mock.handle_reply(payload).map(Mocked::Reply),
             DispatchKind::Signal => mock.handle_signal(payload).map(|()| Mocked::Signal),
+            DispatchKind::State => todo!(),
         };
 
         match response {
