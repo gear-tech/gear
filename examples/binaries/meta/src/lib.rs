@@ -37,13 +37,13 @@ mod wasm {
 }
 
 // Metatypes for input and output
-#[derive(TypeInfo, Decode)]
+#[derive(TypeInfo, Decode, Encode)]
 pub struct MessageInitIn {
     pub amount: u8,
     pub currency: String,
 }
 
-#[derive(TypeInfo, Encode)]
+#[derive(TypeInfo, Decode, Encode)]
 pub struct MessageInitOut {
     pub exchange_rate: Result<u8, u8>,
     pub sum: u8,
@@ -64,12 +64,12 @@ impl From<MessageInitIn> for MessageInitOut {
     }
 }
 
-#[derive(TypeInfo, Decode)]
+#[derive(TypeInfo, Decode, Encode)]
 pub struct MessageIn {
     pub id: Id,
 }
 
-#[derive(TypeInfo, Encode)]
+#[derive(TypeInfo, Decode, Encode)]
 pub struct MessageOut {
     pub res: Option<Wallet>,
 }
@@ -94,34 +94,34 @@ pub struct Id {
     pub hex: Vec<u8>,
 }
 
-#[derive(TypeInfo, Encode, Clone)]
+#[derive(TypeInfo, Decode, Encode, Clone)]
 pub struct Person {
     pub surname: String,
     pub name: String,
 }
 
-#[derive(TypeInfo, Encode, Clone)]
+#[derive(TypeInfo, Decode, Encode, Clone)]
 pub struct Wallet {
     pub id: Id,
     pub person: Person,
 }
 
-#[derive(TypeInfo, Decode, Clone)]
+#[derive(TypeInfo, Decode, Encode, Clone)]
 pub struct MessageInitAsyncIn {
     pub empty: (),
 }
 
-#[derive(TypeInfo, Encode, Clone)]
+#[derive(TypeInfo, Decode, Encode, Clone)]
 pub struct MessageInitAsyncOut {
     pub empty: (),
 }
 
-#[derive(TypeInfo, Decode, Clone)]
+#[derive(TypeInfo, Decode, Encode, Clone)]
 pub struct MessageHandleAsyncIn {
     pub empty: (),
 }
 
-#[derive(TypeInfo, Encode, Clone)]
+#[derive(TypeInfo, Encode, Decode, Clone)]
 pub struct MessageHandleAsyncOut {
     pub empty: (),
 }
