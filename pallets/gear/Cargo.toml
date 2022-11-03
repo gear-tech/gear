@@ -83,6 +83,7 @@ demo-value-sender = { path = "../../examples/binaries/value-sender" }
 demo-waiter = { path = "../../examples/binaries/waiter" }
 demo-reserve-gas = { path = "../../examples/binaries/reserve-gas" }
 demo-signal-entry = { path = "../../examples/binaries/signal-entry" }
+demo-async-signal-entry = { path = "../../examples/binaries/async-signal-entry" }
 page_size = "0.4.2"
 frame-support-test = { version = "3.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
 pallet-gear-gas = { path = "../gas" }

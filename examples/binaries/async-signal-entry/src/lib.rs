@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2022 Gear Technologies Inc.
+// Copyright (C) 2022 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -16,35 +16,23 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Module for Gear contracts asynchronous logic.
+#![cfg_attr(not(feature = "std"), no_std)]
 
-mod futures;
-mod signals;
-mod waker;
-
-pub use self::futures::message_loop;
-
-use self::futures::FuturesMap;
-use crate::prelude::BTreeMap;
-pub(crate) use signals::ReplyPoll;
-use signals::WakeSignals;
-
-static mut FUTURES: Option<FuturesMap> = None;
-
-pub(crate) fn futures() -> &'static mut FuturesMap {
-    unsafe { FUTURES.get_or_insert_with(BTreeMap::new) }
+#[cfg(feature = "std")]
+mod code {
+    include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
 }
 
-static mut SIGNALS: Option<WakeSignals> = None;
+#[cfg(feature = "std")]
+pub use code::WASM_BINARY_OPT as WASM_BINARY;
 
-pub(crate) fn signals() -> &'static mut WakeSignals {
-    unsafe { SIGNALS.get_or_insert_with(WakeSignals::new) }
-}
+#[cfg(not(feature = "std"))]
+mod wasm {
+    use gstd::{exec, msg};
 
-pub fn record_reply() {
-    signals().record_reply();
-}
-
-pub fn handle_signal() {
-    futures().remove(&crate::msg::id());
+    #[gstd::async_main]
+    async fn main() {
+        msg::send(msg::source(), b"handle_signal", 0).unwrap();
+        exec::wait();
+    }
 }

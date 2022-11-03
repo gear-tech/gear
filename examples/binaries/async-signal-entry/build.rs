@@ -16,35 +16,6 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Module for Gear contracts asynchronous logic.
-
-mod futures;
-mod signals;
-mod waker;
-
-pub use self::futures::message_loop;
-
-use self::futures::FuturesMap;
-use crate::prelude::BTreeMap;
-pub(crate) use signals::ReplyPoll;
-use signals::WakeSignals;
-
-static mut FUTURES: Option<FuturesMap> = None;
-
-pub(crate) fn futures() -> &'static mut FuturesMap {
-    unsafe { FUTURES.get_or_insert_with(BTreeMap::new) }
-}
-
-static mut SIGNALS: Option<WakeSignals> = None;
-
-pub(crate) fn signals() -> &'static mut WakeSignals {
-    unsafe { SIGNALS.get_or_insert_with(WakeSignals::new) }
-}
-
-pub fn record_reply() {
-    signals().record_reply();
-}
-
-pub fn handle_signal() {
-    futures().remove(&crate::msg::id());
+fn main() {
+    gear_wasm_builder::build();
 }

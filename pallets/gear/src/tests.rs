@@ -5882,8 +5882,8 @@ fn reject_incorrect_binary() {
 }
 
 #[test]
-fn signal_wait_works() {
-    use demo_signal_entry::{HandleAction, WASM_BINARY};
+fn signal_async_wait_works() {
+    use demo_async_signal_entry::WASM_BINARY;
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -5903,11 +5903,23 @@ fn signal_wait_works() {
         assert!(Gear::is_initialized(pid));
         assert!(Gear::is_active(pid));
 
+        let GasInfo {
+            min_limit: gas_spent,
+            ..
+        } = Gear::calculate_gas_info(
+            USER_1.into_origin(),
+            HandleKind::Handle(pid),
+            EMPTY_PAYLOAD.to_vec(),
+            0,
+            true,
+        )
+        .expect("calculate_gas_info failed");
+
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(USER_1),
             pid,
-            HandleAction::Wait.encode(),
-            10_000_000_000,
+            EMPTY_PAYLOAD.to_vec(),
+            gas_spent,
             0,
         ));
 
