@@ -55,5 +55,5 @@ unsafe extern "C" fn meta_state() -> *mut [i32; 2] {
 
 #[no_mangle]
 extern "C" fn state() {
-    msg::reply(unsafe { WALLETS }, 0).expect("Failed to share state");
+    msg::reply(unsafe { WALLETS.clone() }, 0).expect("Failed to share state");
 }
