@@ -52,3 +52,8 @@ unsafe extern "C" fn meta_state() -> *mut [i32; 2] {
     };
     gstd::util::to_leak_ptr(encoded)
 }
+
+#[no_mangle]
+extern "C" fn state() {
+    msg::reply(unsafe { WALLETS }, 0).expect("Failed to share state");
+}
