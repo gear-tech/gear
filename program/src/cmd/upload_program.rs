@@ -40,7 +40,7 @@ impl UploadProgram {
         };
 
         // estimate gas
-        let gas_limit = signer.cmp_gas_limit(gas).await?;
+        let gas_limit = signer.cmp_gas_limit(gas)?;
 
         // upload program
         signer

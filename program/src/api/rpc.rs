@@ -34,6 +34,7 @@ impl RpcClient {
         if url.starts_with("ws") {
             Ok(Self::Ws(
                 WsClientBuilder::default()
+                    .connection_timeout(Duration::from_millis(timeout))
                     .request_timeout(Duration::from_millis(timeout))
                     .build(url)
                     .await

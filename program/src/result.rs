@@ -1,7 +1,7 @@
 //! Custom result
 
-use crate::api::{config::GearConfig, types::TxStatus};
-use subxt::{ext::sp_core::H256, tx, OnlineClient};
+use crate::api::types::TxStatus;
+use subxt::ext::sp_core::H256;
 
 /// transaction error
 #[derive(Debug, thiserror::Error)]
@@ -85,12 +85,10 @@ pub enum Error {
     Logger(#[from] log::SetLoggerError),
     #[error("No available account was found in keystore, please run `gear login` first.")]
     Logout,
-    // #[error(transparent)]
-    // Metadata(#[from] crate::metadata::Error),
+    #[error(transparent)]
+    Metadata(#[from] crate::metadata::Error),
     #[error("{0}")]
     Nacl(String),
-    #[error(transparent)]
-    Ws(#[from] jsonrpsee_client_transport::ws::WsHandshakeError),
     #[error("{0}")]
     Schnorrkel(schnorrkel::SignatureError),
     #[error(transparent)]
@@ -99,19 +97,8 @@ pub enum Error {
     Subxt(#[from] subxt::Error),
     #[error(transparent)]
     SubxtPublic(#[from] subxt::ext::sp_core::crypto::PublicError),
-    // #[error(transparent)]
-    // SubxtBasic(#[from] subxt::BasicError),
-    // #[error(transparent)]
-    // SubxtGeneric(
-    //     #[from]
-    //     subxt::GenericError<
-    //         subxt::RuntimeError<
-    //             crate::api::generated::api::runtime_types::sp_runtime::DispatchError,
-    //         >,
-    //     >,
-    // ),
-    // #[error(transparent)]
-    // SubxtMetadata(#[from] subxt::MetadataError),
+    #[error(transparent)]
+    SubxtMetadata(#[from] subxt::error::MetadataError),
     #[error(transparent)]
     Tx(#[from] TxError),
 }

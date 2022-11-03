@@ -3,12 +3,7 @@ use crate::result::Result;
 use config::GearConfig;
 use core::ops::{Deref, DerefMut};
 use signer::Signer;
-use subxt::{
-    events::EventSubscription,
-    ext::sp_runtime::{generic::Header, traits::BlakeTwo256},
-    rpc::Subscription,
-    OnlineClient,
-};
+use subxt::OnlineClient;
 
 pub mod config;
 mod constants;

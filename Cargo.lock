@@ -3049,7 +3049,6 @@ dependencies = [
  "gear-runtime",
  "hex",
  "jsonrpsee 0.15.1",
- "jsonrpsee-client-transport 0.14.0",
  "keyring",
  "lazy_static",
  "libp2p 0.49.0",

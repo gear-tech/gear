@@ -11,7 +11,7 @@ use crate::{
 };
 use clap::Parser;
 use std::fmt;
-use subxt::{
+use subxt::ext::{
     sp_core::{crypto::Ss58Codec, sr25519::Pair, Pair as PairT},
     sp_runtime::AccountId32,
 };

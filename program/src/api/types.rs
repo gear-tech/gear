@@ -1,12 +1,6 @@
 //! Shared types
 use crate::{
-    api::{
-        config::GearConfig,
-        generated::api::{
-            runtime_types::{gear_common::ActiveProgram, sp_runtime::DispatchError},
-            Event,
-        },
-    },
+    api::{config::GearConfig, generated::api::runtime_types::gear_common::ActiveProgram},
     result::Result,
 };
 use parity_scale_codec::{Decode, Encode};

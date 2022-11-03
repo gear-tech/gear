@@ -2,28 +2,16 @@
 use crate::{
     api::{
         config::GearConfig,
-        generated::api::{
-            gear::Event as GearEvent,
-            runtime_types::frame_support::dispatch::DispatchInfo,
-            system::{
-                events::{ExtrinsicFailed, ExtrinsicSuccess},
-                Event as SystemEvent,
-            },
-            Event,
-        },
+        generated::api::{system::Event as SystemEvent, Event},
         types::Events,
         Api,
     },
     result::{ClientError, Result},
 };
 use futures_util::StreamExt;
-use parity_scale_codec::Decode;
 use subxt::{
-    // HasModuleError, ModuleError, RuntimeError,
-    error::{DispatchError, Error, ModuleError},
-    events::{EventDetails, EventSubscription, StaticEvent},
-    ext::sp_runtime::{generic::Header, traits::BlakeTwo256},
-    rpc::Subscription,
+    error::{DispatchError, Error},
+    events::{EventDetails, StaticEvent},
     tx::{TxEvents, TxInBlock},
     OnlineClient,
 };

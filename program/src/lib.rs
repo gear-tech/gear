@@ -107,12 +107,11 @@
 //! ## LICENSE
 //!
 //! GPL v3.0
-#![allow(unused)]
 
 pub mod api;
-// pub mod cmd;
+pub mod cmd;
 pub mod keystore;
-// pub mod metadata;
+pub mod metadata;
 pub mod result;
-// pub mod template;
+pub mod template;
 pub mod utils;

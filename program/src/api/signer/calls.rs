@@ -1,17 +1,10 @@
 //! gear api calls
 use crate::api::{
-    config::GearConfig,
-    generated::api::{runtime_types::sp_runtime::DispatchError, Event},
     signer::Signer,
     types::{InBlock, TxStatus},
 };
 use anyhow::anyhow;
-use std::fmt::Display;
-use subxt::{
-    ext::codec::Encode,
-    tx::{PolkadotExtrinsicParams, StaticTxPayload, SubmittableExtrinsic},
-    OnlineClient,
-};
+use subxt::{ext::codec::Encode, tx::StaticTxPayload};
 
 mod balances {
     use crate::api::{generated::api::tx, signer::Signer, types::InBlock};
@@ -115,8 +108,6 @@ mod gear {
         }
     }
 }
-
-type Extrinsic = SubmittableExtrinsic<GearConfig, OnlineClient<GearConfig>>;
 
 impl Signer {
     /// Propagates log::info for given status.
