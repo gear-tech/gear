@@ -1016,14 +1016,17 @@ benchmarks! {
         sbox.invoke();
     }
 
-    // w_bench = 2 * w_i32const + w_i32add
-    instr_const_const_i32add {
+    // w_bench = 2 * w_i32const + 2 * w_i32ctz + w_i32add
+    instr_const_ctz_const_ctz_i32add {
         let r in 0 .. INSTR_BENCHMARK_BATCHES;
         let body = body::repeated_dyn(
             r * INSTR_BENCHMARK_BATCH_SIZE,
             vec![
-                RandomI32Repeated(2),
-                Regular(Instruction::I64Add),
+                RandomI32Repeated(1),
+                Regular(Instruction::I32Ctz),
+                RandomI32Repeated(1),
+                Regular(Instruction::I32Ctz),
+                Regular(Instruction::I32Add),
                 Regular(Instruction::Drop),
             ],
         );
