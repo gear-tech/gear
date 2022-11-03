@@ -22,7 +22,7 @@
 #![no_std]
 #![cfg_attr(target_arch = "wasm32", feature(alloc_error_handler))]
 #![cfg_attr(
-    all(target_arch = "wasm32", feature = "debug"),
+    all(target_arch = "wasm32", any(feature = "debug", debug_assertions)),
     feature(panic_info_message)
 )]
 #![cfg_attr(feature = "strict", deny(warnings))]
@@ -47,7 +47,7 @@ pub use macros::util;
 
 pub use prelude::*;
 
-#[cfg(feature = "debug")]
+#[cfg(any(feature = "debug", debug_assertions))]
 pub use gcore::ext;
 
 use core::mem::size_of;

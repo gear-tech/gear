@@ -31,8 +31,12 @@ use subxt::{
 type GearBlock = Block<Header<u32, BlakeTwo256>, OpaqueExtrinsic>;
 
 impl GearApi {
-    pub async fn block_gas_limit(&self) -> Result<u64> {
-        self.0.gas_limit().await.map_err(Into::into)
+    pub fn block_gas_limit(&self) -> Result<u64> {
+        self.0.gas_limit().map_err(Into::into)
+    }
+
+    pub fn expected_block_time(&self) -> Result<u64> {
+        self.0.expected_block_time().map_err(Into::into)
     }
 
     async fn get_block_at(&self, block_hash: Option<H256>) -> Result<GearBlock> {

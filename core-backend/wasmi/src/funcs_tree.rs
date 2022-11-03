@@ -112,6 +112,7 @@ where
         f.build("gr_value_available", |forbidden| {
             F::value_available(store, forbidden, memory)
         }),
+        f.build("gr_random", |forbidden| F::random(store, forbidden, memory)),
         f.build("gr_leave", |forbidden| F::leave(store, forbidden)),
         f.build("gr_wait", |forbidden| F::wait(store, forbidden)),
         f.build("gr_wait_for", |forbidden| F::wait_for(store, forbidden)),

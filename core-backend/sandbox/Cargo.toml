@@ -16,6 +16,7 @@ sp-sandbox = { version = "0.10.0-dev", git = "https://github.com/gear-tech/subst
 log = { version = "0.4.17", default-features = false }
 derive_more = "0.99.17"
 codec = { package = "parity-scale-codec", version = "3.1.3", default-features = false }
+blake2-rfc = { version = "0.2.18", default-features = false }
 
 [features]
 default = ["std"]

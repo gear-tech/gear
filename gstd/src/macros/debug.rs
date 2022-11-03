@@ -19,7 +19,7 @@
 //! Gear `debug!` macro.
 //! Enables output of the logs from Wasm if the `debug` feature is enabled.
 
-#[cfg(feature = "debug")]
+#[cfg(any(feature = "debug", debug_assertions))]
 #[macro_export]
 macro_rules! debug {
     ($arg:literal) => {
@@ -34,6 +34,7 @@ macro_rules! debug {
 }
 
 #[cfg(not(feature = "debug"))]
+#[cfg(not(debug_assertions))]
 #[macro_export]
 macro_rules! debug {
     ($arg:expr) => { let _ = $arg; };

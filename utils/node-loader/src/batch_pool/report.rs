@@ -1,57 +1,59 @@
 use super::context::ContextUpdate;
-use gclient::Error;
+use crate::utils;
+use anyhow::Error;
 use gear_core::ids::{CodeId, ProgramId};
 use std::collections::BTreeSet;
 
-// Todo DN maybe queue for guaranteeing the order?
-pub type PreRunReport = Vec<String>;
+#[derive(Debug, Clone, Copy, thiserror::Error)]
+pub enum CrashAlert {
+    #[error("Crash alert: Message processing has been stopped")]
+    MsgProcessingStopped,
+    #[error("Crash alert: Timeout occurred while processing batch")]
+    Timeout,
+    #[error("Crash alert: Can't reach the node, considered to be dead")]
+    NodeIsDead,
+}
 
+impl TryFrom<Error> for CrashAlert {
+    type Error = Error;
+
+    fn try_from(err: Error) -> Result<Self, Self::Error> {
+        let err_string = err.to_string();
+        if err_string.contains(utils::TIMEOUT_ERR_STR) {
+            Ok(CrashAlert::Timeout)
+        } else if err_string.contains(utils::SUBXT_RPC_REQUEST_ERR_STR) {
+            Ok(CrashAlert::NodeIsDead)
+        } else {
+            Err(err)
+        }
+    }
+}
+
+#[derive(Default)]
 pub struct Report {
-    pub logs: Vec<String>,
-    // todo Option
     pub codes: BTreeSet<CodeId>,
-    // todo Option
     pub program_ids: BTreeSet<ProgramId>,
-    pub blocks_stopped: bool,
 }
 
 #[derive(Default)]
 pub struct BatchRunReport {
-    // Todo DN maybe queue for guaranteeing the order?
-    pub reports: Vec<String>,
+    /// Seed of the batch is the id.
+    pub id: u64,
     pub context_update: ContextUpdate,
-    pub blocks_stopped: bool,
 }
 
 impl BatchRunReport {
-    pub fn new(mut pre: PreRunReport, mut report: Report) -> Self {
-        let mut reports = vec![];
-
-        reports.append(pre.as_mut());
-        reports.push(String::from("RESULTS:"));
-        reports.append(report.logs.as_mut());
-
+    pub fn new(id: u64, report: Report) -> Self {
         Self {
-            reports,
-            blocks_stopped: report.blocks_stopped,
+            id,
             context_update: report.into(),
         }
     }
 
-    pub fn from_err(mut pre: PreRunReport, err: Error) -> Self {
-        let mut reports = vec![];
-
-        reports.append(pre.as_mut());
-        reports.push(String::from("ERROR:"));
-        reports.push(err.to_string());
-
+    pub fn empty(id: u64) -> Self {
         Self {
-            reports,
+            id,
             ..Default::default()
         }
     }
-}
-
-pub trait BatchReporter {
-    fn report(&self) -> Vec<String>;
 }

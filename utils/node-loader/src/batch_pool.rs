@@ -1,33 +1,35 @@
 use crate::{
-    args::SeedVariant,
+    args::{LoadParams, SeedVariant},
     utils::{self, LoaderRng},
 };
-use anyhow::anyhow;
-use batch::Batch;
+use anyhow::{anyhow, Result};
+use api::GearApiFacade;
+use batch::{Batch, BatchWithSeed};
 use context::Context;
 use futures::{stream::FuturesUnordered, StreamExt};
-use gclient::{Error, EventProcessor, GearApi, Result};
-use gear_core::ids::MessageId;
-use generators::BatchGenerator;
-use report::{BatchReporter, BatchRunReport};
+use gclient::{Error as GClientError, EventProcessor, GearApi, Result as GClientResult};
+use gear_core::ids::{MessageId, ProgramId};
+use generators::{BatchGenerator, RuntimeSettings};
+use primitive_types::H256;
+pub use report::CrashAlert;
+use report::{BatchRunReport, Report};
 use std::{
     collections::{BTreeMap, BTreeSet},
-    fs::{self, File},
-    io::Write,
     marker::PhantomData,
 };
+use tracing::instrument;
 
-use self::{batch::BatchWithSeed, report::Report};
-
+mod api;
 mod batch;
 mod context;
 pub mod generators;
 mod report;
 
 type Seed = u64;
+type CallId = usize;
 
 pub struct BatchPool<Rng: LoaderRng> {
-    api: GearApi,
+    api: GearApiFacade,
     pool_size: usize,
     batch_size: usize,
     tasks_context: Context,
@@ -35,7 +37,7 @@ pub struct BatchPool<Rng: LoaderRng> {
 }
 
 impl<Rng: LoaderRng> BatchPool<Rng> {
-    pub fn new(api: GearApi, pool_size: usize, batch_size: usize) -> Self {
+    fn new(api: GearApiFacade, batch_size: usize, pool_size: usize) -> Self {
         Self {
             api,
             pool_size,
@@ -45,36 +47,53 @@ impl<Rng: LoaderRng> BatchPool<Rng> {
         }
     }
 
-    pub async fn run(&mut self, code_seed_type: Option<SeedVariant>) -> Result<()> {
+    pub async fn run(params: LoadParams) -> Result<()> {
+        let api = GearApiFacade::try_new(params.node, params.user).await?;
+        let mut batch_pool = Self::new(api.clone(), params.batch_size, params.workers);
+
+        let run_pool_task = batch_pool.run_pool_loop(params.code_seed_type);
+        let inspect_crash_task = inspect_crash_events(api.into_gear_api(), params.node_stopper);
+
+        let run_result = tokio::select! {
+            r = run_pool_task => r,
+            r = inspect_crash_task => r,
+        };
+
+        if let Err(ref e) = run_result {
+            tracing::info!("Pool run ends up with an error: {e}");
+        }
+
+        run_result
+    }
+
+    #[instrument(skip_all)]
+    async fn run_pool_loop(&mut self, code_seed_type: Option<SeedVariant>) -> Result<()> {
         let mut batches = FuturesUnordered::new();
 
         let seed = utils::now();
-        let info = format!("Running task pool with seed {seed}\n\n");
-        println!("{info}");
+        tracing::info!(
+            message = "Running task pool with params",
+            seed,
+            pool_size = self.pool_size,
+            batch_size = self.batch_size
+        );
 
-        fs::write(".log", info.as_bytes()).expect("Failed to write into file");
-
-        let mut batch_gen = BatchGenerator::<Rng>::new(seed, self.batch_size, code_seed_type);
-
-        let mut num = self.api.rpc_nonce().await?;
+        let rt_settings = RuntimeSettings::new(&self.api).await?;
+        let mut batch_gen =
+            BatchGenerator::<Rng>::new(seed, self.batch_size, code_seed_type, rt_settings);
 
         while batches.len() != self.pool_size {
+            let api = self.api.clone();
             let batch_with_seed = batch_gen.generate(self.tasks_context.clone());
-
-            let mut api = self.api.clone();
-            api.set_nonce(num);
-            num += 1;
 
             batches.push(run_batch(api, batch_with_seed));
         }
 
-        while let Some(report) = batches.next().await {
-            self.process_run_report(report);
-            let batch_with_seed = batch_gen.generate(self.tasks_context.clone());
+        while let Some(report_res) = batches.next().await {
+            self.process_run_report(report_res?).await;
 
-            let mut api = self.api.clone();
-            api.set_nonce(num);
-            num += 1;
+            let api = self.api.clone();
+            let batch_with_seed = batch_gen.generate(self.tasks_context.clone());
 
             batches.push(run_batch(api, batch_with_seed));
         }
@@ -82,292 +101,151 @@ impl<Rng: LoaderRng> BatchPool<Rng> {
         unreachable!()
     }
 
-    fn process_run_report(&mut self, report: BatchRunReport) {
-        let BatchRunReport {
-            reports,
-            context_update,
-            blocks_stopped,
-        } = report;
-
-        self.tasks_context.update(context_update);
-
-        let res = format!("\n{}\n", reports.join("\n"));
-        println!("{res}");
-
-        let mut file = File::options()
-            .write(true)
-            .append(true)
-            .create(true)
-            .open(".log")
-            .expect("Failed to create a file");
-
-        file.write_all(res.as_bytes())
-            .expect("Failed to write into file");
-
-        assert!(!blocks_stopped);
+    async fn process_run_report(&mut self, report: BatchRunReport) {
+        self.tasks_context.update(report.context_update);
     }
 }
 
-async fn run_batch(api: GearApi, batch: BatchWithSeed) -> BatchRunReport {
-    let pre_run_report = batch.report();
+#[instrument(skip_all, fields(seed = batch.seed, batch_type = batch.batch_str()))]
+async fn run_batch(api: GearApiFacade, batch: BatchWithSeed) -> Result<BatchRunReport> {
+    let (seed, batch) = batch.into();
+    match run_batch_impl(api, batch).await {
+        Ok(report) => Ok(BatchRunReport::new(seed, report)),
+        Err(err) => {
+            // Propagate crash error or return report
+            utils::swap_res_types(
+                CrashAlert::try_from(err)
+                    .map(|crash_err| {
+                        tracing::info!("{crash_err}");
+                        crash_err
+                    })
+                    .map_err(|err| tracing::debug!("Error occurred while running batch: {err}")),
+            )?;
 
-    match run_batch_impl(api, batch.into()).await {
-        Ok(report) => BatchRunReport::new(pre_run_report, report),
-        Err(err) => BatchRunReport::from_err(pre_run_report, err),
+            Ok(BatchRunReport::empty(seed))
+        }
     }
 }
 
-async fn run_batch_impl(api: GearApi, batch: Batch) -> Result<Report> {
-    let mut logs = vec![];
-
+#[instrument(skip_all)]
+async fn run_batch_impl(mut api: GearApiFacade, batch: Batch) -> Result<Report> {
+    // Order of the results of each extrinsic execution in the batch
+    // is the same as in the input set of calls in the batch.
+    // See: https://paritytech.github.io/substrate/master/src/pallet_utility/lib.rs.html#452-468
     match batch {
         Batch::UploadProgram(args) => {
-            let args = args.into_iter().map(|v| v.into());
-
-            let (ex_results, batch_block_hash) = api.upload_program_bytes_batch(args).await?;
-
-            let mut init_messages = BTreeMap::new();
-
-            for r in ex_results {
-                match r {
-                    Ok((mid, pid)) => {
-                        init_messages.insert(mid, pid);
-                    }
-                    Err(e) => logs.push(format!(
-                        "[#{:<2}] Extrinsic failure: '{:?}'",
-                        logs.len() + 1,
-                        e
-                    )),
-                }
-            }
-
-            let results: Result<Vec<(MessageId, Option<String>)>>;
-
-            let now = utils::now();
-
-            loop {
-                let r = match api.events_since(batch_block_hash, 10).await {
-                    Ok(mut v) => v.err_or_succeed_batch(init_messages.keys().cloned()).await,
-                    Err(e) => Err(e),
-                };
-
-                if utils::now() - now > 1100 {
-                    results = Err(anyhow!("Out of time: probably blocks stopped.").into());
-                    break;
-                }
-
-                if matches!(r, Err(Error::EventNotFoundInIterator)) {
-                    continue;
-                } else {
-                    results = r;
-                    break;
-                }
-            }
-
-            let results = results?;
-
-            let mut listener = api.subscribe().await?;
-            let blocks_stopped = !listener.blocks_running().await?;
-
-            let mut program_ids = BTreeSet::new();
-
-            for (mid, maybe_err) in results {
-                let pid = init_messages.remove(&mid).expect("Infallible");
-
-                if let Some(expl) = maybe_err {
-                    logs.push(format!("[#{:<2}] Program with {pid:#.2} failed initialization on {mid:#.2} with a trap: '{expl}'", logs.len() + 1))
-                } else {
-                    // TODO: handle case of "NotExecuted". It's not actual for init messages, but will be useful in future.
-                    logs.push(format!(
-                        "[#{:<2}] {mid:#.2} successfully inited program with '{pid:#.2}'",
-                        logs.len() + 1
-                    ));
-                    program_ids.insert(pid);
-                }
-            }
-
-            Ok(Report {
-                logs,
-                program_ids,
-                blocks_stopped,
-                codes: BTreeSet::new(),
-            })
+            let (ex_results, block_hash) = api.upload_program_batch(args).await?;
+            let messages = process_ex_results(ex_results);
+            process_events(api.into_gear_api(), messages, block_hash, true).await
         }
         Batch::UploadCode(args) => {
-            let args = args.into_iter().map(Into::<Vec<_>>::into);
             let (ex_results, _) = api.upload_code_batch(args).await?;
-
-            let mut codes = BTreeSet::new();
-
-            for r in ex_results {
-                match r {
-                    Ok(code_id) => {
-                        codes.insert(code_id);
-                        logs.push(format!(
-                            "[#{:<2}] Successfully deployed code with id '{code_id}'",
-                            logs.len() + 1,
-                        ));
-                    }
-                    Err(e) => logs.push(format!(
-                        "[#{:<2}] Extrinsic failure: '{:?}'",
-                        logs.len() + 1,
-                        e
-                    )),
-                }
+            let ex_results = ex_results.into_iter().map(|r| r.map(|code| (code, ())));
+            let codes = process_ex_results(ex_results);
+            for (code_id, (_, call_id)) in codes.iter() {
+                tracing::debug!(
+                    "[Call with id: {call_id}]: Successfully deployed code with id '{code_id}'"
+                );
             }
 
-            let mut listener = api.subscribe().await?;
-            let blocks_stopped = !listener.blocks_running().await?;
-
             Ok(Report {
-                logs,
-                program_ids: BTreeSet::new(),
-                blocks_stopped,
-                codes,
+                codes: codes.keys().copied().collect(),
+                ..Default::default()
             })
         }
         Batch::SendMessage(args) => {
-            let args = args.into_iter().map(|v| v.into());
-
-            let (ex_results, batch_block_hash) = api.send_message_bytes_batch(args).await?;
-
-            let mut handle_messages = BTreeMap::new();
-
-            for r in ex_results {
-                match r {
-                    Ok((mid, pid)) => {
-                        handle_messages.insert(mid, pid);
-                    }
-                    Err(e) => logs.push(format!(
-                        "[#{:<2}] Extrinsic failure: '{:?}'",
-                        logs.len() + 1,
-                        e
-                    )),
-                }
-            }
-
-            let results: Result<Vec<(MessageId, Option<String>)>>;
-
-            let now = utils::now();
-
-            loop {
-                let r = match api.events_since(batch_block_hash, 10).await {
-                    Ok(mut v) => {
-                        v.err_or_succeed_batch(handle_messages.keys().cloned())
-                            .await
-                    }
-                    Err(e) => Err(e),
-                };
-
-                if utils::now() - now > 1100 {
-                    results = Err(anyhow!("Out of time: probably blocks stopped.").into());
-                    break;
-                }
-
-                if matches!(r, Err(Error::EventNotFoundInIterator)) {
-                    continue;
-                } else {
-                    results = r;
-                    break;
-                }
-            }
-
-            let results = results?;
-
-            let mut listener = api.subscribe().await?;
-            let blocks_stopped = !listener.blocks_running().await?;
-
-            for (mid, maybe_err) in results {
-                let pid = handle_messages.remove(&mid).expect("Infallible");
-
-                if let Some(expl) = maybe_err {
-                    logs.push(format!("[#{:<2}] Message {mid:#.2} sent to program {pid:#.2} failed execution with a trap: '{expl}'", logs.len() + 1))
-                } else {
-                    logs.push(format!(
-                        "[#{:<2}] Successfully executed {mid:#.2} message for program '{pid:#.2}'",
-                        logs.len() + 1
-                    ));
-                }
-            }
-
-            Ok(Report {
-                logs,
-                codes: BTreeSet::new(),
-                program_ids: BTreeSet::new(),
-                blocks_stopped,
-            })
+            let (ex_results, block_hash) = api.send_message_batch(args).await?;
+            let messages = process_ex_results(ex_results);
+            process_events(api.into_gear_api(), messages, block_hash, false).await
         }
         Batch::CreateProgram(args) => {
-            let args = args.into_iter().map(|v| v.into());
-
-            let (ex_results, batch_block_hash) = api.create_program_bytes_batch(args).await?;
-
-            let mut init_messages = BTreeMap::new();
-
-            for r in ex_results {
-                match r {
-                    Ok((mid, pid)) => {
-                        init_messages.insert(mid, pid);
-                    }
-                    Err(e) => logs.push(format!(
-                        "[#{:<2}] Extrinsic failure: '{:?}'",
-                        logs.len() + 1,
-                        e
-                    )),
-                }
-            }
-
-            let results: Result<Vec<(MessageId, Option<String>)>>;
-
-            let now = utils::now();
-
-            loop {
-                let r = match api.events_since(batch_block_hash, 10).await {
-                    Ok(mut v) => v.err_or_succeed_batch(init_messages.keys().cloned()).await,
-                    Err(e) => Err(e),
-                };
-
-                if utils::now() - now > 1100 {
-                    results = Err(anyhow!("Out of time: probably blocks stopped.").into());
-                    break;
-                }
-
-                if matches!(r, Err(Error::EventNotFoundInIterator)) {
-                    continue;
-                } else {
-                    results = r;
-                    break;
-                }
-            }
-
-            let results = results?;
-
-            let mut listener = api.subscribe().await?;
-            let blocks_stopped = !listener.blocks_running().await?;
-
-            let mut program_ids = BTreeSet::new();
-
-            for (mid, maybe_err) in results {
-                let pid = init_messages.remove(&mid).expect("Infallible");
-
-                if let Some(expl) = maybe_err {
-                    logs.push(format!("[#{:<2}] Program with {pid:#.2} failed initialization on {mid:#.2} with a trap: '{expl}'", logs.len() + 1))
-                } else {
-                    // TODO: handle case of "NotExecuted". It's not actual for init messages, but will be useful in future.
-                    logs.push(format!(
-                        "[#{:<2}] {mid:#.2} successfully inited program with '{pid:#.2}'",
-                        logs.len() + 1
-                    ));
-                    program_ids.insert(pid);
-                }
-            }
-
-            Ok(Report {
-                logs,
-                program_ids,
-                blocks_stopped,
-                codes: BTreeSet::new(),
-            })
+            let (ex_results, block_hash) = api.create_program_batch(args).await?;
+            let messages = process_ex_results(ex_results);
+            process_events(api.into_gear_api(), messages, block_hash, true).await
         }
     }
+}
+
+fn process_ex_results<Key: Ord, Value>(
+    ex_results: impl IntoIterator<Item = GClientResult<(Key, Value)>>,
+) -> BTreeMap<Key, (Value, CallId)> {
+    let mut res = BTreeMap::<Key, (Value, CallId)>::new();
+
+    for (i, r) in ex_results.into_iter().enumerate() {
+        let call_id = i + 1;
+        match r {
+            Ok((key, value)) => {
+                res.insert(key, (value, call_id));
+                tracing::debug!("[Call with id: {call_id}]: Successfully executed.")
+            }
+            Err(e) => tracing::debug!("[Call with id: {call_id}]: Failed: '{e:?}'"),
+        }
+    }
+
+    res
+}
+
+async fn process_events(
+    api: GearApi,
+    mut messages: BTreeMap<MessageId, (ProgramId, usize)>,
+    block_hash: H256,
+    collect_programs: bool,
+) -> Result<Report> {
+    let now = utils::now();
+    // States what amount of blocks we should wait for taking all the events about successful `messages` execution
+    let wait_for_events_blocks = 10;
+    // Multiply on five to be 100% sure if no events occurred, than node is crashed
+    let wait_for_events_millisec = api.expected_block_time()? as usize * wait_for_events_blocks * 5;
+
+    let results = loop {
+        let r = match api.events_since(block_hash, wait_for_events_blocks).await {
+            Ok(mut v) => v.err_or_succeed_batch(messages.keys().copied()).await,
+            Err(e) => Err(e),
+        };
+
+        if (utils::now() - now) as usize > wait_for_events_millisec {
+            tracing::debug!("Timeout is reached while waiting for events");
+            return Err(anyhow!(utils::TIMEOUT_ERR_STR));
+        }
+
+        if matches!(r, Err(GClientError::EventNotFoundInIterator)) {
+            continue;
+        } else {
+            break r;
+        }
+    };
+
+    let mut program_ids = collect_programs.then(BTreeSet::new);
+
+    for (mid, maybe_err) in results? {
+        let (pid, call_id) = messages.remove(&mid).expect("Infallible");
+
+        if let Some(expl) = maybe_err {
+            tracing::debug!("[Call with id: {call_id}]: {mid:#.2} executing within program '{pid:#.2}' ended with a trap: '{expl}'");
+        } else {
+            tracing::debug!("[Call with id: {call_id}]: {mid:#.2} successfully executed within program '{pid:#.2}'");
+            program_ids.as_mut().map(|ids| ids.insert(pid));
+        }
+    }
+
+    Ok(Report {
+        program_ids: program_ids.unwrap_or_default(),
+        ..Default::default()
+    })
+}
+
+async fn inspect_crash_events(api: GearApi, node_stopper: String) -> Result<()> {
+    let mut event_listener = api.subscribe().await?;
+    // Waits until the queue processing reverted event is found.
+    // Error means either event is not found an can't be found
+    // in the listener, or some other error during event
+    // parsing occurred.
+    event_listener.queue_processing_reverted().await?;
+
+    let crash_err = CrashAlert::MsgProcessingStopped;
+    tracing::info!("{crash_err}");
+
+    utils::stop_node(node_stopper).await?;
+
+    Err(crash_err.into())
 }
