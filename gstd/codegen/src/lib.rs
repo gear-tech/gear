@@ -107,8 +107,7 @@ fn generate_handle_signal_if_required(mut code: TokenStream) -> TokenStream {
 
 fn generate_if_required(code: TokenStream) -> TokenStream {
     let code = generate_handle_reply_if_required(code);
-    let code = generate_handle_signal_if_required(code);
-    code
+    generate_handle_signal_if_required(code)
 }
 
 /// This is the procedural macro for your convenience.
