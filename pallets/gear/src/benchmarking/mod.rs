@@ -958,6 +958,66 @@ benchmarks! {
         verify_process(res.unwrap());
     }
 
+    // w_bench = 2 * w_i64const + w_i64add
+    instr_const_const_i64add {
+        let r in 0 .. INSTR_BENCHMARK_BATCHES;
+        let body = body::repeated_dyn(
+            r * INSTR_BENCHMARK_BATCH_SIZE,
+            vec![
+                RandomI64Repeated(1),
+                RandomI64Repeated(1),
+                Regular(Instruction::I64Add),
+                Regular(Instruction::Drop),
+            ],
+        );
+        let mut sbox = Sandbox::from(&WasmModule::<T>::from(ModuleDefinition {
+            handle_body: Some(body),
+            ..Default::default()
+        }));
+    }: {
+        sbox.invoke();
+    }
+
+    // w_bench = 2 * w_i64const + w_i64ctz + w_i64add
+    instr_const_const_ctz_i64add {
+        let r in 0 .. INSTR_BENCHMARK_BATCHES;
+        let body = body::repeated_dyn(
+            r * INSTR_BENCHMARK_BATCH_SIZE,
+            vec![
+                RandomI64Repeated(1),
+                RandomI64Repeated(1),
+                Regular(Instruction::I64Ctz),
+                Regular(Instruction::I64Add),
+                Regular(Instruction::Drop),
+            ],
+        );
+        let mut sbox = Sandbox::from(&WasmModule::<T>::from(ModuleDefinition {
+            handle_body: Some(body),
+            ..Default::default()
+        }));
+    }: {
+        sbox.invoke();
+    }
+
+    // w_bench = w_i64const + w_i64ctz
+    instr_const_i64ctz {
+        let r in 0 .. INSTR_BENCHMARK_BATCHES;
+        let body = body::repeated_dyn(
+            r * INSTR_BENCHMARK_BATCH_SIZE,
+            vec![
+                RandomI64Repeated(1),
+                Regular(Instruction::I64Ctz),
+                Regular(Instruction::Drop),
+            ],
+        );
+        let mut sbox = Sandbox::from(&WasmModule::<T>::from(ModuleDefinition {
+            handle_body: Some(body),
+            ..Default::default()
+        }));
+    }: {
+        sbox.invoke();
+    }
+
     // w_i32ctz = w_bench
     instr_i32ctz {
         let r in 0 .. INSTR_BENCHMARK_BATCHES;
@@ -1011,24 +1071,6 @@ benchmarks! {
         sbox.invoke();
     }
 
-    // w_i64const = w_bench - w_i64ctz
-    instr_const_i64ctz {
-        let r in 0 .. INSTR_BENCHMARK_BATCHES;
-        let body = body::repeated_dyn(
-            r * INSTR_BENCHMARK_BATCH_SIZE,
-            vec![
-                RandomI64Repeated(1),
-                Regular(Instruction::I64Ctz),
-                Regular(Instruction::Drop),
-            ],
-        );
-        let mut sbox = Sandbox::from(&WasmModule::<T>::from(ModuleDefinition {
-            handle_body: Some(body),
-            ..Default::default()
-        }));
-    }: {
-        sbox.invoke();
-    }
 
     // TODO: fix it
     // w_load = w_bench - w_i32const
