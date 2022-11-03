@@ -81,6 +81,8 @@ pub struct ProcessorContext {
     pub reserve_for: u32,
     /// Cost for reservation holding.
     pub reservation: u64,
+    /// Output from Randomness.
+    pub random_data: (Vec<u8>, u32),
 }
 
 /// Trait to which ext must have to work in processor wasm executor.
@@ -685,6 +687,10 @@ impl EnvExt for Ext {
             });
 
         self.return_and_store_err(result)
+    }
+
+    fn random(&self) -> (&[u8], u32) {
+        (&self.context.random_data.0, self.context.random_data.1)
     }
 
     fn forbidden_funcs(&self) -> &BTreeSet<&'static str> {

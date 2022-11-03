@@ -80,7 +80,7 @@
 
 use crate::{common::errors::Result, ActorId, MessageId};
 pub use gcore::exec::{
-    block_height, block_timestamp, gas_available, leave, value_available, wait, wait_for,
+    block_height, block_timestamp, gas_available, leave, random, value_available, wait, wait_for,
     wait_up_to,
 };
 

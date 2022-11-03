@@ -26,6 +26,7 @@ use frame_support::{
     traits::{ConstU64, FindAuthor},
     weights::RuntimeDbWeight,
 };
+use frame_support_test::TestRandomness;
 use frame_system as system;
 use sp_core::{ConstU128, H256};
 use sp_runtime::{
@@ -145,6 +146,7 @@ parameter_types! {
 
 impl pallet_gear::Config for Test {
     type RuntimeEvent = RuntimeEvent;
+    type Randomness = TestRandomness<Self>;
     type Currency = Balances;
     type GasPrice = GasConverter;
     type WeightInfo = ();

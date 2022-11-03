@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-#[cfg(feature = "debug")]
+#[cfg(any(feature = "debug", debug_assertions))]
 pub mod ext {
     use crate::error::{ExtError, Result};
 

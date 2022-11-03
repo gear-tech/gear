@@ -42,7 +42,7 @@
 ///
 /// Panics with the same `static_release` in release mode and with
 /// `format!(formatter, args)` + error message in debug mode.
-#[cfg(feature = "debug")]
+#[cfg(any(feature = "debug", debug_assertions))]
 #[macro_export]
 macro_rules! bail {
     ($res:expr, $msg:literal) => {
@@ -59,6 +59,7 @@ macro_rules! bail {
 }
 
 #[cfg(not(feature = "debug"))]
+#[cfg(not(debug_assertions))]
 #[macro_export]
 macro_rules! bail {
     ($res:expr, $msg:literal) => {

@@ -209,7 +209,7 @@ pub mod pallet {
         ensure,
         pallet_prelude::*,
         traits::{
-            BalanceStatus, Currency, ExistenceRequirement, Get, LockableCurrency,
+            BalanceStatus, Currency, ExistenceRequirement, Get, LockableCurrency, Randomness,
             ReservableCurrency,
         },
     };
@@ -224,6 +224,9 @@ pub mod pallet {
     {
         /// Because this pallet emits events, it depends on the runtime's definition of an event.
         type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
+
+        /// The generator used to supply randomness to contracts through `seal_random`
+        type Randomness: Randomness<Self::Hash, Self::BlockNumber>;
 
         /// Balances management trait for gas/value migrations.
         type Currency: LockableCurrency<Self::AccountId> + ReservableCurrency<Self::AccountId>;
@@ -1006,9 +1009,11 @@ pub mod pallet {
                                 })
                                 .unwrap_or(0);
 
+                            let (random, bn) = T::Randomness::random(dispatch_id.as_ref());
                             core_processor::process::<Ext, ExecutionEnvironment>(
                                 &block_config,
                                 (context, actor_id, code).into(),
+                                (random.encode(), bn.unique_saturated_into()),
                                 memory_pages,
                             )
                         }
@@ -1431,10 +1436,11 @@ pub mod pallet {
 
                                 let code = Self::get_code(context.actor_data().code_id, program_id)
                                     .unwrap_or_else(|| unreachable!("Program exists so do code"));
-
+                                let (random, bn) = T::Randomness::random(dispatch_id.as_ref());
                                 core_processor::process::<Ext, ExecutionEnvironment>(
                                     &block_config,
                                     (context, program_id, code).into(),
+                                    (random.encode(), bn.unique_saturated_into()),
                                     memory_pages,
                                 )
                             }

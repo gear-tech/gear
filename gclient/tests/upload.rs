@@ -29,7 +29,7 @@ const PATHS: [&str; 2] = [
 
 async fn upload_programs_and_check(api: &GearApi, codes: Vec<Vec<u8>>) -> Result<()> {
     // Taking block gas limit constant.
-    let gas_limit = api.block_gas_limit().await?;
+    let gas_limit = api.block_gas_limit()?;
 
     // Subscribing for events.
     let mut listener = api.subscribe().await?;

@@ -22,9 +22,23 @@ use crate::{
     internal::HoldBound,
     manager::HandleKind,
     mock::{
-        self, new_test_ext, run_to_block, run_to_next_block, Balances, Gear, GearProgram,
-        RuntimeEvent as MockRuntimeEvent, RuntimeOrigin, System, Test, BLOCK_AUTHOR,
-        LOW_BALANCE_USER, USER_1, USER_2, USER_3,
+        self,
+        new_test_ext,
+        run_to_block,
+        run_to_next_block,
+        Balances,
+        Gear,
+        GearProgram,
+        // Randomness,
+        RuntimeEvent as MockRuntimeEvent,
+        RuntimeOrigin,
+        System,
+        Test,
+        BLOCK_AUTHOR,
+        LOW_BALANCE_USER,
+        USER_1,
+        USER_2,
+        USER_3,
     },
     pallet, BlockGasLimitOf, Config, CostsPerBlockOf, DbWeightOf, Error, Event, GasAllowanceOf,
     GasHandlerOf, GasInfo, MailboxOf, Schedule, WaitlistOf,
@@ -44,7 +58,7 @@ use frame_support::{
     assert_noop, assert_ok,
     dispatch::Dispatchable,
     sp_runtime::traits::{TypedGet, Zero},
-    traits::Currency,
+    traits::{Currency, Randomness},
 };
 use frame_system::pallet_prelude::BlockNumberFor;
 use gear_backend_common::{StackEndError, TrapExplanation};
@@ -6677,5 +6691,95 @@ fn check_reply_push_payload_exceed() {
                     .into(),
             )),
         );
+    });
+}
+
+/// Check that random works and it's changing on next epoch.
+#[test]
+fn check_random_works() {
+    use blake2_rfc::blake2b::blake2b;
+    let wat = r#"
+        (module
+            (import "env" "gr_send_wgas" (func $send (param i32 i32 i32 i64 i32 i32 i32) (result i32)))
+            (import "env" "gr_source" (func $gr_source (param i32)))
+            (import "env" "gr_random" (func $gr_random (param i32 i32 i32 i32)))
+            (import "env" "memory" (memory 1))
+            (export "handle" (func $handle))
+            (export "init" (func $init))
+            (export "handle_reply" (func $handle_reply))
+            (func $handle
+                (local $msg_source i32)
+                (local $msg_val i32)
+                (local $random_seed i32)
+                (call $gr_random (i32.const 0) (i32.const 0) (i32.const 64) (i32.const 128))
+                (i32.store offset=2
+                    (get_local $msg_source)
+                    (i32.const 1)
+                )
+                (i32.store offset=10
+                    (get_local $msg_val)
+                    (i32.const 0)
+                )
+                (call $send (i32.const 2) (i32.const 64) (i32.const 32) (i64.const 10000000) (i32.const 10) (i32.const 0) (i32.const 40000))
+                (if
+                    (then unreachable)
+                    (else)
+                )
+            )
+            (func $handle_reply)
+            (func $init)
+        )"#;
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            ProgramCodeKind::Custom(wat).to_bytes(),
+            DEFAULT_SALT.to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
+            50_000_000_000,
+            0,
+        )
+        .expect("Failed to upload program");
+
+        let sender = utils::get_last_program_id();
+
+        let mut random_data = Vec::new();
+
+        (1..10).for_each(|_| {
+            assert_ok!(Gear::send_message(
+                RuntimeOrigin::signed(USER_1),
+                sender,
+                EMPTY_PAYLOAD.to_vec(),
+                50_000_000_000,
+                0,
+            ));
+
+            let output: (primitive_types::H256, u64) =
+                <Test as Config>::Randomness::random(get_last_message_id().as_ref());
+
+            random_data.push(output.0);
+            run_to_block(System::block_number() + 1, None);
+        });
+
+        assert_eq!(random_data.len(), MailboxOf::<Test>::len(&USER_1));
+
+        let mut sorted_mailbox: Vec<(gear_core::message::StoredMessage, Interval<u64>)> =
+            MailboxOf::<Test>::iter_key(USER_1).collect();
+        sorted_mailbox.sort_by(|a, b| a.1.finish.cmp(&b.1.finish));
+
+        sorted_mailbox
+            .iter()
+            .zip(random_data.iter())
+            .for_each(|((msg, _bn), random_data)| {
+                assert_eq!(
+                    blake2b(32, &[], &random_data.encode()).as_bytes(),
+                    msg.payload()
+                );
+            });
+
+        // // assert_last_dequeued(1);
+        // println!("{:?}", res);
+        // assert_eq!(blake2b(32, &[], &output.0.encode()).as_bytes(), res.payload());
     });
 }

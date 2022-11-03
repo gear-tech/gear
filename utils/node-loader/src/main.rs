@@ -5,13 +5,14 @@
 //! gets properly structured data acceptable by the gear node and randomizes it's "fields".
 //! That's why generated data is called semi-random.
 
+use anyhow::Result;
 use args::{parse_cli_params, LoadParams, Params};
-use batch_pool::{generators, BatchPool};
-use gclient::{GearApi, Result};
+use batch_pool::BatchPool;
 use rand::rngs::SmallRng;
 
 mod args;
 mod batch_pool;
+mod log;
 mod utils;
 
 /// Main entry-point
@@ -30,11 +31,7 @@ async fn run(params: Params) -> Result<()> {
 }
 
 async fn load_node(params: LoadParams) -> Result<()> {
-    let api = GearApi::init(utils::str_to_wsaddr(params.endpoint)).await?;
-
-    BatchPool::<SmallRng>::new(api, params.workers, params.batch_size)
-        .run(params.code_seed_type)
-        .await?;
-
-    unreachable!()
+    // this should not be dropped, until the loader works
+    let _guard = log::init_log()?;
+    BatchPool::<SmallRng>::run(params).await
 }
