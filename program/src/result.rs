@@ -1,38 +1,37 @@
 //! Custom result
 
-use crate::api::config::GearConfig;
-use subxt::ext::sp_core::H256;
+use crate::api::{config::GearConfig, types::TxStatus};
+use subxt::{ext::sp_core::H256, tx, OnlineClient};
 
-// type TxStatus<'t> = TransactionStatus<'t, GearConfig, DispatchError, Event>;
-//
-// /// transaction error
-// #[derive(Debug, thiserror::Error)]
-// pub enum TransactionError {
-//     #[error("Transaction Retracted( {0} )")]
-//     Retracted(H256),
-//     #[error("Transaction Timeout( {0} )")]
-//     FinalityTimeout(H256),
-//     #[error("Transaction Usurped( {0} )")]
-//     Usurped(H256),
-//     #[error("Transaction Dropped")]
-//     Dropped,
-//     #[error("Transaction Invalid")]
-//     Invalid,
-//     #[error("Not an error, this will never be reached.")]
-//     None,
-// }
-//
-// impl From<TxStatus<'_>> for Error {
-//     fn from(status: TxStatus<'_>) -> Self {
-//         match status {
-//             TransactionStatus::Retracted(h) => TransactionError::Retracted(h),
-//             TransactionStatus::FinalityTimeout(h) => TransactionError::FinalityTimeout(h),
-//             TransactionStatus::Usurped(h) => TransactionError::Usurped(h),
-//             _ => TransactionError::None,
-//         }
-//         .into()
-//     }
-// }
+/// transaction error
+#[derive(Debug, thiserror::Error)]
+pub enum TxError {
+    #[error("Transaction Retracted( {0} )")]
+    Retracted(H256),
+    #[error("Transaction Timeout( {0} )")]
+    FinalityTimeout(H256),
+    #[error("Transaction Usurped( {0} )")]
+    Usurped(H256),
+    #[error("Transaction Dropped")]
+    Dropped,
+    #[error("Transaction Invalid")]
+    Invalid,
+    #[error("Not an error, this will never be reached.")]
+    None,
+}
+
+impl From<TxStatus> for Error {
+    fn from(status: TxStatus) -> Self {
+        match status {
+            TxStatus::Retracted(h) => TxError::Retracted(h),
+            TxStatus::FinalityTimeout(h) => TxError::FinalityTimeout(h),
+            TxStatus::Usurped(h) => TxError::Usurped(h),
+            _ => TxError::None,
+        }
+        .into()
+    }
+}
+
 #[derive(Debug, thiserror::Error)]
 pub enum ClientError {
     #[error("Queried event not found.")]
@@ -47,8 +46,6 @@ pub enum ClientError {
     ProgramTerminated,
     #[error("The queried storage not found.")]
     StorageNotFound,
-    #[error(transparent)]
-    SubxtPublic(#[from] subxt::ext::sp_core::crypto::PublicError),
     #[error(transparent)]
     SubxtRpc(#[from] jsonrpsee::core::Error),
 }
@@ -100,6 +97,8 @@ pub enum Error {
     SerdeJson(#[from] serde_json::Error),
     #[error(transparent)]
     Subxt(#[from] subxt::Error),
+    #[error(transparent)]
+    SubxtPublic(#[from] subxt::ext::sp_core::crypto::PublicError),
     // #[error(transparent)]
     // SubxtBasic(#[from] subxt::BasicError),
     // #[error(transparent)]
@@ -113,8 +112,8 @@ pub enum Error {
     // ),
     // #[error(transparent)]
     // SubxtMetadata(#[from] subxt::MetadataError),
-    // #[error(transparent)]
-    // Tx(#[from] TransactionError),
+    #[error(transparent)]
+    Tx(#[from] TxError),
 }
 
 impl From<nacl::Error> for Error {

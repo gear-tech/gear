@@ -16,6 +16,7 @@ use subxt::{
     events::EventSubscription,
     ext::sp_runtime::{generic::Header, traits::BlakeTwo256},
     rpc::Subscription,
+    tx::{self, TxInBlock},
     OnlineClient,
 };
 
@@ -36,8 +37,11 @@ pub type Events =
 /// Gear pages.
 pub type GearPages = HashMap<u32, Vec<u8>>;
 
-// /// Transaction in block
-// pub type InBlock<'i> = Result<TransactionInBlock<'i, GearConfig, DispatchError, Event>>;
+/// Transaction in block.
+pub type InBlock = Result<TxInBlock<GearConfig, OnlineClient<GearConfig>>>;
+
+/// Transaction status.
+pub type TxStatus = tx::TxStatus<GearConfig, OnlineClient<GearConfig>>;
 
 /// Gear Program
 #[derive(Debug, Decode)]

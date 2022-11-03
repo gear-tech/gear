@@ -10,11 +10,11 @@ use subxt::{
         sp_core::{crypto::Ss58Codec, sr25519::Pair, Pair as PairT},
         sp_runtime::AccountId32,
     },
-    PairSigner,
+    tx::PairSigner,
 };
 
 mod calls;
-mod rpc;
+// mod rpc;
 mod utils;
 
 #[derive(Clone)]

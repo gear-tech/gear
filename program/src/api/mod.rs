@@ -1,16 +1,8 @@
 //! Gear api
 use crate::result::Result;
-// use crate::{
-//     api::{config::GearConfig, generated::api::RuntimeApi, signer::Signer},
-//     result::Result,
-// };
-use core::ops::{Deref, DerefMut};
-// use std::{str::FromStr, time::Duration};
-// use subxt::{
-//     rpc::{RpcClientBuilder, Uri, WsTransportClientBuilder},
-//     ClientBuilder, PolkadotExtrinsicParams,
-// };
 use config::GearConfig;
+use core::ops::{Deref, DerefMut};
+use signer::Signer;
 use subxt::{
     events::EventSubscription,
     ext::sp_runtime::{generic::Header, traits::BlakeTwo256},
@@ -23,7 +15,7 @@ mod constants;
 pub mod events;
 pub mod generated;
 mod rpc;
-// pub mod signer;
+pub mod signer;
 mod storage;
 pub mod types;
 mod utils;
@@ -49,18 +41,18 @@ impl Api {
     pub async fn events(&self) -> Result<types::Events> {
         Ok(self.0.events().subscribe().await?)
     }
+
+    /// New signer from api
+    pub fn signer(self, suri: &str, passwd: Option<&str>) -> Result<Signer> {
+        Signer::new(self, suri, passwd)
+    }
+
+    /// Try new signer from api
+    pub fn try_signer(self, passwd: Option<&str>) -> Result<Signer> {
+        Signer::try_new(self, passwd)
+    }
 }
-//     /// New signer from api
-//     pub fn signer(self, suri: &str, passwd: Option<&str>) -> Result<Signer> {
-//         Signer::new(self, suri, passwd)
-//     }
-//
-//     /// Try new signer from api
-//     pub fn try_signer(self, passwd: Option<&str>) -> Result<Signer> {
-//         Signer::try_new(self, passwd)
-//     }
-// }
-//
+
 impl Deref for Api {
     type Target = OnlineClient<GearConfig>;
 

@@ -40,7 +40,7 @@ impl Api {
             let ev = ev?;
             if ev.pallet_name() == "System" {
                 if ev.variant_name() == "ExtrinsicFailed" {
-                    Self::capture_weight_info(&ev);
+                    Self::capture_weight_info(&ev)?;
 
                     return Err(Error::from(DispatchError::decode_from(
                         ev.field_bytes(),
@@ -50,7 +50,7 @@ impl Api {
                 }
 
                 if ev.variant_name() == "ExtrinsicSuccess" {
-                    Self::capture_weight_info(&ev);
+                    Self::capture_weight_info(&ev)?;
                     break;
                 }
             }
