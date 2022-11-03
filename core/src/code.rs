@@ -67,7 +67,7 @@ fn get_exports(
 }
 
 /// Instrumentation error.
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum CodeError {
     /// The provided code doesn't contain required import section.
     ImportSectionNotFound,
@@ -389,5 +389,78 @@ impl From<CodeAndId> for InstrumentedCodeAndId {
         let (code, code_id) = code_and_id.into_parts();
         let (code, _) = code.into_parts();
         Self { code, code_id }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::code::{Code, CodeError};
+    use alloc::vec::Vec;
+    use gear_wasm_instrument::wasm_instrument::gas_metering::ConstantCostRules;
+
+    fn wat2wasm(s: &str) -> Vec<u8> {
+        wabt::Wat2Wasm::new()
+            .validate(true)
+            .convert(s)
+            .unwrap()
+            .as_ref()
+            .to_vec()
+    }
+
+    #[test]
+    fn reject_unknown_imports() {
+        const WAT: &str = r#"
+        (module
+            (import "env" "memory" (memory 1))
+            (export "this_is_import_unknown" (func $test))
+            (func $test)
+        )
+        "#;
+
+        let raw_code = wat2wasm(WAT);
+
+        assert_eq!(
+            Code::try_new(raw_code, 1, |_| ConstantCostRules::default(), None),
+            Err(CodeError::NonGearExportFnFound)
+        );
+    }
+
+    #[test]
+    fn required_fn_not_found() {
+        const WAT: &str = r#"
+        (module
+            (import "env" "memory" (memory 1))
+            (export "handle_signal" (func $handle_signal))
+            (func $handle_signal)
+        )
+        "#;
+
+        let raw_code = wat2wasm(WAT);
+
+        assert_eq!(
+            Code::try_new(raw_code, 1, |_| ConstantCostRules::default(), None),
+            Err(CodeError::RequiredExportFnNotFound)
+        );
+    }
+
+    #[test]
+    fn stack_limit_injection_works() {
+        const WAT: &str = r#"
+        (module
+            (import "env" "memory" (memory 1))
+            (export "init" (func $init))
+            (func $init)
+        )
+        "#;
+
+        let raw_code = wat2wasm(WAT);
+
+        let _ = Code::try_new(
+            raw_code,
+            1,
+            |_| ConstantCostRules::default(),
+            Some(16 * 1024),
+        )
+        .unwrap();
     }
 }
