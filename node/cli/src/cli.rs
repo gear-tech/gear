@@ -106,6 +106,6 @@ pub enum Subcommand {
     /// Only support gear runtime when features include both `gear-program/gear`
     /// and `gear-program/vara`.
     #[cfg(feature = "program")]
-    #[clap(name = "gear-program", about = "Run gear program cli.")]
+    #[clap(name = "program", about = "Run gear program cli.")]
     GearProgram(gear_program::cmd::Opt),
 }
