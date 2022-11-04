@@ -21,8 +21,9 @@ use frame_support::traits::{Currency, Get};
 use frame_system::RawOrigin;
 use gear_core::{
     code::{Code, CodeAndId},
-    ids::{CodeId, MessageId, ProgramId},
+    ids::{CodeId, MessageId, ProgramId, ReservationId},
     message::{Dispatch, DispatchKind, Message, ReplyDetails},
+    reservation::GasReservationSlot,
 };
 use gear_wasm_instrument::parity_wasm::elements::{Instruction, ValueType};
 use sp_core::H256;
@@ -360,11 +361,14 @@ where
     T: Config,
     T::AccountId: Origin,
 {
-    let id_bytes = u128::MAX.encode();
-    let id_len = id_bytes.len() as u32;
-    let id_offset = 1;
-    let amount_bytes = 1000u64.encode();
-    let amount_offset = id_offset + id_len;
+    let reservation_id_offset = 1;
+    let reservation_ids = (0..r * API_BENCHMARK_BATCH_SIZE)
+        .map(|i| ReservationId::from(i as u64))
+        .collect::<Vec<_>>();
+    let reservation_id_bytes: Vec<u8> = reservation_ids.iter().flat_map(|x| x.encode()).collect();
+
+    let amount_bytes = 1_000u64.encode();
+    let amount_offset = reservation_id_offset + reservation_id_bytes.len();
 
     let code = WasmModule::<T>::from(ModuleDefinition {
         memory: Some(ImportedMemory::max::<T>()),
@@ -376,26 +380,43 @@ where
         }],
         data_segments: vec![
             DataSegment {
-                offset: id_offset,
-                value: id_bytes,
+                offset: reservation_id_offset as u32,
+                value: reservation_id_bytes,
             },
             DataSegment {
-                offset: amount_offset,
+                offset: amount_offset as u32,
                 value: amount_bytes,
             },
         ],
-        handle_body: Some(body::repeated(
+        handle_body: Some(body::repeated_dyn(
             r * API_BENCHMARK_BATCH_SIZE,
-            &[
-                Instruction::I32Const(id_offset as i32),     // id ptr
-                Instruction::I32Const(amount_offset as i32), // unreserved amount ptr
-                Instruction::Call(0),
-                Instruction::Drop,
+            vec![
+                Counter(
+                    reservation_id_offset as u32,
+                    size_of::<ReservationId>() as u32,
+                ), // reservation_id ptr
+                Regular(Instruction::I32Const(amount_offset as i32)), // unreserved amount ptr
+                Regular(Instruction::Call(0)),
+                Regular(Instruction::Drop),
             ],
         )),
         ..Default::default()
     });
     let instance = Program::<T>::new(code, vec![])?;
+
+    // insert gas reservation slots
+    let mut program = common::get_active_program(instance.addr).unwrap();
+    for x in 0..r * API_BENCHMARK_BATCH_SIZE {
+        program.gas_reservation_map.insert(
+            ReservationId::from(x as u64),
+            GasReservationSlot {
+                amount: 1_000,
+                expiration: 100,
+            },
+        );
+    }
+    common::set_program(instance.addr, program);
+
     prepare::<T>(
         instance.caller.into_origin(),
         HandleKind::Handle(ProgramId::from_origin(instance.addr)),
