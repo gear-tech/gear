@@ -3486,14 +3486,11 @@ name = "gear-wasm-gen"
 version = "0.1.0"
 dependencies = [
  "arbitrary",
- "gear-backend-common",
- "gear-backend-wasmi",
- "gear-core",
  "gear-wasm-instrument",
  "indicatif",
  "rand 0.8.5",
  "wasm-smith",
- "wasmparser 0.92.0",
+ "wasmparser 0.93.0",
  "wasmprinter",
 ]
 
@@ -3501,6 +3498,9 @@ dependencies = [
 name = "gear-wasm-instrument"
 version = "0.1.0"
 dependencies = [
+ "gear-backend-common",
+ "gear-backend-wasmi",
+ "gear-core",
  "wasm-instrument 0.2.1",
  "wasmparser 0.90.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "wat",
