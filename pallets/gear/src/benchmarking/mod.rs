@@ -990,12 +990,12 @@ benchmarks! {
         sbox.invoke();
     }
 
-    instr_const_i64add_const_i64add {
+    instr_const_const_i64add_const_i64add {
         let r in 0 .. INSTR_BENCHMARK_BATCHES;
         let body = body::repeated_dyn(
             r * INSTR_BENCHMARK_BATCH_SIZE,
             vec![
-                RandomI64Repeated(1),
+                RandomI64Repeated(2),
                 Regular(Instruction::I64Add),
                 RandomI64Repeated(1),
                 Regular(Instruction::I64Add),
