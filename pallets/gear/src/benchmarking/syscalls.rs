@@ -1143,7 +1143,7 @@ where
     T::AccountId: Origin,
 {
     let offset = 1;
-    let message_ids = (0..r)
+    let message_ids = (0..r * API_BENCHMARK_BATCH_SIZE)
         .map(|i| MessageId::from(i as u64))
         .collect::<Vec<_>>();
     let message_id_bytes = message_ids.iter().flat_map(|x| x.encode()).collect();
