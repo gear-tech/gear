@@ -154,6 +154,10 @@ macro_rules! impl_runtime_apis_plus_common {
 				) -> Result<pallet_gear::GasInfo, Vec<u8>> {
 					Gear::calculate_gas_info(account_id, kind, payload, value, allow_other_panics, initial_gas)
 				}
+
+				fn read_state(program_id: H256) -> Result<Vec<u8>, Vec<u8>> {
+					Gear::read_state(program_id)
+				}
 			}
 
 			#[cfg(feature = "runtime-benchmarks")]

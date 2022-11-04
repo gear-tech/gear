@@ -91,6 +91,9 @@ pub trait GearApi<BlockHash, ResponseType> {
         allow_other_panics: bool,
         at: Option<BlockHash>,
     ) -> RpcResult<GasInfo>;
+
+    #[method(name = "gear_readState")]
+    fn read_state(&self, program_id: H256, at: Option<BlockHash>) -> RpcResult<Vec<u8>>;
 }
 
 /// A struct that implements the [`GearApi`](/gclient/struct.GearApi.html).
@@ -302,5 +305,17 @@ where
                 Some(min_limit),
             )
         })
+    }
+
+    fn read_state(
+        &self,
+        program_id: H256,
+        at: Option<<Block as BlockT>::Hash>,
+    ) -> RpcResult<Vec<u8>> {
+        let at = BlockId::hash(at.unwrap_or_else(||
+            // If the block hash is not supplied assume the best block.
+            self.client.info().best_hash));
+
+        self.run_with_api_copy(|api| api.read_state(&at, program_id))
     }
 }

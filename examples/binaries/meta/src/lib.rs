@@ -18,7 +18,7 @@
 #![no_std]
 
 use codec::{Decode, Encode};
-use gstd::{String, ToString, Vec};
+use gstd::{prelude::vec, String, ToString, Vec};
 use scale_info::TypeInfo;
 
 #[cfg(feature = "std")]
@@ -37,7 +37,7 @@ mod wasm {
 }
 
 // Metatypes for input and output
-#[derive(TypeInfo, Decode, Encode)]
+#[derive(TypeInfo, Default, Decode, Encode)]
 pub struct MessageInitIn {
     pub amount: u8,
     pub currency: String,
@@ -104,6 +104,33 @@ pub struct Person {
 pub struct Wallet {
     pub id: Id,
     pub person: Person,
+}
+
+impl Wallet {
+    pub fn test_sequence() -> Vec<Self> {
+        vec![
+            Wallet {
+                id: Id {
+                    decimal: 1,
+                    hex: [1].to_vec(),
+                },
+                person: Person {
+                    surname: "SomeSurname".into(),
+                    name: "SomeName".into(),
+                },
+            },
+            Wallet {
+                id: Id {
+                    decimal: 2,
+                    hex: [2].to_vec(),
+                },
+                person: Person {
+                    surname: "OtherName".into(),
+                    name: "OtherSurname".into(),
+                },
+            },
+        ]
+    }
 }
 
 #[derive(TypeInfo, Decode, Encode, Clone)]

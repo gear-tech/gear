@@ -737,7 +737,7 @@ pub mod pallet {
             Ok(().into())
         }
 
-        pub fn read_state(program_id: ProgramId) -> Result<Vec<u8>, &'static str> {
+        pub(crate) fn read_state_impl(program_id: ProgramId) -> Result<Vec<u8>, &'static str> {
             log::debug!("Reading state of {program_id:?}");
 
             let mut block_config = Self::block_config();
@@ -838,6 +838,12 @@ pub mod pallet {
                 PrepareResult::WontExecute(_) => Err("Entry `state` not found"),
                 PrepareResult::Error(_) => Err("Error occurred during preparations"),
             }
+        }
+
+        pub fn read_state(program_id: H256) -> Result<Vec<u8>, Vec<u8>> {
+            let program_id = ProgramId::from_origin(program_id.into_origin());
+
+            Self::read_state_impl(program_id).map_err(|e| e.as_bytes().to_vec())
         }
 
         #[cfg(not(test))]

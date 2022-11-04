@@ -11,26 +11,7 @@ unsafe extern "C" fn handle() {
 
 #[no_mangle]
 unsafe extern "C" fn init() {
-    WALLETS.push(Wallet {
-        id: Id {
-            decimal: 1,
-            hex: vec![1u8],
-        },
-        person: Person {
-            surname: "SomeSurname".into(),
-            name: "SomeName".into(),
-        },
-    });
-    WALLETS.push(Wallet {
-        id: Id {
-            decimal: 2,
-            hex: vec![2u8],
-        },
-        person: Person {
-            surname: "OtherName".into(),
-            name: "OtherSurname".into(),
-        },
-    });
+    WALLETS = Wallet::test_sequence();
 
     let message_init_in: MessageInitIn = msg::load().unwrap();
     let message_init_out: MessageInitOut = message_init_in.into();

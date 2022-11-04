@@ -140,6 +140,35 @@ fn unstoppable_block_execution_works() {
 }
 
 #[test]
+fn read_state_works() {
+    use demo_meta::{MessageInitIn, Wallet, WASM_BINARY};
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_2),
+            WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            <MessageInitIn as Default>::default().encode(),
+            DEFAULT_GAS_LIMIT * 100,
+            10_000,
+        ));
+
+        let program_id = utils::get_last_program_id();
+
+        run_to_next_block(None);
+
+        assert!(Gear::is_initialized(program_id));
+
+        let expected = Wallet::test_sequence().encode();
+
+        let res = Gear::read_state_impl(program_id).expect("Failed to read state");
+
+        assert_eq!(res, expected);
+    });
+}
+
+#[test]
 fn mailbox_rent_out_of_rent() {
     use demo_value_sender::{TestData, WASM_BINARY};
 
