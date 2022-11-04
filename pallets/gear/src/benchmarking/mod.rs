@@ -17,6 +17,19 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! Benchmarks for the gear pallet
+//!
+//! ## i32const benchmarking
+//! Wasmer has many optimizations, that optimize i32const usage,
+//! so calculate this instruction constant weight is not easy.
+//! Because of this we suppose that i32const instruction has weight = 0,
+//! in cases we subtract its weight from benchmark weight to calculate
+//! benched instruction weight. But also we suppose i32const == i64const,
+//! when we calculate block code weight. This is more safe solution,
+//! but also more expensive.
+//!
+//! ## Drop, Block, End
+//! This is virtual instruction for wasmer, they aren't really generated in target code,
+//! the only thing they do - wasmer take them in account, when compiles wasm code.
 
 #![cfg(feature = "runtime-benchmarks")]
 
@@ -1016,121 +1029,6 @@ benchmarks! {
         sbox.invoke();
     }
 
-    // w_bench = 2 * w_i32const + 2 * w_i32ctz + w_i32add
-    instr_const_ctz_const_ctz_i32add {
-        let r in 0 .. INSTR_BENCHMARK_BATCHES;
-        let body = body::repeated_dyn(
-            r * INSTR_BENCHMARK_BATCH_SIZE,
-            vec![
-                RandomI32Repeated(1),
-                Regular(Instruction::I32Ctz),
-                RandomI32Repeated(1),
-                Regular(Instruction::I32Ctz),
-                Regular(Instruction::I32Add),
-                Regular(Instruction::Drop),
-            ],
-        );
-        let mut sbox = Sandbox::from(&WasmModule::<T>::from(ModuleDefinition {
-            handle_body: Some(body),
-            ..Default::default()
-        }));
-    }: {
-        sbox.invoke();
-    }
-
-    // w_bench = 2 * w_i32const + w_i32ctz + w_i32add
-    instr_const_const_ctz_i32add {
-        let r in 0 .. INSTR_BENCHMARK_BATCHES;
-        let body = body::repeated_dyn(
-            r * INSTR_BENCHMARK_BATCH_SIZE,
-            vec![
-                RandomI32Repeated(2),
-                Regular(Instruction::I32Ctz),
-                Regular(Instruction::I32Add),
-                Regular(Instruction::Drop),
-            ],
-        );
-        let mut sbox = Sandbox::from(&WasmModule::<T>::from(ModuleDefinition {
-            handle_body: Some(body),
-            ..Default::default()
-        }));
-    }: {
-        sbox.invoke();
-    }
-
-    // w_bench = w_i32const + w_i32ctz
-    instr_const_i32ctz {
-        let r in 0 .. INSTR_BENCHMARK_BATCHES;
-        let body = body::repeated_dyn(
-            r * INSTR_BENCHMARK_BATCH_SIZE,
-            vec![
-                RandomI32Repeated(1),
-                Regular(Instruction::I32Ctz),
-                Regular(Instruction::Drop),
-            ],
-        );
-        let mut sbox = Sandbox::from(&WasmModule::<T>::from(ModuleDefinition {
-            handle_body: Some(body),
-            ..Default::default()
-        }));
-    }: {
-        sbox.invoke();
-    }
-
-    // w_i32ctz = w_bench
-    // instr_i32ctz {
-    //     let r in 0 .. INSTR_BENCHMARK_BATCHES;
-    //     let mut instructions = vec![Instruction::I32Const(0xFFFFF)];
-    //     for _ in 0..r * INSTR_BENCHMARK_BATCH_SIZE {
-    //         instructions.push(Instruction::I32Ctz);
-    //     }
-    //     instructions.push(Instruction::Drop);
-    //     let body = body::from_instructions(instructions);
-    //     let mut sbox = Sandbox::from(&WasmModule::<T>::from(ModuleDefinition {
-    //         handle_body: Some(body),
-    //         ..Default::default()
-    //     }));
-    // }: {
-    //     sbox.invoke();
-    // }
-
-    // w_i64ctz = w_bench
-    // instr_i64ctz {
-    //     let r in 0 .. INSTR_BENCHMARK_BATCHES;
-    //     let mut instructions = vec![Instruction::I64Const(0xFFFFFFFF)];
-    //     for _ in 0..r * INSTR_BENCHMARK_BATCH_SIZE {
-    //         instructions.push(Instruction::I64Ctz);
-    //     }
-    //     instructions.push(Instruction::Drop);
-    //     let body = body::from_instructions(instructions);
-    //     let mut sbox = Sandbox::from(&WasmModule::<T>::from(ModuleDefinition {
-    //         handle_body: Some(body),
-    //         ..Default::default()
-    //     }));
-    // }: {
-    //     sbox.invoke();
-    // }
-
-    // // w_i32const = w_bench - w_i32ctz
-    // instr_const_i32ctz {
-    //     let r in 0 .. INSTR_BENCHMARK_BATCHES;
-    //     let body = body::repeated_dyn(
-    //         r * INSTR_BENCHMARK_BATCH_SIZE,
-    //         vec![
-    //             RandomI32Repeated(1),
-    //             Regular(Instruction::I32Ctz),
-    //             Regular(Instruction::Drop),
-    //         ],
-    //     );
-    //     let mut sbox = Sandbox::from(&WasmModule::<T>::from(ModuleDefinition {
-    //         handle_body: Some(body),
-    //         ..Default::default()
-    //     }));
-    // }: {
-    //     sbox.invoke();
-    // }
-
-
     // TODO: fix it
     // w_load = w_bench - w_i32const
     instr_i64load {
@@ -1165,7 +1063,7 @@ benchmarks! {
         sbox.invoke();
     }
 
-    // w_select = w_bench - 2 * w_i64const - w_i32const
+    // w_select = w_bench - 2 * w_i64const (don't consider i32const, see head comment).
     instr_select {
         let r in 0 .. INSTR_BENCHMARK_BATCHES;
         let mut sbox = Sandbox::from(&WasmModule::<T>::from(ModuleDefinition {
@@ -1182,7 +1080,7 @@ benchmarks! {
         sbox.invoke();
     }
 
-    // w_if = w_bench - w_i32const
+    // w_if = w_bench (don't consider i32const, see head comment).
     instr_if {
         let r in 0 .. INSTR_BENCHMARK_BATCHES;
         let mut instructions = body::repeated_dyn_instr(
@@ -1237,7 +1135,7 @@ benchmarks! {
         sbox.invoke();
     }
 
-    // w_br_table = w_bench - w_i32const
+    // w_br_table = w_bench - w_i32const (don't consider i32const, see head comment).
     instr_br_table {
         let r in 0 .. INSTR_BENCHMARK_BATCHES;
         let table = Box::new(BrTableData {
@@ -1305,7 +1203,7 @@ benchmarks! {
         sbox.invoke();
     }
 
-    // w_call_indirect = w_bench - w_i32const
+    // w_call_indirect = w_bench (don't consider i32const, see head comment).
     instr_call_indirect {
         let r in 0 .. INSTR_BENCHMARK_BATCHES;
         let num_elements = T::Schedule::get().limits.table_size;
@@ -1325,7 +1223,7 @@ benchmarks! {
         sbox.invoke();
     }
 
-    // w_instr_call_indirect_per_param = w_bench - w_i32const - w_i64const
+    // w_instr_call_indirect_per_param = w_bench - w_i64const (don't consider i32const, see head comment).
     // Calling a function indirectly causes it to go through a thunk function whose runtime
     // linearly depend on the amount of parameters to this function.
     instr_call_indirect_per_param {
@@ -1481,6 +1379,7 @@ benchmarks! {
         sbox.invoke();
     }
 
+    // w_extends = w_bench (don't consider i32const, see head comment).
     instr_i64extendsi32 {
         let r in 0 .. INSTR_BENCHMARK_BATCHES;
         let mut sbox = Sandbox::from(&WasmModule::<T>::from(ModuleDefinition {
@@ -1495,6 +1394,7 @@ benchmarks! {
         sbox.invoke();
     }
 
+    // w_extends = w_bench (don't consider i32const, see head comment).
     instr_i64extendui32 {
         let r in 0 .. INSTR_BENCHMARK_BATCHES;
         let mut sbox = Sandbox::from(&WasmModule::<T>::from(ModuleDefinition {
@@ -1616,16 +1516,6 @@ benchmarks! {
         let r in 0 .. INSTR_BENCHMARK_BATCHES;
         let mut sbox = Sandbox::from(&WasmModule::<T>::binary_instr(
             Instruction::I64GeU,
-            r * INSTR_BENCHMARK_BATCH_SIZE,
-        ));
-    }: {
-        sbox.invoke();
-    }
-
-    instr_i64add {
-        let r in 0 .. INSTR_BENCHMARK_BATCHES;
-        let mut sbox = Sandbox::from(&WasmModule::<T>::binary_instr(
-            Instruction::I64Add,
             r * INSTR_BENCHMARK_BATCH_SIZE,
         ));
     }: {
