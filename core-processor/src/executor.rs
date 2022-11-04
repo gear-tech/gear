@@ -182,7 +182,7 @@ pub(crate) fn charge_gas_for_pages(
         return Ok(static_pages);
     }
 
-    let max_wasm_page = if let Some(page) = allocations.last() {
+    let max_wasm_page = if let Some(page) = allocations.iter().next_back() {
         *page
     } else if static_pages != WasmPageNumber(0) {
         static_pages - 1.into()
@@ -505,11 +505,28 @@ mod tests {
     use super::*;
     use alloc::vec::Vec;
 
-    fn generate_pages_and_allocs() -> (Vec<PageNumber>, BTreeSet<WasmPageNumber>) {
+    fn prepare_pages_and_allocs() -> (Vec<PageNumber>, BTreeSet<WasmPageNumber>) {
         let data = [0, 1, 2, 8, 18, 25, 27, 28, 93, 146, 240, 518];
         let pages = data.map(PageNumber);
         let allocs = data.map(|p| WasmPageNumber(p / PageNumber::num_in_one_wasm_page()));
         (pages.to_vec(), allocs.into())
+    }
+
+    fn prepare_alloc_config() -> AllocationsConfig {
+        AllocationsConfig {
+            max_pages: 32.into(),
+            init_cost: 1000,
+            alloc_cost: 2000,
+            mem_grow_cost: 3000,
+            load_page_cost: 4000,
+        }
+    }
+
+    fn prepare_gas_couters() -> (GasCounter, GasAllowanceCounter) {
+        (
+            GasCounter::new(1_000_000),
+            GasAllowanceCounter::new(4_000_000),
+        )
     }
 
     #[test]
@@ -520,7 +537,7 @@ mod tests {
 
     #[test]
     fn check_memory_not_allocated() {
-        let (pages, mut allocs) = generate_pages_and_allocs();
+        let (pages, mut allocs) = prepare_pages_and_allocs();
         let last = *allocs.last().unwrap();
         allocs.remove(&last);
         let res = check_memory(&allocs, pages.iter(), 2.into(), 4.into());
@@ -534,11 +551,96 @@ mod tests {
 
     #[test]
     fn check_memory_ok() {
-        let (pages, allocs) = generate_pages_and_allocs();
+        let (pages, allocs) = prepare_pages_and_allocs();
         let res = check_memory(&allocs, pages.iter(), 4.into(), 8.into());
         assert!(res.is_ok());
     }
 
     #[test]
-    fn gas_for_pages() {}
+    fn gas_for_pages_initial() {
+        let settings = prepare_alloc_config();
+        let (mut counter, mut allowance_counter) = prepare_gas_couters();
+        let static_pages = 4u32;
+        let res = charge_gas_for_pages(
+            &settings,
+            &mut counter,
+            &mut allowance_counter,
+            &Default::default(),
+            static_pages.into(),
+            true,
+            false,
+        );
+        // Result is static pages count
+        assert_eq!(res, Ok(static_pages.into()));
+        // Charging for static pages initialization
+        let charge = settings.init_cost * static_pages as u64;
+        assert_eq!(counter.left(), 1_000_000 - charge);
+        assert_eq!(allowance_counter.left(), 4_000_000 - charge);
+    }
+
+    #[test]
+    fn gas_for_pages_static() {
+        let settings = prepare_alloc_config();
+        let (mut counter, mut allowance_counter) = prepare_gas_couters();
+        let static_pages = 4u32;
+        let res = charge_gas_for_pages(
+            &settings,
+            &mut counter,
+            &mut allowance_counter,
+            &Default::default(),
+            static_pages.into(),
+            false,
+            false,
+        );
+        // Result is static pages count
+        assert_eq!(res, Ok(static_pages.into()));
+        // Charge for the first load of static pages
+        let charge = settings.load_page_cost * static_pages as u64;
+        assert_eq!(counter.left(), 1_000_000 - charge);
+        assert_eq!(allowance_counter.left(), 4_000_000 - charge);
+    }
+
+    #[test]
+    fn gas_for_pages_alloc() {
+        let settings = prepare_alloc_config();
+        let (mut counter, mut allowance_counter) = prepare_gas_couters();
+        let (_, allocs) = prepare_pages_and_allocs();
+        let static_pages = 4u32;
+        let res = charge_gas_for_pages(
+            &settings,
+            &mut counter,
+            &mut allowance_counter,
+            &allocs,
+            static_pages.into(),
+            false,
+            false,
+        );
+        // Result is the last page plus one
+        let last = *allocs.last().unwrap();
+        assert_eq!(res, Ok(last + 1.into()));
+        // Charge for loading and mem grow
+        let load_charge = settings.load_page_cost * (allocs.len() as u64 + static_pages as u64);
+        let grow_charge = settings.mem_grow_cost * (last.0 as u64 + 1 - static_pages as u64);
+        assert_eq!(counter.left(), 1_000_000 - load_charge - grow_charge);
+        assert_eq!(
+            allowance_counter.left(),
+            4_000_000 - load_charge - grow_charge
+        );
+
+        // Use the second time (`subsequent` = `true`)
+        let (mut counter, mut allowance_counter) = prepare_gas_couters();
+        let res = charge_gas_for_pages(
+            &settings,
+            &mut counter,
+            &mut allowance_counter,
+            &allocs,
+            static_pages.into(),
+            false,
+            true,
+        );
+        assert_eq!(res, Ok(last + 1.into()));
+        // Charge for mem grow only
+        assert_eq!(counter.left(), 1_000_000 - grow_charge);
+        assert_eq!(allowance_counter.left(), 4_000_000 - grow_charge);
+    }
 }
