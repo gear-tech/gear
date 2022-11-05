@@ -971,6 +971,26 @@ benchmarks! {
         verify_process(res.unwrap());
     }
 
+    instr_i64rems_i64rems {
+        let r in 0 .. INSTR_BENCHMARK_BATCHES;
+        let body = body::repeated_dyn(
+            r * INSTR_BENCHMARK_BATCH_SIZE,
+            vec![
+                RandomI64Repeated(2),
+                Regular(Instruction::I64RemS),
+                RandomI64Repeated(1),
+                Regular(Instruction::I64RemS),
+                Regular(Instruction::Drop),
+            ],
+        );
+        let mut sbox = Sandbox::from(&WasmModule::<T>::from(ModuleDefinition {
+            handle_body: Some(body),
+            ..Default::default()
+        }));
+    }: {
+        sbox.invoke();
+    }
+
     // w_bench = 2 * w_i64const + w_i64add
     instr_const_const_i64add {
         let r in 0 .. INSTR_BENCHMARK_BATCHES;
