@@ -76,7 +76,12 @@ pub fn gr_read(ctx: impl AsContextMut<Data = StoreData>, memory: Memory) -> Exte
 pub fn gr_reply(ctx: impl AsContextMut<Data = StoreData>, _memory: Memory) -> Extern {
     Extern::Func(Func::wrap(
         ctx,
-        move |mut _caller: Caller<'_, StoreData>, _ptr: u32, _len: i32, _val: i32, _msg: i32| 0,
+        move |mut _caller: Caller<'_, StoreData>,
+              _ptr: u32,
+              _len: i32,
+              _val: i32,
+              _delay: i32,
+              _msg: i32| 0,
     ))
 }
 

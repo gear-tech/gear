@@ -170,10 +170,7 @@ fn read_state_works() {
 
 #[test]
 fn read_state_using_wasm_works() {
-    use demo_meta::{Id, MessageInitIn, Wallet, WASM_BINARY};
-
-    let meta = std::fs::read("../../target/wasm32-unknown-unknown/release/demo_meta.wasm")
-        .expect("Binary found");
+    use demo_meta::{Id, MessageInitIn, Wallet, WASM_BINARY, WASM_BINARY_META};
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -197,7 +194,7 @@ fn read_state_using_wasm_works() {
         let res = Gear::read_state_using_wasm_impl(
             program_id,
             String::from("all_wallets"),
-            meta.clone(),
+            WASM_BINARY_META.to_vec(),
             None,
         )
         .expect("Failed to read state");
@@ -218,7 +215,7 @@ fn read_state_using_wasm_works() {
         let res = Gear::read_state_using_wasm_impl(
             program_id,
             String::from("specific_wallet"),
-            meta,
+            WASM_BINARY_META.to_vec(),
             Some(id.encode()),
         )
         .expect("Failed to read state");
