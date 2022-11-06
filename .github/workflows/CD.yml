@@ -83,6 +83,7 @@ jobs:
         with:
           secret: ${{ github.TOKEN }}
           approvers: sergeyfilyanin,kvs96
+          minimum-approvals: 1
           
       - name: Update all validators in production
         run: echo deploying
