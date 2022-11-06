@@ -159,8 +159,13 @@ macro_rules! impl_runtime_apis_plus_common {
 					Gear::read_state(program_id)
 				}
 
-				fn read_state_using_wasm(program_id: H256, function: String, wasm: Vec<u8>) -> Result<Vec<u8>, Vec<u8>> {
-					Gear::read_state_using_wasm(program_id, function, wasm)
+				fn read_state_using_wasm(
+					program_id: H256,
+					fn_name: Vec<u8>,
+					wasm: Vec<u8>,
+					argument: Option<Vec<u8>>,
+				) -> Result<Vec<u8>, Vec<u8>> {
+					Gear::read_state_using_wasm(program_id, fn_name, wasm, argument)
 				}
 			}
 

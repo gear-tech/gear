@@ -194,7 +194,7 @@ pub mod pallet {
     use gear_lazy_pages_common as lazy_pages;
 
     use crate::manager::{CodeInfo, ExtManager, HandleKind, QueuePostProcessingData};
-    use alloc::format;
+    use alloc::{format, string::String};
     use common::{
         self, event::*, BlockLimiter, CodeMetadata, GasPrice, GasProvider, GasTree, Origin,
         Program, ProgramState,
@@ -748,8 +748,11 @@ pub mod pallet {
             program_id: ProgramId,
             function: String,
             wasm: Vec<u8>,
+            argument: Option<Vec<u8>>,
         ) -> Result<Vec<u8>, &'static str> {
-            let payload = Self::read_state_impl(program_id)?;
+            let mut payload = argument.unwrap_or_default();
+
+            payload.append(&mut Self::read_state_impl(program_id)?);
 
             core_processor::informational::execute_for_reply::<Ext, ExecutionEnvironment>(
                 wasm, function, payload,
@@ -758,12 +761,17 @@ pub mod pallet {
 
         pub fn read_state_using_wasm(
             program_id: H256,
-            function: String,
+            fn_name: Vec<u8>,
             wasm: Vec<u8>,
+            argument: Option<Vec<u8>>,
         ) -> Result<Vec<u8>, Vec<u8>> {
             let program_id = ProgramId::from_origin(program_id.into_origin());
 
-            Self::read_state_using_wasm_impl(program_id, function, wasm)
+            String::from_utf8(fn_name)
+                .map_err(|_| "Non-utf8 function name")
+                .and_then(|fn_name| {
+                    Self::read_state_using_wasm_impl(program_id, fn_name, wasm, argument)
+                })
                 .map_err(|e| e.as_bytes().to_vec())
         }
 
