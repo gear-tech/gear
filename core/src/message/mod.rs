@@ -110,9 +110,22 @@ pub enum DispatchKind {
     State,
 }
 
-impl DispatchKind {
-    /// Convert `DispatchKind` into entry point function name.
-    pub const fn into_entry(self) -> &'static str {
+/// Trait defining type could be used as entry point for a wasm module.
+pub trait WasmEntry: Sized {
+    /// Converting self into entry point name.
+    fn as_entry(&self) -> &str;
+
+    /// Converting entry point name into self object, if possible.
+    fn try_from_entry(entry: &str) -> Option<Self>;
+
+    /// Tries to convert self into `DispatchKind`.
+    fn try_into_kind(&self) -> Option<DispatchKind> {
+        <DispatchKind as WasmEntry>::try_from_entry(self.as_entry())
+    }
+}
+
+impl WasmEntry for DispatchKind {
+    fn as_entry(&self) -> &str {
         match self {
             Self::Init => "init",
             Self::Handle => "handle",
@@ -122,8 +135,7 @@ impl DispatchKind {
         }
     }
 
-    /// Convert `str` into `DispatchKind`, if valid, otherwise returns `None`.
-    pub fn try_from_entry(entry: &str) -> Option<Self> {
+    fn try_from_entry(entry: &str) -> Option<Self> {
         let kind = match entry {
             "init" => Self::Init,
             "handle" => Self::Handle,
@@ -135,7 +147,9 @@ impl DispatchKind {
 
         Some(kind)
     }
+}
 
+impl DispatchKind {
     /// Check if kind is init.
     pub fn is_init(&self) -> bool {
         matches!(self, Self::Init)

@@ -35,7 +35,12 @@ use gear_backend_common::{
     GetGasAmount, IntoExtInfo, StackEndError, TerminationReason, TrapExplanation,
     STACK_END_EXPORT_NAME,
 };
-use gear_core::{env::Ext, gas::GasAmount, memory::WasmPageNumber, message::DispatchKind};
+use gear_core::{
+    env::Ext,
+    gas::GasAmount,
+    memory::WasmPageNumber,
+    message::{DispatchKind, WasmEntry},
+};
 use gear_wasm_instrument::{GLOBAL_NAME_ALLOWANCE, GLOBAL_NAME_GAS};
 use wasmi::{core::Value, Engine, Extern, Instance, Linker, Memory, MemoryType, Module, Store};
 
@@ -159,7 +164,7 @@ where
 
     fn execute<F, T>(
         self,
-        entry_point: &DispatchKind,
+        entry_point: impl WasmEntry,
         pre_execution_handler: F,
     ) -> Result<BackendReport<Self::Memory, E>, Self::Error>
     where
@@ -211,15 +216,42 @@ where
             (gas_amount!(store), PreExecutionHandler(e.to_string()))
         })?;
 
-        let res = if entries.contains(entry_point) {
+        let res = if let Some(kind) = entry_point.try_into_kind() {
+            if entries.contains(&kind) {
+                let func = instance
+                    .get_export(&memory_wrap.store, entry_point.as_entry())
+                    .and_then(Extern::into_func)
+                    .ok_or({
+                        let store = &memory_wrap.store;
+                        (
+                            gas_amount!(store),
+                            GetWasmExports(kind.as_entry().to_string()),
+                        )
+                    })?;
+
+                let entry_func = func
+                    .typed::<(), (), _>(&mut memory_wrap.store)
+                    .map_err(|_| {
+                        let store = &memory_wrap.store;
+                        (
+                            gas_amount!(store),
+                            EntryPointWrongType(kind.as_entry().to_string()),
+                        )
+                    })?;
+
+                entry_func.call(&mut memory_wrap.store, ())
+            } else {
+                Ok(())
+            }
+        } else {
             let func = instance
-                .get_export(&memory_wrap.store, entry_point.into_entry())
+                .get_export(&memory_wrap.store, entry_point.as_entry())
                 .and_then(Extern::into_func)
                 .ok_or({
                     let store = &memory_wrap.store;
                     (
                         gas_amount!(store),
-                        GetWasmExports(entry_point.into_entry().to_string()),
+                        GetWasmExports(entry_point.as_entry().to_string()),
                     )
                 })?;
 
@@ -229,13 +261,11 @@ where
                     let store = &memory_wrap.store;
                     (
                         gas_amount!(store),
-                        EntryPointWrongType(entry_point.into_entry().to_string()),
+                        EntryPointWrongType(entry_point.as_entry().to_string()),
                     )
                 })?;
 
             entry_func.call(&mut memory_wrap.store, ())
-        } else {
-            Ok(())
         };
 
         let gas = gear_gas.get(&memory_wrap.store).try_into::<i64>().ok_or({

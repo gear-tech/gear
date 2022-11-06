@@ -397,7 +397,7 @@ pub fn execute_wasm<
             program.code().exports().clone(),
             memory_size,
         )?;
-        env.execute(&kind, |memory, stack_end| {
+        env.execute(kind, |memory, stack_end| {
             prepare_memory::<A, E::Memory>(
                 program_id,
                 &mut pages_initial_data,

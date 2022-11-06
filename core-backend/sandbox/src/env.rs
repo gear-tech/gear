@@ -33,7 +33,12 @@ use gear_backend_common::{
     GetGasAmount, IntoExtInfo, StackEndError, TerminationReason, TrapExplanation,
     STACK_END_EXPORT_NAME,
 };
-use gear_core::{env::Ext, gas::GasAmount, memory::WasmPageNumber, message::DispatchKind};
+use gear_core::{
+    env::Ext,
+    gas::GasAmount,
+    memory::WasmPageNumber,
+    message::{DispatchKind, WasmEntry},
+};
 use gear_wasm_instrument::{
     GLOBAL_NAME_ALLOWANCE, GLOBAL_NAME_GAS, IMPORT_NAME_OUT_OF_ALLOWANCE, IMPORT_NAME_OUT_OF_GAS,
 };
@@ -206,7 +211,7 @@ where
 
     fn execute<F, T>(
         self,
-        entry_point: &DispatchKind,
+        entry_point: impl WasmEntry,
         pre_execution_handler: F,
     ) -> Result<BackendReport<Self::Memory, E>, Self::Error>
     where
@@ -252,10 +257,14 @@ where
             }
         }
 
-        let res = if entries.contains(entry_point) {
-            instance.invoke(entry_point.into_entry(), &[], &mut runtime)
+        let res = if let Some(kind) = entry_point.try_into_kind() {
+            if entries.contains(&kind) {
+                instance.invoke(kind.as_entry(), &[], &mut runtime)
+            } else {
+                Ok(ReturnValue::Unit)
+            }
         } else {
-            Ok(ReturnValue::Unit)
+            instance.invoke(entry_point.as_entry(), &[], &mut runtime)
         };
 
         let gas = runtime

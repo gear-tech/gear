@@ -18,7 +18,11 @@
 
 //! Module for checked code.
 
-use crate::{ids::CodeId, memory::WasmPageNumber, message::DispatchKind};
+use crate::{
+    ids::CodeId,
+    memory::WasmPageNumber,
+    message::{DispatchKind, WasmEntry},
+};
 use alloc::{collections::BTreeSet, vec::Vec};
 use codec::{Decode, Encode};
 use gear_wasm_instrument::{

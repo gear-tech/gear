@@ -46,7 +46,7 @@ use gear_core::{
     gas::GasAmount,
     ids::{CodeId, MessageId, ProgramId},
     memory::{Memory, PageBuf, PageNumber, WasmPageNumber},
-    message::{ContextStore, Dispatch, DispatchKind, MessageWaitedType},
+    message::{ContextStore, Dispatch, DispatchKind, MessageWaitedType, WasmEntry},
     reservation::GasReserver,
 };
 use gear_core_errors::{ExtError, MemoryError};
@@ -210,7 +210,7 @@ pub trait Environment<E: Ext + IntoExtInfo<E::Error> + 'static>: Sized {
     /// Run instance setup starting at `entry_point` - wasm export function name.
     fn execute<F, T>(
         self,
-        entry_point: &DispatchKind,
+        entry_point: impl WasmEntry,
         pre_execution_handler: F,
     ) -> Result<BackendReport<Self::Memory, E>, Self::Error>
     where
