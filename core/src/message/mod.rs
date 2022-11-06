@@ -18,7 +18,7 @@
 
 //! Message processing module.
 
-use alloc::vec::Vec;
+use alloc::{string::String, vec::Vec};
 use codec::{Decode, Encode};
 use scale_info::TypeInfo;
 
@@ -121,6 +121,16 @@ pub trait WasmEntry: Sized {
     /// Tries to convert self into `DispatchKind`.
     fn try_into_kind(&self) -> Option<DispatchKind> {
         <DispatchKind as WasmEntry>::try_from_entry(self.as_entry())
+    }
+}
+
+impl WasmEntry for String {
+    fn as_entry(&self) -> &str {
+        self
+    }
+
+    fn try_from_entry(entry: &str) -> Option<Self> {
+        Some(entry.into())
     }
 }
 
