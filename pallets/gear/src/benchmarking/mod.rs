@@ -44,7 +44,8 @@ use syscalls::Benches;
 use self::{
     code::{
         body::{self, DynInstr::*},
-        max_pages, ImportedMemory, Location, ModuleDefinition, WasmModule, OFFSET_AUX, TableSegment,
+        max_pages, ImportedMemory, Location, ModuleDefinition, TableSegment, WasmModule,
+        OFFSET_AUX,
     },
     sandbox::Sandbox,
 };
@@ -93,40 +94,6 @@ const API_BENCHMARK_BATCHES: u32 = 20;
 
 /// How many batches we do per Instruction benchmark.
 const INSTR_BENCHMARK_BATCHES: u32 = 50;
-
-// fn instr_load_bench<T: Config>(r: u32) -> Sandbox
-// where
-//     T::AccountId: Origin,
-// {
-//     let get_next_number_i64 = |mut num: i64| {
-//         num ^= num << 34;
-//         num ^= num >> 40;
-//         num ^= num << 7;
-//         num
-//     };
-//     let mut instructions = vec![];
-//     let mut num = 100;
-//     for _ in 0..r * INSTR_BENCHMARK_BATCH_SIZE {
-//         num = get_next_number_i64(num);
-//         instructions.push(Instruction::I64Const(num as i64));
-//         instructions.push(Instruction::I64Ctz);
-//         instructions.push(Instruction::Drop);
-//     }
-//     let body = body::from_instructions(instructions);
-//     let mut num = 101;
-//     let mut value = vec![];
-//     for _ in 0..512 * 1024 / 8 {
-//         num = get_next_number_i64(num);
-//         value.extend(num.to_le_bytes());
-//     }
-//     let module_def = ModuleDefinition {
-//         memory: Some(ImportedMemory::max::<T>()),
-//         data_segments: vec![DataSegment { offset: 0, value }],
-//         handle_body: Some(body),
-//         ..Default::default()
-//     };
-//     Sandbox::from(&WasmModule::<T>::from(module_def))
-// }
 
 // Initializes new block.
 fn init_block<T: Config>()
@@ -971,86 +938,8 @@ benchmarks! {
         verify_process(res.unwrap());
     }
 
-    instr_i64rems_i64rems {
-        let r in 0 .. INSTR_BENCHMARK_BATCHES;
-        let body = body::repeated_dyn(
-            r * INSTR_BENCHMARK_BATCH_SIZE,
-            vec![
-                RandomI64Repeated(2),
-                Regular(Instruction::I64RemS),
-                RandomI64Repeated(1),
-                Regular(Instruction::I64RemS),
-                Regular(Instruction::Drop),
-            ],
-        );
-        let mut sbox = Sandbox::from(&WasmModule::<T>::from(ModuleDefinition {
-            handle_body: Some(body),
-            ..Default::default()
-        }));
-    }: {
-        sbox.invoke();
-    }
-
-    // w_bench = 2 * w_i64const + w_i64add
-    instr_const_const_i64add {
-        let r in 0 .. INSTR_BENCHMARK_BATCHES;
-        let body = body::repeated_dyn(
-            r * INSTR_BENCHMARK_BATCH_SIZE,
-            vec![
-                RandomI64Repeated(2),
-                Regular(Instruction::I64Add),
-                Regular(Instruction::Drop),
-            ],
-        );
-        let mut sbox = Sandbox::from(&WasmModule::<T>::from(ModuleDefinition {
-            handle_body: Some(body),
-            ..Default::default()
-        }));
-    }: {
-        sbox.invoke();
-    }
-
-    // w_bench = 2 * w_i64const + w_i64ctz + w_i64add
-    instr_const_const_ctz_i64add {
-        let r in 0 .. INSTR_BENCHMARK_BATCHES;
-        let body = body::repeated_dyn(
-            r * INSTR_BENCHMARK_BATCH_SIZE,
-            vec![
-                RandomI64Repeated(2),
-                Regular(Instruction::I64Ctz),
-                Regular(Instruction::I64Add),
-                Regular(Instruction::Drop),
-            ],
-        );
-        let mut sbox = Sandbox::from(&WasmModule::<T>::from(ModuleDefinition {
-            handle_body: Some(body),
-            ..Default::default()
-        }));
-    }: {
-        sbox.invoke();
-    }
-
-    // w_bench = w_i64const + w_i64ctz
-    instr_const_i64ctz {
-        let r in 0 .. INSTR_BENCHMARK_BATCHES;
-        let body = body::repeated_dyn(
-            r * INSTR_BENCHMARK_BATCH_SIZE,
-            vec![
-                RandomI64Repeated(1),
-                Regular(Instruction::I64Ctz),
-                Regular(Instruction::Drop),
-            ],
-        );
-        let mut sbox = Sandbox::from(&WasmModule::<T>::from(ModuleDefinition {
-            handle_body: Some(body),
-            ..Default::default()
-        }));
-    }: {
-        sbox.invoke();
-    }
-
     // TODO: fix it
-    // w_load = w_bench - w_i32const
+    // w_load = w_bench
     instr_i64load {
         let r in 0 .. INSTR_BENCHMARK_BATCHES;
         let mut sbox = Sandbox::from(&WasmModule::<T>::from(ModuleDefinition {
@@ -1067,7 +956,7 @@ benchmarks! {
     }
 
     // TODO: Fix it
-    // w_store = w_bench - w_i64const - w_i32const
+    // w_store = w_bench - w_i64const
     instr_i64store {
         let r in 0 .. INSTR_BENCHMARK_BATCHES;
         let mut sbox = Sandbox::from(&WasmModule::<T>::from(ModuleDefinition {
@@ -1155,7 +1044,7 @@ benchmarks! {
         sbox.invoke();
     }
 
-    // w_br_table = w_bench - w_i32const (don't consider i32const, see head comment).
+    // w_br_table = w_bench
     instr_br_table {
         let r in 0 .. INSTR_BENCHMARK_BATCHES;
         let table = Box::new(BrTableData {
@@ -1223,7 +1112,7 @@ benchmarks! {
         sbox.invoke();
     }
 
-    // w_call_indirect = w_bench (don't consider i32const, see head comment).
+    // w_call_indirect = w_bench
     instr_call_indirect {
         let r in 0 .. INSTR_BENCHMARK_BATCHES;
         let num_elements = T::Schedule::get().limits.table_size;
@@ -1243,7 +1132,7 @@ benchmarks! {
         sbox.invoke();
     }
 
-    // w_instr_call_indirect_per_param = w_bench - w_i64const (don't consider i32const, see head comment).
+    // w_instr_call_indirect_per_param = w_bench - w_i64const
     // Calling a function indirectly causes it to go through a thunk function whose runtime
     // linearly depend on the amount of parameters to this function.
     instr_call_indirect_per_param {
@@ -1379,6 +1268,16 @@ benchmarks! {
         sbox.invoke();
     }
 
+    instr_i64ctz {
+        let r in 0 .. INSTR_BENCHMARK_BATCHES;
+        let mut sbox = Sandbox::from(&WasmModule::<T>::unary_instr(
+            Instruction::I64Ctz,
+            r * INSTR_BENCHMARK_BATCH_SIZE,
+        ));
+    }: {
+        sbox.invoke();
+    }
+
     instr_i64popcnt {
         let r in 0 .. INSTR_BENCHMARK_BATCHES;
         let mut sbox = Sandbox::from(&WasmModule::<T>::unary_instr(
@@ -1399,7 +1298,7 @@ benchmarks! {
         sbox.invoke();
     }
 
-    // w_extends = w_bench (don't consider i32const, see head comment).
+    // w_extends = w_bench
     instr_i64extendsi32 {
         let r in 0 .. INSTR_BENCHMARK_BATCHES;
         let mut sbox = Sandbox::from(&WasmModule::<T>::from(ModuleDefinition {
@@ -1414,7 +1313,7 @@ benchmarks! {
         sbox.invoke();
     }
 
-    // w_extends = w_bench (don't consider i32const, see head comment).
+    // w_extends = w_bench
     instr_i64extendui32 {
         let r in 0 .. INSTR_BENCHMARK_BATCHES;
         let mut sbox = Sandbox::from(&WasmModule::<T>::from(ModuleDefinition {
@@ -1536,6 +1435,16 @@ benchmarks! {
         let r in 0 .. INSTR_BENCHMARK_BATCHES;
         let mut sbox = Sandbox::from(&WasmModule::<T>::binary_instr(
             Instruction::I64GeU,
+            r * INSTR_BENCHMARK_BATCH_SIZE,
+        ));
+    }: {
+        sbox.invoke();
+    }
+
+    instr_i64add {
+        let r in 0 .. INSTR_BENCHMARK_BATCHES;
+        let mut sbox = Sandbox::from(&WasmModule::<T>::binary_instr(
+            Instruction::I64Add,
             r * INSTR_BENCHMARK_BATCH_SIZE,
         ));
     }: {
