@@ -93,17 +93,17 @@ pub trait GearApi<BlockHash, ResponseType> {
     ) -> RpcResult<GasInfo>;
 
     #[method(name = "gear_readState")]
-    fn read_state(&self, program_id: H256, at: Option<BlockHash>) -> RpcResult<Vec<u8>>;
+    fn read_state(&self, program_id: H256, at: Option<BlockHash>) -> RpcResult<Bytes>;
 
     #[method(name = "gear_readStateUsingWasm")]
     fn read_state_using_wasm(
         &self,
         program_id: H256,
-        fn_name: Vec<u8>,
-        wasm: Vec<u8>,
-        argument: Option<Vec<u8>>,
+        fn_name: Bytes,
+        wasm: Bytes,
+        argument: Option<Bytes>,
         at: Option<BlockHash>,
-    ) -> RpcResult<Vec<u8>>;
+    ) -> RpcResult<Bytes>;
 }
 
 /// A struct that implements the [`GearApi`](/gclient/struct.GearApi.html).
@@ -321,28 +321,35 @@ where
         &self,
         program_id: H256,
         at: Option<<Block as BlockT>::Hash>,
-    ) -> RpcResult<Vec<u8>> {
+    ) -> RpcResult<Bytes> {
         let at = BlockId::hash(at.unwrap_or_else(||
             // If the block hash is not supplied assume the best block.
             self.client.info().best_hash));
 
-        self.run_with_api_copy(|api| api.read_state(&at, program_id))
+        self.run_with_api_copy(|api| api.read_state(&at, program_id).map(|r| r.map(Bytes)))
     }
 
     fn read_state_using_wasm(
         &self,
         program_id: H256,
-        fn_name: Vec<u8>,
-        wasm: Vec<u8>,
-        argument: Option<Vec<u8>>,
+        fn_name: Bytes,
+        wasm: Bytes,
+        argument: Option<Bytes>,
         at: Option<<Block as BlockT>::Hash>,
-    ) -> RpcResult<Vec<u8>> {
+    ) -> RpcResult<Bytes> {
         let at = BlockId::hash(at.unwrap_or_else(||
             // If the block hash is not supplied assume the best block.
             self.client.info().best_hash));
 
         self.run_with_api_copy(|api| {
-            api.read_state_using_wasm(&at, program_id, fn_name, wasm, argument)
+            api.read_state_using_wasm(
+                &at,
+                program_id,
+                fn_name.to_vec(),
+                wasm.to_vec(),
+                argument.map(|v| v.to_vec()),
+            )
+            .map(|r| r.map(Bytes))
         })
     }
 }

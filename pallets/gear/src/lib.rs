@@ -754,6 +754,10 @@ pub mod pallet {
 
             payload.append(&mut Self::read_state_impl(program_id)?);
 
+            let schedule = T::Schedule::get();
+            let wasm = Code::new_raw_with_rules(wasm, 0, false, |module| schedule.rules(module))
+                .map_err(|_| "Failed to construct program")?;
+
             core_processor::informational::execute_for_reply::<Ext, ExecutionEnvironment>(
                 wasm, function, payload,
             )

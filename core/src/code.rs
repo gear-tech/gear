@@ -251,6 +251,63 @@ impl Code {
         }
     }
 
+    /// Create the code with instrumentation, but without checks.
+    /// There is also no check for static memory pages.
+    pub fn new_raw_with_rules<R, GetRulesFn>(
+        original_code: Vec<u8>,
+        version: u32,
+        check_entries: bool,
+        mut get_gas_rules: GetRulesFn,
+    ) -> Result<Self, CodeError>
+    where
+        R: Rules,
+        GetRulesFn: FnMut(&Module) -> R,
+    {
+        wasmparser::validate(&original_code).map_err(|_| CodeError::Decode)?;
+
+        let module: Module =
+            parity_wasm::deserialize_buffer(&original_code).map_err(|_| CodeError::Decode)?;
+
+        // get initial memory size from memory import.
+        let static_pages = WasmPageNumber(
+            module
+                .import_section()
+                .ok_or(CodeError::ImportSectionNotFound)?
+                .entries()
+                .iter()
+                .find_map(|entry| match entry.external() {
+                    parity_wasm::elements::External::Memory(mem_ty) => {
+                        Some(mem_ty.limits().initial())
+                    }
+                    _ => None,
+                })
+                .ok_or(CodeError::MemoryEntryNotFound)?,
+        );
+
+        let exports = get_exports(&module, false)?;
+
+        if check_entries
+            && !(exports.contains(&DispatchKind::Init) || exports.contains(&DispatchKind::Handle))
+        {
+            return Err(CodeError::RequiredExportFnNotFound);
+        }
+
+        let gas_rules = get_gas_rules(&module);
+        let instrumented_module = gear_wasm_instrument::inject(module, &gas_rules, "env")
+            .map_err(|_| CodeError::GasInjection)?;
+
+        let instrumented =
+            parity_wasm::elements::serialize(instrumented_module).map_err(|_| CodeError::Encode)?;
+
+        Ok(Self {
+            raw_code: original_code,
+            code: instrumented,
+            exports,
+            static_pages,
+            instruction_weights_version: version,
+        })
+    }
+
     /// Returns the original code.
     pub fn raw_code(&self) -> &[u8] {
         &self.raw_code

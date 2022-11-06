@@ -498,13 +498,10 @@ pub fn execute_for_reply<
     A: ProcessorExt + EnvExt + IntoExtInfo<<A as EnvExt>::Error> + 'static,
     E: Environment<A>,
 >(
-    code: Vec<u8>,
+    code: Code,
     function: String,
     payload: Vec<u8>,
 ) -> Result<Vec<u8>, &'static str> {
-    let code =
-        Code::new_raw(code, 0, None, false, false).map_err(|_| "Failed to construct program")?;
-
     let code_and_id = CodeAndId::new(code);
     let instrumented_code_and_id: InstrumentedCodeAndId = code_and_id.into();
     let instrumented_code = instrumented_code_and_id.into_parts().0;
@@ -586,6 +583,7 @@ pub fn execute_for_reply<
             )
         })
     };
+
     let (termination, memory, ext) = match f() {
         Ok(BackendReport {
             termination_reason: termination,
