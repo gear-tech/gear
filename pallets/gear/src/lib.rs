@@ -632,6 +632,7 @@ pub mod pallet {
                 schedule.instruction_weights.version,
                 Some(module),
                 true,
+                true,
             )
             .map_err(|e| {
                 log::debug!("Code failed to load: {:?}", e);
@@ -718,11 +719,17 @@ pub mod pallet {
 
             let schedule = T::Schedule::get();
 
-            let code = Code::new_raw(code, schedule.instruction_weights.version, None, false)
-                .map_err(|e| {
-                    log::debug!("Code failed to load: {:?}", e);
-                    Error::<T>::FailedToConstructProgram
-                })?;
+            let code = Code::new_raw(
+                code,
+                schedule.instruction_weights.version,
+                None,
+                false,
+                true,
+            )
+            .map_err(|e| {
+                log::debug!("Code failed to load: {:?}", e);
+                Error::<T>::FailedToConstructProgram
+            })?;
 
             let code_id = Self::set_code_with_metadata(CodeAndId::new(code), who.into_origin())?;
 
@@ -735,6 +742,29 @@ pub mod pallet {
             });
 
             Ok(().into())
+        }
+
+        pub(crate) fn read_state_using_wasm_impl(
+            program_id: ProgramId,
+            function: String,
+            wasm: Vec<u8>,
+        ) -> Result<Vec<u8>, &'static str> {
+            let payload = Self::read_state_impl(program_id)?;
+
+            core_processor::informational::execute_for_reply::<Ext, ExecutionEnvironment>(
+                wasm, function, payload,
+            )
+        }
+
+        pub fn read_state_using_wasm(
+            program_id: H256,
+            function: String,
+            wasm: Vec<u8>,
+        ) -> Result<Vec<u8>, Vec<u8>> {
+            let program_id = ProgramId::from_origin(program_id.into_origin());
+
+            Self::read_state_using_wasm_impl(program_id, function, wasm)
+                .map_err(|e| e.as_bytes().to_vec())
         }
 
         pub(crate) fn read_state_impl(program_id: ProgramId) -> Result<Vec<u8>, &'static str> {

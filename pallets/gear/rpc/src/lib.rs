@@ -94,6 +94,15 @@ pub trait GearApi<BlockHash, ResponseType> {
 
     #[method(name = "gear_readState")]
     fn read_state(&self, program_id: H256, at: Option<BlockHash>) -> RpcResult<Vec<u8>>;
+
+    #[method(name = "gear_readStateUsingWasm")]
+    fn read_state_using_wasm(
+        &self,
+        program_id: H256,
+        function: String,
+        wasm: Vec<u8>,
+        at: Option<BlockHash>,
+    ) -> RpcResult<Vec<u8>>;
 }
 
 /// A struct that implements the [`GearApi`](/gclient/struct.GearApi.html).
@@ -317,5 +326,19 @@ where
             self.client.info().best_hash));
 
         self.run_with_api_copy(|api| api.read_state(&at, program_id))
+    }
+
+    fn read_state_using_wasm(
+        &self,
+        program_id: H256,
+        function: String,
+        wasm: Vec<u8>,
+        at: Option<<Block as BlockT>::Hash>,
+    ) -> RpcResult<Vec<u8>> {
+        let at = BlockId::hash(at.unwrap_or_else(||
+            // If the block hash is not supplied assume the best block.
+            self.client.info().best_hash));
+
+        self.run_with_api_copy(|api| api.read_state_using_wasm(&at, program_id, function, wasm))
     }
 }

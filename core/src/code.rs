@@ -193,6 +193,7 @@ impl Code {
         version: u32,
         module: Option<Module>,
         instrument_with_const_rules: bool,
+        check_entries: bool,
     ) -> Result<Self, CodeError> {
         wasmparser::validate(&original_code).map_err(|_| CodeError::Decode)?;
 
@@ -218,33 +219,35 @@ impl Code {
 
         let exports = get_exports(&module, false)?;
 
-        if exports.contains(&DispatchKind::Init) || exports.contains(&DispatchKind::Handle) {
-            if instrument_with_const_rules {
-                let instrumented_module =
-                    gear_wasm_instrument::inject(module, &ConstantCostRules::default(), "env")
-                        .map_err(|_| CodeError::GasInjection)?;
+        if check_entries
+            && !(exports.contains(&DispatchKind::Init) || exports.contains(&DispatchKind::Handle))
+        {
+            return Err(CodeError::RequiredExportFnNotFound);
+        }
 
-                let instrumented = parity_wasm::elements::serialize(instrumented_module)
-                    .map_err(|_| CodeError::Encode)?;
+        if instrument_with_const_rules {
+            let instrumented_module =
+                gear_wasm_instrument::inject(module, &ConstantCostRules::default(), "env")
+                    .map_err(|_| CodeError::GasInjection)?;
 
-                Ok(Self {
-                    raw_code: original_code,
-                    code: instrumented,
-                    exports,
-                    static_pages,
-                    instruction_weights_version: version,
-                })
-            } else {
-                Ok(Self {
-                    raw_code: original_code.clone(),
-                    code: original_code,
-                    exports,
-                    static_pages,
-                    instruction_weights_version: version,
-                })
-            }
+            let instrumented = parity_wasm::elements::serialize(instrumented_module)
+                .map_err(|_| CodeError::Encode)?;
+
+            Ok(Self {
+                raw_code: original_code,
+                code: instrumented,
+                exports,
+                static_pages,
+                instruction_weights_version: version,
+            })
         } else {
-            Err(CodeError::RequiredExportFnNotFound)
+            Ok(Self {
+                raw_code: original_code.clone(),
+                code: original_code,
+                exports,
+                static_pages,
+                instruction_weights_version: version,
+            })
         }
     }
 

@@ -21,22 +21,26 @@ use crate::{
         DispatchResult, DispatchResultKind, ExecutionError, ExecutionErrorReason,
         WasmExecutionContext,
     },
-    configs::{AllocationsConfig, ExecutionSettings},
+    configs::{AllocationsConfig, BlockInfo, ExecutionSettings},
     ext::{ProcessorContext, ProcessorExt},
 };
 use alloc::{
     collections::{BTreeMap, BTreeSet},
-    string::ToString,
+    string::{String, ToString},
+    vec::Vec,
 };
 use gear_backend_common::{
     BackendReport, Environment, GetGasAmount, IntoExtInfo, TerminationReason,
 };
 use gear_core::{
+    code::{Code, CodeAndId, InstrumentedCodeAndId},
     env::Ext as EnvExt,
     gas::{ChargeResult, GasAllowanceCounter, GasCounter, ValueCounter},
     ids::ProgramId,
     memory::{AllocationsContext, Memory, PageBuf, PageNumber, WasmPageNumber},
-    message::{ContextSettings, IncomingDispatch, MessageContext},
+    message::{ContextSettings, IncomingDispatch, IncomingMessage, MessageContext},
+    program::Program,
+    reservation::GasReserver,
 };
 
 pub(crate) enum ChargeForBytesResult {
@@ -487,4 +491,121 @@ pub fn execute_wasm<
         page_update,
         allocations: info.allocations,
     })
+}
+
+/// !!! FOR TESTING / INFORMATIONAL USAGE ONLY
+pub fn execute_for_reply<
+    A: ProcessorExt + EnvExt + IntoExtInfo<<A as EnvExt>::Error> + 'static,
+    E: Environment<A>,
+>(
+    code: Vec<u8>,
+    function: String,
+    payload: Vec<u8>,
+) -> Result<Vec<u8>, &'static str> {
+    let code =
+        Code::new_raw(code, 0, None, false, false).map_err(|_| "Failed to construct program")?;
+
+    let code_and_id = CodeAndId::new(code);
+    let instrumented_code_and_id: InstrumentedCodeAndId = code_and_id.into();
+    let instrumented_code = instrumented_code_and_id.into_parts().0;
+
+    let program = Program::new(ProgramId::from(0), instrumented_code);
+    let memory_size = program.static_pages();
+    let mut pages_initial_data = Default::default();
+    let static_pages = program.static_pages();
+    let allocations = program.get_allocations();
+
+    let context = ProcessorContext {
+        gas_counter: GasCounter::new(500_000_000_000),
+        gas_allowance_counter: GasAllowanceCounter::new(500_000_000_000),
+        gas_reserver: GasReserver::new(
+            Default::default(),
+            Default::default(),
+            Default::default(),
+            Default::default(),
+        ),
+        value_counter: ValueCounter::new(Default::default()),
+        allocations_context: AllocationsContext::new(allocations.clone(), static_pages, 512.into()),
+        message_context: MessageContext::new(
+            IncomingMessage::new(
+                Default::default(),
+                Default::default(),
+                payload
+                    .try_into()
+                    .map_err(|_| "Failed to convert payload")?,
+                500_000_000_000,
+                Default::default(),
+                Default::default(),
+            ),
+            program.id(),
+            None,
+            ContextSettings::new(0, 0, 0, 0, 0),
+        ),
+        block_info: BlockInfo {
+            height: Default::default(),
+            timestamp: Default::default(),
+        },
+        config: AllocationsConfig {
+            max_pages: 512.into(),
+            init_cost: Default::default(),
+            alloc_cost: Default::default(),
+            mem_grow_cost: Default::default(),
+            load_page_cost: Default::default(),
+        },
+        existential_deposit: Default::default(),
+        origin: Default::default(),
+        program_id: Default::default(),
+        program_candidates_data: Default::default(),
+        host_fn_weights: Default::default(),
+        forbidden_funcs: Default::default(),
+        mailbox_threshold: Default::default(),
+        waitlist_cost: Default::default(),
+        reserve_for: Default::default(),
+        reservation: Default::default(),
+        random_data: Default::default(),
+    };
+
+    // Creating externalities.
+    let ext = A::new(context);
+
+    // Execute program in backend env.
+    let f = || {
+        let env = E::new(
+            ext,
+            program.raw_code(),
+            program.code().exports().clone(),
+            memory_size,
+        )?;
+        env.execute(function, |memory, stack_end| {
+            prepare_memory::<A, E::Memory>(
+                program.id(),
+                &mut pages_initial_data,
+                static_pages,
+                stack_end,
+                memory,
+            )
+        })
+    };
+    let (termination, memory, ext) = match f() {
+        Ok(BackendReport {
+            termination_reason: termination,
+            memory_wrap: memory,
+            ext,
+        }) => (termination, memory, ext),
+        _ => return Err("Backend error"),
+    };
+
+    if !matches!(termination, TerminationReason::Success) {
+        return Err("Program execution wasn't succeed");
+    }
+
+    let info = ext.into_ext_info(&memory).map_err(|_| "Backend error")?;
+
+    for (dispatch, _) in info.generated_dispatches {
+        if dispatch.is_reply() {
+            return Ok(dispatch.payload().to_vec());
+        }
+    }
+
+    Err("Reply not found")
 }

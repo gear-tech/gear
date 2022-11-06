@@ -28,5 +28,7 @@ sp_api::decl_runtime_apis! {
         fn calculate_gas_info(source: H256, kind: HandleKind, payload: Vec<u8>, value: u128, allow_other_panics: bool, initial_gas: Option<u64>,) -> Result<GasInfo, Vec<u8>>;
 
         fn read_state(program_id: H256) -> Result<Vec<u8>, Vec<u8>>;
+
+        fn read_state_using_wasm(program_id: H256, function: String, wasm: Vec<u8>) -> Result<Vec<u8>, Vec<u8>>;
     }
 }
