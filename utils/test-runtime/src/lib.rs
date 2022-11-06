@@ -1048,12 +1048,6 @@ cfg_if! {
     }
 }
 
-impl common::TerminalExtrinsicProvider<Extrinsic> for Runtime {
-    fn extrinsic() -> Option<Extrinsic> {
-        Extrinsic::new(Extrinsic::Process, None)
-    }
-}
-
 fn test_ed25519_crypto() -> (ed25519::AppSignature, ed25519::AppPublic) {
     let public0 = ed25519::AppPublic::generate_pair(None);
     let public1 = ed25519::AppPublic::generate_pair(None);

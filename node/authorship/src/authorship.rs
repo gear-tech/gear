@@ -17,7 +17,6 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use codec::Encode;
-use common::TerminalExtrinsicProvider;
 use futures::{
     channel::oneshot,
     future,
@@ -25,6 +24,7 @@ use futures::{
     select,
 };
 use log::{debug, error, info, trace, warn};
+use pallet_gear_rpc_runtime_api::GearApi as GearRuntimeApi;
 use sc_block_builder::{BlockBuilderApi, BlockBuilderProvider};
 use sc_client_api::backend;
 use sc_telemetry::{telemetry, TelemetryHandle, CONSENSUS_INFO};
@@ -41,6 +41,7 @@ use sp_runtime::{
 };
 use std::{marker::PhantomData, pin::Pin, sync::Arc, time};
 
+use crate::block_builder::BlockBuilderExt;
 use prometheus_endpoint::Registry as PrometheusRegistry;
 use sc_proposer_metrics::{EndProposingReason, MetricsLink as PrometheusMetrics};
 
@@ -56,7 +57,7 @@ pub const DEFAULT_BLOCK_SIZE_LIMIT: usize = 4 * 1024 * 1024 + 512;
 const DEFAULT_SOFT_DEADLINE_PERCENT: Percent = Percent::from_percent(50);
 
 /// [`Proposer`] factory.
-pub struct ProposerFactory<A, B, C, PR, R, E> {
+pub struct ProposerFactory<A, B, C, PR> {
     spawn_handle: Box<dyn SpawnNamed>,
     /// The client instance.
     client: Arc<C>,
@@ -81,10 +82,10 @@ pub struct ProposerFactory<A, B, C, PR, R, E> {
     /// When estimating the block size, should the proof be included?
     include_proof_in_block_size_estimation: bool,
     /// phantom member to pin the `Backend`/`ProofRecording` type.
-    _phantom: PhantomData<(B, PR, R, E)>,
+    _phantom: PhantomData<(B, PR)>,
 }
 
-impl<A, B, C, R, E> ProposerFactory<A, B, C, DisableProofRecording, R, E> {
+impl<A, B, C> ProposerFactory<A, B, C, DisableProofRecording> {
     /// Create a new proposer factory.
     ///
     /// Proof recording will be disabled when using proposers built by this instance to build
@@ -110,7 +111,7 @@ impl<A, B, C, R, E> ProposerFactory<A, B, C, DisableProofRecording, R, E> {
     }
 }
 
-impl<A, B, C, R, E> ProposerFactory<A, B, C, EnableProofRecording, R, E> {
+impl<A, B, C> ProposerFactory<A, B, C, EnableProofRecording> {
     /// Create a new proposer factory with proof recording enabled.
     ///
     /// Each proposer created by this instance will record a proof while building a block.
@@ -143,7 +144,7 @@ impl<A, B, C, R, E> ProposerFactory<A, B, C, EnableProofRecording, R, E> {
     }
 }
 
-impl<A, B, C, PR, R, E> ProposerFactory<A, B, C, PR, R, E> {
+impl<A, B, C, PR> ProposerFactory<A, B, C, PR> {
     /// Set the default block size limit in bytes.
     ///
     /// The default value for the block size limit is:
@@ -172,7 +173,7 @@ impl<A, B, C, PR, R, E> ProposerFactory<A, B, C, PR, R, E> {
     }
 }
 
-impl<B, Block, C, A, PR, R, E> ProposerFactory<A, B, C, PR, R, E>
+impl<B, Block, C, A, PR> ProposerFactory<A, B, C, PR>
 where
     A: TransactionPool<Block = Block> + 'static,
     B: backend::Backend<Block> + Send + Sync + 'static,
@@ -183,14 +184,15 @@ where
         + Send
         + Sync
         + 'static,
-    C::Api:
-        ApiExt<Block, StateBackend = backend::StateBackendFor<B, Block>> + BlockBuilderApi<Block>,
+    C::Api: ApiExt<Block, StateBackend = backend::StateBackendFor<B, Block>>
+        + BlockBuilderApi<Block>
+        + GearRuntimeApi<Block>,
 {
     fn init_with_now(
         &mut self,
         parent_header: &<Block as BlockT>::Header,
         now: Box<dyn Fn() -> time::Instant + Send + Sync>,
-    ) -> Proposer<B, Block, C, A, PR, R, E> {
+    ) -> Proposer<B, Block, C, A, PR> {
         let parent_hash = parent_header.hash();
 
         let id = BlockId::hash(parent_hash);
@@ -200,7 +202,7 @@ where
             parent_hash
         );
 
-        let proposer = Proposer::<_, _, _, _, PR, R, E> {
+        let proposer = Proposer::<_, _, _, _, PR> {
             spawn_handle: self.spawn_handle.clone(),
             client: self.client.clone(),
             parent_id: id,
@@ -219,8 +221,7 @@ where
     }
 }
 
-impl<A, B, Block, C, PR, R, E> sp_consensus::Environment<Block>
-    for ProposerFactory<A, B, C, PR, R, E>
+impl<A, B, Block, C, PR> sp_consensus::Environment<Block> for ProposerFactory<A, B, C, PR>
 where
     A: TransactionPool<Block = Block> + 'static,
     B: backend::Backend<Block> + Send + Sync + 'static,
@@ -231,15 +232,13 @@ where
         + Send
         + Sync
         + 'static,
-    C::Api:
-        ApiExt<Block, StateBackend = backend::StateBackendFor<B, Block>> + BlockBuilderApi<Block>,
+    C::Api: ApiExt<Block, StateBackend = backend::StateBackendFor<B, Block>>
+        + BlockBuilderApi<Block>
+        + GearRuntimeApi<Block>,
     PR: ProofRecording,
-    R: frame_system::Config + TerminalExtrinsicProvider<E> + Send + Sync + 'static,
-    E: Send + Sync + 'static,
-    <Block as BlockT>::Extrinsic: From<E>,
 {
     type CreateProposer = future::Ready<Result<Self::Proposer, Self::Error>>;
-    type Proposer = Proposer<B, Block, C, A, PR, R, E>;
+    type Proposer = Proposer<B, Block, C, A, PR>;
     type Error = sp_blockchain::Error;
 
     fn init(&mut self, parent_header: &<Block as BlockT>::Header) -> Self::CreateProposer {
@@ -250,7 +249,7 @@ where
 }
 
 /// The proposer logic.
-pub struct Proposer<B, Block: BlockT, C, A: TransactionPool, PR, R, E> {
+pub struct Proposer<B, Block: BlockT, C, A: TransactionPool, PR> {
     spawn_handle: Box<dyn SpawnNamed>,
     client: Arc<C>,
     parent_id: BlockId<Block>,
@@ -262,10 +261,10 @@ pub struct Proposer<B, Block: BlockT, C, A: TransactionPool, PR, R, E> {
     include_proof_in_block_size_estimation: bool,
     soft_deadline_percent: Percent,
     telemetry: Option<TelemetryHandle>,
-    _phantom: PhantomData<(B, PR, R, E)>,
+    _phantom: PhantomData<(B, PR)>,
 }
 
-impl<A, B, Block, C, PR, R, E> sp_consensus::Proposer<Block> for Proposer<B, Block, C, A, PR, R, E>
+impl<A, B, Block, C, PR> sp_consensus::Proposer<Block> for Proposer<B, Block, C, A, PR>
 where
     A: TransactionPool<Block = Block> + 'static,
     B: backend::Backend<Block> + Send + Sync + 'static,
@@ -276,12 +275,10 @@ where
         + Send
         + Sync
         + 'static,
-    C::Api:
-        ApiExt<Block, StateBackend = backend::StateBackendFor<B, Block>> + BlockBuilderApi<Block>,
+    C::Api: ApiExt<Block, StateBackend = backend::StateBackendFor<B, Block>>
+        + BlockBuilderApi<Block>
+        + GearRuntimeApi<Block>,
     PR: ProofRecording,
-    R: frame_system::Config + TerminalExtrinsicProvider<E> + Send + Sync + 'static,
-    E: Send + Sync + 'static,
-    <Block as BlockT>::Extrinsic: From<E>,
 {
     type Transaction = backend::TransactionFor<B, Block>;
     type Proposal = Pin<
@@ -328,7 +325,7 @@ where
 /// It allows us to increase block utilization.
 const MAX_SKIPPED_TRANSACTIONS: usize = 8;
 
-impl<A, B, Block, C, PR, R, E> Proposer<B, Block, C, A, PR, R, E>
+impl<A, B, Block, C, PR> Proposer<B, Block, C, A, PR>
 where
     A: TransactionPool<Block = Block>,
     B: backend::Backend<Block> + Send + Sync + 'static,
@@ -339,12 +336,10 @@ where
         + Send
         + Sync
         + 'static,
-    C::Api:
-        ApiExt<Block, StateBackend = backend::StateBackendFor<B, Block>> + BlockBuilderApi<Block>,
+    C::Api: ApiExt<Block, StateBackend = backend::StateBackendFor<B, Block>>
+        + BlockBuilderApi<Block>
+        + GearRuntimeApi<Block>,
     PR: ProofRecording,
-    R: frame_system::Config + TerminalExtrinsicProvider<E> + Send + Sync + 'static,
-    E: Send + Sync + 'static,
-    <Block as BlockT>::Extrinsic: From<E>,
 {
     async fn propose_with(
         self,
@@ -355,9 +350,12 @@ where
     ) -> Result<Proposal<Block, backend::TransactionFor<B, Block>, PR::Proof>, sp_blockchain::Error>
     {
         let propose_with_start = time::Instant::now();
-        let mut block_builder =
+        let mut block_builder = BlockBuilderExt::new(
             self.client
-                .new_block_at(&self.parent_id, inherent_digests, PR::ENABLED)?;
+                .new_block_at(&self.parent_id, inherent_digests, PR::ENABLED)?,
+            self.client.runtime_api(),
+            self.client.expect_block_hash_from_id(&self.parent_id)?,
+        );
 
         let create_inherents_start = time::Instant::now();
         let inherents = block_builder.create_inherents(inherent_data)?;
@@ -470,7 +468,7 @@ where
             }
 
             trace!("[{:?}] Pushing to the block.", pending_tx_hash);
-            match sc_block_builder::BlockBuilder::push(&mut block_builder, pending_tx_data) {
+            match block_builder.push(pending_tx_data) {
                 Ok(()) => {
                     transaction_pushed = true;
                     debug!("[{:?}] Pushed to the block.", pending_tx_hash);
@@ -519,21 +517,21 @@ where
         self.transaction_pool.remove_invalid(&unqueue_invalid);
 
         // Pushing a custom extrinsic that must run at the end of a block
-        if let Some(custom_extrinsic) = <R as TerminalExtrinsicProvider<E>>::extrinsic() {
-            debug!("⚙️  Pushing Gear::run extrinsic into the block...");
-            match block_builder.push(custom_extrinsic.into()) {
-                Ok(()) => {
-                    debug!("⚙️  ... pushed to the block");
-                }
-                Err(ApplyExtrinsicFailed(Validity(e))) if e.exhausted_resources() => {
-                    warn!("⚠️  Dropping terminal extrinsic from an overweight block.")
-                }
-                Err(e) => {
-                    warn!(
-                        "❗️ Terminal extrinsic returned unexpected error: {}. Dropping.",
-                        e
-                    );
-                }
+        let custom_extrinsic = block_builder.create_terminal_extrinsic()?;
+
+        debug!("⚙️  Pushing Gear::run extrinsic into the block...");
+        match block_builder.push(custom_extrinsic) {
+            Ok(()) => {
+                debug!("⚙️  ... pushed to the block");
+            }
+            Err(ApplyExtrinsicFailed(Validity(e))) if e.exhausted_resources() => {
+                warn!("⚠️  Dropping terminal extrinsic from an overweight block.")
+            }
+            Err(e) => {
+                warn!(
+                    "❗️ Terminal extrinsic returned unexpected error: {}. Dropping.",
+                    e
+                );
             }
         }
 
@@ -604,7 +602,7 @@ mod tests {
     use sp_runtime::traits::NumberFor;
     use test_client::{
         prelude::*,
-        runtime::{Block, Extrinsic, Message, Runtime, TestRuntimeAPI},
+        runtime::{Block, Extrinsic, Message, TestRuntimeAPI},
     };
 
     type TestBackend = sc_client_api::in_mem::Backend<Block>;
@@ -657,13 +655,8 @@ mod tests {
             )),
         );
 
-        let mut proposer_factory = ProposerFactory::<_, _, _, _, Runtime, Extrinsic>::new(
-            spawner,
-            client.clone(),
-            txpool.clone(),
-            None,
-            None,
-        );
+        let mut proposer_factory =
+            ProposerFactory::new(spawner, client.clone(), txpool.clone(), None, None);
 
         let proposer = proposer_factory.init_with_now(
             &client.header(&block_id).unwrap().unwrap(),
@@ -712,13 +705,8 @@ mod tests {
             )),
         );
 
-        let mut proposer_factory = ProposerFactory::<_, _, _, _, Runtime, Extrinsic>::new(
-            spawner,
-            client.clone(),
-            txpool,
-            None,
-            None,
-        );
+        let mut proposer_factory =
+            ProposerFactory::new(spawner, client.clone(), txpool, None, None);
 
         let proposer = proposer_factory.init_with_now(
             &client.header(&block_id).unwrap().unwrap(),
@@ -763,13 +751,8 @@ mod tests {
             client.clone(),
         );
 
-        let mut proposer_factory = ProposerFactory::<_, _, _, _, Runtime, Extrinsic>::new(
-            spawner,
-            client.clone(),
-            txpool.clone(),
-            None,
-            None,
-        );
+        let mut proposer_factory =
+            ProposerFactory::new(spawner, client.clone(), txpool.clone(), None, None);
 
         // Initializing blockchain
         let genesis_hash = client.info().best_hash;

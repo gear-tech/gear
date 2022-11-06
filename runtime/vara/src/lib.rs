@@ -28,7 +28,6 @@ use codec::{Decode, Encode};
 use frame_election_provider_support::{
     onchain, ElectionDataProvider, NposSolution, SequentialPhragmen, VoteWeight,
 };
-use common::TerminalExtrinsicProvider;
 pub use frame_support::{
     construct_runtime,
     dispatch::{DispatchClass, WeighData},
@@ -128,7 +127,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
     // The version of the runtime specification. A full node will not attempt to use its native
     //   runtime in substitute for the on-chain Wasm runtime unless all of `spec_name`,
     //   `spec_version`, and `authoring_version` are the same between Wasm and native.
-    spec_version: 440,
+    spec_version: 470,
     impl_version: 1,
     apis: RUNTIME_API_VERSIONS,
     transaction_version: 1,
@@ -1129,14 +1128,6 @@ where
 {
     type Extrinsic = UncheckedExtrinsic;
     type OverarchingCall = RuntimeCall;
-}
-
-impl TerminalExtrinsicProvider<UncheckedExtrinsic> for Runtime {
-    fn extrinsic() -> Option<UncheckedExtrinsic> {
-        Some(UncheckedExtrinsic::new_unsigned(RuntimeCall::Gear(
-            pallet_gear::Call::run {},
-        )))
-    }
 }
 
 // Create the runtime by composing the FRAME pallets that were previously configured.

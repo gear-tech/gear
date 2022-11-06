@@ -2948,6 +2948,7 @@ dependencies = [
  "pallet-gear-gas",
  "pallet-gear-messenger",
  "pallet-gear-program",
+ "pallet-gear-rpc-runtime-api",
  "pallet-gear-scheduler",
  "pallet-timestamp",
  "parity-scale-codec",
