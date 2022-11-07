@@ -1,6 +1,6 @@
 //! Integration tests for command `upload`
 
-use crate::common::{self, env, logs, traits::Convert};
+use crate::common::{self, env, logs};
 use gear_program::api::Api;
 
 #[tokio::test]
@@ -23,7 +23,7 @@ async fn test_command_upload_works() {
         .expect("get code failed")
         .is_none());
 
-    let r = common::gear(&[
+    let _ = common::gear(&[
         "-e",
         &node.ws(),
         "upload",
