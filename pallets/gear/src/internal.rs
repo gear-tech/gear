@@ -647,15 +647,15 @@ where
         //
         // Note: for users, trap replies always contain
         // string explanation of the error.
-        let message = match (message.status_code(), message.is_error_reply()) {
-            (Some(0) | None, true) => message,
-            (_, false) => message,
-            (_, true) => message
+        let message = if message.is_error_reply() {
+            message
                 .with_string_payload::<ExecutionErrorReason>()
                 .unwrap_or_else(|e| {
                     log::debug!("Failed to decode error to string");
                     e
-                }),
+                })
+        } else {
+            message
         };
 
         // Converting message into stored one.
