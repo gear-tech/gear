@@ -9,14 +9,28 @@ env:
   CARGO_TERM_COLOR: always
   
 jobs:
-  docker:
-    runs-on: xeon
+
+  tag-image:
+    runs-on: ubuntu-latest
+    outputs:
+      image_tag: ${{ steps.image-tag.outputs.image }}
     steps:
       - name: Checkout repo
         uses: actions/checkout@v3
       
       - name: Create image tag
-        run: echo "IMAGE_NAME=ghcr.io/gear-tech/node:0.1.0-`echo ${GITHUB_SHA} | cut -c1-8`" >> $GITHUB_ENV
+        id: image-tag
+        run: echo "IMAGE_NAME=ghcr.io/gear-tech/node:0.1.0-`echo ${GITHUB_SHA} | cut -c1-8`" >> $GITHUB_OUTPUT
+        
+  docker:
+    runs-on: xeon
+    needs: tag-image
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3
+        
+      - name: Echo tag
+        run: echo ${{ needs.tag-image.outputs.image_tag }}
         
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v2
@@ -38,7 +52,7 @@ jobs:
           context: .
           file: ./docker/Dockerfile
           push: true
-          tags: ghcr.io/gear-tech/node:latest, ${{ env.IMAGE_NAME }}
+          tags: ghcr.io/gear-tech/node:latest, ${{ needs.tag-image.outputs.image_tag }}
 
   deploy-one-validator:
     runs-on: ubuntu-latest
@@ -46,9 +60,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v3
-        
-      - name: Check env
-        run: echo ${{ env.IMAGE_NAME }}
 
       - name: Install Info
         run: |
@@ -63,7 +74,7 @@ jobs:
           token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           message: |
             Attention! Instances will be temporarily unavailable!
-            Update second validator with docker image ${{ env.IMAGE_NAME }}
+            Update second validator with docker image ${{ needs.tag-image.outputs.image_tag }}
             ${{ github.actor }} run build with commit: "${{ github.event.commits[0].message }}"
             Build number: ${{ github.run_number }}
 
@@ -80,7 +91,7 @@ jobs:
             [gearNodes:children]
             nodes
             [nodes]
-            ${{secrets.GEAR_NODE_2}} name=testnet-gear02 validator=yes loki=yes loki_url=${{secrets.LOKI_URL}} gear_image_tag=${{ env.IMAGE_NAME }}
+            ${{secrets.GEAR_NODE_2}} name=testnet-gear02 validator=yes loki=yes loki_url=${{secrets.LOKI_URL}} gear_image_tag=${{ needs.tag-image.outputs.image_tag }}
             
   deploy-all-validators:
     runs-on: ubuntu-latest
@@ -93,9 +104,6 @@ jobs:
           approvers: sergeyfilyanin,kvs96
           minimum-approvals: 1
           
-      - name: Update all validators in production
-        run: echo deploying
-        
       - name: Checkout
         uses: actions/checkout@v3
 
@@ -112,7 +120,7 @@ jobs:
           token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           message: |
             Attention! Instances will be temporarily unavailable!
-            Update all testnet with docker image ${{ env.IMAGE_NAME }}
+            Update all testnet with docker image ${{ needs.tag-image.outputs.image_tag }}
             ${{ github.actor }} run build with commit: "${{ github.event.commits[0].message }}"
             Build number: ${{ github.run_number }}
 
@@ -130,10 +138,10 @@ jobs:
             bootnode
             nodes
             [bootnode]
-            ${{secrets.GEAR_NODE}} name=testnet-gear01 loki=yes loki_url=${{secrets.LOKI_URL}} gear_image_tag=${{ env.IMAGE_NAME }}
+            ${{secrets.GEAR_NODE}} name=testnet-gear01 loki=yes loki_url=${{secrets.LOKI_URL}} gear_image_tag=${{ needs.tag-image.outputs.image_tag }}
             [nodes]
-            ${{secrets.GEAR_NODE_3}} name=testnet-rpc-node rpc=yes unsafe=yes loki=yes loki_url=${{secrets.LOKI_URL}} gear_image_tag=${{ env.IMAGE_NAME }}
-            ${{secrets.GEAR_NODE_4}} name=testnet-gear03 validator=yes loki=yes loki_url=${{secrets.LOKI_URL}} gear_image_tag=${{ env.IMAGE_NAME }}
-            ${{secrets.GEAR_NODE_5}} name=testnet-gear04 validator=yes loki=yes loki_url=${{secrets.LOKI_URL}} gear_image_tag=${{ env.IMAGE_NAME }}
-            ${{secrets.ARCHIVE_NODE}} name=testnet-archive-node validator=yes archive_node=yes loki=yes loki_url=${{secrets.LOKI_URL}} gear_image_tag=${{ env.IMAGE_NAME }}
-            ${{secrets.ARCHIVE_RPC_NODE}} name=testnet-archive-rpc-node rpc=yes unsafe=no archive_node=yes loki=yes loki_url=${{secrets.LOKI_URL}} gear_image_tag=${{ env.IMAGE_NAME }}
+            ${{secrets.GEAR_NODE_3}} name=testnet-rpc-node rpc=yes unsafe=yes loki=yes loki_url=${{secrets.LOKI_URL}} gear_image_tag=${{ needs.tag-image.outputs.image_tag }}
+            ${{secrets.GEAR_NODE_4}} name=testnet-gear03 validator=yes loki=yes loki_url=${{secrets.LOKI_URL}} gear_image_tag=${{ needs.tag-image.outputs.image_tag }}
+            ${{secrets.GEAR_NODE_5}} name=testnet-gear04 validator=yes loki=yes loki_url=${{secrets.LOKI_URL}} gear_image_tag=${{ needs.tag-image.outputs.image_tag }}
+            ${{secrets.ARCHIVE_NODE}} name=testnet-archive-node validator=yes archive_node=yes loki=yes loki_url=${{secrets.LOKI_URL}} gear_image_tag=${{ needs.tag-image.outputs.image_tag }}
+            ${{secrets.ARCHIVE_RPC_NODE}} name=testnet-archive-rpc-node rpc=yes unsafe=no archive_node=yes loki=yes loki_url=${{secrets.LOKI_URL}} gear_image_tag=${{ needs.tag-image.outputs.image_tag }}
