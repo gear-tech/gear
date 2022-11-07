@@ -97,7 +97,7 @@ mod wasm {
 
     #[no_mangle]
     unsafe extern "C" fn handle_reply() {
-        exec::wake(HANDLE_MSG);
+        exec::wake(HANDLE_MSG).unwrap();
     }
 }
 
