@@ -533,8 +533,3 @@ where
         self.function.clone()
     }
 }
-
-/// Trait whose implementors may opt to generate dispatchable that concludes a block
-pub trait TerminalExtrinsicProvider<E> {
-    fn extrinsic() -> Option<E>;
-}
