@@ -325,8 +325,6 @@ where
         Self::prepare_handle(code, 0)
     }
 
-    // TODO: currently each syscall execution returns error: ExecutionError::InvalidReservationId.
-    // We need to fill reservations set with data first. (issue #1724)
     pub fn gr_unreserve_gas(r: u32) -> Result<Exec<T>, &'static str> {
         let reservation_id_offset = 1;
         let reservation_ids = (0..r * API_BENCHMARK_BATCH_SIZE)
@@ -841,11 +839,7 @@ where
                 0,
                 None,
             );
-            let dispatch = gear_core::message::Dispatch::new(
-                gear_core::message::DispatchKind::Handle,
-                message,
-            )
-            .into_stored();
+            let dispatch = Dispatch::new(DispatchKind::Handle, message).into_stored();
             WaitlistOf::<T>::insert(dispatch, u32::MAX.unique_saturated_into())
                 .expect("Duplicate wl message");
         }
