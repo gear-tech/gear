@@ -81,6 +81,7 @@ pub struct ModuleDefinition {
     pub aux_body: Option<FuncBody>,
     /// The amount of I64 arguments the aux function should have.
     pub aux_arg_num: u32,
+    pub aux_res: Option<ValueType>,
     /// If set to true the stack height limiter is injected into the the module. This is
     /// needed for instruction debugging because the cost of executing the stack height
     /// instrumentation should be included in the costs for the individual instructions
@@ -191,6 +192,9 @@ where
             let mut signature = program.function().signature();
             for _ in 0..def.aux_arg_num {
                 signature = signature.with_param(ValueType::I64);
+            }
+            if let Some(res) = def.aux_res {
+                signature = signature.with_result(res);
             }
             program = signature.build().with_body(body).build();
         }
