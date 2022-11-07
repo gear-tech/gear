@@ -6125,6 +6125,7 @@ fn system_reservation_accumulate_works() {
         run_to_block(3, None);
 
         let reserve = GasHandlerOf::<Test>::get_system_reserve(mid).unwrap();
+        // we 1000 and then 234 amount of gas in demo
         assert_eq!(reserve, 1234);
     });
 }
