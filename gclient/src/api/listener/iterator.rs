@@ -33,6 +33,10 @@ impl<'a> EventProcessor for EventListener<'a> {
 
     async fn proc<T>(&mut self, predicate: impl Fn(Event) -> Option<T>) -> Result<T> {
         while let Some(events) = self.0.next().await {
+            if let Err(events) = &events {
+                // TODO [SAB] Remove
+                println!("EVENTS ERR {events:?}");
+            }
             if let Some(res) = events?
                 .iter()
                 .filter_map(|event| predicate(event.ok()?.event))

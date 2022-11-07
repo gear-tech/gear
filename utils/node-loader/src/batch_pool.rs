@@ -234,6 +234,7 @@ async fn process_events(
     })
 }
 
+// TODO [SAB] Remove map_errs
 async fn inspect_crash_events(api: GearApi, node_stopper: String) -> Result<()> {
     let mut event_listener = api.subscribe().await.map_err(|e| {
         tracing::warn!("ERROR {e:?}");
@@ -243,10 +244,13 @@ async fn inspect_crash_events(api: GearApi, node_stopper: String) -> Result<()> 
     // Error means either event is not found an can't be found
     // in the listener, or some other error during event
     // parsing occurred.
-    event_listener.queue_processing_reverted().await.map_err(|e| {
-        tracing::warn!("ERROR {e:?}");
-        e
-    })?;
+    event_listener
+        .queue_processing_reverted()
+        .await
+        .map_err(|e| {
+            tracing::warn!("ERROR {e:?}");
+            e
+        })?;
 
     let crash_err = CrashAlert::MsgProcessingStopped;
     tracing::info!("{crash_err}");
