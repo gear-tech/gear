@@ -52,7 +52,7 @@ impl Api {
         let event: Event = details.as_root_event()?;
 
         if let Event::System(SystemEvent::ExtrinsicSuccess { dispatch_info })
-        | Event::System(SystemEvent::ExtrinsicFailed { dispatch_info, .. }) = event
+        | Event::System(SystemEvent::ExtrinsicFailed { dispatch_info, .. }) = event.clone()
         {
             log::info!("\tWeight cost: {:?}", dispatch_info.weight);
         }

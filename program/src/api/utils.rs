@@ -1,16 +1,24 @@
 //! gear api utils
 use crate::{
     api::{
-        generated::api::runtime_types::{gear_core::memory::PageNumber, sp_runtime::DispatchError},
+        config::GearConfig,
+        generated::api::{
+            runtime_types::{gear_core::memory::PageNumber, sp_runtime::DispatchError},
+            utility,
+        },
         Api,
     },
-    result::Result,
+    result::{Error, Result},
 };
 use parity_scale_codec::Encode;
-use std::mem;
+use std::{mem, result::Result as StdResult};
 use subxt::{
-    error::{DispatchError as SubxtDispatchError, Error, ModuleError, ModuleErrorData},
+    error::{
+        DispatchError as SubxtDispatchError, Error as SubxtError, ModuleError, ModuleErrorData,
+    },
+    events::StaticEvent,
     ext::sp_core::H256,
+    tx::TxEvents,
 };
 
 const STORAGE_PROGRAM_PREFIX: &[u8] = b"g::prog::";
@@ -37,7 +45,25 @@ pub fn page_key(id: H256, page: PageNumber) -> Vec<u8> {
 }
 
 impl Api {
-    /// compare gas limit
+    /// Filter the result of batch requests.
+    pub fn batch_result<E>(&self, evs: TxEvents<GearConfig>) -> Result<StdResult<E, DispatchError>>
+    where
+        E: StaticEvent,
+    {
+        if let Ok(Some(utility::events::ItemFailed { error })) =
+            evs.find_first::<utility::events::ItemFailed>()
+        {
+            return Ok(Err(error));
+        }
+
+        if let Ok(Some(e)) = evs.find_first::<E>() {
+            return Ok(Ok(e));
+        }
+
+        Err(Error::EventNotFound)
+    }
+
+    /// Compare gas limit.
     pub fn cmp_gas_limit(&self, gas: u64) -> Result<u64> {
         if let Ok(limit) = self.gas_limit() {
             Ok(if gas > limit {
@@ -52,7 +78,7 @@ impl Api {
     }
 
     /// Decode `DispatchError` to `subxt::error::Error`.
-    pub fn decode_error(&self, dispatch_error: DispatchError) -> Error {
+    pub fn decode_error(&self, dispatch_error: DispatchError) -> SubxtError {
         if let DispatchError::Module(ref err) = dispatch_error {
             if let Ok(error_details) = self.metadata().error(err.index, err.error[0]) {
                 return SubxtDispatchError::Module(ModuleError {

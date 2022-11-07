@@ -1,6 +1,6 @@
 //! Integration tests for command `upload`
 
-use crate::common::{self, env, logs};
+use crate::common::{self, env, logs, traits::Convert};
 use gear_program::api::Api;
 
 #[tokio::test]
@@ -23,13 +23,14 @@ async fn test_command_upload_works() {
         .expect("get code failed")
         .is_none());
 
-    let _ = common::gear(&[
+    let r = common::gear(&[
         "-e",
         &node.ws(),
         "upload",
         &env::wasm_bin("demo_meta.opt.wasm"),
     ])
     .expect("run command upload failed");
+
     assert!(api
         .code_storage(code_hash)
         .await

@@ -156,7 +156,10 @@ impl Signer {
             let status = status?;
             self.log_status(&status);
             match status {
-                Future | Ready | Broadcast(_) | InBlock(_) => (),
+                Future | Ready | Broadcast(_) => (),
+                InBlock(tx) => {
+                    let _ = self.capture_dispatch_info(&tx).await?;
+                }
                 Dropped | Invalid | Usurped(_) | FinalityTimeout(_) | Retracted(_) => {
                     self.log_balance_spent(before).await?;
                     return Err(status.into());

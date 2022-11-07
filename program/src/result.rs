@@ -67,6 +67,8 @@ pub enum Error {
     CodeNotFound(String),
     #[error("Could not find directory {0}")]
     CouldNotFindDirectory(String),
+    #[error("Event not found")]
+    EventNotFound,
     #[error(transparent)]
     Hex(#[from] hex::FromHexError),
     #[error("Unable to get the name of the current executable binary")]
