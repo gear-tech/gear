@@ -1,0 +1,316 @@
+// This file is part of Gear.
+
+// Copyright (C) 2021-2022 Gear Technologies Inc.
+// SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
+
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU General Public License for more details.
+
+// You should have received a copy of the GNU General Public License
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+#![cfg_attr(not(feature = "std"), no_std)]
+
+use codec::{Decode, Encode};
+
+#[cfg(feature = "std")]
+mod code {
+    include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
+}
+
+#[cfg(feature = "std")]
+pub use code::WASM_BINARY_OPT as WASM_BINARY;
+use gstd::{errors::ExtError, ActorId, MessageId, Vec};
+
+#[derive(Debug, Encode, Decode)]
+pub enum SysCall {
+    // Params(salt, gas), Expected(message id, actor id)
+    CreateProgram(u64, u64, (MessageId, ActorId)),
+    // Params(value), Expected(error)
+    Error(u128, ExtError),
+    // Params(gas), Expected(message id)
+    Send(u64, MessageId),
+    // Params(payload, gas), Expected(message id)
+    SendRaw(Vec<u8>, u64, MessageId),
+    // Expected(payload size)
+    Size(u32),
+    // Expected(message id)
+    MessageId(MessageId),
+    // Expected(program id)
+    ProgramId(ActorId),
+    // Expected(message sender)
+    Source(ActorId),
+    // Expected(message value)
+    Value(u128),
+    // Expected(this program's balance)
+    ValueAvailable(u128),
+    // Params(gas), Expected(message id)
+    Reply(u64, MessageId),
+    // Params(payload, gas), Expected(message id)
+    ReplyRaw(Vec<u8>, u64, MessageId),
+    // Expected(reply to id, exit code)
+    ReplyDetails(MessageId, i32),
+    // Expected(block height)
+    BlockHeight(u32),
+    // Expected(block timestamp)
+    BlockTimestamp(u64),
+    // Expected(msg origin)
+    Origin(ActorId),
+    // Expected(id)
+    Reserve(Vec<u8>),
+    // Expected(amount)
+    Unreserve(u64),
+    // Param(salt), Expected(hash, block number)
+    Random(Vec<u8>, ([u8; 32], u32)),
+    // Expected(lower bound, upper bound )-> estimated gas level
+    GasAvailable(u64, u64),
+}
+
+#[cfg(not(feature = "std"))]
+mod wasm {
+    use super::SysCall;
+    use codec::Encode;
+    use gstd::{
+        debug,
+        errors::{ContractError, ExtError, MessageError},
+        exec,
+        msg::{self, MessageHandle},
+        prog, CodeId, ReservationId,
+    };
+
+    static mut CODE_ID: CodeId = CodeId::new([0u8; 32]);
+
+    #[no_mangle]
+    unsafe extern "C" fn init() {
+        let code_id_bytes: [u8; 32] = msg::load().expect("internal error: invalid payload");
+
+        CODE_ID = code_id_bytes.into();
+    }
+
+    #[no_mangle]
+    unsafe extern "C" fn handle() {
+        match msg::load().expect("internal error: invalid payload") {
+            SysCall::CreateProgram(salt, gas, (expected_mid, expected_pid)) => {
+                let salt = salt.to_le_bytes();
+                let res = if gas == 0 {
+                    prog::create_program_delayed(CODE_ID, salt, "payload", 0, 0)
+                } else {
+                    prog::create_program_with_gas_delayed(CODE_ID, salt, "payload", gas, 0, 0)
+                };
+                let (actual_mid, actual_pid) = res.expect("internal error: create program failed");
+                assert_eq!(
+                    expected_mid, actual_mid,
+                    "SysCall::CreateProgram: mid test failed"
+                );
+                assert_eq!(
+                    expected_pid, actual_pid,
+                    "SysCall::CreateProgram: pid test failed"
+                );
+            }
+            SysCall::Error(message_value, expected_err) => {
+                let actual_err = msg::reply(b"", message_value).expect_err("not enough balance");
+                assert_eq!(
+                    Into::<ContractError>::into(expected_err),
+                    actual_err,
+                    "SysCall::Error: test failed"
+                );
+            }
+            SysCall::Send(gas, expected_mid) => {
+                let actual_mid_res = if gas == 0 {
+                    msg::send_delayed(msg::source(), b"payload", 0, 0)
+                } else {
+                    msg::send_with_gas_delayed(msg::source(), b"payload", gas, 0, 0)
+                };
+                assert_eq!(
+                    Ok(expected_mid),
+                    actual_mid_res,
+                    "SysCall::Send: mid test failed"
+                );
+            }
+            SysCall::SendRaw(payload, gas, expected_mid) => {
+                // Sending these 2 to increase internal handler returned by `send_init`.
+                let _ = msg::send_delayed(msg::source(), b"payload", 0, 0);
+                let _ = msg::send_delayed(msg::source(), b"payload", 0, 0);
+
+                let handle = MessageHandle::init().expect("internal error: failed send init");
+                // check handle
+                handle
+                    .push(payload)
+                    .expect("internal error: failed send_push");
+                let actual_mid_res = if gas == 0 {
+                    handle.commit_delayed(msg::source(), 0, 0)
+                } else {
+                    handle.commit_with_gas_delayed(msg::source(), gas, 0, 0)
+                };
+                assert_eq!(
+                    Ok(expected_mid),
+                    actual_mid_res,
+                    "SysCall::SendRaw: mid test failed"
+                );
+            }
+            SysCall::Size(expected_size) => {
+                let actual_size = msg::size();
+                assert_eq!(
+                    expected_size, actual_size,
+                    "SysCall::Size: size test failed"
+                );
+            }
+            SysCall::MessageId(expected_mid) => {
+                let actual_mid = msg::id();
+                assert_eq!(
+                    expected_mid, actual_mid,
+                    "SysCall::MessageId: mid test failed"
+                );
+            }
+            SysCall::ProgramId(expected_pid) => {
+                let actual_pid = exec::program_id();
+                assert_eq!(
+                    expected_pid, actual_pid,
+                    "SysCall::ProgramId: pid test failed"
+                );
+            }
+            SysCall::Source(expected_actor) => {
+                let actual_actor = msg::source();
+                assert_eq!(
+                    expected_actor, actual_actor,
+                    "SysCall::Source: actor test failed"
+                );
+            }
+            SysCall::Value(expected_value) => {
+                let actual_value = msg::value();
+                assert_eq!(
+                    expected_value, actual_value,
+                    "SysCall::Value: value test failed"
+                );
+            }
+            SysCall::ValueAvailable(expected_value) => {
+                let _ = msg::send_delayed(msg::source(), b"payload", 2000, 0);
+                let actual_value = exec::value_available();
+                assert_eq!(
+                    expected_value, actual_value,
+                    "SysCall::ValueAvailable: value test failed"
+                );
+            }
+            SysCall::Reply(gas, expected_mid) => {
+                let actual_mid_res = if gas == 0 {
+                    msg::reply_delayed(b"payload", 0, 0)
+                } else {
+                    msg::reply_with_gas_delayed(b"payload", gas, 0, 0)
+                };
+                assert_eq!(
+                    Ok(expected_mid),
+                    actual_mid_res,
+                    "SysCall::Reply: mid test failed"
+                );
+            }
+            SysCall::ReplyRaw(payload, gas, expected_mid) => {
+                msg::reply_push(payload).expect("internal error: failed reply push");
+                let actual_mid_res = if gas == 0 {
+                    msg::reply_commit_delayed(0, 0)
+                } else {
+                    msg::reply_commit_with_gas_delayed(gas, 0, 0)
+                };
+                assert_eq!(
+                    Ok(expected_mid),
+                    actual_mid_res,
+                    "SysCall::ReplyRaw: mid test failed"
+                );
+            }
+            SysCall::ReplyDetails(..) => {
+                // Actual test in handle reply, here just sends a reply
+                let _ = msg::reply_delayed(b"payload", 0, 0);
+            }
+            SysCall::BlockHeight(expected_height) => {
+                let actual_height = exec::block_height();
+                assert_eq!(
+                    expected_height, actual_height,
+                    "SysCall::BlockHeight:: block height test failed"
+                );
+            }
+            SysCall::BlockTimestamp(expected_timestamp) => {
+                let actual_timestamp = exec::block_timestamp();
+                assert_eq!(
+                    expected_timestamp, actual_timestamp,
+                    "SysCall::BlockTimestamp:: block timestamp test failed"
+                );
+            }
+            SysCall::Origin(expected_actor) => {
+                let actual_actor = exec::origin();
+                assert_eq!(
+                    expected_actor, actual_actor,
+                    "SysCall::Origin: actor test failed"
+                );
+            }
+            SysCall::Reserve(expected_id) => {
+                // do 2 reservations to increase internal nonce
+                let _ = ReservationId::reserve(10_000, 3);
+                let _ = ReservationId::reserve(20_000, 5);
+                let actual_id =
+                    ReservationId::reserve(30_000, 7).expect("internal error: reservation failed");
+                assert_eq!(
+                    expected_id,
+                    actual_id.encode(),
+                    "SysCall::Reserve: reserve gas test failed"
+                );
+            }
+            SysCall::Unreserve(expected_amount) => {
+                let reservation = ReservationId::reserve(expected_amount, 3)
+                    .expect("internal error: reservation failed");
+                let actual_amount = reservation.unreserve();
+                assert_eq!(
+                    Ok(expected_amount),
+                    actual_amount,
+                    "SysCall::Unreserve: unreserve gas test failed"
+                );
+            }
+            SysCall::Random(salt, (expected_hash, expected_bn)) => {
+                let (actual_hash, actual_bn) =
+                    exec::random(&salt).expect("internal error: random call failed");
+                assert_eq!(
+                    expected_hash, actual_hash,
+                    "SysCall::Random: hash test failed"
+                );
+                assert_eq!(expected_bn, actual_bn, "SysCall::Random: bn test failed");
+            }
+            SysCall::GasAvailable(lower, upper) => {
+                let gas_available = exec::gas_available();
+                assert!(
+                    gas_available >= lower,
+                    "SysCall::GasAvailable: lower bound test failed"
+                );
+                assert!(
+                    gas_available <= upper,
+                    "SysCall::GasAvailable: upper bound test failed"
+                );
+            }
+            _ => panic!("Unintended call"),
+        }
+    }
+
+    #[no_mangle]
+    extern "C" fn handle_reply() {
+        if let Ok(SysCall::ReplyDetails(expected_reply_to, expected_exit_code)) = msg::load() {
+            let actual_reply_to = msg::reply_to();
+            assert_eq!(
+                Ok(expected_reply_to),
+                actual_reply_to,
+                "SysCall::ReplyDetails: reply_to test failed"
+            );
+            let actual_exit_code = msg::exit_code();
+            assert_eq!(
+                Ok(expected_exit_code),
+                actual_exit_code,
+                "SysCall::ReplyDetails: exit_code test failed"
+            );
+        } else {
+            panic!("internal error: invalid payload for `handle_reply`")
+        }
+    }
+}

@@ -1,0 +1,584 @@
+//! Testing integration level of sys-calss
+//!
+//! Integration level is the level between the user (`gcore`/`gstd`) and `core-backend`.
+//! Tests here does not check complex business logic, but only the fact that all the
+//! requested data is received properly, i.e., pointers receive expected types.
+//!
+//! `gr_read`is tested in the `test_sys_calls` program by calling `msg::load` to decode each sys-call type.
+//! `gr_exit` and `gr_wait*` call are not intended to be tested with the integration level tests, but only
+//! with business logic tests in the separate module.
+
+// TODO
+// 1. Alloc/free test
+// 2. general enum, for making sure no new entities are forgotten
+// 3. include mailbox to tests
+// 4. Separate test for origin
+
+use super::*;
+use crate::mock::Timestamp;
+use gear_core::ids::ReservationId;
+use primitive_types::H256;
+use test_sys_calls::{SysCall, WASM_BINARY as SYS_CALLS_TESTER_WASM_BINARY};
+
+type DefaultPostCheck = fn() -> ();
+
+enum TestCall {
+    SendMessage(SendMessageParams),
+    SendReply(SendReplyParams),
+}
+
+impl TestCall {
+    fn send_message(mp: MessageParamsBuilder) -> Self {
+        TestCall::SendMessage(mp.build_send_message())
+    }
+
+    fn send_reply(mp: MessageParamsBuilder) -> Self {
+        TestCall::SendReply(mp.build_send_reply())
+    }
+}
+
+struct SendMessageParams {
+    sender: AccountId,
+    payload: Vec<u8>,
+    value: u128,
+}
+
+struct SendReplyParams {
+    sender: AccountId,
+    reply_to_id: MessageId,
+    payload: Vec<u8>,
+    value: u128,
+}
+
+#[derive(Default)]
+struct MessageParamsBuilder {
+    sender: Option<AccountId>,
+    payload: Vec<u8>,
+    value: Option<u128>,
+    reply_to_id: Option<MessageId>,
+}
+
+impl MessageParamsBuilder {
+    fn new(payload: Vec<u8>) -> Self {
+        Self {
+            payload,
+            ..Default::default()
+        }
+    }
+
+    fn with_sender(mut self, sender: AccountId) -> Self {
+        self.sender = Some(sender);
+        self
+    }
+
+    fn with_value(mut self, value: u128) -> Self {
+        self.value = Some(value);
+        self
+    }
+
+    fn with_reply_id(mut self, reply_to_id: MessageId) -> Self {
+        self.reply_to_id = Some(reply_to_id);
+        self
+    }
+
+    fn build_send_message(self) -> SendMessageParams {
+        let MessageParamsBuilder {
+            sender,
+            payload,
+            value,
+            ..
+        } = self;
+        SendMessageParams {
+            sender: sender.unwrap_or(USER_1),
+            payload,
+            value: value.unwrap_or(0),
+        }
+    }
+
+    fn build_send_reply(self) -> SendReplyParams {
+        let MessageParamsBuilder {
+            sender,
+            payload,
+            value,
+            reply_to_id,
+        } = self;
+        SendReplyParams {
+            sender: sender.unwrap_or(USER_1),
+            reply_to_id: reply_to_id.expect("internal error: reply id wasn't set"),
+            payload,
+            value: value.unwrap_or(0),
+        }
+    }
+}
+
+impl From<Vec<u8>> for MessageParamsBuilder {
+    fn from(v: Vec<u8>) -> Self {
+        MessageParamsBuilder::new(v)
+    }
+}
+
+fn run_tester<P, S>(get_test_call_params: S)
+where
+    // Post check
+    P: FnOnce(),
+    // Get sys call and post check
+    S: FnOnce(ProgramId, CodeId) -> (TestCall, Option<P>),
+{
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let child_code = ProgramCodeKind::Default.to_bytes();
+        let child_code_hash = generate_code_hash(&child_code);
+        let tester_pid = generate_program_id(SYS_CALLS_TESTER_WASM_BINARY, DEFAULT_SALT);
+        // let proxy_pid = generate_program_id(PROXY_WASM_BINARY, DEFAULT_SALT);
+
+        // Deploy program with valid code hash
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            ProgramCodeKind::Default.to_bytes(),
+            DEFAULT_SALT.to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
+            50_000_000_000,
+            0,
+        ));
+
+        // Set default code-hash for create program calls
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            SYS_CALLS_TESTER_WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            child_code_hash.encode(),
+            50_000_000_000,
+            0,
+        ));
+
+        run_to_next_block(None);
+
+        let (call, post_check) = get_test_call_params(tester_pid, child_code_hash.into());
+        match call {
+            TestCall::SendMessage(mp) => {
+                assert_ok!(Gear::send_message(
+                    RuntimeOrigin::signed(mp.sender),
+                    tester_pid,
+                    mp.payload,
+                    50_000_000_000,
+                    mp.value,
+                ));
+            }
+            TestCall::SendReply(rp) => {
+                assert_ok!(Gear::send_reply(
+                    RuntimeOrigin::signed(rp.sender),
+                    rp.reply_to_id,
+                    rp.payload,
+                    50_000_000_000,
+                    rp.value,
+                ));
+            }
+        }
+
+        // Main check
+        let user_mid = get_last_message_id();
+        run_to_next_block(None);
+        assert_eq!(dispatch_status(user_mid), Some(DispatchStatus::Success));
+
+        // Optional post-main check
+        if let Some(post_check) = post_check {
+            post_check();
+        }
+    })
+}
+
+#[test]
+fn check_gr_create_program() {
+    run_tester(|_, _| {
+        let next_user_mid = get_next_message_id(USER_1);
+        let expected_mid = MessageId::generate_outgoing(next_user_mid, 0).into_origin();
+        let (salt, gas) = (10u64, 0);
+        let expected_pid =
+            generate_program_id(&ProgramCodeKind::Default.to_bytes(), &salt.to_le_bytes())
+                .into_origin();
+
+        let mp = SysCall::CreateProgram(salt, gas, (expected_mid.into(), expected_pid.into()))
+            .encode()
+            .into();
+
+        (TestCall::send_message(mp), None::<DefaultPostCheck>)
+    });
+}
+
+#[test]
+fn check_gr_create_program_wgas() {
+    run_tester(|_, _| {
+        let next_user_mid = get_next_message_id(USER_1);
+        let expected_mid = MessageId::generate_outgoing(next_user_mid, 0).into_origin();
+        let (salt, gas) = (10u64, 25_000_000_000);
+        let expected_pid =
+            generate_program_id(&ProgramCodeKind::Default.to_bytes(), &salt.to_le_bytes())
+                .into_origin();
+
+        let mp = SysCall::CreateProgram(salt, gas, (expected_mid.into(), expected_pid.into()))
+            .encode()
+            .into();
+
+        (TestCall::send_message(mp), None::<DefaultPostCheck>)
+    });
+}
+
+#[test]
+fn check_gr_err() {
+    run_tester(|_, _| {
+        let message_value = u128::MAX;
+        let expected_err = ExtError::Message(MessageError::NotEnoughValue {
+            message_value,
+            value_left: 0,
+        });
+
+        let mp = SysCall::Error(message_value, expected_err).encode().into();
+
+        (TestCall::send_message(mp), None::<DefaultPostCheck>)
+    });
+}
+
+#[test]
+fn check_gr_send() {
+    run_tester(|_, _| {
+        let next_user_mid = get_next_message_id(USER_1);
+        let expected_mid = MessageId::generate_outgoing(next_user_mid, 0).into_origin();
+
+        let mp = SysCall::Send(0, expected_mid.into()).encode().into();
+
+        (TestCall::send_message(mp), None::<DefaultPostCheck>)
+    });
+}
+
+#[test]
+fn check_gr_send_wgas() {
+    run_tester(|_, _| {
+        let next_user_mid = get_next_message_id(USER_1);
+        let expected_mid = MessageId::generate_outgoing(next_user_mid, 0).into_origin();
+
+        let mp = SysCall::Send(25_000_000_000, expected_mid.into())
+            .encode()
+            .into();
+
+        (TestCall::send_message(mp), None::<DefaultPostCheck>)
+    });
+}
+
+#[test]
+/// Tests send_init, send_push, send_commit.
+fn check_gr_send_raw() {
+    run_tester(|_, _| {
+        let payload = b"HI!!";
+        let next_user_mid = get_next_message_id(USER_1);
+        // Program increases local nonce by sending messages twice before `send_init`.
+        let expected_mid = MessageId::generate_outgoing(next_user_mid, 2).into_origin();
+
+        let post_test = move || {
+            assert!(
+                MailboxOf::<Test>::iter_key(USER_1)
+                    .any(|(m, _)| m.id() == MessageId::from_origin(expected_mid)
+                        && m.payload() == payload.to_vec()),
+                "No message with expected id found in queue"
+            );
+        };
+
+        let mp = SysCall::SendRaw(payload.to_vec(), 0, expected_mid.into())
+            .encode()
+            .into();
+
+        (TestCall::send_message(mp), Some(post_test))
+    });
+}
+
+#[test]
+/// Tests send_init, send_push, send_commit_wgas.
+fn check_gr_send_raw_wgas() {
+    run_tester(|_, _| {
+        let payload = b"HI!!";
+        let next_user_mid = get_next_message_id(USER_1);
+        // Program increases local nonce by sending messages twice before `send_init`.
+        let expected_mid = MessageId::generate_outgoing(next_user_mid, 2).into_origin();
+
+        let post_test = move || {
+            assert!(
+                MailboxOf::<Test>::iter_key(USER_1)
+                    .any(|(m, _)| m.id() == MessageId::from_origin(expected_mid)
+                        && m.payload() == payload.to_vec()),
+                "No message with expected id found in queue"
+            );
+        };
+
+        let mp = SysCall::SendRaw(payload.to_vec(), 25_000_000, expected_mid.into())
+            .encode()
+            .into();
+
+        (TestCall::send_message(mp), Some(post_test))
+    });
+}
+
+#[test]
+fn check_gr_size() {
+    run_tester(|_, _| {
+        // One byte for enum variant, four bytes for u32 value
+        let expected_size = 5;
+
+        let mp = SysCall::Size(expected_size).encode().into();
+
+        (TestCall::send_message(mp), None::<DefaultPostCheck>)
+    });
+}
+
+#[test]
+fn check_gr_message_id() {
+    run_tester(|_, _| {
+        let next_user_mid = get_next_message_id(USER_1);
+
+        let mp = SysCall::MessageId(next_user_mid.into_origin().into())
+            .encode()
+            .into();
+
+        (TestCall::send_message(mp), None::<DefaultPostCheck>)
+    })
+}
+
+#[test]
+fn check_gr_program_id() {
+    run_tester(|id, _| {
+        let mp = SysCall::ProgramId(id.into_origin().into()).encode().into();
+
+        (TestCall::send_message(mp), None::<DefaultPostCheck>)
+    })
+}
+
+#[test]
+fn check_gr_source() {
+    run_tester(|_, _| {
+        let mp = MessageParamsBuilder::new(SysCall::Source(USER_2.into_origin().into()).encode())
+            .with_sender(USER_2);
+
+        (TestCall::send_message(mp), None::<DefaultPostCheck>)
+    })
+}
+
+#[test]
+fn check_gr_value() {
+    run_tester(|_, _| {
+        let sending_value = u16::MAX as u128;
+        let mp = MessageParamsBuilder::new(SysCall::Value(sending_value).encode())
+            .with_value(sending_value);
+
+        (TestCall::send_message(mp), None::<DefaultPostCheck>)
+    })
+}
+
+#[test]
+fn check_gr_value_available() {
+    run_tester(|_, _| {
+        let sending_value = 10_000;
+        // Program sends 2000
+        let mp = MessageParamsBuilder::new(SysCall::ValueAvailable(sending_value - 2000).encode())
+            .with_value(sending_value);
+
+        (TestCall::send_message(mp), None::<DefaultPostCheck>)
+    })
+}
+
+#[test]
+fn check_gr_reply() {
+    run_tester(|_, _| {
+        let next_user_mid = get_next_message_id(USER_1);
+        let expected_mid = MessageId::generate_reply(next_user_mid, 0).into_origin();
+
+        let mp = SysCall::Reply(0, expected_mid.into()).encode().into();
+
+        (TestCall::send_message(mp), None::<DefaultPostCheck>)
+    })
+}
+
+#[test]
+fn check_gr_reply_wgas() {
+    run_tester(|_, _| {
+        let next_user_mid = get_next_message_id(USER_1);
+        let expected_mid = MessageId::generate_reply(next_user_mid, 0).into_origin();
+
+        let mp = SysCall::Reply(25_000_000_000, expected_mid.into())
+            .encode()
+            .into();
+
+        (TestCall::send_message(mp), None::<DefaultPostCheck>)
+    })
+}
+
+#[test]
+// Tests `reply_push` and `reply_commit`
+fn check_gr_reply_raw() {
+    run_tester(|_, _| {
+        let payload = b"HI!!";
+        let next_user_mid = get_next_message_id(USER_1);
+        // Program increases local nonce by sending messages twice before `send_init`.
+        let expected_mid = MessageId::generate_reply(next_user_mid, 0).into_origin();
+
+        let post_test = move || {
+            assert!(
+                MailboxOf::<Test>::iter_key(USER_1)
+                    .any(|(m, _)| m.id() == MessageId::from_origin(expected_mid)
+                        && m.payload() == payload.to_vec()),
+                "No message with expected id found in queue"
+            );
+        };
+
+        let mp = SysCall::ReplyRaw(payload.to_vec(), 0, expected_mid.into())
+            .encode()
+            .into();
+
+        (TestCall::send_message(mp), Some(post_test))
+    });
+}
+
+#[test]
+// Tests `reply_push` and `reply_commit_wgas`
+fn check_gr_reply_raw_wgas() {
+    run_tester(|_, _| {
+        let payload = b"HI!!";
+        let next_user_mid = get_next_message_id(USER_1);
+        // Program increases local nonce by sending messages twice before `send_init`.
+        let expected_mid = MessageId::generate_reply(next_user_mid, 0).into_origin();
+
+        let post_test = move || {
+            assert!(
+                MailboxOf::<Test>::iter_key(USER_1)
+                    .any(|(m, _)| m.id() == MessageId::from_origin(expected_mid)
+                        && m.payload() == payload.to_vec()),
+                "No message with expected id found in queue"
+            );
+        };
+
+        let mp = SysCall::ReplyRaw(payload.to_vec(), 25_000_000_000, expected_mid.into())
+            .encode()
+            .into();
+
+        (TestCall::send_message(mp), Some(post_test))
+    });
+}
+
+#[test]
+// Tests `reply_to` and  `exit_code`
+fn check_gr_reply_details() {
+    run_tester(|tester_pid, _| {
+        let next_user_mid = get_next_message_id(USER_1);
+        // Program increases local nonce by sending messages twice before `send_init`.
+        let expected_mid = MessageId::generate_reply(next_user_mid, 0);
+
+        // trigger sending message to USER_1's mailbox
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            tester_pid,
+            // random params in ReplyDetails, because they aren't checked
+            SysCall::ReplyDetails(H256::random().into(), 0).encode(),
+            50_000_000_000,
+            0,
+        ));
+        run_to_next_block(None);
+
+        let reply_to = get_last_mail(USER_1);
+        assert_eq!(reply_to.id(), expected_mid, "mailbox check failed");
+
+        let mp = MessageParamsBuilder::new(
+            SysCall::ReplyDetails(expected_mid.into_origin().into(), 0).encode(),
+        )
+        .with_reply_id(reply_to.id());
+
+        (TestCall::send_reply(mp), None::<DefaultPostCheck>)
+    });
+}
+
+#[test]
+fn check_gr_block_height() {
+    run_tester(|_, _| {
+        run_to_block(10, None);
+        let expected_height = 11;
+
+        let mp = SysCall::BlockHeight(expected_height).encode().into();
+
+        (TestCall::send_message(mp), None::<DefaultPostCheck>)
+    })
+}
+
+#[test]
+fn check_gr_block_timestamp() {
+    run_tester(|_, _| {
+        // will remain constant
+        let block_timestamp = 125;
+        assert_ok!(Timestamp::set(RuntimeOrigin::none(), block_timestamp));
+
+        let mp = SysCall::BlockTimestamp(block_timestamp).encode().into();
+
+        (TestCall::send_message(mp), None::<DefaultPostCheck>)
+    })
+}
+
+#[test]
+fn check_gr_origin() {
+    run_tester(|_, _| {
+        let mp = MessageParamsBuilder::new(SysCall::Origin(USER_2.into_origin().into()).encode())
+            .with_sender(USER_2);
+
+        (TestCall::send_message(mp), None::<DefaultPostCheck>)
+    })
+}
+
+#[test]
+fn check_gr_reserve_gas() {
+    run_tester(|_, _| {
+        let next_user_mid = get_next_message_id(USER_1);
+        // Nonce in program is set to 2 due to 3 times reservation is called.
+        let expected_reservation_id = ReservationId::generate(next_user_mid, 2).encode();
+        let mp = SysCall::Reserve(expected_reservation_id).encode().into();
+
+        (TestCall::send_message(mp), None::<DefaultPostCheck>)
+    })
+}
+
+#[test]
+fn check_gr_unreserve_gas() {
+    run_tester(|_, _| {
+        let mp = SysCall::Unreserve(10_000).encode().into();
+
+        (TestCall::send_message(mp), None::<DefaultPostCheck>)
+    })
+}
+
+#[test]
+fn check_gr_random() {
+    run_tester(|_, _| {
+        run_to_block(10, None);
+
+        let bn = 11;
+        let salt = vec![1, 2, 3];
+        let expected_hash = {
+            let next_user_mid: [u8; 32] = get_next_message_id(USER_1).into();
+            // Internals of the gr_random call
+            let mut salt_clone = salt.clone();
+            salt_clone.extend_from_slice(&next_user_mid);
+
+            hash(&salt_clone)
+        };
+
+        let mp = SysCall::Random(salt, (expected_hash, bn)).encode().into();
+
+        (TestCall::send_message(mp), None::<DefaultPostCheck>)
+    })
+}
+
+#[test]
+fn check_gr_gas_available() {
+    run_tester(|_, _| {
+        // Expected to burn not more than 600_000_000
+        // Provided gas in the test by default is 50_000_000_000
+        let lower = 50_000_000_000 - 600_000_000;
+        let upper = 50_000_000_000 - 300_000_000;
+        let mp = SysCall::GasAvailable(lower, upper).encode().into();
+
+        (TestCall::send_message(mp), None::<DefaultPostCheck>)
+    })
+}

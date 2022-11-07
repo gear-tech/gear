@@ -192,6 +192,12 @@ impl From<gcore::MessageId> for MessageId {
     }
 }
 
+impl From<H256> for MessageId {
+    fn from(h256: H256) -> Self {
+        Self::new(h256.to_fixed_bytes())
+    }
+}
+
 #[derive(
     Clone, Copy, Debug, Default, Hash, Ord, PartialEq, PartialOrd, Eq, TypeInfo, Decode, Encode,
 )]
@@ -312,6 +318,12 @@ impl From<gcore::ReservationId> for ReservationId {
 impl From<ReservationId> for gcore::ReservationId {
     fn from(id: ReservationId) -> Self {
         gcore::ReservationId(id.0)
+    }
+}
+
+impl From<[u8; 32]> for ReservationId {
+    fn from(_: [u8; 32]) -> Self {
+        todo!()
     }
 }
 
