@@ -30,6 +30,7 @@
 //! ## Drop, Block, End
 //! This is virtual instruction for wasmer, they aren't really generated in target code,
 //! the only thing they do - wasmer take them in account, when compiles wasm code.
+//! So, we suppose this instruction have weight 0.
 
 #![cfg(feature = "runtime-benchmarks")]
 
@@ -938,7 +939,7 @@ benchmarks! {
         verify_process(res.unwrap());
     }
 
-    // TODO: fix it
+    // TODO: fix it #1728
     // w_load = w_bench
     instr_i64load {
         let r in 0 .. INSTR_BENCHMARK_BATCHES;
@@ -955,7 +956,7 @@ benchmarks! {
         sbox.invoke();
     }
 
-    // TODO: Fix it
+    // TODO: Fix it #1728
     // w_store = w_bench - w_i64const
     instr_i64store {
         let r in 0 .. INSTR_BENCHMARK_BATCHES;
@@ -972,7 +973,7 @@ benchmarks! {
         sbox.invoke();
     }
 
-    // w_select = w_bench - 2 * w_i64const (don't consider i32const, see head comment).
+    // w_select = w_bench - 2 * w_i64const
     instr_select {
         let r in 0 .. INSTR_BENCHMARK_BATCHES;
         let mut sbox = Sandbox::from(&WasmModule::<T>::from(ModuleDefinition {
@@ -989,7 +990,7 @@ benchmarks! {
         sbox.invoke();
     }
 
-    // w_if = w_bench (don't consider i32const, see head comment).
+    // w_if = w_bench
     instr_if {
         let r in 0 .. INSTR_BENCHMARK_BATCHES;
         let mut instructions = body::repeated_dyn_instr(

@@ -398,7 +398,7 @@ pub mod body {
         /// Insert a I32Const with a random value in [low, high).
         /// (low, high)
         RandomI32(i32, i32),
-        /// Insert a I32Const with a random value in [low, high).
+        /// Insert a I64Const with a random value in [low, high).
         /// (low, high)
         RandomI64(i64, i64),
         /// Insert the specified amount of I32Const with a random value.

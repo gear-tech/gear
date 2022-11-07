@@ -626,9 +626,9 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_i32wrapi64(r: u32, ) -> Weight {
-        Weight::from_ref_time(2_501_000 as u64)
-            // Standard Error: 528
-            .saturating_add(Weight::from_ref_time(331_646 as u64).saturating_mul(r as u64))
+        Weight::from_ref_time(2_709_000 as u64)
+            // Standard Error: 3_235
+            .saturating_add(Weight::from_ref_time(562_398 as u64).saturating_mul(r as u64))
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_i64eq(r: u32, ) -> Weight {
@@ -1266,9 +1266,9 @@ impl WeightInfo for () {
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_i32wrapi64(r: u32, ) -> Weight {
-        Weight::from_ref_time(2_501_000 as u64)
-            // Standard Error: 528
-            .saturating_add(Weight::from_ref_time(331_646 as u64).saturating_mul(r as u64))
+        Weight::from_ref_time(2_709_000 as u64)
+            // Standard Error: 3_235
+            .saturating_add(Weight::from_ref_time(562_398 as u64).saturating_mul(r as u64))
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_i64eq(r: u32, ) -> Weight {
