@@ -92,12 +92,12 @@ impl Program {
         self.is_initialized = true;
     }
 
-    /// Get reference to memory pages.
+    /// Get allocations as a set of page numbers.
     pub fn allocations(&self) -> &BTreeSet<WasmPageNumber> {
         &self.allocations
     }
 
-    /// Set reference to memory pages.
+    /// Set allocations as a set of page numbers.
     pub fn set_allocations(&mut self, allocations: BTreeSet<WasmPageNumber>) {
         self.allocations = allocations;
     }

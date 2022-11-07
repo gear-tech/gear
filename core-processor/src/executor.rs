@@ -61,6 +61,7 @@ fn charge_gas(
     gas_counter: &mut GasCounter,
     gas_allowance_counter: &mut GasAllowanceCounter,
 ) -> Result<(), ExecutionErrorReason> {
+    log::trace!("Charge {} of gas to {}", amount, operation);
     if gas_allowance_counter.charge(amount) != ChargeResult::Enough {
         return Err(ExecutionErrorReason::BlockGasExceeded(operation));
     }
@@ -147,7 +148,6 @@ pub(crate) fn charge_gas_for_instantiation(
     gas_allowance_counter: &mut GasAllowanceCounter,
 ) -> Result<(), ExecutionErrorReason> {
     let amount = gas_per_byte * code_length as u64;
-    log::trace!("Charge {} for module instantiation", amount);
     charge_gas(
         GasOperation::ModuleInstantiation,
         amount,
@@ -171,7 +171,6 @@ pub(crate) fn charge_gas_for_pages(
     if initial_execution {
         // Charging gas for initial pages
         let amount = settings.init_cost * static_pages.0 as u64;
-        log::trace!("Charge {} for initial pages", amount);
         charge_gas(
             GasOperation::InitialMemory,
             amount,
@@ -278,8 +277,6 @@ fn get_pages_to_be_updated<A: ProcessorExt>(
     if A::LAZY_PAGES_ENABLED {
         // In lazy pages mode we update some page data in storage,
         // when it has been write accessed, so no need to compare old and new page data.
-        // FIXME: I'd add a `cfg` attr here, as it is not cheap
-        #[cfg(verbose)]
         new_pages_data.keys().for_each(|page| {
             log::trace!("{:?} has been write accessed, update it in storage", page)
         });

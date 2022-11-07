@@ -311,7 +311,6 @@ pub fn prepare(
         Err(reason) => {
             log::debug!("Failed to charge for module instantiation or memory pages: {reason:?}");
             return match reason {
-                // FIXME: What about ProgramData?
                 ExecutionErrorReason::BlockGasExceeded(
                     GasOperation::InitialMemory
                     | GasOperation::GrowMemory
@@ -439,7 +438,6 @@ pub fn process<
             }
         },
         Err(e) => match e.reason {
-            // FIXME: What about ProgramData?
             ExecutionErrorReason::BlockGasExceeded(
                 GasOperation::InitialMemory | GasOperation::GrowMemory | GasOperation::LoadMemory,
             ) => process_allowance_exceed(dispatch, program_id, e.gas_amount.burned()),
