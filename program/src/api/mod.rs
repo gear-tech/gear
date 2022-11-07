@@ -4,7 +4,7 @@ use crate::{
     result::Result,
 };
 use core::ops::{Deref, DerefMut};
-use events::Events;
+use events::FinalizedEvents;
 use std::{str::FromStr, time::Duration};
 use subxt::{
     rpc::{RpcClientBuilder, Uri, WsTransportClientBuilder},
@@ -67,8 +67,8 @@ impl Api {
     }
 
     /// Subscribe all events
-    pub async fn events(&self) -> Result<Events<'_>> {
-        Ok(self.0.events().subscribe().await?)
+    pub async fn events(&self) -> Result<FinalizedEvents<'_>> {
+        Ok(self.0.events().subscribe_finalized().await?)
     }
 }
 

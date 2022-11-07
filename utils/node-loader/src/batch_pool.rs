@@ -60,7 +60,7 @@ impl<Rng: LoaderRng> BatchPool<Rng> {
         };
 
         if let Err(ref e) = run_result {
-            tracing::info!("Pool run ends up with an error: {e}");
+            tracing::info!("Pool run ends up with an error: {e:?}");
         }
 
         run_result
@@ -235,12 +235,18 @@ async fn process_events(
 }
 
 async fn inspect_crash_events(api: GearApi, node_stopper: String) -> Result<()> {
-    let mut event_listener = api.subscribe().await?;
+    let mut event_listener = api.subscribe().await.map_err(|e| {
+        tracing::warn!("ERROR {e:?}");
+        e
+    })?;
     // Waits until the queue processing reverted event is found.
     // Error means either event is not found an can't be found
     // in the listener, or some other error during event
     // parsing occurred.
-    event_listener.queue_processing_reverted().await?;
+    event_listener.queue_processing_reverted().await.map_err(|e| {
+        tracing::warn!("ERROR {e:?}");
+        e
+    })?;
 
     let crash_err = CrashAlert::MsgProcessingStopped;
     tracing::info!("{crash_err}");

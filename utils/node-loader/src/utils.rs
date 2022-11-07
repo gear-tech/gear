@@ -130,9 +130,10 @@ pub async fn with_timeout<T>(fut: impl Future<Output = T>) -> Result<T> {
 
 pub async fn stop_node(monitor_url: String) -> Result<()> {
     let client = Client::new();
+    let form = ("__script_name", "stop-gear");
     client
         .post(monitor_url)
-        .body("gear-node-loader=stop-gear")
+        .form(&form)
         .send()
         .await?;
 

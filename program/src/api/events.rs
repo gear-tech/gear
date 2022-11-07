@@ -12,7 +12,7 @@ use crate::{
 use futures_util::StreamExt;
 use subxt::{
     codec::Decode,
-    events::EventSubscription,
+    events::{EventSubscription, FinalizedEventSub},
     rpc::Subscription,
     sp_runtime::{generic::Header, traits::BlakeTwo256},
     HasModuleError, ModuleError, RuntimeError, TransactionEvents, TransactionInBlock,
@@ -21,6 +21,10 @@ use subxt::{
 /// Generic events
 pub type Events<'a> =
     EventSubscription<'a, Subscription<Header<u32, BlakeTwo256>>, GearConfig, Event>;
+
+/// Generic finalized events
+pub type FinalizedEvents<'a> =
+    EventSubscription<'a, FinalizedEventSub<'a, Header<u32, BlakeTwo256>>, GearConfig, Event>;
 
 /// Transaction events
 #[allow(unused)]

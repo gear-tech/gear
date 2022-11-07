@@ -181,6 +181,7 @@ impl Signer {
         while let Some(status) = process.next_item().await {
             let status = status?;
             self.log_status(&status);
+            println!("[SAB] Received status {status:?}");
             match status {
                 Future | Ready | Broadcast(_) | InBlock(_) => (),
                 Dropped | Invalid | Usurped(_) | FinalityTimeout(_) | Retracted(_) => {
