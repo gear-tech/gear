@@ -7,7 +7,7 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
-  IMAGE_NAME: ghcr.io/gear-tech/node:0.1.0-${{ github.sha }}
+  IMAGE_NAME: ghcr.io/gear-tech/node:0.1.0-${{ github.sha::11 }}
   
 jobs:
   docker:
