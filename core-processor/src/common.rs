@@ -299,6 +299,13 @@ pub enum JournalNote {
         /// Message ID which system reservation was made from.
         message_id: MessageId,
     },
+    /// Send signal.
+    SendSignal {
+        /// Message ID which system reservation was made from.
+        message_id: MessageId,
+        /// Program ID which signal will be sent to.
+        destination: ProgramId,
+    },
 }
 
 /// Journal handler.
@@ -370,6 +377,8 @@ pub trait JournalHandler {
     fn system_reserve_gas(&mut self, message_id: MessageId, amount: u64);
     /// Do system unreservation.
     fn system_unreserve_gas(&mut self, message_id: MessageId);
+    /// Send system signal.
+    fn send_signal(&mut self, message_id: MessageId, destination: ProgramId);
 }
 
 /// Execution error.

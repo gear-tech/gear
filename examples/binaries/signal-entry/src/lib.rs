@@ -33,6 +33,7 @@ pub enum HandleAction {
     Simple,
     Wait,
     WaitAndPanic,
+    Panic,
     Accumulate,
     OutOfGas,
 }
@@ -77,6 +78,10 @@ mod wasm {
                 msg::send(msg::source(), 0, 0).unwrap();
                 exec::wait();
             }
+            HandleAction::Panic => {
+                exec::system_reserve_gas(5_000_000_000).unwrap();
+                panic!();
+            }
             HandleAction::Accumulate => {
                 exec::system_reserve_gas(1000).unwrap();
                 exec::system_reserve_gas(234).unwrap();
@@ -84,6 +89,8 @@ mod wasm {
             }
             HandleAction::OutOfGas => {
                 exec::system_reserve_gas(5_000_000_000).unwrap();
+                // used to found message id in test
+                msg::send(msg::source(), 0, 0).unwrap();
                 loop {}
             }
         }

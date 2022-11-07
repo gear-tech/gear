@@ -510,6 +510,15 @@ fn process_error(
         });
     }
 
+    if let Some(amount) = system_reservation {
+        journal.push(JournalNote::SystemReserveGas { message_id, amount });
+
+        journal.push(JournalNote::SendSignal {
+            message_id,
+            destination: program_id,
+        });
+    }
+
     if !dispatch.is_error_reply() && dispatch.kind() != DispatchKind::Signal {
         // This expect panic is unreachable, unless error message is too large or max payload size is too small.
         let err_payload = err.encode().try_into().expect("Error message is too large");
@@ -540,10 +549,6 @@ fn process_error(
             trap: err.to_string(),
         },
     };
-
-    if system_reservation.is_some() {
-        journal.push(JournalNote::SystemUnreserveGas { message_id });
-    }
 
     journal.push(JournalNote::MessageDispatched {
         message_id,

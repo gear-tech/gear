@@ -5956,7 +5956,6 @@ fn signal_async_wait_works() {
 }
 
 #[test]
-#[ignore] // FIXME: will be done in another PR (#1744)
 fn signal_gas_limit_exceeded_works() {
     use demo_signal_entry::{HandleAction, WASM_BINARY};
 
@@ -6033,6 +6032,45 @@ fn system_reservation_unreserve_works() {
         run_to_block(3, None);
 
         assert!(GasHandlerOf::<Test>::get_system_reserve(mid).is_err());
+    });
+}
+
+#[test]
+fn system_reservation_panic_works() {
+    use demo_signal_entry::{HandleAction, WASM_BINARY};
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            USER_1.encode(),
+            10_000_000_000,
+            0,
+        ));
+
+        let pid = get_last_program_id();
+
+        run_to_block(2, None);
+
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            pid,
+            HandleAction::Panic.encode(),
+            10_000_000_000,
+            0,
+        ));
+
+        let mid = get_last_message_id();
+
+        run_to_block(3, None);
+
+        assert!(GasHandlerOf::<Test>::get_system_reserve(mid).is_err());
+
+        // check signal dispatch executed
+        let mail_msg = get_last_mail(USER_1);
+        assert_eq!(mail_msg.payload(), b"handle_signal");
     });
 }
 

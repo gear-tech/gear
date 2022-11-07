@@ -506,4 +506,8 @@ where
             log::debug!("Unreserved {} gas for system from {}", amount, message_id);
         }
     }
+
+    fn send_signal(&mut self, message_id: MessageId, destination: ProgramId) {
+        ExtManager::send_signal(self, message_id, destination)
+    }
 }

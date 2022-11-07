@@ -102,6 +102,10 @@ pub fn handle_journal(
             JournalNote::SystemUnreserveGas { message_id } => {
                 handler.system_unreserve_gas(message_id)
             }
+            JournalNote::SendSignal {
+                message_id,
+                destination,
+            } => handler.send_signal(message_id, destination),
         }
     }
 
