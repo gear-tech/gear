@@ -7,6 +7,8 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
+  IMAGE_NAME: ghcr.io/gear-tech/node:0.1.0-${{ github.sha }}
+  
 jobs:
   docker:
     runs-on: xeon
@@ -34,7 +36,7 @@ jobs:
           context: .
           file: ./docker/Dockerfile
           push: true
-          tags: ghcr.io/gear-tech/node:latest, ghcr.io/gear-tech/node:0.1.0-${{ github.sha }}
+          tags: ghcr.io/gear-tech/node:latest, ${{ env.IMAGE_NAME }}
 
   deploy-one-validator:
     runs-on: ubuntu-latest
@@ -72,7 +74,7 @@ jobs:
             [gearNodes:children]
             nodes
             [nodes]
-            ${{secrets.GEAR_NODE_2}} name=testnet-gear02 validator=yes loki=yes loki_url=${{secrets.LOKI_URL}}
+            ${{secrets.GEAR_NODE_2}} name=testnet-gear02 validator=yes loki=yes loki_url=${{secrets.LOKI_URL}} gear_image_tag=${{ env.IMAGE_NAME }}
             
   deploy-all-validators:
     runs-on: ubuntu-latest
@@ -121,10 +123,10 @@ jobs:
             bootnode
             nodes
             [bootnode]
-            ${{secrets.GEAR_NODE}} name=testnet-gear01 loki=yes loki_url=${{secrets.LOKI_URL}}
+            ${{secrets.GEAR_NODE}} name=testnet-gear01 loki=yes loki_url=${{secrets.LOKI_URL}} gear_image_tag=${{ env.IMAGE_NAME }}
             [nodes]
-            ${{secrets.GEAR_NODE_3}} name=testnet-rpc-node rpc=yes unsafe=yes loki=yes loki_url=${{secrets.LOKI_URL}}
-            ${{secrets.GEAR_NODE_4}} name=testnet-gear03 validator=yes loki=yes loki_url=${{secrets.LOKI_URL}}
-            ${{secrets.GEAR_NODE_5}} name=testnet-gear04 validator=yes loki=yes loki_url=${{secrets.LOKI_URL}}
-            ${{secrets.ARCHIVE_NODE}} name=testnet-archive-node validator=yes archive_node=yes loki=yes loki_url=${{secrets.LOKI_URL}}
-            ${{secrets.ARCHIVE_RPC_NODE}} name=testnet-archive-rpc-node rpc=yes unsafe=no archive_node=yes loki=yes loki_url=${{secrets.LOKI_URL}}
+            ${{secrets.GEAR_NODE_3}} name=testnet-rpc-node rpc=yes unsafe=yes loki=yes loki_url=${{secrets.LOKI_URL}} gear_image_tag=${{ env.IMAGE_NAME }}
+            ${{secrets.GEAR_NODE_4}} name=testnet-gear03 validator=yes loki=yes loki_url=${{secrets.LOKI_URL}} gear_image_tag=${{ env.IMAGE_NAME }}
+            ${{secrets.GEAR_NODE_5}} name=testnet-gear04 validator=yes loki=yes loki_url=${{secrets.LOKI_URL}} gear_image_tag=${{ env.IMAGE_NAME }}
+            ${{secrets.ARCHIVE_NODE}} name=testnet-archive-node validator=yes archive_node=yes loki=yes loki_url=${{secrets.LOKI_URL}} gear_image_tag=${{ env.IMAGE_NAME }}
+            ${{secrets.ARCHIVE_RPC_NODE}} name=testnet-archive-rpc-node rpc=yes unsafe=no archive_node=yes loki=yes loki_url=${{secrets.LOKI_URL}} gear_image_tag=${{ env.IMAGE_NAME }}
