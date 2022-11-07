@@ -11,7 +11,7 @@ use crate::{
 use futures_util::StreamExt;
 use subxt::{
     error::{DispatchError, Error},
-    events::{EventDetails, StaticEvent},
+    events::{EventDetails, Phase, StaticEvent},
     tx::{TxEvents, TxInBlock},
     OnlineClient,
 };
@@ -49,7 +49,7 @@ impl Api {
 
     /// Parse transaction fee from InBlockEvents
     pub fn capture_weight_info(details: &EventDetails) -> Result<()> {
-        let event: Event = details.as_root_event()?;
+        let event: Event = details.as_root_event::<(Phase, Event)>()?.1;
 
         if let Event::System(SystemEvent::ExtrinsicSuccess { dispatch_info })
         | Event::System(SystemEvent::ExtrinsicFailed { dispatch_info, .. }) = event

@@ -35,7 +35,7 @@ use gp::api::generated::api::{
 };
 use parity_scale_codec::Encode;
 use std::{collections::BTreeMap, path::PathBuf};
-use subxt::ext::sp_core::H256;
+use subxt::{events::Phase, ext::sp_core::H256};
 
 impl GearApi {
     /// `pallet_balances::transfer`
@@ -46,7 +46,7 @@ impl GearApi {
 
         for event in tx.wait_for_success().await?.iter() {
             if let Event::Balances(BalancesEvent::Transfer { .. }) =
-                event?.as_root_event::<Event>()?
+                event?.as_root_event::<(Phase, Event)>()?.1
             {
                 return Ok(tx.block_hash());
             }
@@ -78,7 +78,7 @@ impl GearApi {
                 destination,
                 entry: Entry::Init,
                 ..
-            }) = event?.as_root_event::<Event>()?
+            }) = event?.as_root_event::<(Phase, Event)>()?.1
             {
                 return Ok((id.into(), destination.into(), tx.block_hash()));
             }
@@ -113,7 +113,7 @@ impl GearApi {
         let mut res = Vec::with_capacity(amount);
 
         for event in tx.wait_for_success().await?.iter() {
-            match event?.as_root_event::<Event>()? {
+            match event?.as_root_event::<(Phase, Event)>()?.1 {
                 Event::Gear(GearEvent::MessageEnqueued {
                     id,
                     destination,
@@ -158,7 +158,7 @@ impl GearApi {
 
         for event in tx.wait_for_success().await?.iter() {
             if let Event::Gear(GearEvent::UserMessageRead { .. }) =
-                event?.as_root_event::<Event>()?
+                event?.as_root_event::<(Phase, Event)>()?.1
             {
                 return Ok((
                     value.expect("Data appearance guaranteed above"),
@@ -203,7 +203,7 @@ impl GearApi {
         let mut res = Vec::with_capacity(amount);
 
         for event in tx.wait_for_success().await?.iter() {
-            match event?.as_root_event::<Event>()? {
+            match event?.as_root_event::<(Phase, Event)>()?.1 {
                 Event::Gear(GearEvent::UserMessageRead { id, .. }) => res.push(Ok(values
                     .remove(&id.into())
                     .flatten()
@@ -227,7 +227,9 @@ impl GearApi {
         let tx = self.0.reset().await?;
 
         for event in tx.wait_for_success().await?.iter() {
-            if let Event::Gear(GearEvent::DatabaseWiped) = event?.as_root_event::<Event>()? {
+            if let Event::Gear(GearEvent::DatabaseWiped) =
+                event?.as_root_event::<(Phase, Event)>()?.1
+            {
                 return Ok(tx.block_hash());
             }
         }
@@ -255,7 +257,7 @@ impl GearApi {
                 id,
                 entry: Entry::Handle,
                 ..
-            }) = event?.as_root_event::<Event>()?
+            }) = event?.as_root_event::<(Phase, Event)>()?.1
             {
                 return Ok((id.into(), tx.block_hash()));
             }
@@ -289,7 +291,7 @@ impl GearApi {
         let mut res = Vec::with_capacity(amount);
 
         for event in tx.wait_for_success().await?.iter() {
-            match event?.as_root_event::<Event>()? {
+            match event?.as_root_event::<(Phase, Event)>()?.1 {
                 Event::Gear(GearEvent::MessageEnqueued {
                     id,
                     destination,
@@ -350,7 +352,7 @@ impl GearApi {
                 id,
                 entry: Entry::Reply(_),
                 ..
-            }) = event?.as_root_event::<Event>()?
+            }) = event?.as_root_event::<(Phase, Event)>()?.1
             {
                 return Ok((id.into(), message.value(), tx.block_hash()));
             }
@@ -395,7 +397,7 @@ impl GearApi {
         let mut res = Vec::with_capacity(amount);
 
         for event in tx.wait_for_success().await?.iter() {
-            match event?.as_root_event::<Event>()? {
+            match event?.as_root_event::<(Phase, Event)>()?.1 {
                 Event::Gear(GearEvent::MessageEnqueued {
                     id,
                     entry: Entry::Reply(reply_to_id),
@@ -441,7 +443,7 @@ impl GearApi {
             if let Event::Gear(GearEvent::CodeChanged {
                 id,
                 change: CodeChangeKind::Active { .. },
-            }) = event?.as_root_event::<Event>()?
+            }) = event?.as_root_event::<(Phase, Event)>()?.1
             {
                 return Ok((id.into(), tx.block_hash()));
             }
@@ -472,7 +474,7 @@ impl GearApi {
         let mut res = Vec::with_capacity(amount);
 
         for event in tx.wait_for_success().await?.iter() {
-            match event?.as_root_event::<Event>()? {
+            match event?.as_root_event::<(Phase, Event)>()?.1 {
                 Event::Gear(GearEvent::CodeChanged {
                     id,
                     change: CodeChangeKind::Active { .. },
@@ -525,7 +527,7 @@ impl GearApi {
                 destination,
                 entry: Entry::Init,
                 ..
-            }) = event?.as_root_event::<Event>()?
+            }) = event?.as_root_event::<(Phase, Event)>()?.1
             {
                 return Ok((id.into(), destination.into(), tx.block_hash()));
             }
@@ -568,7 +570,7 @@ impl GearApi {
         let mut res = Vec::with_capacity(amount);
 
         for event in tx.wait_for_success().await?.iter() {
-            match event?.as_root_event::<Event>()? {
+            match event?.as_root_event::<(Phase, Event)>()?.1 {
                 Event::Gear(GearEvent::MessageEnqueued {
                     id,
                     destination,

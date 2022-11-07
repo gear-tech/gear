@@ -21,7 +21,7 @@ use crate::{Error, Result};
 use async_trait::async_trait;
 use futures::stream::StreamExt;
 use gp::api::{generated::api::Event, types::Events};
-use subxt::ext::sp_core::H256;
+use subxt::{events::Phase, ext::sp_core::H256};
 
 pub struct EventListener(pub(crate) Events);
 
@@ -35,7 +35,9 @@ impl EventProcessor for EventListener {
         while let Some(events) = self.0.next().await {
             if let Some(res) = events?
                 .iter()
-                .filter_map(|event| predicate(event.ok()?.as_root_event::<Event>().ok()?))
+                .filter_map(|event| {
+                    predicate(event.ok()?.as_root_event::<(Phase, Event)>().ok()?.1)
+                })
                 .next()
             {
                 return Ok(res);
@@ -54,7 +56,7 @@ impl EventProcessor for EventListener {
 
         while let Some(events) = self.0.next().await {
             for event in events?.iter() {
-                if let Some(data) = predicate(event?.as_root_event::<Event>()?) {
+                if let Some(data) = predicate(event?.as_root_event::<(Phase, Event)>()?.1) {
                     res.push(data);
                 }
             }
