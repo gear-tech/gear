@@ -20,7 +20,8 @@ use super::{GearApi, Result};
 use crate::{utils, Error};
 use gear_core::ids::*;
 use gp::api::generated::api::{
-    balances, gear,
+    balances::Event as BalancesEvent,
+    gear::Event as GearEvent,
     runtime_types::{
         frame_system::pallet::Call as SystemCall,
         gear_common::event::{CodeChangeKind, Entry},
@@ -29,6 +30,8 @@ use gp::api::generated::api::{
         sp_weights::weight_v2::Weight,
     },
     tx,
+    utility::Event as UtilityEvent,
+    Event,
 };
 use parity_scale_codec::Encode;
 use std::{collections::BTreeMap, path::PathBuf};
@@ -41,13 +44,12 @@ impl GearApi {
 
         let tx = self.0.transfer(destination, value).await?;
 
-        if tx
-            .wait_for_success()
-            .await?
-            .find_first::<balances::events::Transfer>()?
-            .is_some()
-        {
-            return Ok(tx.block_hash());
+        for event in tx.wait_for_success().await?.iter() {
+            if let Event::Balances(BalancesEvent::Transfer { .. }) =
+                event?.as_root_event::<Event>()?
+            {
+                return Ok(tx.block_hash());
+            }
         }
 
         Err(Error::EventNotFound)
@@ -70,17 +72,16 @@ impl GearApi {
             .create_program(code_id, salt, payload, gas_limit, value)
             .await?;
 
-        if let Some(gear::events::MessageEnqueued {
-            id,
-            destination,
-            entry: Entry::Init,
-            ..
-        }) = tx
-            .wait_for_success()
-            .await?
-            .find_first::<gear::events::MessageEnqueued>()?
-        {
-            return Ok((id.into(), destination.into(), tx.block_hash()));
+        for event in tx.wait_for_success().await?.iter() {
+            if let Event::Gear(GearEvent::MessageEnqueued {
+                id,
+                destination,
+                entry: Entry::Init,
+                ..
+            }) = event?.as_root_event::<Event>()?
+            {
+                return Ok((id.into(), destination.into(), tx.block_hash()));
+            }
         }
 
         Err(Error::EventNotFound)
@@ -111,18 +112,19 @@ impl GearApi {
 
         let mut res = Vec::with_capacity(amount);
 
-        match self
-            .0
-            .batch_result::<gear::events::MessageEnqueued>(tx.wait_for_success().await?)?
-        {
-            Ok(gear::events::MessageEnqueued {
-                id,
-                destination,
-                entry: Entry::Init,
-                ..
-            }) => res.push(Ok((id.into(), destination.into()))),
-            Err(error) => res.push(Err(self.0.decode_error(error).into())),
-            _ => {}
+        for event in tx.wait_for_success().await?.iter() {
+            match event?.as_root_event::<Event>()? {
+                Event::Gear(GearEvent::MessageEnqueued {
+                    id,
+                    destination,
+                    entry: Entry::Init,
+                    ..
+                }) => res.push(Ok((id.into(), destination.into()))),
+                Event::Utility(UtilityEvent::ItemFailed { error }) => {
+                    res.push(Err(self.0.decode_error(error).into()))
+                }
+                _ => (),
+            }
         }
 
         if res.len() == amount {
@@ -154,15 +156,15 @@ impl GearApi {
 
         let tx = self.0.claim_value(message_id).await?;
 
-        if let Some(gear::events::UserMessageRead { .. }) =
-            tx.wait_for_success()
-                .await?
-                .find_first::<gear::events::UserMessageRead>()?
-        {
-            return Ok((
-                value.expect("Data appearance guaranteed above"),
-                tx.block_hash(),
-            ));
+        for event in tx.wait_for_success().await?.iter() {
+            if let Event::Gear(GearEvent::UserMessageRead { .. }) =
+                event?.as_root_event::<Event>()?
+            {
+                return Ok((
+                    value.expect("Data appearance guaranteed above"),
+                    tx.block_hash(),
+                ));
+            }
         }
 
         Err(Error::EventNotFound)
@@ -200,15 +202,17 @@ impl GearApi {
 
         let mut res = Vec::with_capacity(amount);
 
-        match self
-            .0
-            .batch_result::<gear::events::UserMessageRead>(tx.wait_for_success().await?)?
-        {
-            Ok(gear::events::UserMessageRead { id, .. }) => res.push(Ok(values
-                .remove(&id.into())
-                .flatten()
-                .expect("Data appearance guaranteed above"))),
-            Err(error) => res.push(Err(self.0.decode_error(error).into())),
+        for event in tx.wait_for_success().await?.iter() {
+            match event?.as_root_event::<Event>()? {
+                Event::Gear(GearEvent::UserMessageRead { id, .. }) => res.push(Ok(values
+                    .remove(&id.into())
+                    .flatten()
+                    .expect("Data appearance guaranteed above"))),
+                Event::Utility(UtilityEvent::ItemFailed { error }) => {
+                    res.push(Err(self.0.decode_error(error).into()))
+                }
+                _ => (),
+            }
         }
 
         if res.len() == amount {
@@ -222,13 +226,10 @@ impl GearApi {
     pub async fn reset(&self) -> Result<H256> {
         let tx = self.0.reset().await?;
 
-        if tx
-            .wait_for_success()
-            .await?
-            .find_first::<gear::events::DatabaseWiped>()?
-            .is_some()
-        {
-            return Ok(tx.block_hash());
+        for event in tx.wait_for_success().await?.iter() {
+            if let Event::Gear(GearEvent::DatabaseWiped) = event?.as_root_event::<Event>()? {
+                return Ok(tx.block_hash());
+            }
         }
 
         Err(Error::EventNotFound)
@@ -249,16 +250,15 @@ impl GearApi {
             .send_message(destination, payload, gas_limit, value)
             .await?;
 
-        if let Some(gear::events::MessageEnqueued {
-            id,
-            entry: Entry::Handle,
-            ..
-        }) = tx
-            .wait_for_success()
-            .await?
-            .find_first::<gear::events::MessageEnqueued>()?
-        {
-            return Ok((id.into(), tx.block_hash()));
+        for event in tx.wait_for_success().await?.iter() {
+            if let Event::Gear(GearEvent::MessageEnqueued {
+                id,
+                entry: Entry::Handle,
+                ..
+            }) = event?.as_root_event::<Event>()?
+            {
+                return Ok((id.into(), tx.block_hash()));
+            }
         }
 
         Err(Error::EventNotFound)
@@ -288,18 +288,19 @@ impl GearApi {
 
         let mut res = Vec::with_capacity(amount);
 
-        match self
-            .0
-            .batch_result::<gear::events::MessageEnqueued>(tx.wait_for_success().await?)?
-        {
-            Ok(gear::events::MessageEnqueued {
-                id,
-                destination,
-                entry: Entry::Handle,
-                ..
-            }) => res.push(Ok((id.into(), destination.into()))),
-            Err(error) => res.push(Err(self.0.decode_error(error).into())),
-            _ => {}
+        for event in tx.wait_for_success().await?.iter() {
+            match event?.as_root_event::<Event>()? {
+                Event::Gear(GearEvent::MessageEnqueued {
+                    id,
+                    destination,
+                    entry: Entry::Handle,
+                    ..
+                }) => res.push(Ok((id.into(), destination.into()))),
+                Event::Utility(UtilityEvent::ItemFailed { error }) => {
+                    res.push(Err(self.0.decode_error(error).into()))
+                }
+                _ => (),
+            }
         }
 
         if res.len() == amount {
@@ -340,18 +341,19 @@ impl GearApi {
             .send_reply(reply_to_id, payload, gas_limit, value)
             .await?;
 
+        let events = tx.wait_for_success().await?;
+
         let (message, _interval) = data.expect("Data appearance guaranteed above");
 
-        if let Some(gear::events::MessageEnqueued {
-            id,
-            entry: Entry::Reply(_),
-            ..
-        }) = tx
-            .wait_for_success()
-            .await?
-            .find_first::<gear::events::MessageEnqueued>()?
-        {
-            return Ok((id.into(), message.value(), tx.block_hash()));
+        for event in events.iter() {
+            if let Event::Gear(GearEvent::MessageEnqueued {
+                id,
+                entry: Entry::Reply(_),
+                ..
+            }) = event?.as_root_event::<Event>()?
+            {
+                return Ok((id.into(), message.value(), tx.block_hash()));
+            }
         }
 
         Err(Error::EventNotFound)
@@ -392,23 +394,24 @@ impl GearApi {
 
         let mut res = Vec::with_capacity(amount);
 
-        match self
-            .0
-            .batch_result::<gear::events::MessageEnqueued>(tx.wait_for_success().await?)?
-        {
-            Ok(gear::events::MessageEnqueued {
-                id,
-                entry: Entry::Reply(reply_to_id),
-                ..
-            }) => res.push(Ok((
-                id.into(),
-                values
-                    .remove(&reply_to_id.into())
-                    .flatten()
-                    .expect("Data appearance guaranteed above"),
-            ))),
-            Err(error) => res.push(Err(self.0.decode_error(error).into())),
-            _ => {}
+        for event in tx.wait_for_success().await?.iter() {
+            match event?.as_root_event::<Event>()? {
+                Event::Gear(GearEvent::MessageEnqueued {
+                    id,
+                    entry: Entry::Reply(reply_to_id),
+                    ..
+                }) => res.push(Ok((
+                    id.into(),
+                    values
+                        .remove(&reply_to_id.into())
+                        .flatten()
+                        .expect("Data appearance guaranteed above"),
+                ))),
+                Event::Utility(UtilityEvent::ItemFailed { error }) => {
+                    res.push(Err(self.0.decode_error(error).into()))
+                }
+                _ => (),
+            }
         }
 
         if res.len() == amount {
@@ -434,15 +437,14 @@ impl GearApi {
     pub async fn upload_code(&self, code: impl AsRef<[u8]>) -> Result<(CodeId, H256)> {
         let tx = self.0.upload_code(code.as_ref().to_vec()).await?;
 
-        if let Some(gear::events::CodeChanged {
-            id,
-            change: CodeChangeKind::Active { .. },
-        }) = tx
-            .wait_for_success()
-            .await?
-            .find_first::<gear::events::CodeChanged>()?
-        {
-            return Ok((id.into(), tx.block_hash()));
+        for event in tx.wait_for_success().await?.iter() {
+            if let Event::Gear(GearEvent::CodeChanged {
+                id,
+                change: CodeChangeKind::Active { .. },
+            }) = event?.as_root_event::<Event>()?
+            {
+                return Ok((id.into(), tx.block_hash()));
+            }
         }
 
         Err(Error::EventNotFound)
@@ -469,16 +471,19 @@ impl GearApi {
 
         let mut res = Vec::with_capacity(amount);
 
-        match self
-            .0
-            .batch_result::<gear::events::CodeChanged>(tx.wait_for_success().await?)?
-        {
-            Ok(gear::events::CodeChanged {
-                id,
-                change: CodeChangeKind::Active { .. },
-            }) => res.push(Ok(id.into())),
-            Err(error) => res.push(Err(self.0.decode_error(error).into())),
-            _ => {}
+        for event in tx.wait_for_success().await?.iter() {
+            match event?.as_root_event::<Event>()? {
+                Event::Gear(GearEvent::CodeChanged {
+                    id,
+                    change: CodeChangeKind::Active { .. },
+                }) => {
+                    res.push(Ok(id.into()));
+                }
+                Event::Utility(UtilityEvent::ItemFailed { error }) => {
+                    res.push(Err(self.0.decode_error(error).into()))
+                }
+                _ => (),
+            }
         }
 
         if res.len() == amount {
@@ -514,17 +519,16 @@ impl GearApi {
             .upload_program(code, salt, payload, gas_limit, value)
             .await?;
 
-        if let Some(gear::events::MessageEnqueued {
-            id,
-            destination,
-            entry: Entry::Init,
-            ..
-        }) = tx
-            .wait_for_success()
-            .await?
-            .find_first::<gear::events::MessageEnqueued>()?
-        {
-            return Ok((id.into(), destination.into(), tx.block_hash()));
+        for event in tx.wait_for_success().await?.iter() {
+            if let Event::Gear(GearEvent::MessageEnqueued {
+                id,
+                destination,
+                entry: Entry::Init,
+                ..
+            }) = event?.as_root_event::<Event>()?
+            {
+                return Ok((id.into(), destination.into(), tx.block_hash()));
+            }
         }
 
         Err(Error::EventNotFound)
@@ -563,18 +567,19 @@ impl GearApi {
 
         let mut res = Vec::with_capacity(amount);
 
-        match self
-            .0
-            .batch_result::<gear::events::MessageEnqueued>(tx.wait_for_success().await?)?
-        {
-            Ok(gear::events::MessageEnqueued {
-                id,
-                destination,
-                entry: Entry::Init,
-                ..
-            }) => res.push(Ok((id.into(), destination.into()))),
-            Err(error) => res.push(Err(self.0.decode_error(error).into())),
-            _ => {}
+        for event in tx.wait_for_success().await?.iter() {
+            match event?.as_root_event::<Event>()? {
+                Event::Gear(GearEvent::MessageEnqueued {
+                    id,
+                    destination,
+                    entry: Entry::Init,
+                    ..
+                }) => res.push(Ok((id.into(), destination.into()))),
+                Event::Utility(UtilityEvent::ItemFailed { error }) => {
+                    res.push(Err(self.0.decode_error(error).into()))
+                }
+                _ => (),
+            }
         }
 
         if res.len() == amount {

@@ -30,7 +30,6 @@ async fn test_command_upload_works() {
         &env::wasm_bin("demo_meta.opt.wasm"),
     ])
     .expect("run command upload failed");
-
     assert!(api
         .code_storage(code_hash)
         .await
