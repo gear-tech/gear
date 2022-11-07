@@ -5974,9 +5974,6 @@ fn signal_gas_limit_exceeded_works() {
 
         run_to_block(2, None);
 
-        assert!(Gear::is_initialized(pid));
-        assert!(Gear::is_active(pid));
-
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(USER_1),
             pid,
@@ -6015,9 +6012,6 @@ fn system_reservation_unreserve_works() {
         let pid = get_last_program_id();
 
         run_to_block(2, None);
-
-        assert!(Gear::is_initialized(pid));
-        assert!(Gear::is_active(pid));
 
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(USER_1),
@@ -6093,9 +6087,6 @@ fn system_reservation_wait_and_panic_works() {
 
         run_to_block(2, None);
 
-        assert!(Gear::is_initialized(pid));
-        assert!(Gear::is_active(pid));
-
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(USER_1),
             pid,
@@ -6146,9 +6137,6 @@ fn system_reservation_accumulate_works() {
         let pid = get_last_program_id();
 
         run_to_block(2, None);
-
-        assert!(Gear::is_initialized(pid));
-        assert!(Gear::is_active(pid));
 
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(USER_1),
