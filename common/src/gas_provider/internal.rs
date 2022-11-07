@@ -969,7 +969,6 @@ where
             .ok_or_else(InternalError::unexpected_node_type)?;
 
         *ancestor_value = ancestor_value.saturating_add(amount);
-        let amount = *ancestor_value;
 
         StorageMap::insert(ancestor_id, ancestor_node);
 
