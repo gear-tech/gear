@@ -34,7 +34,7 @@ jobs:
           context: .
           file: ./docker/Dockerfile
           push: true
-          tags: ghcr.io/gear-tech/node:latest
+          tags: ghcr.io/gear-tech/node:latest, ghcr.io/gear-tech/node:0.1.0-${{ github.sha }}
 
   deploy-one-validator:
     runs-on: ubuntu-latest
