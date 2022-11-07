@@ -13,14 +13,14 @@ jobs:
   tag-image:
     runs-on: ubuntu-latest
     outputs:
-      image_tag: ${{ steps.image-tag.outputs.image }}
+      image_tag: ${{ steps.image-tag.outputs }}
     steps:
       - name: Checkout repo
         uses: actions/checkout@v3
       
       - name: Create image tag
         id: image-tag
-        run: echo "IMAGE_NAME=ghcr.io/gear-tech/node:0.1.0-`echo ${GITHUB_SHA} | cut -c1-8`" >> $GITHUB_OUTPUT
+        run: echo "ghcr.io/gear-tech/node:0.1.0-`echo ${GITHUB_SHA} | cut -c1-8`" >> $GITHUB_OUTPUT
         
   docker:
     runs-on: xeon
