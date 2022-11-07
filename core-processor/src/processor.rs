@@ -160,7 +160,17 @@ fn prepare_error(
     err: ExecutionErrorReason,
 ) -> PrepareResult {
     let gas_burned = gas_counter.burned();
-    PrepareResult::Error(process_error(dispatch, program_id, gas_burned, None, err))
+    let system_reservation = dispatch
+        .context()
+        .as_ref()
+        .and_then(|ctx| ctx.system_reservation());
+    PrepareResult::Error(process_error(
+        dispatch,
+        program_id,
+        gas_burned,
+        system_reservation,
+        err,
+    ))
 }
 
 fn prepare_allowance_exceed(
