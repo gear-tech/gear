@@ -56,7 +56,7 @@ jobs:
 
   deploy-one-validator:
     runs-on: ubuntu-latest
-    needs: docker
+    needs: [docker, tag-image]
     steps:
       - name: Checkout
         uses: actions/checkout@v3
@@ -74,7 +74,7 @@ jobs:
           token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           message: |
             Attention! Instances will be temporarily unavailable!
-            Update second validator with docker image ${{ needs.tag-image.outputs.image_tag }}
+            Update second validator with docker image ${{ needs.tag-image.outputs.image_tag}}
             ${{ github.actor }} run build with commit: "${{ github.event.commits[0].message }}"
             Build number: ${{ github.run_number }}
 
@@ -95,7 +95,7 @@ jobs:
             
   deploy-all-validators:
     runs-on: ubuntu-latest
-    needs: [docker, deploy-one-validator]
+    needs: [docker, deploy-one-validator,tag-image]
     steps:
     
       - uses: trstringer/manual-approval@v1
