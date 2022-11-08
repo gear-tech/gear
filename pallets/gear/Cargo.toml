@@ -81,6 +81,7 @@ demo-compose = { path = "../../examples/binaries/compose" }
 demo-mul-by-const = { path = "../../examples/binaries/mul-by-const" }
 demo-value-sender = { path = "../../examples/binaries/value-sender" }
 demo-waiter = { path = "../../examples/binaries/waiter" }
+demo-wait-timeout = { path = "../../examples/binaries/wait-timeout" }
 demo-reserve-gas = { path = "../../examples/binaries/reserve-gas" }
 demo-signal-entry = { path = "../../examples/binaries/signal-entry" }
 demo-async-signal-entry = { path = "../../examples/binaries/async-signal-entry" }

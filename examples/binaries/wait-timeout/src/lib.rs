@@ -15,6 +15,7 @@
 
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
+
 #![no_std]
 
 use codec::{Decode, Encode};
@@ -40,11 +41,9 @@ pub fn default_wait_up_to_duration() -> u32 {
 
 #[derive(Debug, Encode, Decode)]
 pub enum Command {
-    Wait,
-    WaitFor(u32),
-    WaitUpTo(u32),
-    SendFor(ActorId, u32),
-    SendUpTo(ActorId, u32),
-    SendUpToWait(ActorId, u32),
-    SendAndWaitFor(u32, ActorId),
+    Wake,
+    WaitLost(ActorId),
+    SendTimeout(ActorId, u32),
+    JoinTimeout(ActorId, u32, u32),
+    SelectTimeout(ActorId, u32, u32),
 }

@@ -7,7 +7,7 @@ services:
       - "9933:9933"
       - "9944:9944"
       - "9615:9615"
-    image: ghcr.io/gear-tech/node:latest
+    image: "{{ gear_image_tag }}"
     environment:
       - RUST_LOG=essential
     volumes:

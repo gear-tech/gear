@@ -1772,6 +1772,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "demo-wait-timeout"
+version = "0.1.0"
+dependencies = [
+ "futures",
+ "gear-wasm-builder",
+ "gstd",
+ "parity-scale-codec",
+]
+
+[[package]]
 name = "demo-wait-wake"
 version = "0.1.0"
 dependencies = [
@@ -6124,6 +6134,7 @@ dependencies = [
  "demo-reserve-gas",
  "demo-signal-entry",
  "demo-value-sender",
+ "demo-wait-timeout",
  "demo-waiter",
  "demo-waiting-proxy",
  "derive_more",

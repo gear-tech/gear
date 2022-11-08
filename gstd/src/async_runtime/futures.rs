@@ -58,7 +58,8 @@ pub fn message_loop<F>(future: F)
 where
     F: Future<Output = ()> + 'static,
 {
-    let task = super::futures().entry(crate::msg::id()).or_insert_with(|| {
+    let msg_id = crate::msg::id();
+    let task = super::futures().entry(msg_id).or_insert_with(|| {
         // TODO: make this call configurable (#1380)
         crate::exec::system_reserve_gas(1_000_000_000)
             .expect("Failed to reserve gas for system signal");
@@ -68,9 +69,8 @@ where
     let mut cx = Context::from_waker(&task.waker);
 
     if Pin::new(&mut task.future).poll(&mut cx).is_ready() {
-        super::futures().remove(&crate::msg::id());
+        super::futures().remove(&msg_id);
     } else {
-        // TODO: make this call configurable (#1380)
-        crate::exec::wait_up_to(100)
+        super::locks().wait(msg_id);
     }
 }
