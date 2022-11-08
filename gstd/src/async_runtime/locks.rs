@@ -18,6 +18,7 @@
 
 //! Wait duration registry
 use crate::{
+    config::WaitType,
     errors::{ContractError, Result},
     exec,
     prelude::{BTreeMap, Vec},
@@ -81,7 +82,7 @@ impl Lock {
             }
         } else {
             unreachable!(
-                "Checked in `crate::msg::async::poll`, will trigger the tiemout error automatically."
+                "Checked in `crate::msg::async::poll`, will trigger the timeout error automatically."
             );
         }
     }
@@ -126,7 +127,10 @@ impl Default for Lock {
 
 impl Default for LockType {
     fn default() -> Self {
-        LockType::WaitUpTo(Config::wait_up_to())
+        match Config::wait_type() {
+            WaitType::WaitFor => LockType::WaitFor(Config::wait_for()),
+            WaitType::WaitUpTo => LockType::WaitUpTo(Config::wait_up_to()),
+        }
     }
 }
 

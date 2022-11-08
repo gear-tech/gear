@@ -22,6 +22,19 @@
 //! This module is for configuring `gstd` inside gear programs.
 use crate::errors::{ContractError, Result};
 
+/// Wait types.
+#[derive(Clone, Copy)]
+pub(crate) enum WaitType {
+    WaitFor,
+    WaitUpTo,
+}
+
+impl Default for WaitType {
+    fn default() -> Self {
+        WaitType::WaitUpTo
+    }
+}
+
 /// `gstd` configuration
 pub struct Config {
     /// Default wait duration for `wait_up_to` messages.
@@ -29,6 +42,9 @@ pub struct Config {
 
     /// Default wait duration for `wait_for` messages.
     pub wait_for: u32,
+
+    /// Default wait type for `wait` messages.
+    pub(crate) wait_type: WaitType,
 }
 
 impl Config {
@@ -36,7 +52,13 @@ impl Config {
         Self {
             wait_up_to: 100,
             wait_for: 100,
+            wait_type: WaitType::WaitUpTo,
         }
+    }
+
+    // Get default wait type.
+    pub(crate) fn wait_type() -> WaitType {
+        unsafe { CONFIG.wait_type }
     }
 
     /// Get `wait_for` duration
@@ -59,6 +81,14 @@ impl Config {
         Ok(())
     }
 
+    /// Set `wait_for` as default wait type with duration.
+    pub fn set_default_wait_for(duration: u32) -> Result<()> {
+        Self::set_wait_for(duration)?;
+        unsafe { CONFIG.wait_type = WaitType::WaitFor };
+
+        Ok(())
+    }
+
     /// Set `wait_up_to` duration
     pub fn set_wait_up_to(duration: u32) -> Result<()> {
         if duration == 0 {
@@ -66,6 +96,14 @@ impl Config {
         }
 
         unsafe { CONFIG.wait_up_to = duration };
+        Ok(())
+    }
+
+    /// Set `wait_up_to` as default wait type with duration.
+    pub fn set_default_wait_up_to(duration: u32) -> Result<()> {
+        Self::set_wait_up_to(duration)?;
+        unsafe { CONFIG.wait_type = WaitType::WaitUpTo };
+
         Ok(())
     }
 }

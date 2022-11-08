@@ -30,12 +30,16 @@ async fn main() {
             {
                 if e.timed_out() {
                     let _ = msg::send(to, b"timeout", 0).expect("send message failed");
+                } else {
+                    panic!("timeout has not been triggered.")
                 }
             }
 
             if let Err(e) = wait.await {
                 if e.timed_out() {
                     msg::send(to, b"timeout2", 0).expect("send message failed");
+                } else {
+                    panic!("timeout has not been triggered.")
                 }
             }
 
@@ -53,6 +57,8 @@ async fn main() {
             if let Err(e) = reply {
                 if e.timed_out() {
                     let _ = msg::send(to, b"timeout", 0).expect("send message failed");
+                } else {
+                    panic!("timeout has not been triggered.")
                 }
             }
         }
@@ -78,6 +84,8 @@ async fn main() {
             if let Err(e) = reply {
                 if e.timed_out() {
                     let _ = msg::send(to, b"timeout", 0).expect("send message failed");
+                } else {
+                    panic!("timeout has not been triggered.")
                 }
             }
         }
@@ -99,8 +107,12 @@ async fn main() {
                 future::Either::Left((r, _)) | future::Either::Right((r, _)) => r,
             };
 
-            if let Err(ContractError::Timeout(..)) = reply {
-                let _ = msg::send(to, b"timeout", 0).expect("send message failed");
+            if let Err(e) = reply {
+                if e.timed_out() {
+                    let _ = msg::send(to, b"timeout", 0).expect("send message failed");
+                } else {
+                    panic!("timeout has not been triggered.")
+                }
             }
         }
     }
