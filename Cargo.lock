@@ -6153,6 +6153,7 @@ dependencies = [
  "gear-lazy-pages-common",
  "gear-runtime-interface",
  "gear-wasm-instrument",
+ "gstd",
  "log",
  "page_size",
  "pallet-authorship",

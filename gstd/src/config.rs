@@ -43,6 +43,9 @@ pub struct Config {
     /// Default wait duration for `wait_for` messages.
     pub wait_for: u32,
 
+    /// Default system reservation gas amount.
+    pub system_reserve: u64,
+
     /// Default wait type for `wait` messages.
     pub(crate) wait_type: WaitType,
 }
@@ -52,6 +55,7 @@ impl Config {
         Self {
             wait_up_to: 100,
             wait_for: 100,
+            system_reserve: 1_000_000_000,
             wait_type: WaitType::WaitUpTo,
         }
     }
@@ -69,6 +73,10 @@ impl Config {
     /// Get `wait_up_to` duration
     pub fn wait_up_to() -> u32 {
         unsafe { CONFIG.wait_up_to }
+    }
+
+    pub fn system_reserve() -> u64 {
+        unsafe { CONFIG.system_reserve }
     }
 
     /// Set `wait_for` duration
@@ -104,6 +112,15 @@ impl Config {
         Self::set_wait_up_to(duration)?;
         unsafe { CONFIG.wait_type = WaitType::WaitUpTo };
 
+        Ok(())
+    }
+
+    pub fn set_system_reserve(amount: u64) -> Result<()> {
+        if amount == 0 {
+            return Err(ContractError::EmptySystemReservationAmount);
+        }
+
+        unsafe { CONFIG.system_reserve = amount };
         Ok(())
     }
 }

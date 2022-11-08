@@ -60,8 +60,8 @@ where
 {
     let msg_id = crate::msg::id();
     let task = super::futures().entry(msg_id).or_insert_with(|| {
-        // TODO: make this call configurable (#1380)
-        crate::exec::system_reserve_gas(1_000_000_000)
+        let system_reserve_amount = crate::Config::system_reserve();
+        crate::exec::system_reserve_gas(system_reserve_amount)
             .expect("Failed to reserve gas for system signal");
         Task::new(future)
     });

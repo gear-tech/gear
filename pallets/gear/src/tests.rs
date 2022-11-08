@@ -2580,6 +2580,8 @@ fn test_different_waits_success() {
             Gear::block_number().saturating_add(duration.unique_saturated_into())
         };
 
+        let system_reservation = gstd::Config::system_reserve();
+
         // Command::Wait case.
         let payload = Command::Wait.encode();
         let duration = 5;
@@ -2601,7 +2603,7 @@ fn test_different_waits_success() {
             RuntimeOrigin::signed(USER_1),
             program_id,
             payload,
-            gas_info.burned + wl_gas,
+            gas_info.burned + wl_gas + system_reservation,
             value
         ));
 
@@ -2632,7 +2634,7 @@ fn test_different_waits_success() {
             RuntimeOrigin::signed(USER_1),
             program_id,
             payload,
-            gas_info.burned + wl_gas,
+            gas_info.burned + wl_gas + system_reservation,
             value
         ));
 
@@ -2666,7 +2668,7 @@ fn test_different_waits_success() {
             RuntimeOrigin::signed(USER_1),
             program_id,
             payload,
-            gas_info.burned + wl_gas,
+            gas_info.burned + wl_gas + system_reservation,
             value
         ));
 
@@ -2702,6 +2704,8 @@ fn test_different_waits_fail() {
 
         assert!(Gear::is_active(program_id));
 
+        let system_reservation = gstd::Config::system_reserve();
+
         // Command::Wait case no gas.
         let payload = Command::Wait.encode();
         let wl_gas = 0;
@@ -2722,7 +2726,7 @@ fn test_different_waits_fail() {
             RuntimeOrigin::signed(USER_1),
             program_id,
             payload,
-            gas_info.burned + wl_gas,
+            gas_info.burned + wl_gas + system_reservation,
             value
         ));
 
@@ -2757,7 +2761,7 @@ fn test_different_waits_fail() {
             RuntimeOrigin::signed(USER_1),
             program_id,
             payload,
-            gas_info.burned + wl_gas,
+            gas_info.burned + wl_gas + system_reservation,
             value
         ));
 
@@ -2792,7 +2796,7 @@ fn test_different_waits_fail() {
             RuntimeOrigin::signed(USER_1),
             program_id,
             payload,
-            gas_info.burned + wl_gas,
+            gas_info.burned + wl_gas + system_reservation,
             value
         ));
 
@@ -2828,7 +2832,7 @@ fn test_different_waits_fail() {
             RuntimeOrigin::signed(USER_1),
             program_id,
             payload,
-            gas_info.burned + wl_gas,
+            gas_info.burned + wl_gas + system_reservation,
             value
         ));
 
@@ -2864,7 +2868,7 @@ fn test_different_waits_fail() {
             RuntimeOrigin::signed(USER_1),
             program_id,
             payload,
-            gas_info.burned + wl_gas,
+            gas_info.burned + wl_gas + system_reservation,
             value
         ));
 
@@ -7022,6 +7026,7 @@ mod utils {
             .expect("can't find message send event")
     }
 
+    #[track_caller]
     pub(super) fn get_waitlist_expiration(message_id: MessageId) -> BlockNumberFor<Test> {
         let mut exp = None;
         System::events()
