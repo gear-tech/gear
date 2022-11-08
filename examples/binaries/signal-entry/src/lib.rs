@@ -37,6 +37,7 @@ pub enum HandleAction {
     Panic,
     Accumulate,
     OutOfGas,
+    PanicInSignal,
 }
 
 #[cfg(not(feature = "std"))]
@@ -47,6 +48,12 @@ mod wasm {
     static mut INITIATOR: ActorId = ActorId::zero();
     static mut HANDLE_MSG: MessageId = MessageId::new([0; 32]);
     static mut DO_PANIC: bool = false;
+    static mut HANDLE_SIGNAL_STATE: HandleSignalState = HandleSignalState::Normal;
+
+    enum HandleSignalState {
+        Normal,
+        Panic,
+    }
 
     #[no_mangle]
     unsafe extern "C" fn init() {
@@ -109,15 +116,28 @@ mod wasm {
                 msg::send(msg::source(), 0, 0).unwrap();
                 loop {}
             }
+            HandleAction::PanicInSignal => {
+                HANDLE_SIGNAL_STATE = HandleSignalState::Panic;
+                exec::system_reserve_gas(5_000_000_000).unwrap();
+                exec::wait();
+            }
         }
     }
 
     #[no_mangle]
     unsafe extern "C" fn handle_signal() {
-        msg::send(INITIATOR, b"handle_signal", 0).unwrap();
-        assert_eq!(msg::status_code().unwrap(), 1);
-        // TODO: check gas limit (#1796)
-        // assert_eq!(msg::gas_limit(), 3_000_000_000);
+        match HANDLE_SIGNAL_STATE {
+            HandleSignalState::Normal => {
+                msg::send(INITIATOR, b"handle_signal", 0).unwrap();
+                assert_eq!(msg::status_code().unwrap(), 1);
+
+                // TODO: check gas limit (#1796)
+                // assert_eq!(msg::gas_limit(), 3_000_000_000);
+            }
+            HandleSignalState::Panic => {
+                panic!();
+            }
+        }
     }
 
     #[no_mangle]
