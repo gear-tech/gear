@@ -658,6 +658,22 @@ cfg_if! {
                 }
             }
 
+            impl pallet_gear_rpc_runtime_api::GearApi<Block> for Runtime {
+                fn calculate_gas_info(
+                    _account_id: H256,
+                    _kind: pallet_gear::HandleKind,
+                    _payload: Vec<u8>,
+                    _value: u128,
+                    _allow_other_panics: bool,
+                    _initial_gas: Option<u64>,
+                ) -> Result<pallet_gear::GasInfo, Vec<u8>> {
+                    Err(b"not implemented".to_vec())
+                }
+                fn gear_run_extrinsic() -> <Block as BlockT>::Extrinsic {
+                    Extrinsic::new(Extrinsic::Process, None).unwrap()
+                }
+            }
+
             impl self::TestRuntimeAPI<Block> for Runtime {
                 fn balance_of(id: AccountId) -> u64 {
                     inner::balance_of(id)
@@ -876,6 +892,22 @@ cfg_if! {
 
                 fn check_inherents(_block: Block, _data: InherentData) -> CheckInherentsResult {
                     CheckInherentsResult::new()
+                }
+            }
+
+            impl pallet_gear_rpc_runtime_api::GearApi<Block> for Runtime {
+                fn calculate_gas_info(
+                    _account_id: H256,
+                    _kind: pallet_gear::HandleKind,
+                    _payload: Vec<u8>,
+                    _value: u128,
+                    _allow_other_panics: bool,
+                    _initial_gas: Option<u64>,
+                ) -> Result<pallet_gear::GasInfo, Vec<u8>> {
+                    Err(b"not implemented".to_vec())
+                }
+                fn gear_run_extrinsic() -> <Block as BlockT>::Extrinsic {
+                    Extrinsic::new(Extrinsic::Process, None).unwrap()
                 }
             }
 

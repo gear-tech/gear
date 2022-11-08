@@ -54,6 +54,8 @@ pallet-timestamp = { version = "4.0.0-dev", default-features = false, git = "htt
 
 # Gear
 common = { package = "gear-common", path = "../../common", default-features = false }
+pallet-gear-rpc-runtime-api = { version = "2.0.0", default-features = false, path = "../../pallets/gear/rpc/runtime-api" }
+pallet-gear = { version = "2.0.0", default-features = false, path = "../../pallets/gear" }
 
 [dev-dependencies]
 sc-block-builder = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
