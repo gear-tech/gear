@@ -82,7 +82,7 @@ mod wasm {
         errors::{ContractError, ExtError, MessageError},
         exec,
         msg::{self, MessageHandle},
-        prog, CodeId, ReservationId, ActorId,
+        prog, ActorId, CodeId, ReservationId,
     };
 
     static mut CODE_ID: CodeId = CodeId::new([0u8; 32]);

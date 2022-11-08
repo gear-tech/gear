@@ -71,7 +71,7 @@ use sp_runtime::{traits::UniqueSaturatedInto, SaturatedConversion};
 use sp_std::convert::TryFrom;
 use utils::*;
 
-mod sys_calls;
+mod sys_calls_integrity;
 mod utils;
 
 #[test]
