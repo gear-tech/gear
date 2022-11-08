@@ -43,6 +43,19 @@ impl<T, U> GasNodeId<T, U> {
     }
 }
 
+impl<T, U> fmt::Display for GasNodeId<T, U>
+where
+    T: fmt::Display,
+    U: fmt::Display,
+{
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            GasNodeId::Node(id) => fmt::Display::fmt(id, f),
+            GasNodeId::Reservation(id) => fmt::Display::fmt(id, f),
+        }
+    }
+}
+
 impl<U> From<MessageId> for GasNodeId<MessageId, U> {
     fn from(id: MessageId) -> Self {
         Self::Node(id)

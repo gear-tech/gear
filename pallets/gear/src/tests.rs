@@ -3074,6 +3074,8 @@ fn terminated_locking_funds() {
         let code_length = code.code().len();
         let read_cost = DbWeightOf::<Test>::get().reads(1).ref_time();
         let module_instantiation = schedule.module_instantiation_per_byte * code_length as u64;
+        // TODO: take from configuration (#1380)
+        let system_reservation = 1_000_000_000;
 
         assert_ok!(Gear::create_program(
             RuntimeOrigin::signed(USER_1),
@@ -3154,7 +3156,8 @@ fn terminated_locking_funds() {
 
         let expected_balance = user_1_balance
             + prog_free
-            + <Test as Config>::GasPrice::gas_price(locked_gas_to_wl - gas_spent_in_wl);
+            + <Test as Config>::GasPrice::gas_price(locked_gas_to_wl - gas_spent_in_wl)
+            + <Test as Config>::GasPrice::gas_price(system_reservation);
         let user_1_balance = Balances::free_balance(USER_1);
 
         assert_eq!(user_1_balance, expected_balance);
@@ -6068,6 +6071,7 @@ fn system_reservation_panic_works() {
     });
 }
 
+// TODO: reserve + wait; wake + reserve + panic
 #[test]
 fn system_reservation_wait_and_panic_works() {
     use demo_signal_entry::{HandleAction, WASM_BINARY};
@@ -6452,6 +6456,7 @@ mod utils {
         assert_eq!(status, DispatchStatus::Success)
     }
 
+    #[track_caller]
     pub(super) fn assert_failed(message_id: MessageId, error: ExecutionErrorReason) {
         let status =
             dispatch_status(message_id).expect("Message not found in `Event::MessagesDispatched`");

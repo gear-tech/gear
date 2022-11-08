@@ -257,6 +257,8 @@ where
     ///
     /// Updates currency and balances data on imbalance creation.
     pub(crate) fn consume_and_retrieve(id: impl Into<GasNodeIdOf<GasHandlerOf<T>>>) {
+        let id = id.into();
+
         // Consuming `GasNode`, returning optional outcome with imbalance.
         let outcome = GasHandlerOf::<T>::consume(id)
             .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
@@ -268,7 +270,12 @@ where
 
             // Unreserving funds, if left non-zero amount of gas.
             if !gas_left.is_zero() {
-                log::debug!("Consumed. Unreserving {} from {:?}", gas_left, external);
+                log::debug!(
+                    "Consumed {}. Unreserving {} from {:?}",
+                    id,
+                    gas_left,
+                    external
+                );
 
                 // Converting gas amount into value.
                 let value = T::GasPrice::gas_price(gas_left);

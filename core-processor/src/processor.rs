@@ -510,13 +510,21 @@ fn process_error(
         });
     }
 
+    // TODO: separate current system reservation and reservation from previous execution
     if let Some(amount) = system_reservation {
-        journal.push(JournalNote::SystemReserveGas { message_id, amount });
+        if !dispatch.is_error_reply()
+            && !matches!(dispatch.kind(), DispatchKind::Signal | DispatchKind::Init)
+        {
+            // possibly there is no supply for signal
+            journal.push(JournalNote::SystemReserveGas { message_id, amount });
 
-        journal.push(JournalNote::SendSignal {
-            message_id,
-            destination: program_id,
-        });
+            journal.push(JournalNote::SendSignal {
+                message_id,
+                destination: program_id,
+            });
+        }
+
+        journal.push(JournalNote::SystemUnreserveGas { message_id });
     }
 
     if !dispatch.is_error_reply() && dispatch.kind() != DispatchKind::Signal {
