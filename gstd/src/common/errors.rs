@@ -29,19 +29,32 @@ pub type Result<T> = core::result::Result<T, ContractError>;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ContractError {
+    Timeout(u32, u32),
     Convert(&'static str),
     Decode(codec::Error),
     ExitCode(i32),
     Ext(ExtError),
+    EmptyWaitDuration,
+}
+
+impl ContractError {
+    /// If is timed out error.
+    pub fn timed_out(&self) -> bool {
+        matches!(self, ContractError::Timeout(..))
+    }
 }
 
 impl fmt::Display for ContractError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
+            ContractError::Timeout(expected, now) => {
+                write!(f, "Wait lock timeout at {expected}, now is {now}")
+            }
             ContractError::Convert(e) => write!(f, "Conversion error: {e:?}"),
             ContractError::Decode(e) => write!(f, "Decoding codec bytes error: {e}"),
             ContractError::ExitCode(e) => write!(f, "Reply returned exit code {e}"),
             ContractError::Ext(e) => write!(f, "API error: {e}"),
+            ContractError::EmptyWaitDuration => write!(f, "Wait duration can not be zero."),
         }
     }
 }

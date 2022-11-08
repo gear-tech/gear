@@ -81,6 +81,7 @@ demo-compose = { path = "../../examples/binaries/compose" }
 demo-mul-by-const = { path = "../../examples/binaries/mul-by-const" }
 demo-value-sender = { path = "../../examples/binaries/value-sender" }
 demo-waiter = { path = "../../examples/binaries/waiter" }
+demo-wait-timeout = { path = "../../examples/binaries/wait-timeout" }
 demo-reserve-gas = { path = "../../examples/binaries/reserve-gas" }
 page_size = "0.4.2"
 frame-support-test = { version = "3.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
