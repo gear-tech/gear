@@ -18,7 +18,7 @@ use crate::mock::Timestamp;
 use gear_backend_common::SysCallNames;
 use gear_core::ids::ReservationId;
 use primitive_types::H256;
-use test_sys_calls::{SysCall, WASM_BINARY as SYS_CALLS_TESTER_WASM_BINARY};
+use test_sys_calls::{Kind, WASM_BINARY as SYS_CALLS_TESTER_WASM_BINARY};
 
 #[test]
 fn test_sys_calls_integrity() {
@@ -167,7 +167,7 @@ fn check_gr_create_program() {
             generate_program_id(&ProgramCodeKind::Default.to_bytes(), &salt.to_le_bytes())
                 .into_origin();
 
-        let mp = SysCall::CreateProgram(salt, gas, (expected_mid.into(), expected_pid.into()))
+        let mp = Kind::CreateProgram(salt, gas, (expected_mid.into(), expected_pid.into()))
             .encode()
             .into();
 
@@ -184,7 +184,7 @@ fn check_gr_create_program_wgas() {
             generate_program_id(&ProgramCodeKind::Default.to_bytes(), &salt.to_le_bytes())
                 .into_origin();
 
-        let mp = SysCall::CreateProgram(salt, gas, (expected_mid.into(), expected_pid.into()))
+        let mp = Kind::CreateProgram(salt, gas, (expected_mid.into(), expected_pid.into()))
             .encode()
             .into();
 
@@ -200,7 +200,7 @@ fn check_gr_err() {
             value_left: 0,
         });
 
-        let mp = SysCall::Error(message_value, expected_err).encode().into();
+        let mp = Kind::Error(message_value, expected_err).encode().into();
 
         (TestCall::send_message(mp), None::<DefaultPostCheck>)
     });
@@ -211,7 +211,7 @@ fn check_gr_send() {
         let next_user_mid = get_next_message_id(USER_1);
         let expected_mid = MessageId::generate_outgoing(next_user_mid, 0).into_origin();
 
-        let mp = SysCall::Send(0, expected_mid.into()).encode().into();
+        let mp = Kind::Send(0, expected_mid.into()).encode().into();
 
         (TestCall::send_message(mp), None::<DefaultPostCheck>)
     });
@@ -222,7 +222,7 @@ fn check_gr_send_wgas() {
         let next_user_mid = get_next_message_id(USER_1);
         let expected_mid = MessageId::generate_outgoing(next_user_mid, 0).into_origin();
 
-        let mp = SysCall::Send(25_000_000_000, expected_mid.into())
+        let mp = Kind::Send(25_000_000_000, expected_mid.into())
             .encode()
             .into();
 
@@ -247,7 +247,7 @@ fn check_gr_send_raw() {
             );
         };
 
-        let mp = SysCall::SendRaw(payload.to_vec(), 0, expected_mid.into())
+        let mp = Kind::SendRaw(payload.to_vec(), 0, expected_mid.into())
             .encode()
             .into();
 
@@ -272,7 +272,7 @@ fn check_gr_send_raw_wgas() {
             );
         };
 
-        let mp = SysCall::SendRaw(payload.to_vec(), 25_000_000, expected_mid.into())
+        let mp = Kind::SendRaw(payload.to_vec(), 25_000_000, expected_mid.into())
             .encode()
             .into();
 
@@ -285,7 +285,7 @@ fn check_gr_size() {
         // One byte for enum variant, four bytes for u32 value
         let expected_size = 5;
 
-        let mp = SysCall::Size(expected_size).encode().into();
+        let mp = Kind::Size(expected_size).encode().into();
 
         (TestCall::send_message(mp), None::<DefaultPostCheck>)
     });
@@ -295,7 +295,7 @@ fn check_gr_message_id() {
     run_tester(|_, _| {
         let next_user_mid = get_next_message_id(USER_1);
 
-        let mp = SysCall::MessageId(next_user_mid.into_origin().into())
+        let mp = Kind::MessageId(next_user_mid.into_origin().into())
             .encode()
             .into();
 
@@ -305,7 +305,7 @@ fn check_gr_message_id() {
 
 fn check_gr_program_id() {
     run_tester(|id, _| {
-        let mp = SysCall::ProgramId(id.into_origin().into()).encode().into();
+        let mp = Kind::ProgramId(id.into_origin().into()).encode().into();
 
         (TestCall::send_message(mp), None::<DefaultPostCheck>)
     })
@@ -313,7 +313,7 @@ fn check_gr_program_id() {
 
 fn check_gr_source() {
     run_tester(|_, _| {
-        let mp = MessageParamsBuilder::new(SysCall::Source(USER_2.into_origin().into()).encode())
+        let mp = MessageParamsBuilder::new(Kind::Source(USER_2.into_origin().into()).encode())
             .with_sender(USER_2);
 
         (TestCall::send_message(mp), None::<DefaultPostCheck>)
@@ -323,7 +323,7 @@ fn check_gr_source() {
 fn check_gr_value() {
     run_tester(|_, _| {
         let sending_value = u16::MAX as u128;
-        let mp = MessageParamsBuilder::new(SysCall::Value(sending_value).encode())
+        let mp = MessageParamsBuilder::new(Kind::Value(sending_value).encode())
             .with_value(sending_value);
 
         (TestCall::send_message(mp), None::<DefaultPostCheck>)
@@ -334,7 +334,7 @@ fn check_gr_value_available() {
     run_tester(|_, _| {
         let sending_value = 10_000;
         // Program sends 2000
-        let mp = MessageParamsBuilder::new(SysCall::ValueAvailable(sending_value - 2000).encode())
+        let mp = MessageParamsBuilder::new(Kind::ValueAvailable(sending_value - 2000).encode())
             .with_value(sending_value);
 
         (TestCall::send_message(mp), None::<DefaultPostCheck>)
@@ -346,7 +346,7 @@ fn check_gr_reply() {
         let next_user_mid = get_next_message_id(USER_1);
         let expected_mid = MessageId::generate_reply(next_user_mid, 0).into_origin();
 
-        let mp = SysCall::Reply(0, expected_mid.into()).encode().into();
+        let mp = Kind::Reply(0, expected_mid.into()).encode().into();
 
         (TestCall::send_message(mp), None::<DefaultPostCheck>)
     })
@@ -357,7 +357,7 @@ fn check_gr_reply_wgas() {
         let next_user_mid = get_next_message_id(USER_1);
         let expected_mid = MessageId::generate_reply(next_user_mid, 0).into_origin();
 
-        let mp = SysCall::Reply(25_000_000_000, expected_mid.into())
+        let mp = Kind::Reply(25_000_000_000, expected_mid.into())
             .encode()
             .into();
 
@@ -382,7 +382,7 @@ fn check_gr_reply_raw() {
             );
         };
 
-        let mp = SysCall::ReplyRaw(payload.to_vec(), 0, expected_mid.into())
+        let mp = Kind::ReplyRaw(payload.to_vec(), 0, expected_mid.into())
             .encode()
             .into();
 
@@ -407,7 +407,7 @@ fn check_gr_reply_raw_wgas() {
             );
         };
 
-        let mp = SysCall::ReplyRaw(payload.to_vec(), 25_000_000_000, expected_mid.into())
+        let mp = Kind::ReplyRaw(payload.to_vec(), 25_000_000_000, expected_mid.into())
             .encode()
             .into();
 
@@ -427,7 +427,7 @@ fn check_gr_reply_details() {
             RuntimeOrigin::signed(USER_1),
             tester_pid,
             // random params in ReplyDetails, because they aren't checked
-            SysCall::ReplyDetails(H256::random().into(), 0).encode(),
+            Kind::ReplyDetails(H256::random().into(), 0).encode(),
             50_000_000_000,
             0,
         ));
@@ -437,7 +437,7 @@ fn check_gr_reply_details() {
         assert_eq!(reply_to.id(), expected_mid, "mailbox check failed");
 
         let mp = MessageParamsBuilder::new(
-            SysCall::ReplyDetails(expected_mid.into_origin().into(), 0).encode(),
+            Kind::ReplyDetails(expected_mid.into_origin().into(), 0).encode(),
         )
         .with_reply_id(reply_to.id());
 
@@ -450,7 +450,7 @@ fn check_gr_block_height() {
         run_to_block(10, None);
         let expected_height = 11;
 
-        let mp = SysCall::BlockHeight(expected_height).encode().into();
+        let mp = Kind::BlockHeight(expected_height).encode().into();
 
         (TestCall::send_message(mp), None::<DefaultPostCheck>)
     })
@@ -462,7 +462,7 @@ fn check_gr_block_timestamp() {
         let block_timestamp = 125;
         assert_ok!(Timestamp::set(RuntimeOrigin::none(), block_timestamp));
 
-        let mp = SysCall::BlockTimestamp(block_timestamp).encode().into();
+        let mp = Kind::BlockTimestamp(block_timestamp).encode().into();
 
         (TestCall::send_message(mp), None::<DefaultPostCheck>)
     })
@@ -470,7 +470,7 @@ fn check_gr_block_timestamp() {
 
 fn check_gr_origin() {
     run_tester(|_, _| {
-        let mp = MessageParamsBuilder::new(SysCall::Origin(USER_2.into_origin().into()).encode())
+        let mp = MessageParamsBuilder::new(Kind::Origin(USER_2.into_origin().into()).encode())
             .with_sender(USER_2);
 
         (TestCall::send_message(mp), None::<DefaultPostCheck>)
@@ -482,7 +482,7 @@ fn check_gr_reserve_gas() {
         let next_user_mid = get_next_message_id(USER_1);
         // Nonce in program is set to 2 due to 3 times reservation is called.
         let expected_reservation_id = ReservationId::generate(next_user_mid, 2).encode();
-        let mp = SysCall::Reserve(expected_reservation_id).encode().into();
+        let mp = Kind::Reserve(expected_reservation_id).encode().into();
 
         (TestCall::send_message(mp), None::<DefaultPostCheck>)
     })
@@ -490,7 +490,7 @@ fn check_gr_reserve_gas() {
 
 fn check_gr_unreserve_gas() {
     run_tester(|_, _| {
-        let mp = SysCall::Unreserve(10_000).encode().into();
+        let mp = Kind::Unreserve(10_000).encode().into();
 
         (TestCall::send_message(mp), None::<DefaultPostCheck>)
     })
@@ -511,7 +511,7 @@ fn check_gr_random() {
             hash(&salt_clone)
         };
 
-        let mp = SysCall::Random(salt, (expected_hash, bn)).encode().into();
+        let mp = Kind::Random(salt, (expected_hash, bn)).encode().into();
 
         (TestCall::send_message(mp), None::<DefaultPostCheck>)
     })
@@ -523,7 +523,7 @@ fn check_gr_gas_available() {
         // Provided gas in the test by default is 50_000_000_000
         let lower = 50_000_000_000 - 600_000_000;
         let upper = 50_000_000_000 - 300_000_000;
-        let mp = SysCall::GasAvailable(lower, upper).encode().into();
+        let mp = Kind::GasAvailable(lower, upper).encode().into();
 
         (TestCall::send_message(mp), None::<DefaultPostCheck>)
     })

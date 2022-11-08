@@ -30,7 +30,7 @@ pub use code::WASM_BINARY_OPT as WASM_BINARY;
 use gstd::{errors::ExtError, ActorId, MessageId, Vec};
 
 #[derive(Debug, Encode, Decode)]
-pub enum SysCall {
+pub enum Kind {
     // Params(salt, gas), Expected(message id, actor id)
     CreateProgram(u64, u64, (MessageId, ActorId)),
     // Params(value), Expected(error)
@@ -75,7 +75,7 @@ pub enum SysCall {
 
 #[cfg(not(feature = "std"))]
 mod wasm {
-    use super::SysCall;
+    use super::Kind;
     use codec::Encode;
     use gstd::{
         debug,
@@ -97,7 +97,7 @@ mod wasm {
     #[no_mangle]
     unsafe extern "C" fn handle() {
         match msg::load().expect("internal error: invalid payload") {
-            SysCall::CreateProgram(salt, gas, (expected_mid, expected_pid)) => {
+            Kind::CreateProgram(salt, gas, (expected_mid, expected_pid)) => {
                 let salt = salt.to_le_bytes();
                 let res = if gas == 0 {
                     prog::create_program_delayed(CODE_ID, salt, "payload", 0, 0)
@@ -114,7 +114,7 @@ mod wasm {
                     "SysCall::CreateProgram: pid test failed"
                 );
             }
-            SysCall::Error(message_value, expected_err) => {
+            Kind::Error(message_value, expected_err) => {
                 let actual_err = msg::reply(b"", message_value).expect_err("not enough balance");
                 assert_eq!(
                     Into::<ContractError>::into(expected_err),
@@ -122,7 +122,7 @@ mod wasm {
                     "SysCall::Error: test failed"
                 );
             }
-            SysCall::Send(gas, expected_mid) => {
+            Kind::Send(gas, expected_mid) => {
                 let actual_mid_res = if gas == 0 {
                     msg::send_delayed(msg::source(), b"payload", 0, 0)
                 } else {
@@ -134,7 +134,7 @@ mod wasm {
                     "SysCall::Send: mid test failed"
                 );
             }
-            SysCall::SendRaw(payload, gas, expected_mid) => {
+            Kind::SendRaw(payload, gas, expected_mid) => {
                 // Sending these 2 to increase internal handler returned by `send_init`.
                 let _ = msg::send_delayed(msg::source(), b"payload", 0, 0);
                 let _ = msg::send_delayed(msg::source(), b"payload", 0, 0);
@@ -155,42 +155,42 @@ mod wasm {
                     "SysCall::SendRaw: mid test failed"
                 );
             }
-            SysCall::Size(expected_size) => {
+            Kind::Size(expected_size) => {
                 let actual_size = msg::size();
                 assert_eq!(
                     expected_size, actual_size,
                     "SysCall::Size: size test failed"
                 );
             }
-            SysCall::MessageId(expected_mid) => {
+            Kind::MessageId(expected_mid) => {
                 let actual_mid = msg::id();
                 assert_eq!(
                     expected_mid, actual_mid,
                     "SysCall::MessageId: mid test failed"
                 );
             }
-            SysCall::ProgramId(expected_pid) => {
+            Kind::ProgramId(expected_pid) => {
                 let actual_pid = exec::program_id();
                 assert_eq!(
                     expected_pid, actual_pid,
                     "SysCall::ProgramId: pid test failed"
                 );
             }
-            SysCall::Source(expected_actor) => {
+            Kind::Source(expected_actor) => {
                 let actual_actor = msg::source();
                 assert_eq!(
                     expected_actor, actual_actor,
                     "SysCall::Source: actor test failed"
                 );
             }
-            SysCall::Value(expected_value) => {
+            Kind::Value(expected_value) => {
                 let actual_value = msg::value();
                 assert_eq!(
                     expected_value, actual_value,
                     "SysCall::Value: value test failed"
                 );
             }
-            SysCall::ValueAvailable(expected_value) => {
+            Kind::ValueAvailable(expected_value) => {
                 let _ = msg::send_delayed(msg::source(), b"payload", 2000, 0);
                 let actual_value = exec::value_available();
                 assert_eq!(
@@ -198,7 +198,7 @@ mod wasm {
                     "SysCall::ValueAvailable: value test failed"
                 );
             }
-            SysCall::Reply(gas, expected_mid) => {
+            Kind::Reply(gas, expected_mid) => {
                 let actual_mid_res = if gas == 0 {
                     msg::reply_delayed(b"payload", 0, 0)
                 } else {
@@ -210,7 +210,7 @@ mod wasm {
                     "SysCall::Reply: mid test failed"
                 );
             }
-            SysCall::ReplyRaw(payload, gas, expected_mid) => {
+            Kind::ReplyRaw(payload, gas, expected_mid) => {
                 msg::reply_push(payload).expect("internal error: failed reply push");
                 let actual_mid_res = if gas == 0 {
                     msg::reply_commit_delayed(0, 0)
@@ -223,32 +223,32 @@ mod wasm {
                     "SysCall::ReplyRaw: mid test failed"
                 );
             }
-            SysCall::ReplyDetails(..) => {
+            Kind::ReplyDetails(..) => {
                 // Actual test in handle reply, here just sends a reply
                 let _ = msg::reply_delayed(b"payload", 0, 0);
             }
-            SysCall::BlockHeight(expected_height) => {
+            Kind::BlockHeight(expected_height) => {
                 let actual_height = exec::block_height();
                 assert_eq!(
                     expected_height, actual_height,
                     "SysCall::BlockHeight:: block height test failed"
                 );
             }
-            SysCall::BlockTimestamp(expected_timestamp) => {
+            Kind::BlockTimestamp(expected_timestamp) => {
                 let actual_timestamp = exec::block_timestamp();
                 assert_eq!(
                     expected_timestamp, actual_timestamp,
                     "SysCall::BlockTimestamp:: block timestamp test failed"
                 );
             }
-            SysCall::Origin(expected_actor) => {
+            Kind::Origin(expected_actor) => {
                 let actual_actor = exec::origin();
                 assert_eq!(
                     expected_actor, actual_actor,
                     "SysCall::Origin: actor test failed"
                 );
             }
-            SysCall::Reserve(expected_id) => {
+            Kind::Reserve(expected_id) => {
                 // do 2 reservations to increase internal nonce
                 let _ = ReservationId::reserve(10_000, 3);
                 let _ = ReservationId::reserve(20_000, 5);
@@ -260,7 +260,7 @@ mod wasm {
                     "SysCall::Reserve: reserve gas test failed"
                 );
             }
-            SysCall::Unreserve(expected_amount) => {
+            Kind::Unreserve(expected_amount) => {
                 let reservation = ReservationId::reserve(expected_amount, 3)
                     .expect("internal error: reservation failed");
                 let actual_amount = reservation.unreserve();
@@ -270,7 +270,7 @@ mod wasm {
                     "SysCall::Unreserve: unreserve gas test failed"
                 );
             }
-            SysCall::Random(salt, (expected_hash, expected_bn)) => {
+            Kind::Random(salt, (expected_hash, expected_bn)) => {
                 let (actual_hash, actual_bn) =
                     exec::random(&salt).expect("internal error: random call failed");
                 assert_eq!(
@@ -279,7 +279,7 @@ mod wasm {
                 );
                 assert_eq!(expected_bn, actual_bn, "SysCall::Random: bn test failed");
             }
-            SysCall::GasAvailable(lower, upper) => {
+            Kind::GasAvailable(lower, upper) => {
                 let gas_available = exec::gas_available();
                 assert!(
                     gas_available >= lower,
@@ -296,7 +296,7 @@ mod wasm {
 
     #[no_mangle]
     extern "C" fn handle_reply() {
-        if let Ok(SysCall::ReplyDetails(expected_reply_to, expected_exit_code)) = msg::load() {
+        if let Ok(Kind::ReplyDetails(expected_reply_to, expected_exit_code)) = msg::load() {
             let actual_reply_to = msg::reply_to();
             assert_eq!(
                 Ok(expected_reply_to),
