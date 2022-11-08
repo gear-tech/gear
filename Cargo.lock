@@ -2913,6 +2913,7 @@ dependencies = [
  "pallet-gear-gas",
  "pallet-gear-messenger",
  "pallet-gear-program",
+ "pallet-gear-rpc-runtime-api",
  "pallet-gear-scheduler",
  "pallet-timestamp",
  "parity-scale-codec",
@@ -3440,11 +3441,12 @@ dependencies = [
  "frame-system",
  "frame-system-rpc-runtime-api",
  "futures",
- "gear-common",
  "gear-test-client",
  "log",
  "memory-db",
  "pallet-babe",
+ "pallet-gear",
+ "pallet-gear-rpc-runtime-api",
  "pallet-timestamp",
  "parity-scale-codec",
  "parity-util-mem",
@@ -3496,14 +3498,11 @@ name = "gear-wasm-gen"
 version = "0.1.0"
 dependencies = [
  "arbitrary",
- "gear-backend-common",
- "gear-backend-wasmi",
- "gear-core",
  "gear-wasm-instrument",
  "indicatif",
  "rand 0.8.5",
  "wasm-smith",
- "wasmparser 0.92.0",
+ "wasmparser 0.93.0",
  "wasmprinter",
 ]
 
@@ -3511,6 +3510,9 @@ dependencies = [
 name = "gear-wasm-instrument"
 version = "0.1.0"
 dependencies = [
+ "gear-backend-common",
+ "gear-backend-wasmi",
+ "gear-core",
  "wasm-instrument 0.2.1",
  "wasmparser 0.90.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "wat",
@@ -6333,6 +6335,7 @@ dependencies = [
  "pallet-gear",
  "sp-api",
  "sp-core",
+ "sp-runtime",
  "sp-std",
 ]
 
@@ -7443,9 +7446,9 @@ dependencies = [
 
 [[package]]
 name = "regex"
-version = "1.6.0"
+version = "1.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4c4eb3267174b8c6c2f654116623910a0fef09c4753f8dd83db29c48a0df988b"
+checksum = "e076559ef8e241f2ae3479e36f97bd5741c0330689e217ad51ce2c76808b868a"
 dependencies = [
  "aho-corasick",
  "memchr",

@@ -18,7 +18,7 @@
 
 use anyhow::{Context, Result};
 use cargo_metadata::{Metadata, MetadataCommand, Package};
-use std::path::Path;
+use std::{collections::HashMap, path::Path};
 
 use crate::builder_error::BuilderError;
 
@@ -31,6 +31,8 @@ pub struct CrateInfo {
     pub snake_case_name: String,
     /// Crate version.
     pub version: String,
+    /// Crate features.
+    pub features: HashMap<String, Vec<String>>,
 }
 
 impl CrateInfo {
@@ -53,11 +55,13 @@ impl CrateInfo {
         let name = root_package.name.clone();
         let snake_case_name = name.replace('-', "_");
         let version = root_package.version.to_string();
+        let features = root_package.features.clone();
 
         Ok(Self {
             name,
             snake_case_name,
             version,
+            features,
         })
     }
 

@@ -13,8 +13,5 @@ wasmprinter = "0.2"
 
 [dev-dependencies]
 rand = { version = "0.8.0", features = ["small_rng"] }
-wasmparser = { version = "0.92.0" }
+wasmparser = { version = "0.93.0" }
 indicatif = "*"
-gear-backend-wasmi = { path = "../../core-backend/wasmi" }
-gear-backend-common = { path = "../../core-backend/common", features = ["mock"] }
-gear-core = { path = "../../core" }
