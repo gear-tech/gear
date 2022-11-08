@@ -1,6 +1,6 @@
 //! gear api rpc methods
 use crate::{
-    api::{signer::Signer, types::GasInfo},
+    api::{types::GasInfo, Api},
     result::Result,
 };
 use gear_core::ids::{CodeId, MessageId, ProgramId};
@@ -11,15 +11,10 @@ use subxt::{
     RpcClient,
 };
 
-impl Signer {
+impl Api {
     /// get rpc client
     pub fn rpc(&self) -> Arc<RpcClient> {
         self.client.rpc().client.clone()
-    }
-
-    /// public key of the signer in H256
-    pub fn source(&self) -> H256 {
-        AsRef::<[u8; 32]>::as_ref(self.signer.account_id()).into()
     }
 
     /// gear_calculateInitCreateGas
@@ -35,7 +30,7 @@ impl Signer {
             .request(
                 "gear_calculateInitCreateGas",
                 rpc_params![
-                    self.source(),
+                    H256(Default::default()),
                     H256(code_id.into()),
                     hex::encode(payload),
                     u64::try_from(value).unwrap_or(u64::MAX),
@@ -60,7 +55,7 @@ impl Signer {
             .request(
                 "gear_calculateInitUploadGas",
                 rpc_params![
-                    self.source(),
+                    H256(Default::default()),
                     hex::encode(code),
                     hex::encode(payload),
                     u64::try_from(value).unwrap_or(u64::MAX),
@@ -85,7 +80,7 @@ impl Signer {
             .request(
                 "gear_calculateHandleGas",
                 rpc_params![
-                    self.source(),
+                    H256(Default::default()),
                     H256(destination.into()),
                     hex::encode(payload),
                     u64::try_from(value).unwrap_or(u64::MAX),
@@ -111,7 +106,7 @@ impl Signer {
             .request(
                 "gear_calculateReplyGas",
                 rpc_params![
-                    self.source(),
+                    H256(Default::default()),
                     H256(message_id.into()),
                     exit_code,
                     hex::encode(payload),

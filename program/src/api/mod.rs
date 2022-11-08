@@ -15,6 +15,7 @@ pub mod config;
 mod constants;
 pub mod events;
 pub mod generated;
+mod rpc;
 pub mod signer;
 mod storage;
 pub mod types;

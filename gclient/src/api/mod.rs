@@ -24,6 +24,7 @@ pub mod storage;
 use crate::{node::ws::WSAddress, EventListener};
 use error::*;
 use gp::api::{signer::Signer, Api};
+use std::ops::{Deref, DerefMut};
 
 #[derive(Clone)]
 pub struct GearApi(Signer);
@@ -88,5 +89,19 @@ impl GearApi {
             .system_account_next_index(self.0.signer.account_id())
             .await
             .map_err(Into::into)
+    }
+}
+
+impl Deref for GearApi {
+    type Target = Signer;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl DerefMut for GearApi {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
     }
 }
