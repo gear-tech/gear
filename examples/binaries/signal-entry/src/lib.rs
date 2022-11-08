@@ -64,7 +64,9 @@ mod wasm {
                 exec::system_reserve_gas(100).unwrap();
             }
             HandleAction::Wait => {
-                exec::system_reserve_gas(5_000_000_000).unwrap();
+                exec::system_reserve_gas(1_000_000_000).unwrap();
+                // used to found message id in test
+                msg::send(msg::source(), 0, 0).unwrap();
                 exec::wait();
             }
             HandleAction::WaitAndPanic => {

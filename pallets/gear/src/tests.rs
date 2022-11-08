@@ -6033,6 +6033,56 @@ fn system_reservation_unreserve_works() {
 }
 
 #[test]
+fn few_system_reservations_across_waits_works() {
+    use demo_signal_entry::{HandleAction, WASM_BINARY};
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            USER_1.encode(),
+            10_000_000_000,
+            0,
+        ));
+
+        let pid = get_last_program_id();
+
+        run_to_block(2, None);
+
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            pid,
+            HandleAction::Wait.encode(),
+            10_000_000_000,
+            0,
+        ));
+
+        let mid = get_last_message_id();
+
+        run_to_block(3, None);
+        let mut reserved = GasHandlerOf::<Test>::get_system_reserve(mid).unwrap();
+
+        for _ in 0..5 {
+            assert_eq!(GasHandlerOf::<Test>::get_system_reserve(mid), Ok(reserved));
+            reserved += 1_000_000_000;
+
+            let reply_to_id = get_last_mail(USER_1).id();
+            assert_ok!(Gear::send_reply(
+                RuntimeOrigin::signed(USER_1),
+                reply_to_id,
+                EMPTY_PAYLOAD.to_vec(),
+                10_000_000_000,
+                0
+            ));
+
+            run_to_next_block(None);
+        }
+    });
+}
+
+#[test]
 fn system_reservation_panic_works() {
     use demo_signal_entry::{HandleAction, WASM_BINARY};
 
