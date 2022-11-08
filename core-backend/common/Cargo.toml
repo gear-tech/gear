@@ -8,6 +8,9 @@ license = "GPL-3.0"
 [dependencies]
 gear-core = { path = "../../core" }
 gear-core-errors = { path = "../../core-errors", features = ["codec"] }
+
+gear-wasm-instrument = { path = "../../utils/wasm-instrument", default-features = false }
+enum-iterator = "1.2.0"
 log = { version = "0.4.17", default-features = false }
 derive_more = "0.99.17"
 codec = { package = "parity-scale-codec", version = "3.1.2", features = ["derive", "full"], default-features = false }

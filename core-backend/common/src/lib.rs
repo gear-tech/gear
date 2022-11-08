@@ -27,6 +27,9 @@ pub mod error_processor;
 mod utils;
 pub use utils::calc_stack_end;
 
+mod sys_calls;
+pub use sys_calls::SysCallNames;
+
 #[cfg(feature = "mock")]
 pub mod mock;
 

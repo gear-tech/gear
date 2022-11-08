@@ -194,7 +194,7 @@ impl From<gcore::MessageId> for MessageId {
 
 impl From<H256> for MessageId {
     fn from(h256: H256) -> Self {
-        Self::new(h256.to_fixed_bytes())
+        MessageId(h256.to_fixed_bytes())
     }
 }
 
