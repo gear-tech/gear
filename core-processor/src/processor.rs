@@ -27,7 +27,7 @@ use crate::{
 };
 use alloc::{boxed::Box, collections::BTreeMap, string::ToString, vec::Vec};
 use codec::Encode;
-use gear_backend_common::{Environment, IntoExtInfo};
+use gear_backend_common::{Environment, IntoExtInfo, SystemReservationContext};
 use gear_core::{
     code::InstrumentedCode,
     env::Ext as EnvExt,
@@ -160,15 +160,12 @@ fn prepare_error(
     err: ExecutionErrorReason,
 ) -> PrepareResult {
     let gas_burned = gas_counter.burned();
-    let system_reservation = dispatch
-        .context()
-        .as_ref()
-        .and_then(|ctx| ctx.system_reservation());
+    let system_reservation_ctx = SystemReservationContext::from_dispatch(&dispatch);
     PrepareResult::Error(process_error(
         dispatch,
         program_id,
         gas_burned,
-        system_reservation,
+        system_reservation_ctx,
         err,
     ))
 }
@@ -214,11 +211,12 @@ pub fn precharge(
         Ok => PrechargeResult::Ok((dispatch, gas_counter, gas_allowance_counter).into()),
         GasExceeded => {
             let gas_burned = gas_counter.burned();
+            let system_reservation_ctx = SystemReservationContext::from_dispatch(&dispatch);
             PrechargeResult::Error(process_error(
                 dispatch,
                 destination_id,
                 gas_burned,
-                None,
+                system_reservation_ctx,
                 ExecutionErrorReason::ProgramDataGasExceeded,
             ))
         }
@@ -435,7 +433,7 @@ pub fn process<
                 res.dispatch,
                 program_id,
                 res.gas_amount.burned(),
-                res.context_store.system_reservation(),
+                res.system_reservation_context,
                 ExecutionErrorReason::Ext(reason),
             ),
             DispatchResultKind::Success => process_success(Success, res),
@@ -455,7 +453,13 @@ pub fn process<
             | ExecutionErrorReason::LoadMemoryBlockGasExceeded => {
                 process_allowance_exceed(dispatch, program_id, e.gas_amount.burned())
             }
-            _ => process_error(dispatch, program_id, e.gas_amount.burned(), None, e.reason),
+            _ => process_error(
+                dispatch,
+                program_id,
+                e.gas_amount.burned(),
+                SystemReservationContext::default(),
+                e.reason,
+            ),
         },
     }
 }
@@ -480,7 +484,7 @@ fn process_error(
     dispatch: IncomingDispatch,
     program_id: ProgramId,
     gas_burned: u64,
-    system_reservation: Option<u64>,
+    system_reservation_ctx: SystemReservationContext,
     err: ExecutionErrorReason,
 ) -> Vec<JournalNote> {
     let mut journal = Vec::new();
@@ -510,14 +514,14 @@ fn process_error(
         });
     }
 
-    // TODO: separate current system reservation and reservation from previous execution
-    if let Some(amount) = system_reservation {
+    if let Some(amount) = system_reservation_ctx.current_reservation {
+        journal.push(JournalNote::SystemReserveGas { message_id, amount });
+    }
+
+    if system_reservation_ctx.has_any() {
         if !dispatch.is_error_reply()
             && !matches!(dispatch.kind(), DispatchKind::Signal | DispatchKind::Init)
         {
-            // possibly there is no supply for signal
-            journal.push(JournalNote::SystemReserveGas { message_id, amount });
-
             journal.push(JournalNote::SendSignal {
                 message_id,
                 destination: program_id,
@@ -582,6 +586,7 @@ fn process_success(
         program_candidates,
         gas_amount,
         gas_reserver,
+        system_reservation_context,
         page_update,
         program_id,
         context_store,
@@ -627,8 +632,7 @@ fn process_success(
         });
     }
 
-    let system_reservation = context_store.system_reservation();
-    if let Some(amount) = system_reservation {
+    if let Some(amount) = system_reservation_context.current_reservation {
         journal.push(JournalNote::SystemReserveGas { message_id, amount });
     }
 
@@ -712,7 +716,7 @@ fn process_success(
         }
     };
 
-    if system_reservation.is_some() {
+    if system_reservation_context.has_any() {
         journal.push(JournalNote::SystemUnreserveGas { message_id });
     }
 

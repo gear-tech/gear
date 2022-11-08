@@ -25,7 +25,7 @@ use alloc::{
 use codec::{Decode, Encode};
 use gear_backend_common::{
     error_processor::IntoExtError, AsTerminationReason, ExtInfo, GetGasAmount, IntoExtInfo,
-    TerminationReason, TrapExplanation,
+    SystemReservationContext, TerminationReason, TrapExplanation,
 };
 use gear_core::{
     charge_gas_token,
@@ -52,6 +52,8 @@ pub struct ProcessorContext {
     pub gas_allowance_counter: GasAllowanceCounter,
     /// Reserved gas counter.
     pub gas_reserver: GasReserver,
+    /// System reservation.
+    pub system_reservation: Option<u64>,
     /// Value counter.
     pub value_counter: ValueCounter,
     /// Allocations context.
@@ -582,11 +584,7 @@ impl EnvExt for Ext {
             return Err(ExecutionError::InsufficientGasForReservation.into());
         }
 
-        let reservation = self
-            .context
-            .message_context
-            .system_reservation_mut()
-            .get_or_insert(0);
+        let reservation = self.context.system_reservation.get_or_insert(0);
         *reservation = reservation.saturating_add(amount);
 
         Ok(())
@@ -815,6 +813,7 @@ impl Ext {
             message_context,
             gas_counter,
             gas_reserver,
+            system_reservation,
             program_candidates_data,
             ..
         } = self.context;
@@ -832,11 +831,20 @@ impl Ext {
         let (outcome, mut context_store) = message_context.drain();
         let (generated_dispatches, awakening) = outcome.drain();
 
+        let system_reservation_context = SystemReservationContext {
+            current_reservation: system_reservation,
+            previous_reservation: context_store.system_reservation(),
+        };
+
         context_store.set_reservation_nonce(gas_reserver.nonce());
+        if let Some(reservation) = system_reservation {
+            context_store.add_system_reservation(reservation);
+        }
 
         let info = ExtInfo {
             gas_amount: gas_counter.into(),
             gas_reserver,
+            system_reservation_context,
             allocations: allocations.ne(&initial_allocations).then_some(allocations),
             pages_data,
             generated_dispatches,

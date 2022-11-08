@@ -125,6 +125,7 @@ fn default_processor_context<T: Config>() -> ProcessorContext {
             Default::default(),
             T::ReservationsLimit::get(),
         ),
+        system_reservation: None,
         value_counter: ValueCounter::new(0),
         allocations_context: AllocationsContext::new(
             Default::default(),

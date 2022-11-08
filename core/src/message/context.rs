@@ -166,6 +166,12 @@ impl ContextStore {
         nonce
     }
 
+    /// Set system reservation.
+    pub fn add_system_reservation(&mut self, amount: u64) {
+        let reservation = self.system_reservation.get_or_insert(0);
+        *reservation = reservation.saturating_add(amount);
+    }
+
     /// Get system reservation.
     pub fn system_reservation(&self) -> Option<u64> {
         self.system_reservation
@@ -350,11 +356,6 @@ impl MessageContext {
         } else {
             Err(Error::DuplicateWaking)
         }
-    }
-
-    /// Current system reservation.
-    pub fn system_reservation_mut(&mut self) -> &mut Option<u64> {
-        &mut self.store.system_reservation
     }
 
     /// Current processing incoming message.

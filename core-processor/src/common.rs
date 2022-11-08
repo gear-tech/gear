@@ -24,7 +24,7 @@ use alloc::{
     vec::Vec,
 };
 use codec::{Decode, Encode};
-use gear_backend_common::TrapExplanation;
+use gear_backend_common::{SystemReservationContext, TrapExplanation};
 use gear_core::{
     gas::{GasAllowanceCounter, GasAmount, GasCounter},
     ids::{CodeId, MessageId, ProgramId, ReservationId},
@@ -73,6 +73,8 @@ pub struct DispatchResult {
     pub gas_amount: GasAmount,
     /// Gas amount programs reserved.
     pub gas_reserver: Option<GasReserver>,
+    /// System reservation context.
+    pub system_reservation_context: SystemReservationContext,
     /// Page updates.
     pub page_update: BTreeMap<PageNumber, PageBuf>,
     /// New allocations set for program if it has been changed.
@@ -107,6 +109,8 @@ impl DispatchResult {
         program_id: ProgramId,
         gas_amount: GasAmount,
     ) -> Self {
+        let system_reservation_context = SystemReservationContext::from_dispatch(&dispatch);
+
         Self {
             kind: DispatchResultKind::Success,
             dispatch,
@@ -117,6 +121,7 @@ impl DispatchResult {
             program_candidates: Default::default(),
             gas_amount,
             gas_reserver: None,
+            system_reservation_context,
             page_update: Default::default(),
             allocations: Default::default(),
         }

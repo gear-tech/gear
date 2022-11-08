@@ -6071,7 +6071,6 @@ fn system_reservation_panic_works() {
     });
 }
 
-// TODO: reserve + wait; wake + reserve + panic
 #[test]
 fn system_reservation_wait_and_panic_works() {
     use demo_signal_entry::{HandleAction, WASM_BINARY};
@@ -6118,6 +6117,61 @@ fn system_reservation_wait_and_panic_works() {
         run_to_block(4, None);
 
         assert!(GasHandlerOf::<Test>::get_system_reserve(mid).is_err());
+    });
+}
+
+#[test]
+fn system_reservation_wait_and_reserve_with_panic_works() {
+    use demo_signal_entry::{HandleAction, WASM_BINARY};
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            USER_1.encode(),
+            10_000_000_000,
+            0,
+        ));
+
+        let pid = get_last_program_id();
+
+        run_to_block(2, None);
+
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            pid,
+            HandleAction::WaitAndReserveWithPanic.encode(),
+            10_000_000_000,
+            0,
+        ));
+
+        let mid = get_last_message_id();
+
+        run_to_block(3, None);
+
+        assert_eq!(
+            GasHandlerOf::<Test>::get_system_reserve(mid),
+            Ok(2_000_000_000)
+        );
+
+        let reply_to_id = get_last_mail(USER_1).id();
+        assert_ok!(Gear::send_reply(
+            RuntimeOrigin::signed(USER_1),
+            reply_to_id,
+            EMPTY_PAYLOAD.to_vec(),
+            10_000_000_000,
+            0
+        ));
+
+        run_to_block(4, None);
+
+        assert!(GasHandlerOf::<Test>::get_system_reserve(mid).is_err());
+
+        // check signal dispatch executed
+        let mail_msg = get_last_mail(USER_1);
+        assert_eq!(mail_msg.payload(), b"handle_signal");
     });
 }
 

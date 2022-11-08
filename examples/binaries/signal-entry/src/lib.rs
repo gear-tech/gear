@@ -33,6 +33,7 @@ pub enum HandleAction {
     Simple,
     Wait,
     WaitAndPanic,
+    WaitAndReserveWithPanic,
     Panic,
     Accumulate,
     OutOfGas,
@@ -78,6 +79,19 @@ mod wasm {
                 msg::send(msg::source(), 0, 0).unwrap();
                 exec::wait();
             }
+            HandleAction::WaitAndReserveWithPanic => {
+                if DO_PANIC {
+                    exec::system_reserve_gas(1_000_000_000).unwrap();
+                    panic!();
+                }
+
+                DO_PANIC = !DO_PANIC;
+
+                exec::system_reserve_gas(2_000_000_000).unwrap();
+                // used to found message id in test
+                msg::send(msg::source(), 0, 0).unwrap();
+                exec::wait();
+            }
             HandleAction::Panic => {
                 exec::system_reserve_gas(5_000_000_000).unwrap();
                 panic!();
@@ -100,6 +114,8 @@ mod wasm {
     unsafe extern "C" fn handle_signal() {
         msg::send(INITIATOR, b"handle_signal", 0).unwrap();
         assert_eq!(msg::status_code().unwrap(), 1);
+        // TODO: check gas limit (#1796)
+        // assert_eq!(msg::gas_limit(), 3_000_000_000);
     }
 
     #[no_mangle]

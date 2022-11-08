@@ -18,7 +18,7 @@
 
 use crate::{
     error_processor::IntoExtError, AsTerminationReason, ExtInfo, GetGasAmount, IntoExtInfo,
-    TerminationReason,
+    SystemReservationContext, TerminationReason,
 };
 use alloc::collections::BTreeSet;
 use codec::{Decode, Encode};
@@ -212,6 +212,7 @@ impl IntoExtInfo<<MockExt as Ext>::Error> for MockExt {
         Ok(ExtInfo {
             gas_amount: GasAmount::from(GasCounter::new(0)),
             gas_reserver: GasReserver::new(Default::default(), 0, Default::default(), 1024),
+            system_reservation_context: SystemReservationContext::default(),
             allocations: Default::default(),
             pages_data: Default::default(),
             generated_dispatches: Default::default(),
