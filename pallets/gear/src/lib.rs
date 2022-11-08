@@ -1437,7 +1437,6 @@ pub mod pallet {
                                 let code = Self::get_code(context.actor_data().code_id, program_id)
                                     .unwrap_or_else(|| unreachable!("Program exists so do code"));
                                 let (random, bn) = T::Randomness::random(dispatch_id.as_ref());
-                                log::warn!("random {:?}, bn {:?}", random, bn);
                                 core_processor::process::<Ext, ExecutionEnvironment>(
                                     &block_config,
                                     (context, program_id, code).into(),

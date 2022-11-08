@@ -321,12 +321,6 @@ impl From<ReservationId> for gcore::ReservationId {
     }
 }
 
-impl From<[u8; 32]> for ReservationId {
-    fn from(_: [u8; 32]) -> Self {
-        todo!()
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
