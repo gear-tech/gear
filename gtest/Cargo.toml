@@ -19,7 +19,7 @@ logger = { package = "log", version = "0.4.17" }
 hex = "0.4.3"
 colored = "2.0.0"
 derive_more = { version = "0.99.17", features = ["add", "add_assign", "display", "mul", "mul_assign"] }
-env_logger = "0.9.1"
+env_logger = "0.9.3"
 path-clean = "0.1.0"
 rand = "0.8.5"
 gear-wasm-instrument = { path = "../utils/wasm-instrument", default-features = false }
