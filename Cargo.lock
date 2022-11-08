@@ -3193,6 +3193,8 @@ dependencies = [
  "log",
  "memory-db",
  "pallet-babe",
+ "pallet-gear",
+ "pallet-gear-rpc-runtime-api",
  "pallet-timestamp",
  "parity-scale-codec",
  "parity-util-mem",
@@ -5925,6 +5927,7 @@ dependencies = [
  "pallet-gear",
  "sp-api",
  "sp-core",
+ "sp-runtime",
  "sp-std",
 ]
 
