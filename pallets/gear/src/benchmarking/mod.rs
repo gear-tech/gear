@@ -1330,7 +1330,7 @@ benchmarks! {
         sbox.invoke();
     }
 
-    // w_extends = w_bench
+    // w_extendu = w_bench
     instr_i64extendui32 {
         let r in 0 .. INSTR_BENCHMARK_BATCHES;
         let mut sbox = Sandbox::from(&WasmModule::<T>::from(ModuleDefinition {
