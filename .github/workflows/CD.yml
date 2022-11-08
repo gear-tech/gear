@@ -7,7 +7,7 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
-  
+
 jobs:
 
   tag-image:
@@ -17,21 +17,21 @@ jobs:
     steps:
       - name: Checkout repo
         uses: actions/checkout@v3
-      
+
       - name: Create image tag
         id: image-tag
         run: echo "tag=ghcr.io/gear-tech/node:0.1.0-`echo ${GITHUB_SHA} | cut -c1-8`" >> $GITHUB_OUTPUT
-        
+
   docker:
     runs-on: xeon
     needs: tag-image
     steps:
       - name: Checkout repo
         uses: actions/checkout@v3
-        
+
       - name: Echo tag
         run: echo ${{ needs.tag-image.outputs.image_tag }}
-        
+
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v2
 
@@ -92,18 +92,18 @@ jobs:
             nodes
             [nodes]
             ${{secrets.GEAR_NODE_2}} name=testnet-gear02 validator=yes loki=yes loki_url=${{secrets.LOKI_URL}} gear_image_tag=${{ needs.tag-image.outputs.image_tag }}
-            
+
   deploy-all-validators:
     runs-on: ubuntu-latest
     needs: [docker, deploy-one-validator,tag-image]
     steps:
-    
+
       - uses: trstringer/manual-approval@v1
         with:
           secret: ${{ github.TOKEN }}
           approvers: sergeyfilyanin,kvs96
           minimum-approvals: 1
-          
+
       - name: Checkout
         uses: actions/checkout@v3
 
