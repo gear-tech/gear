@@ -60,7 +60,7 @@ impl<Rng: LoaderRng> BatchPool<Rng> {
         };
 
         if let Err(ref e) = run_result {
-            tracing::info!("Pool run ends up with an error: {e}");
+            tracing::info!("Pool run ends up with an error: {e:?}");
         }
 
         run_result

@@ -20,10 +20,10 @@ use super::EventProcessor;
 use crate::{Error, Result};
 use async_trait::async_trait;
 use futures::stream::StreamExt;
-use gp::api::{events::Events, generated::api::Event};
+use gp::api::{events::FinalizedEvents, generated::api::Event};
 use subxt::sp_core::H256;
 
-pub struct EventListener<'a>(pub(crate) Events<'a>);
+pub struct EventListener<'a>(pub(crate) FinalizedEvents<'a>);
 
 #[async_trait(?Send)]
 impl<'a> EventProcessor for EventListener<'a> {

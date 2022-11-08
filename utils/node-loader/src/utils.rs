@@ -7,6 +7,7 @@ use gclient::WSAddress;
 use rand::{Rng, RngCore, SeedableRng};
 use reqwest::Client;
 use std::{
+    collections::HashMap,
     fs::File,
     io::Write,
     iter,
@@ -130,11 +131,10 @@ pub async fn with_timeout<T>(fut: impl Future<Output = T>) -> Result<T> {
 
 pub async fn stop_node(monitor_url: String) -> Result<()> {
     let client = Client::new();
-    client
-        .post(monitor_url)
-        .body("gear-node-loader=stop-gear")
-        .send()
-        .await?;
+    let mut params = HashMap::new();
+    params.insert("__script_name", "stop");
+
+    client.post(monitor_url).form(&params).send().await?;
 
     Ok(())
 }
