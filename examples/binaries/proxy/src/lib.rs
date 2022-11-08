@@ -49,7 +49,8 @@ mod wasm {
 
     #[no_mangle]
     unsafe extern "C" fn handle() {
-        msg::send(DESTINATION, b"proxied message", msg::value());
+        let payload = msg::load_bytes().expect("failed to load bytes");
+        msg::send(DESTINATION, payload, msg::value());
     }
 
     #[no_mangle]

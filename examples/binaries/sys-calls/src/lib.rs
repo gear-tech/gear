@@ -82,10 +82,11 @@ mod wasm {
         errors::{ContractError, ExtError, MessageError},
         exec,
         msg::{self, MessageHandle},
-        prog, CodeId, ReservationId,
+        prog, CodeId, ReservationId, ActorId,
     };
 
     static mut CODE_ID: CodeId = CodeId::new([0u8; 32]);
+    static mut ORIGIN: Option<ActorId> = None;
 
     #[no_mangle]
     unsafe extern "C" fn init() {
@@ -242,11 +243,17 @@ mod wasm {
                 );
             }
             Kind::Origin(expected_actor) => {
-                let actual_actor = exec::origin();
-                assert_eq!(
-                    expected_actor, actual_actor,
-                    "SysCall::Origin: actor test failed"
-                );
+                // The origin is set by the first call and then checked with the second
+                if let Some(origin) = ORIGIN {
+                    // is ser, perform check
+                    let actual_actor = exec::origin();
+                    assert_eq!(
+                        expected_actor, actual_actor,
+                        "SysCall::Origin: actor test failed"
+                    );
+                } else {
+                    ORIGIN = Some(exec::origin());
+                }
             }
             Kind::Reserve(expected_id) => {
                 // do 2 reservations to increase internal nonce

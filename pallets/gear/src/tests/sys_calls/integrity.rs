@@ -468,10 +468,37 @@ fn check_gr_block_timestamp() {
     })
 }
 
+#[test]
 fn check_gr_origin() {
-    run_tester(|_, _| {
-        let mp = MessageParamsBuilder::new(Kind::Origin(USER_2.into_origin().into()).encode())
-            .with_sender(USER_2);
+    run_tester(|tester_id, _| {
+        use demo_proxy::{InputArgs, WASM_BINARY as PROXY_WASM_BINARY};
+
+        let payload = Kind::Origin(USER_2.into_origin().into()).encode();
+
+        // Upload proxy
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            PROXY_WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            InputArgs { destination: tester_id.into_origin().into() }.encode(),
+            50_000_000_000,
+            0
+        ));
+        let proxy_pid = get_last_program_id();
+        run_to_next_block(None);
+
+        // Set origin in the tester program through origin
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_2),
+            proxy_pid,
+            payload.clone(),
+            50_000_000_000,
+            0
+        ));
+        run_to_next_block(None);
+
+        // Check the origin
+        let mp = MessageParamsBuilder::new(payload).with_sender(USER_2);
 
         (TestCall::send_message(mp), None::<DefaultPostCheck>)
     })
