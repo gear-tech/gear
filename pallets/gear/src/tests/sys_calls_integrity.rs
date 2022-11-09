@@ -58,7 +58,6 @@ fn test_sys_calls_integrity() {
     })
 }
 
-
 // Checks `alloc` by default and `free` by param
 fn check_mem(check_free: bool) {
     let wat = r#"
@@ -129,13 +128,26 @@ fn check_mem(check_free: bool) {
     init_logger();
     new_test_ext().execute_with(|| {
         let code = ProgramCodeKind::Custom(wat);
-        assert_ok!(Gear::upload_program(RuntimeOrigin::signed(USER_1), code.to_bytes(), DEFAULT_SALT.to_vec(), EMPTY_PAYLOAD.to_vec(), 50_000_000_000, 0));
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            code.to_bytes(),
+            DEFAULT_SALT.to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
+            50_000_000_000,
+            0
+        ));
 
         let pid = get_last_program_id();
         run_to_next_block(None);
 
         if free {
-            assert_ok!(Gear::send_message(RuntimeOrigin::signed(USER_1), pid, EMPTY_PAYLOAD.to_vec(), 50_000_000_000, 0));
+            assert_ok!(Gear::send_message(
+                RuntimeOrigin::signed(USER_1),
+                pid,
+                EMPTY_PAYLOAD.to_vec(),
+                50_000_000_000,
+                0
+            ));
             run_to_next_block(None);
         }
     })
