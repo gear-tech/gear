@@ -116,6 +116,21 @@ pub fn rereply_delayed(value: u128, delay: u32) -> Result<MessageId> {
     gcore::msg::rereply_delayed(value, delay).into_contract_result()
 }
 
+/// Same as [`rereply`], but with explicit gas limit.
+#[wait_for_reply]
+pub fn rereply_with_gas(gas_limit: u64, value: u128) -> Result<MessageId> {
+    gcore::msg::rereply_with_gas(gas_limit, value).into_contract_result()
+}
+
+/// Same as [`rereply_with_gas`], but sends delayed.
+pub fn rereply_with_gas_delayed(
+    gas_limit: u64,
+    value: u128,
+    delay: u32,
+) -> Result<MessageId> {
+    gcore::msg::rereply_with_gas_delayed(gas_limit, value, delay).into_contract_result()
+}
+
 /// Resend the incoming message to the program or user.
 #[wait_for_reply]
 pub fn resend(program: ActorId, value: u128) -> Result<MessageId> {

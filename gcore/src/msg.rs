@@ -85,6 +85,14 @@ mod sys {
             message_id_ptr: *mut [u8; 32],
         ) -> SyscallError;
 
+        #[allow(improper_ctypes)]
+        pub fn gr_rereply_wgas(
+            gas_limit: u64,
+            value_ptr: *const u128,
+            delay: u32,
+            message_id_ptr: *mut [u8; 32],
+        ) -> SyscallError;
+
         pub fn gr_rereply_push() -> SyscallError;
 
         #[allow(improper_ctypes)]
@@ -520,6 +528,28 @@ pub fn rereply_delayed(value: u128, delay: u32) -> Result<MessageId> {
 /// Same as [`reply_push`], but pushes the incoming message payload.
 pub fn rereply_push() -> Result<()> {
     unsafe { sys::gr_rereply_push().into_result() }
+}
+
+/// Same as [`rereply`], but with explicit gas limit.
+pub fn rereply_with_gas(gas_limit: u64, value: u128) -> Result<MessageId> {
+    rereply_with_gas_delayed(gas_limit, value, 0)
+}
+
+/// Same as [`rereply_with_gas`], but sends delayed.
+pub fn rereply_with_gas_delayed(gas_limit: u64, value: u128, delay: u32) -> Result<MessageId> {
+    let mut message_id = MessageId::default();
+
+    unsafe {
+        sys::gr_rereply_wgas(
+            gas_limit,
+            value.to_le_bytes().as_ptr() as _,
+            delay,
+            message_id.as_mut_ptr(),
+        )
+        .into_result()?
+    }
+
+    Ok(message_id)
 }
 
 /// Same as [`send`], but resends the incoming message.
