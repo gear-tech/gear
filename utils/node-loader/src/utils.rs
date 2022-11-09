@@ -116,6 +116,27 @@ pub fn swap_res_types<T, E>(result: StdResult<T, E>) -> StdResult<E, T> {
     }
 }
 
+// Todo implement it like SwapResult trait "knows" that Self is Result
+// Todo test it
+pub trait SwapResult {
+    type SwappedOk;
+    type SwappedErr;
+
+    fn swap_result(self) -> Result<Self::SwappedOk, Self::SwappedErr>;
+}
+
+impl<T, E> SwapResult for Result<T, E> {
+    type SwappedOk = E;
+    type SwappedErr = T;
+
+    fn swap_result(self) -> SwappedResult<Self::SwappedOk, Self::SwappedErr> {
+        match self {
+            Ok(T) => Err(T),
+            Err(E) => Ok(E),
+        }
+    }
+}
+
 pub async fn with_timeout<T>(fut: impl Future<Output = T>) -> Result<T> {
     // 5 minute as default
     let wait_task = Delay::new(Duration::from_millis(5 * 60 * 1_000));

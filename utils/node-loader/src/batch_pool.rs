@@ -1,6 +1,6 @@
 use crate::{
     args::{LoadParams, SeedVariant},
-    utils::{self, LoaderRng},
+    utils::{self, LoaderRng, SwapResult},
 };
 use anyhow::{anyhow, Result};
 use api::GearApiFacade;
@@ -52,7 +52,7 @@ impl<Rng: LoaderRng> BatchPool<Rng> {
         let mut batch_pool = Self::new(api.clone(), params.batch_size, params.workers);
 
         let run_pool_task = batch_pool.run_pool_loop(params.code_seed_type);
-        let inspect_crash_task = inspect_crash_events(api.into_gear_api(), params.node_stopper);
+        let inspect_crash_task = inspect_crash_events(api.into_gear_api());
 
         let run_result = tokio::select! {
             r = run_pool_task => r,
@@ -60,7 +60,12 @@ impl<Rng: LoaderRng> BatchPool<Rng> {
         };
 
         if let Err(ref e) = run_result {
+            // todo [sab] test by
+            // 1. making super slow timeout
+            // 2. making loop with wait for 65 sec in process_queue
+            // 3. making test panic in runtime
             tracing::info!("Pool run ends up with an error: {e:?}");
+            utils::stop_node(params.node_stopper).await?;
         }
 
         run_result
@@ -113,14 +118,13 @@ async fn run_batch(api: GearApiFacade, batch: BatchWithSeed) -> Result<BatchRunR
         Ok(report) => Ok(BatchRunReport::new(seed, report)),
         Err(err) => {
             // Propagate crash error or return report
-            utils::swap_res_types(
-                CrashAlert::try_from(err)
-                    .map(|crash_err| {
-                        tracing::info!("{crash_err}");
-                        crash_err
-                    })
-                    .map_err(|err| tracing::debug!("Error occurred while running batch: {err}")),
-            )?;
+            CrashAlert::try_from(err)
+                .map(|crash_err| {
+                    tracing::info!("{crash_err}");
+                    crash_err
+                })
+                .map_err(|err| tracing::debug!("Error occurred while running batch: {err}"))
+                .swap_result()?;
 
             Ok(BatchRunReport::empty(seed))
         }
@@ -234,7 +238,7 @@ async fn process_events(
     })
 }
 
-async fn inspect_crash_events(api: GearApi, node_stopper: String) -> Result<()> {
+async fn inspect_crash_events(api: GearApi) -> Result<()> {
     let mut event_listener = api.subscribe().await?;
     // Waits until the queue processing reverted event is found.
     // Error means either event is not found an can't be found
@@ -244,8 +248,6 @@ async fn inspect_crash_events(api: GearApi, node_stopper: String) -> Result<()> 
 
     let crash_err = CrashAlert::MsgProcessingStopped;
     tracing::info!("{crash_err}");
-
-    utils::stop_node(node_stopper).await?;
 
     Err(crash_err.into())
 }
