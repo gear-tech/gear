@@ -78,8 +78,25 @@ mod sys {
 
         pub fn gr_reply_to(message_id_ptr: *mut [u8; 32]) -> SyscallError;
 
+        #[allow(improper_ctypes)]
+        pub fn gr_resend(
+            destination_ptr: *const [u8; 32],
+            value_ptr: *const u128,
+            delay: u32,
+            message_id_ptr: *mut [u8; 32],
+        ) -> SyscallError;
+
         pub fn gr_resend_push(
             handle: MessageHandle,
+        ) -> SyscallError;
+
+        #[allow(improper_ctypes)]
+        pub fn gr_resend_wgas(
+            destination_ptr: *const [u8; 32],
+            gas_limit: u64,
+            value_ptr: *const u128,
+            delay: u32,
+            message_id_ptr: *mut [u8; 32],
         ) -> SyscallError;
 
         #[allow(improper_ctypes)]
@@ -470,9 +487,67 @@ pub fn reply_to() -> Result<MessageId> {
     Ok(message_id)
 }
 
+/// Same as [`send`], but resends the incoming message.
+pub fn resend(destination: ActorId, value: u128) -> Result<MessageId> {
+    resend_delayed(destination, value, 0)
+}
+
+/// Same as [`resend`], but sends delayed.
+pub fn resend_delayed(
+    destination: ActorId,
+    value: u128,
+    delay: u32,
+) -> Result<MessageId> {
+    let mut message_id = MessageId::default();
+
+    unsafe {
+        sys::gr_resend(
+            destination.as_ptr(),
+            value.to_le_bytes().as_ptr() as _,
+            delay,
+            message_id.as_mut_ptr(),
+        )
+        .into_result()?
+    }
+
+    Ok(message_id)
+}
+
 /// Same as [`send_push`], but pushes the incoming message payload.
 pub fn resend_push(handle: MessageHandle) -> Result<()> {
     unsafe { sys::gr_resend_push(handle).into_result() }
+}
+
+/// Same as [`resend`], but resends the incoming message.
+pub fn resend_with_gas(
+    destination: ActorId,
+    gas_limit: u64,
+    value: u128,
+) -> Result<MessageId> {
+    resend_with_gas_delayed(destination, gas_limit, value, 0)
+}
+
+/// Same as [`resend_with_gas`], but sends delayed.
+pub fn resend_with_gas_delayed(
+    destination: ActorId,
+    gas_limit: u64,
+    value: u128,
+    delay: u32,
+) -> Result<MessageId> {
+    let mut message_id = MessageId::default();
+
+    unsafe {
+        sys::gr_resend_wgas(
+            destination.as_ptr(),
+            gas_limit,
+            value.to_le_bytes().as_ptr() as _,
+            delay,
+            message_id.as_mut_ptr(),
+        )
+        .into_result()?
+    }
+
+    Ok(message_id)
 }
 
 /// Send a new message to the program or user.

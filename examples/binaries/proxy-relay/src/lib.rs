@@ -64,6 +64,8 @@ mod wasm {
         use RelayCall::*;
 
         match RELAY_CALL.as_ref().expect("Relay call is not initialized") {
+            Resend => { msg::resend(DESTINATION, msg::value()); }
+            ResendWithGas(gas) => { msg::resend_with_gas(DESTINATION, *gas, msg::value()); }
             ResendPush => {
                 let msg_handle = msg::send_init().expect("Failed to obtain new message handle");
                 msg::resend_push(msg_handle);

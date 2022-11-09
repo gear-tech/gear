@@ -7181,7 +7181,7 @@ fn relay_messages() {
         new_test_ext().execute_with(execute);
     };
 
-    // test(RelayCall::Resend);
-    // test(RelayCall::ResendWithGas(50_000));
+    test(RelayCall::Resend);
+    test(RelayCall::ResendWithGas(50_000));
     test(RelayCall::ResendPush);
 }

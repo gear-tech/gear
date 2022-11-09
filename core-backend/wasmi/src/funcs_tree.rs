@@ -97,8 +97,14 @@ where
         f.build("gr_reply_push", |forbidden| {
             F::reply_push(store, forbidden, memory)
         }),
+        f.build("gr_resend", |forbidden| {
+            F::resend(store, forbidden, memory)
+        }),
         f.build("gr_resend_push", |forbidden| {
             F::resend_push(store, forbidden)
+        }),
+        f.build("gr_resend_wgas", |forbidden| {
+            F::resend_wgas(store, forbidden, memory)
         }),
         f.build("gr_debug", |forbidden| F::debug(store, forbidden, memory)),
         f.build("gr_gas_available", |forbidden| {
