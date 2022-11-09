@@ -903,6 +903,35 @@ where
         Func::wrap(store, func)
     }
 
+    pub fn rereply(store: &mut Store<HostState<E>>, forbidden: bool, memory: WasmiMemory) -> Func {
+        let func = move |mut caller: wasmi::Caller<'_, HostState<E>>,
+                         value_ptr: u32,
+                         delay: u32,
+                         message_id_ptr: u32| {
+            update_or_exit_if!(forbidden, caller);
+
+            let read_result = {
+                let memory_wrap = get_caller_memory(&mut caller, &memory);
+
+                read_memory_as(&memory_wrap, value_ptr)
+            };
+
+            let value = process_read_result!(read_result, caller);
+
+            process_call_result_as_ref!(
+                caller,
+                memory,
+                |ext| {
+                    ext.rereply_push()?;
+                    ext.reply_commit(ReplyPacket::new(Default::default(), value), delay)
+                },
+                message_id_ptr
+            )
+        };
+
+        Func::wrap(store, func)
+    }
+
     pub fn rereply_push(
         store: &mut Store<HostState<E>>,
         forbidden: bool,

@@ -78,6 +78,13 @@ mod sys {
 
         pub fn gr_reply_to(message_id_ptr: *mut [u8; 32]) -> SyscallError;
 
+        #[allow(improper_ctypes)]
+        pub fn gr_rereply(
+            value_ptr: *const u128,
+            delay: u32,
+            message_id_ptr: *mut [u8; 32],
+        ) -> SyscallError;
+
         pub fn gr_rereply_push() -> SyscallError;
 
         #[allow(improper_ctypes)]
@@ -485,6 +492,27 @@ pub fn reply_to() -> Result<MessageId> {
     let mut message_id = MessageId::default();
 
     unsafe { sys::gr_reply_to(message_id.as_mut_ptr()).into_result()? }
+
+    Ok(message_id)
+}
+
+/// Same as [`reply`], but relays the incoming message payload.
+pub fn rereply(value: u128) -> Result<MessageId> {
+    rereply_delayed(value, 0)
+}
+
+/// Same as [`rereply`], but sends delayed.
+pub fn rereply_delayed(value: u128, delay: u32) -> Result<MessageId> {
+    let mut message_id = MessageId::default();
+
+    unsafe {
+        sys::gr_rereply(
+            value.to_le_bytes().as_ptr() as _,
+            delay,
+            message_id.as_mut_ptr(),
+        )
+        .into_result()?
+    }
 
     Ok(message_id)
 }

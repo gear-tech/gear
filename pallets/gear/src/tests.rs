@@ -7191,5 +7191,6 @@ fn relay_messages() {
     test(RelayCall::Resend);
     test(RelayCall::ResendWithGas(50_000));
     test(RelayCall::ResendPush);
+    test(RelayCall::Rereply);
     test(RelayCall::RereplyPush);
 }

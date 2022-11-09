@@ -71,6 +71,7 @@ mod wasm {
                 msg::resend_push(msg_handle).expect("Push failed");
                 msg::send_commit(msg_handle, DESTINATION, msg::value()).expect("Commit failed");
             }
+            Rereply => { msg::rereply(msg::value()); }
             RereplyPush => {
                 msg::rereply_push().expect("Push failed");
                 msg::reply_commit(msg::value()).expect("Commit failed");
