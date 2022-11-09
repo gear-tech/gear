@@ -140,7 +140,7 @@ fn check_mem(check_free: bool) {
         let pid = get_last_program_id();
         run_to_next_block(None);
 
-        if free {
+        if check_free {
             assert_ok!(Gear::send_message(
                 RuntimeOrigin::signed(USER_1),
                 pid,
