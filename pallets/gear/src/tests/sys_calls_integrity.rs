@@ -8,12 +8,7 @@
 //! `gr_exit` and `gr_wait*` call are not intended to be tested with the integration level tests, but only
 //! with business logic tests in the separate module.
 
-// TODO
-// 1. include mailbox to tests
-// 2. General clean-up
-
 use super::*;
-
 use crate::mock::Timestamp;
 use gear_backend_common::SysCallNames;
 use gear_core::ids::ReservationId;
@@ -52,11 +47,96 @@ fn test_sys_calls_integrity() {
             GasAvailable => check_gr_gas_available(),
             ValueAvailable => check_gr_value_available(),
             Exit | Leave | Wait | WaitFor | WaitUpTo | Wake | Debug => {/* test here aren't required, read module docs for more info */},
-            Alloc | Free | OutOfGas | OutOfAllowance => { /* TODO [SAB] */ },
+            Alloc => check_mem(false),
+            Free => check_mem(true),
+            OutOfGas | OutOfAllowance => { /* TODO [SAB] */}
             Error => check_gr_err(),
             Random => check_gr_random(),
             ReserveGas => check_gr_reserve_gas(),
             UnreserveGas => check_gr_unreserve_gas(),
+        }
+    })
+}
+
+
+// Checks `alloc` by default and `free` by param
+fn check_mem(check_free: bool) {
+    let wat = r#"
+    (module
+        (import "env" "memory" (memory 1))
+        (import "env" "alloc" (func $alloc (param i32) (result i32)))
+        (import "env" "free" (func $free (param i32)))
+        (export "init" (func $init))
+        (export "handle" (func $handle))
+        (func $init
+            ;; allocate 2 more pages with expected starting index 1
+            (block
+                i32.const 0x2
+                call $alloc
+                i32.const 0x1
+                i32.eq
+                br_if 0
+                unreachable
+            )
+            ;; put to page with index 2 (the third) some value
+            (block
+                i32.const 0x20001
+                i32.const 0x63
+                i32.store
+            )
+            ;; put to page with index 1 (the second) some value
+            (block
+                i32.const 0x10001
+                i32.const 0x64
+                i32.store
+            )
+            ;; check it has the value
+            (block
+                i32.const 0x10001
+                i32.load
+                i32.const 0x64
+                i32.eq
+                br_if 0
+                unreachable
+            )
+            ;; remove page with index 1 (the second page)
+            (block
+                i32.const 0x1
+                call $free
+            )
+        )
+        (func $handle
+            ;; check that the second page is empty
+            (block
+                i32.const 0x10001
+                i32.load
+                i32.const 0x0
+                i32.eq
+                br_if 0
+                unreachable
+            )
+            ;; check that the third page has data
+            (block
+                i32.const 0x20001
+                i32.load
+                i32.const 0x63
+                i32.eq
+                br_if 0
+                unreachable
+            )
+        )
+    )"#;
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let code = ProgramCodeKind::Custom(wat);
+        assert_ok!(Gear::upload_program(RuntimeOrigin::signed(USER_1), code.to_bytes(), DEFAULT_SALT.to_vec(), EMPTY_PAYLOAD.to_vec(), 50_000_000_000, 0));
+
+        let pid = get_last_program_id();
+        run_to_next_block(None);
+
+        if free {
+            assert_ok!(Gear::send_message(RuntimeOrigin::signed(USER_1), pid, EMPTY_PAYLOAD.to_vec(), 50_000_000_000, 0));
+            run_to_next_block(None);
         }
     })
 }
