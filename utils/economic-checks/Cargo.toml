@@ -48,6 +48,7 @@ sp-runtime = { version = "6.0.0", git = "https://github.com/gear-tech/substrate.
 wat = "1.0"
 wasmprinter = "0.2.42"
 demo-compose = { path = "../../examples/binaries/compose" }
+gstd = { path = "../../gstd" }
 
 [features]
 default = ["gear-native", "lazy-pages"]

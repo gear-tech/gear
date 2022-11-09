@@ -2058,6 +2058,7 @@ dependencies = [
  "gear-core",
  "gear-runtime",
  "gear-runtime-primitives",
+ "gstd",
  "hex",
  "log",
  "pallet-authorship",
