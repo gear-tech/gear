@@ -97,7 +97,7 @@ async fn alloc_zero_pages() -> Result<()> {
     let api = GearApi::dev().await?.with("//Bob")?;
     let codes = vec![wat::parse_str(wat_code).unwrap()];
     async_std::future::timeout(
-        Duration::from_secs(5),
+        Duration::from_secs(15),
         upload_programs_and_check(&api, codes),
     )
     .await
