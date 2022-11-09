@@ -508,6 +508,122 @@ where
         })
     }
 
+    pub fn rereply(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
+        sys_trace!(target: "syscall::gear", "rereply, args = {}", args_to_str(args));
+
+        let (value_ptr, delay, message_id_ptr) = args.iter().read_3()?;
+
+        ctx.run(|ctx| {
+            let value = ctx.read_memory_as(value_ptr)?;
+
+            let push_result = ctx.ext.rereply_push();
+            push_result
+                .and_then(|_| ctx.ext.reply_commit(ReplyPacket::new(Default::default(), value), delay))
+                .process_error()
+                .map_err(FuncError::Core)?
+                .error_len_on_success(|message_id| {
+                    ctx.write_output(message_id_ptr, message_id.as_ref())
+                })
+        })
+    }
+
+    pub fn rereply_push(ctx: &mut Runtime<E>, _args: &[Value]) -> SyscallOutput {
+        sys_trace!(target: "syscall::gear", "rereply_push");
+
+        ctx.run(|ctx| {
+            Ok(ctx
+                .ext
+                .rereply_push()
+                .process_error()
+                .map_err(FuncError::Core)?
+                .error_len())
+        })
+    }
+
+    pub fn rereply_wgas(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
+        sys_trace!(target: "syscall::gear", "rereply_wgas, args = {}", args_to_str(args));
+
+        let (gas_limit, value_ptr, delay, message_id_ptr) =
+            args.iter().read_4()?;
+
+        ctx.run(|ctx| {
+            let value = ctx.read_memory_as(value_ptr)?;
+
+            let push_result = ctx.ext.rereply_push();
+            push_result
+                .and_then(|_| ctx.ext.reply_commit(ReplyPacket::new_with_gas(Default::default(), gas_limit, value), delay))
+                .process_error()
+                .map_err(FuncError::Core)?
+                .error_len_on_success(|message_id| {
+                    ctx.write_output(message_id_ptr, message_id.as_ref())
+                })
+        })
+    }
+
+    pub fn resend(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
+        sys_trace!(target: "syscall::gear", "resend, args = {}", args_to_str(args));
+
+        let (destination_ptr, value_ptr, delay, message_id_ptr) =
+            args.iter().read_4()?;
+
+        ctx.run(|ctx| {
+            let destination = ctx.read_memory_as(destination_ptr)?;
+            let value = ctx.read_memory_as(value_ptr)?;
+
+            let handle = ctx.ext.send_init();
+            let push_result = handle.and_then(|h| ctx.ext.resend_push(h).map(|_| h));
+            push_result
+                .and_then(|h| ctx.ext.send_commit(h, HandlePacket::new(destination, Default::default(), value), delay))
+                .process_error()
+                .map_err(FuncError::Core)?
+                .error_len_on_success(|message_id| {
+                    ctx.write_output(message_id_ptr, message_id.as_ref())
+                })
+        })
+    }
+
+    pub fn resend_push(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
+        sys_trace!(target: "syscall::gear", "resend_push, args = {}", args_to_str(args));
+
+        let handle = args.iter().read()?;
+
+        ctx.run(|ctx| {
+            Ok(ctx
+                .ext
+                .resend_push(handle)
+                .process_error()
+                .map_err(FuncError::Core)?
+                .error_len())
+        })
+    }
+
+    pub fn resend_wgas(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
+        sys_trace!(target: "syscall::gear", "resend_wgas, args = {}", args_to_str(args));
+
+        let (
+            destination_ptr,
+            gas_limit,
+            value_ptr,
+            delay,
+            message_id_ptr,
+        ) = args.iter().read_5()?;
+
+        ctx.run(|ctx| {
+            let destination = ctx.read_memory_as(destination_ptr)?;
+            let value = ctx.read_memory_as(value_ptr)?;
+
+            let handle = ctx.ext.send_init();
+            let push_result = handle.and_then(|h| ctx.ext.resend_push(h).map(|_| h));
+            push_result
+                .and_then(|h| ctx.ext.send_commit(h, HandlePacket::new_with_gas(destination, Default::default(), gas_limit, value), delay))
+                .process_error()
+                .map_err(FuncError::Core)?
+                .error_len_on_success(|message_id| {
+                    ctx.write_output(message_id_ptr, message_id.as_ref())
+                })
+        })
+    }
+
     pub fn debug(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
         sys_trace!(target: "syscall::gear", "debug, args = {}", args_to_str(args));
 
