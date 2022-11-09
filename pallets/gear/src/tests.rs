@@ -2189,10 +2189,11 @@ fn distributor_distribute() {
         // has been refunded to the sender so the free balances should add up
         let final_balance = Balances::free_balance(USER_1) + Balances::free_balance(BLOCK_AUTHOR);
 
-        let mailbox_threshold_gas_limit = mail_box_len as u64 * <Test as Config>::MailboxThreshold::get();
+        let mailbox_threshold_gas_limit =
+            mail_box_len as u64 * <Test as Config>::MailboxThreshold::get();
         let mailbox_threshold_reserved =
             <Test as Config>::GasPrice::gas_price(mailbox_threshold_gas_limit);
-       assert_eq!(initial_balance - mailbox_threshold_reserved, final_balance);
+        assert_eq!(initial_balance - mailbox_threshold_reserved, final_balance);
 
         // All gas cancelled out in the end
         assert_eq!(
