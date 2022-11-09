@@ -1762,6 +1762,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "demo-wait-timeout"
+version = "0.1.0"
+dependencies = [
+ "futures",
+ "gear-wasm-builder",
+ "gstd",
+ "parity-scale-codec",
+]
+
+[[package]]
 name = "demo-wait-wake"
 version = "0.1.0"
 dependencies = [
@@ -2923,6 +2933,7 @@ dependencies = [
  "pallet-gear-gas",
  "pallet-gear-messenger",
  "pallet-gear-program",
+ "pallet-gear-rpc-runtime-api",
  "pallet-gear-scheduler",
  "pallet-timestamp",
  "parity-scale-codec",
@@ -3452,11 +3463,12 @@ dependencies = [
  "frame-system",
  "frame-system-rpc-runtime-api",
  "futures",
- "gear-common",
  "gear-test-client",
  "log",
  "memory-db",
  "pallet-babe",
+ "pallet-gear",
+ "pallet-gear-rpc-runtime-api",
  "pallet-timestamp",
  "parity-scale-codec",
  "parity-util-mem",
@@ -4070,12 +4082,13 @@ checksum = "8e04e2fd2b8188ea827b32ef11de88377086d690286ab35747ef7f9bf3ccb590"
 
 [[package]]
 name = "indicatif"
-version = "0.17.1"
+version = "0.17.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bfddc9561e8baf264e0e45e197fd7696320026eb10a8180340debc27b18f535b"
+checksum = "4295cbb7573c16d310e99e713cf9e75101eb190ab31fccd35f2d2691b4352b19"
 dependencies = [
  "console",
  "number_prefix",
+ "portable-atomic",
  "unicode-width",
 ]
 
@@ -6132,6 +6145,7 @@ dependencies = [
  "demo-proxy-with-gas",
  "demo-reserve-gas",
  "demo-value-sender",
+ "demo-wait-timeout",
  "demo-waiter",
  "demo-waiting-proxy",
  "derive_more",
@@ -6345,6 +6359,7 @@ dependencies = [
  "pallet-gear",
  "sp-api",
  "sp-core",
+ "sp-runtime",
  "sp-std",
 ]
 
@@ -6875,6 +6890,12 @@ dependencies = [
  "opaque-debug 0.3.0",
  "universal-hash",
 ]
+
+[[package]]
+name = "portable-atomic"
+version = "0.3.15"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "15eb2c6e362923af47e13c23ca5afb859e83d54452c55b0b9ac763b8f7c1ac16"
 
 [[package]]
 name = "ppv-lite86"
@@ -7455,9 +7476,9 @@ dependencies = [
 
 [[package]]
 name = "regex"
-version = "1.6.0"
+version = "1.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4c4eb3267174b8c6c2f654116623910a0fef09c4753f8dd83db29c48a0df988b"
+checksum = "e076559ef8e241f2ae3479e36f97bd5741c0330689e217ad51ce2c76808b868a"
 dependencies = [
  "aho-corasick",
  "memchr",

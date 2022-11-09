@@ -19,7 +19,7 @@ impl TryFrom<Error> for CrashAlert {
 
     fn try_from(err: Error) -> Result<Self, Self::Error> {
         let err_string = err.to_string();
-        if err_string.contains(utils::TIMEOUT_ERR_STR) {
+        if err_string.contains(utils::EVENTS_TIMEOUT_ERR_STR) {
             Ok(CrashAlert::Timeout)
         } else if err_string.contains(utils::SUBXT_RPC_REQUEST_ERR_STR) {
             Ok(CrashAlert::NodeIsDead)

@@ -2949,6 +2949,341 @@ fn test_requeue_after_wait_for_timeout() {
 }
 
 #[test]
+fn test_sending_waits() {
+    use demo_waiter::{Command, WASM_BINARY};
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        // utils
+        let expiration = |duration: u32| -> BlockNumberFor<Test> {
+            System::block_number().saturating_add(duration.unique_saturated_into())
+        };
+
+        // upload program
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
+            2_000_000_000u64,
+            0u128
+        ));
+
+        let program_id = get_last_program_id();
+        run_to_next_block(None);
+
+        // Case 1 - `Command::SendFor`
+        //
+        // Send message and then wait_for.
+        let duration = 5;
+        let payload = Command::SendFor(USER_1.into(), duration).encode();
+
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            program_id,
+            payload,
+            2_500_000_000,
+            0,
+        ));
+
+        let wait_for = get_last_message_id();
+        run_to_next_block(None);
+
+        assert_eq!(get_waitlist_expiration(wait_for), expiration(duration));
+
+        // Case 2 - `Command::SendUpTo`
+        //
+        // Send message and then wait_up_to.
+        let duration = 10;
+        let payload = Command::SendUpTo(USER_1.into(), duration).encode();
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            program_id,
+            payload,
+            2_500_000_000,
+            0,
+        ));
+
+        let wait_no_more = get_last_message_id();
+        run_to_next_block(None);
+
+        assert_eq!(get_waitlist_expiration(wait_no_more), expiration(duration));
+
+        // Case 3 - `Command::SendUpToWait`
+        //
+        // Send message and then wait no_more, wake, wait no_more again.
+        let duration = 10;
+        let payload = Command::SendUpToWait(USER_2.into(), duration).encode();
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            program_id,
+            payload,
+            3_000_000_000,
+            0,
+        ));
+
+        let wait_wait = get_last_message_id();
+        run_to_next_block(None);
+        assert_eq!(get_waitlist_expiration(wait_wait), expiration(duration));
+
+        let reply_to_id = MailboxOf::<Test>::iter_key(USER_2)
+            .next()
+            .map(|(msg, _bn)| msg.id())
+            .expect("Element should be");
+
+        // wake `wait_wait`
+        assert_ok!(Gear::send_reply(
+            RuntimeOrigin::signed(USER_2),
+            reply_to_id,
+            vec![],
+            1_000_000_000,
+            0,
+        ));
+
+        run_to_next_block(None);
+        assert_eq!(
+            get_waitlist_expiration(wait_wait),
+            expiration(demo_waiter::default_wait_up_to_duration())
+        );
+    });
+}
+
+#[test]
+fn test_wait_timeout() {
+    use demo_wait_timeout::{Command, WASM_BINARY};
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        // upload program
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
+            10_000_000u64,
+            0u128
+        ));
+
+        let program_id = get_last_program_id();
+        run_to_next_block(None);
+
+        // `Command::SendTimeout`
+        //
+        // Emits error when locks are timeout
+        let duration = 10;
+        let payload = Command::SendTimeout(USER_1.into(), duration).encode();
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            program_id,
+            payload,
+            10_000_000_000,
+            0,
+        ));
+
+        run_to_next_block(None);
+        let now = System::block_number();
+        let target = duration as u64 + now - 1;
+
+        // Try waking the processed message.
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            program_id,
+            Command::Wake.encode(),
+            10_000_000,
+            0,
+        ));
+
+        run_to_next_block(None);
+        System::set_block_number(target);
+        Gear::set_block_number(target.try_into().unwrap());
+        System::reset_events();
+        run_to_next_block(None);
+
+        // Timeout still works.
+        assert!(MailboxOf::<Test>::iter_key(USER_1)
+            .any(|(msg, _bn)| msg.payload().to_vec() == b"timeout"));
+    })
+}
+
+#[test]
+fn test_join_wait_timeout() {
+    use demo_wait_timeout::{Command, WASM_BINARY};
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
+            10_000_000u64,
+            0u128
+        ));
+
+        let program_id = get_last_program_id();
+        run_to_next_block(None);
+
+        // Join two waited messages, futures complete at
+        // the same time when both of them are finished.
+        let duration_a = 5;
+        let duration_b = 10;
+        let payload = Command::JoinTimeout(USER_1.into(), duration_a, duration_b).encode();
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            program_id,
+            payload,
+            10_000_000_000,
+            0,
+        ));
+
+        run_to_next_block(None);
+
+        // Run to each of the targets and check if we can get the timeout result.
+        let now = System::block_number();
+        let targets = [duration_a, duration_b].map(|target| target as u64 + now - 1);
+        let run_to_target = |target: u64| {
+            System::set_block_number(target);
+            Gear::set_block_number(target.try_into().unwrap());
+            run_to_next_block(None);
+        };
+
+        // Run to the end of the first duration.
+        //
+        // The timeout message has not been triggered yet.
+        run_to_target(targets[0]);
+        assert!(!MailboxOf::<Test>::iter_key(USER_1)
+            .any(|(msg, _bn)| msg.payload().to_vec() == b"timeout"));
+
+        // Run to the end of the second duration.
+        //
+        // The timeout message has been triggered.
+        run_to_target(targets[1]);
+        assert!(MailboxOf::<Test>::iter_key(USER_1)
+            .any(|(msg, _bn)| msg.payload().to_vec() == b"timeout"));
+    })
+}
+
+#[test]
+fn test_select_wait_timeout() {
+    use demo_wait_timeout::{Command, WASM_BINARY};
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
+            10_000_000u64,
+            0u128
+        ));
+
+        let program_id = get_last_program_id();
+        run_to_next_block(None);
+
+        // Select from two waited messages, futures complete at
+        // the same time when one of them getting failed.
+        let duration_a = 5;
+        let duration_b = 10;
+        let payload = Command::SelectTimeout(USER_1.into(), duration_a, duration_b).encode();
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            program_id,
+            payload,
+            10_000_000_000,
+            0,
+        ));
+
+        run_to_next_block(None);
+
+        // Run to the end of the first duration.
+        //
+        // The timeout message has been triggered.
+        let now = System::block_number();
+        let target = duration_a as u64 + now - 1;
+        System::set_block_number(target);
+        Gear::set_block_number(target.try_into().unwrap());
+        run_to_next_block(None);
+
+        assert!(MailboxOf::<Test>::iter_key(USER_1)
+            .any(|(msg, _bn)| msg.payload().to_vec() == b"timeout"));
+    })
+}
+
+#[test]
+fn test_wait_lost() {
+    use demo_wait_timeout::{Command, WASM_BINARY};
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
+            10_000_000u64,
+            0u128
+        ));
+
+        let program_id = get_last_program_id();
+        run_to_next_block(None);
+
+        let duration_a = 5;
+        let duration_b = 10;
+        let payload = Command::WaitLost(USER_1.into()).encode();
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            program_id,
+            payload,
+            10_000_000_000,
+            0,
+        ));
+
+        run_to_next_block(None);
+
+        assert!(MailboxOf::<Test>::iter_key(USER_1).any(|(msg, _bn)| {
+            if msg.payload() == b"ping" {
+                assert_ok!(Gear::send_reply(
+                    RuntimeOrigin::signed(USER_1),
+                    msg.id(),
+                    b"ping".to_vec(),
+                    100_000_000,
+                    0
+                ));
+
+                true
+            } else {
+                false
+            }
+        }));
+
+        let now = System::block_number();
+        let targets = [duration_a, duration_b].map(|target| target as u64 + now - 1);
+        let run_to_target = |target: u64| {
+            System::set_block_number(target);
+            Gear::set_block_number(target.try_into().unwrap());
+            run_to_next_block(None);
+        };
+
+        // Run to the end of the first duration.
+        //
+        // The timeout message has been triggered.
+        run_to_target(targets[0]);
+        assert!(
+            !MailboxOf::<Test>::iter_key(USER_1).any(|(msg, _bn)| msg.payload() == b"unreachable")
+        );
+
+        // Run to the end of the second duration.
+        //
+        // The timeout message has been triggered.
+        run_to_target(targets[1]);
+        assert!(MailboxOf::<Test>::iter_key(USER_1).any(|(msg, _bn)| msg.payload() == b"timeout"));
+        assert!(MailboxOf::<Test>::iter_key(USER_1).any(|(msg, _bn)| msg.payload() == b"timeout2"));
+        assert!(MailboxOf::<Test>::iter_key(USER_1).any(|(msg, _bn)| msg.payload() == b"success"));
+    })
+}
+
+#[test]
 fn test_message_processing_for_non_existing_destination() {
     init_logger();
     new_test_ext().execute_with(|| {
@@ -5588,7 +5923,6 @@ fn test_async_messages() {
             // check the message sent from the program
             run_to_next_block(None);
             let last_mail = get_last_mail(USER_1);
-            println!("{:?}", String::from_utf8(last_mail.payload().to_vec()));
             assert_eq!(Kind::decode(&mut last_mail.payload()), Ok(*kind));
 
             // reply to the message
