@@ -81,6 +81,7 @@ pub struct ModuleDefinition {
     pub aux_body: Option<FuncBody>,
     /// The amount of I64 arguments the aux function should have.
     pub aux_arg_num: u32,
+    pub aux_res: Option<ValueType>,
     /// If set to true the stack height limiter is injected into the the module. This is
     /// needed for instruction debugging because the cost of executing the stack height
     /// instrumentation should be included in the costs for the individual instructions
@@ -191,6 +192,9 @@ where
             let mut signature = program.function().signature();
             for _ in 0..def.aux_arg_num {
                 signature = signature.with_param(ValueType::I64);
+            }
+            if let Some(res) = def.aux_res {
+                signature = signature.with_result(res);
             }
             program = signature.build().with_body(body).build();
         }
@@ -398,6 +402,9 @@ pub mod body {
         /// Insert a I32Const with a random value in [low, high).
         /// (low, high)
         RandomI32(i32, i32),
+        /// Insert a I64Const with a random value in [low, high).
+        /// (low, high)
+        RandomI64(i64, i64),
         /// Insert the specified amount of I32Const with a random value.
         RandomI32Repeated(usize),
         /// Insert the specified amount of I64Const with a random value.
@@ -423,6 +430,11 @@ pub mod body {
         FuncBody::new(Vec::new(), Instructions::new(instructions))
     }
 
+    pub fn from_instructions(mut instructions: Vec<Instruction>) -> FuncBody {
+        instructions.push(Instruction::End);
+        FuncBody::new(Vec::new(), Instructions::new(instructions))
+    }
+
     pub fn empty() -> FuncBody {
         FuncBody::new(vec![], Instructions::empty())
     }
@@ -440,14 +452,18 @@ pub mod body {
         FuncBody::new(Vec::new(), instructions)
     }
 
-    pub fn repeated_dyn(repetitions: u32, mut instructions: Vec<DynInstr>) -> FuncBody {
+    pub fn repeated_dyn_instr(
+        repetitions: u32,
+        mut instructions: Vec<DynInstr>,
+        mut head: Vec<Instruction>,
+    ) -> Vec<Instruction> {
         use rand::{distributions::Standard, prelude::*};
 
         // We do not need to be secure here.
         let mut rng = rand_pcg::Pcg32::seed_from_u64(8446744073709551615);
 
         // We need to iterate over indices because we cannot cycle over mutable references
-        let body = (0..instructions.len())
+        let instr_iter = (0..instructions.len())
             .cycle()
             .take(instructions.len() * usize::try_from(repetitions).unwrap())
             .flat_map(|idx| match &mut instructions[idx] {
@@ -463,6 +479,9 @@ pub mod body {
                 }
                 DynInstr::RandomI32(low, high) => {
                     vec![Instruction::I32Const(rng.gen_range(*low..*high))]
+                }
+                DynInstr::RandomI64(low, high) => {
+                    vec![Instruction::I64Const(rng.gen_range(*low..*high))]
                 }
                 DynInstr::RandomI32Repeated(num) => (&mut rng)
                     .sample_iter(Standard)
@@ -489,9 +508,14 @@ pub mod body {
                 DynInstr::RandomSetGlobal(low, high) => {
                     vec![Instruction::SetGlobal(rng.gen_range(*low..*high))]
                 }
-            })
-            .chain(sp_std::iter::once(Instruction::End))
-            .collect();
+            });
+        head.extend(instr_iter);
+        head
+    }
+
+    pub fn repeated_dyn(repetitions: u32, instructions: Vec<DynInstr>) -> FuncBody {
+        let mut body = repeated_dyn_instr(repetitions, instructions, vec![]);
+        body.push(Instruction::End);
         FuncBody::new(Vec::new(), Instructions::new(body))
     }
 
