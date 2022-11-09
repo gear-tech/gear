@@ -903,6 +903,21 @@ where
         Func::wrap(store, func)
     }
 
+    pub fn resend_push(
+        store: &mut Store<HostState<E>>,
+        forbidden: bool,
+    ) -> Func {
+        let func = move |mut caller: wasmi::Caller<'_, HostState<E>>,
+                         handle: u32|
+              -> FallibleOutput {
+            update_or_exit_if!(forbidden, caller);
+
+            process_call_unit_result!(caller, |ext| ext.resend_push(handle))
+        };
+
+        Func::wrap(store, func)
+    }
+
     pub fn debug(store: &mut Store<HostState<E>>, forbidden: bool, memory: WasmiMemory) -> Func {
         let func = move |mut caller: wasmi::Caller<'_, HostState<E>>,
                          string_ptr: u32,

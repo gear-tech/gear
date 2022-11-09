@@ -289,6 +289,19 @@ impl MessageContext {
         }
     }
 
+    /// Pushes the incoming buffer/payload into stored payload by handle.
+    pub fn resend_push(&mut self, handle: u32) -> Result<(), Error> {
+        match self.store.outgoing.get_mut(&handle) {
+            Some(Some(data)) => {
+                data.try_extend_from_slice(self.current.payload())
+                    .map_err(|_| Error::MaxMessageSizeExceed)?;
+                Ok(())
+            }
+            Some(None) => Err(Error::LateAccess),
+            None => Err(Error::OutOfBounds),
+        }
+    }
+
     /// Send reply message.
     ///
     /// Generates reply from provided data packet and stored reply payload.

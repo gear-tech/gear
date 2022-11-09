@@ -343,6 +343,11 @@ pub fn reply_to() -> Result<MessageId> {
     gcore::msg::reply_to().into_contract_result()
 }
 
+/// Same as [`send_push`], but pushes the incoming message payload.
+pub fn resend_push(handle: MessageHandle) -> Result<()> {
+    gcore::msg::resend_push(handle.0).into_contract_result()
+}
+
 /// Send a new message to the program or user.
 ///
 /// Gear allows programs to communicate to each other and users via messages.

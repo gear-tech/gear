@@ -83,6 +83,9 @@ pub trait Ext {
         self.send_commit(handle, msg, delay)
     }
 
+    /// Push the incoming message buffer into message payload by handle.
+    fn resend_push(&mut self, handle: u32) -> Result<(), Self::Error>;
+
     /// Push an extra buffer into reply message.
     fn reply_push(&mut self, buffer: &[u8]) -> Result<(), Self::Error>;
 

@@ -159,6 +159,10 @@ impl EnvExt for LazyPagesExt {
         self.inner.send_push(handle, buffer)
     }
 
+    fn resend_push(&mut self, handle: u32) -> Result<(), Self::Error> {
+        self.inner.resend_push(handle)
+    }
+
     fn reply_push(&mut self, buffer: &[u8]) -> Result<(), Self::Error> {
         self.inner.reply_push(buffer)
     }

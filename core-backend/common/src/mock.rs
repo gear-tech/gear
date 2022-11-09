@@ -94,6 +94,9 @@ impl Ext for MockExt {
     fn reply_commit(&mut self, _msg: ReplyPacket, _delay: u32) -> Result<MessageId, Self::Error> {
         Ok(MessageId::default())
     }
+    fn resend_push(&mut self, _handle: u32) -> Result<(), Self::Error> {
+        Ok(())
+    }
     fn reply_push(&mut self, _buffer: &[u8]) -> Result<(), Self::Error> {
         Ok(())
     }
