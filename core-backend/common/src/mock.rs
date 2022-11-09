@@ -111,6 +111,9 @@ impl Ext for MockExt {
     fn reply_to(&mut self) -> Result<MessageId, Self::Error> {
         Ok(Default::default())
     }
+    fn rereply_push(&mut self) -> Result<(), Self::Error> {
+        Ok(())
+    }
     fn source(&mut self) -> Result<ProgramId, Self::Error> {
         Ok(ProgramId::from(0))
     }

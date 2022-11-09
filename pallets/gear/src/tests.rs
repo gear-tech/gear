@@ -7125,7 +7125,14 @@ fn relay_messages() {
     init_logger();
     let test = |relay_call: RelayCall| {
         let execute = || {
+            use RelayCall::*;
+
             System::reset_events();
+
+            let user = match relay_call {
+                Resend | ResendWithGas(_) | ResendPush => USER_3,
+                Rereply | RereplyPush | RereplyWithGas(_) => USER_1,
+            };
 
             let label = format!("{relay_call:?}");
             assert!(
@@ -7134,7 +7141,7 @@ fn relay_messages() {
                     WASM_BINARY.to_vec(),
                     vec![],
                     InputArgs {
-                        destination: USER_3.into_origin().into(),
+                        destination: user.into_origin().into(),
                         relay_call,
                     }
                     .encode(),
@@ -7169,7 +7176,7 @@ fn relay_messages() {
             run_to_next_block(None);
 
             assert_eq!(
-                MailboxOf::<Test>::iter_key(USER_3)
+                MailboxOf::<Test>::iter_key(user)
                     .next()
                     .map(|(msg, _bn)| msg.payload().to_vec()),
                 Some(payload.encode()),
@@ -7184,4 +7191,5 @@ fn relay_messages() {
     test(RelayCall::Resend);
     test(RelayCall::ResendWithGas(50_000));
     test(RelayCall::ResendPush);
+    test(RelayCall::RereplyPush);
 }

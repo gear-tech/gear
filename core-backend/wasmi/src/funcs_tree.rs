@@ -97,6 +97,9 @@ where
         f.build("gr_reply_push", |forbidden| {
             F::reply_push(store, forbidden, memory)
         }),
+        f.build("gr_rereply_push", |forbidden| {
+            F::rereply_push(store, forbidden)
+        }),
         f.build("gr_resend", |forbidden| {
             F::resend(store, forbidden, memory)
         }),

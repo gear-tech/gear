@@ -40,9 +40,9 @@ pub enum RelayCall {
     Resend,
     ResendWithGas(u64),
     ResendPush,
-    Rereplay,
-    RereplayWithGas(u64),
-    RereplayPush,
+    Rereply,
+    RereplyWithGas(u64),
+    RereplyPush,
 }
 
 #[cfg(not(feature = "std"))]
@@ -68,8 +68,12 @@ mod wasm {
             ResendWithGas(gas) => { msg::resend_with_gas(DESTINATION, *gas, msg::value()); }
             ResendPush => {
                 let msg_handle = msg::send_init().expect("Failed to obtain new message handle");
-                msg::resend_push(msg_handle);
+                msg::resend_push(msg_handle).expect("Push failed");
                 msg::send_commit(msg_handle, DESTINATION, msg::value()).expect("Commit failed");
+            }
+            RereplyPush => {
+                msg::rereply_push().expect("Push failed");
+                msg::reply_commit(msg::value()).expect("Commit failed");
             }
             _ => todo!(),
         }

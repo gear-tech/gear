@@ -343,6 +343,11 @@ pub fn reply_to() -> Result<MessageId> {
     gcore::msg::reply_to().into_contract_result()
 }
 
+/// Same as [`reply_push`], but pushes the incoming message payload.
+pub fn rereply_push() -> Result<()> {
+    gcore::msg::rereply_push().into_contract_result()
+}
+
 /// Same as [`send_push`], but pushes the incoming message payload.
 pub fn resend_push(handle: MessageHandle) -> Result<()> {
     gcore::msg::resend_push(handle.0).into_contract_result()

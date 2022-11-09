@@ -184,6 +184,10 @@ impl EnvExt for LazyPagesExt {
         self.inner.reply_to()
     }
 
+    fn rereply_push(&mut self) -> Result<(), Self::Error> {
+        self.inner.rereply_push()
+    }
+
     fn source(&mut self) -> Result<ProgramId, Self::Error> {
         self.inner.source()
     }

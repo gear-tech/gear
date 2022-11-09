@@ -100,6 +100,9 @@ pub trait Ext {
     /// Get the message id of the initial message.
     fn reply_to(&mut self) -> Result<MessageId, Self::Error>;
 
+    /// Push the incoming message buffer into reply message.
+    fn rereply_push(&mut self) -> Result<(), Self::Error>;
+
     /// Get the source of the message currently being handled.
     fn source(&mut self) -> Result<ProgramId, Self::Error>;
 

@@ -459,6 +459,14 @@ impl EnvExt for Ext {
             .ok_or_else(|| MessageError::NoReplyContext.into())
     }
 
+    fn rereply_push(&mut self) -> Result<(), Self::Error> {
+        // TODO
+        // self.charge_gas_runtime(RuntimeCosts::ReplyPush(buffer.len() as u32))?;
+        let result = self.context.message_context.rereply_push();
+
+        self.return_and_store_err(result)
+    }
+
     fn source(&mut self) -> Result<ProgramId, Self::Error> {
         self.charge_gas_runtime(RuntimeCosts::Source)?;
         Ok(self.context.message_context.current().source())

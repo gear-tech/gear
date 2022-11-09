@@ -348,6 +348,19 @@ impl MessageContext {
         self.outcome.source
     }
 
+    /// Pushes the incoming message buffer into stored reply payload.
+    pub fn rereply_push(&mut self) -> Result<(), Error> {
+        if !self.store.reply_sent {
+            let data = self.store.reply.get_or_insert_with(Default::default);
+            data.try_extend_from_slice(self.current.payload())
+                .map_err(|_| Error::MaxMessageSizeExceed)?;
+
+            Ok(())
+        } else {
+            Err(Error::LateAccess)
+        }
+    }
+
     /// Wake message by it's message id.
     pub fn wake(&mut self, waker_id: MessageId, delay: u32) -> Result<(), Error> {
         if self.store.awaken.insert(waker_id) {

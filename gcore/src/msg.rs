@@ -78,6 +78,8 @@ mod sys {
 
         pub fn gr_reply_to(message_id_ptr: *mut [u8; 32]) -> SyscallError;
 
+        pub fn gr_rereply_push() -> SyscallError;
+
         #[allow(improper_ctypes)]
         pub fn gr_resend(
             destination_ptr: *const [u8; 32],
@@ -485,6 +487,11 @@ pub fn reply_to() -> Result<MessageId> {
     unsafe { sys::gr_reply_to(message_id.as_mut_ptr()).into_result()? }
 
     Ok(message_id)
+}
+
+/// Same as [`reply_push`], but pushes the incoming message payload.
+pub fn rereply_push() -> Result<()> {
+    unsafe { sys::gr_rereply_push().into_result() }
 }
 
 /// Same as [`send`], but resends the incoming message.
