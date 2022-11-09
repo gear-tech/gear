@@ -7117,3 +7117,71 @@ fn check_random_works() {
         // assert_eq!(blake2b(32, &[], &output.0.encode()).as_bytes(), res.payload());
     });
 }
+
+#[test]
+fn relay_messages() {
+    use demo_proxy_relay::{InputArgs, RelayCall, WASM_BINARY};
+
+    init_logger();
+    let test = |relay_call: RelayCall| {
+        let execute = || {
+            System::reset_events();
+
+            let label = format!("{relay_call:?}");
+            assert!(
+                Gear::upload_program(
+                    RuntimeOrigin::signed(USER_1),
+                    WASM_BINARY.to_vec(),
+                    vec![],
+                    InputArgs {
+                        destination: USER_3.into_origin().into(),
+                        relay_call,
+                    }
+                    .encode(),
+                    50_000_000_000u64,
+                    0u128
+                )
+                .is_ok(),
+                "{}",
+                label
+            );
+
+            let proxy = utils::get_last_program_id();
+
+            run_to_next_block(None);
+
+            assert!(Gear::is_active(proxy), "{}", label);
+
+            let payload = b"message to resend";
+            assert!(
+                Gear::send_message(
+                    RuntimeOrigin::signed(USER_1),
+                    proxy,
+                    payload.to_vec(),
+                    DEFAULT_GAS_LIMIT * 10,
+                    0,
+                )
+                .is_ok(),
+                "{}",
+                label
+            );
+
+            run_to_next_block(None);
+
+            assert_eq!(
+                MailboxOf::<Test>::iter_key(USER_3)
+                    .next()
+                    .map(|(msg, _bn)| msg.payload().to_vec()),
+                Some(payload.encode()),
+                "{}",
+                label
+            );
+        };
+
+        new_test_ext().execute_with(execute);
+    };
+
+    // test(RelayCall::Resend);
+    // test(RelayCall::ResendWithGas(50_000));
+    test(RelayCall::ResendPush);
+}
