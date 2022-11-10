@@ -704,7 +704,7 @@ mod tests {
         let mut new_pages = old_pages.clone();
         let static_pages = 4u32;
         let res = get_pages_to_be_updated::<TestExt>(
-            old_pages.clone(),
+            old_pages,
             new_pages.clone(),
             static_pages.into(),
         );
