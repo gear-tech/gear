@@ -11323,16 +11323,16 @@ dependencies = [
 
 [[package]]
 name = "wasm-mutate"
-version = "0.2.10"
+version = "0.2.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "95d890340857014cfaad5db9d37154416de7110520ee515b0d9b1d7f29c7b137"
+checksum = "b48cf16265251b7e11c57686ea068a77c87a67aada5cff4ee8dd50382820f01b"
 dependencies = [
  "egg",
  "log",
  "rand 0.8.5",
  "thiserror",
  "wasm-encoder 0.19.1",
- "wasmparser 0.93.0",
+ "wasmparser 0.94.0",
 ]
 
 [[package]]
@@ -11707,6 +11707,15 @@ name = "wasmparser"
 version = "0.93.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c5a4460aa3e271fa180b6a5d003e728f3963fb30e3ba0fa7c9634caa06049328"
+dependencies = [
+ "indexmap",
+]
+
+[[package]]
+name = "wasmparser"
+version = "0.94.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cdac7e1d98d70913ae3b4923dd7419c8ea7bdfd4c44a240a0ba305d929b7f191"
 dependencies = [
  "indexmap",
 ]
