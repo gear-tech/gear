@@ -16,6 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use common::TerminalExtrinsicProvider;
 use sc_client_api::{Backend as BackendT, BlockBackend, UsageProvider};
 use sc_executor::{NativeElseWasmExecutor, NativeExecutionDispatch};
 use sc_network::NetworkService;
@@ -373,6 +374,9 @@ where
     RuntimeApi::RuntimeApi:
         RuntimeApiCollection<StateBackend = sc_client_api::StateBackendFor<FullBackend, Block>>,
     ExecutorDispatch: NativeExecutionDispatch + 'static,
+    Runtime: frame_system::Config + TerminalExtrinsicProvider<Extrinsic> + Send + Sync + 'static,
+    Extrinsic: Send + Sync + 'static,
+    OpaqueExtrinsic: From<Extrinsic>,
 {
     let hwbench = if !disable_hardware_benchmarks {
         config.database.path().map(|database_path| {
@@ -475,7 +479,7 @@ where
     (with_startup_data)(&block_import, &babe_link);
 
     if let sc_service::config::Role::Authority { .. } = &role {
-        let proposer = authorship::ProposerFactory::new(
+        let proposer = authorship::ProposerFactory::<_, _, _, _, Runtime, Extrinsic>::new(
             task_manager.spawn_handle(),
             client.clone(),
             transaction_pool.clone(),

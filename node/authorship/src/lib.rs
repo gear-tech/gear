@@ -22,6 +22,5 @@
 // extrinsic at the end of each block.
 
 mod authorship;
-mod block_builder;
 
 pub use crate::authorship::{Proposer, ProposerFactory, DEFAULT_BLOCK_SIZE_LIMIT};

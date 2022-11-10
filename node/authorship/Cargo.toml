@@ -20,7 +20,6 @@ log = "0.4.17"
 # Gear
 runtime-primitives = { package = "gear-runtime-primitives", version = "0.1.0", path = "../../runtime/primitives" }
 common = { package = "gear-common", version = "0.1.0", path = "../../common" }
-pallet-gear-rpc-runtime-api = { version = "2.0.0", path = "../../pallets/gear/rpc/runtime-api" }
 
 # Substrate Client
 sc-block-builder = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
