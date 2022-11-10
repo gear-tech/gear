@@ -71,7 +71,8 @@ mod wasm {
                 end,
             } = data;
 
-            match start {
+            let end = end.map(|(e, flag)| (e as usize, flag));
+            match start.map(|s| s as usize) {
                 Some(s) => match end {
                     None => { msg::resend_push(msg_handle, s..).expect("Push failed"); }
                     Some((e, included @ true)) => { msg::resend_push(msg_handle, s..=e).expect("Push failed"); }
@@ -93,7 +94,7 @@ mod wasm {
         use RelayCall::*;
 
         match RELAY_CALL.as_ref().expect("Relay call is not initialized") {
-            Resend(d) => { msg::resend(*d, msg::value()).expect("Resend failed"); }
+            Resend(d) => { msg::resend(*d, msg::value(), ..msg::size() as usize).expect("Resend failed"); }
             ResendWithGas(d, gas) => { msg::resend_with_gas(*d, *gas, msg::value()).expect("Resend wgas failed"); }
             ResendPush(data) => {
                 resend_push(data);

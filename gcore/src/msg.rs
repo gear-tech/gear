@@ -99,6 +99,8 @@ mod sys {
         pub fn gr_resend(
             destination_ptr: *const [u8; 32],
             value_ptr: *const u128,
+            offset: u32,
+            len: u32,
             delay: u32,
             message_id_ptr: *mut [u8; 32],
         ) -> SyscallError;
@@ -555,14 +557,16 @@ pub fn rereply_with_gas_delayed(gas_limit: u64, value: u128, delay: u32) -> Resu
 }
 
 /// Same as [`send`], but resends the incoming message.
-pub fn resend(destination: ActorId, value: u128) -> Result<MessageId> {
-    resend_delayed(destination, value, 0)
+pub fn resend(destination: ActorId, value: u128, offset: u32, len: u32) -> Result<MessageId> {
+    resend_delayed(destination, value, offset, len, 0)
 }
 
 /// Same as [`resend`], but sends delayed.
 pub fn resend_delayed(
     destination: ActorId,
     value: u128,
+    offset: u32,
+    len: u32,
     delay: u32,
 ) -> Result<MessageId> {
     let mut message_id = MessageId::default();
@@ -571,6 +575,8 @@ pub fn resend_delayed(
         sys::gr_resend(
             destination.as_ptr(),
             value.to_le_bytes().as_ptr() as _,
+            offset,
+            len,
             delay,
             message_id.as_mut_ptr(),
         )

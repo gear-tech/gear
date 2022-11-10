@@ -984,6 +984,8 @@ where
         let func = move |mut caller: wasmi::Caller<'_, HostState<E>>,
                          destination_ptr: u32,
                          value_ptr: u32,
+                         offset: u32,
+                         len: u32,
                          delay: u32,
                          message_id_ptr: u32|
               -> FallibleOutput {
@@ -1003,7 +1005,7 @@ where
                 memory,
                 |ext| {
                     let handle = ext.send_init()?;
-                    ext.resend_push(handle, 0, u32::MAX)?;
+                    ext.resend_push(handle, offset, len)?;
                     ext.send_commit(
                         handle,
                         HandlePacket::new(destination, Default::default(), value),

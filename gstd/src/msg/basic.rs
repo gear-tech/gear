@@ -21,8 +21,8 @@
 use crate::{
     async_runtime::signals,
     errors::{IntoContractResult, Result},
-    msg::{CodecMessageFuture, MessageFuture},
-    prelude::{convert::AsRef, vec, Vec, ops::{Bound, RangeBounds}},
+    msg::{CodecMessageFuture, MessageFuture, utils},
+    prelude::{convert::AsRef, vec, Vec, ops::RangeBounds},
     ActorId, MessageId,
 };
 use codec::{Decode, Output};
@@ -349,21 +349,8 @@ pub fn rereply_push() -> Result<()> {
 }
 
 /// Same as [`send_push`], but pushes the incoming message payload.
-pub fn resend_push<Range: RangeBounds<u32>>(handle: MessageHandle, range: Range) -> Result<()> {
-    use Bound::*;
-
-    let offset = match range.start_bound() {
-        Unbounded => 0u32,
-        Included(s) => *s as u32,
-        Excluded(s) => (*s + 1) as u32,
-    };
-
-    let len = match range.end_bound() {
-        Unbounded => u32::MAX,
-        Included(e) if *e >= offset => *e as u32 - offset + 1,
-        Excluded(e) if *e >= offset => *e as u32 - offset,
-        _ => 0,
-    };
+pub fn resend_push<Range: RangeBounds<usize>>(handle: MessageHandle, range: Range) -> Result<()> {
+    let (offset, len) = utils::decay_range(range);
 
     gcore::msg::resend_push(handle.0, offset, len).into_contract_result()
 }

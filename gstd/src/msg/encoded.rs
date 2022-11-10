@@ -23,8 +23,8 @@
 use crate::{
     async_runtime::signals,
     errors::{ContractError, Result, IntoContractResult},
-    msg::r#async::{CodecMessageFuture, MessageFuture},
-    prelude::convert::AsRef,
+    msg::{CodecMessageFuture, MessageFuture, utils},
+    prelude::{convert::AsRef, ops::RangeBounds},
     ActorId, MessageId,
 };
 use codec::{Decode, Encode};
@@ -133,17 +133,22 @@ pub fn rereply_with_gas_delayed(
 
 /// Resend the incoming message to the program or user.
 #[wait_for_reply]
-pub fn resend(program: ActorId, value: u128) -> Result<MessageId> {
-    gcore::msg::resend(program.into(), value).into_contract_result()
+pub fn resend<Range: RangeBounds<usize>>(program: ActorId, value: u128, range: Range) -> Result<MessageId> {
+    let (offset, len) = utils::decay_range(range);
+
+    gcore::msg::resend(program.into(), value, offset, len).into_contract_result()
 }
 
 /// Same as [`resend`], but sends delayed.
-pub fn resend_delayed(
+pub fn resend_delayed<Range: RangeBounds<usize>>(
     program: ActorId,
     value: u128,
+    range: Range,
     delay: u32,
 ) -> Result<MessageId> {
-    gcore::msg::resend_delayed(program.into(), value, delay).into_contract_result()
+    let (offset, len) = utils::decay_range(range);
+
+    gcore::msg::resend_delayed(program.into(), value, offset, len, delay).into_contract_result()
 }
 
 /// Same as [`resend`], but with explicit gas limit.

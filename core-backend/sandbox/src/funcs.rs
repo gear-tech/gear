@@ -563,15 +563,15 @@ where
     pub fn resend(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
         sys_trace!(target: "syscall::gear", "resend, args = {}", args_to_str(args));
 
-        let (destination_ptr, value_ptr, delay, message_id_ptr) =
-            args.iter().read_4()?;
+        let (destination_ptr, value_ptr, offset, len, delay, message_id_ptr) =
+            args.iter().read_6()?;
 
         ctx.run(|ctx| {
             let destination = ctx.read_memory_as(destination_ptr)?;
             let value = ctx.read_memory_as(value_ptr)?;
 
             let handle = ctx.ext.send_init();
-            let push_result = handle.and_then(|h| ctx.ext.resend_push(h, 0, u32::MAX).map(|_| h));
+            let push_result = handle.and_then(|h| ctx.ext.resend_push(h, offset, len).map(|_| h));
             push_result
                 .and_then(|h| ctx.ext.send_commit(h, HandlePacket::new(destination, Default::default(), value), delay))
                 .process_error()

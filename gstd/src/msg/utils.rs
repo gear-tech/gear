@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2022 Gear Technologies Inc.
+// Copyright (C) 2022 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -16,18 +16,25 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Messaging module.
+use crate::{
+    prelude::ops::{Bound, RangeBounds},
+};
 
-#[macro_use]
-mod macros;
+pub(crate) fn decay_range<Range: RangeBounds<usize>>(range: Range) -> (u32, u32) {
+    use Bound::*;
 
-mod r#async;
-pub use r#async::*;
+    let offset = match range.start_bound() {
+        Unbounded => 0,
+        Included(s) => *s,
+        Excluded(s) => *s + 1,
+    };
 
-mod basic;
-pub use basic::*;
+    let len = match range.end_bound() {
+        Unbounded => u32::MAX,
+        Included(e) if *e >= offset => (*e - offset + 1) as u32,
+        Excluded(e) if *e >= offset => (*e - offset) as u32,
+        _ => 0,
+    };
 
-mod encoded;
-pub use encoded::*;
-
-mod utils;
+    (offset as u32, len)
+}
