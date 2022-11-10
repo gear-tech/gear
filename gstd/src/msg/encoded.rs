@@ -107,13 +107,17 @@ pub fn reply_with_gas_delayed<E: Encode>(
 
 /// Relays the incoming payload as a reply to the message currently being processed.
 #[wait_for_reply]
-pub fn rereply(value: u128) -> Result<MessageId> {
-    gcore::msg::rereply(value).into_contract_result()
+pub fn rereply<Range: RangeBounds<usize>>(value: u128, range: Range) -> Result<MessageId> {
+    let (offset, len) = utils::decay_range(range);
+
+    gcore::msg::rereply(value, offset, len).into_contract_result()
 }
 
 /// Same as [`rereply`], but sends delayed.
-pub fn rereply_delayed(value: u128, delay: u32) -> Result<MessageId> {
-    gcore::msg::rereply_delayed(value, delay).into_contract_result()
+pub fn rereply_delayed<Range: RangeBounds<usize>>(value: u128, range: Range, delay: u32) -> Result<MessageId> {
+    let (offset, len) = utils::decay_range(range);
+
+    gcore::msg::rereply_delayed(value, offset, len, delay).into_contract_result()
 }
 
 /// Same as [`rereply`], but with explicit gas limit.

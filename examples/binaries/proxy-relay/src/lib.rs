@@ -99,7 +99,7 @@ mod wasm {
             ResendPush(data) => {
                 resend_push(data);
             }
-            Rereply => { msg::rereply(msg::value()).expect("Rereply failed"); }
+            Rereply => { msg::rereply(msg::value(), 0..msg::size() as usize).expect("Rereply failed"); }
             RereplyPush => {
                 msg::rereply_push(0..).expect("Push failed");
                 msg::reply_commit(msg::value()).expect("Commit failed");

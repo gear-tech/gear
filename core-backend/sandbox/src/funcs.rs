@@ -511,12 +511,12 @@ where
     pub fn rereply(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
         sys_trace!(target: "syscall::gear", "rereply, args = {}", args_to_str(args));
 
-        let (value_ptr, delay, message_id_ptr) = args.iter().read_3()?;
+        let (value_ptr, offset, len, delay, message_id_ptr) = args.iter().read_5()?;
 
         ctx.run(|ctx| {
             let value = ctx.read_memory_as(value_ptr)?;
 
-            let push_result = ctx.ext.rereply_push(0, u32::MAX);
+            let push_result = ctx.ext.rereply_push(offset, len);
             push_result
                 .and_then(|_| ctx.ext.reply_commit(ReplyPacket::new(Default::default(), value), delay))
                 .process_error()

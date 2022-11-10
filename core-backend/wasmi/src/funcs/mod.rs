@@ -906,6 +906,8 @@ where
     pub fn rereply(store: &mut Store<HostState<E>>, forbidden: bool, memory: WasmiMemory) -> Func {
         let func = move |mut caller: wasmi::Caller<'_, HostState<E>>,
                          value_ptr: u32,
+                         offset: u32,
+                         len: u32,
                          delay: u32,
                          message_id_ptr: u32| {
             update_or_exit_if!(forbidden, caller);
@@ -922,7 +924,7 @@ where
                 caller,
                 memory,
                 |ext| {
-                    ext.rereply_push(0, u32::MAX)?;
+                    ext.rereply_push(offset, len)?;
                     ext.reply_commit(ReplyPacket::new(Default::default(), value), delay)
                 },
                 message_id_ptr
