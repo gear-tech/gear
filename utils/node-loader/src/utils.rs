@@ -109,30 +109,21 @@ impl<T> Deref for NonEmptyVec<T> {
     }
 }
 
-pub fn swap_res_types<T, E>(result: StdResult<T, E>) -> StdResult<E, T> {
-    match result {
-        Ok(t) => Err(t),
-        Err(e) => Ok(e),
-    }
-}
-
-// Todo implement it like SwapResult trait "knows" that Self is Result
-// Todo test it
 pub trait SwapResult {
     type SwappedOk;
     type SwappedErr;
 
-    fn swap_result(self) -> Result<Self::SwappedOk, Self::SwappedErr>;
+    fn swap_result(self) -> StdResult<Self::SwappedOk, Self::SwappedErr>;
 }
 
-impl<T, E> SwapResult for Result<T, E> {
+impl<T, E> SwapResult for StdResult<T, E> {
     type SwappedOk = E;
     type SwappedErr = T;
 
-    fn swap_result(self) -> SwappedResult<Self::SwappedOk, Self::SwappedErr> {
+    fn swap_result(self) -> StdResult<Self::SwappedOk, Self::SwappedErr> {
         match self {
-            Ok(T) => Err(T),
-            Err(E) => Ok(E),
+            Ok(t) => Err(t),
+            Err(e) => Ok(e),
         }
     }
 }

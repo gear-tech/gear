@@ -56,14 +56,11 @@ impl<Rng: LoaderRng> BatchPool<Rng> {
 
         let run_result = tokio::select! {
             r = run_pool_task => r,
+            // TODO spawn a task
             r = inspect_crash_task => r,
         };
 
         if let Err(ref e) = run_result {
-            // todo [sab] test by
-            // 1. making super slow timeout
-            // 2. making loop with wait for 65 sec in process_queue
-            // 3. making test panic in runtime
             tracing::info!("Pool run ends up with an error: {e:?}");
             utils::stop_node(params.node_stopper).await?;
         }
@@ -240,14 +237,13 @@ async fn process_events(
 
 async fn inspect_crash_events(api: GearApi) -> Result<()> {
     let mut event_listener = api.subscribe().await?;
-    // Waits until the queue processing reverted event is found.
     // Error means either event is not found an can't be found
     // in the listener, or some other error during event
     // parsing occurred.
-    event_listener.queue_processing_reverted().await?;
+    let crash_block_hash = event_listener.queue_processing_reverted().await?;
 
     let crash_err = CrashAlert::MsgProcessingStopped;
-    tracing::info!("{crash_err}");
+    tracing::info!("{crash_err} at block hash {crash_block_hash:?}");
 
     Err(crash_err.into())
 }

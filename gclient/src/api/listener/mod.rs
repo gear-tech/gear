@@ -72,7 +72,7 @@ impl DispatchStatus {
 pub trait EventProcessor {
     fn not_waited() -> Error;
 
-    async fn proc<T>(&mut self, predicate: impl Fn(Event) -> Option<T>) -> Result<T>;
+    async fn proc<T>(&mut self, predicate: impl Fn(Event) -> Option<T> + Copy) -> Result<T>;
     async fn proc_many<T>(
         &mut self,
         predicate: impl Fn(Event) -> Option<T>,
@@ -262,10 +262,5 @@ pub trait EventProcessor {
             .into_iter()
             .flatten()
             .collect())
-    }
-
-    async fn queue_processing_reverted(&mut self) -> Result<()> {
-        self.proc(|e| matches!(e, Event::Gear(GearEvent::QueueProcessingReverted)).then_some(()))
-            .await
     }
 }

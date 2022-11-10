@@ -20,8 +20,11 @@ use super::EventProcessor;
 use crate::{Error, Result};
 use async_trait::async_trait;
 use futures::stream::StreamExt;
-use gp::api::{events::FinalizedEvents, generated::api::Event};
-use subxt::sp_core::H256;
+use gp::api::{events::FinalizedEvents, generated::api::{Event, gear::Event as GearEvent,}, config::GearConfig};
+use subxt::{
+    Events,
+    sp_core::H256
+};
 
 pub struct EventListener<'a>(pub(crate) FinalizedEvents<'a>);
 
@@ -31,18 +34,14 @@ impl<'a> EventProcessor for EventListener<'a> {
         unreachable!()
     }
 
-    async fn proc<T>(&mut self, predicate: impl Fn(Event) -> Option<T>) -> Result<T> {
+    async fn proc<T>(&mut self, predicate: impl Fn(Event) -> Option<T> + Copy) -> Result<T> {
         while let Some(events) = self.0.next().await {
-            if let Some(res) = events?
-                .iter()
-                .filter_map(|event| predicate(event.ok()?.event))
-                .next()
-            {
+            if let Some(res) = self.proc_events_inner(events?, predicate) {
                 return Ok(res);
             }
         }
 
-        unreachable!()
+        Err(Self::not_waited())
     }
 
     async fn proc_many<T>(
@@ -72,6 +71,20 @@ impl<'a> EventProcessor for EventListener<'a> {
 }
 
 impl<'a> EventListener<'a> {
+    /// Looks through finalized blocks to find the queue processing reverted event.
+    pub async fn queue_processing_reverted(&mut self) -> Result<H256> {
+        while let Some(events) = self.0.next().await {
+            let events = events?;
+            let events_bh = events.block_hash();
+
+            if let Some(res) = self.proc_events_inner(events, |e| matches!(e, Event::Gear(GearEvent::QueueProcessingReverted)).then_some(events_bh)) {
+                return Ok(res)
+            }
+        }
+
+        Err(Self::not_waited())
+    }
+
     pub async fn blocks_running_since(&mut self, previous: H256) -> Result<bool> {
         let current = self
             .0
@@ -92,5 +105,12 @@ impl<'a> EventListener<'a> {
             .block_hash();
 
         self.blocks_running_since(previous).await
+    }
+
+    fn proc_events_inner<T>(&mut self, events: Events<GearConfig, Event>, predicate: impl Fn(Event) -> Option<T>) -> Option<T> {
+        events
+            .iter()
+            .filter_map(|event| predicate(event.ok()?.event))
+            .next()
     }
 }
