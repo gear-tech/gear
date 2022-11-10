@@ -10,16 +10,16 @@
 
 use super::*;
 use crate::mock::Timestamp;
-use gear_backend_common::SysCallNames;
+use gear_backend_common::SysCalls;
 use gear_core::ids::ReservationId;
 use primitive_types::H256;
 use test_sys_calls::{Kind, WASM_BINARY as SYS_CALLS_TESTER_WASM_BINARY};
 
 #[test]
 fn test_sys_calls_integrity() {
-    use SysCallNames::*;
+    use SysCalls::*;
 
-    SysCallNames::all().for_each(|sys_call| {
+    SysCalls::all().for_each(|sys_call| {
         match sys_call {
             Send => check_send(0),
             SendWGas => check_send(25_000_000_000),
@@ -49,7 +49,7 @@ fn test_sys_calls_integrity() {
             Exit | Leave | Wait | WaitFor | WaitUpTo | Wake | Debug => {/* test here aren't required, read module docs for more info */},
             Alloc => check_mem(false),
             Free => check_mem(true),
-            OutOfGas | OutOfAllowance => { /* TODO [SAB] */}
+            OutOfGas | OutOfAllowance => { /*no need for tests */}
             Error => check_gr_err(),
             Random => check_gr_random(),
             ReserveGas => check_gr_reserve_gas(),
@@ -373,7 +373,6 @@ fn check_gr_block_timestamp() {
     })
 }
 
-#[test]
 fn check_gr_origin() {
     run_tester(|tester_id, _| {
         use demo_proxy::{InputArgs, WASM_BINARY as PROXY_WASM_BINARY};
@@ -573,7 +572,6 @@ where
         let child_code = ProgramCodeKind::Default.to_bytes();
         let child_code_hash = generate_code_hash(&child_code);
         let tester_pid = generate_program_id(SYS_CALLS_TESTER_WASM_BINARY, DEFAULT_SALT);
-        // let proxy_pid = generate_program_id(PROXY_WASM_BINARY, DEFAULT_SALT);
 
         // Deploy program with valid code hash
         assert_ok!(Gear::upload_program(
