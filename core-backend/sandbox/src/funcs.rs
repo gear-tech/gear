@@ -516,7 +516,7 @@ where
         ctx.run(|ctx| {
             let value = ctx.read_memory_as(value_ptr)?;
 
-            let push_result = ctx.ext.rereply_push();
+            let push_result = ctx.ext.rereply_push(0, u32::MAX);
             push_result
                 .and_then(|_| ctx.ext.reply_commit(ReplyPacket::new(Default::default(), value), delay))
                 .process_error()
@@ -527,13 +527,15 @@ where
         })
     }
 
-    pub fn rereply_push(ctx: &mut Runtime<E>, _args: &[Value]) -> SyscallOutput {
-        sys_trace!(target: "syscall::gear", "rereply_push");
+    pub fn rereply_push(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
+        sys_trace!(target: "syscall::gear", "rereply_push, args = {}", args_to_str(args));
+
+        let (offset, len) = args.iter().read_2()?;
 
         ctx.run(|ctx| {
             Ok(ctx
                 .ext
-                .rereply_push()
+                .rereply_push(offset, len)
                 .process_error()
                 .map_err(FuncError::Core)?
                 .error_len())
@@ -549,7 +551,7 @@ where
         ctx.run(|ctx| {
             let value = ctx.read_memory_as(value_ptr)?;
 
-            let push_result = ctx.ext.rereply_push();
+            let push_result = ctx.ext.rereply_push(0, u32::MAX);
             push_result
                 .and_then(|_| ctx.ext.reply_commit(ReplyPacket::new_with_gas(Default::default(), gas_limit, value), delay))
                 .process_error()

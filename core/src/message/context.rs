@@ -307,8 +307,8 @@ impl MessageContext {
         Ok(())
     }
 
-    /// Check range for `resend_push` method.
-    pub fn check_resend_range(&self, offset: u32, len: u32) -> CheckedRange {
+    /// Check range for `resend_push`/`rereply_push` methods.
+    pub fn check_relay_range(&self, offset: u32, len: u32) -> CheckedRange {
         let input = self.current.payload();
         let offset = offset as usize;
         let excluded_end = if offset >= input.len() || len == 0 {
@@ -367,10 +367,15 @@ impl MessageContext {
     }
 
     /// Pushes the incoming message buffer into stored reply payload.
-    pub fn rereply_push(&mut self) -> Result<(), Error> {
+    pub fn rereply_push(&mut self, range: CheckedRange) -> Result<(), Error> {
         if !self.store.reply_sent {
+            let CheckedRange {
+                offset,
+                excluded_end,
+            } = range;
+    
             let data = self.store.reply.get_or_insert_with(Default::default);
-            data.try_extend_from_slice(self.current.payload())
+            data.try_extend_from_slice(&self.current.payload()[offset..excluded_end])
                 .map_err(|_| Error::MaxMessageSizeExceed)?;
 
             Ok(())

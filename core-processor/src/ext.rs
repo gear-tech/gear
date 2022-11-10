@@ -385,7 +385,7 @@ impl EnvExt for Ext {
     }
 
     fn resend_push(&mut self, handle: u32, offset: u32, len: u32,) -> Result<(), Self::Error> {
-        let range = self.context.message_context.check_resend_range(offset, len);
+        let range = self.context.message_context.check_relay_range(offset, len);
         self.charge_gas_runtime(RuntimeCosts::ResendPush(range.len()))?;
 
         let result = self.context.message_context.resend_push(handle, range);
@@ -460,10 +460,11 @@ impl EnvExt for Ext {
             .ok_or_else(|| MessageError::NoReplyContext.into())
     }
 
-    fn rereply_push(&mut self) -> Result<(), Self::Error> {
+    fn rereply_push(&mut self, offset: u32, len: u32) -> Result<(), Self::Error> {
+        let range = self.context.message_context.check_relay_range(offset, len);
         // TODO
         // self.charge_gas_runtime(RuntimeCosts::ReplyPush(buffer.len() as u32))?;
-        let result = self.context.message_context.rereply_push();
+        let result = self.context.message_context.rereply_push(range);
 
         self.return_and_store_err(result)
     }

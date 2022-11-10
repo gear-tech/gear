@@ -922,7 +922,7 @@ where
                 caller,
                 memory,
                 |ext| {
-                    ext.rereply_push()?;
+                    ext.rereply_push(0, u32::MAX)?;
                     ext.reply_commit(ReplyPacket::new(Default::default(), value), delay)
                 },
                 message_id_ptr
@@ -936,10 +936,13 @@ where
         store: &mut Store<HostState<E>>,
         forbidden: bool,
     ) -> Func {
-        let func = move |mut caller: wasmi::Caller<'_, HostState<E>>| {
+        let func = move |mut caller: wasmi::Caller<'_, HostState<E>>,
+            offset: u32,
+            len: u32
+        | {
             update_or_exit_if!(forbidden, caller);
 
-            process_call_unit_result!(caller, |ext| ext.rereply_push())
+            process_call_unit_result!(caller, |ext| ext.rereply_push(offset, len))
         };
 
         Func::wrap(store, func)
@@ -970,7 +973,7 @@ where
                 caller,
                 memory,
                 |ext| {
-                    ext.rereply_push()?;
+                    ext.rereply_push(0, u32::MAX)?;
                     ext.reply_commit(ReplyPacket::new_with_gas(Default::default(), gas_limit, value), delay)
                 },
                 message_id_ptr

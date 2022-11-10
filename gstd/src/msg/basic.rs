@@ -344,8 +344,10 @@ pub fn reply_to() -> Result<MessageId> {
 }
 
 /// Same as [`reply_push`], but pushes the incoming message payload.
-pub fn rereply_push() -> Result<()> {
-    gcore::msg::rereply_push().into_contract_result()
+pub fn rereply_push<Range: RangeBounds<usize>>(range: Range) -> Result<()> {
+    let (offset, len) = utils::decay_range(range);
+
+    gcore::msg::rereply_push(offset, len).into_contract_result()
 }
 
 /// Same as [`send_push`], but pushes the incoming message payload.

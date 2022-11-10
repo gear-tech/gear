@@ -93,7 +93,7 @@ mod sys {
             message_id_ptr: *mut [u8; 32],
         ) -> SyscallError;
 
-        pub fn gr_rereply_push() -> SyscallError;
+        pub fn gr_rereply_push(offset: u32, len: u32) -> SyscallError;
 
         #[allow(improper_ctypes)]
         pub fn gr_resend(
@@ -532,8 +532,8 @@ pub fn rereply_delayed(value: u128, delay: u32) -> Result<MessageId> {
 }
 
 /// Same as [`reply_push`], but pushes the incoming message payload.
-pub fn rereply_push() -> Result<()> {
-    unsafe { sys::gr_rereply_push().into_result() }
+pub fn rereply_push(offset: u32, len: u32) -> Result<()> {
+    unsafe { sys::gr_rereply_push(offset, len).into_result() }
 }
 
 /// Same as [`rereply`], but with explicit gas limit.
