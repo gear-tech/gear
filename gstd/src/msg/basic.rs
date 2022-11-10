@@ -22,7 +22,7 @@ use crate::{
     async_runtime::signals,
     errors::{IntoContractResult, Result},
     msg::{CodecMessageFuture, MessageFuture},
-    prelude::{convert::AsRef, vec, Vec},
+    prelude::{convert::AsRef, vec, Vec, ops::{Bound, RangeBounds}},
     ActorId, MessageId,
 };
 use codec::{Decode, Output};
@@ -349,8 +349,23 @@ pub fn rereply_push() -> Result<()> {
 }
 
 /// Same as [`send_push`], but pushes the incoming message payload.
-pub fn resend_push(handle: MessageHandle) -> Result<()> {
-    gcore::msg::resend_push(handle.0).into_contract_result()
+pub fn resend_push<Range: RangeBounds<u32>>(handle: MessageHandle, range: Range) -> Result<()> {
+    use Bound::*;
+
+    let offset = match range.start_bound() {
+        Unbounded => 0u32,
+        Included(s) => *s as u32,
+        Excluded(s) => (*s + 1) as u32,
+    };
+
+    let len = match range.end_bound() {
+        Unbounded => u32::MAX,
+        Included(e) if *e >= offset => *e as u32 - offset + 1,
+        Excluded(e) if *e >= offset => *e as u32 - offset,
+        _ => 0,
+    };
+
+    gcore::msg::resend_push(handle.0, offset, len).into_contract_result()
 }
 
 /// Send a new message to the program or user.

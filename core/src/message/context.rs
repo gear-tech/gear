@@ -290,16 +290,34 @@ impl MessageContext {
     }
 
     /// Pushes the incoming buffer/payload into stored payload by handle.
-    pub fn resend_push(&mut self, handle: u32) -> Result<(), Error> {
-        match self.store.outgoing.get_mut(&handle) {
-            Some(Some(data)) => {
-                data.try_extend_from_slice(self.current.payload())
-                    .map_err(|_| Error::MaxMessageSizeExceed)?;
-                Ok(())
-            }
-            Some(None) => Err(Error::LateAccess),
-            None => Err(Error::OutOfBounds),
-        }
+    pub fn resend_push(&mut self, handle: u32, range: CheckedRange) -> Result<(), Error> {
+        let data = self.store.outgoing.get_mut(&handle)
+            .ok_or(Error::OutOfBounds)?
+            .as_mut()
+            .ok_or(Error::LateAccess)?;
+
+        let CheckedRange {
+            offset,
+            excluded_end,
+        } = range;
+
+        data.try_extend_from_slice(&self.current.payload()[offset..excluded_end])
+            .map_err(|_| Error::MaxMessageSizeExceed)?;
+
+        Ok(())
+    }
+
+    /// Check range for `resend_push` method.
+    pub fn check_resend_range(&self, offset: u32, len: u32) -> CheckedRange {
+        let input = self.current.payload();
+        let offset = offset as usize;
+        let excluded_end = if offset >= input.len() || len == 0 {
+            offset
+        } else {
+            offset.saturating_add(len as usize).min(input.len())
+        };
+
+        CheckedRange { offset, excluded_end }
     }
 
     /// Send reply message.
@@ -387,6 +405,17 @@ impl MessageContext {
         let Self { outcome, store, .. } = self;
 
         (outcome, store)
+    }
+}
+
+pub struct CheckedRange {
+    offset: usize,
+    excluded_end: usize,
+}
+
+impl CheckedRange {
+    pub fn len(&self) -> u32 {
+        (self.excluded_end - self.offset) as u32
     }
 }
 

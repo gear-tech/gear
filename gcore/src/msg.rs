@@ -105,6 +105,8 @@ mod sys {
 
         pub fn gr_resend_push(
             handle: MessageHandle,
+            offset: u32,
+            len: u32,
         ) -> SyscallError;
 
         #[allow(improper_ctypes)]
@@ -579,8 +581,8 @@ pub fn resend_delayed(
 }
 
 /// Same as [`send_push`], but pushes the incoming message payload.
-pub fn resend_push(handle: MessageHandle) -> Result<()> {
-    unsafe { sys::gr_resend_push(handle).into_result() }
+pub fn resend_push(handle: MessageHandle, offset: u32, len: u32) -> Result<()> {
+    unsafe { sys::gr_resend_push(handle, offset, len).into_result() }
 }
 
 /// Same as [`resend`], but resends the incoming message.

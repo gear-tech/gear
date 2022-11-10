@@ -571,7 +571,7 @@ where
             let value = ctx.read_memory_as(value_ptr)?;
 
             let handle = ctx.ext.send_init();
-            let push_result = handle.and_then(|h| ctx.ext.resend_push(h).map(|_| h));
+            let push_result = handle.and_then(|h| ctx.ext.resend_push(h, 0, u32::MAX).map(|_| h));
             push_result
                 .and_then(|h| ctx.ext.send_commit(h, HandlePacket::new(destination, Default::default(), value), delay))
                 .process_error()
@@ -585,12 +585,12 @@ where
     pub fn resend_push(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
         sys_trace!(target: "syscall::gear", "resend_push, args = {}", args_to_str(args));
 
-        let handle = args.iter().read()?;
+        let (handle, offset, len) = args.iter().read_3()?;
 
         ctx.run(|ctx| {
             Ok(ctx
                 .ext
-                .resend_push(handle)
+                .resend_push(handle, offset, len)
                 .process_error()
                 .map_err(FuncError::Core)?
                 .error_len())
@@ -613,7 +613,7 @@ where
             let value = ctx.read_memory_as(value_ptr)?;
 
             let handle = ctx.ext.send_init();
-            let push_result = handle.and_then(|h| ctx.ext.resend_push(h).map(|_| h));
+            let push_result = handle.and_then(|h| ctx.ext.resend_push(h, 0, u32::MAX).map(|_| h));
             push_result
                 .and_then(|h| ctx.ext.send_commit(h, HandlePacket::new_with_gas(destination, Default::default(), gas_limit, value), delay))
                 .process_error()

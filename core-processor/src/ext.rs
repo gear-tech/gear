@@ -384,9 +384,11 @@ impl EnvExt for Ext {
         self.return_and_store_err(result)
     }
 
-    fn resend_push(&mut self, handle: u32) -> Result<(), Self::Error> {
-        self.charge_gas_runtime(RuntimeCosts::ResendPush(self.context.message_context.current().payload().len() as u32))?;
-        let result = self.context.message_context.resend_push(handle);
+    fn resend_push(&mut self, handle: u32, offset: u32, len: u32,) -> Result<(), Self::Error> {
+        let range = self.context.message_context.check_resend_range(offset, len);
+        self.charge_gas_runtime(RuntimeCosts::ResendPush(range.len()))?;
+
+        let result = self.context.message_context.resend_push(handle, range);
 
         self.return_and_store_err(result)
     }

@@ -1003,7 +1003,7 @@ where
                 memory,
                 |ext| {
                     let handle = ext.send_init()?;
-                    ext.resend_push(handle)?;
+                    ext.resend_push(handle, 0, u32::MAX)?;
                     ext.send_commit(
                         handle,
                         HandlePacket::new(destination, Default::default(), value),
@@ -1022,11 +1022,13 @@ where
         forbidden: bool,
     ) -> Func {
         let func = move |mut caller: wasmi::Caller<'_, HostState<E>>,
-                         handle: u32|
+                         handle: u32,
+                         offset: u32,
+                         len: u32,|
               -> FallibleOutput {
             update_or_exit_if!(forbidden, caller);
 
-            process_call_unit_result!(caller, |ext| ext.resend_push(handle))
+            process_call_unit_result!(caller, |ext| ext.resend_push(handle, offset, len))
         };
 
         Func::wrap(store, func)
@@ -1060,7 +1062,7 @@ where
                 memory,
                 |ext| {
                     let handle = ext.send_init()?;
-                    ext.resend_push(handle)?;
+                    ext.resend_push(handle, 0, u32::MAX)?;
                     ext.send_commit(
                         handle,
                         HandlePacket::new_with_gas(destination, Default::default(), gas_limit, value),

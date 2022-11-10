@@ -678,6 +678,8 @@ where
     }
 
     pub fn gr_resend_push(r: u32,) -> Result<Exec<T>, &'static str> {
+        let payload_len = 100;
+
         let code = WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
             imported_functions: vec!["gr_send_init", "gr_resend_push"],
@@ -690,6 +692,10 @@ where
                     Instruction::Drop,
                     // handle
                     Instruction::I32Const(0),
+                    // offset
+                    Instruction::I32Const(0),
+                    // len
+                    Instruction::I32Const(payload_len as i32),
                     Instruction::Call(1),
                     Instruction::Drop,
                 ],
@@ -721,6 +727,10 @@ where
                     Instruction::Drop,
                     // handle
                     Instruction::I32Const(0),
+                    // offset
+                    Instruction::I32Const(0),
+                    // len
+                    Instruction::I32Const(payload_len as i32),
                     Instruction::Call(1),
                     Instruction::Drop,
                 ],
