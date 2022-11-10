@@ -958,6 +958,8 @@ where
         let func = move |mut caller: wasmi::Caller<'_, HostState<E>>,
                          gas_limit: u64,
                          value_ptr: u32,
+                         offset: u32,
+                         len: u32,
                          delay: u32,
                          message_id_ptr: u32|
               -> FallibleOutput {
@@ -975,7 +977,7 @@ where
                 caller,
                 memory,
                 |ext| {
-                    ext.rereply_push(0, u32::MAX)?;
+                    ext.rereply_push(offset, len)?;
                     ext.reply_commit(ReplyPacket::new_with_gas(Default::default(), gas_limit, value), delay)
                 },
                 message_id_ptr

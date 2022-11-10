@@ -122,17 +122,22 @@ pub fn rereply_delayed<Range: RangeBounds<usize>>(value: u128, range: Range, del
 
 /// Same as [`rereply`], but with explicit gas limit.
 #[wait_for_reply]
-pub fn rereply_with_gas(gas_limit: u64, value: u128) -> Result<MessageId> {
-    gcore::msg::rereply_with_gas(gas_limit, value).into_contract_result()
+pub fn rereply_with_gas<Range: RangeBounds<usize>>(gas_limit: u64, value: u128, range: Range) -> Result<MessageId> {
+    let (offset, len) = utils::decay_range(range);
+
+    gcore::msg::rereply_with_gas(gas_limit, value, offset, len).into_contract_result()
 }
 
 /// Same as [`rereply_with_gas`], but sends delayed.
-pub fn rereply_with_gas_delayed(
+pub fn rereply_with_gas_delayed<Range: RangeBounds<usize>>(
     gas_limit: u64,
     value: u128,
+    range: Range,
     delay: u32,
 ) -> Result<MessageId> {
-    gcore::msg::rereply_with_gas_delayed(gas_limit, value, delay).into_contract_result()
+    let (offset, len) = utils::decay_range(range);
+
+    gcore::msg::rereply_with_gas_delayed(gas_limit, value, offset, len, delay).into_contract_result()
 }
 
 /// Resend the incoming message to the program or user.

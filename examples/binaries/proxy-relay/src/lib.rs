@@ -104,7 +104,7 @@ mod wasm {
                 msg::rereply_push(0..).expect("Push failed");
                 msg::reply_commit(msg::value()).expect("Commit failed");
             }
-            RereplyWithGas(gas) => { msg::rereply_with_gas(*gas, msg::value()).expect("Rereply wgas failed"); }
+            RereplyWithGas(gas) => { msg::rereply_with_gas(*gas, msg::value(), ..).expect("Rereply wgas failed"); }
         }
     }
 

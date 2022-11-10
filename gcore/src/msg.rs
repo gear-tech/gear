@@ -91,6 +91,8 @@ mod sys {
         pub fn gr_rereply_wgas(
             gas_limit: u64,
             value_ptr: *const u128,
+            offset: u32,
+            len: u32,
             delay: u32,
             message_id_ptr: *mut [u8; 32],
         ) -> SyscallError;
@@ -541,18 +543,20 @@ pub fn rereply_push(offset: u32, len: u32) -> Result<()> {
 }
 
 /// Same as [`rereply`], but with explicit gas limit.
-pub fn rereply_with_gas(gas_limit: u64, value: u128) -> Result<MessageId> {
-    rereply_with_gas_delayed(gas_limit, value, 0)
+pub fn rereply_with_gas(gas_limit: u64, value: u128, offset: u32, len: u32) -> Result<MessageId> {
+    rereply_with_gas_delayed(gas_limit, value, offset, len, 0)
 }
 
 /// Same as [`rereply_with_gas`], but sends delayed.
-pub fn rereply_with_gas_delayed(gas_limit: u64, value: u128, delay: u32) -> Result<MessageId> {
+pub fn rereply_with_gas_delayed(gas_limit: u64, value: u128, offset: u32, len: u32, delay: u32) -> Result<MessageId> {
     let mut message_id = MessageId::default();
 
     unsafe {
         sys::gr_rereply_wgas(
             gas_limit,
             value.to_le_bytes().as_ptr() as _,
+            offset,
+            len,
             delay,
             message_id.as_mut_ptr(),
         )
