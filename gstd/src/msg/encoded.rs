@@ -153,22 +153,28 @@ pub fn resend_delayed<Range: RangeBounds<usize>>(
 
 /// Same as [`resend`], but with explicit gas limit.
 #[wait_for_reply]
-pub fn resend_with_gas(
+pub fn resend_with_gas<Range: RangeBounds<usize>>(
     program: ActorId,
     gas_limit: u64,
     value: u128,
+    range: Range,
 ) -> Result<MessageId> {
-    gcore::msg::resend_with_gas(program.into(), gas_limit, value).into_contract_result()
+    let (offset, len) = utils::decay_range(range);
+
+    gcore::msg::resend_with_gas(program.into(), gas_limit, value, offset, len).into_contract_result()
 }
 
 /// Same as [`resend_with_gas`], but sends delayed.
-pub fn resend_with_gas_delayed(
+pub fn resend_with_gas_delayed<Range: RangeBounds<usize>>(
     program: ActorId,
     gas_limit: u64,
     value: u128,
+    range: Range,
     delay: u32,
 ) -> Result<MessageId> {
-    gcore::msg::resend_with_gas_delayed(program.into(), gas_limit, value, delay).into_contract_result()
+    let (offset, len) = utils::decay_range(range);
+
+    gcore::msg::resend_with_gas_delayed(program.into(), gas_limit, value, offset, len, delay).into_contract_result()
 }
 
 /// Send a new message to the program or user.

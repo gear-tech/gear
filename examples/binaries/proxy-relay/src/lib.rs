@@ -95,7 +95,7 @@ mod wasm {
 
         match RELAY_CALL.as_ref().expect("Relay call is not initialized") {
             Resend(d) => { msg::resend(*d, msg::value(), ..msg::size() as usize).expect("Resend failed"); }
-            ResendWithGas(d, gas) => { msg::resend_with_gas(*d, *gas, msg::value()).expect("Resend wgas failed"); }
+            ResendWithGas(d, gas) => { msg::resend_with_gas(*d, *gas, msg::value(), ..).expect("Resend wgas failed"); }
             ResendPush(data) => {
                 resend_push(data);
             }

@@ -604,16 +604,18 @@ where
             destination_ptr,
             gas_limit,
             value_ptr,
+            offset,
+            len,
             delay,
             message_id_ptr,
-        ) = args.iter().read_5()?;
+        ) = args.iter().read_7()?;
 
         ctx.run(|ctx| {
             let destination = ctx.read_memory_as(destination_ptr)?;
             let value = ctx.read_memory_as(value_ptr)?;
 
             let handle = ctx.ext.send_init();
-            let push_result = handle.and_then(|h| ctx.ext.resend_push(h, 0, u32::MAX).map(|_| h));
+            let push_result = handle.and_then(|h| ctx.ext.resend_push(h, offset, len).map(|_| h));
             push_result
                 .and_then(|h| ctx.ext.send_commit(h, HandlePacket::new_with_gas(destination, Default::default(), gas_limit, value), delay))
                 .process_error()

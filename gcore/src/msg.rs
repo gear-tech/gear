@@ -116,6 +116,8 @@ mod sys {
             destination_ptr: *const [u8; 32],
             gas_limit: u64,
             value_ptr: *const u128,
+            offset: u32,
+            len: u32,
             delay: u32,
             message_id_ptr: *mut [u8; 32],
         ) -> SyscallError;
@@ -596,8 +598,10 @@ pub fn resend_with_gas(
     destination: ActorId,
     gas_limit: u64,
     value: u128,
+    offset: u32,
+    len: u32,
 ) -> Result<MessageId> {
-    resend_with_gas_delayed(destination, gas_limit, value, 0)
+    resend_with_gas_delayed(destination, gas_limit, value, offset, len, 0)
 }
 
 /// Same as [`resend_with_gas`], but sends delayed.
@@ -605,6 +609,8 @@ pub fn resend_with_gas_delayed(
     destination: ActorId,
     gas_limit: u64,
     value: u128,
+    offset: u32,
+    len: u32,
     delay: u32,
 ) -> Result<MessageId> {
     let mut message_id = MessageId::default();
@@ -614,6 +620,8 @@ pub fn resend_with_gas_delayed(
             destination.as_ptr(),
             gas_limit,
             value.to_le_bytes().as_ptr() as _,
+            offset,
+            len,
             delay,
             message_id.as_mut_ptr(),
         )
