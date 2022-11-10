@@ -500,7 +500,44 @@ pub fn execute_wasm<
 #[cfg(test)]
 mod tests {
     use super::*;
-    use alloc::vec::Vec;
+    use alloc::{vec, vec::Vec};
+    use gear_core::memory::WasmPageNumber;
+
+    struct TestExt;
+    struct LazyTestExt;
+
+    impl ProcessorExt for TestExt {
+        const LAZY_PAGES_ENABLED: bool = false;
+        fn new(_context: ProcessorContext) -> Self {
+            Self
+        }
+
+        fn lazy_pages_init_for_program(
+            _mem: &mut impl Memory,
+            _prog_id: ProgramId,
+            _stack_end: Option<WasmPageNumber>,
+        ) {
+        }
+
+        fn lazy_pages_post_execution_actions(_mem: &mut impl Memory) {}
+    }
+
+    impl ProcessorExt for LazyTestExt {
+        const LAZY_PAGES_ENABLED: bool = true;
+
+        fn new(_context: ProcessorContext) -> Self {
+            Self
+        }
+
+        fn lazy_pages_init_for_program(
+            _mem: &mut impl Memory,
+            _prog_id: ProgramId,
+            _stack_end: Option<WasmPageNumber>,
+        ) {
+        }
+
+        fn lazy_pages_post_execution_actions(_mem: &mut impl Memory) {}
+    }
 
     fn prepare_pages_and_allocs() -> (Vec<PageNumber>, BTreeSet<WasmPageNumber>) {
         let data = [0, 1, 2, 8, 18, 25, 27, 28, 93, 146, 240, 518];
@@ -524,6 +561,17 @@ mod tests {
             GasCounter::new(1_000_000),
             GasAllowanceCounter::new(4_000_000),
         )
+    }
+
+    fn prepare_pages() -> BTreeMap<PageNumber, PageBuf> {
+        let mut pages = BTreeMap::new();
+        for i in 0..=255 {
+            pages.insert(
+                (i as u32).into(),
+                PageBuf::new_from_vec(vec![i; 4096]).unwrap(),
+            );
+        }
+        pages
     }
 
     #[test]
@@ -639,5 +687,71 @@ mod tests {
         // Charge for mem grow only
         assert_eq!(counter.left(), 1_000_000 - grow_charge);
         assert_eq!(allowance_counter.left(), 4_000_000 - grow_charge);
+    }
+
+    #[test]
+    fn lazy_pages_to_update() {
+        let new_pages = prepare_pages();
+        let res =
+            get_pages_to_be_updated::<LazyTestExt>(Default::default(), new_pages.clone(), 0.into());
+        // All touched pages are to be updated in lazy mode
+        assert_eq!(res, new_pages);
+    }
+
+    #[test]
+    fn no_pages_to_update() {
+        let old_pages = prepare_pages();
+        let mut new_pages = old_pages.clone();
+        let static_pages = 4u32;
+        let res = get_pages_to_be_updated::<TestExt>(
+            old_pages.clone(),
+            new_pages.clone(),
+            static_pages.into(),
+        );
+        assert_eq!(res, Default::default());
+
+        // Change static pages
+        for i in 0..static_pages {
+            new_pages.insert(i.into(), PageBuf::new_from_vec(vec![42u8; 4096]).unwrap());
+        }
+        // Do not include non-static pages
+        let new_pages = new_pages
+            .into_iter()
+            .take(WasmPageNumber(static_pages).to_gear_page().0 as _)
+            .collect();
+        let res =
+            get_pages_to_be_updated::<TestExt>(Default::default(), new_pages, static_pages.into());
+        assert_eq!(res, Default::default());
+    }
+
+    #[test]
+    fn pages_to_update() {
+        let old_pages = prepare_pages();
+        let mut new_pages = prepare_pages();
+
+        // Change pages
+        new_pages.insert(1.into(), PageBuf::new_from_vec(vec![42u8; 4096]).unwrap());
+        new_pages.insert(5.into(), PageBuf::new_from_vec(vec![84u8; 4096]).unwrap());
+        new_pages.insert(30.into(), PageBuf::new_zeroed());
+        let static_pages = 4u32.into();
+        let res = get_pages_to_be_updated::<TestExt>(old_pages, new_pages.clone(), static_pages);
+        assert_eq!(
+            res,
+            [
+                (1.into(), PageBuf::new_from_vec(vec![42u8; 4096]).unwrap()),
+                (5.into(), PageBuf::new_from_vec(vec![84u8; 4096]).unwrap()),
+                (30.into(), PageBuf::new_zeroed())
+            ]
+            .into()
+        );
+
+        // There was no any old page
+        let res =
+            get_pages_to_be_updated::<TestExt>(Default::default(), new_pages.clone(), static_pages);
+        // The result is all pages except the static ones
+        (0..static_pages.to_gear_page().0).for_each(|i| {
+            new_pages.remove(&i.into());
+        });
+        assert_eq!(res, new_pages,);
     }
 }
