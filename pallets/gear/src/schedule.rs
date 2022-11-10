@@ -347,6 +347,12 @@ pub struct HostFnWeights<T: Config> {
     /// Weight of calling `gr_reply_to`.
     pub gr_reply_to: u64,
 
+    /// Weight of calling `gr_rereply_push`.
+    pub gr_rereply_push: u64,
+
+    /// Weight per payload byte by `gr_rereply_push`.
+    pub gr_rereply_push_per_byte: u64,
+
     /// Weight of calling `gr_resend_push`.
     pub gr_resend_push: u64,
 
@@ -631,6 +637,8 @@ impl<T: Config> HostFnWeights<T> {
             gr_create_program_wgas_salt_per_byte: self.gr_create_program_wgas_salt_per_byte,
             gr_resend_push: self.gr_resend_push,
             gr_resend_push_per_byte: self.gr_resend_push_per_byte,
+            gr_rereply_push: self.gr_rereply_push,
+            gr_rereply_push_per_byte: self.gr_rereply_push_per_byte,
         }
     }
 }
@@ -686,6 +694,8 @@ impl<T: Config> Default for HostFnWeights<T> {
             ),
             gr_resend_push: cost_batched!(gr_resend_push),
             gr_resend_push_per_byte: cost_batched!(gr_resend_push_per_kb),
+            gr_rereply_push: cost_batched!(gr_rereply_push),
+            gr_rereply_push_per_byte: cost_batched!(gr_rereply_push_per_kb),
             _phantom: PhantomData,
         }
     }

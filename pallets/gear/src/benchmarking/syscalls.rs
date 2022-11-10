@@ -677,6 +677,61 @@ where
         )
     }
 
+    pub fn gr_rereply_push(r: u32,) -> Result<Exec<T>, &'static str> {
+        let payload_len = 100;
+
+        let code = WasmModule::<T>::from(ModuleDefinition {
+            memory: Some(ImportedMemory::max::<T>()),
+            imported_functions: vec!["gr_rereply_push"],
+            handle_body: Some(body::repeated(
+                r * API_BENCHMARK_BATCH_SIZE,
+                &[
+                    // offset
+                    Instruction::I32Const(0),
+                    Instruction::I32Const(payload_len),
+                    Instruction::Call(0),
+                    Instruction::Drop,
+                ],
+            )),
+            ..Default::default()
+        });
+
+        let instance = Program::<T>::new(code, vec![])?;
+        prepare::<T>(
+            instance.caller.into_origin(),
+            HandleKind::Handle(ProgramId::from_origin(instance.addr)),
+            vec![0u8; 100],
+            0u32.into(),
+        )
+    }
+
+    pub fn gr_rereply_push_per_kb(n: u32, ) -> Result<Exec<T>, &'static str> {
+        let payload_len = n as i32 * 1_024;
+
+        let code = WasmModule::<T>::from(ModuleDefinition {
+            memory: Some(ImportedMemory::max::<T>()),
+            imported_functions: vec!["gr_rereply_push"],
+            handle_body: Some(body::repeated(
+                API_BENCHMARK_BATCH_SIZE,
+                &[
+                    Instruction::I32Const(0),
+                    Instruction::I32Const(payload_len),
+                    Instruction::Call(0),
+                    Instruction::Drop,
+                ],
+            )),
+            ..Default::default()
+        });
+
+        let instance = Program::<T>::new(code, vec![])?;
+        prepare::<T>(
+            instance.caller.into_origin(),
+            HandleKind::Handle(ProgramId::from_origin(instance.addr)),
+            vec![0u8; payload_len as usize],
+            0u32.into(),
+        )
+    }
+
     pub fn gr_resend_push(r: u32,) -> Result<Exec<T>, &'static str> {
         let payload_len = 100;
 

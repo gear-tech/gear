@@ -76,6 +76,8 @@ pub trait WeightInfo {
     fn gr_reply_push(r: u32, ) -> Weight;
     fn gr_reply_push_per_kb(n: u32, ) -> Weight;
     fn gr_reply_to(r: u32, ) -> Weight;
+    fn gr_rereply_push(r: u32, ) -> Weight;
+    fn gr_rereply_push_per_kb(n: u32, ) -> Weight;
     fn gr_resend_push(r: u32, ) -> Weight;
     fn gr_resend_push_per_kb(n: u32, ) -> Weight;
     fn gr_debug(r: u32, ) -> Weight;
@@ -409,6 +411,16 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
         Weight::from_ref_time(104_610_000 as u64)
             // Standard Error: 88_433
             .saturating_add(Weight::from_ref_time(230_784_788 as u64).saturating_mul(r as u64))
+    }
+    fn gr_rereply_push(r: u32, ) -> Weight {
+        Weight::from_ref_time(115_758_000 as u64)
+            // Standard Error: 182_112
+            .saturating_add(Weight::from_ref_time(327_416_867 as u64).saturating_mul(r as u64))
+    }
+    fn gr_rereply_push_per_kb(n: u32, ) -> Weight {
+        Weight::from_ref_time(439_004_000 as u64)
+            // Standard Error: 116_967
+            .saturating_add(Weight::from_ref_time(4_514_511 as u64).saturating_mul(n as u64))
     }
     fn gr_resend_push(r: u32, ) -> Weight {
         Weight::from_ref_time(106_971_000 as u64)
@@ -1060,6 +1072,16 @@ impl WeightInfo for () {
         Weight::from_ref_time(104_610_000 as u64)
             // Standard Error: 88_433
             .saturating_add(Weight::from_ref_time(230_784_788 as u64).saturating_mul(r as u64))
+    }
+    fn gr_rereply_push(r: u32, ) -> Weight {
+        Weight::from_ref_time(115_758_000 as u64)
+            // Standard Error: 182_112
+            .saturating_add(Weight::from_ref_time(327_416_867 as u64).saturating_mul(r as u64))
+    }
+    fn gr_rereply_push_per_kb(n: u32, ) -> Weight {
+        Weight::from_ref_time(439_004_000 as u64)
+            // Standard Error: 116_967
+            .saturating_add(Weight::from_ref_time(4_514_511 as u64).saturating_mul(n as u64))
     }
     fn gr_resend_push(r: u32, ) -> Weight {
         Weight::from_ref_time(106_971_000 as u64)

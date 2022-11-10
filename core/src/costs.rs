@@ -103,6 +103,12 @@ pub struct HostFnWeights {
     /// Weight of calling `gr_reply_to`.
     pub gr_reply_to: u64,
 
+    /// Weight of calling `gr_rereply_push`.
+    pub gr_rereply_push: u64,
+
+    /// Weight per payload byte by `gr_rereply_push`.
+    pub gr_rereply_push_per_byte: u64,
+
     /// Weight of calling `gr_resend_push`.
     pub gr_resend_push: u64,
 
@@ -238,6 +244,8 @@ pub enum RuntimeCosts {
     CreateProgram(u32, u32),
     /// Weight of calling `gr_resend_push`.
     ResendPush(u32),
+    /// Weight of calling `gr_rereply_push`.
+    RereplyPush(u32),
 }
 
 impl RuntimeCosts {
@@ -298,6 +306,9 @@ impl RuntimeCosts {
             ResendPush(len) => s
                 .gr_resend_push
                 .saturating_add(s.gr_resend_push_per_byte.saturating_mul(len.into())),
+            RereplyPush(len) => s
+                .gr_rereply_push
+                .saturating_add(s.gr_rereply_push_per_byte.saturating_mul(len.into())),
         };
         RuntimeToken { weight }
     }

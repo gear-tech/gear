@@ -145,6 +145,7 @@ pub fn syscall_signature(name: &str) -> SysCallSignature {
         "gr_reply_commit_wgas" => SysCallSignature::new([Gas, Ptr, Delay, Ptr], [I32]),
         "gr_reply_push" => SysCallSignature::new([Ptr, Size], [I32]),
         "gr_reply_to" => SysCallSignature::new([Ptr], [I32]),
+        "gr_rereply_push" => SysCallSignature::new([Size, Size], [I32]),
         "gr_resend_push" => SysCallSignature::new([Handler, Size, Size], [I32]),
         "gr_send" => SysCallSignature::new([Ptr, Ptr, Size, Ptr, Delay, Ptr], [I32]),
         "gr_send_wgas" => SysCallSignature::new([Ptr, Ptr, Size, Gas, Ptr, Delay, Ptr], [I32]),
