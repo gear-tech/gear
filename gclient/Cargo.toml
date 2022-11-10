@@ -22,6 +22,8 @@ wabt = "0.10.0"
 tokio = { version = "1.21.2", features = ["full"] }
 wat = "1.0.50"
 async-std = "1.12"
+env_logger = "0.9"
+log = "0.4"
 
 [features]
 default = [ "gear" ]
