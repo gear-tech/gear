@@ -1152,12 +1152,14 @@ fn test_witness(proof: StorageProof, root: crate::Hash) {
 
 #[cfg(test)]
 mod tests {
+    use crate::Extrinsic;
     use codec::Encode;
+    use pallet_gear_rpc_runtime_api::GearApi;
     use sc_block_builder::BlockBuilderProvider;
     use sp_api::ProvideRuntimeApi;
     use sp_consensus::BlockOrigin;
     use sp_core::storage::well_known_keys::HEAP_PAGES;
-    use sp_runtime::generic::BlockId;
+    use sp_runtime::{generic::BlockId, traits::Extrinsic as ExtrinsicT};
     use sp_state_machine::ExecutionStrategy;
     use test_client::{
         prelude::*, runtime::TestRuntimeAPI, DefaultTestClientBuilderExt, TestClientBuilder,
@@ -1237,5 +1239,19 @@ mod tests {
         let block_id = BlockId::Number(client.chain_info().best_number);
 
         runtime_api.test_witness(&block_id, proof, root).unwrap();
+    }
+
+    #[test]
+    fn test_gear_runtime_api() {
+        let client = TestClientBuilder::new()
+            .set_execution_strategy(ExecutionStrategy::Both)
+            .build();
+        let runtime_api = client.runtime_api();
+        let block_id = BlockId::Number(client.chain_info().best_number);
+
+        assert_eq!(
+            runtime_api.gear_run_extrinsic(&block_id).unwrap().encode(),
+            Extrinsic::new(Extrinsic::Process, None).unwrap().encode()
+        );
     }
 }

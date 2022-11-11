@@ -87,6 +87,7 @@ impl GearApiFacade {
     ) -> Result<T> {
         let (api, nonce) = self.prepare_api_for_call();
 
+        // TODO #1800
         let r = utils::with_timeout(batch_call(api)).await?;
         nonce::catch_missed_nonce(&r, nonce).expect("missed nonces storage is initialized");
 
