@@ -536,15 +536,15 @@ pub fn reply_commit_with_gas_delayed(gas_limit: u64, value: u128, delay: u32) ->
     Ok(message_id)
 }
 
-/// Some programs can reply on their messages to other programs from reservation, i.e. check
-/// another program's state and use it as a parameter for its own business
-/// logic. Basic implementation is covered in [`reply`](crate::msg::reply_from_reservation)
-/// function.
+/// Some programs can reply on their messages to other programs from
+/// reservation, i.e. check another program's state and use it as a parameter
+/// for its own business logic. Basic implementation is covered in
+/// [`reply`](crate::msg::reply_from_reservation) function.
 ///
 /// This function allows sending reply messages filled with payload parts sent
 /// via [`reply_push`] during the message handling. Finalization of the
-/// reply message is done via [`reply_commit_from_reservation`] function similar to
-/// [`send_commit_from_reservation`].
+/// reply message is done via [`reply_commit_from_reservation`] function similar
+/// to [`send_commit_from_reservation`].
 ///
 /// # Examples
 ///
@@ -654,7 +654,8 @@ pub fn reply_to() -> Result<MessageId> {
 /// Send a new message to the program or user from reservation.
 ///
 /// Gear allows programs to communicate to each other and users via messages.
-/// [`send_from_reservation`](crate::msg::send_from_reservation) function allows sending such messages.
+/// [`send_from_reservation`](crate::msg::send_from_reservation) function allows
+/// sending such messages.
 ///
 /// First argument is reservation ID.
 /// Second argument is the address of the target account.
@@ -667,7 +668,7 @@ pub fn reply_to() -> Result<MessageId> {
 /// # Examples
 ///
 /// ```
-/// use gcore::{msg, ActorId, exec};
+/// use gcore::{exec, msg, ActorId};
 ///
 /// unsafe extern "C" fn handle() {
 ///     // ...
@@ -684,8 +685,8 @@ pub fn reply_to() -> Result<MessageId> {
 ///
 /// # See also
 ///
-/// [`send_init`],[`send_push`], [`send_commit_from_reservation`] functions allows to form a
-/// message to send in parts.
+/// [`send_init`],[`send_push`], [`send_commit_from_reservation`] functions
+/// allows to form a message to send in parts.
 pub fn send_from_reservation(
     reservation_id: ReservationId,
     destination: ActorId,
@@ -758,7 +759,8 @@ pub fn send_delayed_from_reservation(
 ///
 /// # See also
 ///
-/// [`send_from_reservation`](crate::msg::send_from_reservation) allows to send message in one step.
+/// [`send_from_reservation`](crate::msg::send_from_reservation) allows to send
+/// message in one step.
 ///
 /// [`send_push`], [`send_init`] functions allows to form a message to send in
 /// parts.

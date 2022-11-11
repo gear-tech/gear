@@ -228,7 +228,8 @@ pub fn reply_bytes_delayed(
     gcore::msg::reply_delayed(payload.as_ref(), value, delay).into_contract_result()
 }
 
-/// Same as [`reply`](crate::msg::reply_from_reservation), without encoding payload.
+/// Same as [`reply`](crate::msg::reply_from_reservation), without encoding
+/// payload.
 #[wait_for_reply]
 pub fn reply_bytes_from_reservation(
     id: ReservationId,
@@ -314,13 +315,13 @@ pub fn reply_commit_delayed(value: u128, delay: u32) -> Result<MessageId> {
 ///
 /// Some programs can reply on their messages to other programs, i.e. check
 /// another program's state and use it as a parameter for its own business
-/// logic. Basic implementation is covered in [`reply`](crate::msg::reply_from_reservation)
-/// function.
+/// logic. Basic implementation is covered in
+/// [`reply`](crate::msg::reply_from_reservation) function.
 ///
 /// This function allows sending reply messages filled with payload parts sent
 /// via [`reply_push`] during the message handling. Finalization of the
-/// reply message is done via [`reply_commit_from_reservation`] function similar to
-/// [`send_commit_from_reservation`].
+/// reply message is done via [`reply_commit_from_reservation`] function similar
+/// to [`send_commit_from_reservation`].
 ///
 /// # Examples
 ///
@@ -530,7 +531,8 @@ pub fn send_bytes_with_gas_delayed<T: AsRef<[u8]>>(
 /// Send a new message to the program or user from reservation.
 ///
 /// Gear allows programs to communicate to each other and users via messages.
-/// [`send_from_reservation`](crate::msg::send_from_reservation) function allows sending such messages.
+/// [`send_from_reservation`](crate::msg::send_from_reservation) function allows
+/// sending such messages.
 ///
 /// First argument is reservation ID.
 /// Second argument is the address of the target account.

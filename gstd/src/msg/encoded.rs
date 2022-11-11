@@ -56,7 +56,8 @@ pub fn reply_delayed<E: Encode>(payload: E, value: u128, delay: u32) -> Result<M
     super::reply_bytes_delayed(payload.encode(), value, delay)
 }
 
-/// Send a new message as a reply to the message currently being processed from reservation.
+/// Send a new message as a reply to the message currently being processed from
+/// reservation.
 #[wait_for_reply]
 pub fn reply_from_reservation<E: Encode>(
     id: ReservationId,
