@@ -33,16 +33,16 @@ pub use code::WASM_BINARY_OPT as WASM_BINARY;
 pub enum HandleAction {
     SendToUser,
     SendToUserDelayed,
-    SendToProgram([u8; 32]),
-    SendToProgramDelayed([u8; 32]),
+    SendToProgram { pid: [u8; 32], user: [u8; 32] },
+    SendToProgramDelayed { pid: [u8; 32], user: [u8; 32] },
     ReplyToUser,
     ReplyToUserDelayed,
     ReplyToProgram { pid: [u8; 32], user: [u8; 32] },
     ReplyToProgramStep2([u8; 32]),
     ReplyToProgramDelayed { pid: [u8; 32], user: [u8; 32] },
     ReplyToProgramDelayedStep2([u8; 32]),
-    ReceiveFromProgram,
-    ReceiveFromProgramDelayed,
+    ReceiveFromProgram([u8; 32]),
+    ReceiveFromProgramDelayed([u8; 32]),
 }
 
 #[derive(Debug, Encode, Decode)]
@@ -60,23 +60,30 @@ unsafe extern "C" fn handle() {
     match action {
         HandleAction::SendToUser => {
             let id = ReservationId::reserve(3_000_000_000, 50).unwrap();
-            msg::send_from_reservation(id, msg::source(), 0, 500).unwrap();
+            msg::send_bytes_from_reservation(id, msg::source(), b"send_to_user", 500).unwrap();
         }
         HandleAction::SendToUserDelayed => {
             let id = ReservationId::reserve(4_000_000_000, 60).unwrap();
-            msg::send_delayed_from_reservation(id, msg::source(), 0, 600, 1).unwrap();
+            msg::send_bytes_delayed_from_reservation(
+                id,
+                msg::source(),
+                b"send_to_user_delayed",
+                600,
+                1,
+            )
+            .unwrap();
         }
-        HandleAction::SendToProgram(pid) => {
+        HandleAction::SendToProgram { pid, user } => {
             let id = ReservationId::reserve(5_000_000_000, 70).unwrap();
-            msg::send_from_reservation(id, pid.into(), HandleAction::ReceiveFromProgram, 700)
+            msg::send_from_reservation(id, pid.into(), HandleAction::ReceiveFromProgram(user), 700)
                 .unwrap();
         }
-        HandleAction::SendToProgramDelayed(pid) => {
+        HandleAction::SendToProgramDelayed { pid, user } => {
             let id = ReservationId::reserve(6_000_000_000, 80).unwrap();
             msg::send_delayed_from_reservation(
                 id,
                 pid.into(),
-                HandleAction::ReceiveFromProgramDelayed,
+                HandleAction::ReceiveFromProgramDelayed(user),
                 800,
                 1,
             )
@@ -84,11 +91,12 @@ unsafe extern "C" fn handle() {
         }
         HandleAction::ReplyToUser => {
             let id = ReservationId::reserve(7_000_000_000, 90).unwrap();
-            msg::reply_from_reservation(id, "reply_to_user", 900).unwrap();
+            msg::reply_bytes_from_reservation(id, b"reply_to_user", 900).unwrap();
         }
         HandleAction::ReplyToUserDelayed => {
             let id = ReservationId::reserve(8_000_000_000, 100).unwrap();
-            msg::reply_delayed_from_reservation(id, "reply_to_user_delayed", 1000, 1).unwrap();
+            msg::reply_bytes_delayed_from_reservation(id, b"reply_to_user_delayed", 1000, 1)
+                .unwrap();
         }
         HandleAction::ReplyToProgram { pid, user } => {
             msg::send(pid.into(), HandleAction::ReplyToProgramStep2(user), 900).unwrap();
@@ -110,11 +118,13 @@ unsafe extern "C" fn handle() {
             msg::reply_delayed_from_reservation(id, ReplyAction::ReceiveDelayed(user), 1000, 1)
                 .unwrap();
         }
-        HandleAction::ReceiveFromProgram => {
+        HandleAction::ReceiveFromProgram(user) => {
             assert_eq!(msg::value(), 700);
+            msg::send_bytes(user.into(), b"receive_from_program", 700).unwrap();
         }
-        HandleAction::ReceiveFromProgramDelayed => {
+        HandleAction::ReceiveFromProgramDelayed(user) => {
             assert_eq!(msg::value(), 800);
+            msg::send_bytes(user.into(), b"receive_from_program_delayed", 800).unwrap();
         }
     }
 }
@@ -125,11 +135,11 @@ unsafe extern "C" fn handle_reply() {
     match action {
         ReplyAction::Receive(user) => {
             assert_eq!(msg::value(), 900);
-            msg::send(user.into(), "reply", 900).unwrap();
+            msg::send_bytes(user.into(), b"reply", 900).unwrap();
         }
         ReplyAction::ReceiveDelayed(user) => {
             assert_eq!(msg::value(), 1000);
-            msg::send(user.into(), "reply_delayed", 1000).unwrap();
+            msg::send_bytes(user.into(), b"reply_delayed", 1000).unwrap();
         }
     }
 }

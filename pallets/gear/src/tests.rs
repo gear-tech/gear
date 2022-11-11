@@ -6245,69 +6245,102 @@ fn send_from_reservation() {
 
         run_to_block(2, None);
 
-        assert_ok!(Gear::send_message(
-            RuntimeOrigin::signed(USER_1),
-            pid,
-            HandleAction::SendToUser.encode(),
-            10_000_000_000,
-            1_000,
-        ));
+        {
+            assert_ok!(Gear::send_message(
+                RuntimeOrigin::signed(USER_1),
+                pid,
+                HandleAction::SendToUser.encode(),
+                10_000_000_000,
+                1_000,
+            ));
 
-        run_to_block(3, None);
+            run_to_block(3, None);
 
-        let msg = get_last_mail(USER_1);
-        assert_eq!(msg.value(), 500);
-        let map = get_reservation_map(pid).unwrap();
-        assert!(map.is_empty());
+            let msg = get_last_mail(USER_1);
+            assert_eq!(msg.value(), 500);
+            assert_eq!(msg.payload(), b"send_to_user");
+            let map = get_reservation_map(pid).unwrap();
+            assert!(map.is_empty());
+        }
 
-        assert_ok!(Gear::send_message(
-            RuntimeOrigin::signed(USER_1),
-            pid,
-            HandleAction::SendToProgram(pid2.into()).encode(),
-            10_000_000_000,
-            1_000,
-        ));
+        {
+            MailboxOf::<Test>::clear();
 
-        let mid = get_last_message_id();
+            assert_ok!(Gear::send_message(
+                RuntimeOrigin::signed(USER_1),
+                pid,
+                HandleAction::SendToProgram {
+                    pid: pid2.into(),
+                    user: USER_1.into_origin().into()
+                }
+                .encode(),
+                10_000_000_000,
+                1_000,
+            ));
 
-        run_to_block(4, None);
+            let mid = get_last_message_id();
 
-        assert_succeed(mid);
+            run_to_block(4, None);
 
-        assert_ok!(Gear::send_message(
-            RuntimeOrigin::signed(USER_1),
-            pid,
-            HandleAction::SendToUserDelayed.encode(),
-            10_000_000_000,
-            1_000,
-        ));
+            assert_succeed(mid);
 
-        run_to_block(5, None);
+            let msg = get_last_mail(USER_1);
+            assert_eq!(msg.value(), 700);
+            assert_eq!(msg.payload(), b"receive_from_program");
+            let map = get_reservation_map(pid).unwrap();
+            assert!(map.is_empty());
+        }
 
-        MailboxOf::<Test>::clear();
+        {
+            MailboxOf::<Test>::clear();
 
-        run_to_block(6, None);
+            assert_ok!(Gear::send_message(
+                RuntimeOrigin::signed(USER_1),
+                pid,
+                HandleAction::SendToUserDelayed.encode(),
+                10_000_000_000,
+                1_000,
+            ));
 
-        let msg = get_last_mail(USER_1);
-        assert_eq!(msg.value(), 600);
-        let map = get_reservation_map(pid).unwrap();
-        assert!(map.is_empty());
+            // +1 is delay
+            run_to_block(6, None);
 
-        assert_ok!(Gear::send_message(
-            RuntimeOrigin::signed(USER_1),
-            pid,
-            HandleAction::SendToProgramDelayed(pid2.into()).encode(),
-            10_000_000_000,
-            1_000,
-        ));
+            let msg = get_last_mail(USER_1);
+            assert_eq!(msg.value(), 600);
+            assert_eq!(msg.payload(), b"send_to_user_delayed");
+            let map = get_reservation_map(pid).unwrap();
+            assert!(map.is_empty());
+        }
 
-        let mid = get_last_message_id();
+        {
+            MailboxOf::<Test>::clear();
 
-        run_to_block(7, None);
+            assert_ok!(Gear::send_message(
+                RuntimeOrigin::signed(USER_1),
+                pid,
+                HandleAction::SendToProgramDelayed {
+                    pid: pid2.into(),
+                    user: USER_1.into_origin().into()
+                }
+                .encode(),
+                10_000_000_000,
+                1_000,
+            ));
 
-        assert_succeed(mid);
+            let mid = get_last_message_id();
 
-        run_to_block(8, None);
+            run_to_block(7, None);
+
+            assert_succeed(mid);
+
+            run_to_block(8, None);
+
+            let msg = get_last_mail(USER_1);
+            assert_eq!(msg.value(), 800);
+            assert_eq!(msg.payload(), b"receive_from_program_delayed");
+            let map = get_reservation_map(pid).unwrap();
+            assert!(map.is_empty());
+        }
     });
 }
 
@@ -6354,6 +6387,7 @@ fn reply_from_reservation() {
 
             let msg = get_last_mail(USER_1);
             assert_eq!(msg.value(), 900);
+            assert_eq!(msg.payload(), b"reply_to_user");
             let map = get_reservation_map(pid).unwrap();
             assert!(map.is_empty());
         }
@@ -6381,6 +6415,7 @@ fn reply_from_reservation() {
 
             let msg = get_last_mail(USER_1);
             assert_eq!(msg.value(), 900);
+            assert_eq!(msg.payload(), b"reply");
             let map = get_reservation_map(pid).unwrap();
             assert!(map.is_empty());
         }
@@ -6401,6 +6436,7 @@ fn reply_from_reservation() {
 
             let msg = get_last_mail(USER_1);
             assert_eq!(msg.value(), 1000);
+            assert_eq!(msg.payload(), b"reply_to_user_delayed");
             let map = get_reservation_map(pid).unwrap();
             assert!(map.is_empty());
         }
@@ -6432,6 +6468,7 @@ fn reply_from_reservation() {
 
             let msg = get_last_mail(USER_1);
             assert_eq!(msg.value(), 1000);
+            assert_eq!(msg.payload(), b"reply_delayed");
             let map = get_reservation_map(pid).unwrap();
             assert!(map.is_empty());
         }
