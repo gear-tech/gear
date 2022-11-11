@@ -90,7 +90,6 @@ pub trait WeightInfo {
     fn gr_create_program_wgas(r: u32, ) -> Weight;
     fn gr_create_program_wgas_per_kb(p: u32, s: u32, ) -> Weight;
     fn gr_system_reserve_gas(r: u32, ) -> Weight;
-    fn instr_i64const(r: u32, ) -> Weight;
     fn instr_i64load(r: u32, ) -> Weight;
     fn instr_i64store(r: u32, ) -> Weight;
     fn instr_select(r: u32, ) -> Weight;
