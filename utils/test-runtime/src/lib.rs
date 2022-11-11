@@ -658,6 +658,22 @@ cfg_if! {
                 }
             }
 
+            impl pallet_gear_rpc_runtime_api::GearApi<Block> for Runtime {
+                fn calculate_gas_info(
+                    _account_id: H256,
+                    _kind: pallet_gear::HandleKind,
+                    _payload: Vec<u8>,
+                    _value: u128,
+                    _allow_other_panics: bool,
+                    _initial_gas: Option<u64>,
+                ) -> Result<pallet_gear::GasInfo, Vec<u8>> {
+                    Err(b"not implemented".to_vec())
+                }
+                fn gear_run_extrinsic() -> <Block as BlockT>::Extrinsic {
+                    Extrinsic::new(Extrinsic::Process, None).unwrap()
+                }
+            }
+
             impl self::TestRuntimeAPI<Block> for Runtime {
                 fn balance_of(id: AccountId) -> u64 {
                     inner::balance_of(id)
@@ -879,6 +895,22 @@ cfg_if! {
                 }
             }
 
+            impl pallet_gear_rpc_runtime_api::GearApi<Block> for Runtime {
+                fn calculate_gas_info(
+                    _account_id: H256,
+                    _kind: pallet_gear::HandleKind,
+                    _payload: Vec<u8>,
+                    _value: u128,
+                    _allow_other_panics: bool,
+                    _initial_gas: Option<u64>,
+                ) -> Result<pallet_gear::GasInfo, Vec<u8>> {
+                    Err(b"not implemented".to_vec())
+                }
+                fn gear_run_extrinsic() -> <Block as BlockT>::Extrinsic {
+                    Extrinsic::new(Extrinsic::Process, None).unwrap()
+                }
+            }
+
             impl self::TestRuntimeAPI<Block> for Runtime {
                 fn balance_of(id: AccountId) -> u64 {
                     inner::balance_of(id)
@@ -1016,12 +1048,6 @@ cfg_if! {
     }
 }
 
-impl common::TerminalExtrinsicProvider<Extrinsic> for Runtime {
-    fn extrinsic() -> Option<Extrinsic> {
-        Extrinsic::new(Extrinsic::Process, None)
-    }
-}
-
 fn test_ed25519_crypto() -> (ed25519::AppSignature, ed25519::AppPublic) {
     let public0 = ed25519::AppPublic::generate_pair(None);
     let public1 = ed25519::AppPublic::generate_pair(None);
@@ -1126,12 +1152,14 @@ fn test_witness(proof: StorageProof, root: crate::Hash) {
 
 #[cfg(test)]
 mod tests {
+    use crate::Extrinsic;
     use codec::Encode;
+    use pallet_gear_rpc_runtime_api::GearApi;
     use sc_block_builder::BlockBuilderProvider;
     use sp_api::ProvideRuntimeApi;
     use sp_consensus::BlockOrigin;
     use sp_core::storage::well_known_keys::HEAP_PAGES;
-    use sp_runtime::generic::BlockId;
+    use sp_runtime::{generic::BlockId, traits::Extrinsic as ExtrinsicT};
     use sp_state_machine::ExecutionStrategy;
     use test_client::{
         prelude::*, runtime::TestRuntimeAPI, DefaultTestClientBuilderExt, TestClientBuilder,
@@ -1211,5 +1239,19 @@ mod tests {
         let block_id = BlockId::Number(client.chain_info().best_number);
 
         runtime_api.test_witness(&block_id, proof, root).unwrap();
+    }
+
+    #[test]
+    fn test_gear_runtime_api() {
+        let client = TestClientBuilder::new()
+            .set_execution_strategy(ExecutionStrategy::Both)
+            .build();
+        let runtime_api = client.runtime_api();
+        let block_id = BlockId::Number(client.chain_info().best_number);
+
+        assert_eq!(
+            runtime_api.gear_run_extrinsic(&block_id).unwrap().encode(),
+            Extrinsic::new(Extrinsic::Process, None).unwrap().encode()
+        );
     }
 }

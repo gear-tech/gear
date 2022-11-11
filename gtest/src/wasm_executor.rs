@@ -174,7 +174,7 @@ impl WasmExecutor {
             gas_reserver: GasReserver::new(message.id(), 0, Default::default(), MAX_RESERVATIONS),
             value_counter: ValueCounter::new(u128::MAX),
             allocations_context: AllocationsContext::new(
-                program.get_allocations().clone(),
+                program.allocations().clone(),
                 program.static_pages(),
                 WasmPageNumber(512u32),
             ),

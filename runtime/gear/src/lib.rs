@@ -24,7 +24,6 @@
 #[cfg(feature = "std")]
 include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
 
-use common::TerminalExtrinsicProvider;
 pub use frame_support::{
     construct_runtime,
     dispatch::{DispatchClass, WeighData},
@@ -98,7 +97,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
     impl_name: create_runtime_str!("gear"),
     apis: RUNTIME_API_VERSIONS,
     authoring_version: 1,
-    spec_version: 640,
+    spec_version: 150,
     impl_version: 1,
     transaction_version: 1,
     state_version: 1,
@@ -425,14 +424,6 @@ where
 {
     type Extrinsic = UncheckedExtrinsic;
     type OverarchingCall = RuntimeCall;
-}
-
-impl TerminalExtrinsicProvider<UncheckedExtrinsic> for Runtime {
-    fn extrinsic() -> Option<UncheckedExtrinsic> {
-        Some(UncheckedExtrinsic::new_unsigned(RuntimeCall::Gear(
-            pallet_gear::Call::run {},
-        )))
-    }
 }
 
 // Create the runtime by composing the FRAME pallets that were previously configured.

@@ -9,7 +9,13 @@
     shell: >
         /usr/local/bin/docker-compose -f "/home/ec2-user/docker-compose.yaml" down
     become: yes
-
+    
+  - name: remove db
+    ansible.builtin.file:
+      path: /home/ec2-user/gear-data/chains/gear_loader_network/db
+      state: absent
+    become: yes
+    
   - name: Pull docker images
     shell: >
        /usr/local/bin/docker-compose -f "/home/ec2-user/docker-compose.yaml" pull
