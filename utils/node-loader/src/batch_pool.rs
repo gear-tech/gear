@@ -51,7 +51,7 @@ impl<Rng: LoaderRng> BatchPool<Rng> {
         let api = GearApiFacade::try_new(params.node, params.user).await?;
         let mut batch_pool = Self::new(api.clone(), params.batch_size, params.workers);
 
-        let run_pool_task = batch_pool.run_pool_loop(params.code_seed_type);
+        let run_pool_task = batch_pool.run_pool_loop(params.loader_seed, params.code_seed_type);
         let inspect_crash_task = inspect_crash_events(api.into_gear_api());
 
         let run_result = tokio::select! {
@@ -69,10 +69,10 @@ impl<Rng: LoaderRng> BatchPool<Rng> {
     }
 
     #[instrument(skip_all)]
-    async fn run_pool_loop(&mut self, code_seed_type: Option<SeedVariant>) -> Result<()> {
+    async fn run_pool_loop(&mut self, loader_seed: Option<u64>, code_seed_type: Option<SeedVariant>) -> Result<()> {
         let mut batches = FuturesUnordered::new();
 
-        let seed = utils::now();
+        let seed = loader_seed.unwrap_or(utils::now());
         tracing::info!(
             message = "Running task pool with params",
             seed,
