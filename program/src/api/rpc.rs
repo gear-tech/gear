@@ -8,7 +8,7 @@ use jsonrpsee::{
     ws_client::{WsClient, WsClientBuilder},
 };
 use serde_json::value::Value;
-use std::time::Duration;
+use std::{result::Result as StdResult, time::Duration};
 use subxt::{
     error::RpcError,
     rpc::{RawValue, RpcClientT, RpcFuture, RpcSubscription},
@@ -107,7 +107,7 @@ impl RpcClientT for RpcClient {
 // Remove and simplify this once something like https://github.com/paritytech/jsonrpsee/issues/862 is in:
 fn prep_params_for_jsonrpsee(
     params: Option<Box<RawValue>>,
-) -> core::result::Result<ParamsSer<'static>, RpcError> {
+) -> StdResult<ParamsSer<'static>, RpcError> {
     let params = match params {
         Some(params) => params,
         // No params? avoid any work and bail early.

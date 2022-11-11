@@ -2,6 +2,7 @@
 use crate::result::Result;
 use config::GearConfig;
 use core::ops::{Deref, DerefMut};
+use rpc::RpcClient;
 use signer::Signer;
 use subxt::OnlineClient;
 
@@ -28,7 +29,7 @@ impl Api {
     /// Create new API client with timeout.
     pub async fn new_with_timeout(url: Option<&str>, timeout: Option<u64>) -> Result<Self> {
         Ok(Self(
-            OnlineClient::from_rpc_client(rpc::RpcClient::new(url, timeout).await?).await?,
+            OnlineClient::from_rpc_client(RpcClient::new(url, timeout).await?).await?,
         ))
     }
 

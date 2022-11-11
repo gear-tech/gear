@@ -57,7 +57,7 @@ impl Api {
             log::info!("\tWeight cost: {:?}", dispatch_info.weight);
         }
 
-        Ok(())
+        Err(ClientError::EventNotFound.into())
     }
 
     /// Wait for GearEvent.

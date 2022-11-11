@@ -108,7 +108,7 @@ impl GearApi {
         let amount = calls.len();
 
         let ex = tx().utility().force_batch(calls);
-        let tx = self.0.process(ex, "gear", "create_program").await?;
+        let tx = self.0.process(ex).await?;
 
         let mut res = Vec::with_capacity(amount);
 
@@ -198,7 +198,7 @@ impl GearApi {
         let amount = calls.len();
 
         let ex = tx().utility().force_batch(calls);
-        let tx = self.0.process(ex, "gear", "claim_value").await?;
+        let tx = self.0.process(ex).await?;
 
         let mut res = Vec::with_capacity(amount);
 
@@ -286,7 +286,7 @@ impl GearApi {
         let amount = calls.len();
 
         let ex = tx().utility().force_batch(calls);
-        let tx = self.0.process(ex, "gear", "send_message").await?;
+        let tx = self.0.process(ex).await?;
 
         let mut res = Vec::with_capacity(amount);
 
@@ -392,7 +392,7 @@ impl GearApi {
         let amount = calls.len();
 
         let ex = tx().utility().force_batch(calls);
-        let tx = self.0.process(ex, "gear", "send_reply_bytes").await?;
+        let tx = self.0.process(ex).await?;
 
         let mut res = Vec::with_capacity(amount);
 
@@ -469,7 +469,7 @@ impl GearApi {
         let amount = calls.len();
 
         let ex = tx().utility().force_batch(calls);
-        let tx = self.0.process(ex, "gear", "upload_code").await?;
+        let tx = self.0.process(ex).await?;
 
         let mut res = Vec::with_capacity(amount);
 
@@ -565,7 +565,7 @@ impl GearApi {
         let amount = calls.len();
 
         let ex = tx().utility().force_batch(calls);
-        let tx = self.0.process(ex, "gear", "upload_program").await?;
+        let tx = self.0.process(ex).await?;
 
         let mut res = Vec::with_capacity(amount);
 
@@ -647,7 +647,7 @@ impl GearApi {
             },
         );
 
-        let tx = self.0.process(ex, "sudo", "set_code").await?;
+        let tx = self.0.process(ex).await?;
 
         Ok(tx.wait_for_success().await?.block_hash())
     }

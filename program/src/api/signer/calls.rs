@@ -4,7 +4,10 @@ use crate::api::{
     types::{InBlock, TxStatus},
 };
 use anyhow::anyhow;
-use subxt::{ext::codec::Encode, tx::StaticTxPayload};
+use subxt::{
+    ext::codec::Encode,
+    tx::{StaticTxPayload, TxPayload},
+};
 
 mod balances {
     use crate::api::{generated::api::tx, signer::Signer, types::InBlock};
@@ -14,7 +17,7 @@ mod balances {
         /// `pallet_balances::transfer`
         pub async fn transfer(&self, destination: impl Into<AccountId32>, value: u128) -> InBlock {
             let ex = tx().balances().transfer(destination.into().into(), value);
-            self.process(ex, "balances", "transfer").await
+            self.process(ex).await
         }
     }
 }
@@ -37,21 +40,21 @@ mod gear {
                 .gear()
                 .create_program(code_id.into(), salt, payload, gas_limit, value);
 
-            self.process(ex, "gear", "create_program").await
+            self.process(ex).await
         }
 
         /// `pallet_gear::claim_value`
         pub async fn claim_value(&self, message_id: MessageId) -> InBlock {
             let ex = tx().gear().claim_value(message_id.into());
 
-            self.process(ex, "gear", "claim_value").await
+            self.process(ex).await
         }
 
         /// `pallet_gear::reset`
         pub async fn reset(&self) -> InBlock {
             let ex = tx().gear().reset();
 
-            self.process(ex, "gear", "reset").await
+            self.process(ex).await
         }
 
         /// `pallet_gear::send_message`
@@ -66,7 +69,7 @@ mod gear {
                 .gear()
                 .send_message(destination.into(), payload, gas_limit, value);
 
-            self.process(ex, "gear", "send_message").await
+            self.process(ex).await
         }
 
         /// `pallet_gear::send_reply`
@@ -81,14 +84,14 @@ mod gear {
                 .gear()
                 .send_reply(reply_to_id.into(), payload, gas_limit, value);
 
-            self.process(ex, "gear", "send_reply").await
+            self.process(ex).await
         }
 
         /// `pallet_gear::upload_code`
         pub async fn upload_code(&self, code: Vec<u8>) -> InBlock {
             let ex = tx().gear().upload_code(code);
 
-            self.process(ex, "gear", "upload_code").await
+            self.process(ex).await
         }
 
         /// `pallet_gear::upload_program`
@@ -104,7 +107,7 @@ mod gear {
                 .gear()
                 .upload_program(code, salt, payload, gas_limit, value);
 
-            self.process(ex, "gear", "upload_program").await
+            self.process(ex).await
         }
     }
 }
@@ -135,12 +138,7 @@ impl Signer {
     }
 
     /// listen transaction process and print logs
-    pub async fn process<CallData: Encode>(
-        &self,
-        tx: StaticTxPayload<CallData>,
-        pallet: &str,
-        name: &str,
-    ) -> InBlock {
+    pub async fn process<CallData: Encode>(&self, tx: StaticTxPayload<CallData>) -> InBlock {
         use subxt::tx::TxStatus::*;
 
         let before = self.balance().await?;
@@ -149,6 +147,15 @@ impl Signer {
             .tx()
             .sign_and_submit_then_watch_default(&tx, &self.signer)
             .await?;
+
+        // Get extrinsic details.
+        let (pallet, name) = {
+            if let Some(details) = tx.validation_details() {
+                (details.pallet_name, details.call_name)
+            } else {
+                ("Unknown", "Unknown")
+            }
+        };
 
         log::info!("Submitted extrinsic {}::{}", pallet, name);
 
