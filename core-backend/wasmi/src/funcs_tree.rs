@@ -106,9 +106,7 @@ where
         f.build("gr_rereply_wgas", |forbidden| {
             F::rereply_wgas(store, forbidden, memory)
         }),
-        f.build("gr_resend", |forbidden| {
-            F::resend(store, forbidden, memory)
-        }),
+        f.build("gr_resend", |forbidden| F::resend(store, forbidden, memory)),
         f.build("gr_resend_push", |forbidden| {
             F::resend_push(store, forbidden)
         }),

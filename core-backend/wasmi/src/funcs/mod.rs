@@ -934,14 +934,8 @@ where
         Func::wrap(store, func)
     }
 
-    pub fn rereply_push(
-        store: &mut Store<HostState<E>>,
-        forbidden: bool,
-    ) -> Func {
-        let func = move |mut caller: wasmi::Caller<'_, HostState<E>>,
-            offset: u32,
-            len: u32
-        | {
+    pub fn rereply_push(store: &mut Store<HostState<E>>, forbidden: bool) -> Func {
+        let func = move |mut caller: wasmi::Caller<'_, HostState<E>>, offset: u32, len: u32| {
             update_or_exit_if!(forbidden, caller);
 
             process_call_unit_result!(caller, |ext| ext.rereply_push(offset, len))
@@ -978,7 +972,10 @@ where
                 memory,
                 |ext| {
                     ext.rereply_push(offset, len)?;
-                    ext.reply_commit(ReplyPacket::new_with_gas(Default::default(), gas_limit, value), delay)
+                    ext.reply_commit(
+                        ReplyPacket::new_with_gas(Default::default(), gas_limit, value),
+                        delay,
+                    )
                 },
                 message_id_ptr
             )
@@ -1026,14 +1023,11 @@ where
         Func::wrap(store, func)
     }
 
-    pub fn resend_push(
-        store: &mut Store<HostState<E>>,
-        forbidden: bool,
-    ) -> Func {
+    pub fn resend_push(store: &mut Store<HostState<E>>, forbidden: bool) -> Func {
         let func = move |mut caller: wasmi::Caller<'_, HostState<E>>,
                          handle: u32,
                          offset: u32,
-                         len: u32,|
+                         len: u32|
               -> FallibleOutput {
             update_or_exit_if!(forbidden, caller);
 
@@ -1076,7 +1070,12 @@ where
                     ext.resend_push(handle, offset, len)?;
                     ext.send_commit(
                         handle,
-                        HandlePacket::new_with_gas(destination, Default::default(), gas_limit, value),
+                        HandlePacket::new_with_gas(
+                            destination,
+                            Default::default(),
+                            gas_limit,
+                            value,
+                        ),
                         delay,
                     )
                 },

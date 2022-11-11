@@ -677,7 +677,7 @@ where
         )
     }
 
-    pub fn gr_rereply_push(r: u32,) -> Result<Exec<T>, &'static str> {
+    pub fn gr_rereply_push(r: u32) -> Result<Exec<T>, &'static str> {
         let payload_len = 100;
 
         let code = WasmModule::<T>::from(ModuleDefinition {
@@ -705,7 +705,7 @@ where
         )
     }
 
-    pub fn gr_rereply_push_per_kb(n: u32, ) -> Result<Exec<T>, &'static str> {
+    pub fn gr_rereply_push_per_kb(n: u32) -> Result<Exec<T>, &'static str> {
         let payload_len = n as i32 * 1_024;
 
         let code = WasmModule::<T>::from(ModuleDefinition {
@@ -732,7 +732,7 @@ where
         )
     }
 
-    pub fn gr_resend_push(r: u32,) -> Result<Exec<T>, &'static str> {
+    pub fn gr_resend_push(r: u32) -> Result<Exec<T>, &'static str> {
         let payload_len = 100;
 
         let code = WasmModule::<T>::from(ModuleDefinition {
@@ -750,7 +750,7 @@ where
                     // offset
                     Instruction::I32Const(0),
                     // len
-                    Instruction::I32Const(payload_len as i32),
+                    Instruction::I32Const(payload_len),
                     Instruction::Call(1),
                     Instruction::Drop,
                 ],
@@ -767,7 +767,7 @@ where
         )
     }
 
-    pub fn gr_resend_push_per_kb(n: u32, ) -> Result<Exec<T>, &'static str> {
+    pub fn gr_resend_push_per_kb(n: u32) -> Result<Exec<T>, &'static str> {
         let payload_len = n * 1_024;
 
         let code = WasmModule::<T>::from(ModuleDefinition {

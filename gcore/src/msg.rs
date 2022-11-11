@@ -109,11 +109,7 @@ mod sys {
             message_id_ptr: *mut [u8; 32],
         ) -> SyscallError;
 
-        pub fn gr_resend_push(
-            handle: MessageHandle,
-            offset: u32,
-            len: u32,
-        ) -> SyscallError;
+        pub fn gr_resend_push(handle: MessageHandle, offset: u32, len: u32) -> SyscallError;
 
         #[allow(improper_ctypes)]
         pub fn gr_resend_wgas(
@@ -548,7 +544,13 @@ pub fn rereply_with_gas(gas_limit: u64, value: u128, offset: u32, len: u32) -> R
 }
 
 /// Same as [`rereply_with_gas`], but sends delayed.
-pub fn rereply_with_gas_delayed(gas_limit: u64, value: u128, offset: u32, len: u32, delay: u32) -> Result<MessageId> {
+pub fn rereply_with_gas_delayed(
+    gas_limit: u64,
+    value: u128,
+    offset: u32,
+    len: u32,
+    delay: u32,
+) -> Result<MessageId> {
     let mut message_id = MessageId::default();
 
     unsafe {

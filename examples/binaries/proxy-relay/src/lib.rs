@@ -19,8 +19,8 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
 use codec::{Decode, Encode};
-use scale_info::TypeInfo;
 use gstd::Vec;
+use scale_info::TypeInfo;
 
 #[cfg(feature = "std")]
 mod code {
@@ -74,15 +74,27 @@ mod wasm {
             let end = end.map(|(e, flag)| (e as usize, flag));
             match start.map(|s| s as usize) {
                 Some(s) => match end {
-                    None => { msg::resend_push(msg_handle, s..).expect("Push failed"); }
-                    Some((e, included @ true)) => { msg::resend_push(msg_handle, s..=e).expect("Push failed"); }
-                    Some((e, _)) => { msg::resend_push(msg_handle, s..e).expect("Push failed"); }
-                }
+                    None => {
+                        msg::resend_push(msg_handle, s..).expect("Push failed");
+                    }
+                    Some((e, included @ true)) => {
+                        msg::resend_push(msg_handle, s..=e).expect("Push failed");
+                    }
+                    Some((e, _)) => {
+                        msg::resend_push(msg_handle, s..e).expect("Push failed");
+                    }
+                },
                 None => match end {
-                    None => { msg::resend_push(msg_handle, ..).expect("Push failed"); }
-                    Some((e, included @ true)) => { msg::resend_push(msg_handle, ..=e).expect("Push failed"); }
-                    Some((e, _)) => { msg::resend_push(msg_handle, ..e).expect("Push failed"); }
-                }
+                    None => {
+                        msg::resend_push(msg_handle, ..).expect("Push failed");
+                    }
+                    Some((e, included @ true)) => {
+                        msg::resend_push(msg_handle, ..=e).expect("Push failed");
+                    }
+                    Some((e, _)) => {
+                        msg::resend_push(msg_handle, ..e).expect("Push failed");
+                    }
+                },
             }
 
             msg::send_commit(msg_handle, *destination, msg::value()).expect("Commit failed");
@@ -94,17 +106,25 @@ mod wasm {
         use RelayCall::*;
 
         match RELAY_CALL.as_ref().expect("Relay call is not initialized") {
-            Resend(d) => { msg::resend(*d, msg::value(), ..msg::size() as usize).expect("Resend failed"); }
-            ResendWithGas(d, gas) => { msg::resend_with_gas(*d, *gas, msg::value(), ..).expect("Resend wgas failed"); }
+            Resend(d) => {
+                msg::resend(*d, msg::value(), ..msg::size() as usize).expect("Resend failed");
+            }
+            ResendWithGas(d, gas) => {
+                msg::resend_with_gas(*d, *gas, msg::value(), ..).expect("Resend wgas failed");
+            }
             ResendPush(data) => {
                 resend_push(data);
             }
-            Rereply => { msg::rereply(msg::value(), 0..msg::size() as usize).expect("Rereply failed"); }
+            Rereply => {
+                msg::rereply(msg::value(), 0..msg::size() as usize).expect("Rereply failed");
+            }
             RereplyPush => {
                 msg::rereply_push(0..).expect("Push failed");
                 msg::reply_commit(msg::value()).expect("Commit failed");
             }
-            RereplyWithGas(gas) => { msg::rereply_with_gas(*gas, msg::value(), ..).expect("Rereply wgas failed"); }
+            RereplyWithGas(gas) => {
+                msg::rereply_with_gas(*gas, msg::value(), ..).expect("Rereply wgas failed");
+            }
         }
     }
 

@@ -21,8 +21,8 @@
 use crate::{
     async_runtime::signals,
     errors::{IntoContractResult, Result},
-    msg::{CodecMessageFuture, MessageFuture, utils},
-    prelude::{convert::AsRef, vec, Vec, ops::RangeBounds},
+    msg::{utils, CodecMessageFuture, MessageFuture},
+    prelude::{convert::AsRef, ops::RangeBounds, vec, Vec},
     ActorId, MessageId,
 };
 use codec::{Decode, Output};

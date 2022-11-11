@@ -16,9 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{
-    prelude::ops::{Bound, RangeBounds},
-};
+use crate::prelude::ops::{Bound, RangeBounds};
 
 pub(crate) fn decay_range<Range: RangeBounds<usize>>(range: Range) -> (u32, u32) {
     use Bound::*;

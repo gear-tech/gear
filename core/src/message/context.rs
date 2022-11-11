@@ -291,7 +291,10 @@ impl MessageContext {
 
     /// Pushes the incoming buffer/payload into stored payload by handle.
     pub fn resend_push(&mut self, handle: u32, range: CheckedRange) -> Result<(), Error> {
-        let data = self.store.outgoing.get_mut(&handle)
+        let data = self
+            .store
+            .outgoing
+            .get_mut(&handle)
             .ok_or(Error::OutOfBounds)?
             .as_mut()
             .ok_or(Error::LateAccess)?;
@@ -317,7 +320,10 @@ impl MessageContext {
             offset.saturating_add(len as usize).min(input.len())
         };
 
-        CheckedRange { offset, excluded_end }
+        CheckedRange {
+            offset,
+            excluded_end,
+        }
     }
 
     /// Send reply message.
@@ -373,7 +379,7 @@ impl MessageContext {
                 offset,
                 excluded_end,
             } = range;
-    
+
             let data = self.store.reply.get_or_insert_with(Default::default);
             data.try_extend_from_slice(&self.current.payload()[offset..excluded_end])
                 .map_err(|_| Error::MaxMessageSizeExceed)?;

@@ -7252,10 +7252,45 @@ fn relay_messages() {
 
     test(relay_call, payload, expected);
 
-    test(RelayCall::Resend(USER_3.into()), payload, vec![Expected { user: USER_3, payload: payload.to_vec() }]);
-    test(RelayCall::ResendWithGas(USER_3.into(), 50_000), payload, vec![Expected { user: USER_3, payload: payload.to_vec() }]);
+    test(
+        RelayCall::Resend(USER_3.into()),
+        payload,
+        vec![Expected {
+            user: USER_3,
+            payload: payload.to_vec(),
+        }],
+    );
+    test(
+        RelayCall::ResendWithGas(USER_3.into(), 50_000),
+        payload,
+        vec![Expected {
+            user: USER_3,
+            payload: payload.to_vec(),
+        }],
+    );
 
-    test(RelayCall::Rereply, payload, vec![Expected { user: source, payload: payload.to_vec() }]);
-    test(RelayCall::RereplyPush, payload, vec![Expected { user: source, payload: payload.to_vec() }]);
-    test(RelayCall::RereplyWithGas(60_000), payload, vec![Expected { user: source, payload: payload.to_vec() }]);
+    test(
+        RelayCall::Rereply,
+        payload,
+        vec![Expected {
+            user: source,
+            payload: payload.to_vec(),
+        }],
+    );
+    test(
+        RelayCall::RereplyPush,
+        payload,
+        vec![Expected {
+            user: source,
+            payload: payload.to_vec(),
+        }],
+    );
+    test(
+        RelayCall::RereplyWithGas(60_000),
+        payload,
+        vec![Expected {
+            user: source,
+            payload: payload.to_vec(),
+        }],
+    );
 }
