@@ -19,11 +19,11 @@
 //! This `gstd` module provides async messaging functions.
 
 use crate::{
-    async_runtime::{signals, ReplyPoll},
+    async_runtime::{self, signals, Lock, ReplyPoll},
     errors::{ContractError, Result},
     msg::macros::impl_futures,
     prelude::{convert::AsRef, Vec},
-    ActorId, MessageId,
+    ActorId, Config, MessageId,
 };
 use codec::Decode;
 use core::{
@@ -38,12 +38,25 @@ fn poll<F, R>(waiting_reply_to: MessageId, cx: &mut Context<'_>, f: F) -> Poll<R
 where
     F: Fn(Vec<u8>) -> Result<R>,
 {
+    let msg_id = crate::msg::id();
+
+    // check if message is timed out.
+    if let Some((expected, now)) = async_runtime::locks().is_timeout(msg_id, waiting_reply_to) {
+        // Remove lock after timeout.
+        async_runtime::locks().remove(msg_id, waiting_reply_to);
+
+        return Poll::Ready(Err(ContractError::Timeout(expected, now)));
+    }
+
     match signals().poll(waiting_reply_to, cx) {
         ReplyPoll::None => panic!(
             "Somebody created a future with the MessageId that never ended in static replies!"
         ),
         ReplyPoll::Pending => Poll::Pending,
         ReplyPoll::Some((actual_reply, exit_code)) => {
+            // Remove lock after waking.
+            async_runtime::locks().remove(msg_id, waiting_reply_to);
+
             if exit_code != 0 {
                 return Poll::Ready(Err(ContractError::ExitCode(exit_code)));
             }
