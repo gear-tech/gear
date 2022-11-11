@@ -205,7 +205,7 @@ async fn process_events(
 
         if (utils::now() - now) as usize > wait_for_events_millisec {
             tracing::debug!("Timeout is reached while waiting for events");
-            return Err(anyhow!(utils::TIMEOUT_ERR_STR));
+            return Err(anyhow!(utils::EVENTS_TIMEOUT_ERR_STR));
         }
 
         if matches!(r, Err(GClientError::EventNotFoundInIterator)) {

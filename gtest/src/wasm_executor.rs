@@ -175,7 +175,7 @@ impl WasmExecutor {
             system_reservation: None,
             value_counter: ValueCounter::new(u128::MAX),
             allocations_context: AllocationsContext::new(
-                program.get_allocations().clone(),
+                program.allocations().clone(),
                 program.static_pages(),
                 WasmPageNumber(512u32),
             ),

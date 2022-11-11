@@ -157,7 +157,7 @@ impl TestActor {
 
         Some((
             ExecutableActorData {
-                allocations: program.get_allocations().clone(),
+                allocations: program.allocations().clone(),
                 code_id: *code_id,
                 code_exports: program.code().exports().clone(),
                 code_length_bytes: program.code().code().len() as u32,
@@ -863,14 +863,14 @@ impl JournalHandler for ExtManager {
                     ..
                 }),
             ) => {
-                for page in program
-                    .get_allocations()
+                program
+                    .allocations()
                     .difference(&allocations)
                     .flat_map(|p| p.to_gear_pages_iter())
-                {
-                    pages_data.remove(&page);
-                }
-                *program.get_allocations_mut() = allocations;
+                    .for_each(|ref page| {
+                        pages_data.remove(page);
+                    });
+                program.set_allocations(allocations);
             }
             _ => unreachable!("No pages data found for program"),
         }

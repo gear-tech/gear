@@ -17,19 +17,36 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! Benchmarks for the gear pallet
+//!
+//! ## i32const benchmarking
+//! Wasmer has many optimizations, that optimize i32const usage,
+//! so calculate this instruction constant weight is not easy.
+//! Because of this we suppose that i32const instruction has weight = 0,
+//! in cases we subtract its weight from benchmark weight to calculate
+//! benched instruction weight. But also we suppose i32const == i64const,
+//! when we calculate block code weight. This is more safe solution,
+//! but also more expensive.
+//!
+//! ## Drop, Block, End
+//! This is virtual instruction for wasmer, they aren't really generated in target code,
+//! the only thing they do - wasmer take them in account, when compiles wasm code.
+//! So, we suppose this instruction have weight 0.
 
 #![cfg(feature = "runtime-benchmarks")]
 
 #[allow(dead_code)]
 mod code;
 mod sandbox;
+use ::alloc::vec;
+
 mod syscalls;
 use syscalls::Benches;
 
 use self::{
     code::{
         body::{self, DynInstr::*},
-        max_pages, ImportedMemory, Location, ModuleDefinition, WasmModule, OFFSET_AUX,
+        max_pages, ImportedMemory, Location, ModuleDefinition, TableSegment, WasmModule,
+        OFFSET_AUX,
     },
     sandbox::Sandbox,
 };
@@ -934,30 +951,8 @@ benchmarks! {
         verify_process(res.unwrap());
     }
 
-    // We make the assumption that pushing a constant and dropping a value takes roughly
-    // the same amount of time. We follow that `t.load` and `drop` both have the weight
-    // of this benchmark / 2. We need to make this assumption because there is no way
-    // to measure them on their own using a valid wasm module. We need their individual
-    // values to derive the weight of individual instructions (by subtraction) from
-    // benchmarks that include those for parameter pushing and return type dropping.
-    // We call the weight of `t.load` and `drop`: `w_param`.
-    // The weight that would result from the respective benchmark we call: `w_bench`.
-    //
-    // w_i{32,64}const = w_drop = w_bench / 2
-    instr_i64const {
-        let r in 0 .. INSTR_BENCHMARK_BATCHES;
-        let mut sbox = Sandbox::from(&WasmModule::<T>::from(ModuleDefinition {
-            handle_body: Some(body::repeated_dyn(r * INSTR_BENCHMARK_BATCH_SIZE, vec![
-                RandomI64Repeated(1),
-                Regular(Instruction::Drop),
-            ])),
-            .. Default::default()
-        }));
-    }: {
-        sbox.invoke();
-    }
-
-    // w_i{32,64}load = w_bench - 2 * w_param
+    // TODO: fix it #1728
+    // w_load = w_bench
     instr_i64load {
         let r in 0 .. INSTR_BENCHMARK_BATCHES;
         let mut sbox = Sandbox::from(&WasmModule::<T>::from(ModuleDefinition {
@@ -973,7 +968,8 @@ benchmarks! {
         sbox.invoke();
     }
 
-    // w_i{32,64}store{...} = w_bench - 2 * w_param
+    // TODO: Fix it #1728
+    // w_store = w_bench - w_i64const
     instr_i64store {
         let r in 0 .. INSTR_BENCHMARK_BATCHES;
         let mut sbox = Sandbox::from(&WasmModule::<T>::from(ModuleDefinition {
@@ -989,7 +985,7 @@ benchmarks! {
         sbox.invoke();
     }
 
-    // w_select = w_bench - 4 * w_param
+    // w_select = w_bench - 2 * w_i64const
     instr_select {
         let r in 0 .. INSTR_BENCHMARK_BATCHES;
         let mut sbox = Sandbox::from(&WasmModule::<T>::from(ModuleDefinition {
@@ -1006,43 +1002,37 @@ benchmarks! {
         sbox.invoke();
     }
 
-    // w_if = w_bench - 3 * w_param
+    // w_if = w_bench
     instr_if {
         let r in 0 .. INSTR_BENCHMARK_BATCHES;
-        let mut sbox = Sandbox::from(&WasmModule::<T>::from(ModuleDefinition {
-            handle_body: Some(body::repeated_dyn(r * INSTR_BENCHMARK_BATCH_SIZE, vec![
-                RandomI32(0, 2),
-                Regular(Instruction::If(BlockType::Value(ValueType::I64))),
-                RandomI64Repeated(1),
+        let mut instructions = body::repeated_dyn_instr(
+            r * INSTR_BENCHMARK_BATCH_SIZE,
+            vec![
+                Regular(Instruction::If(BlockType::Value(ValueType::I32))),
+                RandomI32Repeated(1),
                 Regular(Instruction::Else),
-                RandomI64Repeated(1),
+                RandomI32Repeated(1),
                 Regular(Instruction::End),
-                Regular(Instruction::Drop),
-            ])),
-            .. Default::default()
+            ],
+            vec![Instruction::I32Const(1)],
+        );
+        instructions.push(Instruction::Drop);
+        let body = body::from_instructions(instructions);
+        let mut sbox = Sandbox::from(&WasmModule::<T>::from(ModuleDefinition {
+            handle_body: Some(body),
+            ..Default::default()
         }));
     }: {
         sbox.invoke();
     }
 
-    // w_br = w_bench - 2 * w_param
-    // Block instructions are not counted.
+    // w_br = w_bench
     instr_br {
         let r in 0 .. INSTR_BENCHMARK_BATCHES;
         let mut sbox = Sandbox::from(&WasmModule::<T>::from(ModuleDefinition {
             handle_body: Some(body::repeated_dyn(r * INSTR_BENCHMARK_BATCH_SIZE, vec![
                 Regular(Instruction::Block(BlockType::NoResult)),
-                Regular(Instruction::Block(BlockType::NoResult)),
-                Regular(Instruction::Block(BlockType::NoResult)),
-                Regular(Instruction::Br(1)),
-                RandomI64Repeated(1),
-                Regular(Instruction::Drop),
-                Regular(Instruction::End),
-                RandomI64Repeated(1),
-                Regular(Instruction::Drop),
-                Regular(Instruction::End),
-                RandomI64Repeated(1),
-                Regular(Instruction::Drop),
+                Regular(Instruction::Br(0)),
                 Regular(Instruction::End),
             ])),
             .. Default::default()
@@ -1051,25 +1041,14 @@ benchmarks! {
         sbox.invoke();
     }
 
-    // w_br_if = w_bench - 3 * w_param
-    // Block instructions are not counted.
+    // w_br_if = w_bench - w_i64const
     instr_br_if {
         let r in 0 .. INSTR_BENCHMARK_BATCHES;
         let mut sbox = Sandbox::from(&WasmModule::<T>::from(ModuleDefinition {
             handle_body: Some(body::repeated_dyn(r * INSTR_BENCHMARK_BATCH_SIZE, vec![
                 Regular(Instruction::Block(BlockType::NoResult)),
-                Regular(Instruction::Block(BlockType::NoResult)),
-                Regular(Instruction::Block(BlockType::NoResult)),
-                Regular(Instruction::I32Const(1)),
-                Regular(Instruction::BrIf(1)),
-                RandomI64Repeated(1),
-                Regular(Instruction::Drop),
-                Regular(Instruction::End),
-                RandomI64Repeated(1),
-                Regular(Instruction::Drop),
-                Regular(Instruction::End),
-                RandomI64Repeated(1),
-                Regular(Instruction::Drop),
+                RandomI32(0, 2),
+                Regular(Instruction::BrIf(0)),
                 Regular(Instruction::End),
             ])),
             .. Default::default()
@@ -1078,29 +1057,18 @@ benchmarks! {
         sbox.invoke();
     }
 
-    // w_br_table = w_bench - 3 * w_param
-    // Block instructions are not counted.
+    // w_br_table = w_bench
     instr_br_table {
         let r in 0 .. INSTR_BENCHMARK_BATCHES;
         let table = Box::new(BrTableData {
-            table: Box::new([1, 1, 1]),
-            default: 1,
+            table: Box::new([0]),
+            default: 0,
         });
         let mut sbox = Sandbox::from(&WasmModule::<T>::from(ModuleDefinition {
             handle_body: Some(body::repeated_dyn(r * INSTR_BENCHMARK_BATCH_SIZE, vec![
                 Regular(Instruction::Block(BlockType::NoResult)),
-                Regular(Instruction::Block(BlockType::NoResult)),
-                Regular(Instruction::Block(BlockType::NoResult)),
-                RandomI32(0, 4),
+                RandomI32Repeated(1),
                 Regular(Instruction::BrTable(table)),
-                RandomI64Repeated(1),
-                Regular(Instruction::Drop),
-                Regular(Instruction::End),
-                RandomI64Repeated(1),
-                Regular(Instruction::Drop),
-                Regular(Instruction::End),
-                RandomI64Repeated(1),
-                Regular(Instruction::Drop),
                 Regular(Instruction::End),
             ])),
             .. Default::default()
@@ -1143,45 +1111,46 @@ benchmarks! {
         sbox.invoke();
     }
 
-    // w_call = w_bench - 2 * w_param
+    // w_call = w_bench
     instr_call {
         let r in 0 .. INSTR_BENCHMARK_BATCHES;
         let mut sbox = Sandbox::from(&WasmModule::<T>::from(ModuleDefinition {
-            // We need to make use of the stack here in order to trigger stack height
-            // instrumentation.
-            aux_body: Some(body::plain(vec![
-                Instruction::I64Const(42),
-                Instruction::Drop,
-                Instruction::End,
-            ])),
+            aux_body: Some(body::plain(vec![Instruction::End])),
             handle_body: Some(body::repeated(r * INSTR_BENCHMARK_BATCH_SIZE, &[
                 Instruction::Call(OFFSET_AUX),
             ])),
-            inject_stack_metering: false,
             .. Default::default()
         }));
     }: {
         sbox.invoke();
     }
 
-    // w_call_indirect = w_bench - 3 * w_param
+     // w_i64const = w_bench - w_call
+     instr_call_const {
+         let r in 0 .. INSTR_BENCHMARK_BATCHES;
+         let mut sbox = Sandbox::from(&WasmModule::<T>::from(ModuleDefinition {
+             aux_body: Some(body::plain(vec![Instruction::I64Const(0x7ffffffff3ffffff), Instruction::End])),
+             aux_res: Some(ValueType::I64),
+             handle_body: Some(body::repeated(r * INSTR_BENCHMARK_BATCH_SIZE, &[
+                 Instruction::Call(OFFSET_AUX),
+                 Instruction::Drop,
+             ])),
+             .. Default::default()
+         }));
+     }: {
+         sbox.invoke();
+     }
+
+    // w_call_indirect = w_bench
     instr_call_indirect {
         let r in 0 .. INSTR_BENCHMARK_BATCHES;
         let num_elements = T::Schedule::get().limits.table_size;
-        use self::code::TableSegment;
         let mut sbox = Sandbox::from(&WasmModule::<T>::from(ModuleDefinition {
-            // We need to make use of the stack here in order to trigger stack height
-            // instrumentation.
-            aux_body: Some(body::plain(vec![
-                Instruction::I64Const(42),
-                Instruction::Drop,
-                Instruction::End,
-            ])),
+            aux_body: Some(body::plain(vec![Instruction::End])),
             handle_body: Some(body::repeated_dyn(r * INSTR_BENCHMARK_BATCH_SIZE, vec![
                 RandomI32(0, num_elements as i32),
-                Regular(Instruction::CallIndirect(0, 0)), // we only have one sig: 0
+                Regular(Instruction::CallIndirect(0, 0)),
             ])),
-            inject_stack_metering: false,
             table: Some(TableSegment {
                 num_elements,
                 function_index: OFFSET_AUX,
@@ -1192,29 +1161,20 @@ benchmarks! {
         sbox.invoke();
     }
 
-    // w_instr_call_indirect_per_param = w_bench - 1 * w_param
+    // w_instr_call_indirect_per_param = w_bench - w_i64const
     // Calling a function indirectly causes it to go through a thunk function whose runtime
     // linearly depend on the amount of parameters to this function.
-    // Please note that this is not necessary with a direct call.
     instr_call_indirect_per_param {
         let p in 0 .. T::Schedule::get().limits.parameters;
         let num_elements = T::Schedule::get().limits.table_size;
-        use self::code::TableSegment;
         let mut sbox = Sandbox::from(&WasmModule::<T>::from(ModuleDefinition {
-            // We need to make use of the stack here in order to trigger stack height
-            // instrumentation.
-            aux_body: Some(body::plain(vec![
-                Instruction::I64Const(42),
-                Instruction::Drop,
-                Instruction::End,
-            ])),
+            aux_body: Some(body::plain(vec![Instruction::End])),
             aux_arg_num: p,
             handle_body: Some(body::repeated_dyn(INSTR_BENCHMARK_BATCH_SIZE, vec![
                 RandomI64Repeated(p as usize),
                 RandomI32(0, num_elements as i32),
                 Regular(Instruction::CallIndirect(p.min(1), 0)), // aux signature: 1 or 0
             ])),
-            inject_stack_metering: false,
             table: Some(TableSegment {
                 num_elements,
                 function_index: OFFSET_AUX,
@@ -1225,7 +1185,7 @@ benchmarks! {
         sbox.invoke();
     }
 
-    // w_local_get = w_bench - 1 * w_param
+    // w_local_get = w_bench
     instr_local_get {
         let r in 0 .. INSTR_BENCHMARK_BATCHES;
         let max_locals = T::Schedule::get().limits.stack_height.unwrap_or(512);
@@ -1242,7 +1202,7 @@ benchmarks! {
         sbox.invoke();
     }
 
-    // w_local_set = w_bench - 1 * w_param
+    // w_local_set = w_bench - w_i64const
     instr_local_set {
         let r in 0 .. INSTR_BENCHMARK_BATCHES;
         let max_locals = T::Schedule::get().limits.stack_height.unwrap_or(512);
@@ -1259,7 +1219,7 @@ benchmarks! {
         sbox.invoke();
     }
 
-    // w_local_tee = w_bench - 2 * w_param
+    // w_local_tee = w_bench - w_i64const
     instr_local_tee {
         let r in 0 .. INSTR_BENCHMARK_BATCHES;
         let max_locals = T::Schedule::get().limits.stack_height.unwrap_or(512);
@@ -1277,7 +1237,7 @@ benchmarks! {
         sbox.invoke();
     }
 
-    // w_global_get = w_bench - 1 * w_param
+    // w_global_get = w_bench
     instr_global_get {
         let r in 0 .. INSTR_BENCHMARK_BATCHES;
         let max_globals = T::Schedule::get().limits.globals;
@@ -1293,7 +1253,7 @@ benchmarks! {
         sbox.invoke();
     }
 
-    // w_global_set = w_bench - 1 * w_param
+    // w_global_set = w_bench - w_i64const
     instr_global_set {
         let r in 0 .. INSTR_BENCHMARK_BATCHES;
         let max_globals = T::Schedule::get().limits.globals;
@@ -1309,7 +1269,7 @@ benchmarks! {
         sbox.invoke();
     }
 
-    // w_memory_get = w_bench - 1 * w_param
+    // w_memory_get = w_bench
     instr_memory_current {
         let r in 0 .. INSTR_BENCHMARK_BATCHES;
         let mut sbox = Sandbox::from(&WasmModule::<T>::from(ModuleDefinition {
@@ -1325,7 +1285,7 @@ benchmarks! {
     }
 
     // Unary numeric instructions.
-    // All use w = w_bench - 2 * w_param.
+    // All use w = w_bench - w_i64const
 
     instr_i64clz {
         let r in 0 .. INSTR_BENCHMARK_BATCHES;
@@ -1367,6 +1327,7 @@ benchmarks! {
         sbox.invoke();
     }
 
+    // w_extends = w_bench
     instr_i64extendsi32 {
         let r in 0 .. INSTR_BENCHMARK_BATCHES;
         let mut sbox = Sandbox::from(&WasmModule::<T>::from(ModuleDefinition {
@@ -1381,6 +1342,7 @@ benchmarks! {
         sbox.invoke();
     }
 
+    // w_extendu = w_bench
     instr_i64extendui32 {
         let r in 0 .. INSTR_BENCHMARK_BATCHES;
         let mut sbox = Sandbox::from(&WasmModule::<T>::from(ModuleDefinition {
@@ -1406,7 +1368,7 @@ benchmarks! {
     }
 
     // Binary numeric instructions.
-    // All use w = w_bench - 3 * w_param.
+    // All use w = w_bench - 2 * w_i64const
 
     instr_i64eq {
         let r in 0 .. INSTR_BENCHMARK_BATCHES;

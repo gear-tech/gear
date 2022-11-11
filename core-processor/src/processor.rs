@@ -19,7 +19,7 @@
 use crate::{
     common::{
         Actor, DispatchOutcome, DispatchResult, DispatchResultKind, ExecutableActorData,
-        ExecutionErrorReason, JournalNote, PrechargedDispatch, WasmExecutionContext,
+        ExecutionErrorReason, GasOperation, JournalNote, PrechargedDispatch, WasmExecutionContext,
     },
     configs::{BlockConfig, ExecutionSettings, MessageExecutionContext},
     executor,
@@ -217,7 +217,7 @@ pub fn precharge(
                 destination_id,
                 gas_burned,
                 system_reservation_ctx,
-                ExecutionErrorReason::ProgramDataGasExceeded,
+                ExecutionErrorReason::GasExceeded(GasOperation::ProgramData),
             ))
         }
         BlockGasExceeded => {
@@ -286,7 +286,7 @@ pub fn prepare(
                 dispatch,
                 program_id,
                 gas_counter,
-                ExecutionErrorReason::ProgramCodeGasExceeded,
+                ExecutionErrorReason::GasExceeded(GasOperation::ProgramCode),
             );
         }
         ChargeForBytesResult::BlockGasExceeded => {
@@ -320,12 +320,12 @@ pub fn prepare(
         Err(reason) => {
             log::debug!("Failed to charge for module instantiation or memory pages: {reason:?}");
             return match reason {
-                ExecutionErrorReason::InitialMemoryBlockGasExceeded
-                | ExecutionErrorReason::GrowMemoryBlockGasExceeded
-                | ExecutionErrorReason::LoadMemoryBlockGasExceeded
-                | ExecutionErrorReason::ModuleInstantiationBlockGasExceeded => {
-                    prepare_allowance_exceed(dispatch, program_id, gas_counter)
-                }
+                ExecutionErrorReason::BlockGasExceeded(
+                    GasOperation::InitialMemory
+                    | GasOperation::GrowMemory
+                    | GasOperation::LoadMemory
+                    | GasOperation::ModuleInstantiation,
+                ) => prepare_allowance_exceed(dispatch, program_id, gas_counter),
                 _ => prepare_error(dispatch, program_id, gas_counter, reason),
             };
         }
@@ -448,11 +448,9 @@ pub fn process<
             }
         },
         Err(e) => match e.reason {
-            ExecutionErrorReason::InitialMemoryBlockGasExceeded
-            | ExecutionErrorReason::GrowMemoryBlockGasExceeded
-            | ExecutionErrorReason::LoadMemoryBlockGasExceeded => {
-                process_allowance_exceed(dispatch, program_id, e.gas_amount.burned())
-            }
+            ExecutionErrorReason::BlockGasExceeded(
+                GasOperation::InitialMemory | GasOperation::GrowMemory | GasOperation::LoadMemory,
+            ) => process_allowance_exceed(dispatch, program_id, e.gas_amount.burned()),
             _ => process_error(
                 dispatch,
                 program_id,

@@ -21,8 +21,9 @@ use frame_support::traits::{Currency, Get};
 use frame_system::RawOrigin;
 use gear_core::{
     code::{Code, CodeAndId},
-    ids::{CodeId, MessageId, ProgramId},
+    ids::{CodeId, MessageId, ProgramId, ReservationId},
     message::{Dispatch, DispatchKind, Message, ReplyDetails},
+    reservation::GasReservationSlot,
 };
 use gear_wasm_instrument::{parity_wasm::elements::Instruction, syscalls::syscall_signature};
 use sp_core::H256;
@@ -245,6 +246,7 @@ where
 {
     fn prepare_handle(code: WasmModule<T>, value: u32) -> Result<Exec<T>, &'static str> {
         let instance = Program::<T>::new(code, vec![])?;
+
         prepare::<T>(
             instance.caller.into_origin(),
             HandleKind::Handle(ProgramId::from_origin(instance.addr)),
@@ -323,40 +325,66 @@ where
         Self::prepare_handle(code, 0)
     }
 
-    // TODO: currently each syscall execution returns error: ExecutionError::InvalidReservationId.
-    // We need to fill reservations set with data first. (issue #1724)
     pub fn gr_unreserve_gas(r: u32) -> Result<Exec<T>, &'static str> {
-        let id_bytes = u128::MAX.encode();
-        let id_len = id_bytes.len() as u32;
-        let id_offset = 1;
-        let amount_bytes = 1000u64.encode();
-        let amount_offset = id_offset + id_len;
+        let reservation_id_offset = 1;
+        let reservation_ids = (0..r * API_BENCHMARK_BATCH_SIZE)
+            .map(|i| ReservationId::from(i as u64))
+            .collect::<Vec<_>>();
+        let reservation_id_bytes: Vec<u8> =
+            reservation_ids.iter().flat_map(|x| x.encode()).collect();
+
+        let amount_bytes = 1_000u64.encode();
+        let amount_offset = reservation_id_offset + reservation_id_bytes.len();
 
         let code = WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
             imported_functions: vec!["gr_unreserve_gas"],
             data_segments: vec![
                 DataSegment {
-                    offset: id_offset,
-                    value: id_bytes,
+                    offset: reservation_id_offset as u32,
+                    value: reservation_id_bytes,
                 },
                 DataSegment {
-                    offset: amount_offset,
+                    offset: amount_offset as u32,
                     value: amount_bytes,
                 },
             ],
-            handle_body: Some(body::repeated(
+            handle_body: Some(body::repeated_dyn(
                 r * API_BENCHMARK_BATCH_SIZE,
-                &[
-                    Instruction::I32Const(id_offset as i32),     // id ptr
-                    Instruction::I32Const(amount_offset as i32), // unreserved amount ptr
-                    Instruction::Call(0),
-                    Instruction::Drop,
+                vec![
+                    Counter(
+                        reservation_id_offset as u32,
+                        size_of::<ReservationId>() as u32,
+                    ), // reservation_id ptr
+                    Regular(Instruction::I32Const(amount_offset as i32)), // unreserved amount ptr
+                    Regular(Instruction::Call(0)),
+                    Regular(Instruction::Drop),
                 ],
             )),
             ..Default::default()
         });
-        Self::prepare_handle(code, 0)
+
+        let instance = Program::<T>::new(code, vec![])?;
+
+        // insert gas reservation slots
+        let mut program = common::get_active_program(instance.addr).unwrap();
+        for x in 0..r * API_BENCHMARK_BATCH_SIZE {
+            program.gas_reservation_map.insert(
+                ReservationId::from(x as u64),
+                GasReservationSlot {
+                    amount: 1_000,
+                    expiration: 100,
+                },
+            );
+        }
+        common::set_program(instance.addr, program);
+
+        prepare::<T>(
+            instance.caller.into_origin(),
+            HandleKind::Handle(ProgramId::from_origin(instance.addr)),
+            vec![],
+            0,
+        )
     }
 
     pub fn gr_system_reserve_gas(r: u32) -> Result<Exec<T>, &'static str> {
@@ -468,13 +496,7 @@ where
             )),
             ..Default::default()
         });
-        let instance = Program::<T>::new(code, vec![])?;
-        prepare::<T>(
-            instance.caller.into_origin(),
-            HandleKind::Handle(ProgramId::from_origin(instance.addr)),
-            vec![],
-            0u32.into(),
-        )
+        Self::prepare_handle(code, 0)
     }
 
     pub fn gr_send_init(r: u32) -> Result<Exec<T>, &'static str> {
@@ -680,7 +702,7 @@ where
         });
         let instance = Program::<T>::new(code, vec![])?;
         let msg_id = MessageId::from(10);
-        let msg = gear_core::message::Message::new(
+        let msg = Message::new(
             msg_id,
             instance.addr.as_bytes().into(),
             ProgramId::from(instance.caller.clone().into_origin().as_bytes()),
@@ -718,7 +740,7 @@ where
         });
         let instance = Program::<T>::new(code, vec![])?;
         let msg_id = MessageId::from(10);
-        let msg = gear_core::message::Message::new(
+        let msg = Message::new(
             msg_id,
             instance.addr.as_bytes().into(),
             ProgramId::from(instance.caller.clone().into_origin().as_bytes()),
@@ -804,7 +826,7 @@ where
 
     pub fn gr_wake(r: u32) -> Result<Exec<T>, &'static str> {
         let offset = 1;
-        let message_ids = (0..r)
+        let message_ids = (0..r * API_BENCHMARK_BATCH_SIZE)
             .map(|i| MessageId::from(i as u64))
             .collect::<Vec<_>>();
         let message_id_bytes = message_ids.iter().flat_map(|x| x.encode()).collect();
@@ -829,8 +851,9 @@ where
         });
 
         let instance = Program::<T>::new(code, vec![])?;
+
         for message_id in message_ids {
-            let message = gear_core::message::Message::new(
+            let message = Message::new(
                 message_id,
                 1.into(),
                 ProgramId::from(instance.addr.as_bytes()),
@@ -839,19 +862,16 @@ where
                 0,
                 None,
             );
-            let dispatch = gear_core::message::Dispatch::new(
-                gear_core::message::DispatchKind::Handle,
-                message,
-            )
-            .into_stored();
-            WaitlistOf::<T>::insert(dispatch.clone(), u32::MAX.unique_saturated_into())
+            let dispatch = Dispatch::new(DispatchKind::Handle, message).into_stored();
+            WaitlistOf::<T>::insert(dispatch, u32::MAX.unique_saturated_into())
                 .expect("Duplicate wl message");
         }
+
         prepare::<T>(
             instance.caller.into_origin(),
             HandleKind::Handle(ProgramId::from_origin(instance.addr)),
             vec![],
-            0u32.into(),
+            0,
         )
     }
 
