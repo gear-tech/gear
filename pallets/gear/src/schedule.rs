@@ -344,6 +344,9 @@ pub struct HostFnWeights<T: Config> {
     /// Weight of calling `gr_reply_commit`.
     pub gr_reply_commit: u64,
 
+    /// Weight of calling `gr_reservation_reply_commit`.
+    pub gr_reservation_reply_commit: u64,
+
     /// Weight of calling `gr_reply_push`.
     pub gr_reply_push: u64,
 
@@ -616,6 +619,7 @@ impl<T: Config> HostFnWeights<T> {
             gr_reservation_send_commit: self.gr_reservation_send_commit,
             gr_reservation_send_commit_per_byte: self.gr_reservation_send_commit_per_byte,
             gr_reply_commit: self.gr_reply_commit,
+            gr_reservation_reply_commit: self.gr_reservation_reply_commit,
             gr_reply_push: self.gr_reply_push,
             gr_reply_push_per_byte: self.gr_reply_push_per_byte,
             gr_debug: self.gr_debug,
@@ -663,6 +667,7 @@ impl<T: Config> Default for HostFnWeights<T> {
             gr_reservation_send_commit: 1000, // TODO: add benches
             gr_reservation_send_commit_per_byte: 1000,
             gr_reply_commit: cost_batched!(gr_reply_commit),
+            gr_reservation_reply_commit: 1000, // TODO: add benches
             gr_reply_push: cost_batched!(gr_reply_push),
             gr_reply_push_per_byte: cost_byte_batched!(gr_reply_push_per_kb),
             gr_debug: cost_batched!(gr_debug),

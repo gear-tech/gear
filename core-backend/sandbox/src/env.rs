@@ -155,6 +155,11 @@ where
         builder.add_func("gr_reply", Funcs::reply);
         builder.add_func("gr_reply_commit", Funcs::reply_commit);
         builder.add_func("gr_reply_commit_wgas", Funcs::reply_commit_wgas);
+        builder.add_func("gr_reservation_reply", Funcs::reservation_reply);
+        builder.add_func(
+            "gr_reservation_reply_commit",
+            Funcs::reservation_reply_commit,
+        );
         builder.add_func("gr_reply_push", Funcs::reply_push);
         builder.add_func("gr_reply_to", Funcs::reply_to);
         builder.add_func("gr_reply_wgas", Funcs::reply_wgas);

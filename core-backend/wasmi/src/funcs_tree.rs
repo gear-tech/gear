@@ -103,6 +103,12 @@ where
         f.build("gr_reply_push", |forbidden| {
             F::reply_push(store, forbidden, memory)
         }),
+        f.build("gr_reservation_reply", |forbidden| {
+            F::reservation_reply(store, forbidden, memory)
+        }),
+        f.build("gr_reservation_reply_commit", |forbidden| {
+            F::reservation_reply_commit(store, forbidden, memory)
+        }),
         f.build("gr_debug", |forbidden| F::debug(store, forbidden, memory)),
         f.build("gr_gas_available", |forbidden| {
             F::gas_available(store, forbidden)

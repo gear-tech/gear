@@ -521,6 +521,50 @@ where
         })
     }
 
+    pub fn reservation_reply(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
+        sys_trace!(target: "syscall::gear", "reservation_reply, args = {}", args_to_str(args));
+
+        let (reservation_id_ptr, payload_ptr, payload_len, value_ptr, delay, message_id_ptr) =
+            args.iter().read_6()?;
+
+        ctx.run(|ctx| {
+            let reservation_id = ctx.read_memory_as(reservation_id_ptr)?;
+            let payload = ctx.read_memory(payload_ptr, payload_len)?.try_into()?;
+            let value = ctx.read_memory_as(value_ptr)?;
+
+            ctx.ext
+                .reservation_reply(reservation_id, ReplyPacket::new(payload, value), delay)
+                .process_error()
+                .map_err(FuncError::Core)?
+                .error_len_on_success(|message_id| {
+                    ctx.write_output(message_id_ptr, message_id.as_ref())
+                })
+        })
+    }
+
+    pub fn reservation_reply_commit(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
+        sys_trace!(target: "syscall::gear", "reservation_reply_commit, args = {}", args_to_str(args));
+
+        let (reservation_id_ptr, value_ptr, delay, message_id_ptr) = args.iter().read_4()?;
+
+        ctx.run(|ctx| {
+            let reservation_id = ctx.read_memory_as(reservation_id_ptr)?;
+            let value = ctx.read_memory_as(value_ptr)?;
+
+            ctx.ext
+                .reservation_reply_commit(
+                    reservation_id,
+                    ReplyPacket::new(Default::default(), value),
+                    delay,
+                )
+                .process_error()
+                .map_err(FuncError::Core)?
+                .error_len_on_success(|message_id| {
+                    ctx.write_output(message_id_ptr, message_id.as_ref())
+                })
+        })
+    }
+
     pub fn reply_to(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
         sys_trace!(target: "syscall::gear", "reply_to, args = {}", args_to_str(args));
 

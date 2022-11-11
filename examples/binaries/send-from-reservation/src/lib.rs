@@ -35,8 +35,20 @@ pub enum HandleAction {
     SendToUserDelayed,
     SendToProgram([u8; 32]),
     SendToProgramDelayed([u8; 32]),
+    ReplyToUser,
+    ReplyToUserDelayed,
+    ReplyToProgram { pid: [u8; 32], user: [u8; 32] },
+    ReplyToProgramStep2([u8; 32]),
+    ReplyToProgramDelayed { pid: [u8; 32], user: [u8; 32] },
+    ReplyToProgramDelayedStep2([u8; 32]),
     ReceiveFromProgram,
     ReceiveFromProgramDelayed,
+}
+
+#[derive(Debug, Encode, Decode)]
+pub enum ReplyAction {
+    Receive([u8; 32]),
+    ReceiveDelayed([u8; 32]),
 }
 
 #[no_mangle]
@@ -70,11 +82,54 @@ unsafe extern "C" fn handle() {
             )
             .unwrap();
         }
+        HandleAction::ReplyToUser => {
+            let id = ReservationId::reserve(7_000_000_000, 90).unwrap();
+            msg::reply_from_reservation(id, "reply_to_user", 900).unwrap();
+        }
+        HandleAction::ReplyToUserDelayed => {
+            let id = ReservationId::reserve(8_000_000_000, 100).unwrap();
+            msg::reply_delayed_from_reservation(id, "reply_to_user_delayed", 1000, 1).unwrap();
+        }
+        HandleAction::ReplyToProgram { pid, user } => {
+            msg::send(pid.into(), HandleAction::ReplyToProgramStep2(user), 900).unwrap();
+        }
+        HandleAction::ReplyToProgramStep2(user) => {
+            let id = ReservationId::reserve(7_000_000_000, 90).unwrap();
+            msg::reply_from_reservation(id, ReplyAction::Receive(user), 900).unwrap();
+        }
+        HandleAction::ReplyToProgramDelayed { pid, user } => {
+            msg::send(
+                pid.into(),
+                HandleAction::ReplyToProgramDelayedStep2(user),
+                1000,
+            )
+            .unwrap();
+        }
+        HandleAction::ReplyToProgramDelayedStep2(user) => {
+            let id = ReservationId::reserve(8_000_000_000, 100).unwrap();
+            msg::reply_delayed_from_reservation(id, ReplyAction::ReceiveDelayed(user), 1000, 1)
+                .unwrap();
+        }
         HandleAction::ReceiveFromProgram => {
             assert_eq!(msg::value(), 700);
         }
         HandleAction::ReceiveFromProgramDelayed => {
             assert_eq!(msg::value(), 800);
+        }
+    }
+}
+
+#[no_mangle]
+unsafe extern "C" fn handle_reply() {
+    let action: ReplyAction = msg::load().unwrap();
+    match action {
+        ReplyAction::Receive(user) => {
+            assert_eq!(msg::value(), 900);
+            msg::send(user.into(), "reply", 900).unwrap();
+        }
+        ReplyAction::ReceiveDelayed(user) => {
+            assert_eq!(msg::value(), 1000);
+            msg::send(user.into(), "reply_delayed", 1000).unwrap();
         }
     }
 }

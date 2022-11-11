@@ -109,9 +109,27 @@ pub trait Ext {
     /// Complete reply message and send it to source program.
     fn reply_commit(&mut self, msg: ReplyPacket, delay: u32) -> Result<MessageId, Self::Error>;
 
+    /// Complete reply message and send it to source program from reservation.
+    fn reservation_reply_commit(
+        &mut self,
+        id: ReservationId,
+        msg: ReplyPacket,
+        delay: u32,
+    ) -> Result<MessageId, Self::Error>;
+
     /// Produce reply to the current message.
     fn reply(&mut self, msg: ReplyPacket, delay: u32) -> Result<MessageId, Self::Error> {
         self.reply_commit(msg, delay)
+    }
+
+    /// Produce reply to the current message from reservation.
+    fn reservation_reply(
+        &mut self,
+        id: ReservationId,
+        msg: ReplyPacket,
+        delay: u32,
+    ) -> Result<MessageId, Self::Error> {
+        self.reservation_reply_commit(id, msg, delay)
     }
 
     /// Get the message id of the initial message.

@@ -100,6 +100,9 @@ pub struct HostFnWeights {
     /// Weight of calling `gr_reply_commit`.
     pub gr_reply_commit: u64,
 
+    /// Weight of calling `gr_reservation_reply_commit`.
+    pub gr_reservation_reply_commit: u64,
+
     /// Weight of calling `gr_reply_push`.
     pub gr_reply_push: u64,
 
@@ -216,6 +219,8 @@ pub enum RuntimeCosts {
     ReservationSendCommit(u32),
     /// Weight of calling `gr_reply_commit`.
     ReplyCommit,
+    /// Weight of calling `gr_reservation_reply_commit`.
+    ReservationReplyCommit,
     /// Weight of calling `gr_reply_push`.
     ReplyPush(u32),
     /// Weight of calling `gr_reply_to`.
@@ -275,6 +280,7 @@ impl RuntimeCosts {
                     .saturating_mul(len.into()),
             ),
             ReplyCommit => s.gr_reply_commit,
+            ReservationReplyCommit => s.gr_reservation_reply_commit,
             ReplyPush(len) => s
                 .gr_reply_push
                 .saturating_add(s.gr_reply_push_per_byte.saturating_mul(len.into())),

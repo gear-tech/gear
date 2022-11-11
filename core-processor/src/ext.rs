@@ -349,6 +349,19 @@ impl Ext {
 
         self.return_and_store_err(res)
     }
+
+    fn charge_sending_fee(&mut self, delay: u32) -> Result<(), ProcessorError> {
+        if delay == 0 {
+            self.charge_gas(self.context.message_context.settings().sending_fee())
+        } else {
+            self.charge_gas(
+                self.context
+                    .message_context
+                    .settings()
+                    .scheduled_sending_fee(),
+            )
+        }
+    }
 }
 
 impl EnvExt for Ext {
@@ -402,16 +415,7 @@ impl EnvExt for Ext {
         self.check_forbidden_call(msg.destination())?;
         self.charge_expiring_resources(&msg)?;
 
-        if delay == 0 {
-            self.charge_gas(self.context.message_context.settings().sending_fee())?;
-        } else {
-            self.charge_gas(
-                self.context
-                    .message_context
-                    .settings()
-                    .scheduled_sending_fee(),
-            )?;
-        }
+        self.charge_sending_fee(delay)?;
 
         let result = self
             .context
@@ -436,19 +440,10 @@ impl EnvExt for Ext {
 
         self.check_message_value(msg.value())?;
         let _gas_limit = self.check_gas_limit(msg.gas_limit())?;
-        // TODO: charge gas from reservation when sending from reservation with gas limit is discussed
+        // TODO: charge gas from reservation when sending from reservation with gas limit when discussed
         self.charge_message_value(msg.value())?;
 
-        if delay == 0 {
-            self.charge_gas(self.context.message_context.settings().sending_fee())?;
-        } else {
-            self.charge_gas(
-                self.context
-                    .message_context
-                    .settings()
-                    .scheduled_sending_fee(),
-            )?;
-        }
+        self.charge_sending_fee(delay)?;
 
         let result = self
             .context
@@ -471,18 +466,34 @@ impl EnvExt for Ext {
         self.check_forbidden_call(self.context.message_context.reply_destination())?;
         self.charge_expiring_resources(&msg)?;
 
-        if delay == 0 {
-            self.charge_gas(self.context.message_context.settings().sending_fee())?;
-        } else {
-            self.charge_gas(
-                self.context
-                    .message_context
-                    .settings()
-                    .scheduled_sending_fee(),
-            )?;
-        }
+        self.charge_sending_fee(delay)?;
 
-        let result = self.context.message_context.reply_commit(msg, delay);
+        let result = self.context.message_context.reply_commit(msg, delay, None);
+
+        self.return_and_store_err(result)
+    }
+
+    fn reservation_reply_commit(
+        &mut self,
+        id: ReservationId,
+        msg: ReplyPacket,
+        delay: u32,
+    ) -> Result<MessageId, Self::Error> {
+        self.charge_gas_runtime(RuntimeCosts::ReservationReplyCommit)?;
+
+        self.check_forbidden_call(self.context.message_context.reply_destination())?;
+
+        self.check_message_value(msg.value())?;
+        let _gas_limit = self.check_gas_limit(msg.gas_limit())?;
+        // TODO: charge gas from reservation when replying from reservation with gas limit when discussed
+        self.charge_message_value(msg.value())?;
+
+        self.charge_sending_fee(delay)?;
+
+        let result = self
+            .context
+            .message_context
+            .reply_commit(msg, delay, Some(id));
 
         self.return_and_store_err(result)
     }

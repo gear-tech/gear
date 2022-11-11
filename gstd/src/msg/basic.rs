@@ -228,6 +228,27 @@ pub fn reply_bytes_delayed(
     gcore::msg::reply_delayed(payload.as_ref(), value, delay).into_contract_result()
 }
 
+/// Same as [`reply`](crate::msg::reply_from_reservation), without encoding payload.
+#[wait_for_reply]
+pub fn reply_bytes_from_reservation(
+    id: ReservationId,
+    payload: impl AsRef<[u8]>,
+    value: u128,
+) -> Result<MessageId> {
+    gcore::msg::reply_from_reservation(id.into(), payload.as_ref(), value).into_contract_result()
+}
+
+/// Same as [`reply_bytes_from_reservation`], but sends delayed.
+pub fn reply_bytes_delayed_from_reservation(
+    id: ReservationId,
+    payload: impl AsRef<[u8]>,
+    value: u128,
+    delay: u32,
+) -> Result<MessageId> {
+    gcore::msg::reply_delayed_from_reservation(id.into(), payload.as_ref(), value, delay)
+        .into_contract_result()
+}
+
 /// Same as [`reply_bytes`], with gas limit.
 #[wait_for_reply]
 pub fn reply_bytes_with_gas(
@@ -287,6 +308,53 @@ pub fn reply_commit(value: u128) -> Result<MessageId> {
 /// Same as [`reply_commit`], but sends delayed.
 pub fn reply_commit_delayed(value: u128, delay: u32) -> Result<MessageId> {
     gcore::msg::reply_commit_delayed(value, delay).into_contract_result()
+}
+
+/// Finalize and send a current reply message from reservation.
+///
+/// Some programs can reply on their messages to other programs, i.e. check
+/// another program's state and use it as a parameter for its own business
+/// logic. Basic implementation is covered in [`reply`](crate::msg::reply_from_reservation)
+/// function.
+///
+/// This function allows sending reply messages filled with payload parts sent
+/// via [`reply_push`] during the message handling. Finalization of the
+/// reply message is done via [`reply_commit_from_reservation`] function similar to
+/// [`send_commit_from_reservation`].
+///
+/// # Examples
+///
+/// ```
+/// use gstd::{exec, msg, ReservationId};
+///
+/// unsafe extern "C" fn handle() {
+///     // ...
+///     let id = ReservationId::reserve(5_000_000, 100).expect("enough gas");
+///     // ...
+///     msg::reply_push(b"Part 1").unwrap();
+///     // ...
+///     msg::reply_push(b"Part 2").unwrap();
+///     // ...
+///     msg::reply_commit_from_reservation(id, 42).unwrap();
+/// }
+/// ```
+///
+/// # See also
+///
+/// [`reply_push`] function allows to form a reply message in parts.
+#[wait_for_reply]
+pub fn reply_commit_from_reservation(id: ReservationId, value: u128) -> Result<MessageId> {
+    gcore::msg::reply_commit_from_reservation(id.into(), value).into_contract_result()
+}
+
+/// Same as [`reply_commit_from_reservation`], but sends delayed.
+pub fn reply_commit_delayed_from_reservation(
+    id: ReservationId,
+    value: u128,
+    delay: u32,
+) -> Result<MessageId> {
+    gcore::msg::reply_commit_delayed_from_reservation(id.into(), value, delay)
+        .into_contract_result()
 }
 
 /// Same as [`reply_commit`], but with explicit gas limit.
