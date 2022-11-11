@@ -95,6 +95,7 @@ impl Api {
     /// gear_calculateReplyGas
     pub async fn calculate_reply_gas(
         &self,
+        origin: H256,
         message_id: MessageId,
         exit_code: i32,
         payload: Vec<u8>,
@@ -106,7 +107,7 @@ impl Api {
             .request(
                 "gear_calculateReplyGas",
                 rpc_params![
-                    H256(Default::default()),
+                    origin,
                     H256(message_id.into()),
                     exit_code,
                     hex::encode(payload),

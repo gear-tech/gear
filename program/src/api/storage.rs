@@ -30,6 +30,20 @@ impl Api {
     }
 }
 
+mod system {
+    use crate::{api::Api, result::Result};
+
+    impl Api {
+        pub async fn number(&self) -> Result<u32> {
+            self.storage()
+                .system()
+                .number(None)
+                .await
+                .map_err(Into::into)
+        }
+    }
+}
+
 mod gear {
     use crate::{
         api::{

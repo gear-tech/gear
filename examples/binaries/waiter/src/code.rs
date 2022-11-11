@@ -18,7 +18,7 @@ async fn main() {
                 .await;
         }
         Command::SendUpTo(to, duration) => {
-            msg::send_bytes_for_reply(to, [], 0)
+            msg::send_bytes_for_reply(to, [42], 0)
                 .expect("send message failed")
                 .up_to(Some(duration))
                 .expect("Invalid wait duration.")
