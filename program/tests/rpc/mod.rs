@@ -34,7 +34,7 @@ async fn test_calculate_create_gas() -> Result<()> {
     let signer = Api::new(Some(&node.ws())).await?.signer("//Alice", None)?;
     signer.upload_code(messager::WASM_BINARY.to_vec()).await?;
 
-    // 2. calculate create gas
+    // 2. calculate create gas and create program.
     let code_id = common::hash(messager::WASM_BINARY);
     let gas_info = signer
         .calculate_create_gas(code_id.into(), vec![], 0, true, None)
@@ -55,7 +55,7 @@ async fn test_calculate_handle_gas() -> Result<()> {
     let salt = vec![];
     let pid = common::program_id(messager::WASM_BINARY, &salt);
 
-    // 1. upload program
+    // 1. upload program.
     let signer = Api::new(Some(&node.ws())).await?.signer("//Alice", None)?;
 
     signer
@@ -70,7 +70,7 @@ async fn test_calculate_handle_gas() -> Result<()> {
 
     assert!(signer.gprog(pid.into()).await.is_ok());
 
-    // 2. calculate handle gas
+    // 2. calculate handle gas and send message.
     let gas_info = signer
         .calculate_handle_gas(pid.into(), vec![], 0, true, None)
         .await?;
@@ -94,7 +94,7 @@ async fn test_calculate_reply_gas() -> Result<()> {
     let pid = common::program_id(demo_waiter::WASM_BINARY, &salt);
     let payload = demo_waiter::Command::SendUpTo(alice.into(), 10);
 
-    // 1. upload program
+    // 1. upload program.
     let signer = Api::new(Some(&node.ws())).await?.signer("//Alice", None)?;
     signer
         .upload_program(
@@ -108,16 +108,16 @@ async fn test_calculate_reply_gas() -> Result<()> {
 
     assert!(signer.gprog(pid.into()).await.is_ok());
 
-    // 2. send wait message
+    // 2. send wait message.
     signer
         .send_message(pid.into(), payload.encode(), 100_000_000_000, 0)
         .await?;
 
     let mailbox = signer.mailbox(alice_account_id, 10).await?;
     assert_eq!(mailbox.len(), 1);
-
     let message_id = mailbox[0].0.id.clone().into();
-    // 3. calculate reply gas
+
+    // 3. calculate reply gas and send reply.
     let gas_info = signer
         .calculate_reply_gas(message_id, 1, vec![], 0, true, None)
         .await?;
