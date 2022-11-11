@@ -34,8 +34,8 @@ impl Api {
     }
 
     /// Subscribe all events
-    pub async fn events(&self) -> Result<types::Events> {
-        Ok(self.0.events().subscribe().await?)
+    pub async fn events(&self) -> Result<types::FinalizedEvents> {
+        Ok(self.0.events().subscribe_finalized().await?)
     }
 
     /// New signer from api

@@ -7,7 +7,7 @@ use parity_scale_codec::{Decode, Encode};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use subxt::{
-    events::EventSubscription,
+    events::{EventSubscription, FinalizedEventSub},
     ext::sp_runtime::{generic::Header, traits::BlakeTwo256},
     rpc::Subscription,
     tx::{self, TxInBlock},
@@ -27,6 +27,12 @@ pub struct GasInfo {
 
 pub type Events =
     EventSubscription<GearConfig, OnlineClient<GearConfig>, Subscription<Header<u32, BlakeTwo256>>>;
+
+pub type FinalizedEvents = EventSubscription<
+    GearConfig,
+    OnlineClient<GearConfig>,
+    FinalizedEventSub<Header<u32, BlakeTwo256>>,
+>;
 
 /// Gear pages.
 pub type GearPages = HashMap<u32, Vec<u8>>;
