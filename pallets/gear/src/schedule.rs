@@ -660,10 +660,12 @@ impl<T: Config> Default for HostFnWeights<T> {
             gr_send_push_per_byte: cost_byte_batched!(gr_send_push_per_kb),
             gr_send_commit: cost_batched!(gr_send_commit),
             gr_send_commit_per_byte: cost_byte_batched!(gr_send_commit_per_kb),
-            gr_reservation_send_commit: 1000, // TODO: add benches
-            gr_reservation_send_commit_per_byte: 1000,
+            gr_reservation_send_commit: cost_batched!(gr_reservation_send_commit),
+            gr_reservation_send_commit_per_byte: cost_byte_batched!(
+                gr_reservation_send_commit_per_kb
+            ),
             gr_reply_commit: cost_batched!(gr_reply_commit),
-            gr_reservation_reply_commit: 1000, // TODO: add benches
+            gr_reservation_reply_commit: cost_batched!(gr_reservation_reply_commit),
             gr_reply_push: cost_batched!(gr_reply_push),
             gr_reply_push_per_byte: cost_byte_batched!(gr_reply_push_per_kb),
             gr_debug: cost_batched!(gr_debug),
