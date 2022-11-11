@@ -23,7 +23,7 @@ impl Signer {
     ) -> Result<GasInfo> {
         self.api
             .calculate_create_gas(
-                self.source().into(),
+                self.source(),
                 code_id,
                 payload,
                 value,
@@ -43,14 +43,7 @@ impl Signer {
         at: Option<H256>,
     ) -> Result<GasInfo> {
         self.api
-            .calculate_upload_gas(
-                self.source().into(),
-                code,
-                payload,
-                value,
-                allow_other_panics,
-                at,
-            )
+            .calculate_upload_gas(self.source(), code, payload, value, allow_other_panics, at)
             .await
     }
 
@@ -65,7 +58,7 @@ impl Signer {
     ) -> Result<GasInfo> {
         self.api
             .calculate_handle_gas(
-                self.source().into(),
+                self.source(),
                 destination,
                 payload,
                 value,
@@ -87,7 +80,7 @@ impl Signer {
     ) -> Result<GasInfo> {
         self.api
             .calculate_reply_gas(
-                self.source().into(),
+                self.source(),
                 message_id,
                 exit_code,
                 payload,
