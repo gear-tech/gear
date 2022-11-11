@@ -23,7 +23,7 @@ use crate::{
     errors::{IntoContractResult, Result},
     msg::{CodecMessageFuture, MessageFuture},
     prelude::{convert::AsRef, vec, Vec},
-    ActorId, MessageId,
+    ActorId, MessageId, ReservationId,
 };
 use codec::{Decode, Output};
 use gstd_codegen::wait_for_reply;
@@ -102,6 +102,33 @@ impl MessageHandle {
         delay: u32,
     ) -> Result<MessageId> {
         send_commit_with_gas_delayed(self, program, gas_limit, value, delay)
+    }
+
+    pub fn commit_from_reservation(
+        self,
+        id: ReservationId,
+        program: ActorId,
+        value: u128,
+    ) -> Result<MessageId> {
+        gcore::msg::send_commit_from_reservation(id.into(), self.into(), program.into(), value)
+            .into_contract_result()
+    }
+
+    pub fn commit_delayed_from_reservation(
+        self,
+        id: ReservationId,
+        program: ActorId,
+        value: u128,
+        delay: u32,
+    ) -> Result<MessageId> {
+        gcore::msg::send_commit_delayed_from_reservation(
+            id.into(),
+            self.into(),
+            program.into(),
+            value,
+            delay,
+        )
+        .into_contract_result()
     }
 }
 
@@ -428,6 +455,69 @@ pub fn send_bytes_with_gas_delayed<T: AsRef<[u8]>>(
 ) -> Result<MessageId> {
     gcore::msg::send_with_gas_delayed(program.into(), payload.as_ref(), gas_limit, value, delay)
         .into_contract_result()
+}
+
+// TODO: update docs
+
+/// Send a new message to the program or user from reservation.
+///
+/// Gear allows programs to communicate to each other and users via messages.
+/// [`send_from_reservation`](crate::msg::send_from_reservation) function allows sending such messages.
+///
+/// First argument is reservation ID.
+/// Second argument is the address of the target account.
+/// Third argument is message payload in bytes.
+/// Last argument is the value to be transferred from the current program
+/// account to the message target account.
+///
+/// Send transaction will be posted only after the execution of processing is
+/// finished, similar to the reply message [`reply`](crate::msg::reply).
+///
+/// # Examples
+///
+/// ```
+/// use gstd::{msg, ActorId, ReservationId};
+///
+/// unsafe extern "C" fn handle() {
+///     // ...
+///     let id = ReservationId::reserve(5_000_000, 100).expect("enough gas");
+///     let source_id = msg::source();
+///
+///     msg::send_bytes_from_reservation(id, source_id, b"HELLO", 12345678);
+/// }
+/// ```
+///
+/// # See also
+///
+/// [`send_init`],[`send_push`], [`send_commit`] functions allows to form a
+/// message to send in parts.
+#[wait_for_reply]
+pub fn send_bytes_from_reservation<T: AsRef<[u8]>>(
+    id: ReservationId,
+    program: ActorId,
+    payload: T,
+    value: u128,
+) -> Result<MessageId> {
+    gcore::msg::send_from_reservation(id.into(), program.into(), payload.as_ref(), value)
+        .into_contract_result()
+}
+
+/// Same as [`send_bytes_from_reservation`], but sends delayed.
+pub fn send_bytes_delayed_from_reservation<T: AsRef<[u8]>>(
+    id: ReservationId,
+    program: ActorId,
+    payload: T,
+    value: u128,
+    delay: u32,
+) -> Result<MessageId> {
+    gcore::msg::send_delayed_from_reservation(
+        id.into(),
+        program.into(),
+        payload.as_ref(),
+        value,
+        delay,
+    )
+    .into_contract_result()
 }
 
 /// Finalize and send message formed in parts.

@@ -453,6 +453,106 @@ where
         Func::wrap(store, func)
     }
 
+    pub fn reservation_send(
+        store: &mut Store<HostState<E>>,
+        forbidden: bool,
+        memory: WasmiMemory,
+    ) -> Func {
+        let func = move |mut caller: wasmi::Caller<'_, HostState<E>>,
+                         reservation_id_ptr: u32,
+                         destination_ptr: u32,
+                         payload_ptr: u32,
+                         payload_len: u32,
+                         value_ptr: u32,
+                         delay: u32,
+                         message_id_ptr: u32|
+              -> FallibleOutput {
+            update_or_exit_if!(forbidden, caller);
+
+            let mut payload = Payload::try_new_default(payload_len as usize).map_err(|e| {
+                host_state_mut!(caller).err = FuncError::PayloadBufferSize(e);
+                Trap::from(TrapCode::Unreachable)
+            })?;
+
+            let read_result = {
+                let memory_wrap = get_caller_memory(&mut caller, &memory);
+
+                let mut f = || -> Result<_, MemoryError> {
+                    let reservation_id = read_memory_as(&memory_wrap, reservation_id_ptr)?;
+                    let destination = read_memory_as(&memory_wrap, destination_ptr)?;
+                    let value = read_memory_as(&memory_wrap, value_ptr)?;
+                    memory_wrap.read(payload_ptr as usize, payload.get_mut())?;
+                    Ok((reservation_id, destination, value))
+                };
+
+                f()
+            };
+
+            let (reservation_id, destination, value) = process_read_result!(read_result, caller);
+
+            process_call_result_as_ref!(
+                caller,
+                memory,
+                |ext| ext.reservation_send(
+                    reservation_id,
+                    HandlePacket::new(destination, payload, value),
+                    delay
+                ),
+                message_id_ptr
+            )
+        };
+
+        Func::wrap(store, func)
+    }
+
+    pub fn reservation_send_commit(
+        store: &mut Store<HostState<E>>,
+        forbidden: bool,
+        memory: WasmiMemory,
+    ) -> Func {
+        let func = move |mut caller: wasmi::Caller<'_, HostState<E>>,
+                         reservation_id_ptr: u32,
+                         handle: u32,
+                         destination_ptr: u32,
+                         value_ptr: u32,
+                         delay: u32,
+                         message_id_ptr: u32|
+              -> FallibleOutput {
+            update_or_exit_if!(forbidden, caller);
+
+            let read_result = {
+                let memory_wrap = get_caller_memory(&mut caller, &memory);
+
+                let f = || -> Result<_, MemoryError> {
+                    let reservation_id = read_memory_as(&memory_wrap, reservation_id_ptr)?;
+                    let destination = read_memory_as(&memory_wrap, destination_ptr)?;
+                    let value = read_memory_as(&memory_wrap, value_ptr)?;
+                    Ok((reservation_id, destination, value))
+                };
+
+                f()
+            };
+
+            let (reservation_id, destination, value) = process_read_result!(read_result, caller);
+
+            process_call_result_as_ref!(
+                caller,
+                memory,
+                |ext| {
+                    ext.reservation_send_commit(
+                        reservation_id,
+                        handle,
+                        HandlePacket::new(destination, Default::default(), value),
+                        delay,
+                    )
+                },
+                message_id_ptr
+            )
+        };
+
+        Func::wrap(store, func)
+    }
+
     pub fn read(store: &mut Store<HostState<E>>, forbidden: bool, memory: WasmiMemory) -> Func {
         let func = move |mut caller: wasmi::Caller<'_, HostState<E>>,
                          at: u32,

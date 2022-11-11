@@ -161,6 +161,8 @@ where
         builder.add_func("gr_send", Funcs::send);
         builder.add_func("gr_send_commit", Funcs::send_commit);
         builder.add_func("gr_send_commit_wgas", Funcs::send_commit_wgas);
+        builder.add_func("gr_reservation_send", Funcs::reservation_send);
+        builder.add_func("gr_reservation_send_commit", Funcs::reservation_send_commit);
         builder.add_func("gr_send_init", Funcs::send_init);
         builder.add_func("gr_send_push", Funcs::send_push);
         builder.add_func("gr_send_wgas", Funcs::send_wgas);

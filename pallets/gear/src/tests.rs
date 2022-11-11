@@ -6215,6 +6215,67 @@ fn reject_incorrect_binary() {
     });
 }
 
+#[test]
+fn send_from_reservation() {
+    use demo_send_from_reservation::{HandleAction, WASM_BINARY};
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let pid = Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            vec![],
+            EMPTY_PAYLOAD.to_vec(),
+            10_000_000_000,
+            0,
+        )
+        .map(|_| get_last_program_id())
+        .unwrap();
+
+        let pid2 = Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            vec![2],
+            EMPTY_PAYLOAD.to_vec(),
+            10_000_000_000,
+            0,
+        )
+        .map(|_| get_last_program_id())
+        .unwrap();
+
+        run_to_block(2, None);
+
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            pid,
+            HandleAction::SendToUser.encode(),
+            10_000_000_000,
+            1_000,
+        ));
+
+        run_to_block(3, None);
+
+        let msg = get_last_mail(USER_1);
+        assert_eq!(msg.value(), 500);
+        let map = get_reservation_map(pid).unwrap();
+        assert!(map.is_empty());
+
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            pid,
+            HandleAction::SendToProgram(pid2.into()).encode(),
+            10_000_000_000,
+            1_000,
+        ));
+
+        let mid = get_last_message_id();
+
+        run_to_block(4, None);
+
+        assert_succeed(mid);
+    });
+}
+
 mod utils {
     #![allow(unused)]
 

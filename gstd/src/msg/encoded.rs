@@ -25,7 +25,7 @@ use crate::{
     errors::{ContractError, Result},
     msg::r#async::{CodecMessageFuture, MessageFuture},
     prelude::convert::AsRef,
-    ActorId, MessageId,
+    ActorId, MessageId, ReservationId,
 };
 use codec::{Decode, Encode};
 use gstd_codegen::wait_for_reply;
@@ -141,4 +141,26 @@ pub fn send_with_gas_delayed<E: Encode>(
     delay: u32,
 ) -> Result<MessageId> {
     super::send_bytes_with_gas_delayed(program, payload.encode(), gas_limit, value, delay)
+}
+
+/// Send a new message to the program or user from reservation.
+#[wait_for_reply]
+pub fn send_from_reservation<E: Encode>(
+    id: ReservationId,
+    program: ActorId,
+    payload: E,
+    value: u128,
+) -> Result<MessageId> {
+    super::send_bytes_from_reservation(id, program, payload.encode(), value)
+}
+
+/// Same as [`send_from_reservation`], but sends delayed.
+pub fn send_delayed_from_reservation<E: Encode>(
+    id: ReservationId,
+    program: ActorId,
+    payload: E,
+    value: u128,
+    delay: u32,
+) -> Result<MessageId> {
+    super::send_bytes_delayed_from_reservation(id, program, payload.encode(), value, delay)
 }

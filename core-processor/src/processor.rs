@@ -513,6 +513,7 @@ fn process_error(
             message_id,
             dispatch,
             delay: 0,
+            reservation: None,
         });
     }
 
@@ -621,11 +622,12 @@ fn process_success(
         });
     }
 
-    for (dispatch, delay) in generated_dispatches {
+    for (dispatch, delay, reservation) in generated_dispatches {
         journal.push(JournalNote::SendDispatch {
             message_id,
             dispatch,
             delay,
+            reservation,
         });
     }
 
@@ -750,6 +752,7 @@ fn process_non_executable(
             message_id,
             dispatch,
             delay: 0,
+            reservation: None,
         });
     }
 

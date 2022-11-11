@@ -327,6 +327,8 @@ fn weights(kind: WeightsKind, input_file: PathBuf, output_file: PathBuf) {
                     gr_send_push_per_byte,
                     gr_send_commit,
                     gr_send_commit_per_byte,
+                    gr_reservation_send_commit,
+                    gr_reservation_send_commit_per_byte,
                     gr_reply_commit,
                     gr_reply_push,
                     gr_reply_push_per_byte,

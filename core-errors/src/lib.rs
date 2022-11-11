@@ -189,6 +189,9 @@ pub enum ExecutionError {
     /// An error occurs in attempt to reserve more times than allowed.
     #[display(fmt = "Reservation limit has reached")]
     ReservationsLimitReached,
+    /// An error occurs in attempt to spend more gas than available in reservation.
+    #[display(fmt = "Not enough gas is reservation")]
+    NotEnoughGasInReservation,
 }
 
 /// An error occurred in API.

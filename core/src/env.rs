@@ -83,6 +83,26 @@ pub trait Ext {
         self.send_commit(handle, msg, delay)
     }
 
+    /// Complete message and send it to another program using gas from reservation.
+    fn reservation_send_commit(
+        &mut self,
+        id: ReservationId,
+        handle: u32,
+        msg: HandlePacket,
+        delay: u32,
+    ) -> Result<MessageId, Self::Error>;
+
+    /// Send message to another program using gas from reservation.
+    fn reservation_send(
+        &mut self,
+        id: ReservationId,
+        msg: HandlePacket,
+        delay: u32,
+    ) -> Result<MessageId, Self::Error> {
+        let handle = self.send_init()?;
+        self.reservation_send_commit(id, handle, msg, delay)
+    }
+
     /// Push an extra buffer into reply message.
     fn reply_push(&mut self, buffer: &[u8]) -> Result<(), Self::Error>;
 
