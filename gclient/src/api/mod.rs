@@ -24,7 +24,6 @@ pub mod storage;
 use crate::{node::ws::WSAddress, EventListener};
 use error::*;
 use gp::api::{signer::Signer, Api};
-use std::ops::{Deref, DerefMut};
 
 #[derive(Clone)]
 pub struct GearApi(Signer);
