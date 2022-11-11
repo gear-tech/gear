@@ -1568,16 +1568,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "demo-empty"
-version = "0.1.0"
-dependencies = [
- "gear-wasm-builder",
- "gstd",
- "gtest",
- "parity-scale-codec",
-]
-
-[[package]]
 name = "demo-exit-handle"
 version = "0.1.0"
 dependencies = [
