@@ -43,3 +43,4 @@ jobs:
             ${{secrets.GEAR_LOADER_NODE_1}} name=gear-loader-network01 loki=yes loki_url=${{secrets.LOKI_URL}}
             [nodes]
             ${{secrets.GEAR_LOADER_NODE_2}} name=gear-loader-network02 validator=yes loki=yes loki_url=${{secrets.LOKI_URL}}
+            ${{secrets.GEAR_LOADER_NODE_RPC}} name=gear-loader-network-rpc rpc=yes unsafe=yes loki=yes loki_url=${{secrets.LOKI_URL}}
