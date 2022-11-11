@@ -8,9 +8,18 @@ async fn test_calculate_upload_gas() -> Result<()> {
     node.wait(logs::gear_node::IMPORTING_BLOCKS)?;
 
     let api = Api::new(Some(&node.ws())).await?;
+    let alice_account_id = common::alice_account_id();
+    let alice: [u8; 32] = *alice_account_id.as_ref();
 
     assert!(api
-        .calculate_upload_gas(messager::WASM_BINARY.to_vec(), vec![], 0, true, None)
+        .calculate_upload_gas(
+            alice.into(),
+            messager::WASM_BINARY.to_vec(),
+            vec![],
+            0,
+            true,
+            None
+        )
         .await
         .is_ok());
     Ok(())
@@ -26,9 +35,13 @@ async fn test_calculate_create_gas() -> Result<()> {
     signer.upload_code(messager::WASM_BINARY.to_vec()).await?;
 
     // 2. calculate create gas
-    let hash = common::hash(messager::WASM_BINARY);
+    let code_id = common::hash(messager::WASM_BINARY);
+    let gas_info = signer
+        .calculate_create_gas(code_id.into(), vec![], 0, true, None)
+        .await?;
+
     assert!(signer
-        .calculate_create_gas(hash.into(), vec![], 0, true, None)
+        .create_program(code_id.into(), vec![], vec![], gas_info.min_limit, 0)
         .await
         .is_ok());
     Ok(())
@@ -58,10 +71,15 @@ async fn test_calculate_handle_gas() -> Result<()> {
     assert!(signer.gprog(pid.into()).await.is_ok());
 
     // 2. calculate handle gas
-    signer
+    let gas_info = signer
         .calculate_handle_gas(pid.into(), vec![], 0, true, None)
+        .await?;
+
+    assert!(signer
+        .send_message(pid.into(), vec![], gas_info.min_limit, 0)
         .await
-        .unwrap();
+        .is_ok());
+
     Ok(())
 }
 
@@ -98,18 +116,16 @@ async fn test_calculate_reply_gas() -> Result<()> {
     let mailbox = signer.mailbox(alice_account_id, 10).await?;
     assert_eq!(mailbox.len(), 1);
 
+    let message_id = mailbox[0].0.id.clone().into();
     // 3. calculate reply gas
-    signer
-        .calculate_reply_gas(
-            alice.into(),
-            mailbox[0].0.id.clone().into(),
-            1,
-            vec![],
-            0,
-            true,
-            None,
-        )
+    let gas_info = signer
+        .calculate_reply_gas(message_id, 1, vec![], 0, true, None)
+        .await?;
+
+    assert!(signer
+        .send_reply(message_id, vec![], gas_info.min_limit, 0)
         .await
-        .unwrap();
+        .is_ok());
+
     Ok(())
 }

@@ -91,17 +91,3 @@ impl GearApi {
             .map_err(Into::into)
     }
 }
-
-impl Deref for GearApi {
-    type Target = Signer;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl DerefMut for GearApi {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.0
-    }
-}

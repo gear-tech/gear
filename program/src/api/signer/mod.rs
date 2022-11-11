@@ -12,6 +12,7 @@ use subxt::{
 };
 
 mod calls;
+mod rpc;
 mod utils;
 
 #[derive(Clone)]
