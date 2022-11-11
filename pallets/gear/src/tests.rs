@@ -6273,6 +6273,39 @@ fn send_from_reservation() {
         run_to_block(4, None);
 
         assert_succeed(mid);
+
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            pid,
+            HandleAction::SendToUserDelayed.encode(),
+            10_000_000_000,
+            1_000,
+        ));
+
+        run_to_block(5, None);
+
+        MailboxOf::<Test>::clear();
+
+        run_to_block(6, None);
+
+        let msg = get_last_mail(USER_1);
+        assert_eq!(msg.value(), 600);
+        let map = get_reservation_map(pid).unwrap();
+        assert!(map.is_empty());
+
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            pid,
+            HandleAction::SendToProgramDelayed(pid2.into()).encode(),
+            10_000_000_000,
+            1_000,
+        ));
+
+        let mid = get_last_message_id();
+
+        run_to_block(7, None);
+
+        assert_succeed(mid);
     });
 }
 

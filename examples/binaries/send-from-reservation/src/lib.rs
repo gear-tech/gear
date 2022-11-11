@@ -32,8 +32,11 @@ pub use code::WASM_BINARY_OPT as WASM_BINARY;
 #[derive(Debug, Encode, Decode)]
 pub enum HandleAction {
     SendToUser,
+    SendToUserDelayed,
     SendToProgram([u8; 32]),
+    SendToProgramDelayed([u8; 32]),
     ReceiveFromProgram,
+    ReceiveFromProgramDelayed,
 }
 
 #[no_mangle]
@@ -47,13 +50,31 @@ unsafe extern "C" fn handle() {
             let id = ReservationId::reserve(3_000_000_000, 50).unwrap();
             msg::send_from_reservation(id, msg::source(), 0, 500).unwrap();
         }
+        HandleAction::SendToUserDelayed => {
+            let id = ReservationId::reserve(4_000_000_000, 60).unwrap();
+            msg::send_delayed_from_reservation(id, msg::source(), 0, 600, 1).unwrap();
+        }
         HandleAction::SendToProgram(pid) => {
             let id = ReservationId::reserve(5_000_000_000, 70).unwrap();
             msg::send_from_reservation(id, pid.into(), HandleAction::ReceiveFromProgram, 700)
                 .unwrap();
         }
+        HandleAction::SendToProgramDelayed(pid) => {
+            let id = ReservationId::reserve(6_000_000_000, 80).unwrap();
+            msg::send_delayed_from_reservation(
+                id,
+                pid.into(),
+                HandleAction::ReceiveFromProgramDelayed,
+                800,
+                1,
+            )
+            .unwrap();
+        }
         HandleAction::ReceiveFromProgram => {
             assert_eq!(msg::value(), 700);
+        }
+        HandleAction::ReceiveFromProgramDelayed => {
+            assert_eq!(msg::value(), 800);
         }
     }
 }
