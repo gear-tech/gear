@@ -50,7 +50,6 @@ use common::{
 };
 use core_processor::common::ExecutionErrorReason;
 use demo_compose::WASM_BINARY as COMPOSE_WASM_BINARY;
-use demo_distributor::{Request, WASM_BINARY};
 use demo_mul_by_const::WASM_BINARY as MUL_CONST_WASM_BINARY;
 use demo_program_factory::{CreateProgram, WASM_BINARY as PROGRAM_FACTORY_WASM_BINARY};
 use demo_waiting_proxy::WASM_BINARY as WAITING_PROXY_WASM_BINARY;
@@ -2122,6 +2121,8 @@ fn uninitialized_program_zero_gas() {
 
 #[test]
 fn distributor_initialize() {
+    use demo_distributor::WASM_BINARY;
+
     init_logger();
     new_test_ext().execute_with(|| {
         let initial_balance = Balances::free_balance(USER_1) + Balances::free_balance(BLOCK_AUTHOR);
@@ -2148,6 +2149,8 @@ fn distributor_initialize() {
 
 #[test]
 fn distributor_distribute() {
+    use demo_distributor::{Request, WASM_BINARY};
+
     init_logger();
     new_test_ext().execute_with(|| {
         let initial_balance = Balances::free_balance(USER_1) + Balances::free_balance(BLOCK_AUTHOR);
@@ -2162,7 +2165,7 @@ fn distributor_distribute() {
             WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
             EMPTY_PAYLOAD.to_vec(),
-            2_000_000_000,
+            3_000_000_000,
             0,
         ));
 
@@ -2172,17 +2175,22 @@ fn distributor_distribute() {
             RuntimeOrigin::signed(USER_1),
             program_id,
             Request::Receive(10).encode(),
-            200_000_000,
+            1_000_000_000,
             0,
         ));
 
         run_to_block(3, None);
 
+        // We sent two messages in mailbox
+        let mail_box_len = 2;
+        assert_eq!(MailboxOf::<Test>::len(&USER_1), mail_box_len);
+
         // Despite some messages are still in the mailbox all gas locked in value trees
         // has been refunded to the sender so the free balances should add up
         let final_balance = Balances::free_balance(USER_1) + Balances::free_balance(BLOCK_AUTHOR);
 
-        let mailbox_threshold_gas_limit = <Test as Config>::MailboxThreshold::get();
+        let mailbox_threshold_gas_limit =
+            mail_box_len as u64 * <Test as Config>::MailboxThreshold::get();
         let mailbox_threshold_reserved =
             <Test as Config>::GasPrice::gas_price(mailbox_threshold_gas_limit);
         assert_eq!(initial_balance - mailbox_threshold_reserved, final_balance);

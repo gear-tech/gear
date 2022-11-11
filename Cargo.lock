@@ -2883,11 +2883,13 @@ dependencies = [
  "anyhow",
  "async-std",
  "async-trait",
+ "env_logger",
  "futures",
  "futures-timer",
  "gear-core",
  "gear-program",
  "hex",
+ "log",
  "parity-scale-codec",
  "subxt",
  "thiserror",
@@ -3080,12 +3082,10 @@ dependencies = [
 name = "gear-core-processor"
 version = "0.1.0"
 dependencies = [
- "anyhow",
  "derive_more",
  "gear-backend-common",
  "gear-core",
  "gear-core-errors",
- "hex",
  "log",
  "parity-scale-codec",
  "scale-info",
@@ -4070,12 +4070,13 @@ checksum = "8e04e2fd2b8188ea827b32ef11de88377086d690286ab35747ef7f9bf3ccb590"
 
 [[package]]
 name = "indicatif"
-version = "0.17.1"
+version = "0.17.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bfddc9561e8baf264e0e45e197fd7696320026eb10a8180340debc27b18f535b"
+checksum = "4295cbb7573c16d310e99e713cf9e75101eb190ab31fccd35f2d2691b4352b19"
 dependencies = [
  "console",
  "number_prefix",
+ "portable-atomic",
  "unicode-width",
 ]
 
@@ -6877,6 +6878,12 @@ dependencies = [
  "opaque-debug 0.3.0",
  "universal-hash",
 ]
+
+[[package]]
+name = "portable-atomic"
+version = "0.3.15"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "15eb2c6e362923af47e13c23ca5afb859e83d54452c55b0b9ac763b8f7c1ac16"
 
 [[package]]
 name = "ppv-lite86"
