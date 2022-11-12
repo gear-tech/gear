@@ -51,7 +51,6 @@ pub enum ReplyAction {
     ReceiveDelayed([u8; 32]),
 }
 
-
 #[no_mangle]
 unsafe extern "C" fn handle() {
     let action: HandleAction = msg::load().unwrap();

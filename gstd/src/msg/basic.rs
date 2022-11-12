@@ -526,7 +526,6 @@ pub fn send_bytes_with_gas_delayed<T: AsRef<[u8]>>(
         .into_contract_result()
 }
 
-
 /// Send a new message to the program or user from reservation.
 ///
 /// Gear allows programs to communicate to each other and users via messages.
