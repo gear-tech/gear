@@ -95,14 +95,9 @@ jobs:
 
   deploy-all-validators:
     runs-on: ubuntu-latest
+    environment: production
     needs: [docker, deploy-one-validator,tag-image]
     steps:
-
-      - uses: trstringer/manual-approval@v1
-        with:
-          secret: ${{ github.TOKEN }}
-          approvers: sergeyfilyanin,kvs96
-          minimum-approvals: 1
 
       - name: Checkout
         uses: actions/checkout@v3
