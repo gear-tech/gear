@@ -77,7 +77,7 @@ pub enum GasNode<ExternalId: Clone, Id: Clone, Balance: Zero + Clone> {
 
     /// A node used for gas reservation feature.
     ///
-    /// Such node types are detached but can be parent.
+    /// Such node types are detached from initial tree and may act the a root of new tree.
     Reserved {
         id: ExternalId,
         value: Balance,
