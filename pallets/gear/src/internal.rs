@@ -19,7 +19,7 @@
 //! Internal details of Gear Pallet implementation.
 
 use crate::{
-    Authorship, BalanceOf, Config, CostsPerBlockOf, CurrencyOf, DispatchStashOf, Event,
+    Authorship, BalanceOf, Config, CostsPerBlockOf, CurrencyOf, DispatchStashOf, Event, ExtManager,
     GasBalanceOf, GasHandlerOf, MailboxOf, Pallet, SchedulingCostOf, TaskPoolOf, WaitlistOf,
 };
 use alloc::collections::BTreeSet;
@@ -44,7 +44,6 @@ use frame_system::pallet_prelude::BlockNumberFor;
 use gear_core::{
     ids::{MessageId, ProgramId, ReservationId},
     message::{Dispatch, Message, StoredDispatch, StoredMessage},
-    reservation::GasReservationSlot,
 };
 use sp_runtime::traits::{Get, One, SaturatedConversion, Saturating, UniqueSaturatedInto, Zero};
 
@@ -582,12 +581,7 @@ where
                     .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
 
                 if let Some(reservation_id) = reservation {
-                    let slot = Self::consume_gas_reservation(dispatch.source(), reservation_id);
-
-                    let _ = TaskPoolOf::<T>::delete(
-                        BlockNumberFor::<T>::from(slot.expiration),
-                        ScheduledTask::RemoveGasReservation(dispatch.source(), reservation_id),
-                    );
+                    Self::consume_gas_reservation(dispatch.source(), reservation_id);
                 }
             }
         } else {
@@ -721,12 +715,7 @@ where
                 .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
 
             if let Some(reservation_id) = reservation {
-                let slot = Self::consume_gas_reservation(message.source(), reservation_id);
-
-                let _ = TaskPoolOf::<T>::delete(
-                    BlockNumberFor::<T>::from(slot.expiration),
-                    ScheduledTask::RemoveGasReservation(message.source(), reservation_id),
-                );
+                Self::consume_gas_reservation(message.source(), reservation_id);
             }
 
             // Reserving value from source for future transfer or unreserve.
@@ -837,39 +826,16 @@ where
         GasHandlerOf::<T>::split(reservation_id, message_id)
             .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
 
-        let slot = Self::consume_gas_reservation(source, reservation_id);
+        Self::consume_gas_reservation(source, reservation_id);
+    }
+
+    pub(crate) fn consume_gas_reservation(program_id: ProgramId, reservation_id: ReservationId) {
+        let slot = ExtManager::<T>::remove_gas_reservation(program_id, reservation_id);
 
         let _ = TaskPoolOf::<T>::delete(
             BlockNumberFor::<T>::from(slot.expiration),
-            ScheduledTask::RemoveGasReservation(source, reservation_id),
+            ScheduledTask::RemoveGasReservation(program_id, reservation_id),
         );
-    }
-
-    pub(crate) fn consume_gas_reservation(
-        program_id: ProgramId,
-        reservation_id: ReservationId,
-    ) -> GasReservationSlot {
-        let program_id = program_id.into_origin();
-        let mut prog = common::get_active_program(program_id).unwrap_or_else(|e| {
-            unreachable!(
-                "gas reservation removing guaranteed to be called only on existing program: {}",
-                e
-            )
-        });
-        let slot = prog
-            .gas_reservation_map
-            .remove(&reservation_id)
-            .unwrap_or_else(|| unreachable!("gas reservation removing guaranteed to be called only on existing reservation ID"));
-        common::set_program(program_id, prog);
-
-        GasHandlerOf::<T>::unlock_all(reservation_id)
-            .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
-
-        // TODO: charge after unlock (#1830)
-
-        Self::consume_and_retrieve(reservation_id);
-
-        slot
     }
 
     pub(crate) fn inheritor_for(program_id: ProgramId) -> ProgramId {
