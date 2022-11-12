@@ -252,16 +252,28 @@ where
     pub fn reservation_send(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
         sys_trace!(target: "syscall::gear", "reservation_send, args = {}", args_to_str(args));
 
-        let (destination_ptr, payload_ptr, payload_len, value_ptr, delay, message_id_ptr) =
-            args.iter().read_6()?;
+        let (
+            reservation_id_ptr,
+            destination_ptr,
+            payload_ptr,
+            payload_len,
+            value_ptr,
+            delay,
+            message_id_ptr,
+        ) = args.iter().read_7()?;
 
         ctx.run(|ctx| {
+            let reservation_id = ctx.read_memory_as(reservation_id_ptr)?;
             let destination = ctx.read_memory_as(destination_ptr)?;
             let payload = ctx.read_memory(payload_ptr, payload_len)?.try_into()?;
             let value = ctx.read_memory_as(value_ptr)?;
 
             ctx.ext
-                .send(HandlePacket::new(destination, payload, value), delay)
+                .reservation_send(
+                    reservation_id,
+                    HandlePacket::new(destination, payload, value),
+                    delay,
+                )
                 .process_error()
                 .map_err(FuncError::Core)?
                 .error_len_on_success(|message_id| {
@@ -273,14 +285,17 @@ where
     pub fn reservation_send_commit(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
         sys_trace!(target: "syscall::gear", "reservation_send_commit, args = {}", args_to_str(args));
 
-        let (handle, destination_ptr, value_ptr, delay, message_id_ptr) = args.iter().read_5()?;
+        let (reservation_id_ptr, handle, destination_ptr, value_ptr, delay, message_id_ptr) =
+            args.iter().read_6()?;
 
         ctx.run(|ctx| {
+            let reservation_id = ctx.read_memory_as(reservation_id_ptr)?;
             let destination = ctx.read_memory_as(destination_ptr)?;
             let value = ctx.read_memory_as(value_ptr)?;
 
             ctx.ext
-                .send_commit(
+                .reservation_send_commit(
+                    reservation_id,
                     handle,
                     HandlePacket::new(destination, Default::default(), value),
                     delay,
