@@ -544,7 +544,7 @@ where
 
         let (node_with_value, maybe_key) = Self::node_with_value(node)?;
 
-        // The node here is either external, specified or reserved hence has the inner value
+        // The node here is external, specified or reserved hence has the inner value
         let v = node_with_value
             .value()
             .ok_or_else(InternalError::unexpected_node_type)?;
