@@ -6310,7 +6310,10 @@ fn send_from_reservation() {
                 1_000,
             ));
 
-            // +1 is delay
+            run_to_block(5, None);
+
+            assert!(MailboxOf::<Test>::is_empty(&USER_1));
+
             run_to_block(6, None);
 
             let msg = get_last_mail(USER_1);
@@ -6339,6 +6342,7 @@ fn send_from_reservation() {
 
             run_to_block(7, None);
 
+            assert!(MailboxOf::<Test>::is_empty(&USER_1));
             assert_succeed(mid);
 
             run_to_block(8, None);
@@ -6439,7 +6443,10 @@ fn reply_from_reservation() {
                 1_000,
             ));
 
-            // +1 is delay
+            run_to_block(5, None);
+
+            assert!(MailboxOf::<Test>::is_empty(&USER_1));
+
             run_to_block(6, None);
 
             let msg = get_last_mail(USER_1);
@@ -6468,8 +6475,7 @@ fn reply_from_reservation() {
 
             run_to_block(7, None);
 
-            // also wait for delay
-
+            assert!(MailboxOf::<Test>::is_empty(&USER_1));
             assert_succeed(mid);
 
             run_to_block(8, None);
