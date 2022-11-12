@@ -627,8 +627,8 @@ where
                 }
                 (None, Some(reservation_id)) => Self::send_message_from_reservation(
                     dispatch.id(),
-                    reservation_id,
                     dispatch.source(),
+                    reservation_id,
                 ),
             }
         }
@@ -843,8 +843,8 @@ where
 
     pub(crate) fn send_message_from_reservation(
         message_id: MessageId,
-        reservation_id: ReservationId,
         source: ProgramId,
+        reservation_id: ReservationId,
     ) {
         GasHandlerOf::<T>::split(reservation_id, message_id)
             .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
