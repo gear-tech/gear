@@ -91,7 +91,7 @@ impl ContextSettings {
 }
 
 /// Dispatch or message with additional information.
-pub type ContextOutcomeInfo<T> = (T, u32, Option<ReservationId>);
+pub type OutgoingMessageInfo<T> = (T, u32, Option<ReservationId>);
 
 /// Context outcome dispatches and awakening ids.
 pub type ContextOutcomeDrain = (
@@ -104,9 +104,9 @@ pub type ContextOutcomeDrain = (
 /// Contains all outgoing messages and wakes that should be done after execution.
 #[derive(Default, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo)]
 pub struct ContextOutcome {
-    init: Vec<ContextOutcomeInfo<InitMessage>>,
-    handle: Vec<ContextOutcomeInfo<HandleMessage>>,
-    reply: Option<ContextOutcomeInfo<ReplyMessage>>,
+    init: Vec<OutgoingMessageInfo<InitMessage>>,
+    handle: Vec<OutgoingMessageInfo<HandleMessage>>,
+    reply: Option<OutgoingMessageInfo<ReplyMessage>>,
     // u32 is delay
     awakening: Vec<(MessageId, u32)>,
     // Additional information section.
