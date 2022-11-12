@@ -293,9 +293,14 @@ where
             )
         });
         let slot = prog
-                    .gas_reservation_map
-                    .remove(&reservation_id)
-                    .unwrap_or_else(|| unreachable!("Gas reservation removing guaranteed to be called only on existing reservation ID"));
+            .gas_reservation_map
+            .remove(&reservation_id)
+            .unwrap_or_else(|| {
+                unreachable!(
+                    "Gas reservation removing called on non-existing reservation ID: {}",
+                    reservation_id
+                )
+            });
         common::set_program(program_id, prog);
 
         GasHandlerOf::<T>::unlock_all(reservation_id)
