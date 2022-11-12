@@ -690,7 +690,7 @@ where
 
         let (mut node, node_id) =
             Self::node_with_value(Self::get_node(key).ok_or_else(InternalError::node_not_found)?)?;
-        let node_id = node_id.map(Into::into).unwrap_or(key);
+        let node_id = node_id.unwrap_or(key);
 
         // Check if the value node is detached
         if node.is_detached() {
