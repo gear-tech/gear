@@ -228,8 +228,8 @@ pub fn reply_bytes_delayed(
     gcore::msg::reply_delayed(payload.as_ref(), value, delay).into_contract_result()
 }
 
-/// Same as [`reply_from_reservation`](crate::msg::reply_from_reservation), without encoding
-/// payload.
+/// Same as [`reply_from_reservation`](crate::msg::reply_from_reservation),
+/// without encoding payload.
 #[wait_for_reply]
 pub fn reply_bytes_from_reservation(
     id: ReservationId,
@@ -557,8 +557,8 @@ pub fn send_bytes_with_gas_delayed<T: AsRef<[u8]>>(
 ///
 /// # See also
 ///
-/// [`send_init`],[`send_push`], [`send_commit_from_reservation`] functions allows to form a
-/// message to send in parts.
+/// [`send_init`],[`send_push`], [`send_commit_from_reservation`] functions
+/// allows to form a message to send in parts.
 #[wait_for_reply]
 pub fn send_bytes_from_reservation<T: AsRef<[u8]>>(
     id: ReservationId,
