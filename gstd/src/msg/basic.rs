@@ -526,7 +526,6 @@ pub fn send_bytes_with_gas_delayed<T: AsRef<[u8]>>(
         .into_contract_result()
 }
 
-// TODO: update docs
 
 /// Send a new message to the program or user from reservation.
 ///
