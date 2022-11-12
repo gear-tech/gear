@@ -661,8 +661,8 @@ where
     /// It may be added to mailbox, if apply requirements.
     pub(crate) fn send_user_message(
         origin_msg: MessageId,
-        reservation: Option<ReservationId>,
         message: Message,
+        reservation: Option<ReservationId>,
     ) {
         // Querying `MailboxThreshold`, that represents minimal amount of gas
         // for message to be added to mailbox.

@@ -302,7 +302,7 @@ where
                 message_id,
                 dispatch.gas_limit(),
             );
-            Pallet::<T>::send_user_message(message_id, reservation, dispatch.into_parts().1);
+            Pallet::<T>::send_user_message(message_id, dispatch.into_parts().1, reservation);
         }
     }
 
