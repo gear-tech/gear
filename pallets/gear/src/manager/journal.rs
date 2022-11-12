@@ -285,11 +285,10 @@ where
                     );
                 }
                 (None, Some(reservation_id)) => {
-                    Pallet::<T>::send_message_from_reservation(
-                        dispatch.id(),
-                        dispatch.source(),
-                        reservation_id,
-                    );
+                    GasHandlerOf::<T>::split(reservation_id, dispatch.id())
+                        .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
+
+                    Pallet::<T>::consume_gas_reservation(dispatch.source(), reservation_id);
                 }
             }
 

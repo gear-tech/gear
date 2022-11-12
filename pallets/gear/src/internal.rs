@@ -613,11 +613,12 @@ where
                         is currently unimplemented and there is no way to send such dispatch"
                     );
                 }
-                (None, Some(reservation_id)) => Self::send_message_from_reservation(
-                    dispatch.id(),
-                    dispatch.source(),
-                    reservation_id,
-                ),
+                (None, Some(reservation_id)) => {
+                    GasHandlerOf::<T>::split(reservation_id, dispatch.id())
+                        .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
+
+                    Self::consume_gas_reservation(dispatch.source(), reservation_id);
+                }
             }
         }
 
@@ -816,17 +817,6 @@ where
             message,
             expiration,
         });
-    }
-
-    pub(crate) fn send_message_from_reservation(
-        message_id: MessageId,
-        source: ProgramId,
-        reservation_id: ReservationId,
-    ) {
-        GasHandlerOf::<T>::split(reservation_id, message_id)
-            .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
-
-        Self::consume_gas_reservation(source, reservation_id);
     }
 
     pub(crate) fn consume_gas_reservation(program_id: ProgramId, reservation_id: ReservationId) {
