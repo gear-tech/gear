@@ -580,6 +580,7 @@ where
                 GasHandlerOf::<T>::cut(msg_id, dispatch.id(), gas_limit)
                     .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
 
+                // TODO: adapt this line if gasful sending appears for reservations (#1828)
                 if let Some(reservation_id) = reservation {
                     Self::remove_gas_reservation_with_task(dispatch.source(), reservation_id);
                 }
@@ -715,6 +716,7 @@ where
             GasHandlerOf::<T>::cut(msg_id, message.id(), gas_limit)
                 .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
 
+            // TODO: adapt this line if gasful sending appears for reservations (#1828)
             if let Some(reservation_id) = reservation {
                 Self::remove_gas_reservation_with_task(message.source(), reservation_id);
             }
