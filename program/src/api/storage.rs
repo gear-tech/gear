@@ -16,7 +16,7 @@ impl Api {
     pub async fn info(&self, address: &str) -> Result<AccountInfo<u32, AccountData<u128>>> {
         let at = storage()
             .system()
-            .account(&AccountId32::from_ss58check(address)?);
+            .account(AccountId32::from_ss58check(address)?);
         Ok(self
             .storage()
             .fetch(&at, None)
