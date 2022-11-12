@@ -132,12 +132,14 @@ pub trait Tree {
     /// Error occurs if the tree is invalidated (has "orphan" nodes), and the
     /// node identified by the `key` belongs to a subtree originating at
     /// such "orphan" node, or in case of inexistent key.
-    fn get_limit_node(key: Self::Key) -> Result<(Self::Balance, Self::Key), Self::Error>;
+    fn get_limit_node(
+        key: impl Into<GasNodeIdOf<Self>>,
+    ) -> Result<(Self::Balance, GasNodeIdOf<Self>), Self::Error>;
 
     /// Get value associated with given id.
     ///
     /// See [`get_limit_node`](Self::get_limit_node) for details.
-    fn get_limit(key: Self::Key) -> Result<Self::Balance, Self::Error> {
+    fn get_limit(key: impl Into<GasNodeIdOf<Self>>) -> Result<Self::Balance, Self::Error> {
         Self::get_limit_node(key).map(|(balance, _key)| balance)
     }
 
@@ -169,7 +171,7 @@ pub trait Tree {
     ///
     /// This can't create imbalance as no value is burned or created.
     fn split_with_value(
-        key: Self::Key,
+        key: impl Into<GasNodeIdOf<Self>>,
         new_key: Self::Key,
         amount: Self::Balance,
     ) -> Result<(), Self::Error>;
@@ -179,7 +181,7 @@ pub trait Tree {
     /// If `key` does not identify any value an error is returned.
     ///
     /// This can't create imbalance as no value is burned or created.
-    fn split(key: Self::Key, new_key: Self::Key) -> Result<(), Self::Error>;
+    fn split(key: impl Into<GasNodeIdOf<Self>>, new_key: Self::Key) -> Result<(), Self::Error>;
 
     /// Cut underlying value to a reserved node.
     ///
@@ -187,7 +189,11 @@ pub trait Tree {
     /// locked under that key, an error is returned.
     ///
     /// This can't create imbalance as no value is burned or created.
-    fn cut(key: Self::Key, new_key: Self::Key, amount: Self::Balance) -> Result<(), Self::Error>;
+    fn cut(
+        key: impl Into<GasNodeIdOf<Self>>,
+        new_key: Self::Key,
+        amount: Self::Balance,
+    ) -> Result<(), Self::Error>;
 
     /// Locking some value from underlying balance.
     ///
