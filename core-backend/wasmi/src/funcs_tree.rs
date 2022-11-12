@@ -66,6 +66,12 @@ where
         f.build("gr_send_push", |forbidden| {
             F::send_push(store, forbidden, memory)
         }),
+        f.build("gr_reservation_send", |forbidden| {
+            F::reservation_send(store, forbidden, memory)
+        }),
+        f.build("gr_reservation_send_commit", |forbidden| {
+            F::reservation_send_commit(store, forbidden, memory)
+        }),
         f.build("gr_read", |forbidden| F::read(store, forbidden, memory)),
         f.build("gr_size", |forbidden| F::size(store, forbidden)),
         f.build("gr_exit", |forbidden| F::exit(store, forbidden, memory)),
@@ -96,6 +102,12 @@ where
         }),
         f.build("gr_reply_push", |forbidden| {
             F::reply_push(store, forbidden, memory)
+        }),
+        f.build("gr_reservation_reply", |forbidden| {
+            F::reservation_reply(store, forbidden, memory)
+        }),
+        f.build("gr_reservation_reply_commit", |forbidden| {
+            F::reservation_reply_commit(store, forbidden, memory)
         }),
         f.build("gr_debug", |forbidden| F::debug(store, forbidden, memory)),
         f.build("gr_gas_available", |forbidden| {
