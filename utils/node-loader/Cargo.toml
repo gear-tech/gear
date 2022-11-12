@@ -2,7 +2,6 @@
 name = "gear-node-loader"
 version = "0.1.0"
 authors = ["Gear Technologies"]
-publish = false
 edition = "2021"
 
 [[bin]]

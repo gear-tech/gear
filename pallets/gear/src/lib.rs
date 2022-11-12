@@ -1834,6 +1834,10 @@ pub mod pallet {
 
             Ok(())
         }
+
+        pub fn run_call() -> Call<T> {
+            Call::run {}
+        }
     }
 
     #[pallet::call]

@@ -60,7 +60,7 @@ impl<Rng: LoaderRng> BatchPool<Rng> {
         };
 
         if let Err(ref e) = run_result {
-            tracing::info!("Pool run ends up with an error: {e}");
+            tracing::info!("Pool run ends up with an error: {e:?}");
         }
 
         run_result
@@ -205,7 +205,7 @@ async fn process_events(
 
         if (utils::now() - now) as usize > wait_for_events_millisec {
             tracing::debug!("Timeout is reached while waiting for events");
-            return Err(anyhow!(utils::TIMEOUT_ERR_STR));
+            return Err(anyhow!(utils::EVENTS_TIMEOUT_ERR_STR));
         }
 
         if matches!(r, Err(GClientError::EventNotFoundInIterator)) {

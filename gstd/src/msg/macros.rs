@@ -40,6 +40,31 @@ macro_rules! impl_futures {
                 $p
             }
         }
+
+        impl $( <$g: Decode> )? $f $( < $g > )? {
+            /// Delays handling for maximal amount of blocks that could be payed, that
+            /// doesn't exceed given duration.
+            pub fn up_to(self, duration: Option<u32>) -> Result<Self> {
+                async_runtime::locks().lock(
+                    crate::msg::id(),
+                    self.waiting_reply_to,
+                    Lock::up_to(duration.unwrap_or(Config::wait_up_to()))?,
+                );
+
+                Ok(self)
+            }
+
+            /// Delays handling for given specific amount of blocks.
+            pub fn exactly(self, duration: Option<u32>) -> Result<Self> {
+                async_runtime::locks().lock(
+                    crate::msg::id(),
+                    self.waiting_reply_to,
+                    Lock::exactly(duration.unwrap_or(Config::wait_for()))?,
+                );
+
+                Ok(self)
+            }
+        }
     };
 }
 

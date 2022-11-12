@@ -7,6 +7,7 @@ use gclient::WSAddress;
 use rand::{Rng, RngCore, SeedableRng};
 use reqwest::Client;
 use std::{
+    collections::HashMap,
     fs::File,
     io::Write,
     iter,
@@ -19,7 +20,7 @@ use std::{
 pub const SUBXT_RPC_REQUEST_ERR_STR: &str = "Rpc error: The background task been terminated because: Networking or low-level protocol error";
 /// subxt's GenericError::Rpc::RequestError::Call (CallError::Failed)
 pub const SUBXT_RPC_CALL_ERR_STR: &str = "Transaction would exhaust the block limits";
-pub const TIMEOUT_ERR_STR: &str = "Timeout";
+pub const EVENTS_TIMEOUT_ERR_STR: &str = "Block events timeout";
 
 pub fn now() -> u64 {
     let time_since_epoch = SystemTime::now()
@@ -122,19 +123,17 @@ pub async fn with_timeout<T>(fut: impl Future<Output = T>) -> Result<T> {
     tokio::select! {
         output = fut => Ok(output),
         _ = wait_task => {
-            tracing::debug!("Timeout occurred while running the action");
-            Err(anyhow!(TIMEOUT_ERR_STR))
+            Err(anyhow!("Timeout occurred while running the action"))
         }
     }
 }
 
 pub async fn stop_node(monitor_url: String) -> Result<()> {
     let client = Client::new();
-    client
-        .post(monitor_url)
-        .body("gear-node-loader=stop-gear")
-        .send()
-        .await?;
+    let mut params = HashMap::new();
+    params.insert("__script_name", "stop");
+
+    client.post(monitor_url).form(&params).send().await?;
 
     Ok(())
 }
