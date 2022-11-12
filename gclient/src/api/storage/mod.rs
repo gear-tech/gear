@@ -35,7 +35,7 @@ impl GearApi {
     ) -> Result<Option<(StoredMessage, Interval<u32>)>> {
         let at = storage()
             .gear_messenger()
-            .mailbox(account_id.borrow(), &(*message_id.borrow()).into());
+            .mailbox(account_id.borrow(), *message_id.borrow().into());
         let data = self.0.storage().fetch(&at, None).await?;
 
         Ok(data.map(|(m, i)| (m.into(), i)))
