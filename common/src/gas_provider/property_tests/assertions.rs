@@ -152,7 +152,6 @@ pub(super) fn assert_root_children_removed(root_node: Key, remaining_nodes: &Rem
             remaining_nodes
                 .iter()
                 .filter(|(id, _node)| is_child(**id))
-                .map(|d| dbg!(d))
                 .count(),
             0
         );
