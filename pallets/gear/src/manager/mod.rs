@@ -288,14 +288,14 @@ where
         let program_id = program_id.into_origin();
         let mut prog = common::get_active_program(program_id).unwrap_or_else(|e| {
             unreachable!(
-                "gas reservation removing guaranteed to be called only on existing program: {}",
+                "Gas reservation removing guaranteed to be called only on existing program: {}",
                 e
             )
         });
         let slot = prog
                     .gas_reservation_map
                     .remove(&reservation_id)
-                    .unwrap_or_else(|| unreachable!("gas reservation removing guaranteed to be called only on existing reservation ID"));
+                    .unwrap_or_else(|| unreachable!("Gas reservation removing guaranteed to be called only on existing reservation ID"));
         common::set_program(program_id, prog);
 
         GasHandlerOf::<T>::unlock_all(reservation_id)
