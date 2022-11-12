@@ -445,6 +445,10 @@ impl EnvExt for Ext {
 
         self.charge_sending_fee(delay)?;
 
+        if !self.context.gas_reserver.exists(id) {
+            return self.return_and_store_err(Err(ExecutionError::InvalidReservationId));
+        }
+
         let result = self
             .context
             .message_context
@@ -489,6 +493,10 @@ impl EnvExt for Ext {
         self.charge_message_value(msg.value())?;
 
         self.charge_sending_fee(delay)?;
+
+        if !self.context.gas_reserver.exists(id) {
+            return self.return_and_store_err(Err(ExecutionError::InvalidReservationId));
+        }
 
         let result = self
             .context

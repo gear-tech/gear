@@ -116,6 +116,11 @@ impl GasReserver {
         Ok(amount)
     }
 
+    /// Return whether reservation exists.
+    pub fn exists(&self, id: ReservationId) -> bool {
+        self.states.contains_key(&id)
+    }
+
     /// Return reservation nonce.
     pub fn nonce(&self) -> u64 {
         self.nonce
