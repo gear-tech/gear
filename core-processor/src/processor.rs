@@ -573,15 +573,15 @@ fn process_success(
         journal.extend(gas_reserver.states().iter().flat_map(
             |(&reservation_id, &state)| match state {
                 GasReservationState::Exists { .. } => None,
-                GasReservationState::Created { amount, duration } => {
-                    Some(JournalNote::ReserveGas {
-                        message_id,
-                        reservation_id,
-                        program_id,
-                        amount,
-                        duration,
-                    })
-                }
+                GasReservationState::Created {
+                    amount, duration, ..
+                } => Some(JournalNote::ReserveGas {
+                    message_id,
+                    reservation_id,
+                    program_id,
+                    amount,
+                    duration,
+                }),
                 GasReservationState::Removed { expiration } => Some(JournalNote::UnreserveGas {
                     reservation_id,
                     program_id,

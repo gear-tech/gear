@@ -445,9 +445,7 @@ impl EnvExt for Ext {
 
         self.charge_sending_fee(delay)?;
 
-        if !self.context.gas_reserver.exists(id) {
-            return self.return_and_store_err(Err(ExecutionError::InvalidReservationId));
-        }
+        self.context.gas_reserver.mark_used(id)?;
 
         let result = self
             .context
@@ -494,9 +492,7 @@ impl EnvExt for Ext {
 
         self.charge_sending_fee(delay)?;
 
-        if !self.context.gas_reserver.exists(id) {
-            return self.return_and_store_err(Err(ExecutionError::InvalidReservationId));
-        }
+        self.context.gas_reserver.mark_used(id)?;
 
         let result = self
             .context
