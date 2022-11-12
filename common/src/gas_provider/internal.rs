@@ -394,8 +394,8 @@ where
             Self::node_with_value(Self::get_node(key).ok_or_else(InternalError::node_not_found)?)?;
         let node_id = node_id.unwrap_or(key);
 
-        // Check if the parent node is detached
-        if node.is_detached() {
+        // Check if the parent node is cut
+        if node.is_cut() {
             return Err(InternalError::forbidden().into());
         }
 
@@ -692,8 +692,8 @@ where
             Self::node_with_value(Self::get_node(key).ok_or_else(InternalError::node_not_found)?)?;
         let node_id = node_id.unwrap_or(key);
 
-        // Check if the value node is detached
-        if node.is_detached() {
+        // Check if the value node is cut
+        if node.is_cut() {
             return Err(InternalError::forbidden().into());
         }
 

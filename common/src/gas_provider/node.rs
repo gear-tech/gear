@@ -309,11 +309,6 @@ impl<ExternalId: Clone, Id: Clone + Copy, Balance: Zero + Clone + Copy>
         self.lock().is_some()
     }
 
-    /// Returns whether the node is detached and not even a new tree root
-    pub(crate) fn is_detached(&self) -> bool {
-        self.is_cut()
-    }
-
     fn adjust_refs(&mut self, increase: bool, spec: bool) {
         if let Self::External { refs, .. }
         | Self::SpecifiedLocal { refs, .. }
