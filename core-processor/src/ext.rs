@@ -440,7 +440,7 @@ impl EnvExt for Ext {
 
         self.check_message_value(msg.value())?;
         let _gas_limit = self.check_gas_limit(msg.gas_limit())?;
-        // TODO: charge gas from reservation when sending from reservation with gas limit when discussed
+        // TODO: gasful sending (#1828)
         self.charge_message_value(msg.value())?;
 
         self.charge_sending_fee(delay)?;
@@ -485,7 +485,7 @@ impl EnvExt for Ext {
 
         self.check_message_value(msg.value())?;
         let _gas_limit = self.check_gas_limit(msg.gas_limit())?;
-        // TODO: charge gas from reservation when replying from reservation with gas limit when discussed
+        // TODO: gasful sending (#1828)
         self.charge_message_value(msg.value())?;
 
         self.charge_sending_fee(delay)?;

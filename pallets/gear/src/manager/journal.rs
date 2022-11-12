@@ -278,6 +278,7 @@ where
                         .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
                 }
                 (Some(_gas_limit), Some(_reservation_id)) => {
+                    // TODO: #1828
                     unreachable!(
                         "Sending dispatch with gas limit from reservation \
                     is currently unimplemented and there is no way to send such dispatch"

@@ -783,7 +783,6 @@ benchmarks! {
         verify_process(res.unwrap());
     }
 
-    // Benchmark the `gr_reply_commit` call.
     gr_reply_commit {
         let r in 0 .. API_BENCHMARK_BATCHES;
         let mut res = None;
@@ -795,7 +794,6 @@ benchmarks! {
         verify_process(res.unwrap());
     }
 
-    // Benchmark the `gr_reply_push` call.
     gr_reply_push {
         let r in 0 .. API_BENCHMARK_BATCHES;
         let mut res = None;
@@ -818,7 +816,6 @@ benchmarks! {
         verify_process(res.unwrap());
     }
 
-    // Benchmark the `gr_reply_commit` call.
     gr_reservation_reply_commit {
         let r in 0 .. API_BENCHMARK_BATCHES;
         let mut res = None;

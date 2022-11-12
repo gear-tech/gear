@@ -155,7 +155,7 @@ mod sys {
             message_id_ptr: *mut [u8; 32],
         ) -> SyscallError;
 
-        // TODO: send from reservation with gas
+        // TODO: gasful sending (#1828)
         /*#[allow(improper_ctypes)]
         pub fn gr_reservation_send_wgas(
             reservation_id_ptr: *const [u8; 32],
@@ -178,6 +178,7 @@ mod sys {
             message_id_ptr: *mut [u8; 32],
         ) -> SyscallError;
 
+        // TODO: gasful sending (#1828)
         /*#[allow(improper_ctypes)]
         pub fn gr_reservation_send_commit_wgas(
             reservation_id_ptr: *const [u8; 32],

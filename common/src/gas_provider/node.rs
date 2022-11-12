@@ -162,7 +162,7 @@ impl<ExternalId: Clone, Id: Clone + Copy, Balance: Zero + Clone + Copy>
 
     /// Returns whether the node is marked consumed or not
     ///
-    /// Only `GasNode::External` and `GasNode::SpecifiedLocal` can be marked
+    /// Only `GasNode::External`, `GasNode::SpecifiedLocal`, `GasNode::Reserved` can be marked
     /// consumed and not deleted. See [`Tree::consume`] for details.
     pub fn is_consumed(&self) -> bool {
         if let Self::External { consumed, .. }
