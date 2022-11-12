@@ -23,7 +23,10 @@ pub use block::*;
 use super::{GearApi, Result};
 use crate::Error;
 use gear_core::{ids::*, message::StoredMessage};
-use gp::api::generated::api::{runtime_types::gear_common::storage::primitives::Interval, storage};
+use gp::api::generated::api::{
+    runtime_types::{gear_common::storage::primitives::Interval, gear_core::ids as generated_ids},
+    storage,
+};
 use std::borrow::Borrow;
 use subxt::ext::sp_runtime::AccountId32;
 
@@ -33,9 +36,10 @@ impl GearApi {
         account_id: impl Borrow<AccountId32>,
         message_id: impl Borrow<MessageId>,
     ) -> Result<Option<(StoredMessage, Interval<u32>)>> {
-        let at = storage()
-            .gear_messenger()
-            .mailbox(account_id.borrow(), *message_id.borrow().into());
+        let at = storage().gear_messenger().mailbox(
+            account_id.borrow(),
+            generated_ids::MessageId::from(*message_id.borrow()),
+        );
         let data = self.0.storage().fetch(&at, None).await?;
 
         Ok(data.map(|(m, i)| (m.into(), i)))
