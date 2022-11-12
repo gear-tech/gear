@@ -51,8 +51,6 @@ pub enum ReplyAction {
     ReceiveDelayed([u8; 32]),
 }
 
-#[no_mangle]
-unsafe extern "C" fn init() {}
 
 #[no_mangle]
 unsafe extern "C" fn handle() {
