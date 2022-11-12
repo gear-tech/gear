@@ -49,7 +49,14 @@ impl GasReserver {
             states: map
                 .into_iter()
                 .map(|(id, GasReservationSlot { amount, expiration })| {
-                    (id, GasReservationState::Exists { amount, expiration })
+                    (
+                        id,
+                        GasReservationState::Exists {
+                            amount,
+                            expiration,
+                            used: false,
+                        },
+                    )
                 })
                 .collect(),
             max_reservations,
@@ -88,8 +95,14 @@ impl GasReserver {
 
         let id = ReservationId::generate(self.message_id, self.fetch_inc_nonce());
 
-        self.states
-            .insert(id, GasReservationState::Created { amount, duration });
+        self.states.insert(
+            id,
+            GasReservationState::Created {
+                amount,
+                duration,
+                used: false,
+            },
+        );
 
         Ok(id)
     }
@@ -102,7 +115,9 @@ impl GasReserver {
             .ok_or(ExecutionError::InvalidReservationId)?;
 
         let amount = match state {
-            GasReservationState::Exists { amount, expiration } => {
+            GasReservationState::Exists {
+                amount, expiration, ..
+            } => {
                 self.states
                     .insert(id, GasReservationState::Removed { expiration });
                 amount
@@ -114,6 +129,23 @@ impl GasReserver {
         };
 
         Ok(amount)
+    }
+
+    /// Marks reservation as used to avoid double usage in sys-calls like `gr_reservation_send`.
+    pub fn mark_used(&mut self, id: ReservationId) -> Result<(), ExecutionError> {
+        if let Some(
+            GasReservationState::Created { used, .. } | GasReservationState::Exists { used, .. },
+        ) = self.states.get_mut(&id)
+        {
+            if *used {
+                Err(ExecutionError::InvalidReservationId)
+            } else {
+                *used = true;
+                Ok(())
+            }
+        } else {
+            Err(ExecutionError::InvalidReservationId)
+        }
     }
 
     /// Return reservation nonce.
@@ -134,10 +166,12 @@ impl GasReserver {
         self.states
             .into_iter()
             .flat_map(|(id, state)| match state {
-                GasReservationState::Exists { amount, expiration } => {
-                    Some((id, GasReservationSlot { amount, expiration }))
-                }
-                GasReservationState::Created { amount, duration } => {
+                GasReservationState::Exists {
+                    amount, expiration, ..
+                } => Some((id, GasReservationSlot { amount, expiration })),
+                GasReservationState::Created {
+                    amount, duration, ..
+                } => {
                     let expiration = duration_into_expiration(duration);
                     Some((id, GasReservationSlot { amount, expiration }))
                 }
@@ -161,6 +195,8 @@ pub enum GasReservationState {
         amount: u64,
         /// Block number when reservation will expire.
         expiration: u32,
+        /// Whether reservation used.
+        used: bool,
     },
     /// Reservation will be created.
     Created {
@@ -168,6 +204,8 @@ pub enum GasReservationState {
         amount: u64,
         /// How many blocks reservation will live.
         duration: u32,
+        /// Whether reservation used.
+        used: bool,
     },
     /// Reservation will be removed.
     Removed {
@@ -201,5 +239,22 @@ mod tests {
         for _ in 0..usize::MAX {
             reserver.reserve(100, 10).unwrap();
         }
+    }
+
+    #[test]
+    fn mark_used_twice_fails() {
+        let mut reserved = GasReserver::new(Default::default(), 0, Default::default(), 256);
+        let id = reserved.reserve(1, 1).unwrap();
+        reserved.mark_used(id).unwrap();
+        assert_eq!(
+            reserved.mark_used(id),
+            Err(ExecutionError::InvalidReservationId)
+        );
+
+        // not found
+        assert_eq!(
+            reserved.mark_used(ReservationId::default()),
+            Err(ExecutionError::InvalidReservationId)
+        );
     }
 }

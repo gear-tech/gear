@@ -22,6 +22,7 @@ use super::*;
 use utils::{RemainingNodes, RemovedNodes};
 
 /// Check that removed nodes invariants are met
+#[track_caller]
 pub(super) fn assert_removed_nodes_props(
     consumed: Key,
     removed_nodes: RemovedNodes,
@@ -108,6 +109,7 @@ fn assert_removed_nodes_have_no_lock(removed_nodes: &RemovedNodes) {
 }
 
 // Check that removed nodes form a path (if more than one was removed).
+#[track_caller]
 fn assert_removed_nodes_form_path(
     consumed: Key,
     remaining_nodes: &RemainingNodes,
@@ -120,7 +122,6 @@ fn assert_removed_nodes_form_path(
 
     while not_checked_parents_count > 1 {
         if let Some(parent) = node.parent() {
-            let parent = parent.into();
             assert!(!remaining_nodes.contains_key(&parent));
             assert!(removed_nodes.contains_key(&parent));
 
@@ -129,7 +130,7 @@ fn assert_removed_nodes_form_path(
         }
     }
     if let Some(parent) = node.parent() {
-        assert!(remaining_nodes.contains_key(&parent.into()));
+        assert!(remaining_nodes.contains_key(&parent));
     }
 }
 
@@ -139,12 +140,22 @@ fn assert_removed_nodes_form_path(
 // check `root_node` for existence. If it was removed after a new `consume`
 // call, then all the tree must be empty. So no nodes can be removed after
 // root was removed in the `consume` call.
-pub(super) fn assert_root_removed_last(root_node: Key, remaining_nodes: RemainingNodes) {
+#[track_caller]
+pub(super) fn assert_root_children_removed(
+    root_node: impl Into<Key>,
+    remaining_nodes: &RemainingNodes,
+) {
+    let root_node = root_node.into();
+    let is_child = |id: GasNodeId<_, _>| {
+        let (_, origin_id) = Gas::get_origin_node(id).unwrap();
+        origin_id == root_node
+    };
+
     if Gas::get_node(root_node).is_none() {
         assert_eq!(
             remaining_nodes
                 .iter()
-                .filter(|(_, node)| !node.is_detached())
+                .filter(|(id, _node)| is_child(**id))
                 .count(),
             0
         );
@@ -152,6 +163,7 @@ pub(super) fn assert_root_removed_last(root_node: Key, remaining_nodes: Remainin
 }
 
 // Check that returned dispatch error is not of invariant error variants.
+#[track_caller]
 pub(super) fn assert_not_invariant_error(err: super::Error) {
     use super::Error::*;
 

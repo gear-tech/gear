@@ -1690,6 +1690,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "demo-send-from-reservation"
+version = "0.1.0"
+dependencies = [
+ "gear-wasm-builder",
+ "gstd",
+ "gtest",
+ "parity-scale-codec",
+]
+
+[[package]]
 name = "demo-signal-entry"
 version = "0.1.0"
 dependencies = [
@@ -6043,6 +6053,7 @@ dependencies = [
  "demo-proxy",
  "demo-proxy-with-gas",
  "demo-reserve-gas",
+ "demo-send-from-reservation",
  "demo-value-sender",
  "demo-wait-timeout",
  "demo-waiter",
@@ -11718,12 +11729,12 @@ dependencies = [
 
 [[package]]
 name = "wasmprinter"
-version = "0.2.42"
+version = "0.2.43"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6c9f096ba095329c6aa55b7e9cafa26c5b50e9ab7fc2415fd0b26cb80dca8f05"
+checksum = "9c093ddb9e6526cc59d93032b9be7a8d014cc997e8a9372f394c9624f820d209"
 dependencies = [
  "anyhow",
- "wasmparser 0.93.0",
+ "wasmparser 0.94.0",
 ]
 
 [[package]]

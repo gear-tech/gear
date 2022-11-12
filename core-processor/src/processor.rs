@@ -511,6 +511,7 @@ fn process_error(
             message_id,
             dispatch,
             delay: 0,
+            reservation: None,
         });
     }
 
@@ -572,15 +573,15 @@ fn process_success(
         journal.extend(gas_reserver.states().iter().flat_map(
             |(&reservation_id, &state)| match state {
                 GasReservationState::Exists { .. } => None,
-                GasReservationState::Created { amount, duration } => {
-                    Some(JournalNote::ReserveGas {
-                        message_id,
-                        reservation_id,
-                        program_id,
-                        amount,
-                        duration,
-                    })
-                }
+                GasReservationState::Created {
+                    amount, duration, ..
+                } => Some(JournalNote::ReserveGas {
+                    message_id,
+                    reservation_id,
+                    program_id,
+                    amount,
+                    duration,
+                }),
                 GasReservationState::Removed { expiration } => Some(JournalNote::UnreserveGas {
                     reservation_id,
                     program_id,
@@ -619,11 +620,12 @@ fn process_success(
         });
     }
 
-    for (dispatch, delay) in generated_dispatches {
+    for (dispatch, delay, reservation) in generated_dispatches {
         journal.push(JournalNote::SendDispatch {
             message_id,
             dispatch,
             delay,
+            reservation,
         });
     }
 
@@ -748,6 +750,7 @@ fn process_non_executable(
             message_id,
             dispatch,
             delay: 0,
+            reservation: None,
         });
     }
 
