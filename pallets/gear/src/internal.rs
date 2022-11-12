@@ -581,7 +581,7 @@ where
                     .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
 
                 if let Some(reservation_id) = reservation {
-                    Self::consume_gas_reservation(dispatch.source(), reservation_id);
+                    Self::remove_gas_reservation_with_task(dispatch.source(), reservation_id);
                 }
             }
         } else {
@@ -617,7 +617,7 @@ where
                     GasHandlerOf::<T>::split(reservation_id, dispatch.id())
                         .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
 
-                    Self::consume_gas_reservation(dispatch.source(), reservation_id);
+                    Self::remove_gas_reservation_with_task(dispatch.source(), reservation_id);
                 }
             }
         }
@@ -716,7 +716,7 @@ where
                 .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
 
             if let Some(reservation_id) = reservation {
-                Self::consume_gas_reservation(message.source(), reservation_id);
+                Self::remove_gas_reservation_with_task(message.source(), reservation_id);
             }
 
             // Reserving value from source for future transfer or unreserve.
@@ -819,7 +819,10 @@ where
         });
     }
 
-    pub(crate) fn consume_gas_reservation(program_id: ProgramId, reservation_id: ReservationId) {
+    pub(crate) fn remove_gas_reservation_with_task(
+        program_id: ProgramId,
+        reservation_id: ReservationId,
+    ) {
         let slot = ExtManager::<T>::remove_gas_reservation(program_id, reservation_id);
 
         let _ = TaskPoolOf::<T>::delete(

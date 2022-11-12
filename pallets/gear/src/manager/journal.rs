@@ -288,7 +288,10 @@ where
                     GasHandlerOf::<T>::split(reservation_id, dispatch.id())
                         .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
 
-                    Pallet::<T>::consume_gas_reservation(dispatch.source(), reservation_id);
+                    Pallet::<T>::remove_gas_reservation_with_task(
+                        dispatch.source(),
+                        reservation_id,
+                    );
                 }
             }
 
