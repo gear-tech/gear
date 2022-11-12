@@ -417,9 +417,9 @@ proptest! {
                                 &remaining_nodes,
                                 &marked_consumed,
                             );
-                            assertions::assert_root_children_removed(root_node.into(), &remaining_nodes);
+                            assertions::assert_root_children_removed(root_node, &remaining_nodes);
                             if let Key::Reservation(id) = consuming {
-                                assertions::assert_root_children_removed(id.into(), &remaining_nodes);
+                                assertions::assert_root_children_removed(id, &remaining_nodes);
                             }
 
                             caught += maybe_caught.unwrap_or_default();

@@ -141,7 +141,11 @@ fn assert_removed_nodes_form_path(
 // call, then all the tree must be empty. So no nodes can be removed after
 // root was removed in the `consume` call.
 #[track_caller]
-pub(super) fn assert_root_children_removed(root_node: Key, remaining_nodes: &RemainingNodes) {
+pub(super) fn assert_root_children_removed(
+    root_node: impl Into<Key>,
+    remaining_nodes: &RemainingNodes,
+) {
+    let root_node = root_node.into();
     let is_child = |id: GasNodeId<_, _>| {
         let (_, origin_id) = Gas::get_origin_node(id).unwrap();
         origin_id == root_node
