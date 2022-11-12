@@ -582,13 +582,7 @@ where
                     .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
 
                 if let Some(reservation_id) = reservation {
-                    let slot = Self::remove_gas_reservation(dispatch.source(), reservation_id)
-                        .unwrap_or_else(|| {
-                            unreachable!(
-                                "Sending message to program guaranteed \
-                                to be called only from active program"
-                            )
-                        });
+                    let slot = Self::consume_gas_reservation(dispatch.source(), reservation_id);
 
                     let _ = TaskPoolOf::<T>::delete(
                         BlockNumberFor::<T>::from(slot.expiration),
@@ -727,13 +721,7 @@ where
                 .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
 
             if let Some(reservation_id) = reservation {
-                let slot = Self::remove_gas_reservation(message.source(), reservation_id)
-                    .unwrap_or_else(|| {
-                        unreachable!(
-                            "sending message to program guaranteed \
-                            to be called only from active program"
-                        )
-                    });
+                let slot = Self::consume_gas_reservation(message.source(), reservation_id);
 
                 let _ = TaskPoolOf::<T>::delete(
                     BlockNumberFor::<T>::from(slot.expiration),
@@ -849,12 +837,7 @@ where
         GasHandlerOf::<T>::split(reservation_id, message_id)
             .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
 
-        let slot = Self::remove_gas_reservation(source, reservation_id).unwrap_or_else(|| {
-            unreachable!(
-                "sending message to program guaranteed \
-               to be called only from active program"
-            )
-        });
+        let slot = Self::consume_gas_reservation(source, reservation_id);
 
         let _ = TaskPoolOf::<T>::delete(
             BlockNumberFor::<T>::from(slot.expiration),
@@ -862,22 +845,22 @@ where
         );
     }
 
-    pub(crate) fn remove_gas_reservation(
+    pub(crate) fn consume_gas_reservation(
         program_id: ProgramId,
         reservation_id: ReservationId,
-    ) -> Option<GasReservationSlot> {
-        let mut slot = None;
-
+    ) -> GasReservationSlot {
         let program_id = program_id.into_origin();
-        let prog = common::get_program(program_id).unwrap_or_else(|| {
+        let mut prog = common::get_active_program(program_id).unwrap_or_else(|e| {
             unreachable!(
-                "gas reservation removing guaranteed to be called only on existing program"
+                "gas reservation removing guaranteed to be called only on existing program: {}",
+                e
             )
         });
-        if let common::Program::Active(mut prog) = prog {
-            slot = prog.gas_reservation_map.remove(&reservation_id);
-            common::set_program(program_id, prog);
-        }
+        let slot = prog
+            .gas_reservation_map
+            .remove(&reservation_id)
+            .unwrap_or_else(|| unreachable!("gas reservation removing guaranteed to be called only on existing reservation ID"));
+        common::set_program(program_id, prog);
 
         GasHandlerOf::<T>::unlock_all(reservation_id)
             .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));

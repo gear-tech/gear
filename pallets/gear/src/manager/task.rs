@@ -188,6 +188,6 @@ where
     }
 
     fn remove_gas_reservation(&mut self, program_id: ProgramId, reservation_id: ReservationId) {
-        let _slot = Pallet::<T>::remove_gas_reservation(program_id, reservation_id);
+        let _slot = Pallet::<T>::consume_gas_reservation(program_id, reservation_id);
     }
 }
