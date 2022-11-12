@@ -865,7 +865,7 @@ where
         GasHandlerOf::<T>::unlock_all(reservation_id)
             .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
 
-        // TODO: charge after unlock
+        // TODO: charge after unlock (#1830)
 
         Self::consume_and_retrieve(reservation_id);
 
