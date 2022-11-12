@@ -585,7 +585,7 @@ where
                     let slot = Self::remove_gas_reservation(dispatch.source(), reservation_id)
                         .unwrap_or_else(|| {
                             unreachable!(
-                                "sending message to program guaranteed \
+                                "Sending message to program guaranteed \
                                 to be called only from active program"
                             )
                         });
