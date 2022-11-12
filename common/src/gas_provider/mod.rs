@@ -189,7 +189,6 @@ pub trait Tree {
     /// locked under that key, an error is returned.
     ///
     /// This can't create imbalance as no value is burned or created.
-    // FIXME: depened only on `Self::Key` in the future.
     fn cut(
         key: impl Into<GasNodeIdOf<Self>>,
         new_key: Self::Key,
