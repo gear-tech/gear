@@ -549,7 +549,7 @@ where
             .value()
             .ok_or_else(InternalError::unexpected_node_type)?;
 
-        Ok((v, maybe_key.map(Into::into).unwrap_or(key)))
+        Ok((v, maybe_key.unwrap_or(key)))
     }
 
     /// Marks a node with `key` as consumed, if possible, and tries to return
