@@ -3,6 +3,9 @@ use crate::*;
 #[allow(improper_ctypes)]
 extern "C" {
     /// Infallible `gr_block_height` get syscall.
+    ///
+    /// Arguments:
+    /// - height:
     pub fn gr_block_height(height: *mut BlockNumber);
 
     /// Infallible `gr_block_timestamp` get syscall.
@@ -126,6 +129,59 @@ extern "C" {
         value: *const Value,
         delay: BlockNumber,
         mid_err: *mut (Hash, Len),
+    );
+
+    /// Fallible `gr_reservation_reply_commit` send syscall.
+    ///
+    /// Arguments naming:
+    /// * mid: message id
+    pub fn gr_reservation_reply_commit(
+        reservation: *const Hash,
+        payload: *const Bytes,
+        payload_len: Len,
+        value: *const Value,
+        delay: BlockNumber,
+        mid_err: *mut (Hash, Len)
+    );
+
+    /// Fallible `gr_reservation_reply` send syscall.
+    ///
+    /// Arguments naming:
+    /// * mid: message id
+    pub fn gr_reservation_reply(
+        reservation: *const Hash,
+        payload: *const Bytes,
+        payload_len: Len,
+        value: *const Value,
+        delay: BlockNumber,
+        mid_err: *mut (Hash, Len)
+    );
+
+    /// Fallible `gr_reservation_send_commit` send syscall.
+    ///
+    /// Arguments naming:
+    /// * mid: message id
+    pub fn gr_reservation_send_commit(
+        reservation: *const Hash,
+        handle: Handle,
+        destination: *const Hash,
+        value: *const Value,
+        delay: BlockNumber,
+        mid_err: *mut (Hash, Len)
+    );
+
+    /// Fallible `gr_reservation_send` send syscall.
+    ///
+    /// Arguments naming:
+    /// * mid: message id
+    pub fn gr_reservation_send(
+        reservation: *const Hash,
+        destination: *const Hash,
+        payload: *const Bytes,
+        payload_len: Len,
+        value: *const Value,
+        delay: BlockNumber,
+        mid_err: *mut (Hash, Len)
     );
 
     /// Fallible `gr_reserve_gas` control syscall.
