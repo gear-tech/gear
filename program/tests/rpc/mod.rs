@@ -37,7 +37,7 @@ async fn test_calculate_create_gas() -> Result<()> {
     // 2. calculate create gas and create program.
     let code_id = common::hash(messager::WASM_BINARY);
     let gas_info = signer
-        .calculate_create_gas(code_id.into(), vec![], 0, true, None)
+        .calculate_create_gas(None, code_id.into(), vec![], 0, true, None)
         .await?;
 
     assert!(signer
@@ -72,7 +72,7 @@ async fn test_calculate_handle_gas() -> Result<()> {
 
     // 2. calculate handle gas and send message.
     let gas_info = signer
-        .calculate_handle_gas(pid.into(), vec![], 0, true, None)
+        .calculate_handle_gas(None, pid.into(), vec![], 0, true, None)
         .await?;
 
     assert!(signer
@@ -119,7 +119,7 @@ async fn test_calculate_reply_gas() -> Result<()> {
 
     // 3. calculate reply gas and send reply.
     let gas_info = signer
-        .calculate_reply_gas(message_id, 1, vec![], 0, true, None)
+        .calculate_reply_gas(None, message_id, 1, vec![], 0, true, None)
         .await?;
 
     assert!(signer

@@ -24,7 +24,7 @@ impl Signer {
     ) -> Result<GasInfo> {
         self.api
             .calculate_create_gas(
-                origin.unwrap_or(self.source()),
+                origin.unwrap_or_else(|| self.source()),
                 code_id,
                 payload,
                 value,
@@ -46,7 +46,7 @@ impl Signer {
     ) -> Result<GasInfo> {
         self.api
             .calculate_upload_gas(
-                origin.unwrap_or(self.source()),
+                origin.unwrap_or_else(|| self.source()),
                 code,
                 payload,
                 value,
@@ -68,7 +68,7 @@ impl Signer {
     ) -> Result<GasInfo> {
         self.api
             .calculate_handle_gas(
-                origin.unwrap_or(self.source()),
+                origin.unwrap_or_else(|| self.source()),
                 destination,
                 payload,
                 value,
@@ -91,7 +91,7 @@ impl Signer {
     ) -> Result<GasInfo> {
         self.api
             .calculate_reply_gas(
-                origin.unwrap_or(self.source()),
+                origin.unwrap_or_else(|| self.source()),
                 message_id,
                 exit_code,
                 payload,
