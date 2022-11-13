@@ -379,7 +379,7 @@ where
         // Depositing appropriate event.
         Self::deposit_event(Event::MessageWaited {
             id: dispatch.id(),
-            origin: origin_msg.ne(&dispatch.id()).then_some(origin_msg),
+            origin: origin_msg.ne(&dispatch.id().into()).then_some(origin_msg),
             expiration: hold.expected(),
             reason,
         });
