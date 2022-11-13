@@ -303,10 +303,9 @@ where
             });
         common::set_program(program_id, prog);
 
-        GasHandlerOf::<T>::unlock_all(reservation_id)
-            .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
-
-        // TODO: charge after unlock (#1830)
+        // TODO: uncomment lines below and charge for holding (issue #1830).
+        // GasHandlerOf::<T>::unlock_all(reservation_id)
+        //     .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
 
         Pallet::<T>::consume_and_retrieve(reservation_id);
 
