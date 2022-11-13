@@ -4,19 +4,9 @@ use crate::{
     result::Result,
 };
 use gear_core::ids::{CodeId, MessageId, ProgramId};
-use std::sync::Arc;
-use subxt::{
-    rpc::{rpc_params, ClientT},
-    sp_core::H256,
-    RpcClient,
-};
+use subxt::{ext::sp_core::H256, rpc::rpc_params};
 
 impl Signer {
-    /// get rpc client
-    pub fn rpc(&self) -> Arc<RpcClient> {
-        self.client.rpc().client.clone()
-    }
-
     /// public key of the signer in H256
     pub fn source(&self) -> H256 {
         AsRef::<[u8; 32]>::as_ref(self.signer.account_id()).into()
