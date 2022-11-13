@@ -5,19 +5,9 @@ use crate::{
     result::Result,
 };
 use gear_core::ids::{CodeId, MessageId, ProgramId};
-use std::sync::Arc;
-use subxt::{
-    rpc::{rpc_params, ClientT},
-    sp_core::H256,
-    RpcClient,
-};
+use subxt::{ext::sp_core::H256, rpc::rpc_params};
 
 impl Api {
-    /// get rpc client
-    pub fn rpc(&self) -> Arc<RpcClient> {
-        self.client.rpc().client.clone()
-    }
-
     /// gear_calculateInitCreateGas
     pub async fn calculate_create_gas(
         &self,

@@ -16,7 +16,7 @@ serde = "1"
 env_logger = "0.9"
 hex = "0.4.3"
 arbitrary = { version = "1" }
-wasm-mutate = "0.2.10"
+wasm-mutate = "0.2.11"
 wasmparser = "0.92.0"
 
 # Internal deps
@@ -46,7 +46,7 @@ sp-runtime = { version = "6.0.0", git = "https://github.com/gear-tech/substrate.
 
 [dev-dependencies]
 wat = "1.0"
-wasmprinter = "0.2.42"
+wasmprinter = "0.2.43"
 demo-compose = { path = "../../examples/binaries/compose" }
 
 [features]

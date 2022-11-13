@@ -15,7 +15,7 @@ use std::{
     fs,
     path::{Path, PathBuf},
 };
-use subxt::{sp_core::sr25519, PairSigner};
+use subxt::{ext::sp_core::sr25519, tx::PairSigner};
 
 lazy_static! {
     // @WARNING: THIS WILL ONLY BE SECURE IF THE keystore IS SECURE.

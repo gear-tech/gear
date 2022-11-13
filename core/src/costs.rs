@@ -76,7 +76,7 @@ pub struct HostFnWeights {
     /// Weight of calling `gr_random`.
     pub gr_random: u64,
 
-    /// Weight of calling `gr_value_available`.
+    /// Weight of calling `gr_send_init`.
     pub gr_send_init: u64,
 
     /// Weight of calling `gr_send_push`.
@@ -91,8 +91,17 @@ pub struct HostFnWeights {
     /// Weight per payload byte by `gr_send_commit`.
     pub gr_send_commit_per_byte: u64,
 
+    /// Weight of calling `gr_reservation_send_commit`.
+    pub gr_reservation_send_commit: u64,
+
+    /// Weight per payload byte by `gr_reservation_send_commit`.
+    pub gr_reservation_send_commit_per_byte: u64,
+
     /// Weight of calling `gr_reply_commit`.
     pub gr_reply_commit: u64,
+
+    /// Weight of calling `gr_reservation_reply_commit`.
+    pub gr_reservation_reply_commit: u64,
 
     /// Weight of calling `gr_reply_push`.
     pub gr_reply_push: u64,
@@ -206,8 +215,12 @@ pub enum RuntimeCosts {
     SendPush(u32),
     /// Weight of calling `gr_send_commit`.
     SendCommit(u32),
+    /// Weight of calling `gr_reservation_send_commit`.
+    ReservationSendCommit(u32),
     /// Weight of calling `gr_reply_commit`.
     ReplyCommit,
+    /// Weight of calling `gr_reservation_reply_commit`.
+    ReservationReplyCommit,
     /// Weight of calling `gr_reply_push`.
     ReplyPush(u32),
     /// Weight of calling `gr_reply_to`.
@@ -262,7 +275,12 @@ impl RuntimeCosts {
             SendCommit(len) => s
                 .gr_send_commit
                 .saturating_add(s.gr_send_commit_per_byte.saturating_mul(len.into())),
+            ReservationSendCommit(len) => s.gr_reservation_send_commit.saturating_add(
+                s.gr_reservation_send_commit_per_byte
+                    .saturating_mul(len.into()),
+            ),
             ReplyCommit => s.gr_reply_commit,
+            ReservationReplyCommit => s.gr_reservation_reply_commit,
             ReplyPush(len) => s
                 .gr_reply_push
                 .saturating_add(s.gr_reply_push_per_byte.saturating_mul(len.into())),

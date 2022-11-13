@@ -64,7 +64,7 @@ pub struct DispatchResult {
     /// Context store after execution.
     pub context_store: ContextStore,
     /// List of generated messages.
-    pub generated_dispatches: Vec<(Dispatch, u32)>,
+    pub generated_dispatches: Vec<(Dispatch, u32, Option<ReservationId>)>,
     /// List of messages that should be woken.
     pub awakening: Vec<(MessageId, u32)>,
     /// New programs to be created with additional data (corresponding code hash and init message id).
@@ -197,6 +197,8 @@ pub enum JournalNote {
         dispatch: Dispatch,
         /// Amount of blocks to wait before sending.
         delay: u32,
+        /// Whether use supply from reservation or current message.
+        reservation: Option<ReservationId>,
     },
     /// Put this dispatch in the wait list.
     WaitDispatch {
@@ -307,7 +309,13 @@ pub trait JournalHandler {
     /// Process message consumed.
     fn message_consumed(&mut self, message_id: MessageId);
     /// Process send dispatch.
-    fn send_dispatch(&mut self, message_id: MessageId, dispatch: Dispatch, delay: u32);
+    fn send_dispatch(
+        &mut self,
+        message_id: MessageId,
+        dispatch: Dispatch,
+        delay: u32,
+        reservation: Option<ReservationId>,
+    );
     /// Process send message.
     fn wait_dispatch(
         &mut self,
@@ -367,6 +375,29 @@ pub struct ExecutionError {
     pub reason: ExecutionErrorReason,
 }
 
+/// Operation related to gas charging.
+#[derive(Encode, Decode, TypeInfo, Debug, PartialEq, Eq, PartialOrd, Ord, derive_more::Display)]
+pub enum GasOperation {
+    /// Load exisisting memory.
+    #[display(fmt = "load memory")]
+    LoadMemory,
+    /// Grow memory size.
+    #[display(fmt = "grow memory size")]
+    GrowMemory,
+    /// Handle initial memory.
+    #[display(fmt = "handle initial memory")]
+    InitialMemory,
+    /// Handle program data.
+    #[display(fmt = "handle program data")]
+    ProgramData,
+    /// Handle program code.
+    #[display(fmt = "handle program code")]
+    ProgramCode,
+    /// Instantiate Wasm module.
+    #[display(fmt = "instantiate Wasm module")]
+    ModuleInstantiation,
+}
+
 /// Reason of execution error
 #[derive(Encode, Decode, TypeInfo, Debug, PartialEq, Eq, PartialOrd, Ord, derive_more::Display)]
 pub enum ExecutionErrorReason {
@@ -385,36 +416,12 @@ pub enum ExecutionErrorReason {
     /// Program's max page is not last page in wasm page
     #[display(fmt = "Program's max page is not last page in wasm page")]
     NotLastPage,
-    /// Not enough gas to load memory
-    #[display(fmt = "Not enough gas to load memory")]
-    LoadMemoryGasExceeded,
-    /// Not enough gas in block to load memory
-    #[display(fmt = "Not enough gas in block to load memory")]
-    LoadMemoryBlockGasExceeded,
-    /// Not enough gas to grow memory size
-    #[display(fmt = "Not enough gas to grow memory size")]
-    GrowMemoryGasExceeded,
-    /// Not enough gas in block to grow memory size
-    #[display(fmt = "Not enough gas in block to grow memory size")]
-    GrowMemoryBlockGasExceeded,
-    /// Not enough gas for initial memory handling
-    #[display(fmt = "Not enough gas for initial memory handling")]
-    InitialMemoryGasExceeded,
-    /// Not enough gas in block for initial memory handling
-    #[display(fmt = "Not enough gas in block for initial memory handling")]
-    InitialMemoryBlockGasExceeded,
-    /// Not enough gas for basic program data handling
-    #[display(fmt = "Not enough gas for basic program data handling")]
-    ProgramDataGasExceeded,
-    /// Not enough gas for loading a program code
-    #[display(fmt = "Not enough gas for loading a program code")]
-    ProgramCodeGasExceeded,
-    /// Not enough gas for WASM module instantiation
-    #[display(fmt = "Not enough gas for WASM module instantiation")]
-    ModuleInstantiationGasExceeded,
-    /// Not enough gas in block for WASM module instantiation
-    #[display(fmt = "Not enough gas in block for WASM module instantiation")]
-    ModuleInstantiationBlockGasExceeded,
+    /// Not enough gas to perform an operation.
+    #[display(fmt = "Not enough gas to {_0}")]
+    GasExceeded(GasOperation),
+    /// Not enough gas in block to perform an operation.
+    #[display(fmt = "Not enough gas in block to {_0}")]
+    BlockGasExceeded(GasOperation),
     /// Mem size less then static pages num
     #[display(fmt = "Mem size less then static pages num")]
     InsufficientMemorySize,
@@ -437,11 +444,7 @@ pub enum ExecutionErrorReason {
     #[display(fmt = "Initial pages data must be empty when execute with lazy pages")]
     InitialPagesContainsDataInLazyPagesMode,
     /// Stack end page, which value is specified in WASM code, cannot be bigger than static memory size.
-    #[display(
-        fmt = "Stack end page {:?} is bigger then WASM static memory size {:?}",
-        _0,
-        _1
-    )]
+    #[display(fmt = "Stack end page {_0:?} is bigger then WASM static memory size {_1:?}")]
     StackEndPageBiggerWasmMemSize(WasmPageNumber, WasmPageNumber),
     /// It's not allowed to set initial data for stack memory pages, if they are specified in WASM code.
     #[display(fmt = "Set initial data for stack pages is restricted")]

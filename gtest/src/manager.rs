@@ -157,7 +157,7 @@ impl TestActor {
 
         Some((
             ExecutableActorData {
-                allocations: program.get_allocations().clone(),
+                allocations: program.allocations().clone(),
                 code_id: *code_id,
                 code_exports: program.code().exports().clone(),
                 code_length_bytes: program.code().code().len() as u32,
@@ -553,6 +553,7 @@ impl ExtManager {
                         message_id,
                         reply_message.into_dispatch(program_id, dispatch.source(), message_id),
                         0,
+                        None,
                     );
                 }
             }
@@ -590,6 +591,7 @@ impl ExtManager {
                         message_id,
                         reply_message.into_dispatch(program_id, dispatch.source(), message_id),
                         0,
+                        None,
                     );
                 }
             }
@@ -779,7 +781,13 @@ impl JournalHandler for ExtManager {
         }
     }
 
-    fn send_dispatch(&mut self, _message_id: MessageId, dispatch: Dispatch, _delay: u32) {
+    fn send_dispatch(
+        &mut self,
+        _message_id: MessageId,
+        dispatch: Dispatch,
+        _delay: u32,
+        _reservation: Option<ReservationId>,
+    ) {
         self.gas_limits.insert(dispatch.id(), dispatch.gas_limit());
 
         if !self.is_user(&dispatch.destination()) {
@@ -863,14 +871,14 @@ impl JournalHandler for ExtManager {
                     ..
                 }),
             ) => {
-                for page in program
-                    .get_allocations()
+                program
+                    .allocations()
                     .difference(&allocations)
                     .flat_map(|p| p.to_gear_pages_iter())
-                {
-                    pages_data.remove(&page);
-                }
-                *program.get_allocations_mut() = allocations;
+                    .for_each(|ref page| {
+                        pages_data.remove(page);
+                    });
+                program.set_allocations(allocations);
             }
             _ => unreachable!("No pages data found for program"),
         }

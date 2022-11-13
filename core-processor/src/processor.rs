@@ -19,7 +19,7 @@
 use crate::{
     common::{
         Actor, DispatchOutcome, DispatchResult, DispatchResultKind, ExecutableActorData,
-        ExecutionErrorReason, JournalNote, PrechargedDispatch, WasmExecutionContext,
+        ExecutionErrorReason, GasOperation, JournalNote, PrechargedDispatch, WasmExecutionContext,
     },
     configs::{BlockConfig, ExecutionSettings, MessageExecutionContext},
     executor,
@@ -208,7 +208,7 @@ pub fn precharge(
                 dispatch,
                 destination_id,
                 gas_burned,
-                ExecutionErrorReason::ProgramDataGasExceeded,
+                ExecutionErrorReason::GasExceeded(GasOperation::ProgramData),
             ))
         }
         BlockGasExceeded => {
@@ -277,7 +277,7 @@ pub fn prepare(
                 dispatch,
                 program_id,
                 gas_counter,
-                ExecutionErrorReason::ProgramCodeGasExceeded,
+                ExecutionErrorReason::GasExceeded(GasOperation::ProgramCode),
             );
         }
         ChargeForBytesResult::BlockGasExceeded => {
@@ -311,12 +311,12 @@ pub fn prepare(
         Err(reason) => {
             log::debug!("Failed to charge for module instantiation or memory pages: {reason:?}");
             return match reason {
-                ExecutionErrorReason::InitialMemoryBlockGasExceeded
-                | ExecutionErrorReason::GrowMemoryBlockGasExceeded
-                | ExecutionErrorReason::LoadMemoryBlockGasExceeded
-                | ExecutionErrorReason::ModuleInstantiationBlockGasExceeded => {
-                    prepare_allowance_exceed(dispatch, program_id, gas_counter)
-                }
+                ExecutionErrorReason::BlockGasExceeded(
+                    GasOperation::InitialMemory
+                    | GasOperation::GrowMemory
+                    | GasOperation::LoadMemory
+                    | GasOperation::ModuleInstantiation,
+                ) => prepare_allowance_exceed(dispatch, program_id, gas_counter),
                 _ => prepare_error(dispatch, program_id, gas_counter, reason),
             };
         }
@@ -438,11 +438,9 @@ pub fn process<
             }
         },
         Err(e) => match e.reason {
-            ExecutionErrorReason::InitialMemoryBlockGasExceeded
-            | ExecutionErrorReason::GrowMemoryBlockGasExceeded
-            | ExecutionErrorReason::LoadMemoryBlockGasExceeded => {
-                process_allowance_exceed(dispatch, program_id, e.gas_amount.burned())
-            }
+            ExecutionErrorReason::BlockGasExceeded(
+                GasOperation::InitialMemory | GasOperation::GrowMemory | GasOperation::LoadMemory,
+            ) => process_allowance_exceed(dispatch, program_id, e.gas_amount.burned()),
             _ => process_error(dispatch, program_id, e.gas_amount.burned(), e.reason),
         },
     }
@@ -513,6 +511,7 @@ fn process_error(
             message_id,
             dispatch,
             delay: 0,
+            reservation: None,
         });
     }
 
@@ -574,15 +573,15 @@ fn process_success(
         journal.extend(gas_reserver.states().iter().flat_map(
             |(&reservation_id, &state)| match state {
                 GasReservationState::Exists { .. } => None,
-                GasReservationState::Created { amount, duration } => {
-                    Some(JournalNote::ReserveGas {
-                        message_id,
-                        reservation_id,
-                        program_id,
-                        amount,
-                        duration,
-                    })
-                }
+                GasReservationState::Created {
+                    amount, duration, ..
+                } => Some(JournalNote::ReserveGas {
+                    message_id,
+                    reservation_id,
+                    program_id,
+                    amount,
+                    duration,
+                }),
                 GasReservationState::Removed { expiration } => Some(JournalNote::UnreserveGas {
                     reservation_id,
                     program_id,
@@ -621,11 +620,12 @@ fn process_success(
         });
     }
 
-    for (dispatch, delay) in generated_dispatches {
+    for (dispatch, delay, reservation) in generated_dispatches {
         journal.push(JournalNote::SendDispatch {
             message_id,
             dispatch,
             delay,
+            reservation,
         });
     }
 
@@ -750,6 +750,7 @@ fn process_non_executable(
             message_id,
             dispatch,
             delay: 0,
+            reservation: None,
         });
     }
 
