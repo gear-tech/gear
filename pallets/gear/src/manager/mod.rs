@@ -51,12 +51,12 @@ mod task;
 pub use journal::*;
 pub use task::*;
 
-use crate::{Config, CurrencyOf, GasHandlerOf, GearProgramPallet, Pallet, TaskPoolOf};
+use crate::{Config, CurrencyOf, GearProgramPallet, Pallet, TaskPoolOf};
 use codec::{Decode, Encode};
 use common::{
     event::*,
     scheduler::{ScheduledTask, TaskHandler, TaskPool},
-    ActiveProgram, CodeStorage, GasTree, Origin, ProgramState,
+    ActiveProgram, CodeStorage, Origin, ProgramState,
 };
 use core::fmt;
 use core_processor::common::{Actor, ExecutableActorData};
