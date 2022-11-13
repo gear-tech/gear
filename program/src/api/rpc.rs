@@ -35,7 +35,7 @@ impl Api {
                     origin,
                     H256(code_id.into()),
                     hex::encode(payload),
-                    u64::try_from(value).unwrap_or(u64::MAX),
+                    value,
                     allow_other_panics,
                     at
                 ],
@@ -61,7 +61,7 @@ impl Api {
                     origin,
                     hex::encode(code),
                     hex::encode(payload),
-                    u64::try_from(value).unwrap_or(u64::MAX),
+                    value,
                     allow_other_panics,
                     at
                 ],
@@ -87,7 +87,7 @@ impl Api {
                     origin,
                     H256(destination.into()),
                     hex::encode(payload),
-                    u64::try_from(value).unwrap_or(u64::MAX),
+                    value,
                     allow_other_panics,
                     at
                 ],
@@ -115,7 +115,7 @@ impl Api {
                     H256(message_id.into()),
                     exit_code,
                     hex::encode(payload),
-                    u64::try_from(value).unwrap_or(u64::MAX),
+                    value,
                     allow_other_panics,
                     at
                 ],
