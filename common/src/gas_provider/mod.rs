@@ -119,11 +119,8 @@ pub trait Tree {
     /// The id of external node for a key.
     ///
     /// See [`get_origin_node`](Self::get_origin_node) for details.
-    fn get_origin_key(key: impl Into<GasNodeIdOf<Self>>) -> Result<Self::Key, Self::Error> {
-        Self::get_origin_node(key).and_then(|(_external, key)| {
-            key.to_node_id()
-                .ok_or_else(|| Self::InternalError::forbidden().into())
-        })
+    fn get_origin_key(key: impl Into<GasNodeIdOf<Self>>) -> Result<GasNodeIdOf<Self>, Self::Error> {
+        Self::get_origin_node(key).map(|(_external, key)| key)
     }
 
     /// Get value associated with given id and the key of an ancestor,
