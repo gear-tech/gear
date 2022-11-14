@@ -35,7 +35,7 @@ pub enum ContractError {
     StatusCode(i32),
     Ext(ExtError),
     EmptyWaitDuration,
-    EmptySystemReservationAmount,
+    ZeroSystemReservationAmount,
 }
 
 impl ContractError {
@@ -56,7 +56,7 @@ impl fmt::Display for ContractError {
             ContractError::StatusCode(e) => write!(f, "Reply returned exit code {e}"),
             ContractError::Ext(e) => write!(f, "API error: {e}"),
             ContractError::EmptyWaitDuration => write!(f, "Wait duration can not be zero."),
-            ContractError::EmptySystemReservationAmount => {
+            ContractError::ZeroSystemReservationAmount => {
                 write!(f, "System reservation amount can not be zero.")
             }
         }

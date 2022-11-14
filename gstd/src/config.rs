@@ -117,7 +117,7 @@ impl Config {
 
     pub fn set_system_reserve(amount: u64) -> Result<()> {
         if amount == 0 {
-            return Err(ContractError::EmptySystemReservationAmount);
+            return Err(ContractError::ZeroSystemReservationAmount);
         }
 
         unsafe { CONFIG.system_reserve = amount };
