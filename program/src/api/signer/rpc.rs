@@ -1,5 +1,5 @@
 //! RPC calls with signer
-#![allow(clippy::too-many-arguments)]
+#![allow(clippy::too_many_arguments)]
 use crate::{
     api::{signer::Signer, types::GasInfo},
     result::Result,
