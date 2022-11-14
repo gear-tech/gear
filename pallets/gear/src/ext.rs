@@ -176,8 +176,27 @@ impl EnvExt for LazyPagesExt {
         self.inner.send_commit(handle, msg, delay)
     }
 
+    fn reservation_send_commit(
+        &mut self,
+        id: ReservationId,
+        handle: u32,
+        msg: HandlePacket,
+        delay: u32,
+    ) -> Result<MessageId, Self::Error> {
+        self.inner.reservation_send_commit(id, handle, msg, delay)
+    }
+
     fn reply_commit(&mut self, msg: ReplyPacket, delay: u32) -> Result<MessageId, Self::Error> {
         self.inner.reply_commit(msg, delay)
+    }
+
+    fn reservation_reply_commit(
+        &mut self,
+        id: ReservationId,
+        msg: ReplyPacket,
+        delay: u32,
+    ) -> Result<MessageId, Self::Error> {
+        self.inner.reservation_reply_commit(id, msg, delay)
     }
 
     fn reply_to(&mut self) -> Result<MessageId, Self::Error> {

@@ -1,6 +1,9 @@
 #![cfg(feature = "bin")]
 use common::env;
-use gear_program::{api::Api, result::Error};
+use gear_program::{
+    api::Api,
+    result::{ClientError, Error},
+};
 use std::path::PathBuf;
 
 mod cmd;
@@ -10,9 +13,9 @@ mod common;
 async fn api_timeout() {
     assert!(matches!(
         Api::new_with_timeout(None, Some(10)).await.err(),
-        Some(Error::Ws(
-            jsonrpsee_client_transport::ws::WsHandshakeError::Timeout(..)
-        ))
+        Some(Error::Client(ClientError::SubxtRpc(
+            jsonrpsee::core::Error::Transport(..)
+        )))
     ));
 }
 
@@ -20,4 +23,6 @@ async fn api_timeout() {
 fn paths() {
     assert!(PathBuf::from(env::bin("gear")).exists());
     assert!(PathBuf::from(env::bin("gprogram")).exists());
+    assert!(PathBuf::from(env::wasm_bin("demo_meta.opt.wasm")).exists());
+    assert!(PathBuf::from(env::wasm_bin("demo_meta.meta.wasm")).exists());
 }

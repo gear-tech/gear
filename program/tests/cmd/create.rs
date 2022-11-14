@@ -13,6 +13,7 @@ async fn test_command_upload_program_works() -> Result<()> {
         "upload-program",
         &env::wasm_bin("demo_meta.opt.wasm"),
     ])?;
+
     assert!(output
         .stderr
         .convert()

@@ -74,7 +74,10 @@ pub trait WeightInfo {
     fn gr_send_push_per_kb(n: u32, ) -> Weight;
     fn gr_send_commit(r: u32, ) -> Weight;
     fn gr_send_commit_per_kb(n: u32, ) -> Weight;
+    fn gr_reservation_send_commit(r: u32, ) -> Weight;
+    fn gr_reservation_send_commit_per_kb(n: u32, ) -> Weight;
     fn gr_reply_commit(r: u32, ) -> Weight;
+    fn gr_reservation_reply_commit(r: u32, ) -> Weight;
     fn gr_reply_push(r: u32, ) -> Weight;
     fn gr_reply_push_per_kb(n: u32, ) -> Weight;
     fn gr_reply_to(r: u32, ) -> Weight;
@@ -389,7 +392,26 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
             .saturating_add(T::DbWeight::get().reads(4 as u64))
     }
     /// The range of component `r` is `[0, 20]`.
+    fn gr_reservation_send_commit(r: u32, ) -> Weight {
+        Weight::from_ref_time(84_335_000 as u64)
+            // Standard Error: 70_327
+            .saturating_add(Weight::from_ref_time(308_373_193 as u64).saturating_mul(r as u64))
+    }
+    /// The range of component `n` is `[0, 1024]`.
+    fn gr_reservation_send_commit_per_kb(n: u32, ) -> Weight {
+        Weight::from_ref_time(412_780_000 as u64)
+            // Standard Error: 21_010
+            .saturating_add(Weight::from_ref_time(23_908_495 as u64).saturating_mul(n as u64))
+            .saturating_add(T::DbWeight::get().reads(4 as u64))
+    }
+    /// The range of component `r` is `[0, 20]`.
     fn gr_reply_commit(r: u32, ) -> Weight {
+        Weight::from_ref_time(84_638_000 as u64)
+            // Standard Error: 43_238
+            .saturating_add(Weight::from_ref_time(222_450_327 as u64).saturating_mul(r as u64))
+    }
+    /// The range of component `r` is `[0, 20]`.
+    fn gr_reservation_reply_commit(r: u32, ) -> Weight {
         Weight::from_ref_time(84_638_000 as u64)
             // Standard Error: 43_238
             .saturating_add(Weight::from_ref_time(222_450_327 as u64).saturating_mul(r as u64))
@@ -1050,7 +1072,26 @@ impl WeightInfo for () {
             .saturating_add(RocksDbWeight::get().reads(4 as u64))
     }
     /// The range of component `r` is `[0, 20]`.
+    fn gr_reservation_send_commit(r: u32, ) -> Weight {
+        Weight::from_ref_time(84_335_000 as u64)
+            // Standard Error: 70_327
+            .saturating_add(Weight::from_ref_time(308_373_193 as u64).saturating_mul(r as u64))
+    }
+    /// The range of component `n` is `[0, 1024]`.
+    fn gr_reservation_send_commit_per_kb(n: u32, ) -> Weight {
+        Weight::from_ref_time(412_780_000 as u64)
+            // Standard Error: 21_010
+            .saturating_add(Weight::from_ref_time(23_908_495 as u64).saturating_mul(n as u64))
+            .saturating_add(RocksDbWeight::get().reads(4 as u64))
+    }
+    /// The range of component `r` is `[0, 20]`.
     fn gr_reply_commit(r: u32, ) -> Weight {
+        Weight::from_ref_time(84_638_000 as u64)
+            // Standard Error: 43_238
+            .saturating_add(Weight::from_ref_time(222_450_327 as u64).saturating_mul(r as u64))
+    }
+    /// The range of component `r` is `[0, 20]`.
+    fn gr_reservation_reply_commit(r: u32, ) -> Weight {
         Weight::from_ref_time(84_638_000 as u64)
             // Standard Error: 43_238
             .saturating_add(Weight::from_ref_time(222_450_327 as u64).saturating_mul(r as u64))

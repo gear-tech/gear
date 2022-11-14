@@ -207,6 +207,25 @@ impl Ext for MockExt {
     fn out_of_gas(&mut self) -> Self::Error {
         Error
     }
+
+    fn reservation_send_commit(
+        &mut self,
+        _id: ReservationId,
+        _handle: u32,
+        _msg: HandlePacket,
+        _delay: u32,
+    ) -> Result<MessageId, Self::Error> {
+        Ok(MessageId::default())
+    }
+
+    fn reservation_reply_commit(
+        &mut self,
+        _id: ReservationId,
+        _msg: ReplyPacket,
+        _delay: u32,
+    ) -> Result<MessageId, Self::Error> {
+        Ok(MessageId::default())
+    }
 }
 
 impl IntoExtInfo<<MockExt as Ext>::Error> for MockExt {

@@ -49,7 +49,10 @@ pub use crate::{
 };
 pub use weights::WeightInfo;
 
-use common::{scheduler::*, storage::*, BlockLimiter, CodeStorage, GasProvider, QueueRunner};
+use common::{
+    gas_provider::GasNodeId, scheduler::*, storage::*, BlockLimiter, CodeStorage, GasProvider,
+    QueueRunner,
+};
 use frame_support::{
     traits::{Currency, StorageVersion},
     weights::Weight,
@@ -379,7 +382,7 @@ pub mod pallet {
             ///
             /// Used for identifying by user, that this message associated
             /// with him and with the concrete initial message.
-            origin: Option<MessageId>,
+            origin: Option<GasNodeId<MessageId, ReservationId>>,
             /// The reason of the waiting (addition to `Waitlist`).
             ///
             /// NOTE: See more docs about reasons at `gear_common::event`.
@@ -1029,7 +1032,7 @@ pub mod pallet {
                         .map_err(|_| b"Internal error: unable to get origin key".to_vec())
                 };
                 let from_main_chain =
-                    |msg_id| get_origin_msg_of(msg_id).map(|v| v == main_message_id);
+                    |msg_id| get_origin_msg_of(msg_id).map(|v| v == main_message_id.into());
 
                 // TODO: Check whether we charge gas fee for submitting code after #646
                 for note in journal {

@@ -7,7 +7,7 @@ use crate::{
 };
 use clap::Parser;
 use std::{fs, path::PathBuf};
-use subxt::sp_core::H256;
+use subxt::ext::sp_core::H256;
 
 /// Read program state, etc.
 #[derive(Clone, Debug, Parser)]

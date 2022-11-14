@@ -25,7 +25,7 @@ use crate::{
     errors::{ContractError, IntoContractResult, Result},
     msg::{utils, CodecMessageFuture, MessageFuture},
     prelude::{convert::AsRef, ops::RangeBounds},
-    ActorId, MessageId,
+    ActorId, MessageId, ReservationId,
 };
 use codec::{Decode, Encode};
 use gstd_codegen::wait_for_reply;
@@ -54,6 +54,27 @@ pub fn reply<E: Encode>(payload: E, value: u128) -> Result<MessageId> {
 /// Same as [`reply`], but sends delayed.
 pub fn reply_delayed<E: Encode>(payload: E, value: u128, delay: u32) -> Result<MessageId> {
     super::reply_bytes_delayed(payload.encode(), value, delay)
+}
+
+/// Send a new message as a reply to the message currently being processed from
+/// reservation.
+#[wait_for_reply]
+pub fn reply_from_reservation<E: Encode>(
+    id: ReservationId,
+    payload: E,
+    value: u128,
+) -> Result<MessageId> {
+    super::reply_bytes_from_reservation(id, payload.encode(), value)
+}
+
+/// Same as [`reply_from_reservation`], but sends delayed.
+pub fn reply_delayed_from_reservation<E: Encode>(
+    id: ReservationId,
+    payload: E,
+    value: u128,
+    delay: u32,
+) -> Result<MessageId> {
+    super::reply_bytes_delayed_from_reservation(id, payload.encode(), value, delay)
 }
 
 /// Same as [`reply`](crate::msg::reply), but with explicit gas limit.
@@ -238,4 +259,26 @@ pub fn send_with_gas_delayed<E: Encode>(
     delay: u32,
 ) -> Result<MessageId> {
     super::send_bytes_with_gas_delayed(program, payload.encode(), gas_limit, value, delay)
+}
+
+/// Send a new message to the program or user from reservation.
+#[wait_for_reply]
+pub fn send_from_reservation<E: Encode>(
+    id: ReservationId,
+    program: ActorId,
+    payload: E,
+    value: u128,
+) -> Result<MessageId> {
+    super::send_bytes_from_reservation(id, program, payload.encode(), value)
+}
+
+/// Same as [`send_from_reservation`], but sends delayed.
+pub fn send_delayed_from_reservation<E: Encode>(
+    id: ReservationId,
+    program: ActorId,
+    payload: E,
+    value: u128,
+    delay: u32,
+) -> Result<MessageId> {
+    super::send_bytes_delayed_from_reservation(id, program, payload.encode(), value, delay)
 }
