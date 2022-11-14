@@ -32,7 +32,7 @@ mod wasm {
 
     #[gstd::async_main]
     async fn main() {
-        msg::send(msg::source(), b"handle_signal", 0).unwrap();
+        msg::reply(b"handle_signal", 0).unwrap();
         exec::wait();
     }
 }
