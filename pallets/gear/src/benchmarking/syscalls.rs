@@ -910,7 +910,7 @@ where
         prepare::<T>(
             instance.caller.into_origin(),
             HandleKind::Handle(ProgramId::from_origin(instance.addr)),
-            vec![0u8; 100],
+            vec![0u8; payload_len as usize],
             0u32.into(),
         )
     }
@@ -972,7 +972,7 @@ where
         prepare::<T>(
             instance.caller.into_origin(),
             HandleKind::Handle(ProgramId::from_origin(instance.addr)),
-            vec![0u8; 100],
+            vec![0u8; payload_len as usize],
             0u32.into(),
         )
     }
