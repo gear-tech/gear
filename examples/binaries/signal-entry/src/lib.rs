@@ -73,7 +73,7 @@ mod wasm {
             HandleAction::Wait => {
                 exec::system_reserve_gas(1_000_000_000).unwrap();
                 // used to found message id in test
-                msg::send(msg::source(), 0, 0).unwrap();
+                msg::reply(0, 0).unwrap();
                 exec::wait();
             }
             HandleAction::WaitAndPanic => {
@@ -85,7 +85,7 @@ mod wasm {
 
                 exec::system_reserve_gas(200).unwrap();
                 // used to found message id in test
-                msg::send(msg::source(), 0, 0).unwrap();
+                msg::reply(0, 0).unwrap();
                 exec::wait();
             }
             HandleAction::WaitAndReserveWithPanic => {
@@ -98,7 +98,7 @@ mod wasm {
 
                 exec::system_reserve_gas(2_000_000_000).unwrap();
                 // used to found message id in test
-                msg::send(msg::source(), 0, 0).unwrap();
+                msg::reply(0, 0).unwrap();
                 exec::wait();
             }
             HandleAction::Panic => {
@@ -113,7 +113,7 @@ mod wasm {
             HandleAction::OutOfGas => {
                 exec::system_reserve_gas(5_000_000_000).unwrap();
                 // used to found message id in test
-                msg::send(msg::source(), 0, 0).unwrap();
+                msg::reply(0, 0).unwrap();
                 loop {}
             }
             HandleAction::PanicInSignal => {
@@ -132,7 +132,7 @@ mod wasm {
                 assert_eq!(msg::status_code().unwrap(), 1);
 
                 // TODO: check gas limit (#1796)
-                // assert_eq!(msg::gas_limit(), 3_000_000_000);
+                // assert_eq!(msg::gas_limit(), 5_000_000_000);
             }
             HandleSignalState::Panic => {
                 panic!();
