@@ -51,7 +51,7 @@ mod task;
 pub use journal::*;
 pub use task::*;
 
-use crate::{Config, CurrencyOf, GasHandlerOf, GearProgramPallet, QueueOf, TaskPoolOf};
+use crate::{Config, CurrencyOf, GasHandlerOf, GearProgramPallet, Pallet, QueueOf TaskPoolOf};
 use codec::{Decode, Encode};
 use common::{
     event::*,
@@ -65,9 +65,10 @@ use frame_support::traits::Currency;
 use frame_system::pallet_prelude::BlockNumberFor;
 use gear_core::{
     code::{CodeAndId, InstrumentedCode},
-    ids::{CodeId, MessageId, ProgramId},
+    ids::{CodeId, MessageId, ProgramId, ReservationId},
     memory::WasmPageNumber,
     message::{DispatchKind, SignalMessage, StatusCode},
+    reservation::GasReservationSlot,
 };
 use primitive_types::H256;
 use sp_runtime::traits::UniqueSaturatedInto;
@@ -279,6 +280,37 @@ where
                 ScheduledTask::RemoveGasReservation(program_id, reservation_id),
             );
         }
+    }
+
+    pub fn remove_gas_reservation(
+        program_id: ProgramId,
+        reservation_id: ReservationId,
+    ) -> GasReservationSlot {
+        let program_id = program_id.into_origin();
+        let mut prog = common::get_active_program(program_id).unwrap_or_else(|e| {
+            unreachable!(
+                "Gas reservation removing guaranteed to be called only on existing program: {}",
+                e
+            )
+        });
+        let slot = prog
+            .gas_reservation_map
+            .remove(&reservation_id)
+            .unwrap_or_else(|| {
+                unreachable!(
+                    "Gas reservation removing called on non-existing reservation ID: {}",
+                    reservation_id
+                )
+            });
+        common::set_program(program_id, prog);
+
+        // TODO: uncomment lines below and charge for holding (issue #1830).
+        // GasHandlerOf::<T>::unlock_all(reservation_id)
+        //     .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
+
+        Pallet::<T>::consume_and_retrieve(reservation_id);
+
+        slot
     }
 
     fn send_signal(&mut self, message_id: MessageId, destination: ProgramId) {

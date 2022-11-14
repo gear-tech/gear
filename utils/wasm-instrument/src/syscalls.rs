@@ -96,6 +96,8 @@ pub fn syscalls_name_list() -> Vec<&'static str> {
         "gr_reply_wgas",
         "gr_reply_commit",
         "gr_reply_commit_wgas",
+        "gr_reservation_reply",
+        "gr_reservation_reply_commit",
         "gr_reply_push",
         "gr_reply_to",
         "gr_send",
@@ -104,6 +106,8 @@ pub fn syscalls_name_list() -> Vec<&'static str> {
         "gr_send_commit_wgas",
         "gr_send_init",
         "gr_send_push",
+        "gr_reservation_send",
+        "gr_reservation_send_commit",
         "gr_size",
         "gr_source",
         "gr_value",
@@ -143,6 +147,8 @@ pub fn syscall_signature(name: &str) -> SysCallSignature {
         "gr_reply_wgas" => SysCallSignature::new([Ptr, Size, Gas, Ptr, Delay, Ptr], [I32]),
         "gr_reply_commit" => SysCallSignature::new([Ptr, Delay, Ptr], [I32]),
         "gr_reply_commit_wgas" => SysCallSignature::new([Gas, Ptr, Delay, Ptr], [I32]),
+        "gr_reservation_reply" => SysCallSignature::new([Ptr, Ptr, Size, Ptr, Ptr, Delay], [I32]),
+        "gr_reservation_reply_commit" => SysCallSignature::new([Ptr, Ptr, Delay, Ptr], [I32]),
         "gr_reply_push" => SysCallSignature::new([Ptr, Size], [I32]),
         "gr_reply_to" => SysCallSignature::new([Ptr], [I32]),
         "gr_send" => SysCallSignature::new([Ptr, Ptr, Size, Ptr, Delay, Ptr], [I32]),
@@ -151,6 +157,12 @@ pub fn syscall_signature(name: &str) -> SysCallSignature {
         "gr_send_commit_wgas" => SysCallSignature::new([Handler, Ptr, Gas, Ptr, Delay, Ptr], [I32]),
         "gr_send_init" => SysCallSignature::new([Handler], [I32]),
         "gr_send_push" => SysCallSignature::new([Handler, Ptr, Size], [I32]),
+        "gr_reservation_send" => {
+            SysCallSignature::new([Ptr, Ptr, Ptr, Size, Ptr, Delay, Ptr], [I32])
+        }
+        "gr_reservation_send_commit" => {
+            SysCallSignature::new([Ptr, Handler, Ptr, Ptr, Delay, Ptr], [I32])
+        }
         "gr_size" => SysCallSignature::new([], [I32]),
         "gr_source" => SysCallSignature::new([Ptr], []),
         "gr_value" => SysCallSignature::new([Ptr], []),

@@ -277,7 +277,7 @@ pub mod pallet {
     // ----
 
     pub type Key = GasNodeId<MessageId, ReservationId>;
-    pub type NodeOf<T> = GasNode<AccountIdOf<T>, MessageId, Balance>;
+    pub type NodeOf<T> = GasNode<AccountIdOf<T>, Key, Balance>;
 
     // Private storage for nodes of the gas tree.
     #[pallet::storage]

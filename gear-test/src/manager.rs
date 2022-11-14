@@ -253,7 +253,13 @@ impl JournalHandler for InMemoryExtManager {
             self.dispatch_queue.remove(index);
         }
     }
-    fn send_dispatch(&mut self, _message_id: MessageId, dispatch: Dispatch, _delay: u32) {
+    fn send_dispatch(
+        &mut self,
+        _message_id: MessageId,
+        dispatch: Dispatch,
+        _delay: u32,
+        _reservation: Option<ReservationId>,
+    ) {
         let destination = dispatch.destination();
         if self.actors.contains_key(&destination) || self.marked_destinations.contains(&destination)
         {

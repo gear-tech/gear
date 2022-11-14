@@ -553,6 +553,7 @@ impl ExtManager {
                         message_id,
                         reply_message.into_dispatch(program_id, dispatch.source(), message_id),
                         0,
+                        None,
                     );
                 }
             }
@@ -590,6 +591,7 @@ impl ExtManager {
                         message_id,
                         reply_message.into_dispatch(program_id, dispatch.source(), message_id),
                         0,
+                        None,
                     );
                 }
             }
@@ -779,7 +781,13 @@ impl JournalHandler for ExtManager {
         }
     }
 
-    fn send_dispatch(&mut self, _message_id: MessageId, dispatch: Dispatch, _delay: u32) {
+    fn send_dispatch(
+        &mut self,
+        _message_id: MessageId,
+        dispatch: Dispatch,
+        _delay: u32,
+        _reservation: Option<ReservationId>,
+    ) {
         self.gas_limits.insert(dispatch.id(), dispatch.gas_limit());
 
         if !self.is_user(&dispatch.destination()) {

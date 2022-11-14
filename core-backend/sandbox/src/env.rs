@@ -156,12 +156,19 @@ where
         builder.add_func("gr_reply", Funcs::reply);
         builder.add_func("gr_reply_commit", Funcs::reply_commit);
         builder.add_func("gr_reply_commit_wgas", Funcs::reply_commit_wgas);
+        builder.add_func("gr_reservation_reply", Funcs::reservation_reply);
+        builder.add_func(
+            "gr_reservation_reply_commit",
+            Funcs::reservation_reply_commit,
+        );
         builder.add_func("gr_reply_push", Funcs::reply_push);
         builder.add_func("gr_reply_to", Funcs::reply_to);
         builder.add_func("gr_reply_wgas", Funcs::reply_wgas);
         builder.add_func("gr_send", Funcs::send);
         builder.add_func("gr_send_commit", Funcs::send_commit);
         builder.add_func("gr_send_commit_wgas", Funcs::send_commit_wgas);
+        builder.add_func("gr_reservation_send", Funcs::reservation_send);
+        builder.add_func("gr_reservation_send_commit", Funcs::reservation_send_commit);
         builder.add_func("gr_send_init", Funcs::send_init);
         builder.add_func("gr_send_push", Funcs::send_push);
         builder.add_func("gr_send_wgas", Funcs::send_wgas);

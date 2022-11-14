@@ -45,7 +45,8 @@ pub fn handle_journal(
                 message_id,
                 dispatch,
                 delay,
-            } => handler.send_dispatch(message_id, dispatch, delay),
+                reservation,
+            } => handler.send_dispatch(message_id, dispatch, delay, reservation),
             JournalNote::WaitDispatch {
                 dispatch,
                 duration,

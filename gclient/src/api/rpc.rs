@@ -1,18 +1,28 @@
-//! RPC calls with signer
+// This file is part of Gear.
+
+// Copyright (C) 2022 Gear Technologies Inc.
+// SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
+
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU General Public License for more details.
+
+// You should have received a copy of the GNU General Public License
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
 #![allow(clippy::too_many_arguments)]
-use crate::{
-    api::{signer::Signer, types::GasInfo},
-    result::Result,
-};
+
+use crate::{api::Result, GearApi};
 use gear_core::ids::{CodeId, MessageId, ProgramId};
+use gp::api::types::GasInfo;
 use subxt::ext::sp_core::H256;
 
-impl Signer {
-    /// public key of the signer in H256
-    pub fn source(&self) -> H256 {
-        AsRef::<[u8; 32]>::as_ref(self.signer.account_id()).into()
-    }
-
+impl GearApi {
     /// gear_calculateInitCreateGas
     pub async fn calculate_create_gas(
         &self,
@@ -23,16 +33,10 @@ impl Signer {
         allow_other_panics: bool,
         at: Option<H256>,
     ) -> Result<GasInfo> {
-        self.api
-            .calculate_create_gas(
-                origin.unwrap_or_else(|| self.source()),
-                code_id,
-                payload,
-                value,
-                allow_other_panics,
-                at,
-            )
+        self.0
+            .calculate_create_gas(origin, code_id, payload, value, allow_other_panics, at)
             .await
+            .map_err(Into::into)
     }
 
     /// gear_calculateInitUploadGas
@@ -45,16 +49,10 @@ impl Signer {
         allow_other_panics: bool,
         at: Option<H256>,
     ) -> Result<GasInfo> {
-        self.api
-            .calculate_upload_gas(
-                origin.unwrap_or_else(|| self.source()),
-                code,
-                payload,
-                value,
-                allow_other_panics,
-                at,
-            )
+        self.0
+            .calculate_upload_gas(origin, code, payload, value, allow_other_panics, at)
             .await
+            .map_err(Into::into)
     }
 
     /// gear_calculateHandleGas
@@ -67,16 +65,10 @@ impl Signer {
         allow_other_panics: bool,
         at: Option<H256>,
     ) -> Result<GasInfo> {
-        self.api
-            .calculate_handle_gas(
-                origin.unwrap_or_else(|| self.source()),
-                destination,
-                payload,
-                value,
-                allow_other_panics,
-                at,
-            )
+        self.0
+            .calculate_handle_gas(origin, destination, payload, value, allow_other_panics, at)
             .await
+            .map_err(Into::into)
     }
 
     /// gear_calculateReplyGas
@@ -84,22 +76,23 @@ impl Signer {
         &self,
         origin: Option<H256>,
         message_id: MessageId,
-        status_code: i32,
+        exit_code: i32,
         payload: Vec<u8>,
         value: u128,
         allow_other_panics: bool,
         at: Option<H256>,
     ) -> Result<GasInfo> {
-        self.api
+        self.0
             .calculate_reply_gas(
-                origin.unwrap_or_else(|| self.source()),
+                origin,
                 message_id,
-                status_code,
+                exit_code,
                 payload,
                 value,
                 allow_other_panics,
                 at,
             )
             .await
+            .map_err(Into::into)
     }
 }

@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    ids::{MessageId, ProgramId},
+    ids::{MessageId, ProgramId, ReservationId},
     message::{
         Dispatch, HandleMessage, HandlePacket, IncomingMessage, InitMessage, InitPacket, Payload,
         ReplyMessage, ReplyPacket,
@@ -90,17 +90,25 @@ impl ContextSettings {
     }
 }
 
-type WithDelay<T> = (T, u32);
+/// Dispatch or message with additional information.
+pub type OutgoingMessageInfo<T> = (T, u32, Option<ReservationId>);
+
+/// Context outcome dispatches and awakening ids.
+pub type ContextOutcomeDrain = (
+    Vec<(Dispatch, u32, Option<ReservationId>)>,
+    Vec<(MessageId, u32)>,
+);
 
 /// Context outcome.
 ///
 /// Contains all outgoing messages and wakes that should be done after execution.
 #[derive(Default, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo)]
 pub struct ContextOutcome {
-    init: Vec<WithDelay<InitMessage>>,
-    handle: Vec<WithDelay<HandleMessage>>,
-    reply: Option<WithDelay<ReplyMessage>>,
-    awakening: Vec<WithDelay<MessageId>>,
+    init: Vec<OutgoingMessageInfo<InitMessage>>,
+    handle: Vec<OutgoingMessageInfo<HandleMessage>>,
+    reply: Option<OutgoingMessageInfo<ReplyMessage>>,
+    // u32 is delay
+    awakening: Vec<(MessageId, u32)>,
     // Additional information section.
     program_id: ProgramId,
     source: ProgramId,
@@ -119,21 +127,22 @@ impl ContextOutcome {
     }
 
     /// Destructs outcome after execution and returns provided dispatches and awaken message ids.
-    pub fn drain(self) -> (Vec<WithDelay<Dispatch>>, Vec<WithDelay<MessageId>>) {
+    pub fn drain(self) -> ContextOutcomeDrain {
         let mut dispatches = Vec::new();
 
-        for (msg, delay) in self.init.into_iter() {
-            dispatches.push((msg.into_dispatch(self.program_id), delay));
+        for (msg, delay, reservation) in self.init.into_iter() {
+            dispatches.push((msg.into_dispatch(self.program_id), delay, reservation));
         }
 
-        for (msg, delay) in self.handle.into_iter() {
-            dispatches.push((msg.into_dispatch(self.program_id), delay));
+        for (msg, delay, reservation) in self.handle.into_iter() {
+            dispatches.push((msg.into_dispatch(self.program_id), delay, reservation));
         }
 
-        if let Some((msg, delay)) = self.reply {
+        if let Some((msg, delay, reservation)) = self.reply {
             dispatches.push((
                 msg.into_dispatch(self.program_id, self.source, self.origin_msg_id),
                 delay,
+                reservation,
             ));
         };
 
@@ -234,7 +243,7 @@ impl MessageContext {
 
         self.store.outgoing.insert(last, None);
         self.store.initialized.insert(program_id);
-        self.outcome.init.push((message, delay));
+        self.outcome.init.push((message, delay, None));
 
         Ok((message_id, program_id))
     }
@@ -248,6 +257,7 @@ impl MessageContext {
         handle: u32,
         packet: HandlePacket,
         delay: u32,
+        reservation: Option<ReservationId>,
     ) -> Result<MessageId, Error> {
         if let Some(payload) = self.store.outgoing.get_mut(&handle) {
             if let Some(data) = payload.take() {
@@ -262,7 +272,7 @@ impl MessageContext {
                 let message_id = MessageId::generate_outgoing(self.current.id(), handle);
                 let message = HandleMessage::from_packet(message_id, packet);
 
-                self.outcome.handle.push((message, delay));
+                self.outcome.handle.push((message, delay, reservation));
 
                 Ok(message_id)
             } else {
@@ -305,7 +315,12 @@ impl MessageContext {
     ///
     /// Generates reply from provided data packet and stored reply payload.
     /// Returns message id.
-    pub fn reply_commit(&mut self, packet: ReplyPacket, delay: u32) -> Result<MessageId, Error> {
+    pub fn reply_commit(
+        &mut self,
+        packet: ReplyPacket,
+        delay: u32,
+        reservation: Option<ReservationId>,
+    ) -> Result<MessageId, Error> {
         if !self.store.reply_sent {
             let data = self.store.reply.take().unwrap_or_default();
 
@@ -320,7 +335,7 @@ impl MessageContext {
             let message_id = MessageId::generate_reply(self.current.id(), packet.status_code());
             let message = ReplyMessage::from_packet(message_id, packet);
 
-            self.outcome.reply = Some((message, delay));
+            self.outcome.reply = Some((message, delay, reservation));
             self.store.reply_sent = true;
 
             Ok(message_id)
@@ -444,7 +459,7 @@ mod tests {
                     .send_push(handle, b"payload")
                     .expect("unreachable");
                 message_context
-                    .send_commit(handle, HandlePacket::default(), 0)
+                    .send_commit(handle, HandlePacket::default(), 0, None)
                     .expect("unreachable");
             }
             // n + 1 should get first error.
@@ -467,7 +482,7 @@ mod tests {
         );
 
         // Use invalid handle 0.
-        let out_of_bounds = message_context.send_commit(0, Default::default(), 0);
+        let out_of_bounds = message_context.send_commit(0, Default::default(), 0, None);
         assert_eq!(out_of_bounds, Err(Error::OutOfBounds));
 
         // make 0 valid.
@@ -475,11 +490,11 @@ mod tests {
         assert_eq!(valid_handle, 0);
 
         // Use valid handle 0.
-        assert_ok!(message_context.send_commit(0, Default::default(), 0));
+        assert_ok!(message_context.send_commit(0, Default::default(), 0, None));
 
         // Use invalid handle 42.
         assert_err!(
-            message_context.send_commit(42, Default::default(), 0),
+            message_context.send_commit(42, Default::default(), 0, None),
             Error::OutOfBounds,
         );
     }
@@ -494,11 +509,11 @@ mod tests {
         );
 
         // First reply.
-        assert_ok!(message_context.reply_commit(Default::default(), 0));
+        assert_ok!(message_context.reply_commit(Default::default(), 0, None));
 
         // Reply twice in one message is forbidden.
         assert_err!(
-            message_context.reply_commit(Default::default(), 0),
+            message_context.reply_commit(Default::default(), 0, None),
             Error::DuplicateReply,
         );
     }
@@ -540,7 +555,7 @@ mod tests {
         assert_ok!(context.reply_push(&[1, 2, 3]));
 
         // Setting reply message and making sure the operation was successful
-        assert_ok!(context.reply_commit(reply_packet.clone(), 0));
+        assert_ok!(context.reply_commit(reply_packet.clone(), 0, None));
 
         // Checking that the `ReplyMessage` matches the passed one
         assert_eq!(
@@ -556,7 +571,10 @@ mod tests {
         );
 
         // Checking that repeated call `reply_commit(...)` returns error and does not
-        assert_err!(context.reply_commit(reply_packet, 0), Error::DuplicateReply);
+        assert_err!(
+            context.reply_commit(reply_packet, 0, None),
+            Error::DuplicateReply
+        );
 
         // Checking that at this point vector of outgoing messages is empty
         assert!(context.outcome.handle.is_empty());
@@ -587,7 +605,7 @@ mod tests {
         let commit_packet = HandlePacket::default();
 
         // Checking if commit is successful
-        assert_ok!(context.send_commit(expected_handle, commit_packet, 0));
+        assert_ok!(context.send_commit(expected_handle, commit_packet, 0, None));
 
         // Checking that we are **NOT** able to push payload for the message or
         // commit it if we already committed it or directly pushed before
@@ -596,7 +614,7 @@ mod tests {
             Error::LateAccess,
         );
         assert_err!(
-            context.send_commit(expected_handle, HandlePacket::default(), 0),
+            context.send_commit(expected_handle, HandlePacket::default(), 0, None),
             Error::LateAccess,
         );
 
@@ -607,7 +625,7 @@ mod tests {
         // to commit or send a non-existent message
         assert_err!(context.send_push(expected_handle, &[0]), Error::OutOfBounds);
         assert_err!(
-            context.send_commit(expected_handle, HandlePacket::default(), 0),
+            context.send_commit(expected_handle, HandlePacket::default(), 0, None),
             Error::OutOfBounds,
         );
 
