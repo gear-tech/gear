@@ -3421,8 +3421,7 @@ fn terminated_locking_funds() {
         let code_length = code.code().len();
         let read_cost = DbWeightOf::<Test>::get().reads(1).ref_time();
         let module_instantiation = schedule.module_instantiation_per_byte * code_length as u64;
-        // TODO: take from configuration (#1380)
-        let system_reservation = 1_000_000_000;
+        let system_reservation = demo_init_fail_sender::system_reserve();
 
         assert_ok!(Gear::create_program(
             RuntimeOrigin::signed(USER_1),
