@@ -3125,6 +3125,7 @@ dependencies = [
  "clap 3.2.23",
  "color-eyre",
  "demo-meta",
+ "demo-waiter",
  "dirs",
  "env_logger",
  "frame-metadata",

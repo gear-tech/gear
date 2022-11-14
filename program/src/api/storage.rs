@@ -30,6 +30,24 @@ impl Api {
     }
 }
 
+mod system {
+    use crate::{
+        api::{generated::api::storage, Api},
+        result::{ClientError, Result},
+    };
+
+    impl Api {
+        pub async fn number(&self) -> Result<u32> {
+            let at = storage().system().number();
+            Ok(self
+                .storage()
+                .fetch(&at, None)
+                .await?
+                .ok_or(ClientError::StorageNotFound)?)
+        }
+    }
+}
+
 mod gear {
     use crate::{
         api::{

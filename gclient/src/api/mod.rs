@@ -19,6 +19,7 @@
 pub mod calls;
 pub mod error;
 pub mod listener;
+mod rpc;
 pub mod storage;
 
 use crate::{node::ws::WSAddress, EventListener};

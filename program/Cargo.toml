@@ -50,6 +50,7 @@ rand = "0.8.5"
 messager = { path = "./res/messager" }
 cfg-if = "1"
 demo-meta = { path = "../examples/binaries/meta" }
+demo-waiter = { path = "../examples/binaries/waiter" }
 
 [build-dependencies]
 gear-runtime = { path = "../runtime/gear", optional = true }
