@@ -1163,4 +1163,25 @@ where
 
         Self::prepare_handle(code, 0)
     }
+
+    pub fn lazy_pages_read_access(wasm_pages: u32) -> Result<Exec<T>, &'static str> {
+        let instrs = body::read_access_all_pages_instrs(wasm_pages, vec![]);
+        let code = WasmModule::<T>::from(ModuleDefinition {
+            memory: Some(ImportedMemory::max::<T>()),
+            handle_body: Some(body::from_instructions(instrs)),
+            ..Default::default()
+        });
+        Self::prepare_handle(code, 0)
+    }
+
+    pub fn lazy_pages_write_access(wasm_pages: u32) -> Result<Exec<T>, &'static str> {
+        let mut instrs = body::read_access_all_pages_instrs(max_pages::<T>(), vec![]);
+        instrs = body::write_access_all_pages_instrs(wasm_pages, instrs);
+        let code = WasmModule::<T>::from(ModuleDefinition {
+            memory: Some(ImportedMemory::max::<T>()),
+            handle_body: Some(body::from_instructions(instrs)),
+            ..Default::default()
+        });
+        Self::prepare_handle(code, 0)
+    }
 }
