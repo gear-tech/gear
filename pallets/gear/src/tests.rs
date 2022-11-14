@@ -2175,7 +2175,7 @@ fn distributor_distribute() {
             RuntimeOrigin::signed(USER_1),
             program_id,
             Request::Receive(10).encode(),
-            1_000_000_000,
+            10_000_000_000,
             0,
         ));
 
@@ -2921,7 +2921,7 @@ fn test_requeue_after_wait_for_timeout() {
             RuntimeOrigin::signed(USER_1),
             program_id,
             payload,
-            2_500_000_000,
+            10_000_000_000,
             0,
         ));
 

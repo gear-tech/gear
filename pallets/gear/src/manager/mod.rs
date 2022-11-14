@@ -51,7 +51,7 @@ mod task;
 pub use journal::*;
 pub use task::*;
 
-use crate::{Config, CurrencyOf, GasHandlerOf, GearProgramPallet, Pallet, QueueOf TaskPoolOf};
+use crate::{Config, CurrencyOf, GasHandlerOf, GearProgramPallet, Pallet, QueueOf, TaskPoolOf};
 use codec::{Decode, Encode};
 use common::{
     event::*,

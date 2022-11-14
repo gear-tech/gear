@@ -912,7 +912,7 @@ where
         // If provider is a parent, we save it to storage, otherwise mutating
         // current node further, saving it afterward.
         let mut node = if let Some(ancestor_id) = ancestor_id {
-            StorageMap::insert(ancestor_id.into(), ancestor_node);
+            StorageMap::insert(ancestor_id, ancestor_node);
 
             // Unreachable error: the same queried at the beginning of function.
             Self::get_node(key).ok_or_else(InternalError::node_not_found)?
@@ -972,7 +972,7 @@ where
         let (mut ancestor_node, ancestor_id) = if let Some(ancestor_id) = ancestor_id {
             StorageMap::insert(key, node);
 
-            (ancestor_node, ancestor_id.into())
+            (ancestor_node, ancestor_id)
         } else {
             (node, key)
         };

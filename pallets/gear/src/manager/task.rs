@@ -18,7 +18,7 @@
 
 use core::convert::TryInto;
 
-use crate::{manager::ExtManager, Config, DispatchStashOf, Event, GasHandlerOf, Pallet, QueueOf};
+use crate::{manager::ExtManager, Config, DispatchStashOf, Event, Pallet, QueueOf};
 use alloc::string::ToString;
 use common::{
     event::{
@@ -27,7 +27,7 @@ use common::{
     },
     scheduler::*,
     storage::*,
-    GasTree, Origin,
+    Origin,
 };
 use core_processor::common::ExecutionErrorReason;
 use gear_core::{
