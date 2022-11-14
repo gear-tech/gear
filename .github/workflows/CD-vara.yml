@@ -132,5 +132,3 @@ jobs:
             ${{secrets.VARA_NODE_5}} name=vara-gear05 validator=yes loki=yes loki_url=${{secrets.LOKI_URL}} gear_image_tag=${{ needs.tag-image.outputs.image_tag }}
             ${{secrets.VARA_NODE_6}} name=vara-gear06 validator=yes loki=yes loki_url=${{secrets.LOKI_URL}} gear_image_tag=${{ needs.tag-image.outputs.image_tag }}
             ${{secrets.VARA_NODE_7}} name=vara-gear07 validator=yes loki=yes loki_url=${{secrets.LOKI_URL}} gear_image_tag=${{ needs.tag-image.outputs.image_tag }}
-            ${{secrets.VARA_NODE_ARCHIVE}} name=vara-gear-archive validator=yes loki=yes loki_url=${{secrets.LOKI_URL}} gear_image_tag=${{ needs.tag-image.outputs.image_tag }}
-            ${{secrets.VARA_NODE_ARCHIVE_RPC}} name=vara-gear-archive validator=yes loki=yes loki_url=${{secrets.LOKI_URL}} gear_image_tag=${{ needs.tag-image.outputs.image_tag }}
