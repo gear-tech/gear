@@ -51,12 +51,12 @@ mod task;
 pub use journal::*;
 pub use task::*;
 
-use crate::{Config, CurrencyOf, GasHandlerOf, GearProgramPallet, Pallet, TaskPoolOf};
+use crate::{Config, CurrencyOf, GearProgramPallet, Pallet, TaskPoolOf};
 use codec::{Decode, Encode};
 use common::{
     event::*,
     scheduler::{ScheduledTask, TaskHandler, TaskPool},
-    ActiveProgram, CodeStorage, GasTree, Origin, ProgramState,
+    ActiveProgram, CodeStorage, Origin, ProgramState,
 };
 use core::fmt;
 use core_processor::common::{Actor, ExecutableActorData};
@@ -303,10 +303,9 @@ where
             });
         common::set_program(program_id, prog);
 
-        GasHandlerOf::<T>::unlock_all(reservation_id)
-            .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
-
-        // TODO: charge after unlock (#1830)
+        // TODO: uncomment lines below and charge for holding (issue #1830).
+        // GasHandlerOf::<T>::unlock_all(reservation_id)
+        //     .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
 
         Pallet::<T>::consume_and_retrieve(reservation_id);
 
