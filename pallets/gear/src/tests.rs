@@ -2588,7 +2588,7 @@ fn test_different_waits_success() {
             Gear::block_number().saturating_add(duration.unique_saturated_into())
         };
 
-        let system_reservation = gstd::Config::system_reserve();
+        let system_reservation = demo_waiter::system_reserve();
 
         // Command::Wait case.
         let payload = Command::Wait.encode();
@@ -2712,7 +2712,7 @@ fn test_different_waits_fail() {
 
         assert!(Gear::is_active(program_id));
 
-        let system_reservation = gstd::Config::system_reserve();
+        let system_reservation = demo_waiter::system_reserve();
 
         // Command::Wait case no gas.
         let payload = Command::Wait.encode();

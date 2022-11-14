@@ -92,7 +92,6 @@ pallet-gear-gas = { path = "../gas" }
 pallet-gear-messenger = { path = "../gear-messenger" }
 pallet-gear-scheduler = { path = "../gear-scheduler" }
 gear-runtime-interface = { path = "../../runtime-interface" }
-gstd = { path = "../../gstd" }
 
 [features]
 default = ['std']
