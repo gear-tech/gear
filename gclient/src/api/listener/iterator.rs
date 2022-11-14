@@ -20,13 +20,13 @@ use super::EventProcessor;
 use crate::{Error, Result};
 use async_trait::async_trait;
 use futures::stream::StreamExt;
-use gp::api::{events::FinalizedEvents, generated::api::Event};
-use subxt::sp_core::H256;
+use gp::api::{generated::api::Event, types::FinalizedEvents};
+use subxt::{events::Phase, ext::sp_core::H256};
 
-pub struct EventListener<'a>(pub(crate) FinalizedEvents<'a>);
+pub struct EventListener(pub(crate) FinalizedEvents);
 
 #[async_trait(?Send)]
-impl<'a> EventProcessor for EventListener<'a> {
+impl EventProcessor for EventListener {
     fn not_waited() -> Error {
         unreachable!()
     }
@@ -35,7 +35,9 @@ impl<'a> EventProcessor for EventListener<'a> {
         while let Some(events) = self.0.next().await {
             if let Some(res) = events?
                 .iter()
-                .filter_map(|event| predicate(event.ok()?.event))
+                .filter_map(|event| {
+                    predicate(event.ok()?.as_root_event::<(Phase, Event)>().ok()?.1)
+                })
                 .next()
             {
                 return Ok(res);
@@ -54,7 +56,7 @@ impl<'a> EventProcessor for EventListener<'a> {
 
         while let Some(events) = self.0.next().await {
             for event in events?.iter() {
-                if let Some(data) = predicate(event?.event) {
+                if let Some(data) = predicate(event?.as_root_event::<(Phase, Event)>()?.1) {
                     res.push(data);
                 }
             }
@@ -71,7 +73,7 @@ impl<'a> EventProcessor for EventListener<'a> {
     }
 }
 
-impl<'a> EventListener<'a> {
+impl EventListener {
     pub async fn blocks_running_since(&mut self, previous: H256) -> Result<bool> {
         let current = self
             .0
