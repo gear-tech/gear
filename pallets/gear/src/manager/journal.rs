@@ -527,6 +527,8 @@ where
     }
 
     fn system_unreserve_gas(&mut self, message_id: MessageId) {
+        log::debug!("Unreserve gas for system from {}", message_id);
+
         let amount = GasHandlerOf::<T>::system_unreserve(message_id)
             .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
 
