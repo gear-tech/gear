@@ -76,6 +76,7 @@ pub fn id() -> MessageId {
     message_id
 }
 
+// TODO (breathx): unchecked read.
 /// Get a payload of the message currently being processed.
 ///
 /// Loads payload of the message into a buffer with a message size which can be

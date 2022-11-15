@@ -241,11 +241,13 @@ extern "C" {
     /// - `len`: `u32` length of the payload buffer.
     pub fn gr_debug(payload: *const BufferStart, len: Length);
 
+    // TODO (breathx).
     /// Fallible `gr_error` get syscall.
     ///
     /// Arguments type:
     /// - `error`: `mut ptr` for buffer to store requested data.
     /// - `err`: `mut ptr` for `u32` error length.
+    ///   Ignored if equals i32::MAX (use this for zero value for optimization).
     pub fn gr_error(error: *mut BufferStart, err: *mut Length);
 
     /// Fallible `gr_exit_code` get syscall.
@@ -295,6 +297,7 @@ extern "C" {
     /// - `bn_random`: `mut ptr` for concatenated block number with hash.
     pub fn gr_random(subject: *const BufferStart, len: Length, bn_random: *mut BlockNumberWithHash);
 
+    // TODO (breathx).
     /// Fallible `gr_read` get syscall.
     ///
     /// Arguments type:
@@ -302,6 +305,7 @@ extern "C" {
     /// - `len`: `u32` length of the buffer to read.
     /// - `buffer`: `mut ptr` for buffer to store requested data.
     /// - `err`: `mut ptr` for `u32` error length.
+    ///   Ignored if equals i32::MAX (use this for zero value for optimization).
     pub fn gr_read(at: Length, len: Length, buffer: *mut BufferStart, err: *mut Length);
 
     /// Fallible `gr_reply_commit_wgas` send syscall.
