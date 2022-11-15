@@ -28,7 +28,6 @@ use alloc::{
     vec::Vec,
 };
 use codec::{Decode, Encode};
-use core::num::NonZeroU64;
 use gear_core_errors::MessageError as Error;
 use scale_info::TypeInfo;
 
@@ -160,7 +159,7 @@ pub struct ContextStore {
     awaken: BTreeSet<MessageId>,
     reply_sent: bool,
     reservation_nonce: u64,
-    system_reservation: Option<NonZeroU64>,
+    system_reservation: Option<u64>,
 }
 
 impl ContextStore {
@@ -177,15 +176,15 @@ impl ContextStore {
     }
 
     /// Set system reservation.
-    pub fn add_system_reservation(&mut self, amount: NonZeroU64) {
+    pub fn add_system_reservation(&mut self, amount: u64) {
         let reservation = &mut self.system_reservation;
         *reservation = reservation
-            .map(|reservation| reservation.saturating_add(amount.get()))
+            .map(|reservation| reservation.saturating_add(amount))
             .or(Some(amount));
     }
 
     /// Get system reservation.
-    pub fn system_reservation(&self) -> Option<NonZeroU64> {
+    pub fn system_reservation(&self) -> Option<u64> {
         self.system_reservation
     }
 }
