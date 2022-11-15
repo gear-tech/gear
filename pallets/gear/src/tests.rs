@@ -6735,7 +6735,7 @@ fn few_system_reservations_across_waits_works() {
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(USER_1),
             pid,
-            HandleAction::Wait.encode(),
+            HandleAction::AcrossWaits.encode(),
             10_000_000_000,
             0,
         ));
@@ -6967,7 +6967,7 @@ fn system_reservation_zero_amount_panics() {
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(USER_1),
             pid,
-            HandleAction::ZeroReserve(USER_1.into_origin().into()).encode(),
+            HandleAction::ZeroReserve.encode(),
             10_000_000_000,
             0,
         ));

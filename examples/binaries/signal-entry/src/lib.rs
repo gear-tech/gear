@@ -38,7 +38,8 @@ pub enum HandleAction {
     Accumulate,
     OutOfGas,
     PanicInSignal,
-    ZeroReserve([u8; 32]),
+    AcrossWaits,
+    ZeroReserve,
 }
 
 #[cfg(not(feature = "std"))]
@@ -122,12 +123,19 @@ mod wasm {
                 msg::reply(0, 0).unwrap();
                 loop {}
             }
+            HandleAction::AcrossWaits => {
+                exec::system_reserve_gas(1_000_000_000).unwrap();
+                // used to found message id in test
+                // we use send instead of reply to avoid duplicated reply error.
+                msg::send(msg::source(), 0, 0).unwrap();
+                exec::wait();
+            }
             HandleAction::PanicInSignal => {
                 HANDLE_SIGNAL_STATE = HandleSignalState::Panic;
                 exec::system_reserve_gas(5_000_000_000).unwrap();
                 exec::wait();
             }
-            HandleAction::ZeroReserve(user) => {
+            HandleAction::ZeroReserve => {
                 let res = exec::system_reserve_gas(0);
                 assert_eq!(
                     res,
