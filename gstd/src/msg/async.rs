@@ -53,12 +53,12 @@ where
             "Somebody created a future with the MessageId that never ended in static replies!"
         ),
         ReplyPoll::Pending => Poll::Pending,
-        ReplyPoll::Some((actual_reply, exit_code)) => {
+        ReplyPoll::Some((actual_reply, status_code)) => {
             // Remove lock after waking.
             async_runtime::locks().remove(msg_id, waiting_reply_to);
 
-            if exit_code != 0 {
-                return Poll::Ready(Err(ContractError::ExitCode(exit_code)));
+            if status_code != 0 {
+                return Poll::Ready(Err(ContractError::StatusCode(status_code)));
             }
 
             Poll::Ready(f(actual_reply))
@@ -71,9 +71,9 @@ where
 /// The initial message that requires a reply is sent instantly.
 /// Function `send_for_reply` returns `CodecMessageFuture` which
 /// implements `Future` trait. Program interrupts until the reply is received.
-/// As soon as the reply is received, the function checks it's exit code and
-/// returns `Ok()` with decoded structure inside or `Err()` in case of exit code
-/// does not equal 0. For decode-related errors (<https://docs.rs/parity-scale-codec/2.3.1/parity_scale_codec/struct.Error.html>),
+/// As soon as the reply is received, the function checks it's status code and
+/// returns `Ok()` with decoded structure inside or `Err()` in case of status
+/// code does not equal 0. For decode-related errors (<https://docs.rs/parity-scale-codec/2.3.1/parity_scale_codec/struct.Error.html>),
 /// Gear returns the native one after decode.
 pub struct CodecMessageFuture<T> {
     /// Waiting reply to this the message id
@@ -132,8 +132,8 @@ impl_futures!(
 /// The initial message that requires a reply is sent instantly.
 /// Function `send_bytes_for_reply` returns `MessageFuture` which
 /// implements `Future` trait. Program interrupts until the reply is received.
-/// As soon as the reply is received, the function checks it's exit code and
-/// returns `Ok()` with raw bytes inside or `Err()` in case of exit code does
+/// As soon as the reply is received, the function checks it's status code and
+/// returns `Ok()` with raw bytes inside or `Err()` in case of status code does
 /// not equal 0. For decode-related errors (<https://docs.rs/parity-scale-codec/2.3.1/parity_scale_codec/struct.Error.html>),
 /// Gear returns the native one after decode.
 pub struct MessageFuture {

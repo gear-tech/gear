@@ -233,6 +233,23 @@ pub trait Tree {
         amount: Self::Balance,
     ) -> Result<(), Self::Error>;
 
+    /// Reserve some value from underlying balance.
+    ///
+    /// Used in gas reservation for system signal.
+    fn system_reserve(key: Self::Key, amount: Self::Balance) -> Result<(), Self::Error>;
+
+    /// Unreserve some value from underlying balance.
+    ///
+    /// Used in gas reservation for system signal.
+    fn system_unreserve(key: Self::Key) -> Result<Self::Balance, Self::Error>;
+
+    /// Get system reserve value associated with given id.
+    ///
+    /// Returns errors in cases of absence associated with given key node,
+    /// or if such functionality is forbidden for specific node type:
+    /// for example, for `GasNode::ReservedLocal`.
+    fn get_system_reserve(key: Self::Key) -> Result<Self::Balance, Self::Error>;
+
     /// Return bool, defining does node exist.
     fn exists(key: Self::Key) -> bool;
 

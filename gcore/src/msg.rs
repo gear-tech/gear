@@ -34,7 +34,7 @@ mod sys {
     use crate::{error::SyscallError, MessageHandle};
 
     extern "C" {
-        pub fn gr_exit_code(exit_code_ptr: *mut i32) -> SyscallError;
+        pub fn gr_status_code(status_code_ptr: *mut i32) -> SyscallError;
 
         pub fn gr_message_id(message_id_ptr: *mut [u8; 32]);
 
@@ -199,7 +199,7 @@ mod sys {
     }
 }
 
-/// Get the exit code of the message being processed.
+/// Get the status code of the message being processed.
 ///
 /// This function is used in reply handler to check the message
 /// was processed successfully or not.
@@ -211,13 +211,13 @@ mod sys {
 ///
 /// unsafe extern "C" fn handle_reply() {
 ///     // ...
-///     let exit_code = msg::exit_code().unwrap();
+///     let status_code = msg::status_code().unwrap();
 /// }
 /// ```
-pub fn exit_code() -> Result<i32> {
+pub fn status_code() -> Result<i32> {
     let mut bytes = 0i32.to_le_bytes();
 
-    unsafe { sys::gr_exit_code(bytes.as_mut_ptr() as *mut i32).into_result()? }
+    unsafe { sys::gr_status_code(bytes.as_mut_ptr() as *mut i32).into_result()? }
 
     Ok(i32::from_le_bytes(bytes))
 }

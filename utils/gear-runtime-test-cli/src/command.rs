@@ -413,7 +413,7 @@ macro_rules! command {
                                 ProgramId::from(id.as_bytes()),
                                 msg.payload().to_vec().try_into().unwrap(),
                                 msg.value(),
-                                msg.reply(),
+                                msg.details(),
                             );
                         }
                     });

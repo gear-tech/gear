@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2022 Gear Technologies Inc.
+// Copyright (C) 2022 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -15,10 +15,8 @@
 
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
-#![no_std]
 
-use codec::{Decode, Encode};
-use gstd::ActorId;
+#![cfg_attr(not(feature = "std"), no_std)]
 
 #[cfg(feature = "std")]
 mod code {
@@ -30,25 +28,11 @@ pub use code::WASM_BINARY_OPT as WASM_BINARY;
 
 #[cfg(not(feature = "std"))]
 mod wasm {
-    include! {"./code.rs"}
-}
+    use gstd::{exec, msg};
 
-pub fn system_reserve() -> u64 {
-    gstd::Config::system_reserve()
-}
-
-// Re-exports for testing
-pub fn default_wait_up_to_duration() -> u32 {
-    gstd::Config::wait_up_to()
-}
-
-#[derive(Debug, Encode, Decode)]
-pub enum Command {
-    Wait,
-    WaitFor(u32),
-    WaitUpTo(u32),
-    SendFor(ActorId, u32),
-    SendUpTo(ActorId, u32),
-    SendUpToWait(ActorId, u32),
-    SendAndWaitFor(u32, ActorId),
+    #[gstd::async_main]
+    async fn main() {
+        msg::reply(b"handle_signal", 0).unwrap();
+        exec::wait();
+    }
 }

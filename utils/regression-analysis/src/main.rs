@@ -336,7 +336,7 @@ fn weights(kind: WeightsKind, input_file: PathBuf, output_file: PathBuf) {
                     gr_reply_to,
                     gr_debug,
                     gr_debug_per_byte,
-                    gr_exit_code,
+                    gr_status_code,
                     gr_exit,
                     gr_leave,
                     gr_wait,
@@ -348,6 +348,7 @@ fn weights(kind: WeightsKind, input_file: PathBuf, output_file: PathBuf) {
                     gr_create_program_wgas_salt_per_byte,
                     gr_reserve_gas,
                     gr_unreserve_gas,
+                    gr_system_reserve_gas,
                 }
             }
         }

@@ -15,40 +15,7 @@
 
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
-#![no_std]
 
-use codec::{Decode, Encode};
-use gstd::ActorId;
-
-#[cfg(feature = "std")]
-mod code {
-    include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
-}
-
-#[cfg(feature = "std")]
-pub use code::WASM_BINARY_OPT as WASM_BINARY;
-
-#[cfg(not(feature = "std"))]
-mod wasm {
-    include! {"./code.rs"}
-}
-
-pub fn system_reserve() -> u64 {
-    gstd::Config::system_reserve()
-}
-
-// Re-exports for testing
-pub fn default_wait_up_to_duration() -> u32 {
-    gstd::Config::wait_up_to()
-}
-
-#[derive(Debug, Encode, Decode)]
-pub enum Command {
-    Wait,
-    WaitFor(u32),
-    WaitUpTo(u32),
-    SendFor(ActorId, u32),
-    SendUpTo(ActorId, u32),
-    SendUpToWait(ActorId, u32),
-    SendAndWaitFor(u32, ActorId),
+fn main() {
+    gear_wasm_builder::build();
 }

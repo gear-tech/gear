@@ -26,18 +26,18 @@ use crate::{
 use core::task::{Context, Waker};
 
 pub type Payload = Vec<u8>;
-pub type ExitCode = i32;
+pub type StatusCode = i32;
 
 #[derive(Debug)]
 pub(crate) enum ReplyPoll {
     None,
     Pending,
-    Some((Payload, ExitCode)),
+    Some((Payload, StatusCode)),
 }
 
 struct WakeSignal {
     message_id: MessageId,
-    payload: Option<(Payload, ExitCode)>,
+    payload: Option<(Payload, StatusCode)>,
     waker: Option<Waker>,
 }
 
@@ -70,7 +70,7 @@ impl WakeSignals {
         {
             signal.payload = Some((
                 crate::msg::load_bytes().expect("Failed to load bytes"),
-                crate::msg::exit_code().expect("Shouldn't be called with incorrect context"),
+                crate::msg::status_code().expect("Shouldn't be called with incorrect context"),
             ));
 
             if let Some(waker) = &signal.waker {

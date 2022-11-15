@@ -16,7 +16,7 @@ members = [
     "capacitor",
     "create-program",
     "decoder",
-    "exit-code",
+    "status-code",
     "fib",
     "fungible-token",
     "futures-unordered",
