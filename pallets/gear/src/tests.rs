@@ -6557,10 +6557,12 @@ fn signal_recursion_not_occurs() {
         let status = dispatch_status(signal_msg_id);
         assert_eq!(status, Some(DispatchStatus::Failed));
 
+        MailboxOf::<Test>::clear();
         System::reset_events();
         run_to_next_block(None);
 
         // check nothing happens after
+        assert!(MailboxOf::<Test>::is_empty(&USER_1));
         assert_eq!(System::events().len(), 0);
     });
 }

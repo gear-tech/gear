@@ -158,6 +158,8 @@ mod wasm {
                 // assert_eq!(msg::gas_limit(), 5_000_000_000);
             }
             HandleSignalState::Panic => {
+                // to be sure state rolls back so this message won't appear in mailbox in test
+                msg::send(INITIATOR, b"handle_signal_panic", 0).unwrap();
                 panic!();
             }
         }
