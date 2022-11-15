@@ -20,7 +20,7 @@ jobs:
 
       - name: Create image tag
         id: image-tag
-        run: echo "tag=ghcr.io/gear-tech/gaer-loader:0.0.1-`echo ${GITHUB_SHA} | cut -c1-8`" >> $GITHUB_OUTPUT
+        run: echo "tag=ghcr.io/gear-tech/gear-loader:0.0.1-`echo ${GITHUB_SHA} | cut -c1-8`" >> $GITHUB_OUTPUT
 
   docker:
     runs-on: xeon
