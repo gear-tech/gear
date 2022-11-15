@@ -41,12 +41,6 @@ pub type Hash = [u8; 32];
 /// Represents length type.
 pub type Length = u32;
 
-/// Represents byte type.
-///
-/// Pointer on this struct MUST point to the start of the at least 4 bytes len.
-/// Length bytes MUST go first.
-pub type LengthWithBufferStart = u8;
-
 /// Represents status code type.
 pub type StatusCode = i32;
 
@@ -55,67 +49,130 @@ pub type Value = u128;
 
 /// Represents type defining concatenated block number with hash. 36 bytes.
 #[repr(C)]
+#[derive(Default)]
 pub struct BlockNumberWithHash {
     pub bn: BlockNumber,
     pub hash: Hash,
 }
 
+impl BlockNumberWithHash {
+    pub fn as_mut_ptr(&mut self) -> *mut Self {
+        self as _
+    }
+}
+
 /// Represents type defining concatenated hash with value. 48 bytes.
 #[repr(C)]
+#[derive(Default)]
 pub struct HashWithValue {
     pub hash: Hash,
     pub value: Value,
 }
 
+impl HashWithValue {
+    pub const fn as_ptr(&self) -> *const Self {
+        self as _
+    }
+}
+
 /// Represents type defining concatenated status code with length. 8 bytes.
 #[repr(C)]
+#[derive(Default)]
 pub struct LengthWithCode {
     pub length: Length,
     pub code: StatusCode,
 }
 
+impl LengthWithCode {
+    pub fn as_mut_ptr(&mut self) -> *mut Self {
+        self as _
+    }
+}
+
 /// Represents type defining concatenated length with gas. 12 bytes.
 #[repr(C)]
+#[derive(Default)]
 pub struct LengthWithGas {
     pub length: Length,
     pub gas: Gas,
 }
 
+impl LengthWithGas {
+    pub fn as_mut_ptr(&mut self) -> *mut Self {
+        self as _
+    }
+}
+
 /// Represents type defining concatenated length with handle. 8 bytes.
 #[repr(C)]
+#[derive(Default)]
 pub struct LengthWithHandle {
     pub length: Length,
     pub handle: Handle,
 }
 
+impl LengthWithHandle {
+    pub fn as_mut_ptr(&mut self) -> *mut Self {
+        self as _
+    }
+}
+
 /// Represents type defining concatenated hash with length. 36 bytes.
 #[repr(C)]
+#[derive(Default)]
 pub struct LengthWithHash {
     pub length: Length,
     pub hash: Hash,
 }
 
+impl LengthWithHash {
+    pub fn as_mut_ptr(&mut self) -> *mut Self {
+        self as _
+    }
+}
+
 /// Represents type defining concatenated two hashes with length. 68 bytes.
 #[repr(C)]
+#[derive(Default)]
 pub struct LengthWithTwoHashes {
     pub length: Length,
     pub hash1: Hash,
     pub hash2: Hash,
 }
 
+impl LengthWithTwoHashes {
+    pub fn as_mut_ptr(&mut self) -> *mut Self {
+        self as _
+    }
+}
+
 /// Represents type defining concatenated two hashes. 64 bytes.
 #[repr(C)]
+#[derive(Default)]
 pub struct TwoHashes {
     pub hash1: Hash,
     pub hash2: Hash,
 }
 
+impl TwoHashes {
+    pub const fn as_ptr(&self) -> *const Self {
+        self as _
+    }
+}
+
 /// Represents type defining concatenated two hashes with value. 80 bytes.
 #[repr(C)]
+#[derive(Default)]
 pub struct TwoHashesWithValue {
     pub hash1: Hash,
     pub hash2: Hash,
     pub value: Value,
+}
+
+impl TwoHashesWithValue {
+    pub const fn as_ptr(&self) -> *const Self {
+        self as _
+    }
 }
 
 #[allow(improper_ctypes)]
@@ -187,8 +244,9 @@ extern "C" {
     /// Fallible `gr_error` get syscall.
     ///
     /// Arguments type:
-    /// - `err_error`: `mut ptr` for concatenated error length and error bytes.
-    pub fn gr_error(err_error: *mut LengthWithBufferStart);
+    /// - `error`: `mut ptr` for buffer to store requested data.
+    /// - `err`: `mut ptr` for `u32` error length.
+    pub fn gr_error(error: *mut BufferStart, err: *mut Length);
 
     /// Fallible `gr_exit_code` get syscall.
     ///
@@ -200,7 +258,7 @@ extern "C" {
     ///
     /// Arguments type:
     /// - `inheritor_id`: `const ptr` for program id.
-    pub fn gr_exit(inheritor_id: *const Hash);
+    pub fn gr_exit(inheritor_id: *const Hash) -> !;
 
     /// Infallible `gr_gas_available` get syscall.
     ///
@@ -209,7 +267,7 @@ extern "C" {
     pub fn gr_gas_available(gas: *mut Gas);
 
     /// Infallible `gr_leave` control syscall.
-    pub fn gr_leave();
+    pub fn gr_leave() -> !;
 
     /// Infallible `gr_message_id` get syscall.
     ///
@@ -242,9 +300,9 @@ extern "C" {
     /// Arguments type:
     /// - `at`: `u32` defining offset to read from.
     /// - `len`: `u32` length of the buffer to read.
-    /// - `err_buffer`: `mut ptr` for concatenated in the same buffer
-    ///   error length and requested bytes.
-    pub fn gr_read(at: Length, len: Length, err_buffer: *mut LengthWithBufferStart);
+    /// - `buffer`: `mut ptr` for buffer to store requested data.
+    /// - `err`: `mut ptr` for `u32` error length.
+    pub fn gr_read(at: Length, len: Length, buffer: *mut BufferStart, err: *mut Length);
 
     /// Fallible `gr_reply_commit_wgas` send syscall.
     ///
@@ -330,8 +388,6 @@ extern "C" {
     /// - `err_mid`: `mut ptr` for concatenated error length and message id.
     pub fn gr_reservation_reply_commit(
         rid_value: *const HashWithValue,
-        payload: *const BufferStart,
-        len: Length,
         delay: BlockNumber,
         err_mid: *mut LengthWithHash,
     );
@@ -507,16 +563,16 @@ extern "C" {
     ///
     /// Arguments type:
     /// - `duration`: `u32` defining amount of blocks to wait.
-    pub fn gr_wait_for(duration: BlockNumber);
+    pub fn gr_wait_for(duration: BlockNumber) -> !;
 
     /// Infallible `gr_wait_up_to` control syscall.
     ///
     /// Arguments type:
     /// - `duration`: `u32` defining amount of blocks to wait.
-    pub fn gr_wait_up_to(duration: BlockNumber);
+    pub fn gr_wait_up_to(duration: BlockNumber) -> !;
 
     /// Infallible `gr_wait` control syscall.
-    pub fn gr_wait();
+    pub fn gr_wait() -> !;
 
     /// Fallible `gr_wake` control syscall.
     ///

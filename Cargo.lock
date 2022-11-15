@@ -2868,6 +2868,7 @@ name = "gcore"
 version = "0.1.0"
 dependencies = [
  "gear-core-errors",
+ "gsys",
  "parity-scale-codec",
  "static_assertions",
 ]
