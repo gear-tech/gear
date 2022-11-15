@@ -38,12 +38,18 @@ pub enum HandleAction {
     Accumulate,
     OutOfGas,
     PanicInSignal,
+    ZeroReserve([u8; 32]),
 }
 
 #[cfg(not(feature = "std"))]
 mod wasm {
     use super::*;
-    use gstd::{exec, msg, prelude::*, ActorId, MessageId};
+    use gstd::{
+        errors::{ExecutionError, ExtError},
+        exec, msg,
+        prelude::*,
+        ActorId, MessageId,
+    };
 
     static mut INITIATOR: ActorId = ActorId::zero();
     static mut HANDLE_MSG: MessageId = MessageId::new([0; 32]);
@@ -120,6 +126,15 @@ mod wasm {
                 HANDLE_SIGNAL_STATE = HandleSignalState::Panic;
                 exec::system_reserve_gas(5_000_000_000).unwrap();
                 exec::wait();
+            }
+            HandleAction::ZeroReserve(user) => {
+                let res = exec::system_reserve_gas(0);
+                assert_eq!(
+                    res,
+                    Err(ExtError::Execution(
+                        ExecutionError::ZeroSystemReservationAmount
+                    ))
+                );
             }
         }
     }

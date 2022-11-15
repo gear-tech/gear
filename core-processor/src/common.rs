@@ -24,6 +24,7 @@ use alloc::{
     vec::Vec,
 };
 use codec::{Decode, Encode};
+use core::num::NonZeroU64;
 use gear_backend_common::{SystemReservationContext, TrapExplanation};
 use gear_core::{
     gas::{GasAllowanceCounter, GasAmount, GasCounter},
@@ -299,7 +300,7 @@ pub enum JournalNote {
         /// Message ID which system reservation will be made from.
         message_id: MessageId,
         /// Amount of reserved gas.
-        amount: u64,
+        amount: NonZeroU64,
     },
     /// Do system unreservation in case it is created but not used.
     SystemUnreserveGas {
@@ -387,7 +388,7 @@ pub trait JournalHandler {
     /// Update gas reservations.
     fn update_gas_reservation(&mut self, program_id: ProgramId, reserver: GasReserver);
     /// Do system reservation.
-    fn system_reserve_gas(&mut self, message_id: MessageId, amount: u64);
+    fn system_reserve_gas(&mut self, message_id: MessageId, amount: NonZeroU64);
     /// Do system unreservation.
     fn system_unreserve_gas(&mut self, message_id: MessageId);
     /// Send system signal.

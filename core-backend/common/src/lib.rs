@@ -38,6 +38,7 @@ use alloc::{
 use codec::{Decode, Encode, MaxEncodedLen};
 use core::{
     fmt::{self, Display},
+    num::NonZeroU64,
     ops::Deref,
 };
 use gear_core::{
@@ -107,9 +108,9 @@ pub enum TrapExplanation {
 #[derive(Debug, Default)]
 pub struct SystemReservationContext {
     /// Reservation created in current execution.
-    pub current_reservation: Option<u64>,
+    pub current_reservation: Option<NonZeroU64>,
     /// Reservation from `ContextStore`.
-    pub previous_reservation: Option<u64>,
+    pub previous_reservation: Option<NonZeroU64>,
 }
 
 impl SystemReservationContext {

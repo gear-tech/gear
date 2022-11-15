@@ -23,6 +23,7 @@ use alloc::{
     vec::Vec,
 };
 use codec::{Decode, Encode};
+use core::num::NonZeroU64;
 use gear_backend_common::{
     error_processor::IntoExtError, AsTerminationReason, ExtInfo, GetGasAmount, IntoExtInfo,
     SystemReservationContext, TerminationReason, TrapExplanation,
@@ -53,7 +54,7 @@ pub struct ProcessorContext {
     /// Reserved gas counter.
     pub gas_reserver: GasReserver,
     /// System reservation.
-    pub system_reservation: Option<u64>,
+    pub system_reservation: Option<NonZeroU64>,
     /// Value counter.
     pub value_counter: ValueCounter,
     /// Allocations context.
@@ -642,12 +643,18 @@ impl EnvExt for Ext {
     fn system_reserve_gas(&mut self, amount: u64) -> Result<(), Self::Error> {
         self.charge_gas_runtime(RuntimeCosts::SystemReserveGas)?;
 
-        if self.context.gas_counter.reduce(amount) == ChargeResult::NotEnough {
+        let Some(amount) = NonZeroU64::new(amount) else {
+            return self.return_and_store_err(Err(ExecutionError::ZeroSystemReservationAmount));
+        };
+
+        if self.context.gas_counter.reduce(amount.get()) == ChargeResult::NotEnough {
             return Err(ExecutionError::InsufficientGasForReservation.into());
         }
 
-        let reservation = self.context.system_reservation.get_or_insert(0);
-        *reservation = reservation.saturating_add(amount);
+        let reservation = &mut self.context.system_reservation;
+        *reservation = reservation
+            .map(|reservation| reservation.saturating_add(amount.get()))
+            .or(Some(amount));
 
         Ok(())
     }

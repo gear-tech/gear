@@ -45,6 +45,7 @@ use sp_std::{
     collections::{btree_map::BTreeMap, btree_set::BTreeSet},
     prelude::*,
 };
+use std::num::NonZeroU64;
 
 impl<T> JournalHandler for ExtManager<T>
 where
@@ -519,10 +520,10 @@ where
         }
     }
 
-    fn system_reserve_gas(&mut self, message_id: MessageId, amount: u64) {
+    fn system_reserve_gas(&mut self, message_id: MessageId, amount: NonZeroU64) {
         log::debug!("Reserve {} of gas for system from {}", amount, message_id);
 
-        GasHandlerOf::<T>::system_reserve(message_id, amount)
+        GasHandlerOf::<T>::system_reserve(message_id, amount.get())
             .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
     }
 

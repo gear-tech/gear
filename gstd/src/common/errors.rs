@@ -57,7 +57,7 @@ impl fmt::Display for ContractError {
             ContractError::Ext(e) => write!(f, "API error: {e}"),
             ContractError::EmptyWaitDuration => write!(f, "Wait duration can not be zero."),
             ContractError::ZeroSystemReservationAmount => {
-                write!(f, "System reservation amount can not be zero.")
+                write!(f, "System reservation amount can not be zero in config.")
             }
         }
     }
