@@ -83,6 +83,8 @@ pub trait WeightInfo {
     fn gr_reply_to(r: u32, ) -> Weight;
     fn gr_debug(r: u32, ) -> Weight;
     fn gr_debug_per_kb(n: u32, ) -> Weight;
+    fn gr_error(r: u32, ) -> Weight;
+    fn gr_error_per_kb(n: u32, ) -> Weight;
     fn gr_status_code(r: u32, ) -> Weight;
     fn gr_exit(r: u32, ) -> Weight;
     fn gr_leave(r: u32, ) -> Weight;
@@ -443,6 +445,18 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
     fn gr_debug_per_kb(n: u32, ) -> Weight {
         Weight::from_ref_time(281_078_000 as u64)
             // Standard Error: 20_776
+            .saturating_add(Weight::from_ref_time(34_062_390 as u64).saturating_mul(n as u64))
+    }
+    /// The range of component `r` is `[0, 20]`.
+    fn gr_error(r: u32, ) -> Weight {
+        Weight::from_ref_time(83_386_000 as u64)
+        // Standard Error: 45_051
+            .saturating_add(Weight::from_ref_time(214_826_471 as u64).saturating_mul(r as u64))
+    }
+    /// The range of component `n` is `[0, 1024]`.
+    fn gr_error_per_kb(n: u32, ) -> Weight {
+        Weight::from_ref_time(281_078_000 as u64)
+        // Standard Error: 20_776
             .saturating_add(Weight::from_ref_time(34_062_390 as u64).saturating_mul(n as u64))
     }
     /// The range of component `r` is `[0, 20]`.
@@ -1120,6 +1134,18 @@ impl WeightInfo for () {
     fn gr_debug_per_kb(n: u32, ) -> Weight {
         Weight::from_ref_time(281_078_000 as u64)
             // Standard Error: 20_776
+            .saturating_add(Weight::from_ref_time(34_062_390 as u64).saturating_mul(n as u64))
+    }
+    /// The range of component `r` is `[0, 20]`.
+    fn gr_error(r: u32, ) -> Weight {
+        Weight::from_ref_time(83_386_000 as u64)
+        // Standard Error: 45_051
+            .saturating_add(Weight::from_ref_time(214_826_471 as u64).saturating_mul(r as u64))
+    }
+    /// The range of component `n` is `[0, 1024]`.
+    fn gr_error_per_kb(n: u32, ) -> Weight {
+        Weight::from_ref_time(281_078_000 as u64)
+        // Standard Error: 20_776
             .saturating_add(Weight::from_ref_time(34_062_390 as u64).saturating_mul(n as u64))
     }
     /// The range of component `r` is `[0, 20]`.

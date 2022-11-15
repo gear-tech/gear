@@ -988,6 +988,48 @@ where
         Self::prepare_handle(code, 0)
     }
 
+    pub fn gr_error(r: u32) -> Result<Exec<T>, &'static str> {
+        let string_offset = 1;
+        let string_len = 100;
+
+        let code = WasmModule::<T>::from(ModuleDefinition {
+            memory: Some(ImportedMemory::max::<T>()),
+            imported_functions: vec!["gr_error"],
+            handle_body: Some(body::repeated(
+                r * API_BENCHMARK_BATCH_SIZE,
+                &[
+                    Instruction::I32Const(string_offset), // args ptr ( read + write )
+                    Instruction::I32Const(string_len),    // error string ( write )
+                    Instruction::Call(0),
+                    Instruction::Drop,
+                ],
+            )),
+            ..Default::default()
+        });
+        Self::prepare_handle(code, 0)
+    }
+
+    pub fn gr_error_per_kb(n: u32) -> Result<Exec<T>, &'static str> {
+        let string_offset = 1;
+        let string_len = n as i32 * 1024;
+
+        let code = WasmModule::<T>::from(ModuleDefinition {
+            memory: Some(ImportedMemory::max::<T>()),
+            imported_functions: vec!["gr_error"],
+            handle_body: Some(body::repeated(
+                n * API_BENCHMARK_BATCH_SIZE,
+                &[
+                    Instruction::I32Const(string_offset), // args ptr ( read + write )
+                    Instruction::I32Const(string_len),    // error string ( write )
+                    Instruction::Call(0),
+                    Instruction::Drop,
+                ],
+            )),
+            ..Default::default()
+        });
+        Self::prepare_handle(code, 0)
+    }
+
     pub fn no_return_bench(
         name: &'static str,
         param: Option<u32>,
