@@ -1,11 +1,12 @@
 //! Gear api
 use crate::result::Result;
+use client::RpcClient;
 use config::GearConfig;
 use core::ops::{Deref, DerefMut};
-use rpc::RpcClient;
 use signer::Signer;
 use subxt::OnlineClient;
 
+mod client;
 pub mod config;
 mod constants;
 pub mod events;

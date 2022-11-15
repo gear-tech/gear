@@ -70,7 +70,7 @@ use gear_core::{
     code::{Code, CodeAndId},
     gas::{GasAllowanceCounter, GasCounter, ValueCounter},
     ids::{MessageId, ProgramId},
-    memory::{AllocationsContext, PageBuf, PageNumber},
+    memory::{AllocationsContext, PageBuf, PageNumber, WasmPageNumber},
     message::{ContextSettings, MessageContext},
     reservation::GasReserver,
 };
@@ -1014,34 +1014,60 @@ benchmarks! {
         verify_process(res.unwrap());
     }
 
-    // TODO: fix it #1728
+    lazy_pages_read_access {
+        let p in 0 .. code::max_pages::<T>();
+        let mut res = None;
+        let exec = Benches::<T>::lazy_pages_read_access(p)?;
+    }: {
+        res.replace(run_process(exec));
+    }
+    verify {
+        verify_process(res.unwrap());
+    }
+
+    lazy_pages_write_access {
+        let p in 0 .. code::max_pages::<T>();
+        let mut res = None;
+        let exec = Benches::<T>::lazy_pages_write_access(p)?;
+    }: {
+        res.replace(run_process(exec));
+    }
+    verify {
+        verify_process(res.unwrap());
+    }
+
     // w_load = w_bench
     instr_i64load {
         let r in 0 .. INSTR_BENCHMARK_BATCHES;
+        let mem_pages = code::max_pages::<T>();
+        // Warm up memory.
+        let mut instrs = body::write_access_all_pages_instrs(mem_pages, vec![]);
+        instrs = body::repeated_dyn_instr(r * INSTR_BENCHMARK_BATCH_SIZE, vec![
+                        RandomUnaligned(0, mem_pages * WasmPageNumber::size() as u32 - 8),
+                        Regular(Instruction::I64Load(3, 0)),
+                        Regular(Instruction::Drop)], instrs);
         let mut sbox = Sandbox::from(&WasmModule::<T>::from(ModuleDefinition {
-            memory: Some(ImportedMemory::max::<T>()),
-            handle_body: Some(body::repeated_dyn(r * INSTR_BENCHMARK_BATCH_SIZE, vec![
-                RandomUnaligned(0, 2 * 64 * 1024 - 8),
-                Regular(Instruction::I64Load(3, 0)),
-                Regular(Instruction::Drop),
-            ])),
+            memory: Some(ImportedMemory{min_pages: mem_pages}),
+            handle_body: Some(body::from_instructions(instrs)),
             .. Default::default()
         }));
     }: {
         sbox.invoke();
     }
 
-    // TODO: Fix it #1728
     // w_store = w_bench - w_i64const
     instr_i64store {
         let r in 0 .. INSTR_BENCHMARK_BATCHES;
+        let mem_pages = code::max_pages::<T>();
+        // Warm up memory.
+        let mut instrs = body::write_access_all_pages_instrs(mem_pages, vec![]);
+        instrs = body::repeated_dyn_instr(r * INSTR_BENCHMARK_BATCH_SIZE, vec![
+                        RandomUnaligned(0, mem_pages * WasmPageNumber::size() as u32 - 8),
+                        RandomI64Repeated(1),
+                        Regular(Instruction::I64Store(3, 0))], instrs);
         let mut sbox = Sandbox::from(&WasmModule::<T>::from(ModuleDefinition {
-            memory: Some(ImportedMemory::max::<T>()),
-            handle_body: Some(body::repeated_dyn(r * INSTR_BENCHMARK_BATCH_SIZE, vec![
-                RandomUnaligned(0, 2 * 64 * 1024 - 8),
-                RandomI64Repeated(1),
-                Regular(Instruction::I64Store(3, 0)),
-            ])),
+            memory: Some(ImportedMemory{min_pages: mem_pages}),
+            handle_body: Some(body::from_instructions(instrs)),
             .. Default::default()
         }));
     }: {

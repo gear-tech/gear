@@ -385,6 +385,8 @@ where
 
 /// Mechanisms to generate a function body that can be used inside a `ModuleDefinition`.
 pub mod body {
+    use gear_core::memory::WasmPageNumber;
+
     use super::*;
 
     /// When generating contract code by repeating a wasm sequence, it's sometimes necessary
@@ -450,6 +452,36 @@ pub mod body {
                 .collect(),
         );
         FuncBody::new(Vec::new(), instructions)
+    }
+
+    pub fn write_access_all_pages_instrs(
+        mem_size: u32,
+        mut head: Vec<Instruction>,
+    ) -> Vec<Instruction> {
+        for page in (0..mem_size)
+            .map(WasmPageNumber)
+            .flat_map(|p| p.to_gear_pages_iter())
+        {
+            head.push(Instruction::I32Const(page.offset() as i32));
+            head.push(Instruction::I32Const(42));
+            head.push(Instruction::I32Store(2, 0));
+        }
+        head
+    }
+
+    pub fn read_access_all_pages_instrs(
+        mem_size: u32,
+        mut head: Vec<Instruction>,
+    ) -> Vec<Instruction> {
+        for page in (0..mem_size)
+            .map(WasmPageNumber)
+            .flat_map(|p| p.to_gear_pages_iter())
+        {
+            head.push(Instruction::I32Const(page.offset() as i32));
+            head.push(Instruction::I32Load(2, 0));
+            head.push(Instruction::Drop);
+        }
+        head
     }
 
     pub fn repeated_dyn_instr(
