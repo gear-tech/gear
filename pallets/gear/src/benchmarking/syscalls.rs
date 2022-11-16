@@ -991,37 +991,44 @@ where
     pub fn gr_error(r: u32) -> Result<Exec<T>, &'static str> {
         let string_offset = 1;
         let string_len = 100;
+        let error_offset = string_offset + string_len;
 
         let code = WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
-            imported_functions: vec!["gr_error"],
+            imported_functions: vec!["gr_debug", "gr_error"],
             handle_body: Some(body::repeated(
                 r * API_BENCHMARK_BATCH_SIZE,
                 &[
-                    Instruction::I32Const(string_offset), // args ptr ( read + write )
-                    Instruction::I32Const(string_len),    // error string ( write )
+                    Instruction::I32Const(string_offset),
+                    Instruction::I32Const(string_len),
                     Instruction::Call(0),
+                    Instruction::I32Const(error_offset), // args ptr
+                    Instruction::Call(1),
                     Instruction::Drop,
                 ],
             )),
             ..Default::default()
         });
+
         Self::prepare_handle(code, 0)
     }
 
     pub fn gr_error_per_kb(n: u32) -> Result<Exec<T>, &'static str> {
         let string_offset = 1;
         let string_len = n as i32 * 1024;
+        let error_offset = string_offset + string_len;
 
         let code = WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
-            imported_functions: vec!["gr_error"],
+            imported_functions: vec!["gr_debug", "gr_error"],
             handle_body: Some(body::repeated(
-                n * API_BENCHMARK_BATCH_SIZE,
+                API_BENCHMARK_BATCH_SIZE,
                 &[
-                    Instruction::I32Const(string_offset), // args ptr ( read + write )
-                    Instruction::I32Const(string_len),    // error string ( write )
+                    Instruction::I32Const(string_offset),
+                    Instruction::I32Const(string_len),
                     Instruction::Call(0),
+                    Instruction::I32Const(error_offset),
+                    Instruction::Call(1),
                     Instruction::Drop,
                 ],
             )),

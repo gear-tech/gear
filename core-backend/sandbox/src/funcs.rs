@@ -898,7 +898,10 @@ where
                 .last_error_encoded()
                 .process_error()
                 .map_err(FuncError::Core)?
-                .error_len_on_success(|err| ctx.write_output(buffer_ptr, err.as_ref()))
+                .error_len_on_success(|err| {
+                    ctx.write_output(buffer_ptr, err.as_ref())?;
+                    ctx.ext.error(err.as_ref()).map_err(FuncError::Core)
+                })
         })
     }
 
