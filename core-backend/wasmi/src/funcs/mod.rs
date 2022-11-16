@@ -134,7 +134,7 @@ macro_rules! update_or_exit_if {
             .get_export(GLOBAL_NAME_GAS)
             .and_then(Extern::into_global)
             .and_then(|g| g.get(&$caller).try_into::<i64>())
-            .ok_or({
+            .ok_or_else(|| {
                 host_state_mut!($caller).err = FuncError::HostError;
                 Trap::from(TrapCode::Unreachable)
             })? as u64;
@@ -143,7 +143,7 @@ macro_rules! update_or_exit_if {
             .get_export(GLOBAL_NAME_ALLOWANCE)
             .and_then(Extern::into_global)
             .and_then(|g| g.get(&$caller).try_into::<i64>())
-            .ok_or({
+            .ok_or_else(|| {
                 host_state_mut!($caller).err = FuncError::HostError;
                 Trap::from(TrapCode::Unreachable)
             })? as u64;
