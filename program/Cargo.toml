@@ -57,7 +57,7 @@ gear-runtime = { path = "../runtime/gear", optional = true }
 vara-runtime = { path = "../runtime/vara", optional = true }
 frame-metadata = "15.0.0"
 parity-scale-codec = "3.1.5"
-subxt-codegen = "0.24.0"
+subxt-codegen = "0.25.0"
 syn = "1"
 
 [features]
