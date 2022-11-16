@@ -40,7 +40,7 @@ where
     [T]: AsRef<[u8]>,
 {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", hex::encode(self.get()))
+        write!(f, "0x{}", hex::encode(self.get()))
     }
 }
 
