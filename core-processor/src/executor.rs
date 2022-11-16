@@ -583,7 +583,7 @@ mod tests {
     #[test]
     fn check_memory_not_allocated() {
         let (pages, mut allocs) = prepare_pages_and_allocs();
-        let last = *allocs.last().unwrap();
+        let last = *allocs.iter().last().unwrap();
         allocs.remove(&last);
         let res = check_memory(&allocs, pages.iter(), 2.into(), 4.into());
         assert_eq!(
@@ -661,7 +661,7 @@ mod tests {
             false,
         );
         // Result is the last page plus one
-        let last = *allocs.last().unwrap();
+        let last = *allocs.iter().last().unwrap();
         assert_eq!(res, Ok(last + 1.into()));
         // Charge for loading and mem grow
         let load_charge = settings.load_page_cost * (allocs.len() as u64 + static_pages as u64);
