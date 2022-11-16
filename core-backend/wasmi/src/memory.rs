@@ -28,7 +28,7 @@ use gear_core::{
 use gear_core_errors::MemoryError;
 use wasmi::{core::memory_units::Pages, Memory as WasmiMemory, Store, StoreContextMut};
 
-pub fn read_memory_as<D: Decode + MaxEncodedLen>(
+pub fn read_memory_decoded<D: Decode + MaxEncodedLen>(
     memory: &impl Memory,
     ptr: u32,
 ) -> Result<D, MemoryError> {

@@ -1,18 +1,16 @@
+use crate::{
+    funcs::{FuncError, SyscallOutput},
+    MemoryWrap,
+};
 use alloc::vec::Vec;
 use codec::{Decode, DecodeAll, MaxEncodedLen};
 use gear_backend_common::{RuntimeCtx, RuntimeCtxError};
 use gear_core::{buffer::RuntimeBuffer, env::Ext, memory::WasmPageNumber};
-
 use gear_core_errors::MemoryError;
 use gear_wasm_instrument::{GLOBAL_NAME_ALLOWANCE, GLOBAL_NAME_GAS};
 use sp_sandbox::{
-    default_executor::Memory as DefaultExecutorMemory, HostError, InstanceGlobals, SandboxMemory,
-    Value,
-};
-
-use crate::{
-    funcs::{FuncError, SyscallOutput, WasmCompatible},
-    MemoryWrap,
+    default_executor::Memory as DefaultExecutorMemory, HostError, InstanceGlobals, ReturnValue,
+    SandboxMemory, Value,
 };
 
 pub(crate) fn as_i64(v: Value) -> Option<i64> {
@@ -31,9 +29,8 @@ pub(crate) struct Runtime<E: Ext> {
 }
 
 impl<E: Ext> Runtime<E> {
-    pub(crate) fn run<T, F>(&mut self, f: F) -> SyscallOutput
+    pub(crate) fn run_any<T, F>(&mut self, f: F) -> Result<T, HostError>
     where
-        T: WasmCompatible,
         F: FnOnce(&mut Self) -> Result<T, FuncError<E::Error>>,
     {
         let gas = self
@@ -56,10 +53,10 @@ impl<E: Ext> Runtime<E> {
 
         self.ext.update_counters(gas as u64, allowance as u64);
 
-        let result = f(self).map(WasmCompatible::throw_back).map_err(|err| {
+        let result = f(self).map_err(|err| {
             self.err = err;
             HostError
-        });
+        })?; // Exit before setting globals in case of panic is optimization.
 
         let (gas, allowance) = self.ext.counters();
 
@@ -77,7 +74,14 @@ impl<E: Ext> Runtime<E> {
                 HostError
             })?;
 
-        result
+        Ok(result)
+    }
+
+    pub(crate) fn run<F>(&mut self, f: F) -> SyscallOutput
+    where
+        F: FnOnce(&mut Self) -> Result<(), FuncError<E::Error>>,
+    {
+        self.run_any(f).map(|_| ReturnValue::Unit)
     }
 }
 
@@ -108,7 +112,7 @@ impl<E: Ext> RuntimeCtx<E> for Runtime<E> {
         Ok(())
     }
 
-    fn read_memory_as<D: Decode + MaxEncodedLen>(
+    fn read_memory_decoded<D: Decode + MaxEncodedLen>(
         &self,
         ptr: u32,
     ) -> Result<D, RuntimeCtxError<E::Error>> {

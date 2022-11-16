@@ -2937,6 +2937,7 @@ dependencies = [
  "gear-core",
  "gear-core-errors",
  "gear-wasm-instrument",
+ "gsys",
  "log",
  "parity-scale-codec",
  "sp-sandbox",

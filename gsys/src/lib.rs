@@ -48,7 +48,7 @@ pub type StatusCode = i32;
 pub type Value = u128;
 
 /// Represents type defining concatenated block number with hash. 36 bytes.
-#[repr(C)]
+#[repr(C, packed)]
 #[derive(Default)]
 pub struct BlockNumberWithHash {
     pub bn: BlockNumber,
@@ -62,7 +62,7 @@ impl BlockNumberWithHash {
 }
 
 /// Represents type defining concatenated hash with value. 48 bytes.
-#[repr(C)]
+#[repr(C, packed)]
 #[derive(Default)]
 pub struct HashWithValue {
     pub hash: Hash,
@@ -76,7 +76,7 @@ impl HashWithValue {
 }
 
 /// Represents type defining concatenated status code with length. 8 bytes.
-#[repr(C)]
+#[repr(C, packed)]
 #[derive(Default)]
 pub struct LengthWithCode {
     pub length: Length,
@@ -90,7 +90,7 @@ impl LengthWithCode {
 }
 
 /// Represents type defining concatenated length with gas. 12 bytes.
-#[repr(C)]
+#[repr(C, packed)]
 #[derive(Default)]
 pub struct LengthWithGas {
     pub length: Length,
@@ -104,7 +104,7 @@ impl LengthWithGas {
 }
 
 /// Represents type defining concatenated length with handle. 8 bytes.
-#[repr(C)]
+#[repr(C, packed)]
 #[derive(Default)]
 pub struct LengthWithHandle {
     pub length: Length,
@@ -118,7 +118,7 @@ impl LengthWithHandle {
 }
 
 /// Represents type defining concatenated hash with length. 36 bytes.
-#[repr(C)]
+#[repr(C, packed)]
 #[derive(Default)]
 pub struct LengthWithHash {
     pub length: Length,
@@ -132,7 +132,7 @@ impl LengthWithHash {
 }
 
 /// Represents type defining concatenated two hashes with length. 68 bytes.
-#[repr(C)]
+#[repr(C, packed)]
 #[derive(Default)]
 pub struct LengthWithTwoHashes {
     pub length: Length,
@@ -147,7 +147,7 @@ impl LengthWithTwoHashes {
 }
 
 /// Represents type defining concatenated two hashes. 64 bytes.
-#[repr(C)]
+#[repr(C, packed)]
 #[derive(Default)]
 pub struct TwoHashes {
     pub hash1: Hash,
@@ -161,7 +161,7 @@ impl TwoHashes {
 }
 
 /// Represents type defining concatenated two hashes with value. 80 bytes.
-#[repr(C)]
+#[repr(C, packed)]
 #[derive(Default)]
 pub struct TwoHashesWithValue {
     pub hash1: Hash,

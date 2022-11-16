@@ -38,7 +38,9 @@ use alloc::{
 use codec::{Decode, Encode, MaxEncodedLen};
 use core::{
     fmt::{self, Display},
+    mem::{size_of, MaybeUninit},
     ops::Deref,
+    ptr, slice,
 };
 use gear_core::{
     buffer::RuntimeBufferSizeError,
@@ -161,7 +163,7 @@ pub trait RuntimeCtx<E: Ext> {
     ) -> Result<(), RuntimeCtxError<E::Error>>;
 
     /// Reads and decodes a type with a size fixed at compile time from program memory.
-    fn read_memory_as<D: Decode + MaxEncodedLen>(
+    fn read_memory_decoded<D: Decode + MaxEncodedLen>(
         &self,
         ptr: u32,
     ) -> Result<D, RuntimeCtxError<E::Error>>;
@@ -170,6 +172,19 @@ pub trait RuntimeCtx<E: Ext> {
     //
     /// `out_ptr` is the location in memory where `buf` should be written to.
     fn write_output(&mut self, out_ptr: u32, buf: &[u8]) -> Result<(), RuntimeCtxError<E::Error>>;
+
+    fn read_memory_as<T>(&self, ptr: u32) -> Result<T, RuntimeCtxError<E::Error>> {
+        let mut buf = MaybeUninit::<T>::uninit();
+        let mut_slice =
+            unsafe { slice::from_raw_parts_mut(buf.as_mut_ptr() as *mut u8, size_of::<T>()) };
+        self.read_memory_into_buf(ptr, mut_slice)?;
+        Ok(unsafe { buf.assume_init() })
+    }
+
+    fn write_memory_as<T>(&mut self, ptr: u32, obj: T) -> Result<(), RuntimeCtxError<E::Error>> {
+        let slice = unsafe { slice::from_raw_parts(&obj as *const T as *const u8, size_of::<T>()) };
+        self.write_output(ptr, slice)
+    }
 }
 
 pub struct BackendReport<T, E> {

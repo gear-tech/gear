@@ -19,7 +19,7 @@
 mod internal;
 
 use crate::{
-    memory::{read_memory_as, MemoryWrapRef},
+    memory::{read_memory_decoded, MemoryWrapRef},
     state::HostState,
 };
 #[cfg(not(feature = "std"))]
@@ -243,8 +243,10 @@ where
             let read_result = {
                 let memory_wrap = get_caller_memory(&mut caller, &memory);
 
-                read_memory_as(&memory_wrap, destination_ptr)
-                    .and_then(|id| read_memory_as(&memory_wrap, value_ptr).map(|value| (id, value)))
+                read_memory_decoded(&memory_wrap, destination_ptr)
+                    .and_then(|id| {
+                        read_memory_decoded(&memory_wrap, value_ptr).map(|value| (id, value))
+                    })
                     .and_then(|(id, value)| {
                         memory_wrap
                             .read(payload_ptr as usize, payload.get_mut())
@@ -289,8 +291,10 @@ where
             let read_result = {
                 let memory_wrap = get_caller_memory(&mut caller, &memory);
 
-                read_memory_as(&memory_wrap, destination_ptr)
-                    .and_then(|id| read_memory_as(&memory_wrap, value_ptr).map(|value| (id, value)))
+                read_memory_decoded(&memory_wrap, destination_ptr)
+                    .and_then(|id| {
+                        read_memory_decoded(&memory_wrap, value_ptr).map(|value| (id, value))
+                    })
                     .and_then(|(id, value)| {
                         memory_wrap
                             .read(payload_ptr as usize, payload.get_mut())
@@ -333,8 +337,9 @@ where
             let read_result = {
                 let memory_wrap = get_caller_memory(&mut caller, &memory);
 
-                read_memory_as(&memory_wrap, destination_ptr)
-                    .and_then(|id| read_memory_as(&memory_wrap, value_ptr).map(|value| (id, value)))
+                read_memory_decoded(&memory_wrap, destination_ptr).and_then(|id| {
+                    read_memory_decoded(&memory_wrap, value_ptr).map(|value| (id, value))
+                })
             };
 
             let (destination, value) = process_read_result!(read_result, caller);
@@ -374,8 +379,9 @@ where
             let read_result = {
                 let memory_wrap = get_caller_memory(&mut caller, &memory);
 
-                read_memory_as(&memory_wrap, destination_ptr)
-                    .and_then(|id| read_memory_as(&memory_wrap, value_ptr).map(|value| (id, value)))
+                read_memory_decoded(&memory_wrap, destination_ptr).and_then(|id| {
+                    read_memory_decoded(&memory_wrap, value_ptr).map(|value| (id, value))
+                })
             };
 
             let (destination, value) = process_read_result!(read_result, caller);
@@ -478,10 +484,10 @@ where
                 let memory_wrap = get_caller_memory(&mut caller, &memory);
 
                 let mut f = || -> Result<_, MemoryError> {
-                    let reservation_id = read_memory_as(&memory_wrap, reservation_id_ptr)?;
-                    let destination = read_memory_as(&memory_wrap, destination_ptr)?;
+                    let reservation_id = read_memory_decoded(&memory_wrap, reservation_id_ptr)?;
+                    let destination = read_memory_decoded(&memory_wrap, destination_ptr)?;
                     memory_wrap.read(payload_ptr as usize, payload.get_mut())?;
-                    let value = read_memory_as(&memory_wrap, value_ptr)?;
+                    let value = read_memory_decoded(&memory_wrap, value_ptr)?;
                     Ok((reservation_id, destination, value))
                 };
 
@@ -524,9 +530,9 @@ where
                 let memory_wrap = get_caller_memory(&mut caller, &memory);
 
                 let f = || -> Result<_, MemoryError> {
-                    let reservation_id = read_memory_as(&memory_wrap, reservation_id_ptr)?;
-                    let destination = read_memory_as(&memory_wrap, destination_ptr)?;
-                    let value = read_memory_as(&memory_wrap, value_ptr)?;
+                    let reservation_id = read_memory_decoded(&memory_wrap, reservation_id_ptr)?;
+                    let destination = read_memory_decoded(&memory_wrap, destination_ptr)?;
+                    let value = read_memory_decoded(&memory_wrap, value_ptr)?;
                     Ok((reservation_id, destination, value))
                 };
 
@@ -640,7 +646,7 @@ where
 
             let read_result = {
                 let memory_wrap = get_caller_memory(&mut caller, &memory);
-                read_memory_as(&memory_wrap, inheritor_id_ptr)
+                read_memory_decoded(&memory_wrap, inheritor_id_ptr)
             };
 
             let call_result = host_state_mut!(caller).ext.exit();
@@ -818,7 +824,7 @@ where
 
                 memory_wrap
                     .read(payload_ptr as usize, payload.get_mut())
-                    .and_then(|_| read_memory_as(&memory_wrap, value_ptr))
+                    .and_then(|_| read_memory_decoded(&memory_wrap, value_ptr))
             };
 
             let value = process_read_result!(read_result, caller);
@@ -858,7 +864,7 @@ where
                 let memory_wrap = get_caller_memory(&mut caller, &memory);
                 memory_wrap
                     .read(payload_ptr as usize, payload.get_mut())
-                    .and_then(|_| read_memory_as(&memory_wrap, value_ptr))
+                    .and_then(|_| read_memory_decoded(&memory_wrap, value_ptr))
             };
 
             let value = process_read_result!(read_result, caller);
@@ -888,7 +894,7 @@ where
             let read_result = {
                 let memory_wrap = get_caller_memory(&mut caller, &memory);
 
-                read_memory_as(&memory_wrap, value_ptr)
+                read_memory_decoded(&memory_wrap, value_ptr)
             };
 
             let value = process_read_result!(read_result, caller);
@@ -920,7 +926,7 @@ where
             let read_result = {
                 let memory_wrap = get_caller_memory(&mut caller, &memory);
 
-                read_memory_as(&memory_wrap, value_ptr)
+                read_memory_decoded(&memory_wrap, value_ptr)
             };
 
             let value = process_read_result!(read_result, caller);
@@ -964,9 +970,9 @@ where
                 let memory_wrap = get_caller_memory(&mut caller, &memory);
 
                 let mut f = || -> Result<_, MemoryError> {
-                    let reservation_id = read_memory_as(&memory_wrap, reservation_id_ptr)?;
+                    let reservation_id = read_memory_decoded(&memory_wrap, reservation_id_ptr)?;
                     memory_wrap.read(payload_ptr as usize, payload.get_mut())?;
-                    let value = read_memory_as(&memory_wrap, value_ptr)?;
+                    let value = read_memory_decoded(&memory_wrap, value_ptr)?;
                     Ok((reservation_id, value))
                 };
 
@@ -1006,8 +1012,8 @@ where
                 let memory_wrap = get_caller_memory(&mut caller, &memory);
 
                 let f = || -> Result<_, MemoryError> {
-                    let reservation_id = read_memory_as(&memory_wrap, reservation_id_ptr)?;
-                    let value = read_memory_as(&memory_wrap, value_ptr)?;
+                    let reservation_id = read_memory_decoded(&memory_wrap, reservation_id_ptr)?;
+                    let value = read_memory_decoded(&memory_wrap, value_ptr)?;
                     Ok((reservation_id, value))
                 };
 
@@ -1188,7 +1194,7 @@ where
 
                 let read_result = {
                     let memory_wrap = get_caller_memory(&mut caller, &memory);
-                    read_memory_as::<ReservationId>(&memory_wrap, id_ptr)
+                    read_memory_decoded::<ReservationId>(&memory_wrap, id_ptr)
                 };
 
                 let id = process_read_result!(read_result, caller);
@@ -1478,7 +1484,7 @@ where
 
             let read_result = {
                 let memory_wrap = get_caller_memory(&mut caller, &memory);
-                read_memory_as(&memory_wrap, message_id_ptr)
+                read_memory_decoded(&memory_wrap, message_id_ptr)
             };
 
             let message_id = process_read_result!(read_result, caller);
@@ -1531,9 +1537,10 @@ where
                 memory_wrap
                     .read(payload_ptr as usize, payload.get_mut())
                     .and_then(|_| memory_wrap.read(salt_ptr as usize, salt.as_mut()))
-                    .and_then(|_| read_memory_as(&memory_wrap, value_ptr))
+                    .and_then(|_| read_memory_decoded(&memory_wrap, value_ptr))
                     .and_then(|value| {
-                        read_memory_as(&memory_wrap, code_id_ptr).map(|code_id| (value, code_id))
+                        read_memory_decoded(&memory_wrap, code_id_ptr)
+                            .map(|code_id| (value, code_id))
                     })
             };
 
@@ -1588,9 +1595,10 @@ where
                 memory_wrap
                     .read(payload_ptr as usize, payload.get_mut())
                     .and_then(|_| memory_wrap.read(salt_ptr as usize, &mut salt))
-                    .and_then(|_| read_memory_as(&memory_wrap, value_ptr))
+                    .and_then(|_| read_memory_decoded(&memory_wrap, value_ptr))
                     .and_then(|value| {
-                        read_memory_as(&memory_wrap, code_id_ptr).map(|code_id| (code_id, value))
+                        read_memory_decoded(&memory_wrap, code_id_ptr)
+                            .map(|code_id| (code_id, value))
                     })
             };
 
