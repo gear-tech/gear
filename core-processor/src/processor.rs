@@ -176,7 +176,13 @@ fn prepare_allowance_exceed(
     gas_counter: GasCounter,
 ) -> PrepareResult {
     let gas_burned = gas_counter.burned();
-    PrepareResult::Error(process_allowance_exceed(dispatch, program_id, gas_burned))
+    let system_reservation_ctx = SystemReservationContext::from_dispatch(&dispatch);
+    PrepareResult::Error(process_allowance_exceed(
+        dispatch,
+        program_id,
+        gas_burned,
+        system_reservation_ctx,
+    ))
 }
 
 /// Defines result variants of the function `precharge`.
@@ -222,10 +228,12 @@ pub fn precharge(
         }
         BlockGasExceeded => {
             let gas_burned = gas_counter.burned();
+            let system_reservation_ctx = SystemReservationContext::from_dispatch(&dispatch);
             PrechargeResult::Error(process_allowance_exceed(
                 dispatch,
                 destination_id,
                 gas_burned,
+                system_reservation_ctx,
             ))
         }
     }
@@ -443,14 +451,22 @@ pub fn process<
             DispatchResultKind::Exit(value_destination) => {
                 process_success(Exit(value_destination), res)
             }
-            DispatchResultKind::GasAllowanceExceed => {
-                process_allowance_exceed(dispatch, program_id, res.gas_amount.burned())
-            }
+            DispatchResultKind::GasAllowanceExceed => process_allowance_exceed(
+                dispatch,
+                program_id,
+                res.gas_amount.burned(),
+                res.system_reservation_context,
+            ),
         },
         Err(e) => match e.reason {
             ExecutionErrorReason::BlockGasExceeded(
                 GasOperation::InitialMemory | GasOperation::GrowMemory | GasOperation::LoadMemory,
-            ) => process_allowance_exceed(dispatch, program_id, e.gas_amount.burned()),
+            ) => process_allowance_exceed(
+                dispatch,
+                program_id,
+                e.gas_amount.burned(),
+                SystemReservationContext::default(),
+            ),
             _ => process_error(
                 dispatch,
                 program_id,
@@ -733,12 +749,19 @@ fn process_allowance_exceed(
     dispatch: IncomingDispatch,
     program_id: ProgramId,
     gas_burned: u64,
+    system_reservation_ctx: SystemReservationContext,
 ) -> Vec<JournalNote> {
     let mut journal = Vec::with_capacity(1);
 
     let (kind, message, opt_context) = dispatch.into_parts();
 
     let dispatch = StoredDispatch::new(kind, message.into_stored(program_id), opt_context);
+
+    if system_reservation_ctx.has_any() {
+        journal.push(JournalNote::SystemUnreserveGas {
+            message_id: dispatch.id(),
+        });
+    }
 
     journal.push(JournalNote::StopProcessing {
         dispatch,

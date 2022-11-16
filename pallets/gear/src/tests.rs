@@ -7054,6 +7054,50 @@ fn dispatch_kind_forbidden_function() {
     });
 }
 
+#[test]
+fn system_reservation_gas_allowance_rollbacks() {
+    use demo_signal_entry::{HandleAction, WASM_BINARY};
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            USER_1.encode(),
+            10_000_000_000,
+            0,
+        ));
+
+        let pid = get_last_program_id();
+
+        run_to_block(2, None);
+
+        let GasInfo { min_limit, .. } = Gear::calculate_gas_info(
+            USER_1.into_origin(),
+            HandleKind::Handle(pid),
+            HandleAction::Simple.encode(),
+            0,
+            true,
+        )
+        .expect("calculate_gas_info failed");
+
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            pid,
+            HandleAction::Simple.encode(),
+            min_limit,
+            0,
+        ));
+
+        let mid = get_last_message_id();
+
+        run_to_block(3, Some(min_limit - 1));
+
+        assert_eq!(GasHandlerOf::<Test>::get_system_reserve(mid), Ok(0));
+    });
+}
+
 mod utils {
     #![allow(unused)]
 
