@@ -40,7 +40,7 @@ use core::{
     fmt::{self, Display},
     mem::{size_of, MaybeUninit},
     ops::Deref,
-    ptr, slice,
+    slice,
 };
 use gear_core::{
     buffer::RuntimeBufferSizeError,

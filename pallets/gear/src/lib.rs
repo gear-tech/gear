@@ -646,7 +646,8 @@ pub mod pallet {
 
             let packet = InitPacket::new_with_gas(
                 code_and_id.code_id(),
-                salt,
+                salt.try_into()
+                    .map_err(|err: PayloadSizeError| DispatchError::Other(err.into()))?,
                 init_payload
                     .try_into()
                     .map_err(|err: PayloadSizeError| DispatchError::Other(err.into()))?,
@@ -1651,7 +1652,8 @@ pub mod pallet {
         ) -> Result<InitPacket, DispatchError> {
             let packet = InitPacket::new_with_gas(
                 code_id,
-                salt,
+                salt.try_into()
+                    .map_err(|err: PayloadSizeError| DispatchError::Other(err.into()))?,
                 init_payload
                     .try_into()
                     .map_err(|err: PayloadSizeError| DispatchError::Other(err.into()))?,

@@ -33,7 +33,7 @@ use gear_backend_common::{
 use gear_core::{
     buffer::{RuntimeBuffer, RuntimeBufferSizeError},
     env::Ext,
-    ids::{ReservationId},
+    ids::ReservationId,
     message::{HandlePacket, InitPacket, MessageWaitedType, PayloadSizeError, ReplyPacket},
 };
 use gear_core_errors::{CoreError, MemoryError};
@@ -1166,7 +1166,7 @@ where
                 hash: code_id,
                 value,
             } = ctx.read_memory_as(cid_value_ptr)?;
-            let salt = ctx.read_memory(salt_ptr, salt_len)?;
+            let salt = ctx.read_memory(salt_ptr, salt_len)?.try_into()?;
             let payload = ctx.read_memory(payload_ptr, payload_len)?.try_into()?;
 
             ctx.ext
@@ -1215,7 +1215,7 @@ where
                 hash: code_id,
                 value,
             } = ctx.read_memory_as(cid_value_ptr)?;
-            let salt = ctx.read_memory(salt_ptr, salt_len)?;
+            let salt = ctx.read_memory(salt_ptr, salt_len)?.try_into()?;
             let payload = ctx.read_memory(payload_ptr, payload_len)?.try_into()?;
 
             ctx.ext

@@ -556,7 +556,7 @@ mod tests {
         }
     }
 
-    fn prepare_gas_couters() -> (GasCounter, GasAllowanceCounter) {
+    fn prepare_gas_counters() -> (GasCounter, GasAllowanceCounter) {
         (
             GasCounter::new(1_000_000),
             GasAllowanceCounter::new(4_000_000),
@@ -604,7 +604,7 @@ mod tests {
     #[test]
     fn gas_for_pages_initial() {
         let settings = prepare_alloc_config();
-        let (mut counter, mut allowance_counter) = prepare_gas_couters();
+        let (mut counter, mut allowance_counter) = prepare_gas_counters();
         let static_pages = 4u32;
         let res = charge_gas_for_pages(
             &settings,
@@ -626,7 +626,7 @@ mod tests {
     #[test]
     fn gas_for_pages_static() {
         let settings = prepare_alloc_config();
-        let (mut counter, mut allowance_counter) = prepare_gas_couters();
+        let (mut counter, mut allowance_counter) = prepare_gas_counters();
         let static_pages = 4u32;
         let res = charge_gas_for_pages(
             &settings,
@@ -648,7 +648,7 @@ mod tests {
     #[test]
     fn gas_for_pages_alloc() {
         let settings = prepare_alloc_config();
-        let (mut counter, mut allowance_counter) = prepare_gas_couters();
+        let (mut counter, mut allowance_counter) = prepare_gas_counters();
         let (_, allocs) = prepare_pages_and_allocs();
         let static_pages = 4u32;
         let res = charge_gas_for_pages(
@@ -673,7 +673,7 @@ mod tests {
         );
 
         // Use the second time (`subsequent` = `true`)
-        let (mut counter, mut allowance_counter) = prepare_gas_couters();
+        let (mut counter, mut allowance_counter) = prepare_gas_counters();
         let res = charge_gas_for_pages(
             &settings,
             &mut counter,

@@ -20,6 +20,10 @@
 
 use crate::state::HostState;
 use codec::{Decode, DecodeAll, MaxEncodedLen};
+use core::{
+    mem::{self, MaybeUninit},
+    slice,
+};
 use gear_backend_common::IntoExtInfo;
 use gear_core::{
     env::Ext,
@@ -27,18 +31,6 @@ use gear_core::{
 };
 use gear_core_errors::MemoryError;
 use wasmi::{core::memory_units::Pages, Memory as WasmiMemory, Store, StoreContextMut};
-
-pub fn read_memory_decoded<D: Decode + MaxEncodedLen>(
-    memory: &impl Memory,
-    ptr: u32,
-) -> Result<D, MemoryError> {
-    let mut buffer = vec![0u8; D::max_encoded_len()];
-    memory
-        .read(ptr as usize, &mut buffer)
-        .map_err(|_| MemoryError::OutOfBounds)?;
-    let decoded = D::decode_all(&mut &buffer[..]).map_err(|_| MemoryError::MemoryAccessError)?;
-    Ok(decoded)
-}
 
 pub struct MemoryWrapRef<'a, E: Ext + IntoExtInfo<E::Error> + 'static> {
     pub memory: WasmiMemory,
@@ -75,6 +67,35 @@ impl<'a, E: Ext + IntoExtInfo<E::Error> + 'static> Memory for MemoryWrapRef<'a, 
 
     unsafe fn get_buffer_host_addr_unsafe(&mut self) -> HostPointer {
         self.memory.data_mut(&mut self.store).as_mut().as_mut_ptr() as HostPointer
+    }
+}
+
+impl<'a, E: Ext + IntoExtInfo<E::Error> + 'static> MemoryWrapRef<'a, E> {
+    pub fn write_memory_as<T>(&mut self, ptr: u32, obj: T) -> Result<(), MemoryError> {
+        let slice =
+            unsafe { slice::from_raw_parts(&obj as *const T as *const u8, mem::size_of::<T>()) };
+        self.write(ptr as usize, slice)
+    }
+
+    pub fn read_memory_as<T>(&self, ptr: u32) -> Result<T, MemoryError> {
+        let mut buf = MaybeUninit::<T>::uninit();
+        let mut_slice =
+            unsafe { slice::from_raw_parts_mut(buf.as_mut_ptr() as *mut u8, mem::size_of::<T>()) };
+        self.read(ptr as usize, mut_slice)
+            .map_err(|_| MemoryError::OutOfBounds)?;
+        Ok(unsafe { buf.assume_init() })
+    }
+
+    pub fn read_memory_decoded<D: Decode + MaxEncodedLen>(
+        &self,
+        ptr: u32,
+    ) -> Result<D, MemoryError> {
+        let mut buffer = vec![0u8; D::max_encoded_len()];
+        self.read(ptr as usize, &mut buffer)
+            .map_err(|_| MemoryError::OutOfBounds)?;
+        let decoded =
+            D::decode_all(&mut &buffer[..]).map_err(|_| MemoryError::MemoryAccessError)?;
+        Ok(decoded)
     }
 }
 
