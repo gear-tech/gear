@@ -19,7 +19,12 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
 use codec::{Decode, Encode};
-use gstd::{exec, msg, prelude::*, MessageId, ReservationId};
+use gstd::{
+    errors::{ContractError, ExecutionError, ExtError},
+    exec, msg,
+    prelude::*,
+    MessageId, ReservationId,
+};
 
 #[cfg(feature = "std")]
 mod code {
@@ -45,6 +50,7 @@ enum WakeState {
 pub enum InitAction {
     Normal,
     Wait,
+    BigDuration,
 }
 
 #[derive(Debug, Encode, Decode)]
@@ -87,6 +93,14 @@ unsafe extern "C" fn init() {
             // to find message to reply to in test
             msg::send(msg::source(), (), 0).unwrap();
             exec::wait();
+        }
+        InitAction::BigDuration => {
+            assert_eq!(
+                ReservationId::reserve(1, u32::MAX),
+                Err(ContractError::Ext(ExtError::Execution(
+                    ExecutionError::InsufficientGasForReservation
+                )))
+            );
         }
     }
 }
