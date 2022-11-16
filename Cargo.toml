@@ -41,6 +41,7 @@ members = [
     "utils/test-runtime",
     "utils/test-runtime/client",
     "utils/bags-thresholds",
+    "utils/integral-tests",
 ]
 
 [profile.release]
