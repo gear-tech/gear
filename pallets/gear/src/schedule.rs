@@ -683,8 +683,9 @@ impl<T: Config> Default for HostFnWeights<T> {
             gr_reply_push_per_byte: cost_byte_batched!(gr_reply_push_per_kb),
             gr_debug: cost_batched!(gr_debug),
             gr_debug_per_byte: cost_byte_batched!(gr_debug_per_kb),
-            gr_error: cost_batched!(gr_error),
-            gr_error_per_byte: cost_byte_batched!(gr_error_per_kb),
+            gr_error: cost_batched!(gr_error) - cost_batched!(gr_debug),
+            gr_error_per_byte: cost_byte_batched!(gr_error_per_kb)
+                - cost_byte_batched!(gr_debug_per_kb),
             gr_reply_to: cost_batched!(gr_reply_to),
             gr_status_code: cost_batched!(gr_status_code),
             gr_exit: cost!(gr_exit),
