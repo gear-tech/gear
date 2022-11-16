@@ -449,15 +449,15 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
     }
     /// The range of component `r` is `[0, 20]`.
     fn gr_error(r: u32, ) -> Weight {
-        Weight::from_ref_time(81_911_000 as u64)
-        // Standard Error: 42_895
-            .saturating_add(Weight::from_ref_time(216_435_491 as u64).saturating_mul(r as u64))
+        Weight::from_ref_time(100_491_000 as u64)
+        // Standard Error: 115_586
+            .saturating_add(Weight::from_ref_time(456_436_737 as u64).saturating_mul(r as u64))
     }
     /// The range of component `n` is `[0, 1024]`.
     fn gr_error_per_kb(n: u32, ) -> Weight {
-        Weight::from_ref_time(291_105_000 as u64)
-        // Standard Error: 25_989
-            .saturating_add(Weight::from_ref_time(35_175_065 as u64).saturating_mul(n as u64))
+        Weight::from_ref_time(543_888_000 as u64)
+        // Standard Error: 5_174
+            .saturating_add(Weight::from_ref_time(26_286_027 as u64).saturating_mul(n as u64))
     }
     /// The range of component `r` is `[0, 20]`.
     fn gr_status_code(r: u32, ) -> Weight {
@@ -1138,15 +1138,15 @@ impl WeightInfo for () {
     }
     /// The range of component `r` is `[0, 20]`.
     fn gr_error(r: u32, ) -> Weight {
-        Weight::from_ref_time(81_911_000 as u64)
-        // Standard Error: 42_895
-            .saturating_add(Weight::from_ref_time(216_435_491 as u64).saturating_mul(r as u64))
+        Weight::from_ref_time(100_491_000 as u64)
+        // Standard Error: 115_586
+            .saturating_add(Weight::from_ref_time(456_436_737 as u64).saturating_mul(r as u64))
     }
     /// The range of component `n` is `[0, 1024]`.
     fn gr_error_per_kb(n: u32, ) -> Weight {
-        Weight::from_ref_time(291_105_000 as u64)
-        // Standard Error: 25_989
-            .saturating_add(Weight::from_ref_time(35_175_065 as u64).saturating_mul(n as u64))
+        Weight::from_ref_time(543_888_000 as u64)
+        // Standard Error: 5_174
+            .saturating_add(Weight::from_ref_time(26_286_027 as u64).saturating_mul(n as u64))
     }
     /// The range of component `r` is `[0, 20]`.
     fn gr_status_code(r: u32, ) -> Weight {
