@@ -472,16 +472,13 @@ where
             unreachable!("Threshold for reservation invalidated")
         }
 
-        // TODO: uncomment line below (issue #1830).
-        // let total_amount = amount.saturating_add(hold.lock());
-        let total_amount = amount;
+        let total_amount = amount.saturating_add(hold.lock());
 
         GasHandlerOf::<T>::reserve(message_id, reservation_id, total_amount)
             .unwrap_or_else(|e| unreachable!("GasTree corrupted: {:?}", e));
 
-        // TODO: uncomment lines below (issue #1830).
-        // GasHandlerOf::<T>::lock(reservation_id, hold.lock())
-        //     .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
+        GasHandlerOf::<T>::lock(reservation_id, hold.lock())
+            .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
 
         TaskPoolOf::<T>::add(
             hold.expected(),
@@ -490,7 +487,12 @@ where
         .unwrap_or_else(|e| unreachable!("Scheduling logic invalidated! {:?}", e));
     }
 
-    fn unreserve_gas(&mut self, reservation_id: ReservationId, program_id: ProgramId, bn: u32) {
+    fn unreserve_gas(
+        &mut self,
+        reservation_id: ReservationId,
+        program_id: ProgramId,
+        expiration: u32,
+    ) {
         <Self as TaskHandler<T::AccountId>>::remove_gas_reservation(
             self,
             program_id,
@@ -498,7 +500,7 @@ where
         );
 
         let _ = TaskPoolOf::<T>::delete(
-            BlockNumberFor::<T>::from(bn),
+            BlockNumberFor::<T>::from(expiration),
             ScheduledTask::RemoveGasReservation(program_id, reservation_id),
         );
     }
@@ -509,12 +511,15 @@ where
             unreachable!("gas reservation update guaranteed to be called only on existing program")
         });
         if let Program::Active(mut prog) = prog {
-            prog.gas_reservation_map = reserver.into_map(|duration| {
-                HoldBound::<T>::by(CostsPerBlockOf::<T>::reservation())
-                    .duration(BlockNumberFor::<T>::from(duration))
-                    .expected()
-                    .unique_saturated_into()
-            });
+            prog.gas_reservation_map = reserver.into_map(
+                Pallet::<T>::block_number().unique_saturated_into(),
+                |duration| {
+                    HoldBound::<T>::by(CostsPerBlockOf::<T>::reservation())
+                        .duration(BlockNumberFor::<T>::from(duration))
+                        .expected()
+                        .unique_saturated_into()
+                },
+            );
             common::set_program(pid, prog);
         }
     }

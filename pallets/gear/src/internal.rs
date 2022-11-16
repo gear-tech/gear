@@ -228,18 +228,20 @@ where
     ///
     /// Represents logic of burning gas by transferring gas from
     /// current `GasTree` owner to actual block producer.
-    pub(crate) fn spend_gas(message_id: MessageId, amount: GasBalanceOf<T>) {
+    pub(crate) fn spend_gas(id: impl Into<GasNodeIdOf<GasHandlerOf<T>>>, amount: GasBalanceOf<T>) {
+        let id = id.into();
+
         // If amount is zero, nothing to do.
         if amount.is_zero() {
             return;
         }
 
         // Spending gas amount from `GasNode`.
-        GasHandlerOf::<T>::spend(message_id, amount)
+        GasHandlerOf::<T>::spend(id, amount)
             .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
 
         // Querying external id. Fails in cases of `GasTree` invalidations.
-        let external = GasHandlerOf::<T>::get_external(message_id)
+        let external = GasHandlerOf::<T>::get_external(id)
             .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
 
         // Querying actual block author to reward.
@@ -293,10 +295,12 @@ where
 
     /// Charges for holding in some storage.
     pub(crate) fn charge_for_hold(
-        message_id: MessageId,
+        id: impl Into<GasNodeIdOf<GasHandlerOf<T>>>,
         hold_interval: Interval<BlockNumberFor<T>>,
         cost: SchedulingCostOf<T>,
     ) {
+        let id = id.into();
+
         // Current block number.
         let current = Self::block_number();
 
@@ -325,7 +329,7 @@ where
         // Spending gas, if need.
         if !amount.is_zero() {
             // Spending gas.
-            Self::spend_gas(message_id, amount)
+            Self::spend_gas(id, amount)
         }
     }
 
@@ -836,7 +840,7 @@ where
         let slot = ExtManager::<T>::remove_gas_reservation(program_id, reservation_id);
 
         let _ = TaskPoolOf::<T>::delete(
-            BlockNumberFor::<T>::from(slot.expiration),
+            BlockNumberFor::<T>::from(slot.finish),
             ScheduledTask::RemoveGasReservation(program_id, reservation_id),
         );
     }

@@ -51,12 +51,15 @@ mod task;
 pub use journal::*;
 pub use task::*;
 
-use crate::{Config, CurrencyOf, GasHandlerOf, GearProgramPallet, Pallet, QueueOf, TaskPoolOf};
+use crate::{
+    Config, CostsPerBlockOf, CurrencyOf, GasHandlerOf, GearProgramPallet, Pallet, QueueOf,
+    TaskPoolOf,
+};
 use codec::{Decode, Encode};
 use common::{
     event::*,
-    scheduler::{ScheduledTask, TaskHandler, TaskPool},
-    storage::Queue,
+    scheduler::{ScheduledTask, SchedulingCostsPerBlock, TaskHandler, TaskPool},
+    storage::{Interval, Queue},
     ActiveProgram, CodeStorage, GasTree, Origin, ProgramState,
 };
 use core::fmt;
@@ -276,7 +279,7 @@ where
             );
 
             let _ = TaskPoolOf::<T>::delete(
-                BlockNumberFor::<T>::from(reservation_slot.expiration),
+                BlockNumberFor::<T>::from(reservation_slot.finish),
                 ScheduledTask::RemoveGasReservation(program_id, reservation_id),
             );
         }
@@ -304,9 +307,19 @@ where
             });
         common::set_program(program_id, prog);
 
-        // TODO: uncomment lines below and charge for holding (issue #1830).
-        // GasHandlerOf::<T>::unlock_all(reservation_id)
-        //     .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
+        GasHandlerOf::<T>::unlock_all(reservation_id)
+            .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
+
+        let interval = Interval {
+            start: BlockNumberFor::<T>::from(slot.start),
+            finish: BlockNumberFor::<T>::from(slot.finish),
+        };
+
+        Pallet::<T>::charge_for_hold(
+            reservation_id,
+            interval,
+            CostsPerBlockOf::<T>::reservation(),
+        );
 
         Pallet::<T>::consume_and_retrieve(reservation_id);
 
