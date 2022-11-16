@@ -18,7 +18,7 @@
 
 //! Message processing module.
 
-use alloc::vec::Vec;
+use alloc::{collections::BTreeSet, vec::Vec};
 use codec::{Decode, Encode};
 use scale_info::TypeInfo;
 
@@ -137,6 +137,22 @@ impl DispatchKind {
     /// Check if kind is signal.
     pub fn is_signal(&self) -> bool {
         matches!(self, Self::Signal)
+    }
+
+    /// Sys-calls that are not allowed to be called for the dispatch kind.
+    pub fn forbidden_funcs(&self) -> BTreeSet<&'static str> {
+        match self {
+            DispatchKind::Signal => [
+                "gr_source",
+                "gr_reply",
+                "gr_reply_commit",
+                "gr_reservation_reply",
+                "gr_reservation_reply_commit",
+                "gr_system_reserve_gas",
+            ]
+            .into(),
+            _ => Default::default(),
+        }
     }
 }
 

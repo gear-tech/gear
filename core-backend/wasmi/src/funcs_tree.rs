@@ -24,14 +24,14 @@ use gear_core::env::Ext;
 use gear_wasm_instrument::{IMPORT_NAME_OUT_OF_ALLOWANCE, IMPORT_NAME_OUT_OF_GAS};
 use wasmi::{Func, Memory, Store};
 
-struct FunctionBuilder<'a>(Option<&'a BTreeSet<&'a str>>);
+struct FunctionBuilder(BTreeSet<&'static str>);
 
-impl<'a> FunctionBuilder<'a> {
-    fn build<'b, Handler>(&self, name: &'b str, handler: Handler) -> (&'b str, Func)
+impl FunctionBuilder {
+    fn build<Handler>(&self, name: &'static str, handler: Handler) -> (&'static str, Func)
     where
         Handler: FnOnce(bool) -> Func,
     {
-        let forbidden = self.0.map(|set| set.contains(name)).unwrap_or(false);
+        let forbidden = self.0.contains(name);
         (name, handler(forbidden))
     }
 }
@@ -39,7 +39,7 @@ impl<'a> FunctionBuilder<'a> {
 pub fn build<'a, E>(
     store: &'a mut Store<HostState<E>>,
     memory: Memory,
-    forbidden_funcs: Option<BTreeSet<&'a str>>,
+    forbidden_funcs: BTreeSet<&'static str>,
 ) -> BTreeMap<&'a str, Func>
 where
     E: Ext + IntoExtInfo<E::Error> + 'static,
@@ -47,7 +47,7 @@ where
 {
     use crate::funcs::FuncsHandler as F;
 
-    let f = FunctionBuilder(forbidden_funcs.as_ref());
+    let f = FunctionBuilder(forbidden_funcs);
 
     let funcs: BTreeMap<&str, Func> = [
         f.build("gr_send", |forbidden| F::send(store, forbidden, memory)),

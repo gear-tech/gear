@@ -228,6 +228,7 @@ pub trait Environment<E: Ext + IntoExtInfo<E::Error> + 'static>: Sized {
     fn new(
         ext: E,
         binary: &[u8],
+        entry_point: DispatchKind,
         entries: BTreeSet<DispatchKind>,
         mem_size: WasmPageNumber,
     ) -> Result<Self, Self::Error>;
@@ -235,7 +236,6 @@ pub trait Environment<E: Ext + IntoExtInfo<E::Error> + 'static>: Sized {
     /// Run instance setup starting at `entry_point` - wasm export function name.
     fn execute<F, T>(
         self,
-        entry_point: &DispatchKind,
         pre_execution_handler: F,
     ) -> Result<BackendReport<Self::Memory, E>, Self::Error>
     where

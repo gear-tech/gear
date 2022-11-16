@@ -91,6 +91,7 @@ pub struct WasmiEnvironment<E: Ext> {
     store: Store<HostState<E>>,
     memory: Memory,
     entries: BTreeSet<DispatchKind>,
+    entry_point: DispatchKind,
 }
 
 impl<E> Environment<E> for WasmiEnvironment<E>
@@ -104,6 +105,7 @@ where
     fn new(
         ext: E,
         binary: &[u8],
+        entry_point: DispatchKind,
         entries: BTreeSet<DispatchKind>,
         mem_size: WasmPageNumber,
     ) -> Result<Self, Self::Error> {
@@ -122,8 +124,12 @@ where
             .define("env", "memory", memory)
             .map_err(|e| (ext.gas_amount(), Linking(e)))?;
 
-        let forbidden_funcs =
-            (!ext.forbidden_funcs().is_empty()).then(|| ext.forbidden_funcs().clone());
+        let forbidden_funcs = ext
+            .forbidden_funcs()
+            .iter()
+            .copied()
+            .chain(entry_point.forbidden_funcs())
+            .collect();
         let functions = funcs_tree::build(&mut store, memory, forbidden_funcs);
         for (name, function) in functions {
             linker
@@ -154,12 +160,12 @@ where
             store,
             memory,
             entries,
+            entry_point,
         })
     }
 
     fn execute<F, T>(
         self,
-        entry_point: &DispatchKind,
         pre_execution_handler: F,
     ) -> Result<BackendReport<Self::Memory, E>, Self::Error>
     where
@@ -173,6 +179,7 @@ where
             mut store,
             memory,
             entries,
+            entry_point,
         } = self;
 
         let stack_end = instance
@@ -211,7 +218,7 @@ where
             (gas_amount!(store), PreExecutionHandler(e.to_string()))
         })?;
 
-        let res = if entries.contains(entry_point) {
+        let res = if entries.contains(&entry_point) {
             let func = instance
                 .get_export(&memory_wrap.store, entry_point.into_entry())
                 .and_then(Extern::into_func)
