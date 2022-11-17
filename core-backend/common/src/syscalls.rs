@@ -19,6 +19,9 @@
 use enum_iterator::{self, Sequence};
 use gear_wasm_instrument::{IMPORT_NAME_OUT_OF_ALLOWANCE, IMPORT_NAME_OUT_OF_GAS};
 
+/// All available sys calls.
+///
+/// The type is mainly used to prevent from skipping sys-call integration test for a newly introduced sys-call.
 #[derive(Debug, Clone, Copy, Sequence)]
 pub enum SysCalls {
     // Message sending related

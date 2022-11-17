@@ -18,23 +18,31 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
+extern crate alloc;
+
 use codec::{Decode, Encode};
 
-#[cfg(feature = "std")]
+#[cfg(feature = "wasm-wrapper")]
 mod code {
     include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
 }
 
-#[cfg(feature = "std")]
-pub use code::WASM_BINARY_OPT as WASM_BINARY;
-use gstd::{errors::ExtError, ActorId, MessageId, Vec};
+type MessageId = [u8; 32];
+type ActorId = [u8; 32];
 
+#[cfg(feature = "wasm-wrapper")]
+pub use code::WASM_BINARY_OPT as WASM_BINARY;
+
+use alloc::{string::String, vec::Vec};
+
+// Instead of proper gstd primitives we use their raw versions to make this contract
+// compilable as a dependency for the build of the `gear` with `runtime-benchmarking` feature.
 #[derive(Debug, Encode, Decode)]
 pub enum Kind {
     // Params(salt, gas), Expected(message id, actor id)
     CreateProgram(u64, u64, (MessageId, ActorId)),
-    // Params(value), Expected(error)
-    Error(u128, ExtError),
+    // Params(value), Expected(error message)
+    Error(u128, String),
     // Params(gas), Expected(message id)
     Send(u64, MessageId),
     // Params(payload, gas), Expected(message id)
@@ -73,14 +81,13 @@ pub enum Kind {
     GasAvailable(u64, u64),
 }
 
-#[cfg(not(feature = "std"))]
+#[cfg(not(feature = "wasm-wrapper"))]
 mod wasm {
     use super::Kind;
     use codec::Encode;
     use gstd::{
-        debug,
         errors::{ContractError, ExtError, MessageError},
-        exec,
+        exec, format,
         msg::{self, MessageHandle},
         prog, ActorId, CodeId, ReservationId,
     };
@@ -106,6 +113,8 @@ mod wasm {
                     prog::create_program_with_gas_delayed(CODE_ID, salt, "payload", gas, 0, 0)
                 };
                 let (actual_mid, actual_pid) = res.expect("internal error: create program failed");
+                let actual_mid: [u8; 32] = actual_mid.into();
+                let actual_pid: [u8; 32] = actual_pid.into();
                 assert_eq!(
                     expected_mid, actual_mid,
                     "SysCall::CreateProgram: mid test failed"
@@ -118,8 +127,8 @@ mod wasm {
             Kind::Error(message_value, expected_err) => {
                 let actual_err = msg::reply(b"", message_value).expect_err("not enough balance");
                 assert_eq!(
-                    Into::<ContractError>::into(expected_err),
-                    actual_err,
+                    expected_err,
+                    format!("{actual_err}"),
                     "SysCall::Error: test failed"
                 );
             }
@@ -130,7 +139,7 @@ mod wasm {
                     msg::send_with_gas_delayed(msg::source(), b"payload", gas, 0, 0)
                 };
                 assert_eq!(
-                    Ok(expected_mid),
+                    Ok(expected_mid.into()),
                     actual_mid_res,
                     "SysCall::Send: mid test failed"
                 );
@@ -151,7 +160,7 @@ mod wasm {
                     handle.commit_with_gas_delayed(msg::source(), gas, 0, 0)
                 };
                 assert_eq!(
-                    Ok(expected_mid),
+                    Ok(expected_mid.into()),
                     actual_mid_res,
                     "SysCall::SendRaw: mid test failed"
                 );
@@ -164,21 +173,21 @@ mod wasm {
                 );
             }
             Kind::MessageId(expected_mid) => {
-                let actual_mid = msg::id();
+                let actual_mid: [u8; 32] = msg::id().into();
                 assert_eq!(
                     expected_mid, actual_mid,
                     "SysCall::MessageId: mid test failed"
                 );
             }
             Kind::ProgramId(expected_pid) => {
-                let actual_pid = exec::program_id();
+                let actual_pid: [u8; 32] = exec::program_id().into();
                 assert_eq!(
                     expected_pid, actual_pid,
                     "SysCall::ProgramId: pid test failed"
                 );
             }
             Kind::Source(expected_actor) => {
-                let actual_actor = msg::source();
+                let actual_actor: [u8; 32] = msg::source().into();
                 assert_eq!(
                     expected_actor, actual_actor,
                     "SysCall::Source: actor test failed"
@@ -206,7 +215,7 @@ mod wasm {
                     msg::reply_with_gas_delayed(b"payload", gas, 0, 0)
                 };
                 assert_eq!(
-                    Ok(expected_mid),
+                    Ok(expected_mid.into()),
                     actual_mid_res,
                     "SysCall::Reply: mid test failed"
                 );
@@ -219,7 +228,7 @@ mod wasm {
                     msg::reply_commit_with_gas_delayed(gas, 0, 0)
                 };
                 assert_eq!(
-                    Ok(expected_mid),
+                    Ok(expected_mid.into()),
                     actual_mid_res,
                     "SysCall::ReplyRaw: mid test failed"
                 );
@@ -227,6 +236,8 @@ mod wasm {
             Kind::ReplyDetails(..) => {
                 // Actual test in handle reply, here just sends a reply
                 let _ = msg::reply_delayed(b"payload", 0, 0);
+                // To prevent from sending to mailbox "ok" message
+                exec::leave();
             }
             Kind::BlockHeight(expected_height) => {
                 let actual_height = exec::block_height();
@@ -244,15 +255,17 @@ mod wasm {
             }
             Kind::Origin(expected_actor) => {
                 // The origin is set by the first call and then checked with the second
-                if let Some(origin) = ORIGIN {
+                if ORIGIN.is_some() {
                     // is ser, perform check
-                    let actual_actor = exec::origin();
+                    let actual_actor: [u8; 32] = exec::origin().into();
                     assert_eq!(
                         expected_actor, actual_actor,
                         "SysCall::Origin: actor test failed"
                     );
                 } else {
                     ORIGIN = Some(exec::origin());
+                    // To prevent from sending to mailbox "ok" message
+                    exec::leave();
                 }
             }
             Kind::Reserve(expected_id) => {
@@ -297,8 +310,9 @@ mod wasm {
                     "SysCall::GasAvailable: upper bound test failed"
                 );
             }
-            _ => panic!("Unintended call"),
         }
+        // Report test executed successfully
+        msg::send_delayed(msg::source(), b"ok", 0, 0).expect("internal error: report send failed");
     }
 
     #[no_mangle]
@@ -306,7 +320,7 @@ mod wasm {
         if let Ok(Kind::ReplyDetails(expected_reply_to, expected_exit_code)) = msg::load() {
             let actual_reply_to = msg::reply_to();
             assert_eq!(
-                Ok(expected_reply_to),
+                Ok(expected_reply_to.into()),
                 actual_reply_to,
                 "SysCall::ReplyDetails: reply_to test failed"
             );
@@ -316,6 +330,10 @@ mod wasm {
                 actual_exit_code,
                 "SysCall::ReplyDetails: exit_code test failed"
             );
+
+            // Report test executed successfully
+            msg::send_delayed(msg::source(), b"ok", 0, 0)
+                .expect("internal error: report send failed");
         } else {
             panic!("internal error: invalid payload for `handle_reply`")
         }

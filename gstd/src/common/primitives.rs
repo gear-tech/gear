@@ -167,7 +167,6 @@ impl TryFrom<&[u8]> for ActorId {
 )]
 pub struct MessageId([u8; 32]);
 
-#[cfg(feature = "debug")]
 impl MessageId {
     pub const fn new(arr: [u8; 32]) -> Self {
         Self(arr)
@@ -189,6 +188,18 @@ impl From<MessageId> for gcore::MessageId {
 impl From<gcore::MessageId> for MessageId {
     fn from(other: gcore::MessageId) -> Self {
         Self(other.0)
+    }
+}
+
+impl From<[u8; 32]> for MessageId {
+    fn from(arr: [u8; 32]) -> Self {
+        Self(arr)
+    }
+}
+
+impl From<MessageId> for [u8; 32] {
+    fn from(other: MessageId) -> Self {
+        other.0
     }
 }
 

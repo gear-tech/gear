@@ -16,5 +16,6 @@ gear-wasm-builder = { path = "../../../utils/wasm-builder" }
 [lib]
 
 [features]
-std = ["codec/std"]
+wasm-wrapper = []
+std = ["wasm-wrapper", "codec/std"]
 default = ["std"]

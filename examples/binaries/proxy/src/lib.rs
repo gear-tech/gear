@@ -21,20 +21,20 @@
 use codec::{Decode, Encode};
 use scale_info::TypeInfo;
 
-#[cfg(feature = "std")]
+#[cfg(feature = "wasm-wrapper")]
 mod code {
     include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
 }
 
-#[cfg(feature = "std")]
+#[cfg(feature = "wasm-wrapper")]
 pub use code::WASM_BINARY_OPT as WASM_BINARY;
 
 #[derive(Debug, Decode, Encode, TypeInfo)]
 pub struct InputArgs {
-    pub destination: gstd::ActorId,
+    pub destination: [u8; 32],
 }
 
-#[cfg(not(feature = "std"))]
+#[cfg(not(feature = "wasm-wrapper"))]
 mod wasm {
     use crate::InputArgs;
     use gstd::{msg, ActorId, ToString};
@@ -50,12 +50,12 @@ mod wasm {
     #[no_mangle]
     unsafe extern "C" fn handle() {
         let payload = msg::load_bytes().expect("failed to load bytes");
-        msg::send(DESTINATION, payload, msg::value());
+        msg::send_bytes_delayed(DESTINATION, payload, msg::value(), 0);
     }
 
     #[no_mangle]
     unsafe extern "C" fn init() {
         let args: InputArgs = msg::load().expect("Failed to decode `InputArgs'");
-        DESTINATION = args.destination;
+        DESTINATION = args.destination.into();
     }
 }
