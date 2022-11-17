@@ -29,14 +29,14 @@ use alloc::{
 };
 use core::fmt;
 use gear_backend_common::{
-    calc_stack_end, error_processor::IntoExtError, AsTerminationReason, BackendReport, Environment,
-    GetGasAmount, IntoExtInfo, StackEndError, TerminationReason, TrapExplanation,
-    STACK_END_EXPORT_NAME,
+    calc_stack_end,
+    error_processor::IntoExtError,
+    AsTerminationReason, BackendReport, Environment, GetGasAmount, IntoExtInfo, StackEndError,
+    SysCalls::{self, *},
+    TerminationReason, TrapExplanation, STACK_END_EXPORT_NAME,
 };
 use gear_core::{env::Ext, gas::GasAmount, memory::WasmPageNumber, message::DispatchKind};
-use gear_wasm_instrument::{
-    GLOBAL_NAME_ALLOWANCE, GLOBAL_NAME_GAS, IMPORT_NAME_OUT_OF_ALLOWANCE, IMPORT_NAME_OUT_OF_GAS,
-};
+use gear_wasm_instrument::{GLOBAL_NAME_ALLOWANCE, GLOBAL_NAME_GAS};
 use sp_sandbox::{
     default_executor::{EnvironmentDefinitionBuilder, Instance, Memory as DefaultExecutorMemory},
     HostFuncType, InstanceGlobals, ReturnValue, SandboxEnvironmentBuilder, SandboxInstance,
@@ -95,10 +95,11 @@ struct EnvBuilder<'a, E: Ext> {
 }
 
 impl<'a, E: Ext + IntoExtInfo<E::Error> + 'static> EnvBuilder<'a, E> {
-    fn add_func(&mut self, name: &str, f: HostFuncType<Runtime<E>>)
+    fn add_func(&mut self, name: SysCalls, f: HostFuncType<Runtime<E>>)
     where
         E::Error: AsTerminationReason + IntoExtError,
     {
+        let name = name.to_str();
         if self.forbidden_funcs.contains(name) {
             self.env_def_builder
                 .add_host_func("env", name, Funcs::forbidden);
@@ -135,43 +136,43 @@ where
             forbidden_funcs: &ext.forbidden_funcs().clone(),
         };
 
-        builder.add_func("gr_block_height", Funcs::block_height);
-        builder.add_func("gr_block_timestamp", Funcs::block_timestamp);
-        builder.add_func("gr_create_program", Funcs::create_program);
-        builder.add_func("gr_create_program_wgas", Funcs::create_program_wgas);
-        builder.add_func("gr_debug", Funcs::debug);
-        builder.add_func("gr_error", Funcs::error);
-        builder.add_func("gr_exit", Funcs::exit);
-        builder.add_func("gr_exit_code", Funcs::exit_code);
-        builder.add_func("gr_reserve_gas", Funcs::reserve_gas);
-        builder.add_func("gr_unreserve_gas", Funcs::unreserve_gas);
-        builder.add_func("gr_gas_available", Funcs::gas_available);
-        builder.add_func("gr_leave", Funcs::leave);
-        builder.add_func("gr_message_id", Funcs::message_id);
-        builder.add_func("gr_origin", Funcs::origin);
-        builder.add_func("gr_program_id", Funcs::program_id);
-        builder.add_func("gr_random", Funcs::random);
-        builder.add_func("gr_read", Funcs::read);
-        builder.add_func("gr_reply", Funcs::reply);
-        builder.add_func("gr_reply_commit", Funcs::reply_commit);
-        builder.add_func("gr_reply_commit_wgas", Funcs::reply_commit_wgas);
-        builder.add_func("gr_reply_push", Funcs::reply_push);
-        builder.add_func("gr_reply_to", Funcs::reply_to);
-        builder.add_func("gr_reply_wgas", Funcs::reply_wgas);
-        builder.add_func("gr_send", Funcs::send);
-        builder.add_func("gr_send_commit", Funcs::send_commit);
-        builder.add_func("gr_send_commit_wgas", Funcs::send_commit_wgas);
-        builder.add_func("gr_send_init", Funcs::send_init);
-        builder.add_func("gr_send_push", Funcs::send_push);
-        builder.add_func("gr_send_wgas", Funcs::send_wgas);
-        builder.add_func("gr_size", Funcs::size);
-        builder.add_func("gr_source", Funcs::source);
-        builder.add_func("gr_value", Funcs::value);
-        builder.add_func("gr_value_available", Funcs::value_available);
-        builder.add_func("gr_wait", Funcs::wait);
-        builder.add_func("gr_wait_for", Funcs::wait_for);
-        builder.add_func("gr_wait_up_to", Funcs::wait_up_to);
-        builder.add_func("gr_wake", Funcs::wake);
+        builder.add_func(BlockHeight, Funcs::block_height);
+        builder.add_func(BlockTimestamp, Funcs::block_timestamp);
+        builder.add_func(CreateProgram, Funcs::create_program);
+        builder.add_func(CreateProgramWGas, Funcs::create_program_wgas);
+        builder.add_func(Debug, Funcs::debug);
+        builder.add_func(Error, Funcs::error);
+        builder.add_func(Exit, Funcs::exit);
+        builder.add_func(ExitCode, Funcs::exit_code);
+        builder.add_func(ReserveGas, Funcs::reserve_gas);
+        builder.add_func(UnreserveGas, Funcs::unreserve_gas);
+        builder.add_func(GasAvailable, Funcs::gas_available);
+        builder.add_func(Leave, Funcs::leave);
+        builder.add_func(MessageId, Funcs::message_id);
+        builder.add_func(Origin, Funcs::origin);
+        builder.add_func(ProgramId, Funcs::program_id);
+        builder.add_func(Random, Funcs::random);
+        builder.add_func(Read, Funcs::read);
+        builder.add_func(Reply, Funcs::reply);
+        builder.add_func(ReplyCommit, Funcs::reply_commit);
+        builder.add_func(ReplyCommitWGas, Funcs::reply_commit_wgas);
+        builder.add_func(ReplyPush, Funcs::reply_push);
+        builder.add_func(ReplyTo, Funcs::reply_to);
+        builder.add_func(ReplyWGas, Funcs::reply_wgas);
+        builder.add_func(Send, Funcs::send);
+        builder.add_func(SendCommit, Funcs::send_commit);
+        builder.add_func(SendCommitWGas, Funcs::send_commit_wgas);
+        builder.add_func(SendInit, Funcs::send_init);
+        builder.add_func(SendPush, Funcs::send_push);
+        builder.add_func(SendWGas, Funcs::send_wgas);
+        builder.add_func(Size, Funcs::size);
+        builder.add_func(Source, Funcs::source);
+        builder.add_func(Value, Funcs::value);
+        builder.add_func(ValueAvailable, Funcs::value_available);
+        builder.add_func(Wait, Funcs::wait);
+        builder.add_func(WaitFor, Funcs::wait_for);
+        builder.add_func(WaitUpTo, Funcs::wait_up_to);
+        builder.add_func(Wake, Funcs::wake);
         let mut env_builder: EnvironmentDefinitionBuilder<_> = builder.into();
 
         let mem: DefaultExecutorMemory = match SandboxMemory::new(mem_size.0, None) {
@@ -180,10 +181,10 @@ where
         };
 
         env_builder.add_memory("env", "memory", mem.clone());
-        env_builder.add_host_func("env", "alloc", Funcs::alloc);
-        env_builder.add_host_func("env", "free", Funcs::free);
-        env_builder.add_host_func("env", IMPORT_NAME_OUT_OF_GAS, Funcs::out_of_gas);
-        env_builder.add_host_func("env", IMPORT_NAME_OUT_OF_ALLOWANCE, Funcs::out_of_allowance);
+        env_builder.add_host_func("env", Alloc.to_str(), Funcs::alloc);
+        env_builder.add_host_func("env", Free.to_str(), Funcs::free);
+        env_builder.add_host_func("env", OutOfGas.to_str(), Funcs::out_of_gas);
+        env_builder.add_host_func("env", OutOfAllowance.to_str(), Funcs::out_of_allowance);
 
         let memory_wrap = MemoryWrap::new(mem.clone());
         let mut runtime = Runtime {

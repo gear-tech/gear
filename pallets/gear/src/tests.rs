@@ -6215,296 +6215,6 @@ fn reject_incorrect_binary() {
     });
 }
 
-#[test]
-fn check_gear_stack_end_fail() {
-    // This test checks, that in case user makes WASM file with incorrect
-    // `__gear_stack_end`, then execution will end with an error.
-    macro_rules! wat_template {
-        () => {
-            r#"
-            (module
-                (import "env" "memory" (memory 4))
-                (export "init" (func $init))
-                (func $init)
-                (global (;0;) (mut i32) (i32.const {}))
-                (export "__gear_stack_end" (global 0))
-            )"#
-        };
-    }
-
-    init_logger();
-    new_test_ext().execute_with(|| {
-        // Check error when stack end bigger then static mem size
-        let wat = format!(wat_template!(), "0x50000");
-        Gear::upload_program(
-            RuntimeOrigin::signed(USER_1),
-            ProgramCodeKind::Custom(wat.as_str()).to_bytes(),
-            DEFAULT_SALT.to_vec(),
-            EMPTY_PAYLOAD.to_vec(),
-            50_000_000_000,
-            0,
-        )
-        .expect("Failed to upload program");
-
-        let message_id = get_last_message_id();
-
-        run_to_next_block(None);
-        assert_last_dequeued(1);
-        assert_failed(
-            message_id,
-            ExecutionErrorReason::StackEndPageBiggerWasmMemSize(5.into(), 4.into()),
-        );
-
-        // Check error when stack end is negative
-        let wat = format!(wat_template!(), "-0x10000");
-        Gear::upload_program(
-            RuntimeOrigin::signed(USER_1),
-            ProgramCodeKind::Custom(wat.as_str()).to_bytes(),
-            DEFAULT_SALT.to_vec(),
-            EMPTY_PAYLOAD.to_vec(),
-            50_000_000_000,
-            0,
-        )
-        .expect("Failed to upload program");
-
-        let message_id = get_last_message_id();
-
-        run_to_next_block(None);
-        assert_last_dequeued(1);
-        assert_failed(
-            message_id,
-            ExecutionErrorReason::Backend(StackEndError::IsNegative(-65536).to_string()),
-        );
-
-        // Check error when stack end is not aligned
-        let wat = format!(wat_template!(), "0x10001");
-        Gear::upload_program(
-            RuntimeOrigin::signed(USER_1),
-            ProgramCodeKind::Custom(wat.as_str()).to_bytes(),
-            DEFAULT_SALT.to_vec(),
-            EMPTY_PAYLOAD.to_vec(),
-            50_000_000_000,
-            0,
-        )
-        .expect("Failed to upload program");
-
-        let message_id = get_last_message_id();
-
-        run_to_next_block(None);
-        assert_last_dequeued(1);
-        assert_failed(
-            message_id,
-            ExecutionErrorReason::Backend(StackEndError::IsNotAligned(65537).to_string()),
-        );
-
-        // Check OK if stack end is suitable
-        let wat = format!(wat_template!(), "0x10000");
-        Gear::upload_program(
-            RuntimeOrigin::signed(USER_1),
-            ProgramCodeKind::Custom(wat.as_str()).to_bytes(),
-            DEFAULT_SALT.to_vec(),
-            EMPTY_PAYLOAD.to_vec(),
-            50_000_000_000,
-            0,
-        )
-        .expect("Failed to upload program");
-
-        let message_id = get_last_message_id();
-
-        run_to_next_block(None);
-        assert_last_dequeued(1);
-        assert_succeed(message_id);
-    });
-}
-
-/// Test that error is generated in case `gr_read` requests out of bounds data from message.
-#[test]
-fn check_gr_read_error_works() {
-    let wat = r#"
-        (module
-            (import "env" "memory" (memory 1))
-            (import "env" "gr_read" (func $gr_read (param i32 i32 i32) (result i32)))
-            (export "init" (func $init))
-            (func $init
-                i32.const 0
-                i32.const 10
-                i32.const 0
-                call $gr_read
-                ;; validating that error len is not zero
-                (if
-                    (then)
-                    (else
-                        unreachable
-                    )
-                )
-            )
-        )"#;
-
-    init_logger();
-    new_test_ext().execute_with(|| {
-        Gear::upload_program(
-            RuntimeOrigin::signed(USER_1),
-            ProgramCodeKind::Custom(wat).to_bytes(),
-            DEFAULT_SALT.to_vec(),
-            EMPTY_PAYLOAD.to_vec(),
-            50_000_000_000,
-            0,
-        )
-        .expect("Failed to upload program");
-
-        let message_id = get_last_message_id();
-
-        run_to_block(2, None);
-        assert_succeed(message_id);
-    });
-}
-
-/// Check that too large message, which is constructed by `gr_reply_push`,
-/// leads to program execution error.
-#[test]
-fn check_reply_push_payload_exceed() {
-    let wat = r#"
-        (module
-            (import "env" "memory" (memory 0x100))
-            (import "env" "gr_reply_push" (func $gr (param i32 i32) (result i32)))
-            (export "init" (func $init))
-            (func $init
-                ;; first reply push must be ok
-                (block
-                    i32.const 0
-                    i32.const 0x1000000
-                    call $gr
-                    i32.eqz
-                    br_if 0
-                    unreachable
-                )
-                ;; second must lead to overflow
-                (block
-                    i32.const 0
-                    i32.const 0x1000000
-                    call $gr
-                    unreachable
-                )
-            )
-        )"#;
-
-    init_logger();
-    new_test_ext().execute_with(|| {
-        Gear::upload_program(
-            RuntimeOrigin::signed(USER_1),
-            ProgramCodeKind::Custom(wat).to_bytes(),
-            DEFAULT_SALT.to_vec(),
-            EMPTY_PAYLOAD.to_vec(),
-            50_000_000_000,
-            0,
-        )
-        .expect("Failed to upload program");
-
-        let message_id = get_last_message_id();
-
-        run_to_block(2, None);
-        assert_last_dequeued(1);
-        assert_failed(
-            message_id,
-            ExecutionErrorReason::Ext(TrapExplanation::Other(
-                ExtError::Message(MessageError::MaxMessageSizeExceed)
-                    .to_string()
-                    .into(),
-            )),
-        );
-    });
-}
-
-/// Check that random works and it's changing on next epoch.
-#[test]
-fn check_random_works() {
-    use blake2_rfc::blake2b::blake2b;
-    let wat = r#"
-        (module
-            (import "env" "gr_send_wgas" (func $send (param i32 i32 i32 i64 i32 i32 i32) (result i32)))
-            (import "env" "gr_source" (func $gr_source (param i32)))
-            (import "env" "gr_random" (func $gr_random (param i32 i32 i32 i32)))
-            (import "env" "memory" (memory 1))
-            (export "handle" (func $handle))
-            (export "init" (func $init))
-            (export "handle_reply" (func $handle_reply))
-            (func $handle
-                (local $msg_source i32)
-                (local $msg_val i32)
-                (local $random_seed i32)
-                (call $gr_random (i32.const 0) (i32.const 0) (i32.const 64) (i32.const 128))
-                (i32.store offset=2
-                    (get_local $msg_source)
-                    (i32.const 1)
-                )
-                (i32.store offset=10
-                    (get_local $msg_val)
-                    (i32.const 0)
-                )
-                (call $send (i32.const 2) (i32.const 64) (i32.const 32) (i64.const 10000000) (i32.const 10) (i32.const 0) (i32.const 40000))
-                (if
-                    (then unreachable)
-                    (else)
-                )
-            )
-            (func $handle_reply)
-            (func $init)
-        )"#;
-
-    init_logger();
-    new_test_ext().execute_with(|| {
-        Gear::upload_program(
-            RuntimeOrigin::signed(USER_1),
-            ProgramCodeKind::Custom(wat).to_bytes(),
-            DEFAULT_SALT.to_vec(),
-            EMPTY_PAYLOAD.to_vec(),
-            50_000_000_000,
-            0,
-        )
-        .expect("Failed to upload program");
-
-        let sender = utils::get_last_program_id();
-
-        let mut random_data = Vec::new();
-
-        (1..10).for_each(|_| {
-            assert_ok!(Gear::send_message(
-                RuntimeOrigin::signed(USER_1),
-                sender,
-                EMPTY_PAYLOAD.to_vec(),
-                50_000_000_000,
-                0,
-            ));
-
-            let output: (primitive_types::H256, u64) =
-                <Test as Config>::Randomness::random(get_last_message_id().as_ref());
-
-            random_data.push(output.0);
-            run_to_block(System::block_number() + 1, None);
-        });
-
-        assert_eq!(random_data.len(), MailboxOf::<Test>::len(&USER_1));
-
-        let mut sorted_mailbox: Vec<(gear_core::message::StoredMessage, Interval<u64>)> =
-            MailboxOf::<Test>::iter_key(USER_1).collect();
-        sorted_mailbox.sort_by(|a, b| a.1.finish.cmp(&b.1.finish));
-
-        sorted_mailbox
-            .iter()
-            .zip(random_data.iter())
-            .for_each(|((msg, _bn), random_data)| {
-                assert_eq!(
-                    blake2b(32, &[], &random_data.encode()).as_bytes(),
-                    msg.payload()
-                );
-            });
-
-        // // assert_last_dequeued(1);
-        // println!("{:?}", res);
-        // assert_eq!(blake2b(32, &[], &output.0.encode()).as_bytes(), res.payload());
-    });
-}
-
 mod utils {
     #![allow(unused)]
 
@@ -7127,4 +6837,294 @@ mod utils {
             .and_then(|v| Vec::<MessageId>::decode(&mut &v[..]).ok())
             .unwrap_or_default()
     }
+}
+
+#[test]
+fn check_gear_stack_end_fail() {
+    // This test checks, that in case user makes WASM file with incorrect
+    // `__gear_stack_end`, then execution will end with an error.
+    macro_rules! wat_template {
+        () => {
+            r#"
+            (module
+                (import "env" "memory" (memory 4))
+                (export "init" (func $init))
+                (func $init)
+                (global (;0;) (mut i32) (i32.const {}))
+                (export "__gear_stack_end" (global 0))
+            )"#
+        };
+    }
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        // Check error when stack end bigger then static mem size
+        let wat = format!(wat_template!(), "0x50000");
+        Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            ProgramCodeKind::Custom(wat.as_str()).to_bytes(),
+            DEFAULT_SALT.to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
+            50_000_000_000,
+            0,
+        )
+        .expect("Failed to upload program");
+
+        let message_id = get_last_message_id();
+
+        run_to_next_block(None);
+        assert_last_dequeued(1);
+        assert_failed(
+            message_id,
+            ExecutionErrorReason::StackEndPageBiggerWasmMemSize(5.into(), 4.into()),
+        );
+
+        // Check error when stack end is negative
+        let wat = format!(wat_template!(), "-0x10000");
+        Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            ProgramCodeKind::Custom(wat.as_str()).to_bytes(),
+            DEFAULT_SALT.to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
+            50_000_000_000,
+            0,
+        )
+        .expect("Failed to upload program");
+
+        let message_id = get_last_message_id();
+
+        run_to_next_block(None);
+        assert_last_dequeued(1);
+        assert_failed(
+            message_id,
+            ExecutionErrorReason::Backend(StackEndError::IsNegative(-65536).to_string()),
+        );
+
+        // Check error when stack end is not aligned
+        let wat = format!(wat_template!(), "0x10001");
+        Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            ProgramCodeKind::Custom(wat.as_str()).to_bytes(),
+            DEFAULT_SALT.to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
+            50_000_000_000,
+            0,
+        )
+        .expect("Failed to upload program");
+
+        let message_id = get_last_message_id();
+
+        run_to_next_block(None);
+        assert_last_dequeued(1);
+        assert_failed(
+            message_id,
+            ExecutionErrorReason::Backend(StackEndError::IsNotAligned(65537).to_string()),
+        );
+
+        // Check OK if stack end is suitable
+        let wat = format!(wat_template!(), "0x10000");
+        Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            ProgramCodeKind::Custom(wat.as_str()).to_bytes(),
+            DEFAULT_SALT.to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
+            50_000_000_000,
+            0,
+        )
+        .expect("Failed to upload program");
+
+        let message_id = get_last_message_id();
+
+        run_to_next_block(None);
+        assert_last_dequeued(1);
+        assert_succeed(message_id);
+    });
+}
+
+/// Test that error is generated in case `gr_read` requests out of bounds data from message.
+#[test]
+fn check_gr_read_error_works() {
+    let wat = r#"
+        (module
+            (import "env" "memory" (memory 1))
+            (import "env" "gr_read" (func $gr_read (param i32 i32 i32) (result i32)))
+            (export "init" (func $init))
+            (func $init
+                i32.const 0
+                i32.const 10
+                i32.const 0
+                call $gr_read
+                ;; validating that error len is not zero
+                (if
+                    (then)
+                    (else
+                        unreachable
+                    )
+                )
+            )
+        )"#;
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            ProgramCodeKind::Custom(wat).to_bytes(),
+            DEFAULT_SALT.to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
+            50_000_000_000,
+            0,
+        )
+        .expect("Failed to upload program");
+
+        let message_id = get_last_message_id();
+
+        run_to_block(2, None);
+        assert_succeed(message_id);
+    });
+}
+
+/// Check that too large message, which is constructed by `gr_reply_push`,
+/// leads to program execution error.
+#[test]
+fn check_reply_push_payload_exceed() {
+    let wat = r#"
+        (module
+            (import "env" "memory" (memory 0x100))
+            (import "env" "gr_reply_push" (func $gr (param i32 i32) (result i32)))
+            (export "init" (func $init))
+            (func $init
+                ;; first reply push must be ok
+                (block
+                    i32.const 0
+                    i32.const 0x1000000
+                    call $gr
+                    i32.eqz
+                    br_if 0
+                    unreachable
+                )
+                ;; second must lead to overflow
+                (block
+                    i32.const 0
+                    i32.const 0x1000000
+                    call $gr
+                    unreachable
+                )
+            )
+        )"#;
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            ProgramCodeKind::Custom(wat).to_bytes(),
+            DEFAULT_SALT.to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
+            50_000_000_000,
+            0,
+        )
+        .expect("Failed to upload program");
+
+        let message_id = get_last_message_id();
+
+        run_to_block(2, None);
+        assert_last_dequeued(1);
+        assert_failed(
+            message_id,
+            ExecutionErrorReason::Ext(TrapExplanation::Other(
+                ExtError::Message(MessageError::MaxMessageSizeExceed)
+                    .to_string()
+                    .into(),
+            )),
+        );
+    });
+}
+
+/// Check that random works and it's changing on next epoch.
+#[test]
+fn check_random_works() {
+    use blake2_rfc::blake2b::blake2b;
+    let wat = r#"
+        (module
+            (import "env" "gr_send_wgas" (func $send (param i32 i32 i32 i64 i32 i32 i32) (result i32)))
+            (import "env" "gr_source" (func $gr_source (param i32)))
+            (import "env" "gr_random" (func $gr_random (param i32 i32 i32 i32)))
+            (import "env" "memory" (memory 1))
+            (export "handle" (func $handle))
+            (export "init" (func $init))
+            (export "handle_reply" (func $handle_reply))
+            (func $handle
+                (local $msg_source i32)
+                (local $msg_val i32)
+                (local $random_seed i32)
+                (call $gr_random (i32.const 0) (i32.const 0) (i32.const 64) (i32.const 128))
+                (i32.store offset=2
+                    (get_local $msg_source)
+                    (i32.const 1)
+                )
+                (i32.store offset=10
+                    (get_local $msg_val)
+                    (i32.const 0)
+                )
+                (call $send (i32.const 2) (i32.const 64) (i32.const 32) (i64.const 10000000) (i32.const 10) (i32.const 0) (i32.const 40000))
+                (if
+                    (then unreachable)
+                    (else)
+                )
+            )
+            (func $handle_reply)
+            (func $init)
+        )"#;
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            ProgramCodeKind::Custom(wat).to_bytes(),
+            DEFAULT_SALT.to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
+            50_000_000_000,
+            0,
+        )
+        .expect("Failed to upload program");
+
+        let sender = utils::get_last_program_id();
+
+        let mut random_data = Vec::new();
+
+        (1..10).for_each(|_| {
+            assert_ok!(Gear::send_message(
+                RuntimeOrigin::signed(USER_1),
+                sender,
+                EMPTY_PAYLOAD.to_vec(),
+                50_000_000_000,
+                0,
+            ));
+
+            let output: (primitive_types::H256, u64) =
+                <Test as Config>::Randomness::random(get_last_message_id().as_ref());
+
+            random_data.push(output.0);
+            run_to_block(System::block_number() + 1, None);
+        });
+
+        assert_eq!(random_data.len(), MailboxOf::<Test>::len(&USER_1));
+
+        let mut sorted_mailbox: Vec<(gear_core::message::StoredMessage, Interval<u64>)> =
+            MailboxOf::<Test>::iter_key(USER_1).collect();
+        sorted_mailbox.sort_by(|a, b| a.1.finish.cmp(&b.1.finish));
+
+        sorted_mailbox
+            .iter()
+            .zip(random_data.iter())
+            .for_each(|((msg, _bn), random_data)| {
+                assert_eq!(
+                    blake2b(32, &[], &random_data.encode()).as_bytes(),
+                    msg.payload()
+                );
+            });
+
+        // // assert_last_dequeued(1);
+        // println!("{:?}", res);
+        // assert_eq!(blake2b(32, &[], &output.0.encode()).as_bytes(), res.payload());
+    });
 }
