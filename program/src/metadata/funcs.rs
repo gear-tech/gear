@@ -55,7 +55,7 @@ pub fn gr_read(ctx: impl AsContextMut<Data = StoreData>, memory: Memory) -> Exte
 
             let msg = &caller.data().msg;
             let mut payload = vec![0; len];
-            if at + len < msg.len() {
+            if at + len <= msg.len() {
                 payload.copy_from_slice(&msg[at..(at + len)]);
             } else {
                 log::error!("overflow");
