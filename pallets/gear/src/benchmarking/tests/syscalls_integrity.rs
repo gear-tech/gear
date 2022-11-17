@@ -92,13 +92,13 @@ where
 
     let wasm_module = alloc_free_test_wasm::<T>();
 
-    // Set default code-hash for create program calls
     let default_account = utils::default_account();
     <T as pallet::Config>::Currency::deposit_creating(
         &default_account,
         100_000_000_000_000_u128.unique_saturated_into(),
     );
 
+    // Set default code-hash for create program calls
     Gear::<T>::upload_program(
         RawOrigin::Signed(default_account.clone()).into(),
         wasm_module.code,

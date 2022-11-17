@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! This module contains pallet tests usually defined under "std" feature in the separate `tests` module/
+//! This module contains pallet tests usually defined under "std" feature in the separate `tests` module.
 //! The reason of moving them here is an ability to run these tests with different execution environments
 //! (native or wasm, i.e. using wasmi or sandbox executors). When "std" is enabled we can run them on wasmi,
 //! when it's not (only "runtime-benchmarks") - sandbox will be turned on.
