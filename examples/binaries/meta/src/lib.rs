@@ -94,13 +94,13 @@ pub struct Id {
     pub hex: Vec<u8>,
 }
 
-#[derive(TypeInfo, Encode, Clone)]
+#[derive(TypeInfo, Encode, Decode, Clone, Debug)]
 pub struct Person {
     pub surname: String,
     pub name: String,
 }
 
-#[derive(TypeInfo, Encode, Clone)]
+#[derive(TypeInfo, Encode, Decode, Clone, Debug)]
 pub struct Wallet {
     pub id: Id,
     pub person: Person,
