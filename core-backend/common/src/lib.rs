@@ -173,7 +173,7 @@ pub trait RuntimeCtx<E: Ext> {
     /// `out_ptr` is the location in memory where `buf` should be written to.
     fn write_output(&mut self, out_ptr: u32, buf: &[u8]) -> Result<(), RuntimeCtxError<E::Error>>;
 
-    fn read_memory_as<T>(&self, ptr: u32) -> Result<T, RuntimeCtxError<E::Error>> {
+    fn read_memory_as<T: Sized>(&self, ptr: u32) -> Result<T, RuntimeCtxError<E::Error>> {
         let mut buf = MaybeUninit::<T>::uninit();
         let mut_slice =
             unsafe { slice::from_raw_parts_mut(buf.as_mut_ptr() as *mut u8, size_of::<T>()) };
@@ -181,7 +181,11 @@ pub trait RuntimeCtx<E: Ext> {
         Ok(unsafe { buf.assume_init() })
     }
 
-    fn write_memory_as<T>(&mut self, ptr: u32, obj: T) -> Result<(), RuntimeCtxError<E::Error>> {
+    fn write_memory_as<T: Sized>(
+        &mut self,
+        ptr: u32,
+        obj: T,
+    ) -> Result<(), RuntimeCtxError<E::Error>> {
         let slice = unsafe { slice::from_raw_parts(&obj as *const T as *const u8, size_of::<T>()) };
         self.write_output(ptr, slice)
     }

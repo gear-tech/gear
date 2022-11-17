@@ -172,8 +172,10 @@ mod test {
     #[test]
     fn test_new_default() {
         let x = LimitedVec::<String, RuntimeBufferSizeError, N>::try_new_default(N).unwrap();
-        let _ = LimitedVec::<u64, RuntimeBufferSizeError, N>::try_new_default(N + 1)
-            .expect_err("Must be error because of size overflow");
+        assert!(
+            LimitedVec::<u64, RuntimeBufferSizeError, N>::try_new_default(N + 1).is_err(),
+            "Must be error because of size overflow"
+        );
         let z = LimitedVec::<Vec<u8>, RuntimeBufferSizeError, N>::try_new_default(0).unwrap();
 
         assert_eq!(x.get().len(), N);

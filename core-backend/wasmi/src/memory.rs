@@ -71,13 +71,13 @@ impl<'a, E: Ext + IntoExtInfo<E::Error> + 'static> Memory for MemoryWrapRef<'a, 
 }
 
 impl<'a, E: Ext + IntoExtInfo<E::Error> + 'static> MemoryWrapRef<'a, E> {
-    pub fn write_memory_as<T>(&mut self, ptr: u32, obj: T) -> Result<(), MemoryError> {
+    pub fn write_memory_as<T: Sized>(&mut self, ptr: u32, obj: T) -> Result<(), MemoryError> {
         let slice =
             unsafe { slice::from_raw_parts(&obj as *const T as *const u8, mem::size_of::<T>()) };
         self.write(ptr as usize, slice)
     }
 
-    pub fn read_memory_as<T>(&self, ptr: u32) -> Result<T, MemoryError> {
+    pub fn read_memory_as<T: Sized>(&self, ptr: u32) -> Result<T, MemoryError> {
         let mut buf = MaybeUninit::<T>::uninit();
         let mut_slice =
             unsafe { slice::from_raw_parts_mut(buf.as_mut_ptr() as *mut u8, mem::size_of::<T>()) };

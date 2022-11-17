@@ -612,9 +612,7 @@ where
             let mut hash = [0; 32];
             hash.copy_from_slice(blake2b(32, &[], subject.get()).as_bytes());
 
-            let bn_random = BlockNumberWithHash { bn, hash };
-
-            ctx.write_memory_as(bn_random_ptr, bn_random)
+            ctx.write_memory_as(bn_random_ptr, BlockNumberWithHash { bn, hash })
                 .map_err(Into::into)
         })
     }

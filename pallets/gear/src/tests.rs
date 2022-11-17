@@ -1381,24 +1381,21 @@ fn block_gas_limit_works() {
     // Same as `ProgramCodeKind::OutgoingWithValueInHandle`, but without value sending
     let wat1 = r#"
     (module
-        (import "env" "gr_send_wgas" (func $send (param i32 i32 i32 i64 i32 i32 i32) (result i32)))
+        (import "env" "gr_send_wgas" (func $send (param i32 i32 i32 i64 i32 i32)))
         (import "env" "gr_source" (func $gr_source (param i32)))
         (import "env" "memory" (memory 1))
         (export "handle" (func $handle))
         (export "init" (func $init))
         (export "handle_reply" (func $handle_reply))
         (func $handle
-            (local $msg_source i32)
-            (local $msg_val i32)
-            (i32.store offset=2
-                (get_local $msg_source)
-                (i32.const 1)
-            )
-            (i32.store offset=10
-                (get_local $msg_val)
-                (i32.const 0)
-            )
-            (call $send (i32.const 2) (i32.const 0) (i32.const 32) (i64.const 10000000) (i32.const 10) (i32.const 0) (i32.const 40000))
+            i32.const 111 ;; ptr
+            i32.const 1 ;; value
+            i32.store
+
+            (call $send (i32.const 111) (i32.const 0) (i32.const 32) (i64.const 10000000) (i32.const 0) (i32.const 333))
+
+            i32.const 333 ;; addr
+            i32.load
             (if
                 (then unreachable)
                 (else)
@@ -5851,11 +5848,11 @@ fn call_forbidden_function() {
     let wat = r#"
     (module
         (import "env" "memory" (memory 1))
-        (import "env" "gr_gas_available" (func $gr_gas_available (result i64)))
+        (import "env" "gr_gas_available" (func $gr_gas_available (param i32)))
         (export "handle" (func $handle))
         (func $handle
+            i32.const 0
             call $gr_gas_available
-            drop
         )
     )"#;
 
@@ -5959,21 +5956,22 @@ fn missing_functions_are_not_executed() {
     // handle is copied from ProgramCodeKind::OutgoingWithValueInHandle
     let wat = r#"
     (module
-        (import "env" "gr_send_wgas" (func $send (param i32 i32 i32 i64 i32 i32 i32) (result i32)))
+        (import "env" "gr_send_wgas" (func $send (param i32 i32 i32 i64 i32 i32)))
         (import "env" "memory" (memory 10))
         (export "handle" (func $handle))
         (func $handle
-            (local $msg_source i32)
-            (local $msg_val i32)
-            (i32.store offset=2
-                (get_local $msg_source)
-                (i32.const 1)
-            )
-            (i32.store offset=10
-                (get_local $msg_val)
-                (i32.const 1000)
-            )
-            (call $send (i32.const 2) (i32.const 0) (i32.const 32) (i64.const 10000000) (i32.const 10) (i32.const 0) (i32.const 40000))
+            i32.const 111 ;; addr
+            i32.const 1 ;; value
+            i32.store
+
+            i32.const 143 ;; addr + 32
+            i32.const 1000
+            i32.store
+
+            (call $send (i32.const 111) (i32.const 0) (i32.const 32) (i64.const 10000000) (i32.const 0) (i32.const 333))
+
+            i32.const 333 ;; addr
+            i32.load
             (if
                 (then unreachable)
                 (else)
@@ -6585,6 +6583,7 @@ mod utils {
         <Test as pallet::Config>::Currency::minimum_balance().unique_saturated_into()
     }
 
+    #[track_caller]
     pub(super) fn assert_init_success(expected: u32) {
         let mut actual_children_amount = 0;
         System::events().iter().for_each(|e| {
@@ -6600,6 +6599,7 @@ mod utils {
         assert_eq!(expected, actual_children_amount);
     }
 
+    #[track_caller]
     pub(super) fn assert_last_dequeued(expected: u32) {
         let last_dequeued = System::events()
             .iter()
@@ -6616,6 +6616,7 @@ mod utils {
         assert_eq!(expected, last_dequeued);
     }
 
+    #[track_caller]
     pub(super) fn assert_total_dequeued(expected: u32) {
         let actual_dequeued: u32 = System::events()
             .iter()
@@ -6639,6 +6640,7 @@ mod utils {
     // 2) runs to block 2 all the messages place to message queue/storage
     //
     // Returns id of the message in the mailbox
+    #[track_caller]
     pub(super) fn setup_mailbox_test_state(user: AccountId) -> MessageId {
         let prog_id = {
             let res = upload_program_default(user, ProgramCodeKind::OutgoingWithValueInHandle);
@@ -6651,6 +6653,7 @@ mod utils {
     }
 
     // Puts message from `prog_id` for the `user` in mailbox and returns its id
+    #[track_caller]
     pub(super) fn populate_mailbox_from_program(
         prog_id: ProgramId,
         sender: AccountId,
@@ -6684,6 +6687,7 @@ mod utils {
         MessageId::generate_outgoing(message_id, 0)
     }
 
+    #[track_caller]
     pub(super) fn increase_prog_balance_for_mailbox_test(sender: AccountId, program_id: ProgramId) {
         let expected_code_hash: H256 = generate_code_hash(
             ProgramCodeKind::OutgoingWithValueInHandle
@@ -6714,6 +6718,7 @@ mod utils {
     }
 
     // Submits program with default options (salt, gas limit, value, payload)
+    #[track_caller]
     pub(super) fn upload_program_default(
         user: AccountId,
         code_kind: ProgramCodeKind,
@@ -6773,10 +6778,12 @@ mod utils {
         found_status
     }
 
+    #[track_caller]
     pub(super) fn assert_dispatched(message_id: MessageId) {
         assert!(dispatch_status(message_id).is_some())
     }
 
+    #[track_caller]
     pub(super) fn assert_succeed(message_id: MessageId) {
         let status =
             dispatch_status(message_id).expect("Message not found in `Event::MessagesDispatched`");
@@ -6784,6 +6791,7 @@ mod utils {
         assert_eq!(status, DispatchStatus::Success)
     }
 
+    #[track_caller]
     pub(super) fn assert_failed(message_id: MessageId, error: ExecutionErrorReason) {
         let status =
             dispatch_status(message_id).expect("Message not found in `Event::MessagesDispatched`");
@@ -6822,6 +6830,7 @@ mod utils {
         assert_eq!(expectations, actual_error)
     }
 
+    #[track_caller]
     pub(super) fn assert_not_executed(message_id: MessageId) {
         let status =
             dispatch_status(message_id).expect("Message not found in `Event::MessagesDispatched`");
@@ -6829,6 +6838,7 @@ mod utils {
         assert_eq!(status, DispatchStatus::NotExecuted)
     }
 
+    #[track_caller]
     pub(super) fn get_last_event() -> MockRuntimeEvent {
         System::events()
             .into_iter()
@@ -6837,6 +6847,7 @@ mod utils {
             .event
     }
 
+    #[track_caller]
     pub(super) fn get_last_program_id() -> ProgramId {
         let event = match System::events().last().map(|r| r.event.clone()) {
             Some(MockRuntimeEvent::Gear(e)) => e,
@@ -6855,6 +6866,7 @@ mod utils {
         }
     }
 
+    #[track_caller]
     pub(super) fn get_last_code_id() -> CodeId {
         let event = match System::events().last().map(|r| r.event.clone()) {
             Some(MockRuntimeEvent::Gear(e)) => e,
@@ -6873,6 +6885,7 @@ mod utils {
         }
     }
 
+    #[track_caller]
     pub(super) fn filter_event_rev<F, R>(f: F) -> R
     where
         F: Fn(Event<Test>) -> Option<R>,
@@ -6891,6 +6904,7 @@ mod utils {
             .expect("can't find message send event")
     }
 
+    #[track_caller]
     pub(super) fn get_last_message_id() -> MessageId {
         System::events()
             .iter()
@@ -6910,6 +6924,7 @@ mod utils {
             .expect("can't find message send event")
     }
 
+    #[track_caller]
     pub(super) fn get_waitlist_expiration(message_id: MessageId) -> BlockNumberFor<Test> {
         let mut exp = None;
         System::events()
@@ -6930,6 +6945,7 @@ mod utils {
         exp.unwrap()
     }
 
+    #[track_caller]
     pub(super) fn get_last_message_waited() -> (MessageId, BlockNumberFor<Test>) {
         let mut message_id = None;
         let mut exp = None;
@@ -6950,6 +6966,7 @@ mod utils {
         (message_id.unwrap(), exp.unwrap())
     }
 
+    #[track_caller]
     pub(super) fn maybe_last_message(account: AccountId) -> Option<StoredMessage> {
         System::events().into_iter().rev().find_map(|e| {
             if let MockRuntimeEvent::Gear(Event::UserMessageSent { message, .. }) = e.event {
@@ -6972,6 +6989,7 @@ mod utils {
             .expect("Element should be")
     }
 
+    #[track_caller]
     pub(super) fn get_reservation_map(pid: ProgramId) -> Option<GasReservationMap> {
         let prog = common::get_program(pid.into_origin()).unwrap();
         if let common::Program::Active(common::ActiveProgram {
@@ -7044,24 +7062,24 @@ mod utils {
                     // [warning] - program payload data is inaccurate, don't make assumptions about it!
                     r#"
                     (module
-                        (import "env" "gr_send_wgas" (func $send (param i32 i32 i32 i64 i32 i32 i32) (result i32)))
-                        (import "env" "gr_source" (func $gr_source (param i32)))
+                        (import "env" "gr_send_wgas" (func $send (param i32 i32 i32 i64 i32 i32)))
                         (import "env" "memory" (memory 1))
                         (export "handle" (func $handle))
                         (export "init" (func $init))
                         (export "handle_reply" (func $handle_reply))
                         (func $handle
-                            (local $msg_source i32)
-                            (local $msg_val i32)
-                            (i32.store offset=2
-                                (get_local $msg_source)
-                                (i32.const 1)
-                            )
-                            (i32.store offset=10
-                                (get_local $msg_val)
-                                (i32.const 1000)
-                            )
-                            (call $send (i32.const 2) (i32.const 0) (i32.const 32) (i64.const 10000000) (i32.const 10) (i32.const 0) (i32.const 40000))
+                            i32.const 111 ;; addr
+                            i32.const 1 ;; value
+                            i32.store
+
+                            i32.const 143 ;; addr + 32
+                            i32.const 1000
+                            i32.store
+
+                            (call $send (i32.const 111) (i32.const 0) (i32.const 32) (i64.const 10000000) (i32.const 0) (i32.const 333))
+
+                            i32.const 333 ;; addr
+                            i32.load
                             (if
                                 (then unreachable)
                                 (else)
@@ -7211,15 +7229,14 @@ fn check_gr_read_error_works() {
     let wat = r#"
         (module
             (import "env" "memory" (memory 1))
-            (import "env" "gr_read" (func $gr_read (param i32 i32 i32) (result i32)))
+            (import "env" "gr_read" (func $gr_read (param i32 i32 i32 i32)))
             (export "init" (func $init))
             (func $init
-                i32.const 0
-                i32.const 10
-                i32.const 0
-                call $gr_read
-                ;; validating that error len is not zero
-                (if
+                (call $gr_read (i32.const 0) (i32.const 10) (i32.const 0) (i32.const 111))
+
+                i32.const 111
+                i32.load
+                (if ;; validating that error len is not zero
                     (then)
                     (else
                         unreachable
@@ -7254,23 +7271,25 @@ fn check_reply_push_payload_exceed() {
     let wat = r#"
         (module
             (import "env" "memory" (memory 0x100))
-            (import "env" "gr_reply_push" (func $gr (param i32 i32) (result i32)))
+            (import "env" "gr_reply_push" (func $gr (param i32 i32 i32)))
             (export "init" (func $init))
             (func $init
                 ;; first reply push must be ok
                 (block
-                    i32.const 0
-                    i32.const 0x1000000
-                    call $gr
+                    (call $gr (i32.const 0) (i32.const 0x1000000) (i32.const 0x1000001))
+
+                    (i32.load (i32.const 0x1000001))
                     i32.eqz
                     br_if 0
                     unreachable
                 )
                 ;; second must lead to overflow
                 (block
-                    i32.const 0
-                    i32.const 0x1000000
-                    call $gr
+                    (call $gr (i32.const 0) (i32.const 0x1000000) (i32.const 0x1000001))
+
+                    (i32.load (i32.const 0x1000001))
+                    i32.eqz
+                    br_if 1
                     unreachable
                 )
             )
@@ -7309,34 +7328,23 @@ fn check_random_works() {
     use blake2_rfc::blake2b::blake2b;
     let wat = r#"
         (module
-            (import "env" "gr_send_wgas" (func $send (param i32 i32 i32 i64 i32 i32 i32) (result i32)))
+            (import "env" "gr_send_wgas" (func $send (param i32 i32 i32 i64 i32 i32)))
             (import "env" "gr_source" (func $gr_source (param i32)))
-            (import "env" "gr_random" (func $gr_random (param i32 i32 i32 i32)))
+            (import "env" "gr_random" (func $gr_random (param i32 i32 i32)))
             (import "env" "memory" (memory 1))
             (export "handle" (func $handle))
-            (export "init" (func $init))
-            (export "handle_reply" (func $handle_reply))
             (func $handle
-                (local $msg_source i32)
-                (local $msg_val i32)
-                (local $random_seed i32)
-                (call $gr_random (i32.const 0) (i32.const 0) (i32.const 64) (i32.const 128))
-                (i32.store offset=2
-                    (get_local $msg_source)
-                    (i32.const 1)
-                )
-                (i32.store offset=10
-                    (get_local $msg_val)
-                    (i32.const 0)
-                )
-                (call $send (i32.const 2) (i32.const 64) (i32.const 32) (i64.const 10000000) (i32.const 10) (i32.const 0) (i32.const 40000))
-                (if
-                    (then unreachable)
-                    (else)
-                )
+                (i32.store (i32.const 111) (i32.const 1))
+
+                (call $gr_random (i32.const 0) (i32.const 0) (i32.const 64))
+
+                (call $send (i32.const 111) (i32.const 68) (i32.const 32) (i64.const 10000000) (i32.const 0) (i32.const 333))
+
+                (i32.load (i32.const 333))
+                i32.eqz
+                br_if 0
+                unreachable
             )
-            (func $handle_reply)
-            (func $init)
         )"#;
 
     init_logger();

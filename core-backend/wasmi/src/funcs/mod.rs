@@ -147,7 +147,7 @@ where
                             hash: message_id.into(),
                             ..Default::default()
                         })
-                        .map_err(|length| LengthWithHash {
+                        .unwrap_or_else(|length| LengthWithHash {
                             length,
                             ..Default::default()
                         });
@@ -204,7 +204,7 @@ where
                             hash: message_id.into(),
                             ..Default::default()
                         })
-                        .map_err(|length| LengthWithHash {
+                        .unwrap_or_else(|length| LengthWithHash {
                             length,
                             ..Default::default()
                         });
@@ -254,7 +254,7 @@ where
                             hash: message_id.into(),
                             ..Default::default()
                         })
-                        .map_err(|length| LengthWithHash {
+                        .unwrap_or_else(|length| LengthWithHash {
                             length,
                             ..Default::default()
                         });
@@ -310,7 +310,7 @@ where
                             hash: message_id.into(),
                             ..Default::default()
                         })
-                        .map_err(|length| LengthWithHash {
+                        .unwrap_or_else(|length| LengthWithHash {
                             length,
                             ..Default::default()
                         });
@@ -340,7 +340,7 @@ where
                             handle,
                             ..Default::default()
                         })
-                        .map_err(|length| LengthWithHandle {
+                        .unwrap_or_else(|length| LengthWithHandle {
                             length,
                             ..Default::default()
                         });
@@ -381,7 +381,7 @@ where
                 |ext| ext.send_push(handle, payload.get()),
                 |res, mut mem_ref| {
                     let len = res.map(|_| 0).unwrap_or_else(|e| e);
-                    mem_ref.write_memory_as(err_ptr, len)
+                    mem_ref.write(err_ptr as usize, &len.to_le_bytes())
                 },
             )
         };
@@ -433,7 +433,7 @@ where
                             hash: message_id.into(),
                             ..Default::default()
                         })
-                        .map_err(|length| LengthWithHash {
+                        .unwrap_or_else(|length| LengthWithHash {
                             length,
                             ..Default::default()
                         });
@@ -484,7 +484,7 @@ where
                             hash: message_id.into(),
                             ..Default::default()
                         })
-                        .map_err(|length| LengthWithHash {
+                        .unwrap_or_else(|length| LengthWithHash {
                             length,
                             ..Default::default()
                         });
@@ -592,6 +592,9 @@ where
                 Trap::from(TrapCode::Unreachable)
             })?;
 
+            // Required here due to post processing query of globals.
+            caller.update_globals()?;
+
             caller.host_state_mut().err =
                 FuncError::Terminated(TerminationReason::Exit(inheritor_id));
             Err(TrapCode::Unreachable.into())
@@ -617,7 +620,7 @@ where
                             code,
                             ..Default::default()
                         })
-                        .map_err(|length| LengthWithCode {
+                        .unwrap_or_else(|length| LengthWithCode {
                             length,
                             ..Default::default()
                         });
@@ -770,7 +773,7 @@ where
                             hash: message_id.into(),
                             ..Default::default()
                         })
-                        .map_err(|length| LengthWithHash {
+                        .unwrap_or_else(|length| LengthWithHash {
                             length,
                             ..Default::default()
                         });
@@ -822,7 +825,7 @@ where
                             hash: message_id.into(),
                             ..Default::default()
                         })
-                        .map_err(|length| LengthWithHash {
+                        .unwrap_or_else(|length| LengthWithHash {
                             length,
                             ..Default::default()
                         });
@@ -864,7 +867,7 @@ where
                             hash: message_id.into(),
                             ..Default::default()
                         })
-                        .map_err(|length| LengthWithHash {
+                        .unwrap_or_else(|length| LengthWithHash {
                             length,
                             ..Default::default()
                         });
@@ -912,7 +915,7 @@ where
                             hash: message_id.into(),
                             ..Default::default()
                         })
-                        .map_err(|length| LengthWithHash {
+                        .unwrap_or_else(|length| LengthWithHash {
                             length,
                             ..Default::default()
                         });
@@ -964,7 +967,7 @@ where
                             hash: message_id.into(),
                             ..Default::default()
                         })
-                        .map_err(|length| LengthWithHash {
+                        .unwrap_or_else(|length| LengthWithHash {
                             length,
                             ..Default::default()
                         });
@@ -1012,7 +1015,7 @@ where
                             hash: message_id.into(),
                             ..Default::default()
                         })
-                        .map_err(|length| LengthWithHash {
+                        .unwrap_or_else(|length| LengthWithHash {
                             length,
                             ..Default::default()
                         });
@@ -1038,7 +1041,7 @@ where
                             hash: message_id.into(),
                             ..Default::default()
                         })
-                        .map_err(|length| LengthWithHash {
+                        .unwrap_or_else(|length| LengthWithHash {
                             length,
                             ..Default::default()
                         });
@@ -1077,7 +1080,7 @@ where
                 |ext| ext.reply_push(payload.get()),
                 |res, mut mem_ref| {
                     let len = res.map(|_| 0).unwrap_or_else(|e| e);
-                    mem_ref.write_memory_as(err_ptr, len)
+                    mem_ref.write(err_ptr as usize, &len.to_le_bytes())
                 },
             )
         };
@@ -1138,7 +1141,7 @@ where
                             hash: reservation_id.into(),
                             ..Default::default()
                         })
-                        .map_err(|length| LengthWithHash {
+                        .unwrap_or_else(|length| LengthWithHash {
                             length,
                             ..Default::default()
                         });
@@ -1175,7 +1178,7 @@ where
                             gas,
                             ..Default::default()
                         })
-                        .map_err(|length| LengthWithGas {
+                        .unwrap_or_else(|length| LengthWithGas {
                             length,
                             ..Default::default()
                         });
@@ -1352,8 +1355,12 @@ where
                 Trap::from(TrapCode::Unreachable)
             })?;
 
+            // Required here due to post processing query of globals.
+            caller.update_globals()?;
+
             caller.host_state_mut().err =
                 FuncError::Terminated(TerminationReason::Wait(None, MessageWaitedType::Wait));
+
             Err(Trap::from(TrapCode::Unreachable))
         };
 
@@ -1373,10 +1380,14 @@ where
                     Trap::from(TrapCode::Unreachable)
                 })?;
 
+            // Required here due to post processing query of globals.
+            caller.update_globals()?;
+
             caller.host_state_mut().err = FuncError::Terminated(TerminationReason::Wait(
                 Some(duration),
                 MessageWaitedType::WaitFor,
             ));
+
             Err(Trap::from(TrapCode::Unreachable))
         };
 
@@ -1396,6 +1407,9 @@ where
                     Trap::from(TrapCode::Unreachable)
                 })?;
 
+            // Required here due to post processing query of globals.
+            caller.update_globals()?;
+
             caller.host_state_mut().err = FuncError::Terminated(TerminationReason::Wait(
                 Some(duration),
                 if enough {
@@ -1404,6 +1418,7 @@ where
                     MessageWaitedType::WaitUpTo
                 },
             ));
+
             Err(Trap::from(TrapCode::Unreachable))
         };
 
@@ -1427,7 +1442,7 @@ where
                 |ext| ext.wake(message_id, delay),
                 |res, mut mem_ref| {
                     let len = res.map(|_| 0).unwrap_or_else(|e| e);
-                    mem_ref.write_memory_as(err_ptr, len)
+                    mem_ref.write(err_ptr as usize, &len.to_le_bytes())
                 },
             )
         };
@@ -1482,7 +1497,7 @@ where
                             hash2: program_id.into(),
                             ..Default::default()
                         })
-                        .map_err(|length| LengthWithTwoHashes {
+                        .unwrap_or_else(|length| LengthWithTwoHashes {
                             length,
                             ..Default::default()
                         });
@@ -1548,7 +1563,7 @@ where
                             hash2: program_id.into(),
                             ..Default::default()
                         })
-                        .map_err(|length| LengthWithTwoHashes {
+                        .unwrap_or_else(|length| LengthWithTwoHashes {
                             length,
                             ..Default::default()
                         });

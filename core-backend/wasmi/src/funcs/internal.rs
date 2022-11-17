@@ -38,12 +38,12 @@ where
             return Err(TrapCode::Unreachable.into());
         }
 
-        let mut f = || {
+        let f = || {
             let gas_global = caller.0.get_export(GLOBAL_NAME_GAS)?.into_global()?;
             let gas = gas_global.get(&caller.0).try_into::<i64>()? as u64;
 
             let allowance_global = caller.0.get_export(GLOBAL_NAME_ALLOWANCE)?.into_global()?;
-            let allowance = allowance_global.get(&mut caller.0).try_into::<i64>()? as u64;
+            let allowance = allowance_global.get(&caller.0).try_into::<i64>()? as u64;
 
             Some((gas, allowance))
         };

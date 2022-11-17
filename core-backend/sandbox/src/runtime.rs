@@ -56,7 +56,7 @@ impl<E: Ext> Runtime<E> {
         let result = f(self).map_err(|err| {
             self.err = err;
             HostError
-        })?; // Exit before setting globals in case of panic is optimization.
+        }); // TODO: Exit before setting globals in case of panic is optimization.
 
         let (gas, allowance) = self.ext.counters();
 
@@ -74,7 +74,7 @@ impl<E: Ext> Runtime<E> {
                 HostError
             })?;
 
-        Ok(result)
+        result
     }
 
     pub(crate) fn run<F>(&mut self, f: F) -> SyscallOutput
