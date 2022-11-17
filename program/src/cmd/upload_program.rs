@@ -32,7 +32,7 @@ impl UploadProgram {
 
         let gas = if self.gas_limit == 0 {
             signer
-                .calculate_upload_gas(code.clone(), payload.clone(), self.value, false, None)
+                .calculate_upload_gas(None, code.clone(), payload.clone(), self.value, false, None)
                 .await?
                 .min_limit
         } else {

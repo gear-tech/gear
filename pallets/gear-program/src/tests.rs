@@ -415,7 +415,7 @@ fn resume_program_wrong_list_fails() {
                 message.destination(),
                 vec![0, 1, 2, 3, 4, 5].try_into().unwrap(),
                 message.value(),
-                message.reply(),
+                message.details(),
             ),
             opt_context,
         );

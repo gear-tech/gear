@@ -25,7 +25,7 @@ use alloc::{
 use codec::{Decode, Encode};
 use gear_backend_common::{
     error_processor::IntoExtError, AsTerminationReason, ExtInfo, GetGasAmount, IntoExtInfo,
-    TerminationReason, TrapExplanation,
+    SystemReservationContext, TerminationReason, TrapExplanation,
 };
 use gear_core::{
     charge_gas_token,
@@ -37,7 +37,9 @@ use gear_core::{
         AllocationsContext, GrowHandler, GrowHandlerNothing, Memory, PageBuf, PageNumber,
         WasmPageNumber,
     },
-    message::{ExitCode, GasLimit, HandlePacket, InitPacket, MessageContext, Packet, ReplyPacket},
+    message::{
+        GasLimit, HandlePacket, InitPacket, MessageContext, Packet, ReplyPacket, StatusCode,
+    },
     reservation::GasReserver,
 };
 use gear_core_errors::{CoreError, ExecutionError, ExtError, MemoryError, MessageError, WaitError};
@@ -50,6 +52,8 @@ pub struct ProcessorContext {
     pub gas_allowance_counter: GasAllowanceCounter,
     /// Reserved gas counter.
     pub gas_reserver: GasReserver,
+    /// System reservation.
+    pub system_reservation: Option<u64>,
     /// Value counter.
     pub value_counter: ValueCounter,
     /// Allocations context.
@@ -284,7 +288,7 @@ impl Ext {
         }
     }
 
-    fn charge_message_gas(&mut self, gas_limit: Option<GasLimit>) -> Result<(), ProcessorError> {
+    fn check_gas_limit(&mut self, gas_limit: Option<GasLimit>) -> Result<GasLimit, ProcessorError> {
         let mailbox_threshold = self.context.mailbox_threshold;
         let gas_limit = gas_limit.unwrap_or(0);
 
@@ -293,7 +297,13 @@ impl Ext {
                 message_gas_limit: gas_limit,
                 mailbox_threshold,
             }))
-        } else if self.context.gas_counter.reduce(gas_limit) != ChargeResult::Enough {
+        } else {
+            Ok(gas_limit)
+        }
+    }
+
+    fn charge_message_gas(&mut self, gas_limit: GasLimit) -> Result<(), ProcessorError> {
+        if self.context.gas_counter.reduce(gas_limit) != ChargeResult::Enough {
             self.return_and_store_err(Err(MessageError::NotEnoughGas))
         } else {
             Ok(())
@@ -314,7 +324,8 @@ impl Ext {
     fn charge_expiring_resources<T: Packet>(&mut self, packet: &T) -> Result<(), ProcessorError> {
         self.check_message_value(packet.value())?;
         // Charge for using expiring resources. Charge for calling sys-call was done earlier.
-        self.charge_message_gas(packet.gas_limit())?;
+        let gas_limit = self.check_gas_limit(packet.gas_limit())?;
+        self.charge_message_gas(gas_limit)?;
         self.charge_message_value(packet.value())?;
         Ok(())
     }
@@ -341,6 +352,19 @@ impl Ext {
         };
 
         self.return_and_store_err(res)
+    }
+
+    fn charge_sending_fee(&mut self, delay: u32) -> Result<(), ProcessorError> {
+        if delay == 0 {
+            self.charge_gas(self.context.message_context.settings().sending_fee())
+        } else {
+            self.charge_gas(
+                self.context
+                    .message_context
+                    .settings()
+                    .scheduled_sending_fee(),
+            )
+        }
     }
 }
 
@@ -384,13 +408,6 @@ impl EnvExt for Ext {
         self.return_and_store_err(result)
     }
 
-    fn reply_push(&mut self, buffer: &[u8]) -> Result<(), Self::Error> {
-        self.charge_gas_runtime(RuntimeCosts::ReplyPush(buffer.len() as u32))?;
-        let result = self.context.message_context.reply_push(buffer);
-
-        self.return_and_store_err(result)
-    }
-
     fn send_commit(
         &mut self,
         handle: u32,
@@ -402,18 +419,49 @@ impl EnvExt for Ext {
         self.check_forbidden_call(msg.destination())?;
         self.charge_expiring_resources(&msg)?;
 
-        if delay == 0 {
-            self.charge_gas(self.context.message_context.settings().sending_fee())?;
-        } else {
-            self.charge_gas(
-                self.context
-                    .message_context
-                    .settings()
-                    .scheduled_sending_fee(),
-            )?;
-        }
+        self.charge_sending_fee(delay)?;
 
-        let result = self.context.message_context.send_commit(handle, msg, delay);
+        let result = self
+            .context
+            .message_context
+            .send_commit(handle, msg, delay, None);
+
+        self.return_and_store_err(result)
+    }
+
+    fn reservation_send_commit(
+        &mut self,
+        id: ReservationId,
+        handle: u32,
+        msg: HandlePacket,
+        delay: u32,
+    ) -> Result<MessageId, Self::Error> {
+        self.charge_gas_runtime(RuntimeCosts::ReservationSendCommit(
+            msg.payload().len() as u32
+        ))?;
+
+        self.check_forbidden_call(msg.destination())?;
+
+        self.check_message_value(msg.value())?;
+        let _gas_limit = self.check_gas_limit(msg.gas_limit())?;
+        // TODO: gasful sending (#1828)
+        self.charge_message_value(msg.value())?;
+
+        self.charge_sending_fee(delay)?;
+
+        self.context.gas_reserver.mark_used(id)?;
+
+        let result = self
+            .context
+            .message_context
+            .send_commit(handle, msg, delay, Some(id));
+
+        self.return_and_store_err(result)
+    }
+
+    fn reply_push(&mut self, buffer: &[u8]) -> Result<(), Self::Error> {
+        self.charge_gas_runtime(RuntimeCosts::ReplyPush(buffer.len() as u32))?;
+        let result = self.context.message_context.reply_push(buffer);
 
         self.return_and_store_err(result)
     }
@@ -424,18 +472,36 @@ impl EnvExt for Ext {
         self.check_forbidden_call(self.context.message_context.reply_destination())?;
         self.charge_expiring_resources(&msg)?;
 
-        if delay == 0 {
-            self.charge_gas(self.context.message_context.settings().sending_fee())?;
-        } else {
-            self.charge_gas(
-                self.context
-                    .message_context
-                    .settings()
-                    .scheduled_sending_fee(),
-            )?;
-        }
+        self.charge_sending_fee(delay)?;
 
-        let result = self.context.message_context.reply_commit(msg, delay);
+        let result = self.context.message_context.reply_commit(msg, delay, None);
+
+        self.return_and_store_err(result)
+    }
+
+    fn reservation_reply_commit(
+        &mut self,
+        id: ReservationId,
+        msg: ReplyPacket,
+        delay: u32,
+    ) -> Result<MessageId, Self::Error> {
+        self.charge_gas_runtime(RuntimeCosts::ReservationReplyCommit)?;
+
+        self.check_forbidden_call(self.context.message_context.reply_destination())?;
+
+        self.check_message_value(msg.value())?;
+        let _gas_limit = self.check_gas_limit(msg.gas_limit())?;
+        // TODO: gasful sending (#1828)
+        self.charge_message_value(msg.value())?;
+
+        self.charge_sending_fee(delay)?;
+
+        self.context.gas_reserver.mark_used(id)?;
+
+        let result = self
+            .context
+            .message_context
+            .reply_commit(msg, delay, Some(id));
 
         self.return_and_store_err(result)
     }
@@ -446,7 +512,8 @@ impl EnvExt for Ext {
         self.context
             .message_context
             .current()
-            .reply()
+            .details()
+            .and_then(|d| d.to_reply_details())
             .map(|d| d.into_reply_to())
             .ok_or_else(|| MessageError::NoReplyContext.into())
     }
@@ -461,15 +528,15 @@ impl EnvExt for Ext {
         Ok(())
     }
 
-    fn exit_code(&mut self) -> Result<ExitCode, Self::Error> {
-        self.charge_gas_runtime(RuntimeCosts::ExitCode)?;
+    fn status_code(&mut self) -> Result<StatusCode, Self::Error> {
+        self.charge_gas_runtime(RuntimeCosts::StatusCode)?;
 
         self.context
             .message_context
             .current()
-            .reply()
-            .map(|d| d.into_exit_code())
-            .ok_or_else(|| MessageError::NoReplyContext.into())
+            .details()
+            .map(|d| d.status_code())
+            .ok_or_else(|| MessageError::NoStatusCodeContext.into())
     }
 
     fn message_id(&mut self) -> Result<MessageId, Self::Error> {
@@ -570,6 +637,26 @@ impl EnvExt for Ext {
         }*/
 
         Ok(amount)
+    }
+
+    fn system_reserve_gas(&mut self, amount: u64) -> Result<(), Self::Error> {
+        self.charge_gas_runtime(RuntimeCosts::SystemReserveGas)?;
+
+        // TODO: use `NonZeroU64` after issue #1838 is fixed
+        if amount == 0 {
+            return self.return_and_store_err(Err(ExecutionError::ZeroSystemReservationAmount));
+        }
+
+        if self.context.gas_counter.reduce(amount) == ChargeResult::NotEnough {
+            return Err(ExecutionError::InsufficientGasForReservation.into());
+        }
+
+        let reservation = &mut self.context.system_reservation;
+        *reservation = reservation
+            .map(|reservation| reservation.saturating_add(amount))
+            .or(Some(amount));
+
+        Ok(())
     }
 
     fn gas_available(&mut self) -> Result<u64, Self::Error> {
@@ -795,6 +882,7 @@ impl Ext {
             message_context,
             gas_counter,
             gas_reserver,
+            system_reservation,
             program_candidates_data,
             ..
         } = self.context;
@@ -812,11 +900,20 @@ impl Ext {
         let (outcome, mut context_store) = message_context.drain();
         let (generated_dispatches, awakening) = outcome.drain();
 
+        let system_reservation_context = SystemReservationContext {
+            current_reservation: system_reservation,
+            previous_reservation: context_store.system_reservation(),
+        };
+
         context_store.set_reservation_nonce(gas_reserver.nonce());
+        if let Some(reservation) = system_reservation {
+            context_store.add_system_reservation(reservation);
+        }
 
         let info = ExtInfo {
             gas_amount: gas_counter.into(),
             gas_reserver,
+            system_reservation_context,
             allocations: allocations.ne(&initial_allocations).then_some(allocations),
             pages_data,
             generated_dispatches,

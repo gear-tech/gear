@@ -17,9 +17,9 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use anyhow::Error as AError;
-use gp::{api::generated::api::runtime_types::sp_runtime::DispatchError, result::Error as GPError};
-use std::{convert::Infallible, io::Error as IOError, result::Result as StdResult};
-use subxt::{GenericError, RuntimeError};
+use gp::result::Error as GPError;
+use std::{io::Error as IOError, result::Result as StdResult};
+use subxt::error::Error as SubxtError;
 
 pub type Result<T, E = Error> = StdResult<T, E>;
 
@@ -34,9 +34,7 @@ pub enum Error {
     #[error("Events stopped (unreachable")]
     EventsStopped,
     #[error(transparent)]
-    SubxtGeneric(#[from] GenericError<RuntimeError<DispatchError>>),
-    #[error(transparent)]
-    SubxtInfallible(#[from] GenericError<Infallible>),
+    Subxt(#[from] SubxtError),
     #[error("Expected event wasn't found")]
     EventNotFound,
     #[error(transparent)]
@@ -53,4 +51,8 @@ pub enum Error {
     MaxDepthReached,
     #[error("Event not found in pre-queried events")]
     EventNotFoundInIterator,
+    #[error("Storage not found.")]
+    StorageNotFound,
+    #[error(transparent)]
+    Codec(#[from] parity_scale_codec::Error),
 }

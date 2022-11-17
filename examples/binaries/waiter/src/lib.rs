@@ -33,6 +33,10 @@ mod wasm {
     include! {"./code.rs"}
 }
 
+pub fn system_reserve() -> u64 {
+    gstd::Config::system_reserve()
+}
+
 // Re-exports for testing
 pub fn default_wait_up_to_duration() -> u32 {
     gstd::Config::wait_up_to()

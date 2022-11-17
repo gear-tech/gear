@@ -44,6 +44,8 @@ mod sys {
             unreserved_amount: *mut u64,
         ) -> SyscallError;
 
+        pub fn gr_system_reserve_gas(amount: u64) -> SyscallError;
+
         pub fn gr_gas_available() -> u64;
 
         pub fn gr_program_id(program_id_ptr: *mut [u8; 32]);
@@ -157,6 +159,26 @@ pub fn reserve_gas(amount: u64, duration: u32) -> Result<ReservationId> {
         sys::gr_reserve_gas(amount, duration, id.as_mut_ptr()).into_result()?;
     }
     Ok(id)
+}
+
+/// Reserve gas for system usage.
+///
+/// # Examples
+///
+/// ```
+/// use gcore::exec;
+///
+/// unsafe extern "C" fn handle() {
+///     exec::system_reserve_gas(1_000_000).expect("enough gas");
+///     exec::wait();
+/// }
+///
+/// unsafe extern "C" fn handle_signal() {
+///     // message removed from waitlist!
+/// }
+/// ```
+pub fn system_reserve_gas(amount: u64) -> Result<()> {
+    unsafe { sys::gr_system_reserve_gas(amount).into_result() }
 }
 
 /// Unreserve gas using reservation ID

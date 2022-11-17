@@ -356,7 +356,7 @@ where
     });
 }
 
-// Tests `gr_reply_to` and  `gr_exit_code`
+// Tests `gr_reply_to` and  `gr_status_code`
 fn check_reply_details<T>()
 where
     T: Config,

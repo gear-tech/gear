@@ -67,13 +67,13 @@ where
         f.build(Read, |forbidden| F::read(store, forbidden, memory)),
         f.build(Size, |forbidden| F::size(store, forbidden)),
         f.build(Exit, |forbidden| F::exit(store, forbidden, memory)),
-        f.build(ExitCode, |forbidden| F::exit_code(store, forbidden, memory)),
+        f.build(StatusCode, |forbidden| F::status_code(store, forbidden, memory)),
         f.build(Alloc, |forbidden| F::alloc(store, forbidden, memory)),
         f.build(Free, |forbidden| F::free(store, forbidden)),
         f.build(BlockHeight, |forbidden| F::block_height(store, forbidden)),
-        f.build(BlockTimestamp, |forbidden| {
-            F::block_timestamp(store, forbidden)
-        }),
+        f.build(BlockTimestamp, |forbidden| F::block_timestamp(store, forbidden)),
+        f.build(ReservationSend, |forbidden| F::reservation_send(store, forbidden, memory)),
+        f.build(ReservationSendCommit, |forbidden| F::reservation_send_commit(store, forbidden, memory)),
         f.build(Origin, |forbidden| F::origin(store, forbidden, memory)),
         f.build(Reply, |forbidden| F::reply(store, forbidden, memory)),
         f.build(ReplyWGas, |forbidden| {
@@ -91,8 +91,12 @@ where
         }),
         f.build(Debug, |forbidden| F::debug(store, forbidden, memory)),
         f.build(GasAvailable, |forbidden| F::gas_available(store, forbidden)),
-        f.build(MessageId, |forbidden| {
-            F::message_id(store, forbidden, memory)
+        f.build(MessageId, |forbidden| F::message_id(store, forbidden, memory)),
+        f.build(ReservationReply, |forbidden| {
+            F::reservation_reply(store, forbidden, memory)
+        }),
+        f.build(ReservationReplyCommit, |forbidden| {
+            F::reservation_reply_commit(store, forbidden, memory)
         }),
         f.build(ProgramId, |forbidden| {
             F::program_id(store, forbidden, memory)
@@ -123,6 +127,9 @@ where
         }),
         f.build(OutOfGas, |_| F::out_of_gas(store)),
         f.build(OutOfAllowance, |_| F::out_of_allowance(store)),
+        f.build(SystemReserveGas, |forbidden| {
+            F::system_reserve_gas(store, forbidden)
+        }),
     ]
     .into();
 

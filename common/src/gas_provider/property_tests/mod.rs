@@ -138,9 +138,9 @@ impl ValueStorage for TotalIssuanceWrap {
 
 type Key = GasNodeId<MapKey, ReservationKey>;
 type ExternalOrigin = MapKey;
-type GasNode = super::GasNode<ExternalOrigin, MapKey, Balance>;
+type GasNode = super::GasNode<ExternalOrigin, Key, Balance>;
 
-#[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd)]
+#[derive(Debug, Copy, Hash, Clone, Eq, PartialEq, Ord, PartialOrd)]
 pub struct MapKey(H256);
 
 impl MapKey {
@@ -155,7 +155,7 @@ impl<U> From<MapKey> for GasNodeId<MapKey, U> {
     }
 }
 
-#[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd)]
+#[derive(Debug, Copy, Hash, Clone, Eq, PartialEq, Ord, PartialOrd)]
 pub struct ReservationKey(H256);
 
 impl ReservationKey {
@@ -228,6 +228,7 @@ enum Error {
     ValueIsBlocked,
     ValueIsNotBlocked,
     ConsumedWithLock,
+    ConsumedWithSystemReservation,
 }
 
 impl super::Error for Error {
@@ -281,6 +282,10 @@ impl super::Error for Error {
 
     fn consumed_with_lock() -> Self {
         Self::ConsumedWithLock
+    }
+
+    fn consumed_with_system_reservation() -> Self {
+        Self::ConsumedWithSystemReservation
     }
 }
 
@@ -354,13 +359,11 @@ proptest! {
                     let parent = node_ids.ring_get(parent_idx).copied().expect("before each iteration there is at least 1 element; qed");
                     let child = MapKey::random();
 
-                    if let GasNodeId::Node(parent) = parent {
-                        if let Err(e) = Gas::split_with_value(parent, child, amount) {
-                            assertions::assert_not_invariant_error(e);
-                        } else {
-                            spec_ref_nodes.insert(child);
-                            node_ids.push(child.into())
-                        }
+                    if let Err(e) = Gas::split_with_value(parent, child, amount) {
+                        assertions::assert_not_invariant_error(e);
+                    } else {
+                        spec_ref_nodes.insert(child);
+                        node_ids.push(child.into());
                     }
 
                 }
@@ -368,13 +371,11 @@ proptest! {
                     let parent = node_ids.ring_get(parent_idx).copied().expect("before each iteration there is at least 1 element; qed");
                     let child = MapKey::random();
 
-                    if let GasNodeId::Node(parent) = parent {
-                        if let Err(e) = Gas::split(parent, child) {
-                            assertions::assert_not_invariant_error(e);
-                        } else {
-                            unspec_ref_nodes.insert(child);
-                            node_ids.push(child.into());
-                        }
+                    if let Err(e) = Gas::split(parent, child) {
+                        assertions::assert_not_invariant_error(e);
+                    } else {
+                        unspec_ref_nodes.insert(child);
+                        node_ids.push(child.into());
                     }
                 }
                 GasTreeAction::Spend(from, amount) => {
@@ -421,7 +422,10 @@ proptest! {
                                 &remaining_nodes,
                                 &marked_consumed,
                             );
-                            assertions::assert_root_removed_last(root_node.into(), remaining_nodes);
+                            assertions::assert_root_children_removed(root_node, &remaining_nodes);
+                            if let Key::Reservation(id) = consuming {
+                                assertions::assert_root_children_removed(id, &remaining_nodes);
+                            }
 
                             caught += maybe_caught.unwrap_or_default();
                         }
@@ -438,12 +442,10 @@ proptest! {
                     let from = node_ids.ring_get(from).copied().expect("before each iteration there is at least 1 element; qed");
                     let child = MapKey::random();
 
-                    if let GasNodeId::Node(from) = from {
-                        if let Err(e) = Gas::cut(from, child, amount) {
-                            assertions::assert_not_invariant_error(e)
-                        } else {
-                            node_ids.push(child.into());
-                        }
+                    if let Err(e) = Gas::cut(from, child, amount) {
+                        assertions::assert_not_invariant_error(e)
+                    } else {
+                        node_ids.push(child.into());
                     }
                 }
                 GasTreeAction::Reserve(from, amount) => {
@@ -488,7 +490,6 @@ proptest! {
 
             // Check property: all existing specified and unspecified nodes have a parent in a tree
             if let GasNode::SpecifiedLocal { parent, .. } | GasNode::UnspecifiedLocal { parent, .. } = node {
-                let parent = parent.into();
                 assert!(gas_tree_ids.contains(&parent));
                 // All nodes with parent point to a parent with value
                 let parent_node = GasTreeNodesWrap::get(&parent).expect("checked");
@@ -510,7 +511,7 @@ proptest! {
                 // ...can become consumed only after consume call (so can be deleted by intentional call, not automatically)
                 assert!(marked_consumed.contains(&node_id));
                 // ...there can't be any existing consumed unspecified local nodes, because they are immediately removed after the call
-                assert!(node.is_external() || node.is_specified_local());
+                assert!(node.is_external() || node.is_specified_local() || node.is_reserved());
                 // ...existing consumed node with no unspec children has 0 inner value.
                 // That's because anytime node becomes consumed without unspec children, it's no longer a patron.
                 // So `consume` call on non-patron leads a value to be moved upstream or returned to the `origin`.
@@ -527,7 +528,7 @@ proptest! {
             // (Actually, patron can have 0 inner value, when `spend` decreased it's balance to 0, but it's an edge case)
             // ReservedLocal node can be not consumed with non zero value, but is not a patron
             if let Some(value) = node.value() {
-                if value != 0 && !node.is_detached() {
+                if value != 0 && !node.is_cut() {
                     assert!(node.is_patron());
                 }
             }

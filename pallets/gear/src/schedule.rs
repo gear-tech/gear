@@ -39,7 +39,7 @@ use sp_std::{marker::PhantomData, vec::Vec};
 pub const API_BENCHMARK_BATCH_SIZE: u32 = 100;
 
 /// How many instructions are executed in a single batch.
-pub const INSTR_BENCHMARK_BATCH_SIZE: u32 = 100;
+pub const INSTR_BENCHMARK_BATCH_SIZE: u32 = 1000;
 
 /// Definition of the cost schedule and other parameterization for the wasm vm.
 ///
@@ -281,6 +281,9 @@ pub struct HostFnWeights<T: Config> {
     /// Weight of calling `gr_unreserve_gas`
     pub gr_unreserve_gas: u64,
 
+    /// Weight of calling `gr_system_reserve_gas`
+    pub gr_system_reserve_gas: u64,
+
     /// Weight of calling `gr_gas_available`.
     pub gr_gas_available: u64,
 
@@ -335,8 +338,17 @@ pub struct HostFnWeights<T: Config> {
     /// Weight per payload byte by `gr_send_commit`.
     pub gr_send_commit_per_byte: u64,
 
+    /// Weight of calling `gr_reservation_send_commit`.
+    pub gr_reservation_send_commit: u64,
+
+    /// Weight per payload byte by `gr_reservation_send_commit`.
+    pub gr_reservation_send_commit_per_byte: u64,
+
     /// Weight of calling `gr_reply_commit`.
     pub gr_reply_commit: u64,
+
+    /// Weight of calling `gr_reservation_reply_commit`.
+    pub gr_reservation_reply_commit: u64,
 
     /// Weight of calling `gr_reply_push`.
     pub gr_reply_push: u64,
@@ -353,8 +365,8 @@ pub struct HostFnWeights<T: Config> {
     /// Weight per payload byte by `gr_debug_per_byte`.
     pub gr_debug_per_byte: u64,
 
-    /// Weight of calling `gr_exit_code`.
-    pub gr_exit_code: u64,
+    /// Weight of calling `gr_status_code`.
+    pub gr_status_code: u64,
 
     /// Weight of calling `gr_exit`.
     pub gr_exit: u64,
@@ -434,24 +446,9 @@ macro_rules! cost_batched_args {
 	}
 }
 
-macro_rules! cost_instr_no_params_with_batch_size {
-    ($name:ident, $batch_size:expr) => {
-        (cost_args!($name, 1) / u64::from($batch_size)) as u32
-    };
-}
-
-macro_rules! cost_instr_with_batch_size {
-    ($name:ident, $num_params:expr, $batch_size:expr) => {
-        cost_instr_no_params_with_batch_size!($name, $batch_size).saturating_sub(
-            (cost_instr_no_params_with_batch_size!(instr_i64const, $batch_size) / 2)
-                .saturating_mul($num_params),
-        )
-    };
-}
-
-macro_rules! cost_instr {
-    ($name:ident, $num_params:expr) => {
-        cost_instr_with_batch_size!($name, $num_params, INSTR_BENCHMARK_BATCH_SIZE)
+macro_rules! cost_instr_batched {
+    ($name:ident) => {
+        (cost_args!($name, 1) / INSTR_BENCHMARK_BATCH_SIZE as u64) as u32
     };
 }
 
@@ -525,58 +522,69 @@ impl Default for Limits {
 
 impl<T: Config> Default for InstructionWeights<T> {
     fn default() -> Self {
+        let call = cost_instr_batched!(instr_call);
+        let call_const = cost_instr_batched!(instr_call_const);
+        let i64const = call_const.saturating_sub(call);
+
+        macro_rules! cost {
+            // $name.BenchWeight - $num * I64ConstWeight
+            ($name:ident, $num:expr) => {
+                (cost_instr_batched!($name).saturating_sub((i64const).saturating_mul($num)) as u32)
+            };
+        }
+
         Self {
-            version: 4,
-            i64const: cost_instr!(instr_i64const, 1),
-            i64load: cost_instr!(instr_i64load, 2),
-            i64store: cost_instr!(instr_i64store, 2),
-            select: cost_instr!(instr_select, 4),
-            r#if: cost_instr!(instr_if, 3),
-            br: cost_instr!(instr_br, 2),
-            br_if: cost_instr!(instr_br_if, 3),
-            br_table: cost_instr!(instr_br_table, 3),
-            br_table_per_entry: cost_instr!(instr_br_table_per_entry, 0),
-            call: cost_instr!(instr_call, 2),
-            call_indirect: cost_instr!(instr_call_indirect, 3),
-            call_indirect_per_param: cost_instr!(instr_call_indirect_per_param, 1),
-            local_get: cost_instr!(instr_local_get, 1),
-            local_set: cost_instr!(instr_local_set, 1),
-            local_tee: cost_instr!(instr_local_tee, 2),
-            global_get: cost_instr!(instr_global_get, 1),
-            global_set: cost_instr!(instr_global_set, 1),
-            memory_current: cost_instr!(instr_memory_current, 1),
-            i64clz: cost_instr!(instr_i64clz, 2),
-            i64ctz: cost_instr!(instr_i64ctz, 2),
-            i64popcnt: cost_instr!(instr_i64popcnt, 2),
-            i64eqz: cost_instr!(instr_i64eqz, 2),
-            i64extendsi32: cost_instr!(instr_i64extendsi32, 2),
-            i64extendui32: cost_instr!(instr_i64extendui32, 2),
-            i32wrapi64: cost_instr!(instr_i32wrapi64, 2),
-            i64eq: cost_instr!(instr_i64eq, 3),
-            i64ne: cost_instr!(instr_i64ne, 3),
-            i64lts: cost_instr!(instr_i64lts, 3),
-            i64ltu: cost_instr!(instr_i64ltu, 3),
-            i64gts: cost_instr!(instr_i64gts, 3),
-            i64gtu: cost_instr!(instr_i64gtu, 3),
-            i64les: cost_instr!(instr_i64les, 3),
-            i64leu: cost_instr!(instr_i64leu, 3),
-            i64ges: cost_instr!(instr_i64ges, 3),
-            i64geu: cost_instr!(instr_i64geu, 3),
-            i64add: cost_instr!(instr_i64add, 3),
-            i64sub: cost_instr!(instr_i64sub, 3),
-            i64mul: cost_instr!(instr_i64mul, 3),
-            i64divs: cost_instr!(instr_i64divs, 3),
-            i64divu: cost_instr!(instr_i64divu, 3),
-            i64rems: cost_instr!(instr_i64rems, 3),
-            i64remu: cost_instr!(instr_i64remu, 3),
-            i64and: cost_instr!(instr_i64and, 3),
-            i64or: cost_instr!(instr_i64or, 3),
-            i64xor: cost_instr!(instr_i64xor, 3),
-            i64shl: cost_instr!(instr_i64shl, 3),
-            i64shrs: cost_instr!(instr_i64shrs, 3),
-            i64shru: cost_instr!(instr_i64shru, 3),
-            i64rotl: cost_instr!(instr_i64rotl, 3),
-            i64rotr: cost_instr!(instr_i64rotr, 3),
+            version: 5,
+            i64const,
+            i64load: cost!(instr_i64load, 0),
+            i64store: cost!(instr_i64store, 0),
+            select: cost!(instr_select, 2),
+            r#if: cost!(instr_if, 0),
+            br: cost!(instr_br, 0),
+            br_if: cost!(instr_br_if, 1),
+            br_table: cost!(instr_br_table, 0),
+            br_table_per_entry: cost!(instr_br_table_per_entry, 0),
+            call,
+            call_indirect: cost!(instr_call_indirect, 0),
+            call_indirect_per_param: cost!(instr_call_indirect_per_param, 1),
+            local_get: cost!(instr_local_get, 0),
+            local_set: cost!(instr_local_set, 1),
+            local_tee: cost!(instr_local_tee, 1),
+            global_get: cost!(instr_global_get, 0),
+            global_set: cost!(instr_global_set, 1),
+            memory_current: cost!(instr_memory_current, 0),
+            i64clz: cost!(instr_i64clz, 1),
+            i64ctz: cost!(instr_i64ctz, 1),
+            i64popcnt: cost!(instr_i64popcnt, 1),
+            i64eqz: cost!(instr_i64eqz, 1),
+            i64extendsi32: cost!(instr_i64extendsi32, 0),
+            i64extendui32: cost!(instr_i64extendui32, 0),
+            i32wrapi64: cost!(instr_i32wrapi64, 1),
+            i64eq: cost!(instr_i64eq, 2),
+            i64ne: cost!(instr_i64ne, 2),
+            i64lts: cost!(instr_i64lts, 2),
+            i64ltu: cost!(instr_i64ltu, 2),
+            i64gts: cost!(instr_i64gts, 2),
+            i64gtu: cost!(instr_i64gtu, 2),
+            i64les: cost!(instr_i64les, 2),
+            i64leu: cost!(instr_i64leu, 2),
+            i64ges: cost!(instr_i64ges, 2),
+            i64geu: cost!(instr_i64geu, 2),
+            i64add: cost!(instr_i64add, 2),
+            i64sub: cost!(instr_i64sub, 2),
+            i64mul: cost!(instr_i64mul, 2),
+            i64divs: cost!(instr_i64divs, 2),
+            i64divu: cost!(instr_i64divu, 2),
+            i64rems: cost!(instr_i64rems, 2),
+            i64remu: cost!(instr_i64remu, 2),
+            i64and: cost!(instr_i64and, 2),
+            i64or: cost!(instr_i64or, 2),
+            i64xor: cost!(instr_i64xor, 2),
+            i64shl: cost!(instr_i64shl, 2),
+            i64shrs: cost!(instr_i64shrs, 2),
+            i64shru: cost!(instr_i64shru, 2),
+            i64rotl: cost!(instr_i64rotl, 2),
+            i64rotr: cost!(instr_i64rotr, 2),
             _phantom: PhantomData,
         }
     }
@@ -589,6 +597,7 @@ impl<T: Config> HostFnWeights<T> {
             free: self.free,
             gr_reserve_gas: self.gr_reserve_gas,
             gr_unreserve_gas: self.gr_unreserve_gas,
+            gr_system_reserve_gas: self.gr_system_reserve_gas,
             gr_gas_available: self.gr_gas_available,
             gr_message_id: self.gr_message_id,
             gr_origin: self.gr_origin,
@@ -607,13 +616,16 @@ impl<T: Config> HostFnWeights<T> {
             gr_send_push_per_byte: self.gr_send_push_per_byte,
             gr_send_commit: self.gr_send_commit,
             gr_send_commit_per_byte: self.gr_send_commit_per_byte,
+            gr_reservation_send_commit: self.gr_reservation_send_commit,
+            gr_reservation_send_commit_per_byte: self.gr_reservation_send_commit_per_byte,
             gr_reply_commit: self.gr_reply_commit,
+            gr_reservation_reply_commit: self.gr_reservation_reply_commit,
             gr_reply_push: self.gr_reply_push,
             gr_reply_push_per_byte: self.gr_reply_push_per_byte,
             gr_debug: self.gr_debug,
             gr_debug_per_byte: self.gr_debug_per_byte,
             gr_reply_to: self.gr_reply_to,
-            gr_exit_code: self.gr_exit_code,
+            gr_status_code: self.gr_status_code,
             gr_exit: self.gr_exit,
             gr_leave: self.gr_leave,
             gr_wait: self.gr_wait,
@@ -633,6 +645,7 @@ impl<T: Config> Default for HostFnWeights<T> {
             alloc: cost_batched!(alloc),
             free: cost_batched!(free),
             gr_reserve_gas: cost_batched!(gr_reserve_gas),
+            gr_system_reserve_gas: cost_batched!(gr_system_reserve_gas),
             gr_unreserve_gas: cost_batched!(gr_unreserve_gas),
             gr_gas_available: cost_batched!(gr_gas_available),
             gr_message_id: cost_batched!(gr_message_id),
@@ -652,13 +665,18 @@ impl<T: Config> Default for HostFnWeights<T> {
             gr_send_push_per_byte: cost_byte_batched!(gr_send_push_per_kb),
             gr_send_commit: cost_batched!(gr_send_commit),
             gr_send_commit_per_byte: cost_byte_batched!(gr_send_commit_per_kb),
+            gr_reservation_send_commit: cost_batched!(gr_reservation_send_commit),
+            gr_reservation_send_commit_per_byte: cost_byte_batched!(
+                gr_reservation_send_commit_per_kb
+            ),
             gr_reply_commit: cost_batched!(gr_reply_commit),
+            gr_reservation_reply_commit: cost_batched!(gr_reservation_reply_commit),
             gr_reply_push: cost_batched!(gr_reply_push),
             gr_reply_push_per_byte: cost_byte_batched!(gr_reply_push_per_kb),
             gr_debug: cost_batched!(gr_debug),
             gr_debug_per_byte: cost_byte_batched!(gr_debug_per_kb),
             gr_reply_to: cost_batched!(gr_reply_to),
-            gr_exit_code: cost_batched!(gr_exit_code),
+            gr_status_code: cost_batched!(gr_status_code),
             gr_exit: cost!(gr_exit),
             gr_leave: cost!(gr_leave),
             gr_wait: cost!(gr_wait),
@@ -722,8 +740,8 @@ impl<'a, T: Config> gas_metering::Rules for ScheduleRules<'a, T> {
         let max_params = self.schedule.limits.parameters;
 
         let weight = match *instruction {
-            End | Unreachable | Return | Else => 0,
-            I32Const(_) | I64Const(_) | Block(_) | Loop(_) | Nop | Drop => w.i64const,
+            End | Unreachable | Return | Else | Block(_) | Loop(_) | Nop | Drop => 0,
+            I32Const(_) | I64Const(_) => w.i64const,
             I32Load(_, _)
             | I32Load8S(_, _)
             | I32Load8U(_, _)

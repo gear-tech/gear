@@ -48,5 +48,5 @@ fixtures:
             source:
               kind: id
               value: 1
-            exitCode: 2
+            statusCode: 2
             value: 0

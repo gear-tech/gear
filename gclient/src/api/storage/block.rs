@@ -18,8 +18,8 @@
 
 use super::{GearApi, Result};
 use crate::Error;
-use gp::api::generated::api::runtime_types::gear_runtime::RuntimeEvent;
-use subxt::{
+use gp::api::generated::api::{runtime_types::gear_runtime::RuntimeEvent, storage};
+use subxt::ext::{
     sp_core::H256,
     sp_runtime::{
         generic::{Block, Header},
@@ -42,7 +42,6 @@ impl GearApi {
     async fn get_block_at(&self, block_hash: Option<H256>) -> Result<GearBlock> {
         Ok(self
             .0
-            .client
             .rpc()
             .block(block_hash)
             .await?
@@ -51,12 +50,14 @@ impl GearApi {
     }
 
     async fn get_events_at(&self, block_hash: Option<H256>) -> Result<Vec<RuntimeEvent>> {
+        let at = storage().system().events();
+
         Ok(self
             .0
             .storage()
-            .system()
-            .events(block_hash)
+            .fetch(&at, block_hash)
             .await?
+            .ok_or(Error::StorageNotFound)?
             .into_iter()
             .map(|ev| ev.event)
             .collect())

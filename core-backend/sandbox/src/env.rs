@@ -143,7 +143,7 @@ where
         builder.add_func(Debug, Funcs::debug);
         builder.add_func(Error, Funcs::error);
         builder.add_func(Exit, Funcs::exit);
-        builder.add_func(ExitCode, Funcs::exit_code);
+        builder.add_func(StatusCode, Funcs::status_code);
         builder.add_func(ReserveGas, Funcs::reserve_gas);
         builder.add_func(UnreserveGas, Funcs::unreserve_gas);
         builder.add_func(GasAvailable, Funcs::gas_available);
@@ -173,6 +173,14 @@ where
         builder.add_func(WaitFor, Funcs::wait_for);
         builder.add_func(WaitUpTo, Funcs::wait_up_to);
         builder.add_func(Wake, Funcs::wake);
+        builder.add_func(SystemReserveGas, Funcs::system_reserve_gas);
+        builder.add_func(ReservationReply, Funcs::reservation_reply);
+        builder.add_func(
+            ReservationReplyCommit,
+            Funcs::reservation_reply_commit,
+        );
+        builder.add_func(ReservationSend, Funcs::reservation_send);
+        builder.add_func(ReservationSendCommit, Funcs::reservation_send_commit);
         let mut env_builder: EnvironmentDefinitionBuilder<_> = builder.into();
 
         let mem: DefaultExecutorMemory = match SandboxMemory::new(mem_size.0, None) {

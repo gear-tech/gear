@@ -25,7 +25,7 @@ use gear_core::{
     gas::GasAmount,
     ids::{MessageId, ProgramId, ReservationId},
     memory::{GrowHandler, Memory, PageNumber, WasmPageNumber},
-    message::{ExitCode, HandlePacket, InitPacket, ReplyPacket},
+    message::{HandlePacket, InitPacket, ReplyPacket, StatusCode},
 };
 use gear_core_errors::{ExtError, MemoryError};
 use gear_lazy_pages_common as lazy_pages;
@@ -172,8 +172,27 @@ impl EnvExt for LazyPagesExt {
         self.inner.send_commit(handle, msg, delay)
     }
 
+    fn reservation_send_commit(
+        &mut self,
+        id: ReservationId,
+        handle: u32,
+        msg: HandlePacket,
+        delay: u32,
+    ) -> Result<MessageId, Self::Error> {
+        self.inner.reservation_send_commit(id, handle, msg, delay)
+    }
+
     fn reply_commit(&mut self, msg: ReplyPacket, delay: u32) -> Result<MessageId, Self::Error> {
         self.inner.reply_commit(msg, delay)
+    }
+
+    fn reservation_reply_commit(
+        &mut self,
+        id: ReservationId,
+        msg: ReplyPacket,
+        delay: u32,
+    ) -> Result<MessageId, Self::Error> {
+        self.inner.reservation_reply_commit(id, msg, delay)
     }
 
     fn reply_to(&mut self) -> Result<MessageId, Self::Error> {
@@ -188,8 +207,8 @@ impl EnvExt for LazyPagesExt {
         self.inner.exit()
     }
 
-    fn exit_code(&mut self) -> Result<ExitCode, Self::Error> {
-        self.inner.exit_code()
+    fn status_code(&mut self) -> Result<StatusCode, Self::Error> {
+        self.inner.status_code()
     }
 
     fn message_id(&mut self) -> Result<MessageId, Self::Error> {
@@ -234,6 +253,10 @@ impl EnvExt for LazyPagesExt {
 
     fn unreserve_gas(&mut self, id: ReservationId) -> Result<u64, Self::Error> {
         self.inner.unreserve_gas(id)
+    }
+
+    fn system_reserve_gas(&mut self, amount: u64) -> Result<(), Self::Error> {
+        self.inner.system_reserve_gas(amount)
     }
 
     fn gas_available(&mut self) -> Result<u64, Self::Error> {

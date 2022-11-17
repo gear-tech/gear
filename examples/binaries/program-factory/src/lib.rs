@@ -91,7 +91,7 @@ mod wasm {
 
     #[no_mangle]
     unsafe extern "C" fn handle_reply() {
-        if msg::exit_code().unwrap() != 0 {
+        if msg::status_code().unwrap() != 0 {
             let origin = ORIGIN.clone().unwrap();
             msg::send_bytes(origin, [], 0).unwrap();
         }

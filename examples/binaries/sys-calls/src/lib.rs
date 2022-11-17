@@ -317,18 +317,18 @@ mod wasm {
 
     #[no_mangle]
     extern "C" fn handle_reply() {
-        if let Ok(Kind::ReplyDetails(expected_reply_to, expected_exit_code)) = msg::load() {
+        if let Ok(Kind::ReplyDetails(expected_reply_to, expected_status_code)) = msg::load() {
             let actual_reply_to = msg::reply_to();
             assert_eq!(
                 Ok(expected_reply_to.into()),
                 actual_reply_to,
                 "SysCall::ReplyDetails: reply_to test failed"
             );
-            let actual_exit_code = msg::exit_code();
+            let actual_status_code = msg::status_code();
             assert_eq!(
-                Ok(expected_exit_code),
-                actual_exit_code,
-                "SysCall::ReplyDetails: exit_code test failed"
+                Ok(expected_status_code),
+                actual_status_code,
+                "SysCall::ReplyDetails: status test failed"
             );
 
             // Report test executed successfully

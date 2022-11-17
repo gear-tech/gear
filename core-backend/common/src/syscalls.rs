@@ -33,6 +33,9 @@ pub enum SysCalls {
     SendCommitWGas,
     SendInit,
     SendPush,
+    ReservationSend,
+    ReservationSendCommit,
+    
     // Sending `handle_reply` message
     Reply,
     ReplyWGas,
@@ -40,6 +43,8 @@ pub enum SysCalls {
     ReplyCommitWGas,
     ReplyTo,
     ReplyPush,
+    ReservationReply,
+    ReservationReplyCommit,
     // Sending `init` message
     CreateProgram,
     CreateProgramWGas,
@@ -47,7 +52,7 @@ pub enum SysCalls {
     // Message data related
     Read,
     Size,
-    ExitCode,
+    StatusCode,
     MessageId,
     ProgramId,
     Source,
@@ -81,6 +86,7 @@ pub enum SysCalls {
     Random,
     ReserveGas,
     UnreserveGas,
+    SystemReserveGas,
 }
 
 impl SysCalls {
@@ -102,7 +108,7 @@ impl SysCalls {
             SysCalls::CreateProgramWGas => "gr_create_program_wgas",
             SysCalls::Read => "gr_read",
             SysCalls::Size => "gr_size",
-            SysCalls::ExitCode => "gr_exit_code",
+            SysCalls::StatusCode => "gr_status_code",
             SysCalls::MessageId => "gr_message_id",
             SysCalls::ProgramId => "gr_program_id",
             SysCalls::Source => "gr_source",
@@ -127,6 +133,11 @@ impl SysCalls {
             SysCalls::Random => "gr_random",
             SysCalls::ReserveGas => "gr_reserve_gas",
             SysCalls::UnreserveGas => "gr_unreserve_gas",
+            SysCalls::ReservationSend => "gr_reservation_send",
+            SysCalls::ReservationSendCommit => "gr_reservation_send_commit",
+            SysCalls::ReservationReply => "gr_reservation_reply",
+            SysCalls::ReservationReplyCommit => "gr_reservation_reply_commit",
+            SysCalls::SystemReserveGas => "gr_system_reserve_gas",
         }
     }
 

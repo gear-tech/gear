@@ -19,7 +19,7 @@
 use crate::{
     common::{
         Actor, DispatchOutcome, DispatchResult, DispatchResultKind, ExecutableActorData,
-        ExecutionErrorReason, JournalNote, PrechargedDispatch, WasmExecutionContext,
+        ExecutionErrorReason, GasOperation, JournalNote, PrechargedDispatch, WasmExecutionContext,
     },
     configs::{BlockConfig, ExecutionSettings, MessageExecutionContext},
     executor,
@@ -27,7 +27,7 @@ use crate::{
 };
 use alloc::{boxed::Box, collections::BTreeMap, string::ToString, vec::Vec};
 use codec::Encode;
-use gear_backend_common::{Environment, IntoExtInfo};
+use gear_backend_common::{Environment, IntoExtInfo, SystemReservationContext};
 use gear_core::{
     code::InstrumentedCode,
     env::Ext as EnvExt,
@@ -35,8 +35,8 @@ use gear_core::{
     ids::ProgramId,
     memory::{PageBuf, PageNumber, WasmPageNumber},
     message::{
-        ContextSettings, DispatchKind, ExitCode, IncomingDispatch, MessageWaitedType, ReplyMessage,
-        StoredDispatch,
+        ContextSettings, DispatchKind, IncomingDispatch, MessageWaitedType, ReplyMessage,
+        StatusCode, StoredDispatch,
     },
     program::Program,
     reservation::{GasReservationState, GasReserver},
@@ -160,7 +160,14 @@ fn prepare_error(
     err: ExecutionErrorReason,
 ) -> PrepareResult {
     let gas_burned = gas_counter.burned();
-    PrepareResult::Error(process_error(dispatch, program_id, gas_burned, err))
+    let system_reservation_ctx = SystemReservationContext::from_dispatch(&dispatch);
+    PrepareResult::Error(process_error(
+        dispatch,
+        program_id,
+        gas_burned,
+        system_reservation_ctx,
+        err,
+    ))
 }
 
 fn prepare_allowance_exceed(
@@ -204,11 +211,13 @@ pub fn precharge(
         Ok => PrechargeResult::Ok((dispatch, gas_counter, gas_allowance_counter).into()),
         GasExceeded => {
             let gas_burned = gas_counter.burned();
+            let system_reservation_ctx = SystemReservationContext::from_dispatch(&dispatch);
             PrechargeResult::Error(process_error(
                 dispatch,
                 destination_id,
                 gas_burned,
-                ExecutionErrorReason::ProgramDataGasExceeded,
+                system_reservation_ctx,
+                ExecutionErrorReason::GasExceeded(GasOperation::ProgramData),
             ))
         }
         BlockGasExceeded => {
@@ -251,8 +260,8 @@ pub fn prepare(
     let (dispatch, mut gas_counter, mut gas_allowance_counter) = precharged_dispatch.into_parts();
 
     let actor_data = match check_is_executable(executable_data, &dispatch) {
-        Err(exit_code) => {
-            return PrepareResult::Error(process_non_executable(dispatch, program_id, exit_code));
+        Err(status_code) => {
+            return PrepareResult::Error(process_non_executable(dispatch, program_id, status_code));
         }
         Ok(data) => data,
     };
@@ -277,7 +286,7 @@ pub fn prepare(
                 dispatch,
                 program_id,
                 gas_counter,
-                ExecutionErrorReason::ProgramCodeGasExceeded,
+                ExecutionErrorReason::GasExceeded(GasOperation::ProgramCode),
             );
         }
         ChargeForBytesResult::BlockGasExceeded => {
@@ -311,12 +320,12 @@ pub fn prepare(
         Err(reason) => {
             log::debug!("Failed to charge for module instantiation or memory pages: {reason:?}");
             return match reason {
-                ExecutionErrorReason::InitialMemoryBlockGasExceeded
-                | ExecutionErrorReason::GrowMemoryBlockGasExceeded
-                | ExecutionErrorReason::LoadMemoryBlockGasExceeded
-                | ExecutionErrorReason::ModuleInstantiationBlockGasExceeded => {
-                    prepare_allowance_exceed(dispatch, program_id, gas_counter)
-                }
+                ExecutionErrorReason::BlockGasExceeded(
+                    GasOperation::InitialMemory
+                    | GasOperation::GrowMemory
+                    | GasOperation::LoadMemory
+                    | GasOperation::ModuleInstantiation,
+                ) => prepare_allowance_exceed(dispatch, program_id, gas_counter),
                 _ => prepare_error(dispatch, program_id, gas_counter, reason),
             };
         }
@@ -424,6 +433,7 @@ pub fn process<
                 res.dispatch,
                 program_id,
                 res.gas_amount.burned(),
+                res.system_reservation_context,
                 ExecutionErrorReason::Ext(reason),
             ),
             DispatchResultKind::Success => process_success(Success, res),
@@ -438,12 +448,16 @@ pub fn process<
             }
         },
         Err(e) => match e.reason {
-            ExecutionErrorReason::InitialMemoryBlockGasExceeded
-            | ExecutionErrorReason::GrowMemoryBlockGasExceeded
-            | ExecutionErrorReason::LoadMemoryBlockGasExceeded => {
-                process_allowance_exceed(dispatch, program_id, e.gas_amount.burned())
-            }
-            _ => process_error(dispatch, program_id, e.gas_amount.burned(), e.reason),
+            ExecutionErrorReason::BlockGasExceeded(
+                GasOperation::InitialMemory | GasOperation::GrowMemory | GasOperation::LoadMemory,
+            ) => process_allowance_exceed(dispatch, program_id, e.gas_amount.burned()),
+            _ => process_error(
+                dispatch,
+                program_id,
+                e.gas_amount.burned(),
+                SystemReservationContext::default(),
+                e.reason,
+            ),
         },
     }
 }
@@ -451,16 +465,16 @@ pub fn process<
 fn check_is_executable(
     executable_data: Option<ExecutableActorData>,
     dispatch: &IncomingDispatch,
-) -> Result<ExecutableActorData, ExitCode> {
+) -> Result<ExecutableActorData, StatusCode> {
     executable_data
         .map(|data| {
             if data.initialized & matches!(dispatch.kind(), DispatchKind::Init) {
-                Err(crate::RE_INIT_EXIT_CODE)
+                Err(crate::RE_INIT_STATUS_CODE)
             } else {
                 Ok(data)
             }
         })
-        .unwrap_or(Err(crate::UNAVAILABLE_DEST_EXIT_CODE))
+        .unwrap_or(Err(crate::UNAVAILABLE_DEST_STATUS_CODE))
 }
 
 /// Helper function for journal creation in trap/error case
@@ -468,6 +482,7 @@ fn process_error(
     dispatch: IncomingDispatch,
     program_id: ProgramId,
     gas_burned: u64,
+    system_reservation_ctx: SystemReservationContext,
     err: ExecutionErrorReason,
 ) -> Vec<JournalNote> {
     let mut journal = Vec::new();
@@ -497,7 +512,24 @@ fn process_error(
         });
     }
 
-    if !dispatch.is_error_reply() {
+    if let Some(amount) = system_reservation_ctx.current_reservation {
+        journal.push(JournalNote::SystemReserveGas { message_id, amount });
+    }
+
+    if system_reservation_ctx.has_any() {
+        if !dispatch.is_error_reply()
+            && !matches!(dispatch.kind(), DispatchKind::Signal | DispatchKind::Init)
+        {
+            journal.push(JournalNote::SendSignal {
+                message_id,
+                destination: program_id,
+            });
+        }
+
+        journal.push(JournalNote::SystemUnreserveGas { message_id });
+    }
+
+    if !dispatch.is_error_reply() && dispatch.kind() != DispatchKind::Signal {
         // This expect panic is unreachable, unless error message is too large or max payload size is too small.
         let err_payload = err.encode().try_into().expect("Error message is too large");
         // # Safety
@@ -506,13 +538,14 @@ fn process_error(
         // 2. This reply message is generated by our system
         //
         // So, the message id of this reply message will not be duplicated.
-        let dispatch = ReplyMessage::system(dispatch.id(), err_payload, crate::ERR_EXIT_CODE)
+        let dispatch = ReplyMessage::system(dispatch.id(), err_payload, crate::ERR_STATUS_CODE)
             .into_dispatch(program_id, dispatch.source(), dispatch.id());
 
         journal.push(JournalNote::SendDispatch {
             message_id,
             dispatch,
             delay: 0,
+            reservation: None,
         });
     }
 
@@ -552,6 +585,7 @@ fn process_success(
         program_candidates,
         gas_amount,
         gas_reserver,
+        system_reservation_context,
         page_update,
         program_id,
         context_store,
@@ -574,15 +608,15 @@ fn process_success(
         journal.extend(gas_reserver.states().iter().flat_map(
             |(&reservation_id, &state)| match state {
                 GasReservationState::Exists { .. } => None,
-                GasReservationState::Created { amount, duration } => {
-                    Some(JournalNote::ReserveGas {
-                        message_id,
-                        reservation_id,
-                        program_id,
-                        amount,
-                        duration,
-                    })
-                }
+                GasReservationState::Created {
+                    amount, duration, ..
+                } => Some(JournalNote::ReserveGas {
+                    message_id,
+                    reservation_id,
+                    program_id,
+                    amount,
+                    duration,
+                }),
                 GasReservationState::Removed { expiration } => Some(JournalNote::UnreserveGas {
                     reservation_id,
                     program_id,
@@ -595,6 +629,10 @@ fn process_success(
             program_id,
             reserver: gas_reserver,
         });
+    }
+
+    if let Some(amount) = system_reservation_context.current_reservation {
+        journal.push(JournalNote::SystemReserveGas { message_id, amount });
     }
 
     // We check if value is greater than zero to don't provide
@@ -621,11 +659,12 @@ fn process_success(
         });
     }
 
-    for (dispatch, delay) in generated_dispatches {
+    for (dispatch, delay, reservation) in generated_dispatches {
         journal.push(JournalNote::SendDispatch {
             message_id,
             dispatch,
             delay,
+            reservation,
         });
     }
 
@@ -677,6 +716,10 @@ fn process_success(
         }
     };
 
+    if system_reservation_context.has_any() {
+        journal.push(JournalNote::SystemUnreserveGas { message_id });
+    }
+
     journal.push(JournalNote::MessageDispatched {
         message_id,
         source: origin,
@@ -709,7 +752,7 @@ fn process_allowance_exceed(
 fn process_non_executable(
     dispatch: IncomingDispatch,
     program_id: ProgramId,
-    exit_code: ExitCode,
+    status_code: StatusCode,
 ) -> Vec<JournalNote> {
     // Number of notes is predetermined
     let mut journal = Vec::with_capacity(4);
@@ -740,7 +783,7 @@ fn process_non_executable(
         // 2. This reply message is generated by our system
         //
         // So, the message id of this reply message will not be duplicated.
-        let dispatch = ReplyMessage::system(dispatch.id(), err_payload, exit_code).into_dispatch(
+        let dispatch = ReplyMessage::system(dispatch.id(), err_payload, status_code).into_dispatch(
             program_id,
             dispatch.source(),
             dispatch.id(),
@@ -750,6 +793,7 @@ fn process_non_executable(
             message_id,
             dispatch,
             delay: 0,
+            reservation: None,
         });
     }
 

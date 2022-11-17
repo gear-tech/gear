@@ -27,14 +27,14 @@
 
 use gear_core_errors::ExtError;
 
-use crate::{error::Result, ActorId, MessageHandle, MessageId};
+use crate::{error::Result, ActorId, MessageHandle, MessageId, ReservationId};
 use core::mem::MaybeUninit;
 
 mod sys {
     use crate::{error::SyscallError, MessageHandle};
 
     extern "C" {
-        pub fn gr_exit_code(exit_code_ptr: *mut i32) -> SyscallError;
+        pub fn gr_status_code(status_code_ptr: *mut i32) -> SyscallError;
 
         pub fn gr_message_id(message_id_ptr: *mut [u8; 32]);
 
@@ -75,6 +75,24 @@ mod sys {
         ) -> SyscallError;
 
         pub fn gr_reply_push(payload_ptr: *const u8, payload_len: u32) -> SyscallError;
+
+        #[allow(improper_ctypes)]
+        pub fn gr_reservation_reply(
+            reservation_id_ptr: *const [u8; 32],
+            payload_ptr: *const u8,
+            payload_len: u32,
+            value_ptr: *const u128,
+            delay: u32,
+            message_id_ptr: *mut [u8; 32],
+        ) -> SyscallError;
+
+        #[allow(improper_ctypes)]
+        pub fn gr_reservation_reply_commit(
+            reservation_id_ptr: *const [u8; 32],
+            value_ptr: *const u128,
+            delay: u32,
+            message_id_ptr: *mut [u8; 32],
+        ) -> SyscallError;
 
         pub fn gr_reply_to(message_id_ptr: *mut [u8; 32]) -> SyscallError;
 
@@ -126,6 +144,52 @@ mod sys {
             payload_len: u32,
         ) -> SyscallError;
 
+        #[allow(improper_ctypes)]
+        pub fn gr_reservation_send(
+            reservation_id_ptr: *const [u8; 32],
+            destination_ptr: *const [u8; 32],
+            payload_ptr: *const u8,
+            payload_len: u32,
+            value_ptr: *const u128,
+            delay: u32,
+            message_id_ptr: *mut [u8; 32],
+        ) -> SyscallError;
+
+        // TODO: gasful sending (#1828)
+        /*#[allow(improper_ctypes)]
+        pub fn gr_reservation_send_wgas(
+            reservation_id_ptr: *const [u8; 32],
+            destination_ptr: *const [u8; 32],
+            payload_ptr: *const u8,
+            data_len: u32,
+            gas_limit: u64,
+            value_ptr: *const u128,
+            delay: u32,
+            message_id_ptr: *mut [u8; 32],
+        ) -> SyscallError;*/
+
+        #[allow(improper_ctypes)]
+        pub fn gr_reservation_send_commit(
+            reservation_id_ptr: *const [u8; 32],
+            handle: MessageHandle,
+            destination_ptr: *const [u8; 32],
+            value_ptr: *const u128,
+            delay: u32,
+            message_id_ptr: *mut [u8; 32],
+        ) -> SyscallError;
+
+        // TODO: gasful sending (#1828)
+        /*#[allow(improper_ctypes)]
+        pub fn gr_reservation_send_commit_wgas(
+            reservation_id_ptr: *const [u8; 32],
+            handle: MessageHandle,
+            destination_ptr: *const [u8; 32],
+            gas_limit: u64,
+            value_ptr: *const u128,
+            delay: u32,
+            message_id_ptr: *mut [u8; 32],
+        ) -> SyscallError;*/
+
         pub fn gr_size() -> u32;
 
         pub fn gr_source(source_ptr: *mut [u8; 32]);
@@ -135,7 +199,7 @@ mod sys {
     }
 }
 
-/// Get the exit code of the message being processed.
+/// Get the status code of the message being processed.
 ///
 /// This function is used in reply handler to check the message
 /// was processed successfully or not.
@@ -147,13 +211,13 @@ mod sys {
 ///
 /// unsafe extern "C" fn handle_reply() {
 ///     // ...
-///     let exit_code = msg::exit_code().unwrap();
+///     let status_code = msg::status_code().unwrap();
 /// }
 /// ```
-pub fn exit_code() -> Result<i32> {
+pub fn status_code() -> Result<i32> {
     let mut bytes = 0i32.to_le_bytes();
 
-    unsafe { sys::gr_exit_code(bytes.as_mut_ptr() as *mut i32).into_result()? }
+    unsafe { sys::gr_status_code(bytes.as_mut_ptr() as *mut i32).into_result()? }
 
     Ok(i32::from_le_bytes(bytes))
 }
@@ -254,6 +318,73 @@ pub fn reply_delayed(payload: &[u8], value: u128, delay: u32) -> Result<MessageI
 
     unsafe {
         sys::gr_reply(
+            payload.as_ptr(),
+            payload_len,
+            value.to_le_bytes().as_ptr() as *const u128,
+            delay,
+            message_id.as_mut_ptr(),
+        )
+        .into_result()?
+    }
+
+    Ok(message_id)
+}
+
+/// Send a new message as a reply to the message currently being processed.
+///
+/// Some programs can reply to other programs, i.e. check another program's
+/// state and use it as a parameter for its own business logic [`MessageId`].
+/// This function allows sending such replies, which are similar to standard
+/// messages in terms of payload and different only in the way the message
+/// processing is handled by a separate program function called
+/// `handle_reply`.
+///
+/// First argument is reservation ID.
+/// Second argument is the reply message payload in bytes.
+/// Third argument is
+/// Last argument `value` is the value to be transferred from the current
+/// program account to the reply message target account.
+///
+/// Reply message transactions will be posted only after processing is finished,
+/// similar to the standard message [`send_from_reservation`](crate::msg::send).
+///
+/// # Examples
+///
+/// ```
+/// use gcore::{exec, msg};
+///
+/// unsafe extern "C" fn handle() {
+///     // ...
+///     let id = exec::reserve_gas(5_000_000, 100).expect("enough gas");
+///     // ...
+///     msg::reply_from_reservation(id, b"PING", 0).unwrap();
+/// }
+/// ```
+///
+/// # See also
+///
+/// [`reply_push`] function allows to form a reply message in parts.
+pub fn reply_from_reservation(id: ReservationId, payload: &[u8], value: u128) -> Result<MessageId> {
+    reply_delayed_from_reservation(id, payload, value, 0)
+}
+
+/// Same as [`reply_from_reservation`], but sends delayed.
+pub fn reply_delayed_from_reservation(
+    id: ReservationId,
+    payload: &[u8],
+    value: u128,
+    delay: u32,
+) -> Result<MessageId> {
+    let mut message_id = MessageId::default();
+
+    let payload_len = payload
+        .len()
+        .try_into()
+        .map_err(|_| ExtError::SyscallUsage)?;
+
+    unsafe {
+        sys::gr_reservation_reply(
+            id.as_ptr(),
             payload.as_ptr(),
             payload_len,
             value.to_le_bytes().as_ptr() as *const u128,
@@ -406,6 +537,61 @@ pub fn reply_commit_with_gas_delayed(gas_limit: u64, value: u128, delay: u32) ->
     Ok(message_id)
 }
 
+/// Some programs can reply on their messages to other programs from
+/// reservation, i.e. check another program's state and use it as a parameter
+/// for its own business logic. Basic implementation is covered in
+/// [`reply`](crate::msg::reply_from_reservation) function.
+///
+/// This function allows sending reply messages filled with payload parts sent
+/// via [`reply_push`] during the message handling. Finalization of the
+/// reply message is done via [`reply_commit_from_reservation`] function similar
+/// to [`send_commit_from_reservation`].
+///
+/// # Examples
+///
+/// ```
+/// use gcore::{exec, msg};
+///
+/// unsafe extern "C" fn handle() {
+///     // ...
+///     let id = exec::reserve_gas(5_000_000, 100).expect("enough gas");
+///     // ...
+///     msg::reply_push(b"Part 1").unwrap();
+///     // ...
+///     msg::reply_push(b"Part 2").unwrap();
+///     // ...
+///     msg::reply_commit_from_reservation(id, 42).unwrap();
+/// }
+/// ```
+///
+/// # See also
+///
+/// [`reply_push`] function allows to form a reply message in parts.
+pub fn reply_commit_from_reservation(id: ReservationId, value: u128) -> Result<MessageId> {
+    reply_commit_delayed_from_reservation(id, value, 0)
+}
+
+/// Same as [`reply_commit_from_reservation`], but sends delayed.
+pub fn reply_commit_delayed_from_reservation(
+    id: ReservationId,
+    value: u128,
+    delay: u32,
+) -> Result<MessageId> {
+    let mut message_id = MessageId::default();
+
+    unsafe {
+        sys::gr_reservation_reply_commit(
+            id.as_ptr(),
+            value.to_le_bytes().as_ptr() as *const u128,
+            delay,
+            message_id.as_mut_ptr(),
+        )
+        .into_result()?
+    }
+
+    Ok(message_id)
+}
+
 /// Push a payload part to the current reply message.
 ///
 /// Some programs can reply on their messages to other programs, i.e. check
@@ -462,6 +648,153 @@ pub fn reply_to() -> Result<MessageId> {
     let mut message_id = MessageId::default();
 
     unsafe { sys::gr_reply_to(message_id.as_mut_ptr()).into_result()? }
+
+    Ok(message_id)
+}
+
+/// Send a new message to the program or user from reservation.
+///
+/// Gear allows programs to communicate to each other and users via messages.
+/// [`send_from_reservation`](crate::msg::send_from_reservation) function allows
+/// sending such messages.
+///
+/// First argument is reservation ID.
+/// Second argument is the address of the target account.
+/// Third argument is message payload in bytes.
+/// Last argument is the value to be transferred from the current program
+/// account to the message target account.
+/// Send transaction will be posted only after the execution of processing is
+/// finished, similar to the reply message [`reply`](crate::msg::reply).
+///
+/// # Examples
+///
+/// ```
+/// use gcore::{exec, msg, ActorId};
+///
+/// unsafe extern "C" fn handle() {
+///     // ...
+///     let id = exec::reserve_gas(5_000_000, 100).expect("enough gas");
+///     let mut actor_id: [u8; 32] = [0; 32];
+///     for i in 0..actor_id.len() {
+///         actor_id[i] = i as u8;
+///     }
+///
+///     msg::send_from_reservation(id, ActorId(actor_id), b"HELLO", 12345678)
+///         .expect("successful sending");
+/// }
+/// ```
+///
+/// # See also
+///
+/// [`send_init`],[`send_push`], [`send_commit_from_reservation`] functions
+/// allows to form a message to send in parts.
+pub fn send_from_reservation(
+    reservation_id: ReservationId,
+    destination: ActorId,
+    payload: &[u8],
+    value: u128,
+) -> Result<MessageId> {
+    send_delayed_from_reservation(reservation_id, destination, payload, value, 0)
+}
+
+/// Same as [`send_from_reservation`], but sends delayed.
+pub fn send_delayed_from_reservation(
+    reservation_id: ReservationId,
+    destination: ActorId,
+    payload: &[u8],
+    value: u128,
+    delay: u32,
+) -> Result<MessageId> {
+    let mut message_id = MessageId::default();
+
+    let payload_len = payload
+        .len()
+        .try_into()
+        .map_err(|_| ExtError::SyscallUsage)?;
+
+    unsafe {
+        sys::gr_reservation_send(
+            reservation_id.as_ptr(),
+            destination.as_ptr(),
+            payload.as_ptr(),
+            payload_len,
+            value.to_le_bytes().as_ptr() as *const u128,
+            delay,
+            message_id.as_mut_ptr(),
+        )
+        .into_result()?
+    }
+
+    Ok(message_id)
+}
+
+/// Finalize and send message formed in parts from reservation.
+///
+/// Gear allows programs to work with messages that consist of several parts.
+/// This function finalizes the message built in parts and sends it.
+///
+/// First argument is reservation ID.
+/// Second argument is the message handle [MessageHandle] which specifies a
+/// particular message built in parts.
+/// Third argument is the address of the target account.
+/// Fourth argument is gas_limit - maximum gas allowed to be utilized during
+/// reply message processing.
+/// Last argument is the value to be transferred from the current program
+/// account to the message target account.
+/// Send transaction will be posted only after the execution of processing is
+/// finished.
+///
+/// # Examples
+///
+/// ```
+/// use gcore::{exec, msg};
+///
+/// unsafe extern "C" fn handle() {
+///     // ...
+///     let id = exec::reserve_gas(5_000_000, 100).expect("enough gas");
+///     let msg_handle = msg::send_init().unwrap();
+///     msg::send_push(msg_handle, b"PING");
+///     msg::send_commit_from_reservation(id, msg_handle, msg::source(), 42);
+/// }
+/// ```
+///
+/// # See also
+///
+/// [`send_from_reservation`](crate::msg::send_from_reservation) allows to send
+/// message in one step.
+///
+/// [`send_push`], [`send_init`] functions allows to form a message to send in
+/// parts.
+pub fn send_commit_from_reservation(
+    reservation_id: ReservationId,
+    handle: MessageHandle,
+    destination: ActorId,
+    value: u128,
+) -> Result<MessageId> {
+    send_commit_delayed_from_reservation(reservation_id, handle, destination, value, 0)
+}
+
+/// Same as [`send_commit_from_reservation`], but sends delayed.
+pub fn send_commit_delayed_from_reservation(
+    reservation_id: ReservationId,
+    handle: MessageHandle,
+    destination: ActorId,
+    value: u128,
+    delay: u32,
+) -> Result<MessageId> {
+    let mut message_id = MessageId::default();
+
+    unsafe {
+        sys::gr_reservation_send_commit(
+            reservation_id.as_ptr(),
+            handle,
+            destination.as_ptr(),
+            value.to_le_bytes().as_ptr() as *const u128,
+            delay,
+            message_id.as_mut_ptr(),
+        )
+        .into_result()?
+    }
 
     Ok(message_id)
 }
