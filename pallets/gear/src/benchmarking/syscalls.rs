@@ -544,12 +544,9 @@ where
                     Instruction::I32Const(payload_len as i32),
                     // CALL init
                     Instruction::Call(0),
-                    // TODO: fix me
-                    // // ptr with handle (+4 bytes offset u32 err len first)
-                    // // load handle
-                    // // Instruction::I32Load(0, payload_len + 4),
                     // handle
-                    Instruction::I32Const(0),
+                    Instruction::I32Const((payload_len + 4) as i32),
+                    Instruction::I32Load(2, 0),
                     // payload ptr
                     Instruction::I32Const(payload_offset as i32),
                     // payload len
@@ -584,12 +581,9 @@ where
                     Instruction::I32Const(handle_offset as i32),
                     // CALL init
                     Instruction::Call(0),
-                    // TODO: fix me
-                    // // ptr on handle (4 bytes offset u32 err len first)
-                    // // load handle
-                    // // Instruction::I32Load(0, handle_offset + 4),
                     // handle
-                    Instruction::I32Const(0),
+                    Instruction::I32Const((handle_offset + 4) as i32),
+                    Instruction::I32Load(2, 0),
                     // payload ptr
                     Instruction::I32Const(payload_offset as i32),
                     // payload len
