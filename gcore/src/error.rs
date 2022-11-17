@@ -34,7 +34,7 @@ impl SyscallError {
         Ok(())
     }
 
-    // TODO (breathx): unchecked get.
+    // TODO: issue #1859
     // We get an error using `gr_error` syscall which expects
     // the error occurred earlier in another syscall or you'll get trap.
     // Error decoding is expected to be successful because we use
