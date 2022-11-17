@@ -348,10 +348,14 @@ proptest! {
         let mut unspec_ref_nodes = BTreeSet::new();
         // Nodes that were created with `split_with_value` procedure
         let mut spec_ref_nodes = BTreeSet::new();
+        // Nodes on which `system_reserve` was called
+        let mut system_reserve_nodes = BTreeSet::new();
         // Total spent amount with `spent` procedure
         let mut spent = 0;
         // Value caught after `consume` procedure
         let mut caught = 0;
+        // Total system reservations amount.
+        let mut system_reserve = 0;
 
         for action in actions {
             // `Error::<T>::NodeNotFound` can't occur, because of `ring_get` approach
@@ -431,11 +435,18 @@ proptest! {
                             caught += maybe_caught.unwrap_or_default();
                         }
                         Err(e) => {
-                            // double consume has happened
-                            assert!(marked_consumed.contains(&consuming));
-                            assert_eq!(e, Error::NodeWasConsumed);
-
-                            assertions::assert_not_invariant_error(e);
+                            match e {
+                                Error::NodeWasConsumed => {
+                                    // double consume has happened
+                                    assert!(marked_consumed.contains(&consuming));
+                                    assertions::assert_not_invariant_error(e);
+                                }
+                                Error::ConsumedWithSystemReservation if matches!(consuming, GasNodeId::Node(_)) => {
+                                    assert!(system_reserve_nodes.contains(&consuming.to_node_id().unwrap()));
+                                    assertions::assert_not_invariant_error(e);
+                                }
+                                _ => panic!("consumed with unknown error: {:?}", e)
+                            }
                         }
                     }
                 }
@@ -459,6 +470,33 @@ proptest! {
                             assertions::assert_not_invariant_error(e)
                         } else {
                             node_ids.push(child.into());
+                        }
+                    }
+                }
+                GasTreeAction::SystemReserve(from, amount) => {
+                    let from = node_ids.ring_get(from).copied().expect("before each iteration there is at least 1 element; qed");
+
+                    if let GasNodeId::Node(from) = from {
+                        if let Err(e) = Gas::system_reserve(from, amount) {
+                            assertions::assert_not_invariant_error(e)
+                        } else {
+                            system_reserve += amount;
+                            system_reserve_nodes.insert(from);
+                        }
+                    }
+                }
+                GasTreeAction::SystemUnreserve(from) => {
+                    let from = node_ids.ring_get(from).copied().expect("before each iteration there is at least 1 element; qed");
+
+                    if let GasNodeId::Node(from) = from {
+                        match Gas::system_unreserve(from) {
+                            Ok(amount) => {
+                                system_reserve -= amount;
+                                system_reserve_nodes.remove(&from);
+                            },
+                            Err(e) => {
+                                assertions::assert_not_invariant_error(e);
+                            }
                         }
                     }
                 }
@@ -506,6 +544,15 @@ proptest! {
             }
 
             // Check property: for all the consumed nodes currently existing in the tree...
+            if node.system_reserve().map(|x| x != 0).unwrap_or(false) {
+                // ...can be with system reservation only after `system_reserve`
+                assert!(system_reserve_nodes.contains(&node_id.to_node_id().unwrap()));
+                // ...there can't be any existing system reserved cut and reserved nodes, because
+                // cut is used for mailbox and reserved is used for signals which can't create system reservations
+                assert!(node.is_external() || node.is_specified_local() || node.is_unspecified_local());
+            }
+
+            // Check property: for all the consumed nodes currently existing in the tree...
             if node.is_consumed() {
                 // ...existing consumed node can't have zero refs. Otherwise it must have been deleted from the storage
                 assert!(node.refs() != 0);
@@ -527,7 +574,7 @@ proptest! {
 
             // Check property: if node has non-zero value, it's a patron node (either not consumed or with unspec refs)
             // (Actually, patron can have 0 inner value, when `spend` decreased it's balance to 0, but it's an edge case)
-            // ReservedLocal node can be not consumed with non zero value, but is not a patron
+            // `Cut` node can be not consumed with non zero value, but is not a patron
             if let Some(value) = node.value() {
                 if value != 0 && !node.is_cut() {
                     assert!(node.is_patron());
@@ -545,7 +592,7 @@ proptest! {
 
         if !gas_tree_ids.is_empty() {
             // Check trees imbalance
-            assert_eq!(max_balance, spent + rest_value + caught + rest_lock);
+            assert_eq!(max_balance, spent + rest_value + caught + rest_lock + system_reserve);
         }
     }
 

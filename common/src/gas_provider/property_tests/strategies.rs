@@ -56,6 +56,10 @@ pub(super) enum GasTreeAction {
     Cut(usize, u64),
     /// Create gas reservation using `usize` node index with `u64` amount.
     Reserve(usize, u64),
+    /// Create system gas reservation using `usize` node index with `u64` amount.
+    SystemReserve(usize, u64),
+    /// Remove system gas reservation using `usize` node index with `u64` amount.
+    SystemUnreserve(usize),
 }
 
 /// Returns random vector of `GasTreeAction`s with a tree's root max balance.
@@ -82,7 +86,9 @@ pub(super) fn gas_tree_action_strategy(
             Just(GasTreeAction::Cut(id, amount)),
             Just(GasTreeAction::Consume(id)),
             Just(GasTreeAction::Split(id)),
-            Just(GasTreeAction::Reserve(id, amount))
+            Just(GasTreeAction::Reserve(id, amount)),
+            Just(GasTreeAction::SystemReserve(id, amount)),
+            Just(GasTreeAction::SystemUnreserve(id))
         ]
     });
     prop::collection::vec(action_random_variant, 0..MAX_ACTIONS)
