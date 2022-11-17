@@ -28,12 +28,12 @@
 //! [`GasNode::split_with_value`], which creates a node with
 //! [`GasNode::SpecifiedLocal`] type.
 //!
-//! 4. All nodes, except for [`GasNode::ReservedLocal`] and
+//! 4. All nodes, except for [`GasNode::Cut`], [`GasNode::Reserve`] and
 //! [`GasNode::External`] have a parent in GasTree storage.
 //!
 //! 5. All nodes with parent point to a parent with value. So if a `key` is an
-//! id of [`GasNode::SpecifiedLocal`] or [`GasNode::External`] node, the node
-//! under this `key` will always be a parent of the newly generated node
+//! id of [`GasNode::SpecifiedLocal`], [`GasNode::Reserved`] or [`GasNode::External`] node,
+//! the node under this `key` will always be a parent of the newly generated node
 //! after [`Tree::split`]/[`Tree::split_with_value`] call.
 //! However, there is no such guarantee if key is an id of the
 //! [`GasNode::UnspecifiedLocal`] nodes.
@@ -49,20 +49,21 @@
 //!
 //! 8. [`GasNode::UnspecifiedLocal`] nodes are always leaves in the tree (they
 //! have no children), so they are always deleted after consume call. The same
-//! rule is for [`GasNode::ReservedLocal`] nodes. So there can't be any
+//! rule is for [`GasNode::Cut`] nodes. So there can't be any
 //! [`GasNode::UnspecifiedLocal`] node in the tree with consumed field
 //! set to true. So if there is an **existing consumed** node, then it
 //! has non-zero refs counter and a value >= 0 (between calls to
 //! [`Tree::consume`]).
 //!
-//! 9. In a tree a root with [`GasNode::External`] type is always deleted last.
+//! 9. In a tree a root with [`GasNode::External`] or [`GasNode::Reserved`]
+//! type is always deleted last.
 //!
-//! 10. If node wasn't removed after `consume` it's [`GasNode::SpecifiedLocal`]
-//! or [`GasNode::External`] node. Similar to the previous invariant, but
+//! 10. If node wasn't removed after `consume` it's [`GasNode::SpecifiedLocal`],
+//! [`GasNode::Reserved`] or [`GasNode::External`] node. Similar to the previous invariant, but
 //! focuses more on [`Tree::consume`] procedure, while the other focuses
 //! on the all tree invariant. (checked in `consume` call assertions).
 //!
-//! 11. [`GasNode::UnspecifiedLocal`] and [`GasNode::ReservedLocal`] nodes can't
+//! 11. [`GasNode::UnspecifiedLocal`] and [`GasNode::Cut`] nodes can't
 //! be removed, nor mutated during cascade removal. So after [`Tree::consume`]
 //! call not more than one node is of [`GasNode::UnspecifiedLocal`] type.
 //!
@@ -581,7 +582,7 @@ proptest! {
                     if let Some(&parent) = nodes.ring_get(parent_idx) {
                         let child = ReservationKey::random();
 
-                        Gas::reserve(parent, child, amount).expect("Failed to update gas reservation");
+                        Gas::reserve(parent, child, amount).expect("Failed to create reservation");
                     }
                 }
                 _ => {}

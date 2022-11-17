@@ -54,7 +54,7 @@ pub(super) enum GasTreeAction {
     Consume(usize),
     /// Cut the value from the node under `usize` index with `u64` amount.
     Cut(usize, u64),
-    /// Update gas reservation using `usize` node index with `u64` amount.
+    /// Create gas reservation using `usize` node index with `u64` amount.
     Reserve(usize, u64),
 }
 
