@@ -250,11 +250,11 @@ extern "C" {
     ///   Ignored if equals i32::MAX (use this for zero value for optimization).
     pub fn gr_error(error: *mut BufferStart, err: *mut Length);
 
-    /// Fallible `gr_exit_code` get syscall.
+    /// Fallible `gr_status_code` get syscall.
     ///
     /// Arguments type:
     /// - `err_code`: `mut ptr` for concatenated error length and status code.
-    pub fn gr_exit_code(err_code: *mut LengthWithCode);
+    pub fn gr_status_code(err_code: *mut LengthWithCode);
 
     /// Infallible `gr_exit` control syscall.
     ///
@@ -542,6 +542,13 @@ extern "C" {
     /// Arguments type:
     /// - `program_id`: `const ptr` for program id.
     pub fn gr_source(program_id: *mut Hash);
+
+    /// Fallible `gr_system_reserve_gas` control syscall.
+    ///
+    /// Arguments type:
+    /// - `gas`: `u64` defining amount of gas to reserve.
+    /// - `err`: `mut ptr` for error length.
+    pub fn gr_system_reserve_gas(gas: Gas, err: *mut Length);
 
     /// Fallible `gr_unreserve_gas` control syscall.
     ///

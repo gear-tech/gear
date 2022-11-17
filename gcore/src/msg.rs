@@ -32,7 +32,7 @@ use crate::{
 use gear_core_errors::ExtError;
 use gsys::{HashWithValue, LengthWithCode, LengthWithHandle, LengthWithHash, TwoHashesWithValue};
 
-/// Get the exit code of the message being processed.
+/// Get the status code of the message being processed.
 ///
 /// This function is used in reply handler to check the message
 /// was processed successfully or not.
@@ -44,13 +44,13 @@ use gsys::{HashWithValue, LengthWithCode, LengthWithHandle, LengthWithHash, TwoH
 ///
 /// unsafe extern "C" fn handle_reply() {
 ///     // ...
-///     let exit_code = msg::exit_code().unwrap();
+///     let status_code = msg::status_code().unwrap();
 /// }
 /// ```
-pub fn exit_code() -> Result<i32> {
+pub fn status_code() -> Result<i32> {
     let mut res: LengthWithCode = Default::default();
 
-    unsafe { gsys::gr_exit_code(res.as_mut_ptr()) }
+    unsafe { gsys::gr_status_code(res.as_mut_ptr()) }
     SyscallError(res.length).into_result()?;
 
     Ok(res.code)

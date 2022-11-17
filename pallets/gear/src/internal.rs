@@ -257,6 +257,8 @@ where
     ///
     /// Updates currency and balances data on imbalance creation.
     pub(crate) fn consume_and_retrieve(id: impl Into<GasNodeIdOf<GasHandlerOf<T>>>) {
+        let id = id.into();
+
         // Consuming `GasNode`, returning optional outcome with imbalance.
         let outcome = GasHandlerOf::<T>::consume(id)
             .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
@@ -268,7 +270,12 @@ where
 
             // Unreserving funds, if left non-zero amount of gas.
             if !gas_left.is_zero() {
-                log::debug!("Consumed. Unreserving {} from {:?}", gas_left, external);
+                log::debug!(
+                    "Consumed {}. Unreserving {} from {:?}",
+                    id,
+                    gas_left,
+                    external
+                );
 
                 // Converting gas amount into value.
                 let value = T::GasPrice::gas_price(gas_left);
@@ -683,14 +690,15 @@ where
         //
         // Note: for users, trap replies always contain
         // string explanation of the error.
-        let message = match message.exit_code() {
-            Some(0) | None => message,
-            _ => message
+        let message = if message.is_error_reply() {
+            message
                 .with_string_payload::<ExecutionErrorReason>()
                 .unwrap_or_else(|e| {
                     log::debug!("Failed to decode error to string");
                     e
-                }),
+                })
+        } else {
+            message
         };
 
         // Converting message into stored one.
@@ -763,7 +771,7 @@ where
         //
         // We don't plan to send delayed error replies yet,
         // but this logic appears here for future purposes.
-        let message = match message.exit_code() {
+        let message = match message.status_code() {
             Some(0) | None => message,
             _ => message
                 .with_string_payload::<ExecutionErrorReason>()

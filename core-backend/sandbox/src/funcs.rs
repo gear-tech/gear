@@ -496,14 +496,14 @@ where
         })
     }
 
-    pub fn exit_code(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
-        sys_trace!(target: "syscall::gear", "exit_code, args = {}", args_to_str(args));
+    pub fn status_code(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
+        sys_trace!(target: "syscall::gear", "status_code, args = {}", args_to_str(args));
 
         let err_code_ptr = args.iter().read()?;
 
         ctx.run(|ctx| {
             ctx.ext
-                .exit_code()
+                .status_code()
                 .process_error()
                 .map_err(FuncError::Core)?
                 .error_len_on_success(|code| {
@@ -988,6 +988,24 @@ where
                     )
                     .map_err(Into::into)
                 })
+        })
+    }
+
+    pub fn system_reserve_gas(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
+        sys_trace!(target: "syscall::gear", "system_reserve_gas, args = {}", args_to_str(args));
+
+        let (gas, err_ptr) = args.iter().read_2()?;
+
+        ctx.run(|ctx| {
+            let len = ctx
+                .ext
+                .system_reserve_gas(gas)
+                .process_error()
+                .map_err(FuncError::Core)?
+                .error_len();
+
+            ctx.write_output(err_ptr, &len.to_le_bytes())
+                .map_err(Into::into)
         })
     }
 

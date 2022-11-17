@@ -119,6 +119,28 @@ pub fn reserve_gas(amount: u64, duration: u32) -> Result<ReservationId> {
     Ok(res.hash.into())
 }
 
+/// Reserve gas for system usage.
+///
+/// # Examples
+///
+/// ```
+/// use gcore::exec;
+///
+/// unsafe extern "C" fn handle() {
+///     exec::system_reserve_gas(1_000_000).expect("enough gas");
+///     exec::wait();
+/// }
+///
+/// unsafe extern "C" fn handle_signal() {
+///     // message removed from waitlist!
+/// }
+/// ```
+pub fn system_reserve_gas(amount: u64) -> Result<()> {
+    let mut len = 0u32;
+    unsafe { gsys::gr_system_reserve_gas(amount, &mut len as *mut u32) };
+    SyscallError(len).into_result()
+}
+
 /// Unreserve gas using reservation ID
 ///
 /// Returns reserved gas amount.

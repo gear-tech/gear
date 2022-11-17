@@ -84,7 +84,7 @@ impl Signer {
         &self,
         origin: Option<H256>,
         message_id: MessageId,
-        exit_code: i32,
+        status_code: i32,
         payload: Vec<u8>,
         value: u128,
         allow_other_panics: bool,
@@ -94,7 +94,7 @@ impl Signer {
             .calculate_reply_gas(
                 origin.unwrap_or_else(|| self.source()),
                 message_id,
-                exit_code,
+                status_code,
                 payload,
                 value,
                 allow_other_panics,

@@ -159,6 +159,7 @@ pub struct ContextStore {
     awaken: BTreeSet<MessageId>,
     reply_sent: bool,
     reservation_nonce: u64,
+    system_reservation: Option<u64>,
 }
 
 impl ContextStore {
@@ -172,6 +173,19 @@ impl ContextStore {
         let nonce = self.reservation_nonce;
         self.reservation_nonce = nonce.saturating_add(1);
         nonce
+    }
+
+    /// Set system reservation.
+    pub fn add_system_reservation(&mut self, amount: u64) {
+        let reservation = &mut self.system_reservation;
+        *reservation = reservation
+            .map(|reservation| reservation.saturating_add(amount))
+            .or(Some(amount));
+    }
+
+    /// Get system reservation.
+    pub fn system_reservation(&self) -> Option<u64> {
+        self.system_reservation
     }
 }
 
@@ -320,7 +334,7 @@ impl MessageContext {
                 packet
             };
 
-            let message_id = MessageId::generate_reply(self.current.id(), packet.exit_code());
+            let message_id = MessageId::generate_reply(self.current.id(), packet.status_code());
             let message = ReplyMessage::from_packet(message_id, packet);
 
             self.outcome.reply = Some((message, delay, reservation));

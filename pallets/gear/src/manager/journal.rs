@@ -46,8 +46,9 @@ use sp_std::{
     prelude::*,
 };
 
-impl<T: Config> JournalHandler for ExtManager<T>
+impl<T> JournalHandler for ExtManager<T>
 where
+    T: Config,
     T::AccountId: Origin,
 {
     fn message_dispatched(
@@ -516,5 +517,27 @@ where
             });
             common::set_program(pid, prog);
         }
+    }
+
+    fn system_reserve_gas(&mut self, message_id: MessageId, amount: u64) {
+        log::debug!("Reserve {} of gas for system from {}", amount, message_id);
+
+        GasHandlerOf::<T>::system_reserve(message_id, amount)
+            .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
+    }
+
+    fn system_unreserve_gas(&mut self, message_id: MessageId) {
+        log::debug!("Unreserve gas for system from {}", message_id);
+
+        let amount = GasHandlerOf::<T>::system_unreserve(message_id)
+            .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
+
+        if amount != 0 {
+            log::debug!("Unreserved {} gas for system from {}", amount, message_id);
+        }
+    }
+
+    fn send_signal(&mut self, message_id: MessageId, destination: ProgramId) {
+        ExtManager::send_signal(self, message_id, destination)
     }
 }

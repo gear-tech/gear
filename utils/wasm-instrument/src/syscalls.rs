@@ -96,7 +96,7 @@ pub fn syscalls_name_list() -> Vec<&'static str> {
         "gr_wait_up_to",
         "gr_wait_for",
         "gr_wake",
-        "gr_exit_code",
+        "gr_status_code",
         "gr_message_id",
         "gr_read",
         "gr_reply",
@@ -147,7 +147,7 @@ pub fn syscall_signature(name: &str) -> SysCallSignature {
         "gr_wait_up_to" => SysCallSignature::gr([Duration]),
         "gr_wait_for" => SysCallSignature::gr([Duration]),
         "gr_wake" => SysCallSignature::gr([Ptr, Delay, Ptr]),
-        "gr_exit_code" => SysCallSignature::gr([Ptr]),
+        "gr_status_code" => SysCallSignature::gr([Ptr]),
         "gr_message_id" => SysCallSignature::gr([Ptr]),
         "gr_read" => SysCallSignature::gr([MessagePosition, Size, Ptr, Ptr]),
         "gr_reply" => SysCallSignature::gr([Ptr, Size, Ptr, Delay, Ptr]),
@@ -175,6 +175,7 @@ pub fn syscall_signature(name: &str) -> SysCallSignature {
         }
         "gr_reserve_gas" => SysCallSignature::gr([Gas, Duration, Ptr]),
         "gr_unreserve_gas" => SysCallSignature::gr([Ptr, Ptr]),
+        "gr_system_reserve_gas" => SysCallSignature::gr([Gas, Ptr]),
         "gr_random" => SysCallSignature::gr([Ptr, Size, Ptr]),
         other => panic!("Unknown syscall name: '{}'", other),
     }

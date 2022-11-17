@@ -376,6 +376,7 @@ pub fn execute_wasm<
         gas_counter,
         gas_allowance_counter,
         gas_reserver,
+        system_reservation: None,
         value_counter,
         allocations_context,
         message_context,
@@ -492,6 +493,7 @@ pub fn execute_wasm<
         program_candidates,
         gas_amount: info.gas_amount,
         gas_reserver: Some(info.gas_reserver),
+        system_reservation_context: info.system_reservation_context,
         page_update,
         allocations: info.allocations,
     })

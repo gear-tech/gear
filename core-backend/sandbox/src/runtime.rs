@@ -37,7 +37,7 @@ impl<E: Ext> Runtime<E> {
             .globals
             .get_global_val(GLOBAL_NAME_GAS)
             .and_then(as_i64)
-            .ok_or({
+            .ok_or_else(|| {
                 self.err = FuncError::WrongInstrumentation;
                 HostError
             })?;
@@ -46,7 +46,7 @@ impl<E: Ext> Runtime<E> {
             .globals
             .get_global_val(GLOBAL_NAME_ALLOWANCE)
             .and_then(as_i64)
-            .ok_or({
+            .ok_or_else(|| {
                 self.err = FuncError::WrongInstrumentation;
                 HostError
             })?;

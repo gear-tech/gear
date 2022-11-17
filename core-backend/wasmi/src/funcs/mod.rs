@@ -63,10 +63,6 @@ pub enum FuncError<E: Display> {
     RuntimeBufferSize(RuntimeBufferSizeError),
     #[display(fmt = "{_0}")]
     PayloadBufferSize(PayloadSizeError),
-    #[display(fmt = "Exit code ran into non-reply scenario")]
-    NonReplyExitCode,
-    #[display(fmt = "Not running in reply context")]
-    NoReplyContext,
     #[display(fmt = "Failed to parse debug string")]
     DebugStringParsing,
     #[display(fmt = "`gr_error` expects error occurred earlier")]
@@ -603,7 +599,7 @@ where
         Func::wrap(store, func)
     }
 
-    pub fn exit_code(
+    pub fn status_code(
         store: &mut Store<HostState<E>>,
         forbidden: bool,
         memory: WasmiMemory,
@@ -613,7 +609,7 @@ where
 
             caller.call_fallible(
                 &memory,
-                |ext| ext.exit_code(),
+                |ext| ext.status_code(),
                 |res, mut mem_ref| {
                     let err_code = res
                         .map(|code| LengthWithCode {
@@ -1184,6 +1180,27 @@ where
                         });
 
                     mem_ref.write_memory_as(err_unreserved_ptr, err_unreserved)
+                },
+            )
+        };
+
+        Func::wrap(store, func)
+    }
+
+    pub fn system_reserve_gas(
+        store: &mut Store<HostState<E>>,
+        forbidden: bool,
+        memory: WasmiMemory,
+    ) -> Func {
+        let func = move |caller: Caller<'_, HostState<E>>, gas: u64, err_ptr: u32| {
+            let mut caller = CallerWrap::prepare(caller, forbidden)?;
+
+            caller.call_fallible(
+                &memory,
+                |ext| ext.system_reserve_gas(gas),
+                |res, mut mem_ref| {
+                    let len = res.map(|()| 0).unwrap_or_else(|e| e);
+                    mem_ref.write(err_ptr as usize, &len.to_le_bytes())
                 },
             )
         };

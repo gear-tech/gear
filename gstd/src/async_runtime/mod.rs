@@ -54,3 +54,7 @@ pub(crate) fn locks() -> &'static mut LocksMap {
 pub fn record_reply() {
     signals().record_reply();
 }
+
+pub fn handle_signal() {
+    futures().remove(&crate::msg::id());
+}

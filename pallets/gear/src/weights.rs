@@ -83,7 +83,7 @@ pub trait WeightInfo {
     fn gr_reply_to(r: u32, ) -> Weight;
     fn gr_debug(r: u32, ) -> Weight;
     fn gr_debug_per_kb(n: u32, ) -> Weight;
-    fn gr_exit_code(r: u32, ) -> Weight;
+    fn gr_status_code(r: u32, ) -> Weight;
     fn gr_exit(r: u32, ) -> Weight;
     fn gr_leave(r: u32, ) -> Weight;
     fn gr_wait(r: u32, ) -> Weight;
@@ -92,6 +92,7 @@ pub trait WeightInfo {
     fn gr_wake(r: u32, ) -> Weight;
     fn gr_create_program_wgas(r: u32, ) -> Weight;
     fn gr_create_program_wgas_per_kb(p: u32, s: u32, ) -> Weight;
+    fn gr_system_reserve_gas(r: u32, ) -> Weight;
     fn lazy_pages_read_access(p: u32, ) -> Weight;
     fn lazy_pages_write_access(p: u32, ) -> Weight;
     fn instr_i64load(r: u32, ) -> Weight;
@@ -445,7 +446,7 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
             .saturating_add(Weight::from_ref_time(35_175_065 as u64).saturating_mul(n as u64))
     }
     /// The range of component `r` is `[0, 20]`.
-    fn gr_exit_code(r: u32, ) -> Weight {
+    fn gr_status_code(r: u32, ) -> Weight {
         Weight::from_ref_time(86_121_000 as u64)
             // Standard Error: 42_620
             .saturating_add(Weight::from_ref_time(193_218_340 as u64).saturating_mul(r as u64))
@@ -503,6 +504,10 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
             // Standard Error: 202_670
             .saturating_add(Weight::from_ref_time(183_740_947 as u64).saturating_mul(s as u64))
             .saturating_add(T::DbWeight::get().reads(257 as u64))
+    }
+    /// The range of component `r` is `[0, 20]`.
+    fn gr_system_reserve_gas(_r: u32, ) -> Weight {
+        Weight::from_ref_time(11_441_000_000 as u64)
     }
     /// The range of component `p` is `[0, 512]`.
     fn lazy_pages_read_access(p: u32, ) -> Weight {
@@ -1117,7 +1122,7 @@ impl WeightInfo for () {
             .saturating_add(Weight::from_ref_time(35_175_065 as u64).saturating_mul(n as u64))
     }
     /// The range of component `r` is `[0, 20]`.
-    fn gr_exit_code(r: u32, ) -> Weight {
+    fn gr_status_code(r: u32, ) -> Weight {
         Weight::from_ref_time(86_121_000 as u64)
             // Standard Error: 42_620
             .saturating_add(Weight::from_ref_time(193_218_340 as u64).saturating_mul(r as u64))
@@ -1175,6 +1180,10 @@ impl WeightInfo for () {
             // Standard Error: 202_670
             .saturating_add(Weight::from_ref_time(183_740_947 as u64).saturating_mul(s as u64))
             .saturating_add(RocksDbWeight::get().reads(257 as u64))
+    }
+    /// The range of component `r` is `[0, 20]`.
+    fn gr_system_reserve_gas(_r: u32, ) -> Weight {
+        Weight::from_ref_time(11_441_000_000 as u64)
     }
     /// The range of component `p` is `[0, 512]`.
     fn lazy_pages_read_access(p: u32, ) -> Weight {

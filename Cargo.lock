@@ -1448,6 +1448,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "demo-async-signal-entry"
+version = "0.1.0"
+dependencies = [
+ "gear-wasm-builder",
+ "gstd",
+ "gtest",
+ "parity-scale-codec",
+]
+
+[[package]]
 name = "demo-async-tester"
 version = "0.1.0"
 dependencies = [
@@ -2023,6 +2033,7 @@ dependencies = [
  "gear-core",
  "gear-runtime",
  "gear-runtime-primitives",
+ "gstd",
  "hex",
  "log",
  "pallet-authorship",
@@ -6039,6 +6050,7 @@ name = "pallet-gear"
 version = "2.0.0"
 dependencies = [
  "blake2-rfc",
+ "demo-async-signal-entry",
  "demo-async-tester",
  "demo-btree",
  "demo-calc-hash",
@@ -6062,6 +6074,7 @@ dependencies = [
  "demo-proxy-with-gas",
  "demo-reserve-gas",
  "demo-send-from-reservation",
+ "demo-signal-entry",
  "demo-value-sender",
  "demo-wait-timeout",
  "demo-waiter",
@@ -7482,9 +7495,9 @@ dependencies = [
 
 [[package]]
 name = "reqwest"
-version = "0.11.12"
+version = "0.11.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "431949c384f4e2ae07605ccaa56d1d9d2ecdb5cadd4f9577ccfab29f2e5149fc"
+checksum = "68cc60575865c7831548863cc02356512e3f1dc2f3f82cb837d7fc4cc8f3c97c"
 dependencies = [
  "base64",
  "bytes",

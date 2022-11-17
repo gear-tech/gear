@@ -1,5 +1,5 @@
 [package]
-name = "demo-exit-code"
+name = "demo-status-code"
 version = "0.1.0"
 authors = ["Gear Technologies"]
 edition = "2018"
