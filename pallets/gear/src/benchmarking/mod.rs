@@ -120,7 +120,7 @@ where
         )],
     };
 
-    let bn = previous.unwrap_or(0u32.unique_saturated_into()) + One::one();
+    let bn = previous.unwrap_or_else(|| 0u32.unique_saturated_into()) + One::one();
 
     SystemPallet::<T>::initialize(&bn, &SystemPallet::<T>::parent_hash(), &pre_digest);
     SystemPallet::<T>::set_block_number(bn);

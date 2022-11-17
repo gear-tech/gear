@@ -62,7 +62,7 @@ where
 
         Gear::<T>::on_initialize(SystemPallet::<T>::block_number());
 
-        let remaining_weight = remaining_weight.unwrap_or(BlockGasLimitOf::<T>::get());
+        let remaining_weight = remaining_weight.unwrap_or_else(BlockGasLimitOf::<T>::get);
         log::debug!(
             "🧱 Running run #{:?} (gear #{:?}) with weight {}",
             SystemPallet::<T>::block_number(),

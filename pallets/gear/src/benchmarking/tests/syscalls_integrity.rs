@@ -498,7 +498,7 @@ where
 
         utils::run_to_next_block::<T>(None);
 
-        let reply_to = MailboxOf::<T>::iter_key(default_sender.clone())
+        let reply_to = MailboxOf::<T>::iter_key(default_sender)
             .last()
             .map(|(m, _)| m)
             .expect("no mail found after invoking sys-call test program");
@@ -706,7 +706,7 @@ where
         100_000_000_000_000_u128.unique_saturated_into(),
     );
     Gear::<T>::upload_program(
-        RawOrigin::Signed(child_deployer.clone()).into(),
+        RawOrigin::Signed(child_deployer).into(),
         child_code,
         vec![],
         vec![],
@@ -722,7 +722,7 @@ where
         100_000_000_000_000_u128.unique_saturated_into(),
     );
     Gear::<T>::upload_program(
-        RawOrigin::Signed(default_account.clone()).into(),
+        RawOrigin::Signed(default_account).into(),
         SYSCALLS_TEST_WASM_BINARY.to_vec(),
         b"".to_vec(),
         child_code_hash.encode(),
