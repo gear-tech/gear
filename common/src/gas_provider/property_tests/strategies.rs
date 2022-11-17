@@ -56,9 +56,13 @@ pub(super) enum GasTreeAction {
     Cut(usize, u64),
     /// Create gas reservation using `usize` node index with `u64` amount.
     Reserve(usize, u64),
+    /// Create lock using `usize` node index with `u64` amount.
+    Lock(usize, u64),
+    /// Remove lock using `usize` node index with `u64` amount.
+    Unlock(usize, u64),
     /// Create system gas reservation using `usize` node index with `u64` amount.
     SystemReserve(usize, u64),
-    /// Remove system gas reservation using `usize` node index with `u64` amount.
+    /// Remove system gas reservation using `usize` node.
     SystemUnreserve(usize),
 }
 
@@ -87,6 +91,8 @@ pub(super) fn gas_tree_action_strategy(
             Just(GasTreeAction::Consume(id)),
             Just(GasTreeAction::Split(id)),
             Just(GasTreeAction::Reserve(id, amount)),
+            Just(GasTreeAction::Lock(id, amount)),
+            Just(GasTreeAction::Unlock(id, amount)),
             Just(GasTreeAction::SystemReserve(id, amount)),
             Just(GasTreeAction::SystemUnreserve(id))
         ]
