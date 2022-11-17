@@ -175,10 +175,7 @@ where
         builder.add_func(Wake, Funcs::wake);
         builder.add_func(SystemReserveGas, Funcs::system_reserve_gas);
         builder.add_func(ReservationReply, Funcs::reservation_reply);
-        builder.add_func(
-            ReservationReplyCommit,
-            Funcs::reservation_reply_commit,
-        );
+        builder.add_func(ReservationReplyCommit, Funcs::reservation_reply_commit);
         builder.add_func(ReservationSend, Funcs::reservation_send);
         builder.add_func(ReservationSendCommit, Funcs::reservation_send_commit);
         let mut env_builder: EnvironmentDefinitionBuilder<_> = builder.into();

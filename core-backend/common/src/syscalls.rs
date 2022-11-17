@@ -35,7 +35,7 @@ pub enum SysCalls {
     SendPush,
     ReservationSend,
     ReservationSendCommit,
-    
+
     // Sending `handle_reply` message
     Reply,
     ReplyWGas,

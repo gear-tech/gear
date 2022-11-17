@@ -79,6 +79,16 @@ pub enum Kind {
     Random(Vec<u8>, ([u8; 32], u32)),
     // Expected(lower bound, upper bound )-> estimated gas level
     GasAvailable(u64, u64),
+    // Expected(message id)
+    ReservationSend(MessageId),
+    // Param(payload), Expected(message id)
+    ReservationSendRaw(Vec<u8>, MessageId),
+    // Expected(message id)
+    ReservationReply(MessageId),
+    // Param(payload), Expected(message id)
+    ReservationReplyCommit(Vec<u8>, MessageId),
+    // Param(reserve amount)
+    SystemReserveGas(u64),
 }
 
 #[cfg(not(feature = "wasm-wrapper"))]
@@ -117,11 +127,11 @@ mod wasm {
                 let actual_pid: [u8; 32] = actual_pid.into();
                 assert_eq!(
                     expected_mid, actual_mid,
-                    "SysCall::CreateProgram: mid test failed"
+                    "Kind::CreateProgram: mid test failed"
                 );
                 assert_eq!(
                     expected_pid, actual_pid,
-                    "SysCall::CreateProgram: pid test failed"
+                    "Kind::CreateProgram: pid test failed"
                 );
             }
             Kind::Error(message_value, expected_err) => {
@@ -129,7 +139,7 @@ mod wasm {
                 assert_eq!(
                     expected_err,
                     format!("{actual_err}"),
-                    "SysCall::Error: test failed"
+                    "Kind::Error: test failed"
                 );
             }
             Kind::Send(gas, expected_mid) => {
@@ -141,7 +151,7 @@ mod wasm {
                 assert_eq!(
                     Ok(expected_mid.into()),
                     actual_mid_res,
-                    "SysCall::Send: mid test failed"
+                    "Kind::Send: mid test failed"
                 );
             }
             Kind::SendRaw(payload, gas, expected_mid) => {
@@ -162,42 +172,33 @@ mod wasm {
                 assert_eq!(
                     Ok(expected_mid.into()),
                     actual_mid_res,
-                    "SysCall::SendRaw: mid test failed"
+                    "Kind::SendRaw: mid test failed"
                 );
             }
             Kind::Size(expected_size) => {
                 let actual_size = msg::size();
-                assert_eq!(
-                    expected_size, actual_size,
-                    "SysCall::Size: size test failed"
-                );
+                assert_eq!(expected_size, actual_size, "Kind::Size: size test failed");
             }
             Kind::MessageId(expected_mid) => {
                 let actual_mid: [u8; 32] = msg::id().into();
-                assert_eq!(
-                    expected_mid, actual_mid,
-                    "SysCall::MessageId: mid test failed"
-                );
+                assert_eq!(expected_mid, actual_mid, "Kind::MessageId: mid test failed");
             }
             Kind::ProgramId(expected_pid) => {
                 let actual_pid: [u8; 32] = exec::program_id().into();
-                assert_eq!(
-                    expected_pid, actual_pid,
-                    "SysCall::ProgramId: pid test failed"
-                );
+                assert_eq!(expected_pid, actual_pid, "Kind::ProgramId: pid test failed");
             }
             Kind::Source(expected_actor) => {
                 let actual_actor: [u8; 32] = msg::source().into();
                 assert_eq!(
                     expected_actor, actual_actor,
-                    "SysCall::Source: actor test failed"
+                    "Kind::Source: actor test failed"
                 );
             }
             Kind::Value(expected_value) => {
                 let actual_value = msg::value();
                 assert_eq!(
                     expected_value, actual_value,
-                    "SysCall::Value: value test failed"
+                    "Kind::Value: value test failed"
                 );
             }
             Kind::ValueAvailable(expected_value) => {
@@ -205,7 +206,7 @@ mod wasm {
                 let actual_value = exec::value_available();
                 assert_eq!(
                     expected_value, actual_value,
-                    "SysCall::ValueAvailable: value test failed"
+                    "Kind::ValueAvailable: value test failed"
                 );
             }
             Kind::Reply(gas, expected_mid) => {
@@ -217,7 +218,7 @@ mod wasm {
                 assert_eq!(
                     Ok(expected_mid.into()),
                     actual_mid_res,
-                    "SysCall::Reply: mid test failed"
+                    "Kind::Reply: mid test failed"
                 );
             }
             Kind::ReplyRaw(payload, gas, expected_mid) => {
@@ -230,7 +231,7 @@ mod wasm {
                 assert_eq!(
                     Ok(expected_mid.into()),
                     actual_mid_res,
-                    "SysCall::ReplyRaw: mid test failed"
+                    "Kind::ReplyRaw: mid test failed"
                 );
             }
             Kind::ReplyDetails(..) => {
@@ -243,14 +244,14 @@ mod wasm {
                 let actual_height = exec::block_height();
                 assert_eq!(
                     expected_height, actual_height,
-                    "SysCall::BlockHeight:: block height test failed"
+                    "Kind::BlockHeight:: block height test failed"
                 );
             }
             Kind::BlockTimestamp(expected_timestamp) => {
                 let actual_timestamp = exec::block_timestamp();
                 assert_eq!(
                     expected_timestamp, actual_timestamp,
-                    "SysCall::BlockTimestamp:: block timestamp test failed"
+                    "Kind::BlockTimestamp:: block timestamp test failed"
                 );
             }
             Kind::Origin(expected_actor) => {
@@ -260,7 +261,7 @@ mod wasm {
                     let actual_actor: [u8; 32] = exec::origin().into();
                     assert_eq!(
                         expected_actor, actual_actor,
-                        "SysCall::Origin: actor test failed"
+                        "Kind::Origin: actor test failed"
                     );
                 } else {
                     ORIGIN = Some(exec::origin());
@@ -277,7 +278,7 @@ mod wasm {
                 assert_eq!(
                     expected_id,
                     actual_id.encode(),
-                    "SysCall::Reserve: reserve gas test failed"
+                    "Kind::Reserve: reserve gas test failed"
                 );
             }
             Kind::Unreserve(expected_amount) => {
@@ -287,28 +288,90 @@ mod wasm {
                 assert_eq!(
                     Ok(expected_amount),
                     actual_amount,
-                    "SysCall::Unreserve: unreserve gas test failed"
+                    "Kind::Unreserve: unreserve gas test failed"
                 );
             }
             Kind::Random(salt, (expected_hash, expected_bn)) => {
                 let (actual_hash, actual_bn) =
                     exec::random(&salt).expect("internal error: random call failed");
-                assert_eq!(
-                    expected_hash, actual_hash,
-                    "SysCall::Random: hash test failed"
-                );
-                assert_eq!(expected_bn, actual_bn, "SysCall::Random: bn test failed");
+                assert_eq!(expected_hash, actual_hash, "Kind::Random: hash test failed");
+                assert_eq!(expected_bn, actual_bn, "Kind::Random: bn test failed");
             }
             Kind::GasAvailable(lower, upper) => {
                 let gas_available = exec::gas_available();
                 assert!(
                     gas_available >= lower,
-                    "SysCall::GasAvailable: lower bound test failed"
+                    "Kind::GasAvailable: lower bound test failed"
                 );
                 assert!(
                     gas_available <= upper,
-                    "SysCall::GasAvailable: upper bound test failed"
+                    "Kind::GasAvailable: upper bound test failed"
                 );
+            }
+            Kind::ReservationSend(expected_mid) => {
+                let reservation_id =
+                    ReservationId::reserve(25_000_000_000, 1).expect("reservation failed");
+                let actual_mid = msg::send_bytes_delayed_from_reservation(
+                    reservation_id,
+                    msg::source(),
+                    b"",
+                    0,
+                    0,
+                );
+                assert_eq!(
+                    Ok(expected_mid.into()),
+                    actual_mid,
+                    "Kind::ReservationSend: mid test failed"
+                );
+            }
+            Kind::ReservationSendRaw(payload, expected_mid) => {
+                let _ = msg::send_delayed(msg::source(), b"payload", 0, 0);
+                let reservation_id =
+                    ReservationId::reserve(25_000_000_000, 1).expect("reservation failed");
+
+                let handle = MessageHandle::init().expect("internal error: failed send init");
+                // check handle
+                handle
+                    .push(payload)
+                    .expect("internal error: failed send_push");
+                let actual_mid =
+                    handle.commit_delayed_from_reservation(reservation_id, msg::source(), 0, 0);
+                assert_eq!(
+                    Ok(expected_mid.into()),
+                    actual_mid,
+                    "Kind::ReservationSendRaw: mid test failed"
+                );
+            }
+            Kind::ReservationReply(expected_mid) => {
+                let reservation_id =
+                    ReservationId::reserve(25_000_000_000, 1).expect("reservation failed");
+                let actual_mid =
+                    msg::reply_bytes_delayed_from_reservation(reservation_id, b"", 0, 0);
+                assert_eq!(
+                    Ok(expected_mid.into()),
+                    actual_mid,
+                    "Kind::ReservationReply: mid test failed"
+                );
+            }
+            Kind::ReservationReplyCommit(payload, expected_mid) => {
+                let reservation_id =
+                    ReservationId::reserve(25_000_000_000, 1).expect("reservation failed");
+                msg::reply_push(payload).expect("internal error: failed reply push");
+                let actual_mid = msg::reply_commit_delayed_from_reservation(reservation_id, 0, 0);
+                assert_eq!(
+                    Ok(expected_mid.into()),
+                    actual_mid,
+                    "Kind::ReservationReplyCommit: mid test failed"
+                );
+            }
+            Kind::SystemReserveGas(amount) => {
+                let _ = exec::system_reserve_gas(amount)
+                    .expect("Kind::SystemReserveGas: call test failed");
+                // The only case with wait, so we send report before ending execution, instead of
+                // waking the message
+                msg::send_delayed(msg::source(), b"ok", 0, 0)
+                    .expect("internal error: report send failed");
+                exec::wait_for(2);
             }
         }
         // Report test executed successfully
@@ -322,13 +385,13 @@ mod wasm {
             assert_eq!(
                 Ok(expected_reply_to.into()),
                 actual_reply_to,
-                "SysCall::ReplyDetails: reply_to test failed"
+                "Kind::ReplyDetails: reply_to test failed"
             );
             let actual_status_code = msg::status_code();
             assert_eq!(
                 Ok(expected_status_code),
                 actual_status_code,
-                "SysCall::ReplyDetails: status test failed"
+                "Kind::ReplyDetails: status test failed"
             );
 
             // Report test executed successfully

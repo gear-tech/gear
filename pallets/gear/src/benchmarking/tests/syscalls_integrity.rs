@@ -29,6 +29,7 @@
 
 use super::*;
 
+use crate::WaitlistOf;
 use frame_support::traits::Randomness;
 use gear_backend_common::SysCalls;
 use gear_core::ids::{CodeId, ReservationId};
@@ -41,44 +42,162 @@ where
     T: Config,
     T::AccountId: Origin,
 {
-    use SysCalls::*;
-
     SysCalls::all().for_each(|sys_call| {
         match sys_call {
-            Send => check_send::<T>(0),
-            SendWGas => check_send::<T>(25_000_000_000),
-            SendCommit => check_send_raw::<T>(0),
-            SendCommitWGas => check_send_raw::<T>(25_000_000_000),
-            SendInit | SendPush => {/* skipped, due to test being run in SendCommit* variants */},
-            Reply => check_reply::<T>(0),
-            ReplyWGas => check_reply::<T>(25_000_000_000),
-            ReplyCommit => check_reply_raw::<T>(0),
-            ReplyCommitWGas => check_reply_raw::<T>(25_000_000_000),
-            ReplyTo => check_reply_details::<T>(),
-            ReplyPush => {/* skipped, due to test being run in SendCommit* variants */},
-            CreateProgram => check_create_program::<T>(0),
-            CreateProgramWGas => check_create_program::<T>(25_000_000_000),
-            Read => {/* checked in all the calls internally */},
-            Size => check_gr_size::<T>(),
-            ExitCode => {/* checked in reply_to */},
-            MessageId => check_gr_message_id::<T>(),
-            ProgramId => check_gr_program_id::<T>(),
-            Source => check_gr_source::<T>(),
-            Value => check_gr_value::<T>(),
-            BlockHeight => check_gr_block_height::<T>(),
-            BlockTimestamp => check_gr_block_timestamp::<T>(),
-            Origin => check_gr_origin::<T>(),
-            GasAvailable => check_gr_gas_available::<T>(),
-            ValueAvailable => check_gr_value_available::<T>(),
-            Exit | Leave | Wait | WaitFor | WaitUpTo | Wake | Debug => {/* test here aren't required, read module docs for more info */},
-            Alloc => check_mem::<T>(false),
-            Free => check_mem::<T>(true),
-            OutOfGas | OutOfAllowance => { /*no need for tests */}
-            Error => check_gr_err::<T>(),
-            Random => check_gr_random::<T>(),
-            ReserveGas => check_gr_reserve_gas::<T>(),
-            UnreserveGas => check_gr_unreserve_gas::<T>(),
+            SysCalls::Send => check_send::<T>(0),
+            SysCalls::SendWGas => check_send::<T>(25_000_000_000),
+            SysCalls::SendCommit => check_send_raw::<T>(0),
+            SysCalls::SendCommitWGas => check_send_raw::<T>(25_000_000_000),
+            SysCalls::SendInit | SysCalls:: SendPush => {/* skipped, due to test being run in SendCommit* variants */},
+            SysCalls::Reply => check_reply::<T>(0),
+            SysCalls::ReplyWGas => check_reply::<T>(25_000_000_000),
+            SysCalls::ReplyCommit => check_reply_raw::<T>(0),
+            SysCalls::ReplyCommitWGas => check_reply_raw::<T>(25_000_000_000),
+            SysCalls::ReplyTo => check_reply_details::<T>(),
+            SysCalls::ReplyPush => {/* skipped, due to test being run in SendCommit* variants */},
+            SysCalls::CreateProgram => check_create_program::<T>(0),
+            SysCalls::CreateProgramWGas => check_create_program::<T>(25_000_000_000),
+            SysCalls::Read => {/* checked in all the calls internally */},
+            SysCalls::Size => check_gr_size::<T>(),
+            SysCalls::StatusCode => {/* checked in reply_to */},
+            SysCalls::MessageId => check_gr_message_id::<T>(),
+            SysCalls::ProgramId => check_gr_program_id::<T>(),
+            SysCalls::Source => check_gr_source::<T>(),
+            SysCalls::Value => check_gr_value::<T>(),
+            SysCalls::BlockHeight => check_gr_block_height::<T>(),
+            SysCalls::BlockTimestamp => check_gr_block_timestamp::<T>(),
+            SysCalls::Origin => check_gr_origin::<T>(),
+            SysCalls::GasAvailable => check_gr_gas_available::<T>(),
+            SysCalls::ValueAvailable => check_gr_value_available::<T>(),
+            SysCalls::Exit | SysCalls::Leave | SysCalls::Wait | SysCalls::WaitFor | SysCalls::WaitUpTo | SysCalls::Wake | SysCalls::Debug => {/* tests here aren't required, read module docs for more info */},
+            SysCalls::Alloc => check_mem::<T>(false),
+            SysCalls::Free => check_mem::<T>(true),
+            SysCalls::OutOfGas | SysCalls::OutOfAllowance => { /*no need for tests */}
+            SysCalls::Error => check_gr_err::<T>(),
+            SysCalls::Random => check_gr_random::<T>(),
+            SysCalls::ReserveGas => check_gr_reserve_gas::<T>(),
+            SysCalls::UnreserveGas => check_gr_unreserve_gas::<T>(),
+            SysCalls::ReservationSend => check_gr_reservation_send::<T>(),
+            SysCalls::ReservationSendCommit => check_gr_reservation_send_commit::<T>(),
+            SysCalls::ReservationReply => check_gr_reservation_reply::<T>(),
+            SysCalls::ReservationReplyCommit => check_gr_reservation_reply_commit::<T>(),
+            SysCalls::SystemReserveGas => check_gr_system_reserve_gas::<T>(),
         }
+    });
+}
+
+fn check_gr_system_reserve_gas<T>()
+where
+    T: Config,
+    T::AccountId: Origin,
+{
+    run_tester::<T, _, _, T::AccountId>(|tester_pid, _| {
+        let reserve_amount = 10_000_000;
+        let next_user_mid =
+            utils::get_next_message_id::<T>(utils::default_account::<T::AccountId>());
+
+        let post_check = move || {
+            assert!(
+                WaitlistOf::<T>::contains(&tester_pid, &next_user_mid),
+                "wait list post check failed"
+            );
+            assert_eq!(
+                Ok(reserve_amount),
+                GasHandlerOf::<T>::get_system_reserve(next_user_mid),
+                "system reserve gas post check failed"
+            );
+        };
+
+        let mp = Kind::SystemReserveGas(reserve_amount).encode().into();
+
+        (TestCall::send_message(mp), Some(post_check))
+    });
+}
+
+fn check_gr_reservation_send<T>()
+where
+    T: Config,
+    T::AccountId: Origin,
+{
+    run_tester::<T, _, _, T::AccountId>(|_, _| {
+        let next_user_mid =
+            utils::get_next_message_id::<T>(utils::default_account::<T::AccountId>());
+        let expected_mid = MessageId::generate_outgoing(next_user_mid, 0);
+
+        let mp = Kind::ReservationSend(expected_mid.into()).encode().into();
+
+        (TestCall::send_message(mp), None::<DefaultPostCheck>)
+    });
+}
+
+fn check_gr_reservation_send_commit<T>()
+where
+    T: Config,
+    T::AccountId: Origin,
+{
+    run_tester::<T, _, _, T::AccountId>(|_, _| {
+        let payload = b"HI_RSC!!";
+        let default_sender = utils::default_account::<T::AccountId>();
+        let next_user_mid = utils::get_next_message_id::<T>(default_sender.clone());
+        // Program increases local nonce by sending one message before `send_init`.
+        let expected_mid = MessageId::generate_outgoing(next_user_mid, 1);
+
+        let post_test = move || {
+            assert!(
+                MailboxOf::<T>::iter_key(default_sender)
+                    .any(|(m, _)| m.id() == expected_mid && m.payload() == payload.to_vec()),
+                "No message with expected id found in queue"
+            );
+        };
+
+        let mp = Kind::ReservationSendRaw(payload.to_vec(), expected_mid.into())
+            .encode()
+            .into();
+
+        (TestCall::send_message(mp), Some(post_test))
+    });
+}
+
+fn check_gr_reservation_reply<T>()
+where
+    T: Config,
+    T::AccountId: Origin,
+{
+    run_tester::<T, _, _, T::AccountId>(|_, _| {
+        let next_user_mid =
+            utils::get_next_message_id::<T>(utils::default_account::<T::AccountId>());
+        let expected_mid = MessageId::generate_reply(next_user_mid, 0);
+
+        let mp = Kind::ReservationReply(expected_mid.into()).encode().into();
+
+        (TestCall::send_message(mp), None::<DefaultPostCheck>)
+    })
+}
+
+fn check_gr_reservation_reply_commit<T>()
+where
+    T: Config,
+    T::AccountId: Origin,
+{
+    run_tester::<T, _, _, T::AccountId>(|_, _| {
+        let payload = b"HI_RRC!!";
+        let default_sender = utils::default_account::<T::AccountId>();
+        let next_user_mid = utils::get_next_message_id::<T>(default_sender.clone());
+        let expected_mid = MessageId::generate_reply(next_user_mid, 0);
+
+        let post_test = move || {
+            assert!(
+                MailboxOf::<T>::iter_key(default_sender)
+                    .any(|(m, _)| m.id() == expected_mid && m.payload() == payload.to_vec()),
+                "No message with expected id found in queue"
+            );
+        };
+
+        let mp = Kind::ReservationReplyCommit(payload.to_vec(), expected_mid.into())
+            .encode()
+            .into();
+
+        (TestCall::send_message(mp), Some(post_test))
     });
 }
 
@@ -288,7 +407,7 @@ where
     T::AccountId: Origin,
 {
     run_tester::<T, _, _, T::AccountId>(|_, _| {
-        let payload = b"HI!!";
+        let payload = b"HI_SR!!";
         let default_sender = utils::default_account::<T::AccountId>();
         let next_user_mid = utils::get_next_message_id::<T>(default_sender.clone());
         // Program increases local nonce by sending messages twice before `send_init`.
@@ -334,10 +453,9 @@ where
     T::AccountId: Origin,
 {
     run_tester::<T, _, _, T::AccountId>(|_, _| {
-        let payload = b"HI!!";
+        let payload = b"HI_RR!!";
         let default_sender = utils::default_account::<T::AccountId>();
         let next_user_mid = utils::get_next_message_id::<T>(default_sender.clone());
-        // Program increases local nonce by sending messages twice before `send_init`.
         let expected_mid = MessageId::generate_reply(next_user_mid, 0);
 
         let post_test = move || {
@@ -365,7 +483,6 @@ where
     run_tester::<T, _, _, T::AccountId>(|tester_pid, _| {
         let default_sender = utils::default_account::<T::AccountId>();
         let next_user_mid = utils::get_next_message_id::<T>(default_sender.clone());
-        // Program increases local nonce by sending messages twice before `send_init`.
         let expected_mid = MessageId::generate_reply(next_user_mid, 0);
 
         // trigger sending message to default_sender's mailbox
@@ -552,9 +669,9 @@ where
     T::AccountId: Origin,
 {
     run_tester::<T, _, _, T::AccountId>(|_, _| {
-        // Expected to burn not more than 650_000_000
+        // Expected to burn not more than 750_000_000
         // Provided gas in the test by default is 50_000_000_000
-        let lower = 50_000_000_000 - 650_000_000;
+        let lower = 50_000_000_000 - 750_000_000;
         let upper = 50_000_000_000 - 300_000_000;
         let mp = Kind::GasAvailable(lower, upper).encode().into();
 
