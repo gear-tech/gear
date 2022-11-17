@@ -25,7 +25,7 @@ use alloc::{
 use codec::{Decode, Encode};
 use gear_backend_common::{
     error_processor::IntoExtError, AsTerminationReason, ExtInfo, GetGasAmount, IntoExtInfo,
-    TerminationReason, TrapExplanation,
+    SystemReservationContext, TerminationReason, TrapExplanation,
 };
 use gear_core::{
     charge_gas_token,
@@ -37,7 +37,9 @@ use gear_core::{
         AllocationsContext, GrowHandler, GrowHandlerNothing, Memory, PageBuf, PageNumber,
         WasmPageNumber,
     },
-    message::{ExitCode, GasLimit, HandlePacket, InitPacket, MessageContext, Packet, ReplyPacket},
+    message::{
+        GasLimit, HandlePacket, InitPacket, MessageContext, Packet, ReplyPacket, StatusCode,
+    },
     reservation::GasReserver,
 };
 use gear_core_errors::{CoreError, ExecutionError, ExtError, MemoryError, MessageError, WaitError};
@@ -50,6 +52,8 @@ pub struct ProcessorContext {
     pub gas_allowance_counter: GasAllowanceCounter,
     /// Reserved gas counter.
     pub gas_reserver: GasReserver,
+    /// System reservation.
+    pub system_reservation: Option<u64>,
     /// Value counter.
     pub value_counter: ValueCounter,
     /// Allocations context.
@@ -517,7 +521,8 @@ impl EnvExt for Ext {
         self.context
             .message_context
             .current()
-            .reply()
+            .details()
+            .and_then(|d| d.to_reply_details())
             .map(|d| d.into_reply_to())
             .ok_or_else(|| MessageError::NoReplyContext.into())
     }
@@ -541,15 +546,15 @@ impl EnvExt for Ext {
         Ok(())
     }
 
-    fn exit_code(&mut self) -> Result<ExitCode, Self::Error> {
-        self.charge_gas_runtime(RuntimeCosts::ExitCode)?;
+    fn status_code(&mut self) -> Result<StatusCode, Self::Error> {
+        self.charge_gas_runtime(RuntimeCosts::StatusCode)?;
 
         self.context
             .message_context
             .current()
-            .reply()
-            .map(|d| d.into_exit_code())
-            .ok_or_else(|| MessageError::NoReplyContext.into())
+            .details()
+            .map(|d| d.status_code())
+            .ok_or_else(|| MessageError::NoStatusCodeContext.into())
     }
 
     fn message_id(&mut self) -> Result<MessageId, Self::Error> {
@@ -650,6 +655,26 @@ impl EnvExt for Ext {
         }*/
 
         Ok(amount)
+    }
+
+    fn system_reserve_gas(&mut self, amount: u64) -> Result<(), Self::Error> {
+        self.charge_gas_runtime(RuntimeCosts::SystemReserveGas)?;
+
+        // TODO: use `NonZeroU64` after issue #1838 is fixed
+        if amount == 0 {
+            return self.return_and_store_err(Err(ExecutionError::ZeroSystemReservationAmount));
+        }
+
+        if self.context.gas_counter.reduce(amount) == ChargeResult::NotEnough {
+            return Err(ExecutionError::InsufficientGasForReservation.into());
+        }
+
+        let reservation = &mut self.context.system_reservation;
+        *reservation = reservation
+            .map(|reservation| reservation.saturating_add(amount))
+            .or(Some(amount));
+
+        Ok(())
     }
 
     fn gas_available(&mut self) -> Result<u64, Self::Error> {
@@ -875,6 +900,7 @@ impl Ext {
             message_context,
             gas_counter,
             gas_reserver,
+            system_reservation,
             program_candidates_data,
             ..
         } = self.context;
@@ -892,11 +918,20 @@ impl Ext {
         let (outcome, mut context_store) = message_context.drain();
         let (generated_dispatches, awakening) = outcome.drain();
 
+        let system_reservation_context = SystemReservationContext {
+            current_reservation: system_reservation,
+            previous_reservation: context_store.system_reservation(),
+        };
+
         context_store.set_reservation_nonce(gas_reserver.nonce());
+        if let Some(reservation) = system_reservation {
+            context_store.add_system_reservation(reservation);
+        }
 
         let info = ExtInfo {
             gas_amount: gas_counter.into(),
             gas_reserver,
+            system_reservation_context,
             allocations: allocations.ne(&initial_allocations).then_some(allocations),
             pages_data,
             generated_dispatches,

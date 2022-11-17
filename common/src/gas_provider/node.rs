@@ -43,6 +43,19 @@ impl<T, U> GasNodeId<T, U> {
     }
 }
 
+impl<T, U> fmt::Display for GasNodeId<T, U>
+where
+    T: fmt::Display,
+    U: fmt::Display,
+{
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            GasNodeId::Node(id) => fmt::Display::fmt(id, f),
+            GasNodeId::Reservation(id) => fmt::Display::fmt(id, f),
+        }
+    }
+}
+
 impl<U> From<MessageId> for GasNodeId<MessageId, U> {
     fn from(id: MessageId) -> Self {
         Self::Node(id)
@@ -65,6 +78,7 @@ pub enum GasNode<ExternalId: Clone, Id: Clone, Balance: Zero + Clone> {
         id: ExternalId,
         value: Balance,
         lock: Balance,
+        system_reserve: Balance,
         refs: ChildrenRefs,
         consumed: bool,
     },
@@ -98,6 +112,7 @@ pub enum GasNode<ExternalId: Clone, Id: Clone, Balance: Zero + Clone> {
         parent: Id,
         value: Balance,
         lock: Balance,
+        system_reserve: Balance,
         refs: ChildrenRefs,
         consumed: bool,
     },
@@ -106,7 +121,11 @@ pub enum GasNode<ExternalId: Clone, Id: Clone, Balance: Zero + Clone> {
     /// so relies on its `parent`.
     ///
     /// Such nodes don't have children references.
-    UnspecifiedLocal { parent: Id, lock: Balance },
+    UnspecifiedLocal {
+        parent: Id,
+        lock: Balance,
+        system_reserve: Balance,
+    },
 }
 
 /// Children references convenience struct
@@ -125,6 +144,7 @@ impl<ExternalId: Clone, Id: Clone + Copy, Balance: Zero + Clone + Copy>
             id: origin,
             value,
             lock: Zero::zero(),
+            system_reserve: Zero::zero(),
             refs: Default::default(),
             consumed: false,
         }
@@ -241,6 +261,26 @@ impl<ExternalId: Clone, Id: Clone + Copy, Balance: Zero + Clone + Copy>
         }
     }
 
+    /// Returns node's system reserved gas balance, if it can have any.
+    pub fn system_reserve(&self) -> Option<Balance> {
+        match self {
+            GasNode::External { system_reserve, .. }
+            | GasNode::SpecifiedLocal { system_reserve, .. }
+            | GasNode::UnspecifiedLocal { system_reserve, .. } => Some(*system_reserve),
+            GasNode::Cut { .. } | GasNode::Reserved { .. } => None,
+        }
+    }
+
+    /// Gets a mutable access to node's system reserved gas balance, if it can have any.
+    pub fn system_reserve_mut(&mut self) -> Option<&mut Balance> {
+        match self {
+            GasNode::External { system_reserve, .. }
+            | GasNode::SpecifiedLocal { system_reserve, .. }
+            | GasNode::UnspecifiedLocal { system_reserve, .. } => Some(system_reserve),
+            GasNode::Cut { .. } | GasNode::Reserved { .. } => None,
+        }
+    }
+
     /// Returns node's parent, if it can have any.
     ///
     /// That is, `GasNode::External`, `GasNode::Cut`, 'GasNode::Reserved` nodes
@@ -305,6 +345,12 @@ impl<ExternalId: Clone, Id: Clone + Copy, Balance: Zero + Clone + Copy>
         matches!(self, Self::Reserved { .. })
     }
 
+    /// Returns whether the node has system reserved gas.
+    pub(crate) fn is_system_reservable(&self) -> bool {
+        self.system_reserve().is_some()
+    }
+
+    /// Returns whether the node is lockable.
     pub(crate) fn is_lockable(&self) -> bool {
         self.lock().is_some()
     }

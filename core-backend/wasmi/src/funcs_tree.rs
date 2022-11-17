@@ -75,8 +75,8 @@ where
         f.build("gr_read", |forbidden| F::read(store, forbidden, memory)),
         f.build("gr_size", |forbidden| F::size(store, forbidden)),
         f.build("gr_exit", |forbidden| F::exit(store, forbidden, memory)),
-        f.build("gr_exit_code", |forbidden| {
-            F::exit_code(store, forbidden, memory)
+        f.build("gr_status_code", |forbidden| {
+            F::status_code(store, forbidden, memory)
         }),
         f.build("alloc", |forbidden| F::alloc(store, forbidden, memory)),
         f.build("free", |forbidden| F::free(store, forbidden)),
@@ -158,6 +158,9 @@ where
         }),
         f.build("gr_unreserve_gas", |forbidden| {
             F::unreserve_gas(store, forbidden, memory)
+        }),
+        f.build("gr_system_reserve_gas", |forbidden| {
+            F::system_reserve_gas(store, forbidden)
         }),
         f.build(IMPORT_NAME_OUT_OF_GAS, |_| F::out_of_gas(store)),
         f.build(IMPORT_NAME_OUT_OF_ALLOWANCE, |_| F::out_of_allowance(store)),

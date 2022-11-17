@@ -142,6 +142,7 @@ fn default_processor_context<T: Config>() -> ProcessorContext {
             Default::default(),
             T::ReservationsLimit::get(),
         ),
+        system_reservation: None,
         value_counter: ValueCounter::new(0),
         allocations_context: AllocationsContext::new(
             Default::default(),
@@ -563,6 +564,17 @@ benchmarks! {
         verify_process(res.unwrap());
     }
 
+    gr_system_reserve_gas {
+        let r in 0 .. API_BENCHMARK_BATCHES;
+        let mut res = None;
+        let exec = Benches::<T>::gr_system_reserve_gas(r)?;
+    }: {
+        res.replace(run_process(exec));
+    }
+    verify {
+        verify_process(res.unwrap());
+    }
+
     gr_message_id {
         let r in 0 .. API_BENCHMARK_BATCHES;
         let mut res = None;
@@ -904,10 +916,10 @@ benchmarks! {
         verify_process(res.unwrap());
     }
 
-    gr_exit_code {
+    gr_status_code {
         let r in 0 .. API_BENCHMARK_BATCHES;
         let mut res = None;
-        let exec = Benches::<T>::gr_exit_code(r)?;
+        let exec = Benches::<T>::gr_status_code(r)?;
     }: {
         res.replace(run_process(exec));
     }

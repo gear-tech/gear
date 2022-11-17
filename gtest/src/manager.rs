@@ -795,7 +795,7 @@ impl JournalHandler for ExtManager {
         } else {
             let message = dispatch.into_stored().into_parts().1;
 
-            let message = match message.exit_code() {
+            let message = match message.status_code() {
                 Some(0) | None => message,
                 _ => message
                     .with_string_payload::<ExecutionErrorReason>()
@@ -983,4 +983,10 @@ impl JournalHandler for ExtManager {
             panic!("no gas reservation map found in program");
         }
     }
+
+    fn system_reserve_gas(&mut self, _message_id: MessageId, _amount: u64) {}
+
+    fn system_unreserve_gas(&mut self, _message_id: MessageId) {}
+
+    fn send_signal(&mut self, _message_id: MessageId, _destination: ProgramId) {}
 }

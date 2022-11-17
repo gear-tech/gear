@@ -15,4 +15,4 @@ fixtures:
       - step: 1
         log:
           - destination: 1000001
-            exitCode: 0
+            statusCode: 0

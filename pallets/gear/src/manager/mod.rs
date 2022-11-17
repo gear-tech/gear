@@ -51,12 +51,13 @@ mod task;
 pub use journal::*;
 pub use task::*;
 
-use crate::{Config, CurrencyOf, GearProgramPallet, Pallet, TaskPoolOf};
+use crate::{Config, CurrencyOf, GasHandlerOf, GearProgramPallet, Pallet, QueueOf, TaskPoolOf};
 use codec::{Decode, Encode};
 use common::{
     event::*,
     scheduler::{ScheduledTask, TaskHandler, TaskPool},
-    ActiveProgram, CodeStorage, Origin, ProgramState,
+    storage::Queue,
+    ActiveProgram, CodeStorage, GasTree, Origin, ProgramState,
 };
 use core::fmt;
 use core_processor::common::{Actor, ExecutableActorData};
@@ -66,7 +67,7 @@ use gear_core::{
     code::{CodeAndId, InstrumentedCode},
     ids::{CodeId, MessageId, ProgramId, ReservationId},
     memory::WasmPageNumber,
-    message::{DispatchKind, ExitCode},
+    message::{DispatchKind, SignalMessage, StatusCode},
     reservation::GasReservationSlot,
 };
 use primitive_types::H256;
@@ -83,7 +84,7 @@ pub enum HandleKind {
     Init(Vec<u8>),
     InitByHash(CodeId),
     Handle(ProgramId),
-    Reply(MessageId, ExitCode),
+    Reply(MessageId, StatusCode),
 }
 
 impl fmt::Debug for HandleKind {
@@ -310,5 +311,34 @@ where
         Pallet::<T>::consume_and_retrieve(reservation_id);
 
         slot
+    }
+
+    fn send_signal(&mut self, message_id: MessageId, destination: ProgramId) {
+        let reserved = GasHandlerOf::<T>::system_unreserve(message_id)
+            .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
+        if reserved != 0 {
+            log::debug!(
+                "Send signal issued by {} to {} with {} supply",
+                message_id,
+                destination,
+                reserved
+            );
+
+            // Creating signal message.
+            let trap_signal = SignalMessage::new(message_id, core_processor::ERR_STATUS_CODE)
+                .into_dispatch(destination)
+                .into_stored();
+
+            // Splitting gas for newly created reply message.
+            // TODO: don't split (#1743)
+            GasHandlerOf::<T>::split_with_value(message_id, trap_signal.id(), reserved)
+                .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
+
+            // Enqueueing dispatch into message queue.
+            QueueOf::<T>::queue(trap_signal)
+                .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e));
+        } else {
+            log::trace!("Signal wasn't sent due to inappropriate supply");
+        }
     }
 }

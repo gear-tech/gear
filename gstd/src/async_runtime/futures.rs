@@ -59,9 +59,12 @@ where
     F: Future<Output = ()> + 'static,
 {
     let msg_id = crate::msg::id();
-    let task = super::futures()
-        .entry(msg_id)
-        .or_insert_with(|| Task::new(future));
+    let task = super::futures().entry(msg_id).or_insert_with(|| {
+        let system_reserve_amount = crate::Config::system_reserve();
+        crate::exec::system_reserve_gas(system_reserve_amount)
+            .expect("Failed to reserve gas for system signal");
+        Task::new(future)
+    });
 
     let mut cx = Context::from_waker(&task.waker);
 

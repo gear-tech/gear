@@ -18,7 +18,7 @@
 
 use crate::{
     error_processor::IntoExtError, AsTerminationReason, ExtInfo, GetGasAmount, IntoExtInfo,
-    TerminationReason,
+    SystemReservationContext, TerminationReason,
 };
 use alloc::collections::BTreeSet;
 use codec::{Decode, Encode};
@@ -29,7 +29,7 @@ use gear_core::{
     gas::{GasAmount, GasCounter},
     ids::{MessageId, ProgramId, ReservationId},
     memory::{Memory, WasmPageNumber},
-    message::{ExitCode, HandlePacket, InitPacket, ReplyPacket},
+    message::{HandlePacket, InitPacket, ReplyPacket, StatusCode},
     reservation::GasReserver,
 };
 use gear_core_errors::{CoreError, ExtError, MemoryError};
@@ -120,7 +120,7 @@ impl Ext for MockExt {
     fn exit(&mut self) -> Result<(), Self::Error> {
         Ok(())
     }
-    fn exit_code(&mut self) -> Result<ExitCode, Self::Error> {
+    fn status_code(&mut self) -> Result<StatusCode, Self::Error> {
         Ok(Default::default())
     }
     fn message_id(&mut self) -> Result<MessageId, Self::Error> {
@@ -208,6 +208,10 @@ impl Ext for MockExt {
         Error
     }
 
+    fn system_reserve_gas(&mut self, _amount: u64) -> Result<(), Self::Error> {
+        Ok(())
+    }
+
     fn reservation_send_commit(
         &mut self,
         _id: ReservationId,
@@ -233,6 +237,7 @@ impl IntoExtInfo<<MockExt as Ext>::Error> for MockExt {
         Ok(ExtInfo {
             gas_amount: GasAmount::from(GasCounter::new(0)),
             gas_reserver: GasReserver::new(Default::default(), 0, Default::default(), 1024),
+            system_reservation_context: SystemReservationContext::default(),
             allocations: Default::default(),
             pages_data: Default::default(),
             generated_dispatches: Default::default(),

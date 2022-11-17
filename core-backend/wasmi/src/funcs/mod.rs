@@ -134,7 +134,7 @@ macro_rules! update_or_exit_if {
             .get_export(GLOBAL_NAME_GAS)
             .and_then(Extern::into_global)
             .and_then(|g| g.get(&$caller).try_into::<i64>())
-            .ok_or({
+            .ok_or_else(|| {
                 host_state_mut!($caller).err = FuncError::HostError;
                 Trap::from(TrapCode::Unreachable)
             })? as u64;
@@ -143,7 +143,7 @@ macro_rules! update_or_exit_if {
             .get_export(GLOBAL_NAME_ALLOWANCE)
             .and_then(Extern::into_global)
             .and_then(|g| g.get(&$caller).try_into::<i64>())
-            .ok_or({
+            .ok_or_else(|| {
                 host_state_mut!($caller).err = FuncError::HostError;
                 Trap::from(TrapCode::Unreachable)
             })? as u64;
@@ -173,10 +173,6 @@ pub enum FuncError<E: Display> {
     RuntimeBufferSize(RuntimeBufferSizeError),
     #[display(fmt = "{_0}")]
     PayloadBufferSize(PayloadSizeError),
-    #[display(fmt = "Exit code ran into non-reply scenario")]
-    NonReplyExitCode,
-    #[display(fmt = "Not running in reply context")]
-    NoReplyContext,
     #[display(fmt = "Failed to parse debug string")]
     DebugStringParsing,
     #[display(fmt = "`gr_error` expects error occurred earlier")]
@@ -660,18 +656,18 @@ where
         Func::wrap(store, func)
     }
 
-    pub fn exit_code(
+    pub fn status_code(
         store: &mut Store<HostState<E>>,
         forbidden: bool,
         memory: WasmiMemory,
     ) -> Func {
         let func = move |mut caller: wasmi::Caller<'_, HostState<E>>,
-                         exit_code_ptr: u32|
+                         status_code_ptr: u32|
               -> FallibleOutput {
             update_or_exit_if!(forbidden, caller);
 
             let host_state = host_state_mut!(caller);
-            let exit_code = match host_state.ext.exit_code() {
+            let status_code = match host_state.ext.status_code() {
                 Ok(c) => c,
                 Err(e) => {
                     let err = FuncError::Core(e);
@@ -685,9 +681,9 @@ where
             process_call_result!(
                 caller,
                 memory,
-                |_ext| Ok(exit_code),
-                |memory_wrap, exit_code| memory_wrap
-                    .write(exit_code_ptr as usize, &exit_code.to_le_bytes())
+                |_ext| Ok(status_code),
+                |memory_wrap, status_code| memory_wrap
+                    .write(status_code_ptr as usize, &status_code.to_le_bytes())
             )
         };
 
@@ -1399,6 +1395,27 @@ where
 
                 Ok((0,))
             };
+
+        Func::wrap(store, func)
+    }
+
+    pub fn system_reserve_gas(store: &mut Store<HostState<E>>, forbidden: bool) -> Func {
+        let func = move |mut caller: wasmi::Caller<'_, HostState<E>>, gas_amount: u64| {
+            update_or_exit_if!(forbidden, caller);
+
+            let call_result = host_state_mut!(caller).ext.system_reserve_gas(gas_amount);
+            update_globals!(caller);
+
+            match call_result {
+                Ok(()) => Ok((0,)),
+                Err(e) => {
+                    let err = FuncError::Core(e);
+                    let size = Encode::encoded_size(&err) as u32;
+                    host_state_mut!(caller).err = err;
+                    Ok((size,))
+                }
+            }
+        };
 
         Func::wrap(store, func)
     }

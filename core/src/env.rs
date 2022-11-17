@@ -22,7 +22,7 @@ use crate::{
     costs::RuntimeCosts,
     ids::{MessageId, ProgramId, ReservationId},
     memory::{Memory, WasmPageNumber},
-    message::{ExitCode, HandlePacket, InitPacket, ReplyPacket},
+    message::{HandlePacket, InitPacket, ReplyPacket, StatusCode},
 };
 use alloc::collections::BTreeSet;
 use codec::{Decode, Encode};
@@ -147,8 +147,8 @@ pub trait Ext {
     /// Terminate the program and transfer all available value to the address.
     fn exit(&mut self) -> Result<(), Self::Error>;
 
-    /// Get the exit code of the message being processed.
-    fn exit_code(&mut self) -> Result<ExitCode, Self::Error>;
+    /// Get the status code of the message being processed.
+    fn status_code(&mut self) -> Result<StatusCode, Self::Error>;
 
     /// Get the id of the message currently being handled.
     fn message_id(&mut self) -> Result<MessageId, Self::Error>;
@@ -193,6 +193,9 @@ pub trait Ext {
 
     /// Unreserve gas using reservation ID.
     fn unreserve_gas(&mut self, id: ReservationId) -> Result<u64, Self::Error>;
+
+    /// Do system reservation.
+    fn system_reserve_gas(&mut self, amount: u64) -> Result<(), Self::Error>;
 
     /// Tell how much gas is left in running context.
     fn gas_available(&mut self) -> Result<u64, Self::Error>;

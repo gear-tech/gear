@@ -128,7 +128,7 @@ where
                     payload.try_into()?,
                     Some(u64::MAX),
                     value,
-                    Some(ReplyDetails::new(msg.id(), exit_code)),
+                    Some(ReplyDetails::new(msg.id(), exit_code).into()),
                 ),
             )
         }
@@ -384,6 +384,29 @@ where
             HandleKind::Handle(ProgramId::from_origin(instance.addr)),
             vec![],
             0,
+        )
+    }
+
+    pub fn gr_system_reserve_gas(r: u32) -> Result<Exec<T>, &'static str> {
+        let code = WasmModule::<T>::from(ModuleDefinition {
+            memory: Some(ImportedMemory::max::<T>()),
+            imported_functions: vec!["gr_system_reserve_gas"],
+            handle_body: Some(body::repeated(
+                r * API_BENCHMARK_BATCH_SIZE,
+                &[
+                    Instruction::I64Const(50_000_000), // gas amount
+                    Instruction::Call(0),
+                    Instruction::Drop,
+                ],
+            )),
+            ..Default::default()
+        });
+        let instance = Program::<T>::new(code, vec![])?;
+        prepare::<T>(
+            instance.caller.into_origin(),
+            HandleKind::Handle(ProgramId::from_origin(instance.addr)),
+            vec![],
+            0u32.into(),
         )
     }
 
@@ -1012,12 +1035,12 @@ where
         )
     }
 
-    pub fn gr_exit_code(r: u32) -> Result<Exec<T>, &'static str> {
+    pub fn gr_status_code(r: u32) -> Result<Exec<T>, &'static str> {
         let exit_code_offset = 1;
 
         let code = WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
-            imported_functions: vec!["gr_exit_code"],
+            imported_functions: vec!["gr_status_code"],
             reply_body: Some(body::repeated(
                 r * API_BENCHMARK_BATCH_SIZE,
                 &[
