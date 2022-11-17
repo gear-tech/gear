@@ -1089,7 +1089,11 @@ where
         Func::wrap(store, func)
     }
 
-    pub fn rereply(store: &mut Store<HostState<E>>, forbidden: bool, memory: WasmiMemory) -> Func {
+    pub fn reply_input(
+        store: &mut Store<HostState<E>>,
+        forbidden: bool,
+        memory: WasmiMemory,
+    ) -> Func {
         let func = move |mut caller: wasmi::Caller<'_, HostState<E>>,
                          value_ptr: u32,
                          offset: u32,
@@ -1110,7 +1114,7 @@ where
                 caller,
                 memory,
                 |ext| {
-                    ext.rereply_push(offset, len)?;
+                    ext.reply_push_input(offset, len)?;
                     ext.reply_commit(ReplyPacket::new(Default::default(), value), delay)
                 },
                 message_id_ptr
@@ -1120,17 +1124,17 @@ where
         Func::wrap(store, func)
     }
 
-    pub fn rereply_push(store: &mut Store<HostState<E>>, forbidden: bool) -> Func {
+    pub fn reply_push_input(store: &mut Store<HostState<E>>, forbidden: bool) -> Func {
         let func = move |mut caller: wasmi::Caller<'_, HostState<E>>, offset: u32, len: u32| {
             update_or_exit_if!(forbidden, caller);
 
-            process_call_unit_result!(caller, |ext| ext.rereply_push(offset, len))
+            process_call_unit_result!(caller, |ext| ext.reply_push_input(offset, len))
         };
 
         Func::wrap(store, func)
     }
 
-    pub fn rereply_wgas(
+    pub fn reply_input_wgas(
         store: &mut Store<HostState<E>>,
         forbidden: bool,
         memory: WasmiMemory,
@@ -1157,7 +1161,7 @@ where
                 caller,
                 memory,
                 |ext| {
-                    ext.rereply_push(offset, len)?;
+                    ext.reply_push_input(offset, len)?;
                     ext.reply_commit(
                         ReplyPacket::new_with_gas(Default::default(), gas_limit, value),
                         delay,
@@ -1170,7 +1174,11 @@ where
         Func::wrap(store, func)
     }
 
-    pub fn resend(store: &mut Store<HostState<E>>, forbidden: bool, memory: WasmiMemory) -> Func {
+    pub fn send_input(
+        store: &mut Store<HostState<E>>,
+        forbidden: bool,
+        memory: WasmiMemory,
+    ) -> Func {
         let func = move |mut caller: wasmi::Caller<'_, HostState<E>>,
                          destination_ptr: u32,
                          value_ptr: u32,
@@ -1195,7 +1203,7 @@ where
                 memory,
                 |ext| {
                     let handle = ext.send_init()?;
-                    ext.resend_push(handle, offset, len)?;
+                    ext.send_push_input(handle, offset, len)?;
                     ext.send_commit(
                         handle,
                         HandlePacket::new(destination, Default::default(), value),
@@ -1209,7 +1217,7 @@ where
         Func::wrap(store, func)
     }
 
-    pub fn resend_push(store: &mut Store<HostState<E>>, forbidden: bool) -> Func {
+    pub fn send_push_input(store: &mut Store<HostState<E>>, forbidden: bool) -> Func {
         let func = move |mut caller: wasmi::Caller<'_, HostState<E>>,
                          handle: u32,
                          offset: u32,
@@ -1217,13 +1225,13 @@ where
               -> FallibleOutput {
             update_or_exit_if!(forbidden, caller);
 
-            process_call_unit_result!(caller, |ext| ext.resend_push(handle, offset, len))
+            process_call_unit_result!(caller, |ext| ext.send_push_input(handle, offset, len))
         };
 
         Func::wrap(store, func)
     }
 
-    pub fn resend_wgas(
+    pub fn send_input_wgas(
         store: &mut Store<HostState<E>>,
         forbidden: bool,
         memory: WasmiMemory,
@@ -1253,7 +1261,7 @@ where
                 memory,
                 |ext| {
                     let handle = ext.send_init()?;
-                    ext.resend_push(handle, offset, len)?;
+                    ext.send_push_input(handle, offset, len)?;
                     ext.send_commit(
                         handle,
                         HandlePacket::new_with_gas(

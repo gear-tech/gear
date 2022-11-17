@@ -910,12 +910,12 @@ where
         )
     }
 
-    pub fn gr_rereply_push(r: u32) -> Result<Exec<T>, &'static str> {
+    pub fn gr_reply_push_input(r: u32) -> Result<Exec<T>, &'static str> {
         let payload_len = 100;
 
         let code = WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
-            imported_functions: vec!["gr_rereply_push"],
+            imported_functions: vec!["gr_reply_push_input"],
             handle_body: Some(body::repeated(
                 r * API_BENCHMARK_BATCH_SIZE,
                 &[
@@ -938,12 +938,12 @@ where
         )
     }
 
-    pub fn gr_rereply_push_per_kb(n: u32) -> Result<Exec<T>, &'static str> {
+    pub fn gr_reply_push_input_per_kb(n: u32) -> Result<Exec<T>, &'static str> {
         let payload_len = n as i32 * 1_024;
 
         let code = WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
-            imported_functions: vec!["gr_rereply_push"],
+            imported_functions: vec!["gr_reply_push_input"],
             handle_body: Some(body::repeated(
                 API_BENCHMARK_BATCH_SIZE,
                 &[
@@ -965,12 +965,12 @@ where
         )
     }
 
-    pub fn gr_resend_push(r: u32) -> Result<Exec<T>, &'static str> {
+    pub fn gr_send_push_input(r: u32) -> Result<Exec<T>, &'static str> {
         let payload_len = 100;
 
         let code = WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
-            imported_functions: vec!["gr_send_init", "gr_resend_push"],
+            imported_functions: vec!["gr_send_init", "gr_send_push_input"],
             handle_body: Some(body::repeated(
                 r * API_BENCHMARK_BATCH_SIZE,
                 &[
@@ -1000,12 +1000,12 @@ where
         )
     }
 
-    pub fn gr_resend_push_per_kb(n: u32) -> Result<Exec<T>, &'static str> {
+    pub fn gr_send_push_input_per_kb(n: u32) -> Result<Exec<T>, &'static str> {
         let payload_len = n * 1_024;
 
         let code = WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
-            imported_functions: vec!["gr_send_init", "gr_resend_push"],
+            imported_functions: vec!["gr_send_init", "gr_send_push_input"],
             handle_body: Some(body::repeated(
                 API_BENCHMARK_BATCH_SIZE,
                 &[

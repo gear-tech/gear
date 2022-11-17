@@ -103,21 +103,23 @@ where
         f.build("gr_reply_push", |forbidden| {
             F::reply_push(store, forbidden, memory)
         }),
-        f.build("gr_rereply", |forbidden| {
-            F::rereply(store, forbidden, memory)
+        f.build("gr_reply_input", |forbidden| {
+            F::reply_input(store, forbidden, memory)
         }),
-        f.build("gr_rereply_push", |forbidden| {
-            F::rereply_push(store, forbidden)
+        f.build("gr_reply_push_input", |forbidden| {
+            F::reply_push_input(store, forbidden)
         }),
-        f.build("gr_rereply_wgas", |forbidden| {
-            F::rereply_wgas(store, forbidden, memory)
+        f.build("gr_reply_input_wgas", |forbidden| {
+            F::reply_input_wgas(store, forbidden, memory)
         }),
-        f.build("gr_resend", |forbidden| F::resend(store, forbidden, memory)),
-        f.build("gr_resend_push", |forbidden| {
-            F::resend_push(store, forbidden)
+        f.build("gr_send_input", |forbidden| {
+            F::send_input(store, forbidden, memory)
         }),
-        f.build("gr_resend_wgas", |forbidden| {
-            F::resend_wgas(store, forbidden, memory)
+        f.build("gr_send_push_input", |forbidden| {
+            F::send_push_input(store, forbidden)
+        }),
+        f.build("gr_send_input_wgas", |forbidden| {
+            F::send_input_wgas(store, forbidden, memory)
         }),
         f.build("gr_reservation_reply", |forbidden| {
             F::reservation_reply(store, forbidden, memory)

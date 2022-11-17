@@ -162,12 +162,12 @@ where
             Funcs::reservation_reply_commit,
         );
         builder.add_func("gr_reply_push", Funcs::reply_push);
-        builder.add_func("gr_rereply", Funcs::rereply);
-        builder.add_func("gr_rereply_push", Funcs::rereply_push);
-        builder.add_func("gr_rereply_wgas", Funcs::rereply_wgas);
-        builder.add_func("gr_resend", Funcs::resend);
-        builder.add_func("gr_resend_push", Funcs::resend_push);
-        builder.add_func("gr_resend_wgas", Funcs::resend_wgas);
+        builder.add_func("gr_reply_input", Funcs::reply_input);
+        builder.add_func("gr_reply_push_input", Funcs::reply_push_input);
+        builder.add_func("gr_reply_input_wgas", Funcs::reply_input_wgas);
+        builder.add_func("gr_send_input", Funcs::send_input);
+        builder.add_func("gr_send_push_input", Funcs::send_push_input);
+        builder.add_func("gr_send_input_wgas", Funcs::send_input_wgas);
         builder.add_func("gr_reply_to", Funcs::reply_to);
         builder.add_func("gr_reply_wgas", Funcs::reply_wgas);
         builder.add_func("gr_send", Funcs::send);

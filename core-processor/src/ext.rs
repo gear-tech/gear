@@ -408,11 +408,11 @@ impl EnvExt for Ext {
         self.return_and_store_err(result)
     }
 
-    fn resend_push(&mut self, handle: u32, offset: u32, len: u32) -> Result<(), Self::Error> {
-        let range = self.context.message_context.check_relay_range(offset, len);
-        self.charge_gas_runtime(RuntimeCosts::ResendPush(range.len()))?;
+    fn send_push_input(&mut self, handle: u32, offset: u32, len: u32) -> Result<(), Self::Error> {
+        let range = self.context.message_context.check_input_range(offset, len);
+        self.charge_gas_runtime(RuntimeCosts::SendPushInput(range.len()))?;
 
-        let result = self.context.message_context.resend_push(handle, range);
+        let result = self.context.message_context.send_push_input(handle, range);
 
         self.return_and_store_err(result)
     }
@@ -527,11 +527,11 @@ impl EnvExt for Ext {
             .ok_or_else(|| MessageError::NoReplyContext.into())
     }
 
-    fn rereply_push(&mut self, offset: u32, len: u32) -> Result<(), Self::Error> {
-        let range = self.context.message_context.check_relay_range(offset, len);
-        self.charge_gas_runtime(RuntimeCosts::RereplyPush(range.len()))?;
+    fn reply_push_input(&mut self, offset: u32, len: u32) -> Result<(), Self::Error> {
+        let range = self.context.message_context.check_input_range(offset, len);
+        self.charge_gas_runtime(RuntimeCosts::ReplyPushInput(range.len()))?;
 
-        let result = self.context.message_context.rereply_push(range);
+        let result = self.context.message_context.reply_push_input(range);
 
         self.return_and_store_err(result)
     }

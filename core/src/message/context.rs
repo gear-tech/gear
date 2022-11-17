@@ -314,7 +314,7 @@ impl MessageContext {
     }
 
     /// Pushes the incoming buffer/payload into stored payload by handle.
-    pub fn resend_push(&mut self, handle: u32, range: CheckedRange) -> Result<(), Error> {
+    pub fn send_push_input(&mut self, handle: u32, range: CheckedRange) -> Result<(), Error> {
         let data = self
             .store
             .outgoing
@@ -334,8 +334,8 @@ impl MessageContext {
         Ok(())
     }
 
-    /// Check range for `resend_push`/`rereply_push` methods.
-    pub fn check_relay_range(&self, offset: u32, len: u32) -> CheckedRange {
+    /// Check range for `send_push_input`/`reply_push_input` methods.
+    pub fn check_input_range(&self, offset: u32, len: u32) -> CheckedRange {
         let input = self.current.payload();
         let offset = offset as usize;
         let excluded_end = if offset >= input.len() || len == 0 {
@@ -402,7 +402,7 @@ impl MessageContext {
     }
 
     /// Pushes the incoming message buffer into stored reply payload.
-    pub fn rereply_push(&mut self, range: CheckedRange) -> Result<(), Error> {
+    pub fn reply_push_input(&mut self, range: CheckedRange) -> Result<(), Error> {
         if !self.store.reply_sent {
             let CheckedRange {
                 offset,

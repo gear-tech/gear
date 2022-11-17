@@ -97,7 +97,7 @@ mod sys {
         pub fn gr_reply_to(message_id_ptr: *mut [u8; 32]) -> SyscallError;
 
         #[allow(improper_ctypes)]
-        pub fn gr_rereply(
+        pub fn gr_reply_input(
             value_ptr: *const u128,
             offset: u32,
             len: u32,
@@ -106,7 +106,7 @@ mod sys {
         ) -> SyscallError;
 
         #[allow(improper_ctypes)]
-        pub fn gr_rereply_wgas(
+        pub fn gr_reply_input_wgas(
             gas_limit: u64,
             value_ptr: *const u128,
             offset: u32,
@@ -115,10 +115,10 @@ mod sys {
             message_id_ptr: *mut [u8; 32],
         ) -> SyscallError;
 
-        pub fn gr_rereply_push(offset: u32, len: u32) -> SyscallError;
+        pub fn gr_reply_push_input(offset: u32, len: u32) -> SyscallError;
 
         #[allow(improper_ctypes)]
-        pub fn gr_resend(
+        pub fn gr_send_input(
             destination_ptr: *const [u8; 32],
             value_ptr: *const u128,
             offset: u32,
@@ -127,10 +127,10 @@ mod sys {
             message_id_ptr: *mut [u8; 32],
         ) -> SyscallError;
 
-        pub fn gr_resend_push(handle: MessageHandle, offset: u32, len: u32) -> SyscallError;
+        pub fn gr_send_push_input(handle: MessageHandle, offset: u32, len: u32) -> SyscallError;
 
         #[allow(improper_ctypes)]
-        pub fn gr_resend_wgas(
+        pub fn gr_send_input_wgas(
             destination_ptr: *const [u8; 32],
             gas_limit: u64,
             value_ptr: *const u128,
@@ -697,16 +697,16 @@ pub fn reply_to() -> Result<MessageId> {
 }
 
 /// Same as [`reply`], but relays the incoming message payload.
-pub fn rereply(value: u128, offset: u32, len: u32) -> Result<MessageId> {
-    rereply_delayed(value, offset, len, 0)
+pub fn reply_input(value: u128, offset: u32, len: u32) -> Result<MessageId> {
+    reply_input_delayed(value, offset, len, 0)
 }
 
-/// Same as [`rereply`], but sends delayed.
-pub fn rereply_delayed(value: u128, offset: u32, len: u32, delay: u32) -> Result<MessageId> {
+/// Same as [`reply_input`], but sends delayed.
+pub fn reply_input_delayed(value: u128, offset: u32, len: u32, delay: u32) -> Result<MessageId> {
     let mut message_id = MessageId::default();
 
     unsafe {
-        sys::gr_rereply(
+        sys::gr_reply_input(
             value.to_le_bytes().as_ptr() as _,
             offset,
             len,
@@ -720,17 +720,22 @@ pub fn rereply_delayed(value: u128, offset: u32, len: u32, delay: u32) -> Result
 }
 
 /// Same as [`reply_push`], but pushes the incoming message payload.
-pub fn rereply_push(offset: u32, len: u32) -> Result<()> {
-    unsafe { sys::gr_rereply_push(offset, len).into_result() }
+pub fn reply_push_input(offset: u32, len: u32) -> Result<()> {
+    unsafe { sys::gr_reply_push_input(offset, len).into_result() }
 }
 
-/// Same as [`rereply`], but with explicit gas limit.
-pub fn rereply_with_gas(gas_limit: u64, value: u128, offset: u32, len: u32) -> Result<MessageId> {
-    rereply_with_gas_delayed(gas_limit, value, offset, len, 0)
+/// Same as [`reply_input`], but with explicit gas limit.
+pub fn reply_input_with_gas(
+    gas_limit: u64,
+    value: u128,
+    offset: u32,
+    len: u32,
+) -> Result<MessageId> {
+    reply_input_with_gas_delayed(gas_limit, value, offset, len, 0)
 }
 
-/// Same as [`rereply_with_gas`], but sends delayed.
-pub fn rereply_with_gas_delayed(
+/// Same as [`reply_input_with_gas`], but sends delayed.
+pub fn reply_input_with_gas_delayed(
     gas_limit: u64,
     value: u128,
     offset: u32,
@@ -740,7 +745,7 @@ pub fn rereply_with_gas_delayed(
     let mut message_id = MessageId::default();
 
     unsafe {
-        sys::gr_rereply_wgas(
+        sys::gr_reply_input_wgas(
             gas_limit,
             value.to_le_bytes().as_ptr() as _,
             offset,
@@ -755,12 +760,12 @@ pub fn rereply_with_gas_delayed(
 }
 
 /// Same as [`send`], but resends the incoming message.
-pub fn resend(destination: ActorId, value: u128, offset: u32, len: u32) -> Result<MessageId> {
-    resend_delayed(destination, value, offset, len, 0)
+pub fn send_input(destination: ActorId, value: u128, offset: u32, len: u32) -> Result<MessageId> {
+    send_input_delayed(destination, value, offset, len, 0)
 }
 
-/// Same as [`resend`], but sends delayed.
-pub fn resend_delayed(
+/// Same as [`send_input`], but sends delayed.
+pub fn send_input_delayed(
     destination: ActorId,
     value: u128,
     offset: u32,
@@ -770,7 +775,7 @@ pub fn resend_delayed(
     let mut message_id = MessageId::default();
 
     unsafe {
-        sys::gr_resend(
+        sys::gr_send_input(
             destination.as_ptr(),
             value.to_le_bytes().as_ptr() as _,
             offset,
@@ -861,23 +866,23 @@ pub fn send_delayed_from_reservation(
 }
 
 /// Same as [`send_push`], but pushes the incoming message payload.
-pub fn resend_push(handle: MessageHandle, offset: u32, len: u32) -> Result<()> {
-    unsafe { sys::gr_resend_push(handle, offset, len).into_result() }
+pub fn send_push_input(handle: MessageHandle, offset: u32, len: u32) -> Result<()> {
+    unsafe { sys::gr_send_push_input(handle, offset, len).into_result() }
 }
 
-/// Same as [`resend`], but resends the incoming message.
-pub fn resend_with_gas(
+/// Same as [`send_input`], but with explicit gas limit.
+pub fn send_input_with_gas(
     destination: ActorId,
     gas_limit: u64,
     value: u128,
     offset: u32,
     len: u32,
 ) -> Result<MessageId> {
-    resend_with_gas_delayed(destination, gas_limit, value, offset, len, 0)
+    send_input_with_gas_delayed(destination, gas_limit, value, offset, len, 0)
 }
 
-/// Same as [`resend_with_gas`], but sends delayed.
-pub fn resend_with_gas_delayed(
+/// Same as [`send_input_with_gas`], but sends delayed.
+pub fn send_input_with_gas_delayed(
     destination: ActorId,
     gas_limit: u64,
     value: u128,
@@ -888,7 +893,7 @@ pub fn resend_with_gas_delayed(
     let mut message_id = MessageId::default();
 
     unsafe {
-        sys::gr_resend_wgas(
+        sys::gr_send_input_wgas(
             destination.as_ptr(),
             gas_limit,
             value.to_le_bytes().as_ptr() as _,

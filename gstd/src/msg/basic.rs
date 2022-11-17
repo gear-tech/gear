@@ -440,17 +440,20 @@ pub fn reply_to() -> Result<MessageId> {
 }
 
 /// Same as [`reply_push`], but pushes the incoming message payload.
-pub fn rereply_push<Range: RangeBounds<usize>>(range: Range) -> Result<()> {
+pub fn reply_push_input<Range: RangeBounds<usize>>(range: Range) -> Result<()> {
     let (offset, len) = utils::decay_range(range);
 
-    gcore::msg::rereply_push(offset, len).into_contract_result()
+    gcore::msg::reply_push_input(offset, len).into_contract_result()
 }
 
 /// Same as [`send_push`], but pushes the incoming message payload.
-pub fn resend_push<Range: RangeBounds<usize>>(handle: MessageHandle, range: Range) -> Result<()> {
+pub fn send_push_input<Range: RangeBounds<usize>>(
+    handle: MessageHandle,
+    range: Range,
+) -> Result<()> {
     let (offset, len) = utils::decay_range(range);
 
-    gcore::msg::resend_push(handle.0, offset, len).into_contract_result()
+    gcore::msg::send_push_input(handle.0, offset, len).into_contract_result()
 }
 
 /// Send a new message to the program or user.

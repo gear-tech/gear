@@ -115,17 +115,17 @@ pub struct HostFnWeights {
     /// Weight of calling `gr_reply_to`.
     pub gr_reply_to: u64,
 
-    /// Weight of calling `gr_rereply_push`.
-    pub gr_rereply_push: u64,
+    /// Weight of calling `gr_reply_push_input`.
+    pub gr_reply_push_input: u64,
 
-    /// Weight per payload byte by `gr_rereply_push`.
-    pub gr_rereply_push_per_byte: u64,
+    /// Weight per payload byte by `gr_reply_push_input`.
+    pub gr_reply_push_input_per_byte: u64,
 
-    /// Weight of calling `gr_resend_push`.
-    pub gr_resend_push: u64,
+    /// Weight of calling `gr_send_push_input`.
+    pub gr_send_push_input: u64,
 
-    /// Weight per payload byte by `gr_resend_push`.
-    pub gr_resend_push_per_byte: u64,
+    /// Weight per payload byte by `gr_send_push_input`.
+    pub gr_send_push_input_per_byte: u64,
 
     /// Weight of calling `gr_debug`.
     pub gr_debug: u64,
@@ -261,9 +261,9 @@ pub enum RuntimeCosts {
     /// Weight of calling `gr_create_program_wgas`.
     CreateProgram(u32, u32),
     /// Weight of calling `gr_resend_push`.
-    ResendPush(u32),
+    SendPushInput(u32),
     /// Weight of calling `gr_rereply_push`.
-    RereplyPush(u32),
+    ReplyPushInput(u32),
 }
 
 impl RuntimeCosts {
@@ -327,12 +327,12 @@ impl RuntimeCosts {
                     s.gr_create_program_wgas_salt_per_byte
                         .saturating_mul(salt_len.into()),
                 ),
-            ResendPush(len) => s
-                .gr_resend_push
-                .saturating_add(s.gr_resend_push_per_byte.saturating_mul(len.into())),
-            RereplyPush(len) => s
-                .gr_rereply_push
-                .saturating_add(s.gr_rereply_push_per_byte.saturating_mul(len.into())),
+            SendPushInput(len) => s
+                .gr_send_push_input
+                .saturating_add(s.gr_send_push_input_per_byte.saturating_mul(len.into())),
+            ReplyPushInput(len) => s
+                .gr_reply_push_input
+                .saturating_add(s.gr_reply_push_input_per_byte.saturating_mul(len.into())),
         };
         RuntimeToken { weight }
     }

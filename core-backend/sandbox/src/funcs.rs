@@ -611,15 +611,15 @@ where
         })
     }
 
-    pub fn rereply(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
-        sys_trace!(target: "syscall::gear", "rereply, args = {}", args_to_str(args));
+    pub fn reply_input(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
+        sys_trace!(target: "syscall::gear", "reply_input, args = {}", args_to_str(args));
 
         let (value_ptr, offset, len, delay, message_id_ptr) = args.iter().read_5()?;
 
         ctx.run(|ctx| {
             let value = ctx.read_memory_as(value_ptr)?;
 
-            let push_result = ctx.ext.rereply_push(offset, len);
+            let push_result = ctx.ext.reply_push_input(offset, len);
             push_result
                 .and_then(|_| {
                     ctx.ext
@@ -633,30 +633,30 @@ where
         })
     }
 
-    pub fn rereply_push(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
-        sys_trace!(target: "syscall::gear", "rereply_push, args = {}", args_to_str(args));
+    pub fn reply_push_input(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
+        sys_trace!(target: "syscall::gear", "reply_push_input, args = {}", args_to_str(args));
 
         let (offset, len) = args.iter().read_2()?;
 
         ctx.run(|ctx| {
             Ok(ctx
                 .ext
-                .rereply_push(offset, len)
+                .reply_push_input(offset, len)
                 .process_error()
                 .map_err(FuncError::Core)?
                 .error_len())
         })
     }
 
-    pub fn rereply_wgas(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
-        sys_trace!(target: "syscall::gear", "rereply_wgas, args = {}", args_to_str(args));
+    pub fn reply_input_wgas(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
+        sys_trace!(target: "syscall::gear", "reply_input_wgas, args = {}", args_to_str(args));
 
         let (gas_limit, value_ptr, offset, len, delay, message_id_ptr) = args.iter().read_6()?;
 
         ctx.run(|ctx| {
             let value = ctx.read_memory_as(value_ptr)?;
 
-            let push_result = ctx.ext.rereply_push(offset, len);
+            let push_result = ctx.ext.reply_push_input(offset, len);
             push_result
                 .and_then(|_| {
                     ctx.ext.reply_commit(
@@ -672,8 +672,8 @@ where
         })
     }
 
-    pub fn resend(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
-        sys_trace!(target: "syscall::gear", "resend, args = {}", args_to_str(args));
+    pub fn send_input(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
+        sys_trace!(target: "syscall::gear", "send_input, args = {}", args_to_str(args));
 
         let (destination_ptr, value_ptr, offset, len, delay, message_id_ptr) =
             args.iter().read_6()?;
@@ -683,7 +683,8 @@ where
             let value = ctx.read_memory_as(value_ptr)?;
 
             let handle = ctx.ext.send_init();
-            let push_result = handle.and_then(|h| ctx.ext.resend_push(h, offset, len).map(|_| h));
+            let push_result =
+                handle.and_then(|h| ctx.ext.send_push_input(h, offset, len).map(|_| h));
             push_result
                 .and_then(|h| {
                     ctx.ext.send_commit(
@@ -700,23 +701,23 @@ where
         })
     }
 
-    pub fn resend_push(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
-        sys_trace!(target: "syscall::gear", "resend_push, args = {}", args_to_str(args));
+    pub fn send_push_input(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
+        sys_trace!(target: "syscall::gear", "send_push_input, args = {}", args_to_str(args));
 
         let (handle, offset, len) = args.iter().read_3()?;
 
         ctx.run(|ctx| {
             Ok(ctx
                 .ext
-                .resend_push(handle, offset, len)
+                .send_push_input(handle, offset, len)
                 .process_error()
                 .map_err(FuncError::Core)?
                 .error_len())
         })
     }
 
-    pub fn resend_wgas(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
-        sys_trace!(target: "syscall::gear", "resend_wgas, args = {}", args_to_str(args));
+    pub fn send_input_wgas(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
+        sys_trace!(target: "syscall::gear", "send_input_wgas, args = {}", args_to_str(args));
 
         let (destination_ptr, gas_limit, value_ptr, offset, len, delay, message_id_ptr) =
             args.iter().read_7()?;
@@ -726,7 +727,8 @@ where
             let value = ctx.read_memory_as(value_ptr)?;
 
             let handle = ctx.ext.send_init();
-            let push_result = handle.and_then(|h| ctx.ext.resend_push(h, offset, len).map(|_| h));
+            let push_result =
+                handle.and_then(|h| ctx.ext.send_push_input(h, offset, len).map(|_| h));
             push_result
                 .and_then(|h| {
                     ctx.ext.send_commit(
