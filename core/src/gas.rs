@@ -288,7 +288,7 @@ impl GasAllowanceCounter {
 mod tests {
     use super::{ChargeResult, GasCounter};
     use crate::{
-        costs::{HostFnWeights, RuntimeCosts, RuntimeToken},
+        costs::{HostFnWeights, RuntimeCosts},
         gas::GasAllowanceCounter,
     };
 
@@ -318,7 +318,10 @@ mod tests {
 
     #[test]
     fn charge_token_fails() {
-        let token = RuntimeCosts::Alloc.token(&HostFnWeights::default());
+        let token = RuntimeCosts::Alloc.token(&HostFnWeights {
+            alloc: 1_000,
+            ..Default::default()
+        });
 
         let mut counter = GasCounter::new(10);
         assert_eq!(counter.charge_token(token), ChargeResult::NotEnough);
@@ -333,7 +336,10 @@ mod tests {
 
     #[test]
     fn charge_allowance_token_fails() {
-        let token = RuntimeCosts::Alloc.token(&HostFnWeights::default());
+        let token = RuntimeCosts::Alloc.token(&HostFnWeights {
+            alloc: 1_000,
+            ..Default::default()
+        });
 
         let mut counter = GasAllowanceCounter::new(10);
         assert_eq!(counter.charge_token(token), ChargeResult::NotEnough);
