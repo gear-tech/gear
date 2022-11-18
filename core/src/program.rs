@@ -98,13 +98,9 @@ impl Program {
     }
 
     /// Set allocations as a set of page numbers.
+    // TODO: used in gtest only. Remove after gtest is removed
     pub fn set_allocations(&mut self, allocations: BTreeSet<WasmPageNumber>) {
         self.allocations = allocations;
-    }
-
-    /// Clear static area of this program.
-    pub fn clear_memory(&mut self) {
-        self.allocations.clear();
     }
 }
 
