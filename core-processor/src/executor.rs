@@ -35,6 +35,7 @@ use gear_core::{
     env::Ext as EnvExt,
     gas::{ChargeResult, GasAllowanceCounter, GasCounter, ValueCounter},
     ids::ProgramId,
+    lazy_pages::GlobalsCtx,
     memory::{AllocationsContext, Memory, PageBuf, PageNumber, WasmPageNumber},
     message::{ContextSettings, IncomingDispatch, MessageContext},
 };
@@ -219,6 +220,7 @@ fn prepare_memory<A: ProcessorExt, M: Memory>(
     pages_data: &mut BTreeMap<PageNumber, PageBuf>,
     static_pages: WasmPageNumber,
     stack_end: Option<WasmPageNumber>,
+    globals_ctx: Option<GlobalsCtx>,
     mem: &mut M,
 ) -> Result<(), ExecutionErrorReason> {
     if let Some(stack_end) = stack_end {
@@ -240,7 +242,7 @@ fn prepare_memory<A: ProcessorExt, M: Memory>(
         if !pages_data.is_empty() {
             return Err(ExecutionErrorReason::InitialPagesContainsDataInLazyPagesMode);
         }
-        A::lazy_pages_init_for_program(mem, program_id, stack_end);
+        A::lazy_pages_init_for_program(mem, program_id, stack_end, globals_ctx);
     } else {
         // If we executes without lazy pages, then we have to save all initial data for static pages,
         // in order to be able to identify pages, which has been changed during execution.
@@ -406,15 +408,19 @@ pub fn execute_wasm<
             program.code().exports().clone(),
             memory_size,
         )?;
-        env.execute(&kind, |memory, stack_end| {
-            prepare_memory::<A, E::Memory>(
-                program_id,
-                &mut pages_initial_data,
-                static_pages,
-                stack_end,
-                memory,
-            )
-        })
+        env.execute(
+            &kind,
+            |memory, stack_end, globals_ctx: Option<GlobalsCtx>| {
+                prepare_memory::<A, E::Memory>(
+                    program_id,
+                    &mut pages_initial_data,
+                    static_pages,
+                    stack_end,
+                    globals_ctx,
+                    memory,
+                )
+            },
+        )
     };
     let (termination, memory, ext) = match f() {
         Ok(BackendReport {
@@ -518,6 +524,7 @@ mod tests {
             _mem: &mut impl Memory,
             _prog_id: ProgramId,
             _stack_end: Option<WasmPageNumber>,
+            _globals_ctx: Option<GlobalsCtx>,
         ) {
         }
 
@@ -535,6 +542,7 @@ mod tests {
             _mem: &mut impl Memory,
             _prog_id: ProgramId,
             _stack_end: Option<WasmPageNumber>,
+            _globals_ctx: Option<GlobalsCtx>,
         ) {
         }
 

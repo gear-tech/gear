@@ -24,7 +24,7 @@ use core::fmt;
 use gear_common::{pages_prefix, Origin};
 use gear_core::{
     ids::ProgramId,
-    memory::{HostPointer, Memory, PageNumber, WasmPageNumber},
+    memory::{HostPointer, Memory, PageNumber, WasmPageNumber}, lazy_pages::GlobalsCtx,
 };
 use gear_runtime_interface::gear_ri;
 use sp_std::vec::Vec;
@@ -48,6 +48,7 @@ pub fn init_for_program(
     mem: &mut impl Memory,
     prog_id: ProgramId,
     stack_end: Option<WasmPageNumber>,
+    globals_ctx: Option<GlobalsCtx>,
 ) {
     let program_prefix = crate::pages_prefix(prog_id.into_origin());
     let wasm_mem_addr = mem.get_buffer_host_addr();
@@ -61,6 +62,7 @@ pub fn init_for_program(
         wasm_mem_size.0,
         stack_end_page,
         program_prefix,
+        globals_ctx,
     );
 }
 

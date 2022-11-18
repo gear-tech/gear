@@ -165,6 +165,10 @@ pub struct HostFnWeights {
 
     /// Weight per salt byte by `gr_create_program_wgas`.
     pub gr_create_program_wgas_salt_per_byte: u64,
+
+    pub lazy_pages_read: u64,
+    pub lazy_pages_write: u64,
+    pub lazy_pages_update: u64,
 }
 
 /// We need this access as a macro because sometimes hiding the lifetimes behind
@@ -269,6 +273,10 @@ pub enum RuntimeCosts {
     SendPushInput(u32),
     /// Weight of calling `gr_rereply_push`.
     ReplyPushInput(u32),
+
+    LazyPagesRead,
+    LazyPagesWrite,
+    LazyPagesUpdate,
 }
 
 impl RuntimeCosts {
@@ -339,6 +347,9 @@ impl RuntimeCosts {
             ReplyPushInput(len) => s
                 .gr_reply_push_input
                 .saturating_add(s.gr_reply_push_input_per_byte.saturating_mul(len.into())),
+            LazyPagesRead => s.lazy_pages_read,
+            LazyPagesWrite => s.lazy_pages_write,
+            LazyPagesUpdate => s.lazy_pages_update,
         };
         RuntimeToken { weight }
     }

@@ -52,7 +52,7 @@ use gear_core::{
     ids::{CodeId, MessageId, ProgramId, ReservationId},
     memory::{Memory, PageBuf, PageNumber, WasmPageNumber},
     message::{ContextStore, Dispatch, DispatchKind, IncomingDispatch, MessageWaitedType},
-    reservation::GasReserver,
+    reservation::GasReserver, lazy_pages::GlobalsCtx,
 };
 use gear_core_errors::{ExtError, MemoryError};
 use scale_info::TypeInfo;
@@ -294,7 +294,7 @@ pub trait Environment<E: Ext + IntoExtInfo<E::Error> + 'static>: Sized {
         pre_execution_handler: F,
     ) -> Result<BackendReport<Self::Memory, E>, Self::Error>
     where
-        F: FnOnce(&mut Self::Memory, Option<WasmPageNumber>) -> Result<(), T>,
+        F: FnOnce(&mut Self::Memory, Option<WasmPageNumber>, Option<GlobalsCtx>) -> Result<(), T>,
         T: fmt::Display;
 }
 

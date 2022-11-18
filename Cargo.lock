@@ -3158,8 +3158,10 @@ dependencies = [
  "nix 0.25.0",
  "once_cell",
  "region",
+ "sc-executor-common",
  "sp-io",
  "sp-std",
+ "sp-wasm-interface",
  "static_assertions",
  "winapi",
 ]

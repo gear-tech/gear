@@ -25,7 +25,7 @@ use gear_core::{
     gas::GasAmount,
     ids::{MessageId, ProgramId, ReservationId},
     memory::{GrowHandler, Memory, PageNumber, WasmPageNumber},
-    message::{HandlePacket, InitPacket, ReplyPacket, StatusCode},
+    message::{HandlePacket, InitPacket, ReplyPacket, StatusCode}, lazy_pages::GlobalsCtx,
 };
 use gear_core_errors::{ExtError, MemoryError};
 use gear_lazy_pages_common as lazy_pages;
@@ -86,8 +86,9 @@ impl ProcessorExt for LazyPagesExt {
         mem: &mut impl Memory,
         prog_id: ProgramId,
         stack_end: Option<WasmPageNumber>,
+        globals_ctx: Option<GlobalsCtx>,
     ) {
-        lazy_pages::init_for_program(mem, prog_id, stack_end);
+        lazy_pages::init_for_program(mem, prog_id, stack_end, globals_ctx);
     }
 
     fn lazy_pages_post_execution_actions(mem: &mut impl Memory) {
@@ -333,5 +334,9 @@ impl EnvExt for LazyPagesExt {
 
     fn out_of_allowance(&mut self) -> Self::Error {
         self.inner.out_of_allowance()
+    }
+
+    fn get_runtime_cost(&self, costs: RuntimeCosts) -> u64 {
+        self.inner.get_runtime_cost(costs)
     }
 }

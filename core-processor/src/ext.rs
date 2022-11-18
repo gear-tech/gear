@@ -31,7 +31,7 @@ use gear_core::{
     charge_gas_token,
     costs::{HostFnWeights, RuntimeCosts},
     env::Ext as EnvExt,
-    gas::{ChargeResult, GasAllowanceCounter, GasAmount, GasCounter, ValueCounter},
+    gas::{ChargeResult, GasAllowanceCounter, GasAmount, GasCounter, ValueCounter, Token},
     ids::{CodeId, MessageId, ProgramId, ReservationId},
     memory::{
         AllocationsContext, GrowHandler, GrowHandlerNothing, Memory, PageBuf, PageNumber,
@@ -40,7 +40,7 @@ use gear_core::{
     message::{
         GasLimit, HandlePacket, InitPacket, MessageContext, Packet, ReplyPacket, StatusCode,
     },
-    reservation::GasReserver,
+    reservation::GasReserver, lazy_pages::GlobalsCtx,
 };
 use gear_core_errors::{CoreError, ExecutionError, ExtError, MemoryError, MessageError, WaitError};
 
@@ -103,6 +103,7 @@ pub trait ProcessorExt {
         mem: &mut impl Memory,
         prog_id: ProgramId,
         stack_end: Option<WasmPageNumber>,
+        globals_ctx: Option<GlobalsCtx>,
     );
 
     /// Lazy pages contract post execution actions
@@ -213,6 +214,7 @@ impl ProcessorExt for Ext {
         _mem: &mut impl Memory,
         _prog_id: ProgramId,
         _stack_end: Option<WasmPageNumber>,
+        _globals_ctx: Option<GlobalsCtx>,
     ) {
         unreachable!()
     }
@@ -843,6 +845,10 @@ impl EnvExt for Ext {
     fn out_of_allowance(&mut self) -> Self::Error {
         self.error_explanation = Some(TerminationReason::GasAllowanceExceeded.into());
         TerminationReason::GasAllowanceExceeded.into()
+    }
+
+    fn get_runtime_cost(&self, costs: RuntimeCosts) -> u64 {
+        costs.token(&self.context.host_fn_weights).weight()
     }
 }
 

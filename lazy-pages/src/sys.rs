@@ -20,11 +20,16 @@
 
 use cfg_if::cfg_if;
 use region::Protection;
+use sc_executor_common::sandbox::SandboxInstance;
+use sp_wasm_interface::Value;
 use std::cell::RefMut;
 
 use crate::{Error, LazyPagesExecutionContext, WasmAddr, LAZY_PAGES_CONTEXT};
 
-use gear_core::memory::{PageNumber, PAGE_STORAGE_GRANULARITY};
+use gear_core::{
+    lazy_pages::GlobalsAccessMod,
+    memory::{PageNumber, PAGE_STORAGE_GRANULARITY},
+};
 
 // These constants are used both in runtime and in lazy-pages backend,
 // so we make here additional checks. If somebody would change these values
@@ -211,6 +216,42 @@ unsafe fn user_signal_handler_internal(
     mut ctx: RefMut<LazyPagesExecutionContext>,
     info: ExceptionInfo,
 ) -> Result<(), Error> {
+    if let Some(globals_ctx) = &ctx.globals_ctx {
+        match globals_ctx.globals_access_mod {
+            GlobalsAccessMod::WasmRuntime => {
+                let instance = (globals_ctx.globals_access_ptr as *mut SandboxInstance)
+                    .as_mut()
+                    .ok_or(Error::HostInstancePointerIsInvalid)?;
+                let sub_global = |name, value| {
+                    let val = instance.get_global_val(name)?;
+                    if let Value::I64(val) = val {
+                        let val = (val as u64).saturating_sub(value);
+                        instance
+                            .set_global_val("gear_gas", Value::I64(val as i64))
+                            .ok()??;
+                        Some(val as i64)
+                    } else {
+                        None
+                    }
+                };
+                let res1 = sub_global(
+                    globals_ctx.global_gas_name.as_str(),
+                    globals_ctx.lazy_pages_costs.read_page,
+                )
+                .ok_or(Error::CannotChargeGas)?;
+                let res2 = sub_global(
+                    globals_ctx.global_allowance_name.as_str(),
+                    globals_ctx.lazy_pages_costs.read_page,
+                )
+                .ok_or(Error::CannotChargeGasAllowance)?;
+                log::trace!("res1 = {}, res2 = {}", res1, res2);
+            }
+            GlobalsAccessMod::NativeRuntime => {
+                todo!();
+            },
+        }
+    }
+
     // We use here `u32` as type for sizes, because wasm memory is 32-bits.
     // Native page size cannot be bigger than PSG (see `crate::init`), so `as u32` is safe.
     let native_ps = region::page::size() as u32;

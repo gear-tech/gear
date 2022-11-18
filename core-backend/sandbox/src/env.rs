@@ -35,8 +35,18 @@ use gear_backend_common::{
     SysCallName::{self, *},
     TerminationReason, TrapExplanation, STACK_END_EXPORT_NAME,
 };
-use gear_core::{env::Ext, gas::GasAmount, memory::WasmPageNumber, message::DispatchKind};
-use gear_wasm_instrument::{GLOBAL_NAME_ALLOWANCE, GLOBAL_NAME_GAS};
+use gear_core::{
+    costs::RuntimeCosts,
+    env::Ext,
+    gas::GasAmount,
+    lazy_pages::{GlobalsAccessMod, GlobalsCtx, LazyPagesCosts},
+    memory::WasmPageNumber,
+    message::DispatchKind,
+};
+use gear_wasm_instrument::{
+    GLOBAL_NAME_ALLOWANCE, GLOBAL_NAME_GAS,
+    IMPORT_NAME_OUT_OF_ALLOWANCE, IMPORT_NAME_OUT_OF_GAS,
+};
 use sp_sandbox::{
     default_executor::{EnvironmentDefinitionBuilder, Instance, Memory as DefaultExecutorMemory},
     HostFuncType, InstanceGlobals, ReturnValue, SandboxEnvironmentBuilder, SandboxInstance,
@@ -241,7 +251,7 @@ where
         pre_execution_handler: F,
     ) -> Result<BackendReport<Self::Memory, E>, Self::Error>
     where
-        F: FnOnce(&mut Self::Memory, Option<WasmPageNumber>) -> Result<(), T>,
+        F: FnOnce(&mut Self::Memory, Option<WasmPageNumber>, Option<GlobalsCtx>) -> Result<(), T>,
         T: fmt::Display,
     {
         use SandboxEnvironmentError::*;
@@ -276,7 +286,24 @@ where
             .set_global_val(GLOBAL_NAME_ALLOWANCE, Value::I64(allowance as i64))
             .map_err(|_| (runtime.ext.gas_amount(), WrongInjectedAllowance))?;
 
-        match pre_execution_handler(&mut runtime.memory, stack_end_page) {
+        let globals_ctx = if cfg!(not(feature = "std")) {
+            GlobalsCtx {
+                global_gas_name: GLOBAL_NAME_GAS.to_string(),
+                global_allowance_name: GLOBAL_NAME_ALLOWANCE.to_string(),
+                global_state_name: "gear_status".to_string(),
+                lazy_pages_costs: LazyPagesCosts {
+                    read_page: runtime.ext.get_runtime_cost(RuntimeCosts::LazyPagesRead),
+                    write_page: runtime.ext.get_runtime_cost(RuntimeCosts::LazyPagesWrite),
+                    update_page: runtime.ext.get_runtime_cost(RuntimeCosts::LazyPagesUpdate),
+                },
+                globals_access_ptr: instance.get_instance_ptr(),
+                globals_access_mod: GlobalsAccessMod::WasmRuntime,
+            }
+        } else {
+            unimplemented!("Currently we don't use sandbox in native runtime")
+        };
+
+        match pre_execution_handler(&mut runtime.memory, stack_end_page, Some(globals_ctx)) {
             Ok(_) => (),
             Err(e) => {
                 return Err((runtime.ext.gas_amount(), PreExecutionHandler(e.to_string())).into());

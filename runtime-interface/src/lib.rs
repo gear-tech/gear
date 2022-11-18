@@ -23,6 +23,7 @@
 use core::ops::RangeInclusive;
 use gear_core::memory::HostPointer;
 use sp_runtime_interface::runtime_interface;
+use gear_core::lazy_pages::GlobalsCtx;
 
 static_assertions::const_assert!(
     core::mem::size_of::<HostPointer>() >= core::mem::size_of::<usize>()
@@ -138,8 +139,6 @@ pub trait GearRI {
         lazy_pages::init::<DefaultUserSignalHandler>(LazyPagesVersion::Version1)
     }
 
-    /// Init lazy pages context for current program.
-    /// Panic if some goes wrong during initialization.
     fn init_lazy_pages_for_program(
         wasm_mem_addr: Option<HostPointer>,
         wasm_mem_size_in_pages: u32,
@@ -156,6 +155,42 @@ pub trait GearRI {
             wasm_mem_size,
             stack_end_page,
             program_prefix,
+            None,
+        )
+        .map_err(|e| e.to_string())
+        .expect("Cannot initialize lazy pages for current program");
+
+        if let Some(addr) = wasm_mem_addr {
+            let stack_end = stack_end_page.map(|p| p.offset()).unwrap_or(0);
+            let size = wasm_mem_size.offset();
+            let except_pages = std::iter::empty::<PageNumber>();
+            mprotect_mem_interval_except_pages(addr, stack_end, size, except_pages, true)
+                .map_err(|err| err.to_string())
+                .expect("Cannot set protection for wasm memory");
+        }
+    }
+
+    /// Init lazy pages context for current program.
+    /// Panic if some goes wrong during initialization.
+    #[version(2)]
+    fn init_lazy_pages_for_program(
+        wasm_mem_addr: Option<HostPointer>,
+        wasm_mem_size_in_pages: u32,
+        stack_end_page: Option<u32>,
+        program_prefix: Vec<u8>,
+        globals_ctx: Option<GlobalsCtx>,
+    ) {
+        let wasm_mem_size = wasm_mem_size_in_pages.into();
+        let stack_end_page = stack_end_page.map(Into::into);
+
+        let wasm_mem_addr = wasm_mem_addr
+            .map(|addr| usize::try_from(addr).expect("Cannot cast wasm mem addr to `usize`"));
+        lazy_pages::initialize_for_program(
+            wasm_mem_addr,
+            wasm_mem_size,
+            stack_end_page,
+            program_prefix,
+            globals_ctx,
         )
         .map_err(|e| e.to_string())
         .expect("Cannot initialize lazy pages for current program");

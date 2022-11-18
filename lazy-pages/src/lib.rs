@@ -25,7 +25,10 @@
 //! Currently we restrict twice write signal from same page during one execution.
 //! It's not necessary behavior, but more simple and safe.
 
-use gear_core::memory::{PageNumber, WasmPageNumber, PAGE_STORAGE_GRANULARITY};
+use gear_core::{
+    lazy_pages::GlobalsCtx,
+    memory::{PageNumber, WasmPageNumber, PAGE_STORAGE_GRANULARITY},
+};
 use once_cell::sync::OnceCell;
 use sp_std::vec::Vec;
 use std::{cell::RefCell, collections::BTreeSet, convert::TryFrom};
@@ -91,6 +94,9 @@ pub enum Error {
     #[display(fmt = "Protection error: {_0}")]
     #[from]
     MemoryProtection(region::Error),
+    HostInstancePointerIsInvalid,
+    CannotChargeGas,
+    CannotChargeGasAllowance,
 }
 
 pub(crate) type WasmAddr = u32;
@@ -100,7 +106,7 @@ pub enum LazyPagesVersion {
     Version1,
 }
 
-#[derive(Default, PartialEq, Eq, Debug)]
+#[derive(Default, Debug)]
 pub(crate) struct LazyPagesExecutionContext {
     /// Pointer to the begin of wasm memory buffer
     pub wasm_mem_addr: Option<usize>,
@@ -120,6 +126,8 @@ pub(crate) struct LazyPagesExecutionContext {
     pub stack_end_wasm_addr: WasmAddr,
     /// Gear pages, which has been write accessed.
     pub released_pages: BTreeSet<PageNumber>,
+
+    pub globals_ctx: Option<GlobalsCtx>,
 }
 
 thread_local! {
@@ -132,6 +140,22 @@ thread_local! {
     /// Lazy-pages context for current execution.
     static LAZY_PAGES_CONTEXT: RefCell<LazyPagesExecutionContext> = RefCell::new(Default::default());
 }
+
+// use std::convert::TryInto;
+
+// pub fn set_executor_ptr(ptr: Vec<u8>, id: u32) {
+//     LAZY_PAGES_CONTEXT.with(|ctx| {
+//         let mut ctx = ctx.borrow_mut();
+//         unsafe {
+//             let x: [u8; 8] = ptr.try_into().unwrap();
+//             ctx.executor_ptr = Some(core::mem::transmute::<
+//                 _,
+//                 *mut sc_executor_common::sandbox::SandboxInstance,
+//             >(x));
+//             ctx.instance_id = id;
+//         }
+//     });
+// }
 
 #[derive(Debug, derive_more::Display)]
 pub enum InitializeForProgramError {
@@ -151,6 +175,7 @@ pub fn initialize_for_program(
     wasm_mem_size: WasmPageNumber,
     stack_end_page: Option<WasmPageNumber>,
     program_prefix: Vec<u8>,
+    globals_ctx: Option<GlobalsCtx>,
 ) -> Result<(), InitializeForProgramError> {
     use InitializeForProgramError::*;
     LAZY_PAGES_CONTEXT.with(|ctx| {
@@ -182,6 +207,8 @@ pub fn initialize_for_program(
         };
 
         ctx.program_storage_prefix = Some(program_prefix);
+
+        ctx.globals_ctx = globals_ctx;
 
         log::trace!("Initialize lazy-pages for current program: {:?}", ctx);
 

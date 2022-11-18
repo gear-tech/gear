@@ -238,6 +238,10 @@ impl Ext for MockExt {
     ) -> Result<MessageId, Self::Error> {
         Ok(MessageId::default())
     }
+
+    fn get_runtime_cost(&self, _costs: RuntimeCosts) -> u64 {
+        0
+    }
 }
 
 impl IntoExtInfo<<MockExt as Ext>::Error> for MockExt {

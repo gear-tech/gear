@@ -35,7 +35,7 @@ use gear_backend_common::{
     GetGasAmount, IntoExtInfo, StackEndError, TerminationReason, TrapExplanation,
     STACK_END_EXPORT_NAME,
 };
-use gear_core::{env::Ext, gas::GasAmount, memory::WasmPageNumber, message::DispatchKind};
+use gear_core::{env::Ext, gas::GasAmount, memory::WasmPageNumber, message::DispatchKind, lazy_pages::GlobalsCtx};
 use gear_wasm_instrument::{GLOBAL_NAME_ALLOWANCE, GLOBAL_NAME_GAS};
 use wasmi::{core::Value, Engine, Extern, Instance, Linker, Memory, MemoryType, Module, Store};
 
@@ -163,7 +163,7 @@ where
         pre_execution_handler: F,
     ) -> Result<BackendReport<Self::Memory, E>, Self::Error>
     where
-        F: FnOnce(&mut Self::Memory, Option<WasmPageNumber>) -> Result<(), T>,
+        F: FnOnce(&mut Self::Memory, Option<WasmPageNumber>, Option<GlobalsCtx>) -> Result<(), T>,
         T: fmt::Display,
     {
         use WasmiEnvironmentError::*;
@@ -206,7 +206,7 @@ where
             .ok_or((gas_amount!(store), WrongInjectedAllowance))?;
 
         let mut memory_wrap = MemoryWrap::new(memory, store);
-        pre_execution_handler(&mut memory_wrap, stack_end_page).map_err(|e| {
+        pre_execution_handler(&mut memory_wrap, stack_end_page, None).map_err(|e| {
             let store = &memory_wrap.store;
             (gas_amount!(store), PreExecutionHandler(e.to_string()))
         })?;

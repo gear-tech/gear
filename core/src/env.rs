@@ -19,7 +19,7 @@
 //! Environment for running a module.
 
 use crate::{
-    costs::RuntimeCosts,
+    costs::{RuntimeCosts, RuntimeToken},
     ids::{MessageId, ProgramId, ReservationId},
     memory::{Memory, WasmPageNumber},
     message::{HandlePacket, InitPacket, ReplyPacket, StatusCode},
@@ -243,4 +243,6 @@ pub trait Ext {
 
     /// Handler for the case when gas allowance is out.
     fn out_of_allowance(&mut self) -> Self::Error;
+
+    fn get_runtime_cost(&self, costs: RuntimeCosts) -> u64;
 }
