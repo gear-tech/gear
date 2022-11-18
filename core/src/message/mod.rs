@@ -78,7 +78,7 @@ pub type Value = u128;
 pub type StatusCode = i32;
 
 /// Salt type for init message.
-pub type Salt = Vec<u8>;
+pub type Salt = LimitedVec<u8, PayloadSizeError, MAX_PAYLOAD_SIZE>;
 
 /// Composite wait type for messages waiting.
 #[derive(Debug, Encode, Decode, Clone, PartialEq, Eq, PartialOrd, Ord, TypeInfo)]
