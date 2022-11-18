@@ -140,25 +140,7 @@ where
                 .send(HandlePacket::new(destination.into(), payload, value), delay)
                 .process_error()
                 .map_err(FuncError::Core)?
-                .error_len_on_success(|message_id| {
-                    ctx.write_memory_as(
-                        err_mid_ptr,
-                        LengthWithHash {
-                            hash: message_id.into(),
-                            ..Default::default()
-                        },
-                    )
-                })
-                .and_then(|length| {
-                    ctx.write_memory_as(
-                        err_mid_ptr,
-                        LengthWithHash {
-                            length,
-                            ..Default::default()
-                        },
-                    )
-                    .map_err(Into::into)
-                })
+                .proc_res(|res| ctx.write_memory_as(err_mid_ptr, LengthWithHash::from(res)))
         })
     }
 
@@ -182,25 +164,7 @@ where
                 )
                 .process_error()
                 .map_err(FuncError::Core)?
-                .error_len_on_success(|message_id| {
-                    ctx.write_memory_as(
-                        err_mid_ptr,
-                        LengthWithHash {
-                            hash: message_id.into(),
-                            ..Default::default()
-                        },
-                    )
-                })
-                .and_then(|length| {
-                    ctx.write_memory_as(
-                        err_mid_ptr,
-                        LengthWithHash {
-                            length,
-                            ..Default::default()
-                        },
-                    )
-                    .map_err(Into::into)
-                })
+                .proc_res(|res| ctx.write_memory_as(err_mid_ptr, LengthWithHash::from(res)))
         })
     }
 
@@ -223,25 +187,7 @@ where
                 )
                 .process_error()
                 .map_err(FuncError::Core)?
-                .error_len_on_success(|message_id| {
-                    ctx.write_memory_as(
-                        err_mid_ptr,
-                        LengthWithHash {
-                            hash: message_id.into(),
-                            ..Default::default()
-                        },
-                    )
-                })
-                .and_then(|length| {
-                    ctx.write_memory_as(
-                        err_mid_ptr,
-                        LengthWithHash {
-                            length,
-                            ..Default::default()
-                        },
-                    )
-                    .map_err(Into::into)
-                })
+                .proc_res(|res| ctx.write_memory_as(err_mid_ptr, LengthWithHash::from(res)))
         })
     }
 
@@ -269,25 +215,7 @@ where
                 )
                 .process_error()
                 .map_err(FuncError::Core)?
-                .error_len_on_success(|message_id| {
-                    ctx.write_memory_as(
-                        err_mid_ptr,
-                        LengthWithHash {
-                            hash: message_id.into(),
-                            ..Default::default()
-                        },
-                    )
-                })
-                .and_then(|length| {
-                    ctx.write_memory_as(
-                        err_mid_ptr,
-                        LengthWithHash {
-                            length,
-                            ..Default::default()
-                        },
-                    )
-                    .map_err(Into::into)
-                })
+                .proc_res(|res| ctx.write_memory_as(err_mid_ptr, LengthWithHash::from(res)))
         })
     }
 
@@ -301,25 +229,7 @@ where
                 .send_init()
                 .process_error()
                 .map_err(FuncError::Core)?
-                .error_len_on_success(|handle| {
-                    ctx.write_memory_as(
-                        err_handle_ptr,
-                        LengthWithHandle {
-                            handle,
-                            ..Default::default()
-                        },
-                    )
-                })
-                .and_then(|length| {
-                    ctx.write_memory_as(
-                        err_handle_ptr,
-                        LengthWithHandle {
-                            length,
-                            ..Default::default()
-                        },
-                    )
-                    .map_err(Into::into)
-                })
+                .proc_res(|res| ctx.write_memory_as(err_handle_ptr, LengthWithHandle::from(res)))
         })
     }
 
@@ -364,25 +274,7 @@ where
                 )
                 .process_error()
                 .map_err(FuncError::Core)?
-                .error_len_on_success(|message_id| {
-                    ctx.write_memory_as(
-                        err_mid_ptr,
-                        LengthWithHash {
-                            hash: message_id.into(),
-                            ..Default::default()
-                        },
-                    )
-                })
-                .and_then(|length| {
-                    ctx.write_memory_as(
-                        err_mid_ptr,
-                        LengthWithHash {
-                            length,
-                            ..Default::default()
-                        },
-                    )
-                    .map_err(Into::into)
-                })
+                .proc_res(|res| ctx.write_memory_as(err_mid_ptr, LengthWithHash::from(res)))
         })
     }
 
@@ -407,25 +299,7 @@ where
                 )
                 .process_error()
                 .map_err(FuncError::Core)?
-                .error_len_on_success(|message_id| {
-                    ctx.write_memory_as(
-                        err_mid_ptr,
-                        LengthWithHash {
-                            hash: message_id.into(),
-                            ..Default::default()
-                        },
-                    )
-                })
-                .and_then(|length| {
-                    ctx.write_memory_as(
-                        err_mid_ptr,
-                        LengthWithHash {
-                            length,
-                            ..Default::default()
-                        },
-                    )
-                    .map_err(Into::into)
-                })
+                .proc_res(|res| ctx.write_memory_as(err_mid_ptr, LengthWithHash::from(res)))
         })
     }
 
@@ -505,25 +379,7 @@ where
                 .status_code()
                 .process_error()
                 .map_err(FuncError::Core)?
-                .error_len_on_success(|code| {
-                    ctx.write_memory_as(
-                        err_code_ptr,
-                        LengthWithCode {
-                            code,
-                            ..Default::default()
-                        },
-                    )
-                })
-                .and_then(|length| {
-                    ctx.write_memory_as(
-                        err_code_ptr,
-                        LengthWithCode {
-                            length,
-                            ..Default::default()
-                        },
-                    )
-                    .map_err(Into::into)
-                })
+                .proc_res(|res| ctx.write_memory_as(err_code_ptr, LengthWithCode::from(res)))
         })
     }
 
@@ -633,25 +489,7 @@ where
                 .reply(ReplyPacket::new(payload, value), delay)
                 .process_error()
                 .map_err(FuncError::Core)?
-                .error_len_on_success(|message_id| {
-                    ctx.write_memory_as(
-                        err_mid_ptr,
-                        LengthWithHash {
-                            hash: message_id.into(),
-                            ..Default::default()
-                        },
-                    )
-                })
-                .and_then(|length| {
-                    ctx.write_memory_as(
-                        err_mid_ptr,
-                        LengthWithHash {
-                            length,
-                            ..Default::default()
-                        },
-                    )
-                    .map_err(Into::into)
-                })
+                .proc_res(|res| ctx.write_memory_as(err_mid_ptr, LengthWithHash::from(res)))
         })
     }
 
@@ -672,25 +510,7 @@ where
                 .reply(ReplyPacket::new_with_gas(payload, gas_limit, value), delay)
                 .process_error()
                 .map_err(FuncError::Core)?
-                .error_len_on_success(|message_id| {
-                    ctx.write_memory_as(
-                        err_mid_ptr,
-                        LengthWithHash {
-                            hash: message_id.into(),
-                            ..Default::default()
-                        },
-                    )
-                })
-                .and_then(|length| {
-                    ctx.write_memory_as(
-                        err_mid_ptr,
-                        LengthWithHash {
-                            length,
-                            ..Default::default()
-                        },
-                    )
-                    .map_err(Into::into)
-                })
+                .proc_res(|res| ctx.write_memory_as(err_mid_ptr, LengthWithHash::from(res)))
         })
     }
 
@@ -710,25 +530,7 @@ where
                 .reply_commit(ReplyPacket::new(Default::default(), value), delay)
                 .process_error()
                 .map_err(FuncError::Core)?
-                .error_len_on_success(|message_id| {
-                    ctx.write_memory_as(
-                        err_mid_ptr,
-                        LengthWithHash {
-                            hash: message_id.into(),
-                            ..Default::default()
-                        },
-                    )
-                })
-                .and_then(|length| {
-                    ctx.write_memory_as(
-                        err_mid_ptr,
-                        LengthWithHash {
-                            length,
-                            ..Default::default()
-                        },
-                    )
-                    .map_err(Into::into)
-                })
+                .proc_res(|res| ctx.write_memory_as(err_mid_ptr, LengthWithHash::from(res)))
         })
     }
 
@@ -751,25 +553,7 @@ where
                 )
                 .process_error()
                 .map_err(FuncError::Core)?
-                .error_len_on_success(|message_id| {
-                    ctx.write_memory_as(
-                        err_mid_ptr,
-                        LengthWithHash {
-                            hash: message_id.into(),
-                            ..Default::default()
-                        },
-                    )
-                })
-                .and_then(|length| {
-                    ctx.write_memory_as(
-                        err_mid_ptr,
-                        LengthWithHash {
-                            length,
-                            ..Default::default()
-                        },
-                    )
-                    .map_err(Into::into)
-                })
+                .proc_res(|res| ctx.write_memory_as(err_mid_ptr, LengthWithHash::from(res)))
         })
     }
 
@@ -793,25 +577,7 @@ where
                 )
                 .process_error()
                 .map_err(FuncError::Core)?
-                .error_len_on_success(|message_id| {
-                    ctx.write_memory_as(
-                        err_mid_ptr,
-                        LengthWithHash {
-                            hash: message_id.into(),
-                            ..Default::default()
-                        },
-                    )
-                })
-                .and_then(|length| {
-                    ctx.write_memory_as(
-                        err_mid_ptr,
-                        LengthWithHash {
-                            length,
-                            ..Default::default()
-                        },
-                    )
-                    .map_err(Into::into)
-                })
+                .proc_res(|res| ctx.write_memory_as(err_mid_ptr, LengthWithHash::from(res)))
         })
     }
 
@@ -834,25 +600,7 @@ where
                 )
                 .process_error()
                 .map_err(FuncError::Core)?
-                .error_len_on_success(|message_id| {
-                    ctx.write_memory_as(
-                        err_mid_ptr,
-                        LengthWithHash {
-                            hash: message_id.into(),
-                            ..Default::default()
-                        },
-                    )
-                })
-                .and_then(|length| {
-                    ctx.write_memory_as(
-                        err_mid_ptr,
-                        LengthWithHash {
-                            length,
-                            ..Default::default()
-                        },
-                    )
-                    .map_err(Into::into)
-                })
+                .proc_res(|res| ctx.write_memory_as(err_mid_ptr, LengthWithHash::from(res)))
         })
     }
 
@@ -866,25 +614,7 @@ where
                 .reply_to()
                 .process_error()
                 .map_err(FuncError::Core)?
-                .error_len_on_success(|message_id| {
-                    ctx.write_memory_as(
-                        err_mid_ptr,
-                        LengthWithHash {
-                            hash: message_id.into(),
-                            ..Default::default()
-                        },
-                    )
-                })
-                .and_then(|length| {
-                    ctx.write_memory_as(
-                        err_mid_ptr,
-                        LengthWithHash {
-                            length,
-                            ..Default::default()
-                        },
-                    )
-                    .map_err(Into::into)
-                })
+                .proc_res(|res| ctx.write_memory_as(err_mid_ptr, LengthWithHash::from(res)))
         })
     }
 
@@ -934,25 +664,7 @@ where
                 .reserve_gas(gas, duration)
                 .process_error()
                 .map_err(FuncError::Core)?
-                .error_len_on_success(|reservation_id| {
-                    ctx.write_memory_as(
-                        err_rid_ptr,
-                        LengthWithHash {
-                            hash: reservation_id.into(),
-                            ..Default::default()
-                        },
-                    )
-                })
-                .and_then(|length| {
-                    ctx.write_memory_as(
-                        err_rid_ptr,
-                        LengthWithHash {
-                            length,
-                            ..Default::default()
-                        },
-                    )
-                    .map_err(Into::into)
-                })
+                .proc_res(|res| ctx.write_memory_as(err_rid_ptr, LengthWithHash::from(res)))
         })
     }
 
@@ -968,25 +680,7 @@ where
                 .unreserve_gas(id)
                 .process_error()
                 .map_err(FuncError::Core)?
-                .error_len_on_success(|gas| {
-                    ctx.write_memory_as(
-                        err_unreserved_ptr,
-                        LengthWithGas {
-                            gas,
-                            ..Default::default()
-                        },
-                    )
-                })
-                .and_then(|length| {
-                    ctx.write_memory_as(
-                        err_unreserved_ptr,
-                        LengthWithGas {
-                            length,
-                            ..Default::default()
-                        },
-                    )
-                    .map_err(Into::into)
-                })
+                .proc_res(|res| ctx.write_memory_as(err_unreserved_ptr, LengthWithGas::from(res)))
         })
     }
 
@@ -1188,25 +882,8 @@ where
                 .create_program(InitPacket::new(code_id.into(), salt, payload, value), delay)
                 .process_error()
                 .map_err(FuncError::Core)?
-                .error_len_on_success(|(message_id, program_id)| {
-                    ctx.write_memory_as(
-                        err_mid_pid_ptr,
-                        LengthWithTwoHashes {
-                            hash1: message_id.into(),
-                            hash2: program_id.into(),
-                            ..Default::default()
-                        },
-                    )
-                })
-                .and_then(|length| {
-                    ctx.write_memory_as(
-                        err_mid_pid_ptr,
-                        LengthWithTwoHashes {
-                            length,
-                            ..Default::default()
-                        },
-                    )
-                    .map_err(Into::into)
+                .proc_res(|res| {
+                    ctx.write_memory_as(err_mid_pid_ptr, LengthWithTwoHashes::from(res))
                 })
         })
     }
@@ -1240,25 +917,8 @@ where
                 )
                 .process_error()
                 .map_err(FuncError::Core)?
-                .error_len_on_success(|(message_id, program_id)| {
-                    ctx.write_memory_as(
-                        err_mid_pid_ptr,
-                        LengthWithTwoHashes {
-                            hash1: message_id.into(),
-                            hash2: program_id.into(),
-                            ..Default::default()
-                        },
-                    )
-                })
-                .and_then(|length| {
-                    ctx.write_memory_as(
-                        err_mid_pid_ptr,
-                        LengthWithTwoHashes {
-                            length,
-                            ..Default::default()
-                        },
-                    )
-                    .map_err(Into::into)
+                .proc_res(|res| {
+                    ctx.write_memory_as(err_mid_pid_ptr, LengthWithTwoHashes::from(res))
                 })
         })
     }
@@ -1274,9 +934,17 @@ where
                 .last_error_encoded()
                 .process_error()
                 .map_err(FuncError::Core)?
-                .error_len_on_success(|error| ctx.write_output(error_ptr, error.as_ref()))
-                .and_then(|length| ctx.write_output(err_ptr, &length.to_le_bytes()))
-                .map_err(Into::into)
+                .proc_res(|res| {
+                    let length = match res {
+                        Ok(error) => {
+                            ctx.write_output(error_ptr, error.as_ref())?;
+                            0
+                        }
+                        Err(length) => length,
+                    };
+
+                    ctx.write_output(err_ptr, &length.to_le_bytes())
+                })
         })
     }
 

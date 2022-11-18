@@ -87,6 +87,30 @@ impl LengthWithCode {
     pub fn as_mut_ptr(&mut self) -> *mut Self {
         self as _
     }
+
+    pub fn from(result: Result<StatusCode, Length>) -> Self {
+        let mut res: Self = Default::default();
+
+        match result {
+            Ok(code) => res.code = code,
+            Err(length) => res.length = length,
+        }
+
+        res
+    }
+}
+
+impl From<Result<StatusCode, Length>> for LengthWithCode {
+    fn from(result: Result<StatusCode, Length>) -> Self {
+        let mut res: Self = Default::default();
+
+        match result {
+            Ok(code) => res.code = code,
+            Err(length) => res.length = length,
+        }
+
+        res
+    }
 }
 
 /// Represents type defining concatenated length with gas. 12 bytes.
@@ -100,6 +124,19 @@ pub struct LengthWithGas {
 impl LengthWithGas {
     pub fn as_mut_ptr(&mut self) -> *mut Self {
         self as _
+    }
+}
+
+impl From<Result<Gas, Length>> for LengthWithGas {
+    fn from(result: Result<Gas, Length>) -> Self {
+        let mut res: Self = Default::default();
+
+        match result {
+            Ok(gas) => res.gas = gas,
+            Err(length) => res.length = length,
+        }
+
+        res
     }
 }
 
@@ -117,6 +154,19 @@ impl LengthWithHandle {
     }
 }
 
+impl From<Result<Handle, Length>> for LengthWithHandle {
+    fn from(result: Result<Handle, Length>) -> Self {
+        let mut res: Self = Default::default();
+
+        match result {
+            Ok(handle) => res.handle = handle,
+            Err(length) => res.length = length,
+        }
+
+        res
+    }
+}
+
 /// Represents type defining concatenated hash with length. 36 bytes.
 #[repr(C, packed)]
 #[derive(Default)]
@@ -128,6 +178,19 @@ pub struct LengthWithHash {
 impl LengthWithHash {
     pub fn as_mut_ptr(&mut self) -> *mut Self {
         self as _
+    }
+}
+
+impl<T: Into<[u8; 32]>> From<Result<T, Length>> for LengthWithHash {
+    fn from(result: Result<T, Length>) -> Self {
+        let mut res: Self = Default::default();
+
+        match result {
+            Ok(v) => res.hash = v.into(),
+            Err(length) => res.length = length,
+        }
+
+        res
     }
 }
 
@@ -143,6 +206,26 @@ pub struct LengthWithTwoHashes {
 impl LengthWithTwoHashes {
     pub fn as_mut_ptr(&mut self) -> *mut Self {
         self as _
+    }
+}
+
+impl<T1, T2> From<Result<(T1, T2), Length>> for LengthWithTwoHashes
+where
+    T1: Into<[u8; 32]>,
+    T2: Into<[u8; 32]>,
+{
+    fn from(result: Result<(T1, T2), Length>) -> Self {
+        let mut res: Self = Default::default();
+
+        match result {
+            Ok((v1, v2)) => {
+                res.hash1 = v1.into();
+                res.hash2 = v2.into();
+            }
+            Err(length) => res.length = length,
+        }
+
+        res
     }
 }
 
