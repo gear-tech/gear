@@ -19,6 +19,7 @@
 //! Module for Gear contracts asynchronous logic.
 
 mod futures;
+mod locks;
 mod signals;
 mod waker;
 
@@ -26,6 +27,8 @@ pub use self::futures::message_loop;
 
 use self::futures::FuturesMap;
 use crate::prelude::BTreeMap;
+pub(crate) use locks::Lock;
+use locks::LocksMap;
 pub(crate) use signals::ReplyPoll;
 use signals::WakeSignals;
 
@@ -41,6 +44,17 @@ pub(crate) fn signals() -> &'static mut WakeSignals {
     unsafe { SIGNALS.get_or_insert_with(WakeSignals::new) }
 }
 
+static mut LOCKS: Option<LocksMap> = None;
+
+/// Get all wait locks.
+pub(crate) fn locks() -> &'static mut LocksMap {
+    unsafe { LOCKS.get_or_insert_with(LocksMap::default) }
+}
+
 pub fn record_reply() {
     signals().record_reply();
+}
+
+pub fn handle_signal() {
+    futures().remove(&crate::msg::id());
 }

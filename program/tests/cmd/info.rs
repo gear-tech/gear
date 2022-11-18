@@ -20,7 +20,7 @@ const EXPECTED_MAILBOX: &str = r#"
     destination: "0xd43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d",
     payload: "0x",
     value: 1000000,
-    reply: None,
+    details: None,
     interval: Interval {
         start: 2,
         finish: 31,

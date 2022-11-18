@@ -1,16 +1,11 @@
 //! Custom result
 
-use crate::api::{
-    config::GearConfig,
-    generated::api::{runtime_types::sp_runtime::DispatchError, Event},
-};
-use subxt::{rpc::InvalidUri, sp_core::H256, TransactionStatus};
-
-type TxStatus<'t> = TransactionStatus<'t, GearConfig, DispatchError, Event>;
+use crate::api::types::TxStatus;
+use subxt::ext::sp_core::H256;
 
 /// transaction error
 #[derive(Debug, thiserror::Error)]
-pub enum TransactionError {
+pub enum TxError {
     #[error("Transaction Retracted( {0} )")]
     Retracted(H256),
     #[error("Transaction Timeout( {0} )")]
@@ -25,16 +20,34 @@ pub enum TransactionError {
     None,
 }
 
-impl From<TxStatus<'_>> for Error {
-    fn from(status: TxStatus<'_>) -> Self {
+impl From<TxStatus> for Error {
+    fn from(status: TxStatus) -> Self {
         match status {
-            TransactionStatus::Retracted(h) => TransactionError::Retracted(h),
-            TransactionStatus::FinalityTimeout(h) => TransactionError::FinalityTimeout(h),
-            TransactionStatus::Usurped(h) => TransactionError::Usurped(h),
-            _ => TransactionError::None,
+            TxStatus::Retracted(h) => TxError::Retracted(h),
+            TxStatus::FinalityTimeout(h) => TxError::FinalityTimeout(h),
+            TxStatus::Usurped(h) => TxError::Usurped(h),
+            _ => TxError::None,
         }
         .into()
     }
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum ClientError {
+    #[error("Queried event not found.")]
+    EventNotFound,
+    #[error("Invalid rpc URL.")]
+    InvalidUrl,
+    #[error("Page {0} of Program {1} was not found in the storage.")]
+    PageNotFound(u32, String),
+    #[error("Program with id {0} was not found in the storage.")]
+    ProgramNotFound(String),
+    #[error("Program has been terminated.")]
+    ProgramTerminated,
+    #[error("The queried storage not found.")]
+    StorageNotFound,
+    #[error(transparent)]
+    SubxtRpc(#[from] jsonrpsee::core::Error),
 }
 
 /// Errors
@@ -46,6 +59,8 @@ pub enum Error {
     BadNodeKey,
     #[error(transparent)]
     Base64Decode(#[from] base64::DecodeError),
+    #[error(transparent)]
+    Client(#[from] ClientError),
     #[error(transparent)]
     Codec(#[from] parity_scale_codec::Error),
     #[error("Code not found {0}")]
@@ -63,8 +78,6 @@ pub enum Error {
     #[error("Invalid secret key")]
     InvalidSecret,
     #[error(transparent)]
-    InvalidUri(#[from] InvalidUri),
-    #[error(transparent)]
     Io(#[from] std::io::Error),
     #[error(transparent)]
     Keyring(#[from] keyring::Error),
@@ -76,37 +89,18 @@ pub enum Error {
     Metadata(#[from] crate::metadata::Error),
     #[error("{0}")]
     Nacl(String),
-    #[error("Page {0} of Program {1} was not found in the storage.")]
-    PageNotFound(u32, String),
-    #[error("Program with id {0} was not found in the storage.")]
-    ProgramNotFound(String),
-    #[error("Program has been terminated.")]
-    ProgramTerminated,
-    #[error(transparent)]
-    Ws(#[from] jsonrpsee_client_transport::ws::WsHandshakeError),
     #[error("{0}")]
     Schnorrkel(schnorrkel::SignatureError),
     #[error(transparent)]
     SerdeJson(#[from] serde_json::Error),
     #[error(transparent)]
-    SubxtBasic(#[from] subxt::BasicError),
+    Subxt(#[from] subxt::Error),
     #[error(transparent)]
-    SubxtGeneric(
-        #[from]
-        subxt::GenericError<
-            subxt::RuntimeError<
-                crate::api::generated::api::runtime_types::sp_runtime::DispatchError,
-            >,
-        >,
-    ),
+    SubxtPublic(#[from] subxt::ext::sp_core::crypto::PublicError),
     #[error(transparent)]
-    SubxtMetadata(#[from] subxt::MetadataError),
+    SubxtMetadata(#[from] subxt::error::MetadataError),
     #[error(transparent)]
-    SubxtPublic(#[from] subxt::sp_core::crypto::PublicError),
-    #[error(transparent)]
-    SubxtRpc(#[from] subxt::rpc::RpcError),
-    #[error(transparent)]
-    Tx(#[from] TransactionError),
+    Tx(#[from] TxError),
 }
 
 impl From<nacl::Error> for Error {

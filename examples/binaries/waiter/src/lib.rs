@@ -33,10 +33,22 @@ mod wasm {
     include! {"./code.rs"}
 }
 
+pub fn system_reserve() -> u64 {
+    gstd::Config::system_reserve()
+}
+
+// Re-exports for testing
+pub fn default_wait_up_to_duration() -> u32 {
+    gstd::Config::wait_up_to()
+}
+
 #[derive(Debug, Encode, Decode)]
 pub enum Command {
     Wait,
     WaitFor(u32),
     WaitUpTo(u32),
+    SendFor(ActorId, u32),
+    SendUpTo(ActorId, u32),
+    SendUpToWait(ActorId, u32),
     SendAndWaitFor(u32, ActorId),
 }

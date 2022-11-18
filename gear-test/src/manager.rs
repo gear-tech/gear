@@ -253,7 +253,13 @@ impl JournalHandler for InMemoryExtManager {
             self.dispatch_queue.remove(index);
         }
     }
-    fn send_dispatch(&mut self, _message_id: MessageId, dispatch: Dispatch, _delay: u32) {
+    fn send_dispatch(
+        &mut self,
+        _message_id: MessageId,
+        dispatch: Dispatch,
+        _delay: u32,
+        _reservation: Option<ReservationId>,
+    ) {
         let destination = dispatch.destination();
         if self.actors.contains_key(&destination) || self.marked_destinations.contains(&destination)
         {
@@ -420,4 +426,10 @@ impl JournalHandler for InMemoryExtManager {
             panic!("no gas reservation map found in program");
         }
     }
+
+    fn system_reserve_gas(&mut self, _message_id: MessageId, _amount: u64) {}
+
+    fn system_unreserve_gas(&mut self, _message_id: MessageId) {}
+
+    fn send_signal(&mut self, _message_id: MessageId, _destination: ProgramId) {}
 }

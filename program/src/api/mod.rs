@@ -1,59 +1,42 @@
 //! Gear api
-use crate::{
-    api::{config::GearConfig, generated::api::RuntimeApi, signer::Signer},
-    result::Result,
-};
+use crate::result::Result;
+use client::RpcClient;
+use config::GearConfig;
 use core::ops::{Deref, DerefMut};
-use events::Events;
-use std::{str::FromStr, time::Duration};
-use subxt::{
-    rpc::{RpcClientBuilder, Uri, WsTransportClientBuilder},
-    ClientBuilder, PolkadotExtrinsicParams,
-};
+use signer::Signer;
+use subxt::OnlineClient;
 
+mod client;
 pub mod config;
 mod constants;
 pub mod events;
 pub mod generated;
+mod rpc;
 pub mod signer;
 mod storage;
 pub mod types;
 mod utils;
 
-const DEFAULT_GEAR_ENDPOINT: &str = "wss://rpc-node.gear-tech.io:443";
-
-/// gear api
+/// Gear api wrapper.
 #[derive(Clone)]
-pub struct Api(RuntimeApi<GearConfig, PolkadotExtrinsicParams<GearConfig>>);
+pub struct Api(OnlineClient<GearConfig>);
 
 impl Api {
-    /// Build runtime api
+    /// Create new API client.
     pub async fn new(url: Option<&str>) -> Result<Self> {
         Self::new_with_timeout(url, None).await
     }
 
-    /// Build runtime api with timeout
-    ///
-    /// # TODO
-    ///
-    /// run [subscribe_to_updates](https://docs.rs/subxt/latest/subxt/client/struct.OnlineClient.html#method.subscribe_to_updates)
-    /// after #1629 since
-    ///
-    /// * the build may include both `gear` and `vara` features.
-    /// * users may have installed this CLI tool independently and the metadata is outdated.
+    /// Create new API client with timeout.
     pub async fn new_with_timeout(url: Option<&str>, timeout: Option<u64>) -> Result<Self> {
-        let (tx, rx) = WsTransportClientBuilder::default()
-            .connection_timeout(Duration::from_millis(timeout.unwrap_or(60_000)))
-            .build(Uri::from_str(url.unwrap_or(DEFAULT_GEAR_ENDPOINT))?)
-            .await?;
+        Ok(Self(
+            OnlineClient::from_rpc_client(RpcClient::new(url, timeout).await?).await?,
+        ))
+    }
 
-        let rpc = RpcClientBuilder::default().build_with_tokio(tx, rx);
-        let builder = ClientBuilder::new().set_client(rpc);
-
-        Ok(Self(builder.build().await?.to_runtime_api::<RuntimeApi<
-            GearConfig,
-            PolkadotExtrinsicParams<GearConfig>,
-        >>()))
+    /// Subscribe all events
+    pub async fn events(&self) -> Result<types::FinalizedEvents> {
+        Ok(self.0.events().subscribe_finalized().await?)
     }
 
     /// New signer from api
@@ -65,15 +48,10 @@ impl Api {
     pub fn try_signer(self, passwd: Option<&str>) -> Result<Signer> {
         Signer::try_new(self, passwd)
     }
-
-    /// Subscribe all events
-    pub async fn events(&self) -> Result<Events<'_>> {
-        Ok(self.0.events().subscribe().await?)
-    }
 }
 
 impl Deref for Api {
-    type Target = RuntimeApi<GearConfig, PolkadotExtrinsicParams<GearConfig>>;
+    type Target = OnlineClient<GearConfig>;
 
     fn deref(&self) -> &Self::Target {
         &self.0

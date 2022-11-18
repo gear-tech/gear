@@ -1,0 +1,99 @@
+name: Rollback production testnet
+
+on:
+  workflow_dispatch:
+    inputs:
+      image-tag:
+        description: 'Tag for rollback'
+        required: true
+
+env:
+  CARGO_TERM_COLOR: always
+  IMAGE_NAME: ghcr.io/gear-tech/node:${{ github.event.inputs.image-tag }}
+
+jobs:
+
+  rollback-one-validator:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Install Info
+        run: |
+            ls -l .
+            ls -l ../..
+            pwd
+
+      - name: Send telegram notify before run playbook
+        uses: appleboy/telegram-action@master
+        with:
+          to: ${{ secrets.TELEGRAM_CHANNEL_ID }}
+          token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          message: |
+            Attention!
+            Rollback second validator with docker image ${{ env.IMAGE_NAME }}
+
+
+      - name: Run playbook
+        uses: dawidd6/action-ansible-playbook@v2
+        with:
+          # Required, playbook filepath
+          directory: ./ansible/
+          playbook: main.yaml
+          # Optional, SSH private key
+          key: ${{secrets.SSH_PRIVATE_KEY}}
+          # Optional, literal inventory file contents
+          inventory: |
+            [gearNodes:children]
+            nodes
+            [nodes]
+            ${{secrets.GEAR_NODE_2}} name=testnet-gear02 validator=yes loki=yes loki_url=${{secrets.LOKI_URL}} gear_image_tag=${{ env.IMAGE_NAME }}
+
+  rollback-all-validators:
+    runs-on: ubuntu-latest
+    needs: rollback-one-validator
+    environment: production
+    steps:
+
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Install Info
+        run: |
+            ls -l .
+            ls -l ../..
+            pwd
+
+      - name: Send telegram notify before run playbook
+        uses: appleboy/telegram-action@master
+        with:
+          to: ${{ secrets.TELEGRAM_CHANNEL_ID }}
+          token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          message: |
+            Attention!
+            Rollback all testnet with docker image ${{ env.IMAGE_NAME }}
+
+      - name: Run playbook
+        uses: dawidd6/action-ansible-playbook@v2
+        with:
+          # Required, playbook filepath
+          directory: ./ansible/
+          playbook: main.yaml
+          # Optional, SSH private key
+          key: ${{secrets.SSH_PRIVATE_KEY}}
+          # Optional, literal inventory file contents
+          inventory: |
+            [gearNodes:children]
+            bootnode
+            nodes
+            [bootnode]
+            ${{secrets.GEAR_NODE}} name=testnet-gear01 loki=yes loki_url=${{secrets.LOKI_URL}} gear_image_tag=${{ env.IMAGE_NAME }}
+            [nodes]
+            ${{secrets.GEAR_NODE_3}} name=testnet-rpc-node rpc=yes unsafe=yes loki=yes loki_url=${{secrets.LOKI_URL}} gear_image_tag=${{ env.IMAGE_NAME }}
+            ${{secrets.GEAR_NODE_4}} name=testnet-gear03 validator=yes loki=yes loki_url=${{secrets.LOKI_URL}} gear_image_tag=${{ env.IMAGE_NAME }}
+            ${{secrets.GEAR_NODE_5}} name=testnet-gear04 validator=yes loki=yes loki_url=${{secrets.LOKI_URL}} gear_image_tag=${{ env.IMAGE_NAME }}
+            ${{secrets.ARCHIVE_NODE}} name=testnet-archive-node validator=yes archive_node=yes loki=yes loki_url=${{secrets.LOKI_URL}} gear_image_tag=${{ env.IMAGE_NAME }}
+            ${{secrets.ARCHIVE_RPC_NODE}} name=testnet-archive-rpc-node rpc=yes unsafe=no archive_node=yes loki=yes loki_url=${{secrets.LOKI_URL}} gear_image_tag=${{ env.IMAGE_NAME }}

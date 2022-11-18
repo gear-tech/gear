@@ -33,6 +33,7 @@ extern crate galloc;
 
 mod async_runtime;
 mod common;
+mod config;
 pub mod exec;
 pub mod lock;
 pub mod macros;
@@ -40,8 +41,9 @@ pub mod msg;
 pub mod prelude;
 pub mod prog;
 
-pub use async_runtime::{message_loop, record_reply};
+pub use async_runtime::{handle_signal, message_loop, record_reply};
 pub use common::{errors, handlers::*, primitives::*};
+pub use config::Config;
 pub use gstd_codegen::{async_init, async_main};
 pub use macros::util;
 

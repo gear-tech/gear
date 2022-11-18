@@ -65,4 +65,4 @@ fixtures:
               value: STORED REPLY
           # from "reply twice" awaken
           - destination: 1000001
-            exitCode: 1
+            statusCode: 1

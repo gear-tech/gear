@@ -44,9 +44,9 @@ use gear_core::{
     buffer::RuntimeBufferSizeError,
     env::Ext,
     gas::GasAmount,
-    ids::{CodeId, MessageId, ProgramId},
+    ids::{CodeId, MessageId, ProgramId, ReservationId},
     memory::{Memory, PageBuf, PageNumber, WasmPageNumber},
-    message::{ContextStore, Dispatch, DispatchKind, MessageWaitedType},
+    message::{ContextStore, Dispatch, DispatchKind, IncomingDispatch, MessageWaitedType},
     reservation::GasReserver,
 };
 use gear_core_errors::{ExtError, MemoryError};
@@ -104,13 +104,38 @@ pub enum TrapExplanation {
     Unknown,
 }
 
+#[derive(Debug, Default)]
+pub struct SystemReservationContext {
+    /// Reservation created in current execution.
+    pub current_reservation: Option<u64>,
+    /// Reservation from `ContextStore`.
+    pub previous_reservation: Option<u64>,
+}
+
+impl SystemReservationContext {
+    pub fn from_dispatch(dispatch: &IncomingDispatch) -> Self {
+        Self {
+            current_reservation: None,
+            previous_reservation: dispatch
+                .context()
+                .as_ref()
+                .and_then(|ctx| ctx.system_reservation()),
+        }
+    }
+
+    pub fn has_any(&self) -> bool {
+        self.current_reservation.is_some() || self.previous_reservation.is_some()
+    }
+}
+
 #[derive(Debug)]
 pub struct ExtInfo {
     pub gas_amount: GasAmount,
     pub gas_reserver: GasReserver,
+    pub system_reservation_context: SystemReservationContext,
     pub allocations: Option<BTreeSet<WasmPageNumber>>,
     pub pages_data: BTreeMap<PageNumber, PageBuf>,
-    pub generated_dispatches: Vec<(Dispatch, u32)>,
+    pub generated_dispatches: Vec<(Dispatch, u32, Option<ReservationId>)>,
     pub awakening: Vec<(MessageId, u32)>,
     pub program_candidates_data: BTreeMap<CodeId, Vec<(MessageId, ProgramId)>>,
     pub context_store: ContextStore,

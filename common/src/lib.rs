@@ -68,8 +68,6 @@ pub const STORAGE_PROGRAM_PREFIX: &[u8] = b"g::prog::";
 pub const STORAGE_PROGRAM_PAGES_PREFIX: &[u8] = b"g::pages::";
 pub const STORAGE_PROGRAM_STATE_WAIT_PREFIX: &[u8] = b"g::prog_wait::";
 
-pub type ExitCode = i32;
-
 pub trait Origin: Sized {
     fn into_origin(self) -> H256;
     fn from_origin(val: H256) -> Self;
@@ -534,9 +532,4 @@ where
     fn extract_call(&self) -> Call {
         self.function.clone()
     }
-}
-
-/// Trait whose implementors may opt to generate dispatchable that concludes a block
-pub trait TerminalExtrinsicProvider<E> {
-    fn extrinsic() -> Option<E>;
 }

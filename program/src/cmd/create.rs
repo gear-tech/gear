@@ -31,7 +31,7 @@ impl Create {
 
         let gas = if self.gas_limit == 0 {
             signer
-                .calculate_create_gas(code_id, payload.clone(), self.value, false, None)
+                .calculate_create_gas(None, code_id, payload.clone(), self.value, false, None)
                 .await?
                 .min_limit
         } else {

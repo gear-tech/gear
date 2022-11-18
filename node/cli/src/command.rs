@@ -126,6 +126,12 @@ macro_rules! unwrap_client {
 pub fn run() -> sc_cli::Result<()> {
     let mut cli = Cli::from_args();
 
+    let old_base = BasePath::from_project("", "", "gear-node");
+    let new_base = BasePath::from_project("", "", &Cli::executable_name());
+    if old_base.path().exists() && !new_base.path().exists() {
+        _ = std::fs::rename(old_base.path(), new_base.path());
+    }
+
     // Force setting `Wasm` as default execution strategy.
     cli.run
         .base
@@ -133,13 +139,6 @@ pub fn run() -> sc_cli::Result<()> {
         .execution_strategies
         .execution
         .get_or_insert(ExecutionStrategy::Wasm);
-
-    // Set default base directory to `gear-node`.
-    cli.run
-        .base
-        .shared_params
-        .base_path
-        .get_or_insert_with(|| BasePath::from_project("", "", "gear-node").path().into());
 
     match &cli.subcommand {
         Some(Subcommand::Key(cmd)) => cmd.run(&cli),
