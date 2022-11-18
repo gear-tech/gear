@@ -2980,6 +2980,7 @@ dependencies = [
  "gear-runtime-primitives",
  "gear-runtime-test-cli",
  "gear-service",
+ "log",
  "pallet-gear-payment",
  "sc-cli",
  "sc-client-api",
