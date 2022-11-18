@@ -236,7 +236,7 @@ where
     pub fn send_push(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
         sys_trace!(target: "syscall::gear", "send_push, args = {}", args_to_str(args));
 
-        let (handle, payload_ptr, len, err_ptr) = args.iter().read_4()?;
+        let (handle, payload_ptr, len, err_len_ptr) = args.iter().read_4()?;
 
         ctx.run(|ctx| {
             let payload = ctx.read_memory(payload_ptr, len)?;
@@ -248,7 +248,7 @@ where
                 .map_err(FuncError::Core)?
                 .error_len();
 
-            ctx.write_output(err_ptr, &len.to_le_bytes())
+            ctx.write_output(err_len_ptr, &len.to_le_bytes())
                 .map_err(Into::into)
         })
     }
@@ -324,7 +324,7 @@ where
     pub fn read(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
         sys_trace!(target: "syscall::gear", "read, args = {}", args_to_str(args));
 
-        let (at, len, buffer_ptr, err_ptr): (_, _, u32, _) = args.iter().read_4()?;
+        let (at, len, buffer_ptr, err_len_ptr): (_, _, u32, _) = args.iter().read_4()?;
 
         ctx.run(|ctx| {
             let length = match Self::validated(&mut ctx.ext, at, len) {
@@ -337,7 +337,7 @@ where
                 Err(_err) => 1,
             };
 
-            ctx.write_output(err_ptr, &length.to_le_bytes())
+            ctx.write_output(err_len_ptr, &length.to_le_bytes())
                 .map_err(Into::into)
         })
     }
@@ -621,7 +621,7 @@ where
     pub fn reply_push(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
         sys_trace!(target: "syscall::gear", "reply_push, args = {}", args_to_str(args));
 
-        let (payload_ptr, len, err_ptr) = args.iter().read_3()?;
+        let (payload_ptr, len, err_len_ptr) = args.iter().read_3()?;
 
         ctx.run(|ctx| {
             let payload = ctx.read_memory(payload_ptr, len)?;
@@ -633,7 +633,7 @@ where
                 .map_err(FuncError::Core)?
                 .error_len();
 
-            ctx.write_output(err_ptr, &len.to_le_bytes())
+            ctx.write_output(err_len_ptr, &len.to_le_bytes())
                 .map_err(Into::into)
         })
     }
@@ -687,7 +687,7 @@ where
     pub fn system_reserve_gas(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
         sys_trace!(target: "syscall::gear", "system_reserve_gas, args = {}", args_to_str(args));
 
-        let (gas, err_ptr) = args.iter().read_2()?;
+        let (gas, err_len_ptr) = args.iter().read_2()?;
 
         ctx.run(|ctx| {
             let len = ctx
@@ -697,7 +697,7 @@ where
                 .map_err(FuncError::Core)?
                 .error_len();
 
-            ctx.write_output(err_ptr, &len.to_le_bytes())
+            ctx.write_output(err_len_ptr, &len.to_le_bytes())
                 .map_err(Into::into)
         })
     }
@@ -847,7 +847,7 @@ where
     pub fn wake(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
         sys_trace!(target: "syscall::gear", "wake, args = {}", args_to_str(args));
 
-        let (message_id_ptr, delay, err_ptr) = args.iter().read_3()?;
+        let (message_id_ptr, delay, err_len_ptr) = args.iter().read_3()?;
 
         ctx.run(|ctx| {
             let message_id = ctx.read_memory_decoded(message_id_ptr)?;
@@ -859,7 +859,7 @@ where
                 .map_err(FuncError::Core)?
                 .error_len();
 
-            ctx.write_output(err_ptr, &len.to_le_bytes())
+            ctx.write_output(err_len_ptr, &len.to_le_bytes())
                 .map_err(Into::into)
         })
     }
@@ -927,7 +927,9 @@ where
     pub fn error(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
         sys_trace!(target: "syscall::gear", "error, args = {}", args_to_str(args));
 
-        let (error_ptr, err_ptr) = args.iter().read_2()?;
+        // error_bytes_ptr is ptr for buffer of an error
+        // err_len_ptr is ptr for len of the error occurred during this syscall
+        let (error_bytes_ptr, err_len_ptr) = args.iter().read_2()?;
 
         ctx.run(|ctx| {
             ctx.ext
@@ -937,13 +939,13 @@ where
                 .proc_res(|res| {
                     let length = match res {
                         Ok(error) => {
-                            ctx.write_output(error_ptr, error.as_ref())?;
+                            ctx.write_output(error_bytes_ptr, error.as_ref())?;
                             0
                         }
                         Err(length) => length,
                     };
 
-                    ctx.write_output(err_ptr, &length.to_le_bytes())
+                    ctx.write_output(err_len_ptr, &length.to_le_bytes())
                 })
         })
     }
