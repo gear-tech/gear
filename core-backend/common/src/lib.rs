@@ -38,7 +38,7 @@ use alloc::{
 use codec::{Decode, Encode, MaxEncodedLen};
 use core::{
     fmt::{self, Display},
-    mem::{size_of, MaybeUninit},
+    mem::{self, MaybeUninit},
     ops::Deref,
     slice,
 };
@@ -197,23 +197,44 @@ pub trait RuntimeCtx<E: Ext> {
     //
     /// `out_ptr` is the location in memory where `buf` should be written to.
     fn write_output(&mut self, out_ptr: u32, buf: &[u8]) -> Result<(), RuntimeCtxError<E::Error>>;
+}
 
-    fn read_memory_as<T: Sized>(&self, ptr: u32) -> Result<T, RuntimeCtxError<E::Error>> {
-        let mut buf = MaybeUninit::<T>::uninit();
-        let mut_slice =
-            unsafe { slice::from_raw_parts_mut(buf.as_mut_ptr() as *mut u8, size_of::<T>()) };
-        self.read_memory_into_buf(ptr, mut_slice)?;
-        Ok(unsafe { buf.assume_init() })
-    }
+/// Writes object in given memory as bytes.
+///
+/// Safety: due to the fact that given object is Sized and we own them in
+/// the context of calling this function, it's safe to take ptr on the
+/// object and represent it as slice. Object will be dropped after
+/// memory.write already finished execution.
+pub fn write_memory_as<T: Sized>(
+    memory: &mut impl Memory,
+    ptr: u32,
+    obj: T,
+) -> Result<(), MemoryError> {
+    let slice =
+        unsafe { slice::from_raw_parts(&obj as *const T as *const u8, mem::size_of::<T>()) };
 
-    fn write_memory_as<T: Sized>(
-        &mut self,
-        ptr: u32,
-        obj: T,
-    ) -> Result<(), RuntimeCtxError<E::Error>> {
-        let slice = unsafe { slice::from_raw_parts(&obj as *const T as *const u8, size_of::<T>()) };
-        self.write_output(ptr, slice)
-    }
+    memory.write(ptr as usize, slice)
+}
+
+/// Reads bytes from given pointer to construct type T from them.
+///
+/// Safety: using mutable slice is safe for the same reason as in
+/// `write_memory_as`. Usage of MaybeUninit is always safe due to
+/// the fact that we read proper amount of bytes from the wasm
+/// memory, which is never uninited: they be filled by zeroes
+/// or some trash, but always exist.
+///
+/// It's also safe to construct T from any bytes, because we use the fn
+/// only for reading primitive const-size types that are `[repr(C)]`,
+/// so they always represented from sequence of bytes.
+pub fn read_memory_as<T: Sized>(memory: &impl Memory, ptr: u32) -> Result<T, MemoryError> {
+    let mut buf = MaybeUninit::<T>::uninit();
+    let mut_slice =
+        unsafe { slice::from_raw_parts_mut(buf.as_mut_ptr() as *mut u8, mem::size_of::<T>()) };
+
+    memory.read(ptr as usize, mut_slice)?;
+
+    Ok(unsafe { buf.assume_init() })
 }
 
 pub struct BackendReport<T, E> {

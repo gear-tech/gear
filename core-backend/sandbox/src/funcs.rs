@@ -34,6 +34,7 @@ use gear_core::{
     buffer::{RuntimeBuffer, RuntimeBufferSizeError},
     env::Ext,
     ids::ReservationId,
+    memory::Memory,
     message::{HandlePacket, InitPacket, MessageWaitedType, PayloadSizeError, ReplyPacket},
 };
 use gear_core_errors::{CoreError, MemoryError};
@@ -41,7 +42,7 @@ use gsys::{
     BlockNumberWithHash, HashWithValue, LengthWithCode, LengthWithGas, LengthWithHandle,
     LengthWithHash, LengthWithTwoHashes, TwoHashesWithValue,
 };
-use sp_sandbox::{HostError, ReturnValue, SandboxMemory, Value};
+use sp_sandbox::{HostError, ReturnValue, Value};
 
 pub(crate) type SyscallOutput = Result<ReturnValue, HostError>;
 
@@ -449,14 +450,12 @@ where
     pub fn read(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
         sys_trace!(target: "syscall::gear", "read, args = {}", args_to_str(args));
 
-        let (at, len, buffer_ptr, err_ptr) = args.iter().read_4()?;
+        let (at, len, buffer_ptr, err_ptr): (_, _, u32, _) = args.iter().read_4()?;
 
         ctx.run(|ctx| {
             let length = match Self::validated(&mut ctx.ext, at, len) {
                 Ok(buffer) => {
-                    ctx.memory
-                        .set(buffer_ptr, buffer)
-                        .map_err(|_| MemoryError::OutOfBounds)?;
+                    ctx.memory.write(buffer_ptr as usize, buffer)?;
 
                     0u32
                 }

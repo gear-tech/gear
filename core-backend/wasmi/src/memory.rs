@@ -20,10 +20,6 @@
 
 use crate::state::HostState;
 use codec::{Decode, DecodeAll, MaxEncodedLen};
-use core::{
-    mem::{self, MaybeUninit},
-    slice,
-};
 use gear_backend_common::IntoExtInfo;
 use gear_core::{
     env::Ext,
@@ -72,18 +68,11 @@ impl<'a, E: Ext + IntoExtInfo<E::Error> + 'static> Memory for MemoryWrapRef<'a, 
 
 impl<'a, E: Ext + IntoExtInfo<E::Error> + 'static> MemoryWrapRef<'a, E> {
     pub fn write_memory_as<T: Sized>(&mut self, ptr: u32, obj: T) -> Result<(), MemoryError> {
-        let slice =
-            unsafe { slice::from_raw_parts(&obj as *const T as *const u8, mem::size_of::<T>()) };
-        self.write(ptr as usize, slice)
+        gear_backend_common::write_memory_as(self, ptr, obj)
     }
 
     pub fn read_memory_as<T: Sized>(&self, ptr: u32) -> Result<T, MemoryError> {
-        let mut buf = MaybeUninit::<T>::uninit();
-        let mut_slice =
-            unsafe { slice::from_raw_parts_mut(buf.as_mut_ptr() as *mut u8, mem::size_of::<T>()) };
-        self.read(ptr as usize, mut_slice)
-            .map_err(|_| MemoryError::OutOfBounds)?;
-        Ok(unsafe { buf.assume_init() })
+        gear_backend_common::read_memory_as(self, ptr)
     }
 
     pub fn read_memory_decoded<D: Decode + MaxEncodedLen>(
