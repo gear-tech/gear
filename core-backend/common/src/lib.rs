@@ -200,20 +200,20 @@ pub trait RuntimeCtx<E: Ext> {
 }
 
 /// Writes object in given memory as bytes.
-///
-/// # Safety:
-/// Due to the fact that given object is Sized and we own them in
-/// the context of calling this function, it's safe to take ptr on the
-/// object and represent it as slice. Object will be dropped after
-/// memory.write already finished execution.
-///
-/// Bytes in memory always stored continuously and without paddings,
-/// properly aligned due to `[repr(C, packed)]` attribute.
 pub fn write_memory_as<T: Sized>(
     memory: &mut impl Memory,
     ptr: u32,
     obj: T,
 ) -> Result<(), MemoryError> {
+    // # Safety:
+    //
+    // Given object is `Sized` and we own them in the context of calling this
+    // function (it's on stack), it's safe to take ptr on the object and
+    // represent it as slice. Object will be dropped after `memory.write`
+    // finished execution and no one will rely on this slice.
+    //
+    // Bytes in memory always stored continuously and without paddings, properly
+    // aligned due to `[repr(C, packed)]` attribute of the types we use as T.
     let slice =
         unsafe { slice::from_raw_parts(&obj as *const T as *const u8, mem::size_of::<T>()) };
 
@@ -221,27 +221,31 @@ pub fn write_memory_as<T: Sized>(
 }
 
 /// Reads bytes from given pointer to construct type T from them.
-///
-/// # Safety:
-/// Usage of mutable slice is safe for the same reason as in
-/// `write_memory_as`. Usage of MaybeUninit is always safe due to
-/// the fact that we read proper amount of bytes from the wasm
-/// memory, which is never uninited: they be filled by zeroes
-/// or some trash, but always exist.
-///
-/// It's also safe to construct T from any bytes, because we use the fn
-/// only for reading primitive const-size types that are `[repr(C)]`,
-/// so they always represented from sequence of bytes.
-///
-/// Bytes in memory always stored continuously and without paddings,
-/// properly aligned due to `[repr(C, packed)]` attribute.
 pub fn read_memory_as<T: Sized>(memory: &impl Memory, ptr: u32) -> Result<T, MemoryError> {
     let mut buf = MaybeUninit::<T>::uninit();
+
+    // # Safety:
+    //
+    // Usage of mutable slice is safe for the same reason from `write_memory_as`.
+    // `MaybeUninit` is presented on stack with continuos sequence of bytes.
+    //
+    // It's also safe to construct T from any bytes, because we use the fn
+    // only for reading primitive const-size types that are `[repr(C)]`,
+    // so they always represented from sequence of bytes.
+    //
+    // Bytes in memory always stored continuously and without paddings, properly
+    // aligned due to `[repr(C, packed)]` attribute of the types we use as T.
     let mut_slice =
         unsafe { slice::from_raw_parts_mut(buf.as_mut_ptr() as *mut u8, mem::size_of::<T>()) };
 
     memory.read(ptr as usize, mut_slice)?;
 
+    // # Safety:
+    //
+    // Assuming init is always safe here due to the fact that we read proper
+    // amount of bytes from the wasm memory, which is never uninited: they may
+    // be filled by zeroes or some trash (valid for our primitives used as T),
+    // but always exist.
     Ok(unsafe { buf.assume_init() })
 }
 
