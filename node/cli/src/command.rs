@@ -342,13 +342,10 @@ pub fn run() -> sc_cli::Result<()> {
         }
         None => {
             let runner = if cli.run.base.validator {
-                let runner = cli.create_runner_with_logger_hook(&cli.run.base, |logger, _| {
+                cli.create_runner_with_logger_hook(&cli.run.base, |logger, _| {
                     logger.with_detailed_output(false);
-                })?;
-
-                log::set_max_level(log::LevelFilter::Info);
-
-                runner
+                    log::set_max_level(log::LevelFilter::Info);
+                })?
             } else {
                 cli.create_runner(&cli.run.base)?
             };
