@@ -20,59 +20,12 @@
 //!
 //! Provides API for low-level async implementation.
 
-use crate::{error::Result, ActorId, MessageId, ReservationId};
+use crate::{
+    error::{Result, SyscallError},
+    ActorId, MessageId, ReservationId,
+};
 use gear_core_errors::ExtError;
-
-mod sys {
-    use crate::error::SyscallError;
-
-    extern "C" {
-        pub fn gr_block_height() -> u32;
-
-        pub fn gr_block_timestamp() -> u64;
-
-        pub fn gr_exit(inheritor_id_ptr: *const [u8; 32]) -> !;
-
-        pub fn gr_reserve_gas(
-            amount: u64,
-            duration: u32,
-            reservation_id_ptr: *mut [u8; 32],
-        ) -> SyscallError;
-
-        pub fn gr_unreserve_gas(
-            reservation_id_ptr: *const [u8; 32],
-            unreserved_amount: *mut u64,
-        ) -> SyscallError;
-
-        pub fn gr_system_reserve_gas(amount: u64) -> SyscallError;
-
-        pub fn gr_gas_available() -> u64;
-
-        pub fn gr_program_id(program_id_ptr: *mut [u8; 32]);
-
-        pub fn gr_origin(origin_ptr: *mut [u8; 32]);
-
-        pub fn gr_random(
-            subject_ptr: *const u8,
-            subject_len: u32,
-            random_ptr: *mut [u8; 32],
-            bn: *mut u32,
-        );
-
-        pub fn gr_leave() -> !;
-
-        #[allow(improper_ctypes)]
-        pub fn gr_value_available(value_ptr: *mut u128);
-
-        pub fn gr_wait() -> !;
-
-        pub fn gr_wait_up_to(duration: u32) -> !;
-
-        pub fn gr_wait_for(duration: u32) -> !;
-
-        pub fn gr_wake(message_id_ptr: *const [u8; 32], delay: u32) -> SyscallError;
-    }
-}
+use gsys::{BlockNumberWithHash, LengthWithGas, LengthWithHash};
 
 /// Get the current block height.
 ///
@@ -93,7 +46,9 @@ mod sys {
 /// }
 /// ```
 pub fn block_height() -> u32 {
-    unsafe { sys::gr_block_height() }
+    let mut bn = 0u32;
+    unsafe { gsys::gr_block_height(&mut bn as *mut u32) };
+    bn
 }
 
 /// Get the current block timestamp.
@@ -113,7 +68,9 @@ pub fn block_height() -> u32 {
 /// }
 /// ```
 pub fn block_timestamp() -> u64 {
-    unsafe { sys::gr_block_timestamp() }
+    let mut timestamp = 0u64;
+    unsafe { gsys::gr_block_timestamp(&mut timestamp as *mut u64) };
+    timestamp
 }
 
 /// Terminate the execution of a program. The program and all corresponding data
@@ -133,7 +90,7 @@ pub fn block_timestamp() -> u64 {
 /// }
 /// ```
 pub fn exit(inheritor_id: ActorId) -> ! {
-    unsafe { sys::gr_exit(inheritor_id.as_ptr()) }
+    unsafe { gsys::gr_exit(inheritor_id.as_ptr()) }
 }
 
 /// Reserve gas for further usage.
@@ -154,11 +111,12 @@ pub fn exit(inheritor_id: ActorId) -> ! {
 /// }
 /// ```
 pub fn reserve_gas(amount: u64, duration: u32) -> Result<ReservationId> {
-    let mut id = ReservationId::default();
-    unsafe {
-        sys::gr_reserve_gas(amount, duration, id.as_mut_ptr()).into_result()?;
-    }
-    Ok(id)
+    let mut res: LengthWithHash = Default::default();
+
+    unsafe { gsys::gr_reserve_gas(amount, duration, res.as_mut_ptr()) };
+    SyscallError(res.length).into_result()?;
+
+    Ok(res.hash.into())
 }
 
 /// Reserve gas for system usage.
@@ -178,7 +136,9 @@ pub fn reserve_gas(amount: u64, duration: u32) -> Result<ReservationId> {
 /// }
 /// ```
 pub fn system_reserve_gas(amount: u64) -> Result<()> {
-    unsafe { sys::gr_system_reserve_gas(amount).into_result() }
+    let mut len = 0u32;
+    unsafe { gsys::gr_system_reserve_gas(amount, &mut len as *mut u32) };
+    SyscallError(len).into_result()
 }
 
 /// Unreserve gas using reservation ID
@@ -188,11 +148,12 @@ pub fn system_reserve_gas(amount: u64) -> Result<()> {
 /// # Examples
 /// See [`reserve_gas`] example.
 pub fn unreserve_gas(id: ReservationId) -> Result<u64> {
-    let mut amount = 0u64.to_le_bytes();
-    unsafe {
-        sys::gr_unreserve_gas(id.as_ptr(), amount.as_mut_ptr() as *mut u64).into_result()?;
-    }
-    Ok(u64::from_le_bytes(amount))
+    let mut res: LengthWithGas = Default::default();
+
+    unsafe { gsys::gr_unreserve_gas(id.as_ptr(), res.as_mut_ptr()) };
+    SyscallError(res.length).into_result()?;
+
+    Ok(res.gas)
 }
 
 /// Get the current value of the gas available for execution.
@@ -216,7 +177,9 @@ pub fn unreserve_gas(id: ReservationId) -> Result<u64> {
 /// }
 /// ```
 pub fn gas_available() -> u64 {
-    unsafe { sys::gr_gas_available() }
+    let mut gas = 0u64;
+    unsafe { gsys::gr_gas_available(&mut gas as *mut u64) };
+    gas
 }
 
 /// Terminate the current message handling.
@@ -235,7 +198,7 @@ pub fn gas_available() -> u64 {
 /// }
 /// ```
 pub fn leave() -> ! {
-    unsafe { sys::gr_leave() }
+    unsafe { gsys::gr_leave() }
 }
 
 /// Get the total available value amount.
@@ -254,11 +217,9 @@ pub fn leave() -> ! {
 /// }
 /// ```
 pub fn value_available() -> u128 {
-    let mut bytes = 0u128.to_le_bytes();
-
-    unsafe { sys::gr_value_available(bytes.as_mut_ptr() as *mut u128) }
-
-    u128::from_le_bytes(bytes)
+    let mut value = 0u128;
+    unsafe { gsys::gr_value_available(&mut value as *mut u128) }
+    value
 }
 
 /// Pause the current message handling.
@@ -284,20 +245,20 @@ pub fn value_available() -> u128 {
 /// }
 /// ```
 pub fn wait() -> ! {
-    unsafe { sys::gr_wait() }
+    unsafe { gsys::gr_wait() }
 }
 
 /// Same as [`wait`], but delays handling for given specific amount of blocks.
 ///
 /// NOTE: It panics, if given duration couldn't be totally payed.
 pub fn wait_for(duration: u32) -> ! {
-    unsafe { sys::gr_wait_for(duration) }
+    unsafe { gsys::gr_wait_for(duration) }
 }
 
 /// Same as [`wait`], but delays handling for maximal amount of blocks
 /// that could be payed, that doesn't exceed given duration.
 pub fn wait_up_to(duration: u32) -> ! {
-    unsafe { sys::gr_wait_up_to(duration) }
+    unsafe { gsys::gr_wait_up_to(duration) }
 }
 
 /// Resume previously paused message handling.
@@ -323,7 +284,9 @@ pub fn wake(message_id: MessageId) -> Result<()> {
 
 /// Same as [`wake`], but wakes delayed.
 pub fn wake_delayed(message_id: MessageId, delay: u32) -> Result<()> {
-    unsafe { sys::gr_wake(message_id.as_ptr(), delay).into_result() }
+    let mut len = 0u32;
+    unsafe { gsys::gr_wake(message_id.as_ptr(), delay, &mut len as *mut u32) };
+    SyscallError(len).into_result()
 }
 
 /// Return ID of the current program.
@@ -340,9 +303,7 @@ pub fn wake_delayed(message_id: MessageId, delay: u32) -> Result<()> {
 /// ```
 pub fn program_id() -> ActorId {
     let mut program_id = ActorId::default();
-
-    unsafe { sys::gr_program_id(program_id.as_mut_ptr()) }
-
+    unsafe { gsys::gr_program_id(program_id.as_mut_ptr()) }
     program_id
 }
 
@@ -361,9 +322,7 @@ pub fn program_id() -> ActorId {
 /// ```
 pub fn origin() -> ActorId {
     let mut origin = ActorId::default();
-
-    unsafe { sys::gr_origin(origin.as_mut_ptr()) }
-
+    unsafe { gsys::gr_origin(origin.as_mut_ptr()) }
     origin
 }
 
@@ -395,23 +354,14 @@ pub fn origin() -> ActorId {
 /// }
 /// ```
 pub fn random(subject: &[u8]) -> Result<([u8; 32], u32)> {
-    let mut bytes = [0u8; 32];
+    let mut res: BlockNumberWithHash = Default::default();
 
     let subject_len = subject
         .len()
         .try_into()
         .map_err(|_| ExtError::SyscallUsage)?;
 
-    let mut bn = 0u32.to_le_bytes();
+    unsafe { gsys::gr_random(subject.as_ptr(), subject_len, res.as_mut_ptr()) };
 
-    unsafe {
-        sys::gr_random(
-            subject.as_ptr(),
-            subject_len,
-            bytes.as_mut_ptr() as *mut [u8; 32],
-            bn.as_mut_ptr() as *mut u32,
-        );
-    }
-
-    Ok((bytes, u32::from_le_bytes(bn)))
+    Ok((res.hash, res.bn))
 }

@@ -6,13 +6,13 @@ use crate::{
     manager::{CodeInfo, ExtManager, HandleKind},
     schedule::API_BENCHMARK_BATCH_SIZE,
     BlockGasLimitOf, Config, CostsPerBlockOf, CurrencyOf, DbWeightOf, GasHandlerOf, MailboxOf,
-    Pallet as Gear, QueueOf, WaitlistOf,
+    Pallet as Gear, QueueOf,
 };
 use codec::Encode;
 use common::{
     benchmarking, scheduler::SchedulingCostsPerBlock, storage::*, CodeStorage, GasTree, Origin,
 };
-use core::{marker::PhantomData, mem::size_of};
+use core::{marker::PhantomData, mem, mem::size_of};
 use core_processor::{
     configs::{AllocationsConfig, BlockConfig, BlockInfo, MessageExecutionContext},
     PrechargeResult, PrepareResult,
@@ -300,24 +300,20 @@ where
     }
 
     pub fn gr_reserve_gas(r: u32) -> Result<Exec<T>, &'static str> {
-        let id_offset = 1;
-        let id_bytes = u128::MAX.encode();
-
         let code = WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
             imported_functions: vec!["gr_reserve_gas"],
-            data_segments: vec![DataSegment {
-                offset: id_offset,
-                value: id_bytes,
-            }],
             handle_body: Some(body::repeated(
                 r * API_BENCHMARK_BATCH_SIZE,
                 &[
-                    Instruction::I64Const(50_000_000),       // gas amount
-                    Instruction::I32Const(10),               // duration
-                    Instruction::I32Const(id_offset as i32), // id ptr
+                    // gas amount
+                    Instruction::I64Const(50_000_000),
+                    // duration
+                    Instruction::I32Const(10),
+                    // err_rid ptr
+                    Instruction::I32Const(1),
+                    // CALL
                     Instruction::Call(0),
-                    Instruction::Drop,
                 ],
             )),
             ..Default::default()
@@ -333,32 +329,24 @@ where
         let reservation_id_bytes: Vec<u8> =
             reservation_ids.iter().flat_map(|x| x.encode()).collect();
 
-        let amount_bytes = 1_000u64.encode();
-        let amount_offset = reservation_id_offset + reservation_id_bytes.len();
+        let amount_offset = reservation_id_offset + reservation_id_bytes.len() as u32;
 
         let code = WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
             imported_functions: vec!["gr_unreserve_gas"],
-            data_segments: vec![
-                DataSegment {
-                    offset: reservation_id_offset as u32,
-                    value: reservation_id_bytes,
-                },
-                DataSegment {
-                    offset: amount_offset as u32,
-                    value: amount_bytes,
-                },
-            ],
+            data_segments: vec![DataSegment {
+                offset: reservation_id_offset,
+                value: reservation_id_bytes,
+            }],
             handle_body: Some(body::repeated_dyn(
                 r * API_BENCHMARK_BATCH_SIZE,
                 vec![
-                    Counter(
-                        reservation_id_offset as u32,
-                        size_of::<ReservationId>() as u32,
-                    ), // reservation_id ptr
-                    Regular(Instruction::I32Const(amount_offset as i32)), // unreserved amount ptr
+                    // reservation_id ptr
+                    Counter(reservation_id_offset, size_of::<ReservationId>() as u32),
+                    // err_unreserved ptr
+                    Regular(Instruction::I32Const(amount_offset as i32)),
+                    // CALL
                     Regular(Instruction::Call(0)),
-                    Regular(Instruction::Drop),
                 ],
             )),
             ..Default::default()
@@ -394,9 +382,12 @@ where
             handle_body: Some(body::repeated(
                 r * API_BENCHMARK_BATCH_SIZE,
                 &[
-                    Instruction::I64Const(50_000_000), // gas amount
+                    // gas amount
+                    Instruction::I64Const(50_000_000),
+                    // err len ptr
+                    Instruction::I32Const(1),
+                    // CALL
                     Instruction::Call(0),
-                    Instruction::Drop,
                 ],
             )),
             ..Default::default()
@@ -416,20 +407,12 @@ where
             imported_functions: vec![name],
             handle_body: Some(body::repeated(
                 r * API_BENCHMARK_BATCH_SIZE,
-                &[Instruction::I32Const(0), Instruction::Call(0)],
-            )),
-            ..Default::default()
-        });
-        Self::prepare_handle(code, 0)
-    }
-
-    pub fn number_getter(name: &'static str, r: u32) -> Result<Exec<T>, &'static str> {
-        let code = WasmModule::<T>::from(ModuleDefinition {
-            memory: Some(ImportedMemory::max::<T>()),
-            imported_functions: vec![name],
-            handle_body: Some(body::repeated(
-                r * API_BENCHMARK_BATCH_SIZE,
-                &[Instruction::Call(0), Instruction::Drop],
+                &[
+                    // ptr to write taken data
+                    Instruction::I32Const(1),
+                    // CALL
+                    Instruction::Call(0),
+                ],
             )),
             ..Default::default()
         });
@@ -438,7 +421,7 @@ where
 
     pub fn gr_read(r: u32) -> Result<Exec<T>, &'static str> {
         let buffer_offset = 1;
-        let payload = vec![1u8; 100];
+        let buffer_len = 100u32;
 
         let code = WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
@@ -446,11 +429,16 @@ where
             handle_body: Some(body::repeated(
                 r * API_BENCHMARK_BATCH_SIZE,
                 &[
+                    // at
                     Instruction::I32Const(0),
-                    Instruction::I32Const(payload.len() as i32),
-                    Instruction::I32Const(buffer_offset),
+                    // len
+                    Instruction::I32Const(buffer_len as i32),
+                    // buffer ptr
+                    Instruction::I32Const(buffer_offset as i32),
+                    // err len ptr
+                    Instruction::I32Const((buffer_offset + buffer_len) as i32),
+                    // CALL
                     Instruction::Call(0),
-                    Instruction::Drop,
                 ],
             )),
             ..Default::default()
@@ -460,19 +448,29 @@ where
 
     pub fn gr_read_per_kb(n: u32) -> Result<Exec<T>, &'static str> {
         let buffer_offset = 1;
-        let payload = vec![0xff; (n * 1024) as usize];
+        let buffer = vec![0xff; (n * 1024) as usize];
+        let buffer_len = buffer.len() as u32;
 
         let code = WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
             imported_functions: vec!["gr_read"],
+            data_segments: vec![DataSegment {
+                offset: buffer_offset,
+                value: buffer,
+            }],
             handle_body: Some(body::repeated(
                 API_BENCHMARK_BATCH_SIZE,
                 &[
+                    // at
                     Instruction::I32Const(0),
-                    Instruction::I32Const(payload.len() as i32),
-                    Instruction::I32Const(buffer_offset),
+                    // len
+                    Instruction::I32Const(buffer_len as i32),
+                    // buffer ptr
+                    Instruction::I32Const(buffer_offset as i32),
+                    // err len ptr
+                    Instruction::I32Const((buffer_offset + buffer_len) as i32),
+                    // CALL
                     Instruction::Call(0),
-                    Instruction::Drop,
                 ],
             )),
             ..Default::default()
@@ -487,10 +485,13 @@ where
             handle_body: Some(body::repeated(
                 r * API_BENCHMARK_BATCH_SIZE,
                 &[
-                    Instruction::I32Const(0),  // subject ptr
-                    Instruction::I32Const(32), // subject len
-                    Instruction::I32Const(33), // random ptr
-                    Instruction::I32Const(0),  // bn ptr
+                    // subject ptr
+                    Instruction::I32Const(1),
+                    // subject len
+                    Instruction::I32Const(32),
+                    // bn_random ptr
+                    Instruction::I32Const(33),
+                    // CALL
                     Instruction::Call(0),
                 ],
             )),
@@ -506,9 +507,10 @@ where
             handle_body: Some(body::repeated(
                 r * API_BENCHMARK_BATCH_SIZE,
                 &[
-                    Instruction::I32Const(0), // handle
+                    // err_handle ptr
+                    Instruction::I32Const(1),
+                    // CALL
                     Instruction::Call(0),
-                    Instruction::Drop,
                 ],
             )),
             ..Default::default()
@@ -518,7 +520,9 @@ where
 
     pub fn gr_send_push(r: u32) -> Result<Exec<T>, &'static str> {
         let payload_offset = 1;
-        let payload_len = 100;
+        let payload_len = 100u32;
+
+        let err_offset = payload_offset + payload_len;
 
         let code = WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
@@ -526,14 +530,21 @@ where
             handle_body: Some(body::repeated(
                 r * API_BENCHMARK_BATCH_SIZE,
                 &[
-                    Instruction::I32Const(0), // handle
+                    // err_handle ptr for send_init
+                    Instruction::I32Const((payload_offset + payload_len) as i32),
+                    // CALL init
                     Instruction::Call(0),
-                    Instruction::Drop,
-                    Instruction::I32Const(0), // handle
-                    Instruction::I32Const(payload_offset),
-                    Instruction::I32Const(payload_len),
+                    // handle
+                    Instruction::I32Const((payload_offset + payload_len + 4) as i32),
+                    Instruction::I32Load(2, 0),
+                    // payload ptr
+                    Instruction::I32Const(payload_offset as i32),
+                    // payload len
+                    Instruction::I32Const(payload_len as i32),
+                    // err len ptr
+                    Instruction::I32Const(err_offset as i32),
+                    // CALL push
                     Instruction::Call(1),
-                    Instruction::Drop,
                 ],
             )),
             ..Default::default()
@@ -546,20 +557,31 @@ where
         let payload_offset = 1;
         let payload_len = n * 1024;
 
+        let handle_offset = payload_offset + payload_len;
+
+        let err_offset = handle_offset + 8; // u32 + u32 offset
+
         let code = WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
             imported_functions: vec!["gr_send_init", "gr_send_push"],
             handle_body: Some(body::repeated(
                 API_BENCHMARK_BATCH_SIZE,
                 &[
-                    Instruction::I32Const(0), // handle
+                    // err_handle ptr for send_init
+                    Instruction::I32Const(handle_offset as i32),
+                    // CALL init
                     Instruction::Call(0),
-                    Instruction::Drop,
-                    Instruction::I32Const(0), // handle
-                    Instruction::I32Const(payload_offset),
+                    // handle
+                    Instruction::I32Const((handle_offset + 4) as i32),
+                    Instruction::I32Load(2, 0),
+                    // payload ptr
+                    Instruction::I32Const(payload_offset as i32),
+                    // payload len
                     Instruction::I32Const(payload_len as i32),
+                    // err len ptr
+                    Instruction::I32Const(err_offset as i32),
+                    // CALL push
                     Instruction::Call(1),
-                    Instruction::Drop,
                 ],
             )),
             ..Default::default()
@@ -570,23 +592,36 @@ where
     // Benchmark the `gr_send_commit` call.
     // `gr_send` call is shortcut for `gr_send_init` + `gr_send_commit`
     pub fn gr_send_commit(r: u32) -> Result<Exec<T>, &'static str> {
-        let offset = 1;
-        let payload_len = 100;
+        let payload_offset = 1;
+        let payload_len = 100u32;
+
+        let pid_value_offset = payload_offset + payload_len;
+        let pid_value = vec![0; 32 + 16];
+
+        let err_mid_offset = pid_value_offset + pid_value.len() as u32;
 
         let code = WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
             imported_functions: vec!["gr_send"],
+            data_segments: vec![DataSegment {
+                offset: pid_value_offset,
+                value: pid_value,
+            }],
             handle_body: Some(body::repeated(
                 r * API_BENCHMARK_BATCH_SIZE,
                 &[
-                    Instruction::I32Const(offset), // dest ptr
-                    Instruction::I32Const(offset), // payload ptr
-                    Instruction::I32Const(payload_len),
-                    Instruction::I32Const(offset), // value ptr
-                    Instruction::I32Const(10),     // delay
-                    Instruction::I32Const(offset), // message_id ptr
+                    // pid_value ptr
+                    Instruction::I32Const(pid_value_offset as i32),
+                    // payload ptr
+                    Instruction::I32Const(payload_offset as i32),
+                    // payload len
+                    Instruction::I32Const(payload_len as i32),
+                    // delay
+                    Instruction::I32Const(10),
+                    // err_mid ptr
+                    Instruction::I32Const(err_mid_offset as i32),
+                    // CALL
                     Instruction::Call(0),
-                    Instruction::Drop,
                 ],
             )),
             ..Default::default()
@@ -597,23 +632,36 @@ where
     // Benchmark the `gr_send_commit` call.
     // `gr_send` call is shortcut for `gr_send_init` + `gr_send_commit`
     pub fn gr_send_commit_per_kb(n: u32) -> Result<Exec<T>, &'static str> {
-        let offset = 1;
-        let payload_len = n as i32 * 1024;
+        let payload_offset = 1;
+        let payload_len = n * 1024;
+
+        let pid_value_offset = payload_offset + payload_len;
+        let pid_value = vec![0; 32 + 16];
+
+        let err_mid_offset = pid_value_offset + pid_value.len() as u32;
 
         let code = WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
             imported_functions: vec!["gr_send"],
+            data_segments: vec![DataSegment {
+                offset: pid_value_offset,
+                value: pid_value,
+            }],
             handle_body: Some(body::repeated(
                 API_BENCHMARK_BATCH_SIZE,
                 &[
-                    Instruction::I32Const(offset), // dest ptr
-                    Instruction::I32Const(offset), // payload ptr
-                    Instruction::I32Const(payload_len),
-                    Instruction::I32Const(offset), // value ptr
-                    Instruction::I32Const(10),     // delay
-                    Instruction::I32Const(offset), // message_id ptr
+                    // pid_value ptr
+                    Instruction::I32Const(pid_value_offset as i32),
+                    // payload ptr
+                    Instruction::I32Const(payload_offset as i32),
+                    // payload len
+                    Instruction::I32Const(payload_len as i32),
+                    // delay
+                    Instruction::I32Const(10),
+                    // err_mid ptr
+                    Instruction::I32Const(err_mid_offset as i32),
+                    // CALL
                     Instruction::Call(0),
-                    Instruction::Drop,
                 ],
             )),
             ..Default::default()
@@ -624,37 +672,43 @@ where
     // Benchmark the `gr_reservation_send_commit` call.
     // `gr_send` call is shortcut for `gr_send_init` + `gr_send_commit`
     pub fn gr_reservation_send_commit(r: u32) -> Result<Exec<T>, &'static str> {
-        let reservation_id_offset = 1;
-        let reservation_ids = (0..r * API_BENCHMARK_BATCH_SIZE)
-            .map(|i| ReservationId::from(i as u64))
-            .collect::<Vec<_>>();
-        let reservation_id_bytes: Vec<u8> =
-            reservation_ids.iter().flat_map(|x| x.encode()).collect();
+        let rid_pid_value_offset = 1;
 
+        let rid_pid_values = (0..r * API_BENCHMARK_BATCH_SIZE)
+            .flat_map(|i| {
+                let mut bytes = [0; 80];
+                bytes[..32].copy_from_slice(ReservationId::from(i as u64).as_ref());
+                bytes
+            })
+            .collect::<Vec<_>>();
+
+        let payload_offset = rid_pid_value_offset + rid_pid_values.len() as u32;
         let payload_len = 100;
+
+        let err_mid_offset = payload_offset + payload_len;
 
         let code = WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
             imported_functions: vec!["gr_reservation_send"],
             data_segments: vec![DataSegment {
-                offset: reservation_id_offset as u32,
-                value: reservation_id_bytes,
+                offset: rid_pid_value_offset,
+                value: rid_pid_values,
             }],
             handle_body: Some(body::repeated_dyn(
                 r * API_BENCHMARK_BATCH_SIZE,
                 vec![
-                    Counter(
-                        reservation_id_offset as u32,
-                        size_of::<ReservationId>() as u32,
-                    ), // reservation_id ptr
-                    Regular(Instruction::I32Const(reservation_id_offset)), // dest ptr
-                    Regular(Instruction::I32Const(reservation_id_offset)), // payload ptr
-                    Regular(Instruction::I32Const(payload_len)),
-                    Regular(Instruction::I32Const(reservation_id_offset)), // value ptr
-                    Regular(Instruction::I32Const(10)),                    // delay
-                    Regular(Instruction::I32Const(reservation_id_offset)), // message_id ptr
+                    // rid_pid_value ptr
+                    Counter(rid_pid_value_offset, 80),
+                    // payload ptr
+                    Regular(Instruction::I32Const(payload_offset as i32)),
+                    // payload len
+                    Regular(Instruction::I32Const(payload_len as i32)),
+                    // delay
+                    Regular(Instruction::I32Const(10)),
+                    // err_mid ptr
+                    Regular(Instruction::I32Const(err_mid_offset as i32)),
+                    // CALL
                     Regular(Instruction::Call(0)),
-                    Regular(Instruction::Drop),
                 ],
             )),
             ..Default::default()
@@ -686,37 +740,43 @@ where
     // Benchmark the `gr_send_commit` call.
     // `gr_send` call is shortcut for `gr_send_init` + `gr_send_commit`
     pub fn gr_reservation_send_commit_per_kb(n: u32) -> Result<Exec<T>, &'static str> {
-        let reservation_id_offset = 1;
-        let reservation_ids = (0..API_BENCHMARK_BATCH_SIZE)
-            .map(|i| ReservationId::from(i as u64))
-            .collect::<Vec<_>>();
-        let reservation_id_bytes: Vec<u8> =
-            reservation_ids.iter().flat_map(|x| x.encode()).collect();
+        let rid_pid_value_offset = 1;
 
-        let payload_len = n as i32 * 1024;
+        let rid_pid_values = (0..API_BENCHMARK_BATCH_SIZE)
+            .flat_map(|i| {
+                let mut bytes = [0; 80];
+                bytes[..32].copy_from_slice(ReservationId::from(i as u64).as_ref());
+                bytes.to_vec()
+            })
+            .collect::<Vec<_>>();
+
+        let payload_offset = rid_pid_value_offset + rid_pid_values.len() as u32;
+        let payload_len = n * 1024;
+
+        let err_mid_offset = payload_offset + payload_len;
 
         let code = WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
             imported_functions: vec!["gr_reservation_send"],
             data_segments: vec![DataSegment {
-                offset: reservation_id_offset as u32,
-                value: reservation_id_bytes,
+                offset: rid_pid_value_offset,
+                value: rid_pid_values,
             }],
             handle_body: Some(body::repeated_dyn(
                 API_BENCHMARK_BATCH_SIZE,
                 vec![
-                    Counter(
-                        reservation_id_offset as u32,
-                        size_of::<ReservationId>() as u32,
-                    ), // reservation_id ptr
-                    Regular(Instruction::I32Const(reservation_id_offset)), // dest ptr
-                    Regular(Instruction::I32Const(reservation_id_offset)), // payload ptr
-                    Regular(Instruction::I32Const(payload_len)),
-                    Regular(Instruction::I32Const(reservation_id_offset)), // value ptr
-                    Regular(Instruction::I32Const(10)),                    // delay
-                    Regular(Instruction::I32Const(reservation_id_offset)), // message_id ptr
+                    // rid_pid_value ptr
+                    Counter(rid_pid_value_offset, 80),
+                    // payload ptr
+                    Regular(Instruction::I32Const(payload_offset as i32)),
+                    // payload len
+                    Regular(Instruction::I32Const(payload_len as i32)),
+                    // delay
+                    Regular(Instruction::I32Const(10)),
+                    // err_mid ptr
+                    Regular(Instruction::I32Const(err_mid_offset as i32)),
+                    // CALL
                     Regular(Instruction::Call(0)),
-                    Regular(Instruction::Drop),
                 ],
             )),
             ..Default::default()
@@ -746,7 +806,9 @@ where
     }
 
     pub fn gr_reply_commit(r: u32) -> Result<Exec<T>, &'static str> {
-        let offset = 1;
+        let value_offset = 1;
+
+        let err_mid_offset = value_offset + mem::size_of::<u128>() as u32;
 
         let code = WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
@@ -754,11 +816,14 @@ where
             handle_body: Some(body::repeated(
                 r * API_BENCHMARK_BATCH_SIZE,
                 &[
-                    Instruction::I32Const(offset), // value ptr
-                    Instruction::I32Const(10),     // delay
-                    Instruction::I32Const(offset), // result: message_id ptr
+                    // value ptr
+                    Instruction::I32Const(value_offset as i32),
+                    // delay
+                    Instruction::I32Const(10),
+                    // err_mid ptr
+                    Instruction::I32Const(err_mid_offset as i32),
+                    // CALL
                     Instruction::Call(0),
-                    Instruction::Drop,
                 ],
             )),
             ..Default::default()
@@ -770,16 +835,22 @@ where
         let payload_offset = 1;
         let payload_len = 100;
 
+        let err_offset = payload_offset + payload_len;
+
         let code = WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
             imported_functions: vec!["gr_reply_push"],
             handle_body: Some(body::repeated(
                 r * API_BENCHMARK_BATCH_SIZE,
                 &[
+                    // payload ptr
                     Instruction::I32Const(payload_offset),
+                    // payload len
                     Instruction::I32Const(payload_len),
+                    // err len ptr
+                    Instruction::I32Const(err_offset),
+                    // CALL
                     Instruction::Call(0),
-                    Instruction::Drop,
                 ],
             )),
             ..Default::default()
@@ -791,16 +862,22 @@ where
         let payload_offset = 1;
         let payload_len = n as i32 * 1024;
 
+        let err_offset = payload_offset + payload_len;
+
         let code = WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
             imported_functions: vec!["gr_reply_push"],
             handle_body: Some(body::repeated(
                 API_BENCHMARK_BATCH_SIZE,
                 &[
+                    // payload ptr
                     Instruction::I32Const(payload_offset),
+                    // payload len
                     Instruction::I32Const(payload_len),
+                    // err len ptr
+                    Instruction::I32Const(err_offset),
+                    // CALL
                     Instruction::Call(0),
-                    Instruction::Drop,
                 ],
             )),
             ..Default::default()
@@ -809,41 +886,36 @@ where
     }
 
     pub fn gr_reservation_reply_commit(r: u32) -> Result<Exec<T>, &'static str> {
-        let reservation_id_offset = 1;
-        let reservation_ids = (0..r * API_BENCHMARK_BATCH_SIZE)
-            .map(|i| ReservationId::from(i as u64))
-            .collect::<Vec<_>>();
-        let reservation_id_bytes: Vec<u8> =
-            reservation_ids.iter().flat_map(|x| x.encode()).collect();
+        let rid_value_offset = 1;
 
-        let value_bytes = 10u128.encode();
-        let value_offset = reservation_id_offset + reservation_id_bytes.len();
+        let rid_values = (0..r * API_BENCHMARK_BATCH_SIZE)
+            .flat_map(|i| {
+                let mut bytes = [0; 32 + 16];
+                bytes[..32].copy_from_slice(ReservationId::from(i as u64).as_ref());
+                bytes.to_vec()
+            })
+            .collect::<Vec<_>>();
+
+        let err_mid_offset = rid_value_offset + rid_values.len() as u32;
 
         let code = WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
             imported_functions: vec!["gr_reservation_reply_commit"],
-            data_segments: vec![
-                DataSegment {
-                    offset: reservation_id_offset as u32,
-                    value: reservation_id_bytes,
-                },
-                DataSegment {
-                    offset: value_offset as u32,
-                    value: value_bytes,
-                },
-            ],
+            data_segments: vec![DataSegment {
+                offset: rid_value_offset,
+                value: rid_values,
+            }],
             handle_body: Some(body::repeated_dyn(
                 r * API_BENCHMARK_BATCH_SIZE,
                 vec![
-                    Counter(
-                        reservation_id_offset as u32,
-                        size_of::<ReservationId>() as u32,
-                    ), // reservation_id ptr
-                    Regular(Instruction::I32Const(value_offset as i32)), // value ptr
-                    Regular(Instruction::I32Const(10)),                  // delay
-                    Regular(Instruction::I32Const(value_offset as i32)), // result: message_id ptr
+                    // rid_value ptr
+                    Counter(rid_value_offset, 48),
+                    // delay
+                    Regular(Instruction::I32Const(10)),
+                    // err_mid ptr
+                    Regular(Instruction::I32Const(err_mid_offset as i32)),
+                    // CALL
                     Regular(Instruction::Call(0)),
-                    Regular(Instruction::Drop),
                 ],
             )),
             ..Default::default()
@@ -873,17 +945,16 @@ where
     }
 
     pub fn gr_reply_to(r: u32) -> Result<Exec<T>, &'static str> {
-        let message_id_offset = 1;
-
         let code = WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
             imported_functions: vec!["gr_reply_to"],
             reply_body: Some(body::repeated(
                 r * API_BENCHMARK_BATCH_SIZE,
                 &[
-                    Instruction::I32Const(message_id_offset),
+                    // err_mid ptr
+                    Instruction::I32Const(1),
+                    // CALL
                     Instruction::Call(0),
-                    Instruction::Drop,
                 ],
             )),
             ..Default::default()
@@ -911,17 +982,16 @@ where
     }
 
     pub fn gr_status_code(r: u32) -> Result<Exec<T>, &'static str> {
-        let exit_code_offset = 1;
-
         let code = WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
             imported_functions: vec!["gr_status_code"],
             reply_body: Some(body::repeated(
                 r * API_BENCHMARK_BATCH_SIZE,
                 &[
-                    Instruction::I32Const(exit_code_offset),
+                    // err_code ptr
+                    Instruction::I32Const(1),
+                    // CALL
                     Instruction::Call(0),
-                    Instruction::Drop,
                 ],
             )),
             ..Default::default()
@@ -958,8 +1028,11 @@ where
             handle_body: Some(body::repeated(
                 r * API_BENCHMARK_BATCH_SIZE,
                 &[
+                    // payload ptr
                     Instruction::I32Const(string_offset),
+                    // payload len
                     Instruction::I32Const(string_len),
+                    // CALL
                     Instruction::Call(0),
                 ],
             )),
@@ -978,8 +1051,11 @@ where
             handle_body: Some(body::repeated(
                 API_BENCHMARK_BATCH_SIZE,
                 &[
+                    // payload ptr
                     Instruction::I32Const(string_offset),
+                    // payload len
                     Instruction::I32Const(string_len),
+                    // CALL
                     Instruction::Call(0),
                 ],
             )),
@@ -988,7 +1064,7 @@ where
         Self::prepare_handle(code, 0)
     }
 
-    pub fn no_return_bench(
+    pub fn termination_bench(
         name: &'static str,
         param: Option<u32>,
         r: u32,
@@ -1013,47 +1089,38 @@ where
     }
 
     pub fn gr_wake(r: u32) -> Result<Exec<T>, &'static str> {
-        let offset = 1;
+        let message_id_offset = 1;
+
         let message_ids = (0..r * API_BENCHMARK_BATCH_SIZE)
-            .map(|i| MessageId::from(i as u64))
+            .flat_map(|i| <[u8; 32]>::from(MessageId::from(i as u64)).to_vec())
             .collect::<Vec<_>>();
-        let message_id_bytes = message_ids.iter().flat_map(|x| x.encode()).collect();
+
+        let err_offset = message_id_offset + message_ids.len() as u32;
 
         let code = WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
             imported_functions: vec!["gr_wake"],
             data_segments: vec![DataSegment {
-                offset,
-                value: message_id_bytes,
+                offset: message_id_offset,
+                value: message_ids.to_vec(),
             }],
             handle_body: Some(body::repeated_dyn(
                 r * API_BENCHMARK_BATCH_SIZE,
                 vec![
-                    Counter(offset, size_of::<MessageId>() as u32), // message_id ptr
-                    Regular(Instruction::I32Const(10)),             // delay
+                    // message_id ptr
+                    Counter(message_id_offset, 32),
+                    // delay
+                    Regular(Instruction::I32Const(10)),
+                    // err len ptr
+                    Regular(Instruction::I32Const(err_offset as i32)),
+                    // CALL
                     Regular(Instruction::Call(0)),
-                    Regular(Instruction::Drop),
                 ],
             )),
             ..Default::default()
         });
 
         let instance = Program::<T>::new(code, vec![])?;
-
-        for message_id in message_ids {
-            let message = Message::new(
-                message_id,
-                1.into(),
-                ProgramId::from(instance.addr.as_bytes()),
-                Default::default(),
-                Some(1_000_000),
-                0,
-                None,
-            );
-            let dispatch = Dispatch::new(DispatchKind::Handle, message).into_stored();
-            WaitlistOf::<T>::insert(dispatch, u32::MAX.unique_saturated_into())
-                .expect("Duplicate wl message");
-        }
 
         prepare::<T>(
             instance.caller.into_origin(),
@@ -1065,44 +1132,38 @@ where
 
     pub fn gr_create_program_wgas(r: u32) -> Result<Exec<T>, &'static str> {
         let module = WasmModule::<T>::dummy();
-        let code_hash_bytes = module.hash.encode();
-        let code_hash_len = code_hash_bytes.len();
-        let code_hash_offset = 1;
 
-        let salt_bytes = u8::MAX.encode();
-        let salt_bytes_len = salt_bytes.len();
-        let salt_offset = code_hash_offset + code_hash_len as u32;
+        let cid_value_offset = 1;
+        let mut cid_value = [0; 32 + 16];
+        cid_value[0..32].copy_from_slice(module.hash.as_ref());
+        cid_value[32..].copy_from_slice(&10u128.to_le_bytes());
 
-        let value_bytes = u128::MAX.encode();
-        let value_bytes_len = value_bytes.len();
-        let value_offset = salt_offset + salt_bytes_len as u32;
+        let salt_offset = cid_value_offset + cid_value.len() as u32;
+        let salt = vec![0; 10];
+        let salt_len = salt.len() as u32;
 
-        let payload = vec![1, 2, 3];
-        let payload_len = payload.len();
-        let payload_offset = value_offset + value_bytes_len as u32;
+        let payload_offset = salt_offset + salt_len;
+        let payload = vec![0; 10];
+        let payload_len = payload.len() as u32;
 
-        let message_id_offset = 1;
-        let program_id_offset = 1;
+        let err_mid_pid_offset = payload_offset + payload_len;
 
         let _ = Gear::<T>::upload_code_raw(
             RawOrigin::Signed(benchmarking::account("instantiator", 0, 0)).into(),
             module.code,
         );
+
         let code = WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
             imported_functions: vec!["gr_create_program_wgas"],
             data_segments: vec![
                 DataSegment {
-                    offset: code_hash_offset,
-                    value: code_hash_bytes,
+                    offset: cid_value_offset,
+                    value: cid_value.to_vec(),
                 },
                 DataSegment {
                     offset: salt_offset,
-                    value: salt_bytes,
-                },
-                DataSegment {
-                    offset: value_offset,
-                    value: value_bytes,
+                    value: salt,
                 },
                 DataSegment {
                     offset: payload_offset,
@@ -1112,18 +1173,24 @@ where
             handle_body: Some(body::repeated(
                 r * API_BENCHMARK_BATCH_SIZE,
                 &[
-                    Instruction::I32Const(code_hash_offset as i32), // code_id ptr
-                    Instruction::I32Const(salt_offset as i32),      // salt ptr
-                    Instruction::I32Const(salt_bytes_len as i32),   // salt len
-                    Instruction::I32Const(payload_offset as i32),   // payload ptr
-                    Instruction::I32Const(payload_len as i32),      // payload len
-                    Instruction::I64Const(100000000),               // gas limit
-                    Instruction::I32Const(value_offset as i32),     // value ptr
-                    Instruction::I32Const(10),                      // delay
-                    Instruction::I32Const(message_id_offset),       // message_id ptr
-                    Instruction::I32Const(program_id_offset),       // program_id ptr
+                    // cid_value ptr
+                    Instruction::I32Const(cid_value_offset as i32),
+                    // salt ptr
+                    Instruction::I32Const(salt_offset as i32),
+                    // salt len
+                    Instruction::I32Const(salt_len as i32),
+                    // payload ptr
+                    Instruction::I32Const(payload_offset as i32),
+                    // payload len
+                    Instruction::I32Const(payload_len as i32),
+                    // gas limit
+                    Instruction::I64Const(100_000_000),
+                    // delay
+                    Instruction::I32Const(10),
+                    // err_mid_pid ptr
+                    Instruction::I32Const(err_mid_pid_offset as i32),
+                    // CALL
                     Instruction::Call(0),
-                    Instruction::Drop,
                 ],
             )),
             ..Default::default()
@@ -1133,19 +1200,19 @@ where
 
     pub fn gr_create_program_wgas_per_kb(pkb: u32, skb: u32) -> Result<Exec<T>, &'static str> {
         let module = WasmModule::<T>::dummy();
-        let code_hash_bytes = module.hash.encode();
-        let code_hash_len = code_hash_bytes.len();
-        let code_hash_offset = 1;
 
-        let value_bytes = u128::MAX.encode();
-        let value_offset = code_hash_offset + code_hash_len as u32;
+        let cid_value_offset = 1;
+        let mut cid_value = [0; 32 + 16];
+        cid_value[0..32].copy_from_slice(module.hash.as_ref());
+        cid_value[32..].copy_from_slice(&10u128.to_le_bytes());
 
-        let salt_bytes_len = skb * 1024;
+        let salt_offset = cid_value_offset + cid_value.len() as u32;
+        let salt_len = skb * 1024;
+
+        let payload_offset = salt_offset + salt_len;
         let payload_len = pkb * 1024;
-        let payload_offset = 1;
-        let salt_offset = 1;
-        let message_id_offset = 1;
-        let program_id_offset = 1;
+
+        let err_mid_pid_offset = payload_offset + payload_len;
 
         let _ = Gear::<T>::upload_code_raw(
             RawOrigin::Signed(benchmarking::account("instantiator", 0, 0)).into(),
@@ -1154,31 +1221,31 @@ where
         let code = WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
             imported_functions: vec!["gr_create_program_wgas"],
-            data_segments: vec![
-                DataSegment {
-                    offset: code_hash_offset,
-                    value: code_hash_bytes,
-                },
-                DataSegment {
-                    offset: value_offset,
-                    value: value_bytes,
-                },
-            ],
+            data_segments: vec![DataSegment {
+                offset: cid_value_offset,
+                value: cid_value.to_vec(),
+            }],
             handle_body: Some(body::repeated(
                 API_BENCHMARK_BATCH_SIZE,
                 &[
-                    Instruction::I32Const(code_hash_offset as i32), // code_hash ptr
-                    Instruction::I32Const(salt_offset),             // salt ptr
-                    Instruction::I32Const(salt_bytes_len as i32),   // salt len
-                    Instruction::I32Const(payload_offset),          // payload ptr
-                    Instruction::I32Const(payload_len as i32),      // payload len
-                    Instruction::I64Const(100000000),               // gas limit
-                    Instruction::I32Const(value_offset as i32),     // value ptr
-                    Instruction::I32Const(10),                      // delay
-                    Instruction::I32Const(message_id_offset),       // message_id ptr
-                    Instruction::I32Const(program_id_offset),       // program_id ptr
+                    // cid_value ptr
+                    Instruction::I32Const(cid_value_offset as i32),
+                    // salt ptr
+                    Instruction::I32Const(salt_offset as i32),
+                    // salt len
+                    Instruction::I32Const(salt_len as i32),
+                    // payload ptr
+                    Instruction::I32Const(payload_offset as i32),
+                    // payload len
+                    Instruction::I32Const(payload_len as i32),
+                    // gas limit
+                    Instruction::I64Const(100_000_000),
+                    // delay
+                    Instruction::I32Const(10),
+                    // err_mid_pid ptr
+                    Instruction::I32Const(err_mid_pid_offset as i32),
+                    // CALL
                     Instruction::Call(0),
-                    Instruction::Drop,
                 ],
             )),
             ..Default::default()

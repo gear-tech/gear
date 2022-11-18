@@ -558,7 +558,7 @@ mod tests {
         }
     }
 
-    fn prepare_gas_couters() -> (GasCounter, GasAllowanceCounter) {
+    fn prepare_gas_counters() -> (GasCounter, GasAllowanceCounter) {
         (
             GasCounter::new(1_000_000),
             GasAllowanceCounter::new(4_000_000),
@@ -585,7 +585,7 @@ mod tests {
     #[test]
     fn check_memory_not_allocated() {
         let (pages, mut allocs) = prepare_pages_and_allocs();
-        let last = *allocs.last().unwrap();
+        let last = *allocs.iter().last().unwrap();
         allocs.remove(&last);
         let res = check_memory(&allocs, pages.iter(), 2.into(), 4.into());
         assert_eq!(
@@ -606,7 +606,7 @@ mod tests {
     #[test]
     fn gas_for_pages_initial() {
         let settings = prepare_alloc_config();
-        let (mut counter, mut allowance_counter) = prepare_gas_couters();
+        let (mut counter, mut allowance_counter) = prepare_gas_counters();
         let static_pages = 4u32;
         let res = charge_gas_for_pages(
             &settings,
@@ -628,7 +628,7 @@ mod tests {
     #[test]
     fn gas_for_pages_static() {
         let settings = prepare_alloc_config();
-        let (mut counter, mut allowance_counter) = prepare_gas_couters();
+        let (mut counter, mut allowance_counter) = prepare_gas_counters();
         let static_pages = 4u32;
         let res = charge_gas_for_pages(
             &settings,
@@ -650,7 +650,7 @@ mod tests {
     #[test]
     fn gas_for_pages_alloc() {
         let settings = prepare_alloc_config();
-        let (mut counter, mut allowance_counter) = prepare_gas_couters();
+        let (mut counter, mut allowance_counter) = prepare_gas_counters();
         let (_, allocs) = prepare_pages_and_allocs();
         let static_pages = 4u32;
         let res = charge_gas_for_pages(
@@ -663,7 +663,7 @@ mod tests {
             false,
         );
         // Result is the last page plus one
-        let last = *allocs.last().unwrap();
+        let last = *allocs.iter().last().unwrap();
         assert_eq!(res, Ok(last + 1.into()));
         // Charge for loading and mem grow
         let load_charge = settings.load_page_cost * (allocs.len() as u64 + static_pages as u64);
@@ -675,7 +675,7 @@ mod tests {
         );
 
         // Use the second time (`subsequent` = `true`)
-        let (mut counter, mut allowance_counter) = prepare_gas_couters();
+        let (mut counter, mut allowance_counter) = prepare_gas_counters();
         let res = charge_gas_for_pages(
             &settings,
             &mut counter,

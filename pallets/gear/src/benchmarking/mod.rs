@@ -644,7 +644,7 @@ benchmarks! {
     gr_gas_available {
         let r in 0 .. API_BENCHMARK_BATCHES;
         let mut res = None;
-        let exec = Benches::<T>::number_getter("gr_gas_available", r)?;
+        let exec = Benches::<T>::getter("gr_gas_available", r)?;
     }: {
         res.replace(run_process(exec));
     }
@@ -655,7 +655,7 @@ benchmarks! {
     gr_size {
         let r in 0 .. API_BENCHMARK_BATCHES;
         let mut res = None;
-        let exec = Benches::<T>::number_getter("gr_size", r)?;
+        let exec = Benches::<T>::getter("gr_size", r)?;
     }: {
         res.replace(run_process(exec));
     }
@@ -688,7 +688,7 @@ benchmarks! {
     gr_block_height {
         let r in 0 .. API_BENCHMARK_BATCHES;
         let mut res = None;
-        let exec = Benches::<T>::number_getter("gr_block_height", r)?;
+        let exec = Benches::<T>::getter("gr_block_height", r)?;
     }: {
         res.replace(run_process(exec));
     }
@@ -699,7 +699,7 @@ benchmarks! {
     gr_block_timestamp {
         let r in 0 .. API_BENCHMARK_BATCHES;
         let mut res = None;
-        let exec = Benches::<T>::number_getter("gr_block_timestamp", r)?;
+        let exec = Benches::<T>::getter("gr_block_timestamp", r)?;
     }: {
         res.replace(run_process(exec));
     }
@@ -888,7 +888,7 @@ benchmarks! {
     gr_exit {
         let r in 0 .. 1;
         let mut res = None;
-        let exec = Benches::<T>::no_return_bench("gr_exit", Some(0xff), r)?;
+        let exec = Benches::<T>::termination_bench("gr_exit", Some(0xff), r)?;
     }: {
         res.replace(run_process(exec));
     }
@@ -901,7 +901,7 @@ benchmarks! {
     gr_leave {
         let r in 0 .. 1;
         let mut res = None;
-        let exec = Benches::<T>::no_return_bench("gr_leave", None, r)?;
+        let exec = Benches::<T>::termination_bench("gr_leave", None, r)?;
     }: {
         res.replace(run_process(exec));
     }
@@ -914,7 +914,7 @@ benchmarks! {
     gr_wait {
         let r in 0 .. 1;
         let mut res = None;
-        let exec = Benches::<T>::no_return_bench("gr_wait", None, r)?;
+        let exec = Benches::<T>::termination_bench("gr_wait", None, r)?;
     }: {
         res.replace(run_process(exec));
     }
@@ -927,7 +927,7 @@ benchmarks! {
     gr_wait_for {
         let r in 0 .. 1;
         let mut res = None;
-        let exec = Benches::<T>::no_return_bench("gr_wait_for", Some(10), r)?;
+        let exec = Benches::<T>::termination_bench("gr_wait_for", Some(10), r)?;
     }: {
         res.replace(run_process(exec));
     }
@@ -940,7 +940,7 @@ benchmarks! {
     gr_wait_up_to {
         let r in 0 .. 1;
         let mut res = None;
-        let exec = Benches::<T>::no_return_bench("gr_wait_up_to", Some(100), r)?;
+        let exec = Benches::<T>::termination_bench("gr_wait_up_to", Some(100), r)?;
     }: {
         res.replace(run_process(exec));
     }

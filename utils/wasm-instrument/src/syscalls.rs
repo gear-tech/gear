@@ -52,7 +52,14 @@ pub struct SysCallSignature {
 }
 
 impl SysCallSignature {
-    fn new<const N: usize, const M: usize>(
+    fn gr<const N: usize>(params: [ParamType; N]) -> Self {
+        Self {
+            params: params.to_vec(),
+            results: Default::default(),
+        }
+    }
+
+    fn system<const N: usize, const M: usize>(
         params: [ParamType; N],
         results: [ValueType; M],
     ) -> Self {
@@ -122,61 +129,54 @@ pub fn syscalls_name_list() -> Vec<&'static str> {
 /// Returns signature for syscall by name.
 pub fn syscall_signature(name: &str) -> SysCallSignature {
     use ParamType::*;
-    use ValueType::{I32, I64};
+    use ValueType::I32;
     match name {
-        "alloc" => SysCallSignature::new([Alloc], [I32]),
-        "free" => SysCallSignature::new([Free], []),
-        "gr_debug" => SysCallSignature::new([Ptr, Size], []),
-        "gr_error" => SysCallSignature::new([Ptr], [I32]),
-        "gr_block_height" => SysCallSignature::new([], [I32]),
-        "gr_block_timestamp" => SysCallSignature::new([], [I64]),
-        "gr_exit" => SysCallSignature::new([Ptr], []),
-        "gr_gas_available" => SysCallSignature::new([], [I64]),
-        "gr_program_id" => SysCallSignature::new([Ptr], []),
-        "gr_origin" => SysCallSignature::new([Ptr], []),
-        "gr_leave" => SysCallSignature::new([], []),
-        "gr_value_available" => SysCallSignature::new([Ptr], []),
-        "gr_wait" => SysCallSignature::new([], []),
-        "gr_wait_up_to" => SysCallSignature::new([Duration], []),
-        "gr_wait_for" => SysCallSignature::new([Duration], []),
-        "gr_wake" => SysCallSignature::new([Ptr, Delay], [I32]),
-        "gr_status_code" => SysCallSignature::new([Ptr], [I32]),
-        "gr_message_id" => SysCallSignature::new([Ptr], []),
-        "gr_read" => SysCallSignature::new([MessagePosition, Size, Ptr], [I32]),
-        "gr_reply" => SysCallSignature::new([Ptr, Size, Ptr, Ptr, Delay], [I32]),
-        "gr_reply_wgas" => SysCallSignature::new([Ptr, Size, Gas, Ptr, Delay, Ptr], [I32]),
-        "gr_reply_commit" => SysCallSignature::new([Ptr, Delay, Ptr], [I32]),
-        "gr_reply_commit_wgas" => SysCallSignature::new([Gas, Ptr, Delay, Ptr], [I32]),
-        "gr_reservation_reply" => SysCallSignature::new([Ptr, Ptr, Size, Ptr, Ptr, Delay], [I32]),
-        "gr_reservation_reply_commit" => SysCallSignature::new([Ptr, Ptr, Delay, Ptr], [I32]),
-        "gr_reply_push" => SysCallSignature::new([Ptr, Size], [I32]),
-        "gr_reply_to" => SysCallSignature::new([Ptr], [I32]),
-        "gr_send" => SysCallSignature::new([Ptr, Ptr, Size, Ptr, Delay, Ptr], [I32]),
-        "gr_send_wgas" => SysCallSignature::new([Ptr, Ptr, Size, Gas, Ptr, Delay, Ptr], [I32]),
-        "gr_send_commit" => SysCallSignature::new([Handler, Ptr, Ptr, Delay, Ptr], [I32]),
-        "gr_send_commit_wgas" => SysCallSignature::new([Handler, Ptr, Gas, Ptr, Delay, Ptr], [I32]),
-        "gr_send_init" => SysCallSignature::new([Handler], [I32]),
-        "gr_send_push" => SysCallSignature::new([Handler, Ptr, Size], [I32]),
-        "gr_reservation_send" => {
-            SysCallSignature::new([Ptr, Ptr, Ptr, Size, Ptr, Delay, Ptr], [I32])
+        "alloc" => SysCallSignature::system([Alloc], [I32]),
+        "free" => SysCallSignature::system([Free], []),
+        "gr_debug" => SysCallSignature::gr([Ptr, Size]),
+        "gr_error" => SysCallSignature::gr([Ptr, Ptr]),
+        "gr_block_height" => SysCallSignature::gr([Ptr]),
+        "gr_block_timestamp" => SysCallSignature::gr([Ptr]),
+        "gr_exit" => SysCallSignature::gr([Ptr]),
+        "gr_gas_available" => SysCallSignature::gr([Ptr]),
+        "gr_program_id" => SysCallSignature::gr([Ptr]),
+        "gr_origin" => SysCallSignature::gr([Ptr]),
+        "gr_leave" => SysCallSignature::gr([]),
+        "gr_value_available" => SysCallSignature::gr([Ptr]),
+        "gr_wait" => SysCallSignature::gr([]),
+        "gr_wait_up_to" => SysCallSignature::gr([Duration]),
+        "gr_wait_for" => SysCallSignature::gr([Duration]),
+        "gr_wake" => SysCallSignature::gr([Ptr, Delay, Ptr]),
+        "gr_status_code" => SysCallSignature::gr([Ptr]),
+        "gr_message_id" => SysCallSignature::gr([Ptr]),
+        "gr_read" => SysCallSignature::gr([MessagePosition, Size, Ptr, Ptr]),
+        "gr_reply" => SysCallSignature::gr([Ptr, Size, Ptr, Delay, Ptr]),
+        "gr_reply_wgas" => SysCallSignature::gr([Ptr, Size, Gas, Ptr, Delay, Ptr]),
+        "gr_reply_commit" => SysCallSignature::gr([Ptr, Delay, Ptr]),
+        "gr_reply_commit_wgas" => SysCallSignature::gr([Gas, Ptr, Delay, Ptr]),
+        "gr_reservation_reply" => SysCallSignature::gr([Ptr, Ptr, Size, Delay, Ptr]),
+        "gr_reservation_reply_commit" => SysCallSignature::gr([Ptr, Delay, Ptr]),
+        "gr_reply_push" => SysCallSignature::gr([Ptr, Size, Ptr]),
+        "gr_reply_to" => SysCallSignature::gr([Ptr]),
+        "gr_send" => SysCallSignature::gr([Ptr, Ptr, Size, Delay, Ptr]),
+        "gr_send_wgas" => SysCallSignature::gr([Ptr, Ptr, Size, Gas, Delay, Ptr]),
+        "gr_send_commit" => SysCallSignature::gr([Handler, Ptr, Delay, Ptr]),
+        "gr_send_commit_wgas" => SysCallSignature::gr([Handler, Ptr, Gas, Delay, Ptr]),
+        "gr_send_init" => SysCallSignature::gr([Ptr]),
+        "gr_send_push" => SysCallSignature::gr([Handler, Ptr, Size, Ptr]),
+        "gr_reservation_send" => SysCallSignature::gr([Ptr, Ptr, Size, Delay, Ptr]),
+        "gr_reservation_send_commit" => SysCallSignature::gr([Handler, Ptr, Delay, Ptr]),
+        "gr_size" => SysCallSignature::gr([Ptr]),
+        "gr_source" => SysCallSignature::gr([Ptr]),
+        "gr_value" => SysCallSignature::gr([Ptr]),
+        "gr_create_program" => SysCallSignature::gr([Ptr, Ptr, Size, Ptr, Size, Delay, Ptr]),
+        "gr_create_program_wgas" => {
+            SysCallSignature::gr([Ptr, Ptr, Size, Ptr, Size, Gas, Delay, Ptr])
         }
-        "gr_reservation_send_commit" => {
-            SysCallSignature::new([Ptr, Handler, Ptr, Ptr, Delay, Ptr], [I32])
-        }
-        "gr_size" => SysCallSignature::new([], [I32]),
-        "gr_source" => SysCallSignature::new([Ptr], []),
-        "gr_value" => SysCallSignature::new([Ptr], []),
-        "gr_create_program" => {
-            SysCallSignature::new([Ptr, Ptr, Size, Ptr, Size, Ptr, Delay, Ptr, Ptr], [I32])
-        }
-        "gr_create_program_wgas" => SysCallSignature::new(
-            [Ptr, Ptr, Size, Ptr, Size, Gas, Ptr, Delay, Ptr, Ptr],
-            [I32],
-        ),
-        "gr_reserve_gas" => SysCallSignature::new([Gas, Duration, Ptr], [I32]),
-        "gr_unreserve_gas" => SysCallSignature::new([Ptr, Ptr], [I32]),
-        "gr_system_reserve_gas" => SysCallSignature::new([Gas], [I32]),
-        "gr_random" => SysCallSignature::new([Ptr, Size, Ptr, Ptr], []),
+        "gr_reserve_gas" => SysCallSignature::gr([Gas, Duration, Ptr]),
+        "gr_unreserve_gas" => SysCallSignature::gr([Ptr, Ptr]),
+        "gr_system_reserve_gas" => SysCallSignature::gr([Gas, Ptr]),
+        "gr_random" => SysCallSignature::gr([Ptr, Size, Ptr]),
         other => panic!("Unknown syscall name: '{}'", other),
     }
 }
