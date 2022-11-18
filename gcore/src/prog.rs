@@ -18,42 +18,12 @@
 
 //! Program creation API for Gear programs.
 
+use crate::{
+    error::{Result, SyscallError},
+    ActorId, CodeId, MessageId,
+};
 use gear_core_errors::ExtError;
-
-use crate::{error::Result, ActorId, CodeId, MessageId};
-
-mod sys {
-    use crate::error::SyscallError;
-
-    extern "C" {
-        #[allow(improper_ctypes)]
-        pub fn gr_create_program(
-            code_id_ptr: *const [u8; 32],
-            salt_ptr: *const u8,
-            salt_len: u32,
-            payload_ptr: *const u8,
-            payload_len: u32,
-            value_ptr: *const u128,
-            delay: u32,
-            message_id_ptr: *mut [u8; 32],
-            program_id_ptr: *mut [u8; 32],
-        ) -> SyscallError;
-
-        #[allow(improper_ctypes)]
-        pub fn gr_create_program_wgas(
-            code_id_ptr: *const [u8; 32],
-            salt_ptr: *const u8,
-            salt_len: u32,
-            payload_ptr: *const u8,
-            payload_len: u32,
-            gas_limit: u64,
-            value_ptr: *const u128,
-            delay: u32,
-            message_id_ptr: *mut [u8; 32],
-            program_id_ptr: *mut [u8; 32],
-        ) -> SyscallError;
-    }
-}
+use gsys::{HashWithValue, LengthWithTwoHashes};
 
 /// Same as [`create_program_with_gas`], but without explicit gas limit.
 pub fn create_program(
@@ -73,8 +43,12 @@ pub fn create_program_delayed(
     value: u128,
     delay: u32,
 ) -> Result<(MessageId, ActorId)> {
-    let mut message_id = MessageId::default();
-    let mut program_id = ActorId::default();
+    let cid_value = HashWithValue {
+        hash: code_id.0,
+        value,
+    };
+
+    let mut res: LengthWithTwoHashes = Default::default();
 
     let salt_len = salt.len().try_into().map_err(|_| ExtError::SyscallUsage)?;
 
@@ -84,21 +58,19 @@ pub fn create_program_delayed(
         .map_err(|_| ExtError::SyscallUsage)?;
 
     unsafe {
-        sys::gr_create_program(
-            code_id.as_ptr(),
+        gsys::gr_create_program(
+            cid_value.as_ptr(),
             salt.as_ptr(),
             salt_len,
             payload.as_ptr(),
             payload_len,
-            value.to_le_bytes().as_ptr() as *const u128,
             delay,
-            message_id.as_mut_ptr(),
-            program_id.as_mut_ptr(),
+            res.as_mut_ptr(),
         )
-        .into_result()?
-    }
+    };
+    SyscallError(res.length).into_result()?;
 
-    Ok((message_id, program_id))
+    Ok((MessageId(res.hash1), ActorId(res.hash2)))
 }
 
 /// Creates a new program and returns its address, with gas limit.
@@ -187,8 +159,12 @@ pub fn create_program_with_gas_delayed(
     value: u128,
     delay: u32,
 ) -> Result<(MessageId, ActorId)> {
-    let mut message_id = MessageId::default();
-    let mut program_id = ActorId::default();
+    let cid_value = HashWithValue {
+        hash: code_id.0,
+        value,
+    };
+
+    let mut res: LengthWithTwoHashes = Default::default();
 
     let salt_len = salt.len().try_into().map_err(|_| ExtError::SyscallUsage)?;
 
@@ -198,20 +174,18 @@ pub fn create_program_with_gas_delayed(
         .map_err(|_| ExtError::SyscallUsage)?;
 
     unsafe {
-        sys::gr_create_program_wgas(
-            code_id.as_ptr(),
+        gsys::gr_create_program_wgas(
+            cid_value.as_ptr(),
             salt.as_ptr(),
             salt_len,
             payload.as_ptr(),
             payload_len,
             gas_limit,
-            value.to_le_bytes().as_ptr() as *const u128,
             delay,
-            message_id.as_mut_ptr(),
-            program_id.as_mut_ptr(),
+            res.as_mut_ptr(),
         )
-        .into_result()?
-    }
+    };
+    SyscallError(res.length).into_result()?;
 
-    Ok((message_id, program_id))
+    Ok((MessageId(res.hash1), ActorId(res.hash2)))
 }

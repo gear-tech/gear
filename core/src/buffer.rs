@@ -18,7 +18,11 @@
 
 //! Vector with limited len realization.
 
-use core::{convert::TryFrom, fmt, fmt::Display, marker::PhantomData};
+use core::{
+    convert::TryFrom,
+    fmt::{self, Debug, Display, Formatter},
+    marker::PhantomData,
+};
 
 use alloc::{vec, vec::Vec};
 use codec::{Decode, Encode};
@@ -31,9 +35,12 @@ use scale_info::TypeInfo;
 #[derive(Clone, Default, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo)]
 pub struct LimitedVec<T, E, const N: usize>(Vec<T>, PhantomData<E>);
 
-impl<T: fmt::Debug, E, const N: usize> fmt::Debug for LimitedVec<T, E, N> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        fmt::Debug::fmt(&self.0, f)
+impl<T: Clone + Default, E: Default, const N: usize> Debug for LimitedVec<T, E, N>
+where
+    [T]: AsRef<[u8]>,
+{
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "0x{}", hex::encode(self.get()))
     }
 }
 
@@ -129,7 +136,7 @@ impl From<RuntimeBufferSizeError> for &str {
 }
 
 impl Display for RuntimeBufferSizeError {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         f.write_str((*self).into())
     }
 }
@@ -165,8 +172,10 @@ mod test {
     #[test]
     fn test_new_default() {
         let x = LimitedVec::<String, RuntimeBufferSizeError, N>::try_new_default(N).unwrap();
-        let _ = LimitedVec::<u64, RuntimeBufferSizeError, N>::try_new_default(N + 1)
-            .expect_err("Must be error because of size overflow");
+        assert!(
+            LimitedVec::<u64, RuntimeBufferSizeError, N>::try_new_default(N + 1).is_err(),
+            "Must be error because of size overflow"
+        );
         let z = LimitedVec::<Vec<u8>, RuntimeBufferSizeError, N>::try_new_default(0).unwrap();
 
         assert_eq!(x.get().len(), N);

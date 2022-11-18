@@ -1,13 +1,7 @@
 //! Integration tests for command `program`
 use crate::common::{self, env, logs, traits::Convert, Result};
-use demo_meta::{Id, Person, Wallet};
+use demo_meta::{Id, MessageInitIn, Person, Wallet};
 use parity_scale_codec::Encode;
-
-#[derive(Encode)]
-struct MessageInitIn {
-    amount: u8,
-    currency: String,
-}
 
 #[tokio::test]
 async fn test_command_state_works() -> Result<()> {
@@ -85,5 +79,6 @@ async fn test_command_state_works() -> Result<()> {
         .stdout
         .convert()
         .contains(&hex::encode(default_wallets.encode())));
+
     Ok(())
 }

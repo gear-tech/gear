@@ -28,18 +28,6 @@ use gear_core::{
 use gear_core_errors::MemoryError;
 use wasmi::{core::memory_units::Pages, Memory as WasmiMemory, Store, StoreContextMut};
 
-pub fn read_memory_as<D: Decode + MaxEncodedLen>(
-    memory: &impl Memory,
-    ptr: u32,
-) -> Result<D, MemoryError> {
-    let mut buffer = vec![0u8; D::max_encoded_len()];
-    memory
-        .read(ptr as usize, &mut buffer)
-        .map_err(|_| MemoryError::OutOfBounds)?;
-    let decoded = D::decode_all(&mut &buffer[..]).map_err(|_| MemoryError::MemoryAccessError)?;
-    Ok(decoded)
-}
-
 pub struct MemoryWrapRef<'a, E: Ext + IntoExtInfo<E::Error> + 'static> {
     pub memory: WasmiMemory,
     pub store: StoreContextMut<'a, HostState<E>>,
@@ -75,6 +63,28 @@ impl<'a, E: Ext + IntoExtInfo<E::Error> + 'static> Memory for MemoryWrapRef<'a, 
 
     unsafe fn get_buffer_host_addr_unsafe(&mut self) -> HostPointer {
         self.memory.data_mut(&mut self.store).as_mut().as_mut_ptr() as HostPointer
+    }
+}
+
+impl<'a, E: Ext + IntoExtInfo<E::Error> + 'static> MemoryWrapRef<'a, E> {
+    pub fn write_memory_as<T: Sized>(&mut self, ptr: u32, obj: T) -> Result<(), MemoryError> {
+        gear_backend_common::write_memory_as(self, ptr, obj)
+    }
+
+    pub fn read_memory_as<T: Sized>(&self, ptr: u32) -> Result<T, MemoryError> {
+        gear_backend_common::read_memory_as(self, ptr)
+    }
+
+    pub fn read_memory_decoded<D: Decode + MaxEncodedLen>(
+        &self,
+        ptr: u32,
+    ) -> Result<D, MemoryError> {
+        let mut buffer = vec![0u8; D::max_encoded_len()];
+        self.read(ptr as usize, &mut buffer)
+            .map_err(|_| MemoryError::OutOfBounds)?;
+        let decoded =
+            D::decode_all(&mut &buffer[..]).map_err(|_| MemoryError::MemoryAccessError)?;
+        Ok(decoded)
     }
 }
 
