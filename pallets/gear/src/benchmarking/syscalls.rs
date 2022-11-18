@@ -12,7 +12,7 @@ use codec::Encode;
 use common::{
     benchmarking, scheduler::SchedulingCostsPerBlock, storage::*, CodeStorage, GasTree, Origin,
 };
-use core::{marker::PhantomData, mem::size_of};
+use core::{marker::PhantomData, mem, mem::size_of};
 use core_processor::{
     configs::{AllocationsConfig, BlockConfig, BlockInfo, MessageExecutionContext},
     PrechargeResult, PrepareResult,
@@ -311,7 +311,7 @@ where
                     // duration
                     Instruction::I32Const(10),
                     // err_rid ptr
-                    Instruction::I32Const(0),
+                    Instruction::I32Const(1),
                     // CALL
                     Instruction::Call(0),
                 ],
@@ -322,7 +322,7 @@ where
     }
 
     pub fn gr_unreserve_gas(r: u32) -> Result<Exec<T>, &'static str> {
-        let reservation_id_offset = 0;
+        let reservation_id_offset = 1;
         let reservation_ids = (0..r * API_BENCHMARK_BATCH_SIZE)
             .map(|i| ReservationId::from(i as u64))
             .collect::<Vec<_>>();
@@ -385,7 +385,7 @@ where
                     // gas amount
                     Instruction::I64Const(50_000_000),
                     // err len ptr
-                    Instruction::I32Const(0),
+                    Instruction::I32Const(1),
                     // CALL
                     Instruction::Call(0),
                 ],
@@ -409,7 +409,7 @@ where
                 r * API_BENCHMARK_BATCH_SIZE,
                 &[
                     // ptr to write taken data
-                    Instruction::I32Const(0),
+                    Instruction::I32Const(1),
                     // CALL
                     Instruction::Call(0),
                 ],
@@ -420,17 +420,12 @@ where
     }
 
     pub fn gr_read(r: u32) -> Result<Exec<T>, &'static str> {
-        let buffer_offset = 0;
-        let buffer = vec![1u8; 100];
-        let buffer_len = buffer.len() as u32;
+        let buffer_offset = 1;
+        let buffer_len = 100u32;
 
         let code = WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
             imported_functions: vec!["gr_read"],
-            data_segments: vec![DataSegment {
-                offset: buffer_offset,
-                value: buffer,
-            }],
             handle_body: Some(body::repeated(
                 r * API_BENCHMARK_BATCH_SIZE,
                 &[
@@ -452,7 +447,7 @@ where
     }
 
     pub fn gr_read_per_kb(n: u32) -> Result<Exec<T>, &'static str> {
-        let buffer_offset = 0;
+        let buffer_offset = 1;
         let buffer = vec![0xff; (n * 1024) as usize];
         let buffer_len = buffer.len() as u32;
 
@@ -491,11 +486,11 @@ where
                 r * API_BENCHMARK_BATCH_SIZE,
                 &[
                     // subject ptr
-                    Instruction::I32Const(0),
+                    Instruction::I32Const(1),
                     // subject len
                     Instruction::I32Const(32),
                     // bn_random ptr
-                    Instruction::I32Const(32),
+                    Instruction::I32Const(33),
                     // CALL
                     Instruction::Call(0),
                 ],
@@ -513,7 +508,7 @@ where
                 r * API_BENCHMARK_BATCH_SIZE,
                 &[
                     // err_handle ptr
-                    Instruction::I32Const(0),
+                    Instruction::I32Const(1),
                     // CALL
                     Instruction::Call(0),
                 ],
@@ -524,28 +519,23 @@ where
     }
 
     pub fn gr_send_push(r: u32) -> Result<Exec<T>, &'static str> {
-        let payload_offset = 0;
-        let payload = vec![0; 100];
-        let payload_len = payload.len() as u32;
+        let payload_offset = 1;
+        let payload_len = 100u32;
 
         let err_offset = payload_offset + payload_len;
 
         let code = WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
             imported_functions: vec!["gr_send_init", "gr_send_push"],
-            data_segments: vec![DataSegment {
-                offset: payload_offset,
-                value: payload,
-            }],
             handle_body: Some(body::repeated(
                 r * API_BENCHMARK_BATCH_SIZE,
                 &[
                     // err_handle ptr for send_init
-                    Instruction::I32Const(payload_len as i32),
+                    Instruction::I32Const((payload_offset + payload_len) as i32),
                     // CALL init
                     Instruction::Call(0),
                     // handle
-                    Instruction::I32Const((payload_len + 4) as i32),
+                    Instruction::I32Const((payload_offset + payload_len + 4) as i32),
                     Instruction::I32Load(2, 0),
                     // payload ptr
                     Instruction::I32Const(payload_offset as i32),
@@ -564,7 +554,7 @@ where
 
     // TODO: investigate how handle changes can affect on syscall perf (issue #1722).
     pub fn gr_send_push_per_kb(n: u32) -> Result<Exec<T>, &'static str> {
-        let payload_offset = 0;
+        let payload_offset = 1;
         let payload_len = n * 1024;
 
         let handle_offset = payload_offset + payload_len;
@@ -602,9 +592,8 @@ where
     // Benchmark the `gr_send_commit` call.
     // `gr_send` call is shortcut for `gr_send_init` + `gr_send_commit`
     pub fn gr_send_commit(r: u32) -> Result<Exec<T>, &'static str> {
-        let payload_offset = 0;
-        let payload = vec![1; 100];
-        let payload_len = payload.len() as u32;
+        let payload_offset = 1;
+        let payload_len = 100u32;
 
         let pid_value_offset = payload_offset + payload_len;
         let pid_value = vec![0; 32 + 16];
@@ -614,16 +603,10 @@ where
         let code = WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
             imported_functions: vec!["gr_send"],
-            data_segments: vec![
-                DataSegment {
-                    offset: payload_offset,
-                    value: payload,
-                },
-                DataSegment {
-                    offset: pid_value_offset,
-                    value: pid_value,
-                },
-            ],
+            data_segments: vec![DataSegment {
+                offset: pid_value_offset,
+                value: pid_value,
+            }],
             handle_body: Some(body::repeated(
                 r * API_BENCHMARK_BATCH_SIZE,
                 &[
@@ -649,7 +632,7 @@ where
     // Benchmark the `gr_send_commit` call.
     // `gr_send` call is shortcut for `gr_send_init` + `gr_send_commit`
     pub fn gr_send_commit_per_kb(n: u32) -> Result<Exec<T>, &'static str> {
-        let payload_offset = 0;
+        let payload_offset = 1;
         let payload_len = n * 1024;
 
         let pid_value_offset = payload_offset + payload_len;
@@ -689,7 +672,7 @@ where
     // Benchmark the `gr_reservation_send_commit` call.
     // `gr_send` call is shortcut for `gr_send_init` + `gr_send_commit`
     pub fn gr_reservation_send_commit(r: u32) -> Result<Exec<T>, &'static str> {
-        let rid_pid_value_offset = 0;
+        let rid_pid_value_offset = 1;
 
         let rid_pid_values = (0..r * API_BENCHMARK_BATCH_SIZE)
             .flat_map(|i| {
@@ -757,7 +740,7 @@ where
     // Benchmark the `gr_send_commit` call.
     // `gr_send` call is shortcut for `gr_send_init` + `gr_send_commit`
     pub fn gr_reservation_send_commit_per_kb(n: u32) -> Result<Exec<T>, &'static str> {
-        let rid_pid_value_offset = 0;
+        let rid_pid_value_offset = 1;
 
         let rid_pid_values = (0..API_BENCHMARK_BATCH_SIZE)
             .flat_map(|i| {
@@ -823,10 +806,9 @@ where
     }
 
     pub fn gr_reply_commit(r: u32) -> Result<Exec<T>, &'static str> {
-        let value_offset = 0;
-        let value = 10.encode();
+        let value_offset = 1;
 
-        let err_mid_offset = value_offset + value.len() as u32;
+        let err_mid_offset = value_offset + mem::size_of::<u128>() as u32;
 
         let code = WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
@@ -850,7 +832,7 @@ where
     }
 
     pub fn gr_reply_push(r: u32) -> Result<Exec<T>, &'static str> {
-        let payload_offset = 0;
+        let payload_offset = 1;
         let payload_len = 100;
 
         let err_offset = payload_offset + payload_len;
@@ -877,7 +859,7 @@ where
     }
 
     pub fn gr_reply_push_per_kb(n: u32) -> Result<Exec<T>, &'static str> {
-        let payload_offset = 0;
+        let payload_offset = 1;
         let payload_len = n as i32 * 1024;
 
         let err_offset = payload_offset + payload_len;
@@ -904,7 +886,7 @@ where
     }
 
     pub fn gr_reservation_reply_commit(r: u32) -> Result<Exec<T>, &'static str> {
-        let rid_value_offset = 0;
+        let rid_value_offset = 1;
 
         let rid_values = (0..r * API_BENCHMARK_BATCH_SIZE)
             .flat_map(|i| {
@@ -970,7 +952,7 @@ where
                 r * API_BENCHMARK_BATCH_SIZE,
                 &[
                     // err_mid ptr
-                    Instruction::I32Const(0),
+                    Instruction::I32Const(1),
                     // CALL
                     Instruction::Call(0),
                 ],
@@ -1007,7 +989,7 @@ where
                 r * API_BENCHMARK_BATCH_SIZE,
                 &[
                     // err_code ptr
-                    Instruction::I32Const(0),
+                    Instruction::I32Const(1),
                     // CALL
                     Instruction::Call(0),
                 ],
@@ -1037,7 +1019,7 @@ where
     }
 
     pub fn gr_debug(r: u32) -> Result<Exec<T>, &'static str> {
-        let string_offset = 0;
+        let string_offset = 1;
         let string_len = 100;
 
         let code = WasmModule::<T>::from(ModuleDefinition {
@@ -1060,7 +1042,7 @@ where
     }
 
     pub fn gr_debug_per_kb(n: u32) -> Result<Exec<T>, &'static str> {
-        let string_offset = 0;
+        let string_offset = 1;
         let string_len = n as i32 * 1024;
 
         let code = WasmModule::<T>::from(ModuleDefinition {
@@ -1107,7 +1089,7 @@ where
     }
 
     pub fn gr_wake(r: u32) -> Result<Exec<T>, &'static str> {
-        let message_id_offset = 0;
+        let message_id_offset = 1;
 
         let message_ids = (0..r * API_BENCHMARK_BATCH_SIZE)
             .flat_map(|i| <[u8; 32]>::from(MessageId::from(i as u64)).to_vec())
@@ -1151,7 +1133,7 @@ where
     pub fn gr_create_program_wgas(r: u32) -> Result<Exec<T>, &'static str> {
         let module = WasmModule::<T>::dummy();
 
-        let cid_value_offset = 0;
+        let cid_value_offset = 1;
         let mut cid_value = [0; 32 + 16];
         cid_value[0..32].copy_from_slice(module.hash.as_ref());
         cid_value[32..].copy_from_slice(&10u128.to_le_bytes());
@@ -1219,7 +1201,7 @@ where
     pub fn gr_create_program_wgas_per_kb(pkb: u32, skb: u32) -> Result<Exec<T>, &'static str> {
         let module = WasmModule::<T>::dummy();
 
-        let cid_value_offset = 0;
+        let cid_value_offset = 1;
         let mut cid_value = [0; 32 + 16];
         cid_value[0..32].copy_from_slice(module.hash.as_ref());
         cid_value[32..].copy_from_slice(&10u128.to_le_bytes());
