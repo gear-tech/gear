@@ -72,7 +72,9 @@ where
         }),
         f.build(Alloc, |forbidden| F::alloc(store, forbidden, memory)),
         f.build(Free, |forbidden| F::free(store, forbidden)),
-        f.build(BlockHeight, |forbidden| F::block_height(store, forbidden, memory)),
+        f.build(BlockHeight, |forbidden| {
+            F::block_height(store, forbidden, memory)
+        }),
         f.build(BlockTimestamp, |forbidden| {
             F::block_timestamp(store, forbidden, memory)
         }),
@@ -98,7 +100,9 @@ where
             F::reply_push(store, forbidden, memory)
         }),
         f.build(Debug, |forbidden| F::debug(store, forbidden, memory)),
-        f.build(GasAvailable, |forbidden| F::gas_available(store, forbidden, memory)),
+        f.build(GasAvailable, |forbidden| {
+            F::gas_available(store, forbidden, memory)
+        }),
         f.build(MessageId, |forbidden| {
             F::message_id(store, forbidden, memory)
         }),
