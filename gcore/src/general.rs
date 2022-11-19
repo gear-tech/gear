@@ -48,8 +48,8 @@
 /// #[no_mangle]
 /// extern "C" fn handle() {
 ///     let msg_handle = msg::send_init().expect("Unable to init");
-///     msg::send_push(msg_handle, b"Hello,");
-///     msg::send_push(msg_handle, b" world!");
+///     msg::send_push(msg_handle, b"Hello,").expect("Unable to push");
+///     msg::send_push(msg_handle, b" world!").expect("Unable to push");
 ///     msg::send_commit(msg_handle, msg::source(), 0).expect("Unable to send");
 /// }
 /// ```
