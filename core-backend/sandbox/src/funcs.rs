@@ -941,7 +941,7 @@ where
                         Ok(error) => {
                             ctx.write_output(error_bytes_ptr, error.as_ref())?;
                             ctx.ext
-                                .error(&error.as_ref())
+                                .error(error.as_ref())
                                 .map_err(RuntimeCtxError::Ext)?;
                             0
                         }
