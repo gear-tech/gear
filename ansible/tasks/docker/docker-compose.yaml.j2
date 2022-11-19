@@ -13,7 +13,7 @@ services:
     volumes:
       - "/home/ec2-user/gear-data/:/gear/"
     command: >
-      gear --base-path /gear/ --telemetry-url 'ws://telemetry-backend-shard.gear-tech.io:32001/submit 0' --prometheus-external
+      gear --base-path /gear/ --telemetry-url 'wss://telemetry.rs/submit 0' --prometheus-external
       {% if name is defined %} --name={{ name }} {% endif %}
       {% if rpc is not defined %} --validator {% endif %}
       {% if rpc is defined and unsafe == "yes" %} --unsafe-ws-external --ws-max-connections='1000' --unsafe-rpc-external {% endif %}
@@ -27,7 +27,7 @@ services:
       options:
         loki-url: "{{ loki_url }}"
         loki-tls-insecure-skip-verify: "true"
-        loki-external-labels: job=docker_node,gear_network=testnet
+        loki-external-labels: job=docker_node,gear_network=stable-testnet
         loki-pipeline-stages: |
           - regex:
               expression: '(?P<error>ERROR.*)'
