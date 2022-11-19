@@ -2,7 +2,7 @@ name: Update production testnet
 
 on:
   push:
-    branches: [master]
+    branches: [stable]
   workflow_dispatch:
 
 env:
@@ -20,7 +20,7 @@ jobs:
 
       - name: Create image tag
         id: image-tag
-        run: echo "tag=ghcr.io/gear-tech/node:0.1.0-`echo ${GITHUB_SHA} | cut -c1-8`" >> $GITHUB_OUTPUT
+        run: echo "tag=ghcr.io/gear-tech/node:stable-`echo ${GITHUB_SHA} | cut -c1-8`" >> $GITHUB_OUTPUT
 
   docker:
     runs-on: xeon
@@ -52,7 +52,7 @@ jobs:
           context: .
           file: ./docker/Dockerfile
           push: true
-          tags: ghcr.io/gear-tech/node:latest, ${{ needs.tag-image.outputs.image_tag }}
+          tags: ghcr.io/gear-tech/node:stable, ${{ needs.tag-image.outputs.image_tag }}
 
   deploy-one-validator:
     runs-on: ubuntu-latest
@@ -74,7 +74,7 @@ jobs:
           token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           message: |
             Attention! Instances will be temporarily unavailable!
-            Update second validator with docker image ${{ needs.tag-image.outputs.image_tag}}
+            Update second validator stable-testnet
             ${{ github.actor }} run build with commit: "${{ github.event.commits[0].message }}"
             Build number: ${{ github.run_number }}
 
@@ -91,7 +91,7 @@ jobs:
             [gearNodes:children]
             nodes
             [nodes]
-            ${{secrets.GEAR_NODE_2}} name=testnet-gear02 validator=yes loki=yes loki_url=${{secrets.LOKI_URL}} gear_image_tag=${{ needs.tag-image.outputs.image_tag }}
+            ${{secrets.GEAR_NODE_STABLE_2}} name=stable-validator02 validator=yes loki=yes loki_url=${{secrets.LOKI_URL}} gear_image_tag=${{ needs.tag-image.outputs.image_tag }}
 
   deploy-all-validators:
     runs-on: ubuntu-latest
@@ -115,7 +115,7 @@ jobs:
           token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           message: |
             Attention! Instances will be temporarily unavailable!
-            Update all testnet with docker image ${{ needs.tag-image.outputs.image_tag }}
+            Update all stable-testnet validators
             ${{ github.actor }} run build with commit: "${{ github.event.commits[0].message }}"
             Build number: ${{ github.run_number }}
 
@@ -133,10 +133,10 @@ jobs:
             bootnode
             nodes
             [bootnode]
-            ${{secrets.GEAR_NODE}} name=testnet-gear01 loki=yes loki_url=${{secrets.LOKI_URL}} gear_image_tag=${{ needs.tag-image.outputs.image_tag }}
+            ${{secrets.GEAR_NODE_STABLE}} name=stable-validator01 loki=yes loki_url=${{secrets.LOKI_URL}} gear_image_tag=${{ needs.tag-image.outputs.image_tag }}
             [nodes]
-            ${{secrets.GEAR_NODE_3}} name=testnet-rpc-node rpc=yes unsafe=yes loki=yes loki_url=${{secrets.LOKI_URL}} gear_image_tag=${{ needs.tag-image.outputs.image_tag }}
-            ${{secrets.GEAR_NODE_4}} name=testnet-gear03 validator=yes loki=yes loki_url=${{secrets.LOKI_URL}} gear_image_tag=${{ needs.tag-image.outputs.image_tag }}
-            ${{secrets.GEAR_NODE_5}} name=testnet-gear04 validator=yes loki=yes loki_url=${{secrets.LOKI_URL}} gear_image_tag=${{ needs.tag-image.outputs.image_tag }}
-            ${{secrets.ARCHIVE_NODE}} name=testnet-archive-node validator=yes archive_node=yes loki=yes loki_url=${{secrets.LOKI_URL}} gear_image_tag=${{ needs.tag-image.outputs.image_tag }}
-            ${{secrets.ARCHIVE_RPC_NODE}} name=testnet-archive-rpc-node rpc=yes unsafe=no archive_node=yes loki=yes loki_url=${{secrets.LOKI_URL}} gear_image_tag=${{ needs.tag-image.outputs.image_tag }}
+            ${{secrets.GEAR_NODE_STABLE_RPC}} name=stable-rpc rpc=yes unsafe=yes loki=yes loki_url=${{secrets.LOKI_URL}} gear_image_tag=${{ needs.tag-image.outputs.image_tag }}
+            ${{secrets.GEAR_NODE_STABLE_3}} name=stable-validator03 validator=yes loki=yes loki_url=${{secrets.LOKI_URL}} gear_image_tag=${{ needs.tag-image.outputs.image_tag }}
+            ${{secrets.GEAR_NODE_STABLE_4}} name=stable-validator04 validator=yes loki=yes loki_url=${{secrets.LOKI_URL}} gear_image_tag=${{ needs.tag-image.outputs.image_tag }}
+            ${{secrets.ARCHIVE_NODE_STABLE}} name=stable-archive-node validator=yes archive_node=yes loki=yes loki_url=${{secrets.LOKI_URL}} gear_image_tag=${{ needs.tag-image.outputs.image_tag }}
+            ${{secrets.ARCHIVE_RPC_STABLE}} name=stable-archive-rpc-node rpc=yes unsafe=no archive_node=yes loki=yes loki_url=${{secrets.LOKI_URL}} gear_image_tag=${{ needs.tag-image.outputs.image_tag }}
