@@ -216,7 +216,7 @@ purge-dev-chain-release:
 
 # Test section
 .PHONY: test
-test: test-gear test-js gtest # There should be no release builds (e.g. `rtest`) for fast checking.
+test: test-gear test-js gtest test-syscalls-integrity# There should be no release builds (e.g. `rtest`) for fast checking.
 
 .PHONY: test-release
 test-release: test-gear-release test-js gtest rtest test-runtime-upgrade
@@ -264,6 +264,10 @@ test-runtime-upgrade: init-js examples node-release
 .PHONY: test-client
 test-client: node-release examples wat-examples
 	@ ./scripts/gear.sh test client --run-node
+
+.PHONY: test-syscalls-integrity
+test-syscalls-integrity:
+	@ ./scripts/gear.sh test syscalls
 
 # Misc section
 .PHONY: doc

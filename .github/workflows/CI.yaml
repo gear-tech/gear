@@ -225,6 +225,9 @@ jobs:
       - name: "Test: Gear workspace"
         run: ./scripts/gear.sh test gear --exclude gclient --exclude gprogram --features pallet-gear-debug/lazy-pages --release --locked
 
+      - name: "Test: Sys-calls Wasmi integrity"
+        run: ./scripts/gear.sg test syscalls
+
       - name: "Test: JS metadata"
         run: ./scripts/gear.sh test js
 

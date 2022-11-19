@@ -24,6 +24,7 @@ test_usage() {
     runtime-upgrade run runtime-upgrade test for queue processing
     client         run client tests via gclient
     fuzz           run fuzzer with a fuzz target
+    syscalls       run syscalls integrity test in benchmarking module of pallet-gear
 
 EOF
 }
@@ -146,4 +147,9 @@ run_fuzzer() {
   # Run fuzzer
   RUST_LOG="essential,pallet_gear=debug,gear_core_processor::executor=debug,economic_checks=debug,gwasm=debug" \
   cargo fuzz run --release "$FEATURES" --sanitizer=none "$TARGET"
+}
+
+# TODO this is likely to be merged with `pallet_test` or `work_space` in #1802
+syscalls_integrity_test() {
+  cargo test -p pallet-gear check_syscalls_integrity --features runtime-benchmarks
 }
