@@ -65,16 +65,16 @@ where
         f.build(SendInit, |forbidden| F::send_init(store, forbidden, memory)),
         f.build(SendPush, |forbidden| F::send_push(store, forbidden, memory)),
         f.build(Read, |forbidden| F::read(store, forbidden, memory)),
-        f.build(Size, |forbidden| F::size(store, forbidden)),
+        f.build(Size, |forbidden| F::size(store, forbidden, memory)),
         f.build(Exit, |forbidden| F::exit(store, forbidden, memory)),
         f.build(StatusCode, |forbidden| {
             F::status_code(store, forbidden, memory)
         }),
         f.build(Alloc, |forbidden| F::alloc(store, forbidden, memory)),
         f.build(Free, |forbidden| F::free(store, forbidden)),
-        f.build(BlockHeight, |forbidden| F::block_height(store, forbidden)),
+        f.build(BlockHeight, |forbidden| F::block_height(store, forbidden, memory)),
         f.build(BlockTimestamp, |forbidden| {
-            F::block_timestamp(store, forbidden)
+            F::block_timestamp(store, forbidden, memory)
         }),
         f.build(ReservationSend, |forbidden| {
             F::reservation_send(store, forbidden, memory)
@@ -98,7 +98,7 @@ where
             F::reply_push(store, forbidden, memory)
         }),
         f.build(Debug, |forbidden| F::debug(store, forbidden, memory)),
-        f.build(GasAvailable, |forbidden| F::gas_available(store, forbidden)),
+        f.build(GasAvailable, |forbidden| F::gas_available(store, forbidden, memory)),
         f.build(MessageId, |forbidden| {
             F::message_id(store, forbidden, memory)
         }),
@@ -138,7 +138,7 @@ where
         f.build(OutOfGas, |_| F::out_of_gas(store)),
         f.build(OutOfAllowance, |_| F::out_of_allowance(store)),
         f.build(SystemReserveGas, |forbidden| {
-            F::system_reserve_gas(store, forbidden)
+            F::system_reserve_gas(store, forbidden, memory)
         }),
     ]
     .into();

@@ -96,7 +96,7 @@ runtime_upgrade_test() {
   DEMO_PING_PATH="$ROOT_DIR/target/wasm32-unknown-unknown/release/demo_ping.opt.wasm"
 
   # Run node
-  RUST_LOG="pallet_gear=debug,runtime::gear=debug" $ROOT_DIR/target/release/gear \
+  RUST_LOG="pallet_gear=debug,gear::runtime=debug" $ROOT_DIR/target/release/gear \
   --dev --tmp --unsafe-ws-external --unsafe-rpc-external --rpc-methods Unsafe --rpc-cors all & sleep 3
 
   # Change dir to the js script dir
@@ -113,7 +113,7 @@ client_tests() {
 
   if [ "$2" = "--run-node" ]; then
     # Run node
-    RUST_LOG="pallet_gear=debug,runtime::gear=debug" $ROOT_DIR/target/release/gear \
+    RUST_LOG="pallet_gear=debug,gear::runtime=debug" $ROOT_DIR/target/release/gear \
       --dev --tmp --unsafe-ws-external --unsafe-rpc-external --rpc-methods Unsafe --rpc-cors all & sleep 3
 
     cargo test -p gclient -- --test-threads 1 || pkill -f 'gear |gear$' -9 | pkill -f 'gear |gear$' -9

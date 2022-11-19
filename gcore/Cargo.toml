@@ -6,6 +6,7 @@ edition = "2021"
 license = "GPL-3.0"
 
 [dependencies]
+gsys = { path = "../gsys" }
 gear-core-errors = { path = "../core-errors" }
 codec = { package = "parity-scale-codec", version = "3.1.2", default-features = false, optional = true }
 static_assertions = "1"
