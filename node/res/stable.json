@@ -3,10 +3,10 @@
   "id": "gear_stable_testnet",
   "chainType": "Live",
   "bootNodes": [
-    "/dns4/stable-testnet-node1.gear-tech.io/tcp/30333/p2p/12D3KooWDeNe6cBRFKuJhHuam1fyGC7WA3KhgJhN1uz8NBbuQzib",
-    "/dns4/stable-testnet-node2.gear-tech.io/tcp/30333/p2p/12D3KooWH1f4JadFn1LehJ94CZHxJ68krByCMPMwrDRjnmotNQzD",
-    "/dns4/stable-testnet-node3.gear-tech.io/tcp/30333/p2p/12D3KooWKxkf8dqaf31qqr2qSStfaEtahdpDzWSmvZmLoDGmrmVv",
-    "/dns4/stable-testnet-node4.gear-tech.io/tcp/30333/p2p/12D3KooWGXeAe1KQ5sTYHy9RgK15JXk382KG6zfoD59BrbS6x9aH"
+    "/dns4/stable-testnet-validator1.gear-tech.io/tcp/30333/p2p/12D3KooWDeNe6cBRFKuJhHuam1fyGC7WA3KhgJhN1uz8NBbuQzib",
+    "/dns4/stable-testnet-validator2.gear-tech.io/tcp/30333/p2p/12D3KooWH1f4JadFn1LehJ94CZHxJ68krByCMPMwrDRjnmotNQzD",
+    "/dns4/stable-testnet-validator3.gear-tech.io/tcp/30333/p2p/12D3KooWKxkf8dqaf31qqr2qSStfaEtahdpDzWSmvZmLoDGmrmVv",
+    "/dns4/stable-testnet-validator4.gear-tech.io/tcp/30333/p2p/12D3KooWGXeAe1KQ5sTYHy9RgK15JXk382KG6zfoD59BrbS6x9aH"
   ],
   "telemetryEndpoints": null,
   "protocolId": null,
