@@ -17,7 +17,7 @@ hex = "0.4.2"
 serde = { version = "*", features = ["derive"] }
 serde_json = "*"
 log = "0.4.17"
-rayon = "1.5"
+rayon = "1.6"
 rand = "0.8.5"
 gear-wasm-instrument = { path = "../utils/wasm-instrument", default-features = false }
 primitive-types = { version = "0.12.0", default-features = false, features = ["scale-info"] }
