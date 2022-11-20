@@ -51,7 +51,7 @@ pub struct GlobalsAccessError;
 
 pub trait GlobalsAccessTrait {
     fn get_i64(&self, name: &str) -> Result<i64, GlobalsAccessError>;
-    fn set_i64(&self, name: &str, value: i64) -> Result<(), GlobalsAccessError>;
+    fn set_i64(&mut self, name: &str, value: i64) -> Result<(), GlobalsAccessError>;
 }
 
 pub struct GlobalAccessProvider<'a> {
@@ -69,7 +69,7 @@ impl<'a> GlobalsAccessTrait for GlobalAccessProvider<'a> {
         self.inner_access_provider.get_i64(name)
     }
 
-    fn set_i64(&self, name: &str, value: i64) -> Result<(), GlobalsAccessError> {
+    fn set_i64(&mut self, name: &str, value: i64) -> Result<(), GlobalsAccessError> {
         self.inner_access_provider.set_i64(name, value)
     }
 }

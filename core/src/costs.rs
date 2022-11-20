@@ -166,8 +166,13 @@ pub struct HostFnWeights {
     /// Weight per salt byte by `gr_create_program_wgas`.
     pub gr_create_program_wgas_salt_per_byte: u64,
 
+    /// Weight per one gear page read.
     pub lazy_pages_read: u64,
+
+    /// Weight per one gear page write.
     pub lazy_pages_write: u64,
+
+    /// Weight per one gear page update in storage.
     pub lazy_pages_update: u64,
 }
 

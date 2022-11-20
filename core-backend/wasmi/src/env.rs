@@ -35,9 +35,17 @@ use gear_backend_common::{
     GetGasAmount, IntoExtInfo, StackEndError, TerminationReason, TrapExplanation,
     STACK_END_EXPORT_NAME,
 };
-use gear_core::{env::Ext, gas::GasAmount, memory::WasmPageNumber, message::DispatchKind, lazy_pages::GlobalsCtx};
+use gear_core::{
+    env::Ext,
+    gas::GasAmount,
+    lazy_pages::{GlobalsAccessError, GlobalsAccessTrait, GlobalsCtx},
+    memory::{HostPointer, WasmPageNumber},
+    message::DispatchKind,
+};
 use gear_wasm_instrument::{GLOBAL_NAME_ALLOWANCE, GLOBAL_NAME_GAS};
-use wasmi::{core::Value, Engine, Extern, Instance, Linker, Memory, MemoryType, Module, Store};
+use wasmi::{
+    core::Value, Engine, Extern, Global, Instance, Linker, Memory, MemoryType, Module, Store,
+};
 
 #[derive(Debug, derive_more::Display, derive_more::From)]
 pub enum WasmiEnvironmentError {
@@ -93,10 +101,48 @@ pub struct WasmiEnvironment<E: Ext> {
     entries: BTreeSet<DispatchKind>,
 }
 
+struct Lol<E: Ext> {
+    pub instance: Instance,
+    pub store: Option<Store<HostState<E>>>,
+}
+
+impl<E: Ext> Lol<E> {
+    fn get_global(&self, name: &str) -> Option<Global> {
+        let store = self.store.as_ref()?;
+        self.instance
+            .get_export(store, name)
+            .and_then(|export| export.into_global())
+    }
+}
+
+impl<E: Ext> GlobalsAccessTrait for Lol<E> {
+    fn get_i64(&self, name: &str) -> Result<i64, GlobalsAccessError> {
+        self.get_global(name)
+            .and_then(|global| {
+                let store = self.store.as_ref()?;
+                if let Value::I64(val) = global.get(store) {
+                    Some(val)
+                } else {
+                    None
+                }
+            })
+            .ok_or(GlobalsAccessError)
+    }
+
+    fn set_i64(&mut self, name: &str, value: i64) -> Result<(), GlobalsAccessError> {
+        self.get_global(name)
+            .and_then(|global| {
+                let store = self.store.as_mut()?;
+                global.set(store, Value::I64(value)).ok()
+            })
+            .ok_or(GlobalsAccessError)
+    }
+}
+
 impl<E> Environment<E> for WasmiEnvironment<E>
 where
-    E: Ext + IntoExtInfo<E::Error> + GetGasAmount + 'static,
-    E::Error: Encode + AsTerminationReason + IntoExtError,
+    E: Ext + IntoExtInfo<E::Error> + GetGasAmount + Unpin + 'static,
+    E::Error: Encode + AsTerminationReason + IntoExtError + Unpin,
 {
     type Memory = MemoryWrap<E>;
     type Error = Error;
@@ -205,53 +251,75 @@ where
             })
             .ok_or((gas_amount!(store), WrongInjectedAllowance))?;
 
-        let mut memory_wrap = MemoryWrap::new(memory, store);
-        pre_execution_handler(&mut memory_wrap, stack_end_page, None).map_err(|e| {
-            let store = &memory_wrap.store;
-            (gas_amount!(store), PreExecutionHandler(e.to_string()))
-        })?;
+        let mut globals_provider = Box::pin(Lol {
+            instance,
+            store: None,
+        });
+        let globals_access_ptr = globals_provider.as_ref().get_ref() as *const Lol<E> as HostPointer;
+        let globals_ctx = GlobalsCtx {
+            global_gas_name: GLOBAL_NAME_GAS.to_string(),
+            global_allowance_name: GLOBAL_NAME_ALLOWANCE.to_string(),
+            global_state_name: "gear_status".to_string(),
+            lazy_pages_costs: gear_core::lazy_pages::LazyPagesCosts {
+                read_page: 1,
+                write_page: 1,
+                update_page: 1,
+            },
+            globals_access_ptr,
+            globals_access_mod: gear_core::lazy_pages::GlobalsAccessMod::NativeRuntime,
+        };
 
+        let mut memory_wrap = MemoryWrap::new(memory, store);
+        pre_execution_handler(&mut memory_wrap, stack_end_page, Some(globals_ctx)).map_err(
+            |e| {
+                let store = &memory_wrap.store;
+                (gas_amount!(store), PreExecutionHandler(e.to_string()))
+            },
+        )?;
+
+        let mut store = memory_wrap.drop();
         let res = if entries.contains(entry_point) {
             let func = instance
-                .get_export(&memory_wrap.store, entry_point.into_entry())
+                .get_export(&store, entry_point.into_entry())
                 .and_then(Extern::into_func)
                 .ok_or({
-                    let store = &memory_wrap.store;
+                    let store = &store;
                     (
                         gas_amount!(store),
                         GetWasmExports(entry_point.into_entry().to_string()),
                     )
                 })?;
 
-            let entry_func = func
-                .typed::<(), (), _>(&mut memory_wrap.store)
-                .map_err(|_| {
-                    let store = &memory_wrap.store;
-                    (
-                        gas_amount!(store),
-                        EntryPointWrongType(entry_point.into_entry().to_string()),
-                    )
-                })?;
+            let entry_func = func.typed::<(), (), _>(&mut store).map_err(|_| {
+                let store = &store;
+                (
+                    gas_amount!(store),
+                    EntryPointWrongType(entry_point.into_entry().to_string()),
+                )
+            })?;
 
-            entry_func.call(&mut memory_wrap.store, ())
+            globals_provider.store.replace(store);
+            let res = entry_func.call(globals_provider.store.as_mut().unwrap(), ());
+            store = globals_provider.store.take().unwrap();
+
+            res
         } else {
             Ok(())
         };
 
-        let gas = gear_gas.get(&memory_wrap.store).try_into::<i64>().ok_or({
-            let store = &memory_wrap.store;
+        let gas = gear_gas.get(&store).try_into::<i64>().ok_or({
+            let store = &store;
             (gas_amount!(store), WrongInjectedGas)
         })?;
         let allowance = gear_allowance
-            .get(&memory_wrap.store)
+            .get(&store)
             .try_into::<i64>()
             .ok_or({
-                let store = &memory_wrap.store;
+                let store = &store;
                 (gas_amount!(store), WrongInjectedAllowance)
             })?;
 
-        let runtime = memory_wrap
-            .store
+        let runtime = store
             .state_mut()
             .take()
             .expect("set before the block; qed");
@@ -266,7 +334,7 @@ where
 
         let trap_explanation = ext.trap_explanation();
 
-        let termination = if res.is_err() {
+        let termination_reason = if res.is_err() {
             let reason = trap_explanation
                 .map(TerminationReason::Trap)
                 .unwrap_or_else(|| trap.into_termination_reason());
@@ -282,8 +350,8 @@ where
         };
 
         Ok(BackendReport {
-            termination_reason: termination,
-            memory_wrap,
+            termination_reason,
+            memory_wrap: MemoryWrap::new(memory, store),
             ext,
         })
     }

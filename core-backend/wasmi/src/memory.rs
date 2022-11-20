@@ -99,6 +99,9 @@ impl<E: Ext + IntoExtInfo<E::Error> + 'static> MemoryWrap<E> {
     pub fn new(memory: WasmiMemory, store: Store<HostState<E>>) -> Self {
         MemoryWrap { memory, store }
     }
+    pub fn drop(self) -> Store<HostState<E>> {
+        self.store
+    }
 }
 
 /// Memory interface for the allocator.
