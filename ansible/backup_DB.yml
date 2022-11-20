@@ -1,0 +1,154 @@
+
+- name: DB backup 
+  hosts: all
+  strategy: free
+  remote_user: ec2-user
+  become: yes
+
+  tasks:
+    - name: Send notify before create backup
+      telegram:
+        token: "{{ bot_id }}"
+        api_args:
+          chat_id: "{{ chat_id }}"
+          parse_mode: 'HTML'
+          text: |
+            <b>Status :</b> ℹ️
+
+            <b>Description:</b> Start backup DB before update
+            <b>Labels:</b>
+             - HOST: {{ ansible_fqdn }}
+
+    - name: Check mount
+      shell: df -h|grep "{{ mount_id }}"
+      register: check_mount
+      ignore_errors: true
+
+    - debug:
+        var: check_mount.stdout
+
+    - block:
+        - name: Send notify if backup directory not mounted
+          telegram:
+            token: "{{ bot_id }}"
+            api_args:
+              chat_id: "{{ chat_id }}"
+              parse_mode: 'HTML'
+              text: |
+                <b>Status:</b> 🔥
+
+                <b>Description:</b> Backup and update was cancelled
+                <b>Labels:</b>
+                - HOST: {{ ansible_fqdn }}
+                - CAUSE: Backup directory not mounted
+        
+        - name: Stop playbook
+          shell: exit 1
+      when: check_mount.stdout | length == 0
+
+    - name: Prepair
+      shell: mkdir -p /mnt/backups/{{ ansible_fqdn }}/
+
+    - name: Stop docker container
+      shell: /usr/local/bin/docker-compose -f /home/ec2-user/docker-compose.yaml down
+
+    - name: Chain info
+      shell: docker run -it --rm -v /home/ec2-user/gear-data/:/gear/ ghcr.io/gear-tech/node /usr/local/bin/gear chain-info --base-path /gear/
+      register: chain_info
+
+    - debug:
+        var: chain_info.stdout
+
+    - name: Check if full backup exist
+      find:
+        paths: /mnt/backups/{{ ansible_fqdn }}/
+        pattern: full.tar.gz
+      register: full_backup_exist
+
+    - name: Check age of full backup
+      find:
+        paths: /mnt/backups/{{ ansible_fqdn }}/
+        pattern: full.tar.gz
+        age: 7d
+      register: full_backup_age
+
+    - block:
+        - name: Remove all old backups
+          shell: |
+            rm -rvf /mnt/backups/{{ ansible_fqdn }}/*.gz /mnt/backups/{{ ansible_fqdn }}/backup_metadata
+            echo "`date +'%d.%m.%Y | %H-%M'`: All backups was successfully deleted" >> /mnt/backups/{{ ansible_fqdn }}/LOG
+
+        - name: Create new full backup
+          shell: >
+            cd {{ db_path }}
+            && tar -cvz
+            -g /mnt/backups/{{ ansible_fqdn }}/backup_metadata
+            -f /mnt/backups/{{ ansible_fqdn }}/full.tar.gz
+            ./db
+            && echo "`date +'%d.%m.%Y | %H-%M'`: Full backup was successfully created" >> /mnt/backups/{{ ansible_fqdn }}/LOG
+        - set_fact: 
+            full_backup_was_created: true
+      when: check_mount.stdout | length != 0 and full_backup_age.files | length > 0 or check_mount.stdout | length != 0 and full_backup_exist.files | length == 0
+
+    - block:
+        - name: Register incremental backup name
+          shell: echo "incremental_{{ build_number }}_`date +'%d.%m.%Y_%H-%M'`.tar.gz"
+          register: backup_name
+
+        - name: Create new incremental backup
+          shell: >
+            cd {{ db_path }}
+            && tar -cvz
+            -g /mnt/backups/{{ ansible_fqdn }}/backup_metadata
+            -f /mnt/backups/{{ ansible_fqdn }}/{{ backup_name.stdout }}
+            ./db
+            && echo "`date +'%d.%m.%Y | %H-%M'`: Incremental backup {{ backup_name.stdout }} was successfully created" >> /mnt/backups/{{ ansible_fqdn }}/LOG
+        - set_fact: 
+            incremental_backup_was_created: true
+      when: check_mount.stdout | length != 0 and full_backup_was_created is not defined
+
+    - name: Backup list
+      shell: >
+        cd /mnt/backups/{{ ansible_fqdn }}/
+        && ls -l --block-size=M *.gz|awk '{print$9,$5}'
+      register: backup_list
+
+    - debug:
+        var: backup_list.stdout_lines
+
+    - name: Send notify after create full backup
+      telegram:
+        token: "{{ bot_id }}"
+        api_args:
+          chat_id: "{{ chat_id }}"
+          parse_mode: 'HTML'
+          text: |
+            <b>Status :</b> ✅
+
+            <b>Description:</b> Full backup DB was successfully created
+            <b>Labels:</b>
+             - HOST: {{ ansible_fqdn }}
+             - PATH: /mnt/backups/{{ ansible_fqdn }}/
+             - NAME: full.tar.gz
+             - COUNT FINALIZED BLOCKS: {{ chain_info.stdout_lines[5] | regex_search('[0-9].*') }}
+      when: full_backup_was_created is defined
+
+    - name: Send notify after create incremental backup
+      telegram:
+        token: "{{ bot_id }}"
+        api_args:
+          chat_id: "{{ chat_id }}"
+          parse_mode: 'HTML'
+          text: |
+            <b>Status :</b> ✅
+
+            <b>Description:</b> Incremental backup DB was successfully created
+            <b>Labels:</b>
+             - HOST: {{ ansible_fqdn }}
+             - PATH: /mnt/backups/{{ ansible_fqdn }}/
+             - NAME: {{ backup_name.stdout }}
+             - COUNT FINALIZED BLOCKS: {{ chain_info.stdout_lines[5] | regex_search('[0-9].*') }}
+      when: incremental_backup_was_created is defined
+
+    - name: Start docker container
+      shell: /usr/local/bin/docker-compose -f /home/ec2-user/docker-compose.yaml up -d
