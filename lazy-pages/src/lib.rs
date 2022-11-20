@@ -97,6 +97,7 @@ pub enum Error {
     HostInstancePointerIsInvalid,
     CannotChargeGas,
     CannotChargeGasAllowance,
+    DynGlobalsAccessorPointerIsInvalid,
 }
 
 pub(crate) type WasmAddr = u32;

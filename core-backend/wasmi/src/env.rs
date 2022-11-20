@@ -29,7 +29,7 @@ use alloc::{
     string::{String, ToString},
 };
 use codec::Encode;
-use core::fmt;
+use core::{any::Any, fmt};
 use gear_backend_common::{
     calc_stack_end, error_processor::IntoExtError, AsTerminationReason, BackendReport, Environment,
     GetGasAmount, IntoExtInfo, StackEndError, TerminationReason, TrapExplanation,
@@ -115,7 +115,7 @@ impl<E: Ext> Lol<E> {
     }
 }
 
-impl<E: Ext> GlobalsAccessTrait for Lol<E> {
+impl<E: Ext + 'static> GlobalsAccessTrait for Lol<E> {
     fn get_i64(&self, name: &str) -> Result<i64, GlobalsAccessError> {
         self.get_global(name)
             .and_then(|global| {
@@ -136,6 +136,10 @@ impl<E: Ext> GlobalsAccessTrait for Lol<E> {
                 global.set(store, Value::I64(value)).ok()
             })
             .ok_or(GlobalsAccessError)
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
     }
 }
 
@@ -251,11 +255,14 @@ where
             })
             .ok_or((gas_amount!(store), WrongInjectedAllowance))?;
 
-        let mut globals_provider = Box::pin(Lol {
+        let mut globals_provider = Lol {
             instance,
             store: None,
-        });
-        let globals_access_ptr = globals_provider.as_ref().get_ref() as *const Lol<E> as HostPointer;
+        };
+        // let globals_provider_dyn_ref: &mut dyn GlobalsAccessTrait =
+        //     unsafe { core::mem::transmute(&mut globals_provider as &mut dyn GlobalsAccessTrait) };
+        let globals_provider_dyn_ref = &mut globals_provider as &mut dyn GlobalsAccessTrait;
+        let globals_access_ptr = &globals_provider_dyn_ref as *const _ as HostPointer;
         let globals_ctx = GlobalsCtx {
             global_gas_name: GLOBAL_NAME_GAS.to_string(),
             global_allowance_name: GLOBAL_NAME_ALLOWANCE.to_string(),
@@ -298,8 +305,22 @@ where
                 )
             })?;
 
-            globals_provider.store.replace(store);
-            let res = entry_func.call(globals_provider.store.as_mut().unwrap(), ());
+            globals_provider_dyn_ref
+                .as_any_mut()
+                .downcast_mut::<Lol<E>>()
+                .expect("We just set it from Lol<E>, so this panic cannot occur")
+                .store
+                .replace(store);
+            let res = entry_func.call(
+                globals_provider_dyn_ref
+                    .as_any_mut()
+                    .downcast_mut::<Lol<E>>()
+                    .expect("We just set it from Lol<E>, so this panic cannot occur")
+                    .store
+                    .as_mut()
+                    .expect("We just set store as Some(...), so this panic cannot occur"),
+                (),
+            );
             store = globals_provider.store.take().unwrap();
 
             res
@@ -311,18 +332,12 @@ where
             let store = &store;
             (gas_amount!(store), WrongInjectedGas)
         })?;
-        let allowance = gear_allowance
-            .get(&store)
-            .try_into::<i64>()
-            .ok_or({
-                let store = &store;
-                (gas_amount!(store), WrongInjectedAllowance)
-            })?;
+        let allowance = gear_allowance.get(&store).try_into::<i64>().ok_or({
+            let store = &store;
+            (gas_amount!(store), WrongInjectedAllowance)
+        })?;
 
-        let runtime = store
-            .state_mut()
-            .take()
-            .expect("set before the block; qed");
+        let runtime = store.state_mut().take().expect("set before the block; qed");
 
         let State {
             mut ext, err: trap, ..

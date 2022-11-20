@@ -27,7 +27,7 @@ use std::cell::RefMut;
 use crate::{Error, LazyPagesExecutionContext, WasmAddr, LAZY_PAGES_CONTEXT};
 
 use gear_core::{
-    lazy_pages::GlobalsAccessMod,
+    lazy_pages::{GlobalsAccessMod, GlobalsAccessTrait},
     memory::{PageNumber, PAGE_STORAGE_GRANULARITY},
 };
 
@@ -227,7 +227,7 @@ unsafe fn user_signal_handler_internal(
                     if let Value::I64(val) = val {
                         let val = (val as u64).saturating_sub(value);
                         instance
-                            .set_global_val("gear_gas", Value::I64(val as i64))
+                            .set_global_val(name, Value::I64(val as i64))
                             .ok()??;
                         Some(val as i64)
                     } else {
@@ -247,8 +247,30 @@ unsafe fn user_signal_handler_internal(
                 log::trace!("res1 = {}, res2 = {}", res1, res2);
             }
             GlobalsAccessMod::NativeRuntime => {
-                todo!();
-            },
+                let globals_access_provider = (globals_ctx.globals_access_ptr
+                    as *mut &mut dyn GlobalsAccessTrait)
+                    .as_mut()
+                    .ok_or(Error::DynGlobalsAccessorPointerIsInvalid)?;
+                let mut sub_global = |name, value| {
+                    let val = globals_access_provider.get_i64(name).ok()?;
+                    let val = (val as u64).saturating_sub(value);
+                        globals_access_provider
+                            .set_i64(name, val as i64)
+                            .ok()?;
+                    Some(val)
+                };
+                let res1 = sub_global(
+                    globals_ctx.global_gas_name.as_str(),
+                    globals_ctx.lazy_pages_costs.read_page,
+                )
+                .ok_or(Error::CannotChargeGas)?;
+                let res2 = sub_global(
+                    globals_ctx.global_allowance_name.as_str(),
+                    globals_ctx.lazy_pages_costs.read_page,
+                )
+                .ok_or(Error::CannotChargeGasAllowance)?;
+                log::trace!("res1 = {}, res2 = {}", res1, res2);
+            }
         }
     }
 
