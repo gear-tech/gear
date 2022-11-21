@@ -1925,7 +1925,7 @@ source = "git+https://github.com/gear-tech/dlmalloc-rust.git?rev=e76ae98#e76ae98
 dependencies = [
  "libc",
  "libc_print",
- "page_size",
+ "page_size 0.4.2",
  "static_assertions",
  "str-buf",
 ]
@@ -5992,6 +5992,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "page_size"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1b7663cbd190cfd818d08efa8497f6cd383076688c49a391ef7c0d03cd12b561"
+dependencies = [
+ "libc",
+ "winapi",
+]
+
+[[package]]
 name = "pallet-authorship"
 version = "4.0.0-dev"
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#988411fe2cbf47e09014c8e1512e05f28f08d941"
@@ -6096,7 +6106,7 @@ dependencies = [
  "gear-runtime-interface",
  "gear-wasm-instrument",
  "log",
- "page_size",
+ "page_size 0.5.0",
  "pallet-authorship",
  "pallet-balances",
  "pallet-gear-gas",
