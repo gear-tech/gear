@@ -26,7 +26,7 @@
 //! It's not necessary behavior, but more simple and safe.
 
 use gear_core::{
-    lazy_pages::GlobalsCtx,
+    lazy_pages::{GlobalsCtx, Status},
     memory::{PageNumber, WasmPageNumber, PAGE_STORAGE_GRANULARITY},
 };
 use once_cell::sync::OnceCell;
@@ -98,6 +98,8 @@ pub enum Error {
     CannotChargeGas,
     CannotChargeGasAllowance,
     DynGlobalsAccessorPointerIsInvalid,
+    StatusIsNone,
+    SignalAfterOOM,
 }
 
 pub(crate) type WasmAddr = u32;
@@ -129,6 +131,7 @@ pub(crate) struct LazyPagesExecutionContext {
     pub released_pages: BTreeSet<PageNumber>,
 
     pub globals_ctx: Option<GlobalsCtx>,
+    pub status: Option<Status>,
 }
 
 thread_local! {
@@ -141,22 +144,6 @@ thread_local! {
     /// Lazy-pages context for current execution.
     static LAZY_PAGES_CONTEXT: RefCell<LazyPagesExecutionContext> = RefCell::new(Default::default());
 }
-
-// use std::convert::TryInto;
-
-// pub fn set_executor_ptr(ptr: Vec<u8>, id: u32) {
-//     LAZY_PAGES_CONTEXT.with(|ctx| {
-//         let mut ctx = ctx.borrow_mut();
-//         unsafe {
-//             let x: [u8; 8] = ptr.try_into().unwrap();
-//             ctx.executor_ptr = Some(core::mem::transmute::<
-//                 _,
-//                 *mut sc_executor_common::sandbox::SandboxInstance,
-//             >(x));
-//             ctx.instance_id = id;
-//         }
-//     });
-// }
 
 #[derive(Debug, derive_more::Display)]
 pub enum InitializeForProgramError {
@@ -183,6 +170,7 @@ pub fn initialize_for_program(
         let mut ctx = ctx.borrow_mut();
         ctx.accessed_pages_addrs.clear();
         ctx.released_pages.clear();
+        ctx.status = Some(Status::Normal);
 
         ctx.wasm_mem_addr = if let Some(addr) = wasm_mem_addr {
             if addr % region::page::size() != 0 {
@@ -270,6 +258,10 @@ pub fn set_wasm_mem_size(size: WasmPageNumber) -> Result<(), WasmMemSizeError> {
 /// Returns vec of lazy-pages which has been accessed
 pub fn get_released_pages() -> Vec<PageNumber> {
     LAZY_PAGES_CONTEXT.with(|ctx| ctx.borrow().released_pages.iter().copied().collect())
+}
+
+pub fn get_status() -> Option<Status> {
+    LAZY_PAGES_CONTEXT.with(|ctx| ctx.borrow().status)
 }
 
 #[derive(Debug, Clone, derive_more::Display)]

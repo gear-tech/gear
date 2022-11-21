@@ -18,7 +18,7 @@
 
 //! Globals access for lazy-pages.
 
-use core::fmt::Debug;
+use core::{fmt::Debug, convert::TryFrom};
 
 use crate::memory::HostPointer;
 use alloc::string::String;
@@ -56,3 +56,34 @@ pub trait GlobalsAccessTrait {
     fn set_i64(&mut self, name: &str, value: i64) -> Result<(), GlobalsAccessError>;
     fn as_any_mut(&mut self) -> &mut dyn Any;
 }
+
+// pub type StatusNo = u64;
+// pub const STATUS_NORMAL: StatusNo = 0;
+// pub const STATUS_GAS_LIMIT_EXCEEDED: StatusNo = 1;
+// pub const STATUS_GAS_ALLOWANCE_EXCEEDED: StatusNo = 2;
+// pub const STATUS_MEMORY_ACCESS_OUT_OF_BOUNDS: StatusNo = 3;
+
+#[derive(Debug, Clone, Copy, Encode, Decode)]
+#[repr(i64)]
+pub enum Status {
+    Normal = 0,
+    GasLimitExceeded,
+    GasAllowanceExceeded,
+    MemoryAccessOutOfBounds,
+}
+
+// #[derive(Debug)]
+// pub struct StatusWrongNo(StatusNo);
+
+// impl TryFrom<StatusNo> for Status {
+//     type Error = StatusWrongNo;
+//     fn try_from(value: StatusNo) -> Result<Status, StatusWrongNo> {
+//         match value {
+//             STATUS_NORMAL => Ok(Self::Normal),
+//             STATUS_GAS_LIMIT_EXCEEDED => Ok(Self::GasLimitExceeded),
+//             STATUS_GAS_ALLOWANCE_EXCEEDED => Ok(Self::GasAllowanceExceeded),
+//             STATUS_MEMORY_ACCESS_OUT_OF_BOUNDS => Ok(Self::MemoryAccessOutOfBounds),
+//             wrong => Err(StatusWrongNo(wrong)),
+//         }
+//     }
+// }

@@ -28,7 +28,7 @@ use std::cell::RefMut;
 use crate::{Error, LazyPagesExecutionContext, WasmAddr, LAZY_PAGES_CONTEXT};
 
 use gear_core::{
-    lazy_pages::{GlobalsAccessError, GlobalsAccessMod, GlobalsAccessTrait},
+    lazy_pages::{GlobalsAccessError, GlobalsAccessMod, GlobalsAccessTrait, Status},
     memory::{PageNumber, PAGE_STORAGE_GRANULARITY},
 };
 
@@ -243,17 +243,28 @@ fn charge_gas(
     global_gas: &str,
     global_allowance: &str,
     amount: u64,
-) -> Result<(), Error> {
+) -> Result<Status, Error> {
     let mut sub_global = |name, value| {
-        let val = globals_access_provider.get_i64(name).ok()?;
-        let val = (val as u64).saturating_sub(value);
-        globals_access_provider.set_i64(name, val as i64).ok()?;
-        Some(val)
+        let current_value = globals_access_provider.get_i64(name).ok()? as u64;
+        let (new_value, exceed) = current_value
+            .checked_sub(value)
+            .map(|val| (val, false))
+            .unwrap_or((0, true));
+        globals_access_provider
+            .set_i64(name, new_value as i64)
+            .ok()?;
+
+        log::trace!("Change global {name}: {current_value} -> {new_value}, exceeded: {exceed}");
+
+        Some(exceed)
     };
-    let res1 = sub_global(global_gas, amount).ok_or(Error::CannotChargeGas)?;
-    let res2 = sub_global(global_allowance, amount).ok_or(Error::CannotChargeGasAllowance)?;
-    log::trace!("res1 = {}, res2 = {}", res1, res2);
-    Ok(())
+    if sub_global(global_gas, amount).ok_or(Error::CannotChargeGas)? {
+        return Ok(Status::GasLimitExceeded);
+    }
+    if sub_global(global_allowance, amount).ok_or(Error::CannotChargeGasAllowance)? {
+        return Ok(Status::GasAllowanceExceeded);
+    }
+    Ok(Status::Normal)
 }
 
 /// Before contract execution some pages from wasm memory buffer have been protected.
@@ -286,8 +297,15 @@ unsafe fn user_signal_handler_internal(
     mut ctx: RefMut<LazyPagesExecutionContext>,
     info: ExceptionInfo,
 ) -> Result<(), Error> {
+    let status = ctx.status.as_ref().ok_or(Error::StatusIsNone)?;
+    match status {
+        Status::Normal => {}
+        Status::GasLimitExceeded | Status::GasAllowanceExceeded => return Ok(()),
+        Status::MemoryAccessOutOfBounds => return Err(Error::SignalAfterOOM),
+    }
+
     if let Some(globals_ctx) = &ctx.globals_ctx {
-        match globals_ctx.globals_access_mod {
+        let charge_status = match globals_ctx.globals_access_mod {
             GlobalsAccessMod::WasmRuntime => {
                 let instance = (globals_ctx.globals_access_ptr as *mut SandboxInstance)
                     .as_mut()
@@ -297,7 +315,7 @@ unsafe fn user_signal_handler_internal(
                     &globals_ctx.global_gas_name,
                     &globals_ctx.global_allowance_name,
                     0,
-                )?;
+                )?
             }
             GlobalsAccessMod::NativeRuntime => {
                 let inner_access_provider = (globals_ctx.globals_access_ptr
@@ -305,11 +323,25 @@ unsafe fn user_signal_handler_internal(
                     .as_mut()
                     .ok_or(Error::DynGlobalsAccessorPointerIsInvalid)?;
                 charge_gas(
-                    GlobalsAccessDyn { inner_access_provider },
+                    GlobalsAccessDyn {
+                        inner_access_provider,
+                    },
                     &globals_ctx.global_gas_name,
                     &globals_ctx.global_allowance_name,
                     0,
-                )?;
+                )?
+            }
+        };
+
+        ctx.status.replace(charge_status);
+        match charge_status {
+            Status::Normal => {}
+            Status::GasLimitExceeded | Status::GasAllowanceExceeded => {
+                log::trace!("Gas limit or allowance exceed, so set exceed status and work in this mod until the end of execution");
+                return Ok(());
+            }
+            Status::MemoryAccessOutOfBounds => {
+                unreachable!("charge_gas function cannot return this status")
             }
         }
     }

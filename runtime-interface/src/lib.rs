@@ -21,7 +21,7 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
 use core::ops::RangeInclusive;
-use gear_core::memory::HostPointer;
+use gear_core::{memory::HostPointer, lazy_pages::Status};
 use sp_runtime_interface::runtime_interface;
 use gear_core::lazy_pages::GlobalsCtx;
 
@@ -131,6 +131,10 @@ fn mprotect_mem_interval_except_pages(
 /// Note: name is expanded as gear_ri
 #[runtime_interface]
 pub trait GearRI {
+    fn get_lazy_pages_status() -> Option<Status> {
+        lazy_pages::get_status()
+    }
+
     /// Init lazy-pages.
     /// Returns whether initialization was successful.
     fn init_lazy_pages() -> bool {
