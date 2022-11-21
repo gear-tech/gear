@@ -334,7 +334,10 @@ impl MessageContext {
         Ok(())
     }
 
-    /// Check range for `send_push_input`/`reply_push_input` methods.
+    /// Check if provided `offset`/`len` are correct for the current payload
+    /// limits. Result `CheckedRange` instance is accepted by
+    /// `send_push_input`/`reply_push_input` and has the method `len`
+    /// allowing to charge gas before the calls.
     pub fn check_input_range(&self, offset: u32, len: u32) -> CheckedRange {
         let input = self.current.payload();
         let offset = offset as usize;
