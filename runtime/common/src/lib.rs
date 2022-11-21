@@ -19,6 +19,7 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
 mod apis;
+pub mod constants;
 
 use frame_support::{
     pallet_prelude::DispatchClass,
