@@ -83,7 +83,7 @@ use sp_consensus_babe::{
 use sp_core::H256;
 use sp_runtime::{
     traits::{Bounded, One, UniqueSaturatedInto},
-    Digest, DigestItem, Perbill,
+    Digest, DigestItem,
 };
 use sp_std::prelude::*;
 
@@ -356,11 +356,11 @@ benchmarks! {
     //
     // `c`: Size of the code in kilobytes.
     upload_code {
-        let c in 0 .. Perbill::from_percent(49).mul_ceil(T::Schedule::get().limits.code_len);
+        let c in 0 .. T::Schedule::get().limits.code_len / 1024;
         let value = <T as pallet::Config>::Currency::minimum_balance();
         let caller = whitelisted_caller();
         <T as pallet::Config>::Currency::make_free_balance_be(&caller, caller_funding::<T>());
-        let WasmModule { code, hash: code_id, .. } = WasmModule::<T>::sized(c, Location::Handle);
+        let WasmModule { code, hash: code_id, .. } = WasmModule::<T>::sized(c * 1024, Location::Handle);
         let origin = RawOrigin::Signed(caller);
 
         init_block::<T>();
@@ -407,13 +407,13 @@ benchmarks! {
     // We cannot let `c` grow to the maximum code size because the code is not allowed
     // to be larger than the maximum size **after instrumentation**.
     upload_program {
-        let c in 0 .. Perbill::from_percent(49).mul_ceil(T::Schedule::get().limits.code_len);
+        let c in 0 .. T::Schedule::get().limits.code_len / 1024;
         let s in 0 .. code::max_pages::<T>() * 64 * 128;
         let salt = vec![42u8; s as usize];
         let value = <T as pallet::Config>::Currency::minimum_balance();
         let caller = whitelisted_caller();
         <T as pallet::Config>::Currency::make_free_balance_be(&caller, caller_funding::<T>());
-        let WasmModule { code, hash, .. } = WasmModule::<T>::sized(c, Location::Handle);
+        let WasmModule { code, hash, .. } = WasmModule::<T>::sized(c * 1024, Location::Handle);
         let origin = RawOrigin::Signed(caller);
 
         init_block::<T>();
