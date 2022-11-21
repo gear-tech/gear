@@ -19,6 +19,7 @@
 //! Lazy-pages signal handler functionality.
 
 use cfg_if::cfg_if;
+use core::any::Any;
 use region::Protection;
 use sc_executor_common::sandbox::SandboxInstance;
 use sp_wasm_interface::Value;
@@ -27,7 +28,7 @@ use std::cell::RefMut;
 use crate::{Error, LazyPagesExecutionContext, WasmAddr, LAZY_PAGES_CONTEXT};
 
 use gear_core::{
-    lazy_pages::{GlobalsAccessMod, GlobalsAccessTrait},
+    lazy_pages::{GlobalsAccessError, GlobalsAccessMod, GlobalsAccessTrait},
     memory::{PageNumber, PAGE_STORAGE_GRANULARITY},
 };
 
@@ -186,6 +187,75 @@ impl UserSignalHandler for DefaultUserSignalHandler {
     }
 }
 
+struct GlobalsAccessSandbox<'a> {
+    pub instance: &'a mut SandboxInstance,
+}
+
+impl<'a> GlobalsAccessTrait for GlobalsAccessSandbox<'a> {
+    fn get_i64(&self, name: &str) -> Result<i64, GlobalsAccessError> {
+        self.instance
+            .get_global_val(name)
+            .map(|value| {
+                if let Value::I64(value) = value {
+                    Some(value)
+                } else {
+                    None
+                }
+            })
+            .flatten()
+            .ok_or(GlobalsAccessError)
+    }
+
+    fn set_i64(&mut self, name: &str, value: i64) -> Result<(), GlobalsAccessError> {
+        self.instance
+            .set_global_val(name, Value::I64(value as i64))
+            .ok()
+            .flatten()
+            .ok_or(GlobalsAccessError)?;
+        Ok(())
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
+        unreachable!()
+    }
+}
+
+struct GlobalsAccessDyn<'a, 'b> {
+    pub inner_access_provider: &'a mut &'b mut dyn GlobalsAccessTrait,
+}
+
+impl<'a, 'b> GlobalsAccessTrait for GlobalsAccessDyn<'a, 'b> {
+    fn get_i64(&self, name: &str) -> Result<i64, GlobalsAccessError> {
+        self.inner_access_provider.get_i64(name)
+    }
+
+    fn set_i64(&mut self, name: &str, value: i64) -> Result<(), GlobalsAccessError> {
+        self.inner_access_provider.set_i64(name, value)
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        unreachable!()
+    }
+}
+
+fn charge_gas(
+    mut globals_access_provider: impl GlobalsAccessTrait,
+    global_gas: &str,
+    global_allowance: &str,
+    amount: u64,
+) -> Result<(), Error> {
+    let mut sub_global = |name, value| {
+        let val = globals_access_provider.get_i64(name).ok()?;
+        let val = (val as u64).saturating_sub(value);
+        globals_access_provider.set_i64(name, val as i64).ok()?;
+        Some(val)
+    };
+    let res1 = sub_global(global_gas, amount).ok_or(Error::CannotChargeGas)?;
+    let res2 = sub_global(global_allowance, amount).ok_or(Error::CannotChargeGasAllowance)?;
+    log::trace!("res1 = {}, res2 = {}", res1, res2);
+    Ok(())
+}
+
 /// Before contract execution some pages from wasm memory buffer have been protected.
 /// When wasm executer tries to access one of these pages,
 /// OS emits sigsegv or sigbus or EXCEPTION_ACCESS_VIOLATION.
@@ -222,54 +292,24 @@ unsafe fn user_signal_handler_internal(
                 let instance = (globals_ctx.globals_access_ptr as *mut SandboxInstance)
                     .as_mut()
                     .ok_or(Error::HostInstancePointerIsInvalid)?;
-                let sub_global = |name, value| {
-                    let val = instance.get_global_val(name)?;
-                    if let Value::I64(val) = val {
-                        let val = (val as u64).saturating_sub(value);
-                        instance
-                            .set_global_val(name, Value::I64(val as i64))
-                            .ok()??;
-                        Some(val as i64)
-                    } else {
-                        None
-                    }
-                };
-                let res1 = sub_global(
-                    globals_ctx.global_gas_name.as_str(),
-                    globals_ctx.lazy_pages_costs.read_page,
-                )
-                .ok_or(Error::CannotChargeGas)?;
-                let res2 = sub_global(
-                    globals_ctx.global_allowance_name.as_str(),
-                    globals_ctx.lazy_pages_costs.read_page,
-                )
-                .ok_or(Error::CannotChargeGasAllowance)?;
-                log::trace!("res1 = {}, res2 = {}", res1, res2);
+                charge_gas(
+                    GlobalsAccessSandbox { instance },
+                    &globals_ctx.global_gas_name,
+                    &globals_ctx.global_allowance_name,
+                    0,
+                )?;
             }
             GlobalsAccessMod::NativeRuntime => {
-                let globals_access_provider = (globals_ctx.globals_access_ptr
+                let inner_access_provider = (globals_ctx.globals_access_ptr
                     as *mut &mut dyn GlobalsAccessTrait)
                     .as_mut()
                     .ok_or(Error::DynGlobalsAccessorPointerIsInvalid)?;
-                let mut sub_global = |name, value| {
-                    let val = globals_access_provider.get_i64(name).ok()?;
-                    let val = (val as u64).saturating_sub(value);
-                        globals_access_provider
-                            .set_i64(name, val as i64)
-                            .ok()?;
-                    Some(val)
-                };
-                let res1 = sub_global(
-                    globals_ctx.global_gas_name.as_str(),
-                    globals_ctx.lazy_pages_costs.read_page,
-                )
-                .ok_or(Error::CannotChargeGas)?;
-                let res2 = sub_global(
-                    globals_ctx.global_allowance_name.as_str(),
-                    globals_ctx.lazy_pages_costs.read_page,
-                )
-                .ok_or(Error::CannotChargeGasAllowance)?;
-                log::trace!("res1 = {}, res2 = {}", res1, res2);
+                charge_gas(
+                    GlobalsAccessDyn { inner_access_provider },
+                    &globals_ctx.global_gas_name,
+                    &globals_ctx.global_allowance_name,
+                    0,
+                )?;
             }
         }
     }

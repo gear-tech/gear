@@ -48,6 +48,7 @@ pub struct GlobalsCtx {
     pub globals_access_mod: GlobalsAccessMod,
 }
 
+#[derive(Debug)]
 pub struct GlobalsAccessError;
 
 pub trait GlobalsAccessTrait {
@@ -55,27 +56,3 @@ pub trait GlobalsAccessTrait {
     fn set_i64(&mut self, name: &str, value: i64) -> Result<(), GlobalsAccessError>;
     fn as_any_mut(&mut self) -> &mut dyn Any;
 }
-
-// pub struct GlobalAccessProvider<'a> {
-//     pub inner_access_provider: &'a mut dyn GlobalsAccessTrait,
-// }
-
-// impl<'a> Debug for GlobalAccessProvider<'a> {
-//     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-//         f.debug_struct("GlobalAccessProvider").finish()
-//     }
-// }
-
-// impl<'a> GlobalsAccessTrait for GlobalAccessProvider<'a> {
-//     fn get_i64(&self, name: &str) -> Result<i64, GlobalsAccessError> {
-//         self.inner_access_provider.get_i64(name)
-//     }
-
-//     fn set_i64(&mut self, name: &str, value: i64) -> Result<(), GlobalsAccessError> {
-//         self.inner_access_provider.set_i64(name, value)
-//     }
-
-//     fn as_any_mut(&'static mut self) -> &mut dyn Any {
-//         self
-//     }
-// }
