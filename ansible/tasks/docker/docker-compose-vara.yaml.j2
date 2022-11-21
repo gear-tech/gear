@@ -7,7 +7,7 @@ services:
       - "9933:9933"
       - "9944:9944"
       - "9615:9615"
-    image: ghcr.io/gear-tech/node-vara:latest
+    image: "{{ gear_image_tag }}"
     restart: always
     environment:
       - RUST_LOG=essential

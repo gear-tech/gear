@@ -3,23 +3,23 @@
   shell: >
     /usr/local/bin/docker-compose -f "/home/ec2-user/docker-compose.yaml" down
   become: yes
-   
+
 - name: Remove db
   ansible.builtin.file:
     path: /home/ec2-user/gear-data/chains/vara_network/db
     state: absent
   become: yes
-  
+
 - name: Remove spec json
   ansible.builtin.file:
     path: /home/ec2-user/gear-data/vara_staging.json
     state: absent
   become: yes
-  
+
 - name: Download new spec file
   shell: >
     wget https://raw.githubusercontent.com/gear-tech/gear/vara-stage-1/node/res/vara.json -O /home/ec2-user/gear-data/vara.json
-     
+
 - name: Pull docker images
   shell: >
     /usr/local/bin/docker-compose -f "/home/ec2-user/docker-compose.yaml" pull
@@ -27,7 +27,7 @@
 
 - name: Remove old docker images
   shell:  docker image prune -f
-  become: yes 
+  become: yes
 
 - name: Run docker-compose
   shell: >

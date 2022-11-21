@@ -134,6 +134,10 @@ impl pallet_gear_messenger::Config for Test {
 
 impl pallet_gear_program::Config for Test {
     type RuntimeEvent = RuntimeEvent;
+}
+
+impl pallet_gear_program::Config for Test {
+    type Event = Event;
     type WeightInfo = ();
     type Currency = Balances;
     type Messenger = GearMessenger;
@@ -146,17 +150,15 @@ impl common::GasPrice for GasConverter {
 }
 
 impl pallet_gear::Config for Test {
-    type RuntimeEvent = RuntimeEvent;
-    type Randomness = TestRandomness<Self>;
+    type Event = Event;
     type Currency = Balances;
     type GasPrice = GasConverter;
     type WeightInfo = ();
-    type Schedule = GearSchedule;
-    type OutgoingLimit = OutgoingLimit;
+    type Schedule = ();
+    type OutgoingLimit = ();
     type DebugInfo = ();
     type CodeStorage = GearProgram;
-    type MailboxThreshold = ConstU64<3000>;
-    type ReservationsLimit = ConstU64<256>;
+    type MailboxThreshold = ConstU64<100>;
     type Messenger = GearMessenger;
     type GasProvider = GearGas;
     type BlockLimiter = GearGas;
@@ -173,7 +175,7 @@ impl pallet_gear_scheduler::Config for Test {
 }
 
 impl pallet_airdrop::Config for Test {
-    type RuntimeEvent = RuntimeEvent;
+    type Event = Event;
     type WeightInfo = ();
 }
 
