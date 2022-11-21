@@ -755,8 +755,7 @@ where
     pub fn send_input_wgas(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
         sys_trace!(target: "syscall::gear", "send_input_wgas, args = {}", args_to_str(args));
 
-        let (pid_value_ptr, offset, len, gas_limit, delay, err_mid_ptr) =
-            args.iter().read_6()?;
+        let (pid_value_ptr, offset, len, gas_limit, delay, err_mid_ptr) = args.iter().read_6()?;
 
         ctx.run(|ctx| {
             let HashWithValue {

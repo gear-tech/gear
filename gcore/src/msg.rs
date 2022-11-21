@@ -513,19 +513,12 @@ pub fn reply_input_delayed(value: u128, offset: u32, len: u32, delay: u32) -> Re
     };
 
     unsafe {
-        gsys::gr_reply_input(
-            offset,
-            len,
-            value_ptr,
-            delay,
-            res.as_mut_ptr(),
-        );
+        gsys::gr_reply_input(offset, len, value_ptr, delay, res.as_mut_ptr());
     }
 
     SyscallError(res.length).into_result()?;
 
     Ok(MessageId(res.hash))
-
 }
 
 /// Same as [`reply_push`], but pushes the incoming message payload.
@@ -562,14 +555,7 @@ pub fn reply_input_with_gas_delayed(
     };
 
     unsafe {
-        gsys::gr_reply_input_wgas(
-            offset,
-            len,
-            gas_limit,
-            value_ptr,
-            delay,
-            res.as_mut_ptr(),
-        );
+        gsys::gr_reply_input_wgas(offset, len, gas_limit, value_ptr, delay, res.as_mut_ptr());
     }
     SyscallError(res.length).into_result()?;
 
@@ -596,15 +582,7 @@ pub fn send_input_delayed(
 
     let mut res: LengthWithHash = Default::default();
 
-    unsafe {
-        gsys::gr_send_input(
-            pid_value.as_ptr(),
-            offset,
-            len,
-            delay,
-            res.as_mut_ptr(),
-        )
-    };
+    unsafe { gsys::gr_send_input(pid_value.as_ptr(), offset, len, delay, res.as_mut_ptr()); }
     SyscallError(res.length).into_result()?;
 
     Ok(MessageId(res.hash))
@@ -693,14 +671,7 @@ pub fn send_delayed_from_reservation(
 /// Same as [`send_push`], but pushes the incoming message payload.
 pub fn send_push_input(handle: MessageHandle, offset: u32, len: u32) -> Result<()> {
     let mut result_len = 0u32;
-    unsafe {
-        gsys::gr_send_push_input(
-            handle.0,
-            offset,
-            len,
-            &mut result_len as _,
-        )
-    };
+    unsafe { gsys::gr_send_push_input(handle.0, offset, len, &mut result_len as _); }
     SyscallError(result_len).into_result()
 }
 

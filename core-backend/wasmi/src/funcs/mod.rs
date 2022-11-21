@@ -1131,7 +1131,11 @@ where
         Func::wrap(store, func)
     }
 
-    pub fn reply_push_input(store: &mut Store<HostState<E>>, forbidden: bool, memory: WasmiMemory,) -> Func {
+    pub fn reply_push_input(
+        store: &mut Store<HostState<E>>,
+        forbidden: bool,
+        memory: WasmiMemory,
+    ) -> Func {
         let func = move |caller: Caller<'_, HostState<E>>,
                          offset: u32,
                          len: u32,
@@ -1256,7 +1260,11 @@ where
         Func::wrap(store, func)
     }
 
-    pub fn send_push_input(store: &mut Store<HostState<E>>, forbidden: bool, memory: WasmiMemory,) -> Func {
+    pub fn send_push_input(
+        store: &mut Store<HostState<E>>,
+        forbidden: bool,
+        memory: WasmiMemory,
+    ) -> Func {
         let func = move |caller: Caller<'_, HostState<E>>,
                          handle: u32,
                          offset: u32,
