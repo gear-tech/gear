@@ -171,10 +171,6 @@ impl ReservationId {
     pub(crate) const fn as_ptr(&self) -> *const [u8; 32] {
         self.0.as_ptr() as *const [u8; 32]
     }
-
-    pub(crate) fn as_mut_ptr(&mut self) -> *mut [u8; 32] {
-        self.0.as_mut_ptr() as *mut [u8; 32]
-    }
 }
 
 impl From<[u8; 32]> for ReservationId {
@@ -208,9 +204,5 @@ impl CodeId {
     /// Get `H256` represented as a slice of `u8`.
     pub fn as_slice(&self) -> &[u8] {
         &self.0[..]
-    }
-
-    pub(crate) const fn as_ptr(&self) -> *const [u8; 32] {
-        self.0.as_ptr() as *const [u8; 32]
     }
 }

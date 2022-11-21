@@ -18,7 +18,7 @@
 
 //! Base identifiers for messaging primitives.
 
-use crate::message::ExitCode;
+use crate::message::StatusCode;
 use alloc::vec::Vec;
 use blake2_rfc::blake2b;
 
@@ -183,28 +183,28 @@ impl MessageId {
         hash(&argument).into()
     }
 
-    /// Generate MessageId for reply message depend on exit code
-    pub fn generate_reply(origin_msg_id: MessageId, exit_code: ExitCode) -> MessageId {
+    /// Generate MessageId for reply message depend on status code
+    pub fn generate_reply(origin_msg_id: MessageId, status_code: StatusCode) -> MessageId {
         let unique_flag = b"reply";
 
         let origin_msg_id = origin_msg_id.as_ref();
-        let exit_code = exit_code.to_le_bytes();
+        let status_code = status_code.to_le_bytes();
 
-        let len = unique_flag.len() + origin_msg_id.len() + exit_code.len();
+        let len = unique_flag.len() + origin_msg_id.len() + status_code.len();
 
         let mut argument = Vec::with_capacity(len);
         argument.extend_from_slice(unique_flag);
-        argument.extend(exit_code);
+        argument.extend(status_code);
         argument.extend(origin_msg_id);
 
         hash(&argument).into()
     }
 
-    /// Generate MessageId for signal message depend on exit code
-    pub fn generate_signal(origin_msg_id: MessageId, exit_code: ExitCode) -> MessageId {
+    /// Generate MessageId for signal message depend on status code
+    pub fn generate_signal(origin_msg_id: MessageId, status_code: StatusCode) -> MessageId {
         const SALT: &[u8] = b"signal";
 
-        let argument = [origin_msg_id.as_ref(), &exit_code.to_le_bytes(), SALT].concat();
+        let argument = [origin_msg_id.as_ref(), &status_code.to_le_bytes(), SALT].concat();
         hash(&argument).into()
     }
 }

@@ -20,16 +20,13 @@ use super::EventProcessor;
 use crate::{Error, Result};
 use async_trait::async_trait;
 use futures::stream::StreamExt;
-use gp::api::{events::FinalizedEvents, generated::api::{Event, gear::Event as GearEvent,}, config::GearConfig};
-use subxt::{
-    Events,
-    sp_core::H256
-};
+use gp::api::{generated::api::{Event, gear::Event as GearEvent,}, types::FinalizedEvents, config::GearConfig};
+use subxt::{events::{Phase, Events}, ext::sp_core::H256};
 
-pub struct EventListener<'a>(pub(crate) FinalizedEvents<'a>);
+pub struct EventListener(pub(crate) FinalizedEvents);
 
 #[async_trait(?Send)]
-impl<'a> EventProcessor for EventListener<'a> {
+impl EventProcessor for EventListener {
     fn not_waited() -> Error {
         unreachable!()
     }
@@ -53,7 +50,7 @@ impl<'a> EventProcessor for EventListener<'a> {
 
         while let Some(events) = self.0.next().await {
             for event in events?.iter() {
-                if let Some(data) = predicate(event?.event) {
+                if let Some(data) = predicate(event?.as_root_event::<(Phase, Event)>()?.1) {
                     res.push(data);
                 }
             }
@@ -70,7 +67,7 @@ impl<'a> EventProcessor for EventListener<'a> {
     }
 }
 
-impl<'a> EventListener<'a> {
+impl EventListener {
     /// Looks through finalized blocks to find the queue processing reverted event.
     pub async fn queue_processing_reverted(&mut self) -> Result<H256> {
         while let Some(events) = self.0.next().await {
@@ -107,10 +104,10 @@ impl<'a> EventListener<'a> {
         self.blocks_running_since(previous).await
     }
 
-    fn proc_events_inner<T>(&mut self, events: Events<GearConfig, Event>, predicate: impl Fn(Event) -> Option<T>) -> Option<T> {
+    fn proc_events_inner<T>(&mut self, events: Events<GearConfig>, predicate: impl Fn(Event) -> Option<T>) -> Option<T> {
         events
             .iter()
-            .filter_map(|event| predicate(event.ok()?.event))
+            .filter_map(|event| predicate(event.ok()?.as_root_event::<(Phase, Event)>().ok()?.1))
             .next()
     }
 }

@@ -18,7 +18,7 @@
 
 //! Gear common errors module.
 //! Enumerates errors that can occur in smart-contracts `ContractError`.
-//! Errors related to conversion, decoding, message exit code, other internal
+//! Errors related to conversion, decoding, message status code, other internal
 //! errors.
 
 use core::fmt;
@@ -32,9 +32,10 @@ pub enum ContractError {
     Timeout(u32, u32),
     Convert(&'static str),
     Decode(codec::Error),
-    ExitCode(i32),
+    StatusCode(i32),
     Ext(ExtError),
     EmptyWaitDuration,
+    ZeroSystemReservationAmount,
 }
 
 impl ContractError {
@@ -52,9 +53,12 @@ impl fmt::Display for ContractError {
             }
             ContractError::Convert(e) => write!(f, "Conversion error: {e:?}"),
             ContractError::Decode(e) => write!(f, "Decoding codec bytes error: {e}"),
-            ContractError::ExitCode(e) => write!(f, "Reply returned exit code {e}"),
+            ContractError::StatusCode(e) => write!(f, "Reply returned exit code {e}"),
             ContractError::Ext(e) => write!(f, "API error: {e}"),
             ContractError::EmptyWaitDuration => write!(f, "Wait duration can not be zero."),
+            ContractError::ZeroSystemReservationAmount => {
+                write!(f, "System reservation amount can not be zero in config.")
+            }
         }
     }
 }

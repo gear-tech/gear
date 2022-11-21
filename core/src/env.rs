@@ -22,7 +22,7 @@ use crate::{
     costs::RuntimeCosts,
     ids::{MessageId, ProgramId, ReservationId},
     memory::{Memory, WasmPageNumber},
-    message::{ExitCode, HandlePacket, InitPacket, ReplyPacket},
+    message::{HandlePacket, InitPacket, ReplyPacket, StatusCode},
 };
 use alloc::collections::BTreeSet;
 use codec::{Decode, Encode};
@@ -83,15 +83,53 @@ pub trait Ext {
         self.send_commit(handle, msg, delay)
     }
 
+    /// Complete message and send it to another program using gas from reservation.
+    fn reservation_send_commit(
+        &mut self,
+        id: ReservationId,
+        handle: u32,
+        msg: HandlePacket,
+        delay: u32,
+    ) -> Result<MessageId, Self::Error>;
+
+    /// Send message to another program using gas from reservation.
+    fn reservation_send(
+        &mut self,
+        id: ReservationId,
+        msg: HandlePacket,
+        delay: u32,
+    ) -> Result<MessageId, Self::Error> {
+        let handle = self.send_init()?;
+        self.reservation_send_commit(id, handle, msg, delay)
+    }
+
     /// Push an extra buffer into reply message.
     fn reply_push(&mut self, buffer: &[u8]) -> Result<(), Self::Error>;
 
     /// Complete reply message and send it to source program.
     fn reply_commit(&mut self, msg: ReplyPacket, delay: u32) -> Result<MessageId, Self::Error>;
 
+    /// Complete reply message and send it to source program from reservation.
+    fn reservation_reply_commit(
+        &mut self,
+        id: ReservationId,
+        msg: ReplyPacket,
+        delay: u32,
+    ) -> Result<MessageId, Self::Error>;
+
     /// Produce reply to the current message.
     fn reply(&mut self, msg: ReplyPacket, delay: u32) -> Result<MessageId, Self::Error> {
         self.reply_commit(msg, delay)
+    }
+
+    /// Produce reply to the current message from reservation.
+    fn reservation_reply(
+        &mut self,
+        id: ReservationId,
+        msg: ReplyPacket,
+        delay: u32,
+    ) -> Result<MessageId, Self::Error> {
+        self.reservation_reply_commit(id, msg, delay)
     }
 
     /// Get the message id of the initial message.
@@ -103,8 +141,8 @@ pub trait Ext {
     /// Terminate the program and transfer all available value to the address.
     fn exit(&mut self) -> Result<(), Self::Error>;
 
-    /// Get the exit code of the message being processed.
-    fn exit_code(&mut self) -> Result<ExitCode, Self::Error>;
+    /// Get the status code of the message being processed.
+    fn status_code(&mut self) -> Result<StatusCode, Self::Error>;
 
     /// Get the id of the message currently being handled.
     fn message_id(&mut self) -> Result<MessageId, Self::Error>;
@@ -149,6 +187,9 @@ pub trait Ext {
 
     /// Unreserve gas using reservation ID.
     fn unreserve_gas(&mut self, id: ReservationId) -> Result<u64, Self::Error>;
+
+    /// Do system reservation.
+    fn system_reserve_gas(&mut self, amount: u64) -> Result<(), Self::Error>;
 
     /// Tell how much gas is left in running context.
     fn gas_available(&mut self) -> Result<u64, Self::Error>;

@@ -29,6 +29,9 @@ mod utils;
 /// A global flag, determining if `handle_reply` already was generated.
 static mut HANDLE_REPLY_FLAG: Flag = Flag(false);
 
+/// A global flag, determining if `handle_signal` already was generated.
+static mut HANDLE_SIGNAL_FLAG: Flag = Flag(false);
+
 struct Flag(bool);
 
 impl Flag {
@@ -86,6 +89,27 @@ fn generate_handle_reply_if_required(mut code: TokenStream) -> TokenStream {
     code
 }
 
+fn generate_handle_signal_if_required(mut code: TokenStream) -> TokenStream {
+    let signal_generated = unsafe { HANDLE_SIGNAL_FLAG.get_and_set() };
+    if !signal_generated {
+        let handle_signal: TokenStream = quote!(
+            #[no_mangle]
+            unsafe extern "C" fn handle_signal() {
+                gstd::handle_signal();
+            }
+        )
+        .into();
+        code.extend([handle_signal]);
+    }
+
+    code
+}
+
+fn generate_if_required(code: TokenStream) -> TokenStream {
+    let code = generate_handle_reply_if_required(code);
+    generate_handle_signal_if_required(code)
+}
+
 /// This is the procedural macro for your convenience.
 /// It marks the main async function to be the program entry point.
 /// Functions `handle`, `handle_reply` cannot be specified if this macro is used.
@@ -120,7 +144,7 @@ pub fn async_main(_attr: TokenStream, item: TokenStream) -> TokenStream {
     )
     .into();
 
-    generate_handle_reply_if_required(code)
+    generate_if_required(code)
 }
 
 /// Mark async function to be the program initialization method.
@@ -152,7 +176,7 @@ pub fn async_init(_attr: TokenStream, item: TokenStream) -> TokenStream {
     )
     .into();
 
-    generate_handle_reply_if_required(code)
+    generate_if_required(code)
 }
 
 /// Extends async methods `for_reply` and `for_reply_as` for sending

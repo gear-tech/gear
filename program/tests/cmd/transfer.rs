@@ -18,15 +18,12 @@ const ADDRESS: &str = "5EJAhWN49JDfn58DpkERvCrtJ5X3sHue93a1hH4nB9KngGSs";
 async fn test_command_transfer_works() -> Result<()> {
     common::login_as_alice()?;
     let mut node = common::Node::dev()?;
+
     node.wait(logs::gear_node::IMPORTING_BLOCKS)?;
 
     // Get balance of the testing address
-    let api = Api::new(Some(&node.ws()))
-        .await
-        .unwrap()
-        .signer(SURI, None)
-        .unwrap();
-    let before = api.get_balance(ADDRESS).await?;
+    let api = Api::new(Some(&node.ws())).await?.signer(SURI, None)?;
+    let before = api.get_balance(ADDRESS).await.unwrap_or(0);
 
     // Run command transfer
     let value = 1_000_000_000u128;

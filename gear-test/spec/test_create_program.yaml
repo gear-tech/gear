@@ -107,4 +107,4 @@ fixtures:
             init: false
           - destination: 1
             init: false
-            exitCode: 3
+            statusCode: 3

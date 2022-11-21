@@ -142,9 +142,10 @@ where
         builder.add_func("gr_debug", Funcs::debug);
         builder.add_func("gr_error", Funcs::error);
         builder.add_func("gr_exit", Funcs::exit);
-        builder.add_func("gr_exit_code", Funcs::exit_code);
+        builder.add_func("gr_status_code", Funcs::status_code);
         builder.add_func("gr_reserve_gas", Funcs::reserve_gas);
         builder.add_func("gr_unreserve_gas", Funcs::unreserve_gas);
+        builder.add_func("gr_system_reserve_gas", Funcs::system_reserve_gas);
         builder.add_func("gr_gas_available", Funcs::gas_available);
         builder.add_func("gr_leave", Funcs::leave);
         builder.add_func("gr_message_id", Funcs::message_id);
@@ -155,12 +156,19 @@ where
         builder.add_func("gr_reply", Funcs::reply);
         builder.add_func("gr_reply_commit", Funcs::reply_commit);
         builder.add_func("gr_reply_commit_wgas", Funcs::reply_commit_wgas);
+        builder.add_func("gr_reservation_reply", Funcs::reservation_reply);
+        builder.add_func(
+            "gr_reservation_reply_commit",
+            Funcs::reservation_reply_commit,
+        );
         builder.add_func("gr_reply_push", Funcs::reply_push);
         builder.add_func("gr_reply_to", Funcs::reply_to);
         builder.add_func("gr_reply_wgas", Funcs::reply_wgas);
         builder.add_func("gr_send", Funcs::send);
         builder.add_func("gr_send_commit", Funcs::send_commit);
         builder.add_func("gr_send_commit_wgas", Funcs::send_commit_wgas);
+        builder.add_func("gr_reservation_send", Funcs::reservation_send);
+        builder.add_func("gr_reservation_send_commit", Funcs::reservation_send_commit);
         builder.add_func("gr_send_init", Funcs::send_init);
         builder.add_func("gr_send_push", Funcs::send_push);
         builder.add_func("gr_send_wgas", Funcs::send_wgas);
@@ -174,22 +182,20 @@ where
         builder.add_func("gr_wake", Funcs::wake);
         let mut env_builder: EnvironmentDefinitionBuilder<_> = builder.into();
 
-        let mem: DefaultExecutorMemory = match SandboxMemory::new(mem_size.0, None) {
+        let memory: DefaultExecutorMemory = match SandboxMemory::new(mem_size.0, None) {
             Ok(mem) => mem,
             Err(e) => return Err((ext.gas_amount(), CreateEnvMemory(e)).into()),
         };
 
-        env_builder.add_memory("env", "memory", mem.clone());
+        env_builder.add_memory("env", "memory", memory.clone());
         env_builder.add_host_func("env", "alloc", Funcs::alloc);
         env_builder.add_host_func("env", "free", Funcs::free);
         env_builder.add_host_func("env", IMPORT_NAME_OUT_OF_GAS, Funcs::out_of_gas);
         env_builder.add_host_func("env", IMPORT_NAME_OUT_OF_ALLOWANCE, Funcs::out_of_allowance);
 
-        let memory_wrap = MemoryWrap::new(mem.clone());
         let mut runtime = Runtime {
             ext,
-            memory: mem,
-            memory_wrap,
+            memory: MemoryWrap::new(memory),
             err: FuncError::Terminated(TerminationReason::Success),
             globals: Default::default(),
         };
@@ -245,7 +251,7 @@ where
             .set_global_val(GLOBAL_NAME_ALLOWANCE, Value::I64(allowance as i64))
             .map_err(|_| (runtime.ext.gas_amount(), WrongInjectedAllowance))?;
 
-        match pre_execution_handler(&mut runtime.memory_wrap, stack_end_page) {
+        match pre_execution_handler(&mut runtime.memory, stack_end_page) {
             Ok(_) => (),
             Err(e) => {
                 return Err((runtime.ext.gas_amount(), PreExecutionHandler(e.to_string())).into());
@@ -273,7 +279,7 @@ where
         let Runtime {
             err: trap,
             mut ext,
-            memory_wrap,
+            memory,
             ..
         } = runtime;
 
@@ -300,7 +306,7 @@ where
 
         Ok(BackendReport {
             termination_reason: termination,
-            memory_wrap,
+            memory_wrap: memory,
             ext,
         })
     }

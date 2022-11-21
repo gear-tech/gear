@@ -1,14 +1,7 @@
 //! Integration tests for command `program`
 use crate::common::{self, env, logs, traits::Convert, Result};
+use demo_meta::{Id, MessageInitIn, Person, Wallet};
 use parity_scale_codec::Encode;
-
-const META_STATE_WITH_NONE_INPUT: &str = "0x08010000000000000004012c536f6d655375726e616d6520536f6d654e616d6502000000000000000402244f746865724e616d65304f746865725375726e616d65";
-
-#[derive(Encode)]
-struct MessageInitIn {
-    amount: u8,
-    currency: String,
-}
 
 #[tokio::test]
 async fn test_command_state_works() -> Result<()> {
@@ -59,6 +52,33 @@ async fn test_command_state_works() -> Result<()> {
         "0x00", // None
     ])?;
 
-    assert!(state.stdout.convert().contains(META_STATE_WITH_NONE_INPUT));
+    let default_wallets = vec![
+        Wallet {
+            id: Id {
+                decimal: 1,
+                hex: vec![1u8],
+            },
+            person: Person {
+                surname: "SomeSurname".into(),
+                name: "SomeName".into(),
+            },
+        },
+        Wallet {
+            id: Id {
+                decimal: 2,
+                hex: vec![2u8],
+            },
+            person: Person {
+                surname: "OtherName".into(),
+                name: "OtherSurname".into(),
+            },
+        },
+    ];
+
+    assert!(state
+        .stdout
+        .convert()
+        .contains(&hex::encode(default_wallets.encode())));
+
     Ok(())
 }
