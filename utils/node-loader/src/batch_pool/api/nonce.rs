@@ -56,7 +56,7 @@ pub fn catch_missed_nonce<T>(batch_res: &GClientResult<T>, nonce: u32) -> Result
         if err
             .to_string()
             .to_lowercase()
-            .contains(utils::SUBXT_RPC_CALL_ERR_STR)
+            .contains(&utils::SUBXT_RPC_CALL_ERR_STR.to_lowercase())
         {
             hold_missed_nonces()?.push(Reverse(nonce));
         }
