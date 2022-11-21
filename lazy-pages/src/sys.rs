@@ -195,24 +195,31 @@ impl<'a> GlobalsAccessTrait for GlobalsAccessSandbox<'a> {
     fn get_i64(&self, name: &str) -> Result<i64, GlobalsAccessError> {
         self.instance
             .get_global_val(name)
-            .map(|value| {
+            .and_then(|value| {
                 if let Value::I64(value) = value {
                     Some(value)
                 } else {
                     None
                 }
             })
-            .flatten()
             .ok_or(GlobalsAccessError)
     }
 
     fn set_i64(&mut self, name: &str, value: i64) -> Result<(), GlobalsAccessError> {
         self.instance
-            .set_global_val(name, Value::I64(value as i64))
+            .set_global_val(name, Value::I64(value))
             .ok()
             .flatten()
             .ok_or(GlobalsAccessError)?;
         Ok(())
+    }
+
+    fn get_i32(&self, _name: &str) -> Result<i32, GlobalsAccessError> {
+        todo!("Currently useless")
+    }
+
+    fn set_i32(&mut self, _name: &str, _value: i32) -> Result<(), GlobalsAccessError> {
+        todo!("Currently useless")
     }
 
     fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
@@ -231,6 +238,14 @@ impl<'a, 'b> GlobalsAccessTrait for GlobalsAccessDyn<'a, 'b> {
 
     fn set_i64(&mut self, name: &str, value: i64) -> Result<(), GlobalsAccessError> {
         self.inner_access_provider.set_i64(name, value)
+    }
+
+    fn get_i32(&self, _name: &str) -> Result<i32, GlobalsAccessError> {
+        todo!("Currently useless")
+    }
+
+    fn set_i32(&mut self, _name: &str, _value: i32) -> Result<(), GlobalsAccessError> {
+        todo!("Currently useless")
     }
 
     fn as_any_mut(&mut self) -> &mut dyn Any {

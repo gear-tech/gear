@@ -70,10 +70,14 @@ pub struct GlobalsAccessError;
 
 /// Globals access trait.
 pub trait GlobalsAccessTrait {
-    /// Returns i64 for global `name`, if `name` is I64 global export.
+    /// Returns global `name` value, if `name` is I64 global export.
     fn get_i64(&self, name: &str) -> Result<i64, GlobalsAccessError>;
     /// Set global `name` == `value`, if `name` is I64 global export.
     fn set_i64(&mut self, name: &str, value: i64) -> Result<(), GlobalsAccessError>;
+    /// Returns global `name` value, if `name` is I32 global export.
+    fn get_i32(&self, name: &str) -> Result<i32, GlobalsAccessError>;
+    /// Set global `name` == `value`, if `name` is I32 global export.
+    fn set_i32(&mut self, name: &str, value: i32) -> Result<(), GlobalsAccessError>;
     /// Returns as `&mut syn Any`.
     fn as_any_mut(&mut self) -> &mut dyn Any;
 }
@@ -91,7 +95,7 @@ pub trait GlobalsAccessTrait {
 #[repr(i64)]
 pub enum Status {
     /// Lazy-pages works in normal mode.
-    Normal = 0,
+    Normal = 0_i64,
     /// Skips signals processing until the end of execution, set termination reason as `gas limit exceeded`.
     GasLimitExceeded,
     /// Skips signals processing until the end of execution, set termination reason as `gas allowance exceeded`.

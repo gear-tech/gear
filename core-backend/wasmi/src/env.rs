@@ -138,6 +138,14 @@ impl<E: Ext + 'static> GlobalsAccessTrait for Lol<E> {
             .ok_or(GlobalsAccessError)
     }
 
+    fn get_i32(&self, _name: &str) -> Result<i32, GlobalsAccessError> {
+        todo!("Currently useless")
+    }
+
+    fn set_i32(&mut self, _name: &str, _value: i32) -> Result<(), GlobalsAccessError> {
+        todo!("Currently useless")
+    }
+
     fn as_any_mut(&mut self) -> &mut dyn Any {
         self
     }
