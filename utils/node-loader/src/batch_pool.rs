@@ -69,10 +69,14 @@ impl<Rng: LoaderRng> BatchPool<Rng> {
     }
 
     #[instrument(skip_all)]
-    async fn run_pool_loop(&mut self, loader_seed: Option<u64>, code_seed_type: Option<SeedVariant>) -> Result<()> {
+    async fn run_pool_loop(
+        &mut self,
+        loader_seed: Option<u64>,
+        code_seed_type: Option<SeedVariant>,
+    ) -> Result<()> {
         let mut batches = FuturesUnordered::new();
 
-        let seed = loader_seed.unwrap_or(utils::now());
+        let seed = loader_seed.unwrap_or_else(utils::now);
         tracing::info!(
             message = "Running task pool with params",
             seed,

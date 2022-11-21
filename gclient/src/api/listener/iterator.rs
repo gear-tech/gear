@@ -20,8 +20,15 @@ use super::EventProcessor;
 use crate::{Error, Result};
 use async_trait::async_trait;
 use futures::stream::StreamExt;
-use gp::api::{generated::api::{Event, gear::Event as GearEvent,}, types::FinalizedEvents, config::GearConfig};
-use subxt::{events::{Phase, Events}, ext::sp_core::H256};
+use gp::api::{
+    config::GearConfig,
+    generated::api::{gear::Event as GearEvent, Event},
+    types::FinalizedEvents,
+};
+use subxt::{
+    events::{Events, Phase},
+    ext::sp_core::H256,
+};
 
 pub struct EventListener(pub(crate) FinalizedEvents);
 
@@ -74,8 +81,10 @@ impl EventListener {
             let events = events?;
             let events_bh = events.block_hash();
 
-            if let Some(res) = self.proc_events_inner(events, |e| matches!(e, Event::Gear(GearEvent::QueueProcessingReverted)).then_some(events_bh)) {
-                return Ok(res)
+            if let Some(res) = self.proc_events_inner(events, |e| {
+                matches!(e, Event::Gear(GearEvent::QueueProcessingReverted)).then_some(events_bh)
+            }) {
+                return Ok(res);
             }
         }
 
@@ -104,7 +113,11 @@ impl EventListener {
         self.blocks_running_since(previous).await
     }
 
-    fn proc_events_inner<T>(&mut self, events: Events<GearConfig>, predicate: impl Fn(Event) -> Option<T>) -> Option<T> {
+    fn proc_events_inner<T>(
+        &mut self,
+        events: Events<GearConfig>,
+        predicate: impl Fn(Event) -> Option<T>,
+    ) -> Option<T> {
         events
             .iter()
             .filter_map(|event| predicate(event.ok()?.as_root_event::<(Phase, Event)>().ok()?.1))
