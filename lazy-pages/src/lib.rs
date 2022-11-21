@@ -87,7 +87,10 @@ pub enum Error {
         expected,
         actual
     )]
-    InvalidPageDataSize { expected: usize, actual: u32 },
+    InvalidPageDataSize {
+        expected: usize,
+        actual: u32,
+    },
     /// Found a write signal from same page twice - see more in head comment.
     #[display(fmt = "Any page cannot be released twice: {_0:?}")]
     DoubleRelease(PageNumber),

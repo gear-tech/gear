@@ -31,8 +31,9 @@ use gear_core::{
     charge_gas_token,
     costs::{HostFnWeights, RuntimeCosts},
     env::Ext as EnvExt,
-    gas::{ChargeResult, GasAllowanceCounter, GasAmount, GasCounter, ValueCounter, Token},
+    gas::{ChargeResult, GasAllowanceCounter, GasAmount, GasCounter, Token, ValueCounter},
     ids::{CodeId, MessageId, ProgramId, ReservationId},
+    lazy_pages::{GlobalsCtx, Status},
     memory::{
         AllocationsContext, GrowHandler, GrowHandlerNothing, Memory, PageBuf, PageNumber,
         WasmPageNumber,
@@ -40,7 +41,7 @@ use gear_core::{
     message::{
         GasLimit, HandlePacket, InitPacket, MessageContext, Packet, ReplyPacket, StatusCode,
     },
-    reservation::GasReserver, lazy_pages::{GlobalsCtx, Status},
+    reservation::GasReserver,
 };
 use gear_core_errors::{CoreError, ExecutionError, ExtError, MemoryError, MessageError, WaitError};
 

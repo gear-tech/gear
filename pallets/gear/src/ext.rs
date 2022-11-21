@@ -24,8 +24,9 @@ use gear_core::{
     env::Ext as EnvExt,
     gas::GasAmount,
     ids::{MessageId, ProgramId, ReservationId},
+    lazy_pages::{GlobalsCtx, Status},
     memory::{GrowHandler, Memory, PageNumber, WasmPageNumber},
-    message::{HandlePacket, InitPacket, ReplyPacket, StatusCode}, lazy_pages::{GlobalsCtx, Status},
+    message::{HandlePacket, InitPacket, ReplyPacket, StatusCode},
 };
 use gear_core_errors::{ExtError, MemoryError};
 use gear_lazy_pages_common as lazy_pages;

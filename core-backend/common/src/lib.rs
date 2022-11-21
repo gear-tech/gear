@@ -50,9 +50,10 @@ use gear_core::{
     env::Ext,
     gas::GasAmount,
     ids::{CodeId, MessageId, ProgramId, ReservationId},
+    lazy_pages::GlobalsCtx,
     memory::{Memory, PageBuf, PageNumber, WasmPageNumber},
     message::{ContextStore, Dispatch, DispatchKind, IncomingDispatch, MessageWaitedType},
-    reservation::GasReserver, lazy_pages::GlobalsCtx,
+    reservation::GasReserver,
 };
 use gear_core_errors::{ExtError, MemoryError};
 use scale_info::TypeInfo;

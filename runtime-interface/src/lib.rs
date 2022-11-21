@@ -21,9 +21,11 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
 use core::ops::RangeInclusive;
-use gear_core::{memory::HostPointer, lazy_pages::Status};
+use gear_core::{
+    lazy_pages::{GlobalsCtx, Status},
+    memory::HostPointer,
+};
 use sp_runtime_interface::runtime_interface;
-use gear_core::lazy_pages::GlobalsCtx;
 
 static_assertions::const_assert!(
     core::mem::size_of::<HostPointer>() >= core::mem::size_of::<usize>()

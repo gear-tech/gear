@@ -32,11 +32,11 @@ pub mod costs;
 pub mod env;
 pub mod gas;
 pub mod ids;
+pub mod lazy_pages;
 pub mod memory;
 pub mod message;
 pub mod program;
 pub mod reservation;
-pub mod lazy_pages;
 
 pub mod buffer;
 
