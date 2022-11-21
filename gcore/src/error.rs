@@ -20,19 +20,10 @@ pub use gear_core_errors::*;
 
 pub type Result<T, E = ExtError> = core::result::Result<T, E>;
 
-#[cfg(feature = "codec")]
-mod sys {
-    use crate::error::SyscallError;
-
-    extern "C" {
-        pub fn gr_error(buffer_ptr: *mut u8) -> SyscallError;
-    }
-}
-
 #[must_use]
 #[repr(transparent)]
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub struct SyscallError(u32);
+pub struct SyscallError(pub(crate) u32);
 
 impl SyscallError {
     pub fn into_result(self) -> Result<()> {
@@ -43,6 +34,7 @@ impl SyscallError {
         Ok(())
     }
 
+    // TODO: issue #1859
     // We get an error using `gr_error` syscall which expects
     // the error occurred earlier in another syscall or you'll get trap.
     // Error decoding is expected to be successful because we use
@@ -54,11 +46,14 @@ impl SyscallError {
         use alloc::vec;
         use codec::Decode;
 
-        let mut data = vec![0; self.0 as usize];
+        let mut error = vec![0; self.0 as usize];
+        let mut len = 0u32;
 
-        unsafe { sys::gr_error(data.as_mut_ptr()).into_result()? }
+        unsafe { gsys::gr_error(error.as_mut_ptr(), &mut len as *mut u32) };
 
-        Ok(ExtError::decode(&mut data.as_slice()).unwrap_or(ExtError::Decode))
+        Self(len).into_result()?;
+
+        Ok(ExtError::decode(&mut error.as_ref()).unwrap_or(ExtError::Decode))
     }
 
     #[cfg(not(feature = "codec"))]

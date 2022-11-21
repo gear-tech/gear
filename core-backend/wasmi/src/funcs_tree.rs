@@ -73,7 +73,7 @@ where
             F::reservation_send_commit(store, forbidden, memory)
         }),
         f.build("gr_read", |forbidden| F::read(store, forbidden, memory)),
-        f.build("gr_size", |forbidden| F::size(store, forbidden)),
+        f.build("gr_size", |forbidden| F::size(store, forbidden, memory)),
         f.build("gr_exit", |forbidden| F::exit(store, forbidden, memory)),
         f.build("gr_status_code", |forbidden| {
             F::status_code(store, forbidden, memory)
@@ -81,10 +81,10 @@ where
         f.build("alloc", |forbidden| F::alloc(store, forbidden, memory)),
         f.build("free", |forbidden| F::free(store, forbidden)),
         f.build("gr_block_height", |forbidden| {
-            F::block_height(store, forbidden)
+            F::block_height(store, forbidden, memory)
         }),
         f.build("gr_block_timestamp", |forbidden| {
-            F::block_timestamp(store, forbidden)
+            F::block_timestamp(store, forbidden, memory)
         }),
         f.build("gr_origin", |forbidden| F::origin(store, forbidden, memory)),
         f.build("gr_reply", |forbidden| F::reply(store, forbidden, memory)),
@@ -107,7 +107,7 @@ where
             F::reply_input(store, forbidden, memory)
         }),
         f.build("gr_reply_push_input", |forbidden| {
-            F::reply_push_input(store, forbidden)
+            F::reply_push_input(store, forbidden, memory)
         }),
         f.build("gr_reply_input_wgas", |forbidden| {
             F::reply_input_wgas(store, forbidden, memory)
@@ -116,7 +116,7 @@ where
             F::send_input(store, forbidden, memory)
         }),
         f.build("gr_send_push_input", |forbidden| {
-            F::send_push_input(store, forbidden)
+            F::send_push_input(store, forbidden, memory)
         }),
         f.build("gr_send_input_wgas", |forbidden| {
             F::send_input_wgas(store, forbidden, memory)
@@ -129,7 +129,7 @@ where
         }),
         f.build("gr_debug", |forbidden| F::debug(store, forbidden, memory)),
         f.build("gr_gas_available", |forbidden| {
-            F::gas_available(store, forbidden)
+            F::gas_available(store, forbidden, memory)
         }),
         f.build("gr_message_id", |forbidden| {
             F::message_id(store, forbidden, memory)
@@ -162,7 +162,7 @@ where
             F::unreserve_gas(store, forbidden, memory)
         }),
         f.build("gr_system_reserve_gas", |forbidden| {
-            F::system_reserve_gas(store, forbidden)
+            F::system_reserve_gas(store, forbidden, memory)
         }),
         f.build(IMPORT_NAME_OUT_OF_GAS, |_| F::out_of_gas(store)),
         f.build(IMPORT_NAME_OUT_OF_ALLOWANCE, |_| F::out_of_allowance(store)),

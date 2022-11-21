@@ -25,223 +25,12 @@
 //! processing a program can send messages to other programs and users including
 //! reply to the initial message.
 
+use crate::{
+    error::{Result, SyscallError},
+    ActorId, MessageHandle, MessageId, ReservationId,
+};
 use gear_core_errors::ExtError;
-
-use crate::{error::Result, ActorId, MessageHandle, MessageId, ReservationId};
-use core::mem::MaybeUninit;
-
-mod sys {
-    use crate::{error::SyscallError, MessageHandle};
-
-    extern "C" {
-        pub fn gr_status_code(status_code_ptr: *mut i32) -> SyscallError;
-
-        pub fn gr_message_id(message_id_ptr: *mut [u8; 32]);
-
-        pub fn gr_read(at: u32, length: u32, buffer_ptr: *mut u8) -> SyscallError;
-
-        #[allow(improper_ctypes)]
-        pub fn gr_reply(
-            payload_ptr: *const u8,
-            payload_len: u32,
-            value_ptr: *const u128,
-            delay: u32,
-            message_id_ptr: *mut [u8; 32],
-        ) -> SyscallError;
-
-        #[allow(improper_ctypes)]
-        pub fn gr_reply_wgas(
-            payload_ptr: *const u8,
-            payload_len: u32,
-            gas_limit: u64,
-            value_ptr: *const u128,
-            delay: u32,
-            message_id_ptr: *mut [u8; 32],
-        ) -> SyscallError;
-
-        #[allow(improper_ctypes)]
-        pub fn gr_reply_commit(
-            value_ptr: *const u128,
-            delay: u32,
-            message_id_ptr: *mut [u8; 32],
-        ) -> SyscallError;
-
-        #[allow(improper_ctypes)]
-        pub fn gr_reply_commit_wgas(
-            gas_limit: u64,
-            value_ptr: *const u128,
-            delay: u32,
-            message_id_ptr: *mut [u8; 32],
-        ) -> SyscallError;
-
-        pub fn gr_reply_push(payload_ptr: *const u8, payload_len: u32) -> SyscallError;
-
-        #[allow(improper_ctypes)]
-        pub fn gr_reservation_reply(
-            reservation_id_ptr: *const [u8; 32],
-            payload_ptr: *const u8,
-            payload_len: u32,
-            value_ptr: *const u128,
-            delay: u32,
-            message_id_ptr: *mut [u8; 32],
-        ) -> SyscallError;
-
-        #[allow(improper_ctypes)]
-        pub fn gr_reservation_reply_commit(
-            reservation_id_ptr: *const [u8; 32],
-            value_ptr: *const u128,
-            delay: u32,
-            message_id_ptr: *mut [u8; 32],
-        ) -> SyscallError;
-
-        pub fn gr_reply_to(message_id_ptr: *mut [u8; 32]) -> SyscallError;
-
-        #[allow(improper_ctypes)]
-        pub fn gr_reply_input(
-            value_ptr: *const u128,
-            offset: u32,
-            len: u32,
-            delay: u32,
-            message_id_ptr: *mut [u8; 32],
-        ) -> SyscallError;
-
-        #[allow(improper_ctypes)]
-        pub fn gr_reply_input_wgas(
-            gas_limit: u64,
-            value_ptr: *const u128,
-            offset: u32,
-            len: u32,
-            delay: u32,
-            message_id_ptr: *mut [u8; 32],
-        ) -> SyscallError;
-
-        pub fn gr_reply_push_input(offset: u32, len: u32) -> SyscallError;
-
-        #[allow(improper_ctypes)]
-        pub fn gr_send_input(
-            destination_ptr: *const [u8; 32],
-            value_ptr: *const u128,
-            offset: u32,
-            len: u32,
-            delay: u32,
-            message_id_ptr: *mut [u8; 32],
-        ) -> SyscallError;
-
-        pub fn gr_send_push_input(handle: MessageHandle, offset: u32, len: u32) -> SyscallError;
-
-        #[allow(improper_ctypes)]
-        pub fn gr_send_input_wgas(
-            destination_ptr: *const [u8; 32],
-            gas_limit: u64,
-            value_ptr: *const u128,
-            offset: u32,
-            len: u32,
-            delay: u32,
-            message_id_ptr: *mut [u8; 32],
-        ) -> SyscallError;
-
-        #[allow(improper_ctypes)]
-        pub fn gr_send(
-            destination_ptr: *const [u8; 32],
-            payload_ptr: *const u8,
-            payload_len: u32,
-            value_ptr: *const u128,
-            delay: u32,
-            message_id_ptr: *mut [u8; 32],
-        ) -> SyscallError;
-
-        #[allow(improper_ctypes)]
-        pub fn gr_send_wgas(
-            destination_ptr: *const [u8; 32],
-            payload_ptr: *const u8,
-            data_len: u32,
-            gas_limit: u64,
-            value_ptr: *const u128,
-            delay: u32,
-            message_id_ptr: *mut [u8; 32],
-        ) -> SyscallError;
-
-        #[allow(improper_ctypes)]
-        pub fn gr_send_commit(
-            handle: MessageHandle,
-            destination_ptr: *const [u8; 32],
-            value_ptr: *const u128,
-            delay: u32,
-            message_id_ptr: *mut [u8; 32],
-        ) -> SyscallError;
-
-        #[allow(improper_ctypes)]
-        pub fn gr_send_commit_wgas(
-            handle: MessageHandle,
-            destination_ptr: *const [u8; 32],
-            gas_limit: u64,
-            value_ptr: *const u128,
-            delay: u32,
-            message_id_ptr: *mut [u8; 32],
-        ) -> SyscallError;
-
-        pub fn gr_send_init(handle_ptr: *mut u32) -> SyscallError;
-
-        pub fn gr_send_push(
-            handle: MessageHandle,
-            payload_ptr: *const u8,
-            payload_len: u32,
-        ) -> SyscallError;
-
-        #[allow(improper_ctypes)]
-        pub fn gr_reservation_send(
-            reservation_id_ptr: *const [u8; 32],
-            destination_ptr: *const [u8; 32],
-            payload_ptr: *const u8,
-            payload_len: u32,
-            value_ptr: *const u128,
-            delay: u32,
-            message_id_ptr: *mut [u8; 32],
-        ) -> SyscallError;
-
-        // TODO: gasful sending (#1828)
-        /*#[allow(improper_ctypes)]
-        pub fn gr_reservation_send_wgas(
-            reservation_id_ptr: *const [u8; 32],
-            destination_ptr: *const [u8; 32],
-            payload_ptr: *const u8,
-            data_len: u32,
-            gas_limit: u64,
-            value_ptr: *const u128,
-            delay: u32,
-            message_id_ptr: *mut [u8; 32],
-        ) -> SyscallError;*/
-
-        #[allow(improper_ctypes)]
-        pub fn gr_reservation_send_commit(
-            reservation_id_ptr: *const [u8; 32],
-            handle: MessageHandle,
-            destination_ptr: *const [u8; 32],
-            value_ptr: *const u128,
-            delay: u32,
-            message_id_ptr: *mut [u8; 32],
-        ) -> SyscallError;
-
-        // TODO: gasful sending (#1828)
-        /*#[allow(improper_ctypes)]
-        pub fn gr_reservation_send_commit_wgas(
-            reservation_id_ptr: *const [u8; 32],
-            handle: MessageHandle,
-            destination_ptr: *const [u8; 32],
-            gas_limit: u64,
-            value_ptr: *const u128,
-            delay: u32,
-            message_id_ptr: *mut [u8; 32],
-        ) -> SyscallError;*/
-
-        pub fn gr_size() -> u32;
-
-        pub fn gr_source(source_ptr: *mut [u8; 32]);
-
-        #[allow(improper_ctypes)]
-        pub fn gr_value(value_ptr: *mut u128);
-    }
-}
+use gsys::{HashWithValue, LengthWithCode, LengthWithHandle, LengthWithHash, TwoHashesWithValue};
 
 /// Get the status code of the message being processed.
 ///
@@ -259,11 +48,12 @@ mod sys {
 /// }
 /// ```
 pub fn status_code() -> Result<i32> {
-    let mut bytes = 0i32.to_le_bytes();
+    let mut res: LengthWithCode = Default::default();
 
-    unsafe { sys::gr_status_code(bytes.as_mut_ptr() as *mut i32).into_result()? }
+    unsafe { gsys::gr_status_code(res.as_mut_ptr()) }
+    SyscallError(res.length).into_result()?;
 
-    Ok(i32::from_le_bytes(bytes))
+    Ok(res.code)
 }
 
 /// Obtain an identifier of the message currently being processed.
@@ -282,12 +72,11 @@ pub fn status_code() -> Result<i32> {
 /// ```
 pub fn id() -> MessageId {
     let mut message_id = MessageId::default();
-
-    unsafe { sys::gr_message_id(message_id.as_mut_ptr()) }
-
+    unsafe { gsys::gr_message_id(message_id.as_mut_ptr()) }
     message_id
 }
 
+// TODO: issue #1859
 /// Get a payload of the message currently being processed.
 ///
 /// Loads payload of the message into a buffer with a message size which can be
@@ -299,7 +88,7 @@ pub fn id() -> MessageId {
 /// use gcore::msg;
 ///
 /// unsafe extern "C" fn handle() {
-///     let mut result = vec![0u8; msg::size() as usize];
+///     let mut result = vec![0u8; 4 + msg::size() as usize];
 ///     msg::read(&mut result[..]);
 /// }
 /// ```
@@ -310,11 +99,13 @@ pub fn read(buffer: &mut [u8]) -> Result<()> {
         return Err(ExtError::SyscallUsage);
     }
 
+    let mut len = 0u32;
+
     if size != 0 {
-        unsafe { sys::gr_read(0, size, buffer.as_mut_ptr()).into_result()? }
+        unsafe { gsys::gr_read(0, size, buffer.as_mut_ptr(), &mut len as *mut u32) }
     }
 
-    Ok(())
+    SyscallError(len).into_result()
 }
 
 /// Send a new message as a reply to the message currently being processed.
@@ -353,25 +144,31 @@ pub fn reply(payload: &[u8], value: u128) -> Result<MessageId> {
 
 /// Same as [`reply`], but sends delayed.
 pub fn reply_delayed(payload: &[u8], value: u128, delay: u32) -> Result<MessageId> {
-    let mut message_id = MessageId::default();
+    let mut res: LengthWithHash = Default::default();
 
     let payload_len = payload
         .len()
         .try_into()
         .map_err(|_| ExtError::SyscallUsage)?;
 
+    let value_ptr = if value == 0 {
+        i32::MAX as *const u128
+    } else {
+        &value as *const u128
+    };
+
     unsafe {
-        sys::gr_reply(
+        gsys::gr_reply(
             payload.as_ptr(),
             payload_len,
-            value.to_le_bytes().as_ptr() as *const u128,
+            value_ptr,
             delay,
-            message_id.as_mut_ptr(),
+            res.as_mut_ptr(),
         )
-        .into_result()?
-    }
+    };
+    SyscallError(res.length).into_result()?;
 
-    Ok(message_id)
+    Ok(MessageId(res.hash))
 }
 
 /// Send a new message as a reply to the message currently being processed.
@@ -419,7 +216,9 @@ pub fn reply_delayed_from_reservation(
     value: u128,
     delay: u32,
 ) -> Result<MessageId> {
-    let mut message_id = MessageId::default();
+    let rid_value = HashWithValue { hash: id.0, value };
+
+    let mut res: LengthWithHash = Default::default();
 
     let payload_len = payload
         .len()
@@ -427,18 +226,17 @@ pub fn reply_delayed_from_reservation(
         .map_err(|_| ExtError::SyscallUsage)?;
 
     unsafe {
-        sys::gr_reservation_reply(
-            id.as_ptr(),
+        gsys::gr_reservation_reply(
+            rid_value.as_ptr(),
             payload.as_ptr(),
             payload_len,
-            value.to_le_bytes().as_ptr() as *const u128,
             delay,
-            message_id.as_mut_ptr(),
+            res.as_mut_ptr(),
         )
-        .into_result()?
-    }
+    };
+    SyscallError(res.length).into_result()?;
 
-    Ok(message_id)
+    Ok(MessageId(res.hash))
 }
 
 /// Same as [`reply`], but with explicit gas limit.
@@ -468,26 +266,32 @@ pub fn reply_with_gas_delayed(
     value: u128,
     delay: u32,
 ) -> Result<MessageId> {
-    let mut message_id = MessageId::default();
+    let mut res: LengthWithHash = Default::default();
 
     let payload_len = payload
         .len()
         .try_into()
         .map_err(|_| ExtError::SyscallUsage)?;
 
+    let value_ptr = if value == 0 {
+        i32::MAX as *const u128
+    } else {
+        &value as *const u128
+    };
+
     unsafe {
-        sys::gr_reply_wgas(
+        gsys::gr_reply_wgas(
             payload.as_ptr(),
             payload_len,
             gas_limit,
-            value.to_le_bytes().as_ptr() as *const u128,
+            value_ptr,
             delay,
-            message_id.as_mut_ptr(),
+            res.as_mut_ptr(),
         )
-        .into_result()?
-    }
+    };
+    SyscallError(res.length).into_result()?;
 
-    Ok(message_id)
+    Ok(MessageId(res.hash))
 }
 
 /// Finalize and send a current reply message.
@@ -526,18 +330,18 @@ pub fn reply_commit(value: u128) -> Result<MessageId> {
 
 /// Same as [`reply_commit`], but sends delayed.
 pub fn reply_commit_delayed(value: u128, delay: u32) -> Result<MessageId> {
-    let mut message_id = MessageId::default();
+    let mut res: LengthWithHash = Default::default();
 
-    unsafe {
-        sys::gr_reply_commit(
-            value.to_le_bytes().as_ptr() as *const u128,
-            delay,
-            message_id.as_mut_ptr(),
-        )
-        .into_result()?
-    }
+    let value_ptr = if value == 0 {
+        i32::MAX as *const u128
+    } else {
+        &value as *const u128
+    };
 
-    Ok(message_id)
+    unsafe { gsys::gr_reply_commit(value_ptr, delay, res.as_mut_ptr()) }
+    SyscallError(res.length).into_result()?;
+
+    Ok(MessageId(res.hash))
 }
 
 /// Same as [`reply_commit`], but with explicit gas limit.
@@ -566,19 +370,18 @@ pub fn reply_commit_with_gas(gas_limit: u64, value: u128) -> Result<MessageId> {
 
 /// Same as [`reply_commit_with_gas`], but sends delayed.
 pub fn reply_commit_with_gas_delayed(gas_limit: u64, value: u128, delay: u32) -> Result<MessageId> {
-    let mut message_id = MessageId::default();
+    let mut res: LengthWithHash = Default::default();
 
-    unsafe {
-        sys::gr_reply_commit_wgas(
-            gas_limit,
-            value.to_le_bytes().as_ptr() as *const u128,
-            delay,
-            message_id.as_mut_ptr(),
-        )
-        .into_result()?
-    }
+    let value_ptr = if value == 0 {
+        i32::MAX as *const u128
+    } else {
+        &value as *const u128
+    };
 
-    Ok(message_id)
+    unsafe { gsys::gr_reply_commit_wgas(gas_limit, value_ptr, delay, res.as_mut_ptr()) }
+    SyscallError(res.length).into_result()?;
+
+    Ok(MessageId(res.hash))
 }
 
 /// Some programs can reply on their messages to other programs from
@@ -621,19 +424,14 @@ pub fn reply_commit_delayed_from_reservation(
     value: u128,
     delay: u32,
 ) -> Result<MessageId> {
-    let mut message_id = MessageId::default();
+    let rid_value = HashWithValue { hash: id.0, value };
 
-    unsafe {
-        sys::gr_reservation_reply_commit(
-            id.as_ptr(),
-            value.to_le_bytes().as_ptr() as *const u128,
-            delay,
-            message_id.as_mut_ptr(),
-        )
-        .into_result()?
-    }
+    let mut res: LengthWithHash = Default::default();
 
-    Ok(message_id)
+    unsafe { gsys::gr_reservation_reply_commit(rid_value.as_ptr(), delay, res.as_mut_ptr()) };
+    SyscallError(res.length).into_result()?;
+
+    Ok(MessageId(res.hash))
 }
 
 /// Push a payload part to the current reply message.
@@ -664,7 +462,9 @@ pub fn reply_push(payload: &[u8]) -> Result<()> {
         .try_into()
         .map_err(|_| ExtError::SyscallUsage)?;
 
-    unsafe { sys::gr_reply_push(payload.as_ptr(), payload_len).into_result() }
+    let mut len = 0u32;
+    unsafe { gsys::gr_reply_push(payload.as_ptr(), payload_len, &mut len as *mut u32) };
+    SyscallError(len).into_result()
 }
 
 /// Get an identifier of the initial message which the current handle_reply
@@ -689,11 +489,12 @@ pub fn reply_push(payload: &[u8]) -> Result<()> {
 ///
 /// Panics if called in a context other than `handle_reply()`.
 pub fn reply_to() -> Result<MessageId> {
-    let mut message_id = MessageId::default();
+    let mut res: LengthWithHash = Default::default();
 
-    unsafe { sys::gr_reply_to(message_id.as_mut_ptr()).into_result()? }
+    unsafe { gsys::gr_reply_to(res.as_mut_ptr()) };
+    SyscallError(res.length).into_result()?;
 
-    Ok(message_id)
+    Ok(MessageId(res.hash))
 }
 
 /// Same as [`reply`], but relays the incoming message payload.
@@ -703,25 +504,35 @@ pub fn reply_input(value: u128, offset: u32, len: u32) -> Result<MessageId> {
 
 /// Same as [`reply_input`], but sends delayed.
 pub fn reply_input_delayed(value: u128, offset: u32, len: u32, delay: u32) -> Result<MessageId> {
-    let mut message_id = MessageId::default();
+    let mut res: LengthWithHash = Default::default();
+
+    let value_ptr = if value == 0 {
+        i32::MAX as *const u128
+    } else {
+        &value as *const u128
+    };
 
     unsafe {
-        sys::gr_reply_input(
-            value.to_le_bytes().as_ptr() as _,
+        gsys::gr_reply_input(
             offset,
             len,
+            value_ptr,
             delay,
-            message_id.as_mut_ptr(),
-        )
-        .into_result()?
+            res.as_mut_ptr(),
+        );
     }
 
-    Ok(message_id)
+    SyscallError(res.length).into_result()?;
+
+    Ok(MessageId(res.hash))
+
 }
 
 /// Same as [`reply_push`], but pushes the incoming message payload.
 pub fn reply_push_input(offset: u32, len: u32) -> Result<()> {
-    unsafe { sys::gr_reply_push_input(offset, len).into_result() }
+    let mut result_len = 0u32;
+    unsafe { gsys::gr_reply_push_input(offset, len, &mut result_len as _) };
+    SyscallError(result_len).into_result()
 }
 
 /// Same as [`reply_input`], but with explicit gas limit.
@@ -742,21 +553,27 @@ pub fn reply_input_with_gas_delayed(
     len: u32,
     delay: u32,
 ) -> Result<MessageId> {
-    let mut message_id = MessageId::default();
+    let mut res: LengthWithHash = Default::default();
+
+    let value_ptr = if value == 0 {
+        i32::MAX as *const u128
+    } else {
+        &value as *const u128
+    };
 
     unsafe {
-        sys::gr_reply_input_wgas(
-            gas_limit,
-            value.to_le_bytes().as_ptr() as _,
+        gsys::gr_reply_input_wgas(
             offset,
             len,
+            gas_limit,
+            value_ptr,
             delay,
-            message_id.as_mut_ptr(),
-        )
-        .into_result()?
+            res.as_mut_ptr(),
+        );
     }
+    SyscallError(res.length).into_result()?;
 
-    Ok(message_id)
+    Ok(MessageId(res.hash))
 }
 
 /// Same as [`send`], but resends the incoming message.
@@ -772,21 +589,25 @@ pub fn send_input_delayed(
     len: u32,
     delay: u32,
 ) -> Result<MessageId> {
-    let mut message_id = MessageId::default();
+    let pid_value = HashWithValue {
+        hash: destination.0,
+        value,
+    };
+
+    let mut res: LengthWithHash = Default::default();
 
     unsafe {
-        sys::gr_send_input(
-            destination.as_ptr(),
-            value.to_le_bytes().as_ptr() as _,
+        gsys::gr_send_input(
+            pid_value.as_ptr(),
             offset,
             len,
             delay,
-            message_id.as_mut_ptr(),
+            res.as_mut_ptr(),
         )
-        .into_result()?
-    }
+    };
+    SyscallError(res.length).into_result()?;
 
-    Ok(message_id)
+    Ok(MessageId(res.hash))
 }
 
 /// Send a new message to the program or user from reservation.
@@ -842,7 +663,13 @@ pub fn send_delayed_from_reservation(
     value: u128,
     delay: u32,
 ) -> Result<MessageId> {
-    let mut message_id = MessageId::default();
+    let rid_pid_value = TwoHashesWithValue {
+        hash1: reservation_id.0,
+        hash2: destination.0,
+        value,
+    };
+
+    let mut res: LengthWithHash = Default::default();
 
     let payload_len = payload
         .len()
@@ -850,24 +677,31 @@ pub fn send_delayed_from_reservation(
         .map_err(|_| ExtError::SyscallUsage)?;
 
     unsafe {
-        sys::gr_reservation_send(
-            reservation_id.as_ptr(),
-            destination.as_ptr(),
+        gsys::gr_reservation_send(
+            rid_pid_value.as_ptr(),
             payload.as_ptr(),
             payload_len,
-            value.to_le_bytes().as_ptr() as *const u128,
             delay,
-            message_id.as_mut_ptr(),
+            res.as_mut_ptr(),
         )
-        .into_result()?
-    }
+    };
+    SyscallError(res.length).into_result()?;
 
-    Ok(message_id)
+    Ok(MessageId(res.hash))
 }
 
 /// Same as [`send_push`], but pushes the incoming message payload.
 pub fn send_push_input(handle: MessageHandle, offset: u32, len: u32) -> Result<()> {
-    unsafe { sys::gr_send_push_input(handle, offset, len).into_result() }
+    let mut result_len = 0u32;
+    unsafe {
+        gsys::gr_send_push_input(
+            handle.0,
+            offset,
+            len,
+            &mut result_len as _,
+        )
+    };
+    SyscallError(result_len).into_result()
 }
 
 /// Same as [`send_input`], but with explicit gas limit.
@@ -890,22 +724,26 @@ pub fn send_input_with_gas_delayed(
     len: u32,
     delay: u32,
 ) -> Result<MessageId> {
-    let mut message_id = MessageId::default();
+    let pid_value = HashWithValue {
+        hash: destination.0,
+        value,
+    };
+
+    let mut res: LengthWithHash = Default::default();
 
     unsafe {
-        sys::gr_send_input_wgas(
-            destination.as_ptr(),
-            gas_limit,
-            value.to_le_bytes().as_ptr() as _,
+        gsys::gr_send_input_wgas(
+            pid_value.as_ptr(),
             offset,
             len,
+            gas_limit,
             delay,
-            message_id.as_mut_ptr(),
-        )
-        .into_result()?
+            res.as_mut_ptr(),
+        );
     }
+    SyscallError(res.length).into_result()?;
 
-    Ok(message_id)
+    Ok(MessageId(res.hash))
 }
 
 /// Finalize and send message formed in parts from reservation.
@@ -962,21 +800,20 @@ pub fn send_commit_delayed_from_reservation(
     value: u128,
     delay: u32,
 ) -> Result<MessageId> {
-    let mut message_id = MessageId::default();
+    let rid_pid_value = TwoHashesWithValue {
+        hash1: reservation_id.0,
+        hash2: destination.0,
+        value,
+    };
+
+    let mut res: LengthWithHash = Default::default();
 
     unsafe {
-        sys::gr_reservation_send_commit(
-            reservation_id.as_ptr(),
-            handle,
-            destination.as_ptr(),
-            value.to_le_bytes().as_ptr() as *const u128,
-            delay,
-            message_id.as_mut_ptr(),
-        )
-        .into_result()?
-    }
+        gsys::gr_reservation_send_commit(handle.0, rid_pid_value.as_ptr(), delay, res.as_mut_ptr())
+    };
+    SyscallError(res.length).into_result()?;
 
-    Ok(message_id)
+    Ok(MessageId(res.hash))
 }
 
 /// Send a new message to the program or user.
@@ -1022,7 +859,12 @@ pub fn send_delayed(
     value: u128,
     delay: u32,
 ) -> Result<MessageId> {
-    let mut message_id = MessageId::default();
+    let pid_value = HashWithValue {
+        hash: destination.0,
+        value,
+    };
+
+    let mut res: LengthWithHash = Default::default();
 
     let payload_len = payload
         .len()
@@ -1030,18 +872,17 @@ pub fn send_delayed(
         .map_err(|_| ExtError::SyscallUsage)?;
 
     unsafe {
-        sys::gr_send(
-            destination.as_ptr(),
+        gsys::gr_send(
+            pid_value.as_ptr(),
             payload.as_ptr(),
             payload_len,
-            value.to_le_bytes().as_ptr() as *const u128,
             delay,
-            message_id.as_mut_ptr(),
+            res.as_mut_ptr(),
         )
-        .into_result()?
-    }
+    };
+    SyscallError(res.length).into_result()?;
 
-    Ok(message_id)
+    Ok(MessageId(res.hash))
 }
 
 /// Same as [`send`], but with explicit gas limit.
@@ -1083,7 +924,12 @@ pub fn send_with_gas_delayed(
     value: u128,
     delay: u32,
 ) -> Result<MessageId> {
-    let mut message_id = MessageId::default();
+    let pid_value = HashWithValue {
+        hash: destination.0,
+        value,
+    };
+
+    let mut res: LengthWithHash = Default::default();
 
     let payload_len = payload
         .len()
@@ -1091,19 +937,18 @@ pub fn send_with_gas_delayed(
         .map_err(|_| ExtError::SyscallUsage)?;
 
     unsafe {
-        sys::gr_send_wgas(
-            destination.as_ptr(),
+        gsys::gr_send_wgas(
+            pid_value.as_ptr(),
             payload.as_ptr(),
             payload_len,
             gas_limit,
-            value.to_le_bytes().as_ptr() as *const u128,
             delay,
-            message_id.as_mut_ptr(),
+            res.as_mut_ptr(),
         )
-        .into_result()?
     }
+    SyscallError(res.length).into_result()?;
 
-    Ok(message_id)
+    Ok(MessageId(res.hash))
 }
 
 /// Finalize and send message formed in parts.
@@ -1151,20 +996,17 @@ pub fn send_commit_delayed(
     value: u128,
     delay: u32,
 ) -> Result<MessageId> {
-    let mut message_id = MessageId::default();
+    let pid_value = HashWithValue {
+        hash: destination.0,
+        value,
+    };
 
-    unsafe {
-        sys::gr_send_commit(
-            handle,
-            destination.as_ptr(),
-            value.to_le_bytes().as_ptr() as *const u128,
-            delay,
-            message_id.as_mut_ptr(),
-        )
-        .into_result()?
-    }
+    let mut res: LengthWithHash = Default::default();
 
-    Ok(message_id)
+    unsafe { gsys::gr_send_commit(handle.0, pid_value.as_ptr(), delay, res.as_mut_ptr()) };
+    SyscallError(res.length).into_result()?;
+
+    Ok(MessageId(res.hash))
 }
 
 /// Same as [`send_commit`], but with explicit gas limit.
@@ -1205,21 +1047,25 @@ pub fn send_commit_with_gas_delayed(
     value: u128,
     delay: u32,
 ) -> Result<MessageId> {
-    let mut message_id = MessageId::default();
+    let pid_value = HashWithValue {
+        hash: destination.0,
+        value,
+    };
+
+    let mut res: LengthWithHash = Default::default();
 
     unsafe {
-        sys::gr_send_commit_wgas(
-            handle,
-            destination.as_ptr(),
+        gsys::gr_send_commit_wgas(
+            handle.0,
+            pid_value.as_ptr(),
             gas_limit,
-            value.to_le_bytes().as_ptr() as *const u128,
             delay,
-            message_id.as_mut_ptr(),
+            res.as_mut_ptr(),
         )
-        .into_result()?
     }
+    SyscallError(res.length).into_result()?;
 
-    Ok(message_id)
+    Ok(MessageId(res.hash))
 }
 
 /// Initialize a message to send formed in parts.
@@ -1248,9 +1094,10 @@ pub fn send_commit_with_gas_delayed(
 /// parts.
 pub fn send_init() -> Result<MessageHandle> {
     unsafe {
-        let mut handle = MaybeUninit::uninit();
-        sys::gr_send_init(handle.as_mut_ptr()).into_result()?;
-        Ok(MessageHandle(handle.assume_init()))
+        let mut res: LengthWithHandle = Default::default();
+        gsys::gr_send_init(res.as_mut_ptr());
+        SyscallError(res.length).into_result()?;
+        Ok(MessageHandle(res.handle))
     }
 }
 
@@ -1285,7 +1132,16 @@ pub fn send_push(handle: MessageHandle, payload: &[u8]) -> Result<()> {
         .try_into()
         .map_err(|_| ExtError::SyscallUsage)?;
 
-    unsafe { sys::gr_send_push(handle, payload.as_ptr(), payload_len).into_result() }
+    let mut len = 0u32;
+    unsafe {
+        gsys::gr_send_push(
+            handle.0,
+            payload.as_ptr(),
+            payload_len,
+            &mut len as *mut u32,
+        )
+    };
+    SyscallError(len).into_result()
 }
 
 /// Get the payload size of the message being processed.
@@ -1304,7 +1160,9 @@ pub fn send_push(handle: MessageHandle, payload: &[u8]) -> Result<()> {
 /// }
 /// ```
 pub fn size() -> u32 {
-    unsafe { sys::gr_size() }
+    let mut size = 0u32;
+    unsafe { gsys::gr_size(&mut size as *mut u32) };
+    size
 }
 
 /// Get the identifier of the message source (256-bit address).
@@ -1324,9 +1182,7 @@ pub fn size() -> u32 {
 /// ```
 pub fn source() -> ActorId {
     let mut source = ActorId::default();
-
-    unsafe { sys::gr_source(source.as_mut_ptr()) }
-
+    unsafe { gsys::gr_source(source.as_mut_ptr()) }
     source
 }
 
@@ -1346,11 +1202,7 @@ pub fn source() -> ActorId {
 /// }
 /// ```
 pub fn value() -> u128 {
-    let mut bytes = 0u128.to_le_bytes();
-
-    unsafe {
-        sys::gr_value(bytes.as_mut_ptr() as *mut u128);
-    }
-
-    u128::from_le_bytes(bytes)
+    let mut value = 0u128;
+    unsafe { gsys::gr_value(&mut value as *mut u128) };
+    value
 }
