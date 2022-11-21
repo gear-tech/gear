@@ -21,13 +21,18 @@ pub mod currency {
     use runtime_primitives::Balance;
 
     /// The existential deposit.
-    pub const EXISTENTIAL_DEPOSIT: Balance = MILLICENTS;
+    pub const EXISTENTIAL_DEPOSIT: Balance = MILLICENTS / 200; // 1_000_000
 
     // TODO: review quantities based on economic model (issue #1277)
-    pub const UNITS: Balance = 10_000_000_000;
-    pub const DOLLARS: Balance = UNITS; // 10_000_000_000
-    pub const CENTS: Balance = DOLLARS / 100; // 100_000_000
-    pub const MILLICENTS: Balance = CENTS / 1_000; // 100_000
+    pub const UNITS: Balance = 1_000_000_000_000; // 10^(-12) precision
+    pub const DOLLARS: Balance = UNITS * 20; // 1 token is worth ~$0.05
+    pub const CENTS: Balance = DOLLARS / 100; // 200_000_000_000
+    pub const MILLICENTS: Balance = CENTS / 1_000; // 200_000_000
+
+    /// Function that defines runtime constants used in voting
+    pub const fn deposit(items: u32, bytes: u32) -> Balance {
+        items as Balance * 15 * CENTS + (bytes as Balance) * 6 * CENTS
+    }
 }
 
 /// Time and block constants
