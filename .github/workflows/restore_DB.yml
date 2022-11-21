@@ -1,0 +1,119 @@
+name: Restore DB
+
+on:
+  workflow_dispatch:
+    inputs:
+      network_type:
+        description: 'Network type'
+        required: true
+        default: 'testnet'
+        type: choice
+        options:
+        - testnet
+        - stable-testnet
+        - vara
+      restore_type:
+        description: 'Restore type'
+        required: true
+        default: 'full'
+        type: choice
+        options:
+        - full
+        - increment
+      increment_name:
+        description: 'Increment backup name'
+        required: false
+        type: string
+      host:
+        description: 'IP or Hostname'
+        required: true
+        type: string
+      restore_pass:
+        description: 'Password for restore backup'
+        required: true
+        type: string
+
+env:
+  DB_PATH_TESTNET: /home/ec2-user/gear-data/chains/gear_staging_testnet_v4
+  DB_PATH_STABLE_TESTNET: /home/ec2-user/gear-data/chains/gear_stable_testnet
+  DB_PATH_VARA: /home/ec2-user/gear-data/chains/vara_network
+  RESTORE_DB_PASS: ${{ secrets.RESTORE_DB_PASS }}
+
+jobs:
+  restore-backup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Restore backup on testnet host ${{ inputs.host }}
+        uses: dawidd6/action-ansible-playbook@v2
+        if: ${{ inputs.network_type == 'testnet' && inputs.restore_pass == env.RESTORE_DB_PASS }}
+        with:
+          directory: ./ansible/
+          playbook: restore_DB.yml
+          key: ${{secrets.SSH_PRIVATE_KEY}}
+          inventory: |
+            [node:vars]
+            chat_id='${{ secrets.TELEGRAM_CHANNEL_ID_STG }}'
+            bot_id='${{ secrets.TELEGRAM_BOT_TOKEN }}'
+            build_number=${{ github.run_number }}
+            db_path=${{ env.DB_PATH_TESTNET }}
+            mount_id=${{ secrets.MOUNT_ID_TESTNET }}
+            prom_login=${{ secrets.PROM_USER }}
+            prom_pass=${{ secrets.PROM_PASS }}
+            prom_query_url='${{ secrets.MONITORING_API_URL }}/prometheus/api/v1/query'
+            loki_query_url='${{ secrets.MONITORING_API_URL }}/loki/loki/api/v1/query'
+            restore_type=${{ inputs.restore_type }}
+            increment_backup_name=${{ inputs.increment_name }}
+            source_backup_path=${{ secrets.SOURCE_BACKUP_FQDN_TESTNET }}
+            [node]
+            ${{ inputs.host }}
+
+      - name: Restore backup on stable-testnet host ${{ inputs.host }}
+        uses: dawidd6/action-ansible-playbook@v2
+        if: ${{ inputs.network_type == 'stable-testnet' && inputs.restore_pass == env.RESTORE_DB_PASS }}
+        with:
+          directory: ./ansible/
+          playbook: restore_DB.yml
+          key: ${{secrets.SSH_PRIVATE_KEY}}
+          inventory: |
+            [node:vars]
+            chat_id='${{ secrets.TELEGRAM_CHANNEL_ID }}'
+            bot_id='${{ secrets.TELEGRAM_BOT_TOKEN }}'
+            build_number=${{ github.run_number }}
+            db_path=${{ env.DB_PATH_STABLE_TESTNET }}
+            mount_id=${{ secrets.MOUNT_ID_STABLE }}
+            prom_login=${{ secrets.PROM_USER }}
+            prom_pass=${{ secrets.PROM_PASS }}
+            prom_query_url='${{ secrets.MONITORING_API_URL }}/prometheus/api/v1/query'
+            loki_query_url='${{ secrets.MONITORING_API_URL }}/loki/loki/api/v1/query'
+            restore_type=${{ inputs.restore_type }}
+            increment_backup_name=${{ inputs.increment_name }}
+            source_backup_path=${{ secrets.SOURCE_BACKUP_FQDN_STABLE-TESTNET }}
+            [node]
+            ${{ inputs.host }}
+
+      - name: Restore backup on vara host ${{ inputs.host }}
+        uses: dawidd6/action-ansible-playbook@v2
+        if: ${{ inputs.network_type == 'vara' && inputs.restore_pass == env.RESTORE_DB_PASS }}
+        with:
+          directory: ./ansible/
+          playbook: restore_DB.yml
+          key: ${{secrets.SSH_PRIVATE_KEY}}
+          inventory: |
+            [node:vars]
+            chat_id='${{ secrets.TELEGRAM_CHANNEL_ID }}'
+            bot_id='${{ secrets.TELEGRAM_BOT_TOKEN }}'
+            build_number=${{ github.run_number }}
+            db_path=${{ env.DB_PATH_VARA }}
+            mount_id=${{ secrets.MOUNT_ID_VARA }}
+            prom_login=${{ secrets.PROM_USER }}
+            prom_pass=${{ secrets.PROM_PASS }}
+            prom_query_url='${{ secrets.MONITORING_API_URL }}/prometheus/api/v1/query'
+            loki_query_url='${{ secrets.MONITORING_API_URL }}/loki/loki/api/v1/query'
+            restore_type=${{ inputs.restore_type }}
+            increment_backup_name=${{ inputs.increment_name }}
+            source_backup_path=${{ secrets.SOURCE_BACKUP_FQDN_VARA }}
+            [node]
+            ${{ inputs.host }}
