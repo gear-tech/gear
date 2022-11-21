@@ -568,6 +568,8 @@ proptest! {
 
             // Check property: for all the nodes with system reservation currently existing in the tree...
             if node.system_reserve().map(|x| x != 0).unwrap_or(false) {
+                // ...is not consumed
+                assert!(!node.is_consumed());
                 // ...can be with system reservation only after `system_reserve`
                 assert!(system_reserve_nodes.contains(&node_id.to_node_id().unwrap()));
                 // ...there can't be any existing system reserved cut and reserved nodes, because
@@ -577,6 +579,8 @@ proptest! {
 
             // Check property: for all the nodes with lock currently existing in the tree...
             if node.lock().map(|x| x != 0).unwrap_or(false) {
+                // ...is not consumed
+                assert!(!node.is_consumed());
                 // ...can be with lock only after `lock`
                 assert!(locked_nodes.contains(&node_id));
                 // ...there can't be any existing cut nodes
@@ -585,6 +589,10 @@ proptest! {
 
             // Check property: for all the consumed nodes currently existing in the tree...
             if node.is_consumed() {
+                // ...have no locked value
+                assert!(matches!(node.lock(), Some(0) | None));
+                // ..have no system reserved value
+                assert!(matches!(node.system_reserve(), Some(0) | None));
                 // ...existing consumed node can't have zero refs. Otherwise it must have been deleted from the storage
                 assert!(node.refs() != 0);
                 // ...can become consumed only after consume call (so can be deleted by intentional call, not automatically)
