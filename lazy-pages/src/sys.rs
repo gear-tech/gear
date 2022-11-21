@@ -301,7 +301,6 @@ unsafe fn user_signal_handler_internal(
     match status {
         Status::Normal => {}
         Status::GasLimitExceeded | Status::GasAllowanceExceeded => return Ok(()),
-        Status::MemoryAccessOutOfBounds => return Err(Error::SignalAfterOOM),
     }
 
     if let Some(globals_ctx) = &ctx.globals_ctx {
@@ -339,9 +338,6 @@ unsafe fn user_signal_handler_internal(
             Status::GasLimitExceeded | Status::GasAllowanceExceeded => {
                 log::trace!("Gas limit or allowance exceed, so set exceed status and work in this mod until the end of execution");
                 return Ok(());
-            }
-            Status::MemoryAccessOutOfBounds => {
-                unreachable!("charge_gas function cannot return this status")
             }
         }
     }

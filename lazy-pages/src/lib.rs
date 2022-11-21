@@ -99,7 +99,6 @@ pub enum Error {
     CannotChargeGasAllowance,
     DynGlobalsAccessorPointerIsInvalid,
     StatusIsNone,
-    SignalAfterOOM,
 }
 
 pub(crate) type WasmAddr = u32;

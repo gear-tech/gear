@@ -29,7 +29,7 @@ use alloc::{
     string::ToString,
 };
 use gear_backend_common::{
-    BackendReport, Environment, GetGasAmount, IntoExtInfo, TerminationReason,
+    BackendReport, Environment, GetGasAmount, IntoExtInfo, TerminationReason, TrapExplanation,
 };
 use gear_core::{
     env::Ext as EnvExt,
@@ -39,6 +39,7 @@ use gear_core::{
     memory::{AllocationsContext, Memory, PageBuf, PageNumber, WasmPageNumber},
     message::{ContextSettings, IncomingDispatch, MessageContext},
 };
+use gear_core_errors::ExtError;
 
 pub(crate) enum ChargeForBytesResult {
     Ok,
@@ -401,7 +402,7 @@ pub fn execute_wasm<
     let ext = A::new(context);
 
     // Execute program in backend env.
-    let f = || {
+    let execute = || {
         let env = E::new(
             ext,
             program.raw_code(),
@@ -422,15 +423,37 @@ pub fn execute_wasm<
             },
         )
     };
-    let (termination, memory, ext) = match f() {
+    let (termination, memory, ext) = match execute() {
         Ok(BackendReport {
-            termination_reason: termination,
+            termination_reason: mut termination,
             memory_wrap: mut memory,
             ext,
         }) => {
             // released pages initial data will be added to `pages_initial_data` after execution.
             if A::LAZY_PAGES_ENABLED {
                 A::lazy_pages_post_execution_actions(&mut memory);
+
+                let status = if let Some(status) = A::lazy_pages_status() {
+                    status
+                } else {
+                    return Err(ExecutionError {
+                        program_id,
+                        gas_amount: ext.into_gas_amount(),
+                        reason: ExecutionErrorReason::LazyPagesStatusIsNone,
+                    });
+                };
+
+                match status {
+                    gear_core::lazy_pages::Status::Normal => {}
+                    gear_core::lazy_pages::Status::GasLimitExceeded => {
+                        termination = TerminationReason::Trap(TrapExplanation::Core(
+                            ExtError::Execution(gear_core_errors::ExecutionError::GasLimitExceeded),
+                        ))
+                    }
+                    gear_core::lazy_pages::Status::GasAllowanceExceeded => {
+                        termination = TerminationReason::GasAllowanceExceeded
+                    }
+                }
             }
 
             (termination, memory, ext)
@@ -509,7 +532,7 @@ pub fn execute_wasm<
 mod tests {
     use super::*;
     use alloc::{vec, vec::Vec};
-    use gear_core::memory::WasmPageNumber;
+    use gear_core::{lazy_pages::Status, memory::WasmPageNumber};
 
     struct TestExt;
     struct LazyTestExt;
@@ -529,6 +552,9 @@ mod tests {
         }
 
         fn lazy_pages_post_execution_actions(_mem: &mut impl Memory) {}
+        fn lazy_pages_status() -> Option<Status> {
+            None
+        }
     }
 
     impl ProcessorExt for LazyTestExt {
@@ -547,6 +573,9 @@ mod tests {
         }
 
         fn lazy_pages_post_execution_actions(_mem: &mut impl Memory) {}
+        fn lazy_pages_status() -> Option<Status> {
+            None
+        }
     }
 
     fn prepare_pages_and_allocs() -> (Vec<PageNumber>, BTreeSet<WasmPageNumber>) {

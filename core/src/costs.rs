@@ -172,6 +172,9 @@ pub struct HostFnWeights {
     /// Weight per one gear page write.
     pub lazy_pages_write: u64,
 
+    /// Weight per one write, which is after page read.
+    pub lazy_pages_write_after_read: u64,
+
     /// Weight per one gear page update in storage.
     pub lazy_pages_update: u64,
 }
@@ -278,9 +281,13 @@ pub enum RuntimeCosts {
     SendPushInput(u32),
     /// Weight of calling `gr_rereply_push`.
     ReplyPushInput(u32),
-
+    /// Weight of read access per one gear page.
     LazyPagesRead,
+    /// Weight of write access per one gear page.
     LazyPagesWrite,
+    /// Weight of write after read access per one gear page.
+    LazyPagesWriteAfterRead,
+    /// Weight of page update in storage after modification.
     LazyPagesUpdate,
 }
 
@@ -354,6 +361,7 @@ impl RuntimeCosts {
                 .saturating_add(s.gr_reply_push_input_per_byte.saturating_mul(len.into())),
             LazyPagesRead => s.lazy_pages_read,
             LazyPagesWrite => s.lazy_pages_write,
+            LazyPagesWriteAfterRead => s.lazy_pages_write_after_read,
             LazyPagesUpdate => s.lazy_pages_update,
         };
         RuntimeToken { weight }

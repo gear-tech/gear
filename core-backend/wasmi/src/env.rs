@@ -267,10 +267,11 @@ where
             global_gas_name: GLOBAL_NAME_GAS.to_string(),
             global_allowance_name: GLOBAL_NAME_ALLOWANCE.to_string(),
             global_state_name: "gear_status".to_string(),
-            lazy_pages_costs: gear_core::lazy_pages::LazyPagesCosts {
-                read_page: 1,
-                write_page: 1,
-                update_page: 1,
+            lazy_pages_weights: gear_core::lazy_pages::LazyPagesWeights {
+                read: 1,
+                write: 1,
+                write_after_read: 1,
+                update: 1,
             },
             globals_access_ptr,
             globals_access_mod: gear_core::lazy_pages::GlobalsAccessMod::NativeRuntime,

@@ -25,7 +25,7 @@ use gear_core::{
     gas::GasAmount,
     ids::{MessageId, ProgramId, ReservationId},
     memory::{GrowHandler, Memory, PageNumber, WasmPageNumber},
-    message::{HandlePacket, InitPacket, ReplyPacket, StatusCode}, lazy_pages::GlobalsCtx,
+    message::{HandlePacket, InitPacket, ReplyPacket, StatusCode}, lazy_pages::{GlobalsCtx, Status},
 };
 use gear_core_errors::{ExtError, MemoryError};
 use gear_lazy_pages_common as lazy_pages;
@@ -93,6 +93,10 @@ impl ProcessorExt for LazyPagesExt {
 
     fn lazy_pages_post_execution_actions(mem: &mut impl Memory) {
         lazy_pages::remove_lazy_pages_prot(mem);
+    }
+
+    fn lazy_pages_status() -> Option<Status> {
+        lazy_pages::get_status()
     }
 }
 

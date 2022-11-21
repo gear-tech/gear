@@ -39,13 +39,12 @@ use gear_core::{
     costs::RuntimeCosts,
     env::Ext,
     gas::GasAmount,
-    lazy_pages::{GlobalsAccessMod, GlobalsCtx, LazyPagesCosts},
+    lazy_pages::{GlobalsAccessMod, GlobalsCtx, LazyPagesWeights},
     memory::WasmPageNumber,
     message::DispatchKind,
 };
 use gear_wasm_instrument::{
-    GLOBAL_NAME_ALLOWANCE, GLOBAL_NAME_GAS,
-    IMPORT_NAME_OUT_OF_ALLOWANCE, IMPORT_NAME_OUT_OF_GAS,
+    GLOBAL_NAME_ALLOWANCE, GLOBAL_NAME_GAS, IMPORT_NAME_OUT_OF_ALLOWANCE, IMPORT_NAME_OUT_OF_GAS,
 };
 use sp_sandbox::{
     default_executor::{EnvironmentDefinitionBuilder, Instance, Memory as DefaultExecutorMemory},
@@ -287,23 +286,24 @@ where
             .map_err(|_| (runtime.ext.gas_amount(), WrongInjectedAllowance))?;
 
         let globals_ctx = if cfg!(not(feature = "std")) {
-            GlobalsCtx {
+            Some(GlobalsCtx {
                 global_gas_name: GLOBAL_NAME_GAS.to_string(),
                 global_allowance_name: GLOBAL_NAME_ALLOWANCE.to_string(),
                 global_state_name: "gear_status".to_string(),
-                lazy_pages_costs: LazyPagesCosts {
-                    read_page: runtime.ext.get_runtime_cost(RuntimeCosts::LazyPagesRead),
-                    write_page: runtime.ext.get_runtime_cost(RuntimeCosts::LazyPagesWrite),
-                    update_page: runtime.ext.get_runtime_cost(RuntimeCosts::LazyPagesUpdate),
+                lazy_pages_weights: LazyPagesWeights {
+                    read: runtime.ext.get_runtime_cost(RuntimeCosts::LazyPagesRead),
+                    write: runtime.ext.get_runtime_cost(RuntimeCosts::LazyPagesWrite),
+                    write_after_read: 100,
+                    update: runtime.ext.get_runtime_cost(RuntimeCosts::LazyPagesUpdate),
                 },
                 globals_access_ptr: instance.get_instance_ptr(),
                 globals_access_mod: GlobalsAccessMod::WasmRuntime,
-            }
+            })
         } else {
-            unimplemented!("Currently we don't use sandbox in native runtime")
+            None
         };
 
-        match pre_execution_handler(&mut runtime.memory, stack_end_page, Some(globals_ctx)) {
+        match pre_execution_handler(&mut runtime.memory, stack_end_page, globals_ctx) {
             Ok(_) => (),
             Err(e) => {
                 return Err((runtime.ext.gas_amount(), PreExecutionHandler(e.to_string())).into());

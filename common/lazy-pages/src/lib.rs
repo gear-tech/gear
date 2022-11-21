@@ -24,7 +24,7 @@ use core::fmt;
 use gear_common::{pages_prefix, Origin};
 use gear_core::{
     ids::ProgramId,
-    memory::{HostPointer, Memory, PageNumber, WasmPageNumber}, lazy_pages::GlobalsCtx,
+    memory::{HostPointer, Memory, PageNumber, WasmPageNumber}, lazy_pages::{GlobalsCtx, Status},
 };
 use gear_runtime_interface::gear_ri;
 use sp_std::vec::Vec;
@@ -116,4 +116,9 @@ pub fn get_released_pages() -> Vec<PageNumber> {
         .into_iter()
         .map(PageNumber)
         .collect()
+}
+
+/// Returns lazy pages actual status.
+pub fn get_status() -> Option<Status> {
+    gear_ri::get_lazy_pages_status()
 }

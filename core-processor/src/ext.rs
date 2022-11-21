@@ -40,7 +40,7 @@ use gear_core::{
     message::{
         GasLimit, HandlePacket, InitPacket, MessageContext, Packet, ReplyPacket, StatusCode,
     },
-    reservation::GasReserver, lazy_pages::GlobalsCtx,
+    reservation::GasReserver, lazy_pages::{GlobalsCtx, Status},
 };
 use gear_core_errors::{CoreError, ExecutionError, ExtError, MemoryError, MessageError, WaitError};
 
@@ -108,6 +108,9 @@ pub trait ProcessorExt {
 
     /// Lazy pages contract post execution actions
     fn lazy_pages_post_execution_actions(mem: &mut impl Memory);
+
+    /// Returns lazy pages status
+    fn lazy_pages_status() -> Option<Status>;
 }
 
 /// [`Ext`](Ext)'s error
@@ -220,6 +223,10 @@ impl ProcessorExt for Ext {
     }
 
     fn lazy_pages_post_execution_actions(_mem: &mut impl Memory) {
+        unreachable!()
+    }
+
+    fn lazy_pages_status() -> Option<Status> {
         unreachable!()
     }
 }
