@@ -60,9 +60,11 @@ impl SubstrateCli for Cli {
             #[cfg(feature = "gear-native")]
             "staging" | "gear-staging" => Box::new(chain_spec::gear::staging_testnet_config()?),
             #[cfg(feature = "vara-native")]
-            "vara-staging" => Box::new(chain_spec::vara::staging_testnet_config()?),
-            "test" | "" => Box::new(chain_spec::RawChainSpec::from_json_bytes(
-                &include_bytes!("../../res/staging.json")[..],
+            "vara" => Box::new(chain_spec::vara::main()?),
+            #[cfg(feature = "gear-native")]
+            "test" => Box::new(chain_spec::gear::staging_testnet_config()?),
+            "" => Box::new(chain_spec::RawChainSpec::from_json_bytes(
+                &include_bytes!("../../res/vara.json")[..],
             )?),
             path => {
                 let path = std::path::PathBuf::from(path);

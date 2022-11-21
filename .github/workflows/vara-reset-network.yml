@@ -32,3 +32,7 @@ jobs:
             ${{secrets.VARA_NODE_5}} name=vara-gear05 validator=yes loki=yes loki_url=${{secrets.LOKI_URL}}
             ${{secrets.VARA_NODE_6}} name=vara-gear06 validator=yes loki=yes loki_url=${{secrets.LOKI_URL}}
             ${{secrets.VARA_NODE_7}} name=vara-gear07 validator=yes loki=yes loki_url=${{secrets.LOKI_URL}}
+            ${{secrets.VARA_NODE_8}} name=vara-gear08 validator=yes loki=yes loki_url=${{secrets.LOKI_URL}}
+            ${{secrets.VARA_NODE_9}} name=vara-gear09 validator=yes loki=yes loki_url=${{secrets.LOKI_URL}}
+            ${{secrets.VARA_ARCHIVE}} name=vara-archive validator=yes loki=yes loki_url=${{secrets.LOKI_URL}}
+            ${{secrets.VARA_ARCHIVE_RPC}} name=vara-archive-rpc validator=yes loki=yes loki_url=${{secrets.LOKI_URL}}

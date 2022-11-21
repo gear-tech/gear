@@ -54,6 +54,7 @@ sp-sandbox = { version = "0.10.0-dev", git = "https://github.com/gear-tech/subst
 serde = { version = "1", optional = true, features = ["derive"] }
 rand = { version = "0.8", optional = true, default-features = false }
 rand_pcg = { version = "0.3", optional = true }
+sp-consensus-slots = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.36", default-features = false, optional = true }
 test-syscalls = { path = "../../examples/binaries/sys-calls", optional = true, default-features = false }
 demo-proxy = { path = "../../examples/binaries/proxy", optional = true, default-features = false }
 
@@ -139,6 +140,7 @@ runtime-benchmarks = [
 	"gear-backend-common/mock",
 	"gear-core-errors/codec",
 	"sp-sandbox",
+	"sp-consensus-slots",
 	"sp-consensus-babe",
 	"rand",
 	"rand_pcg",

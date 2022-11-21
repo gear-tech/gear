@@ -17,14 +17,18 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::chain_spec::{get_account_id_from_seed, get_from_seed, AccountId, Extensions};
+use gear_runtime_common;
 use hex_literal::hex;
+use sc_chain_spec::Properties;
 use sc_service::ChainType;
 use sp_consensus_babe::AuthorityId as BabeId;
 use sp_core::{crypto::UncheckedInto, sr25519};
 use sp_finality_grandpa::AuthorityId as GrandpaId;
+use sp_runtime::Perbill;
 use vara_runtime::{
     BabeConfig, BalancesConfig, GearConfig, GenesisConfig, GrandpaConfig, SessionConfig,
-    SessionKeys, SudoConfig, SystemConfig, WASM_BINARY,
+    SessionKeys, StakerStatus, StakingConfig, SudoConfig, SystemConfig, UNITS as TOKEN,
+    WASM_BINARY,
 };
 
 // The URL for the telemetry server.
@@ -33,9 +37,28 @@ use vara_runtime::{
 /// Specialized `ChainSpec`. This is a specialization of the general Substrate ChainSpec type.
 pub type ChainSpec = sc_service::GenericChainSpec<GenesisConfig, Extensions>;
 
+/// Returns the [`Properties`] for the Vara network.
+pub fn vara_properties() -> Properties {
+    let mut p = Properties::new();
+    p.insert(
+        "ss58format".into(),
+        gear_runtime_common::constants::VARA_SS58PREFIX.into(),
+    );
+    p.insert(
+        "tokenDecimals".into(),
+        gear_runtime_common::constants::VARA_DECIMAL.into(),
+    );
+    p.insert(
+        "tokenSymbol".into(),
+        gear_runtime_common::constants::VARA_TOKEN_SYMBOL.into(),
+    );
+    p
+}
+
 /// Generate authority keys.
-pub fn authority_keys_from_seed(s: &str) -> (AccountId, BabeId, GrandpaId) {
+pub fn authority_keys_from_seed(s: &str) -> (AccountId, AccountId, BabeId, GrandpaId) {
     (
+        get_account_id_from_seed::<sr25519::Public>(&format!("{s}//stash")),
         get_account_id_from_seed::<sr25519::Public>(s),
         get_from_seed::<BabeId>(s),
         get_from_seed::<GrandpaId>(s),
@@ -62,8 +85,6 @@ pub fn development_config() -> Result<ChainSpec, String> {
                 vec![
                     get_account_id_from_seed::<sr25519::Public>("Alice"),
                     get_account_id_from_seed::<sr25519::Public>("Bob"),
-                    get_account_id_from_seed::<sr25519::Public>("Alice//stash"),
-                    get_account_id_from_seed::<sr25519::Public>("Bob//stash"),
                 ],
                 true,
             )
@@ -77,7 +98,7 @@ pub fn development_config() -> Result<ChainSpec, String> {
         // Fork ID
         None,
         // Properties
-        None,
+        Some(vara_properties()),
         // Extensions
         Default::default(),
     ))
@@ -110,12 +131,6 @@ pub fn local_testnet_config() -> Result<ChainSpec, String> {
                     get_account_id_from_seed::<sr25519::Public>("Dave"),
                     get_account_id_from_seed::<sr25519::Public>("Eve"),
                     get_account_id_from_seed::<sr25519::Public>("Ferdie"),
-                    get_account_id_from_seed::<sr25519::Public>("Alice//stash"),
-                    get_account_id_from_seed::<sr25519::Public>("Bob//stash"),
-                    get_account_id_from_seed::<sr25519::Public>("Charlie//stash"),
-                    get_account_id_from_seed::<sr25519::Public>("Dave//stash"),
-                    get_account_id_from_seed::<sr25519::Public>("Eve//stash"),
-                    get_account_id_from_seed::<sr25519::Public>("Ferdie//stash"),
                 ],
                 true,
             )
@@ -129,20 +144,20 @@ pub fn local_testnet_config() -> Result<ChainSpec, String> {
         // Fork ID
         None,
         // Properties
-        None,
+        Some(vara_properties()),
         // Extensions
         Default::default(),
     ))
 }
 
 /// Staging testnet config.
-pub fn staging_testnet_config() -> Result<ChainSpec, String> {
+pub fn main() -> Result<ChainSpec, String> {
     let wasm_binary =
         WASM_BINARY.ok_or_else(|| "Staging testnet wasm not available".to_string())?;
 
     Ok(ChainSpec::from_genesis(
-        "Vara Staging Testnet",
-        "vara_staging_testnet",
+        "Vara Network",
+        "vara_network",
         ChainType::Live,
         move || {
             testnet_genesis(
@@ -150,47 +165,233 @@ pub fn staging_testnet_config() -> Result<ChainSpec, String> {
                 // Initial PoA authorities
                 vec![
                     (
-                        // 5Gc7RXDUqWR7yupYFv6KMaak3fMbxYV1z6gEEGhQxeD4TBj9
-                        hex!["c8e4df7eac6b52dc5281659f1f393903932ee4b1f69f311c3cb123bc40f9267a"]
+                        // Stash account
+                        // kGi3XM788mBXihSJc4zG2vtUEKYY674SVAYUfqozdS5ea8W6r
+                        hex!["6efec345ff71786529e5e21ff50fb669a46cb052daa87fd2ce86d9ba4835a533"]
                             .into(),
-                        // 5Gc7RXDUqWR7yupYFv6KMaak3fMbxYV1z6gEEGhQxeD4TBj9
-                        hex!["c8e4df7eac6b52dc5281659f1f393903932ee4b1f69f311c3cb123bc40f9267a"]
+                        // Controller account
+                        // kGkhLheSUxk72NZdk4C9gTiSAvZQjtczMQiJVfiLe7yotnrUy
+                        hex!["e44eb7c78c1a46e6d7a92fcc964f5362f0fe9514b58460513f8d051ff79fa95f"]
+                            .into(),
+                        // kGi3XM788mBXihSJc4zG2vtUEKYY674SVAYUfqozdS5ea8W6r
+                        hex!["6efec345ff71786529e5e21ff50fb669a46cb052daa87fd2ce86d9ba4835a533"]
                             .unchecked_into(),
-                        // 5HJh75wf2Y8EY8nbfMkVZNU8UhXFtAvZnQ4v5pmmWQctuNun
-                        hex!["e7d812ca5322f9b735e6cef4953cb706ce349752d7c737ef7aac817ebb840de1"]
+                        // kGi7rEfRsFBcYxWoE6w6DV6aQYfg6JTdsbykm29QRwYFAwEdW
+                        hex!["724b54851966f862226e1892975858b59db7dc49f899adbeba305e5275b6c9e3"]
                             .unchecked_into(),
                     ),
                     (
-                        // 5DRmQFTuJaMDuU6JMJgUhsCqrdURito3pUpTnDcFKRswdGXz
-                        hex!["3c4c519e3d7149c93181e8e3762562db6f580c27502e9a6ab2f7464d6185241b"]
+                        // Stash account
+                        // kGm764qkbhxXzYxTHjkTWqZrLQaQHt3HSqaSStvUbTXT6QSh7
+                        hex!["f66b57dee7e59d9288ae6ad9d70d06b7475d01d999a29c35676d7cca3b5fbd6b"]
                             .into(),
-                        // 5DRmQFTuJaMDuU6JMJgUhsCqrdURito3pUpTnDcFKRswdGXz
-                        hex!["3c4c519e3d7149c93181e8e3762562db6f580c27502e9a6ab2f7464d6185241b"]
+                        // Controller account
+                        // kGgdLoe3ewEo5WK7RyASSzSBGAgcmJaAbhrvcjCsrdx6Grbur
+                        hex!["3051267a473a914daab6519d363978f9102e56c0c3ef1be9bc3ae2ce37573630"]
+                            .into(),
+                        // kGm764qkbhxXzYxTHjkTWqZrLQaQHt3HSqaSStvUbTXT6QSh7
+                        hex!["f66b57dee7e59d9288ae6ad9d70d06b7475d01d999a29c35676d7cca3b5fbd6b"]
                             .unchecked_into(),
-                        // 5EHVLwinhXcguU6AzyD3bRipHSDzc4nBLveP4uk4Xui2oW1b
-                        hex!["6238894f19edef4a4a638b3fab9b42909336912bd6ccdf835e9ecc24a64a8713"]
+                        // kGjNmHk9hm2jErMsuJu9es7hz1iGwSby77bkxj3zQ7Za6Y4Zh
+                        hex!["a9e7978e751ad81eda71e6216682674a3f6dbe0c0d0f8f12b83ebec4b7d963c5"]
                             .unchecked_into(),
                     ),
                     (
-                        // 5E4jfoWJHckHB7WyDGebTwD6yEg2pyjxbHwJvCGc9fVGZ3GN
-                        hex!["587e919f8149e31f7d4e99e8fbdf30ff119593376f066e20dacda9054892b478"]
+                        // Stash account
+                        // kGig6t1HroDpAYwwvf3av53siUW7hKtyG4mbby1BTnCHiWwuZ
+                        hex!["8ae47a881c08af1eef02292feb9cbdb9cda0e3ee127a07e1bd10f8794a45884c"]
                             .into(),
-                        // 5E4jfoWJHckHB7WyDGebTwD6yEg2pyjxbHwJvCGc9fVGZ3GN
-                        hex!["587e919f8149e31f7d4e99e8fbdf30ff119593376f066e20dacda9054892b478"]
+                        // Controller account
+                        // kGggrp4DcKAhC9gzJMsXg4M1rVq7MoEfHsv9xSNym584wkHQ7
+                        hex!["32ffe6532fa969364f5b900ddbd5152869a512e1616b7dab8dbfb190e4a06140"]
+                            .into(),
+                        // kGig6t1HroDpAYwwvf3av53siUW7hKtyG4mbby1BTnCHiWwuZ
+                        hex!["8ae47a881c08af1eef02292feb9cbdb9cda0e3ee127a07e1bd10f8794a45884c"]
                             .unchecked_into(),
-                        // 5GVFRgURF6fz8giQSnrPwt156GHecRSLcRYvKaxKsanDroFS
-                        hex!["c3a91848c88b9481405fb29d07cc221c400763ce3ed3c8735c64a86c026bb5ee"]
+                        // kGi5s2hDC67qYB6VeemUx5Wp9krs5XabKyMphcghJ5mYuMjC8
+                        hex!["70c782cde31d731ebf9417c80abab1c3945e12eecfdc71adc03e2686fb3a6c1b"]
                             .unchecked_into(),
                     ),
                     (
-                        // 5HZJiwwz2sqoPMw8eGLD1d3fiWgZzTQwR5j8EnHBtjqTAUqq
-                        hex!["f2fd6936b8ddad025d329ff2d6b5577e6381cb25333f6f17f592494b0b61ef55"]
+                        // Stash account
+                        // kGiwtGLE3P774HYESzqTUj5XuJJsMKvcC5hT9GYwg4Phmt2m3
+                        hex!["96edf0641f4f4f387b15870d9610cdfc8db38c701e63b8e863e43e7ff366262b"]
                             .into(),
-                        // 5HZJiwwz2sqoPMw8eGLD1d3fiWgZzTQwR5j8EnHBtjqTAUqq
-                        hex!["f2fd6936b8ddad025d329ff2d6b5577e6381cb25333f6f17f592494b0b61ef55"]
+                        // Controller account
+                        // kGkCTbKpa639cuW1GeAKERp64ZS86jKU2WA62HkvpYsCYXigT
+                        hex!["ce47cc63787a62acdf9e1d22e295fd4fccd828578ca628c9f9a67f089bf0d07e"]
+                            .into(),
+                        // kGiwtGLE3P774HYESzqTUj5XuJJsMKvcC5hT9GYwg4Phmt2m3
+                        hex!["96edf0641f4f4f387b15870d9610cdfc8db38c701e63b8e863e43e7ff366262b"]
                             .unchecked_into(),
-                        // 5DzyLcBcyWzNFbLv1UgxUEyyi7mVgwrrpjPK6E47EF5TNDMJ
-                        hex!["559f99f172dcfef6c6894cfe53312b3f11d67c3ac0c29ead872d3ec37f7fcffa"]
+                        // kGgGuXDYWKvnZTvsGgUk1Csy673Jk3QfyH15PhBq5A8c5Ruoz
+                        hex!["20bb21adf10a8909725498d447f4150a2aec5eca4adfda3321c4b9598298d8a0"]
+                            .unchecked_into(),
+                    ),
+                    (
+                        // Stash account
+                        // kGkvWK1HaRRVcsf8dGvHL85mRLLPoBMJqz3k2WzxAzMqaZu2v
+                        hex!["ee5941d0f4a1f50d70f27a90a655ede3f1dad5ba33a2f8fe9ea5bfe9f0d7c91e"]
+                            .into(),
+                        // Controller account
+                        // kGiBGZWA1m55KgCFYh38pTkdJvgJ5ipauWzfpU11FVs3Ntqsw
+                        hex!["74e6f377a9181e5d458871ef42d9cc70fccf71ae92be4c2773f0e6bfdf57303b"]
+                            .into(),
+                        // kGkvWK1HaRRVcsf8dGvHL85mRLLPoBMJqz3k2WzxAzMqaZu2v
+                        hex!["ee5941d0f4a1f50d70f27a90a655ede3f1dad5ba33a2f8fe9ea5bfe9f0d7c91e"]
+                            .unchecked_into(),
+                        // kGhSUpp988X5ZtSmZVnrWnbS4QweifTp5e8R35Gorkc3PK8Un
+                        hex!["5444aecf3e12dadd4e6f93ca04a7071cda2e7f90e8da7c98f55c27ab291a15f4"]
+                            .unchecked_into(),
+                    ),
+                    (
+                        // Stash account
+                        // kGggVdmjUJL5oJhgmn4LA8KA4867EXuDt4cYmCSvysqRWyUwi
+                        hex!["32b89c4a881f873f33bd18bbcc5b9e571c43e8caa9bd6169ded16e688f0c9d65"]
+                            .into(),
+                        // Controller account
+                        // kGgujsZrbNWWWhe6HfYCpXaVWxZhCUXndNp6fupiGdZr1WBez
+                        hex!["3cd2bac9ade1bc68c9e75d67c9aa9d021cb4c46ef16ba7a6ee8c1d351faa750f"]
+                            .into(),
+                        // kGggVdmjUJL5oJhgmn4LA8KA4867EXuDt4cYmCSvysqRWyUwi
+                        hex!["32b89c4a881f873f33bd18bbcc5b9e571c43e8caa9bd6169ded16e688f0c9d65"]
+                            .unchecked_into(),
+                        // kGjMxCywE6yXcTqhtkbTuJxKCaZVKd3WJHGojEAVbh4XPCmGo
+                        hex!["a94919797c3cd522ab4de174b9bbd830020372f4c6445ba7d90b491c3547eabf"]
+                            .unchecked_into(),
+                    ),
+                    (
+                        // Stash account
+                        // kGhxBx6wT8TuTTp7Kq5Vo6YgG2GeWqqGMAvYQ1iezngp542F7
+                        hex!["6aed3db006563f67b75bd1c6cc2129eab6cdc0aac34281a50ea78c2b4d38fa5d"]
+                            .into(),
+                        // Controller account
+                        // kGgpP8eJTF2pL81ifdRBJJDf32VTDR4drcmTFS34t3PppnRsW
+                        hex!["38bcaf73c4c539cb055f81e0965379d189edf7687e5d7d4088b514acc0654a64"]
+                            .into(),
+                        // kGhxBx6wT8TuTTp7Kq5Vo6YgG2GeWqqGMAvYQ1iezngp542F7
+                        hex!["6aed3db006563f67b75bd1c6cc2129eab6cdc0aac34281a50ea78c2b4d38fa5d"]
+                            .unchecked_into(),
+                        // kGj1iR5fMqyBBZR7eKk92wU39upaPFgf8YzoWrrc2x9KpB1Wk
+                        hex!["99d9c3f315705920228b49ad2b0d68ef2dc4cc1b6d9e395e93e9b56e224ec549"]
+                            .unchecked_into(),
+                    ),
+                    (
+                        // Stash account
+                        // kGgmgGKJHRMLkYRnjNSmu6ntrgNnhMdizphbpJSXAKv7sm5Yf
+                        hex!["36ac9f1de2c59b1d175644c809765abaa9c18aa844d579c7a988a28be1d61336"]
+                            .into(),
+                        // Controller account
+                        // kGjSj5gxudJBbwqQx7W8CcQ52QeBdKoTU9E7WyPBrcAUhFDEc
+                        hex!["aced2430dcf00a89a4d9339ba01a6a1fad80f549768b05fdcb2b0a33fb6aec5b"]
+                            .into(),
+                        // kGgmgGKJHRMLkYRnjNSmu6ntrgNnhMdizphbpJSXAKv7sm5Yf
+                        hex!["36ac9f1de2c59b1d175644c809765abaa9c18aa844d579c7a988a28be1d61336"]
+                            .unchecked_into(),
+                        // kGmAAhMP1Lyt8jhYugXccrjYMTCHeNGm4Fvx5nLcdE6VjnQTG
+                        hex!["f8c4a9ea78f44b4e0ce7dcf37359f0a7e8a0ab5d956d9dbc177c3606bf874412"]
+                            .unchecked_into(),
+                    ),
+                    (
+                        // Stash account
+                        // kGkt6yGT1LmGWYnFoLJdtuuk8LbarJvwXCSGFiu9ivFG13mXx
+                        hex!["ec84321d9751c066fb923035073a73d467d44642c457915e7496c52f45db1f65"]
+                            .into(),
+                        // Controller account
+                        // kGg65JSrkz9R85RU8pudSRCJsQvrD3H3tJRqP87Dt2DWaRS73
+                        hex!["18785a9a9853652d403cfa7e89afb873c22c53e2f153c9fa5af856028de6a75f"]
+                            .into(),
+                        // kGkt6yGT1LmGWYnFoLJdtuuk8LbarJvwXCSGFiu9ivFG13mXx
+                        hex!["ec84321d9751c066fb923035073a73d467d44642c457915e7496c52f45db1f65"]
+                            .unchecked_into(),
+                        // kGgrUdLxC4wsfJ8316uRprin3ouh73oMVRuTtnDemydVmFdwL
+                        hex!["3a55ac67c147af497e9dc14debf7d5674969cc7cb2099fdf598ee6a7c36fe3b4"]
+                            .unchecked_into(),
+                    ),
+                    (
+                        // Stash account
+                        // kGm9advPW8FVJQVnvTwB7ijbd37Es1CReCcdJy5EAJFLF5mPu
+                        hex!["f85202a9d5727171623a417147625dcd317c7ecb7ce79f8b664dfac093efda19"]
+                            .into(),
+                        // Controller account
+                        // kGfgmBYai833QG8pdFeCAho73nut7a4Zrx8YYsm1dL7xQrEhc
+                        hex!["06b0b7361b821f19c84c05a558d60a44a52d7ae350c3637b65df40baf66f4a64"]
+                            .into(),
+                        // kGm9advPW8FVJQVnvTwB7ijbd37Es1CReCcdJy5EAJFLF5mPu
+                        hex!["f85202a9d5727171623a417147625dcd317c7ecb7ce79f8b664dfac093efda19"]
+                            .unchecked_into(),
+                        // kGkiiv3nDz2dmZZbkqPZGH73Mb4vWUpx451CoweFq4qpbo9QG
+                        hex!["e55cbde1cf31fe6b891ac4cffcce790015e77ddd0f6943653e9b4d722f72baa4"]
+                            .unchecked_into(),
+                    ),
+                    (
+                        // Stash account: kGhxAkgEraid83wXjfRL2gQEahxYY2VcUVP1Us9UzkUEVwuHU
+                        hex!["6ae93625c928a59f1bf9f1c01548bbd72d9bb356c56c2bb070dda79590fd4a7f"]
+                            .into(),
+                        // Controller account: kGjSTB11PhY9TjzrZvsgCmYeKkCEJabmDPXam1xBkctXFUvgX
+                        hex!["acb796bd17e05ea7c1764355d3c524d8379dc88b910467379afab52776d8616a"]
+                            .into(),
+                        // Babe key: kGhxAkgEraid83wXjfRL2gQEahxYY2VcUVP1Us9UzkUEVwuHU
+                        hex!["6ae93625c928a59f1bf9f1c01548bbd72d9bb356c56c2bb070dda79590fd4a7f"]
+                            .unchecked_into(),
+                        // Grandpa key: kGgZopsg1gEytoxPRQKkynJxphe9WpjTCRHD9obzPRqKRrDrE
+                        hex!["2d9f2166122f449c2dcb92d4de97cca7043158968d82e27bacade4015ec55b00"]
+                            .unchecked_into(),
+                    ),
+                    (
+                        // Stash account: kGkw44EiDvjPHz5A7QYVdHxHfD8xQr4ygVtXET5TTrGXXLRz9
+                        hex!["eec41f1d016d876f654f247b21813f966a72dd2a60011abed5758a6e26ae7d38"]
+                            .into(),
+                        // Controller account: kGgMr7E54kNMtnB2RMaQ3zX9iGUxxRWsaQFnjT4cTa2AWcFx6
+                        hex!["247fde0495a574246a1f69bc7a49c752c07a3a82fb2054e40f6d3c9d04e00223"]
+                            .into(),
+                        // Babe key: kGkw44EiDvjPHz5A7QYVdHxHfD8xQr4ygVtXET5TTrGXXLRz9
+                        hex!["eec41f1d016d876f654f247b21813f966a72dd2a60011abed5758a6e26ae7d38"]
+                            .unchecked_into(),
+                        // Grandpa key: kGhjBBL9XfWkq8yG5RE7JAsCEQ28j1yPf9DSb6ndc4Lq1iKTU
+                        hex!["610073bfa83e6d7dc7f4ff4fa28c76141a7f8f4da2f7d227edd6432cbe49db62"]
+                            .unchecked_into(),
+                    ),
+                    (
+                        // Stash account: kGkRf6uswrEEnfzAXY8UbiKhqbW6uwG2ZhXRs28hJgzJdh4A9
+                        hex!["d858bc34e0aa888b6b5f8ce10b6db1112526049cb4c52ef95dfb1c9b10494818"]
+                            .into(),
+                        // Controller account: kGkyLUqpzswKFAE3JE2FGwuRX9537wi2gbw7MiwoUBnA6y2rx
+                        hex!["f081e6b796bdd0b7f6217d67f75cd545d7c6224cde534f1edc442ce596bf6c77"]
+                            .into(),
+                        // Babe key: kGkRf6uswrEEnfzAXY8UbiKhqbW6uwG2ZhXRs28hJgzJdh4A9
+                        hex!["d858bc34e0aa888b6b5f8ce10b6db1112526049cb4c52ef95dfb1c9b10494818"]
+                            .unchecked_into(),
+                        // Grandpa key: kGmJYPMMbn6aAUzf7xg7C2AKWdKxvjwjTEMcHqGumFDA7myvK
+                        hex!["ff27a40d9901dfbec094c38c0f884efa96168445b206a8b7a1fb8c80301996a5"]
+                            .unchecked_into(),
+                    ),
+                    (
+                        // Stash account: kGk2TDx8rZrxcwr2aoDxLkaF5d3vkqMTxGUu4LibPq9VKJUG1
+                        hex!["c6a61a93bd2261b7667ec4ab812c71bba4cfae3e1d376b9dd52ade4652dcc151"]
+                            .into(),
+                        // Controller account: kGiBPzdDoqQbC11r24arKiAPCSLfjdGAWTtuy5ACJ1eM9dHkj
+                        hex!["74fff92414ef779a9c39a32cc740da6f89e8e0c37ef8935ae96cc90845f1830f"]
+                            .into(),
+                        // Babe key: kGk2TDx8rZrxcwr2aoDxLkaF5d3vkqMTxGUu4LibPq9VKJUG1
+                        hex!["c6a61a93bd2261b7667ec4ab812c71bba4cfae3e1d376b9dd52ade4652dcc151"]
+                            .unchecked_into(),
+                        // Grandpa key: kGhtqJgG4qabpb7V78uirv7W9iPBARy36znYwahbbMsQaNTLh
+                        hex!["685e01afd77c4c4c577d2380767ec1549114e86513f0b6ce31be96b5b45ad99c"]
+                            .unchecked_into(),
+                    ),
+                    (
+                        // Stash account: kGkRHtZZWpwXpCHLGMXMKyTe8mL6gseT2eBBX3Da5XXVfX6ky
+                        hex!["d81153798064bd066022258057680b0cfe2db6e8b9c96995d6216a39b687881d"]
+                            .into(),
+                        // Controller account: kGjV2YVGzTWQBfbHLsJRZbyXGp6VHP8hK9wNbLwnUAjGmz7aV
+                        hex!["aeae6a26d64a51c4afcb2bcd2546f63162f1130d1670a366ef6a643b8443a546"]
+                            .into(),
+                        // Babe key: kGkRHtZZWpwXpCHLGMXMKyTe8mL6gseT2eBBX3Da5XXVfX6ky
+                        hex!["d81153798064bd066022258057680b0cfe2db6e8b9c96995d6216a39b687881d"]
+                            .unchecked_into(),
+                        // Grandpa key: kGj26nHC5VGor2QyX8AGfaXbyKcfETUzQRCgC9ZE7JKA7awb7
+                        hex!["9a250ded2628e6ae38ee0ddf9d0b081801f6c50333418214f0671f5cf8b8149e"]
                             .unchecked_into(),
                     ),
                 ],
@@ -215,7 +416,7 @@ pub fn staging_testnet_config() -> Result<ChainSpec, String> {
         // Fork ID
         None,
         // Properties
-        None,
+        Some(vara_properties()),
         // Extensions
         Default::default(),
     ))
@@ -224,22 +425,24 @@ pub fn staging_testnet_config() -> Result<ChainSpec, String> {
 /// Configure initial storage state for FRAME modules.
 fn testnet_genesis(
     wasm_binary: &[u8],
-    initial_authorities: Vec<(AccountId, BabeId, GrandpaId)>,
+    initial_authorities: Vec<(AccountId, AccountId, BabeId, GrandpaId)>,
     root_key: AccountId,
     endowed_accounts: Vec<AccountId>,
     _enable_println: bool,
 ) -> GenesisConfig {
+    const ENDOWMENT: u128 = 1_000_000 * TOKEN;
+    const STASH: u128 = 100 * TOKEN;
+
     GenesisConfig {
         system: SystemConfig {
             // Add Wasm runtime to storage.
             code: wasm_binary.to_vec(),
         },
         balances: BalancesConfig {
-            // Configure endowed accounts with initial balance of 1 << 60.
             balances: endowed_accounts
                 .iter()
-                .cloned()
-                .map(|k| (k, 1 << 60))
+                .map(|k: &AccountId| (k.clone(), ENDOWMENT))
+                .chain(initial_authorities.iter().map(|x| (x.0.clone(), STASH)))
                 .collect(),
         },
         babe: BabeConfig {
@@ -251,18 +454,30 @@ fn testnet_genesis(
         },
         session: SessionConfig {
             keys: initial_authorities
-                .into_iter()
+                .iter()
                 .map(|x| {
                     (
                         x.0.clone(),
-                        x.0,
+                        x.0.clone(),
                         SessionKeys {
-                            babe: x.1,
-                            grandpa: x.2,
+                            babe: x.2.clone(),
+                            grandpa: x.3.clone(),
                         },
                     )
                 })
                 .collect::<Vec<_>>(),
+        },
+        staking: StakingConfig {
+            validator_count: initial_authorities.len() as u32,
+            minimum_validator_count: initial_authorities.len() as u32,
+            stakers: initial_authorities
+                .iter()
+                .map(|x| (x.0.clone(), x.1.clone(), STASH, StakerStatus::Validator))
+                .collect(),
+            invulnerables: initial_authorities.iter().map(|x| x.0.clone()).collect(),
+            force_era: pallet_staking::Forcing::ForceNone,
+            slash_reward_fraction: Perbill::from_percent(10),
+            ..Default::default()
         },
         sudo: SudoConfig {
             // Assign network admin rights.

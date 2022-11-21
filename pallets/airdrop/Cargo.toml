@@ -1,0 +1,65 @@
+[package]
+name = "pallet-airdrop"
+version = "1.0.0"
+authors = ['Gear Technologies']
+edition = '2018'
+license = "GPL-3.0"
+homepage = "https://gear-tech.io"
+repository = "https://github.com/gear-tech/gear"
+description = "Airdrop pallet"
+readme = "README.md"
+
+[package.metadata.docs.rs]
+targets = ["x86_64-unknown-linux-gnu"]
+
+[dependencies]
+codec = { package = "parity-scale-codec", version = "3.1.2", default-features = false, features = ["derive", "max-encoded-len"] }
+scale-info = { version = "2.1.1", default-features = false, features = ["derive"] }
+log = { version = "0.4.17", default-features = false }
+
+# Internal deps
+common = { package = "gear-common", path = "../../common", default-features = false }
+pallet-gear = { path = "../gear", default-features = false }
+
+# Substrate deps
+frame-support = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.36", default-features = false }
+frame-system = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.36", default-features = false }
+frame-benchmarking = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.36", default-features = false, optional = true }
+sp-runtime = { version = "7.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.36", default-features = false }
+sp-std = { version = "5.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.36", default-features = false }
+pallet-balances = { version = "4.0.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.36" }
+
+[dev-dependencies]
+serde = "1.0.143"
+env_logger = "0.9"
+sp-core = { version = "7.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.36" }
+sp-io = { version = "7.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.36" }
+pallet-authorship = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.36" }
+pallet-sudo = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.36" }
+pallet-timestamp = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.36" }
+pallet-gear-program = { path = "../gear-program" }
+pallet-gear-messenger = { path = "../gear-messenger" }
+pallet-gear-scheduler = { path = "../gear-scheduler" }
+pallet-gear-gas = { path = "../gas" }
+frame-support-test = { version = "3.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.36" }
+
+[features]
+default = ['std']
+std = [
+	"common/std",
+	"codec/std",
+	"log/std",
+	"frame-support/std",
+	"frame-system/std",
+	"scale-info/std",
+	"sp-std/std",
+	"pallet-balances/std",
+	"pallet-gear/std",
+]
+runtime-benchmarks = [
+	"frame-benchmarking",
+	"frame-system/runtime-benchmarks",
+	"frame-support/runtime-benchmarks",
+	"common/runtime-benchmarks",
+]
+try-runtime = ["frame-support/try-runtime"]

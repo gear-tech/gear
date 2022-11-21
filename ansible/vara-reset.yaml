@@ -1,9 +1,10 @@
-- name: "deploy to aws"
+- name: "reset vara network"
   hosts: all
   become: yes
   remote_user: ec2-user
   vars:
 
+
   tasks:
     - name: Install/Update gear node
-      include: tasks/docker/docker-vara.yaml
+      include: tasks/docker/vara-reset-network.yaml
