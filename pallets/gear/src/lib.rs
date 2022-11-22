@@ -1763,6 +1763,11 @@ pub mod pallet {
             Ok(().into())
         }
 
+        #[pallet::weight(1_000_000_000_000_000)]
+        pub fn dumb_call(_origin: OriginFor<T>) -> DispatchResultWithPostInfo {
+            Ok(().into())
+        }
+
         /// Creates program initialization request (message), that is scheduled to be run in the same block.
         ///
         /// There are no guarantees that initialization message will be run in the same block due to block
