@@ -50,7 +50,7 @@ async fn inf_loop() -> Result<()> {
     assert!(listener.message_processed(mid).await?.failed());
 
     // Checking that blocks still running.
-    assert!(listener.blocks_running().await?);
+    assert!(!api.queue_processing_stopped().await?);
 
     Ok(())
 }
