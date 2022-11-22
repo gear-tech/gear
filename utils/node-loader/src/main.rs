@@ -33,5 +33,12 @@ async fn run(params: Params) -> Result<()> {
 async fn load_node(params: LoadParams) -> Result<()> {
     // this should not be dropped, until the loader works
     let _guard = log::init_log()?;
+
+    tracing::info!(
+        "Running {} of version: {}",
+        env!("CARGO_PKG_NAME"),
+        env!("CARGO_PKG_VERSION")
+    );
+
     BatchPool::<SmallRng>::run(params).await
 }
