@@ -341,15 +341,20 @@ impl MessageContext {
     pub fn check_input_range(&self, offset: u32, len: u32) -> CheckedRange {
         let input = self.current.payload();
         let offset = offset as usize;
-        let excluded_end = if offset >= input.len() || len == 0 {
-            offset
-        } else {
-            offset.saturating_add(len as usize).min(input.len())
-        };
+        if offset >= input.len() {
+            return CheckedRange {
+                offset: 0,
+                excluded_end: 0,
+            };
+        }
 
         CheckedRange {
             offset,
-            excluded_end,
+            excluded_end: if len == 0 {
+                offset
+            } else {
+                offset.saturating_add(len as usize).min(input.len())
+            },
         }
     }
 
