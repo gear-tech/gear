@@ -68,8 +68,8 @@ async fn upload_programs_and_check(
         listener.message_processed_batch(mids).await?.len(),
     );
 
-    // Checking that blocks still running.
-    assert!(listener.blocks_running().await?);
+    // Check no runtime panic occurred
+    assert!(!api.queue_processing_stopped().await?);
 
     Ok(())
 }
