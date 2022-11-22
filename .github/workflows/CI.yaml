@@ -37,7 +37,7 @@ jobs:
 
   check:
     # needs: spec_version
-    runs-on: [self-hosted, cachepot, epyc]
+    runs-on: [self-hosted, cachepot, epyc-4, k8s-runner ]
     env:
       RUSTUP_HOME: /tmp/rustup_home
     steps:
@@ -119,7 +119,7 @@ jobs:
 
   build:
     # needs: spec_version
-    runs-on: [self-hosted, cachepot, epyc]
+    runs-on: [self-hosted, cachepot, epyc-4, k8s-runner ]
     env:
       LLVM_PROFILE_FILE: "gear-%p-%m.profraw"
       RUSTUP_HOME: /tmp/rustup_home
