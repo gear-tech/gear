@@ -4,7 +4,7 @@ show:
 	@ ./scripts/gear.sh show
 
 .PHONY: pre-commit
-pre-commit: fmt check-spec clippy test
+pre-commit: fmt clippy test # check-spec
 
 .PHONY: check-spec
 check-spec:

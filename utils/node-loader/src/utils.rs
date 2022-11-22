@@ -109,10 +109,22 @@ impl<T> Deref for NonEmptyVec<T> {
     }
 }
 
-pub fn swap_res_types<T, E>(result: StdResult<T, E>) -> StdResult<E, T> {
-    match result {
-        Ok(t) => Err(t),
-        Err(e) => Ok(e),
+pub trait SwapResult {
+    type SwappedOk;
+    type SwappedErr;
+
+    fn swap_result(self) -> StdResult<Self::SwappedOk, Self::SwappedErr>;
+}
+
+impl<T, E> SwapResult for StdResult<T, E> {
+    type SwappedOk = E;
+    type SwappedErr = T;
+
+    fn swap_result(self) -> StdResult<Self::SwappedOk, Self::SwappedErr> {
+        match self {
+            Ok(t) => Err(t),
+            Err(e) => Ok(e),
+        }
     }
 }
 
@@ -133,7 +145,12 @@ pub async fn stop_node(monitor_url: String) -> Result<()> {
     let mut params = HashMap::new();
     params.insert("__script_name", "stop");
 
-    client.post(monitor_url).form(&params).send().await?;
+    client
+        .post(monitor_url)
+        .form(&params)
+        .send()
+        .await
+        .map(|resp| tracing::debug!("{resp:?}"))?;
 
     Ok(())
 }
