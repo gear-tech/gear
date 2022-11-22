@@ -37,7 +37,7 @@ mod wasm {
 }
 
 // Metatypes for input and output
-#[derive(TypeInfo, Decode)]
+#[derive(TypeInfo, Decode, Encode)]
 pub struct MessageInitIn {
     pub amount: u8,
     pub currency: String,
