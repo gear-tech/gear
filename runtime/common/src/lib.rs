@@ -21,8 +21,13 @@
 mod apis;
 
 use frame_support::{
+    pallet_prelude::DispatchClass,
     parameter_types,
-    traits::{ConstU128, Currency, OnUnbalanced}, weights::{Weight, constants::{BlockExecutionWeight, ExtrinsicBaseWeight}}, pallet_prelude::DispatchClass,
+    traits::{ConstU128, Currency, OnUnbalanced},
+    weights::{
+        constants::{BlockExecutionWeight, ExtrinsicBaseWeight},
+        Weight,
+    },
 };
 use frame_system::limits::BlockWeights;
 use runtime_primitives::{AccountId, Balance, BlockNumber};
@@ -30,6 +35,9 @@ use sp_runtime::Perbill;
 
 /// We assume that ~3% of the block weight is consumed by `on_initialize` handlers.
 /// This is used to limit the maximal weight of a single extrinsic.
+///
+/// Mostly we don't produce any calculations in `on_initialize` hook,
+/// so it's safe to reduce from default 10 to custom 3 percents.
 pub const AVERAGE_ON_INITIALIZE_RATIO: Perbill = Perbill::from_percent(3);
 pub const NORMAL_DISPATCH_RATIO_NUM: u8 = 25;
 pub const GAS_LIMIT_MIN_PERCENTAGE_NUM: u8 = 100 - NORMAL_DISPATCH_RATIO_NUM;
@@ -52,9 +60,8 @@ pub fn block_weights_for(maximum_block_weight: Weight) -> BlockWeights {
             weights.max_total = Some(maximum_block_weight);
             // Operational transactions have some extra reserved space, so that they
             // are included even if block reached `MAXIMUM_BLOCK_WEIGHT`.
-            weights.reserved = Some(
-                maximum_block_weight - NORMAL_DISPATCH_RATIO * maximum_block_weight
-            );
+            weights.reserved =
+                Some(maximum_block_weight - NORMAL_DISPATCH_RATIO * maximum_block_weight);
         })
         .avg_block_initialization(AVERAGE_ON_INITIALIZE_RATIO)
         .build_or_panic()
@@ -64,10 +71,12 @@ parameter_types! {
     pub const BlockHashCount: BlockNumber = 2400;
 }
 
+pub const VALUE_PER_GAS: u128 = 1_000;
+
 pub struct GasConverter;
 impl gear_common::GasPrice for GasConverter {
     type Balance = Balance;
-    type GasToBalanceMultiplier = ConstU128<1_000>;
+    type GasToBalanceMultiplier = ConstU128<VALUE_PER_GAS>;
 }
 
 pub type NegativeImbalance<T> = <pallet_balances::Pallet<T> as Currency<
