@@ -22,7 +22,7 @@ use frame_support::{
     traits::{
         ConstU128, ConstU8, Contains, Currency, FindAuthor, OnFinalize, OnInitialize, OnUnbalanced,
     },
-    weights::{constants::WEIGHT_PER_SECOND, IdentityFee},
+    weights::{constants::WEIGHT_PER_SECOND, ConstantMultiplier},
 };
 use frame_support_test::TestRandomness;
 use frame_system as system;
@@ -150,8 +150,8 @@ impl pallet_transaction_payment::Config for Test {
     type RuntimeEvent = RuntimeEvent;
     type OnChargeTransaction = CurrencyAdapter<Balances, DealWithFees>;
     type OperationalFeeMultiplier = ConstU8<5>;
-    type WeightToFee = IdentityFee<u128>;
-    type LengthToFee = IdentityFee<u128>;
+    type WeightToFee = ConstantMultiplier<u128, ConstU128<1_000>>;
+    type LengthToFee = ConstantMultiplier<u128, ConstU128<1_000>>;
     type FeeMultiplierUpdate = pallet_gear_payment::GearFeeMultiplier<Test, QueueLengthStep>;
 }
 
