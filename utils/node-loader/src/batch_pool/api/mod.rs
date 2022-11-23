@@ -3,7 +3,7 @@ use super::batch::{
     UploadCodeArgs, UploadCodeBatchOutput, UploadProgramArgs, UploadProgramBatchOutput,
 };
 use crate::utils;
-use anyhow::Result;
+use anyhow::{Result, anyhow};
 use futures::{future::BoxFuture, Future};
 use gclient::{GearApi, Result as GClientResult};
 
@@ -88,7 +88,10 @@ impl GearApiFacade {
         let (api, nonce) = self.prepare_api_for_call();
 
         // TODO #1800
-        let r = utils::with_timeout(batch_call(api)).await?;
+        let r = utils::with_timeout(batch_call(api)).await.map_err(|_| {
+            tracing::debug!("Extrinsic finalization wait timeout occurred");
+            anyhow!(utils::WAITING_TX_FINALIZED_TIMEOUT_ERR_STR)
+        })?;
         nonce::catch_missed_nonce(&r, nonce).expect("missed nonces storage is initialized");
 
         r.map_err(Into::into)
