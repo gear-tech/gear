@@ -128,42 +128,43 @@ fn fee_rounding_error_bounded_by_multiplier() {
         // - relatively small weight, small multiplier
         // - relatively small weight, relatively large multiplier
 
-        let test_case =
-            |call: &<Test as frame_system::Config>::RuntimeCall, weights: Vec<Weight>, mul: u64| {
-                // not charging for tx len to make rounding error more significant
-                let len = 0;
+        let test_case = |call: &<Test as frame_system::Config>::RuntimeCall,
+                         weights: Vec<Weight>,
+                         mul: u64| {
+            // not charging for tx len to make rounding error more significant
+            let len = 0;
 
-                let rounding_error = WeightToFeeFor::<Test>::weight_to_fee(&Weight::from_ref_time(mul));
+            let rounding_error = WeightToFeeFor::<Test>::weight_to_fee(&Weight::from_ref_time(mul));
 
-                for w in weights {
-                    let alice_initial_balance = Balances::free_balance(ALICE);
-                    let author_initial_balance = Balances::free_balance(BLOCK_AUTHOR);
+            for w in weights {
+                let alice_initial_balance = Balances::free_balance(ALICE);
+                let author_initial_balance = Balances::free_balance(BLOCK_AUTHOR);
 
-                    let pre = CustomChargeTransactionPayment::<Test>::from(0)
-                        .pre_dispatch(&ALICE, call, &info_from_weight(w), len)
-                        .unwrap();
+                let pre = CustomChargeTransactionPayment::<Test>::from(0)
+                    .pre_dispatch(&ALICE, call, &info_from_weight(w), len)
+                    .unwrap();
 
-                    let fee = WeightToFeeFor::<Test>::weight_to_fee(&w);
-                    assert_approx_eq!(
-                        Balances::free_balance(ALICE),
-                        alice_initial_balance - fee,
-                        rounding_error
-                    );
+                let fee = WeightToFeeFor::<Test>::weight_to_fee(&w);
+                assert_approx_eq!(
+                    Balances::free_balance(ALICE),
+                    alice_initial_balance - fee,
+                    rounding_error
+                );
 
-                    assert_ok!(CustomChargeTransactionPayment::<Test>::post_dispatch(
-                        Some(pre),
-                        &info_from_weight(w),
-                        &default_post_info(),
-                        len,
-                        &Ok(())
-                    ));
-                    assert_approx_eq!(
-                        Balances::free_balance(BLOCK_AUTHOR),
-                        author_initial_balance + fee,
-                        rounding_error
-                    );
-                }
-            };
+                assert_ok!(CustomChargeTransactionPayment::<Test>::post_dispatch(
+                    Some(pre),
+                    &info_from_weight(w),
+                    &default_post_info(),
+                    len,
+                    &Ok(())
+                ));
+                assert_approx_eq!(
+                    Balances::free_balance(BLOCK_AUTHOR),
+                    author_initial_balance + fee,
+                    rounding_error
+                );
+            }
+        };
 
         // rounding error only arises for calls that do not affect MQ
         let call: &<Test as frame_system::Config>::RuntimeCall =
@@ -171,7 +172,11 @@ fn fee_rounding_error_bounded_by_multiplier() {
                 message_id: MessageId::from_origin(H256::from_low_u64_le(1)),
             });
 
-        let weights = vec![Weight::from_ref_time(1_000), Weight::from_ref_time(100_000), Weight::from_ref_time(10_000_000)];
+        let weights = vec![
+            Weight::from_ref_time(1_000),
+            Weight::from_ref_time(100_000),
+            Weight::from_ref_time(10_000_000),
+        ];
 
         // MQ is empty => multiplier is 1. No rounding error expected
         test_case(call, weights.clone(), 1);
