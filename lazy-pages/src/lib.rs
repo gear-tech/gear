@@ -34,7 +34,8 @@ use sp_std::vec::Vec;
 use std::{cell::RefCell, collections::BTreeSet, convert::TryFrom};
 
 mod sys;
-pub use crate::sys::{DefaultUserSignalHandler, ExceptionInfo, UserSignalHandler};
+use sys::mprotect::{self, MprotectError};
+pub use sys::{DefaultUserSignalHandler, ExceptionInfo, UserSignalHandler};
 
 /// Initialize lazy-pages once for process.
 static LAZY_PAGES_INITIALIZED: OnceCell<Result<(), InitError>> = OnceCell::new();
@@ -87,21 +88,29 @@ pub enum Error {
         expected,
         actual
     )]
-    InvalidPageDataSize {
-        expected: usize,
-        actual: u32,
-    },
-    /// Found a write signal from same page twice - see more in head comment.
+    InvalidPageDataSize { expected: usize, actual: u32 },
+    /// Found a write signal from same page twice - restricted, see more in a head comment.
     #[display(fmt = "Any page cannot be released twice: {_0:?}")]
     DoubleRelease(PageNumber),
     #[display(fmt = "Protection error: {_0}")]
     #[from]
     MemoryProtection(region::Error),
+    #[display(fmt = "Given instance host pointer is invalid")]
     HostInstancePointerIsInvalid,
+    #[display(fmt = "Given pointer to globals access provider dyn object is invalid")]
+    DynGlobalsAccessPointerIsInvalid,
+    #[display(fmt = "Cannot charge gas from gas limit global")]
     CannotChargeGas,
+    #[display(fmt = "Cannot charge gas from gas allowance global")]
     CannotChargeGasAllowance,
-    DynGlobalsAccessorPointerIsInvalid,
+    #[display(fmt = "Status must be set before program execution")]
     StatusIsNone,
+    #[display(fmt = "It's unknown wether memory access is read or write")]
+    ReadOrWriteIsUnknown,
+    #[display(
+        fmt = "Second access cannot be read, because read protection must be removed for page"
+    )]
+    SecondAccessIsNotWrite,
 }
 
 pub(crate) type WasmAddr = u32;
@@ -110,6 +119,9 @@ pub(crate) type WasmAddr = u32;
 pub enum LazyPagesVersion {
     Version1,
 }
+
+#[cfg(test)]
+mod tests;
 
 #[derive(Default, Debug)]
 pub(crate) struct LazyPagesExecutionContext {
@@ -147,7 +159,7 @@ thread_local! {
     static LAZY_PAGES_CONTEXT: RefCell<LazyPagesExecutionContext> = RefCell::new(Default::default());
 }
 
-#[derive(Debug, derive_more::Display)]
+#[derive(Debug, derive_more::Display, derive_more::From)]
 pub enum InitializeForProgramError {
     #[display(
         fmt = "WASM memory native address {:#x} is not aligned to the native page size",
@@ -158,6 +170,11 @@ pub enum InitializeForProgramError {
     WasmMemSizeBiggerThenU32Max(WasmPageNumber),
     #[display(fmt = "WASM stack end addr {_0:?} > wasm mem size {_1:?}")]
     StackEndAddrBiggerThenSize(WasmPageNumber, WasmPageNumber),
+    #[display(fmt = "{}", _0)]
+    #[from]
+    Mprotect(MprotectError),
+    #[display(fmt = "Wasm memory end addr is out of usize: begin addr = {_0:#x}, size = {_1:#x}")]
+    WasmMemoryEndAddrOverflow(usize, u32),
 }
 
 pub fn initialize_for_program(
@@ -174,24 +191,27 @@ pub fn initialize_for_program(
         ctx.released_pages.clear();
         ctx.status = Some(Status::Normal);
 
-        ctx.wasm_mem_addr = if let Some(addr) = wasm_mem_addr {
+        if let Some(addr) = wasm_mem_addr {
             if addr % region::page::size() != 0 {
                 return Err(WasmMemAddrIsNotAligned(addr));
             }
-            Some(addr)
-        } else {
-            None
-        };
+        }
+        ctx.wasm_mem_addr = wasm_mem_addr;
 
         let size_in_bytes = u32::try_from(wasm_mem_size.offset())
             .map_err(|_| WasmMemSizeBiggerThenU32Max(wasm_mem_size))?;
+        if let Some(addr) = wasm_mem_addr {
+            if addr.checked_add(size_in_bytes as usize).is_none() {
+                return Err(WasmMemoryEndAddrOverflow(addr, size_in_bytes));
+            }
+        }
         ctx.wasm_mem_size = Some(size_in_bytes);
 
         ctx.stack_end_wasm_addr = if let Some(page) = stack_end_page {
             if page > wasm_mem_size {
                 return Err(StackEndAddrBiggerThenSize(page, wasm_mem_size));
             }
-            // `as u32` is safe, because page is less then mem size
+            // `as u32` is safe, because page size is less then mem size
             page.offset() as u32
         } else {
             0
@@ -201,8 +221,85 @@ pub fn initialize_for_program(
 
         ctx.globals_ctx = globals_ctx;
 
+        // Set protection if wasm memory exist.
+        if let Some(addr) = wasm_mem_addr {
+            let stack_end = stack_end_page.map(|p| p.offset()).unwrap_or(0);
+            // `+` and `-` are safe because we checked, that `stack_end` is less than `wasm_mem_size`
+            // and wasm end addr fits usize.
+            let addr = addr + stack_end;
+            let size = size_in_bytes as usize - stack_end;
+            mprotect::mprotect_interval(addr, size, false, false)?;
+        }
+
         log::trace!("Initialize lazy-pages for current program: {:?}", ctx);
 
+        Ok(())
+    })
+}
+
+#[derive(Debug, derive_more::Display, derive_more::From)]
+pub enum MemoryProtectionError {
+    #[from]
+    #[display(fmt = "{_0}")]
+    Mprotect(MprotectError),
+    #[display(fmt = {"Wasm mem addr is not set before pages protect/unprotect"})]
+    WasmMemAddrIsNotSet,
+    #[display(fmt = {"Wasm mem size is not set before pages protect/unprotect"})]
+    WasmMemSizeIsNotSet,
+}
+
+/// Protect lazy pages, after they had been unprotected.
+pub fn set_lazy_pages_protection() -> Result<(), MemoryProtectionError> {
+    use MemoryProtectionError::*;
+    LAZY_PAGES_CONTEXT.with(|ctx| {
+        let ctx = ctx.borrow();
+        let mem_addr = ctx.wasm_mem_addr.ok_or(WasmMemAddrIsNotSet)?;
+        let start_offset = ctx.stack_end_wasm_addr as usize;
+        let mem_size = ctx.wasm_mem_size.ok_or(WasmMemSizeIsNotSet)? as usize;
+
+        // Set r/w protection for all pages except stack pages and released pages.
+        let except_pages = ctx.released_pages.iter().copied();
+        mprotect::mprotect_mem_interval_except_pages(
+            mem_addr,
+            start_offset,
+            mem_size,
+            except_pages,
+            false,
+            false,
+        )?;
+
+        // Set only write protection for already accessed, but not released pages.
+        // `as u32` is safe because page size is less then `PAGE_STORAGE_GRANULARITY`.
+        let lazy_page_size = region::page::size().max(PageNumber::size()) as u32;
+        let read_only_pages = ctx
+            .accessed_pages_addrs
+            .iter()
+            .filter(|&&addr| {
+                // Checks whether first gear page in lazy page is not in released.
+                let gear_page = PageNumber::new_from_addr(addr as usize);
+                !ctx.released_pages.contains(&gear_page)
+            })
+            .map(|&addr| addr / lazy_page_size);
+        mprotect::mprotect_pages(mem_addr, read_only_pages, lazy_page_size, true, false)?;
+
+        // After that protections are:
+        // 1) Only execution protection for stack pages.
+        // 2) Only execution protection for released pages.
+        // 3) Read and execution protection for accessed, but not released pages.
+        // 4) r/w/e protections for all other WASM memory.
+
+        Ok(())
+    })
+}
+
+/// Unset lazy pages read/write protections.
+pub fn unset_lazy_pages_protection() -> Result<(), MemoryProtectionError> {
+    use MemoryProtectionError::*;
+    LAZY_PAGES_CONTEXT.with(|ctx| {
+        let ctx = ctx.borrow();
+        let addr = ctx.wasm_mem_addr.ok_or(WasmMemAddrIsNotSet)?;
+        let size = ctx.wasm_mem_size.ok_or(WasmMemSizeIsNotSet)? as usize;
+        mprotect::mprotect_interval(addr, size, true, true)?;
         Ok(())
     })
 }
@@ -361,67 +458,4 @@ pub fn init<H: UserSignalHandler>(version: LazyPagesVersion) -> bool {
     }
 
     true
-}
-
-#[cfg(test)]
-mod tests {
-    use crate::*;
-    use region::Protection;
-    use std::ptr;
-
-    #[test]
-    fn read_write_flag_works() {
-        unsafe fn protect(access: bool) {
-            let protection = if access {
-                Protection::READ_WRITE
-            } else {
-                Protection::NONE
-            };
-            let page_size = region::page::size();
-            let addr = MEM_ADDR;
-            region::protect(addr, page_size, protection).unwrap();
-        }
-
-        unsafe fn invalid_write() {
-            ptr::write_volatile(MEM_ADDR as *mut _, 123);
-            protect(false);
-        }
-
-        unsafe fn invalid_read() {
-            let _: u8 = ptr::read_volatile(MEM_ADDR);
-            protect(false);
-        }
-
-        static mut COUNTER: u32 = 0;
-        static mut MEM_ADDR: *const u8 = ptr::null_mut();
-
-        struct TestHandler;
-
-        impl UserSignalHandler for TestHandler {
-            unsafe fn handle(info: ExceptionInfo) -> Result<(), Error> {
-                let write_expected = COUNTER % 2 == 0;
-                assert_eq!(info.is_write, Some(write_expected));
-
-                protect(true);
-
-                COUNTER += 1;
-
-                Ok(())
-            }
-        }
-
-        assert!(init::<TestHandler>(LazyPagesVersion::Version1));
-
-        let page_size = region::page::size();
-        let addr = region::alloc(page_size, Protection::NONE).unwrap();
-
-        unsafe {
-            MEM_ADDR = addr.as_ptr();
-
-            invalid_write();
-            invalid_read();
-            invalid_write();
-            invalid_read();
-        }
-    }
 }

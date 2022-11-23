@@ -28,7 +28,7 @@ use std::cell::RefMut;
 use crate::{Error, LazyPagesExecutionContext, WasmAddr, LAZY_PAGES_CONTEXT};
 
 use gear_core::{
-    lazy_pages::{GlobalsAccessError, GlobalsAccessMod, GlobalsAccessTrait, Status},
+    lazy_pages::{GlobalsAccessError, GlobalsAccessMod, GlobalsAccessTrait, GlobalsCtx, Status},
     memory::{PageNumber, PAGE_STORAGE_GRANULARITY},
 };
 
@@ -51,6 +51,8 @@ cfg_if! {
         compile_error!("lazy-pages are not supported on your system. Disable `lazy-pages` feature");
     }
 }
+
+pub mod mprotect;
 
 pub trait UserSignalHandler {
     /// # Safety
@@ -282,6 +284,47 @@ fn charge_gas(
     Ok(Status::Normal)
 }
 
+unsafe fn process_globals(
+    globals_ctx: &GlobalsCtx,
+    gear_pages_amount: u32,
+    is_write: bool,
+    is_second_access: bool,
+) -> Result<Status, Error> {
+    let amount = match (is_write, is_second_access) {
+        (false, _) => globals_ctx.lazy_pages_weights.read,
+        (true, false) => globals_ctx.lazy_pages_weights.write,
+        (true, true) => globals_ctx.lazy_pages_weights.write_after_read,
+    };
+    let amount = amount.saturating_mul(gear_pages_amount as u64);
+    match globals_ctx.globals_access_mod {
+        GlobalsAccessMod::WasmRuntime => {
+            let instance = (globals_ctx.globals_access_ptr as *mut SandboxInstance)
+                .as_mut()
+                .ok_or(Error::HostInstancePointerIsInvalid)?;
+            charge_gas(
+                GlobalsAccessSandbox { instance },
+                &globals_ctx.global_gas_name,
+                &globals_ctx.global_allowance_name,
+                amount,
+            )
+        }
+        GlobalsAccessMod::NativeRuntime => {
+            let inner_access_provider = (globals_ctx.globals_access_ptr
+                as *mut &mut dyn GlobalsAccessTrait)
+                .as_mut()
+                .ok_or(Error::DynGlobalsAccessPointerIsInvalid)?;
+            charge_gas(
+                GlobalsAccessDyn {
+                    inner_access_provider,
+                },
+                &globals_ctx.global_gas_name,
+                &globals_ctx.global_allowance_name,
+                amount,
+            )
+        }
+    }
+}
+
 /// Before contract execution some pages from wasm memory buffer have been protected.
 /// When wasm executer tries to access one of these pages,
 /// OS emits sigsegv or sigbus or EXCEPTION_ACCESS_VIOLATION.
@@ -318,45 +361,6 @@ unsafe fn user_signal_handler_internal(
         Status::GasLimitExceeded | Status::GasAllowanceExceeded => return Ok(()),
     }
 
-    if let Some(globals_ctx) = &ctx.globals_ctx {
-        let charge_status = match globals_ctx.globals_access_mod {
-            GlobalsAccessMod::WasmRuntime => {
-                let instance = (globals_ctx.globals_access_ptr as *mut SandboxInstance)
-                    .as_mut()
-                    .ok_or(Error::HostInstancePointerIsInvalid)?;
-                charge_gas(
-                    GlobalsAccessSandbox { instance },
-                    &globals_ctx.global_gas_name,
-                    &globals_ctx.global_allowance_name,
-                    0,
-                )?
-            }
-            GlobalsAccessMod::NativeRuntime => {
-                let inner_access_provider = (globals_ctx.globals_access_ptr
-                    as *mut &mut dyn GlobalsAccessTrait)
-                    .as_mut()
-                    .ok_or(Error::DynGlobalsAccessorPointerIsInvalid)?;
-                charge_gas(
-                    GlobalsAccessDyn {
-                        inner_access_provider,
-                    },
-                    &globals_ctx.global_gas_name,
-                    &globals_ctx.global_allowance_name,
-                    0,
-                )?
-            }
-        };
-
-        ctx.status.replace(charge_status);
-        match charge_status {
-            Status::Normal => {}
-            Status::GasLimitExceeded | Status::GasAllowanceExceeded => {
-                log::trace!("Gas limit or allowance exceed, so set exceed status and work in this mod until the end of execution");
-                return Ok(());
-            }
-        }
-    }
-
     // We use here `u32` as type for sizes, because wasm memory is 32-bits.
     // Native page size cannot be bigger than PSG (see `crate::init`), so `as u32` is safe.
     let native_ps = region::page::size() as u32;
@@ -382,17 +386,9 @@ unsafe fn user_signal_handler_internal(
     // of the accessed gear page, if native page size is smaller then gear page size.
     wasm_addr.align_down(lazy_page_size);
 
-    // If `is_write` is Some, than we definitely know whether it's `write` or `read` access.
-    // In other case we handle first access as it's `read`.
-    // This also means that we will set read protection for the accessed interval after handling.
-    // If in reality it's `write` access, then right after return from signal handler,
-    // another signal will appear from the same instruction and for the same address.
-    // Because we insert accessed pages in `accessed_pages_addrs`, then handling second signal
-    // we can definitely identify that this signal from `write` access.
-    let is_definitely_write =
-        ctx.accessed_pages_addrs.contains(&wasm_addr.get()) || info.is_write.unwrap_or(false);
+    let is_write = info.is_write.ok_or(Error::ReadOrWriteIsUnknown)?;
 
-    let is_psg_case = is_definitely_write
+    let is_psg_case = is_write
         && native_ps < psg
         && !sp_io::storage::exists(prefix.calc_key_for_page(wasm_addr.as_page_number()));
     let unprot_size = if is_psg_case {
@@ -404,6 +400,34 @@ unsafe fn user_signal_handler_internal(
     };
 
     wasm_addr.check_interval(unprot_size)?;
+
+    let is_second_access = ctx.accessed_pages_addrs.contains(&wasm_addr.get());
+    if is_second_access {
+        log::trace!("{:#x} second access (write)", wasm_addr.as_native_addr());
+        if !is_write {
+            return Err(Error::SecondAccessIsNotWrite);
+        }
+    } else if is_write {
+        log::trace!("{:#x} first write access", wasm_addr.as_native_addr());
+    } else {
+        log::trace!("{:#x} first read access", wasm_addr.as_native_addr());
+    }
+
+    if let Some(globals_ctx) = &ctx.globals_ctx {
+        let gear_pages_amount = unprot_size / PageNumber::size() as u32;
+        let status = process_globals(globals_ctx, gear_pages_amount, is_write, is_second_access)?;
+        ctx.status.replace(status);
+        match status {
+            Status::Normal => {}
+            Status::GasLimitExceeded | Status::GasAllowanceExceeded => {
+                log::trace!(
+                    "Gas limit or allowance exceed,
+                             so set exceed status and work in this mod until the end of execution"
+                );
+                return Ok(());
+            }
+        }
+    }
 
     // Set r/w protection in order to load data from storage into mem buffer.
     let unprot_addr = wasm_addr.as_native_addr();
@@ -423,51 +447,49 @@ unsafe fn user_signal_handler_internal(
         let begin = fist_gear_page.0 + idx * num_of_gear_pages_in_one_lazy;
         let end = begin + num_of_gear_pages_in_one_lazy;
 
-        if ctx.accessed_pages_addrs.contains(&lazy_page_wasm_addr) {
-            log::trace!("lazy page {lazy_page_wasm_addr:#x} is already accessed");
-            for gear_page in (begin..end).map(PageNumber) {
+        for gear_page in (begin..end).map(PageNumber) {
+            if is_second_access {
                 log::trace!("add {gear_page:?} to released");
                 if !ctx.released_pages.insert(gear_page) {
                     return Err(Error::DoubleRelease(gear_page));
                 }
+            } else {
+                let page_buffer_ptr = (wasm_mem_addr as *mut u8).add(gear_page.offset());
+                let buffer_as_slice =
+                    std::slice::from_raw_parts_mut(page_buffer_ptr, gear_ps as usize);
+                let res =
+                    sp_io::storage::read(prefix.calc_key_for_page(gear_page), buffer_as_slice, 0);
+
+                log::trace!("{:?} has data in storage: {}", gear_page, res.is_some());
+
+                if let Some(size) = res.filter(|&size| size as usize != PageNumber::size()) {
+                    return Err(Error::InvalidPageDataSize {
+                        expected: PageNumber::size(),
+                        actual: size,
+                    });
+                }
+
+                if is_write {
+                    log::trace!("add {gear_page:?} to released");
+                    if !ctx.released_pages.insert(gear_page) {
+                        return Err(Error::DoubleRelease(gear_page));
+                    }
+                }
             }
-            continue;
         }
 
         ctx.accessed_pages_addrs.insert(lazy_page_wasm_addr);
-
-        for gear_page in (begin..end).map(PageNumber) {
-            let page_buffer_ptr = (wasm_mem_addr as *mut u8).add(gear_page.offset());
-            let buffer_as_slice = std::slice::from_raw_parts_mut(page_buffer_ptr, gear_ps as usize);
-            let res = sp_io::storage::read(prefix.calc_key_for_page(gear_page), buffer_as_slice, 0);
-
-            log::trace!("{:?} has data in storage: {}", gear_page, res.is_some());
-
-            if let Some(size) = res.filter(|&size| size as usize != PageNumber::size()) {
-                return Err(Error::InvalidPageDataSize {
-                    expected: PageNumber::size(),
-                    actual: size,
-                });
-            }
-
-            if is_definitely_write {
-                log::trace!("add {gear_page:?} to released");
-                if !ctx.released_pages.insert(gear_page) {
-                    return Err(Error::DoubleRelease(gear_page));
-                }
-            }
-        }
     }
 
-    if !is_definitely_write {
-        log::trace!("Is first access - set read prot");
+    if is_write {
+        log::trace!("Is write access - keep r/w prot");
+    } else {
+        log::trace!("Is read access - set read prot");
         region::protect(
             unprot_addr as *mut (),
             unprot_size as usize,
             Protection::READ,
         )?;
-    } else {
-        log::trace!("Is write access - keep r/w prot");
     }
 
     Ok(())

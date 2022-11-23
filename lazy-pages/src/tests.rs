@@ -16,12 +16,68 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::*;
-use gear_lazy_pages::{ExceptionInfo, LazyPagesVersion, UserSignalHandler};
+use crate::{mprotect::{mprotect_mem_interval_except_pages, mprotect_pages}, ExceptionInfo, UserSignalHandler, Error, init, LazyPagesVersion};
+use region::Protection;
+
+#[test]
+fn read_write_flag_works() {
+    unsafe fn protect(access: bool) {
+        let protection = if access {
+            Protection::READ_WRITE
+        } else {
+            Protection::NONE
+        };
+        let page_size = region::page::size();
+        let addr = MEM_ADDR;
+        region::protect(addr, page_size, protection).unwrap();
+    }
+
+    unsafe fn invalid_write() {
+        core::ptr::write_volatile(MEM_ADDR as *mut _, 123);
+        protect(false);
+    }
+
+    unsafe fn invalid_read() {
+        let _: u8 = core::ptr::read_volatile(MEM_ADDR);
+        protect(false);
+    }
+
+    static mut COUNTER: u32 = 0;
+    static mut MEM_ADDR: *const u8 = core::ptr::null_mut();
+
+    struct TestHandler;
+
+    impl UserSignalHandler for TestHandler {
+        unsafe fn handle(info: ExceptionInfo) -> Result<(), Error> {
+            let write_expected = COUNTER % 2 == 0;
+            assert_eq!(info.is_write, Some(write_expected));
+
+            protect(true);
+
+            COUNTER += 1;
+
+            Ok(())
+        }
+    }
+
+    assert!(init::<TestHandler>(LazyPagesVersion::Version1));
+
+    let page_size = region::page::size();
+    let addr = region::alloc(page_size, Protection::NONE).unwrap();
+
+    unsafe {
+        MEM_ADDR = addr.as_ptr();
+
+        invalid_write();
+        invalid_read();
+        invalid_write();
+        invalid_read();
+    }
+}
 
 #[test]
 fn test_mprotect_pages() {
-    use gear_core::memory::WasmPageNumber;
+    use gear_core::memory::{PageNumber, WasmPageNumber};
 
     const OLD_VALUE: u8 = 99;
     const NEW_VALUE: u8 = 100;
@@ -29,7 +85,7 @@ fn test_mprotect_pages() {
     struct TestHandler;
 
     impl UserSignalHandler for TestHandler {
-        unsafe fn handle(info: ExceptionInfo) -> Result<(), lazy_pages::Error> {
+        unsafe fn handle(info: ExceptionInfo) -> Result<(), Error> {
             let mem = info.fault_addr as usize;
             let ps = region::page::size();
             let addr = region::page::floor(info.fault_addr);
@@ -45,7 +101,7 @@ fn test_mprotect_pages() {
 
     env_logger::init();
 
-    assert!(lazy_pages::init::<TestHandler>(LazyPagesVersion::Version1));
+    assert!(init::<TestHandler>(LazyPagesVersion::Version1));
 
     let mut v = vec![0u8; 3 * WasmPageNumber::size()];
     let buff = v.as_mut_ptr() as usize;
@@ -75,7 +131,8 @@ fn test_mprotect_pages() {
         0,
         mem_size,
         pages_unprotected.iter().copied(),
-        true,
+        false,
+        false,
     )
     .expect("Must be correct");
 
@@ -100,7 +157,52 @@ fn test_mprotect_pages() {
         0,
         mem_size,
         pages_unprotected.iter().copied(),
+        true,
+        true,
+    )
+    .expect("Must be correct");
+
+    // make the same for mprotect_pages
+
+    // Set `OLD_VALUE` as value for each first byte of gear pages
+    unsafe {
+        for &p in pages_unprotected.iter().chain(pages_protected.iter()) {
+            let addr = page_begin + p.0 as usize * PageNumber::size() + 1;
+            *(addr as *mut u8) = OLD_VALUE;
+        }
+    }
+
+    mprotect_pages(
+        page_begin,
+        pages_protected.iter().map(|page| page.0),
+        PageNumber::size() as u32,
         false,
+        false,
+    )
+    .expect("Must be correct");
+
+    unsafe {
+        for &p in pages_protected.iter() {
+            let addr = page_begin + p.0 as usize * PageNumber::size() + 1;
+            let x = *(addr as *mut u8);
+            // value must be changed to `NEW_VALUE` in sig handler
+            assert_eq!(x, NEW_VALUE);
+        }
+
+        for &p in pages_unprotected.iter() {
+            let addr = page_begin + p.0 as usize * PageNumber::size() + 1;
+            let x = *(addr as *mut u8);
+            // value must not be changed
+            assert_eq!(x, OLD_VALUE);
+        }
+    }
+
+    mprotect_pages(
+        page_begin,
+        pages_protected.iter().map(|page| page.0),
+        PageNumber::size() as u32,
+        true,
+        true,
     )
     .expect("Must be correct");
 }

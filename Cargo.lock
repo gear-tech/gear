@@ -3150,6 +3150,7 @@ version = "0.1.0"
 dependencies = [
  "cfg-if",
  "derive_more",
+ "env_logger 0.9.3",
  "errno",
  "gear-core",
  "libc",
@@ -3318,12 +3319,10 @@ name = "gear-runtime-interface"
 version = "0.1.0"
 dependencies = [
  "derive_more",
- "env_logger 0.9.3",
  "gear-core",
  "gear-lazy-pages",
  "libc",
  "log",
- "nix 0.24.2",
  "parity-scale-codec",
  "region",
  "sp-runtime-interface",
@@ -5865,7 +5864,6 @@ dependencies = [
  "bitflags",
  "cfg-if",
  "libc",
- "memoffset 0.6.5",
 ]
 
 [[package]]

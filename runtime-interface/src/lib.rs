@@ -18,9 +18,9 @@
 
 //! Runtime interface for gear node
 
+#![allow(useless_deprecated, deprecated)]
 #![cfg_attr(not(feature = "std"), no_std)]
 
-use core::ops::RangeInclusive;
 use gear_core::{
     lazy_pages::{GlobalsCtx, Status},
     memory::HostPointer,
@@ -32,102 +32,10 @@ static_assertions::const_assert!(
 );
 
 #[cfg(feature = "std")]
-use gear_core::memory::PageNumber;
-#[cfg(feature = "std")]
 use gear_lazy_pages as lazy_pages;
 
 pub use sp_std::{convert::TryFrom, result::Result, vec::Vec};
 
-#[cfg(test)]
-mod tests;
-
-#[cfg(feature = "std")]
-#[derive(Debug, derive_more::Display)]
-pub enum MprotectError {
-    #[display(
-        fmt = "Syscall mprotect error for interval {interval:#x?}, mask = {mask}, reason: {reason}"
-    )]
-    SyscallError {
-        interval: RangeInclusive<usize>,
-        mask: region::Protection,
-        reason: region::Error,
-    },
-    #[display(fmt = "Zero size is restricted for mprotect")]
-    ZeroSizeError,
-    #[display(fmt = "Offset {_0:#x} is bigger then wasm mem size {_1:#x}")]
-    OffsetOverflow(usize, usize),
-}
-
-/// Mprotect native memory interval [`addr`, `addr` + `size`].
-/// Protection mask is set according to protection arguments.
-#[cfg(feature = "std")]
-pub(crate) unsafe fn sys_mprotect_interval(
-    addr: usize,
-    size: usize,
-    prot_read: bool,
-    prot_write: bool,
-    prot_exec: bool,
-) -> Result<(), MprotectError> {
-    if size == 0 {
-        return Err(MprotectError::ZeroSizeError);
-    }
-
-    let mut mask = region::Protection::NONE;
-    if prot_read {
-        mask |= region::Protection::READ;
-    }
-    if prot_write {
-        mask |= region::Protection::WRITE;
-    }
-    if prot_exec {
-        mask |= region::Protection::EXECUTE;
-    }
-    let res = region::protect(addr as *mut (), size, mask);
-    if let Err(reason) = res {
-        return Err(MprotectError::SyscallError {
-            interval: addr..=addr + size,
-            mask,
-            reason,
-        });
-    }
-    log::trace!("mprotect interval: {addr:#x}, size: {size:#x}, mask: {mask}");
-    Ok(())
-}
-
-/// Protect all pages in memory interval, except pages from `except_pages`.
-/// If `protect` is true then restrict read/write access, else allow them.
-#[cfg(feature = "std")]
-fn mprotect_mem_interval_except_pages(
-    mem_addr: usize,
-    start_offset: usize,
-    mem_size: usize,
-    except_pages: impl Iterator<Item = PageNumber>,
-    protect: bool,
-) -> Result<(), MprotectError> {
-    let mprotect = |start, end| {
-        let addr = mem_addr + start;
-        let size = end - start;
-        unsafe { sys_mprotect_interval(addr, size, !protect, !protect, false) }
-    };
-
-    if start_offset > mem_size {
-        return Err(MprotectError::OffsetOverflow(start_offset, mem_size));
-    }
-
-    let mut interval_offset = start_offset;
-    for page in except_pages {
-        let page_offset = page.offset();
-        if page_offset > interval_offset {
-            mprotect(interval_offset, page_offset)?;
-        }
-        interval_offset = page_offset.saturating_add(PageNumber::size());
-    }
-    if mem_size > interval_offset {
-        mprotect(interval_offset, mem_size)
-    } else {
-        Ok(())
-    }
-}
 
 /// Runtime interface for gear node and runtime.
 /// Note: name is expanded as gear_ri
@@ -145,6 +53,7 @@ pub trait GearRI {
         lazy_pages::init::<DefaultUserSignalHandler>(LazyPagesVersion::Version1)
     }
 
+    #[deprecated]
     fn init_lazy_pages_for_program(
         wasm_mem_addr: Option<HostPointer>,
         wasm_mem_size_in_pages: u32,
@@ -165,15 +74,6 @@ pub trait GearRI {
         )
         .map_err(|e| e.to_string())
         .expect("Cannot initialize lazy pages for current program");
-
-        if let Some(addr) = wasm_mem_addr {
-            let stack_end = stack_end_page.map(|p| p.offset()).unwrap_or(0);
-            let size = wasm_mem_size.offset();
-            let except_pages = std::iter::empty::<PageNumber>();
-            mprotect_mem_interval_except_pages(addr, stack_end, size, except_pages, true)
-                .map_err(|err| err.to_string())
-                .expect("Cannot set protection for wasm memory");
-        }
     }
 
     /// Init lazy pages context for current program.
@@ -200,32 +100,19 @@ pub trait GearRI {
         )
         .map_err(|e| e.to_string())
         .expect("Cannot initialize lazy pages for current program");
-
-        if let Some(addr) = wasm_mem_addr {
-            let stack_end = stack_end_page.map(|p| p.offset()).unwrap_or(0);
-            let size = wasm_mem_size.offset();
-            let except_pages = std::iter::empty::<PageNumber>();
-            mprotect_mem_interval_except_pages(addr, stack_end, size, except_pages, true)
-                .map_err(|err| err.to_string())
-                .expect("Cannot set protection for wasm memory");
-        }
     }
 
     /// Mprotect all wasm mem buffer except released pages.
     /// If `protect` argument is true then restrict all accesses to pages,
     /// else allows read and write accesses.
     fn mprotect_lazy_pages(protect: bool) {
-        mprotect_mem_interval_except_pages(
-            lazy_pages::get_wasm_mem_addr()
-                .expect("Wasm mem addr must be set before calling mprotect"),
-            lazy_pages::get_stack_end_wasm_addr() as usize,
-            lazy_pages::get_wasm_mem_size()
-                .expect("Wasm mem size must be set before calling mprotect") as usize,
-            lazy_pages::get_released_pages().iter().copied(),
-            protect,
-        )
+        if protect {
+            lazy_pages::set_lazy_pages_protection()
+        } else {
+            lazy_pages::unset_lazy_pages_protection()
+        }
         .map_err(|err| err.to_string())
-        .expect("Cannot set mprotection for lazy pages");
+        .expect("Cannot set/unset mprotection for lazy pages");
     }
 
     fn set_wasm_mem_begin_addr(addr: HostPointer) {
