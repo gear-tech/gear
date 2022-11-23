@@ -38,9 +38,9 @@ use gear_backend_common::{
 use gear_core::{
     env::Ext,
     gas::GasAmount,
-    lazy_pages::{GlobalsAccessError, GlobalsAccessTrait, GlobalsCtx},
+    lazy_pages::{GlobalsAccessError, GlobalsAccessTrait, GlobalsCtx, LazyPagesWeights, GlobalsAccessMod},
     memory::{HostPointer, WasmPageNumber},
-    message::DispatchKind,
+    message::DispatchKind, costs::RuntimeCosts,
 };
 use gear_wasm_instrument::{GLOBAL_NAME_ALLOWANCE, GLOBAL_NAME_GAS};
 use wasmi::{
@@ -101,12 +101,12 @@ pub struct WasmiEnvironment<E: Ext> {
     entries: BTreeSet<DispatchKind>,
 }
 
-struct Lol<E: Ext> {
+struct GlobalsAccessProvider<E: Ext> {
     pub instance: Instance,
     pub store: Option<Store<HostState<E>>>,
 }
 
-impl<E: Ext> Lol<E> {
+impl<E: Ext> GlobalsAccessProvider<E> {
     fn get_global(&self, name: &str) -> Option<Global> {
         let store = self.store.as_ref()?;
         self.instance
@@ -115,7 +115,7 @@ impl<E: Ext> Lol<E> {
     }
 }
 
-impl<E: Ext + 'static> GlobalsAccessTrait for Lol<E> {
+impl<E: Ext + 'static> GlobalsAccessTrait for GlobalsAccessProvider<E> {
     fn get_i64(&self, name: &str) -> Result<i64, GlobalsAccessError> {
         self.get_global(name)
             .and_then(|global| {
@@ -153,8 +153,8 @@ impl<E: Ext + 'static> GlobalsAccessTrait for Lol<E> {
 
 impl<E> Environment<E> for WasmiEnvironment<E>
 where
-    E: Ext + IntoExtInfo<E::Error> + GetGasAmount + Unpin + 'static,
-    E::Error: Encode + AsTerminationReason + IntoExtError + Unpin,
+    E: Ext + IntoExtInfo<E::Error> + GetGasAmount + 'static,
+    E::Error: Encode + AsTerminationReason + IntoExtError,
 {
     type Memory = MemoryWrap<E>;
     type Error = Error;
@@ -263,26 +263,33 @@ where
             })
             .ok_or((gas_amount!(store), WrongInjectedAllowance))?;
 
-        let mut globals_provider = Lol {
+        let mut globals_provider = GlobalsAccessProvider {
             instance,
             store: None,
         };
-        // let globals_provider_dyn_ref: &mut dyn GlobalsAccessTrait =
-        //     unsafe { core::mem::transmute(&mut globals_provider as &mut dyn GlobalsAccessTrait) };
+        let state = store.state_mut().as_ref().expect("is set in `new`; qed");
         let globals_provider_dyn_ref = &mut globals_provider as &mut dyn GlobalsAccessTrait;
+
+        // Pointer to the globals access provider is valid until the end of `execute` method.
+        // So, we can safely use it inside lazy-pages and be sure that it points to the valid object.
+        // We cannot guaranty that `store` (and so globals also) will be in a valid state,
+        // because executor mut-borrows `store` during execution. But if it's in a valid state
+        // each moment when protect memory signal can occur, than this trick is pretty safe.
         let globals_access_ptr = &globals_provider_dyn_ref as *const _ as HostPointer;
+
         let globals_ctx = GlobalsCtx {
             global_gas_name: GLOBAL_NAME_GAS.to_string(),
             global_allowance_name: GLOBAL_NAME_ALLOWANCE.to_string(),
             global_state_name: "gear_status".to_string(),
-            lazy_pages_weights: gear_core::lazy_pages::LazyPagesWeights {
-                read: 1,
-                write: 1,
-                write_after_read: 1,
-                update: 1,
+            lazy_pages_weights: LazyPagesWeights {
+                read: state.ext.get_runtime_cost(RuntimeCosts::LazyPagesRead),
+                write: state.ext.get_runtime_cost(RuntimeCosts::LazyPagesWrite),
+                write_after_read: state
+                    .ext
+                    .get_runtime_cost(RuntimeCosts::LazyPagesWriteAfterRead),
             },
             globals_access_ptr,
-            globals_access_mod: gear_core::lazy_pages::GlobalsAccessMod::NativeRuntime,
+            globals_access_mod: GlobalsAccessMod::NativeRuntime,
         };
 
         let mut memory_wrap = MemoryWrap::new(memory, store);
@@ -293,7 +300,7 @@ where
             },
         )?;
 
-        let mut store = memory_wrap.drop();
+        let mut store = memory_wrap.into_store();
         let res = if entries.contains(entry_point) {
             let func = instance
                 .get_export(&store, entry_point.into_entry())
@@ -316,15 +323,15 @@ where
 
             globals_provider_dyn_ref
                 .as_any_mut()
-                .downcast_mut::<Lol<E>>()
-                .expect("We just set it from Lol<E>, so this panic cannot occur")
+                .downcast_mut::<GlobalsAccessProvider<E>>()
+                .expect("Just make it, so this panic cannot occur")
                 .store
                 .replace(store);
             let res = entry_func.call(
                 globals_provider_dyn_ref
                     .as_any_mut()
-                    .downcast_mut::<Lol<E>>()
-                    .expect("We just set it from Lol<E>, so this panic cannot occur")
+                    .downcast_mut::<GlobalsAccessProvider<E>>()
+                    .expect("Just make it, so this panic cannot occur")
                     .store
                     .as_mut()
                     .expect("We just set store as Some(...), so this panic cannot occur"),
@@ -346,7 +353,7 @@ where
             (gas_amount!(store), WrongInjectedAllowance)
         })?;
 
-        let runtime = store.state_mut().take().expect("set before the block; qed");
+        let runtime = store.state_mut().take().expect("is set before in `new`; qed");
 
         let State {
             mut ext, err: trap, ..

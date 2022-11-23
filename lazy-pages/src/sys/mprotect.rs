@@ -118,6 +118,7 @@ pub fn mprotect_mem_interval_except_pages(
     }
 }
 
+/// Mprotect all pages from `pages`.
 pub fn mprotect_pages(
     mem_addr: usize,
     mut pages: impl Iterator<Item = u32>,

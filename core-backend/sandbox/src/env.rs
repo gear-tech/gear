@@ -293,8 +293,9 @@ where
                 lazy_pages_weights: LazyPagesWeights {
                     read: runtime.ext.get_runtime_cost(RuntimeCosts::LazyPagesRead),
                     write: runtime.ext.get_runtime_cost(RuntimeCosts::LazyPagesWrite),
-                    write_after_read: 100,
-                    update: runtime.ext.get_runtime_cost(RuntimeCosts::LazyPagesUpdate),
+                    write_after_read: runtime
+                        .ext
+                        .get_runtime_cost(RuntimeCosts::LazyPagesWriteAfterRead),
                 },
                 globals_access_ptr: instance.get_instance_ptr(),
                 globals_access_mod: GlobalsAccessMod::WasmRuntime,

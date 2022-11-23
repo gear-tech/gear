@@ -43,8 +43,6 @@ pub struct LazyPagesWeights {
     pub write: u64,
     /// Write to one gear page weight, which has been already read accessed.
     pub write_after_read: u64,
-    /// Update modified gear page in storage weight.
-    pub update: u64,
 }
 
 /// Globals ctx for lazy-pages initialization.

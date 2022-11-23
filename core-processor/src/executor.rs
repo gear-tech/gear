@@ -160,6 +160,10 @@ pub(crate) fn charge_gas_for_instantiation(
 
 /// Charge gas for pages init/load/grow and checks that there is enough gas for that.
 /// Returns size of wasm memory buffer which must be created in execution environment.
+// TODO: remove charging for pages access/write/read/upload. But we should charge for
+// potential situation when gas limit/allowance exceeded during lazy-pages handling,
+// but we should continue execution until the end of block. During that execution
+// another signals can occur, which also take some time to process them.
 pub(crate) fn charge_gas_for_pages(
     settings: &AllocationsConfig,
     gas_counter: &mut GasCounter,

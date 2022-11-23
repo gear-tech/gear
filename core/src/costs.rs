@@ -176,7 +176,7 @@ pub struct HostFnWeights {
     pub lazy_pages_write_after_read: u64,
 
     /// Weight per one gear page update in storage.
-    pub lazy_pages_update: u64,
+    pub update_page_in_storage: u64,
 }
 
 /// We need this access as a macro because sometimes hiding the lifetimes behind
@@ -288,7 +288,7 @@ pub enum RuntimeCosts {
     /// Weight of write after read access per one gear page.
     LazyPagesWriteAfterRead,
     /// Weight of page update in storage after modification.
-    LazyPagesUpdate,
+    UpdatePageInStorage,
 }
 
 impl RuntimeCosts {
@@ -362,7 +362,7 @@ impl RuntimeCosts {
             LazyPagesRead => s.lazy_pages_read,
             LazyPagesWrite => s.lazy_pages_write,
             LazyPagesWriteAfterRead => s.lazy_pages_write_after_read,
-            LazyPagesUpdate => s.lazy_pages_update,
+            UpdatePageInStorage => s.update_page_in_storage,
         };
         RuntimeToken { weight }
     }

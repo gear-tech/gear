@@ -655,10 +655,10 @@ impl<T: Config> HostFnWeights<T> {
             gr_send_push_input_per_byte: self.gr_send_push_input_per_byte,
             gr_reply_push_input: self.gr_reply_push_input,
             gr_reply_push_input_per_byte: self.gr_reply_push_input_per_byte,
-            lazy_pages_read: 100,             // TODO
-            lazy_pages_write: 100,            // TODO
-            lazy_pages_write_after_read: 100, // TODO
-            lazy_pages_update: 100,           // TODO
+            lazy_pages_read: 100,             // TODO: #1893
+            lazy_pages_write: 100,            // TODO: #1893
+            lazy_pages_write_after_read: 100, // TODO: #1893
+            update_page_in_storage: 100,      // TODO: #1731
         }
     }
 }
