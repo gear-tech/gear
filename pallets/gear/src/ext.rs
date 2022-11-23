@@ -227,8 +227,8 @@ impl EnvExt for LazyPagesExt {
         self.inner.debug(data)
     }
 
-    fn error(&mut self, data: &[u8]) -> Result<(), Self::Error> {
-        self.inner.error(data)
+    fn charge_error(&mut self) -> Result<(), Self::Error> {
+        self.inner.charge_error()
     }
 
     fn read(&mut self) -> Result<&[u8], Self::Error> {

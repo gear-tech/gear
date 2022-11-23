@@ -125,6 +125,7 @@ runtime-benchmarks = [
 	"frame-support/runtime-benchmarks",
 	"common/runtime-benchmarks",
 	"gear-backend-common/mock",
+	"gear-core-errors/codec",
 	"sp-sandbox",
 	"sp-consensus-babe",
 	"rand",

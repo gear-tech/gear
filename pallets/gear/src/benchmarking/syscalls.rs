@@ -1065,21 +1065,17 @@ where
     }
 
     pub fn gr_error(r: u32) -> Result<Exec<T>, &'static str> {
-        let string_offset = 1;
-        let string_len = 100;
-        let error_offset = string_offset + string_len;
-        let error_len_offset = error_offset + string_len;
+        let error_offset = 2;
+        let error_len_offset = 3;
 
         let code = WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
-            imported_functions: vec!["gr_debug", "gr_error"],
+            imported_functions: vec!["gr_status_code", "gr_error"],
             handle_body: Some(body::repeated(
                 r * API_BENCHMARK_BATCH_SIZE,
                 &[
-                    // payload ptr
-                    Instruction::I32Const(string_offset),
-                    // payload length
-                    Instruction::I32Const(string_len),
+                    // err_code ptr
+                    Instruction::I32Const(1),
                     // CALL
                     Instruction::Call(0),
                     // error ptr
@@ -1093,37 +1089,6 @@ where
             ..Default::default()
         });
 
-        Self::prepare_handle(code, 0)
-    }
-
-    pub fn gr_error_per_kb(n: u32) -> Result<Exec<T>, &'static str> {
-        let string_offset = 1;
-        let string_len = n as i32 * 1024;
-        let error_offset = string_offset + string_len;
-        let error_len_offset = error_offset + string_len;
-
-        let code = WasmModule::<T>::from(ModuleDefinition {
-            memory: Some(ImportedMemory::max::<T>()),
-            imported_functions: vec!["gr_debug", "gr_error"],
-            handle_body: Some(body::repeated(
-                API_BENCHMARK_BATCH_SIZE,
-                &[
-                    // payload ptr
-                    Instruction::I32Const(string_offset),
-                    // payload length
-                    Instruction::I32Const(string_len),
-                    // CALL
-                    Instruction::Call(0),
-                    // error ptr
-                    Instruction::I32Const(error_offset),
-                    // error length ptr
-                    Instruction::I32Const(error_len_offset),
-                    // CALL
-                    Instruction::Call(1),
-                ],
-            )),
-            ..Default::default()
-        });
         Self::prepare_handle(code, 0)
     }
 

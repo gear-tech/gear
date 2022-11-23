@@ -923,7 +923,6 @@ where
         })
     }
 
-    // TODO: charge gas for gr_error (issue #1723)
     pub fn error(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
         sys_trace!(target: "syscall::gear", "error, args = {}", args_to_str(args));
 
@@ -940,20 +939,13 @@ where
                     let length = match res {
                         Ok(error) => {
                             ctx.write_output(error_bytes_ptr, error.as_ref())?;
-                            ctx.ext
-                                .error(error.as_ref())
-                                .map_err(RuntimeCtxError::Ext)?;
+                            ctx.ext.charge_error().map_err(RuntimeCtxError::Ext)?;
                             0
                         }
                         Err(length) => length,
                     };
 
-                    let length_bytes = length.to_le_bytes();
-                    if length != 0 {
-                        ctx.ext.error(&length_bytes).map_err(RuntimeCtxError::Ext)?;
-                    }
-
-                    ctx.write_output(err_len_ptr, &length_bytes)
+                    ctx.write_output(err_len_ptr, &length.to_le_bytes())
                 })
         })
     }

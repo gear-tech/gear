@@ -55,7 +55,7 @@ use crate::{
     BenchmarkStorage, Call, Config, ExecutionEnvironment, Ext as Externalities, GasHandlerOf,
     MailboxOf, Pallet as Gear, Pallet, QueueOf, Schedule,
 };
-use codec::Encode;
+use codec::{Encode, MaxEncodedLen};
 use common::{benchmarking, storage::*, CodeMetadata, CodeStorage, GasPrice, GasTree, Origin};
 use core_processor::{
     common::{DispatchOutcome, JournalNote},
@@ -74,6 +74,7 @@ use gear_core::{
     message::{ContextSettings, MessageContext},
     reservation::GasReserver,
 };
+use gear_core_errors::ExtError;
 use gear_wasm_instrument::parity_wasm::elements::{BlockType, BrTableData, Instruction, ValueType};
 use pallet_authorship::Pallet as AuthorshipPallet;
 use sp_consensus_babe::{
@@ -873,20 +874,9 @@ benchmarks! {
     }
 
     gr_error {
-        let r in 0 .. API_BENCHMARK_BATCHES;
+        let r in 0 .. <ExtError as MaxEncodedLen>::max_encoded_len() as u32;
         let mut res = None;
         let exec = Benches::<T>::gr_error(r)?;
-    }: {
-        res.replace(run_process(exec));
-    }
-    verify {
-        verify_process(res.unwrap());
-    }
-
-    gr_error_per_kb {
-        let n in 0 .. T::Schedule::get().limits.payload_len / 1024;
-        let mut res = None;
-        let exec = Benches::<T>::gr_error_per_kb(n)?;
     }: {
         res.replace(run_process(exec));
     }
