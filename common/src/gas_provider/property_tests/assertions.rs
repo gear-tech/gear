@@ -33,8 +33,11 @@ pub(super) fn assert_removed_nodes_props(
         return;
     }
     assert_not_removed_node_type(consumed, remaining_nodes);
+    assert_only_cut_node_removed(consumed, &removed_nodes);
+    assert_another_root_not_removed(consumed, &removed_nodes);
     assert_unspec_nodes_amount(&removed_nodes);
     assert_removed_nodes_have_no_lock(&removed_nodes);
+    assert_removed_nodes_have_no_system_reserve(&removed_nodes);
     assert_removed_nodes_are_consumed(consumed, marked_consumed_nodes, &removed_nodes);
     assert_removed_nodes_form_path(consumed, remaining_nodes, removed_nodes);
 }
@@ -45,7 +48,7 @@ pub(super) fn assert_removed_nodes_props(
 fn assert_not_removed_node_type(consumed: Key, remaining_nodes: &RemainingNodes) {
     if let Some(consumed) = remaining_nodes.get(&consumed) {
         // Node was not removed after consume, so should be of specific types
-        assert!(consumed.is_external() || consumed.is_specified_local());
+        assert!(consumed.is_external() || consumed.is_reserved() || consumed.is_specified_local());
     }
 }
 
@@ -112,6 +115,20 @@ fn assert_removed_nodes_have_no_lock(removed_nodes: &RemovedNodes) {
     }
 }
 
+// Check that removed nodes have no system reserve value.
+#[track_caller]
+fn assert_removed_nodes_have_no_system_reserve(removed_nodes: &RemovedNodes) {
+    for node in removed_nodes.values() {
+        let system_reserve = node.system_reserve();
+
+        if !node.is_system_reservable() {
+            assert!(system_reserve.is_none());
+        } else {
+            assert_eq!(system_reserve, Some(0));
+        }
+    }
+}
+
 // Check that removed nodes form a path (if more than one was removed).
 #[track_caller]
 fn assert_removed_nodes_form_path(
@@ -135,6 +152,17 @@ fn assert_removed_nodes_form_path(
     }
     if let Some(parent) = node.parent() {
         assert!(remaining_nodes.contains_key(&parent));
+    }
+}
+
+// Check that only `Cut` is removed after `consume`
+#[track_caller]
+fn assert_only_cut_node_removed(consumed: Key, removed_nodes: &RemovedNodes) {
+    if let Some(node) = removed_nodes.get(&consumed) {
+        if node.is_cut() {
+            // only `Cut` must be removed
+            assert_eq!(removed_nodes.len(), 1);
+        }
     }
 }
 
@@ -164,6 +192,21 @@ pub(super) fn assert_root_children_removed(
             0
         );
     };
+}
+
+#[track_caller]
+fn assert_another_root_not_removed(consumed: Key, removed_nodes: &RemovedNodes) {
+    if let Some(node) = removed_nodes.get(&consumed) {
+        if node.is_external() || node.is_reserved() {
+            assert_eq!(
+                removed_nodes
+                    .iter()
+                    .filter(|(_, v)| v.is_external() || v.is_reserved())
+                    .count(),
+                1 // only `root_node`
+            );
+        }
+    }
 }
 
 // Check that returned dispatch error is not of invariant error variants.
