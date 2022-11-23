@@ -36,7 +36,6 @@ use gear_lazy_pages as lazy_pages;
 
 pub use sp_std::{convert::TryFrom, result::Result, vec::Vec};
 
-
 /// Runtime interface for gear node and runtime.
 /// Note: name is expanded as gear_ri
 #[runtime_interface]

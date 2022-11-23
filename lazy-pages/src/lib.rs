@@ -228,7 +228,9 @@ pub fn initialize_for_program(
             // and wasm end addr fits usize.
             let addr = addr + stack_end;
             let size = size_in_bytes as usize - stack_end;
-            mprotect::mprotect_interval(addr, size, false, false)?;
+            if size != 0 {
+                mprotect::mprotect_interval(addr, size, false, false)?;
+            }
         }
 
         log::trace!("Initialize lazy-pages for current program: {:?}", ctx);

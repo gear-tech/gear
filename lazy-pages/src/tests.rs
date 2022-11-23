@@ -16,7 +16,11 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{mprotect::{mprotect_mem_interval_except_pages, mprotect_pages}, ExceptionInfo, UserSignalHandler, Error, init, LazyPagesVersion};
+use crate::{
+    init,
+    mprotect::{mprotect_mem_interval_except_pages, mprotect_pages},
+    Error, ExceptionInfo, LazyPagesVersion, UserSignalHandler,
+};
 use region::Protection;
 
 #[test]
