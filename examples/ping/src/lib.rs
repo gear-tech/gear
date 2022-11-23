@@ -10,7 +10,7 @@ use gcore::msg;
 
 #[no_mangle]
 unsafe extern "C" fn handle() {
-    let mut bytes = vec![0; msg::size() as usize];
+    let mut bytes = vec![0; msg::size()];
     msg::read(&mut bytes).unwrap();
 
     if let Ok(received_msg) = str::from_utf8(&bytes) {

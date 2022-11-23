@@ -43,8 +43,8 @@ async fn keyhasher_size_exceed() -> Result<()> {
     // Asserting successful initialization.
     assert!(listener.message_processed(mid).await?.succeed());
 
-    // Checking that blocks still running.
-    assert!(listener.blocks_running().await?);
+    // Check no runtime panic occurred
+    assert!(!api.queue_processing_stopped().await?);
 
     Ok(())
 }
