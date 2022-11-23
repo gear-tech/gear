@@ -501,8 +501,8 @@ proptest! {
                                 &marked_consumed,
                             );
                             assertions::assert_root_children_removed(root_node, &remaining_nodes);
-                            if let Key::Reservation(id) = consuming {
-                                assertions::assert_root_children_removed(id, &remaining_nodes);
+                            if origin == consuming {
+                                assertions::assert_root_children_removed(origin, &remaining_nodes);
                             }
 
                             forest.tree_by_origin_mut(origin).caught += maybe_caught.unwrap_or_default();
