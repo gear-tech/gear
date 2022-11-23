@@ -218,6 +218,10 @@ purge-dev-chain-release:
 .PHONY: test
 test: test-gear test-js gtest # There should be no release builds (e.g. `rtest`) for fast checking.
 
+.PHONY: test-doc
+test-doc:
+	@ ./scripts/gear.sh test doc
+
 .PHONY: test-release
 test-release: test-gear-release test-js gtest rtest test-runtime-upgrade
 
