@@ -325,6 +325,8 @@ fn gas_tree_node_clone() -> BTreeMap<Key, GasNode> {
 
 #[derive(Debug, Default)]
 struct TestTree {
+    // Balance which tree is created with
+    expected_balance: u64,
     // Total spent amount with `spent` procedure
     spent: u64,
     // Value caught after `consume` procedure
@@ -336,8 +338,20 @@ struct TestTree {
 }
 
 impl TestTree {
+    fn new(balance: u64) -> Self {
+        Self {
+            expected_balance: balance,
+            ..Default::default()
+        }
+    }
+
     fn total_balance(&self) -> u64 {
-        self.spent + self.caught + self.system_reserve + self.locked
+        let balance = self.spent + self.caught + self.system_reserve + self.locked;
+        assert!(
+            balance <= self.expected_balance,
+            "tree has too many expenses"
+        );
+        balance
     }
 }
 
@@ -347,19 +361,19 @@ struct TestForest {
 }
 
 impl TestForest {
-    fn create(root: MapKey) -> Self {
+    fn create(root: MapKey, balance: u64) -> Self {
         Self {
-            trees: [(root.into(), TestTree::default())].into(),
+            trees: [(root.into(), TestTree::new(balance))].into(),
         }
     }
 
-    fn register_tree(&mut self, root: impl Into<GasNodeId<MapKey, ReservationKey>>) {
+    fn register_tree(&mut self, root: impl Into<GasNodeId<MapKey, ReservationKey>>, balance: u64) {
         let root = root.into();
 
         self.trees
             .entry(root)
             .and_modify(|_| unreachable!("duplicated tree: {:?}", root))
-            .or_default();
+            .or_insert_with(|| TestTree::new(balance));
     }
 
     #[track_caller]
@@ -397,7 +411,7 @@ proptest! {
         // +1 for the root
         let mut node_ids = Vec::with_capacity(actions.len() + 1);
         let root_node = MapKey::random();
-        let mut forest = TestForest::create(root_node);
+        let mut forest = TestForest::create(root_node, max_balance);
         node_ids.push(root_node.into());
 
         // Only root has a max balance
@@ -521,7 +535,7 @@ proptest! {
                         assertions::assert_not_invariant_error(e)
                     } else {
                         node_ids.push(child.into());
-                        forest.register_tree(child);
+                        forest.register_tree(child, amount);
                     }
                 }
                 GasTreeAction::Reserve(from, amount) => {
@@ -534,7 +548,7 @@ proptest! {
                             assertions::assert_not_invariant_error(e)
                         } else {
                             node_ids.push(child.into());
-                            forest.register_tree(child);
+                            forest.register_tree(child, amount);
                         }
                     }
                 }
