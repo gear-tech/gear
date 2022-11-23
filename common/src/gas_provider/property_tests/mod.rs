@@ -424,6 +424,8 @@ proptest! {
         let mut unspec_ref_nodes = BTreeSet::new();
         // Nodes that were created with `split_with_value` procedure
         let mut spec_ref_nodes = BTreeSet::new();
+        // Nodes that were created with `reserve` procedure
+        let mut reserved_nodes = BTreeSet::new();
         // Nodes on which `lock` was called
         let mut locked_nodes = BTreeSet::new();
         // Nodes on which `system_reserve` was called
@@ -548,6 +550,7 @@ proptest! {
                             assertions::assert_not_invariant_error(e)
                         } else {
                             node_ids.push(child.into());
+                            reserved_nodes.insert(child);
                             forest.register_tree(child, amount);
                         }
                     }
@@ -656,6 +659,13 @@ proptest! {
                 assert!(locked_nodes.contains(&node_id));
                 // ...there can't be any existing cut nodes
                 assert!(!node.is_cut());
+            }
+
+            // Check property: for all the `Reserved` nodes currently existing in the tree...
+            if node.is_reserved() {
+                let node_id = node_id.to_reservation_id().unwrap();
+                // ...can exist only after `reserve`
+                assert!(reserved_nodes.contains(&node_id));
             }
 
             // Check property: for all the consumed nodes currently existing in the tree...
