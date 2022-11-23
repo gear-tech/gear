@@ -25,7 +25,7 @@ pub fn init_log() -> Result<WorkerGuard> {
     let writers = create_stdout_log_component().and_then(file_layer);
 
     tracing_subscriber::fmt()
-        .with_env_filter("gear_node_loader=debug")
+        .with_env_filter("gear_node_loader=debug,gear_program=debug")
         .finish()
         .with(writers)
         .try_init()

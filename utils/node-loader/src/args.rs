@@ -29,6 +29,10 @@ pub struct LoadParams {
     #[structopt(long, default_value = "//Alice")]
     pub user: String,
 
+    /// Starting seed for loading the network
+    #[structopt(long)]
+    pub loader_seed: Option<u64>,
+
     /// Seed used to generate random seeds for various internal generators.
     /// If the parameter isn't provided, then timestamp will be used by default.
     /// There are either 2 seed variants: start or constant. Start sets starting
