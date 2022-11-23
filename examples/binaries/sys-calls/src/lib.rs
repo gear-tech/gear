@@ -177,7 +177,10 @@ mod wasm {
             }
             Kind::Size(expected_size) => {
                 let actual_size = msg::size();
-                assert_eq!(expected_size, actual_size, "Kind::Size: size test failed");
+                assert_eq!(
+                    expected_size as usize, actual_size,
+                    "Kind::Size: size test failed"
+                );
             }
             Kind::MessageId(expected_mid) => {
                 let actual_mid: [u8; 32] = msg::id().into();
