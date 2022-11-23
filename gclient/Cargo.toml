@@ -19,8 +19,8 @@ async-trait = "0.1.58"
 wabt = "0.10.0"
 
 [dev-dependencies]
-tokio = { version = "1.21.2", features = ["full"] }
-wat = "1.0.51"
+tokio = { version = "1.22.0", features = ["full"] }
+wat = "1.0.52"
 async-std = "1.12"
 env_logger = "0.9"
 log = "0.4"

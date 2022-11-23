@@ -22,7 +22,7 @@ use frame_support::{
     traits::{
         ConstU128, ConstU8, Contains, Currency, FindAuthor, OnFinalize, OnInitialize, OnUnbalanced,
     },
-    weights::{constants::WEIGHT_PER_SECOND, IdentityFee},
+    weights::{constants::WEIGHT_PER_SECOND, ConstantMultiplier},
 };
 use frame_support_test::TestRandomness;
 use frame_system as system;
@@ -150,8 +150,8 @@ impl pallet_transaction_payment::Config for Test {
     type RuntimeEvent = RuntimeEvent;
     type OnChargeTransaction = CurrencyAdapter<Balances, DealWithFees>;
     type OperationalFeeMultiplier = ConstU8<5>;
-    type WeightToFee = IdentityFee<u128>;
-    type LengthToFee = IdentityFee<u128>;
+    type WeightToFee = ConstantMultiplier<u128, ConstU128<1_000>>;
+    type LengthToFee = ConstantMultiplier<u128, ConstU128<1_000>>;
     type FeeMultiplierUpdate = pallet_gear_payment::GearFeeMultiplier<Test, QueueLengthStep>;
 }
 
@@ -254,7 +254,7 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
         .unwrap();
 
     pallet_balances::GenesisConfig::<Test> {
-        balances: vec![(ALICE, 1_000_000_000_u128), (BLOCK_AUTHOR, 1_000_u128)],
+        balances: vec![(ALICE, 100_000_000_000u128), (BLOCK_AUTHOR, 1_000u128)],
     }
     .assimilate_storage(&mut t)
     .unwrap();

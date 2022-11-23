@@ -16,46 +16,101 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Program creation API for Gear programs.
+//! API for creating programs from Gear programs.
+//!
+//! Once a Wasm code has been uploaded to the chain, the Gear program can create
+//! a new program from the code blob using its identifier.
+//!
+//! To create a new program, you are to provide the code identifier obtained
+//! after running the `upload_code` extrinsic, unique salt (arbitrary data
+//! needed to instantiate several programs from one code blob), and the init
+//! message that consists at least from a payload and value.
 
+use crate::{
+    error::{Result, SyscallError},
+    ActorId, CodeId, MessageId,
+};
 use gear_core_errors::ExtError;
+use gsys::{HashWithValue, LengthWithTwoHashes};
 
-use crate::{error::Result, ActorId, CodeId, MessageId};
-
-mod sys {
-    use crate::error::SyscallError;
-
-    extern "C" {
-        #[allow(improper_ctypes)]
-        pub fn gr_create_program(
-            code_id_ptr: *const [u8; 32],
-            salt_ptr: *const u8,
-            salt_len: u32,
-            payload_ptr: *const u8,
-            payload_len: u32,
-            value_ptr: *const u128,
-            delay: u32,
-            message_id_ptr: *mut [u8; 32],
-            program_id_ptr: *mut [u8; 32],
-        ) -> SyscallError;
-
-        #[allow(improper_ctypes)]
-        pub fn gr_create_program_wgas(
-            code_id_ptr: *const [u8; 32],
-            salt_ptr: *const u8,
-            salt_len: u32,
-            payload_ptr: *const u8,
-            payload_len: u32,
-            gas_limit: u64,
-            value_ptr: *const u128,
-            delay: u32,
-            message_id_ptr: *mut [u8; 32],
-            program_id_ptr: *mut [u8; 32],
-        ) -> SyscallError;
-    }
-}
-
-/// Same as [`create_program_with_gas`], but without explicit gas limit.
+/// Create a new program and returns its address.
+///
+/// This function creates a program initialization message.
+///
+/// Parameters:
+/// - `code_id` is the code identifier of newly creating program that is
+///   represented as blake2b hash;
+/// - `salt` is the arbitrary data needed to generate an address for a new
+///   program (control of salt uniqueness is entirely on the program developer's
+///   side);
+/// - `payload` that can be used in the `init` function of the newly deployed
+///   "child" program;
+/// - `value` sent with the init message.
+///
+/// # Examples
+///
+/// Basically we can use "automatic" salt generation ("nonce"):
+///
+/// ```
+/// use gcore::{prog, CodeId};
+///
+/// static mut NONCE: i32 = 0;
+///
+/// fn increase() {
+///     unsafe { NONCE += 1 };
+/// }
+///
+/// fn get() -> i32 {
+///     unsafe { NONCE }
+/// }
+///
+/// #[no_mangle]
+/// extern "C" fn handle() {
+///     // We assume we already have a code identifier
+///     let submitted_code: CodeId =
+///         hex_literal::hex!("abf3746e72a6e8740bd9e12b879fbdd59e052cb390f116454e9116c22021ae4a")
+///             .into();
+///     let (message_id, new_program_id) =
+///         prog::create_program(submitted_code, &get().to_le_bytes(), b"", 0)
+///             .expect("Unable to create a program");
+/// }
+/// ```
+///
+/// Another case for salt is to receive it as input:
+///
+/// ```
+/// use gcore::{msg, prog};
+/// # use gcore::CodeId;
+///
+/// #[no_mangle]
+/// extern "C" fn handle() {
+///     # let submitted_code: CodeId = hex_literal::hex!("abf3746e72a6e8740bd9e12b879fbdd59e052cb390f116454e9116c22021ae4a").into();
+///     // ...
+///     let mut salt = vec![0u8; msg::size()];
+///     msg::read(&mut salt).expect("Unable to read");
+///     let (message_id, new_program_id) = prog::create_program(submitted_code, &salt, b"", 0)
+///         .expect("Unable to create a program");
+/// }
+/// ```
+///
+/// Moreover, messages can be sent to a new program:
+///
+/// ```
+/// use gcore::{msg, prog};
+/// # use gcore::CodeId;
+///
+/// #[no_mangle]
+/// extern "C" fn handle() {
+///     # let submitted_code: CodeId = hex_literal::hex!("abf3746e72a6e8740bd9e12b879fbdd59e052cb390f116454e9116c22021ae4a").into();
+///     # let mut salt = vec![0u8; msg::size()];
+///     # msg::read(&mut salt).unwrap();
+///     // ...
+///     let (_, new_program_id) = prog::create_program(submitted_code, &salt, b"", 0)
+///         .expect("Unable to create a program");
+///     msg::send(new_program_id, b"payload for a new program", 0)
+///         .expect("Unable to send");
+/// }
+/// ```
 pub fn create_program(
     code_id: CodeId,
     salt: &[u8],
@@ -65,109 +120,7 @@ pub fn create_program(
     create_program_delayed(code_id, salt, payload, value, 0)
 }
 
-/// Same as [`create_program`], but sends delayed.
-pub fn create_program_delayed(
-    code_id: CodeId,
-    salt: &[u8],
-    payload: &[u8],
-    value: u128,
-    delay: u32,
-) -> Result<(MessageId, ActorId)> {
-    let mut message_id = MessageId::default();
-    let mut program_id = ActorId::default();
-
-    let salt_len = salt.len().try_into().map_err(|_| ExtError::SyscallUsage)?;
-
-    let payload_len = payload
-        .len()
-        .try_into()
-        .map_err(|_| ExtError::SyscallUsage)?;
-
-    unsafe {
-        sys::gr_create_program(
-            code_id.as_ptr(),
-            salt.as_ptr(),
-            salt_len,
-            payload.as_ptr(),
-            payload_len,
-            value.to_le_bytes().as_ptr() as *const u128,
-            delay,
-            message_id.as_mut_ptr(),
-            program_id.as_mut_ptr(),
-        )
-        .into_result()?
-    }
-
-    Ok((message_id, program_id))
-}
-
-/// Creates a new program and returns its address, with gas limit.
-///
-/// The function creates a program initialization message and, as
-/// any message send function in the crate, this one requires common additional
-/// data for message execution, such as:
-/// 1. `payload` that can be used in `init` function of the newly deployed
-/// "child" program; 2. `gas_limit`, provided for the program initialization;
-/// 3. `value`, sent with the message.
-/// Code of newly creating program must be represented as blake2b hash
-/// (`code_id` parameter).
-///
-/// # Examples
-///
-/// In order to generate an address for a new program `salt` must be provided.
-/// Control of salt uniqueness is fully on a program developer side.
-///
-/// Basically we can use "automatic" salt generation ("nonce"):
-/// ```
-/// use gcore::{prog, CodeId};
-///
-/// static mut NONCE: i32 = 0;
-///
-/// fn increase() {
-///     unsafe {
-///         NONCE += 1;
-///     }
-/// }
-///
-/// fn get() -> i32 {
-///     unsafe { NONCE }
-/// }
-///
-/// unsafe extern "C" fn handle() {
-///     let submitted_code: CodeId =
-///         hex_literal::hex!("abf3746e72a6e8740bd9e12b879fbdd59e052cb390f116454e9116c22021ae4a")
-///             .into();
-///     let new_program_id =
-///         prog::create_program_with_gas(submitted_code, &get().to_le_bytes(), b"", 10_000, 0)
-///             .unwrap();
-/// }
-/// ```
-/// Another case for salt is to receive it as an input:
-/// ```
-/// use gcore::{msg, prog};
-/// # use gcore::CodeId;
-///
-/// unsafe extern "C" fn handle() {
-///     # let submitted_code: CodeId = hex_literal::hex!("abf3746e72a6e8740bd9e12b879fbdd59e052cb390f116454e9116c22021ae4a").into();
-///     let mut salt = vec![0u8; msg::size() as usize];
-///     msg::load(&mut salt[..]);
-///     let new_program_id = prog::create_program_with_gas(submitted_code, &salt, b"", 10_000, 0).unwrap();
-/// }
-/// ```
-///
-/// What's more, messages can be sent to a new program:
-/// ```
-/// use gcore::{msg, prog};
-/// # use gcore::CodeId;
-///
-/// unsafe extern "C" fn handle() {
-///     # let submitted_code: CodeId = hex_literal::hex!("abf3746e72a6e8740bd9e12b879fbdd59e052cb390f116454e9116c22021ae4a").into();
-///     # let mut salt = vec![0u8; msg::size() as usize];
-///     # msg::load(&mut salt[..]);
-///     let new_program_id = prog::create_program_with_gas(submitted_code, &salt, b"", 10_000, 0).unwrap();
-///     msg::send_with_gas(new_program_id, b"payload for a new program", 10_000, 0).unwrap();
-/// }
-/// ```
+/// Same as [`create_program`], but with an explicit gas limit.
 pub fn create_program_with_gas(
     code_id: CodeId,
     salt: &[u8],
@@ -178,17 +131,21 @@ pub fn create_program_with_gas(
     create_program_with_gas_delayed(code_id, salt, payload, gas_limit, value, 0)
 }
 
-/// Same as [`create_program_with_gas`], but sends delayed.
-pub fn create_program_with_gas_delayed(
+/// Same as [`create_program`], but creates a new program after the `delay`
+/// expressed in block count.
+pub fn create_program_delayed(
     code_id: CodeId,
     salt: &[u8],
     payload: &[u8],
-    gas_limit: u64,
     value: u128,
     delay: u32,
 ) -> Result<(MessageId, ActorId)> {
-    let mut message_id = MessageId::default();
-    let mut program_id = ActorId::default();
+    let cid_value = HashWithValue {
+        hash: code_id.0,
+        value,
+    };
+
+    let mut res: LengthWithTwoHashes = Default::default();
 
     let salt_len = salt.len().try_into().map_err(|_| ExtError::SyscallUsage)?;
 
@@ -198,20 +155,58 @@ pub fn create_program_with_gas_delayed(
         .map_err(|_| ExtError::SyscallUsage)?;
 
     unsafe {
-        sys::gr_create_program_wgas(
-            code_id.as_ptr(),
+        gsys::gr_create_program(
+            cid_value.as_ptr(),
+            salt.as_ptr(),
+            salt_len,
+            payload.as_ptr(),
+            payload_len,
+            delay,
+            res.as_mut_ptr(),
+        )
+    };
+    SyscallError(res.length).into_result()?;
+
+    Ok((MessageId(res.hash1), ActorId(res.hash2)))
+}
+
+/// Same as [`create_program_with_gas`], but creates a new program after the
+/// `delay` expressed in block count.
+pub fn create_program_with_gas_delayed(
+    code_id: CodeId,
+    salt: &[u8],
+    payload: &[u8],
+    gas_limit: u64,
+    value: u128,
+    delay: u32,
+) -> Result<(MessageId, ActorId)> {
+    let cid_value = HashWithValue {
+        hash: code_id.0,
+        value,
+    };
+
+    let mut res: LengthWithTwoHashes = Default::default();
+
+    let salt_len = salt.len().try_into().map_err(|_| ExtError::SyscallUsage)?;
+
+    let payload_len = payload
+        .len()
+        .try_into()
+        .map_err(|_| ExtError::SyscallUsage)?;
+
+    unsafe {
+        gsys::gr_create_program_wgas(
+            cid_value.as_ptr(),
             salt.as_ptr(),
             salt_len,
             payload.as_ptr(),
             payload_len,
             gas_limit,
-            value.to_le_bytes().as_ptr() as *const u128,
             delay,
-            message_id.as_mut_ptr(),
-            program_id.as_mut_ptr(),
+            res.as_mut_ptr(),
         )
-        .into_result()?
-    }
+    };
+    SyscallError(res.length).into_result()?;
 
-    Ok((message_id, program_id))
+    Ok((MessageId(res.hash1), ActorId(res.hash2)))
 }

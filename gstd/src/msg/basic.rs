@@ -208,7 +208,7 @@ pub fn id() -> MessageId {
 /// }
 /// ```
 pub fn load_bytes() -> Result<Vec<u8>> {
-    let mut result = vec![0u8; size() as usize];
+    let mut result = vec![0u8; size()];
     gcore::msg::read(result.as_mut())?;
     Ok(result)
 }
@@ -748,11 +748,10 @@ pub fn send_push<T: AsRef<[u8]>>(handle: MessageHandle, payload: T) -> Result<()
 /// use gstd::msg;
 ///
 /// unsafe extern "C" fn handle() {
-///     // ...
 ///     let payload_size = msg::size();
 /// }
 /// ```
-pub fn size() -> u32 {
+pub fn size() -> usize {
     gcore::msg::size()
 }
 
