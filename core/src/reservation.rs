@@ -148,7 +148,11 @@ impl GasReserver {
     }
 
     /// Convert into gas reservation map.
-    pub fn into_map<F>(self, start: u32, duration_into_expiration: F) -> GasReservationMap
+    pub fn into_map<F>(
+        self,
+        current_block_height: u32,
+        duration_into_expiration: F,
+    ) -> GasReservationMap
     where
         F: Fn(u32) -> u32,
     {
@@ -176,7 +180,7 @@ impl GasReserver {
                         id,
                         GasReservationSlot {
                             amount,
-                            start,
+                            start: current_block_height,
                             finish: expiration,
                         },
                     ))
