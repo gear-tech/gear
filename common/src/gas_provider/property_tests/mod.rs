@@ -81,6 +81,7 @@ use core::{cell::RefCell, iter::FromIterator, ops::DerefMut};
 use frame_support::{assert_err, assert_ok};
 use primitive_types::H256;
 use proptest::prelude::*;
+use std::collections::HashMap;
 use strategies::GasTreeAction;
 use utils::RingGet;
 
@@ -322,6 +323,66 @@ fn gas_tree_node_clone() -> BTreeMap<Key, GasNode> {
     })
 }
 
+#[derive(Debug, Default)]
+struct TestTree {
+    // Total spent amount with `spent` procedure
+    spent: u64,
+    // Value caught after `consume` procedure
+    caught: u64,
+    // Total system reservations amount.
+    system_reserve: u64,
+    // Total locked amount.
+    locked: u64,
+}
+
+impl TestTree {
+    fn total_balance(&self) -> u64 {
+        self.spent + self.caught + self.system_reserve + self.locked
+    }
+}
+
+#[derive(Debug)]
+struct TestForest {
+    trees: HashMap<GasNodeId<MapKey, ReservationKey>, TestTree>,
+}
+
+impl TestForest {
+    fn create(root: MapKey) -> Self {
+        Self {
+            trees: [(root.into(), TestTree::default())].into(),
+        }
+    }
+
+    fn register_tree(&mut self, root: impl Into<GasNodeId<MapKey, ReservationKey>>) {
+        let root = root.into();
+
+        self.trees
+            .entry(root)
+            .and_modify(|_| unreachable!("duplicated tree: {:?}", root))
+            .or_default();
+    }
+
+    #[track_caller]
+    fn tree_by_origin_mut(
+        &mut self,
+        origin: impl Into<GasNodeId<MapKey, ReservationKey>>,
+    ) -> &mut TestTree {
+        self.trees
+            .get_mut(&origin.into())
+            .expect("tree root not found")
+    }
+
+    #[track_caller]
+    fn tree_mut(&mut self, node: impl Into<GasNodeId<MapKey, ReservationKey>>) -> &mut TestTree {
+        let origin = Gas::get_origin_key(node).expect("child node not found");
+        self.tree_by_origin_mut(origin)
+    }
+
+    fn total_balance(&self) -> u64 {
+        self.trees.values().map(|tree| tree.total_balance()).sum()
+    }
+}
+
 proptest! {
     #![proptest_config(ProptestConfig::with_cases(600))]
     #[test]
@@ -336,6 +397,7 @@ proptest! {
         // +1 for the root
         let mut node_ids = Vec::with_capacity(actions.len() + 1);
         let root_node = MapKey::random();
+        let mut forest = TestForest::create(root_node);
         node_ids.push(root_node.into());
 
         // Only root has a max balance
@@ -352,14 +414,6 @@ proptest! {
         let mut locked_nodes = BTreeSet::new();
         // Nodes on which `system_reserve` was called
         let mut system_reserve_nodes = BTreeSet::new();
-        // Total spent amount with `spent` procedure
-        let mut spent = 0;
-        // Value caught after `consume` procedure
-        let mut caught = 0;
-        // Total system reservations amount.
-        let mut system_reserve = 0;
-        // Total locked amount.
-        let mut locked = 0;
 
         for action in actions {
             // `Error::<T>::NodeNotFound` can't occur, because of `ring_get` approach
@@ -398,12 +452,13 @@ proptest! {
                             assert_err!(res, Error::InsufficientBalance);
                         } else {
                             assert_ok!(res);
-                            spent += amount;
+                            forest.tree_mut(from).spent += amount;
                         }
                     }
                 }
                 GasTreeAction::Consume(id) => {
                     let consuming = node_ids.ring_get(id).copied().expect("before each iteration there is at least 1 element; qed");
+                    let origin = Gas::get_origin_key(consuming).expect("node exists");
                     match utils::consume_node(consuming) {
                         Ok((maybe_caught, remaining_nodes, removed_nodes)) => {
                             marked_consumed.insert(consuming);
@@ -436,7 +491,7 @@ proptest! {
                                 assertions::assert_root_children_removed(id, &remaining_nodes);
                             }
 
-                            caught += maybe_caught.unwrap_or_default();
+                            forest.tree_by_origin_mut(origin).caught += maybe_caught.unwrap_or_default();
                         }
                         Err(e) => {
                             match e {
@@ -466,6 +521,7 @@ proptest! {
                         assertions::assert_not_invariant_error(e)
                     } else {
                         node_ids.push(child.into());
+                        forest.register_tree(child);
                     }
                 }
                 GasTreeAction::Reserve(from, amount) => {
@@ -478,6 +534,7 @@ proptest! {
                             assertions::assert_not_invariant_error(e)
                         } else {
                             node_ids.push(child.into());
+                            forest.register_tree(child);
                         }
                     }
                 }
@@ -487,7 +544,7 @@ proptest! {
                     if let Err(e) = Gas::lock(from, amount) {
                         assertions::assert_not_invariant_error(e)
                     } else {
-                        locked += amount;
+                        forest.tree_mut(from).locked += amount;
                         locked_nodes.insert(from);
                     }
                 }
@@ -497,7 +554,7 @@ proptest! {
                     if let Err(e) = Gas::unlock(from, amount) {
                         assertions::assert_not_invariant_error(e)
                     } else {
-                        locked -= amount;
+                        forest.tree_mut(from).locked -= amount;
                         locked_nodes.insert(from);
                     }
                 }
@@ -508,7 +565,7 @@ proptest! {
                         if let Err(e) = Gas::system_reserve(from, amount) {
                             assertions::assert_not_invariant_error(e)
                         } else {
-                            system_reserve += amount;
+                            forest.tree_mut(from).system_reserve += amount;
                             system_reserve_nodes.insert(from);
                         }
                     }
@@ -519,7 +576,7 @@ proptest! {
                     if let GasNodeId::Node(from) = from {
                         match Gas::system_unreserve(from) {
                             Ok(amount) => {
-                                system_reserve -= amount;
+                                forest.tree_mut(from).system_reserve -= amount;
                                 system_reserve_nodes.remove(&from);
                             },
                             Err(e) => {
@@ -631,7 +688,7 @@ proptest! {
 
         if !gas_tree_ids.is_empty() {
             // Check trees imbalance
-            assert_eq!(max_balance, spent + rest_value + caught + locked + system_reserve);
+            assert_eq!(max_balance, rest_value + forest.total_balance());
         }
     }
 
