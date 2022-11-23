@@ -612,6 +612,7 @@ impl EnvExt for Ext {
 
     fn reserve_gas(&mut self, amount: u64, duration: u32) -> Result<ReservationId, Self::Error> {
         self.charge_gas_runtime(RuntimeCosts::ReserveGas)?;
+        self.charge_gas(self.context.message_context.settings().reservation_fee())?;
 
         if amount == 0 {
             return self.return_and_store_err(Err(ExecutionError::ZeroReservationAmount));
