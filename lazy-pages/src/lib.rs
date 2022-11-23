@@ -143,8 +143,9 @@ pub(crate) struct LazyPagesExecutionContext {
     pub stack_end_wasm_addr: WasmAddr,
     /// Gear pages, which has been write accessed.
     pub released_pages: BTreeSet<PageNumber>,
-
+    /// Context to access globals and works with them: charge gas, set status global.
     pub globals_ctx: Option<GlobalsCtx>,
+    /// Lazy-pages status: indicates in which mod lazy-pages works actually.
     pub status: Option<Status>,
 }
 
@@ -304,26 +305,6 @@ pub fn unset_lazy_pages_protection() -> Result<(), MemoryProtectionError> {
         mprotect::mprotect_interval(addr, size, true, true)?;
         Ok(())
     })
-}
-
-/// Set end of stack addr in wasm memory.
-pub fn set_stack_end_wasm_addr(stack_end_wasm_addr: WasmAddr) {
-    LAZY_PAGES_CONTEXT.with(|ctx| ctx.borrow_mut().stack_end_wasm_addr = stack_end_wasm_addr);
-}
-
-/// Returns end of stack address in wasm memory.
-pub fn get_stack_end_wasm_addr() -> WasmAddr {
-    LAZY_PAGES_CONTEXT.with(|ctx| ctx.borrow().stack_end_wasm_addr)
-}
-
-/// Returns current wasm mem buffer pointer, if it's set.
-pub fn get_wasm_mem_addr() -> Option<usize> {
-    LAZY_PAGES_CONTEXT.with(|ctx| ctx.borrow().wasm_mem_addr)
-}
-
-/// Returns current wasm mem buffer size, if it's set
-pub fn get_wasm_mem_size() -> Option<u32> {
-    LAZY_PAGES_CONTEXT.with(|ctx| ctx.borrow().wasm_mem_size)
 }
 
 #[derive(derive_more::Display)]
