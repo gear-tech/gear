@@ -322,6 +322,11 @@ case "$COMMAND" in
       syscalls)
         header "Running syscalls integrity test of pallet-gear 'benchmarking' module on WASMI executor"
         syscalls_integrity_test ;;
+
+      doc)
+        header "Testing examples in docs"
+        doc_test "$@"; ;;
+
       *)
         header  "Unknown option: '$SUBCOMMAND'"
         test_usage

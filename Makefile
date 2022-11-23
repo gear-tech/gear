@@ -4,7 +4,7 @@ show:
 	@ ./scripts/gear.sh show
 
 .PHONY: pre-commit
-pre-commit: fmt check-spec clippy test
+pre-commit: fmt clippy test # check-spec
 
 .PHONY: check-spec
 check-spec:
@@ -217,6 +217,10 @@ purge-dev-chain-release:
 # Test section
 .PHONY: test
 test: test-gear test-js gtest test-syscalls-integrity# There should be no release builds (e.g. `rtest`) for fast checking.
+
+.PHONY: test-doc
+test-doc:
+	@ ./scripts/gear.sh test doc
 
 .PHONY: test-release
 test-release: test-gear-release test-js gtest rtest test-runtime-upgrade

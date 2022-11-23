@@ -18,7 +18,10 @@
 
 use super::{GearApi, Result};
 use crate::Error;
-use gp::api::generated::api::{runtime_types::gear_runtime::RuntimeEvent, storage};
+use gp::api::generated::api::{
+    runtime_types::{gear_runtime::RuntimeEvent, pallet_gear::ProcessStatus},
+    storage,
+};
 use subxt::ext::{
     sp_core::H256,
     sp_runtime::{
@@ -113,5 +116,15 @@ impl GearApi {
         } else {
             Err(Error::MaxDepthReached)
         }
+    }
+
+    pub async fn queue_processing_stopped(&self) -> Result<bool> {
+        let at = storage().gear().queue_state();
+        self.0
+            .storage()
+            .fetch(&at, None)
+            .await?
+            .ok_or(Error::StorageNotFound)
+            .map(|queue_state| matches!(queue_state, ProcessStatus::SkippedOrFailed))
     }
 }

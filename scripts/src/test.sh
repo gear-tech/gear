@@ -153,3 +153,7 @@ run_fuzzer() {
 syscalls_integrity_test() {
   cargo test -p pallet-gear check_syscalls_integrity --features runtime-benchmarks
 }
+
+doc_test() {
+  cargo test --doc --workspace "$@"
+}
