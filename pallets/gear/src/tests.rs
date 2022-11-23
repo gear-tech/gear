@@ -7126,7 +7126,7 @@ fn gas_reservations_cleaned_in_terminated_program() {
 }
 
 #[test]
-fn gas_reservations_locking_not_enough_gas() {
+fn gas_reservations_check_params() {
     use demo_reserve_gas::InitAction;
 
     init_logger();
@@ -7135,7 +7135,7 @@ fn gas_reservations_locking_not_enough_gas() {
             RuntimeOrigin::signed(USER_1),
             demo_reserve_gas::WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
-            InitAction::BigDuration.encode(),
+            InitAction::CheckArgs.encode(),
             10_000_000_000,
             0,
         ));

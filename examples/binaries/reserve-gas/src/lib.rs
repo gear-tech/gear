@@ -50,7 +50,7 @@ enum WakeState {
 pub enum InitAction {
     Normal,
     Wait,
-    BigDuration,
+    CheckArgs,
 }
 
 #[derive(Debug, Encode, Decode)]
@@ -94,7 +94,21 @@ unsafe extern "C" fn init() {
             msg::send(msg::source(), (), 0).unwrap();
             exec::wait();
         }
-        InitAction::BigDuration => {
+        InitAction::CheckArgs => {
+            assert_eq!(
+                ReservationId::reserve(0, 10),
+                Err(ContractError::Ext(ExtError::Execution(
+                    ExecutionError::ZeroReservationAmount
+                )))
+            );
+
+            assert_eq!(
+                ReservationId::reserve(50_000, 0),
+                Err(ContractError::Ext(ExtError::Execution(
+                    ExecutionError::ZeroReservationDuration
+                )))
+            );
+
             assert_eq!(
                 ReservationId::reserve(1, u32::MAX),
                 Err(ContractError::Ext(ExtError::Execution(
