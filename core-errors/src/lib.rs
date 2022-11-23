@@ -193,6 +193,12 @@ pub enum ExecutionError {
     /// An error occurs in attempt to reserve more times than allowed.
     #[display(fmt = "Reservation limit has reached")]
     ReservationsLimitReached,
+    /// An error occurs in attempt to create reservation for 0 blocks.
+    #[display(fmt = "Reservation duration cannot be zero")]
+    ZeroReservationDuration,
+    /// An error occurs in attempt to reserve zero gas.
+    #[display(fmt = "Reservation amount cannot be zero")]
+    ZeroReservationAmount,
     /// An error occurs in attempt to reserve zero gas for the system.
     #[display(fmt = "System reservation amount cannot be zero")]
     ZeroSystemReservationAmount,

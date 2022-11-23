@@ -613,17 +613,18 @@ impl EnvExt for Ext {
     fn reserve_gas(&mut self, amount: u64, duration: u32) -> Result<ReservationId, Self::Error> {
         self.charge_gas_runtime(RuntimeCosts::ReserveGas)?;
 
-        // TODO: amount != 0
-        // TODO: duration != 0
+        if amount == 0 {
+            return self.return_and_store_err(Err(ExecutionError::ZeroReservationAmount));
+        }
 
-        if self.context.gas_counter.reduce(amount) == ChargeResult::NotEnough {
-            return self.return_and_store_err(Err(ExecutionError::InsufficientGasForReservation));
+        if duration == 0 {
+            return self.return_and_store_err(Err(ExecutionError::ZeroReservationDuration));
         }
 
         let reserve = u64::from(self.context.reserve_for.saturating_add(duration))
             .saturating_mul(self.context.reservation);
-
-        if self.context.gas_counter.reduce(reserve) == ChargeResult::NotEnough {
+        let reduce_amount = amount.saturating_add(reserve);
+        if self.context.gas_counter.reduce(reduce_amount) == ChargeResult::NotEnough {
             return self.return_and_store_err(Err(ExecutionError::InsufficientGasForReservation));
         }
 
