@@ -139,8 +139,10 @@ impl ValueStorage for TotalIssuanceWrap {
 }
 
 type Key = GasNodeId<MapKey, ReservationKey>;
-type ExternalOrigin = MapKey;
 type GasNode = super::GasNode<ExternalOrigin, Key, Balance>;
+
+#[derive(Debug, Copy, Hash, Clone, Eq, PartialEq, Ord, PartialOrd)]
+pub struct ExternalOrigin(MapKey);
 
 #[derive(Debug, Copy, Hash, Clone, Eq, PartialEq, Ord, PartialOrd)]
 pub struct MapKey(H256);
@@ -405,7 +407,7 @@ proptest! {
         TotalIssuanceWrap::kill();
         <GasTreeNodesWrap as storage::MapStorage>::clear();
 
-        let external = MapKey::random();
+        let external = ExternalOrigin(MapKey::random());
         // `actions` can consist only from tree splits. Then it's length will
         // represent a potential amount of nodes in the tree.
         // +1 for the root
