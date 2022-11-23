@@ -285,7 +285,7 @@ where
         }
     }
 
-    pub fn remove_gas_reservation(
+    pub fn remove_gas_reservation_impl(
         program_id: ProgramId,
         reservation_id: ReservationId,
     ) -> GasReservationSlot {

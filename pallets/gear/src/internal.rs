@@ -837,7 +837,7 @@ where
         program_id: ProgramId,
         reservation_id: ReservationId,
     ) {
-        let slot = ExtManager::<T>::remove_gas_reservation(program_id, reservation_id);
+        let slot = ExtManager::<T>::remove_gas_reservation_impl(program_id, reservation_id);
 
         let _ = TaskPoolOf::<T>::delete(
             BlockNumberFor::<T>::from(slot.finish),
