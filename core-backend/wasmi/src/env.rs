@@ -36,11 +36,14 @@ use gear_backend_common::{
     STACK_END_EXPORT_NAME,
 };
 use gear_core::{
+    costs::RuntimeCosts,
     env::Ext,
     gas::GasAmount,
-    lazy_pages::{GlobalsAccessError, GlobalsAccessTrait, GlobalsCtx, LazyPagesWeights, GlobalsAccessMod},
+    lazy_pages::{
+        GlobalsAccessError, GlobalsAccessMod, GlobalsAccessTrait, GlobalsCtx, LazyPagesWeights,
+    },
     memory::{HostPointer, WasmPageNumber},
-    message::DispatchKind, costs::RuntimeCosts,
+    message::DispatchKind,
 };
 use gear_wasm_instrument::{GLOBAL_NAME_ALLOWANCE, GLOBAL_NAME_GAS};
 use wasmi::{
@@ -353,7 +356,10 @@ where
             (gas_amount!(store), WrongInjectedAllowance)
         })?;
 
-        let runtime = store.state_mut().take().expect("is set before in `new`; qed");
+        let runtime = store
+            .state_mut()
+            .take()
+            .expect("is set before in `new`; qed");
 
         let State {
             mut ext, err: trap, ..
