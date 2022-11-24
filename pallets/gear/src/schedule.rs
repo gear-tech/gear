@@ -987,18 +987,20 @@ mod test {
 
         all_measured_instructions()
             .iter()
-            .filter(|i| match i {
-                I32WrapI64
-                | CallIndirect(_, _)
-                | End
-                | Unreachable
-                | Return
-                | Else
-                | Block(_)
-                | Loop(_)
-                | Nop
-                | Drop => false,
-                _ => true,
+            .filter(|i| {
+                !matches!(
+                    i,
+                    I32WrapI64
+                        | CallIndirect(_, _)
+                        | End
+                        | Unreachable
+                        | Return
+                        | Else
+                        | Block(_)
+                        | Loop(_)
+                        | Nop
+                        | Drop
+                )
             })
             .map(|i| rules.instruction_cost(i).expect("checked before"))
             .for_each(|w| assert!(w > i32_wrap_i64))
