@@ -982,10 +982,14 @@ mod test {
         let schedule = Schedule::<Test>::default();
         let rules = schedule.rules(&default_wasm_module());
 
+        let i32_wrap_i64 = schedule.instruction_weights.i32wrapi64;
+        assert!(i32_wrap_i64 > 0);
+
         all_measured_instructions()
             .iter()
             .filter(|i| match i {
-                CallIndirect(_, _)
+                I32WrapI64
+                | CallIndirect(_, _)
                 | End
                 | Unreachable
                 | Return
@@ -996,11 +1000,7 @@ mod test {
                 | Drop => false,
                 _ => true,
             })
-            .map(|i| (i, rules.instruction_cost(i).expect("checked before")))
-            .for_each(|(i, w)| {
-                assert!(w > 0);
-
-                // TODO: check that all instructions have weights bigger than some eristic values.
-            })
+            .map(|i| rules.instruction_cost(i).expect("checked before"))
+            .for_each(|w| assert!(w > i32_wrap_i64))
     }
 }
