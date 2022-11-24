@@ -41,7 +41,7 @@ use crate::{
         USER_3,
     },
     pallet, BlockGasLimitOf, Config, CostsPerBlockOf, DbWeightOf, Error, Event, GasAllowanceOf,
-    GasHandlerOf, GasInfo, MailboxOf, Schedule, WaitlistOf,
+    GasHandlerOf, GasInfo, MailboxOf, Schedule, WaitlistOf, TaskPoolOf,
 };
 use codec::{Decode, Encode};
 use common::{
@@ -69,6 +69,64 @@ use gear_core_errors::*;
 use sp_runtime::{traits::UniqueSaturatedInto, SaturatedConversion};
 use sp_std::convert::TryFrom;
 use utils::*;
+
+#[test]
+fn delayed_program_creation_no_code() {
+    init_logger();
+
+    let wat = r#"
+	(module
+		(import "env" "memory" (memory 1))
+        (import "env" "gr_create_program_wgas" (func $create_program_wgas (param i32 i32 i32 i32 i32 i64 i32 i32)))
+		(export "init" (func $init))
+		(func $init
+            i32.const 0     ;; zeroed cid_value ptr
+            i32.const 0     ;; salt ptr
+            i32.const 0     ;; salt len
+            i32.const 0     ;; payload ptr
+            i32.const 0     ;; payload len
+            i64.const 0     ;; gas limit
+            i32.const 1     ;; delay
+            i32.const 111   ;; err_mid_pid ptr
+            call $create_program_wgas   ;; calling fn
+
+            ;; validating syscall
+            i32.const 111 ;; err_mid_pid ptr
+            i32.load
+            (if
+                (then unreachable)
+                (else)
+            )
+        )
+	)"#;
+
+    new_test_ext().execute_with(|| {
+        let code = ProgramCodeKind::Custom(wat).to_bytes();
+
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            code,
+            DEFAULT_SALT.to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
+            DEFAULT_GAS_LIMIT * 100,
+            0,
+        ));
+
+        let sender = utils::get_last_program_id();
+        let init_msg_id = utils::get_last_message_id();
+
+        run_to_block(2, None);
+        assert!(Gear::is_initialized(sender));
+
+        // Message sending delayed.
+        let delayed_id = MessageId::generate_outgoing(init_msg_id, 0);
+        assert!(TaskPoolOf::<Test>::contains(&3, &ScheduledTask::SendDispatch(delayed_id)));
+
+        run_to_next_block(None);
+        // Delayed message sent.
+        assert!(!TaskPoolOf::<Test>::contains(&3, &ScheduledTask::SendDispatch(delayed_id)));
+    })
+}
 
 #[test]
 fn unstoppable_block_execution_works() {
