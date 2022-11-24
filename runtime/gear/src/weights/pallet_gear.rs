@@ -69,6 +69,7 @@ pub trait WeightInfo {
     fn gr_block_height(r: u32, ) -> Weight;
     fn gr_block_timestamp(r: u32, ) -> Weight;
     fn gr_random(r: u32, ) -> Weight;
+    fn gr_random_per_kb(r: u32, ) -> Weight;
     fn gr_send_init(r: u32, ) -> Weight;
     fn gr_send_push(r: u32, ) -> Weight;
     fn gr_send_push_per_kb(n: u32, ) -> Weight;
@@ -357,6 +358,12 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
         Weight::from_ref_time(85_913_000 as u64)
             // Standard Error: 59_131
             .saturating_add(Weight::from_ref_time(282_830_831 as u64).saturating_mul(r as u64))
+    }
+    /// The range of component `n` is `[0, 1024]`.
+    fn gr_random_per_kb(n: u32, ) -> Weight {
+        Weight::from_ref_time(267_460_000 as u64)
+        // Standard Error: 198
+            .saturating_add(Weight::from_ref_time(15_160 as u64).saturating_mul(n as u64))
     }
     /// The range of component `r` is `[0, 20]`.
     fn gr_send_init(r: u32, ) -> Weight {
@@ -1034,6 +1041,12 @@ impl WeightInfo for () {
         Weight::from_ref_time(85_913_000 as u64)
             // Standard Error: 59_131
             .saturating_add(Weight::from_ref_time(282_830_831 as u64).saturating_mul(r as u64))
+    }
+    /// The range of component `n` is `[0, 1024]`.
+    fn gr_random_per_kb(n: u32, ) -> Weight {
+        Weight::from_ref_time(267_460_000 as u64)
+        // Standard Error: 198
+            .saturating_add(Weight::from_ref_time(15_160 as u64).saturating_mul(n as u64))
     }
     /// The range of component `r` is `[0, 20]`.
     fn gr_send_init(r: u32, ) -> Weight {

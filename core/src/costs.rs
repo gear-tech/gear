@@ -79,6 +79,9 @@ pub struct HostFnWeights {
     /// Weight of calling `gr_random`.
     pub gr_random: u64,
 
+    /// Weight per subject byte by `gr_random`.
+    pub gr_random_per_byte: u64,
+
     /// Weight of calling `gr_send_init`.
     pub gr_send_init: u64,
 
@@ -213,7 +216,7 @@ pub enum RuntimeCosts {
     /// Weight of calling `gr_block_timestamp`.
     BlockTimestamp,
     /// Weight of calling `gr_random`.
-    Random,
+    Random(u32),
     /// Weight of calling `gr_send_init`.
     SendInit,
     /// Weight of calling `gr_send_push`.
@@ -273,7 +276,9 @@ impl RuntimeCosts {
                 .saturating_add(s.gr_read_per_byte.saturating_mul(len.into())),
             BlockHeight => s.gr_block_height,
             BlockTimestamp => s.gr_block_timestamp,
-            Random => s.gr_random,
+            Random(len) => s
+                .gr_random
+                .saturating_add(s.gr_random_per_byte.saturating_mul(len.into())),
             SendInit => s.gr_send_init,
             SendPush(len) => s
                 .gr_send_push
