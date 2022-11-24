@@ -974,4 +974,33 @@ mod test {
             .iter()
             .for_each(|i| assert!(rules.instruction_cost(i).is_some()))
     }
+
+    #[test]
+    fn all_instructions_have_proper_weights() {
+        use super::elements::Instruction::*;
+
+        let schedule = Schedule::<Test>::default();
+        let rules = schedule.rules(&default_wasm_module());
+
+        all_measured_instructions()
+            .iter()
+            .filter(|i| match i {
+                CallIndirect(_, _)
+                | End
+                | Unreachable
+                | Return
+                | Else
+                | Block(_)
+                | Loop(_)
+                | Nop
+                | Drop => false,
+                _ => true,
+            })
+            .map(|i| (i, rules.instruction_cost(i).expect("checked before")))
+            .for_each(|(i, w)| {
+                assert!(w > 0);
+
+                // TODO: check that all instructions have weights bigger than some eristic values.
+            })
+    }
 }
