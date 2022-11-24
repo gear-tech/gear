@@ -71,6 +71,77 @@ use sp_std::convert::TryFrom;
 use utils::*;
 
 #[test]
+fn delayed_user_replacement() {
+    use demo_proxy_with_gas::{InputArgs, WASM_BINARY as PROXY_WGAS_WASM_BINARY};
+
+    fn scenario(gas_limit_to_forward: u64) {
+        let code = ProgramCodeKind::OutgoingWithValueInHandle.to_bytes();
+        let future_program_address = ProgramId::generate(CodeId::generate(&code), DEFAULT_SALT);
+
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            PROXY_WGAS_WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            InputArgs {
+                destination: <[u8; 32]>::from(future_program_address).into(),
+                delay: 1,
+            }.encode(),
+            DEFAULT_GAS_LIMIT * 100,
+            0,
+        ));
+
+        let proxy = utils::get_last_program_id();
+
+        run_to_next_block(None);
+        assert!(Gear::is_initialized(proxy));
+
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            proxy,
+            gas_limit_to_forward.encode(), // to be forwarded as gas limit
+            gas_limit_to_forward + DEFAULT_GAS_LIMIT * 100,
+            100_000_000, // to be forwarded as value
+        ));
+
+        let message_id = utils::get_last_message_id();
+        let delayed_id = MessageId::generate_outgoing(message_id, 0);
+
+        run_to_block(3, None);
+
+        // Message sending delayed.
+        assert!(TaskPoolOf::<Test>::contains(&4, &ScheduledTask::SendDispatch(delayed_id)));
+
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            code,
+            DEFAULT_SALT.to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
+            DEFAULT_GAS_LIMIT * 100,
+            0,
+        ));
+
+        assert_eq!(future_program_address, utils::get_last_program_id());
+
+        run_to_next_block(None);
+        // Delayed message sent.
+        assert!(!TaskPoolOf::<Test>::contains(&4, &ScheduledTask::SendDispatch(delayed_id)));
+    }
+
+    init_logger();
+
+    // Scenario not planned to enter mailbox.
+    new_test_ext().execute_with(|| scenario(0));
+
+    // Scenario planned to enter mailbox.
+    new_test_ext().execute_with(|| {
+        let gas_limit_to_forward = DEFAULT_GAS_LIMIT * 100;
+        assert!(<Test as Config>::MailboxThreshold::get() <= gas_limit_to_forward);
+
+        scenario(gas_limit_to_forward)
+    });
+}
+
+#[test]
 fn delayed_program_creation_no_code() {
     init_logger();
 
@@ -112,11 +183,11 @@ fn delayed_program_creation_no_code() {
             0,
         ));
 
-        let sender = utils::get_last_program_id();
+        let creator = utils::get_last_program_id();
         let init_msg_id = utils::get_last_message_id();
 
         run_to_block(2, None);
-        assert!(Gear::is_initialized(sender));
+        assert!(Gear::is_initialized(creator));
 
         // Message sending delayed.
         let delayed_id = MessageId::generate_outgoing(init_msg_id, 0);
@@ -642,6 +713,7 @@ fn mailbox_threshold_works() {
             vec![],
             InputArgs {
                 destination: USER_1.into_origin().into(),
+                delay: 0,
             }
             .encode(),
             50_000_000_000u64,
@@ -4495,9 +4567,7 @@ fn program_messages_to_paused_program_skipped() {
             RuntimeOrigin::signed(USER_3),
             code,
             vec![],
-            InputArgs {
-                destination: paused_program_id.into_origin().into()
-            }
+            InputArgs { destination: <[u8; 32]>::from(paused_program_id).into() }
             .encode(),
             50_000_000_000u64,
             1_000u128
