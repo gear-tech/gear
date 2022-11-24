@@ -50,7 +50,7 @@ mod wasm {
     #[no_mangle]
     unsafe extern "C" fn handle() {
         let payload = msg::load_bytes().expect("failed to load bytes");
-        msg::send_bytes_delayed(DESTINATION, payload, msg::value(), 0);
+        msg::send_bytes(DESTINATION, payload, msg::value());
     }
 
     #[no_mangle]

@@ -40,13 +40,13 @@ use alloc::{string::String, vec::Vec};
 #[derive(Debug, Encode, Decode)]
 pub enum Kind {
     // Params(salt, gas), Expected(message id, actor id)
-    CreateProgram(u64, u64, (MessageId, ActorId)),
+    CreateProgram(u64, Option<u64>, (MessageId, ActorId)),
     // Params(value), Expected(error message)
     Error(u128, String),
     // Params(gas), Expected(message id)
-    Send(u64, MessageId),
+    Send(Option<u64>, MessageId),
     // Params(payload, gas), Expected(message id)
-    SendRaw(Vec<u8>, u64, MessageId),
+    SendRaw(Vec<u8>, Option<u64>, MessageId),
     // Expected(payload size)
     Size(u32),
     // Expected(message id)
@@ -60,9 +60,9 @@ pub enum Kind {
     // Expected(this program's balance)
     ValueAvailable(u128),
     // Params(gas), Expected(message id)
-    Reply(u64, MessageId),
+    Reply(Option<u64>, MessageId),
     // Params(payload, gas), Expected(message id)
-    ReplyRaw(Vec<u8>, u64, MessageId),
+    ReplyRaw(Vec<u8>, Option<u64>, MessageId),
     // Expected(reply to id, exit code)
     ReplyDetails(MessageId, i32),
     // Expected(block height)
@@ -115,12 +115,13 @@ mod wasm {
     #[no_mangle]
     unsafe extern "C" fn handle() {
         match msg::load().expect("internal error: invalid payload") {
-            Kind::CreateProgram(salt, gas, (expected_mid, expected_pid)) => {
+            Kind::CreateProgram(salt, gas_opt, (expected_mid, expected_pid)) => {
                 let salt = salt.to_le_bytes();
-                let res = if gas == 0 {
-                    prog::create_program_delayed(CODE_ID, salt, "payload", 0, 0)
-                } else {
-                    prog::create_program_with_gas_delayed(CODE_ID, salt, "payload", gas, 0, 0)
+                let res = match gas_opt {
+                    Some(gas) => {
+                        prog::create_program_with_gas_delayed(CODE_ID, salt, "payload", gas, 0, 0)
+                    }
+                    None => prog::create_program_delayed(CODE_ID, salt, "payload", 0, 0),
                 };
                 let (actual_mid, actual_pid) = res.expect("internal error: create program failed");
                 let actual_mid: [u8; 32] = actual_mid.into();
@@ -142,11 +143,10 @@ mod wasm {
                     "Kind::Error: test failed"
                 );
             }
-            Kind::Send(gas, expected_mid) => {
-                let actual_mid_res = if gas == 0 {
-                    msg::send_delayed(msg::source(), b"payload", 0, 0)
-                } else {
-                    msg::send_with_gas_delayed(msg::source(), b"payload", gas, 0, 0)
+            Kind::Send(gas_opt, expected_mid) => {
+                let actual_mid_res = match gas_opt {
+                    Some(gas) => msg::send_with_gas_delayed(msg::source(), b"payload", gas, 0, 0),
+                    None => msg::send_delayed(msg::source(), b"payload", 0, 0),
                 };
                 assert_eq!(
                     Ok(expected_mid.into()),
@@ -154,7 +154,7 @@ mod wasm {
                     "Kind::Send: mid test failed"
                 );
             }
-            Kind::SendRaw(payload, gas, expected_mid) => {
+            Kind::SendRaw(payload, gas_opt, expected_mid) => {
                 // Sending these 2 to increase internal handler returned by `send_init`.
                 let _ = msg::send_delayed(msg::source(), b"payload", 0, 0);
                 let _ = msg::send_delayed(msg::source(), b"payload", 0, 0);
@@ -164,10 +164,9 @@ mod wasm {
                 handle
                     .push(payload)
                     .expect("internal error: failed send_push");
-                let actual_mid_res = if gas == 0 {
-                    handle.commit_delayed(msg::source(), 0, 0)
-                } else {
-                    handle.commit_with_gas_delayed(msg::source(), gas, 0, 0)
+                let actual_mid_res = match gas_opt {
+                    Some(gas) => handle.commit_with_gas_delayed(msg::source(), gas, 0, 0),
+                    None => handle.commit_delayed(msg::source(), 0, 0),
                 };
                 assert_eq!(
                     Ok(expected_mid.into()),
@@ -212,11 +211,10 @@ mod wasm {
                     "Kind::ValueAvailable: value test failed"
                 );
             }
-            Kind::Reply(gas, expected_mid) => {
-                let actual_mid_res = if gas == 0 {
-                    msg::reply_delayed(b"payload", 0, 0)
-                } else {
-                    msg::reply_with_gas_delayed(b"payload", gas, 0, 0)
+            Kind::Reply(gas_opt, expected_mid) => {
+                let actual_mid_res = match gas_opt {
+                    Some(gas) => msg::reply_with_gas_delayed(b"payload", gas, 0, 0),
+                    None => msg::reply_delayed(b"payload", 0, 0),
                 };
                 assert_eq!(
                     Ok(expected_mid.into()),
@@ -224,12 +222,11 @@ mod wasm {
                     "Kind::Reply: mid test failed"
                 );
             }
-            Kind::ReplyRaw(payload, gas, expected_mid) => {
+            Kind::ReplyRaw(payload, gas_opt, expected_mid) => {
                 msg::reply_push(payload).expect("internal error: failed reply push");
-                let actual_mid_res = if gas == 0 {
-                    msg::reply_commit_delayed(0, 0)
-                } else {
-                    msg::reply_commit_with_gas_delayed(gas, 0, 0)
+                let actual_mid_res = match gas_opt {
+                    Some(gas) => msg::reply_commit_with_gas_delayed(gas, 0, 0),
+                    None => msg::reply_commit_delayed(0, 0),
                 };
                 assert_eq!(
                     Ok(expected_mid.into()),

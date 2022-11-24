@@ -23,7 +23,7 @@ use gear_wasm_instrument::{IMPORT_NAME_OUT_OF_ALLOWANCE, IMPORT_NAME_OUT_OF_GAS}
 ///
 /// The type is mainly used to prevent from skipping sys-call integration test for a newly introduced sys-call.
 #[derive(Debug, Clone, Copy, Sequence)]
-pub enum SysCalls {
+pub enum SysCallName {
     // Message sending related
     // --
     // Sending `handle` message
@@ -41,16 +41,17 @@ pub enum SysCalls {
     ReplyWGas,
     ReplyCommit,
     ReplyCommitWGas,
-    ReplyTo,
     ReplyPush,
     ReservationReply,
     ReservationReplyCommit,
+
     // Sending `init` message
     CreateProgram,
     CreateProgramWGas,
 
     // Message data related
     Read,
+    ReplyTo,
     Size,
     StatusCode,
     MessageId,
@@ -66,6 +67,7 @@ pub enum SysCalls {
     Origin,
     GasAvailable,
     ValueAvailable,
+
     // Changing execution path calls
     Exit,
     Leave,
@@ -89,59 +91,63 @@ pub enum SysCalls {
     SystemReserveGas,
 }
 
-impl SysCalls {
+impl SysCallName {
     pub fn to_str(&self) -> &'static str {
         match self {
-            SysCalls::Send => "gr_send",
-            SysCalls::SendWGas => "gr_send_wgas",
-            SysCalls::SendCommit => "gr_send_commit",
-            SysCalls::SendCommitWGas => "gr_send_commit_wgas",
-            SysCalls::SendInit => "gr_send_init",
-            SysCalls::SendPush => "gr_send_push",
-            SysCalls::Reply => "gr_reply",
-            SysCalls::ReplyWGas => "gr_reply_wgas",
-            SysCalls::ReplyCommit => "gr_reply_commit",
-            SysCalls::ReplyCommitWGas => "gr_reply_commit_wgas",
-            SysCalls::ReplyTo => "gr_reply_to",
-            SysCalls::ReplyPush => "gr_reply_push",
-            SysCalls::CreateProgram => "gr_create_program",
-            SysCalls::CreateProgramWGas => "gr_create_program_wgas",
-            SysCalls::Read => "gr_read",
-            SysCalls::Size => "gr_size",
-            SysCalls::StatusCode => "gr_status_code",
-            SysCalls::MessageId => "gr_message_id",
-            SysCalls::ProgramId => "gr_program_id",
-            SysCalls::Source => "gr_source",
-            SysCalls::Value => "gr_value",
-            SysCalls::BlockHeight => "gr_block_height",
-            SysCalls::BlockTimestamp => "gr_block_timestamp",
-            SysCalls::Origin => "gr_origin",
-            SysCalls::GasAvailable => "gr_gas_available",
-            SysCalls::ValueAvailable => "gr_value_available",
-            SysCalls::Exit => "gr_exit",
-            SysCalls::Leave => "gr_leave",
-            SysCalls::Wait => "gr_wait",
-            SysCalls::WaitFor => "gr_wait_for",
-            SysCalls::WaitUpTo => "gr_wait_up_to",
-            SysCalls::Wake => "gr_wake",
-            SysCalls::Alloc => "alloc",
-            SysCalls::Free => "free",
-            SysCalls::OutOfGas => IMPORT_NAME_OUT_OF_GAS,
-            SysCalls::OutOfAllowance => IMPORT_NAME_OUT_OF_ALLOWANCE,
-            SysCalls::Debug => "gr_debug",
-            SysCalls::Error => "gr_error",
-            SysCalls::Random => "gr_random",
-            SysCalls::ReserveGas => "gr_reserve_gas",
-            SysCalls::UnreserveGas => "gr_unreserve_gas",
-            SysCalls::ReservationSend => "gr_reservation_send",
-            SysCalls::ReservationSendCommit => "gr_reservation_send_commit",
-            SysCalls::ReservationReply => "gr_reservation_reply",
-            SysCalls::ReservationReplyCommit => "gr_reservation_reply_commit",
-            SysCalls::SystemReserveGas => "gr_system_reserve_gas",
+            SysCallName::Alloc => "alloc",
+            SysCallName::BlockHeight => "gr_block_height",
+            SysCallName::BlockTimestamp => "gr_block_timestamp",
+            SysCallName::CreateProgram => "gr_create_program",
+            SysCallName::CreateProgramWGas => "gr_create_program_wgas",
+            SysCallName::Debug => "gr_debug",
+            SysCallName::Error => "gr_error",
+            SysCallName::Exit => "gr_exit",
+            SysCallName::Free => "free",
+            SysCallName::GasAvailable => "gr_gas_available",
+            SysCallName::Leave => "gr_leave",
+            SysCallName::MessageId => "gr_message_id",
+            SysCallName::Origin => "gr_origin",
+            SysCallName::OutOfAllowance => IMPORT_NAME_OUT_OF_ALLOWANCE,
+            SysCallName::OutOfGas => IMPORT_NAME_OUT_OF_GAS,
+            SysCallName::ProgramId => "gr_program_id",
+            SysCallName::Random => "gr_random",
+            SysCallName::Read => "gr_read",
+            SysCallName::Reply => "gr_reply",
+            SysCallName::ReplyCommit => "gr_reply_commit",
+            SysCallName::ReplyCommitWGas => "gr_reply_commit_wgas",
+            SysCallName::ReplyPush => "gr_reply_push",
+            SysCallName::ReplyTo => "gr_reply_to",
+            SysCallName::ReplyWGas => "gr_reply_wgas",
+            SysCallName::ReservationReply => "gr_reservation_reply",
+            SysCallName::ReservationReplyCommit => "gr_reservation_reply_commit",
+            SysCallName::ReservationSend => "gr_reservation_send",
+            SysCallName::ReservationSendCommit => "gr_reservation_send_commit",
+            SysCallName::ReserveGas => "gr_reserve_gas",
+            SysCallName::Send => "gr_send",
+            SysCallName::SendCommit => "gr_send_commit",
+            SysCallName::SendCommitWGas => "gr_send_commit_wgas",
+            SysCallName::SendInit => "gr_send_init",
+            SysCallName::SendPush => "gr_send_push",
+            SysCallName::SendWGas => "gr_send_wgas",
+            SysCallName::Size => "gr_size",
+            SysCallName::Source => "gr_source",
+            SysCallName::StatusCode => "gr_status_code",
+            SysCallName::SystemReserveGas => "gr_system_reserve_gas",
+            SysCallName::UnreserveGas => "gr_unreserve_gas",
+            SysCallName::Value => "gr_value",
+            SysCallName::ValueAvailable => "gr_value_available",
+            SysCallName::Wait => "gr_wait",
+            SysCallName::WaitFor => "gr_wait_for",
+            SysCallName::WaitUpTo => "gr_wait_up_to",
+            SysCallName::Wake => "gr_wake",
         }
     }
 
     pub fn all() -> impl Iterator<Item = Self> {
         enum_iterator::all()
+    }
+
+    pub fn count() -> usize {
+        Self::all().count()
     }
 }

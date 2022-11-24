@@ -32,7 +32,7 @@ use gear_backend_common::{
     calc_stack_end,
     error_processor::IntoExtError,
     AsTerminationReason, BackendReport, Environment, GetGasAmount, IntoExtInfo, StackEndError,
-    SysCalls::{self, *},
+    SysCallName::{self, *},
     TerminationReason, TrapExplanation, STACK_END_EXPORT_NAME,
 };
 use gear_core::{env::Ext, gas::GasAmount, memory::WasmPageNumber, message::DispatchKind};
@@ -92,10 +92,11 @@ pub struct SandboxEnvironment<E: Ext> {
 struct EnvBuilder<'a, E: Ext> {
     env_def_builder: EnvironmentDefinitionBuilder<Runtime<E>>,
     forbidden_funcs: &'a BTreeSet<&'static str>,
+    funcs_count: usize,
 }
 
 impl<'a, E: Ext + IntoExtInfo<E::Error> + 'static> EnvBuilder<'a, E> {
-    fn add_func(&mut self, name: SysCalls, f: HostFuncType<Runtime<E>>)
+    fn add_func(&mut self, name: SysCallName, f: HostFuncType<Runtime<E>>)
     where
         E::Error: AsTerminationReason + IntoExtError,
     {
@@ -106,6 +107,15 @@ impl<'a, E: Ext + IntoExtInfo<E::Error> + 'static> EnvBuilder<'a, E> {
         } else {
             self.env_def_builder.add_host_func("env", name, f);
         }
+
+        self.funcs_count += 1;
+    }
+
+    fn add_memory(&mut self, memory: DefaultExecutorMemory)
+    where
+        E::Error: AsTerminationReason + IntoExtError,
+    {
+        self.env_def_builder.add_memory("env", "memory", memory);
     }
 }
 
@@ -134,6 +144,7 @@ where
         let mut builder = EnvBuilder::<E> {
             env_def_builder: EnvironmentDefinitionBuilder::new(),
             forbidden_funcs: &ext.forbidden_funcs().clone(),
+            funcs_count: 0,
         };
 
         builder.add_func(BlockHeight, Funcs::block_height);
@@ -178,18 +189,28 @@ where
         builder.add_func(ReservationReplyCommit, Funcs::reservation_reply_commit);
         builder.add_func(ReservationSend, Funcs::reservation_send);
         builder.add_func(ReservationSendCommit, Funcs::reservation_send_commit);
-        let mut env_builder: EnvironmentDefinitionBuilder<_> = builder.into();
 
         let memory: DefaultExecutorMemory = match SandboxMemory::new(mem_size.0, None) {
             Ok(mem) => mem,
             Err(e) => return Err((ext.gas_amount(), CreateEnvMemory(e)).into()),
         };
 
-        env_builder.add_memory("env", "memory", memory.clone());
-        env_builder.add_host_func("env", Alloc.to_str(), Funcs::alloc);
-        env_builder.add_host_func("env", Free.to_str(), Funcs::free);
-        env_builder.add_host_func("env", OutOfGas.to_str(), Funcs::out_of_gas);
-        env_builder.add_host_func("env", OutOfAllowance.to_str(), Funcs::out_of_allowance);
+        builder.add_memory(memory.clone());
+        builder.add_func(Alloc, Funcs::alloc);
+        builder.add_func(Free, Funcs::free);
+        builder.add_func(OutOfGas, Funcs::out_of_gas);
+        builder.add_func(OutOfAllowance, Funcs::out_of_allowance);
+
+        // Check that we have implementations for all the sys-calls.
+        // This is intended to panic during any testing, when the
+        // condition is not met.
+        assert_eq!(
+            builder.funcs_count,
+            SysCallName::count(),
+            "Not all existing sys-calls were added to the module's env."
+        );
+
+        let env_builder: EnvironmentDefinitionBuilder<_> = builder.into();
 
         let mut runtime = Runtime {
             ext,

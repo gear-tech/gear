@@ -22,7 +22,7 @@ use codec::Encode;
 use gear_backend_common::{
     error_processor::IntoExtError,
     AsTerminationReason, IntoExtInfo,
-    SysCalls::{self, *},
+    SysCallName::{self, *},
 };
 use gear_core::env::Ext;
 use wasmi::{Func, Memory, Store};
@@ -30,7 +30,7 @@ use wasmi::{Func, Memory, Store};
 struct FunctionBuilder<'a>(Option<&'a BTreeSet<&'a str>>);
 
 impl<'a> FunctionBuilder<'a> {
-    fn build<'b, Handler>(&self, name: SysCalls, handler: Handler) -> (&'b str, Func)
+    fn build<'b, Handler>(&self, name: SysCallName, handler: Handler) -> (&'b str, Func)
     where
         Handler: FnOnce(bool) -> Func,
     {
@@ -146,6 +146,12 @@ where
         }),
     ]
     .into();
+
+    assert_eq!(
+        funcs.len(),
+        SysCallName::count(),
+        "Not all existing sys-calls were added to the module's env."
+    );
 
     funcs
 }

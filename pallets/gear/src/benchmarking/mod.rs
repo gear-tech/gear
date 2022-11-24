@@ -88,7 +88,7 @@ use sp_consensus_babe::{
 };
 use sp_core::H256;
 use sp_runtime::{
-    traits::{Bounded, One, UniqueSaturatedInto},
+    traits::{Bounded, CheckedAdd, One, UniqueSaturatedInto, Zero},
     Digest, DigestItem, Perbill,
 };
 use sp_std::prelude::*;
@@ -120,7 +120,10 @@ where
         )],
     };
 
-    let bn = previous.unwrap_or_else(|| 0u32.unique_saturated_into()) + One::one();
+    let bn = previous
+        .unwrap_or_else(Zero::zero)
+        .checked_add(&One::one())
+        .expect("overflow");
 
     SystemPallet::<T>::initialize(&bn, &SystemPallet::<T>::parent_hash(), &pre_digest);
     SystemPallet::<T>::set_block_number(bn);
@@ -284,6 +287,7 @@ benchmarks! {
         T::AccountId: Origin,
     }
 
+    #[extra]
     check_syscalls_integrity {
         syscalls_integrity::main_test::<T>();
     }: {}

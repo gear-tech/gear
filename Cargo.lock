@@ -6152,7 +6152,7 @@ dependencies = [
  "sp-runtime",
  "sp-sandbox",
  "sp-std",
- "test-sys-calls",
+ "test-syscalls",
  "wabt",
 ]
 
@@ -10482,7 +10482,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "test-sys-calls"
+name = "test-syscalls"
 version = "0.1.0"
 dependencies = [
  "gear-wasm-builder",

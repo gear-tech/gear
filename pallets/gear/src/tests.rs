@@ -68,6 +68,7 @@ use gear_core::{
 use gear_core_errors::*;
 use sp_runtime::{traits::UniqueSaturatedInto, SaturatedConversion};
 use sp_std::convert::TryFrom;
+pub use utils::init_logger;
 use utils::*;
 
 #[test]
@@ -7028,7 +7029,7 @@ mod utils {
         sp_core::blake2_256(data.as_ref())
     }
 
-    pub(super) fn init_logger() {
+    pub fn init_logger() {
         let _ = env_logger::Builder::from_default_env()
             .format_module_path(false)
             .format_level(true)
@@ -7241,13 +7242,6 @@ mod utils {
 
     pub(super) fn generate_code_hash(code: &[u8]) -> [u8; 32] {
         CodeId::generate(code).into()
-    }
-
-    /// Gets next message id, but doesn't remain changed the state of the nonces
-    pub(super) fn get_next_message_id(user_id: impl Origin) -> MessageId {
-        let ret_id = Gear::next_message_id(user_id.into_origin());
-        SentOf::<Test>::decrease();
-        ret_id
     }
 
     pub(super) fn send_default_message(

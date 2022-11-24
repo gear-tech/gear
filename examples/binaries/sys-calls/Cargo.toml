@@ -1,5 +1,5 @@
 [package]
-name = "test-sys-calls"
+name = "test-syscalls"
 version = "0.1.0"
 authors = ["Gear Technologies"]
 edition = "2021"
