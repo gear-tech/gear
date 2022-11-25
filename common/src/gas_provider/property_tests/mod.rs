@@ -505,7 +505,6 @@ proptest! {
                                 &remaining_nodes,
                                 &marked_consumed,
                             );
-                            assertions::assert_root_children_removed(root_node, &remaining_nodes);
                             if origin == consuming {
                                 assertions::assert_root_children_removed(origin, &remaining_nodes);
                             }
