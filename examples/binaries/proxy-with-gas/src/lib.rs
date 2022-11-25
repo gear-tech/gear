@@ -38,7 +38,7 @@ pub struct InputArgs {
 #[cfg(not(feature = "std"))]
 mod wasm {
     use crate::InputArgs;
-    use gstd::{msg, ActorId, ToString, debug};
+    use gstd::{msg, ActorId, ToString};
 
     static mut DESTINATION: ActorId = ActorId::new([0u8; 32]);
     static mut DELAY: u32 = 0;
@@ -46,15 +46,29 @@ mod wasm {
     #[no_mangle]
     unsafe extern "C" fn handle() {
         let gas_limit: u64 = msg::load().expect("Failed to decode `gas_limit: u64'");
-        msg::send_with_gas_delayed(DESTINATION, b"proxied message", gas_limit, msg::value(), DELAY)
-            .expect("Failed to proxy message");
+        msg::send_with_gas_delayed(
+            DESTINATION,
+            b"proxied message",
+            gas_limit,
+            msg::value(),
+            DELAY,
+        )
+        .expect("Failed to proxy message");
     }
 
     #[no_mangle]
     unsafe extern "C" fn handle_reply() {
-        let gas_limit: u64 = msg::load().expect("Failed to decode `gas_limit: u64'");
-        msg::send_with_gas_delayed(DESTINATION, b"proxied message", gas_limit, msg::value(), DELAY)
+        if msg::status_code().expect("Infallible") == 0 {
+            let gas_limit: u64 = msg::load().expect("Failed to decode `gas_limit: u64'");
+            msg::send_with_gas_delayed(
+                DESTINATION,
+                b"proxied message",
+                gas_limit,
+                msg::value(),
+                DELAY,
+            )
             .expect("Failed to proxy message");
+        }
     }
 
     #[no_mangle]

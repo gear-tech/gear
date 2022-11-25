@@ -41,7 +41,7 @@ use crate::{
         USER_3,
     },
     pallet, BlockGasLimitOf, Config, CostsPerBlockOf, DbWeightOf, Error, Event, GasAllowanceOf,
-    GasHandlerOf, GasInfo, MailboxOf, Schedule, WaitlistOf, TaskPoolOf,
+    GasHandlerOf, GasInfo, MailboxOf, Schedule, TaskPoolOf, WaitlistOf,
 };
 use codec::{Decode, Encode};
 use common::{
@@ -85,7 +85,8 @@ fn delayed_user_replacement() {
             InputArgs {
                 destination: <[u8; 32]>::from(future_program_address).into(),
                 delay: 1,
-            }.encode(),
+            }
+            .encode(),
             DEFAULT_GAS_LIMIT * 100,
             0,
         ));
@@ -100,7 +101,7 @@ fn delayed_user_replacement() {
             proxy,
             gas_limit_to_forward.encode(), // to be forwarded as gas limit
             gas_limit_to_forward + DEFAULT_GAS_LIMIT * 100,
-            100_000_000, // to be forwarded as value
+            100_000_000, // before fix to be forwarded as value
         ));
 
         let message_id = utils::get_last_message_id();
@@ -109,7 +110,10 @@ fn delayed_user_replacement() {
         run_to_block(3, None);
 
         // Message sending delayed.
-        assert!(TaskPoolOf::<Test>::contains(&4, &ScheduledTask::SendDispatch(delayed_id)));
+        assert!(TaskPoolOf::<Test>::contains(
+            &4,
+            &ScheduledTask::SendUserMessage(delayed_id)
+        ));
 
         assert_ok!(Gear::upload_program(
             RuntimeOrigin::signed(USER_1),
@@ -123,8 +127,27 @@ fn delayed_user_replacement() {
         assert_eq!(future_program_address, utils::get_last_program_id());
 
         run_to_next_block(None);
+        assert!(Gear::is_initialized(future_program_address));
+
         // Delayed message sent.
-        assert!(!TaskPoolOf::<Test>::contains(&4, &ScheduledTask::SendDispatch(delayed_id)));
+        assert!(!TaskPoolOf::<Test>::contains(
+            &4,
+            &ScheduledTask::SendUserMessage(delayed_id)
+        ));
+
+        // Replace following lines once added validation to task handling of send_user_message.
+        let message = utils::maybe_any_last_message().unwrap();
+        assert_eq!(message.id(), delayed_id);
+        assert_eq!(message.destination(), future_program_address);
+
+        print_gear_events();
+
+        // BELOW CODE TO REPLACE WITH.
+        // // Nothing is added into mailbox.
+        // assert!(utils::maybe_any_last_message(account).is_empty())
+
+        // // Error reply sent and processed.
+        // assert_total_dequeued(1);
     }
 
     init_logger();
@@ -151,14 +174,14 @@ fn delayed_program_creation_no_code() {
         (import "env" "gr_create_program_wgas" (func $create_program_wgas (param i32 i32 i32 i32 i32 i64 i32 i32)))
 		(export "init" (func $init))
 		(func $init
-            i32.const 0     ;; zeroed cid_value ptr
-            i32.const 0     ;; salt ptr
-            i32.const 0     ;; salt len
-            i32.const 0     ;; payload ptr
-            i32.const 0     ;; payload len
-            i64.const 0     ;; gas limit
-            i32.const 1     ;; delay
-            i32.const 111   ;; err_mid_pid ptr
+            i32.const 0                 ;; zeroed cid_value ptr
+            i32.const 0                 ;; salt ptr
+            i32.const 0                 ;; salt len
+            i32.const 0                 ;; payload ptr
+            i32.const 0                 ;; payload len
+            i64.const 1000000000        ;; gas limit
+            i32.const 1                 ;; delay
+            i32.const 111               ;; err_mid_pid ptr
             call $create_program_wgas   ;; calling fn
 
             ;; validating syscall
@@ -191,11 +214,33 @@ fn delayed_program_creation_no_code() {
 
         // Message sending delayed.
         let delayed_id = MessageId::generate_outgoing(init_msg_id, 0);
-        assert!(TaskPoolOf::<Test>::contains(&3, &ScheduledTask::SendDispatch(delayed_id)));
+        assert!(TaskPoolOf::<Test>::contains(
+            &3,
+            &ScheduledTask::SendDispatch(delayed_id)
+        ));
+
+        let free_balance = Balances::free_balance(&USER_1);
+        let reserved_balance = Balances::reserved_balance(&USER_1);
 
         run_to_next_block(None);
         // Delayed message sent.
-        assert!(!TaskPoolOf::<Test>::contains(&3, &ScheduledTask::SendDispatch(delayed_id)));
+        assert!(!TaskPoolOf::<Test>::contains(
+            &3,
+            &ScheduledTask::SendDispatch(delayed_id)
+        ));
+
+        // Message taken but not executed (can't be asserted due to black box between programs).
+        //
+        // Total dequeued: message to skip execution + error reply on it.
+        //
+        // Single db read burned for querying program data from storage.
+        assert_last_dequeued(2);
+        assert_eq!(
+            Balances::free_balance(&USER_1),
+            free_balance + reserved_balance
+                - GasPrice::gas_price(DbWeightOf::<Test>::get().reads(1).ref_time())
+        );
+        assert!(Balances::reserved_balance(&USER_1).is_zero());
     })
 }
 
@@ -4567,7 +4612,9 @@ fn program_messages_to_paused_program_skipped() {
             RuntimeOrigin::signed(USER_3),
             code,
             vec![],
-            InputArgs { destination: <[u8; 32]>::from(paused_program_id).into() }
+            InputArgs {
+                destination: <[u8; 32]>::from(paused_program_id).into()
+            }
             .encode(),
             50_000_000_000u64,
             1_000u128
@@ -7597,6 +7644,17 @@ mod utils {
                 } else {
                     None
                 }
+            } else {
+                None
+            }
+        })
+    }
+
+    #[track_caller]
+    pub(super) fn maybe_any_last_message() -> Option<StoredMessage> {
+        System::events().into_iter().rev().find_map(|e| {
+            if let MockRuntimeEvent::Gear(Event::UserMessageSent { message, .. }) = e.event {
+                Some(message)
             } else {
                 None
             }
