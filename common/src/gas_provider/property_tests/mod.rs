@@ -347,7 +347,8 @@ impl TestTree {
         }
     }
 
-    fn total_balance(&self) -> u64 {
+    /// Total expenses like system reserve, locked gas, caough value, etc
+    fn total_expenses(&self) -> u64 {
         let balance = self.spent + self.caught + self.system_reserve + self.locked;
         assert!(
             balance <= self.expected_balance,
@@ -394,8 +395,8 @@ impl TestForest {
         self.tree_by_origin_mut(origin)
     }
 
-    fn total_balance(&self) -> u64 {
-        self.trees.values().map(|tree| tree.total_balance()).sum()
+    fn total_expenses(&self) -> u64 {
+        self.trees.values().map(|tree| tree.total_expenses()).sum()
     }
 }
 
@@ -714,7 +715,7 @@ proptest! {
 
         if !gas_tree_ids.is_empty() {
             // Check trees imbalance
-            assert_eq!(max_balance, rest_value + forest.total_balance());
+            assert_eq!(max_balance, rest_value + forest.total_expenses());
         }
     }
 
