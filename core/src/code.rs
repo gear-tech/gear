@@ -408,11 +408,11 @@ mod tests {
     }
 
     #[test]
-    fn reject_unknown_imports() {
+    fn reject_unknown_exports() {
         const WAT: &str = r#"
         (module
             (import "env" "memory" (memory 1))
-            (export "this_is_import_unknown" (func $test))
+            (export "this_import_is_unknown" (func $test))
             (func $test)
         )
         "#;
