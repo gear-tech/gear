@@ -145,6 +145,7 @@ impl DispatchKind {
             DispatchKind::Signal => [
                 "gr_source",
                 "gr_reply",
+                "gr_reply_push",
                 "gr_reply_commit",
                 "gr_reservation_reply",
                 "gr_reservation_reply_commit",
