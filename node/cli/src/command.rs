@@ -18,7 +18,7 @@
 
 use crate::cli::{Cli, Subcommand};
 use runtime_primitives::Block;
-use sc_cli::{ChainSpec, RuntimeVersion, SubstrateCli};
+use sc_cli::{ChainSpec, ExecutionStrategy, RuntimeVersion, SubstrateCli};
 use sc_service::config::BasePath;
 use service::{chain_spec, IdentifyVariant};
 
@@ -135,7 +135,12 @@ pub fn run() -> sc_cli::Result<()> {
     }
 
     // Force setting `Wasm` as default execution strategy.
-    cli.run.with_wasm_execution();
+    cli.run
+        .base
+        .import_params
+        .execution_strategies
+        .execution
+        .get_or_insert(ExecutionStrategy::Wasm);
 
     match &cli.subcommand {
         Some(Subcommand::Key(cmd)) => cmd.run(&cli),

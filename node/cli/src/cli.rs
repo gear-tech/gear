@@ -17,7 +17,6 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use clap::Parser;
-use sc_cli::ExecutionStrategy;
 
 #[allow(missing_docs)]
 #[derive(Debug, Parser)]
@@ -29,17 +28,6 @@ pub struct RunCmd {
     /// Force using Vara native runtime.
     #[clap(long = "force-vara")]
     pub force_vara: bool,
-}
-
-impl RunCmd {
-    /// Set `Wasm` as default execution strategy.
-    pub fn with_wasm_execution(&mut self) {
-        self.base
-            .import_params
-            .execution_strategies
-            .execution
-            .get_or_insert(ExecutionStrategy::Wasm);
-    }
 }
 
 #[derive(Debug, Parser)]
