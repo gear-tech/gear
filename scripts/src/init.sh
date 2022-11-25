@@ -57,9 +57,7 @@ cargo_init() {
     cargo install cargo-hack
     cargo install cargo-nextest
   elif [ "$RUNNER_OS" = "Linux" ] ; then
-    curl "https://api.github.com/repos/taiki-e/cargo-hack/releases/latest" |
-    grep -wo "https.*x86_64-unknown-linux-gnu.tar.gz" |
-    xargs curl -L |
+    curl -L "https://github.com/taiki-e/cargo-hack/releases/latest/download/cargo-hack-x86_64-unknown-linux-gnu.tar.gz" |
     tar zxf - -C ${CARGO_HOME:-~/.cargo}/bin
 
     curl -LsSf https://get.nexte.st/latest/linux | tar zxf - -C ${CARGO_HOME:-~/.cargo}/bin

@@ -11,9 +11,9 @@ codec = { package = "parity-scale-codec", version = "3.1.2", default-features = 
 colored = "2.0.0"
 clap = { version = "3.2", features = ["derive"] }
 log = { version = "0.4.17", default-features = false }
-serde_json = "1.0.88"
+serde_json = "1.0.89"
 quick-xml = { version = "0.26", features = [ "serialize" ] }
-rayon = "1.5"
+rayon = "1.6"
 
 # Substrate
 frame-support = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false }
