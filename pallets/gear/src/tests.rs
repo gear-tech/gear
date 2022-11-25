@@ -6982,7 +6982,7 @@ fn system_reservation_zero_amount_panics() {
 
 #[test]
 fn gas_reservation_works() {
-    use demo_reserve_gas::{HandleAction, InitAction};
+    use demo_reserve_gas::{HandleAction, InitAction, RESERVATION_AMOUNT};
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -7002,6 +7002,8 @@ fn gas_reservation_works() {
         // gas has been reserved 3 times
         let map = get_reservation_map(pid).unwrap();
         assert_eq!(map.len(), 3);
+
+        let user_initial_balance = Balances::free_balance(USER_1);
 
         let GasInfo {
             min_limit: spent_gas,
@@ -7028,6 +7030,15 @@ fn gas_reservation_works() {
         // gas unreserved manually
         let map = get_reservation_map(pid).unwrap();
         assert_eq!(map.len(), 2);
+
+        let gas_reserved = GasPrice::gas_price(spent_gas);
+        let reservation_amount = GasPrice::gas_price(RESERVATION_AMOUNT);
+        let reservation_holding = 5 * GasPrice::gas_price(CostsPerBlockOf::<Test>::reservation());
+
+        assert_eq!(
+            Balances::free_balance(USER_1),
+            user_initial_balance - gas_reserved + reservation_amount + reservation_holding
+        );
 
         run_to_block(2 + 2, None);
 

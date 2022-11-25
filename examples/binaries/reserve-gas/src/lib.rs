@@ -38,7 +38,7 @@ static mut RESERVATION_ID: Option<ReservationId> = None;
 static mut INIT_MSG: MessageId = MessageId::new([0; 32]);
 static mut WAKE_STATE: WakeState = WakeState::FirstExecution;
 
-const RESERVATION_AMOUNT: u64 = 50_000_000;
+pub const RESERVATION_AMOUNT: u64 = 50_000_000;
 
 #[derive(Debug, Eq, PartialEq)]
 enum WakeState {
