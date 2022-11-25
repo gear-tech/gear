@@ -1065,8 +1065,9 @@ where
     }
 
     pub fn gr_error(r: u32) -> Result<Exec<T>, &'static str> {
-        let error_offset = 2;
-        let error_len_offset = 3;
+        let status_code_offset = 1;
+        let error_offset = status_code_offset + size_of::<i32>;
+        let error_len_offset = error_offset + size_of::<u32>;
 
         let code = WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
@@ -1075,7 +1076,7 @@ where
                 r * API_BENCHMARK_BATCH_SIZE,
                 &[
                     // err_code ptr
-                    Instruction::I32Const(1),
+                    Instruction::I32Const(status_code_offset),
                     // CALL
                     Instruction::Call(0),
                     // error ptr

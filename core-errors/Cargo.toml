@@ -11,8 +11,8 @@ derive_more = "0.99.17"
 
 [dependencies.codec]
 package = "parity-scale-codec"
-version = "^3.1.2"
-features = ["derive", "max-encoded-len"]
+version = "~3.1.2"
+features = ["derive"]
 default-features = false
 optional = true
 

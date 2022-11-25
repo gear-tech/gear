@@ -874,7 +874,7 @@ benchmarks! {
     }
 
     gr_error {
-        let r in 0 .. <ExtError as MaxEncodedLen>::max_encoded_len() as u32;
+        let r in 0 .. API_BENCHMARK_BATCHES;
         let mut res = None;
         let exec = Benches::<T>::gr_error(r)?;
     }: {

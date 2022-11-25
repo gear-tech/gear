@@ -939,13 +939,13 @@ where
                     let length = match res {
                         Ok(error) => {
                             ctx.write_output(error_bytes_ptr, error.as_ref())?;
-                            ctx.ext.charge_error().map_err(RuntimeCtxError::Ext)?;
                             0
                         }
                         Err(length) => length,
                     };
 
-                    ctx.write_output(err_len_ptr, &length.to_le_bytes())
+                    ctx.write_output(err_len_ptr, &length.to_le_bytes());
+                    ctx.ext.charge_error().map_err(RuntimeCtxError::Ext)?;
                 })
         })
     }
