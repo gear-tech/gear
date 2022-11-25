@@ -18,7 +18,7 @@
 
 //! Message processing module.
 
-use alloc::{collections::BTreeSet, vec::Vec};
+use alloc::collections::BTreeSet;
 use codec::{Decode, Encode};
 use scale_info::TypeInfo;
 
