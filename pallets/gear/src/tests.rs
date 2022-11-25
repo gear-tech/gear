@@ -7005,7 +7005,7 @@ fn dispatch_kind_forbidden_function() {
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(USER_1),
             pid,
-            HandleAction::ForbiddenCallInSignal.encode(),
+            HandleAction::ForbiddenCallInSignal(USER_1.into_origin().into()).encode(),
             10_000_000_000,
             0,
         ));

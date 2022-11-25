@@ -40,7 +40,7 @@ pub enum HandleAction {
     PanicInSignal,
     AcrossWaits,
     ZeroReserve,
-    ForbiddenCallInSignal,
+    ForbiddenCallInSignal([u8; 32]),
 }
 
 #[cfg(not(feature = "std"))]
@@ -61,7 +61,7 @@ mod wasm {
     enum HandleSignalState {
         Normal,
         Panic,
-        ForbiddenCall,
+        ForbiddenCall([u8; 32]),
     }
 
     #[no_mangle]
@@ -146,8 +146,8 @@ mod wasm {
                     ))
                 );
             }
-            HandleAction::ForbiddenCallInSignal => {
-                HANDLE_SIGNAL_STATE = HandleSignalState::ForbiddenCall;
+            HandleAction::ForbiddenCallInSignal(user) => {
+                HANDLE_SIGNAL_STATE = HandleSignalState::ForbiddenCall(user);
                 exec::system_reserve_gas(1_000_000_000).unwrap();
                 exec::wait();
             }
@@ -169,7 +169,8 @@ mod wasm {
                 msg::send(INITIATOR, b"handle_signal_panic", 0).unwrap();
                 panic!();
             }
-            HandleSignalState::ForbiddenCall => {
+            HandleSignalState::ForbiddenCall(user) => {
+                msg::send_bytes(user.into(), b"handle_signal_forbidden_call", 0).unwrap();
                 let _ = msg::source();
             }
         }
