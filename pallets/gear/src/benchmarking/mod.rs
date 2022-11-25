@@ -55,7 +55,7 @@ use crate::{
     BenchmarkStorage, Call, Config, ExecutionEnvironment, Ext as Externalities, GasHandlerOf,
     MailboxOf, Pallet as Gear, Pallet, QueueOf, Schedule,
 };
-use codec::{Encode, MaxEncodedLen};
+use codec::Encode;
 use common::{benchmarking, storage::*, CodeMetadata, CodeStorage, GasPrice, GasTree, Origin};
 use core_processor::{
     common::{DispatchOutcome, JournalNote},
@@ -74,7 +74,6 @@ use gear_core::{
     message::{ContextSettings, MessageContext},
     reservation::GasReserver,
 };
-use gear_core_errors::ExtError;
 use gear_wasm_instrument::parity_wasm::elements::{BlockType, BrTableData, Instruction, ValueType};
 use pallet_authorship::Pallet as AuthorshipPallet;
 use sp_consensus_babe::{
