@@ -17,23 +17,20 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use super::*;
-use weights::pallet_gear::WeightInfo;
+use pallet_gear::InstructionWeights;
 
-const WEIGHT_TO_NS_DELIMETER: f32 = 1_000_000.0;
-const INTERVAL_ERROR: f32 = 0.1; // 20% match interval
+const INTERVAL_ERROR_DIVIDER: u32 = 5; // 40% match interval
 
 macro_rules! check_weight_inbounds_interval {
-    ($instruction_call:ident, $interval_mid:expr) => {
-        let weight_v =
-            <() as WeightInfo>::$instruction_call(1) - <() as WeightInfo>::$instruction_call(0);
-        let weight_v: f32 = (weight_v.ref_time() as f32) / WEIGHT_TO_NS_DELIMETER;
-        let interval_start: f32 = $interval_mid * (1.0 - INTERVAL_ERROR);
-        let interval_end: f32 = $interval_mid * (1.0 + INTERVAL_ERROR);
+    ($weights:expr, $instruction:ident, $interval_mid: expr) => {
+        let weight_v: u32 = $weights.$instruction;
+        let interval_start: u32 = $interval_mid - $interval_mid / INTERVAL_ERROR_DIVIDER;
+        let interval_end: u32 = $interval_mid + $interval_mid / INTERVAL_ERROR_DIVIDER;
 
         if !(interval_start <= weight_v && weight_v <= interval_end) {
-            let instr_name = stringify!($instruction_call);
+            let instr_name = stringify!($instruction);
             println!("FAILED: Interval mismatch for {instr_name}");
-            println!("Weight is {weight_v} ns. Expected interval is [{interval_start}, {interval_end}] ns");
+            println!("Weight is {weight_v} ps. Expected interval is [{interval_start}, {interval_end}] ps");
             panic!();
         }
     };
@@ -41,61 +38,63 @@ macro_rules! check_weight_inbounds_interval {
 
 #[test]
 fn heuristics_test() {
-    check_weight_inbounds_interval!(instr_i64load, 30.7);
-    check_weight_inbounds_interval!(instr_i64store, 42.6);
-    check_weight_inbounds_interval!(instr_select, 7.7);
-    check_weight_inbounds_interval!(instr_if, 6.0);
-    check_weight_inbounds_interval!(instr_br, 3.3);
-    check_weight_inbounds_interval!(instr_br_if, 6.3);
-    check_weight_inbounds_interval!(instr_br_table, 9.9);
-    check_weight_inbounds_interval!(instr_br_table_per_entry, 0.43);
+    let instruction_weights = InstructionWeights::<crate::Runtime>::default();
 
-    check_weight_inbounds_interval!(instr_call, 4.9);
-    check_weight_inbounds_interval!(instr_call_const, 5.2);
-    check_weight_inbounds_interval!(instr_call_indirect, 22.1);
-    check_weight_inbounds_interval!(instr_call_indirect_per_param, 1.9);
+    check_weight_inbounds_interval!(instruction_weights, i64const, 283);
+    check_weight_inbounds_interval!(instruction_weights, i64load, 30_700);
+    check_weight_inbounds_interval!(instruction_weights, i64store, 42_600);
+    check_weight_inbounds_interval!(instruction_weights, select, 7_100);
+    check_weight_inbounds_interval!(instruction_weights, r#if, 6_000);
+    check_weight_inbounds_interval!(instruction_weights, br, 3_300);
+    check_weight_inbounds_interval!(instruction_weights, br_if, 6_000);
+    check_weight_inbounds_interval!(instruction_weights, br_table, 9_900);
+    check_weight_inbounds_interval!(instruction_weights, br_table_per_entry, 435);
 
-    check_weight_inbounds_interval!(instr_local_get, 0.85);
-    check_weight_inbounds_interval!(instr_local_set, 2.2);
-    check_weight_inbounds_interval!(instr_local_tee, 2.2);
-    check_weight_inbounds_interval!(instr_global_get, 2.1);
-    check_weight_inbounds_interval!(instr_global_set, 3.1);
-    check_weight_inbounds_interval!(instr_memory_current, 14.2);
+    check_weight_inbounds_interval!(instruction_weights, call, 4_900);
+    check_weight_inbounds_interval!(instruction_weights, call_indirect, 22_100);
+    check_weight_inbounds_interval!(instruction_weights, call_indirect_per_param, 1_700);
 
-    check_weight_inbounds_interval!(instr_i64clz, 6.3);
-    check_weight_inbounds_interval!(instr_i64ctz, 5.9);
-    check_weight_inbounds_interval!(instr_i64popcnt, 1.8);
-    check_weight_inbounds_interval!(instr_i64eqz, 3.6);
-    check_weight_inbounds_interval!(instr_i64extendsi32, 1.2);
-    check_weight_inbounds_interval!(instr_i64extendui32, 0.64);
-    check_weight_inbounds_interval!(instr_i32wrapi64, 0.65);
-    check_weight_inbounds_interval!(instr_i64eq, 3.7);
-    check_weight_inbounds_interval!(instr_i64ne, 3.7);
+    check_weight_inbounds_interval!(instruction_weights, local_get, 856);
+    check_weight_inbounds_interval!(instruction_weights, local_set, 1_940);
+    check_weight_inbounds_interval!(instruction_weights, local_tee, 2_000);
+    check_weight_inbounds_interval!(instruction_weights, global_get, 2_100);
+    check_weight_inbounds_interval!(instruction_weights, global_set, 2_900);
+    check_weight_inbounds_interval!(instruction_weights, memory_current, 14_200);
 
-    check_weight_inbounds_interval!(instr_i64lts, 3.7);
-    check_weight_inbounds_interval!(instr_i64ltu, 3.7);
-    check_weight_inbounds_interval!(instr_i64gts, 3.7);
-    check_weight_inbounds_interval!(instr_i64gtu, 3.7);
-    check_weight_inbounds_interval!(instr_i64les, 3.7);
-    check_weight_inbounds_interval!(instr_i64leu, 3.7);
+    check_weight_inbounds_interval!(instruction_weights, i64clz, 6_100);
+    check_weight_inbounds_interval!(instruction_weights, i64ctz, 5_700);
+    check_weight_inbounds_interval!(instruction_weights, i64popcnt, 1_600);
+    check_weight_inbounds_interval!(instruction_weights, i64eqz, 3_400);
+    check_weight_inbounds_interval!(instruction_weights, i64extendsi32, 1_200);
+    check_weight_inbounds_interval!(instruction_weights, i64extendui32, 650);
+    check_weight_inbounds_interval!(instruction_weights, i32wrapi64, 375);
+    check_weight_inbounds_interval!(instruction_weights, i64eq, 3_200);
+    check_weight_inbounds_interval!(instruction_weights, i64ne, 3_200);
 
-    check_weight_inbounds_interval!(instr_i64ges, 3.7);
-    check_weight_inbounds_interval!(instr_i64geu, 3.7);
-    check_weight_inbounds_interval!(instr_i64add, 3.0);
-    check_weight_inbounds_interval!(instr_i64sub, 3.0);
-    check_weight_inbounds_interval!(instr_i64mul, 3.6);
-    check_weight_inbounds_interval!(instr_i64divs, 4.3);
+    check_weight_inbounds_interval!(instruction_weights, i64lts, 3_200);
+    check_weight_inbounds_interval!(instruction_weights, i64ltu, 3_200);
+    check_weight_inbounds_interval!(instruction_weights, i64gts, 3_200);
+    check_weight_inbounds_interval!(instruction_weights, i64gtu, 3_200);
+    check_weight_inbounds_interval!(instruction_weights, i64les, 3_200);
+    check_weight_inbounds_interval!(instruction_weights, i64leu, 3_200);
 
-    check_weight_inbounds_interval!(instr_i64divu, 4.7);
-    check_weight_inbounds_interval!(instr_i64rems, 21.6);
-    check_weight_inbounds_interval!(instr_i64remu, 4.8);
-    check_weight_inbounds_interval!(instr_i64and, 3.0);
-    check_weight_inbounds_interval!(instr_i64or, 3.0);
-    check_weight_inbounds_interval!(instr_i64xor, 3.0);
+    check_weight_inbounds_interval!(instruction_weights, i64ges, 3_200);
+    check_weight_inbounds_interval!(instruction_weights, i64geu, 3_200);
+    check_weight_inbounds_interval!(instruction_weights, i64add, 2_500);
+    check_weight_inbounds_interval!(instruction_weights, i64sub, 2_500);
+    check_weight_inbounds_interval!(instruction_weights, i64mul, 3_100);
+    check_weight_inbounds_interval!(instruction_weights, i64divs, 3_800);
 
-    check_weight_inbounds_interval!(instr_i64shl, 2.7);
-    check_weight_inbounds_interval!(instr_i64shrs, 2.7);
-    check_weight_inbounds_interval!(instr_i64shru, 2.7);
-    check_weight_inbounds_interval!(instr_i64rotl, 2.7);
-    check_weight_inbounds_interval!(instr_i64rotr, 2.7);
+    check_weight_inbounds_interval!(instruction_weights, i64divu, 4_200);
+    check_weight_inbounds_interval!(instruction_weights, i64rems, 21_100);
+    check_weight_inbounds_interval!(instruction_weights, i64remu, 4_300);
+    check_weight_inbounds_interval!(instruction_weights, i64and, 2_500);
+    check_weight_inbounds_interval!(instruction_weights, i64or, 2_500);
+    check_weight_inbounds_interval!(instruction_weights, i64xor, 2_500);
+
+    check_weight_inbounds_interval!(instruction_weights, i64shl, 2_200);
+    check_weight_inbounds_interval!(instruction_weights, i64shrs, 2_200);
+    check_weight_inbounds_interval!(instruction_weights, i64shru, 2_200);
+    check_weight_inbounds_interval!(instruction_weights, i64rotl, 2_200);
+    check_weight_inbounds_interval!(instruction_weights, i64rotr, 2_200);
 }
