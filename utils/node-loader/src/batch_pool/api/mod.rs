@@ -3,7 +3,7 @@ use super::batch::{
     UploadCodeArgs, UploadCodeBatchOutput, UploadProgramArgs, UploadProgramBatchOutput,
 };
 use crate::utils;
-use anyhow::{Result, anyhow};
+use anyhow::{anyhow, Result};
 use futures::{future::BoxFuture, Future};
 use gclient::{GearApi, Result as GClientResult};
 
