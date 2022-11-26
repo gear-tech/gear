@@ -137,7 +137,7 @@ impl GasCounter {
 
     /// Refund `amount` of gas.
     pub fn refund(&mut self, amount: u64) -> ChargeResult {
-        if amount > u64::MAX - self.left || amount > self.burned {
+        if amount > self.burned {
             return ChargeResult::NotEnough;
         }
         match self.left.checked_add(amount) {
@@ -287,6 +287,10 @@ impl GasAllowanceCounter {
 #[cfg(test)]
 mod tests {
     use super::{ChargeResult, GasCounter};
+    use crate::{
+        costs::{HostFnWeights, RuntimeCosts},
+        gas::GasAllowanceCounter,
+    };
 
     #[test]
     /// Test that `GasCounter` object returns `Enough` and decreases the remaining count
@@ -304,5 +308,40 @@ mod tests {
 
         assert_eq!(result, ChargeResult::NotEnough);
         assert_eq!(counter.left(), 100);
+    }
+
+    #[test]
+    fn charge_fails() {
+        let mut counter = GasCounter::new(100);
+        assert_eq!(counter.charge(200), ChargeResult::NotEnough);
+    }
+
+    #[test]
+    fn charge_token_fails() {
+        let token = RuntimeCosts::Alloc.token(&HostFnWeights {
+            alloc: 1_000,
+            ..Default::default()
+        });
+
+        let mut counter = GasCounter::new(10);
+        assert_eq!(counter.charge_token(token), ChargeResult::NotEnough);
+    }
+
+    #[test]
+    fn refund_fails() {
+        let mut counter = GasCounter::new(200);
+        assert_eq!(counter.charge(100), ChargeResult::Enough);
+        assert_eq!(counter.refund(500), ChargeResult::NotEnough);
+    }
+
+    #[test]
+    fn charge_allowance_token_fails() {
+        let token = RuntimeCosts::Alloc.token(&HostFnWeights {
+            alloc: 1_000,
+            ..Default::default()
+        });
+
+        let mut counter = GasAllowanceCounter::new(10);
+        assert_eq!(counter.charge_token(token), ChargeResult::NotEnough);
     }
 }
