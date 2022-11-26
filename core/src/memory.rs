@@ -166,16 +166,6 @@ impl PageNumber {
         (self.0 / PageNumber::num_in_one_wasm_page()).into()
     }
 
-    /// Saturating addition.
-    pub const fn saturating_add(self, other: Self) -> Self {
-        Self(self.0.saturating_add(other.0))
-    }
-
-    /// Saturating subtraction.
-    pub const fn saturating_sub(self, other: Self) -> Self {
-        Self(self.0.saturating_sub(other.0))
-    }
-
     /// Return page size in bytes.
     pub const fn size() -> usize {
         GEAR_PAGE_SIZE
@@ -327,17 +317,6 @@ pub struct AllocationsContext {
     static_pages: WasmPageNumber,
 }
 
-impl Clone for AllocationsContext {
-    fn clone(&self) -> Self {
-        Self {
-            allocations: self.allocations.clone(),
-            init_allocations: self.init_allocations.clone(),
-            max_pages: self.max_pages,
-            static_pages: self.static_pages,
-        }
-    }
-}
-
 /// Before and after memory grow actions.
 pub trait GrowHandler {
     /// Before grow action
@@ -446,16 +425,6 @@ impl AllocationsContext {
         }
     }
 
-    /// Return reference to the allocation manager.
-    pub fn allocations(&self) -> &BTreeSet<WasmPageNumber> {
-        &self.allocations
-    }
-
-    /// Returns number of static pages.
-    pub fn static_pages(&self) -> WasmPageNumber {
-        self.static_pages
-    }
-
     /// Decomposes this instance and returns allocations.
     pub fn into_parts(
         self,
@@ -471,7 +440,7 @@ impl AllocationsContext {
 #[cfg(test)]
 /// This module contains tests of PageNumber struct
 mod tests {
-    use super::{PageBuf, PageNumber, WasmPageNumber};
+    use super::*;
     use alloc::{vec, vec::Vec};
 
     #[test]
@@ -542,5 +511,23 @@ mod tests {
         data[1] = 2;
         let page_buf = PageBuf::new_from_vec(data).unwrap();
         log::debug!("page buff = {:?}", page_buf);
+    }
+
+    #[test]
+    fn free_fails() {
+        let mut ctx =
+            AllocationsContext::new(BTreeSet::default(), WasmPageNumber(0), WasmPageNumber(0));
+        assert_eq!(ctx.free(WasmPageNumber(1)), Err(Error::OutOfBounds));
+
+        let mut ctx =
+            AllocationsContext::new(BTreeSet::default(), WasmPageNumber(1), WasmPageNumber(0));
+        assert_eq!(ctx.free(WasmPageNumber(0)), Err(Error::InvalidFree(0)));
+
+        let mut ctx = AllocationsContext::new(
+            BTreeSet::from([WasmPageNumber(0)]),
+            WasmPageNumber(1),
+            WasmPageNumber(1),
+        );
+        assert_eq!(ctx.free(WasmPageNumber(1)), Err(Error::InvalidFree(1)));
     }
 }
