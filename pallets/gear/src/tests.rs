@@ -7083,7 +7083,7 @@ fn gas_reservation_works() {
 
 #[test]
 fn gas_reservations_cleaned_in_terminated_program() {
-    use demo_reserve_gas::InitAction;
+    use demo_reserve_gas::{InitAction, ReplyAction};
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -7118,7 +7118,62 @@ fn gas_reservations_cleaned_in_terminated_program() {
         assert_ok!(Gear::send_reply(
             RuntimeOrigin::signed(USER_1),
             message_id,
-            EMPTY_PAYLOAD.to_vec(),
+            ReplyAction::Panic.encode(),
+            DEFAULT_GAS_LIMIT * 10,
+            0,
+        ));
+
+        run_to_block(3, None);
+
+        let map = get_reservation_map(pid);
+        assert_eq!(map, None);
+        assert!(!TaskPoolOf::<Test>::contains(
+            &BlockNumberFor::<Test>::from(slot.finish),
+            &task
+        ));
+        assert!(!Gear::is_initialized(pid));
+        assert!(!Gear::is_active(pid));
+    });
+}
+
+#[test]
+fn gas_reservation_wait_wake_exit() {
+    use demo_reserve_gas::{InitAction, ReplyAction};
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            demo_reserve_gas::WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            InitAction::Wait.encode(),
+            10_000_000_000,
+            0,
+        ));
+
+        let pid = get_last_program_id();
+
+        run_to_block(2, None);
+
+        let message_id = get_last_mail(USER_1).id();
+
+        assert!(!Gear::is_initialized(pid));
+        assert!(Gear::is_active(pid));
+
+        let map = get_reservation_map(pid).unwrap();
+        assert_eq!(map.len(), 1);
+
+        let (reservation_id, slot) = map.iter().next().unwrap();
+        let task = ScheduledTask::RemoveGasReservation(pid, *reservation_id);
+        assert!(TaskPoolOf::<Test>::contains(
+            &BlockNumberFor::<Test>::from(slot.finish),
+            &task
+        ));
+
+        assert_ok!(Gear::send_reply(
+            RuntimeOrigin::signed(USER_1),
+            message_id,
+            ReplyAction::Exit.encode(),
             DEFAULT_GAS_LIMIT * 10,
             0,
         ));

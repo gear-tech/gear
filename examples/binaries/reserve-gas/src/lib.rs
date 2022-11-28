@@ -36,14 +36,15 @@ pub use code::WASM_BINARY_OPT as WASM_BINARY;
 
 static mut RESERVATION_ID: Option<ReservationId> = None;
 static mut INIT_MSG: MessageId = MessageId::new([0; 32]);
-static mut WAKE_STATE: WakeState = WakeState::FirstExecution;
+static mut WAKE_STATE: WakeState = WakeState::Initial;
 
 pub const RESERVATION_AMOUNT: u64 = 50_000_000;
 
 #[derive(Debug, Eq, PartialEq)]
 enum WakeState {
-    FirstExecution,
-    SecondExecution,
+    Initial,
+    Panic,
+    Exit,
 }
 
 #[derive(Debug, Encode, Decode)]
@@ -56,6 +57,12 @@ pub enum InitAction {
 #[derive(Debug, Encode, Decode)]
 pub enum HandleAction {
     Unreserve,
+    Exit,
+}
+
+#[derive(Debug, Encode, Decode)]
+pub enum ReplyAction {
+    Panic,
     Exit,
 }
 
@@ -84,16 +91,20 @@ unsafe extern "C" fn init() {
                     .expect("reservation across executions"),
             );
         }
-        InitAction::Wait => {
-            if WAKE_STATE == WakeState::SecondExecution {
-                panic!();
+        InitAction::Wait => match WAKE_STATE {
+            WakeState::Initial => {
+                let _reservation = ReservationId::reserve(50_000, 10);
+                // to find message to reply to in test
+                msg::send(msg::source(), (), 0).unwrap();
+                exec::wait();
             }
-
-            let _reservation = ReservationId::reserve(50_000, 10);
-            // to find message to reply to in test
-            msg::send(msg::source(), (), 0).unwrap();
-            exec::wait();
-        }
+            WakeState::Panic => {
+                panic!()
+            }
+            WakeState::Exit => {
+                exec::exit(msg::source());
+            }
+        },
         InitAction::CheckArgs => {
             assert_eq!(
                 ReservationId::reserve(0, 10),
@@ -136,7 +147,11 @@ unsafe extern "C" fn handle() {
 // must be called after `InitAction::Wait`
 #[no_mangle]
 unsafe extern "C" fn handle_reply() {
-    WAKE_STATE = WakeState::SecondExecution;
+    let action: ReplyAction = msg::load().unwrap();
+    WAKE_STATE = match action {
+        ReplyAction::Panic => WakeState::Panic,
+        ReplyAction::Exit => WakeState::Exit,
+    };
     exec::wake(INIT_MSG).unwrap();
 }
 
