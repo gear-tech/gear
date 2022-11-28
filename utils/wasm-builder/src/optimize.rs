@@ -18,6 +18,7 @@ const OPTIMIZED_EXPORTS: [&str; 6] = [
     "handle_signal",
     "init",
     "state",
+    "metahash",
     "__gear_stack_end",
 ];
 
