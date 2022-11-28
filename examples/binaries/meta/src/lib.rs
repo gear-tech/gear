@@ -15,11 +15,10 @@
 
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
+
 #![no_std]
 
-use codec::{Decode, Encode};
-use gstd::{prelude::vec, String, ToString, Vec};
-use scale_info::TypeInfo;
+pub use demo_meta_io::*;
 
 #[cfg(feature = "std")]
 mod code {
@@ -27,149 +26,63 @@ mod code {
 }
 
 #[cfg(feature = "std")]
-pub use code::WASM_BINARY_META;
+pub use code::WASM_METADATA;
+
 #[cfg(feature = "std")]
 pub use code::WASM_BINARY_OPT as WASM_BINARY;
 
 #[cfg(not(feature = "std"))]
 mod wasm {
-    include! {"./code.rs"}
-}
+    use crate::{Id, MessageIn, MessageInitIn, MessageInitOut, MessageOut, Wallet};
+    use gstd::{msg, prelude::*};
 
-// Metatypes for input and output
-#[derive(TypeInfo, Default, Decode, Encode)]
-pub struct MessageInitIn {
-    pub amount: u8,
-    pub currency: String,
-}
+    static mut WALLETS: Vec<Wallet> = Vec::new();
 
-#[derive(TypeInfo, Decode, Encode)]
-pub struct MessageInitOut {
-    pub exchange_rate: Result<u8, u8>,
-    pub sum: u8,
-}
+    #[no_mangle]
+    unsafe extern "C" fn init() {
+        WALLETS = Wallet::test_sequence();
 
-impl From<MessageInitIn> for MessageInitOut {
-    fn from(other: MessageInitIn) -> Self {
-        let rate = match other.currency.as_ref() {
-            "USD" => Ok(2),
-            "EUR" => Ok(3),
-            _ => Err(1),
-        };
+        let message_init_in: MessageInitIn = msg::load().unwrap();
+        let message_init_out: MessageInitOut = message_init_in.into();
 
-        Self {
-            exchange_rate: rate,
-            sum: rate.unwrap_or(0) * other.amount,
-        }
+        msg::reply(message_init_out, 0).unwrap();
+    }
+
+    #[no_mangle]
+    unsafe extern "C" fn handle() {
+        let message_in: MessageIn = msg::load().unwrap();
+
+        let res = WALLETS
+            .iter()
+            .find(|w| w.id.decimal == message_in.id.decimal)
+            .map(Clone::clone);
+
+        let message_out = MessageOut { res };
+
+        msg::reply(message_out, 0).unwrap();
+    }
+
+    #[no_mangle]
+    extern "C" fn state() {
+        msg::reply(unsafe { WALLETS.clone() }, 0).expect("Failed to share state");
+    }
+
+    #[no_mangle]
+    extern "C" fn metahash() {
+        let metahash: [u8; 32] = include!("../.metahash");
+        msg::reply(metahash, 0).expect("Failed to share metahash");
+    }
+
+    #[no_mangle]
+    extern "C" fn all_wallets() {
+        let wallets: Vec<Wallet> = msg::load().unwrap();
+        msg::reply(wallets, 0).expect("Failed to share state");
+    }
+
+    #[no_mangle]
+    extern "C" fn specific_wallet() {
+        let (id, wallets): (Id, Vec<Wallet>) = msg::load().unwrap();
+        let res = wallets.into_iter().filter(|w| w.id == id).collect::<Vec<_>>();
+        msg::reply(res, 0).expect("Failed to share state");
     }
 }
-
-#[derive(TypeInfo, Decode, Encode)]
-pub struct MessageIn {
-    pub id: Id,
-}
-
-#[derive(TypeInfo, Decode, Encode)]
-pub struct MessageOut {
-    pub res: Option<Wallet>,
-}
-
-impl From<MessageIn> for MessageOut {
-    fn from(other: MessageIn) -> Self {
-        unsafe {
-            let res = WALLETS
-                .iter()
-                .find(|w| w.id.decimal == other.id.decimal)
-                .map(Clone::clone);
-
-            Self { res }
-        }
-    }
-}
-
-// Additional to primary types
-#[derive(TypeInfo, Decode, Encode, Debug, PartialEq, Eq, Clone)]
-pub struct Id {
-    pub decimal: u64,
-    pub hex: Vec<u8>,
-}
-
-#[derive(TypeInfo, Decode, Encode, Clone)]
-pub struct Person {
-    pub surname: String,
-    pub name: String,
-}
-
-#[derive(TypeInfo, Decode, Encode, Clone)]
-pub struct Wallet {
-    pub id: Id,
-    pub person: Person,
-}
-
-impl Wallet {
-    pub fn test_sequence() -> Vec<Self> {
-        vec![
-            Wallet {
-                id: Id {
-                    decimal: 1,
-                    hex: [1].to_vec(),
-                },
-                person: Person {
-                    surname: "SomeSurname".into(),
-                    name: "SomeName".into(),
-                },
-            },
-            Wallet {
-                id: Id {
-                    decimal: 2,
-                    hex: [2].to_vec(),
-                },
-                person: Person {
-                    surname: "OtherName".into(),
-                    name: "OtherSurname".into(),
-                },
-            },
-        ]
-    }
-}
-
-#[derive(TypeInfo, Decode, Encode, Clone)]
-pub struct MessageInitAsyncIn {
-    pub empty: (),
-}
-
-#[derive(TypeInfo, Decode, Encode, Clone)]
-pub struct MessageInitAsyncOut {
-    pub empty: (),
-}
-
-#[derive(TypeInfo, Decode, Encode, Clone)]
-pub struct MessageHandleAsyncIn {
-    pub empty: (),
-}
-
-#[derive(TypeInfo, Encode, Decode, Clone)]
-pub struct MessageHandleAsyncOut {
-    pub empty: (),
-}
-
-gstd::metadata! {
-    title: "Example program with metadata",
-    init:
-        input: MessageInitIn,
-        output: MessageInitOut,
-        awaiting:
-            input: MessageInitAsyncIn,
-            output: MessageInitAsyncOut,
-    handle:
-        input: MessageIn,
-        output: MessageOut,
-        awaiting:
-            input: MessageHandleAsyncIn,
-            output: MessageHandleAsyncOut,
-    state:
-        input: Option<Id>,
-        output: Vec<Wallet>,
-}
-
-static mut WALLETS: Vec<Wallet> = Vec::new();

@@ -17,6 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use anyhow::Result;
+use gmeta::{MetadataRepr, Metadata};
 use std::{env, process};
 
 use crate::{cargo_command::CargoCommand, wasm_project::WasmProject};
@@ -42,7 +43,15 @@ impl WasmBuilder {
     /// Create a new `WasmBuilder`.
     pub fn new() -> Self {
         WasmBuilder {
-            wasm_project: WasmProject::new(),
+            wasm_project: WasmProject::new(None),
+            cargo: CargoCommand::new(),
+        }
+    }
+
+    /// Create a new `WasmBuilder` with metadata.
+    pub fn with_meta(metadata: MetadataRepr) -> Self {
+        WasmBuilder {
+            wasm_project: WasmProject::new(Some(metadata)),
             cargo: CargoCommand::new(),
         }
     }
@@ -85,4 +94,9 @@ impl Default for WasmBuilder {
 /// Shorthand function to be used in `build.rs`.
 pub fn build() {
     WasmBuilder::new().build();
+}
+
+/// Shorthand function to be used in `build.rs`.
+pub fn build_with_metadata<T: Metadata>() {
+    WasmBuilder::with_meta(T::repr()).build();
 }

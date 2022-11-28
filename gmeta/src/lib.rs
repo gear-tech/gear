@@ -2,7 +2,7 @@
 
 extern crate alloc;
 
-use alloc::string::String;
+use alloc::{string::String, vec::Vec};
 use blake2_rfc::blake2b;
 use codec::Encode;
 use core::any;
@@ -78,14 +78,18 @@ impl Types for () {
 }
 
 impl MetadataRepr {
+    pub fn bytes(&self) -> Vec<u8> {
+        self.encode()
+    }
+
     pub fn hex(&self) -> String {
-        hex::encode(self.encode())
+        hex::encode(self.bytes())
     }
 
     pub fn hash(&self) -> [u8; 32] {
         let mut arr = [0; 32];
 
-        let blake2b_hash = blake2b::blake2b(arr.len(), &[], &self.encode());
+        let blake2b_hash = blake2b::blake2b(arr.len(), &[], &self.bytes());
         arr[..].copy_from_slice(blake2b_hash.as_bytes());
 
         arr
@@ -96,8 +100,7 @@ impl MetadataRepr {
     }
 }
 
-// TODO: impl for primitives with unreachable call in to_repr
-trait Metadata {
+pub trait Metadata {
     type Init: Types;
     type Handle: Types;
     type Reply: Types;
