@@ -711,9 +711,9 @@ impl<T: Config> Default for HostFnWeights<T> {
                 1
             ),
             gr_send_push_input: cost_batched!(gr_send_push_input),
-            gr_send_push_input_per_byte: cost_batched!(gr_send_push_input_per_kb),
+            gr_send_push_input_per_byte: cost_byte_batched!(gr_send_push_input_per_kb),
             gr_reply_push_input: cost_batched!(gr_reply_push_input),
-            gr_reply_push_input_per_byte: cost_batched!(gr_reply_push_input_per_kb),
+            gr_reply_push_input_per_byte: cost_byte_batched!(gr_reply_push_input_per_kb),
             _phantom: PhantomData,
         }
     }
