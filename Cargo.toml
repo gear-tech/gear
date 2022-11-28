@@ -17,6 +17,7 @@ members = [
     "gclient",
     "gcore",
     "gear-test",
+    "gmeta",
     "gstd",
     "gsys",
     "gtest",
