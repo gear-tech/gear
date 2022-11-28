@@ -257,10 +257,14 @@ pub struct GasReservationSlot {
 mod tests {
     use super::*;
 
+    fn new_reserver() -> GasReserver {
+        GasReserver::new(Default::default(), 0, Default::default(), 256)
+    }
+
     #[test]
     #[should_panic = "LimitReached"]
     fn max_reservations_limit_works() {
-        let mut reserver = GasReserver::new(Default::default(), 0, Default::default(), 256);
+        let mut reserver = new_reserver();
         for _ in 0..usize::MAX {
             reserver.reserve(100, 10).unwrap();
         }
@@ -268,17 +272,28 @@ mod tests {
 
     #[test]
     fn mark_used_twice_fails() {
-        let mut reserved = GasReserver::new(Default::default(), 0, Default::default(), 256);
-        let id = reserved.reserve(1, 1).unwrap();
-        reserved.mark_used(id).unwrap();
+        let mut reserver = new_reserver();
+        let id = reserver.reserve(1, 1).unwrap();
+        reserver.mark_used(id).unwrap();
         assert_eq!(
-            reserved.mark_used(id),
+            reserver.mark_used(id),
             Err(ExecutionError::InvalidReservationId)
         );
 
         // not found
         assert_eq!(
-            reserved.mark_used(ReservationId::default()),
+            reserver.mark_used(ReservationId::default()),
+            Err(ExecutionError::InvalidReservationId)
+        );
+    }
+
+    #[test]
+    fn remove_reservation_twice_fails() {
+        let mut reserver = new_reserver();
+        let id = reserver.reserve(1, 1).unwrap();
+        reserver.unreserve(id).unwrap();
+        assert_eq!(
+            reserver.unreserve(id),
             Err(ExecutionError::InvalidReservationId)
         );
     }
