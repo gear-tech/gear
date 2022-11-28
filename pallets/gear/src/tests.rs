@@ -2060,6 +2060,8 @@ fn claim_value_works() {
             GasPrice::gas_price(holding_duration * CostsPerBlockOf::<Test>::mailbox());
         // Gas left returns to sender from consuming of value tree while claiming.
         let expected_sender_balance = sender_balance - value_sent - gas_burned - burned_for_hold;
+        // dbg!(Balances::free_balance(USER_2), expected_sender_balance);
+        // dbg!();
         assert_eq!(Balances::free_balance(USER_2), expected_sender_balance);
         assert_eq!(
             Balances::free_balance(BLOCK_AUTHOR),

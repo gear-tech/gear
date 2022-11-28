@@ -24,14 +24,16 @@
 //!
 //! Currently we restrict twice write signal from same page during one execution.
 //! It's not necessary behavior, but more simple and safe.
+#![feature(step_trait)]
 
 use gear_core::{
     lazy_pages::{GlobalsCtx, Status},
     memory::{PageNumber, WasmPageNumber, PAGE_STORAGE_GRANULARITY},
 };
+use increment::{IncResult, Incrementable};
 use once_cell::sync::OnceCell;
 use sp_std::vec::Vec;
-use std::{cell::RefCell, collections::BTreeSet, convert::TryFrom};
+use std::{cell::RefCell, collections::BTreeSet, convert::TryFrom, iter::Step};
 
 mod sys;
 use sys::mprotect::{self, MprotectError};
@@ -42,6 +44,17 @@ static LAZY_PAGES_INITIALIZED: OnceCell<Result<(), InitError>> = OnceCell::new()
 
 #[derive(Debug, derive_more::Display, derive_more::From)]
 pub enum Error {
+    #[display(fmt = "{_0}")]
+    Other(String),
+    #[display(fmt = "Accessed memory interval is out of wasm memory")]
+    OutOfWasmMemoryAccess,
+    #[display(fmt = "Signals cannot come from WASM program virtual stack memory")]
+    SignalFromStackMemory,
+    #[display(fmt = "Signals cannot come from released page")]
+    SignalFromReleasedPage,
+    #[display(fmt = "Read access signal cannot come from already accessed page")]
+    ReadAccessSignalFromAccessedPage,
+
     #[display(fmt = "WASM memory begin address is not set")]
     WasmMemAddrIsNotSet,
     #[display(fmt = "WASM memory size is not set")]
@@ -60,15 +73,6 @@ pub enum Error {
         addr: usize,
         wasm_mem_addr: usize,
         wasm_mem_end_addr: usize,
-    },
-    #[display(
-        fmt = "Signal addr {:#x} is from WASM program virtual stack memory [0, {:#x})",
-        wasm_addr,
-        stack_end
-    )]
-    SignalFromStackMemory {
-        wasm_addr: WasmAddr,
-        stack_end: WasmAddr,
     },
     #[display(
         fmt = "Accessed pages do not lay in WASM memory: [{:#x}, {:#x}) not in [{:#x}, {:#x})",
@@ -134,6 +138,9 @@ pub(crate) struct LazyPagesExecutionContext {
     /// Wasm addresses of lazy-pages, that have been read or write accessed at least once.
     /// Lazy page here is page, which has `size = max(native_page_size, gear_page_size)`.
     pub accessed_pages_addrs: BTreeSet<WasmAddr>,
+    pub read_after_write_charged: BTreeSet<GranularityPage>,
+    pub read_charged: BTreeSet<GranularityPage>,
+    pub write_charged: BTreeSet<GranularityPage>,
     /// End of stack wasm address. Default is `0`, which means,
     /// that wasm data has no stack region. It's not necessary to specify
     /// this value, `lazy-pages` uses it to identify memory, for which we
@@ -238,6 +245,104 @@ pub fn initialize_for_program(
 
         Ok(())
     })
+}
+
+#[derive(Debug, Clone, Copy, derive_more::Display)]
+pub enum AccessError {
+    #[display(fmt = "addr {:#x} + size {:#x} overflows u32::MAX", _0, _1)]
+    AddrPlusSizeOverflow(u32, u32),
+    AccessSizeIsZero,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Eq, Ord, derive_more::From)]
+struct GranularityPage(u32);
+
+impl GranularityPage {
+    pub fn size() -> u32 {
+        PAGE_STORAGE_GRANULARITY as u32
+    }
+    pub fn from_offset(offset: u32) -> Self {
+        Self(offset / Self::size())
+    }
+    pub fn offset(&self) -> u32 {
+        self.0 * Self::size()
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Eq, Ord, derive_more::From)]
+struct LazyPage(u32);
+
+impl LazyPage {
+    pub fn size() -> u32 {
+        region::page::size().max(PageNumber::size()) as u32
+    }
+    pub fn from_offset(addr: u32) -> Self {
+        Self(addr / Self::size())
+    }
+    pub fn offset(&self) -> u32 {
+        self.0 * Self::size()
+    }
+    pub fn to_gear_page(&self) -> PageNumber {
+        PageNumber::from(self.0 * Self::size() / PageNumber::size() as u32)
+    }
+    pub fn to_gear_pages_iter(&self) -> impl Iterator<Item = PageNumber> {
+        let page = self.to_gear_page();
+        (page.0..page.0 + Self::size() / PageNumber::size() as u32).map(PageNumber)
+    }
+}
+
+impl Incrementable for LazyPage {
+    fn increment(&self) -> IncResult<Self> {
+        self.0.checked_add(1).map_or_else(
+            || IncResult::OutOfBounds,
+            |res| IncResult::Ok(LazyPage(res)),
+        )
+    }
+}
+
+impl Step for LazyPage {
+    fn steps_between(start: &Self, end: &Self) -> Option<usize> {
+        u32::steps_between(&start.0, &end.0)
+    }
+
+    fn forward_checked(start: Self, count: usize) -> Option<Self> {
+        u32::forward_checked(start.0, count).map(Into::into)
+    }
+
+    fn backward_checked(start: Self, count: usize) -> Option<Self> {
+        u32::backward_checked(start.0, count).map(Into::into)
+    }
+}
+
+fn get_accessed_pages(accesses: &[(u32, u32)]) -> Result<BTreeSet<LazyPage>, AccessError> {
+    let mut set = BTreeSet::new();
+    for access in accesses {
+        let first_page = LazyPage::from_offset(access.0);
+        let last_page = LazyPage::from_offset(
+            access
+                .0
+                .checked_add(access.1)
+                .ok_or_else(|| AccessError::AddrPlusSizeOverflow(access.0, access.1))?
+                .checked_sub(1)
+                .ok_or(AccessError::AccessSizeIsZero)?,
+        );
+        set.extend((first_page.0..=last_page.0).map(LazyPage));
+    }
+    Ok(set)
+}
+
+pub fn pre_process_memory_accesses(
+    reads: &[(u32, u32)],
+    writes: &[(u32, u32)],
+    _in_buffers: Option<&[&mut [u8]]>,
+    _out_buffers: Option<&[&mut [u8]]>,
+) -> Result<(), AccessError> {
+    let mut read_pages = get_accessed_pages(reads)?;
+    let write_pages = get_accessed_pages(writes)?;
+    for page in write_pages {
+        read_pages.remove(&page);
+    }
+    Ok(())
 }
 
 #[derive(Debug, derive_more::Display, derive_more::From)]

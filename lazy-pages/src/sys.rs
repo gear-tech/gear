@@ -23,9 +23,11 @@ use core::any::Any;
 use region::Protection;
 use sc_executor_common::sandbox::SandboxInstance;
 use sp_wasm_interface::Value;
-use std::cell::RefMut;
+use std::{cell::RefMut, collections::BTreeSet, iter::Step, ops::RangeInclusive};
 
-use crate::{Error, LazyPagesExecutionContext, WasmAddr, LAZY_PAGES_CONTEXT};
+use crate::{
+    Error, GranularityPage, LazyPage, LazyPagesExecutionContext, WasmAddr, LAZY_PAGES_CONTEXT,
+};
 
 use gear_core::{
     lazy_pages::{GlobalsAccessError, GlobalsAccessMod, GlobalsAccessTrait, GlobalsCtx, Status},
@@ -135,10 +137,7 @@ impl CheckedWasmAddr {
         let addr = addr as u32;
 
         if addr < stack_end {
-            return Err(Error::SignalFromStackMemory {
-                wasm_addr: addr,
-                stack_end,
-            });
+            return Err(Error::SignalFromStackMemory);
         }
 
         Ok(Self {
@@ -255,7 +254,7 @@ impl<'a, 'b> GlobalsAccessTrait for GlobalsAccessDyn<'a, 'b> {
     }
 }
 
-fn charge_gas(
+fn charge_gas_internal(
     mut globals_access_provider: impl GlobalsAccessTrait,
     global_gas: &str,
     global_allowance: &str,
@@ -284,6 +283,52 @@ fn charge_gas(
     Ok(Status::Normal)
 }
 
+unsafe fn charge_gas(
+    globals_ctx: Option<&GlobalsCtx>,
+    gear_pages_amount: u32,
+    is_write: bool,
+    is_second_access: bool,
+) -> Result<Status, Error> {
+    let globals_ctx = if let Some(ctx) = globals_ctx {
+        ctx
+    } else {
+        return Ok(Status::Normal);
+    };
+    let amount = match (is_write, is_second_access) {
+        (false, _) => globals_ctx.lazy_pages_weights.read,
+        (true, false) => globals_ctx.lazy_pages_weights.write,
+        (true, true) => globals_ctx.lazy_pages_weights.write_after_read,
+    };
+    let amount = amount.saturating_mul(gear_pages_amount as u64);
+    match globals_ctx.globals_access_mod {
+        GlobalsAccessMod::WasmRuntime => {
+            let instance = (globals_ctx.globals_access_ptr as *mut SandboxInstance)
+                .as_mut()
+                .ok_or(Error::HostInstancePointerIsInvalid)?;
+            charge_gas_internal(
+                GlobalsAccessSandbox { instance },
+                &globals_ctx.global_gas_name,
+                &globals_ctx.global_allowance_name,
+                amount,
+            )
+        }
+        GlobalsAccessMod::NativeRuntime => {
+            let inner_access_provider = (globals_ctx.globals_access_ptr
+                as *mut &mut dyn GlobalsAccessTrait)
+                .as_mut()
+                .ok_or(Error::DynGlobalsAccessPointerIsInvalid)?;
+            charge_gas_internal(
+                GlobalsAccessDyn {
+                    inner_access_provider,
+                },
+                &globals_ctx.global_gas_name,
+                &globals_ctx.global_allowance_name,
+                amount,
+            )
+        }
+    }
+}
+
 unsafe fn process_globals(
     globals_ctx: &GlobalsCtx,
     gear_pages_amount: u32,
@@ -301,7 +346,7 @@ unsafe fn process_globals(
             let instance = (globals_ctx.globals_access_ptr as *mut SandboxInstance)
                 .as_mut()
                 .ok_or(Error::HostInstancePointerIsInvalid)?;
-            charge_gas(
+            charge_gas_internal(
                 GlobalsAccessSandbox { instance },
                 &globals_ctx.global_gas_name,
                 &globals_ctx.global_allowance_name,
@@ -313,7 +358,7 @@ unsafe fn process_globals(
                 as *mut &mut dyn GlobalsAccessTrait)
                 .as_mut()
                 .ok_or(Error::DynGlobalsAccessPointerIsInvalid)?;
-            charge_gas(
+            charge_gas_internal(
                 GlobalsAccessDyn {
                     inner_access_provider,
                 },
@@ -322,6 +367,244 @@ unsafe fn process_globals(
                 amount,
             )
         }
+    }
+}
+
+// fn with_globals<R>(
+//     globals_ctx: &GlobalsCtx,
+//     f: impl FnOnce(&mut dyn GlobalsAccessTrait) -> Result<R, Error>,
+// ) -> Result<R, Error> {
+//     match globals_ctx.globals_access_mod {
+//         GlobalsAccessMod::WasmRuntime => {
+//             let instance = unsafe {
+//                 (globals_ctx.globals_access_ptr as *mut SandboxInstance)
+//                     .as_mut()
+//                     .ok_or(Error::HostInstancePointerIsInvalid)?
+//             };
+//             f(&mut GlobalsAccessSandbox { instance })
+//         }
+//         GlobalsAccessMod::NativeRuntime => {
+//             let inner_access_provider = unsafe {
+//                 (globals_ctx.globals_access_ptr as *mut &mut dyn GlobalsAccessTrait)
+//                     .as_mut()
+//                     .ok_or(Error::DynGlobalsAccessPointerIsInvalid)?
+//             };
+//             f(*inner_access_provider)
+//         }
+//     }
+// }
+
+#[derive(Debug, Clone, Copy, derive_more::Display)]
+pub enum WithInclusiveRangesError {
+    #[display(fmt = "forward_checked overflow")]
+    Overflow,
+    #[display(fmt = "Indexes must be sorted by ascending and be uniq")]
+    IndexesAreNotSorted,
+}
+
+fn with_inclusive_ranges<T: Sized + Copy + Eq + Step, E>(
+    mut indexes: impl Iterator<Item = T>,
+    mut f: impl FnMut(RangeInclusive<T>) -> Result<(), E>,
+) -> Result<Result<(), E>, WithInclusiveRangesError> {
+    let mut start = if let Some(start) = indexes.next() {
+        start
+    } else {
+        return Ok(Ok(()));
+    };
+    let mut end = start;
+    for idx in indexes {
+        if end >= idx {
+            return Err(WithInclusiveRangesError::IndexesAreNotSorted);
+        }
+        if Step::forward_checked(end, 1).ok_or(WithInclusiveRangesError::Overflow)? != idx {
+            if let Err(err) = f(start..=end) {
+                return Ok(Err(err));
+            }
+            start = idx;
+        }
+        end = idx;
+    }
+
+    Ok(f(start..=end))
+}
+
+fn process_status(status: Status) -> Option<()> {
+    match status {
+        Status::Normal => Some(()),
+        Status::GasLimitExceeded | Status::GasAllowanceExceeded => {
+            log::trace!(
+                                    "Gas limit or allowance exceed,
+                                        so set exceed status and work in this mod until the end of execution"
+                                );
+            None
+        }
+    }
+}
+
+unsafe fn process_lazy_pages(
+    mut ctx: RefMut<LazyPagesExecutionContext>,
+    accessed_pages: BTreeSet<LazyPage>,
+    is_write: bool,
+    is_signal: bool,
+) -> Result<(), Error> {
+    let wasm_mem_size = ctx.wasm_mem_size.ok_or(Error::WasmMemSizeIsNotSet)?;
+
+    if let Some(last_page) = accessed_pages.last() {
+        // Check that all pages are inside wasm memory.
+        if last_page.offset() + LazyPage::size() > wasm_mem_size {
+            return Err(Error::OutOfWasmMemoryAccess);
+        }
+    } else {
+        // Accessed pages are empty - nothing to do.
+        return Ok(());
+    }
+
+    let stack_end = ctx.stack_end_wasm_addr;
+    let wasm_mem_addr = ctx.wasm_mem_addr.ok_or(Error::WasmMemAddrIsNotSet)?;
+    let mut prefix = PagePrefix::new_from_program_prefix(
+        ctx.program_storage_prefix
+            .as_ref()
+            .ok_or(Error::ProgramPrefixIsNotSet)?,
+    );
+
+    let f = |pages: RangeInclusive<LazyPage>| {
+        let psg = PAGE_STORAGE_GRANULARITY as u32;
+        let mut start = *pages.start();
+        let mut end = *pages.end();
+
+        // Extend pages interval, if start or end access pages, which has no data in storage.
+        if is_write && LazyPage::size() < psg {
+            if !sp_io::storage::exists(
+                prefix.calc_key_for_page(PageNumber::new_from_addr(start.offset() as usize)),
+            ) {
+                start = LazyPage::from_offset((start.offset() / psg) * psg);
+            }
+            if !sp_io::storage::exists(
+                prefix.calc_key_for_page(PageNumber::new_from_addr(end.offset() as usize)),
+            ) {
+                end = LazyPage::from_offset((end.offset() / psg + 1) * psg);
+            }
+        }
+
+        for lazy_page in start..=end {
+            let granularity_page = GranularityPage::from_offset(lazy_page.offset());
+            let gear_page = PageNumber::new_from_addr(lazy_page.offset() as usize);
+            if lazy_page.offset() < stack_end {
+                // Nothing to do, page has r/w accesses and data is in correct state.
+                if is_signal {
+                    return Err(Error::SignalFromStackMemory);
+                }
+            } else if ctx.released_pages.contains(&gear_page) {
+                // Nothing to do, page has r/w accesses and data is in correct state.
+                if is_signal {
+                    return Err(Error::SignalFromReleasedPage);
+                }
+            } else if ctx.accessed_pages_addrs.contains(&lazy_page.offset()) {
+                if is_write {
+                    if is_signal && !ctx.read_after_write_charged.contains(&granularity_page) {
+                        // Charge gas for "write after read", because page has been already read accessed.
+                        let status = charge_gas(
+                            ctx.globals_ctx.as_ref(),
+                            GranularityPage::size() / PageNumber::size() as u32,
+                            true,
+                            true,
+                        )?;
+                        ctx.status.replace(status);
+                        if process_status(status).is_none() {
+                            return Ok(());
+                        }
+                        ctx.read_after_write_charged.insert(granularity_page);
+                    }
+                    // Set read/write access for page and add page to released.
+                    region::protect(
+                        (wasm_mem_addr + lazy_page.offset() as usize) as *mut (),
+                        LazyPage::size() as usize,
+                        Protection::READ_WRITE,
+                    )?;
+                    ctx.released_pages.extend(lazy_page.to_gear_pages_iter());
+                    // TODO: make print and checks that page is not released twice
+                } else {
+                    // Nothing to do, page has read accesses and data is in correct state.
+                    if is_signal {
+                        return Err(Error::ReadAccessSignalFromAccessedPage);
+                    }
+                }
+            } else {
+                if is_signal
+                    && ((is_write && !ctx.write_charged.contains(&granularity_page))
+                        || (!is_write && !ctx.read_charged.contains(&granularity_page)))
+                {
+                    let status = charge_gas(
+                        ctx.globals_ctx.as_ref(),
+                        GranularityPage::size() / PageNumber::size() as u32,
+                        is_write,
+                        false,
+                    )?;
+                    ctx.status.replace(status);
+                    if process_status(status).is_none() {
+                        return Ok(());
+                    }
+                    if is_write {
+                        ctx.write_charged.insert(granularity_page);
+                    } else {
+                        ctx.read_charged.insert(granularity_page);
+                    }
+                }
+
+                // Need to set read/write access,
+                // download data for `lazy_page` from storage and add `lazy_page` to accessed pages.
+                region::protect(
+                    (wasm_mem_addr + lazy_page.offset() as usize) as *mut (),
+                    LazyPage::size() as usize,
+                    Protection::READ_WRITE,
+                )?;
+                for gear_page in lazy_page.to_gear_pages_iter() {
+                    let page_buffer_ptr = (wasm_mem_addr as *mut u8).add(gear_page.offset());
+                    let buffer_as_slice =
+                        std::slice::from_raw_parts_mut(page_buffer_ptr, PageNumber::size());
+                    let res = sp_io::storage::read(
+                        prefix.calc_key_for_page(gear_page),
+                        buffer_as_slice,
+                        0,
+                    );
+
+                    log::trace!("{:?} has data in storage: {}", gear_page, res.is_some());
+
+                    // Check data size is valid.
+                    if let Some(size) = res.filter(|&size| size as usize != PageNumber::size()) {
+                        return Err(Error::InvalidPageDataSize {
+                            expected: PageNumber::size(),
+                            actual: size,
+                        });
+                    }
+                }
+
+                ctx.accessed_pages_addrs.insert(lazy_page.offset());
+
+                if is_write {
+                    for gear_page in lazy_page.to_gear_pages_iter() {
+                        log::trace!("add {gear_page:?} to released");
+                        if !ctx.released_pages.insert(gear_page) {
+                            return Err(Error::DoubleRelease(gear_page));
+                        }
+                    }
+                } else {
+                    // Set only read access for page.
+                    region::protect(
+                        (wasm_mem_addr + lazy_page.offset() as usize) as *mut (),
+                        LazyPage::size() as usize,
+                        Protection::READ,
+                    )?;
+                }
+            }
+        }
+
+        Ok(())
+    };
+
+    match with_inclusive_ranges(accessed_pages.into_iter(), f) {
+        Err(err) => Err(Error::Other(err.to_string())),
+        Ok(res) => res,
     }
 }
 

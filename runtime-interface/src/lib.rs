@@ -26,6 +26,7 @@ use gear_core::{
     memory::HostPointer,
 };
 use sp_runtime_interface::runtime_interface;
+use sp_runtime_interface::Pointer;
 
 static_assertions::const_assert!(
     core::mem::size_of::<HostPointer>() >= core::mem::size_of::<usize>()
@@ -40,6 +41,10 @@ pub use sp_std::{convert::TryFrom, result::Result, vec::Vec};
 /// Note: name is expanded as gear_ri
 #[runtime_interface]
 pub trait GearRI {
+    fn func(reads: &[(u32, u32)], writes: &[(u32, u32)], gas_limit: u64, gas_allowance: u64) -> (u64, u64) {
+        (0, 0)
+    }
+
     fn get_lazy_pages_status() -> Option<Status> {
         lazy_pages::get_status()
     }
