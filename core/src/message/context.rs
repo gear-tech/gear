@@ -680,7 +680,7 @@ mod tests {
             incoming_message,
             ids::ProgramId::from(INCOMING_MESSAGE_ID),
             None,
-            ContextSettings::new(0, 0, 0, 0, 1024),
+            ContextSettings::new(0, 0, 0, 0, 0, 1024),
         );
 
         context.wake(MessageId::default(), 10).unwrap();
