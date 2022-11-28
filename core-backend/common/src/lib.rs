@@ -38,15 +38,19 @@ use alloc::{
 use codec::{Decode, Encode, MaxEncodedLen};
 use core::{
     fmt::{self, Display},
+    mem::{self, MaybeUninit},
     ops::Deref,
+    slice,
 };
 use gear_core::{
     buffer::RuntimeBufferSizeError,
     env::Ext,
     gas::GasAmount,
-    ids::{CodeId, MessageId, ProgramId},
+    ids::{CodeId, MessageId, ProgramId, ReservationId},
     memory::{Memory, PageBuf, PageNumber, WasmPageNumber},
-    message::{ContextStore, Dispatch, DispatchKind, MessageWaitedType, WasmEntry},
+    message::{
+        ContextStore, Dispatch, DispatchKind, IncomingDispatch, MessageWaitedType, WasmEntry,
+    },
     reservation::GasReserver,
 };
 use gear_core_errors::{ExtError, MemoryError};
@@ -104,13 +108,38 @@ pub enum TrapExplanation {
     Unknown,
 }
 
+#[derive(Debug, Default)]
+pub struct SystemReservationContext {
+    /// Reservation created in current execution.
+    pub current_reservation: Option<u64>,
+    /// Reservation from `ContextStore`.
+    pub previous_reservation: Option<u64>,
+}
+
+impl SystemReservationContext {
+    pub fn from_dispatch(dispatch: &IncomingDispatch) -> Self {
+        Self {
+            current_reservation: None,
+            previous_reservation: dispatch
+                .context()
+                .as_ref()
+                .and_then(|ctx| ctx.system_reservation()),
+        }
+    }
+
+    pub fn has_any(&self) -> bool {
+        self.current_reservation.is_some() || self.previous_reservation.is_some()
+    }
+}
+
 #[derive(Debug)]
 pub struct ExtInfo {
     pub gas_amount: GasAmount,
     pub gas_reserver: GasReserver,
+    pub system_reservation_context: SystemReservationContext,
     pub allocations: Option<BTreeSet<WasmPageNumber>>,
     pub pages_data: BTreeMap<PageNumber, PageBuf>,
-    pub generated_dispatches: Vec<(Dispatch, u32)>,
+    pub generated_dispatches: Vec<(Dispatch, u32, Option<ReservationId>)>,
     pub awakening: Vec<(MessageId, u32)>,
     pub program_candidates_data: BTreeMap<CodeId, Vec<(MessageId, ProgramId)>>,
     pub context_store: ContextStore,
@@ -161,7 +190,7 @@ pub trait RuntimeCtx<E: Ext> {
     ) -> Result<(), RuntimeCtxError<E::Error>>;
 
     /// Reads and decodes a type with a size fixed at compile time from program memory.
-    fn read_memory_as<D: Decode + MaxEncodedLen>(
+    fn read_memory_decoded<D: Decode + MaxEncodedLen>(
         &self,
         ptr: u32,
     ) -> Result<D, RuntimeCtxError<E::Error>>;
@@ -170,6 +199,56 @@ pub trait RuntimeCtx<E: Ext> {
     //
     /// `out_ptr` is the location in memory where `buf` should be written to.
     fn write_output(&mut self, out_ptr: u32, buf: &[u8]) -> Result<(), RuntimeCtxError<E::Error>>;
+}
+
+/// Writes object in given memory as bytes.
+pub fn write_memory_as<T: Sized>(
+    memory: &mut impl Memory,
+    ptr: u32,
+    obj: T,
+) -> Result<(), MemoryError> {
+    // # Safety:
+    //
+    // Given object is `Sized` and we own them in the context of calling this
+    // function (it's on stack), it's safe to take ptr on the object and
+    // represent it as slice. Object will be dropped after `memory.write`
+    // finished execution and no one will rely on this slice.
+    //
+    // Bytes in memory always stored continuously and without paddings, properly
+    // aligned due to `[repr(C, packed)]` attribute of the types we use as T.
+    let slice =
+        unsafe { slice::from_raw_parts(&obj as *const T as *const u8, mem::size_of::<T>()) };
+
+    memory.write(ptr as usize, slice)
+}
+
+/// Reads bytes from given pointer to construct type T from them.
+pub fn read_memory_as<T: Sized>(memory: &impl Memory, ptr: u32) -> Result<T, MemoryError> {
+    let mut buf = MaybeUninit::<T>::uninit();
+
+    // # Safety:
+    //
+    // Usage of mutable slice is safe for the same reason from `write_memory_as`.
+    // `MaybeUninit` is presented on stack with continuos sequence of bytes.
+    //
+    // It's also safe to construct T from any bytes, because we use the fn
+    // only for reading primitive const-size types that are `[repr(C)]`,
+    // so they always represented from sequence of bytes.
+    //
+    // Bytes in memory always stored continuously and without paddings, properly
+    // aligned due to `[repr(C, packed)]` attribute of the types we use as T.
+    let mut_slice =
+        unsafe { slice::from_raw_parts_mut(buf.as_mut_ptr() as *mut u8, mem::size_of::<T>()) };
+
+    memory.read(ptr as usize, mut_slice)?;
+
+    // # Safety:
+    //
+    // Assuming init is always safe here due to the fact that we read proper
+    // amount of bytes from the wasm memory, which is never uninited: they may
+    // be filled by zeroes or some trash (valid for our primitives used as T),
+    // but always exist.
+    Ok(unsafe { buf.assume_init() })
 }
 
 pub struct BackendReport<T, E> {

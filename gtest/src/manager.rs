@@ -554,6 +554,7 @@ impl ExtManager {
                         message_id,
                         reply_message.into_dispatch(program_id, dispatch.source(), message_id),
                         0,
+                        None,
                     );
                 }
             }
@@ -591,6 +592,7 @@ impl ExtManager {
                         message_id,
                         reply_message.into_dispatch(program_id, dispatch.source(), message_id),
                         0,
+                        None,
                     );
                 }
             }
@@ -780,7 +782,13 @@ impl JournalHandler for ExtManager {
         }
     }
 
-    fn send_dispatch(&mut self, _message_id: MessageId, dispatch: Dispatch, _delay: u32) {
+    fn send_dispatch(
+        &mut self,
+        _message_id: MessageId,
+        dispatch: Dispatch,
+        _delay: u32,
+        _reservation: Option<ReservationId>,
+    ) {
         self.gas_limits.insert(dispatch.id(), dispatch.gas_limit());
 
         if !self.is_user(&dispatch.destination()) {
@@ -788,7 +796,7 @@ impl JournalHandler for ExtManager {
         } else {
             let message = dispatch.into_stored().into_parts().1;
 
-            let message = match message.exit_code() {
+            let message = match message.status_code() {
                 Some(0) | None => message,
                 _ => message
                     .with_string_payload::<ExecutionErrorReason>()
@@ -976,4 +984,10 @@ impl JournalHandler for ExtManager {
             panic!("no gas reservation map found in program");
         }
     }
+
+    fn system_reserve_gas(&mut self, _message_id: MessageId, _amount: u64) {}
+
+    fn system_unreserve_gas(&mut self, _message_id: MessageId) {}
+
+    fn send_signal(&mut self, _message_id: MessageId, _destination: ProgramId) {}
 }

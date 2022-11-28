@@ -37,6 +37,9 @@ pub struct HostFnWeights {
     /// Weight of calling `gr_unreserve_gas`
     pub gr_unreserve_gas: u64,
 
+    /// Weight of calling `gr_system_reserve_gas`
+    pub gr_system_reserve_gas: u64,
+
     /// Weight of calling `gr_gas_available`.
     pub gr_gas_available: u64,
 
@@ -76,7 +79,7 @@ pub struct HostFnWeights {
     /// Weight of calling `gr_random`.
     pub gr_random: u64,
 
-    /// Weight of calling `gr_value_available`.
+    /// Weight of calling `gr_send_init`.
     pub gr_send_init: u64,
 
     /// Weight of calling `gr_send_push`.
@@ -91,8 +94,17 @@ pub struct HostFnWeights {
     /// Weight per payload byte by `gr_send_commit`.
     pub gr_send_commit_per_byte: u64,
 
+    /// Weight of calling `gr_reservation_send_commit`.
+    pub gr_reservation_send_commit: u64,
+
+    /// Weight per payload byte by `gr_reservation_send_commit`.
+    pub gr_reservation_send_commit_per_byte: u64,
+
     /// Weight of calling `gr_reply_commit`.
     pub gr_reply_commit: u64,
+
+    /// Weight of calling `gr_reservation_reply_commit`.
+    pub gr_reservation_reply_commit: u64,
 
     /// Weight of calling `gr_reply_push`.
     pub gr_reply_push: u64,
@@ -109,8 +121,8 @@ pub struct HostFnWeights {
     /// Weight per payload byte by `gr_debug`.
     pub gr_debug_per_byte: u64,
 
-    /// Weight of calling `gr_exit_code`.
-    pub gr_exit_code: u64,
+    /// Weight of calling `gr_status_code`.
+    pub gr_status_code: u64,
 
     /// Weight of calling `gr_exit`.
     pub gr_exit: u64,
@@ -172,10 +184,12 @@ pub enum RuntimeCosts {
     Alloc,
     /// Weight of calling `free`.
     Free,
-    /// Weight of calling `gr_reserve_gas`
+    /// Weight of calling `gr_reserve_gas`.
     ReserveGas,
-    /// Weight of calling `gr_unreserve_gas`
+    /// Weight of calling `gr_unreserve_gas`.
     UnreserveGas,
+    /// Weight of calling `gr_system_reserve_gas`.
+    SystemReserveGas,
     /// Weight of calling `gr_gas_available`.
     GasAvailable,
     /// Weight of calling `gr_message_id`.
@@ -206,16 +220,20 @@ pub enum RuntimeCosts {
     SendPush(u32),
     /// Weight of calling `gr_send_commit`.
     SendCommit(u32),
+    /// Weight of calling `gr_reservation_send_commit`.
+    ReservationSendCommit(u32),
     /// Weight of calling `gr_reply_commit`.
     ReplyCommit,
+    /// Weight of calling `gr_reservation_reply_commit`.
+    ReservationReplyCommit,
     /// Weight of calling `gr_reply_push`.
     ReplyPush(u32),
     /// Weight of calling `gr_reply_to`.
     ReplyTo,
     /// Weight of calling `gr_debug`.
     Debug(u32),
-    /// Weight of calling `gr_exit_code`.
-    ExitCode,
+    /// Weight of calling `gr_status_code`.
+    StatusCode,
     /// Weight of calling `gr_exit`.
     Exit,
     /// Weight of calling `gr_leave`.
@@ -241,6 +259,7 @@ impl RuntimeCosts {
             Free => s.free,
             ReserveGas => s.gr_reserve_gas,
             UnreserveGas => s.gr_unreserve_gas,
+            SystemReserveGas => s.gr_system_reserve_gas,
             GasAvailable => s.gr_gas_available,
             MsgId => s.gr_message_id,
             Origin => s.gr_origin,
@@ -262,7 +281,12 @@ impl RuntimeCosts {
             SendCommit(len) => s
                 .gr_send_commit
                 .saturating_add(s.gr_send_commit_per_byte.saturating_mul(len.into())),
+            ReservationSendCommit(len) => s.gr_reservation_send_commit.saturating_add(
+                s.gr_reservation_send_commit_per_byte
+                    .saturating_mul(len.into()),
+            ),
             ReplyCommit => s.gr_reply_commit,
+            ReservationReplyCommit => s.gr_reservation_reply_commit,
             ReplyPush(len) => s
                 .gr_reply_push
                 .saturating_add(s.gr_reply_push_per_byte.saturating_mul(len.into())),
@@ -270,7 +294,7 @@ impl RuntimeCosts {
             Debug(len) => s
                 .gr_debug
                 .saturating_add(s.gr_debug_per_byte.saturating_mul(len.into())),
-            ExitCode => s.gr_exit_code,
+            StatusCode => s.gr_status_code,
             Exit => s.gr_exit,
             Leave => s.gr_leave,
             Wait => s.gr_wait,

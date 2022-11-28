@@ -38,7 +38,7 @@ use gear_core::{
     gas::{ChargeResult, GasAllowanceCounter, GasCounter, ValueCounter},
     ids::ProgramId,
     memory::{AllocationsContext, Memory, PageBuf, PageNumber, WasmPageNumber},
-    message::{ContextSettings, IncomingDispatch, IncomingMessage, MessageContext},
+    message::{ContextSettings, DispatchKind, IncomingDispatch, IncomingMessage, MessageContext},
     program::Program,
     reservation::GasReserver,
 };
@@ -380,6 +380,7 @@ pub fn execute_wasm<
         gas_counter,
         gas_allowance_counter,
         gas_reserver,
+        system_reservation: None,
         value_counter,
         allocations_context,
         message_context,
@@ -496,6 +497,7 @@ pub fn execute_wasm<
         program_candidates,
         gas_amount: info.gas_amount,
         gas_reserver: Some(info.gas_reserver),
+        system_reservation_context: info.system_reservation_context,
         page_update,
         allocations: info.allocations,
     })
@@ -518,7 +520,7 @@ pub fn execute_for_reply<
     let memory_size = program.static_pages();
     let mut pages_initial_data = Default::default();
     let static_pages = program.static_pages();
-    let allocations = program.get_allocations();
+    let allocations = program.allocations();
 
     let context = ProcessorContext {
         gas_counter: GasCounter::new(500_000_000_000),
@@ -568,6 +570,7 @@ pub fn execute_for_reply<
         reserve_for: Default::default(),
         reservation: Default::default(),
         random_data: Default::default(),
+        system_reservation: Default::default(),
     };
 
     // Creating externalities.
@@ -607,8 +610,8 @@ pub fn execute_for_reply<
 
     let info = ext.into_ext_info(&memory).map_err(|_| "Backend error")?;
 
-    for (dispatch, _) in info.generated_dispatches {
-        if dispatch.is_reply() {
+    for (dispatch, _, _) in info.generated_dispatches {
+        if matches!(dispatch.kind(), DispatchKind::Reply) {
             return Ok(dispatch.payload().to_vec());
         }
     }
@@ -675,7 +678,7 @@ mod tests {
         }
     }
 
-    fn prepare_gas_couters() -> (GasCounter, GasAllowanceCounter) {
+    fn prepare_gas_counters() -> (GasCounter, GasAllowanceCounter) {
         (
             GasCounter::new(1_000_000),
             GasAllowanceCounter::new(4_000_000),
@@ -702,7 +705,7 @@ mod tests {
     #[test]
     fn check_memory_not_allocated() {
         let (pages, mut allocs) = prepare_pages_and_allocs();
-        let last = *allocs.last().unwrap();
+        let last = *allocs.iter().last().unwrap();
         allocs.remove(&last);
         let res = check_memory(&allocs, pages.iter(), 2.into(), 4.into());
         assert_eq!(
@@ -723,7 +726,7 @@ mod tests {
     #[test]
     fn gas_for_pages_initial() {
         let settings = prepare_alloc_config();
-        let (mut counter, mut allowance_counter) = prepare_gas_couters();
+        let (mut counter, mut allowance_counter) = prepare_gas_counters();
         let static_pages = 4u32;
         let res = charge_gas_for_pages(
             &settings,
@@ -745,7 +748,7 @@ mod tests {
     #[test]
     fn gas_for_pages_static() {
         let settings = prepare_alloc_config();
-        let (mut counter, mut allowance_counter) = prepare_gas_couters();
+        let (mut counter, mut allowance_counter) = prepare_gas_counters();
         let static_pages = 4u32;
         let res = charge_gas_for_pages(
             &settings,
@@ -767,7 +770,7 @@ mod tests {
     #[test]
     fn gas_for_pages_alloc() {
         let settings = prepare_alloc_config();
-        let (mut counter, mut allowance_counter) = prepare_gas_couters();
+        let (mut counter, mut allowance_counter) = prepare_gas_counters();
         let (_, allocs) = prepare_pages_and_allocs();
         let static_pages = 4u32;
         let res = charge_gas_for_pages(
@@ -780,7 +783,7 @@ mod tests {
             false,
         );
         // Result is the last page plus one
-        let last = *allocs.last().unwrap();
+        let last = *allocs.iter().last().unwrap();
         assert_eq!(res, Ok(last + 1.into()));
         // Charge for loading and mem grow
         let load_charge = settings.load_page_cost * (allocs.len() as u64 + static_pages as u64);
@@ -792,7 +795,7 @@ mod tests {
         );
 
         // Use the second time (`subsequent` = `true`)
-        let (mut counter, mut allowance_counter) = prepare_gas_couters();
+        let (mut counter, mut allowance_counter) = prepare_gas_counters();
         let res = charge_gas_for_pages(
             &settings,
             &mut counter,

@@ -19,7 +19,7 @@ use wasmtime::{
 const PAGE_SIZE: usize = 4096;
 const META_STATE: &str = "meta_state";
 
-/// Exeucte wasm binary
+/// Execute wasm binary
 pub fn execute<R>(wasm: &[u8], f: impl Fn(Reader) -> Result<R>) -> Result<R> {
     let engine = Engine::default();
     let module = Module::new(&engine, wasm)?;

@@ -84,7 +84,10 @@ demo-value-sender = { path = "../../examples/binaries/value-sender" }
 demo-waiter = { path = "../../examples/binaries/waiter" }
 demo-wait-timeout = { path = "../../examples/binaries/wait-timeout" }
 demo-reserve-gas = { path = "../../examples/binaries/reserve-gas" }
-page_size = "0.4.2"
+demo-send-from-reservation = { path = "../../examples/binaries/send-from-reservation" }
+demo-signal-entry = { path = "../../examples/binaries/signal-entry" }
+demo-async-signal-entry = { path = "../../examples/binaries/async-signal-entry" }
+page_size = "0.5.0"
 frame-support-test = { version = "3.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
 pallet-gear-gas = { path = "../gas" }
 pallet-gear-messenger = { path = "../gear-messenger" }

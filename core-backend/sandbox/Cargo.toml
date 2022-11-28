@@ -9,6 +9,7 @@ license = "GPL-3.0"
 gear-core = { path = "../../core" }
 gear-core-errors = { path = "../../core-errors", features = ["codec"] }
 gear-backend-common = { path = "../common" }
+gsys ={ path = "../../gsys" }
 
 gear-wasm-instrument = { path = "../../utils/wasm-instrument", default-features = false }
 sp-sandbox = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false, features = ["host-sandbox"] }

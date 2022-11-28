@@ -20,7 +20,7 @@ use crate::{
 pub use result::Error;
 use scale_info::{form::PortableForm, PortableRegistry};
 use std::fmt;
-use subxt::sp_runtime::traits::Saturating;
+use subxt::ext::sp_runtime::traits::Saturating;
 use wasmtime::AsContextMut;
 
 /// Data used for the wasm exectuon.

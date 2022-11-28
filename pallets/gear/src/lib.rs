@@ -49,7 +49,10 @@ pub use crate::{
 };
 pub use weights::WeightInfo;
 
-use common::{scheduler::*, storage::*, BlockLimiter, CodeStorage, GasProvider, QueueRunner};
+use common::{
+    gas_provider::GasNodeId, scheduler::*, storage::*, BlockLimiter, CodeStorage, GasProvider,
+    QueueRunner,
+};
 use frame_support::{
     traits::{Currency, StorageVersion},
     weights::Weight,
@@ -379,7 +382,7 @@ pub mod pallet {
             ///
             /// Used for identifying by user, that this message associated
             /// with him and with the concrete initial message.
-            origin: Option<MessageId>,
+            origin: Option<GasNodeId<MessageId, ReservationId>>,
             /// The reason of the waiting (addition to `Waitlist`).
             ///
             /// NOTE: See more docs about reasons at `gear_common::event`.
@@ -502,7 +505,7 @@ pub mod pallet {
         T::AccountId: Origin,
     {
         fn on_runtime_upgrade() -> Weight {
-            log::debug!(target: "runtime::gear", "⚙️ Runtime upgrade");
+            log::debug!(target: "gear::runtime", "⚙️ Runtime upgrade");
 
             Weight::MAX
         }
@@ -511,7 +514,7 @@ pub mod pallet {
         fn on_initialize(bn: BlockNumberFor<T>) -> Weight {
             BlockNumber::<T>::mutate(|bn| *bn = bn.saturating_add(One::one()));
 
-            log::debug!(target: "runtime::gear", "⚙️  Initialization of block #{bn:?} (gear #{:?})", Self::block_number());
+            log::debug!(target: "gear::runtime", "⚙️  Initialization of block #{bn:?} (gear #{:?})", Self::block_number());
 
             // Decide whether queue processing should be scheduled or skipped for current block
 
@@ -539,14 +542,14 @@ pub mod pallet {
 
         /// Finalization
         fn on_finalize(bn: BlockNumberFor<T>) {
-            log::debug!(target: "runtime::gear", "⚙️  Finalization of block #{bn:?} (gear #{:?})", Self::block_number());
+            log::debug!(target: "gear::runtime", "⚙️  Finalization of block #{bn:?} (gear #{:?})", Self::block_number());
 
             match QueueState::<T>::get() {
                 // Still in `Scheduled` state: last run didn't complete (likely, panicked)
                 ProcessStatus::Scheduled => {
                     // Emitting event to signal queue processing transaction was rolled back.
                     Self::deposit_event(Event::QueueProcessingReverted);
-                    log::debug!(target: "runtime::gear", "⚙️  Decreasing gear block number due to process status scheduled");
+                    log::debug!(target: "gear::runtime", "⚙️  Decreasing gear block number due to process status scheduled");
                     BlockNumber::<T>::mutate(|bn| *bn = bn.saturating_sub(One::one()));
                     QueueState::<T>::put(ProcessStatus::SkippedOrFailed);
                 }
@@ -557,7 +560,7 @@ pub mod pallet {
                 // Otherwise keeping the status intact;
                 // Note: `SkippedOrFailed` can now only be overridden through forcing
                 ProcessStatus::SkippedOrFailed => {
-                    log::debug!(target: "runtime::gear", "⚙️ Decreasing gear block number due to process status skipped or failed");
+                    log::debug!(target: "gear::runtime", "⚙️ Decreasing gear block number due to process status skipped or failed");
                     BlockNumber::<T>::mutate(|bn| *bn = bn.saturating_sub(One::one()));
                 }
             }
@@ -644,7 +647,8 @@ pub mod pallet {
 
             let packet = InitPacket::new_with_gas(
                 code_and_id.code_id(),
-                salt,
+                salt.try_into()
+                    .map_err(|err: PayloadSizeError| DispatchError::Other(err.into()))?,
                 init_payload
                     .try_into()
                     .map_err(|err: PayloadSizeError| DispatchError::Other(err.into()))?,
@@ -865,8 +869,8 @@ pub mod pallet {
                                 ..
                             } => return Err("Error occurred during execution"),
                             JournalNote::SendDispatch { dispatch, .. } => {
-                                if dispatch.is_reply()
-                                    && dispatch.exit_code().expect("Checked before") == 0
+                                if matches!(dispatch.kind(), DispatchKind::Reply)
+                                    && dispatch.status_code().expect("Checked before") == 0
                                 {
                                     return Ok(dispatch.payload().to_vec());
                                 }
@@ -1032,7 +1036,7 @@ pub mod pallet {
                             format!("Internal error: send_message failed with '{e:?}'").into_bytes()
                         })?;
                 }
-                HandleKind::Reply(reply_to_id, _exit_code) => {
+                HandleKind::Reply(reply_to_id, _status_code) => {
                     Self::send_reply(who.into(), reply_to_id, payload, initial_gas, value)
                         .map_err(|e| {
                             format!("Internal error: send_reply failed with '{e:?}'").into_bytes()
@@ -1147,7 +1151,7 @@ pub mod pallet {
                         .map_err(|_| b"Internal error: unable to get origin key".to_vec())
                 };
                 let from_main_chain =
-                    |msg_id| get_origin_msg_of(msg_id).map(|v| v == main_message_id);
+                    |msg_id| get_origin_msg_of(msg_id).map(|v| v == main_message_id.into());
 
                 // TODO: Check whether we charge gas fee for submitting code after #646
                 for note in journal {
@@ -1770,7 +1774,8 @@ pub mod pallet {
         ) -> Result<InitPacket, DispatchError> {
             let packet = InitPacket::new_with_gas(
                 code_id,
-                salt,
+                salt.try_into()
+                    .map_err(|err: PayloadSizeError| DispatchError::Other(err.into()))?,
                 init_payload
                     .try_into()
                     .map_err(|err: PayloadSizeError| DispatchError::Other(err.into()))?,
@@ -2253,7 +2258,7 @@ pub mod pallet {
             let adjusted_gas = GasAllowanceOf::<T>::get().max(remaining_weight.ref_time());
 
             log::debug!(
-                target: "runtime::gear",
+                target: "gear::runtime",
                 "⚙️  Queue and tasks processing of gear block #{:?} with {adjusted_gas}",
                 Self::block_number(),
             );
@@ -2261,7 +2266,7 @@ pub mod pallet {
             let actual_weight = <T as Config>::QueueRunner::run_queue(adjusted_gas);
 
             log::debug!(
-                target: "runtime::gear",
+                target: "gear::runtime",
                 "⚙️  {} burned in gear block #{:?}",
                 actual_weight,
                 Self::block_number(),

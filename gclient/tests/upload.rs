@@ -27,7 +27,11 @@ const PATHS: [&str; 2] = [
     "../target/wat-examples/inf_recursion.wasm",
 ];
 
-async fn upload_programs_and_check(api: &GearApi, codes: Vec<Vec<u8>>) -> Result<()> {
+async fn upload_programs_and_check(
+    api: &GearApi,
+    codes: Vec<Vec<u8>>,
+    timeout: Option<Duration>,
+) -> Result<()> {
     // Taking block gas limit constant.
     let gas_limit = api.block_gas_limit()?;
 
@@ -41,7 +45,13 @@ async fn upload_programs_and_check(api: &GearApi, codes: Vec<Vec<u8>>) -> Result
         .into_iter()
         .map(|code| (code, gclient::bytes_now(), "", gas_limit, 0))
         .collect();
-    let (ex_res, _) = api.upload_program_bytes_batch(args).await?;
+    let (ex_res, _) = if let Some(timeout) = timeout {
+        async_std::future::timeout(timeout, api.upload_program_bytes_batch(args))
+            .await
+            .expect("Too long test upload time - something goes wrong.")?
+    } else {
+        api.upload_program_bytes_batch(args).await?
+    };
 
     // Ids of initial messages.
     let mids: Vec<_> = ex_res
@@ -58,8 +68,8 @@ async fn upload_programs_and_check(api: &GearApi, codes: Vec<Vec<u8>>) -> Result
         listener.message_processed_batch(mids).await?.len(),
     );
 
-    // Checking that blocks still running.
-    assert!(listener.blocks_running().await?);
+    // Check no runtime panic occurred
+    assert!(!api.queue_processing_stopped().await?);
 
     Ok(())
 }
@@ -76,13 +86,18 @@ async fn harmless_upload() -> Result<()> {
     // By default, login as Alice, than re-login as Bob.
     let api = GearApi::dev().await?.with("//Bob")?;
 
-    upload_programs_and_check(&api, codes).await?;
+    upload_programs_and_check(&api, codes, None).await?;
 
     Ok(())
 }
 
 #[tokio::test]
 async fn alloc_zero_pages() -> Result<()> {
+    let _ = env_logger::Builder::from_default_env()
+        .format_module_path(false)
+        .format_level(true)
+        .try_init();
+    log::info!("Begin");
     let wat_code = r#"
         (module
             (import "env" "memory" (memory 0))
@@ -96,10 +111,6 @@ async fn alloc_zero_pages() -> Result<()> {
         )"#;
     let api = GearApi::dev().await?.with("//Bob")?;
     let codes = vec![wat::parse_str(wat_code).unwrap()];
-    async_std::future::timeout(
-        Duration::from_secs(6),
-        upload_programs_and_check(&api, codes),
-    )
-    .await
-    .expect("Too long test upload time - something goes wrong.")
+    let res = upload_programs_and_check(&api, codes, Some(Duration::from_secs(5))).await;
+    res
 }

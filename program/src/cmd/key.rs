@@ -2,7 +2,7 @@
 use crate::{keystore::key::Key as KeyT, result::Result};
 use clap::Parser;
 use std::{fmt::Display, result::Result as StdResult, str::FromStr};
-use subxt::{
+use subxt::ext::{
     sp_core::{ecdsa, ed25519, sr25519, Pair},
     sp_runtime::traits::IdentifyAccount,
 };

@@ -1,0 +1,43 @@
+name: Build gear loader
+
+on:
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+
+  build-gear-loader:
+    runs-on: [self-hosted, cachepot, epyc]
+    env:
+      RUSTUP_HOME: /tmp/rustup_home
+    steps:
+
+      - name: "ACTIONS: Checkout"
+        uses: actions/checkout@v3
+
+      - name: "Install: Set cargo path"
+        run: echo "/tmp/cargo/bin" >> $GITHUB_PATH
+
+      - name: "Install: Nightly toolchain"
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: nightly
+          components: clippy, rustfmt
+          target: wasm32-unknown-unknown
+          
+      - name: "Install: Build deps"
+        run: |
+          sudo apt update
+          sudo apt install -y git clang curl libssl-dev llvm libudev-dev cmake protobuf-compiler
+      - name: "Build gear-loader"
+        run: |
+          cargo build --locked --package gear-node-loader
+          
+      - name: Archive production artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: gear-loader
+          path: |
+            target/debug/gear-node-loader

@@ -172,6 +172,7 @@ impl WasmExecutor {
             gas_counter: GasCounter::new(u64::MAX),
             gas_allowance_counter: GasAllowanceCounter::new(u64::MAX),
             gas_reserver: GasReserver::new(message.id(), 0, Default::default(), MAX_RESERVATIONS),
+            system_reservation: None,
             value_counter: ValueCounter::new(u128::MAX),
             allocations_context: AllocationsContext::new(
                 program.allocations().clone(),

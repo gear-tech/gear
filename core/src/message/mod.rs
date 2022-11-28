@@ -18,7 +18,7 @@
 
 //! Message processing module.
 
-use alloc::{string::String, vec::Vec};
+use alloc::string::String;
 use codec::{Decode, Encode};
 use scale_info::TypeInfo;
 
@@ -31,7 +31,7 @@ mod reply;
 mod signal;
 mod stored;
 
-pub use common::{Dispatch, Message, ReplyDetails};
+pub use common::{Dispatch, Message, MessageDetails, ReplyDetails, SignalDetails};
 pub use context::{ContextOutcome, ContextSettings, ContextStore, MessageContext};
 pub use handle::{HandleMessage, HandlePacket};
 pub use incoming::{IncomingDispatch, IncomingMessage};
@@ -74,11 +74,11 @@ pub type GasLimit = u64;
 /// Value type for message.
 pub type Value = u128;
 
-/// Exit code type for message replies.
-pub type ExitCode = i32;
+/// Status code type for message replies.
+pub type StatusCode = i32;
 
 /// Salt type for init message.
-pub type Salt = Vec<u8>;
+pub type Salt = LimitedVec<u8, PayloadSizeError, MAX_PAYLOAD_SIZE>;
 
 /// Composite wait type for messages waiting.
 #[derive(Debug, Encode, Decode, Clone, PartialEq, Eq, PartialOrd, Ord, TypeInfo)]

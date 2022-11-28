@@ -74,13 +74,16 @@ pub trait WeightInfo {
     fn gr_send_push_per_kb(n: u32, ) -> Weight;
     fn gr_send_commit(r: u32, ) -> Weight;
     fn gr_send_commit_per_kb(n: u32, ) -> Weight;
+    fn gr_reservation_send_commit(r: u32, ) -> Weight;
+    fn gr_reservation_send_commit_per_kb(n: u32, ) -> Weight;
     fn gr_reply_commit(r: u32, ) -> Weight;
+    fn gr_reservation_reply_commit(r: u32, ) -> Weight;
     fn gr_reply_push(r: u32, ) -> Weight;
     fn gr_reply_push_per_kb(n: u32, ) -> Weight;
     fn gr_reply_to(r: u32, ) -> Weight;
     fn gr_debug(r: u32, ) -> Weight;
     fn gr_debug_per_kb(n: u32, ) -> Weight;
-    fn gr_exit_code(r: u32, ) -> Weight;
+    fn gr_status_code(r: u32, ) -> Weight;
     fn gr_exit(r: u32, ) -> Weight;
     fn gr_leave(r: u32, ) -> Weight;
     fn gr_wait(r: u32, ) -> Weight;
@@ -89,6 +92,9 @@ pub trait WeightInfo {
     fn gr_wake(r: u32, ) -> Weight;
     fn gr_create_program_wgas(r: u32, ) -> Weight;
     fn gr_create_program_wgas_per_kb(p: u32, s: u32, ) -> Weight;
+    fn gr_system_reserve_gas(r: u32, ) -> Weight;
+    fn lazy_pages_read_access(p: u32, ) -> Weight;
+    fn lazy_pages_write_access(p: u32, ) -> Weight;
     fn instr_i64load(r: u32, ) -> Weight;
     fn instr_i64store(r: u32, ) -> Weight;
     fn instr_select(r: u32, ) -> Weight;
@@ -385,7 +391,26 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
             .saturating_add(T::DbWeight::get().reads(4 as u64))
     }
     /// The range of component `r` is `[0, 20]`.
+    fn gr_reservation_send_commit(r: u32, ) -> Weight {
+        Weight::from_ref_time(84_335_000 as u64)
+            // Standard Error: 70_327
+            .saturating_add(Weight::from_ref_time(308_373_193 as u64).saturating_mul(r as u64))
+    }
+    /// The range of component `n` is `[0, 1024]`.
+    fn gr_reservation_send_commit_per_kb(n: u32, ) -> Weight {
+        Weight::from_ref_time(412_780_000 as u64)
+            // Standard Error: 21_010
+            .saturating_add(Weight::from_ref_time(23_908_495 as u64).saturating_mul(n as u64))
+            .saturating_add(T::DbWeight::get().reads(4 as u64))
+    }
+    /// The range of component `r` is `[0, 20]`.
     fn gr_reply_commit(r: u32, ) -> Weight {
+        Weight::from_ref_time(84_638_000 as u64)
+            // Standard Error: 43_238
+            .saturating_add(Weight::from_ref_time(222_450_327 as u64).saturating_mul(r as u64))
+    }
+    /// The range of component `r` is `[0, 20]`.
+    fn gr_reservation_reply_commit(r: u32, ) -> Weight {
         Weight::from_ref_time(84_638_000 as u64)
             // Standard Error: 43_238
             .saturating_add(Weight::from_ref_time(222_450_327 as u64).saturating_mul(r as u64))
@@ -421,7 +446,7 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
             .saturating_add(Weight::from_ref_time(34_062_390 as u64).saturating_mul(n as u64))
     }
     /// The range of component `r` is `[0, 20]`.
-    fn gr_exit_code(r: u32, ) -> Weight {
+    fn gr_status_code(r: u32, ) -> Weight {
         Weight::from_ref_time(84_126_000 as u64)
             // Standard Error: 39_089
             .saturating_add(Weight::from_ref_time(200_095_839 as u64).saturating_mul(r as u64))
@@ -480,17 +505,35 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
             .saturating_add(Weight::from_ref_time(196_730_758 as u64).saturating_mul(s as u64))
             .saturating_add(T::DbWeight::get().reads(257 as u64))
     }
+    /// The range of component `r` is `[0, 20]`.
+    fn gr_system_reserve_gas(_r: u32, ) -> Weight {
+        Weight::from_ref_time(11_441_000_000 as u64)
+    }
+    /// The range of component `p` is `[0, 512]`.
+    fn lazy_pages_read_access(p: u32, ) -> Weight {
+        Weight::from_ref_time(82_129_000 as u64)
+            // Standard Error: 6_491
+            .saturating_add(Weight::from_ref_time(49_098_637 as u64).saturating_mul(p as u64))
+            .saturating_add(T::DbWeight::get().reads((16 as u64).saturating_mul(p as u64)))
+    }
+    /// The range of component `p` is `[0, 512]`.
+    fn lazy_pages_write_access(p: u32, ) -> Weight {
+        Weight::from_ref_time(25_317_785_000 as u64)
+            // Standard Error: 18_986
+            .saturating_add(Weight::from_ref_time(69_601_626 as u64).saturating_mul(p as u64))
+            .saturating_add(T::DbWeight::get().reads(8192 as u64))
+    }
     /// The range of component `r` is `[0, 50]`.
     fn instr_i64load(r: u32, ) -> Weight {
-        Weight::from_ref_time(5_757_000 as u64)
-            // Standard Error: 6_513
-            .saturating_add(Weight::from_ref_time(4_921_048 as u64).saturating_mul(r as u64))
+        Weight::from_ref_time(11_639_583_000 as u64)
+            // Standard Error: 121_168
+            .saturating_add(Weight::from_ref_time(30_753_009 as u64).saturating_mul(r as u64))
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_i64store(r: u32, ) -> Weight {
-        Weight::from_ref_time(5_676_000 as u64)
-            // Standard Error: 8_817
-            .saturating_add(Weight::from_ref_time(8_731_529 as u64).saturating_mul(r as u64))
+        Weight::from_ref_time(11_670_404_000 as u64)
+            // Standard Error: 116_067
+            .saturating_add(Weight::from_ref_time(42_656_030 as u64).saturating_mul(r as u64))
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_select(r: u32, ) -> Weight {
@@ -1025,7 +1068,26 @@ impl WeightInfo for () {
             .saturating_add(RocksDbWeight::get().reads(4 as u64))
     }
     /// The range of component `r` is `[0, 20]`.
+    fn gr_reservation_send_commit(r: u32, ) -> Weight {
+        Weight::from_ref_time(84_335_000 as u64)
+            // Standard Error: 70_327
+            .saturating_add(Weight::from_ref_time(308_373_193 as u64).saturating_mul(r as u64))
+    }
+    /// The range of component `n` is `[0, 1024]`.
+    fn gr_reservation_send_commit_per_kb(n: u32, ) -> Weight {
+        Weight::from_ref_time(412_780_000 as u64)
+            // Standard Error: 21_010
+            .saturating_add(Weight::from_ref_time(23_908_495 as u64).saturating_mul(n as u64))
+            .saturating_add(RocksDbWeight::get().reads(4 as u64))
+    }
+    /// The range of component `r` is `[0, 20]`.
     fn gr_reply_commit(r: u32, ) -> Weight {
+        Weight::from_ref_time(84_638_000 as u64)
+            // Standard Error: 43_238
+            .saturating_add(Weight::from_ref_time(222_450_327 as u64).saturating_mul(r as u64))
+    }
+    /// The range of component `r` is `[0, 20]`.
+    fn gr_reservation_reply_commit(r: u32, ) -> Weight {
         Weight::from_ref_time(84_638_000 as u64)
             // Standard Error: 43_238
             .saturating_add(Weight::from_ref_time(222_450_327 as u64).saturating_mul(r as u64))
@@ -1061,7 +1123,7 @@ impl WeightInfo for () {
             .saturating_add(Weight::from_ref_time(34_062_390 as u64).saturating_mul(n as u64))
     }
     /// The range of component `r` is `[0, 20]`.
-    fn gr_exit_code(r: u32, ) -> Weight {
+    fn gr_status_code(r: u32, ) -> Weight {
         Weight::from_ref_time(84_126_000 as u64)
             // Standard Error: 39_089
             .saturating_add(Weight::from_ref_time(200_095_839 as u64).saturating_mul(r as u64))
@@ -1120,17 +1182,35 @@ impl WeightInfo for () {
             .saturating_add(Weight::from_ref_time(196_730_758 as u64).saturating_mul(s as u64))
             .saturating_add(RocksDbWeight::get().reads(257 as u64))
     }
+    /// The range of component `r` is `[0, 20]`.
+    fn gr_system_reserve_gas(_r: u32, ) -> Weight {
+        Weight::from_ref_time(11_441_000_000 as u64)
+    }
+    /// The range of component `p` is `[0, 512]`.
+    fn lazy_pages_read_access(p: u32, ) -> Weight {
+        Weight::from_ref_time(82_129_000 as u64)
+            // Standard Error: 6_491
+            .saturating_add(Weight::from_ref_time(49_098_637 as u64).saturating_mul(p as u64))
+            .saturating_add(RocksDbWeight::get().reads((16 as u64).saturating_mul(p as u64)))
+    }
+    /// The range of component `p` is `[0, 512]`.
+    fn lazy_pages_write_access(p: u32, ) -> Weight {
+        Weight::from_ref_time(25_317_785_000 as u64)
+            // Standard Error: 18_986
+            .saturating_add(Weight::from_ref_time(69_601_626 as u64).saturating_mul(p as u64))
+            .saturating_add(RocksDbWeight::get().reads(8192 as u64))
+    }
     /// The range of component `r` is `[0, 50]`.
     fn instr_i64load(r: u32, ) -> Weight {
-        Weight::from_ref_time(5_757_000 as u64)
-            // Standard Error: 6_513
-            .saturating_add(Weight::from_ref_time(4_921_048 as u64).saturating_mul(r as u64))
+        Weight::from_ref_time(11_639_583_000 as u64)
+            // Standard Error: 121_168
+            .saturating_add(Weight::from_ref_time(30_753_009 as u64).saturating_mul(r as u64))
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_i64store(r: u32, ) -> Weight {
-        Weight::from_ref_time(5_676_000 as u64)
-            // Standard Error: 8_817
-            .saturating_add(Weight::from_ref_time(8_731_529 as u64).saturating_mul(r as u64))
+        Weight::from_ref_time(11_670_404_000 as u64)
+            // Standard Error: 116_067
+            .saturating_add(Weight::from_ref_time(42_656_030 as u64).saturating_mul(r as u64))
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_select(r: u32, ) -> Weight {

@@ -125,6 +125,10 @@ pub enum MessageError {
     /// The error occurs when functions related to reply context, used without it.
     #[display(fmt = "Not running in reply context")]
     NoReplyContext,
+
+    /// The error occurs when functions related to status code, used without required context.
+    #[display(fmt = "No status code in reply/signal context")]
+    NoStatusCodeContext,
 }
 
 /// Error using waiting syscalls.
@@ -189,6 +193,9 @@ pub enum ExecutionError {
     /// An error occurs in attempt to reserve more times than allowed.
     #[display(fmt = "Reservation limit has reached")]
     ReservationsLimitReached,
+    /// An error occurs in attempt to reserve zero gas for the system.
+    #[display(fmt = "System reservation amount cannot be zero")]
+    ZeroSystemReservationAmount,
 }
 
 /// An error occurred in API.

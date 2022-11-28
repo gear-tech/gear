@@ -15,28 +15,29 @@ env:
   NIGHTLY_TOOLCHAIN_VERSION: ${{ secrets.NIGHTLY_TOOLCHAIN_VERSION }}
 
 jobs:
-  spec_version:
-    runs-on: [self-hosted, cachepot, epyc]
-    steps:
-      - name: Cancel Previous Runs
-        if: ${{ github.event_name == 'pull_request' }}
-        uses: styfle/cancel-workflow-action@0.9.1
-        with:
-          access_token: ${{ github.token }}
+  # TODO: add to specific branches.
+  # spec_version:
+  #   runs-on: [self-hosted, cachepot, epyc]
+  #   steps:
+  #     - name: Cancel Previous Runs
+  #       if: ${{ github.event_name == 'pull_request' }}
+  #       uses: styfle/cancel-workflow-action@0.9.1
+  #       with:
+  #         access_token: ${{ github.token }}
 
-      - name: "ACTIONS: Checkout"
-        uses: actions/checkout@v3
+  #     - name: "ACTIONS: Checkout"
+  #       uses: actions/checkout@v3
 
-      - name: "Fetch origin"
-        run: git fetch origin
+  #     - name: "Fetch origin"
+  #       run: git fetch origin
 
-      - name: "Check spec version"
-        if: ${{ ! contains(github.event.pull_request.labels.*.name, 'A4-insubstantial') }}
-        run: ./scripts/check-spec.sh
+  #     - name: "Check spec version"
+  #       if: ${{ ! contains(github.event.pull_request.labels.*.name, 'A4-insubstantial') }}
+  #       run: ./scripts/check-spec.sh
 
   check:
-    needs: spec_version
-    runs-on: [self-hosted, cachepot, epyc]
+    # needs: spec_version
+    runs-on: [self-hosted, cachepot, epyc-4, k8s-runner ]
     env:
       RUSTUP_HOME: /tmp/rustup_home
     steps:
@@ -82,7 +83,7 @@ jobs:
           sudo apt update
           sudo apt install -y git clang curl libssl-dev llvm libudev-dev cmake protobuf-compiler
           sudo wget -c https://github.com/WebAssembly/binaryen/releases/download/version_105/binaryen-version_105-x86_64-linux.tar.gz -O - | sudo tar -xz -C .
-          cp binaryen-version_105/bin/wasm-opt /usr/bin/
+          sudo cp binaryen-version_105/bin/wasm-opt /usr/bin/
 
       - name: "Cache: Unpack"
         if: ${{ github.event_name == 'pull_request' }}
@@ -117,8 +118,8 @@ jobs:
           mv /tmp/*.tar /root/cache/
 
   build:
-    needs: spec_version
-    runs-on: [self-hosted, cachepot, epyc]
+    # needs: spec_version
+    runs-on: [self-hosted, cachepot, epyc-4, k8s-runner ]
     env:
       LLVM_PROFILE_FILE: "gear-%p-%m.profraw"
       RUSTUP_HOME: /tmp/rustup_home
@@ -176,14 +177,11 @@ jobs:
           sudo apt update
           sudo apt install -y git clang curl libssl-dev llvm libudev-dev cmake wabt protobuf-compiler
           sudo wget -c https://github.com/WebAssembly/binaryen/releases/download/version_105/binaryen-version_105-x86_64-linux.tar.gz -O - | sudo tar -xz -C .
-          cp binaryen-version_105/bin/wasm-opt /usr/bin/
+          sudo cp binaryen-version_105/bin/wasm-opt /usr/bin/
 
       - name: "Install: grcov"
-        run: |
-          curl https://api.github.com/repos/mozilla/grcov/releases/latest |
-          grep -wo "https.*x86_64.*linux-gnu.*tar\.bz2" |
-          xargs curl -L |
-          tar xj
+        run: 
+          curl -L https://github.com/mozilla/grcov/releases/latest/download/grcov-x86_64-unknown-linux-gnu.tar.bz2 | tar jxf -
 
       - name: "Install: rust-covfix"
         run: |
@@ -341,7 +339,7 @@ jobs:
 
   build-win:
     if: github.ref == 'refs/heads/master' || contains(github.event.pull_request.labels.*.name, 'E1-forcewindows')
-    needs: spec_version
+    needs: build
     runs-on: ci-win
     defaults:
       run:
@@ -457,7 +455,7 @@ jobs:
 
       - name: "Test: Client tests"
         run: ./scripts/gear.sh test client --run-node
-        
+
       - name: Stop Gear Node Force
         shell: powershell
         run: Get-Process gear* | Stop-Process -Force
@@ -486,7 +484,7 @@ jobs:
 
   build-macos-x86:
     if: github.ref == 'refs/heads/master' || contains(github.event.pull_request.labels.*.name, 'E2-forcemacos')
-    needs: spec_version
+    needs: build
     runs-on: macos-latest
     steps:
       - name: Cancel Previous Runs

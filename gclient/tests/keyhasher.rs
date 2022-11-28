@@ -20,10 +20,10 @@
 
 use gclient::{EventProcessor, GearApi, Result};
 
-const PATH: &str = "./tests/large_scheduled.opt.wasm";
+const PATH: &str = "../target/wat-examples/large_scheduled.wasm";
 
 #[tokio::test]
-async fn key_hasher_size_exceed() -> Result<()> {
+async fn keyhasher_size_exceed() -> Result<()> {
     // Creating gear api.
     //
     // By default, login as Alice.
@@ -43,8 +43,8 @@ async fn key_hasher_size_exceed() -> Result<()> {
     // Asserting successful initialization.
     assert!(listener.message_processed(mid).await?.succeed());
 
-    // Checking that blocks still running.
-    assert!(listener.blocks_running().await?);
+    // Check no runtime panic occurred
+    assert!(!api.queue_processing_stopped().await?);
 
     Ok(())
 }

@@ -457,10 +457,12 @@ mod tests {
 
             run_to_block(4, None);
 
-            // Gas balance adds up: all gas is held by waiting messages only
+            let system_reservation = gstd::Config::system_reserve();
+
+            // Gas balance adds up: all gas is held by waiting messages and system reservations only
             assert_eq!(
                 GasHandlerOf::<Runtime>::total_supply(),
-                total_gas_in_wl_mb()
+                total_gas_in_wl_mb() + system_reservation * 8
             );
         });
     }

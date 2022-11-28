@@ -70,7 +70,7 @@ use gear_core::{
     code::{Code, CodeAndId},
     gas::{GasAllowanceCounter, GasCounter, ValueCounter},
     ids::{MessageId, ProgramId},
-    memory::{AllocationsContext, PageBuf, PageNumber},
+    memory::{AllocationsContext, PageBuf, PageNumber, WasmPageNumber},
     message::{ContextSettings, MessageContext},
     reservation::GasReserver,
 };
@@ -142,6 +142,7 @@ fn default_processor_context<T: Config>() -> ProcessorContext {
             Default::default(),
             T::ReservationsLimit::get(),
         ),
+        system_reservation: None,
         value_counter: ValueCounter::new(0),
         allocations_context: AllocationsContext::new(
             Default::default(),
@@ -355,11 +356,11 @@ benchmarks! {
     //
     // `c`: Size of the code in kilobytes.
     upload_code {
-        let c in 0 .. Perbill::from_percent(49).mul_ceil(T::Schedule::get().limits.code_len);
+        let c in 0 .. Perbill::from_percent(49).mul_ceil(T::Schedule::get().limits.code_len) / 1024;
         let value = <T as pallet::Config>::Currency::minimum_balance();
         let caller = whitelisted_caller();
         <T as pallet::Config>::Currency::make_free_balance_be(&caller, caller_funding::<T>());
-        let WasmModule { code, hash: code_id, .. } = WasmModule::<T>::sized(c, Location::Handle);
+        let WasmModule { code, hash: code_id, .. } = WasmModule::<T>::sized(c * 1024, Location::Handle);
         let origin = RawOrigin::Signed(caller);
 
         init_block::<T>();
@@ -406,13 +407,13 @@ benchmarks! {
     // We cannot let `c` grow to the maximum code size because the code is not allowed
     // to be larger than the maximum size **after instrumentation**.
     upload_program {
-        let c in 0 .. Perbill::from_percent(49).mul_ceil(T::Schedule::get().limits.code_len);
+        let c in 0 .. Perbill::from_percent(49).mul_ceil(T::Schedule::get().limits.code_len) / 1024;
         let s in 0 .. code::max_pages::<T>() * 64 * 128;
         let salt = vec![42u8; s as usize];
         let value = <T as pallet::Config>::Currency::minimum_balance();
         let caller = whitelisted_caller();
         <T as pallet::Config>::Currency::make_free_balance_be(&caller, caller_funding::<T>());
-        let WasmModule { code, hash, .. } = WasmModule::<T>::sized(c, Location::Handle);
+        let WasmModule { code, hash, .. } = WasmModule::<T>::sized(c * 1024, Location::Handle);
         let origin = RawOrigin::Signed(caller);
 
         init_block::<T>();
@@ -563,6 +564,17 @@ benchmarks! {
         verify_process(res.unwrap());
     }
 
+    gr_system_reserve_gas {
+        let r in 0 .. API_BENCHMARK_BATCHES;
+        let mut res = None;
+        let exec = Benches::<T>::gr_system_reserve_gas(r)?;
+    }: {
+        res.replace(run_process(exec));
+    }
+    verify {
+        verify_process(res.unwrap());
+    }
+
     gr_message_id {
         let r in 0 .. API_BENCHMARK_BATCHES;
         let mut res = None;
@@ -632,7 +644,7 @@ benchmarks! {
     gr_gas_available {
         let r in 0 .. API_BENCHMARK_BATCHES;
         let mut res = None;
-        let exec = Benches::<T>::number_getter("gr_gas_available", r)?;
+        let exec = Benches::<T>::getter("gr_gas_available", r)?;
     }: {
         res.replace(run_process(exec));
     }
@@ -643,7 +655,7 @@ benchmarks! {
     gr_size {
         let r in 0 .. API_BENCHMARK_BATCHES;
         let mut res = None;
-        let exec = Benches::<T>::number_getter("gr_size", r)?;
+        let exec = Benches::<T>::getter("gr_size", r)?;
     }: {
         res.replace(run_process(exec));
     }
@@ -676,7 +688,7 @@ benchmarks! {
     gr_block_height {
         let r in 0 .. API_BENCHMARK_BATCHES;
         let mut res = None;
-        let exec = Benches::<T>::number_getter("gr_block_height", r)?;
+        let exec = Benches::<T>::getter("gr_block_height", r)?;
     }: {
         res.replace(run_process(exec));
     }
@@ -687,7 +699,7 @@ benchmarks! {
     gr_block_timestamp {
         let r in 0 .. API_BENCHMARK_BATCHES;
         let mut res = None;
-        let exec = Benches::<T>::number_getter("gr_block_timestamp", r)?;
+        let exec = Benches::<T>::getter("gr_block_timestamp", r)?;
     }: {
         res.replace(run_process(exec));
     }
@@ -761,7 +773,28 @@ benchmarks! {
         verify_process(res.unwrap());
     }
 
-    // Benchmark the `gr_reply_commit` call.
+    gr_reservation_send_commit {
+        let r in 0 .. API_BENCHMARK_BATCHES;
+        let mut res = None;
+        let exec = Benches::<T>::gr_reservation_send_commit(r)?;
+    }: {
+        res.replace(run_process(exec));
+    }
+    verify {
+        verify_process(res.unwrap());
+    }
+
+    gr_reservation_send_commit_per_kb {
+        let n in 0 .. T::Schedule::get().limits.payload_len / 1024;
+        let mut res = None;
+        let exec = Benches::<T>::gr_reservation_send_commit_per_kb(n)?;
+    }: {
+        res.replace(run_process(exec));
+    }
+    verify {
+        verify_process(res.unwrap());
+    }
+
     gr_reply_commit {
         let r in 0 .. API_BENCHMARK_BATCHES;
         let mut res = None;
@@ -773,7 +806,6 @@ benchmarks! {
         verify_process(res.unwrap());
     }
 
-    // Benchmark the `gr_reply_push` call.
     gr_reply_push {
         let r in 0 .. API_BENCHMARK_BATCHES;
         let mut res = None;
@@ -789,6 +821,17 @@ benchmarks! {
         let n in 0 .. T::Schedule::get().limits.payload_len / 1024;
         let mut res = None;
         let exec = Benches::<T>::gr_reply_push_per_kb(n)?;
+    }: {
+        res.replace(run_process(exec));
+    }
+    verify {
+        verify_process(res.unwrap());
+    }
+
+    gr_reservation_reply_commit {
+        let r in 0 .. API_BENCHMARK_BATCHES;
+        let mut res = None;
+        let exec = Benches::<T>::gr_reservation_reply_commit(r)?;
     }: {
         res.replace(run_process(exec));
     }
@@ -829,10 +872,10 @@ benchmarks! {
         verify_process(res.unwrap());
     }
 
-    gr_exit_code {
+    gr_status_code {
         let r in 0 .. API_BENCHMARK_BATCHES;
         let mut res = None;
-        let exec = Benches::<T>::gr_exit_code(r)?;
+        let exec = Benches::<T>::gr_status_code(r)?;
     }: {
         res.replace(run_process(exec));
     }
@@ -845,7 +888,7 @@ benchmarks! {
     gr_exit {
         let r in 0 .. 1;
         let mut res = None;
-        let exec = Benches::<T>::no_return_bench("gr_exit", Some(0xff), r)?;
+        let exec = Benches::<T>::termination_bench("gr_exit", Some(0xff), r)?;
     }: {
         res.replace(run_process(exec));
     }
@@ -858,7 +901,7 @@ benchmarks! {
     gr_leave {
         let r in 0 .. 1;
         let mut res = None;
-        let exec = Benches::<T>::no_return_bench("gr_leave", None, r)?;
+        let exec = Benches::<T>::termination_bench("gr_leave", None, r)?;
     }: {
         res.replace(run_process(exec));
     }
@@ -871,7 +914,7 @@ benchmarks! {
     gr_wait {
         let r in 0 .. 1;
         let mut res = None;
-        let exec = Benches::<T>::no_return_bench("gr_wait", None, r)?;
+        let exec = Benches::<T>::termination_bench("gr_wait", None, r)?;
     }: {
         res.replace(run_process(exec));
     }
@@ -884,7 +927,7 @@ benchmarks! {
     gr_wait_for {
         let r in 0 .. 1;
         let mut res = None;
-        let exec = Benches::<T>::no_return_bench("gr_wait_for", Some(10), r)?;
+        let exec = Benches::<T>::termination_bench("gr_wait_for", Some(10), r)?;
     }: {
         res.replace(run_process(exec));
     }
@@ -897,7 +940,7 @@ benchmarks! {
     gr_wait_up_to {
         let r in 0 .. 1;
         let mut res = None;
-        let exec = Benches::<T>::no_return_bench("gr_wait_up_to", Some(100), r)?;
+        let exec = Benches::<T>::termination_bench("gr_wait_up_to", Some(100), r)?;
     }: {
         res.replace(run_process(exec));
     }
@@ -939,34 +982,60 @@ benchmarks! {
         verify_process(res.unwrap());
     }
 
-    // TODO: fix it #1728
+    lazy_pages_read_access {
+        let p in 0 .. code::max_pages::<T>();
+        let mut res = None;
+        let exec = Benches::<T>::lazy_pages_read_access(p)?;
+    }: {
+        res.replace(run_process(exec));
+    }
+    verify {
+        verify_process(res.unwrap());
+    }
+
+    lazy_pages_write_access {
+        let p in 0 .. code::max_pages::<T>();
+        let mut res = None;
+        let exec = Benches::<T>::lazy_pages_write_access(p)?;
+    }: {
+        res.replace(run_process(exec));
+    }
+    verify {
+        verify_process(res.unwrap());
+    }
+
     // w_load = w_bench
     instr_i64load {
         let r in 0 .. INSTR_BENCHMARK_BATCHES;
+        let mem_pages = code::max_pages::<T>();
+        // Warm up memory.
+        let mut instrs = body::write_access_all_pages_instrs(mem_pages, vec![]);
+        instrs = body::repeated_dyn_instr(r * INSTR_BENCHMARK_BATCH_SIZE, vec![
+                        RandomUnaligned(0, mem_pages * WasmPageNumber::size() as u32 - 8),
+                        Regular(Instruction::I64Load(3, 0)),
+                        Regular(Instruction::Drop)], instrs);
         let mut sbox = Sandbox::from(&WasmModule::<T>::from(ModuleDefinition {
-            memory: Some(ImportedMemory::max::<T>()),
-            handle_body: Some(body::repeated_dyn(r * INSTR_BENCHMARK_BATCH_SIZE, vec![
-                RandomUnaligned(0, 2 * 64 * 1024 - 8),
-                Regular(Instruction::I64Load(3, 0)),
-                Regular(Instruction::Drop),
-            ])),
+            memory: Some(ImportedMemory{min_pages: mem_pages}),
+            handle_body: Some(body::from_instructions(instrs)),
             .. Default::default()
         }));
     }: {
         sbox.invoke();
     }
 
-    // TODO: Fix it #1728
     // w_store = w_bench - w_i64const
     instr_i64store {
         let r in 0 .. INSTR_BENCHMARK_BATCHES;
+        let mem_pages = code::max_pages::<T>();
+        // Warm up memory.
+        let mut instrs = body::write_access_all_pages_instrs(mem_pages, vec![]);
+        instrs = body::repeated_dyn_instr(r * INSTR_BENCHMARK_BATCH_SIZE, vec![
+                        RandomUnaligned(0, mem_pages * WasmPageNumber::size() as u32 - 8),
+                        RandomI64Repeated(1),
+                        Regular(Instruction::I64Store(3, 0))], instrs);
         let mut sbox = Sandbox::from(&WasmModule::<T>::from(ModuleDefinition {
-            memory: Some(ImportedMemory::max::<T>()),
-            handle_body: Some(body::repeated_dyn(r * INSTR_BENCHMARK_BATCH_SIZE, vec![
-                RandomUnaligned(0, 2 * 64 * 1024 - 8),
-                RandomI64Repeated(1),
-                Regular(Instruction::I64Store(3, 0)),
-            ])),
+            memory: Some(ImportedMemory{min_pages: mem_pages}),
+            handle_body: Some(body::from_instructions(instrs)),
             .. Default::default()
         }));
     }: {

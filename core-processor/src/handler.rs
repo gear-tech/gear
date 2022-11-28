@@ -45,7 +45,8 @@ pub fn handle_journal(
                 message_id,
                 dispatch,
                 delay,
-            } => handler.send_dispatch(message_id, dispatch, delay),
+                reservation,
+            } => handler.send_dispatch(message_id, dispatch, delay, reservation),
             JournalNote::WaitDispatch {
                 dispatch,
                 duration,
@@ -96,6 +97,16 @@ pub fn handle_journal(
                 program_id,
                 reserver,
             } => handler.update_gas_reservation(program_id, reserver),
+            JournalNote::SystemReserveGas { message_id, amount } => {
+                handler.system_reserve_gas(message_id, amount)
+            }
+            JournalNote::SystemUnreserveGas { message_id } => {
+                handler.system_unreserve_gas(message_id)
+            }
+            JournalNote::SendSignal {
+                message_id,
+                destination,
+            } => handler.send_signal(message_id, destination),
         }
     }
 

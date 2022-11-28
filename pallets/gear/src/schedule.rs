@@ -281,6 +281,9 @@ pub struct HostFnWeights<T: Config> {
     /// Weight of calling `gr_unreserve_gas`
     pub gr_unreserve_gas: u64,
 
+    /// Weight of calling `gr_system_reserve_gas`
+    pub gr_system_reserve_gas: u64,
+
     /// Weight of calling `gr_gas_available`.
     pub gr_gas_available: u64,
 
@@ -335,8 +338,17 @@ pub struct HostFnWeights<T: Config> {
     /// Weight per payload byte by `gr_send_commit`.
     pub gr_send_commit_per_byte: u64,
 
+    /// Weight of calling `gr_reservation_send_commit`.
+    pub gr_reservation_send_commit: u64,
+
+    /// Weight per payload byte by `gr_reservation_send_commit`.
+    pub gr_reservation_send_commit_per_byte: u64,
+
     /// Weight of calling `gr_reply_commit`.
     pub gr_reply_commit: u64,
+
+    /// Weight of calling `gr_reservation_reply_commit`.
+    pub gr_reservation_reply_commit: u64,
 
     /// Weight of calling `gr_reply_push`.
     pub gr_reply_push: u64,
@@ -353,8 +365,8 @@ pub struct HostFnWeights<T: Config> {
     /// Weight per payload byte by `gr_debug_per_byte`.
     pub gr_debug_per_byte: u64,
 
-    /// Weight of calling `gr_exit_code`.
-    pub gr_exit_code: u64,
+    /// Weight of calling `gr_status_code`.
+    pub gr_status_code: u64,
 
     /// Weight of calling `gr_exit`.
     pub gr_exit: u64,
@@ -585,6 +597,7 @@ impl<T: Config> HostFnWeights<T> {
             free: self.free,
             gr_reserve_gas: self.gr_reserve_gas,
             gr_unreserve_gas: self.gr_unreserve_gas,
+            gr_system_reserve_gas: self.gr_system_reserve_gas,
             gr_gas_available: self.gr_gas_available,
             gr_message_id: self.gr_message_id,
             gr_origin: self.gr_origin,
@@ -603,13 +616,16 @@ impl<T: Config> HostFnWeights<T> {
             gr_send_push_per_byte: self.gr_send_push_per_byte,
             gr_send_commit: self.gr_send_commit,
             gr_send_commit_per_byte: self.gr_send_commit_per_byte,
+            gr_reservation_send_commit: self.gr_reservation_send_commit,
+            gr_reservation_send_commit_per_byte: self.gr_reservation_send_commit_per_byte,
             gr_reply_commit: self.gr_reply_commit,
+            gr_reservation_reply_commit: self.gr_reservation_reply_commit,
             gr_reply_push: self.gr_reply_push,
             gr_reply_push_per_byte: self.gr_reply_push_per_byte,
             gr_debug: self.gr_debug,
             gr_debug_per_byte: self.gr_debug_per_byte,
             gr_reply_to: self.gr_reply_to,
-            gr_exit_code: self.gr_exit_code,
+            gr_status_code: self.gr_status_code,
             gr_exit: self.gr_exit,
             gr_leave: self.gr_leave,
             gr_wait: self.gr_wait,
@@ -629,6 +645,7 @@ impl<T: Config> Default for HostFnWeights<T> {
             alloc: cost_batched!(alloc),
             free: cost_batched!(free),
             gr_reserve_gas: cost_batched!(gr_reserve_gas),
+            gr_system_reserve_gas: cost_batched!(gr_system_reserve_gas),
             gr_unreserve_gas: cost_batched!(gr_unreserve_gas),
             gr_gas_available: cost_batched!(gr_gas_available),
             gr_message_id: cost_batched!(gr_message_id),
@@ -648,13 +665,18 @@ impl<T: Config> Default for HostFnWeights<T> {
             gr_send_push_per_byte: cost_byte_batched!(gr_send_push_per_kb),
             gr_send_commit: cost_batched!(gr_send_commit),
             gr_send_commit_per_byte: cost_byte_batched!(gr_send_commit_per_kb),
+            gr_reservation_send_commit: cost_batched!(gr_reservation_send_commit),
+            gr_reservation_send_commit_per_byte: cost_byte_batched!(
+                gr_reservation_send_commit_per_kb
+            ),
             gr_reply_commit: cost_batched!(gr_reply_commit),
+            gr_reservation_reply_commit: cost_batched!(gr_reservation_reply_commit),
             gr_reply_push: cost_batched!(gr_reply_push),
             gr_reply_push_per_byte: cost_byte_batched!(gr_reply_push_per_kb),
             gr_debug: cost_batched!(gr_debug),
             gr_debug_per_byte: cost_byte_batched!(gr_debug_per_kb),
             gr_reply_to: cost_batched!(gr_reply_to),
-            gr_exit_code: cost_batched!(gr_exit_code),
+            gr_status_code: cost_batched!(gr_status_code),
             gr_exit: cost!(gr_exit),
             gr_leave: cost!(gr_leave),
             gr_wait: cost!(gr_wait),
