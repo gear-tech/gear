@@ -776,8 +776,9 @@ impl EnvExt for Ext {
         self.return_and_store_err(result)
     }
 
-    fn random(&self) -> (&[u8], u32) {
-        (&self.context.random_data.0, self.context.random_data.1)
+    fn random(&mut self, len: u32) -> Result<(&[u8], u32), Self::Error> {
+        self.charge_gas_runtime(RuntimeCosts::Random(len))?;
+        Ok((&self.context.random_data.0, self.context.random_data.1))
     }
 
     fn forbidden_funcs(&self) -> &BTreeSet<&'static str> {
