@@ -22,7 +22,7 @@ wabt = "0.10.0"
 tokio = { version = "1.22.0", features = ["full"] }
 wat = "1.0.52"
 async-std = "1.12"
-env_logger = "0.9"
+env_logger = "0.10"
 log = "0.4"
 
 [features]
