@@ -5,13 +5,13 @@ extern crate alloc;
 use alloc::{string::String, vec::Vec};
 use blake2_rfc::blake2b;
 use codec::Encode;
-use core::any;
+use core::any::TypeId;
 use scale_info::{MetaType, PortableRegistry, Registry, TypeInfo};
 
 #[derive(Encode, Debug)]
 pub struct TypesRepr {
-    input: Option<&'static str>,
-    output: Option<&'static str>,
+    input: Option<u32>,
+    output: Option<u32>,
 }
 
 #[derive(Encode, Debug)]
@@ -20,25 +20,21 @@ pub struct MetadataRepr {
     handle: TypesRepr,
     reply: TypesRepr,
     others: TypesRepr,
-    state: Option<&'static str>,
-    registry: PortableRegistry,
+    state: Option<u32>,
+    registry: Vec<u8>,
 }
 
 pub trait Type: TypeInfo + 'static {
-    fn eq<T>() -> bool {
-        any::type_name::<Self>().eq(any::type_name::<T>())
-    }
-
-    fn ne<T>() -> bool {
-        !Self::eq::<T>()
-    }
-
-    fn repr() -> Option<&'static str> {
-        Self::ne::<()>().then(any::type_name::<Self>)
+    fn is_unit() -> bool {
+        TypeId::of::<Self>().eq(&TypeId::of::<()>())
     }
 
     fn meta_type() -> MetaType {
         MetaType::new::<Self>()
+    }
+
+    fn register(registry: &mut Registry) -> Option<u32> {
+        (!Self::is_unit()).then(|| registry.register_type(&Self::meta_type()).id())
     }
 }
 
@@ -48,18 +44,11 @@ pub trait Types {
     type Input: Type;
     type Output: Type;
 
-    fn repr() -> TypesRepr {
-        let input = Self::Input::repr();
-        let output = Self::Output::repr();
+    fn register(registry: &mut Registry) -> TypesRepr {
+        let input = Self::Input::register(registry);
+        let output = Self::Output::register(registry);
 
         TypesRepr { input, output }
-    }
-
-    fn meta_types() -> [MetaType; 2] {
-        [
-            Self::Input::meta_type(),
-            Self::Output::meta_type(),
-        ]
     }
 }
 
@@ -110,19 +99,13 @@ pub trait Metadata {
     fn repr() -> MetadataRepr {
         let mut registry = Registry::new();
 
-        registry.register_types(Self::Init::meta_types());
-        registry.register_types(Self::Handle::meta_types());
-        registry.register_types(Self::Reply::meta_types());
-        registry.register_types(Self::Others::meta_types());
-        registry.register_type(&Self::State::meta_type());
-
         MetadataRepr {
-            init: Self::Init::repr(),
-            handle: Self::Handle::repr(),
-            reply: Self::Reply::repr(),
-            others: Self::Others::repr(),
-            state: Self::State::repr(),
-            registry: registry.into(),
+            init: Self::Init::register(&mut registry),
+            handle: Self::Handle::register(&mut registry),
+            reply: Self::Reply::register(&mut registry),
+            others: Self::Others::register(&mut registry),
+            state: Self::State::register(&mut registry),
+            registry: PortableRegistry::from(registry).encode(),
         }
     }
 }

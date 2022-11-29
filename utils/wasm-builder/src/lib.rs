@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use anyhow::Result;
-use gmeta::{MetadataRepr, Metadata};
+use gmeta::{Metadata, MetadataRepr};
 use std::{env, process};
 
 use crate::{cargo_command::CargoCommand, wasm_project::WasmProject};

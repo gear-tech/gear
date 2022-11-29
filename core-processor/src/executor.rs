@@ -26,19 +26,19 @@ use crate::{
 };
 use alloc::{
     collections::{BTreeMap, BTreeSet},
-    string::{String, ToString},
+    string::ToString,
     vec::Vec,
 };
 use gear_backend_common::{
     BackendReport, Environment, GetGasAmount, IntoExtInfo, TerminationReason,
 };
 use gear_core::{
-    code::{Code, CodeAndId, InstrumentedCodeAndId},
+    code::{Code, CodeAndId, InstrumentedCodeAndId, InstrumentedCode},
     env::Ext as EnvExt,
     gas::{ChargeResult, GasAllowanceCounter, GasCounter, ValueCounter},
     ids::ProgramId,
     memory::{AllocationsContext, Memory, PageBuf, PageNumber, WasmPageNumber},
-    message::{ContextSettings, DispatchKind, IncomingDispatch, IncomingMessage, MessageContext},
+    message::{ContextSettings, DispatchKind, IncomingDispatch, IncomingMessage, MessageContext, WasmEntry},
     program::Program,
     reservation::GasReserver,
 };
@@ -508,23 +508,21 @@ pub fn execute_for_reply<
     A: ProcessorExt + EnvExt + IntoExtInfo<<A as EnvExt>::Error> + 'static,
     E: Environment<A>,
 >(
-    code: Code,
-    function: String,
+    function: impl WasmEntry,
+    instrumented_code: InstrumentedCode,
+    pages_initial_data: Option<BTreeMap<PageNumber, PageBuf>>,
     payload: Vec<u8>,
+    gas_limit: u64,
 ) -> Result<Vec<u8>, &'static str> {
-    let code_and_id = CodeAndId::new(code);
-    let instrumented_code_and_id: InstrumentedCodeAndId = code_and_id.into();
-    let instrumented_code = instrumented_code_and_id.into_parts().0;
-
     let program = Program::new(ProgramId::from(0), instrumented_code);
     let memory_size = program.static_pages();
-    let mut pages_initial_data = Default::default();
+    let mut pages_initial_data = pages_initial_data.unwrap_or_default();
     let static_pages = program.static_pages();
     let allocations = program.allocations();
 
     let context = ProcessorContext {
-        gas_counter: GasCounter::new(500_000_000_000),
-        gas_allowance_counter: GasAllowanceCounter::new(500_000_000_000),
+        gas_counter: GasCounter::new(gas_limit),
+        gas_allowance_counter: GasAllowanceCounter::new(gas_limit),
         gas_reserver: GasReserver::new(
             Default::default(),
             Default::default(),
@@ -540,7 +538,7 @@ pub fn execute_for_reply<
                 payload
                     .try_into()
                     .map_err(|_| "Failed to convert payload")?,
-                500_000_000_000,
+                gas_limit,
                 Default::default(),
                 Default::default(),
             ),

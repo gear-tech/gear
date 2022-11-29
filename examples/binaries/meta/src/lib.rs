@@ -82,7 +82,10 @@ mod wasm {
     #[no_mangle]
     extern "C" fn specific_wallet() {
         let (id, wallets): (Id, Vec<Wallet>) = msg::load().unwrap();
-        let res = wallets.into_iter().filter(|w| w.id == id).collect::<Vec<_>>();
+        let res = wallets
+            .into_iter()
+            .filter(|w| w.id == id)
+            .collect::<Vec<_>>();
         msg::reply(res, 0).expect("Failed to share state");
     }
 }

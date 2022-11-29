@@ -106,8 +106,6 @@ pub enum DispatchKind {
     Reply,
     /// System signal.
     Signal,
-    /// State sharing entry.
-    State,
 }
 
 /// Trait defining type could be used as entry point for a wasm module.
@@ -141,7 +139,6 @@ impl WasmEntry for DispatchKind {
             Self::Handle => "handle",
             Self::Reply => "handle_reply",
             Self::Signal => "handle_signal",
-            Self::State => "state",
         }
     }
 
@@ -151,7 +148,6 @@ impl WasmEntry for DispatchKind {
             "handle" => Self::Handle,
             "handle_reply" => Self::Reply,
             "handle_signal" => Self::Signal,
-            "state" => Self::State,
             _ => return None,
         };
 
@@ -178,11 +174,6 @@ impl DispatchKind {
     /// Check if kind is signal.
     pub fn is_signal(&self) -> bool {
         matches!(self, Self::Signal)
-    }
-
-    /// Check if kind is state.
-    pub fn is_state(&self) -> bool {
-        matches!(self, Self::State)
     }
 }
 

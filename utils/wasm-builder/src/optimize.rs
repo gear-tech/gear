@@ -12,7 +12,7 @@ use std::{
     process::Command,
 };
 
-const OPTIMIZED_EXPORTS: [&str; 6] = [
+const OPTIMIZED_EXPORTS: [&str; 7] = [
     "handle",
     "handle_reply",
     "handle_signal",

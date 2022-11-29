@@ -109,7 +109,6 @@ impl WasmProject {
 
     /// Generate a temporary cargo project that includes the original package as a dependency.
     pub fn generate(&mut self) -> Result<()> {
-
         let original_manifest = self.original_dir.join("Cargo.toml");
         let crate_info = CrateInfo::from_manifest(&original_manifest)?;
         self.file_base_name = Some(crate_info.snake_case_name.clone());
@@ -179,8 +178,7 @@ impl WasmProject {
             let wasm_meta_path = self.original_dir.join("meta.txt");
             let wasm_meta_hash_path = self.original_dir.join(".metahash");
 
-            fs::write(wasm_meta_path, format!("{}", metadata.hex()))
-                .context("unable to write `meta.txt`")?;
+            fs::write(wasm_meta_path, metadata.hex()).context("unable to write `meta.txt`")?;
 
             fs::write(wasm_meta_hash_path, format!("{:?}", metadata.hash()))
                 .context("unable to write `.metahash`")?;
@@ -215,7 +213,16 @@ impl WasmProject {
         fs::copy(&from_path, &to_path).context("unable to copy WASM file")?;
         let _ = crate::optimize::optimize_wasm(to_path.clone(), "s", false);
 
-        let metadata = self.metadata.as_ref().map(|m| format!("#[allow(unused)] pub const WASM_METADATA: &[u8] = {:?};\n", m.bytes())).unwrap_or_default();
+        let metadata = self
+            .metadata
+            .as_ref()
+            .map(|m| {
+                format!(
+                    "#[allow(unused)] pub const WASM_METADATA: &[u8] = {:?};\n",
+                    m.bytes()
+                )
+            })
+            .unwrap_or_default();
 
         // Generate wasm binaries
         Self::generate_wasm(from_path, &to_opt_path, &to_meta_path)?;
