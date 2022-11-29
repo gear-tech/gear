@@ -69,7 +69,7 @@ pub trait WeightInfo {
     fn gr_block_height(r: u32, ) -> Weight;
     fn gr_block_timestamp(r: u32, ) -> Weight;
     fn gr_random(r: u32, ) -> Weight;
-    fn gr_random_per_kb(r: u32, ) -> Weight;
+    fn gr_random_per_kb(n: u32) -> Weight;
     fn gr_send_init(r: u32, ) -> Weight;
     fn gr_send_push(r: u32, ) -> Weight;
     fn gr_send_push_per_kb(n: u32, ) -> Weight;
