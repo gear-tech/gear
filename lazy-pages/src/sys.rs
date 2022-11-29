@@ -23,15 +23,19 @@ use core::any::Any;
 use region::Protection;
 use sc_executor_common::sandbox::SandboxInstance;
 use sp_wasm_interface::Value;
-use std::{cell::RefMut, collections::BTreeSet, iter::Step, ops::RangeInclusive};
-
-use crate::{
-    Error, GranularityPage, LazyPage, LazyPagesExecutionContext, WasmAddr, LAZY_PAGES_CONTEXT,
+use std::{
+    cell::RefMut,
+    collections::BTreeSet,
+    convert::TryFrom,
+    iter::{FromIterator, Step},
+    ops::RangeInclusive,
 };
+
+use crate::{Error, GranularityPage, LazyPage, LazyPagesExecutionContext, LAZY_PAGES_CONTEXT};
 
 use gear_core::{
     lazy_pages::{GlobalsAccessError, GlobalsAccessMod, GlobalsAccessTrait, GlobalsCtx, Status},
-    memory::{PageNumber, PAGE_STORAGE_GRANULARITY},
+    memory::{PageNumber, PageU32Size, PAGE_STORAGE_GRANULARITY},
 };
 
 // These constants are used both in runtime and in lazy-pages backend,
@@ -56,7 +60,7 @@ cfg_if! {
 
 pub mod mprotect;
 
-pub trait UserSignalHandler {
+pub(crate) trait UserSignalHandler {
     /// # Safety
     ///
     /// It's expected handler calls sys-calls to protect memory
@@ -93,90 +97,6 @@ impl PagePrefix {
         self.buffer[len - std::mem::size_of::<u32>()..len]
             .copy_from_slice(page.0.to_le_bytes().as_slice());
         &self.buffer
-    }
-}
-
-/// Wasm address wrapper, for which we can be sure
-/// it's in safe/checked state, so we can avoid some
-/// checks while using this addr.
-struct CheckedWasmAddr {
-    wasm_mem_addr: usize,
-    wasm_mem_size: u32,
-    addr: WasmAddr,
-}
-
-impl CheckedWasmAddr {
-    pub fn new_from_native(
-        native_addr: usize,
-        wasm_mem_addr: usize,
-        stack_end: WasmAddr,
-        wasm_mem_size: u32,
-    ) -> Result<Self, Error> {
-        let wasm_mem_end_addr = wasm_mem_addr
-            .checked_add(wasm_mem_size as usize)
-            .ok_or(Error::AddrArithOverflow)?;
-
-        let addr =
-            native_addr
-                .checked_sub(wasm_mem_addr)
-                .ok_or(Error::SignalFromUnknownMemory {
-                    addr: native_addr,
-                    wasm_mem_addr,
-                    wasm_mem_end_addr,
-                })?;
-
-        if addr >= wasm_mem_size as usize {
-            return Err(Error::SignalFromUnknownMemory {
-                addr: native_addr,
-                wasm_mem_addr,
-                wasm_mem_end_addr,
-            });
-        }
-
-        // `addr` is less then `wasm_mem_size`, so `as u32` is safe.
-        let addr = addr as u32;
-
-        if addr < stack_end {
-            return Err(Error::SignalFromStackMemory);
-        }
-
-        Ok(Self {
-            wasm_mem_addr,
-            wasm_mem_size,
-            addr,
-        })
-    }
-
-    pub fn as_page_number(&self) -> PageNumber {
-        (self.addr / PageNumber::size() as u32).into()
-    }
-
-    pub fn as_native_addr(&self) -> usize {
-        // no need to check `+` because we check this in `Self::new_from_native`.
-        // `addr` can be only decreased and `wasm_mem_addr` is never changed.
-        self.wasm_mem_addr + self.addr as usize
-    }
-
-    pub fn align_down(&mut self, alignment: u32) {
-        self.addr = (self.addr / alignment) * alignment;
-    }
-
-    /// Checks that interval [`addr`, `addr` + `size`) is in wasm memory.
-    pub fn check_interval(&self, size: u32) -> Result<(), Error> {
-        // `addr` is in wasm mem, so `sub` is safe.
-        (size <= self.wasm_mem_size - self.addr)
-            .then_some(())
-            .ok_or_else(|| Error::AccessedIntervalNotLiesInWasmBuffer {
-                begin_addr: self.as_native_addr(),
-                end_addr: self.as_native_addr() + size as usize,
-                wasm_mem_addr: self.wasm_mem_addr,
-                wasm_mem_end_addr: self.wasm_mem_addr + self.wasm_mem_size as usize,
-            })
-    }
-
-    /// Get raw addr in wasm memory
-    pub fn get(&self) -> WasmAddr {
-        self.addr
     }
 }
 
@@ -329,71 +249,6 @@ unsafe fn charge_gas(
     }
 }
 
-unsafe fn process_globals(
-    globals_ctx: &GlobalsCtx,
-    gear_pages_amount: u32,
-    is_write: bool,
-    is_second_access: bool,
-) -> Result<Status, Error> {
-    let amount = match (is_write, is_second_access) {
-        (false, _) => globals_ctx.lazy_pages_weights.read,
-        (true, false) => globals_ctx.lazy_pages_weights.write,
-        (true, true) => globals_ctx.lazy_pages_weights.write_after_read,
-    };
-    let amount = amount.saturating_mul(gear_pages_amount as u64);
-    match globals_ctx.globals_access_mod {
-        GlobalsAccessMod::WasmRuntime => {
-            let instance = (globals_ctx.globals_access_ptr as *mut SandboxInstance)
-                .as_mut()
-                .ok_or(Error::HostInstancePointerIsInvalid)?;
-            charge_gas_internal(
-                GlobalsAccessSandbox { instance },
-                &globals_ctx.global_gas_name,
-                &globals_ctx.global_allowance_name,
-                amount,
-            )
-        }
-        GlobalsAccessMod::NativeRuntime => {
-            let inner_access_provider = (globals_ctx.globals_access_ptr
-                as *mut &mut dyn GlobalsAccessTrait)
-                .as_mut()
-                .ok_or(Error::DynGlobalsAccessPointerIsInvalid)?;
-            charge_gas_internal(
-                GlobalsAccessDyn {
-                    inner_access_provider,
-                },
-                &globals_ctx.global_gas_name,
-                &globals_ctx.global_allowance_name,
-                amount,
-            )
-        }
-    }
-}
-
-// fn with_globals<R>(
-//     globals_ctx: &GlobalsCtx,
-//     f: impl FnOnce(&mut dyn GlobalsAccessTrait) -> Result<R, Error>,
-// ) -> Result<R, Error> {
-//     match globals_ctx.globals_access_mod {
-//         GlobalsAccessMod::WasmRuntime => {
-//             let instance = unsafe {
-//                 (globals_ctx.globals_access_ptr as *mut SandboxInstance)
-//                     .as_mut()
-//                     .ok_or(Error::HostInstancePointerIsInvalid)?
-//             };
-//             f(&mut GlobalsAccessSandbox { instance })
-//         }
-//         GlobalsAccessMod::NativeRuntime => {
-//             let inner_access_provider = unsafe {
-//                 (globals_ctx.globals_access_ptr as *mut &mut dyn GlobalsAccessTrait)
-//                     .as_mut()
-//                     .ok_or(Error::DynGlobalsAccessPointerIsInvalid)?
-//             };
-//             f(*inner_access_provider)
-//         }
-//     }
-// }
-
 #[derive(Debug, Clone, Copy, derive_more::Display)]
 pub enum WithInclusiveRangesError {
     #[display(fmt = "forward_checked overflow")]
@@ -432,16 +287,13 @@ fn process_status(status: Status) -> Option<()> {
     match status {
         Status::Normal => Some(()),
         Status::GasLimitExceeded | Status::GasAllowanceExceeded => {
-            log::trace!(
-                                    "Gas limit or allowance exceed,
-                                        so set exceed status and work in this mod until the end of execution"
-                                );
+            log::trace!("Gas limit or allowance exceed, so set exceed status and work in this mod until the end of execution");
             None
         }
     }
 }
 
-unsafe fn process_lazy_pages(
+pub(crate) unsafe fn process_lazy_pages(
     mut ctx: RefMut<LazyPagesExecutionContext>,
     accessed_pages: BTreeSet<LazyPage>,
     is_write: bool,
@@ -451,7 +303,7 @@ unsafe fn process_lazy_pages(
 
     if let Some(last_page) = accessed_pages.last() {
         // Check that all pages are inside wasm memory.
-        if last_page.offset() + LazyPage::size() > wasm_mem_size {
+        if last_page.end_offset() as usize > wasm_mem_size.offset() {
             return Err(Error::OutOfWasmMemoryAccess);
         }
     } else {
@@ -459,7 +311,7 @@ unsafe fn process_lazy_pages(
         return Ok(());
     }
 
-    let stack_end = ctx.stack_end_wasm_addr;
+    let stack_end = ctx.stack_end_wasm_page;
     let wasm_mem_addr = ctx.wasm_mem_addr.ok_or(Error::WasmMemAddrIsNotSet)?;
     let mut prefix = PagePrefix::new_from_program_prefix(
         ctx.program_storage_prefix
@@ -488,18 +340,17 @@ unsafe fn process_lazy_pages(
 
         for lazy_page in start..=end {
             let granularity_page = GranularityPage::from_offset(lazy_page.offset());
-            let gear_page = PageNumber::new_from_addr(lazy_page.offset() as usize);
-            if lazy_page.offset() < stack_end {
+            if (lazy_page.offset() as usize) < stack_end.offset() {
                 // Nothing to do, page has r/w accesses and data is in correct state.
                 if is_signal {
                     return Err(Error::SignalFromStackMemory);
                 }
-            } else if ctx.released_pages.contains(&gear_page) {
+            } else if ctx.released_pages.contains(&lazy_page) {
                 // Nothing to do, page has r/w accesses and data is in correct state.
                 if is_signal {
                     return Err(Error::SignalFromReleasedPage);
                 }
-            } else if ctx.accessed_pages_addrs.contains(&lazy_page.offset()) {
+            } else if ctx.accessed_lazy_pages.contains(&lazy_page) {
                 if is_write {
                     if is_signal && !ctx.read_after_write_charged.contains(&granularity_page) {
                         // Charge gas for "write after read", because page has been already read accessed.
@@ -521,8 +372,10 @@ unsafe fn process_lazy_pages(
                         LazyPage::size() as usize,
                         Protection::READ_WRITE,
                     )?;
-                    ctx.released_pages.extend(lazy_page.to_gear_pages_iter());
-                    // TODO: make print and checks that page is not released twice
+                    log::trace!("add {lazy_page:?} to released");
+                    if !ctx.released_pages.insert(lazy_page) {
+                        return Err(Error::DoubleRelease(lazy_page));
+                    }
                 } else {
                     // Nothing to do, page has read accesses and data is in correct state.
                     if is_signal {
@@ -558,7 +411,13 @@ unsafe fn process_lazy_pages(
                     LazyPage::size() as usize,
                     Protection::READ_WRITE,
                 )?;
-                for gear_page in lazy_page.to_gear_pages_iter() {
+
+                // TODO: refactoring
+                for gear_page in (PageNumber::new_from_addr(lazy_page.offset() as usize).0
+                    ..PageNumber::new_from_addr(lazy_page.offset() as usize).0
+                        + LazyPage::size() / PageNumber::size() as u32)
+                    .map(PageNumber)
+                {
                     let page_buffer_ptr = (wasm_mem_addr as *mut u8).add(gear_page.offset());
                     let buffer_as_slice =
                         std::slice::from_raw_parts_mut(page_buffer_ptr, PageNumber::size());
@@ -579,14 +438,12 @@ unsafe fn process_lazy_pages(
                     }
                 }
 
-                ctx.accessed_pages_addrs.insert(lazy_page.offset());
+                ctx.accessed_lazy_pages.insert(lazy_page);
 
                 if is_write {
-                    for gear_page in lazy_page.to_gear_pages_iter() {
-                        log::trace!("add {gear_page:?} to released");
-                        if !ctx.released_pages.insert(gear_page) {
-                            return Err(Error::DoubleRelease(gear_page));
-                        }
+                    log::trace!("add {lazy_page:?} to released");
+                    if !ctx.released_pages.insert(lazy_page) {
+                        return Err(Error::DoubleRelease(lazy_page));
                     }
                 } else {
                     // Set only read access for page.
@@ -635,7 +492,7 @@ unsafe fn process_lazy_pages(
 /// instruction, which cause signal. Now memory which this instruction accesses
 /// is not protected and with correct data.
 unsafe fn user_signal_handler_internal(
-    mut ctx: RefMut<LazyPagesExecutionContext>,
+    ctx: RefMut<LazyPagesExecutionContext>,
     info: ExceptionInfo,
 ) -> Result<(), Error> {
     let status = ctx.status.as_ref().ok_or(Error::StatusIsNone)?;
@@ -644,143 +501,24 @@ unsafe fn user_signal_handler_internal(
         Status::GasLimitExceeded | Status::GasAllowanceExceeded => return Ok(()),
     }
 
-    // We use here `u32` as type for sizes, because wasm memory is 32-bits.
-    // Native page size cannot be bigger than PSG (see `crate::init`), so `as u32` is safe.
-    let native_ps = region::page::size() as u32;
-    let gear_ps = PageNumber::size() as u32;
-    let psg = PAGE_STORAGE_GRANULARITY as u32;
-    let lazy_page_size = native_ps.max(gear_ps);
-    let num_of_gear_pages_in_one_lazy = lazy_page_size / gear_ps;
-
     let native_addr = info.fault_addr as usize;
-    let wasm_mem_addr = ctx.wasm_mem_addr.ok_or(Error::WasmMemAddrIsNotSet)?;
-    let wasm_mem_size = ctx.wasm_mem_size.ok_or(Error::WasmMemSizeIsNotSet)?;
-    let stack_end = ctx.stack_end_wasm_addr;
-    let mut prefix = PagePrefix::new_from_program_prefix(
-        ctx.program_storage_prefix
-            .as_ref()
-            .ok_or(Error::ProgramPrefixIsNotSet)?,
-    );
-
-    let mut wasm_addr =
-        CheckedWasmAddr::new_from_native(native_addr, wasm_mem_addr, stack_end, wasm_mem_size)?;
-
-    // Wasm addr of native page, which contains accessed gear page or which is in the beginning
-    // of the accessed gear page, if native page size is smaller then gear page size.
-    wasm_addr.align_down(lazy_page_size);
-
     let is_write = info.is_write.ok_or(Error::ReadOrWriteIsUnknown)?;
+    let wasm_mem_addr = ctx.wasm_mem_addr.ok_or(Error::WasmMemAddrIsNotSet)?;
 
-    let is_psg_case = is_write
-        && native_ps < psg
-        && !sp_io::storage::exists(prefix.calc_key_for_page(wasm_addr.as_page_number()));
-    let unprot_size = if is_psg_case {
-        log::trace!("is PSG case - we need to upload to storage data for all pages from `PAGE_STORAGE_GRANULARITY`");
-        wasm_addr.align_down(psg);
-        psg
-    } else {
-        native_ps
-    };
-
-    wasm_addr.check_interval(unprot_size)?;
-
-    let is_second_access = ctx.accessed_pages_addrs.contains(&wasm_addr.get());
-    if is_second_access {
-        log::trace!("{:#x} second access (write)", wasm_addr.as_native_addr());
-        if !is_write {
-            return Err(Error::SecondAccessIsNotWrite);
-        }
-    } else if is_write {
-        log::trace!("{:#x} first write access", wasm_addr.as_native_addr());
-    } else {
-        log::trace!("{:#x} first read access", wasm_addr.as_native_addr());
+    if native_addr < wasm_mem_addr {
+        return Err(Error::OutOfWasmMemoryAccess);
     }
 
-    if let Some(globals_ctx) = &ctx.globals_ctx {
-        let gear_pages_amount = unprot_size / PageNumber::size() as u32;
-        let status = process_globals(globals_ctx, gear_pages_amount, is_write, is_second_access)?;
-        ctx.status.replace(status);
-        match status {
-            Status::Normal => {}
-            Status::GasLimitExceeded | Status::GasAllowanceExceeded => {
-                log::trace!(
-                    "Gas limit or allowance exceed,
-                             so set exceed status and work in this mod until the end of execution"
-                );
-                return Ok(());
-            }
-        }
-    }
-
-    // Set r/w protection in order to load data from storage into mem buffer.
-    let unprot_addr = wasm_addr.as_native_addr();
-    log::trace!("mprotect r/w, addr = {unprot_addr:#x}, size = {unprot_size:#x}");
-    region::protect(
-        unprot_addr as *mut (),
-        unprot_size as usize,
-        Protection::READ_WRITE,
-    )?;
-
-    let fist_gear_page = wasm_addr.as_page_number();
-
-    for idx in 0..unprot_size / lazy_page_size {
-        // Arithmetic operations are safe here, because this values represents, address and
-        // pages, for which we have already checked, that they are inside wasm memory.
-        let lazy_page_wasm_addr = wasm_addr.get() + idx * lazy_page_size;
-        let begin = fist_gear_page.0 + idx * num_of_gear_pages_in_one_lazy;
-        let end = begin + num_of_gear_pages_in_one_lazy;
-
-        for gear_page in (begin..end).map(PageNumber) {
-            if is_second_access {
-                log::trace!("add {gear_page:?} to released");
-                if !ctx.released_pages.insert(gear_page) {
-                    return Err(Error::DoubleRelease(gear_page));
-                }
-            } else {
-                let page_buffer_ptr = (wasm_mem_addr as *mut u8).add(gear_page.offset());
-                let buffer_as_slice =
-                    std::slice::from_raw_parts_mut(page_buffer_ptr, gear_ps as usize);
-                let res =
-                    sp_io::storage::read(prefix.calc_key_for_page(gear_page), buffer_as_slice, 0);
-
-                log::trace!("{:?} has data in storage: {}", gear_page, res.is_some());
-
-                if let Some(size) = res.filter(|&size| size as usize != PageNumber::size()) {
-                    return Err(Error::InvalidPageDataSize {
-                        expected: PageNumber::size(),
-                        actual: size,
-                    });
-                }
-
-                if is_write {
-                    log::trace!("add {gear_page:?} to released");
-                    if !ctx.released_pages.insert(gear_page) {
-                        return Err(Error::DoubleRelease(gear_page));
-                    }
-                }
-            }
-        }
-
-        ctx.accessed_pages_addrs.insert(lazy_page_wasm_addr);
-    }
-
-    if is_write {
-        log::trace!("Is write access - keep r/w prot");
-    } else {
-        log::trace!("Is read access - set read prot");
-        region::protect(
-            unprot_addr as *mut (),
-            unprot_size as usize,
-            Protection::READ,
-        )?;
-    }
-
-    Ok(())
+    let offset =
+        u32::try_from(native_addr - wasm_mem_addr).map_err(|_| Error::OutOfWasmMemoryAccess)?;
+    let lazy_page = LazyPage::from_offset(offset);
+    let accessed_pages = BTreeSet::from_iter(std::iter::once(lazy_page));
+    process_lazy_pages(ctx, accessed_pages, is_write, true)
 }
 
-/// User signal handler. Logic depends on lazy-pages version.
+/// User signal handler. Logic can depends on lazy-pages version.
 /// For the most recent logic see "self::user_signal_handler_internal"
-pub unsafe fn user_signal_handler(info: ExceptionInfo) -> Result<(), Error> {
+pub(crate) unsafe fn user_signal_handler(info: ExceptionInfo) -> Result<(), Error> {
     log::debug!("Interrupted, exception info = {:?}", info);
     LAZY_PAGES_CONTEXT.with(|ctx| user_signal_handler_internal(ctx.borrow_mut(), info))
 }

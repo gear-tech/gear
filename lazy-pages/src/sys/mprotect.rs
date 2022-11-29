@@ -19,7 +19,8 @@
 //! Wrappers around system memory protections.
 
 use core::ops::RangeInclusive;
-use gear_core::memory::PageNumber;
+
+use gear_core::memory::PageU32Size;
 
 #[derive(Debug, derive_more::Display)]
 pub enum MprotectError {
@@ -89,7 +90,8 @@ pub fn mprotect_mem_interval_except_pages(
     mem_addr: usize,
     start_offset: usize,
     mem_size: usize,
-    except_pages: impl Iterator<Item = PageNumber>,
+    except_pages: impl Iterator<Item = u32>,
+    page_size: u32,
     prot_read: bool,
     prot_write: bool,
 ) -> Result<(), MprotectError> {
@@ -105,11 +107,11 @@ pub fn mprotect_mem_interval_except_pages(
 
     let mut interval_offset = start_offset;
     for page in except_pages {
-        let page_offset = page.offset();
+        let page_offset = (page * page_size) as usize;
         if page_offset > interval_offset {
             mprotect(interval_offset, page_offset)?;
         }
-        interval_offset = page_offset.saturating_add(PageNumber::size());
+        interval_offset = page_offset.saturating_add(page_size as usize);
     }
     if mem_size > interval_offset {
         mprotect(interval_offset, mem_size)
@@ -119,16 +121,16 @@ pub fn mprotect_mem_interval_except_pages(
 }
 
 /// Mprotect all pages from `pages`.
-pub fn mprotect_pages(
+pub fn mprotect_pages<T: PageU32Size>(
     mem_addr: usize,
-    mut pages: impl Iterator<Item = u32>,
-    page_size: u32,
+    mut pages: impl Iterator<Item = T>,
     prot_read: bool,
     prot_write: bool,
 ) -> Result<(), MprotectError> {
-    let mprotect = |start, end| {
-        let addr = mem_addr + (start * page_size) as usize;
-        let size = (end - start) * page_size;
+    // TODO: checks
+    let mprotect = |start: T, end: T| {
+        let addr = mem_addr + start.offset() as usize;
+        let size = end.sub(start).unwrap().offset() as usize;
         unsafe { sys_mprotect_interval(addr, size as usize, prot_read, prot_write, false) }
     };
 
@@ -137,13 +139,13 @@ pub fn mprotect_pages(
     } else {
         return Ok(());
     };
-    let mut end = start + 1;
+    let mut end = start.inc().unwrap();
     for page in pages {
         if end != page {
             mprotect(start, end)?;
             start = page;
         }
-        end = page + 1;
+        end = page.inc().unwrap();
     }
 
     mprotect(start, end)

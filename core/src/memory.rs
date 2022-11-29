@@ -20,7 +20,7 @@
 
 use core::{
     convert::TryFrom,
-    ops::{Add, Deref, DerefMut, Sub},
+    ops::{Add, Deref, DerefMut, Sub}, fmt::Debug,
 };
 
 use alloc::{
@@ -128,6 +128,59 @@ pub fn vec_page_data_map_to_page_buf_map(
         pages_data_res.insert(page, data);
     }
     Ok(pages_data_res)
+}
+
+pub trait PageU32Size: Sized + Clone + Copy + PartialEq + Eq + PartialOrd + Ord {
+    fn size() -> u32;
+    fn raw(&self) -> u32;
+    unsafe fn new_unchecked(num: u32) -> Self;
+
+    fn from_offset(offset: u32) -> Self {
+        unsafe {
+            Self::new_unchecked(offset / Self::size())
+        }
+    }
+    fn new(num: u32) -> Option<Self> {
+        unsafe {
+            // Check that the end of page is less or equal then u32::MAX
+            num.checked_add(1)?.checked_mul(Self::size()).map(|_| Self::new_unchecked(num))
+        }
+    }
+    fn offset(&self) -> u32 {
+        self.raw() * Self::size()
+    }
+    fn end_offset(&self) -> u32 {
+        (self.raw() + 1) * Self::size()
+    }
+    fn to_page<PAGE: PageU32Size>(&self) -> PAGE {
+        unsafe {
+            PAGE::new_unchecked(self.offset() / PAGE::size())
+        }
+    }
+    fn add(&self, other: Self) -> Option<Self> {
+        Self::new(self.raw().checked_add(other.raw())?)
+    }
+    fn sub(&self, other: Self) -> Option<Self> {
+        Self::new(self.raw().checked_sub(other.raw())?)
+    }
+    fn add_raw(&self, raw: u32) -> Option<Self> {
+        Self::new(self.raw().checked_add(raw)?)
+    }
+    fn sub_raw(&self, raw: u32) -> Option<Self> {
+        Self::new(self.raw().checked_sub(raw)?)
+    }
+    fn inc(&self) -> Option<Self> {
+        self.add_raw(1)
+    }
+    fn dec(&self) -> Option<Self> {
+        self.sub_raw(1)
+    }
+}
+
+pub fn to_page_iter<PAGE1: PageU32Size, PAGE2: PageU32Size>(page: PAGE1) -> impl Iterator<Item = PAGE2> {
+    unsafe {
+        (page.to_page::<PAGE2>().raw()..page.to_page::<PAGE2>().raw() + PAGE1::size() / PAGE2::size()).map(|raw| PAGE2::new_unchecked(raw))
+    }
 }
 
 pub use gear_core_errors::MemoryError as Error;

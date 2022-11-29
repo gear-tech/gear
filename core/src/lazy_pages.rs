@@ -99,3 +99,17 @@ pub enum Status {
     /// Skips signals processing until the end of execution, set termination reason as `gas allowance exceeded`.
     GasAllowanceExceeded,
 }
+
+/// Memory access error.
+#[derive(Debug, Clone, Copy, Decode, Encode, derive_more::Display)]
+pub enum AccessError {
+    /// Given access addr + size overflows u32.
+    #[display(fmt = "Access interval addr {:#x} + size {:#x} overflows u32::MAX", _0, _1)]
+    AddrPlusSizeOverflow(u32, u32),
+    /// Access size cannot be less then 1 byte.
+    #[display(fmt = "Access interval size is zero")]
+    AccessSizeIsZero,
+    /// Access is out of wasm memory.
+    #[display(fmt = "Access is out of wasm wasm memory")]
+    OutOfWasmMemoryAccess,
+}

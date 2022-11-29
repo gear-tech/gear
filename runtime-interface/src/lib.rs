@@ -22,11 +22,10 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
 use gear_core::{
-    lazy_pages::{GlobalsCtx, Status},
+    lazy_pages::{GlobalsCtx, Status, AccessError},
     memory::HostPointer,
 };
 use sp_runtime_interface::runtime_interface;
-use sp_runtime_interface::Pointer;
 
 static_assertions::const_assert!(
     core::mem::size_of::<HostPointer>() >= core::mem::size_of::<usize>()
@@ -41,8 +40,8 @@ pub use sp_std::{convert::TryFrom, result::Result, vec::Vec};
 /// Note: name is expanded as gear_ri
 #[runtime_interface]
 pub trait GearRI {
-    fn func(reads: &[(u32, u32)], writes: &[(u32, u32)], gas_limit: u64, gas_allowance: u64) -> (u64, u64) {
-        (0, 0)
+    fn pre_process_memory_accesses(reads: &[(u32, u32)], writes: &[(u32, u32)]) -> Result<(), AccessError> {
+        lazy_pages::pre_process_memory_accesses(reads, writes, None, None)
     }
 
     fn get_lazy_pages_status() -> Option<Status> {
@@ -52,9 +51,9 @@ pub trait GearRI {
     /// Init lazy-pages.
     /// Returns whether initialization was successful.
     fn init_lazy_pages() -> bool {
-        use lazy_pages::{DefaultUserSignalHandler, LazyPagesVersion};
+        use lazy_pages::LazyPagesVersion;
 
-        lazy_pages::init::<DefaultUserSignalHandler>(LazyPagesVersion::Version1)
+        lazy_pages::init(LazyPagesVersion::Version1)
     }
 
     #[deprecated]
