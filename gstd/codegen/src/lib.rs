@@ -237,6 +237,9 @@ fn generate_if_required(code: TokenStream, attrs: MainAttrs) -> TokenStream {
 /// }
 ///
 /// fn my_handle_reply() {
+///     // dont forget to call important function for async runtime!
+///     gstd::record_reply();
+///
 ///     // ...
 /// }
 /// ```
@@ -292,6 +295,9 @@ pub fn async_main(attr: TokenStream, item: TokenStream) -> TokenStream {
 /// }
 ///
 /// fn my_handle_signal() {
+///     // dont forget to call important function for async runtime!
+///     gstd::handle_signal();
+///
 ///     // ...
 /// }
 /// ```
