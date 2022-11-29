@@ -217,8 +217,8 @@ fn generate_if_required(code: TokenStream, attrs: MainAttrs) -> TokenStream {
 
 /// This is the procedural macro for your convenience.
 /// It marks the main async function to be the program entry point.
-/// Functions `handle`, `handle_reply` cannot be specified if this macro is used.
-/// If you need to specify `handle`, `handle_reply` explicitly don't use this macro.
+/// Functions `handle` cannot be specified if this macro is used.
+/// If you need to specify `handle` explicitly don't use this macro.
 ///
 /// ## Usage
 ///
@@ -226,6 +226,18 @@ fn generate_if_required(code: TokenStream, attrs: MainAttrs) -> TokenStream {
 /// #[gstd::async_main]
 /// async fn main() {
 ///     gstd::debug!("Hello world!");
+/// }
+/// ```
+///
+/// You can specify `handle_reply` and `handle_signal` using parameters of same names:
+/// ```ignore
+/// #[gstd::async_main(handle_reply = my_handle_reply)]
+/// async fn init() {
+///     // ...
+/// }
+///
+/// fn my_handle_reply() {
+///     // ...
 /// }
 /// ```
 #[proc_macro_attribute]
@@ -259,8 +271,9 @@ pub fn async_main(attr: TokenStream, item: TokenStream) -> TokenStream {
 
 /// Mark async function to be the program initialization method.
 /// Can be used together with [`macro@async_main`].
-/// Functions `init`, `handle_reply` cannot be specified if this macro is used.
-/// If you need to specify `init`, `handle_reply` explicitly don't use this macro.
+/// Function `init` cannot be specified if this macro is used.
+/// If you need to specify `init` explicitly don't use this macro.
+///
 ///
 /// ## Usage
 ///
@@ -268,6 +281,18 @@ pub fn async_main(attr: TokenStream, item: TokenStream) -> TokenStream {
 /// #[gstd::async_init]
 /// async fn init() {
 ///     gstd::debug!("Hello world!");
+/// }
+/// ```
+///
+/// You can specify `handle_reply` and `handle_signal` using parameters of same names:
+/// ```ignore
+/// #[gstd::async_init(handle_signal = my_handle_signal)]
+/// async fn init() {
+///     // ...
+/// }
+///
+/// fn my_handle_signal() {
+///     // ...
 /// }
 /// ```
 #[proc_macro_attribute]
