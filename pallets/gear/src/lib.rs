@@ -189,8 +189,6 @@ impl Default for ProcessStatus {
 
 #[frame_support::pallet]
 pub mod pallet {
-    use core::marker::PhantomData;
-
     use super::*;
 
     #[cfg(feature = "lazy-pages")]
@@ -202,6 +200,7 @@ pub mod pallet {
         self, event::*, BlockLimiter, CodeMetadata, GasPrice, GasProvider, GasTree, Origin,
         Program, ProgramState,
     };
+    use core::{convert::TryFrom, marker::PhantomData};
     use core_processor::{
         common::{Actor, DispatchOutcome as CoreDispatchOutcome, ExecutableActorData, JournalNote},
         configs::{AllocationsConfig, BlockConfig, BlockInfo, MessageExecutionContext},
@@ -753,17 +752,39 @@ pub mod pallet {
             function: String,
             wasm: Vec<u8>,
             argument: Option<Vec<u8>>,
-        ) -> Result<Vec<u8>, &'static str> {
-            let mut payload = argument.unwrap_or_default();
+        ) -> Result<Vec<u8>, String> {
+            let schedule = T::Schedule::get();
 
+            if u32::try_from(wasm.len()).unwrap_or(u32::MAX) > schedule.limits.code_len {
+                return Err("Wasm too big".into());
+            }
+
+            let code = Code::new_raw_with_rules(
+                wasm,
+                schedule.instruction_weights.version,
+                false,
+                |module| schedule.rules(module),
+            )
+            .map_err(|e| format!("Failed to construct program: {e:?}"))?;
+
+            if u32::try_from(code.code().len()).unwrap_or(u32::MAX) > schedule.limits.code_len {
+                return Err("Wasm after instrumentation too big".into());
+            }
+
+            let code_and_id = CodeAndId::new(code);
+            let code_and_id = InstrumentedCodeAndId::from(code_and_id);
+
+            let instrumented_code = code_and_id.into_parts().0;
+
+            let mut payload = argument.unwrap_or_default();
             payload.append(&mut Self::read_state_impl(program_id)?);
 
-            let schedule = T::Schedule::get();
-            let wasm = Code::new_raw_with_rules(wasm, 0, false, |module| schedule.rules(module))
-                .map_err(|_| "Failed to construct program")?;
-
             core_processor::informational::execute_for_reply::<Ext, ExecutionEnvironment>(
-                String::from("state"), active_program.code, Some(program_pages), Default::default(), BlockGasLimitOf::<T>::get(),
+                function,
+                instrumented_code,
+                None,
+                payload,
+                BlockGasLimitOf::<T>::get() / 4,
             )
         }
 
@@ -776,31 +797,65 @@ pub mod pallet {
             let program_id = ProgramId::from_origin(program_id.into_origin());
 
             String::from_utf8(fn_name)
-                .map_err(|_| "Non-utf8 function name")
+                .map_err(|_| "Non-utf8 function name".into())
                 .and_then(|fn_name| {
-                    Self::read_state_using_wasm_impl(program_id, fn_name, wasm, argument)
+                    Self::read_state_using_wasm_impl(program_id, fn_name, wasm, argument).map_err(String::into_bytes)
                 })
-                .map_err(|e| e.as_bytes().to_vec())
         }
 
-        pub(crate) fn read_state_impl(program_id: ProgramId) -> Result<Vec<u8>, &'static str> {
+        pub(crate) fn code_with_pages(program_id: ProgramId) -> Result<(InstrumentedCode, BTreeMap<PageNumber, PageBuf>), String> {
+            let program = common::get_active_program(program_id.into_origin())
+                .map_err(|e| format!("Get active program error: {e:?}"))?;
+
+            let code_id = CodeId::from_origin(program.code_hash);
+
+            let code = Self::get_code(code_id, program_id)
+                .ok_or_else(|| String::from("Failed to get code for given program id"))?;
+
+            let program_pages = common::get_program_pages_data(program_id.into_origin(), &program)
+                .map_err(|e| format!("Get program pages data error: {e:?}"))?;
+
+            Ok((code, program_pages))
+        }
+
+        pub(crate) fn read_state_impl(program_id: ProgramId) -> Result<Vec<u8>, String> {
             log::debug!("Reading state of {program_id:?}");
 
-            let active_program = common::get_program(program_id.into_origin())
-                .ok_or("Program with given id not found")?;
-
-            let program_pages = common::get_program_pages_data(program_id.into_origin(), active_program.pages_with_data())
-                .map_err("Program pages data not found")?;
+            let (code, program_pages) = Self::code_with_pages(program_id)?;
 
             core_processor::informational::execute_for_reply::<Ext, ExecutionEnvironment>(
-                String::from("state"), active_program.code, Some(program_pages), Default::default(), BlockGasLimitOf::<T>::get(),
+                String::from("state"),
+                code,
+                Some(program_pages),
+                Default::default(),
+                BlockGasLimitOf::<T>::get() / 4,
             )
         }
 
         pub fn read_state(program_id: H256) -> Result<Vec<u8>, Vec<u8>> {
             let program_id = ProgramId::from_origin(program_id.into_origin());
 
-            Self::read_state_impl(program_id).map_err(|e| e.as_bytes().to_vec())
+            Self::read_state_impl(program_id).map_err(String::into_bytes)
+        }
+
+        pub(crate) fn read_metahash_impl(program_id: ProgramId) -> Result<H256, String> {
+            log::debug!("Reading metahash of {program_id:?}");
+
+            let (code, program_pages) = Self::code_with_pages(program_id)?;
+
+            core_processor::informational::execute_for_reply::<Ext, ExecutionEnvironment>(
+                String::from("metahash"),
+                code,
+                Some(program_pages),
+                Default::default(),
+                BlockGasLimitOf::<T>::get() / 4,
+            ).and_then(|bytes| H256::decode(&mut bytes.as_ref()).map_err(|_| "Failed to decode hash".into()))
+        }
+
+        pub fn read_metahash(program_id: H256) -> Result<H256, Vec<u8>> {
+            let program_id = ProgramId::from_origin(program_id.into_origin());
+
+            Self::read_metahash_impl(program_id).map_err(String::into_bytes)
         }
 
         #[cfg(not(test))]

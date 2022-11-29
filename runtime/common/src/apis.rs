@@ -171,6 +171,10 @@ macro_rules! impl_runtime_apis_plus_common {
 				) -> Result<Vec<u8>, Vec<u8>> {
 					Gear::read_state_using_wasm(program_id, fn_name, wasm, argument)
 				}
+
+				fn read_metahash(program_id: H256) -> Result<H256, Vec<u8>> {
+					Gear::read_metahash(program_id)
+				}
 			}
 
 			#[cfg(feature = "runtime-benchmarks")]

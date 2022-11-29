@@ -47,6 +47,8 @@ fn get_exports(
 ) -> Result<BTreeSet<DispatchKind>, CodeError> {
     let mut exports = BTreeSet::<DispatchKind>::new();
 
+    let state_exports = ["state", "metahash"];
+
     for entry in module
         .export_section()
         .ok_or(CodeError::ExportSectionNotFound)?
@@ -56,7 +58,7 @@ fn get_exports(
         if let Internal::Function(_) = entry.internal() {
             if let Some(kind) = DispatchKind::try_from_entry(entry.field()) {
                 exports.insert(kind);
-            } else if reject_unnecessary {
+            } else if !state_exports.contains(&entry.field()) && reject_unnecessary {
                 return Err(CodeError::NonGearExportFnFound);
             }
         }

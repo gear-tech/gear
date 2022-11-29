@@ -104,6 +104,9 @@ pub trait GearApi<BlockHash, ResponseType> {
         argument: Option<Bytes>,
         at: Option<BlockHash>,
     ) -> RpcResult<Bytes>;
+
+    #[method(name = "gear_readMetahash")]
+    fn read_metahash(&self, program_id: H256, at: Option<BlockHash>) -> RpcResult<H256>;
 }
 
 /// A struct that implements the [`GearApi`](/gclient/struct.GearApi.html).
@@ -351,5 +354,17 @@ where
             )
             .map(|r| r.map(Bytes))
         })
+    }
+
+    fn read_metahash(
+        &self,
+        program_id: H256,
+        at: Option<<Block as BlockT>::Hash>,
+    ) -> RpcResult<H256> {
+        let at = BlockId::hash(at.unwrap_or_else(||
+            // If the block hash is not supplied assume the best block.
+            self.client.info().best_hash));
+
+        self.run_with_api_copy(|api| api.read_metahash(&at, program_id))
     }
 }

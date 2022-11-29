@@ -26,19 +26,22 @@ use crate::{
 };
 use alloc::{
     collections::{BTreeMap, BTreeSet},
-    string::ToString,
-    vec::Vec,
+    string::{ToString, String},
+    vec::Vec, format,
 };
 use gear_backend_common::{
     BackendReport, Environment, GetGasAmount, IntoExtInfo, TerminationReason,
 };
+use core::fmt::Debug;
 use gear_core::{
-    code::{Code, CodeAndId, InstrumentedCodeAndId, InstrumentedCode},
+    code::InstrumentedCode,
     env::Ext as EnvExt,
     gas::{ChargeResult, GasAllowanceCounter, GasCounter, ValueCounter},
     ids::ProgramId,
     memory::{AllocationsContext, Memory, PageBuf, PageNumber, WasmPageNumber},
-    message::{ContextSettings, DispatchKind, IncomingDispatch, IncomingMessage, MessageContext, WasmEntry},
+    message::{
+        ContextSettings, DispatchKind, IncomingDispatch, IncomingMessage, MessageContext, WasmEntry,
+    },
     program::Program,
     reservation::GasReserver,
 };
@@ -504,16 +507,17 @@ pub fn execute_wasm<
 }
 
 /// !!! FOR TESTING / INFORMATIONAL USAGE ONLY
-pub fn execute_for_reply<
-    A: ProcessorExt + EnvExt + IntoExtInfo<<A as EnvExt>::Error> + 'static,
-    E: Environment<A>,
->(
+pub fn execute_for_reply<A, E>(
     function: impl WasmEntry,
     instrumented_code: InstrumentedCode,
     pages_initial_data: Option<BTreeMap<PageNumber, PageBuf>>,
     payload: Vec<u8>,
     gas_limit: u64,
-) -> Result<Vec<u8>, &'static str> {
+) -> Result<Vec<u8>, String>
+where
+A: ProcessorExt + EnvExt + IntoExtInfo<<A as EnvExt>::Error> + 'static,
+E: Environment<A>,
+<E as Environment<A>>::Error: Debug, {
     let program = Program::new(ProgramId::from(0), instrumented_code);
     let memory_size = program.static_pages();
     let mut pages_initial_data = pages_initial_data.unwrap_or_default();
@@ -537,7 +541,7 @@ pub fn execute_for_reply<
                 Default::default(),
                 payload
                     .try_into()
-                    .map_err(|_| "Failed to convert payload")?,
+                    .map_err(|e| format!("Failed to create payload: {e:?}"))?,
                 gas_limit,
                 Default::default(),
                 Default::default(),
@@ -593,28 +597,28 @@ pub fn execute_for_reply<
         })
     };
 
-    let (termination, memory, ext) = match f() {
+    let (_termination, memory, ext) = match f() {
         Ok(BackendReport {
             termination_reason: termination,
             memory_wrap: memory,
             ext,
         }) => (termination, memory, ext),
-        _ => return Err("Backend error"),
+        Err(e) => return Err(format!("Backend error: {e:?}")),
     };
 
-    if !matches!(termination, TerminationReason::Success) {
-        return Err("Program execution wasn't succeed");
-    }
-
-    let info = ext.into_ext_info(&memory).map_err(|_| "Backend error")?;
+    let info = ext.into_ext_info(&memory).map_err(|e| format!("Backend postprocessing error: {e:?}"))?;
 
     for (dispatch, _, _) in info.generated_dispatches {
         if matches!(dispatch.kind(), DispatchKind::Reply) {
-            return Ok(dispatch.payload().to_vec());
+            return if dispatch.is_error_reply() {
+                Ok(dispatch.payload().to_vec())
+            } else {
+                Err(format!("Program execution failed with error: {:?}", String::from_utf8(dispatch.payload().to_vec()).ok()))
+            }
         }
     }
 
-    Err("Reply not found")
+    Err("Reply not found".into())
 }
 
 #[cfg(test)]

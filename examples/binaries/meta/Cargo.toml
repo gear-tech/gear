@@ -7,7 +7,6 @@ license = "GPL-3.0"
 workspace = "../../../"
 
 [dependencies]
-include_optional = "1.0.1"
 demo-meta-io = { path = "io" }
 gstd = { path = "../../../gstd", features = ["debug"] }
 codec = { package = "parity-scale-codec", version = "3.1.2", default-features = false }

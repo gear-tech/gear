@@ -42,6 +42,10 @@ mod wasm {
     unsafe extern "C" fn init() {
         WALLETS = Wallet::test_sequence();
 
+        if msg::size() == 0 {
+            return;
+        }
+
         let message_init_in: MessageInitIn = msg::load().unwrap();
         let message_init_out: MessageInitOut = message_init_in.into();
 

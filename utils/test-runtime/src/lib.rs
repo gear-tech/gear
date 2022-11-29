@@ -686,6 +686,10 @@ cfg_if! {
                 ) -> Result<Vec<u8>, Vec<u8>> {
                     Err(b"not implemented".to_vec())
                 }
+
+                fn read_metahash(_program_id: H256) -> Result<H256, Vec<u8>> {
+                    Err(b"not implemented".to_vec())
+                }
             }
 
             impl self::TestRuntimeAPI<Block> for Runtime {

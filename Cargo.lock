@@ -1627,7 +1627,6 @@ dependencies = [
  "demo-meta-io",
  "gear-wasm-builder",
  "gstd",
- "include_optional",
  "parity-scale-codec",
 ]
 
@@ -4049,16 +4048,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "11d7a9f6330b71fea57921c9b61c47ee6e84f72d394754eff6163ae67e7395eb"
 dependencies = [
  "proc-macro2",
- "quote",
- "syn",
-]
-
-[[package]]
-name = "include_optional"
-version = "1.0.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3328afceb205b7534c691f71b12334973dbfdfe0eecb9e345bddfbb925bc55fc"
-dependencies = [
  "quote",
  "syn",
 ]
