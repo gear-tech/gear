@@ -7037,7 +7037,7 @@ fn dispatch_kind_forbidden_function() {
         assert!(GasHandlerOf::<Test>::get_system_reserve(mid).is_err());
 
         // check signal dispatch panicked
-        assert_eq!(MailboxOf::<Test>::iter_key(USER_1).last(), None);
+        assert!(MailboxOf::<Test>::is_empty(&USER_1));
         let signal_msg_id = MessageId::generate_signal(mid);
         let status = dispatch_status(signal_msg_id);
         assert_eq!(status, Some(DispatchStatus::Failed));
