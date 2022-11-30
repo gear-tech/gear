@@ -26,8 +26,9 @@ use crate::{
 };
 use alloc::{
     collections::{BTreeMap, BTreeSet},
-    string::{ToString, String},
-    vec::Vec, format,
+    format,
+    string::{String, ToString},
+    vec::Vec,
 };
 use gear_backend_common::{
     BackendReport, Environment, GetGasAmount, IntoExtInfo, TerminationReason,
@@ -502,8 +503,10 @@ pub fn execute_wasm<
 }
 
 /// !!! FOR TESTING / INFORMATIONAL USAGE ONLY
-pub fn execute_for_reply<A: ProcessorExt + EnvExt + IntoExtInfo<<A as EnvExt>::Error> + 'static,
-E: Environment<A>>(
+pub fn execute_for_reply<
+    A: ProcessorExt + EnvExt + IntoExtInfo<<A as EnvExt>::Error> + 'static,
+    E: Environment<A>,
+>(
     function: impl WasmEntry,
     instrumented_code: InstrumentedCode,
     // TODO: consider support non-lazy-pages context execution
@@ -537,7 +540,7 @@ E: Environment<A>>(
             Default::default(),
         ),
         value_counter: ValueCounter::new(Default::default()),
-        allocations_context: AllocationsContext::new(allocations.clone(), static_pages, 512.into()),
+        allocations_context: AllocationsContext::new(allocations, static_pages, 512.into()),
         message_context: MessageContext::new(
             IncomingMessage::new(
                 Default::default(),
@@ -610,19 +613,25 @@ E: Environment<A>>(
     };
 
     match termination {
-        TerminationReason::Exit(_) | TerminationReason::Leave | TerminationReason::Wait(_, _)  => return Err("Execution has incorrect termination reason".into()),
+        TerminationReason::Exit(_) | TerminationReason::Leave | TerminationReason::Wait(_, _) => {
+            return Err("Execution has incorrect termination reason".into())
+        }
         TerminationReason::Success => (),
         TerminationReason::Trap(explanation) => {
-            return Err(format!("Program execution failed with error: {explanation}"));
+            return Err(format!(
+                "Program execution failed with error: {explanation}"
+            ));
         }
         TerminationReason::GasAllowanceExceeded => return Err("Unreachable".into()),
     };
 
-    let info = ext.into_ext_info(&memory).map_err(|e| format!("Backend postprocessing error: {e:?}"))?;
+    let info = ext
+        .into_ext_info(&memory)
+        .map_err(|e| format!("Backend postprocessing error: {e:?}"))?;
 
     for (dispatch, _, _) in info.generated_dispatches {
         if matches!(dispatch.kind(), DispatchKind::Reply) {
-            return Ok(dispatch.payload().to_vec())
+            return Ok(dispatch.payload().to_vec());
         }
     }
 

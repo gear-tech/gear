@@ -1,4 +1,4 @@
-use demo_meta_io::{Wallet, Id, Person};
+use demo_meta_io::{Id, Person, Wallet};
 use gstd::{msg, prelude::*};
 
 // Fn(Id) -> Option<Wallet>
@@ -6,9 +6,7 @@ use gstd::{msg, prelude::*};
 extern "C" fn wallet_by_id() {
     let (id, wallets): (Id, Vec<Wallet>) = msg::load().unwrap();
 
-    let res = wallets
-        .into_iter()
-        .find(|w| w.id == id);
+    let res = wallets.into_iter().find(|w| w.id == id);
 
     msg::reply(res, 0).expect("Failed to share state");
 }
@@ -18,9 +16,7 @@ extern "C" fn wallet_by_id() {
 extern "C" fn wallet_by_person() {
     let (person, wallets): (Person, Vec<Wallet>) = msg::load().unwrap();
 
-    let res = wallets
-        .into_iter()
-        .find(|w| w.person == person);
+    let res = wallets.into_iter().find(|w| w.person == person);
 
     msg::reply(res, 0).expect("Failed to share state");
 }

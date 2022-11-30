@@ -16,18 +16,18 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use crate::{
+    crate_info::CrateInfo,
+    optimize::{OptType, Optimizer},
+};
 use anyhow::{Context, Result};
 use gmeta::MetadataRepr;
+use pwasm_utils::parity_wasm::{self, elements::Internal};
 use std::{
     env, fs,
     path::{Path, PathBuf},
 };
 use toml::value::Table;
-use pwasm_utils::parity_wasm::{self, elements::Internal};
-use crate::{
-    crate_info::CrateInfo,
-    optimize::{OptType, Optimizer},
-};
 
 /// Temporary project generated to build a WASM output.
 ///
@@ -227,7 +227,11 @@ impl WasmProject {
             .unwrap_or_default();
 
         // Generate wasm binaries
-        Self::generate_wasm(from_path, (!self.is_metawasm).then_some(&to_opt_path), Some(&to_meta_path))?;
+        Self::generate_wasm(
+            from_path,
+            (!self.is_metawasm).then_some(&to_opt_path),
+            Some(&to_meta_path),
+        )?;
 
         let wasm_binary_path = self.original_dir.join(".binpath");
 
@@ -248,7 +252,7 @@ impl WasmProject {
             fs::write(
                 wasm_binary_rs,
                 format!(
-r#"#[allow(unused)]
+                    r#"#[allow(unused)]
 pub const WASM_BINARY: &[u8] = include_bytes!("{}");
 #[allow(unused)]
 pub const WASM_BINARY_OPT: &[u8] = include_bytes!("{}");
@@ -266,16 +270,16 @@ pub const WASM_BINARY_META: &[u8] = include_bytes!("{}");
         } else {
             fs::write(
                 wasm_binary_rs,
-                    format!(
-r#"#[allow(unused)]
+                format!(
+                    r#"#[allow(unused)]
 pub const WASM_BINARY: &[u8] = include_bytes!("{}");
 #[allow(unused)]
-pub const WASM_EXPORTS: &[&'static str] = &{:?};
+pub const WASM_EXPORTS: &[&str] = &{:?};
 
 "#,
                     display_path(to_meta_path.clone()),
                     Self::get_exports(to_meta_path)?,
-                )
+                ),
             )
             .context("unable to write `wasm_binary.rs`")?;
         }
@@ -304,13 +308,13 @@ pub const WASM_EXPORTS: &[&'static str] = &{:?};
     }
 
     fn get_exports(file: PathBuf) -> Result<Vec<String>> {
-        let module = parity_wasm::deserialize_file(&file)?;
+        let module = parity_wasm::deserialize_file(file)?;
 
         let exports = module
             .export_section()
             .ok_or_else(|| anyhow::anyhow!("Export section not found"))?
             .entries()
-            .into_iter()
+            .iter()
             .flat_map(|entry| {
                 if let Internal::Function(_) = entry.internal() {
                     Some(entry.field().to_string())

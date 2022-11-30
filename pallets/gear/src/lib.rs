@@ -750,7 +750,7 @@ pub mod pallet {
 
         pub(crate) fn read_state_using_wasm_impl(
             program_id: ProgramId,
-            function: String,
+            function: impl Into<String>,
             wasm: Vec<u8>,
             argument: Option<Vec<u8>>,
         ) -> Result<Vec<u8>, String> {
@@ -787,7 +787,7 @@ pub mod pallet {
             payload.append(&mut Self::read_state_impl(program_id)?);
 
             core_processor::informational::execute_for_reply::<Ext, ExecutionEnvironment>(
-                function,
+                function.into(),
                 instrumented_code,
                 None,
                 None,
@@ -807,11 +807,14 @@ pub mod pallet {
             String::from_utf8(fn_name)
                 .map_err(|_| "Non-utf8 function name".into())
                 .and_then(|fn_name| {
-                    Self::read_state_using_wasm_impl(program_id, fn_name, wasm, argument).map_err(String::into_bytes)
+                    Self::read_state_using_wasm_impl(program_id, fn_name, wasm, argument)
+                        .map_err(String::into_bytes)
                 })
         }
 
-        pub(crate) fn code_with_allocations(program_id: ProgramId) -> Result<(InstrumentedCode, BTreeSet<WasmPageNumber>), String> {
+        pub(crate) fn code_with_allocations(
+            program_id: ProgramId,
+        ) -> Result<(InstrumentedCode, BTreeSet<WasmPageNumber>), String> {
             let program = common::get_active_program(program_id.into_origin())
                 .map_err(|e| format!("Get active program error: {e:?}"))?;
 
@@ -872,7 +875,10 @@ pub mod pallet {
                 Some(program_id),
                 Default::default(),
                 BlockGasLimitOf::<T>::get() / 4,
-            ).and_then(|bytes| H256::decode(&mut bytes.as_ref()).map_err(|_| "Failed to decode hash".into()))
+            )
+            .and_then(|bytes| {
+                H256::decode(&mut bytes.as_ref()).map_err(|_| "Failed to decode hash".into())
+            })
         }
 
         pub fn read_metahash(program_id: H256) -> Result<H256, Vec<u8>> {

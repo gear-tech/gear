@@ -39,10 +39,10 @@ mod exports {
     pub use code::WASM_METADATA;
 
     // First reading state functions implementation
-    pub use demo_meta_state_v1::META_WASM_V1;
+    pub use demo_meta_state_v1::{META_EXPORTS_V1, META_WASM_V1};
 
     // Second reading state functions implementation
-    pub use demo_meta_state_v2::META_WASM_V2;
+    pub use demo_meta_state_v2::{META_EXPORTS_V2, META_WASM_V2};
 }
 
 // Empty exports while compiling into wasm

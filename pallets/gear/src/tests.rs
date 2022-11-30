@@ -138,6 +138,7 @@ fn unstoppable_block_execution_works() {
     })
 }
 
+#[cfg(feature = "lazy-pages")]
 #[test]
 fn read_state_works() {
     use demo_meta::{MessageInitIn, Wallet, WASM_BINARY};
@@ -167,11 +168,13 @@ fn read_state_works() {
     });
 }
 
+#[cfg(feature = "lazy-pages")]
 #[test]
 fn read_state_using_wasm_works() {
-    use demo_meta::{Id, MessageInitIn, Wallet, WASM_BINARY, WASM_BINARY_META};
-
-    std::fs::write("a.txt", hex::encode(WASM_BINARY_META));
+    use demo_meta::{
+        Id, MessageInitIn, Wallet, META_EXPORTS_V1, META_EXPORTS_V2, META_WASM_V1, META_WASM_V2,
+        WASM_BINARY,
+    };
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -192,13 +195,11 @@ fn read_state_using_wasm_works() {
 
         let expected = Wallet::test_sequence().encode();
 
-        let res = Gear::read_state_using_wasm_impl(
-            program_id,
-            String::from("all_wallets"),
-            WASM_BINARY_META.to_vec(),
-            None,
-        )
-        .expect("Failed to read state");
+        let func1 = "all_wallets";
+        assert!(META_EXPORTS_V1.contains(&func1));
+
+        let res = Gear::read_state_using_wasm_impl(program_id, func1, META_WASM_V1.to_vec(), None)
+            .expect("Failed to read state");
 
         assert_eq!(res, expected);
 
@@ -209,14 +210,17 @@ fn read_state_using_wasm_works() {
 
         let expected = Wallet::test_sequence()
             .into_iter()
-            .filter(|w| w.id == id)
-            .collect::<Vec<_>>()
+            .find(|w| w.id == id)
             .encode();
+
+        let func2 = "wallet_by_id";
+        assert!(META_EXPORTS_V2.contains(&func2));
+        assert!(!META_EXPORTS_V2.contains(&func1));
 
         let res = Gear::read_state_using_wasm_impl(
             program_id,
-            String::from("specific_wallet"),
-            WASM_BINARY_META.to_vec(),
+            func2,
+            META_WASM_V2.to_vec(),
             Some(id.encode()),
         )
         .expect("Failed to read state");
