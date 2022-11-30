@@ -126,6 +126,13 @@ unsafe extern "C" fn init() {
                     ExecutionError::InsufficientGasForReservation
                 )))
             );
+
+            assert_eq!(
+                ReservationId::reserve(u64::MAX, 1),
+                Err(ContractError::Ext(ExtError::Execution(
+                    ExecutionError::InsufficientGasForReservation
+                )))
+            );
         }
     }
 }
