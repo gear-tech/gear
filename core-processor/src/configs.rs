@@ -50,6 +50,8 @@ pub struct AllocationsConfig {
     pub mem_grow_cost: u64,
     /// Load page cost.
     pub load_page_cost: u64,
+    /// Maximum length of random subject.
+    pub random_subject_len: u32,
 }
 
 impl Default for AllocationsConfig {
@@ -60,6 +62,7 @@ impl Default for AllocationsConfig {
             alloc_cost: ALLOC_COST,
             mem_grow_cost: MEM_GROW_COST,
             load_page_cost: LOAD_PAGE_COST,
+            random_subject_len: 32,
         }
     }
 }
