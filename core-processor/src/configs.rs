@@ -21,9 +21,7 @@
 use crate::common::{Actor, PrechargedDispatch};
 use alloc::{collections::BTreeSet, vec::Vec};
 use codec::{Decode, Encode};
-use gear_core::{
-    code, costs::HostFnWeights, ids::ProgramId, limits::Limits, memory::WasmPageNumber,
-};
+use gear_core::{costs::HostFnWeights, ids::ProgramId, limits::Limits, memory::WasmPageNumber};
 
 const INIT_COST: u64 = 5000;
 const ALLOC_COST: u64 = 10000;
@@ -42,8 +40,6 @@ pub struct BlockInfo {
 /// Memory/allocation config.
 #[derive(Clone, Debug, Decode, Encode)]
 pub struct AllocationsConfig {
-    /// Max amount of pages.
-    pub max_pages: WasmPageNumber,
     /// Cost of initial memory.
     pub init_cost: u64,
     /// Cost of allocating memory.
@@ -59,7 +55,6 @@ pub struct AllocationsConfig {
 impl Default for AllocationsConfig {
     fn default() -> Self {
         Self {
-            max_pages: WasmPageNumber(code::MAX_WASM_PAGE_COUNT),
             init_cost: INIT_COST,
             alloc_cost: ALLOC_COST,
             mem_grow_cost: MEM_GROW_COST,
@@ -97,7 +92,7 @@ pub struct ExecutionSettings {
 impl ExecutionSettings {
     /// Max amount of pages.
     pub fn max_pages(&self) -> WasmPageNumber {
-        self.allocations_config.max_pages
+        self.allocations_config.limits.memory_pages.into()
     }
 }
 
