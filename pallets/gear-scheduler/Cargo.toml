@@ -41,7 +41,7 @@ frame-support-test = { version = "3.0.0", git = "https://github.com/gear-tech/su
 pallet-balances = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
 pallet-authorship = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
 pallet-timestamp = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
-env_logger = "0.9"
+env_logger = "0.10"
 
 [features]
 default = ['std']

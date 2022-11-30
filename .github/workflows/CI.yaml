@@ -84,6 +84,9 @@ jobs:
           sudo apt install -y git clang curl libssl-dev llvm libudev-dev cmake protobuf-compiler
           sudo wget -c https://github.com/WebAssembly/binaryen/releases/download/version_105/binaryen-version_105-x86_64-linux.tar.gz -O - | sudo tar -xz -C .
           sudo cp binaryen-version_105/bin/wasm-opt /usr/bin/
+          sudo wget -c https://github.com/paritytech/cachepot/releases/download/0.1.0-rc.2/cachepot-0.1.0-rc.2-x86_64-unknown-linux-musl.tar.gz -O - | sudo tar -xz -C .
+          sudo cp cachepot-0.1.0-rc.2-x86_64-unknown-linux-musl/cachepot /usr/bin/
+          sudo chmod +x /usr/bin/cachepot
 
       - name: "Cache: Unpack"
         if: ${{ github.event_name == 'pull_request' }}
@@ -178,13 +181,13 @@ jobs:
           sudo apt install -y git clang curl libssl-dev llvm libudev-dev cmake wabt protobuf-compiler
           sudo wget -c https://github.com/WebAssembly/binaryen/releases/download/version_105/binaryen-version_105-x86_64-linux.tar.gz -O - | sudo tar -xz -C .
           sudo cp binaryen-version_105/bin/wasm-opt /usr/bin/
+          sudo wget -c https://github.com/paritytech/cachepot/releases/download/0.1.0-rc.2/cachepot-0.1.0-rc.2-x86_64-unknown-linux-musl.tar.gz -O - | sudo tar -xz -C .
+          sudo cp cachepot-0.1.0-rc.2-x86_64-unknown-linux-musl/cachepot /usr/bin/
+          sudo chmod +x /usr/bin/cachepot
 
       - name: "Install: grcov"
-        run: |
-          curl https://api.github.com/repos/mozilla/grcov/releases/latest |
-          grep -wo "https.*x86_64.*linux-gnu.*tar\.bz2" |
-          xargs curl -L |
-          tar xj
+        run: 
+          curl -L https://github.com/mozilla/grcov/releases/latest/download/grcov-x86_64-unknown-linux-gnu.tar.bz2 | tar jxf -
 
       - name: "Install: rust-covfix"
         run: |
@@ -342,7 +345,7 @@ jobs:
 
   build-win:
     if: github.ref == 'refs/heads/master' || contains(github.event.pull_request.labels.*.name, 'E1-forcewindows')
-    # needs: spec_version
+    needs: build
     runs-on: ci-win
     defaults:
       run:
@@ -487,7 +490,7 @@ jobs:
 
   build-macos-x86:
     if: github.ref == 'refs/heads/master' || contains(github.event.pull_request.labels.*.name, 'E2-forcemacos')
-    # needs: spec_version
+    needs: build
     runs-on: macos-latest
     steps:
       - name: Cancel Previous Runs

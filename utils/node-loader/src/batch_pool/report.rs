@@ -8,8 +8,10 @@ use std::collections::BTreeSet;
 pub enum CrashAlert {
     #[error("Crash alert: Message processing has been stopped")]
     MsgProcessingStopped,
-    #[error("Crash alert: Timeout occurred while processing batch")]
-    Timeout,
+    #[error("Crash alert: Timeout occurred while waiting for events")]
+    EventsTimeout,
+    #[error("Crash alert: Timeout occurred while waiting for transaction to be finalized.")]
+    TransactionTimeout,
     #[error("Crash alert: Can't reach the node, considered to be dead")]
     NodeIsDead,
 }
@@ -20,7 +22,9 @@ impl TryFrom<Error> for CrashAlert {
     fn try_from(err: Error) -> Result<Self, Self::Error> {
         let err_string = err.to_string().to_lowercase();
         if err_string.contains(&utils::EVENTS_TIMEOUT_ERR_STR.to_lowercase()) {
-            Ok(CrashAlert::Timeout)
+            Ok(CrashAlert::EventsTimeout)
+        } else if err_string.contains(&utils::WAITING_TX_FINALIZED_TIMEOUT_ERR_STR.to_lowercase()) {
+            Ok(CrashAlert::TransactionTimeout)
         } else if err_string.contains(&utils::SUBXT_RPC_REQUEST_ERR_STR.to_lowercase()) {
             Ok(CrashAlert::NodeIsDead)
         } else {

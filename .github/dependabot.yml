@@ -2,6 +2,6 @@ version: 2
 updates:
   - package-ecosystem: "cargo"
     directory: "/"
-    labels: ["A4-insubstantial"]
+    labels: ["A4-insubstantial", "E1-forcewindows", "E2-forcemacos"]
     schedule:
       interval: "daily"
