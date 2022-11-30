@@ -490,7 +490,7 @@ where
                 r * API_BENCHMARK_BATCH_SIZE,
                 &[
                     // subject ptr
-                    Instruction::I32Const(subject_ptr as i32),
+                    Instruction::I32Const(subject_ptr),
                     // subject len
                     Instruction::I32Const(len as i32),
                     // bn_random ptr

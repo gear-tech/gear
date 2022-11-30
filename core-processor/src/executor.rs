@@ -555,6 +555,7 @@ mod tests {
             alloc_cost: 2000,
             mem_grow_cost: 3000,
             load_page_cost: 4000,
+            random_subject_len: 32,
         }
     }
 
