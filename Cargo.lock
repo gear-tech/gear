@@ -301,9 +301,9 @@ checksum = "7a40729d2133846d9ed0ea60a8b9541bccddab49cd30f0715a1da672fe9a2524"
 
 [[package]]
 name = "async-trait"
-version = "0.1.58"
+version = "0.1.59"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1e805d94e6b5001b651426cf4cd446b1ab5f319d27bab5c644f61de0a804360c"
+checksum = "31e6e93155431f3931513b243d371981bb2770112b370c82745a1d19d2f99364"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -335,7 +335,7 @@ version = "0.2.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d9b39be18770d11421cdb1b9947a45dd3f37e93092cbf377614828a319d5fee8"
 dependencies = [
- "hermit-abi",
+ "hermit-abi 0.1.19",
  "libc",
  "winapi",
 ]
@@ -2055,7 +2055,7 @@ dependencies = [
  "demo-contract-template",
  "demo-mul-by-const",
  "demo-ncompose",
- "env_logger",
+ "env_logger 0.10.0",
  "frame-support",
  "frame-system",
  "gear-common",
@@ -2263,12 +2263,25 @@ dependencies = [
 
 [[package]]
 name = "env_logger"
-version = "0.9.1"
+version = "0.9.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c90bf5f19754d10198ccb95b70664fc925bd1fc090a0fd9a6ebc54acc8cd6272"
+checksum = "a12e6657c4c97ebab115a42dcee77225f7f482cdd841cf7088c657a42e9e00e7"
 dependencies = [
  "atty",
  "humantime",
+ "log",
+ "regex",
+ "termcolor",
+]
+
+[[package]]
+name = "env_logger"
+version = "0.10.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "85cdab6a89accf66733ad5a1693a4dcced6aeff64602b634530dd73c1f3ee9f0"
+dependencies = [
+ "humantime",
+ "is-terminal",
  "log",
  "regex",
  "termcolor",
@@ -2372,7 +2385,7 @@ version = "0.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "21e16290574b39ee41c71aeb90ae960c504ebaf1e2a1c87bd52aa56ed6e1a02f"
 dependencies = [
- "env_logger",
+ "env_logger 0.9.3",
  "log",
 ]
 
@@ -2506,7 +2519,7 @@ dependencies = [
  "lazy_static",
  "linked-hash-map",
  "log",
- "memory-db",
+ "memory-db 0.30.0",
  "parity-scale-codec",
  "rand 0.8.5",
  "rand_pcg 0.3.1",
@@ -2888,7 +2901,7 @@ dependencies = [
  "anyhow",
  "async-std",
  "async-trait",
- "env_logger",
+ "env_logger 0.10.0",
  "futures",
  "futures-timer",
  "gear-core",
@@ -3067,7 +3080,7 @@ version = "0.1.0"
 dependencies = [
  "blake2-rfc",
  "derive_more",
- "env_logger",
+ "env_logger 0.10.0",
  "gear-core-errors",
  "gear-wasm-instrument",
  "hex",
@@ -3172,7 +3185,7 @@ dependencies = [
  "demo-meta",
  "demo-waiter",
  "dirs",
- "env_logger",
+ "env_logger 0.10.0",
  "frame-metadata",
  "futures-util",
  "gear-core",
@@ -3273,7 +3286,7 @@ name = "gear-runtime-interface"
 version = "0.1.0"
 dependencies = [
  "derive_more",
- "env_logger",
+ "env_logger 0.9.3",
  "gear-core",
  "gear-lazy-pages",
  "libc",
@@ -3415,7 +3428,7 @@ dependencies = [
  "clap 3.2.23",
  "colored",
  "derive_more",
- "env_logger",
+ "env_logger 0.10.0",
  "gear-backend-common",
  "gear-backend-wasmi",
  "gear-common",
@@ -3464,7 +3477,7 @@ dependencies = [
  "futures",
  "gear-test-client",
  "log",
- "memory-db",
+ "memory-db 0.31.0",
  "pallet-babe",
  "pallet-gear",
  "pallet-gear-rpc-runtime-api",
@@ -3709,7 +3722,7 @@ dependencies = [
  "anyhow",
  "colored",
  "derive_more",
- "env_logger",
+ "env_logger 0.10.0",
  "gear-backend-common",
  "gear-backend-wasmi",
  "gear-core",
@@ -3810,6 +3823,15 @@ name = "hermit-abi"
 version = "0.1.19"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "62b467343b94ba476dcb2500d242dadbb39557df889310ac77c5d99100aaac33"
+dependencies = [
+ "libc",
+]
+
+[[package]]
+name = "hermit-abi"
+version = "0.2.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ee512640fe35acbfb4bb779db6f0d80704c2cacfa2e39b601ef3e3f47d1ae4c7"
 dependencies = [
  "libc",
 ]
@@ -4141,6 +4163,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "59ce5ef949d49ee85593fc4d3f3f95ad61657076395cbbce23e2121fc5542074"
 
 [[package]]
+name = "io-lifetimes"
+version = "1.0.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "46112a93252b123d31a119a8d1a1ac19deac4fac6e0e8b0df58f0d4e5870e63c"
+dependencies = [
+ "libc",
+ "windows-sys 0.42.0",
+]
+
+[[package]]
 name = "ip_network"
 version = "0.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4163,6 +4195,18 @@ name = "ipnet"
 version = "2.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "879d54834c8c76457ef4293a689b2a8c59b076067ad77b15efafbb05f92a592b"
+
+[[package]]
+name = "is-terminal"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "aae5bc6e2eb41c9def29a3e0f1306382807764b9b53112030eff57435667352d"
+dependencies = [
+ "hermit-abi 0.2.6",
+ "io-lifetimes 1.0.3",
+ "rustix 0.36.3",
+ "windows-sys 0.42.0",
+]
 
 [[package]]
 name = "itertools"
@@ -5275,6 +5319,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d4d2456c373231a208ad294c33dc5bff30051eafd954cd4caae83a712b12854d"
 
 [[package]]
+name = "linux-raw-sys"
+version = "0.1.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8f9f08d8963a6c613f4b1a78f4f4a4dbfadf8e6545b2d72861731e4858b8b47f"
+
+[[package]]
 name = "lock_api"
 version = "0.4.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5422,7 +5472,7 @@ version = "0.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "480b5a5de855d11ff13195950bdc8b98b5e942ef47afc447f6615cdcc4e15d80"
 dependencies = [
- "rustix",
+ "rustix 0.35.13",
 ]
 
 [[package]]
@@ -5452,6 +5502,16 @@ dependencies = [
  "hash-db",
  "hashbrown 0.12.3",
  "parity-util-mem",
+]
+
+[[package]]
+name = "memory-db"
+version = "0.31.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5e0c7cba9ce19ac7ffd2053ac9f49843bbd3f4318feedfd74e85c19d5fb0ba66"
+dependencies = [
+ "hash-db",
+ "hashbrown 0.12.3",
 ]
 
 [[package]]
@@ -5920,7 +5980,7 @@ version = "1.13.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "19e64526ebdee182341572e50e9ad03965aa510cd94427a4549448f285e957a1"
 dependencies = [
- "hermit-abi",
+ "hermit-abi 0.1.19",
  "libc",
 ]
 
@@ -6133,7 +6193,7 @@ dependencies = [
  "demo-waiter",
  "demo-waiting-proxy",
  "derive_more",
- "env_logger",
+ "env_logger 0.10.0",
  "frame-benchmarking",
  "frame-support",
  "frame-support-test",
@@ -6179,7 +6239,7 @@ dependencies = [
 name = "pallet-gear-debug"
 version = "2.0.0"
 dependencies = [
- "env_logger",
+ "env_logger 0.10.0",
  "frame-benchmarking",
  "frame-support",
  "frame-support-test",
@@ -6212,7 +6272,7 @@ dependencies = [
 name = "pallet-gear-gas"
 version = "2.0.0"
 dependencies = [
- "env_logger",
+ "env_logger 0.10.0",
  "frame-benchmarking",
  "frame-support",
  "frame-system",
@@ -6236,7 +6296,7 @@ dependencies = [
 name = "pallet-gear-messenger"
 version = "1.0.0"
 dependencies = [
- "env_logger",
+ "env_logger 0.10.0",
  "frame-benchmarking",
  "frame-support",
  "frame-system",
@@ -6259,7 +6319,7 @@ dependencies = [
 name = "pallet-gear-payment"
 version = "0.1.0"
 dependencies = [
- "env_logger",
+ "env_logger 0.10.0",
  "frame-benchmarking",
  "frame-support",
  "frame-support-test",
@@ -6300,7 +6360,7 @@ dependencies = [
 name = "pallet-gear-program"
 version = "2.0.0"
 dependencies = [
- "env_logger",
+ "env_logger 0.10.0",
  "frame-benchmarking",
  "frame-support",
  "frame-system",
@@ -6351,7 +6411,7 @@ dependencies = [
 name = "pallet-gear-scheduler"
 version = "1.0.0"
 dependencies = [
- "env_logger",
+ "env_logger 0.10.0",
  "frame-benchmarking",
  "frame-support",
  "frame-support-test",
@@ -7516,7 +7576,7 @@ name = "remote-externalities"
 version = "0.10.0-dev"
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#988411fe2cbf47e09014c8e1512e05f28f08d941"
 dependencies = [
- "env_logger",
+ "env_logger 0.9.3",
  "jsonrpsee",
  "log",
  "parity-scale-codec",
@@ -7711,9 +7771,23 @@ checksum = "727a1a6d65f786ec22df8a81ca3121107f235970dc1705ed681d3e6e8b9cd5f9"
 dependencies = [
  "bitflags",
  "errno",
- "io-lifetimes",
+ "io-lifetimes 0.7.5",
  "libc",
- "linux-raw-sys",
+ "linux-raw-sys 0.0.46",
+ "windows-sys 0.42.0",
+]
+
+[[package]]
+name = "rustix"
+version = "0.36.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0b1fbb4dfc4eb1d390c02df47760bb19a84bb80b301ecc947ab5406394d8223e"
+dependencies = [
+ "bitflags",
+ "errno",
+ "io-lifetimes 1.0.3",
+ "libc",
+ "linux-raw-sys 0.1.3",
  "windows-sys 0.42.0",
 ]
 
@@ -8176,7 +8250,7 @@ dependencies = [
  "once_cell",
  "parity-scale-codec",
  "parity-wasm 0.45.0",
- "rustix",
+ "rustix 0.35.13",
  "sc-allocator",
  "sc-executor-common",
  "sp-runtime-interface",
@@ -9963,7 +10037,7 @@ dependencies = [
  "hashbrown 0.12.3",
  "lazy_static",
  "lru 0.7.8",
- "memory-db",
+ "memory-db 0.30.0",
  "nohash-hasher",
  "parity-scale-codec",
  "parking_lot 0.12.1",
@@ -11406,7 +11480,7 @@ name = "wasm-proc"
 version = "0.1.0"
 dependencies = [
  "clap 3.2.23",
- "env_logger",
+ "env_logger 0.10.0",
  "gear-wasm-builder",
  "log",
  "parity-wasm 0.45.0",
@@ -11864,7 +11938,7 @@ dependencies = [
  "directories-next",
  "file-per-thread-logger",
  "log",
- "rustix",
+ "rustix 0.35.13",
  "serde",
  "sha2 0.9.9",
  "toml",
@@ -11920,7 +11994,7 @@ checksum = "18fc45a6497f557382fc19b8782ad5d47ce3fced469bdaf303ec6b5b2e83c1a6"
 dependencies = [
  "cc",
  "cfg-if",
- "rustix",
+ "rustix 0.35.13",
  "wasmtime-asm-macros",
  "windows-sys 0.36.1",
 ]
@@ -11941,7 +12015,7 @@ dependencies = [
  "log",
  "object 0.29.0",
  "rustc-demangle",
- "rustix",
+ "rustix 0.35.13",
  "serde",
  "target-lexicon",
  "thiserror",
@@ -11959,7 +12033,7 @@ checksum = "25e82d4ef93296785de7efca92f7679dc67fe68a13b625a5ecc8d7503b377a37"
 dependencies = [
  "object 0.29.0",
  "once_cell",
- "rustix",
+ "rustix 0.35.13",
 ]
 
 [[package]]
@@ -11979,7 +12053,7 @@ dependencies = [
  "memoffset",
  "paste",
  "rand 0.8.5",
- "rustix",
+ "rustix 0.35.13",
  "thiserror",
  "wasmtime-asm-macros",
  "wasmtime-environ",

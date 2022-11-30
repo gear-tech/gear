@@ -36,7 +36,7 @@ pallet-authorship = { version = "4.0.0-dev", default-features = false, git = "ht
 
 [dev-dependencies]
 serde = "1.0.145"
-env_logger = "0.9"
+env_logger = "0.10"
 wabt = "0.10"
 gear-backend-sandbox = { path = "../../core-backend/sandbox", default-features = false }
 hex-literal = "0.3.3"
