@@ -718,17 +718,6 @@ benchmarks! {
         verify_process(res.unwrap());
     }
 
-    gr_random_per_kb {
-        let n in 0 .. T::Schedule::get().limits.subject_len / 1024;
-        let mut res = None;
-        let exec = Benches::<T>::gr_random_per_kb(n)?;
-    }: {
-        res.replace(run_process(exec));
-    }
-    verify {
-        verify_process(res.unwrap());
-    }
-
     gr_send_init {
         let r in 0 .. API_BENCHMARK_BATCHES;
         let mut res = None;

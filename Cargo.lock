@@ -11301,6 +11301,15 @@ dependencies = [
 
 [[package]]
 name = "wasm-encoder"
+version = "0.19.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9424cdab516a16d4ea03c8f4a01b14e7b2d04a129dcc2bcdde5bcc5f68f06c41"
+dependencies = [
+ "leb128",
+]
+
+[[package]]
+name = "wasm-encoder"
 version = "0.20.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "05632e0a66a6ed8cca593c24223aabd6262f256c3693ad9822c315285f010614"

@@ -1325,14 +1325,7 @@ where
                 mem_ref.read(subject_ptr as usize, subject.get_mut())
             })?;
 
-            let call_result = caller.host_state_mut().ext.random(len);
-            let (random, bn) = match call_result {
-                Ok((random, bn)) => (random, bn),
-                Err(e) => {
-                    caller.host_state_mut().err = FuncError::Core(e);
-                    return Err(TrapCode::Unreachable.into());
-                }
-            };
+            let (random, bn) = caller.host_state_mut().ext.random();
 
             subject.try_extend_from_slice(random).map_err(|e| {
                 caller.host_state_mut().err = FuncError::RuntimeBufferSize(e);

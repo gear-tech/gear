@@ -153,8 +153,8 @@ impl Ext for MockExt {
     fn value_available(&mut self) -> Result<u128, Self::Error> {
         Ok(1_000_000)
     }
-    fn random(&mut self, _: u32) -> Result<(&[u8], u32), Self::Error> {
-        Ok(([0u8; 32].as_ref(), 0))
+    fn random(&self) -> (&[u8], u32) {
+        ([0u8; 32].as_ref(), 0)
     }
     fn leave(&mut self) -> Result<(), Self::Error> {
         Ok(())

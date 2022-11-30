@@ -461,7 +461,7 @@ where
             let mut subject = RuntimeBuffer::try_new_default(len as usize)?;
             ctx.read_memory_into_buf(subject_ptr, subject.get_mut())?;
 
-            let (random, bn) = ctx.ext.random(len).map_err(FuncError::Core)?;
+            let (random, bn) = ctx.ext.random();
             subject.try_extend_from_slice(random)?;
 
             let mut hash = [0; 32];

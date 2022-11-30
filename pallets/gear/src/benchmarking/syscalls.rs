@@ -500,36 +500,6 @@ where
         Self::prepare_handle(code, 0)
     }
 
-    pub fn gr_random_per_kb(n: u32) -> Result<Exec<T>, &'static str> {
-        let subject_offset = 1;
-        let subject = vec![0xff; (n * 1024) as usize];
-        let subject_len = subject.len() as u32;
-
-        let code = WasmModule::<T>::from(ModuleDefinition {
-            memory: Some(ImportedMemory::max::<T>()),
-            imported_functions: vec!["gr_random"],
-            data_segments: vec![DataSegment {
-                offset: subject_offset,
-                value: subject,
-            }],
-            handle_body: Some(body::repeated(
-                API_BENCHMARK_BATCH_SIZE,
-                &[
-                    // subject ptr
-                    Instruction::I32Const(subject_offset as i32),
-                    // subject len
-                    Instruction::I32Const(subject_len as i32),
-                    // bn_random ptr
-                    Instruction::I32Const((subject_offset + subject_len) as i32),
-                    // CALL
-                    Instruction::Call(0),
-                ],
-            )),
-            ..Default::default()
-        });
-        Self::prepare_handle(code, 0)
-    }
-
     pub fn gr_send_init(r: u32) -> Result<Exec<T>, &'static str> {
         let code = WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
