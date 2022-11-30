@@ -2490,7 +2490,7 @@ dependencies = [
  "lazy_static",
  "linked-hash-map",
  "log",
- "memory-db",
+ "memory-db 0.30.0",
  "parity-scale-codec",
  "rand 0.8.5",
  "rand_pcg 0.3.1",
@@ -3448,7 +3448,7 @@ dependencies = [
  "futures",
  "gear-test-client",
  "log",
- "memory-db",
+ "memory-db 0.31.0",
  "pallet-babe",
  "pallet-gear",
  "pallet-gear-rpc-runtime-api",
@@ -5462,6 +5462,16 @@ dependencies = [
  "hash-db",
  "hashbrown 0.12.3",
  "parity-util-mem",
+]
+
+[[package]]
+name = "memory-db"
+version = "0.31.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5e0c7cba9ce19ac7ffd2053ac9f49843bbd3f4318feedfd74e85c19d5fb0ba66"
+dependencies = [
+ "hash-db",
+ "hashbrown 0.12.3",
 ]
 
 [[package]]
@@ -9985,7 +9995,7 @@ dependencies = [
  "hashbrown 0.12.3",
  "lazy_static",
  "lru 0.7.8",
- "memory-db",
+ "memory-db 0.30.0",
  "nohash-hasher",
  "parity-scale-codec",
  "parking_lot 0.12.1",
