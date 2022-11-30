@@ -112,6 +112,15 @@ pub trait ProcessorExt {
 /// [`Ext`](Ext)'s error
 #[derive(Debug, Clone, Eq, PartialEq, derive_more::Display, derive_more::From, Encode, Decode)]
 pub enum ProcessorError {
+    /// An error occurs in attempt to send more than the maximum
+    /// length of payload.
+    PayloadLengthLimitExcceeded,
+    /// An error occurs in attempt to create program with more
+    /// than the maximum length of code.
+    CodeLengthLimitExcceeded,
+    /// An error occurs in attempt to generate random data with
+    /// more than the maximum length of subject.
+    SubjectLengthLimitExcceeded,
     /// Basic error
     #[display(fmt = "{_0}")]
     Core(ExtError),
@@ -402,6 +411,10 @@ impl EnvExt for Ext {
     }
 
     fn send_push(&mut self, handle: u32, buffer: &[u8]) -> Result<(), Self::Error> {
+        if buffer.len() > self.context.config.limits.payload_len as usize {
+            return Err(ProcessorError::PayloadLengthLimitExcceeded);
+        }
+
         self.charge_gas_runtime(RuntimeCosts::SendPush(buffer.len() as u32))?;
         let result = self.context.message_context.send_push(handle, buffer);
 
@@ -414,6 +427,10 @@ impl EnvExt for Ext {
         msg: HandlePacket,
         delay: u32,
     ) -> Result<MessageId, Self::Error> {
+        if msg.payload().len() > self.context.config.limits.payload_len as usize {
+            return Err(ProcessorError::PayloadLengthLimitExcceeded);
+        }
+
         self.charge_gas_runtime(RuntimeCosts::SendCommit(msg.payload().len() as u32))?;
 
         self.check_forbidden_call(msg.destination())?;
@@ -436,6 +453,10 @@ impl EnvExt for Ext {
         msg: HandlePacket,
         delay: u32,
     ) -> Result<MessageId, Self::Error> {
+        if msg.payload().len() > self.context.config.limits.payload_len as usize {
+            return Err(ProcessorError::PayloadLengthLimitExcceeded);
+        }
+
         self.charge_gas_runtime(RuntimeCosts::ReservationSendCommit(
             msg.payload().len() as u32
         ))?;
@@ -467,6 +488,10 @@ impl EnvExt for Ext {
     }
 
     fn reply_commit(&mut self, msg: ReplyPacket, delay: u32) -> Result<MessageId, Self::Error> {
+        if msg.payload().len() > self.context.config.limits.payload_len as usize {
+            return Err(ProcessorError::PayloadLengthLimitExcceeded);
+        }
+
         self.charge_gas_runtime(RuntimeCosts::ReplyCommit)?;
 
         self.check_forbidden_call(self.context.message_context.reply_destination())?;
@@ -485,6 +510,9 @@ impl EnvExt for Ext {
         msg: ReplyPacket,
         delay: u32,
     ) -> Result<MessageId, Self::Error> {
+        // # Note
+        //
+        // The payload length has already been checked in `reply_push`.
         self.charge_gas_runtime(RuntimeCosts::ReservationReplyCommit)?;
 
         self.check_forbidden_call(self.context.message_context.reply_destination())?;
@@ -747,6 +775,10 @@ impl EnvExt for Ext {
         packet: InitPacket,
         delay: u32,
     ) -> Result<(MessageId, ProgramId), Self::Error> {
+        if packet.payload().len() > self.context.config.limits.payload_len as usize {
+            return Err(ProcessorError::PayloadLengthLimitExcceeded);
+        }
+
         self.charge_gas_runtime(RuntimeCosts::CreateProgram(
             packet.payload().len() as u32,
             packet.salt().len() as u32,

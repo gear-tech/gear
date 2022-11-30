@@ -147,7 +147,7 @@ pub enum WaitError {
 #[derive(Debug, Clone, Copy, Eq, PartialEq, PartialOrd, Ord, Hash, derive_more::Display)]
 #[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo))]
 pub enum MemoryError {
-    /// The error occurs when a program tries to allocate more memory  than
+    /// The error occurs when a program tries to allocate more memory than
     /// allowed.
     #[display(fmt = "Memory memory out of maximal bounds")]
     OutOfBounds,
