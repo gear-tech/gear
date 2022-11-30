@@ -191,6 +191,7 @@ impl Default for ProcessStatus {
 pub mod pallet {
     use super::*;
 
+    use gear_core::memory::WasmPageNumber;
     #[cfg(feature = "lazy-pages")]
     use gear_lazy_pages_common as lazy_pages;
 
@@ -753,6 +754,12 @@ pub mod pallet {
             wasm: Vec<u8>,
             argument: Option<Vec<u8>>,
         ) -> Result<Vec<u8>, String> {
+            #[cfg(feature = "lazy-pages")]
+            assert!(lazy_pages::try_to_enable_lazy_pages());
+
+            #[cfg(not(feature = "lazy-pages"))]
+            unreachable!("Unsupported operation");
+
             let schedule = T::Schedule::get();
 
             if u32::try_from(wasm.len()).unwrap_or(u32::MAX) > schedule.limits.code_len {
@@ -803,7 +810,7 @@ pub mod pallet {
                 })
         }
 
-        pub(crate) fn code_with_pages(program_id: ProgramId) -> Result<(InstrumentedCode, BTreeMap<PageNumber, PageBuf>), String> {
+        pub(crate) fn code_with_allocations(program_id: ProgramId) -> Result<(InstrumentedCode, BTreeSet<WasmPageNumber>), String> {
             let program = common::get_active_program(program_id.into_origin())
                 .map_err(|e| format!("Get active program error: {e:?}"))?;
 
@@ -812,21 +819,28 @@ pub mod pallet {
             let code = Self::get_code(code_id, program_id)
                 .ok_or_else(|| String::from("Failed to get code for given program id"))?;
 
-            let program_pages = common::get_program_pages_data(program_id.into_origin(), &program)
-                .map_err(|e| format!("Get program pages data error: {e:?}"))?;
+            // TODO: for non-lazy pages context uncomment and return
+            // let program_pages = common::get_program_pages_data(program_id.into_origin(), &program)
+            //     .map_err(|e| format!("Get program pages data error: {e:?}"))?;
 
-            Ok((code, program_pages))
+            Ok((code, program.allocations))
         }
 
         pub(crate) fn read_state_impl(program_id: ProgramId) -> Result<Vec<u8>, String> {
+            #[cfg(feature = "lazy-pages")]
+            assert!(lazy_pages::try_to_enable_lazy_pages());
+
+            #[cfg(not(feature = "lazy-pages"))]
+            unreachable!("Unsupported operation");
+
             log::debug!("Reading state of {program_id:?}");
 
-            let (code, program_pages) = Self::code_with_pages(program_id)?;
+            let (code, allocations) = Self::code_with_allocations(program_id)?;
 
             core_processor::informational::execute_for_reply::<Ext, ExecutionEnvironment>(
                 String::from("state"),
                 code,
-                Some(program_pages),
+                Some(allocations),
                 Default::default(),
                 BlockGasLimitOf::<T>::get() / 4,
             )
@@ -839,14 +853,20 @@ pub mod pallet {
         }
 
         pub(crate) fn read_metahash_impl(program_id: ProgramId) -> Result<H256, String> {
+            #[cfg(feature = "lazy-pages")]
+            assert!(lazy_pages::try_to_enable_lazy_pages());
+
+            #[cfg(not(feature = "lazy-pages"))]
+            unreachable!("Unsupported operation");
+
             log::debug!("Reading metahash of {program_id:?}");
 
-            let (code, program_pages) = Self::code_with_pages(program_id)?;
+            let (code, allocations) = Self::code_with_allocations(program_id)?;
 
             core_processor::informational::execute_for_reply::<Ext, ExecutionEnvironment>(
                 String::from("metahash"),
                 code,
-                Some(program_pages),
+                Some(allocations),
                 Default::default(),
                 BlockGasLimitOf::<T>::get() / 4,
             ).and_then(|bytes| H256::decode(&mut bytes.as_ref()).map_err(|_| "Failed to decode hash".into()))
@@ -1536,8 +1556,7 @@ pub mod pallet {
         ) -> Option<BTreeMap<PageNumber, PageBuf>> {
             #[cfg(feature = "lazy-pages")]
             let memory_pages = {
-                let _ = program_id;
-                let _ = pages_with_data;
+                let _ = pages_with_data; // To calm clippy on unused argument.
                 assert!(lazy_pages::try_to_enable_lazy_pages());
                 Default::default()
             };

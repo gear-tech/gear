@@ -32,7 +32,6 @@ use alloc::{
 use gear_backend_common::{
     BackendReport, Environment, GetGasAmount, IntoExtInfo, TerminationReason,
 };
-use core::fmt::Debug;
 use gear_core::{
     code::InstrumentedCode,
     env::Ext as EnvExt,
@@ -423,6 +422,8 @@ pub fn execute_wasm<
             )
         })
     };
+
+    log::debug!("REAL HELLO:\nallocations:{allocations:?},memory_size:{memory_size:?},static_pages:{static_pages:?}");
     let (termination, memory, ext) = match f() {
         Ok(BackendReport {
             termination_reason: termination,
@@ -469,12 +470,7 @@ pub fn execute_wasm<
         TerminationReason::Exit(value_dest) => DispatchResultKind::Exit(value_dest),
         TerminationReason::Leave | TerminationReason::Success => DispatchResultKind::Success,
         TerminationReason::Trap(explanation) => {
-            log::debug!(
-                "💥 Trap during execution of {}\n📔 Explanation: {}",
-                program_id,
-                explanation,
-            );
-
+            log::debug!("💥 Trap during execution of {program_id}\n📔 Explanation: {explanation}");
             DispatchResultKind::Trap(explanation)
         }
         TerminationReason::Wait(duration, waited_type) => {
@@ -507,23 +503,30 @@ pub fn execute_wasm<
 }
 
 /// !!! FOR TESTING / INFORMATIONAL USAGE ONLY
-pub fn execute_for_reply<A, E>(
+pub fn execute_for_reply<A: ProcessorExt + EnvExt + IntoExtInfo<<A as EnvExt>::Error> + 'static,
+E: Environment<A>>(
     function: impl WasmEntry,
     instrumented_code: InstrumentedCode,
-    pages_initial_data: Option<BTreeMap<PageNumber, PageBuf>>,
+    // TODO: consider support non-lazy-pages context execution
+    // pages_initial_data: Option<BTreeMap<PageNumber, PageBuf>>,
+    allocations: Option<BTreeSet<WasmPageNumber>>,
     payload: Vec<u8>,
     gas_limit: u64,
-) -> Result<Vec<u8>, String>
-where
-A: ProcessorExt + EnvExt + IntoExtInfo<<A as EnvExt>::Error> + 'static,
-E: Environment<A>,
-<E as Environment<A>>::Error: Debug, {
+) -> Result<Vec<u8>, String> {
     let program = Program::new(ProgramId::from(0), instrumented_code);
-    let memory_size = program.static_pages();
-    let mut pages_initial_data = pages_initial_data.unwrap_or_default();
+    let mut pages_initial_data: BTreeMap<PageNumber, PageBuf> = Default::default();
     let static_pages = program.static_pages();
-    let allocations = program.allocations();
+    let allocations = allocations.unwrap_or_else(|| program.allocations().clone());
 
+    let memory_size = if let Some(page) = allocations.iter().next_back() {
+        *page
+    } else if static_pages != WasmPageNumber(0) {
+        static_pages + 1.into()
+    } else {
+        0.into()
+    };
+
+    // TODO: consider support of execution context
     let context = ProcessorContext {
         gas_counter: GasCounter::new(gas_limit),
         gas_allowance_counter: GasAllowanceCounter::new(gas_limit),
@@ -534,7 +537,7 @@ E: Environment<A>,
             Default::default(),
         ),
         value_counter: ValueCounter::new(Default::default()),
-        allocations_context: AllocationsContext::new(allocations.clone(), static_pages, 512.into()),
+        allocations_context: AllocationsContext::new(allocations, static_pages, 512.into()),
         message_context: MessageContext::new(
             IncomingMessage::new(
                 Default::default(),
@@ -597,24 +600,31 @@ E: Environment<A>,
         })
     };
 
-    let (_termination, memory, ext) = match f() {
+    log::debug!("HELLO:\nallocations:{allocations:?},memory_size:{memory_size:?},static_pages:{static_pages:?}");
+
+    let (termination, memory, ext) = match f() {
         Ok(BackendReport {
             termination_reason: termination,
             memory_wrap: memory,
             ext,
         }) => (termination, memory, ext),
-        Err(e) => return Err(format!("Backend error: {e:?}")),
+        Err(e) => return Err(format!("Backend error: {e}")),
+    };
+
+    match termination {
+        TerminationReason::Exit(_) | TerminationReason::Leave | TerminationReason::Wait(_, _)  => return Err("Execution has incorrect termination reason".into()),
+        TerminationReason::Success => (),
+        TerminationReason::Trap(explanation) => {
+            return Err(format!("Program execution failed with error: {explanation}"));
+        }
+        TerminationReason::GasAllowanceExceeded => return Err("Unreachable".into()),
     };
 
     let info = ext.into_ext_info(&memory).map_err(|e| format!("Backend postprocessing error: {e:?}"))?;
 
     for (dispatch, _, _) in info.generated_dispatches {
         if matches!(dispatch.kind(), DispatchKind::Reply) {
-            return if dispatch.is_error_reply() {
-                Ok(dispatch.payload().to_vec())
-            } else {
-                Err(format!("Program execution failed with error: {:?}", String::from_utf8(dispatch.payload().to_vec()).ok()))
-            }
+            return Ok(dispatch.payload().to_vec())
         }
     }
 

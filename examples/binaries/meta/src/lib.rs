@@ -40,7 +40,9 @@ mod wasm {
 
     #[no_mangle]
     unsafe extern "C" fn init() {
+        gstd::debug!("{:?}", WALLETS);
         WALLETS = Wallet::test_sequence();
+        gstd::debug!("{:?}", WALLETS);
 
         if msg::size() == 0 {
             return;
@@ -54,6 +56,7 @@ mod wasm {
 
     #[no_mangle]
     unsafe extern "C" fn handle() {
+        gstd::debug!("{:?}", WALLETS);
         let message_in: MessageIn = msg::load().unwrap();
 
         let res = WALLETS
@@ -67,8 +70,9 @@ mod wasm {
     }
 
     #[no_mangle]
-    extern "C" fn state() {
-        msg::reply(unsafe { WALLETS.clone() }, 0).expect("Failed to share state");
+    unsafe extern "C" fn state() {
+        gstd::debug!("{:?}", WALLETS);
+        msg::reply(WALLETS.clone(), 0).expect("Failed to share state");
     }
 
     #[no_mangle]
