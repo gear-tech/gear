@@ -21,7 +21,9 @@
 use crate::common::{Actor, PrechargedDispatch};
 use alloc::{collections::BTreeSet, vec::Vec};
 use codec::{Decode, Encode};
-use gear_core::{code, costs::HostFnWeights, ids::ProgramId, memory::WasmPageNumber};
+use gear_core::{
+    code, costs::HostFnWeights, ids::ProgramId, limits::Limits, memory::WasmPageNumber,
+};
 
 const INIT_COST: u64 = 5000;
 const ALLOC_COST: u64 = 10000;
@@ -50,6 +52,8 @@ pub struct AllocationsConfig {
     pub mem_grow_cost: u64,
     /// Load page cost.
     pub load_page_cost: u64,
+    /// Limits for various metrics.
+    pub limits: Limits,
 }
 
 impl Default for AllocationsConfig {
@@ -60,6 +64,7 @@ impl Default for AllocationsConfig {
             alloc_cost: ALLOC_COST,
             mem_grow_cost: MEM_GROW_COST,
             load_page_cost: LOAD_PAGE_COST,
+            limits: Default::default(),
         }
     }
 }
