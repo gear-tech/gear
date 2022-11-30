@@ -503,7 +503,7 @@ pub fn execute_wasm<
 mod tests {
     use super::*;
     use alloc::{vec, vec::Vec};
-    use gear_core::memory::WasmPageNumber;
+    use gear_core::{limits::Limits, memory::WasmPageNumber};
 
     struct TestExt;
     struct LazyTestExt;
@@ -550,11 +550,14 @@ mod tests {
 
     fn prepare_alloc_config() -> AllocationsConfig {
         AllocationsConfig {
-            max_pages: 32.into(),
             init_cost: 1000,
             alloc_cost: 2000,
             mem_grow_cost: 3000,
             load_page_cost: 4000,
+            limits: Limits {
+                memory_pages: 32u32,
+                ..Default::default()
+            },
         }
     }
 
