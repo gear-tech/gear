@@ -93,8 +93,6 @@ impl ContextSettings {
         self.reservation_fee
     }
 
-    // TODO: introduce reservation fee
-
     /// Getter for inner outgoing limit field.
     pub fn outgoing_limit(&self) -> u32 {
         self.outgoing_limit
