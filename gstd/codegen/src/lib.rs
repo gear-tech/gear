@@ -157,22 +157,11 @@ fn check_signature(name: &str, function: &syn::ItemFn) -> Result<(), TokenStream
 fn generate_handle_reply_if_required(mut code: TokenStream, attr: Option<Path>) -> TokenStream {
     let reply_generated = unsafe { HANDLE_REPLY_FLAG.get_and_set() };
     if !reply_generated {
-        let func = attr
-            .map(|path| {
-                quote! {
-                    #path ();
-                }
-            })
-            .unwrap_or_else(|| {
-                quote! {
-                    gstd::record_reply();
-                }
-            });
-
         let handle_reply: TokenStream = quote!(
             #[no_mangle]
             unsafe extern "C" fn handle_reply() {
-                #func
+                gstd::record_reply();
+                #attr ();
             }
         )
         .into();
@@ -185,22 +174,11 @@ fn generate_handle_reply_if_required(mut code: TokenStream, attr: Option<Path>) 
 fn generate_handle_signal_if_required(mut code: TokenStream, attr: Option<Path>) -> TokenStream {
     let signal_generated = unsafe { HANDLE_SIGNAL_FLAG.get_and_set() };
     if !signal_generated {
-        let func = attr
-            .map(|path| {
-                quote! {
-                    #path ();
-                }
-            })
-            .unwrap_or_else(|| {
-                quote! {
-                    gstd::handle_signal();
-                }
-            });
-
         let handle_signal: TokenStream = quote!(
             #[no_mangle]
             unsafe extern "C" fn handle_signal() {
-                #func
+                gstd::handle_signal();
+                #attr ();
             }
         )
         .into();

@@ -45,16 +45,12 @@ mod wasm {
     }
 
     fn my_handle_reply() {
-        gstd::record_reply();
-
         unsafe {
             msg::send_bytes(USER, b"my_handle_reply", 0).unwrap();
         }
     }
 
     fn my_handle_signal() {
-        gstd::handle_signal();
-
         unsafe {
             msg::send_bytes(USER, b"my_handle_signal", 0).unwrap();
         }
