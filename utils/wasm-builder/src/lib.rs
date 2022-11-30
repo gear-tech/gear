@@ -43,7 +43,15 @@ impl WasmBuilder {
     /// Create a new `WasmBuilder`.
     pub fn new() -> Self {
         WasmBuilder {
-            wasm_project: WasmProject::new(None),
+            wasm_project: WasmProject::new(None, false),
+            cargo: CargoCommand::new(),
+        }
+    }
+
+    /// Create a new `WasmBuilder` for metawasm.
+    pub fn new_metawasm() -> Self {
+        WasmBuilder {
+            wasm_project: WasmProject::new(None, true),
             cargo: CargoCommand::new(),
         }
     }
@@ -51,7 +59,7 @@ impl WasmBuilder {
     /// Create a new `WasmBuilder` with metadata.
     pub fn with_meta(metadata: MetadataRepr) -> Self {
         WasmBuilder {
-            wasm_project: WasmProject::new(Some(metadata)),
+            wasm_project: WasmProject::new(Some(metadata), false),
             cargo: CargoCommand::new(),
         }
     }
@@ -99,4 +107,9 @@ pub fn build() {
 /// Shorthand function to be used in `build.rs`.
 pub fn build_with_metadata<T: Metadata>() {
     WasmBuilder::with_meta(T::repr()).build();
+}
+
+/// Shorthand function to be used in `build.rs`.
+pub fn build_metawasm() {
+    WasmBuilder::new_metawasm().build();
 }

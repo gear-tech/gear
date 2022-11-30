@@ -62,7 +62,7 @@ pub struct Id {
     pub hex: Vec<u8>,
 }
 
-#[derive(TypeInfo, Decode, Encode, Clone, Debug)]
+#[derive(TypeInfo, Decode, Encode, Clone, Debug, PartialEq, Eq)]
 pub struct Person {
     pub surname: String,
     pub name: String,

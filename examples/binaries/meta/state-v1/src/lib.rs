@@ -18,36 +18,16 @@
 
 #![no_std]
 
-// Reexport of types
-pub use demo_meta_io::*;
-
-// For wasm compilation
-#[cfg(not(feature = "std"))]
-mod wasm;
-
-// Exports for native usage as dependency in other crates
 #[cfg(feature = "std")]
-mod exports {
-    mod code {
-        include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
-    }
-
-    // Binary itself
-    pub use code::WASM_BINARY_OPT as WASM_BINARY;
-
-    // Metadata of the binary, defining types and registry for JS
-    pub use code::WASM_METADATA;
-
-    // First reading state functions implementation
-    pub use demo_meta_state_v1::META_WASM_V1;
-
-    // Second reading state functions implementation
-    pub use demo_meta_state_v2::META_WASM_V2;
+mod code {
+    include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
 }
 
-// Empty exports while compiling into wasm
-#[cfg(not(feature = "std"))]
-mod exports {}
+#[cfg(feature = "std")]
+pub use code::WASM_BINARY as META_WASM_V1;
 
-// Public exports
-pub use exports::*;
+#[cfg(feature = "std")]
+pub use code::WASM_EXPORTS as META_EXPORTS_V1;
+
+#[cfg(not(feature = "std"))]
+mod wasm;

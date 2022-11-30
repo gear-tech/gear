@@ -1625,6 +1625,8 @@ name = "demo-meta"
 version = "0.1.0"
 dependencies = [
  "demo-meta-io",
+ "demo-meta-state-v1",
+ "demo-meta-state-v2",
  "gear-wasm-builder",
  "gstd",
  "parity-scale-codec",
@@ -1637,6 +1639,24 @@ dependencies = [
  "gmeta",
  "parity-scale-codec",
  "scale-info",
+]
+
+[[package]]
+name = "demo-meta-state-v1"
+version = "0.1.0"
+dependencies = [
+ "demo-meta-io",
+ "gear-wasm-builder",
+ "gstd",
+]
+
+[[package]]
+name = "demo-meta-state-v2"
+version = "0.1.0"
+dependencies = [
+ "demo-meta-io",
+ "gear-wasm-builder",
+ "gstd",
 ]
 
 [[package]]
