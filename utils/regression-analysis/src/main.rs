@@ -336,6 +336,7 @@ fn weights(kind: WeightsKind, input_file: PathBuf, output_file: PathBuf) {
                     gr_reply_to,
                     gr_debug,
                     gr_debug_per_byte,
+                    gr_error,
                     gr_status_code,
                     gr_exit,
                     gr_leave,
