@@ -6697,6 +6697,17 @@ fn system_reservation_unreserve_works() {
 
         run_to_block(2, None);
 
+        let user_initial_balance = Balances::free_balance(USER_1);
+
+        let GasInfo { burned, .. } = Gear::calculate_gas_info(
+            USER_1.into_origin(),
+            HandleKind::Handle(pid),
+            HandleAction::Simple.encode(),
+            0,
+            true,
+        )
+        .expect("calculate_gas_info failed");
+
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(USER_1),
             pid,
@@ -6710,6 +6721,12 @@ fn system_reservation_unreserve_works() {
         run_to_block(3, None);
 
         assert!(GasHandlerOf::<Test>::get_system_reserve(mid).is_err());
+
+        let burned = GasPrice::gas_price(burned);
+        assert_eq!(
+            Balances::free_balance(USER_1),
+            user_initial_balance - burned
+        );
     });
 }
 
