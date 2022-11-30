@@ -653,4 +653,30 @@ mod tests {
         assert_eq!(expected_result.handle.len(), 1);
         assert_eq!(expected_result.handle[0].0.payload(), vec![5, 7, 9]);
     }
+
+    #[test]
+    fn duplicate_waking() {
+        let incoming_message = IncomingMessage::new(
+            MessageId::from(INCOMING_MESSAGE_ID),
+            ProgramId::from(INCOMING_MESSAGE_SOURCE),
+            vec![1, 2].try_into().unwrap(),
+            0,
+            0,
+            None,
+        );
+
+        let mut context = MessageContext::new(
+            incoming_message,
+            ids::ProgramId::from(INCOMING_MESSAGE_ID),
+            None,
+            ContextSettings::new(0, 0, 0, 0, 1024),
+        );
+
+        context.wake(MessageId::default(), 10).unwrap();
+
+        assert_eq!(
+            context.wake(MessageId::default(), 1),
+            Err(Error::DuplicateWaking)
+        );
+    }
 }

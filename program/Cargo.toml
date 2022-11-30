@@ -22,7 +22,7 @@ blake2-rfc = "0.2.18"
 base64 = "0.13.0"
 color-eyre = { version = "0.6.2", optional = true }
 dirs = "4.0.0"
-env_logger = "0.9.0"
+env_logger = "0.10.0"
 futures-util = "0.3.25"
 gear-core = { path = "../core" }
 hex = "0.4.3"

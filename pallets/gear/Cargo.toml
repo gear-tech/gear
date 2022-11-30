@@ -54,7 +54,7 @@ rand = { version = "0.8", optional = true, default-features = false }
 rand_pcg = { version = "0.3", optional = true }
 
 [dev-dependencies]
-env_logger = "0.9"
+env_logger = "0.10"
 wabt = "0.10"
 blake2-rfc = { version = "0.2.18", default-features = false }
 demo-async-tester = { path = "../../examples/binaries/async-tester" }

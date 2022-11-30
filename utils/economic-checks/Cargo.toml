@@ -13,10 +13,10 @@ parking_lot = "0.12.0"
 primitive-types = { version = "0.12.0", features = ["scale-info"] }
 rand = { version = "0.8.5", features = ["std_rng"] }
 serde = "1"
-env_logger = "0.9"
+env_logger = "0.10"
 hex = "0.4.3"
 arbitrary = { version = "1" }
-wasm-mutate = "0.2.11"
+wasm-mutate = "0.2.12"
 wasmparser = "0.92.0"
 
 # Internal deps
@@ -46,7 +46,7 @@ sp-runtime = { version = "6.0.0", git = "https://github.com/gear-tech/substrate.
 
 [dev-dependencies]
 wat = "1.0"
-wasmprinter = "0.2.43"
+wasmprinter = "0.2.44"
 demo-compose = { path = "../../examples/binaries/compose" }
 gstd = { path = "../../gstd" }
 
