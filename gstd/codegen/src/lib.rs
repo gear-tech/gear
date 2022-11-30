@@ -207,7 +207,9 @@ fn generate_if_required(code: TokenStream, attrs: MainAttrs) -> TokenStream {
 /// }
 /// ```
 ///
-/// You can specify `handle_reply` and `handle_signal` using parameters of same names:
+/// You can specify `handle_reply` and `handle_signal` using parameters of same names.
+/// Note that default behavior of entrypoints is kept.
+///
 /// ```ignore
 /// #[gstd::async_main(handle_reply = my_handle_reply)]
 /// async fn init() {
@@ -215,9 +217,6 @@ fn generate_if_required(code: TokenStream, attrs: MainAttrs) -> TokenStream {
 /// }
 ///
 /// fn my_handle_reply() {
-///     // dont forget to call important function for async runtime!
-///     gstd::record_reply();
-///
 ///     // ...
 /// }
 /// ```
@@ -265,7 +264,9 @@ pub fn async_main(attr: TokenStream, item: TokenStream) -> TokenStream {
 /// }
 /// ```
 ///
-/// You can specify `handle_reply` and `handle_signal` using parameters of same names:
+/// You can specify `handle_reply` and `handle_signal` using parameters of same names.
+/// Note that default behavior of entrypoints is kept.
+///
 /// ```ignore
 /// #[gstd::async_init(handle_signal = my_handle_signal)]
 /// async fn init() {
@@ -273,9 +274,6 @@ pub fn async_main(attr: TokenStream, item: TokenStream) -> TokenStream {
 /// }
 ///
 /// fn my_handle_signal() {
-///     // dont forget to call important function for async runtime!
-///     gstd::handle_signal();
-///
 ///     // ...
 /// }
 /// ```
