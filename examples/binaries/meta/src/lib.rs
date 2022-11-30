@@ -31,6 +31,9 @@ pub use code::WASM_METADATA;
 #[cfg(feature = "std")]
 pub use code::WASM_BINARY_OPT as WASM_BINARY;
 
+#[cfg(feature = "std")]
+pub use code::WASM_BINARY_META;
+
 #[cfg(not(feature = "std"))]
 mod wasm {
     use crate::{Id, MessageIn, MessageInitIn, MessageInitOut, MessageOut, Wallet};
@@ -40,9 +43,7 @@ mod wasm {
 
     #[no_mangle]
     unsafe extern "C" fn init() {
-        gstd::debug!("{:?}", WALLETS);
         WALLETS = Wallet::test_sequence();
-        gstd::debug!("{:?}", WALLETS);
 
         if msg::size() == 0 {
             return;
@@ -56,25 +57,21 @@ mod wasm {
 
     #[no_mangle]
     unsafe extern "C" fn handle() {
-        // gstd::debug!("{:?}", WALLETS);
-        // let message_in: MessageIn = msg::load().unwrap();
+        let message_in: MessageIn = msg::load().unwrap();
 
-        // let res = WALLETS
-        //     .iter()
-        //     .find(|w| w.id.decimal == message_in.id.decimal)
-        //     .map(Clone::clone);
+        let res = WALLETS
+            .iter()
+            .find(|w| w.id.decimal == message_in.id.decimal)
+            .map(Clone::clone);
 
-        // let message_out = MessageOut { res };
+        let message_out = MessageOut { res };
 
-        // msg::reply(message_out, 0).unwrap();
-        gstd::debug!("handle {:?}", WALLETS);
-        msg::reply(WALLETS.clone(), 0).expect("Failed to share state");
+        msg::reply(message_out, 0).unwrap();
     }
 
     #[no_mangle]
-    unsafe extern "C" fn state() {
-        gstd::debug!("{:?}", WALLETS);
-        msg::reply(WALLETS.clone(), 0).expect("Failed to share state");
+    extern "C" fn state() {
+        msg::reply(unsafe { WALLETS.clone() }, 0).expect("Failed to share state");
     }
 
     #[no_mangle]

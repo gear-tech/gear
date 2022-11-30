@@ -56,6 +56,7 @@ rand_pcg = { version = "0.3", optional = true }
 [dev-dependencies]
 env_logger = "0.9"
 wabt = "0.10"
+hex = { version = "0.4.3" }
 blake2-rfc = { version = "0.2.18", default-features = false }
 demo-async-tester = { path = "../../examples/binaries/async-tester" }
 demo-btree = { path = "../../examples/binaries/btree" }

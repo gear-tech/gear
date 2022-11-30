@@ -155,14 +155,6 @@ fn read_state_works() {
 
         let program_id = utils::get_last_program_id();
 
-        assert_ok!(Gear::send_message(
-            RuntimeOrigin::signed(USER_2),
-            program_id,
-            Default::default(),
-            DEFAULT_GAS_LIMIT * 100,
-            10_000,
-        ));
-
         run_to_next_block(None);
 
         assert!(Gear::is_initialized(program_id));
@@ -175,61 +167,63 @@ fn read_state_works() {
     });
 }
 
-// #[test]
-// fn read_state_using_wasm_works() {
-//     use demo_meta::{Id, MessageInitIn, Wallet, WASM_BINARY, WASM_BINARY_META};
+#[test]
+fn read_state_using_wasm_works() {
+    use demo_meta::{Id, MessageInitIn, Wallet, WASM_BINARY, WASM_BINARY_META};
 
-//     init_logger();
-//     new_test_ext().execute_with(|| {
-//         assert_ok!(Gear::upload_program(
-//             RuntimeOrigin::signed(USER_2),
-//             WASM_BINARY.to_vec(),
-//             DEFAULT_SALT.to_vec(),
-//             <MessageInitIn as Default>::default().encode(),
-//             DEFAULT_GAS_LIMIT * 100,
-//             10_000,
-//         ));
+    std::fs::write("a.txt", hex::encode(WASM_BINARY_META));
 
-//         let program_id = utils::get_last_program_id();
+    init_logger();
+    new_test_ext().execute_with(|| {
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_2),
+            WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            <MessageInitIn as Default>::default().encode(),
+            DEFAULT_GAS_LIMIT * 100,
+            10_000,
+        ));
 
-//         run_to_next_block(None);
+        let program_id = utils::get_last_program_id();
 
-//         assert!(Gear::is_initialized(program_id));
+        run_to_next_block(None);
 
-//         let expected = Wallet::test_sequence().encode();
+        assert!(Gear::is_initialized(program_id));
 
-//         let res = Gear::read_state_using_wasm_impl(
-//             program_id,
-//             String::from("all_wallets"),
-//             WASM_BINARY_META.to_vec(),
-//             None,
-//         )
-//         .expect("Failed to read state");
+        let expected = Wallet::test_sequence().encode();
 
-//         assert_eq!(res, expected);
+        let res = Gear::read_state_using_wasm_impl(
+            program_id,
+            String::from("all_wallets"),
+            WASM_BINARY_META.to_vec(),
+            None,
+        )
+        .expect("Failed to read state");
 
-//         let id = Id {
-//             decimal: 1,
-//             hex: vec![1],
-//         };
+        assert_eq!(res, expected);
 
-//         let expected = Wallet::test_sequence()
-//             .into_iter()
-//             .filter(|w| w.id == id)
-//             .collect::<Vec<_>>()
-//             .encode();
+        let id = Id {
+            decimal: 1,
+            hex: vec![1],
+        };
 
-//         let res = Gear::read_state_using_wasm_impl(
-//             program_id,
-//             String::from("specific_wallet"),
-//             WASM_BINARY_META.to_vec(),
-//             Some(id.encode()),
-//         )
-//         .expect("Failed to read state");
+        let expected = Wallet::test_sequence()
+            .into_iter()
+            .filter(|w| w.id == id)
+            .collect::<Vec<_>>()
+            .encode();
 
-//         assert_eq!(res, expected);
-//     });
-// }
+        let res = Gear::read_state_using_wasm_impl(
+            program_id,
+            String::from("specific_wallet"),
+            WASM_BINARY_META.to_vec(),
+            Some(id.encode()),
+        )
+        .expect("Failed to read state");
+
+        assert_eq!(res, expected);
+    });
+}
 
 #[test]
 fn mailbox_rent_out_of_rent() {
