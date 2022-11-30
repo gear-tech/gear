@@ -484,6 +484,7 @@ mod tests {
         let t = trybuild::TestCases::new();
         t.pass("tests/ui/async_init_works.rs");
         t.pass("tests/ui/async_main_works.rs");
-        t.compile_fail("tests/ui/double_definition_not_work.rs");
+        t.compile_fail("tests/ui/signal_double_definition_not_work.rs");
+        t.compile_fail("tests/ui/reply_double_definition_not_work.rs");
     }
 }
