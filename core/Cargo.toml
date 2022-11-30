@@ -19,6 +19,7 @@ gear-wasm-instrument = { path = "../utils/wasm-instrument", default-features = f
 wasmparser = { package = "wasmparser-nostd", version = "0.91.0", default-features = false }
 hex = { version = "0.4.3", default-features = false, features = ["alloc"] }
 static_assertions = "1"
+serde = { version = "1", default-features = false, features = ["derive"] }
 
 [dev-dependencies]
 wabt = "0.10.0"

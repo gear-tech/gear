@@ -45,8 +45,9 @@ mod tests;
 pub use crate::{
     manager::{ExtManager, HandleKind},
     pallet::*,
-    schedule::{HostFnWeights, InstructionWeights, Limits, Schedule},
+    schedule::{HostFnWeights, InstructionWeights, Schedule},
 };
+pub use gear_core::limits::Limits;
 pub use weights::WeightInfo;
 
 use common::{

@@ -24,13 +24,12 @@
 use crate::{weights::WeightInfo, Config};
 
 use codec::{Decode, Encode};
-use gear_core::{code, costs::HostFnWeights as CoreHostFnWeights};
+use gear_core::{costs::HostFnWeights as CoreHostFnWeights, limits::Limits};
 use gear_wasm_instrument::{parity_wasm::elements, wasm_instrument::gas_metering};
 use pallet_gear_proc_macro::{ScheduleDebug, WeightDebug};
 use scale_info::TypeInfo;
 #[cfg(feature = "std")]
 use serde::{Deserialize, Serialize};
-use sp_runtime::RuntimeDebug;
 use sp_std::{marker::PhantomData, vec::Vec};
 
 /// How many API calls are executed in a single batch. The reason for increasing the amount
@@ -98,78 +97,6 @@ pub struct Schedule<T: Config> {
 
     /// Single db read per byte cost.
     pub db_read_per_byte: u64,
-}
-
-/// Describes the upper limits on various metrics.
-///
-/// # Note
-///
-/// The values in this struct should never be decreased. The reason is that decreasing those
-/// values will break existing programs which are above the new limits when a
-/// re-instrumentation is triggered.
-#[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
-#[derive(Clone, Encode, Decode, PartialEq, Eq, RuntimeDebug, TypeInfo)]
-pub struct Limits {
-    /// Maximum allowed stack height in number of elements.
-    ///
-    /// See <https://wiki.parity.io/WebAssembly-StackHeight> to find out
-    /// how the stack frame cost is calculated. Each element can be of one of the
-    /// wasm value types. This means the maximum size per element is 64bit.
-    ///
-    /// # Note
-    ///
-    /// It is safe to disable (pass `None`) the `stack_height` when the execution engine
-    /// is part of the runtime and hence there can be no indeterminism between different
-    /// client resident execution engines.
-    pub stack_height: Option<u32>,
-
-    /// Maximum number of globals a module is allowed to declare.
-    ///
-    /// Globals are not limited through the `stack_height` as locals are. Neither does
-    /// the linear memory limit `memory_pages` applies to them.
-    pub globals: u32,
-
-    /// Maximum numbers of parameters a function can have.
-    ///
-    /// Those need to be limited to prevent a potentially exploitable interaction with
-    /// the stack height instrumentation: The costs of executing the stack height
-    /// instrumentation for an indirectly called function scales linearly with the amount
-    /// of parameters of this function. Because the stack height instrumentation itself is
-    /// is not weight metered its costs must be static (via this limit) and included in
-    /// the costs of the instructions that cause them (call, call_indirect).
-    pub parameters: u32,
-
-    /// Maximum number of memory pages allowed for a program.
-    pub memory_pages: u32,
-
-    /// Maximum number of elements allowed in a table.
-    ///
-    /// Currently, the only type of element that is allowed in a table is funcref.
-    pub table_size: u32,
-
-    /// Maximum number of elements that can appear as immediate value to the br_table instruction.
-    pub br_table_size: u32,
-
-    /// The maximum length of a subject in bytes used for PRNG generation.
-    pub subject_len: u32,
-
-    /// The maximum nesting level of the call stack.
-    pub call_depth: u32,
-
-    /// The maximum size of a message payload in bytes.
-    pub payload_len: u32,
-
-    /// The maximum length of a program code in bytes. This limit applies to the instrumented
-    /// version of the code. Therefore `instantiate_with_code` can fail even when supplying
-    /// a wasm binary below this maximum size.
-    pub code_len: u32,
-}
-
-impl Limits {
-    /// The maximum memory size in bytes that a program can occupy.
-    pub fn max_memory_size(&self) -> u32 {
-        self.memory_pages * 64 * 1024
-    }
 }
 
 /// Describes the weight for all categories of supported wasm instructions.
@@ -498,24 +425,6 @@ impl<T: Config> Default for Schedule<T> {
             db_write_per_byte: cost_byte!(db_write_per_kb),
             db_read_per_byte: cost_byte!(db_read_per_kb),
             module_instantiation_per_byte: cost_byte!(instantiate_module_per_kb),
-        }
-    }
-}
-
-impl Default for Limits {
-    fn default() -> Self {
-        Self {
-            stack_height: None,
-            globals: 256,
-            parameters: 128,
-            memory_pages: code::MAX_WASM_PAGE_COUNT,
-            // 4k function pointers (This is in count not bytes).
-            table_size: 4096,
-            br_table_size: 256,
-            subject_len: 32,
-            call_depth: 32,
-            payload_len: 16 * 64 * 1024,
-            code_len: 512 * 1024,
         }
     }
 }

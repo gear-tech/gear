@@ -3045,6 +3045,7 @@ dependencies = [
  "log",
  "parity-scale-codec",
  "scale-info",
+ "serde",
  "static_assertions",
  "wabt",
  "wasmparser-nostd 0.91.0",
