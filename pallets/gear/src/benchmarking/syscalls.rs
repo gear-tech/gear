@@ -1066,8 +1066,8 @@ where
 
     pub fn gr_error(r: u32) -> Result<Exec<T>, &'static str> {
         let status_code_offset = 1;
-        let error_offset = status_code_offset + size_of::<i32>() as i32;
-        let error_len_offset = error_offset + size_of::<u32>() as i32;
+        let error_len_offset = status_code_offset + size_of::<i32>() as i32;
+        let error_offset = error_len_offset + size_of::<u32>() as i32;
 
         let code = WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),

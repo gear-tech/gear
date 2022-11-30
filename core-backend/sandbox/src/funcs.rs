@@ -944,8 +944,8 @@ where
                         Err(length) => length,
                     };
 
-                    ctx.write_output(err_len_ptr, &length.to_le_bytes())?;
-                    ctx.ext.charge_error().map_err(RuntimeCtxError::Ext)
+                    ctx.ext.charge_error().map_err(RuntimeCtxError::Ext)?;
+                    ctx.write_output(err_len_ptr, &length.to_le_bytes())
                 })
         })
     }
