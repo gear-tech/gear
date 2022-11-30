@@ -708,9 +708,9 @@ benchmarks! {
     }
 
     gr_random {
-        let r in 0 .. API_BENCHMARK_BATCHES;
+        let n in 0 .. API_BENCHMARK_BATCHES;
         let mut res = None;
-        let exec = Benches::<T>::gr_random(r)?;
+        let exec = Benches::<T>::gr_random(n, T::Schedule::get().limits.subject_len)?;
     }: {
         res.replace(run_process(exec));
     }
