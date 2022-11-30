@@ -56,17 +56,19 @@ mod wasm {
 
     #[no_mangle]
     unsafe extern "C" fn handle() {
-        gstd::debug!("{:?}", WALLETS);
-        let message_in: MessageIn = msg::load().unwrap();
+        // gstd::debug!("{:?}", WALLETS);
+        // let message_in: MessageIn = msg::load().unwrap();
 
-        let res = WALLETS
-            .iter()
-            .find(|w| w.id.decimal == message_in.id.decimal)
-            .map(Clone::clone);
+        // let res = WALLETS
+        //     .iter()
+        //     .find(|w| w.id.decimal == message_in.id.decimal)
+        //     .map(Clone::clone);
 
-        let message_out = MessageOut { res };
+        // let message_out = MessageOut { res };
 
-        msg::reply(message_out, 0).unwrap();
+        // msg::reply(message_out, 0).unwrap();
+        gstd::debug!("handle {:?}", WALLETS);
+        msg::reply(WALLETS.clone(), 0).expect("Failed to share state");
     }
 
     #[no_mangle]

@@ -423,7 +423,6 @@ pub fn execute_wasm<
         })
     };
 
-    log::debug!("REAL HELLO:\nallocations:{allocations:?},memory_size:{memory_size:?},static_pages:{static_pages:?}");
     let (termination, memory, ext) = match f() {
         Ok(BackendReport {
             termination_reason: termination,
@@ -510,18 +509,19 @@ E: Environment<A>>(
     // TODO: consider support non-lazy-pages context execution
     // pages_initial_data: Option<BTreeMap<PageNumber, PageBuf>>,
     allocations: Option<BTreeSet<WasmPageNumber>>,
+    program_id: Option<ProgramId>,
     payload: Vec<u8>,
     gas_limit: u64,
 ) -> Result<Vec<u8>, String> {
-    let program = Program::new(ProgramId::from(0), instrumented_code);
+    let program = Program::new(program_id.unwrap_or_default(), instrumented_code);
     let mut pages_initial_data: BTreeMap<PageNumber, PageBuf> = Default::default();
     let static_pages = program.static_pages();
     let allocations = allocations.unwrap_or_else(|| program.allocations().clone());
 
     let memory_size = if let Some(page) = allocations.iter().next_back() {
-        *page
+        *page + 1.into()
     } else if static_pages != WasmPageNumber(0) {
-        static_pages + 1.into()
+        static_pages
     } else {
         0.into()
     };
@@ -537,7 +537,7 @@ E: Environment<A>>(
             Default::default(),
         ),
         value_counter: ValueCounter::new(Default::default()),
-        allocations_context: AllocationsContext::new(allocations, static_pages, 512.into()),
+        allocations_context: AllocationsContext::new(allocations.clone(), static_pages, 512.into()),
         message_context: MessageContext::new(
             IncomingMessage::new(
                 Default::default(),
@@ -566,7 +566,7 @@ E: Environment<A>>(
         },
         existential_deposit: Default::default(),
         origin: Default::default(),
-        program_id: Default::default(),
+        program_id: program.id(),
         program_candidates_data: Default::default(),
         host_fn_weights: Default::default(),
         forbidden_funcs: Default::default(),
@@ -599,8 +599,6 @@ E: Environment<A>>(
             )
         })
     };
-
-    log::debug!("HELLO:\nallocations:{allocations:?},memory_size:{memory_size:?},static_pages:{static_pages:?}");
 
     let (termination, memory, ext) = match f() {
         Ok(BackendReport {

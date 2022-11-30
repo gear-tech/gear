@@ -218,7 +218,7 @@ impl WasmProject {
             .as_ref()
             .map(|m| {
                 format!(
-                    "#[allow(unused)] pub const WASM_METADATA: &[u8] = {:?};\n",
+                    "#[allow(unused)] pub const WASM_METADATA: &[u8] = &{:?};\n",
                     m.bytes()
                 )
             })

@@ -790,6 +790,7 @@ pub mod pallet {
                 function,
                 instrumented_code,
                 None,
+                None,
                 payload,
                 BlockGasLimitOf::<T>::get() / 4,
             )
@@ -841,6 +842,7 @@ pub mod pallet {
                 String::from("state"),
                 code,
                 Some(allocations),
+                Some(program_id),
                 Default::default(),
                 BlockGasLimitOf::<T>::get() / 4,
             )
@@ -867,6 +869,7 @@ pub mod pallet {
                 String::from("metahash"),
                 code,
                 Some(allocations),
+                Some(program_id),
                 Default::default(),
                 BlockGasLimitOf::<T>::get() / 4,
             ).and_then(|bytes| H256::decode(&mut bytes.as_ref()).map_err(|_| "Failed to decode hash".into()))
