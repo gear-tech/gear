@@ -35,7 +35,7 @@ pallet-balances = { version = "4.0.0-dev", default-features = false, git = "http
 pallet-authorship = { version = "4.0.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
 
 [dev-dependencies]
-serde = "1.0.145"
+serde = "1.0.148"
 env_logger = "0.10"
 wabt = "0.10"
 gear-backend-sandbox = { path = "../../core-backend/sandbox", default-features = false }
