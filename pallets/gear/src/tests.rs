@@ -6551,7 +6551,7 @@ fn signal_recursion_not_occurs() {
 
         // check signal dispatch panicked
         assert_eq!(MailboxOf::<Test>::iter_key(USER_1).last(), None);
-        let signal_msg_id = MessageId::generate_signal(mid, 1);
+        let signal_msg_id = MessageId::generate_signal(mid);
         let status = dispatch_status(signal_msg_id);
         assert_eq!(status, Some(DispatchStatus::Failed));
 
@@ -7038,7 +7038,7 @@ fn dispatch_kind_forbidden_function() {
 
         // check signal dispatch panicked
         assert_eq!(MailboxOf::<Test>::iter_key(USER_1).last(), None);
-        let signal_msg_id = MessageId::generate_signal(mid, 1);
+        let signal_msg_id = MessageId::generate_signal(mid);
         let status = dispatch_status(signal_msg_id);
         assert_eq!(status, Some(DispatchStatus::Failed));
 
