@@ -68,6 +68,7 @@ use gear_core::{
 use gear_core_errors::*;
 use sp_runtime::{traits::UniqueSaturatedInto, SaturatedConversion};
 use sp_std::convert::TryFrom;
+pub use utils::init_logger;
 use utils::*;
 
 #[test]
@@ -6988,13 +6989,13 @@ mod utils {
     };
     use crate::{
         mock::{Balances, Gear, System},
-        BalanceOf, GasInfo, HandleKind,
+        BalanceOf, GasInfo, HandleKind, SentOf,
     };
     use codec::Decode;
     use common::{
         event::*,
-        storage::{CountedByKey, IterableByKeyMap},
-        Origin as _,
+        storage::{CountedByKey, Counter, IterableByKeyMap},
+        Origin,
     };
     use core_processor::common::ExecutionErrorReason;
     use frame_support::{
@@ -7024,7 +7025,11 @@ mod utils {
 
     type BlockNumber = <Test as frame_system::Config>::BlockNumber;
 
-    pub(super) fn init_logger() {
+    pub(super) fn hash(data: impl AsRef<[u8]>) -> [u8; 32] {
+        sp_core::blake2_256(data.as_ref())
+    }
+
+    pub fn init_logger() {
         let _ = env_logger::Builder::from_default_env()
             .format_module_path(false)
             .format_level(true)

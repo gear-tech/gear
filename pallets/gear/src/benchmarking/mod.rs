@@ -40,7 +40,9 @@ mod sandbox;
 use ::alloc::vec;
 
 mod syscalls;
+mod tests;
 use syscalls::Benches;
+use tests::syscalls_integrity;
 
 use self::{
     code::{
@@ -56,7 +58,11 @@ use crate::{
     MailboxOf, Pallet as Gear, Pallet, QueueOf, Schedule,
 };
 use codec::Encode;
-use common::{benchmarking, storage::*, CodeMetadata, CodeStorage, GasPrice, GasTree, Origin};
+use common::{
+    self, benchmarking,
+    storage::{Counter, *},
+    CodeMetadata, CodeStorage, GasPrice, GasTree, Origin, QueueRunner,
+};
 use core_processor::{
     common::{DispatchOutcome, JournalNote},
     configs::BlockConfig,
@@ -82,7 +88,7 @@ use sp_consensus_babe::{
 };
 use sp_core::H256;
 use sp_runtime::{
-    traits::{Bounded, One, UniqueSaturatedInto},
+    traits::{Bounded, CheckedAdd, One, UniqueSaturatedInto, Zero},
     Digest, DigestItem, Perbill,
 };
 use sp_std::prelude::*;
@@ -97,7 +103,7 @@ const API_BENCHMARK_BATCHES: u32 = 20;
 const INSTR_BENCHMARK_BATCHES: u32 = 50;
 
 // Initializes new block.
-fn init_block<T: Config>()
+fn init_block<T: Config>(previous: Option<T::BlockNumber>)
 where
     T::AccountId: Origin,
 {
@@ -114,7 +120,10 @@ where
         )],
     };
 
-    let bn = One::one();
+    let bn = previous
+        .unwrap_or_else(Zero::zero)
+        .checked_add(&One::one())
+        .expect("overflow");
 
     SystemPallet::<T>::initialize(&bn, &SystemPallet::<T>::parent_hash(), &pre_digest);
     SystemPallet::<T>::set_block_number(bn);
@@ -127,7 +136,7 @@ fn process_queue<T: Config>()
 where
     T::AccountId: Origin,
 {
-    init_block::<T>();
+    init_block::<T>(None);
 
     Gear::<T>::process_queue(Default::default());
 }
@@ -278,6 +287,11 @@ benchmarks! {
         T::AccountId: Origin,
     }
 
+    #[extra]
+    check_syscalls_integrity {
+        syscalls_integrity::main_test::<T>();
+    }: {}
+
     // This bench uses `StorageMap` as a storage, due to the fact that
     // the most of the gear storages represented with this type.
     db_write_per_kb {
@@ -344,7 +358,7 @@ benchmarks! {
             None,
         ), u32::MAX.unique_saturated_into()).expect("Error during mailbox insertion");
 
-        init_block::<T>();
+        init_block::<T>(None);
     }: _(RawOrigin::Signed(caller.clone()), original_message_id)
     verify {
         assert!(matches!(QueueOf::<T>::dequeue(), Ok(None)));
@@ -363,7 +377,7 @@ benchmarks! {
         let WasmModule { code, hash: code_id, .. } = WasmModule::<T>::sized(c * 1024, Location::Handle);
         let origin = RawOrigin::Signed(caller);
 
-        init_block::<T>();
+        init_block::<T>(None);
     }: _(origin, code)
     verify {
         assert!(<T as pallet::Config>::CodeStorage::exists(code_id));
@@ -388,7 +402,7 @@ benchmarks! {
         <T as pallet::Config>::Currency::make_free_balance_be(&caller, caller_funding::<T>());
         let origin = RawOrigin::Signed(caller);
 
-        init_block::<T>();
+        init_block::<T>(None);
     }: _(origin, code_id, salt, vec![], 100_000_000_u64, value)
     verify {
         assert!(<T as pallet::Config>::CodeStorage::exists(code_id));
@@ -416,7 +430,7 @@ benchmarks! {
         let WasmModule { code, hash, .. } = WasmModule::<T>::sized(c * 1024, Location::Handle);
         let origin = RawOrigin::Signed(caller);
 
-        init_block::<T>();
+        init_block::<T>(None);
     }: _(origin, code, salt, vec![], 100_000_000_u64, value)
     verify {
         assert!(matches!(QueueOf::<T>::dequeue(), Ok(Some(_))));
@@ -432,7 +446,7 @@ benchmarks! {
         benchmarking::set_program(program_id.into_origin(), code, 1.into());
         let payload = vec![0_u8; p as usize];
 
-        init_block::<T>();
+        init_block::<T>(None);
     }: _(RawOrigin::Signed(caller), program_id, payload, 100_000_000_u64, minimum_balance)
     verify {
         assert!(matches!(QueueOf::<T>::dequeue(), Ok(Some(_))));
@@ -462,7 +476,7 @@ benchmarks! {
         ), u32::MAX.unique_saturated_into()).expect("Error during mailbox insertion");
         let payload = vec![0_u8; p as usize];
 
-        init_block::<T>();
+        init_block::<T>(None);
     }: _(RawOrigin::Signed(caller.clone()), original_message_id, payload, 100_000_000_u64, minimum_balance)
     verify {
         assert!(matches!(QueueOf::<T>::dequeue(), Ok(Some(_))));
