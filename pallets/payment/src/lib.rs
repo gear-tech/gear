@@ -105,6 +105,7 @@ where
         // Override DispatchInfo struct for call variants exempted from weight fee multiplication
         let info = Self::pre_dispatch_info(call, info);
         let res = self.0.validate(who, call, &info, len);
+        log::info!("{:?}", res);
         T::AdditionalTxValidator::validate(who, call)?;
 
         res
@@ -348,7 +349,9 @@ where
                 .value
                 .checked_add(&GP::gas_price(mr.gas))
                 .ok_or(InvalidTransaction::Payment)?;
-            (total >= C::free_balance(who))
+            log::info!("{:?}", total);
+            log::info!("{:?}", C::free_balance(who));
+            (C::free_balance(who) >= total)
                 .then_some(())
                 .ok_or(InvalidTransaction::Payment.into())
         } else {

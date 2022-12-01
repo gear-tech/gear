@@ -32,7 +32,7 @@ use gear_core::{
 };
 use pallet_transaction_payment::{FeeDetails, InclusionFee, Multiplier, RuntimeDispatchInfo};
 use primitive_types::H256;
-use sp_runtime::{testing::TestXt, traits::SignedExtension, FixedPointNumber};
+use sp_runtime::{testing::TestXt, traits::SignedExtension, FixedPointNumber, generic::UncheckedExtrinsic};
 
 type WeightToFeeFor<T> = <T as pallet_transaction_payment::Config>::WeightToFee;
 type LengthToFeeFor<T> = <T as pallet_transaction_payment::Config>::LengthToFee;
@@ -47,6 +47,13 @@ macro_rules! assert_approx_eq {
             $tol
         );
     }};
+}
+
+fn init_logger() {
+    let _ = env_logger::Builder::from_default_env()
+        .format_module_path(false)
+        .format_level(true)
+        .try_init();
 }
 
 fn info_from_weight(weight: Weight) -> DispatchInfo {
@@ -93,6 +100,23 @@ where
 
         assert_ok!(QueueOf::<T>::queue(dispatch).map_err(|_| "Error pushing back stored dispatch"));
     }
+}
+
+// 1. Calls that are always valid
+// 2. Simply validate/invalidate the call. Pre dispatch should give the same result
+// 3. Emulate when tx validated and then became invalid
+
+#[test]
+fn additional_validation_works() {
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let call = RuntimeCall::Gear(pallet_gear::Call::upload_program { code: vec![1,2,3], salt: vec![1,2,3], init_payload: vec![], gas_limit: 1, value: 600 });
+        let len = 100;
+        let info = info_from_weight(Weight::from_ref_time(100));
+        log::info!("{:?}", TransactionPayment::compute_fee(len as u32, &info, 0));
+        assert_ok!(CustomChargeTransactionPayment::<Test>::from(0).validate(&ALICE, &call, &info, len));
+        log::info!("{:?}", Balances::free_balance(ALICE))
+    })
 }
 
 #[test]

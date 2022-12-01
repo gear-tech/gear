@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate as pallet_gear_payment;
+use crate::{self as pallet_gear_payment, GearTxValidator, MessageResourcesU64Gas};
 use frame_support::{
     construct_runtime, parameter_types,
     traits::{
@@ -43,6 +43,8 @@ type Block = frame_system::mocking::MockBlock<Test>;
 pub const ALICE: u64 = 1;
 pub const BLOCK_AUTHOR: u64 = 255;
 
+type Balance = u128;
+
 // Configure a mock runtime to test the pallet.
 construct_runtime!(
     pub enum Test where
@@ -68,7 +70,7 @@ impl pallet_balances::Config for Test {
     type MaxLocks = ();
     type MaxReserves = ();
     type ReserveIdentifier = [u8; 8];
-    type Balance = u128;
+    type Balance = Balance;
     type DustRemoval = ();
     type RuntimeEvent = RuntimeEvent;
     type ExistentialDeposit = ExistentialDeposit;
@@ -157,7 +159,7 @@ impl pallet_transaction_payment::Config for Test {
 
 pub struct GasConverter;
 impl common::GasPrice for GasConverter {
-    type Balance = u128;
+    type Balance = Balance;
     type GasToBalanceMultiplier = ConstU128<1_000>;
 }
 
@@ -242,9 +244,35 @@ impl Contains<RuntimeCall> for ExtraFeeFilter {
     }
 }
 
+// Required by `GearTxValidator`
+impl common::TryExtract<MessageResourcesU64Gas<Balance>> for RuntimeCall {
+    fn try_extract(&self) -> Option<MessageResourcesU64Gas<Balance>> {
+        use pallet_gear::Call::*;
+        match self {
+            RuntimeCall::Gear(upload_program {
+                gas_limit, value, ..
+            })
+            | RuntimeCall::Gear(create_program {
+                gas_limit, value, ..
+            })
+            | RuntimeCall::Gear(send_message {
+                gas_limit, value, ..
+            })
+            | RuntimeCall::Gear(send_reply {
+                gas_limit, value, ..
+            }) => Some(MessageResourcesU64Gas {
+                gas: *gas_limit,
+                value: *value,
+            }),
+            _ => None,
+        }
+    }
+}
+
 impl pallet_gear_payment::Config for Test {
     type ExtraFeeCallFilter = ExtraFeeFilter;
     type Messenger = GearMessenger;
+    type AdditionalTxValidator = GearTxValidator<Balances, GasConverter>;
 }
 
 // Build genesis storage according to the mock runtime.
