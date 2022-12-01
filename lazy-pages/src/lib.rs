@@ -28,7 +28,7 @@
 
 use gear_core::{
     lazy_pages::{AccessError, GlobalsCtx, Status},
-    memory::{to_page_iter, PageNumber, PageU32Size, WasmPageNumber, PAGE_STORAGE_GRANULARITY},
+    memory::{to_page_iter, PageNumber, PageU32Size, WasmPageNumber, GranularityPage, PAGE_STORAGE_GRANULARITY},
 };
 use once_cell::sync::OnceCell;
 use sp_std::vec::Vec;
@@ -61,14 +61,12 @@ pub(crate) enum Error {
     WasmMemSizeIsNotSet,
     #[display(fmt = "Program pages prefix in storage is not set")]
     ProgramPrefixIsNotSet,
-
     #[display(
         fmt = "Page data in storage must contain {} bytes, actually has {}",
         expected,
         actual
     )]
     InvalidPageDataSize { expected: u32, actual: u32 },
-    /// Found a write signal from same page twice - restricted, see more in a head comment.
     #[display(fmt = "Any page cannot be released twice: {_0:?}")]
     DoubleRelease(LazyPage),
     #[display(fmt = "Protection error: {_0}")]
@@ -86,10 +84,6 @@ pub(crate) enum Error {
     StatusIsNone,
     #[display(fmt = "It's unknown wether memory access is read or write")]
     ReadOrWriteIsUnknown,
-    #[display(
-        fmt = "Second access cannot be read, because read protection must be removed for page"
-    )]
-    SecondAccessIsNotWrite,
 }
 
 #[derive(Clone, Copy)]
@@ -168,9 +162,9 @@ pub fn initialize_for_program(
     use InitializeForProgramError::*;
     LAZY_PAGES_CONTEXT.with(|ctx| {
         let mut ctx = ctx.borrow_mut();
-        ctx.accessed_lazy_pages.clear();
-        ctx.released_pages.clear();
-        ctx.status = Some(Status::Normal);
+        *ctx = LazyPagesExecutionContext::default();
+
+        ctx.status.replace(Status::Normal);
 
         if let Some(addr) = wasm_mem_addr {
             if addr % region::page::size() != 0 {
@@ -227,20 +221,6 @@ pub fn initialize_for_program(
     })
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Eq, Ord, derive_more::From)]
-struct GranularityPage(u32);
-
-impl GranularityPage {
-    pub fn size() -> u32 {
-        PAGE_STORAGE_GRANULARITY as u32
-    }
-    pub fn from_offset(offset: u32) -> Self {
-        Self(offset / Self::size())
-    }
-    // pub fn offset(&self) -> u32 {
-    //     self.0 * Self::size()
-    // }
-}
 
 #[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Eq, Ord)]
 struct LazyPage(u32);
@@ -258,34 +238,6 @@ impl PageU32Size for LazyPage {
         Self(num)
     }
 }
-
-// impl LazyPage {
-//     pub fn size() -> u32 {
-//         region::page::size().max(PageNumber::size()) as u32
-//     }
-//     pub fn from_offset(offset: u32) -> Self {
-//         Self(offset / Self::size())
-//     }
-//     pub fn offset(&self) -> u32 {
-//         self.0 * Self::size()
-//     }
-//     pub fn to_gear_page(&self) -> PageNumber {
-//         PageNumber::from(self.0 * Self::size() / PageNumber::size() as u32)
-//     }
-//     pub fn to_gear_pages_iter(&self) -> impl Iterator<Item = PageNumber> {
-//         let page = self.to_gear_page();
-//         (page.0..page.0 + Self::size() / PageNumber::size() as u32).map(PageNumber)
-//     }
-// }
-
-// impl Incrementable for LazyPage {
-//     fn increment(&self) -> IncResult<Self> {
-//         self.0.checked_add(1).map_or_else(
-//             || IncResult::OutOfBounds,
-//             |res| IncResult::Ok(LazyPage(res)),
-//         )
-//     }
-// }
 
 impl Step for LazyPage {
     fn steps_between(start: &Self, end: &Self) -> Option<usize> {

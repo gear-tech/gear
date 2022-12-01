@@ -129,24 +129,36 @@ pub fn vec_page_data_map_to_page_buf_map(
     Ok(pages_data_res)
 }
 
+/// Errors when act with PageU32Size.
 #[derive(Debug, Clone, derive_more::Display)]
 pub enum PageError {
+    /// Addition overflow.
     #[display(fmt = "{} + {} overflows u32", _0, _1)]
     AddOverflowU32(u32, u32),
+    /// Subtraction overflow.
     #[display(fmt = "{} - {} overflows u32", _0, _1)]
     SubOverflowU32(u32, u32),
+    /// Overflow U32 memory size: has bytes, which has offset bigger then u32::MAX.
     #[display(fmt = "{} is too big to be number of page with size {}", _0, _1)]
     OverflowU32MemorySize(u32, u32),
 }
 
+/// Trait represents page with u32 size for u32 memory: max memory size is 2^32 bytes.
+/// All operations with page guarantees, that no addr or page number can be overflowed.
 pub trait PageU32Size: Sized + Clone + Copy + PartialEq + Eq {
+    /// Returns size of page. Important cannot be 0, in other case trait will not work correctly.
     fn size() -> u32;
+    /// Returns raw page number.
     fn raw(&self) -> u32;
+    /// Constructs new page without any checks, and doesn't guarantee, that page offset is in not overflowed.
     unsafe fn new_unchecked(num: u32) -> Self;
 
+    /// Constructs new page from byte offset: returns page which contains this byte.
     fn from_offset(offset: u32) -> Self {
         unsafe { Self::new_unchecked(offset / Self::size()) }
     }
+    /// Constructs new page from raw page number with checks.
+    /// Returns error if page will contain bytes, with offsets bigger then u32::MAX.
     fn new(num: u32) -> Result<Self, PageError> {
         let page_begin = num
             .checked_mul(Self::size())
@@ -160,42 +172,55 @@ pub trait PageU32Size: Sized + Clone + Copy + PartialEq + Eq {
         // Now it is safe
         unsafe { Ok(Self::new_unchecked(num)) }
     }
+    /// Returns page zero byte offset.
     fn offset(&self) -> u32 {
         self.raw() * Self::size()
     }
+    /// Returns page last byte offset.
     fn end_offset(&self) -> u32 {
-        (self.raw() + 1) * Self::size()
+        self.raw() * Self::size() + (Self::size() - 1)
     }
+    /// Returns new page, which impls PageU32Size, and contains self zero byte.
     fn to_page<PAGE: PageU32Size>(&self) -> PAGE {
         unsafe { PAGE::new_unchecked(self.offset() / PAGE::size()) }
     }
+    /// Returns page which has number `page.raw() + raw`, with checks.
     fn add_raw(&self, raw: u32) -> Result<Self, PageError> {
         self.raw()
             .checked_add(raw)
             .map(Self::new)
             .ok_or(PageError::AddOverflowU32(self.raw(), raw))?
     }
+    /// Returns page which has number `page.raw() - raw`, with checks.
     fn sub_raw(&self, raw: u32) -> Result<Self, PageError> {
         self.raw()
             .checked_sub(raw)
             .map(Self::new)
             .ok_or(PageError::SubOverflowU32(self.raw(), raw))?
     }
+    /// Returns page which has number `page.raw() + other.raw()`, with checks.
     fn add(&self, other: Self) -> Result<Self, PageError> {
         self.add_raw(other.raw())
     }
+    /// Returns page which has number `page.raw() - other.raw()`, with checks.
     fn sub(&self, other: Self) -> Result<Self, PageError> {
         self.sub_raw(other.raw())
     }
+    /// Returns page which has number `page.raw() + 1`, with checks.
     fn inc(&self) -> Result<Self, PageError> {
         self.add_raw(1)
     }
+    /// Returns page which has number `page.raw() - 1`, with checks.
     fn dec(&self) -> Result<Self, PageError> {
         self.sub_raw(1)
     }
+    /// Aligns page zero byte and returns page which contains this byte.
+    /// Normally if `size % Self::size() == 0`,
+    /// then aligned byte is zero byte of the returned page.
     fn align_down(&self, size: u32) -> Self {
         Self::from_offset((self.offset() / size) * size)
     }
+    /// Returns page, which has zero byte offset == 0.
     fn zero() -> Self {
         unsafe { Self::new_unchecked(0) }
     }
@@ -262,6 +287,38 @@ impl PageU32Size for WasmPageNumber {
     }
 }
 
+/// Page with size [PAGE_STORAGE_GRANULARITY].
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub struct GranularityPage(u32);
+
+impl PageU32Size for GranularityPage {
+    fn size() -> u32 {
+        PAGE_STORAGE_GRANULARITY as u32
+    }
+
+    fn raw(&self) -> u32 {
+        self.0
+    }
+
+    unsafe fn new_unchecked(num: u32) -> Self {
+        Self(num)
+    }
+}
+
+impl Step for PageNumber {
+    fn steps_between(start: &Self, end: &Self) -> Option<usize> {
+        u32::steps_between(&start.0, &end.0)
+    }
+
+    fn forward_checked(start: Self, count: usize) -> Option<Self> {
+        Self::new(u32::forward_checked(start.0, count)?).ok()
+    }
+
+    fn backward_checked(start: Self, count: usize) -> Option<Self> {
+        Self::new(u32::backward_checked(start.0, count)?).ok()
+    }
+}
+
 impl Step for WasmPageNumber {
     fn steps_between(start: &Self, end: &Self) -> Option<usize> {
         u32::steps_between(&start.0, &end.0)
@@ -279,29 +336,16 @@ impl Step for WasmPageNumber {
 impl From<u16> for WasmPageNumber {
     fn from(value: u16) -> Self {
         // u16::MAX * WasmPageNumber::size() - 1 == u32::MAX
+        static_assertions::const_assert!(WASM_PAGE_SIZE == 0x10000);
         WasmPageNumber(value as u32)
     }
 }
 
 impl From<u16> for PageNumber {
     fn from(value: u16) -> Self {
-        static_assertions::const_assert!(GEAR_PAGE_SIZE <= 0x10000);
         // u16::MAX * PageNumber::size() - 1 <= u32::MAX
+        static_assertions::const_assert!(GEAR_PAGE_SIZE <= 0x10000);
         PageNumber(value as u32)
-    }
-}
-
-impl Step for PageNumber {
-    fn steps_between(start: &Self, end: &Self) -> Option<usize> {
-        u32::steps_between(&start.0, &end.0)
-    }
-
-    fn forward_checked(start: Self, count: usize) -> Option<Self> {
-        Self::new(u32::forward_checked(start.0, count)?).ok()
-    }
-
-    fn backward_checked(start: Self, count: usize) -> Option<Self> {
-        Self::new(u32::backward_checked(start.0, count)?).ok()
     }
 }
 
@@ -374,9 +418,12 @@ impl GrowHandler for GrowHandlerNothing {
     }
 }
 
+/// Alloc method result.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct AllocResult {
+    /// Zero page of allocated interval.
     pub page: WasmPageNumber,
+    /// Number of pages, which has been allocated inside already existing memory.
     pub not_grown: WasmPageNumber,
 }
 
@@ -447,7 +494,7 @@ impl AllocationsContext {
             // that `mem_size` is bigger or equal than all allocated pages or static pages.
             let extra_grow = end.sub(mem_size).expect("unreachable");
 
-            // Panic is safe, in other case we would found interval inside existed memory.
+            // Panic is safe, in other case we would found interval inside existing memory.
             if extra_grow == WasmPageNumber::zero() {
                 unreachable!();
             }
@@ -463,7 +510,7 @@ impl AllocationsContext {
             (start, not_grown)
         };
 
-        // Panic is safe, we have calculated `start` is suitable for `pages`.
+        // Panic is safe, we calculated `start` suitable for `pages`.
         let end = start.add(pages).expect("unreachable");
         for page in start..end {
             self.allocations.insert(page);

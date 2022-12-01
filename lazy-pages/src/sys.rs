@@ -303,7 +303,7 @@ pub(crate) unsafe fn process_lazy_pages(
 
     if let Some(last_page) = accessed_pages.last() {
         // Check that all pages are inside wasm memory.
-        if last_page.end_offset() > wasm_mem_size.offset() {
+        if last_page.end_offset() >= wasm_mem_size.offset() {
             return Err(Error::OutOfWasmMemoryAccess);
         }
     } else {
@@ -330,7 +330,7 @@ pub(crate) unsafe fn process_lazy_pages(
                 start = start.align_down(psg);
             }
             if !sp_io::storage::exists(prefix.calc_key_for_page(end.to_page())) {
-                // Make `end_offset()` aligned to `psg` page for `end`.
+                // Make page end aligned to `psg` for `end`.
                 // This operations are safe, because `psg` is power of two and smaller then `u32::MAX`.
                 // `LazyPage::size()` is less or equal then `psg` and `psg % LazyPage::size() == 0`.
                 end = LazyPage::from_offset((end.offset() / psg) * psg + (psg - LazyPage::size()));

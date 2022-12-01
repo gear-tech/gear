@@ -110,7 +110,7 @@ pub fn mprotect_mem_interval_except_pages(
         if page_offset > interval_offset {
             mprotect(interval_offset, page_offset)?;
         }
-        interval_offset = page.end_offset() as usize;
+        interval_offset = page.end_offset() as usize + 1;
     }
     if mem_size > interval_offset {
         mprotect(interval_offset, mem_size)
