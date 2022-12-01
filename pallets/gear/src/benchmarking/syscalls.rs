@@ -1064,6 +1064,35 @@ where
         Self::prepare_handle(code, 0)
     }
 
+    pub fn gr_error(r: u32) -> Result<Exec<T>, &'static str> {
+        let status_code_offset = 1;
+        let error_len_offset = status_code_offset + size_of::<i32>() as i32;
+        let error_offset = error_len_offset + size_of::<u32>() as i32;
+
+        let code = WasmModule::<T>::from(ModuleDefinition {
+            memory: Some(ImportedMemory::max::<T>()),
+            imported_functions: vec!["gr_status_code", "gr_error"],
+            handle_body: Some(body::repeated(
+                r * API_BENCHMARK_BATCH_SIZE,
+                &[
+                    // err_code ptr
+                    Instruction::I32Const(status_code_offset),
+                    // CALL
+                    Instruction::Call(0),
+                    // error ptr
+                    Instruction::I32Const(error_offset),
+                    // error length ptr
+                    Instruction::I32Const(error_len_offset),
+                    // CALL
+                    Instruction::Call(1),
+                ],
+            )),
+            ..Default::default()
+        });
+
+        Self::prepare_handle(code, 0)
+    }
+
     pub fn termination_bench(
         name: &'static str,
         param: Option<u32>,

@@ -923,7 +923,6 @@ where
         })
     }
 
-    // TODO: charge gas for gr_error (issue #1723)
     pub fn error(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
         sys_trace!(target: "syscall::gear", "error, args = {}", args_to_str(args));
 
@@ -945,6 +944,7 @@ where
                         Err(length) => length,
                     };
 
+                    ctx.ext.charge_error().map_err(RuntimeCtxError::Ext)?;
                     ctx.write_output(err_len_ptr, &length.to_le_bytes())
                 })
         })

@@ -1,0 +1,5 @@
+error: parameter already defined
+ --> tests/ui/signal_double_definition_not_work.rs:6:36
+  |
+6 | #[gstd::async_main(handle_signal = custom_handle_signal)]
+  |                                    ^^^^^^^^^^^^^^^^^^^^

@@ -1,15 +1,14 @@
 [package]
-name = "demo-proxy"
+name = "test-syscalls"
 version = "0.1.0"
 authors = ["Gear Technologies"]
-edition = "2018"
+edition = "2021"
 license = "GPL-3.0"
 workspace = "../../../"
 
 [dependencies]
 gstd = { path = "../../../gstd", features = ["debug"] }
 codec = { package = "parity-scale-codec", version = "3.1.2", default-features = false, features = ["derive"] }
-scale-info = { version = "2.1.1", default-features = false, features = ["derive"] }
 
 [build-dependencies]
 gear-wasm-builder = { path = "../../../utils/wasm-builder" }
@@ -18,5 +17,5 @@ gear-wasm-builder = { path = "../../../utils/wasm-builder" }
 
 [features]
 wasm-wrapper = []
-std = ["wasm-wrapper", "codec/std", "scale-info/std"]
+std = ["wasm-wrapper", "codec/std"]
 default = ["std"]

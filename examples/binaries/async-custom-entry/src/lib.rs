@@ -18,44 +18,41 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
-use codec::{Decode, Encode};
-use scale_info::TypeInfo;
-
-#[cfg(feature = "wasm-wrapper")]
+#[cfg(feature = "std")]
 mod code {
     include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
 }
 
-#[cfg(feature = "wasm-wrapper")]
+#[cfg(feature = "std")]
 pub use code::WASM_BINARY_OPT as WASM_BINARY;
 
-#[derive(Debug, Decode, Encode, TypeInfo)]
-pub struct InputArgs {
-    pub destination: [u8; 32],
-}
-
-#[cfg(not(feature = "wasm-wrapper"))]
+#[cfg(not(feature = "std"))]
 mod wasm {
-    use crate::InputArgs;
-    use gstd::{msg, ActorId, ToString};
+    use gstd::{exec, msg, ActorId};
 
-    static mut DESTINATION: ActorId = ActorId::new([0u8; 32]);
+    static mut USER: ActorId = ActorId::zero();
 
-    gstd::metadata! {
-        title: "tests-proxy",
-        handle:
-            input: InputArgs,
+    #[gstd::async_init(handle_reply = my_handle_reply, handle_signal = my_handle_signal)]
+    async fn init() {
+        unsafe {
+            USER = msg::source();
+        }
     }
 
-    #[no_mangle]
-    unsafe extern "C" fn handle() {
-        let payload = msg::load_bytes().expect("failed to load bytes");
-        msg::send_bytes(DESTINATION, payload, msg::value());
+    #[gstd::async_main]
+    async fn main() {
+        loop {}
     }
 
-    #[no_mangle]
-    unsafe extern "C" fn init() {
-        let args: InputArgs = msg::load().expect("Failed to decode `InputArgs'");
-        DESTINATION = args.destination.into();
+    fn my_handle_reply() {
+        unsafe {
+            msg::send_bytes(USER, b"my_handle_reply", 0).unwrap();
+        }
+    }
+
+    fn my_handle_signal() {
+        unsafe {
+            msg::send_bytes(USER, b"my_handle_signal", 0).unwrap();
+        }
     }
 }

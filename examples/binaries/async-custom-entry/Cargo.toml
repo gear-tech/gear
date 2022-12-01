@@ -1,5 +1,5 @@
 [package]
-name = "demo-proxy"
+name = "demo-async-custom-entry"
 version = "0.1.0"
 authors = ["Gear Technologies"]
 edition = "2018"
@@ -9,14 +9,15 @@ workspace = "../../../"
 [dependencies]
 gstd = { path = "../../../gstd", features = ["debug"] }
 codec = { package = "parity-scale-codec", version = "3.1.2", default-features = false, features = ["derive"] }
-scale-info = { version = "2.1.1", default-features = false, features = ["derive"] }
 
 [build-dependencies]
 gear-wasm-builder = { path = "../../../utils/wasm-builder" }
 
+[dev-dependencies]
+gtest = { path = "../../../gtest" }
+
 [lib]
 
 [features]
-wasm-wrapper = []
-std = ["wasm-wrapper", "codec/std", "scale-info/std"]
+std = ["codec/std"]
 default = ["std"]
