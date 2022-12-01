@@ -261,6 +261,12 @@ jobs:
           cargo build -p gear-cli --release --features runtime-benchmarks
           ./target/release/gear benchmark pallet --chain=dev --steps=2 --repeat=1 --pallet=pallet_gear --extrinsic="*" --execution=wasm --wasm-execution=compiled --heap-pages=4096
 
+      - name: "Test: Sys-calls Wasmi integrity"
+        run: ./scripts/gear.sh test syscalls
+
+      - name: "Test: Sys-calls Sandbox integrity"
+        run: ./target/release/gear benchmark pallet --chain=dev --pallet=pallet_gear --extrinsic="check_syscalls_integrity" --execution=wasm --wasm-execution=compiled --extra
+
       - name: "Coverage: Aggregate"
         if: github.ref == 'refs/heads/master' || contains(github.event.pull_request.labels.*.name, 'E0-forcecoverage')
         run: >-

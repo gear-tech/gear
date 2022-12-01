@@ -319,6 +319,10 @@ case "$COMMAND" in
         header "Running fuzzer for system consistency check"
         run_fuzzer "$ROOT_DIR" "$@"; ;;
 
+      syscalls)
+        header "Running syscalls integrity test of pallet-gear 'benchmarking' module on WASMI executor"
+        syscalls_integrity_test ;;
+
       doc)
         header "Testing examples in docs"
         doc_test "$@"; ;;

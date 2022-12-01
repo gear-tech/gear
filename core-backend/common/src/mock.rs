@@ -140,6 +140,9 @@ impl Ext for MockExt {
     fn debug(&mut self, _data: &str) -> Result<(), Self::Error> {
         Ok(())
     }
+    fn charge_error(&mut self) -> Result<(), Self::Error> {
+        Ok(())
+    }
     fn read(&mut self) -> Result<&[u8], Self::Error> {
         Ok(&[])
     }

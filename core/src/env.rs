@@ -167,6 +167,9 @@ pub trait Ext {
     /// This should be no-op in release builds.
     fn debug(&mut self, data: &str) -> Result<(), Self::Error>;
 
+    /// Charge gas for gr_error.
+    fn charge_error(&mut self) -> Result<(), Self::Error>;
+
     /// Interrupt the program, saving it's state.
     fn leave(&mut self) -> Result<(), Self::Error>;
 

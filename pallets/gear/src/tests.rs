@@ -68,6 +68,7 @@ use gear_core::{
 use gear_core_errors::*;
 use sp_runtime::{traits::UniqueSaturatedInto, SaturatedConversion};
 use sp_std::convert::TryFrom;
+pub use utils::init_logger;
 use utils::*;
 
 #[test]
@@ -6980,6 +6981,53 @@ fn system_reservation_zero_amount_panics() {
     });
 }
 
+#[test]
+fn custom_async_entrypoint_works() {
+    use demo_async_custom_entry::WASM_BINARY;
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            USER_1.encode(),
+            10_000_000_000,
+            0,
+        ));
+
+        let pid = get_last_program_id();
+
+        run_to_block(2, None);
+
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            pid,
+            EMPTY_PAYLOAD.to_vec(),
+            10_000_000_000,
+            0,
+        ));
+
+        run_to_block(3, None);
+
+        let msg = get_last_mail(USER_1);
+        assert_eq!(msg.payload(), b"my_handle_signal");
+
+        assert_ok!(Gear::send_reply(
+            RuntimeOrigin::signed(USER_1),
+            msg.id(),
+            EMPTY_PAYLOAD.to_vec(),
+            10_000_000_000,
+            0
+        ));
+
+        run_to_block(4, None);
+
+        let msg = get_last_mail(USER_1);
+        assert_eq!(msg.payload(), b"my_handle_reply");
+    });
+}
+
 mod utils {
     #![allow(unused)]
 
@@ -6988,13 +7036,13 @@ mod utils {
     };
     use crate::{
         mock::{Balances, Gear, System},
-        BalanceOf, GasInfo, HandleKind,
+        BalanceOf, GasInfo, HandleKind, SentOf,
     };
     use codec::Decode;
     use common::{
         event::*,
-        storage::{CountedByKey, IterableByKeyMap},
-        Origin as _,
+        storage::{CountedByKey, Counter, IterableByKeyMap},
+        Origin,
     };
     use core_processor::common::ExecutionErrorReason;
     use frame_support::{
@@ -7024,7 +7072,11 @@ mod utils {
 
     type BlockNumber = <Test as frame_system::Config>::BlockNumber;
 
-    pub(super) fn init_logger() {
+    pub(super) fn hash(data: impl AsRef<[u8]>) -> [u8; 32] {
+        sp_core::blake2_256(data.as_ref())
+    }
+
+    pub fn init_logger() {
         let _ = env_logger::Builder::from_default_env()
             .format_module_path(false)
             .format_level(true)

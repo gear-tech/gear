@@ -19,6 +19,7 @@ log = { version = "0.4.17", default-features = false }
 primitive-types = { version = "0.12.0", default-features = false, features = ["scale-info"] }
 gear-wasm-instrument = { path = "../../utils/wasm-instrument", default-features = false }
 derive_more = "0.99.17"
+env_logger = { version = "0.9", optional = true }
 
 # Internal deps
 common = { package = "gear-common", path = "../../common", default-features = false }
@@ -52,9 +53,10 @@ sp-sandbox = { version = "0.10.0-dev", git = "https://github.com/gear-tech/subst
 serde = { version = "1", optional = true, features = ["derive"] }
 rand = { version = "0.8", optional = true, default-features = false }
 rand_pcg = { version = "0.3", optional = true }
+test-syscalls = { path = "../../examples/binaries/sys-calls", optional = true, default-features = false }
+demo-proxy = { path = "../../examples/binaries/proxy", optional = true, default-features = false }
 
 [dev-dependencies]
-env_logger = "0.9"
 wabt = "0.10"
 blake2-rfc = { version = "0.2.18", default-features = false }
 demo-async-tester = { path = "../../examples/binaries/async-tester" }
@@ -68,7 +70,6 @@ demo-exit-init = { path = "../../examples/binaries/exit-init" }
 demo-exit-handle = { path = "../../examples/binaries/exit-handle" }
 demo-exit-handle-sender = { path = "../../examples/binaries/exit-handle-sender" }
 demo-program-factory = { path = "../../examples/binaries/program-factory" }
-demo-proxy = { path = "../../examples/binaries/proxy" }
 demo-proxy-relay = { path = "../../examples/binaries/proxy-relay" }
 demo-proxy-with-gas = { path = "../../examples/binaries/proxy-with-gas" }
 demo-init-with-value = { path = "../../examples/binaries/init-with-value" }
@@ -87,6 +88,7 @@ demo-reserve-gas = { path = "../../examples/binaries/reserve-gas" }
 demo-send-from-reservation = { path = "../../examples/binaries/send-from-reservation" }
 demo-signal-entry = { path = "../../examples/binaries/signal-entry" }
 demo-async-signal-entry = { path = "../../examples/binaries/async-signal-entry" }
+demo-async-custom-entry = { path = "../../examples/binaries/async-custom-entry" }
 page_size = "0.5.0"
 frame-support-test = { version = "3.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
 pallet-gear-gas = { path = "../gas" }
@@ -98,6 +100,7 @@ gear-runtime-interface = { path = "../../runtime-interface" }
 default = ['std']
 std = [
 	"codec/std",
+	"env_logger",
 	"log/std",
 	"common/std",
 	"frame-benchmarking?/std",
@@ -119,6 +122,9 @@ std = [
 	"primitive-types/std",
 	"serde/std",
 	"gear-lazy-pages-common?/std",
+	"sp-consensus-babe/std",
+	"test-syscalls/std",
+	"demo-proxy/std",
 ]
 runtime-benchmarks = [
 	"frame-benchmarking/runtime-benchmarks",
@@ -126,10 +132,13 @@ runtime-benchmarks = [
 	"frame-support/runtime-benchmarks",
 	"common/runtime-benchmarks",
 	"gear-backend-common/mock",
+	"gear-core-errors/codec",
 	"sp-sandbox",
 	"sp-consensus-babe",
 	"rand",
 	"rand_pcg",
+	"test-syscalls/wasm-wrapper",
+	"demo-proxy/wasm-wrapper",
 ]
 try-runtime = ["frame-support/try-runtime"]
 lazy-pages = ["gear-lazy-pages-common"]

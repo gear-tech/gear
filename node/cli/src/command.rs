@@ -61,10 +61,8 @@ impl SubstrateCli for Cli {
             "staging" | "gear-staging" => Box::new(chain_spec::gear::staging_testnet_config()?),
             #[cfg(feature = "vara-native")]
             "vara-staging" => Box::new(chain_spec::vara::staging_testnet_config()?),
-            #[cfg(feature = "gear-native")]
-            "stable" | "gear-stable" => Box::new(chain_spec::gear::stable_testnet_config()?),
-            "" => Box::new(chain_spec::RawChainSpec::from_json_bytes(
-                &include_bytes!("../../res/stable.json")[..],
+            "test" | "" => Box::new(chain_spec::RawChainSpec::from_json_bytes(
+                &include_bytes!("../../res/staging.json")[..],
             )?),
             path => {
                 let path = std::path::PathBuf::from(path);
@@ -348,7 +346,15 @@ pub fn run() -> sc_cli::Result<()> {
             Ok(())
         }
         None => {
-            let runner = cli.create_runner(&cli.run.base)?;
+            let runner = if cli.run.base.validator {
+                cli.create_runner_with_logger_hook(&cli.run.base, |logger, _| {
+                    logger.with_detailed_output(false);
+                    logger.with_max_level(log::LevelFilter::Info);
+                })?
+            } else {
+                cli.create_runner(&cli.run.base)?
+            };
+
             runner.run_node_until_exit(|config| async move {
                 service::new_full(config, cli.no_hardware_benchmarks)
                     .map_err(sc_cli::Error::Service)
