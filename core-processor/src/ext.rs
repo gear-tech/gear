@@ -112,9 +112,6 @@ pub trait ProcessorExt {
 /// [`Ext`](Ext)'s error
 #[derive(Debug, Clone, Eq, PartialEq, derive_more::Display, derive_more::From, Encode, Decode)]
 pub enum ProcessorError {
-    /// An error occurs in attempt to generate random data with
-    /// more than maximum length of random subject.
-    RandomLengthLimitExceeded,
     /// Basic error
     #[display(fmt = "{_0}")]
     Core(ExtError),
@@ -779,11 +776,7 @@ impl EnvExt for Ext {
         self.return_and_store_err(result)
     }
 
-    fn random(&mut self, len: u32) -> Result<(&[u8], u32), Self::Error> {
-        if len > self.context.config.random_subject_len {
-            return Err(ProcessorError::RandomLengthLimitExceeded);
-        }
-
+    fn random(&mut self) -> Result<(&[u8], u32), Self::Error> {
         self.charge_gas_runtime(RuntimeCosts::Random)?;
         Ok((&self.context.random_data.0, self.context.random_data.1))
     }

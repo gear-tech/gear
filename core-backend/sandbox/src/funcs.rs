@@ -24,6 +24,7 @@ use alloc::{
     string::{FromUtf8Error, String},
 };
 use blake2_rfc::blake2b::blake2b;
+use core::convert::TryFrom;
 use core::{convert::TryInto, fmt::Display, marker::PhantomData, ops::Range};
 use gear_backend_common::{
     error_processor::{IntoExtError, ProcessError},
@@ -39,7 +40,7 @@ use gear_core::{
 };
 use gear_core_errors::{CoreError, MemoryError};
 use gsys::{
-    BlockNumberWithHash, HashWithValue, LengthWithCode, LengthWithGas, LengthWithHandle,
+    BlockNumberWithHash, Hash, HashWithValue, LengthWithCode, LengthWithGas, LengthWithHandle,
     LengthWithHash, LengthWithTwoHashes, TwoHashesWithValue,
 };
 use sp_sandbox::{HostError, ReturnValue, Value};
@@ -455,13 +456,13 @@ where
     pub fn random(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
         sys_trace!(target: "syscall::gear", "random, args = {}", args_to_str(args));
 
-        let (subject_ptr, len, bn_random_ptr): (_, u32, _) = args.iter().read_3()?;
+        let (subject_ptr, bn_random_ptr): (_, _) = args.iter().read_2()?;
 
         ctx.run(|ctx| {
-            let mut subject = RuntimeBuffer::try_new_default(len as usize)?;
-            ctx.read_memory_into_buf(subject_ptr, subject.get_mut())?;
+            let mut subject =
+                RuntimeBuffer::try_from(ctx.read_memory_as::<Hash>(subject_ptr)?.to_vec())?;
 
-            let (random, bn) = ctx.ext.random(len).map_err(FuncError::Core)?;
+            let (random, bn) = ctx.ext.random().map_err(FuncError::Core)?;
             subject.try_extend_from_slice(random)?;
 
             let mut hash = [0; 32];

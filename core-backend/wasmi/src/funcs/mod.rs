@@ -24,6 +24,7 @@ use alloc::string::ToString;
 use blake2_rfc::blake2b::blake2b;
 use codec::{Decode, Encode};
 use core::{
+    convert::TryFrom,
     fmt::{Debug, Display},
     marker::PhantomData,
     ops::Range,
@@ -43,7 +44,7 @@ use gear_core::{
 use gear_core_errors::{CoreError, MemoryError};
 use gear_wasm_instrument::{GLOBAL_NAME_ALLOWANCE, GLOBAL_NAME_GAS};
 use gsys::{
-    BlockNumberWithHash, HashWithValue, LengthWithCode, LengthWithGas, LengthWithHandle,
+    BlockNumberWithHash, Hash, HashWithValue, LengthWithCode, LengthWithGas, LengthWithHandle,
     LengthWithHash, LengthWithTwoHashes, TwoHashesWithValue,
 };
 use wasmi::{
@@ -1311,21 +1312,19 @@ where
     pub fn random(store: &mut Store<HostState<E>>, forbidden: bool, memory: WasmiMemory) -> Func {
         let func = move |caller: Caller<'_, HostState<E>>,
                          subject_ptr: u32,
-                         len: u32,
                          bn_random_ptr: u32|
               -> EmptyOutput {
             let mut caller = CallerWrap::prepare(caller, forbidden)?;
 
-            let mut subject = RuntimeBuffer::try_new_default(len as usize).map_err(|e| {
+            let raw_subject = caller.read(&memory, |mem_ref| {
+                mem_ref.read_memory_as::<Hash>(subject_ptr)
+            })?;
+            let mut subject = RuntimeBuffer::try_from(raw_subject.to_vec()).map_err(|e| {
                 caller.host_state_mut().err = FuncError::RuntimeBufferSize(e);
                 Trap::from(TrapCode::Unreachable)
             })?;
 
-            caller.read(&memory, |mem_ref| {
-                mem_ref.read(subject_ptr as usize, subject.get_mut())
-            })?;
-
-            let call_result = caller.host_state_mut().ext.random(len);
+            let call_result = caller.host_state_mut().ext.random();
             let (random, bn) = match call_result {
                 Ok((random, bn)) => (random, bn),
                 Err(e) => {
