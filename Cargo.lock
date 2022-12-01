@@ -1454,6 +1454,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "demo-async-custom-entry"
+version = "0.1.0"
+dependencies = [
+ "gear-wasm-builder",
+ "gstd",
+ "gtest",
+ "parity-scale-codec",
+]
+
+[[package]]
 name = "demo-async-signal-entry"
 version = "0.1.0"
 dependencies = [
@@ -3705,9 +3715,11 @@ dependencies = [
 name = "gstd-codegen"
 version = "0.1.0"
 dependencies = [
+ "gstd",
  "proc-macro2",
  "quote",
  "syn",
+ "trybuild",
 ]
 
 [[package]]
@@ -6179,6 +6191,7 @@ name = "pallet-gear"
 version = "2.0.0"
 dependencies = [
  "blake2-rfc",
+ "demo-async-custom-entry",
  "demo-async-signal-entry",
  "demo-async-tester",
  "demo-btree",
