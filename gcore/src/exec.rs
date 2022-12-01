@@ -25,7 +25,6 @@ use crate::{
     error::{Result, SyscallError},
     ActorId, MessageId, ReservationId,
 };
-use gear_core_errors::ExtError;
 use gsys::{BlockNumberWithHash, LengthWithGas, LengthWithHash};
 
 /// Get the current block height.
