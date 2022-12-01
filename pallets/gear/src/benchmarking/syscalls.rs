@@ -481,8 +481,8 @@ where
 
     pub fn gr_random(r: u32) -> Result<Exec<T>, &'static str> {
         let subject_ptr = 1;
-        let subject_len = 32; // length of `H256`.
-        let bn_random_ptr = subject_ptr + subject_len as i32;
+        let subject_len = 32;
+        let bn_random_ptr = 1 + subject_len;
 
         let code = WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
@@ -492,8 +492,6 @@ where
                 &[
                     // subject ptr
                     Instruction::I32Const(subject_ptr),
-                    // subject len
-                    Instruction::I32Const(subject_len as i32),
                     // bn_random ptr
                     Instruction::I32Const(bn_random_ptr),
                     // CALL
