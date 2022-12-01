@@ -573,6 +573,12 @@ impl EnvExt for Ext {
         Ok(())
     }
 
+    fn charge_error(&mut self) -> Result<(), Self::Error> {
+        self.charge_gas_runtime(RuntimeCosts::Error)?;
+
+        Ok(())
+    }
+
     fn read(&mut self) -> Result<&[u8], Self::Error> {
         let size = self
             .size()?

@@ -34,7 +34,7 @@ pallet-transaction-payment = { version = "4.0.0-dev", default-features = false, 
 
 [dev-dependencies]
 serde = "1.0.145"
-env_logger = "0.9"
+env_logger = "0.10"
 wabt = "0.10"
 gear-core = { path = "../../core" }
 sp-io = { version = "6.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
