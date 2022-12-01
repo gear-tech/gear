@@ -18,18 +18,21 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
-use common::{storage::*, ExtractCall};
+use common::{storage::*, ExtractCall, GasPrice, MessageResources, TryExtract};
 use frame_support::{
     dispatch::{DispatchInfo, GetDispatchInfo, PostDispatchInfo},
     pallet_prelude::*,
-    traits::Contains,
+    traits::{Contains, Currency},
 };
 use pallet_transaction_payment::{
     ChargeTransactionPayment, FeeDetails, Multiplier, MultiplierUpdate, OnChargeTransaction,
     RuntimeDispatchInfo,
 };
 use sp_runtime::{
-    traits::{Bounded, Convert, DispatchInfoOf, Dispatchable, PostDispatchInfoOf, SignedExtension},
+    traits::{
+        Bounded, CheckedAdd, Convert, DispatchInfoOf, Dispatchable, PostDispatchInfoOf,
+        SignedExtension,
+    },
     transaction_validity::TransactionValidityError,
     FixedPointNumber, FixedPointOperand, Perquintill, SaturatedConversion,
 };
@@ -42,6 +45,7 @@ type BalanceOf<T> =
 type CallOf<T> = <T as frame_system::Config>::RuntimeCall;
 pub(crate) type QueueOf<T> = <<T as Config>::Messenger as Messenger>::Queue;
 pub type TransactionPayment<T> = pallet_transaction_payment::Pallet<T>;
+pub type MessageResourcesU64Gas<Value> = MessageResources<u64, Value>;
 
 #[cfg(test)]
 mod mock;
@@ -100,7 +104,10 @@ where
     ) -> TransactionValidity {
         // Override DispatchInfo struct for call variants exempted from weight fee multiplication
         let info = Self::pre_dispatch_info(call, info);
-        self.0.validate(who, call, &info, len)
+        let res = self.0.validate(who, call, &info, len);
+        T::AdditionalTxValidator::validate(who, call)?;
+
+        res
     }
 
     fn pre_dispatch(
@@ -112,7 +119,10 @@ where
     ) -> Result<Self::Pre, TransactionValidityError> {
         // Override DispatchInfo struct for call variants exempted from weight fee multiplication
         let info = Self::pre_dispatch_info(call, info);
-        self.0.pre_dispatch(who, call, &info, len)
+        let res = self.0.pre_dispatch(who, call, &info, len);
+        T::AdditionalTxValidator::validate(who, call)?;
+
+        res
     }
 
     fn post_dispatch(
@@ -318,6 +328,35 @@ impl<T: Config> Pallet<T> {
     }
 }
 
+pub trait AdditionalTxValidator<T: Config> {
+    fn validate(who: &T::AccountId, call: &T::RuntimeCall) -> Result<(), TransactionValidityError>;
+}
+
+pub struct GearTxValidator<Currency, GasPrice>(sp_std::marker::PhantomData<(Currency, GasPrice)>);
+
+impl<T: Config, C, GP> AdditionalTxValidator<T> for GearTxValidator<C, GP>
+where
+    T::RuntimeCall: TryExtract<MessageResourcesU64Gas<C::Balance>>,
+    C: Currency<T::AccountId>,
+    GP: GasPrice<Balance = C::Balance>,
+{
+    fn validate(who: &T::AccountId, call: &T::RuntimeCall) -> Result<(), TransactionValidityError> {
+        if let Some(mr) = call.try_extract() {
+            // If overflows, it means that `who` can't have such big balance, because it's impossible
+            // to have one. So that's an invalid transaction.
+            let total = mr
+                .value
+                .checked_add(&GP::gas_price(mr.gas))
+                .ok_or(InvalidTransaction::Payment)?;
+            (total >= C::free_balance(who))
+                .then_some(())
+                .ok_or(InvalidTransaction::Payment.into())
+        } else {
+            Ok(())
+        }
+    }
+}
+
 #[frame_support::pallet]
 pub mod pallet {
     use super::*;
@@ -329,6 +368,10 @@ pub mod pallet {
 
         /// Type representing message queue
         type Messenger: Messenger<Capacity = u32>;
+
+        /// Type that is used to make some additional validations in the scope
+        /// of the pallet without introducing another signed extension.
+        type AdditionalTxValidator: AdditionalTxValidator<Self>;
     }
 
     #[pallet::pallet]

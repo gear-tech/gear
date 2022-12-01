@@ -533,3 +533,12 @@ where
         self.function.clone()
     }
 }
+
+pub trait TryExtract<Extractable> {
+    fn try_extract(&self) -> Option<Extractable>;
+}
+
+pub struct MessageResources<Gas, Value> {
+    pub gas: Gas,
+    pub value: Value,
+}
