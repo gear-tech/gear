@@ -24,8 +24,12 @@ use alloc::{
     string::{FromUtf8Error, String},
 };
 use blake2_rfc::blake2b::blake2b;
-use core::convert::TryFrom;
-use core::{convert::TryInto, fmt::Display, marker::PhantomData, ops::Range};
+use core::{
+    convert::{TryFrom, TryInto},
+    fmt::Display,
+    marker::PhantomData,
+    ops::Range,
+};
 use gear_backend_common::{
     error_processor::{IntoExtError, ProcessError},
     AsTerminationReason, IntoExtInfo, RuntimeCtx, RuntimeCtxError, TerminationReason,
