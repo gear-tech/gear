@@ -442,27 +442,27 @@ fn mailbox_sending_instant_transfer() {
 }
 
 #[test]
-fn upload_program_expected_failure() {
+#[should_panic(expected = "Defensive failure has been triggered")]
+fn upload_program_panic_low_balance() {
     init_logger();
     new_test_ext().execute_with(|| {
         let balance = Balances::free_balance(USER_1);
-        assert_noop!(
-            Gear::upload_program(
-                RuntimeOrigin::signed(USER_1),
-                ProgramCodeKind::Default.to_bytes(),
-                DEFAULT_SALT.to_vec(),
-                EMPTY_PAYLOAD.to_vec(),
-                DEFAULT_GAS_LIMIT,
-                balance + 1
-            ),
-            Error::<Test>::NotEnoughBalanceForReserve
+        // this panics as it has too low balance (which is checked in the tx pool)
+        let _ = Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            ProgramCodeKind::Default.to_bytes(),
+            DEFAULT_SALT.to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
+            DEFAULT_GAS_LIMIT,
+            balance + 1,
         );
+    })
+}
 
-        assert_noop!(
-            upload_program_default(LOW_BALANCE_USER, ProgramCodeKind::Default),
-            Error::<Test>::NotEnoughBalanceForReserve
-        );
-
+#[test]
+fn upload_program_expected_failure() {
+    init_logger();
+    new_test_ext().execute_with(|| {
         // Gas limit is too high
         let block_gas_limit = BlockGasLimitOf::<Test>::get();
         assert_noop!(
@@ -660,6 +660,22 @@ fn mailbox_threshold_works() {
 }
 
 #[test]
+#[should_panic(expected = "Defensive failure has been triggered")]
+fn send_message_panic_low_balance() {
+    init_logger();
+    new_test_ext().execute_and_prove(|| {
+        // Submit valid program
+        let program_id = {
+            let res = upload_program_default(USER_1, ProgramCodeKind::Default);
+            assert_ok!(res);
+            res.expect("submit result was asserted")
+        };
+
+        let _ = call_default_message(program_id).dispatch(RuntimeOrigin::signed(LOW_BALANCE_USER));
+    });
+}
+
+#[test]
 fn send_message_expected_failure() {
     init_logger();
     new_test_ext().execute_with(|| {
@@ -683,11 +699,6 @@ fn send_message_expected_failure() {
             assert_ok!(res);
             res.expect("submit result was asserted")
         };
-
-        assert_noop!(
-            call_default_message(program_id).dispatch(RuntimeOrigin::signed(LOW_BALANCE_USER)),
-            Error::<Test>::NotEnoughBalanceForReserve
-        );
 
         let low_balance_user_balance = Balances::free_balance(LOW_BALANCE_USER);
         let user_1_balance = Balances::free_balance(USER_1);

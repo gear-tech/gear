@@ -54,7 +54,7 @@ use common::{
     QueueRunner,
 };
 use frame_support::{
-    traits::{Currency, StorageVersion},
+    traits::{Currency, DefensiveResult, StorageVersion},
     weights::Weight,
 };
 use gear_core::{
@@ -1673,7 +1673,7 @@ pub mod pallet {
             // First we reserve enough funds on the account to pay for `gas_limit`
             // and to transfer declared value.
             <T as Config>::Currency::reserve(&who, reserve_fee + value)
-                .map_err(|_| Error::<T>::NotEnoughBalanceForReserve)?;
+                .defensive_map_err(|_| Error::<T>::NotEnoughBalanceForReserve)?;
 
             Ok(packet)
         }
@@ -1938,13 +1938,13 @@ pub mod pallet {
                 // That's because destination can fail to be initialized, while this dispatch message is next
                 // in the queue.
                 CurrencyOf::<T>::reserve(&who, value.unique_saturated_into())
-                    .map_err(|_| Error::<T>::NotEnoughBalanceForReserve)?;
+                    .defensive_map_err(|_| Error::<T>::NotEnoughBalanceForReserve)?;
 
                 let gas_limit_reserve = T::GasPrice::gas_price(gas_limit);
 
                 // First we reserve enough funds on the account to pay for `gas_limit`
                 CurrencyOf::<T>::reserve(&who, gas_limit_reserve)
-                    .map_err(|_| Error::<T>::NotEnoughBalanceForReserve)?;
+                    .defensive_map_err(|_| Error::<T>::NotEnoughBalanceForReserve)?;
 
                 // # Safety
                 //
@@ -2036,7 +2036,7 @@ pub mod pallet {
             // Note, that message is not guaranteed to be successfully executed,
             // that's why value is not immediately transferred.
             CurrencyOf::<T>::reserve(&origin, gas_limit_reserve + value)
-                .map_err(|_| Error::<T>::NotEnoughBalanceForReserve)?;
+                .defensive_map_err(|_| Error::<T>::NotEnoughBalanceForReserve)?;
 
             // Creating reply message.
             let message = ReplyMessage::from_packet(
