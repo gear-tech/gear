@@ -409,6 +409,8 @@ impl Contains<RuntimeCall> for ExtraFeeFilter {
 impl pallet_gear_payment::Config for Runtime {
     type ExtraFeeCallFilter = ExtraFeeFilter;
     type Messenger = GearMessenger;
+    // TODO [sab]
+    type AdditionalTxValidator = ();
 }
 
 impl<C> frame_system::offchain::SendTransactionTypes<C> for Runtime

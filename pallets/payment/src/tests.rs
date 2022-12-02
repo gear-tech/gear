@@ -18,24 +18,31 @@
 
 #![allow(clippy::identity_op)]
 
-use crate::{mock::*, Config, CustomChargeTransactionPayment, QueueOf};
+use crate::{mock::*, AdditionalTxValidator, Config, CustomChargeTransactionPayment, QueueOf};
 use codec::Encode;
-use common::{storage::*, Origin};
+use common::{storage::*, GasPrice, Origin};
 use frame_support::{
-    assert_ok,
+    assert_err, assert_ok,
     dispatch::{DispatchInfo, GetDispatchInfo, PostDispatchInfo},
+    pallet_prelude::*,
+    traits::Currency,
     weights::{Weight, WeightToFee},
 };
 use gear_core::{
     ids::{MessageId, ProgramId},
     message::{Dispatch, DispatchKind, Message, StoredDispatch},
 };
+use pallet_gear::Call;
 use pallet_transaction_payment::{FeeDetails, InclusionFee, Multiplier, RuntimeDispatchInfo};
 use primitive_types::H256;
-use sp_runtime::{testing::TestXt, traits::SignedExtension, FixedPointNumber, generic::UncheckedExtrinsic};
+use sp_runtime::{testing::TestXt, traits::SignedExtension, FixedPointNumber};
+use RuntimeCall::Gear;
 
 type WeightToFeeFor<T> = <T as pallet_transaction_payment::Config>::WeightToFee;
 type LengthToFeeFor<T> = <T as pallet_transaction_payment::Config>::LengthToFee;
+type AdditionalTxValidatorOf<T> = <T as Config>::AdditionalTxValidator;
+
+const EXISTENTIAL_DEPOSIT: u64 = ExistentialDeposit::get();
 
 macro_rules! assert_approx_eq {
     ($left:expr, $right:expr, $tol:expr) => {{
@@ -102,19 +109,171 @@ where
     }
 }
 
-// 1. Calls that are always valid
-// 2. Simply validate/invalidate the call. Pre dispatch should give the same result
 // 3. Emulate when tx validated and then became invalid
+
+#[test]
+fn validation_works() {
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let bob_initial_balance = Balances::free_balance(BOB);
+        let gas_limit = 100_000;
+        let value = 100_000;
+        let gas_value = GasConverter::gas_price(gas_limit);
+
+        let call = Gear(Call::send_message {
+            destination: ProgramId::from_origin(H256::random()),
+            payload: vec![],
+            gas_limit,
+            value,
+        });
+
+        let tip = 0;
+        let len = 100;
+        let info = info_from_weight(Weight::from_ref_time(100));
+
+        let tx_fee = TransactionPayment::compute_fee(len as u32, &info, tip);
+        let fee_for_msg = value + gas_value;
+
+        // Check validation works
+        assert_ok!(Balances::transfer(
+            RuntimeOrigin::signed(ALICE),
+            BOB,
+            tx_fee + fee_for_msg
+        ));
+        assert_ok!(
+            CustomChargeTransactionPayment::<Test>::from(tip).validate(&BOB, &call, &info, len)
+        );
+        assert_ok!(<AdditionalTxValidatorOf<Test> as AdditionalTxValidator<
+            Test,
+        >>::validate(&BOB, &call));
+
+        // Check `pre_dispatch` does the same
+        assert_ok!(Balances::transfer(
+            RuntimeOrigin::signed(ALICE),
+            BOB,
+            // Validation doesn't withdraw funds for gas and value
+            tx_fee
+        ));
+        assert_ok!(
+            CustomChargeTransactionPayment::<Test>::from(tip).validate(&BOB, &call, &info, len)
+        );
+        assert_ok!(<AdditionalTxValidatorOf<Test> as AdditionalTxValidator<
+            Test,
+        >>::validate(&BOB, &call));
+
+        // Check invalidation works
+        // Bob has fee_for_msg already, so transferring him tx_fee will allow to include his tx to the pool.
+        // That's why we send tx_fee - 1. We also lower that amount by Bob's initial balance before these ops.
+        // to be sure he will not have enough funds to include his tx to the pool.
+        assert_ok!(Balances::transfer(
+            RuntimeOrigin::signed(ALICE),
+            BOB,
+            tx_fee - 1 - bob_initial_balance
+        ));
+        assert_err!(
+            CustomChargeTransactionPayment::<Test>::from(tip).validate(&BOB, &call, &info, len),
+            TransactionValidityError::Invalid(InvalidTransaction::Payment)
+        );
+        assert_eq!(Balances::free_balance(BOB), fee_for_msg - 1);
+
+        // Check pre_dispatch does the same
+        assert_ok!(Balances::transfer(
+            RuntimeOrigin::signed(ALICE),
+            BOB,
+            // Validation doesn't withdraw funds for gas and value
+            tx_fee
+        ));
+        // This check shows, that the previous call failed only due to `AdditionalTxValidator`, as `ChargeTransactionPayment` successfully withdrew funds.
+        assert_err!(
+            CustomChargeTransactionPayment::<Test>::from(tip).validate(&BOB, &call, &info, len),
+            TransactionValidityError::Invalid(InvalidTransaction::Payment)
+        );
+        assert_eq!(Balances::free_balance(BOB), fee_for_msg - 1);
+    })
+}
+
+// Tests that all calls without gear message data pass `AdditionalTxValidation`.
+#[test]
+fn validation_for_calls_without_gas_and_value() {
+    new_test_ext().execute_with(|| {
+        let non_message_sending_calls = [
+            Gear(Call::upload_code { code: vec![] }),
+            Gear(Call::claim_value {
+                message_id: MessageId::from_origin(H256::random()),
+            }),
+            Gear(Call::reset {}),
+            Gear(Call::run {}),
+        ];
+
+        let tip = 0;
+
+        let test = |call: RuntimeCall| {
+            // Absolutely random data
+            let len = 100;
+            let info = info_from_weight(Weight::from_ref_time(100));
+
+            let required_for_fee = TransactionPayment::compute_fee(len as u32, &info, tip);
+
+            // Give minimum balance to the sender
+            assert_ok!(Balances::transfer(
+                RuntimeOrigin::signed(ALICE),
+                BOB,
+                required_for_fee
+            ));
+
+            // Check Tx is valid
+            assert_ok!(
+                CustomChargeTransactionPayment::<Test>::from(tip).validate(&BOB, &call, &info, len)
+            );
+
+            // Even remove account
+            assert_ok!(Balances::transfer(
+                RuntimeOrigin::signed(BOB),
+                100,
+                Balances::total_balance(&BOB)
+            ));
+
+            // Dummy - do more external check
+            assert_ok!(<AdditionalTxValidatorOf<Test> as AdditionalTxValidator<
+                Test,
+            >>::validate(&BOB, &call));
+
+            // Give existential deposit back
+            assert_ok!(Balances::set_balance(
+                RuntimeOrigin::root(),
+                BOB,
+                EXISTENTIAL_DEPOSIT as u128,
+                0
+            ));
+        };
+
+        // Run test
+        for call in non_message_sending_calls {
+            test(call);
+        }
+    })
+}
 
 #[test]
 fn additional_validation_works() {
     init_logger();
     new_test_ext().execute_with(|| {
-        let call = RuntimeCall::Gear(pallet_gear::Call::upload_program { code: vec![1,2,3], salt: vec![1,2,3], init_payload: vec![], gas_limit: 1, value: 600 });
+        let call = RuntimeCall::Gear(pallet_gear::Call::upload_program {
+            code: vec![1, 2, 3],
+            salt: vec![1, 2, 3],
+            init_payload: vec![],
+            gas_limit: 1,
+            value: 600,
+        });
         let len = 100;
         let info = info_from_weight(Weight::from_ref_time(100));
-        log::info!("{:?}", TransactionPayment::compute_fee(len as u32, &info, 0));
-        assert_ok!(CustomChargeTransactionPayment::<Test>::from(0).validate(&ALICE, &call, &info, len));
+        log::info!(
+            "{:?}",
+            TransactionPayment::compute_fee(len as u32, &info, 0)
+        );
+        assert_ok!(
+            CustomChargeTransactionPayment::<Test>::from(0).validate(&ALICE, &call, &info, len)
+        );
         log::info!("{:?}", Balances::free_balance(ALICE))
     })
 }

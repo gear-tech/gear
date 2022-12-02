@@ -333,6 +333,12 @@ pub trait AdditionalTxValidator<T: Config> {
     fn validate(who: &T::AccountId, call: &T::RuntimeCall) -> Result<(), TransactionValidityError>;
 }
 
+impl<T: Config> AdditionalTxValidator<T> for () {
+    fn validate(_who: &T::AccountId, _call: &T::RuntimeCall) -> Result<(), TransactionValidityError> {
+        Ok(())
+    }
+}
+
 pub struct GearTxValidator<Currency, GasPrice>(sp_std::marker::PhantomData<(Currency, GasPrice)>);
 
 impl<T: Config, C, GP> AdditionalTxValidator<T> for GearTxValidator<C, GP>
@@ -349,8 +355,10 @@ where
                 .value
                 .checked_add(&GP::gas_price(mr.gas))
                 .ok_or(InvalidTransaction::Payment)?;
+            // todo remove
             log::info!("{:?}", total);
             log::info!("{:?}", C::free_balance(who));
+            // todo should we check with existing requirements?
             (C::free_balance(who) >= total)
                 .then_some(())
                 .ok_or(InvalidTransaction::Payment.into())

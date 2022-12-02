@@ -41,6 +41,7 @@ type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
 type Block = frame_system::mocking::MockBlock<Test>;
 
 pub const ALICE: u64 = 1;
+pub const BOB: u64 = 2;
 pub const BLOCK_AUTHOR: u64 = 255;
 
 type Balance = u128;
@@ -282,7 +283,11 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
         .unwrap();
 
     pallet_balances::GenesisConfig::<Test> {
-        balances: vec![(ALICE, 100_000_000_000u128), (BLOCK_AUTHOR, 1_000u128)],
+        balances: vec![
+            (ALICE, 100_000_000_000u128),
+            (BLOCK_AUTHOR, 1_000u128),
+            (BOB, ExistentialDeposit::get() as u128),
+        ],
     }
     .assimilate_storage(&mut t)
     .unwrap();
