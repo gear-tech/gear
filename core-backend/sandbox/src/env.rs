@@ -43,9 +43,7 @@ use gear_core::{
     memory::{PageU32Size, WasmPageNumber},
     message::DispatchKind,
 };
-use gear_wasm_instrument::{
-    GLOBAL_NAME_ALLOWANCE, GLOBAL_NAME_GAS, IMPORT_NAME_OUT_OF_ALLOWANCE, IMPORT_NAME_OUT_OF_GAS,
-};
+use gear_wasm_instrument::{GLOBAL_NAME_ALLOWANCE, GLOBAL_NAME_GAS};
 use sp_sandbox::{
     default_executor::{EnvironmentDefinitionBuilder, Instance, Memory as DefaultExecutorMemory},
     HostFuncType, InstanceGlobals, ReturnValue, SandboxEnvironmentBuilder, SandboxInstance,

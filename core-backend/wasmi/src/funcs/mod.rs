@@ -1150,7 +1150,7 @@ where
                 |ext| ext.reply_push_input(offset, len),
                 |res, mut mem_ref| {
                     let len = res.map(|_| 0).unwrap_or_else(|e| e);
-                    mem_ref.write(err_ptr as usize, &len.to_le_bytes())
+                    mem_ref.write(err_ptr, &len.to_le_bytes())
                 },
             )
         };
@@ -1280,7 +1280,7 @@ where
                 |ext| ext.send_push_input(handle, offset, len),
                 |res, mut mem_ref| {
                     let len = res.map(|_| 0).unwrap_or_else(|e| e);
-                    mem_ref.write(err_ptr as usize, &len.to_le_bytes())
+                    mem_ref.write(err_ptr, &len.to_le_bytes())
                 },
             )
         };

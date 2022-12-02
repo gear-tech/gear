@@ -3142,6 +3142,7 @@ dependencies = [
  "log",
  "parity-scale-codec",
  "scale-info",
+ "static_assertions",
 ]
 
 [[package]]
@@ -3150,16 +3151,19 @@ version = "0.1.0"
 dependencies = [
  "cfg-if",
  "derive_more",
+ "env_logger 0.10.0",
  "errno",
  "gear-core",
  "libc",
  "log",
  "mach",
- "nix 0.25.0",
+ "nix 0.26.1",
  "once_cell",
  "region",
+ "sc-executor-common",
  "sp-io",
  "sp-std",
+ "sp-wasm-interface",
  "static_assertions",
  "winapi",
 ]
@@ -3316,12 +3320,10 @@ name = "gear-runtime-interface"
 version = "0.1.0"
 dependencies = [
  "derive_more",
- "env_logger 0.9.3",
  "gear-core",
  "gear-lazy-pages",
  "libc",
  "log",
- "nix 0.24.2",
  "parity-scale-codec",
  "region",
  "sp-runtime-interface",
@@ -5863,21 +5865,20 @@ dependencies = [
  "bitflags",
  "cfg-if",
  "libc",
- "memoffset 0.6.5",
 ]
 
 [[package]]
 name = "nix"
-version = "0.25.0"
+version = "0.26.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e322c04a9e3440c327fca7b6c8a63e6890a32fa2ad689db972425f07e0d22abb"
+checksum = "46a58d1d356c6597d08cde02c2f09d785b09e28711837b1ed667dc652c08a694"
 dependencies = [
- "autocfg",
  "bitflags",
  "cfg-if",
  "libc",
- "memoffset 0.6.5",
+ "memoffset 0.7.1",
  "pin-utils",
+ "static_assertions",
 ]
 
 [[package]]
