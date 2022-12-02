@@ -77,6 +77,10 @@ impl MessageHandle {
         send_push(*self, payload)
     }
 
+    pub fn push_input<Range: RangeBounds<usize>>(&self, range: Range) -> Result<()> {
+        send_push_input(*self, range)
+    }
+
     pub fn commit(self, program: ActorId, value: u128) -> Result<MessageId> {
         send_commit(self, program, value)
     }

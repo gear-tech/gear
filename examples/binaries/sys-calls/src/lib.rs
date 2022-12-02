@@ -47,6 +47,10 @@ pub enum Kind {
     Send(Option<u64>, MessageId),
     // Params(payload, gas), Expected(message id)
     SendRaw(Vec<u8>, Option<u64>, MessageId),
+    // Params(gas), Expected(message id)
+    SendInput(Option<u64>, MessageId),
+    // Expected(message id)
+    SendPushInput(MessageId),
     // Expected(payload size)
     Size(u32),
     // Expected(message id)
@@ -63,6 +67,10 @@ pub enum Kind {
     Reply(Option<u64>, MessageId),
     // Params(payload, gas), Expected(message id)
     ReplyRaw(Vec<u8>, Option<u64>, MessageId),
+    // Params(gas), Expected(message id)
+    ReplyInput(Option<u64>, MessageId),
+    // Expected(message id)
+    ReplyPushInput(MessageId),
     // Expected(reply to id, exit code)
     ReplyDetails(MessageId, i32),
     // Expected(block height)
@@ -154,6 +162,36 @@ mod wasm {
                     "Kind::Send: mid test failed"
                 );
             }
+            Kind::SendInput(gas_opt, expected_mid) => {
+                let actual_mid_res = match gas_opt {
+                    Some(gas) => msg::send_input_with_gas_delayed(msg::source(), gas, 0, .., 0),
+                    None => msg::send_input_delayed(msg::source(), 0, .., 0),
+                };
+                assert_eq!(
+                    Ok(expected_mid.into()),
+                    actual_mid_res,
+                    "Kind::SendInput: mid test failed"
+                );
+            }
+            Kind::SendPushInput(expected_mid) => {
+                // Sending these 2 to increase internal handler returned by `send_init`.
+                let _ = msg::send_delayed(msg::source(), b"payload", 0, 0);
+                let _ = msg::send_delayed(msg::source(), b"payload", 0, 0);
+
+                let handle = MessageHandle::init().expect("internal error: failed send init");
+
+                // check handle
+                handle
+                    .push_input(0..)
+                    .expect("internal error: push_input failed");
+
+                let actual_mid_res = handle.commit_delayed(msg::source(), 0, 0);
+                assert_eq!(
+                    Ok(expected_mid.into()),
+                    actual_mid_res,
+                    "Kind::SendPushInput: mid test failed"
+                );
+            }
             Kind::SendRaw(payload, gas_opt, expected_mid) => {
                 // Sending these 2 to increase internal handler returned by `send_init`.
                 let _ = msg::send_delayed(msg::source(), b"payload", 0, 0);
@@ -232,6 +270,26 @@ mod wasm {
                     Ok(expected_mid.into()),
                     actual_mid_res,
                     "Kind::ReplyRaw: mid test failed"
+                );
+            }
+            Kind::ReplyInput(gas_opt, expected_mid) => {
+                let actual_mid_res = match gas_opt {
+                    Some(gas) => msg::reply_input_with_gas_delayed(gas, 0, .., 0),
+                    None => msg::reply_input_delayed(0, .., 0),
+                };
+                assert_eq!(
+                    Ok(expected_mid.into()),
+                    actual_mid_res,
+                    "Kind::ReplyInput: mid test failed"
+                );
+            }
+            Kind::ReplyPushInput(expected_mid) => {
+                msg::reply_push_input(..).expect("internal error: reply_push_input failed");
+                let actual_mid_res = msg::reply_commit_delayed(0, 0);
+                assert_eq!(
+                    Ok(expected_mid.into()),
+                    actual_mid_res,
+                    "Kind::ReplyPushInput: mid test failed"
                 );
             }
             Kind::ReplyDetails(..) => {
