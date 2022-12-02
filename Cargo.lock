@@ -1696,6 +1696,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "demo-proxy-relay"
+version = "0.1.0"
+dependencies = [
+ "gear-wasm-builder",
+ "gstd",
+ "parity-scale-codec",
+ "scale-info",
+]
+
+[[package]]
 name = "demo-proxy-with-gas"
 version = "0.1.0"
 dependencies = [
@@ -6213,6 +6223,7 @@ dependencies = [
  "demo-mul-by-const",
  "demo-program-factory",
  "demo-proxy",
+ "demo-proxy-relay",
  "demo-proxy-with-gas",
  "demo-reserve-gas",
  "demo-send-from-reservation",

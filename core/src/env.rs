@@ -83,6 +83,9 @@ pub trait Ext {
         self.send_commit(handle, msg, delay)
     }
 
+    /// Push the incoming message buffer into message payload by handle.
+    fn send_push_input(&mut self, handle: u32, offset: u32, len: u32) -> Result<(), Self::Error>;
+
     /// Complete message and send it to another program using gas from reservation.
     fn reservation_send_commit(
         &mut self,
@@ -134,6 +137,9 @@ pub trait Ext {
 
     /// Get the message id of the initial message.
     fn reply_to(&mut self) -> Result<MessageId, Self::Error>;
+
+    /// Push the incoming message buffer into reply message.
+    fn reply_push_input(&mut self, offset: u32, len: u32) -> Result<(), Self::Error>;
 
     /// Get the source of the message currently being handled.
     fn source(&mut self) -> Result<ProgramId, Self::Error>;

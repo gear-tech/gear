@@ -1084,6 +1084,267 @@ where
         Func::wrap(store, func)
     }
 
+    pub fn reply_input(
+        store: &mut Store<HostState<E>>,
+        forbidden: bool,
+        memory: WasmiMemory,
+    ) -> Func {
+        let func = move |caller: Caller<'_, HostState<E>>,
+                         offset: u32,
+                         len: u32,
+                         value_ptr: u32,
+                         delay: u32,
+                         err_mid_ptr: u32|
+              -> EmptyOutput {
+            let mut caller = CallerWrap::prepare(caller, forbidden)?;
+
+            let value = caller.read(&memory, |mem_ref| {
+                if value_ptr as i32 == i32::MAX {
+                    Ok(0)
+                } else {
+                    mem_ref.read_memory_decoded(value_ptr)
+                }
+            })?;
+
+            caller.call_fallible(
+                &memory,
+                |ext| {
+                    ext.reply_push_input(offset, len)?;
+                    ext.reply_commit(ReplyPacket::new(Default::default(), value), delay)
+                },
+                |res, mut mem_ref| {
+                    let err_mid = res
+                        .map(|message_id| LengthWithHash {
+                            hash: message_id.into(),
+                            ..Default::default()
+                        })
+                        .unwrap_or_else(|length| LengthWithHash {
+                            length,
+                            ..Default::default()
+                        });
+
+                    mem_ref.write_memory_as(err_mid_ptr, err_mid)
+                },
+            )
+        };
+
+        Func::wrap(store, func)
+    }
+
+    pub fn reply_push_input(
+        store: &mut Store<HostState<E>>,
+        forbidden: bool,
+        memory: WasmiMemory,
+    ) -> Func {
+        let func = move |caller: Caller<'_, HostState<E>>,
+                         offset: u32,
+                         len: u32,
+                         err_ptr: u32|
+              -> EmptyOutput {
+            let mut caller = CallerWrap::prepare(caller, forbidden)?;
+
+            caller.call_fallible(
+                &memory,
+                |ext| ext.reply_push_input(offset, len),
+                |res, mut mem_ref| {
+                    let len = res.map(|_| 0).unwrap_or_else(|e| e);
+                    mem_ref.write(err_ptr as usize, &len.to_le_bytes())
+                },
+            )
+        };
+
+        Func::wrap(store, func)
+    }
+
+    pub fn reply_input_wgas(
+        store: &mut Store<HostState<E>>,
+        forbidden: bool,
+        memory: WasmiMemory,
+    ) -> Func {
+        let func = move |caller: Caller<'_, HostState<E>>,
+                         offset: u32,
+                         len: u32,
+                         gas_limit: u64,
+                         value_ptr: u32,
+                         delay: u32,
+                         err_mid_ptr: u32|
+              -> EmptyOutput {
+            let mut caller = CallerWrap::prepare(caller, forbidden)?;
+
+            let value = caller.read(&memory, |mem_ref| {
+                if value_ptr as i32 == i32::MAX {
+                    Ok(0)
+                } else {
+                    mem_ref.read_memory_decoded(value_ptr)
+                }
+            })?;
+
+            caller.call_fallible(
+                &memory,
+                |ext| {
+                    ext.reply_push_input(offset, len)?;
+                    ext.reply_commit(
+                        ReplyPacket::new_with_gas(Default::default(), gas_limit, value),
+                        delay,
+                    )
+                },
+                |res, mut mem_ref| {
+                    let err_mid = res
+                        .map(|message_id| LengthWithHash {
+                            hash: message_id.into(),
+                            ..Default::default()
+                        })
+                        .unwrap_or_else(|length| LengthWithHash {
+                            length,
+                            ..Default::default()
+                        });
+
+                    mem_ref.write_memory_as(err_mid_ptr, err_mid)
+                },
+            )
+        };
+
+        Func::wrap(store, func)
+    }
+
+    pub fn send_input(
+        store: &mut Store<HostState<E>>,
+        forbidden: bool,
+        memory: WasmiMemory,
+    ) -> Func {
+        let func = move |caller: Caller<'_, HostState<E>>,
+                         pid_value_ptr: u32,
+                         offset: u32,
+                         len: u32,
+                         delay: u32,
+                         err_mid_ptr: u32|
+              -> EmptyOutput {
+            let mut caller = CallerWrap::prepare(caller, forbidden)?;
+
+            let (destination, value) = caller.read(&memory, |mem_ref| {
+                let HashWithValue {
+                    hash: destination,
+                    value,
+                } = mem_ref.read_memory_as(pid_value_ptr)?;
+
+                Ok((destination.into(), value))
+            })?;
+
+            caller.call_fallible(
+                &memory,
+                |ext| {
+                    let handle = ext.send_init()?;
+                    ext.send_push_input(handle, offset, len)?;
+                    ext.send_commit(
+                        handle,
+                        HandlePacket::new(destination, Default::default(), value),
+                        delay,
+                    )
+                },
+                |res, mut mem_ref| {
+                    let err_mid = res
+                        .map(|message_id| LengthWithHash {
+                            hash: message_id.into(),
+                            ..Default::default()
+                        })
+                        .unwrap_or_else(|length| LengthWithHash {
+                            length,
+                            ..Default::default()
+                        });
+
+                    mem_ref.write_memory_as(err_mid_ptr, err_mid)
+                },
+            )
+        };
+
+        Func::wrap(store, func)
+    }
+
+    pub fn send_push_input(
+        store: &mut Store<HostState<E>>,
+        forbidden: bool,
+        memory: WasmiMemory,
+    ) -> Func {
+        let func = move |caller: Caller<'_, HostState<E>>,
+                         handle: u32,
+                         offset: u32,
+                         len: u32,
+                         err_ptr: u32|
+              -> EmptyOutput {
+            let mut caller = CallerWrap::prepare(caller, forbidden)?;
+
+            caller.call_fallible(
+                &memory,
+                |ext| ext.send_push_input(handle, offset, len),
+                |res, mut mem_ref| {
+                    let len = res.map(|_| 0).unwrap_or_else(|e| e);
+                    mem_ref.write(err_ptr as usize, &len.to_le_bytes())
+                },
+            )
+        };
+
+        Func::wrap(store, func)
+    }
+
+    pub fn send_input_wgas(
+        store: &mut Store<HostState<E>>,
+        forbidden: bool,
+        memory: WasmiMemory,
+    ) -> Func {
+        let func = move |caller: Caller<'_, HostState<E>>,
+                         pid_value_ptr: u32,
+                         offset: u32,
+                         len: u32,
+                         gas_limit: u64,
+                         delay: u32,
+                         err_mid_ptr: u32|
+              -> EmptyOutput {
+            let mut caller = CallerWrap::prepare(caller, forbidden)?;
+
+            let (destination, value) = caller.read(&memory, |mem_ref| {
+                let HashWithValue {
+                    hash: destination,
+                    value,
+                } = mem_ref.read_memory_as(pid_value_ptr)?;
+
+                Ok((destination.into(), value))
+            })?;
+
+            caller.call_fallible(
+                &memory,
+                |ext| {
+                    let handle = ext.send_init()?;
+                    ext.send_push_input(handle, offset, len)?;
+                    ext.send_commit(
+                        handle,
+                        HandlePacket::new_with_gas(
+                            destination,
+                            Default::default(),
+                            gas_limit,
+                            value,
+                        ),
+                        delay,
+                    )
+                },
+                |res, mut mem_ref| {
+                    let err_mid = res
+                        .map(|message_id| LengthWithHash {
+                            hash: message_id.into(),
+                            ..Default::default()
+                        })
+                        .unwrap_or_else(|length| LengthWithHash {
+                            length,
+                            ..Default::default()
+                        });
+
+                    mem_ref.write_memory_as(err_mid_ptr, err_mid)
+                },
+            )
+        };
+
+        Func::wrap(store, func)
+    }
+
     pub fn debug(store: &mut Store<HostState<E>>, forbidden: bool, memory: WasmiMemory) -> Func {
         let func =
             move |caller: Caller<'_, HostState<E>>, string_ptr: u32, len: u32| -> EmptyOutput {
