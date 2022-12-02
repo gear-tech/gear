@@ -757,7 +757,7 @@ benchmarks! {
     }
 
     gr_send_push_per_kb {
-        let n in 0 .. 256;
+        let n in 0 .. MAX_PAYLOAD_LEN_PER_KB;
         let mut res = None;
         let exec = Benches::<T>::gr_send_push_per_kb(n)?;
     }: {
@@ -779,7 +779,7 @@ benchmarks! {
     }
 
     gr_send_commit_per_kb {
-        let n in 0 .. 256;
+        let n in 0 .. MAX_PAYLOAD_LEN_PER_KB;
         let mut res = None;
         let exec = Benches::<T>::gr_send_commit_per_kb(n)?;
     }: {
