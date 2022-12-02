@@ -917,7 +917,6 @@ pub mod pallet {
                 alloc_cost: schedule.memory_weights.allocation_cost,
                 mem_grow_cost: schedule.memory_weights.grow_cost,
                 load_page_cost: schedule.memory_weights.load_cost,
-                random_subject_len: schedule.limits.subject_len,
             };
 
             let block_config = BlockConfig {
@@ -1272,7 +1271,6 @@ pub mod pallet {
                 alloc_cost: schedule.memory_weights.allocation_cost,
                 mem_grow_cost: schedule.memory_weights.grow_cost,
                 load_page_cost: schedule.memory_weights.load_cost,
-                random_subject_len: schedule.limits.subject_len,
             };
 
             let block_config = BlockConfig {
