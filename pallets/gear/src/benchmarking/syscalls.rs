@@ -482,7 +482,7 @@ where
     pub fn gr_random(r: u32) -> Result<Exec<T>, &'static str> {
         let subject_ptr = 1;
         let subject_len = 32;
-        let bn_random_ptr = 1 + subject_len;
+        let bn_random_ptr = subject_ptr + subject_len;
 
         let code = WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
