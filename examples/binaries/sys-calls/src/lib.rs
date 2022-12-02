@@ -353,7 +353,7 @@ mod wasm {
                 let (actual_hash, actual_bn) =
                     exec::random(&salt).expect("internal error: random call failed");
                 assert_eq!(expected_hash, actual_hash, "Kind::Random: hash test failed");
-                // assert_eq!(expected_bn, actual_bn, "Kind::Random: bn test failed");
+                assert_eq!(expected_bn, actual_bn, "Kind::Random: bn test failed");
             }
             Kind::GasAvailable(lower, upper) => {
                 let gas_available = exec::gas_available();
