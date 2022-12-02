@@ -109,8 +109,6 @@ where
     }
 }
 
-// 3. Emulate when tx validated and then became invalid
-
 #[test]
 fn validation_works() {
     init_logger();
@@ -311,30 +309,6 @@ fn validation_for_calls_without_gas_and_value() {
         for call in non_message_sending_calls {
             test(call);
         }
-    })
-}
-
-#[test]
-fn additional_validation_works() {
-    init_logger();
-    new_test_ext().execute_with(|| {
-        let call = RuntimeCall::Gear(pallet_gear::Call::upload_program {
-            code: vec![1, 2, 3],
-            salt: vec![1, 2, 3],
-            init_payload: vec![],
-            gas_limit: 1,
-            value: 600,
-        });
-        let len = 100;
-        let info = info_from_weight(Weight::from_ref_time(100));
-        log::info!(
-            "{:?}",
-            TransactionPayment::compute_fee(len as u32, &info, 0)
-        );
-        assert_ok!(
-            CustomChargeTransactionPayment::<Test>::from(0).validate(&ALICE, &call, &info, len)
-        );
-        log::info!("{:?}", Balances::free_balance(ALICE))
     })
 }
 
