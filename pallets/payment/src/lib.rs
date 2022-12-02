@@ -334,7 +334,10 @@ pub trait AdditionalTxValidator<T: Config> {
 }
 
 impl<T: Config> AdditionalTxValidator<T> for () {
-    fn validate(_who: &T::AccountId, _call: &T::RuntimeCall) -> Result<(), TransactionValidityError> {
+    fn validate(
+        _who: &T::AccountId,
+        _call: &T::RuntimeCall,
+    ) -> Result<(), TransactionValidityError> {
         Ok(())
     }
 }

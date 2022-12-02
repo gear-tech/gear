@@ -84,7 +84,7 @@ pub use pallet_gear;
 #[cfg(feature = "debug-mode")]
 pub use pallet_gear_debug;
 pub use pallet_gear_gas;
-pub use pallet_gear_payment;
+pub use pallet_gear_payment::{self, GearTxValidator, MessageResourcesU64Gas};
 
 pub mod constants;
 
@@ -406,11 +406,35 @@ impl Contains<RuntimeCall> for ExtraFeeFilter {
     }
 }
 
+// Required by `GearTxValidator`
+impl common::TryExtract<MessageResourcesU64Gas<Balance>> for RuntimeCall {
+    fn try_extract(&self) -> Option<MessageResourcesU64Gas<Balance>> {
+        use pallet_gear::Call::*;
+        match self {
+            RuntimeCall::Gear(upload_program {
+                gas_limit, value, ..
+            })
+            | RuntimeCall::Gear(create_program {
+                gas_limit, value, ..
+            })
+            | RuntimeCall::Gear(send_message {
+                gas_limit, value, ..
+            })
+            | RuntimeCall::Gear(send_reply {
+                gas_limit, value, ..
+            }) => Some(MessageResourcesU64Gas {
+                gas: *gas_limit,
+                value: *value,
+            }),
+            _ => None,
+        }
+    }
+}
+
 impl pallet_gear_payment::Config for Runtime {
     type ExtraFeeCallFilter = ExtraFeeFilter;
     type Messenger = GearMessenger;
-    // TODO [sab]
-    type AdditionalTxValidator = ();
+    type AdditionalTxValidator = GearTxValidator<Balances, GasConverter>;
 }
 
 impl<C> frame_system::offchain::SendTransactionTypes<C> for Runtime

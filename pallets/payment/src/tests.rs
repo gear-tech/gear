@@ -174,6 +174,7 @@ fn validation_works() {
             CustomChargeTransactionPayment::<Test>::from(tip).validate(&BOB, &call, &info, len),
             TransactionValidityError::Invalid(InvalidTransaction::Payment)
         );
+        // This check shows, that the previous call failed only due to `AdditionalTxValidator`, as `ChargeTransactionPayment` successfully withdrew funds.
         assert_eq!(Balances::free_balance(BOB), fee_for_msg - 1);
 
         // Check pre_dispatch does the same
@@ -183,12 +184,71 @@ fn validation_works() {
             // Validation doesn't withdraw funds for gas and value
             tx_fee
         ));
-        // This check shows, that the previous call failed only due to `AdditionalTxValidator`, as `ChargeTransactionPayment` successfully withdrew funds.
         assert_err!(
             CustomChargeTransactionPayment::<Test>::from(tip).validate(&BOB, &call, &info, len),
             TransactionValidityError::Invalid(InvalidTransaction::Payment)
         );
+        // This check shows, that the previous call failed only due to `AdditionalTxValidator`, as `ChargeTransactionPayment` successfully withdrew funds.
         assert_eq!(Balances::free_balance(BOB), fee_for_msg - 1);
+    })
+}
+
+#[test]
+fn validation_works_when_tx_invalidated_in_pool() {
+    new_test_ext().execute_with(|| {
+        let bob_initial_balance = Balances::free_balance(BOB);
+        let gas_limit = 100_000;
+        let value = 100_000;
+        let gas_value = GasConverter::gas_price(gas_limit);
+
+        let call = Gear(Call::send_message {
+            destination: ProgramId::from_origin(H256::random()),
+            payload: vec![],
+            gas_limit,
+            value,
+        });
+
+        let tip = 0;
+        let len = 100;
+        let info = info_from_weight(Weight::from_ref_time(100));
+
+        let tx_fee = TransactionPayment::compute_fee(len as u32, &info, tip);
+        let fee_for_msg = value + gas_value;
+
+        assert_ok!(Balances::transfer(
+            RuntimeOrigin::signed(ALICE),
+            BOB,
+            tx_fee + fee_for_msg
+        ));
+        let bob_actual_balance = Balances::free_balance(BOB);
+
+        // Say Bob's tx is validated
+        assert_ok!(
+            CustomChargeTransactionPayment::<Test>::from(tip).validate(&BOB, &call, &info, len)
+        );
+
+        // as `validate` call from runtime doesn't change the state, we return funds to BOB
+        assert_ok!(Balances::transfer(
+            RuntimeOrigin::signed(ALICE),
+            BOB,
+            // returning by ALICE's expense...
+            tx_fee
+        ));
+        assert_eq!(Balances::free_balance(BOB), bob_actual_balance);
+
+        // So Bob's tx is in the pool. Later it invalidates, because Bob's funds decrease.s
+        assert_ok!(Balances::transfer(
+            RuntimeOrigin::signed(BOB),
+            ALICE,
+            fee_for_msg
+        ));
+        // Next pre_dispatch call with fail
+        assert_err!(
+            CustomChargeTransactionPayment::<Test>::from(tip).validate(&BOB, &call, &info, len),
+            TransactionValidityError::Invalid(InvalidTransaction::Payment)
+        );
+        // This check shows, that the previous call failed only due to `AdditionalTxValidator`, as `ChargeTransactionPayment` successfully withdrew funds.
+        assert_eq!(Balances::free_balance(BOB), bob_initial_balance);
     })
 }
 
