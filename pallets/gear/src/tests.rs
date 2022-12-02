@@ -671,6 +671,7 @@ fn send_message_panic_low_balance() {
             res.expect("submit result was asserted")
         };
 
+        // this panics as it has too low balance (which is checked in the tx pool)
         let _ = call_default_message(program_id).dispatch(RuntimeOrigin::signed(LOW_BALANCE_USER));
     });
 }
