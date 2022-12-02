@@ -7935,7 +7935,7 @@ fn check_random_works() {
             .iter()
             .zip(random_data.iter())
             .for_each(|((msg, _bn), random_data)| {
-                assert_eq!(blake2b(32, &[], &random_data).as_bytes(), msg.payload());
+                assert_eq!(blake2b(32, &[], random_data).as_bytes(), msg.payload());
             });
 
         // // assert_last_dequeued(1);
