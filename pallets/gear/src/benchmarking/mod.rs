@@ -94,7 +94,6 @@ use sp_runtime::{
 use sp_std::prelude::*;
 
 const MAX_PAYLOAD_LEN: u32 = 16 * 64 * 1024;
-/// `MAX_PAYLOAD_LEN_PER_KB` is too large to benchmark.
 const MAX_PAYLOAD_LEN_PER_KB: u32 = MAX_PAYLOAD_LEN / 1024;
 const MAX_PAGES: u32 = 512;
 
