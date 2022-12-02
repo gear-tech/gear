@@ -35,8 +35,8 @@ use gear_core::{
     ids::{CodeId, MessageId, ProgramId, ReservationId},
     lazy_pages::{GlobalsCtx, Status},
     memory::{
-        AllocationsContext, GrowHandler, GrowHandlerNothing, Memory, PageBuf, PageNumber,
-        WasmPageNumber, PageU32Size, to_page_iter, AllocResult,
+        to_page_iter, AllocResult, AllocationsContext, GrowHandler, GrowHandlerNothing, Memory,
+        PageBuf, PageNumber, PageU32Size, WasmPageNumber,
     },
     message::{
         GasLimit, HandlePacket, InitPacket, MessageContext, Packet, ReplyPacket, StatusCode,
@@ -237,9 +237,9 @@ impl IntoExtInfo<<Ext as EnvExt>::Error> for Ext {
         let pages_for_data = |static_pages: WasmPageNumber,
                               allocations: &BTreeSet<WasmPageNumber>|
          -> Vec<PageNumber> {
-            (WasmPageNumber::zero()..static_pages)
+            (0.into()..static_pages)
                 .chain(allocations.iter().copied())
-                .flat_map(|page| to_page_iter(page))
+                .flat_map(to_page_iter)
                 .collect()
         };
 
@@ -874,7 +874,7 @@ impl Ext {
         self.charge_gas((pages.raw() as u64).saturating_mul(self.context.config.mem_grow_cost))?;
 
         let result = self.context.allocations_context.alloc::<G>(pages, mem);
-        let AllocResult{ page, not_grown } = self.return_and_store_err(result)?;
+        let AllocResult { page, not_grown } = self.return_and_store_err(result)?;
 
         // Returns back greedily used gas for grow
         let mut gas_to_return_back = self
@@ -885,8 +885,9 @@ impl Ext {
 
         // Returns back greedily used gas for allocations
         let mut new_allocated_pages_num = 0;
+        // Panic is safe, because alloc returns page, for which `page + pages` is inside u32 memory.
         for page in page..page.add(pages).expect("Alloc implementation error") {
-            if !self.context.allocations_context.is_init_page(page.into()) {
+            if !self.context.allocations_context.is_init_page(page) {
                 new_allocated_pages_num += 1;
             }
         }

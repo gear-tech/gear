@@ -34,7 +34,7 @@ use gear_backend_common::Environment;
 use gear_core::{
     code::Code,
     ids::{CodeId, MessageId, ProgramId},
-    memory::{PageBuf, PageNumber, WasmPageNumber, PageU32Size},
+    memory::{PageBuf, PageNumber, PageU32Size, WasmPageNumber},
     message::*,
 };
 use log::{Log, Metadata, Record, SetLoggerError};
@@ -384,7 +384,10 @@ pub fn check_allocations(
                 }
             }
             AllocationExpectationKind::ExactPages(ref expected_pages) => {
-                let mut actual_pages = actual_pages.iter().map(|page| page.raw()).collect::<Vec<_>>();
+                let mut actual_pages = actual_pages
+                    .iter()
+                    .map(|page| page.raw())
+                    .collect::<Vec<_>>();
                 let mut expected_pages = expected_pages.clone();
 
                 actual_pages.sort_unstable();

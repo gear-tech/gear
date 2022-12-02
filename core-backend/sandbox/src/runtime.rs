@@ -86,7 +86,10 @@ impl<E: Ext> Runtime<E> {
 }
 
 impl<E: Ext> RuntimeCtx<E> for Runtime<E> {
-    fn alloc(&mut self, pages: WasmPageNumber) -> Result<WasmPageNumber, RuntimeCtxError<E::Error>> {
+    fn alloc(
+        &mut self,
+        pages: WasmPageNumber,
+    ) -> Result<WasmPageNumber, RuntimeCtxError<E::Error>> {
         self.ext
             .alloc(pages, &mut self.memory)
             .map_err(RuntimeCtxError::Ext)

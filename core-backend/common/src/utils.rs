@@ -18,7 +18,7 @@
 
 use crate::StackEndError;
 use alloc::string::String;
-use gear_core::memory::{WasmPageNumber, PageU32Size};
+use gear_core::memory::{PageU32Size, WasmPageNumber};
 
 #[macro_export]
 macro_rules! assert_ok {

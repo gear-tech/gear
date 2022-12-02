@@ -20,10 +20,11 @@ use super::*;
 use crate::mock::*;
 use common::{self, Origin as _};
 use frame_support::assert_ok;
+use gear_core::memory::WasmPageNumber;
 #[cfg(feature = "lazy-pages")]
 use gear_core::{
     ids::{CodeId, MessageId, ProgramId},
-    memory::{to_page_iter, GranularityPage, PageBuf, PageNumber, PageU32Size, WasmPageNumber},
+    memory::{to_page_iter, GranularityPage, PageBuf, PageNumber, PageU32Size},
     message::{DispatchKind, StoredDispatch, StoredMessage},
 };
 use pallet_gear::{DebugInfo, Pallet as PalletGear};
@@ -103,7 +104,7 @@ fn debug_mode_works() {
 
         GearDebug::do_snapshot();
 
-        let static_pages = WasmPageNumber::new(16).unwrap();
+        let static_pages = 16.into();
 
         System::assert_last_event(
             crate::Event::DebugDataSnapshot(DebugData {
@@ -803,8 +804,8 @@ fn check_gear_stack_end() {
         let mut persistent_pages = BTreeMap::new();
         let empty_data = PageBuf::new_zeroed();
 
-        let gear_page2 = WasmPageNumber::new(2).unwrap().to_page();
-        let gear_page3 = WasmPageNumber::new(3).unwrap().to_page();
+        let gear_page2 = WasmPageNumber::from(2).to_page();
+        let gear_page3 = WasmPageNumber::from(3).to_page();
         let mut page_data = empty_data.to_vec();
         page_data[0] = 0x42;
 
@@ -828,7 +829,7 @@ fn check_gear_stack_end() {
                 programs: vec![crate::ProgramDetails {
                     id: program_id,
                     state: crate::ProgramState::Active(crate::ProgramInfo {
-                        static_pages: WasmPageNumber::new(4).unwrap(),
+                        static_pages: 4.into(),
                         persistent_pages,
                         code_hash: generate_code_hash(&code),
                     }),

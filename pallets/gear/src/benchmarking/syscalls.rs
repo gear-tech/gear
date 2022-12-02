@@ -22,9 +22,9 @@ use frame_system::RawOrigin;
 use gear_core::{
     code::{Code, CodeAndId},
     ids::{CodeId, MessageId, ProgramId, ReservationId},
+    memory::WasmPageNumber,
     message::{Dispatch, DispatchKind, Message, ReplyDetails},
     reservation::GasReservationSlot,
-    memory::WasmPageNumber,
 };
 use gear_wasm_instrument::{parity_wasm::elements::Instruction, syscalls::syscall_signature};
 use sp_core::H256;
@@ -161,7 +161,7 @@ where
     let block_config = BlockConfig {
         block_info,
         allocations_config: AllocationsConfig {
-            max_pages: (T::Schedule::get().limits.memory_pages as u16).into(),
+            max_pages: T::Schedule::get().limits.memory_pages.into(),
             init_cost: T::Schedule::get().memory_weights.initial_cost,
             alloc_cost: T::Schedule::get().memory_weights.allocation_cost,
             mem_grow_cost: T::Schedule::get().memory_weights.grow_cost,
@@ -1439,7 +1439,7 @@ where
     }
 
     pub fn lazy_pages_write_access(wasm_pages: WasmPageNumber) -> Result<Exec<T>, &'static str> {
-        let mut instrs = body::read_access_all_pages_instrs((max_pages::<T>() as u16).into(), vec![]);
+        let mut instrs = body::read_access_all_pages_instrs(max_pages::<T>().into(), vec![]);
         instrs = body::write_access_all_pages_instrs(wasm_pages, instrs);
         let code = WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),

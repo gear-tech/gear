@@ -104,7 +104,11 @@ pub enum Status {
 #[derive(Debug, Clone, Copy, Decode, Encode, derive_more::Display)]
 pub enum AccessError {
     /// Given access addr + size overflows u32.
-    #[display(fmt = "Access interval addr {:#x} + size {:#x} overflows u32::MAX", _0, _1)]
+    #[display(
+        fmt = "Access interval addr {:#x} + size {:#x} overflows u32::MAX",
+        _0,
+        _1
+    )]
     AddrPlusSizeOverflow(u32, u32),
     /// Access size cannot be less then 1 byte.
     #[display(fmt = "Access interval size is zero")]

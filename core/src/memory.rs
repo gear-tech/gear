@@ -150,7 +150,9 @@ pub trait PageU32Size: Sized + Clone + Copy + PartialEq + Eq {
     fn size() -> u32;
     /// Returns raw page number.
     fn raw(&self) -> u32;
-    /// Constructs new page without any checks, and doesn't guarantee, that page offset is in not overflowed.
+    /// Constructs new page without any checks.
+    /// # Safety
+    /// Doesn't guarantee, that page offset or page end offset is in not overflowed.
     unsafe fn new_unchecked(num: u32) -> Self;
 
     /// Constructs new page from byte offset: returns page which contains this byte.
@@ -373,7 +375,7 @@ pub trait Memory {
 
     /// Returns native addr of wasm memory buffer in wasm executor
     fn get_buffer_host_addr(&mut self) -> Option<HostPointer> {
-        if self.size() == WasmPageNumber::zero() {
+        if self.size() == 0.into() {
             None
         } else {
             // We call this method only in case memory size is not zero,
@@ -486,7 +488,7 @@ impl AllocationsContext {
                 .map(|last| last.inc().expect("unreachable"))
                 .unwrap_or(self.static_pages());
             let end = start.add(pages).map_err(|_| Error::OutOfBounds)?;
-            if end >= self.max_pages {
+            if end > self.max_pages {
                 return Err(Error::OutOfBounds);
             }
 
@@ -558,23 +560,15 @@ mod tests {
     #[test]
     /// Test that PageNumbers add up correctly
     fn page_number_addition() {
-        let sum = PageNumber::new(100)
-            .unwrap()
-            .add(PageNumber::new(200).unwrap())
-            .unwrap();
-
+        let sum = PageNumber(100).add(200.into()).unwrap();
         assert_eq!(sum, PageNumber(300));
     }
 
     #[test]
     /// Test that PageNumbers subtract correctly
     fn page_number_subtraction() {
-        let subtraction = PageNumber::new(299)
-            .unwrap()
-            .sub(PageNumber::new(199).unwrap())
-            .unwrap();
-
-        assert_eq!(subtraction, PageNumber::new(100).unwrap())
+        let subtraction = PageNumber(299).sub(199.into()).unwrap();
+        assert_eq!(subtraction, PageNumber(100))
     }
 
     #[test]

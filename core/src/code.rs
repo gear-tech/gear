@@ -141,7 +141,6 @@ impl Code {
             return Err(CodeError::StartSectionExists);
         }
 
-        // TODO: decode err info
         // get initial memory size from memory import.
         let static_pages = WasmPageNumber::new(
             module
@@ -157,7 +156,7 @@ impl Code {
                 })
                 .ok_or(CodeError::MemoryEntryNotFound)?,
         )
-        .map_err(|_| CodeError::Decode)?;
+        .map_err(|_| CodeError::InvalidStaticPageCount)?;
 
         if static_pages.raw() > MAX_WASM_PAGE_COUNT as u32 {
             return Err(CodeError::InvalidStaticPageCount);
@@ -222,7 +221,7 @@ impl Code {
                 })
                 .ok_or(CodeError::MemoryEntryNotFound)?,
         )
-        .map_err(|_| CodeError::Decode)?;
+        .map_err(|_| CodeError::InvalidStaticPageCount)?;
 
         let exports = get_exports(&module, false)?;
 

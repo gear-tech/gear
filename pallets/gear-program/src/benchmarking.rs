@@ -25,7 +25,7 @@ use frame_support::traits::Currency;
 use frame_system::RawOrigin;
 use gear_core::{
     ids::ProgramId,
-    memory::{PageNumber, WasmPageNumber, to_page_iter},
+    memory::{to_page_iter, PageNumber, WasmPageNumber},
 };
 use sp_runtime::traits::UniqueSaturatedInto;
 use sp_std::vec::Vec;

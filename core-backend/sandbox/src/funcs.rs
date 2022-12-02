@@ -407,7 +407,7 @@ where
 
         ctx.run(|ctx| {
             ctx.ext
-                .free(page.into())
+                .free(page)
                 .map(|_| log::debug!("FREE: {:?}", page))
                 .map_err(|err| {
                     log::debug!("FREE ERROR: {}", err);

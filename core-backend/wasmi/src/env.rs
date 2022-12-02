@@ -42,7 +42,7 @@ use gear_core::{
     lazy_pages::{
         GlobalsAccessError, GlobalsAccessMod, GlobalsAccessTrait, GlobalsCtx, LazyPagesWeights,
     },
-    memory::{HostPointer, WasmPageNumber, PageU32Size},
+    memory::{HostPointer, PageU32Size, WasmPageNumber},
     message::DispatchKind,
 };
 use gear_wasm_instrument::{GLOBAL_NAME_ALLOWANCE, GLOBAL_NAME_GAS};

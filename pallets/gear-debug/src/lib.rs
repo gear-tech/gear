@@ -40,7 +40,7 @@ pub mod pallet {
     use frame_system::pallet_prelude::*;
     use gear_core::{
         ids::{CodeId, ProgramId},
-        memory::{PageNumber, WasmPageNumber, PageU32Size},
+        memory::{PageNumber, PageU32Size, WasmPageNumber},
         message::{StoredDispatch, StoredMessage},
     };
     use primitive_types::H256;

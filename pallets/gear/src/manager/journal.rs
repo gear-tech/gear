@@ -36,7 +36,7 @@ use frame_support::{
 use frame_system::pallet_prelude::BlockNumberFor;
 use gear_core::{
     ids::{CodeId, MessageId, ProgramId, ReservationId},
-    memory::{PageBuf, PageNumber, to_page_iter},
+    memory::{to_page_iter, PageBuf, PageNumber},
     message::{Dispatch, MessageWaitedType, StoredDispatch},
     reservation::GasReserver,
 };

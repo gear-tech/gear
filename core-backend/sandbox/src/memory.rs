@@ -67,13 +67,14 @@ impl Memory for MemoryWrap {
 mod tests {
     use super::*;
     use gear_backend_common::{assert_err, assert_ok};
-    use gear_core::memory::{AllocationsContext, GrowHandlerNothing};
+    use gear_core::memory::{AllocResult, AllocationsContext, GrowHandlerNothing};
 
     fn new_test_memory(static_pages: u16, max_pages: u16) -> (AllocationsContext, MemoryWrap) {
         use sp_sandbox::SandboxMemory as WasmMemory;
 
         let memory = MemoryWrap::new(
-            WasmMemory::new(static_pages as u32, Some(max_pages as u32)).expect("Memory creation failed"),
+            WasmMemory::new(static_pages as u32, Some(max_pages as u32))
+                .expect("Memory creation failed"),
         );
 
         (
@@ -86,9 +87,12 @@ mod tests {
     fn smoky() {
         let (mut mem, mut mem_wrap) = new_test_memory(16, 256);
 
-        assert_eq!(
-            mem.alloc::<GrowHandlerNothing>(16.into(), &mut mem_wrap).unwrap().page,
-            16.into()
+        assert_ok!(
+            mem.alloc::<GrowHandlerNothing>(16.into(), &mut mem_wrap),
+            AllocResult {
+                page: 16.into(),
+                not_grown: 0.into()
+            }
         );
 
         // there is a space for 14 more
@@ -106,18 +110,24 @@ mod tests {
         assert_ok!(mem.free(137.into()));
 
         // and now can allocate page that was freed
-        assert_eq!(
-            mem.alloc::<GrowHandlerNothing>(1.into(), &mut mem_wrap).unwrap().page,
-            137.into()
+        assert_ok!(
+            mem.alloc::<GrowHandlerNothing>(1.into(), &mut mem_wrap),
+            AllocResult {
+                page: 137.into(),
+                not_grown: 1.into()
+            },
         );
 
         // if we have 2 in a row we can allocate even 2
         assert_ok!(mem.free(117.into()));
         assert_ok!(mem.free(118.into()));
 
-        assert_eq!(
-            mem.alloc::<GrowHandlerNothing>(2.into(), &mut mem_wrap).unwrap().page,
-            117.into()
+        assert_ok!(
+            mem.alloc::<GrowHandlerNothing>(2.into(), &mut mem_wrap),
+            AllocResult {
+                page: 117.into(),
+                not_grown: 2.into()
+            }
         );
 
         // but if 2 are not in a row, bad luck

@@ -76,7 +76,7 @@ use gear_core::{
     code::{Code, CodeAndId},
     gas::{GasAllowanceCounter, GasCounter, ValueCounter},
     ids::{MessageId, ProgramId},
-    memory::{AllocationsContext, PageBuf, PageNumber, WasmPageNumber, PageU32Size},
+    memory::{AllocationsContext, PageBuf, PageNumber, PageU32Size, WasmPageNumber},
     message::{ContextSettings, MessageContext},
     reservation::GasReserver,
 };
@@ -334,7 +334,7 @@ benchmarks! {
         let WasmModule { code, .. } = WasmModule::<T>::sized(c * 1024, Location::Init);
     }: {
         let ext = Ext::new(default_processor_context::<T>());
-        ExecutionEnvironment::new(ext, &code, Default::default(), (max_pages::<T>() as u16).into()).unwrap();
+        ExecutionEnvironment::new(ext, &code, Default::default(), max_pages::<T>().into()).unwrap();
     }
 
     claim_value {
@@ -1101,7 +1101,7 @@ benchmarks! {
         // Warm up memory.
         let mut instrs = body::write_access_all_pages_instrs((mem_pages as u16).into(), vec![]);
         instrs = body::repeated_dyn_instr(r * INSTR_BENCHMARK_BATCH_SIZE, vec![
-                        RandomUnaligned(0, mem_pages * WasmPageNumber::size() as u32 - 8),
+                        RandomUnaligned(0, mem_pages * WasmPageNumber::size() - 8),
                         RandomI64Repeated(1),
                         Regular(Instruction::I64Store(3, 0))], instrs);
         let mut sbox = Sandbox::from(&WasmModule::<T>::from(ModuleDefinition {

@@ -117,7 +117,9 @@ impl ImportedMemory {
     where
         T: Config,
     {
-        Self { min_pages: max_pages::<T>() as u32 }
+        Self {
+            min_pages: max_pages::<T>() as u32,
+        }
     }
 }
 
@@ -457,7 +459,7 @@ pub mod body {
         mem_size: WasmPageNumber,
         mut head: Vec<Instruction>,
     ) -> Vec<Instruction> {
-        for page in (0.into()..mem_size).flat_map(|p| to_page_iter::<_, PageNumber>(p)) {
+        for page in (0.into()..mem_size).flat_map(to_page_iter::<_, PageNumber>) {
             head.push(Instruction::I32Const(page.offset() as i32));
             head.push(Instruction::I32Const(42));
             head.push(Instruction::I32Store(2, 0));
@@ -469,7 +471,7 @@ pub mod body {
         mem_size: WasmPageNumber,
         mut head: Vec<Instruction>,
     ) -> Vec<Instruction> {
-        for page in (0.into()..mem_size).flat_map(|p| to_page_iter::<_, PageNumber>(p)) {
+        for page in (0.into()..mem_size).flat_map(to_page_iter::<_, PageNumber>) {
             head.push(Instruction::I32Const(page.offset() as i32));
             head.push(Instruction::I32Load(2, 0));
             head.push(Instruction::Drop);

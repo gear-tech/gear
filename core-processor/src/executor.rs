@@ -260,13 +260,13 @@ fn prepare_memory<A: ProcessorExt, M: Memory>(
         // If we executes without lazy pages, then we have to save all initial data for static pages,
         // in order to be able to identify pages, which has been changed during execution.
         // Skip stack page if they are specified.
-        let begin = stack_end.unwrap_or(WasmPageNumber::zero());
+        let begin = stack_end.unwrap_or_default();
 
         if pages_data.keys().any(|&p| p < begin.to_page()) {
             return Err(ExecutionErrorReason::StackPagesHaveInitialData);
         }
 
-        for page in (begin..static_pages).flat_map(|page| to_page_iter(page)) {
+        for page in (begin..static_pages).flat_map(to_page_iter) {
             if pages_data.contains_key(&page) {
                 // This page already has initial data
                 continue;
@@ -585,8 +585,8 @@ mod tests {
     }
 
     fn prepare_pages_and_allocs() -> (Vec<PageNumber>, BTreeSet<WasmPageNumber>) {
-        let data = [0, 1, 2, 8, 18, 25, 27, 28, 93, 146, 240, 518];
-        let pages = data.map(|p| PageNumber::new(p).unwrap());
+        let data = [0u16, 1, 2, 8, 18, 25, 27, 28, 93, 146, 240, 518];
+        let pages = data.map(Into::into);
         (pages.to_vec(), pages.map(|p| p.to_page()).into())
     }
 
@@ -758,7 +758,11 @@ mod tests {
         // Do not include non-static pages
         let new_pages = new_pages
             .into_iter()
-            .take(WasmPageNumber::from(static_pages).to_page::<PageNumber>().raw() as _)
+            .take(
+                WasmPageNumber::from(static_pages)
+                    .to_page::<PageNumber>()
+                    .raw() as _,
+            )
             .collect();
         let res =
             get_pages_to_be_updated::<TestExt>(Default::default(), new_pages, static_pages.into());

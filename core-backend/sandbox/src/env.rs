@@ -40,7 +40,7 @@ use gear_core::{
     env::Ext,
     gas::GasAmount,
     lazy_pages::{GlobalsAccessMod, GlobalsCtx, LazyPagesWeights},
-    memory::{WasmPageNumber, PageU32Size},
+    memory::{PageU32Size, WasmPageNumber},
     message::DispatchKind,
 };
 use gear_wasm_instrument::{

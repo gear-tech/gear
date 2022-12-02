@@ -24,14 +24,13 @@ use region::Protection;
 use sc_executor_common::sandbox::SandboxInstance;
 use sp_wasm_interface::Value;
 use std::{
-    cell::RefMut,
-    collections::BTreeSet,
-    convert::TryFrom,
-    iter::{FromIterator, Step},
-    ops::RangeInclusive,
+    cell::RefMut, collections::BTreeSet, convert::TryFrom, iter::FromIterator, ops::RangeInclusive,
 };
 
-use crate::{Error, GranularityPage, LazyPage, LazyPagesExecutionContext, LAZY_PAGES_CONTEXT};
+use crate::{
+    utils::with_inclusive_ranges, Error, GranularityPage, LazyPage, LazyPagesExecutionContext,
+    LAZY_PAGES_CONTEXT,
+};
 
 use gear_core::{
     lazy_pages::{GlobalsAccessError, GlobalsAccessMod, GlobalsAccessTrait, GlobalsCtx, Status},
@@ -249,40 +248,6 @@ unsafe fn charge_gas(
     }
 }
 
-#[derive(Debug, Clone, Copy, derive_more::Display)]
-pub enum WithInclusiveRangesError {
-    #[display(fmt = "forward_checked overflow")]
-    Overflow,
-    #[display(fmt = "Indexes must be sorted by ascending and be uniq")]
-    IndexesAreNotSorted,
-}
-
-fn with_inclusive_ranges<T: Sized + Copy + Eq + Step, E>(
-    mut indexes: impl Iterator<Item = T>,
-    mut f: impl FnMut(RangeInclusive<T>) -> Result<(), E>,
-) -> Result<Result<(), E>, WithInclusiveRangesError> {
-    let mut start = if let Some(start) = indexes.next() {
-        start
-    } else {
-        return Ok(Ok(()));
-    };
-    let mut end = start;
-    for idx in indexes {
-        if end >= idx {
-            return Err(WithInclusiveRangesError::IndexesAreNotSorted);
-        }
-        if Step::forward_checked(end, 1).ok_or(WithInclusiveRangesError::Overflow)? != idx {
-            if let Err(err) = f(start..=end) {
-                return Ok(Err(err));
-            }
-            start = idx;
-        }
-        end = idx;
-    }
-
-    Ok(f(start..=end))
-}
-
 fn process_status(status: Status) -> Option<()> {
     match status {
         Status::Normal => Some(()),
@@ -355,7 +320,7 @@ pub(crate) unsafe fn process_lazy_pages(
                         // Charge gas for "write after read", because page has been already read accessed.
                         let status = charge_gas(
                             ctx.globals_ctx.as_ref(),
-                            GranularityPage::size() / PageNumber::size() as u32,
+                            GranularityPage::size() / PageNumber::size(),
                             true,
                             true,
                         )?;
@@ -388,7 +353,7 @@ pub(crate) unsafe fn process_lazy_pages(
                 {
                     let status = charge_gas(
                         ctx.globals_ctx.as_ref(),
-                        GranularityPage::size() / PageNumber::size() as u32,
+                        GranularityPage::size() / PageNumber::size(),
                         is_write,
                         false,
                     )?;
@@ -411,11 +376,13 @@ pub(crate) unsafe fn process_lazy_pages(
                     Protection::READ_WRITE,
                 )?;
 
-                // TODO: refactoring
                 for gear_page in to_page_iter::<_, PageNumber>(lazy_page) {
-                    let page_buffer_ptr = (wasm_mem_addr as *mut u8).add(gear_page.offset() as usize);
-                    let buffer_as_slice =
-                        std::slice::from_raw_parts_mut(page_buffer_ptr, PageNumber::size() as usize);
+                    let page_buffer_ptr =
+                        (wasm_mem_addr as *mut u8).add(gear_page.offset() as usize);
+                    let buffer_as_slice = std::slice::from_raw_parts_mut(
+                        page_buffer_ptr,
+                        PageNumber::size() as usize,
+                    );
                     let res = sp_io::storage::read(
                         prefix.calc_key_for_page(gear_page),
                         buffer_as_slice,

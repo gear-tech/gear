@@ -19,8 +19,11 @@
 //! Wrappers around system memory protections.
 
 use core::ops::RangeInclusive;
+use std::{fmt::Debug, iter::Step};
 
 use gear_core::memory::PageU32Size;
+
+use crate::utils::with_inclusive_ranges;
 
 #[derive(Debug, derive_more::Display)]
 pub enum MprotectError {
@@ -36,6 +39,8 @@ pub enum MprotectError {
     ZeroSizeError,
     #[display(fmt = "Offset {_0:#x} is bigger then wasm mem size {_1:#x}")]
     OffsetOverflow(usize, usize),
+    #[display(fmt = "Given iterator over pages is incorrect")]
+    IncorrectPagesIterator,
 }
 
 /// Mprotect native memory interval [`addr`, `addr` + `size`].
@@ -120,32 +125,23 @@ pub fn mprotect_mem_interval_except_pages(
 }
 
 /// Mprotect all pages from `pages`.
-pub fn mprotect_pages<T: PageU32Size>(
+pub fn mprotect_pages<T: PageU32Size + Step + Debug>(
     mem_addr: usize,
-    mut pages: impl Iterator<Item = T>,
+    pages: impl Iterator<Item = T>,
     prot_read: bool,
     prot_write: bool,
 ) -> Result<(), MprotectError> {
-    // TODO: checks
-    let mprotect = |start: T, end: T| {
-        let addr = mem_addr + start.offset() as usize;
-        let size = end.sub(start).unwrap().offset() as usize;
-        unsafe { sys_mprotect_interval(addr, size as usize, prot_read, prot_write, false) }
+    let mprotect = |interval: RangeInclusive<T>| {
+        log::trace!("{:?}", interval);
+        let addr = mem_addr + interval.start().offset() as usize;
+        // `+ T::size()` because range is inclusive, and it's safe, because both are u32.
+        let size = interval
+            .end()
+            .sub(*interval.start())
+            .expect("Unexpected `with_inclusive_ranges` behavior: interval end is less than interval start")
+            .offset() as usize + T::size() as usize;
+        unsafe { sys_mprotect_interval(addr, size, prot_read, prot_write, false) }
     };
 
-    let mut start = if let Some(start) = pages.next() {
-        start
-    } else {
-        return Ok(());
-    };
-    let mut end = start.inc().unwrap();
-    for page in pages {
-        if end != page {
-            mprotect(start, end)?;
-            start = page;
-        }
-        end = page.inc().unwrap();
-    }
-
-    mprotect(start, end)
+    with_inclusive_ranges(pages, mprotect).map_err(|_| MprotectError::IncorrectPagesIterator)?
 }

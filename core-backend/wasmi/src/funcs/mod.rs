@@ -671,7 +671,7 @@ where
 
             let mut caller = CallerWrap::prepare(caller, forbidden)?;
 
-            if let Err(e) = caller.host_state_mut().ext.free(page.into()) {
+            if let Err(e) = caller.host_state_mut().ext.free(page) {
                 log::debug!("FREE ERROR: {e}");
                 caller.host_state_mut().err = FuncError::Core(e);
 

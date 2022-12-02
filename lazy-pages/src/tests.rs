@@ -178,13 +178,8 @@ fn test_mprotect_pages() {
         }
     }
 
-    mprotect_pages(
-        page_begin,
-        pages_protected.iter().copied(),
-        false,
-        false,
-    )
-    .expect("Must be correct");
+    mprotect_pages(page_begin, pages_protected.iter().copied(), false, false)
+        .expect("Must be correct");
 
     unsafe {
         for &p in pages_protected.iter() {
@@ -202,11 +197,6 @@ fn test_mprotect_pages() {
         }
     }
 
-    mprotect_pages(
-        page_begin,
-        pages_protected.iter().copied(),
-        true,
-        true,
-    )
-    .expect("Must be correct");
+    mprotect_pages(page_begin, pages_protected.iter().copied(), true, true)
+        .expect("Must be correct");
 }

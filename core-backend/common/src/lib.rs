@@ -179,7 +179,8 @@ pub enum RuntimeCtxError<E: Display> {
 
 pub trait RuntimeCtx<E: Ext> {
     /// Allocate new pages in instance memory.
-    fn alloc(&mut self, pages: WasmPageNumber) -> Result<WasmPageNumber, RuntimeCtxError<E::Error>>;
+    fn alloc(&mut self, pages: WasmPageNumber)
+        -> Result<WasmPageNumber, RuntimeCtxError<E::Error>>;
 
     /// Read designated chunk from the memory.
     fn read_memory(&self, ptr: u32, len: u32) -> Result<Vec<u8>, RuntimeCtxError<E::Error>>;

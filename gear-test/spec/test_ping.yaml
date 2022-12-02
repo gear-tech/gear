@@ -29,3 +29,27 @@ fixtures:
             kind: utf-8
             value: PONG
 
+  - title: ping-pong wgas
+
+    messages:
+      - destination: 2
+        payload:
+          kind: utf-8
+          value: PING_REPLY_WITH_GAS
+      - destination: 2
+        payload:
+          kind: utf-8
+          value: PING_REPLY_COMMIT_WITH_GAS
+
+    expected:
+      - log:
+        - destination: 1000001
+          payload:
+            kind: utf-8
+            value: pong reply with gas message
+          gas_limit: 3001
+        - destination: 1000001
+          payload:
+            kind: utf-8
+            value: pong Part 1 pong Part 2
+          gas_limit: 3001

@@ -28,7 +28,10 @@
 
 use gear_core::{
     lazy_pages::{AccessError, GlobalsCtx, Status},
-    memory::{to_page_iter, PageNumber, PageU32Size, WasmPageNumber, GranularityPage, PAGE_STORAGE_GRANULARITY},
+    memory::{
+        to_page_iter, GranularityPage, PageNumber, PageU32Size, WasmPageNumber,
+        PAGE_STORAGE_GRANULARITY,
+    },
 };
 use once_cell::sync::OnceCell;
 use sp_std::vec::Vec;
@@ -39,6 +42,8 @@ use sys::{
     mprotect::{self, MprotectError},
     process_lazy_pages, DefaultUserSignalHandler, UserSignalHandler,
 };
+
+mod utils;
 
 /// Initialize lazy-pages once for process.
 static LAZY_PAGES_INITIALIZED: OnceCell<Result<(), InitError>> = OnceCell::new();
@@ -173,27 +178,17 @@ pub fn initialize_for_program(
         }
         ctx.wasm_mem_addr = wasm_mem_addr;
 
-        // TODO: checks
-        // let size_in_bytes = u32::try_from(wasm_mem_size.offset())
-        //     .map_err(|_| WasmMemSizeBiggerThenU32Max(wasm_mem_size))?;
-        // if let Some(addr) = wasm_mem_addr {
-        //     if addr.checked_add(size_in_bytes as usize).is_none() {
-        //         return Err(WasmMemoryEndAddrOverflow(addr, size_in_bytes));
-        //     }
-        // }
+        if let Some(addr) = wasm_mem_addr {
+            if addr.checked_add(wasm_mem_size.offset() as usize).is_none() {
+                return Err(WasmMemoryEndAddrOverflow(addr, wasm_mem_size.offset()));
+            }
+        }
         ctx.wasm_mem_size = Some(wasm_mem_size);
 
-        // TODO: checks
-        // if let Some(page) = stack_end_page {
-        //     if page > wasm_mem_size {
-        //         return Err(StackEndAddrBiggerThenSize(page, wasm_mem_size));
-        //     }
-        //     // `as u32` is safe, because page size is less then mem size
-        //     page.offset() as u32
-        // } else {
-        //     0
-        // };
         ctx.stack_end_wasm_page = if let Some(stack_end_page) = stack_end_page {
+            if stack_end_page > wasm_mem_size {
+                return Err(StackEndAddrBiggerThenSize(stack_end_page, wasm_mem_size));
+            }
             stack_end_page
         } else {
             WasmPageNumber::zero()
@@ -205,7 +200,6 @@ pub fn initialize_for_program(
 
         // Set protection if wasm memory exist.
         if let Some(addr) = wasm_mem_addr {
-            // TODO: checks
             // `+` and `-` are safe because we checked, that `stack_end` is less than `wasm_mem_size`
             // and wasm end addr fits usize.
             let addr = addr + ctx.stack_end_wasm_page.offset() as usize;
@@ -220,7 +214,6 @@ pub fn initialize_for_program(
         Ok(())
     })
 }
-
 
 #[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Eq, Ord)]
 struct LazyPage(u32);
@@ -261,7 +254,7 @@ fn get_access_pages(accesses: &[(u32, u32)]) -> Result<BTreeSet<LazyPage>, Acces
             access
                 .0
                 .checked_add(access.1)
-                .ok_or_else(|| AccessError::AddrPlusSizeOverflow(access.0, access.1))?
+                .ok_or(AccessError::AddrPlusSizeOverflow(access.0, access.1))?
                 .checked_sub(1)
                 .ok_or(AccessError::AccessSizeIsZero)?,
         );
@@ -386,7 +379,6 @@ pub fn set_wasm_mem_size(size: WasmPageNumber) -> Result<(), WasmMemSizeError> {
 
 /// Returns vec of lazy-pages which has been accessed
 pub fn get_released_pages() -> Vec<PageNumber> {
-    // TODO: refactoring
     LAZY_PAGES_CONTEXT.with(|ctx| {
         ctx.borrow()
             .released_pages
