@@ -443,12 +443,10 @@ where
 {
     run_tester::<T, _, _, T::AccountId>(|_, _| {
         let default_sender = utils::default_account::<T::AccountId>();
-        let next_message_id =
-            utils::get_next_message_id::<T>(default_sender.clone());
+        let next_message_id = utils::get_next_message_id::<T>(default_sender.clone());
         let expected_message_id = MessageId::generate_outgoing(next_message_id, 0);
 
-        let payload = Kind::SendInput(gas, expected_message_id.into())
-            .encode();
+        let payload = Kind::SendInput(gas, expected_message_id.into()).encode();
         let message = payload.clone().into();
 
         let post_test = move || {
@@ -472,13 +470,11 @@ where
 {
     run_tester::<T, _, _, T::AccountId>(|_, _| {
         let default_sender = utils::default_account::<T::AccountId>();
-        let next_message_id =
-            utils::get_next_message_id::<T>(default_sender.clone());
+        let next_message_id = utils::get_next_message_id::<T>(default_sender.clone());
         // Program increases local nonce by sending messages twice before `send_init`.
         let expected_message_id = MessageId::generate_outgoing(next_message_id, 2);
 
-        let payload = Kind::SendPushInput(expected_message_id.into())
-            .encode();
+        let payload = Kind::SendPushInput(expected_message_id.into()).encode();
         let message = payload.clone().into();
 
         let post_test = move || {
@@ -549,8 +545,7 @@ where
         let next_message_id = utils::get_next_message_id::<T>(default_sender.clone());
         let expected_message_id = MessageId::generate_reply(next_message_id, 0);
 
-        let payload = Kind::ReplyInput(gas, expected_message_id.into())
-            .encode();
+        let payload = Kind::ReplyInput(gas, expected_message_id.into()).encode();
         let message = payload.clone().into();
 
         let post_test = move || {
@@ -576,8 +571,7 @@ where
         let next_message_id = utils::get_next_message_id::<T>(default_sender.clone());
         let expected_message_id = MessageId::generate_reply(next_message_id, 0);
 
-        let payload = Kind::ReplyPushInput(expected_message_id.into())
-            .encode();
+        let payload = Kind::ReplyPushInput(expected_message_id.into()).encode();
         let message = payload.clone().into();
 
         let post_test = move || {
