@@ -42,7 +42,7 @@ use gear_core::{
     lazy_pages::{
         GlobalsAccessError, GlobalsAccessMod, GlobalsAccessTrait, GlobalsCtx, LazyPagesWeights,
     },
-    memory::{HostPointer, WasmPageNumber},
+    memory::{HostPointer, WasmPageNumber, PageU32Size},
     message::DispatchKind,
 };
 use gear_wasm_instrument::{GLOBAL_NAME_ALLOWANCE, GLOBAL_NAME_GAS};
@@ -175,7 +175,7 @@ where
 
         let mut linker: Linker<HostState<E>> = Linker::new();
 
-        let memory_type = MemoryType::new(mem_size.0, None);
+        let memory_type = MemoryType::new(mem_size.raw(), None);
         let memory = Memory::new(&mut store, memory_type)
             .map_err(|e| (ext.gas_amount(), CreateEnvMemory(e)))?;
 

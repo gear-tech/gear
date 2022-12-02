@@ -169,6 +169,11 @@ pub enum MemoryError {
     /// Memory size cannot be zero after grow is applied for memory
     #[display(fmt = "Memory unexpectedly has zero size after grow")]
     MemSizeIsZeroAfterGrow,
+
+    // TODO: make separate error for alloc in allocations context
+    /// Memory size cannot be zero after grow is applied for memory
+    #[display(fmt = "Allocated memory pages or memory size are incorrect")]
+    IncorrectAllocationsSetOrMemSize,
 }
 
 /// Execution error.

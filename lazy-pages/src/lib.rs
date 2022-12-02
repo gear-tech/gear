@@ -28,19 +28,17 @@
 
 use gear_core::{
     lazy_pages::{AccessError, GlobalsCtx, Status},
-    memory::{PageNumber, PageU32Size, WasmPageNumber, PAGE_STORAGE_GRANULARITY},
+    memory::{to_page_iter, PageNumber, PageU32Size, WasmPageNumber, PAGE_STORAGE_GRANULARITY},
 };
-use increment::{IncResult, Incrementable};
 use once_cell::sync::OnceCell;
 use sp_std::vec::Vec;
-use std::{cell::RefCell, collections::BTreeSet, convert::TryFrom, iter::Step};
+use std::{cell::RefCell, collections::BTreeSet, iter::Step};
 
 mod sys;
 use sys::{
     mprotect::{self, MprotectError},
-    process_lazy_pages,
+    process_lazy_pages, DefaultUserSignalHandler, UserSignalHandler,
 };
-use sys::{DefaultUserSignalHandler, ExceptionInfo, UserSignalHandler};
 
 /// Initialize lazy-pages once for process.
 static LAZY_PAGES_INITIALIZED: OnceCell<Result<(), InitError>> = OnceCell::new();
@@ -69,7 +67,7 @@ pub(crate) enum Error {
         expected,
         actual
     )]
-    InvalidPageDataSize { expected: usize, actual: u32 },
+    InvalidPageDataSize { expected: u32, actual: u32 },
     /// Found a write signal from same page twice - restricted, see more in a head comment.
     #[display(fmt = "Any page cannot be released twice: {_0:?}")]
     DoubleRelease(LazyPage),
@@ -204,7 +202,7 @@ pub fn initialize_for_program(
         ctx.stack_end_wasm_page = if let Some(stack_end_page) = stack_end_page {
             stack_end_page
         } else {
-            0.into()
+            WasmPageNumber::zero()
         };
 
         ctx.program_storage_prefix = Some(program_prefix);
@@ -219,7 +217,7 @@ pub fn initialize_for_program(
             let addr = addr + ctx.stack_end_wasm_page.offset() as usize;
             let size = wasm_mem_size.offset() - ctx.stack_end_wasm_page.offset();
             if size != 0 {
-                mprotect::mprotect_interval(addr, size, false, false)?;
+                mprotect::mprotect_interval(addr, size as usize, false, false)?;
             }
         }
 
@@ -249,7 +247,7 @@ struct LazyPage(u32);
 
 impl PageU32Size for LazyPage {
     fn size() -> u32 {
-        region::page::size().max(PageNumber::size()) as u32
+        region::page::size().max(PageNumber::size() as usize) as u32
     }
 
     fn raw(&self) -> u32 {
@@ -295,11 +293,11 @@ impl Step for LazyPage {
     }
 
     fn forward_checked(start: Self, count: usize) -> Option<Self> {
-        LazyPage::new(u32::forward_checked(start.0, count)?)
+        LazyPage::new(u32::forward_checked(start.0, count)?).ok()
     }
 
     fn backward_checked(start: Self, count: usize) -> Option<Self> {
-        LazyPage::new(u32::backward_checked(start.0, count)?)
+        LazyPage::new(u32::backward_checked(start.0, count)?).ok()
     }
 }
 
@@ -365,13 +363,11 @@ pub fn set_lazy_pages_protection() -> Result<(), MemoryProtectionError> {
         let mem_size = ctx.wasm_mem_size.ok_or(WasmMemSizeIsNotSet)?.offset();
 
         // Set r/w protection for all pages except stack pages and released pages.
-        let except_pages = ctx.released_pages.iter().map(|page| page.0);
         mprotect::mprotect_mem_interval_except_pages(
             mem_addr,
-            start_offset,
-            mem_size,
-            except_pages,
-            LazyPage::size(),
+            start_offset as usize,
+            mem_size as usize,
+            ctx.released_pages.iter().copied(),
             false,
             false,
         )?;
@@ -402,7 +398,7 @@ pub fn unset_lazy_pages_protection() -> Result<(), MemoryProtectionError> {
         let ctx = ctx.borrow();
         let addr = ctx.wasm_mem_addr.ok_or(WasmMemAddrIsNotSet)?;
         let size = ctx.wasm_mem_size.ok_or(WasmMemSizeIsNotSet)?.offset();
-        mprotect::mprotect_interval(addr, size, true, true)?;
+        mprotect::mprotect_interval(addr, size as usize, true, true)?;
         Ok(())
     })
 }
@@ -443,11 +439,7 @@ pub fn get_released_pages() -> Vec<PageNumber> {
         ctx.borrow()
             .released_pages
             .iter()
-            .flat_map(|page| {
-                let gear_page = PageNumber::new_from_addr(page.offset() as usize);
-                (gear_page.0..gear_page.0 + LazyPage::size() / PageNumber::size() as u32)
-                    .map(PageNumber)
-            })
+            .flat_map(|&page| to_page_iter(page))
             .collect()
     })
 }
@@ -516,10 +508,11 @@ unsafe fn init_for_process<H: UserSignalHandler>() -> Result<(), InitError> {
     LAZY_PAGES_INITIALIZED
         .get_or_init(|| {
             let ps = region::page::size();
+            let gear_ps = PageNumber::size() as usize;
             if ps > PAGE_STORAGE_GRANULARITY
                 || PAGE_STORAGE_GRANULARITY % ps != 0
-                || (ps > PageNumber::size() && ps % PageNumber::size() != 0)
-                || (ps < PageNumber::size() && PageNumber::size() % ps != 0)
+                || (ps > gear_ps && ps % gear_ps != 0)
+                || (ps < gear_ps && gear_ps % ps != 0)
             {
                 return Err(NativePageSizeIsNotSuitable(ps));
             }

@@ -24,7 +24,7 @@ use frame_support::assert_ok;
 use gear_core::memory::{PageNumber, PAGE_STORAGE_GRANULARITY as PSG};
 use gear_core::{
     ids::{CodeId, MessageId, ProgramId},
-    memory::{PageBuf, WasmPageNumber},
+    memory::{PageBuf, PageU32Size, WasmPageNumber},
     message::{DispatchKind, StoredDispatch, StoredMessage},
 };
 use pallet_gear::{DebugInfo, Pallet as PalletGear};
@@ -104,7 +104,7 @@ fn debug_mode_works() {
 
         GearDebug::do_snapshot();
 
-        let static_pages = WasmPageNumber(16);
+        let static_pages = WasmPageNumber::new(16).unwrap();
 
         System::assert_last_event(
             crate::Event::DebugDataSnapshot(DebugData {
@@ -434,11 +434,11 @@ fn check_not_allocated_pages() {
 
         GearDebug::do_snapshot();
 
-        let gear_page0 = PageNumber::new_from_addr(0);
+        let gear_page0 = PageNumber::from_offset(0x0);
         let mut page0_data = PageBuf::new_zeroed();
         page0_data[0] = 0x42;
 
-        let gear_page7 = PageNumber::new_from_addr(0x70000);
+        let gear_page7 = PageNumber::from_offset(0x70000);
         let mut page7_data = PageBuf::new_zeroed();
         page7_data[0] = 0x42;
 
@@ -642,7 +642,7 @@ fn check_changed_pages_in_storage() {
         let origin = RuntimeOrigin::signed(1);
 
         // Code info. Must be in consensus with wasm code.
-        let static_pages = WasmPageNumber(8);
+        let static_pages = 8.into();
         let page1_accessed_addr = 0x10000;
         let page3_accessed_addr = 0x3fffd;
         let page4_accessed_addr = 0x40000;
@@ -806,8 +806,8 @@ fn check_gear_stack_end() {
         let mut persistent_pages = BTreeMap::new();
         let empty_data = PageBuf::new_zeroed();
 
-        let gear_page2 = WasmPageNumber(2).to_gear_page();
-        let gear_page3 = WasmPageNumber(3).to_gear_page();
+        let gear_page2 = WasmPageNumber::new(2).unwrap().to_page();
+        let gear_page3 = WasmPageNumber::new(3).unwrap().to_page();
         let mut page_data = empty_data.to_vec();
         page_data[0] = 0x42;
 
@@ -831,7 +831,7 @@ fn check_gear_stack_end() {
                 programs: vec![crate::ProgramDetails {
                     id: program_id,
                     state: crate::ProgramState::Active(crate::ProgramInfo {
-                        static_pages: WasmPageNumber(4),
+                        static_pages: WasmPageNumber::new(4).unwrap(),
                         persistent_pages,
                         code_hash: generate_code_hash(&code),
                     }),

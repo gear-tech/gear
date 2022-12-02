@@ -25,7 +25,7 @@ use gear_common::{pages_prefix, Origin};
 use gear_core::{
     ids::ProgramId,
     lazy_pages::{GlobalsCtx, Status},
-    memory::{HostPointer, Memory, PageNumber, WasmPageNumber},
+    memory::{HostPointer, Memory, PageNumber, PageU32Size, WasmPageNumber},
 };
 use gear_runtime_interface::gear_ri;
 use sp_std::vec::Vec;
@@ -54,13 +54,13 @@ pub fn init_for_program(
     let program_prefix = crate::pages_prefix(prog_id.into_origin());
     let wasm_mem_addr = mem.get_buffer_host_addr();
     let wasm_mem_size = mem.size();
-    let stack_end_page = stack_end.map(|p| p.0);
+    let stack_end_page = stack_end.map(|page| page.raw());
 
     // Cannot panic unless OS allocates buffer in not aligned by native page addr, or
     // something goes wrong with pages protection.
     gear_ri::init_lazy_pages_for_program(
         wasm_mem_addr,
-        wasm_mem_size.0,
+        wasm_mem_size.raw(),
         stack_end_page,
         program_prefix,
         globals_ctx,
@@ -105,7 +105,7 @@ pub fn update_lazy_pages_and_protect_again(
 
     let new_mem_size = mem.size();
     if new_mem_size > old_mem_size {
-        gear_ri::set_wasm_mem_size(new_mem_size.0);
+        gear_ri::set_wasm_mem_size(new_mem_size.raw());
     }
 
     mprotect_lazy_pages(mem, true);
@@ -115,7 +115,7 @@ pub fn update_lazy_pages_and_protect_again(
 pub fn get_released_pages() -> Vec<PageNumber> {
     gear_ri::get_released_pages()
         .into_iter()
-        .map(PageNumber)
+        .map(|p| PageNumber::new(p).expect("Unexpected lazy pages behavior"))
         .collect()
 }
 

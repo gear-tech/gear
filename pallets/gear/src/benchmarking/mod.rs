@@ -76,7 +76,7 @@ use gear_core::{
     code::{Code, CodeAndId},
     gas::{GasAllowanceCounter, GasCounter, ValueCounter},
     ids::{MessageId, ProgramId},
-    memory::{AllocationsContext, PageBuf, PageNumber, WasmPageNumber},
+    memory::{AllocationsContext, PageBuf, PageNumber, WasmPageNumber, PageU32Size},
     message::{ContextSettings, MessageContext},
     reservation::GasReserver,
 };
@@ -334,7 +334,7 @@ benchmarks! {
         let WasmModule { code, .. } = WasmModule::<T>::sized(c * 1024, Location::Init);
     }: {
         let ext = Ext::new(default_processor_context::<T>());
-        ExecutionEnvironment::new(ext, &code, Default::default(), max_pages::<T>().into()).unwrap();
+        ExecutionEnvironment::new(ext, &code, Default::default(), (max_pages::<T>() as u16).into()).unwrap();
     }
 
     claim_value {
@@ -388,7 +388,7 @@ benchmarks! {
     //
     // `s`: Size of the salt in kilobytes.
     create_program {
-        let s in 0 .. code::max_pages::<T>() * 64 * 128;
+        let s in 0 .. code::max_pages::<T>() as u32 * 64 * 128;
 
         let caller = whitelisted_caller();
         let origin = RawOrigin::Signed(caller);
@@ -422,7 +422,7 @@ benchmarks! {
     // to be larger than the maximum size **after instrumentation**.
     upload_program {
         let c in 0 .. Perbill::from_percent(49).mul_ceil(T::Schedule::get().limits.code_len) / 1024;
-        let s in 0 .. code::max_pages::<T>() * 64 * 128;
+        let s in 0 .. code::max_pages::<T>() as u32 * 64 * 128;
         let salt = vec![42u8; s as usize];
         let value = <T as pallet::Config>::Currency::minimum_balance();
         let caller = whitelisted_caller();
@@ -485,6 +485,7 @@ benchmarks! {
 
     initial_allocation {
         let q in 1 .. MAX_PAGES;
+        let q = q as u16;
         let caller: T::AccountId = benchmarking::account("caller", 0, 0);
         <T as pallet::Config>::Currency::deposit_creating(&caller, (1u128 << 60).unique_saturated_into());
         let code = benchmarking::generate_wasm(q.into()).unwrap();
@@ -499,6 +500,7 @@ benchmarks! {
 
     alloc_in_handle {
         let q in 0 .. MAX_PAGES;
+        let q = q as u16;
         let caller: T::AccountId = benchmarking::account("caller", 0, 0);
         <T as pallet::Config>::Currency::deposit_creating(&caller, (1_u128 << 60).unique_saturated_into());
         let code = benchmarking::generate_wasm2(q.into()).unwrap();
@@ -1052,9 +1054,9 @@ benchmarks! {
     }
 
     lazy_pages_read_access {
-        let p in 0 .. code::max_pages::<T>();
+        let p in 0 .. code::max_pages::<T>() as u32;
         let mut res = None;
-        let exec = Benches::<T>::lazy_pages_read_access(p)?;
+        let exec = Benches::<T>::lazy_pages_read_access((p as u16).into())?;
     }: {
         res.replace(run_process(exec));
     }
@@ -1063,9 +1065,9 @@ benchmarks! {
     }
 
     lazy_pages_write_access {
-        let p in 0 .. code::max_pages::<T>();
+        let p in 0 .. code::max_pages::<T>() as u32;
         let mut res = None;
-        let exec = Benches::<T>::lazy_pages_write_access(p)?;
+        let exec = Benches::<T>::lazy_pages_write_access((p as u16).into())?;
     }: {
         res.replace(run_process(exec));
     }
@@ -1076,11 +1078,11 @@ benchmarks! {
     // w_load = w_bench
     instr_i64load {
         let r in 0 .. INSTR_BENCHMARK_BATCHES;
-        let mem_pages = code::max_pages::<T>();
+        let mem_pages = code::max_pages::<T>() as u32;
         // Warm up memory.
-        let mut instrs = body::write_access_all_pages_instrs(mem_pages, vec![]);
+        let mut instrs = body::write_access_all_pages_instrs((mem_pages as u16).into(), vec![]);
         instrs = body::repeated_dyn_instr(r * INSTR_BENCHMARK_BATCH_SIZE, vec![
-                        RandomUnaligned(0, mem_pages * WasmPageNumber::size() as u32 - 8),
+                        RandomUnaligned(0, mem_pages * WasmPageNumber::size() - 8),
                         Regular(Instruction::I64Load(3, 0)),
                         Regular(Instruction::Drop)], instrs);
         let mut sbox = Sandbox::from(&WasmModule::<T>::from(ModuleDefinition {
@@ -1095,9 +1097,9 @@ benchmarks! {
     // w_store = w_bench - w_i64const
     instr_i64store {
         let r in 0 .. INSTR_BENCHMARK_BATCHES;
-        let mem_pages = code::max_pages::<T>();
+        let mem_pages = code::max_pages::<T>() as u32;
         // Warm up memory.
-        let mut instrs = body::write_access_all_pages_instrs(mem_pages, vec![]);
+        let mut instrs = body::write_access_all_pages_instrs((mem_pages as u16).into(), vec![]);
         instrs = body::repeated_dyn_instr(r * INSTR_BENCHMARK_BATCH_SIZE, vec![
                         RandomUnaligned(0, mem_pages * WasmPageNumber::size() as u32 - 8),
                         RandomI64Repeated(1),

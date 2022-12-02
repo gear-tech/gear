@@ -20,6 +20,7 @@ use super::*;
 use elements::Instruction::*;
 use gas_metering::ConstantCostRules;
 use parity_wasm::serialize;
+use gear_core::memory::{WasmPageNumber, PageU32Size};
 
 fn get_function_body(module: &elements::Module, index: usize) -> Option<&[elements::Instruction]> {
     module
@@ -636,7 +637,7 @@ fn test_sys_calls_table() {
 
     // Execute wasm and check success.
     let ext = MockExt::default();
-    let env = WasmiEnvironment::new(ext, &code, Default::default(), 0.into()).unwrap();
+    let env = WasmiEnvironment::new(ext, &code, Default::default(), WasmPageNumber::zero()).unwrap();
     let res = env
         .execute(&DispatchKind::Init, |_, _, _| -> Result<(), u32> { Ok(()) })
         .unwrap();

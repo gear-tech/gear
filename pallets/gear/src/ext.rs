@@ -25,7 +25,7 @@ use gear_core::{
     gas::GasAmount,
     ids::{MessageId, ProgramId, ReservationId},
     lazy_pages::{GlobalsCtx, Status},
-    memory::{GrowHandler, Memory, PageNumber, WasmPageNumber},
+    memory::{GrowHandler, Memory, PageNumber, PageU32Size, WasmPageNumber},
     message::{HandlePacket, InitPacket, ReplyPacket, StatusCode},
 };
 use gear_core_errors::{ExtError, MemoryError};
@@ -44,7 +44,7 @@ impl IntoExtInfo<<LazyPagesExt as EnvExt>::Error> for LazyPagesExt {
             // Accessed pages are all pages, that had been released and are in allocations set or static.
             let mut accessed_pages = lazy_pages::get_released_pages();
             accessed_pages.retain(|p| {
-                let wasm_page = p.to_wasm_page();
+                let wasm_page = p.to_page();
                 wasm_page < static_pages || allocations.contains(&wasm_page)
             });
             log::trace!("accessed pages numbers = {:?}", accessed_pages);

@@ -40,7 +40,7 @@ pub mod pallet {
     use frame_system::pallet_prelude::*;
     use gear_core::{
         ids::{CodeId, ProgramId},
-        memory::{PageNumber, WasmPageNumber},
+        memory::{PageNumber, WasmPageNumber, PageU32Size},
         message::{StoredDispatch, StoredMessage},
     };
     use primitive_types::H256;
@@ -224,7 +224,7 @@ pub mod pallet {
                 let code_id = CodeId::from_origin(active.code_hash);
                 let static_pages = match T::CodeStorage::get_code(code_id) {
                     Some(code) => code.static_pages(),
-                    None => WasmPageNumber(0),
+                    None => WasmPageNumber::zero(),
                 };
                 let persistent_pages = common::get_program_pages_data(id.into_origin(), &active)
                     .unwrap()

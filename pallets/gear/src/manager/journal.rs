@@ -36,7 +36,7 @@ use frame_support::{
 use frame_system::pallet_prelude::BlockNumberFor;
 use gear_core::{
     ids::{CodeId, MessageId, ProgramId, ReservationId},
-    memory::{PageBuf, PageNumber},
+    memory::{PageBuf, PageNumber, to_page_iter},
     message::{Dispatch, MessageWaitedType, StoredDispatch},
     reservation::GasReserver,
 };
@@ -394,7 +394,7 @@ where
             .expect("page update guaranteed to be called only for existing and active program");
         if let Program::Active(mut program) = program {
             let removed_pages = program.allocations.difference(&allocations);
-            for page in removed_pages.flat_map(|p| p.to_gear_pages_iter()) {
+            for page in removed_pages.flat_map(|&page| to_page_iter(page)) {
                 if program.pages_with_data.remove(&page) {
                     common::remove_program_page_data(program_id, page);
                 }

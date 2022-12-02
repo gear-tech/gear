@@ -18,7 +18,11 @@
 
 //! Module for checked code.
 
-use crate::{ids::CodeId, memory::WasmPageNumber, message::DispatchKind};
+use crate::{
+    ids::CodeId,
+    memory::{PageU32Size, WasmPageNumber},
+    message::DispatchKind,
+};
 use alloc::{collections::BTreeSet, vec::Vec};
 use codec::{Decode, Encode};
 use gear_wasm_instrument::{
@@ -34,7 +38,7 @@ use gear_wasm_instrument::{
 use scale_info::TypeInfo;
 
 /// Defines maximal permitted count of memory pages.
-pub const MAX_WASM_PAGE_COUNT: u32 = 512;
+pub const MAX_WASM_PAGE_COUNT: u16 = 512;
 
 /// Parse function exports from wasm module into [`DispatchKind`].
 fn get_exports(
@@ -137,8 +141,9 @@ impl Code {
             return Err(CodeError::StartSectionExists);
         }
 
+        // TODO: decode err info
         // get initial memory size from memory import.
-        let static_pages = WasmPageNumber(
+        let static_pages = WasmPageNumber::new(
             module
                 .import_section()
                 .ok_or(CodeError::ImportSectionNotFound)?
@@ -151,9 +156,10 @@ impl Code {
                     _ => None,
                 })
                 .ok_or(CodeError::MemoryEntryNotFound)?,
-        );
+        )
+        .map_err(|_| CodeError::Decode)?;
 
-        if static_pages > MAX_WASM_PAGE_COUNT.into() {
+        if static_pages.raw() > MAX_WASM_PAGE_COUNT as u32 {
             return Err(CodeError::InvalidStaticPageCount);
         }
 
@@ -202,7 +208,7 @@ impl Code {
         );
 
         // get initial memory size from memory import.
-        let static_pages = WasmPageNumber(
+        let static_pages = WasmPageNumber::new(
             module
                 .import_section()
                 .ok_or(CodeError::ImportSectionNotFound)?
@@ -215,7 +221,8 @@ impl Code {
                     _ => None,
                 })
                 .ok_or(CodeError::MemoryEntryNotFound)?,
-        );
+        )
+        .map_err(|_| CodeError::Decode)?;
 
         let exports = get_exports(&module, false)?;
 

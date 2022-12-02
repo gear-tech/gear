@@ -140,7 +140,7 @@ pub struct Limits {
     pub parameters: u32,
 
     /// Maximum number of memory pages allowed for a program.
-    pub memory_pages: u32,
+    pub memory_pages: u16,
 
     /// Maximum number of elements allowed in a table.
     ///
@@ -168,7 +168,7 @@ pub struct Limits {
 impl Limits {
     /// The maximum memory size in bytes that a program can occupy.
     pub fn max_memory_size(&self) -> u32 {
-        self.memory_pages * 64 * 1024
+        self.memory_pages as u32 * 64 * 1024
     }
 }
 

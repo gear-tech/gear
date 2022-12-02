@@ -40,7 +40,7 @@ use gear_core::{
     env::Ext,
     gas::GasAmount,
     lazy_pages::{GlobalsAccessMod, GlobalsCtx, LazyPagesWeights},
-    memory::WasmPageNumber,
+    memory::{WasmPageNumber, PageU32Size},
     message::DispatchKind,
 };
 use gear_wasm_instrument::{
@@ -205,7 +205,7 @@ where
         builder.add_func(ReservationSend, Funcs::reservation_send);
         builder.add_func(ReservationSendCommit, Funcs::reservation_send_commit);
 
-        let memory: DefaultExecutorMemory = match SandboxMemory::new(mem_size.0, None) {
+        let memory: DefaultExecutorMemory = match SandboxMemory::new(mem_size.raw(), None) {
             Ok(mem) => mem,
             Err(e) => return Err((ext.gas_amount(), CreateEnvMemory(e)).into()),
         };

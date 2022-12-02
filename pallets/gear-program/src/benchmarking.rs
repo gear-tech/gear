@@ -25,7 +25,7 @@ use frame_support::traits::Currency;
 use frame_system::RawOrigin;
 use gear_core::{
     ids::ProgramId,
-    memory::{PageNumber, WasmPageNumber},
+    memory::{PageNumber, WasmPageNumber, to_page_iter},
 };
 use sp_runtime::traits::UniqueSaturatedInto;
 use sp_std::vec::Vec;
@@ -37,6 +37,7 @@ benchmarks! {
 
     resume_program {
         let q in 1 .. 128;
+        let q = q as u16;
         let minimum_balance = <T as pallet::Config>::Currency::minimum_balance();
         let caller: T::AccountId = benchmarking::account("caller", 0, 0);
         <T as Config>::Currency::deposit_creating(&caller, (1u128 << 60).unique_saturated_into());
@@ -45,8 +46,8 @@ benchmarks! {
         let program_id = ProgramId::from_origin(benchmarking::account::<T::AccountId>("program", 0, 100).into_origin());
         benchmarking::set_program(program_id.into_origin(), code, q.into());
 
-        let wasm_pages = (0..q).map(WasmPageNumber).collect::<Vec<WasmPageNumber>>();
-        let pages: Vec<PageNumber> = wasm_pages.iter().flat_map(|p| p.to_gear_pages_iter()).collect();
+        let wasm_pages = (0.into()..q.into()).collect::<Vec<WasmPageNumber>>();
+        let pages: Vec<PageNumber> = wasm_pages.iter().flat_map(|&p| to_page_iter(p)).collect();
         let memory_pages = common::get_program_data_for_pages(program_id.into_origin(), pages.iter()).unwrap().into_iter().map(|(page, data)| (page, data.into_vec())).collect();
 
         crate::Pallet::<T>::pause_program(program_id).unwrap();

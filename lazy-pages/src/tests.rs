@@ -17,8 +17,10 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
+    init_with_handler,
     mprotect::{mprotect_mem_interval_except_pages, mprotect_pages},
-    Error, ExceptionInfo, LazyPagesVersion, UserSignalHandler, init_with_handler,
+    sys::ExceptionInfo,
+    Error, LazyPagesVersion, UserSignalHandler,
 };
 use region::Protection;
 
@@ -80,7 +82,7 @@ fn read_write_flag_works() {
 
 #[test]
 fn test_mprotect_pages() {
-    use gear_core::memory::{PageNumber, WasmPageNumber};
+    use gear_core::memory::{PageNumber, PageU32Size, WasmPageNumber};
 
     const OLD_VALUE: u8 = 99;
     const NEW_VALUE: u8 = 100;
@@ -93,8 +95,8 @@ fn test_mprotect_pages() {
             let ps = region::page::size();
             let addr = region::page::floor(info.fault_addr);
             region::protect(addr, ps, region::Protection::READ_WRITE).unwrap();
-            for p in 0..ps / PageNumber::size() {
-                *((mem + p * PageNumber::size()) as *mut u8) = NEW_VALUE;
+            for p in 0..ps / PageNumber::size() as usize {
+                *((mem + p * PageNumber::size() as usize) as *mut u8) = NEW_VALUE;
             }
             region::protect(addr, ps, region::Protection::READ).unwrap();
 
@@ -106,25 +108,26 @@ fn test_mprotect_pages() {
 
     assert!(init_with_handler::<TestHandler>(LazyPagesVersion::Version1));
 
-    let mut v = vec![0u8; 3 * WasmPageNumber::size()];
+    let mut v = vec![0u8; 3 * WasmPageNumber::size() as usize];
     let buff = v.as_mut_ptr() as usize;
-    let page_begin =
-        ((buff + WasmPageNumber::size()) / WasmPageNumber::size()) * WasmPageNumber::size();
+    let page_begin = ((buff + WasmPageNumber::size() as usize) / WasmPageNumber::size() as usize)
+        * WasmPageNumber::size() as usize;
     let mem_size = 2 * WasmPageNumber::size();
 
     // Gear pages in 2 wasm pages. Randomly choose pages, which will be protected,
     // but because macos with M1 has page size == 16kB, we should include all gear pages from 16kB interval.
     // This test can fail if page size is bigger than 16kB.
-    let pages_protected = [0, 1, 2, 3, 16, 17, 18, 19, 20, 21, 22, 23].map(PageNumber::from);
+    let pages_protected =
+        [0, 1, 2, 3, 16, 17, 18, 19, 20, 21, 22, 23].map(|p| PageNumber::new(p).unwrap());
     let pages_unprotected = [
         4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 24, 25, 26, 27, 28, 29, 30, 31,
     ]
-    .map(PageNumber::from);
+    .map(|p| PageNumber::new(p).unwrap());
 
     // Set `OLD_VALUE` as value for each first byte of gear pages
     unsafe {
         for &p in pages_unprotected.iter().chain(pages_protected.iter()) {
-            let addr = page_begin + p.0 as usize * PageNumber::size() + 1;
+            let addr = page_begin + p.offset() as usize + 1;
             *(addr as *mut u8) = OLD_VALUE;
         }
     }
@@ -132,9 +135,8 @@ fn test_mprotect_pages() {
     mprotect_mem_interval_except_pages(
         page_begin,
         0,
-        mem_size,
-        pages_unprotected.iter().map(|p| p.0),
-        PageNumber::size() as u32,
+        mem_size as usize,
+        pages_unprotected.iter().copied(),
         false,
         false,
     )
@@ -142,14 +144,14 @@ fn test_mprotect_pages() {
 
     unsafe {
         for &p in pages_protected.iter() {
-            let addr = page_begin + p.0 as usize * PageNumber::size() + 1;
+            let addr = page_begin + p.offset() as usize + 1;
             let x = *(addr as *mut u8);
             // value must be changed to `NEW_VALUE` in sig handler
             assert_eq!(x, NEW_VALUE);
         }
 
         for &p in pages_unprotected.iter() {
-            let addr = page_begin + p.0 as usize * PageNumber::size() + 1;
+            let addr = page_begin + p.offset() as usize + 1;
             let x = *(addr as *mut u8);
             // value must not be changed
             assert_eq!(x, OLD_VALUE);
@@ -159,9 +161,8 @@ fn test_mprotect_pages() {
     mprotect_mem_interval_except_pages(
         page_begin,
         0,
-        mem_size,
-        pages_unprotected.iter().map(|page| page.0),
-        PageNumber::size() as u32,
+        mem_size as usize,
+        pages_unprotected.iter().copied(),
         true,
         true,
     )
@@ -170,44 +171,42 @@ fn test_mprotect_pages() {
     // make the same for mprotect_pages
 
     // Set `OLD_VALUE` as value for each first byte of gear pages
-    // unsafe {
-    //     for &p in pages_unprotected.iter().chain(pages_protected.iter()) {
-    //         let addr = page_begin + p.0 as usize * PageNumber::size() + 1;
-    //         *(addr as *mut u8) = OLD_VALUE;
-    //     }
-    // }
+    unsafe {
+        for &p in pages_unprotected.iter().chain(pages_protected.iter()) {
+            let addr = page_begin + p.offset() as usize + 1;
+            *(addr as *mut u8) = OLD_VALUE;
+        }
+    }
 
-    // mprotect_pages(
-    //     page_begin,
-    //     pages_protected.iter().map(|page| page.,
-    //     PageNumber::size() as u32,
-    //     false,
-    //     false,
-    // )
-    // .expect("Must be correct");
+    mprotect_pages(
+        page_begin,
+        pages_protected.iter().copied(),
+        false,
+        false,
+    )
+    .expect("Must be correct");
 
-    // unsafe {
-    //     for &p in pages_protected.iter() {
-    //         let addr = page_begin + p.0 as usize * PageNumber::size() + 1;
-    //         let x = *(addr as *mut u8);
-    //         // value must be changed to `NEW_VALUE` in sig handler
-    //         assert_eq!(x, NEW_VALUE);
-    //     }
+    unsafe {
+        for &p in pages_protected.iter() {
+            let addr = page_begin + p.offset() as usize + 1;
+            let x = *(addr as *mut u8);
+            // value must be changed to `NEW_VALUE` in sig handler
+            assert_eq!(x, NEW_VALUE);
+        }
 
-    //     for &p in pages_unprotected.iter() {
-    //         let addr = page_begin + p.0 as usize * PageNumber::size() + 1;
-    //         let x = *(addr as *mut u8);
-    //         // value must not be changed
-    //         assert_eq!(x, OLD_VALUE);
-    //     }
-    // }
+        for &p in pages_unprotected.iter() {
+            let addr = page_begin + p.offset() as usize + 1;
+            let x = *(addr as *mut u8);
+            // value must not be changed
+            assert_eq!(x, OLD_VALUE);
+        }
+    }
 
-    // mprotect_pages(
-    //     page_begin,
-    //     pages_protected.iter().map(|page| page.0),
-    //     PageNumber::size() as u32,
-    //     true,
-    //     true,
-    // )
-    // .expect("Must be correct");
+    mprotect_pages(
+        page_begin,
+        pages_protected.iter().copied(),
+        true,
+        true,
+    )
+    .expect("Must be correct");
 }

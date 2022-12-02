@@ -23,7 +23,7 @@ use codec::{Decode, DecodeAll, MaxEncodedLen};
 use gear_backend_common::IntoExtInfo;
 use gear_core::{
     env::Ext,
-    memory::{Error, HostPointer, Memory, PageNumber, WasmPageNumber},
+    memory::{Error, HostPointer, Memory, PageU32Size, WasmPageNumber},
 };
 use gear_core_errors::MemoryError;
 use wasmi::{core::memory_units::Pages, Memory as WasmiMemory, Store, StoreContextMut};
@@ -34,31 +34,28 @@ pub struct MemoryWrapRef<'a, E: Ext + IntoExtInfo<E::Error> + 'static> {
 }
 
 impl<'a, E: Ext + IntoExtInfo<E::Error> + 'static> Memory for MemoryWrapRef<'a, E> {
-    fn grow(&mut self, pages: WasmPageNumber) -> Result<PageNumber, Error> {
+    fn grow(&mut self, pages: WasmPageNumber) -> Result<(), Error> {
         self.memory
-            .grow(&mut self.store, Pages(pages.0 as usize))
-            .map(|prev| (prev.0 as u32).into())
+            .grow(&mut self.store, Pages(pages.raw() as usize))
+            .map(|_| ())
             .map_err(|_| Error::OutOfBounds)
     }
 
     fn size(&self) -> WasmPageNumber {
-        (self.memory.current_pages(&self.store).0 as u32).into()
+        WasmPageNumber::new(self.memory.current_pages(&self.store).0 as u32)
+            .expect("Unexpected backend behavior: wasm size is bigger then u32::MAX")
     }
 
-    fn write(&mut self, offset: usize, buffer: &[u8]) -> Result<(), Error> {
+    fn write(&mut self, offset: u32, buffer: &[u8]) -> Result<(), Error> {
         self.memory
-            .write(&mut self.store, offset, buffer)
+            .write(&mut self.store, offset as usize, buffer)
             .map_err(|_| Error::MemoryAccessError)
     }
 
-    fn read(&self, offset: usize, buffer: &mut [u8]) -> Result<(), Error> {
+    fn read(&self, offset: u32, buffer: &mut [u8]) -> Result<(), Error> {
         self.memory
-            .read(&self.store, offset, buffer)
+            .read(&self.store, offset as usize, buffer)
             .map_err(|_| Error::MemoryAccessError)
-    }
-
-    fn data_size(&self) -> usize {
-        self.size().0 as usize * WasmPageNumber::size()
     }
 
     unsafe fn get_buffer_host_addr_unsafe(&mut self) -> HostPointer {
@@ -80,7 +77,7 @@ impl<'a, E: Ext + IntoExtInfo<E::Error> + 'static> MemoryWrapRef<'a, E> {
         ptr: u32,
     ) -> Result<D, MemoryError> {
         let mut buffer = vec![0u8; D::max_encoded_len()];
-        self.read(ptr as usize, &mut buffer)
+        self.read(ptr, &mut buffer)
             .map_err(|_| MemoryError::OutOfBounds)?;
         let decoded =
             D::decode_all(&mut &buffer[..]).map_err(|_| MemoryError::MemoryAccessError)?;
@@ -106,31 +103,28 @@ impl<E: Ext + IntoExtInfo<E::Error> + 'static> MemoryWrap<E> {
 
 /// Memory interface for the allocator.
 impl<E: Ext + IntoExtInfo<E::Error> + 'static> Memory for MemoryWrap<E> {
-    fn grow(&mut self, pages: WasmPageNumber) -> Result<PageNumber, Error> {
+    fn grow(&mut self, pages: WasmPageNumber) -> Result<(), Error> {
         self.memory
-            .grow(&mut self.store, Pages(pages.0 as usize))
-            .map(|prev| (prev.0 as u32).into())
+            .grow(&mut self.store, Pages(pages.raw() as usize))
+            .map(|_| ())
             .map_err(|_| Error::OutOfBounds)
     }
 
     fn size(&self) -> WasmPageNumber {
-        (self.memory.current_pages(&self.store).0 as u32).into()
+        WasmPageNumber::new(self.memory.current_pages(&self.store).0 as u32)
+            .expect("Unexpected backend behavior: wasm memory is bigger then u32::MAX")
     }
 
-    fn write(&mut self, offset: usize, buffer: &[u8]) -> Result<(), Error> {
+    fn write(&mut self, offset: u32, buffer: &[u8]) -> Result<(), Error> {
         self.memory
-            .write(&mut self.store, offset, buffer)
+            .write(&mut self.store, offset as usize, buffer)
             .map_err(|_| Error::MemoryAccessError)
     }
 
-    fn read(&self, offset: usize, buffer: &mut [u8]) -> Result<(), Error> {
+    fn read(&self, offset: u32, buffer: &mut [u8]) -> Result<(), Error> {
         self.memory
-            .read(&self.store, offset, buffer)
+            .read(&self.store, offset as usize, buffer)
             .map_err(|_| Error::MemoryAccessError)
-    }
-
-    fn data_size(&self) -> usize {
-        self.size().0 as usize * WasmPageNumber::size()
     }
 
     unsafe fn get_buffer_host_addr_unsafe(&mut self) -> HostPointer {
@@ -148,12 +142,12 @@ mod tests {
     use wasmi::{Engine, Store};
 
     fn new_test_memory(
-        static_pages: u32,
-        max_pages: u32,
+        static_pages: u16,
+        max_pages: u16,
     ) -> (AllocationsContext, MemoryWrap<MockExt>) {
         use wasmi::MemoryType;
 
-        let memory_type = MemoryType::new(static_pages, Some(max_pages));
+        let memory_type = MemoryType::new(static_pages as u32, Some(max_pages as u32));
 
         let engine = Engine::default();
         let mut store = Store::new(
@@ -177,8 +171,8 @@ mod tests {
     fn smoky() {
         let (mut mem, mut mem_wrap) = new_test_memory(16, 256);
 
-        assert_ok!(
-            mem.alloc::<GrowHandlerNothing>(16.into(), &mut mem_wrap),
+        assert_eq!(
+            mem.alloc::<GrowHandlerNothing>(WasmPageNumber::new(16).unwrap(), &mut mem_wrap).unwrap().page,
             16.into()
         );
 
@@ -197,8 +191,8 @@ mod tests {
         assert_ok!(mem.free(137.into()));
 
         // and now can allocate page that was freed
-        assert_ok!(
-            mem.alloc::<GrowHandlerNothing>(1.into(), &mut mem_wrap),
+        assert_eq!(
+            mem.alloc::<GrowHandlerNothing>(1.into(), &mut mem_wrap).unwrap().page,
             137.into()
         );
 
@@ -206,8 +200,8 @@ mod tests {
         assert_ok!(mem.free(117.into()));
         assert_ok!(mem.free(118.into()));
 
-        assert_ok!(
-            mem.alloc::<GrowHandlerNothing>(2.into(), &mut mem_wrap),
+        assert_eq!(
+            mem.alloc::<GrowHandlerNothing>(2.into(), &mut mem_wrap).unwrap().page,
             117.into()
         );
 

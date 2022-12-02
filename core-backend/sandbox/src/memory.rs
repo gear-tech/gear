@@ -18,7 +18,7 @@
 
 //! sp-sandbox extensions for memory.
 
-use gear_core::memory::{Error, HostPointer, Memory, PageNumber, WasmPageNumber};
+use gear_core::memory::{Error, HostPointer, Memory, PageU32Size, WasmPageNumber};
 use sp_sandbox::SandboxMemory;
 
 /// Wrapper for sp_sandbox::Memory.
@@ -33,31 +33,28 @@ impl MemoryWrap {
 
 /// Memory interface for the allocator.
 impl Memory for MemoryWrap {
-    fn grow(&mut self, pages: WasmPageNumber) -> Result<PageNumber, Error> {
+    fn grow(&mut self, pages: WasmPageNumber) -> Result<(), Error> {
         self.0
-            .grow(pages.0)
-            .map(|prev| prev.into())
+            .grow(pages.raw())
+            .map(|_| ())
             .map_err(|_| Error::OutOfBounds)
     }
 
     fn size(&self) -> WasmPageNumber {
-        self.0.size().into()
+        WasmPageNumber::new(self.0.size())
+            .expect("Unexpected backend behavior: size is bigger then u32::MAX")
     }
 
-    fn write(&mut self, offset: usize, buffer: &[u8]) -> Result<(), Error> {
+    fn write(&mut self, offset: u32, buffer: &[u8]) -> Result<(), Error> {
         self.0
-            .set(offset as u32, buffer)
+            .set(offset, buffer)
             .map_err(|_| Error::MemoryAccessError)
     }
 
-    fn read(&self, offset: usize, buffer: &mut [u8]) -> Result<(), Error> {
+    fn read(&self, offset: u32, buffer: &mut [u8]) -> Result<(), Error> {
         self.0
-            .get(offset as u32, buffer)
+            .get(offset, buffer)
             .map_err(|_| Error::MemoryAccessError)
-    }
-
-    fn data_size(&self) -> usize {
-        self.0.size() as usize * WasmPageNumber::size()
     }
 
     unsafe fn get_buffer_host_addr_unsafe(&mut self) -> HostPointer {
@@ -72,11 +69,11 @@ mod tests {
     use gear_backend_common::{assert_err, assert_ok};
     use gear_core::memory::{AllocationsContext, GrowHandlerNothing};
 
-    fn new_test_memory(static_pages: u32, max_pages: u32) -> (AllocationsContext, MemoryWrap) {
+    fn new_test_memory(static_pages: u16, max_pages: u16) -> (AllocationsContext, MemoryWrap) {
         use sp_sandbox::SandboxMemory as WasmMemory;
 
         let memory = MemoryWrap::new(
-            WasmMemory::new(static_pages, Some(max_pages)).expect("Memory creation failed"),
+            WasmMemory::new(static_pages as u32, Some(max_pages as u32)).expect("Memory creation failed"),
         );
 
         (
@@ -89,8 +86,8 @@ mod tests {
     fn smoky() {
         let (mut mem, mut mem_wrap) = new_test_memory(16, 256);
 
-        assert_ok!(
-            mem.alloc::<GrowHandlerNothing>(16.into(), &mut mem_wrap),
+        assert_eq!(
+            mem.alloc::<GrowHandlerNothing>(16.into(), &mut mem_wrap).unwrap().page,
             16.into()
         );
 
@@ -109,8 +106,8 @@ mod tests {
         assert_ok!(mem.free(137.into()));
 
         // and now can allocate page that was freed
-        assert_ok!(
-            mem.alloc::<GrowHandlerNothing>(1.into(), &mut mem_wrap),
+        assert_eq!(
+            mem.alloc::<GrowHandlerNothing>(1.into(), &mut mem_wrap).unwrap().page,
             137.into()
         );
 
@@ -118,8 +115,8 @@ mod tests {
         assert_ok!(mem.free(117.into()));
         assert_ok!(mem.free(118.into()));
 
-        assert_ok!(
-            mem.alloc::<GrowHandlerNothing>(2.into(), &mut mem_wrap),
+        assert_eq!(
+            mem.alloc::<GrowHandlerNothing>(2.into(), &mut mem_wrap).unwrap().page,
             117.into()
         );
 

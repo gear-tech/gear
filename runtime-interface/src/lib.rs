@@ -22,8 +22,8 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
 use gear_core::{
-    lazy_pages::{GlobalsCtx, Status, AccessError},
-    memory::HostPointer,
+    lazy_pages::{AccessError, GlobalsCtx, Status},
+    memory::{HostPointer, PageU32Size, WasmPageNumber},
 };
 use sp_runtime_interface::runtime_interface;
 
@@ -40,7 +40,10 @@ pub use sp_std::{convert::TryFrom, result::Result, vec::Vec};
 /// Note: name is expanded as gear_ri
 #[runtime_interface]
 pub trait GearRI {
-    fn pre_process_memory_accesses(reads: &[(u32, u32)], writes: &[(u32, u32)]) -> Result<(), AccessError> {
+    fn pre_process_memory_accesses(
+        reads: &[(u32, u32)],
+        writes: &[(u32, u32)],
+    ) -> Result<(), AccessError> {
         lazy_pages::pre_process_memory_accesses(reads, writes, None, None)
     }
 
@@ -63,8 +66,11 @@ pub trait GearRI {
         stack_end_page: Option<u32>,
         program_prefix: Vec<u8>,
     ) {
-        let wasm_mem_size = wasm_mem_size_in_pages.into();
-        let stack_end_page = stack_end_page.map(Into::into);
+        // TODO: make return an error or wrapper
+        let wasm_mem_size =
+            WasmPageNumber::new(wasm_mem_size_in_pages).expect("Unexpected wasm mem size number");
+        let stack_end_page = stack_end_page
+            .map(|page| WasmPageNumber::new(page).expect("Unexpected wasm stack end addr"));
 
         let wasm_mem_addr = wasm_mem_addr
             .map(|addr| usize::try_from(addr).expect("Cannot cast wasm mem addr to `usize`"));
@@ -89,8 +95,11 @@ pub trait GearRI {
         program_prefix: Vec<u8>,
         globals_ctx: Option<GlobalsCtx>,
     ) {
-        let wasm_mem_size = wasm_mem_size_in_pages.into();
-        let stack_end_page = stack_end_page.map(Into::into);
+        // TODO: make return an error or wrapper for wasm mem page
+        let wasm_mem_size =
+            WasmPageNumber::new(wasm_mem_size_in_pages).expect("Unexpected wasm mem size number");
+        let stack_end_page = stack_end_page
+            .map(|page| WasmPageNumber::new(page).expect("Unexpected wasm stack end addr"));
 
         let wasm_mem_addr = wasm_mem_addr
             .map(|addr| usize::try_from(addr).expect("Cannot cast wasm mem addr to `usize`"));
@@ -125,15 +134,18 @@ pub trait GearRI {
     }
 
     fn set_wasm_mem_size(size_in_wasm_pages: u32) {
-        lazy_pages::set_wasm_mem_size(size_in_wasm_pages.into())
+        // pass thru wrapper
+        let size = WasmPageNumber::new(size_in_wasm_pages).expect("Unexpected wasm memory size");
+        lazy_pages::set_wasm_mem_size(size)
             .map_err(|e| e.to_string())
             .expect("Cannot set new wasm memory size");
     }
 
     fn get_released_pages() -> Vec<u32> {
+        // pass thru wrapper
         lazy_pages::get_released_pages()
             .into_iter()
-            .map(|p| p.0)
+            .map(|p| p.raw())
             .collect()
     }
 }

@@ -35,7 +35,7 @@ use crate::{Error, GranularityPage, LazyPage, LazyPagesExecutionContext, LAZY_PA
 
 use gear_core::{
     lazy_pages::{GlobalsAccessError, GlobalsAccessMod, GlobalsAccessTrait, GlobalsCtx, Status},
-    memory::{PageNumber, PageU32Size, PAGE_STORAGE_GRANULARITY},
+    memory::{to_page_iter, PageNumber, PageU32Size, GEAR_PAGE_SIZE, PAGE_STORAGE_GRANULARITY},
 };
 
 // These constants are used both in runtime and in lazy-pages backend,
@@ -43,7 +43,7 @@ use gear_core::{
 // in runtime, then he also should pay attention to support new values here:
 // 1) must rebuild node after that.
 // 2) must support old runtimes: need to make lazy-pages version with old constants values.
-static_assertions::const_assert_eq!(PageNumber::size(), 0x1000);
+static_assertions::const_assert_eq!(GEAR_PAGE_SIZE, 0x1000);
 static_assertions::const_assert_eq!(PAGE_STORAGE_GRANULARITY, 0x4000);
 
 cfg_if! {
@@ -95,7 +95,7 @@ impl PagePrefix {
     pub fn calc_key_for_page(&mut self, page: PageNumber) -> &[u8] {
         let len = self.buffer.len();
         self.buffer[len - std::mem::size_of::<u32>()..len]
-            .copy_from_slice(page.0.to_le_bytes().as_slice());
+            .copy_from_slice(page.raw().to_le_bytes().as_slice());
         &self.buffer
     }
 }
@@ -303,7 +303,7 @@ pub(crate) unsafe fn process_lazy_pages(
 
     if let Some(last_page) = accessed_pages.last() {
         // Check that all pages are inside wasm memory.
-        if last_page.end_offset() as usize > wasm_mem_size.offset() {
+        if last_page.end_offset() > wasm_mem_size.offset() {
             return Err(Error::OutOfWasmMemoryAccess);
         }
     } else {
@@ -326,21 +326,20 @@ pub(crate) unsafe fn process_lazy_pages(
 
         // Extend pages interval, if start or end access pages, which has no data in storage.
         if is_write && LazyPage::size() < psg {
-            if !sp_io::storage::exists(
-                prefix.calc_key_for_page(PageNumber::new_from_addr(start.offset() as usize)),
-            ) {
-                start = LazyPage::from_offset((start.offset() / psg) * psg);
+            if !sp_io::storage::exists(prefix.calc_key_for_page(start.to_page())) {
+                start = start.align_down(psg);
             }
-            if !sp_io::storage::exists(
-                prefix.calc_key_for_page(PageNumber::new_from_addr(end.offset() as usize)),
-            ) {
-                end = LazyPage::from_offset((end.offset() / psg + 1) * psg);
+            if !sp_io::storage::exists(prefix.calc_key_for_page(end.to_page())) {
+                // Make `end_offset()` aligned to `psg` page for `end`.
+                // This operations are safe, because `psg` is power of two and smaller then `u32::MAX`.
+                // `LazyPage::size()` is less or equal then `psg` and `psg % LazyPage::size() == 0`.
+                end = LazyPage::from_offset((end.offset() / psg) * psg + (psg - LazyPage::size()));
             }
         }
 
         for lazy_page in start..=end {
             let granularity_page = GranularityPage::from_offset(lazy_page.offset());
-            if (lazy_page.offset() as usize) < stack_end.offset() {
+            if lazy_page.offset() < stack_end.offset() {
                 // Nothing to do, page has r/w accesses and data is in correct state.
                 if is_signal {
                     return Err(Error::SignalFromStackMemory);
@@ -413,14 +412,10 @@ pub(crate) unsafe fn process_lazy_pages(
                 )?;
 
                 // TODO: refactoring
-                for gear_page in (PageNumber::new_from_addr(lazy_page.offset() as usize).0
-                    ..PageNumber::new_from_addr(lazy_page.offset() as usize).0
-                        + LazyPage::size() / PageNumber::size() as u32)
-                    .map(PageNumber)
-                {
-                    let page_buffer_ptr = (wasm_mem_addr as *mut u8).add(gear_page.offset());
+                for gear_page in to_page_iter::<_, PageNumber>(lazy_page) {
+                    let page_buffer_ptr = (wasm_mem_addr as *mut u8).add(gear_page.offset() as usize);
                     let buffer_as_slice =
-                        std::slice::from_raw_parts_mut(page_buffer_ptr, PageNumber::size());
+                        std::slice::from_raw_parts_mut(page_buffer_ptr, PageNumber::size() as usize);
                     let res = sp_io::storage::read(
                         prefix.calc_key_for_page(gear_page),
                         buffer_as_slice,
@@ -430,7 +425,7 @@ pub(crate) unsafe fn process_lazy_pages(
                     log::trace!("{:?} has data in storage: {}", gear_page, res.is_some());
 
                     // Check data size is valid.
-                    if let Some(size) = res.filter(|&size| size as usize != PageNumber::size()) {
+                    if let Some(size) = res.filter(|&size| size != PageNumber::size()) {
                         return Err(Error::InvalidPageDataSize {
                             expected: PageNumber::size(),
                             actual: size,

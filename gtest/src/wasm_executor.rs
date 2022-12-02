@@ -31,7 +31,7 @@ use gear_backend_wasmi::{
 use gear_core::{
     env::Ext as ExtTrait,
     gas::{GasAllowanceCounter, GasCounter, ValueCounter},
-    memory::{AllocationsContext, Memory, PageBuf, PageNumber, WasmPageNumber},
+    memory::{AllocationsContext, Memory, PageBuf, PageNumber, PageU32Size, WasmPageNumber},
     message::{ContextSettings, IncomingMessage, MessageContext, Payload},
     program::Program,
     reservation::GasReserver,
@@ -62,7 +62,7 @@ impl WasmExecutor {
 
         let mut linker: Linker<HostState<Ext>> = Linker::new();
 
-        let memory_type = MemoryType::new(program.static_pages().0, None);
+        let memory_type = MemoryType::new(program.static_pages().raw(), None);
         let memory = WasmiMemory::new(&mut store, memory_type).map_err(WasmiError::from)?;
 
         linker
@@ -177,7 +177,7 @@ impl WasmExecutor {
             allocations_context: AllocationsContext::new(
                 program.allocations().clone(),
                 program.static_pages(),
-                WasmPageNumber(512u32),
+                WasmPageNumber::new(512).expect("Unreachable: 512 is ok number of wasm pages"),
             ),
             message_context: MessageContext::new(
                 message,
@@ -208,7 +208,7 @@ impl WasmExecutor {
     }
 
     fn read_result(memory: &MemoryWrap<Ext>, ptr_to_result_data: i32) -> Result<Vec<u8>> {
-        let offset = ptr_to_result_data as usize;
+        let offset = ptr_to_result_data as u32;
 
         // Reading a fat pointer from the `offset`
         let mut ptr = [0u8; mem::size_of::<i32>()];
@@ -216,10 +216,10 @@ impl WasmExecutor {
 
         memory.read(offset, &mut ptr)?;
 
-        memory.read(offset + ptr.len(), &mut len)?;
+        memory.read(offset + ptr.len() as u32, &mut len)?;
 
-        let ptr = i32::from_ne_bytes(ptr) as usize;
-        let len = i32::from_ne_bytes(len) as usize;
+        let ptr = u32::from_ne_bytes(ptr);
+        let len = u32::from_ne_bytes(len) as usize;
 
         // Reading a vector from `ptr`
         let mut result = vec![0; len];
@@ -233,9 +233,9 @@ impl WasmExecutor {
         memory: &mut MemoryWrap<Ext>,
         pages: &BTreeMap<PageNumber, Box<PageBuf>>,
     ) -> Result<()> {
-        let memory_size = WasmPageNumber(memory.size().0);
+        let memory_size = memory.size();
         for (page_number, buffer) in pages {
-            let wasm_page_number = page_number.to_wasm_page();
+            let wasm_page_number = page_number.to_page();
             if memory_size <= wasm_page_number {
                 return Err(TestError::InsufficientMemory(memory_size, wasm_page_number));
             }

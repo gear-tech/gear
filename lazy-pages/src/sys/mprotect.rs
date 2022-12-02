@@ -90,8 +90,7 @@ pub fn mprotect_mem_interval_except_pages(
     mem_addr: usize,
     start_offset: usize,
     mem_size: usize,
-    except_pages: impl Iterator<Item = u32>,
-    page_size: u32,
+    except_pages: impl Iterator<Item = impl PageU32Size>,
     prot_read: bool,
     prot_write: bool,
 ) -> Result<(), MprotectError> {
@@ -107,11 +106,11 @@ pub fn mprotect_mem_interval_except_pages(
 
     let mut interval_offset = start_offset;
     for page in except_pages {
-        let page_offset = (page * page_size) as usize;
+        let page_offset = page.offset() as usize;
         if page_offset > interval_offset {
             mprotect(interval_offset, page_offset)?;
         }
-        interval_offset = page_offset.saturating_add(page_size as usize);
+        interval_offset = page.end_offset() as usize;
     }
     if mem_size > interval_offset {
         mprotect(interval_offset, mem_size)

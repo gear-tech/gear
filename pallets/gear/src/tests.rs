@@ -64,6 +64,7 @@ use gear_backend_common::{StackEndError, TrapExplanation};
 use gear_core::{
     code::{self, Code},
     ids::{CodeId, MessageId, ProgramId},
+    memory::{WasmPageNumber, PageU32Size},
 };
 use gear_core_errors::*;
 use sp_runtime::{traits::UniqueSaturatedInto, SaturatedConversion};
@@ -1114,7 +1115,7 @@ fn memory_access_cases() {
 #[cfg(feature = "lazy-pages")]
 #[test]
 fn lazy_pages() {
-    use gear_core::memory::{PageNumber, PAGE_STORAGE_GRANULARITY};
+    use gear_core::memory::{PageNumber, PageU32Size, PAGE_STORAGE_GRANULARITY};
     use gear_runtime_interface as gear_ri;
     use std::collections::BTreeSet;
 
@@ -1200,13 +1201,13 @@ fn lazy_pages() {
             gear_ri::gear_ri::get_released_pages().into_iter().collect();
 
         // checks accessed pages set
-        let native_size = page_size::get();
+        let native_size = page_size::get() as u32;
         let mut expected_released = BTreeSet::new();
 
         let page_to_released = |p: u32, is_first_access: bool| {
             // is the minimum memory interval, which must be in storage for any page.
             let granularity = if is_first_access {
-                PAGE_STORAGE_GRANULARITY
+                PAGE_STORAGE_GRANULARITY as u32
             } else {
                 native_size
             };
@@ -7706,28 +7707,10 @@ fn check_gear_stack_end_fail() {
         assert_last_dequeued(1);
         assert_failed(
             message_id,
-            ExecutionErrorReason::StackEndPageBiggerWasmMemSize(5.into(), 4.into()),
-        );
-
-        // Check error when stack end is negative
-        let wat = format!(wat_template!(), "-0x10000");
-        Gear::upload_program(
-            RuntimeOrigin::signed(USER_1),
-            ProgramCodeKind::Custom(wat.as_str()).to_bytes(),
-            DEFAULT_SALT.to_vec(),
-            EMPTY_PAYLOAD.to_vec(),
-            50_000_000_000,
-            0,
-        )
-        .expect("Failed to upload program");
-
-        let message_id = get_last_message_id();
-
-        run_to_next_block(None);
-        assert_last_dequeued(1);
-        assert_failed(
-            message_id,
-            ExecutionErrorReason::Backend(StackEndError::IsNegative(-65536).to_string()),
+            ExecutionErrorReason::StackEndPageBiggerWasmMemSize(
+                WasmPageNumber::new(5).unwrap(),
+                WasmPageNumber::new(4).unwrap(),
+            ),
         );
 
         // Check error when stack end is not aligned

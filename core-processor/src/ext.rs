@@ -36,7 +36,7 @@ use gear_core::{
     lazy_pages::{GlobalsCtx, Status},
     memory::{
         AllocationsContext, GrowHandler, GrowHandlerNothing, Memory, PageBuf, PageNumber,
-        WasmPageNumber,
+        WasmPageNumber, PageU32Size, to_page_iter, AllocResult,
     },
     message::{
         GasLimit, HandlePacket, InitPacket, MessageContext, Packet, ReplyPacket, StatusCode,
@@ -237,10 +237,9 @@ impl IntoExtInfo<<Ext as EnvExt>::Error> for Ext {
         let pages_for_data = |static_pages: WasmPageNumber,
                               allocations: &BTreeSet<WasmPageNumber>|
          -> Vec<PageNumber> {
-            (0..static_pages.0)
-                .map(WasmPageNumber)
+            (WasmPageNumber::zero()..static_pages)
                 .chain(allocations.iter().copied())
-                .flat_map(|p| p.to_gear_pages_iter())
+                .flat_map(|page| to_page_iter(page))
                 .collect()
         };
 
@@ -864,34 +863,29 @@ impl Ext {
     /// Inner alloc realization.
     pub fn alloc_inner<G: GrowHandler>(
         &mut self,
-        pages_num: WasmPageNumber,
+        pages: WasmPageNumber,
         mem: &mut impl Memory,
     ) -> Result<WasmPageNumber, ProcessorError> {
         self.charge_gas_runtime(RuntimeCosts::Alloc)?;
 
         // Charge gas for allocations
-        self.charge_gas((pages_num.0 as u64).saturating_mul(self.context.config.alloc_cost))?;
+        self.charge_gas((pages.raw() as u64).saturating_mul(self.context.config.alloc_cost))?;
         // Greedily charge gas for grow
-        self.charge_gas((pages_num.0 as u64).saturating_mul(self.context.config.mem_grow_cost))?;
+        self.charge_gas((pages.raw() as u64).saturating_mul(self.context.config.mem_grow_cost))?;
 
-        let old_mem_size = mem.size();
-
-        let result = self.context.allocations_context.alloc::<G>(pages_num, mem);
-
-        let page_number = self.return_and_store_err(result)?;
+        let result = self.context.allocations_context.alloc::<G>(pages, mem);
+        let AllocResult{ page, not_grown } = self.return_and_store_err(result)?;
 
         // Returns back greedily used gas for grow
-        let new_mem_size = mem.size();
-        let grow_pages_num = new_mem_size - old_mem_size;
         let mut gas_to_return_back = self
             .context
             .config
             .mem_grow_cost
-            .saturating_mul((pages_num - grow_pages_num).0 as u64);
+            .saturating_mul(not_grown.raw() as u64);
 
         // Returns back greedily used gas for allocations
         let mut new_allocated_pages_num = 0;
-        for page in page_number.0..page_number.0 + pages_num.0 {
+        for page in page..page.add(pages).expect("Alloc implementation error") {
             if !self.context.allocations_context.is_init_page(page.into()) {
                 new_allocated_pages_num += 1;
             }
@@ -900,12 +894,12 @@ impl Ext {
             self.context
                 .config
                 .alloc_cost
-                .saturating_mul((pages_num.0 - new_allocated_pages_num) as u64),
+                .saturating_mul((pages.raw() - new_allocated_pages_num) as u64),
         );
 
         self.refund_gas(gas_to_return_back)?;
 
-        Ok(page_number)
+        Ok(page)
     }
 
     /// Into ext info inner impl.

@@ -108,7 +108,7 @@ impl Program {
 /// and ProgramId's `fn from_slice(s: &[u8]) -> Self` constructor
 mod tests {
     use super::Program;
-    use crate::{code::Code, ids::ProgramId};
+    use crate::{code::Code, ids::ProgramId, memory::{WasmPageNumber, PageU32Size}};
     use alloc::vec::Vec;
     use gear_wasm_instrument::wasm_instrument::gas_metering::ConstantCostRules;
 
@@ -159,7 +159,7 @@ mod tests {
         let program = Program::new(ProgramId::from(1), code);
 
         // 2 static pages
-        assert_eq!(program.static_pages(), 2.into());
+        assert_eq!(program.static_pages(), WasmPageNumber::new(2).unwrap());
 
         // Has no allocations because we do not set them in new
         assert_eq!(program.allocations().len(), 0);
