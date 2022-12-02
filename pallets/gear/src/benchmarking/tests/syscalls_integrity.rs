@@ -783,7 +783,7 @@ where
     run_tester::<T, _, _, T::AccountId>(|_, _| {
         // Expected to burn not more than 750_000_000
         // Provided gas in the test by default is 50_000_000_000
-        let lower = 50_000_000_000 - 750_000_000;
+        let lower = 50_000_000_000 - 1_000_000_000;
         let upper = 50_000_000_000 - 300_000_000;
         let mp = Kind::GasAvailable(lower, upper).encode().into();
 
