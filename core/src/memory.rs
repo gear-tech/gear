@@ -461,9 +461,9 @@ impl AllocationsContext {
         mem: &mut impl Memory,
     ) -> Result<AllocResult, Error> {
         let mem_size = mem.size();
-        let mut previous = self.static_pages();
+        let mut previous = self.static_pages;
         let mut start = None;
-        for &page in self.allocations().iter().chain([mem_size].iter()) {
+        for &page in self.allocations.iter().chain([mem_size].iter()) {
             if page
                 .sub(previous)
                 .map_err(|_| Error::IncorrectAllocationsSetOrMemSize)?
@@ -483,10 +483,10 @@ impl AllocationsContext {
 
             // Panic is safe, because we check, that last allocated page can be incremented in loop above.
             let start = self
-                .allocations()
+                .allocations
                 .last()
                 .map(|last| last.inc().expect("unreachable"))
-                .unwrap_or(self.static_pages());
+                .unwrap_or(self.static_pages);
             let end = start.add(pages).map_err(|_| Error::OutOfBounds)?;
             if end > self.max_pages {
                 return Err(Error::OutOfBounds);
