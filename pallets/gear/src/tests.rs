@@ -442,6 +442,7 @@ fn mailbox_sending_instant_transfer() {
 }
 
 #[test]
+#[cfg(debug_assertions)]
 #[should_panic(expected = "Defensive failure has been triggered")]
 fn upload_program_panic_low_balance() {
     init_logger();
@@ -660,6 +661,7 @@ fn mailbox_threshold_works() {
 }
 
 #[test]
+#[cfg(debug_assertions)]
 #[should_panic(expected = "Defensive failure has been triggered")]
 fn send_message_panic_low_balance() {
     init_logger();
