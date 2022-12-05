@@ -22,6 +22,7 @@ extern crate alloc;
 
 use alloc::vec;
 
+use crate::syscalls::{IMPORT_NAME_OUT_OF_ALLOWANCE, IMPORT_NAME_OUT_OF_GAS};
 use wasm_instrument::{
     gas_metering::{self, Rules},
     parity_wasm::{
@@ -39,9 +40,6 @@ pub mod syscalls;
 
 pub const GLOBAL_NAME_GAS: &str = "gear_gas";
 pub const GLOBAL_NAME_ALLOWANCE: &str = "gear_allowance";
-
-pub const IMPORT_NAME_OUT_OF_GAS: &str = "gr_out_of_gas";
-pub const IMPORT_NAME_OUT_OF_ALLOWANCE: &str = "gr_out_of_allowance";
 
 pub fn inject<R: Rules>(
     module: elements::Module,

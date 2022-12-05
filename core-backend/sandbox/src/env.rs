@@ -29,14 +29,15 @@ use alloc::{
 };
 use core::fmt;
 use gear_backend_common::{
-    calc_stack_end,
-    error_processor::IntoExtError,
-    AsTerminationReason, BackendReport, Environment, GetGasAmount, IntoExtInfo, StackEndError,
-    SysCallName::{self, *},
-    TerminationReason, TrapExplanation, STACK_END_EXPORT_NAME,
+    calc_stack_end, error_processor::IntoExtError, AsTerminationReason, BackendReport, Environment,
+    GetGasAmount, IntoExtInfo, StackEndError, TerminationReason, TrapExplanation,
+    STACK_END_EXPORT_NAME,
 };
 use gear_core::{env::Ext, gas::GasAmount, memory::WasmPageNumber, message::DispatchKind};
-use gear_wasm_instrument::{GLOBAL_NAME_ALLOWANCE, GLOBAL_NAME_GAS};
+use gear_wasm_instrument::{
+    syscalls::SysCallName::{self, *},
+    GLOBAL_NAME_ALLOWANCE, GLOBAL_NAME_GAS,
+};
 use sp_sandbox::{
     default_executor::{EnvironmentDefinitionBuilder, Instance, Memory as DefaultExecutorMemory},
     HostFuncType, InstanceGlobals, ReturnValue, SandboxEnvironmentBuilder, SandboxInstance,

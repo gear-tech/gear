@@ -3001,7 +3001,6 @@ name = "gear-backend-common"
 version = "0.1.0"
 dependencies = [
  "derive_more",
- "enum-iterator 1.2.0",
  "gear-core",
  "gear-core-errors",
  "gear-wasm-instrument",
@@ -3574,6 +3573,7 @@ dependencies = [
 name = "gear-wasm-instrument"
 version = "0.1.0"
 dependencies = [
+ "enum-iterator 1.2.0",
  "gear-backend-common",
  "gear-backend-wasmi",
  "gear-core",
