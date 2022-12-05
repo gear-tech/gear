@@ -145,7 +145,7 @@ pub const OFFSET_INIT: u32 = 0;
 pub const OFFSET_HANDLE: u32 = OFFSET_INIT + 1;
 pub const OFFSET_REPLY: u32 = OFFSET_HANDLE + 1;
 pub const OFFSET_SIGNAL: u32 = OFFSET_REPLY + 1;
-pub const OFFSET_AUX: u32 = OFFSET_REPLY + 1;
+pub const OFFSET_AUX: u32 = OFFSET_SIGNAL + 1;
 
 impl<T: Config> From<ModuleDefinition> for WasmModule<T>
 where
