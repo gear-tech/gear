@@ -47,10 +47,7 @@ pub enum Error {
     #[display(fmt = "Program pages prefix in storage is not set")]
     ProgramPrefixIsNotSet,
     #[display(
-        fmt = "Signal is from unknown memory: {:#x} not in [{:#x}, {:#x})",
-        addr,
-        wasm_mem_addr,
-        wasm_mem_end_addr
+        fmt = "Signal is from unknown memory: {addr:#x} not in [{wasm_mem_addr:#x}, {wasm_mem_end_addr:#x})"
     )]
     SignalFromUnknownMemory {
         addr: usize,
@@ -58,20 +55,14 @@ pub enum Error {
         wasm_mem_end_addr: usize,
     },
     #[display(
-        fmt = "Signal addr {:#x} is from WASM program virtual stack memory [0, {:#x})",
-        wasm_addr,
-        stack_end
+        fmt = "Signal addr {wasm_addr:#x} is from WASM program virtual stack memory [0, {stack_end:#x})"
     )]
     SignalFromStackMemory {
         wasm_addr: WasmAddr,
         stack_end: WasmAddr,
     },
     #[display(
-        fmt = "Accessed pages do not lay in WASM memory: [{:#x}, {:#x}) not in [{:#x}, {:#x})",
-        begin_addr,
-        end_addr,
-        wasm_mem_addr,
-        wasm_mem_end_addr
+        fmt = "Accessed pages do not lay in WASM memory: [{begin_addr:#x}, {end_addr:#x}) not in [{wasm_mem_addr:#x}, {wasm_mem_end_addr:#x})"
     )]
     AccessedIntervalNotLiesInWasmBuffer {
         begin_addr: usize,
@@ -79,11 +70,7 @@ pub enum Error {
         wasm_mem_addr: usize,
         wasm_mem_end_addr: usize,
     },
-    #[display(
-        fmt = "Page data in storage must contain {} bytes, actually has {}",
-        expected,
-        actual
-    )]
+    #[display(fmt = "Page data in storage must contain {expected} bytes, actually has {actual}")]
     InvalidPageDataSize { expected: usize, actual: u32 },
     /// Found a write signal from same page twice - see more in head comment.
     #[display(fmt = "Any page cannot be released twice: {_0:?}")]
@@ -135,10 +122,7 @@ thread_local! {
 
 #[derive(Debug, derive_more::Display)]
 pub enum InitializeForProgramError {
-    #[display(
-        fmt = "WASM memory native address {:#x} is not aligned to the native page size",
-        _0
-    )]
+    #[display(fmt = "WASM memory native address {_0:#x} is not aligned to the native page size")]
     WasmMemAddrIsNotAligned(usize),
     #[display(fmt = "WASM memory size {_0:?} is bigger than u32::MAX bytes")]
     WasmMemSizeBiggerThenU32Max(WasmPageNumber),
