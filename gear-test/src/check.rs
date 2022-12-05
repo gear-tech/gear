@@ -468,8 +468,7 @@ pub fn check_programs_state(
         for id in actual_programs.keys() {
             if !expected_programs.contains_key(id) {
                 errors.push(format!(
-                    "Actual program {:?} wasn't found in expectations",
-                    id,
+                    "Actual program {id:?} wasn't found in expectations",
                 ));
             }
         }
@@ -480,8 +479,7 @@ pub fn check_programs_state(
         if let Some(actual_termination) = actual_termination {
             if actual_termination != terminated {
                 errors.push(format!(
-                    "Wrong state of program: {:?} expected to be active={:?}, but it is active={:?}",
-                    id, terminated, actual_termination,
+                    "Wrong state of program: {id:?} expected to be active={terminated:?}, but it is active={actual_termination:?}",
                 ));
             }
         } else {
