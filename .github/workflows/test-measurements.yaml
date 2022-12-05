@@ -101,6 +101,13 @@ jobs:
           for i in `seq 1 $COUNT`; do echo $i; ./scripts/gear.sh test rtest gear > ./target/analysis/output/$i 2>&1 ; mv ./target/runtime-test-junit.xml ./target/analysis/tests/$i; done
           ./target/release/regression-analysis collect-data --disable-filter --data-folder-path ./target/analysis/tests/ --output-path ./target/runtime-tests.json
 
+      - name: "Generate report: Node runtime tests"
+        run: >-
+          ./target/release/regression-analysis convert
+          --disable-filter
+          --data-folder-path ./target/analysis/tests/
+          --output-file ./target/action-runtime-output.json
+
       - name: "Collect: pallet-gear benches"
         run: >-
           ./target/release/gear benchmark pallet --pallet=pallet_gear
@@ -113,13 +120,6 @@ jobs:
           --heap-pages=4096
           --output ./target/weights.json
           --template ./.maintain/regression-analysis-weight-template.hbs
-
-      - name: "Generate report: Node runtime tests"
-        run: >-
-          ./target/release/regression-analysis convert
-          --disable-filter
-          --data-folder-path ./target/runtime-tests/
-          --output-file ./target/action-runtime-output.json
 
       - name: "Generate report: pallet-gear benches"
         run: |
