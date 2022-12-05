@@ -7960,3 +7960,172 @@ fn check_random_works() {
         // assert_eq!(blake2b(32, &[], &output.0.encode()).as_bytes(), res.payload());
     });
 }
+
+#[test]
+fn relay_messages() {
+    use demo_proxy_relay::{RelayCall, ResendPushData, WASM_BINARY};
+
+    struct Expected {
+        user: AccountId,
+        payload: Vec<u8>,
+    }
+
+    let source = USER_1;
+
+    init_logger();
+    let test = |relay_call: RelayCall, payload: &[u8], expected: Vec<Expected>| {
+        let execute = || {
+            System::reset_events();
+
+            let label = format!("{relay_call:?}");
+            assert!(
+                Gear::upload_program(
+                    RuntimeOrigin::signed(source),
+                    WASM_BINARY.to_vec(),
+                    vec![],
+                    relay_call.encode(),
+                    50_000_000_000u64,
+                    0u128
+                )
+                .is_ok(),
+                "{}",
+                label
+            );
+
+            let proxy = utils::get_last_program_id();
+
+            run_to_next_block(None);
+
+            assert!(Gear::is_active(proxy), "{}", label);
+
+            assert!(
+                Gear::send_message(
+                    RuntimeOrigin::signed(source),
+                    proxy,
+                    payload.to_vec(),
+                    DEFAULT_GAS_LIMIT * 10,
+                    0,
+                )
+                .is_ok(),
+                "{}",
+                label
+            );
+
+            run_to_next_block(None);
+
+            for Expected { user, payload } in expected {
+                assert_eq!(
+                    MailboxOf::<Test>::drain_key(user)
+                        .next()
+                        .map(|(msg, _bn)| msg.payload().to_vec()),
+                    Some(payload),
+                    "{}",
+                    label
+                );
+            }
+        };
+
+        new_test_ext().execute_with(execute);
+    };
+
+    let payload = b"Hi, USER_2! Ping USER_3.";
+    let relay_call = RelayCall::ResendPush(vec![
+        // "Hi, USER_2!"
+        ResendPushData {
+            destination: USER_2.into(),
+            start: None,
+            end: Some((10, true)),
+        },
+        // the same but end index specified in another way
+        ResendPushData {
+            destination: USER_2.into(),
+            start: None,
+            end: Some((11, false)),
+        },
+        // "Ping USER_3."
+        ResendPushData {
+            destination: USER_3.into(),
+            start: Some(12),
+            end: None,
+        },
+        // invalid range
+        ResendPushData {
+            destination: USER_3.into(),
+            start: Some(2),
+            end: Some((0, true)),
+        },
+        // invalid range
+        ResendPushData {
+            destination: USER_3.into(),
+            start: Some(payload.len() as u32),
+            end: Some((0, false)),
+        },
+    ]);
+
+    let expected = vec![
+        Expected {
+            user: USER_2,
+            payload: payload[..11].to_vec(),
+        },
+        Expected {
+            user: USER_2,
+            payload: payload[..11].to_vec(),
+        },
+        Expected {
+            user: USER_3,
+            payload: payload[12..].to_vec(),
+        },
+        Expected {
+            user: USER_3,
+            payload: vec![],
+        },
+        Expected {
+            user: USER_3,
+            payload: vec![],
+        },
+    ];
+
+    test(relay_call, payload, expected);
+
+    test(
+        RelayCall::Resend(USER_3.into()),
+        payload,
+        vec![Expected {
+            user: USER_3,
+            payload: payload.to_vec(),
+        }],
+    );
+    test(
+        RelayCall::ResendWithGas(USER_3.into(), 50_000),
+        payload,
+        vec![Expected {
+            user: USER_3,
+            payload: payload.to_vec(),
+        }],
+    );
+
+    test(
+        RelayCall::Rereply,
+        payload,
+        vec![Expected {
+            user: source,
+            payload: payload.to_vec(),
+        }],
+    );
+    test(
+        RelayCall::RereplyPush,
+        payload,
+        vec![Expected {
+            user: source,
+            payload: payload.to_vec(),
+        }],
+    );
+    test(
+        RelayCall::RereplyWithGas(60_000),
+        payload,
+        vec![Expected {
+            user: source,
+            payload: payload.to_vec(),
+        }],
+    );
+}

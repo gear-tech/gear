@@ -70,6 +70,7 @@ demo-exit-init = { path = "../../examples/binaries/exit-init" }
 demo-exit-handle = { path = "../../examples/binaries/exit-handle" }
 demo-exit-handle-sender = { path = "../../examples/binaries/exit-handle-sender" }
 demo-program-factory = { path = "../../examples/binaries/program-factory" }
+demo-proxy-relay = { path = "../../examples/binaries/proxy-relay" }
 demo-proxy-with-gas = { path = "../../examples/binaries/proxy-with-gas" }
 demo-init-with-value = { path = "../../examples/binaries/init-with-value" }
 demo-gasless-wasting = { path = "../../examples/binaries/gasless-wasting" }

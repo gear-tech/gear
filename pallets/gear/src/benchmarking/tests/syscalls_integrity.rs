@@ -49,12 +49,18 @@ where
             SysCallName::SendCommit => check_send_raw::<T>(None),
             SysCallName::SendCommitWGas => check_send_raw::<T>(Some(25_000_000_000)),
             SysCallName::SendInit | SysCallName:: SendPush => {/* skipped, due to test being run in SendCommit* variants */},
+            SysCallName::SendInput => check_send_input::<T>(None),
+            SysCallName::SendPushInput => check_send_push_input::<T>(),
+            SysCallName::SendInputWGas => check_send_input::<T>(Some(25_000_000_000)),
             SysCallName::Reply => check_reply::<T>(None),
             SysCallName::ReplyWGas => check_reply::<T>(Some(25_000_000_000)),
             SysCallName::ReplyCommit => check_reply_raw::<T>(None),
             SysCallName::ReplyCommitWGas => check_reply_raw::<T>(Some(25_000_000_000)),
             SysCallName::ReplyTo => check_reply_details::<T>(),
             SysCallName::ReplyPush => {/* skipped, due to test being run in SendCommit* variants */},
+            SysCallName::ReplyInput => check_reply_input::<T>(None),
+            SysCallName::ReplyPushInput => check_reply_push_input::<T>(),
+            SysCallName::ReplyInputWGas => check_reply_input::<T>(Some(25_000_000_000)),
             SysCallName::CreateProgram => check_create_program::<T>(None),
             SysCallName::CreateProgramWGas => check_create_program::<T>(Some(25_000_000_000)),
             SysCallName::Read => {/* checked in all the calls internally */},
@@ -429,6 +435,60 @@ where
     });
 }
 
+// Depending on `gas` param will be `gr_send` or `gr_send_wgas`.
+fn check_send_input<T>(gas: Option<u64>)
+where
+    T: Config,
+    T::AccountId: Origin,
+{
+    run_tester::<T, _, _, T::AccountId>(|_, _| {
+        let default_sender = utils::default_account::<T::AccountId>();
+        let next_message_id = utils::get_next_message_id::<T>(default_sender.clone());
+        let expected_message_id = MessageId::generate_outgoing(next_message_id, 0);
+
+        let payload = Kind::SendInput(gas, expected_message_id.into()).encode();
+        let message = payload.clone().into();
+
+        let post_test = move || {
+            assert!(
+                MailboxOf::<T>::iter_key(default_sender)
+                    .any(|(m, _)| m.id() == expected_message_id && m.payload() == payload),
+                "No message with expected id found in queue"
+            );
+        };
+
+        (TestCall::send_message(message), Some(post_test))
+    });
+}
+
+// Tests `send_init`, `send_push_input` and `send_commit`.
+#[track_caller]
+fn check_send_push_input<T>()
+where
+    T: Config,
+    T::AccountId: Origin,
+{
+    run_tester::<T, _, _, T::AccountId>(|_, _| {
+        let default_sender = utils::default_account::<T::AccountId>();
+        let next_message_id = utils::get_next_message_id::<T>(default_sender.clone());
+        // Program increases local nonce by sending messages twice before `send_init`.
+        let expected_message_id = MessageId::generate_outgoing(next_message_id, 2);
+
+        let payload = Kind::SendPushInput(expected_message_id.into()).encode();
+        let message = payload.clone().into();
+
+        let post_test = move || {
+            assert!(
+                MailboxOf::<T>::iter_key(default_sender)
+                    .any(|(m, _)| m.id() == expected_message_id && m.payload() == payload),
+                "No message with expected id found in queue"
+            );
+        };
+
+        (TestCall::send_message(message), Some(post_test))
+    });
+}
+
 // Depending on `gas` param will be `gr_reply` or `gr_reply_wgas`.
 fn check_reply<T>(gas: Option<u64>)
 where
@@ -471,6 +531,58 @@ where
             .into();
 
         (TestCall::send_message(mp), Some(post_test))
+    });
+}
+
+// Tests `reply_input` or `reply_input_wgas` depending on `gas` value.
+fn check_reply_input<T>(gas: Option<u64>)
+where
+    T: Config,
+    T::AccountId: Origin,
+{
+    run_tester::<T, _, _, T::AccountId>(|_, _| {
+        let default_sender = utils::default_account::<T::AccountId>();
+        let next_message_id = utils::get_next_message_id::<T>(default_sender.clone());
+        let expected_message_id = MessageId::generate_reply(next_message_id, 0);
+
+        let payload = Kind::ReplyInput(gas, expected_message_id.into()).encode();
+        let message = payload.clone().into();
+
+        let post_test = move || {
+            assert!(
+                MailboxOf::<T>::iter_key(default_sender)
+                    .any(|(m, _)| m.id() == expected_message_id && m.payload() == payload),
+                "No message with expected id found in queue"
+            );
+        };
+
+        (TestCall::send_message(message), Some(post_test))
+    });
+}
+
+// Tests `reply_push_input` and `reply_commit`.
+fn check_reply_push_input<T>()
+where
+    T: Config,
+    T::AccountId: Origin,
+{
+    run_tester::<T, _, _, T::AccountId>(|_, _| {
+        let default_sender = utils::default_account::<T::AccountId>();
+        let next_message_id = utils::get_next_message_id::<T>(default_sender.clone());
+        let expected_message_id = MessageId::generate_reply(next_message_id, 0);
+
+        let payload = Kind::ReplyPushInput(expected_message_id.into()).encode();
+        let message = payload.clone().into();
+
+        let post_test = move || {
+            assert!(
+                MailboxOf::<T>::iter_key(default_sender)
+                    .any(|(m, _)| m.id() == expected_message_id && m.payload() == payload),
+                "No message with expected id found in queue"
+            );
+        };
+
+        (TestCall::send_message(message), Some(post_test))
     });
 }
 
@@ -671,7 +783,7 @@ where
     run_tester::<T, _, _, T::AccountId>(|_, _| {
         // Expected to burn not more than 750_000_000
         // Provided gas in the test by default is 50_000_000_000
-        let lower = 50_000_000_000 - 750_000_000;
+        let lower = 50_000_000_000 - 1_000_000_000;
         let upper = 50_000_000_000 - 300_000_000;
         let mp = Kind::GasAvailable(lower, upper).encode().into();
 

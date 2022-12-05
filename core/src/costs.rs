@@ -115,6 +115,18 @@ pub struct HostFnWeights {
     /// Weight of calling `gr_reply_to`.
     pub gr_reply_to: u64,
 
+    /// Weight of calling `gr_reply_push_input`.
+    pub gr_reply_push_input: u64,
+
+    /// Weight per payload byte by `gr_reply_push_input`.
+    pub gr_reply_push_input_per_byte: u64,
+
+    /// Weight of calling `gr_send_push_input`.
+    pub gr_send_push_input: u64,
+
+    /// Weight per payload byte by `gr_send_push_input`.
+    pub gr_send_push_input_per_byte: u64,
+
     /// Weight of calling `gr_debug`.
     pub gr_debug: u64,
 
@@ -253,6 +265,10 @@ pub enum RuntimeCosts {
     Wake,
     /// Weight of calling `gr_create_program_wgas`.
     CreateProgram(u32, u32),
+    /// Weight of calling `gr_resend_push`.
+    SendPushInput(u32),
+    /// Weight of calling `gr_rereply_push`.
+    ReplyPushInput(u32),
 }
 
 impl RuntimeCosts {
@@ -317,6 +333,12 @@ impl RuntimeCosts {
                     s.gr_create_program_wgas_salt_per_byte
                         .saturating_mul(salt_len.into()),
                 ),
+            SendPushInput(len) => s
+                .gr_send_push_input
+                .saturating_add(s.gr_send_push_input_per_byte.saturating_mul(len.into())),
+            ReplyPushInput(len) => s
+                .gr_reply_push_input
+                .saturating_add(s.gr_reply_push_input_per_byte.saturating_mul(len.into())),
         };
         RuntimeToken { weight }
     }
