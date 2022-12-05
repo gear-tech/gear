@@ -70,11 +70,7 @@ pub enum FuncError<E: Display> {
     SyscallErrorExpected,
     #[display(fmt = "Terminated: {_0:?}")]
     Terminated(TerminationReason),
-    #[display(
-        fmt = "Cannot take data by indexes {:?} from message with size {}",
-        _0,
-        _1
-    )]
+    #[display(fmt = "Cannot take data by indexes {_0:?} from message with size {_1}")]
     ReadWrongRange(Range<u32>, u32),
     #[display(fmt = "Overflow at {_0} + len {_1} in `gr_read`")]
     ReadLenOverflow(u32, u32),
