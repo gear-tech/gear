@@ -132,13 +132,13 @@ macro_rules! impl_runtime_apis_plus_common {
 					uxt: <Block as BlockT>::Extrinsic,
 					len: u32,
 				) -> pallet_transaction_payment_rpc_runtime_api::RuntimeDispatchInfo<Balance> {
-					GearPayment::query_info(uxt, len)
+					GearPayment::query_info::<_, GasConverter>(uxt, len)
 				}
 				fn query_fee_details(
 					uxt: <Block as BlockT>::Extrinsic,
 					len: u32,
 				) -> pallet_transaction_payment::FeeDetails<Balance> {
-					GearPayment::query_fee_details(uxt, len)
+					GearPayment::query_fee_details::<_, GasConverter>(uxt, len)
 				}
 			}
 
