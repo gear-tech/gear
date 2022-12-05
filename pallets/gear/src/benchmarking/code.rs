@@ -77,7 +77,10 @@ pub struct ModuleDefinition {
     /// Function body of the exported `handle_reply` function. Body is empty if `None`.
     /// Its index is `imported_functions.len() + 2`.
     pub reply_body: Option<FuncBody>,
-    /// Function body of a non-exported function with index `imported_functions.len() + 3`.
+    /// Function body of the exported `handle_signal` function. Body is empty if `None`.
+    /// Its index is `imported_functions.len() + 3`.
+    pub signal_body: Option<FuncBody>,
+    /// Function body of a non-exported function with index `imported_functions.len() + 4`.
     pub aux_body: Option<FuncBody>,
     /// The amount of I64 arguments the aux function should have.
     pub aux_arg_num: u32,
@@ -141,6 +144,7 @@ pub struct WasmModule<T> {
 pub const OFFSET_INIT: u32 = 0;
 pub const OFFSET_HANDLE: u32 = OFFSET_INIT + 1;
 pub const OFFSET_REPLY: u32 = OFFSET_HANDLE + 1;
+pub const OFFSET_SIGNAL: u32 = OFFSET_REPLY + 1;
 pub const OFFSET_AUX: u32 = OFFSET_REPLY + 1;
 
 impl<T: Config> From<ModuleDefinition> for WasmModule<T>
@@ -171,6 +175,11 @@ where
             .build()
             .with_body(def.reply_body.unwrap_or_else(body::empty))
             .build()
+            .function()
+            .signature()
+            .build()
+            .with_body(def.signal_body.unwrap_or_else(body::empty))
+            .build()
             .export()
             .field("init")
             .internal()
@@ -185,6 +194,11 @@ where
             .field("handle_reply")
             .internal()
             .func(func_offset + OFFSET_REPLY)
+            .build()
+            .export()
+            .field("handle_signal")
+            .internal()
+            .func(func_offset + OFFSET_SIGNAL)
             .build();
 
         // If specified we add an additional internal function
