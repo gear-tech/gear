@@ -1383,10 +1383,8 @@ fn initial_pages_cheaper_than_allocated_pages() {
         let spent_for_initial_pages = gas_spent(wat_initial);
         let spent_for_allocated_pages = gas_spent(wat_alloc);
         assert!(
-            spent_for_initial_pages < spent_for_allocated_pages,
-            "spent {} gas for initial pages, spent {} gas for allocated pages",
-            spent_for_initial_pages,
-            spent_for_allocated_pages
+            spent_for_initial_pages < spent_for_allocated_pages, "{}",
+            "spent {spent_for_initial_pages} gas for initial pages, spent {spent_for_allocated_pages} gas for allocated pages",
         );
     });
 }
@@ -8019,8 +8017,7 @@ fn relay_messages() {
                         .next()
                         .map(|(msg, _bn)| msg.payload().to_vec()),
                     Some(payload),
-                    "{}",
-                    label
+                    "{label}",
                 );
             }
         };
