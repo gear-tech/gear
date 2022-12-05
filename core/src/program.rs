@@ -101,11 +101,6 @@ impl Program {
     pub fn set_allocations(&mut self, allocations: BTreeSet<WasmPageNumber>) {
         self.allocations = allocations;
     }
-
-    /// Clear static area of this program.
-    pub fn clear_memory(&mut self) {
-        self.allocations.clear();
-    }
 }
 
 #[cfg(test)]

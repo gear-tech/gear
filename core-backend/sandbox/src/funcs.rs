@@ -70,11 +70,7 @@ pub enum FuncError<E: Display> {
     SyscallErrorExpected,
     #[display(fmt = "Terminated: {_0:?}")]
     Terminated(TerminationReason),
-    #[display(
-        fmt = "Cannot take data by indexes {:?} from message with size {}",
-        _0,
-        _1
-    )]
+    #[display(fmt = "Cannot take data by indexes {_0:?} from message with size {_1}")]
     ReadWrongRange(Range<u32>, u32),
     #[display(fmt = "Overflow at {_0} + len {_1} in `gr_read`")]
     ReadLenOverflow(u32, u32),
@@ -638,6 +634,153 @@ where
         })
     }
 
+    pub fn reply_input(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
+        sys_trace!(target: "syscall::gear", "reply_input, args = {}", args_to_str(args));
+
+        let (offset, len, value_ptr, delay, err_mid_ptr) = args.iter().read_5()?;
+
+        ctx.run(|ctx| {
+            let value = if value_ptr as i32 == i32::MAX {
+                0
+            } else {
+                ctx.read_memory_decoded(value_ptr)?
+            };
+
+            let push_result = ctx.ext.reply_push_input(offset, len);
+            push_result
+                .and_then(|_| {
+                    ctx.ext
+                        .reply_commit(ReplyPacket::new(Default::default(), value), delay)
+                })
+                .process_error()
+                .map_err(FuncError::Core)?
+                .proc_res(|res| ctx.write_memory_as(err_mid_ptr, LengthWithHash::from(res)))
+        })
+    }
+
+    pub fn reply_push_input(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
+        sys_trace!(target: "syscall::gear", "reply_push_input, args = {}", args_to_str(args));
+
+        let (offset, len, err_len_ptr) = args.iter().read_3()?;
+
+        ctx.run(|ctx| {
+            let result_len = ctx
+                .ext
+                .reply_push_input(offset, len)
+                .process_error()
+                .map_err(FuncError::Core)?
+                .error_len();
+
+            ctx.write_output(err_len_ptr, &result_len.to_le_bytes())
+                .map_err(Into::into)
+        })
+    }
+
+    pub fn reply_input_wgas(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
+        sys_trace!(target: "syscall::gear", "reply_input_wgas, args = {}", args_to_str(args));
+
+        let (offset, len, gas_limit, value_ptr, delay, err_mid_ptr) = args.iter().read_6()?;
+
+        ctx.run(|ctx| {
+            let value = if value_ptr as i32 == i32::MAX {
+                0
+            } else {
+                ctx.read_memory_decoded(value_ptr)?
+            };
+
+            let push_result = ctx.ext.reply_push_input(offset, len);
+            push_result
+                .and_then(|_| {
+                    ctx.ext.reply_commit(
+                        ReplyPacket::new_with_gas(Default::default(), gas_limit, value),
+                        delay,
+                    )
+                })
+                .process_error()
+                .map_err(FuncError::Core)?
+                .proc_res(|res| ctx.write_memory_as(err_mid_ptr, LengthWithHash::from(res)))
+        })
+    }
+
+    pub fn send_input(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
+        sys_trace!(target: "syscall::gear", "send_input, args = {}", args_to_str(args));
+
+        let (pid_value_ptr, offset, len, delay, err_mid_ptr) = args.iter().read_5()?;
+
+        ctx.run(|ctx| {
+            let HashWithValue {
+                hash: destination,
+                value,
+            } = ctx.read_memory_as(pid_value_ptr)?;
+
+            let handle = ctx.ext.send_init();
+            let push_result =
+                handle.and_then(|h| ctx.ext.send_push_input(h, offset, len).map(|_| h));
+            push_result
+                .and_then(|h| {
+                    ctx.ext.send_commit(
+                        h,
+                        HandlePacket::new(destination.into(), Default::default(), value),
+                        delay,
+                    )
+                })
+                .process_error()
+                .map_err(FuncError::Core)?
+                .proc_res(|res| ctx.write_memory_as(err_mid_ptr, LengthWithHash::from(res)))
+        })
+    }
+
+    pub fn send_push_input(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
+        sys_trace!(target: "syscall::gear", "send_push_input, args = {}", args_to_str(args));
+
+        let (handle, offset, len, err_len_ptr) = args.iter().read_4()?;
+
+        ctx.run(|ctx| {
+            let result_len = ctx
+                .ext
+                .send_push_input(handle, offset, len)
+                .process_error()
+                .map_err(FuncError::Core)?
+                .error_len();
+
+            ctx.write_output(err_len_ptr, &result_len.to_le_bytes())
+                .map_err(Into::into)
+        })
+    }
+
+    pub fn send_input_wgas(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
+        sys_trace!(target: "syscall::gear", "send_input_wgas, args = {}", args_to_str(args));
+
+        let (pid_value_ptr, offset, len, gas_limit, delay, err_mid_ptr) = args.iter().read_6()?;
+
+        ctx.run(|ctx| {
+            let HashWithValue {
+                hash: destination,
+                value,
+            } = ctx.read_memory_as(pid_value_ptr)?;
+
+            let handle = ctx.ext.send_init();
+            let push_result =
+                handle.and_then(|h| ctx.ext.send_push_input(h, offset, len).map(|_| h));
+            push_result
+                .and_then(|h| {
+                    ctx.ext.send_commit(
+                        h,
+                        HandlePacket::new_with_gas(
+                            destination.into(),
+                            Default::default(),
+                            gas_limit,
+                            value,
+                        ),
+                        delay,
+                    )
+                })
+                .process_error()
+                .map_err(FuncError::Core)?
+                .proc_res(|res| ctx.write_memory_as(err_mid_ptr, LengthWithHash::from(res)))
+        })
+    }
+
     pub fn debug(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
         sys_trace!(target: "syscall::gear", "debug, args = {}", args_to_str(args));
 
@@ -923,7 +1066,6 @@ where
         })
     }
 
-    // TODO: charge gas for gr_error (issue #1723)
     pub fn error(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
         sys_trace!(target: "syscall::gear", "error, args = {}", args_to_str(args));
 
@@ -945,6 +1087,7 @@ where
                         Err(length) => length,
                     };
 
+                    ctx.ext.charge_error().map_err(RuntimeCtxError::Ext)?;
                     ctx.write_output(err_len_ptr, &length.to_le_bytes())
                 })
         })

@@ -21,8 +21,8 @@
 use crate::{
     async_runtime::signals,
     errors::{IntoContractResult, Result},
-    msg::{CodecMessageFuture, MessageFuture},
-    prelude::{convert::AsRef, vec, Vec},
+    msg::{utils, CodecMessageFuture, MessageFuture},
+    prelude::{convert::AsRef, ops::RangeBounds, vec, Vec},
     ActorId, MessageId, ReservationId,
 };
 use codec::{Decode, Output};
@@ -75,6 +75,10 @@ impl MessageHandle {
 
     pub fn push<T: AsRef<[u8]>>(&self, payload: T) -> Result<()> {
         send_push(*self, payload)
+    }
+
+    pub fn push_input<Range: RangeBounds<usize>>(&self, range: Range) -> Result<()> {
+        send_push_input(*self, range)
     }
 
     pub fn commit(self, program: ActorId, value: u128) -> Result<MessageId> {
@@ -437,6 +441,23 @@ pub fn reply_push<T: AsRef<[u8]>>(payload: T) -> Result<()> {
 /// Panics if called in a context other than `handle_reply()`.
 pub fn reply_to() -> Result<MessageId> {
     gcore::msg::reply_to().into_contract_result()
+}
+
+/// Same as [`reply_push`], but pushes the incoming message payload.
+pub fn reply_push_input<Range: RangeBounds<usize>>(range: Range) -> Result<()> {
+    let (offset, len) = utils::decay_range(range);
+
+    gcore::msg::reply_push_input(offset, len).into_contract_result()
+}
+
+/// Same as [`send_push`], but pushes the incoming message payload.
+pub fn send_push_input<Range: RangeBounds<usize>>(
+    handle: MessageHandle,
+    range: Range,
+) -> Result<()> {
+    let (offset, len) = utils::decay_range(range);
+
+    gcore::msg::send_push_input(handle.0, offset, len).into_contract_result()
 }
 
 /// Send a new message to the program or user.

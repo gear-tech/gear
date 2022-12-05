@@ -8,8 +8,6 @@ services:
       - "9944:9944"
       - "9615:9615"
     image: "{{ gear_image_tag }}"
-    environment:
-      - RUST_LOG=essential
     volumes:
       - "/home/ec2-user/gear-data/:/gear/"
     command: >

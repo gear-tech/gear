@@ -18,7 +18,7 @@
 
 use crate::{
     ids::{MessageId, ProgramId},
-    message::{Dispatch, DispatchKind, Message, ReplyDetails, StatusCode},
+    message::{Dispatch, DispatchKind, Message, SignalDetails, StatusCode},
 };
 use codec::{Decode, Encode};
 use scale_info::TypeInfo;
@@ -49,7 +49,7 @@ impl SignalMessage {
             Default::default(),
             None,
             0,
-            Some(ReplyDetails::new(self.id, self.status_code).into()),
+            Some(SignalDetails::new(self.id, self.status_code).into()),
         )
     }
 
