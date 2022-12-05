@@ -9,6 +9,7 @@ license = "GPL-3.0"
 gear-core = { path = "../core" }
 gear-core-errors = { path = "../core-errors", features = ["codec"] }
 gear-backend-common = { path = "../core-backend/common" }
+gear-wasm-instrument = { path = "../utils/wasm-instrument" }
 
 codec = { package = "parity-scale-codec", version = "3.1.2", features = ["derive"], default-features = false }
 scale-info = { version = "2.2.0", default-features = false, features = ["derive"] }

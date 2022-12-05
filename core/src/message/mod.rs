@@ -18,6 +18,7 @@
 
 //! Message processing module.
 
+use alloc::collections::BTreeSet;
 use codec::{Decode, Encode};
 use scale_info::TypeInfo;
 
@@ -40,6 +41,7 @@ pub use signal::SignalMessage;
 pub use stored::{StoredDispatch, StoredMessage};
 
 use core::fmt::Display;
+use gear_wasm_instrument::syscalls::SysCallName;
 
 use super::buffer::LimitedVec;
 
@@ -136,6 +138,26 @@ impl DispatchKind {
     /// Check if kind is signal.
     pub fn is_signal(&self) -> bool {
         matches!(self, Self::Signal)
+    }
+
+    /// Sys-calls that are not allowed to be called for the dispatch kind.
+    pub fn forbidden_funcs(&self) -> BTreeSet<SysCallName> {
+        match self {
+            DispatchKind::Signal => [
+                SysCallName::Source,
+                SysCallName::Reply,
+                SysCallName::ReplyPush,
+                SysCallName::ReplyCommit,
+                SysCallName::ReplyCommitWGas,
+                SysCallName::ReplyInput,
+                SysCallName::ReplyInputWGas,
+                SysCallName::ReservationReply,
+                SysCallName::ReservationReplyCommit,
+                SysCallName::SystemReserveGas,
+            ]
+            .into(),
+            _ => Default::default(),
+        }
     }
 }
 

@@ -3138,6 +3138,7 @@ dependencies = [
  "gear-backend-common",
  "gear-core",
  "gear-core-errors",
+ "gear-wasm-instrument",
  "log",
  "parity-scale-codec",
  "scale-info",
