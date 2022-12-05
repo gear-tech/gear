@@ -633,12 +633,14 @@ where
 {
     run_tester::<T, _, _, T::AccountId>(|tester_pid, _| {
         let default_sender = utils::default_account::<T::AccountId>();
+        let next_user_mid = utils::get_next_message_id::<T>(default_sender.clone());
+        let expected_mid = MessageId::generate_reply(next_user_mid, 0);
 
         // setup signal details
         Gear::<T>::send_message(
             RawOrigin::Signed(default_sender.clone()).into(),
             tester_pid,
-            Kind::SignalDetails(false).encode(),
+            Kind::SignalDetails.encode(),
             50_000_000_000,
             0u128.unique_saturated_into(),
         )
@@ -646,9 +648,17 @@ where
 
         utils::run_to_next_block::<T>(None);
 
-        let mp = MessageParamsBuilder::new(Kind::SignalDetails(true).encode());
+        let reply_to = MailboxOf::<T>::iter_key(default_sender)
+            .last()
+            .map(|(m, _)| m)
+            .expect("no mail found after invoking sys-call test program");
 
-        (TestCall::send_message(mp), None::<DefaultPostCheck>)
+        assert_eq!(reply_to.id(), expected_mid, "mailbox check failed");
+
+        let mp = MessageParamsBuilder::new(Kind::SignalDetailsWake.encode())
+            .with_reply_id(reply_to.id());
+
+        (TestCall::send_reply(mp), None::<DefaultPostCheck>)
     });
 }
 

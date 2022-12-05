@@ -73,8 +73,8 @@ pub enum Kind {
     ReplyPushInput(MessageId),
     // Expected(reply to id, exit code)
     ReplyDetails(MessageId, i32),
-    // Params(do panic)
-    SignalDetails(bool),
+    SignalDetails,
+    SignalDetailsWake,
     // Expected(block height)
     BlockHeight(u32),
     // Expected(block timestamp)
@@ -114,7 +114,9 @@ mod wasm {
 
     static mut CODE_ID: CodeId = CodeId::new([0u8; 32]);
     static mut ORIGIN: Option<ActorId> = None;
-    static mut SIGNAL_DETAILS: (MessageId, i32) = (MessageId::new([0; 32]), 0);
+    static mut SIGNAL_DETAILS: (MessageId, i32, ActorId) =
+        (MessageId::new([0; 32]), 0, ActorId::zero());
+    static mut DO_PANIC: bool = false;
 
     #[no_mangle]
     unsafe extern "C" fn init() {
@@ -301,14 +303,20 @@ mod wasm {
                 // To prevent from sending to mailbox "ok" message
                 exec::leave();
             }
-            Kind::SignalDetails(panic) => {
-                if panic {
+            Kind::SignalDetails => {
+                if DO_PANIC {
                     // issue a signal
                     panic!();
                 } else {
-                    SIGNAL_DETAILS = (msg::id(), 1);
+                    SIGNAL_DETAILS = (msg::id(), 1, msg::source());
+                    DO_PANIC = true;
+                    exec::system_reserve_gas(1_000_000_000).unwrap();
+                    let _ = msg::reply_delayed(b"payload", 0, 0);
                     exec::wait_for(2);
                 }
+            }
+            Kind::SignalDetailsWake => {
+                panic!("must be called in handle_reply");
             }
             Kind::BlockHeight(expected_height) => {
                 let actual_height = exec::block_height();
@@ -450,31 +458,35 @@ mod wasm {
 
     #[no_mangle]
     extern "C" fn handle_reply() {
-        if let Ok(Kind::ReplyDetails(expected_reply_to, expected_status_code)) = msg::load() {
-            let actual_reply_to = msg::reply_to();
-            assert_eq!(
-                Ok(expected_reply_to.into()),
-                actual_reply_to,
-                "Kind::ReplyDetails: reply_to test failed"
-            );
-            let actual_status_code = msg::status_code();
-            assert_eq!(
-                Ok(expected_status_code),
-                actual_status_code,
-                "Kind::ReplyDetails: status test failed"
-            );
+        match msg::load() {
+            Ok(Kind::ReplyDetails(expected_reply_to, expected_status_code)) => {
+                let actual_reply_to = msg::reply_to();
+                assert_eq!(
+                    Ok(expected_reply_to.into()),
+                    actual_reply_to,
+                    "Kind::ReplyDetails: reply_to test failed"
+                );
+                let actual_status_code = msg::status_code();
+                assert_eq!(
+                    Ok(expected_status_code),
+                    actual_status_code,
+                    "Kind::ReplyDetails: status test failed"
+                );
 
-            // Report test executed successfully
-            msg::send_delayed(msg::source(), b"ok", 0, 0)
-                .expect("internal error: report send failed");
-        } else {
-            panic!("internal error: invalid payload for `handle_reply`")
+                // Report test executed successfully
+                msg::send_delayed(msg::source(), b"ok", 0, 0)
+                    .expect("internal error: report send failed");
+            }
+            Ok(Kind::SignalDetailsWake) => unsafe {
+                exec::wake(SIGNAL_DETAILS.0).unwrap();
+            },
+            _ => panic!("internal error: invalid payload for `handle_reply`"),
         }
     }
 
     #[no_mangle]
     extern "C" fn handle_signal() {
-        let (signal_from, status_code) = unsafe { SIGNAL_DETAILS };
+        let (signal_from, status_code, source) = unsafe { SIGNAL_DETAILS };
 
         assert_eq!(
             msg::status_code(),
@@ -486,5 +498,7 @@ mod wasm {
             Ok(signal_from),
             "Kind::SignalDetails: signal_from test failed"
         );
+
+        msg::send_delayed(source, b"ok", 0, 0).expect("internal error: report send failed");
     }
 }
