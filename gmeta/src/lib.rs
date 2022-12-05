@@ -2,6 +2,7 @@
 
 extern crate alloc;
 
+#[cfg(feature = "codegen")]
 pub use gmeta_codegen::metawasm;
 
 use alloc::{string::String, vec::Vec};

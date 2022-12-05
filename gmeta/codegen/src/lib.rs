@@ -4,7 +4,7 @@ use proc_macro::TokenStream;
 use quote::{quote, ToTokens};
 use syn::{
     spanned::Spanned, AttributeArgs, Block, Error, FnArg, ItemFn, ItemTrait, LitStr, Pat,
-    ReturnType, TraitItem, Visibility,
+    ReturnType, TraitItem, Visibility, Attribute,
 };
 
 macro_rules! ensure {
@@ -356,6 +356,17 @@ fn construct_abi(funcs: Vec<ItemFn>) -> TokenStream {
         func.sig.ident = new_ident.clone();
 
         func.to_tokens(&mut res);
+
+        func.attrs = vec![Attribute {
+            pound_token: syn::token::Pound(span),
+            style: syn::AttrStyle::Outer,
+            bracket_token: syn::token::Bracket(span),
+            path: syn::Path {
+                leading_colon: None,
+                segments: Default::default(),
+            },
+            tokens: quote!(no_mangle).into(),
+        }];
 
         let mut sig = func.sig;
         sig.ident = prev_ident;

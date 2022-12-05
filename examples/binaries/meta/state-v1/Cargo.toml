@@ -5,10 +5,11 @@ edition = "2018"
 
 [dependencies]
 gstd = { path = "../../../../gstd" }
+gmeta = { path = "../../../../gmeta", features = ["codegen"]}
 demo-meta-io = { path = "../io" }
 
 [build-dependencies]
-gear-wasm-builder = { path = "../../../../utils/wasm-builder" }
+gear-wasm-builder = { path = "../../../../utils/wasm-builder", features = ["metawasm"]}
 
 [features]
 default = ["std"]
