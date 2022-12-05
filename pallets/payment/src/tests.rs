@@ -639,7 +639,7 @@ fn query_info_and_fee_details_work() {
         let fee_affecting_weight = WeightToFeeFor::<Test>::weight_to_fee(&info_affecting_mq.weight);
         let fee_affecting_length = LengthToFeeFor::<Test>::weight_to_fee(&Weight::from_ref_time(len_affecting_mq.into()));
         assert_eq!(
-            GearPayment::query_info(xt_affecting_mq.clone(), len_affecting_mq),
+            GearPayment::query_info::<_, GasConverter>(xt_affecting_mq.clone(), len_affecting_mq),
             RuntimeDispatchInfo {
                 weight: info_affecting_mq.weight,
                 class: info_affecting_mq.class,
@@ -652,7 +652,7 @@ fn query_info_and_fee_details_work() {
         let fee_weight = WeightToFeeFor::<Test>::weight_to_fee(&info_not_affecting_mq.weight);
         let fee_length = LengthToFeeFor::<Test>::weight_to_fee(&Weight::from_ref_time(len_not_affecting_mq.into()));
         assert_eq!(
-            GearPayment::query_info(xt_not_affecting_mq.clone(), len_not_affecting_mq),
+            GearPayment::query_info::<_, GasConverter>(xt_not_affecting_mq.clone(), len_not_affecting_mq),
             RuntimeDispatchInfo {
                 weight: info_not_affecting_mq.weight,
                 class: info_not_affecting_mq.class,
@@ -663,7 +663,7 @@ fn query_info_and_fee_details_work() {
         );
 
         assert_eq!(
-            GearPayment::query_info(unsigned_xt.clone(), len_affecting_mq),
+            GearPayment::query_info::<_, GasConverter>(unsigned_xt.clone(), len_affecting_mq),
             RuntimeDispatchInfo {
                 weight: unsigned_xt_info.weight,
                 class: unsigned_xt_info.class,
@@ -672,7 +672,7 @@ fn query_info_and_fee_details_work() {
         );
 
         assert_eq!(
-            GearPayment::query_fee_details(xt_affecting_mq.clone(), len_affecting_mq),
+            GearPayment::query_fee_details::<_, GasConverter>(xt_affecting_mq.clone(), len_affecting_mq),
             FeeDetails {
                 inclusion_fee: Some(InclusionFee {
                     base_fee: 0,
@@ -684,7 +684,7 @@ fn query_info_and_fee_details_work() {
         );
 
         assert_eq!(
-            GearPayment::query_fee_details(xt_not_affecting_mq.clone(), len_not_affecting_mq),
+            GearPayment::query_fee_details::<_, GasConverter>(xt_not_affecting_mq.clone(), len_not_affecting_mq),
             FeeDetails {
                 inclusion_fee: Some(InclusionFee {
                     base_fee: 0,
@@ -696,7 +696,7 @@ fn query_info_and_fee_details_work() {
         );
 
         assert_eq!(
-            GearPayment::query_fee_details(unsigned_xt.clone(), len_affecting_mq),
+            GearPayment::query_fee_details::<_, GasConverter>(unsigned_xt.clone(), len_affecting_mq),
             FeeDetails {
                 inclusion_fee: None,
                 tip: 0
@@ -709,7 +709,7 @@ fn query_info_and_fee_details_work() {
 
         // Extra fee multiplier is now 2^(20 / 5) == 16
         assert_eq!(
-            GearPayment::query_info(xt_affecting_mq.clone(), len_affecting_mq),
+            GearPayment::query_info::<_, GasConverter>(xt_affecting_mq.clone(), len_affecting_mq),
             RuntimeDispatchInfo {
                 weight: info_affecting_mq.weight,
                 class: info_affecting_mq.class,
@@ -723,7 +723,7 @@ fn query_info_and_fee_details_work() {
         // However, we must account for the rounding error in this case
         let rounding_error = WeightToFeeFor::<Test>::weight_to_fee(&Weight::from_ref_time(16));
         assert_eq!(
-            GearPayment::query_info(xt_not_affecting_mq.clone(), len_not_affecting_mq),
+            GearPayment::query_info::<_, GasConverter>(xt_not_affecting_mq.clone(), len_not_affecting_mq),
             RuntimeDispatchInfo {
                 weight: info_not_affecting_mq.weight,
                 class: info_not_affecting_mq.class,
@@ -734,7 +734,7 @@ fn query_info_and_fee_details_work() {
         );
 
         assert_eq!(
-            GearPayment::query_info(unsigned_xt.clone(), len_affecting_mq),
+            GearPayment::query_info::<_, GasConverter>(unsigned_xt.clone(), len_affecting_mq),
             RuntimeDispatchInfo {
                 weight: unsigned_xt_info.weight,
                 class: unsigned_xt_info.class,
@@ -743,7 +743,7 @@ fn query_info_and_fee_details_work() {
         );
 
         assert_eq!(
-            GearPayment::query_fee_details(xt_affecting_mq, len_affecting_mq),
+            GearPayment::query_fee_details::<_, GasConverter>(xt_affecting_mq, len_affecting_mq),
             FeeDetails {
                 inclusion_fee: Some(InclusionFee {
                     base_fee: 0,
@@ -755,7 +755,7 @@ fn query_info_and_fee_details_work() {
         );
 
         assert_eq!(
-            GearPayment::query_fee_details(xt_not_affecting_mq, len_not_affecting_mq),
+            GearPayment::query_fee_details::<_, GasConverter>(xt_not_affecting_mq, len_not_affecting_mq),
             FeeDetails {
                 inclusion_fee: Some(InclusionFee {
                     base_fee: 0,
@@ -767,7 +767,7 @@ fn query_info_and_fee_details_work() {
         );
 
         assert_eq!(
-            GearPayment::query_fee_details(unsigned_xt, len_affecting_mq),
+            GearPayment::query_fee_details::<_, GasConverter>(unsigned_xt, len_affecting_mq),
             FeeDetails {
                 inclusion_fee: None,
                 tip: 0
