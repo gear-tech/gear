@@ -3669,9 +3669,19 @@ name = "gmeta"
 version = "0.1.0"
 dependencies = [
  "blake2-rfc",
+ "gmeta-codegen",
  "hex",
  "parity-scale-codec",
  "scale-info",
+]
+
+[[package]]
+name = "gmeta-codegen"
+version = "0.1.0"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
 ]
 
 [[package]]

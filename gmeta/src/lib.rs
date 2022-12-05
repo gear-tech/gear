@@ -2,6 +2,8 @@
 
 extern crate alloc;
 
+pub use gmeta_codegen::metawasm;
+
 use alloc::{string::String, vec::Vec};
 use blake2_rfc::blake2b;
 use codec::Encode;
