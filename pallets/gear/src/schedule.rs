@@ -359,6 +359,18 @@ pub struct HostFnWeights<T: Config> {
     /// Weight of calling `gr_reply_to`.
     pub gr_reply_to: u64,
 
+    /// Weight of calling `gr_reply_push_input`.
+    pub gr_reply_push_input: u64,
+
+    /// Weight per payload byte by `gr_reply_push_input`.
+    pub gr_reply_push_input_per_byte: u64,
+
+    /// Weight of calling `gr_send_push_input`.
+    pub gr_send_push_input: u64,
+
+    /// Weight per payload byte by `gr_send_push_input`.
+    pub gr_send_push_input_per_byte: u64,
+
     /// Weight of calling `gr_debug`.
     pub gr_debug: u64,
 
@@ -639,6 +651,10 @@ impl<T: Config> HostFnWeights<T> {
             gr_create_program_wgas: self.gr_create_program_wgas,
             gr_create_program_wgas_payload_per_byte: self.gr_create_program_wgas_payload_per_byte,
             gr_create_program_wgas_salt_per_byte: self.gr_create_program_wgas_salt_per_byte,
+            gr_send_push_input: self.gr_send_push_input,
+            gr_send_push_input_per_byte: self.gr_send_push_input_per_byte,
+            gr_reply_push_input: self.gr_reply_push_input,
+            gr_reply_push_input_per_byte: self.gr_reply_push_input_per_byte,
         }
     }
 }
@@ -700,6 +716,10 @@ impl<T: Config> Default for HostFnWeights<T> {
                 0,
                 1
             ),
+            gr_send_push_input: cost_batched!(gr_send_push_input),
+            gr_send_push_input_per_byte: cost_byte_batched!(gr_send_push_input_per_kb),
+            gr_reply_push_input: cost_batched!(gr_reply_push_input),
+            gr_reply_push_input_per_byte: cost_byte_batched!(gr_reply_push_input_per_kb),
             _phantom: PhantomData,
         }
     }

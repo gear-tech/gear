@@ -35,6 +35,9 @@ pub enum SysCallName {
     SendPush,
     ReservationSend,
     ReservationSendCommit,
+    SendInput,
+    SendPushInput,
+    SendInputWGas,
 
     // Sending `handle_reply` message
     Reply,
@@ -44,6 +47,9 @@ pub enum SysCallName {
     ReplyPush,
     ReservationReply,
     ReservationReplyCommit,
+    ReplyInput,
+    ReplyPushInput,
+    ReplyInputWGas,
 
     // Sending `init` message
     CreateProgram,
@@ -118,6 +124,9 @@ impl SysCallName {
             SysCallName::ReplyPush => "gr_reply_push",
             SysCallName::ReplyTo => "gr_reply_to",
             SysCallName::ReplyWGas => "gr_reply_wgas",
+            SysCallName::ReplyInput => "gr_reply_input",
+            SysCallName::ReplyPushInput => "gr_reply_push_input",
+            SysCallName::ReplyInputWGas => "gr_reply_input_wgas",
             SysCallName::ReservationReply => "gr_reservation_reply",
             SysCallName::ReservationReplyCommit => "gr_reservation_reply_commit",
             SysCallName::ReservationSend => "gr_reservation_send",
@@ -129,6 +138,9 @@ impl SysCallName {
             SysCallName::SendInit => "gr_send_init",
             SysCallName::SendPush => "gr_send_push",
             SysCallName::SendWGas => "gr_send_wgas",
+            SysCallName::SendInput => "gr_send_input",
+            SysCallName::SendPushInput => "gr_send_push_input",
+            SysCallName::SendInputWGas => "gr_send_input_wgas",
             SysCallName::Size => "gr_size",
             SysCallName::Source => "gr_source",
             SysCallName::StatusCode => "gr_status_code",
