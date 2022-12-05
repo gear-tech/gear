@@ -35,6 +35,7 @@ pub enum HandleAction {
     WaitAndPanic,
     WaitAndReserveWithPanic,
     Panic,
+    WaitWithReserveAmountAndPanic(u64),
     Accumulate,
     OutOfGas,
     PanicInSignal,
@@ -113,6 +114,18 @@ mod wasm {
             HandleAction::Panic => {
                 exec::system_reserve_gas(5_000_000_000).unwrap();
                 panic!();
+            }
+            HandleAction::WaitWithReserveAmountAndPanic(gas_amount) => {
+                if DO_PANIC {
+                    panic!();
+                }
+
+                DO_PANIC = !DO_PANIC;
+
+                exec::system_reserve_gas(gas_amount).unwrap();
+                // used to found message id in test
+                msg::reply(0, 0).unwrap();
+                exec::wait();
             }
             HandleAction::Accumulate => {
                 exec::system_reserve_gas(1000).unwrap();
