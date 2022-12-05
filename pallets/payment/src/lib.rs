@@ -287,14 +287,13 @@ impl<T: Config> Pallet<T> {
     /// Modification of the `pallet_transaction_payment::Pallet<T>::query_fee_details()`
     pub fn query_fee_details<
         Extrinsic: sp_runtime::traits::Extrinsic + GetDispatchInfo + ExtractCall<CallOf<T>>,
-        GP: GasPrice<Balance = BalanceOf<T>>,
     >(
         unchecked_extrinsic: Extrinsic,
         len: u32,
     ) -> FeeDetails<BalanceOf<T>>
     where
         CallOf<T>:
-            Dispatchable<Info = DispatchInfo> + TryExtract<MessageResourcesU64Gas<BalanceOf<T>>>,
+            Dispatchable<Info = DispatchInfo>,
         BalanceOf<T>: FixedPointOperand,
     {
         let DispatchInfo {
@@ -318,7 +317,7 @@ impl<T: Config> Pallet<T> {
             } else {
                 weight
             };
-            let mut fee_details = TransactionPayment::<T>::compute_fee_details(
+            TransactionPayment::<T>::compute_fee_details(
                 len,
                 &DispatchInfo {
                     weight: adjusted_weight,
@@ -326,18 +325,7 @@ impl<T: Config> Pallet<T> {
                     pays_fee,
                 },
                 tip,
-            );
-
-            let gas_value_fees = call
-                .try_extract()
-                .map(|mr| mr.value.saturating_add(GP::gas_price(mr.gas)))
-                .unwrap_or_else(Zero::zero);
-            fee_details
-                .inclusion_fee
-                .as_mut()
-                .map(|f| f.inclusion_fee().saturating_add(gas_value_fees));
-
-            fee_details
+            )
         } else {
             // Unsigned extrinsics have no inclusion fee.
             FeeDetails {

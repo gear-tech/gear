@@ -610,10 +610,19 @@ fn mq_size_not_affecting_fee_works() {
 #[allow(clippy::let_unit_value)]
 fn query_info_and_fee_details_work() {
     let program_id = ProgramId::from_origin(H256::random());
+    let gas_limit = 100_000;
+    let value = 100;
+    let gas_value_fees = GasConverter::gas_price(gas_limit) + value;
     let call_affecting_mq = RuntimeCall::Gear(pallet_gear::Call::send_message {
         destination: program_id,
         payload: Default::default(),
-        gas_limit: 100_000,
+        gas_limit,
+        value,
+    });
+    let call_affecting_mq_without_gas_value = RuntimeCall::Gear(pallet_gear::Call::send_message {
+        destination: program_id,
+        payload: Default::default(),
+        gas_limit: 0,
         value: 0,
     });
     let call_not_affecting_mq = RuntimeCall::Gear(pallet_gear::Call::claim_value {
@@ -622,6 +631,7 @@ fn query_info_and_fee_details_work() {
     let extra = ();
 
     let xt_affecting_mq = TestXt::new(call_affecting_mq.clone(), Some((ALICE, extra)));
+    let xt_affecting_mq_without_gas_value = TestXt::new(call_affecting_mq_without_gas_value, Some((ALICE, extra)));
     let info_affecting_mq = xt_affecting_mq.get_dispatch_info();
     let ext_affecting_mq = xt_affecting_mq.encode();
     let len_affecting_mq = ext_affecting_mq.len() as u32;
@@ -646,6 +656,18 @@ fn query_info_and_fee_details_work() {
                 partial_fee: 0 /* base_fee */
                     + fee_affecting_length  /* len * 1 */
                     + fee_affecting_weight /* weight */
+                    + gas_value_fees /* fee for `send_message` call */
+            },
+        );
+        assert_eq!(
+            GearPayment::query_info::<_, GasConverter>(xt_affecting_mq_without_gas_value, len_affecting_mq),
+            RuntimeDispatchInfo {
+                weight: info_affecting_mq.weight,
+                class: info_affecting_mq.class,
+                partial_fee: 0 /* base_fee */
+                    + fee_affecting_length  /* len * 1 */
+                    + fee_affecting_weight /* weight */
+                    /* no fees for `send_message` call */
             },
         );
 
@@ -672,7 +694,7 @@ fn query_info_and_fee_details_work() {
         );
 
         assert_eq!(
-            GearPayment::query_fee_details::<_, GasConverter>(xt_affecting_mq.clone(), len_affecting_mq),
+            GearPayment::query_fee_details(xt_affecting_mq.clone(), len_affecting_mq),
             FeeDetails {
                 inclusion_fee: Some(InclusionFee {
                     base_fee: 0,
@@ -684,7 +706,7 @@ fn query_info_and_fee_details_work() {
         );
 
         assert_eq!(
-            GearPayment::query_fee_details::<_, GasConverter>(xt_not_affecting_mq.clone(), len_not_affecting_mq),
+            GearPayment::query_fee_details(xt_not_affecting_mq.clone(), len_not_affecting_mq),
             FeeDetails {
                 inclusion_fee: Some(InclusionFee {
                     base_fee: 0,
@@ -696,7 +718,7 @@ fn query_info_and_fee_details_work() {
         );
 
         assert_eq!(
-            GearPayment::query_fee_details::<_, GasConverter>(unsigned_xt.clone(), len_affecting_mq),
+            GearPayment::query_fee_details(unsigned_xt.clone(), len_affecting_mq),
             FeeDetails {
                 inclusion_fee: None,
                 tip: 0
@@ -716,6 +738,7 @@ fn query_info_and_fee_details_work() {
                 partial_fee: 0 /* base_fee */
                     + fee_affecting_length  /* len * 1 */
                     + fee_affecting_weight * 16u128 /* weight * 16 */
+                    + gas_value_fees /* fee for `send_message` call */
             },
         );
 
@@ -743,7 +766,7 @@ fn query_info_and_fee_details_work() {
         );
 
         assert_eq!(
-            GearPayment::query_fee_details::<_, GasConverter>(xt_affecting_mq, len_affecting_mq),
+            GearPayment::query_fee_details(xt_affecting_mq, len_affecting_mq),
             FeeDetails {
                 inclusion_fee: Some(InclusionFee {
                     base_fee: 0,
@@ -755,7 +778,7 @@ fn query_info_and_fee_details_work() {
         );
 
         assert_eq!(
-            GearPayment::query_fee_details::<_, GasConverter>(xt_not_affecting_mq, len_not_affecting_mq),
+            GearPayment::query_fee_details(xt_not_affecting_mq, len_not_affecting_mq),
             FeeDetails {
                 inclusion_fee: Some(InclusionFee {
                     base_fee: 0,
@@ -767,7 +790,7 @@ fn query_info_and_fee_details_work() {
         );
 
         assert_eq!(
-            GearPayment::query_fee_details::<_, GasConverter>(unsigned_xt, len_affecting_mq),
+            GearPayment::query_fee_details(unsigned_xt, len_affecting_mq),
             FeeDetails {
                 inclusion_fee: None,
                 tip: 0
