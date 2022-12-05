@@ -73,6 +73,8 @@ pub enum Kind {
     ReplyPushInput(MessageId),
     // Expected(reply to id, exit code)
     ReplyDetails(MessageId, i32),
+    // Params(do panic)
+    SignalDetails(bool),
     // Expected(block height)
     BlockHeight(u32),
     // Expected(block timestamp)
@@ -107,11 +109,12 @@ mod wasm {
         errors::{ContractError, ExtError, MessageError},
         exec, format,
         msg::{self, MessageHandle},
-        prog, ActorId, CodeId, ReservationId,
+        prog, ActorId, CodeId, MessageId, ReservationId,
     };
 
     static mut CODE_ID: CodeId = CodeId::new([0u8; 32]);
     static mut ORIGIN: Option<ActorId> = None;
+    static mut SIGNAL_DETAILS: (MessageId, i32) = (MessageId::new([0; 32]), 0);
 
     #[no_mangle]
     unsafe extern "C" fn init() {
@@ -298,6 +301,15 @@ mod wasm {
                 // To prevent from sending to mailbox "ok" message
                 exec::leave();
             }
+            Kind::SignalDetails(panic) => {
+                if panic {
+                    // issue a signal
+                    panic!();
+                } else {
+                    SIGNAL_DETAILS = (msg::id(), 1);
+                    exec::wait_for(2);
+                }
+            }
             Kind::BlockHeight(expected_height) => {
                 let actual_height = exec::block_height();
                 assert_eq!(
@@ -458,5 +470,21 @@ mod wasm {
         } else {
             panic!("internal error: invalid payload for `handle_reply`")
         }
+    }
+
+    #[no_mangle]
+    extern "C" fn handle_signal() {
+        let (signal_from, status_code) = unsafe { SIGNAL_DETAILS };
+
+        assert_eq!(
+            msg::status_code(),
+            Ok(status_code),
+            "Kind::SignalDetails: status code test failed"
+        );
+        assert_eq!(
+            msg::signal_from(),
+            Ok(signal_from),
+            "Kind::SignalDetails: signal_from test failed"
+        );
     }
 }

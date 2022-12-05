@@ -438,6 +438,12 @@ extern "C" {
     /// - `err_mid`: `mut ptr` for concatenated error length and message id.
     pub fn gr_reply_to(err_mid: *mut LengthWithHash);
 
+    /// Fallible `gr_signal_from` get syscall.
+    ///
+    /// Arguments type:
+    /// - `err_mid`: `mut ptr` for concatenated error length and message id.
+    pub fn gr_signal_from(err_mid: *mut LengthWithHash);
+
     /// Fallible `gr_reply_input_wgas` send syscall.
     ///
     /// Arguments type:

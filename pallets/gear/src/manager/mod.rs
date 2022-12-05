@@ -326,7 +326,7 @@ where
 
             // Creating signal message.
             let trap_signal = SignalMessage::new(message_id, core_processor::ERR_STATUS_CODE)
-                .into_dispatch(destination)
+                .into_dispatch(message_id, destination)
                 .into_stored();
 
             // Splitting gas for newly created reply message.

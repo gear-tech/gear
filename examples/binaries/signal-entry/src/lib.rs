@@ -152,7 +152,8 @@ mod wasm {
         match HANDLE_SIGNAL_STATE {
             HandleSignalState::Normal => {
                 msg::send(INITIATOR, b"handle_signal", 0).unwrap();
-                assert_eq!(msg::status_code().unwrap(), 1);
+                assert_eq!(msg::status_code(), Ok(1));
+                assert_eq!(msg::signal_from(), Ok(HANDLE_MSG));
 
                 // TODO: check gas limit (#1796)
                 // assert_eq!(msg::gas_limit(), 5_000_000_000);

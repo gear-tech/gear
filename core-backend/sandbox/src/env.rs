@@ -169,6 +169,7 @@ where
         builder.add_func(ReplyCommitWGas, Funcs::reply_commit_wgas);
         builder.add_func(ReplyPush, Funcs::reply_push);
         builder.add_func(ReplyTo, Funcs::reply_to);
+        builder.add_func(SignalFrom, Funcs::signal_from);
         builder.add_func(ReplyWGas, Funcs::reply_wgas);
         builder.add_func(ReplyInput, Funcs::reply_input);
         builder.add_func(ReplyPushInput, Funcs::reply_push_input);

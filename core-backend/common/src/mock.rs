@@ -238,6 +238,10 @@ impl Ext for MockExt {
     ) -> Result<MessageId, Self::Error> {
         Ok(MessageId::default())
     }
+
+    fn signal_from(&mut self) -> Result<MessageId, Self::Error> {
+        Ok(MessageId::default())
+    }
 }
 
 impl IntoExtInfo<<MockExt as Ext>::Error> for MockExt {
