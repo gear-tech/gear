@@ -19,8 +19,9 @@
 //! Gear syscalls for smart contracts execution signatures.
 
 use crate::parity_wasm::elements::{FunctionType, ValueType};
-use alloc::{vec, vec::Vec};
+use alloc::vec::Vec;
 use enum_iterator::{self, Sequence};
+use std::collections::BTreeSet;
 
 pub const IMPORT_NAME_OUT_OF_GAS: &str = "gr_out_of_gas";
 pub const IMPORT_NAME_OUT_OF_ALLOWANCE: &str = "gr_out_of_allowance";
@@ -169,6 +170,119 @@ impl SysCallName {
     pub fn count() -> usize {
         Self::all().count()
     }
+
+    /// Returns list of all syscall names (actually supported by this module syscalls).
+    pub fn instrumentable() -> BTreeSet<Self> {
+        [
+            Self::Alloc,
+            Self::Free,
+            Self::Debug,
+            Self::Error,
+            Self::BlockHeight,
+            Self::BlockTimestamp,
+            Self::Exit,
+            Self::GasAvailable,
+            Self::ProgramId,
+            Self::Origin,
+            Self::Leave,
+            Self::ValueAvailable,
+            Self::Wait,
+            Self::WaitUpTo,
+            Self::WaitFor,
+            Self::Wake,
+            Self::StatusCode,
+            Self::MessageId,
+            Self::Read,
+            Self::Reply,
+            Self::ReplyWGas,
+            Self::ReplyCommit,
+            Self::ReplyCommitWGas,
+            Self::ReservationReply,
+            Self::ReservationReplyCommit,
+            Self::ReplyPush,
+            Self::ReplyPushInput,
+            Self::ReplyTo,
+            Self::Send,
+            Self::SendWGas,
+            Self::SendCommit,
+            Self::SendCommitWGas,
+            Self::SendInit,
+            Self::SendPush,
+            Self::SendPushInput,
+            Self::ReservationSend,
+            Self::ReservationSendCommit,
+            Self::Size,
+            Self::Source,
+            Self::Value,
+            Self::CreateProgram,
+            Self::CreateProgramWGas,
+            Self::ReserveGas,
+            Self::UnreserveGas,
+            Self::Random,
+        ]
+        .into()
+    }
+
+    /// Returns signature for syscall by name.
+    pub fn signature(self) -> SysCallSignature {
+        use ParamType::*;
+        use ValueType::I32;
+        match self {
+            Self::Alloc => SysCallSignature::system([Alloc], [I32]),
+            Self::Free => SysCallSignature::system([Free], []),
+            Self::Debug => SysCallSignature::gr([Ptr, Size]),
+            Self::Error => SysCallSignature::gr([Ptr, Ptr]),
+            Self::BlockHeight => SysCallSignature::gr([Ptr]),
+            Self::BlockTimestamp => SysCallSignature::gr([Ptr]),
+            Self::Exit => SysCallSignature::gr([Ptr]),
+            Self::GasAvailable => SysCallSignature::gr([Ptr]),
+            Self::ProgramId => SysCallSignature::gr([Ptr]),
+            Self::Origin => SysCallSignature::gr([Ptr]),
+            Self::Leave => SysCallSignature::gr([]),
+            Self::ValueAvailable => SysCallSignature::gr([Ptr]),
+            Self::Wait => SysCallSignature::gr([]),
+            Self::WaitUpTo => SysCallSignature::gr([Duration]),
+            Self::WaitFor => SysCallSignature::gr([Duration]),
+            Self::Wake => SysCallSignature::gr([Ptr, Delay, Ptr]),
+            Self::StatusCode => SysCallSignature::gr([Ptr]),
+            Self::MessageId => SysCallSignature::gr([Ptr]),
+            Self::Read => SysCallSignature::gr([MessagePosition, Size, Ptr, Ptr]),
+            Self::Reply => SysCallSignature::gr([Ptr, Size, Ptr, Delay, Ptr]),
+            Self::ReplyInput => SysCallSignature::gr([Size, Size, Ptr, Delay, Ptr]),
+            Self::ReplyWGas => SysCallSignature::gr([Ptr, Size, Gas, Ptr, Delay, Ptr]),
+            Self::ReplyInputWGas => SysCallSignature::gr([Size, Size, Gas, Ptr, Delay, Ptr]),
+            Self::ReplyCommit => SysCallSignature::gr([Ptr, Delay, Ptr]),
+            Self::ReplyCommitWGas => SysCallSignature::gr([Gas, Ptr, Delay, Ptr]),
+            Self::ReservationReply => SysCallSignature::gr([Ptr, Ptr, Size, Delay, Ptr]),
+            Self::ReservationReplyCommit => SysCallSignature::gr([Ptr, Delay, Ptr]),
+            Self::ReplyPush => SysCallSignature::gr([Ptr, Size, Ptr]),
+            Self::ReplyPushInput => SysCallSignature::gr([Size, Size, Ptr]),
+            Self::ReplyTo => SysCallSignature::gr([Ptr]),
+            Self::Send => SysCallSignature::gr([Ptr, Ptr, Size, Delay, Ptr]),
+            Self::SendInput => SysCallSignature::gr([Ptr, Size, Size, Delay, Ptr]),
+            Self::SendWGas => SysCallSignature::gr([Ptr, Ptr, Size, Gas, Delay, Ptr]),
+            Self::SendInputWGas => SysCallSignature::gr([Ptr, Size, Size, Gas, Delay, Ptr]),
+            Self::SendCommit => SysCallSignature::gr([Handler, Ptr, Delay, Ptr]),
+            Self::SendCommitWGas => SysCallSignature::gr([Handler, Ptr, Gas, Delay, Ptr]),
+            Self::SendInit => SysCallSignature::gr([Ptr]),
+            Self::SendPush => SysCallSignature::gr([Handler, Ptr, Size, Ptr]),
+            Self::SendPushInput => SysCallSignature::gr([Handler, Size, Size, Ptr]),
+            Self::ReservationSend => SysCallSignature::gr([Ptr, Ptr, Size, Delay, Ptr]),
+            Self::ReservationSendCommit => SysCallSignature::gr([Handler, Ptr, Delay, Ptr]),
+            Self::Size => SysCallSignature::gr([Ptr]),
+            Self::Source => SysCallSignature::gr([Ptr]),
+            Self::Value => SysCallSignature::gr([Ptr]),
+            Self::CreateProgram => SysCallSignature::gr([Ptr, Ptr, Size, Ptr, Size, Delay, Ptr]),
+            Self::CreateProgramWGas => {
+                SysCallSignature::gr([Ptr, Ptr, Size, Ptr, Size, Gas, Delay, Ptr])
+            }
+            Self::ReserveGas => SysCallSignature::gr([Gas, Duration, Ptr]),
+            Self::UnreserveGas => SysCallSignature::gr([Ptr, Ptr]),
+            Self::SystemReserveGas => SysCallSignature::gr([Gas, Ptr]),
+            Self::Random => SysCallSignature::gr([Ptr, Size, Ptr]),
+            other => panic!("Unknown syscall: '{:?}'", other),
+        }
+    }
 }
 
 /// Syscall param type.
@@ -224,118 +338,5 @@ impl SysCallSignature {
             self.params.iter().copied().map(Into::into).collect(),
             self.results.clone(),
         )
-    }
-}
-
-/// Returns list of all syscall names (actually supported by this module syscalls).
-pub fn syscalls_name_list() -> Vec<&'static str> {
-    vec![
-        "alloc",
-        "free",
-        "gr_debug",
-        "gr_error",
-        "gr_block_height",
-        "gr_block_timestamp",
-        "gr_exit",
-        "gr_gas_available",
-        "gr_program_id",
-        "gr_origin",
-        "gr_leave",
-        "gr_value_available",
-        "gr_wait",
-        "gr_wait_up_to",
-        "gr_wait_for",
-        "gr_wake",
-        "gr_status_code",
-        "gr_message_id",
-        "gr_read",
-        "gr_reply",
-        "gr_reply_wgas",
-        "gr_reply_commit",
-        "gr_reply_commit_wgas",
-        "gr_reservation_reply",
-        "gr_reservation_reply_commit",
-        "gr_reply_push",
-        "gr_reply_push_input",
-        "gr_reply_to",
-        "gr_send",
-        "gr_send_wgas",
-        "gr_send_commit",
-        "gr_send_commit_wgas",
-        "gr_send_init",
-        "gr_send_push",
-        "gr_send_push_input",
-        "gr_reservation_send",
-        "gr_reservation_send_commit",
-        "gr_size",
-        "gr_source",
-        "gr_value",
-        "gr_create_program",
-        "gr_create_program_wgas",
-        "gr_reserve_gas",
-        "gr_unreserve_gas",
-        "gr_random",
-    ]
-}
-
-/// Returns signature for syscall by name.
-pub fn syscall_signature(name: &str) -> SysCallSignature {
-    use ParamType::*;
-    use ValueType::I32;
-    match name {
-        "alloc" => SysCallSignature::system([Alloc], [I32]),
-        "free" => SysCallSignature::system([Free], []),
-        "gr_debug" => SysCallSignature::gr([Ptr, Size]),
-        "gr_error" => SysCallSignature::gr([Ptr, Ptr]),
-        "gr_block_height" => SysCallSignature::gr([Ptr]),
-        "gr_block_timestamp" => SysCallSignature::gr([Ptr]),
-        "gr_exit" => SysCallSignature::gr([Ptr]),
-        "gr_gas_available" => SysCallSignature::gr([Ptr]),
-        "gr_program_id" => SysCallSignature::gr([Ptr]),
-        "gr_origin" => SysCallSignature::gr([Ptr]),
-        "gr_leave" => SysCallSignature::gr([]),
-        "gr_value_available" => SysCallSignature::gr([Ptr]),
-        "gr_wait" => SysCallSignature::gr([]),
-        "gr_wait_up_to" => SysCallSignature::gr([Duration]),
-        "gr_wait_for" => SysCallSignature::gr([Duration]),
-        "gr_wake" => SysCallSignature::gr([Ptr, Delay, Ptr]),
-        "gr_status_code" => SysCallSignature::gr([Ptr]),
-        "gr_message_id" => SysCallSignature::gr([Ptr]),
-        "gr_read" => SysCallSignature::gr([MessagePosition, Size, Ptr, Ptr]),
-        "gr_reply" => SysCallSignature::gr([Ptr, Size, Ptr, Delay, Ptr]),
-        "gr_reply_input" => SysCallSignature::gr([Size, Size, Ptr, Delay, Ptr]),
-        "gr_reply_wgas" => SysCallSignature::gr([Ptr, Size, Gas, Ptr, Delay, Ptr]),
-        "gr_reply_input_wgas" => SysCallSignature::gr([Size, Size, Gas, Ptr, Delay, Ptr]),
-        "gr_reply_commit" => SysCallSignature::gr([Ptr, Delay, Ptr]),
-        "gr_reply_commit_wgas" => SysCallSignature::gr([Gas, Ptr, Delay, Ptr]),
-        "gr_reservation_reply" => SysCallSignature::gr([Ptr, Ptr, Size, Delay, Ptr]),
-        "gr_reservation_reply_commit" => SysCallSignature::gr([Ptr, Delay, Ptr]),
-        "gr_reply_push" => SysCallSignature::gr([Ptr, Size, Ptr]),
-        "gr_reply_push_input" => SysCallSignature::gr([Size, Size, Ptr]),
-        "gr_reply_to" => SysCallSignature::gr([Ptr]),
-        "gr_signal_from" => SysCallSignature::gr([Ptr]),
-        "gr_send" => SysCallSignature::gr([Ptr, Ptr, Size, Delay, Ptr]),
-        "gr_send_input" => SysCallSignature::gr([Ptr, Size, Size, Delay, Ptr]),
-        "gr_send_wgas" => SysCallSignature::gr([Ptr, Ptr, Size, Gas, Delay, Ptr]),
-        "gr_send_input_wgas" => SysCallSignature::gr([Ptr, Size, Size, Gas, Delay, Ptr]),
-        "gr_send_commit" => SysCallSignature::gr([Handler, Ptr, Delay, Ptr]),
-        "gr_send_commit_wgas" => SysCallSignature::gr([Handler, Ptr, Gas, Delay, Ptr]),
-        "gr_send_init" => SysCallSignature::gr([Ptr]),
-        "gr_send_push" => SysCallSignature::gr([Handler, Ptr, Size, Ptr]),
-        "gr_send_push_input" => SysCallSignature::gr([Handler, Size, Size, Ptr]),
-        "gr_reservation_send" => SysCallSignature::gr([Ptr, Ptr, Size, Delay, Ptr]),
-        "gr_reservation_send_commit" => SysCallSignature::gr([Handler, Ptr, Delay, Ptr]),
-        "gr_size" => SysCallSignature::gr([Ptr]),
-        "gr_source" => SysCallSignature::gr([Ptr]),
-        "gr_value" => SysCallSignature::gr([Ptr]),
-        "gr_create_program" => SysCallSignature::gr([Ptr, Ptr, Size, Ptr, Size, Delay, Ptr]),
-        "gr_create_program_wgas" => {
-            SysCallSignature::gr([Ptr, Ptr, Size, Ptr, Size, Gas, Delay, Ptr])
-        }
-        "gr_reserve_gas" => SysCallSignature::gr([Gas, Duration, Ptr]),
-        "gr_unreserve_gas" => SysCallSignature::gr([Ptr, Ptr]),
-        "gr_system_reserve_gas" => SysCallSignature::gr([Gas, Ptr]),
-        "gr_random" => SysCallSignature::gr([Ptr, Size, Ptr]),
-        other => panic!("Unknown syscall name: '{}'", other),
     }
 }

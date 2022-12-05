@@ -1122,7 +1122,7 @@ where
 
     ModuleDefinition {
         memory: Some(ImportedMemory { min_pages: 1 }),
-        imported_functions: vec!["alloc", "free"],
+        imported_functions: vec![SysCallName::Alloc, SysCallName::Free],
         init_body: Some(FuncBody::new(
             vec![],
             Instructions::new(vec![
