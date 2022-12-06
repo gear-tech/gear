@@ -163,6 +163,7 @@ pub fn syscall_signature(name: &str) -> SysCallSignature {
         "gr_reply_push" => SysCallSignature::gr([Ptr, Size, Ptr]),
         "gr_reply_push_input" => SysCallSignature::gr([Size, Size, Ptr]),
         "gr_reply_to" => SysCallSignature::gr([Ptr]),
+        "gr_signal_from" => SysCallSignature::gr([Ptr]),
         "gr_send" => SysCallSignature::gr([Ptr, Ptr, Size, Delay, Ptr]),
         "gr_send_input" => SysCallSignature::gr([Ptr, Size, Size, Delay, Ptr]),
         "gr_send_wgas" => SysCallSignature::gr([Ptr, Ptr, Size, Gas, Delay, Ptr]),

@@ -138,6 +138,9 @@ pub trait Ext {
     /// Get the message id of the initial message.
     fn reply_to(&mut self) -> Result<MessageId, Self::Error>;
 
+    /// Get the message id which signal issues from.
+    fn signal_from(&mut self) -> Result<MessageId, Self::Error>;
+
     /// Push the incoming message buffer into reply message.
     fn reply_push_input(&mut self, offset: u32, len: u32) -> Result<(), Self::Error>;
 

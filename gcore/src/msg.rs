@@ -495,10 +495,6 @@ pub fn reply_push(payload: &[u8]) -> Result<()> {
 /// function. Therefore, a program should call this function to obtain the
 /// original message identifier on which the reply has been posted.
 ///
-/// # Panics
-///
-/// Panics if called in a context other than `handle_reply`.
-///
 /// # Examples
 ///
 /// ```
@@ -506,13 +502,38 @@ pub fn reply_push(payload: &[u8]) -> Result<()> {
 ///
 /// #[no_mangle]
 /// extern "C" fn handle_reply() {
-///     let original_message_id = msg::reply_to();
+///     let original_message_id = msg::reply_to().unwrap();
 /// }
 /// ```
 pub fn reply_to() -> Result<MessageId> {
     let mut res: LengthWithHash = Default::default();
 
     unsafe { gsys::gr_reply_to(res.as_mut_ptr()) };
+    SyscallError(res.length).into_result()?;
+
+    Ok(MessageId(res.hash))
+}
+
+/// Get an identifier of the message which issued a signal.
+///
+/// The Gear program processes the signal using the `handle_signal`
+/// function. Therefore, a program should call this function to obtain the
+/// original message identifier which issued a signal.
+///
+/// # Examples
+///
+/// ```
+/// use gcore::msg;
+///
+/// #[no_mangle]
+/// extern "C" fn handle_signal() {
+///     let erroneous_message = msg::signal_from().unwrap();
+/// }
+/// ```
+pub fn signal_from() -> Result<MessageId> {
+    let mut res: LengthWithHash = Default::default();
+
+    unsafe { gsys::gr_signal_from(res.as_mut_ptr()) };
     SyscallError(res.length).into_result()?;
 
     Ok(MessageId(res.hash))

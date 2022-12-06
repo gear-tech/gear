@@ -614,6 +614,20 @@ where
         })
     }
 
+    pub fn signal_from(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
+        sys_trace!(target: "syscall::gear", "signal_from, args = {}", args_to_str(args));
+
+        let err_mid_ptr = args.iter().read()?;
+
+        ctx.run(|ctx| {
+            ctx.ext
+                .signal_from()
+                .process_error()
+                .map_err(FuncError::Core)?
+                .proc_res(|res| ctx.write_memory_as(err_mid_ptr, LengthWithHash::from(res)))
+        })
+    }
+
     pub fn reply_push(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
         sys_trace!(target: "syscall::gear", "reply_push, args = {}", args_to_str(args));
 

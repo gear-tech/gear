@@ -1046,6 +1046,36 @@ where
         Func::wrap(store, func)
     }
 
+    pub fn signal_from(
+        store: &mut Store<HostState<E>>,
+        forbidden: bool,
+        memory: WasmiMemory,
+    ) -> Func {
+        let func = move |caller: Caller<'_, HostState<E>>, err_mid_ptr: u32| -> EmptyOutput {
+            let mut caller = CallerWrap::prepare(caller, forbidden)?;
+
+            caller.call_fallible(
+                &memory,
+                |ext| ext.signal_from(),
+                |res, mut mem_ref| {
+                    let err_mid = res
+                        .map(|message_id| LengthWithHash {
+                            hash: message_id.into(),
+                            ..Default::default()
+                        })
+                        .unwrap_or_else(|length| LengthWithHash {
+                            length,
+                            ..Default::default()
+                        });
+
+                    mem_ref.write_memory_as(err_mid_ptr, err_mid)
+                },
+            )
+        };
+
+        Func::wrap(store, func)
+    }
+
     pub fn reply_push(
         store: &mut Store<HostState<E>>,
         forbidden: bool,

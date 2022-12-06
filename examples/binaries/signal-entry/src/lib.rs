@@ -53,7 +53,7 @@ mod wasm {
     };
 
     static mut INITIATOR: ActorId = ActorId::zero();
-    static mut HANDLE_MSG: MessageId = MessageId::new([0; 32]);
+    static mut HANDLE_MSG: Option<MessageId> = None;
     static mut DO_PANIC: bool = false;
     static mut HANDLE_SIGNAL_STATE: HandleSignalState = HandleSignalState::Normal;
 
@@ -69,7 +69,7 @@ mod wasm {
 
     #[no_mangle]
     unsafe extern "C" fn handle() {
-        HANDLE_MSG = msg::id();
+        HANDLE_MSG = Some(msg::id());
 
         let action: HandleAction = msg::load().unwrap();
         match action {
@@ -152,7 +152,11 @@ mod wasm {
         match HANDLE_SIGNAL_STATE {
             HandleSignalState::Normal => {
                 msg::send(INITIATOR, b"handle_signal", 0).unwrap();
-                assert_eq!(msg::status_code().unwrap(), 1);
+                assert_eq!(msg::status_code(), Ok(1));
+
+                if let Some(handle_msg) = HANDLE_MSG {
+                    assert_eq!(msg::signal_from(), Ok(handle_msg));
+                }
 
                 // TODO: check gas limit (#1796)
                 // assert_eq!(msg::gas_limit(), 5_000_000_000);
@@ -167,7 +171,8 @@ mod wasm {
 
     #[no_mangle]
     unsafe extern "C" fn handle_reply() {
-        exec::wake(HANDLE_MSG).unwrap();
+        let handle_msg = HANDLE_MSG.unwrap();
+        exec::wake(handle_msg).unwrap();
     }
 }
 

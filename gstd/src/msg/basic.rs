@@ -432,15 +432,31 @@ pub fn reply_push<T: AsRef<[u8]>>(payload: T) -> Result<()> {
 ///
 /// unsafe extern "C" fn handle_reply() {
 ///     // ...
-///     let original_message_id = msg::reply_to();
+///     let original_message_id = msg::reply_to().unwrap();
 /// }
 /// ```
-///
-/// # Panics
-///
-/// Panics if called in a context other than `handle_reply()`.
 pub fn reply_to() -> Result<MessageId> {
     gcore::msg::reply_to().into_contract_result()
+}
+
+/// Get an identifier of the message which issued a signal.
+///
+/// The Gear program processes the signal using the `handle_signal`
+/// function. Therefore, a program should call this function to obtain the
+/// original message identifier which issued a signal.
+///
+/// # Examples
+///
+/// ```
+/// use gcore::msg;
+///
+/// #[no_mangle]
+/// extern "C" fn handle_signal() {
+///     let erroneous_message = msg::signal_from().unwrap();
+/// }
+/// ```
+pub fn signal_from() -> Result<MessageId> {
+    gcore::msg::signal_from().into_contract_result()
 }
 
 /// Same as [`reply_push`], but pushes the incoming message payload.

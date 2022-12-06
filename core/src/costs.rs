@@ -115,6 +115,9 @@ pub struct HostFnWeights {
     /// Weight of calling `gr_reply_to`.
     pub gr_reply_to: u64,
 
+    /// Weight of calling `gr_signal_from`.
+    pub gr_signal_from: u64,
+
     /// Weight of calling `gr_reply_push_input`.
     pub gr_reply_push_input: u64,
 
@@ -245,6 +248,8 @@ pub enum RuntimeCosts {
     ReplyPush(u32),
     /// Weight of calling `gr_reply_to`.
     ReplyTo,
+    /// Weight of calling `gr_signal_from`.
+    SignalFrom,
     /// Weight of calling `gr_debug`.
     Debug(u32),
     /// Weight of calling `gr_error`.
@@ -312,6 +317,7 @@ impl RuntimeCosts {
                 .gr_reply_push
                 .saturating_add(s.gr_reply_push_per_byte.saturating_mul(len.into())),
             ReplyTo => s.gr_reply_to,
+            SignalFrom => s.gr_signal_from,
             Debug(len) => s
                 .gr_debug
                 .saturating_add(s.gr_debug_per_byte.saturating_mul(len.into())),

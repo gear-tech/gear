@@ -891,6 +891,11 @@ pub mod pallet {
                             format!("Internal error: send_reply failed with '{e:?}'").into_bytes()
                         })?;
                 }
+                HandleKind::Signal(_signal_from, _status_code) => {
+                    return Err("Gas calculation for `handle_signal` is not supported"
+                        .as_bytes()
+                        .to_vec());
+                }
             };
 
             let (main_message_id, main_program_id) = QueueOf::<T>::iter()

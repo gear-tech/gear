@@ -120,6 +120,10 @@ pub enum MessageError {
     #[display(fmt = "Not running in reply context")]
     NoReplyContext,
 
+    /// The error occurs when functions related to signal context, used without it.
+    #[display(fmt = "Not running in signal context")]
+    NoSignalContext,
+
     /// The error occurs when functions related to status code, used without required context.
     #[display(fmt = "No status code in reply/signal context")]
     NoStatusCodeContext,
