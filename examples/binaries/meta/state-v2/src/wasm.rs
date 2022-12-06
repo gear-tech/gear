@@ -1,6 +1,6 @@
 use demo_meta_io::{Id, Person, Wallet};
-use gstd::prelude::*;
 use gmeta::metawasm;
+use gstd::prelude::*;
 
 #[metawasm]
 pub trait Metawasm {

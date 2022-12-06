@@ -516,7 +516,8 @@ pub fn execute_for_reply<
     gas_limit: u64,
 ) -> Result<Vec<u8>, String> {
     let program = Program::new(program_id.unwrap_or_default(), instrumented_code);
-    let mut pages_initial_data: BTreeMap<PageNumber, PageBuf> = pages_initial_data.unwrap_or_default();
+    let mut pages_initial_data: BTreeMap<PageNumber, PageBuf> =
+        pages_initial_data.unwrap_or_default();
     let static_pages = program.static_pages();
     let allocations = allocations.unwrap_or_else(|| program.allocations().clone());
 

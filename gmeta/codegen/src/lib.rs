@@ -3,8 +3,8 @@ use core::fmt::Display;
 use proc_macro::TokenStream;
 use quote::{quote, ToTokens};
 use syn::{
-    spanned::Spanned, AttributeArgs, Block, Error, FnArg, ItemFn, ItemTrait, LitStr, Pat,
-    ReturnType, TraitItem, Visibility, Attribute,
+    spanned::Spanned, Attribute, AttributeArgs, Block, Error, FnArg, ItemFn, ItemTrait, LitStr,
+    Pat, ReturnType, TraitItem, Visibility,
 };
 
 macro_rules! ensure {
@@ -365,7 +365,7 @@ fn construct_abi(funcs: Vec<ItemFn>) -> TokenStream {
                 leading_colon: None,
                 segments: Default::default(),
             },
-            tokens: quote!(no_mangle).into(),
+            tokens: quote!(no_mangle),
         }];
 
         let mut sig = func.sig;

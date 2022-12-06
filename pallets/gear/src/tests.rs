@@ -261,9 +261,17 @@ fn read_state_using_wasm_errors() {
         assert!(Gear::is_initialized(program_id));
 
         // Inexistent function
-        assert!(Gear::read_state_using_wasm_impl(program_id, "inexistent", meta_wasm.clone(), None).is_err());
+        assert!(Gear::read_state_using_wasm_impl(
+            program_id,
+            "inexistent",
+            meta_wasm.clone(),
+            None
+        )
+        .is_err());
         // Empty function
-        assert!(Gear::read_state_using_wasm_impl(program_id, "empty", meta_wasm.clone(), None).is_err());
+        assert!(
+            Gear::read_state_using_wasm_impl(program_id, "empty", meta_wasm.clone(), None).is_err()
+        );
         // Greed function
         assert!(Gear::read_state_using_wasm_impl(program_id, "loop", meta_wasm, None).is_err());
     });

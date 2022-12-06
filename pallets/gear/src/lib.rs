@@ -218,6 +218,12 @@ pub mod pallet {
     };
     use frame_system::pallet_prelude::{BlockNumberFor, *};
 
+    pub(crate) type CodeWithMemoryData = (
+        InstrumentedCode,
+        BTreeSet<WasmPageNumber>,
+        Option<BTreeMap<PageNumber, PageBuf>>,
+    );
+
     #[pallet::config]
     pub trait Config:
         frame_system::Config
@@ -812,7 +818,7 @@ pub mod pallet {
 
         pub(crate) fn code_with_memory(
             program_id: ProgramId,
-        ) -> Result<(InstrumentedCode, BTreeSet<WasmPageNumber>, Option<BTreeMap<PageNumber, PageBuf>>), String> {
+        ) -> Result<CodeWithMemoryData, String> {
             let program = common::get_active_program(program_id.into_origin())
                 .map_err(|e| format!("Get active program error: {e:?}"))?;
 
@@ -822,8 +828,10 @@ pub mod pallet {
                 .ok_or_else(|| String::from("Failed to get code for given program id"))?;
 
             #[cfg(not(feature = "lazy-pages"))]
-            let program_pages = Some(common::get_program_pages_data(program_id.into_origin(), &program)
-                .map_err(|e| format!("Get program pages data error: {e:?}"))?);
+            let program_pages = Some(
+                common::get_program_pages_data(program_id.into_origin(), &program)
+                    .map_err(|e| format!("Get program pages data error: {e:?}"))?,
+            );
 
             #[cfg(feature = "lazy-pages")]
             let program_pages = None;
