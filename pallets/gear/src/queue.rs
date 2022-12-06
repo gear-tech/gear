@@ -63,8 +63,8 @@ where
             read_per_byte_cost: schedule.db_read_per_byte,
             module_instantiation_byte_cost: schedule.module_instantiation_per_byte,
             max_reservations: T::ReservationsLimit::get(),
-            module_instrumentation_cost: 101,
-            module_instrumentation_byte_cost: 13,
+            module_instrumentation_cost: schedule.module_instrumentation_cost,
+            module_instrumentation_byte_cost: schedule.module_instrumentation_byte_cost,
         };
 
         if T::DebugInfo::is_remap_id_enabled() {

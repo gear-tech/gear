@@ -1025,30 +1025,6 @@ pub mod pallet {
             Some(memory_pages)
         }
 
-        pub(crate) fn get_code(code_id: CodeId, program_id: ProgramId) -> Option<InstrumentedCode> {
-            // let code = match T::CodeStorage::get_code(code_id) {
-            //     None => {
-            //         log::error!("Code '{code_id:?}' not found for program '{program_id:?}'");
-            //         return None;
-            //     }
-            //     Some(c) => c,
-            // };
-
-            // let schedule = T::Schedule::get();
-            // let code = if code.instruction_weights_version() == schedule.instruction_weights.version
-            // {
-            //     code
-            // } else {
-            //     // todo: charge for code instrumenting
-            //     // If instrumented code exists, re-instrumentation can't fail
-            //     Self::reinstrument_code(code_id, &schedule)
-            //         .unwrap_or_else(|e| unreachable!("Code storage corrupted {:?}", e))
-            // };
-
-            // Some(code)
-            unimplemented!()
-        }
-
         /// Sets `code` and metadata, if code doesn't exist in storage.
         ///
         /// On success returns Blake256 hash of the `code`. If code already

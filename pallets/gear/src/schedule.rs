@@ -98,6 +98,12 @@ pub struct Schedule<T: Config> {
 
     /// Single db read per byte cost.
     pub db_read_per_byte: u64,
+
+    /// WASM module instrumentation base cost.
+    pub module_instrumentation_cost: u64,
+
+    /// WASM module instrumentation byte cost.
+    pub module_instrumentation_byte_cost: u64,
 }
 
 /// Describes the upper limits on various metrics.
@@ -516,6 +522,8 @@ impl<T: Config> Default for Schedule<T> {
             db_write_per_byte: cost_byte!(db_write_per_kb),
             db_read_per_byte: cost_byte!(db_read_per_kb),
             module_instantiation_per_byte: cost_byte!(instantiate_module_per_kb),
+            module_instrumentation_cost: call_zero!(reinstrument_per_kb, 0).ref_time(),
+            module_instrumentation_byte_cost: cost_byte!(reinstrument_per_kb),
         }
     }
 }

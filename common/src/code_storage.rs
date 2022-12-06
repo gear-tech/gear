@@ -53,13 +53,9 @@ pub trait CodeStorage {
     /// and it was updated successfully.
     fn update_code(code_and_id: InstrumentedCodeAndId) -> bool {
         let (code, code_id) = code_and_id.into_parts();
-        Self::InstrumentedCodeStorage::mutate(code_id, |maybe| match maybe.as_mut() {
-            None => false,
-            Some(c) => {
-                *c = code;
-                true
-            }
-        })
+        Self::InstrumentedCodeStorage::insert(code_id, code);
+
+        true
     }
 
     fn exists(code_id: CodeId) -> bool {
