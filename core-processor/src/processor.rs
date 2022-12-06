@@ -50,6 +50,7 @@ enum SuccessfulDispatchResultKind {
 }
 
 /// Checked parameters for message execution across processing runs.
+#[derive(Debug)]
 pub struct PreparedMessageExecutionContext {
     gas_counter: GasCounter,
     gas_allowance_counter: GasAllowanceCounter,
@@ -144,6 +145,7 @@ impl
 }
 
 /// Defines result variants of the function `prepare`.
+#[derive(Debug)]
 pub enum PrepareResult {
     /// Successfully pre-charged for resources.
     Ok(Box<PreparedMessageExecutionContext>),

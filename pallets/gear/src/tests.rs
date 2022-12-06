@@ -68,7 +68,182 @@ use gear_core::{
 use gear_core_errors::*;
 use sp_runtime::{traits::UniqueSaturatedInto, SaturatedConversion};
 use sp_std::convert::TryFrom;
+pub use utils::init_logger;
 use utils::*;
+
+#[test]
+fn delayed_user_replacement() {
+    use demo_proxy_with_gas::{InputArgs, WASM_BINARY as PROXY_WGAS_WASM_BINARY};
+
+    fn scenario(gas_limit_to_forward: u64) {
+        let code = ProgramCodeKind::OutgoingWithValueInHandle.to_bytes();
+        let future_program_address = ProgramId::generate(CodeId::generate(&code), DEFAULT_SALT);
+
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            PROXY_WGAS_WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            InputArgs {
+                destination: <[u8; 32]>::from(future_program_address).into(),
+                delay: 1,
+            }
+            .encode(),
+            DEFAULT_GAS_LIMIT * 100,
+            0,
+        ));
+
+        let proxy = utils::get_last_program_id();
+
+        run_to_next_block(None);
+        assert!(Gear::is_initialized(proxy));
+
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            proxy,
+            gas_limit_to_forward.encode(), // to be forwarded as gas limit
+            gas_limit_to_forward + DEFAULT_GAS_LIMIT * 100,
+            100_000_000, // before fix to be forwarded as value
+        ));
+
+        let message_id = utils::get_last_message_id();
+        let delayed_id = MessageId::generate_outgoing(message_id, 0);
+
+        run_to_block(3, None);
+
+        // Message sending delayed.
+        assert!(TaskPoolOf::<Test>::contains(
+            &4,
+            &ScheduledTask::SendUserMessage(delayed_id)
+        ));
+
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            code,
+            DEFAULT_SALT.to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
+            DEFAULT_GAS_LIMIT * 100,
+            0,
+        ));
+
+        assert_eq!(future_program_address, utils::get_last_program_id());
+
+        run_to_next_block(None);
+        assert!(Gear::is_initialized(future_program_address));
+
+        // Delayed message sent.
+        assert!(!TaskPoolOf::<Test>::contains(
+            &4,
+            &ScheduledTask::SendUserMessage(delayed_id)
+        ));
+
+        // Replace following lines once added validation to task handling of send_user_message.
+        let message = utils::maybe_any_last_message().unwrap();
+        assert_eq!(message.id(), delayed_id);
+        assert_eq!(message.destination(), future_program_address);
+
+        print_gear_events();
+
+        // BELOW CODE TO REPLACE WITH.
+        // // Nothing is added into mailbox.
+        // assert!(utils::maybe_any_last_message(account).is_empty())
+
+        // // Error reply sent and processed.
+        // assert_total_dequeued(1);
+    }
+
+    init_logger();
+
+    // Scenario not planned to enter mailbox.
+    new_test_ext().execute_with(|| scenario(0));
+
+    // Scenario planned to enter mailbox.
+    new_test_ext().execute_with(|| {
+        let gas_limit_to_forward = DEFAULT_GAS_LIMIT * 100;
+        assert!(<Test as Config>::MailboxThreshold::get() <= gas_limit_to_forward);
+
+        scenario(gas_limit_to_forward)
+    });
+}
+
+#[test]
+fn delayed_program_creation_no_code() {
+    init_logger();
+
+    let wat = r#"
+	(module
+		(import "env" "memory" (memory 1))
+        (import "env" "gr_create_program_wgas" (func $create_program_wgas (param i32 i32 i32 i32 i32 i64 i32 i32)))
+		(export "init" (func $init))
+		(func $init
+            i32.const 0                 ;; zeroed cid_value ptr
+            i32.const 0                 ;; salt ptr
+            i32.const 0                 ;; salt len
+            i32.const 0                 ;; payload ptr
+            i32.const 0                 ;; payload len
+            i64.const 1000000000        ;; gas limit
+            i32.const 1                 ;; delay
+            i32.const 111               ;; err_mid_pid ptr
+            call $create_program_wgas   ;; calling fn
+
+            ;; validating syscall
+            i32.const 111 ;; err_mid_pid ptr
+            i32.load
+            (if
+                (then unreachable)
+                (else)
+            )
+        )
+	)"#;
+
+    new_test_ext().execute_with(|| {
+        let code = ProgramCodeKind::Custom(wat).to_bytes();
+
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            code,
+            DEFAULT_SALT.to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
+            DEFAULT_GAS_LIMIT * 100,
+            0,
+        ));
+
+        let creator = utils::get_last_program_id();
+        let init_msg_id = utils::get_last_message_id();
+
+        run_to_block(2, None);
+        assert!(Gear::is_initialized(creator));
+
+        // Message sending delayed.
+        let delayed_id = MessageId::generate_outgoing(init_msg_id, 0);
+        assert!(TaskPoolOf::<Test>::contains(
+            &3,
+            &ScheduledTask::SendDispatch(delayed_id)
+        ));
+
+        let free_balance = Balances::free_balance(&USER_1);
+        let reserved_balance = Balances::reserved_balance(&USER_1);
+
+        run_to_next_block(None);
+        // Delayed message sent.
+        assert!(!TaskPoolOf::<Test>::contains(
+            &3,
+            &ScheduledTask::SendDispatch(delayed_id)
+        ));
+
+        // Message taken but not executed (can't be asserted due to black box between programs).
+        //
+        // Total dequeued: message to skip execution + error reply on it.
+        //
+        // Single db read burned for querying program data from storage.
+        assert_last_dequeued(2);
+        assert_eq!(
+            Balances::free_balance(&USER_1),
+            free_balance + reserved_balance
+                - GasPrice::gas_price(DbWeightOf::<Test>::get().reads(1).ref_time())
+        );
+        assert!(Balances::reserved_balance(&USER_1).is_zero());
+    })
+}
 
 #[test]
 fn unstoppable_block_execution_works() {
@@ -584,6 +759,7 @@ fn mailbox_threshold_works() {
             vec![],
             InputArgs {
                 destination: USER_1.into_origin().into(),
+                delay: 0,
             }
             .encode(),
             50_000_000_000u64,
@@ -1368,10 +1544,8 @@ fn initial_pages_cheaper_than_allocated_pages() {
         let spent_for_initial_pages = gas_spent(wat_initial);
         let spent_for_allocated_pages = gas_spent(wat_alloc);
         assert!(
-            spent_for_initial_pages < spent_for_allocated_pages,
-            "spent {} gas for initial pages, spent {} gas for allocated pages",
-            spent_for_initial_pages,
-            spent_for_allocated_pages
+            spent_for_initial_pages < spent_for_allocated_pages, "{}",
+            "spent {spent_for_initial_pages} gas for initial pages, spent {spent_for_allocated_pages} gas for allocated pages",
         );
     });
 }
@@ -4438,7 +4612,7 @@ fn program_messages_to_paused_program_skipped() {
             code,
             vec![],
             InputArgs {
-                destination: paused_program_id.into_origin().into()
+                destination: <[u8; 32]>::from(paused_program_id).into()
             }
             .encode(),
             50_000_000_000u64,
@@ -4842,16 +5016,18 @@ fn gas_spent_precalculated() {
         let code = <Test as Config>::CodeStorage::get_code(code_id).unwrap();
         let code = code.code();
 
-        let init_code_len: u64 = common::get_program(init_gas_id.into_origin())
+        let init_gas_code_id = CodeId::from_origin(common::get_program(init_gas_id.into_origin())
             .and_then(|p| common::ActiveProgram::try_from(p).ok())
             .expect("program must exist")
-            .code_length_bytes
-            .into();
-        let init_no_gas_code_len: u64 = common::get_program(init_no_counter_id.into_origin())
+            .code_hash);
+        let init_code_len: u64 = <Test as Config>::CodeStorage::get_code(init_gas_code_id).unwrap().code().len() as u64;
+
+        let init_no_gas_code_id = CodeId::from_origin(common::get_program(init_no_counter_id.into_origin())
             .and_then(|p| common::ActiveProgram::try_from(p).ok())
             .expect("program must exist")
-            .code_length_bytes
-            .into();
+            .code_hash);
+        let init_no_gas_code_len: u64 = <Test as Config>::CodeStorage::get_code(init_no_gas_code_id).unwrap().code().len() as u64;
+
         // binaries have the same memory amount but different lengths
         // so take this into account in gas calculations
         let length_margin = init_code_len - init_no_gas_code_len;
@@ -4920,18 +5096,13 @@ fn gas_spent_precalculated() {
                 + add_cost
                 + gas_cost as u32 * 2;
 
-            let code_len = common::get_program(prog_id.into_origin())
-                .and_then(|p| common::ActiveProgram::try_from(p).ok())
-                .expect("program must exist")
-                .code_length_bytes;
-
             let read_cost = DbWeightOf::<Test>::get().reads(1).ref_time();
 
             u64::from(cost)
                 // cost for loading program
                 + core_processor::calculate_gas_for_program(read_cost, 0)
                 // cost for loading code
-                + core_processor::calculate_gas_for_code(read_cost, per_byte_cost, code_len.into())
+                + core_processor::calculate_gas_for_code(read_cost, per_byte_cost, code.len() as u64)
                 + load_page_cost
                 + module_instantiation
         };
@@ -7308,6 +7479,53 @@ fn gas_reservations_check_params() {
     });
 }
 
+#[test]
+fn custom_async_entrypoint_works() {
+    use demo_async_custom_entry::WASM_BINARY;
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            USER_1.encode(),
+            10_000_000_000,
+            0,
+        ));
+
+        let pid = get_last_program_id();
+
+        run_to_block(2, None);
+
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            pid,
+            EMPTY_PAYLOAD.to_vec(),
+            10_000_000_000,
+            0,
+        ));
+
+        run_to_block(3, None);
+
+        let msg = get_last_mail(USER_1);
+        assert_eq!(msg.payload(), b"my_handle_signal");
+
+        assert_ok!(Gear::send_reply(
+            RuntimeOrigin::signed(USER_1),
+            msg.id(),
+            EMPTY_PAYLOAD.to_vec(),
+            10_000_000_000,
+            0
+        ));
+
+        run_to_block(4, None);
+
+        let msg = get_last_mail(USER_1);
+        assert_eq!(msg.payload(), b"my_handle_reply");
+    });
+}
+
 mod utils {
     #![allow(unused)]
 
@@ -7316,13 +7534,13 @@ mod utils {
     };
     use crate::{
         mock::{Balances, Gear, System},
-        BalanceOf, GasInfo, HandleKind,
+        BalanceOf, GasInfo, HandleKind, SentOf,
     };
     use codec::Decode;
     use common::{
         event::*,
-        storage::{CountedByKey, IterableByKeyMap},
-        Origin as _,
+        storage::{CountedByKey, Counter, IterableByKeyMap},
+        Origin,
     };
     use core_processor::common::ExecutionErrorReason;
     use frame_support::{
@@ -7352,7 +7570,11 @@ mod utils {
 
     type BlockNumber = <Test as frame_system::Config>::BlockNumber;
 
-    pub(super) fn init_logger() {
+    pub(super) fn hash(data: impl AsRef<[u8]>) -> [u8; 32] {
+        sp_core::blake2_256(data.as_ref())
+    }
+
+    pub fn init_logger() {
         let _ = env_logger::Builder::from_default_env()
             .format_module_path(false)
             .format_level(true)
@@ -7804,6 +8026,17 @@ mod utils {
     }
 
     #[track_caller]
+    pub(super) fn maybe_any_last_message() -> Option<StoredMessage> {
+        System::events().into_iter().rev().find_map(|e| {
+            if let MockRuntimeEvent::Gear(Event::UserMessageSent { message, .. }) = e.event {
+                Some(message)
+            } else {
+                None
+            }
+        })
+    }
+
+    #[track_caller]
     pub(super) fn get_last_mail(account: AccountId) -> StoredMessage {
         MailboxOf::<Test>::iter_key(account)
             .last()
@@ -8221,4 +8454,172 @@ fn check_random_works() {
         // println!("{:?}", res);
         // assert_eq!(blake2b(32, &[], &output.0.encode()).as_bytes(), res.payload());
     });
+}
+
+#[test]
+fn relay_messages() {
+    use demo_proxy_relay::{RelayCall, ResendPushData, WASM_BINARY};
+
+    struct Expected {
+        user: AccountId,
+        payload: Vec<u8>,
+    }
+
+    let source = USER_1;
+
+    init_logger();
+    let test = |relay_call: RelayCall, payload: &[u8], expected: Vec<Expected>| {
+        let execute = || {
+            System::reset_events();
+
+            let label = format!("{relay_call:?}");
+            assert!(
+                Gear::upload_program(
+                    RuntimeOrigin::signed(source),
+                    WASM_BINARY.to_vec(),
+                    vec![],
+                    relay_call.encode(),
+                    50_000_000_000u64,
+                    0u128
+                )
+                .is_ok(),
+                "{}",
+                label
+            );
+
+            let proxy = utils::get_last_program_id();
+
+            run_to_next_block(None);
+
+            assert!(Gear::is_active(proxy), "{}", label);
+
+            assert!(
+                Gear::send_message(
+                    RuntimeOrigin::signed(source),
+                    proxy,
+                    payload.to_vec(),
+                    DEFAULT_GAS_LIMIT * 10,
+                    0,
+                )
+                .is_ok(),
+                "{}",
+                label
+            );
+
+            run_to_next_block(None);
+
+            for Expected { user, payload } in expected {
+                assert_eq!(
+                    MailboxOf::<Test>::drain_key(user)
+                        .next()
+                        .map(|(msg, _bn)| msg.payload().to_vec()),
+                    Some(payload),
+                    "{label}",
+                );
+            }
+        };
+
+        new_test_ext().execute_with(execute);
+    };
+
+    let payload = b"Hi, USER_2! Ping USER_3.";
+    let relay_call = RelayCall::ResendPush(vec![
+        // "Hi, USER_2!"
+        ResendPushData {
+            destination: USER_2.into(),
+            start: None,
+            end: Some((10, true)),
+        },
+        // the same but end index specified in another way
+        ResendPushData {
+            destination: USER_2.into(),
+            start: None,
+            end: Some((11, false)),
+        },
+        // "Ping USER_3."
+        ResendPushData {
+            destination: USER_3.into(),
+            start: Some(12),
+            end: None,
+        },
+        // invalid range
+        ResendPushData {
+            destination: USER_3.into(),
+            start: Some(2),
+            end: Some((0, true)),
+        },
+        // invalid range
+        ResendPushData {
+            destination: USER_3.into(),
+            start: Some(payload.len() as u32),
+            end: Some((0, false)),
+        },
+    ]);
+
+    let expected = vec![
+        Expected {
+            user: USER_2,
+            payload: payload[..11].to_vec(),
+        },
+        Expected {
+            user: USER_2,
+            payload: payload[..11].to_vec(),
+        },
+        Expected {
+            user: USER_3,
+            payload: payload[12..].to_vec(),
+        },
+        Expected {
+            user: USER_3,
+            payload: vec![],
+        },
+        Expected {
+            user: USER_3,
+            payload: vec![],
+        },
+    ];
+
+    test(relay_call, payload, expected);
+
+    test(
+        RelayCall::Resend(USER_3.into()),
+        payload,
+        vec![Expected {
+            user: USER_3,
+            payload: payload.to_vec(),
+        }],
+    );
+    test(
+        RelayCall::ResendWithGas(USER_3.into(), 50_000),
+        payload,
+        vec![Expected {
+            user: USER_3,
+            payload: payload.to_vec(),
+        }],
+    );
+
+    test(
+        RelayCall::Rereply,
+        payload,
+        vec![Expected {
+            user: source,
+            payload: payload.to_vec(),
+        }],
+    );
+    test(
+        RelayCall::RereplyPush,
+        payload,
+        vec![Expected {
+            user: source,
+            payload: payload.to_vec(),
+        }],
+    );
+    test(
+        RelayCall::RereplyWithGas(60_000),
+        payload,
+        vec![Expected {
+            user: source,
+            payload: payload.to_vec(),
+        }],
+    );
 }

@@ -322,6 +322,51 @@ impl MessageContext {
         }
     }
 
+    /// Pushes the incoming buffer/payload into stored payload by handle.
+    pub fn send_push_input(&mut self, handle: u32, range: CheckedRange) -> Result<(), Error> {
+        let data = self
+            .store
+            .outgoing
+            .get_mut(&handle)
+            .ok_or(Error::OutOfBounds)?
+            .as_mut()
+            .ok_or(Error::LateAccess)?;
+
+        let CheckedRange {
+            offset,
+            excluded_end,
+        } = range;
+
+        data.try_extend_from_slice(&self.current.payload()[offset..excluded_end])
+            .map_err(|_| Error::MaxMessageSizeExceed)?;
+
+        Ok(())
+    }
+
+    /// Check if provided `offset`/`len` are correct for the current payload
+    /// limits. Result `CheckedRange` instance is accepted by
+    /// `send_push_input`/`reply_push_input` and has the method `len`
+    /// allowing to charge gas before the calls.
+    pub fn check_input_range(&self, offset: u32, len: u32) -> CheckedRange {
+        let input = self.current.payload();
+        let offset = offset as usize;
+        if offset >= input.len() {
+            return CheckedRange {
+                offset: 0,
+                excluded_end: 0,
+            };
+        }
+
+        CheckedRange {
+            offset,
+            excluded_end: if len == 0 {
+                offset
+            } else {
+                offset.saturating_add(len as usize).min(input.len())
+            },
+        }
+    }
+
     /// Send reply message.
     ///
     /// Generates reply from provided data packet and stored reply payload.
@@ -373,6 +418,24 @@ impl MessageContext {
         self.outcome.source
     }
 
+    /// Pushes the incoming message buffer into stored reply payload.
+    pub fn reply_push_input(&mut self, range: CheckedRange) -> Result<(), Error> {
+        if !self.store.reply_sent {
+            let CheckedRange {
+                offset,
+                excluded_end,
+            } = range;
+
+            let data = self.store.reply.get_or_insert_with(Default::default);
+            data.try_extend_from_slice(&self.current.payload()[offset..excluded_end])
+                .map_err(|_| Error::MaxMessageSizeExceed)?;
+
+            Ok(())
+        } else {
+            Err(Error::LateAccess)
+        }
+    }
+
     /// Wake message by it's message id.
     pub fn wake(&mut self, waker_id: MessageId, delay: u32) -> Result<(), Error> {
         if self.store.awaken.insert(waker_id) {
@@ -399,6 +462,17 @@ impl MessageContext {
         let Self { outcome, store, .. } = self;
 
         (outcome, store)
+    }
+}
+
+pub struct CheckedRange {
+    offset: usize,
+    excluded_end: usize,
+}
+
+impl CheckedRange {
+    pub fn len(&self) -> u32 {
+        (self.excluded_end - self.offset) as u32
     }
 }
 

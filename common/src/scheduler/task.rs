@@ -47,10 +47,15 @@ pub enum ScheduledTask<AccountId> {
     /// Delayed wake of the message at concrete block.
     WakeMessage(ProgramId, MessageId),
 
-    /// Delayed message sending.
+    /// Delayed message to program sending.
     ///
     /// The message itself stored in DispatchStash.
     SendDispatch(MessageId),
+
+    /// Delayed message to user sending.
+    ///
+    /// The message itself stored in DispatchStash.
+    SendUserMessage(MessageId),
 
     /// Remove gas reservation.
     RemoveGasReservation(ProgramId, ReservationId),
@@ -72,6 +77,7 @@ impl<AccountId> ScheduledTask<AccountId> {
             RemovePausedProgram(program_id) => handler.remove_paused_program(program_id),
             WakeMessage(program_id, message_id) => handler.wake_message(program_id, message_id),
             SendDispatch(message_id) => handler.send_dispatch(message_id),
+            SendUserMessage(message_id) => handler.send_user_message(message_id),
             RemoveGasReservation(program_id, reservation_id) => {
                 handler.remove_gas_reservation(program_id, reservation_id)
             }
@@ -99,8 +105,11 @@ pub trait TaskHandler<AccountId> {
     /// Wake message action.
     fn wake_message(&mut self, program_id: ProgramId, message_id: MessageId);
 
-    // Send delayed message action.
+    // Send delayed message to program action.
     fn send_dispatch(&mut self, stashed_message_id: MessageId);
+
+    // Send delayed message to user action.
+    fn send_user_message(&mut self, stashed_message_id: MessageId);
 
     /// Remove gas reservation action.
     fn remove_gas_reservation(&mut self, program_id: ProgramId, reservation_id: ReservationId);
