@@ -22,9 +22,6 @@ use crate::parity_wasm::elements::{FunctionType, ValueType};
 use alloc::{collections::BTreeSet, vec::Vec};
 use enum_iterator::{self, Sequence};
 
-pub const IMPORT_NAME_OUT_OF_GAS: &str = "gr_out_of_gas";
-pub const IMPORT_NAME_OUT_OF_ALLOWANCE: &str = "gr_out_of_allowance";
-
 /// All available sys calls.
 ///
 /// The type is mainly used to prevent from skipping sys-call integration test for
@@ -121,8 +118,8 @@ impl SysCallName {
             SysCallName::Leave => "gr_leave",
             SysCallName::MessageId => "gr_message_id",
             SysCallName::Origin => "gr_origin",
-            SysCallName::OutOfAllowance => IMPORT_NAME_OUT_OF_ALLOWANCE,
-            SysCallName::OutOfGas => IMPORT_NAME_OUT_OF_GAS,
+            SysCallName::OutOfAllowance => "gr_out_of_allowance",
+            SysCallName::OutOfGas => "gr_out_of_gas",
             SysCallName::ProgramId => "gr_program_id",
             SysCallName::Random => "gr_random",
             SysCallName::Read => "gr_read",

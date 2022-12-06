@@ -22,7 +22,6 @@ extern crate alloc;
 
 use alloc::vec;
 
-use crate::syscalls::{IMPORT_NAME_OUT_OF_ALLOWANCE, IMPORT_NAME_OUT_OF_GAS};
 use wasm_instrument::{
     gas_metering::{self, Rules},
     parity_wasm::{
@@ -31,6 +30,7 @@ use wasm_instrument::{
     },
 };
 
+use crate::syscalls::SysCallName;
 pub use wasm_instrument::{self, parity_wasm};
 
 #[cfg(test)]
@@ -51,8 +51,8 @@ pub fn inject<R: Rules>(
         .map(|section| {
             section.entries().iter().any(|entry| {
                 entry.module() == gas_module_name
-                    && (entry.field() == IMPORT_NAME_OUT_OF_GAS
-                        || entry.field() == IMPORT_NAME_OUT_OF_ALLOWANCE)
+                    && (entry.field() == SysCallName::OutOfGas.to_str()
+                        || entry.field() == SysCallName::OutOfAllowance.to_str())
             })
         })
         .unwrap_or(false)
@@ -80,7 +80,7 @@ pub fn inject<R: Rules>(
     mbuilder.push_import(
         builder::import()
             .module(gas_module_name)
-            .field(IMPORT_NAME_OUT_OF_GAS)
+            .field(SysCallName::OutOfGas.to_str())
             .external()
             .func(import_sig)
             .build(),
@@ -89,7 +89,7 @@ pub fn inject<R: Rules>(
     mbuilder.push_import(
         builder::import()
             .module(gas_module_name)
-            .field(IMPORT_NAME_OUT_OF_ALLOWANCE)
+            .field(SysCallName::OutOfAllowance.to_str())
             .external()
             .func(import_sig)
             .build(),
