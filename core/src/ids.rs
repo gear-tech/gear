@@ -201,10 +201,10 @@ impl MessageId {
     }
 
     /// Generate MessageId for signal message depend on status code
-    pub fn generate_signal(origin_msg_id: MessageId, status_code: StatusCode) -> MessageId {
+    pub fn generate_signal(origin_msg_id: MessageId) -> MessageId {
         const SALT: &[u8] = b"signal";
 
-        let argument = [origin_msg_id.as_ref(), &status_code.to_le_bytes(), SALT].concat();
+        let argument = [SALT, origin_msg_id.as_ref()].concat();
         hash(&argument).into()
     }
 }
