@@ -654,7 +654,7 @@ where
     /// ### Note:
     /// Node is considered as an ancestor of itself.
     fn spend(
-        key: Self::Key,
+        key: impl Into<GasNodeIdOf<Self>>,
         amount: Self::Balance,
     ) -> Result<Self::NegativeImbalance, Self::Error> {
         let key = key.into();
