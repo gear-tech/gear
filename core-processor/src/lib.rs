@@ -54,6 +54,6 @@ pub use executor::{calculate_gas_for_code, calculate_gas_for_program, execute_wa
 pub use ext::{Ext, ProcessorContext, ProcessorError, ProcessorExt};
 pub use handler::handle_journal;
 pub use processor::{
-    precharge, prepare, process, PrechargeResult, PrepareResult, PreparedMessageExecutionContext,
-    ProcessExecutionContext,
+    precharge_for_program, precharge_for_code, precharge_for_instrumentation, precharge_for_memory, process, PrechargeResult,
+    ProcessExecutionContext, ContextChargedForInstrumentation,
 };

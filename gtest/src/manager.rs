@@ -658,7 +658,7 @@ impl ExtManager {
             None => (None, None),
         };
 
-        let precharged_dispatch = match core_processor::precharge(
+        let precharged_dispatch = match core_processor::precharge_for_program(
             &block_config,
             u64::MAX,
             dispatch.into_incoming(gas_limit),

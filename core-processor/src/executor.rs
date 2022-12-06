@@ -72,7 +72,7 @@ fn charge_gas(
     Ok(())
 }
 
-fn charge_gas_for_bytes(
+pub(crate) fn charge_gas_for_bytes(
     amount: u64,
     gas_counter: &mut GasCounter,
     gas_allowance_counter: &mut GasAllowanceCounter,

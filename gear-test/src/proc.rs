@@ -115,7 +115,7 @@ where
     let block_config = test_block_config(block_info);
 
     let precharged_dispatch =
-        match core_processor::precharge(&block_config, u64::MAX, message.into(), program_id) {
+        match core_processor::precharge_for_program(&block_config, u64::MAX, message.into(), program_id) {
             PrechargeResult::Ok(d) => d,
             PrechargeResult::Error(journal) => {
                 core_processor::handle_journal(journal, journal_handler);
@@ -315,7 +315,7 @@ where
     let build_journal =
         |block_config, dispatch, program_id, actor, memory_pages, journal_handler: &mut JH| {
             let precharged_dispatch =
-                match core_processor::precharge(&block_config, u64::MAX, dispatch, program_id) {
+                match core_processor::precharge_for_program(&block_config, u64::MAX, dispatch, program_id) {
                     PrechargeResult::Ok(d) => d,
                     PrechargeResult::Error(journal) => {
                         return journal;

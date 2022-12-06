@@ -131,6 +131,10 @@ pub struct BlockConfig {
     pub module_instantiation_byte_cost: u64,
     /// Amount of reservations can exist for 1 program.
     pub max_reservations: u64,
+    /// WASM module instrumentation base cost.
+    pub module_instrumentation_cost: u64,
+    /// WASM module instrumentation byte cost.
+    pub module_instrumentation_byte_cost: u64,
 }
 
 /// Unstable parameters for message execution across processing runs.

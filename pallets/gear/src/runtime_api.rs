@@ -116,6 +116,8 @@ where
             read_per_byte_cost: schedule.db_read_per_byte,
             module_instantiation_byte_cost: schedule.module_instantiation_per_byte,
             max_reservations: T::ReservationsLimit::get(),
+            module_instrumentation_cost: 101,
+            module_instrumentation_byte_cost: 13,
         };
 
         let mut min_limit = 0;
@@ -138,67 +140,95 @@ where
             let gas_limit = GasHandlerOf::<T>::get_limit(dispatch_id)
                 .map_err(|_| b"Internal error: unable to get gas limit".to_vec())?;
 
-            let precharged_dispatch = match core_processor::precharge(
+            // ========= 
+            let f = || {
+
+            let program_id = queued_dispatch.destination();
+            let precharged_dispatch = match core_processor::precharge_for_program(
                 &block_config,
                 GasAllowanceOf::<T>::get(),
                 queued_dispatch.into_incoming(gas_limit),
                 actor_id,
             ) {
-                PrechargeResult::Ok(d) => d,
-                PrechargeResult::Error(_) => {
-                    return Err(b"Failed to charge message for Program".to_vec());
+                Ok(d) => d,
+                Err(journal) => {
+                    return journal;
+                }
+            };
+
+            let balance = actor.balance;
+            let context = match core_processor::precharge_for_code(&block_config, precharged_dispatch, program_id, actor.executable_data) {
+                PrechargeResult::Ok(c) => c,
+                PrechargeResult::Error(journal) => {
+                    return journal;
+                }
+            };
+
+            let code_id = context.actor_data().code_id;
+            let code = match T::CodeStorage::get_code(code_id) {
+                None => {
+                    unreachable!("Program '{:?}' exists so do code '{:?}'", program_id, code_id);
+                }
+                Some(c) => c,
+            };
+
+            let schedule = T::Schedule::get();
+            let (code, context) = match code.instruction_weights_version() == schedule.instruction_weights.version {
+                true => (code, core_processor::ContextChargedForInstrumentation::from(context)),
+                false => {
+                    let context = match core_processor::precharge_for_instrumentation(&block_config, context) {
+                        PrechargeResult::Ok(c) => c,
+                        PrechargeResult::Error(journal) => {
+                            return journal;
+                        }
+                    };
+
+                    (Self::reinstrument_code(code_id, &schedule), context)
                 }
             };
 
             let subsequent_execution = ext_manager.program_pages_loaded(&actor_id);
-            let message_execution_context = MessageExecutionContext {
-                actor,
-                precharged_dispatch,
-                origin: ProgramId::from_origin(source),
-                subsequent_execution,
-            };
-
-            let subsequent_execution = !subsequent_execution && actor_id == main_program_id;
-            let may_be_returned_context = subsequent_execution.then(|| MessageExecutionContext {
-                subsequent_execution,
-                ..message_execution_context.clone()
-            });
-
-            let journal = match core_processor::prepare(&block_config, message_execution_context) {
-                PrepareResult::Ok(context) => {
-                    let memory_pages = match Self::get_and_track_memory_pages(
-                        &mut ext_manager,
-                        actor_id,
-                        &context.actor_data().pages_with_data,
-                    ) {
-                        None => continue,
-                        Some(m) => m,
-                    };
-
-                    let code = Self::get_code(context.actor_data().code_id, actor_id)
-                        .unwrap_or_else(|| unreachable!("Program exists so do code"));
-
-                    may_be_returned += may_be_returned_context
-                        .map(|c| {
-                            let burned = match core_processor::prepare(&block_config, c) {
-                                PrepareResult::Ok(context) => context.gas_counter().burned(),
-                                _ => context.gas_counter().burned(),
-                            };
-
-                            context.gas_counter().burned() - burned
-                        })
-                        .unwrap_or(0);
-
-                    let (random, bn) = T::Randomness::random(dispatch_id.as_ref());
-                    core_processor::process::<Ext, ExecutionEnvironment>(
-                        &block_config,
-                        (context, actor_id, code).into(),
-                        (random.encode(), bn.unique_saturated_into()),
-                        memory_pages,
-                    )
+            let subsequent_burned = if !subsequent_execution {
+                match core_processor::precharge_for_memory(&block_config, context.clone(), true) {
+                    PrechargeResult::Ok(c) => c.gas_counter().burned(),
+                    _ => 0,
                 }
-                PrepareResult::WontExecute(journal) | PrepareResult::Error(journal) => journal,
+            } else {
+                0
             };
+
+            let context = match core_processor::precharge_for_memory(&block_config, context, subsequent_execution) {
+                PrechargeResult::Ok(c) => c,
+                PrechargeResult::Error(journal) => {
+                    return journal;
+                }
+            };
+
+            may_be_returned += context.gas_counter().burned() - subsequent_burned;
+
+            let memory_pages = match Self::get_and_track_memory_pages(
+                &mut ext_manager,
+                program_id,
+                &context.actor_data().pages_with_data,
+            ) {
+                None => unreachable!(),
+                Some(m) => m,
+            };
+
+            let (random, bn) = T::Randomness::random(dispatch_id.as_ref());
+            let origin = ProgramId::from_origin(source);
+
+            core_processor::process::<Ext, ExecutionEnvironment>(
+                &block_config,
+                (context, code, balance, origin).into(),
+                (random.encode(), bn.unique_saturated_into()),
+                memory_pages,
+            )
+
+            };
+            // ========= 
+
+            let journal = f();
 
             let get_main_limit = || GasHandlerOf::<T>::get_limit(main_message_id).ok();
 

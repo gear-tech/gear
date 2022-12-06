@@ -426,6 +426,9 @@ pub enum GasOperation {
     /// Instantiate Wasm module.
     #[display(fmt = "instantiate Wasm module")]
     ModuleInstantiation,
+    /// Instrument Wasm module.
+    #[display(fmt = "instrument Wasm module")]
+    ModuleInstrumentation,
 }
 
 /// Reason of execution error

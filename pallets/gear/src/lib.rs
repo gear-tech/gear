@@ -57,9 +57,9 @@ use common::{
 };
 use core::marker::PhantomData;
 use core_processor::{
-    common::{Actor, DispatchOutcome as CoreDispatchOutcome, ExecutableActorData, JournalNote},
-    configs::{AllocationsConfig, BlockConfig, BlockInfo, MessageExecutionContext},
-    PrechargeResult, PrepareResult,
+    common::{DispatchOutcome as CoreDispatchOutcome, ExecutableActorData, JournalNote},
+    configs::{AllocationsConfig, BlockConfig, BlockInfo},
+    PrechargeResult,
 };
 use frame_support::{
     dispatch::{DispatchError, DispatchResultWithPostInfo, PostDispatchInfo},
@@ -1026,26 +1026,27 @@ pub mod pallet {
         }
 
         pub(crate) fn get_code(code_id: CodeId, program_id: ProgramId) -> Option<InstrumentedCode> {
-            let code = match T::CodeStorage::get_code(code_id) {
-                None => {
-                    log::error!("Code '{code_id:?}' not found for program '{program_id:?}'");
-                    return None;
-                }
-                Some(c) => c,
-            };
+            // let code = match T::CodeStorage::get_code(code_id) {
+            //     None => {
+            //         log::error!("Code '{code_id:?}' not found for program '{program_id:?}'");
+            //         return None;
+            //     }
+            //     Some(c) => c,
+            // };
 
-            let schedule = T::Schedule::get();
-            let code = if code.instruction_weights_version() == schedule.instruction_weights.version
-            {
-                code
-            } else {
-                // todo: charge for code instrumenting
-                // If instrumented code exists, re-instrumentation can't fail
-                Self::reinstrument_code(code_id, &schedule)
-                    .unwrap_or_else(|e| unreachable!("Code storage corrupted {:?}", e))
-            };
+            // let schedule = T::Schedule::get();
+            // let code = if code.instruction_weights_version() == schedule.instruction_weights.version
+            // {
+            //     code
+            // } else {
+            //     // todo: charge for code instrumenting
+            //     // If instrumented code exists, re-instrumentation can't fail
+            //     Self::reinstrument_code(code_id, &schedule)
+            //         .unwrap_or_else(|e| unreachable!("Code storage corrupted {:?}", e))
+            // };
 
-            Some(code)
+            // Some(code)
+            unimplemented!()
         }
 
         /// Sets `code` and metadata, if code doesn't exist in storage.
@@ -1084,10 +1085,8 @@ pub mod pallet {
         pub(crate) fn reinstrument_code(
             code_id: CodeId,
             schedule: &Schedule<T>,
-        ) -> Result<InstrumentedCode, DispatchError> {
-            if T::CodeStorage::get_code(code_id).is_none() {
-                return Err(Error::<T>::CodeNotExists.into());
-            }
+        ) -> InstrumentedCode {
+            debug_assert!(T::CodeStorage::get_code(code_id).is_some());
 
             // By the invariant set in CodeStorage trait, original code can't exist in storage
             // without the instrumented code
@@ -1107,8 +1106,9 @@ pub mod pallet {
             let code_and_id = CodeAndId::from_parts_unchecked(code, code_id);
             let code_and_id = InstrumentedCodeAndId::from(code_and_id);
             T::CodeStorage::update_code(code_and_id.clone());
+            let (code, _) = code_and_id.into_parts();
 
-            Ok(code_and_id.into_parts().0)
+            code
         }
 
         pub(crate) fn check_code(code: Vec<u8>) -> Result<CodeAndId, DispatchError> {
