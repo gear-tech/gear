@@ -184,7 +184,7 @@ impl<'a> Program<'a> {
         let program_id = id.clone().into().0;
 
         if system
-            .0
+            .ext
             .borrow_mut()
             .store_new_actor(program_id, program, None)
             .is_some()
@@ -196,13 +196,13 @@ impl<'a> Program<'a> {
         }
 
         Self {
-            manager: &system.0,
+            manager: &system.ext,
             id: program_id,
         }
     }
 
     pub fn current(system: &'a System) -> Self {
-        let nonce = system.0.borrow_mut().free_id_nonce();
+        let nonce = system.ext.borrow_mut().free_id_nonce();
 
         Self::current_with_id(system, nonce)
     }
@@ -215,7 +215,7 @@ impl<'a> Program<'a> {
     }
 
     pub fn current_opt(system: &'a System) -> Self {
-        let nonce = system.0.borrow_mut().free_id_nonce();
+        let nonce = system.ext.borrow_mut().free_id_nonce();
 
         Self::current_opt_with_id(system, nonce)
     }
@@ -228,7 +228,7 @@ impl<'a> Program<'a> {
     }
 
     pub fn mock<T: WasmProgram + 'static>(system: &'a System, mock: T) -> Self {
-        let nonce = system.0.borrow_mut().free_id_nonce();
+        let nonce = system.ext.borrow_mut().free_id_nonce();
 
         Self::mock_with_id(system, nonce, mock)
     }
@@ -242,7 +242,7 @@ impl<'a> Program<'a> {
     }
 
     pub fn from_file<P: AsRef<Path>>(system: &'a System, path: P) -> Self {
-        let nonce = system.0.borrow_mut().free_id_nonce();
+        let nonce = system.ext.borrow_mut().free_id_nonce();
 
         Self::from_file_with_id(system, nonce, path)
     }
@@ -295,7 +295,7 @@ impl<'a> Program<'a> {
         optimized: P,
         metadata: P,
     ) -> Self {
-        let nonce = system.0.borrow_mut().free_id_nonce();
+        let nonce = system.ext.borrow_mut().free_id_nonce();
         Self::from_opt_and_meta_with_id(system, nonce, optimized, metadata)
     }
 
@@ -337,7 +337,7 @@ impl<'a> Program<'a> {
 
         if let Some(metadata) = metadata {
             system
-                .0
+                .ext
                 .borrow_mut()
                 .meta_binaries
                 .insert(code_id, metadata);

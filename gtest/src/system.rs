@@ -30,11 +30,15 @@ use path_clean::PathClean;
 use rand::{rngs::StdRng, RngCore, SeedableRng};
 use std::{cell::RefCell, env, fs, io::Write, path::Path, thread};
 
-pub struct System(pub(crate) RefCell<ExtManager>);
+pub struct System {
+    pub(crate) ext: RefCell<ExtManager>,
+}
 
 impl Default for System {
     fn default() -> Self {
-        Self(RefCell::new(ExtManager::new()))
+        Self {
+            ext: RefCell::new(ExtManager::new()),
+        }
     }
 }
 
@@ -76,11 +80,11 @@ impl System {
     }
 
     pub fn send_dispatch(&self, dispatch: Dispatch) -> RunResult {
-        self.0.borrow_mut().run_dispatch(dispatch)
+        self.ext.borrow_mut().run_dispatch(dispatch)
     }
 
     pub fn spend_blocks(&self, amount: u32) {
-        let mut manager = self.0.borrow_mut();
+        let mut manager = self.ext.borrow_mut();
         if manager.block_info.height % EPOCH_DURATION_IN_BLOCKS == 0 {
             let mut rng = StdRng::seed_from_u64(
                 INITIAL_RANDOM_SEED + (manager.block_info.height / EPOCH_DURATION_IN_BLOCKS) as u64,
@@ -96,12 +100,12 @@ impl System {
 
     /// Return the current block height.
     pub fn block_height(&self) -> u32 {
-        self.0.borrow().block_info.height
+        self.ext.borrow().block_info.height
     }
 
     /// Return the current block timestamp.
     pub fn block_timestamp(&self) -> u64 {
-        self.0.borrow().block_info.timestamp
+        self.ext.borrow().block_info.timestamp
     }
 
     /// Returns a [`Program`] by `id`.
@@ -113,13 +117,13 @@ impl System {
         let id = id.into().0;
         Program {
             id,
-            manager: &self.0,
+            manager: &self.ext,
         }
     }
 
     pub fn is_active_program<ID: Into<ProgramIdWrapper>>(&self, id: ID) -> bool {
         let program_id = id.into().0;
-        !self.0.borrow().is_user(&program_id)
+        !self.ext.borrow().is_user(&program_id)
     }
 
     /// Saves code to the storage and returns it's code hash
@@ -136,37 +140,37 @@ impl System {
             .clean();
 
         let code = fs::read(&path).unwrap_or_else(|_| panic!("Failed to read file {:?}", path));
-        self.0.borrow_mut().store_new_code(&code)
+        self.ext.borrow_mut().store_new_code(&code)
     }
 
     pub fn get_mailbox<ID: Into<ProgramIdWrapper>>(&self, id: ID) -> Mailbox {
         let program_id = id.into().0;
-        if !self.0.borrow().is_user(&program_id) {
+        if !self.ext.borrow().is_user(&program_id) {
             panic!("Mailbox available only for users");
         }
-        self.0
+        self.ext
             .borrow_mut()
             .mailbox
             .entry(program_id)
             .or_insert_with(Vec::default);
-        Mailbox::new(program_id, &self.0)
+        Mailbox::new(program_id, &self.ext)
     }
 
     /// Add value to the actor.
     pub fn mint_to<ID: Into<ProgramIdWrapper>>(&self, id: ID, value: Balance) {
         let actor_id = id.into().0;
-        self.0.borrow_mut().mint_to(&actor_id, value);
+        self.ext.borrow_mut().mint_to(&actor_id, value);
     }
 
     /// Return actor balance (value) if exists.
     pub fn balance_of<ID: Into<ProgramIdWrapper>>(&self, id: ID) -> Balance {
         let actor_id = id.into().0;
-        self.0.borrow().balance_of(&actor_id)
+        self.ext.borrow().balance_of(&actor_id)
     }
 
     /// Claim the user's value from the mailbox.
     pub fn claim_value_from_mailbox<ID: Into<ProgramIdWrapper>>(&self, id: ID) {
         let actor_id = id.into().0;
-        self.0.borrow_mut().claim_value_from_mailbox(&actor_id);
+        self.ext.borrow_mut().claim_value_from_mailbox(&actor_id);
     }
 }
