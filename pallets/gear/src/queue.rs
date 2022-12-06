@@ -18,6 +18,11 @@
 
 use super::*;
 
+pub(crate) enum ActorResult {
+    Continue,
+    Data(Option<ExecutableActorData>),
+}
+
 impl<T: Config> pallet::Pallet<T>
 where
     T::AccountId: Origin,
@@ -115,14 +120,10 @@ where
                 }
             };
 
-            let active_actor_data = if let Some(maybe_active_program) =
-                common::get_program(program_id.into_origin())
-            {
-                // Check whether message should be added to the wait list
-                if let Program::Active(prog) = maybe_active_program {
-                    if matches!(prog.state, ProgramState::Uninitialized {message_id} if message_id != dispatch_id)
-                        && !dispatch_reply
-                    {
+            let active_actor_data =
+                match Self::get_active_actor_data(program_id, dispatch_id, dispatch_reply) {
+                    ActorResult::Data(d) => d,
+                    ActorResult::Continue => {
                         let (dispatch, journal) = precharged_dispatch.into_dispatch_and_note();
                         let (kind, message, context) = dispatch.into();
                         let dispatch =
@@ -144,36 +145,11 @@ where
 
                         continue;
                     }
+                };
 
-                    Some(ExecutableActorData {
-                        allocations: prog.allocations,
-                        code_id: CodeId::from_origin(prog.code_hash),
-                        code_exports: prog.code_exports,
-                        code_length_bytes: prog.code_length_bytes,
-                        static_pages: prog.static_pages,
-                        initialized: matches!(prog.state, ProgramState::Initialized),
-                        pages_with_data: prog.pages_with_data,
-                        gas_reservation_map: prog.gas_reservation_map,
-                    })
-                } else {
-                    // Reaching this branch is possible when init message was processed with failure, while other kind of messages
-                    // were already in the queue/were added to the queue (for example. moved from wait list in case of async init)
-                    log::debug!("Program '{program_id:?}' is not active");
-                    None
-                }
-            } else {
-                // When an actor sends messages, which is intended to be added to the queue
-                // it's destination existence is always checked. The only case this doesn't
-                // happen is when program tries to submit another program with non-existing
-                // code hash. That's the only known case for reaching that branch.
-                //
-                // However there is another case with pausing program, but this API is unstable currently.
-                None
-            };
-
-            let balance = CurrencyOf::<T>::free_balance(
-                &<T::AccountId as Origin>::from_origin(program_id.into_origin()),
-            )
+            let balance = CurrencyOf::<T>::free_balance(&<T::AccountId as Origin>::from_origin(
+                program_id.into_origin(),
+            ))
             .unique_saturated_into();
 
             let message_execution_context = MessageExecutionContext {
@@ -187,32 +163,29 @@ where
                 subsequent_execution: ext_manager.program_pages_loaded(&program_id),
             };
 
-            let journal =
-                match core_processor::prepare(&block_config, message_execution_context) {
-                    PrepareResult::Ok(context) => {
-                        let memory_pages = match Self::get_and_track_memory_pages(
-                            &mut ext_manager,
-                            program_id,
-                            &context.actor_data().pages_with_data,
-                        ) {
-                            None => continue,
-                            Some(m) => m,
-                        };
+            let journal = match core_processor::prepare(&block_config, message_execution_context) {
+                PrepareResult::Ok(context) => {
+                    let memory_pages = match Self::get_and_track_memory_pages(
+                        &mut ext_manager,
+                        program_id,
+                        &context.actor_data().pages_with_data,
+                    ) {
+                        None => continue,
+                        Some(m) => m,
+                    };
 
-                        let code = Self::get_code(context.actor_data().code_id, program_id)
-                            .unwrap_or_else(|| unreachable!("Program exists so do code"));
-                        let (random, bn) = T::Randomness::random(dispatch_id.as_ref());
-                        core_processor::process::<Ext, ExecutionEnvironment>(
-                            &block_config,
-                            (context, program_id, code).into(),
-                            (random.encode(), bn.unique_saturated_into()),
-                            memory_pages,
-                        )
-                    }
-                    PrepareResult::WontExecute(journal) | PrepareResult::Error(journal) => {
-                        journal
-                    }
-                };
+                    let code = Self::get_code(context.actor_data().code_id, program_id)
+                        .unwrap_or_else(|| unreachable!("Program exists so do code"));
+                    let (random, bn) = T::Randomness::random(dispatch_id.as_ref());
+                    core_processor::process::<Ext, ExecutionEnvironment>(
+                        &block_config,
+                        (context, program_id, code).into(),
+                        (random.encode(), bn.unique_saturated_into()),
+                        memory_pages,
+                    )
+                }
+                PrepareResult::WontExecute(journal) | PrepareResult::Error(journal) => journal,
+            };
 
             core_processor::handle_journal(journal, &mut ext_manager);
         }
@@ -227,5 +200,52 @@ where
                 state_changes: post_data.state_changes,
             });
         }
+    }
+
+    pub(crate) fn get_active_actor_data(
+        program_id: ProgramId,
+        dispatch_id: MessageId,
+        reply: bool,
+    ) -> ActorResult {
+        let maybe_active_program = match common::get_program(program_id.into_origin()) {
+            Some(p) => p,
+            None => {
+                // When an actor sends messages, which is intended to be added to the queue
+                // it's destination existence is always checked. The only case this doesn't
+                // happen is when program tries to submit another program with non-existing
+                // code hash. That's the only known case for reaching that branch.
+                //
+                // However there is another case with pausing program, but this API is unstable currently.
+                return ActorResult::Data(None);
+            }
+        };
+
+        let program = match maybe_active_program {
+            Program::Active(p) => p,
+            _ => {
+                // Reaching this branch is possible when init message was processed with failure,
+                // while other kind of messages were already in the queue/were added to the queue
+                // (for example. moved from wait list in case of async init)
+                log::debug!("Program '{program_id:?}' is not active");
+                return ActorResult::Data(None);
+            }
+        };
+
+        if matches!(program.state, ProgramState::Uninitialized {message_id} if message_id != dispatch_id)
+            && !reply
+        {
+            return ActorResult::Continue;
+        }
+
+        ActorResult::Data(Some(ExecutableActorData {
+            allocations: program.allocations,
+            code_id: CodeId::from_origin(program.code_hash),
+            code_exports: program.code_exports,
+            code_length_bytes: program.code_length_bytes,
+            static_pages: program.static_pages,
+            initialized: matches!(program.state, ProgramState::Initialized),
+            pages_with_data: program.pages_with_data,
+            gas_reservation_map: program.gas_reservation_map,
+        }))
     }
 }
