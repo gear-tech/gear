@@ -84,6 +84,16 @@ where
                     GasAllowanceOf::<T>::get(),
                 );
 
+                let _guard = scopeguard::guard((), |_| {
+                    if T::DebugInfo::is_enabled() {
+                        T::DebugInfo::do_snapshot();
+                    }
+
+                    if T::DebugInfo::is_remap_id_enabled() {
+                        T::DebugInfo::remap_id();
+                    }
+                });
+
                 let program_id = dispatch.destination();
                 let dispatch_id = dispatch.id();
                 let dispatch_reply = dispatch.reply().is_some();
@@ -96,14 +106,6 @@ where
                     PrechargeResult::Ok(d) => d,
                     PrechargeResult::Error(journal) => {
                         core_processor::handle_journal(journal, &mut ext_manager);
-
-                        if T::DebugInfo::is_enabled() {
-                            T::DebugInfo::do_snapshot();
-                        }
-
-                        if T::DebugInfo::is_remap_id_enabled() {
-                            T::DebugInfo::remap_id();
-                        }
 
                         continue;
                     }
@@ -135,14 +137,6 @@ where
                                 None,
                                 MessageWaitedSystemReason::ProgramIsNotInitialized.into_reason(),
                             );
-
-                            if T::DebugInfo::is_enabled() {
-                                T::DebugInfo::do_snapshot();
-                            }
-
-                            if T::DebugInfo::is_remap_id_enabled() {
-                                T::DebugInfo::remap_id();
-                            }
 
                             continue;
                         }
@@ -217,14 +211,6 @@ where
                     };
 
                 core_processor::handle_journal(journal, &mut ext_manager);
-
-                if T::DebugInfo::is_enabled() {
-                    T::DebugInfo::do_snapshot();
-                }
-
-                if T::DebugInfo::is_remap_id_enabled() {
-                    T::DebugInfo::remap_id();
-                }
             } else {
                 break;
             }
