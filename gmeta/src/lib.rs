@@ -5,26 +5,34 @@ extern crate alloc;
 #[cfg(feature = "codegen")]
 pub use gmeta_codegen::metawasm;
 
-use alloc::{string::String, vec::Vec};
-use blake2_rfc::blake2b;
-use codec::Encode;
-use core::any::TypeId;
-use scale_info::{MetaType, PortableRegistry, Registry, TypeInfo};
+pub use alloc::{collections::BTreeMap, string::String};
+pub use codec::{Decode, Encode};
+pub use scale_info::{MetaType, PortableRegistry, Registry, TypeInfo};
 
-#[derive(Encode, Debug)]
+use alloc::vec::Vec;
+use blake2_rfc::blake2b;
+use core::any::TypeId;
+
+#[derive(Encode, Debug, Decode)]
 pub struct TypesRepr {
-    input: Option<u32>,
-    output: Option<u32>,
+    pub input: Option<u32>,
+    pub output: Option<u32>,
 }
 
-#[derive(Encode, Debug)]
+#[derive(Encode, Debug, Decode)]
 pub struct MetadataRepr {
-    init: TypesRepr,
-    handle: TypesRepr,
-    reply: TypesRepr,
-    others: TypesRepr,
-    state: Option<u32>,
-    registry: Vec<u8>,
+    pub init: TypesRepr,
+    pub handle: TypesRepr,
+    pub reply: TypesRepr,
+    pub others: TypesRepr,
+    pub state: Option<u32>,
+    pub registry: Vec<u8>,
+}
+
+#[derive(Encode, Debug, Decode)]
+pub struct MetawasmData {
+    pub funcs: BTreeMap<String, TypesRepr>,
+    pub registry: Vec<u8>,
 }
 
 pub trait Type: TypeInfo + 'static {

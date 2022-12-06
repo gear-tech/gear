@@ -229,6 +229,57 @@ fn read_state_using_wasm_works() {
 }
 
 #[test]
+fn wasm_metadata_generation_works() {
+    use demo_meta::{
+        MessageInitIn, META_EXPORTS_V1, META_EXPORTS_V2, META_WASM_V1, META_WASM_V2, WASM_BINARY,
+    };
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_2),
+            WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            <MessageInitIn as Default>::default().encode(),
+            DEFAULT_GAS_LIMIT * 100,
+            10_000,
+        ));
+
+        let program_id = utils::get_last_program_id();
+
+        run_to_next_block(None);
+
+        assert!(Gear::is_initialized(program_id));
+
+        let m1 =
+            Gear::read_state_using_wasm_impl(program_id, "metadata", META_WASM_V1.to_vec(), None)
+                .expect("Failed to read state");
+
+        let metadata1 =
+            gmeta::MetawasmData::decode(&mut m1.as_ref()).expect("Failed to decode metadata");
+        let mut exports1 = metadata1.funcs.keys().cloned().collect::<Vec<_>>();
+        exports1.push("metadata".into());
+        exports1.sort();
+        let mut expected_exports_1 = META_EXPORTS_V1.to_vec();
+        expected_exports_1.sort();
+        assert_eq!(exports1, expected_exports_1);
+
+        let m2 =
+            Gear::read_state_using_wasm_impl(program_id, "metadata", META_WASM_V2.to_vec(), None)
+                .expect("Failed to read state");
+
+        let metadata2 =
+            gmeta::MetawasmData::decode(&mut m2.as_ref()).expect("Failed to decode metadata");
+        let mut exports2 = metadata2.funcs.keys().cloned().collect::<Vec<_>>();
+        exports2.push("metadata".into());
+        exports2.sort();
+        let mut expected_exports_2 = META_EXPORTS_V2.to_vec();
+        expected_exports_2.sort();
+        assert_eq!(exports2, expected_exports_2);
+    });
+}
+
+#[test]
 fn read_state_using_wasm_errors() {
     use demo_meta::{MessageInitIn, WASM_BINARY};
 

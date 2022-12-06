@@ -2,9 +2,10 @@ extern crate proc_macro;
 use core::fmt::Display;
 use proc_macro::TokenStream;
 use quote::{quote, ToTokens};
+use std::collections::BTreeMap;
 use syn::{
-    spanned::Spanned, Attribute, AttributeArgs, Block, Error, FnArg, ItemFn, ItemTrait, LitStr,
-    Pat, ReturnType, TraitItem, Visibility,
+    spanned::Spanned, Attribute, AttributeArgs, Block, Error, FnArg, Ident, ItemFn, ItemTrait,
+    LitStr, Pat, ReturnType, TraitItem, Type, Visibility,
 };
 
 macro_rules! ensure {
@@ -346,6 +347,75 @@ fn parse_trait(item: ItemTrait) -> Result<Vec<TraitItem>, TokenStream> {
     Ok(item.items)
 }
 
+// TODO: validate `-> ()`
+fn generate_metadata(funcs: &Vec<ItemFn>) -> TokenStream {
+    let mut map: BTreeMap<Ident, (Option<Type>, Type)> = Default::default();
+
+    for func in funcs {
+        let name = func.sig.ident.clone();
+        let input = func.sig.inputs.len().eq(&2).then(|| {
+            if let FnArg::Typed(pat_type) = &func.sig.inputs[0] {
+                *pat_type.ty.clone()
+            } else {
+                unreachable!("Guaranteed by `validate_typed`");
+            }
+        });
+        let output = if let ReturnType::Type(_token, boxed_type) = &func.sig.output {
+            *boxed_type.clone()
+        } else {
+            unreachable!("Guaranteed by `validate_typed`");
+        };
+
+        map.insert(name, (input, output));
+    }
+
+    let add_fn = |name: Ident, (i, o): (Option<Type>, Type)| {
+        let name = name.to_string();
+
+        if let Some(i) = i {
+            quote! {
+                let input = Some(registry.register_type(&MetaType::new::<#i>()).id());
+                let output = Some(registry.register_type(&MetaType::new::<#o>()).id());
+                let repr = TypesRepr { input, output };
+                funcs.insert(#name.to_string(), repr);
+            }
+        } else {
+            quote! {
+                let output = Some(registry.register_type(&MetaType::new::<#o>()).id());
+                let repr = TypesRepr { input: None, output };
+                funcs.insert(#name.to_string(), repr);
+            }
+        }
+    };
+
+    let mut block = quote! {
+        use gmeta::*;
+
+        let mut funcs: BTreeMap<String, TypesRepr> = Default::default();
+        let mut registry = Registry::new();
+    };
+
+    for (name, io) in map {
+        block.extend(add_fn(name, io));
+    }
+
+    block.extend(quote! {
+        let metawasm_data = MetawasmData {
+            funcs, registry: PortableRegistry::from(registry).encode(),
+        };
+        gstd::msg::reply(metawasm_data, 0).expect("Failed to share metadata");
+    });
+
+    let res = quote! {
+        #[no_mangle]
+        extern "C" fn metadata() {
+            #block
+        }
+    };
+
+    res.into()
+}
+
 fn construct_abi(funcs: Vec<ItemFn>) -> TokenStream {
     let mut res = proc_macro2::TokenStream::new();
     for mut func in funcs {
@@ -429,7 +499,13 @@ pub fn metawasm(attr: TokenStream, item: TokenStream) -> TokenStream {
 
         let funcs = parse_trait_items(trait_items)?;
 
-        let res = construct_abi(funcs);
+        let mut res = TokenStream::default();
+
+        let metadata = generate_metadata(&funcs);
+        let abi = construct_abi(funcs);
+
+        res.extend(metadata);
+        res.extend(abi);
 
         Ok(res)
     };
