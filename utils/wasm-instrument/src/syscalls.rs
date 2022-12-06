@@ -260,6 +260,7 @@ impl SysCallName {
             Self::ReplyPush => SysCallSignature::gr([Ptr, Size, Ptr]),
             Self::ReplyPushInput => SysCallSignature::gr([Size, Size, Ptr]),
             Self::ReplyTo => SysCallSignature::gr([Ptr]),
+            Self::SignalFrom => SysCallSignature::gr([Ptr]),
             Self::Send => SysCallSignature::gr([Ptr, Ptr, Size, Delay, Ptr]),
             Self::SendInput => SysCallSignature::gr([Ptr, Size, Size, Delay, Ptr]),
             Self::SendWGas => SysCallSignature::gr([Ptr, Ptr, Size, Gas, Delay, Ptr]),
@@ -281,7 +282,7 @@ impl SysCallName {
             Self::ReserveGas => SysCallSignature::gr([Gas, Duration, Ptr]),
             Self::UnreserveGas => SysCallSignature::gr([Ptr, Ptr]),
             Self::SystemReserveGas => SysCallSignature::gr([Gas, Ptr]),
-            Self::Random => SysCallSignature::gr([Ptr, Size, Ptr]),
+            Self::Random => SysCallSignature::gr([Ptr, Ptr]),
             other => panic!("Unknown syscall: '{:?}'", other),
         }
     }
