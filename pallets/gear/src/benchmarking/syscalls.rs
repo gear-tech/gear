@@ -22,7 +22,7 @@ use frame_system::RawOrigin;
 use gear_core::{
     code::{Code, CodeAndId},
     ids::{CodeId, MessageId, ProgramId, ReservationId},
-    message::{Dispatch, DispatchKind, Message, ReplyDetails},
+    message::{Dispatch, DispatchKind, Message, ReplyDetails, SignalDetails},
     reservation::GasReservationSlot,
 };
 use gear_wasm_instrument::{parity_wasm::elements::Instruction, syscalls::syscall_signature};
@@ -132,6 +132,23 @@ where
                 ),
             )
         }
+        HandleKind::Signal(msg_id, status_code) => {
+            let (msg, _bn) =
+                MailboxOf::<T>::remove(<T::AccountId as Origin>::from_origin(source), msg_id)
+                    .map_err(|_| "Internal error: unable to find message in mailbox")?;
+            Dispatch::new(
+                DispatchKind::Signal,
+                Message::new(
+                    root_message_id,
+                    ProgramId::from_origin(source),
+                    msg.source(),
+                    payload.try_into()?,
+                    Some(u64::MAX),
+                    value,
+                    Some(SignalDetails::new(msg.id(), status_code).into()),
+                ),
+            )
+        }
     };
 
     let initial_gas = BlockGasLimitOf::<T>::get();
@@ -215,7 +232,10 @@ where
 
                     (context, code)
                 }
-                _ => return Err("core_processor::prepare failed"),
+                res => {
+                    log::error!("core_processor::prepare: {:?}", res);
+                    return Err("core_processor::prepare failed");
+                }
             };
 
         Ok(Exec {
@@ -979,6 +999,187 @@ where
             instance.caller.into_origin(),
             HandleKind::Reply(msg_id, 0),
             vec![],
+            0u32.into(),
+        )
+    }
+
+    pub fn gr_signal_from(r: u32) -> Result<Exec<T>, &'static str> {
+        let code = WasmModule::<T>::from(ModuleDefinition {
+            memory: Some(ImportedMemory::max::<T>()),
+            imported_functions: vec!["gr_signal_from"],
+            reply_body: Some(body::repeated(
+                r * API_BENCHMARK_BATCH_SIZE,
+                &[
+                    // err_mid ptr
+                    Instruction::I32Const(1),
+                    // CALL
+                    Instruction::Call(0),
+                ],
+            )),
+            ..Default::default()
+        });
+        let instance = Program::<T>::new(code, vec![])?;
+        let msg_id = MessageId::from(10);
+        let msg = Message::new(
+            msg_id,
+            instance.addr.as_bytes().into(),
+            ProgramId::from(instance.caller.clone().into_origin().as_bytes()),
+            Default::default(),
+            Some(1_000_000),
+            0,
+            None,
+        )
+        .into_stored();
+        MailboxOf::<T>::insert(msg, u32::MAX.unique_saturated_into())
+            .expect("Error during mailbox insertion");
+        prepare::<T>(
+            instance.caller.into_origin(),
+            HandleKind::Signal(msg_id, 1),
+            vec![],
+            0u32.into(),
+        )
+    }
+
+    pub fn gr_reply_push_input(r: u32) -> Result<Exec<T>, &'static str> {
+        let payload_offset = 1;
+        let payload_len = 100;
+
+        let err_offset = payload_offset + payload_len;
+
+        let code = WasmModule::<T>::from(ModuleDefinition {
+            memory: Some(ImportedMemory::max::<T>()),
+            imported_functions: vec!["gr_reply_push_input"],
+            handle_body: Some(body::repeated(
+                r * API_BENCHMARK_BATCH_SIZE,
+                &[
+                    // offset
+                    Instruction::I32Const(payload_offset),
+                    Instruction::I32Const(payload_len.saturating_sub(payload_offset)),
+                    Instruction::I32Const(err_offset),
+                    Instruction::Call(0),
+                ],
+            )),
+            ..Default::default()
+        });
+
+        let instance = Program::<T>::new(code, vec![])?;
+        prepare::<T>(
+            instance.caller.into_origin(),
+            HandleKind::Handle(ProgramId::from_origin(instance.addr)),
+            vec![1u8; payload_len as usize],
+            0u32.into(),
+        )
+    }
+
+    pub fn gr_reply_push_input_per_kb(n: u32) -> Result<Exec<T>, &'static str> {
+        let payload_offset = 1;
+        let payload_len = n as i32 * 1_024;
+
+        let err_offset = payload_offset + payload_len;
+
+        let code = WasmModule::<T>::from(ModuleDefinition {
+            memory: Some(ImportedMemory::max::<T>()),
+            imported_functions: vec!["gr_reply_push_input"],
+            handle_body: Some(body::repeated(
+                API_BENCHMARK_BATCH_SIZE,
+                &[
+                    // offset
+                    Instruction::I32Const(payload_offset),
+                    Instruction::I32Const(payload_len.saturating_sub(payload_offset)),
+                    Instruction::I32Const(err_offset),
+                    Instruction::Call(0),
+                ],
+            )),
+            ..Default::default()
+        });
+
+        let instance = Program::<T>::new(code, vec![])?;
+        prepare::<T>(
+            instance.caller.into_origin(),
+            HandleKind::Handle(ProgramId::from_origin(instance.addr)),
+            vec![1u8; payload_len as usize],
+            0u32.into(),
+        )
+    }
+
+    pub fn gr_send_push_input(r: u32) -> Result<Exec<T>, &'static str> {
+        let payload_offset = 1;
+        let payload_len = 100u32;
+
+        let err_offset = payload_offset + payload_len;
+
+        let code = WasmModule::<T>::from(ModuleDefinition {
+            memory: Some(ImportedMemory::max::<T>()),
+            imported_functions: vec!["gr_send_init", "gr_send_push_input"],
+            handle_body: Some(body::repeated(
+                r * API_BENCHMARK_BATCH_SIZE,
+                &[
+                    // err_handle ptr for send_init
+                    Instruction::I32Const((payload_offset + payload_len) as i32),
+                    // CALL init
+                    Instruction::Call(0),
+                    // handle
+                    Instruction::I32Const((payload_offset + payload_len + 4) as i32),
+                    Instruction::I32Load(2, 0),
+                    // offset
+                    Instruction::I32Const(payload_offset as i32),
+                    // len
+                    Instruction::I32Const(payload_len.saturating_sub(payload_offset) as i32),
+                    // err len ptr
+                    Instruction::I32Const(err_offset as i32),
+                    // CALL push
+                    Instruction::Call(1),
+                ],
+            )),
+            ..Default::default()
+        });
+
+        let instance = Program::<T>::new(code, vec![])?;
+        prepare::<T>(
+            instance.caller.into_origin(),
+            HandleKind::Handle(ProgramId::from_origin(instance.addr)),
+            vec![1u8; payload_len as usize],
+            0u32.into(),
+        )
+    }
+
+    pub fn gr_send_push_input_per_kb(n: u32) -> Result<Exec<T>, &'static str> {
+        let payload_offset = 1;
+        let payload_len = n * 1_024;
+
+        let err_offset = payload_offset + payload_len;
+
+        let code = WasmModule::<T>::from(ModuleDefinition {
+            memory: Some(ImportedMemory::max::<T>()),
+            imported_functions: vec!["gr_send_init", "gr_send_push_input"],
+            handle_body: Some(body::repeated(
+                API_BENCHMARK_BATCH_SIZE,
+                &[
+                    // err_handle ptr for send_init
+                    Instruction::I32Const((payload_offset + payload_len) as i32),
+                    // CALL init
+                    Instruction::Call(0),
+                    // handle
+                    Instruction::I32Const((payload_offset + payload_len + 4) as i32),
+                    Instruction::I32Load(2, 0),
+                    // offset
+                    Instruction::I32Const(payload_offset as i32),
+                    // len
+                    Instruction::I32Const(payload_len.saturating_sub(payload_offset) as i32),
+                    // err len ptr
+                    Instruction::I32Const(err_offset as i32),
+                    // CALL push
+                    Instruction::Call(1),
+                ],
+            )),
+            ..Default::default()
+        });
+
+        let instance = Program::<T>::new(code, vec![])?;
+        prepare::<T>(
+            instance.caller.into_origin(),
+            HandleKind::Handle(ProgramId::from_origin(instance.addr)),
+            vec![1u8; payload_len as usize],
             0u32.into(),
         )
     }

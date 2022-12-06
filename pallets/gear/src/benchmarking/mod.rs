@@ -326,15 +326,9 @@ benchmarks! {
     instantiate_module_per_kb {
         let c in 0 .. T::Schedule::get().limits.code_len / 1024;
 
-        #[cfg(feature = "lazy-pages")]
-        type Ext = crate::ext::LazyPagesExt;
-
-        #[cfg(not(feature = "lazy-pages"))]
-        type Ext = core_processor::Ext;
-
         let WasmModule { code, .. } = WasmModule::<T>::sized(c * 1024, Location::Init);
     }: {
-        let ext = Ext::new(default_processor_context::<T>());
+        let ext = Externalities::new(default_processor_context::<T>());
         ExecutionEnvironment::new(ext, &code, Default::default(), max_pages::<T>().into()).unwrap();
     }
 
@@ -858,6 +852,61 @@ benchmarks! {
         let r in 0 .. API_BENCHMARK_BATCHES;
         let mut res = None;
         let exec = Benches::<T>::gr_reply_to(r)?;
+    }: {
+        res.replace(run_process(exec));
+    }
+    verify {
+        verify_process(res.unwrap());
+    }
+
+    gr_signal_from {
+        let r in 0 .. API_BENCHMARK_BATCHES;
+        let mut res = None;
+        let exec = Benches::<T>::gr_signal_from(r)?;
+    }: {
+        res.replace(run_process(exec));
+    }
+    verify {
+        verify_process(res.unwrap());
+    }
+
+    gr_reply_push_input {
+        let r in 0 .. API_BENCHMARK_BATCHES;
+        let mut res = None;
+        let exec = Benches::<T>::gr_reply_push_input(r)?;
+    }: {
+        res.replace(run_process(exec));
+    }
+    verify {
+        verify_process(res.unwrap());
+    }
+
+    gr_reply_push_input_per_kb {
+        let n in 0 .. T::Schedule::get().limits.payload_len / 1024;
+        let mut res = None;
+        let exec = Benches::<T>::gr_reply_push_input_per_kb(n)?;
+    }: {
+        res.replace(run_process(exec));
+    }
+    verify {
+        verify_process(res.unwrap());
+    }
+
+    gr_send_push_input {
+        let r in 0 .. API_BENCHMARK_BATCHES;
+        let mut res = None;
+        let exec = Benches::<T>::gr_send_push_input(r)?;
+    }: {
+        res.replace(run_process(exec));
+    }
+    verify {
+        verify_process(res.unwrap());
+    }
+
+    gr_send_push_input_per_kb {
+        let n in 0 .. T::Schedule::get().limits.payload_len / 1024;
+        let mut res = None;
+        let exec = Benches::<T>::gr_send_push_input_per_kb(n)?;
     }: {
         res.replace(run_process(exec));
     }

@@ -159,6 +159,10 @@ impl EnvExt for LazyPagesExt {
         self.inner.send_push(handle, buffer)
     }
 
+    fn send_push_input(&mut self, handle: u32, offset: u32, len: u32) -> Result<(), Self::Error> {
+        self.inner.send_push_input(handle, offset, len)
+    }
+
     fn reply_push(&mut self, buffer: &[u8]) -> Result<(), Self::Error> {
         self.inner.reply_push(buffer)
     }
@@ -197,6 +201,14 @@ impl EnvExt for LazyPagesExt {
 
     fn reply_to(&mut self) -> Result<MessageId, Self::Error> {
         self.inner.reply_to()
+    }
+
+    fn signal_from(&mut self) -> Result<MessageId, Self::Error> {
+        self.inner.signal_from()
+    }
+
+    fn reply_push_input(&mut self, offset: u32, len: u32) -> Result<(), Self::Error> {
+        self.inner.reply_push_input(offset, len)
     }
 
     fn source(&mut self) -> Result<ProgramId, Self::Error> {

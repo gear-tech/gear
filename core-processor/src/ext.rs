@@ -408,6 +408,15 @@ impl EnvExt for Ext {
         self.return_and_store_err(result)
     }
 
+    fn send_push_input(&mut self, handle: u32, offset: u32, len: u32) -> Result<(), Self::Error> {
+        let range = self.context.message_context.check_input_range(offset, len);
+        self.charge_gas_runtime(RuntimeCosts::SendPushInput(range.len()))?;
+
+        let result = self.context.message_context.send_push_input(handle, range);
+
+        self.return_and_store_err(result)
+    }
+
     fn send_commit(
         &mut self,
         handle: u32,
@@ -516,6 +525,27 @@ impl EnvExt for Ext {
             .and_then(|d| d.to_reply_details())
             .map(|d| d.into_reply_to())
             .ok_or_else(|| MessageError::NoReplyContext.into())
+    }
+
+    fn signal_from(&mut self) -> Result<MessageId, Self::Error> {
+        self.charge_gas_runtime(RuntimeCosts::SignalFrom)?;
+
+        self.context
+            .message_context
+            .current()
+            .details()
+            .and_then(|d| d.to_signal_details())
+            .map(|d| d.from())
+            .ok_or_else(|| MessageError::NoSignalContext.into())
+    }
+
+    fn reply_push_input(&mut self, offset: u32, len: u32) -> Result<(), Self::Error> {
+        let range = self.context.message_context.check_input_range(offset, len);
+        self.charge_gas_runtime(RuntimeCosts::ReplyPushInput(range.len()))?;
+
+        let result = self.context.message_context.reply_push_input(range);
+
+        self.return_and_store_err(result)
     }
 
     fn source(&mut self) -> Result<ProgramId, Self::Error> {

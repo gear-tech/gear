@@ -96,8 +96,29 @@ where
             F::reply_commit_wgas(store, forbidden, memory)
         }),
         f.build(ReplyTo, |forbidden| F::reply_to(store, forbidden, memory)),
+        f.build(SignalFrom, |forbidden| {
+            F::signal_from(store, forbidden, memory)
+        }),
         f.build(ReplyPush, |forbidden| {
             F::reply_push(store, forbidden, memory)
+        }),
+        f.build(ReplyInput, |forbidden| {
+            F::reply_input(store, forbidden, memory)
+        }),
+        f.build(ReplyPushInput, |forbidden| {
+            F::reply_push_input(store, forbidden, memory)
+        }),
+        f.build(ReplyInputWGas, |forbidden| {
+            F::reply_input_wgas(store, forbidden, memory)
+        }),
+        f.build(SendInput, |forbidden| {
+            F::send_input(store, forbidden, memory)
+        }),
+        f.build(SendPushInput, |forbidden| {
+            F::send_push_input(store, forbidden, memory)
+        }),
+        f.build(SendInputWGas, |forbidden| {
+            F::send_input_wgas(store, forbidden, memory)
         }),
         f.build(Debug, |forbidden| F::debug(store, forbidden, memory)),
         f.build(GasAvailable, |forbidden| {

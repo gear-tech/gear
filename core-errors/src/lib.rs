@@ -78,9 +78,7 @@ pub enum MessageError {
     /// Everything less than existential deposit but greater than 0 is not considered as available balance and not saved in DB.
     /// Value between 0 and existential deposit cannot be sent in message.
     #[display(
-        fmt = "In case of non-zero message value {}, it must be greater than existential deposit {}",
-        message_value,
-        existential_deposit
+        fmt = "In case of non-zero message value {message_value}, it must be greater than existential deposit {existential_deposit}"
     )]
     InsufficientValue {
         /// Message's value.
@@ -94,9 +92,7 @@ pub enum MessageError {
     ///
     /// Gas limit between 0 and mailbox threshold cannot be inserted in mailbox.
     #[display(
-        fmt = "In case of non-zero message gas limit {}, it must be greater than mailbox threshold {}",
-        message_gas_limit,
-        mailbox_threshold
+        fmt = "In case of non-zero message gas limit {message_gas_limit}, it must be greater than mailbox threshold {mailbox_threshold}"
     )]
     InsufficientGasLimit {
         /// Message's gas limit.
@@ -107,9 +103,7 @@ pub enum MessageError {
 
     /// The error occurs when program's balance is less than value in message it tries to send.
     #[display(
-        fmt = "Existing value {} is not enough to send a message with value {}",
-        value_left,
-        message_value
+        fmt = "Existing value {value_left} is not enough to send a message with value {message_value}"
     )]
     NotEnoughValue {
         /// Message's value.
@@ -125,6 +119,10 @@ pub enum MessageError {
     /// The error occurs when functions related to reply context, used without it.
     #[display(fmt = "Not running in reply context")]
     NoReplyContext,
+
+    /// The error occurs when functions related to signal context, used without it.
+    #[display(fmt = "Not running in signal context")]
+    NoSignalContext,
 
     /// The error occurs when functions related to status code, used without required context.
     #[display(fmt = "No status code in reply/signal context")]

@@ -38,6 +38,9 @@ pub type Handle = u32;
 /// Represents hash type.
 pub type Hash = [u8; 32];
 
+/// Represents index type.
+pub type Index = u32;
+
 /// Represents length type.
 pub type Length = u32;
 
@@ -420,11 +423,44 @@ extern "C" {
     /// - `err`: `mut ptr` for error length.
     pub fn gr_reply_push(payload: *const BufferStart, len: Length, err: *mut Length);
 
+    /// Fallible `gr_reply_push_input` send syscall.
+    ///
+    /// Arguments type:
+    /// - `offset`: `u32` defining start index of the input buffer to use.
+    /// - `len`: `u32` defining slice length of the input buffer to use.
+    /// - `err`: `mut ptr` for error length.
+    pub fn gr_reply_push_input(offset: Index, len: Length, err: *mut Length);
+
     /// Fallible `gr_reply_to` get syscall.
     ///
     /// Arguments type:
     /// - `err_mid`: `mut ptr` for concatenated error length and message id.
     pub fn gr_reply_to(err_mid: *mut LengthWithHash);
+
+    /// Fallible `gr_signal_from` get syscall.
+    ///
+    /// Arguments type:
+    /// - `err_mid`: `mut ptr` for concatenated error length and message id.
+    pub fn gr_signal_from(err_mid: *mut LengthWithHash);
+
+    /// Fallible `gr_reply_input_wgas` send syscall.
+    ///
+    /// Arguments type:
+    /// - `offset`: `u32` defining start index of the input buffer to use.
+    /// - `len`: `u32` defining slice length of the input buffer to use.
+    /// - `gas_limit`: `u64` defining gas limit for sending.
+    /// - `value`: `const ptr` for `u128` defining amount of value to apply.
+    ///   Ignored if equals i32::MAX (use this for zero value for optimization).
+    /// - `delay`: `u32` amount of blocks to delay.
+    /// - `err_mid`: `mut ptr` for concatenated error length and message id.
+    pub fn gr_reply_input_wgas(
+        offset: Index,
+        len: Length,
+        gas_limit: Gas,
+        value: *const Value,
+        delay: BlockNumber,
+        err_mid: *mut LengthWithHash,
+    );
 
     /// Fallible `gr_reply_wgas` send syscall.
     ///
@@ -456,6 +492,23 @@ extern "C" {
     /// - `err_mid`: `mut ptr` for concatenated error length and message id.
     pub fn gr_reply(
         payload: *const BufferStart,
+        len: Length,
+        value: *const Value,
+        delay: BlockNumber,
+        err_mid: *mut LengthWithHash,
+    );
+
+    /// Fallible `gr_reply_input` send syscall.
+    ///
+    /// Arguments type:
+    /// - `offset`: `u32` defining start index of the input buffer to use.
+    /// - `len`: `u32` defining slice length of the input buffer to use.
+    /// - `value`: `const ptr` for `u128` defining amount of value to apply.
+    ///   Ignored if equals i32::MAX (use this for zero value for optimization).
+    /// - `delay`: `u32` amount of blocks to delay.
+    /// - `err_mid`: `mut ptr` for concatenated error length and message id.
+    pub fn gr_reply_input(
+        offset: Index,
         len: Length,
         value: *const Value,
         delay: BlockNumber,
@@ -577,6 +630,33 @@ extern "C" {
     /// - `err`: `mut ptr` for error length.
     pub fn gr_send_push(handle: Handle, payload: *const BufferStart, len: Length, err: *mut Length);
 
+    /// Fallible `gr_send_push_input` send syscall.
+    ///
+    /// Arguments type:
+    /// - `handle`: `u32` defining handle of the message to push into.
+    /// - `offset`: `u32` defining start index of the input buffer to use.
+    /// - `len`: `u32` defining slice length of the input buffer to use.
+    /// - `err`: `mut ptr` for error length.
+    pub fn gr_send_push_input(handle: Handle, offset: Index, len: Length, err: *mut Length);
+
+    /// Fallible `gr_send_input_wgas` send syscall.
+    ///
+    /// Arguments type:
+    /// - `pid_value`: `const ptr` for concatenated program id and value.
+    /// - `offset`: `u32` defining start index of the input buffer to use.
+    /// - `len`: `u32` defining slice length of the input buffer to use.
+    /// - `gas_limit`: `u64` defining gas limit for sending.
+    /// - `delay`: `u32` amount of blocks to delay.
+    /// - `err_mid`: `mut ptr` for concatenated error length and message id.
+    pub fn gr_send_input_wgas(
+        pid_value: *const HashWithValue,
+        offset: Index,
+        len: Length,
+        gas_limit: Gas,
+        delay: BlockNumber,
+        err_mid: *mut LengthWithHash,
+    );
+
     /// Fallible `gr_send_wgas` send syscall.
     ///
     /// Arguments type:
@@ -606,6 +686,22 @@ extern "C" {
     pub fn gr_send(
         pid_value: *const HashWithValue,
         payload: *const BufferStart,
+        len: Length,
+        delay: BlockNumber,
+        err_mid: *mut LengthWithHash,
+    );
+
+    /// Fallible `gr_send_input` send syscall.
+    ///
+    /// Arguments type:
+    /// - `pid_value`: `const ptr` for concatenated program id and value.
+    /// - `payload`: `const ptr` for the begging of the payload buffer.
+    /// - `len`: `u32` length of the payload buffer.
+    /// - `delay`: `u32` amount of blocks to delay.
+    /// - `err_mid`: `mut ptr` for concatenated error length and message id.
+    pub fn gr_send_input(
+        pid_value: *const HashWithValue,
+        offset: Index,
         len: Length,
         delay: BlockNumber,
         err_mid: *mut LengthWithHash,
