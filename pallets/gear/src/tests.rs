@@ -4612,7 +4612,7 @@ fn program_messages_to_paused_program_skipped() {
             code,
             vec![],
             InputArgs {
-                destination: <[u8; 32]>::from(paused_program_id).into()
+                destination: <[u8; 32]>::from(paused_program_id)
             }
             .encode(),
             50_000_000_000u64,
