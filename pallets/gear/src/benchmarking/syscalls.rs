@@ -381,7 +381,8 @@ where
                 ReservationId::from(x as u64),
                 GasReservationSlot {
                     amount: 1_000,
-                    expiration: 100,
+                    start: 1,
+                    finish: 100,
                 },
             );
         }
@@ -745,7 +746,8 @@ where
                 ReservationId::from(x as u64),
                 GasReservationSlot {
                     amount: 1_000,
-                    expiration: 100,
+                    start: 1,
+                    finish: 100,
                 },
             );
         }
@@ -813,7 +815,8 @@ where
                 ReservationId::from(x as u64),
                 GasReservationSlot {
                     amount: 1_000,
-                    expiration: 100,
+                    start: 1,
+                    finish: 100,
                 },
             );
         }
@@ -952,7 +955,8 @@ where
                 ReservationId::from(x as u64),
                 GasReservationSlot {
                     amount: 1_000,
-                    expiration: 100,
+                    start: 1,
+                    finish: 100,
                 },
             );
         }

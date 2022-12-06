@@ -414,6 +414,7 @@ pub fn process<
         write_cost.saturating_mul(4),
         write_cost.saturating_mul(3),
         write_cost.saturating_mul(2),
+        write_cost.saturating_mul(2),
         outgoing_limit,
     );
 

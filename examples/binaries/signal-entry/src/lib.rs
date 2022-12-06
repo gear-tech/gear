@@ -34,7 +34,9 @@ pub enum HandleAction {
     Wait,
     WaitAndPanic,
     WaitAndReserveWithPanic,
+    WaitAndExit,
     Panic,
+    Exit,
     Accumulate,
     OutOfGas,
     PanicInSignal,
@@ -55,6 +57,7 @@ mod wasm {
     static mut INITIATOR: ActorId = ActorId::zero();
     static mut HANDLE_MSG: Option<MessageId> = None;
     static mut DO_PANIC: bool = false;
+    static mut DO_EXIT: bool = false;
     static mut HANDLE_SIGNAL_STATE: HandleSignalState = HandleSignalState::Normal;
 
     enum HandleSignalState {
@@ -108,9 +111,27 @@ mod wasm {
                 msg::reply(0, 0).unwrap();
                 exec::wait();
             }
+            HandleAction::WaitAndExit => {
+                if DO_EXIT {
+                    msg::send_bytes(msg::source(), b"wait_and_exit", 0).unwrap();
+                    exec::exit(msg::source());
+                }
+
+                DO_EXIT = !DO_EXIT;
+
+                exec::system_reserve_gas(900).unwrap();
+                // used to found message id in test
+                msg::reply(0, 0).unwrap();
+                exec::wait();
+            }
             HandleAction::Panic => {
                 exec::system_reserve_gas(5_000_000_000).unwrap();
                 panic!();
+            }
+            HandleAction::Exit => {
+                exec::system_reserve_gas(4_000_000_000).unwrap();
+                msg::reply_bytes(b"exit", 0).unwrap();
+                exec::exit(msg::source());
             }
             HandleAction::Accumulate => {
                 exec::system_reserve_gas(1000).unwrap();

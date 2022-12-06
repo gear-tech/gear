@@ -43,11 +43,11 @@ pub use key::{KeyFor, MailboxKeyGen, QueueKeyGen, WaitlistKeyGen};
 pub use map::MapStorage;
 pub use value::ValueStorage;
 
-use codec::{Decode, Encode};
+use codec::{Decode, Encode, MaxEncodedLen};
 use scale_info::TypeInfo;
 
 /// Type for interval values: e.g. in time `(since, till)`.
-#[derive(Clone, Debug, Decode, Encode, PartialEq, Eq, TypeInfo)]
+#[derive(Clone, Debug, Decode, Encode, MaxEncodedLen, PartialEq, Eq, PartialOrd, Ord, TypeInfo)]
 pub struct Interval<T> {
     pub start: T,
     pub finish: T,

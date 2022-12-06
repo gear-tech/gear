@@ -6974,6 +6974,47 @@ fn system_reservation_panic_works() {
 }
 
 #[test]
+fn system_reservation_exit_works() {
+    use demo_signal_entry::{HandleAction, WASM_BINARY};
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            USER_1.encode(),
+            10_000_000_000,
+            0,
+        ));
+
+        let pid = get_last_program_id();
+
+        run_to_block(2, None);
+
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            pid,
+            HandleAction::Exit.encode(),
+            10_000_000_000,
+            0,
+        ));
+
+        let mid = get_last_message_id();
+
+        run_to_block(3, None);
+
+        assert_succeed(mid);
+        assert!(GasHandlerOf::<Test>::get_system_reserve(mid).is_err());
+
+        // check signal dispatch was not executed but `gr_exit` did
+        assert_eq!(MailboxOf::<Test>::len(&USER_1), 1);
+        let msg = get_last_mail(USER_1);
+        assert_eq!(msg.payload(), b"exit");
+    });
+}
+
+#[test]
 fn system_reservation_wait_and_panic_works() {
     use demo_signal_entry::{HandleAction, WASM_BINARY};
 
@@ -7019,6 +7060,59 @@ fn system_reservation_wait_and_panic_works() {
         run_to_block(4, None);
 
         assert!(GasHandlerOf::<Test>::get_system_reserve(mid).is_err());
+    });
+}
+
+#[test]
+fn system_reservation_wait_and_exit_works() {
+    use demo_signal_entry::{HandleAction, WASM_BINARY};
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            USER_1.encode(),
+            10_000_000_000,
+            0,
+        ));
+
+        let pid = get_last_program_id();
+
+        run_to_block(2, None);
+
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            pid,
+            HandleAction::WaitAndExit.encode(),
+            10_000_000_000,
+            0,
+        ));
+
+        let mid = get_last_message_id();
+
+        run_to_block(3, None);
+
+        let reply_to_id = get_last_mail(USER_1).id();
+
+        assert_ok!(GasHandlerOf::<Test>::get_system_reserve(mid));
+
+        assert_ok!(Gear::send_reply(
+            RuntimeOrigin::signed(USER_1),
+            reply_to_id,
+            EMPTY_PAYLOAD.to_vec(),
+            10_000_000_000,
+            0
+        ));
+
+        run_to_block(4, None);
+
+        assert!(GasHandlerOf::<Test>::get_system_reserve(mid).is_err());
+
+        // check `gr_exit` occurs
+        let msg = get_last_mail(USER_1);
+        assert_eq!(msg.payload(), b"wait_and_exit");
     });
 }
 
@@ -7146,6 +7240,240 @@ fn system_reservation_zero_amount_panics() {
         let mid = get_last_message_id();
 
         run_to_block(3, None);
+
+        assert_succeed(mid);
+    });
+}
+
+#[test]
+fn gas_reservation_works() {
+    use demo_reserve_gas::{HandleAction, InitAction, RESERVATION_AMOUNT};
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            demo_reserve_gas::WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            InitAction::Normal.encode(),
+            10_000_000_000,
+            0,
+        ));
+
+        let pid = get_last_program_id();
+
+        run_to_block(2, None);
+
+        // gas has been reserved 3 times
+        let map = get_reservation_map(pid).unwrap();
+        assert_eq!(map.len(), 3);
+
+        let user_initial_balance = Balances::free_balance(USER_1);
+
+        let GasInfo {
+            min_limit: spent_gas,
+            ..
+        } = Gear::calculate_gas_info(
+            USER_1.into_origin(),
+            HandleKind::Handle(pid),
+            HandleAction::Unreserve.encode(),
+            0,
+            true,
+        )
+        .expect("calculate_gas_info failed");
+
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            pid,
+            HandleAction::Unreserve.encode(),
+            spent_gas,
+            0
+        ));
+
+        run_to_block(3, None);
+
+        // gas unreserved manually
+        let map = get_reservation_map(pid).unwrap();
+        assert_eq!(map.len(), 2);
+
+        let gas_reserved = GasPrice::gas_price(spent_gas);
+        let reservation_amount = GasPrice::gas_price(RESERVATION_AMOUNT);
+        let reservation_holding = 5 * GasPrice::gas_price(CostsPerBlockOf::<Test>::reservation());
+
+        assert_eq!(
+            Balances::free_balance(USER_1),
+            user_initial_balance - gas_reserved + reservation_amount + reservation_holding
+        );
+
+        run_to_block(2 + 2, None);
+
+        // gas not yet unreserved automatically
+        let map = get_reservation_map(pid).unwrap();
+        assert_eq!(map.len(), 2);
+
+        run_to_block(2 + 3, None);
+
+        // gas unreserved automatically
+        let map = get_reservation_map(pid).unwrap();
+        assert_eq!(map.len(), 1);
+
+        // check task is exist yet
+        let (reservation_id, slot) = map.iter().next().unwrap();
+        let task = ScheduledTask::RemoveGasReservation(pid, *reservation_id);
+        assert!(TaskPoolOf::<Test>::contains(
+            &BlockNumberFor::<Test>::from(slot.finish),
+            &task
+        ));
+
+        // `gr_exit` occurs
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            pid,
+            HandleAction::Exit.encode(),
+            50_000_000_000,
+            0
+        ));
+
+        run_to_block(2 + 4, None);
+
+        // check task was cleared after `gr_exit` happened
+        let map = get_reservation_map(pid);
+        assert_eq!(map, None);
+        assert!(!TaskPoolOf::<Test>::contains(
+            &BlockNumberFor::<Test>::from(slot.finish),
+            &task
+        ));
+    });
+}
+
+#[test]
+fn gas_reservations_cleaned_in_terminated_program() {
+    use demo_reserve_gas::{InitAction, ReplyAction};
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            demo_reserve_gas::WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            InitAction::Wait.encode(),
+            10_000_000_000,
+            0,
+        ));
+
+        let pid = get_last_program_id();
+
+        run_to_block(2, None);
+
+        let message_id = get_last_mail(USER_1).id();
+
+        assert!(!Gear::is_initialized(pid));
+        assert!(Gear::is_active(pid));
+
+        let map = get_reservation_map(pid).unwrap();
+        assert_eq!(map.len(), 1);
+
+        let (reservation_id, slot) = map.iter().next().unwrap();
+        let task = ScheduledTask::RemoveGasReservation(pid, *reservation_id);
+        assert!(TaskPoolOf::<Test>::contains(
+            &BlockNumberFor::<Test>::from(slot.finish),
+            &task
+        ));
+
+        assert_ok!(Gear::send_reply(
+            RuntimeOrigin::signed(USER_1),
+            message_id,
+            ReplyAction::Panic.encode(),
+            DEFAULT_GAS_LIMIT * 10,
+            0,
+        ));
+
+        run_to_block(3, None);
+
+        let map = get_reservation_map(pid);
+        assert_eq!(map, None);
+        assert!(!TaskPoolOf::<Test>::contains(
+            &BlockNumberFor::<Test>::from(slot.finish),
+            &task
+        ));
+        assert!(!Gear::is_initialized(pid));
+        assert!(!Gear::is_active(pid));
+    });
+}
+
+#[test]
+fn gas_reservation_wait_wake_exit() {
+    use demo_reserve_gas::{InitAction, ReplyAction};
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            demo_reserve_gas::WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            InitAction::Wait.encode(),
+            10_000_000_000,
+            0,
+        ));
+
+        let pid = get_last_program_id();
+
+        run_to_block(2, None);
+
+        let message_id = get_last_mail(USER_1).id();
+
+        assert!(!Gear::is_initialized(pid));
+        assert!(Gear::is_active(pid));
+
+        let map = get_reservation_map(pid).unwrap();
+        assert_eq!(map.len(), 1);
+
+        let (reservation_id, slot) = map.iter().next().unwrap();
+        let task = ScheduledTask::RemoveGasReservation(pid, *reservation_id);
+        assert!(TaskPoolOf::<Test>::contains(
+            &BlockNumberFor::<Test>::from(slot.finish),
+            &task
+        ));
+
+        assert_ok!(Gear::send_reply(
+            RuntimeOrigin::signed(USER_1),
+            message_id,
+            ReplyAction::Exit.encode(),
+            DEFAULT_GAS_LIMIT * 10,
+            0,
+        ));
+
+        run_to_block(3, None);
+
+        let map = get_reservation_map(pid);
+        assert_eq!(map, None);
+        assert!(!TaskPoolOf::<Test>::contains(
+            &BlockNumberFor::<Test>::from(slot.finish),
+            &task
+        ));
+        assert!(!Gear::is_initialized(pid));
+        assert!(!Gear::is_active(pid));
+    });
+}
+
+#[test]
+fn gas_reservations_check_params() {
+    use demo_reserve_gas::InitAction;
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            demo_reserve_gas::WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            InitAction::CheckArgs.encode(),
+            10_000_000_000,
+            0,
+        ));
+
+        let mid = get_last_message_id();
+
+        run_to_block(2, None);
 
         assert_succeed(mid);
     });
