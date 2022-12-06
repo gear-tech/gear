@@ -45,31 +45,26 @@ where
         match kind {
             HandleKind::Init(code) => {
                 let salt = b"calculate_gas_salt".to_vec();
-                Self::upload_program(who.into(), code, salt, payload, initial_gas, value)
-                    .map_err(|e| {
-                        format!("Internal error: upload_program failed with '{e:?}'")
-                            .into_bytes()
-                    })?;
+                Self::upload_program(who.into(), code, salt, payload, initial_gas, value).map_err(
+                    |e| format!("Internal error: upload_program failed with '{e:?}'").into_bytes(),
+                )?;
             }
             HandleKind::InitByHash(code_id) => {
                 let salt = b"calculate_gas_salt".to_vec();
                 Self::create_program(who.into(), code_id, salt, payload, initial_gas, value)
                     .map_err(|e| {
-                        format!("Internal error: create_program failed with '{e:?}'")
-                            .into_bytes()
+                        format!("Internal error: create_program failed with '{e:?}'").into_bytes()
                     })?;
             }
             HandleKind::Handle(destination) => {
-                Self::send_message(who.into(), destination, payload, initial_gas, value)
-                    .map_err(|e| {
-                        format!("Internal error: send_message failed with '{e:?}'").into_bytes()
-                    })?;
+                Self::send_message(who.into(), destination, payload, initial_gas, value).map_err(
+                    |e| format!("Internal error: send_message failed with '{e:?}'").into_bytes(),
+                )?;
             }
             HandleKind::Reply(reply_to_id, _status_code) => {
-                Self::send_reply(who.into(), reply_to_id, payload, initial_gas, value)
-                    .map_err(|e| {
-                        format!("Internal error: send_reply failed with '{e:?}'").into_bytes()
-                    })?;
+                Self::send_reply(who.into(), reply_to_id, payload, initial_gas, value).map_err(
+                    |e| format!("Internal error: send_reply failed with '{e:?}'").into_bytes(),
+                )?;
             }
             HandleKind::Signal(_signal_from, _status_code) => {
                 return Err("Gas calculation for `handle_signal` is not supported"
@@ -164,52 +159,46 @@ where
             };
 
             let subsequent_execution = !subsequent_execution && actor_id == main_program_id;
-            let may_be_returned_context =
-                subsequent_execution.then(|| MessageExecutionContext {
-                    subsequent_execution,
-                    ..message_execution_context.clone()
-                });
+            let may_be_returned_context = subsequent_execution.then(|| MessageExecutionContext {
+                subsequent_execution,
+                ..message_execution_context.clone()
+            });
 
-            let journal =
-                match core_processor::prepare(&block_config, message_execution_context) {
-                    PrepareResult::Ok(context) => {
-                        let memory_pages = match Self::get_and_track_memory_pages(
-                            &mut ext_manager,
-                            actor_id,
-                            &context.actor_data().pages_with_data,
-                        ) {
-                            None => continue,
-                            Some(m) => m,
-                        };
+            let journal = match core_processor::prepare(&block_config, message_execution_context) {
+                PrepareResult::Ok(context) => {
+                    let memory_pages = match Self::get_and_track_memory_pages(
+                        &mut ext_manager,
+                        actor_id,
+                        &context.actor_data().pages_with_data,
+                    ) {
+                        None => continue,
+                        Some(m) => m,
+                    };
 
-                        let code = Self::get_code(context.actor_data().code_id, actor_id)
-                            .unwrap_or_else(|| unreachable!("Program exists so do code"));
+                    let code = Self::get_code(context.actor_data().code_id, actor_id)
+                        .unwrap_or_else(|| unreachable!("Program exists so do code"));
 
-                        may_be_returned += may_be_returned_context
-                            .map(|c| {
-                                let burned = match core_processor::prepare(&block_config, c) {
-                                    PrepareResult::Ok(context) => {
-                                        context.gas_counter().burned()
-                                    }
-                                    _ => context.gas_counter().burned(),
-                                };
+                    may_be_returned += may_be_returned_context
+                        .map(|c| {
+                            let burned = match core_processor::prepare(&block_config, c) {
+                                PrepareResult::Ok(context) => context.gas_counter().burned(),
+                                _ => context.gas_counter().burned(),
+                            };
 
-                                context.gas_counter().burned() - burned
-                            })
-                            .unwrap_or(0);
+                            context.gas_counter().burned() - burned
+                        })
+                        .unwrap_or(0);
 
-                        let (random, bn) = T::Randomness::random(dispatch_id.as_ref());
-                        core_processor::process::<Ext, ExecutionEnvironment>(
-                            &block_config,
-                            (context, actor_id, code).into(),
-                            (random.encode(), bn.unique_saturated_into()),
-                            memory_pages,
-                        )
-                    }
-                    PrepareResult::WontExecute(journal) | PrepareResult::Error(journal) => {
-                        journal
-                    }
-                };
+                    let (random, bn) = T::Randomness::random(dispatch_id.as_ref());
+                    core_processor::process::<Ext, ExecutionEnvironment>(
+                        &block_config,
+                        (context, actor_id, code).into(),
+                        (random.encode(), bn.unique_saturated_into()),
+                        memory_pages,
+                    )
+                }
+                PrepareResult::WontExecute(journal) | PrepareResult::Error(journal) => journal,
+            };
 
             let get_main_limit = || GasHandlerOf::<T>::get_limit(main_message_id).ok();
 
@@ -257,9 +246,7 @@ where
                         outcome: CoreDispatchOutcome::MessageTrap { trap, program_id },
                         ..
                     } if program_id == main_program_id || !allow_other_panics => {
-                        return Err(
-                            format!("Program terminated with a trap: {trap}").into_bytes()
-                        );
+                        return Err(format!("Program terminated with a trap: {trap}").into_bytes());
                     }
 
                     _ => (),
