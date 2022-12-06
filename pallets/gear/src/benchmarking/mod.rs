@@ -97,6 +97,7 @@ use sp_runtime::{
 use sp_std::prelude::*;
 
 const MAX_PAYLOAD_LEN: u32 = 16 * 64 * 1024;
+const MAX_PAYLOAD_LEN_KB: u32 = MAX_PAYLOAD_LEN / 1024;
 const MAX_PAGES: u32 = 512;
 
 /// How many batches we do per API benchmark.
@@ -686,7 +687,7 @@ benchmarks! {
     }
 
     gr_read_per_kb {
-        let n in 0 .. T::Schedule::get().limits.payload_len / 1024;
+        let n in 0 .. MAX_PAYLOAD_LEN_KB;
         let mut res = None;
         let exec = Benches::<T>::gr_read_per_kb(n)?;
     }: {
@@ -719,9 +720,9 @@ benchmarks! {
     }
 
     gr_random {
-        let r in 0 .. API_BENCHMARK_BATCHES;
+        let n in 0 .. API_BENCHMARK_BATCHES;
         let mut res = None;
-        let exec = Benches::<T>::gr_random(r)?;
+        let exec = Benches::<T>::gr_random(n)?;
     }: {
         res.replace(run_process(exec));
     }
@@ -752,7 +753,7 @@ benchmarks! {
     }
 
     gr_send_push_per_kb {
-        let n in 0 .. T::Schedule::get().limits.payload_len / 1024;
+        let n in 0 .. MAX_PAYLOAD_LEN_KB;
         let mut res = None;
         let exec = Benches::<T>::gr_send_push_per_kb(n)?;
     }: {
@@ -774,7 +775,7 @@ benchmarks! {
     }
 
     gr_send_commit_per_kb {
-        let n in 0 .. T::Schedule::get().limits.payload_len / 1024;
+        let n in 0 .. MAX_PAYLOAD_LEN_KB;
         let mut res = None;
         let exec = Benches::<T>::gr_send_commit_per_kb(n)?;
     }: {
@@ -796,7 +797,7 @@ benchmarks! {
     }
 
     gr_reservation_send_commit_per_kb {
-        let n in 0 .. T::Schedule::get().limits.payload_len / 1024;
+        let n in 0 .. MAX_PAYLOAD_LEN_KB;
         let mut res = None;
         let exec = Benches::<T>::gr_reservation_send_commit_per_kb(n)?;
     }: {
@@ -829,7 +830,7 @@ benchmarks! {
     }
 
     gr_reply_push_per_kb {
-        let n in 0 .. T::Schedule::get().limits.payload_len / 1024;
+        let n in 0 .. MAX_PAYLOAD_LEN_KB;
         let mut res = None;
         let exec = Benches::<T>::gr_reply_push_per_kb(n)?;
     }: {
@@ -906,7 +907,7 @@ benchmarks! {
     }
 
     gr_send_push_input_per_kb {
-        let n in 0 .. T::Schedule::get().limits.payload_len / 1024;
+        let n in 0 .. MAX_PAYLOAD_LEN_KB;
         let mut res = None;
         let exec = Benches::<T>::gr_send_push_input_per_kb(n)?;
     }: {
@@ -928,7 +929,7 @@ benchmarks! {
     }
 
     gr_debug_per_kb {
-        let n in 0 .. T::Schedule::get().limits.payload_len / 1024;
+        let n in 0 .. MAX_PAYLOAD_LEN_KB;
         let mut res = None;
         let exec = Benches::<T>::gr_debug_per_kb(n)?;
     }: {
@@ -1048,8 +1049,8 @@ benchmarks! {
     }
 
     gr_create_program_wgas_per_kb {
-        let p in 0 .. T::Schedule::get().limits.payload_len / 1024;
-        let s in 0 .. T::Schedule::get().limits.payload_len / 1024;
+        let p in 0 .. MAX_PAYLOAD_LEN_KB;
+        let s in 0 .. MAX_PAYLOAD_LEN_KB;
         let mut res = None;
         let exec = Benches::<T>::gr_create_program_wgas_per_kb(p, s)?;
     }: {

@@ -25,7 +25,6 @@ use crate::{
     error::{Result, SyscallError},
     ActorId, MessageId, ReservationId,
 };
-use gear_core_errors::ExtError;
 use gsys::{BlockNumberWithHash, LengthWithGas, LengthWithHash};
 
 /// Get the current block height.
@@ -406,15 +405,10 @@ pub fn origin() -> ActorId {
 ///     let (seed, block_number) = exec::random(b"my context").expect("Error in random");
 /// }
 /// ```
-pub fn random(subject: &[u8]) -> Result<([u8; 32], u32)> {
+pub fn random(subject: [u8; 32]) -> Result<([u8; 32], u32)> {
     let mut res: BlockNumberWithHash = Default::default();
 
-    let subject_len = subject
-        .len()
-        .try_into()
-        .map_err(|_| ExtError::SyscallUsage)?;
-
-    unsafe { gsys::gr_random(subject.as_ptr(), subject_len, res.as_mut_ptr()) };
+    unsafe { gsys::gr_random(subject.as_ptr(), res.as_mut_ptr()) };
 
     Ok((res.hash, res.bn))
 }

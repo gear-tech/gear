@@ -86,7 +86,7 @@ pub enum Kind {
     // Expected(amount)
     Unreserve(u64),
     // Param(salt), Expected(hash, block number)
-    Random(Vec<u8>, ([u8; 32], u32)),
+    Random([u8; 32], ([u8; 32], u32)),
     // Expected(lower bound, upper bound )-> estimated gas level
     GasAvailable(u64, u64),
     // Expected(message id)
@@ -371,7 +371,7 @@ mod wasm {
             }
             Kind::Random(salt, (expected_hash, expected_bn)) => {
                 let (actual_hash, actual_bn) =
-                    exec::random(&salt).expect("internal error: random call failed");
+                    exec::random(salt).expect("internal error: random call failed");
                 assert_eq!(expected_hash, actual_hash, "Kind::Random: hash test failed");
                 assert_eq!(expected_bn, actual_bn, "Kind::Random: bn test failed");
             }

@@ -46,7 +46,7 @@ use gear_wasm_instrument::syscalls::SysCallName;
 use super::buffer::LimitedVec;
 
 /// Max payload size which one message can have (8 MiB).
-const MAX_PAYLOAD_SIZE: usize = 8 * 1024 * 1024;
+pub const MAX_PAYLOAD_SIZE: usize = 8 * 1024 * 1024;
 
 /// Payload size exceed error
 #[derive(

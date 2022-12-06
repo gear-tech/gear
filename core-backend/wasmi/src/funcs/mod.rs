@@ -43,7 +43,7 @@ use gear_core::{
 use gear_core_errors::{CoreError, MemoryError};
 use gear_wasm_instrument::{GLOBAL_NAME_ALLOWANCE, GLOBAL_NAME_GAS};
 use gsys::{
-    BlockNumberWithHash, HashWithValue, LengthWithCode, LengthWithGas, LengthWithHandle,
+    BlockNumberWithHash, Hash, HashWithValue, LengthWithCode, LengthWithGas, LengthWithHandle,
     LengthWithHash, LengthWithTwoHashes, TwoHashesWithValue,
 };
 use wasmi::{
@@ -1598,33 +1598,30 @@ where
     pub fn random(store: &mut Store<HostState<E>>, forbidden: bool, memory: WasmiMemory) -> Func {
         let func = move |caller: Caller<'_, HostState<E>>,
                          subject_ptr: u32,
-                         len: u32,
                          bn_random_ptr: u32|
               -> EmptyOutput {
             let mut caller = CallerWrap::prepare(caller, forbidden)?;
 
-            let mut subject = RuntimeBuffer::try_new_default(len as usize).map_err(|e| {
-                caller.host_state_mut().err = FuncError::RuntimeBufferSize(e);
-                Trap::from(TrapCode::Unreachable)
+            let raw_subject = caller.read(&memory, |mem_ref| {
+                mem_ref.read_memory_decoded::<Hash>(subject_ptr)
             })?;
 
-            caller.read(&memory, |mem_ref| {
-                mem_ref.read(subject_ptr as usize, subject.get_mut())
-            })?;
+            let call_result = caller.host_state_mut().ext.random();
+            let (random, bn) = match call_result {
+                Ok((random, bn)) => (random, bn),
+                Err(e) => {
+                    caller.host_state_mut().err = FuncError::Core(e);
+                    return Err(Trap::from(TrapCode::Unreachable));
+                }
+            };
 
-            let (random, bn) = caller.host_state_mut().ext.random();
-
-            subject.try_extend_from_slice(random).map_err(|e| {
-                caller.host_state_mut().err = FuncError::RuntimeBufferSize(e);
-                Trap::from(TrapCode::Unreachable)
-            })?;
-
+            let subject = [&raw_subject, random].concat();
             caller.call_infallible(
                 &memory,
                 |_ext| Ok(()),
                 |_res, mut mem_ref| {
                     let mut hash = [0; 32];
-                    hash.copy_from_slice(blake2b(32, &[], subject.get()).as_bytes());
+                    hash.copy_from_slice(blake2b(32, &[], &subject).as_bytes());
 
                     mem_ref.write_memory_as(bn_random_ptr, BlockNumberWithHash { bn, hash })
                 },
