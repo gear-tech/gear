@@ -51,12 +51,15 @@ mod task;
 pub use journal::*;
 pub use task::*;
 
-use crate::{Config, CurrencyOf, GasHandlerOf, GearProgramPallet, Pallet, QueueOf, TaskPoolOf};
+use crate::{
+    Config, CostsPerBlockOf, CurrencyOf, GasHandlerOf, GearProgramPallet, Pallet, QueueOf,
+    TaskPoolOf,
+};
 use codec::{Decode, Encode};
 use common::{
     event::*,
-    scheduler::{ScheduledTask, TaskHandler, TaskPool},
-    storage::Queue,
+    scheduler::{ScheduledTask, SchedulingCostsPerBlock, TaskHandler, TaskPool},
+    storage::{Interval, Queue},
     ActiveProgram, CodeStorage, GasTree, Origin, ProgramState,
 };
 use core::fmt;
@@ -85,6 +88,7 @@ pub enum HandleKind {
     InitByHash(CodeId),
     Handle(ProgramId),
     Reply(MessageId, StatusCode),
+    Signal(MessageId, StatusCode),
 }
 
 impl fmt::Debug for HandleKind {
@@ -94,6 +98,7 @@ impl fmt::Debug for HandleKind {
             HandleKind::InitByHash(id) => f.debug_tuple("InitByHash").field(id).finish(),
             HandleKind::Handle(id) => f.debug_tuple("Handle").field(id).finish(),
             HandleKind::Reply(id, code) => f.debug_tuple("Reply").field(id).field(code).finish(),
+            HandleKind::Signal(id, code) => f.debug_tuple("Signal").field(id).field(code).finish(),
         }
     }
 }
@@ -276,13 +281,13 @@ where
             );
 
             let _ = TaskPoolOf::<T>::delete(
-                BlockNumberFor::<T>::from(reservation_slot.expiration),
+                BlockNumberFor::<T>::from(reservation_slot.finish),
                 ScheduledTask::RemoveGasReservation(program_id, reservation_id),
             );
         }
     }
 
-    pub fn remove_gas_reservation(
+    pub fn remove_gas_reservation_impl(
         program_id: ProgramId,
         reservation_id: ReservationId,
     ) -> GasReservationSlot {
@@ -304,9 +309,19 @@ where
             });
         common::set_program(program_id, prog);
 
-        // TODO: uncomment lines below and charge for holding (issue #1830).
-        // GasHandlerOf::<T>::unlock_all(reservation_id)
-        //     .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
+        GasHandlerOf::<T>::unlock_all(reservation_id)
+            .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
+
+        let interval = Interval {
+            start: BlockNumberFor::<T>::from(slot.start),
+            finish: BlockNumberFor::<T>::from(slot.finish),
+        };
+
+        Pallet::<T>::charge_for_hold(
+            reservation_id,
+            interval,
+            CostsPerBlockOf::<T>::reservation(),
+        );
 
         Pallet::<T>::consume_and_retrieve(reservation_id);
 
@@ -326,7 +341,7 @@ where
 
             // Creating signal message.
             let trap_signal = SignalMessage::new(message_id, core_processor::ERR_STATUS_CODE)
-                .into_dispatch(destination)
+                .into_dispatch(message_id, destination)
                 .into_stored();
 
             // Splitting gas for newly created reply message.

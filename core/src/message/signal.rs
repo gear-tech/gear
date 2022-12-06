@@ -41,7 +41,7 @@ impl SignalMessage {
     }
 
     /// Convert [`SignalMessage`] into [`Message`].
-    pub fn into_message(self, destination: ProgramId) -> Message {
+    pub fn into_message(self, origin_msg_id: MessageId, destination: ProgramId) -> Message {
         Message::new(
             self.id,
             ProgramId::SYSTEM,
@@ -49,13 +49,16 @@ impl SignalMessage {
             Default::default(),
             None,
             0,
-            Some(SignalDetails::new(self.id, self.status_code).into()),
+            Some(SignalDetails::new(origin_msg_id, self.status_code).into()),
         )
     }
 
     /// Convert [`SignalMessage`] into [`Dispatch`].
-    pub fn into_dispatch(self, destination: ProgramId) -> Dispatch {
-        Dispatch::new(DispatchKind::Signal, self.into_message(destination))
+    pub fn into_dispatch(self, origin_msg_id: MessageId, destination: ProgramId) -> Dispatch {
+        Dispatch::new(
+            DispatchKind::Signal,
+            self.into_message(origin_msg_id, destination),
+        )
     }
 
     /// Message id.

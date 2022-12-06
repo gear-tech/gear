@@ -58,6 +58,7 @@ pub enum SysCallName {
     // Message data related
     Read,
     ReplyTo,
+    SignalFrom,
     Size,
     StatusCode,
     MessageId,
@@ -123,6 +124,7 @@ impl SysCallName {
             SysCallName::ReplyCommitWGas => "gr_reply_commit_wgas",
             SysCallName::ReplyPush => "gr_reply_push",
             SysCallName::ReplyTo => "gr_reply_to",
+            SysCallName::SignalFrom => "gr_signal_from",
             SysCallName::ReplyWGas => "gr_reply_wgas",
             SysCallName::ReplyInput => "gr_reply_input",
             SysCallName::ReplyPushInput => "gr_reply_push_input",

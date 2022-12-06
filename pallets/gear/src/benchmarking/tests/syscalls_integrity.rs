@@ -57,6 +57,7 @@ where
             SysCallName::ReplyCommit => check_reply_raw::<T>(None),
             SysCallName::ReplyCommitWGas => check_reply_raw::<T>(Some(25_000_000_000)),
             SysCallName::ReplyTo => check_reply_details::<T>(),
+            SysCallName::SignalFrom => check_signal_details::<T>(),
             SysCallName::ReplyPush => {/* skipped, due to test being run in SendCommit* variants */},
             SysCallName::ReplyInput => check_reply_input::<T>(None),
             SysCallName::ReplyPushInput => check_reply_push_input::<T>(),
@@ -624,6 +625,43 @@ where
     });
 }
 
+// Tests `gr_signal_from` and `gr_status_code`
+fn check_signal_details<T>()
+where
+    T: Config,
+    T::AccountId: Origin,
+{
+    run_tester::<T, _, _, T::AccountId>(|tester_pid, _| {
+        let default_sender = utils::default_account::<T::AccountId>();
+        let next_user_mid = utils::get_next_message_id::<T>(default_sender.clone());
+        let expected_mid = MessageId::generate_reply(next_user_mid, 0);
+
+        // setup signal details
+        Gear::<T>::send_message(
+            RawOrigin::Signed(default_sender.clone()).into(),
+            tester_pid,
+            Kind::SignalDetails.encode(),
+            50_000_000_000,
+            0u128.unique_saturated_into(),
+        )
+        .expect("triggering message send to mailbox failed");
+
+        utils::run_to_next_block::<T>(None);
+
+        let reply_to = MailboxOf::<T>::iter_key(default_sender)
+            .last()
+            .map(|(m, _)| m)
+            .expect("no mail found after invoking sys-call test program");
+
+        assert_eq!(reply_to.id(), expected_mid, "mailbox check failed");
+
+        let mp = MessageParamsBuilder::new(Kind::SignalDetailsWake.encode())
+            .with_reply_id(reply_to.id());
+
+        (TestCall::send_reply(mp), None::<DefaultPostCheck>)
+    });
+}
+
 fn check_gr_block_height<T>()
 where
     T: Config,
@@ -756,13 +794,13 @@ where
         #[cfg(feature = "std")]
         let expected_bn = expected_bn + One::one();
 
-        let salt = vec![1, 2, 3];
+        let salt = [1; 32];
         let expected_hash = {
             // Internals of the gr_random call
-            let mut salt_clone = salt.clone();
-            salt_clone.extend_from_slice(random.as_ref());
+            let mut salt_vec = salt.to_vec();
+            salt_vec.extend_from_slice(random.as_ref());
 
-            sp_io::hashing::blake2_256(&salt_clone)
+            sp_io::hashing::blake2_256(&salt_vec)
         };
 
         let mp = Kind::Random(salt, (expected_hash, expected_bn.unique_saturated_into()))

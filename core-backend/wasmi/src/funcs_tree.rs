@@ -96,6 +96,9 @@ where
             F::reply_commit_wgas(store, forbidden, memory)
         }),
         f.build(ReplyTo, |forbidden| F::reply_to(store, forbidden, memory)),
+        f.build(SignalFrom, |forbidden| {
+            F::signal_from(store, forbidden, memory)
+        }),
         f.build(ReplyPush, |forbidden| {
             F::reply_push(store, forbidden, memory)
         }),

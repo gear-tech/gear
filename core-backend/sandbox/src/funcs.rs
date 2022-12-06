@@ -39,7 +39,7 @@ use gear_core::{
 };
 use gear_core_errors::{CoreError, MemoryError};
 use gsys::{
-    BlockNumberWithHash, HashWithValue, LengthWithCode, LengthWithGas, LengthWithHandle,
+    BlockNumberWithHash, Hash, HashWithValue, LengthWithCode, LengthWithGas, LengthWithHandle,
     LengthWithHash, LengthWithTwoHashes, TwoHashesWithValue,
 };
 use sp_sandbox::{HostError, ReturnValue, Value};
@@ -451,17 +451,16 @@ where
     pub fn random(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
         sys_trace!(target: "syscall::gear", "random, args = {}", args_to_str(args));
 
-        let (subject_ptr, len, bn_random_ptr): (_, u32, _) = args.iter().read_3()?;
+        let (subject_ptr, bn_random_ptr): (_, _) = args.iter().read_2()?;
 
         ctx.run(|ctx| {
-            let mut subject = RuntimeBuffer::try_new_default(len as usize)?;
-            ctx.read_memory_into_buf(subject_ptr, subject.get_mut())?;
+            let raw_subject: Hash = ctx.read_memory_decoded(subject_ptr)?;
 
-            let (random, bn) = ctx.ext.random();
-            subject.try_extend_from_slice(random)?;
+            let (random, bn) = ctx.ext.random().map_err(FuncError::Core)?;
+            let subject = [&raw_subject, random].concat();
 
             let mut hash = [0; 32];
-            hash.copy_from_slice(blake2b(32, &[], subject.get()).as_bytes());
+            hash.copy_from_slice(blake2b(32, &[], &subject).as_bytes());
 
             ctx.write_memory_as(bn_random_ptr, BlockNumberWithHash { bn, hash })
                 .map_err(Into::into)
@@ -608,6 +607,20 @@ where
         ctx.run(|ctx| {
             ctx.ext
                 .reply_to()
+                .process_error()
+                .map_err(FuncError::Core)?
+                .proc_res(|res| ctx.write_memory_as(err_mid_ptr, LengthWithHash::from(res)))
+        })
+    }
+
+    pub fn signal_from(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
+        sys_trace!(target: "syscall::gear", "signal_from, args = {}", args_to_str(args));
+
+        let err_mid_ptr = args.iter().read()?;
+
+        ctx.run(|ctx| {
+            ctx.ext
+                .signal_from()
                 .process_error()
                 .map_err(FuncError::Core)?
                 .proc_res(|res| ctx.write_memory_as(err_mid_ptr, LengthWithHash::from(res)))

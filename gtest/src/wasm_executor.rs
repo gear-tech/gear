@@ -187,6 +187,7 @@ impl WasmExecutor {
                     WRITE_COST * 4,
                     WRITE_COST * 3,
                     WRITE_COST * 2,
+                    WRITE_COST * 2,
                     1024,
                 ),
             ),

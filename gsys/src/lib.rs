@@ -378,9 +378,8 @@ extern "C" {
     ///
     /// Arguments type:
     /// - `subject`: `const ptr` for the begging of the payload buffer.
-    /// - `len`: `u32` length of the subject buffer.
     /// - `bn_random`: `mut ptr` for concatenated block number with hash.
-    pub fn gr_random(subject: *const BufferStart, len: Length, bn_random: *mut BlockNumberWithHash);
+    pub fn gr_random(subject: *const BufferStart, bn_random: *mut BlockNumberWithHash);
 
     // TODO: issue #1859
     /// Fallible `gr_read` get syscall.
@@ -437,6 +436,12 @@ extern "C" {
     /// Arguments type:
     /// - `err_mid`: `mut ptr` for concatenated error length and message id.
     pub fn gr_reply_to(err_mid: *mut LengthWithHash);
+
+    /// Fallible `gr_signal_from` get syscall.
+    ///
+    /// Arguments type:
+    /// - `err_mid`: `mut ptr` for concatenated error length and message id.
+    pub fn gr_signal_from(err_mid: *mut LengthWithHash);
 
     /// Fallible `gr_reply_input_wgas` send syscall.
     ///

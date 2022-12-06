@@ -34,8 +34,10 @@ pub enum HandleAction {
     Wait,
     WaitAndPanic,
     WaitAndReserveWithPanic,
-    Panic,
+    WaitAndExit,
     WaitWithReserveAmountAndPanic(u64),
+    Panic,
+    Exit,
     Accumulate,
     OutOfGas,
     PanicInSignal,
@@ -55,8 +57,9 @@ mod wasm {
     };
 
     static mut INITIATOR: ActorId = ActorId::zero();
-    static mut HANDLE_MSG: MessageId = MessageId::new([0; 32]);
+    static mut HANDLE_MSG: Option<MessageId> = None;
     static mut DO_PANIC: bool = false;
+    static mut DO_EXIT: bool = false;
     static mut HANDLE_SIGNAL_STATE: HandleSignalState = HandleSignalState::Normal;
 
     enum HandleSignalState {
@@ -72,7 +75,7 @@ mod wasm {
 
     #[no_mangle]
     unsafe extern "C" fn handle() {
-        HANDLE_MSG = msg::id();
+        HANDLE_MSG = Some(msg::id());
 
         let action: HandleAction = msg::load().unwrap();
         match action {
@@ -111,6 +114,19 @@ mod wasm {
                 msg::reply(0, 0).unwrap();
                 exec::wait();
             }
+            HandleAction::WaitAndExit => {
+                if DO_EXIT {
+                    msg::send_bytes(msg::source(), b"wait_and_exit", 0).unwrap();
+                    exec::exit(msg::source());
+                }
+
+                DO_EXIT = !DO_EXIT;
+
+                exec::system_reserve_gas(900).unwrap();
+                // used to found message id in test
+                msg::reply(0, 0).unwrap();
+                exec::wait();
+            }
             HandleAction::Panic => {
                 exec::system_reserve_gas(5_000_000_000).unwrap();
                 panic!();
@@ -126,6 +142,11 @@ mod wasm {
                 // used to found message id in test
                 msg::reply(0, 0).unwrap();
                 exec::wait();
+            }
+            HandleAction::Exit => {
+                exec::system_reserve_gas(4_000_000_000).unwrap();
+                msg::reply_bytes(b"exit", 0).unwrap();
+                exec::exit(msg::source());
             }
             HandleAction::Accumulate => {
                 exec::system_reserve_gas(1000).unwrap();
@@ -172,7 +193,11 @@ mod wasm {
         match HANDLE_SIGNAL_STATE {
             HandleSignalState::Normal => {
                 msg::send(INITIATOR, b"handle_signal", 0).unwrap();
-                assert_eq!(msg::status_code().unwrap(), 1);
+                assert_eq!(msg::status_code(), Ok(1));
+
+                if let Some(handle_msg) = HANDLE_MSG {
+                    assert_eq!(msg::signal_from(), Ok(handle_msg));
+                }
 
                 // TODO: check gas limit (#1796)
                 // assert_eq!(msg::gas_limit(), 5_000_000_000);
@@ -191,7 +216,8 @@ mod wasm {
 
     #[no_mangle]
     unsafe extern "C" fn handle_reply() {
-        exec::wake(HANDLE_MSG).unwrap();
+        let handle_msg = HANDLE_MSG.unwrap();
+        exec::wake(handle_msg).unwrap();
     }
 }
 
