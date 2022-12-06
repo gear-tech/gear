@@ -139,7 +139,6 @@ fn unstoppable_block_execution_works() {
     })
 }
 
-#[cfg(feature = "lazy-pages")]
 #[test]
 fn read_state_works() {
     use demo_meta::{MessageInitIn, Wallet, WASM_BINARY};
@@ -169,7 +168,6 @@ fn read_state_works() {
     });
 }
 
-#[cfg(feature = "lazy-pages")]
 #[test]
 fn read_state_using_wasm_works() {
     use demo_meta::{

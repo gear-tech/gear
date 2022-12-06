@@ -509,15 +509,14 @@ pub fn execute_for_reply<
 >(
     function: impl WasmEntry,
     instrumented_code: InstrumentedCode,
-    // TODO: consider support non-lazy-pages context execution
-    // pages_initial_data: Option<BTreeMap<PageNumber, PageBuf>>,
+    pages_initial_data: Option<BTreeMap<PageNumber, PageBuf>>,
     allocations: Option<BTreeSet<WasmPageNumber>>,
     program_id: Option<ProgramId>,
     payload: Vec<u8>,
     gas_limit: u64,
 ) -> Result<Vec<u8>, String> {
     let program = Program::new(program_id.unwrap_or_default(), instrumented_code);
-    let mut pages_initial_data: BTreeMap<PageNumber, PageBuf> = Default::default();
+    let mut pages_initial_data: BTreeMap<PageNumber, PageBuf> = pages_initial_data.unwrap_or_default();
     let static_pages = program.static_pages();
     let allocations = allocations.unwrap_or_else(|| program.allocations().clone());
 
@@ -529,7 +528,6 @@ pub fn execute_for_reply<
         0.into()
     };
 
-    // TODO: consider support of execution context
     let context = ProcessorContext {
         gas_counter: GasCounter::new(gas_limit),
         gas_allowance_counter: GasAllowanceCounter::new(gas_limit),

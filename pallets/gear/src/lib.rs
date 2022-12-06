@@ -757,9 +757,6 @@ pub mod pallet {
             #[cfg(feature = "lazy-pages")]
             assert!(lazy_pages::try_to_enable_lazy_pages());
 
-            #[cfg(not(feature = "lazy-pages"))]
-            unreachable!("Unsupported operation");
-
             let schedule = T::Schedule::get();
 
             if u32::try_from(wasm.len()).unwrap_or(u32::MAX) > schedule.limits.code_len {
@@ -791,6 +788,7 @@ pub mod pallet {
                 instrumented_code,
                 None,
                 None,
+                None,
                 payload,
                 BlockGasLimitOf::<T>::get() / 4,
             )
@@ -812,9 +810,9 @@ pub mod pallet {
                 })
         }
 
-        pub(crate) fn code_with_allocations(
+        pub(crate) fn code_with_memory(
             program_id: ProgramId,
-        ) -> Result<(InstrumentedCode, BTreeSet<WasmPageNumber>), String> {
+        ) -> Result<(InstrumentedCode, BTreeSet<WasmPageNumber>, Option<BTreeMap<PageNumber, PageBuf>>), String> {
             let program = common::get_active_program(program_id.into_origin())
                 .map_err(|e| format!("Get active program error: {e:?}"))?;
 
@@ -823,27 +821,28 @@ pub mod pallet {
             let code = Self::get_code(code_id, program_id)
                 .ok_or_else(|| String::from("Failed to get code for given program id"))?;
 
-            // TODO: for non-lazy pages context uncomment and return
-            // let program_pages = common::get_program_pages_data(program_id.into_origin(), &program)
-            //     .map_err(|e| format!("Get program pages data error: {e:?}"))?;
+            #[cfg(not(feature = "lazy-pages"))]
+            let program_pages = Some(common::get_program_pages_data(program_id.into_origin(), &program)
+                .map_err(|e| format!("Get program pages data error: {e:?}"))?);
 
-            Ok((code, program.allocations))
+            #[cfg(feature = "lazy-pages")]
+            let program_pages = None;
+
+            Ok((code, program.allocations, program_pages))
         }
 
         pub(crate) fn read_state_impl(program_id: ProgramId) -> Result<Vec<u8>, String> {
             #[cfg(feature = "lazy-pages")]
             assert!(lazy_pages::try_to_enable_lazy_pages());
 
-            #[cfg(not(feature = "lazy-pages"))]
-            unreachable!("Unsupported operation");
-
             log::debug!("Reading state of {program_id:?}");
 
-            let (code, allocations) = Self::code_with_allocations(program_id)?;
+            let (code, allocations, program_pages) = Self::code_with_memory(program_id)?;
 
             core_processor::informational::execute_for_reply::<Ext, ExecutionEnvironment>(
                 String::from("state"),
                 code,
+                program_pages,
                 Some(allocations),
                 Some(program_id),
                 Default::default(),
@@ -861,16 +860,14 @@ pub mod pallet {
             #[cfg(feature = "lazy-pages")]
             assert!(lazy_pages::try_to_enable_lazy_pages());
 
-            #[cfg(not(feature = "lazy-pages"))]
-            unreachable!("Unsupported operation");
-
             log::debug!("Reading metahash of {program_id:?}");
 
-            let (code, allocations) = Self::code_with_allocations(program_id)?;
+            let (code, allocations, program_pages) = Self::code_with_memory(program_id)?;
 
             core_processor::informational::execute_for_reply::<Ext, ExecutionEnvironment>(
                 String::from("metahash"),
                 code,
+                program_pages,
                 Some(allocations),
                 Some(program_id),
                 Default::default(),
