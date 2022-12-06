@@ -15,7 +15,7 @@ use common::{
 use core::{marker::PhantomData, mem, mem::size_of};
 use core_processor::{
     configs::{AllocationsConfig, BlockConfig, BlockInfo},
-    PrechargeResult, ContextChargedForInstrumentation,
+    ContextChargedForInstrumentation,
 };
 use frame_support::traits::{Currency, Get};
 use frame_system::RawOrigin;
@@ -219,22 +219,14 @@ where
     ).map_err(|_| "core_processor::precharge_for_program failed")?;
 
     let balance = actor.balance;
-    let context = match core_processor::precharge_for_code(&block_config, precharged_dispatch, actor_id, actor.executable_data) {
-        PrechargeResult::Ok(c) => c,
-        PrechargeResult::Error(_) => {
-            return Err("core_processor::precharge_for_code failed");
-        }
-    };
+    let context = core_processor::precharge_for_code(&block_config, precharged_dispatch, actor_id, actor.executable_data)
+        .map_err(|_| "core_processor::precharge_for_code failed")?;
 
     let code = T::CodeStorage::get_code(context.actor_data().code_id)
         .ok_or("Program code not found")?;
 
-    let context = match core_processor::precharge_for_memory(&block_config, ContextChargedForInstrumentation::from(context), false) {
-        PrechargeResult::Ok(c) => c,
-        PrechargeResult::Error(_) => {
-            return Err("core_processor::precharge_for_code failed");
-        }
-    };
+    let context = core_processor::precharge_for_memory(&block_config, ContextChargedForInstrumentation::from(context), false)
+        .map_err(|_| "core_processor::precharge_for_memory failed")?;
 
     let origin = ProgramId::from_origin(source);
 
