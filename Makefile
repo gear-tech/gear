@@ -4,7 +4,7 @@ show:
 	@ ./scripts/gear.sh show
 
 .PHONY: pre-commit
-pre-commit: fmt clippy test # check-spec
+pre-commit: fmt clippy test-gear # check-spec
 
 .PHONY: check-spec
 check-spec:
@@ -216,7 +216,7 @@ purge-dev-chain-release:
 
 # Test section
 .PHONY: test
-test: test-gear test-js gtest # There should be no release builds (e.g. `rtest`) for fast checking.
+test: test-gear test-js gtest test-syscalls-integrity# There should be no release builds (e.g. `rtest`) for fast checking.
 
 .PHONY: test-doc
 test-doc:
@@ -268,6 +268,10 @@ test-runtime-upgrade: init-js examples node-release
 .PHONY: test-client
 test-client: node-release examples wat-examples
 	@ ./scripts/gear.sh test client --run-node
+
+.PHONY: test-syscalls-integrity
+test-syscalls-integrity:
+	@ ./scripts/gear.sh test syscalls
 
 # Misc section
 .PHONY: doc

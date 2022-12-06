@@ -408,6 +408,15 @@ impl EnvExt for Ext {
         self.return_and_store_err(result)
     }
 
+    fn send_push_input(&mut self, handle: u32, offset: u32, len: u32) -> Result<(), Self::Error> {
+        let range = self.context.message_context.check_input_range(offset, len);
+        self.charge_gas_runtime(RuntimeCosts::SendPushInput(range.len()))?;
+
+        let result = self.context.message_context.send_push_input(handle, range);
+
+        self.return_and_store_err(result)
+    }
+
     fn send_commit(
         &mut self,
         handle: u32,
@@ -518,6 +527,27 @@ impl EnvExt for Ext {
             .ok_or_else(|| MessageError::NoReplyContext.into())
     }
 
+    fn signal_from(&mut self) -> Result<MessageId, Self::Error> {
+        self.charge_gas_runtime(RuntimeCosts::SignalFrom)?;
+
+        self.context
+            .message_context
+            .current()
+            .details()
+            .and_then(|d| d.to_signal_details())
+            .map(|d| d.from())
+            .ok_or_else(|| MessageError::NoSignalContext.into())
+    }
+
+    fn reply_push_input(&mut self, offset: u32, len: u32) -> Result<(), Self::Error> {
+        let range = self.context.message_context.check_input_range(offset, len);
+        self.charge_gas_runtime(RuntimeCosts::ReplyPushInput(range.len()))?;
+
+        let result = self.context.message_context.reply_push_input(range);
+
+        self.return_and_store_err(result)
+    }
+
     fn source(&mut self) -> Result<ProgramId, Self::Error> {
         self.charge_gas_runtime(RuntimeCosts::Source)?;
         Ok(self.context.message_context.current().source())
@@ -569,6 +599,12 @@ impl EnvExt for Ext {
             self.error_explanation = Some(ProcessorError::Panic(data.to_string()));
         }
         log::debug!(target: "gwasm", "DEBUG: {}", data);
+
+        Ok(())
+    }
+
+    fn charge_error(&mut self) -> Result<(), Self::Error> {
+        self.charge_gas_runtime(RuntimeCosts::Error)?;
 
         Ok(())
     }

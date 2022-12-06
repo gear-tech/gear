@@ -217,8 +217,7 @@ pub fn do_optimization(
             .trim();
         panic!(
             "The wasm-opt optimization failed.\n\n\
-            The error which wasm-opt returned was: \n{}",
-            err
+            The error which wasm-opt returned was: \n{err}"
         );
     }
     Ok(())

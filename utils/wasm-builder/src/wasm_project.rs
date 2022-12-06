@@ -128,9 +128,13 @@ impl WasmProject {
         release_profile.insert("lto".into(), true.into());
         release_profile.insert("opt-level".into(), "s".into());
 
+        let mut production_profile = Table::new();
+        production_profile.insert("inherits".into(), "release".into());
+
         let mut profile = Table::new();
         profile.insert("dev".into(), release_profile.clone().into());
         profile.insert("release".into(), release_profile.into());
+        profile.insert("production".into(), production_profile.into());
 
         let mut crate_package = Table::new();
         crate_package.insert("package".into(), crate_info.name.into());

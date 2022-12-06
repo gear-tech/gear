@@ -68,6 +68,7 @@ use gear_core::{
 use gear_core_errors::*;
 use sp_runtime::{traits::UniqueSaturatedInto, SaturatedConversion};
 use sp_std::convert::TryFrom;
+pub use utils::init_logger;
 use utils::*;
 
 #[test]
@@ -1459,10 +1460,8 @@ fn initial_pages_cheaper_than_allocated_pages() {
         let spent_for_initial_pages = gas_spent(wat_initial);
         let spent_for_allocated_pages = gas_spent(wat_alloc);
         assert!(
-            spent_for_initial_pages < spent_for_allocated_pages,
-            "spent {} gas for initial pages, spent {} gas for allocated pages",
-            spent_for_initial_pages,
-            spent_for_allocated_pages
+            spent_for_initial_pages < spent_for_allocated_pages, "{}",
+            "spent {spent_for_initial_pages} gas for initial pages, spent {spent_for_allocated_pages} gas for allocated pages",
         );
     });
 }
@@ -7071,6 +7070,53 @@ fn system_reservation_zero_amount_panics() {
     });
 }
 
+#[test]
+fn custom_async_entrypoint_works() {
+    use demo_async_custom_entry::WASM_BINARY;
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            USER_1.encode(),
+            10_000_000_000,
+            0,
+        ));
+
+        let pid = get_last_program_id();
+
+        run_to_block(2, None);
+
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            pid,
+            EMPTY_PAYLOAD.to_vec(),
+            10_000_000_000,
+            0,
+        ));
+
+        run_to_block(3, None);
+
+        let msg = get_last_mail(USER_1);
+        assert_eq!(msg.payload(), b"my_handle_signal");
+
+        assert_ok!(Gear::send_reply(
+            RuntimeOrigin::signed(USER_1),
+            msg.id(),
+            EMPTY_PAYLOAD.to_vec(),
+            10_000_000_000,
+            0
+        ));
+
+        run_to_block(4, None);
+
+        let msg = get_last_mail(USER_1);
+        assert_eq!(msg.payload(), b"my_handle_reply");
+    });
+}
+
 mod utils {
     #![allow(unused)]
 
@@ -7079,13 +7125,13 @@ mod utils {
     };
     use crate::{
         mock::{Balances, Gear, System},
-        BalanceOf, GasInfo, HandleKind,
+        BalanceOf, GasInfo, HandleKind, SentOf,
     };
     use codec::Decode;
     use common::{
         event::*,
-        storage::{CountedByKey, IterableByKeyMap},
-        Origin as _,
+        storage::{CountedByKey, Counter, IterableByKeyMap},
+        Origin,
     };
     use core_processor::common::ExecutionErrorReason;
     use frame_support::{
@@ -7115,7 +7161,11 @@ mod utils {
 
     type BlockNumber = <Test as frame_system::Config>::BlockNumber;
 
-    pub(super) fn init_logger() {
+    pub(super) fn hash(data: impl AsRef<[u8]>) -> [u8; 32] {
+        sp_core::blake2_256(data.as_ref())
+    }
+
+    pub fn init_logger() {
         let _ = env_logger::Builder::from_default_env()
             .format_module_path(false)
             .format_level(true)
@@ -7984,4 +8034,172 @@ fn check_random_works() {
         // println!("{:?}", res);
         // assert_eq!(blake2b(32, &[], &output.0.encode()).as_bytes(), res.payload());
     });
+}
+
+#[test]
+fn relay_messages() {
+    use demo_proxy_relay::{RelayCall, ResendPushData, WASM_BINARY};
+
+    struct Expected {
+        user: AccountId,
+        payload: Vec<u8>,
+    }
+
+    let source = USER_1;
+
+    init_logger();
+    let test = |relay_call: RelayCall, payload: &[u8], expected: Vec<Expected>| {
+        let execute = || {
+            System::reset_events();
+
+            let label = format!("{relay_call:?}");
+            assert!(
+                Gear::upload_program(
+                    RuntimeOrigin::signed(source),
+                    WASM_BINARY.to_vec(),
+                    vec![],
+                    relay_call.encode(),
+                    50_000_000_000u64,
+                    0u128
+                )
+                .is_ok(),
+                "{}",
+                label
+            );
+
+            let proxy = utils::get_last_program_id();
+
+            run_to_next_block(None);
+
+            assert!(Gear::is_active(proxy), "{}", label);
+
+            assert!(
+                Gear::send_message(
+                    RuntimeOrigin::signed(source),
+                    proxy,
+                    payload.to_vec(),
+                    DEFAULT_GAS_LIMIT * 10,
+                    0,
+                )
+                .is_ok(),
+                "{}",
+                label
+            );
+
+            run_to_next_block(None);
+
+            for Expected { user, payload } in expected {
+                assert_eq!(
+                    MailboxOf::<Test>::drain_key(user)
+                        .next()
+                        .map(|(msg, _bn)| msg.payload().to_vec()),
+                    Some(payload),
+                    "{label}",
+                );
+            }
+        };
+
+        new_test_ext().execute_with(execute);
+    };
+
+    let payload = b"Hi, USER_2! Ping USER_3.";
+    let relay_call = RelayCall::ResendPush(vec![
+        // "Hi, USER_2!"
+        ResendPushData {
+            destination: USER_2.into(),
+            start: None,
+            end: Some((10, true)),
+        },
+        // the same but end index specified in another way
+        ResendPushData {
+            destination: USER_2.into(),
+            start: None,
+            end: Some((11, false)),
+        },
+        // "Ping USER_3."
+        ResendPushData {
+            destination: USER_3.into(),
+            start: Some(12),
+            end: None,
+        },
+        // invalid range
+        ResendPushData {
+            destination: USER_3.into(),
+            start: Some(2),
+            end: Some((0, true)),
+        },
+        // invalid range
+        ResendPushData {
+            destination: USER_3.into(),
+            start: Some(payload.len() as u32),
+            end: Some((0, false)),
+        },
+    ]);
+
+    let expected = vec![
+        Expected {
+            user: USER_2,
+            payload: payload[..11].to_vec(),
+        },
+        Expected {
+            user: USER_2,
+            payload: payload[..11].to_vec(),
+        },
+        Expected {
+            user: USER_3,
+            payload: payload[12..].to_vec(),
+        },
+        Expected {
+            user: USER_3,
+            payload: vec![],
+        },
+        Expected {
+            user: USER_3,
+            payload: vec![],
+        },
+    ];
+
+    test(relay_call, payload, expected);
+
+    test(
+        RelayCall::Resend(USER_3.into()),
+        payload,
+        vec![Expected {
+            user: USER_3,
+            payload: payload.to_vec(),
+        }],
+    );
+    test(
+        RelayCall::ResendWithGas(USER_3.into(), 50_000),
+        payload,
+        vec![Expected {
+            user: USER_3,
+            payload: payload.to_vec(),
+        }],
+    );
+
+    test(
+        RelayCall::Rereply,
+        payload,
+        vec![Expected {
+            user: source,
+            payload: payload.to_vec(),
+        }],
+    );
+    test(
+        RelayCall::RereplyPush,
+        payload,
+        vec![Expected {
+            user: source,
+            payload: payload.to_vec(),
+        }],
+    );
+    test(
+        RelayCall::RereplyWithGas(60_000),
+        payload,
+        vec![Expected {
+            user: source,
+            payload: payload.to_vec(),
+        }],
+    );
 }

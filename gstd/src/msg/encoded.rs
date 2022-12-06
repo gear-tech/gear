@@ -22,9 +22,9 @@
 
 use crate::{
     async_runtime::signals,
-    errors::{ContractError, Result},
-    msg::r#async::{CodecMessageFuture, MessageFuture},
-    prelude::convert::AsRef,
+    errors::{ContractError, IntoContractResult, Result},
+    msg::{utils, CodecMessageFuture, MessageFuture},
+    prelude::{convert::AsRef, ops::RangeBounds},
     ActorId, MessageId, ReservationId,
 };
 use codec::{Decode, Encode};
@@ -124,6 +124,103 @@ pub fn reply_with_gas_delayed<E: Encode>(
     delay: u32,
 ) -> Result<MessageId> {
     super::reply_bytes_with_gas_delayed(payload.encode(), gas_limit, value, delay)
+}
+
+/// Relays the incoming payload as a reply to the message currently being
+/// processed.
+#[wait_for_reply]
+pub fn reply_input<Range: RangeBounds<usize>>(value: u128, range: Range) -> Result<MessageId> {
+    let (offset, len) = utils::decay_range(range);
+
+    gcore::msg::reply_input(value, offset, len).into_contract_result()
+}
+
+/// Same as [`reply_input`], but sends delayed.
+pub fn reply_input_delayed<Range: RangeBounds<usize>>(
+    value: u128,
+    range: Range,
+    delay: u32,
+) -> Result<MessageId> {
+    let (offset, len) = utils::decay_range(range);
+
+    gcore::msg::reply_input_delayed(value, offset, len, delay).into_contract_result()
+}
+
+/// Same as [`reply_input_delayed`], but with explicit gas limit.
+#[wait_for_reply]
+pub fn reply_input_with_gas<Range: RangeBounds<usize>>(
+    gas_limit: u64,
+    value: u128,
+    range: Range,
+) -> Result<MessageId> {
+    let (offset, len) = utils::decay_range(range);
+
+    gcore::msg::reply_input_with_gas(gas_limit, value, offset, len).into_contract_result()
+}
+
+/// Same as [`reply_input_with_gas`], but sends delayed.
+pub fn reply_input_with_gas_delayed<Range: RangeBounds<usize>>(
+    gas_limit: u64,
+    value: u128,
+    range: Range,
+    delay: u32,
+) -> Result<MessageId> {
+    let (offset, len) = utils::decay_range(range);
+
+    gcore::msg::reply_input_with_gas_delayed(gas_limit, value, offset, len, delay)
+        .into_contract_result()
+}
+
+/// Resend the incoming message to the program or user.
+#[wait_for_reply]
+pub fn send_input<Range: RangeBounds<usize>>(
+    program: ActorId,
+    value: u128,
+    range: Range,
+) -> Result<MessageId> {
+    let (offset, len) = utils::decay_range(range);
+
+    gcore::msg::send_input(program.into(), value, offset, len).into_contract_result()
+}
+
+/// Same as [`send_input`], but sends delayed.
+pub fn send_input_delayed<Range: RangeBounds<usize>>(
+    program: ActorId,
+    value: u128,
+    range: Range,
+    delay: u32,
+) -> Result<MessageId> {
+    let (offset, len) = utils::decay_range(range);
+
+    gcore::msg::send_input_delayed(program.into(), value, offset, len, delay).into_contract_result()
+}
+
+/// Same as [`send_input_delayed`], but with explicit gas limit.
+#[wait_for_reply]
+pub fn send_input_with_gas<Range: RangeBounds<usize>>(
+    program: ActorId,
+    gas_limit: u64,
+    value: u128,
+    range: Range,
+) -> Result<MessageId> {
+    let (offset, len) = utils::decay_range(range);
+
+    gcore::msg::send_input_with_gas(program.into(), gas_limit, value, offset, len)
+        .into_contract_result()
+}
+
+/// Same as [`send_input_with_gas`], but sends delayed.
+pub fn send_input_with_gas_delayed<Range: RangeBounds<usize>>(
+    program: ActorId,
+    gas_limit: u64,
+    value: u128,
+    range: Range,
+    delay: u32,
+) -> Result<MessageId> {
+    let (offset, len) = utils::decay_range(range);
+
+    gcore::msg::send_input_with_gas_delayed(program.into(), gas_limit, value, offset, len, delay)
+        .into_contract_result()
 }
 
 /// Send a new message to the program or user.

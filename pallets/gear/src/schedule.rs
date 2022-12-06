@@ -359,11 +359,29 @@ pub struct HostFnWeights<T: Config> {
     /// Weight of calling `gr_reply_to`.
     pub gr_reply_to: u64,
 
+    /// Weight of calling `gr_signal_from`.
+    pub gr_signal_from: u64,
+
+    /// Weight of calling `gr_reply_push_input`.
+    pub gr_reply_push_input: u64,
+
+    /// Weight per payload byte by `gr_reply_push_input`.
+    pub gr_reply_push_input_per_byte: u64,
+
+    /// Weight of calling `gr_send_push_input`.
+    pub gr_send_push_input: u64,
+
+    /// Weight per payload byte by `gr_send_push_input`.
+    pub gr_send_push_input_per_byte: u64,
+
     /// Weight of calling `gr_debug`.
     pub gr_debug: u64,
 
     /// Weight per payload byte by `gr_debug_per_byte`.
     pub gr_debug_per_byte: u64,
+
+    /// Weight of calling `gr_error`.
+    pub gr_error: u64,
 
     /// Weight of calling `gr_status_code`.
     pub gr_status_code: u64,
@@ -624,7 +642,9 @@ impl<T: Config> HostFnWeights<T> {
             gr_reply_push_per_byte: self.gr_reply_push_per_byte,
             gr_debug: self.gr_debug,
             gr_debug_per_byte: self.gr_debug_per_byte,
+            gr_error: self.gr_error,
             gr_reply_to: self.gr_reply_to,
+            gr_signal_from: self.gr_signal_from,
             gr_status_code: self.gr_status_code,
             gr_exit: self.gr_exit,
             gr_leave: self.gr_leave,
@@ -635,6 +655,10 @@ impl<T: Config> HostFnWeights<T> {
             gr_create_program_wgas: self.gr_create_program_wgas,
             gr_create_program_wgas_payload_per_byte: self.gr_create_program_wgas_payload_per_byte,
             gr_create_program_wgas_salt_per_byte: self.gr_create_program_wgas_salt_per_byte,
+            gr_send_push_input: self.gr_send_push_input,
+            gr_send_push_input_per_byte: self.gr_send_push_input_per_byte,
+            gr_reply_push_input: self.gr_reply_push_input,
+            gr_reply_push_input_per_byte: self.gr_reply_push_input_per_byte,
         }
     }
 }
@@ -675,7 +699,10 @@ impl<T: Config> Default for HostFnWeights<T> {
             gr_reply_push_per_byte: cost_byte_batched!(gr_reply_push_per_kb),
             gr_debug: cost_batched!(gr_debug),
             gr_debug_per_byte: cost_byte_batched!(gr_debug_per_kb),
+            // TODO: https://github.com/gear-tech/gear/issues/1846
+            gr_error: cost_batched!(gr_error),
             gr_reply_to: cost_batched!(gr_reply_to),
+            gr_signal_from: cost_batched!(gr_signal_from),
             gr_status_code: cost_batched!(gr_status_code),
             gr_exit: cost!(gr_exit),
             gr_leave: cost!(gr_leave),
@@ -694,6 +721,10 @@ impl<T: Config> Default for HostFnWeights<T> {
                 0,
                 1
             ),
+            gr_send_push_input: cost_batched!(gr_send_push_input),
+            gr_send_push_input_per_byte: cost_byte_batched!(gr_send_push_input_per_kb),
+            gr_reply_push_input: cost_batched!(gr_reply_push_input),
+            gr_reply_push_input_per_byte: cost_byte_batched!(gr_reply_push_input_per_kb),
             _phantom: PhantomData,
         }
     }

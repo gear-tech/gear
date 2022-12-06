@@ -495,10 +495,6 @@ pub fn reply_push(payload: &[u8]) -> Result<()> {
 /// function. Therefore, a program should call this function to obtain the
 /// original message identifier on which the reply has been posted.
 ///
-/// # Panics
-///
-/// Panics if called in a context other than `handle_reply`.
-///
 /// # Examples
 ///
 /// ```
@@ -506,13 +502,131 @@ pub fn reply_push(payload: &[u8]) -> Result<()> {
 ///
 /// #[no_mangle]
 /// extern "C" fn handle_reply() {
-///     let original_message_id = msg::reply_to();
+///     let original_message_id = msg::reply_to().unwrap();
 /// }
 /// ```
 pub fn reply_to() -> Result<MessageId> {
     let mut res: LengthWithHash = Default::default();
 
     unsafe { gsys::gr_reply_to(res.as_mut_ptr()) };
+    SyscallError(res.length).into_result()?;
+
+    Ok(MessageId(res.hash))
+}
+
+/// Get an identifier of the message which issued a signal.
+///
+/// The Gear program processes the signal using the `handle_signal`
+/// function. Therefore, a program should call this function to obtain the
+/// original message identifier which issued a signal.
+///
+/// # Examples
+///
+/// ```
+/// use gcore::msg;
+///
+/// #[no_mangle]
+/// extern "C" fn handle_signal() {
+///     let erroneous_message = msg::signal_from().unwrap();
+/// }
+/// ```
+pub fn signal_from() -> Result<MessageId> {
+    let mut res: LengthWithHash = Default::default();
+
+    unsafe { gsys::gr_signal_from(res.as_mut_ptr()) };
+    SyscallError(res.length).into_result()?;
+
+    Ok(MessageId(res.hash))
+}
+
+/// Same as [`reply`], but relays the incoming message payload.
+pub fn reply_input(value: u128, offset: u32, len: u32) -> Result<MessageId> {
+    reply_input_delayed(value, offset, len, 0)
+}
+
+/// Same as [`reply_input`], but sends delayed.
+pub fn reply_input_delayed(value: u128, offset: u32, len: u32, delay: u32) -> Result<MessageId> {
+    let mut res: LengthWithHash = Default::default();
+
+    let value_ptr = if value == 0 {
+        i32::MAX as *const u128
+    } else {
+        &value as *const u128
+    };
+
+    unsafe {
+        gsys::gr_reply_input(offset, len, value_ptr, delay, res.as_mut_ptr());
+    }
+
+    SyscallError(res.length).into_result()?;
+
+    Ok(MessageId(res.hash))
+}
+
+/// Same as [`reply_push`], but pushes the incoming message payload.
+pub fn reply_push_input(offset: u32, len: u32) -> Result<()> {
+    let mut result_len = 0u32;
+    unsafe { gsys::gr_reply_push_input(offset, len, &mut result_len as _) };
+    SyscallError(result_len).into_result()
+}
+
+/// Same as [`reply_input`], but with explicit gas limit.
+pub fn reply_input_with_gas(
+    gas_limit: u64,
+    value: u128,
+    offset: u32,
+    len: u32,
+) -> Result<MessageId> {
+    reply_input_with_gas_delayed(gas_limit, value, offset, len, 0)
+}
+
+/// Same as [`reply_input_with_gas`], but sends delayed.
+pub fn reply_input_with_gas_delayed(
+    gas_limit: u64,
+    value: u128,
+    offset: u32,
+    len: u32,
+    delay: u32,
+) -> Result<MessageId> {
+    let mut res: LengthWithHash = Default::default();
+
+    let value_ptr = if value == 0 {
+        i32::MAX as *const u128
+    } else {
+        &value as *const u128
+    };
+
+    unsafe {
+        gsys::gr_reply_input_wgas(offset, len, gas_limit, value_ptr, delay, res.as_mut_ptr());
+    }
+    SyscallError(res.length).into_result()?;
+
+    Ok(MessageId(res.hash))
+}
+
+/// Same as [`send`], but resends the incoming message.
+pub fn send_input(destination: ActorId, value: u128, offset: u32, len: u32) -> Result<MessageId> {
+    send_input_delayed(destination, value, offset, len, 0)
+}
+
+/// Same as [`send_input`], but sends delayed.
+pub fn send_input_delayed(
+    destination: ActorId,
+    value: u128,
+    offset: u32,
+    len: u32,
+    delay: u32,
+) -> Result<MessageId> {
+    let pid_value = HashWithValue {
+        hash: destination.0,
+        value,
+    };
+
+    let mut res: LengthWithHash = Default::default();
+
+    unsafe {
+        gsys::gr_send_input(pid_value.as_ptr(), offset, len, delay, res.as_mut_ptr());
+    }
     SyscallError(res.length).into_result()?;
 
     Ok(MessageId(res.hash))
@@ -627,6 +741,57 @@ pub fn send_delayed_from_reservation(
             res.as_mut_ptr(),
         )
     };
+    SyscallError(res.length).into_result()?;
+
+    Ok(MessageId(res.hash))
+}
+
+/// Same as [`send_push`], but pushes the incoming message payload.
+pub fn send_push_input(handle: MessageHandle, offset: u32, len: u32) -> Result<()> {
+    let mut result_len = 0u32;
+    unsafe {
+        gsys::gr_send_push_input(handle.0, offset, len, &mut result_len as _);
+    }
+    SyscallError(result_len).into_result()
+}
+
+/// Same as [`send_input`], but with explicit gas limit.
+pub fn send_input_with_gas(
+    destination: ActorId,
+    gas_limit: u64,
+    value: u128,
+    offset: u32,
+    len: u32,
+) -> Result<MessageId> {
+    send_input_with_gas_delayed(destination, gas_limit, value, offset, len, 0)
+}
+
+/// Same as [`send_input_with_gas`], but sends delayed.
+pub fn send_input_with_gas_delayed(
+    destination: ActorId,
+    gas_limit: u64,
+    value: u128,
+    offset: u32,
+    len: u32,
+    delay: u32,
+) -> Result<MessageId> {
+    let pid_value = HashWithValue {
+        hash: destination.0,
+        value,
+    };
+
+    let mut res: LengthWithHash = Default::default();
+
+    unsafe {
+        gsys::gr_send_input_wgas(
+            pid_value.as_ptr(),
+            offset,
+            len,
+            gas_limit,
+            delay,
+            res.as_mut_ptr(),
+        );
+    }
     SyscallError(res.length).into_result()?;
 
     Ok(MessageId(res.hash))

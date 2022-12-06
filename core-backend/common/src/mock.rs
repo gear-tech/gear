@@ -94,6 +94,14 @@ impl Ext for MockExt {
     fn reply_commit(&mut self, _msg: ReplyPacket, _delay: u32) -> Result<MessageId, Self::Error> {
         Ok(MessageId::default())
     }
+    fn send_push_input(
+        &mut self,
+        _handle: u32,
+        _offset: u32,
+        _len: u32,
+    ) -> Result<(), Self::Error> {
+        Ok(())
+    }
     fn reply_push(&mut self, _buffer: &[u8]) -> Result<(), Self::Error> {
         Ok(())
     }
@@ -107,6 +115,9 @@ impl Ext for MockExt {
     }
     fn reply_to(&mut self) -> Result<MessageId, Self::Error> {
         Ok(Default::default())
+    }
+    fn reply_push_input(&mut self, _offset: u32, _len: u32) -> Result<(), Self::Error> {
+        Ok(())
     }
     fn source(&mut self) -> Result<ProgramId, Self::Error> {
         Ok(ProgramId::from(0))
@@ -127,6 +138,9 @@ impl Ext for MockExt {
         Ok(())
     }
     fn debug(&mut self, _data: &str) -> Result<(), Self::Error> {
+        Ok(())
+    }
+    fn charge_error(&mut self) -> Result<(), Self::Error> {
         Ok(())
     }
     fn read(&mut self) -> Result<&[u8], Self::Error> {
@@ -222,6 +236,10 @@ impl Ext for MockExt {
         _msg: ReplyPacket,
         _delay: u32,
     ) -> Result<MessageId, Self::Error> {
+        Ok(MessageId::default())
+    }
+
+    fn signal_from(&mut self) -> Result<MessageId, Self::Error> {
         Ok(MessageId::default())
     }
 }

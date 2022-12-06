@@ -85,6 +85,7 @@ pub enum HandleKind {
     InitByHash(CodeId),
     Handle(ProgramId),
     Reply(MessageId, StatusCode),
+    Signal(MessageId, StatusCode),
 }
 
 impl fmt::Debug for HandleKind {
@@ -94,6 +95,7 @@ impl fmt::Debug for HandleKind {
             HandleKind::InitByHash(id) => f.debug_tuple("InitByHash").field(id).finish(),
             HandleKind::Handle(id) => f.debug_tuple("Handle").field(id).finish(),
             HandleKind::Reply(id, code) => f.debug_tuple("Reply").field(id).field(code).finish(),
+            HandleKind::Signal(id, code) => f.debug_tuple("Signal").field(id).field(code).finish(),
         }
     }
 }
@@ -326,7 +328,7 @@ where
 
             // Creating signal message.
             let trap_signal = SignalMessage::new(message_id, core_processor::ERR_STATUS_CODE)
-                .into_dispatch(destination)
+                .into_dispatch(message_id, destination)
                 .into_stored();
 
             // Splitting gas for newly created reply message.
