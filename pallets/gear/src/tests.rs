@@ -41,7 +41,7 @@ use crate::{
         USER_3,
     },
     pallet, BlockGasLimitOf, Config, CostsPerBlockOf, DbWeightOf, Error, Event, GasAllowanceOf,
-    GasHandlerOf, GasInfo, MailboxOf, Schedule, WaitlistOf,
+    GasHandlerOf, GasInfo, MailboxOf, Schedule, TaskPoolOf, WaitlistOf,
 };
 use codec::{Decode, Encode};
 use common::{
@@ -70,6 +70,180 @@ use sp_runtime::{traits::UniqueSaturatedInto, SaturatedConversion};
 use sp_std::convert::TryFrom;
 pub use utils::init_logger;
 use utils::*;
+
+#[test]
+fn delayed_user_replacement() {
+    use demo_proxy_with_gas::{InputArgs, WASM_BINARY as PROXY_WGAS_WASM_BINARY};
+
+    fn scenario(gas_limit_to_forward: u64) {
+        let code = ProgramCodeKind::OutgoingWithValueInHandle.to_bytes();
+        let future_program_address = ProgramId::generate(CodeId::generate(&code), DEFAULT_SALT);
+
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            PROXY_WGAS_WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            InputArgs {
+                destination: <[u8; 32]>::from(future_program_address).into(),
+                delay: 1,
+            }
+            .encode(),
+            DEFAULT_GAS_LIMIT * 100,
+            0,
+        ));
+
+        let proxy = utils::get_last_program_id();
+
+        run_to_next_block(None);
+        assert!(Gear::is_initialized(proxy));
+
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            proxy,
+            gas_limit_to_forward.encode(), // to be forwarded as gas limit
+            gas_limit_to_forward + DEFAULT_GAS_LIMIT * 100,
+            100_000_000, // before fix to be forwarded as value
+        ));
+
+        let message_id = utils::get_last_message_id();
+        let delayed_id = MessageId::generate_outgoing(message_id, 0);
+
+        run_to_block(3, None);
+
+        // Message sending delayed.
+        assert!(TaskPoolOf::<Test>::contains(
+            &4,
+            &ScheduledTask::SendUserMessage(delayed_id)
+        ));
+
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            code,
+            DEFAULT_SALT.to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
+            DEFAULT_GAS_LIMIT * 100,
+            0,
+        ));
+
+        assert_eq!(future_program_address, utils::get_last_program_id());
+
+        run_to_next_block(None);
+        assert!(Gear::is_initialized(future_program_address));
+
+        // Delayed message sent.
+        assert!(!TaskPoolOf::<Test>::contains(
+            &4,
+            &ScheduledTask::SendUserMessage(delayed_id)
+        ));
+
+        // Replace following lines once added validation to task handling of send_user_message.
+        let message = utils::maybe_any_last_message().unwrap();
+        assert_eq!(message.id(), delayed_id);
+        assert_eq!(message.destination(), future_program_address);
+
+        print_gear_events();
+
+        // BELOW CODE TO REPLACE WITH.
+        // // Nothing is added into mailbox.
+        // assert!(utils::maybe_any_last_message(account).is_empty())
+
+        // // Error reply sent and processed.
+        // assert_total_dequeued(1);
+    }
+
+    init_logger();
+
+    // Scenario not planned to enter mailbox.
+    new_test_ext().execute_with(|| scenario(0));
+
+    // Scenario planned to enter mailbox.
+    new_test_ext().execute_with(|| {
+        let gas_limit_to_forward = DEFAULT_GAS_LIMIT * 100;
+        assert!(<Test as Config>::MailboxThreshold::get() <= gas_limit_to_forward);
+
+        scenario(gas_limit_to_forward)
+    });
+}
+
+#[test]
+fn delayed_program_creation_no_code() {
+    init_logger();
+
+    let wat = r#"
+	(module
+		(import "env" "memory" (memory 1))
+        (import "env" "gr_create_program_wgas" (func $create_program_wgas (param i32 i32 i32 i32 i32 i64 i32 i32)))
+		(export "init" (func $init))
+		(func $init
+            i32.const 0                 ;; zeroed cid_value ptr
+            i32.const 0                 ;; salt ptr
+            i32.const 0                 ;; salt len
+            i32.const 0                 ;; payload ptr
+            i32.const 0                 ;; payload len
+            i64.const 1000000000        ;; gas limit
+            i32.const 1                 ;; delay
+            i32.const 111               ;; err_mid_pid ptr
+            call $create_program_wgas   ;; calling fn
+
+            ;; validating syscall
+            i32.const 111 ;; err_mid_pid ptr
+            i32.load
+            (if
+                (then unreachable)
+                (else)
+            )
+        )
+	)"#;
+
+    new_test_ext().execute_with(|| {
+        let code = ProgramCodeKind::Custom(wat).to_bytes();
+
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            code,
+            DEFAULT_SALT.to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
+            DEFAULT_GAS_LIMIT * 100,
+            0,
+        ));
+
+        let creator = utils::get_last_program_id();
+        let init_msg_id = utils::get_last_message_id();
+
+        run_to_block(2, None);
+        assert!(Gear::is_initialized(creator));
+
+        // Message sending delayed.
+        let delayed_id = MessageId::generate_outgoing(init_msg_id, 0);
+        assert!(TaskPoolOf::<Test>::contains(
+            &3,
+            &ScheduledTask::SendDispatch(delayed_id)
+        ));
+
+        let free_balance = Balances::free_balance(&USER_1);
+        let reserved_balance = Balances::reserved_balance(&USER_1);
+
+        run_to_next_block(None);
+        // Delayed message sent.
+        assert!(!TaskPoolOf::<Test>::contains(
+            &3,
+            &ScheduledTask::SendDispatch(delayed_id)
+        ));
+
+        // Message taken but not executed (can't be asserted due to black box between programs).
+        //
+        // Total dequeued: message to skip execution + error reply on it.
+        //
+        // Single db read burned for querying program data from storage.
+        assert_last_dequeued(2);
+        assert_eq!(
+            Balances::free_balance(&USER_1),
+            free_balance + reserved_balance
+                - GasPrice::gas_price(DbWeightOf::<Test>::get().reads(1).ref_time())
+        );
+        assert!(Balances::reserved_balance(&USER_1).is_zero());
+    })
+}
 
 #[test]
 fn unstoppable_block_execution_works() {
@@ -585,6 +759,7 @@ fn mailbox_threshold_works() {
             vec![],
             InputArgs {
                 destination: USER_1.into_origin().into(),
+                delay: 0,
             }
             .encode(),
             50_000_000_000u64,
@@ -4437,7 +4612,7 @@ fn program_messages_to_paused_program_skipped() {
             code,
             vec![],
             InputArgs {
-                destination: paused_program_id.into_origin().into()
+                destination: <[u8; 32]>::from(paused_program_id).into()
             }
             .encode(),
             50_000_000_000u64,
@@ -7516,6 +7691,17 @@ mod utils {
                 } else {
                     None
                 }
+            } else {
+                None
+            }
+        })
+    }
+
+    #[track_caller]
+    pub(super) fn maybe_any_last_message() -> Option<StoredMessage> {
+        System::events().into_iter().rev().find_map(|e| {
+            if let MockRuntimeEvent::Gear(Event::UserMessageSent { message, .. }) = e.event {
+                Some(message)
             } else {
                 None
             }

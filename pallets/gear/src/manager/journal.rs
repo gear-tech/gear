@@ -184,6 +184,8 @@ where
     }
 
     fn exit_dispatch(&mut self, id_exited: ProgramId, value_destination: ProgramId) {
+        log::debug!("Exit dispatch");
+
         let reason = MessageWokenSystemReason::ProgramGotInitialized.into_reason();
 
         WaitlistOf::<T>::drain_key(id_exited).for_each(|entry| {
