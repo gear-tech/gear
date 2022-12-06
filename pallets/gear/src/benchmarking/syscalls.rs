@@ -1004,7 +1004,7 @@ where
     pub fn gr_signal_from(r: u32) -> Result<Exec<T>, &'static str> {
         let code = WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
-            imported_functions: vec!["gr_signal_from"],
+            imported_functions: vec![SysCallName::SignalFrom],
             reply_body: Some(body::repeated(
                 r * API_BENCHMARK_BATCH_SIZE,
                 &[

@@ -69,8 +69,7 @@ impl WasmExecutor {
             .define("env", "memory", memory)
             .map_err(WasmiError::from)?;
 
-        let forbidden_funcs =
-            (!ext.forbidden_funcs().is_empty()).then(|| ext.forbidden_funcs().clone());
+        let forbidden_funcs = ext.forbidden_funcs().clone();
         let functions = funcs_tree::build(&mut store, memory, forbidden_funcs);
         for (name, function) in functions {
             linker

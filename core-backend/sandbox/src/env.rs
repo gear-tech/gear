@@ -91,13 +91,13 @@ pub struct SandboxEnvironment<E: Ext> {
 
 // A helping wrapper for `EnvironmentDefinitionBuilder` and `forbidden_funcs`.
 // It makes adding functions to `EnvironmentDefinitionBuilder` shorter.
-struct EnvBuilder<'a, E: Ext> {
+struct EnvBuilder<E: Ext> {
     env_def_builder: EnvironmentDefinitionBuilder<Runtime<E>>,
     forbidden_funcs: BTreeSet<SysCallName>,
     funcs_count: usize,
 }
 
-impl<'a, E: Ext + IntoExtInfo<E::Error> + 'static> EnvBuilder<'a, E> {
+impl<E: Ext + IntoExtInfo<E::Error> + 'static> EnvBuilder<E> {
     fn add_func(&mut self, name: SysCallName, f: HostFuncType<Runtime<E>>)
     where
         E::Error: AsTerminationReason + IntoExtError,
@@ -120,8 +120,8 @@ impl<'a, E: Ext + IntoExtInfo<E::Error> + 'static> EnvBuilder<'a, E> {
     }
 }
 
-impl<'a, E: Ext> From<EnvBuilder<'a, E>> for EnvironmentDefinitionBuilder<Runtime<E>> {
-    fn from(builder: EnvBuilder<'a, E>) -> Self {
+impl<E: Ext> From<EnvBuilder<E>> for EnvironmentDefinitionBuilder<Runtime<E>> {
+    fn from(builder: EnvBuilder<E>) -> Self {
         builder.env_def_builder
     }
 }

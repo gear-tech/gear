@@ -77,7 +77,7 @@ use gear_core::{
     gas::{GasAllowanceCounter, GasCounter, ValueCounter},
     ids::{MessageId, ProgramId},
     memory::{AllocationsContext, PageBuf, PageNumber, WasmPageNumber},
-    message::{ContextSettings, MessageContext},
+    message::{ContextSettings, DispatchKind, MessageContext},
     reservation::GasReserver,
 };
 use gear_wasm_instrument::{
@@ -331,7 +331,7 @@ benchmarks! {
         let WasmModule { code, .. } = WasmModule::<T>::sized(c * 1024, Location::Init);
     }: {
         let ext = Externalities::new(default_processor_context::<T>());
-        ExecutionEnvironment::new(ext, &code, Default::default(), max_pages::<T>().into()).unwrap();
+        ExecutionEnvironment::new(ext, &code, DispatchKind::Init, Default::default(), max_pages::<T>().into()).unwrap();
     }
 
     claim_value {
