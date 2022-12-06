@@ -19,9 +19,8 @@
 //! Gear syscalls for smart contracts execution signatures.
 
 use crate::parity_wasm::elements::{FunctionType, ValueType};
-use alloc::vec::Vec;
+use alloc::{collections::BTreeSet, vec::Vec};
 use enum_iterator::{self, Sequence};
-use std::collections::BTreeSet;
 
 pub const IMPORT_NAME_OUT_OF_GAS: &str = "gr_out_of_gas";
 pub const IMPORT_NAME_OUT_OF_ALLOWANCE: &str = "gr_out_of_allowance";
