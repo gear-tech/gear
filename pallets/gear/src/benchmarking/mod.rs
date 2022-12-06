@@ -325,15 +325,9 @@ benchmarks! {
     instantiate_module_per_kb {
         let c in 0 .. T::Schedule::get().limits.code_len / 1024;
 
-        #[cfg(feature = "lazy-pages")]
-        type Ext = crate::ext::LazyPagesExt;
-
-        #[cfg(not(feature = "lazy-pages"))]
-        type Ext = core_processor::Ext;
-
         let WasmModule { code, .. } = WasmModule::<T>::sized(c * 1024, Location::Init);
     }: {
-        let ext = Ext::new(default_processor_context::<T>());
+        let ext = Externalities::new(default_processor_context::<T>());
         ExecutionEnvironment::new(ext, &code, Default::default(), max_pages::<T>().into()).unwrap();
     }
 
