@@ -4841,16 +4841,18 @@ fn gas_spent_precalculated() {
         let code = <Test as Config>::CodeStorage::get_code(code_id).unwrap();
         let code = code.code();
 
-        let init_code_len: u64 = common::get_program(init_gas_id.into_origin())
+        let init_gas_code_id = CodeId::from_origin(common::get_program(init_gas_id.into_origin())
             .and_then(|p| common::ActiveProgram::try_from(p).ok())
             .expect("program must exist")
-            .code_length_bytes
-            .into();
-        let init_no_gas_code_len: u64 = common::get_program(init_no_counter_id.into_origin())
+            .code_hash);
+        let init_code_len: u64 = <Test as Config>::CodeStorage::get_code(init_gas_code_id).unwrap().code().len() as u64;
+
+        let init_no_gas_code_id = CodeId::from_origin(common::get_program(init_no_counter_id.into_origin())
             .and_then(|p| common::ActiveProgram::try_from(p).ok())
             .expect("program must exist")
-            .code_length_bytes
-            .into();
+            .code_hash);
+        let init_no_gas_code_len: u64 = <Test as Config>::CodeStorage::get_code(init_no_gas_code_id).unwrap().code().len() as u64;
+
         // binaries have the same memory amount but different lengths
         // so take this into account in gas calculations
         let length_margin = init_code_len - init_no_gas_code_len;
@@ -4919,18 +4921,13 @@ fn gas_spent_precalculated() {
                 + add_cost
                 + gas_cost as u32 * 2;
 
-            let code_len = common::get_program(prog_id.into_origin())
-                .and_then(|p| common::ActiveProgram::try_from(p).ok())
-                .expect("program must exist")
-                .code_length_bytes;
-
             let read_cost = DbWeightOf::<Test>::get().reads(1).ref_time();
 
             u64::from(cost)
                 // cost for loading program
                 + core_processor::calculate_gas_for_program(read_cost, 0)
                 // cost for loading code
-                + core_processor::calculate_gas_for_code(read_cost, per_byte_cost, code_len.into())
+                + core_processor::calculate_gas_for_code(read_cost, per_byte_cost, code.len() as u64)
                 + load_page_cost
                 + module_instantiation
         };
