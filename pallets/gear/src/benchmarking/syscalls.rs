@@ -499,6 +499,10 @@ where
     }
 
     pub fn gr_random(r: u32) -> Result<Exec<T>, &'static str> {
+        let subject_ptr = 1;
+        let subject_len = 32;
+        let bn_random_ptr = subject_ptr + subject_len;
+
         let code = WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
             imported_functions: vec!["gr_random"],
@@ -506,11 +510,9 @@ where
                 r * API_BENCHMARK_BATCH_SIZE,
                 &[
                     // subject ptr
-                    Instruction::I32Const(1),
-                    // subject len
-                    Instruction::I32Const(32),
+                    Instruction::I32Const(subject_ptr),
                     // bn_random ptr
-                    Instruction::I32Const(33),
+                    Instruction::I32Const(bn_random_ptr),
                     // CALL
                     Instruction::Call(0),
                 ],

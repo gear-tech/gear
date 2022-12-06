@@ -4612,7 +4612,7 @@ fn program_messages_to_paused_program_skipped() {
             code,
             vec![],
             InputArgs {
-                destination: <[u8; 32]>::from(paused_program_id).into()
+                destination: <[u8; 32]>::from(paused_program_id)
             }
             .encode(),
             50_000_000_000u64,
@@ -8057,13 +8057,13 @@ fn check_random_works() {
         (module
             (import "env" "gr_send_wgas" (func $send (param i32 i32 i32 i64 i32 i32)))
             (import "env" "gr_source" (func $gr_source (param i32)))
-            (import "env" "gr_random" (func $gr_random (param i32 i32 i32)))
+            (import "env" "gr_random" (func $gr_random (param i32 i32)))
             (import "env" "memory" (memory 1))
             (export "handle" (func $handle))
             (func $handle
                 (i32.store (i32.const 111) (i32.const 1))
 
-                (call $gr_random (i32.const 0) (i32.const 0) (i32.const 64))
+                (call $gr_random (i32.const 0) (i32.const 64))
 
                 (call $send (i32.const 111) (i32.const 68) (i32.const 32) (i64.const 10000000) (i32.const 0) (i32.const 333))
 
@@ -8099,10 +8099,10 @@ fn check_random_works() {
                 0,
             ));
 
-            let output: (primitive_types::H256, u64) =
+            let output: ([u8; 32], u64) =
                 <Test as Config>::Randomness::random(get_last_message_id().as_ref());
 
-            random_data.push(output.0);
+            random_data.push([[0; 32], output.0].concat());
             run_to_block(System::block_number() + 1, None);
         });
 
@@ -8116,10 +8116,7 @@ fn check_random_works() {
             .iter()
             .zip(random_data.iter())
             .for_each(|((msg, _bn), random_data)| {
-                assert_eq!(
-                    blake2b(32, &[], &random_data.encode()).as_bytes(),
-                    msg.payload()
-                );
+                assert_eq!(blake2b(32, &[], random_data).as_bytes(), msg.payload());
             });
 
         // // assert_last_dequeued(1);

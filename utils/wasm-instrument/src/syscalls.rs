@@ -185,7 +185,7 @@ pub fn syscall_signature(name: &str) -> SysCallSignature {
         "gr_reserve_gas" => SysCallSignature::gr([Gas, Duration, Ptr]),
         "gr_unreserve_gas" => SysCallSignature::gr([Ptr, Ptr]),
         "gr_system_reserve_gas" => SysCallSignature::gr([Gas, Ptr]),
-        "gr_random" => SysCallSignature::gr([Ptr, Size, Ptr]),
+        "gr_random" => SysCallSignature::gr([Ptr, Ptr]),
         other => panic!("Unknown syscall name: '{}'", other),
     }
 }
