@@ -167,13 +167,8 @@ impl
     }
 }
 
-/// Defines result variants of the function `precharge`.
-pub enum PrechargeResult<T> {
-    /// Successfully pre-charged for resources.
-    Ok(T),
-    /// There is not enough gas for resources.
-    Error(Vec<JournalNote>),
-}
+/// Defines result variants of the precharge functions.
+pub type PrechargeResult<T> = Result<T, Vec<JournalNote>>;
 
 /// Charge a message for program data beforehand.
 pub fn precharge_for_program(
@@ -181,7 +176,7 @@ pub fn precharge_for_program(
     gas_allowance: u64,
     dispatch: IncomingDispatch,
     destination_id: ProgramId,
-) -> Result<PrechargedDispatch, Vec<JournalNote>> {
+) -> PrechargeResult<PrechargedDispatch> {
     use executor::ChargeForBytesResult::*;
 
     let read_per_byte_cost = block_config.read_per_byte_cost;
@@ -235,13 +230,13 @@ pub fn precharge_for_code(
 
     let actor_data = match check_is_executable(executable_data, &dispatch) {
         Err(status_code) => {
-            return PrechargeResult::Error(process_non_executable(dispatch, destination_id, status_code));
+            return Err(process_non_executable(dispatch, destination_id, status_code));
         }
         Ok(data) => data,
     };
 
     if !actor_data.code_exports.contains(&dispatch.kind()) {
-        return PrechargeResult::Error(process_success(
+        return Err(process_success(
             SuccessfulDispatchResultKind::Success,
             DispatchResult::success(dispatch, destination_id, gas_counter.into()),
         ));
@@ -257,7 +252,7 @@ pub fn precharge_for_code(
         ChargeForBytesResult::Ok => (),
         ChargeForBytesResult::GasExceeded => {
             let system_reservation_ctx = SystemReservationContext::from_dispatch(&dispatch);
-            return PrechargeResult::Error(process_error(
+            return Err(process_error(
                 dispatch,
                 destination_id,
                 gas_counter.burned(),
@@ -266,11 +261,11 @@ pub fn precharge_for_code(
             ));
         }
         ChargeForBytesResult::BlockGasExceeded => {
-            return PrechargeResult::Error(process_allowance_exceed(dispatch, destination_id, gas_counter.burned()));
+            return Err(process_allowance_exceed(dispatch, destination_id, gas_counter.burned()));
         }
     }
 
-    PrechargeResult::Ok(ContextChargedForCode(ContextData {
+    Ok(ContextChargedForCode(ContextData {
         gas_counter,
         gas_allowance_counter,
         dispatch,
@@ -298,7 +293,7 @@ pub fn precharge_for_instrumentation(
         ChargeForBytesResult::Ok => (),
         ChargeForBytesResult::GasExceeded => {
             let system_reservation_ctx = SystemReservationContext::from_dispatch(&context.0.dispatch);
-            return PrechargeResult::Error(process_error(
+            return Err(process_error(
                 context.0.dispatch,
                 context.0.destination_id,
                 context.0.gas_counter.burned(),
@@ -307,11 +302,11 @@ pub fn precharge_for_instrumentation(
             ));
         }
         ChargeForBytesResult::BlockGasExceeded => {
-            return PrechargeResult::Error(process_allowance_exceed(context.0.dispatch, context.0.destination_id, context.0.gas_counter.burned()));
+            return Err(process_allowance_exceed(context.0.dispatch, context.0.destination_id, context.0.gas_counter.burned()));
         }
     }
 
-    PrechargeResult::Ok(context.into())
+    Ok(context.into())
 }
 
 /// Charge a message for program memory and module instantiation beforehand.
@@ -362,11 +357,11 @@ pub fn precharge_for_memory(
                     | GasOperation::GrowMemory
                     | GasOperation::LoadMemory
                     | GasOperation::ModuleInstantiation,
-                ) => PrechargeResult::Error(process_allowance_exceed(context.0.dispatch, context.0.destination_id, context.0.gas_counter.burned())),
+                ) => Err(process_allowance_exceed(context.0.dispatch, context.0.destination_id, context.0.gas_counter.burned())),
 
                 _ => {
                     let system_reservation_ctx = SystemReservationContext::from_dispatch(&context.0.dispatch);
-                    PrechargeResult::Error(process_error(
+                    Err(process_error(
                         context.0.dispatch,
                         context.0.destination_id,
                         context.0.gas_counter.burned(),
@@ -378,7 +373,7 @@ pub fn precharge_for_memory(
         }
     };
 
-    PrechargeResult::Ok(ContextChargedForMemory{
+    Ok(ContextChargedForMemory{
         data: context.0,
         max_reservations: block_config.max_reservations,
         memory_size,

@@ -158,8 +158,8 @@ where
 
             let balance = actor.balance;
             let context = match core_processor::precharge_for_code(&block_config, precharged_dispatch, program_id, actor.executable_data) {
-                PrechargeResult::Ok(c) => c,
-                PrechargeResult::Error(journal) => {
+                Ok(c) => c,
+                Err(journal) => {
                     return journal;
                 }
             };
@@ -177,8 +177,8 @@ where
                 true => (code, core_processor::ContextChargedForInstrumentation::from(context)),
                 false => {
                     let context = match core_processor::precharge_for_instrumentation(&block_config, context) {
-                        PrechargeResult::Ok(c) => c,
-                        PrechargeResult::Error(journal) => {
+                        Ok(c) => c,
+                        Err(journal) => {
                             return journal;
                         }
                     };
@@ -189,17 +189,16 @@ where
 
             let subsequent_execution = ext_manager.program_pages_loaded(&actor_id);
             let subsequent_burned = if !subsequent_execution {
-                match core_processor::precharge_for_memory(&block_config, context.clone(), true) {
-                    PrechargeResult::Ok(c) => c.gas_counter().burned(),
-                    _ => 0,
-                }
+                core_processor::precharge_for_memory(&block_config, context.clone(), true)
+                    .map(|c| c.gas_counter().burned())
+                    .unwrap_or(0)
             } else {
                 0
             };
 
             let context = match core_processor::precharge_for_memory(&block_config, context, subsequent_execution) {
-                PrechargeResult::Ok(c) => c,
-                PrechargeResult::Error(journal) => {
+                Ok(c) => c,
+                Err(journal) => {
                     return journal;
                 }
             };

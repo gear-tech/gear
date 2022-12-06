@@ -150,8 +150,8 @@ where
                 };
 
             let context = match core_processor::precharge_for_code(&block_config, precharged_dispatch, program_id, active_actor_data) {
-                PrechargeResult::Ok(c) => c,
-                PrechargeResult::Error(journal) => {
+                Ok(c) => c,
+                Err(journal) => {
                     core_processor::handle_journal(journal, &mut ext_manager);
                     continue;
                 }
@@ -169,8 +169,8 @@ where
                 true => (code, core_processor::ContextChargedForInstrumentation::from(context)),
                 false => {
                     let context = match core_processor::precharge_for_instrumentation(&block_config, context) {
-                        PrechargeResult::Ok(c) => c,
-                        PrechargeResult::Error(journal) => {
+                        Ok(c) => c,
+                        Err(journal) => {
                             core_processor::handle_journal(journal, &mut ext_manager);
                             continue;
                         }
@@ -181,8 +181,8 @@ where
             };
 
             let context = match core_processor::precharge_for_memory(&block_config, context, ext_manager.program_pages_loaded(&program_id)) {
-                PrechargeResult::Ok(c) => c,
-                PrechargeResult::Error(journal) => {
+                Ok(c) => c,
+                Err(journal) => {
                     core_processor::handle_journal(journal, &mut ext_manager);
                     continue;
                 }
