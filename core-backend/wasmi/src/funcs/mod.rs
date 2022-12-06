@@ -24,7 +24,6 @@ use alloc::string::ToString;
 use blake2_rfc::blake2b::blake2b;
 use codec::{Decode, Encode};
 use core::{
-    convert::TryFrom,
     fmt::{Debug, Display},
     marker::PhantomData,
     ops::Range,
@@ -1317,11 +1316,7 @@ where
             let mut caller = CallerWrap::prepare(caller, forbidden)?;
 
             let raw_subject = caller.read(&memory, |mem_ref| {
-                mem_ref.read_memory_as::<Hash>(subject_ptr)
-            })?;
-            let mut subject = RuntimeBuffer::try_from(raw_subject.to_vec()).map_err(|e| {
-                caller.host_state_mut().err = FuncError::RuntimeBufferSize(e);
-                Trap::from(TrapCode::Unreachable)
+                mem_ref.read_memory_decoded::<Hash>(subject_ptr)
             })?;
 
             let call_result = caller.host_state_mut().ext.random();
@@ -1333,17 +1328,13 @@ where
                 }
             };
 
-            subject.try_extend_from_slice(random).map_err(|e| {
-                caller.host_state_mut().err = FuncError::RuntimeBufferSize(e);
-                Trap::from(TrapCode::Unreachable)
-            })?;
-
+            let subject = [&raw_subject, random].concat();
             caller.call_infallible(
                 &memory,
                 |_ext| Ok(()),
                 |_res, mut mem_ref| {
                     let mut hash = [0; 32];
-                    hash.copy_from_slice(blake2b(32, &[], subject.get()).as_bytes());
+                    hash.copy_from_slice(blake2b(32, &[], &subject).as_bytes());
 
                     mem_ref.write_memory_as(bn_random_ptr, BlockNumberWithHash { bn, hash })
                 },

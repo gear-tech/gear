@@ -24,12 +24,7 @@ use alloc::{
     string::{FromUtf8Error, String},
 };
 use blake2_rfc::blake2b::blake2b;
-use core::{
-    convert::{TryFrom, TryInto},
-    fmt::Display,
-    marker::PhantomData,
-    ops::Range,
-};
+use core::{convert::TryInto, fmt::Display, marker::PhantomData, ops::Range};
 use gear_backend_common::{
     error_processor::{IntoExtError, ProcessError},
     AsTerminationReason, IntoExtInfo, RuntimeCtx, RuntimeCtxError, TerminationReason,
@@ -463,14 +458,13 @@ where
         let (subject_ptr, bn_random_ptr): (_, _) = args.iter().read_2()?;
 
         ctx.run(|ctx| {
-            let mut subject =
-                RuntimeBuffer::try_from(ctx.read_memory_as::<Hash>(subject_ptr)?.to_vec())?;
+            let raw_subject: Hash = ctx.read_memory_decoded(subject_ptr)?;
 
             let (random, bn) = ctx.ext.random().map_err(FuncError::Core)?;
-            subject.try_extend_from_slice(random)?;
+            let subject = [&raw_subject, random].concat();
 
             let mut hash = [0; 32];
-            hash.copy_from_slice(blake2b(32, &[], subject.get()).as_bytes());
+            hash.copy_from_slice(blake2b(32, &[], &subject).as_bytes());
 
             ctx.write_memory_as(bn_random_ptr, BlockNumberWithHash { bn, hash })
                 .map_err(Into::into)
