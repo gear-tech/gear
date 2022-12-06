@@ -113,12 +113,12 @@ mod wasm {
                 exec::wait();
             }
             HandleAction::WaitAndExit => {
-                if DO_EXIT {
+                if unsafe { DO_EXIT } {
                     msg::send_bytes(msg::source(), b"wait_and_exit", 0).unwrap();
                     exec::exit(msg::source());
                 }
 
-                DO_EXIT = !DO_EXIT;
+                unsafe { DO_EXIT = !DO_EXIT };
 
                 exec::system_reserve_gas(900).unwrap();
                 // used to found message id in test
