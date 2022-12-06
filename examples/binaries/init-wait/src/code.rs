@@ -12,8 +12,8 @@ static mut INIT_MESSAGE: MessageId = MessageId::new([0; 32]);
 static mut TEST_DYNAMIC_MEMORY: BTreeMap<u32, ()> = BTreeMap::new();
 
 #[no_mangle]
-unsafe extern "C" fn handle() {
-    if STATE != State::Inited {
+extern "C" fn handle() {
+    if unsafe { STATE != State::Inited } {
         panic!("not initialized");
     }
 
@@ -21,38 +21,39 @@ unsafe extern "C" fn handle() {
 }
 
 #[no_mangle]
-unsafe extern "C" fn init() {
-    match STATE {
+extern "C" fn init() {
+    let state = unsafe { &mut STATE };
+    match state {
         State::NotInited => {
             for k in 0..20 {
-                TEST_DYNAMIC_MEMORY.insert(k, ());
+                unsafe { TEST_DYNAMIC_MEMORY.insert(k, ()) };
             }
 
-            INIT_MESSAGE = msg::id();
+            unsafe { INIT_MESSAGE = msg::id() };
             msg::send(msg::source(), b"PING", 0).unwrap();
-            STATE = State::WaitForReply;
+            *state = State::WaitForReply;
             exec::wait();
         }
         State::WaitForReply => {
             for k in 0..20 {
-                TEST_DYNAMIC_MEMORY.insert(k, ());
+                unsafe { TEST_DYNAMIC_MEMORY.insert(k, ()) };
             }
             for k in 0..25 {
-                let _ = TEST_DYNAMIC_MEMORY.remove(&k);
+                let _ = unsafe { TEST_DYNAMIC_MEMORY.remove(&k) };
             }
 
-            STATE = State::Inited;
+            *state = State::Inited;
         }
         _ => panic!("unreachable!"),
     }
 }
 
 #[no_mangle]
-unsafe extern "C" fn handle_reply() {
-    if STATE == State::WaitForReply {
+extern "C" fn handle_reply() {
+    if unsafe { STATE == State::WaitForReply } {
         for k in 20..40 {
-            TEST_DYNAMIC_MEMORY.insert(k, ());
+            unsafe { TEST_DYNAMIC_MEMORY.insert(k, ()) };
         }
-        exec::wake(INIT_MESSAGE);
+        exec::wake(unsafe { INIT_MESSAGE });
     }
 }

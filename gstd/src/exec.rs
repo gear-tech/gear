@@ -43,7 +43,7 @@
 //! use gstd::{exec, msg};
 //!
 //! // Send a reply after the block height reaches the number 1000
-//! unsafe extern "C" fn handle() {
+//! extern "C" fn handle() {
 //!     if exec::block_height() >= 1000 {
 //!         msg::reply(b"Block #1000 reached", 0).unwrap();
 //!     }
@@ -53,7 +53,7 @@
 //! use gstd::{exec, msg};
 //!
 //! // Send a reply after the block timestamp reaches the February 22, 2022
-//! unsafe extern "C" fn handle() {
+//! extern "C" fn handle() {
 //!     if exec::block_timestamp() >= 1645488000000 {
 //!         msg::reply(b"The current block is generated after February 22, 2022", 0).unwrap();
 //!     }
@@ -63,7 +63,7 @@
 //! use gstd::exec;
 //!
 //! // Perform work while `gas_available` is more than 1000
-//! unsafe extern "C" fn handle() {
+//! extern "C" fn handle() {
 //!     while exec::gas_available() > 1000 {
 //!         // ...
 //!     }
@@ -73,7 +73,7 @@
 //! use gstd::exec;
 //!
 //! // Get self value balance in program
-//! unsafe extern "C" fn handle() {
+//! extern "C" fn handle() {
 //!     let _my_balance = exec::value_available();
 //! }
 //! ```
@@ -98,7 +98,7 @@ pub use gcore::exec::{
 /// ```
 /// use gstd::{exec, msg};
 ///
-/// unsafe extern "C" fn handle() {
+/// extern "C" fn handle() {
 ///     // ...
 ///     exec::exit(msg::source());
 /// }
@@ -119,7 +119,7 @@ pub fn exit(value_destination: ActorId) -> ! {
 /// ```
 /// use gstd::{exec, msg};
 ///
-/// unsafe extern "C" fn handle() {
+/// extern "C" fn handle() {
 ///     // ...
 ///     let msg_id = msg::id();
 ///     exec::wake(msg_id);
@@ -141,7 +141,7 @@ pub fn wake_delayed(message_id: MessageId, delay: u32) -> Result<()> {
 /// ```
 /// use gstd::{exec, ActorId};
 ///
-/// unsafe extern "C" fn handle() {
+/// extern "C" fn handle() {
 ///     // ...
 ///     let me = exec::program_id();
 /// }
@@ -158,7 +158,7 @@ pub fn program_id() -> ActorId {
 /// ```
 /// use gstd::{exec, ActorId};
 ///
-/// unsafe extern "C" fn handle() {
+/// extern "C" fn handle() {
 ///     // ...
 ///     let _user = exec::origin();
 /// }

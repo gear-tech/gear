@@ -56,18 +56,18 @@ mod wasm {
     static mut ORIGIN: Option<ActorId> = None;
 
     #[no_mangle]
-    unsafe extern "C" fn init() {
-        ORIGIN = Some(msg::source());
+    extern "C" fn init() {
+        unsafe { ORIGIN = Some(msg::source()) };
     }
 
     #[no_mangle]
-    unsafe extern "C" fn handle() {
+    extern "C" fn handle() {
         match msg::load().expect("provided invalid payload") {
             CreateProgram::Default => {
                 let submitted_code = CHILD_CODE_HASH.into();
                 let (_message_id, new_program_id) = prog::create_program_with_gas(
                     submitted_code,
-                    COUNTER.to_le_bytes(),
+                    unsafe { COUNTER.to_le_bytes() },
                     [],
                     10_000_000_000,
                     0,
@@ -75,7 +75,7 @@ mod wasm {
                 .unwrap();
                 msg::send_bytes(new_program_id, [], 0).unwrap();
 
-                COUNTER += 1;
+                unsafe { COUNTER += 1 };
             }
             CreateProgram::Custom(custom_child_data) => {
                 for (code_hash, salt, gas_limit) in custom_child_data {
@@ -90,9 +90,9 @@ mod wasm {
     }
 
     #[no_mangle]
-    unsafe extern "C" fn handle_reply() {
+    extern "C" fn handle_reply() {
         if msg::status_code().unwrap() != 0 {
-            let origin = ORIGIN.clone().unwrap();
+            let origin = unsafe { ORIGIN.clone().unwrap() };
             msg::send_bytes(origin, [], 0).unwrap();
         }
     }

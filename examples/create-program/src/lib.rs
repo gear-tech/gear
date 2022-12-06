@@ -16,7 +16,7 @@ static mut COUNTER: i32 = 0;
 /// )"#;
 /// ```
 #[no_mangle]
-unsafe extern "C" fn handle() {
+extern "C" fn handle() {
     let command = String::from_utf8(msg::load_bytes().expect("Failed to load payload bytes"))
         .expect("Unable to decode string");
     let submitted_code: CodeId =
@@ -29,7 +29,7 @@ unsafe extern "C" fn handle() {
             // extrinsic and we got its hash. For more details please read README file.
             let (_message_id, new_program_id) = prog::create_program_with_gas(
                 submitted_code,
-                COUNTER.to_le_bytes(),
+                unsafe { COUNTER.to_le_bytes() },
                 b"unique",
                 10_000_000_000,
                 0,
@@ -40,12 +40,12 @@ unsafe extern "C" fn handle() {
             let msg_id = msg::send(new_program_id, b"", 0).unwrap();
             debug!("Sent to a new program message with id {:?}", msg_id);
 
-            COUNTER += 1;
+            unsafe { COUNTER += 1 };
         }
         "duplicate" => {
             let (_message_id, new_program_id) = prog::create_program_with_gas(
                 submitted_code,
-                (COUNTER - 1).to_le_bytes(),
+                unsafe { (COUNTER - 1).to_le_bytes() },
                 b"not_unique",
                 10_000_000_000,
                 0,

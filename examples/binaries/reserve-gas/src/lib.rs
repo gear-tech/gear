@@ -67,8 +67,8 @@ pub enum ReplyAction {
 }
 
 #[no_mangle]
-unsafe extern "C" fn init() {
-    INIT_MSG = msg::id();
+extern "C" fn init() {
+    unsafe { INIT_MSG = msg::id() };
 
     let action: InitAction = msg::load().unwrap();
 
@@ -86,12 +86,14 @@ unsafe extern "C" fn init() {
             let unreserved_amount = noop_reservation.unreserve().expect("noop unreservation");
             assert_eq!(unreserved_amount, 50_000);
 
-            RESERVATION_ID = Some(
-                ReservationId::reserve(RESERVATION_AMOUNT, 5)
-                    .expect("reservation across executions"),
-            );
+            unsafe {
+                RESERVATION_ID = Some(
+                    ReservationId::reserve(RESERVATION_AMOUNT, 5)
+                        .expect("reservation across executions"),
+                )
+            };
         }
-        InitAction::Wait => match WAKE_STATE {
+        InitAction::Wait => match unsafe { &WAKE_STATE } {
             WakeState::Initial => {
                 let _reservation = ReservationId::reserve(50_000, 10);
                 // to find message to reply to in test
@@ -138,11 +140,11 @@ unsafe extern "C" fn init() {
 }
 
 #[no_mangle]
-unsafe extern "C" fn handle() {
+extern "C" fn handle() {
     let action: HandleAction = msg::load().unwrap();
     match action {
         HandleAction::Unreserve => {
-            let id = RESERVATION_ID.take().unwrap();
+            let id = unsafe { RESERVATION_ID.take().unwrap() };
             id.unreserve().expect("unreservation across executions");
         }
         HandleAction::Exit => {
@@ -153,13 +155,15 @@ unsafe extern "C" fn handle() {
 
 // must be called after `InitAction::Wait`
 #[no_mangle]
-unsafe extern "C" fn handle_reply() {
+extern "C" fn handle_reply() {
     let action: ReplyAction = msg::load().unwrap();
-    WAKE_STATE = match action {
-        ReplyAction::Panic => WakeState::Panic,
-        ReplyAction::Exit => WakeState::Exit,
-    };
-    exec::wake(INIT_MSG).unwrap();
+    unsafe {
+        WAKE_STATE = match action {
+            ReplyAction::Panic => WakeState::Panic,
+            ReplyAction::Exit => WakeState::Exit,
+        };
+        exec::wake(INIT_MSG).unwrap();
+    }
 }
 
 #[cfg(test)]

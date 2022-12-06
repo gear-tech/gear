@@ -139,10 +139,10 @@ mod wasm {
     }
 
     #[no_mangle]
-    unsafe extern "C" fn init() {
+    extern "C" fn init() {
         let (contract_a, contract_b): (ActorId, ActorId) =
             msg::load().expect("Expecting two contract addresses");
-        STATE = State::new(contract_a, contract_b);
+        unsafe { STATE = State::new(contract_a, contract_b) };
         msg::reply_bytes([], 0).unwrap();
     }
 }

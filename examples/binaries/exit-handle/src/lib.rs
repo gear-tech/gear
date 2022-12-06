@@ -14,12 +14,12 @@ mod wasm {
     use gstd::{exec, msg};
 
     #[no_mangle]
-    unsafe extern "C" fn handle() {
+    extern "C" fn handle() {
         exec::exit(msg::source());
         // should not be executed
         msg::reply(b"reply", 0).unwrap();
     }
 
     #[no_mangle]
-    unsafe extern "C" fn init() {}
+    extern "C" fn init() {}
 }
