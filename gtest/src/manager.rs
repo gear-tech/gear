@@ -22,12 +22,12 @@ use crate::{
     wasm_executor::WasmExecutor,
     Result, TestError, EXISTENTIAL_DEPOSIT, INITIAL_RANDOM_SEED, MAILBOX_THRESHOLD,
     MAX_RESERVATIONS, MODULE_INSTANTIATION_BYTE_COST, READ_COST, READ_PER_BYTE_COST,
-    RESERVATION_COST, RESERVE_FOR, WAITLIST_COST, WRITE_COST, WRITE_PER_BYTE_COST,
+    RESERVATION_COST, RESERVE_FOR, WAITLIST_COST, WRITE_COST, WRITE_PER_BYTE_COST, MODULE_INSTRUMENTATION_COST, MODULE_INSTRUMENTATION_BYTE_COST,
 };
 use core_processor::{
     common::*,
-    configs::{BlockConfig, BlockInfo, MessageExecutionContext},
-    Ext, PrechargeResult, PrepareResult,
+    configs::{BlockConfig, BlockInfo},
+    Ext,
 };
 use gear_backend_wasmi::WasmiEnvironment;
 use gear_core::{
@@ -651,6 +651,8 @@ impl ExtManager {
             write_per_byte_cost: WRITE_PER_BYTE_COST,
             module_instantiation_byte_cost: MODULE_INSTANTIATION_BYTE_COST,
             max_reservations: MAX_RESERVATIONS,
+            module_instrumentation_cost: MODULE_INSTRUMENTATION_COST,
+            module_instrumentation_byte_cost: MODULE_INSTRUMENTATION_BYTE_COST,
         };
 
         let (actor_data, code) = match data {
@@ -664,33 +666,36 @@ impl ExtManager {
             dispatch.into_incoming(gas_limit),
             dest,
         ) {
-            PrechargeResult::Ok(d) => d,
-            PrechargeResult::Error(journal) => {
+            Ok(d) => d,
+            Err(journal) => {
                 core_processor::handle_journal(journal, self);
                 return;
             }
         };
 
-        let message_execution_context = MessageExecutionContext {
-            actor: Actor {
-                balance,
-                destination_program: dest,
-                executable_data: actor_data,
-            },
-            precharged_dispatch,
-            origin: self.origin,
-            subsequent_execution: false,
+        let context = match core_processor::precharge_for_code(&block_config, precharged_dispatch, dest, actor_data) {
+            Ok(c) => c,
+            Err(journal) => {
+                core_processor::handle_journal(journal, self);
+                return;
+            }
         };
 
-        let journal = match core_processor::prepare(&block_config, message_execution_context) {
-            PrepareResult::WontExecute(journal) | PrepareResult::Error(journal) => journal,
-            PrepareResult::Ok(context) => core_processor::process::<Ext, WasmiEnvironment<Ext>>(
-                &block_config,
-                (context, dest, code.unwrap()).into(),
-                self.random_data.clone(),
-                memory_pages,
-            ),
+        let context = core_processor::ContextChargedForInstrumentation::from(context);
+        let context = match core_processor::precharge_for_memory(&block_config, context, false) {
+            Ok(c) => c,
+            Err(journal) => {
+                core_processor::handle_journal(journal, self);
+                return;
+            }
         };
+
+        let journal = core_processor::process::<Ext, WasmiEnvironment<Ext>>(
+            &block_config,
+            (context, code.unwrap(), balance, self.origin).into(),
+            self.random_data.clone(),
+            memory_pages,
+        );
 
         core_processor::handle_journal(journal, self);
     }

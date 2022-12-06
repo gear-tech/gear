@@ -23,7 +23,7 @@ use crate::{
     manager::{CollectState, State},
     sample::{PayloadVariant, Test},
 };
-use core_processor::{common::*, configs::*, Ext, PrechargeResult, PrepareResult};
+use core_processor::{common::*, configs::*, Ext};
 use gear_backend_common::Environment;
 use gear_core::{
     code::{Code, CodeAndId},
@@ -52,6 +52,8 @@ pub const WRITE_PER_BYTE_COST: u64 = 10;
 pub const MODULE_INSTANTIATION_BYTE_COST: u64 = 20;
 pub const MAX_RESERVATIONS: u64 = 256;
 pub const INITIAL_RANDOM_SEED: u64 = 42;
+pub const MODULE_INSTRUMENTATION_BYTE_COST: u64 = 13;
+pub const MODULE_INSTRUMENTATION_COST: u64 = 297;
 
 pub fn parse_payload(payload: String) -> String {
     let program_id_regex = Regex::new(r"\{(?P<id>[0-9]+)\}").unwrap();
@@ -116,40 +118,42 @@ where
 
     let precharged_dispatch =
         match core_processor::precharge_for_program(&block_config, u64::MAX, message.into(), program_id) {
-            PrechargeResult::Ok(d) => d,
-            PrechargeResult::Error(journal) => {
+            Ok(d) => d,
+            Err(journal) => {
                 core_processor::handle_journal(journal, journal_handler);
                 return Ok(());
             }
         };
 
-    let message_execution_context = MessageExecutionContext {
-        actor: Actor {
-            balance: 0,
-            destination_program: program_id,
-            executable_data: Some(actor_data),
-        },
-        precharged_dispatch,
-        origin: Default::default(),
-        subsequent_execution: false,
+    let context = match core_processor::precharge_for_code(&block_config, precharged_dispatch, program_id, Some(actor_data)) {
+        Ok(c) => c,
+        Err(journal) => {
+            core_processor::handle_journal(journal, journal_handler);
+            return Ok(());
+        }
+    };
+
+    let context = core_processor::ContextChargedForInstrumentation::from(context);
+    let context = match core_processor::precharge_for_memory(&block_config, context, false) {
+        Ok(c) => c,
+        Err(journal) => {
+            core_processor::handle_journal(journal, journal_handler);
+            return Ok(());
+        }
     };
 
     let mut rng = StdRng::seed_from_u64(INITIAL_RANDOM_SEED);
     let mut random = [0u8; 32];
     rng.fill_bytes(&mut random);
 
-    let journal = match core_processor::prepare(&block_config, message_execution_context) {
-        PrepareResult::WontExecute(journal) | PrepareResult::Error(journal) => journal,
-        PrepareResult::Ok(context) => {
-            let (code, ..) = code.into_parts();
-            core_processor::process::<Ext, E>(
-                &block_config,
-                (context, program_id, code).into(),
-                (random.to_vec(), block_config.block_info.height),
-                Default::default(),
-            )
-        }
-    };
+    let (code, ..) = code.into_parts();
+
+    let journal = core_processor::process::<Ext, E>(
+        &block_config,
+        (context, code, 0u128, ProgramId::default()).into(),
+        (random.to_vec(), block_config.block_info.height),
+        Default::default(),
+    );
 
     core_processor::handle_journal(journal, journal_handler);
 
@@ -313,41 +317,47 @@ where
     results.push((state.clone(), Ok(())));
 
     let build_journal =
-        |block_config, dispatch, program_id, actor, memory_pages, journal_handler: &mut JH| {
+        |block_config, dispatch, program_id, actor: Actor, memory_pages, journal_handler: &mut JH| {
             let precharged_dispatch =
                 match core_processor::precharge_for_program(&block_config, u64::MAX, dispatch, program_id) {
-                    PrechargeResult::Ok(d) => d,
-                    PrechargeResult::Error(journal) => {
+                    Ok(d) => d,
+                    Err(journal) => {
                         return journal;
                     }
                 };
 
-            let message_execution_context = MessageExecutionContext {
-                actor,
-                precharged_dispatch,
-                origin: Default::default(),
-                subsequent_execution: false,
+            let balance = actor.balance;
+            let context = match core_processor::precharge_for_code(&block_config, precharged_dispatch, program_id, actor.executable_data) {
+                Ok(c) => c,
+                Err(journal) => {
+                    return journal;
+                }
+            };
+
+            let code_id = context.actor_data().code_id;
+            let context = core_processor::ContextChargedForInstrumentation::from(context);
+            let context = match core_processor::precharge_for_memory(&block_config, context, false) {
+                Ok(c) => c,
+                Err(journal) => {
+                    return journal;
+                }
             };
 
             let mut rng = StdRng::seed_from_u64(INITIAL_RANDOM_SEED);
             let mut random = [0u8; 32];
             rng.fill_bytes(&mut random);
 
-            match core_processor::prepare(&block_config, message_execution_context) {
-                PrepareResult::WontExecute(journal) | PrepareResult::Error(journal) => journal,
-                PrepareResult::Ok(context) => {
-                    let (code, ..) = journal_handler
-                        .load_code(context.actor_data().code_id)
-                        .expect("code not found in the collection")
-                        .into_parts();
-                    core_processor::process::<Ext, E>(
-                        &block_config,
-                        (context, program_id, code).into(),
-                        (random.to_vec(), block_config.block_info.height),
-                        memory_pages,
-                    )
-                }
-            }
+            let (code, ..) = journal_handler
+                .load_code(code_id)
+                .expect("code not found in the collection")
+                .into_parts();
+
+            core_processor::process::<Ext, E>(
+                &block_config,
+                (context, code, balance, ProgramId::default()).into(),
+                (random.to_vec(), block_config.block_info.height),
+                memory_pages,
+            )
         };
 
     if let Some(steps) = steps {
@@ -446,5 +456,7 @@ fn test_block_config(block_info: BlockInfo) -> BlockConfig {
         write_per_byte_cost: WRITE_PER_BYTE_COST,
         module_instantiation_byte_cost: MODULE_INSTANTIATION_BYTE_COST,
         max_reservations: MAX_RESERVATIONS,
+        module_instrumentation_cost: MODULE_INSTRUMENTATION_COST,
+        module_instrumentation_byte_cost: MODULE_INSTRUMENTATION_BYTE_COST,
     }
 }
