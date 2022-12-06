@@ -229,6 +229,47 @@ fn read_state_using_wasm_works() {
 }
 
 #[test]
+fn read_state_using_wasm_errors() {
+    use demo_meta::{MessageInitIn, WASM_BINARY};
+
+    let wat = r#"
+	(module
+		(export "loop" (func $loop))
+        (export "empty" (func $empty))
+        (func $empty)
+        (func $loop
+            (loop)
+        )
+	)"#;
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let meta_wasm = ProgramCodeKind::Custom(wat).to_bytes().to_vec();
+
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_2),
+            WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            <MessageInitIn as Default>::default().encode(),
+            DEFAULT_GAS_LIMIT * 100,
+            10_000,
+        ));
+
+        let program_id = utils::get_last_program_id();
+
+        run_to_next_block(None);
+        assert!(Gear::is_initialized(program_id));
+
+        // Inexistent function
+        assert!(Gear::read_state_using_wasm_impl(program_id, "inexistent", meta_wasm.clone(), None).is_err());
+        // Empty function
+        assert!(Gear::read_state_using_wasm_impl(program_id, "empty", meta_wasm.clone(), None).is_err());
+        // Greed function
+        assert!(Gear::read_state_using_wasm_impl(program_id, "loop", meta_wasm, None).is_err());
+    });
+}
+
+#[test]
 fn mailbox_rent_out_of_rent() {
     use demo_value_sender::{TestData, WASM_BINARY};
 
