@@ -157,7 +157,8 @@ where
             };
 
             let balance = actor.balance;
-            let context = match core_processor::precharge_for_code(&block_config, precharged_dispatch, program_id, actor.executable_data) {
+
+            let context = match core_processor::precharge_for_code_length(&block_config, precharged_dispatch, program_id, actor.executable_data) {
                 Ok(c) => c,
                 Err(journal) => {
                     return journal;
@@ -165,6 +166,20 @@ where
             };
 
             let code_id = context.actor_data().code_id;
+            let code_len_bytes = match T::CodeStorage::get_code_len(code_id) {
+                None => {
+                    unreachable!("Program '{:?}' exists so do code len '{:?}'", program_id, code_id);
+                }
+                Some(c) => c,
+            };
+
+            let context = match core_processor::precharge_for_code(&block_config, context, code_len_bytes) {
+                Ok(c) => c,
+                Err(journal) => {
+                    return journal;
+                }
+            };
+
             let code = match T::CodeStorage::get_code(code_id) {
                 None => {
                     unreachable!("Program '{:?}' exists so do code '{:?}'", program_id, code_id);
@@ -176,7 +191,7 @@ where
             let (code, context) = match code.instruction_weights_version() == schedule.instruction_weights.version {
                 true => (code, core_processor::ContextChargedForInstrumentation::from(context)),
                 false => {
-                    let context = match core_processor::precharge_for_instrumentation(&block_config, context) {
+                    let context = match core_processor::precharge_for_instrumentation(&block_config, context, code.original_code_len()) {
                         Ok(c) => c,
                         Err(journal) => {
                             return journal;

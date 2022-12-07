@@ -58,21 +58,43 @@ struct ContextData {
     actor_data: ExecutableActorData,
 }
 
-pub struct ContextChargedForCode(ContextData);
+pub struct ContextChargedForCodeLength {
+    data: ContextData,
+}
 
-impl ContextChargedForCode {
+impl ContextChargedForCodeLength {
     /// Returns reference to the ExecutableActorData.
     pub fn actor_data(&self) -> &ExecutableActorData {
-        &self.0.actor_data
+        &self.data.actor_data
+    }
+}
+
+pub struct ContextChargedForCode {
+    data: ContextData,
+    code_len_bytes: u32,
+}
+
+impl From<(ContextChargedForCodeLength, u32)> for ContextChargedForCode {
+    fn from((context, code_len_bytes): (ContextChargedForCodeLength, u32)) -> Self {
+        Self {
+            data: context.data,
+            code_len_bytes,
+        }
     }
 }
 
 #[derive(Clone)]
-pub struct ContextChargedForInstrumentation(ContextData);
+pub struct ContextChargedForInstrumentation {
+    data: ContextData,
+    code_len_bytes: u32,
+}
 
 impl From<ContextChargedForCode> for ContextChargedForInstrumentation {
     fn from(context: ContextChargedForCode) -> Self {
-        Self(context.0)
+        Self {
+            data: context.data,
+            code_len_bytes: context.code_len_bytes,
+        }
     }
 }
 
@@ -214,16 +236,15 @@ pub fn precharge_for_program(
     }
 }
 
-/// Charge a message for program binary code beforehand.
-pub fn precharge_for_code(
+/// Charge a message for fetching the length of the binary code.
+pub fn precharge_for_code_length(
     block_config: &BlockConfig,
     dispatch: PrechargedDispatch,
     destination_id: ProgramId,
     executable_data: Option<ExecutableActorData>,
-) -> PrechargeResult<ContextChargedForCode> {
+) -> PrechargeResult<ContextChargedForCodeLength> {
     use executor::ChargeForBytesResult;
 
-    let read_per_byte_cost = block_config.read_per_byte_cost;
     let read_cost = block_config.read_cost;
 
     let (dispatch, mut gas_counter, mut gas_allowance_counter) = dispatch.into_parts();
@@ -242,10 +263,8 @@ pub fn precharge_for_code(
         ));
     }
 
-    match executor::charge_gas_for_code(
+    match executor::charge_gas_for_bytes(
         read_cost,
-        read_per_byte_cost,
-        actor_data.code_length_bytes,
         &mut gas_counter,
         &mut gas_allowance_counter,
     ) {
@@ -265,44 +284,84 @@ pub fn precharge_for_code(
         }
     }
 
-    Ok(ContextChargedForCode(ContextData {
-        gas_counter,
-        gas_allowance_counter,
-        dispatch,
-        destination_id,
-        actor_data,
-    }))
+    Ok(ContextChargedForCodeLength {
+        data: ContextData {
+            gas_counter,
+            gas_allowance_counter,
+            dispatch,
+            destination_id,
+            actor_data,
+        },
+    })
+}
+
+/// Charge a message for the program binary code beforehand.
+pub fn precharge_for_code(
+    block_config: &BlockConfig,
+    mut context: ContextChargedForCodeLength,
+    code_len_bytes: u32,
+) -> PrechargeResult<ContextChargedForCode> {
+    use executor::ChargeForBytesResult;
+
+    let read_per_byte_cost = block_config.read_per_byte_cost;
+    let read_cost = block_config.read_cost;
+
+    match executor::charge_gas_for_code(
+        read_cost,
+        read_per_byte_cost,
+        code_len_bytes,
+        &mut context.data.gas_counter,
+        &mut context.data.gas_allowance_counter,
+    ) {
+        ChargeForBytesResult::Ok => (),
+        ChargeForBytesResult::GasExceeded => {
+            let system_reservation_ctx = SystemReservationContext::from_dispatch(&context.data.dispatch);
+            return Err(process_error(
+                context.data.dispatch,
+                context.data.destination_id,
+                context.data.gas_counter.burned(),
+                system_reservation_ctx,
+                ExecutionErrorReason::GasExceeded(GasOperation::ProgramCode),
+            ));
+        }
+        ChargeForBytesResult::BlockGasExceeded => {
+            return Err(process_allowance_exceed(context.data.dispatch, context.data.destination_id, context.data.gas_counter.burned()));
+        }
+    }
+
+    Ok((context, code_len_bytes).into())
 }
 
 /// Charge a message for instrumentation of the binary code beforehand.
 pub fn precharge_for_instrumentation(
     block_config: &BlockConfig,
     mut context: ContextChargedForCode,
+    original_code_len_bytes: u32,
 ) -> PrechargeResult<ContextChargedForInstrumentation> {
     use executor::ChargeForBytesResult;
 
     let cost_base = block_config.module_instrumentation_cost;
     let cost_per_byte = block_config.module_instrumentation_byte_cost;
 
-    let amount = cost_base.saturating_add(cost_per_byte.saturating_mul(context.actor_data().code_length_bytes.into()));
+    let amount = cost_base.saturating_add(cost_per_byte.saturating_mul(original_code_len_bytes.into()));
     match executor::charge_gas_for_bytes(
         amount,
-        &mut context.0.gas_counter,
-        &mut context.0.gas_allowance_counter,
+        &mut context.data.gas_counter,
+        &mut context.data.gas_allowance_counter,
     ) {
         ChargeForBytesResult::Ok => (),
         ChargeForBytesResult::GasExceeded => {
-            let system_reservation_ctx = SystemReservationContext::from_dispatch(&context.0.dispatch);
+            let system_reservation_ctx = SystemReservationContext::from_dispatch(&context.data.dispatch);
             return Err(process_error(
-                context.0.dispatch,
-                context.0.destination_id,
-                context.0.gas_counter.burned(),
+                context.data.dispatch,
+                context.data.destination_id,
+                context.data.gas_counter.burned(),
                 system_reservation_ctx,
                 ExecutionErrorReason::GasExceeded(GasOperation::ModuleInstrumentation),
             ));
         }
         ChargeForBytesResult::BlockGasExceeded => {
-            return Err(process_allowance_exceed(context.0.dispatch, context.0.destination_id, context.0.gas_counter.burned()));
+            return Err(process_allowance_exceed(context.data.dispatch, context.data.destination_id, context.data.gas_counter.burned()));
         }
     }
 
@@ -315,13 +374,16 @@ pub fn precharge_for_memory(
     mut context: ContextChargedForInstrumentation,
     subsequent_execution: bool,
 ) -> PrechargeResult<ContextChargedForMemory> {
-    let ContextChargedForInstrumentation(ContextData {
-        gas_counter,
-        gas_allowance_counter,
-        actor_data,
-        dispatch,
-        ..
-    }) = &mut context;
+    let ContextChargedForInstrumentation {
+        data: ContextData {
+            gas_counter,
+            gas_allowance_counter,
+            actor_data,
+            dispatch,
+            ..
+        },
+        code_len_bytes,
+     } = &mut context;
 
     let mut f = || {
         let memory_size = executor::charge_gas_for_pages(
@@ -336,7 +398,7 @@ pub fn precharge_for_memory(
 
         executor::charge_gas_for_instantiation(
             block_config.module_instantiation_byte_cost,
-            actor_data.code_length_bytes,
+            *code_len_bytes,
             gas_counter,
             gas_allowance_counter,
         )?;
@@ -357,14 +419,14 @@ pub fn precharge_for_memory(
                     | GasOperation::GrowMemory
                     | GasOperation::LoadMemory
                     | GasOperation::ModuleInstantiation,
-                ) => Err(process_allowance_exceed(context.0.dispatch, context.0.destination_id, context.0.gas_counter.burned())),
+                ) => Err(process_allowance_exceed(context.data.dispatch, context.data.destination_id, context.data.gas_counter.burned())),
 
                 _ => {
-                    let system_reservation_ctx = SystemReservationContext::from_dispatch(&context.0.dispatch);
+                    let system_reservation_ctx = SystemReservationContext::from_dispatch(&context.data.dispatch);
                     Err(process_error(
-                        context.0.dispatch,
-                        context.0.destination_id,
-                        context.0.gas_counter.burned(),
+                        context.data.dispatch,
+                        context.data.destination_id,
+                        context.data.gas_counter.burned(),
                         system_reservation_ctx,
                         reason,
                     ))
@@ -374,7 +436,7 @@ pub fn precharge_for_memory(
     };
 
     Ok(ContextChargedForMemory{
-        data: context.0,
+        data: context.data,
         max_reservations: block_config.max_reservations,
         memory_size,
     })
