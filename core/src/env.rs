@@ -138,6 +138,9 @@ pub trait Ext {
     /// Get the message id of the initial message.
     fn reply_to(&mut self) -> Result<MessageId, Self::Error>;
 
+    /// Get the message id which signal issues from.
+    fn signal_from(&mut self) -> Result<MessageId, Self::Error>;
+
     /// Push the incoming message buffer into reply message.
     fn reply_push_input(&mut self, offset: u32, len: u32) -> Result<(), Self::Error>;
 
@@ -180,7 +183,7 @@ pub trait Ext {
     fn size(&mut self) -> Result<usize, Self::Error>;
 
     /// Returns a random seed for the current block with message id as a subject, along with the time in the past since when it was determinable by chain observers.
-    fn random(&self) -> (&[u8], u32);
+    fn random(&mut self) -> Result<(&[u8], u32), Self::Error>;
 
     /// Charge some extra gas.
     fn charge_gas(&mut self, amount: u64) -> Result<(), Self::Error>;

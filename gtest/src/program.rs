@@ -419,14 +419,12 @@ impl<'a> Program<'a> {
 
         let source = from.into().0;
 
-        let message = SignalMessage::new(
-            MessageId::generate_from_user(
-                system.block_info.height,
-                source,
-                system.fetch_inc_message_nonce() as u128,
-            ),
-            status_code,
+        let origin_msg_id = MessageId::generate_from_user(
+            system.block_info.height,
+            source,
+            system.fetch_inc_message_nonce() as u128,
         );
+        let message = SignalMessage::new(origin_msg_id, status_code);
 
         let (actor, _) = system.actors.get_mut(&self.id).expect("Can't fail");
 
@@ -434,7 +432,7 @@ impl<'a> Program<'a> {
             *id = Some(message.id());
         };
 
-        let dispatch = message.into_dispatch(self.id);
+        let dispatch = message.into_dispatch(origin_msg_id, self.id);
         system.run_dispatch(dispatch)
     }
 

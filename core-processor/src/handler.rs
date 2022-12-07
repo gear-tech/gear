@@ -91,8 +91,8 @@ pub fn handle_journal(
             JournalNote::UnreserveGas {
                 reservation_id,
                 program_id,
-                expiration: bn,
-            } => handler.unreserve_gas(reservation_id, program_id, bn),
+                expiration,
+            } => handler.unreserve_gas(reservation_id, program_id, expiration),
             JournalNote::UpdateGasReservations {
                 program_id,
                 reserver,

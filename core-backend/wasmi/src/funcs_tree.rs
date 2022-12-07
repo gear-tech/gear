@@ -27,15 +27,15 @@ use gear_backend_common::{
 use gear_core::env::Ext;
 use wasmi::{Func, Memory, Store};
 
-struct FunctionBuilder<'a>(Option<&'a BTreeSet<&'a str>>);
+struct FunctionBuilder(BTreeSet<&'static str>);
 
-impl<'a> FunctionBuilder<'a> {
-    fn build<'b, Handler>(&self, name: SysCallName, handler: Handler) -> (&'b str, Func)
+impl FunctionBuilder {
+    fn build<Handler>(&self, name: SysCallName, handler: Handler) -> (&'static str, Func)
     where
         Handler: FnOnce(bool) -> Func,
     {
         let name = name.to_str();
-        let forbidden = self.0.map(|set| set.contains(name)).unwrap_or(false);
+        let forbidden = self.0.contains(name);
         (name, handler(forbidden))
     }
 }
@@ -43,7 +43,7 @@ impl<'a> FunctionBuilder<'a> {
 pub fn build<'a, E>(
     store: &'a mut Store<HostState<E>>,
     memory: Memory,
-    forbidden_funcs: Option<BTreeSet<&'a str>>,
+    forbidden_funcs: BTreeSet<&'static str>,
 ) -> BTreeMap<&'a str, Func>
 where
     E: Ext + IntoExtInfo<E::Error> + 'static,
@@ -51,7 +51,7 @@ where
 {
     use crate::funcs::FuncsHandler as F;
 
-    let f = FunctionBuilder(forbidden_funcs.as_ref());
+    let f = FunctionBuilder(forbidden_funcs);
 
     let funcs: BTreeMap<&str, Func> = [
         f.build(Send, |forbidden| F::send(store, forbidden, memory)),
@@ -96,6 +96,9 @@ where
             F::reply_commit_wgas(store, forbidden, memory)
         }),
         f.build(ReplyTo, |forbidden| F::reply_to(store, forbidden, memory)),
+        f.build(SignalFrom, |forbidden| {
+            F::signal_from(store, forbidden, memory)
+        }),
         f.build(ReplyPush, |forbidden| {
             F::reply_push(store, forbidden, memory)
         }),

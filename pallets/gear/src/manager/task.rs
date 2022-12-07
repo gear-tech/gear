@@ -131,18 +131,25 @@ where
     }
 
     fn send_dispatch(&mut self, stashed_message_id: MessageId) {
+        // No validation required. If program doesn't exist, then NotExecuted appears.
         let dispatch = DispatchStashOf::<T>::take(stashed_message_id)
             .unwrap_or_else(|| unreachable!("Scheduler & Stash logic invalidated!"));
 
-        if self.check_program_id(&dispatch.destination()) {
-            QueueOf::<T>::queue(dispatch)
-                .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e));
-        } else {
-            Pallet::<T>::send_user_message_after_delay(dispatch.into_parts().1);
-        }
+        QueueOf::<T>::queue(dispatch)
+            .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e));
+    }
+
+    fn send_user_message(&mut self, stashed_message_id: MessageId) {
+        // TODO: validate here destination and send error reply, if required.
+        // Atm despite the fact that program may exist, message goes into mailbox / event.
+        let message = DispatchStashOf::<T>::take(stashed_message_id)
+            .map(|dispatch| dispatch.into_parts().1)
+            .unwrap_or_else(|| unreachable!("Scheduler & Stash logic invalidated!"));
+
+        Pallet::<T>::send_user_message_after_delay(message);
     }
 
     fn remove_gas_reservation(&mut self, program_id: ProgramId, reservation_id: ReservationId) {
-        let _slot = Self::remove_gas_reservation(program_id, reservation_id);
+        let _slot = Self::remove_gas_reservation_impl(program_id, reservation_id);
     }
 }

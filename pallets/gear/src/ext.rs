@@ -203,6 +203,10 @@ impl EnvExt for LazyPagesExt {
         self.inner.reply_to()
     }
 
+    fn signal_from(&mut self) -> Result<MessageId, Self::Error> {
+        self.inner.signal_from()
+    }
+
     fn reply_push_input(&mut self, offset: u32, len: u32) -> Result<(), Self::Error> {
         self.inner.reply_push_input(offset, len)
     }
@@ -255,7 +259,7 @@ impl EnvExt for LazyPagesExt {
         self.inner.refund_gas(val)
     }
 
-    fn random(&self) -> (&[u8], u32) {
+    fn random(&mut self) -> Result<(&[u8], u32), Self::Error> {
         self.inner.random()
     }
 

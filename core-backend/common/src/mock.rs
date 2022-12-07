@@ -167,8 +167,8 @@ impl Ext for MockExt {
     fn value_available(&mut self) -> Result<u128, Self::Error> {
         Ok(1_000_000)
     }
-    fn random(&self) -> (&[u8], u32) {
-        ([0u8; 32].as_ref(), 0)
+    fn random(&mut self) -> Result<(&[u8], u32), Self::Error> {
+        Ok(([0u8; 32].as_ref(), 0))
     }
     fn leave(&mut self) -> Result<(), Self::Error> {
         Ok(())
@@ -236,6 +236,10 @@ impl Ext for MockExt {
         _msg: ReplyPacket,
         _delay: u32,
     ) -> Result<MessageId, Self::Error> {
+        Ok(MessageId::default())
+    }
+
+    fn signal_from(&mut self) -> Result<MessageId, Self::Error> {
         Ok(MessageId::default())
     }
 }

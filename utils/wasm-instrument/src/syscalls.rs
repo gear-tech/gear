@@ -163,6 +163,7 @@ pub fn syscall_signature(name: &str) -> SysCallSignature {
         "gr_reply_push" => SysCallSignature::gr([Ptr, Size, Ptr]),
         "gr_reply_push_input" => SysCallSignature::gr([Size, Size, Ptr]),
         "gr_reply_to" => SysCallSignature::gr([Ptr]),
+        "gr_signal_from" => SysCallSignature::gr([Ptr]),
         "gr_send" => SysCallSignature::gr([Ptr, Ptr, Size, Delay, Ptr]),
         "gr_send_input" => SysCallSignature::gr([Ptr, Size, Size, Delay, Ptr]),
         "gr_send_wgas" => SysCallSignature::gr([Ptr, Ptr, Size, Gas, Delay, Ptr]),
@@ -184,7 +185,7 @@ pub fn syscall_signature(name: &str) -> SysCallSignature {
         "gr_reserve_gas" => SysCallSignature::gr([Gas, Duration, Ptr]),
         "gr_unreserve_gas" => SysCallSignature::gr([Ptr, Ptr]),
         "gr_system_reserve_gas" => SysCallSignature::gr([Gas, Ptr]),
-        "gr_random" => SysCallSignature::gr([Ptr, Size, Ptr]),
+        "gr_random" => SysCallSignature::gr([Ptr, Ptr]),
         other => panic!("Unknown syscall name: '{}'", other),
     }
 }

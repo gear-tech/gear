@@ -22,7 +22,7 @@ use frame_system::RawOrigin;
 use gear_core::{
     code::{Code, CodeAndId},
     ids::{CodeId, MessageId, ProgramId, ReservationId},
-    message::{Dispatch, DispatchKind, Message, ReplyDetails},
+    message::{Dispatch, DispatchKind, Message, ReplyDetails, SignalDetails},
     reservation::GasReservationSlot,
 };
 use gear_wasm_instrument::{parity_wasm::elements::Instruction, syscalls::syscall_signature};
@@ -132,6 +132,23 @@ where
                 ),
             )
         }
+        HandleKind::Signal(msg_id, status_code) => {
+            let (msg, _bn) =
+                MailboxOf::<T>::remove(<T::AccountId as Origin>::from_origin(source), msg_id)
+                    .map_err(|_| "Internal error: unable to find message in mailbox")?;
+            Dispatch::new(
+                DispatchKind::Signal,
+                Message::new(
+                    root_message_id,
+                    ProgramId::from_origin(source),
+                    msg.source(),
+                    payload.try_into()?,
+                    Some(u64::MAX),
+                    value,
+                    Some(SignalDetails::new(msg.id(), status_code).into()),
+                ),
+            )
+        }
     };
 
     let initial_gas = BlockGasLimitOf::<T>::get();
@@ -215,7 +232,10 @@ where
 
                     (context, code)
                 }
-                _ => return Err("core_processor::prepare failed"),
+                res => {
+                    log::error!("core_processor::prepare: {:?}", res);
+                    return Err("core_processor::prepare failed");
+                }
             };
 
         Ok(Exec {
@@ -361,7 +381,8 @@ where
                 ReservationId::from(x as u64),
                 GasReservationSlot {
                     amount: 1_000,
-                    expiration: 100,
+                    start: 1,
+                    finish: 100,
                 },
             );
         }
@@ -479,6 +500,10 @@ where
     }
 
     pub fn gr_random(r: u32) -> Result<Exec<T>, &'static str> {
+        let subject_ptr = 1;
+        let subject_len = 32;
+        let bn_random_ptr = subject_ptr + subject_len;
+
         let code = WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
             imported_functions: vec!["gr_random"],
@@ -486,11 +511,9 @@ where
                 r * API_BENCHMARK_BATCH_SIZE,
                 &[
                     // subject ptr
-                    Instruction::I32Const(1),
-                    // subject len
-                    Instruction::I32Const(32),
+                    Instruction::I32Const(subject_ptr),
                     // bn_random ptr
-                    Instruction::I32Const(33),
+                    Instruction::I32Const(bn_random_ptr),
                     // CALL
                     Instruction::Call(0),
                 ],
@@ -723,7 +746,8 @@ where
                 ReservationId::from(x as u64),
                 GasReservationSlot {
                     amount: 1_000,
-                    expiration: 100,
+                    start: 1,
+                    finish: 100,
                 },
             );
         }
@@ -791,7 +815,8 @@ where
                 ReservationId::from(x as u64),
                 GasReservationSlot {
                     amount: 1_000,
-                    expiration: 100,
+                    start: 1,
+                    finish: 100,
                 },
             );
         }
@@ -930,7 +955,8 @@ where
                 ReservationId::from(x as u64),
                 GasReservationSlot {
                     amount: 1_000,
-                    expiration: 100,
+                    start: 1,
+                    finish: 100,
                 },
             );
         }
@@ -976,6 +1002,43 @@ where
         prepare::<T>(
             instance.caller.into_origin(),
             HandleKind::Reply(msg_id, 0),
+            vec![],
+            0u32.into(),
+        )
+    }
+
+    pub fn gr_signal_from(r: u32) -> Result<Exec<T>, &'static str> {
+        let code = WasmModule::<T>::from(ModuleDefinition {
+            memory: Some(ImportedMemory::max::<T>()),
+            imported_functions: vec!["gr_signal_from"],
+            reply_body: Some(body::repeated(
+                r * API_BENCHMARK_BATCH_SIZE,
+                &[
+                    // err_mid ptr
+                    Instruction::I32Const(1),
+                    // CALL
+                    Instruction::Call(0),
+                ],
+            )),
+            ..Default::default()
+        });
+        let instance = Program::<T>::new(code, vec![])?;
+        let msg_id = MessageId::from(10);
+        let msg = Message::new(
+            msg_id,
+            instance.addr.as_bytes().into(),
+            ProgramId::from(instance.caller.clone().into_origin().as_bytes()),
+            Default::default(),
+            Some(1_000_000),
+            0,
+            None,
+        )
+        .into_stored();
+        MailboxOf::<T>::insert(msg, u32::MAX.unique_saturated_into())
+            .expect("Error during mailbox insertion");
+        prepare::<T>(
+            instance.caller.into_origin(),
+            HandleKind::Signal(msg_id, 1),
             vec![],
             0u32.into(),
         )
