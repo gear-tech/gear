@@ -32,14 +32,14 @@ use std::{cell::RefCell, collections::HashMap, env, fs, io::Write, path::Path, t
 
 pub struct System {
     pub(crate) ext: RefCell<ExtManager>,
-    message_queue: HashMap<u32, Vec<Dispatch>>,
+    message_queue: RefCell<HashMap<u32, Vec<Dispatch>>>,
 }
 
 impl Default for System {
     fn default() -> Self {
         Self {
             ext: RefCell::new(ExtManager::new()),
-            message_queue: Default::default(),
+            message_queue: RefCell::new(Default::default()),
         }
     }
 }
@@ -85,26 +85,27 @@ impl System {
         self.ext.borrow_mut().run_dispatch(dispatch)
     }
 
-    /// Returns false when block has already been processed.
+    /// Returns `false` when `block_height` has already been processed.
     ///
     /// Queues dispatch messages into message queue, process and remove
     /// when [`spend_blocks`] reaches `block_height`.
-    pub fn delay_dispatch(&mut self, block_height: u32, dispatch: Dispatch) -> bool {
+    pub fn delay_dispatch(&self, block_height: u32, dispatch: Dispatch) -> bool {
         if block_height <= self.block_height() {
             return false;
         }
 
-        let maybe_queue = self.message_queue.get_mut(&block_height);
+        let mut message_queue = self.message_queue.borrow_mut();
+        let maybe_queue = message_queue.get_mut(&block_height);
         if let Some(queue) = maybe_queue {
             queue.push(dispatch);
         } else {
-            self.message_queue.insert(block_height, vec![dispatch]);
+            message_queue.insert(block_height, vec![dispatch]);
         }
 
         true
     }
 
-    pub fn spend_blocks(&self, amount: u32) {
+    pub fn spend_blocks(&self, amount: u32) -> Vec<RunResult> {
         let mut manager = self.ext.borrow_mut();
         if manager.block_info.height % EPOCH_DURATION_IN_BLOCKS == 0 {
             let mut rng = StdRng::seed_from_u64(
@@ -115,8 +116,20 @@ impl System {
 
             manager.random_data = (random.to_vec(), manager.block_info.height + 1);
         }
+
+        let mut results = vec![];
+        let mut message_queue = self.message_queue.borrow_mut();
+        for block_height in manager.block_info.height..=manager.block_info.height + amount {
+            if let Some(queue) = message_queue.remove(&block_height) {
+                for dispatch in queue {
+                    results.push(self.send_dispatch(dispatch));
+                }
+            }
+        }
+
         manager.block_info.height += amount;
         manager.block_info.timestamp += 1000 * amount as u64;
+        results
     }
 
     /// Return the current block height.

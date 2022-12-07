@@ -361,7 +361,7 @@ mod meta_tests {
         );
 
         let result = system
-            .0
+            .ext
             .borrow_mut()
             .call_meta(&program.id, None, unknown_function_name);
         if let Err(ref err) = result {
@@ -382,7 +382,7 @@ mod meta_tests {
         );
 
         let result = system
-            .0
+            .ext
             .borrow_mut()
             .call_meta(&program.id, None, void_function_name);
         assert!(matches!(result, Err(TestError::FunctionNotFound(_))));
