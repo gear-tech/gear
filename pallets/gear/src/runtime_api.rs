@@ -17,6 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use super::*;
+use gear_wasm_instrument::syscalls::SysCallName;
 
 impl<T: Config> pallet::Pallet<T>
 where
@@ -105,7 +106,7 @@ where
             existential_deposit,
             outgoing_limit: T::OutgoingLimit::get(),
             host_fn_weights: schedule.host_fn_weights.into_core(),
-            forbidden_funcs: ["gr_gas_available"].into(),
+            forbidden_funcs: [SysCallName::GasAvailable].into(),
             mailbox_threshold: T::MailboxThreshold::get(),
             waitlist_cost: CostsPerBlockOf::<T>::waitlist(),
             reserve_for: CostsPerBlockOf::<T>::reserve_for().unique_saturated_into(),

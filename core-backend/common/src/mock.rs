@@ -33,6 +33,7 @@ use gear_core::{
     reservation::GasReserver,
 };
 use gear_core_errors::{CoreError, ExtError, MemoryError};
+use gear_wasm_instrument::syscalls::SysCallName;
 
 /// Mock error
 #[derive(Debug, Encode, Decode)]
@@ -64,7 +65,7 @@ impl IntoExtError for Error {
 
 /// Mock ext
 #[derive(Debug, PartialEq, Eq, Clone, Default)]
-pub struct MockExt(BTreeSet<&'static str>);
+pub struct MockExt(BTreeSet<SysCallName>);
 
 impl Ext for MockExt {
     type Error = Error;
@@ -192,7 +193,7 @@ impl Ext for MockExt {
     ) -> Result<(MessageId, ProgramId), Self::Error> {
         Ok((Default::default(), Default::default()))
     }
-    fn forbidden_funcs(&self) -> &BTreeSet<&'static str> {
+    fn forbidden_funcs(&self) -> &BTreeSet<SysCallName> {
         &self.0
     }
     fn reserve_gas(&mut self, _amount: u64, _duration: u32) -> Result<ReservationId, Self::Error> {

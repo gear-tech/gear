@@ -25,7 +25,7 @@ use gear_core::{
     message::{Dispatch, DispatchKind, Message, ReplyDetails, SignalDetails},
     reservation::GasReservationSlot,
 };
-use gear_wasm_instrument::{parity_wasm::elements::Instruction, syscalls::syscall_signature};
+use gear_wasm_instrument::{parity_wasm::elements::Instruction, syscalls::SysCallName};
 use sp_core::H256;
 use sp_runtime::traits::UniqueSaturatedInto;
 use sp_std::{convert::TryInto, prelude::*};
@@ -278,7 +278,7 @@ where
     pub fn alloc(r: u32) -> Result<Exec<T>, &'static str> {
         let code = WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory { min_pages: 0 }),
-            imported_functions: vec!["alloc"],
+            imported_functions: vec![SysCallName::Alloc],
             handle_body: Some(body::repeated(
                 r * API_BENCHMARK_BATCH_SIZE,
                 &[
@@ -311,7 +311,7 @@ where
 
         let code = WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory { min_pages: 0 }),
-            imported_functions: vec!["alloc", "free"],
+            imported_functions: vec![SysCallName::Alloc, SysCallName::Free],
             init_body: None,
             handle_body: Some(body::plain(instructions)),
             ..Default::default()
@@ -322,7 +322,7 @@ where
     pub fn gr_reserve_gas(r: u32) -> Result<Exec<T>, &'static str> {
         let code = WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
-            imported_functions: vec!["gr_reserve_gas"],
+            imported_functions: vec![SysCallName::ReserveGas],
             handle_body: Some(body::repeated(
                 r * API_BENCHMARK_BATCH_SIZE,
                 &[
@@ -353,7 +353,7 @@ where
 
         let code = WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
-            imported_functions: vec!["gr_unreserve_gas"],
+            imported_functions: vec![SysCallName::UnreserveGas],
             data_segments: vec![DataSegment {
                 offset: reservation_id_offset,
                 value: reservation_id_bytes,
@@ -399,7 +399,7 @@ where
     pub fn gr_system_reserve_gas(r: u32) -> Result<Exec<T>, &'static str> {
         let code = WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
-            imported_functions: vec!["gr_system_reserve_gas"],
+            imported_functions: vec![SysCallName::SystemReserveGas],
             handle_body: Some(body::repeated(
                 r * API_BENCHMARK_BATCH_SIZE,
                 &[
@@ -422,7 +422,7 @@ where
         )
     }
 
-    pub fn getter(name: &'static str, r: u32) -> Result<Exec<T>, &'static str> {
+    pub fn getter(name: SysCallName, r: u32) -> Result<Exec<T>, &'static str> {
         let code = WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
             imported_functions: vec![name],
@@ -446,7 +446,7 @@ where
 
         let code = WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
-            imported_functions: vec!["gr_read"],
+            imported_functions: vec![SysCallName::Read],
             handle_body: Some(body::repeated(
                 r * API_BENCHMARK_BATCH_SIZE,
                 &[
@@ -474,7 +474,7 @@ where
 
         let code = WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
-            imported_functions: vec!["gr_read"],
+            imported_functions: vec![SysCallName::Read],
             data_segments: vec![DataSegment {
                 offset: buffer_offset,
                 value: buffer,
@@ -506,7 +506,7 @@ where
 
         let code = WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
-            imported_functions: vec!["gr_random"],
+            imported_functions: vec![SysCallName::Random],
             handle_body: Some(body::repeated(
                 r * API_BENCHMARK_BATCH_SIZE,
                 &[
@@ -526,7 +526,7 @@ where
     pub fn gr_send_init(r: u32) -> Result<Exec<T>, &'static str> {
         let code = WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
-            imported_functions: vec!["gr_send_init"],
+            imported_functions: vec![SysCallName::SendInit],
             handle_body: Some(body::repeated(
                 r * API_BENCHMARK_BATCH_SIZE,
                 &[
@@ -549,7 +549,7 @@ where
 
         let code = WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
-            imported_functions: vec!["gr_send_init", "gr_send_push"],
+            imported_functions: vec![SysCallName::SendInit, SysCallName::SendPush],
             handle_body: Some(body::repeated(
                 r * API_BENCHMARK_BATCH_SIZE,
                 &[
@@ -586,7 +586,7 @@ where
 
         let code = WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
-            imported_functions: vec!["gr_send_init", "gr_send_push"],
+            imported_functions: vec![SysCallName::SendInit, SysCallName::SendPush],
             handle_body: Some(body::repeated(
                 API_BENCHMARK_BATCH_SIZE,
                 &[
@@ -625,7 +625,7 @@ where
 
         let code = WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
-            imported_functions: vec!["gr_send"],
+            imported_functions: vec![SysCallName::Send],
             data_segments: vec![DataSegment {
                 offset: pid_value_offset,
                 value: pid_value,
@@ -665,7 +665,7 @@ where
 
         let code = WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
-            imported_functions: vec!["gr_send"],
+            imported_functions: vec![SysCallName::Send],
             data_segments: vec![DataSegment {
                 offset: pid_value_offset,
                 value: pid_value,
@@ -712,7 +712,7 @@ where
 
         let code = WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
-            imported_functions: vec!["gr_reservation_send"],
+            imported_functions: vec![SysCallName::ReservationSend],
             data_segments: vec![DataSegment {
                 offset: rid_pid_value_offset,
                 value: rid_pid_values,
@@ -781,7 +781,7 @@ where
 
         let code = WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
-            imported_functions: vec!["gr_reservation_send"],
+            imported_functions: vec![SysCallName::ReservationSend],
             data_segments: vec![DataSegment {
                 offset: rid_pid_value_offset,
                 value: rid_pid_values,
@@ -837,7 +837,7 @@ where
 
         let code = WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
-            imported_functions: vec!["gr_reply_commit"],
+            imported_functions: vec![SysCallName::ReplyCommit],
             handle_body: Some(body::repeated(
                 r * API_BENCHMARK_BATCH_SIZE,
                 &[
@@ -864,7 +864,7 @@ where
 
         let code = WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
-            imported_functions: vec!["gr_reply_push"],
+            imported_functions: vec![SysCallName::ReplyPush],
             handle_body: Some(body::repeated(
                 r * API_BENCHMARK_BATCH_SIZE,
                 &[
@@ -891,7 +891,7 @@ where
 
         let code = WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
-            imported_functions: vec!["gr_reply_push"],
+            imported_functions: vec![SysCallName::ReplyPush],
             handle_body: Some(body::repeated(
                 API_BENCHMARK_BATCH_SIZE,
                 &[
@@ -925,7 +925,7 @@ where
 
         let code = WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
-            imported_functions: vec!["gr_reservation_reply_commit"],
+            imported_functions: vec![SysCallName::ReservationReplyCommit],
             data_segments: vec![DataSegment {
                 offset: rid_value_offset,
                 value: rid_values,
@@ -973,7 +973,7 @@ where
     pub fn gr_reply_to(r: u32) -> Result<Exec<T>, &'static str> {
         let code = WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
-            imported_functions: vec!["gr_reply_to"],
+            imported_functions: vec![SysCallName::ReplyTo],
             reply_body: Some(body::repeated(
                 r * API_BENCHMARK_BATCH_SIZE,
                 &[
@@ -1010,7 +1010,7 @@ where
     pub fn gr_signal_from(r: u32) -> Result<Exec<T>, &'static str> {
         let code = WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
-            imported_functions: vec!["gr_signal_from"],
+            imported_functions: vec![SysCallName::SignalFrom],
             reply_body: Some(body::repeated(
                 r * API_BENCHMARK_BATCH_SIZE,
                 &[
@@ -1052,7 +1052,7 @@ where
 
         let code = WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
-            imported_functions: vec!["gr_reply_push_input"],
+            imported_functions: vec![SysCallName::ReplyPushInput],
             handle_body: Some(body::repeated(
                 r * API_BENCHMARK_BATCH_SIZE,
                 &[
@@ -1083,7 +1083,7 @@ where
 
         let code = WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
-            imported_functions: vec!["gr_reply_push_input"],
+            imported_functions: vec![SysCallName::ReplyPushInput],
             handle_body: Some(body::repeated(
                 API_BENCHMARK_BATCH_SIZE,
                 &[
@@ -1114,7 +1114,7 @@ where
 
         let code = WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
-            imported_functions: vec!["gr_send_init", "gr_send_push_input"],
+            imported_functions: vec![SysCallName::SendInit, SysCallName::SendPushInput],
             handle_body: Some(body::repeated(
                 r * API_BENCHMARK_BATCH_SIZE,
                 &[
@@ -1155,7 +1155,7 @@ where
 
         let code = WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
-            imported_functions: vec!["gr_send_init", "gr_send_push_input"],
+            imported_functions: vec![SysCallName::SendInit, SysCallName::SendPushInput],
             handle_body: Some(body::repeated(
                 API_BENCHMARK_BATCH_SIZE,
                 &[
@@ -1191,7 +1191,7 @@ where
     pub fn gr_status_code(r: u32) -> Result<Exec<T>, &'static str> {
         let code = WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
-            imported_functions: vec!["gr_status_code"],
+            imported_functions: vec![SysCallName::StatusCode],
             reply_body: Some(body::repeated(
                 r * API_BENCHMARK_BATCH_SIZE,
                 &[
@@ -1231,7 +1231,7 @@ where
 
         let code = WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
-            imported_functions: vec!["gr_debug"],
+            imported_functions: vec![SysCallName::Debug],
             handle_body: Some(body::repeated(
                 r * API_BENCHMARK_BATCH_SIZE,
                 &[
@@ -1254,7 +1254,7 @@ where
 
         let code = WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
-            imported_functions: vec!["gr_debug"],
+            imported_functions: vec![SysCallName::Debug],
             handle_body: Some(body::repeated(
                 API_BENCHMARK_BATCH_SIZE,
                 &[
@@ -1278,7 +1278,7 @@ where
 
         let code = WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
-            imported_functions: vec!["gr_status_code", "gr_error"],
+            imported_functions: vec![SysCallName::StatusCode, SysCallName::Error],
             handle_body: Some(body::repeated(
                 r * API_BENCHMARK_BATCH_SIZE,
                 &[
@@ -1301,17 +1301,17 @@ where
     }
 
     pub fn termination_bench(
-        name: &'static str,
+        name: SysCallName,
         param: Option<u32>,
         r: u32,
     ) -> Result<Exec<T>, &'static str> {
         assert!(r <= 1);
 
         let instructions = if let Some(c) = param {
-            assert!(syscall_signature(name).params.len() == 1);
+            assert!(name.signature().params.len() == 1);
             vec![Instruction::I32Const(c as i32), Instruction::Call(0)]
         } else {
-            assert!(syscall_signature(name).params.is_empty());
+            assert!(name.signature().params.is_empty());
             vec![Instruction::Call(0)]
         };
 
@@ -1335,7 +1335,7 @@ where
 
         let code = WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
-            imported_functions: vec!["gr_wake"],
+            imported_functions: vec![SysCallName::Wake],
             data_segments: vec![DataSegment {
                 offset: message_id_offset,
                 value: message_ids.to_vec(),
@@ -1391,7 +1391,7 @@ where
 
         let code = WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
-            imported_functions: vec!["gr_create_program_wgas"],
+            imported_functions: vec![SysCallName::CreateProgramWGas],
             data_segments: vec![
                 DataSegment {
                     offset: cid_value_offset,
@@ -1456,7 +1456,7 @@ where
         );
         let code = WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
-            imported_functions: vec!["gr_create_program_wgas"],
+            imported_functions: vec![SysCallName::CreateProgramWGas],
             data_segments: vec![DataSegment {
                 offset: cid_value_offset,
                 value: cid_value.to_vec(),

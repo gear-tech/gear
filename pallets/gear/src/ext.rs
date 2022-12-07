@@ -29,6 +29,7 @@ use gear_core::{
 };
 use gear_core_errors::{ExtError, MemoryError};
 use gear_lazy_pages_common as lazy_pages;
+use gear_wasm_instrument::syscalls::SysCallName;
 
 /// Ext with lazy pages support.
 pub struct LazyPagesExt {
@@ -319,7 +320,7 @@ impl EnvExt for LazyPagesExt {
         self.inner.charge_gas_runtime(costs)
     }
 
-    fn forbidden_funcs(&self) -> &BTreeSet<&'static str> {
+    fn forbidden_funcs(&self) -> &BTreeSet<SysCallName> {
         &self.inner.context.forbidden_funcs
     }
 

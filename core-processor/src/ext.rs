@@ -43,6 +43,7 @@ use gear_core::{
     reservation::GasReserver,
 };
 use gear_core_errors::{CoreError, ExecutionError, ExtError, MemoryError, MessageError, WaitError};
+use gear_wasm_instrument::syscalls::SysCallName;
 
 /// Processor context.
 pub struct ProcessorContext {
@@ -76,7 +77,7 @@ pub struct ProcessorContext {
     /// Weights of host functions.
     pub host_fn_weights: HostFnWeights,
     /// Functions forbidden to be called.
-    pub forbidden_funcs: BTreeSet<&'static str>,
+    pub forbidden_funcs: BTreeSet<SysCallName>,
     /// Mailbox threshold.
     pub mailbox_threshold: u64,
     /// Cost for single block waitlist holding.
@@ -828,7 +829,7 @@ impl EnvExt for Ext {
         Ok((&self.context.random_data.0, self.context.random_data.1))
     }
 
-    fn forbidden_funcs(&self) -> &BTreeSet<&'static str> {
+    fn forbidden_funcs(&self) -> &BTreeSet<SysCallName> {
         &self.context.forbidden_funcs
     }
 

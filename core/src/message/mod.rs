@@ -41,6 +41,7 @@ pub use signal::SignalMessage;
 pub use stored::{StoredDispatch, StoredMessage};
 
 use core::fmt::Display;
+use gear_wasm_instrument::syscalls::SysCallName;
 
 use super::buffer::LimitedVec;
 
@@ -140,16 +141,19 @@ impl DispatchKind {
     }
 
     /// Sys-calls that are not allowed to be called for the dispatch kind.
-    pub fn forbidden_funcs(&self) -> BTreeSet<&'static str> {
+    pub fn forbidden_funcs(&self) -> BTreeSet<SysCallName> {
         match self {
             DispatchKind::Signal => [
-                "gr_source",
-                "gr_reply",
-                "gr_reply_push",
-                "gr_reply_commit",
-                "gr_reservation_reply",
-                "gr_reservation_reply_commit",
-                "gr_system_reserve_gas",
+                SysCallName::Source,
+                SysCallName::Reply,
+                SysCallName::ReplyPush,
+                SysCallName::ReplyCommit,
+                SysCallName::ReplyCommitWGas,
+                SysCallName::ReplyInput,
+                SysCallName::ReplyInputWGas,
+                SysCallName::ReservationReply,
+                SysCallName::ReservationReplyCommit,
+                SysCallName::SystemReserveGas,
             ]
             .into(),
             _ => Default::default(),
