@@ -209,7 +209,7 @@ mod wasm {
                 panic!();
             }
             HandleSignalState::ForbiddenCall(user) => {
-                msg::send_bytes(user.into(), b"handle_signal_forbidden_call", 0).unwrap();
+                msg::send_bytes(*user.into(), b"handle_signal_forbidden_call", 0).unwrap();
                 let _ = msg::source();
             }
         }
