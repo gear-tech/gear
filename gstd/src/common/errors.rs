@@ -26,7 +26,8 @@ use core::fmt;
 
 pub use gcore::errors::*;
 
-pub type Result<T> = core::result::Result<T, ContractError>;
+/// `Result` type with a predefined error type ([`ContractError`]).
+pub type Result<T, E = ContractError> = core::result::Result<T, E>;
 
 /// Common error type returned by API functions from other modules.
 #[derive(Clone, Debug, Eq, PartialEq)]
