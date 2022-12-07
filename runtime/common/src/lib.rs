@@ -31,14 +31,15 @@ use frame_support::{
 };
 use frame_system::limits::BlockWeights;
 use runtime_primitives::{AccountId, Balance, BlockNumber};
-use sp_runtime::Perbill;
+use sp_runtime::{traits::Zero, Perbill};
 
+// TODO: change to proper value.
 /// We assume that ~3% of the block weight is consumed by `on_initialize` handlers.
 /// This is used to limit the maximal weight of a single extrinsic.
 ///
 /// Mostly we don't produce any calculations in `on_initialize` hook,
 /// so it's safe to reduce from default 10 to custom 3 percents.
-pub const AVERAGE_ON_INITIALIZE_RATIO: Perbill = Perbill::from_percent(3);
+pub const AVERAGE_ON_INITIALIZE_RATIO: Perbill = Perbill::from_percent(0);
 pub const NORMAL_DISPATCH_RATIO_NUM: u8 = 25;
 pub const GAS_LIMIT_MIN_PERCENTAGE_NUM: u8 = 100 - NORMAL_DISPATCH_RATIO_NUM;
 
@@ -58,10 +59,10 @@ pub fn block_weights_for(maximum_block_weight: Weight) -> BlockWeights {
         })
         .for_class(DispatchClass::Operational, |weights| {
             weights.max_total = Some(maximum_block_weight);
+            weights.base_extrinsic = Zero::zero();
             // Operational transactions have some extra reserved space, so that they
             // are included even if block reached `MAXIMUM_BLOCK_WEIGHT`.
-            weights.reserved =
-                Some(maximum_block_weight - NORMAL_DISPATCH_RATIO * maximum_block_weight);
+            weights.reserved = Some(maximum_block_weight);
         })
         .avg_block_initialization(AVERAGE_ON_INITIALIZE_RATIO)
         .build_or_panic()
