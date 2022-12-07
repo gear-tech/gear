@@ -20,4 +20,4 @@ gtest = { path = "../../../gtest" }
 
 [features]
 std = ["codec/std"]
-default = ["std"]
+default = []
