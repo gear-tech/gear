@@ -32,14 +32,14 @@ use std::{cell::RefCell, collections::HashMap, env, fs, io::Write, path::Path, t
 
 pub struct System {
     pub(crate) ext: RefCell<ExtManager>,
-    message_queue: RefCell<HashMap<u32, Vec<Dispatch>>>,
+    scheduled_queues: RefCell<HashMap<u32, Vec<Dispatch>>>,
 }
 
 impl Default for System {
     fn default() -> Self {
         Self {
             ext: RefCell::new(ExtManager::new()),
-            message_queue: RefCell::new(Default::default()),
+            scheduled_queues: RefCell::new(Default::default()),
         }
     }
 }
@@ -94,12 +94,12 @@ impl System {
             return false;
         }
 
-        let mut message_queue = self.message_queue.borrow_mut();
-        let maybe_queue = message_queue.get_mut(&block_height);
+        let mut scheduled_queues = self.scheduled_queues.borrow_mut();
+        let maybe_queue = scheduled_queues.get_mut(&block_height);
         if let Some(queue) = maybe_queue {
             queue.push(dispatch);
         } else {
-            message_queue.insert(block_height, vec![dispatch]);
+            scheduled_queues.insert(block_height, vec![dispatch]);
         }
 
         true
@@ -118,9 +118,9 @@ impl System {
         }
 
         let mut results = vec![];
-        let mut message_queue = self.message_queue.borrow_mut();
+        let mut scheduled_queues = self.scheduled_queues.borrow_mut();
         for block_height in manager.block_info.height..=manager.block_info.height + amount {
-            if let Some(queue) = message_queue.remove(&block_height) {
+            if let Some(queue) = scheduled_queues.remove(&block_height) {
                 for dispatch in queue {
                     results.push(self.send_dispatch(dispatch));
                 }
