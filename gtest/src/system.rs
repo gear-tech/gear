@@ -28,16 +28,18 @@ use env_logger::{Builder, Env};
 use gear_core::{ids::CodeId, message::Dispatch};
 use path_clean::PathClean;
 use rand::{rngs::StdRng, RngCore, SeedableRng};
-use std::{cell::RefCell, env, fs, io::Write, path::Path, thread};
+use std::{cell::RefCell, collections::HashMap, env, fs, io::Write, path::Path, thread};
 
 pub struct System {
     pub(crate) ext: RefCell<ExtManager>,
+    message_queue: HashMap<u32, Vec<Dispatch>>,
 }
 
 impl Default for System {
     fn default() -> Self {
         Self {
             ext: RefCell::new(ExtManager::new()),
+            message_queue: Default::default(),
         }
     }
 }
@@ -81,6 +83,25 @@ impl System {
 
     pub fn send_dispatch(&self, dispatch: Dispatch) -> RunResult {
         self.ext.borrow_mut().run_dispatch(dispatch)
+    }
+
+    /// Returns false when block has already been processed.
+    ///
+    /// Queues dispatch messages into message queue, process and remove
+    /// when [`spend_blocks`] reaches `block_height`.
+    pub fn delay_dispatch(&mut self, block_height: u32, dispatch: Dispatch) -> bool {
+        if block_height <= self.block_height() {
+            return false;
+        }
+
+        let maybe_queue = self.message_queue.get_mut(&block_height);
+        if let Some(queue) = maybe_queue {
+            queue.push(dispatch);
+        } else {
+            self.message_queue.insert(block_height, vec![dispatch]);
+        }
+
+        true
     }
 
     pub fn spend_blocks(&self, amount: u32) {
