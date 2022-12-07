@@ -16,8 +16,6 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Module with basic messaging functions wrapped from `gcore` to `gstd`.
-
 use crate::{
     async_runtime::signals,
     errors::{IntoContractResult, Result},
@@ -31,73 +29,139 @@ use gstd_codegen::wait_for_reply;
 /// Message handle.
 ///
 /// Gear allows users and programs to interact with other users and programs via
-/// messages. Message creation consists of the following parts - message
-/// initialization, filling the message with payload (can be gradual), message
-/// sending.
+/// messages. Message creation consists of the following parts: message
+/// initialization, filling the message with payload (can be gradual), and
+/// message sending.
 ///
-/// Here are the functions that make up the parts of building and sending
+/// Here are the functions that make up the parts of forming and sending
 /// messages:
-/// [`msg::send_init`](crate::msg::send_init) - message initialization.
-/// [`msg::send_push`](crate::msg::send_push) - adds a `payload` part to the
-/// message  specified by `MessageHandle`.
-/// [`msg::send_commit`](crate::msg::send_commit) - send a message with the
-/// following arguments:
-///     - the address of the target account.
-///     - the gas_limit - maximum gas allowed to be utilized during
-///     reply message processing.
-///     - the value to be transferred from the current program account
-///     to the message target account.
 ///
-/// Send transaction will be posted only after the execution of message
-/// processing is finished.
+/// - [`MessageHandle::init`] initializes the message
+/// - [`MessageHandle::push`] adds a payload to a message
+/// - [`MessageHandle::commit`] sends a message
 ///
-/// In order to identify a message that is being built from parts of a program
-/// you should use `MessageHandle` obtained via
-/// [`msg::send_init`](crate::msg::send_init).
+/// The send transaction will be posted only after the execution of the message
+/// processing has been finished.
+///
+/// To identify a message that is being built from parts of a program, you
+/// should use `MessageHandle` obtained via [`MessageHandle::init`].
 ///
 /// # Examples
 ///
 /// ```
-/// use gstd::msg;
+/// use gstd::msg::{self, MessageHandle};
 ///
+/// #[no_mangle]
 /// extern "C" fn handle() {
-///     // ...
-///     let msg_handle = msg::send_init();
+///     let msg_handle = MessageHandle::init().expect("Unable to init");
+///     msg_handle.push(b"Hello,").expect("Unable to push");
+///     msg_handle.push(b" world!").expect("Unable to push");
+///     msg_handle
+///         .commit(msg::source(), 0)
+///         .expect("Unable to commit");
 /// }
 /// ```
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct MessageHandle(gcore::MessageHandle);
 
 impl MessageHandle {
+    /// Initialize a message to send formed in parts.
+    ///
+    /// Gear allows programs to work with messages that consist of several
+    /// parts. This function initializes a message built in parts and
+    /// returns the corresponding `MessageHandle`.
     pub fn init() -> Result<Self> {
-        send_init()
+        gcore::msg::send_init().into_contract_result()
     }
 
+    /// Push a payload part of the message to be sent in parts.
+    ///
+    /// Gear allows programs to work with messages in parts.
+    /// This function adds a `payload` part to the message.
     pub fn push<T: AsRef<[u8]>>(&self, payload: T) -> Result<()> {
-        send_push(*self, payload)
+        gcore::msg::send_push(self.0, payload.as_ref()).into_contract_result()
     }
 
+    /// Same as [`push`](Self::push) but uses the input buffer as a payload
+    /// source.
+    ///
+    /// The argument of this method is the index range that defines the input
+    /// buffer's piece that is to be pushed back to the output.
+    ///
+    /// # Examples
+    ///
+    /// Send half of the incoming payload back to the sender.
+    ///
+    /// ```
+    /// use gstd::msg::{self, MessageHandle};
+    ///
+    /// #[no_mangle]
+    /// extern "C" fn handle() {
+    ///     let msg_handle = MessageHandle::init().expect("Unable to init");
+    ///     msg_handle
+    ///         .push_input(0..msg::size() / 2)
+    ///         .expect("Unable to push");
+    ///     msg_handle
+    ///         .commit(msg::source(), 0)
+    ///         .expect("Unable to commit");
+    /// }
+    /// ```
     pub fn push_input<Range: RangeBounds<usize>>(&self, range: Range) -> Result<()> {
-        send_push_input(*self, range)
+        let (offset, len) = utils::decay_range(range);
+        gcore::msg::send_push_input(self.0, offset, len).into_contract_result()
     }
 
+    /// Finalize and send the message formed in parts.
+    ///
+    /// Gear allows programs to work with messages that consist of several
+    /// parts. This function finalizes the message built in parts and sends
+    /// it.
+    ///
+    /// The first argument is the address of the target account. The second
+    /// argument is the value to be transferred from the current program account
+    /// to the message target account.
+    #[wait_for_reply(self)]
     pub fn commit(self, program: ActorId, value: u128) -> Result<MessageId> {
-        send_commit(self, program, value)
+        gcore::msg::send_commit(self.0, program.into(), value).into_contract_result()
     }
 
+    /// Same as [`commit`](Self::commit), but sends the message after the
+    /// `delay` expressed in block count.
     pub fn commit_delayed(self, program: ActorId, value: u128, delay: u32) -> Result<MessageId> {
-        send_commit_delayed(self, program, value, delay)
+        gcore::msg::send_commit_delayed(self.0, program.into(), value, delay).into_contract_result()
     }
 
+    /// Same as [`commit`](Self::commit), but with an explicit gas
+    /// limit.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use gstd::msg::{self, MessageHandle};
+    ///
+    /// #[no_mangle]
+    /// extern "C" fn handle() {
+    ///     let msg_handle = MessageHandle::init().expect("Unable to init");
+    ///     msg_handle.push(b"Hello,").expect("Unable to push");
+    ///     msg_handle.push(b" world!").expect("Unable to push");
+    ///     msg_handle
+    ///         .commit_with_gas(msg::source(), 10_000_000, 42)
+    ///         .expect("Unable to commit");
+    /// }
+    /// ```
+    #[wait_for_reply(self)]
     pub fn commit_with_gas(
         self,
         program: ActorId,
         gas_limit: u64,
         value: u128,
     ) -> Result<MessageId> {
-        send_commit_with_gas(self, program, gas_limit, value)
+        gcore::msg::send_commit_with_gas(self.0, program.into(), gas_limit, value)
+            .into_contract_result()
     }
 
+    /// Same as [`commit_with_gas`](Self::commit_with_gas), but sends
+    /// the message after the `delay` expressed in block count.
     pub fn commit_with_gas_delayed(
         self,
         program: ActorId,
@@ -105,9 +169,34 @@ impl MessageHandle {
         value: u128,
         delay: u32,
     ) -> Result<MessageId> {
-        send_commit_with_gas_delayed(self, program, gas_limit, value, delay)
+        gcore::msg::send_commit_with_gas_delayed(self.0, program.into(), gas_limit, value, delay)
+            .into_contract_result()
     }
 
+    /// Same as [`commit`](Self::commit), but it spends gas from
+    /// reservation instead of borrowing it from the gas limit provided with the
+    /// incoming message.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use gstd::{
+    ///     msg::{self, MessageHandle},
+    ///     ReservationId,
+    /// };
+    ///
+    /// #[no_mangle]
+    /// extern "C" fn handle() {
+    ///     let reservation_id = ReservationId::reserve(5_000_000, 100).expect("Unable to reserve");
+    ///     let msg_handle = MessageHandle::init().expect("Unable to init");
+    ///     msg_handle.push(b"Hello,").expect("Unable to push");
+    ///     msg_handle.push(b" world!").expect("Unable to push");
+    ///     msg_handle
+    ///         .commit_from_reservation(reservation_id, msg::source(), 42)
+    ///         .expect("Unable to commit");
+    /// }
+    /// ```
+    #[wait_for_reply(self)]
     pub fn commit_from_reservation(
         self,
         id: ReservationId,
@@ -118,6 +207,8 @@ impl MessageHandle {
             .into_contract_result()
     }
 
+    /// Same as [`commit_from_reservation`](Self::commit_from_reservation), but
+    /// sends the message after the `delay` expressed in block count.
     pub fn commit_delayed_from_reservation(
         self,
         id: ReservationId,
@@ -162,68 +253,111 @@ impl From<gcore::MessageHandle> for MessageHandle {
 
 /// Get the status code of the message being processed.
 ///
-/// This function is used to check the reply message was processed
-/// successfully or not.
+/// This function is used in the reply handler to check whether the message was
+/// processed successfully or not.
 ///
 /// # Examples
 ///
 /// ```
 /// use gstd::msg;
 ///
-/// extern "C" fn handle() {
-///     // ...
-///     let status_code = msg::status_code();
+/// #[no_mangle]
+/// extern "C" fn handle_reply() {
+///     let status_code = msg::status_code().expect("Unable to get status code");
 /// }
 /// ```
 pub fn status_code() -> Result<i32> {
     gcore::msg::status_code().map_err(Into::into)
 }
 
-/// Obtain an identifier of the message currently being processed.
+/// Get an identifier of the message that is currently being processed.
 ///
-/// Message identifiers can be obtained for the currently processed message,
-/// also each send and reply functions return a message identifier.
+/// One can get an identifier for the currently processing message; each send
+/// and reply function also returns a message identifier.
 ///
 /// # Examples
 ///
 /// ```
-/// use gstd::msg;
+/// use gstd::{msg, MessageId};
 ///
+/// #[no_mangle]
 /// extern "C" fn handle() {
 ///     let current_message_id = msg::id();
+///     if current_message_id != MessageId::zero() {
+///         msg::reply(b"Real message", 0).expect("Unable to reply");
+///     }
 /// }
 /// ```
 pub fn id() -> MessageId {
     gcore::msg::id().into()
 }
 
-/// Get a payload of the message currently being processed.
+/// Get a payload of the message that is currently being processed.
 ///
-/// Loads payload of the message into a buffer with a message size which can be
-/// obtained using the [`size`] function.
+/// This function returns the message's payload as a byte vector.
 ///
 /// # Examples
 ///
 /// ```
 /// use gstd::msg;
 ///
+/// #[no_mangle]
 /// extern "C" fn handle() {
-///     let payload_bytes = msg::load_bytes().unwrap();
+///     let payload = msg::load_bytes().expect("Unable to load");
 /// }
 /// ```
+///
+/// # See also
+///
+/// - [`load`](super::load) function returns a decoded payload of a custom type.
 pub fn load_bytes() -> Result<Vec<u8>> {
     let mut result = vec![0u8; size()];
     gcore::msg::read(result.as_mut())?;
     Ok(result)
 }
 
-/// Same as [`reply`](crate::msg::reply), without encoding payload.
+/// Send a new message as a reply to the message that is currently being
+/// processed.
+///
+/// Some programs can reply to other programs, e.g., check another program's
+/// state and use it as a parameter for its business logic.
+///
+/// This function allows sending such replies, which are similar to standard
+/// messages in terms of payload and different only in how the message
+/// processing is handled by a dedicated program function called `handle_reply`.
+///
+/// The first argument is the payload buffer. The second argument is the value
+/// to be transferred from the current program account to the reply message
+/// target account.
+///
+/// Reply message transactions will be posted after processing is finished,
+/// similar to the standard message-sending function (e.g. [`send_bytes`]).
+///
+/// # Examples
+///
+/// ```
+/// use gstd::{exec, msg};
+///
+/// #[no_mangle]
+/// extern "C" fn handle() {
+///     msg::reply_bytes(b"PING", exec::value_available()).expect("Unable to reply");
+/// }
+/// ```
+///
+/// # See also
+///
+/// - [`reply`](super::reply) function sends a reply with an encoded payload.
+/// - [`reply_bytes_delayed`] function sends a reply after the delay.
+/// - [`reply_push`], [`reply_commit`] functions allow forming a reply message
+///   in parts.
+/// - [`send_bytes`] function sends a new message to the program or user.
 #[wait_for_reply]
 pub fn reply_bytes(payload: impl AsRef<[u8]>, value: u128) -> Result<MessageId> {
     gcore::msg::reply(payload.as_ref(), value).into_contract_result()
 }
 
-/// Same as [`reply_bytes`], but sends delayed.
+/// Same as [`reply_bytes`], but sends the reply after the `delay` expressed in
+/// block count.
 pub fn reply_bytes_delayed(
     payload: impl AsRef<[u8]>,
     value: u128,
@@ -232,8 +366,30 @@ pub fn reply_bytes_delayed(
     gcore::msg::reply_delayed(payload.as_ref(), value, delay).into_contract_result()
 }
 
-/// Same as [`reply_from_reservation`](crate::msg::reply_from_reservation),
-/// without encoding payload.
+/// Same as [`reply_bytes`], but it spends gas from a reservation instead of
+/// borrowing it from the gas limit provided with the incoming message.
+///
+/// The first argument is the reservation identifier [`ReservationId`] obtained
+/// by calling the corresponding API. The second argument is the payload buffer.
+/// The last argument is the value to be transferred from the current program
+/// account to the reply message target account.
+///
+/// # Examples
+///
+/// ```
+/// use gstd::{msg, ReservationId};
+///
+/// #[no_mangle]
+/// extern "C" fn handle() {
+///     let reservation_id = ReservationId::reserve(5_000_000, 100).expect("Unable to reserve");
+///     msg::reply_from_reservation(reservation_id, b"PING", 0).unwrap();
+/// }
+/// ```
+///
+/// # See also
+///
+/// - [`send_bytes_from_reservation`] function sends a new message to the
+///   program or user by using gas from a reservation.
 #[wait_for_reply]
 pub fn reply_bytes_from_reservation(
     id: ReservationId,
@@ -243,7 +399,8 @@ pub fn reply_bytes_from_reservation(
     gcore::msg::reply_from_reservation(id.into(), payload.as_ref(), value).into_contract_result()
 }
 
-/// Same as [`reply_bytes_from_reservation`], but sends delayed.
+/// Same as [`reply_bytes_from_reservation`], but sends the reply after the
+/// `delay` expressed in block count.
 pub fn reply_bytes_delayed_from_reservation(
     id: ReservationId,
     payload: impl AsRef<[u8]>,
@@ -254,7 +411,18 @@ pub fn reply_bytes_delayed_from_reservation(
         .into_contract_result()
 }
 
-/// Same as [`reply_bytes`], with gas limit.
+/// Same as [`reply_bytes`], but with an explicit gas limit.
+///
+/// # Examples
+///
+/// ```
+/// use gstd::{exec, msg};
+///
+/// #[no_mangle]
+/// extern "C" fn handle() {
+///     msg::reply_bytes_with_gas(b"PING", exec::gas_available() / 2, 0).expect("Unable to reply");
+/// }
+/// ```
 #[wait_for_reply]
 pub fn reply_bytes_with_gas(
     payload: impl AsRef<[u8]>,
@@ -264,7 +432,8 @@ pub fn reply_bytes_with_gas(
     gcore::msg::reply_with_gas(payload.as_ref(), gas_limit, value).into_contract_result()
 }
 
-/// Same as [`reply_bytes_with_gas`], but sends delayed.
+/// Same as [`reply_bytes_with_gas`], but sends the reply after the `delay`
+/// expressed in block count.
 pub fn reply_bytes_with_gas_delayed(
     payload: impl AsRef<[u8]>,
     gas_limit: u64,
@@ -275,84 +444,80 @@ pub fn reply_bytes_with_gas_delayed(
         .into_contract_result()
 }
 
-/// Finalize and send a current reply message.
+/// Finalize and send the current reply message.
 ///
-/// Some programs can reply on their messages to other programs, i.e. check
+/// Some programs can rely on their messages to other programs, i.e., check
 /// another program's state and use it as a parameter for its own business
-/// logic. Basic implementation is covered in [`reply`](crate::msg::reply)
+/// logic. The basic implementation is covered in [`reply`](super::reply)
 /// function.
 ///
-/// This function allows sending reply messages filled with payload parts sent
-/// via [`reply_push`] during the message handling. Finalization of the
-/// reply message is done via [`reply_commit`] function similar to
-/// [`send_commit`].
+/// This function allows sending a reply message filled with payload parts via
+/// [`reply_push`] during the message handling. The [`reply_commit`] function
+/// finalizes the reply message and sends it to the program invoker.
+///
+/// The only argument is the value to be transferred from the current program
+/// account to the reply message target account.
+///
+/// Note that an incomplete reply message will be dropped if the
+/// [`reply_commit`] function has not been called before the current execution
+/// ends.
 ///
 /// # Examples
 ///
 /// ```
-/// use gstd::{exec, msg};
+/// use gstd::msg;
 ///
+/// #[no_mangle]
 /// extern "C" fn handle() {
-///     // ...
-///     msg::reply_push(b"Part 1").unwrap();
-///     // ...
-///     msg::reply_push(b"Part 2").unwrap();
-///     // ...
-///     msg::reply_commit(42).unwrap();
+///     msg::reply_push(b"Hello,").expect("Unable to push");
+///     msg::reply_push(b" world!").expect("Unable to push");
+///     msg::reply_commit(42).expect("Unable to commit");
 /// }
 /// ```
 ///
 /// # See also
 ///
-/// [`reply_push`] function allows to form a reply message in parts.
+/// - [`reply_push`] function allows forming a reply message in parts.
+/// - [`MessageHandle::commit`] function finalizes and sends a message formed in
+///   parts.
 #[wait_for_reply]
 pub fn reply_commit(value: u128) -> Result<MessageId> {
     gcore::msg::reply_commit(value).into_contract_result()
 }
 
-/// Same as [`reply_commit`], but sends delayed.
+/// Same as [`reply_commit`], but sends the reply after the `delay` expressed in
+/// block count.
 pub fn reply_commit_delayed(value: u128, delay: u32) -> Result<MessageId> {
     gcore::msg::reply_commit_delayed(value, delay).into_contract_result()
 }
 
-/// Finalize and send a current reply message from reservation.
-///
-/// Some programs can reply on their messages to other programs, i.e. check
-/// another program's state and use it as a parameter for its own business
-/// logic. Basic implementation is covered in
-/// [`reply`](crate::msg::reply_from_reservation) function.
-///
-/// This function allows sending reply messages filled with payload parts sent
-/// via [`reply_push`] during the message handling. Finalization of the
-/// reply message is done via [`reply_commit_from_reservation`] function similar
-/// to [`gcore::msg::send_commit_from_reservation`].
+/// Same as [`reply_commit`], but it spends gas from a reservation instead of
+/// borrowing it from the gas limit provided with the incoming message.
 ///
 /// # Examples
 ///
 /// ```
-/// use gstd::{exec, msg, ReservationId};
+/// use gstd::{msg, ReservationId};
 ///
 /// extern "C" fn handle() {
-///     // ...
-///     let id = ReservationId::reserve(5_000_000, 100).expect("enough gas");
-///     // ...
-///     msg::reply_push(b"Part 1").unwrap();
-///     // ...
-///     msg::reply_push(b"Part 2").unwrap();
-///     // ...
-///     msg::reply_commit_from_reservation(id, 42).unwrap();
+///     msg::reply_push(b"Hello,").expect("Unable to push");
+///     msg::reply_push(b" world!").expect("Unable to push");
+///     let resevation_id = ReservationId::reserve(5_000_000, 100).expect("Unable to reserves");
+///     msg::reply_commit_from_reservation(resevation_id, 42).expect("Unable to commit");
 /// }
 /// ```
 ///
 /// # See also
 ///
-/// [`reply_push`] function allows to form a reply message in parts.
+/// - [`reply_push`] function allows forming a reply message in parts.
+/// - [`ReservationId`] struct allows reserve gas for later use.
 #[wait_for_reply]
 pub fn reply_commit_from_reservation(id: ReservationId, value: u128) -> Result<MessageId> {
     gcore::msg::reply_commit_from_reservation(id.into(), value).into_contract_result()
 }
 
-/// Same as [`reply_commit_from_reservation`], but sends delayed.
+/// Same as [`reply_commit_from_reservation`], but sends the message after the
+/// `delay` expressed in block count.
 pub fn reply_commit_delayed_from_reservation(
     id: ReservationId,
     value: u128,
@@ -362,76 +527,73 @@ pub fn reply_commit_delayed_from_reservation(
         .into_contract_result()
 }
 
-/// Same as [`reply_commit`], but with explicit gas limit.
+/// Same as [`reply_commit`], but with an explicit gas limit.
 ///
 /// # Examples
 ///
 /// ```
 /// use gstd::{exec, msg};
 ///
+/// #[no_mangle]
 /// extern "C" fn handle() {
-///     // ...
-///     msg::reply_push(b"Part 1").unwrap();
-///     // ...
-///     msg::reply_push(b"Part 2").unwrap();
-///     // ...
-///     msg::reply_commit_with_gas(42, 0).unwrap();
+///     msg::reply_push(b"Hello, ").expect("Unable to push");
+///     msg::reply_push(b", world!").expect("Unable to push");
+///     msg::reply_commit_with_gas(exec::gas_available() / 2, 0).expect("Unable to commit");
 /// }
 /// ```
 ///
 /// # See also
 ///
-/// [`reply_push`] function allows to form a reply message in parts.
+/// - [`reply_push`] function allows forming a reply message in parts.
 #[wait_for_reply]
 pub fn reply_commit_with_gas(gas_limit: u64, value: u128) -> Result<MessageId> {
     gcore::msg::reply_commit_with_gas(gas_limit, value).into_contract_result()
 }
 
-/// Same as [`reply_commit_with_gas`], but sends delayed.
+/// Same as [`reply_commit_with_gas`], but sends the reply after the `delay`
+/// expressed in block count.
 pub fn reply_commit_with_gas_delayed(gas_limit: u64, value: u128, delay: u32) -> Result<MessageId> {
     gcore::msg::reply_commit_with_gas_delayed(gas_limit, value, delay).into_contract_result()
 }
 
 /// Push a payload part to the current reply message.
 ///
-/// Some programs can reply on their messages to other programs, i.e. check
+/// Some programs can rely on their messages to other programs, i.e., check
 /// another program's state and use it as a parameter for its own business
-/// logic. Basic implementation is covered in [`reply`](crate::msg::reply)
-/// function.
+/// logic. The basic implementation is covered in the [`reply_bytes`] function.
 ///
-/// This function allows filling the reply payload parts via [`reply_push`]
-/// during the message `handling`. The payload can consist of several parts.
+/// This function allows filling the reply `payload` parts via [`reply_push`]
+/// during the message handling. The payload can consist of several parts.
+///
+/// Note that an incomplete reply message will be dropped if the
+/// [`reply_commit`] function has not been called before the current execution
+/// ends.
 ///
 /// # Examples
 ///
-/// ```
-/// use gstd::msg;
+/// See the [`reply_commit`] examples.
 ///
-/// extern "C" fn handle() {
-///     // ...
-///     msg::reply_push(b"Part 1").unwrap();
-///     // ...
-///     msg::reply_push(b"Part 2").unwrap();
-/// }
-/// ```
+/// # See also
+///
+/// - [`reply_commit`] function finalizes and sends the current reply message.
 pub fn reply_push<T: AsRef<[u8]>>(payload: T) -> Result<()> {
     gcore::msg::reply_push(payload.as_ref()).into_contract_result()
 }
 
-/// Get an identifier of the initial message which the current handle_reply
-/// function is called on.
+/// Get an identifier of the initial message on which the current `handle_reply`
+/// function is called.
 ///
-/// Processing the reply to the message in Gear program is performed using
-/// `handle_reply` function. In order to obtain the original message id on
-/// which reply has been posted, a program should call this function.
+/// The Gear program processes the reply to the message using the `handle_reply`
+/// function. Therefore, a program should call this function to obtain the
+/// original message identifier on which the reply has been posted.
 ///
 /// # Examples
 ///
 /// ```
 /// use gstd::msg;
 ///
+/// #[no_mangle]
 /// extern "C" fn handle_reply() {
-///     // ...
 ///     let original_message_id = msg::reply_to().unwrap();
 /// }
 /// ```
@@ -448,7 +610,7 @@ pub fn reply_to() -> Result<MessageId> {
 /// # Examples
 ///
 /// ```
-/// use gcore::msg;
+/// use gstd::msg;
 ///
 /// #[no_mangle]
 /// extern "C" fn handle_signal() {
@@ -459,59 +621,77 @@ pub fn signal_from() -> Result<MessageId> {
     gcore::msg::signal_from().into_contract_result()
 }
 
-/// Same as [`reply_push`], but pushes the incoming message payload.
+/// Same as [`reply_push`] but uses the input buffer as a payload source.
+///
+/// The argument of this method is the index range that defines the input
+/// buffer's piece that is to be pushed back to the output.
+///
+/// # Examples
+///
+/// Send half of the incoming payload back to the sender as a reply.
+///
+/// ```
+/// use gstd::msg;
+///
+/// #[no_mangle]
+/// extern "C" fn handle() {
+///     msg::reply_push_input(0..msg::size() / 2).expect("Unable to push");
+///     msg::reply_commit(0).expect("Unable to commit");
+/// }
+/// ```
+///
+/// # See also
+///
+/// - [`MessageHandle::push_input`] function allows using the input buffer as a
+///   payload source for an outcoming message.
 pub fn reply_push_input<Range: RangeBounds<usize>>(range: Range) -> Result<()> {
     let (offset, len) = utils::decay_range(range);
 
     gcore::msg::reply_push_input(offset, len).into_contract_result()
 }
 
-/// Same as [`send_push`], but pushes the incoming message payload.
-pub fn send_push_input<Range: RangeBounds<usize>>(
-    handle: MessageHandle,
-    range: Range,
-) -> Result<()> {
-    let (offset, len) = utils::decay_range(range);
-
-    gcore::msg::send_push_input(handle.0, offset, len).into_contract_result()
-}
-
 /// Send a new message to the program or user.
 ///
-/// Gear allows programs to communicate to each other and users via messages.
-/// [`send`](crate::msg::send) function allows sending such messages.
+/// Gear allows programs to communicate with each other and users via messages.
+/// For example, the [`send_bytes`] function allows sending such messages.
 ///
-/// First argument is the address of the target account.
-/// Second argument is message payload in bytes.
-/// Last argument is the value to be transferred from the current program
-/// account to the message target account.
+/// The first argument is the address of the target account ([`ActorId`]). The
+/// second argument is the payload buffer. The last argument is the value to be
+/// transferred from the current program account to the message target account.
 ///
-/// Send transaction will be posted only after the execution of processing is
-/// finished, similar to the reply message [`reply`](crate::msg::reply).
+/// Send transaction will be posted after processing is finished, similar to the
+/// reply message [`reply_bytes`].
 ///
 /// # Examples
+///
+/// Send a message with value to the arbitrary address (don't repeat it in your
+/// program!):
 ///
 /// ```
 /// use gstd::{msg, ActorId};
 ///
+/// #[no_mangle]
 /// extern "C" fn handle() {
-///     // ...
-///     let id = msg::source();
-///
-///     msg::send_bytes(id, b"HELLO", 12345678);
+///     // Receiver id is collected from bytes from 0 to 31
+///     let id: [u8; 32] = core::array::from_fn(|i| i as u8);
+///     msg::send_bytes(ActorId::new(id), b"HELLO", 42);
 /// }
 /// ```
 ///
 /// # See also
 ///
-/// [`send_init`],[`send_push`], [`send_commit`] functions allows to form a
-/// message to send in parts.
+/// - [`reply_bytes`] function sends a new message as a reply to the message
+///   that is currently being processed.
+/// - [`MessageHandle::init`], [`MessageHandle::push`], and
+///   [`MessageHandle::commit`] functions allow forming a message to send in
+///   parts.
 #[wait_for_reply]
 pub fn send_bytes<T: AsRef<[u8]>>(program: ActorId, payload: T, value: u128) -> Result<MessageId> {
     gcore::msg::send(program.into(), payload.as_ref(), value).into_contract_result()
 }
 
-/// Same as [`send_bytes`], but sends delayed.
+/// Same as [`send_bytes`], but sends the message after the `delay` expressed in
+/// block count.
 pub fn send_bytes_delayed<T: AsRef<[u8]>>(
     program: ActorId,
     payload: T,
@@ -521,25 +701,31 @@ pub fn send_bytes_delayed<T: AsRef<[u8]>>(
     gcore::msg::send_delayed(program.into(), payload.as_ref(), value, delay).into_contract_result()
 }
 
-/// Same as [`send_bytes`], but with explicit gas limit.
+/// Same as [`send_bytes`], but with an explicit gas limit.
 ///
 /// # Examples
+///
+/// Send a message with gas limit and value to the arbitrary address (don't
+/// repeat it in your program!):
 ///
 /// ```
 /// use gstd::{msg, ActorId};
 ///
+/// #[no_mangle]
 /// extern "C" fn handle() {
-///     // ...
-///     let id = msg::source();
-///
-///     msg::send_bytes_with_gas(id, b"HELLO", 1000, 12345678);
+///     // Receiver id is collected from bytes from 0 to 31
+///     let id: [u8; 32] = core::array::from_fn(|i| i as u8);
+///     msg::send_bytes_with_gas(ActorId::new(id), b"HELLO", 5_000_000, 42);
 /// }
 /// ```
 ///
 /// # See also
 ///
-/// [`send_init`],[`send_push`], [`send_commit`] functions allows to form a
-/// message to send in parts.
+/// - [`reply_bytes_with_gas`] function sends a reply with an explicit gas
+///   limit.
+/// - [`MessageHandle::init`], [`MessageHandle::push`], and
+///   [`MessageHandle::commit`] functions allow forming a message to send in
+///   parts.
 #[wait_for_reply]
 pub fn send_bytes_with_gas<T: AsRef<[u8]>>(
     program: ActorId,
@@ -551,7 +737,8 @@ pub fn send_bytes_with_gas<T: AsRef<[u8]>>(
         .into_contract_result()
 }
 
-/// Same as [`send_bytes_with_gas`], but sends delayed.
+/// Same as [`send_bytes_with_gas`], but sends the message after the `delay`
+/// expressed in block count.
 pub fn send_bytes_with_gas_delayed<T: AsRef<[u8]>>(
     program: ActorId,
     payload: T,
@@ -563,39 +750,39 @@ pub fn send_bytes_with_gas_delayed<T: AsRef<[u8]>>(
         .into_contract_result()
 }
 
-/// Send a new message to the program or user from reservation.
+/// Same as [`send_bytes`], but it spends gas from a reservation instead of
+/// borrowing it from the gas limit provided with the incoming message.
 ///
-/// Gear allows programs to communicate to each other and users via messages.
-/// [`send_from_reservation`](crate::msg::send_from_reservation) function allows
-/// sending such messages.
-///
-/// First argument is reservation ID.
-/// Second argument is the address of the target account.
-/// Third argument is message payload in bytes.
-/// Last argument is the value to be transferred from the current program
-/// account to the message target account.
-///
-/// Send transaction will be posted only after the execution of processing is
-/// finished, similar to the reply message [`reply`](crate::msg::reply).
+/// The first argument is the reservation identifier [`ReservationId`] obtained
+/// by calling the corresponding API. The second argument is the address of the
+/// target account ([`ActorId`]). The third argument is the payload buffer.
+/// Finally, the last argument is the value to be transferred from the current
+/// program account to the message target account.
 ///
 /// # Examples
 ///
+/// Send a message with value to the sender's address:
+///
 /// ```
-/// use gstd::{msg, ActorId, ReservationId};
+/// use gstd::{msg, ReservationId};
 ///
+/// #[no_mangle]
 /// extern "C" fn handle() {
-///     // ...
-///     let id = ReservationId::reserve(5_000_000, 100).expect("enough gas");
-///     let source_id = msg::source();
-///
-///     msg::send_bytes_from_reservation(id, source_id, b"HELLO", 12345678);
+///     // Reserve 5 million of gas for 100 blocks
+///     let reservation_id = ReservationId::reserve(5_000_000, 100).expect("Unable to reserve");
+///     // Receiver id is the message source
+///     let actor_id = msg::source();
+///     msg::send_from_reservation(reservation_id, actor_id, b"HELLO", 42).expect("Unable to send");
 /// }
 /// ```
 ///
 /// # See also
 ///
-/// [`send_init`],[`send_push`], [`gcore::msg::send_commit_from_reservation`]
-/// functions allows to form a message to send in parts.
+/// - [`reply_bytes_from_reservation`] function sends a reply to the program or
+///   user by using gas from a reservation.
+/// - [`MessageHandle::init`], [`MessageHandle::push`], and
+///   [`MessageHandle::commit`] functions allow forming a message to send in
+///   parts.
 #[wait_for_reply]
 pub fn send_bytes_from_reservation<T: AsRef<[u8]>>(
     id: ReservationId,
@@ -607,7 +794,8 @@ pub fn send_bytes_from_reservation<T: AsRef<[u8]>>(
         .into_contract_result()
 }
 
-/// Same as [`send_bytes_from_reservation`], but sends delayed.
+/// Same as [`send_bytes_from_reservation`], but sends the message after the
+/// `delay` expressed in block count.
 pub fn send_bytes_delayed_from_reservation<T: AsRef<[u8]>>(
     id: ReservationId,
     program: ActorId,
@@ -625,165 +813,17 @@ pub fn send_bytes_delayed_from_reservation<T: AsRef<[u8]>>(
     .into_contract_result()
 }
 
-/// Finalize and send message formed in parts.
+/// Get the payload size of the message that is being processed.
 ///
-/// Gear allows programs to work with messages that consist of several parts.
-/// This function finalizes the message built in parts and sends it.
-///
-/// First argument is the message handle [MessageHandle] which specifies a
-/// particular message built in parts.
-/// Second argument is the address of the target account.
-/// Last argument is the value to be transferred from the current program
-/// account to the message target account.
-/// Send transaction will be posted only after the execution of processing is
-/// finished.
-///
-/// # Examples
-///
-/// ```
-/// use gstd::{exec, msg};
-///
-/// extern "C" fn handle() {
-///     // ...
-///     let msg_handle = msg::send_init().unwrap();
-///     msg::send_push(msg_handle, b"PING");
-///     msg::send_commit(msg_handle, msg::source(), 42);
-/// }
-/// ```
-///
-/// # See also
-///
-/// [`send`](crate::msg::send) allows to send message in one step.
-///
-/// [`send_push`], [`send_init`] functions allows to form a message to send in
-/// parts.
-#[wait_for_reply]
-pub fn send_commit(handle: MessageHandle, program: ActorId, value: u128) -> Result<MessageId> {
-    gcore::msg::send_commit(handle.into(), program.into(), value).into_contract_result()
-}
-
-/// Same as [`send_commit`], but sends delayed.
-pub fn send_commit_delayed(
-    handle: MessageHandle,
-    program: ActorId,
-    value: u128,
-    delay: u32,
-) -> Result<MessageId> {
-    gcore::msg::send_commit_delayed(handle.into(), program.into(), value, delay)
-        .into_contract_result()
-}
-
-/// Same as [`send_commit`], but with explicit gas limit.
-///
-/// # Examples
-///
-/// ```
-/// use gstd::{exec, msg};
-///
-/// extern "C" fn handle() {
-///     // ...
-///     let msg_handle = msg::send_init().unwrap();
-///     msg::send_push(msg_handle, b"PING");
-///     msg::send_commit_with_gas(msg_handle, msg::source(), 10_000_000, 42);
-/// }
-/// ```
-///
-/// # See also
-///
-/// [`send`](crate::msg::send) allows to send message in one step.
-///
-/// [`send_push`], [`send_init`] functions allows to form a message to send in
-/// parts.
-#[wait_for_reply]
-pub fn send_commit_with_gas(
-    handle: MessageHandle,
-    program: ActorId,
-    gas_limit: u64,
-    value: u128,
-) -> Result<MessageId> {
-    gcore::msg::send_commit_with_gas(handle.into(), program.into(), gas_limit, value)
-        .into_contract_result()
-}
-
-/// Same as [`send_commit_with_gas`], but sends delayed.
-pub fn send_commit_with_gas_delayed(
-    handle: MessageHandle,
-    program: ActorId,
-    gas_limit: u64,
-    value: u128,
-    delay: u32,
-) -> Result<MessageId> {
-    gcore::msg::send_commit_with_gas_delayed(handle.into(), program.into(), gas_limit, value, delay)
-        .into_contract_result()
-}
-
-/// Initialize a message to send, formed in parts.
-///
-/// Gear allows programs to work with messages that consist of several parts.
-/// This function initializes a message built in parts and returns corresponding
-/// message `handle`.
-///
-/// # Examples
-///
-/// ```
-/// use gstd::{exec, msg};
-///
-/// extern "C" fn handle() {
-///     // ...
-///     let msg_handle = msg::send_init().unwrap();
-///     msg::send_push(msg_handle, b"PING");
-///     msg::send_commit(msg_handle, msg::source(), 42);
-/// }
-/// ```
-///
-/// # See also
-/// [`send`](crate::msg::send) allows to send message in one step.
-///
-/// [`send_push`], [`send_commit`] functions allows to form a message to send in
-/// parts.
-pub fn send_init() -> Result<MessageHandle> {
-    gcore::msg::send_init().into_contract_result()
-}
-
-/// Push a payload part of the message to be sent in parts.
-///
-/// Gear allows programs to work with messages in parts.
-/// This function adds a `payload` part to the message specified by message
-/// `handle`.
-///
-/// # Examples
-///
-/// ```
-/// use gstd::{exec, msg};
-///
-/// extern "C" fn handle() {
-///     // ...
-///     let msg_handle = msg::send_init().unwrap();
-///     msg::send_push(msg_handle, b"PING");
-///     msg::send_commit(msg_handle, msg::source(), 42);
-/// }
-/// ```
-///
-/// # See also
-///
-/// [`send`](crate::msg::send) allows to send a message in one step.
-///
-/// [`send_init`], [`send_commit`] functions allows to form and send a message
-/// to send in parts.
-pub fn send_push<T: AsRef<[u8]>>(handle: MessageHandle, payload: T) -> Result<()> {
-    gcore::msg::send_push(handle.0, payload.as_ref()).into_contract_result()
-}
-
-/// Get the payload size of the message being processed.
-///
-/// This function is used to obtain the payload size of the current message
-/// being processed.
+/// This function returns the payload size of the current message that is being
+/// processed.
 ///
 /// # Examples
 ///
 /// ```
 /// use gstd::msg;
 ///
+/// #[no_mangle]
 /// extern "C" fn handle() {
 ///     let payload_size = msg::size();
 /// }
@@ -794,7 +834,7 @@ pub fn size() -> usize {
 
 /// Get the identifier of the message source (256-bit address).
 ///
-/// This function is used to obtain [`ActorId`] of the account that sends
+/// This function is used to obtain the [`ActorId`] of the account that sends
 /// the currently processing message (either a program or a user).
 ///
 /// # Examples
@@ -802,8 +842,8 @@ pub fn size() -> usize {
 /// ```
 /// use gstd::msg;
 ///
+/// #[no_mangle]
 /// extern "C" fn handle() {
-///     // ...
 ///     let who_sends_message = msg::source();
 /// }
 /// ```
@@ -811,18 +851,18 @@ pub fn source() -> ActorId {
     gcore::msg::source().into()
 }
 
-/// Get the value associated with the message being processed.
+/// Get the value associated with the message that is being processed.
 ///
-/// This function is used to obtain the value that has been sent along with
-/// a current message being processed.
+/// This function returns the value that has been sent along with a current
+/// message that is being processed.
 ///
 /// # Examples
 ///
 /// ```
 /// use gstd::msg;
 ///
+/// #[no_mangle]
 /// extern "C" fn handle() {
-///     // ...
 ///     let amount_sent_with_message = msg::value();
 /// }
 /// ```

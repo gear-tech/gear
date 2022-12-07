@@ -16,8 +16,6 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! This `gstd` module provides async messaging functions.
-
 use crate::{
     async_runtime::{self, signals, Lock, ReplyPoll},
     errors::{ContractError, Result},
@@ -66,17 +64,43 @@ where
     }
 }
 
-/// To interrupt a program execution waiting for a reply on a previous message,
-/// one needs to call an `.await` expression.
-/// The initial message that requires a reply is sent instantly.
-/// Function `send_for_reply` returns `CodecMessageFuture` which
-/// implements `Future` trait. Program interrupts until the reply is received.
-/// As soon as the reply is received, the function checks it's status code and
-/// returns `Ok()` with decoded structure inside or `Err()` in case of status
-/// code does not equal 0. For decode-related errors (<https://docs.rs/parity-scale-codec/2.3.1/parity_scale_codec/struct.Error.html>),
-/// Gear returns the native one after decode.
+/// Same as [`MessageFuture`], but allows decoding the reply's payload instead
+/// of getting a byte vector.
+///
+/// Generic `T` type should implement the [`Decode`] trait.
+///
+/// # Examples
+///
+/// In the following example, variable types are annotated explicitly for
+/// demonstration purposes only. Usually, annotating them is unnecessary because
+/// they can be inferred automatically.
+///
+/// ```
+/// use gstd::{
+///     msg::{self, CodecMessageFuture},
+///     prelude::*,
+/// };
+/// # use gstd::ActorId;
+///
+/// #[derive(Decode)]
+/// #[codec(crate = gstd::codec)]
+/// struct Reply {
+///     field: String,
+/// }
+///
+/// #[gstd::async_main]
+/// async fn main() {
+///     # let dest = ActorId::zero();
+///     let future: CodecMessageFuture<Reply> =
+///         msg::send_bytes_for_reply_as(dest, b"PING", 0).expect("Unable to send");
+///     let reply: Reply = future.await.expect("Unable to get a reply");
+///     let field: String = reply.field;
+/// }
+///
+/// # fn main() {}
+/// ```
 pub struct CodecMessageFuture<T> {
-    /// Waiting reply to this the message id
+    /// An identifier of a message to which a reply is waited for.
     pub waiting_reply_to: MessageId,
     /// Marker
     ///
@@ -98,12 +122,43 @@ impl_futures!(
     }
 );
 
-/// Same as [`CodecMessageFuture`], but also contains program id
-/// for functions that create programs.
+/// Same as [`CreateProgramFuture`], but allows decoding the reply's payload
+/// instead of getting a byte vector.
+///
+/// Generic `T` type should implement the [`Decode`] trait.
+///
+/// # Examples
+///
+/// In the following example, variable types are annotated explicitly for
+/// demonstration purposes only. Usually, annotating them is unnecessary because
+/// they can be inferred automatically.
+///
+/// ```
+/// use gstd::{msg::CodecCreateProgramFuture, prelude::*, prog, ActorId};
+/// # use gstd::CodeId;
+///
+/// #[derive(Decode)]
+/// #[codec(crate = gstd::codec)]
+/// struct InitReply {
+///     field: String,
+/// }
+///
+/// #[gstd::async_main]
+/// async fn main() {
+///     # let code_id = CodeId::new([0; 32]);
+///     let future: CodecCreateProgramFuture<InitReply> =
+///         prog::create_program_for_reply_as(code_id, b"salt", b"PING", 0)
+///             .expect("Unable to create a program");
+///     let (prog_id, reply): (ActorId, InitReply) = future.await.expect("Unable to get a reply");
+///     let field: String = reply.field;
+/// }
+///
+/// # fn main() {}
+/// ```
 pub struct CodecCreateProgramFuture<T> {
-    /// Waiting reply to this the message id.
+    /// An identifier of a message to which a reply is waited for.
     pub waiting_reply_to: MessageId,
-    /// Id of newly created program.
+    /// An identifier of a newly created program.
     pub program_id: ActorId,
     /// Marker
     ///
@@ -127,17 +182,42 @@ impl_futures!(
     }
 );
 
-/// To interrupt a program execution waiting for a reply on a previous message,
-/// one needs to call an `.await` expression.
-/// The initial message that requires a reply is sent instantly.
-/// Function `send_bytes_for_reply` returns `MessageFuture` which
-/// implements `Future` trait. Program interrupts until the reply is received.
-/// As soon as the reply is received, the function checks it's status code and
-/// returns `Ok()` with raw bytes inside or `Err()` in case of status code does
-/// not equal 0. For decode-related errors (<https://docs.rs/parity-scale-codec/2.3.1/parity_scale_codec/struct.Error.html>),
-/// Gear returns the native one after decode.
+/// Future returned by async functions related to message sending that wait for
+/// a reply (see sending functions with `_for_reply` suffix, e.g.
+/// [`send_bytes_for_reply`](super::send_bytes_for_reply)).
+///
+/// To get the reply payload (in bytes), one should use `.await` syntax. After
+/// calling a corresponding async function, the program interrupts its execution
+/// until a reply arrives.
+///
+/// This future keeps the sent message identifier ([`MessageId`] to wake the
+/// program after a reply arrives.
+///
+/// # Examples
+///
+/// In the following example, variable types are annotated explicitly for
+/// demonstration purposes only. Usually, annotating them is unnecessary because
+/// they can be inferred automatically.
+///
+/// ```
+/// use gstd::msg::{self, MessageFuture};
+/// # use gstd::ActorId;
+///
+/// #[gstd::async_main]
+/// async fn main() {
+///     # let dest = ActorId::zero();
+///     let future: MessageFuture =
+///         msg::send_bytes_for_reply(dest, b"PING", 0).expect("Unable to send");
+///     let reply: Vec<u8> = future.await.expect("Unable to get a reply");
+/// }
+///
+/// # fn main() {}
+/// ```
 pub struct MessageFuture {
-    /// Waiting reply to this the message id
+    /// An identifier of a message to which a reply is waited for.
+    ///
+    /// This identifier is generated by the corresponding send function (e.g.
+    /// [`send_bytes`](super::send_bytes)).
     pub waiting_reply_to: MessageId,
 }
 
@@ -149,12 +229,44 @@ impl_futures!(
     }
 );
 
-/// Same as [`MessageFuture`], but also contains program id
-/// for functions that create programs.
+/// Future returned by async functions related to program creating that wait for
+/// a reply from the newly created program's init function (see program creating
+/// functions with `_for_reply` suffix, e.g.
+/// [`create_program_for_reply`](crate::prog::create_program_for_reply)).
+///
+/// To get the reply payload (in bytes), one should use `.await` syntax. After
+/// calling a corresponding async function, the program interrupts its execution
+/// until a reply arrives.
+///
+/// This future keeps the sent message identifier ([`MessageId`]) to wake the
+/// program after a reply arrives. Also, it keeps an identifier of a newly
+/// created program ([`ActorId`]).
+///
+/// # Examples
+///
+/// In the following example, variable types are annotated explicitly for
+/// demonstration purposes only. Usually, annotating them is unnecessary because
+/// they can be inferred automatically.
+///
+/// ```
+/// use gstd::{msg::CreateProgramFuture, prog, ActorId};
+/// # use gstd::CodeId;
+///
+/// #[gstd::async_main]
+/// async fn main() {
+///     # let code_id = CodeId::new([0; 32]);
+///     let future: CreateProgramFuture =
+///         prog::create_program_for_reply(code_id, b"salt", b"PING", 0)
+///             .expect("Unable to create a program");
+///     let (prog_id, reply): (ActorId, Vec<u8>) = future.await.expect("Unable to get a reply");
+/// }
+///
+/// # fn main() {}
+/// ```
 pub struct CreateProgramFuture {
-    /// Waiting reply to this the message id
+    /// An identifier of a message to which a reply is waited for.
     pub waiting_reply_to: MessageId,
-    /// Id of newly created program.
+    /// An identifier of a newly created program.
     pub program_id: ActorId,
 }
 

@@ -16,45 +16,74 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Gear `bail!` macro. Provides custom unwrapping realization.
-
-/// **The `bail!` macro**
+/// Unwrap `Result<T, E>` to `T` if it is `Ok(T)` or panic with the provided
+/// message if the result is `Err(E)`.
 ///
-/// Unwraps `Result<T, E: Debug>`.
-/// In case of argument value Ok(T) returns T, else panics with custom message.
+/// The message argument(s) can be either:
 ///
-/// The macro has three implementations and its behavior depends on the build
-/// type: is the `--features=debug` flag added.
+/// - a string literal;
+/// - two string literals: the first is provided with panic when the program has
+///   been compiled in release mode, and the second is provided when the program
+///   has been compiled in debug mode (either with `--debug` or
+///   `--features=debug` parameters);
+/// - a format string followed by arguments.
 ///
-/// - `bail!(res: Result<T, E: Debug>, msg: &str)`
+/// # Examples
 ///
-/// Panics with the same `msg` in both modes. Contains error message in debug
-/// mode.
+/// Unwrap `Ok(i32)` value to `i32`:
 ///
-/// - `bail!(res: Result<T, E: Debug>, static_release: &str, static_debug:
-///   &str)`
+/// ```
+/// use gstd::bail;
 ///
-/// Panics with the same `static_release` in release mode and with `static
-/// debug` + error message in debug mode.
+/// let result: Result<i32, ()> = Ok(42);
+/// let value = bail!(result, "Unreachable as `result` is `Ok`");
+/// assert_eq!(value, 42);
+/// ```
 ///
-/// - `bail!(res: Result<T, E: Debug>, static_release: &str, formatter: &str,
-///   args)`
+/// Panic when trying to unwrap the `Err(&str)` value:
 ///
-/// Panics with the same `static_release` in release mode and with
-/// `format!(formatter, args)` + error message in debug mode.
+/// ```should_panic
+/// # use gstd::bail;
+/// let result: Result<(), &str> = Err("Wrong value");
+/// // The next line will result in panic
+/// let value = bail!(result, "We have an error value");
+/// ```
+///
+/// Panic with different messages for release and debug profiles:
+///
+/// ```should_panic
+/// # use gstd::bail;
+/// let result: Result<(), &str> = Err("Wrong value");
+/// // The next line will result in panic
+/// let value = bail!(result, "Message in release mode", "Message in debug mode");
+/// ```
+///
+/// Panic with the formatted message string:
+///
+/// ```should_panic
+/// # use gstd::bail;
+/// let result: Result<(), &str> = Err("Wrong value");
+/// let a = 42;
+/// // The next line will result in panic
+/// let value = bail!(result, "Error", "a = {}", a);
+/// ```
 #[cfg(any(feature = "debug", debug_assertions))]
 #[macro_export]
 macro_rules! bail {
     ($res:expr, $msg:literal) => {
-        $res.expect($msg);
+        $res.expect($msg)
     };
     ($res:expr, $expl:literal, $fmtd:literal) => {
-        let _ = $expl;
-        $res.expect($fmtd);
+        {
+            let _ = $expl;
+            $res.expect($fmtd)
+        }
     };
     ($res:expr, $expl:literal, $fmt:literal $(, $args:tt)+) => {
-        let _ = $expl;
-        $res.expect(&$crate::prelude::format!($fmt $(, $args)+));
+        {
+            let _ = $expl;
+            $res.expect(&$crate::prelude::format!($fmt $(, $args)+))
+        }
     };
 }
 

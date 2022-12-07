@@ -171,6 +171,10 @@ impl MessageId {
     pub const fn new(arr: [u8; 32]) -> Self {
         Self(arr)
     }
+
+    pub const fn zero() -> Self {
+        Self([0; 32])
+    }
 }
 
 impl AsRef<[u8]> for MessageId {
@@ -209,16 +213,26 @@ impl From<H256> for MessageId {
     }
 }
 
+/// Code identifier.
+///
+/// This identifier can be obtained as a result of executing the
+/// `gear.uploadCode` extrinsic. Actually, the code identifier is the Blake2
+/// hash of the Wasm binary code blob.
+///
+/// Code identifier is required when creating programs from programs (see
+/// [`prog`](crate::prog) module for details).
 #[derive(
     Clone, Copy, Debug, Default, Hash, Ord, PartialEq, PartialOrd, Eq, TypeInfo, Decode, Encode,
 )]
 pub struct CodeId([u8; 32]);
 
 impl CodeId {
+    /// Create a new `CodeId` from a 32-byte array of bytes.
     pub const fn new(arr: [u8; 32]) -> Self {
         Self(arr)
     }
 
+    /// Create a new `CodeId` from a byte slice.
     pub fn from_slice(slice: &[u8]) -> Result<Self> {
         if slice.len() != 32 {
             return Err(ContractError::Convert("Slice should be 32 length"));
@@ -283,7 +297,8 @@ impl TryFrom<&[u8]> for CodeId {
 
 /// Reservation identifier.
 ///
-/// The ID is used to get reserve and unreserve gas.
+/// The identifier is used to reserve and unreserve some gas amount to be used
+/// for program execution later.
 ///
 /// # Examples
 ///
@@ -298,18 +313,44 @@ impl TryFrom<&[u8]> for CodeId {
 /// }
 ///
 /// extern "C" fn handle() {
-///     let reservation_id = unsafe { RESERVED.take().expect("create in init()") };
+///     let reservation_id = unsafe { RESERVED.take().expect("Empty `RESERVED`") };
 ///     reservation_id.unreserve();
 /// }
 /// ```
-#[derive(Debug, Hash, Ord, PartialEq, PartialOrd, Eq, TypeInfo, Decode, Encode)]
+#[derive(Clone, Copy, Debug, Hash, Ord, PartialEq, PartialOrd, Eq, TypeInfo, Decode, Encode)]
 pub struct ReservationId([u8; 32]);
 
 impl ReservationId {
+    /// Reserve the `amount` of gas for further usage.
+    ///
+    /// `duration` is the block count within which the reserve must be used.
+    ///
+    /// This function returns [`ReservationId`], which one can use for gas
+    /// unreserving.
+    ///
+    /// # Examples
+    ///
+    /// Reserve 50 million of gas for one block, send a reply, then unreserve
+    /// gas back:
+    ///
+    /// ```
+    /// use gstd::{msg, ReservationId};
+    ///
+    /// #[no_mangle]
+    /// extern "C" fn handle() {
+    ///     let reservation_id = ReservationId::reserve(50_000_000, 1).expect("Unable to reserve");
+    ///     msg::reply_bytes_from_reservation(reservation_id.clone(), b"PONG", 0)
+    ///         .expect("Unable to reply");
+    ///     let reservation_left = reservation_id.unreserve().expect("Unable to unreserve");
+    /// }
+    /// ```
     pub fn reserve(amount: u64, duration: u32) -> Result<Self> {
         gcore::exec::reserve_gas(amount, duration).into_contract_result()
     }
 
+    /// Unreserve unused gas from the reservation.
+    ///
+    /// If successful, it returns the reserved amount of gas.
     pub fn unreserve(self) -> Result<u64> {
         gcore::exec::unreserve_gas(self.into()).into_contract_result()
     }

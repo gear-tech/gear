@@ -16,10 +16,126 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Declares modules, attributes, public re-exports.
-//! Gear libs are `#![no_std]`, which makes them lightweight.
+//! Standard library for use in Gear programs.
+//!
+//! This library should be used as a standard library when writing Gear
+//! programs. Compared to [`gcore`](https://docs.gear.rs/gcore/) crate,
+//! this library provides higher-level primitives that allow you to develop more
+//! complex dApps. Choose it if you are ready to spend a little bit more gas but
+//! get a nicer and tidier code.
+//!
+//! `gstd` crate provides many advanced tools for a developer, such as
+//! asynchronous programming primitives, arbitrary types encoding/decoding,
+//! providing metadata about input/output types, convenient instruments for
+//! creating programs from programs, etc.
+//!
+//! # Examples
+//!
+//! Decode input payload using a custom type and provide metadata for the front
+//! application:
+//!
+//! ```
+//! #![no_std]
+//!
+//! use gstd::{metadata, msg, prelude::*};
+//!
+//! #[derive(Decode, Encode, TypeInfo)]
+//! #[codec(crate = gstd::codec)]
+//! #[scale_info(crate = gstd::scale_info)]
+//! struct Payload {
+//!     question: String,
+//!     answer: u8,
+//! }
+//!
+//! metadata! {
+//!     title: "App",
+//!     handle:
+//!         input: Payload,
+//!         output: u8,
+//! }
+//!
+//! #[no_mangle]
+//! extern "C" fn handle() {
+//!     let payload: Payload = msg::load().expect("Unable to decode payload");
+//!     if payload.question == "life-universe-everything" {
+//!         msg::reply(payload.answer, 0).expect("Unable to reply");
+//!     }
+//! }
+//!
+//! # fn main() {}
+//! ```
+//!
+//! Asynchronous program example.
+//!
+//! It sends empty messages to three addresses and waits for at least two
+//! replies ("approvals") during initialization. When invoked, it handles only
+//! `PING` messages and sends empty messages to the three addresses, and waits
+//! for just one approval. If approval is obtained, the program replies with
+//! `PONG`.
+//!
+//! ```
+//! use futures::future;
+//! use gstd::{msg, prelude::*, ActorId};
+//!
+//! static mut APPROVERS: [ActorId; 3] = [ActorId::zero(); 3];
+//!
+//! #[derive(Debug, Decode, TypeInfo)]
+//! #[codec(crate = gstd::codec)]
+//! #[scale_info(crate = gstd::scale_info)]
+//! pub struct Input {
+//!     pub approvers: [ActorId; 3],
+//! }
+//!
+//! gstd::metadata! {
+//!     title: "Async demo",
+//!     init:
+//!         input: Input,
+//! }
+//!
+//! #[gstd::async_init]
+//! async fn init() {
+//!     let payload: Input = msg::load().expect("Failed to decode input");
+//!     unsafe { APPROVERS = payload.approvers };
+//!
+//!     let mut requests: Vec<_> = unsafe { APPROVERS }
+//!         .iter()
+//!         .map(|addr| msg::send_bytes_for_reply(*addr, b"", 0))
+//!         .collect::<Result<_, _>>()
+//!         .unwrap();
+//!
+//!     let mut threshold = 0;
+//!     while !requests.is_empty() {
+//!         let (.., remaining) = future::select_all(requests).await;
+//!         threshold += 1;
+//!         if threshold >= 2 {
+//!             break;
+//!         }
+//!         requests = remaining;
+//!     }
+//! }
+//!
+//! #[gstd::async_main]
+//! async fn main() {
+//!     let message = msg::load_bytes().expect("Failed to load payload bytes");
+//!     if message != b"PING" {
+//!         return;
+//!     }
+//!
+//!     let requests: Vec<_> = unsafe { APPROVERS }
+//!         .iter()
+//!         .map(|addr| msg::send_bytes_for_reply(*addr, b"", 0))
+//!         .collect::<Result<_, _>>()
+//!         .unwrap();
+//!
+//!     _ = future::select_all(requests).await;
+//!     msg::reply(b"PONG", 0).expect("Unable to reply");
+//! }
+//!
+//! # fn main() {}
+//! ```
 
 #![no_std]
+#![warn(missing_docs)]
 #![cfg_attr(
     all(target_arch = "wasm32", any(feature = "debug", debug_assertions)),
     feature(panic_info_message)
@@ -36,16 +152,16 @@ mod common;
 mod config;
 pub mod exec;
 pub mod lock;
-pub mod macros;
+mod macros;
 pub mod msg;
 pub mod prelude;
 pub mod prog;
+pub mod util;
 
 pub use async_runtime::{handle_signal, message_loop, record_reply};
 pub use common::{errors, handlers::*, primitives::*};
 pub use config::Config;
 pub use gstd_codegen::{async_init, async_main};
-pub use macros::util;
 
 pub use prelude::*;
 

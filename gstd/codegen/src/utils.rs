@@ -28,12 +28,12 @@ const SPAN_CODEC: &str = "${CODEC}";
 const SPAN_ELSE: &str = "${ELSE}";
 const SPAN_IDENT: &str = "${IDENT}";
 const WAIT_FOR_REPLY_DOCS_TEMPLATE: &str = r#"
- Same as [`${IDENT}`](crate::msg::${IDENT}), but the program
+ Same as [`${IDENT}`](self::${IDENT}), but the program
  will interrupt until the reply is received. ${CODEC}
 
  # See also
 
- - [`${ELSE}`](crate::msg::${ELSE})
+ - [`${ELSE}`](self::${ELSE})
 "#;
 
 /// New `Ident`
@@ -43,10 +43,11 @@ pub fn ident(s: &str) -> Ident {
 
 /// Appends suffix to ident
 pub fn with_suffix(i: &Ident, suffix: &str) -> Ident {
-    let mut name = i.to_string();
+    /*let mut name = i.to_string();
     name.push_str(suffix);
 
-    ident(&name)
+    ident(&name)*/
+    ident(&format!("{i}{suffix}"))
 }
 
 /// Get arguments from the inputs for function signature

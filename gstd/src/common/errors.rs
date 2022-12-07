@@ -16,30 +16,43 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Gear common errors module.
+//! Type definitions and helpers for error handling.
+//!
 //! Enumerates errors that can occur in smart-contracts `ContractError`.
 //! Errors related to conversion, decoding, message status code, other internal
 //! errors.
 
 use core::fmt;
 
-pub use gcore::error::*;
+pub use gcore::errors::*;
 
-pub type Result<T, E = ContractError> = core::result::Result<T, E>;
+pub type Result<T> = core::result::Result<T, ContractError>;
 
+/// Common error type returned by API functions from other modules.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ContractError {
+    /// Timeout reached while expecting for reply.
     Timeout(u32, u32),
+    /// Conversion error.
     Convert(&'static str),
+    /// Decoding error.
     Decode(codec::Error),
+    /// Status code returned by another program.
     StatusCode(i32),
+    /// API error (see [`ExtError`] for details).
     Ext(ExtError),
+    /// This error occurs when providing zero duration to waiting functions
+    /// (e.g. see `exactly` and `up_to` functions in
+    /// [CodecMessageFuture](crate::msg::CodecMessageFuture)).
     EmptyWaitDuration,
+    /// This error occurs when providing zero gas amount to system gas reserving
+    /// function (see
+    /// [Config::set_system_reserve](crate::Config::set_system_reserve)).
     ZeroSystemReservationAmount,
 }
 
 impl ContractError {
-    /// If is timed out error.
+    /// Check whether an error is [`ContractError::Timeout`].
     pub fn timed_out(&self) -> bool {
         matches!(self, ContractError::Timeout(..))
     }

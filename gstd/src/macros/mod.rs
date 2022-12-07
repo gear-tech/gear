@@ -16,45 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Gear macros.
-
 mod bail;
 mod debug;
 mod export;
 mod metadata;
-
-/// Utility functions.
-pub mod util {
-    use crate::prelude::{Box, String, Vec};
-    use codec::Encode;
-    pub use scale_info::MetaType;
-    use scale_info::{PortableRegistry, Registry};
-
-    /// Generate a registry from given meta types and encode it to hex.
-    pub fn to_hex_registry(meta_types: Vec<MetaType>) -> String {
-        let mut registry = Registry::new();
-        registry.register_types(meta_types);
-
-        let registry: PortableRegistry = registry.into();
-        hex::encode(registry.encode())
-    }
-
-    /// Convert a given reference to a raw pointer.
-    pub fn to_wasm_ptr<T: AsRef<[u8]>>(bytes: T) -> *mut [i32; 2] {
-        Box::into_raw(Box::new([
-            bytes.as_ref().as_ptr() as _,
-            bytes.as_ref().len() as _,
-        ]))
-    }
-
-    /// Convert a given vector to a raw pointer and prevent its deallocating.
-    ///
-    /// It operates similar to [`to_wasm_ptr`] except that it consumes the input
-    /// and make it leak by calling [`core::mem::forget`].
-    pub fn to_leak_ptr(bytes: impl Into<Vec<u8>>) -> *mut [i32; 2] {
-        let bytes = bytes.into();
-        let ptr = Box::into_raw(Box::new([bytes.as_ptr() as _, bytes.len() as _]));
-        core::mem::forget(bytes);
-        ptr
-    }
-}

@@ -50,8 +50,11 @@ impl Task {
     }
 }
 
+/// The main asynchronous message handling loop.
+///
 /// Gear allows users and programs to interact with other users and programs via
-/// messages. This function enables an asynchronous message handling main loop.
+/// messages. This function is the entry point to run the asynchronous message
+/// processing.
 pub fn message_loop<F>(future: F)
 where
     F: Future<Output = ()> + 'static,

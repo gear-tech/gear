@@ -30,18 +30,27 @@ pub(crate) enum WaitType {
     WaitUpTo,
 }
 
-/// `gstd` configuration
+/// The set of broadly used internal parameters.
+///
+/// These parameters have some predefined values that the program developer can
+/// override.
 pub struct Config {
-    /// Default wait duration for `wait_up_to` messages.
+    /// Default wait duration for `wait_up_to` messages expressed in block
+    /// count.
+    ///
+    /// Initial value: **100 blocks**
     pub wait_up_to: u32,
 
-    /// Default wait duration for `wait_for` messages.
+    /// Default wait duration for `wait_for` messages expressed in block count.
+    ///
+    /// Initial value: **100 blocks**
     pub wait_for: u32,
 
-    /// Default system reservation gas amount.
+    /// Default gas amount reserved for system purposes.
+    ///
+    /// Initial value: **1_000_000_000**
     pub system_reserve: u64,
 
-    /// Default wait type for `wait` messages.
     pub(crate) wait_type: WaitType,
 }
 
@@ -55,26 +64,26 @@ impl Config {
         }
     }
 
-    // Get default wait type.
     pub(crate) fn wait_type() -> WaitType {
         unsafe { CONFIG.wait_type }
     }
 
-    /// Get `wait_for` duration
+    /// Get the `wait_for` duration (in blocks).
     pub fn wait_for() -> u32 {
         unsafe { CONFIG.wait_for }
     }
 
-    /// Get `wait_up_to` duration
+    /// Get the `wait_up_to` duration (in blocks).
     pub fn wait_up_to() -> u32 {
         unsafe { CONFIG.wait_up_to }
     }
 
+    /// Get the `system_reserve` gas amount.
     pub fn system_reserve() -> u64 {
         unsafe { CONFIG.system_reserve }
     }
 
-    /// Set `wait_for` duration
+    /// Set `wait_for` duration (in blocks).
     pub fn set_wait_for(duration: u32) -> Result<()> {
         if duration == 0 {
             return Err(ContractError::EmptyWaitDuration);
@@ -84,7 +93,10 @@ impl Config {
         Ok(())
     }
 
-    /// Set `wait_for` as default wait type with duration.
+    /// Set `wait_for` as the default wait type with duration.
+    ///
+    /// Calling this function forces all async functions that wait for some
+    /// condition to wait exactly for `duration` blocks.
     pub fn set_default_wait_for(duration: u32) -> Result<()> {
         Self::set_wait_for(duration)?;
         unsafe { CONFIG.wait_type = WaitType::WaitFor };
@@ -92,7 +104,7 @@ impl Config {
         Ok(())
     }
 
-    /// Set `wait_up_to` duration
+    /// Set the `wait_up_to` duration (in blocks).
     pub fn set_wait_up_to(duration: u32) -> Result<()> {
         if duration == 0 {
             return Err(ContractError::EmptyWaitDuration);
@@ -102,7 +114,10 @@ impl Config {
         Ok(())
     }
 
-    /// Set `wait_up_to` as default wait type with duration.
+    /// Set `wait_up_to` as the default wait type with duration.
+    ///
+    /// Calling this function forces all async functions that wait for some
+    /// condition to wait not more than `duration` blocks.
     pub fn set_default_wait_up_to(duration: u32) -> Result<()> {
         Self::set_wait_up_to(duration)?;
         unsafe { CONFIG.wait_type = WaitType::WaitUpTo };
@@ -110,6 +125,7 @@ impl Config {
         Ok(())
     }
 
+    /// Set `system_reserve` gas amount.
     pub fn set_system_reserve(amount: u64) -> Result<()> {
         if amount == 0 {
             return Err(ContractError::ZeroSystemReservationAmount);

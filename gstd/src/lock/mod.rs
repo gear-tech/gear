@@ -16,9 +16,25 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Async lockers primitives.
+//! Data access synchronization objects.
+//!
+//! These synchronization objects are similar to those in the [`std::sync`](https://doc.rust-lang.org/std/sync/) module, but they prevent data races when dealing with multiple actors (users or programs) instead of multiple threads considered in classic synchronization objects.
+//!
+//! The following is an overview of the available synchronization objects:
+//!
+//! - [`Mutex`](self::Mutex): Mutual Exclusion mechanism, which ensures that at
+//!   most one actor at the execution can access some data.
+//! - [`RwLock`](self::RwLock): Provides a mutual exclusion mechanism that
+//!   allows multiple readings by different actors while allowing only one
+//!   writer at the execution. In some cases, this can be more efficient than a
+//!   mutex.
 
 mod access;
 
-pub mod mutex;
-pub mod rwlock;
+mod mutex;
+mod rwlock;
+
+pub use self::{
+    mutex::{Mutex, MutexGuard, MutexLockFuture},
+    rwlock::{RwLock, RwLockReadFuture, RwLockReadGuard, RwLockWriteFuture, RwLockWriteGuard},
+};

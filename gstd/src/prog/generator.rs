@@ -28,8 +28,7 @@ use crate::{
 use codec::{alloc::vec::Vec, Decode};
 use gstd_codegen::wait_create_program_for_reply;
 
-/// `ProgramGenerator` allows you to create programs
-/// without need to set the salt manually.
+/// Helper to create programs without the need to set the salt manually.
 pub struct ProgramGenerator(u64);
 
 // The only existing instance since there is no public ways to construct it.
@@ -39,6 +38,20 @@ impl ProgramGenerator {
     // Prefix for not crossing with the user salt.
     const UNIQUE_KEY: [u8; 14] = *b"salt_generator";
 
+    /// Return the salt needed to create a new program.
+    ///
+    /// Salt is an arbitrary byte sequence unique after every function call.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use gstd::prog::ProgramGenerator;
+    ///
+    /// #[no_mangle]
+    /// extern "C" fn handle() {
+    ///     let salt = ProgramGenerator::get_salt();
+    /// }
+    /// ```
     pub fn get_salt() -> Vec<u8> {
         // Provide salt uniqueness across all programs from other messages.
         let message_id = crate::msg::id();
@@ -52,6 +65,54 @@ impl ProgramGenerator {
         [&Self::UNIQUE_KEY, message_id.as_ref(), &creator_nonce].concat()
     }
 
+    /// Create a new program from the already existing on-chain code identified
+    /// by [`CodeId`].
+    ///
+    /// The function returns an initial message identifier and a newly created
+    /// program identifier.
+    ///
+    /// The first argument is the code identifier (see [`CodeId`] for details).
+    /// The second and third arguments are the initialization message's payload
+    /// and value to be transferred to the newly created program.
+    ///
+    /// # Examples
+    ///
+    /// Create a new program from the provided code identifier:
+    ///
+    /// ```
+    /// use gstd::{msg, prog::ProgramGenerator, CodeId};
+    ///
+    /// #[no_mangle]
+    /// extern "C" fn handle() {
+    ///     let code_id: CodeId = msg::load().expect("Unable to load");
+    ///     let (init_message_id, new_program_id) =
+    ///         ProgramGenerator::create_program(code_id, b"INIT", 0)
+    ///             .expect("Unable to create a program");
+    ///     msg::send_bytes(new_program_id, b"PING", 0).expect("Unable to send");
+    /// }
+    /// ```
+    #[wait_create_program_for_reply(Self)]
+    pub fn create_program(
+        code_id: CodeId,
+        payload: impl AsRef<[u8]>,
+        value: u128,
+    ) -> Result<(MessageId, ActorId)> {
+        Self::create_program_delayed(code_id, payload, value, 0)
+    }
+
+    /// Same as [`create_program`](Self::create_program), but creates a new
+    /// program after the `delay` expressed in block count.
+    pub fn create_program_delayed(
+        code_id: CodeId,
+        payload: impl AsRef<[u8]>,
+        value: u128,
+        delay: u32,
+    ) -> Result<(MessageId, ActorId)> {
+        prog::create_program_delayed(code_id, Self::get_salt(), payload, value, delay)
+    }
+
+    /// Same as [`create_program`](Self::create_program), but with an explicit
+    /// gas limit.
     #[wait_create_program_for_reply(Self)]
     pub fn create_program_with_gas(
         code_id: CodeId,
@@ -62,6 +123,8 @@ impl ProgramGenerator {
         Self::create_program_with_gas_delayed(code_id, payload, gas_limit, value, 0)
     }
 
+    /// Same as [`create_program_with_gas`](Self::create_program_with_gas), but
+    /// creates a new program after the `delay` expressed in block count.
     pub fn create_program_with_gas_delayed(
         code_id: CodeId,
         payload: impl AsRef<[u8]>,
@@ -77,23 +140,5 @@ impl ProgramGenerator {
             value,
             delay,
         )
-    }
-
-    #[wait_create_program_for_reply(Self)]
-    pub fn create_program(
-        code_id: CodeId,
-        payload: impl AsRef<[u8]>,
-        value: u128,
-    ) -> Result<(MessageId, ActorId)> {
-        Self::create_program_delayed(code_id, payload, value, 0)
-    }
-
-    pub fn create_program_delayed(
-        code_id: CodeId,
-        payload: impl AsRef<[u8]>,
-        value: u128,
-        delay: u32,
-    ) -> Result<(MessageId, ActorId)> {
-        prog::create_program_delayed(code_id, Self::get_salt(), payload, value, delay)
     }
 }

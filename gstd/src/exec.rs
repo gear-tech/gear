@@ -16,67 +16,11 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Sys calls related to the program execution flow.
+//! Utility functions related to the current execution context or program
+//! execution flow.
 //!
-//! Wraps methods from `gcore` for getting the current block height,
-//! the current block timestamp, the current value of the gas available for
-//! execution.
-//!
-//!
-//! The block height serves to identify a particular block.
-//! This information can be used to enable many scenarios like restricting or
-//! allowing of some functions until certain block height is reached.
-//!
-//! The timestamp is the number of milliseconds elapsed since the Unix epoch.
-//!
-//! Each message processing consumes gas, both on instructions execution and
-//! memory allocations. This function returns a value of the gas available for
-//! spending during current execution. Its use may help to avoid unexpected
-//! behaviors during the smart-contract execution in case of not enough gas
-//! available.
-//!
-//! Value available is the total available value of program.
-//!
-//! # Examples
-//!
-//! ```
-//! use gstd::{exec, msg};
-//!
-//! // Send a reply after the block height reaches the number 1000
-//! extern "C" fn handle() {
-//!     if exec::block_height() >= 1000 {
-//!         msg::reply(b"Block #1000 reached", 0).unwrap();
-//!     }
-//! }
-//! ```
-//! ```
-//! use gstd::{exec, msg};
-//!
-//! // Send a reply after the block timestamp reaches the February 22, 2022
-//! extern "C" fn handle() {
-//!     if exec::block_timestamp() >= 1645488000000 {
-//!         msg::reply(b"The current block is generated after February 22, 2022", 0).unwrap();
-//!     }
-//! }
-//! ```
-//! ```
-//! use gstd::exec;
-//!
-//! // Perform work while `gas_available` is more than 1000
-//! extern "C" fn handle() {
-//!     while exec::gas_available() > 1000 {
-//!         // ...
-//!     }
-//! }
-//! ```
-//! ```
-//! use gstd::exec;
-//!
-//! // Get self value balance in program
-//! extern "C" fn handle() {
-//!     let _my_balance = exec::value_available();
-//! }
-//! ```
+//! Wraps methods from [`gcore::exec`](https://docs.gear.rs/gcore/exec/)
+//! for getting some details about the current execution and controlling it.
 
 use crate::{common::errors::Result, ActorId, MessageId};
 pub use gcore::exec::{
@@ -86,81 +30,93 @@ pub use gcore::exec::{
 
 /// Terminate the execution of a program.
 ///
-/// The program and all corresponding data
-/// are removed from the storage. This is similar to `std::process::exit`.
-/// `value_destination` specifies the address where all associated with
-/// the program value should be transferred to.
+/// The program and all corresponding data are removed from the storage. It may
+/// be called in the `init` method as well. One can consider this function as
+/// some analog of `std::process::exit`.
 ///
-/// May be called in `init` method as well.
+/// `inheritor_id` specifies the address to which all available program value
+/// should be transferred.
 ///
 /// # Examples
+///
+/// Terminate the program and transfer the available value to the message
+/// sender:
 ///
 /// ```
 /// use gstd::{exec, msg};
 ///
+/// #[no_mangle]
 /// extern "C" fn handle() {
 ///     // ...
 ///     exec::exit(msg::source());
 /// }
 /// ```
-pub fn exit(value_destination: ActorId) -> ! {
-    gcore::exec::exit(value_destination.into())
+pub fn exit(inheritor_id: ActorId) -> ! {
+    gcore::exec::exit(inheritor_id.into())
 }
 
 /// Resume previously paused message handling.
 ///
-/// If a message has been paused using the [`wait`] function, then it is
-/// possible to continue its execution by calling this function. `waker_id`
-/// which specifies a particular message to be taken out of the *waiting queue*
-/// and put into the *processing queue*.
+/// Suppose a message has been paused using the [`wait`] function. In that case,
+/// it is possible to continue its execution by calling this function.
+///
+/// `message_id` specifies a particular message to be taken out of the *waiting
+/// queue* and put into the *processing queue*.
 ///
 /// # Examples
 ///
 /// ```
-/// use gstd::{exec, msg};
+/// use gstd::{exec, msg, MessageId};
 ///
+/// static mut MSG_ID: MessageId = MessageId::zero();
+///
+/// #[no_mangle]
+/// extern "C" fn init() {
+///     unsafe { MSG_ID = msg::id() };
+///     exec::wait();
+/// }
+///
+/// #[no_mangle]
 /// extern "C" fn handle() {
-///     // ...
-///     let msg_id = msg::id();
-///     exec::wake(msg_id);
+///     exec::wake(unsafe { MSG_ID }).expect("Unable to wake");
 /// }
 /// ```
 pub fn wake(message_id: MessageId) -> Result<()> {
     wake_delayed(message_id, 0)
 }
 
-/// Same as [`wake`], but wakes delayed.
+/// Same as [`wake`], but executes after the `delay` expressed in block count.
 pub fn wake_delayed(message_id: MessageId, delay: u32) -> Result<()> {
     gcore::exec::wake_delayed(message_id.into(), delay).map_err(Into::into)
 }
 
-/// Return ID of the current program.
+/// Return the identifier of the current program.
 ///
 /// # Examples
 ///
 /// ```
 /// use gstd::{exec, ActorId};
 ///
+/// #[no_mangle]
 /// extern "C" fn handle() {
-///     // ...
-///     let me = exec::program_id();
+///     let whoami = exec::program_id();
 /// }
 /// ```
 pub fn program_id() -> ActorId {
     gcore::exec::program_id().into()
 }
 
-/// Return the id of original user who initiated communication with blockchain,
-/// during which, currently processing message was created.
+/// Return the identifier of the original user who initiated communication with
+/// the blockchain, during which the currently processing message was created.
 ///
 /// # Examples
 ///
 /// ```
-/// use gstd::{exec, ActorId};
+/// use gstd::exec;
 ///
+/// #[no_mangle]
 /// extern "C" fn handle() {
-///     // ...
-///     let _user = exec::origin();
+///     let user = exec::origin();
 /// }
 /// ```
 pub fn origin() -> ActorId {

@@ -16,10 +16,6 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Mutex async implementation.
-//! The data protected by the mutex can be accessed through this guard via its
-//! `deref` and `deref_mut` implementations.
-
 use crate::MessageId;
 use core::{
     cell::UnsafeCell,
@@ -31,6 +27,57 @@ use core::{
 
 use super::access::AccessQueue;
 
+/// A mutual exclusion primitive useful for protecting shared data.
+///
+/// This mutex will block the execution waiting for the lock to become
+/// available. The mutex can be created via a [`new`](Mutex::new) constructor.
+/// Each mutex has a type parameter which represents the data that it is
+/// protecting. The data can only be accessed through the RAII guard
+/// [`MutexGuard`] returned from [`lock`](Mutex::lock),
+/// which guarantees that the data is only ever accessed when the mutex is
+/// locked.
+///
+/// # Examples
+///
+/// This example (program A), after locking the mutex, sends the `PING` message
+/// to another program (program B) and waits for a reply. If any other program
+/// (program C) tries to invoke program A, it will wait until program A receives
+/// the `PONG` reply from program B and unlocks the mutex.
+///
+/// ```
+/// use gstd::{lock::Mutex, msg, prelude::*, ActorId};
+///
+/// static mut DEST: ActorId = ActorId::zero();
+/// static MUTEX: Mutex<()> = Mutex::new(());
+///
+/// #[no_mangle]
+/// extern "C" fn init() {
+///     // `some_address` can be obtained from the init payload
+///     # let some_address = ActorId::zero();
+///     unsafe { DEST = some_address };
+/// }
+///
+/// #[gstd::async_main]
+/// async fn main() {
+///     let payload = msg::load_bytes().expect("Unable to load payload bytes");
+///     if payload == b"START" {
+///         let _unused = MUTEX.lock().await;
+///
+///         let reply = msg::send_bytes_for_reply(unsafe { DEST }, b"PING", 0)
+///             .expect("Unable to send bytes")
+///             .await
+///             .expect("Error in async message processing");
+///
+///         if reply == b"PONG" {
+///             msg::reply(b"SUCCESS", 0).unwrap();
+///         } else {
+///             msg::reply(b"FAIL", 0).unwrap();
+///         }
+///     }
+/// }
+///
+/// # fn main() {}
+/// ```
 pub struct Mutex<T> {
     locked: UnsafeCell<Option<MessageId>>,
     value: UnsafeCell<T>,
@@ -38,11 +85,7 @@ pub struct Mutex<T> {
 }
 
 impl<T> Mutex<T> {
-    /// Method `lock` allows message to lock mutex.
-    pub fn lock(&self) -> MutexLockFuture<'_, T> {
-        MutexLockFuture { mutex: self }
-    }
-
+    /// Create a new mutex in an unlocked state ready for use.
     pub const fn new(t: T) -> Mutex<T> {
         Mutex {
             value: UnsafeCell::new(t),
@@ -50,9 +93,29 @@ impl<T> Mutex<T> {
             queue: AccessQueue::new(),
         }
     }
+
+    /// Acquire a mutex, protecting the subsequent code from executing by other
+    /// actors until the mutex hasn't been unlocked.
+    ///
+    /// This function will block the section of code from being accessed by
+    /// other programs or users that invoke the same program. If another
+    /// actor reaches the code blocked by the mutex, it goes to the wait
+    /// state until the mutex unlocks. RAII guard wrapped in the future is
+    /// returned to allow scoped unlock of the lock. When the guard goes out
+    /// of scope, the mutex will be unlocked.
+    pub fn lock(&self) -> MutexLockFuture<'_, T> {
+        MutexLockFuture { mutex: self }
+    }
 }
 
-/// This structure is created by the lock and try_lock methods on Mutex.
+/// An RAII implementation of a "scoped lock" of a mutex. When this structure is
+/// dropped (falls out of scope), the lock will be unlocked.
+///
+/// The data protected by the mutex can be accessed through this guard via its
+/// [`Deref`] and [`DerefMut`] implementations.
+///
+/// This structure wrapped in the future is returned by the
+/// [`lock`](Mutex::lock) method on [`Mutex`].
 pub struct MutexGuard<'a, T> {
     mutex: &'a Mutex<T>,
 }
@@ -97,6 +160,31 @@ impl<T> DerefMut for MutexGuard<'_, T> {
 // we are always single-threaded
 unsafe impl<T> Sync for Mutex<T> {}
 
+/// The future returned by the [`lock`](Mutex::lock) method.
+///
+/// The output of the future is the [`MutexGuard`] that can be obtained by using
+/// `await` syntax.
+///
+/// # Examples
+///
+/// In the following example, variable types are annotated explicitly for
+/// demonstration purposes only. Usually, annotating them is unnecessary because
+/// they can be inferred automatically.
+///
+/// ```
+/// use gstd::lock::{Mutex, MutexGuard, MutexLockFuture};
+///
+/// #[gstd::async_main]
+/// async fn main() {
+///     let mutex: Mutex<i32> = Mutex::new(42);
+///     let future: MutexLockFuture<i32> = mutex.lock();
+///     let guard: MutexGuard<i32> = future.await;
+///     let value: i32 = *guard;
+///     assert_eq!(value, 42);
+/// }
+///
+/// # fn main() {}
+/// ```
 pub struct MutexLockFuture<'a, T> {
     mutex: &'a Mutex<T>,
 }
@@ -104,8 +192,8 @@ pub struct MutexLockFuture<'a, T> {
 impl<'a, T> Future for MutexLockFuture<'a, T> {
     type Output = MutexGuard<'a, T>;
 
-    /// In case of locked mutex and an `.await`, function `poll` checks if the
-    /// mutex can be taken, else it waits (goes into *waiting queue*).
+    // In case of locked mutex and an `.await`, function `poll` checks if the
+    // mutex can be taken, else it waits (goes into *waiting queue*).
     fn poll(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Self::Output> {
         let lock = unsafe { &mut *self.mutex.locked.get() };
         if lock.is_none() {

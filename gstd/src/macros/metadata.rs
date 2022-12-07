@@ -16,16 +16,102 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Gear `metadata!` macro serves for exporting functions from Rust with
-//! IO data that the user has specified in the macro.
-//! Macro contains `input` and `output` message types for `init`, `handle`,
-//! `async`. It also contains `state` IO for reading state and reading it,
-//! depending on some arguments passed.
-//! Metadata can be used as a message payload description for external
-//! tools and applications that interact with gear programs in the network.
-//! For example, it is used in `idea.gear-tech.io` in order to correctly
-//! form a message payload from json on the JS application side.
+/// Provide information about input and output types as the metadata.
+///
+/// Metadata can be used as a message payload description for external tools and applications that interact with Gear programs in the network. For example, it is used in <https://idea.gear-tech.io> to correctly form a message payload from JSON on the JS application side.
+///
+/// This macro contains `input` and `output` message types for `init`, `handle`,
+/// and `async` functions. It also contains the `state` output type used when
+/// reading some part of the program's state.
+///
+/// # Examples
+///
+/// Define six custom types for input/output and provide information about them
+/// as the metadata:
+///
+/// ```
+/// use gstd::{metadata, msg, prelude::*};
+///
+/// #[derive(Decode, Encode, TypeInfo)]
+/// struct InitInput {
+///     field: String,
+/// }
+///
+/// #[derive(Decode, Encode, TypeInfo)]
+/// struct InitOutput {
+///     field: String,
+/// }
+///
+/// #[derive(Decode, Encode, TypeInfo)]
+/// struct Input {
+///     field: String,
+/// }
+///
+/// #[derive(Decode, Encode, TypeInfo)]
+/// struct Output {
+///     field: String,
+/// }
+///
+/// #[derive(Decode, Encode, TypeInfo)]
+/// struct StateInput {
+///     threshold: i32,
+/// }
+///
+/// #[derive(Decode, Encode, TypeInfo)]
+/// enum StateOutput {
+///     Small(i32),
+///     Big(i32),
+/// }
+///
+/// metadata! {
+///     title: "App",
+///     init:
+///         input: InitInput,
+///         output: InitOutput,
+///     handle:
+///         input: Input,
+///         output: Output,
+///     state:
+///         input: StateInput,
+///         output: StateOutput,
+/// }
+///
+/// static mut STATE: i32 = 0;
+///
+/// #[no_mangle]
+/// extern "C" fn init() {
+///     let InitInput { field } = msg::load().expect("Unable to load");
+///     let output = InitOutput { field };
+///     msg::reply(output, 0).expect("Unable to reply");
+/// }
+///
+/// #[no_mangle]
+/// extern "C" fn handle() {
+///     let Input { field } = msg::load().expect("Unable to load");
+///     unsafe { STATE = 1000 };
+///     let output = Output { field };
+///     msg::reply(output, 0).expect("Unable to reply");
+/// }
+///
+/// #[no_mangle]
+/// extern "C" fn meta_state() -> *mut [i32; 2] {
+///     let StateInput { threshold } = msg::load().expect("Unable to load");
+///     let state = unsafe { STATE };
+///     let result = if state > threshold {
+///         StateOutput::Big(state)
+///     } else {
+///         StateOutput::Small(state)
+///     };
+///     gstd::util::to_leak_ptr(result.encode())
+/// }
+// ```
+#[cfg(doc)]
+#[macro_export]
+macro_rules! metadata {
+    ($arg:expr) => { ... };
+}
 
+#[cfg(not(doc))]
 #[macro_export]
 macro_rules! metadata {
     (

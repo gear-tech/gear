@@ -16,9 +16,35 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Gear `debug!` macro.
-//! Enables output of the logs from Wasm if the `debug` feature is enabled.
-
+/// Add a debug message to the log.
+///
+/// Note that debug messages are available only if the program has been compiled
+/// in debug mode.
+///
+/// ```shell
+/// cargo build --debug
+/// cargo build --features=debug
+/// ```
+///
+/// You can see the debug messages when running the program using the `gtest`
+/// crate. To see these messages when executing the program on the node, you
+/// should run the node with the `RUST_LOG="gwasm=debug"` environment variable.
+///
+/// # Examples
+///
+/// ```
+/// use gstd::debug;
+///
+/// #[no_mangle]
+/// extern "C" fn handle() {
+///     debug!("String literal");
+///
+///     let value = 42;
+///     debug!(value);
+///
+///     debug!("Formatted: value = {}", value);
+/// }
+/// ```
 #[cfg(any(feature = "debug", debug_assertions))]
 #[macro_export]
 macro_rules! debug {
