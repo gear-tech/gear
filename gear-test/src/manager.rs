@@ -407,7 +407,13 @@ impl JournalHandler for InMemoryExtManager {
     ) {
     }
 
-    fn unreserve_gas(&mut self, _reservation_id: ReservationId, _program_id: ProgramId, _bn: u32) {}
+    fn unreserve_gas(
+        &mut self,
+        _reservation_id: ReservationId,
+        _program_id: ProgramId,
+        _expiration: u32,
+    ) {
+    }
 
     fn update_gas_reservation(&mut self, program_id: ProgramId, reserver: GasReserver) {
         let actor = self
@@ -420,7 +426,7 @@ impl JournalHandler for InMemoryExtManager {
             ..
         } = actor
         {
-            executable_data.gas_reservation_map = reserver.into_map(|duration| duration);
+            executable_data.gas_reservation_map = reserver.into_map(1, |duration| duration);
         } else {
             panic!("no gas reservation map found in program");
         }

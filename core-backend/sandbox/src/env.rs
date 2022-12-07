@@ -85,17 +85,18 @@ pub struct SandboxEnvironment<E: Ext> {
     instance: Instance<Runtime<E>>,
     runtime: Runtime<E>,
     entries: BTreeSet<DispatchKind>,
+    entry_point: DispatchKind,
 }
 
 // A helping wrapper for `EnvironmentDefinitionBuilder` and `forbidden_funcs`.
 // It makes adding functions to `EnvironmentDefinitionBuilder` shorter.
-struct EnvBuilder<'a, E: Ext> {
+struct EnvBuilder<E: Ext> {
     env_def_builder: EnvironmentDefinitionBuilder<Runtime<E>>,
-    forbidden_funcs: &'a BTreeSet<&'static str>,
+    forbidden_funcs: BTreeSet<&'static str>,
     funcs_count: usize,
 }
 
-impl<'a, E: Ext + IntoExtInfo<E::Error> + 'static> EnvBuilder<'a, E> {
+impl<E: Ext + IntoExtInfo<E::Error> + 'static> EnvBuilder<E> {
     fn add_func(&mut self, name: SysCallName, f: HostFuncType<Runtime<E>>)
     where
         E::Error: AsTerminationReason + IntoExtError,
@@ -119,8 +120,8 @@ impl<'a, E: Ext + IntoExtInfo<E::Error> + 'static> EnvBuilder<'a, E> {
     }
 }
 
-impl<'a, E: Ext> From<EnvBuilder<'a, E>> for EnvironmentDefinitionBuilder<Runtime<E>> {
-    fn from(builder: EnvBuilder<'a, E>) -> Self {
+impl<E: Ext> From<EnvBuilder<E>> for EnvironmentDefinitionBuilder<Runtime<E>> {
+    fn from(builder: EnvBuilder<E>) -> Self {
         builder.env_def_builder
     }
 }
@@ -136,6 +137,7 @@ where
     fn new(
         ext: E,
         binary: &[u8],
+        entry_point: DispatchKind,
         entries: BTreeSet<DispatchKind>,
         mem_size: WasmPageNumber,
     ) -> Result<Self, Self::Error> {
@@ -143,7 +145,12 @@ where
 
         let mut builder = EnvBuilder::<E> {
             env_def_builder: EnvironmentDefinitionBuilder::new(),
-            forbidden_funcs: &ext.forbidden_funcs().clone(),
+            forbidden_funcs: ext
+                .forbidden_funcs()
+                .iter()
+                .copied()
+                .chain(entry_point.forbidden_funcs())
+                .collect(),
             funcs_count: 0,
         };
 
@@ -231,6 +238,7 @@ where
                 instance,
                 runtime,
                 entries,
+                entry_point,
             }),
             Err(e) => Err((runtime.ext.gas_amount(), ModuleInstantiation(e)).into()),
         }
@@ -238,7 +246,6 @@ where
 
     fn execute<F, T>(
         self,
-        entry_point: &DispatchKind,
         pre_execution_handler: F,
     ) -> Result<BackendReport<Self::Memory, E>, Self::Error>
     where
@@ -251,6 +258,7 @@ where
             mut instance,
             mut runtime,
             entries,
+            entry_point,
         } = self;
 
         let stack_end = instance
@@ -284,7 +292,7 @@ where
             }
         }
 
-        let res = if entries.contains(entry_point) {
+        let res = if entries.contains(&entry_point) {
             instance.invoke(entry_point.into_entry(), &[], &mut runtime)
         } else {
             Ok(ReturnValue::Unit)

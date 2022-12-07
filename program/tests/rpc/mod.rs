@@ -11,17 +11,17 @@ async fn test_calculate_upload_gas() -> Result<()> {
     let alice_account_id = common::alice_account_id();
     let alice: [u8; 32] = *alice_account_id.as_ref();
 
-    assert!(api
-        .calculate_upload_gas(
-            alice.into(),
-            messager::WASM_BINARY.to_vec(),
-            vec![],
-            0,
-            true,
-            None
-        )
-        .await
-        .is_ok());
+    api.calculate_upload_gas(
+        alice.into(),
+        messager::WASM_BINARY.to_vec(),
+        vec![],
+        0,
+        true,
+        None,
+    )
+    .await
+    .unwrap();
+
     Ok(())
 }
 
@@ -40,10 +40,11 @@ async fn test_calculate_create_gas() -> Result<()> {
         .calculate_create_gas(None, code_id.into(), vec![], 0, true, None)
         .await?;
 
-    assert!(signer
+    signer
         .create_program(code_id.into(), vec![], vec![], gas_info.min_limit, 0)
         .await
-        .is_ok());
+        .unwrap();
+
     Ok(())
 }
 
@@ -75,10 +76,10 @@ async fn test_calculate_handle_gas() -> Result<()> {
         .calculate_handle_gas(None, pid.into(), vec![], 0, true, None)
         .await?;
 
-    assert!(signer
+    signer
         .send_message(pid.into(), vec![], gas_info.min_limit, 0)
         .await
-        .is_ok());
+        .unwrap();
 
     Ok(())
 }
@@ -122,10 +123,10 @@ async fn test_calculate_reply_gas() -> Result<()> {
         .calculate_reply_gas(None, message_id, 1, vec![], 0, true, None)
         .await?;
 
-    assert!(signer
+    signer
         .send_reply(message_id, vec![], gas_info.min_limit, 0)
         .await
-        .is_ok());
+        .unwrap();
 
     Ok(())
 }

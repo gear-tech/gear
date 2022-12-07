@@ -259,7 +259,7 @@ impl EnvExt for LazyPagesExt {
         self.inner.refund_gas(val)
     }
 
-    fn random(&self) -> (&[u8], u32) {
+    fn random(&mut self) -> Result<(&[u8], u32), Self::Error> {
         self.inner.random()
     }
 

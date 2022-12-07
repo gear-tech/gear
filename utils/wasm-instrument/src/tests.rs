@@ -636,10 +636,9 @@ fn test_sys_calls_table() {
 
     // Execute wasm and check success.
     let ext = MockExt::default();
-    let env = WasmiEnvironment::new(ext, &code, Default::default(), 0.into()).unwrap();
-    let res = env
-        .execute(&DispatchKind::Init, |_, _| -> Result<(), u32> { Ok(()) })
+    let env = WasmiEnvironment::new(ext, &code, DispatchKind::Init, Default::default(), 0.into())
         .unwrap();
+    let res = env.execute(|_, _| -> Result<(), u32> { Ok(()) }).unwrap();
 
     assert_eq!(res.termination_reason, TerminationReason::Success);
 }

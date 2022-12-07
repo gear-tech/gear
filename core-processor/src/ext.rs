@@ -648,10 +648,21 @@ impl EnvExt for Ext {
 
     fn reserve_gas(&mut self, amount: u64, duration: u32) -> Result<ReservationId, Self::Error> {
         self.charge_gas_runtime(RuntimeCosts::ReserveGas)?;
+        self.charge_gas(self.context.message_context.settings().reservation_fee())?;
 
-        let common_charge = self.context.gas_counter.reduce(amount);
-        if common_charge == ChargeResult::NotEnough {
-            return Err(ExecutionError::InsufficientGasForReservation.into());
+        if amount == 0 {
+            return self.return_and_store_err(Err(ExecutionError::ZeroReservationAmount));
+        }
+
+        if duration == 0 {
+            return self.return_and_store_err(Err(ExecutionError::ZeroReservationDuration));
+        }
+
+        let reserve = u64::from(self.context.reserve_for.saturating_add(duration))
+            .saturating_mul(self.context.reservation);
+        let reduce_amount = amount.saturating_add(reserve);
+        if self.context.gas_counter.reduce(reduce_amount) == ChargeResult::NotEnough {
+            return self.return_and_store_err(Err(ExecutionError::InsufficientGasForReservation));
         }
 
         let id = self.context.gas_reserver.reserve(amount, duration)?;
@@ -812,8 +823,9 @@ impl EnvExt for Ext {
         self.return_and_store_err(result)
     }
 
-    fn random(&self) -> (&[u8], u32) {
-        (&self.context.random_data.0, self.context.random_data.1)
+    fn random(&mut self) -> Result<(&[u8], u32), Self::Error> {
+        self.charge_gas_runtime(RuntimeCosts::Random)?;
+        Ok((&self.context.random_data.0, self.context.random_data.1))
     }
 
     fn forbidden_funcs(&self) -> &BTreeSet<&'static str> {

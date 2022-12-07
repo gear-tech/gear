@@ -794,13 +794,13 @@ where
         #[cfg(feature = "std")]
         let expected_bn = expected_bn + One::one();
 
-        let salt = vec![1, 2, 3];
+        let salt = [1; 32];
         let expected_hash = {
             // Internals of the gr_random call
-            let mut salt_clone = salt.clone();
-            salt_clone.extend_from_slice(random.as_ref());
+            let mut salt_vec = salt.to_vec();
+            salt_vec.extend_from_slice(random.as_ref());
 
-            sp_io::hashing::blake2_256(&salt_clone)
+            sp_io::hashing::blake2_256(&salt_vec)
         };
 
         let mp = Kind::Random(salt, (expected_hash, expected_bn.unique_saturated_into()))

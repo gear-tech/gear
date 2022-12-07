@@ -77,7 +77,7 @@ use gear_core::{
     gas::{GasAllowanceCounter, GasCounter, ValueCounter},
     ids::{MessageId, ProgramId},
     memory::{AllocationsContext, PageBuf, PageNumber, WasmPageNumber},
-    message::{ContextSettings, MessageContext},
+    message::{ContextSettings, DispatchKind, MessageContext},
     reservation::GasReserver,
 };
 use gear_wasm_instrument::parity_wasm::elements::{BlockType, BrTableData, Instruction, ValueType};
@@ -94,6 +94,7 @@ use sp_runtime::{
 use sp_std::prelude::*;
 
 const MAX_PAYLOAD_LEN: u32 = 16 * 64 * 1024;
+const MAX_PAYLOAD_LEN_KB: u32 = MAX_PAYLOAD_LEN / 1024;
 const MAX_PAGES: u32 = 512;
 
 /// How many batches we do per API benchmark.
@@ -162,7 +163,7 @@ fn default_processor_context<T: Config>() -> ProcessorContext {
             Default::default(),
             Default::default(),
             None,
-            ContextSettings::new(0, 0, 0, 0, 0),
+            ContextSettings::new(0, 0, 0, 0, 0, 0),
         ),
         block_info: Default::default(),
         config: Default::default(),
@@ -328,7 +329,7 @@ benchmarks! {
         let WasmModule { code, .. } = WasmModule::<T>::sized(c * 1024, Location::Init);
     }: {
         let ext = Externalities::new(default_processor_context::<T>());
-        ExecutionEnvironment::new(ext, &code, Default::default(), max_pages::<T>().into()).unwrap();
+        ExecutionEnvironment::new(ext, &code, DispatchKind::Init, Default::default(), max_pages::<T>().into()).unwrap();
     }
 
     claim_value {
@@ -683,7 +684,7 @@ benchmarks! {
     }
 
     gr_read_per_kb {
-        let n in 0 .. T::Schedule::get().limits.payload_len / 1024;
+        let n in 0 .. MAX_PAYLOAD_LEN_KB;
         let mut res = None;
         let exec = Benches::<T>::gr_read_per_kb(n)?;
     }: {
@@ -716,9 +717,9 @@ benchmarks! {
     }
 
     gr_random {
-        let r in 0 .. API_BENCHMARK_BATCHES;
+        let n in 0 .. API_BENCHMARK_BATCHES;
         let mut res = None;
-        let exec = Benches::<T>::gr_random(r)?;
+        let exec = Benches::<T>::gr_random(n)?;
     }: {
         res.replace(run_process(exec));
     }
@@ -749,7 +750,7 @@ benchmarks! {
     }
 
     gr_send_push_per_kb {
-        let n in 0 .. T::Schedule::get().limits.payload_len / 1024;
+        let n in 0 .. MAX_PAYLOAD_LEN_KB;
         let mut res = None;
         let exec = Benches::<T>::gr_send_push_per_kb(n)?;
     }: {
@@ -771,7 +772,7 @@ benchmarks! {
     }
 
     gr_send_commit_per_kb {
-        let n in 0 .. T::Schedule::get().limits.payload_len / 1024;
+        let n in 0 .. MAX_PAYLOAD_LEN_KB;
         let mut res = None;
         let exec = Benches::<T>::gr_send_commit_per_kb(n)?;
     }: {
@@ -793,7 +794,7 @@ benchmarks! {
     }
 
     gr_reservation_send_commit_per_kb {
-        let n in 0 .. T::Schedule::get().limits.payload_len / 1024;
+        let n in 0 .. MAX_PAYLOAD_LEN_KB;
         let mut res = None;
         let exec = Benches::<T>::gr_reservation_send_commit_per_kb(n)?;
     }: {
@@ -826,7 +827,7 @@ benchmarks! {
     }
 
     gr_reply_push_per_kb {
-        let n in 0 .. T::Schedule::get().limits.payload_len / 1024;
+        let n in 0 .. MAX_PAYLOAD_LEN_KB;
         let mut res = None;
         let exec = Benches::<T>::gr_reply_push_per_kb(n)?;
     }: {
@@ -903,7 +904,7 @@ benchmarks! {
     }
 
     gr_send_push_input_per_kb {
-        let n in 0 .. T::Schedule::get().limits.payload_len / 1024;
+        let n in 0 .. MAX_PAYLOAD_LEN_KB;
         let mut res = None;
         let exec = Benches::<T>::gr_send_push_input_per_kb(n)?;
     }: {
@@ -925,7 +926,7 @@ benchmarks! {
     }
 
     gr_debug_per_kb {
-        let n in 0 .. T::Schedule::get().limits.payload_len / 1024;
+        let n in 0 .. MAX_PAYLOAD_LEN_KB;
         let mut res = None;
         let exec = Benches::<T>::gr_debug_per_kb(n)?;
     }: {
@@ -1045,8 +1046,8 @@ benchmarks! {
     }
 
     gr_create_program_wgas_per_kb {
-        let p in 0 .. T::Schedule::get().limits.payload_len / 1024;
-        let s in 0 .. T::Schedule::get().limits.payload_len / 1024;
+        let p in 0 .. MAX_PAYLOAD_LEN_KB;
+        let s in 0 .. MAX_PAYLOAD_LEN_KB;
         let mut res = None;
         let exec = Benches::<T>::gr_create_program_wgas_per_kb(p, s)?;
     }: {

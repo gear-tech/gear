@@ -18,6 +18,7 @@
 
 //! Message processing module.
 
+use alloc::collections::BTreeSet;
 use codec::{Decode, Encode};
 use scale_info::TypeInfo;
 
@@ -44,7 +45,7 @@ use core::fmt::Display;
 use super::buffer::LimitedVec;
 
 /// Max payload size which one message can have (8 MiB).
-const MAX_PAYLOAD_SIZE: usize = 8 * 1024 * 1024;
+pub const MAX_PAYLOAD_SIZE: usize = 8 * 1024 * 1024;
 
 /// Payload size exceed error
 #[derive(
@@ -136,6 +137,23 @@ impl DispatchKind {
     /// Check if kind is signal.
     pub fn is_signal(&self) -> bool {
         matches!(self, Self::Signal)
+    }
+
+    /// Sys-calls that are not allowed to be called for the dispatch kind.
+    pub fn forbidden_funcs(&self) -> BTreeSet<&'static str> {
+        match self {
+            DispatchKind::Signal => [
+                "gr_source",
+                "gr_reply",
+                "gr_reply_push",
+                "gr_reply_commit",
+                "gr_reservation_reply",
+                "gr_reservation_reply_commit",
+                "gr_system_reserve_gas",
+            ]
+            .into(),
+            _ => Default::default(),
+        }
     }
 }
 

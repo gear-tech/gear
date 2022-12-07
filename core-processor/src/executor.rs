@@ -403,10 +403,11 @@ pub fn execute_wasm<
         let env = E::new(
             ext,
             program.raw_code(),
+            kind,
             program.code().exports().clone(),
             memory_size,
         )?;
-        env.execute(&kind, |memory, stack_end| {
+        env.execute(|memory, stack_end| {
             prepare_memory::<A, E::Memory>(
                 program_id,
                 &mut pages_initial_data,
