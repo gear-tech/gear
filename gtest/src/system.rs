@@ -28,19 +28,13 @@ use env_logger::{Builder, Env};
 use gear_core::{ids::CodeId, message::Dispatch};
 use path_clean::PathClean;
 use rand::{rngs::StdRng, RngCore, SeedableRng};
-use std::{cell::RefCell, collections::HashMap, env, fs, io::Write, path::Path, thread};
+use std::{cell::RefCell, env, fs, io::Write, path::Path, thread};
 
-pub struct System {
-    pub(crate) ext: RefCell<ExtManager>,
-    scheduled_queues: RefCell<HashMap<u32, Vec<Dispatch>>>,
-}
+pub struct System(pub(crate) RefCell<ExtManager>);
 
 impl Default for System {
     fn default() -> Self {
-        Self {
-            ext: RefCell::new(ExtManager::new()),
-            scheduled_queues: RefCell::new(Default::default()),
-        }
+        Self(RefCell::new(ExtManager::new()))
     }
 }
 
@@ -82,31 +76,11 @@ impl System {
     }
 
     pub fn send_dispatch(&self, dispatch: Dispatch) -> RunResult {
-        self.ext.borrow_mut().run_dispatch(dispatch)
+        self.0.borrow_mut().run_dispatch(dispatch)
     }
 
-    /// Returns `false` when `block_height` has already been processed.
-    ///
-    /// Queues dispatch messages into message queue, process and remove
-    /// when [`spend_blocks`] reaches `block_height`.
-    pub fn delay_dispatch(&self, block_height: u32, dispatch: Dispatch) -> bool {
-        if block_height <= self.block_height() {
-            return false;
-        }
-
-        let mut scheduled_queues = self.scheduled_queues.borrow_mut();
-        let maybe_queue = scheduled_queues.get_mut(&block_height);
-        if let Some(queue) = maybe_queue {
-            queue.push(dispatch);
-        } else {
-            scheduled_queues.insert(block_height, vec![dispatch]);
-        }
-
-        true
-    }
-
-    pub fn spend_blocks(&self, amount: u32) -> Vec<RunResult> {
-        let mut manager = self.ext.borrow_mut();
+    pub fn spend_blocks(&self, amount: u32) {
+        let mut manager = self.0.borrow_mut();
         if manager.block_info.height % EPOCH_DURATION_IN_BLOCKS == 0 {
             let mut rng = StdRng::seed_from_u64(
                 INITIAL_RANDOM_SEED + (manager.block_info.height / EPOCH_DURATION_IN_BLOCKS) as u64,
@@ -117,29 +91,22 @@ impl System {
             manager.random_data = (random.to_vec(), manager.block_info.height + 1);
         }
 
-        let mut results = vec![];
-        let mut scheduled_queues = self.scheduled_queues.borrow_mut();
         for block_height in manager.block_info.height..=manager.block_info.height + amount {
-            if let Some(queue) = scheduled_queues.remove(&block_height) {
-                for dispatch in queue {
-                    results.push(self.send_dispatch(dispatch));
-                }
-            }
+            manager.process_delayed_dispatches(block_height);
         }
 
         manager.block_info.height += amount;
         manager.block_info.timestamp += 1000 * amount as u64;
-        results
     }
 
     /// Return the current block height.
     pub fn block_height(&self) -> u32 {
-        self.ext.borrow().block_info.height
+        self.0.borrow().block_info.height
     }
 
     /// Return the current block timestamp.
     pub fn block_timestamp(&self) -> u64 {
-        self.ext.borrow().block_info.timestamp
+        self.0.borrow().block_info.timestamp
     }
 
     /// Returns a [`Program`] by `id`.
@@ -151,13 +118,13 @@ impl System {
         let id = id.into().0;
         Program {
             id,
-            manager: &self.ext,
+            manager: &self.0,
         }
     }
 
     pub fn is_active_program<ID: Into<ProgramIdWrapper>>(&self, id: ID) -> bool {
         let program_id = id.into().0;
-        !self.ext.borrow().is_user(&program_id)
+        !self.0.borrow().is_user(&program_id)
     }
 
     /// Saves code to the storage and returns it's code hash
@@ -174,37 +141,37 @@ impl System {
             .clean();
 
         let code = fs::read(&path).unwrap_or_else(|_| panic!("Failed to read file {:?}", path));
-        self.ext.borrow_mut().store_new_code(&code)
+        self.0.borrow_mut().store_new_code(&code)
     }
 
     pub fn get_mailbox<ID: Into<ProgramIdWrapper>>(&self, id: ID) -> Mailbox {
         let program_id = id.into().0;
-        if !self.ext.borrow().is_user(&program_id) {
+        if !self.0.borrow().is_user(&program_id) {
             panic!("Mailbox available only for users");
         }
-        self.ext
+        self.0
             .borrow_mut()
             .mailbox
             .entry(program_id)
             .or_insert_with(Vec::default);
-        Mailbox::new(program_id, &self.ext)
+        Mailbox::new(program_id, &self.0)
     }
 
     /// Add value to the actor.
     pub fn mint_to<ID: Into<ProgramIdWrapper>>(&self, id: ID, value: Balance) {
         let actor_id = id.into().0;
-        self.ext.borrow_mut().mint_to(&actor_id, value);
+        self.0.borrow_mut().mint_to(&actor_id, value);
     }
 
     /// Return actor balance (value) if exists.
     pub fn balance_of<ID: Into<ProgramIdWrapper>>(&self, id: ID) -> Balance {
         let actor_id = id.into().0;
-        self.ext.borrow().balance_of(&actor_id)
+        self.0.borrow().balance_of(&actor_id)
     }
 
     /// Claim the user's value from the mailbox.
     pub fn claim_value_from_mailbox<ID: Into<ProgramIdWrapper>>(&self, id: ID) {
         let actor_id = id.into().0;
-        self.ext.borrow_mut().claim_value_from_mailbox(&actor_id);
+        self.0.borrow_mut().claim_value_from_mailbox(&actor_id);
     }
 }
