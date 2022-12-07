@@ -149,7 +149,12 @@ where
                     }
                 };
 
-            let context = match core_processor::precharge_for_code_length(&block_config, precharged_dispatch, program_id, active_actor_data) {
+            let context = match core_processor::precharge_for_code_length(
+                &block_config,
+                precharged_dispatch,
+                program_id,
+                active_actor_data,
+            ) {
                 Ok(c) => c,
                 Err(journal) => {
                     core_processor::handle_journal(journal, &mut ext_manager);
@@ -160,42 +165,64 @@ where
             let code_id = context.actor_data().code_id;
             let code_len_bytes = match T::CodeStorage::get_code_len(code_id) {
                 None => {
-                    unreachable!("Program '{:?}' exists so do code len '{:?}'", program_id, code_id);
+                    unreachable!(
+                        "Program '{:?}' exists so do code len '{:?}'",
+                        program_id, code_id
+                    );
                 }
                 Some(c) => c,
             };
 
-            let context = match core_processor::precharge_for_code(&block_config, context, code_len_bytes) {
-                Ok(c) => c,
-                Err(journal) => {
-                    core_processor::handle_journal(journal, &mut ext_manager);
-                    continue;
-                }
-            };
+            let context =
+                match core_processor::precharge_for_code(&block_config, context, code_len_bytes) {
+                    Ok(c) => c,
+                    Err(journal) => {
+                        core_processor::handle_journal(journal, &mut ext_manager);
+                        continue;
+                    }
+                };
 
             let code = match T::CodeStorage::get_code(code_id) {
                 None => {
-                    unreachable!("Program '{:?}' exists so do code '{:?}'", program_id, code_id);
+                    unreachable!(
+                        "Program '{:?}' exists so do code '{:?}'",
+                        program_id, code_id
+                    );
                 }
                 Some(c) => c,
             };
 
-            let (code, context) = match code.instruction_weights_version() == schedule.instruction_weights.version {
-                true => (code, core_processor::ContextChargedForInstrumentation::from(context)),
-                false => {
-                    let context = match core_processor::precharge_for_instrumentation(&block_config, context, code.original_code_len()) {
-                        Ok(c) => c,
-                        Err(journal) => {
-                            core_processor::handle_journal(journal, &mut ext_manager);
-                            continue;
-                        }
-                    };
+            let (code, context) =
+                match code.instruction_weights_version() == schedule.instruction_weights.version {
+                    true => (
+                        code,
+                        core_processor::ContextChargedForInstrumentation::from(context),
+                    ),
+                    false => {
+                        let context = match core_processor::precharge_for_instrumentation(
+                            &block_config,
+                            context,
+                            code.original_code_len(),
+                        ) {
+                            Ok(c) => c,
+                            Err(journal) => {
+                                core_processor::handle_journal(journal, &mut ext_manager);
+                                continue;
+                            }
+                        };
 
-                    (Self::reinstrument_code(code_id, &T::Schedule::get()), context)
-                }
-            };
+                        (
+                            Self::reinstrument_code(code_id, &T::Schedule::get()),
+                            context,
+                        )
+                    }
+                };
 
-            let context = match core_processor::precharge_for_memory(&block_config, context, ext_manager.program_pages_loaded(&program_id)) {
+            let context = match core_processor::precharge_for_memory(
+                &block_config,
+                context,
+                ext_manager.program_pages_loaded(&program_id),
+            ) {
                 Ok(c) => c,
                 Err(journal) => {
                     core_processor::handle_journal(journal, &mut ext_manager);

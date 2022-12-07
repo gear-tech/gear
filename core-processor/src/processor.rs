@@ -69,6 +69,9 @@ impl ContextChargedForCodeLength {
     }
 }
 
+/// The instance returned by `precharge_for_code`.
+/// Existence of the instance means that corresponding counters were
+/// successfully charged for fetching the binary code from storage.
 pub struct ContextChargedForCode {
     data: ContextData,
     code_len_bytes: u32,
@@ -83,6 +86,9 @@ impl From<(ContextChargedForCodeLength, u32)> for ContextChargedForCode {
     }
 }
 
+/// The instance returned by `precharge_for_instrumentation`.
+/// Existence of the instance means that corresponding counters were
+/// successfully charged for reinstrumentation of the code.
 #[derive(Clone)]
 pub struct ContextChargedForInstrumentation {
     data: ContextData,
@@ -128,32 +134,21 @@ pub struct ProcessExecutionContext {
     memory_size: WasmPageNumber,
 }
 
-impl
-    From<(
-        ContextChargedForMemory,
-        InstrumentedCode,
-        u128,
-        ProgramId,
-    )> for ProcessExecutionContext
+impl From<(ContextChargedForMemory, InstrumentedCode, u128, ProgramId)>
+    for ProcessExecutionContext
 {
-    fn from(
-        args: (
-            ContextChargedForMemory,
-            InstrumentedCode,
-            u128,
-            ProgramId,
-        )
-    ) -> Self {
+    fn from(args: (ContextChargedForMemory, InstrumentedCode, u128, ProgramId)) -> Self {
         let (context, code, balance, origin) = args;
 
         let ContextChargedForMemory {
-            data: ContextData {
-                gas_counter,
-                gas_allowance_counter,
-                mut dispatch,
-                destination_id,
-                actor_data,
-            },
+            data:
+                ContextData {
+                    gas_counter,
+                    gas_allowance_counter,
+                    mut dispatch,
+                    destination_id,
+                    actor_data,
+                },
             max_reservations,
             memory_size,
         } = context;
@@ -251,7 +246,11 @@ pub fn precharge_for_code_length(
 
     let actor_data = match check_is_executable(executable_data, &dispatch) {
         Err(status_code) => {
-            return Err(process_non_executable(dispatch, destination_id, status_code));
+            return Err(process_non_executable(
+                dispatch,
+                destination_id,
+                status_code,
+            ));
         }
         Ok(data) => data,
     };
@@ -263,11 +262,7 @@ pub fn precharge_for_code_length(
         ));
     }
 
-    match executor::charge_gas_for_bytes(
-        read_cost,
-        &mut gas_counter,
-        &mut gas_allowance_counter,
-    ) {
+    match executor::charge_gas_for_bytes(read_cost, &mut gas_counter, &mut gas_allowance_counter) {
         ChargeForBytesResult::Ok => (),
         ChargeForBytesResult::GasExceeded => {
             let system_reservation_ctx = SystemReservationContext::from_dispatch(&dispatch);
@@ -280,7 +275,11 @@ pub fn precharge_for_code_length(
             ));
         }
         ChargeForBytesResult::BlockGasExceeded => {
-            return Err(process_allowance_exceed(dispatch, destination_id, gas_counter.burned()));
+            return Err(process_allowance_exceed(
+                dispatch,
+                destination_id,
+                gas_counter.burned(),
+            ));
         }
     }
 
@@ -315,7 +314,8 @@ pub fn precharge_for_code(
     ) {
         ChargeForBytesResult::Ok => (),
         ChargeForBytesResult::GasExceeded => {
-            let system_reservation_ctx = SystemReservationContext::from_dispatch(&context.data.dispatch);
+            let system_reservation_ctx =
+                SystemReservationContext::from_dispatch(&context.data.dispatch);
             return Err(process_error(
                 context.data.dispatch,
                 context.data.destination_id,
@@ -325,7 +325,11 @@ pub fn precharge_for_code(
             ));
         }
         ChargeForBytesResult::BlockGasExceeded => {
-            return Err(process_allowance_exceed(context.data.dispatch, context.data.destination_id, context.data.gas_counter.burned()));
+            return Err(process_allowance_exceed(
+                context.data.dispatch,
+                context.data.destination_id,
+                context.data.gas_counter.burned(),
+            ));
         }
     }
 
@@ -343,7 +347,8 @@ pub fn precharge_for_instrumentation(
     let cost_base = block_config.module_instrumentation_cost;
     let cost_per_byte = block_config.module_instrumentation_byte_cost;
 
-    let amount = cost_base.saturating_add(cost_per_byte.saturating_mul(original_code_len_bytes.into()));
+    let amount =
+        cost_base.saturating_add(cost_per_byte.saturating_mul(original_code_len_bytes.into()));
     match executor::charge_gas_for_bytes(
         amount,
         &mut context.data.gas_counter,
@@ -351,7 +356,8 @@ pub fn precharge_for_instrumentation(
     ) {
         ChargeForBytesResult::Ok => (),
         ChargeForBytesResult::GasExceeded => {
-            let system_reservation_ctx = SystemReservationContext::from_dispatch(&context.data.dispatch);
+            let system_reservation_ctx =
+                SystemReservationContext::from_dispatch(&context.data.dispatch);
             return Err(process_error(
                 context.data.dispatch,
                 context.data.destination_id,
@@ -361,7 +367,11 @@ pub fn precharge_for_instrumentation(
             ));
         }
         ChargeForBytesResult::BlockGasExceeded => {
-            return Err(process_allowance_exceed(context.data.dispatch, context.data.destination_id, context.data.gas_counter.burned()));
+            return Err(process_allowance_exceed(
+                context.data.dispatch,
+                context.data.destination_id,
+                context.data.gas_counter.burned(),
+            ));
         }
     }
 
@@ -375,15 +385,16 @@ pub fn precharge_for_memory(
     subsequent_execution: bool,
 ) -> PrechargeResult<ContextChargedForMemory> {
     let ContextChargedForInstrumentation {
-        data: ContextData {
-            gas_counter,
-            gas_allowance_counter,
-            actor_data,
-            dispatch,
-            ..
-        },
+        data:
+            ContextData {
+                gas_counter,
+                gas_allowance_counter,
+                actor_data,
+                dispatch,
+                ..
+            },
         code_len_bytes,
-     } = &mut context;
+    } = &mut context;
 
     let mut f = || {
         let memory_size = executor::charge_gas_for_pages(
@@ -419,10 +430,15 @@ pub fn precharge_for_memory(
                     | GasOperation::GrowMemory
                     | GasOperation::LoadMemory
                     | GasOperation::ModuleInstantiation,
-                ) => Err(process_allowance_exceed(context.data.dispatch, context.data.destination_id, context.data.gas_counter.burned())),
+                ) => Err(process_allowance_exceed(
+                    context.data.dispatch,
+                    context.data.destination_id,
+                    context.data.gas_counter.burned(),
+                )),
 
                 _ => {
-                    let system_reservation_ctx = SystemReservationContext::from_dispatch(&context.data.dispatch);
+                    let system_reservation_ctx =
+                        SystemReservationContext::from_dispatch(&context.data.dispatch);
                     Err(process_error(
                         context.data.dispatch,
                         context.data.destination_id,
@@ -435,7 +451,7 @@ pub fn precharge_for_memory(
         }
     };
 
-    Ok(ContextChargedForMemory{
+    Ok(ContextChargedForMemory {
         data: context.data,
         max_reservations: block_config.max_reservations,
         memory_size,

@@ -23,7 +23,9 @@ use crate::{
     manager::{CollectState, State},
     sample::{PayloadVariant, Test},
 };
-use core_processor::{common::*, configs::*, Ext};
+use core_processor::{
+    common::*, configs::*, ContextChargedForCode, ContextChargedForInstrumentation, Ext,
+};
 use gear_backend_common::Environment;
 use gear_core::{
     code::{Code, CodeAndId},
@@ -116,16 +118,25 @@ where
 
     let block_config = test_block_config(block_info);
 
-    let precharged_dispatch =
-        match core_processor::precharge_for_program(&block_config, u64::MAX, message.into(), program_id) {
-            Ok(d) => d,
-            Err(journal) => {
-                core_processor::handle_journal(journal, journal_handler);
-                return Ok(());
-            }
-        };
+    let precharged_dispatch = match core_processor::precharge_for_program(
+        &block_config,
+        u64::MAX,
+        message.into(),
+        program_id,
+    ) {
+        Ok(d) => d,
+        Err(journal) => {
+            core_processor::handle_journal(journal, journal_handler);
+            return Ok(());
+        }
+    };
 
-    let context = match core_processor::precharge_for_code(&block_config, precharged_dispatch, program_id, Some(actor_data)) {
+    let context = match core_processor::precharge_for_code_length(
+        &block_config,
+        precharged_dispatch,
+        program_id,
+        Some(actor_data),
+    ) {
         Ok(c) => c,
         Err(journal) => {
             core_processor::handle_journal(journal, journal_handler);
@@ -133,7 +144,8 @@ where
         }
     };
 
-    let context = core_processor::ContextChargedForInstrumentation::from(context);
+    let context = ContextChargedForCode::from((context, code.code().len() as u32));
+    let context = ContextChargedForInstrumentation::from(context);
     let context = match core_processor::precharge_for_memory(&block_config, context, false) {
         Ok(c) => c,
         Err(journal) => {
@@ -316,49 +328,62 @@ where
     let mut state = journal_handler.collect();
     results.push((state.clone(), Ok(())));
 
-    let build_journal =
-        |block_config, dispatch, program_id, actor: Actor, memory_pages, journal_handler: &mut JH| {
-            let precharged_dispatch =
-                match core_processor::precharge_for_program(&block_config, u64::MAX, dispatch, program_id) {
-                    Ok(d) => d,
-                    Err(journal) => {
-                        return journal;
-                    }
-                };
-
-            let balance = actor.balance;
-            let context = match core_processor::precharge_for_code(&block_config, precharged_dispatch, program_id, actor.executable_data) {
-                Ok(c) => c,
-                Err(journal) => {
-                    return journal;
-                }
-            };
-
-            let code_id = context.actor_data().code_id;
-            let context = core_processor::ContextChargedForInstrumentation::from(context);
-            let context = match core_processor::precharge_for_memory(&block_config, context, false) {
-                Ok(c) => c,
-                Err(journal) => {
-                    return journal;
-                }
-            };
-
-            let mut rng = StdRng::seed_from_u64(INITIAL_RANDOM_SEED);
-            let mut random = [0u8; 32];
-            rng.fill_bytes(&mut random);
-
-            let (code, ..) = journal_handler
-                .load_code(code_id)
-                .expect("code not found in the collection")
-                .into_parts();
-
-            core_processor::process::<Ext, E>(
-                &block_config,
-                (context, code, balance, ProgramId::default()).into(),
-                (random.to_vec(), block_config.block_info.height),
-                memory_pages,
-            )
+    let build_journal = |block_config,
+                         dispatch,
+                         program_id,
+                         actor: Actor,
+                         memory_pages,
+                         journal_handler: &mut JH| {
+        let precharged_dispatch = match core_processor::precharge_for_program(
+            &block_config,
+            u64::MAX,
+            dispatch,
+            program_id,
+        ) {
+            Ok(d) => d,
+            Err(journal) => {
+                return journal;
+            }
         };
+
+        let balance = actor.balance;
+        let context = match core_processor::precharge_for_code_length(
+            &block_config,
+            precharged_dispatch,
+            program_id,
+            actor.executable_data,
+        ) {
+            Ok(c) => c,
+            Err(journal) => {
+                return journal;
+            }
+        };
+
+        let (code, ..) = journal_handler
+            .load_code(context.actor_data().code_id)
+            .expect("code not found in the collection")
+            .into_parts();
+
+        let context = ContextChargedForCode::from((context, code.code().len() as u32));
+        let context = ContextChargedForInstrumentation::from(context);
+        let context = match core_processor::precharge_for_memory(&block_config, context, false) {
+            Ok(c) => c,
+            Err(journal) => {
+                return journal;
+            }
+        };
+
+        let mut rng = StdRng::seed_from_u64(INITIAL_RANDOM_SEED);
+        let mut random = [0u8; 32];
+        rng.fill_bytes(&mut random);
+
+        core_processor::process::<Ext, E>(
+            &block_config,
+            (context, code, balance, ProgramId::default()).into(),
+            (random.to_vec(), block_config.block_info.height),
+            memory_pages,
+        )
+    };
 
     if let Some(steps) = steps {
         for step_no in 0..steps {

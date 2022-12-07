@@ -21,13 +21,14 @@ use crate::{
     program::{Gas, WasmProgram},
     wasm_executor::WasmExecutor,
     Result, TestError, EXISTENTIAL_DEPOSIT, INITIAL_RANDOM_SEED, MAILBOX_THRESHOLD,
-    MAX_RESERVATIONS, MODULE_INSTANTIATION_BYTE_COST, READ_COST, READ_PER_BYTE_COST,
-    RESERVATION_COST, RESERVE_FOR, WAITLIST_COST, WRITE_COST, WRITE_PER_BYTE_COST, MODULE_INSTRUMENTATION_COST, MODULE_INSTRUMENTATION_BYTE_COST,
+    MAX_RESERVATIONS, MODULE_INSTANTIATION_BYTE_COST, MODULE_INSTRUMENTATION_BYTE_COST,
+    MODULE_INSTRUMENTATION_COST, READ_COST, READ_PER_BYTE_COST, RESERVATION_COST, RESERVE_FOR,
+    WAITLIST_COST, WRITE_COST, WRITE_PER_BYTE_COST,
 };
 use core_processor::{
     common::*,
     configs::{BlockConfig, BlockInfo},
-    Ext,
+    ContextChargedForCode, ContextChargedForInstrumentation, Ext,
 };
 use gear_backend_wasmi::WasmiEnvironment;
 use gear_core::{
@@ -160,7 +161,6 @@ impl TestActor {
                 allocations: program.allocations().clone(),
                 code_id: *code_id,
                 code_exports: program.code().exports().clone(),
-                code_length_bytes: program.code().code().len() as u32,
                 static_pages: program.code().static_pages(),
                 initialized: program.is_initialized(),
                 pages_with_data: pages_data.keys().copied().collect(),
@@ -673,7 +673,12 @@ impl ExtManager {
             }
         };
 
-        let context = match core_processor::precharge_for_code(&block_config, precharged_dispatch, dest, actor_data) {
+        let context = match core_processor::precharge_for_code_length(
+            &block_config,
+            precharged_dispatch,
+            dest,
+            actor_data,
+        ) {
             Ok(c) => c,
             Err(journal) => {
                 core_processor::handle_journal(journal, self);
@@ -681,7 +686,9 @@ impl ExtManager {
             }
         };
 
-        let context = core_processor::ContextChargedForInstrumentation::from(context);
+        let code = code.expect("Program exists so do code");
+        let context = ContextChargedForCode::from((context, code.code().len() as u32));
+        let context = ContextChargedForInstrumentation::from(context);
         let context = match core_processor::precharge_for_memory(&block_config, context, false) {
             Ok(c) => c,
             Err(journal) => {
@@ -692,7 +699,7 @@ impl ExtManager {
 
         let journal = core_processor::process::<Ext, WasmiEnvironment<Ext>>(
             &block_config,
-            (context, code.unwrap(), balance, self.origin).into(),
+            (context, code, balance, self.origin).into(),
             self.random_data.clone(),
             memory_pages,
         );

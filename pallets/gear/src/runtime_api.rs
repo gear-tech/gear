@@ -140,107 +140,133 @@ where
             let gas_limit = GasHandlerOf::<T>::get_limit(dispatch_id)
                 .map_err(|_| b"Internal error: unable to get gas limit".to_vec())?;
 
-            // ========= 
+            // =========
             let f = || {
+                let program_id = queued_dispatch.destination();
+                let precharged_dispatch = match core_processor::precharge_for_program(
+                    &block_config,
+                    GasAllowanceOf::<T>::get(),
+                    queued_dispatch.into_incoming(gas_limit),
+                    actor_id,
+                ) {
+                    Ok(d) => d,
+                    Err(journal) => {
+                        return journal;
+                    }
+                };
 
-            let program_id = queued_dispatch.destination();
-            let precharged_dispatch = match core_processor::precharge_for_program(
-                &block_config,
-                GasAllowanceOf::<T>::get(),
-                queued_dispatch.into_incoming(gas_limit),
-                actor_id,
-            ) {
-                Ok(d) => d,
-                Err(journal) => {
-                    return journal;
-                }
+                let balance = actor.balance;
+
+                let context = match core_processor::precharge_for_code_length(
+                    &block_config,
+                    precharged_dispatch,
+                    program_id,
+                    actor.executable_data,
+                ) {
+                    Ok(c) => c,
+                    Err(journal) => {
+                        return journal;
+                    }
+                };
+
+                let code_id = context.actor_data().code_id;
+                let code_len_bytes = match T::CodeStorage::get_code_len(code_id) {
+                    None => {
+                        unreachable!(
+                            "Program '{:?}' exists so do code len '{:?}'",
+                            program_id, code_id
+                        );
+                    }
+                    Some(c) => c,
+                };
+
+                let context = match core_processor::precharge_for_code(
+                    &block_config,
+                    context,
+                    code_len_bytes,
+                ) {
+                    Ok(c) => c,
+                    Err(journal) => {
+                        return journal;
+                    }
+                };
+
+                let code = match T::CodeStorage::get_code(code_id) {
+                    None => {
+                        unreachable!(
+                            "Program '{:?}' exists so do code '{:?}'",
+                            program_id, code_id
+                        );
+                    }
+                    Some(c) => c,
+                };
+
+                let schedule = T::Schedule::get();
+                let (code, context) = match code.instruction_weights_version()
+                    == schedule.instruction_weights.version
+                {
+                    true => (
+                        code,
+                        core_processor::ContextChargedForInstrumentation::from(context),
+                    ),
+                    false => {
+                        let context = match core_processor::precharge_for_instrumentation(
+                            &block_config,
+                            context,
+                            code.original_code_len(),
+                        ) {
+                            Ok(c) => c,
+                            Err(journal) => {
+                                return journal;
+                            }
+                        };
+
+                        (Self::reinstrument_code(code_id, &schedule), context)
+                    }
+                };
+
+                let subsequent_execution = ext_manager.program_pages_loaded(&actor_id);
+                let subsequent_burned = if !subsequent_execution {
+                    core_processor::precharge_for_memory(&block_config, context.clone(), true)
+                        .map(|c| c.gas_counter().burned())
+                        .unwrap_or(0)
+                } else {
+                    0
+                };
+
+                let context = match core_processor::precharge_for_memory(
+                    &block_config,
+                    context,
+                    subsequent_execution,
+                ) {
+                    Ok(c) => c,
+                    Err(journal) => {
+                        return journal;
+                    }
+                };
+
+                may_be_returned += context.gas_counter().burned() - subsequent_burned;
+
+                let memory_pages = match Self::get_and_track_memory_pages(
+                    &mut ext_manager,
+                    program_id,
+                    &context.actor_data().pages_with_data,
+                ) {
+                    None => unreachable!(),
+                    Some(m) => m,
+                };
+
+                let (random, bn) = T::Randomness::random(dispatch_id.as_ref());
+                let origin = ProgramId::from_origin(source);
+
+                core_processor::process::<Ext, ExecutionEnvironment>(
+                    &block_config,
+                    (context, code, balance, origin).into(),
+                    (random.encode(), bn.unique_saturated_into()),
+                    memory_pages,
+                )
             };
-
-            let balance = actor.balance;
-
-            let context = match core_processor::precharge_for_code_length(&block_config, precharged_dispatch, program_id, actor.executable_data) {
-                Ok(c) => c,
-                Err(journal) => {
-                    return journal;
-                }
-            };
-
-            let code_id = context.actor_data().code_id;
-            let code_len_bytes = match T::CodeStorage::get_code_len(code_id) {
-                None => {
-                    unreachable!("Program '{:?}' exists so do code len '{:?}'", program_id, code_id);
-                }
-                Some(c) => c,
-            };
-
-            let context = match core_processor::precharge_for_code(&block_config, context, code_len_bytes) {
-                Ok(c) => c,
-                Err(journal) => {
-                    return journal;
-                }
-            };
-
-            let code = match T::CodeStorage::get_code(code_id) {
-                None => {
-                    unreachable!("Program '{:?}' exists so do code '{:?}'", program_id, code_id);
-                }
-                Some(c) => c,
-            };
-
-            let schedule = T::Schedule::get();
-            let (code, context) = match code.instruction_weights_version() == schedule.instruction_weights.version {
-                true => (code, core_processor::ContextChargedForInstrumentation::from(context)),
-                false => {
-                    let context = match core_processor::precharge_for_instrumentation(&block_config, context, code.original_code_len()) {
-                        Ok(c) => c,
-                        Err(journal) => {
-                            return journal;
-                        }
-                    };
-
-                    (Self::reinstrument_code(code_id, &schedule), context)
-                }
-            };
-
-            let subsequent_execution = ext_manager.program_pages_loaded(&actor_id);
-            let subsequent_burned = if !subsequent_execution {
-                core_processor::precharge_for_memory(&block_config, context.clone(), true)
-                    .map(|c| c.gas_counter().burned())
-                    .unwrap_or(0)
-            } else {
-                0
-            };
-
-            let context = match core_processor::precharge_for_memory(&block_config, context, subsequent_execution) {
-                Ok(c) => c,
-                Err(journal) => {
-                    return journal;
-                }
-            };
-
-            may_be_returned += context.gas_counter().burned() - subsequent_burned;
-
-            let memory_pages = match Self::get_and_track_memory_pages(
-                &mut ext_manager,
-                program_id,
-                &context.actor_data().pages_with_data,
-            ) {
-                None => unreachable!(),
-                Some(m) => m,
-            };
-
-            let (random, bn) = T::Randomness::random(dispatch_id.as_ref());
-            let origin = ProgramId::from_origin(source);
-
-            core_processor::process::<Ext, ExecutionEnvironment>(
-                &block_config,
-                (context, code, balance, origin).into(),
-                (random.encode(), bn.unique_saturated_into()),
-                memory_pages,
-            )
-
-            };
-            // ========= 
+            // =========
 
             let journal = f();
 
