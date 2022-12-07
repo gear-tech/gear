@@ -24,7 +24,7 @@
 macro_rules! export {
     ($f:ident -> $val:expr) => {
         #[no_mangle]
-        unsafe extern "C" fn $f() -> *mut [i32; 2] {
+        extern "C" fn $f() -> *mut [i32; 2] {
             let buffer = $val.to_string();
             let result = $crate::util::to_wasm_ptr(buffer.as_bytes());
             core::mem::forget(buffer);

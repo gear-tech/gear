@@ -159,7 +159,7 @@ fn generate_handle_reply_if_required(mut code: TokenStream, attr: Option<Path>) 
     if !reply_generated {
         let handle_reply: TokenStream = quote!(
             #[no_mangle]
-            unsafe extern "C" fn handle_reply() {
+            extern "C" fn handle_reply() {
                 gstd::record_reply();
                 #attr ();
             }
@@ -176,7 +176,7 @@ fn generate_handle_signal_if_required(mut code: TokenStream, attr: Option<Path>)
     if !signal_generated {
         let handle_signal: TokenStream = quote!(
             #[no_mangle]
-            unsafe extern "C" fn handle_signal() {
+            extern "C" fn handle_signal() {
                 gstd::handle_signal();
                 #attr ();
             }
@@ -240,7 +240,7 @@ pub fn async_main(attr: TokenStream, item: TokenStream) -> TokenStream {
         }
 
         #[no_mangle]
-        unsafe extern "C" fn handle() {
+        extern "C" fn handle() {
             __main_safe();
         }
     )
@@ -292,7 +292,7 @@ pub fn async_init(attr: TokenStream, item: TokenStream) -> TokenStream {
     let body = &function.block;
     let code: TokenStream = quote!(
         #[no_mangle]
-        unsafe extern "C" fn init() {
+        extern "C" fn init() {
             gstd::message_loop(async #body);
         }
     )

@@ -7,13 +7,15 @@ static mut PING_DEST: ActorId = ActorId::new([0u8; 32]);
 static RWLOCK: RwLock<u32> = RwLock::new(0);
 
 #[no_mangle]
-unsafe extern "C" fn init() {
+extern "C" fn init() {
     let dest = String::from_utf8(msg::load_bytes().expect("Failed to load payload bytes"))
         .expect("Invalid message: should be utf-8");
-    PING_DEST = ActorId::from_slice(
-        &decode_hex(dest.as_ref()).expect("INTIALIZATION FAILED: INVALID DEST PROGRAM ID"),
-    )
-    .expect("Unable to create ActorId");
+    unsafe {
+        PING_DEST = ActorId::from_slice(
+            &decode_hex(dest.as_ref()).expect("INTIALIZATION FAILED: INVALID DEST PROGRAM ID"),
+        )
+        .expect("Unable to create ActorId")
+    };
 }
 
 fn decode_hex(s: &str) -> Result<Vec<u8>, ParseIntError> {

@@ -158,29 +158,31 @@ gstd::metadata! {
 }
 
 #[no_mangle]
-unsafe extern "C" fn handle() {
-    let reply = &HANDLER_MAP
-        .get_mut(&msg::load_bytes().expect("Failed to load payload bytes"))
-        .and_then(|i| i.next());
+extern "C" fn handle() {
+    let reply = unsafe {
+        &HANDLER_MAP
+            .get_mut(&msg::load_bytes().expect("Failed to load payload bytes"))
+            .and_then(|i| i.next())
+    };
     if let Some(r) = reply {
         msg::reply_bytes(r, 0).unwrap();
     }
 }
 
 #[no_mangle]
-unsafe extern "C" fn init() {
+extern "C" fn init() {
     let maybe_handlers: Result<Vec<Handler>, _> = msg::load();
 
     maybe_handlers
         .map_err(|_| msg::reply(b"bot; failed to decode `Vec<Handler>`", 0).unwrap())
         .map(|v| {
-            HANDLERS.reserve(v.len());
+            unsafe { HANDLERS.reserve(v.len()) };
             v
         })
         .unwrap_or_default()
         .into_iter()
         .filter(|h| !h.replies.is_empty())
-        .for_each(|handler| {
+        .for_each(|handler| unsafe {
             HANDLERS.push(handler.replies);
             HANDLER_MAP.insert(handler.request, {
                 let iter = ReplyIterator {

@@ -4,22 +4,23 @@ use shared::PackageId;
 use types::Package;
 
 #[no_mangle]
-unsafe extern "C" fn init() {
-    state::THRESHOLD = Some(msg::load().expect("Invalid threshold."));
+extern "C" fn init() {
+    unsafe { state::THRESHOLD = Some(msg::load().expect("Invalid threshold.")) };
 }
 
 #[no_mangle]
-unsafe extern "C" fn handle() {
-    let threshold = state::THRESHOLD.expect("Threshold has not been set.");
+extern "C" fn handle() {
+    let threshold = unsafe { state::THRESHOLD.expect("Threshold has not been set.") };
     let method = msg::load::<Method>().expect("Invalid contract method.");
+    let registry = unsafe { &mut state::REGISTRY };
 
     match method {
         Method::Start { expected, id, src } => {
-            if !state::REGISTRY.contains_key(&id) {
-                state::REGISTRY.insert(id, Package::new(expected, src));
+            if !registry.contains_key(&id) {
+                registry.insert(id, Package::new(expected, src));
             }
 
-            let pkg = state::REGISTRY.get(&id).expect("Calculation not found.");
+            let pkg = registry.get(&id).expect("Calculation not found.");
 
             if pkg.finished() {
                 msg::reply(pkg.result(), 0).expect("send reply failed");
@@ -36,7 +37,7 @@ unsafe extern "C" fn handle() {
                 panic!("Invalid caller, this is a private method reserved for the program itself.");
             }
 
-            let pkg = state::REGISTRY
+            let pkg = registry
                 .get_mut(&id)
                 .expect("Calculation not found, please run start first.");
 
