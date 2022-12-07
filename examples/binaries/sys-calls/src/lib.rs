@@ -106,7 +106,6 @@ mod wasm {
     use super::Kind;
     use codec::Encode;
     use gstd::{
-        errors::{ContractError, ExtError, MessageError},
         exec, format,
         msg::{self, MessageHandle},
         prog, ActorId, CodeId, MessageId, ReservationId,
