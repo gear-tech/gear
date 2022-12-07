@@ -56,5 +56,5 @@ pub use handler::handle_journal;
 pub use processor::{
     precharge_for_code, precharge_for_code_length, precharge_for_instrumentation,
     precharge_for_memory, precharge_for_program, process, ContextChargedForCode,
-    ContextChargedForInstrumentation, PrechargeResult, ProcessExecutionContext,
+    ContextChargedForInstrumentation, ProcessExecutionContext,
 };

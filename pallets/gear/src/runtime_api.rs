@@ -140,8 +140,7 @@ where
             let gas_limit = GasHandlerOf::<T>::get_limit(dispatch_id)
                 .map_err(|_| b"Internal error: unable to get gas limit".to_vec())?;
 
-            // =========
-            let f = || {
+            let build_journal = || {
                 let program_id = queued_dispatch.destination();
                 let precharged_dispatch = match core_processor::precharge_for_program(
                     &block_config,
@@ -205,10 +204,7 @@ where
                 let (code, context) = match code.instruction_weights_version()
                     == schedule.instruction_weights.version
                 {
-                    true => (
-                        code,
-                        core_processor::ContextChargedForInstrumentation::from(context),
-                    ),
+                    true => (code, ContextChargedForInstrumentation::from(context)),
                     false => {
                         let context = match core_processor::precharge_for_instrumentation(
                             &block_config,
@@ -266,9 +262,8 @@ where
                     memory_pages,
                 )
             };
-            // =========
 
-            let journal = f();
+            let journal = build_journal();
 
             let get_main_limit = || GasHandlerOf::<T>::get_limit(main_message_id).ok();
 

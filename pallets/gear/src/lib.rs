@@ -59,6 +59,7 @@ use core::marker::PhantomData;
 use core_processor::{
     common::{DispatchOutcome as CoreDispatchOutcome, ExecutableActorData, JournalNote},
     configs::{AllocationsConfig, BlockConfig, BlockInfo},
+    ContextChargedForInstrumentation,
 };
 use frame_support::{
     dispatch::{DispatchError, DispatchResultWithPostInfo, PostDispatchInfo},

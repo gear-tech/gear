@@ -342,7 +342,7 @@ impl InstrumentedCode {
         &self.code
     }
 
-    /// Return the length of the original binary code.
+    /// Returns the length of the original binary code.
     pub fn original_code_len(&self) -> u32 {
         self.original_code_len
     }

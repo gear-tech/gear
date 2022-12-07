@@ -194,10 +194,7 @@ where
 
             let (code, context) =
                 match code.instruction_weights_version() == schedule.instruction_weights.version {
-                    true => (
-                        code,
-                        core_processor::ContextChargedForInstrumentation::from(context),
-                    ),
+                    true => (code, ContextChargedForInstrumentation::from(context)),
                     false => {
                         let context = match core_processor::precharge_for_instrumentation(
                             &block_config,
