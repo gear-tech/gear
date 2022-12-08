@@ -111,9 +111,6 @@ jobs:
       - name: "Check clippy: Examples"
         run: ./scripts/gear.sh clippy examples
 
-      - name: "Test: Doc tests"
-        run:  ./scripts/gear.sh test doc
-
       - name: "Cache: Pack"
         if: ${{ github.event_name == 'push' }}
         continue-on-error: true
