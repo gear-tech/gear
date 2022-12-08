@@ -133,11 +133,11 @@ mod wasm {
                 panic!();
             }
             HandleAction::WaitWithReserveAmountAndPanic(gas_amount) => {
-                if unsafe { DO_PANIC } {
+                if *do_panic {
                     panic!();
                 }
 
-                unsafe { DO_PANIC = !DO_PANIC };
+                *do_panic = !*do_panic;
 
                 exec::system_reserve_gas(gas_amount).unwrap();
                 // used to found message id in test
@@ -182,9 +182,7 @@ mod wasm {
                 );
             }
             HandleAction::ForbiddenCallInSignal(user) => {
-                unsafe {
-                    HANDLE_SIGNAL_STATE = HandleSignalState::ForbiddenCall(user);
-                }
+                unsafe { HANDLE_SIGNAL_STATE = HandleSignalState::ForbiddenCall(user) };
                 exec::system_reserve_gas(1_000_000_000).unwrap();
                 exec::wait();
             }
