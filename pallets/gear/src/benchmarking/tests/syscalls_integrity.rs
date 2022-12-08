@@ -830,6 +830,20 @@ where
     })
 }
 
+fn check_gr_gas_limit<T>()
+where
+    T: Config,
+    T::AccountId: Origin,
+{
+    run_tester::<T, _, _, T::AccountId>(|_, _| {
+        let mp = Kind::GasLimit(SEND_MESSAGE_GAS_LIMIT).encode().into();
+
+        (TestCall::send_message(mp), None::<DefaultPostCheck>)
+    })
+}
+
+const SEND_MESSAGE_GAS_LIMIT: u64 = 50_000_000_000;
+
 fn run_tester<T, P, S, Id>(get_test_call_params: S)
 where
     T: Config + frame_system::Config<AccountId = Id>,
@@ -893,7 +907,7 @@ where
                 RawOrigin::Signed(mp.sender).into(),
                 tester_pid,
                 mp.payload,
-                50_000_000_000,
+                SEND_MESSAGE_GAS_LIMIT,
                 mp.value.unique_saturated_into(),
             )
             .expect("failed send message");

@@ -89,6 +89,8 @@ pub enum Kind {
     Random([u8; 32], ([u8; 32], u32)),
     // Expected(lower bound, upper bound )-> estimated gas level
     GasAvailable(u64, u64),
+    // Expected(gas limit)
+    GasLimit(u64),
     // Expected(message id)
     ReservationSend(MessageId),
     // Param(payload), Expected(message id)
@@ -390,6 +392,13 @@ mod wasm {
                 assert!(
                     gas_available <= upper,
                     "Kind::GasAvailable: upper bound test failed"
+                );
+            }
+            Kind::GasLimit(expected_gas_limit) => {
+                let gas_limit = exec::gas_limit();
+                assert_eq!(
+                    expected_gas_limit, gas_limit,
+                    "Kind::GasLimit: gas limit test failed"
                 );
             }
             Kind::ReservationSend(expected_mid) => {

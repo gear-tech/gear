@@ -220,6 +220,33 @@ pub fn gas_available() -> u64 {
     gas
 }
 
+/// Get the current amount of gas limit for execution.
+///
+/// Each message processing consumes gas on instructions execution and memory
+/// allocations. This function returns a value of the gas limit for spending
+/// during the current execution. Its use may help avoid unexpected behaviors
+/// during the smart-contract execution in case insufficient gas is available.
+///
+/// # Examples
+///
+/// Do the job while the amount of gas limit is more than 1000:
+///
+/// ```
+/// use gcore::exec;
+///
+/// #[no_mangle]
+/// extern "C" fn handle() {
+///     while exec::gas_limit() > 1000 {
+///         // ...
+///     }
+/// }
+/// ```
+pub fn gas_limit() -> u64 {
+    let mut gas = 0u64;
+    unsafe { gsys::gr_gas_limit(&mut gas as *mut u64) };
+    gas
+}
+
 /// Break the current execution.
 ///
 /// Use this function to break the current message processing and save the
