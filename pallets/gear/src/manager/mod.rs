@@ -265,11 +265,20 @@ where
         common::set_program(program_id.into_origin(), program);
     }
 
-    fn clean_reservation_tasks(&mut self, program_id: ProgramId) {
-        let active_program =
-            common::get_active_program(program_id.into_origin()).unwrap_or_else(|e| {
-                unreachable!("`exit` can be called only from active program: {}", e)
-            });
+    fn clean_reservation_tasks(&mut self, program_id: ProgramId, maybe_inactive: bool) {
+        let maybe_active_program = common::get_active_program(program_id.into_origin());
+
+        if maybe_active_program.is_err() && maybe_inactive {
+            return;
+        };
+
+        let active_program = maybe_active_program.unwrap_or_else(|e| {
+            unreachable!(
+                "Clean reservations can only be called on active program: {}",
+                e
+            )
+        });
+
         for (reservation_id, reservation_slot) in active_program.gas_reservation_map {
             <Self as TaskHandler<T::AccountId>>::remove_gas_reservation(
                 self,

@@ -149,6 +149,8 @@ pub enum DispatchOutcome {
         origin: ProgramId,
         /// Reason of the fail.
         reason: String,
+        /// Flag defining was the program executed to fail it's initialization.
+        executed: bool,
     },
     /// Message was a trap.
     MessageTrap {

@@ -125,7 +125,10 @@ where
                 DispatchStatus::Success
             }
             InitFailure {
-                program_id, origin, ..
+                program_id,
+                origin,
+                executed,
+                ..
             } => {
                 log::trace!(
                     "Dispatch ({:?}) init failure for program {:?}",
@@ -140,10 +143,22 @@ where
                 // dequeued. The other case is async init.
                 wake_waiting_init_msgs(program_id);
 
-                self.clean_reservation_tasks(program_id);
+                // If we run into `InitFailure` after real execution (not
+                // prepare or precharge) processor methods, then we are
+                // sure that it was active program.
+                let maybe_inactive = !executed;
+
+                self.clean_reservation_tasks(program_id, maybe_inactive);
 
                 common::set_program_terminated_status(program_id.into_origin(), origin)
-                    .expect("Only active program can cause init failure");
+                    .unwrap_or_else(|e| {
+                        if !maybe_inactive {
+                            unreachable!(
+                                "Program terminated status may only be set to active program {}",
+                                e
+                            );
+                        }
+                    });
 
                 let program_id = <T::AccountId as Origin>::from_origin(program_id.into_origin());
 
@@ -197,7 +212,8 @@ where
 
         let _ = common::waiting_init_take_messages(id_exited);
 
-        self.clean_reservation_tasks(id_exited);
+        // Program can't be inactive, cause it was executed.
+        self.clean_reservation_tasks(id_exited, false);
 
         let id_exited = id_exited.into_origin();
 

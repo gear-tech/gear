@@ -116,7 +116,11 @@ fn non_existent_code_id_zero_gas() {
         run_to_next_block(None);
 
         // Nothing panics here.
-        assert_total_dequeued(2);
+        //
+        // 1st msg is init of "factory"
+        // 2nd is init of non existing code id
+        // 3rd is error reply on 2nd message
+        assert_total_dequeued(3);
     })
 }
 
@@ -157,10 +161,7 @@ fn waited_with_zero_gas() {
     new_test_ext().execute_with(|| {
         let code = ProgramCodeKind::Custom(wat).to_bytes();
 
-        let GasInfo {
-            min_limit,
-            ..
-        } = Gear::calculate_gas_info(
+        let GasInfo { min_limit, .. } = Gear::calculate_gas_info(
             USER_1.into_origin(),
             HandleKind::Init(code.clone()),
             EMPTY_PAYLOAD.to_vec(),
@@ -195,7 +196,10 @@ fn waited_with_zero_gas() {
         assert!(Gear::is_exited(program_id));
 
         // Nothing panics here.
-        assert_total_dequeued(2);
+        //
+        // Twice for init message.
+        // Once for reply sent.
+        assert_total_dequeued(3);
     })
 }
 
@@ -4828,7 +4832,7 @@ fn program_messages_to_paused_program_skipped() {
             code,
             vec![],
             InputArgs {
-                destination: <[u8; 32]>::from(paused_program_id).into()
+                destination: paused_program_id.into()
             }
             .encode(),
             50_000_000_000u64,
