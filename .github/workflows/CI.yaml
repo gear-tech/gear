@@ -111,6 +111,9 @@ jobs:
       - name: "Check clippy: Examples"
         run: ./scripts/gear.sh clippy examples
 
+      - name: "Test: Doc tests"
+        run:  ./scripts/gear.sh test doc
+
       - name: "Cache: Pack"
         if: ${{ github.event_name == 'push' }}
         continue-on-error: true
@@ -228,9 +231,6 @@ jobs:
 
       - name: "Test: Gear workspace"
         run: ./scripts/gear.sh test gear --exclude gclient --exclude gprogram --features pallet-gear-debug/lazy-pages --release --locked
-
-      - name: "Test: Doc tests"
-        run:  ./scripts/gear.sh test doc
 
       - name: "Test: JS metadata"
         run: ./scripts/gear.sh test js
