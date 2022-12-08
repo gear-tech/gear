@@ -1513,6 +1513,24 @@ where
         Func::wrap(store, func)
     }
 
+    pub fn gas_limit(
+        store: &mut Store<HostState<E>>,
+        forbidden: bool,
+        memory: WasmiMemory,
+    ) -> Func {
+        let func = move |caller: Caller<'_, HostState<E>>, gas_ptr: u32| -> EmptyOutput {
+            let mut caller = CallerWrap::prepare(caller, forbidden)?;
+
+            caller.call_infallible(
+                &memory,
+                |ext| ext.gas_limit(),
+                |res, mut mem_ref| mem_ref.write(gas_ptr as usize, &res.to_le_bytes()),
+            )
+        };
+
+        Func::wrap(store, func)
+    }
+
     pub fn message_id(
         store: &mut Store<HostState<E>>,
         forbidden: bool,

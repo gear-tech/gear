@@ -353,6 +353,12 @@ extern "C" {
     /// - `gas`: `mut ptr` for `u64`.
     pub fn gr_gas_available(gas: *mut Gas);
 
+    /// Infallible `gr_gas_limit` get syscall.
+    ///
+    /// Arguments type:
+    /// - `gas`: `mut ptr` for `u64`.
+    pub fn gr_gas_limit(gas: *mut Gas);
+
     /// Infallible `gr_leave` control syscall.
     pub fn gr_leave() -> !;
 

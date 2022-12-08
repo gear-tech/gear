@@ -280,6 +280,10 @@ impl EnvExt for LazyPagesExt {
         self.inner.gas_available()
     }
 
+    fn gas_limit(&mut self) -> Result<u64, Self::Error> {
+        self.inner.gas_limit()
+    }
+
     fn value(&mut self) -> Result<u128, Self::Error> {
         self.inner.value()
     }

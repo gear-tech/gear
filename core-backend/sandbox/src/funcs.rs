@@ -871,6 +871,19 @@ where
         })
     }
 
+    pub fn gas_limit(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
+        sys_trace!(target: "syscall::gear", "gas_limit, args = {}", args_to_str(args));
+
+        let gas_ptr = args.iter().read()?;
+
+        ctx.run(|ctx| {
+            let gas = ctx.ext.gas_limit().map_err(FuncError::Core)?;
+
+            ctx.write_output(gas_ptr, &gas.to_le_bytes())
+                .map_err(Into::into)
+        })
+    }
+
     pub fn message_id(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
         sys_trace!(target: "syscall::gear", "message_id, args = {}", args_to_str(args));
 

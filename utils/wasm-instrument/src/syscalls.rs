@@ -77,6 +77,7 @@ pub enum SysCallName {
     BlockTimestamp,
     Origin,
     GasAvailable,
+    GasLimit,
     ValueAvailable,
 
     // Changing execution path calls
@@ -115,6 +116,7 @@ impl SysCallName {
             SysCallName::Exit => "gr_exit",
             SysCallName::Free => "free",
             SysCallName::GasAvailable => "gr_gas_available",
+            SysCallName::GasLimit => "gr_gas_limit",
             SysCallName::Leave => "gr_leave",
             SysCallName::MessageId => "gr_message_id",
             SysCallName::Origin => "gr_origin",
@@ -235,6 +237,7 @@ impl SysCallName {
             Self::BlockTimestamp => SysCallSignature::gr([Ptr]),
             Self::Exit => SysCallSignature::gr([Ptr]),
             Self::GasAvailable => SysCallSignature::gr([Ptr]),
+            Self::GasLimit => SysCallSignature::gr([Ptr]),
             Self::ProgramId => SysCallSignature::gr([Ptr]),
             Self::Origin => SysCallSignature::gr([Ptr]),
             Self::Leave => SysCallSignature::gr([]),

@@ -165,6 +165,7 @@ where
         builder.add_func(ReserveGas, Funcs::reserve_gas);
         builder.add_func(UnreserveGas, Funcs::unreserve_gas);
         builder.add_func(GasAvailable, Funcs::gas_available);
+        builder.add_func(GasLimit, Funcs::gas_limit);
         builder.add_func(Leave, Funcs::leave);
         builder.add_func(MessageId, Funcs::message_id);
         builder.add_func(Origin, Funcs::origin);

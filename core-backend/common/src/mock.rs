@@ -162,6 +162,9 @@ impl Ext for MockExt {
     fn gas_available(&mut self) -> Result<u64, Self::Error> {
         Ok(1_000_000)
     }
+    fn gas_limit(&mut self) -> Result<u64, Self::Error> {
+        Ok(10_000_000)
+    }
     fn value(&mut self) -> Result<u128, Self::Error> {
         Ok(0)
     }

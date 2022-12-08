@@ -120,6 +120,7 @@ where
         f.build(GasAvailable, |forbidden| {
             F::gas_available(store, forbidden, memory)
         }),
+        f.build(GasLimit, |forbidden| F::gas_limit(store, forbidden, memory)),
         f.build(MessageId, |forbidden| {
             F::message_id(store, forbidden, memory)
         }),
