@@ -212,6 +212,26 @@ pub(crate) struct DelayedDispatch {
     pub reservation: Option<ReservationId>,
 }
 
+impl From<Dispatch> for DelayedDispatch {
+    fn from(dispatch: Dispatch) -> Self {
+        Self {
+            message_id: Default::default(),
+            dispatch,
+            reservation: None,
+        }
+    }
+}
+
+impl From<(MessageId, Dispatch)> for DelayedDispatch {
+    fn from((message_id, dispatch): (MessageId, Dispatch)) -> Self {
+        Self {
+            message_id,
+            dispatch,
+            reservation: None,
+        }
+    }
+}
+
 #[derive(Default, Debug)]
 pub(crate) struct ExtManager {
     // State metadata
@@ -420,7 +440,7 @@ impl ExtManager {
         }
     }
 
-    /// Process delayed dispatches from task pool.
+    /// Send delayed dispatches from task pool.
     pub(crate) fn process_delayed_dispatches(&mut self, block_height: u32) {
         if let Some(mut queue) = self.scheduled_dispatches.remove(&block_height) {
             while let Some(dispatch) = queue.pop_front() {
