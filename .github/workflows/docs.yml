@@ -51,9 +51,6 @@ jobs:
       - name: Build docs
         run: make doc
 
-      - name: Run doc tests
-        run: make test-doc
-
       - name: Copy logo image
         run: cp ./images/logo.svg ./target/doc/
 
