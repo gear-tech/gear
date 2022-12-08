@@ -95,7 +95,7 @@ parameter_types! {
     pub const BlockHashCount: u64 = 250;
     pub const SS58Prefix: u8 = 42;
     pub const ExistentialDeposit: u64 = 500;
-    pub const DbWeight: RuntimeDbWeight = RuntimeDbWeight { read: 111, write: 230 };
+    pub const DbWeight: RuntimeDbWeight = RuntimeDbWeight { read: 1110, write: 2300 };
 }
 
 impl system::Config for Test {
