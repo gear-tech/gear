@@ -19,8 +19,8 @@
 use crate::{
     ids::{MessageId, ProgramId, ReservationId},
     message::{
-        Dispatch, HandleMessage, HandlePacket, IncomingMessage, InitMessage, InitPacket, Payload,
-        ReplyMessage, ReplyPacket,
+        Dispatch, GasLimit, HandleMessage, HandlePacket, IncomingMessage, InitMessage, InitPacket,
+        Payload, ReplyMessage, ReplyPacket,
     },
 };
 use alloc::{
@@ -462,6 +462,11 @@ impl MessageContext {
         let Self { outcome, store, .. } = self;
 
         (outcome, store)
+    }
+
+    /// Get the gas limit of the current message.
+    pub fn gas_limit(&self) -> GasLimit {
+        self.current.gas_limit()
     }
 }
 

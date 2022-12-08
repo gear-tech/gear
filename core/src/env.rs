@@ -207,6 +207,9 @@ pub trait Ext {
     /// Tell how much gas is left in running context.
     fn gas_available(&mut self) -> Result<u64, Self::Error>;
 
+    /// Tell the gas limit of the running context.
+    fn gas_limit(&mut self) -> Result<u64, Self::Error>;
+
     /// Value associated with message.
     fn value(&mut self) -> Result<u128, Self::Error>;
 
