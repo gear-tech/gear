@@ -101,7 +101,7 @@ pub fn reply_delayed_from_reservation<E: Encode>(
 /// ```
 /// use gstd::{exec, msg};
 ///
-/// unsafe extern "C" fn handle() {
+/// extern "C" fn handle() {
 ///     // ...
 ///     msg::reply_with_gas(b"PING", 0, 0).unwrap();
 /// }

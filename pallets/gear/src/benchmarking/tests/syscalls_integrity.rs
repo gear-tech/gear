@@ -31,9 +31,9 @@ use super::*;
 
 use crate::WaitlistOf;
 use frame_support::traits::Randomness;
-use gear_backend_common::SysCallName;
 use gear_core::ids::{CodeId, ReservationId};
 use gear_core_errors::{ExtError, MessageError};
+use gear_wasm_instrument::syscalls::SysCallName;
 use pallet_timestamp::Pallet as TimestampPallet;
 use test_syscalls::{Kind, WASM_BINARY as SYSCALLS_TEST_WASM_BINARY};
 
@@ -1122,7 +1122,7 @@ where
 
     ModuleDefinition {
         memory: Some(ImportedMemory { min_pages: 1 }),
-        imported_functions: vec!["alloc", "free"],
+        imported_functions: vec![SysCallName::Alloc, SysCallName::Free],
         init_body: Some(FuncBody::new(
             vec![],
             Instructions::new(vec![

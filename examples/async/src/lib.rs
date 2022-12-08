@@ -18,25 +18,27 @@ gstd::metadata! {
 }
 
 #[no_mangle]
-unsafe extern "C" fn init() {
+extern "C" fn init() {
     let input = String::from_utf8(msg::load_bytes().expect("Failed to load payload bytes"))
         .expect("Invalid message: should be utf-8");
     let dests: Vec<&str> = input.split(',').collect();
     if dests.len() != 3 {
         panic!("Invalid input, should be three IDs separated by comma");
     }
-    DEST_0 = ActorId::from_slice(
-        &decode_hex(dests[0]).expect("INTIALIZATION FAILED: INVALID PROGRAM ID"),
-    )
-    .expect("Unable to create ActorId");
-    DEST_1 = ActorId::from_slice(
-        &decode_hex(dests[1]).expect("INTIALIZATION FAILED: INVALID PROGRAM ID"),
-    )
-    .expect("Unable to create ActorId");
-    DEST_2 = ActorId::from_slice(
-        &decode_hex(dests[2]).expect("INTIALIZATION FAILED: INVALID PROGRAM ID"),
-    )
-    .expect("Unable to create ActorId");
+    unsafe {
+        DEST_0 = ActorId::from_slice(
+            &decode_hex(dests[0]).expect("INTIALIZATION FAILED: INVALID PROGRAM ID"),
+        )
+        .expect("Unable to create ActorId");
+        DEST_1 = ActorId::from_slice(
+            &decode_hex(dests[1]).expect("INTIALIZATION FAILED: INVALID PROGRAM ID"),
+        )
+        .expect("Unable to create ActorId");
+        DEST_2 = ActorId::from_slice(
+            &decode_hex(dests[2]).expect("INTIALIZATION FAILED: INVALID PROGRAM ID"),
+        )
+        .expect("Unable to create ActorId");
+    }
 }
 
 fn decode_hex(s: &str) -> Result<Vec<u8>, ParseIntError> {

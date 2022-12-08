@@ -56,7 +56,7 @@ mod wasm {
     }
 
     #[no_mangle]
-    unsafe extern "C" fn handle() {
+    extern "C" fn handle() {
         let action: HandleAction = msg::load().expect("Failed to load handle payload");
         match action {
             HandleAction::SendToUser => {
@@ -142,7 +142,7 @@ mod wasm {
     }
 
     #[no_mangle]
-    unsafe extern "C" fn handle_reply() {
+    extern "C" fn handle_reply() {
         let action: ReplyAction = msg::load().expect("Failed to load handle payload");
         match action {
             ReplyAction::Receive(user) => {

@@ -69,23 +69,26 @@ mod wasm {
     }
 
     #[no_mangle]
-    unsafe extern "C" fn handle() {
+    extern "C" fn handle() {
         let x: u64 = msg::load().expect("Expecting a u64 number");
 
-        msg::reply(STATE.unchecked_mul(x), 0).unwrap();
+        msg::reply(unsafe { STATE.unchecked_mul(x) }, 0).unwrap();
     }
 
     #[no_mangle]
-    unsafe extern "C" fn init() {
+    extern "C" fn init() {
         let val: u64 = msg::load().expect("Expecting a u64 number");
-        STATE = State::new(val);
-        DEBUG = DebugInfo {
-            me: hex::encode(exec::program_id()),
-        };
+        unsafe {
+            STATE = State::new(val);
+            DEBUG = DebugInfo {
+                me: hex::encode(exec::program_id()),
+            };
+        }
         msg::reply_bytes([], 0).unwrap();
         debug!(
             "[0x{} mul_by_const::init] Program initialized with input {}",
-            DEBUG.me, val
+            unsafe { &DEBUG.me },
+            val
         );
     }
 }

@@ -21,6 +21,7 @@
 use alloc::{collections::BTreeSet, vec::Vec};
 use codec::{Decode, Encode};
 use gear_core::{code, costs::HostFnWeights, memory::WasmPageNumber};
+use gear_wasm_instrument::syscalls::SysCallName;
 
 const INIT_COST: u64 = 5000;
 const ALLOC_COST: u64 = 10000;
@@ -74,7 +75,7 @@ pub struct ExecutionSettings {
     /// Weights of host functions.
     pub host_fn_weights: HostFnWeights,
     /// Functions forbidden to be called.
-    pub forbidden_funcs: BTreeSet<&'static str>,
+    pub forbidden_funcs: BTreeSet<SysCallName>,
     /// Threshold for inserting into mailbox
     pub mailbox_threshold: u64,
     /// Cost for single block waitlist holding.
@@ -109,7 +110,7 @@ pub struct BlockConfig {
     /// Host function weights.
     pub host_fn_weights: HostFnWeights,
     /// Forbidden functions.
-    pub forbidden_funcs: BTreeSet<&'static str>,
+    pub forbidden_funcs: BTreeSet<SysCallName>,
     /// Mailbox threshold.
     pub mailbox_threshold: u64,
     /// Cost for single block waitlist holding.

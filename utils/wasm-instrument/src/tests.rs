@@ -17,6 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use super::*;
+use crate::syscalls::SysCallName;
 use elements::Instruction::*;
 use gas_metering::ConstantCostRules;
 use parity_wasm::serialize;
@@ -149,13 +150,14 @@ fn grow_no_gas_no_track() {
 fn duplicate_import() {
     let wat = format!(
         r#"(module
-            (import "env" "{IMPORT_NAME_OUT_OF_GAS}" (func))
+            (import "env" "{out_of_gas}" (func))
             (func (result i32)
                 global.get 0
                 memory.grow)
             (global i32 (i32.const 42))
             (memory 0 1)
             )"#,
+        out_of_gas = SysCallName::OutOfGas.to_str()
     );
     let module = parse_wat(&wat);
 
@@ -604,7 +606,6 @@ fn test_sys_calls_table() {
     use gear_backend_wasmi::WasmiEnvironment;
     use gear_core::message::DispatchKind;
     use parity_wasm::builder;
-    use syscalls::{syscall_signature, syscalls_name_list};
 
     // Make module with one empty function.
     let mut module = builder::module()
@@ -615,8 +616,8 @@ fn test_sys_calls_table() {
         .build();
 
     // Insert syscalls imports.
-    for name in syscalls_name_list() {
-        let sign = syscall_signature(name);
+    for name in SysCallName::instrumentable() {
+        let sign = name.signature();
         let types = module.type_section_mut().unwrap().types_mut();
         let type_no = types.len() as u32;
         types.push(parity_wasm::elements::Type::Function(sign.func_type()));
@@ -626,7 +627,7 @@ fn test_sys_calls_table() {
             .module("env")
             .external()
             .func(type_no)
-            .field(name)
+            .field(name.to_str())
             .build()
             .build();
     }

@@ -102,10 +102,11 @@ mod wasm {
     }
 
     #[no_mangle]
-    unsafe extern "C" fn handle() {
+    extern "C" fn handle() {
         use RelayCall::*;
+        let relay_call = unsafe { RELAY_CALL.as_ref().expect("Relay call is not initialized") };
 
-        match RELAY_CALL.as_ref().expect("Relay call is not initialized") {
+        match relay_call {
             Resend(d) => {
                 msg::send_input(*d, msg::value(), ..msg::size() as usize).expect("Resend failed");
             }
@@ -129,7 +130,7 @@ mod wasm {
     }
 
     #[no_mangle]
-    unsafe extern "C" fn init() {
-        RELAY_CALL = Some(msg::load().expect("Failed to decode `RelayCall'"));
+    extern "C" fn init() {
+        unsafe { RELAY_CALL = Some(msg::load().expect("Failed to decode `RelayCall'")) };
     }
 }

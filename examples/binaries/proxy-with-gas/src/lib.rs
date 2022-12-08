@@ -44,37 +44,39 @@ mod wasm {
     static mut DELAY: u32 = 0;
 
     #[no_mangle]
-    unsafe extern "C" fn handle() {
+    extern "C" fn handle() {
         let gas_limit: u64 = msg::load().expect("Failed to decode `gas_limit: u64'");
         msg::send_with_gas_delayed(
-            DESTINATION,
+            unsafe { DESTINATION },
             b"proxied message",
             gas_limit,
             msg::value(),
-            DELAY,
+            unsafe { DELAY },
         )
         .expect("Failed to proxy message");
     }
 
     #[no_mangle]
-    unsafe extern "C" fn handle_reply() {
+    extern "C" fn handle_reply() {
         if msg::status_code().expect("Infallible") == 0 {
             let gas_limit: u64 = msg::load().expect("Failed to decode `gas_limit: u64'");
             msg::send_with_gas_delayed(
-                DESTINATION,
+                unsafe { DESTINATION },
                 b"proxied message",
                 gas_limit,
                 msg::value(),
-                DELAY,
+                unsafe { DELAY },
             )
             .expect("Failed to proxy message");
         }
     }
 
     #[no_mangle]
-    unsafe extern "C" fn init() {
+    extern "C" fn init() {
         let args: InputArgs = msg::load().expect("Failed to decode `InputArgs'");
-        DESTINATION = args.destination;
-        DELAY = args.delay;
+        unsafe {
+            DESTINATION = args.destination;
+            DELAY = args.delay;
+        }
     }
 }

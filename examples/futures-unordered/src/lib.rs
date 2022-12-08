@@ -10,21 +10,23 @@ static mut DEMO_ASYNC: ActorId = ActorId::new([0u8; 32]);
 static mut DEMO_PING: ActorId = ActorId::new([0u8; 32]);
 
 #[no_mangle]
-unsafe extern "C" fn init() {
+extern "C" fn init() {
     let input = String::from_utf8(msg::load_bytes().expect("Failed to load payload bytes"))
         .expect("Invalid message: should be utf-8");
     let dests: Vec<&str> = input.split(',').collect();
     if dests.len() != 2 {
         panic!("Invalid input, should be three IDs separated by comma");
     }
-    DEMO_ASYNC = ActorId::from_slice(
-        &hex::decode(dests[0]).expect("INTIALIZATION FAILED: INVALID PROGRAM ID"),
-    )
-    .expect("Unable to create ActorId");
-    DEMO_PING = ActorId::from_slice(
-        &hex::decode(dests[1]).expect("INTIALIZATION FAILED: INVALID PROGRAM ID"),
-    )
-    .expect("Unable to create ActorId");
+    unsafe {
+        DEMO_ASYNC = ActorId::from_slice(
+            &hex::decode(dests[0]).expect("INTIALIZATION FAILED: INVALID PROGRAM ID"),
+        )
+        .expect("Unable to create ActorId");
+        DEMO_PING = ActorId::from_slice(
+            &hex::decode(dests[1]).expect("INTIALIZATION FAILED: INVALID PROGRAM ID"),
+        )
+        .expect("Unable to create ActorId");
+    }
 }
 
 #[gstd::async_main]

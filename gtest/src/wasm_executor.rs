@@ -73,7 +73,7 @@ impl WasmExecutor {
         let functions = funcs_tree::build(&mut store, memory, forbidden_funcs);
         for (name, function) in functions {
             linker
-                .define("env", name, function)
+                .define("env", name.to_str(), function)
                 .map_err(WasmiError::from)?;
         }
 

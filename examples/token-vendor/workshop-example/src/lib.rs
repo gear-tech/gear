@@ -30,20 +30,20 @@ impl State {
 static mut STATE: State = State { user_id: None };
 
 #[no_mangle]
-unsafe extern "C" fn init() {
-    STATE.set_user_id(msg::source());
+extern "C" fn init() {
+    unsafe { STATE.set_user_id(msg::source()) };
 
     debug!("CONTRACT: Inited successfully");
 }
 
 #[no_mangle]
-unsafe extern "C" fn handle() {
+extern "C" fn handle() {
     let payload: String = msg::load().expect("CONTRACT: Unable to decode handle input");
 
     debug!("CONTRACT: Got payload: '{}'", payload);
 
     if payload == "success" {
-        msg::reply(STATE.get_hex_id(), 0).unwrap();
+        msg::reply(unsafe { STATE.get_hex_id() }, 0).unwrap();
     } else if payload == "ping" {
         msg::reply("pong", 0).unwrap();
     } else {
