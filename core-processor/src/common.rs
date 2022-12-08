@@ -149,7 +149,7 @@ pub enum DispatchOutcome {
         origin: ProgramId,
         /// Reason of the fail.
         reason: String,
-        /// Flag defining was the program executed to fail it's initialization.
+        /// Flag defining was the program executed to fail its initialization.
         executed: bool,
     },
     /// Message was a trap.
@@ -385,7 +385,12 @@ pub trait JournalHandler {
         bn: u32,
     );
     /// Unreserve gas.
-    fn unreserve_gas(&mut self, reservation_id: ReservationId, program_id: ProgramId, bn: u32);
+    fn unreserve_gas(
+        &mut self,
+        reservation_id: ReservationId,
+        program_id: ProgramId,
+        expiration: u32,
+    );
     /// Update gas reservations.
     fn update_gas_reservation(&mut self, program_id: ProgramId, reserver: GasReserver);
     /// Do system reservation.

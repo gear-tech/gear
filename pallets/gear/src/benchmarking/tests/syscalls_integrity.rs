@@ -31,9 +31,9 @@ use super::*;
 
 use crate::WaitlistOf;
 use frame_support::traits::Randomness;
-use gear_backend_common::SysCallName;
 use gear_core::ids::{CodeId, ReservationId};
 use gear_core_errors::{ExtError, MessageError};
+use gear_wasm_instrument::syscalls::SysCallName;
 use pallet_timestamp::Pallet as TimestampPallet;
 use test_syscalls::{Kind, WASM_BINARY as SYSCALLS_TEST_WASM_BINARY};
 
@@ -794,13 +794,13 @@ where
         #[cfg(feature = "std")]
         let expected_bn = expected_bn + One::one();
 
-        let salt = vec![1, 2, 3];
+        let salt = [1; 32];
         let expected_hash = {
             // Internals of the gr_random call
-            let mut salt_clone = salt.clone();
-            salt_clone.extend_from_slice(random.as_ref());
+            let mut salt_vec = salt.to_vec();
+            salt_vec.extend_from_slice(random.as_ref());
 
-            sp_io::hashing::blake2_256(&salt_clone)
+            sp_io::hashing::blake2_256(&salt_vec)
         };
 
         let mp = Kind::Random(salt, (expected_hash, expected_bn.unique_saturated_into()))
@@ -1122,7 +1122,7 @@ where
 
     ModuleDefinition {
         memory: Some(ImportedMemory { min_pages: 1 }),
-        imported_functions: vec!["alloc", "free"],
+        imported_functions: vec![SysCallName::Alloc, SysCallName::Free],
         init_body: Some(FuncBody::new(
             vec![],
             Instructions::new(vec![

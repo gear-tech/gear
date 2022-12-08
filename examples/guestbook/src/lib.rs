@@ -26,15 +26,15 @@ gstd::metadata! {
 static mut MESSAGES: Vec<MessageIn> = Vec::new();
 
 #[no_mangle]
-unsafe extern "C" fn handle() {
+extern "C" fn handle() {
     let action: Action = msg::load().unwrap();
 
     match action {
         Action::AddMessage(message) => {
-            MESSAGES.push(message);
+            unsafe { MESSAGES.push(message) };
         }
         Action::ViewMessages => {
-            msg::reply(&MESSAGES, 0).unwrap();
+            msg::reply(unsafe { &MESSAGES }, 0).unwrap();
         }
     }
 }

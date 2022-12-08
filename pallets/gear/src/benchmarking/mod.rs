@@ -77,10 +77,13 @@ use gear_core::{
     gas::{GasAllowanceCounter, GasCounter, ValueCounter},
     ids::{MessageId, ProgramId},
     memory::{AllocationsContext, PageBuf, PageNumber, WasmPageNumber},
-    message::{ContextSettings, MessageContext},
+    message::{ContextSettings, DispatchKind, MessageContext},
     reservation::GasReserver,
 };
-use gear_wasm_instrument::parity_wasm::elements::{BlockType, BrTableData, Instruction, ValueType};
+use gear_wasm_instrument::{
+    parity_wasm::elements::{BlockType, BrTableData, Instruction, ValueType},
+    syscalls::SysCallName,
+};
 use pallet_authorship::Pallet as AuthorshipPallet;
 use sp_consensus_babe::{
     digests::{PreDigest, SecondaryPlainPreDigest},
@@ -94,6 +97,7 @@ use sp_runtime::{
 use sp_std::prelude::*;
 
 const MAX_PAYLOAD_LEN: u32 = 16 * 64 * 1024;
+const MAX_PAYLOAD_LEN_KB: u32 = MAX_PAYLOAD_LEN / 1024;
 const MAX_PAGES: u32 = 512;
 
 /// How many batches we do per API benchmark.
@@ -162,7 +166,7 @@ fn default_processor_context<T: Config>() -> ProcessorContext {
             Default::default(),
             Default::default(),
             None,
-            ContextSettings::new(0, 0, 0, 0, 0),
+            ContextSettings::new(0, 0, 0, 0, 0, 0),
         ),
         block_info: Default::default(),
         config: Default::default(),
@@ -328,7 +332,7 @@ benchmarks! {
         let WasmModule { code, .. } = WasmModule::<T>::sized(c * 1024, Location::Init);
     }: {
         let ext = Externalities::new(default_processor_context::<T>());
-        ExecutionEnvironment::new(ext, &code, Default::default(), max_pages::<T>().into()).unwrap();
+        ExecutionEnvironment::new(ext, &code, DispatchKind::Init, Default::default(), max_pages::<T>().into()).unwrap();
     }
 
     claim_value {
@@ -586,7 +590,7 @@ benchmarks! {
     gr_message_id {
         let r in 0 .. API_BENCHMARK_BATCHES;
         let mut res = None;
-        let exec = Benches::<T>::getter("gr_message_id", r)?;
+        let exec = Benches::<T>::getter(SysCallName::MessageId, r)?;
     }: {
         res.replace(run_process(exec));
     }
@@ -597,7 +601,7 @@ benchmarks! {
     gr_origin {
         let r in 0 .. API_BENCHMARK_BATCHES;
         let mut res = None;
-        let exec = Benches::<T>::getter("gr_origin", r)?;
+        let exec = Benches::<T>::getter(SysCallName::Origin, r)?;
     }: {
         res.replace(run_process(exec));
     }
@@ -608,7 +612,7 @@ benchmarks! {
     gr_program_id {
         let r in 0 .. API_BENCHMARK_BATCHES;
         let mut res = None;
-        let exec = Benches::<T>::getter("gr_program_id", r)?;
+        let exec = Benches::<T>::getter(SysCallName::ProgramId, r)?;
     }: {
         res.replace(run_process(exec));
     }
@@ -619,7 +623,7 @@ benchmarks! {
     gr_source {
         let r in 0 .. API_BENCHMARK_BATCHES;
         let mut res = None;
-        let exec = Benches::<T>::getter("gr_source", r)?;
+        let exec = Benches::<T>::getter(SysCallName::Source, r)?;
     }: {
         res.replace(run_process(exec));
     }
@@ -630,7 +634,7 @@ benchmarks! {
     gr_value {
         let r in 0 .. API_BENCHMARK_BATCHES;
         let mut res = None;
-        let exec = Benches::<T>::getter("gr_value", r)?;
+        let exec = Benches::<T>::getter(SysCallName::Value, r)?;
     }: {
         res.replace(run_process(exec));
     }
@@ -641,7 +645,7 @@ benchmarks! {
     gr_value_available {
         let r in 0 .. API_BENCHMARK_BATCHES;
         let mut res = None;
-        let exec = Benches::<T>::getter("gr_value_available", r)?;
+        let exec = Benches::<T>::getter(SysCallName::ValueAvailable, r)?;
     }: {
         res.replace(run_process(exec));
     }
@@ -652,7 +656,7 @@ benchmarks! {
     gr_gas_available {
         let r in 0 .. API_BENCHMARK_BATCHES;
         let mut res = None;
-        let exec = Benches::<T>::getter("gr_gas_available", r)?;
+        let exec = Benches::<T>::getter(SysCallName::GasAvailable, r)?;
     }: {
         res.replace(run_process(exec));
     }
@@ -663,7 +667,7 @@ benchmarks! {
     gr_size {
         let r in 0 .. API_BENCHMARK_BATCHES;
         let mut res = None;
-        let exec = Benches::<T>::getter("gr_size", r)?;
+        let exec = Benches::<T>::getter(SysCallName::Size, r)?;
     }: {
         res.replace(run_process(exec));
     }
@@ -683,7 +687,7 @@ benchmarks! {
     }
 
     gr_read_per_kb {
-        let n in 0 .. T::Schedule::get().limits.payload_len / 1024;
+        let n in 0 .. MAX_PAYLOAD_LEN_KB;
         let mut res = None;
         let exec = Benches::<T>::gr_read_per_kb(n)?;
     }: {
@@ -696,7 +700,7 @@ benchmarks! {
     gr_block_height {
         let r in 0 .. API_BENCHMARK_BATCHES;
         let mut res = None;
-        let exec = Benches::<T>::getter("gr_block_height", r)?;
+        let exec = Benches::<T>::getter(SysCallName::BlockHeight, r)?;
     }: {
         res.replace(run_process(exec));
     }
@@ -707,7 +711,7 @@ benchmarks! {
     gr_block_timestamp {
         let r in 0 .. API_BENCHMARK_BATCHES;
         let mut res = None;
-        let exec = Benches::<T>::getter("gr_block_timestamp", r)?;
+        let exec = Benches::<T>::getter(SysCallName::BlockTimestamp, r)?;
     }: {
         res.replace(run_process(exec));
     }
@@ -716,9 +720,9 @@ benchmarks! {
     }
 
     gr_random {
-        let r in 0 .. API_BENCHMARK_BATCHES;
+        let n in 0 .. API_BENCHMARK_BATCHES;
         let mut res = None;
-        let exec = Benches::<T>::gr_random(r)?;
+        let exec = Benches::<T>::gr_random(n)?;
     }: {
         res.replace(run_process(exec));
     }
@@ -749,7 +753,7 @@ benchmarks! {
     }
 
     gr_send_push_per_kb {
-        let n in 0 .. T::Schedule::get().limits.payload_len / 1024;
+        let n in 0 .. MAX_PAYLOAD_LEN_KB;
         let mut res = None;
         let exec = Benches::<T>::gr_send_push_per_kb(n)?;
     }: {
@@ -771,7 +775,7 @@ benchmarks! {
     }
 
     gr_send_commit_per_kb {
-        let n in 0 .. T::Schedule::get().limits.payload_len / 1024;
+        let n in 0 .. MAX_PAYLOAD_LEN_KB;
         let mut res = None;
         let exec = Benches::<T>::gr_send_commit_per_kb(n)?;
     }: {
@@ -793,7 +797,7 @@ benchmarks! {
     }
 
     gr_reservation_send_commit_per_kb {
-        let n in 0 .. T::Schedule::get().limits.payload_len / 1024;
+        let n in 0 .. MAX_PAYLOAD_LEN_KB;
         let mut res = None;
         let exec = Benches::<T>::gr_reservation_send_commit_per_kb(n)?;
     }: {
@@ -826,7 +830,7 @@ benchmarks! {
     }
 
     gr_reply_push_per_kb {
-        let n in 0 .. T::Schedule::get().limits.payload_len / 1024;
+        let n in 0 .. MAX_PAYLOAD_LEN_KB;
         let mut res = None;
         let exec = Benches::<T>::gr_reply_push_per_kb(n)?;
     }: {
@@ -903,7 +907,7 @@ benchmarks! {
     }
 
     gr_send_push_input_per_kb {
-        let n in 0 .. T::Schedule::get().limits.payload_len / 1024;
+        let n in 0 .. MAX_PAYLOAD_LEN_KB;
         let mut res = None;
         let exec = Benches::<T>::gr_send_push_input_per_kb(n)?;
     }: {
@@ -925,7 +929,7 @@ benchmarks! {
     }
 
     gr_debug_per_kb {
-        let n in 0 .. T::Schedule::get().limits.payload_len / 1024;
+        let n in 0 .. MAX_PAYLOAD_LEN_KB;
         let mut res = None;
         let exec = Benches::<T>::gr_debug_per_kb(n)?;
     }: {
@@ -962,7 +966,7 @@ benchmarks! {
     gr_exit {
         let r in 0 .. 1;
         let mut res = None;
-        let exec = Benches::<T>::termination_bench("gr_exit", Some(0xff), r)?;
+        let exec = Benches::<T>::termination_bench(SysCallName::Exit, Some(0xff), r)?;
     }: {
         res.replace(run_process(exec));
     }
@@ -975,7 +979,7 @@ benchmarks! {
     gr_leave {
         let r in 0 .. 1;
         let mut res = None;
-        let exec = Benches::<T>::termination_bench("gr_leave", None, r)?;
+        let exec = Benches::<T>::termination_bench(SysCallName::Leave, None, r)?;
     }: {
         res.replace(run_process(exec));
     }
@@ -988,7 +992,7 @@ benchmarks! {
     gr_wait {
         let r in 0 .. 1;
         let mut res = None;
-        let exec = Benches::<T>::termination_bench("gr_wait", None, r)?;
+        let exec = Benches::<T>::termination_bench(SysCallName::Wait, None, r)?;
     }: {
         res.replace(run_process(exec));
     }
@@ -1001,7 +1005,7 @@ benchmarks! {
     gr_wait_for {
         let r in 0 .. 1;
         let mut res = None;
-        let exec = Benches::<T>::termination_bench("gr_wait_for", Some(10), r)?;
+        let exec = Benches::<T>::termination_bench(SysCallName::WaitFor, Some(10), r)?;
     }: {
         res.replace(run_process(exec));
     }
@@ -1014,7 +1018,7 @@ benchmarks! {
     gr_wait_up_to {
         let r in 0 .. 1;
         let mut res = None;
-        let exec = Benches::<T>::termination_bench("gr_wait_up_to", Some(100), r)?;
+        let exec = Benches::<T>::termination_bench(SysCallName::WaitUpTo, Some(100), r)?;
     }: {
         res.replace(run_process(exec));
     }
@@ -1045,8 +1049,8 @@ benchmarks! {
     }
 
     gr_create_program_wgas_per_kb {
-        let p in 0 .. T::Schedule::get().limits.payload_len / 1024;
-        let s in 0 .. T::Schedule::get().limits.payload_len / 1024;
+        let p in 0 .. MAX_PAYLOAD_LEN_KB;
+        let s in 0 .. MAX_PAYLOAD_LEN_KB;
         let mut res = None;
         let exec = Benches::<T>::gr_create_program_wgas_per_kb(p, s)?;
     }: {

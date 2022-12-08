@@ -19,41 +19,37 @@
 use crate::state::HostState;
 use alloc::collections::{BTreeMap, BTreeSet};
 use codec::Encode;
-use gear_backend_common::{
-    error_processor::IntoExtError,
-    AsTerminationReason, IntoExtInfo,
-    SysCallName::{self, *},
-};
+use gear_backend_common::{error_processor::IntoExtError, AsTerminationReason, IntoExtInfo};
 use gear_core::env::Ext;
+use gear_wasm_instrument::syscalls::SysCallName::{self, *};
 use wasmi::{Func, Memory, Store};
 
-struct FunctionBuilder<'a>(Option<&'a BTreeSet<&'a str>>);
+struct FunctionBuilder(BTreeSet<SysCallName>);
 
-impl<'a> FunctionBuilder<'a> {
-    fn build<'b, Handler>(&self, name: SysCallName, handler: Handler) -> (&'b str, Func)
+impl FunctionBuilder {
+    fn build<Handler>(&self, name: SysCallName, handler: Handler) -> (SysCallName, Func)
     where
         Handler: FnOnce(bool) -> Func,
     {
-        let name = name.to_str();
-        let forbidden = self.0.map(|set| set.contains(name)).unwrap_or(false);
+        let forbidden = self.0.contains(&name);
         (name, handler(forbidden))
     }
 }
 
-pub fn build<'a, E>(
-    store: &'a mut Store<HostState<E>>,
+pub fn build<E>(
+    store: &mut Store<HostState<E>>,
     memory: Memory,
-    forbidden_funcs: Option<BTreeSet<&'a str>>,
-) -> BTreeMap<&'a str, Func>
+    forbidden_funcs: BTreeSet<SysCallName>,
+) -> BTreeMap<SysCallName, Func>
 where
     E: Ext + IntoExtInfo<E::Error> + 'static,
     E::Error: Encode + AsTerminationReason + IntoExtError,
 {
     use crate::funcs::FuncsHandler as F;
 
-    let f = FunctionBuilder(forbidden_funcs.as_ref());
+    let f = FunctionBuilder(forbidden_funcs);
 
-    let funcs: BTreeMap<&str, Func> = [
+    let funcs: BTreeMap<SysCallName, Func> = [
         f.build(Send, |forbidden| F::send(store, forbidden, memory)),
         f.build(SendWGas, |forbidden| F::send_wgas(store, forbidden, memory)),
         f.build(SendCommit, |forbidden| {

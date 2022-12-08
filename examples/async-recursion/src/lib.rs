@@ -14,13 +14,15 @@ fn decode_hex(s: &str) -> Result<Vec<u8>, ParseIntError> {
 }
 
 #[no_mangle]
-unsafe extern "C" fn init() {
+extern "C" fn init() {
     let input = String::from_utf8(msg::load_bytes().expect("Failed to load payload bytes"))
         .expect("Invalid message: should be utf-8");
-    DEST = ActorId::from_slice(
-        &decode_hex(&input).expect("Initialization failed: invalid program ID"),
-    )
-    .expect("Unable to create ActorId");
+    unsafe {
+        DEST = ActorId::from_slice(
+            &decode_hex(&input).expect("Initialization failed: invalid program ID"),
+        )
+        .expect("Unable to create ActorId");
+    }
 }
 
 /// Send message "PING" and wait for a reply, then recursively

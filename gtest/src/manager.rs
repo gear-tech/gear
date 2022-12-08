@@ -958,7 +958,13 @@ impl JournalHandler for ExtManager {
     ) {
     }
 
-    fn unreserve_gas(&mut self, _reservation_id: ReservationId, _program_id: ProgramId, _bn: u32) {}
+    fn unreserve_gas(
+        &mut self,
+        _reservation_id: ReservationId,
+        _program_id: ProgramId,
+        _expiration: u32,
+    ) {
+    }
 
     fn update_gas_reservation(&mut self, program_id: ProgramId, reserver: GasReserver) {
         let block_height = self.block_info.height;
@@ -979,7 +985,8 @@ impl JournalHandler for ExtManager {
             }),
         ) = actor
         {
-            *prog_gas_reservation_map = reserver.into_map(|duration| block_height + duration);
+            *prog_gas_reservation_map =
+                reserver.into_map(block_height, |duration| block_height + duration);
         } else {
             panic!("no gas reservation map found in program");
         }

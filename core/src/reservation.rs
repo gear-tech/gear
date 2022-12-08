@@ -48,16 +48,7 @@ impl GasReserver {
             nonce,
             states: map
                 .into_iter()
-                .map(|(id, GasReservationSlot { amount, expiration })| {
-                    (
-                        id,
-                        GasReservationState::Exists {
-                            amount,
-                            expiration,
-                            used: false,
-                        },
-                    )
-                })
+                .map(|(id, slot)| (id, slot.into()))
                 .collect(),
             max_reservations,
         }
@@ -115,11 +106,9 @@ impl GasReserver {
             .ok_or(ExecutionError::InvalidReservationId)?;
 
         let amount = match state {
-            GasReservationState::Exists {
-                amount, expiration, ..
-            } => {
+            GasReservationState::Exists { amount, finish, .. } => {
                 self.states
-                    .insert(id, GasReservationState::Removed { expiration });
+                    .insert(id, GasReservationState::Removed { expiration: finish });
                 amount
             }
             GasReservationState::Created { amount, .. } => amount,
@@ -159,7 +148,11 @@ impl GasReserver {
     }
 
     /// Convert into gas reservation map.
-    pub fn into_map<F>(self, duration_into_expiration: F) -> GasReservationMap
+    pub fn into_map<F>(
+        self,
+        current_block_height: u32,
+        duration_into_expiration: F,
+    ) -> GasReservationMap
     where
         F: Fn(u32) -> u32,
     {
@@ -167,13 +160,30 @@ impl GasReserver {
             .into_iter()
             .flat_map(|(id, state)| match state {
                 GasReservationState::Exists {
-                    amount, expiration, ..
-                } => Some((id, GasReservationSlot { amount, expiration })),
+                    amount,
+                    start,
+                    finish,
+                    ..
+                } => Some((
+                    id,
+                    GasReservationSlot {
+                        amount,
+                        start,
+                        finish,
+                    },
+                )),
                 GasReservationState::Created {
                     amount, duration, ..
                 } => {
                     let expiration = duration_into_expiration(duration);
-                    Some((id, GasReservationSlot { amount, expiration }))
+                    Some((
+                        id,
+                        GasReservationSlot {
+                            amount,
+                            start: current_block_height,
+                            finish: expiration,
+                        },
+                    ))
                 }
                 GasReservationState::Removed { .. } => None,
             })
@@ -193,8 +203,10 @@ pub enum GasReservationState {
     Exists {
         /// Amount of reserved gas.
         amount: u64,
+        /// Block number when reservation is crated.
+        start: u32,
         /// Block number when reservation will expire.
-        expiration: u32,
+        finish: u32,
         /// Whether reservation used.
         used: bool,
     },
@@ -214,6 +226,17 @@ pub enum GasReservationState {
     },
 }
 
+impl From<GasReservationSlot> for GasReservationState {
+    fn from(slot: GasReservationSlot) -> Self {
+        Self::Exists {
+            amount: slot.amount,
+            start: slot.start,
+            finish: slot.finish,
+            used: false,
+        }
+    }
+}
+
 /// Gas reservation map.
 ///
 /// Used across execution and exists in storage.
@@ -224,8 +247,10 @@ pub type GasReservationMap = BTreeMap<ReservationId, GasReservationSlot>;
 pub struct GasReservationSlot {
     /// Amount of reserved gas.
     pub amount: u64,
+    /// Block number when reservation is crated.
+    pub start: u32,
     /// Block number when reservation will expire.
-    pub expiration: u32,
+    pub finish: u32,
 }
 
 #[cfg(test)]

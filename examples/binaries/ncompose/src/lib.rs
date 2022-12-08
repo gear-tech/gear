@@ -160,10 +160,10 @@ mod wasm {
     }
 
     #[no_mangle]
-    unsafe extern "C" fn init() {
+    extern "C" fn init() {
         let (actor, max_iter): (ActorId, u16) =
             msg::load().expect("Malformed input: expecting a program ID and a number");
-        STATE = State::new(max_iter, actor);
+        unsafe { STATE = State::new(max_iter, actor) };
         msg::reply_bytes([], 0).unwrap();
         debug!(
             "[0x{} ncompose::init] Program initialized",

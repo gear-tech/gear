@@ -158,8 +158,10 @@ pub trait Tree {
     /// overall supply of it. In case of a success, this indicates the
     /// entire value supply becomes over-collateralized,
     /// hence negative imbalance.
-    fn spend(key: Self::Key, amount: Self::Balance)
-        -> Result<Self::NegativeImbalance, Self::Error>;
+    fn spend(
+        key: impl Into<GasNodeIdOf<Self>>,
+        amount: Self::Balance,
+    ) -> Result<Self::NegativeImbalance, Self::Error>;
 
     /// Split underlying value.
     ///

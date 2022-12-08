@@ -37,7 +37,7 @@ use gear_wasm_instrument::{
             ValueType,
         },
     },
-    syscalls,
+    syscalls::SysCallName,
 };
 use sp_sandbox::{
     default_executor::{EnvironmentDefinitionBuilder, Memory},
@@ -67,7 +67,7 @@ pub struct ModuleDefinition {
     /// Creates the supplied amount of i64 mutable globals initialized with random values.
     pub num_globals: u32,
     /// List of syscalls that the module should import. They start with index 0.
-    pub imported_functions: Vec<&'static str>,
+    pub imported_functions: Vec<SysCallName>,
     /// Function body of the exported `init` function. Body is empty if `None`.
     /// Its index is `imported_functions.len()`.
     pub init_body: Option<FuncBody>,
@@ -226,7 +226,7 @@ where
 
         // Import supervisor functions. They start with idx 0.
         for name in def.imported_functions {
-            let sign = syscalls::syscall_signature(name);
+            let sign = name.signature();
             let sig = builder::signature()
                 .with_params(sign.params.into_iter().map(Into::into))
                 .with_results(sign.results.into_iter())
@@ -235,7 +235,7 @@ where
             program = program
                 .import()
                 .module("env")
-                .field(name)
+                .field(name.to_str())
                 .with_external(elements::External::Function(sig))
                 .build();
         }

@@ -5,7 +5,7 @@ use gstd::{
 };
 
 #[no_mangle]
-unsafe extern "C" fn init() {}
+extern "C" fn init() {}
 
 #[gstd::async_main]
 async fn main() {

@@ -29,14 +29,15 @@ use alloc::{
 };
 use core::fmt;
 use gear_backend_common::{
-    calc_stack_end,
-    error_processor::IntoExtError,
-    AsTerminationReason, BackendReport, Environment, GetGasAmount, IntoExtInfo, StackEndError,
-    SysCallName::{self, *},
-    TerminationReason, TrapExplanation, STACK_END_EXPORT_NAME,
+    calc_stack_end, error_processor::IntoExtError, AsTerminationReason, BackendReport, Environment,
+    GetGasAmount, IntoExtInfo, StackEndError, TerminationReason, TrapExplanation,
+    STACK_END_EXPORT_NAME,
 };
 use gear_core::{env::Ext, gas::GasAmount, memory::WasmPageNumber, message::DispatchKind};
-use gear_wasm_instrument::{GLOBAL_NAME_ALLOWANCE, GLOBAL_NAME_GAS};
+use gear_wasm_instrument::{
+    syscalls::SysCallName::{self, *},
+    GLOBAL_NAME_ALLOWANCE, GLOBAL_NAME_GAS,
+};
 use sp_sandbox::{
     default_executor::{EnvironmentDefinitionBuilder, Instance, Memory as DefaultExecutorMemory},
     HostFuncType, InstanceGlobals, ReturnValue, SandboxEnvironmentBuilder, SandboxInstance,
@@ -85,27 +86,27 @@ pub struct SandboxEnvironment<E: Ext> {
     instance: Instance<Runtime<E>>,
     runtime: Runtime<E>,
     entries: BTreeSet<DispatchKind>,
+    entry_point: DispatchKind,
 }
 
 // A helping wrapper for `EnvironmentDefinitionBuilder` and `forbidden_funcs`.
 // It makes adding functions to `EnvironmentDefinitionBuilder` shorter.
-struct EnvBuilder<'a, E: Ext> {
+struct EnvBuilder<E: Ext> {
     env_def_builder: EnvironmentDefinitionBuilder<Runtime<E>>,
-    forbidden_funcs: &'a BTreeSet<&'static str>,
+    forbidden_funcs: BTreeSet<SysCallName>,
     funcs_count: usize,
 }
 
-impl<'a, E: Ext + IntoExtInfo<E::Error> + 'static> EnvBuilder<'a, E> {
+impl<E: Ext + IntoExtInfo<E::Error> + 'static> EnvBuilder<E> {
     fn add_func(&mut self, name: SysCallName, f: HostFuncType<Runtime<E>>)
     where
         E::Error: AsTerminationReason + IntoExtError,
     {
-        let name = name.to_str();
-        if self.forbidden_funcs.contains(name) {
+        if self.forbidden_funcs.contains(&name) {
             self.env_def_builder
-                .add_host_func("env", name, Funcs::forbidden);
+                .add_host_func("env", name.to_str(), Funcs::forbidden);
         } else {
-            self.env_def_builder.add_host_func("env", name, f);
+            self.env_def_builder.add_host_func("env", name.to_str(), f);
         }
 
         self.funcs_count += 1;
@@ -119,8 +120,8 @@ impl<'a, E: Ext + IntoExtInfo<E::Error> + 'static> EnvBuilder<'a, E> {
     }
 }
 
-impl<'a, E: Ext> From<EnvBuilder<'a, E>> for EnvironmentDefinitionBuilder<Runtime<E>> {
-    fn from(builder: EnvBuilder<'a, E>) -> Self {
+impl<E: Ext> From<EnvBuilder<E>> for EnvironmentDefinitionBuilder<Runtime<E>> {
+    fn from(builder: EnvBuilder<E>) -> Self {
         builder.env_def_builder
     }
 }
@@ -136,6 +137,7 @@ where
     fn new(
         ext: E,
         binary: &[u8],
+        entry_point: DispatchKind,
         entries: BTreeSet<DispatchKind>,
         mem_size: WasmPageNumber,
     ) -> Result<Self, Self::Error> {
@@ -143,7 +145,12 @@ where
 
         let mut builder = EnvBuilder::<E> {
             env_def_builder: EnvironmentDefinitionBuilder::new(),
-            forbidden_funcs: &ext.forbidden_funcs().clone(),
+            forbidden_funcs: ext
+                .forbidden_funcs()
+                .iter()
+                .copied()
+                .chain(entry_point.forbidden_funcs())
+                .collect(),
             funcs_count: 0,
         };
 
@@ -231,6 +238,7 @@ where
                 instance,
                 runtime,
                 entries,
+                entry_point,
             }),
             Err(e) => Err((runtime.ext.gas_amount(), ModuleInstantiation(e)).into()),
         }
@@ -238,7 +246,6 @@ where
 
     fn execute<F, T>(
         self,
-        entry_point: &DispatchKind,
         pre_execution_handler: F,
     ) -> Result<BackendReport<Self::Memory, E>, Self::Error>
     where
@@ -251,6 +258,7 @@ where
             mut instance,
             mut runtime,
             entries,
+            entry_point,
         } = self;
 
         let stack_end = instance
@@ -284,7 +292,7 @@ where
             }
         }
 
-        let res = if entries.contains(entry_point) {
+        let res = if entries.contains(&entry_point) {
             instance.invoke(entry_point.into_entry(), &[], &mut runtime)
         } else {
             Ok(ReturnValue::Unit)
