@@ -63,6 +63,7 @@ pub trait WeightInfo {
     fn gr_value(r: u32, ) -> Weight;
     fn gr_value_available(r: u32, ) -> Weight;
     fn gr_gas_available(r: u32, ) -> Weight;
+    fn gr_gas_limit(r: u32, ) -> Weight;
     fn gr_size(r: u32, ) -> Weight;
     fn gr_read(r: u32, ) -> Weight;
     fn gr_read_per_kb(n: u32, ) -> Weight;
@@ -326,6 +327,12 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
     fn gr_gas_available(r: u32, ) -> Weight {
         Weight::from_ref_time(82_546_000 as u64)
             // Standard Error: 29_536
+            .saturating_add(Weight::from_ref_time(168_623_086 as u64).saturating_mul(r as u64))
+    }
+    /// The range of component `r` is `[0, 20]`.
+    fn gr_gas_limit(r: u32, ) -> Weight {
+        Weight::from_ref_time(82_546_000 as u64)
+        // Standard Error: 29_536
             .saturating_add(Weight::from_ref_time(168_623_086 as u64).saturating_mul(r as u64))
     }
     /// The range of component `r` is `[0, 20]`.
@@ -1036,6 +1043,12 @@ impl WeightInfo for () {
     fn gr_gas_available(r: u32, ) -> Weight {
         Weight::from_ref_time(82_546_000 as u64)
             // Standard Error: 29_536
+            .saturating_add(Weight::from_ref_time(168_623_086 as u64).saturating_mul(r as u64))
+    }
+    /// The range of component `r` is `[0, 20]`.
+    fn gr_gas_limit(r: u32, ) -> Weight {
+        Weight::from_ref_time(82_546_000 as u64)
+        // Standard Error: 29_536
             .saturating_add(Weight::from_ref_time(168_623_086 as u64).saturating_mul(r as u64))
     }
     /// The range of component `r` is `[0, 20]`.

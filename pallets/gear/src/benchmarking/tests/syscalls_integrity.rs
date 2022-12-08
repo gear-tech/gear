@@ -75,6 +75,7 @@ where
             SysCallName::BlockTimestamp => check_gr_block_timestamp::<T>(),
             SysCallName::Origin => check_gr_origin::<T>(),
             SysCallName::GasAvailable => check_gr_gas_available::<T>(),
+            SysCallName::GasLimit => check_gr_gas_limit::<T>(),
             SysCallName::ValueAvailable => check_gr_value_available::<T>(),
             SysCallName::Exit | SysCallName::Leave | SysCallName::Wait | SysCallName::WaitFor | SysCallName::WaitUpTo | SysCallName::Wake | SysCallName::Debug => {/* tests here aren't required, read module docs for more info */},
             SysCallName::Alloc => check_mem::<T>(false),

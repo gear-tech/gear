@@ -664,6 +664,17 @@ benchmarks! {
         verify_process(res.unwrap());
     }
 
+    gr_gas_limit {
+        let r in 0 .. API_BENCHMARK_BATCHES;
+        let mut res = None;
+        let exec = Benches::<T>::getter(SysCallName::GasLimit, r)?;
+    }: {
+        res.replace(run_process(exec));
+    }
+    verify {
+        verify_process(res.unwrap());
+    }
+
     gr_size {
         let r in 0 .. API_BENCHMARK_BATCHES;
         let mut res = None;

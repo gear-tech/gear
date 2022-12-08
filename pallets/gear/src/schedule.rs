@@ -287,6 +287,9 @@ pub struct HostFnWeights<T: Config> {
     /// Weight of calling `gr_gas_available`.
     pub gr_gas_available: u64,
 
+    /// Weight of calling `gr_gas_limit`.
+    pub gr_gas_limit: u64,
+
     /// Weight of calling `gr_message_id`.
     pub gr_message_id: u64,
 
@@ -617,6 +620,7 @@ impl<T: Config> HostFnWeights<T> {
             gr_unreserve_gas: self.gr_unreserve_gas,
             gr_system_reserve_gas: self.gr_system_reserve_gas,
             gr_gas_available: self.gr_gas_available,
+            gr_gas_limit: self.gr_gas_limit,
             gr_message_id: self.gr_message_id,
             gr_origin: self.gr_origin,
             gr_program_id: self.gr_program_id,
@@ -672,6 +676,7 @@ impl<T: Config> Default for HostFnWeights<T> {
             gr_system_reserve_gas: cost_batched!(gr_system_reserve_gas),
             gr_unreserve_gas: cost_batched!(gr_unreserve_gas),
             gr_gas_available: cost_batched!(gr_gas_available),
+            gr_gas_limit: cost_batched!(gr_gas_limit),
             gr_message_id: cost_batched!(gr_message_id),
             gr_origin: cost_batched!(gr_origin),
             gr_program_id: cost_batched!(gr_program_id),
