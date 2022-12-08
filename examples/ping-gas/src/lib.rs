@@ -3,7 +3,7 @@
 use gstd::{debug, msg, prelude::*};
 
 #[no_mangle]
-unsafe extern "C" fn handle() {
+extern "C" fn handle() {
     debug!("Hello from ping handle");
 
     let new_msg = String::from_utf8(msg::load_bytes().expect("Failed to load payload bytes"))
@@ -23,6 +23,6 @@ unsafe extern "C" fn handle() {
 }
 
 #[no_mangle]
-unsafe extern "C" fn init() {
+extern "C" fn init() {
     debug!("Hello from ping init");
 }

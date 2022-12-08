@@ -20,7 +20,7 @@ use std::collections::BTreeMap;
 
 use gear_wasm_instrument::{
     parity_wasm::elements::{FunctionType, ValueType},
-    syscalls::{syscall_signature, syscalls_name_list, ParamType, SysCallSignature},
+    syscalls::{ParamType, SysCallName, SysCallSignature},
 };
 
 use crate::{GearConfig, ParamRule, Ratio};
@@ -130,13 +130,13 @@ impl Default for SyscallsConfig {
 }
 
 /// Make syscalls table for given config.
-pub(crate) fn sys_calls_table(config: &GearConfig) -> BTreeMap<&'static str, SysCallInfo> {
-    syscalls_name_list()
-        .iter()
+pub(crate) fn sys_calls_table(config: &GearConfig) -> BTreeMap<SysCallName, SysCallInfo> {
+    SysCallName::instrumentable()
+        .into_iter()
         .map(|name| {
             (
-                *name,
-                SysCallInfo::new(config, syscall_signature(name), config.sys_call_freq),
+                name,
+                SysCallInfo::new(config, name.signature(), config.sys_call_freq),
             )
         })
         .collect()

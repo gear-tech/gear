@@ -48,14 +48,15 @@ mod wasm {
     }
 
     #[no_mangle]
-    unsafe extern "C" fn handle() {
+    extern "C" fn handle() {
         let payload = msg::load_bytes().expect("failed to load bytes");
-        msg::send_bytes(DESTINATION, payload, msg::value()).expect("failed to send bytes");
+        msg::send_bytes(unsafe { DESTINATION }, payload, msg::value())
+            .expect("failed to send bytes");
     }
 
     #[no_mangle]
-    unsafe extern "C" fn init() {
+    extern "C" fn init() {
         let args: InputArgs = msg::load().expect("Failed to decode `InputArgs'");
-        DESTINATION = args.destination.into();
+        unsafe { DESTINATION = args.destination.into() };
     }
 }

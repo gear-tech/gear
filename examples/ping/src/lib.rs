@@ -9,7 +9,7 @@ use galloc::prelude::vec;
 use gcore::msg;
 
 #[no_mangle]
-unsafe extern "C" fn handle() {
+extern "C" fn handle() {
     let mut bytes = vec![0; msg::size()];
     msg::read(&mut bytes).unwrap();
 

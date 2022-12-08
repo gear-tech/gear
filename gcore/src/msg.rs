@@ -425,7 +425,7 @@ pub fn reply_commit_with_gas_delayed(gas_limit: u64, value: u128, delay: u32) ->
 /// ```
 /// use gcore::{exec, msg};
 ///
-/// unsafe extern "C" fn handle() {
+/// extern "C" fn handle() {
 ///     msg::reply_push(b"Hello,").expect("Unable to push");
 ///     msg::reply_push(b" world!").expect("Unable to push");
 ///     let resevation_id = exec::reserve_gas(5_000_000, 100).expect("Unable to reserves");

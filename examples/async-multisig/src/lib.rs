@@ -35,19 +35,21 @@ gstd::metadata! {
 }
 
 #[no_mangle]
-unsafe extern "C" fn init() {
+extern "C" fn init() {
     let args: InputArgs = msg::load().expect("Failed to decode `InputArgs`");
 
-    DESTINATION = args.destination;
+    unsafe {
+        DESTINATION = args.destination;
 
-    args.signatories
-        .into_iter()
-        .filter(|s| !SIGNATORIES.contains(s))
-        .for_each(|s| SIGNATORIES.push(s));
+        args.signatories
+            .into_iter()
+            .filter(|s| !SIGNATORIES.contains(s))
+            .for_each(|s| SIGNATORIES.push(s));
 
-    THRESHOLD = usize::try_from(args.threshold)
-        .map(|t| t.clamp(1, SIGNATORIES.len()))
-        .unwrap_or(1);
+        THRESHOLD = usize::try_from(args.threshold)
+            .map(|t| t.clamp(1, SIGNATORIES.len()))
+            .unwrap_or(1);
+    }
 }
 
 #[gstd::async_main]

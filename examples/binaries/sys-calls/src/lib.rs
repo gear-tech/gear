@@ -106,7 +106,6 @@ mod wasm {
     use super::Kind;
     use codec::Encode;
     use gstd::{
-        errors::{ContractError, ExtError, MessageError},
         exec, format,
         msg::{self, MessageHandle},
         prog, ActorId, CodeId, MessageId, ReservationId,
@@ -119,22 +118,27 @@ mod wasm {
     static mut DO_PANIC: bool = false;
 
     #[no_mangle]
-    unsafe extern "C" fn init() {
+    extern "C" fn init() {
         let code_id_bytes: [u8; 32] = msg::load().expect("internal error: invalid payload");
 
-        CODE_ID = code_id_bytes.into();
+        unsafe { CODE_ID = code_id_bytes.into() };
     }
 
     #[no_mangle]
-    unsafe extern "C" fn handle() {
+    extern "C" fn handle() {
         match msg::load().expect("internal error: invalid payload") {
             Kind::CreateProgram(salt, gas_opt, (expected_mid, expected_pid)) => {
                 let salt = salt.to_le_bytes();
                 let res = match gas_opt {
-                    Some(gas) => {
-                        prog::create_program_with_gas_delayed(CODE_ID, salt, "payload", gas, 0, 0)
-                    }
-                    None => prog::create_program_delayed(CODE_ID, salt, "payload", 0, 0),
+                    Some(gas) => prog::create_program_with_gas_delayed(
+                        unsafe { CODE_ID },
+                        salt,
+                        "payload",
+                        gas,
+                        0,
+                        0,
+                    ),
+                    None => prog::create_program_delayed(unsafe { CODE_ID }, salt, "payload", 0, 0),
                 };
                 let (actual_mid, actual_pid) = res.expect("internal error: create program failed");
                 let actual_mid: [u8; 32] = actual_mid.into();
@@ -304,12 +308,14 @@ mod wasm {
                 exec::leave();
             }
             Kind::SignalDetails => {
-                if DO_PANIC {
+                if unsafe { DO_PANIC } {
                     // issue a signal
                     panic!();
                 } else {
-                    SIGNAL_DETAILS = (msg::id(), 1, msg::source());
-                    DO_PANIC = true;
+                    unsafe {
+                        SIGNAL_DETAILS = (msg::id(), 1, msg::source());
+                        DO_PANIC = true;
+                    }
                     exec::system_reserve_gas(1_000_000_000).unwrap();
                     let _ = msg::reply_delayed(b"payload", 0, 0);
                     exec::wait_for(2);
@@ -334,7 +340,7 @@ mod wasm {
             }
             Kind::Origin(expected_actor) => {
                 // The origin is set by the first call and then checked with the second
-                if ORIGIN.is_some() {
+                if unsafe { ORIGIN.is_some() } {
                     // is ser, perform check
                     let actual_actor: [u8; 32] = exec::origin().into();
                     assert_eq!(
@@ -342,7 +348,7 @@ mod wasm {
                         "Kind::Origin: actor test failed"
                     );
                 } else {
-                    ORIGIN = Some(exec::origin());
+                    unsafe { ORIGIN = Some(exec::origin()) };
                     // To prevent from sending to mailbox "ok" message
                     exec::leave();
                 }

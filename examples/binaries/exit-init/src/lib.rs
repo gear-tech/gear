@@ -15,10 +15,10 @@ mod wasm {
     use gstd::exec;
 
     #[no_mangle]
-    unsafe extern "C" fn handle() {}
+    extern "C" fn handle() {}
 
     #[no_mangle]
-    unsafe extern "C" fn init() {
+    extern "C" fn init() {
         let shall_reply_before_exit: bool = {
             let mut flag = [0u8];
             msg::read(&mut flag);

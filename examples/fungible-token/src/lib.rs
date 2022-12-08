@@ -235,56 +235,58 @@ gstd::metadata! {
 }
 
 #[no_mangle]
-unsafe extern "C" fn handle() {
+extern "C" fn handle() {
     let action: Action = msg::load().expect("Could not load Action");
+    let fungible_token = unsafe { &mut FUNGIBLE_TOKEN };
 
     match action {
         Action::Mint(mint_input) => {
             let to = ActorId::new(mint_input.account.to_fixed_bytes());
-            FUNGIBLE_TOKEN.mint(&to, mint_input.amount);
+            fungible_token.mint(&to, mint_input.amount);
         }
         Action::Burn(burn_input) => {
             let from = ActorId::new(burn_input.account.to_fixed_bytes());
-            FUNGIBLE_TOKEN.burn(&from, burn_input.amount);
+            fungible_token.burn(&from, burn_input.amount);
         }
         Action::Transfer(transfer_data) => {
             let from = ActorId::new(transfer_data.from.to_fixed_bytes());
             let to = ActorId::new(transfer_data.to.to_fixed_bytes());
-            FUNGIBLE_TOKEN.transfer(&from, &to, transfer_data.amount);
+            fungible_token.transfer(&from, &to, transfer_data.amount);
         }
         Action::Approve(approve_data) => {
             let owner = ActorId::new(approve_data.owner.to_fixed_bytes());
             let spender = ActorId::new(approve_data.spender.to_fixed_bytes());
-            FUNGIBLE_TOKEN.approve(&owner, &spender, approve_data.amount);
+            fungible_token.approve(&owner, &spender, approve_data.amount);
         }
         Action::TransferFrom(transfer_data) => {
             let owner = ActorId::new(transfer_data.owner.to_fixed_bytes());
             let from = ActorId::new(transfer_data.from.to_fixed_bytes());
             let to = ActorId::new(transfer_data.to.to_fixed_bytes());
-            FUNGIBLE_TOKEN.transfer_from(&owner, &from, &to, transfer_data.amount);
+            fungible_token.transfer_from(&owner, &from, &to, transfer_data.amount);
         }
         Action::IncreaseAllowance(approve_data) => {
             let owner = ActorId::new(approve_data.owner.to_fixed_bytes());
             let spender = ActorId::new(approve_data.spender.to_fixed_bytes());
-            FUNGIBLE_TOKEN.increase_allowance(&owner, &spender, approve_data.amount);
+            fungible_token.increase_allowance(&owner, &spender, approve_data.amount);
         }
         Action::DecreaseAllowance(approve_data) => {
             let owner = ActorId::new(approve_data.owner.to_fixed_bytes());
             let spender = ActorId::new(approve_data.spender.to_fixed_bytes());
-            FUNGIBLE_TOKEN.decrease_allowance(&owner, &spender, approve_data.amount)
+            fungible_token.decrease_allowance(&owner, &spender, approve_data.amount)
         }
     }
 }
 
 #[no_mangle]
-unsafe extern "C" fn init() {
+extern "C" fn init() {
     let config: InitConfig = msg::load().expect("Unable to decode InitConfig");
     debug!("FUNGIBLE_TOKEN {:?}", config);
-    FUNGIBLE_TOKEN.set_name(config.name);
-    FUNGIBLE_TOKEN.set_symbol(config.symbol);
+    let fungible_token = unsafe { &mut FUNGIBLE_TOKEN };
+    fungible_token.set_name(config.name);
+    fungible_token.set_symbol(config.symbol);
     debug!(
         "FUNGIBLE_TOKEN {} SYMBOL {} created",
-        FUNGIBLE_TOKEN.name(),
-        FUNGIBLE_TOKEN.symbol()
+        fungible_token.name(),
+        fungible_token.symbol()
     );
 }

@@ -27,6 +27,7 @@ use crate::{
 use alloc::collections::BTreeSet;
 use codec::{Decode, Encode};
 use gear_core_errors::CoreError;
+use gear_wasm_instrument::syscalls::SysCallName;
 
 /// Page access rights.
 #[derive(Clone, Debug, Encode, Decode, PartialEq, Eq, Copy)]
@@ -233,7 +234,7 @@ pub trait Ext {
     ) -> Result<(MessageId, ProgramId), Self::Error>;
 
     /// Return the set of functions that are forbidden to be called.
-    fn forbidden_funcs(&self) -> &BTreeSet<&'static str>;
+    fn forbidden_funcs(&self) -> &BTreeSet<SysCallName>;
 
     /// Return gas and gas allowance left in the counters.
     fn counters(&self) -> (u64, u64);

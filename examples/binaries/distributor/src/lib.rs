@@ -202,20 +202,20 @@ mod wasm {
     }
 
     #[no_mangle]
-    unsafe extern "C" fn handle() {
+    extern "C" fn handle() {
         debug!("Handling sequence started");
         gstd::message_loop(Program::handle_request());
         debug!("Handling sequence terminated");
     }
 
     #[no_mangle]
-    unsafe extern "C" fn handle_reply() {
+    extern "C" fn handle_reply() {
         gstd::record_reply();
     }
 
     #[no_mangle]
-    unsafe extern "C" fn init() {
-        STATE = Some(ProgramState::default());
+    extern "C" fn init() {
+        unsafe { STATE = Some(Default::default()) };
         msg::reply((), 0).unwrap();
         debug!("Program initialized");
     }

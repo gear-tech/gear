@@ -30,7 +30,7 @@ pub use code::WASM_BINARY_OPT as WASM_BINARY;
 use gstd::errors::{ContractError, ExtError, MessageError};
 
 #[no_mangle]
-unsafe extern "C" fn init() {
+extern "C" fn init() {
     let res = msg::send(ActorId::default(), "dummy", 250);
     assert_eq!(
         res,

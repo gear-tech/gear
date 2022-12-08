@@ -29,14 +29,15 @@ use alloc::{
 };
 use core::fmt;
 use gear_backend_common::{
-    calc_stack_end,
-    error_processor::IntoExtError,
-    AsTerminationReason, BackendReport, Environment, GetGasAmount, IntoExtInfo, StackEndError,
-    SysCallName::{self, *},
-    TerminationReason, TrapExplanation, STACK_END_EXPORT_NAME,
+    calc_stack_end, error_processor::IntoExtError, AsTerminationReason, BackendReport, Environment,
+    GetGasAmount, IntoExtInfo, StackEndError, TerminationReason, TrapExplanation,
+    STACK_END_EXPORT_NAME,
 };
 use gear_core::{env::Ext, gas::GasAmount, memory::WasmPageNumber, message::DispatchKind};
-use gear_wasm_instrument::{GLOBAL_NAME_ALLOWANCE, GLOBAL_NAME_GAS};
+use gear_wasm_instrument::{
+    syscalls::SysCallName::{self, *},
+    GLOBAL_NAME_ALLOWANCE, GLOBAL_NAME_GAS,
+};
 use sp_sandbox::{
     default_executor::{EnvironmentDefinitionBuilder, Instance, Memory as DefaultExecutorMemory},
     HostFuncType, InstanceGlobals, ReturnValue, SandboxEnvironmentBuilder, SandboxInstance,
@@ -92,7 +93,7 @@ pub struct SandboxEnvironment<E: Ext> {
 // It makes adding functions to `EnvironmentDefinitionBuilder` shorter.
 struct EnvBuilder<E: Ext> {
     env_def_builder: EnvironmentDefinitionBuilder<Runtime<E>>,
-    forbidden_funcs: BTreeSet<&'static str>,
+    forbidden_funcs: BTreeSet<SysCallName>,
     funcs_count: usize,
 }
 
@@ -101,12 +102,11 @@ impl<E: Ext + IntoExtInfo<E::Error> + 'static> EnvBuilder<E> {
     where
         E::Error: AsTerminationReason + IntoExtError,
     {
-        let name = name.to_str();
-        if self.forbidden_funcs.contains(name) {
+        if self.forbidden_funcs.contains(&name) {
             self.env_def_builder
-                .add_host_func("env", name, Funcs::forbidden);
+                .add_host_func("env", name.to_str(), Funcs::forbidden);
         } else {
-            self.env_def_builder.add_host_func("env", name, f);
+            self.env_def_builder.add_host_func("env", name.to_str(), f);
         }
 
         self.funcs_count += 1;

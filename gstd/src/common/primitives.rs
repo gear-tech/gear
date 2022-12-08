@@ -292,12 +292,13 @@ impl TryFrom<&[u8]> for CodeId {
 ///
 /// static mut RESERVED: Option<ReservationId> = None;
 ///
-/// unsafe extern "C" fn init() {
-///     RESERVED = Some(ReservationId::reserve(50_000_000, 7));
+/// extern "C" fn init() {
+///     let reservation_id = ReservationId::reserve(50_000_000, 7).expect("Unable to reserve");
+///     unsafe { RESERVED = Some(reservation_id) };
 /// }
 ///
-/// unsafe extern "C" fn handle() {
-///     let reservation_id = RESERVED.take().expect("create in init()");
+/// extern "C" fn handle() {
+///     let reservation_id = unsafe { RESERVED.take().expect("create in init()") };
 ///     reservation_id.unreserve();
 /// }
 /// ```
