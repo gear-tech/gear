@@ -218,6 +218,7 @@ pub fn precharge_for_program(
                 gas_burned,
                 system_reservation_ctx,
                 ExecutionErrorReason::GasExceeded(GasOperation::ProgramData),
+                false,
             ))
         }
         BlockGasExceeded => {
@@ -272,6 +273,7 @@ pub fn precharge_for_code_length(
                 gas_counter.burned(),
                 system_reservation_ctx,
                 ExecutionErrorReason::GasExceeded(GasOperation::ProgramCode),
+                false,
             ));
         }
         ChargeForBytesResult::BlockGasExceeded => {
@@ -322,6 +324,7 @@ pub fn precharge_for_code(
                 context.data.gas_counter.burned(),
                 system_reservation_ctx,
                 ExecutionErrorReason::GasExceeded(GasOperation::ProgramCode),
+                false,
             ));
         }
         ChargeForBytesResult::BlockGasExceeded => {
@@ -364,6 +367,7 @@ pub fn precharge_for_instrumentation(
                 context.data.gas_counter.burned(),
                 system_reservation_ctx,
                 ExecutionErrorReason::GasExceeded(GasOperation::ModuleInstrumentation),
+                false,
             ));
         }
         ChargeForBytesResult::BlockGasExceeded => {
@@ -445,6 +449,7 @@ pub fn precharge_for_memory(
                         context.data.gas_counter.burned(),
                         system_reservation_ctx,
                         reason,
+                        false,
                     ))
                 }
             };
@@ -551,6 +556,7 @@ pub fn process<
                 res.gas_amount.burned(),
                 res.system_reservation_context,
                 ExecutionErrorReason::Ext(reason),
+                true,
             ),
             DispatchResultKind::Success => process_success(Success, res),
             DispatchResultKind::Wait(duration, ref waited_type) => {
@@ -573,6 +579,7 @@ pub fn process<
                 e.gas_amount.burned(),
                 SystemReservationContext::default(),
                 e.reason,
+                true,
             ),
         },
     }
@@ -600,6 +607,7 @@ fn process_error(
     gas_burned: u64,
     system_reservation_ctx: SystemReservationContext,
     err: ExecutionErrorReason,
+    executed: bool,
 ) -> Vec<JournalNote> {
     let mut journal = Vec::new();
 
@@ -670,6 +678,7 @@ fn process_error(
             program_id,
             origin,
             reason: err.to_string(),
+            executed,
         },
         _ => DispatchOutcome::MessageTrap {
             program_id,

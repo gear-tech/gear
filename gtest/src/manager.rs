@@ -569,6 +569,7 @@ impl ExtManager {
                             program_id,
                             origin: source,
                             reason: expl.to_string(),
+                            executed: true,
                         },
                     );
                 } else {

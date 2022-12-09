@@ -72,6 +72,226 @@ pub use utils::init_logger;
 use utils::*;
 
 #[test]
+fn non_existent_code_id_zero_gas() {
+    init_logger();
+
+    let wat = r#"
+    (module
+    (import "env" "memory" (memory 1))
+    (import "env" "gr_create_program_wgas" (func $create_program_wgas (param i32 i32 i32 i32 i32 i64 i32 i32)))
+    (export "init" (func $init))
+    (func $init
+        i32.const 0     ;; zeroed cid_value ptr
+        i32.const 0     ;; salt ptr
+        i32.const 0     ;; salt len
+        i32.const 0     ;; payload ptr
+        i32.const 0     ;; payload len
+        i64.const 0     ;; gas limit
+        i32.const 0     ;; delay
+        i32.const 111               ;; err_mid_pid ptr
+        call $create_program_wgas   ;; calling fn
+
+        ;; validating syscall
+        i32.const 111 ;; err_mid_pid ptr
+        i32.load
+        (if
+            (then unreachable)
+            (else)
+        )
+    )
+ )"#;
+
+    new_test_ext().execute_with(|| {
+        let code = ProgramCodeKind::Custom(wat).to_bytes();
+
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            code,
+            DEFAULT_SALT.to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
+            DEFAULT_GAS_LIMIT * 100,
+            0,
+        ));
+
+        run_to_next_block(None);
+
+        // Nothing panics here.
+        //
+        // 1st msg is init of "factory"
+        // 2nd is init of non existing code id
+        // 3rd is error reply on 2nd message
+        assert_total_dequeued(3);
+    })
+}
+
+#[test]
+fn waited_with_zero_gas() {
+    init_logger();
+
+    let wat = r#"
+    (module
+    (import "env" "memory" (memory 1))
+    (import "env" "gr_send_wgas" (func $send (param i32 i32 i32 i64 i32 i32)))
+    (import "env" "gr_wait_for" (func $wait_for (param i32)))
+    (import "env" "gr_exit" (func $exit (param i32)))
+    (export "init" (func $init))
+    (export "handle_reply" (func $handle_reply))
+    (func $init
+        i32.const 111 ;; ptr
+        i32.const 1 ;; value
+        i32.store
+
+        (call $send (i32.const 111) (i32.const 0) (i32.const 32) (i64.const 12345) (i32.const 0) (i32.const 333))
+
+        ;; validating syscall
+        i32.const 333 ;; err_mid ptr
+        i32.load
+        (if
+            (then unreachable)
+            (else)
+        )
+
+        (call $wait_for (i32.const 2))
+    )
+    (func $handle_reply
+        (call $exit (i32.const 111))
+    )
+ )"#;
+
+    new_test_ext().execute_with(|| {
+        let code = ProgramCodeKind::Custom(wat).to_bytes();
+
+        let GasInfo { min_limit, .. } = Gear::calculate_gas_info(
+            USER_1.into_origin(),
+            HandleKind::Init(code.clone()),
+            EMPTY_PAYLOAD.to_vec(),
+            0,
+            true,
+        )
+        .expect("calculate_gas_info failed");
+
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            code,
+            DEFAULT_SALT.to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
+            min_limit,
+            0,
+        ));
+
+        let program_id = utils::get_last_program_id();
+
+        run_to_next_block(None);
+        let mid_in_mailbox = utils::get_last_message_id();
+
+        assert_ok!(Gear::send_reply(
+            RuntimeOrigin::signed(USER_1),
+            mid_in_mailbox,
+            EMPTY_PAYLOAD.to_vec(),
+            DEFAULT_GAS_LIMIT * 100,
+            0,
+        ));
+
+        run_to_next_block(None);
+        assert!(Gear::is_exited(program_id));
+
+        // Nothing panics here.
+        //
+        // Twice for init message.
+        // Once for reply sent.
+        assert_total_dequeued(3);
+    })
+}
+
+#[test]
+fn terminated_program_zero_gas() {
+    init_logger();
+
+    let wat = r#"
+    (module
+    (import "env" "memory" (memory 0))
+    (export "init" (func $init))
+    (func $init
+        unreachable
+    )
+ )"#;
+
+    new_test_ext().execute_with(|| {
+        let code = ProgramCodeKind::Custom(wat).to_bytes();
+
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            code,
+            DEFAULT_SALT.to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
+            DEFAULT_GAS_LIMIT * 100,
+            0,
+        ));
+
+        let program_id = utils::get_last_program_id();
+
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            program_id,
+            EMPTY_PAYLOAD.to_vec(),
+            0,
+            0,
+        ));
+
+        run_to_next_block(None);
+        assert!(Gear::is_terminated(program_id));
+
+        // Nothing panics here.
+        assert_total_dequeued(2);
+    })
+}
+
+#[test]
+fn exited_program_zero_gas() {
+    init_logger();
+
+    let wat = r#"
+    (module
+    (import "env" "memory" (memory 1))
+    (import "env" "gr_exit" (func $exit (param i32)))
+    (export "init" (func $init))
+    (func $init
+        i32.const 0
+        call $exit
+    )
+ )"#;
+
+    new_test_ext().execute_with(|| {
+        let code = ProgramCodeKind::Custom(wat).to_bytes();
+
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            code,
+            DEFAULT_SALT.to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
+            DEFAULT_GAS_LIMIT * 100,
+            0,
+        ));
+
+        let program_id = utils::get_last_program_id();
+
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            program_id,
+            EMPTY_PAYLOAD.to_vec(),
+            0,
+            0,
+        ));
+
+        run_to_next_block(None);
+        assert!(Gear::is_exited(program_id));
+
+        // Nothing panics here.
+        assert_total_dequeued(2);
+    })
+}
+
+#[test]
 fn delayed_user_replacement() {
     use demo_proxy_with_gas::{InputArgs, WASM_BINARY as PROXY_WGAS_WASM_BINARY};
 
@@ -4614,7 +4834,7 @@ fn program_messages_to_paused_program_skipped() {
             code,
             vec![],
             InputArgs {
-                destination: <[u8; 32]>::from(paused_program_id)
+                destination: paused_program_id.into()
             }
             .encode(),
             50_000_000_000u64,

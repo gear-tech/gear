@@ -155,5 +155,8 @@ syscalls_integrity_test() {
 }
 
 doc_test() {
-  cargo test --doc --workspace "$@"
+  MANIFEST="$1"
+  shift
+
+  cargo test --doc --workspace --manifest-path="$MANIFEST" -- "$@"
 }
