@@ -35,7 +35,7 @@ pub struct SignalMessage {
 impl SignalMessage {
     /// Creates a new [`SignalMessage`].
     pub fn new(origin_msg_id: MessageId, status_code: StatusCode) -> Self {
-        let id = MessageId::generate_signal(origin_msg_id, status_code);
+        let id = MessageId::generate_signal(origin_msg_id);
 
         Self { id, status_code }
     }

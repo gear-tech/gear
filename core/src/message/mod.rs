@@ -18,7 +18,7 @@
 
 //! Message processing module.
 
-use alloc::string::String;
+use alloc::{collections::BTreeSet, string::String};
 use codec::{Decode, Encode};
 use scale_info::TypeInfo;
 
@@ -41,11 +41,12 @@ pub use signal::SignalMessage;
 pub use stored::{StoredDispatch, StoredMessage};
 
 use core::fmt::Display;
+use gear_wasm_instrument::syscalls::SysCallName;
 
 use super::buffer::LimitedVec;
 
 /// Max payload size which one message can have (8 MiB).
-const MAX_PAYLOAD_SIZE: usize = 8 * 1024 * 1024;
+pub const MAX_PAYLOAD_SIZE: usize = 8 * 1024 * 1024;
 
 /// Payload size exceed error
 #[derive(
@@ -174,6 +175,26 @@ impl DispatchKind {
     /// Check if kind is signal.
     pub fn is_signal(&self) -> bool {
         matches!(self, Self::Signal)
+    }
+
+    /// Sys-calls that are not allowed to be called for the dispatch kind.
+    pub fn forbidden_funcs(&self) -> BTreeSet<SysCallName> {
+        match self {
+            DispatchKind::Signal => [
+                SysCallName::Source,
+                SysCallName::Reply,
+                SysCallName::ReplyPush,
+                SysCallName::ReplyCommit,
+                SysCallName::ReplyCommitWGas,
+                SysCallName::ReplyInput,
+                SysCallName::ReplyInputWGas,
+                SysCallName::ReservationReply,
+                SysCallName::ReservationReplyCommit,
+                SysCallName::SystemReserveGas,
+            ]
+            .into(),
+            _ => Default::default(),
+        }
     }
 }
 

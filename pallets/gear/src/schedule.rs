@@ -24,7 +24,7 @@
 use crate::{weights::WeightInfo, Config};
 
 use codec::{Decode, Encode};
-use gear_core::{code, costs::HostFnWeights as CoreHostFnWeights};
+use gear_core::{code, costs::HostFnWeights as CoreHostFnWeights, message};
 use gear_wasm_instrument::{parity_wasm::elements, wasm_instrument::gas_metering};
 use pallet_gear_proc_macro::{ScheduleDebug, WeightDebug};
 use scale_info::TypeInfo;
@@ -532,7 +532,7 @@ impl Default for Limits {
             br_table_size: 256,
             subject_len: 32,
             call_depth: 32,
-            payload_len: 16 * 64 * 1024,
+            payload_len: message::MAX_PAYLOAD_SIZE as u32,
             code_len: 512 * 1024,
         }
     }

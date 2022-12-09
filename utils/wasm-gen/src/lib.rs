@@ -19,12 +19,15 @@
 use std::ops::RangeInclusive;
 
 use arbitrary::Unstructured;
-use gear_wasm_instrument::parity_wasm::{
-    self, builder,
-    elements::{
-        External, FunctionType, Instruction, Instructions, Internal, Module, Section, Type,
-        ValueType,
+use gear_wasm_instrument::{
+    parity_wasm::{
+        self, builder,
+        elements::{
+            External, FunctionType, Instruction, Instructions, Internal, Module, Section, Type,
+            ValueType,
+        },
     },
+    syscalls::SysCallName,
 };
 use wasm_smith::{InstructionKind::*, InstructionKinds, Module as ModuleSmith, SwarmConfig};
 
@@ -486,7 +489,7 @@ impl<'a> WasmGen<'a> {
             let sys_call_max_amount = info.frequency.mult(code_size);
             let sys_call_amount = self.u.int_in_range(0..=sys_call_max_amount).unwrap();
             if sys_call_amount == 0
-                && !(name == "gr_debug" && self.config.print_test_info.is_some())
+                && !(name == SysCallName::Debug && self.config.print_test_info.is_some())
             {
                 continue;
             }
@@ -501,7 +504,7 @@ impl<'a> WasmGen<'a> {
                 .module("env")
                 .external()
                 .func(type_no)
-                .field(name)
+                .field(name.to_str())
                 .build()
                 .build();
 

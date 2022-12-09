@@ -91,17 +91,23 @@ macro_rules! gas_amount {
 }
 
 /// Environment to run one module at a time providing Ext.
-pub struct WasmiEnvironment<E: Ext> {
+pub struct WasmiEnvironment<E, EP = DispatchKind>
+where
+    E: Ext,
+    EP: WasmEntry,
+{
     instance: Instance,
     store: Store<HostState<E>>,
     memory: Memory,
     entries: BTreeSet<DispatchKind>,
+    entry_point: EP,
 }
 
-impl<E> Environment<E> for WasmiEnvironment<E>
+impl<E, EP> Environment<E, EP> for WasmiEnvironment<E, EP>
 where
     E: Ext + IntoExtInfo<E::Error> + GetGasAmount + 'static,
     E::Error: Encode + AsTerminationReason + IntoExtError,
+    EP: WasmEntry,
 {
     type Memory = MemoryWrap<E>;
     type Error = Error;
@@ -109,6 +115,7 @@ where
     fn new(
         ext: E,
         binary: &[u8],
+        entry_point: EP,
         entries: BTreeSet<DispatchKind>,
         mem_size: WasmPageNumber,
     ) -> Result<Self, Self::Error> {
@@ -127,12 +134,23 @@ where
             .define("env", "memory", memory)
             .map_err(|e| (ext.gas_amount(), Linking(e)))?;
 
-        let forbidden_funcs =
-            (!ext.forbidden_funcs().is_empty()).then(|| ext.forbidden_funcs().clone());
+        let entry_forbidden = entry_point
+            .try_into_kind()
+            .as_ref()
+            .map(DispatchKind::forbidden_funcs)
+            .unwrap_or_default();
+
+        let forbidden_funcs = ext
+            .forbidden_funcs()
+            .iter()
+            .copied()
+            .chain(entry_forbidden)
+            .collect();
+
         let functions = funcs_tree::build(&mut store, memory, forbidden_funcs);
         for (name, function) in functions {
             linker
-                .define("env", name, function)
+                .define("env", name.to_str(), function)
                 .map_err(|e| (ext.gas_amount(), Linking(e)))?;
         }
 
@@ -159,12 +177,12 @@ where
             store,
             memory,
             entries,
+            entry_point,
         })
     }
 
     fn execute<F, T>(
         self,
-        entry_point: impl WasmEntry,
         pre_execution_handler: F,
     ) -> Result<BackendReport<Self::Memory, E>, Self::Error>
     where
@@ -178,6 +196,7 @@ where
             mut store,
             memory,
             entries,
+            entry_point,
         } = self;
 
         let stack_end = instance
@@ -216,34 +235,12 @@ where
             (gas_amount!(store), PreExecutionHandler(e.to_string()))
         })?;
 
-        let res = if let Some(kind) = entry_point.try_into_kind() {
-            if entries.contains(&kind) {
-                let func = instance
-                    .get_export(&memory_wrap.store, entry_point.as_entry())
-                    .and_then(Extern::into_func)
-                    .ok_or({
-                        let store = &memory_wrap.store;
-                        (
-                            gas_amount!(store),
-                            GetWasmExports(kind.as_entry().to_string()),
-                        )
-                    })?;
+        let needs_execution = entry_point
+            .try_into_kind()
+            .map(|kind| entries.contains(&kind))
+            .unwrap_or(true);
 
-                let entry_func = func
-                    .typed::<(), (), _>(&mut memory_wrap.store)
-                    .map_err(|_| {
-                        let store = &memory_wrap.store;
-                        (
-                            gas_amount!(store),
-                            EntryPointWrongType(kind.as_entry().to_string()),
-                        )
-                    })?;
-
-                entry_func.call(&mut memory_wrap.store, ())
-            } else {
-                Ok(())
-            }
-        } else {
+        let res = if needs_execution {
             let func = instance
                 .get_export(&memory_wrap.store, entry_point.as_entry())
                 .and_then(Extern::into_func)
@@ -266,6 +263,8 @@ where
                 })?;
 
             entry_func.call(&mut memory_wrap.store, ())
+        } else {
+            Ok(())
         };
 
         let gas = gear_gas.get(&memory_wrap.store).try_into::<i64>().ok_or({

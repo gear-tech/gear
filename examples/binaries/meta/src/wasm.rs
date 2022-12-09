@@ -6,8 +6,8 @@ static mut WALLETS: Vec<Wallet> = Vec::new();
 
 // Init function
 #[no_mangle]
-unsafe extern "C" fn init() {
-    WALLETS = Wallet::test_sequence();
+extern "C" fn init() {
+    unsafe { WALLETS = Wallet::test_sequence() };
 
     if msg::size() == 0 {
         return;
@@ -21,10 +21,10 @@ unsafe extern "C" fn init() {
 
 // Handle function
 #[no_mangle]
-unsafe extern "C" fn handle() {
+extern "C" fn handle() {
     let message_in: MessageIn = msg::load().unwrap();
 
-    let res = WALLETS
+    let res = unsafe { &WALLETS }
         .iter()
         .find(|w| w.id.decimal == message_in.id.decimal)
         .map(Clone::clone);

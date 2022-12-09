@@ -69,12 +69,11 @@ impl WasmExecutor {
             .define("env", "memory", memory)
             .map_err(WasmiError::from)?;
 
-        let forbidden_funcs =
-            (!ext.forbidden_funcs().is_empty()).then(|| ext.forbidden_funcs().clone());
+        let forbidden_funcs = ext.forbidden_funcs().clone();
         let functions = funcs_tree::build(&mut store, memory, forbidden_funcs);
         for (name, function) in functions {
             linker
-                .define("env", name, function)
+                .define("env", name.to_str(), function)
                 .map_err(WasmiError::from)?;
         }
 
@@ -187,6 +186,7 @@ impl WasmExecutor {
                     WRITE_COST * 2,
                     WRITE_COST * 4,
                     WRITE_COST * 3,
+                    WRITE_COST * 2,
                     WRITE_COST * 2,
                     1024,
                 ),

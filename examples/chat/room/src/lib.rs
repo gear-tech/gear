@@ -32,32 +32,33 @@ static mut STATE: State = State {
 };
 
 #[no_mangle]
-unsafe extern "C" fn handle() {
+extern "C" fn handle() {
     room(msg::load().expect("Failed to decode incoming message"));
 }
 
-unsafe fn room(room_msg: RoomMessage) {
+fn room(room_msg: RoomMessage) {
     use RoomMessage::*;
+    let state = unsafe { &mut STATE };
 
     match room_msg {
         Join { under_name } => {
             let under_name = String::from_utf8(under_name).expect("Invalid utf-8");
 
-            debug!("ROOM '{}': '{}' joined", STATE.room_name(), under_name);
-            STATE.add_member((msg::source(), under_name));
+            debug!("ROOM '{}': '{}' joined", state.room_name(), under_name);
+            state.add_member((msg::source(), under_name));
         }
         Yell { text } => {
             debug!("Yell ptr -> {:p}", text.as_ptr());
-            for &(id, _) in STATE.members.iter() {
+            for &(id, _) in state.members.iter() {
                 if id != msg::source() {
                     msg::send(
                         id,
                         MemberMessage::Room(
                             format!(
                                 "{}: {}",
-                                STATE
+                                state
                                     .get_member(msg::source())
-                                    .unwrap_or(&(ActorId::default(), STATE.room_name().to_string()))
+                                    .unwrap_or(&(ActorId::default(), state.room_name().to_string()))
                                     .1,
                                 String::from_utf8(text.clone()).expect("Invalid utf-8"),
                             )
@@ -73,12 +74,12 @@ unsafe fn room(room_msg: RoomMessage) {
 }
 
 #[no_mangle]
-unsafe extern "C" fn init() {
+extern "C" fn init() {
     let s: &'static str = Box::leak(
         String::from_utf8(msg::load_bytes().expect("Failed to load payload bytes"))
             .expect("Invalid message: should be utf-8")
             .into_boxed_str(),
     );
-    STATE.set_room_name(s);
-    debug!("ROOM '{}' created", STATE.room_name());
+    unsafe { STATE.set_room_name(s) };
+    debug!("ROOM '{}' created", unsafe { STATE.room_name() });
 }

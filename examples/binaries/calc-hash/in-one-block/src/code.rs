@@ -2,7 +2,7 @@ use crate::Package;
 use gstd::msg;
 
 #[no_mangle]
-unsafe extern "C" fn handle() {
+extern "C" fn handle() {
     let mut pkg = msg::load::<Package>().expect("Invalid initial data.");
 
     while !pkg.finished() {

@@ -27,6 +27,7 @@ use crate::{
 use alloc::collections::BTreeSet;
 use codec::{Decode, Encode};
 use gear_core_errors::CoreError;
+use gear_wasm_instrument::syscalls::SysCallName;
 
 /// Page access rights.
 #[derive(Clone, Debug, Encode, Decode, PartialEq, Eq, Copy)]
@@ -183,7 +184,7 @@ pub trait Ext {
     fn size(&mut self) -> Result<usize, Self::Error>;
 
     /// Returns a random seed for the current block with message id as a subject, along with the time in the past since when it was determinable by chain observers.
-    fn random(&self) -> (&[u8], u32);
+    fn random(&mut self) -> Result<(&[u8], u32), Self::Error>;
 
     /// Charge some extra gas.
     fn charge_gas(&mut self, amount: u64) -> Result<(), Self::Error>;
@@ -233,7 +234,7 @@ pub trait Ext {
     ) -> Result<(MessageId, ProgramId), Self::Error>;
 
     /// Return the set of functions that are forbidden to be called.
-    fn forbidden_funcs(&self) -> &BTreeSet<&'static str>;
+    fn forbidden_funcs(&self) -> &BTreeSet<SysCallName>;
 
     /// Return gas and gas allowance left in the counters.
     fn counters(&self) -> (u64, u64);

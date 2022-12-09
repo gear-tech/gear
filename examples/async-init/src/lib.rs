@@ -37,11 +37,13 @@ gstd::metadata! {
 async fn init() {
     let args: InputArgs = msg::load().expect("Failed to decode `InputArgs`");
 
-    APPROVER_FIRST = args.approver_first;
-    APPROVER_SECOND = args.approver_second;
-    APPROVER_THIRD = args.approver_third;
+    unsafe {
+        APPROVER_FIRST = args.approver_first;
+        APPROVER_SECOND = args.approver_second;
+        APPROVER_THIRD = args.approver_third;
+    }
 
-    let mut requests: Vec<_> = [APPROVER_FIRST, APPROVER_SECOND, APPROVER_THIRD]
+    let mut requests: Vec<_> = unsafe { [APPROVER_FIRST, APPROVER_SECOND, APPROVER_THIRD] }
         .iter()
         .map(|s| msg::send_bytes_for_reply(*s, b"", 0))
         .collect::<Result<_, _>>()
@@ -67,15 +69,11 @@ async fn main() {
         return;
     }
 
-    let requests: Vec<_> = [
-        unsafe { APPROVER_FIRST },
-        unsafe { APPROVER_SECOND },
-        unsafe { APPROVER_THIRD },
-    ]
-    .iter()
-    .map(|s| msg::send_bytes_for_reply(*s, b"", 0))
-    .collect::<Result<_, _>>()
-    .unwrap();
+    let requests: Vec<_> = unsafe { [APPROVER_FIRST, APPROVER_SECOND, APPROVER_THIRD] }
+        .iter()
+        .map(|s| msg::send_bytes_for_reply(*s, b"", 0))
+        .collect::<Result<_, _>>()
+        .unwrap();
 
     let _ = future::select_all(requests).await;
 

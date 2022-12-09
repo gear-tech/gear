@@ -2,7 +2,7 @@ use crate::SendingRequest;
 use gstd::msg;
 
 #[no_mangle]
-unsafe extern "C" fn handle() {
+extern "C" fn handle() {
     let SendingRequest {
         account_id,
         gas_limit,

@@ -43,7 +43,7 @@ use frame_support::traits::{
 use frame_system::pallet_prelude::BlockNumberFor;
 use gear_core::{
     ids::{MessageId, ProgramId, ReservationId},
-    message::{Dispatch, Message, StoredDispatch, StoredMessage},
+    message::{Dispatch, DispatchKind, Message, StoredDispatch, StoredMessage},
 };
 use sp_runtime::traits::{Get, One, SaturatedConversion, Saturating, UniqueSaturatedInto, Zero};
 
@@ -228,18 +228,20 @@ where
     ///
     /// Represents logic of burning gas by transferring gas from
     /// current `GasTree` owner to actual block producer.
-    pub(crate) fn spend_gas(message_id: MessageId, amount: GasBalanceOf<T>) {
+    pub(crate) fn spend_gas(id: impl Into<GasNodeIdOf<GasHandlerOf<T>>>, amount: GasBalanceOf<T>) {
+        let id = id.into();
+
         // If amount is zero, nothing to do.
         if amount.is_zero() {
             return;
         }
 
         // Spending gas amount from `GasNode`.
-        GasHandlerOf::<T>::spend(message_id, amount)
+        GasHandlerOf::<T>::spend(id, amount)
             .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
 
         // Querying external id. Fails in cases of `GasTree` invalidations.
-        let external = GasHandlerOf::<T>::get_external(message_id)
+        let external = GasHandlerOf::<T>::get_external(id)
             .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
 
         // Querying actual block author to reward.
@@ -271,10 +273,7 @@ where
             // Unreserving funds, if left non-zero amount of gas.
             if !gas_left.is_zero() {
                 log::debug!(
-                    "Consumed {}. Unreserving {} from {:?}",
-                    id,
-                    gas_left,
-                    external
+                    "Consumed message {id}. Unreserving {gas_left} (gas) from {external:?}"
                 );
 
                 // Converting gas amount into value.
@@ -293,10 +292,12 @@ where
 
     /// Charges for holding in some storage.
     pub(crate) fn charge_for_hold(
-        message_id: MessageId,
+        id: impl Into<GasNodeIdOf<GasHandlerOf<T>>>,
         hold_interval: Interval<BlockNumberFor<T>>,
         cost: SchedulingCostOf<T>,
     ) {
+        let id = id.into();
+
         // Current block number.
         let current = Self::block_number();
 
@@ -325,7 +326,7 @@ where
         // Spending gas, if need.
         if !amount.is_zero() {
             // Spending gas.
-            Self::spend_gas(message_id, amount)
+            Self::spend_gas(id, amount)
         }
     }
 
@@ -538,12 +539,23 @@ where
         to_user: bool,
         reservation: Option<ReservationId>,
     ) {
-        // Validating delay
+        // Validating delay.
         if delay.is_zero() {
             unreachable!("Delayed sending with zero delay appeared");
         }
 
-        let msg_id = reservation
+        // Validating stash from duplicates.
+        if DispatchStashOf::<T>::contains_key(&dispatch.id()) {
+            unreachable!("Stash logic invalidated!")
+        }
+
+        // Validating dispatch wasn't sent from system with delay.
+        if dispatch.is_error_reply() || matches!(dispatch.kind(), DispatchKind::Signal) {
+            unreachable!("Scheduling logic invalidated");
+        }
+
+        // Sender node of the dispatch.
+        let sender_node = reservation
             .map(GasNodeId::Reservation)
             .unwrap_or_else(|| origin_msg.into());
 
@@ -564,7 +576,7 @@ where
                 .gas_limit()
                 .or_else(|| {
                     // Querying gas limit. Fails in cases of `GasTree` invalidations.
-                    let gas_limit = GasHandlerOf::<T>::get_limit(msg_id)
+                    let gas_limit = GasHandlerOf::<T>::get_limit(sender_node)
                         .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
 
                     // If available gas is greater then threshold,
@@ -573,18 +585,12 @@ where
                 })
                 .unwrap_or_default();
 
-            if !dispatch.is_error_reply() && gas_limit >= threshold {
-                // Figuring out hold bound for given gas limit.
-                let hold =
-                    HoldBound::<T>::by(CostsPerBlockOf::<T>::mailbox()).maximum_for(gas_limit);
-
-                // Validating holding duration.
-                if hold.expected_duration().is_zero() {
-                    unreachable!("Threshold for mailbox invalidated")
-                }
-
+            // Message is going to be inserted into mailbox.
+            //
+            // No hold bound checks required, because gas_limit isn't less than threshold.
+            if gas_limit >= threshold {
                 // Cutting gas for storing in mailbox.
-                GasHandlerOf::<T>::cut(msg_id, dispatch.id(), gas_limit)
+                GasHandlerOf::<T>::cut(sender_node, dispatch.id(), gas_limit)
                     .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
 
                 // TODO: adapt this line if gasful sending appears for reservations (#1828)
@@ -602,7 +608,7 @@ where
                     // 3. The `value` of the value node has been checked before.
                     // 4. The `dispatch.id()` is new generated by system from a checked
                     //    ( inside message queue processing ) `message_id`.
-                    GasHandlerOf::<T>::split_with_value(msg_id, dispatch.id(), gas_limit)
+                    GasHandlerOf::<T>::split_with_value(sender_node, dispatch.id(), gas_limit)
                         .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
                 }
                 (None, None) => {
@@ -611,7 +617,7 @@ where
                     // 1. There is no logic splitting value from the reserved nodes.
                     // 2. The `dispatch.id()` is new generated by system from a checked
                     //    ( inside message queue processing ) `message_id`.
-                    GasHandlerOf::<T>::split(msg_id, dispatch.id())
+                    GasHandlerOf::<T>::split(sender_node, dispatch.id())
                         .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
                 }
                 (Some(_gas_limit), Some(_reservation_id)) => {
@@ -636,19 +642,22 @@ where
                 .unwrap_or_else(|e| unreachable!("Unable to reserve requested value {:?}", e));
         }
 
+        // Saving id to allow moving dispatch further.
         let message_id = dispatch.id();
 
-        // Adding message into the stash with validation.
-        if DispatchStashOf::<T>::contains_key(&message_id) {
-            unreachable!("Stash logic invalidated!")
-        }
-
+        // Adding message into the stash.
         DispatchStashOf::<T>::insert(message_id, dispatch.into_stored());
+
+        let task = if to_user {
+            ScheduledTask::SendUserMessage(message_id)
+        } else {
+            ScheduledTask::SendDispatch(message_id)
+        };
 
         // Adding removal request in task pool.
         TaskPoolOf::<T>::add(
             Self::block_number().saturating_add(delay.unique_saturated_into()),
-            ScheduledTask::SendDispatch(message_id),
+            task,
         )
         .unwrap_or_else(|e| unreachable!("Scheduling logic invalidated! {:?}", e));
     }
@@ -771,14 +780,15 @@ where
         //
         // We don't plan to send delayed error replies yet,
         // but this logic appears here for future purposes.
-        let message = match message.status_code() {
-            Some(0) | None => message,
-            _ => message
+        let message = if message.is_error_reply() {
+            message
+        } else {
+            message
                 .with_string_payload::<ExecutionErrorReason>()
                 .unwrap_or_else(|e| {
                     log::debug!("Failed to decode error to string");
                     e
-                }),
+                })
         };
 
         // Taking data for funds manipulations.
@@ -833,10 +843,10 @@ where
         program_id: ProgramId,
         reservation_id: ReservationId,
     ) {
-        let slot = ExtManager::<T>::remove_gas_reservation(program_id, reservation_id);
+        let slot = ExtManager::<T>::remove_gas_reservation_impl(program_id, reservation_id);
 
         let _ = TaskPoolOf::<T>::delete(
-            BlockNumberFor::<T>::from(slot.expiration),
+            BlockNumberFor::<T>::from(slot.finish),
             ScheduledTask::RemoveGasReservation(program_id, reservation_id),
         );
     }

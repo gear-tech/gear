@@ -410,10 +410,11 @@ pub fn execute_wasm<
         let env = E::new(
             ext,
             program.raw_code(),
+            kind,
             program.code().exports().clone(),
             memory_size,
         )?;
-        env.execute(kind, |memory, stack_end| {
+        env.execute(|memory, stack_end| {
             prepare_memory::<A, E::Memory>(
                 program_id,
                 &mut pages_initial_data,
@@ -505,9 +506,10 @@ pub fn execute_wasm<
 /// !!! FOR TESTING / INFORMATIONAL USAGE ONLY
 pub fn execute_for_reply<
     A: ProcessorExt + EnvExt + IntoExtInfo<<A as EnvExt>::Error> + 'static,
-    E: Environment<A>,
+    E: Environment<A, EP>,
+    EP: WasmEntry,
 >(
-    function: impl WasmEntry,
+    function: EP,
     instrumented_code: InstrumentedCode,
     pages_initial_data: Option<BTreeMap<PageNumber, PageBuf>>,
     allocations: Option<BTreeSet<WasmPageNumber>>,
@@ -553,7 +555,7 @@ pub fn execute_for_reply<
             ),
             program.id(),
             None,
-            ContextSettings::new(0, 0, 0, 0, 0),
+            ContextSettings::new(0, 0, 0, 0, 0, 0),
         ),
         block_info: BlockInfo {
             height: Default::default(),
@@ -588,10 +590,11 @@ pub fn execute_for_reply<
         let env = E::new(
             ext,
             program.raw_code(),
+            function,
             program.code().exports().clone(),
             memory_size,
         )?;
-        env.execute(function, |memory, stack_end| {
+        env.execute(|memory, stack_end| {
             prepare_memory::<A, E::Memory>(
                 program.id(),
                 &mut pages_initial_data,

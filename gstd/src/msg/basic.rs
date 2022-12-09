@@ -60,7 +60,7 @@ use gstd_codegen::wait_for_reply;
 /// ```
 /// use gstd::msg;
 ///
-/// unsafe extern "C" fn handle() {
+/// extern "C" fn handle() {
 ///     // ...
 ///     let msg_handle = msg::send_init();
 /// }
@@ -170,7 +170,7 @@ impl From<gcore::MessageHandle> for MessageHandle {
 /// ```
 /// use gstd::msg;
 ///
-/// unsafe extern "C" fn handle() {
+/// extern "C" fn handle() {
 ///     // ...
 ///     let status_code = msg::status_code();
 /// }
@@ -189,7 +189,7 @@ pub fn status_code() -> Result<i32> {
 /// ```
 /// use gstd::msg;
 ///
-/// unsafe extern "C" fn handle() {
+/// extern "C" fn handle() {
 ///     let current_message_id = msg::id();
 /// }
 /// ```
@@ -207,7 +207,7 @@ pub fn id() -> MessageId {
 /// ```
 /// use gstd::msg;
 ///
-/// unsafe extern "C" fn handle() {
+/// extern "C" fn handle() {
 ///     let payload_bytes = msg::load_bytes().unwrap();
 /// }
 /// ```
@@ -292,7 +292,7 @@ pub fn reply_bytes_with_gas_delayed(
 /// ```
 /// use gstd::{exec, msg};
 ///
-/// unsafe extern "C" fn handle() {
+/// extern "C" fn handle() {
 ///     // ...
 ///     msg::reply_push(b"Part 1").unwrap();
 ///     // ...
@@ -332,7 +332,7 @@ pub fn reply_commit_delayed(value: u128, delay: u32) -> Result<MessageId> {
 /// ```
 /// use gstd::{exec, msg, ReservationId};
 ///
-/// unsafe extern "C" fn handle() {
+/// extern "C" fn handle() {
 ///     // ...
 ///     let id = ReservationId::reserve(5_000_000, 100).expect("enough gas");
 ///     // ...
@@ -369,7 +369,7 @@ pub fn reply_commit_delayed_from_reservation(
 /// ```
 /// use gstd::{exec, msg};
 ///
-/// unsafe extern "C" fn handle() {
+/// extern "C" fn handle() {
 ///     // ...
 ///     msg::reply_push(b"Part 1").unwrap();
 ///     // ...
@@ -407,7 +407,7 @@ pub fn reply_commit_with_gas_delayed(gas_limit: u64, value: u128, delay: u32) ->
 /// ```
 /// use gstd::msg;
 ///
-/// unsafe extern "C" fn handle() {
+/// extern "C" fn handle() {
 ///     // ...
 ///     msg::reply_push(b"Part 1").unwrap();
 ///     // ...
@@ -430,7 +430,7 @@ pub fn reply_push<T: AsRef<[u8]>>(payload: T) -> Result<()> {
 /// ```
 /// use gstd::msg;
 ///
-/// unsafe extern "C" fn handle_reply() {
+/// extern "C" fn handle_reply() {
 ///     // ...
 ///     let original_message_id = msg::reply_to().unwrap();
 /// }
@@ -494,7 +494,7 @@ pub fn send_push_input<Range: RangeBounds<usize>>(
 /// ```
 /// use gstd::{msg, ActorId};
 ///
-/// unsafe extern "C" fn handle() {
+/// extern "C" fn handle() {
 ///     // ...
 ///     let id = msg::source();
 ///
@@ -528,7 +528,7 @@ pub fn send_bytes_delayed<T: AsRef<[u8]>>(
 /// ```
 /// use gstd::{msg, ActorId};
 ///
-/// unsafe extern "C" fn handle() {
+/// extern "C" fn handle() {
 ///     // ...
 ///     let id = msg::source();
 ///
@@ -583,7 +583,7 @@ pub fn send_bytes_with_gas_delayed<T: AsRef<[u8]>>(
 /// ```
 /// use gstd::{msg, ActorId, ReservationId};
 ///
-/// unsafe extern "C" fn handle() {
+/// extern "C" fn handle() {
 ///     // ...
 ///     let id = ReservationId::reserve(5_000_000, 100).expect("enough gas");
 ///     let source_id = msg::source();
@@ -643,10 +643,10 @@ pub fn send_bytes_delayed_from_reservation<T: AsRef<[u8]>>(
 /// ```
 /// use gstd::{exec, msg};
 ///
-/// unsafe extern "C" fn handle() {
+/// extern "C" fn handle() {
 ///     // ...
 ///     let msg_handle = msg::send_init().unwrap();
-///     msg::send_push(&msg_handle, b"PING");
+///     msg::send_push(msg_handle, b"PING");
 ///     msg::send_commit(msg_handle, msg::source(), 42);
 /// }
 /// ```
@@ -680,10 +680,10 @@ pub fn send_commit_delayed(
 /// ```
 /// use gstd::{exec, msg};
 ///
-/// unsafe extern "C" fn handle() {
+/// extern "C" fn handle() {
 ///     // ...
 ///     let msg_handle = msg::send_init().unwrap();
-///     msg::send_push(&msg_handle, b"PING");
+///     msg::send_push(msg_handle, b"PING");
 ///     msg::send_commit_with_gas(msg_handle, msg::source(), 10_000_000, 42);
 /// }
 /// ```
@@ -728,10 +728,10 @@ pub fn send_commit_with_gas_delayed(
 /// ```
 /// use gstd::{exec, msg};
 ///
-/// unsafe extern "C" fn handle() {
+/// extern "C" fn handle() {
 ///     // ...
 ///     let msg_handle = msg::send_init().unwrap();
-///     msg::send_push(&msg_handle, b"PING");
+///     msg::send_push(msg_handle, b"PING");
 ///     msg::send_commit(msg_handle, msg::source(), 42);
 /// }
 /// ```
@@ -756,10 +756,10 @@ pub fn send_init() -> Result<MessageHandle> {
 /// ```
 /// use gstd::{exec, msg};
 ///
-/// unsafe extern "C" fn handle() {
+/// extern "C" fn handle() {
 ///     // ...
 ///     let msg_handle = msg::send_init().unwrap();
-///     msg::send_push(&msg_handle, b"PING");
+///     msg::send_push(msg_handle, b"PING");
 ///     msg::send_commit(msg_handle, msg::source(), 42);
 /// }
 /// ```
@@ -784,7 +784,7 @@ pub fn send_push<T: AsRef<[u8]>>(handle: MessageHandle, payload: T) -> Result<()
 /// ```
 /// use gstd::msg;
 ///
-/// unsafe extern "C" fn handle() {
+/// extern "C" fn handle() {
 ///     let payload_size = msg::size();
 /// }
 /// ```
@@ -802,7 +802,7 @@ pub fn size() -> usize {
 /// ```
 /// use gstd::msg;
 ///
-/// unsafe extern "C" fn handle() {
+/// extern "C" fn handle() {
 ///     // ...
 ///     let who_sends_message = msg::source();
 /// }
@@ -821,7 +821,7 @@ pub fn source() -> ActorId {
 /// ```
 /// use gstd::msg;
 ///
-/// unsafe extern "C" fn handle() {
+/// extern "C" fn handle() {
 ///     // ...
 ///     let amount_sent_with_message = msg::value();
 /// }

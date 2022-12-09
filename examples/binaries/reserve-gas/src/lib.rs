@@ -19,7 +19,12 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
 use codec::{Decode, Encode};
-use gstd::{exec, msg, prelude::*, MessageId, ReservationId};
+use gstd::{
+    errors::{ContractError, ExecutionError, ExtError},
+    exec, msg,
+    prelude::*,
+    MessageId, ReservationId,
+};
 
 #[cfg(feature = "std")]
 mod code {
@@ -31,20 +36,22 @@ pub use code::WASM_BINARY_OPT as WASM_BINARY;
 
 static mut RESERVATION_ID: Option<ReservationId> = None;
 static mut INIT_MSG: MessageId = MessageId::new([0; 32]);
-static mut WAKE_STATE: WakeState = WakeState::FirstExecution;
+static mut WAKE_STATE: WakeState = WakeState::Initial;
 
-const RESERVATION_AMOUNT: u64 = 50_000_000;
+pub const RESERVATION_AMOUNT: u64 = 50_000_000;
 
 #[derive(Debug, Eq, PartialEq)]
 enum WakeState {
-    FirstExecution,
-    SecondExecution,
+    Initial,
+    Panic,
+    Exit,
 }
 
 #[derive(Debug, Encode, Decode)]
 pub enum InitAction {
     Normal,
     Wait,
+    CheckArgs,
 }
 
 #[derive(Debug, Encode, Decode)]
@@ -53,9 +60,15 @@ pub enum HandleAction {
     Exit,
 }
 
+#[derive(Debug, Encode, Decode)]
+pub enum ReplyAction {
+    Panic,
+    Exit,
+}
+
 #[no_mangle]
-unsafe extern "C" fn init() {
-    INIT_MSG = msg::id();
+extern "C" fn init() {
+    unsafe { INIT_MSG = msg::id() };
 
     let action: InitAction = msg::load().unwrap();
 
@@ -73,30 +86,65 @@ unsafe extern "C" fn init() {
             let unreserved_amount = noop_reservation.unreserve().expect("noop unreservation");
             assert_eq!(unreserved_amount, 50_000);
 
-            RESERVATION_ID = Some(
-                ReservationId::reserve(RESERVATION_AMOUNT, 5)
-                    .expect("reservation across executions"),
-            );
+            unsafe {
+                RESERVATION_ID = Some(
+                    ReservationId::reserve(RESERVATION_AMOUNT, 5)
+                        .expect("reservation across executions"),
+                )
+            };
         }
-        InitAction::Wait => {
-            if WAKE_STATE == WakeState::SecondExecution {
-                panic!();
+        InitAction::Wait => match unsafe { &WAKE_STATE } {
+            WakeState::Initial => {
+                let _reservation = ReservationId::reserve(50_000, 10);
+                // to find message to reply to in test
+                msg::send(msg::source(), (), 0).unwrap();
+                exec::wait();
             }
+            WakeState::Panic => {
+                panic!()
+            }
+            WakeState::Exit => {
+                exec::exit(msg::source());
+            }
+        },
+        InitAction::CheckArgs => {
+            assert_eq!(
+                ReservationId::reserve(0, 10),
+                Err(ContractError::Ext(ExtError::Execution(
+                    ExecutionError::ZeroReservationAmount
+                )))
+            );
 
-            let _reservation = ReservationId::reserve(50_000, 10);
-            // to find message to reply to in test
-            msg::send(msg::source(), (), 0).unwrap();
-            exec::wait();
+            assert_eq!(
+                ReservationId::reserve(50_000, 0),
+                Err(ContractError::Ext(ExtError::Execution(
+                    ExecutionError::ZeroReservationDuration
+                )))
+            );
+
+            assert_eq!(
+                ReservationId::reserve(1, u32::MAX),
+                Err(ContractError::Ext(ExtError::Execution(
+                    ExecutionError::InsufficientGasForReservation
+                )))
+            );
+
+            assert_eq!(
+                ReservationId::reserve(u64::MAX, 1),
+                Err(ContractError::Ext(ExtError::Execution(
+                    ExecutionError::InsufficientGasForReservation
+                )))
+            );
         }
     }
 }
 
 #[no_mangle]
-unsafe extern "C" fn handle() {
+extern "C" fn handle() {
     let action: HandleAction = msg::load().unwrap();
     match action {
         HandleAction::Unreserve => {
-            let id = RESERVATION_ID.take().unwrap();
+            let id = unsafe { RESERVATION_ID.take().unwrap() };
             id.unreserve().expect("unreservation across executions");
         }
         HandleAction::Exit => {
@@ -107,9 +155,15 @@ unsafe extern "C" fn handle() {
 
 // must be called after `InitAction::Wait`
 #[no_mangle]
-unsafe extern "C" fn handle_reply() {
-    WAKE_STATE = WakeState::SecondExecution;
-    exec::wake(INIT_MSG).unwrap();
+extern "C" fn handle_reply() {
+    let action: ReplyAction = msg::load().unwrap();
+    unsafe {
+        WAKE_STATE = match action {
+            ReplyAction::Panic => WakeState::Panic,
+            ReplyAction::Exit => WakeState::Exit,
+        };
+        exec::wake(INIT_MSG).unwrap();
+    }
 }
 
 #[cfg(test)]

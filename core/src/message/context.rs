@@ -42,6 +42,8 @@ pub struct ContextSettings {
     waiting_fee: u64,
     /// Fee for waking messages.
     waking_fee: u64,
+    /// Fee for creating reservation.
+    reservation_fee: u64,
     /// Limit of outgoing messages that program can send during execution of current message.
     outgoing_limit: u32,
 }
@@ -53,6 +55,7 @@ impl ContextSettings {
         scheduled_sending_fee: u64,
         waiting_fee: u64,
         waking_fee: u64,
+        reservation_fee: u64,
         outgoing_limit: u32,
     ) -> Self {
         Self {
@@ -60,6 +63,7 @@ impl ContextSettings {
             scheduled_sending_fee,
             waiting_fee,
             waking_fee,
+            reservation_fee,
             outgoing_limit,
         }
     }
@@ -82,6 +86,11 @@ impl ContextSettings {
     /// Getter for inner waking fee field.
     pub fn waking_fee(&self) -> u64 {
         self.waking_fee
+    }
+
+    /// Getter for inner reservation fee field.
+    pub fn reservation_fee(&self) -> u64 {
+        self.reservation_fee
     }
 
     /// Getter for inner outgoing limit field.
@@ -500,7 +509,7 @@ mod tests {
             Default::default(),
             Default::default(),
             Default::default(),
-            ContextSettings::new(0, 0, 0, 0, 1024),
+            ContextSettings::new(0, 0, 0, 0, 0, 1024),
         );
 
         // first init to default ProgramId.
@@ -520,7 +529,7 @@ mod tests {
 
         for n in 0..=max_n {
             // for outgoing_limit n checking that LimitExceeded will be after n's message.
-            let settings = ContextSettings::new(0, 0, 0, 0, n);
+            let settings = ContextSettings::new(0, 0, 0, 0, 0, n);
 
             let mut message_context = MessageContext::new(
                 Default::default(),
@@ -554,7 +563,7 @@ mod tests {
             Default::default(),
             Default::default(),
             Default::default(),
-            ContextSettings::new(0, 0, 0, 0, 1024),
+            ContextSettings::new(0, 0, 0, 0, 0, 1024),
         );
 
         // Use invalid handle 0.
@@ -581,7 +590,7 @@ mod tests {
             Default::default(),
             Default::default(),
             Default::default(),
-            ContextSettings::new(0, 0, 0, 0, 1024),
+            ContextSettings::new(0, 0, 0, 0, 0, 1024),
         );
 
         // First reply.
@@ -616,7 +625,7 @@ mod tests {
             incoming_message,
             ids::ProgramId::from(INCOMING_MESSAGE_ID),
             None,
-            ContextSettings::new(0, 0, 0, 0, 1024),
+            ContextSettings::new(0, 0, 0, 0, 0, 1024),
         );
 
         // Checking that the initial parameters of the context match the passed constants
@@ -743,7 +752,7 @@ mod tests {
             incoming_message,
             ids::ProgramId::from(INCOMING_MESSAGE_ID),
             None,
-            ContextSettings::new(0, 0, 0, 0, 1024),
+            ContextSettings::new(0, 0, 0, 0, 0, 1024),
         );
 
         context.wake(MessageId::default(), 10).unwrap();

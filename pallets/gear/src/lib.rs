@@ -21,8 +21,6 @@
 
 extern crate alloc;
 
-use codec::{Decode, Encode};
-
 #[cfg(feature = "runtime-benchmarks")]
 mod benchmarking;
 
@@ -30,6 +28,8 @@ mod benchmarking;
 mod ext;
 
 mod internal;
+mod queue;
+mod runtime_api;
 mod schedule;
 
 pub mod manager;
@@ -49,20 +49,36 @@ pub use crate::{
 };
 pub use weights::WeightInfo;
 
+use alloc::{format, string::String};
+use codec::{Decode, Encode};
 use common::{
-    gas_provider::GasNodeId, scheduler::*, storage::*, BlockLimiter, CodeStorage, GasProvider,
-    QueueRunner,
+    self, event::*, gas_provider::GasNodeId, scheduler::*, storage::*, BlockLimiter, CodeMetadata,
+    CodeStorage, GasPrice, GasProvider, GasTree, Origin, Program, ProgramState, QueueRunner,
+};
+use core::marker::PhantomData;
+use core_processor::{
+    common::{Actor, DispatchOutcome as CoreDispatchOutcome, ExecutableActorData, JournalNote},
+    configs::{AllocationsConfig, BlockConfig, BlockInfo, MessageExecutionContext},
+    PrechargeResult, PrepareResult,
 };
 use frame_support::{
-    traits::{Currency, StorageVersion},
+    dispatch::{DispatchError, DispatchResultWithPostInfo, PostDispatchInfo},
+    ensure,
+    pallet_prelude::*,
+    traits::{
+        BalanceStatus, Currency, ExistenceRequirement, Get, LockableCurrency, Randomness,
+        ReservableCurrency, StorageVersion,
+    },
     weights::Weight,
 };
+use frame_system::pallet_prelude::{BlockNumberFor, *};
 use gear_core::{
     code::{Code, CodeAndId, InstrumentedCode, InstrumentedCodeAndId},
     ids::{CodeId, MessageId, ProgramId, ReservationId},
     memory::{PageBuf, PageNumber},
     message::*,
 };
+use manager::{CodeInfo, QueuePostProcessingData};
 use pallet_gear_program::Pallet as GearProgramPallet;
 use primitive_types::H256;
 use sp_runtime::traits::{One, Saturating, UniqueSaturatedInto, Zero};
@@ -72,17 +88,20 @@ use sp_std::{
     prelude::*,
 };
 
-#[cfg(feature = "std")]
-type ExecutionEnvironment = gear_backend_wasmi::WasmiEnvironment<Ext>;
-
-#[cfg(not(feature = "std"))]
-type ExecutionEnvironment = gear_backend_sandbox::SandboxEnvironment<Ext>;
+#[cfg(feature = "lazy-pages")]
+use gear_lazy_pages_common as lazy_pages;
 
 #[cfg(feature = "lazy-pages")]
-use crate::ext::LazyPagesExt as Ext;
+use ext::LazyPagesExt as Ext;
 
 #[cfg(not(feature = "lazy-pages"))]
 use core_processor::Ext;
+
+#[cfg(feature = "std")]
+type ExecutionEnvironment<EP = DispatchKind> = gear_backend_wasmi::WasmiEnvironment<Ext, EP>;
+
+#[cfg(not(feature = "std"))]
+type ExecutionEnvironment<EP = DispatchKind> = gear_backend_sandbox::SandboxEnvironment<Ext, EP>;
 
 pub(crate) type CurrencyOf<T> = <T as Config>::Currency;
 pub(crate) type BalanceOf<T> =
@@ -190,39 +209,6 @@ impl Default for ProcessStatus {
 #[frame_support::pallet]
 pub mod pallet {
     use super::*;
-
-    use gear_core::memory::WasmPageNumber;
-    #[cfg(feature = "lazy-pages")]
-    use gear_lazy_pages_common as lazy_pages;
-
-    use crate::manager::{CodeInfo, ExtManager, HandleKind, QueuePostProcessingData};
-    use alloc::{format, string::String};
-    use common::{
-        self, event::*, BlockLimiter, CodeMetadata, GasPrice, GasProvider, GasTree, Origin,
-        Program, ProgramState,
-    };
-    use core::{convert::TryFrom, marker::PhantomData};
-    use core_processor::{
-        common::{Actor, DispatchOutcome as CoreDispatchOutcome, ExecutableActorData, JournalNote},
-        configs::{AllocationsConfig, BlockConfig, BlockInfo, MessageExecutionContext},
-        PrechargeResult, PrepareResult,
-    };
-    use frame_support::{
-        dispatch::{DispatchError, DispatchResultWithPostInfo, PostDispatchInfo},
-        ensure,
-        pallet_prelude::*,
-        traits::{
-            BalanceStatus, Currency, ExistenceRequirement, Get, LockableCurrency, Randomness,
-            ReservableCurrency,
-        },
-    };
-    use frame_system::pallet_prelude::{BlockNumberFor, *};
-
-    pub(crate) type CodeWithMemoryData = (
-        InstrumentedCode,
-        BTreeSet<WasmPageNumber>,
-        Option<BTreeMap<PageNumber, PageBuf>>,
-    );
 
     #[pallet::config]
     pub trait Config:
@@ -754,52 +740,6 @@ pub mod pallet {
             Ok(().into())
         }
 
-        pub(crate) fn read_state_using_wasm_impl(
-            program_id: ProgramId,
-            function: impl Into<String>,
-            wasm: Vec<u8>,
-            argument: Option<Vec<u8>>,
-        ) -> Result<Vec<u8>, String> {
-            #[cfg(feature = "lazy-pages")]
-            assert!(lazy_pages::try_to_enable_lazy_pages());
-
-            let schedule = T::Schedule::get();
-
-            if u32::try_from(wasm.len()).unwrap_or(u32::MAX) > schedule.limits.code_len {
-                return Err("Wasm too big".into());
-            }
-
-            let code = Code::new_raw_with_rules(
-                wasm,
-                schedule.instruction_weights.version,
-                false,
-                |module| schedule.rules(module),
-            )
-            .map_err(|e| format!("Failed to construct program: {e:?}"))?;
-
-            if u32::try_from(code.code().len()).unwrap_or(u32::MAX) > schedule.limits.code_len {
-                return Err("Wasm after instrumentation too big".into());
-            }
-
-            let code_and_id = CodeAndId::new(code);
-            let code_and_id = InstrumentedCodeAndId::from(code_and_id);
-
-            let instrumented_code = code_and_id.into_parts().0;
-
-            let mut payload = argument.unwrap_or_default();
-            payload.append(&mut Self::read_state_impl(program_id)?);
-
-            core_processor::informational::execute_for_reply::<Ext, ExecutionEnvironment>(
-                function.into(),
-                instrumented_code,
-                None,
-                None,
-                None,
-                payload,
-                BlockGasLimitOf::<T>::get() / 4,
-            )
-        }
-
         pub fn read_state_using_wasm(
             program_id: H256,
             fn_name: Vec<u8>,
@@ -816,74 +756,10 @@ pub mod pallet {
                 })
         }
 
-        pub(crate) fn code_with_memory(
-            program_id: ProgramId,
-        ) -> Result<CodeWithMemoryData, String> {
-            let program = common::get_active_program(program_id.into_origin())
-                .map_err(|e| format!("Get active program error: {e:?}"))?;
-
-            let code_id = CodeId::from_origin(program.code_hash);
-
-            let code = Self::get_code(code_id, program_id)
-                .ok_or_else(|| String::from("Failed to get code for given program id"))?;
-
-            #[cfg(not(feature = "lazy-pages"))]
-            let program_pages = Some(
-                common::get_program_pages_data(program_id.into_origin(), &program)
-                    .map_err(|e| format!("Get program pages data error: {e:?}"))?,
-            );
-
-            #[cfg(feature = "lazy-pages")]
-            let program_pages = None;
-
-            Ok((code, program.allocations, program_pages))
-        }
-
-        pub(crate) fn read_state_impl(program_id: ProgramId) -> Result<Vec<u8>, String> {
-            #[cfg(feature = "lazy-pages")]
-            assert!(lazy_pages::try_to_enable_lazy_pages());
-
-            log::debug!("Reading state of {program_id:?}");
-
-            let (code, allocations, program_pages) = Self::code_with_memory(program_id)?;
-
-            core_processor::informational::execute_for_reply::<Ext, ExecutionEnvironment>(
-                String::from("state"),
-                code,
-                program_pages,
-                Some(allocations),
-                Some(program_id),
-                Default::default(),
-                BlockGasLimitOf::<T>::get() / 4,
-            )
-        }
-
         pub fn read_state(program_id: H256) -> Result<Vec<u8>, Vec<u8>> {
             let program_id = ProgramId::from_origin(program_id.into_origin());
 
             Self::read_state_impl(program_id).map_err(String::into_bytes)
-        }
-
-        pub(crate) fn read_metahash_impl(program_id: ProgramId) -> Result<H256, String> {
-            #[cfg(feature = "lazy-pages")]
-            assert!(lazy_pages::try_to_enable_lazy_pages());
-
-            log::debug!("Reading metahash of {program_id:?}");
-
-            let (code, allocations, program_pages) = Self::code_with_memory(program_id)?;
-
-            core_processor::informational::execute_for_reply::<Ext, ExecutionEnvironment>(
-                String::from("metahash"),
-                code,
-                program_pages,
-                Some(allocations),
-                Some(program_id),
-                Default::default(),
-                BlockGasLimitOf::<T>::get() / 4,
-            )
-            .and_then(|bytes| {
-                H256::decode(&mut bytes.as_ref()).map_err(|_| "Failed to decode hash".into())
-            })
         }
 
         pub fn read_metahash(program_id: H256) -> Result<H256, Vec<u8>> {
@@ -991,229 +867,6 @@ pub mod pallet {
             .expect("externalities should be set");
 
             result
-        }
-
-        fn calculate_gas_info_impl(
-            source: H256,
-            kind: HandleKind,
-            initial_gas: u64,
-            payload: Vec<u8>,
-            value: u128,
-            allow_other_panics: bool,
-        ) -> Result<GasInfo, Vec<u8>> {
-            let account = <T::AccountId as Origin>::from_origin(source);
-
-            let balance = CurrencyOf::<T>::free_balance(&account);
-            let max_balance: BalanceOf<T> =
-                T::GasPrice::gas_price(initial_gas) + value.unique_saturated_into();
-            CurrencyOf::<T>::deposit_creating(&account, max_balance.saturating_sub(balance));
-
-            let who = frame_support::dispatch::RawOrigin::Signed(account);
-            let value: BalanceOf<T> = value.unique_saturated_into();
-
-            QueueOf::<T>::clear();
-
-            match kind {
-                HandleKind::Init(code) => {
-                    let salt = b"calculate_gas_salt".to_vec();
-                    Self::upload_program(who.into(), code, salt, payload, initial_gas, value)
-                        .map_err(|e| {
-                            format!("Internal error: upload_program failed with '{e:?}'")
-                                .into_bytes()
-                        })?;
-                }
-                HandleKind::InitByHash(code_id) => {
-                    let salt = b"calculate_gas_salt".to_vec();
-                    Self::create_program(who.into(), code_id, salt, payload, initial_gas, value)
-                        .map_err(|e| {
-                            format!("Internal error: create_program failed with '{e:?}'")
-                                .into_bytes()
-                        })?;
-                }
-                HandleKind::Handle(destination) => {
-                    Self::send_message(who.into(), destination, payload, initial_gas, value)
-                        .map_err(|e| {
-                            format!("Internal error: send_message failed with '{e:?}'").into_bytes()
-                        })?;
-                }
-                HandleKind::Reply(reply_to_id, _status_code) => {
-                    Self::send_reply(who.into(), reply_to_id, payload, initial_gas, value)
-                        .map_err(|e| {
-                            format!("Internal error: send_reply failed with '{e:?}'").into_bytes()
-                        })?;
-                }
-                HandleKind::Signal(_signal_from, _status_code) => {
-                    return Err("Gas calculation for `handle_signal` is not supported"
-                        .as_bytes()
-                        .to_vec());
-                }
-            };
-
-            let (main_message_id, main_program_id) = QueueOf::<T>::iter()
-                .next()
-                .ok_or_else(|| b"Internal error: failed to get last message".to_vec())
-                .and_then(|queued| {
-                    queued
-                        .map_err(|_| b"Internal error: failed to retrieve queued dispatch".to_vec())
-                        .map(|dispatch| (dispatch.id(), dispatch.destination()))
-                })?;
-
-            let mut block_config = Self::block_config();
-            block_config.forbidden_funcs = ["gr_gas_available"].into();
-
-            let mut min_limit = 0;
-            let mut reserved = 0;
-            let mut burned = 0;
-            let mut may_be_returned = 0;
-
-            let mut ext_manager = ExtManager::<T>::default();
-
-            while let Some(queued_dispatch) =
-                QueueOf::<T>::dequeue().map_err(|_| b"MQ storage corrupted".to_vec())?
-            {
-                let actor_id = queued_dispatch.destination();
-
-                let actor = ext_manager
-                    .get_actor(actor_id)
-                    .ok_or_else(|| b"Program not found in the storage".to_vec())?;
-
-                let dispatch_id = queued_dispatch.id();
-                let gas_limit = GasHandlerOf::<T>::get_limit(dispatch_id)
-                    .map_err(|_| b"Internal error: unable to get gas limit".to_vec())?;
-
-                let precharged_dispatch = match core_processor::precharge(
-                    &block_config,
-                    GasAllowanceOf::<T>::get(),
-                    queued_dispatch.into_incoming(gas_limit),
-                    actor_id,
-                ) {
-                    PrechargeResult::Ok(d) => d,
-                    PrechargeResult::Error(_) => {
-                        return Err(b"Failed to charge message for Program".to_vec());
-                    }
-                };
-
-                let subsequent_execution = ext_manager.program_pages_loaded(&actor_id);
-                let message_execution_context = MessageExecutionContext {
-                    actor,
-                    precharged_dispatch,
-                    origin: ProgramId::from_origin(source),
-                    subsequent_execution,
-                };
-
-                let subsequent_execution = !subsequent_execution && actor_id == main_program_id;
-                let may_be_returned_context =
-                    subsequent_execution.then(|| MessageExecutionContext {
-                        subsequent_execution,
-                        ..message_execution_context.clone()
-                    });
-
-                let journal =
-                    match core_processor::prepare(&block_config, message_execution_context) {
-                        PrepareResult::Ok(context) => {
-                            let memory_pages = match Self::get_and_track_memory_pages(
-                                &mut ext_manager,
-                                actor_id,
-                                &context.actor_data().pages_with_data,
-                            ) {
-                                None => continue,
-                                Some(m) => m,
-                            };
-
-                            let code = Self::get_code(context.actor_data().code_id, actor_id)
-                                .unwrap_or_else(|| unreachable!("Program exists so do code"));
-
-                            may_be_returned += may_be_returned_context
-                                .map(|c| {
-                                    let burned = match core_processor::prepare(&block_config, c) {
-                                        PrepareResult::Ok(context) => {
-                                            context.gas_counter().burned()
-                                        }
-                                        _ => context.gas_counter().burned(),
-                                    };
-
-                                    context.gas_counter().burned() - burned
-                                })
-                                .unwrap_or(0);
-
-                            let (random, bn) = T::Randomness::random(dispatch_id.as_ref());
-                            core_processor::process::<Ext, ExecutionEnvironment>(
-                                &block_config,
-                                (context, actor_id, code).into(),
-                                (random.encode(), bn.unique_saturated_into()),
-                                memory_pages,
-                            )
-                        }
-                        PrepareResult::WontExecute(journal) | PrepareResult::Error(journal) => {
-                            journal
-                        }
-                    };
-
-                let get_main_limit = || GasHandlerOf::<T>::get_limit(main_message_id).ok();
-
-                let get_origin_msg_of = |msg_id| {
-                    GasHandlerOf::<T>::get_origin_key(msg_id)
-                        .map_err(|_| b"Internal error: unable to get origin key".to_vec())
-                };
-                let from_main_chain =
-                    |msg_id| get_origin_msg_of(msg_id).map(|v| v == main_message_id.into());
-
-                // TODO: Check whether we charge gas fee for submitting code after #646
-                for note in journal {
-                    core_processor::handle_journal(vec![note.clone()], &mut ext_manager);
-
-                    if let Some(remaining_gas) = get_main_limit() {
-                        min_limit = min_limit.max(initial_gas.saturating_sub(remaining_gas));
-                    }
-
-                    match note {
-                        JournalNote::SendDispatch { dispatch, .. } => {
-                            let destination =
-                                T::AccountId::from_origin(dispatch.destination().into_origin());
-                            if MailboxOf::<T>::contains(&destination, &dispatch.id())
-                                && from_main_chain(dispatch.id())?
-                            {
-                                let gas_limit = dispatch
-                                    .gas_limit()
-                                    .or_else(|| GasHandlerOf::<T>::get_limit(dispatch.id()).ok())
-                                    .ok_or_else(|| {
-                                        b"Internal error: unable to get gas limit after execution"
-                                            .to_vec()
-                                    })?;
-
-                                reserved = reserved.saturating_add(gas_limit);
-                            }
-                        }
-
-                        JournalNote::GasBurned { amount, message_id } => {
-                            if from_main_chain(message_id)? {
-                                burned = burned.saturating_add(amount);
-                            }
-                        }
-
-                        JournalNote::MessageDispatched {
-                            outcome: CoreDispatchOutcome::MessageTrap { trap, program_id },
-                            ..
-                        } if program_id == main_program_id || !allow_other_panics => {
-                            return Err(
-                                format!("Program terminated with a trap: {trap}").into_bytes()
-                            );
-                        }
-
-                        _ => (),
-                    }
-                }
-            }
-
-            let waited = WaitlistOf::<T>::contains(&main_program_id, &main_message_id);
-
-            Ok(GasInfo {
-                min_limit,
-                reserved,
-                burned,
-                may_be_returned,
-                waited,
-            })
         }
 
         /// Returns true if a program has been successfully initialized
@@ -1377,198 +1030,7 @@ pub mod pallet {
             }
         }
 
-        /// Message Queue processing.
-        pub fn process_queue(mut ext_manager: ExtManager<T>) {
-            let block_config = Self::block_config();
-
-            if T::DebugInfo::is_remap_id_enabled() {
-                T::DebugInfo::remap_id();
-            }
-
-            while QueueProcessingOf::<T>::allowed() {
-                if let Some(dispatch) = QueueOf::<T>::dequeue()
-                    .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e))
-                {
-                    // Querying gas limit. Fails in cases of `GasTree` invalidations.
-                    let gas_limit = GasHandlerOf::<T>::get_limit(dispatch.id())
-                        .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
-
-                    // Querying external id. Fails in cases of `GasTree` invalidations.
-                    let external = GasHandlerOf::<T>::get_external(dispatch.id())
-                        .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
-
-                    log::debug!(
-                        "QueueProcessing message: {:?} to {:?} / gas_limit: {}, gas_allowance: {}",
-                        dispatch.id(),
-                        dispatch.destination(),
-                        gas_limit,
-                        GasAllowanceOf::<T>::get(),
-                    );
-
-                    let program_id = dispatch.destination();
-                    let dispatch_id = dispatch.id();
-                    let dispatch_reply = dispatch.reply().is_some();
-                    let precharged_dispatch = match core_processor::precharge(
-                        &block_config,
-                        GasAllowanceOf::<T>::get(),
-                        dispatch.into_incoming(gas_limit),
-                        program_id,
-                    ) {
-                        PrechargeResult::Ok(d) => d,
-                        PrechargeResult::Error(journal) => {
-                            core_processor::handle_journal(journal, &mut ext_manager);
-
-                            if T::DebugInfo::is_enabled() {
-                                T::DebugInfo::do_snapshot();
-                            }
-
-                            if T::DebugInfo::is_remap_id_enabled() {
-                                T::DebugInfo::remap_id();
-                            }
-
-                            continue;
-                        }
-                    };
-
-                    let active_actor_data = if let Some(maybe_active_program) =
-                        common::get_program(program_id.into_origin())
-                    {
-                        // Check whether message should be added to the wait list
-                        if let Program::Active(prog) = maybe_active_program {
-                            if matches!(prog.state, ProgramState::Uninitialized {message_id} if message_id != dispatch_id)
-                                && !dispatch_reply
-                            {
-                                let (dispatch, journal) =
-                                    precharged_dispatch.into_dispatch_and_note();
-                                let (kind, message, context) = dispatch.into();
-                                let dispatch = StoredDispatch::new(
-                                    kind,
-                                    message.into_stored(program_id),
-                                    context,
-                                );
-
-                                core_processor::handle_journal(journal, &mut ext_manager);
-
-                                // Adding id in on-init wake list.
-                                common::waiting_init_append_message_id(
-                                    dispatch.destination(),
-                                    dispatch.id(),
-                                );
-
-                                Self::wait_dispatch(
-                                    dispatch,
-                                    None,
-                                    MessageWaitedSystemReason::ProgramIsNotInitialized
-                                        .into_reason(),
-                                );
-
-                                if T::DebugInfo::is_enabled() {
-                                    T::DebugInfo::do_snapshot();
-                                }
-
-                                if T::DebugInfo::is_remap_id_enabled() {
-                                    T::DebugInfo::remap_id();
-                                }
-
-                                continue;
-                            }
-
-                            Some(ExecutableActorData {
-                                allocations: prog.allocations,
-                                code_id: CodeId::from_origin(prog.code_hash),
-                                code_exports: prog.code_exports,
-                                code_length_bytes: prog.code_length_bytes,
-                                static_pages: prog.static_pages,
-                                initialized: matches!(prog.state, ProgramState::Initialized),
-                                pages_with_data: prog.pages_with_data,
-                                gas_reservation_map: prog.gas_reservation_map,
-                            })
-                        } else {
-                            // Reaching this branch is possible when init message was processed with failure, while other kind of messages
-                            // were already in the queue/were added to the queue (for example. moved from wait list in case of async init)
-                            log::debug!("Program '{program_id:?}' is not active");
-                            None
-                        }
-                    } else {
-                        // When an actor sends messages, which is intended to be added to the queue
-                        // it's destination existence is always checked. The only case this doesn't
-                        // happen is when program tries to submit another program with non-existing
-                        // code hash. That's the only known case for reaching that branch.
-                        //
-                        // However there is another case with pausing program, but this API is unstable currently.
-                        None
-                    };
-
-                    let balance = CurrencyOf::<T>::free_balance(
-                        &<T::AccountId as Origin>::from_origin(program_id.into_origin()),
-                    )
-                    .unique_saturated_into();
-
-                    let message_execution_context = MessageExecutionContext {
-                        actor: Actor {
-                            balance,
-                            destination_program: program_id,
-                            executable_data: active_actor_data,
-                        },
-                        precharged_dispatch,
-                        origin: ProgramId::from_origin(external.into_origin()),
-                        subsequent_execution: ext_manager.program_pages_loaded(&program_id),
-                    };
-
-                    let journal =
-                        match core_processor::prepare(&block_config, message_execution_context) {
-                            PrepareResult::Ok(context) => {
-                                let memory_pages = match Self::get_and_track_memory_pages(
-                                    &mut ext_manager,
-                                    program_id,
-                                    &context.actor_data().pages_with_data,
-                                ) {
-                                    None => continue,
-                                    Some(m) => m,
-                                };
-
-                                let code = Self::get_code(context.actor_data().code_id, program_id)
-                                    .unwrap_or_else(|| unreachable!("Program exists so do code"));
-                                let (random, bn) = T::Randomness::random(dispatch_id.as_ref());
-                                core_processor::process::<Ext, ExecutionEnvironment>(
-                                    &block_config,
-                                    (context, program_id, code).into(),
-                                    (random.encode(), bn.unique_saturated_into()),
-                                    memory_pages,
-                                )
-                            }
-                            PrepareResult::WontExecute(journal) | PrepareResult::Error(journal) => {
-                                journal
-                            }
-                        };
-
-                    core_processor::handle_journal(journal, &mut ext_manager);
-
-                    if T::DebugInfo::is_enabled() {
-                        T::DebugInfo::do_snapshot();
-                    }
-
-                    if T::DebugInfo::is_remap_id_enabled() {
-                        T::DebugInfo::remap_id();
-                    }
-                } else {
-                    break;
-                }
-            }
-
-            let post_data: QueuePostProcessingData = ext_manager.into();
-            let total_handled = DequeuedOf::<T>::get();
-
-            if total_handled > 0 {
-                Self::deposit_event(Event::MessagesDispatched {
-                    total: total_handled,
-                    statuses: post_data.dispatch_statuses,
-                    state_changes: post_data.state_changes,
-                });
-            }
-        }
-
-        fn get_and_track_memory_pages(
+        pub(crate) fn get_and_track_memory_pages(
             manager: &mut ExtManager<T>,
             program_id: ProgramId,
             pages_with_data: &BTreeSet<PageNumber>,
@@ -1597,7 +1059,7 @@ pub mod pallet {
             Some(memory_pages)
         }
 
-        fn get_code(code_id: CodeId, program_id: ProgramId) -> Option<InstrumentedCode> {
+        pub(crate) fn get_code(code_id: CodeId, program_id: ProgramId) -> Option<InstrumentedCode> {
             let code = match T::CodeStorage::get_code(code_id) {
                 None => {
                     log::error!("Code '{code_id:?}' not found for program '{program_id:?}'");
@@ -1620,7 +1082,7 @@ pub mod pallet {
             Some(code)
         }
 
-        fn block_config() -> BlockConfig {
+        pub(crate) fn block_config() -> BlockConfig {
             let block_info = BlockInfo {
                 height: Self::block_number().unique_saturated_into(),
                 timestamp: <pallet_timestamp::Pallet<T>>::get().unique_saturated_into(),
