@@ -111,6 +111,9 @@ jobs:
       - name: "Check clippy: Examples"
         run: ./scripts/gear.sh clippy examples
 
+      - name: "Test: Doc tests"
+        run:  ./scripts/gear.sh test doc
+
       - name: "Cache: Pack"
         if: ${{ github.event_name == 'push' }}
         continue-on-error: true
@@ -186,7 +189,7 @@ jobs:
           sudo chmod +x /usr/bin/cachepot
 
       - name: "Install: grcov"
-        run: 
+        run:
           curl -L https://github.com/mozilla/grcov/releases/latest/download/grcov-x86_64-unknown-linux-gnu.tar.bz2 | tar jxf -
 
       - name: "Install: rust-covfix"
@@ -350,7 +353,8 @@ jobs:
           path: artifact
 
   build-win:
-    if: github.ref == 'refs/heads/master' || contains(github.event.pull_request.labels.*.name, 'E1-forcewindows')
+    if: always() &&
+      (github.ref == 'refs/heads/master' || contains(github.event.pull_request.labels.*.name, 'E1-forcewindows'))
     needs: build
     runs-on: ci-win
     defaults:
@@ -495,7 +499,8 @@ jobs:
             --release
 
   build-macos-x86:
-    if: github.ref == 'refs/heads/master' || contains(github.event.pull_request.labels.*.name, 'E2-forcemacos')
+    if: always() && 
+      (github.ref == 'refs/heads/master' || contains(github.event.pull_request.labels.*.name, 'E2-forcemacos'))
     needs: build
     runs-on: macos-latest
     steps:
