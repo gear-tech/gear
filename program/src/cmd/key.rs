@@ -8,7 +8,7 @@ use subxt::ext::{
 };
 
 /// Cryptography scheme
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Scheme {
     Ecdsa,
     Ed25519,

@@ -38,7 +38,7 @@ scale-info = "2.1.2"
 schnorrkel = "0.9.1"
 serde = "^1"
 serde_json = "^1"
-clap = { version = "3.2", features = ["derive"], optional = true }
+clap = { version = "4.0.29", features = ["derive"], optional = true }
 subxt = "0.24.0"
 thiserror = "1.0.37"
 tokio = { version = "1.23.0", features = [ "full" ] }

@@ -90,7 +90,7 @@ impl Opt {
 
     /// run program
     pub async fn run() -> Result<()> {
-        let opt = Opt::from_args();
+        let opt = Opt::parse();
 
         opt.setup_logs()?;
         opt.exec().await?;
