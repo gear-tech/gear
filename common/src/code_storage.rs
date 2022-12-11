@@ -51,15 +51,12 @@ pub trait CodeStorage {
         })
     }
 
-    /// Returns true if the corresponding code in the storage
-    /// and it was updated successfully.
-    fn update_code(code_and_id: InstrumentedCodeAndId) -> bool {
+    /// Update the corresponding code in the storage.
+    fn update_code(code_and_id: InstrumentedCodeAndId) {
         let (code, code_id) = code_and_id.into_parts();
 
         Self::InstrumentedLenStorage::insert(code_id, code.code().len() as u32);
         Self::InstrumentedCodeStorage::insert(code_id, code);
-
-        true
     }
 
     fn exists(code_id: CodeId) -> bool {

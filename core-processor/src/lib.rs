@@ -29,6 +29,7 @@ use gear_core::message::StatusCode;
 
 pub mod common;
 pub mod configs;
+mod context;
 mod executor;
 mod ext;
 mod handler;
@@ -50,11 +51,13 @@ pub const UNAVAILABLE_DEST_STATUS_CODE: StatusCode = 2;
 /// A try to init again initialized, existing program.
 pub const RE_INIT_STATUS_CODE: StatusCode = 3;
 
+pub use context::{
+    ContextChargedForCode, ContextChargedForInstrumentation, ProcessExecutionContext,
+};
 pub use executor::{calculate_gas_for_code, calculate_gas_for_program, execute_wasm};
 pub use ext::{Ext, ProcessorContext, ProcessorError, ProcessorExt};
 pub use handler::handle_journal;
 pub use processor::{
     precharge_for_code, precharge_for_code_length, precharge_for_instrumentation,
-    precharge_for_memory, precharge_for_program, process, ContextChargedForCode,
-    ContextChargedForInstrumentation, ProcessExecutionContext,
+    precharge_for_memory, precharge_for_program, process,
 };
