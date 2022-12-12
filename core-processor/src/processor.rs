@@ -134,7 +134,7 @@ pub fn precharge_for_code_length(
         ));
     }
 
-    match executor::charge_gas_for_bytes(read_cost, &mut gas_counter, &mut gas_allowance_counter) {
+    match executor::charge_gas_per_byte(read_cost, &mut gas_counter, &mut gas_allowance_counter) {
         Ok => Result::Ok(ContextChargedForCodeLength {
             data: ContextData {
                 gas_counter,
@@ -210,12 +210,12 @@ pub fn precharge_for_instrumentation(
 ) -> PrechargeResult<ContextChargedForInstrumentation> {
     use executor::ChargeForBytesResult::*;
 
-    let cost_base = block_config.module_instrumentation_cost;
-    let cost_per_byte = block_config.module_instrumentation_byte_cost;
+    let cost_base = block_config.code_instrumentation_cost;
+    let cost_per_byte = block_config.code_instrumentation_byte_cost;
 
     let amount =
         cost_base.saturating_add(cost_per_byte.saturating_mul(original_code_len_bytes.into()));
-    match executor::charge_gas_for_bytes(
+    match executor::charge_gas_per_byte(
         amount,
         &mut context.data.gas_counter,
         &mut context.data.gas_allowance_counter,

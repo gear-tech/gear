@@ -197,8 +197,8 @@ where
         read_per_byte_cost: schedule.db_read_per_byte,
         module_instantiation_byte_cost: schedule.module_instantiation_per_byte,
         max_reservations: T::ReservationsLimit::get(),
-        module_instrumentation_cost: schedule.module_instrumentation_cost,
-        module_instrumentation_byte_cost: schedule.module_instrumentation_byte_cost,
+        code_instrumentation_cost: schedule.code_instrumentation_cost,
+        code_instrumentation_byte_cost: schedule.code_instrumentation_byte_cost,
     };
 
     let queued_dispatch = match QueueOf::<T>::dequeue().map_err(|_| "MQ storage corrupted")? {

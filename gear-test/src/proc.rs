@@ -481,7 +481,7 @@ fn test_block_config(block_info: BlockInfo) -> BlockConfig {
         write_per_byte_cost: WRITE_PER_BYTE_COST,
         module_instantiation_byte_cost: MODULE_INSTANTIATION_BYTE_COST,
         max_reservations: MAX_RESERVATIONS,
-        module_instrumentation_cost: MODULE_INSTRUMENTATION_COST,
-        module_instrumentation_byte_cost: MODULE_INSTRUMENTATION_BYTE_COST,
+        code_instrumentation_cost: MODULE_INSTRUMENTATION_COST,
+        code_instrumentation_byte_cost: MODULE_INSTRUMENTATION_BYTE_COST,
     }
 }

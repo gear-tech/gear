@@ -117,8 +117,8 @@ where
             read_per_byte_cost: schedule.db_read_per_byte,
             module_instantiation_byte_cost: schedule.module_instantiation_per_byte,
             max_reservations: T::ReservationsLimit::get(),
-            module_instrumentation_cost: 101,
-            module_instrumentation_byte_cost: 13,
+            code_instrumentation_cost: 101,
+            code_instrumentation_byte_cost: 13,
         };
 
         let mut min_limit = 0;
