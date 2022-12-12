@@ -10858,6 +10858,7 @@ version = "0.10.0-dev"
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.33#fac078bc74f6fc6858124c04a2d57a807ccc003e"
 dependencies = [
  "clap 4.0.29",
+ "frame-try-runtime",
  "log",
  "parity-scale-codec",
  "remote-externalities",

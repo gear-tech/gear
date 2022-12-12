@@ -92,7 +92,7 @@ debug-mode = [
 ]
 try-runtime = [
 	"service/try-runtime",
-	"try-runtime-cli",
+	"try-runtime-cli/try-runtime",
 	"gear-program/try-runtime",
 ]
 runtime-test = ["gear-runtime-test-cli"]
