@@ -108,6 +108,10 @@ where
             let program_id = dispatch.destination();
             let dispatch_id = dispatch.id();
             let dispatch_reply = dispatch.reply().is_some();
+
+            // To start executing a message resources of a destination program should be
+            // fetched from the storage.
+            // The first step is to get program data so charge gas for the operation.
             let precharged_dispatch = match core_processor::precharge_for_program(
                 &block_config,
                 GasAllowanceOf::<T>::get(),
@@ -122,6 +126,7 @@ where
                 }
             };
 
+            // At this point gas counters should be changed accordingly so fetch the program data.
             let active_actor_data =
                 match Self::get_active_actor_data(program_id, dispatch_id, dispatch_reply) {
                     ActorResult::Data(d) => d,
@@ -149,6 +154,8 @@ where
                     }
                 };
 
+            // The second step is to load instrumented binary code of the program but
+            // first its correct length should be obtained.
             let context = match core_processor::precharge_for_code_length(
                 &block_config,
                 precharged_dispatch,
@@ -162,6 +169,7 @@ where
                 }
             };
 
+            // Load correct code length value.
             let code_id = context.actor_data().code_id;
             let code_len_bytes = match T::CodeStorage::get_code_len(code_id) {
                 None => {
@@ -173,6 +181,7 @@ where
                 Some(c) => c,
             };
 
+            // Adjust gas counters for fetching instrumented binary code.
             let context =
                 match core_processor::precharge_for_code(&block_config, context, code_len_bytes) {
                     Ok(c) => c,
@@ -182,6 +191,7 @@ where
                     }
                 };
 
+            // Load instrumented binary code from storage.
             let code = match T::CodeStorage::get_code(code_id) {
                 None => {
                     unreachable!(
@@ -192,6 +202,7 @@ where
                 Some(c) => c,
             };
 
+            // Reinstrument the code if necessary.
             let (code, context) =
                 match code.instruction_weights_version() == schedule.instruction_weights.version {
                     true => (code, ContextChargedForInstrumentation::from(context)),
@@ -215,6 +226,7 @@ where
                     }
                 };
 
+            // The last one thing is to load program memory. Adjust gas counters for memory pages.
             let context = match core_processor::precharge_for_memory(
                 &block_config,
                 context,
@@ -227,6 +239,7 @@ where
                 }
             };
 
+            // Load program memory pages.
             let memory_pages = match Self::get_and_track_memory_pages(
                 &mut ext_manager,
                 program_id,
