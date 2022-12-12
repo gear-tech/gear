@@ -41,19 +41,19 @@ pub enum Command {
 
 /// Entrypoint of cli `gear`
 #[derive(Debug, Parser)]
-#[clap(name = "gear-program")]
+#[command(name = "gear-program")]
 pub struct Opt {
     /// Commands.
-    #[clap(subcommand)]
+    #[command(subcommand)]
     pub command: Command,
     /// Enable verbose logs.
-    #[clap(short, long)]
+    #[arg(short, long)]
     pub verbose: bool,
     /// Gear node rpc endpoint.
-    #[clap(short, long)]
+    #[arg(short, long)]
     pub endpoint: Option<String>,
     /// Password of the signer account.
-    #[clap(short, long)]
+    #[arg(short, long)]
     pub passwd: Option<String>,
 }
 

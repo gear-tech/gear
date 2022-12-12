@@ -30,7 +30,7 @@ pub struct Login {
     pub json: Option<PathBuf>,
 
     /// password of the signer account
-    #[clap(short, long)]
+    #[arg(short, long)]
     pub passwd: Option<String>,
 }
 

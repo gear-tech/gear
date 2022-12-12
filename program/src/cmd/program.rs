@@ -17,13 +17,13 @@ pub enum Action {
         /// Path of "*.meta.wasm".
         metadata: PathBuf,
         /// Input message for reading program state.
-        #[clap(short, long, default_value = "0x")]
+        #[arg(short, long, default_value = "0x")]
         msg: String,
         /// Block timestamp.
-        #[clap(short, long)]
+        #[arg(short, long)]
         timestamp: Option<u64>,
         /// Block height.
-        #[clap(long)]
+        #[arg(long)]
         height: Option<u64>,
     },
 }
@@ -33,7 +33,7 @@ pub enum Action {
 pub struct Program {
     /// Program id.
     pid: String,
-    #[clap(subcommand)]
+    #[command(subcommand)]
     action: Action,
 }
 

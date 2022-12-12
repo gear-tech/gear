@@ -92,31 +92,31 @@ enum Error {
 #[derive(Debug, clap::Parser)]
 struct Args {
     /// Don't generate `.meta.wasm` file with meta functions
-    #[clap(long)]
+    #[arg(long)]
     skip_meta: bool,
 
     /// Don't generate `.opt.wasm` file
-    #[clap(long)]
+    #[arg(long)]
     skip_opt: bool,
 
     /// Don't export `__gear_stack_end`
-    #[clap(long)]
+    #[arg(long)]
     skip_stack_end: bool,
 
     /// Strip custom sections of wasm binarires
-    #[clap(long, default_value = "true")]
+    #[arg(long, default_value = "true")]
     strip_custom_sections: bool,
 
     /// Check runtime imports against the whitelist
-    #[clap(long)]
+    #[arg(long)]
     check_runtime_imports: bool,
 
     /// Verbose output
-    #[clap(short, long)]
+    #[arg(short, long)]
     verbose: bool,
 
     /// Path to WASMs, accepts multiple files
-    #[clap(value_parser)]
+    #[arg(value_parser)]
     path: Vec<String>,
 }
 
