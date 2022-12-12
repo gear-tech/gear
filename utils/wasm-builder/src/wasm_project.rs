@@ -201,7 +201,8 @@ impl WasmProject {
 
         // Optimize source.
         fs::copy(&from_path, &to_path).context("unable to copy WASM file")?;
-        let _ = crate::optimize::optimize_wasm(to_path.clone(), "s", false);
+        // Issue (#1971)
+        // let _ = crate::optimize::optimize_wasm(to_path.clone(), "s", false);
 
         // Generate wasm binaries
         Self::generate_wasm(from_path, &to_opt_path, &to_meta_path)?;
