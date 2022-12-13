@@ -26,7 +26,7 @@ pub enum Action {
     /// Get mailbox info of the current account
     Mailbox {
         /// The count of mails for fetching
-        #[clap(default_value = "10", short, long)]
+        #[arg(default_value = "10", short, long)]
         count: u32,
     },
 }
@@ -38,7 +38,7 @@ pub struct Info {
     pub address: Option<String>,
 
     /// Info of balance, mailbox, etc.
-    #[clap(subcommand)]
+    #[command(subcommand)]
     pub action: Action,
 }
 
