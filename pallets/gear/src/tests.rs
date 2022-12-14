@@ -7087,7 +7087,7 @@ fn signal_during_prepare() {
 
 #[test]
 fn signal_async_wait_works() {
-    use demo_async_signal_entry::WASM_BINARY;
+    use demo_async_signal_entry::{InitAction, WASM_BINARY};
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -7095,7 +7095,7 @@ fn signal_async_wait_works() {
             RuntimeOrigin::signed(USER_1),
             WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
-            USER_1.encode(),
+            InitAction::None.encode(),
             10_000_000_000,
             0,
         ));
