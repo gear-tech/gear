@@ -37,6 +37,8 @@ use gear_wasm_instrument::syscalls::SysCallName;
 use pallet_timestamp::Pallet as TimestampPallet;
 use test_syscalls::{Kind, WASM_BINARY as SYSCALLS_TEST_WASM_BINARY};
 
+const SEND_MESSAGE_GAS_LIMIT: u64 = 50_000_000_000;
+
 pub fn main_test<T>()
 where
     T: Config,
@@ -841,8 +843,6 @@ where
         (TestCall::send_message(mp), None::<DefaultPostCheck>)
     })
 }
-
-const SEND_MESSAGE_GAS_LIMIT: u64 = 50_000_000_000;
 
 fn run_tester<T, P, S, Id>(get_test_call_params: S)
 where

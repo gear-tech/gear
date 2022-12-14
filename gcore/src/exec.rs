@@ -220,7 +220,7 @@ pub fn gas_available() -> u64 {
     gas
 }
 
-/// Get the current amount of gas limit for execution.
+/// Get the current amount of gas message was initially sent with.
 ///
 /// Each message processing consumes gas on instructions execution and memory
 /// allocations. This function returns a value of the gas limit for spending
