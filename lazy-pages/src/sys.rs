@@ -21,7 +21,11 @@
 use cfg_if::cfg_if;
 use region::Protection;
 use std::{
-    cell::RefMut, collections::BTreeSet, convert::TryFrom, iter::FromIterator, ops::RangeInclusive,
+    cell::RefMut,
+    collections::BTreeSet,
+    convert::{TryFrom, TryInto},
+    iter::FromIterator,
+    ops::RangeInclusive,
 };
 
 use crate::{
@@ -136,7 +140,7 @@ pub(crate) unsafe fn process_lazy_pages(
         // Extend pages interval, if start or end access pages, which has no data in storage.
         if is_write && LazyPage::size() < psg {
             if !sp_io::storage::exists(prefix.calc_key_for_page(start.to_page())) {
-                start = start.align_down(psg);
+                start = start.align_down(psg.try_into().expect("Cannot be null"));
             }
             if !sp_io::storage::exists(prefix.calc_key_for_page(end.to_page())) {
                 // Make page end aligned to `psg` for `end`.

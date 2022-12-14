@@ -22,6 +22,7 @@ use core::{
     convert::TryFrom,
     fmt::Debug,
     iter::Step,
+    num::NonZeroU32,
     ops::{Deref, DerefMut},
 };
 
@@ -146,8 +147,8 @@ pub enum PageError {
 /// Trait represents page with u32 size for u32 memory: max memory size is 2^32 bytes.
 /// All operations with page guarantees, that no addr or page number can be overflowed.
 pub trait PageU32Size: Sized + Clone + Copy + PartialEq + Eq {
-    /// Returns size of page. Important cannot be 0, in other case trait will not work correctly.
-    fn size() -> u32;
+    /// Returns size of page.
+    fn size_non_zero() -> NonZeroU32;
     /// Returns raw page number.
     fn raw(&self) -> u32;
     /// Constructs new page without any checks.
@@ -155,6 +156,10 @@ pub trait PageU32Size: Sized + Clone + Copy + PartialEq + Eq {
     /// Doesn't guarantee, that page offset or page end offset is in not overflowed.
     unsafe fn new_unchecked(num: u32) -> Self;
 
+    /// Size as u32. Cannot be zero because uses `Self::size_non_zero`.
+    fn size() -> u32 {
+        Self::size_non_zero().into()
+    }
     /// Constructs new page from byte offset: returns page which contains this byte.
     fn from_offset(offset: u32) -> Self {
         unsafe { Self::new_unchecked(offset / Self::size()) }
@@ -165,7 +170,6 @@ pub trait PageU32Size: Sized + Clone + Copy + PartialEq + Eq {
         let page_begin = num
             .checked_mul(Self::size())
             .ok_or(PageError::OverflowU32MemorySize(num, Self::size()))?;
-        // Suppose `- 1` safe, because zero size is unreachable case.
         let last_byte_offset = Self::size() - 1;
         // Check that the last page byte has index less or equal then u32::MAX
         page_begin
@@ -184,7 +188,7 @@ pub trait PageU32Size: Sized + Clone + Copy + PartialEq + Eq {
     }
     /// Returns new page, which impls PageU32Size, and contains self zero byte.
     fn to_page<PAGE: PageU32Size>(&self) -> PAGE {
-        unsafe { PAGE::new_unchecked(self.offset() / PAGE::size()) }
+        PAGE::from_offset(self.offset())
     }
     /// Returns page which has number `page.raw() + raw`, with checks.
     fn add_raw(&self, raw: u32) -> Result<Self, PageError> {
@@ -219,7 +223,8 @@ pub trait PageU32Size: Sized + Clone + Copy + PartialEq + Eq {
     /// Aligns page zero byte and returns page which contains this byte.
     /// Normally if `size % Self::size() == 0`,
     /// then aligned byte is zero byte of the returned page.
-    fn align_down(&self, size: u32) -> Self {
+    fn align_down(&self, size: NonZeroU32) -> Self {
+        let size: u32 = size.into();
         Self::from_offset((self.offset() / size) * size)
     }
     /// Returns page, which has zero byte offset == 0.
@@ -258,8 +263,9 @@ pub use gear_core_errors::MemoryError as Error;
 pub struct PageNumber(u32);
 
 impl PageU32Size for PageNumber {
-    fn size() -> u32 {
-        GEAR_PAGE_SIZE as u32
+    fn size_non_zero() -> NonZeroU32 {
+        static_assertions::const_assert_ne!(GEAR_PAGE_SIZE, 0);
+        unsafe { NonZeroU32::new_unchecked(GEAR_PAGE_SIZE as u32) }
     }
 
     fn raw(&self) -> u32 {
@@ -276,8 +282,9 @@ impl PageU32Size for PageNumber {
 pub struct WasmPageNumber(u32);
 
 impl PageU32Size for WasmPageNumber {
-    fn size() -> u32 {
-        WASM_PAGE_SIZE as u32
+    fn size_non_zero() -> NonZeroU32 {
+        static_assertions::const_assert_ne!(WASM_PAGE_SIZE, 0);
+        unsafe { NonZeroU32::new_unchecked(WASM_PAGE_SIZE as u32) }
     }
 
     fn raw(&self) -> u32 {
@@ -294,8 +301,9 @@ impl PageU32Size for WasmPageNumber {
 pub struct GranularityPage(u32);
 
 impl PageU32Size for GranularityPage {
-    fn size() -> u32 {
-        PAGE_STORAGE_GRANULARITY as u32
+    fn size_non_zero() -> NonZeroU32 {
+        static_assertions::const_assert_ne!(PAGE_STORAGE_GRANULARITY, 0);
+        unsafe { NonZeroU32::new_unchecked(PAGE_STORAGE_GRANULARITY as u32) }
     }
 
     fn raw(&self) -> u32 {

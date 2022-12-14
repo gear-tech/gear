@@ -27,11 +27,11 @@
 #![feature(step_trait)]
 
 use gear_core::memory::{
-    to_page_iter, PageNumber, PageU32Size, WasmPageNumber, PAGE_STORAGE_GRANULARITY,
+    to_page_iter, PageNumber, PageU32Size, WasmPageNumber, GEAR_PAGE_SIZE, PAGE_STORAGE_GRANULARITY,
 };
 use once_cell::sync::OnceCell;
 use sp_std::vec::Vec;
-use std::{cell::RefCell, collections::BTreeSet, iter::Step};
+use std::{cell::RefCell, collections::BTreeSet, iter::Step, num::NonZeroU32};
 
 mod sys;
 use sys::{
@@ -186,8 +186,9 @@ pub fn initialize_for_program(
 struct LazyPage(u32);
 
 impl PageU32Size for LazyPage {
-    fn size() -> u32 {
-        region::page::size().max(PageNumber::size() as usize) as u32
+    fn size_non_zero() -> NonZeroU32 {
+        static_assertions::const_assert_ne!(GEAR_PAGE_SIZE, 0);
+        unsafe { NonZeroU32::new_unchecked(region::page::size().max(GEAR_PAGE_SIZE) as u32) }
     }
 
     fn raw(&self) -> u32 {
