@@ -26,9 +26,30 @@ mod code {
 #[cfg(feature = "std")]
 pub use code::WASM_BINARY_OPT as WASM_BINARY;
 
+use codec::{Decode, Encode};
+
+#[derive(Debug, Encode, Decode)]
+pub enum InitAction {
+    None,
+    Panic,
+}
+
 #[cfg(not(feature = "std"))]
 mod wasm {
-    use gstd::{exec, msg};
+    use super::*;
+    use gstd::{exec, msg, ActorId};
+
+    #[gstd::async_init]
+    async fn init() {
+        let action = msg::load().unwrap();
+        match action {
+            InitAction::None => {}
+            InitAction::Panic => {
+                let _bytes = msg::reply_for_reply(b"init", 0).unwrap().await.unwrap();
+                panic!();
+            }
+        }
+    }
 
     #[gstd::async_main]
     async fn main() {

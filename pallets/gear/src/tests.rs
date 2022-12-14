@@ -7430,6 +7430,65 @@ fn system_reservation_wait_and_panic_works() {
 }
 
 #[test]
+fn system_reservation_wait_works() {
+    use demo_signal_entry::{HandleAction, WASM_BINARY};
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            USER_1.encode(),
+            10_000_000_000,
+            0,
+        ));
+
+        let pid = get_last_program_id();
+
+        run_to_block(2, None);
+
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            pid,
+            HandleAction::Wait.encode(),
+            10_000_000_000,
+            0,
+        ));
+
+        let mid = get_last_message_id();
+
+        run_to_block(3, None);
+
+        assert_ok!(GasHandlerOf::<Test>::get_system_reserve(mid));
+
+        let mut expiration = None;
+
+        run_to_block(3, None);
+
+        assert_ok!(GasHandlerOf::<Test>::get_system_reserve(mid));
+
+        System::events().iter().for_each(|e| {
+            if let MockRuntimeEvent::Gear(Event::MessageWaited {
+                expiration: exp, ..
+            }) = e.event
+            {
+                expiration = Some(exp);
+            }
+        });
+
+        let expiration = expiration.unwrap();
+
+        System::set_block_number(expiration - 1);
+        Gear::set_block_number((expiration - 1).try_into().unwrap());
+
+        run_to_next_block(None);
+
+        assert!(GasHandlerOf::<Test>::get_system_reserve(mid).is_err());
+    });
+}
+
+#[test]
 fn system_reservation_wait_and_exit_works() {
     use demo_signal_entry::{HandleAction, WASM_BINARY};
 
@@ -8005,6 +8064,121 @@ fn system_reservation_gas_allowance_rollbacks() {
         run_to_block(3, Some(min_limit - 1));
 
         assert_eq!(GasHandlerOf::<Test>::get_system_reserve(mid), Ok(0));
+    });
+}
+
+#[test]
+fn system_reservation_wait_and_exit_across_executions() {
+    use demo_signal_entry::{HandleAction, WASM_BINARY};
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            USER_1.encode(),
+            10_000_000_000,
+            0,
+        ));
+
+        let pid = get_last_program_id();
+
+        run_to_block(2, None);
+
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            pid,
+            HandleAction::Wait.encode(),
+            10_000_000_000,
+            0,
+        ));
+
+        let mid_wait = get_last_message_id();
+
+        run_to_block(3, None);
+
+        assert_ok!(GasHandlerOf::<Test>::get_system_reserve(mid_wait));
+
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            pid,
+            HandleAction::Exit.encode(),
+            10_000_000_000,
+            0,
+        ));
+
+        let mid_exit = get_last_message_id();
+
+        run_to_block(4, None);
+
+        assert!(Gear::is_exited(pid));
+        assert!(GasHandlerOf::<Test>::get_system_reserve(mid_wait).is_err());
+        assert!(GasHandlerOf::<Test>::get_system_reserve(mid_exit).is_err());
+
+        MailboxOf::<Test>::clear();
+
+        let mut expiration = None;
+
+        System::events().iter().for_each(|e| {
+            if let MockRuntimeEvent::Gear(Event::MessageWaited {
+                expiration: exp, ..
+            }) = e.event
+            {
+                expiration = Some(exp);
+            }
+        });
+
+        let expiration = expiration.unwrap();
+
+        System::set_block_number(expiration - 1);
+        Gear::set_block_number((expiration - 1).try_into().unwrap());
+
+        run_to_next_block(None);
+
+        // nothing happened after
+        assert!(MailboxOf::<Test>::is_empty(&USER_1));
+    });
+}
+
+#[test]
+fn signal_on_terminated_program() {
+    use demo_async_signal_entry::{InitAction, WASM_BINARY};
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            InitAction::Panic.encode(),
+            10_000_000_000,
+            0,
+        ));
+
+        let pid = get_last_program_id();
+        let mid = get_last_message_id();
+
+        run_to_block(2, None);
+
+        assert!(Gear::is_active(pid));
+        assert_ok!(GasHandlerOf::<Test>::get_system_reserve(mid));
+
+        let msg = get_last_mail(USER_1);
+        assert_eq!(msg.payload(), b"init");
+
+        assert_ok!(Gear::send_reply(
+            RuntimeOrigin::signed(USER_1),
+            msg.id(),
+            EMPTY_PAYLOAD.to_vec(),
+            10_000_000_000,
+            0,
+        ));
+
+        run_to_block(3, None);
+
+        assert!(Gear::is_terminated(pid));
+        assert!(GasHandlerOf::<Test>::get_system_reserve(mid).is_err());
     });
 }
 
