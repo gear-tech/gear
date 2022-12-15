@@ -127,7 +127,8 @@ pub fn read(buffer: &mut [u8]) -> Result<()> {
     SyscallError(len).into_result()
 }
 
-/// Get a payload of the message that is currently being processed without checking.
+/// Get a payload of the message that is currently being processed without
+/// checking.
 ///
 /// This function loads the message's payload into a buffer with a message size
 /// that can be obtained using the [`size`] function.
