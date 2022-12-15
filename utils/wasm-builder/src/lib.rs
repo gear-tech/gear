@@ -18,6 +18,7 @@
 
 use anyhow::Result;
 use gmeta::{Metadata, MetadataRepr};
+use wasm_project::ProjectType;
 use std::{env, process};
 
 use crate::{cargo_command::CargoCommand, wasm_project::WasmProject};
@@ -43,7 +44,7 @@ impl WasmBuilder {
     /// Create a new `WasmBuilder`.
     pub fn new() -> Self {
         WasmBuilder {
-            wasm_project: WasmProject::new(None, false),
+            wasm_project: WasmProject::new(ProjectType::Program(None)),
             cargo: CargoCommand::new(),
         }
     }
@@ -51,7 +52,7 @@ impl WasmBuilder {
     /// Create a new `WasmBuilder` for metawasm.
     pub fn new_metawasm() -> Self {
         WasmBuilder {
-            wasm_project: WasmProject::new(None, true),
+            wasm_project: WasmProject::new(ProjectType::Metawasm),
             cargo: CargoCommand::new(),
         }
     }
@@ -59,7 +60,7 @@ impl WasmBuilder {
     /// Create a new `WasmBuilder` with metadata.
     pub fn with_meta(metadata: MetadataRepr) -> Self {
         WasmBuilder {
-            wasm_project: WasmProject::new(Some(metadata), false),
+            wasm_project: WasmProject::new(ProjectType::Program(Some(metadata))),
             cargo: CargoCommand::new(),
         }
     }

@@ -29,6 +29,25 @@ use std::{
 };
 use toml::value::Table;
 
+/// Enum defining type of binary compiling: production program or metawasm.
+pub enum ProjectType {
+    Program(Option<MetadataRepr>),
+    Metawasm,
+}
+
+impl ProjectType {
+    pub fn is_metawasm(&self) -> bool {
+        matches!(self, ProjectType::Metawasm)
+    }
+
+    pub fn metadata(&self) -> Option<&MetadataRepr> {
+        match self {
+            ProjectType::Program(metadata) => metadata.as_ref(),
+            _ => None,
+        }
+    }
+}
+
 /// Temporary project generated to build a WASM output.
 ///
 /// This project is required due to the cargo locking during build.
@@ -39,13 +58,12 @@ pub struct WasmProject {
     wasm_target_dir: PathBuf,
     file_base_name: Option<String>,
     profile: String,
-    metadata: Option<MetadataRepr>,
-    is_metawasm: bool,
+    project_type: ProjectType,
 }
 
 impl WasmProject {
     /// Create a new `WasmProject`.
-    pub fn new(metadata: Option<MetadataRepr>, is_metawasm: bool) -> Self {
+    pub fn new(project_type: ProjectType) -> Self {
         let original_dir: PathBuf = env::var("CARGO_MANIFEST_DIR")
             .expect("`CARGO_MANIFEST_DIR` is always set in build scripts")
             .into();
@@ -89,8 +107,7 @@ impl WasmProject {
             wasm_target_dir,
             file_base_name: None,
             profile,
-            metadata,
-            is_metawasm,
+            project_type,
         }
     }
 
@@ -180,7 +197,7 @@ impl WasmProject {
         let _ = fs::copy(from_lock, to_lock);
 
         // Write metadata
-        if let Some(metadata) = &self.metadata {
+        if let Some(metadata) = &self.project_type.metadata() {
             let wasm_meta_path = self.original_dir.join("meta.txt");
             let wasm_meta_hash_path = self.original_dir.join(".metahash");
 
@@ -216,15 +233,15 @@ impl WasmProject {
             .map(|ext| self.wasm_target_dir.join([file_base_name, ext].concat()));
 
         // Optimize source.
-        if !self.is_metawasm {
+        if !self.project_type.is_metawasm() {
             fs::copy(&from_path, &to_path).context("unable to copy WASM file")?;
             // Issue (#1971)
             // let _ = crate::optimize::optimize_wasm(to_path.clone(), "s", false);
         }
 
         let metadata = self
-            .metadata
-            .as_ref()
+            .project_type
+            .metadata()
             .map(|m| {
                 format!(
                     "#[allow(unused)] pub const WASM_METADATA: &[u8] = &{:?};\n",
@@ -236,7 +253,7 @@ impl WasmProject {
         // Generate wasm binaries
         Self::generate_wasm(
             from_path,
-            (!self.is_metawasm).then_some(&to_opt_path),
+            (!self.project_type.is_metawasm()).then_some(&to_opt_path),
             Some(&to_meta_path),
         )?;
 
@@ -248,14 +265,14 @@ impl WasmProject {
         // Remove extension
         relative_path.set_extension("");
 
-        if !self.is_metawasm {
+        if !self.project_type.is_metawasm() {
             fs::write(wasm_binary_path, format!("{}", relative_path.display()))
                 .context("unable to write `.binpath`")?;
         }
 
         let wasm_binary_rs = self.out_dir.join("wasm_binary.rs");
 
-        if !self.is_metawasm {
+        if !self.project_type.is_metawasm() {
             fs::write(
                 wasm_binary_rs,
                 format!(

@@ -329,7 +329,7 @@ where
             // If the block hash is not supplied assume the best block.
             self.client.info().best_hash));
 
-        self.run_with_api_copy(|api| api.read_state(&at, program_id).map(|r| r.map(Bytes)))
+        self.run_with_api_copy(|api| api.read_state(&at, program_id)).map(Bytes)
     }
 
     fn read_state_using_wasm(

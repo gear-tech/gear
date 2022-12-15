@@ -45,9 +45,6 @@ mod exports {
     pub use demo_meta_state_v2::{META_EXPORTS_V2, META_WASM_V2};
 }
 
-// Empty exports while compiling into wasm
-#[cfg(not(feature = "std"))]
-mod exports {}
-
 // Public exports
+#[cfg(feature = "std")]
 pub use exports::*;

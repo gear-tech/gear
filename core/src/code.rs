@@ -40,14 +40,15 @@ use scale_info::TypeInfo;
 /// Defines maximal permitted count of memory pages.
 pub const MAX_WASM_PAGE_COUNT: u32 = 512;
 
+/// Name of exports allowed on chain except execution kinds.
+pub const STATE_EXPORTS: [&'static str; 2] = ["state", "metahash"];
+
 /// Parse function exports from wasm module into [`DispatchKind`].
 fn get_exports(
     module: &Module,
     reject_unnecessary: bool,
 ) -> Result<BTreeSet<DispatchKind>, CodeError> {
     let mut exports = BTreeSet::<DispatchKind>::new();
-
-    let state_exports = ["state", "metahash"];
 
     for entry in module
         .export_section()
@@ -58,7 +59,7 @@ fn get_exports(
         if let Internal::Function(_) = entry.internal() {
             if let Some(kind) = DispatchKind::try_from_entry(entry.field()) {
                 exports.insert(kind);
-            } else if !state_exports.contains(&entry.field()) && reject_unnecessary {
+            } else if !STATE_EXPORTS.contains(&entry.field()) && reject_unnecessary {
                 return Err(CodeError::NonGearExportFnFound);
             }
         }
@@ -227,30 +228,23 @@ impl Code {
             return Err(CodeError::RequiredExportFnNotFound);
         }
 
-        if instrument_with_const_rules {
+        let code = if instrument_with_const_rules {
             let instrumented_module =
                 gear_wasm_instrument::inject(module, &ConstantCostRules::default(), "env")
                     .map_err(|_| CodeError::GasInjection)?;
 
-            let instrumented = parity_wasm::elements::serialize(instrumented_module)
-                .map_err(|_| CodeError::Encode)?;
-
-            Ok(Self {
-                raw_code: original_code,
-                code: instrumented,
-                exports,
-                static_pages,
-                instruction_weights_version: version,
-            })
+            parity_wasm::elements::serialize(instrumented_module).map_err(|_| CodeError::Encode)?
         } else {
-            Ok(Self {
-                raw_code: original_code.clone(),
-                code: original_code,
-                exports,
-                static_pages,
-                instruction_weights_version: version,
-            })
-        }
+            original_code.clone()
+        };
+
+        Ok(Self {
+            raw_code: original_code,
+            code,
+            exports,
+            static_pages,
+            instruction_weights_version: version,
+        })
     }
 
     /// Create the code with instrumentation, but without checks.

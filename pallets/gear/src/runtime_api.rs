@@ -21,11 +21,11 @@ use core::convert::TryFrom;
 use gear_core::memory::WasmPageNumber;
 use gear_wasm_instrument::syscalls::SysCallName;
 
-pub(crate) type CodeWithMemoryData = (
-    InstrumentedCode,
-    BTreeSet<WasmPageNumber>,
-    Option<BTreeMap<PageNumber, PageBuf>>,
-);
+pub(crate) struct CodeWithMemoryData {
+    pub instrumented_code: InstrumentedCode,
+    pub allocations: BTreeSet<WasmPageNumber>,
+    pub program_pages: Option<BTreeMap<PageNumber, PageBuf>>,
+}
 
 impl<T: Config> Pallet<T>
 where
@@ -247,7 +247,7 @@ where
 
         let code_id = CodeId::from_origin(program.code_hash);
 
-        let code = Self::get_code(code_id, program_id)
+        let instrumented_code = Self::get_code(code_id, program_id)
             .ok_or_else(|| String::from("Failed to get code for given program id"))?;
 
         #[cfg(not(feature = "lazy-pages"))]
@@ -259,7 +259,9 @@ where
         #[cfg(feature = "lazy-pages")]
         let program_pages = None;
 
-        Ok((code, program.allocations, program_pages))
+        let allocations = program.allocations;
+
+        Ok(CodeWithMemoryData { instrumented_code, allocations, program_pages })
     }
 
     pub(crate) fn read_state_using_wasm_impl(
@@ -314,11 +316,11 @@ where
 
         log::debug!("Reading state of {program_id:?}");
 
-        let (code, allocations, program_pages) = Self::code_with_memory(program_id)?;
+        let CodeWithMemoryData { instrumented_code, allocations, program_pages } = Self::code_with_memory(program_id)?;
 
         core_processor::informational::execute_for_reply::<Ext, ExecutionEnvironment<String>, String>(
             String::from("state"),
-            code,
+            instrumented_code,
             program_pages,
             Some(allocations),
             Some(program_id),
@@ -333,11 +335,11 @@ where
 
         log::debug!("Reading metahash of {program_id:?}");
 
-        let (code, allocations, program_pages) = Self::code_with_memory(program_id)?;
+        let CodeWithMemoryData { instrumented_code, allocations, program_pages } = Self::code_with_memory(program_id)?;
 
         core_processor::informational::execute_for_reply::<Ext, ExecutionEnvironment<String>, String>(
             String::from("metahash"),
-            code,
+            instrumented_code,
             program_pages,
             Some(allocations),
             Some(program_id),

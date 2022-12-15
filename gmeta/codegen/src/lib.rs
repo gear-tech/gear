@@ -369,6 +369,7 @@ fn generate_metadata(funcs: &Vec<ItemFn>) -> TokenStream {
         map.insert(name, (input, output));
     }
 
+    // Function name and types of input and output.
     let add_fn = |name: Ident, (i, o): (Option<Type>, Type)| {
         let name = name.to_string();
 
