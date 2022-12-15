@@ -141,7 +141,7 @@ pub fn read(buffer: &mut [u8]) -> Result<()> {
 /// #[no_mangle]
 /// extern "C" fn handle() {
 ///     let mut payload = vec![0u8; 4 + msg::size()];
-///     msg::read_unchecked(&mut payload).expect("Unable to read");
+///     msg::read_unchecked(&mut payload);
 /// }
 /// ```
 pub fn read_unchecked(buffer: &mut [u8]) {
