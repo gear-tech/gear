@@ -25,6 +25,7 @@ pub struct MetadataRepr {
     pub handle: TypesRepr,
     pub reply: TypesRepr,
     pub others: TypesRepr,
+    pub signal: Option<u32>,
     pub state: Option<u32>,
     pub registry: Vec<u8>,
 }
@@ -105,6 +106,7 @@ pub trait Metadata {
     type Handle: Types;
     type Reply: Types;
     type Others: Types;
+    type Signal: Type;
     type State: Type;
 
     fn repr() -> MetadataRepr {
@@ -115,6 +117,7 @@ pub trait Metadata {
             handle: Self::Handle::register(&mut registry),
             reply: Self::Reply::register(&mut registry),
             others: Self::Others::register(&mut registry),
+            signal: Self::Signal::register(&mut registry),
             state: Self::State::register(&mut registry),
             registry: PortableRegistry::from(registry).encode(),
         }

@@ -14,6 +14,7 @@ impl Metadata for ProgramMetadata {
     type Handle = InOut<MessageIn, MessageOut>;
     type Others = InOut<MessageAsyncIn, Option<u8>>;
     type Reply = InOut<String, Vec<u16>>;
+    type Signal = ();
     type State = Vec<Wallet>;
 }
 
