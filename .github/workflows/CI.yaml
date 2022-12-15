@@ -1,12 +1,6 @@
 name: CI
 
 on:
-  schedule:
-    - cron: "0 3 * * *"
-  push:
-    branches: [master, vara-stage-1, vara-stage-2, vara-stage-3]
-  pull_request:
-    branches: [master, vara-stage-1, vara-stage-2, vara-stage-3]
   workflow_dispatch:
 
 env:
@@ -543,12 +537,10 @@ jobs:
             --features=lazy-pages
 
   upload:
-    if: github.event_name == 'push' && github.ref_name == 'master'
     runs-on: self-hosted
     needs: build
     steps:
       - name: Cancel Previous Runs
-        if: ${{ github.event_name == 'pull_request' }}
         uses: styfle/cancel-workflow-action@0.9.1
         with:
           access_token: ${{ github.token }}
@@ -572,7 +564,7 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           prerelease: true
-          tag_name: build
+          tag_name: stable
           draft: false
           fail_on_unmatched_files: true
           files: artifact/*
