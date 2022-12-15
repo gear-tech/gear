@@ -61,6 +61,9 @@ where
         f.build(SendInit, |forbidden| F::send_init(store, forbidden, memory)),
         f.build(SendPush, |forbidden| F::send_push(store, forbidden, memory)),
         f.build(Read, |forbidden| F::read(store, forbidden, memory)),
+        f.build(ReadUnchecked, |forbidden| {
+            F::read_unchecked(store, forbidden, memory)
+        }),
         f.build(Size, |forbidden| F::size(store, forbidden, memory)),
         f.build(Exit, |forbidden| F::exit(store, forbidden, memory)),
         f.build(StatusCode, |forbidden| {

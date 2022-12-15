@@ -95,7 +95,6 @@ pub fn id() -> MessageId {
     message_id
 }
 
-// TODO: issue #1859
 /// Get a payload of the message that is currently being processed.
 ///
 /// This function loads the message's payload into a buffer with a message size
@@ -126,6 +125,26 @@ pub fn read(buffer: &mut [u8]) -> Result<()> {
     }
 
     SyscallError(len).into_result()
+}
+
+/// Get a payload of the message that is currently being processed without checking.
+///
+/// This function loads the message's payload into a buffer with a message size
+/// that can be obtained using the [`size`] function.
+///
+/// # Examples
+///
+/// ```
+/// use gcore::msg;
+///
+/// #[no_mangle]
+/// extern "C" fn handle() {
+///     let mut payload = vec![0u8; 4 + msg::size()];
+///     msg::read_unchecked(&mut payload).expect("Unable to read");
+/// }
+/// ```
+pub fn read_unchecked(buffer: &mut [u8]) {
+    unsafe { gsys::gr_read_unchecked(0, size as u32, buffer.as_mut_ptr()) }
 }
 
 /// Send a new message as a reply to the message that is currently being

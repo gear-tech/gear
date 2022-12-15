@@ -65,6 +65,7 @@ where
             SysCallName::CreateProgram => check_create_program::<T>(None),
             SysCallName::CreateProgramWGas => check_create_program::<T>(Some(25_000_000_000)),
             SysCallName::Read => {/* checked in all the calls internally */},
+            SysCallName::ReadUnchecked => {/* checked in all the calls internally */},
             SysCallName::Size => check_gr_size::<T>(),
             SysCallName::StatusCode => {/* checked in reply_to */},
             SysCallName::MessageId => check_gr_message_id::<T>(),

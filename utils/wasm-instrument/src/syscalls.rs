@@ -61,6 +61,7 @@ pub enum SysCallName {
 
     // Message data related
     Read,
+    ReadUnchecked,
     ReplyTo,
     SignalFrom,
     Size,
@@ -123,6 +124,7 @@ impl SysCallName {
             SysCallName::ProgramId => "gr_program_id",
             SysCallName::Random => "gr_random",
             SysCallName::Read => "gr_read",
+            SysCallName::ReadUnchecked => "gr_read_unchecked",
             SysCallName::Reply => "gr_reply",
             SysCallName::ReplyCommit => "gr_reply_commit",
             SysCallName::ReplyCommitWGas => "gr_reply_commit_wgas",
@@ -191,6 +193,7 @@ impl SysCallName {
             Self::StatusCode,
             Self::MessageId,
             Self::Read,
+            Self::ReadUnchecked,
             Self::Reply,
             Self::ReplyWGas,
             Self::ReplyCommit,
