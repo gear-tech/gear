@@ -46,14 +46,14 @@ impl FromStr for Runtime {
 #[derive(Debug, clap::Parser)]
 pub struct RuntimeTestCmd {
     /// Input dir/file with yaml for testing.
-    #[clap(value_parser)]
+    #[arg(value_parser)]
     pub input: Vec<PathBuf>,
 
     /// Produce output in the (almost) JUnit/XUnit XML format.
-    #[clap(long, value_parser)]
+    #[arg(long, value_parser)]
     pub generate_junit: Option<PathBuf>,
 
-    #[clap(long, value_parser)]
+    #[arg(long, value_parser)]
     pub runtime: Runtime,
 
     #[allow(missing_docs)]

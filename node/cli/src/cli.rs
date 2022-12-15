@@ -22,20 +22,20 @@ use clap::Parser;
 #[derive(Debug, Parser)]
 pub struct RunCmd {
     #[allow(missing_docs)]
-    #[clap(flatten)]
+    #[command(flatten)]
     pub base: sc_cli::RunCmd,
 
     /// Force using Vara native runtime.
-    #[clap(long = "force-vara")]
+    #[arg(long = "force-vara")]
     pub force_vara: bool,
 }
 
 #[derive(Debug, Parser)]
 pub struct Cli {
-    #[clap(subcommand)]
+    #[command(subcommand)]
     pub subcommand: Option<Subcommand>,
 
-    #[clap(flatten)]
+    #[command(flatten)]
     pub run: RunCmd,
 
     /// Disable automatic hardware benchmarks.
@@ -45,14 +45,14 @@ pub struct Cli {
     ///
     /// The results are then printed out in the logs, and also sent as part of
     /// telemetry, if telemetry is enabled.
-    #[clap(long)]
+    #[arg(long)]
     pub no_hardware_benchmarks: bool,
 }
 
 #[derive(Debug, clap::Subcommand)]
 pub enum Subcommand {
     /// Key management cli utilities
-    #[clap(subcommand)]
+    #[command(subcommand)]
     Key(sc_cli::KeySubcommand),
 
     /// Build a chain specification.
@@ -78,7 +78,7 @@ pub enum Subcommand {
 
     /// Sub-commands concerned with benchmarking.
     #[cfg(feature = "runtime-benchmarks")]
-    #[clap(subcommand)]
+    #[command(subcommand)]
     Benchmark(frame_benchmarking_cli::BenchmarkCmd),
 
     /// Try some command against runtime state.
@@ -93,7 +93,7 @@ pub enum Subcommand {
     ChainInfo(sc_cli::ChainInfoCmd),
 
     #[cfg(feature = "runtime-test")]
-    #[clap(
+    #[command(
         name = "runtime-spec-tests",
         about = "Run gear runtime tests with yaml."
     )]
@@ -106,6 +106,6 @@ pub enum Subcommand {
     /// Only support gear runtime when features include both `gear-program/gear`
     /// and `gear-program/vara`.
     #[cfg(feature = "program")]
-    #[clap(name = "program", about = "Run gear program cli.")]
+    #[command(name = "program", about = "Run gear program cli.")]
     GearProgram(gear_program::cmd::Opt),
 }

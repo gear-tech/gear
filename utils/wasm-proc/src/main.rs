@@ -91,33 +91,33 @@ enum Error {
 
 #[derive(Debug, clap::Parser)]
 struct Args {
-    /// Path to WASMs, accepts multiple files
-    #[clap(short, long, value_parser, multiple = true)]
-    path: Vec<String>,
-
     /// Don't generate `.meta.wasm` file with meta functions
-    #[clap(long)]
+    #[arg(long)]
     skip_meta: bool,
 
     /// Don't generate `.opt.wasm` file
-    #[clap(long)]
+    #[arg(long)]
     skip_opt: bool,
 
     /// Don't export `__gear_stack_end`
-    #[clap(long)]
+    #[arg(long)]
     skip_stack_end: bool,
 
     /// Strip custom sections of wasm binarires
-    #[clap(long, default_value = "true")]
+    #[arg(long, default_value = "true")]
     strip_custom_sections: bool,
 
     /// Check runtime imports against the whitelist
-    #[clap(long)]
+    #[arg(long)]
     check_runtime_imports: bool,
 
     /// Verbose output
-    #[clap(short, long)]
+    #[arg(short, long)]
     verbose: bool,
+
+    /// Path to WASMs, accepts multiple files
+    #[arg(value_parser)]
+    path: Vec<String>,
 }
 
 fn check_rt_imports(path_to_wasm: &str, allowed_imports: &HashSet<&str>) -> Result<(), String> {
@@ -173,14 +173,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
 
         let file = PathBuf::from(file);
-        let res = gear_wasm_builder::optimize::optimize_wasm(file.clone(), "s", true)?;
+        // Issue (#1971)
+        // let res = gear_wasm_builder::optimize::optimize_wasm(file.clone(), "s", true)?;
 
-        log::info!(
-            "wasm-opt: {} {} Kb -> {} Kb",
-            res.dest_wasm.display(),
-            res.original_size,
-            res.optimized_size
-        );
+        // log::info!(
+        //     "wasm-opt: {} {} Kb -> {} Kb",
+        //     res.dest_wasm.display(),
+        //     res.original_size,
+        //     res.optimized_size
+        // );
 
         let mut optimizer = Optimizer::new(file.clone())?;
 
