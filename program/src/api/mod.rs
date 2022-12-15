@@ -4,6 +4,7 @@ use client::RpcClient;
 use config::GearConfig;
 use core::ops::{Deref, DerefMut};
 use signer::Signer;
+use std::sync::Arc;
 use subxt::OnlineClient;
 
 mod client;
@@ -30,13 +31,13 @@ impl Api {
     /// Create new API client with timeout.
     pub async fn new_with_timeout(url: Option<&str>, timeout: Option<u64>) -> Result<Self> {
         Ok(Self(
-            OnlineClient::from_rpc_client(RpcClient::new(url, timeout).await?).await?,
+            OnlineClient::from_rpc_client(Arc::new(RpcClient::new(url, timeout).await?)).await?,
         ))
     }
 
-    /// Subscribe all events
-    pub async fn events(&self) -> Result<types::FinalizedEvents> {
-        Ok(self.0.events().subscribe_finalized().await?)
+    /// Subscribe finalized blocks
+    pub async fn finalized_blocks(&self) -> Result<types::FinalizedBlocks> {
+        Ok(self.0.blocks().subscribe_finalized().await?)
     }
 
     /// New signer from api

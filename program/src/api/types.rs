@@ -3,13 +3,12 @@ use crate::{
     api::{config::GearConfig, generated::api::runtime_types::gear_common::ActiveProgram},
     result::Result,
 };
+use futures::Stream;
 use parity_scale_codec::{Decode, Encode};
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::{collections::HashMap, pin::Pin, result::Result as StdResult};
 use subxt::{
-    events::{EventSubscription, FinalizedEventSub},
-    ext::sp_runtime::{generic::Header, traits::BlakeTwo256},
-    rpc::Subscription,
+    blocks::Block,
     tx::{self, TxInBlock},
     OnlineClient,
 };
@@ -25,13 +24,8 @@ pub struct GasInfo {
     pub burned: u64,
 }
 
-pub type Events =
-    EventSubscription<GearConfig, OnlineClient<GearConfig>, Subscription<Header<u32, BlakeTwo256>>>;
-
-pub type FinalizedEvents = EventSubscription<
-    GearConfig,
-    OnlineClient<GearConfig>,
-    FinalizedEventSub<Header<u32, BlakeTwo256>>,
+pub type FinalizedBlocks = Pin<
+    Box<dyn Stream<Item = StdResult<Block<GearConfig, OnlineClient<GearConfig>>, subxt::Error>>>,
 >;
 
 /// Gear pages.
