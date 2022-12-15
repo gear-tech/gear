@@ -41,7 +41,7 @@ use scale_info::TypeInfo;
 pub const MAX_WASM_PAGE_COUNT: u32 = 512;
 
 /// Name of exports allowed on chain except execution kinds.
-pub const STATE_EXPORTS: [&'static str; 2] = ["state", "metahash"];
+pub const STATE_EXPORTS: [&str; 2] = ["state", "metahash"];
 
 /// Parse function exports from wasm module into [`DispatchKind`].
 fn get_exports(

@@ -1670,12 +1670,10 @@ dependencies = [
 name = "demo-meta"
 version = "0.1.0"
 dependencies = [
- "demo-meta-io",
- "demo-meta-state-v1",
- "demo-meta-state-v2",
  "gear-wasm-builder",
  "gstd",
  "parity-scale-codec",
+ "scale-info",
 ]
 
 [[package]]
@@ -1723,6 +1721,18 @@ dependencies = [
  "gear-wasm-builder",
  "gstd",
  "hex",
+]
+
+[[package]]
+name = "demo-new-meta"
+version = "0.1.0"
+dependencies = [
+ "demo-meta-io",
+ "demo-meta-state-v1",
+ "demo-meta-state-v2",
+ "gear-wasm-builder",
+ "gstd",
+ "parity-scale-codec",
 ]
 
 [[package]]
@@ -6113,8 +6123,8 @@ dependencies = [
  "demo-init-wait",
  "demo-init-wait-reply-exit",
  "demo-init-with-value",
- "demo-meta",
  "demo-mul-by-const",
+ "demo-new-meta",
  "demo-program-factory",
  "demo-proxy",
  "demo-proxy-relay",

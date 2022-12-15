@@ -748,9 +748,11 @@ pub mod pallet {
         ) -> Result<Vec<u8>, Vec<u8>> {
             let program_id = ProgramId::from_origin(program_id.into_origin());
 
-            let fn_name = String::from_utf8(fn_name).map_err(|_| "Non-utf8 function name".as_bytes().to_vec())?;
+            let fn_name = String::from_utf8(fn_name)
+                .map_err(|_| "Non-utf8 function name".as_bytes().to_vec())?;
 
-            Self::read_state_using_wasm_impl(program_id, fn_name, wasm, argument).map_err(String::into_bytes)
+            Self::read_state_using_wasm_impl(program_id, fn_name, wasm, argument)
+                .map_err(String::into_bytes)
         }
 
         pub fn read_state(program_id: H256) -> Result<Vec<u8>, Vec<u8>> {

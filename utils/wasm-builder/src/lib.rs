@@ -18,8 +18,8 @@
 
 use anyhow::Result;
 use gmeta::{Metadata, MetadataRepr};
-use wasm_project::ProjectType;
 use std::{env, process};
+use wasm_project::ProjectType;
 
 use crate::{cargo_command::CargoCommand, wasm_project::WasmProject};
 

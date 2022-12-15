@@ -261,7 +261,11 @@ where
 
         let allocations = program.allocations;
 
-        Ok(CodeWithMemoryData { instrumented_code, allocations, program_pages })
+        Ok(CodeWithMemoryData {
+            instrumented_code,
+            allocations,
+            program_pages,
+        })
     }
 
     pub(crate) fn read_state_using_wasm_impl(
@@ -316,7 +320,11 @@ where
 
         log::debug!("Reading state of {program_id:?}");
 
-        let CodeWithMemoryData { instrumented_code, allocations, program_pages } = Self::code_with_memory(program_id)?;
+        let CodeWithMemoryData {
+            instrumented_code,
+            allocations,
+            program_pages,
+        } = Self::code_with_memory(program_id)?;
 
         core_processor::informational::execute_for_reply::<Ext, ExecutionEnvironment<String>, String>(
             String::from("state"),
@@ -335,7 +343,11 @@ where
 
         log::debug!("Reading metahash of {program_id:?}");
 
-        let CodeWithMemoryData { instrumented_code, allocations, program_pages } = Self::code_with_memory(program_id)?;
+        let CodeWithMemoryData {
+            instrumented_code,
+            allocations,
+            program_pages,
+        } = Self::code_with_memory(program_id)?;
 
         core_processor::informational::execute_for_reply::<Ext, ExecutionEnvironment<String>, String>(
             String::from("metahash"),

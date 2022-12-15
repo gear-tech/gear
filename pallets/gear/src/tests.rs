@@ -535,7 +535,7 @@ fn unstoppable_block_execution_works() {
 
 #[test]
 fn read_state_works() {
-    use demo_meta::{MessageInitIn, Wallet, WASM_BINARY};
+    use demo_new_meta::{MessageInitIn, Wallet, WASM_BINARY};
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -564,7 +564,7 @@ fn read_state_works() {
 
 #[test]
 fn read_state_using_wasm_works() {
-    use demo_meta::{
+    use demo_new_meta::{
         Id, MessageInitIn, Wallet, META_EXPORTS_V1, META_EXPORTS_V2, META_WASM_V1, META_WASM_V2,
         WASM_BINARY,
     };
@@ -624,7 +624,7 @@ fn read_state_using_wasm_works() {
 
 #[test]
 fn wasm_metadata_generation_works() {
-    use demo_meta::{
+    use demo_new_meta::{
         MessageInitIn, META_EXPORTS_V1, META_EXPORTS_V2, META_WASM_V1, META_WASM_V2, WASM_BINARY,
     };
 
@@ -675,7 +675,7 @@ fn wasm_metadata_generation_works() {
 
 #[test]
 fn read_state_using_wasm_errors() {
-    use demo_meta::{MessageInitIn, WASM_BINARY};
+    use demo_new_meta::{MessageInitIn, WASM_BINARY};
 
     let wat = r#"
 	(module
