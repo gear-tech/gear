@@ -144,7 +144,7 @@ pub fn read(buffer: &mut [u8]) -> Result<()> {
 /// }
 /// ```
 pub fn read_unchecked(buffer: &mut [u8]) {
-    unsafe { gsys::gr_read_unchecked(0, size as u32, buffer.as_mut_ptr()) }
+    unsafe { gsys::gr_read_unchecked(0, size() as u32, buffer.as_mut_ptr()) }
 }
 
 /// Send a new message as a reply to the message that is currently being
