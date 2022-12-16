@@ -141,12 +141,12 @@ pub enum PageError {
     /// Overflow U32 memory size: has bytes, which has offset bigger then u32::MAX.
     #[display(fmt = "{_0} is too big to be number of page with size {_1}")]
     OverflowU32MemorySize(u32, u32),
-    /// TODO
-    #[display(fmt = "Cannot make pages range from {_0} to {_1} exclusive")]
+    /// Cannot make pages iter from to.
+    #[display(fmt = "Cannot make pages iter from {_0} to {_1}")]
     WrongRange(u32, u32),
 }
 
-/// TODO
+/// U32 size pages iterator, to iterate continuously from one page to another.
 pub struct PagesIter<P: PageU32Size> {
     page: P,
     end: P,
@@ -168,7 +168,7 @@ impl<P: PageU32Size> Iterator for PagesIter<P> {
     }
 }
 
-/// TODO
+/// U32 size pages iterator, to iterate continuously from one page to another, including the last one.
 pub struct PagesIterInclusive<P: PageU32Size> {
     page: Option<P>,
     end: P,
@@ -196,11 +196,11 @@ impl<P: PageU32Size> Iterator for PagesIterInclusive<P> {
 }
 
 impl<P: PageU32Size> PagesIterInclusive<P> {
-    /// TODO
+    /// Returns current page.
     pub fn current(&self) -> Option<P> {
         self.page
     }
-    /// TODO
+    /// Returns the end page.
     pub fn end(&self) -> P {
         self.end
     }
@@ -293,11 +293,11 @@ pub trait PageU32Size: Sized + Clone + Copy + PartialEq + Eq {
     fn zero() -> Self {
         unsafe { Self::new_unchecked(0) }
     }
-    /// TODO
+    /// Returns iterator `self`..`self` + `count`.
     fn iter_count(&self, count: Self) -> Result<PagesIter<Self>, PageError> {
         self.add(count).map(|end| PagesIter { page: *self, end })
     }
-    /// TODO
+    /// Returns iterator `self`..`end`.
     fn iter_end(&self, end: Self) -> Result<PagesIter<Self>, PageError> {
         if end.raw() >= self.raw() {
             Ok(PagesIter { page: *self, end })
@@ -305,7 +305,7 @@ pub trait PageU32Size: Sized + Clone + Copy + PartialEq + Eq {
             Err(PageError::WrongRange(self.raw(), end.raw()))
         }
     }
-    /// TODO
+    /// Returns iterator `self`..=`end`.
     fn iter_end_inclusive(&self, end: Self) -> Result<PagesIterInclusive<Self>, PageError> {
         if end.raw() >= self.raw() {
             Ok(PagesIterInclusive {
@@ -316,21 +316,21 @@ pub trait PageU32Size: Sized + Clone + Copy + PartialEq + Eq {
             Err(PageError::WrongRange(self.raw(), end.raw()))
         }
     }
-    /// TODO
+    /// Returns iterator `0`..=`self`
     fn iter_from_zero_inclusive(&self) -> PagesIterInclusive<Self> {
         PagesIterInclusive {
             page: Some(Self::zero()),
             end: *self,
         }
     }
-    /// TODO
+    /// Returns iterator `0`..`self`
     fn iter_from_zero(&self) -> PagesIter<Self> {
         PagesIter {
             page: Self::zero(),
             end: *self,
         }
     }
-    /// TODO
+    /// Returns iterator `self`..=`self`
     fn iter_once(&self) -> PagesIterInclusive<Self> {
         PagesIterInclusive {
             page: Some(*self),

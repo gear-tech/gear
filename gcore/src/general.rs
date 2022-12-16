@@ -209,7 +209,7 @@ impl From<[u8; 32]> for ReservationId {
 
 /// Code identifier.
 ///
-/// TODO: More info
+// TODO: More info
 #[derive(Clone, Copy, Debug, Default, Hash, Ord, PartialEq, PartialOrd, Eq)]
 pub struct CodeId(pub [u8; 32]);
 
