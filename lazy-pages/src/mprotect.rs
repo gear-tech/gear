@@ -23,7 +23,7 @@ use std::fmt::Debug;
 
 use gear_core::memory::{PageU32Size, PagesIterInclusive};
 
-use crate::utils::with_inclusive_ranges;
+use crate::utils;
 
 #[derive(Debug, derive_more::Display)]
 pub enum MprotectError {
@@ -155,5 +155,5 @@ pub fn mprotect_pages<P: PageU32Size + Ord>(
         unsafe { sys_mprotect_interval(addr, size, prot_read, prot_write, false) }
     };
 
-    with_inclusive_ranges(&pages.collect(), mprotect)
+    utils::with_inclusive_ranges(&pages.collect(), mprotect)
 }

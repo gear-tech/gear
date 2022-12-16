@@ -647,7 +647,7 @@ where
             let mut caller = CallerWrap::from_inner(caller);
             match page {
                 Ok(page) => {
-                    log::debug!("ALLOC: {:?} pages at {:?}", pages, page);
+                    log::debug!("Allocate {pages:?} at {page:?}");
                     caller.update_globals()?;
                     Ok((page.raw(),))
                 }

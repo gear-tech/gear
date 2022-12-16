@@ -17,10 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    init_with_handler,
-    mprotect::{mprotect_mem_interval_except_pages, mprotect_pages},
-    sys::ExceptionInfo,
-    Error, LazyPagesVersion, UserSignalHandler,
+    init_with_handler, mprotect, sys::ExceptionInfo, Error, LazyPagesVersion, UserSignalHandler,
 };
 use region::Protection;
 
@@ -132,7 +129,7 @@ fn test_mprotect_pages() {
         }
     }
 
-    mprotect_mem_interval_except_pages(
+    mprotect::mprotect_mem_interval_except_pages(
         page_begin,
         0,
         mem_size as usize,
@@ -158,7 +155,7 @@ fn test_mprotect_pages() {
         }
     }
 
-    mprotect_mem_interval_except_pages(
+    mprotect::mprotect_mem_interval_except_pages(
         page_begin,
         0,
         mem_size as usize,
@@ -178,7 +175,7 @@ fn test_mprotect_pages() {
         }
     }
 
-    mprotect_pages(page_begin, pages_protected.iter().copied(), false, false)
+    mprotect::mprotect_pages(page_begin, pages_protected.iter().copied(), false, false)
         .expect("Must be correct");
 
     unsafe {
@@ -197,6 +194,6 @@ fn test_mprotect_pages() {
         }
     }
 
-    mprotect_pages(page_begin, pages_protected.iter().copied(), true, true)
+    mprotect::mprotect_pages(page_begin, pages_protected.iter().copied(), true, true)
         .expect("Must be correct");
 }

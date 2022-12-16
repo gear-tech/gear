@@ -244,7 +244,7 @@ impl Ext for MockExt {
         Ok(MessageId::default())
     }
 
-    fn get_runtime_cost(&self, _costs: RuntimeCosts) -> u64 {
+    fn runtime_cost(&self, _costs: RuntimeCosts) -> u64 {
         0
     }
 }

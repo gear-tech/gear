@@ -249,5 +249,5 @@ pub trait Ext {
     fn out_of_allowance(&mut self) -> Self::Error;
 
     /// Get runtime cost weight.
-    fn get_runtime_cost(&self, costs: RuntimeCosts) -> u64;
+    fn runtime_cost(&self, costs: RuntimeCosts) -> u64;
 }

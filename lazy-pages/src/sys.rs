@@ -27,9 +27,7 @@ use std::{
     iter::FromIterator,
 };
 
-use crate::{
-    utils::with_inclusive_ranges, Error, LazyPage, LazyPagesExecutionContext, LAZY_PAGES_CONTEXT,
-};
+use crate::{utils, Error, LazyPage, LazyPagesExecutionContext, LAZY_PAGES_CONTEXT};
 
 use gear_core::memory::{
     PageNumber, PageU32Size, PagesIterInclusive, GEAR_PAGE_SIZE, PAGE_STORAGE_GRANULARITY,
@@ -54,8 +52,6 @@ cfg_if! {
         compile_error!("lazy-pages are not supported on your system. Disable `lazy-pages` feature");
     }
 }
-
-pub mod mprotect;
 
 pub(crate) trait UserSignalHandler {
     /// # Safety
@@ -241,7 +237,7 @@ pub(crate) unsafe fn process_lazy_pages(
         Ok(())
     };
 
-    with_inclusive_ranges(&accessed_pages, f)
+    utils::with_inclusive_ranges(&accessed_pages, f)
 }
 
 /// Before contract execution some pages from wasm memory buffer have been protected.

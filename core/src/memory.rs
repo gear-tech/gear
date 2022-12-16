@@ -645,21 +645,21 @@ mod tests {
     use alloc::{vec, vec::Vec};
 
     #[test]
-    /// Test that GearPages add up correctly
+    /// Test that [PageNumber] add up correctly
     fn page_number_addition() {
         let sum = PageNumber(100).add(200.into()).unwrap();
         assert_eq!(sum, PageNumber(300));
     }
 
     #[test]
-    /// Test that GearPages subtract correctly
+    /// Test that [PageNumber] subtract correctly
     fn page_number_subtraction() {
         let subtraction = PageNumber(299).sub(199.into()).unwrap();
         assert_eq!(subtraction, PageNumber(100))
     }
 
     #[test]
-    /// Test that WasmPageNumber set transforms correctly to PageNumber set.
+    /// Test that [WasmPageNumber] set transforms correctly to [PageNumber] set.
     fn wasm_pages_to_gear_pages() {
         let wasm_pages: Vec<WasmPageNumber> =
             [0u32, 10u32].iter().copied().map(WasmPageNumber).collect();

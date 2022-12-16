@@ -340,7 +340,7 @@ impl EnvExt for LazyPagesExt {
         self.inner.out_of_allowance()
     }
 
-    fn get_runtime_cost(&self, costs: RuntimeCosts) -> u64 {
-        self.inner.get_runtime_cost(costs)
+    fn runtime_cost(&self, costs: RuntimeCosts) -> u64 {
+        self.inner.runtime_cost(costs)
     }
 }

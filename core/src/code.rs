@@ -140,21 +140,18 @@ impl Code {
         }
 
         // get initial memory size from memory import.
-        let static_pages = WasmPageNumber::new(
-            module
-                .import_section()
-                .ok_or(CodeError::ImportSectionNotFound)?
-                .entries()
-                .iter()
-                .find_map(|entry| match entry.external() {
-                    parity_wasm::elements::External::Memory(mem_ty) => {
-                        Some(mem_ty.limits().initial())
-                    }
-                    _ => None,
-                })
-                .ok_or(CodeError::MemoryEntryNotFound)?,
-        )
-        .map_err(|_| CodeError::InvalidStaticPageCount)?;
+        let static_pages_raw = module
+            .import_section()
+            .ok_or(CodeError::ImportSectionNotFound)?
+            .entries()
+            .iter()
+            .find_map(|entry| match entry.external() {
+                parity_wasm::elements::External::Memory(mem_ty) => Some(mem_ty.limits().initial()),
+                _ => None,
+            })
+            .ok_or(CodeError::MemoryEntryNotFound)?;
+        let static_pages =
+            WasmPageNumber::new(static_pages_raw).map_err(|_| CodeError::InvalidStaticPageCount)?;
 
         if static_pages.raw() > MAX_WASM_PAGE_COUNT as u32 {
             return Err(CodeError::InvalidStaticPageCount);

@@ -387,7 +387,7 @@ where
         let res = ctx.run_any(|ctx| {
             ctx.alloc(pages)
                 .map(|page| {
-                    log::debug!("ALLOC: {:?} pages at {:?}", pages, page);
+                    log::debug!("ALLOC: {pages:?} pages at {page:?}");
                     page
                 })
                 .map_err(Into::into)
@@ -404,7 +404,7 @@ where
         ctx.run(|ctx| {
             ctx.ext
                 .free(page)
-                .map(|_| log::debug!("FREE: {:?}", page))
+                .map(|_| log::debug!("FREE: {page:?}"))
                 .map_err(|err| {
                     log::debug!("FREE ERROR: {}", err);
                     FuncError::Core(err)

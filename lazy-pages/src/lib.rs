@@ -33,10 +33,10 @@ use sp_std::vec::Vec;
 use std::{cell::RefCell, collections::BTreeSet, num::NonZeroU32};
 
 mod sys;
-use sys::{
-    mprotect::{self, MprotectError},
-    DefaultUserSignalHandler, UserSignalHandler,
-};
+use sys::{DefaultUserSignalHandler, UserSignalHandler};
+
+mod mprotect;
+use mprotect::MprotectError;
 
 mod utils;
 

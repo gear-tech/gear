@@ -870,7 +870,7 @@ impl EnvExt for Ext {
         TerminationReason::GasAllowanceExceeded.into()
     }
 
-    fn get_runtime_cost(&self, costs: RuntimeCosts) -> u64 {
+    fn runtime_cost(&self, costs: RuntimeCosts) -> u64 {
         costs.token(&self.context.host_fn_weights).weight()
     }
 }
