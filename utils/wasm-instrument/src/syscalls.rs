@@ -249,6 +249,7 @@ impl SysCallName {
             Self::StatusCode => SysCallSignature::gr([Ptr]),
             Self::MessageId => SysCallSignature::gr([Ptr]),
             Self::Read => SysCallSignature::gr([MessagePosition, Size, Ptr, Ptr]),
+            Self::ReadUnchecked => SysCallSignature::gr([MessagePosition, Size, Ptr]),
             Self::Reply => SysCallSignature::gr([Ptr, Size, Ptr, Delay, Ptr]),
             Self::ReplyInput => SysCallSignature::gr([Size, Size, Ptr, Delay, Ptr]),
             Self::ReplyWGas => SysCallSignature::gr([Ptr, Size, Gas, Ptr, Delay, Ptr]),
