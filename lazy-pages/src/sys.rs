@@ -24,7 +24,6 @@ use std::{
     cell::RefMut,
     collections::BTreeSet,
     convert::{TryFrom, TryInto},
-    iter::FromIterator,
 };
 
 use crate::{utils, Error, LazyPage, LazyPagesExecutionContext, LAZY_PAGES_CONTEXT};
@@ -101,15 +100,26 @@ impl UserSignalHandler for DefaultUserSignalHandler {
     }
 }
 
+/// Accessed pages information.
+pub(crate) enum AccessedPagesInfo {
+    #[allow(unused)]
+    FromHostFunc(BTreeSet<LazyPage>),
+    FromSignal(LazyPage),
+}
+
 pub(crate) unsafe fn process_lazy_pages(
     mut ctx: RefMut<LazyPagesExecutionContext>,
-    accessed_pages: BTreeSet<LazyPage>,
+    accessed_pages: AccessedPagesInfo,
     is_write: bool,
-    is_signal: bool,
 ) -> Result<(), Error> {
     let wasm_mem_size = ctx.wasm_mem_size.ok_or(Error::WasmMemSizeIsNotSet)?;
 
-    if let Some(last_page) = accessed_pages.last() {
+    let (last_page, is_signal) = match &accessed_pages {
+        AccessedPagesInfo::FromHostFunc(accessed_pages) => (accessed_pages.last(), false),
+        AccessedPagesInfo::FromSignal(lazy_page) => (Some(lazy_page), true),
+    };
+
+    if let Some(last_page) = last_page {
         // Check that all pages are inside wasm memory.
         if last_page.end_offset() >= wasm_mem_size.offset() {
             return Err(Error::OutOfWasmMemoryAccess);
@@ -127,7 +137,7 @@ pub(crate) unsafe fn process_lazy_pages(
             .ok_or(Error::ProgramPrefixIsNotSet)?,
     );
 
-    let f = |pages: PagesIterInclusive<LazyPage>| {
+    let mut f = |pages: PagesIterInclusive<LazyPage>| {
         let psg = PAGE_STORAGE_GRANULARITY as u32;
         let mut start = if let Some(start) = pages.current() {
             start
@@ -237,7 +247,12 @@ pub(crate) unsafe fn process_lazy_pages(
         Ok(())
     };
 
-    utils::with_inclusive_ranges(&accessed_pages, f)
+    match accessed_pages {
+        AccessedPagesInfo::FromHostFunc(accessed_pages) => {
+            utils::with_inclusive_ranges(&accessed_pages, f)
+        }
+        AccessedPagesInfo::FromSignal(lazy_page) => f(lazy_page.iter_once()),
+    }
 }
 
 /// Before contract execution some pages from wasm memory buffer have been protected.
@@ -281,8 +296,7 @@ unsafe fn user_signal_handler_internal(
     let offset =
         u32::try_from(native_addr - wasm_mem_addr).map_err(|_| Error::OutOfWasmMemoryAccess)?;
     let lazy_page = LazyPage::from_offset(offset);
-    let accessed_pages = BTreeSet::from_iter(std::iter::once(lazy_page));
-    process_lazy_pages(ctx, accessed_pages, is_write, true)
+    process_lazy_pages(ctx, AccessedPagesInfo::FromSignal(lazy_page), is_write)
 }
 
 /// User signal handler. Logic can depends on lazy-pages version.

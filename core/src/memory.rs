@@ -330,6 +330,13 @@ pub trait PageU32Size: Sized + Clone + Copy + PartialEq + Eq {
             end: *self,
         }
     }
+    /// TODO
+    fn iter_once(&self) -> PagesIterInclusive<Self> {
+        PagesIterInclusive {
+            page: Some(*self),
+            end: *self,
+        }
+    }
     /// To another page iterator. For example: PAGE1 has size 4 and PAGE2 has size 2:
     /// ````ignored
     /// Memory is splitted into PAGE1:
