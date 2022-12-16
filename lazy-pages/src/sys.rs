@@ -25,7 +25,6 @@ use std::{
     collections::BTreeSet,
     convert::{TryFrom, TryInto},
     iter::FromIterator,
-    ops::RangeInclusive,
 };
 
 use crate::{
@@ -33,7 +32,7 @@ use crate::{
 };
 
 use gear_core::memory::{
-    to_page_iter, PageNumber, PageU32Size, GEAR_PAGE_SIZE, PAGE_STORAGE_GRANULARITY,
+    PageNumber, PageU32Size, PagesIterInclusive, GEAR_PAGE_SIZE, PAGE_STORAGE_GRANULARITY,
 };
 
 // These constants are used both in runtime and in lazy-pages backend,
@@ -132,10 +131,15 @@ pub(crate) unsafe fn process_lazy_pages(
             .ok_or(Error::ProgramPrefixIsNotSet)?,
     );
 
-    let f = |pages: RangeInclusive<LazyPage>| {
+    let f = |pages: PagesIterInclusive<LazyPage>| {
         let psg = PAGE_STORAGE_GRANULARITY as u32;
-        let mut start = *pages.start();
-        let mut end = *pages.end();
+        let mut start = if let Some(start) = pages.current() {
+            start
+        } else {
+            // Interval is empty, so nothing to process.
+            return Ok(());
+        };
+        let mut end = pages.end();
 
         // Extend pages interval, if start or end access pages, which has no data in storage.
         if is_write && LazyPage::size() < psg {
@@ -150,7 +154,11 @@ pub(crate) unsafe fn process_lazy_pages(
             }
         }
 
-        for lazy_page in start..=end {
+        let pages = start.iter_end_inclusive(end).unwrap_or_else(|err| {
+            unreachable!("`start` can be only decreased, `end` can be only increased, so `start` <= `end`, but get: {}", err)
+        });
+
+        for lazy_page in pages {
             if lazy_page.offset() < stack_end.offset() {
                 // Nothing to do, page has r/w accesses and data is in correct state.
                 if is_signal {
@@ -188,7 +196,7 @@ pub(crate) unsafe fn process_lazy_pages(
                     Protection::READ_WRITE,
                 )?;
 
-                for gear_page in to_page_iter::<_, PageNumber>(lazy_page) {
+                for gear_page in lazy_page.to_pages_iter::<PageNumber>() {
                     let page_buffer_ptr =
                         (wasm_mem_addr as *mut u8).add(gear_page.offset() as usize);
                     let buffer_as_slice = std::slice::from_raw_parts_mut(
@@ -233,10 +241,7 @@ pub(crate) unsafe fn process_lazy_pages(
         Ok(())
     };
 
-    match with_inclusive_ranges(accessed_pages.into_iter(), f) {
-        Err(err) => Err(Error::Other(err.to_string())),
-        Ok(res) => res,
-    }
+    with_inclusive_ranges(&accessed_pages, f)
 }
 
 /// Before contract execution some pages from wasm memory buffer have been protected.

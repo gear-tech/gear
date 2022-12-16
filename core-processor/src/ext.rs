@@ -34,8 +34,8 @@ use gear_core::{
     gas::{ChargeResult, GasAllowanceCounter, GasAmount, GasCounter, Token, ValueCounter},
     ids::{CodeId, MessageId, ProgramId, ReservationId},
     memory::{
-        to_page_iter, AllocResult, AllocationsContext, GrowHandler, GrowHandlerNothing, Memory,
-        PageBuf, PageNumber, PageU32Size, WasmPageNumber,
+        AllocResult, AllocationsContext, GrowHandler, GrowHandlerNothing, Memory, PageBuf,
+        PageNumber, PageU32Size, WasmPageNumber,
     },
     message::{
         GasLimit, HandlePacket, InitPacket, MessageContext, Packet, ReplyPacket, StatusCode,
@@ -228,9 +228,10 @@ impl IntoExtInfo<<Ext as EnvExt>::Error> for Ext {
         let pages_for_data = |static_pages: WasmPageNumber,
                               allocations: &BTreeSet<WasmPageNumber>|
          -> Vec<PageNumber> {
-            (0.into()..static_pages)
+            static_pages
+                .iter_from_zero()
                 .chain(allocations.iter().copied())
-                .flat_map(to_page_iter)
+                .flat_map(|p| p.to_pages_iter())
                 .collect()
         };
 
@@ -901,7 +902,10 @@ impl Ext {
         // Returns back greedily used gas for allocations
         let mut new_allocated_pages_num = 0;
         // Panic is safe, because alloc returns page, for which `page + pages` is inside u32 memory.
-        for page in page..page.add(pages).expect("Alloc implementation error") {
+        for page in page
+            .iter_count(pages)
+            .unwrap_or_else(|err| unreachable!("Alloc implementation error: {}", err))
+        {
             if !self.context.allocations_context.is_init_page(page) {
                 new_allocated_pages_num += 1;
             }

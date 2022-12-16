@@ -66,7 +66,7 @@ where
     };
 
     if let Err(err) = H::handle(info) {
-        if let Error::SignalFromUnknownMemory { .. } | Error::WasmMemAddrIsNotSet = err {
+        if let Error::SignalFromUnknownMemory | Error::WasmMemAddrIsNotSet = err {
             return EXCEPTION_CONTINUE_SEARCH;
         } else {
             panic!("Signal handler failed: {}", err);

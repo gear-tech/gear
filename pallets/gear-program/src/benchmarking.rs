@@ -25,7 +25,7 @@ use frame_support::traits::Currency;
 use frame_system::RawOrigin;
 use gear_core::{
     ids::ProgramId,
-    memory::{to_page_iter, PageNumber, WasmPageNumber},
+    memory::{PageNumber, PageU32Size, WasmPageNumber},
 };
 use sp_runtime::traits::UniqueSaturatedInto;
 use sp_std::vec::Vec;
@@ -46,8 +46,8 @@ benchmarks! {
         let program_id = ProgramId::from_origin(benchmarking::account::<T::AccountId>("program", 0, 100).into_origin());
         benchmarking::set_program(program_id.into_origin(), code, q.into());
 
-        let wasm_pages = (0.into()..q.into()).collect::<Vec<WasmPageNumber>>();
-        let pages: Vec<PageNumber> = wasm_pages.iter().flat_map(|&p| to_page_iter(p)).collect();
+        let wasm_pages: Vec<WasmPageNumber> = WasmPageNumber::from(q).iter_from_zero().collect();
+        let pages: Vec<PageNumber> = wasm_pages.iter().flat_map(|p| p.to_pages_iter()).collect();
         let memory_pages = common::get_program_data_for_pages(program_id.into_origin(), pages.iter()).unwrap().into_iter().map(|(page, data)| (page, data.into_vec())).collect();
 
         crate::Pallet::<T>::pause_program(program_id).unwrap();

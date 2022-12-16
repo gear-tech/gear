@@ -21,7 +21,6 @@
 use core::{
     convert::TryFrom,
     fmt::Debug,
-    iter::Step,
     num::NonZeroU32,
     ops::{Deref, DerefMut},
 };
@@ -142,6 +141,69 @@ pub enum PageError {
     /// Overflow U32 memory size: has bytes, which has offset bigger then u32::MAX.
     #[display(fmt = "{_0} is too big to be number of page with size {_1}")]
     OverflowU32MemorySize(u32, u32),
+    /// TODO
+    #[display(fmt = "Cannot make pages range from {_0} to {_1} exclusive")]
+    WrongRange(u32, u32),
+}
+
+/// TODO
+pub struct PagesIter<P: PageU32Size> {
+    page: P,
+    end: P,
+}
+
+impl<P: PageU32Size> Iterator for PagesIter<P> {
+    type Item = P;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.page.raw() >= self.end.raw() {
+            return None;
+        };
+        let res = self.page;
+        unsafe {
+            // Safe, because we checked that `page` is less than `end`.
+            self.page = P::new_unchecked(self.page.raw() + 1);
+        }
+        Some(res)
+    }
+}
+
+/// TODO
+pub struct PagesIterInclusive<P: PageU32Size> {
+    page: Option<P>,
+    end: P,
+}
+
+impl<P: PageU32Size> Iterator for PagesIterInclusive<P> {
+    type Item = P;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let page = self.page?;
+        match self.end.raw() {
+            end if end == page.raw() => self.page = None,
+            end if end > page.raw() => unsafe {
+                // Safe, because we checked that `page` is less than `end`.
+                self.page = Some(P::new_unchecked(page.raw() + 1));
+            },
+            _ => unreachable!(
+                "`page` {} cannot be bigger than `end` {}",
+                page.raw(),
+                self.end.raw(),
+            ),
+        }
+        Some(page)
+    }
+}
+
+impl<P: PageU32Size> PagesIterInclusive<P> {
+    /// TODO
+    pub fn current(&self) -> Option<P> {
+        self.page
+    }
+    /// TODO
+    pub fn end(&self) -> P {
+        self.end
+    }
 }
 
 /// Trait represents page with u32 size for u32 memory: max memory size is 2^32 bytes.
@@ -156,7 +218,7 @@ pub trait PageU32Size: Sized + Clone + Copy + PartialEq + Eq {
     /// Doesn't guarantee, that page offset or page end offset is in not overflowed.
     unsafe fn new_unchecked(num: u32) -> Self;
 
-    /// Size as u32. Cannot be zero because uses `Self::size_non_zero`.
+    /// Size as u32. Cannot be zero, because uses `Self::size_non_zero`.
     fn size() -> u32 {
         Self::size_non_zero().into()
     }
@@ -231,26 +293,61 @@ pub trait PageU32Size: Sized + Clone + Copy + PartialEq + Eq {
     fn zero() -> Self {
         unsafe { Self::new_unchecked(0) }
     }
-}
-
-/// To another page iterator. For example: PAGE1 has size 4 and PAGE2 has size 2:
-/// ````ignored
-/// Memory is splitted into PAGE1:
-/// [<====><====><====><====><====>]
-///  0     1     2     3     4
-/// Memory splitted into PAGE2:
-/// [<=><=><=><=><=><=><=><=><=><=>]
-///  0  1  2  3  4  5  6  7  8  9
-/// Then PAGE1 with number 2 contains [4, 5] pages of PAGE2,
-/// and we returns iterator over [4, 5] PAGE2.
-/// ````
-pub fn to_page_iter<PAGE1: PageU32Size, PAGE2: PageU32Size>(
-    page: PAGE1,
-) -> impl Iterator<Item = PAGE2> {
-    unsafe {
-        (page.to_page::<PAGE2>().raw()
-            ..page.to_page::<PAGE2>().raw() + PAGE1::size() / PAGE2::size())
-            .map(|raw| PAGE2::new_unchecked(raw))
+    /// TODO
+    fn iter_count(&self, count: Self) -> Result<PagesIter<Self>, PageError> {
+        self.add(count).map(|end| PagesIter { page: *self, end })
+    }
+    /// TODO
+    fn iter_end(&self, end: Self) -> Result<PagesIter<Self>, PageError> {
+        if end.raw() >= self.raw() {
+            Ok(PagesIter { page: *self, end })
+        } else {
+            Err(PageError::WrongRange(self.raw(), end.raw()))
+        }
+    }
+    /// TODO
+    fn iter_end_inclusive(&self, end: Self) -> Result<PagesIterInclusive<Self>, PageError> {
+        if end.raw() >= self.raw() {
+            Ok(PagesIterInclusive {
+                page: Some(*self),
+                end,
+            })
+        } else {
+            Err(PageError::WrongRange(self.raw(), end.raw()))
+        }
+    }
+    /// TODO
+    fn iter_from_zero_inclusive(&self) -> PagesIterInclusive<Self> {
+        PagesIterInclusive {
+            page: Some(Self::zero()),
+            end: *self,
+        }
+    }
+    /// TODO
+    fn iter_from_zero(&self) -> PagesIter<Self> {
+        PagesIter {
+            page: Self::zero(),
+            end: *self,
+        }
+    }
+    /// To another page iterator. For example: PAGE1 has size 4 and PAGE2 has size 2:
+    /// ````ignored
+    /// Memory is splitted into PAGE1:
+    /// [<====><====><====><====><====>]
+    ///  0     1     2     3     4
+    /// Memory splitted into PAGE2:
+    /// [<=><=><=><=><=><=><=><=><=><=>]
+    ///  0  1  2  3  4  5  6  7  8  9
+    /// Then PAGE1 with number 2 contains [4, 5] pages of PAGE2,
+    /// and we returns iterator over [4, 5] PAGE2.
+    /// ````
+    fn to_pages_iter<P: PageU32Size>(&self) -> PagesIterInclusive<P> {
+        let start: P = self.to_page();
+        let end: P = P::from_offset(self.end_offset());
+        PagesIterInclusive {
+            page: Some(start),
+            end,
+        }
     }
 }
 
@@ -312,34 +409,6 @@ impl PageU32Size for GranularityPage {
 
     unsafe fn new_unchecked(num: u32) -> Self {
         Self(num)
-    }
-}
-
-impl Step for PageNumber {
-    fn steps_between(start: &Self, end: &Self) -> Option<usize> {
-        u32::steps_between(&start.0, &end.0)
-    }
-
-    fn forward_checked(start: Self, count: usize) -> Option<Self> {
-        Self::new(u32::forward_checked(start.0, count)?).ok()
-    }
-
-    fn backward_checked(start: Self, count: usize) -> Option<Self> {
-        Self::new(u32::backward_checked(start.0, count)?).ok()
-    }
-}
-
-impl Step for WasmPageNumber {
-    fn steps_between(start: &Self, end: &Self) -> Option<usize> {
-        u32::steps_between(&start.0, &end.0)
-    }
-
-    fn forward_checked(start: Self, count: usize) -> Option<Self> {
-        Self::new(u32::forward_checked(start.0, count)?).ok()
-    }
-
-    fn backward_checked(start: Self, count: usize) -> Option<Self> {
-        Self::new(u32::backward_checked(start.0, count)?).ok()
     }
 }
 
@@ -521,8 +590,7 @@ impl AllocationsContext {
         };
 
         // Panic is safe, we calculated `start` suitable for `pages`.
-        let end = start.add(pages).expect("unreachable");
-        for page in start..end {
+        for page in start.iter_count(pages).expect("unreachable") {
             self.allocations.insert(page);
         }
 
@@ -561,7 +629,6 @@ impl AllocationsContext {
 /// This module contains tests of PageNumber struct
 mod tests {
     use super::*;
-    use crate::memory::to_page_iter;
 
     use alloc::{vec, vec::Vec};
 
@@ -586,7 +653,7 @@ mod tests {
             [0u32, 10u32].iter().copied().map(WasmPageNumber).collect();
         let gear_pages: Vec<u32> = wasm_pages
             .iter()
-            .flat_map(|&p| to_page_iter::<_, PageNumber>(p))
+            .flat_map(|p| p.to_pages_iter::<PageNumber>())
             .map(|p| p.0)
             .collect();
 
@@ -629,5 +696,49 @@ mod tests {
             WasmPageNumber(1),
         );
         assert_eq!(ctx.free(WasmPageNumber(1)), Err(Error::InvalidFree(1)));
+    }
+
+    #[test]
+    fn page_iterator() {
+        let test = |num1, num2| {
+            let p1 = PageNumber::from(num1);
+            let p2 = PageNumber::from(num2);
+
+            assert_eq!(
+                p1.iter_end(p2).unwrap().collect::<Vec<PageNumber>>(),
+                (num1..num2)
+                    .map(PageNumber::from)
+                    .collect::<Vec<PageNumber>>(),
+            );
+            assert_eq!(
+                p1.iter_end_inclusive(p2)
+                    .unwrap()
+                    .collect::<Vec<PageNumber>>(),
+                (num1..=num2)
+                    .map(PageNumber::from)
+                    .collect::<Vec<PageNumber>>(),
+            );
+            assert_eq!(
+                p1.iter_count(p2).unwrap().collect::<Vec<PageNumber>>(),
+                (num1..num1 + num2)
+                    .map(PageNumber::from)
+                    .collect::<Vec<PageNumber>>(),
+            );
+            assert_eq!(
+                p1.iter_from_zero().collect::<Vec<PageNumber>>(),
+                (0..num1).map(PageNumber::from).collect::<Vec<PageNumber>>(),
+            );
+            assert_eq!(
+                p1.iter_from_zero_inclusive().collect::<Vec<PageNumber>>(),
+                (0..=num1)
+                    .map(PageNumber::from)
+                    .collect::<Vec<PageNumber>>(),
+            );
+        };
+
+        test(0, 1);
+        test(111, 365);
+        test(1238, 3498);
+        test(0, 64444);
     }
 }

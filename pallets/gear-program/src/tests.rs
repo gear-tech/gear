@@ -25,7 +25,7 @@ use frame_support::{assert_noop, assert_ok};
 use gear_core::{
     code::{Code, CodeAndId},
     ids::{CodeId, MessageId, ProgramId},
-    memory::{to_page_iter, PageBuf, PageNumber, PageU32Size, WasmPageNumber},
+    memory::{PageBuf, PageNumber, PageU32Size, WasmPageNumber},
     message::{DispatchKind, StoredDispatch, StoredMessage},
 };
 use gear_wasm_instrument::wasm_instrument::gas_metering::ConstantCostRules;
@@ -45,17 +45,17 @@ fn pause_program_works() {
         let code_id = code_and_id.code_id();
         let code_hash = code_id.into_origin();
 
-        let wasm_static_pages: WasmPageNumber = 16.into();
+        let static_pages: WasmPageNumber = 16.into();
         let memory_pages = {
             let mut pages = BTreeMap::new();
-            for page in to_page_iter(wasm_static_pages) {
+            for page in static_pages.to_pages_iter::<PageNumber>() {
                 pages.insert(page, PageBuf::new_zeroed());
             }
-            for page in to_page_iter(wasm_static_pages.add_raw(2).unwrap()) {
+            for page in static_pages.add_raw(2).unwrap().to_pages_iter() {
                 pages.insert(page, PageBuf::new_zeroed());
             }
-            for p in PageNumber::zero()..wasm_static_pages.to_page() {
-                pages.insert(p, PageBuf::new_zeroed());
+            for page in static_pages.to_page::<PageNumber>().iter_from_zero() {
+                pages.insert(page, PageBuf::new_zeroed());
             }
 
             pages
@@ -448,7 +448,7 @@ mod utils {
     }
 
     pub fn create_uninitialized_program_messages(
-        wasm_static_pages: WasmPageNumber,
+        static_pages: WasmPageNumber,
     ) -> CreateProgramResult {
         let code = Code::try_new(CODE.to_vec(), 1, |_| ConstantCostRules::default(), None)
             .expect("Error creating Code");
@@ -458,14 +458,14 @@ mod utils {
 
         let memory_pages = {
             let mut pages = BTreeMap::new();
-            for page in to_page_iter(wasm_static_pages) {
+            for page in static_pages.to_pages_iter() {
                 pages.insert(page, PageBuf::new_zeroed());
             }
-            for page in to_page_iter(wasm_static_pages.add_raw(2).unwrap()) {
+            for page in static_pages.add_raw(2).unwrap().to_pages_iter() {
                 pages.insert(page, PageBuf::new_zeroed());
             }
-            for p in PageNumber::zero()..wasm_static_pages.to_page() {
-                pages.insert(p, PageBuf::new_zeroed());
+            for page in static_pages.to_page::<PageNumber>().iter_from_zero() {
+                pages.insert(page, PageBuf::new_zeroed());
             }
 
             pages

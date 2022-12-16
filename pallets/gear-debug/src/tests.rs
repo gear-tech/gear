@@ -20,11 +20,11 @@ use super::*;
 use crate::mock::*;
 use common::{self, Origin as _};
 use frame_support::assert_ok;
-use gear_core::memory::WasmPageNumber;
 #[cfg(feature = "lazy-pages")]
+use gear_core::memory::PageNumber;
 use gear_core::{
     ids::{CodeId, MessageId, ProgramId},
-    memory::{to_page_iter, GranularityPage, PageBuf, PageNumber, PageU32Size},
+    memory::{PageBuf, PageU32Size, WasmPageNumber},
     message::{DispatchKind, StoredDispatch, StoredMessage},
 };
 use pallet_gear::{DebugInfo, Pallet as PalletGear};
@@ -284,7 +284,10 @@ fn get_last_message_id() -> MessageId {
 
 #[cfg(feature = "lazy-pages")]
 fn append_rest_psg_pages(page: PageNumber, pages_data: &mut BTreeMap<PageNumber, Vec<u8>>) {
-    to_page_iter(page.to_page::<GranularityPage>())
+    use gear_core::memory::GranularityPage;
+
+    page.to_page::<GranularityPage>()
+        .to_pages_iter()
         .filter(|&p| p != page)
         .for_each(|p| {
             pages_data.insert(p, PageBuf::new_zeroed().to_vec());

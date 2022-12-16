@@ -24,14 +24,13 @@
 //!
 //! Currently we restrict twice write signal from same page during one execution.
 //! It's not necessary behavior, but more simple and safe.
-#![feature(step_trait)]
 
 use gear_core::memory::{
-    to_page_iter, PageNumber, PageU32Size, WasmPageNumber, GEAR_PAGE_SIZE, PAGE_STORAGE_GRANULARITY,
+    PageNumber, PageU32Size, WasmPageNumber, GEAR_PAGE_SIZE, PAGE_STORAGE_GRANULARITY,
 };
 use once_cell::sync::OnceCell;
 use sp_std::vec::Vec;
-use std::{cell::RefCell, collections::BTreeSet, iter::Step, num::NonZeroU32};
+use std::{cell::RefCell, collections::BTreeSet, num::NonZeroU32};
 
 mod sys;
 use sys::{
@@ -46,8 +45,6 @@ static LAZY_PAGES_INITIALIZED: OnceCell<Result<(), InitError>> = OnceCell::new()
 
 #[derive(Debug, derive_more::Display, derive_more::From)]
 pub(crate) enum Error {
-    #[display(fmt = "{_0}")]
-    Other(String),
     #[display(fmt = "Accessed memory interval is out of wasm memory")]
     OutOfWasmMemoryAccess,
     #[display(fmt = "Signals cannot come from WASM program virtual stack memory")]
@@ -200,20 +197,6 @@ impl PageU32Size for LazyPage {
     }
 }
 
-impl Step for LazyPage {
-    fn steps_between(start: &Self, end: &Self) -> Option<usize> {
-        u32::steps_between(&start.0, &end.0)
-    }
-
-    fn forward_checked(start: Self, count: usize) -> Option<Self> {
-        LazyPage::new(u32::forward_checked(start.0, count)?).ok()
-    }
-
-    fn backward_checked(start: Self, count: usize) -> Option<Self> {
-        LazyPage::new(u32::backward_checked(start.0, count)?).ok()
-    }
-}
-
 #[derive(Debug, derive_more::Display, derive_more::From)]
 pub enum MemoryProtectionError {
     #[from]
@@ -310,7 +293,7 @@ pub fn get_released_pages() -> Vec<PageNumber> {
         ctx.borrow()
             .released_pages
             .iter()
-            .flat_map(|&page| to_page_iter(page))
+            .flat_map(|page| page.to_pages_iter())
             .collect()
     })
 }

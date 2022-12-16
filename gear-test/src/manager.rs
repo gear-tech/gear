@@ -21,7 +21,7 @@ use core_processor::common::*;
 use gear_core::{
     code::{Code, CodeAndId},
     ids::{CodeId, MessageId, ProgramId, ReservationId},
-    memory::{to_page_iter, PageBuf, PageNumber, WasmPageNumber},
+    memory::{PageBuf, PageNumber, PageU32Size, WasmPageNumber},
     message::{Dispatch, DispatchKind, GasLimit, MessageWaitedType, StoredDispatch, StoredMessage},
     reservation::GasReserver,
 };
@@ -343,7 +343,7 @@ impl JournalHandler for InMemoryExtManager {
             for page in data
                 .allocations
                 .difference(&allocations)
-                .flat_map(|&page| to_page_iter(page))
+                .flat_map(|page| page.to_pages_iter())
             {
                 memory_pages.remove(&page);
             }

@@ -19,9 +19,9 @@
 //! Wrappers around system memory protections.
 
 use core::ops::RangeInclusive;
-use std::{fmt::Debug, iter::Step};
+use std::fmt::Debug;
 
-use gear_core::memory::PageU32Size;
+use gear_core::memory::{PageU32Size, PagesIterInclusive};
 
 use crate::utils::with_inclusive_ranges;
 
@@ -125,23 +125,35 @@ pub fn mprotect_mem_interval_except_pages(
 }
 
 /// Mprotect all pages from `pages`.
-pub fn mprotect_pages<T: PageU32Size + Step + Debug>(
+pub fn mprotect_pages<P: PageU32Size + Ord>(
     mem_addr: usize,
-    pages: impl Iterator<Item = T>,
+    pages: impl Iterator<Item = P>,
     prot_read: bool,
     prot_write: bool,
 ) -> Result<(), MprotectError> {
-    let mprotect = |interval: RangeInclusive<T>| {
-        log::trace!("{:?}", interval);
-        let addr = mem_addr + interval.start().offset() as usize;
-        // `+ T::size()` because range is inclusive, and it's safe, because both are u32.
-        let size = interval
-            .end()
-            .sub(*interval.start())
-            .expect("Unexpected `with_inclusive_ranges` behavior: interval end is less than interval start")
-            .offset() as usize + T::size() as usize;
+    let mprotect = |interval: PagesIterInclusive<P>| {
+        let start = if let Some(start) = interval.current() {
+            start
+        } else {
+            // Interval is empty
+            return Ok(());
+        };
+        let end = interval.end();
+
+        let addr = mem_addr + start.offset() as usize;
+        // `+ P::size()` because range is inclusive, and it's safe, because both are u32.
+        let size = end
+            .sub(start)
+            .unwrap_or_else(|err| {
+                unreachable!(
+                    "interval `end` cannot be less than interval `start`, but get: {}",
+                    err
+                )
+            })
+            .offset() as usize
+            + P::size() as usize;
         unsafe { sys_mprotect_interval(addr, size, prot_read, prot_write, false) }
     };
 
-    with_inclusive_ranges(pages, mprotect).map_err(|_| MprotectError::IncorrectPagesIterator)?
+    with_inclusive_ranges(&pages.collect(), mprotect)
 }

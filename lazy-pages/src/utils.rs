@@ -18,43 +18,51 @@
 
 //! Utils.
 
-use std::{iter::Step, ops::RangeInclusive};
+use std::collections::BTreeSet;
 
-#[derive(Debug, Clone, Copy, derive_more::Display)]
-pub enum WithInclusiveRangesError {
-    #[display(fmt = "forward_checked overflow")]
-    Overflow,
-    #[display(fmt = "Indexes must be sorted by ascending and be uniq")]
-    IndexesAreNotSortedOrUniq,
-}
+use gear_core::memory::{PageU32Size, PagesIterInclusive};
 
 /// Call `f` for all inclusive ranges from `indexes`.
 /// For example: `indexes` = {1,2,3,5,6,7,9}, then `f` will be called
 /// for 1..=3, 5..=7, 9..=9 consequently.
 /// `indexes` must be sorted and uniq.
 /// If `f` returns an Err then end execution without remain indexes handling.
-pub fn with_inclusive_ranges<T: Sized + Copy + Eq + Step, E>(
-    mut indexes: impl Iterator<Item = T>,
-    mut f: impl FnMut(RangeInclusive<T>) -> Result<(), E>,
-) -> Result<Result<(), E>, WithInclusiveRangesError> {
-    let mut start = if let Some(start) = indexes.next() {
+pub fn with_inclusive_ranges<P: PageU32Size + Ord, E>(
+    pages: &BTreeSet<P>,
+    mut f: impl FnMut(PagesIterInclusive<P>) -> Result<(), E>,
+) -> Result<(), E> {
+    let mut pages_iter = pages.iter();
+    let mut start = if let Some(&start) = pages_iter.next() {
         start
     } else {
-        return Ok(Ok(()));
+        return Ok(());
     };
     let mut end = start;
-    for idx in indexes {
-        if end >= idx {
-            return Err(WithInclusiveRangesError::IndexesAreNotSortedOrUniq);
+    for &page in pages_iter {
+        let after_end = end.inc().unwrap_or_else(|err| {
+            unreachable!(
+                "`pages` is btree set, so `end` must be smaller then page, but get: {}",
+                err
+            )
+        });
+        if after_end != page {
+            let iter = start.iter_end_inclusive(end).unwrap_or_else(|err| {
+                unreachable!(
+                    "`pages is btree set, so `end` must be bigger or equal than start, but get: {}",
+                    err
+                )
+            });
+            f(iter)?;
+            start = page;
         }
-        if Step::forward_checked(end, 1).ok_or(WithInclusiveRangesError::Overflow)? != idx {
-            if let Err(err) = f(start..=end) {
-                return Ok(Err(err));
-            }
-            start = idx;
-        }
-        end = idx;
+        end = page;
     }
 
-    Ok(f(start..=end))
+    let iter = start.iter_end_inclusive(end).unwrap_or_else(|err| {
+        unreachable!(
+            "`pages is btree set, so `end` must be bigger or equal than start, but get: {}",
+            err
+        )
+    });
+    f(iter)
 }

@@ -400,7 +400,7 @@ where
 
 /// Mechanisms to generate a function body that can be used inside a `ModuleDefinition`.
 pub mod body {
-    use gear_core::memory::{to_page_iter, PageNumber, PageU32Size, WasmPageNumber};
+    use gear_core::memory::{PageNumber, PageU32Size, WasmPageNumber};
 
     use super::*;
 
@@ -473,7 +473,10 @@ pub mod body {
         mem_size: WasmPageNumber,
         mut head: Vec<Instruction>,
     ) -> Vec<Instruction> {
-        for page in (0.into()..mem_size).flat_map(to_page_iter::<_, PageNumber>) {
+        for page in mem_size
+            .iter_from_zero()
+            .flat_map(|p| p.to_pages_iter::<PageNumber>())
+        {
             head.push(Instruction::I32Const(page.offset() as i32));
             head.push(Instruction::I32Const(42));
             head.push(Instruction::I32Store(2, 0));
@@ -485,7 +488,10 @@ pub mod body {
         mem_size: WasmPageNumber,
         mut head: Vec<Instruction>,
     ) -> Vec<Instruction> {
-        for page in (0.into()..mem_size).flat_map(to_page_iter::<_, PageNumber>) {
+        for page in mem_size
+            .iter_from_zero()
+            .flat_map(|p| p.to_pages_iter::<PageNumber>())
+        {
             head.push(Instruction::I32Const(page.offset() as i32));
             head.push(Instruction::I32Load(2, 0));
             head.push(Instruction::Drop);

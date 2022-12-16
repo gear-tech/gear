@@ -38,9 +38,7 @@ use gear_core::{
     env::Ext as EnvExt,
     gas::{ChargeResult, GasAllowanceCounter, GasCounter, ValueCounter},
     ids::ProgramId,
-    memory::{
-        to_page_iter, AllocationsContext, Memory, PageBuf, PageNumber, PageU32Size, WasmPageNumber,
-    },
+    memory::{AllocationsContext, Memory, PageBuf, PageNumber, PageU32Size, WasmPageNumber},
     message::{
         ContextSettings, DispatchKind, IncomingDispatch, IncomingMessage, MessageContext, WasmEntry,
     },
@@ -271,7 +269,13 @@ fn prepare_memory<A: ProcessorExt, M: Memory>(
             return Err(ExecutionErrorReason::StackPagesHaveInitialData);
         }
 
-        for page in (begin..static_pages).flat_map(to_page_iter) {
+        let non_stack_pages = begin.iter_end(static_pages).unwrap_or_else(|err| {
+            unreachable!(
+                "We have already checked that `stack_end` is <= `static_pages`, but get: {}",
+                err
+            )
+        });
+        for page in non_stack_pages.flat_map(|p| p.to_pages_iter()) {
             if pages_data.contains_key(&page) {
                 // This page already has initial data
                 continue;
@@ -898,9 +902,9 @@ mod tests {
         let res =
             get_pages_to_be_updated::<TestExt>(Default::default(), new_pages.clone(), static_pages);
         // The result is all pages except the static ones
-        (PageNumber::zero()..static_pages.to_page()).for_each(|page| {
+        for page in static_pages.to_page::<PageNumber>().iter_from_zero() {
             new_pages.remove(&page);
-        });
+        }
         assert_eq!(res, new_pages,);
     }
 }
