@@ -264,20 +264,19 @@ impl Code {
             parity_wasm::deserialize_buffer(&original_code).map_err(|_| CodeError::Decode)?;
 
         // get initial memory size from memory import.
-        let static_pages = WasmPageNumber(
-            module
-                .import_section()
-                .ok_or(CodeError::ImportSectionNotFound)?
-                .entries()
-                .iter()
-                .find_map(|entry| match entry.external() {
-                    parity_wasm::elements::External::Memory(mem_ty) => {
-                        Some(mem_ty.limits().initial())
-                    }
-                    _ => None,
-                })
-                .ok_or(CodeError::MemoryEntryNotFound)?,
-        );
+        let static_pages_raw = module
+            .import_section()
+            .ok_or(CodeError::ImportSectionNotFound)?
+            .entries()
+            .iter()
+            .find_map(|entry| match entry.external() {
+                parity_wasm::elements::External::Memory(mem_ty) => Some(mem_ty.limits().initial()),
+                _ => None,
+            })
+            .ok_or(CodeError::MemoryEntryNotFound)?;
+
+        let static_pages =
+            WasmPageNumber::new(static_pages_raw).map_err(|_| CodeError::InvalidStaticPageCount)?;
 
         let exports = get_exports(&module, false)?;
 

@@ -534,8 +534,8 @@ pub fn execute_for_reply<
     let allocations = allocations.unwrap_or_else(|| program.allocations().clone());
 
     let memory_size = if let Some(page) = allocations.iter().next_back() {
-        *page + 1.into()
-    } else if static_pages != WasmPageNumber(0) {
+        page.inc().unwrap()
+    } else if static_pages != WasmPageNumber::from(0) {
         static_pages
     } else {
         0.into()

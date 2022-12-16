@@ -243,7 +243,7 @@ where
         let mut store = memory_wrap.into_store();
         let res = if needs_execution {
             let func = instance
-                .get_export(&store, entry_point.into_entry())
+                .get_export(&store, entry_point.as_entry())
                 .and_then(Extern::into_func)
                 .ok_or({
                     let store = &store;
@@ -257,7 +257,7 @@ where
                 let store = &store;
                 (
                     gas_amount!(store),
-                    EntryPointWrongType(entry_point.into_entry().to_string()),
+                    EntryPointWrongType(entry_point.as_entry().to_string()),
                 )
             })?;
 
