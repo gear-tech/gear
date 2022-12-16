@@ -12,8 +12,8 @@ repository = "https://github.com/gear-tech/gear"
 gear-core = { path = "../core" }
 log = { version = "0.4.17", optional = true }
 libc = { version = "0.2.101", default-features = false }
-sp-runtime-interface = { version = "6.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false }
-sp-std = { version = "4.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false }
+sp-runtime-interface = { version = "6.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.33", default-features = false }
+sp-std = { version = "4.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.33", default-features = false }
 gear-lazy-pages = { path = "../lazy-pages", optional = true }
 codec = { package = "parity-scale-codec", version = "3.1.2", default-features = false }
 derive_more = "0.99.17"

@@ -61,3 +61,8 @@ pub use processor::{
     precharge_for_code, precharge_for_code_length, precharge_for_instrumentation,
     precharge_for_memory, precharge_for_program, process,
 };
+
+/// Informational functions for core-processor and executor.
+pub mod informational {
+    pub use crate::executor::execute_for_reply;
+}
