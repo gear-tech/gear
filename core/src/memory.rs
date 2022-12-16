@@ -499,7 +499,7 @@ impl GrowHandler for GrowHandlerNothing {
 
 /// Alloc method result.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct AllocResult {
+pub struct AllocInfo {
     /// Zero page of allocated interval.
     pub page: WasmPageNumber,
     /// Number of pages, which has been allocated inside already existing memory.
@@ -536,11 +536,11 @@ impl AllocationsContext {
         &mut self,
         pages: WasmPageNumber,
         mem: &mut impl Memory,
-    ) -> Result<AllocResult, Error> {
+    ) -> Result<AllocInfo, Error> {
         let mem_size = mem.size();
         let mut previous = self.static_pages;
         let mut start = None;
-        for &page in self.allocations.iter().chain([mem_size].iter()) {
+        for &page in self.allocations.iter().chain(core::iter::once(&mem_size)) {
             if page
                 .sub(previous)
                 .map_err(|_| Error::IncorrectAllocationsSetOrMemSize)?
@@ -562,39 +562,51 @@ impl AllocationsContext {
             let start = self
                 .allocations
                 .last()
-                .map(|last| last.inc().expect("unreachable"))
+                .map(|last| last.inc().unwrap_or_else(|err| {
+                    unreachable!("Cannot increment last allocation: {}, but we checked in loop above that it can be done", err)
+                }))
                 .unwrap_or(self.static_pages);
             let end = start.add(pages).map_err(|_| Error::OutOfBounds)?;
             if end > self.max_pages {
                 return Err(Error::OutOfBounds);
             }
 
-            // Panic is safe, because in loop above we checked,
-            // that `mem_size` is bigger or equal than all allocated pages or static pages.
-            let extra_grow = end.sub(mem_size).expect("unreachable");
+            // Panic is safe, because in loop above we checked it.
+            let extra_grow = end.sub(mem_size).unwrap_or_else(|err| {
+                unreachable!(
+                    "`mem_size` must be bigger than all allocations or static pages, but get {}",
+                    err
+                )
+            });
 
             // Panic is safe, in other case we would found interval inside existing memory.
             if extra_grow == WasmPageNumber::zero() {
-                unreachable!();
+                unreachable!("`extra grow cannot be zero");
             }
 
             let grow_handler = G::before_grow_action(mem);
             mem.grow(extra_grow)?;
             grow_handler.after_grow_action(mem)?;
 
-            // Panic is safe, `extra_grow` cannot be bigger then `pages`,
-            // because of way it's calculated.
-            let not_grown = pages.sub(extra_grow).expect("unreachable");
+            // Panic is safe, because of way `extra_grow` was calculated.
+            let not_grown = pages.sub(extra_grow).unwrap_or_else(|err| {
+                unreachable!(
+                    "`extra_grow` cannot be bigger than `pages`, but get {}",
+                    err
+                )
+            });
 
             (start, not_grown)
         };
 
-        // Panic is safe, we calculated `start` suitable for `pages`.
-        for page in start.iter_count(pages).expect("unreachable") {
-            self.allocations.insert(page);
-        }
+        // Panic is safe, because we calculated `start` suitable for `pages`.
+        let new_allocations = start
+            .iter_count(pages)
+            .unwrap_or_else(|err| unreachable!("`start` + `pages` is out of wasm memory: {}", err));
 
-        Ok(AllocResult {
+        self.allocations.extend(new_allocations);
+
+        Ok(AllocInfo {
             page: start,
             not_grown,
         })

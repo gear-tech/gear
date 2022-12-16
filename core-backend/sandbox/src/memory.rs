@@ -67,7 +67,7 @@ impl Memory for MemoryWrap {
 mod tests {
     use super::*;
     use gear_backend_common::{assert_err, assert_ok};
-    use gear_core::memory::{AllocResult, AllocationsContext, GrowHandlerNothing};
+    use gear_core::memory::{AllocInfo, AllocationsContext, GrowHandlerNothing};
 
     fn new_test_memory(static_pages: u16, max_pages: u16) -> (AllocationsContext, MemoryWrap) {
         use sp_sandbox::SandboxMemory as WasmMemory;
@@ -89,7 +89,7 @@ mod tests {
 
         assert_ok!(
             mem.alloc::<GrowHandlerNothing>(16.into(), &mut mem_wrap),
-            AllocResult {
+            AllocInfo {
                 page: 16.into(),
                 not_grown: 0.into()
             }
@@ -112,7 +112,7 @@ mod tests {
         // and now can allocate page that was freed
         assert_ok!(
             mem.alloc::<GrowHandlerNothing>(1.into(), &mut mem_wrap),
-            AllocResult {
+            AllocInfo {
                 page: 137.into(),
                 not_grown: 1.into()
             },
@@ -124,7 +124,7 @@ mod tests {
 
         assert_ok!(
             mem.alloc::<GrowHandlerNothing>(2.into(), &mut mem_wrap),
-            AllocResult {
+            AllocInfo {
                 page: 117.into(),
                 not_grown: 2.into()
             }

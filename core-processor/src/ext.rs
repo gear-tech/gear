@@ -34,7 +34,7 @@ use gear_core::{
     gas::{ChargeResult, GasAllowanceCounter, GasAmount, GasCounter, Token, ValueCounter},
     ids::{CodeId, MessageId, ProgramId, ReservationId},
     memory::{
-        AllocResult, AllocationsContext, GrowHandler, GrowHandlerNothing, Memory, PageBuf,
+        AllocInfo, AllocationsContext, GrowHandler, GrowHandlerNothing, Memory, PageBuf,
         PageNumber, PageU32Size, WasmPageNumber,
     },
     message::{
@@ -890,7 +890,7 @@ impl Ext {
         self.charge_gas((pages.raw() as u64).saturating_mul(self.context.config.mem_grow_cost))?;
 
         let result = self.context.allocations_context.alloc::<G>(pages, mem);
-        let AllocResult { page, not_grown } = self.return_and_store_err(result)?;
+        let AllocInfo { page, not_grown } = self.return_and_store_err(result)?;
 
         // Returns back greedily used gas for grow
         let mut gas_to_return_back = self
