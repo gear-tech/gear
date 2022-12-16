@@ -35,6 +35,8 @@ pub enum MprotectError {
         mask: region::Protection,
         reason: region::Error,
     },
+    #[display(fmt = "Interval overflows usize: {_0:#x} +/- {_1:#x}")]
+    Overflow(usize, usize),
     #[display(fmt = "Zero size is restricted for mprotect")]
     ZeroSizeError,
     #[display(fmt = "Offset {_0:#x} is bigger then wasm mem size {_1:#x}")]
@@ -99,9 +101,13 @@ pub fn mprotect_mem_interval_except_pages(
     prot_read: bool,
     prot_write: bool,
 ) -> Result<(), MprotectError> {
-    let mprotect = |start, end| {
-        let addr = mem_addr + start;
-        let size = end - start;
+    let mprotect = |start, end: usize| {
+        let addr = mem_addr
+            .checked_add(start)
+            .ok_or(MprotectError::Overflow(mem_addr, start))?;
+        let size = end
+            .checked_sub(start)
+            .ok_or(MprotectError::Overflow(end, start))?;
         unsafe { sys_mprotect_interval(addr, size, prot_read, prot_write, false) }
     };
 
@@ -140,7 +146,10 @@ pub fn mprotect_pages<P: PageU32Size + Ord>(
         };
         let end = interval.end();
 
-        let addr = mem_addr + start.offset() as usize;
+        let addr = mem_addr
+            .checked_add(start.offset() as usize)
+            .ok_or(MprotectError::Overflow(mem_addr, start.offset() as usize))?;
+
         // `+ P::size()` because range is inclusive, and it's safe, because both are u32.
         let size = end
             .sub(start)
