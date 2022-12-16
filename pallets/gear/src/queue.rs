@@ -184,10 +184,7 @@ where
                             }
                         };
 
-                        (
-                            Self::reinstrument_code(code_id, &schedule),
-                            context,
-                        )
+                        (Self::reinstrument_code(code_id, &schedule), context)
                     }
                 };
 
