@@ -4002,6 +4002,7 @@ fn terminated_locking_funds() {
         let read_cost = DbWeightOf::<Test>::get().reads(1).ref_time();
         let module_instantiation = schedule.module_instantiation_per_byte * code_length as u64;
         let system_reservation = demo_init_fail_sender::system_reserve();
+        let gas_for_code_len = read_cost;
 
         assert_ok!(Gear::create_program(
             RuntimeOrigin::signed(USER_1),
@@ -4011,6 +4012,7 @@ fn terminated_locking_funds() {
             // additional gas for loading resources on next wake up
             gas_spent_init
                 + core_processor::calculate_gas_for_program(read_cost, 0)
+                + gas_for_code_len
                 + core_processor::calculate_gas_for_code(
                     read_cost,
                     <Test as Config>::Schedule::get().db_read_per_byte,
@@ -5510,6 +5512,8 @@ fn gas_spent_precalculated() {
             u64::from(cost)
                 // cost for loading program
                 + core_processor::calculate_gas_for_program(read_cost, 0)
+                // cost for loading code length
+                + read_cost
                 // cost for loading code
                 + core_processor::calculate_gas_for_code(read_cost, per_byte_cost, code.len() as u64)
                 + load_page_cost

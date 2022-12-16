@@ -331,9 +331,11 @@ impl Code {
 
     /// Consumes this instance and returns the instrumented and raw binary codes.
     pub fn into_parts(self) -> (InstrumentedCode, Vec<u8>) {
+        let original_code_len = self.raw_code.len() as u32;
         (
             InstrumentedCode {
                 code: self.code,
+                original_code_len,
                 exports: self.exports,
                 static_pages: self.static_pages,
                 version: self.instruction_weights_version,
@@ -383,6 +385,7 @@ impl CodeAndId {
 #[derive(Clone, Debug, Decode, Encode, TypeInfo)]
 pub struct InstrumentedCode {
     code: Vec<u8>,
+    original_code_len: u32,
     exports: BTreeSet<DispatchKind>,
     static_pages: WasmPageNumber,
     version: u32,
@@ -392,6 +395,11 @@ impl InstrumentedCode {
     /// Returns reference to the instrumented binary code.
     pub fn code(&self) -> &[u8] {
         &self.code
+    }
+
+    /// Returns the length of the original binary code.
+    pub fn original_code_len(&self) -> u32 {
+        self.original_code_len
     }
 
     /// Returns instruction weights version.

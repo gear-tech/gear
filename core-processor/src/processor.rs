@@ -18,28 +18,27 @@
 
 use crate::{
     common::{
-        Actor, DispatchOutcome, DispatchResult, DispatchResultKind, ExecutableActorData,
+        DispatchOutcome, DispatchResult, DispatchResultKind, ExecutableActorData,
         ExecutionErrorReason, GasOperation, JournalNote, PrechargedDispatch, WasmExecutionContext,
     },
-    configs::{BlockConfig, ExecutionSettings, MessageExecutionContext},
+    configs::{BlockConfig, ExecutionSettings},
+    context::*,
     executor,
     ext::ProcessorExt,
 };
-use alloc::{boxed::Box, collections::BTreeMap, string::ToString, vec::Vec};
+use alloc::{collections::BTreeMap, string::ToString, vec::Vec};
 use codec::Encode;
 use gear_backend_common::{Environment, IntoExtInfo, SystemReservationContext};
 use gear_core::{
-    code::InstrumentedCode,
     env::Ext as EnvExt,
     gas::{GasAllowanceCounter, GasCounter},
     ids::ProgramId,
-    memory::{PageBuf, PageNumber, WasmPageNumber},
+    memory::{PageBuf, PageNumber},
     message::{
         ContextSettings, DispatchKind, IncomingDispatch, MessageWaitedType, ReplyMessage,
         StatusCode, StoredDispatch,
     },
-    program::Program,
-    reservation::{GasReservationState, GasReserver},
+    reservation::GasReservationState,
 };
 
 #[derive(Debug)]
@@ -49,154 +48,16 @@ enum SuccessfulDispatchResultKind {
     Success,
 }
 
-/// Checked parameters for message execution across processing runs.
-#[derive(Debug)]
-pub struct PreparedMessageExecutionContext {
-    gas_counter: GasCounter,
-    gas_allowance_counter: GasAllowanceCounter,
-    dispatch: IncomingDispatch,
-    origin: ProgramId,
-    balance: u128,
-    actor_data: ExecutableActorData,
-    memory_size: WasmPageNumber,
-    max_reservations: u64,
-}
-
-impl PreparedMessageExecutionContext {
-    /// Returns reference to the GasCounter.
-    pub fn gas_counter(&self) -> &GasCounter {
-        &self.gas_counter
-    }
-
-    /// Returns reference to the ExecutableActorData.
-    pub fn actor_data(&self) -> &ExecutableActorData {
-        &self.actor_data
-    }
-}
-
-/// Checked parameters for message execution across processing runs.
-pub struct ProcessExecutionContext {
-    gas_counter: GasCounter,
-    gas_allowance_counter: GasAllowanceCounter,
-    gas_reserver: GasReserver,
-    dispatch: IncomingDispatch,
-    origin: ProgramId,
-    balance: u128,
-    program: Program,
-    memory_size: WasmPageNumber,
-}
-
-impl
-    From<(
-        Box<PreparedMessageExecutionContext>,
-        ProgramId,
-        InstrumentedCode,
-    )> for ProcessExecutionContext
-{
-    fn from(
-        args: (
-            Box<PreparedMessageExecutionContext>,
-            ProgramId,
-            InstrumentedCode,
-        ),
-    ) -> Self {
-        let (context, program_id, code) = args;
-
-        let PreparedMessageExecutionContext {
-            gas_counter,
-            gas_allowance_counter,
-            mut dispatch,
-            origin,
-            balance,
-            actor_data,
-            memory_size,
-            max_reservations,
-        } = *context;
-
-        let program = Program::from_parts(
-            program_id,
-            code,
-            actor_data.allocations,
-            actor_data.initialized,
-        );
-
-        let gas_reserver = GasReserver::new(
-            dispatch.id(),
-            dispatch
-                .context_mut()
-                .as_mut()
-                .map(|ctx| ctx.fetch_inc_reservation_nonce())
-                .unwrap_or(0),
-            actor_data.gas_reservation_map,
-            max_reservations,
-        );
-
-        Self {
-            gas_counter,
-            gas_allowance_counter,
-            gas_reserver,
-            dispatch,
-            origin,
-            balance,
-            program,
-            memory_size,
-        }
-    }
-}
-
-/// Defines result variants of the function `prepare`.
-#[derive(Debug)]
-pub enum PrepareResult {
-    /// Successfully pre-charged for resources.
-    Ok(Box<PreparedMessageExecutionContext>),
-    /// Required function is not exported. The program will not be executed.
-    WontExecute(Vec<JournalNote>),
-    /// Provided actor is not executable or there is not enough gas for resources.
-    Error(Vec<JournalNote>),
-}
-
-fn prepare_error(
-    dispatch: IncomingDispatch,
-    program_id: ProgramId,
-    gas_counter: GasCounter,
-    err: ExecutionErrorReason,
-) -> PrepareResult {
-    let gas_burned = gas_counter.burned();
-    let system_reservation_ctx = SystemReservationContext::from_dispatch(&dispatch);
-    PrepareResult::Error(process_error(
-        dispatch,
-        program_id,
-        gas_burned,
-        system_reservation_ctx,
-        err,
-        false,
-    ))
-}
-
-fn prepare_allowance_exceed(
-    dispatch: IncomingDispatch,
-    program_id: ProgramId,
-    gas_counter: GasCounter,
-) -> PrepareResult {
-    let gas_burned = gas_counter.burned();
-    PrepareResult::Error(process_allowance_exceed(dispatch, program_id, gas_burned))
-}
-
-/// Defines result variants of the function `precharge`.
-pub enum PrechargeResult {
-    /// Successfully pre-charged for resources.
-    Ok(PrechargedDispatch),
-    /// There is not enough gas for resources.
-    Error(Vec<JournalNote>),
-}
+/// Defines result variants of the precharge functions.
+pub type PrechargeResult<T> = Result<T, Vec<JournalNote>>;
 
 /// Charge a message for program data beforehand.
-pub fn precharge(
+pub fn precharge_for_program(
     block_config: &BlockConfig,
     gas_allowance: u64,
     dispatch: IncomingDispatch,
     destination_id: ProgramId,
-) -> PrechargeResult {
+) -> PrechargeResult<PrechargedDispatch> {
     use executor::ChargeForBytesResult::*;
 
     let read_per_byte_cost = block_config.read_per_byte_cost;
@@ -211,11 +72,11 @@ pub fn precharge(
         &mut gas_counter,
         &mut gas_allowance_counter,
     ) {
-        Ok => PrechargeResult::Ok((dispatch, gas_counter, gas_allowance_counter).into()),
+        Ok => Result::Ok((dispatch, gas_counter, gas_allowance_counter).into()),
         GasExceeded => {
             let gas_burned = gas_counter.burned();
             let system_reservation_ctx = SystemReservationContext::from_dispatch(&dispatch);
-            PrechargeResult::Error(process_error(
+            Err(process_error(
                 dispatch,
                 destination_id,
                 gas_burned,
@@ -226,7 +87,7 @@ pub fn precharge(
         }
         BlockGasExceeded => {
             let gas_burned = gas_counter.burned();
-            PrechargeResult::Error(process_allowance_exceed(
+            Err(process_allowance_exceed(
                 dispatch,
                 destination_id,
                 gas_burned,
@@ -235,87 +96,190 @@ pub fn precharge(
     }
 }
 
-/// Prepares environment for the execution of a program.
-/// Checks if there is a required export and tries to charge for code and memory pages.
-/// Returns either `PreparedMessageExecutionContext` for `process` or an array of journal notes.
-/// See `PrepareResult` for details.
-pub fn prepare(
+/// Charge a message for fetching the actual length of the binary code
+/// from a storage. The updated value of binary code length
+/// should be kept in standalone storage. The caller has to call this
+/// function to charge gas-counters accrodingly before fetching the value.
+///
+/// The function also performs several additional checks:
+/// - if an actor is executable
+/// - if a required dispatch method is exported.
+pub fn precharge_for_code_length(
     block_config: &BlockConfig,
-    execution_context: MessageExecutionContext,
-) -> PrepareResult {
-    use executor::ChargeForBytesResult;
+    dispatch: PrechargedDispatch,
+    destination_id: ProgramId,
+    executable_data: Option<ExecutableActorData>,
+) -> PrechargeResult<ContextChargedForCodeLength> {
+    use executor::ChargeForBytesResult::*;
 
-    let read_per_byte_cost = block_config.read_per_byte_cost;
     let read_cost = block_config.read_cost;
-    let max_reservations = block_config.max_reservations;
 
-    let MessageExecutionContext {
-        actor,
-        precharged_dispatch,
-        origin,
-        subsequent_execution,
-    } = execution_context;
-    let Actor {
-        balance,
-        destination_program: program_id,
-        executable_data,
-    } = actor;
-
-    let (dispatch, mut gas_counter, mut gas_allowance_counter) = precharged_dispatch.into_parts();
+    let (dispatch, mut gas_counter, mut gas_allowance_counter) = dispatch.into_parts();
 
     let actor_data = match check_is_executable(executable_data, &dispatch) {
         Err(status_code) => {
-            return PrepareResult::Error(process_non_executable(dispatch, program_id, status_code));
+            return Err(process_non_executable(
+                dispatch,
+                destination_id,
+                status_code,
+            ));
         }
-        Ok(data) => data,
+        Result::Ok(data) => data,
     };
 
     if !actor_data.code_exports.contains(&dispatch.kind()) {
-        return PrepareResult::WontExecute(process_success(
+        return Err(process_success(
             SuccessfulDispatchResultKind::Success,
-            DispatchResult::success(dispatch, program_id, gas_counter.into()),
+            DispatchResult::success(dispatch, destination_id, gas_counter.into()),
         ));
     }
+
+    match executor::charge_gas_per_byte(read_cost, &mut gas_counter, &mut gas_allowance_counter) {
+        Ok => Result::Ok(ContextChargedForCodeLength {
+            data: ContextData {
+                gas_counter,
+                gas_allowance_counter,
+                dispatch,
+                destination_id,
+                actor_data,
+            },
+        }),
+        GasExceeded => {
+            let system_reservation_ctx = SystemReservationContext::from_dispatch(&dispatch);
+            Err(process_error(
+                dispatch,
+                destination_id,
+                gas_counter.burned(),
+                system_reservation_ctx,
+                ExecutionErrorReason::GasExceeded(GasOperation::ProgramCode),
+                false,
+            ))
+        }
+        BlockGasExceeded => Err(process_allowance_exceed(
+            dispatch,
+            destination_id,
+            gas_counter.burned(),
+        )),
+    }
+}
+
+/// Charge a message for the program binary code beforehand.
+pub fn precharge_for_code(
+    block_config: &BlockConfig,
+    mut context: ContextChargedForCodeLength,
+    code_len_bytes: u32,
+) -> PrechargeResult<ContextChargedForCode> {
+    use executor::ChargeForBytesResult::*;
+
+    let read_per_byte_cost = block_config.read_per_byte_cost;
+    let read_cost = block_config.read_cost;
 
     match executor::charge_gas_for_code(
         read_cost,
         read_per_byte_cost,
-        actor_data.code_length_bytes,
-        &mut gas_counter,
-        &mut gas_allowance_counter,
+        code_len_bytes,
+        &mut context.data.gas_counter,
+        &mut context.data.gas_allowance_counter,
     ) {
-        ChargeForBytesResult::Ok => (),
-        ChargeForBytesResult::GasExceeded => {
-            return prepare_error(
-                dispatch,
-                program_id,
-                gas_counter,
+        Ok => Result::Ok((context, code_len_bytes).into()),
+        GasExceeded => {
+            let system_reservation_ctx =
+                SystemReservationContext::from_dispatch(&context.data.dispatch);
+            Err(process_error(
+                context.data.dispatch,
+                context.data.destination_id,
+                context.data.gas_counter.burned(),
+                system_reservation_ctx,
                 ExecutionErrorReason::GasExceeded(GasOperation::ProgramCode),
-            );
+                false,
+            ))
         }
-        ChargeForBytesResult::BlockGasExceeded => {
-            return prepare_allowance_exceed(dispatch, program_id, gas_counter);
-        }
+        BlockGasExceeded => Err(process_allowance_exceed(
+            context.data.dispatch,
+            context.data.destination_id,
+            context.data.gas_counter.burned(),
+        )),
     }
+}
+
+/// Charge a message for instrumentation of the binary code beforehand.
+pub fn precharge_for_instrumentation(
+    block_config: &BlockConfig,
+    mut context: ContextChargedForCode,
+    original_code_len_bytes: u32,
+) -> PrechargeResult<ContextChargedForInstrumentation> {
+    use executor::ChargeForBytesResult::*;
+
+    let cost_base = block_config.code_instrumentation_cost;
+    let cost_per_byte = block_config.code_instrumentation_byte_cost;
+
+    let amount =
+        cost_base.saturating_add(cost_per_byte.saturating_mul(original_code_len_bytes.into()));
+    match executor::charge_gas_per_byte(
+        amount,
+        &mut context.data.gas_counter,
+        &mut context.data.gas_allowance_counter,
+    ) {
+        Ok => Result::Ok(context.into()),
+        GasExceeded => {
+            let system_reservation_ctx =
+                SystemReservationContext::from_dispatch(&context.data.dispatch);
+            Err(process_error(
+                context.data.dispatch,
+                context.data.destination_id,
+                context.data.gas_counter.burned(),
+                system_reservation_ctx,
+                ExecutionErrorReason::GasExceeded(GasOperation::ModuleInstrumentation),
+                false,
+            ))
+        }
+        BlockGasExceeded => Err(process_allowance_exceed(
+            context.data.dispatch,
+            context.data.destination_id,
+            context.data.gas_counter.burned(),
+        )),
+    }
+}
+
+/// Charge a message for program memory and module instantiation beforehand.
+pub fn precharge_for_memory(
+    block_config: &BlockConfig,
+    mut context: ContextChargedForInstrumentation,
+    subsequent_execution: bool,
+) -> PrechargeResult<ContextChargedForMemory> {
+    let ContextChargedForInstrumentation {
+        data:
+            ContextData {
+                gas_counter,
+                gas_allowance_counter,
+                actor_data,
+                dispatch,
+                ..
+            },
+        code_len_bytes,
+    } = &mut context;
 
     let mut f = || {
         let memory_size = executor::charge_gas_for_pages(
             &block_config.allocations_config,
-            &mut gas_counter,
-            &mut gas_allowance_counter,
+            gas_counter,
+            gas_allowance_counter,
             &actor_data.allocations,
             actor_data.static_pages,
             dispatch.context().is_none() && matches!(dispatch.kind(), DispatchKind::Init),
             subsequent_execution,
         )?;
+
         executor::charge_gas_for_instantiation(
             block_config.module_instantiation_byte_cost,
-            actor_data.code_length_bytes,
-            &mut gas_counter,
-            &mut gas_allowance_counter,
+            *code_len_bytes,
+            gas_counter,
+            gas_allowance_counter,
         )?;
+
         Ok(memory_size)
     };
+
     let memory_size = match f() {
         Ok(size) => {
             log::debug!("Charged for module instantiation and memory pages. Size: {size:?}");
@@ -329,22 +293,33 @@ pub fn prepare(
                     | GasOperation::GrowMemory
                     | GasOperation::LoadMemory
                     | GasOperation::ModuleInstantiation,
-                ) => prepare_allowance_exceed(dispatch, program_id, gas_counter),
-                _ => prepare_error(dispatch, program_id, gas_counter, reason),
+                ) => Err(process_allowance_exceed(
+                    context.data.dispatch,
+                    context.data.destination_id,
+                    context.data.gas_counter.burned(),
+                )),
+
+                _ => {
+                    let system_reservation_ctx =
+                        SystemReservationContext::from_dispatch(&context.data.dispatch);
+                    Err(process_error(
+                        context.data.dispatch,
+                        context.data.destination_id,
+                        context.data.gas_counter.burned(),
+                        system_reservation_ctx,
+                        reason,
+                        false,
+                    ))
+                }
             };
         }
     };
 
-    PrepareResult::Ok(Box::new(PreparedMessageExecutionContext {
-        gas_counter,
-        gas_allowance_counter,
-        dispatch,
-        origin,
-        balance,
-        actor_data,
+    Ok(ContextChargedForMemory {
+        data: context.data,
+        max_reservations: block_config.max_reservations,
         memory_size,
-        max_reservations,
-    }))
+    })
 }
 
 /// Process program & dispatch for it and return journal for updates.

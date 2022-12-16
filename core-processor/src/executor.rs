@@ -79,7 +79,7 @@ fn charge_gas(
     Ok(())
 }
 
-fn charge_gas_for_bytes(
+pub(crate) fn charge_gas_per_byte(
     amount: u64,
     gas_counter: &mut GasCounter,
     gas_allowance_counter: &mut GasAllowanceCounter,
@@ -100,7 +100,7 @@ pub(crate) fn charge_gas_for_program(
     gas_counter: &mut GasCounter,
     gas_allowance_counter: &mut GasAllowanceCounter,
 ) -> ChargeForBytesResult {
-    charge_gas_for_bytes(
+    charge_gas_per_byte(
         calculate_gas_for_program(read_cost, per_byte_cost),
         gas_counter,
         gas_allowance_counter,
@@ -114,7 +114,7 @@ pub(crate) fn charge_gas_for_code(
     gas_counter: &mut GasCounter,
     gas_allowance_counter: &mut GasAllowanceCounter,
 ) -> ChargeForBytesResult {
-    charge_gas_for_bytes(
+    charge_gas_per_byte(
         calculate_gas_for_code(read_cost, per_byte_cost, code_len_bytes.into()),
         gas_counter,
         gas_allowance_counter,
