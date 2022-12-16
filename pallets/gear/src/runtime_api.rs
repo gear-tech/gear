@@ -17,9 +17,17 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use super::*;
+use core::convert::TryFrom;
+use gear_core::memory::WasmPageNumber;
 use gear_wasm_instrument::syscalls::SysCallName;
 
-impl<T: Config> pallet::Pallet<T>
+pub(crate) struct CodeWithMemoryData {
+    pub instrumented_code: InstrumentedCode,
+    pub allocations: BTreeSet<WasmPageNumber>,
+    pub program_pages: Option<BTreeMap<PageNumber, PageBuf>>,
+}
+
+impl<T: Config> Pallet<T>
 where
     T::AccountId: Origin,
 {
@@ -83,41 +91,8 @@ where
                     .map(|dispatch| (dispatch.id(), dispatch.destination()))
             })?;
 
-        let block_info = BlockInfo {
-            height: Self::block_number().unique_saturated_into(),
-            timestamp: <pallet_timestamp::Pallet<T>>::get().unique_saturated_into(),
-        };
-
-        let existential_deposit = CurrencyOf::<T>::minimum_balance().unique_saturated_into();
-
-        let schedule = T::Schedule::get();
-
-        let allocations_config = AllocationsConfig {
-            max_pages: schedule.limits.memory_pages.into(),
-            init_cost: schedule.memory_weights.initial_cost,
-            alloc_cost: schedule.memory_weights.allocation_cost,
-            mem_grow_cost: schedule.memory_weights.grow_cost,
-            load_page_cost: schedule.memory_weights.load_cost,
-        };
-
-        let block_config = BlockConfig {
-            block_info,
-            allocations_config,
-            existential_deposit,
-            outgoing_limit: T::OutgoingLimit::get(),
-            host_fn_weights: schedule.host_fn_weights.into_core(),
-            forbidden_funcs: [SysCallName::GasAvailable].into(),
-            mailbox_threshold: T::MailboxThreshold::get(),
-            waitlist_cost: CostsPerBlockOf::<T>::waitlist(),
-            reserve_for: CostsPerBlockOf::<T>::reserve_for().unique_saturated_into(),
-            reservation: CostsPerBlockOf::<T>::reservation().unique_saturated_into(),
-            read_cost: DbWeightOf::<T>::get().reads(1).ref_time(),
-            write_cost: DbWeightOf::<T>::get().writes(1).ref_time(),
-            write_per_byte_cost: schedule.db_write_per_byte,
-            read_per_byte_cost: schedule.db_read_per_byte,
-            module_instantiation_byte_cost: schedule.module_instantiation_per_byte,
-            max_reservations: T::ReservationsLimit::get(),
-        };
+        let mut block_config = Self::block_config();
+        block_config.forbidden_funcs = [SysCallName::GasAvailable].into();
 
         let mut min_limit = 0;
         let mut reserved = 0;
@@ -263,6 +238,128 @@ where
             burned,
             may_be_returned,
             waited,
+        })
+    }
+
+    fn code_with_memory(program_id: ProgramId) -> Result<CodeWithMemoryData, String> {
+        let program = common::get_active_program(program_id.into_origin())
+            .map_err(|e| format!("Get active program error: {e:?}"))?;
+
+        let code_id = CodeId::from_origin(program.code_hash);
+
+        let instrumented_code = Self::get_code(code_id, program_id)
+            .ok_or_else(|| String::from("Failed to get code for given program id"))?;
+
+        #[cfg(not(feature = "lazy-pages"))]
+        let program_pages = Some(
+            common::get_program_pages_data(program_id.into_origin(), &program)
+                .map_err(|e| format!("Get program pages data error: {e:?}"))?,
+        );
+
+        #[cfg(feature = "lazy-pages")]
+        let program_pages = None;
+
+        let allocations = program.allocations;
+
+        Ok(CodeWithMemoryData {
+            instrumented_code,
+            allocations,
+            program_pages,
+        })
+    }
+
+    pub(crate) fn read_state_using_wasm_impl(
+        program_id: ProgramId,
+        function: impl Into<String>,
+        wasm: Vec<u8>,
+        argument: Option<Vec<u8>>,
+    ) -> Result<Vec<u8>, String> {
+        #[cfg(feature = "lazy-pages")]
+        assert!(lazy_pages::try_to_enable_lazy_pages());
+
+        let schedule = T::Schedule::get();
+
+        if u32::try_from(wasm.len()).unwrap_or(u32::MAX) > schedule.limits.code_len {
+            return Err("Wasm too big".into());
+        }
+
+        let code = Code::new_raw_with_rules(
+            wasm,
+            schedule.instruction_weights.version,
+            false,
+            |module| schedule.rules(module),
+        )
+        .map_err(|e| format!("Failed to construct program: {e:?}"))?;
+
+        if u32::try_from(code.code().len()).unwrap_or(u32::MAX) > schedule.limits.code_len {
+            return Err("Wasm after instrumentation too big".into());
+        }
+
+        let code_and_id = CodeAndId::new(code);
+        let code_and_id = InstrumentedCodeAndId::from(code_and_id);
+
+        let instrumented_code = code_and_id.into_parts().0;
+
+        let mut payload = argument.unwrap_or_default();
+        payload.append(&mut Self::read_state_impl(program_id)?);
+
+        core_processor::informational::execute_for_reply::<Ext, ExecutionEnvironment<String>, String>(
+            function.into(),
+            instrumented_code,
+            None,
+            None,
+            None,
+            payload,
+            BlockGasLimitOf::<T>::get() / 4,
+        )
+    }
+
+    pub(crate) fn read_state_impl(program_id: ProgramId) -> Result<Vec<u8>, String> {
+        #[cfg(feature = "lazy-pages")]
+        assert!(lazy_pages::try_to_enable_lazy_pages());
+
+        log::debug!("Reading state of {program_id:?}");
+
+        let CodeWithMemoryData {
+            instrumented_code,
+            allocations,
+            program_pages,
+        } = Self::code_with_memory(program_id)?;
+
+        core_processor::informational::execute_for_reply::<Ext, ExecutionEnvironment<String>, String>(
+            String::from("state"),
+            instrumented_code,
+            program_pages,
+            Some(allocations),
+            Some(program_id),
+            Default::default(),
+            BlockGasLimitOf::<T>::get() / 4,
+        )
+    }
+
+    pub(crate) fn read_metahash_impl(program_id: ProgramId) -> Result<H256, String> {
+        #[cfg(feature = "lazy-pages")]
+        assert!(lazy_pages::try_to_enable_lazy_pages());
+
+        log::debug!("Reading metahash of {program_id:?}");
+
+        let CodeWithMemoryData {
+            instrumented_code,
+            allocations,
+            program_pages,
+        } = Self::code_with_memory(program_id)?;
+
+        core_processor::informational::execute_for_reply::<Ext, ExecutionEnvironment<String>, String>(
+            String::from("metahash"),
+            instrumented_code,
+            program_pages,
+            Some(allocations),
+            Some(program_id),
+            Default::default(),
+            BlockGasLimitOf::<T>::get() / 4,
+        )
+        .and_then(|bytes| {
+            H256::decode(&mut bytes.as_ref()).map_err(|_| "Failed to decode hash".into())
         })
     }
 }

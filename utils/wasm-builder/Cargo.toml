@@ -18,3 +18,7 @@ log = "0.4.17"
 pathdiff = { version = "0.2.1", default-features = false }
 which = "4.3.0"
 colored = "2.0.0"
+gmeta = { path = "../../gmeta", default-features = false }
+
+[features]
+metawasm = ["gmeta/codegen"]

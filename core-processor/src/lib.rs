@@ -57,3 +57,8 @@ pub use processor::{
     precharge, prepare, process, PrechargeResult, PrepareResult, PreparedMessageExecutionContext,
     ProcessExecutionContext,
 };
+
+/// Informational functions for core-processor and executor.
+pub mod informational {
+    pub use crate::executor::execute_for_reply;
+}

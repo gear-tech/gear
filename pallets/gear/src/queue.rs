@@ -29,41 +29,7 @@ where
 {
     /// Message Queue processing.
     pub(crate) fn process_queue(mut ext_manager: ExtManager<T>) {
-        let block_info = BlockInfo {
-            height: Self::block_number().unique_saturated_into(),
-            timestamp: <pallet_timestamp::Pallet<T>>::get().unique_saturated_into(),
-        };
-
-        let existential_deposit = CurrencyOf::<T>::minimum_balance().unique_saturated_into();
-
-        let schedule = T::Schedule::get();
-
-        let allocations_config = AllocationsConfig {
-            max_pages: schedule.limits.memory_pages.into(),
-            init_cost: schedule.memory_weights.initial_cost,
-            alloc_cost: schedule.memory_weights.allocation_cost,
-            mem_grow_cost: schedule.memory_weights.grow_cost,
-            load_page_cost: schedule.memory_weights.load_cost,
-        };
-
-        let block_config = BlockConfig {
-            block_info,
-            allocations_config,
-            existential_deposit,
-            outgoing_limit: T::OutgoingLimit::get(),
-            host_fn_weights: schedule.host_fn_weights.into_core(),
-            forbidden_funcs: Default::default(),
-            mailbox_threshold: T::MailboxThreshold::get(),
-            waitlist_cost: CostsPerBlockOf::<T>::waitlist(),
-            reserve_for: CostsPerBlockOf::<T>::reserve_for().unique_saturated_into(),
-            reservation: CostsPerBlockOf::<T>::reservation().unique_saturated_into(),
-            read_cost: DbWeightOf::<T>::get().reads(1).ref_time(),
-            write_cost: DbWeightOf::<T>::get().writes(1).ref_time(),
-            write_per_byte_cost: schedule.db_write_per_byte,
-            read_per_byte_cost: schedule.db_read_per_byte,
-            module_instantiation_byte_cost: schedule.module_instantiation_per_byte,
-            max_reservations: T::ReservationsLimit::get(),
-        };
+        let block_config = Self::block_config();
 
         if T::DebugInfo::is_remap_id_enabled() {
             T::DebugInfo::remap_id();

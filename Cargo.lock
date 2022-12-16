@@ -1677,6 +1677,35 @@ dependencies = [
 ]
 
 [[package]]
+name = "demo-meta-io"
+version = "0.1.0"
+dependencies = [
+ "gmeta",
+ "parity-scale-codec",
+ "scale-info",
+]
+
+[[package]]
+name = "demo-meta-state-v1"
+version = "0.1.0"
+dependencies = [
+ "demo-meta-io",
+ "gear-wasm-builder",
+ "gmeta",
+ "gstd",
+]
+
+[[package]]
+name = "demo-meta-state-v2"
+version = "0.1.0"
+dependencies = [
+ "demo-meta-io",
+ "gear-wasm-builder",
+ "gmeta",
+ "gstd",
+]
+
+[[package]]
 name = "demo-mul-by-const"
 version = "0.1.0"
 dependencies = [
@@ -1692,6 +1721,18 @@ dependencies = [
  "gear-wasm-builder",
  "gstd",
  "hex",
+]
+
+[[package]]
+name = "demo-new-meta"
+version = "0.1.0"
+dependencies = [
+ "demo-meta-io",
+ "demo-meta-state-v1",
+ "demo-meta-state-v2",
+ "gear-wasm-builder",
+ "gstd",
+ "parity-scale-codec",
 ]
 
 [[package]]
@@ -3599,6 +3640,7 @@ dependencies = [
  "anyhow",
  "cargo_metadata 0.15.2",
  "colored",
+ "gmeta",
  "log",
  "pathdiff",
  "pwasm-utils",
@@ -3742,6 +3784,26 @@ dependencies = [
  "futures-core",
  "js-sys",
  "wasm-bindgen",
+]
+
+[[package]]
+name = "gmeta"
+version = "0.1.0"
+dependencies = [
+ "blake2-rfc",
+ "gmeta-codegen",
+ "hex",
+ "parity-scale-codec",
+ "scale-info",
+]
+
+[[package]]
+name = "gmeta-codegen"
+version = "0.1.0"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
 ]
 
 [[package]]
@@ -6062,6 +6124,7 @@ dependencies = [
  "demo-init-wait-reply-exit",
  "demo-init-with-value",
  "demo-mul-by-const",
+ "demo-new-meta",
  "demo-program-factory",
  "demo-proxy",
  "demo-proxy-relay",
@@ -6089,6 +6152,8 @@ dependencies = [
  "gear-lazy-pages-common",
  "gear-runtime-interface",
  "gear-wasm-instrument",
+ "gmeta",
+ "hex",
  "log",
  "page_size 0.5.0",
  "pallet-authorship",
