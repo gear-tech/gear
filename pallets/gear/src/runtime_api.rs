@@ -114,6 +114,7 @@ where
             let gas_limit = GasHandlerOf::<T>::get_limit(dispatch_id)
                 .map_err(|_| b"Internal error: unable to get gas limit".to_vec())?;
 
+            // todo #1987 : consider to make more common for use in process_queue too
             let build_journal = || {
                 let program_id = queued_dispatch.destination();
                 let precharged_dispatch = match core_processor::precharge_for_program(
