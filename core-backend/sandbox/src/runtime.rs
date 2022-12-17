@@ -51,6 +51,8 @@ impl<E: Ext> Runtime<E> {
                 HostError
             })?;
 
+        // It's expected, that ext counters are greater than `gas` and `allowance`, so ext counters
+        // are charged.
         self.ext.update_counters(gas as u64, allowance as u64);
 
         let result = f(self).map_err(|err| {
@@ -60,6 +62,7 @@ impl<E: Ext> Runtime<E> {
 
         let (gas, allowance) = self.ext.counters();
 
+        // It's expected, that global counters are greater than ext counters now charged.
         self.globals
             .set_global_val(GLOBAL_NAME_GAS, Value::I64(gas as i64))
             .map_err(|_| {

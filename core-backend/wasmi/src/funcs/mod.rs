@@ -508,6 +508,7 @@ where
                         .write(err_ptr as usize, &size.to_le_bytes())
                     {
                         caller.host_state_mut().err = err.into();
+                        // todo seems update not needed
                         Err(Trap::from(TrapCode::Unreachable))
                     } else {
                         caller.host_state_mut().err = err;
@@ -534,6 +535,7 @@ where
                     .memory(&memory)
                     .write(err_ptr as usize, &size.to_le_bytes())
                 {
+                    // todo seems to be missing update globals
                     caller.host_state_mut().err = err.into();
                     Err(Trap::from(TrapCode::Unreachable))
                 } else {
@@ -548,6 +550,7 @@ where
             match caller.memory(&memory).write(buffer_ptr as usize, &message) {
                 Ok(()) => caller.update_globals(),
                 Err(e) => {
+                    // todo forgot to update globals?
                     caller.host_state_mut().err = e.into();
                     Err(Trap::from(TrapCode::Unreachable))
                 }

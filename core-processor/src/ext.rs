@@ -586,7 +586,7 @@ impl EnvExt for Ext {
         let result = self.context.allocations_context.free(page);
 
         // Returns back gas for allocated page if it's new
-        if !self.context.allocations_context.is_init_page(page) {
+        if result.is_ok() && !self.context.allocations_context.is_init_page(page) {
             self.refund_gas(self.context.config.alloc_cost)?;
         }
 
@@ -800,7 +800,9 @@ impl EnvExt for Ext {
             packet.salt().len() as u32,
         ))?;
 
+        self.check_forbidden_call(packet.destination())?;
         self.charge_expiring_resources(&packet)?;
+        self.charge_sending_fee(delay)?;
 
         let code_hash = packet.code_id();
 
