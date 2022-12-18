@@ -66,3 +66,36 @@ pub fn with_inclusive_ranges<P: PageU32Size + Ord, E>(
     });
     f(iter)
 }
+
+#[test]
+fn test_with_inclusive_range() {
+    use gear_core::memory::PageNumber;
+
+    let test = |pages: &[u16]| {
+        let mut inclusive_ranges: Vec<Vec<u32>> = Vec::new();
+        let slice_to_ranges = |iter: PagesIterInclusive<PageNumber>| -> Result<(), ()> {
+            inclusive_ranges.push(iter.map(|p| p.raw()).collect());
+            Ok(())
+        };
+
+        with_inclusive_ranges(
+            &pages.iter().copied().map(PageNumber::from).collect(),
+            slice_to_ranges,
+        )
+        .unwrap();
+        inclusive_ranges
+    };
+
+    let mut res = test([1, 2, 5, 6, 7, 11, 19].as_slice());
+    assert_eq!(res.pop().unwrap(), vec![19]);
+    assert_eq!(res.pop().unwrap(), vec![11]);
+    assert_eq!(res.pop().unwrap(), vec![5, 6, 7]);
+    assert_eq!(res.pop().unwrap(), vec![1, 2]);
+
+    let mut res = test([5, 6, 7, 8, 9, 10, 11].as_slice());
+    assert_eq!(res.pop().unwrap(), vec![5, 6, 7, 8, 9, 10, 11]);
+
+    let mut res = test([5, 6, 7, 8, 9, 10, 11, 90].as_slice());
+    assert_eq!(res.pop().unwrap(), vec![90]);
+    assert_eq!(res.pop().unwrap(), vec![5, 6, 7, 8, 9, 10, 11]);
+}

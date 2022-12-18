@@ -875,7 +875,7 @@ impl JournalHandler for ExtManager {
                 program
                     .allocations()
                     .difference(&allocations)
-                    .flat_map(|page| page.to_pages_iter())
+                    .flat_map(PageU32Size::to_pages_iter)
                     .for_each(|ref page| {
                         pages_data.remove(page);
                     });

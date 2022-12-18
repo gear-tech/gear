@@ -41,8 +41,6 @@ pub enum MprotectError {
     ZeroSizeError,
     #[display(fmt = "Offset {_0:#x} is bigger then wasm mem size {_1:#x}")]
     OffsetOverflow(usize, usize),
-    #[display(fmt = "Given iterator over pages is incorrect")]
-    IncorrectPagesIterator,
 }
 
 /// Mprotect native memory interval [`addr`, `addr` + `size`].

@@ -534,7 +534,9 @@ pub fn execute_for_reply<
     let allocations = allocations.unwrap_or_else(|| program.allocations().clone());
 
     let memory_size = if let Some(page) = allocations.iter().next_back() {
-        page.inc().unwrap()
+        page.inc()
+            .map_err(|err| err.to_string())
+            .expect("Memory size overflow, impossible")
     } else if static_pages != WasmPageNumber::from(0) {
         static_pages
     } else {

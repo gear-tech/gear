@@ -40,6 +40,9 @@ use mprotect::MprotectError;
 
 mod utils;
 
+#[cfg(test)]
+mod tests;
+
 /// Initialize lazy-pages once for process.
 static LAZY_PAGES_INITIALIZED: OnceCell<Result<(), InitError>> = OnceCell::new();
 
@@ -75,9 +78,6 @@ pub enum LazyPagesVersion {
     Version1,
 }
 
-#[cfg(test)]
-mod tests;
-
 #[derive(Default, Debug)]
 pub(crate) struct LazyPagesExecutionContext {
     /// Pointer to the begin of wasm memory buffer
@@ -88,7 +88,7 @@ pub(crate) struct LazyPagesExecutionContext {
     pub program_storage_prefix: Option<Vec<u8>>,
     /// Wasm addresses of lazy-pages, that have been read or write accessed at least once.
     /// Lazy page here is page, which has `size = max(native_page_size, gear_page_size)`.
-    pub accessed_lazy_pages: BTreeSet<LazyPage>,
+    pub accessed_pages: BTreeSet<LazyPage>,
     /// End of stack wasm address. Default is `0`, which means,
     /// that wasm data has no stack region. It's not necessary to specify
     /// this value, `lazy-pages` uses it to identify memory, for which we
@@ -230,7 +230,7 @@ pub fn set_lazy_pages_protection() -> Result<(), MemoryProtectionError> {
         // Set only write protection for already accessed, but not released pages.
         // `as u32` is safe because page size is less then `PAGE_STORAGE_GRANULARITY`.
         let read_only_pages = ctx
-            .accessed_lazy_pages
+            .accessed_pages
             .iter()
             .filter(|&&page| !ctx.released_pages.contains(&page))
             .copied();

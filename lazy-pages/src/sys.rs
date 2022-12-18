@@ -139,9 +139,7 @@ pub(crate) unsafe fn process_lazy_pages(
 
     let mut f = |pages: PagesIterInclusive<LazyPage>| {
         let psg = PAGE_STORAGE_GRANULARITY as u32;
-        let mut start = if let Some(start) = pages.current() {
-            start
-        } else {
+        let Some(mut start) = pages.current() else {
             // Interval is empty, so nothing to process.
             return Ok(());
         };
@@ -175,7 +173,7 @@ pub(crate) unsafe fn process_lazy_pages(
                 if is_signal {
                     return Err(Error::SignalFromReleasedPage);
                 }
-            } else if ctx.accessed_lazy_pages.contains(&lazy_page) {
+            } else if ctx.accessed_pages.contains(&lazy_page) {
                 if is_write {
                     // Set read/write access for page and add page to released.
                     region::protect(
@@ -226,7 +224,7 @@ pub(crate) unsafe fn process_lazy_pages(
                     }
                 }
 
-                ctx.accessed_lazy_pages.insert(lazy_page);
+                ctx.accessed_pages.insert(lazy_page);
 
                 if is_write {
                     log::trace!("add {lazy_page:?} to released");

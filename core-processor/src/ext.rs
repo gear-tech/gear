@@ -901,7 +901,7 @@ impl Ext {
 
         // Returns back greedily used gas for allocations
         let mut new_allocated_pages_num = 0;
-        // Panic is safe, because alloc returns page, for which `page + pages` is inside u32 memory.
+        // This is safe cause panic is unreachable: alloc returns page, for which `page + pages` is inside u32 memory.
         for page in page
             .iter_count(pages)
             .unwrap_or_else(|err| unreachable!("Alloc implementation error: {}", err))
