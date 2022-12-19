@@ -755,19 +755,8 @@ mod tests {
         assert_eq!(res, new_pages,);
     }
 
-    // TODO tests
-    // 1. calling free will refund/not refund on error. Just run test with existing Ext.
-    // 2. read should always charge gas (just test it with existing Ext)
-    // 3. Any host fn call should result in zero gas refund when update_counters method is called. Run it with emulating
-    // the environment by calls to Ext, but state in todo that such tests should be done with property tests and in an env
-    // of real backends. Even when `free` is called  (because, theoretically, at most it doesn't affect anyhow the global counter)
-    // 4. Same statement is needed for the following test done only with Ext: test that call will leave zeroed gas allowance,
-    // when token is charged (or other calls - check it please).
-
     #[test]
-    fn test_counter_zeroes() {
-        // TODO Decide on when counters are zeroed.
-        // Most probably during the charge for the call (charge_token),
-        // but not for the resources (expiring, delay and etc.), as they are checked before mutations happen.
+    fn test_no_refund_on_update() {
+        // TODO 
     }
 }
