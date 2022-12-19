@@ -18,20 +18,16 @@
 
 use super::{GearApi, Result};
 use crate::Error;
-use gp::api::generated::api::{
-    runtime_types::{gear_runtime::RuntimeEvent, pallet_gear::ProcessStatus},
-    storage,
-};
-use subxt::ext::{
-    sp_core::H256,
-    sp_runtime::{
-        generic::{Block, Header},
-        traits::BlakeTwo256,
-        OpaqueExtrinsic,
+use gp::api::{
+    config::GearConfig,
+    generated::api::{
+        runtime_types::{gear_runtime::RuntimeEvent, pallet_gear::ProcessStatus},
+        storage,
     },
 };
+use subxt::{ext::sp_core::H256, rpc::ChainBlock};
 
-type GearBlock = Block<Header<u32, BlakeTwo256>, OpaqueExtrinsic>;
+type GearBlock = ChainBlock<GearConfig>;
 
 impl GearApi {
     pub fn block_gas_limit(&self) -> Result<u64> {

@@ -19,18 +19,17 @@
 use super::EventProcessor;
 use crate::{Error, Result};
 use async_trait::async_trait;
-use futures::stream::StreamExt;
 use gp::api::{
     config::GearConfig,
     generated::api::{gear::Event as GearEvent, Event},
-    types::FinalizedEvents,
+    types::FinalizedBlocks,
 };
 use subxt::{
     events::{Events, Phase},
     ext::sp_core::H256,
 };
 
-pub struct EventListener(pub(crate) FinalizedEvents);
+pub struct EventListener(pub(crate) FinalizedBlocks);
 
 #[async_trait(?Send)]
 impl EventProcessor for EventListener {
@@ -39,7 +38,7 @@ impl EventProcessor for EventListener {
     }
 
     async fn proc<T>(&mut self, predicate: impl Fn(Event) -> Option<T> + Copy) -> Result<T> {
-        while let Some(events) = self.0.next().await {
+        while let Some(events) = self.0.next_events().await {
             if let Some(res) = self.proc_events_inner(events?, predicate) {
                 return Ok(res);
             }
@@ -55,7 +54,7 @@ impl EventProcessor for EventListener {
     ) -> Result<Vec<T>> {
         let mut res = vec![];
 
-        while let Some(events) = self.0.next().await {
+        while let Some(events) = self.0.next_events().await {
             for event in events?.iter() {
                 if let Some(data) = predicate(event?.as_root_event::<(Phase, Event)>()?.1) {
                     res.push(data);
@@ -77,7 +76,7 @@ impl EventProcessor for EventListener {
 impl EventListener {
     /// Looks through finalized blocks to find the queue processing reverted event.
     pub async fn queue_processing_reverted(&mut self) -> Result<H256> {
-        while let Some(events) = self.0.next().await {
+        while let Some(events) = self.0.next_events().await {
             let events = events?;
             let events_bh = events.block_hash();
 
@@ -94,7 +93,7 @@ impl EventListener {
     pub async fn blocks_running_since(&mut self, previous: H256) -> Result<bool> {
         let current = self
             .0
-            .next()
+            .next_events()
             .await
             .ok_or(Error::EventNotFound)??
             .block_hash();
@@ -105,7 +104,7 @@ impl EventListener {
     pub async fn blocks_running(&mut self) -> Result<bool> {
         let previous = self
             .0
-            .next()
+            .next_events()
             .await
             .ok_or(Error::EventNotFound)??
             .block_hash();

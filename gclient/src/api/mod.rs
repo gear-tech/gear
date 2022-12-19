@@ -74,12 +74,12 @@ impl GearApi {
 
     // This stuff to be considered.
     pub async fn subscribe(&self) -> Result<EventListener> {
-        let events = self.0.events().await?;
+        let events = self.0.finalized_blocks().await?;
         Ok(EventListener(events))
     }
 
     pub fn set_nonce(&mut self, nonce: u32) {
-        self.0.signer.set_nonce(nonce)
+        self.0.set_nonce(nonce)
     }
 
     pub async fn rpc_nonce(&self) -> Result<u32> {
