@@ -8142,7 +8142,7 @@ fn system_reservation_wait_and_exit_across_executions() {
 }
 
 #[test]
-fn signal_on_terminated_program() {
+fn signal_on_uninitialized_program() {
     use demo_async_signal_entry::{InitAction, WASM_BINARY};
 
     init_logger();
@@ -8157,12 +8157,12 @@ fn signal_on_terminated_program() {
         ));
 
         let pid = get_last_program_id();
-        let mid = get_last_message_id();
+        let init_mid = get_last_message_id();
 
         run_to_block(2, None);
 
         assert!(Gear::is_active(pid));
-        assert_ok!(GasHandlerOf::<Test>::get_system_reserve(mid));
+        assert_ok!(GasHandlerOf::<Test>::get_system_reserve(init_mid));
 
         let msg = get_last_mail(USER_1);
         assert_eq!(msg.payload(), b"init");
@@ -8175,10 +8175,13 @@ fn signal_on_terminated_program() {
             0,
         ));
 
+        let reply_mid = get_last_message_id();
+
         run_to_block(3, None);
 
-        assert!(Gear::is_terminated(pid));
-        assert!(GasHandlerOf::<Test>::get_system_reserve(mid).is_err());
+        assert!(!Gear::is_initialized(pid));
+        assert!(GasHandlerOf::<Test>::get_system_reserve(init_mid).is_err());
+        assert!(GasHandlerOf::<Test>::get_system_reserve(reply_mid).is_err());
     });
 }
 

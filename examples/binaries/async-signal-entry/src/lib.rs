@@ -56,4 +56,9 @@ mod wasm {
         msg::reply(b"handle_signal", 0).unwrap();
         exec::wait();
     }
+
+    fn my_handle_reply() {
+        exec::system_reserve_gas(1_000_000).unwrap();
+        exec::wait();
+    }
 }
