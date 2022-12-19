@@ -14,6 +14,8 @@ use subxt::{
     Error, OnlineClient,
 };
 
+/// Subscription of finalized blocks.
+#[allow(clippy::type_complexity)]
 pub struct FinalizedBlocks(
     pub Pin<Box<dyn Stream<Item = StdResult<Block<GearConfig, OnlineClient<GearConfig>>, Error>>>>,
 );
