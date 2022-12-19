@@ -381,6 +381,7 @@ extern "C" {
     /// - `bn_random`: `mut ptr` for concatenated block number with hash.
     pub fn gr_random(subject: *const BufferStart, bn_random: *mut BlockNumberWithHash);
 
+    // TODO: issue #1859
     /// Fallible `gr_read` get syscall.
     ///
     /// Arguments type:
@@ -389,14 +390,6 @@ extern "C" {
     /// - `buffer`: `mut ptr` for buffer to store requested data.
     /// - `err`: `mut ptr` for `u32` error length.
     pub fn gr_read(at: Length, len: Length, buffer: *mut BufferStart, err: *mut Length);
-
-    /// InFallible `gr_read` get syscall.
-    ///
-    /// Arguments type:
-    /// - `at`: `u32` defining offset to read from.
-    /// - `len`: `u32` length of the buffer to read.
-    /// - `buffer`: `mut ptr` for buffer to store requested data.
-    pub fn gr_read_unchecked(at: Length, len: Length, buffer: *mut BufferStart);
 
     /// Fallible `gr_reply_commit_wgas` send syscall.
     ///

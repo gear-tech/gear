@@ -171,7 +171,6 @@ where
         builder.add_func(ProgramId, Funcs::program_id);
         builder.add_func(Random, Funcs::random);
         builder.add_func(Read, Funcs::read);
-        builder.add_func(ReadUnchecked, Funcs::read_unchecked);
         builder.add_func(Reply, Funcs::reply);
         builder.add_func(ReplyCommit, Funcs::reply_commit);
         builder.add_func(ReplyCommitWGas, Funcs::reply_commit_wgas);

@@ -338,14 +338,6 @@ where
         })
     }
 
-    pub fn read_unchecked(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
-        sys_trace!(target: "syscall::gear", "read_unchecked, args = {}", args_to_str(args));
-
-        let mut read_args = args.to_vec();
-        read_args.push(Value::F32(u32::MAX));
-        Self::read(ctx, &read_args)
-    }
-
     pub fn size(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
         sys_trace!(target: "syscall::gear", "size, args = {}", args_to_str(args));
 

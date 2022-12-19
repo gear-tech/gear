@@ -489,21 +489,46 @@ where
         Func::wrap(store, func)
     }
 
-    fn read_func(
-        caller: Caller<'_, HostState<E>>,
-        at: u32,
-        len: u32,
-        buffer_ptr: u32,
-        err_ptr: u32,
-        forbidden: bool,
-        memory: WasmiMemory,
-    ) -> EmptyOutput {
-        let mut caller = CallerWrap::prepare(caller, forbidden)?;
+    pub fn read(store: &mut Store<HostState<E>>, forbidden: bool, memory: WasmiMemory) -> Func {
+        let func = move |caller: Caller<'_, HostState<E>>,
+                         at: u32,
+                         len: u32,
+                         buffer_ptr: u32,
+                         err_ptr: u32|
+              -> EmptyOutput {
+            let mut caller = CallerWrap::prepare(caller, forbidden)?;
 
-        let last_idx = match at.checked_add(len) {
-            Some(i) => i,
-            None => {
-                let err = FuncError::ReadLenOverflow(at, len);
+            let last_idx = match at.checked_add(len) {
+                Some(i) => i,
+                None => {
+                    let err = FuncError::ReadLenOverflow(at, len);
+                    let size = Encode::encoded_size(&err) as u32;
+                    return if let Err(err) = caller
+                        .memory(&memory)
+                        .write(err_ptr as usize, &size.to_le_bytes())
+                    {
+                        caller.host_state_mut().err = err.into();
+                        Err(Trap::from(TrapCode::Unreachable))
+                    } else {
+                        caller.host_state_mut().err = err;
+                        caller.update_globals()?;
+                        Ok(())
+                    };
+                }
+            };
+
+            let call_result = caller.host_state_mut().ext.read();
+            let message = match call_result {
+                Ok(m) => m,
+                Err(e) => {
+                    caller.host_state_mut().err = FuncError::Core(e);
+                    caller.update_globals()?;
+                    return Err(TrapCode::Unreachable.into());
+                }
+            };
+
+            if last_idx > message.len() as u32 {
+                let err = FuncError::ReadWrongRange(at..last_idx, message.len() as u32);
                 let size = Encode::encoded_size(&err) as u32;
                 return if let Err(err) = caller
                     .memory(&memory)
@@ -517,69 +542,16 @@ where
                     Ok(())
                 };
             }
-        };
 
-        let call_result = caller.host_state_mut().ext.read();
-        let message = match call_result {
-            Ok(m) => m,
-            Err(e) => {
-                caller.host_state_mut().err = FuncError::Core(e);
-                caller.update_globals()?;
-                return Err(TrapCode::Unreachable.into());
+            // non critical copy due to non-production backend
+            let message = message[at as usize..last_idx as usize].to_vec();
+            match caller.memory(&memory).write(buffer_ptr as usize, &message) {
+                Ok(()) => caller.update_globals(),
+                Err(e) => {
+                    caller.host_state_mut().err = e.into();
+                    Err(Trap::from(TrapCode::Unreachable))
+                }
             }
-        };
-
-        if last_idx > message.len() as u32 {
-            let err = FuncError::ReadWrongRange(at..last_idx, message.len() as u32);
-            let size = Encode::encoded_size(&err) as u32;
-            return if let Err(err) = caller
-                .memory(&memory)
-                .write(err_ptr as usize, &size.to_le_bytes())
-            {
-                caller.host_state_mut().err = err.into();
-                Err(Trap::from(TrapCode::Unreachable))
-            } else {
-                caller.host_state_mut().err = err;
-                caller.update_globals()?;
-                Ok(())
-            };
-        }
-
-        // non critical copy due to non-production backend
-        let message = message[at as usize..last_idx as usize].to_vec();
-        match caller.memory(&memory).write(buffer_ptr as usize, &message) {
-            Ok(()) => caller.update_globals(),
-            Err(e) => {
-                caller.host_state_mut().err = e.into();
-                Err(Trap::from(TrapCode::Unreachable))
-            }
-        }
-    }
-
-    pub fn read(store: &mut Store<HostState<E>>, forbidden: bool, memory: WasmiMemory) -> Func {
-        let func = move |caller: Caller<'_, HostState<E>>,
-                         at: u32,
-                         len: u32,
-                         buffer_ptr: u32,
-                         err_ptr: u32|
-              -> EmptyOutput {
-            Self::read_func(caller, at, len, buffer_ptr, err_ptr, forbidden, memory)
-        };
-
-        Func::wrap(store, func)
-    }
-
-    pub fn read_unchecked(
-        store: &mut Store<HostState<E>>,
-        forbidden: bool,
-        memory: WasmiMemory,
-    ) -> Func {
-        let func = move |caller: Caller<'_, HostState<E>>,
-                         at: u32,
-                         len: u32,
-                         buffer_ptr: u32|
-              -> EmptyOutput {
-            Self::read_func(caller, at, len, buffer_ptr, u32::MAX, forbidden, memory)
         };
 
         Func::wrap(store, func)
