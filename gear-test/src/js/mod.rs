@@ -120,11 +120,10 @@ impl MetaData {
     pub fn convert(self, meta_wasm: &str, meta_type: &MetaType) -> Result<Self, String> {
         let gear_path = {
             let manifest_dir = env!("CARGO_MANIFEST_DIR");
-            let mut path = PathBuf::from_str(manifest_dir)
-                .map_err(|e| {
-                    log::debug!("PathBuf::from_str failed: {e:?}");
-                    "Failed to construct PathBuf from 'CARGO_MANIFEST_DIR'"
-                })?;
+            let mut path = PathBuf::from_str(manifest_dir).map_err(|e| {
+                log::debug!("PathBuf::from_str failed: {e:?}");
+                "Failed to construct PathBuf from 'CARGO_MANIFEST_DIR'"
+            })?;
             if !path.pop() {
                 return Err("Gear root directory not found".into());
             }
