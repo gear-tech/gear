@@ -8,7 +8,7 @@ use subxt::ext::{
 };
 
 /// Cryptography scheme
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Scheme {
     Ecdsa,
     Ed25519,
@@ -73,10 +73,10 @@ pub enum Action {
 #[derive(Debug, Parser)]
 pub struct Key {
     /// Cryptography scheme
-    #[clap(short, long, default_value = "sr25519")]
+    #[arg(short, long, default_value = "sr25519")]
     scheme: Scheme,
     /// Key actions
-    #[clap(subcommand)]
+    #[command(subcommand)]
     action: Action,
 }
 

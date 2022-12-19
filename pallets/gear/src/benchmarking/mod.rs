@@ -512,10 +512,10 @@ benchmarks! {
     // This benchmarks the additional weight that is charged when a program is executed the
     // first time after a new schedule was deployed: For every new schedule a program needs
     // to re-run the instrumentation once.
-    reinstrument {
-        let c in 0 .. T::Schedule::get().limits.code_len;
-        let WasmModule { code, hash, .. } = WasmModule::<T>::sized(c, Location::Handle);
-        let code = Code::new_raw(code, 1, None, false).unwrap();
+    reinstrument_per_kb {
+        let c in 0 .. T::Schedule::get().limits.code_len / 1_024;
+        let WasmModule { code, hash, .. } = WasmModule::<T>::sized(c * 1_024, Location::Handle);
+        let code = Code::new_raw(code, 1, None, false, true).unwrap();
         let code_and_id = CodeAndId::new(code);
         let code_id = code_and_id.code_id();
 
@@ -529,7 +529,7 @@ benchmarks! {
 
         let schedule = T::Schedule::get();
     }: {
-        Gear::<T>::reinstrument_code(code_id, &schedule)?;
+        Gear::<T>::reinstrument_code(code_id, &schedule);
     }
 
     alloc {

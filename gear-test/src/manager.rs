@@ -152,7 +152,6 @@ impl ExecutionContext for InMemoryExtManager {
             allocations: Default::default(),
             code_id,
             code_exports: code_and_id.code().exports().clone(),
-            code_length_bytes: code_and_id.code().code().len() as u32,
             static_pages: code_and_id.code().static_pages(),
             initialized: false,
             pages_with_data: Default::default(),

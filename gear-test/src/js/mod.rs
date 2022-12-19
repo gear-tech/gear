@@ -25,7 +25,7 @@
 //! messages to smart contracts. This modules provides an internal functionality for deducting what fields
 //! must be set for a message to be successfully sent to or received from *init* or *handle* functions.
 
-use std::{path::PathBuf, process::Command};
+use std::{path::PathBuf, process::Command, str::FromStr};
 
 /// Helper type to perform correct encode/decode of custom types sent to/received from program functions.
 ///
@@ -118,12 +118,18 @@ impl MetaData {
     /// If `Self` stores decoded data, then the function will encode that data to SCALE codec bytes, returning [CodecBytes](enum.MetaData.html#variant.CodecBytes).
     /// If `Self` stores encoded data, then the function will decode that data to JSON string, returning [Json](enum.MetaData.html#variant.Json).
     pub fn convert(self, meta_wasm: &str, meta_type: &MetaType) -> Result<Self, String> {
-        let mut gear_path = std::env::current_dir().expect("Unable to get current dir");
-        while !gear_path.ends_with("gear") {
-            if !gear_path.pop() {
+        let gear_path = {
+            let manifest_dir = env!("CARGO_MANIFEST_DIR");
+            let mut path = PathBuf::from_str(manifest_dir).map_err(|e| {
+                log::debug!("PathBuf::from_str failed: {e:?}");
+                "Failed to construct PathBuf from 'CARGO_MANIFEST_DIR'"
+            })?;
+            if !path.pop() {
                 return Err("Gear root directory not found".into());
             }
-        }
+
+            path
+        };
 
         let mut path = gear_path.clone();
         path.push(PathBuf::from(meta_wasm));

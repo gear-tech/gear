@@ -37,7 +37,7 @@ jobs:
 
   check:
     # needs: spec_version
-    runs-on: [self-hosted, cachepot, epyc-4, k8s-runner ]
+    runs-on: [self-hosted, cachepot, epyc-4, k8s-runner]
     env:
       RUSTUP_HOME: /tmp/rustup_home
     steps:
@@ -112,7 +112,7 @@ jobs:
         run: ./scripts/gear.sh clippy examples
 
       - name: "Test: Doc tests"
-        run:  ./scripts/gear.sh test doc
+        run: ./scripts/gear.sh test doc
 
       - name: "Cache: Pack"
         if: ${{ github.event_name == 'push' }}
@@ -125,7 +125,7 @@ jobs:
 
   build:
     # needs: spec_version
-    runs-on: [self-hosted, cachepot, epyc-4, k8s-runner ]
+    runs-on: [self-hosted, cachepot, epyc-4, k8s-runner]
     env:
       LLVM_PROFILE_FILE: "gear-%p-%m.profraw"
       RUSTUP_HOME: /tmp/rustup_home
@@ -189,8 +189,7 @@ jobs:
           sudo chmod +x /usr/bin/cachepot
 
       - name: "Install: grcov"
-        run:
-          curl -L https://github.com/mozilla/grcov/releases/latest/download/grcov-x86_64-unknown-linux-gnu.tar.bz2 | tar jxf -
+        run: curl -L https://github.com/mozilla/grcov/releases/latest/download/grcov-x86_64-unknown-linux-gnu.tar.bz2 | tar jxf -
 
       - name: "Install: rust-covfix"
         run: |
@@ -218,7 +217,7 @@ jobs:
         run: ./scripts/gear.sh build wat-examples
 
       - name: Check runtime imports
-        run: ./target/release/wasm-proc --check-runtime-imports --path target/release/wbuild/gear-runtime/gear_runtime.wasm
+        run: ./target/release/wasm-proc --check-runtime-imports target/release/wbuild/gear-runtime/gear_runtime.wasm
 
       - name: "Build: Split examples by .opt and .meta"
         run: ./scripts/gear.sh build examples-proc
@@ -499,7 +498,7 @@ jobs:
             --release
 
   build-macos-x86:
-    if: always() && 
+    if: always() &&
       (github.ref == 'refs/heads/master' || contains(github.event.pull_request.labels.*.name, 'E2-forcemacos'))
     needs: build
     runs-on: macos-latest

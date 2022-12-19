@@ -6,7 +6,7 @@ edition = "2018"
 license = "GPL-3.0"
 
 [dependencies]
-clap = { version = "3.2", features = ["derive"] }
+clap = { version = "4.0.29", features = ["derive"] }
 quick-xml = { version = "0.26", features = [ "serialize" ] }
 tabled = "0.10.0"
 junit-common = { path = "../junit-common" }
@@ -16,4 +16,4 @@ thousands = "0.2.0"
 
 gear-runtime = { path = "../../runtime/gear" }
 pallet-gear = { path = "../../pallets/gear" }
-frame-support = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
+frame-support = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.33" }

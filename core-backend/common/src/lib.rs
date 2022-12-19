@@ -48,7 +48,9 @@ use gear_core::{
     gas::GasAmount,
     ids::{CodeId, MessageId, ProgramId, ReservationId},
     memory::{Memory, PageBuf, PageNumber, WasmPageNumber},
-    message::{ContextStore, Dispatch, DispatchKind, IncomingDispatch, MessageWaitedType},
+    message::{
+        ContextStore, Dispatch, DispatchKind, IncomingDispatch, MessageWaitedType, WasmEntry,
+    },
     reservation::GasReserver,
 };
 use gear_core_errors::{ExtError, MemoryError};
@@ -266,7 +268,11 @@ pub enum StackEndError {
 // '__gear_stack_end' export is inserted in wasm-proc or wasm-builder
 pub const STACK_END_EXPORT_NAME: &str = "__gear_stack_end";
 
-pub trait Environment<E: Ext + IntoExtInfo<E::Error> + 'static>: Sized {
+pub trait Environment<E, EP = DispatchKind>: Sized
+where
+    E: Ext + IntoExtInfo<E::Error> + 'static,
+    EP: WasmEntry,
+{
     /// Memory type for current environment.
     type Memory: Memory;
 
@@ -280,7 +286,7 @@ pub trait Environment<E: Ext + IntoExtInfo<E::Error> + 'static>: Sized {
     fn new(
         ext: E,
         binary: &[u8],
-        entry_point: DispatchKind,
+        entry_point: EP,
         entries: BTreeSet<DispatchKind>,
         mem_size: WasmPageNumber,
     ) -> Result<Self, Self::Error>;
