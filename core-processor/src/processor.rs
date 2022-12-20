@@ -118,10 +118,12 @@ pub fn precharge_for_code_length(
 
     let actor_data = match check_is_executable(executable_data, &dispatch) {
         Err(status_code) => {
+            let system_reservation_ctx = SystemReservationContext::from_dispatch(&dispatch);
             return Err(process_non_executable(
                 dispatch,
                 destination_id,
                 status_code,
+                system_reservation_ctx,
             ));
         }
         Result::Ok(data) => data,
@@ -737,6 +739,7 @@ fn process_non_executable(
     dispatch: IncomingDispatch,
     program_id: ProgramId,
     status_code: StatusCode,
+    system_reservation_ctx: SystemReservationContext,
 ) -> Vec<JournalNote> {
     // Number of notes is predetermined
     let mut journal = Vec::with_capacity(4);
@@ -779,6 +782,10 @@ fn process_non_executable(
             delay: 0,
             reservation: None,
         });
+    }
+
+    if system_reservation_ctx.has_any() {
+        journal.push(JournalNote::SystemUnreserveGas { message_id });
     }
 
     journal.push(JournalNote::MessageDispatched {
