@@ -217,7 +217,7 @@ impl pallet_babe::Config for Runtime {
     )>>::IdentificationTuple;
     type HandleEquivocation = ();
 
-    type WeightInfo = ();
+    type WeightInfo = weights::pallet_babe::SubstrateWeight<Self>;
     type MaxAuthorities = MaxAuthorities;
 }
 
@@ -236,7 +236,7 @@ impl pallet_grandpa::Config for Runtime {
 
     type HandleEquivocation = ();
 
-    type WeightInfo = ();
+    type WeightInfo = weights::pallet_grandpa::SubstrateWeight<Self>;
     type MaxAuthorities = MaxAuthorities;
 }
 
@@ -523,7 +523,9 @@ mod benches {
     define_benchmarks!(
         // Substrate pallets
         [frame_system, SystemBench::<Runtime>]
+        [pallet_babe, Babe]
         [pallet_balances, Balances]
+        [pallet_grandpa, Grandpa]
         [pallet_timestamp, Timestamp]
         [pallet_utility, Utility]
         // Gear pallets
