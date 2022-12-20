@@ -16,4 +16,4 @@ thousands = "0.2.0"
 
 gear-runtime = { path = "../../runtime/gear" }
 pallet-gear = { path = "../../pallets/gear" }
-frame-support = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.33" }
+frame-support = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.35" }

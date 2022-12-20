@@ -34,8 +34,8 @@ pub use frame_support::{
     },
     weights::{
         constants::{
-            BlockExecutionWeight, ExtrinsicBaseWeight, RocksDbWeight, WEIGHT_PER_MILLIS,
-            WEIGHT_PER_SECOND,
+            BlockExecutionWeight, ExtrinsicBaseWeight, RocksDbWeight, WEIGHT_REF_TIME_PER_MILLIS,
+            WEIGHT_REF_TIME_PER_SECOND,
         },
         Weight,
     },
@@ -117,10 +117,12 @@ pub const BABE_GENESIS_EPOCH_CONFIG: sp_consensus_babe::BabeEpochConfiguration =
 /// We allow for 1/3 of block time for computations.
 ///
 /// It's 2/3 sec for vara runtime with 2 second block duration.
-const MAXIMUM_BLOCK_WEIGHT: Weight = WEIGHT_PER_SECOND
-    .saturating_mul(2)
-    .saturating_div(3)
-    .set_proof_size(u64::MAX);
+const MAXIMUM_BLOCK_WEIGHT: Weight = Weight::from_parts(
+    WEIGHT_REF_TIME_PER_SECOND
+        .saturating_mul(2)
+        .saturating_div(3),
+    u64::MAX,
+);
 
 /// The version information used to identify this runtime when compiled natively.
 #[cfg(feature = "std")]

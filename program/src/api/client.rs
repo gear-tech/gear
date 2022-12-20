@@ -4,7 +4,7 @@ use futures_util::{StreamExt, TryStreamExt};
 use jsonrpsee::{
     core::client::{ClientT, SubscriptionClientT},
     http_client::{HttpClient, HttpClientBuilder},
-    types::ParamsSer,
+    types::Params,
     ws_client::{WsClient, WsClientBuilder},
 };
 use serde_json::value::Value;
@@ -107,11 +107,11 @@ impl RpcClientT for RpcClient {
 // Remove and simplify this once something like https://github.com/paritytech/jsonrpsee/issues/862 is in:
 fn prep_params_for_jsonrpsee(
     params: Option<Box<RawValue>>,
-) -> StdResult<ParamsSer<'static>, RpcError> {
+) -> StdResult<Params<'static>, RpcError> {
     let params = match params {
         Some(params) => params,
         // No params? avoid any work and bail early.
-        None => return Ok(ParamsSer::Array(Vec::new())),
+        None => return Ok(Params::Array(Vec::new())),
     };
     let val = serde_json::to_value(&params).expect("RawValue guarantees valid JSON");
     let arr = match val {
@@ -120,5 +120,5 @@ fn prep_params_for_jsonrpsee(
             "RPC Params are expected to be an array but got {params}"
         ))),
     }?;
-    Ok(ParamsSer::Array(arr))
+    Ok(Params::Array(arr))
 }
