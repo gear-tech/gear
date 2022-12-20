@@ -32,10 +32,9 @@ pub fn with_inclusive_ranges<P: PageU32Size + Ord, E>(
     mut f: impl FnMut(PagesIterInclusive<P>) -> Result<(), E>,
 ) -> Result<(), E> {
     let mut pages_iter = pages.iter();
-    let mut start = if let Some(&start) = pages_iter.next() {
-        start
-    } else {
-        return Ok(());
+    let mut start = match pages_iter.next() {
+        Some(&start) => start,
+        None => return Ok(()),
     };
     let mut end = start;
     for &page in pages_iter {
