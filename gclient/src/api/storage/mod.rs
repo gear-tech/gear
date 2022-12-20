@@ -33,6 +33,14 @@ use subxt::ext::sp_runtime::AccountId32;
 impl GearApi {
     pub async fn get_from_mailbox(
         &self,
+        message_id: impl Borrow<MessageId>,
+    ) -> Result<Option<(StoredMessage, Interval<u32>)>> {
+        self.get_from_account_mailbox(self.0.account_id(), message_id)
+            .await
+    }
+
+    pub async fn get_from_account_mailbox(
+        &self,
         account_id: impl Borrow<AccountId32>,
         message_id: impl Borrow<MessageId>,
     ) -> Result<Option<(StoredMessage, Interval<u32>)>> {
