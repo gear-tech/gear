@@ -228,7 +228,6 @@ pub fn set_lazy_pages_protection() -> Result<(), MemoryProtectionError> {
         )?;
 
         // Set only write protection for already accessed, but not released pages.
-        // `as u32` is safe because page size is less then `PAGE_STORAGE_GRANULARITY`.
         let read_only_pages = ctx
             .accessed_pages
             .iter()

@@ -246,7 +246,6 @@ where
                 .get_export(&store, entry_point.as_entry())
                 .and_then(Extern::into_func)
                 .ok_or({
-                    let store = &store;
                     (
                         gas_amount!(store),
                         GetWasmExports(entry_point.as_entry().to_string()),
@@ -254,7 +253,6 @@ where
                 })?;
 
             let entry_func = func.typed::<(), (), _>(&mut store).map_err(|_| {
-                let store = &store;
                 (
                     gas_amount!(store),
                     EntryPointWrongType(entry_point.as_entry().to_string()),
@@ -266,10 +264,10 @@ where
             Ok(())
         };
 
-        let gas = gear_gas.get(&store).try_into::<i64>().ok_or({
-            let store = &store;
-            (gas_amount!(store), WrongInjectedGas)
-        })?;
+        let gas = gear_gas
+            .get(&store)
+            .try_into::<i64>()
+            .ok_or((gas_amount!(store), WrongInjectedGas))?;
         let allowance = gear_allowance.get(&store).try_into::<i64>().ok_or({
             let store = &store;
             (gas_amount!(store), WrongInjectedAllowance)

@@ -169,33 +169,41 @@ mod tests {
 
     #[test]
     fn smoky() {
-        let (mut mem, mut mem_wrap) = new_test_memory(16, 256);
+        let (mut ctx, mut mem_wrap) = new_test_memory(16, 256);
 
         assert_ok!(
-            mem.alloc::<GrowHandlerNothing>(16.into(), &mut mem_wrap),
+            ctx.alloc::<GrowHandlerNothing>(16.into(), &mut mem_wrap),
             AllocInfo {
                 page: 16.into(),
                 not_grown: 0.into()
             },
         );
 
+        assert_ok!(
+            ctx.alloc::<GrowHandlerNothing>(0.into(), &mut mem_wrap),
+            AllocInfo {
+                page: 16.into(),
+                not_grown: 0.into()
+            }
+        );
+
         // there is a space for 14 more
         for _ in 0..14 {
-            assert_ok!(mem.alloc::<GrowHandlerNothing>(16.into(), &mut mem_wrap));
+            assert_ok!(ctx.alloc::<GrowHandlerNothing>(16.into(), &mut mem_wrap));
         }
 
         // no more mem!
         assert_err!(
-            mem.alloc::<GrowHandlerNothing>(1.into(), &mut mem_wrap),
+            ctx.alloc::<GrowHandlerNothing>(1.into(), &mut mem_wrap),
             Error::OutOfBounds
         );
 
         // but we free some
-        assert_ok!(mem.free(137.into()));
+        assert_ok!(ctx.free(137.into()));
 
         // and now can allocate page that was freed
         assert_ok!(
-            mem.alloc::<GrowHandlerNothing>(1.into(), &mut mem_wrap),
+            ctx.alloc::<GrowHandlerNothing>(1.into(), &mut mem_wrap),
             AllocInfo {
                 page: 137.into(),
                 not_grown: 1.into()
@@ -203,11 +211,11 @@ mod tests {
         );
 
         // if we have 2 in a row we can allocate even 2
-        assert_ok!(mem.free(117.into()));
-        assert_ok!(mem.free(118.into()));
+        assert_ok!(ctx.free(117.into()));
+        assert_ok!(ctx.free(118.into()));
 
         assert_ok!(
-            mem.alloc::<GrowHandlerNothing>(2.into(), &mut mem_wrap),
+            ctx.alloc::<GrowHandlerNothing>(2.into(), &mut mem_wrap),
             AllocInfo {
                 page: 117.into(),
                 not_grown: 2.into()
@@ -215,11 +223,11 @@ mod tests {
         );
 
         // but if 2 are not in a row, bad luck
-        assert_ok!(mem.free(117.into()));
-        assert_ok!(mem.free(158.into()));
+        assert_ok!(ctx.free(117.into()));
+        assert_ok!(ctx.free(158.into()));
 
         assert_err!(
-            mem.alloc::<GrowHandlerNothing>(2.into(), &mut mem_wrap),
+            ctx.alloc::<GrowHandlerNothing>(2.into(), &mut mem_wrap),
             Error::OutOfBounds
         );
     }

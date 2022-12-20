@@ -181,6 +181,7 @@ pub(crate) fn charge_gas_for_pages(
 ) -> Result<WasmPageNumber, ExecutionErrorReason> {
     // Initial execution: just charge for static pages
     if initial_execution {
+        // TODO: check calculation is safe: #2007.
         // Charging gas for initial pages
         let amount = settings.init_cost * static_pages.raw() as u64;
         charge_gas(
@@ -202,6 +203,7 @@ pub(crate) fn charge_gas_for_pages(
     };
 
     if !subsequent_execution {
+        // TODO: check calculation is safe: #2007.
         // Charging gas for loaded pages
         let amount =
             settings.load_page_cost * (allocations.len() as u64 + static_pages.raw() as u64);
@@ -213,6 +215,8 @@ pub(crate) fn charge_gas_for_pages(
         )?;
     }
 
+    // TODO: make separate class for size in pages (here is static_pages): #2008.
+    // TODO: check calculation is safe: #2007.
     // Charging gas for mem size
     let amount =
         settings.mem_grow_cost * (max_wasm_page.raw() as u64 + 1 - static_pages.raw() as u64);
