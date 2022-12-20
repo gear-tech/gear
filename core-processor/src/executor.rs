@@ -754,9 +754,4 @@ mod tests {
         });
         assert_eq!(res, new_pages,);
     }
-
-    #[test]
-    fn test_no_refund_on_update() {
-        // TODO 
-    }
 }
