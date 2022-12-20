@@ -17,7 +17,7 @@ name = "gprogram"
 required-features = [ "bin" ]
 
 [dependencies]
-anyhow = "1.0.60"
+anyhow = "1.0.68"
 blake2-rfc = "0.2.18"
 base64 = "0.20.0"
 color-eyre = { version = "0.6.2", optional = true }
