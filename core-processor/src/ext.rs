@@ -1059,8 +1059,10 @@ mod tests {
     fn test_free_no_refund() {
         // Set initial Ext state
         let free_weight = 10;
-        let mut host_fn_weights = HostFnWeights::default();
-        host_fn_weights.free = free_weight;
+        let host_fn_weights = HostFnWeights {
+            free: free_weight,
+            ..Default::default()
+        };
 
         let initial_gas = 100;
         let initial_allowance = 10000;
@@ -1098,8 +1100,10 @@ mod tests {
     fn test_counter_zeroes() {
         // Set initial Ext state
         let free_weight = 1000;
-        let mut host_fn_weights = HostFnWeights::default();
-        host_fn_weights.free = free_weight;
+        let host_fn_weights = HostFnWeights {
+            free: free_weight,
+            ..Default::default()
+        };
 
         let initial_gas = free_weight - 1;
         let initial_allowance = free_weight + 1;
