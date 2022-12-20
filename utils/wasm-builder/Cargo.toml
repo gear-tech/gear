@@ -13,7 +13,7 @@ anyhow = "1.0.68"
 cargo_metadata = "0.15.2"
 pwasm-utils = "0.19.0"
 toml = "0.5.10"
-thiserror = "1.0.37"
+thiserror = "1.0.38"
 log = "0.4.17"
 pathdiff = { version = "0.2.1", default-features = false }
 which = "4.3.0"
