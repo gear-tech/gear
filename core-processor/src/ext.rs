@@ -1044,13 +1044,6 @@ mod tests {
             self
         }
 
-        // todo remove
-        // fn with_alloc_config(mut self, alloc_config: AllocationsConfig) -> Self {
-        //     self.0.config = alloc_config;
-
-        //     self
-        // }
-
         fn with_weighs(mut self, weights: HostFnWeights) -> Self {
             self.0.host_fn_weights = weights;
 
@@ -1099,10 +1092,10 @@ mod tests {
         assert_eq!(initial_allowance - charged, allowance);
     }
 
+    // # TODO https://github.com/gear-tech/gear/issues/1998
+
     #[test]
     fn test_counter_zeroes() {
-        // TODO on executor for all the sys-calls
-
         // Set initial Ext state
         let free_weight = 1000;
         let mut host_fn_weights = HostFnWeights::default();
