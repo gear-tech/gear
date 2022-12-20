@@ -46,8 +46,14 @@ impl<Rng: LoaderRng> BatchGenerator<Rng> {
         code_seed_type: Option<SeedVariant>,
         rt_settings: RuntimeSettings,
     ) -> Self {
+        let mut batch_gen_rng = Rng::seed_from_u64(seed);
+        let code_seed_type =
+            code_seed_type.unwrap_or(SeedVariant::Dynamic(batch_gen_rng.next_u64()));
+
+        tracing::info!("Code generator starts with seed: {code_seed_type:?}");
+
         Self {
-            batch_gen_rng: Rng::seed_from_u64(seed),
+            batch_gen_rng,
             batch_size,
             code_seed_gen: seed::some_generator::<Rng>(code_seed_type),
             rt_settings,
