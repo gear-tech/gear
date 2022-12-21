@@ -882,6 +882,8 @@ impl EnvExt for Ext {
 
 impl Ext {
     /// Inner alloc realization.
+    ///
+    /// TODO [sab] test that refunds less than charged!
     pub fn alloc_inner<G: GrowHandler>(
         &mut self,
         pages_num: WasmPageNumber,

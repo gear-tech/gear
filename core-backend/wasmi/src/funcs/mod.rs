@@ -56,7 +56,7 @@ pub enum FuncError<E: Display> {
     #[display(fmt = "{_0}")]
     Core(E),
     #[display(fmt = "Runtime Error")]
-    HostError,
+    WrongInstrumentation,
     #[display(fmt = "{_0}")]
     Memory(MemoryError),
     #[display(fmt = "{_0}")]

@@ -47,6 +47,7 @@ impl<E: Ext> Runtime<E> {
             .get_global_val(GLOBAL_NAME_ALLOWANCE)
             .and_then(as_i64)
             .ok_or_else(|| {
+                // TODO #1979
                 self.err = FuncError::WrongInstrumentation;
                 HostError
             })?;
@@ -70,6 +71,7 @@ impl<E: Ext> Runtime<E> {
         self.globals
             .set_global_val(GLOBAL_NAME_ALLOWANCE, Value::I64(allowance as i64))
             .map_err(|_| {
+                // TODO #1979
                 self.err = FuncError::WrongInstrumentation;
                 HostError
             })?;

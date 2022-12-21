@@ -35,7 +35,9 @@ use gear_core::{
     env::Ext,
     ids::ReservationId,
     memory::Memory,
-    message::{HandlePacket, InitPacket, MessageWaitedType, PayloadSizeError, ReplyPacket},
+    message::{
+        HandlePacket, InitPacket, MessageWaitedType, Payload, PayloadSizeError, ReplyPacket,
+    },
 };
 use gear_core_errors::{CoreError, MemoryError};
 use gsys::{
@@ -235,11 +237,13 @@ where
         let (handle, payload_ptr, len, err_len_ptr) = args.iter().read_4()?;
 
         ctx.run(|ctx| {
-            let payload = ctx.read_memory(payload_ptr, len)?;
+            let payload = (Payload::max_len() >= (len as usize))
+                .then_some(ctx.read_memory(payload_ptr, len))
+                .ok_or(FuncError::PayloadSize(PayloadSizeError))?;
 
             let len = ctx
                 .ext
-                .send_push(handle, &payload)
+                .send_push(handle, &payload?)
                 .process_error()
                 .map_err(FuncError::Core)?
                 .error_len();
@@ -633,11 +637,13 @@ where
         let (payload_ptr, len, err_len_ptr) = args.iter().read_3()?;
 
         ctx.run(|ctx| {
-            let payload = ctx.read_memory(payload_ptr, len)?;
+            let payload = (Payload::max_len() >= (len as usize))
+                .then_some(ctx.read_memory(payload_ptr, len))
+                .ok_or(FuncError::PayloadSize(PayloadSizeError))?;
 
             let len = ctx
                 .ext
-                .reply_push(&payload)
+                .reply_push(&payload?)
                 .process_error()
                 .map_err(FuncError::Core)?
                 .error_len();

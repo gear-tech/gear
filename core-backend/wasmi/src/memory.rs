@@ -157,7 +157,7 @@ mod tests {
             &engine,
             Some(State {
                 ext: MockExt::default(),
-                err: crate::funcs::FuncError::HostError,
+                err: crate::funcs::FuncError::WrongInstrumentation,
             }),
         );
 

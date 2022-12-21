@@ -49,7 +49,8 @@ where
         };
 
         let (gas, allowance) = f().ok_or_else(|| {
-            caller.host_state_mut().err = FuncError::HostError;
+            // TODO #1979
+            caller.host_state_mut().err = FuncError::WrongInstrumentation;
             Trap::from(TrapCode::Unreachable)
         })?;
 
@@ -100,7 +101,8 @@ where
         };
 
         f().ok_or_else(|| {
-            self.host_state_mut().err = FuncError::HostError;
+            // TODO #1979
+            self.host_state_mut().err = FuncError::WrongInstrumentation;
             Trap::from(TrapCode::Unreachable)
         })
     }
