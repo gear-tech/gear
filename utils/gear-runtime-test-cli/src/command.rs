@@ -27,7 +27,7 @@ use frame_support::traits::ReservableCurrency;
 use gear_common::{storage::*, GasPrice, GasTree, Origin as _};
 use gear_core::{
     ids::{CodeId, ProgramId},
-    memory::vec_page_data_map_to_page_buf_map,
+    memory::{vec_page_data_map_to_page_buf_map, PageU32Size},
     message::{DispatchKind, GasLimit, StoredDispatch, StoredMessage},
 };
 use gear_core_processor::common::ExecutableActorData;
@@ -453,7 +453,7 @@ macro_rules! command {
                                 .persistent_pages
                                 .keys()
                                 .copied()
-                                .map(|p| p.to_wasm_page())
+                                .map(|p| p.to_page())
                                 .collect();
 
                             let memory =

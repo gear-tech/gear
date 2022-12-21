@@ -36,7 +36,7 @@ use gear_backend_common::{
 use gear_core::{
     env::Ext,
     gas::GasAmount,
-    memory::WasmPageNumber,
+    memory::{PageU32Size, WasmPageNumber},
     message::{DispatchKind, WasmEntry},
 };
 use gear_wasm_instrument::{
@@ -220,7 +220,7 @@ where
         builder.add_func(ReservationSend, Funcs::reservation_send);
         builder.add_func(ReservationSendCommit, Funcs::reservation_send_commit);
 
-        let memory: DefaultExecutorMemory = match SandboxMemory::new(mem_size.0, None) {
+        let memory: DefaultExecutorMemory = match SandboxMemory::new(mem_size.raw(), None) {
             Ok(mem) => mem,
             Err(e) => return Err((ext.gas_amount(), CreateEnvMemory(e)).into()),
         };
