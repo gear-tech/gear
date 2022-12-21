@@ -5,8 +5,8 @@ use super::code::{
 use crate::{
     manager::{CodeInfo, ExtManager, HandleKind},
     schedule::API_BENCHMARK_BATCH_SIZE,
-    BlockGasLimitOf, Config, CostsPerBlockOf, CurrencyOf, DbWeightOf, GasHandlerOf, MailboxOf,
-    Pallet as Gear, QueueOf,
+    Config, CostsPerBlockOf, CurrencyOf, DbWeightOf, GasHandlerOf, MailboxOf, Pallet as Gear,
+    QueueOf,
 };
 use codec::Encode;
 use common::{
@@ -37,6 +37,7 @@ fn prepare<T>(
     kind: HandleKind,
     payload: Vec<u8>,
     value: u128,
+    err_len_ptr: Option<u32>,
 ) -> Result<Exec<T>, &'static str>
 where
     T: Config,
@@ -44,6 +45,9 @@ where
 {
     #[cfg(feature = "lazy-pages")]
     assert!(gear_lazy_pages_common::try_to_enable_lazy_pages());
+
+    // to see logs in bench tests
+    let _ = env_logger::try_init();
 
     let ext_manager = ExtManager::<T>::default();
     let bn: u64 = Gear::<T>::block_number().unique_saturated_into();
@@ -151,7 +155,7 @@ where
         }
     };
 
-    let initial_gas = BlockGasLimitOf::<T>::get();
+    let initial_gas = u64::MAX;
     let origin = <T::AccountId as Origin>::from_origin(source);
     GasHandlerOf::<T>::create(origin, root_message_id, initial_gas)
         .map_err(|_| "Internal error: unable to create gas handler")?;
@@ -196,7 +200,7 @@ where
         write_per_byte_cost: schedule.db_write_per_byte,
         read_per_byte_cost: schedule.db_read_per_byte,
         module_instantiation_byte_cost: schedule.module_instantiation_per_byte,
-        max_reservations: T::ReservationsLimit::get(),
+        max_reservations: u64::MAX,
     };
 
     if let Some(queued_dispatch) = QueueOf::<T>::dequeue().map_err(|_| "MQ storage corrupted")? {
@@ -245,6 +249,7 @@ where
             random_data: (vec![0u8; 32], 0),
             // actor without pages data because of lazy pages enabled
             memory_pages: Default::default(),
+            err_len_ptr,
         })
     } else {
         Err("Dispatch not found")
@@ -264,7 +269,11 @@ where
     T: Config,
     T::AccountId: Origin,
 {
-    fn prepare_handle(code: WasmModule<T>, value: u32) -> Result<Exec<T>, &'static str> {
+    fn prepare_handle(
+        code: WasmModule<T>,
+        value: u32,
+        err_len_ptr: Option<u32>,
+    ) -> Result<Exec<T>, &'static str> {
         let instance = Program::<T>::new(code, vec![])?;
 
         prepare::<T>(
@@ -272,6 +281,7 @@ where
             HandleKind::Handle(ProgramId::from_origin(instance.addr)),
             vec![],
             value.into(),
+            err_len_ptr,
         )
     }
 
@@ -290,7 +300,7 @@ where
             )),
             ..Default::default()
         });
-        Self::prepare_handle(code, 0)
+        Self::prepare_handle(code, 0, None)
     }
 
     pub fn free(r: u32) -> Result<Exec<T>, &'static str> {
@@ -316,10 +326,11 @@ where
             handle_body: Some(body::plain(instructions)),
             ..Default::default()
         });
-        Self::prepare_handle(code, 0)
+        Self::prepare_handle(code, 0, None)
     }
 
     pub fn gr_reserve_gas(r: u32) -> Result<Exec<T>, &'static str> {
+        let err_ptr = 1;
         let code = WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
             imported_functions: vec![SysCallName::ReserveGas],
@@ -327,18 +338,18 @@ where
                 r * API_BENCHMARK_BATCH_SIZE,
                 &[
                     // gas amount
-                    Instruction::I64Const(50_000_000),
+                    Instruction::I64Const(1),
                     // duration
-                    Instruction::I32Const(10),
-                    // err_rid ptr
                     Instruction::I32Const(1),
+                    // err_rid ptr
+                    Instruction::I32Const(err_ptr),
                     // CALL
                     Instruction::Call(0),
                 ],
             )),
             ..Default::default()
         });
-        Self::prepare_handle(code, 0)
+        Self::prepare_handle(code, 0, Some(err_ptr as u32))
     }
 
     pub fn gr_unreserve_gas(r: u32) -> Result<Exec<T>, &'static str> {
@@ -393,10 +404,12 @@ where
             HandleKind::Handle(ProgramId::from_origin(instance.addr)),
             vec![],
             0,
+            Some(amount_offset),
         )
     }
 
     pub fn gr_system_reserve_gas(r: u32) -> Result<Exec<T>, &'static str> {
+        let err_ptr = 1;
         let code = WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
             imported_functions: vec![SysCallName::SystemReserveGas],
@@ -406,7 +419,7 @@ where
                     // gas amount
                     Instruction::I64Const(50_000_000),
                     // err len ptr
-                    Instruction::I32Const(1),
+                    Instruction::I32Const(err_ptr),
                     // CALL
                     Instruction::Call(0),
                 ],
@@ -419,6 +432,7 @@ where
             HandleKind::Handle(ProgramId::from_origin(instance.addr)),
             vec![],
             0u32.into(),
+            Some(err_ptr as u32),
         )
     }
 
@@ -437,12 +451,14 @@ where
             )),
             ..Default::default()
         });
-        Self::prepare_handle(code, 0)
+        Self::prepare_handle(code, 0, None)
     }
 
     pub fn gr_read(r: u32) -> Result<Exec<T>, &'static str> {
         let buffer_offset = 1;
         let buffer_len = 100u32;
+
+        let err_len_ptr = buffer_offset + buffer_len;
 
         let code = WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
@@ -457,20 +473,31 @@ where
                     // buffer ptr
                     Instruction::I32Const(buffer_offset as i32),
                     // err len ptr
-                    Instruction::I32Const((buffer_offset + buffer_len) as i32),
+                    Instruction::I32Const(err_len_ptr as i32),
                     // CALL
                     Instruction::Call(0),
                 ],
             )),
             ..Default::default()
         });
-        Self::prepare_handle(code, 0)
+
+        let instance = Program::<T>::new(code, vec![])?;
+
+        prepare::<T>(
+            instance.caller.into_origin(),
+            HandleKind::Handle(ProgramId::from_origin(instance.addr)),
+            vec![0; (buffer_len + buffer_offset) as usize],
+            0,
+            Some(err_len_ptr),
+        )
     }
 
     pub fn gr_read_per_kb(n: u32) -> Result<Exec<T>, &'static str> {
         let buffer_offset = 1;
         let buffer = vec![0xff; (n * 1024) as usize];
         let buffer_len = buffer.len() as u32;
+
+        let err_len_ptr = buffer_offset + buffer_len;
 
         let code = WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
@@ -489,14 +516,23 @@ where
                     // buffer ptr
                     Instruction::I32Const(buffer_offset as i32),
                     // err len ptr
-                    Instruction::I32Const((buffer_offset + buffer_len) as i32),
+                    Instruction::I32Const(err_len_ptr as i32),
                     // CALL
                     Instruction::Call(0),
                 ],
             )),
             ..Default::default()
         });
-        Self::prepare_handle(code, 0)
+
+        let instance = Program::<T>::new(code, vec![])?;
+
+        prepare::<T>(
+            instance.caller.into_origin(),
+            HandleKind::Handle(ProgramId::from_origin(instance.addr)),
+            vec![0; (buffer_len + buffer_len) as usize],
+            0,
+            Some(err_len_ptr),
+        )
     }
 
     pub fn gr_random(r: u32) -> Result<Exec<T>, &'static str> {
@@ -520,10 +556,11 @@ where
             )),
             ..Default::default()
         });
-        Self::prepare_handle(code, 0)
+        Self::prepare_handle(code, 0, None)
     }
 
     pub fn gr_send_init(r: u32) -> Result<Exec<T>, &'static str> {
+        let err_ptr = 1;
         let code = WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
             imported_functions: vec![SysCallName::SendInit],
@@ -531,14 +568,14 @@ where
                 r * API_BENCHMARK_BATCH_SIZE,
                 &[
                     // err_handle ptr
-                    Instruction::I32Const(1),
+                    Instruction::I32Const(err_ptr),
                     // CALL
                     Instruction::Call(0),
                 ],
             )),
             ..Default::default()
         });
-        Self::prepare_handle(code, 0)
+        Self::prepare_handle(code, 0, Some(err_ptr as u32))
     }
 
     pub fn gr_send_push(r: u32) -> Result<Exec<T>, &'static str> {
@@ -572,7 +609,7 @@ where
             )),
             ..Default::default()
         });
-        Self::prepare_handle(code, 0)
+        Self::prepare_handle(code, 0, Some(err_offset))
     }
 
     // TODO: investigate how handle changes can affect on syscall perf (issue #1722).
@@ -609,7 +646,7 @@ where
             )),
             ..Default::default()
         });
-        Self::prepare_handle(code, 0)
+        Self::prepare_handle(code, 0, Some(err_offset))
     }
 
     // Benchmark the `gr_send_commit` call.
@@ -649,7 +686,7 @@ where
             )),
             ..Default::default()
         });
-        Self::prepare_handle(code, 10000000)
+        Self::prepare_handle(code, 10000000, Some(err_mid_offset))
     }
 
     // Benchmark the `gr_send_commit` call.
@@ -689,7 +726,7 @@ where
             )),
             ..Default::default()
         });
-        Self::prepare_handle(code, 10000000)
+        Self::prepare_handle(code, 10000000, Some(err_mid_offset))
     }
 
     // Benchmark the `gr_reservation_send_commit` call.
@@ -758,6 +795,7 @@ where
             HandleKind::Handle(ProgramId::from_origin(instance.addr)),
             vec![],
             0,
+            Some(err_mid_offset),
         )
     }
 
@@ -827,6 +865,7 @@ where
             HandleKind::Handle(ProgramId::from_origin(instance.addr)),
             vec![],
             0,
+            Some(err_mid_offset),
         )
     }
 
@@ -839,7 +878,7 @@ where
             memory: Some(ImportedMemory::max::<T>()),
             imported_functions: vec![SysCallName::ReplyCommit],
             handle_body: Some(body::repeated(
-                r * API_BENCHMARK_BATCH_SIZE,
+                r,
                 &[
                     // value ptr
                     Instruction::I32Const(value_offset as i32),
@@ -853,7 +892,7 @@ where
             )),
             ..Default::default()
         });
-        Self::prepare_handle(code, 10000000)
+        Self::prepare_handle(code, 10000000, Some(err_mid_offset))
     }
 
     pub fn gr_reply_push(r: u32) -> Result<Exec<T>, &'static str> {
@@ -880,7 +919,7 @@ where
             )),
             ..Default::default()
         });
-        Self::prepare_handle(code, 10000000)
+        Self::prepare_handle(code, 10000000, Some(err_offset as u32))
     }
 
     pub fn gr_reply_push_per_kb(n: u32) -> Result<Exec<T>, &'static str> {
@@ -892,22 +931,20 @@ where
         let code = WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
             imported_functions: vec![SysCallName::ReplyPush],
-            handle_body: Some(body::repeated(
-                API_BENCHMARK_BATCH_SIZE,
-                &[
-                    // payload ptr
-                    Instruction::I32Const(payload_offset),
-                    // payload len
-                    Instruction::I32Const(payload_len),
-                    // err len ptr
-                    Instruction::I32Const(err_offset),
-                    // CALL
-                    Instruction::Call(0),
-                ],
-            )),
+            handle_body: Some(body::plain(vec![
+                // payload ptr
+                Instruction::I32Const(payload_offset),
+                // payload len
+                Instruction::I32Const(payload_len),
+                // err len ptr
+                Instruction::I32Const(err_offset),
+                // CALL
+                Instruction::Call(0),
+                Instruction::End,
+            ])),
             ..Default::default()
         });
-        Self::prepare_handle(code, 10000000)
+        Self::prepare_handle(code, 10000000, Some(err_offset as u32))
     }
 
     pub fn gr_reservation_reply_commit(r: u32) -> Result<Exec<T>, &'static str> {
@@ -931,7 +968,7 @@ where
                 value: rid_values,
             }],
             handle_body: Some(body::repeated_dyn(
-                r * API_BENCHMARK_BATCH_SIZE,
+                r,
                 vec![
                     // rid_value ptr
                     Counter(rid_value_offset, 48),
@@ -967,10 +1004,12 @@ where
             HandleKind::Handle(ProgramId::from_origin(instance.addr)),
             vec![],
             0,
+            Some(err_mid_offset),
         )
     }
 
     pub fn gr_reply_to(r: u32) -> Result<Exec<T>, &'static str> {
+        let err_mid_ptr = 1;
         let code = WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
             imported_functions: vec![SysCallName::ReplyTo],
@@ -978,7 +1017,7 @@ where
                 r * API_BENCHMARK_BATCH_SIZE,
                 &[
                     // err_mid ptr
-                    Instruction::I32Const(1),
+                    Instruction::I32Const(err_mid_ptr),
                     // CALL
                     Instruction::Call(0),
                 ],
@@ -1004,10 +1043,12 @@ where
             HandleKind::Reply(msg_id, 0),
             vec![],
             0u32.into(),
+            Some(err_mid_ptr as u32),
         )
     }
 
     pub fn gr_signal_from(r: u32) -> Result<Exec<T>, &'static str> {
+        let err_mid_ptr = 1;
         let code = WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
             imported_functions: vec![SysCallName::SignalFrom],
@@ -1015,7 +1056,7 @@ where
                 r * API_BENCHMARK_BATCH_SIZE,
                 &[
                     // err_mid ptr
-                    Instruction::I32Const(1),
+                    Instruction::I32Const(err_mid_ptr),
                     // CALL
                     Instruction::Call(0),
                 ],
@@ -1041,6 +1082,7 @@ where
             HandleKind::Signal(msg_id, 1),
             vec![],
             0u32.into(),
+            Some(err_mid_ptr as u32),
         )
     }
 
@@ -1072,6 +1114,7 @@ where
             HandleKind::Handle(ProgramId::from_origin(instance.addr)),
             vec![1u8; payload_len as usize],
             0u32.into(),
+            Some(err_offset as u32),
         )
     }
 
@@ -1084,16 +1127,14 @@ where
         let code = WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
             imported_functions: vec![SysCallName::ReplyPushInput],
-            handle_body: Some(body::repeated(
-                API_BENCHMARK_BATCH_SIZE,
-                &[
-                    // offset
-                    Instruction::I32Const(payload_offset),
-                    Instruction::I32Const(payload_len.saturating_sub(payload_offset)),
-                    Instruction::I32Const(err_offset),
-                    Instruction::Call(0),
-                ],
-            )),
+            handle_body: Some(body::plain(vec![
+                // offset
+                Instruction::I32Const(payload_offset),
+                Instruction::I32Const(payload_len.saturating_sub(payload_offset)),
+                Instruction::I32Const(err_offset),
+                Instruction::Call(0),
+                Instruction::End,
+            ])),
             ..Default::default()
         });
 
@@ -1103,6 +1144,7 @@ where
             HandleKind::Handle(ProgramId::from_origin(instance.addr)),
             vec![1u8; payload_len as usize],
             0u32.into(),
+            Some(err_offset as u32),
         )
     }
 
@@ -1144,6 +1186,7 @@ where
             HandleKind::Handle(ProgramId::from_origin(instance.addr)),
             vec![1u8; payload_len as usize],
             0u32.into(),
+            Some(err_offset),
         )
     }
 
@@ -1185,10 +1228,12 @@ where
             HandleKind::Handle(ProgramId::from_origin(instance.addr)),
             vec![1u8; payload_len as usize],
             0u32.into(),
+            Some(err_offset),
         )
     }
 
     pub fn gr_status_code(r: u32) -> Result<Exec<T>, &'static str> {
+        let err_code_ptr = 1;
         let code = WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
             imported_functions: vec![SysCallName::StatusCode],
@@ -1196,7 +1241,7 @@ where
                 r * API_BENCHMARK_BATCH_SIZE,
                 &[
                     // err_code ptr
-                    Instruction::I32Const(1),
+                    Instruction::I32Const(err_code_ptr),
                     // CALL
                     Instruction::Call(0),
                 ],
@@ -1222,6 +1267,7 @@ where
             HandleKind::Reply(msg_id, 0),
             vec![],
             0u32.into(),
+            Some(err_code_ptr as u32),
         )
     }
 
@@ -1245,7 +1291,7 @@ where
             )),
             ..Default::default()
         });
-        Self::prepare_handle(code, 0)
+        Self::prepare_handle(code, 0, None)
     }
 
     pub fn gr_debug_per_kb(n: u32) -> Result<Exec<T>, &'static str> {
@@ -1268,7 +1314,7 @@ where
             )),
             ..Default::default()
         });
-        Self::prepare_handle(code, 0)
+        Self::prepare_handle(code, 0, None)
     }
 
     pub fn gr_error(r: u32) -> Result<Exec<T>, &'static str> {
@@ -1297,7 +1343,7 @@ where
             ..Default::default()
         });
 
-        Self::prepare_handle(code, 0)
+        Self::prepare_handle(code, 0, Some(error_offset as u32))
     }
 
     pub fn termination_bench(
@@ -1321,7 +1367,7 @@ where
             handle_body: Some(body::repeated(r, &instructions)),
             ..Default::default()
         });
-        Self::prepare_handle(code, 0)
+        Self::prepare_handle(code, 0, None)
     }
 
     pub fn gr_wake(r: u32) -> Result<Exec<T>, &'static str> {
@@ -1363,6 +1409,7 @@ where
             HandleKind::Handle(ProgramId::from_origin(instance.addr)),
             vec![],
             0,
+            Some(err_offset),
         )
     }
 
@@ -1372,7 +1419,7 @@ where
         let cid_value_offset = 1;
         let mut cid_value = [0; 32 + 16];
         cid_value[0..32].copy_from_slice(module.hash.as_ref());
-        cid_value[32..].copy_from_slice(&10u128.to_le_bytes());
+        cid_value[32..].copy_from_slice(&0u128.to_le_bytes());
 
         let salt_offset = cid_value_offset + cid_value.len() as u32;
         let salt = vec![0; 10];
@@ -1431,7 +1478,7 @@ where
             )),
             ..Default::default()
         });
-        Self::prepare_handle(code, 0)
+        Self::prepare_handle(code, 0, Some(err_mid_pid_offset))
     }
 
     pub fn gr_create_program_wgas_per_kb(pkb: u32, skb: u32) -> Result<Exec<T>, &'static str> {
@@ -1440,7 +1487,7 @@ where
         let cid_value_offset = 1;
         let mut cid_value = [0; 32 + 16];
         cid_value[0..32].copy_from_slice(module.hash.as_ref());
-        cid_value[32..].copy_from_slice(&10u128.to_le_bytes());
+        cid_value[32..].copy_from_slice(&0u128.to_le_bytes());
 
         let salt_offset = cid_value_offset + cid_value.len() as u32;
         let salt_len = skb * 1024;
@@ -1487,7 +1534,7 @@ where
             ..Default::default()
         });
 
-        Self::prepare_handle(code, 0)
+        Self::prepare_handle(code, 0, Some(err_mid_pid_offset))
     }
 
     pub fn lazy_pages_read_access(wasm_pages: u32) -> Result<Exec<T>, &'static str> {
@@ -1497,7 +1544,7 @@ where
             handle_body: Some(body::from_instructions(instrs)),
             ..Default::default()
         });
-        Self::prepare_handle(code, 0)
+        Self::prepare_handle(code, 0, None)
     }
 
     pub fn lazy_pages_write_access(wasm_pages: u32) -> Result<Exec<T>, &'static str> {
@@ -1508,6 +1555,6 @@ where
             handle_body: Some(body::from_instructions(instrs)),
             ..Default::default()
         });
-        Self::prepare_handle(code, 0)
+        Self::prepare_handle(code, 0, None)
     }
 }
