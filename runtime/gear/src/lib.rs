@@ -115,11 +115,8 @@ pub const BABE_GENESIS_EPOCH_CONFIG: sp_consensus_babe::BabeEpochConfiguration =
 /// We allow for 1/3 of block time for computations.
 ///
 /// It's 1/3 sec for gear runtime with 1 second block duration.
-const MAXIMUM_BLOCK_WEIGHT: Weight = Weight::from_parts(
-    WEIGHT_REF_TIME_PER_SECOND
-        .saturating_div(3),
-    u64::MAX,
-);
+const MAXIMUM_BLOCK_WEIGHT: Weight =
+    Weight::from_parts(WEIGHT_REF_TIME_PER_SECOND.saturating_div(3), u64::MAX);
 
 /// The version information used to identify this runtime when compiled natively.
 #[cfg(feature = "std")]
