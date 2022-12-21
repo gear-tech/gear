@@ -59,6 +59,7 @@ demo-proxy = { path = "../../examples/binaries/proxy", optional = true, default-
 
 [dev-dependencies]
 wabt = "0.10"
+hex = { version = "0.4.3" }
 blake2-rfc = { version = "0.2.18", default-features = false }
 demo-async-tester = { path = "../../examples/binaries/async-tester" }
 demo-btree = { path = "../../examples/binaries/btree" }
@@ -67,6 +68,7 @@ demo-distributor = { path = "../../examples/binaries/distributor" }
 demo-init-fail-sender = { path = "../../examples/binaries/init-fail-sender" }
 demo-init-wait = { path = "../../examples/binaries/init-wait" }
 demo-init-wait-reply-exit = { path = "../../examples/binaries/init-wait-reply-exit" }
+demo-new-meta = { path = "../../examples/binaries/new-meta" }
 demo-exit-init = { path = "../../examples/binaries/exit-init" }
 demo-exit-handle = { path = "../../examples/binaries/exit-handle" }
 demo-exit-handle-sender = { path = "../../examples/binaries/exit-handle-sender" }
@@ -96,6 +98,7 @@ pallet-gear-gas = { path = "../gas" }
 pallet-gear-messenger = { path = "../gear-messenger" }
 pallet-gear-scheduler = { path = "../gear-scheduler" }
 gear-runtime-interface = { path = "../../runtime-interface" }
+gmeta = { path = "../../gmeta" }
 
 [features]
 default = ['std']

@@ -433,6 +433,9 @@ pub enum GasOperation {
     /// Instantiate Wasm module.
     #[display(fmt = "instantiate Wasm module")]
     ModuleInstantiation,
+    /// Instrument Wasm module.
+    #[display(fmt = "instrument Wasm module")]
+    ModuleInstrumentation,
 }
 
 /// Reason of execution error
@@ -508,8 +511,6 @@ pub struct ExecutableActorData {
     pub pages_with_data: BTreeSet<PageNumber>,
     /// Id of the program code.
     pub code_id: CodeId,
-    /// Length in bytes of the program code.
-    pub code_length_bytes: u32,
     /// Exported functions by the program code.
     pub code_exports: BTreeSet<DispatchKind>,
     /// Count of static memory pages.

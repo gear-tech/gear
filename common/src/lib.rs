@@ -260,7 +260,6 @@ pub struct ActiveProgram {
     pub pages_with_data: BTreeSet<PageNumber>,
     pub gas_reservation_map: GasReservationMap,
     pub code_hash: H256,
-    pub code_length_bytes: u32,
     pub code_exports: BTreeSet<DispatchKind>,
     pub static_pages: WasmPageNumber,
     pub state: ProgramState,

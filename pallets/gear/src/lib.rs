@@ -49,7 +49,7 @@ pub use crate::{
 };
 pub use weights::WeightInfo;
 
-use alloc::format;
+use alloc::{format, string::String};
 use codec::{Decode, Encode};
 use common::{
     self, event::*, gas_provider::GasNodeId, scheduler::*, storage::*, BlockLimiter, CodeMetadata,
@@ -57,9 +57,9 @@ use common::{
 };
 use core::marker::PhantomData;
 use core_processor::{
-    common::{Actor, DispatchOutcome as CoreDispatchOutcome, ExecutableActorData, JournalNote},
-    configs::{AllocationsConfig, BlockConfig, BlockInfo, MessageExecutionContext},
-    PrechargeResult, PrepareResult,
+    common::{DispatchOutcome as CoreDispatchOutcome, ExecutableActorData, JournalNote},
+    configs::{AllocationsConfig, BlockConfig, BlockInfo},
+    ContextChargedForInstrumentation,
 };
 use frame_support::{
     dispatch::{DispatchError, DispatchResultWithPostInfo, PostDispatchInfo},
@@ -98,10 +98,10 @@ use ext::LazyPagesExt as Ext;
 use core_processor::Ext;
 
 #[cfg(feature = "std")]
-type ExecutionEnvironment = gear_backend_wasmi::WasmiEnvironment<Ext>;
+type ExecutionEnvironment<EP = DispatchKind> = gear_backend_wasmi::WasmiEnvironment<Ext, EP>;
 
 #[cfg(not(feature = "std"))]
-type ExecutionEnvironment = gear_backend_sandbox::SandboxEnvironment<Ext>;
+type ExecutionEnvironment<EP = DispatchKind> = gear_backend_sandbox::SandboxEnvironment<Ext, EP>;
 
 pub(crate) type CurrencyOf<T> = <T as Config>::Currency;
 pub(crate) type BalanceOf<T> =
@@ -627,6 +627,7 @@ pub mod pallet {
                 schedule.instruction_weights.version,
                 Some(module),
                 true,
+                true,
             )
             .map_err(|e| {
                 log::debug!("Code failed to load: {:?}", e);
@@ -714,11 +715,17 @@ pub mod pallet {
 
             let schedule = T::Schedule::get();
 
-            let code = Code::new_raw(code, schedule.instruction_weights.version, None, false)
-                .map_err(|e| {
-                    log::debug!("Code failed to load: {:?}", e);
-                    Error::<T>::FailedToConstructProgram
-                })?;
+            let code = Code::new_raw(
+                code,
+                schedule.instruction_weights.version,
+                None,
+                false,
+                true,
+            )
+            .map_err(|e| {
+                log::debug!("Code failed to load: {:?}", e);
+                Error::<T>::FailedToConstructProgram
+            })?;
 
             let code_id = Self::set_code_with_metadata(CodeAndId::new(code), who.into_origin())?;
 
@@ -731,6 +738,33 @@ pub mod pallet {
             });
 
             Ok(().into())
+        }
+
+        pub fn read_state_using_wasm(
+            program_id: H256,
+            fn_name: Vec<u8>,
+            wasm: Vec<u8>,
+            argument: Option<Vec<u8>>,
+        ) -> Result<Vec<u8>, Vec<u8>> {
+            let program_id = ProgramId::from_origin(program_id.into_origin());
+
+            let fn_name = String::from_utf8(fn_name)
+                .map_err(|_| "Non-utf8 function name".as_bytes().to_vec())?;
+
+            Self::read_state_using_wasm_impl(program_id, fn_name, wasm, argument)
+                .map_err(String::into_bytes)
+        }
+
+        pub fn read_state(program_id: H256) -> Result<Vec<u8>, Vec<u8>> {
+            let program_id = ProgramId::from_origin(program_id.into_origin());
+
+            Self::read_state_impl(program_id).map_err(String::into_bytes)
+        }
+
+        pub fn read_metahash(program_id: H256) -> Result<H256, Vec<u8>> {
+            let program_id = ProgramId::from_origin(program_id.into_origin());
+
+            Self::read_metahash_impl(program_id).map_err(String::into_bytes)
         }
 
         #[cfg(not(test))]
@@ -1002,8 +1036,7 @@ pub mod pallet {
         ) -> Option<BTreeMap<PageNumber, PageBuf>> {
             #[cfg(feature = "lazy-pages")]
             let memory_pages = {
-                let _ = program_id;
-                let _ = pages_with_data;
+                let _ = pages_with_data; // To calm clippy on unused argument.
                 assert!(lazy_pages::try_to_enable_lazy_pages());
                 Default::default()
             };
@@ -1025,27 +1058,44 @@ pub mod pallet {
             Some(memory_pages)
         }
 
-        pub(crate) fn get_code(code_id: CodeId, program_id: ProgramId) -> Option<InstrumentedCode> {
-            let code = match T::CodeStorage::get_code(code_id) {
-                None => {
-                    log::error!("Code '{code_id:?}' not found for program '{program_id:?}'");
-                    return None;
-                }
-                Some(c) => c,
+        pub(crate) fn block_config() -> BlockConfig {
+            let block_info = BlockInfo {
+                height: Self::block_number().unique_saturated_into(),
+                timestamp: <pallet_timestamp::Pallet<T>>::get().unique_saturated_into(),
             };
+
+            let existential_deposit = CurrencyOf::<T>::minimum_balance().unique_saturated_into();
 
             let schedule = T::Schedule::get();
-            let code = if code.instruction_weights_version() == schedule.instruction_weights.version
-            {
-                code
-            } else {
-                // todo: charge for code instrumenting
-                // If instrumented code exists, re-instrumentation can't fail
-                Self::reinstrument_code(code_id, &schedule)
-                    .unwrap_or_else(|e| unreachable!("Code storage corrupted {:?}", e))
+
+            let allocations_config = AllocationsConfig {
+                max_pages: schedule.limits.memory_pages.into(),
+                init_cost: schedule.memory_weights.initial_cost,
+                alloc_cost: schedule.memory_weights.allocation_cost,
+                mem_grow_cost: schedule.memory_weights.grow_cost,
+                load_page_cost: schedule.memory_weights.load_cost,
             };
 
-            Some(code)
+            BlockConfig {
+                block_info,
+                allocations_config,
+                existential_deposit,
+                outgoing_limit: T::OutgoingLimit::get(),
+                host_fn_weights: schedule.host_fn_weights.into_core(),
+                forbidden_funcs: Default::default(),
+                mailbox_threshold: T::MailboxThreshold::get(),
+                waitlist_cost: CostsPerBlockOf::<T>::waitlist(),
+                reserve_for: CostsPerBlockOf::<T>::reserve_for().unique_saturated_into(),
+                reservation: CostsPerBlockOf::<T>::reservation().unique_saturated_into(),
+                read_cost: DbWeightOf::<T>::get().reads(1).ref_time(),
+                write_cost: DbWeightOf::<T>::get().writes(1).ref_time(),
+                write_per_byte_cost: schedule.db_write_per_byte,
+                read_per_byte_cost: schedule.db_read_per_byte,
+                module_instantiation_byte_cost: schedule.module_instantiation_per_byte,
+                max_reservations: T::ReservationsLimit::get(),
+                code_instrumentation_cost: schedule.code_instrumentation_cost,
+                code_instrumentation_byte_cost: schedule.code_instrumentation_byte_cost,
+            }
         }
 
         /// Sets `code` and metadata, if code doesn't exist in storage.
@@ -1084,10 +1134,8 @@ pub mod pallet {
         pub(crate) fn reinstrument_code(
             code_id: CodeId,
             schedule: &Schedule<T>,
-        ) -> Result<InstrumentedCode, DispatchError> {
-            if T::CodeStorage::get_code(code_id).is_none() {
-                return Err(Error::<T>::CodeNotExists.into());
-            }
+        ) -> InstrumentedCode {
+            debug_assert!(T::CodeStorage::get_code(code_id).is_some());
 
             // By the invariant set in CodeStorage trait, original code can't exist in storage
             // without the instrumented code
@@ -1107,8 +1155,9 @@ pub mod pallet {
             let code_and_id = CodeAndId::from_parts_unchecked(code, code_id);
             let code_and_id = InstrumentedCodeAndId::from(code_and_id);
             T::CodeStorage::update_code(code_and_id.clone());
+            let (code, _) = code_and_id.into_parts();
 
-            Ok(code_and_id.into_parts().0)
+            code
         }
 
         pub(crate) fn check_code(code: Vec<u8>) -> Result<CodeAndId, DispatchError> {

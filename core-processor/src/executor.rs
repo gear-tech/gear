@@ -21,22 +21,29 @@ use crate::{
         DispatchResult, DispatchResultKind, ExecutionError, ExecutionErrorReason, GasOperation,
         WasmExecutionContext,
     },
-    configs::{AllocationsConfig, ExecutionSettings},
+    configs::{AllocationsConfig, BlockInfo, ExecutionSettings},
     ext::{ProcessorContext, ProcessorExt},
 };
 use alloc::{
     collections::{BTreeMap, BTreeSet},
-    string::ToString,
+    format,
+    string::{String, ToString},
+    vec::Vec,
 };
 use gear_backend_common::{
     BackendReport, Environment, GetGasAmount, IntoExtInfo, TerminationReason,
 };
 use gear_core::{
+    code::InstrumentedCode,
     env::Ext as EnvExt,
     gas::{ChargeResult, GasAllowanceCounter, GasCounter, ValueCounter},
     ids::ProgramId,
     memory::{AllocationsContext, Memory, PageBuf, PageNumber, WasmPageNumber},
-    message::{ContextSettings, IncomingDispatch, MessageContext},
+    message::{
+        ContextSettings, DispatchKind, IncomingDispatch, IncomingMessage, MessageContext, WasmEntry,
+    },
+    program::Program,
+    reservation::GasReserver,
 };
 
 pub(crate) enum ChargeForBytesResult {
@@ -72,7 +79,7 @@ fn charge_gas(
     Ok(())
 }
 
-fn charge_gas_for_bytes(
+pub(crate) fn charge_gas_per_byte(
     amount: u64,
     gas_counter: &mut GasCounter,
     gas_allowance_counter: &mut GasAllowanceCounter,
@@ -93,7 +100,7 @@ pub(crate) fn charge_gas_for_program(
     gas_counter: &mut GasCounter,
     gas_allowance_counter: &mut GasAllowanceCounter,
 ) -> ChargeForBytesResult {
-    charge_gas_for_bytes(
+    charge_gas_per_byte(
         calculate_gas_for_program(read_cost, per_byte_cost),
         gas_counter,
         gas_allowance_counter,
@@ -107,7 +114,7 @@ pub(crate) fn charge_gas_for_code(
     gas_counter: &mut GasCounter,
     gas_allowance_counter: &mut GasAllowanceCounter,
 ) -> ChargeForBytesResult {
-    charge_gas_for_bytes(
+    charge_gas_per_byte(
         calculate_gas_for_code(read_cost, per_byte_cost, code_len_bytes.into()),
         gas_counter,
         gas_allowance_counter,
@@ -417,6 +424,7 @@ pub fn execute_wasm<
             )
         })
     };
+
     let (termination, memory, ext) = match f() {
         Ok(BackendReport {
             termination_reason: termination,
@@ -463,12 +471,7 @@ pub fn execute_wasm<
         TerminationReason::Exit(value_dest) => DispatchResultKind::Exit(value_dest),
         TerminationReason::Leave | TerminationReason::Success => DispatchResultKind::Success,
         TerminationReason::Trap(explanation) => {
-            log::debug!(
-                "💥 Trap during execution of {}\n📔 Explanation: {}",
-                program_id,
-                explanation,
-            );
-
+            log::debug!("💥 Trap during execution of {program_id}\n📔 Explanation: {explanation}");
             DispatchResultKind::Trap(explanation)
         }
         TerminationReason::Wait(duration, waited_type) => {
@@ -498,6 +501,143 @@ pub fn execute_wasm<
         page_update,
         allocations: info.allocations,
     })
+}
+
+/// !!! FOR TESTING / INFORMATIONAL USAGE ONLY
+pub fn execute_for_reply<
+    A: ProcessorExt + EnvExt + IntoExtInfo<<A as EnvExt>::Error> + 'static,
+    E: Environment<A, EP>,
+    EP: WasmEntry,
+>(
+    function: EP,
+    instrumented_code: InstrumentedCode,
+    pages_initial_data: Option<BTreeMap<PageNumber, PageBuf>>,
+    allocations: Option<BTreeSet<WasmPageNumber>>,
+    program_id: Option<ProgramId>,
+    payload: Vec<u8>,
+    gas_limit: u64,
+) -> Result<Vec<u8>, String> {
+    let program = Program::new(program_id.unwrap_or_default(), instrumented_code);
+    let mut pages_initial_data: BTreeMap<PageNumber, PageBuf> =
+        pages_initial_data.unwrap_or_default();
+    let static_pages = program.static_pages();
+    let allocations = allocations.unwrap_or_else(|| program.allocations().clone());
+
+    let memory_size = if let Some(page) = allocations.iter().next_back() {
+        *page + 1.into()
+    } else if static_pages != WasmPageNumber(0) {
+        static_pages
+    } else {
+        0.into()
+    };
+
+    let context = ProcessorContext {
+        gas_counter: GasCounter::new(gas_limit),
+        gas_allowance_counter: GasAllowanceCounter::new(gas_limit),
+        gas_reserver: GasReserver::new(
+            Default::default(),
+            Default::default(),
+            Default::default(),
+            Default::default(),
+        ),
+        value_counter: ValueCounter::new(Default::default()),
+        allocations_context: AllocationsContext::new(allocations, static_pages, 512.into()),
+        message_context: MessageContext::new(
+            IncomingMessage::new(
+                Default::default(),
+                Default::default(),
+                payload
+                    .try_into()
+                    .map_err(|e| format!("Failed to create payload: {e:?}"))?,
+                gas_limit,
+                Default::default(),
+                Default::default(),
+            ),
+            program.id(),
+            None,
+            ContextSettings::new(0, 0, 0, 0, 0, 0),
+        ),
+        block_info: BlockInfo {
+            height: Default::default(),
+            timestamp: Default::default(),
+        },
+        config: AllocationsConfig {
+            max_pages: 512.into(),
+            init_cost: Default::default(),
+            alloc_cost: Default::default(),
+            mem_grow_cost: Default::default(),
+            load_page_cost: Default::default(),
+        },
+        existential_deposit: Default::default(),
+        origin: Default::default(),
+        program_id: program.id(),
+        program_candidates_data: Default::default(),
+        host_fn_weights: Default::default(),
+        forbidden_funcs: Default::default(),
+        mailbox_threshold: Default::default(),
+        waitlist_cost: Default::default(),
+        reserve_for: Default::default(),
+        reservation: Default::default(),
+        random_data: Default::default(),
+        system_reservation: Default::default(),
+    };
+
+    // Creating externalities.
+    let ext = A::new(context);
+
+    // Execute program in backend env.
+    let f = || {
+        let env = E::new(
+            ext,
+            program.raw_code(),
+            function,
+            program.code().exports().clone(),
+            memory_size,
+        )?;
+        env.execute(|memory, stack_end| {
+            prepare_memory::<A, E::Memory>(
+                program.id(),
+                &mut pages_initial_data,
+                static_pages,
+                stack_end,
+                memory,
+            )
+        })
+    };
+
+    let (termination, memory, ext) = match f() {
+        Ok(BackendReport {
+            termination_reason: termination,
+            memory_wrap: memory,
+            ext,
+        }) => (termination, memory, ext),
+        Err(e) => return Err(format!("Backend error: {e}")),
+    };
+
+    match termination {
+        TerminationReason::Exit(_) | TerminationReason::Leave | TerminationReason::Wait(_, _) => {
+            return Err("Execution has incorrect termination reason".into())
+        }
+        TerminationReason::Success => (),
+        TerminationReason::Trap(explanation) => {
+            return Err(format!(
+                "Program execution failed with error: {explanation}"
+            ));
+        }
+        TerminationReason::GasAllowanceExceeded => return Err("Unreachable".into()),
+    };
+
+    let info = ext
+        .into_ext_info(&memory)
+        .map_err(|e| format!("Backend postprocessing error: {e:?}"))?;
+
+    for (dispatch, _, _) in info.generated_dispatches {
+        if matches!(dispatch.kind(), DispatchKind::Reply) {
+            return Ok(dispatch.payload().to_vec());
+        }
+    }
+
+    Err("Reply not found".into())
 }
 
 #[cfg(test)]

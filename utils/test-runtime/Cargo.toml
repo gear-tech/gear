@@ -20,7 +20,7 @@ trie-db = { version = "0.24.0", default-features = false }
 parity-util-mem = { version = "0.12.0", default-features = false, features = ["primitive-types"] }
 cfg-if = "1.0"
 log = { version = "0.4.17", default-features = false }
-serde = { version = "1.0.149", optional = true, features = ["derive"] }
+serde = { version = "1.0.151", optional = true, features = ["derive"] }
 
 # Substrate primitives
 sp-application-crypto = { version = "6.0.0", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.33" }

@@ -178,7 +178,7 @@ where
 
                 DispatchStatus::Failed
             }
-            CoreDispatchOutcome::NoExecution => {
+            NoExecution => {
                 log::trace!("Dispatch ({:?}) for program wasn't executed", message_id);
 
                 DispatchStatus::NotExecuted

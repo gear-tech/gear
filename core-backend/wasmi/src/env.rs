@@ -35,7 +35,12 @@ use gear_backend_common::{
     GetGasAmount, IntoExtInfo, StackEndError, TerminationReason, TrapExplanation,
     STACK_END_EXPORT_NAME,
 };
-use gear_core::{env::Ext, gas::GasAmount, memory::WasmPageNumber, message::DispatchKind};
+use gear_core::{
+    env::Ext,
+    gas::GasAmount,
+    memory::WasmPageNumber,
+    message::{DispatchKind, WasmEntry},
+};
 use gear_wasm_instrument::{GLOBAL_NAME_ALLOWANCE, GLOBAL_NAME_GAS};
 use wasmi::{core::Value, Engine, Extern, Instance, Linker, Memory, MemoryType, Module, Store};
 
@@ -86,18 +91,23 @@ macro_rules! gas_amount {
 }
 
 /// Environment to run one module at a time providing Ext.
-pub struct WasmiEnvironment<E: Ext> {
+pub struct WasmiEnvironment<E, EP = DispatchKind>
+where
+    E: Ext,
+    EP: WasmEntry,
+{
     instance: Instance,
     store: Store<HostState<E>>,
     memory: Memory,
     entries: BTreeSet<DispatchKind>,
-    entry_point: DispatchKind,
+    entry_point: EP,
 }
 
-impl<E> Environment<E> for WasmiEnvironment<E>
+impl<E, EP> Environment<E, EP> for WasmiEnvironment<E, EP>
 where
     E: Ext + IntoExtInfo<E::Error> + GetGasAmount + 'static,
     E::Error: Encode + AsTerminationReason + IntoExtError,
+    EP: WasmEntry,
 {
     type Memory = MemoryWrap<E>;
     type Error = Error;
@@ -105,7 +115,7 @@ where
     fn new(
         ext: E,
         binary: &[u8],
-        entry_point: DispatchKind,
+        entry_point: EP,
         entries: BTreeSet<DispatchKind>,
         mem_size: WasmPageNumber,
     ) -> Result<Self, Self::Error> {
@@ -124,12 +134,19 @@ where
             .define("env", "memory", memory)
             .map_err(|e| (ext.gas_amount(), Linking(e)))?;
 
+        let entry_forbidden = entry_point
+            .try_into_kind()
+            .as_ref()
+            .map(DispatchKind::forbidden_funcs)
+            .unwrap_or_default();
+
         let forbidden_funcs = ext
             .forbidden_funcs()
             .iter()
             .copied()
-            .chain(entry_point.forbidden_funcs())
+            .chain(entry_forbidden)
             .collect();
+
         let functions = funcs_tree::build(&mut store, memory, forbidden_funcs);
         for (name, function) in functions {
             linker
@@ -218,15 +235,20 @@ where
             (gas_amount!(store), PreExecutionHandler(e.to_string()))
         })?;
 
-        let res = if entries.contains(&entry_point) {
+        let needs_execution = entry_point
+            .try_into_kind()
+            .map(|kind| entries.contains(&kind))
+            .unwrap_or(true);
+
+        let res = if needs_execution {
             let func = instance
-                .get_export(&memory_wrap.store, entry_point.into_entry())
+                .get_export(&memory_wrap.store, entry_point.as_entry())
                 .and_then(Extern::into_func)
                 .ok_or({
                     let store = &memory_wrap.store;
                     (
                         gas_amount!(store),
-                        GetWasmExports(entry_point.into_entry().to_string()),
+                        GetWasmExports(entry_point.as_entry().to_string()),
                     )
                 })?;
 
@@ -236,7 +258,7 @@ where
                     let store = &memory_wrap.store;
                     (
                         gas_amount!(store),
-                        EntryPointWrongType(entry_point.into_entry().to_string()),
+                        EntryPointWrongType(entry_point.as_entry().to_string()),
                     )
                 })?;
 
