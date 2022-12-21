@@ -1422,13 +1422,11 @@ where
         cid_value[0..32].copy_from_slice(module.hash.as_ref());
         cid_value[32..].copy_from_slice(&0u128.to_le_bytes());
 
-        let salt_offset = cid_value_offset + cid_value.len() as u32;
-        let salt = vec![0; 10];
-        let salt_len = salt.len() as u32;
-
-        let payload_offset = salt_offset + salt_len;
+        let payload_offset = cid_value_offset + cid_value.len() as u32;
         let payload = vec![0; 10];
         let payload_len = payload.len() as u32;
+
+        let salt_len = 32;
 
         let err_mid_pid_offset = payload_offset + payload_len;
 
@@ -1446,10 +1444,6 @@ where
                     value: cid_value.to_vec(),
                 },
                 DataSegment {
-                    offset: salt_offset,
-                    value: salt,
-                },
-                DataSegment {
                     offset: payload_offset,
                     value: payload,
                 },
@@ -1460,7 +1454,7 @@ where
                     // cid_value ptr
                     Instruction::I32Const(cid_value_offset as i32),
                     // salt ptr
-                    Instruction::I32Const(salt_offset as i32),
+                    Instruction::I32Const(err_mid_pid_offset as i32),
                     // salt len
                     Instruction::I32Const(salt_len as i32),
                     // payload ptr
@@ -1515,7 +1509,7 @@ where
                     // cid_value ptr
                     Instruction::I32Const(cid_value_offset as i32),
                     // salt ptr
-                    Instruction::I32Const(salt_offset as i32),
+                    Instruction::I32Const(err_mid_pid_offset as i32),
                     // salt len
                     Instruction::I32Const(salt_len as i32),
                     // payload ptr
