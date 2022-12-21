@@ -857,9 +857,9 @@ dependencies = [
 
 [[package]]
 name = "clap"
-version = "4.0.29"
+version = "4.0.30"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4d63b9e9c07271b9957ad22c173bae2a4d9a81127680962039296abcd2f8251d"
+checksum = "656ad1e55e23d287773f7d8192c300dc715c3eeded93b3da651d11c42cfd74d2"
 dependencies = [
  "bitflags",
  "clap_derive",
@@ -2623,7 +2623,7 @@ dependencies = [
  "Inflector",
  "array-bytes",
  "chrono",
- "clap 4.0.29",
+ "clap 4.0.30",
  "comfy-table",
  "frame-benchmarking",
  "frame-support",
@@ -3137,7 +3137,7 @@ dependencies = [
 name = "gear-cli"
 version = "0.1.0"
 dependencies = [
- "clap 4.0.29",
+ "clap 4.0.30",
  "frame-benchmarking",
  "frame-benchmarking-cli",
  "frame-system",
@@ -3301,7 +3301,7 @@ dependencies = [
  "base64 0.20.0",
  "blake2-rfc",
  "cfg-if",
- "clap 4.0.29",
+ "clap 4.0.30",
  "color-eyre",
  "demo-meta",
  "demo-waiter",
@@ -3435,7 +3435,7 @@ name = "gear-runtime-test-cli"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "clap 4.0.29",
+ "clap 4.0.30",
  "colored",
  "frame-support",
  "frame-system",
@@ -3547,7 +3547,7 @@ name = "gear-test"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "clap 4.0.29",
+ "clap 4.0.30",
  "colored",
  "derive_more",
  "env_logger 0.10.0",
@@ -7555,7 +7555,7 @@ dependencies = [
 name = "regression-analysis"
 version = "0.1.0"
 dependencies = [
- "clap 4.0.29",
+ "clap 4.0.30",
  "frame-support",
  "gear-runtime",
  "junit-common",
@@ -7964,7 +7964,7 @@ source = "git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0
 dependencies = [
  "array-bytes",
  "chrono",
- "clap 4.0.29",
+ "clap 4.0.30",
  "fdlimit",
  "futures",
  "libp2p 0.49.0",
@@ -11350,7 +11350,7 @@ name = "try-runtime-cli"
 version = "0.10.0-dev"
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.33#fac078bc74f6fc6858124c04a2d57a807ccc003e"
 dependencies = [
- "clap 4.0.29",
+ "clap 4.0.30",
  "frame-try-runtime",
  "log",
  "parity-scale-codec",
@@ -11853,7 +11853,7 @@ dependencies = [
 name = "wasm-proc"
 version = "0.1.0"
 dependencies = [
- "clap 4.0.29",
+ "clap 4.0.30",
  "env_logger 0.10.0",
  "gear-wasm-builder",
  "log",
