@@ -204,14 +204,12 @@ fn verify_process((notes, err_len_ptr): (Vec<JournalNote>, Option<u32>)) {
                 page_number, data, ..
             } => {
                 if let Some(err_len_ptr) = err_len_ptr {
-                    let err_len_ptr = err_len_ptr as usize;
-
-                    let mem = page_number.offset()..(page_number + PageNumber(1)).offset();
+                    let mem = page_number.offset()..page_number.inc().unwrap().offset();
                     if !mem.contains(&err_len_ptr) {
                         continue;
                     }
 
-                    let err_len_offset = err_len_ptr - mem.start;
+                    let err_len_offset = (err_len_ptr - mem.start) as usize;
                     let data = data.into_vec();
                     let err_len = data[err_len_offset..err_len_offset + 4].try_into().unwrap();
                     let err_len = u32::from_le_bytes(err_len);
