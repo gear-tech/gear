@@ -14,14 +14,15 @@ use common::{
 };
 use core::{marker::PhantomData, mem, mem::size_of};
 use core_processor::{
-    configs::{AllocationsConfig, BlockConfig, BlockInfo, MessageExecutionContext},
-    PrechargeResult, PrepareResult,
+    configs::{AllocationsConfig, BlockConfig, BlockInfo},
+    ContextChargedForCode, ContextChargedForInstrumentation,
 };
 use frame_support::traits::{Currency, Get};
 use frame_system::RawOrigin;
 use gear_core::{
     code::{Code, CodeAndId},
     ids::{CodeId, MessageId, ProgramId, ReservationId},
+    memory::WasmPageNumber,
     message::{Dispatch, DispatchKind, Message, ReplyDetails, SignalDetails},
     reservation::GasReservationSlot,
 };
@@ -181,7 +182,7 @@ where
     let block_config = BlockConfig {
         block_info,
         allocations_config: AllocationsConfig {
-            max_pages: gear_core::memory::WasmPageNumber(T::Schedule::get().limits.memory_pages),
+            max_pages: T::Schedule::get().limits.memory_pages.into(),
             init_cost: T::Schedule::get().memory_weights.initial_cost,
             alloc_cost: T::Schedule::get().memory_weights.allocation_cost,
             mem_grow_cost: T::Schedule::get().memory_weights.grow_cost,
@@ -201,59 +202,59 @@ where
         read_per_byte_cost: schedule.db_read_per_byte,
         module_instantiation_byte_cost: schedule.module_instantiation_per_byte,
         max_reservations: u64::MAX,
+        code_instrumentation_cost: schedule.code_instrumentation_cost,
+        code_instrumentation_byte_cost: schedule.code_instrumentation_byte_cost,
     };
 
-    if let Some(queued_dispatch) = QueueOf::<T>::dequeue().map_err(|_| "MQ storage corrupted")? {
-        let actor_id = queued_dispatch.destination();
-        let actor = ext_manager
-            .get_actor(actor_id)
-            .ok_or("Program not found in the storage")?;
+    let queued_dispatch = match QueueOf::<T>::dequeue().map_err(|_| "MQ storage corrupted")? {
+        Some(d) => d,
+        None => return Err("Dispatch not found"),
+    };
 
-        let precharged_dispatch = match core_processor::precharge(
-            &block_config,
-            u64::MAX,
-            queued_dispatch.into_incoming(initial_gas),
-            actor_id,
-        ) {
-            PrechargeResult::Ok(d) => d,
-            PrechargeResult::Error(_) => {
-                return Err("core_processor::precharge failed");
-            }
-        };
+    let actor_id = queued_dispatch.destination();
+    let actor = ext_manager
+        .get_actor(actor_id)
+        .ok_or("Program not found in the storage")?;
 
-        let message_execution_context = MessageExecutionContext {
-            actor,
-            precharged_dispatch,
-            origin: ProgramId::from_origin(source),
-            subsequent_execution: false,
-        };
+    let precharged_dispatch = core_processor::precharge_for_program(
+        &block_config,
+        u64::MAX,
+        queued_dispatch.into_incoming(initial_gas),
+        actor_id,
+    )
+    .map_err(|_| "core_processor::precharge_for_program failed")?;
 
-        let (context, code) =
-            match core_processor::prepare(&block_config, message_execution_context) {
-                PrepareResult::Ok(context) => {
-                    let code = T::CodeStorage::get_code(context.actor_data().code_id)
-                        .ok_or("Program code not found")?;
+    let balance = actor.balance;
+    let context = core_processor::precharge_for_code_length(
+        &block_config,
+        precharged_dispatch,
+        actor_id,
+        actor.executable_data,
+    )
+    .map_err(|_| "core_processor::precharge_for_code failed")?;
 
-                    (context, code)
-                }
-                res => {
-                    log::error!("core_processor::prepare: {:?}", res);
-                    return Err("core_processor::prepare failed");
-                }
-            };
+    let code =
+        T::CodeStorage::get_code(context.actor_data().code_id).ok_or("Program code not found")?;
 
-        Ok(Exec {
-            ext_manager,
-            block_config,
-            context: (context, actor_id, code).into(),
-            random_data: (vec![0u8; 32], 0),
-            // actor without pages data because of lazy pages enabled
-            memory_pages: Default::default(),
-            err_len_ptr,
-        })
-    } else {
-        Err("Dispatch not found")
-    }
+    let context = ContextChargedForCode::from((context, code.code().len() as u32));
+    let context = core_processor::precharge_for_memory(
+        &block_config,
+        ContextChargedForInstrumentation::from(context),
+        false,
+    )
+    .map_err(|_| "core_processor::precharge_for_memory failed")?;
+
+    let origin = ProgramId::from_origin(source);
+
+    Ok(Exec {
+        ext_manager,
+        block_config,
+        context: (context, code, balance, origin).into(),
+        random_data: (vec![0u8; 32], 0),
+        // actor without pages data because of lazy pages enabled
+        memory_pages: Default::default(),
+        err_len_ptr,
+    })
 }
 
 pub(crate) struct Benches<T>
@@ -304,7 +305,7 @@ where
     }
 
     pub fn free(r: u32) -> Result<Exec<T>, &'static str> {
-        assert!(r <= max_pages::<T>());
+        assert!(r <= max_pages::<T>() as u32);
 
         use Instruction::*;
         let mut instructions = vec![];
@@ -1537,7 +1538,7 @@ where
         Self::prepare_handle(code, 0, Some(err_mid_pid_offset))
     }
 
-    pub fn lazy_pages_read_access(wasm_pages: u32) -> Result<Exec<T>, &'static str> {
+    pub fn lazy_pages_read_access(wasm_pages: WasmPageNumber) -> Result<Exec<T>, &'static str> {
         let instrs = body::read_access_all_pages_instrs(wasm_pages, vec![]);
         let code = WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
@@ -1547,8 +1548,8 @@ where
         Self::prepare_handle(code, 0, None)
     }
 
-    pub fn lazy_pages_write_access(wasm_pages: u32) -> Result<Exec<T>, &'static str> {
-        let mut instrs = body::read_access_all_pages_instrs(max_pages::<T>(), vec![]);
+    pub fn lazy_pages_write_access(wasm_pages: WasmPageNumber) -> Result<Exec<T>, &'static str> {
+        let mut instrs = body::read_access_all_pages_instrs(max_pages::<T>().into(), vec![]);
         instrs = body::write_access_all_pages_instrs(wasm_pages, instrs);
         let code = WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),

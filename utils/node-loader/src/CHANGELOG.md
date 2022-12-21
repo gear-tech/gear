@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.2] 2022-12-20. Make deterministic generation of seed for code seed generator.
+### Added
+- Logging seed for code seed generator.
+### Changed
+- If no code seed type is provided from the CLI, seed for code seed generator will be set as __dynamic__ and will start from a randomly generated value, where random for that value is determined by the loader seed. Previously seed for code seed generator was set to timestamp value by default.
+
 ## [0.1.1] 2022-11-21. Increase loader's ux.
 ### Added
 - An ability to run loader starting from the specified seed.

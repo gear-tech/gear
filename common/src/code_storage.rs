@@ -29,6 +29,7 @@ pub enum Error {
 /// Trait to work with program binary codes in a storage.
 pub trait CodeStorage {
     type InstrumentedCodeStorage: MapStorage<Key = CodeId, Value = InstrumentedCode>;
+    type InstrumentedLenStorage: MapStorage<Key = CodeId, Value = u32>;
     type OriginalCodeStorage: MapStorage<Key = CodeId, Value = Vec<u8>>;
     type MetadataStorage: MapStorage<Key = CodeId, Value = CodeMetadata>;
 
@@ -41,6 +42,7 @@ pub trait CodeStorage {
                 return Err(CodeStorageError::DuplicateItem);
             }
 
+            Self::InstrumentedLenStorage::insert(code_id, code.code().len() as u32);
             Self::OriginalCodeStorage::insert(code_id, original_code);
             Self::MetadataStorage::insert(code_id, metadata);
 
@@ -49,22 +51,18 @@ pub trait CodeStorage {
         })
     }
 
-    /// Returns true if the corresponding code in the storage
-    /// and it was updated successfully.
-    fn update_code(code_and_id: InstrumentedCodeAndId) -> bool {
+    /// Update the corresponding code in the storage.
+    fn update_code(code_and_id: InstrumentedCodeAndId) {
         let (code, code_id) = code_and_id.into_parts();
-        Self::InstrumentedCodeStorage::mutate(code_id, |maybe| match maybe.as_mut() {
-            None => false,
-            Some(c) => {
-                *c = code;
-                true
-            }
-        })
+
+        Self::InstrumentedLenStorage::insert(code_id, code.code().len() as u32);
+        Self::InstrumentedCodeStorage::insert(code_id, code);
     }
 
     fn exists(code_id: CodeId) -> bool {
         Self::InstrumentedCodeStorage::contains_key(&code_id)
     }
+
     /// Returns true if the code associated with given id was removed.
     ///
     /// If there is no code for the given id then false is returned.
@@ -74,6 +72,10 @@ pub trait CodeStorage {
                 return false;
             }
 
+            Self::InstrumentedLenStorage::remove(code_id);
+            Self::OriginalCodeStorage::remove(code_id);
+            Self::MetadataStorage::remove(code_id);
+
             *maybe = None;
             true
         })
@@ -81,6 +83,10 @@ pub trait CodeStorage {
 
     fn get_code(code_id: CodeId) -> Option<InstrumentedCode> {
         Self::InstrumentedCodeStorage::get(&code_id)
+    }
+
+    fn get_code_len(code_id: CodeId) -> Option<u32> {
+        Self::InstrumentedLenStorage::get(&code_id)
     }
 
     fn get_original_code(code_id: CodeId) -> Option<Vec<u8>> {

@@ -82,6 +82,15 @@ impl GearApi {
         Ok(self.get_block_at(Some(block_hash)).await?.header.number)
     }
 
+    pub async fn last_block_timestamp(&self) -> Result<u64> {
+        let at = storage().timestamp().now();
+        self.0
+            .storage()
+            .fetch(&at, None)
+            .await?
+            .ok_or(Error::TimestampNotFound)
+    }
+
     pub async fn events_at(&self, block_hash: H256) -> Result<Vec<RuntimeEvent>> {
         self.get_events_at(Some(block_hash)).await
     }

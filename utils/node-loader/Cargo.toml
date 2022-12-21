@@ -15,7 +15,7 @@ gear-core = { path = "../../core" }
 gear-wasm-gen = { path = "../wasm-gen" }
 
 # external dependencies
-anyhow = "1.0.65"
+anyhow = "1.0.68"
 arbitrary = "1.1.6"
 dyn-clonable = "0.9.0"
 futures = "0.3.25"
@@ -27,7 +27,7 @@ primitive-types = { version = "0.12.0", default-features = false, features = ["s
 rand = { version = "0.8.0", features = ["small_rng"] }
 reqwest = { version = "0.11.13", default-features = false }
 structopt = "0.3.26"
-thiserror = "1.0.37"
+thiserror = "1.0.38"
 tokio = { version = "1.23.0", features = [ "macros" ] }
 tracing = "0.1.36"
 tracing-appender = "0.2"

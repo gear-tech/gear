@@ -669,8 +669,26 @@ cfg_if! {
                 ) -> Result<pallet_gear::GasInfo, Vec<u8>> {
                     Err(b"not implemented".to_vec())
                 }
+
                 fn gear_run_extrinsic() -> <Block as BlockT>::Extrinsic {
                     Extrinsic::new(Extrinsic::Process, None).unwrap()
+                }
+
+                fn read_state(_program_id: H256) -> Result<Vec<u8>, Vec<u8>> {
+                    Err(b"not implemented".to_vec())
+                }
+
+                fn read_state_using_wasm(
+                    _program_id: H256,
+                    _fn_name: Vec<u8>,
+                    _wasm: Vec<u8>,
+                    _argument: Option<Vec<u8>>,
+                ) -> Result<Vec<u8>, Vec<u8>> {
+                    Err(b"not implemented".to_vec())
+                }
+
+                fn read_metahash(_program_id: H256) -> Result<H256, Vec<u8>> {
+                    Err(b"not implemented".to_vec())
                 }
             }
 
@@ -906,8 +924,26 @@ cfg_if! {
                 ) -> Result<pallet_gear::GasInfo, Vec<u8>> {
                     Err(b"not implemented".to_vec())
                 }
+
                 fn gear_run_extrinsic() -> <Block as BlockT>::Extrinsic {
                     Extrinsic::new(Extrinsic::Process, None).unwrap()
+                }
+
+                fn read_state(_program_id: H256) -> Result<Vec<u8>, Vec<u8>> {
+                    Err(b"not implemented".to_vec())
+                }
+
+                fn read_state_using_wasm(
+                    _program_id: H256,
+                    _fn_name: Vec<u8>,
+                    _wasm: Vec<u8>,
+                    _argument: Option<Vec<u8>>,
+                ) -> Result<Vec<u8>, Vec<u8>> {
+                    Err(b"not implemented".to_vec())
+                }
+
+                fn read_metahash(_program_id: H256) -> Result<H256, Vec<u8>> {
+                    Err(b"not implemented".to_vec())
                 }
             }
 
