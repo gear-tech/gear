@@ -61,6 +61,7 @@ macro_rules! debug {
 
 #[cfg(not(feature = "debug"))]
 #[cfg(not(debug_assertions))]
+#[allow(missing_docs)]
 #[macro_export]
 macro_rules! debug {
     ($arg:expr) => { let _ = $arg; };
