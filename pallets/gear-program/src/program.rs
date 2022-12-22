@@ -22,10 +22,6 @@ use gear_core::ids::ProgramId;
 
 impl<T: Config> pallet::Pallet<T> {
     pub fn program_exists(program_id: ProgramId) -> bool {
-        common::program_exists(program_id.into_origin()) | Self::program_paused(program_id)
-    }
-
-    pub fn reset_storage() {
-        let _ = PausedPrograms::<T>::clear(u32::MAX, None);
+        common::program_exists(program_id.into_origin())
     }
 }
