@@ -59,18 +59,22 @@ const BS58_MIN_LEN: usize = 35; // Prefix (1) + ID (32) + Checksum (2)
 pub struct ActorId([u8; 32]);
 
 impl ActorId {
+    /// Create a new `ActorId` from a 32-byte array.
     pub const fn new(arr: [u8; 32]) -> Self {
         Self(arr)
     }
 
+    /// Create a new zero `ActorId`.
     pub const fn zero() -> Self {
         Self::new([0; 32])
     }
 
+    /// Check whether `ActorId` is zero.
     pub fn is_zero(&self) -> bool {
         self == &Self::zero()
     }
 
+    /// Create a new `ActorId` from the Base58 string.
     pub fn from_bs58(address: String) -> Result<Self> {
         let decoded = bs58::decode(address)
             .into_vec()
@@ -84,6 +88,7 @@ impl ActorId {
         }
     }
 
+    /// Create a new `ActorId` from a byte slice.
     pub fn from_slice(slice: &[u8]) -> Result<Self> {
         if slice.len() != 32 {
             return Err(ContractError::Convert("Slice should be 32 length"));
@@ -168,10 +173,12 @@ impl TryFrom<&[u8]> for ActorId {
 pub struct MessageId([u8; 32]);
 
 impl MessageId {
+    /// Create a new `MessageId` from a 32-byte array.
     pub const fn new(arr: [u8; 32]) -> Self {
         Self(arr)
     }
 
+    /// Create a new zero `MessageId`.
     pub const fn zero() -> Self {
         Self([0; 32])
     }
@@ -227,7 +234,7 @@ impl From<H256> for MessageId {
 pub struct CodeId([u8; 32]);
 
 impl CodeId {
-    /// Create a new `CodeId` from a 32-byte array of bytes.
+    /// Create a new `CodeId` from a 32-byte array.
     pub const fn new(arr: [u8; 32]) -> Self {
         Self(arr)
     }

@@ -112,6 +112,7 @@ macro_rules! metadata {
 }
 
 #[cfg(not(doc))]
+#[allow(missing_docs)]
 #[macro_export]
 macro_rules! metadata {
     (
