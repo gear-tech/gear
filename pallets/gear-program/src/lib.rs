@@ -25,12 +25,6 @@ pub use weights::WeightInfo;
 mod pause;
 mod program;
 
-#[cfg(test)]
-mod mock;
-
-#[cfg(test)]
-mod tests;
-
 pub mod migration;
 pub mod weights;
 
