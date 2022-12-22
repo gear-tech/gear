@@ -21,10 +21,10 @@ use crate::mock::*;
 use common::{self, Origin as _};
 use frame_support::assert_ok;
 #[cfg(feature = "lazy-pages")]
-use gear_core::memory::{PageNumber, PAGE_STORAGE_GRANULARITY as PSG};
+use gear_core::memory::PageNumber;
 use gear_core::{
     ids::{CodeId, MessageId, ProgramId},
-    memory::{PageBuf, WasmPageNumber},
+    memory::{PageBuf, PageU32Size, WasmPageNumber},
     message::{DispatchKind, StoredDispatch, StoredMessage},
 };
 use pallet_gear::{DebugInfo, Pallet as PalletGear};
@@ -104,7 +104,7 @@ fn debug_mode_works() {
 
         GearDebug::do_snapshot();
 
-        let static_pages = WasmPageNumber(16);
+        let static_pages = 16.into();
 
         System::assert_last_event(
             crate::Event::DebugDataSnapshot(DebugData {
@@ -284,10 +284,11 @@ fn get_last_message_id() -> MessageId {
 
 #[cfg(feature = "lazy-pages")]
 fn append_rest_psg_pages(page: PageNumber, pages_data: &mut BTreeMap<PageNumber, Vec<u8>>) {
-    let first_in_psg = PageNumber::new_from_addr((page.offset() / PSG) * PSG);
-    (0..(PSG / PageNumber::size()) as u32)
-        .map(|idx| first_in_psg + idx.into())
-        .filter(|p| *p != page)
+    use gear_core::memory::GranularityPage;
+
+    page.to_page::<GranularityPage>()
+        .to_pages_iter()
+        .filter(|&p| p != page)
         .for_each(|p| {
             pages_data.insert(p, PageBuf::new_zeroed().to_vec());
         });
@@ -434,11 +435,11 @@ fn check_not_allocated_pages() {
 
         GearDebug::do_snapshot();
 
-        let gear_page0 = PageNumber::new_from_addr(0);
+        let gear_page0 = PageNumber::from_offset(0x0);
         let mut page0_data = PageBuf::new_zeroed();
         page0_data[0] = 0x42;
 
-        let gear_page7 = PageNumber::new_from_addr(0x70000);
+        let gear_page7 = PageNumber::from_offset(0x70000);
         let mut page7_data = PageBuf::new_zeroed();
         page7_data[0] = 0x42;
 
@@ -642,7 +643,7 @@ fn check_changed_pages_in_storage() {
         let origin = RuntimeOrigin::signed(1);
 
         // Code info. Must be in consensus with wasm code.
-        let static_pages = WasmPageNumber(8);
+        let static_pages = 8.into();
         let page1_accessed_addr = 0x10000;
         let page3_accessed_addr = 0x3fffd;
         let page4_accessed_addr = 0x40000;
@@ -668,17 +669,17 @@ fn check_changed_pages_in_storage() {
         let mut persistent_pages = BTreeMap::new();
         let empty_data = PageBuf::new_zeroed();
 
-        let gear_page1 = PageNumber::new_from_addr(page1_accessed_addr);
+        let gear_page1 = PageNumber::from_offset(page1_accessed_addr);
         let mut page1_data = empty_data.to_vec();
         page1_data[..10].copy_from_slice(b"0123456780".as_slice());
 
-        let gear_page8 = PageNumber::new_from_addr(page8_accessed_addr);
+        let gear_page8 = PageNumber::from_offset(page8_accessed_addr);
         let mut page8_data = empty_data.to_vec();
-        page8_data[page8_accessed_addr % PageNumber::size()] = 0x42;
+        page8_data[(page8_accessed_addr % PageNumber::size()) as usize] = 0x42;
 
-        let gear_page9 = PageNumber::new_from_addr(page9_accessed_addr);
+        let gear_page9 = PageNumber::from_offset(page9_accessed_addr);
         let mut page9_data = empty_data.to_vec();
-        page9_data[page9_accessed_addr % PageNumber::size()] = 0x42;
+        page9_data[(page9_accessed_addr % PageNumber::size()) as usize] = 0x42;
 
         persistent_pages.insert(gear_page1, page1_data);
         persistent_pages.insert(gear_page8, page8_data);
@@ -717,11 +718,11 @@ fn check_changed_pages_in_storage() {
 
         GearDebug::do_snapshot();
 
-        let gear_page3 = PageNumber::new_from_addr(page3_accessed_addr);
+        let gear_page3 = PageNumber::from_offset(page3_accessed_addr);
         let mut page3_data = empty_data.to_vec();
-        page3_data[page3_accessed_addr % PageNumber::size()] = 0x42;
+        page3_data[(page3_accessed_addr % PageNumber::size()) as usize] = 0x42;
 
-        let gear_page4 = PageNumber::new_from_addr(page4_accessed_addr);
+        let gear_page4 = PageNumber::from_offset(page4_accessed_addr);
 
         persistent_pages.insert(gear_page3, page3_data);
         persistent_pages.insert(gear_page4, empty_data.to_vec());
@@ -806,8 +807,8 @@ fn check_gear_stack_end() {
         let mut persistent_pages = BTreeMap::new();
         let empty_data = PageBuf::new_zeroed();
 
-        let gear_page2 = WasmPageNumber(2).to_gear_page();
-        let gear_page3 = WasmPageNumber(3).to_gear_page();
+        let gear_page2 = WasmPageNumber::from(2).to_page();
+        let gear_page3 = WasmPageNumber::from(3).to_page();
         let mut page_data = empty_data.to_vec();
         page_data[0] = 0x42;
 
@@ -831,7 +832,7 @@ fn check_gear_stack_end() {
                 programs: vec![crate::ProgramDetails {
                     id: program_id,
                     state: crate::ProgramState::Active(crate::ProgramInfo {
-                        static_pages: WasmPageNumber(4),
+                        static_pages: 4.into(),
                         persistent_pages,
                         code_hash: generate_code_hash(&code),
                     }),

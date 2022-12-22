@@ -415,7 +415,7 @@ pub struct ExecutionError {
 /// Operation related to gas charging.
 #[derive(Encode, Decode, TypeInfo, Debug, PartialEq, Eq, PartialOrd, Ord, derive_more::Display)]
 pub enum GasOperation {
-    /// Load exisisting memory.
+    /// Load existing memory.
     #[display(fmt = "load memory")]
     LoadMemory,
     /// Grow memory size.
@@ -489,6 +489,9 @@ pub enum ExecutionErrorReason {
     /// It's not allowed to set initial data for stack memory pages, if they are specified in WASM code.
     #[display(fmt = "Set initial data for stack pages is restricted")]
     StackPagesHaveInitialData,
+    /// Lazy page status must be set before contract execution.
+    #[display(fmt = "Lazy page status must be set before contract execution")]
+    LazyPagesStatusIsNone,
 }
 
 /// Actor.

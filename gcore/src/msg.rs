@@ -428,8 +428,8 @@ pub fn reply_commit_with_gas_delayed(gas_limit: u64, value: u128, delay: u32) ->
 /// extern "C" fn handle() {
 ///     msg::reply_push(b"Hello,").expect("Unable to push");
 ///     msg::reply_push(b" world!").expect("Unable to push");
-///     let resevation_id = exec::reserve_gas(5_000_000, 100).expect("Unable to reserves");
-///     msg::reply_commit_from_reservation(resevation_id, 42).expect("Unable to commit");
+///     let reservation_id = exec::reserve_gas(5_000_000, 100).expect("Unable to reserves");
+///     msg::reply_commit_from_reservation(reservation_id, 42).expect("Unable to commit");
 /// }
 /// ```
 ///

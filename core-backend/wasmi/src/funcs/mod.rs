@@ -35,7 +35,7 @@ use gear_backend_common::{
 use gear_core::{
     buffer::{RuntimeBuffer, RuntimeBufferSizeError},
     env::Ext,
-    memory::Memory,
+    memory::{Memory, PageU32Size, WasmPageNumber},
     message::{
         HandlePacket, InitPacket, MessageWaitedType, Payload, PayloadSizeError, ReplyPacket,
     },
@@ -125,7 +125,7 @@ where
                     hash: destination,
                     value,
                 } = mem_ref.read_memory_as(pid_value_ptr)?;
-                mem_ref.read(payload_ptr as usize, payload.get_mut())?;
+                mem_ref.read(payload_ptr, payload.get_mut())?;
 
                 Ok((destination.into(), value))
             })?;
@@ -177,7 +177,7 @@ where
                     hash: destination,
                     value,
                 } = mem_ref.read_memory_as(pid_value_ptr)?;
-                mem_ref.read(payload_ptr as usize, payload.get_mut())?;
+                mem_ref.read(payload_ptr, payload.get_mut())?;
 
                 Ok((destination.into(), value))
             })?;
@@ -364,7 +364,7 @@ where
             })?;
 
             caller.read(&memory, |mem_ref| {
-                mem_ref.read(payload_ptr as usize, payload.get_mut())?;
+                mem_ref.read(payload_ptr, payload.get_mut())?;
                 Ok(())
             })?;
 
@@ -373,7 +373,7 @@ where
                 |ext| ext.send_push(handle, payload.get()),
                 |res, mut mem_ref| {
                     let len = res.map(|_| 0).unwrap_or_else(|e| e);
-                    mem_ref.write(err_ptr as usize, &len.to_le_bytes())
+                    mem_ref.write(err_ptr, &len.to_le_bytes())
                 },
             )
         };
@@ -406,7 +406,7 @@ where
                     hash2: destination,
                     value,
                 } = mem_ref.read_memory_as(rid_pid_value_ptr)?;
-                mem_ref.read(payload_ptr as usize, payload.get_mut())?;
+                mem_ref.read(payload_ptr, payload.get_mut())?;
                 Ok((reservation_id.into(), destination.into(), value))
             })?;
 
@@ -503,9 +503,8 @@ where
                 None => {
                     let err = FuncError::ReadLenOverflow(at, len);
                     let size = Encode::encoded_size(&err) as u32;
-                    return if let Err(err) = caller
-                        .memory(&memory)
-                        .write(err_ptr as usize, &size.to_le_bytes())
+                    return if let Err(err) =
+                        caller.memory(&memory).write(err_ptr, &size.to_le_bytes())
                     {
                         caller.host_state_mut().err = err.into();
                         Err(Trap::from(TrapCode::Unreachable))
@@ -530,9 +529,7 @@ where
             if last_idx > message.len() as u32 {
                 let err = FuncError::ReadWrongRange(at..last_idx, message.len() as u32);
                 let size = Encode::encoded_size(&err) as u32;
-                return if let Err(err) = caller
-                    .memory(&memory)
-                    .write(err_ptr as usize, &size.to_le_bytes())
+                return if let Err(err) = caller.memory(&memory).write(err_ptr, &size.to_le_bytes())
                 {
                     caller.host_state_mut().err = err.into();
                     Err(Trap::from(TrapCode::Unreachable))
@@ -545,7 +542,7 @@ where
 
             // non critical copy due to non-production backend
             let message = message[at as usize..last_idx as usize].to_vec();
-            match caller.memory(&memory).write(buffer_ptr as usize, &message) {
+            match caller.memory(&memory).write(buffer_ptr, &message) {
                 Ok(()) => caller.update_globals(),
                 Err(e) => {
                     caller.host_state_mut().err = e.into();
@@ -564,7 +561,7 @@ where
             caller.call_infallible(
                 &memory,
                 |ext| ext.size(),
-                |res, mut mem_ref| mem_ref.write(length_ptr as usize, &res.to_le_bytes()),
+                |res, mut mem_ref| mem_ref.write(length_ptr, &res.to_le_bytes()),
             )
         };
 
@@ -627,6 +624,9 @@ where
 
     pub fn alloc(store: &mut Store<HostState<E>>, forbidden: bool, memory: WasmiMemory) -> Func {
         let func = move |caller: Caller<'_, HostState<E>>, pages: u32| -> FnResult<u32> {
+            let pages =
+                WasmPageNumber::new(pages).map_err(|_| Trap::Code(TrapCode::Unreachable))?;
+
             let caller = CallerWrap::prepare(caller, forbidden)?;
             let mut caller = caller.into_inner();
 
@@ -638,18 +638,18 @@ where
 
             let page = host_state
                 .as_mut()
-                .expect("alloc; should be set")
+                .expect("alloc; state should be set")
                 .ext
-                .alloc(pages.into(), &mut mem_ref);
+                .alloc(pages, &mut mem_ref);
 
             *caller.host_data_mut() = host_state;
 
             let mut caller = CallerWrap::from_inner(caller);
             match page {
                 Ok(page) => {
-                    log::debug!("ALLOC PAGES: {} pages at {:?}", pages, page);
+                    log::debug!("Allocate {pages:?} at {page:?}");
                     caller.update_globals()?;
-                    Ok((page.0,))
+                    Ok((page.raw(),))
                 }
                 Err(e) => {
                     caller.host_state_mut().err = FuncError::Core(e);
@@ -663,16 +663,18 @@ where
 
     pub fn free(store: &mut Store<HostState<E>>, forbidden: bool) -> Func {
         let func = move |caller: Caller<'_, HostState<E>>, page: u32| -> EmptyOutput {
+            let page = WasmPageNumber::new(page).map_err(|_| Trap::Code(TrapCode::Unreachable))?;
+
             let mut caller = CallerWrap::prepare(caller, forbidden)?;
 
-            if let Err(e) = caller.host_state_mut().ext.free(page.into()) {
+            if let Err(e) = caller.host_state_mut().ext.free(page) {
                 log::debug!("FREE ERROR: {e}");
                 caller.host_state_mut().err = FuncError::Core(e);
 
                 return Err(Trap::from(TrapCode::Unreachable));
             }
 
-            log::debug!("FREE: {page}");
+            log::debug!("FREE: {page:?}");
             caller.update_globals()?;
 
             Ok(())
@@ -692,7 +694,7 @@ where
             caller.call_infallible(
                 &memory,
                 |ext| ext.block_height(),
-                |res, mut mem_ref| mem_ref.write(height_ptr as usize, &res.to_le_bytes()),
+                |res, mut mem_ref| mem_ref.write(height_ptr, &res.to_le_bytes()),
             )
         };
 
@@ -710,7 +712,7 @@ where
             caller.call_infallible(
                 &memory,
                 |ext| ext.block_timestamp(),
-                |res, mut mem_ref| mem_ref.write(timestamp_ptr as usize, &res.to_le_bytes()),
+                |res, mut mem_ref| mem_ref.write(timestamp_ptr, &res.to_le_bytes()),
             )
         };
 
@@ -724,7 +726,7 @@ where
             caller.call_infallible(
                 &memory,
                 |ext| ext.origin(),
-                |res, mut mem_ref| mem_ref.write(origin_ptr as usize, res.as_ref()),
+                |res, mut mem_ref| mem_ref.write(origin_ptr, res.as_ref()),
             )
         };
 
@@ -747,7 +749,7 @@ where
             })?;
 
             let value = caller.read(&memory, |mem_ref| {
-                mem_ref.read(payload_ptr as usize, payload.get_mut())?;
+                mem_ref.read(payload_ptr, payload.get_mut())?;
 
                 if value_ptr as i32 == i32::MAX {
                     Ok(0)
@@ -799,7 +801,7 @@ where
             })?;
 
             let value = caller.read(&memory, |mem_ref| {
-                mem_ref.read(payload_ptr as usize, payload.get_mut())?;
+                mem_ref.read(payload_ptr, payload.get_mut())?;
 
                 if value_ptr as i32 == i32::MAX {
                     Ok(0)
@@ -944,7 +946,7 @@ where
                     hash: reservation_id,
                     value,
                 } = mem_ref.read_memory_as(rid_value_ptr)?;
-                mem_ref.read(payload_ptr as usize, payload.get_mut())?;
+                mem_ref.read(payload_ptr, payload.get_mut())?;
                 Ok((reservation_id.into(), value))
             })?;
 
@@ -1094,7 +1096,7 @@ where
             })?;
 
             caller.read(&memory, |mem_ref| {
-                mem_ref.read(payload_ptr as usize, payload.get_mut())
+                mem_ref.read(payload_ptr, payload.get_mut())
             })?;
 
             caller.call_fallible(
@@ -1102,7 +1104,7 @@ where
                 |ext| ext.reply_push(payload.get()),
                 |res, mut mem_ref| {
                     let len = res.map(|_| 0).unwrap_or_else(|e| e);
-                    mem_ref.write(err_ptr as usize, &len.to_le_bytes())
+                    mem_ref.write(err_ptr, &len.to_le_bytes())
                 },
             )
         };
@@ -1174,7 +1176,7 @@ where
                 |ext| ext.reply_push_input(offset, len),
                 |res, mut mem_ref| {
                     let len = res.map(|_| 0).unwrap_or_else(|e| e);
-                    mem_ref.write(err_ptr as usize, &len.to_le_bytes())
+                    mem_ref.write(err_ptr, &len.to_le_bytes())
                 },
             )
         };
@@ -1304,7 +1306,7 @@ where
                 |ext| ext.send_push_input(handle, offset, len),
                 |res, mut mem_ref| {
                     let len = res.map(|_| 0).unwrap_or_else(|e| e);
-                    mem_ref.write(err_ptr as usize, &len.to_le_bytes())
+                    mem_ref.write(err_ptr, &len.to_le_bytes())
                 },
             )
         };
@@ -1382,7 +1384,7 @@ where
                 })?;
 
                 caller.read(&memory, |mem_ref| {
-                    mem_ref.read(string_ptr as usize, buffer.get_mut())
+                    mem_ref.read(string_ptr, buffer.get_mut())
                 })?;
 
                 let string = core::str::from_utf8(buffer.get()).map_err(|_| {
@@ -1487,7 +1489,7 @@ where
                 |ext| ext.system_reserve_gas(gas),
                 |res, mut mem_ref| {
                     let len = res.map(|()| 0).unwrap_or_else(|e| e);
-                    mem_ref.write(err_ptr as usize, &len.to_le_bytes())
+                    mem_ref.write(err_ptr, &len.to_le_bytes())
                 },
             )
         };
@@ -1506,7 +1508,7 @@ where
             caller.call_infallible(
                 &memory,
                 |ext| ext.gas_available(),
-                |res, mut mem_ref| mem_ref.write(gas_ptr as usize, &res.to_le_bytes()),
+                |res, mut mem_ref| mem_ref.write(gas_ptr, &res.to_le_bytes()),
             )
         };
 
@@ -1524,7 +1526,7 @@ where
             caller.call_infallible(
                 &memory,
                 |ext| ext.message_id(),
-                |res, mut mem_ref| mem_ref.write(message_id_ptr as usize, res.as_ref()),
+                |res, mut mem_ref| mem_ref.write(message_id_ptr, res.as_ref()),
             )
         };
 
@@ -1542,7 +1544,7 @@ where
             caller.call_infallible(
                 &memory,
                 |ext| ext.program_id(),
-                |res, mut mem_ref| mem_ref.write(program_id_ptr as usize, res.as_ref()),
+                |res, mut mem_ref| mem_ref.write(program_id_ptr, res.as_ref()),
             )
         };
 
@@ -1556,7 +1558,7 @@ where
             caller.call_infallible(
                 &memory,
                 |ext| ext.source(),
-                |res, mut mem_ref| mem_ref.write(source_ptr as usize, res.as_ref()),
+                |res, mut mem_ref| mem_ref.write(source_ptr, res.as_ref()),
             )
         };
 
@@ -1570,7 +1572,7 @@ where
             caller.call_infallible(
                 &memory,
                 |ext| ext.value(),
-                |res, mut mem_ref| mem_ref.write(value_ptr as usize, &res.to_le_bytes()),
+                |res, mut mem_ref| mem_ref.write(value_ptr, &res.to_le_bytes()),
             )
         };
 
@@ -1588,7 +1590,7 @@ where
             caller.call_infallible(
                 &memory,
                 |ext| ext.value_available(),
-                |res, mut mem_ref| mem_ref.write(value_ptr as usize, &res.to_le_bytes()),
+                |res, mut mem_ref| mem_ref.write(value_ptr, &res.to_le_bytes()),
             )
         };
 
@@ -1743,7 +1745,7 @@ where
                 |ext| ext.wake(message_id, delay),
                 |res, mut mem_ref| {
                     let len = res.map(|_| 0).unwrap_or_else(|e| e);
-                    mem_ref.write(err_ptr as usize, &len.to_le_bytes())
+                    mem_ref.write(err_ptr, &len.to_le_bytes())
                 },
             )
         };
@@ -1782,8 +1784,8 @@ where
                     hash: code_id,
                     value,
                 } = mem_ref.read_memory_as(cid_value_ptr)?;
-                mem_ref.read(payload_ptr as usize, payload.get_mut())?;
-                mem_ref.read(salt_ptr as usize, salt.get_mut())?;
+                mem_ref.read(payload_ptr, payload.get_mut())?;
+                mem_ref.read(salt_ptr, salt.get_mut())?;
 
                 Ok((code_id.into(), value))
             })?;
@@ -1843,8 +1845,8 @@ where
                     hash: code_id,
                     value,
                 } = mem_ref.read_memory_as(cid_value_ptr)?;
-                mem_ref.read(payload_ptr as usize, payload.get_mut())?;
-                mem_ref.read(salt_ptr as usize, salt.get_mut())?;
+                mem_ref.read(payload_ptr, payload.get_mut())?;
+                mem_ref.read(salt_ptr, salt.get_mut())?;
 
                 Ok((code_id.into(), value))
             })?;
@@ -1888,13 +1890,13 @@ where
                     |res, mut mem_ref| {
                         let len = match res {
                             Ok(err) => {
-                                mem_ref.write(error_ptr as usize, err.as_ref())?;
+                                mem_ref.write(error_ptr, err.as_ref())?;
                                 0
                             }
                             Err(e) => e,
                         };
 
-                        mem_ref.write(err_ptr as usize, &len.to_le_bytes())
+                        mem_ref.write(err_ptr, &len.to_le_bytes())
                     },
                 )
             };

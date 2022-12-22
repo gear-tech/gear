@@ -58,6 +58,7 @@ pub fn parse_cli_params() -> Params {
 
 #[derive(Debug)]
 pub enum SeedVariant {
+    // TODO remove later (considering )
     Dynamic(u64),
     Constant(u64),
 }
