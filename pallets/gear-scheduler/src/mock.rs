@@ -54,7 +54,7 @@ construct_runtime!(
         UncheckedExtrinsic = UncheckedExtrinsic,
     {
         System: system::{Pallet, Call, Config, Storage, Event<T>},
-        GearProgram: pallet_gear_program::{Pallet, Storage, Event<T>},
+        GearProgram: pallet_gear_program::{Pallet, Storage},
         GearMessenger: pallet_gear_messenger::{Pallet},
         GearScheduler: pallet_gear_scheduler::{Pallet},
         Gear: pallet_gear::{Pallet, Call, Storage, Event<T>},
@@ -116,12 +116,7 @@ impl common::GasPrice for GasConverter {
     type GasToBalanceMultiplier = ConstU128<1_000>;
 }
 
-impl pallet_gear_program::Config for Test {
-    type RuntimeEvent = RuntimeEvent;
-    type WeightInfo = ();
-    type Currency = Balances;
-    type Messenger = GearMessenger;
-}
+impl pallet_gear_program::Config for Test {}
 
 parameter_types! {
     pub const BlockGasLimit: u64 = 100_000_000_000;

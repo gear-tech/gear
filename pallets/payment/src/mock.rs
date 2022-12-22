@@ -186,12 +186,7 @@ impl pallet_gear::Config for Test {
     type QueueRunner = Gear;
 }
 
-impl pallet_gear_program::Config for Test {
-    type RuntimeEvent = RuntimeEvent;
-    type WeightInfo = ();
-    type Currency = Balances;
-    type Messenger = GearMessenger;
-}
+impl pallet_gear_program::Config for Test {}
 
 impl pallet_gear_gas::Config for Test {
     type BlockGasLimit = BlockGasLimit;

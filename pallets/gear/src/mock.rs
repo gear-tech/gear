@@ -131,12 +131,7 @@ impl common::GasPrice for GasConverter {
     type GasToBalanceMultiplier = ConstU128<1_000>;
 }
 
-impl pallet_gear_program::Config for Test {
-    type RuntimeEvent = RuntimeEvent;
-    type WeightInfo = ();
-    type Currency = Balances;
-    type Messenger = GearMessenger;
-}
+impl pallet_gear_program::Config for Test {}
 
 parameter_types! {
     pub const BlockGasLimit: u64 = 100_000_000_000;

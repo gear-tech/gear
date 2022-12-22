@@ -126,12 +126,7 @@ impl common::GasPrice for GasConverter {
     type GasToBalanceMultiplier = ConstU128<1_000>;
 }
 
-impl pallet_gear_program::Config for Test {
-    type RuntimeEvent = RuntimeEvent;
-    type WeightInfo = ();
-    type Currency = Balances;
-    type Messenger = GearMessenger;
-}
+impl pallet_gear_program::Config for Test {}
 
 impl pallet_gear::Config for Test {
     type RuntimeEvent = RuntimeEvent;

@@ -84,7 +84,6 @@ pallet_test() {
   cargo test -p pallet-gear-debug "$@"
   cargo test -p pallet-gear-payment "$@"
   cargo test -p pallet-gear-messenger "$@"
-  cargo test -p pallet-gear-program "$@"
   cargo test -p pallet-gear-gas "$@"
 }
 

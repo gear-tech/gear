@@ -19,43 +19,25 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
 pub use pallet::*;
-pub use weights::WeightInfo;
 
 mod program;
 
 pub mod migration;
-pub mod weights;
-
-#[cfg(feature = "runtime-benchmarks")]
-mod benchmarking;
 
 #[frame_support::pallet]
 pub mod pallet {
-    pub use frame_support::weights::Weight;
-
     use super::*;
     use common::{storage::*, CodeMetadata};
-    use frame_support::{
-        pallet_prelude::*,
-        traits::{
-            StorageVersion,
-        },
-    };
+    use frame_support::{pallet_prelude::*, traits::StorageVersion};
     use frame_system::pallet_prelude::*;
-    use gear_core::{
-        code::InstrumentedCode,
-        ids::CodeId,
-    };
+    use gear_core::{code::InstrumentedCode, ids::CodeId};
     use sp_std::prelude::*;
 
     /// The current storage version.
     const PROGRAM_STORAGE_VERSION: StorageVersion = StorageVersion::new(1);
 
     #[pallet::config]
-    pub trait Config: frame_system::Config {
-        /// Weight information for extrinsics in this pallet.
-        type WeightInfo: WeightInfo;
-    }
+    pub trait Config: frame_system::Config {}
 
     #[pallet::pallet]
     #[pallet::storage_version(PROGRAM_STORAGE_VERSION)]

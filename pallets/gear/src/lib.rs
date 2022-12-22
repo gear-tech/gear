@@ -215,7 +215,7 @@ pub mod pallet {
         frame_system::Config
         + pallet_authorship::Config
         + pallet_timestamp::Config
-        + pallet_gear_program::Config<Currency = <Self as Config>::Currency>
+        + pallet_gear_program::Config
     {
         /// Because this pallet emits events, it depends on the runtime's definition of an event.
         type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
@@ -1673,7 +1673,6 @@ pub mod pallet {
             <T as Config>::Scheduler::reset();
             <T as Config>::GasProvider::reset();
             <T as Config>::Messenger::reset();
-            GearProgramPallet::<T>::reset_storage();
             common::reset_storage();
 
             Self::deposit_event(Event::DatabaseWiped);
