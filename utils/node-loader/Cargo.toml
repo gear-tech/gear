@@ -1,6 +1,6 @@
 [package]
 name = "gear-node-loader"
-version = "0.1.1"
+version = "0.1.3"
 authors = ["Gear Technologies"]
 edition = "2021"
 
@@ -21,6 +21,7 @@ dyn-clonable = "0.9.0"
 futures = "0.3.25"
 futures-timer = "3.0.2"
 hex = "0.4.3"
+names = "0.14.0"
 once_cell = "1.15.0"
 parking_lot = "0.12.1"
 primitive-types = { version = "0.12.0", default-features = false, features = ["scale-info"] }
