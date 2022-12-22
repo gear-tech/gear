@@ -53,6 +53,8 @@ pub enum Error {
     EventNotFoundInIterator,
     #[error("Storage not found.")]
     StorageNotFound,
+    #[error("Timestamp not found in storage.")]
+    TimestampNotFound,
     #[error(transparent)]
     Codec(#[from] parity_scale_codec::Error),
 }

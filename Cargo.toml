@@ -72,6 +72,6 @@ lto = "fat"
 codegen-units = 1
 
 [patch.crates-io]
-# Two dependecies below goes for `subxt v0.22.0`
+# Two dependecies below goes for `subxt v0.25.0`
 sp-core = { version = "7.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.35" }
 sp-runtime = { version = "7.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.35" }

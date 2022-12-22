@@ -34,7 +34,7 @@ use gear_backend_wasmi::WasmiEnvironment;
 use gear_core::{
     code::{Code, CodeAndId, InstrumentedCode, InstrumentedCodeAndId},
     ids::{CodeId, MessageId, ProgramId, ReservationId},
-    memory::{PageBuf, PageNumber, WasmPageNumber},
+    memory::{PageBuf, PageNumber, PageU32Size, WasmPageNumber},
     message::{
         Dispatch, DispatchKind, MessageWaitedType, Payload, ReplyMessage, ReplyPacket,
         StoredDispatch, StoredMessage,
@@ -887,7 +887,7 @@ impl JournalHandler for ExtManager {
                 program
                     .allocations()
                     .difference(&allocations)
-                    .flat_map(|p| p.to_gear_pages_iter())
+                    .flat_map(PageU32Size::to_pages_iter)
                     .for_each(|ref page| {
                         pages_data.remove(page);
                     });

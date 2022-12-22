@@ -55,7 +55,7 @@ pub struct AllocationsConfig {
 impl Default for AllocationsConfig {
     fn default() -> Self {
         Self {
-            max_pages: WasmPageNumber(code::MAX_WASM_PAGE_COUNT),
+            max_pages: code::MAX_WASM_PAGE_COUNT.into(),
             init_cost: INIT_COST,
             alloc_cost: ALLOC_COST,
             mem_grow_cost: MEM_GROW_COST,
@@ -85,7 +85,7 @@ pub struct ExecutionSettings {
     /// Cost for reservation holding.
     pub reservation: u64,
     /// Most recently determined random seed, along with the time in the past since when it was determinable by chain observers.
-    /// TODO: find a way to put a random seed inside block config.
+    // TODO: find a way to put a random seed inside block config.
     pub random_data: (Vec<u8>, u32),
 }
 
