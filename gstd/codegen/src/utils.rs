@@ -43,10 +43,6 @@ pub fn ident(s: &str) -> Ident {
 
 /// Appends suffix to ident
 pub fn with_suffix(i: &Ident, suffix: &str) -> Ident {
-    /*let mut name = i.to_string();
-    name.push_str(suffix);
-
-    ident(&name)*/
     ident(&format!("{i}{suffix}"))
 }
 
