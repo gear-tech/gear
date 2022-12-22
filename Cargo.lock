@@ -3163,6 +3163,7 @@ dependencies = [
  "frame-benchmarking",
  "frame-benchmarking-cli",
  "frame-system",
+ "futures",
  "gear-program",
  "gear-runtime",
  "gear-runtime-primitives",
