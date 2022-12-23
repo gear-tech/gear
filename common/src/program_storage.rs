@@ -83,4 +83,8 @@ pub trait ProgramStorage {
 
         Ok(result)
     }
+
+    fn reset() {
+        Self::ProgramMap::clear();
+    }
 }

@@ -891,16 +891,9 @@ pub mod pallet {
 
         /// Returns true if id is a program and the program has exited status.
         pub fn is_exited(program_id: ProgramId) -> bool {
-            // ProgramStorageOf::<T>::get_program(program_id)
-            //     .map(|p| p.is_exited())
-            //     .unwrap_or_default()
-            let p = ProgramStorageOf::<T>::get_program(program_id);
-            log::debug!("p = {p:?}");
-
-            let e = p.map(|p| p.is_exited());
-            log::debug!("e = {e:?}");
-
-            e.unwrap_or_default()
+            ProgramStorageOf::<T>::get_program(program_id)
+                .map(|p| p.is_exited())
+                .unwrap_or_default()
         }
 
         /// Returns exit argument of an exited program.
@@ -1680,6 +1673,7 @@ pub mod pallet {
             <T as Config>::Scheduler::reset();
             <T as Config>::GasProvider::reset();
             <T as Config>::Messenger::reset();
+            ProgramStorageOf::<T>::reset();
             common::reset_storage();
 
             Self::deposit_event(Event::DatabaseWiped);
