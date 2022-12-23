@@ -148,7 +148,7 @@ try-runtime = [
 	"pallet-transaction-payment/try-runtime",
 	"pallet-utility/try-runtime",
 ]
-debug-mode = ["pallet-gear-debug"]
+debug-mode = ["pallet-gear-debug", "pallet-gear-program/debug-mode"]
 lazy-pages = [
 	"pallet-gear/lazy-pages",
 	"pallet-gear-payment/lazy-pages",

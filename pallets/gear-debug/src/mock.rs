@@ -86,6 +86,7 @@ impl pallet_gear_debug::Config for Test {
     type RuntimeEvent = RuntimeEvent;
     type WeightInfo = ();
     type CodeStorage = GearProgram;
+    type ProgramStorage = GearProgram;
     type Messenger = GearMessenger;
 }
 
@@ -138,6 +139,7 @@ impl pallet_gear::Config for Test {
     type DebugInfo = super::Pallet<Test>;
     type Schedule = ();
     type CodeStorage = GearProgram;
+    type ProgramStorage = GearProgram;
     type MailboxThreshold = ConstU64<3000>;
     type ReservationsLimit = ConstU64<256>;
     type Messenger = GearMessenger;

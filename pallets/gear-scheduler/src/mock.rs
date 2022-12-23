@@ -134,6 +134,7 @@ impl pallet_gear::Config for Test {
     type OutgoingLimit = OutgoingLimit;
     type DebugInfo = ();
     type CodeStorage = GearProgram;
+    type ProgramStorage = GearProgram;
     type MailboxThreshold = ConstU64<3000>;
     type ReservationsLimit = ConstU64<256>;
     type Messenger = GearMessenger;

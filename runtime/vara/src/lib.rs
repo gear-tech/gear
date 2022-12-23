@@ -353,6 +353,7 @@ impl pallet_gear::Config for Runtime {
     type OutgoingLimit = OutgoingLimit;
     type DebugInfo = DebugInfo;
     type CodeStorage = GearProgram;
+    type ProgramStorage = GearProgram;
     type MailboxThreshold = MailboxThreshold;
     type ReservationsLimit = ConstU64<256>;
     type Messenger = GearMessenger;
@@ -367,6 +368,7 @@ impl pallet_gear_debug::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
     type WeightInfo = pallet_gear_debug::weights::GearSupportWeight<Runtime>;
     type CodeStorage = GearProgram;
+    type ProgramStorage = GearProgram;
     type Messenger = GearMessenger;
 }
 

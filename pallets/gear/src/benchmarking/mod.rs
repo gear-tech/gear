@@ -55,7 +55,7 @@ use self::{
 use crate::{
     manager::ExtManager, pallet, schedule::INSTR_BENCHMARK_BATCH_SIZE, BTreeMap, BalanceOf,
     BenchmarkStorage, Call, Config, ExecutionEnvironment, Ext as Externalities, GasHandlerOf,
-    MailboxOf, Pallet as Gear, Pallet, QueueOf, Schedule,
+    MailboxOf, Pallet as Gear, Pallet, ProgramStorageOf, QueueOf, Schedule,
 };
 use codec::Encode;
 use common::{
@@ -341,7 +341,7 @@ benchmarks! {
         let program_id = benchmarking::account::<T::AccountId>("program", 0, 100);
         <T as pallet::Config>::Currency::deposit_creating(&program_id, 100_000_000_000_000_u128.unique_saturated_into());
         let code = benchmarking::generate_wasm2(16.into()).unwrap();
-        benchmarking::set_program(program_id.clone().into_origin(), code, 1.into());
+        benchmarking::set_program::<ProgramStorageOf::<T>>(program_id.clone().into_origin(), code, 1.into());
         let original_message_id = MessageId::from_origin(benchmarking::account::<T::AccountId>("message", 0, 100).into_origin());
         let gas_limit = 50000;
         let value = 10000u32.into();
@@ -441,7 +441,7 @@ benchmarks! {
         let minimum_balance = <T as pallet::Config>::Currency::minimum_balance();
         let program_id = ProgramId::from_origin(benchmarking::account::<T::AccountId>("program", 0, 100).into_origin());
         let code = benchmarking::generate_wasm2(16.into()).unwrap();
-        benchmarking::set_program(program_id.into_origin(), code, 1.into());
+        benchmarking::set_program::<ProgramStorageOf::<T>>(program_id.into_origin(), code, 1.into());
         let payload = vec![0_u8; p as usize];
 
         init_block::<T>(None);
@@ -458,7 +458,7 @@ benchmarks! {
         let program_id = benchmarking::account::<T::AccountId>("program", 0, 100);
         <T as pallet::Config>::Currency::deposit_creating(&program_id, 100_000_000_000_000_u128.unique_saturated_into());
         let code = benchmarking::generate_wasm2(16.into()).unwrap();
-        benchmarking::set_program(program_id.clone().into_origin(), code, 1.into());
+        benchmarking::set_program::<ProgramStorageOf::<T>>(program_id.clone().into_origin(), code, 1.into());
         let original_message_id = MessageId::from_origin(benchmarking::account::<T::AccountId>("message", 0, 100).into_origin());
         let gas_limit = 50000;
         let value = (p % 2).into();

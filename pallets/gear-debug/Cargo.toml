@@ -45,7 +45,7 @@ pallet-timestamp = { version = "4.0.0-dev", git = "https://github.com/gear-tech/
 pallet-gear-gas = { path = "../gas" }
 pallet-gear-messenger = { path = "../gear-messenger", default-features = false }
 pallet-gear-scheduler = { path = "../gear-scheduler", default-features = false }
-pallet-gear-program = { path = "../gear-program", default-features = false }
+pallet-gear-program = { path = "../gear-program", default-features = false, features = ["debug-mode"] }
 
 [features]
 default = ['std']

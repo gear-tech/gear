@@ -6,11 +6,12 @@ use crate::{
     manager::{CodeInfo, ExtManager, HandleKind},
     schedule::API_BENCHMARK_BATCH_SIZE,
     BlockGasLimitOf, Config, CostsPerBlockOf, CurrencyOf, DbWeightOf, GasHandlerOf, MailboxOf,
-    Pallet as Gear, QueueOf,
+    Pallet as Gear, ProgramStorageOf, QueueOf,
 };
 use codec::Encode;
 use common::{
-    benchmarking, scheduler::SchedulingCostsPerBlock, storage::*, CodeStorage, GasTree, Origin,
+    benchmarking, scheduler::SchedulingCostsPerBlock, storage::*, ActiveProgram, CodeStorage,
+    GasTree, Origin, ProgramStorage,
 };
 use core::{marker::PhantomData, mem, mem::size_of};
 use core_processor::{
@@ -29,7 +30,10 @@ use gear_core::{
 use gear_wasm_instrument::{parity_wasm::elements::Instruction, syscalls::SysCallName};
 use sp_core::H256;
 use sp_runtime::traits::UniqueSaturatedInto;
-use sp_std::{convert::TryInto, prelude::*};
+use sp_std::{
+    convert::{TryFrom, TryInto},
+    prelude::*,
+};
 
 use super::{Exec, Program};
 
@@ -376,7 +380,10 @@ where
         let instance = Program::<T>::new(code, vec![])?;
 
         // insert gas reservation slots
-        let mut program = common::get_active_program(instance.addr).unwrap();
+        let program_id = ProgramId::from_origin(instance.addr);
+        let mut program = ProgramStorageOf::<T>::get_program(program_id)
+            .and_then(|p| ActiveProgram::try_from(p).ok())
+            .unwrap();
         for x in 0..r * API_BENCHMARK_BATCH_SIZE {
             program.gas_reservation_map.insert(
                 ReservationId::from(x as u64),
@@ -387,11 +394,11 @@ where
                 },
             );
         }
-        common::set_program(instance.addr, program);
+        ProgramStorageOf::<T>::add_program(program_id, program).unwrap();
 
         prepare::<T>(
             instance.caller.into_origin(),
-            HandleKind::Handle(ProgramId::from_origin(instance.addr)),
+            HandleKind::Handle(program_id),
             vec![],
             0,
         )
@@ -741,7 +748,10 @@ where
         let instance = Program::<T>::new(code, vec![])?;
 
         // insert gas reservation slots
-        let mut program = common::get_active_program(instance.addr).unwrap();
+        let program_id = ProgramId::from_origin(instance.addr);
+        let mut program = ProgramStorageOf::<T>::get_program(program_id)
+            .and_then(|p| ActiveProgram::try_from(p).ok())
+            .unwrap();
         for x in 0..r * API_BENCHMARK_BATCH_SIZE {
             program.gas_reservation_map.insert(
                 ReservationId::from(x as u64),
@@ -752,11 +762,11 @@ where
                 },
             );
         }
-        common::set_program(instance.addr, program);
+        ProgramStorageOf::<T>::add_program(program_id, program).unwrap();
 
         prepare::<T>(
             instance.caller.into_origin(),
-            HandleKind::Handle(ProgramId::from_origin(instance.addr)),
+            HandleKind::Handle(program_id),
             vec![],
             0,
         )
@@ -810,7 +820,10 @@ where
         let instance = Program::<T>::new(code, vec![])?;
 
         // insert gas reservation slots
-        let mut program = common::get_active_program(instance.addr).unwrap();
+        let program_id = ProgramId::from_origin(instance.addr);
+        let mut program = ProgramStorageOf::<T>::get_program(program_id)
+            .and_then(|p| ActiveProgram::try_from(p).ok())
+            .unwrap();
         for x in 0..API_BENCHMARK_BATCH_SIZE {
             program.gas_reservation_map.insert(
                 ReservationId::from(x as u64),
@@ -821,11 +834,11 @@ where
                 },
             );
         }
-        common::set_program(instance.addr, program);
+        ProgramStorageOf::<T>::add_program(program_id, program).unwrap();
 
         prepare::<T>(
             instance.caller.into_origin(),
-            HandleKind::Handle(ProgramId::from_origin(instance.addr)),
+            HandleKind::Handle(program_id),
             vec![],
             0,
         )
@@ -950,7 +963,10 @@ where
         let instance = Program::<T>::new(code, vec![])?;
 
         // insert gas reservation slots
-        let mut program = common::get_active_program(instance.addr).unwrap();
+        let program_id = ProgramId::from_origin(instance.addr);
+        let mut program = ProgramStorageOf::<T>::get_program(program_id)
+            .and_then(|p| ActiveProgram::try_from(p).ok())
+            .unwrap();
         for x in 0..r * API_BENCHMARK_BATCH_SIZE {
             program.gas_reservation_map.insert(
                 ReservationId::from(x as u64),
@@ -961,11 +977,11 @@ where
                 },
             );
         }
-        common::set_program(instance.addr, program);
+        ProgramStorageOf::<T>::add_program(program_id, program).unwrap();
 
         prepare::<T>(
             instance.caller.into_origin(),
-            HandleKind::Handle(ProgramId::from_origin(instance.addr)),
+            HandleKind::Handle(program_id),
             vec![],
             0,
         )

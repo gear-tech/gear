@@ -17,6 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use super::*;
+use common::ActiveProgram;
 use core::convert::TryFrom;
 use gear_core::memory::WasmPageNumber;
 use gear_wasm_instrument::syscalls::SysCallName;
@@ -306,7 +307,10 @@ where
     }
 
     fn code_with_memory(program_id: ProgramId) -> Result<CodeWithMemoryData, String> {
-        let program = common::get_active_program(program_id.into_origin())
+        let program = ProgramStorageOf::<T>::get_program(program_id)
+            .ok_or(String::from("Program not found"))?;
+
+        let program = ActiveProgram::try_from(program)
             .map_err(|e| format!("Get active program error: {e:?}"))?;
 
         let code_id = CodeId::from_origin(program.code_hash);

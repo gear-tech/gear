@@ -28,6 +28,9 @@ pub mod storage;
 pub mod code_storage;
 pub use code_storage::{CodeStorage, Error as CodeStorageError};
 
+pub mod program_storage;
+pub use program_storage::{Error as ProgramStorageError, ProgramStorage};
+
 pub mod gas_provider;
 
 #[cfg(feature = "runtime-benchmarks")]
@@ -64,7 +67,6 @@ extern crate alloc;
 
 pub use gas_provider::{Provider as GasProvider, Tree as GasTree};
 
-pub const STORAGE_PROGRAM_PREFIX: &[u8] = b"g::prog::";
 pub const STORAGE_PROGRAM_PAGES_PREFIX: &[u8] = b"g::pages::";
 pub const STORAGE_PROGRAM_STATE_WAIT_PREFIX: &[u8] = b"g::prog_wait::";
 
@@ -293,13 +295,6 @@ impl CodeMetadata {
     }
 }
 
-pub fn program_key(id: H256) -> Vec<u8> {
-    let mut key = Vec::new();
-    key.extend(STORAGE_PROGRAM_PREFIX);
-    id.encode_to(&mut key);
-    key
-}
-
 pub fn pages_prefix(program_id: H256) -> Vec<u8> {
     let id_bytes = program_id.as_fixed_bytes();
     let mut key = Vec::with_capacity(STORAGE_PROGRAM_PAGES_PREFIX.len() + id_bytes.len() + 2);
@@ -321,59 +316,6 @@ fn page_key(id: H256, page: PageNumber) -> Vec<u8> {
     key.extend(page.raw().to_le_bytes());
 
     key
-}
-
-pub fn set_program_initialized(id: H256) {
-    if let Some(Program::Active(mut p)) = get_program(id) {
-        if !matches!(p.state, ProgramState::Initialized) {
-            p.state = ProgramState::Initialized;
-            sp_io::storage::set(&program_key(id), &Program::Active(p).encode());
-        }
-    }
-}
-
-pub fn set_program_terminated_status(id: H256, inheritor: ProgramId) -> Result<(), CommonError> {
-    if let Some(program) = get_program(id) {
-        if !program.is_active() {
-            return Err(CommonError::InactiveProgram);
-        }
-
-        sp_io::storage::clear_prefix(&pages_prefix(id), None);
-        sp_io::storage::set(&program_key(id), &Program::Terminated(inheritor).encode());
-
-        Ok(())
-    } else {
-        Err(CommonError::DoesNotExist(id))
-    }
-}
-
-pub fn set_program_exited_status(id: H256, inheritor: ProgramId) -> Result<(), CommonError> {
-    if let Some(program) = get_program(id) {
-        if !program.is_active() {
-            return Err(CommonError::InactiveProgram);
-        }
-
-        sp_io::storage::clear_prefix(&pages_prefix(id), None);
-        sp_io::storage::set(&program_key(id), &Program::Exited(inheritor).encode());
-
-        Ok(())
-    } else {
-        Err(CommonError::DoesNotExist(id))
-    }
-}
-
-pub fn get_program(id: H256) -> Option<Program> {
-    sp_io::storage::get(&program_key(id))
-        .map(|val| Program::decode(&mut &val[..]).expect("values encoded correctly"))
-}
-
-pub fn get_active_program(id: H256) -> Result<ActiveProgram, CommonError> {
-    let program = get_program(id).ok_or(CommonError::DoesNotExist(id))?;
-    if let Program::Active(program) = program {
-        Ok(program)
-    } else {
-        Err(CommonError::InactiveProgram)
-    }
 }
 
 /// Returns mem page data from storage for program `id` and `page_idx`
@@ -424,41 +366,12 @@ pub fn get_program_data_for_pages_optional(
     Ok(pages_data)
 }
 
-pub fn set_program(id: H256, program: ActiveProgram) {
-    log::trace!("set program with id = {}", id);
-    sp_io::storage::set(&program_key(id), &Program::Active(program).encode());
-}
-
 #[derive(Debug)]
 pub struct PageIsNotAllocatedErr(pub PageNumber);
 
 impl fmt::Display for PageIsNotAllocatedErr {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{:?} is not allocated for current program", self.0)
-    }
-}
-
-pub fn set_program_and_pages_data(
-    id: H256,
-    program: ActiveProgram,
-    persistent_pages: BTreeMap<PageNumber, PageBuf>,
-) -> Result<(), PageIsNotAllocatedErr> {
-    for (page_num, page_buf) in persistent_pages {
-        let key = page_key(id, page_num);
-        sp_io::storage::set(&key, page_buf.as_slice());
-    }
-    set_program(id, program);
-    Ok(())
-}
-
-pub fn program_exists(id: H256) -> bool {
-    sp_io::storage::exists(&program_key(id))
-}
-
-pub fn set_program_allocations(id: H256, allocations: BTreeSet<WasmPageNumber>) {
-    if let Some(Program::Active(mut prog)) = get_program(id) {
-        prog.allocations = allocations;
-        sp_io::storage::set(&program_key(id), &Program::Active(prog).encode())
     }
 }
 
@@ -495,6 +408,7 @@ pub fn waiting_init_take_messages(dest_prog_id: ProgramId) -> Vec<MessageId> {
 }
 
 pub fn reset_storage() {
+    const STORAGE_PROGRAM_PREFIX: &[u8] = b"g::prog::";
     sp_io::storage::clear_prefix(STORAGE_PROGRAM_PREFIX, None);
     sp_io::storage::clear_prefix(STORAGE_PROGRAM_PAGES_PREFIX, None);
 

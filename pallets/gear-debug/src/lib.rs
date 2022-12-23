@@ -32,11 +32,9 @@ mod tests;
 #[frame_support::pallet]
 pub mod pallet {
     use super::*;
-    use common::{self, storage::*, CodeStorage, Origin, Program};
+    use common::{self, storage::*, CodeStorage, Origin, Program, ProgramStorage};
     use core::fmt;
-    use frame_support::{
-        dispatch::DispatchResultWithPostInfo, pallet_prelude::*, storage::PrefixIterator,
-    };
+    use frame_support::{dispatch::DispatchResultWithPostInfo, pallet_prelude::*};
     use frame_system::pallet_prelude::*;
     use gear_core::{
         ids::{CodeId, ProgramId},
@@ -63,6 +61,8 @@ pub mod pallet {
         type CodeStorage: CodeStorage;
 
         type Messenger: Messenger<QueuedDispatch = StoredDispatch>;
+
+        type ProgramStorage: ProgramStorage + IterableMap<(ProgramId, Program)>;
     }
 
     #[pallet::pallet]
@@ -201,48 +201,40 @@ pub mod pallet {
                 .map(|v| v.unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e)))
                 .collect();
 
-            let programs = PrefixIterator::<(ProgramId, Program)>::new(
-                common::STORAGE_PROGRAM_PREFIX.to_vec(),
-                common::STORAGE_PROGRAM_PREFIX.to_vec(),
-                |key, mut value| {
-                    assert_eq!(key.len(), 32);
-                    let program_id = ProgramId::from_origin(H256::from_slice(key));
-                    let program = Program::decode(&mut value)?;
-                    Ok((program_id, program))
-                },
-            )
-            .map(|(id, p)| {
-                let active = match p {
-                    Program::Active(active) => active,
-                    _ => {
-                        return ProgramDetails {
-                            id,
-                            state: ProgramState::Terminated,
+            let programs = T::ProgramStorage::iter()
+                .map(|(id, p)| {
+                    let active = match p {
+                        Program::Active(active) => active,
+                        _ => {
+                            return ProgramDetails {
+                                id,
+                                state: ProgramState::Terminated,
+                            }
                         }
+                    };
+                    let code_id = CodeId::from_origin(active.code_hash);
+                    let static_pages = match T::CodeStorage::get_code(code_id) {
+                        Some(code) => code.static_pages(),
+                        None => WasmPageNumber::zero(),
+                    };
+                    let persistent_pages =
+                        common::get_program_pages_data(id.into_origin(), &active)
+                            .unwrap()
+                            .into_iter()
+                            .map(|(page, data)| (page, data.into_vec()))
+                            .collect();
+                    ProgramDetails {
+                        id,
+                        state: {
+                            ProgramState::Active(ProgramInfo {
+                                static_pages,
+                                persistent_pages,
+                                code_hash: active.code_hash,
+                            })
+                        },
                     }
-                };
-                let code_id = CodeId::from_origin(active.code_hash);
-                let static_pages = match T::CodeStorage::get_code(code_id) {
-                    Some(code) => code.static_pages(),
-                    None => WasmPageNumber::zero(),
-                };
-                let persistent_pages = common::get_program_pages_data(id.into_origin(), &active)
-                    .unwrap()
-                    .into_iter()
-                    .map(|(page, data)| (page, data.into_vec()))
-                    .collect();
-                ProgramDetails {
-                    id,
-                    state: {
-                        ProgramState::Active(ProgramInfo {
-                            static_pages,
-                            persistent_pages,
-                            code_hash: active.code_hash,
-                        })
-                    },
-                }
-            })
-            .collect();
+                })
+                .collect();
 
             Self::deposit_event(Event::DebugDataSnapshot(DebugData {
                 dispatch_queue,

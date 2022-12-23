@@ -24,7 +24,7 @@ use crate::{
 };
 use colored::{ColoredString, Colorize};
 use frame_support::traits::ReservableCurrency;
-use gear_common::{storage::*, GasPrice, GasTree, Origin as _};
+use gear_common::{storage::*, GasPrice, GasTree, Origin as _, ProgramStorage};
 use gear_core::{
     ids::{CodeId, ProgramId},
     memory::{vec_page_data_map_to_page_buf_map, PageU32Size},
@@ -38,7 +38,7 @@ use gear_test::{
     sample::{self, ChainProgram, PayloadVariant},
 };
 use junit_common::{TestCase, TestSuite, TestSuites};
-use pallet_gear::{Config, GasAllowanceOf, GasHandlerOf, Pallet as GearPallet};
+use pallet_gear::{Config, GasAllowanceOf, GasHandlerOf, Pallet as GearPallet, ProgramStorageOf};
 use pallet_gear_debug::{DebugData, ProgramState};
 use rayon::prelude::*;
 use sc_cli::{CliConfiguration, SharedParams};
@@ -248,7 +248,7 @@ macro_rules! command {
                     state: gear_common::ProgramState::Initialized,
                     gas_reservation_map: Default::default(),
                 };
-                gear_common::set_program(*id, program);
+                ProgramStorageOf::<Runtime>::add_program(ProgramId::from_origin(*id), program);
             }
 
             // Enable remapping of the source and destination of messages
@@ -460,7 +460,7 @@ macro_rules! command {
                                 vec_page_data_map_to_page_buf_map(info.persistent_pages.clone())
                                     .unwrap();
                             let gas_reservation_map = {
-                                let prog = gear_common::get_program(pid.into_origin()).unwrap();
+                                let prog = ProgramStorageOf::<Runtime>::get_program(*pid).unwrap();
                                 if let gear_common::Program::Active(gear_common::ActiveProgram {
                                     gas_reservation_map,
                                     ..

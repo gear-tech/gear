@@ -40,12 +40,12 @@ use crate::{
         USER_3,
     },
     pallet, BlockGasLimitOf, Config, CostsPerBlockOf, DbWeightOf, Error, Event, GasAllowanceOf,
-    GasHandlerOf, GasInfo, MailboxOf, Schedule, TaskPoolOf, WaitlistOf,
+    GasHandlerOf, GasInfo, MailboxOf, ProgramStorageOf, Schedule, TaskPoolOf, WaitlistOf,
 };
 use codec::{Decode, Encode};
 use common::{
-    event::*, program_exists, scheduler::*, storage::*, CodeStorage, GasPrice as _, GasTree,
-    Origin as _,
+    event::*, scheduler::*, storage::*, CodeStorage, GasPrice as _, GasTree, Origin as _,
+    ProgramStorage,
 };
 use core_processor::common::ExecutionErrorReason;
 use demo_compose::WASM_BINARY as COMPOSE_WASM_BINARY;
@@ -2487,7 +2487,7 @@ fn send_reply_failure_to_claim_from_mailbox() {
             res.expect("submit result was asserted")
         };
 
-        if common::get_program(prog_id.into_origin())
+        if ProgramStorageOf::<Test>::get_program(prog_id)
             .expect("Failed to get program from storage")
             .is_terminated()
         {
@@ -5151,13 +5151,13 @@ fn gas_spent_precalculated() {
         let code = <Test as Config>::CodeStorage::get_code(code_id).unwrap();
         let code = code.code();
 
-        let init_gas_code_id = CodeId::from_origin(common::get_program(init_gas_id.into_origin())
+        let init_gas_code_id = CodeId::from_origin(ProgramStorageOf::<Test>::get_program(init_gas_id)
             .and_then(|p| common::ActiveProgram::try_from(p).ok())
             .expect("program must exist")
             .code_hash);
         let init_code_len: u64 = <Test as Config>::CodeStorage::get_code(init_gas_code_id).unwrap().code().len() as u64;
 
-        let init_no_gas_code_id = CodeId::from_origin(common::get_program(init_no_counter_id.into_origin())
+        let init_no_gas_code_id = CodeId::from_origin(ProgramStorageOf::<Test>::get_program(init_no_counter_id)
             .and_then(|p| common::ActiveProgram::try_from(p).ok())
             .expect("program must exist")
             .code_hash);
@@ -6069,7 +6069,7 @@ fn execution_over_blocks() {
         ));
         let in_one_block = get_last_program_id();
 
-        assert!(common::program_exists(in_one_block.into_origin()));
+        assert!(ProgramStorageOf::<Test>::program_exists(in_one_block));
 
         let src = [0; 32];
 
@@ -6123,7 +6123,7 @@ fn execution_over_blocks() {
         ));
         let over_blocks = get_last_program_id();
 
-        assert!(program_exists(over_blocks.into_origin()));
+        assert!(ProgramStorageOf::<Test>::program_exists(over_blocks));
 
         let (src, id, expected) = ([0; 32], sha2_512_256(b"42"), 8_192);
 
@@ -8110,13 +8110,13 @@ mod utils {
     };
     use crate::{
         mock::{Balances, Gear, System},
-        BalanceOf, GasInfo, HandleKind, SentOf,
+        BalanceOf, GasInfo, HandleKind, ProgramStorageOf, SentOf,
     };
     use codec::Decode;
     use common::{
         event::*,
         storage::{CountedByKey, Counter, IterableByKeyMap},
-        Origin,
+        Origin, ProgramStorage,
     };
     use core_processor::common::ExecutionErrorReason;
     use frame_support::{
@@ -8295,7 +8295,7 @@ mod utils {
         {
             let expected_code = ProgramCodeKind::OutgoingWithValueInHandle.to_bytes();
             assert_eq!(
-                common::get_program(prog_id.into_origin())
+                ProgramStorageOf::<Test>::get_program(prog_id)
                     .and_then(|p| common::ActiveProgram::try_from(p).ok())
                     .expect("program must exist")
                     .code_hash,
@@ -8315,7 +8315,7 @@ mod utils {
                 .as_slice(),
         )
         .into();
-        let actual_code_hash = common::get_program(program_id.into_origin())
+        let actual_code_hash = ProgramStorageOf::<Test>::get_program(program_id)
             .and_then(|p| common::ActiveProgram::try_from(p).ok())
             .map(|prog| prog.code_hash)
             .expect("invalid program address for the test");
@@ -8622,7 +8622,7 @@ mod utils {
 
     #[track_caller]
     pub(super) fn get_reservation_map(pid: ProgramId) -> Option<GasReservationMap> {
-        let prog = common::get_program(pid.into_origin()).unwrap();
+        let prog = ProgramStorageOf::<Test>::get_program(pid).unwrap();
         if let common::Program::Active(common::ActiveProgram {
             gas_reservation_map,
             ..

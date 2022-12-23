@@ -53,7 +53,8 @@ use alloc::{format, string::String};
 use codec::{Decode, Encode};
 use common::{
     self, event::*, gas_provider::GasNodeId, scheduler::*, storage::*, BlockLimiter, CodeMetadata,
-    CodeStorage, GasPrice, GasProvider, GasTree, Origin, Program, ProgramState, QueueRunner,
+    CodeStorage, GasPrice, GasProvider, GasTree, Origin, Program, ProgramState, ProgramStorage,
+    QueueRunner,
 };
 use core::marker::PhantomData;
 use core_processor::{
@@ -79,7 +80,6 @@ use gear_core::{
     message::*,
 };
 use manager::{CodeInfo, QueuePostProcessingData};
-use pallet_gear_program::Pallet as GearProgramPallet;
 use primitive_types::H256;
 use sp_runtime::traits::{One, Saturating, UniqueSaturatedInto, Zero};
 use sp_std::{
@@ -125,6 +125,7 @@ pub type GasAllowanceOf<T> = <<T as Config>::BlockLimiter as BlockLimiter>::GasA
 pub type GasHandlerOf<T> = <<T as Config>::GasProvider as GasProvider>::GasTree;
 pub type BlockGasLimitOf<T> = <<T as Config>::BlockLimiter as BlockLimiter>::BlockGasLimit;
 pub type GasUnitOf<T> = <<T as Config>::BlockLimiter as BlockLimiter>::Balance;
+pub type ProgramStorageOf<T> = <T as Config>::ProgramStorage;
 
 /// The current storage version.
 const GEAR_STORAGE_VERSION: StorageVersion = StorageVersion::new(1);
@@ -212,10 +213,7 @@ pub mod pallet {
 
     #[pallet::config]
     pub trait Config:
-        frame_system::Config
-        + pallet_authorship::Config
-        + pallet_timestamp::Config
-        + pallet_gear_program::Config
+        frame_system::Config + pallet_authorship::Config + pallet_timestamp::Config
     {
         /// Because this pallet emits events, it depends on the runtime's definition of an event.
         type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
@@ -243,6 +241,8 @@ pub mod pallet {
         type DebugInfo: DebugInfo;
 
         type CodeStorage: CodeStorage;
+
+        type ProgramStorage: ProgramStorage;
 
         /// The minimal gas amount for message to be inserted in mailbox.
         ///
@@ -651,7 +651,7 @@ pub mod pallet {
             let program_id = packet.destination();
             // Make sure there is no program with such id in program storage
             ensure!(
-                !GearProgramPallet::<T>::program_exists(program_id),
+                !ProgramStorageOf::<T>::program_exists(program_id),
                 Error::<T>::ProgramAlreadyExists
             );
 
@@ -870,35 +870,42 @@ pub mod pallet {
 
         /// Returns true if a program has been successfully initialized
         pub fn is_initialized(program_id: ProgramId) -> bool {
-            common::get_program(program_id.into_origin())
+            ProgramStorageOf::<T>::get_program(program_id)
                 .map(|p| p.is_initialized())
                 .unwrap_or(false)
         }
 
         /// Returns true if id is a program and the program has active status.
         pub fn is_active(program_id: ProgramId) -> bool {
-            common::get_program(program_id.into_origin())
+            ProgramStorageOf::<T>::get_program(program_id)
                 .map(|p| p.is_active())
                 .unwrap_or_default()
         }
 
         /// Returns true if id is a program and the program has terminated status.
         pub fn is_terminated(program_id: ProgramId) -> bool {
-            common::get_program(program_id.into_origin())
+            ProgramStorageOf::<T>::get_program(program_id)
                 .map(|p| p.is_terminated())
                 .unwrap_or_default()
         }
 
         /// Returns true if id is a program and the program has exited status.
         pub fn is_exited(program_id: ProgramId) -> bool {
-            common::get_program(program_id.into_origin())
-                .map(|p| p.is_exited())
-                .unwrap_or_default()
+            // ProgramStorageOf::<T>::get_program(program_id)
+            //     .map(|p| p.is_exited())
+            //     .unwrap_or_default()
+            let p = ProgramStorageOf::<T>::get_program(program_id);
+            log::debug!("p = {p:?}");
+
+            let e = p.map(|p| p.is_exited());
+            log::debug!("e = {e:?}");
+
+            e.unwrap_or_default()
         }
 
         /// Returns exit argument of an exited program.
         pub fn exit_inheritor_of(program_id: ProgramId) -> Option<ProgramId> {
-            common::get_program(program_id.into_origin())
+            ProgramStorageOf::<T>::get_program(program_id)
                 .map(|p| {
                     if let Program::Exited(id) = p {
                         Some(id)
@@ -911,7 +918,7 @@ pub mod pallet {
 
         /// Returns inheritor of terminated (failed it's init) program.
         pub fn termination_inheritor_of(program_id: ProgramId) -> Option<ProgramId> {
-            common::get_program(program_id.into_origin())
+            ProgramStorageOf::<T>::get_program(program_id)
                 .map(|p| {
                     if let Program::Terminated(id) = p {
                         Some(id)
@@ -1229,7 +1236,7 @@ pub mod pallet {
             let program_id = packet.destination();
             // Make sure there is no program with such id in program storage
             ensure!(
-                !GearProgramPallet::<T>::program_exists(program_id),
+                !ProgramStorageOf::<T>::program_exists(program_id),
                 Error::<T>::ProgramAlreadyExists
             );
 
@@ -1496,7 +1503,7 @@ pub mod pallet {
                 ),
             );
 
-            if GearProgramPallet::<T>::program_exists(destination) {
+            if ProgramStorageOf::<T>::program_exists(destination) {
                 ensure!(Self::is_active(destination), Error::<T>::InactiveProgram);
 
                 // Message is not guaranteed to be executed, that's why value is not immediately transferred.

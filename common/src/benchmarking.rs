@@ -18,7 +18,7 @@
 
 use super::*;
 
-use gear_core::memory::{PageNumber, PageU32Size, WasmPageNumber};
+use gear_core::memory::{PageU32Size, WasmPageNumber};
 use gear_wasm_instrument::parity_wasm::{self, elements::*};
 use sp_io::hashing::blake2_256;
 use sp_std::borrow::ToOwned;
@@ -132,7 +132,11 @@ pub fn generate_wasm3(payload: Vec<u8>) -> Result<Vec<u8>, &'static str> {
     Ok(code)
 }
 
-pub fn set_program(program_id: H256, code: Vec<u8>, static_pages: WasmPageNumber) {
+pub fn set_program<ProgramStorage: super::ProgramStorage>(
+    program_id: H256,
+    code: Vec<u8>,
+    static_pages: WasmPageNumber,
+) {
     let code_id = CodeId::generate(&code).into_origin();
     let allocations: BTreeSet<WasmPageNumber> = static_pages.iter_from_zero().collect();
     let persistent_pages_data: BTreeMap<PageNumber, PageBuf> = allocations
@@ -140,18 +144,23 @@ pub fn set_program(program_id: H256, code: Vec<u8>, static_pages: WasmPageNumber
         .flat_map(|p| p.to_pages_iter())
         .map(|p| (p, PageBuf::new_zeroed()))
         .collect();
-    super::set_program_and_pages_data(
-        program_id,
+    let pages_with_data = persistent_pages_data.keys().copied().collect();
+
+    for (page, page_buf) in persistent_pages_data {
+        set_program_page_data(program_id, page, page_buf);
+    }
+
+    ProgramStorage::add_program(
+        ProgramId::from_origin(program_id),
         ActiveProgram {
             allocations,
-            pages_with_data: persistent_pages_data.keys().copied().collect(),
+            pages_with_data,
             code_hash: code_id,
             code_exports: Default::default(),
             static_pages,
             state: ProgramState::Initialized,
             gas_reservation_map: GasReservationMap::default(),
         },
-        persistent_pages_data,
     )
-    .expect("invalid persistent_pages_data");
+    .expect("benchmarking; program duplicates should not exist");
 }

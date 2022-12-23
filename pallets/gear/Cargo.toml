@@ -45,7 +45,6 @@ sp-externalities = { version = "0.12.0", git = "https://github.com/gear-tech/sub
 pallet-balances = { version = "4.0.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.33" }
 pallet-authorship = { version = "4.0.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.33" }
 pallet-timestamp = { version = "4.0.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.33" }
-pallet-gear-program = { path = "../gear-program", default-features = false }
 
 sp-consensus-babe = { version = "0.10.0-dev", optional = true, git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.33", default-features = false }
 
@@ -97,6 +96,7 @@ frame-support-test = { version = "3.0.0", git = "https://github.com/gear-tech/su
 pallet-gear-gas = { path = "../gas" }
 pallet-gear-messenger = { path = "../gear-messenger" }
 pallet-gear-scheduler = { path = "../gear-scheduler" }
+pallet-gear-program = { path = "../gear-program" }
 gear-runtime-interface = { path = "../../runtime-interface" }
 gmeta = { path = "../../gmeta" }
 
@@ -122,7 +122,6 @@ std = [
 	"sp-externalities/std",
 	"pallet-balances/std",
 	"pallet-authorship/std",
-	"pallet-gear-program/std",
 	"pallet-gear-proc-macro/full",
 	"primitive-types/std",
 	"serde/std",

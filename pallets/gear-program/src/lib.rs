@@ -20,17 +20,18 @@
 
 pub use pallet::*;
 
-mod program;
-
 pub mod migration;
 
 #[frame_support::pallet]
 pub mod pallet {
     use super::*;
-    use common::{storage::*, CodeMetadata};
+    use common::{storage::*, CodeMetadata, Program};
     use frame_support::{pallet_prelude::*, traits::StorageVersion};
     use frame_system::pallet_prelude::*;
-    use gear_core::{code::InstrumentedCode, ids::CodeId};
+    use gear_core::{
+        code::InstrumentedCode,
+        ids::{CodeId, ProgramId},
+    };
     use sp_std::prelude::*;
 
     /// The current storage version.
@@ -87,6 +88,17 @@ pub mod pallet {
         value: CodeMetadata
     );
 
+    #[pallet::storage]
+    #[pallet::unbounded]
+    pub(crate) type ProgramStorage<T: Config> = StorageMap<_, Identity, ProgramId, Program>;
+
+    common::wrap_storage_map!(
+        storage: ProgramStorage,
+        name: ProgramStorageWrap,
+        key: ProgramId,
+        value: Program
+    );
+
     #[pallet::hooks]
     impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {}
 
@@ -95,5 +107,23 @@ pub mod pallet {
         type InstrumentedLenStorage = CodeLenStorageWrap<T>;
         type MetadataStorage = MetadataStorageWrap<T>;
         type OriginalCodeStorage = OriginalCodeStorageWrap<T>;
+    }
+
+    impl<T: Config> common::ProgramStorage for pallet::Pallet<T> {
+        type ProgramMap = ProgramStorageWrap<T>;
+    }
+
+    #[cfg(feature = "debug-mode")]
+    impl<T: Config> IterableMap<(ProgramId, Program)> for pallet::Pallet<T> {
+        type DrainIter = frame_support::storage::PrefixIterator<(ProgramId, Program)>;
+        type Iter = frame_support::storage::PrefixIterator<(ProgramId, Program)>;
+
+        fn drain() -> Self::DrainIter {
+            ProgramStorage::<T>::drain()
+        }
+
+        fn iter() -> Self::Iter {
+            ProgramStorage::<T>::iter()
+        }
     }
 }
