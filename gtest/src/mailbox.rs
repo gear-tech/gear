@@ -173,7 +173,8 @@ mod tests {
         let reply_log = message_replier.reply(reply_payload, 0).log;
         let last_reply_log = reply_log.last().expect("No message log in run result");
 
-        //Sending one more message to be sure that no critical move semantic didn't occur
+        //Sending one more message to be sure that no critical move semantic didn't
+        // occur
         let second_message_result =
             system.send_dispatch(Dispatch::new(DispatchKind::Handle, message));
         let second_message_log = message_result

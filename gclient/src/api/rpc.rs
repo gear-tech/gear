@@ -30,7 +30,21 @@ use subxt::{
 use crate::utils;
 
 impl GearApi {
-    /// gear_calculateInitCreateGas
+    /// Execute an RPC to calculate the gas required to create a program from a
+    /// code and process an initialization message.
+    ///
+    /// Actually sends the `gear_calculateInitCreateGas` RPC to the node. The
+    /// function's parameters are:
+    ///
+    /// - `origin` (optional) is the caller's public address;
+    /// - `code_id` is the uploaded code identifier that can be obtained by
+    ///   calling the [`upload_code`](Self::upload_code) function;
+    /// - `payload` vector contains data to be processed by the program;
+    /// - `value` to be transferred to the program's account;
+    /// - `allow_other_panics` flag indicates ignoring a trap during the
+    ///   program's execution;
+    /// - `at` (optional) allows executing the RPC at the specified block
+    ///   identified by its hash.
     pub async fn calculate_create_gas(
         &self,
         origin: Option<H256>,
@@ -59,7 +73,21 @@ impl GearApi {
             .map_err(Into::into)
     }
 
-    /// gear_calculateInitUploadGas
+    /// Execute an RPC to calculate the gas required to upload a program and
+    /// process an initialization message.
+    ///
+    /// Actually sends the `gear_calculateInitUploadGas` RPC to the node. The
+    /// function's parameters are:
+    ///
+    /// - `origin` (optional) is the caller's public address;
+    /// - `code` is the buffer containing the Wasm binary code of the Gear
+    ///   program;
+    /// - `payload` vector contains data to be processed by the program;
+    /// - `value` to be transferred to the program's account;
+    /// - `allow_other_panics` flag indicates ignoring a trap during the
+    ///   program's execution;
+    /// - `at` (optional) allows executing the RPC at the specified block
+    ///   identified by its hash.
     pub async fn calculate_upload_gas(
         &self,
         origin: Option<H256>,
@@ -88,7 +116,19 @@ impl GearApi {
             .map_err(Into::into)
     }
 
-    /// gear_calculateHandleGas
+    /// Execute an RPC to calculate the gas required to handle a message.
+    ///
+    /// Actually sends the `gear_calculateHandleGas` RPC to the node. The
+    /// function's parameters are:
+    ///
+    /// - `origin` (optional) is the caller's public address;
+    /// - `destination` is the program address;
+    /// - `payload` vector contains data to be processed by the program;
+    /// - `value` to be transferred to the program's account;
+    /// - `allow_other_panics` flag indicates ignoring a trap during the
+    ///   program's execution;
+    /// - `at` (optional) allows executing the RPC at the specified block
+    ///   identified by its hash.
     pub async fn calculate_handle_gas(
         &self,
         origin: Option<H256>,
@@ -124,7 +164,22 @@ impl GearApi {
             .map_err(Into::into)
     }
 
-    /// gear_calculateReplyGas
+    /// Execute an RPC to calculate the gas required to reply to the received
+    /// message from the mailbox.
+    ///
+    /// Actually sends the `gear_calculateReplyGas` RPC to the node. The
+    /// function's parameters are:
+    ///
+    /// - `origin` (optional) is the caller's public address;
+    /// - `message_id` is a message identifier required to find it in the
+    ///   mailbox;
+    /// - `exit_code` is the status code of the reply;
+    /// - `payload` vector contains data to be processed by the program;
+    /// - `value` to be transferred to the program's account;
+    /// - `allow_other_panics` flag indicates ignoring a trap during the
+    ///   program's execution;
+    /// - `at` (optional) allows executing the RPC at the specified block
+    ///   identified by its hash.
     pub async fn calculate_reply_gas(
         &self,
         origin: Option<H256>,

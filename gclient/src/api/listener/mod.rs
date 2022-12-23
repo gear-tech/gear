@@ -40,10 +40,14 @@ use gp::api::generated::api::{
     Event,
 };
 
+/// Dispatch status returned after processing a message.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum DispatchStatus {
+    /// Successful execution.
     Success,
+    /// Execution failed.
     Failed,
+    /// Message has not been processed.
     NotExecuted,
 }
 
@@ -58,30 +62,64 @@ impl From<GenDispatchStatus> for DispatchStatus {
 }
 
 impl DispatchStatus {
+    /// Check whether `DispatchStatus` is
+    /// [`Success`](DispatchStatus::Success)ful.
     pub fn succeed(&self) -> bool {
         matches!(self, DispatchStatus::Success)
     }
 
+    /// Check whether `DispatchStatus` is [`Failed`](DispatchStatus::Failed).
     pub fn failed(&self) -> bool {
         matches!(self, DispatchStatus::Failed)
     }
 
+    /// Check whether `DispatchStatus` is
+    /// [`NotExecuted`](DispatchStatus::NotExecuted).
     pub fn not_executed(&self) -> bool {
         matches!(self, DispatchStatus::NotExecuted)
     }
 }
 
+/// Events processing trait.
+///
+/// This trait provides default implementations for processing several events
+/// propagated through the network.
+///
+/// See implementation example in [`EventListener`].
 #[async_trait(?Send)]
 pub trait EventProcessor {
+    /// This function is called if a received event has an unexpected type.
+    ///
+    /// # Examples
+    ///
+    /// Implement this function to return a not-found error:
+    ///
+    /// ```
+    /// # use gclient::Error;
+    /// fn not_waited() -> Error {
+    ///     Error::EventNotFoundInIterator
+    /// }
+    /// ```
     fn not_waited() -> Error;
 
+    /// Event processing function.
+    ///
+    /// `predicate` contains specific processing logic depending on an event
+    /// type.
     async fn proc<T>(&mut self, predicate: impl Fn(Event) -> Option<T> + Copy) -> Result<T>;
+
+    /// Multiple events processing function.
+    ///
+    ///  `predicate` contains specific processing logic depending on an event
+    /// type. `validator` checks whether an additional condition is met for the
+    /// batch of results.
     async fn proc_many<T>(
         &mut self,
         predicate: impl Fn(Event) -> Option<T>,
         validate: impl Fn(Vec<T>) -> (Vec<T>, bool),
     ) -> Result<Vec<T>>;
 
+    /// Check whether the message identified by `message_id` has been processed.
     async fn message_processed(&mut self, message_id: MessageId) -> Result<DispatchStatus> {
         let message_id: GenMId = message_id.into();
 
@@ -98,6 +136,8 @@ pub trait EventProcessor {
         .await
     }
 
+    /// Check whether the batch of messages identified by corresponding
+    /// `message_ids` has been processed.
     async fn message_processed_batch(
         &mut self,
         message_ids: impl IntoIterator<Item = MessageId>,
@@ -133,6 +173,11 @@ pub trait EventProcessor {
             .collect())
     }
 
+    /// Get details of a reply to the message identified by `message_id`.
+    ///
+    /// If a reply has been received, this function returns its identifier
+    /// ([`MessageId`]), payload's bytes (in case of zero status code) or an
+    /// error message (otherwise), and an associated value.
     async fn reply_bytes_on(
         &mut self,
         message_id: MessageId,
@@ -171,6 +216,10 @@ pub trait EventProcessor {
         .await
     }
 
+    /// Check whether the processing of a message identified by `message_id`
+    /// resulted in an error or has been successful.
+    ///
+    /// This function returns an error message in case of an error.
     async fn err_or_succeed(&mut self, message_id: MessageId) -> Result<Option<String>> {
         let message_id: GenMId = message_id.into();
 
@@ -207,6 +256,12 @@ pub trait EventProcessor {
         .await
     }
 
+    /// Check whether processing batch of messages identified by corresponding
+    /// `message_ids` resulted in errors or has been successful.
+    ///
+    /// This function returns a vector of statuses with an associated message
+    /// identifier ([`MessageId`]). Each status can be an error message in case
+    /// of an error.
     async fn err_or_succeed_batch(
         &mut self,
         message_ids: impl IntoIterator<Item = MessageId>,
