@@ -38,12 +38,6 @@ use std::{
     convert::{TryFrom, TryInto},
 };
 
-use crate::{utils, Error, LazyPage, LazyPagesExecutionContext, LAZY_PAGES_CONTEXT};
-
-use gear_core::memory::{
-    PageNumber, PageU32Size, PagesIterInclusive, GEAR_PAGE_SIZE, PAGE_STORAGE_GRANULARITY,
-};
-
 // These constants are used both in runtime and in lazy-pages backend,
 // so we make here additional checks. If somebody would change these values
 // in runtime, then he also should pay attention to support new values here:

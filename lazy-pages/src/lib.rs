@@ -38,7 +38,7 @@ use sp_std::vec::Vec;
 use std::{cell::RefCell, collections::BTreeSet, num::NonZeroU32};
 
 mod sys;
-use sys::{DefaultUserSignalHandler, UserSignalHandler};
+use sys::{AccessedPagesInfo, DefaultUserSignalHandler, UserSignalHandler};
 
 mod mprotect;
 use mprotect::MprotectError;

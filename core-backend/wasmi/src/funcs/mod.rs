@@ -38,9 +38,7 @@ use gear_core::{
     buffer::RuntimeBufferSizeError,
     env::Ext,
     memory::{PageU32Size, WasmPageNumber},
-    message::{
-        HandlePacket, InitPacket, MessageWaitedType, Payload, PayloadSizeError, ReplyPacket,
-    },
+    message::{HandlePacket, InitPacket, MessageWaitedType, PayloadSizeError, ReplyPacket},
 };
 use gear_core_errors::{CoreError, MemoryError};
 use gear_wasm_instrument::{GLOBAL_NAME_ALLOWANCE, GLOBAL_NAME_GAS};

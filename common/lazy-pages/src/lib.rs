@@ -25,7 +25,7 @@ use gear_common::{pages_prefix, Origin};
 use gear_core::{
     ids::ProgramId,
     lazy_pages::{AccessError, GlobalsCtx, Status},
-    memory::{HostPointer, Memory, PageNumber, PageU32Size, WasmPageNumber},
+    memory::{HostPointer, Memory, PageNumber, WasmPageNumber},
 };
 use gear_runtime_interface::gear_ri;
 use sp_std::vec::Vec;
