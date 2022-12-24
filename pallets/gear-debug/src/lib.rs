@@ -217,12 +217,14 @@ pub mod pallet {
                         Some(code) => code.static_pages(),
                         None => WasmPageNumber::zero(),
                     };
-                    let persistent_pages =
-                        common::get_program_pages_data(id.into_origin(), &active)
-                            .unwrap()
-                            .into_iter()
-                            .map(|(page, data)| (page, data.into_vec()))
-                            .collect();
+                    let persistent_pages = T::ProgramStorage::get_program_data_for_pages(
+                        id,
+                        active.pages_with_data.iter(),
+                    )
+                    .unwrap()
+                    .into_iter()
+                    .map(|(page, data)| (page, data.into_vec()))
+                    .collect();
                     ProgramDetails {
                         id,
                         state: {

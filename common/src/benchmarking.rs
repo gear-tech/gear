@@ -133,7 +133,7 @@ pub fn generate_wasm3(payload: Vec<u8>) -> Result<Vec<u8>, &'static str> {
 }
 
 pub fn set_program<ProgramStorage: super::ProgramStorage>(
-    program_id: H256,
+    program_id: ProgramId,
     code: Vec<u8>,
     static_pages: WasmPageNumber,
 ) {
@@ -147,11 +147,11 @@ pub fn set_program<ProgramStorage: super::ProgramStorage>(
     let pages_with_data = persistent_pages_data.keys().copied().collect();
 
     for (page, page_buf) in persistent_pages_data {
-        set_program_page_data(program_id, page, page_buf);
+        ProgramStorage::set_program_page_data(program_id, page, page_buf);
     }
 
     ProgramStorage::add_program(
-        ProgramId::from_origin(program_id),
+        program_id,
         ActiveProgram {
             allocations,
             pages_with_data,

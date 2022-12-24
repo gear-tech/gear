@@ -1042,13 +1042,13 @@ pub mod pallet {
             };
 
             #[cfg(not(feature = "lazy-pages"))]
-            let memory_pages = match common::get_program_data_for_pages(
-                program_id.into_origin(),
+            let memory_pages = match ProgramStorageOf::<T>::get_program_data_for_pages(
+                program_id,
                 pages_with_data.iter(),
             ) {
                 Ok(data) => data,
                 Err(err) => {
-                    log::error!("Cannot get data for program pages: {err}");
+                    log::error!("Cannot get data for program pages: {err:?}");
                     return None;
                 }
             };

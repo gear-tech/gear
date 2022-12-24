@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use super::*;
-use crate::storage::MapStorage;
+use crate::storage::{DoubleMapStorage, MapStorage};
 
 #[derive(Clone, Copy, Debug)]
 pub enum Error {
@@ -27,11 +27,24 @@ pub enum Error {
     ItemNotFound,
     /// Program is not an instance of ActiveProgram.
     NotActiveProgram,
+    /// There is no data for specified `program_id` and `page`.
+    CannotFindDataForPage {
+        program_id: ProgramId,
+        page: PageNumber,
+    },
+    /// PageBuf object cannot be created.
+    FailedToCreatePageBuf(MemoryError),
 }
 
 /// Trait to work with program data in a storage.
 pub trait ProgramStorage {
     type ProgramMap: MapStorage<Key = ProgramId, Value = Program>;
+    type MemoryPageMap: DoubleMapStorage<Key1 = ProgramId, Key2 = PageNumber, Value = PageBuf>;
+
+    fn reset() {
+        Self::ProgramMap::clear();
+        Self::MemoryPageMap::clear();
+    }
 
     fn add_program(program_id: ProgramId, program: ActiveProgram) -> Result<(), Error> {
         Self::ProgramMap::mutate(program_id, |maybe| {
@@ -84,7 +97,35 @@ pub trait ProgramStorage {
         Ok(result)
     }
 
-    fn reset() {
-        Self::ProgramMap::clear();
+    fn get_program_data_for_pages<'a>(
+        program_id: ProgramId,
+        pages: impl Iterator<Item = &'a PageNumber>,
+    ) -> Result<BTreeMap<PageNumber, PageBuf>, Error> {
+        let mut pages_data = BTreeMap::new();
+        for page in pages {
+            let data = Self::MemoryPageMap::get(&program_id, page).ok_or(
+                Error::CannotFindDataForPage {
+                    program_id,
+                    page: *page,
+                },
+            )?;
+            let page_buf =
+                PageBuf::new_from_vec(data.to_vec()).map_err(Error::FailedToCreatePageBuf)?;
+            pages_data.insert(*page, page_buf);
+        }
+
+        Ok(pages_data)
+    }
+
+    fn set_program_page_data(program_id: ProgramId, page: PageNumber, page_buf: PageBuf) {
+        Self::MemoryPageMap::insert(program_id, page, page_buf);
+    }
+
+    fn remove_program_page_data(program_id: ProgramId, page_num: PageNumber) {
+        Self::MemoryPageMap::remove(program_id, page_num);
+    }
+
+    fn remove_program_pages(program_id: ProgramId) {
+        Self::MemoryPageMap::clear_prefix(program_id);
     }
 }

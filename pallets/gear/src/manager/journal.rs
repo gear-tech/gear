@@ -169,7 +169,7 @@ where
                     }
                 });
 
-                // TODO: clear program memory pages
+                ProgramStorageOf::<T>::remove_program_pages(program_id);
 
                 let program_id = <T::AccountId as Origin>::from_origin(program_id.into_origin());
 
@@ -233,7 +233,7 @@ where
             unreachable!("`exit` can be called only from active program: {:?}", e);
         });
 
-        // TODO: clear program memory pages
+        ProgramStorageOf::<T>::remove_program_pages(id_exited);
 
         let program_account = &<T::AccountId as Origin>::from_origin(id_exited.into_origin());
         let balance = CurrencyOf::<T>::free_balance(program_account);
@@ -407,7 +407,7 @@ where
 
         ProgramStorageOf::<T>::update_active_program(program_id, |p| {
             for (page, data) in pages_data {
-                common::set_program_page_data(program_id.into_origin(), page, data);
+                ProgramStorageOf::<T>::set_program_page_data(program_id, page, data);
                 p.pages_with_data.insert(page);
             }
         })
@@ -428,7 +428,7 @@ where
             let removed_pages = p.allocations.difference(&allocations);
             for page in removed_pages.flat_map(|page| page.to_pages_iter()) {
                 if p.pages_with_data.remove(&page) {
-                    common::remove_program_page_data(program_id.into_origin(), page);
+                    ProgramStorageOf::<T>::remove_program_page_data(program_id, page);
                 }
             }
 

@@ -69,7 +69,7 @@ static_assertions::const_assert_eq!(WASM_PAGE_SIZE % PAGE_STORAGE_GRANULARITY, 0
 static_assertions::const_assert_eq!(PAGE_STORAGE_GRANULARITY % GEAR_PAGE_SIZE, 0);
 
 /// Buffer for gear page data.
-#[derive(Clone, Encode, Decode, PartialEq, Eq)]
+#[derive(Clone, Encode, Decode, PartialEq, Eq, TypeInfo)]
 pub struct PageBuf(Box<[u8; GEAR_PAGE_SIZE]>);
 
 impl fmt::Debug for PageBuf {

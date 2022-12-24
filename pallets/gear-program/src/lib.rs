@@ -31,6 +31,7 @@ pub mod pallet {
     use gear_core::{
         code::InstrumentedCode,
         ids::{CodeId, ProgramId},
+        memory::{PageBuf, PageNumber},
     };
     use sp_std::prelude::*;
 
@@ -99,6 +100,19 @@ pub mod pallet {
         value: Program
     );
 
+    #[pallet::storage]
+    #[pallet::unbounded]
+    pub(crate) type MemoryPageStorage<T: Config> =
+        StorageDoubleMap<_, Identity, ProgramId, Identity, PageNumber, PageBuf>;
+
+    common::wrap_storage_double_map!(
+        storage: MemoryPageStorage,
+        name: MemoryPageStorageWrap,
+        key1: ProgramId,
+        key2: PageNumber,
+        value: PageBuf
+    );
+
     #[pallet::hooks]
     impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {}
 
@@ -111,6 +125,7 @@ pub mod pallet {
 
     impl<T: Config> common::ProgramStorage for pallet::Pallet<T> {
         type ProgramMap = ProgramStorageWrap<T>;
+        type MemoryPageMap = MemoryPageStorageWrap<T>;
     }
 
     #[cfg(feature = "debug-mode")]

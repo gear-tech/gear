@@ -319,8 +319,11 @@ where
 
         #[cfg(not(feature = "lazy-pages"))]
         let program_pages = Some(
-            common::get_program_pages_data(program_id.into_origin(), &program)
-                .map_err(|e| format!("Get program pages data error: {e:?}"))?,
+            ProgramStorageOf::<T>::get_program_data_for_pages(
+                program_id,
+                program.pages_with_data.iter(),
+            )
+            .map_err(|e| format!("Get program pages data error: {e:?}"))?,
         );
 
         #[cfg(feature = "lazy-pages")]
