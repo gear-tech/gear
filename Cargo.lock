@@ -849,9 +849,9 @@ dependencies = [
 
 [[package]]
 name = "clap"
-version = "4.0.30"
+version = "4.0.32"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "656ad1e55e23d287773f7d8192c300dc715c3eeded93b3da651d11c42cfd74d2"
+checksum = "a7db700bc935f9e43e88d00b0850dae18a63773cfbec6d8e070fccf7fef89a39"
 dependencies = [
  "bitflags",
  "clap_derive 4.0.21",
@@ -2644,7 +2644,7 @@ dependencies = [
  "Inflector",
  "array-bytes",
  "chrono",
- "clap 4.0.30",
+ "clap 4.0.32",
  "comfy-table",
  "frame-benchmarking",
  "frame-support",
@@ -3177,7 +3177,7 @@ dependencies = [
 name = "gear-cli"
 version = "0.1.0"
 dependencies = [
- "clap 4.0.30",
+ "clap 4.0.32",
  "frame-benchmarking",
  "frame-benchmarking-cli",
  "frame-system",
@@ -3191,10 +3191,12 @@ dependencies = [
  "pallet-gear-payment",
  "sc-cli",
  "sc-client-api",
+ "sc-executor",
  "sc-service",
  "scale-info",
  "sp-core",
  "sp-inherents",
+ "sp-io",
  "sp-keyring",
  "sp-runtime",
  "sp-timestamp",
@@ -3347,7 +3349,7 @@ dependencies = [
  "base64 0.20.0",
  "blake2-rfc",
  "cfg-if",
- "clap 4.0.30",
+ "clap 4.0.32",
  "color-eyre",
  "demo-meta",
  "demo-waiter",
@@ -3426,6 +3428,7 @@ dependencies = [
  "sp-inherents",
  "sp-offchain",
  "sp-runtime",
+ "sp-sandbox",
  "sp-session",
  "sp-std",
  "sp-transaction-pool",
@@ -3479,7 +3482,7 @@ name = "gear-runtime-test-cli"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "clap 4.0.30",
+ "clap 4.0.32",
  "colored",
  "frame-support",
  "frame-system",
@@ -3591,7 +3594,7 @@ name = "gear-test"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "clap 4.0.30",
+ "clap 4.0.32",
  "colored",
  "derive_more",
  "env_logger 0.10.0",
@@ -6744,9 +6747,9 @@ checksum = "478c572c3d73181ff3c2539045f6eb99e5491218eae919370993b890cdbdd98e"
 
 [[package]]
 name = "pest"
-version = "2.5.1"
+version = "2.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cc8bed3549e0f9b0a2a78bf7c0018237a2cdf085eecbbc048e52612438e4e9d0"
+checksum = "0f6e86fb9e7026527a0d46bc308b841d73170ef8f443e1807f6ef88526a816d4"
 dependencies = [
  "thiserror",
  "ucd-trie",
@@ -6754,9 +6757,9 @@ dependencies = [
 
 [[package]]
 name = "pest_derive"
-version = "2.5.1"
+version = "2.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cdc078600d06ff90d4ed238f0119d84ab5d43dbaad278b0e33a8820293b32344"
+checksum = "96504449aa860c8dcde14f9fba5c58dc6658688ca1fe363589d6327b8662c603"
 dependencies = [
  "pest",
  "pest_generator",
@@ -6764,9 +6767,9 @@ dependencies = [
 
 [[package]]
 name = "pest_generator"
-version = "2.5.1"
+version = "2.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "28a1af60b1c4148bb269006a750cff8e2ea36aff34d2d96cf7be0b14d1bed23c"
+checksum = "798e0220d1111ae63d66cb66a5dcb3fc2d986d520b98e49e1852bfdb11d7c5e7"
 dependencies = [
  "pest",
  "pest_meta",
@@ -6777,9 +6780,9 @@ dependencies = [
 
 [[package]]
 name = "pest_meta"
-version = "2.5.1"
+version = "2.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fec8605d59fc2ae0c6c1aefc0c7c7a9769732017c0ce07f7a9cfffa7b4404f20"
+checksum = "984298b75898e30a843e278a9f2452c31e349a073a0ce6fd950a12a74464e065"
 dependencies = [
  "once_cell",
  "pest",
@@ -7497,7 +7500,7 @@ dependencies = [
 name = "regression-analysis"
 version = "0.1.0"
 dependencies = [
- "clap 4.0.30",
+ "clap 4.0.32",
  "frame-support",
  "gear-runtime",
  "junit-common",
@@ -7889,7 +7892,7 @@ source = "git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0
 dependencies = [
  "array-bytes",
  "chrono",
- "clap 4.0.30",
+ "clap 4.0.32",
  "fdlimit",
  "futures",
  "libp2p 0.49.0",
@@ -10976,7 +10979,7 @@ name = "try-runtime-cli"
 version = "0.10.0-dev"
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.36#91c367ee60303f878fead054d95b600cea222156"
 dependencies = [
- "clap 4.0.30",
+ "clap 4.0.32",
  "frame-remote-externalities",
  "frame-try-runtime",
  "hex",
@@ -11474,7 +11477,7 @@ dependencies = [
 name = "wasm-proc"
 version = "0.1.0"
 dependencies = [
- "clap 4.0.30",
+ "clap 4.0.32",
  "env_logger 0.10.0",
  "gear-wasm-builder",
  "log",

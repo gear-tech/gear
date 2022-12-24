@@ -37,6 +37,7 @@ sp-core = { version = "7.0.0", default-features = false, git = "https://github.c
 sp-inherents = { git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.36", default-features = false, version = "4.0.0-dev" }
 sp-offchain = { version = "4.0.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.36" }
 sp-runtime = { version = "7.0.0", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.36" }
+sp-sandbox = { version = "0.10.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.36" }
 sp-session = { version = "4.0.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.36" }
 sp-std = { version = "5.0.0", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.36" }
 sp-transaction-pool = { version = "4.0.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.36" }
@@ -72,6 +73,7 @@ default = ["std"]
 std = [
 	"codec/std",
 	"common/std",
+	"sp-sandbox/std",
  	"frame-try-runtime?/std",
  	"frame-system-benchmarking?/std",
  	"frame-benchmarking?/std",
@@ -152,3 +154,8 @@ lazy-pages = [
 	"pallet-gear-payment/lazy-pages",
 	"pallet-gear-debug?/lazy-pages",
 ]
+# Force `sp-sandbox` to call into the host resident executor. One still need to make sure
+# that `sc-executor` gets the `host-sandbox` feature which happens automatically when
+# specified on the command line.
+# Don't use that on a production chain.
+host-sandbox = ["sp-sandbox/host-sandbox"]
