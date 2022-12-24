@@ -345,7 +345,9 @@ where
         argument: Option<Vec<u8>>,
     ) -> Result<Vec<u8>, String> {
         #[cfg(feature = "lazy-pages")]
-        assert!(lazy_pages::try_to_enable_lazy_pages());
+        assert!(lazy_pages::try_to_enable_lazy_pages(
+            ProgramStorageOf::<T>::pages_final_prefix()
+        ));
 
         let schedule = T::Schedule::get();
 
@@ -386,7 +388,9 @@ where
 
     pub(crate) fn read_state_impl(program_id: ProgramId) -> Result<Vec<u8>, String> {
         #[cfg(feature = "lazy-pages")]
-        assert!(lazy_pages::try_to_enable_lazy_pages());
+        assert!(lazy_pages::try_to_enable_lazy_pages(
+            ProgramStorageOf::<T>::pages_final_prefix()
+        ));
 
         log::debug!("Reading state of {program_id:?}");
 
@@ -409,7 +413,9 @@ where
 
     pub(crate) fn read_metahash_impl(program_id: ProgramId) -> Result<H256, String> {
         #[cfg(feature = "lazy-pages")]
-        assert!(lazy_pages::try_to_enable_lazy_pages());
+        assert!(lazy_pages::try_to_enable_lazy_pages(
+            ProgramStorageOf::<T>::pages_final_prefix()
+        ));
 
         log::debug!("Reading metahash of {program_id:?}");
 

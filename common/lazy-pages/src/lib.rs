@@ -21,7 +21,7 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
 use core::fmt;
-// use gear_common::Origin;
+use gear_common::Origin;
 use gear_core::{
     ids::ProgramId,
     memory::{HostPointer, Memory, PageNumber, PageU32Size, WasmPageNumber},
@@ -39,30 +39,28 @@ fn mprotect_lazy_pages(mem: &mut impl Memory, protect: bool) {
 }
 
 /// Try to enable and initialize lazy pages env
-pub fn try_to_enable_lazy_pages() -> bool {
-    gear_ri::init_lazy_pages()
+pub fn try_to_enable_lazy_pages(pages_final_prefix: [u8; 32]) -> bool {
+    gear_ri::init_lazy_pages(pages_final_prefix)
 }
 
 /// Protect and save storage keys for pages which has no data
 pub fn init_for_program(
-    _mem: &mut impl Memory,
-    _prog_id: ProgramId,
-    _stack_end: Option<WasmPageNumber>,
+    mem: &mut impl Memory,
+    prog_id: ProgramId,
+    stack_end: Option<WasmPageNumber>,
 ) {
-    // let program_prefix = crate::pages_prefix(prog_id.into_origin());
-    // let wasm_mem_addr = mem.get_buffer_host_addr();
-    // let wasm_mem_size = mem.size();
-    // let stack_end_page = stack_end.map(|page| page.raw());
+    let wasm_mem_addr = mem.get_buffer_host_addr();
+    let wasm_mem_size = mem.size();
+    let stack_end_page = stack_end.map(|page| page.raw());
 
-    // // Cannot panic unless OS allocates buffer in not aligned by native page addr, or
-    // // something goes wrong with pages protection.
-    // gear_ri::init_lazy_pages_for_program(
-    //     wasm_mem_addr,
-    //     wasm_mem_size.raw(),
-    //     stack_end_page,
-    //     program_prefix,
-    // );
-    todo!()
+    // Cannot panic unless OS allocates buffer in not aligned by native page addr, or
+    // something goes wrong with pages protection.
+    gear_ri::init_lazy_pages_for_program(
+        wasm_mem_addr,
+        wasm_mem_size.raw(),
+        stack_end_page,
+        prog_id.into_origin().into(),
+    );
 }
 
 /// Remove lazy-pages protection, returns wasm memory begin addr

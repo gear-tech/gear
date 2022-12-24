@@ -26,7 +26,7 @@ pub mod migration;
 pub mod pallet {
     use super::*;
     use common::{storage::*, CodeMetadata, Program};
-    use frame_support::{pallet_prelude::*, traits::StorageVersion};
+    use frame_support::{pallet_prelude::*, traits::StorageVersion, StoragePrefixedMap};
     use frame_system::pallet_prelude::*;
     use gear_core::{
         code::InstrumentedCode,
@@ -126,6 +126,10 @@ pub mod pallet {
     impl<T: Config> common::ProgramStorage for pallet::Pallet<T> {
         type ProgramMap = ProgramStorageWrap<T>;
         type MemoryPageMap = MemoryPageStorageWrap<T>;
+
+        fn pages_final_prefix() -> [u8; 32] {
+            MemoryPageStorage::<T>::final_prefix()
+        }
     }
 
     #[cfg(feature = "debug-mode")]

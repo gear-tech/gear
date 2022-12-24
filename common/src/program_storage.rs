@@ -128,4 +128,6 @@ pub trait ProgramStorage {
     fn remove_program_pages(program_id: ProgramId) {
         Self::MemoryPageMap::clear_prefix(program_id);
     }
+
+    fn pages_final_prefix() -> [u8; 32];
 }

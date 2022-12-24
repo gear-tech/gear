@@ -48,7 +48,9 @@ where
     T::AccountId: Origin,
 {
     #[cfg(feature = "lazy-pages")]
-    assert!(gear_lazy_pages_common::try_to_enable_lazy_pages());
+    assert!(gear_lazy_pages_common::try_to_enable_lazy_pages(
+        ProgramStorageOf::<T>::pages_final_prefix()
+    ));
 
     let ext_manager = ExtManager::<T>::default();
     let bn: u64 = Gear::<T>::block_number().unique_saturated_into();

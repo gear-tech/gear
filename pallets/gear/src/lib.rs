@@ -1036,8 +1036,11 @@ pub mod pallet {
         ) -> Option<BTreeMap<PageNumber, PageBuf>> {
             #[cfg(feature = "lazy-pages")]
             let memory_pages = {
-                let _ = pages_with_data; // To calm clippy on unused argument.
-                assert!(lazy_pages::try_to_enable_lazy_pages());
+                // To calm clippy on unused argument.
+                let _ = pages_with_data;
+                assert!(lazy_pages::try_to_enable_lazy_pages(
+                    ProgramStorageOf::<T>::pages_final_prefix()
+                ));
                 Default::default()
             };
 
