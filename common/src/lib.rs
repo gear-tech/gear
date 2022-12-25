@@ -67,8 +67,6 @@ extern crate alloc;
 
 pub use gas_provider::{Provider as GasProvider, Tree as GasTree};
 
-pub const STORAGE_PROGRAM_STATE_WAIT_PREFIX: &[u8] = b"g::prog_wait::";
-
 pub trait Origin: Sized {
     fn into_origin(self) -> H256;
     fn from_origin(val: H256) -> Self;
@@ -278,28 +276,7 @@ impl CodeMetadata {
     }
 }
 
-pub fn waiting_init_prefix(prog_id: ProgramId) -> Vec<u8> {
-    let mut key = Vec::new();
-    key.extend(STORAGE_PROGRAM_STATE_WAIT_PREFIX);
-    prog_id.encode_to(&mut key);
-
-    key
-}
-
-pub fn waiting_init_append_message_id(dest_prog_id: ProgramId, message_id: MessageId) {
-    let key = waiting_init_prefix(dest_prog_id);
-    sp_io::storage::append(&key, message_id.encode());
-}
-
-pub fn waiting_init_take_messages(dest_prog_id: ProgramId) -> Vec<MessageId> {
-    let key = waiting_init_prefix(dest_prog_id);
-    let messages =
-        sp_io::storage::get(&key).and_then(|v| Vec::<MessageId>::decode(&mut &v[..]).ok());
-    sp_io::storage::clear(&key);
-
-    messages.unwrap_or_default()
-}
-
+// TODO: Remove this legacy after next runtime upgrade.
 pub fn reset_storage() {
     const STORAGE_PROGRAM_PREFIX: &[u8] = b"g::prog::";
     sp_io::storage::clear_prefix(STORAGE_PROGRAM_PREFIX, None);
@@ -307,7 +284,9 @@ pub fn reset_storage() {
     const STORAGE_PROGRAM_PAGES_PREFIX: &[u8] = b"g::pages::";
     sp_io::storage::clear_prefix(STORAGE_PROGRAM_PAGES_PREFIX, None);
 
-    // TODO: Remove this legacy after next runtime upgrade.
+    const STORAGE_PROGRAM_STATE_WAIT_PREFIX: &[u8] = b"g::prog_wait::";
+    sp_io::storage::clear_prefix(STORAGE_PROGRAM_STATE_WAIT_PREFIX, None);
+
     sp_io::storage::clear_prefix(b"g::wait::", None);
 }
 

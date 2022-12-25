@@ -30,7 +30,7 @@ pub mod pallet {
     use frame_system::pallet_prelude::*;
     use gear_core::{
         code::InstrumentedCode,
-        ids::{CodeId, ProgramId},
+        ids::{CodeId, MessageId, ProgramId},
         memory::{PageBuf, PageNumber},
     };
     use sp_std::prelude::*;
@@ -113,6 +113,18 @@ pub mod pallet {
         value: PageBuf
     );
 
+    #[pallet::storage]
+    #[pallet::unbounded]
+    pub(crate) type WaitingInitStorage<T: Config> =
+        StorageMap<_, Identity, ProgramId, Vec<MessageId>>;
+
+    common::wrap_storage_map!(
+        storage: WaitingInitStorage,
+        name: WaitingInitStorageWrap,
+        key: ProgramId,
+        value: Vec<MessageId>
+    );
+
     #[pallet::hooks]
     impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {}
 
@@ -123,12 +135,13 @@ pub mod pallet {
         type OriginalCodeStorage = OriginalCodeStorageWrap<T>;
     }
 
-    impl<T: Config> common::ProgramStorage for pallet::Pallet<T> {
-        type ProgramMap = ProgramStorageWrap<T>;
-        type MemoryPageMap = MemoryPageStorageWrap<T>;
+    impl<Runtime: Config> common::ProgramStorage for pallet::Pallet<Runtime> {
+        type ProgramMap = ProgramStorageWrap<Runtime>;
+        type MemoryPageMap = MemoryPageStorageWrap<Runtime>;
+        type WaitingInitMap = WaitingInitStorageWrap<Runtime>;
 
         fn pages_final_prefix() -> [u8; 32] {
-            MemoryPageStorage::<T>::final_prefix()
+            MemoryPageStorage::<Runtime>::final_prefix()
         }
     }
 
@@ -143,6 +156,18 @@ pub mod pallet {
 
         fn iter() -> Self::Iter {
             ProgramStorage::<T>::iter()
+        }
+    }
+
+    impl<Runtime: Config> AppendMapStorage<MessageId, ProgramId, Vec<MessageId>>
+        for WaitingInitStorageWrap<Runtime>
+    {
+        fn append<EncodeLikeKey, EncodeLikeItem>(key: EncodeLikeKey, item: EncodeLikeItem)
+        where
+            EncodeLikeKey: codec::EncodeLike<Self::Key>,
+            EncodeLikeItem: codec::EncodeLike<MessageId>,
+        {
+            WaitingInitStorage::<Runtime>::append(key, item);
         }
     }
 }

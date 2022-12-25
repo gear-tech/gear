@@ -2967,7 +2967,10 @@ fn messages_to_uninitialized_program_wait() {
 
         run_to_block(3, None);
 
-        assert_eq!(common::waiting_init_take_messages(program_id).len(), 1);
+        assert_eq!(
+            ProgramStorageOf::<Test>::waiting_init_take_messages(program_id).len(),
+            1
+        );
     })
 }
 
@@ -8745,10 +8748,7 @@ mod utils {
     }
 
     pub(super) fn waiting_init_messages(pid: ProgramId) -> Vec<MessageId> {
-        let key = common::waiting_init_prefix(pid);
-        sp_io::storage::get(&key)
-            .and_then(|v| Vec::<MessageId>::decode(&mut &v[..]).ok())
-            .unwrap_or_default()
+        ProgramStorageOf::<Test>::waiting_init_get_messages(pid)
     }
 }
 

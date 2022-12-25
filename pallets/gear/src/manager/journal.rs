@@ -60,7 +60,7 @@ where
         use CoreDispatchOutcome::*;
 
         let wake_waiting_init_msgs = |p_id: ProgramId| {
-            common::waiting_init_take_messages(p_id)
+            ProgramStorageOf::<T>::waiting_init_take_messages(p_id)
                 .into_iter()
                 .for_each(|m_id| {
                     if let Some(m) = Pallet::<T>::wake_dispatch(
@@ -221,7 +221,7 @@ where
                 .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e));
         });
 
-        let _ = common::waiting_init_take_messages(id_exited);
+        let _ = ProgramStorageOf::<T>::waiting_init_take_messages(id_exited);
 
         // Program can't be inactive, cause it was executed.
         self.clean_reservation_tasks(id_exited, false);

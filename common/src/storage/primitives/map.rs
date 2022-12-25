@@ -66,6 +66,18 @@ pub trait MapStorage {
     fn take(key: Self::Key) -> Option<Self::Value>;
 }
 
+pub trait AppendMapStorage<Item, Key, Value>: MapStorage<Key = Key, Value = Value>
+where
+    Item: codec::Encode,
+    Key: codec::Encode,
+    Value: codec::EncodeAppend<Item = Item>,
+{
+    fn append<EncodeLikeKey, EncodeLikeItem>(key: EncodeLikeKey, item: EncodeLikeItem)
+    where
+        EncodeLikeKey: codec::EncodeLike<Key>,
+        EncodeLikeItem: codec::EncodeLike<Item>;
+}
+
 /// Creates new type with specified name and key-value types and implements
 /// `MapStorage` for it based on specified storage,
 /// which is a `Substrate`'s `StorageMap`.

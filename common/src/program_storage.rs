@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use super::*;
-use crate::storage::{DoubleMapStorage, MapStorage};
+use crate::storage::{AppendMapStorage, DoubleMapStorage, MapStorage};
 
 #[derive(Clone, Copy, Debug)]
 pub enum Error {
@@ -40,10 +40,12 @@ pub enum Error {
 pub trait ProgramStorage {
     type ProgramMap: MapStorage<Key = ProgramId, Value = Program>;
     type MemoryPageMap: DoubleMapStorage<Key1 = ProgramId, Key2 = PageNumber, Value = PageBuf>;
+    type WaitingInitMap: AppendMapStorage<MessageId, ProgramId, Vec<MessageId>>;
 
     fn reset() {
         Self::ProgramMap::clear();
         Self::MemoryPageMap::clear();
+        Self::WaitingInitMap::clear();
     }
 
     fn add_program(program_id: ProgramId, program: ActiveProgram) -> Result<(), Error> {
@@ -130,4 +132,16 @@ pub trait ProgramStorage {
     }
 
     fn pages_final_prefix() -> [u8; 32];
+
+    fn waiting_init_get_messages(program_id: ProgramId) -> Vec<MessageId> {
+        Self::WaitingInitMap::get(&program_id).unwrap_or_default()
+    }
+
+    fn waiting_init_take_messages(program_id: ProgramId) -> Vec<MessageId> {
+        Self::WaitingInitMap::take(program_id).unwrap_or_default()
+    }
+
+    fn waiting_init_append_message_id(dest_prog_id: ProgramId, message_id: MessageId) {
+        Self::WaitingInitMap::append(dest_prog_id, message_id);
+    }
 }
