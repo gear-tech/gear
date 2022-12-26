@@ -65,6 +65,7 @@ mod gear {
             },
             types, Api,
         },
+        metadata::PAGE_SIZE,
         result::{ClientError, Result},
     };
     use hex::ToHex;
@@ -105,16 +106,21 @@ mod gear {
             let mut pages = HashMap::new();
             let program_id = ProgramId(pid.into());
             for page in program.pages_with_data {
-                let at = storage()
+                let address = storage()
                     .gear_program()
                     .memory_page_storage(program_id.clone(), PageNumber(page.0));
 
-                let value = self
+                let metadata = self.metadata();
+                let lookup_bytes =
+                    subxt::storage::utils::storage_address_bytes(&address, &metadata)?;
+
+                let encoded_page = self
                     .storage()
-                    .fetch(&at, None)
+                    .fetch_raw(&lookup_bytes, None)
                     .await?
                     .ok_or_else(|| ClientError::PageNotFound(page.0, pid.encode_hex()))?;
-                pages.insert(page.0, value.0 .0);
+                let decoded = <[u8; PAGE_SIZE]>::decode(&mut &encoded_page[..])?;
+                pages.insert(page.0, decoded.to_vec());
             }
 
             Ok(pages)

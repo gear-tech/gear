@@ -8,7 +8,7 @@ use crate::{
         env,
         ext::Ext,
         result::{Error, Result},
-        StoreData,
+        StoreData, PAGE_SIZE,
     },
 };
 use wasmtime::{
@@ -16,7 +16,6 @@ use wasmtime::{
     Val,
 };
 
-const PAGE_SIZE: usize = 4096;
 const META_STATE: &str = "meta_state";
 
 /// Execute wasm binary
