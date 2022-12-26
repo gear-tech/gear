@@ -42,6 +42,7 @@ pallet-nomination-pools = { version = "1.0.0", default-features = false, git = "
 pallet-nomination-pools-runtime-api = { version = "1.0.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.36" }
 pallet-offences = { version = "4.0.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.36" }
 pallet-preimage = { version = "4.0.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.36" }
+pallet-ranked-collective = { version = "4.0.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.36" }
 pallet-referenda = { version = "4.0.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.36" }
 pallet-scheduler = { version = "4.0.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.36" }
 pallet-session = { version = "4.0.0-dev", default-features = false, features = [
@@ -54,6 +55,7 @@ pallet-timestamp = { version = "4.0.0-dev", default-features = false, git = "htt
 pallet-treasury = { version = "4.0.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.36" }
 pallet-transaction-payment = { version = "4.0.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.36" }
 pallet-utility = { version = "4.0.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.36" }
+pallet-whitelist = { version = "4.0.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.36" }
 
 # Primitives
 sp-api = { version = "4.0.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.36" }
@@ -137,6 +139,7 @@ std = [
 	"pallet-nomination-pools-runtime-api/std",
 	"pallet-offences/std",
 	"pallet-preimage/std",
+	"pallet-ranked-collective/std",
 	"pallet-referenda/std",
 	"pallet-session/std",
 	"pallet-scheduler/std",
@@ -147,6 +150,7 @@ std = [
 	"pallet-transaction-payment-rpc-runtime-api/std",
 	"pallet-treasury/std",
 	"pallet-utility/std",
+	"pallet-whitelist/std",
 	"runtime-common/std",
 	"runtime-primitives/std",
 	"scale-info/std",
@@ -215,6 +219,7 @@ try-runtime = [
 	"pallet-nomination-pools/try-runtime",
 	"pallet-offences/try-runtime",
 	"pallet-preimage/try-runtime",
+	"pallet-ranked-collective/try-runtime",
 	"pallet-referenda/try-runtime",
 	"pallet-scheduler/try-runtime",
 	"pallet-session/try-runtime",
@@ -224,6 +229,7 @@ try-runtime = [
 	"pallet-transaction-payment/try-runtime",
 	"pallet-treasury/try-runtime",
 	"pallet-utility/try-runtime",
+	"pallet-whitelist/try-runtime",
 	"pallet-airdrop/try-runtime",
 ]
 debug-mode = ["pallet-gear-debug"]

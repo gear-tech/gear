@@ -112,7 +112,7 @@ pub const BABE_GENESIS_EPOCH_CONFIG: sp_consensus_babe::BabeEpochConfiguration =
         allowed_slots: sp_consensus_babe::AllowedSlots::PrimaryAndSecondaryPlainSlots,
     };
 
-/// We allow for 1/3 of block time for computations.
+/// We allow for 1/3 of block time for computations, with maximum proof size.
 ///
 /// It's 1/3 sec for gear runtime with 1 second block duration.
 const MAXIMUM_BLOCK_WEIGHT: Weight =
