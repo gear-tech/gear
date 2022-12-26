@@ -48,6 +48,7 @@ where
     assert!(gear_lazy_pages_common::try_to_enable_lazy_pages());
 
     // to see logs in bench tests
+    #[cfg(feature = "std")]
     let _ = env_logger::try_init();
 
     let ext_manager = ExtManager::<T>::default();
