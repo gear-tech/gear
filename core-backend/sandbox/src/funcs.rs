@@ -36,7 +36,6 @@ use gear_core::{
     ids::ReservationId,
     memory::{Memory, PageU32Size, WasmPageNumber},
     message::{HandlePacket, InitPacket, MessageWaitedType, Payload, PayloadSizeError, ReplyPacket},
-
 };
 use gear_core_errors::{CoreError, MemoryError};
 use gsys::{
