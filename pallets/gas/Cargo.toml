@@ -24,20 +24,20 @@ common = { package = "gear-common", path = "../../common", default-features = fa
 gear-core = { path = "../../core" }
 
 # Substrate deps
-frame-support = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.33", default-features = false }
-frame-system = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.33", default-features = false }
-frame-benchmarking = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.33", default-features = false, optional = true }
-sp-std = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.33", default-features = false }
-sp-runtime = { version = "6.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.33", default-features = false }
-pallet-balances = { version = "4.0.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.33" }
+frame-support = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.36", default-features = false }
+frame-system = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.36", default-features = false }
+frame-benchmarking = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.36", default-features = false, optional = true }
+sp-std = { version = "5.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.36", default-features = false }
+sp-runtime = { version = "7.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.36", default-features = false }
+pallet-balances = { version = "4.0.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.36" }
 
 [dev-dependencies]
 serde = "1.0.151"
 env_logger = "0.10"
 wabt = "0.10"
 gear-core = { path = "../../core" }
-sp-io = { version = "6.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.33" }
-pallet-timestamp = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.33" }
+sp-io = { version = "7.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.36" }
+pallet-timestamp = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.36" }
 
 [features]
 default = ['std']

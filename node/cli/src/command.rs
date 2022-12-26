@@ -295,6 +295,7 @@ pub fn run() -> sc_cli::Result<()> {
         }
         #[cfg(feature = "try-runtime")]
         Some(Subcommand::TryRuntime(cmd)) => {
+            use sc_executor::{sp_wasm_interface::ExtendedHostFunctions, NativeExecutionDispatch};
             let runner = cli.create_runner(cmd)?;
             let chain_spec = &runner.config().chain_spec;
 
@@ -309,20 +310,23 @@ pub fn run() -> sc_cli::Result<()> {
 
             match chain_spec {
                 #[cfg(feature = "gear-native")]
-                spec if spec.is_gear() => runner.async_run(|config| {
+                spec if spec.is_gear() => runner.async_run(|_| {
                     Ok((
-                        cmd.run::<service::gear_runtime::Block, service::GearExecutorDispatch>(
-                            config,
+                        cmd.run::<service::gear_runtime::Block, ExtendedHostFunctions<
+						sp_io::SubstrateHostFunctions,
+						<service::GearExecutorDispatch as NativeExecutionDispatch>::ExtendHostFunctions,
+					>>(
                         ),
                         task_manager,
                     ))
                 }),
                 #[cfg(feature = "vara-native")]
-                spec if spec.is_vara() => runner.async_run(|config| {
+                spec if spec.is_vara() => runner.async_run(|_| {
                     Ok((
-                        cmd.run::<service::vara_runtime::Block, service::VaraExecutorDispatch>(
-                            config,
-                        ),
+                        cmd.run::<service::vara_runtime::Block, ExtendedHostFunctions<
+						sp_io::SubstrateHostFunctions,
+						<service::VaraExecutorDispatch as NativeExecutionDispatch>::ExtendHostFunctions,
+					>>(),
                         task_manager,
                     ))
                 }),
