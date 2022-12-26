@@ -24,7 +24,6 @@
 #![warn(missing_docs)]
 #![cfg_attr(feature = "strict", deny(warnings))]
 #![doc(html_logo_url = "https://docs.gear.rs/logo.svg")]
-#![feature(step_trait)]
 
 extern crate alloc;
 

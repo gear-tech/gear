@@ -43,7 +43,7 @@ use gsys::{
 };
 use sp_sandbox::{HostError, ReturnValue, Value};
 
-// TODO: change it to u32
+// TODO: change it to u32.
 const PTR_SPECIAL: u32 = i32::MAX as u32;
 
 pub(crate) type SyscallOutput = Result<ReturnValue, HostError>;
@@ -69,6 +69,8 @@ pub enum FuncError<E: Display> {
     #[display(fmt = "Binary code has wrong instrumentation")]
     WrongInstrumentation,
     DecodeValueError,
+    #[display(fmt = "Buffer size {_0} is not eq to pre-registered size {_1}")]
+    WrongBufferSize(usize, u32),
 }
 
 impl<E: Display> From<MemoryAccessError> for FuncError<E> {
@@ -77,6 +79,9 @@ impl<E: Display> From<MemoryAccessError> for FuncError<E> {
             MemoryAccessError::Memory(err) => Self::Memory(err),
             MemoryAccessError::RuntimeBuffer(err) => Self::RuntimeBuffer(err),
             MemoryAccessError::DecodeError => Self::DecodeValueError,
+            MemoryAccessError::WrongBufferSize(buffer_size, size) => {
+                Self::WrongBufferSize(buffer_size, size)
+            }
         }
     }
 }
@@ -112,9 +117,9 @@ fn args_to_str(args: &[Value]) -> String {
 /// To see sys-calls tracing enable this feature and rebuild node.
 macro_rules! sys_trace {
     (target: $target:expr, $($arg:tt)+) => (
-        // if cfg!(feature = "sys-trace") {
+        if cfg!(feature = "sys-trace") {
             log::trace!(target: $target, $($arg)+)
-        // }
+        }
     );
 }
 
@@ -129,9 +134,9 @@ where
         let (pid_value_ptr, payload_ptr, len, delay, err_mid_ptr) = args.iter().read_5()?;
 
         ctx.run(|ctx| {
-            let read_hash_val = ctx.memory_manager.add_read_as(pid_value_ptr);
-            let read_payload = ctx.memory_manager.add_read(payload_ptr, len);
-            let write_err_mid = ctx.memory_manager.add_write_as(err_mid_ptr);
+            let read_hash_val = ctx.memory_manager.new_read_as(pid_value_ptr);
+            let read_payload = ctx.memory_manager.new_read(payload_ptr, len);
+            let write_err_mid = ctx.memory_manager.new_write_as(err_mid_ptr);
 
             let HashWithValue {
                 hash: destination,
@@ -154,9 +159,9 @@ where
             args.iter().read_6()?;
 
         ctx.run(|ctx| {
-            let read_hash_val = ctx.memory_manager.add_read_as(pid_value_ptr);
-            let read_payload = ctx.memory_manager.add_read(payload_ptr, len);
-            let write_err_mid = ctx.memory_manager.add_write_as(err_mid_ptr);
+            let read_hash_val = ctx.memory_manager.new_read_as(pid_value_ptr);
+            let read_payload = ctx.memory_manager.new_read(payload_ptr, len);
+            let write_err_mid = ctx.memory_manager.new_write_as(err_mid_ptr);
 
             let HashWithValue {
                 hash: destination,
@@ -181,8 +186,8 @@ where
         let (handle, pid_value_ptr, delay, err_mid_ptr) = args.iter().read_4()?;
 
         ctx.run(|ctx| {
-            let read_pid_value = ctx.memory_manager.add_read_as(pid_value_ptr);
-            let write_err_mid = ctx.memory_manager.add_write_as(err_mid_ptr);
+            let read_pid_value = ctx.memory_manager.new_read_as(pid_value_ptr);
+            let write_err_mid = ctx.memory_manager.new_write_as(err_mid_ptr);
 
             let HashWithValue {
                 hash: destination,
@@ -207,8 +212,8 @@ where
         let (handle, pid_value_ptr, gas_limit, delay, err_mid_ptr) = args.iter().read_5()?;
 
         ctx.run(|ctx| {
-            let read_pid_value = ctx.memory_manager.add_read_as(pid_value_ptr);
-            let write_err_mid = ctx.memory_manager.add_write_as(err_mid_ptr);
+            let read_pid_value = ctx.memory_manager.new_read_as(pid_value_ptr);
+            let write_err_mid = ctx.memory_manager.new_write_as(err_mid_ptr);
 
             let HashWithValue {
                 hash: destination,
@@ -238,7 +243,7 @@ where
         let err_handle_ptr = args.iter().read()?;
 
         ctx.run(|ctx| {
-            let write_err_handle = ctx.memory_manager.add_write_as(err_handle_ptr);
+            let write_err_handle = ctx.memory_manager.new_write_as(err_handle_ptr);
 
             ctx.ext
                 .send_init()
@@ -254,8 +259,8 @@ where
         let (handle, payload_ptr, len, err_len_ptr) = args.iter().read_4()?;
 
         ctx.run(|ctx| {
-            let read_payload = ctx.memory_manager.add_read(payload_ptr, len);
-            let write_err_len = ctx.memory_manager.add_write_as(err_len_ptr);
+            let read_payload = ctx.memory_manager.new_read(payload_ptr, len);
+            let write_err_len = ctx.memory_manager.new_write_as(err_len_ptr);
 
             let payload = ctx.read(read_payload)?;
 
@@ -277,9 +282,9 @@ where
         let (rid_pid_value_ptr, payload_ptr, len, delay, err_mid_ptr) = args.iter().read_5()?;
 
         ctx.run(|ctx| {
-            let read_rid_pid_value = ctx.memory_manager.add_read_as(rid_pid_value_ptr);
-            let read_payload = ctx.memory_manager.add_read(payload_ptr, len);
-            let write_err_mid = ctx.memory_manager.add_write_as(err_mid_ptr);
+            let read_rid_pid_value = ctx.memory_manager.new_read_as(rid_pid_value_ptr);
+            let read_payload = ctx.memory_manager.new_read(payload_ptr, len);
+            let write_err_mid = ctx.memory_manager.new_write_as(err_mid_ptr);
 
             let TwoHashesWithValue {
                 hash1: reservation_id,
@@ -306,8 +311,8 @@ where
         let (handle, rid_pid_value_ptr, delay, err_mid_ptr) = args.iter().read_4()?;
 
         ctx.run(|ctx| {
-            let read_rid_pid_value = ctx.memory_manager.add_read_as(rid_pid_value_ptr);
-            let write_err_mid = ctx.memory_manager.add_write_as(err_mid_ptr);
+            let read_rid_pid_value = ctx.memory_manager.new_read_as(rid_pid_value_ptr);
+            let write_err_mid = ctx.memory_manager.new_write_as(err_mid_ptr);
 
             let TwoHashesWithValue {
                 hash1: reservation_id,
@@ -352,9 +357,9 @@ where
         let (at, len, buffer_ptr, err_len_ptr): (_, _, u32, _) = args.iter().read_4()?;
 
         ctx.run(|ctx| {
-            let write_err_len = ctx.memory_manager.add_write_as(err_len_ptr);
+            let write_err_len = ctx.memory_manager.new_write_as(err_len_ptr);
             let length = if let Ok(buffer) = Self::validated(&mut ctx.ext, at, len) {
-                let write_buffer = ctx.memory_manager.add_write(buffer_ptr, len);
+                let write_buffer = ctx.memory_manager.new_write(buffer_ptr, len);
                 ctx.memory_manager
                     .write(&mut ctx.memory, write_buffer, buffer)?;
                 0u32
@@ -374,7 +379,7 @@ where
         let size_ptr = args.iter().read()?;
 
         ctx.run(|ctx| {
-            let write_size = ctx.memory_manager.add_write_as(size_ptr);
+            let write_size = ctx.memory_manager.new_write_as(size_ptr);
 
             let size = ctx.ext.size().map_err(FuncError::Core)? as u32;
 
@@ -389,7 +394,7 @@ where
         let inheritor_id_ptr = args.iter().read()?;
 
         ctx.run(|ctx| -> Result<(), _> {
-            let read_inheritor_id = ctx.memory_manager.add_read_decoded(inheritor_id_ptr);
+            let read_inheritor_id = ctx.memory_manager.new_read_decoded(inheritor_id_ptr);
 
             let inheritor_id = ctx.read_decoded(read_inheritor_id)?;
 
@@ -405,7 +410,7 @@ where
         let err_code_ptr = args.iter().read()?;
 
         ctx.run(|ctx| {
-            let write_err_code = ctx.memory_manager.add_write_as(err_code_ptr);
+            let write_err_code = ctx.memory_manager.new_write_as(err_code_ptr);
 
             ctx.ext
                 .status_code()
@@ -456,7 +461,7 @@ where
         let height_ptr = args.iter().read()?;
 
         ctx.run(|ctx| {
-            let write_height = ctx.memory_manager.add_write_as(height_ptr);
+            let write_height = ctx.memory_manager.new_write_as(height_ptr);
 
             let height = ctx.ext.block_height().map_err(FuncError::Core)?;
 
@@ -471,7 +476,7 @@ where
         let timestamp_ptr = args.iter().read()?;
 
         ctx.run(|ctx| {
-            let write_timestamp = ctx.memory_manager.add_write_as(timestamp_ptr);
+            let write_timestamp = ctx.memory_manager.new_write_as(timestamp_ptr);
 
             let timestamp = ctx.ext.block_timestamp().map_err(FuncError::Core)?;
 
@@ -486,7 +491,7 @@ where
         let origin_ptr = args.iter().read()?;
 
         ctx.run(|ctx| {
-            let write_origin = ctx.memory_manager.add_write_as(origin_ptr);
+            let write_origin = ctx.memory_manager.new_write_as(origin_ptr);
 
             let origin = ctx.ext.origin().map_err(FuncError::Core)?;
 
@@ -501,10 +506,10 @@ where
         let (subject_ptr, bn_random_ptr): (_, _) = args.iter().read_2()?;
 
         ctx.run(|ctx| {
-            let read_subject = ctx.memory_manager.add_read_decoded(subject_ptr);
+            let read_subject = ctx.memory_manager.new_read_decoded(subject_ptr);
             let write_bn_random = ctx
                 .memory_manager
-                .add_write_as::<BlockNumberWithHash>(bn_random_ptr);
+                .new_write_as::<BlockNumberWithHash>(bn_random_ptr);
 
             let raw_subject: Hash = ctx.read_decoded(read_subject)?;
 
@@ -525,11 +530,11 @@ where
         let (payload_ptr, len, value_ptr, delay, err_mid_ptr) = args.iter().read_5()?;
 
         ctx.run(|ctx| {
-            let read_payload = ctx.memory_manager.add_read(payload_ptr, len);
-            let write_err_mid = ctx.memory_manager.add_write_as(err_mid_ptr);
+            let read_payload = ctx.memory_manager.new_read(payload_ptr, len);
+            let write_err_mid = ctx.memory_manager.new_write_as(err_mid_ptr);
 
             let value = if value_ptr != PTR_SPECIAL {
-                let read_value = ctx.memory_manager.add_read_decoded::<u128>(value_ptr);
+                let read_value = ctx.memory_manager.new_read_decoded::<u128>(value_ptr);
                 ctx.read_decoded(read_value)?
             } else {
                 0
@@ -550,11 +555,11 @@ where
         let (payload_ptr, len, gas_limit, value_ptr, delay, err_mid_ptr) = args.iter().read_6()?;
 
         ctx.run(|ctx| {
-            let read_payload = ctx.memory_manager.add_read(payload_ptr, len);
-            let write_err_mid = ctx.memory_manager.add_write_as(err_mid_ptr);
+            let read_payload = ctx.memory_manager.new_read(payload_ptr, len);
+            let write_err_mid = ctx.memory_manager.new_write_as(err_mid_ptr);
 
             let value = if value_ptr != PTR_SPECIAL {
-                let read_value = ctx.memory_manager.add_read_decoded::<u128>(value_ptr);
+                let read_value = ctx.memory_manager.new_read_decoded::<u128>(value_ptr);
                 ctx.read_decoded(read_value)?
             } else {
                 0
@@ -575,10 +580,10 @@ where
         let (value_ptr, delay, err_mid_ptr) = args.iter().read_3()?;
 
         ctx.run(|ctx| {
-            let write_err_mid = ctx.memory_manager.add_write_as(err_mid_ptr);
+            let write_err_mid = ctx.memory_manager.new_write_as(err_mid_ptr);
 
             let value = if value_ptr != PTR_SPECIAL {
-                let read_value = ctx.memory_manager.add_read_decoded::<u128>(value_ptr);
+                let read_value = ctx.memory_manager.new_read_decoded::<u128>(value_ptr);
                 ctx.read_decoded(read_value)?
             } else {
                 0
@@ -598,10 +603,10 @@ where
         let (gas_limit, value_ptr, delay, err_mid_ptr) = args.iter().read_4()?;
 
         ctx.run(|ctx| {
-            let write_err_mid = ctx.memory_manager.add_write_as(err_mid_ptr);
+            let write_err_mid = ctx.memory_manager.new_write_as(err_mid_ptr);
 
             let value = if value_ptr != PTR_SPECIAL {
-                let read_value = ctx.memory_manager.add_read_decoded::<u128>(value_ptr);
+                let read_value = ctx.memory_manager.new_read_decoded::<u128>(value_ptr);
                 ctx.read_decoded(read_value)?
             } else {
                 0
@@ -624,9 +629,9 @@ where
         let (rid_value_ptr, payload_ptr, len, delay, err_mid_ptr) = args.iter().read_5()?;
 
         ctx.run(|ctx| {
-            let read_rid_value = ctx.memory_manager.add_read_as(rid_value_ptr);
-            let read_payload = ctx.memory_manager.add_read(payload_ptr, len);
-            let write_err_mid = ctx.memory_manager.add_write_as(err_mid_ptr);
+            let read_rid_value = ctx.memory_manager.new_read_as(rid_value_ptr);
+            let read_payload = ctx.memory_manager.new_read(payload_ptr, len);
+            let write_err_mid = ctx.memory_manager.new_write_as(err_mid_ptr);
 
             let HashWithValue {
                 hash: reservation_id,
@@ -652,8 +657,8 @@ where
         let (rid_value_ptr, delay, err_mid_ptr) = args.iter().read_3()?;
 
         ctx.run(|ctx| {
-            let read_rid_value = ctx.memory_manager.add_read_as(rid_value_ptr);
-            let write_err_mid = ctx.memory_manager.add_write_as(err_mid_ptr);
+            let read_rid_value = ctx.memory_manager.new_read_as(rid_value_ptr);
+            let write_err_mid = ctx.memory_manager.new_write_as(err_mid_ptr);
 
             let HashWithValue {
                 hash: reservation_id,
@@ -678,7 +683,7 @@ where
         let err_mid_ptr = args.iter().read()?;
 
         ctx.run(|ctx| {
-            let write_err_mid = ctx.memory_manager.add_write_as(err_mid_ptr);
+            let write_err_mid = ctx.memory_manager.new_write_as(err_mid_ptr);
 
             ctx.ext
                 .reply_to()
@@ -694,7 +699,7 @@ where
         let err_mid_ptr = args.iter().read()?;
 
         ctx.run(|ctx| {
-            let write_err_mid = ctx.memory_manager.add_write_as(err_mid_ptr);
+            let write_err_mid = ctx.memory_manager.new_write_as(err_mid_ptr);
 
             ctx.ext
                 .signal_from()
@@ -710,8 +715,8 @@ where
         let (payload_ptr, len, err_len_ptr) = args.iter().read_3()?;
 
         ctx.run(|ctx| {
-            let read_payload = ctx.memory_manager.add_read(payload_ptr, len);
-            let write_err_len = ctx.memory_manager.add_write_as(err_len_ptr);
+            let read_payload = ctx.memory_manager.new_read(payload_ptr, len);
+            let write_err_len = ctx.memory_manager.new_write_as(err_len_ptr);
 
             let payload = ctx.read(read_payload)?;
 
@@ -733,10 +738,10 @@ where
         let (offset, len, value_ptr, delay, err_mid_ptr) = args.iter().read_5()?;
 
         ctx.run(|ctx| {
-            let write_err_mid = ctx.memory_manager.add_write_as(err_mid_ptr);
+            let write_err_mid = ctx.memory_manager.new_write_as(err_mid_ptr);
 
             let value = if value_ptr != PTR_SPECIAL {
-                let read_value = ctx.memory_manager.add_read_decoded(value_ptr);
+                let read_value = ctx.memory_manager.new_read_decoded(value_ptr);
                 ctx.read_decoded(read_value)?
             } else {
                 0
@@ -760,7 +765,7 @@ where
         let (offset, len, err_len_ptr) = args.iter().read_3()?;
 
         ctx.run(|ctx| {
-            let write_err_len = ctx.memory_manager.add_write_as(err_len_ptr);
+            let write_err_len = ctx.memory_manager.new_write_as(err_len_ptr);
 
             let result_len = ctx
                 .ext
@@ -780,10 +785,10 @@ where
         let (offset, len, gas_limit, value_ptr, delay, err_mid_ptr) = args.iter().read_6()?;
 
         ctx.run(|ctx| {
-            let write_err_mid = ctx.memory_manager.add_write_as(err_mid_ptr);
+            let write_err_mid = ctx.memory_manager.new_write_as(err_mid_ptr);
 
             let value = if value_ptr != PTR_SPECIAL {
-                let read_value = ctx.memory_manager.add_read_decoded(value_ptr);
+                let read_value = ctx.memory_manager.new_read_decoded(value_ptr);
                 ctx.read_decoded(read_value)?
             } else {
                 0
@@ -809,8 +814,8 @@ where
         let (pid_value_ptr, offset, len, delay, err_mid_ptr) = args.iter().read_5()?;
 
         ctx.run(|ctx| {
-            let read_pid_value = ctx.memory_manager.add_read_as(pid_value_ptr);
-            let write_err_mid = ctx.memory_manager.add_write_as(err_mid_ptr);
+            let read_pid_value = ctx.memory_manager.new_read_as(pid_value_ptr);
+            let write_err_mid = ctx.memory_manager.new_write_as(err_mid_ptr);
 
             let HashWithValue {
                 hash: destination,
@@ -840,7 +845,7 @@ where
         let (handle, offset, len, err_len_ptr) = args.iter().read_4()?;
 
         ctx.run(|ctx| {
-            let write_err_len = ctx.memory_manager.add_write_as(err_len_ptr);
+            let write_err_len = ctx.memory_manager.new_write_as(err_len_ptr);
 
             let result_len = ctx
                 .ext
@@ -860,8 +865,8 @@ where
         let (pid_value_ptr, offset, len, gas_limit, delay, err_mid_ptr) = args.iter().read_6()?;
 
         ctx.run(|ctx| {
-            let read_pid_value = ctx.memory_manager.add_read_as(pid_value_ptr);
-            let write_err_mid = ctx.memory_manager.add_write_as(err_mid_ptr);
+            let read_pid_value = ctx.memory_manager.new_read_as(pid_value_ptr);
+            let write_err_mid = ctx.memory_manager.new_write_as(err_mid_ptr);
 
             let HashWithValue {
                 hash: destination,
@@ -896,7 +901,7 @@ where
         let (data_ptr, data_len): (_, u32) = args.iter().read_2()?;
 
         ctx.run(|ctx| {
-            let read_data = ctx.memory_manager.add_read(data_ptr, data_len);
+            let read_data = ctx.memory_manager.new_read(data_ptr, data_len);
 
             let data = ctx.read(read_data)?;
 
@@ -913,7 +918,7 @@ where
         let (gas, duration, err_rid_ptr) = args.iter().read_3()?;
 
         ctx.run(|ctx| {
-            let write_err_rid = ctx.memory_manager.add_write_as(err_rid_ptr);
+            let write_err_rid = ctx.memory_manager.new_write_as(err_rid_ptr);
 
             ctx.ext
                 .reserve_gas(gas, duration)
@@ -929,8 +934,8 @@ where
         let (reservation_id_ptr, err_unreserved_ptr) = args.iter().read_2()?;
 
         ctx.run(|ctx| {
-            let read_reservation_id = ctx.memory_manager.add_read_decoded(reservation_id_ptr);
-            let write_err_unreserved = ctx.memory_manager.add_write_as(err_unreserved_ptr);
+            let read_reservation_id = ctx.memory_manager.new_read_decoded(reservation_id_ptr);
+            let write_err_unreserved = ctx.memory_manager.new_write_as(err_unreserved_ptr);
 
             let id = ctx.read_decoded(read_reservation_id)?;
 
@@ -948,7 +953,7 @@ where
         let (gas, err_len_ptr) = args.iter().read_2()?;
 
         ctx.run(|ctx| {
-            let write_err_len = ctx.memory_manager.add_write_as(err_len_ptr);
+            let write_err_len = ctx.memory_manager.new_write_as(err_len_ptr);
 
             let len = ctx
                 .ext
@@ -968,7 +973,7 @@ where
         let gas_ptr = args.iter().read()?;
 
         ctx.run(|ctx| {
-            let write_gas = ctx.memory_manager.add_write_as(gas_ptr);
+            let write_gas = ctx.memory_manager.new_write_as(gas_ptr);
 
             let gas = ctx.ext.gas_available().map_err(FuncError::Core)?;
 
@@ -983,7 +988,7 @@ where
         let message_id_ptr = args.iter().read()?;
 
         ctx.run(|ctx| {
-            let write_message_id = ctx.memory_manager.add_write_as(message_id_ptr);
+            let write_message_id = ctx.memory_manager.new_write_as(message_id_ptr);
 
             let message_id = ctx.ext.message_id().map_err(FuncError::Core)?;
 
@@ -998,7 +1003,7 @@ where
         let program_id_ptr = args.iter().read()?;
 
         ctx.run(|ctx| {
-            let write_program_id = ctx.memory_manager.add_write_as(program_id_ptr);
+            let write_program_id = ctx.memory_manager.new_write_as(program_id_ptr);
 
             let program_id = ctx.ext.program_id().map_err(FuncError::Core)?;
 
@@ -1013,7 +1018,7 @@ where
         let source_ptr = args.iter().read()?;
 
         ctx.run(|ctx| {
-            let write_source = ctx.memory_manager.add_write_as(source_ptr);
+            let write_source = ctx.memory_manager.new_write_as(source_ptr);
 
             let source = ctx.ext.source().map_err(FuncError::Core)?;
 
@@ -1028,7 +1033,7 @@ where
         let value_ptr = args.iter().read()?;
 
         ctx.run(|ctx| {
-            let write_value = ctx.memory_manager.add_write_as(value_ptr);
+            let write_value = ctx.memory_manager.new_write_as(value_ptr);
 
             let value = ctx.ext.value().map_err(FuncError::Core)?;
 
@@ -1043,7 +1048,7 @@ where
         let value_ptr = args.iter().read()?;
 
         ctx.run(|ctx| {
-            let write_value = ctx.memory_manager.add_write_as(value_ptr);
+            let write_value = ctx.memory_manager.new_write_as(value_ptr);
 
             let value_available = ctx.ext.value_available().map_err(FuncError::Core)?;
 
@@ -1122,8 +1127,8 @@ where
         let (message_id_ptr, delay, err_len_ptr) = args.iter().read_3()?;
 
         ctx.run(|ctx| {
-            let read_message_id = ctx.memory_manager.add_read_decoded(message_id_ptr);
-            let write_err_len = ctx.memory_manager.add_write_as(err_len_ptr);
+            let read_message_id = ctx.memory_manager.new_read_decoded(message_id_ptr);
+            let write_err_len = ctx.memory_manager.new_write_as(err_len_ptr);
 
             let message_id = ctx.read_decoded(read_message_id)?;
 
@@ -1146,10 +1151,10 @@ where
             args.iter().read_7()?;
 
         ctx.run(|ctx| {
-            let read_cid_value = ctx.memory_manager.add_read_as(cid_value_ptr);
-            let read_salt = ctx.memory_manager.add_read(salt_ptr, salt_len);
-            let read_payload = ctx.memory_manager.add_read(payload_ptr, payload_len);
-            let write_err_mid_pid = ctx.memory_manager.add_write_as(err_mid_pid_ptr);
+            let read_cid_value = ctx.memory_manager.new_read_as(cid_value_ptr);
+            let read_salt = ctx.memory_manager.new_read(salt_ptr, salt_len);
+            let read_payload = ctx.memory_manager.new_read(payload_ptr, payload_len);
+            let write_err_mid_pid = ctx.memory_manager.new_write_as(err_mid_pid_ptr);
 
             let HashWithValue {
                 hash: code_id,
@@ -1181,10 +1186,10 @@ where
         ) = args.iter().read_8()?;
 
         ctx.run(|ctx| {
-            let read_cid_value = ctx.memory_manager.add_read_as(cid_value_ptr);
-            let read_salt = ctx.memory_manager.add_read(salt_ptr, salt_len);
-            let read_payload = ctx.memory_manager.add_read(payload_ptr, payload_len);
-            let write_err_mid_pid = ctx.memory_manager.add_write_as(err_mid_pid_ptr);
+            let read_cid_value = ctx.memory_manager.new_read_as(cid_value_ptr);
+            let read_salt = ctx.memory_manager.new_read(salt_ptr, salt_len);
+            let read_payload = ctx.memory_manager.new_read(payload_ptr, payload_len);
+            let write_err_mid_pid = ctx.memory_manager.new_write_as(err_mid_pid_ptr);
 
             let HashWithValue {
                 hash: code_id,
@@ -1217,12 +1222,12 @@ where
                 .process_error()
                 .map_err(FuncError::Core)?
                 .proc_res(|res| -> Result<(), FuncError<E::Error>> {
-                    let write_err_len = ctx.memory_manager.add_write_as(err_len_ptr);
+                    let write_err_len = ctx.memory_manager.new_write_as(err_len_ptr);
                     let length = match res {
                         Ok(err) => {
                             let write_error_bytes = ctx
                                 .memory_manager
-                                .add_write(error_bytes_ptr, err.len() as u32);
+                                .new_write(error_bytes_ptr, err.len() as u32);
                             ctx.write(write_error_bytes, err.as_ref())?;
                             0
                         }

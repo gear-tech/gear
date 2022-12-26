@@ -81,7 +81,6 @@ where
             return Err(TrapCode::Unreachable.into());
         }
 
-        // TODO: move to run and run_state_taken
         let f = || {
             let gas_global = caller.caller.get_export(GLOBAL_NAME_GAS)?.into_global()?;
             let gas = gas_global.get(&caller.caller).try_into::<i64>()? as u64;
@@ -105,18 +104,6 @@ where
         Ok(caller)
     }
 
-    // pub fn into_parts(self) -> Caller<'a, HostState<E>> {
-    //     self.caller
-    // }
-
-    // pub fn from_parts(caller: Caller<'a, HostState<E>>, memory: &WasmiMemory, ) -> Self {
-    //     Self {
-    //         caller,
-    //         manager: Default::default(),
-    //         memory: *memory,
-    //     }
-    // }
-
     #[track_caller]
     pub fn host_state_mut(&mut self) -> &mut State<E> {
         self.caller
@@ -124,82 +111,6 @@ where
             .as_mut()
             .expect("host_state should be set before execution")
     }
-
-    // #[track_caller]
-    // pub fn call_alloc(&mut self, pages: WasmPageNumber) -> Result<(u32,), FuncError<E::Error>> {
-    //     let mut state = self
-    //         .caller
-    //         .host_data_mut()
-    //         .take()
-    //         .expect("State must be set before execution");
-
-    //     let store = self.caller.as_context_mut();
-    //     let mut mem = MemoryWrapRef {
-    //         memory: self.memory,
-    //         store,
-    //     };
-
-    //     let page = state.ext.alloc(pages, &mut mem).map_err(FuncError::Core)?;
-
-    //     log::debug!("ALLOC: {:?} pages at {:?}", pages, page);
-
-    //     self.caller.host_data_mut().replace(state);
-
-    //     Ok((page.raw(),))
-    // }
-
-    // fn validated(
-    //     ext: &'_ mut E,
-    //     at: u32,
-    //     len: u32,
-    // ) -> Result<&'_ [u8], FuncError<<E as Ext>::Error>> {
-    //     let msg = ext.read().map_err(FuncError::Core)?;
-
-    //     let last_idx = at
-    //         .checked_add(len)
-    //         .ok_or_else(|| FuncError::ReadLenOverflow(at, len))?;
-
-    //     if last_idx as usize > msg.len() {
-    //         return Err(FuncError::ReadWrongRange(at..last_idx, msg.len() as u32));
-    //     }
-
-    //     Ok(&msg[at as usize..last_idx as usize])
-    // }
-
-    // #[track_caller]
-    // pub fn call_read(
-    //     &mut self,
-    //     at: u32,
-    //     len: u32,
-    //     buffer_ptr: u32,
-    //     err_len_ptr: u32,
-    // ) -> Result<(), FuncError<E::Error>> {
-    //     let mut state = self
-    //         .caller
-    //         .host_data_mut()
-    //         .take()
-    //         .expect("State must be set before execution");
-
-    //     let write_err_len = self.add_write_as(err_len_ptr);
-
-    //     let length = if let Ok(buffer) = Self::validated(&mut state.ext, at, len) {
-    //         let mut memory = MemoryWrapRef {
-    //             memory: self.memory,
-    //             store: self.caller.as_context_mut(),
-    //         };
-    //         let write_buffer = self.manager.add_write(buffer_ptr, len);
-    //         self.manager.write(&mut memory, write_buffer, buffer)?;
-    //         0u32
-    //     } else {
-    //         // TODO: issue #1652.
-    //         1u32
-    //     };
-
-    //     self.caller.host_data_mut().replace(state);
-
-    //     self.write_as(write_err_len, length.to_le_bytes())
-    //         .map_err(Into::into)
-    // }
 
     #[track_caller]
     pub fn memory(&mut self) -> MemoryWrapRef<'_, E> {
@@ -236,64 +147,6 @@ where
             Trap::from(TrapCode::Unreachable)
         })
     }
-
-    // #[track_caller]
-    // pub fn call_fallible<T, Call, Res>(
-    //     &mut self,
-    //     memory: &WasmiMemory,
-    //     call: Call,
-    //     result: Res,
-    // ) -> Result<(), Trap>
-    // where
-    //     Call: FnOnce(&mut Self) -> Result<T, <E as Ext>::Error>,
-    //     Res: FnOnce(Result<T, u32>, &mut Self) -> Result<(), MemoryError>,
-    // {
-    //     let res = match call(self) {
-    //         Ok(value) => Ok(value),
-    //         Err(e) => match e.into_ext_error() {
-    //             Ok(ext_error) => Err(ext_error.encoded_size() as u32),
-    //             Err(e) => {
-    //                 self.host_state_mut().err = FuncError::Core(e);
-    //                 return Err(Trap::from(TrapCode::Unreachable));
-    //             }
-    //         },
-    //     };
-
-    //     result(res, self).map_err(|e| {
-    //         self.host_state_mut().err = e.into();
-    //         Trap::from(TrapCode::Unreachable)
-    //     })?;
-
-    //     self.update_globals()?;
-
-    //     Ok(())
-    // }
-
-    // #[track_caller]
-    // pub fn call_infallible<T, Call, Res>(
-    //     &mut self,
-    //     memory: &WasmiMemory,
-    //     call: Call,
-    //     result: Res,
-    // ) -> Result<(), Trap>
-    // where
-    //     Call: FnOnce(&mut Self) -> Result<T, <E as Ext>::Error>,
-    //     Res: FnOnce(T, &mut Self) -> Result<(), MemoryError>,
-    // {
-    //     let res = call(self).map_err(|e| {
-    //         self.host_state_mut().err = FuncError::Core(e);
-    //         Trap::from(TrapCode::Unreachable)
-    //     })?;
-
-    //     result(res, self).map_err(|e| {
-    //         self.host_state_mut().err = e.into();
-    //         Trap::from(TrapCode::Unreachable)
-    //     })?;
-
-    //     self.update_globals()?;
-
-    //     Ok(())
-    // }
 
     #[track_caller]
     pub(crate) fn run<T, F>(&mut self, f: F) -> Result<T, Trap>

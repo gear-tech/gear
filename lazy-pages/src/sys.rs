@@ -320,7 +320,7 @@ pub(crate) unsafe fn process_lazy_pages(
         });
 
         for lazy_page in pages {
-            let granularity_page = GranularityPage::from_offset(lazy_page.offset());
+            let granularity_page = lazy_page.to_page();
             if lazy_page.offset() < stack_end.offset() {
                 // Nothing to do, page has r/w accesses and data is in correct state.
                 if is_signal {

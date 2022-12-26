@@ -24,7 +24,6 @@
 //!
 //! Currently we restrict twice write signal from same page during one execution.
 //! It's not necessary behavior, but more simple and safe.
-#![feature(step_trait)]
 
 use gear_core::{
     lazy_pages::{AccessError, GlobalsCtx, Status},
@@ -104,8 +103,11 @@ pub(crate) struct LazyPagesExecutionContext {
     /// Wasm addresses of lazy-pages, that have been read or write accessed at least once.
     /// Lazy page here is page, which has `size = max(native_page_size, gear_page_size)`.
     pub accessed_pages: BTreeSet<LazyPage>,
+    /// Granularity pages, for which we have already charge gas for read after write.
     pub read_after_write_charged: BTreeSet<GranularityPage>,
+    /// Granularity pages, for which we have already charge gas for read.
     pub read_charged: BTreeSet<GranularityPage>,
+    /// Granularity pages, for which we have already charge gas for write.
     pub write_charged: BTreeSet<GranularityPage>,
     /// End of stack wasm address. Default is `0`, which means,
     /// that wasm data has no stack region. It's not necessary to specify

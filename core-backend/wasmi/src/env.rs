@@ -90,7 +90,7 @@ macro_rules! gas_amount {
         $store
             .state()
             .as_ref()
-            .expect("set before the block; qed")
+            .unwrap_or_else(|| unreachable!("State must be set in `WasmiEnvironment::new`; qed"))
             .ext
             .gas_amount()
     };
@@ -265,7 +265,7 @@ where
         let (gas, allowance) = store
             .state()
             .as_ref()
-            .expect("should be set")
+            .unwrap_or_else(|| unreachable!("State must be set in `WasmiEnvironment::new`"))
             .ext
             .counters();
 
@@ -289,7 +289,10 @@ where
             instance,
             store: None,
         };
-        let state = store.state_mut().as_ref().expect("is set in `new`; qed");
+        let state = store
+            .state_mut()
+            .as_ref()
+            .unwrap_or_else(|| unreachable!("State must be set in `WasmiEnvironment::new`"));
         let globals_provider_dyn_ref = &mut globals_provider as &mut dyn GlobalsAccessTrait;
 
         let needs_execution = entry_point
@@ -333,7 +336,6 @@ where
                 .get_export(&store, entry_point.as_entry())
                 .and_then(Extern::into_func)
                 .ok_or({
-                    let store = &store;
                     (
                         gas_amount!(store),
                         GetWasmExports(entry_point.as_entry().to_string()),
@@ -341,7 +343,6 @@ where
                 })?;
 
             let entry_func = func.typed::<(), (), _>(&mut store).map_err(|_| {
-                let store = &store;
                 (
                     gas_amount!(store),
                     EntryPointWrongType(entry_point.as_entry().to_string()),
@@ -351,17 +352,20 @@ where
             globals_provider_dyn_ref
                 .as_any_mut()
                 .downcast_mut::<GlobalsAccessProvider<E>>()
-                .expect("Just make it, so this panic cannot occur")
+                // Provider is `GlobalsAccessProvider`, so panic is impossible.
+                .unwrap_or_else(|| unreachable!("Provider must be `GlobalsAccessProvider`"))
                 .store
                 .replace(store);
             let res = entry_func.call(
                 globals_provider_dyn_ref
                     .as_any_mut()
                     .downcast_mut::<GlobalsAccessProvider<E>>()
-                    .expect("Just make it, so this panic cannot occur")
+                    // Provider is `GlobalsAccessProvider`, so panic is impossible.
+                    .unwrap_or_else(|| unreachable!("Provider must be `GlobalsAccessProvider`"))
                     .store
                     .as_mut()
-                    .expect("We just set store as Some(...), so this panic cannot occur"),
+                    // We set store above, so panic is impossible.
+                    .unwrap_or_else(|| unreachable!("Store must be set before")),
                 (),
             );
             store = globals_provider.store.take().unwrap();
@@ -375,19 +379,19 @@ where
             .get(&store)
             .try_into::<i64>()
             .ok_or((gas_amount!(store), WrongInjectedGas))?;
-        let allowance = gear_allowance.get(&store).try_into::<i64>().ok_or({
-            let store = &store;
-            (gas_amount!(store), WrongInjectedAllowance)
-        })?;
+        let allowance = gear_allowance
+            .get(&store)
+            .try_into::<i64>()
+            .ok_or((gas_amount!(store), WrongInjectedAllowance))?;
 
-        let runtime = store
+        let state = store
             .state_mut()
             .take()
-            .expect("is set before in `new`; qed");
+            .unwrap_or_else(|| unreachable!("State must be set in `WasmiEnvironment::new`; qed"));
 
         let State {
             mut ext, err: trap, ..
-        } = runtime;
+        } = state;
 
         ext.update_counters(gas as u64, allowance as u64);
 

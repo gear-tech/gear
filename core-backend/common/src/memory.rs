@@ -1,3 +1,23 @@
+// This file is part of Gear.
+
+// Copyright (C) 2021-2022 Gear Technologies Inc.
+// SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
+
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU General Public License for more details.
+
+// You should have received a copy of the GNU General Public License
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+//! Work with WASM program memory in backends.
+
 use core::{marker::PhantomData, mem::size_of};
 
 use alloc::vec::Vec;
@@ -18,8 +38,26 @@ pub enum MemoryAccessError {
     #[display(fmt = "{_0}")]
     RuntimeBuffer(RuntimeBufferSizeError),
     DecodeError,
+    #[display(fmt = "Buffer size {_0} is not eq to pre-registered size {_1}")]
+    WrongBufferSize(usize, u32),
 }
 
+/// Memory access manager. Allows to pre-register memory accesses,
+/// and pre-process, them together. For example:
+/// ```
+/// let manager = MemoryAccessManager::default();
+/// let read1 = manager.new_read(10, 20);
+/// let read2 = manager.new_read_as::<u128>(100);
+/// let write1 = manager.new_write_as::<usize>(190);
+///
+/// // First call of read or write interface leads to pre-processing of
+/// // all already registered memory accesses, and clear `self.reads` and `self.writes`.
+/// let value_u128 = manager.read_as(read2).unwrap();
+///
+/// // Next calls do not lead to access pre-processing.
+/// let value1 = manager.read().unwrap();
+/// manager.write_as(write1, 111).unwrap();
+/// ```
 #[derive(Debug)]
 pub struct MemoryAccessManager<E: Ext> {
     reads: Vec<(u32, u32)>,
@@ -38,18 +76,21 @@ impl<E: Ext> Default for MemoryAccessManager<E> {
 }
 
 impl<E: Ext> MemoryAccessManager<E> {
-    pub fn add_read(&mut self, ptr: u32, size: u32) -> WasmMemoryRead {
+    /// Register new read access.
+    pub fn new_read(&mut self, ptr: u32, size: u32) -> WasmMemoryRead {
         self.reads.push((ptr, size));
         WasmMemoryRead { ptr, size }
     }
-    pub fn add_read_as<T: Sized>(&mut self, ptr: u32) -> WasmMemoryReadAs<T> {
+    /// Register new read static size type access.
+    pub fn new_read_as<T: Sized>(&mut self, ptr: u32) -> WasmMemoryReadAs<T> {
         self.reads.push((ptr, size_of::<T>() as u32));
         WasmMemoryReadAs {
             ptr,
             _phantom: PhantomData,
         }
     }
-    pub fn add_read_decoded<T: Decode + MaxEncodedLen>(
+    /// Register new read decoded type access.
+    pub fn new_read_decoded<T: Decode + MaxEncodedLen>(
         &mut self,
         ptr: u32,
     ) -> WasmMemoryReadDecoded<T> {
@@ -59,17 +100,20 @@ impl<E: Ext> MemoryAccessManager<E> {
             _phantom: PhantomData,
         }
     }
-    pub fn add_write(&mut self, ptr: u32, size: u32) -> WasmMemoryWrite {
+    /// Register new write access.
+    pub fn new_write(&mut self, ptr: u32, size: u32) -> WasmMemoryWrite {
         self.writes.push((ptr, size));
         WasmMemoryWrite { ptr, size }
     }
-    pub fn add_write_as<T: Sized>(&mut self, ptr: u32) -> WasmMemoryWriteAs<T> {
+    /// Register new write static size access.
+    pub fn new_write_as<T: Sized>(&mut self, ptr: u32) -> WasmMemoryWriteAs<T> {
         self.writes.push((ptr, size_of::<T>() as u32));
         WasmMemoryWriteAs {
             ptr,
             _phantom: PhantomData,
         }
     }
+    /// Call pre-processing of registered memory accesses. Clear `self.reads` and `self.writes`.
     fn pre_process_memory_accesses(&mut self) -> Result<(), MemoryAccessError> {
         if self.reads.is_empty() && self.writes.is_empty() {
             return Ok(());
@@ -122,11 +166,9 @@ impl<E: Ext> MemoryAccessManager<E> {
         write: WasmMemoryWrite,
         buff: &[u8],
     ) -> Result<(), MemoryAccessError> {
-        assert_eq!(
-            buff.len(),
-            write.size as usize,
-            "Runtime error: pre-processed size and buff size must be equal"
-        );
+        if buff.len() != write.size as usize {
+            return Err(MemoryAccessError::WrongBufferSize(buff.len(), write.size));
+        }
         self.pre_process_memory_accesses()?;
         memory.write(write.ptr, buff).map_err(Into::into)
     }
@@ -141,26 +183,31 @@ impl<E: Ext> MemoryAccessManager<E> {
     }
 }
 
+/// Read static size type access wrapper.
 pub struct WasmMemoryReadAs<T> {
     ptr: u32,
     _phantom: PhantomData<T>,
 }
 
+/// Read decoded type access wrapper.
 pub struct WasmMemoryReadDecoded<T: Decode + MaxEncodedLen> {
     ptr: u32,
     _phantom: PhantomData<T>,
 }
 
+/// Read access wrapper.
 pub struct WasmMemoryRead {
     ptr: u32,
     size: u32,
 }
 
+/// Write static size type access wrapper.
 pub struct WasmMemoryWriteAs<T> {
     ptr: u32,
     _phantom: PhantomData<T>,
 }
 
+/// Write access wrapper.
 pub struct WasmMemoryWrite {
     ptr: u32,
     size: u32,
