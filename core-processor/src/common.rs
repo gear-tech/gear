@@ -415,7 +415,7 @@ pub struct ExecutionError {
 /// Operation related to gas charging.
 #[derive(Encode, Decode, TypeInfo, Debug, PartialEq, Eq, PartialOrd, Ord, derive_more::Display)]
 pub enum GasOperation {
-    /// Load exisisting memory.
+    /// Load existing memory.
     #[display(fmt = "load memory")]
     LoadMemory,
     /// Grow memory size.
@@ -433,6 +433,9 @@ pub enum GasOperation {
     /// Instantiate Wasm module.
     #[display(fmt = "instantiate Wasm module")]
     ModuleInstantiation,
+    /// Instrument Wasm module.
+    #[display(fmt = "instrument Wasm module")]
+    ModuleInstrumentation,
 }
 
 /// Reason of execution error
@@ -486,6 +489,9 @@ pub enum ExecutionErrorReason {
     /// It's not allowed to set initial data for stack memory pages, if they are specified in WASM code.
     #[display(fmt = "Set initial data for stack pages is restricted")]
     StackPagesHaveInitialData,
+    /// Lazy page status must be set before contract execution.
+    #[display(fmt = "Lazy page status must be set before contract execution")]
+    LazyPagesStatusIsNone,
 }
 
 /// Actor.
@@ -508,8 +514,6 @@ pub struct ExecutableActorData {
     pub pages_with_data: BTreeSet<PageNumber>,
     /// Id of the program code.
     pub code_id: CodeId,
-    /// Length in bytes of the program code.
-    pub code_length_bytes: u32,
     /// Exported functions by the program code.
     pub code_exports: BTreeSet<DispatchKind>,
     /// Count of static memory pages.

@@ -18,7 +18,7 @@
 
 use super::*;
 
-use gear_core::memory::{PageNumber, WasmPageNumber};
+use gear_core::memory::{PageNumber, PageU32Size, WasmPageNumber};
 use gear_wasm_instrument::parity_wasm::{self, elements::*};
 use sp_io::hashing::blake2_256;
 use sp_std::borrow::ToOwned;
@@ -43,7 +43,7 @@ pub fn create_module(num_pages: WasmPageNumber) -> parity_wasm::elements::Module
         Section::Import(ImportSection::with_entries(vec![ImportEntry::new(
             "env".into(),
             "memory".into(),
-            External::Memory(MemoryType::new(num_pages.0, None)),
+            External::Memory(MemoryType::new(num_pages.raw(), None)),
         )])),
         Section::Function(FunctionSection::with_entries(vec![Func::new(0)])),
         Section::Export(ExportSection::with_entries(vec![ExportEntry::new(
@@ -106,7 +106,7 @@ pub fn generate_wasm2(num_pages: WasmPageNumber) -> Result<Vec<u8>, &'static str
             FuncBody::new(
                 vec![Local::new(1, ValueType::I32)],
                 Instructions::new(vec![
-                    Instruction::I32Const(num_pages.0 as i32),
+                    Instruction::I32Const(num_pages.raw() as i32),
                     Instruction::Call(0),
                     Instruction::SetLocal(0),
                     Instruction::End,
@@ -120,7 +120,7 @@ pub fn generate_wasm2(num_pages: WasmPageNumber) -> Result<Vec<u8>, &'static str
 }
 
 pub fn generate_wasm3(payload: Vec<u8>) -> Result<Vec<u8>, &'static str> {
-    let mut module = create_module(WasmPageNumber(1));
+    let mut module = create_module(1.into());
     module
         .insert_section(Section::Custom(CustomSection::new(
             "zeroed_section".to_owned(),
@@ -134,20 +134,19 @@ pub fn generate_wasm3(payload: Vec<u8>) -> Result<Vec<u8>, &'static str> {
 
 pub fn set_program(program_id: H256, code: Vec<u8>, static_pages: WasmPageNumber) {
     let code_id = CodeId::generate(&code).into_origin();
-    let allocations = (0..static_pages.0).map(WasmPageNumber);
+    let allocations: BTreeSet<WasmPageNumber> = static_pages.iter_from_zero().collect();
     let persistent_pages_data: BTreeMap<PageNumber, PageBuf> = allocations
-        .clone()
-        .flat_map(|p| p.to_gear_pages_iter())
+        .iter()
+        .flat_map(|p| p.to_pages_iter())
         .map(|p| (p, PageBuf::new_zeroed()))
         .collect();
     super::set_program_and_pages_data(
         program_id,
         ActiveProgram {
-            allocations: allocations.collect(),
+            allocations,
             pages_with_data: persistent_pages_data.keys().copied().collect(),
             code_hash: code_id,
             code_exports: Default::default(),
-            code_length_bytes: code.len() as u32,
             static_pages,
             state: ProgramState::Initialized,
             gas_reservation_map: GasReservationMap::default(),

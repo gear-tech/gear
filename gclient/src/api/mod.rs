@@ -25,6 +25,7 @@ pub mod storage;
 use crate::{node::ws::WSAddress, EventListener};
 use error::*;
 use gp::api::{signer::Signer, Api};
+use subxt::ext::sp_runtime::AccountId32;
 
 #[derive(Clone)]
 pub struct GearApi(Signer);
@@ -74,12 +75,12 @@ impl GearApi {
 
     // This stuff to be considered.
     pub async fn subscribe(&self) -> Result<EventListener> {
-        let events = self.0.events().await?;
+        let events = self.0.finalized_blocks().await?;
         Ok(EventListener(events))
     }
 
     pub fn set_nonce(&mut self, nonce: u32) {
-        self.0.signer.set_nonce(nonce)
+        self.0.set_nonce(nonce)
     }
 
     pub async fn rpc_nonce(&self) -> Result<u32> {
@@ -88,5 +89,10 @@ impl GearApi {
             .system_account_next_index(self.0.signer.account_id())
             .await
             .map_err(Into::into)
+    }
+
+    /// Return the signer account address.
+    pub fn account_id(&self) -> &AccountId32 {
+        self.0.account_id()
     }
 }

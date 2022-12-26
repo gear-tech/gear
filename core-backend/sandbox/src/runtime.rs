@@ -88,16 +88,19 @@ impl<E: Ext> Runtime<E> {
 }
 
 impl<E: Ext> RuntimeCtx<E> for Runtime<E> {
-    fn alloc(&mut self, pages: u32) -> Result<WasmPageNumber, RuntimeCtxError<E::Error>> {
+    fn alloc(
+        &mut self,
+        pages: WasmPageNumber,
+    ) -> Result<WasmPageNumber, RuntimeCtxError<E::Error>> {
         self.ext
-            .alloc(pages.into(), &mut self.memory)
+            .alloc(pages, &mut self.memory)
             .map_err(RuntimeCtxError::Ext)
     }
 
     fn read_memory(&self, ptr: u32, len: u32) -> Result<Vec<u8>, RuntimeCtxError<E::Error>> {
         let mut buf = RuntimeBuffer::try_new_default(len as usize)?;
 
-        self.memory.read(ptr as usize, buf.get_mut())?;
+        self.memory.read(ptr, buf.get_mut())?;
 
         Ok(buf.into_vec())
     }
@@ -107,7 +110,7 @@ impl<E: Ext> RuntimeCtx<E> for Runtime<E> {
         ptr: u32,
         buf: &mut [u8],
     ) -> Result<(), RuntimeCtxError<E::Error>> {
-        self.memory.read(ptr as usize, buf)?;
+        self.memory.read(ptr, buf)?;
 
         Ok(())
     }
@@ -122,7 +125,7 @@ impl<E: Ext> RuntimeCtx<E> for Runtime<E> {
     }
 
     fn write_output(&mut self, out_ptr: u32, buf: &[u8]) -> Result<(), RuntimeCtxError<E::Error>> {
-        self.memory.write(out_ptr as usize, buf).map_err(Into::into)
+        self.memory.write(out_ptr, buf).map_err(Into::into)
     }
 }
 

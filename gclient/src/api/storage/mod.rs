@@ -24,7 +24,10 @@ use super::{GearApi, Result};
 use crate::Error;
 use gear_core::{ids::*, message::StoredMessage};
 use gp::api::generated::api::{
-    runtime_types::{gear_common::storage::primitives::Interval, gear_core::ids as generated_ids},
+    runtime_types::{
+        gear_common::storage::primitives::Interval, gear_core::ids as generated_ids,
+        pallet_balances::AccountData,
+    },
     storage,
 };
 use std::borrow::Borrow;
@@ -32,6 +35,14 @@ use subxt::ext::sp_runtime::AccountId32;
 
 impl GearApi {
     pub async fn get_from_mailbox(
+        &self,
+        message_id: impl Borrow<MessageId>,
+    ) -> Result<Option<(StoredMessage, Interval<u32>)>> {
+        self.get_from_account_mailbox(self.0.account_id(), message_id)
+            .await
+    }
+
+    pub async fn get_from_account_mailbox(
         &self,
         account_id: impl Borrow<AccountId32>,
         message_id: impl Borrow<MessageId>,
@@ -45,41 +56,42 @@ impl GearApi {
         Ok(data.map(|(m, i)| (m.into(), i)))
     }
 
-    pub async fn total_balance(&self, account_id: AccountId32) -> Result<u128> {
-        let at = storage().balances().account(&account_id);
+    async fn account_data(&self, account_id: &AccountId32) -> Result<AccountData<u128>> {
+        let at = storage().system().account(account_id);
+
         let data = self
             .0
             .storage()
             .fetch(&at, None)
             .await?
-            .ok_or(Error::StorageNotFound)?;
+            .map(|v| v.data)
+            .unwrap_or(AccountData {
+                free: 0,
+                reserved: 0,
+                misc_frozen: 0,
+                fee_frozen: 0,
+            });
+
+        Ok(data)
+    }
+
+    pub async fn total_balance(&self, account_id: &AccountId32) -> Result<u128> {
+        let data = self.account_data(account_id).await?;
 
         data.free
             .checked_add(data.reserved)
             .ok_or(Error::BalanceOverflow)
     }
 
-    pub async fn free_balance(&self, account_id: AccountId32) -> Result<u128> {
-        let at = storage().balances().account(&account_id);
-        let data = self
-            .0
-            .storage()
-            .fetch(&at, None)
-            .await?
-            .ok_or(Error::StorageNotFound)?;
+    pub async fn free_balance(&self, account_id: &AccountId32) -> Result<u128> {
+        let data = self.account_data(account_id).await?;
 
         Ok(data.free)
     }
 
-    pub async fn reserved_balance(&self, account_id: AccountId32) -> Result<u128> {
-        let at = storage().balances().account(&account_id);
-        let data = self
-            .0
-            .storage()
-            .fetch(&at, None)
-            .await?
-            .ok_or(Error::StorageNotFound)?;
+    pub async fn reserved_balance(&self, account_id: &AccountId32) -> Result<u128> {
+        let data = self.account_data(account_id).await?;
 
-        Ok(data.free)
+        Ok(data.reserved)
     }
 }

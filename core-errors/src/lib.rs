@@ -147,7 +147,7 @@ pub enum WaitError {
 pub enum MemoryError {
     /// The error occurs when a program tries to allocate more memory  than
     /// allowed.
-    #[display(fmt = "Memory memory out of maximal bounds")]
+    #[display(fmt = "Memory access out of bounds")]
     OutOfBounds,
 
     /// The error occurs in attempt to free-up a memory page from static area or
@@ -160,13 +160,19 @@ pub enum MemoryError {
     #[display(fmt = "Access to the page not allocated to this program")]
     MemoryAccessError,
 
-    /// WASM page does not contain all necessary Gear pages.
+    /// Invalid page data size.
+    // TODO: (issue #1956) change to u32.
     #[display(fmt = "Page data has wrong size: {_0:#x}")]
     InvalidPageDataSize(u64),
 
     /// Memory size cannot be zero after grow is applied for memory
     #[display(fmt = "Memory unexpectedly has zero size after grow")]
     MemSizeIsZeroAfterGrow,
+
+    /// Memory size cannot be zero after grow is applied for memory
+    // TODO: (issue #1956) make separate error for alloc in allocations context
+    #[display(fmt = "Allocated memory pages or memory size are incorrect")]
+    IncorrectAllocationsSetOrMemSize,
 }
 
 /// Execution error.
