@@ -39,6 +39,7 @@ use gear_core::{
     },
     message::{
         GasLimit, HandlePacket, InitPacket, MessageContext, Packet, ReplyPacket, StatusCode,
+        MAX_PAYLOAD_SIZE,
     },
     reservation::GasReserver,
 };
@@ -611,13 +612,16 @@ impl EnvExt for Ext {
     }
 
     fn read(&mut self) -> Result<&[u8], Self::Error> {
+        let max_payload_size: u32 = MAX_PAYLOAD_SIZE
+            .try_into()
+            .expect("statically asserted to be in u32 bounds");
         let (size, with_error) = self
             .size()?
             .try_into()
             .map(|v| (v, false))
             // This must not happen. because max size of the payload
             // is a known constant (`gear_core::message::MAX_PAYLOAD_SIZE`).
-            .unwrap_or((u32::MAX, true));
+            .unwrap_or((max_payload_size, true));
         self.charge_gas_runtime(RuntimeCosts::Read(size))?;
 
         if with_error {

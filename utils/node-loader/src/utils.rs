@@ -16,9 +16,9 @@ use std::{
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
-/// subxt's GenericError::Rpc::RequestError::RestartNeeded
+/// subxt's GenericError::Rpc::RequestError::RestartNeeded // TODO STRING IS MISSED IN A NEW SUBXT
 pub const SUBXT_RPC_REQUEST_ERR_STR: &str = "Rpc error: The background task been terminated because: Networking or low-level protocol error";
-/// subxt's GenericError::Rpc::RequestError::Call (CallError::Failed)
+/// subxt's GenericError::Rpc::RequestError::Call (CallError::Failed) // TODO STRING IS MISSED IN A NEW SUBXT
 pub const SUBXT_RPC_CALL_ERR_STR: &str = "Transaction would exhaust the block limits";
 pub const EVENTS_TIMEOUT_ERR_STR: &str = "Block events timeout";
 pub const WAITING_TX_FINALIZED_TIMEOUT_ERR_STR: &str =

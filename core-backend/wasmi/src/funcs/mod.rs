@@ -1088,8 +1088,8 @@ where
               -> EmptyOutput {
             let mut caller = CallerWrap::prepare(caller, forbidden)?;
 
-            let mut payload = RuntimeBuffer::try_new_default(len as usize).map_err(|e| {
-                caller.host_state_mut().err = FuncError::RuntimeBufferSize(e);
+            let mut payload = Payload::try_new_default(len as usize).map_err(|e| {
+                caller.host_state_mut().err = FuncError::PayloadBufferSize(e);
                 Trap::from(TrapCode::Unreachable)
             })?;
 
@@ -1376,6 +1376,7 @@ where
             move |caller: Caller<'_, HostState<E>>, string_ptr: u32, len: u32| -> EmptyOutput {
                 let mut caller = CallerWrap::prepare(caller, forbidden)?;
 
+                // todo Shall we use Payload?
                 let mut buffer = RuntimeBuffer::try_new_default(len as usize).map_err(|e| {
                     caller.host_state_mut().err = FuncError::RuntimeBufferSize(e);
                     Trap::from(TrapCode::Unreachable)

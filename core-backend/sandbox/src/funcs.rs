@@ -132,7 +132,10 @@ where
                 hash: destination,
                 value,
             } = ctx.read_memory_as(pid_value_ptr)?;
-            let payload = ctx.read_memory(payload_ptr, len)?.try_into()?;
+            let payload = (Payload::max_len() >= (len as usize))
+                .then_some(ctx.read_memory(payload_ptr, len))
+                .ok_or(FuncError::PayloadSize(PayloadSizeError))??
+                .try_into()?;
 
             ctx.ext
                 .send(HandlePacket::new(destination.into(), payload, value), delay)
@@ -153,7 +156,10 @@ where
                 hash: destination,
                 value,
             } = ctx.read_memory_as(pid_value_ptr)?;
-            let payload = ctx.read_memory(payload_ptr, len)?.try_into()?;
+            let payload = (Payload::max_len() >= (len as usize))
+                .then_some(ctx.read_memory(payload_ptr, len))
+                .ok_or(FuncError::PayloadSize(PayloadSizeError))??
+                .try_into()?;
 
             ctx.ext
                 .send(
@@ -264,7 +270,10 @@ where
                 hash2: destination,
                 value,
             } = ctx.read_memory_as(rid_pid_value_ptr)?;
-            let payload = ctx.read_memory(payload_ptr, len)?.try_into()?;
+            let payload = (Payload::max_len() >= (len as usize))
+                .then_some(ctx.read_memory(payload_ptr, len))
+                .ok_or(FuncError::PayloadSize(PayloadSizeError))??
+                .try_into()?;
 
             ctx.ext
                 .reservation_send(
@@ -477,7 +486,10 @@ where
         let (payload_ptr, len, value_ptr, delay, err_mid_ptr) = args.iter().read_5()?;
 
         ctx.run(|ctx| {
-            let payload = ctx.read_memory(payload_ptr, len)?.try_into()?;
+            let payload = (Payload::max_len() >= (len as usize))
+                .then_some(ctx.read_memory(payload_ptr, len))
+                .ok_or(FuncError::PayloadSize(PayloadSizeError))??
+                .try_into()?;
             let value = if value_ptr as i32 == i32::MAX {
                 0
             } else {
@@ -498,7 +510,10 @@ where
         let (payload_ptr, len, gas_limit, value_ptr, delay, err_mid_ptr) = args.iter().read_6()?;
 
         ctx.run(|ctx| {
-            let payload = ctx.read_memory(payload_ptr, len)?.try_into()?;
+            let payload = (Payload::max_len() >= (len as usize))
+                .then_some(ctx.read_memory(payload_ptr, len))
+                .ok_or(FuncError::PayloadSize(PayloadSizeError))??
+                .try_into()?;
             let value = if value_ptr as i32 == i32::MAX {
                 0
             } else {
@@ -566,7 +581,10 @@ where
                 hash: reservation_id,
                 value,
             } = ctx.read_memory_as(rid_value_ptr)?;
-            let payload = ctx.read_memory(payload_ptr, len)?.try_into()?;
+            let payload = (Payload::max_len() >= (len as usize))
+                .then_some(ctx.read_memory(payload_ptr, len))
+                .ok_or(FuncError::PayloadSize(PayloadSizeError))??
+                .try_into()?;
 
             ctx.ext
                 .reservation_reply(
@@ -806,6 +824,7 @@ where
         let (data_ptr, data_len): (_, u32) = args.iter().read_2()?;
 
         ctx.run(|ctx| {
+            // Todo shall we use Payload here?
             let mut data = RuntimeBuffer::try_new_default(data_len as usize)?;
             ctx.read_memory_into_buf(data_ptr, data.get_mut())?;
 
@@ -1037,8 +1056,14 @@ where
                 hash: code_id,
                 value,
             } = ctx.read_memory_as(cid_value_ptr)?;
-            let salt = ctx.read_memory(salt_ptr, salt_len)?.try_into()?;
-            let payload = ctx.read_memory(payload_ptr, payload_len)?.try_into()?;
+            let salt = (Payload::max_len() >= (len as usize))
+                .then_some(ctx.read_memory(salt_ptr, salt_len))
+                .ok_or(FuncError::PayloadSize(PayloadSizeError))??
+                .try_into()?;
+            let payload = (Payload::max_len() >= (len as usize))
+                .then_some(ctx.read_memory(payload_ptr, payload_len))
+                .ok_or(FuncError::PayloadSize(PayloadSizeError))??
+                .try_into()?;
 
             ctx.ext
                 .create_program(InitPacket::new(code_id.into(), salt, payload, value), delay)
@@ -1069,8 +1094,14 @@ where
                 hash: code_id,
                 value,
             } = ctx.read_memory_as(cid_value_ptr)?;
-            let salt = ctx.read_memory(salt_ptr, salt_len)?.try_into()?;
-            let payload = ctx.read_memory(payload_ptr, payload_len)?.try_into()?;
+            let salt = (Payload::max_len() >= (len as usize))
+                .then_some(ctx.read_memory(salt_ptr, salt_len))
+                .ok_or(FuncError::PayloadSize(PayloadSizeError))??
+                .try_into()?;
+            let payload = (Payload::max_len() >= (len as usize))
+                .then_some(ctx.read_memory(payload_ptr, payload_len))
+                .ok_or(FuncError::PayloadSize(PayloadSizeError))??
+                .try_into()?;
 
             ctx.ext
                 .create_program(
