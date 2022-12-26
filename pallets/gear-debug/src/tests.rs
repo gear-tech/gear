@@ -283,14 +283,14 @@ fn get_last_message_id() -> MessageId {
 }
 
 #[cfg(feature = "lazy-pages")]
-fn append_rest_psg_pages(page: PageNumber, pages_data: &mut BTreeMap<PageNumber, Vec<u8>>) {
+fn append_rest_psg_pages(page: PageNumber, pages_data: &mut BTreeMap<PageNumber, PageBuf>) {
     use gear_core::memory::GranularityPage;
 
     page.to_page::<GranularityPage>()
         .to_pages_iter()
         .filter(|&p| p != page)
         .for_each(|p| {
-            pages_data.insert(p, PageBuf::new_zeroed().to_vec());
+            pages_data.insert(p, PageBuf::new_zeroed());
         });
 }
 
@@ -444,8 +444,8 @@ fn check_not_allocated_pages() {
         page7_data[0] = 0x42;
 
         let mut persistent_pages = BTreeMap::new();
-        persistent_pages.insert(gear_page0, page0_data.to_vec());
-        persistent_pages.insert(gear_page7, page7_data.to_vec());
+        persistent_pages.insert(gear_page0, page0_data.clone());
+        persistent_pages.insert(gear_page7, page7_data);
 
         // For all pages, which is write accessed, and has no data in storage yet,
         // we must upload to storage all pages from [PAGE_STORAGE_GRANULARITY] interval.
@@ -481,7 +481,7 @@ fn check_not_allocated_pages() {
         GearDebug::do_snapshot();
 
         page0_data[0] = 0x1;
-        persistent_pages.insert(gear_page0, page0_data.to_vec());
+        persistent_pages.insert(gear_page0, page0_data);
 
         System::assert_last_event(
             crate::Event::DebugDataSnapshot(DebugData {
@@ -667,18 +667,17 @@ fn check_changed_pages_in_storage() {
         GearDebug::do_snapshot();
 
         let mut persistent_pages = BTreeMap::new();
-        let empty_data = PageBuf::new_zeroed();
 
         let gear_page1 = PageNumber::from_offset(page1_accessed_addr);
-        let mut page1_data = empty_data.to_vec();
+        let mut page1_data = PageBuf::new_zeroed();
         page1_data[..10].copy_from_slice(b"0123456780".as_slice());
 
         let gear_page8 = PageNumber::from_offset(page8_accessed_addr);
-        let mut page8_data = empty_data.to_vec();
+        let mut page8_data = PageBuf::new_zeroed();
         page8_data[(page8_accessed_addr % PageNumber::size()) as usize] = 0x42;
 
         let gear_page9 = PageNumber::from_offset(page9_accessed_addr);
-        let mut page9_data = empty_data.to_vec();
+        let mut page9_data = PageBuf::new_zeroed();
         page9_data[(page9_accessed_addr % PageNumber::size()) as usize] = 0x42;
 
         persistent_pages.insert(gear_page1, page1_data);
@@ -719,13 +718,13 @@ fn check_changed_pages_in_storage() {
         GearDebug::do_snapshot();
 
         let gear_page3 = PageNumber::from_offset(page3_accessed_addr);
-        let mut page3_data = empty_data.to_vec();
+        let mut page3_data = PageBuf::new_zeroed();
         page3_data[(page3_accessed_addr % PageNumber::size()) as usize] = 0x42;
 
         let gear_page4 = PageNumber::from_offset(page4_accessed_addr);
 
         persistent_pages.insert(gear_page3, page3_data);
-        persistent_pages.insert(gear_page4, empty_data.to_vec());
+        persistent_pages.insert(gear_page4, PageBuf::new_zeroed());
 
         [gear_page3, gear_page4]
             .into_iter()
@@ -805,11 +804,10 @@ fn check_gear_stack_end() {
         GearDebug::do_snapshot();
 
         let mut persistent_pages = BTreeMap::new();
-        let empty_data = PageBuf::new_zeroed();
 
         let gear_page2 = WasmPageNumber::from(2).to_page();
         let gear_page3 = WasmPageNumber::from(3).to_page();
-        let mut page_data = empty_data.to_vec();
+        let mut page_data = PageBuf::new_zeroed();
         page_data[0] = 0x42;
 
         persistent_pages.insert(gear_page2, page_data.clone());

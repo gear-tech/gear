@@ -45,7 +45,7 @@ use frame_support::{
 };
 use gear_core::{
     ids::{CodeId, MessageId, ProgramId},
-    memory::{Error as MemoryError, PageBuf, PageNumber, WasmPageNumber},
+    memory::{PageBuf, PageNumber, WasmPageNumber},
     message::DispatchKind,
     reservation::GasReservationMap,
 };

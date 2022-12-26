@@ -114,7 +114,7 @@ mod gear {
                     .fetch(&at, None)
                     .await?
                     .ok_or_else(|| ClientError::PageNotFound(page.0, pid.encode_hex()))?;
-                pages.insert(page.0, (value.0 as Box<[_]>).into_vec());
+                pages.insert(page.0, value.0 .0);
             }
 
             Ok(pages)

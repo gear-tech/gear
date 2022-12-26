@@ -32,8 +32,6 @@ pub enum Error {
         program_id: ProgramId,
         page: PageNumber,
     },
-    /// PageBuf object cannot be created.
-    FailedToCreatePageBuf(MemoryError),
 }
 
 /// Trait to work with program data in a storage.
@@ -111,9 +109,7 @@ pub trait ProgramStorage {
                     page: *page,
                 },
             )?;
-            let page_buf =
-                PageBuf::new_from_vec(data.to_vec()).map_err(Error::FailedToCreatePageBuf)?;
-            pages_data.insert(*page, page_buf);
+            pages_data.insert(*page, data);
         }
 
         Ok(pages_data)

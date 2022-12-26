@@ -59,6 +59,16 @@ impl<T: Clone + Default, E: Default, const N: usize> LimitedVec<T, E, N> {
         Ok(Self(vec![T::default(); len], PhantomData))
     }
 
+    /// Creates limited vector filled with the specified `value`.
+    pub fn filled_with(value: T) -> Self {
+        Self(vec![value; N], PhantomData)
+    }
+
+    /// Extends the array to its limit and fills with the specified `value`.
+    pub fn extend_with(&mut self, value: T) {
+        self.0.resize(N, value);
+    }
+
     /// Append `value` to the end of vector.
     pub fn try_push(&mut self, value: T) -> Result<(), E> {
         (self.0.len() != N).then_some(()).ok_or_else(E::default)?;

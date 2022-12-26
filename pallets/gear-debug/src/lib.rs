@@ -38,7 +38,7 @@ pub mod pallet {
     use frame_system::pallet_prelude::*;
     use gear_core::{
         ids::{CodeId, ProgramId},
-        memory::{PageNumber, PageU32Size, WasmPageNumber},
+        memory::{PageBuf, PageNumber, PageU32Size, WasmPageNumber},
         message::{StoredDispatch, StoredMessage},
     };
     use primitive_types::H256;
@@ -83,12 +83,10 @@ pub mod pallet {
     pub enum Error<T> {}
 
     /// Program debug info.
-    // TODO: unfortunately we cannot store pages data in [PageBuf],
-    // because polkadot-js api can not support this type.
     #[derive(Encode, Decode, Clone, Default, PartialEq, Eq, TypeInfo)]
     pub struct ProgramInfo {
         pub static_pages: WasmPageNumber,
-        pub persistent_pages: BTreeMap<PageNumber, Vec<u8>>,
+        pub persistent_pages: BTreeMap<PageNumber, PageBuf>,
         pub code_hash: H256,
     }
 
@@ -221,10 +219,8 @@ pub mod pallet {
                         id,
                         active.pages_with_data.iter(),
                     )
-                    .unwrap()
-                    .into_iter()
-                    .map(|(page, data)| (page, data.into_vec()))
-                    .collect();
+                    .unwrap();
+
                     ProgramDetails {
                         id,
                         state: {
