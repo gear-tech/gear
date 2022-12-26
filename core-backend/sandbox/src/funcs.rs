@@ -35,7 +35,9 @@ use gear_core::{
     env::Ext,
     ids::ReservationId,
     memory::{Memory, PageU32Size, WasmPageNumber},
-    message::{HandlePacket, InitPacket, MessageWaitedType, Payload, PayloadSizeError, ReplyPacket},
+    message::{
+        HandlePacket, InitPacket, MessageWaitedType, Payload, PayloadSizeError, ReplyPacket,
+    },
 };
 use gear_core_errors::{CoreError, MemoryError};
 use gsys::{
@@ -1054,11 +1056,11 @@ where
                 hash: code_id,
                 value,
             } = ctx.read_memory_as(cid_value_ptr)?;
-            let salt = (Payload::max_len() >= (len as usize))
+            let salt = (Payload::max_len() >= (salt_len as usize))
                 .then_some(ctx.read_memory(salt_ptr, salt_len))
                 .ok_or(FuncError::PayloadSize(PayloadSizeError))??
                 .try_into()?;
-            let payload = (Payload::max_len() >= (len as usize))
+            let payload = (Payload::max_len() >= (payload_len as usize))
                 .then_some(ctx.read_memory(payload_ptr, payload_len))
                 .ok_or(FuncError::PayloadSize(PayloadSizeError))??
                 .try_into()?;
@@ -1092,11 +1094,11 @@ where
                 hash: code_id,
                 value,
             } = ctx.read_memory_as(cid_value_ptr)?;
-            let salt = (Payload::max_len() >= (len as usize))
+            let salt = (Payload::max_len() >= (salt_len as usize))
                 .then_some(ctx.read_memory(salt_ptr, salt_len))
                 .ok_or(FuncError::PayloadSize(PayloadSizeError))??
                 .try_into()?;
-            let payload = (Payload::max_len() >= (len as usize))
+            let payload = (Payload::max_len() >= (payload_len as usize))
                 .then_some(ctx.read_memory(payload_ptr, payload_len))
                 .ok_or(FuncError::PayloadSize(PayloadSizeError))??
                 .try_into()?;
