@@ -186,11 +186,13 @@ fn default_processor_context<T: Config>() -> ProcessorContext {
     }
 }
 
-fn verify_process((notes, err_len_ptr): (Vec<JournalNote>, Option<u32>)) {
+fn verify_process((notes, err_len_ptrs): (Vec<JournalNote>, Vec<u32>)) {
     assert!(
         !notes.is_empty(),
         "Journal notes cannot be empty after execution"
     );
+
+    let mut pages_data = BTreeMap::new();
 
     for note in notes {
         match note {
@@ -203,25 +205,42 @@ fn verify_process((notes, err_len_ptr): (Vec<JournalNote>, Option<u32>)) {
             JournalNote::UpdatePage {
                 page_number, data, ..
             } => {
-                if let Some(err_len_ptr) = err_len_ptr {
-                    let mem = page_number.offset()..page_number.inc().unwrap().offset();
-                    if !mem.contains(&err_len_ptr) {
-                        continue;
-                    }
-
-                    let err_len_offset = (err_len_ptr - mem.start) as usize;
-                    let data = data.into_vec();
-                    let err_len = data[err_len_offset..err_len_offset + 4].try_into().unwrap();
-                    let err_len = u32::from_le_bytes(err_len);
-                    assert_eq!(err_len, 0, "Fallible sys-call returned error");
-                }
+                pages_data.insert(page_number, data);
             }
             _ => {}
         }
     }
+
+    for err_len_ptr in err_len_ptrs {
+        let page_number = PageNumber::from_offset(err_len_ptr);
+        let next_page_number = page_number.inc().unwrap();
+
+        let err_len_offset = (err_len_ptr - page_number.offset()) as usize;
+
+        let get_page = |page_number| {
+            pages_data
+                .get(&page_number)
+                .cloned()
+                .map(|page| page.into_vec())
+                .unwrap_or_else(|| vec![0; 0x1000])
+        };
+
+        let page = get_page(page_number);
+        let next_page = get_page(next_page_number);
+        let err_len: Vec<u8> = page
+            .into_iter()
+            .chain(next_page.into_iter())
+            .skip(err_len_offset)
+            .take(4)
+            .collect();
+
+        let err_len = err_len.try_into().unwrap();
+        let err_len = u32::from_le_bytes(err_len);
+        assert_eq!(err_len, 0, "Fallible sys-call returned error");
+    }
 }
 
-fn run_process<T>(exec: Exec<T>) -> (Vec<JournalNote>, Option<u32>)
+fn run_process<T>(exec: Exec<T>) -> (Vec<JournalNote>, Vec<u32>)
 where
     T: Config,
     T::AccountId: Origin,
@@ -233,7 +252,7 @@ where
             exec.random_data,
             exec.memory_pages,
         ),
-        exec.err_len_ptr,
+        exec.err_len_ptrs,
     )
 }
 
@@ -306,7 +325,7 @@ pub struct Exec<T: Config> {
     context: ProcessExecutionContext,
     random_data: (Vec<u8>, u32),
     memory_pages: BTreeMap<PageNumber, PageBuf>,
-    err_len_ptr: Option<u32>,
+    err_len_ptrs: Vec<u32>,
 }
 
 benchmarks! {
@@ -1080,7 +1099,7 @@ benchmarks! {
 
     gr_create_program_wgas_per_kb {
         let p in 0 .. MAX_PAYLOAD_LEN_KB;
-        let s in 0 .. MAX_PAYLOAD_LEN_KB;
+        let s in 1 .. MAX_PAYLOAD_LEN_KB;
         let mut res = None;
         let exec = Benches::<T>::gr_create_program_wgas_per_kb(p, s)?;
     }: {
