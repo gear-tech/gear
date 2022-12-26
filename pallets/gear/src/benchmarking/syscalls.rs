@@ -1559,7 +1559,7 @@ where
                     // salt ptr
                     Counter(err_mid_pid_offset, 4),
                     // salt len
-                    Regular(Instruction::I32Const(salt_len as i32)),
+                    Regular(Instruction::I32Const(salt_len)),
                     // payload ptr
                     Regular(Instruction::I32Const(payload_offset as i32)),
                     // payload len
