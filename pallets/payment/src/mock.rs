@@ -22,7 +22,7 @@ use frame_support::{
     traits::{
         ConstU128, ConstU8, Contains, Currency, FindAuthor, OnFinalize, OnInitialize, OnUnbalanced,
     },
-    weights::{constants::WEIGHT_PER_SECOND, ConstantMultiplier},
+    weights::{constants::WEIGHT_REF_TIME_PER_SECOND, ConstantMultiplier, Weight},
 };
 use frame_support_test::TestRandomness;
 use frame_system as system;
@@ -110,7 +110,7 @@ parameter_types! {
     pub const SS58Prefix: u8 = 42;
     pub const ExistentialDeposit: u64 = 1;
     pub RuntimeBlockWeights: frame_system::limits::BlockWeights = frame_system::limits::BlockWeights::simple_max(
-        (WEIGHT_PER_SECOND/2).set_proof_size(u64::MAX)
+        Weight::from_parts(WEIGHT_REF_TIME_PER_SECOND / 2, u64::MAX)
     );
 }
 

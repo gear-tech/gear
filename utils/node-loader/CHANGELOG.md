@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.3] 2022-12-21. Make better logging experience.
+### Added
+- Generating random names of **`adjective`-`noun`** format is introduced. The name is set as a prefix to the current run log file(s). Also the name is logged.
+### Changed
+- Remove target, file location and line number from stdout logs. They still remain in file logging as it's considered as a more verbose logging.
+### Fixed
+- Removed double logging to the stdout.
+- Removed formatting with ansi symbols for stdout logger.
+
+
 ## [0.1.2] 2022-12-20. Make deterministic generation of seed for code seed generator.
 ### Added
 - Logging seed for code seed generator.
