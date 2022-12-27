@@ -10,8 +10,8 @@ use crate::{
 };
 use codec::Encode;
 use common::{
-    benchmarking, scheduler::SchedulingCostsPerBlock, storage::*, ActiveProgram, CodeStorage,
-    GasTree, Origin, ProgramStorage,
+    benchmarking, scheduler::SchedulingCostsPerBlock, storage::*, CodeStorage, GasTree, Origin,
+    ProgramStorage,
 };
 use core::{marker::PhantomData, mem, mem::size_of};
 use core_processor::{
@@ -30,10 +30,7 @@ use gear_core::{
 use gear_wasm_instrument::{parity_wasm::elements::Instruction, syscalls::SysCallName};
 use sp_core::H256;
 use sp_runtime::traits::UniqueSaturatedInto;
-use sp_std::{
-    convert::{TryFrom, TryInto},
-    prelude::*,
-};
+use sp_std::{convert::TryInto, prelude::*};
 
 use super::{Exec, Program};
 
@@ -383,20 +380,19 @@ where
 
         // insert gas reservation slots
         let program_id = ProgramId::from_origin(instance.addr);
-        let mut program = ProgramStorageOf::<T>::get_program(program_id)
-            .and_then(|p| ActiveProgram::try_from(p).ok())
-            .unwrap();
-        for x in 0..r * API_BENCHMARK_BATCH_SIZE {
-            program.gas_reservation_map.insert(
-                ReservationId::from(x as u64),
-                GasReservationSlot {
-                    amount: 1_000,
-                    start: 1,
-                    finish: 100,
-                },
-            );
-        }
-        ProgramStorageOf::<T>::add_program(program_id, program).unwrap();
+        ProgramStorageOf::<T>::update_active_program(program_id, |program| {
+            for x in 0..r * API_BENCHMARK_BATCH_SIZE {
+                program.gas_reservation_map.insert(
+                    ReservationId::from(x as u64),
+                    GasReservationSlot {
+                        amount: 1_000,
+                        start: 1,
+                        finish: 100,
+                    },
+                );
+            }
+        })
+        .unwrap();
 
         prepare::<T>(
             instance.caller.into_origin(),
@@ -751,20 +747,19 @@ where
 
         // insert gas reservation slots
         let program_id = ProgramId::from_origin(instance.addr);
-        let mut program = ProgramStorageOf::<T>::get_program(program_id)
-            .and_then(|p| ActiveProgram::try_from(p).ok())
-            .unwrap();
-        for x in 0..r * API_BENCHMARK_BATCH_SIZE {
-            program.gas_reservation_map.insert(
-                ReservationId::from(x as u64),
-                GasReservationSlot {
-                    amount: 1_000,
-                    start: 1,
-                    finish: 100,
-                },
-            );
-        }
-        ProgramStorageOf::<T>::add_program(program_id, program).unwrap();
+        ProgramStorageOf::<T>::update_active_program(program_id, |program| {
+            for x in 0..r * API_BENCHMARK_BATCH_SIZE {
+                program.gas_reservation_map.insert(
+                    ReservationId::from(x as u64),
+                    GasReservationSlot {
+                        amount: 1_000,
+                        start: 1,
+                        finish: 100,
+                    },
+                );
+            }
+        })
+        .unwrap();
 
         prepare::<T>(
             instance.caller.into_origin(),
@@ -823,20 +818,19 @@ where
 
         // insert gas reservation slots
         let program_id = ProgramId::from_origin(instance.addr);
-        let mut program = ProgramStorageOf::<T>::get_program(program_id)
-            .and_then(|p| ActiveProgram::try_from(p).ok())
-            .unwrap();
-        for x in 0..API_BENCHMARK_BATCH_SIZE {
-            program.gas_reservation_map.insert(
-                ReservationId::from(x as u64),
-                GasReservationSlot {
-                    amount: 1_000,
-                    start: 1,
-                    finish: 100,
-                },
-            );
-        }
-        ProgramStorageOf::<T>::add_program(program_id, program).unwrap();
+        ProgramStorageOf::<T>::update_active_program(program_id, |program| {
+            for x in 0..API_BENCHMARK_BATCH_SIZE {
+                program.gas_reservation_map.insert(
+                    ReservationId::from(x as u64),
+                    GasReservationSlot {
+                        amount: 1_000,
+                        start: 1,
+                        finish: 100,
+                    },
+                );
+            }
+        })
+        .unwrap();
 
         prepare::<T>(
             instance.caller.into_origin(),
@@ -966,20 +960,19 @@ where
 
         // insert gas reservation slots
         let program_id = ProgramId::from_origin(instance.addr);
-        let mut program = ProgramStorageOf::<T>::get_program(program_id)
-            .and_then(|p| ActiveProgram::try_from(p).ok())
-            .unwrap();
-        for x in 0..r * API_BENCHMARK_BATCH_SIZE {
-            program.gas_reservation_map.insert(
-                ReservationId::from(x as u64),
-                GasReservationSlot {
-                    amount: 1_000,
-                    start: 1,
-                    finish: 100,
-                },
-            );
-        }
-        ProgramStorageOf::<T>::add_program(program_id, program).unwrap();
+        ProgramStorageOf::<T>::update_active_program(program_id, |program| {
+            for x in 0..r * API_BENCHMARK_BATCH_SIZE {
+                program.gas_reservation_map.insert(
+                    ReservationId::from(x as u64),
+                    GasReservationSlot {
+                        amount: 1_000,
+                        start: 1,
+                        finish: 100,
+                    },
+                );
+            }
+        })
+        .unwrap();
 
         prepare::<T>(
             instance.caller.into_origin(),
