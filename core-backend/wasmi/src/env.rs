@@ -45,7 +45,7 @@ use gear_core::{
     memory::{HostPointer, PageU32Size, WasmPageNumber},
     message::{DispatchKind, WasmEntry},
 };
-use gear_wasm_instrument::{GLOBAL_NAME_ALLOWANCE, GLOBAL_NAME_GAS};
+use gear_wasm_instrument::{GLOBAL_NAME_ALLOWANCE, GLOBAL_NAME_GAS, GLOBAL_NAME_STATUS};
 use wasmi::{
     core::Value, Engine, Extern, Global, Instance, Linker, Memory, MemoryType, Module, Store,
 };
@@ -310,7 +310,7 @@ where
         let globals_ctx = GlobalsCtx {
             global_gas_name: GLOBAL_NAME_GAS.to_string(),
             global_allowance_name: GLOBAL_NAME_ALLOWANCE.to_string(),
-            global_state_name: "gear_status".to_string(),
+            global_state_name: GLOBAL_NAME_STATUS.to_string(),
             lazy_pages_weights: LazyPagesWeights {
                 read: state.ext.runtime_cost(RuntimeCosts::LazyPagesRead),
                 write: state.ext.runtime_cost(RuntimeCosts::LazyPagesWrite),

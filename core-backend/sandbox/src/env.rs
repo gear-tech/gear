@@ -43,7 +43,7 @@ use gear_core::{
 };
 use gear_wasm_instrument::{
     syscalls::SysCallName::{self, *},
-    GLOBAL_NAME_ALLOWANCE, GLOBAL_NAME_GAS,
+    GLOBAL_NAME_ALLOWANCE, GLOBAL_NAME_GAS, GLOBAL_NAME_STATUS,
 };
 use sp_sandbox::{
     default_executor::{EnvironmentDefinitionBuilder, Instance, Memory as DefaultExecutorMemory},
@@ -308,7 +308,7 @@ where
             Some(GlobalsCtx {
                 global_gas_name: GLOBAL_NAME_GAS.to_string(),
                 global_allowance_name: GLOBAL_NAME_ALLOWANCE.to_string(),
-                global_state_name: "gear_status".to_string(),
+                global_state_name: GLOBAL_NAME_STATUS.to_string(),
                 lazy_pages_weights: LazyPagesWeights {
                     read: runtime.ext.runtime_cost(RuntimeCosts::LazyPagesRead),
                     write: runtime.ext.runtime_cost(RuntimeCosts::LazyPagesWrite),

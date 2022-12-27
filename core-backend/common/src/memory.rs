@@ -45,6 +45,8 @@ pub enum MemoryAccessError {
 /// Memory access manager. Allows to pre-register memory accesses,
 /// and pre-process, them together. For example:
 /// ```
+/// use crate::MemoryAccessManager;
+///
 /// let manager = MemoryAccessManager::default();
 /// let read1 = manager.new_read(10, 20);
 /// let read2 = manager.new_read_as::<u128>(100);

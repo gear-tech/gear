@@ -51,6 +51,7 @@ use wasmi::{
     AsContextMut, Caller, Func, Memory as WasmiMemory, Store,
 };
 
+// TODO: change it to u32::MAX (issue #2027)
 const PTR_SPECIAL: u32 = i32::MAX as u32;
 
 #[derive(Debug, derive_more::Display, derive_more::From)]

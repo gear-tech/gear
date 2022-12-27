@@ -43,20 +43,25 @@ use gsys::{
 };
 use sp_sandbox::{HostError, ReturnValue, Value};
 
-// TODO: change it to u32.
+// TODO: change it to u32::MAX (issue #2027)
 const PTR_SPECIAL: u32 = i32::MAX as u32;
 
 pub(crate) type SyscallOutput = Result<ReturnValue, HostError>;
 
 #[derive(Debug, derive_more::Display, derive_more::From)]
 pub enum FuncError<E: Display> {
+    #[display(fmt = "{_0}")]
     Core(E),
     #[from]
+    #[display(fmt = "{_0}")]
     RuntimeCtx(RuntimeCtxError<E>),
     #[from]
+    #[display(fmt = "{_0}")]
     Memory(MemoryError),
     #[from]
+    #[display(fmt = "{_0}")]
     PayloadSize(PayloadSizeError),
+    #[display(fmt = "{_0}")]
     RuntimeBuffer(RuntimeBufferSizeError),
     #[display(fmt = "Failed to parse debug string: {_0}")]
     DebugString(FromUtf8Error),
@@ -68,6 +73,7 @@ pub enum FuncError<E: Display> {
     ReadLenOverflow(u32, u32),
     #[display(fmt = "Binary code has wrong instrumentation")]
     WrongInstrumentation,
+    #[display(fmt = "Cannot decode value from memory")]
     DecodeValueError,
     #[display(fmt = "Buffer size {_0} is not eq to pre-registered size {_1}")]
     WrongBufferSize(usize, u32),
