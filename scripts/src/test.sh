@@ -30,7 +30,7 @@ EOF
 }
 
 workspace_test() {
-  cargo nextest run --workspace "$@" --profile ci --no-fail-fast
+  cargo +nightly nextest run --workspace "$@" --profile ci --no-fail-fast
 }
 
 # $1 - ROOT DIR

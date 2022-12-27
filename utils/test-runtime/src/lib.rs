@@ -153,8 +153,6 @@ pub enum Extrinsic {
     StorageChange(Vec<u8>, Option<Vec<u8>>),
 }
 
-parity_util_mem::malloc_size_of_is_0!(Extrinsic); // non-opaque extrinsic does not need this
-
 #[cfg(feature = "std")]
 impl serde::Serialize for Extrinsic {
     fn serialize<S>(&self, seq: S) -> Result<S::Ok, S::Error>

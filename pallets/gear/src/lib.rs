@@ -1312,6 +1312,7 @@ pub mod pallet {
         ///
         /// Emits the following events:
         /// - `SavedCode(H256)` - when the code is saved in storage.
+        #[pallet::call_index(0)]
         #[pallet::weight(
             <T as Config>::WeightInfo::upload_code(code.len() as u32)
         )]
@@ -1369,6 +1370,7 @@ pub mod pallet {
         /// Ghost program can be removed by their original author via an explicit call.
         /// The funds stored by a ghost program will be release to the author once the program
         /// has been removed.
+        #[pallet::call_index(1)]
         #[pallet::weight(
             <T as Config>::WeightInfo::upload_program(code.len() as u32, salt.len() as u32)
         )]
@@ -1431,6 +1433,7 @@ pub mod pallet {
         /// # NOTE
         ///
         /// For the details of this extrinsic, see `upload_code`.
+        #[pallet::call_index(2)]
         #[pallet::weight(<T as Config>::WeightInfo::create_program(salt.len() as u32))]
         pub fn create_program(
             origin: OriginFor<T>,
@@ -1473,6 +1476,7 @@ pub mod pallet {
         ///
         /// Emits the following events:
         /// - `DispatchMessageEnqueued(MessageInfo)` when dispatch message is placed in the queue.
+        #[pallet::call_index(3)]
         #[pallet::weight(<T as Config>::WeightInfo::send_message(payload.len() as u32))]
         pub fn send_message(
             origin: OriginFor<T>,
@@ -1566,6 +1570,7 @@ pub mod pallet {
         ///
         /// NOTE: only user who is destination of the message, can claim value
         /// or reply on the message from mailbox.
+        #[pallet::call_index(4)]
         #[pallet::weight(<T as Config>::WeightInfo::send_reply(payload.len() as u32))]
         pub fn send_reply(
             origin: OriginFor<T>,
@@ -1654,6 +1659,7 @@ pub mod pallet {
         ///
         /// NOTE: only user who is destination of the message, can claim value
         /// or reply on the message from mailbox.
+        #[pallet::call_index(5)]
         #[pallet::weight(<T as Config>::WeightInfo::claim_value())]
         pub fn claim_value(
             origin: OriginFor<T>,
@@ -1670,6 +1676,7 @@ pub mod pallet {
         }
 
         /// Reset all pallet associated storage.
+        #[pallet::call_index(6)]
         #[pallet::weight(0)]
         pub fn reset(origin: OriginFor<T>) -> DispatchResult {
             ensure_root(origin)?;
@@ -1685,6 +1692,7 @@ pub mod pallet {
         }
 
         /// Process message queue
+        #[pallet::call_index(7)]
         #[pallet::weight((Weight::zero(), DispatchClass::Mandatory))]
         pub fn run(origin: OriginFor<T>) -> DispatchResultWithPostInfo {
             ensure_none(origin)?;

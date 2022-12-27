@@ -266,6 +266,7 @@ pub mod pallet {
         ///
         /// Emits the following events:
         /// - `DebugMode(debug_mode_on).
+        #[pallet::call_index(0)]
         #[pallet::weight(<T as Config>::WeightInfo::enable_debug_mode())]
         pub fn enable_debug_mode(
             origin: OriginFor<T>,
