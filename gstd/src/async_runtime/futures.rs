@@ -18,18 +18,16 @@
 
 //! Module for future-management.
 
-use crate::{
-    prelude::{BTreeMap, Box},
-    MessageId,
-};
+use crate::{prelude::Box, MessageId};
 use core::{
     future::Future,
     pin::Pin,
     task::{Context, Waker},
 };
 use futures::FutureExt;
+use hashbrown::HashMap;
 
-pub(crate) type FuturesMap = BTreeMap<MessageId, Task>;
+pub(crate) type FuturesMap = HashMap<MessageId, Task>;
 
 type PinnedFuture = Pin<Box<dyn Future<Output = ()> + 'static>>;
 
