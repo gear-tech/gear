@@ -7,6 +7,7 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
+  DB_PATH: /home/ec2-user/gear-data/chains/gear_staging_testnet_v4
 
 jobs:
 
@@ -54,9 +55,30 @@ jobs:
           push: true
           tags: ghcr.io/gear-tech/node:latest, ${{ needs.tag-image.outputs.image_tag }}
 
-  deploy-one-validator:
+  backup-db-before-update:
     runs-on: ubuntu-latest
     needs: [docker, tag-image]
+    steps:
+      - name: Create backup DB before update
+        uses: dawidd6/action-ansible-playbook@v2
+        with:
+          directory: ./ansible/
+          playbook: backup_DB.yml
+          key: ${{secrets.SSH_PRIVATE_KEY}}
+          inventory: |
+            [node:vars]
+            chat_id='${{ secrets.TELEGRAM_CHANNEL_ID_STG }}'
+            bot_id='${{ secrets.TELEGRAM_BOT_TOKEN }}'
+            build_number=${{ github.run_number }}
+            db_path=${{ env.DB_PATH }}
+            mount_id=${{ secrets.MOUNT_ID_TESTNET }}
+            [node]
+            ${{secrets.GEAR_NODE_2}}
+            ${{secrets.ARCHIVE_NODE}}
+
+  deploy-one-validator:
+    runs-on: ubuntu-latest
+    needs: [docker, tag-image, backup-db-before-update]
     steps:
       - name: Checkout
         uses: actions/checkout@v3
@@ -70,7 +92,7 @@ jobs:
       - name: Send telegram notify before run playbook
         uses: appleboy/telegram-action@master
         with:
-          to: ${{ secrets.TELEGRAM_CHANNEL_ID }}
+          to: ${{ secrets.TELEGRAM_CHANNEL_ID_STG }}
           token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           message: |
             Attention! Instances will be temporarily unavailable!
@@ -96,7 +118,7 @@ jobs:
   deploy-all-validators:
     runs-on: ubuntu-latest
     environment: production
-    needs: [docker, deploy-one-validator,tag-image]
+    needs: [docker, deploy-one-validator, tag-image, backup-db-before-update]
     steps:
 
       - name: Checkout
@@ -111,7 +133,7 @@ jobs:
       - name: Send telegram notify before run playbook
         uses: appleboy/telegram-action@master
         with:
-          to: ${{ secrets.TELEGRAM_CHANNEL_ID }}
+          to: ${{ secrets.TELEGRAM_CHANNEL_ID_STG }}
           token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           message: |
             Attention! Instances will be temporarily unavailable!

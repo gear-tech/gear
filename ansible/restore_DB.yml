@@ -1,0 +1,258 @@
+- name: DB restore 
+  hosts: all
+  strategy: free
+  remote_user: ec2-user
+  become: yes
+
+  tasks:
+    - name: Check mount
+      shell: df -h|grep "{{ mount_id }}"
+      register: check_mount
+      ignore_errors: true
+
+    - block:
+        - name: Send notify if backup directory not mounted
+          telegram:
+            token: "{{ bot_id }}"
+            api_args:
+              chat_id: "{{ chat_id }}"
+              parse_mode: 'HTML'
+              text: |
+                <b>Status:</b> 🔥
+
+                <b>Description:</b> Backup and update was cancelled
+                <b>Labels:</b>
+                - HOST: {{ ansible_fqdn }}
+                - CAUSE: Backup directory not mounted
+        
+        - name: Stop playbook
+          shell: exit 1
+      when: check_mount.stdout | length == 0
+
+    - block:
+        - name: Stop docker container
+          shell: /usr/local/bin/docker-compose -f /home/ec2-user/docker-compose.yaml down
+
+        - name: Chain info before restore
+          shell: docker run -it --rm -v /home/ec2-user/gear-data/:/gear/ ghcr.io/gear-tech/node /usr/local/bin/gear chain-info --base-path /gear/ 
+          register: chain_info_before_restore
+
+        - debug:
+            var: chain_info_before_restore.stdout
+
+        - name: Rename previous db directory
+          shell: mv {{ db_path }}/db {{ db_path }}/db_before_restore_full_backup_`date +'%d.%m.%Y__%H-%M'`
+
+        - name: Send notify before restore
+          telegram:
+            token: "{{ bot_id }}"
+            api_args:
+              chat_id: "{{ chat_id }}"
+              parse_mode: 'HTML'
+              text: |
+                <b>Status :</b> ℹ️
+
+                <b>Description:</b> Start restore DB
+                <b>Labels:</b>
+                 - HOST: {{ ansible_fqdn }}
+                 - TYPE: {{ restore_type }}
+                 - NAME: full.tar.gz
+
+        - name: Restore latest full backup
+          shell: >
+            mkdir -p {{ db_path }} /mnt/backups/{{ ansible_fqdn }}/
+            && tar -xz
+            -f /mnt/backups/{{ source_backup_path }}/full.tar.gz
+            -C {{ db_path }}/
+            && echo "`date +'%d.%m.%Y | %H-%M'`: Latest full backup was successfully restored" >> /mnt/backups/{{ ansible_fqdn }}/LOG
+        - set_fact: 
+            full_backup_was_restored: true
+        
+        - name: Chain info after restore
+          shell: docker run -it --rm -v /home/ec2-user/gear-data/:/gear/ ghcr.io/gear-tech/node /usr/local/bin/gear chain-info --base-path /gear/ 
+          register: chain_info_after_restore
+
+        - debug:
+            var: chain_info_after_restore.stdout
+
+        - name: Remove previous db directory
+          shell: rm -rf {{ db_path }}/db_before_restore_full*
+
+        - name: Start docker-compose
+          shell: /usr/local/bin/docker-compose -f /home/ec2-user/docker-compose.yaml up -d
+
+        - wait_for:
+            timeout: 60
+          delegate_to: localhost
+
+        - name: Check new block pruduction after restore
+          shell: > 
+            curl -k -u '{{ prom_login }}:{{ prom_pass }}' 
+            --data-urlencode 'query=irate(substrate_block_height{status="finalized",hostname="{{ ansible_fqdn }}"}[1m])*10>1'
+            {{ prom_query_url }} | jq '.data.result[] | .value[1]' | tr -d \"
+          register: check_blocks
+
+        - set_fact: 
+            blocks_production: ✅
+            cacheable: yes
+          when: check_blocks.stdout | int > 1
+
+        - set_fact: 
+            blocks_production: ❌
+            cacheable: yes
+          when: check_blocks.stdout == ''
+
+        - name: Check errors in log after restore
+          shell: > 
+            curl -k -G -s 
+            --data-urlencode 'query=sum by(host,gear_network,loki)(count_over_time({job="docker_node",host="{{ ansible_fqdn }}"} |~ "(?i)error"[1m])) > 0'
+            {{ loki_query_url }} | jq '.data.result[] | .value[1]' | tr -d \"\n
+          register: check_logs
+
+        - set_fact: 
+            error_log: ✅
+            cacheable: yes
+          when: check_logs.stdout == ''
+
+        - set_fact: 
+            error_log: ❌
+            cacheable: yes
+          when: check_logs.stdout | int >= 1
+
+        - name: Send notify after restore latest full backup
+          telegram:
+            token: "{{ bot_id }}"
+            api_args:
+              chat_id: "{{ chat_id }}"
+              parse_mode: 'HTML'
+              text: |
+                <b>Status :</b> ✅
+
+                <b>Description:</b> Full backup DB was successfully restored
+                <b>Labels:</b>
+                 - HOST: {{ ansible_fqdn }}
+                 - COUNT FINALIZED BLOCKS BEFORE RESTORE: {{ chain_info_before_restore.stdout_lines[5] | regex_search('[0-9].*') }}
+                 - COUNT FINALIZED BLOCKS AFTER RESTORE: {{ chain_info_after_restore.stdout_lines[5] | regex_search('[0-9].*') }}
+                 - BLOCKS PRODUCTION: {{ blocks_production }}
+                 - ERORRS: {{ error_log }}
+          when: full_backup_was_restored is defined
+      when: check_mount.stdout | length != 0 and restore_type is defined and restore_type == "full"
+
+    - block:
+        - name: Stop docker container
+          shell: /usr/local/bin/docker-compose -f /home/ec2-user/docker-compose.yaml down
+
+        - name: Chain info before restore
+          shell: docker run -it --rm -v /home/ec2-user/gear-data/:/gear/ ghcr.io/gear-tech/node /usr/local/bin/gear chain-info --base-path /gear/ 
+          register: chain_info_before_restore
+
+        - debug:
+            var: chain_info_before_restore.stdout
+
+        - name: Rename previous db directory
+          shell: mv {{ db_path }}/db {{ db_path }}/db_before_restore_incremental_`date +'%d.%m.%Y__%H-%M'`
+
+        - name: Send notify before restore
+          telegram:
+            token: "{{ bot_id }}"
+            api_args:
+              chat_id: "{{ chat_id }}"
+              parse_mode: 'HTML'
+              text: |
+                <b>Status :</b> ℹ️
+
+                <b>Description:</b> Start restore DB
+                <b>Labels:</b>
+                 - HOST: {{ ansible_fqdn }}
+                 - TYPE: {{ restore_type }}
+                 - NAME: {{ increment_backup_name }}
+
+        - name: Restore {{ increment_backup_name }}
+          shell: |
+            mkdir -p {{ db_path }} /mnt/backups/{{ ansible_fqdn }}/
+            tar -xz \
+            -f /mnt/backups/{{ source_backup_path }}/full.tar.gz \
+            -C {{ db_path }}/ \
+            && for db_list in `find /mnt/backups/{{ source_backup_path }}/ -name "incremental*.tar.gz" -type f -printf "%f\n" | sort -n`
+            do
+              tar --incremental -xvzf $db_list -C {{ db_path }}
+              if [ {{ increment_backup_name }} = $db_list ]
+                then
+                  break
+              fi
+            done \
+            && echo "`date +'%d.%m.%Y | %H-%M'`: {{ increment_backup_name }} backup was successfully restored" >> /mnt/backups/{{ ansible_fqdn }}/LOG
+          args:
+            executable: /bin/bash
+        - set_fact: 
+            incremental_backup_was_restored: true
+        
+        - name: Chain info after restore
+          shell: docker run -it --rm -v /home/ec2-user/gear-data/:/gear/ ghcr.io/gear-tech/node /usr/local/bin/gear chain-info --base-path /gear/ 
+          register: chain_info_after_restore
+
+        - debug:
+            var: chain_info_after_restore.stdout
+
+        - name: Remove previous db directory
+          shell: rm -rf {{ db_path }}/db_before_restore_incremental_*
+
+        - name: Start docker-compose
+          shell: /usr/local/bin/docker-compose -f /home/ec2-user/docker-compose.yaml up -d
+
+        - wait_for:
+            timeout: 60
+          delegate_to: localhost
+
+        - name: Check new block pruduction after restore
+          shell: > 
+            curl -k -u '{{ prom_login }}:{{ prom_pass }}' 
+            --data-urlencode 'query=irate(substrate_block_height{status="finalized",hostname="{{ ansible_fqdn }}"}[1m])*10>1'
+            {{ prom_query_url }} | jq '.data.result[] | .value[1]' | tr -d \"
+          register: check_blocks
+
+        - set_fact: 
+            blocks_production: ✅
+            cacheable: yes
+          when: check_blocks.stdout | int > 1
+
+        - set_fact: 
+            blocks_production: ❌
+            cacheable: yes
+          when: check_blocks.stdout == ''
+
+        - name: Check errors in log after restore
+          shell: > 
+            curl -k -G -s 
+            --data-urlencode 'query=sum by(host,gear_network,loki)(count_over_time({job="docker_node",host="{{ ansible_fqdn }}"} |~ "(?i)error"[1m])) > 0'
+            {{ loki_query_url }} | jq '.data.result[] | .value[1]' | tr -d \"\n
+          register: check_logs
+
+        - set_fact: 
+            error_log: ✅
+            cacheable: yes
+          when: check_logs.stdout == ''
+
+        - set_fact: 
+            error_log: ❌
+            cacheable: yes
+          when: check_logs.stdout | int >= 1
+
+        - name: Send notify after restore {{ increment_backup_name }}
+          telegram:
+            token: "{{ bot_id }}"
+            api_args:
+              chat_id: "{{ chat_id }}"
+              parse_mode: 'HTML'
+              text: |
+                <b>Status :</b> ✅
+
+                <b>Description:</b> Incremental backup DB was successfully restored
+                <b>Labels:</b>
+                 - HOST: {{ ansible_fqdn }}
+                 - COUNT FINALIZED BLOCKS BEFORE RESTORE: {{ chain_info_before_restore.stdout_lines[5] | regex_search('[0-9].*') }}
+                 - COUNT FINALIZED BLOCKS AFTER RESTORE: {{ chain_info_after_restore.stdout_lines[5] | regex_search('[0-9].*') }}
+                 - BLOCKS PRODUCTION: {{ blocks_production }}
+                 - ERORRS: {{ error_log }}
+          when: incremental_backup_was_restored is defined
+      when: check_mount.stdout | length != 0 and restore_type is defined and restore_type == "increment"
