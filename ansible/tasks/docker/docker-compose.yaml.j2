@@ -8,10 +8,10 @@ services:
       - "9944:9944"
       - "9615:9615"
     image: "{{ gear_image_tag }}"
-    {% if rpc is defined %}
+{% if rpc is defined %}
     environment:
       - RUST_LOG=gear=trace
-    {% endif %}
+{% endif %}
     volumes:
       - "/home/ec2-user/gear-data/:/gear/"
     command: >
