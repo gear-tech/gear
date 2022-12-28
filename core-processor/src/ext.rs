@@ -32,7 +32,7 @@ use gear_core::{
     env::Ext as EnvExt,
     gas::{ChargeResult, GasAllowanceCounter, GasAmount, GasCounter, Token, ValueCounter},
     ids::{CodeId, MessageId, ProgramId, ReservationId},
-    lazy_pages::{AccessError, GlobalsCtx, Status},
+    lazy_pages::{AccessError, Status},
     memory::{
         AllocInfo, AllocationsContext, GrowHandler, GrowHandlerNothing, Memory, PageBuf,
         PageNumber, PageU32Size, WasmPageNumber,
@@ -104,7 +104,6 @@ pub trait ProcessorExt {
         mem: &mut impl Memory,
         prog_id: ProgramId,
         stack_end: Option<WasmPageNumber>,
-        globals_ctx: Option<GlobalsCtx>,
     );
 
     /// Lazy pages contract post execution actions
@@ -218,7 +217,6 @@ impl ProcessorExt for Ext {
         _mem: &mut impl Memory,
         _prog_id: ProgramId,
         _stack_end: Option<WasmPageNumber>,
-        _globals_ctx: Option<GlobalsCtx>,
     ) {
         unreachable!()
     }

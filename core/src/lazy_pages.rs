@@ -20,65 +20,7 @@
 
 use core::fmt::Debug;
 
-use crate::memory::HostPointer;
-use alloc::string::String;
 use codec::{Decode, Encode};
-use core::any::Any;
-
-/// Informs lazy-pages whether they work with native or WASM runtime.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Encode, Decode)]
-pub enum GlobalsAccessMod {
-    /// Is wasm runtime.
-    WasmRuntime,
-    /// Is native runtime.
-    NativeRuntime,
-}
-
-/// Lazy-pages cases weights.
-#[derive(Debug, Clone, PartialEq, Eq, Encode, Decode)]
-pub struct LazyPagesWeights {
-    /// Read one gear page weight.
-    pub read: u64,
-    /// Write to one gear page weight.
-    pub write: u64,
-    /// Write to one gear page weight, which has been already read accessed.
-    pub write_after_read: u64,
-}
-
-/// Globals ctx for lazy-pages initialization.
-#[derive(Debug, Clone, PartialEq, Eq, Encode, Decode)]
-pub struct GlobalsCtx {
-    /// Gas amount global name.
-    pub global_gas_name: String,
-    /// Gas allowance amount global name.
-    pub global_allowance_name: String,
-    /// Gear status global name.
-    pub global_state_name: String,
-    /// Lazy-pages access weights.
-    pub lazy_pages_weights: LazyPagesWeights,
-    /// Raw pointer to the globals access provider.
-    pub globals_access_ptr: HostPointer,
-    /// Access mod, currently two: native or WASM runtime.
-    pub globals_access_mod: GlobalsAccessMod,
-}
-
-/// Globals access error.
-#[derive(Debug)]
-pub struct GlobalsAccessError;
-
-/// Globals access trait.
-pub trait GlobalsAccessTrait {
-    /// Returns global `name` value, if `name` is I64 global export.
-    fn get_i64(&self, name: &str) -> Result<i64, GlobalsAccessError>;
-    /// Set global `name` == `value`, if `name` is I64 global export.
-    fn set_i64(&mut self, name: &str, value: i64) -> Result<(), GlobalsAccessError>;
-    /// Returns global `name` value, if `name` is I32 global export.
-    fn get_i32(&self, name: &str) -> Result<i32, GlobalsAccessError>;
-    /// Set global `name` == `value`, if `name` is I32 global export.
-    fn set_i32(&mut self, name: &str, value: i32) -> Result<(), GlobalsAccessError>;
-    /// Returns as `&mut syn Any`.
-    fn as_any_mut(&mut self) -> &mut dyn Any;
-}
 
 /// Lazy-pages status.
 /// By default in program initialization status is set as `Normal`.

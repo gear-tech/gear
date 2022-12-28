@@ -31,14 +31,13 @@ use alloc::{
     vec::Vec,
 };
 use gear_backend_common::{
-    BackendReport, Environment, GetGasAmount, IntoExtInfo, TerminationReason, TrapExplanation,
+    BackendReport, Environment, GetGasAmount, IntoExtInfo, TerminationReason,
 };
 use gear_core::{
     code::InstrumentedCode,
     env::Ext as EnvExt,
     gas::{ChargeResult, GasAllowanceCounter, GasCounter, ValueCounter},
     ids::ProgramId,
-    lazy_pages::GlobalsCtx,
     memory::{AllocationsContext, Memory, PageBuf, PageNumber, PageU32Size, WasmPageNumber},
     message::{
         ContextSettings, DispatchKind, IncomingDispatch, IncomingMessage, MessageContext, WasmEntry,
@@ -46,7 +45,7 @@ use gear_core::{
     program::Program,
     reservation::GasReserver,
 };
-use gear_core_errors::{ExtError, MemoryError};
+use gear_core_errors::MemoryError;
 
 pub(crate) enum ChargeForBytesResult {
     Ok,
@@ -242,7 +241,6 @@ fn prepare_memory<A: ProcessorExt, M: Memory>(
     pages_data: &mut BTreeMap<PageNumber, PageBuf>,
     static_pages: WasmPageNumber,
     stack_end: Option<WasmPageNumber>,
-    globals_ctx: Option<GlobalsCtx>,
     mem: &mut M,
 ) -> Result<(), ExecutionErrorReason> {
     if let Some(stack_end) = stack_end {
@@ -264,7 +262,7 @@ fn prepare_memory<A: ProcessorExt, M: Memory>(
         if !pages_data.is_empty() {
             return Err(ExecutionErrorReason::InitialPagesContainsDataInLazyPagesMode);
         }
-        A::lazy_pages_init_for_program(mem, program_id, stack_end, globals_ctx);
+        A::lazy_pages_init_for_program(mem, program_id, stack_end);
     } else {
         // If we executes without lazy pages, then we have to save all initial data for static pages,
         // in order to be able to identify pages, which has been changed during execution.
@@ -431,48 +429,25 @@ pub fn execute_wasm<
             program.code().exports().clone(),
             memory_size,
         )?;
-        env.execute(|memory, stack_end, globals_ctx: Option<GlobalsCtx>| {
+        env.execute(|memory, stack_end| {
             prepare_memory::<A, E::Memory>(
                 program_id,
                 &mut pages_initial_data,
                 static_pages,
                 stack_end,
-                globals_ctx,
                 memory,
             )
         })
     };
     let (termination, memory, ext) = match execute() {
         Ok(BackendReport {
-            termination_reason: mut termination,
+            termination_reason: termination,
             memory_wrap: mut memory,
             ext,
         }) => {
             // released pages initial data will be added to `pages_initial_data` after execution.
             if A::LAZY_PAGES_ENABLED {
                 A::lazy_pages_post_execution_actions(&mut memory);
-
-                let status = if let Some(status) = A::lazy_pages_status() {
-                    status
-                } else {
-                    return Err(ExecutionError {
-                        program_id,
-                        gas_amount: ext.into_gas_amount(),
-                        reason: ExecutionErrorReason::LazyPagesStatusIsNone,
-                    });
-                };
-
-                match status {
-                    gear_core::lazy_pages::Status::Normal => {}
-                    gear_core::lazy_pages::Status::GasLimitExceeded => {
-                        termination = TerminationReason::Trap(TrapExplanation::Core(
-                            ExtError::Execution(gear_core_errors::ExecutionError::GasLimitExceeded),
-                        ))
-                    }
-                    gear_core::lazy_pages::Status::GasAllowanceExceeded => {
-                        termination = TerminationReason::GasAllowanceExceeded
-                    }
-                }
             }
 
             (termination, memory, ext)
@@ -635,13 +610,12 @@ pub fn execute_for_reply<
             program.code().exports().clone(),
             memory_size,
         )?;
-        env.execute(|memory, stack_end, globals_ctx| {
+        env.execute(|memory, stack_end| {
             prepare_memory::<A, E::Memory>(
                 program.id(),
                 &mut pages_initial_data,
                 static_pages,
                 stack_end,
-                globals_ctx,
                 memory,
             )
         })
@@ -701,7 +675,6 @@ mod tests {
             _mem: &mut impl Memory,
             _prog_id: ProgramId,
             _stack_end: Option<WasmPageNumber>,
-            _globals_ctx: Option<GlobalsCtx>,
         ) {
         }
 
@@ -722,7 +695,6 @@ mod tests {
             _mem: &mut impl Memory,
             _prog_id: ProgramId,
             _stack_end: Option<WasmPageNumber>,
-            _globals_ctx: Option<GlobalsCtx>,
         ) {
         }
 

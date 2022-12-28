@@ -24,7 +24,7 @@ use gear_core::{
     env::Ext as EnvExt,
     gas::GasAmount,
     ids::{MessageId, ProgramId, ReservationId},
-    lazy_pages::{AccessError, GlobalsCtx, Status},
+    lazy_pages::{AccessError, Status},
     memory::{GrowHandler, Memory, PageNumber, PageU32Size, WasmPageNumber},
     message::{HandlePacket, InitPacket, ReplyPacket, StatusCode},
 };
@@ -88,9 +88,8 @@ impl ProcessorExt for LazyPagesExt {
         mem: &mut impl Memory,
         prog_id: ProgramId,
         stack_end: Option<WasmPageNumber>,
-        globals_ctx: Option<GlobalsCtx>,
     ) {
-        lazy_pages::init_for_program(mem, prog_id, stack_end, globals_ctx);
+        lazy_pages::init_for_program(mem, prog_id, stack_end);
     }
 
     fn lazy_pages_post_execution_actions(mem: &mut impl Memory) {
@@ -98,7 +97,8 @@ impl ProcessorExt for LazyPagesExt {
     }
 
     fn lazy_pages_status() -> Option<Status> {
-        lazy_pages::get_status()
+        // TODO: currently status is always `Normal`, change it after charging in lazy-pages.
+        Some(Status::Normal)
     }
 }
 
@@ -351,9 +351,10 @@ impl EnvExt for LazyPagesExt {
     }
 
     fn pre_process_memory_accesses(
-        reads: &[(u32, u32)],
-        writes: &[(u32, u32)],
+        _reads: &[(u32, u32)],
+        _writes: &[(u32, u32)],
     ) -> Result<(), AccessError> {
-        lazy_pages::pre_process_memory_accesses(reads, writes)
+        // TODO: make pre-processing after we add charging in lazy pages.
+        Ok(())
     }
 }

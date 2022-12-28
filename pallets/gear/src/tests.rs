@@ -1781,10 +1781,8 @@ fn lazy_pages() {
         // Dirty hack: lazy pages info is stored in thread local static variables,
         // so after contract execution lazy-pages information
         // remains correct and we can use it here.
-        let released_pages: BTreeSet<u32> = gear_ri::gear_ri::get_released_pages()
-            .iter()
-            .map(|page| page.raw())
-            .collect();
+        let released_pages: BTreeSet<u32> =
+            gear_ri::gear_ri::get_released_pages().into_iter().collect();
 
         // checks accessed pages set
         let native_size = page_size::get() as u32;
@@ -1842,10 +1840,8 @@ fn lazy_pages() {
 
         run_to_block(4, None);
 
-        let released_pages: BTreeSet<u32> = gear_ri::gear_ri::get_released_pages()
-            .iter()
-            .map(|page| page.raw())
-            .collect();
+        let released_pages: BTreeSet<u32> =
+            gear_ri::gear_ri::get_released_pages().into_iter().collect();
         let mut expected_released = BTreeSet::new();
 
         // released from 0 wasm page:

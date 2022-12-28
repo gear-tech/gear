@@ -195,7 +195,7 @@ impl Token for RuntimeToken {
 }
 
 /// Enumerates syscalls that can be charged by gas meter.
-#[derive(Debug, Copy, Clone)]
+#[derive(Copy, Clone)]
 pub enum RuntimeCosts {
     /// Weight of calling `alloc`.
     Alloc,

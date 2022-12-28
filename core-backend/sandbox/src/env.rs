@@ -34,16 +34,14 @@ use gear_backend_common::{
     STACK_END_EXPORT_NAME,
 };
 use gear_core::{
-    costs::RuntimeCosts,
     env::Ext,
     gas::GasAmount,
-    lazy_pages::{GlobalsAccessMod, GlobalsCtx, LazyPagesWeights},
     memory::{PageU32Size, WasmPageNumber},
     message::{DispatchKind, WasmEntry},
 };
 use gear_wasm_instrument::{
     syscalls::SysCallName::{self, *},
-    GLOBAL_NAME_ALLOWANCE, GLOBAL_NAME_GAS, GLOBAL_NAME_STATUS,
+    GLOBAL_NAME_ALLOWANCE, GLOBAL_NAME_GAS,
 };
 use sp_sandbox::{
     default_executor::{EnvironmentDefinitionBuilder, Instance, Memory as DefaultExecutorMemory},
@@ -268,7 +266,7 @@ where
         pre_execution_handler: F,
     ) -> Result<BackendReport<Self::Memory, E>, Self::Error>
     where
-        F: FnOnce(&mut Self::Memory, Option<WasmPageNumber>, Option<GlobalsCtx>) -> Result<(), T>,
+        F: FnOnce(&mut Self::Memory, Option<WasmPageNumber>) -> Result<(), T>,
         T: fmt::Display,
     {
         use SandboxEnvironmentError::*;
@@ -304,26 +302,7 @@ where
             .set_global_val(GLOBAL_NAME_ALLOWANCE, Value::I64(allowance as i64))
             .map_err(|_| (runtime.ext.gas_amount(), WrongInjectedAllowance))?;
 
-        let globals_ctx = if cfg!(not(feature = "std")) {
-            Some(GlobalsCtx {
-                global_gas_name: GLOBAL_NAME_GAS.to_string(),
-                global_allowance_name: GLOBAL_NAME_ALLOWANCE.to_string(),
-                global_state_name: GLOBAL_NAME_STATUS.to_string(),
-                lazy_pages_weights: LazyPagesWeights {
-                    read: runtime.ext.runtime_cost(RuntimeCosts::LazyPagesRead),
-                    write: runtime.ext.runtime_cost(RuntimeCosts::LazyPagesWrite),
-                    write_after_read: runtime
-                        .ext
-                        .runtime_cost(RuntimeCosts::LazyPagesWriteAfterRead),
-                },
-                globals_access_ptr: instance.get_instance_ptr(),
-                globals_access_mod: GlobalsAccessMod::WasmRuntime,
-            })
-        } else {
-            None
-        };
-
-        match pre_execution_handler(&mut runtime.memory, stack_end_page, globals_ctx) {
+        match pre_execution_handler(&mut runtime.memory, stack_end_page) {
             Ok(_) => (),
             Err(e) => {
                 return Err((runtime.ext.gas_amount(), PreExecutionHandler(e.to_string())).into());
