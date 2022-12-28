@@ -599,8 +599,14 @@ pub mod pallet {
             }
 
             let message_id = Self::next_message_id(origin);
+            let block_number = Self::block_number().unique_saturated_into();
 
-            ExtManager::<T>::default().set_program(program_id, &code_info, message_id);
+            ExtManager::<T>::default().set_program(
+                block_number,
+                program_id,
+                &code_info,
+                message_id,
+            );
 
             // # Safety
             //
@@ -793,28 +799,28 @@ pub mod pallet {
         /// Returns true if a program has been successfully initialized
         pub fn is_initialized(program_id: ProgramId) -> bool {
             ProgramStorageOf::<T>::get_program(program_id)
-                .map(|p| p.is_initialized())
+                .map(|p| p.0.is_initialized())
                 .unwrap_or(false)
         }
 
         /// Returns true if id is a program and the program has active status.
         pub fn is_active(program_id: ProgramId) -> bool {
             ProgramStorageOf::<T>::get_program(program_id)
-                .map(|p| p.is_active())
+                .map(|p| p.0.is_active())
                 .unwrap_or_default()
         }
 
         /// Returns true if id is a program and the program has terminated status.
         pub fn is_terminated(program_id: ProgramId) -> bool {
             ProgramStorageOf::<T>::get_program(program_id)
-                .map(|p| p.is_terminated())
+                .map(|p| p.0.is_terminated())
                 .unwrap_or_default()
         }
 
         /// Returns true if id is a program and the program has exited status.
         pub fn is_exited(program_id: ProgramId) -> bool {
             ProgramStorageOf::<T>::get_program(program_id)
-                .map(|p| p.is_exited())
+                .map(|p| p.0.is_exited())
                 .unwrap_or_default()
         }
 
@@ -822,8 +828,8 @@ pub mod pallet {
         pub fn exit_inheritor_of(program_id: ProgramId) -> Option<ProgramId> {
             ProgramStorageOf::<T>::get_program(program_id)
                 .map(|p| {
-                    if let Program::Exited(id) = p {
-                        Some(id)
+                    if let Program::Exited(inheritor) = p.0 {
+                        Some(inheritor)
                     } else {
                         None
                     }
@@ -835,8 +841,8 @@ pub mod pallet {
         pub fn termination_inheritor_of(program_id: ProgramId) -> Option<ProgramId> {
             ProgramStorageOf::<T>::get_program(program_id)
                 .map(|p| {
-                    if let Program::Terminated(id) = p {
-                        Some(id)
+                    if let Program::Terminated(inheritor) = p.0 {
+                        Some(inheritor)
                     } else {
                         None
                     }
@@ -1181,8 +1187,14 @@ pub mod pallet {
             let origin = who.clone().into_origin();
 
             let message_id = Self::next_message_id(origin);
+            let block_number = Self::block_number().unique_saturated_into();
 
-            ExtManager::<T>::default().set_program(packet.destination(), &code_info, message_id);
+            ExtManager::<T>::default().set_program(
+                block_number,
+                packet.destination(),
+                &code_info,
+                message_id,
+            );
 
             // # Safety
             //

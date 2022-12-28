@@ -234,13 +234,13 @@ pub mod pallet {
 
     #[pallet::storage]
     #[pallet::unbounded]
-    pub(crate) type ProgramStorage<T: Config> = StorageMap<_, Identity, ProgramId, Program>;
+    pub(crate) type ProgramStorage<T: Config> = StorageMap<_, Identity, ProgramId, (Program, u32)>;
 
     common::wrap_storage_map!(
         storage: ProgramStorage,
         name: ProgramStorageWrap,
         key: ProgramId,
-        value: Program
+        value: (Program, u32)
     );
 
     #[pallet::storage]
@@ -292,9 +292,9 @@ pub mod pallet {
     }
 
     #[cfg(feature = "debug-mode")]
-    impl<Runtime: Config> IterableMap<(ProgramId, Program)> for pallet::Pallet<Runtime> {
-        type DrainIter = PrefixIterator<(ProgramId, Program)>;
-        type Iter = PrefixIterator<(ProgramId, Program)>;
+    impl<Runtime: Config> IterableMap<(ProgramId, (Program, u32))> for pallet::Pallet<Runtime> {
+        type DrainIter = PrefixIterator<(ProgramId, (Program, u32))>;
+        type Iter = PrefixIterator<(ProgramId, (Program, u32))>;
 
         fn drain() -> Self::DrainIter {
             ProgramStorage::<Runtime>::drain()

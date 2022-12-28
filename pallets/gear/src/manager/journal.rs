@@ -109,10 +109,15 @@ where
                     program_id
                 );
 
+                let block_number = Pallet::<T>::block_number().unique_saturated_into();
                 wake_waiting_init_msgs(program_id);
-                ProgramStorageOf::<T>::update_active_program(program_id, |p| {
-                    p.state = ProgramState::Initialized;
-                })
+                ProgramStorageOf::<T>::update_active_program(
+                    program_id,
+                    |p| {
+                        p.state = ProgramState::Initialized;
+                    },
+                    block_number,
+                )
                 .unwrap_or_else(|e| {
                     unreachable!(
                         "Program initialized status may only be set to active program {:?}",
@@ -158,9 +163,11 @@ where
 
                 self.clean_reservation_tasks(program_id, maybe_inactive);
 
+                let block_number = Pallet::<T>::block_number().unique_saturated_into();
                 ProgramStorageOf::<T>::update_program_if_active(program_id, |p| {
                     *p = Program::Terminated(origin);
-                }).unwrap_or_else(|e| {
+                },
+                block_number).unwrap_or_else(|e| {
                     if !maybe_inactive {
                         unreachable!(
                             "Program terminated status may only be set to an existing active program: {:?}",
@@ -226,9 +233,14 @@ where
         // Program can't be inactive, cause it was executed.
         self.clean_reservation_tasks(id_exited, false);
 
-        ProgramStorageOf::<T>::update_program_if_active(id_exited, |p| {
-            *p = Program::Exited(value_destination);
-        })
+        let block_number = Pallet::<T>::block_number().unique_saturated_into();
+        ProgramStorageOf::<T>::update_program_if_active(
+            id_exited,
+            |p| {
+                *p = Program::Exited(value_destination);
+            },
+            block_number,
+        )
         .unwrap_or_else(|e| {
             unreachable!("`exit` can be called only from active program: {:?}", e);
         });
@@ -405,12 +417,17 @@ where
     ) {
         self.state_changes.insert(program_id);
 
-        ProgramStorageOf::<T>::update_active_program(program_id, |p| {
-            for (page, data) in pages_data {
-                ProgramStorageOf::<T>::set_program_page_data(program_id, page, data);
-                p.pages_with_data.insert(page);
-            }
-        })
+        let block_number = Pallet::<T>::block_number().unique_saturated_into();
+        ProgramStorageOf::<T>::update_active_program(
+            program_id,
+            |p| {
+                for (page, data) in pages_data {
+                    ProgramStorageOf::<T>::set_program_page_data(program_id, page, data);
+                    p.pages_with_data.insert(page);
+                }
+            },
+            block_number,
+        )
         .unwrap_or_else(|e| {
             unreachable!(
                 "Page update guaranteed to be called only for existing and active program: {:?}",
@@ -424,6 +441,8 @@ where
         program_id: ProgramId,
         allocations: BTreeSet<gear_core::memory::WasmPage>,
     ) {
+        let block_number = Pallet::<T>::block_number().unique_saturated_into();
+
         ProgramStorageOf::<T>::update_active_program(program_id, |p| {
             let removed_pages = p.allocations.difference(&allocations);
             for page in removed_pages.flat_map(|page| page.to_pages_iter()) {
@@ -433,7 +452,7 @@ where
             }
 
             p.allocations = allocations;
-        }).unwrap_or_else(|e| {
+        }, block_number).unwrap_or_else(|e| {
             unreachable!("Allocations update guaranteed to be called only for existing and active program: {:?}", e)
         });
     }
@@ -452,7 +471,8 @@ where
             let code_info = CodeInfo::from_code(&code_id, &code);
             for (init_message, candidate_id) in candidates {
                 if !ProgramStorageOf::<T>::program_exists(candidate_id) {
-                    self.set_program(candidate_id, &code_info, init_message);
+                    let block_number = Pallet::<T>::block_number().unique_saturated_into();
+                    self.set_program(block_number, candidate_id, &code_info, init_message);
                 } else {
                     log::debug!("Program with id {:?} already exists", candidate_id);
                 }
@@ -540,17 +560,23 @@ where
     }
 
     fn update_gas_reservation(&mut self, program_id: ProgramId, reserver: GasReserver) {
-        ProgramStorageOf::<T>::update_active_program(program_id, |p| {
-            p.gas_reservation_map = reserver.into_map(
-                Pallet::<T>::block_number().unique_saturated_into(),
-                |duration| {
-                    HoldBound::<T>::by(CostsPerBlockOf::<T>::reservation())
-                        .duration(BlockNumberFor::<T>::from(duration))
-                        .expected()
-                        .unique_saturated_into()
-                },
-            );
-        })
+        let block_number = Pallet::<T>::block_number().unique_saturated_into();
+
+        ProgramStorageOf::<T>::update_active_program(
+            program_id,
+            |p| {
+                p.gas_reservation_map = reserver.into_map(
+                    Pallet::<T>::block_number().unique_saturated_into(),
+                    |duration| {
+                        HoldBound::<T>::by(CostsPerBlockOf::<T>::reservation())
+                            .duration(BlockNumberFor::<T>::from(duration))
+                            .expected()
+                            .unique_saturated_into()
+                    },
+                );
+            },
+            block_number,
+        )
         .unwrap_or_else(|e| {
             unreachable!(
                 "Gas reservation update guaranteed to be called only on an existing program: {:?}",

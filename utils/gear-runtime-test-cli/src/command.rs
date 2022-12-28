@@ -212,6 +212,7 @@ macro_rules! command {
         }
 
         fn run_fixture(test: &'_ sample::Test, fixture: &sample::Fixture) -> ColoredString {
+            const DEFAULT_BLOCK_NUMBER: u32 = 0;
             let mut snapshots = Vec::new();
             let mut progs_n_paths: Vec<(&str, ProgramId)> = vec![];
             pallet_gear_debug::DebugMode::<Runtime>::put(true);
@@ -249,7 +250,11 @@ macro_rules! command {
                     state: gear_common::ProgramState::Initialized,
                     gas_reservation_map: Default::default(),
                 };
-                ProgramStorageOf::<Runtime>::add_program(ProgramId::from_origin(*id), program);
+                ProgramStorageOf::<Runtime>::add_program(
+                    ProgramId::from_origin(*id),
+                    program,
+                    DEFAULT_BLOCK_NUMBER,
+                );
             }
 
             // Enable remapping of the source and destination of messages
@@ -459,7 +464,8 @@ macro_rules! command {
 
                             let memory = info.persistent_pages.clone();
                             let gas_reservation_map = {
-                                let prog = ProgramStorageOf::<Runtime>::get_program(*pid).unwrap();
+                                let prog =
+                                    ProgramStorageOf::<Runtime>::get_program(*pid).unwrap().0;
                                 if let gear_common::Program::Active(gear_common::ActiveProgram {
                                     gas_reservation_map,
                                     ..

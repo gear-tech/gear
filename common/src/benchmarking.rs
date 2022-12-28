@@ -137,6 +137,7 @@ pub fn set_program<ProgramStorage: super::ProgramStorage>(
     code: Vec<u8>,
     static_pages: WasmPage,
 ) {
+    const DEFAULT_BENCH_BLOCK_NUMBER: u32 = 0;
     let code_id = CodeId::generate(&code).into_origin();
     let allocations: BTreeSet<WasmPage> = static_pages.iter_from_zero().collect();
     let persistent_pages_data: BTreeMap<GearPage, PageBuf> = allocations
@@ -161,6 +162,7 @@ pub fn set_program<ProgramStorage: super::ProgramStorage>(
             state: ProgramState::Initialized,
             gas_reservation_map: GasReservationMap::default(),
         },
+        DEFAULT_BENCH_BLOCK_NUMBER,
     )
     .expect("benchmarking; program duplicates should not exist");
 }

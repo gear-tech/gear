@@ -54,19 +54,23 @@ pub trait ProgramStorage {
     }
 
     /// Store a program to be associated with the given key `program_id` from the map.
-    fn add_program(program_id: ProgramId, program: ActiveProgram) -> Result<(), Self::Error> {
+    fn add_program(
+        program_id: ProgramId,
+        program: ActiveProgram,
+        block_number: u32,
+    ) -> Result<(), Self::Error> {
         Self::ProgramMap::mutate(program_id, |maybe| {
             if maybe.is_some() {
                 return Err(Self::InternalError::duplicate_item().into());
             }
 
-            *maybe = Some(Program::Active(program));
+            *maybe = Some((Program::Active(program), block_number));
             Ok(())
         })
     }
 
     /// Load the program associated with the given key `program_id` from the map.
-    fn get_program(program_id: ProgramId) -> Option<Program> {
+    fn get_program(program_id: ProgramId) -> Option<(Program, u32)> {
         Self::ProgramMap::get(&program_id)
     }
 
@@ -79,14 +83,19 @@ pub trait ProgramStorage {
     fn update_active_program<F, ReturnType>(
         program_id: ProgramId,
         update_action: F,
+        block_number: u32,
     ) -> Result<ReturnType, Self::Error>
     where
         F: FnOnce(&mut ActiveProgram) -> ReturnType,
     {
-        Self::update_program_if_active(program_id, |program| match program {
-            Program::Active(active_program) => update_action(active_program),
-            _ => unreachable!("invariant kept by update_program_if_active"),
-        })
+        Self::update_program_if_active(
+            program_id,
+            |program| match program {
+                Program::Active(active_program) => update_action(active_program),
+                _ => unreachable!("invariant kept by update_program_if_active"),
+            },
+            block_number,
+        )
     }
 
     /// Update the program under the given key `program_id` only if the
@@ -94,19 +103,21 @@ pub trait ProgramStorage {
     fn update_program_if_active<F, ReturnType>(
         program_id: ProgramId,
         update_action: F,
+        block_number: u32,
     ) -> Result<ReturnType, Self::Error>
     where
         F: FnOnce(&mut Program) -> ReturnType,
     {
-        let mut program =
-            Self::ProgramMap::get(&program_id).ok_or(Self::InternalError::item_not_found())?;
+        let mut program = Self::ProgramMap::get(&program_id)
+            .ok_or(Self::InternalError::item_not_found())?
+            .0;
         match program {
             Program::Active(_) => (),
             _ => return Err(Self::InternalError::not_active_program().into()),
         }
 
         let result = update_action(&mut program);
-        Self::ProgramMap::insert(program_id, program);
+        Self::ProgramMap::insert(program_id, (program, block_number));
 
         Ok(result)
     }
