@@ -1,9 +1,12 @@
 {
-  "name": "Gear Staging Testnet V4",
-  "id": "gear_staging_testnet_v4",
+  "name": "Gear Staging Testnet V5",
+  "id": "gear_staging_testnet_v5",
   "chainType": "Live",
   "bootNodes": [
-    "/ip4/127.0.0.1/tcp/30333/p2p/12D3KooWQPCbhGroo6WA2XUDzFso8fPe3wNp848TTpotr3z1LZQf"
+    "/dns4/testnet-validator-node1.gear-tech.io/tcp/30333/p2p/12D3KooWBWFtZqigVTC8W2GRMwLeuTK2o4hDC4XHVPyNV6hW1T1D",
+    "/dns4/testnet-validator-node2.gear-tech.io/tcp/30333/p2p/12D3KooWRf7vAr79yAyDxGvYAdSqhh2EoeWe35Lx4QH4N6XMv2gH",
+    "/dns4/testnet-validator-node3.gear-tech.io/tcp/30333/p2p/12D3KooWEVvqVD2mrLfmgeX1EXZ2caFXXEWWEs4Taa4mWzFUoF34",
+    "/dns4/testnet-validator-node4.gear-tech.io/tcp/30333/p2p/12D3KooWSf2d69w7RYKtj9mgYpLDs3rqLAz9GHNSHHoCQDLUjeiP"
   ],
   "telemetryEndpoints": null,
   "protocolId": null,
