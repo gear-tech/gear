@@ -80,7 +80,9 @@ pub enum FuncError<E: Display> {
     ReadWrongRange(Range<u32>, u32),
     #[display(fmt = "Overflow at {_0} + len {_1} in `gr_read`")]
     ReadLenOverflow(u32, u32),
+    #[display(fmt = "Cannot decode value from memory")]
     DecodeValueError,
+    #[display(fmt = "Failed to parse debug string")]
     DebugString,
     #[display(fmt = "Buffer size {_0} is not eq to pre-registered size {_1}")]
     WrongBufferSize(usize, u32),
