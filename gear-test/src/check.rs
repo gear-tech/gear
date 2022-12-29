@@ -289,6 +289,7 @@ pub fn check_messages(
                                         msg.destination(),
                                         new_payload.try_into().unwrap(),
                                         msg.value(),
+                                        msg.initial_gas_limit(),
                                         msg.details(),
                                     );
                                 };

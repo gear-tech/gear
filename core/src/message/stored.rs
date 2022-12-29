@@ -110,6 +110,11 @@ impl StoredMessage {
         self.value
     }
 
+    /// Message initial gas limit.
+    pub fn initial_gas_limit(&self) -> Option<GasLimit> {
+        self.initial_gas_limit
+    }
+
     /// Message details.
     pub fn details(&self) -> Option<MessageDetails> {
         self.details

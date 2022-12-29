@@ -189,6 +189,7 @@ pub mod pallet {
             ProgramId::from_origin(destination),
             (*msg.payload()).to_vec().try_into().unwrap(),
             msg.value(),
+            msg.initial_gas_limit(),
             msg.details(),
         );
 

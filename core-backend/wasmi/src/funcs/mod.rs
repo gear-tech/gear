@@ -1526,7 +1526,7 @@ where
             caller.call_infallible(
                 &memory,
                 |ext| ext.gas_limit(),
-                |res, mut mem_ref| mem_ref.write(gas_ptr as usize, &res.to_le_bytes()),
+                |res, mut mem_ref| mem_ref.write(gas_ptr, &res.to_le_bytes()),
             )
         };
 

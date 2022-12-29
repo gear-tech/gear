@@ -165,8 +165,15 @@ impl WasmExecutor {
     }
 
     pub(crate) fn build_ext(program: &Program, payload: Payload) -> Ext {
-        let message =
-            IncomingMessage::new(Default::default(), Default::default(), payload, 0, 0, None);
+        let message = IncomingMessage::new(
+            Default::default(),
+            Default::default(),
+            payload,
+            0,
+            0,
+            None,
+            None,
+        );
         Ext::new(ProcessorContext {
             gas_counter: GasCounter::new(u64::MAX),
             gas_allowance_counter: GasAllowanceCounter::new(u64::MAX),

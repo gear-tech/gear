@@ -397,7 +397,8 @@ mod wasm {
             Kind::GasLimit(expected_gas_limit) => {
                 let gas_limit = exec::gas_limit();
                 assert_eq!(
-                    expected_gas_limit, gas_limit,
+                    expected_gas_limit,
+                    gas_limit.into(),
                     "Kind::GasLimit: gas limit test failed"
                 );
             }
