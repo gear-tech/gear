@@ -11133,6 +11133,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "validator-checks"
+version = "0.1.0"
+dependencies = [
+ "clap 4.0.32",
+ "color-eyre",
+ "gear-program",
+]
+
+[[package]]
 name = "valuable"
 version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"

@@ -1,0 +1,13 @@
+[package]
+name = "validator-checks"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "validator-checks"
+path = "bin/validator-checks.rs"
+
+[dependencies]
+gp = { package = "gear-program", path = "../../program" }
+clap = { version = "4.0.32", features = ["derive"] }
+color-eyre = { version = "0.6.2" }
