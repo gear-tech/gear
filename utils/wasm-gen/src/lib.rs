@@ -321,6 +321,10 @@ impl<'a> WasmGen<'a> {
         }
         mem_section_idx.map(|index| module.sections_mut().remove(index));
 
+        // TODO(MIKITA)
+        module = builder::from_module(module).global().value_type().i32().init_expr(Instruction::I32Const(10)).build().build();
+        module.export_section().unwrap().entries_mut().push()
+
         let mem_size = self.u.int_in_range(0..=self.config.max_mem_size).unwrap();
         let mem_size_upper_bound = if self.config.has_mem_upper_bound.get(self.u) {
             Some(if self.config.upper_bound_can_be_less_then.get(self.u) {
