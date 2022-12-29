@@ -40,6 +40,8 @@ pub struct IncomingMessage {
     payload: Payload,
     /// Message gas limit. Required here.
     gas_limit: GasLimit,
+    /// Snapshot of the initial gas limit.
+    initial_gas_limit: Option<GasLimit>,
     /// Message value.
     value: Value,
     /// Message details like reply message ID, status code, etc.
@@ -54,6 +56,7 @@ impl IncomingMessage {
         payload: Payload,
         gas_limit: GasLimit,
         value: Value,
+        initial_gas_limit: Option<GasLimit>,
         details: Option<MessageDetails>,
     ) -> Self {
         Self {
@@ -62,6 +65,7 @@ impl IncomingMessage {
             payload,
             gas_limit,
             value,
+            initial_gas_limit,
             details,
         }
     }
@@ -74,6 +78,7 @@ impl IncomingMessage {
             destination,
             self.payload,
             self.value,
+            self.initial_gas_limit,
             self.details,
         )
     }

@@ -44,6 +44,8 @@ pub struct StoredMessage {
     /// Message value.
     #[codec(compact)]
     value: Value,
+    /// Snapshot of the initial gas limit.
+    initial_gas_limit: Option<GasLimit>,
     /// Message details like reply message ID, status code, etc.
     details: Option<MessageDetails>,
 }
@@ -56,6 +58,7 @@ impl StoredMessage {
         destination: ProgramId,
         payload: Payload,
         value: Value,
+        initial_gas_limit: Option<GasLimit>,
         details: Option<MessageDetails>,
     ) -> Self {
         Self {
@@ -64,6 +67,7 @@ impl StoredMessage {
             destination,
             payload,
             value,
+            initial_gas_limit,
             details,
         }
     }
@@ -76,6 +80,7 @@ impl StoredMessage {
             self.payload,
             gas_limit,
             self.value,
+            self.initial_gas_limit,
             self.details,
         )
     }

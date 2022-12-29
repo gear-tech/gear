@@ -96,6 +96,7 @@ impl From<generated_message::stored::StoredMessage> for message::StoredMessage {
             // converting data from the same type
             other.payload.0.try_into().expect("Infallible"),
             other.value,
+            other.initial_gas_limit,
             other.details.map(Into::into),
         )
     }

@@ -53,6 +53,7 @@ impl From<Message> for StoredMessage {
             message.destination,
             message.payload,
             message.value,
+            message.gas_limit,
             message.details,
         )
     }
