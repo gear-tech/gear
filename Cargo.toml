@@ -17,6 +17,7 @@ members = [
     "gclient",
     "gcore",
     "gear-test",
+    "gmeta",
     "gstd",
     "gsys",
     "gtest",
@@ -71,6 +72,9 @@ lto = "fat"
 codegen-units = 1
 
 [patch.crates-io]
-# Two dependecies below goes for `subxt v0.22.0`
-sp-core = { version = "6.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
-sp-runtime = { version = "6.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
+# Two dependencies below go for `subxt v0.25.0`
+sp-core = { version = "7.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.36" }
+sp-runtime = { version = "7.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.36" }
+# TODO: remove after bytecodealliance/wasmtime#5494 or Substrate update
+wasmtime-runtime = { git = "https://github.com/gear-tech/wasmtime", rev = "b16cc8eaf40f95b3b1eec2869c08ccd61bdf65fe" }
+wasmtime = { git = "https://github.com/gear-tech/wasmtime", rev = "b16cc8eaf40f95b3b1eec2869c08ccd61bdf65fe" }

@@ -246,6 +246,10 @@ impl Ext for MockExt {
     fn signal_from(&mut self) -> Result<MessageId, Self::Error> {
         Ok(MessageId::default())
     }
+
+    fn runtime_cost(&self, _costs: RuntimeCosts) -> u64 {
+        0
+    }
 }
 
 impl IntoExtInfo<<MockExt as Ext>::Error> for MockExt {

@@ -51,7 +51,7 @@ pub trait WeightInfo {
     fn send_reply(p: u32, ) -> Weight;
     fn initial_allocation(q: u32, ) -> Weight;
     fn alloc_in_handle(q: u32, ) -> Weight;
-    fn reinstrument(c: u32, ) -> Weight;
+    fn reinstrument_per_kb(c: u32, ) -> Weight;
     fn alloc(r: u32, ) -> Weight;
     fn free(r: u32, ) -> Weight;
     fn gr_reserve_gas(r: u32, ) -> Weight;
@@ -256,7 +256,7 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
             .saturating_add(T::DbWeight::get().writes(24 as u64))
     }
     /// The range of component `c` is `[0, 524288]`.
-    fn reinstrument(c: u32, ) -> Weight {
+    fn reinstrument_per_kb(c: u32, ) -> Weight {
         Weight::from_ref_time(48_773_000 as u64)
             // Standard Error: 43
             .saturating_add(Weight::from_ref_time(53_524 as u64).saturating_mul(c as u64))
@@ -972,7 +972,7 @@ impl WeightInfo for () {
             .saturating_add(RocksDbWeight::get().writes(24 as u64))
     }
     /// The range of component `c` is `[0, 524288]`.
-    fn reinstrument(c: u32, ) -> Weight {
+    fn reinstrument_per_kb(c: u32, ) -> Weight {
         Weight::from_ref_time(48_773_000 as u64)
             // Standard Error: 43
             .saturating_add(Weight::from_ref_time(53_524 as u64).saturating_mul(c as u64))

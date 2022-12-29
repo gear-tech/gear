@@ -311,7 +311,7 @@ where
                     .propose_with(inherent_data, inherent_digests, deadline, block_size_limit)
                     .await;
                 if tx.send(res).is_err() {
-                    trace!("Could not send block production result to proposer!");
+                    trace!(target: "gear::authorship", "Could not send block production result to proposer!");
                 }
             }),
         );
@@ -372,16 +372,16 @@ where
         for inherent in inherents {
             match block_builder.push(inherent) {
                 Err(ApplyExtrinsicFailed(Validity(e))) if e.exhausted_resources() => {
-                    warn!("⚠️  Dropping non-mandatory inherent from overweight block.")
+                    warn!(target: "gear::authorship", "⚠️  Dropping non-mandatory inherent from overweight block.")
                 }
                 Err(ApplyExtrinsicFailed(Validity(e))) if e.was_mandatory() => {
-                    error!(
+                    error!(target: "gear::authorship",
                         "❌️ Mandatory inherent extrinsic returned error. Block cannot be produced."
                     );
                     return Err(ApplyExtrinsicFailed(Validity(e)));
                 }
                 Err(e) => {
-                    warn!(
+                    warn!(target: "gear::authorship",
                         "❗️ Inherent extrinsic returned unexpected error: {}. Dropping.",
                         e
                     );
@@ -408,7 +408,7 @@ where
         let mut pending_iterator = select! {
             res = t1 => res,
             _ = t2 => {
-                log::warn!(
+                log::warn!(target: "gear::authorship",
                     "Timeout fired waiting for transaction pool at block #{}. \
                     Proceeding with production.",
                     self.parent_number,
@@ -419,8 +419,8 @@ where
 
         let block_size_limit = block_size_limit.unwrap_or(self.default_block_size_limit);
 
-        debug!("Attempting to push transactions from the pool.");
-        debug!("Pool status: {:?}", self.transaction_pool.status());
+        debug!(target: "gear::authorship", "Attempting to push transactions from the pool.");
+        debug!(target: "gear::authorship", "Pool status: {:?}", self.transaction_pool.status());
         let mut transaction_pushed = false;
 
         let end_reason = loop {
@@ -432,9 +432,9 @@ where
 
             let now = (self.now)();
             if now > deadline {
-                debug!(
+                debug!(target: "gear::authorship",
                     "Consensus deadline reached when pushing block transactions, \
-					proceeding with proposing."
+                    proceeding with proposing."
                 );
                 break EndProposingReason::HitDeadline;
             }
@@ -448,52 +448,52 @@ where
                 pending_iterator.report_invalid(&pending_tx);
                 if skipped < MAX_SKIPPED_TRANSACTIONS {
                     skipped += 1;
-                    debug!(
+                    debug!(target: "gear::authorship",
                         "Transaction would overflow the block size limit, \
-						 but will try {} more transactions before quitting.",
+                         but will try {} more transactions before quitting.",
                         MAX_SKIPPED_TRANSACTIONS - skipped,
                     );
                     continue;
                 } else if now < soft_deadline {
-                    debug!(
+                    debug!(target: "gear::authorship",
                         "Transaction would overflow the block size limit, \
-						 but we still have time before the soft deadline, so \
-						 we will try a bit more."
+                         but we still have time before the soft deadline, so \
+                         we will try a bit more."
                     );
                     continue;
                 } else {
-                    debug!("Reached block size limit, proceeding with proposing.");
+                    debug!(target: "gear::authorship", "Reached block size limit, proceeding with proposing.");
                     break EndProposingReason::HitBlockSizeLimit;
                 }
             }
 
-            trace!("[{:?}] Pushing to the block.", pending_tx_hash);
+            trace!(target: "gear::authorship", "[{:?}] Pushing to the block.", pending_tx_hash);
             match block_builder.push(pending_tx_data) {
                 Ok(()) => {
                     transaction_pushed = true;
-                    debug!("[{:?}] Pushed to the block.", pending_tx_hash);
+                    debug!(target: "gear::authorship", "[{:?}] Pushed to the block.", pending_tx_hash);
                 }
                 Err(ApplyExtrinsicFailed(Validity(e))) if e.exhausted_resources() => {
                     pending_iterator.report_invalid(&pending_tx);
                     if skipped < MAX_SKIPPED_TRANSACTIONS {
                         skipped += 1;
-                        debug!(
+                        debug!(target: "gear::authorship",
                             "Block seems full, but will try {} more transactions before quitting.",
                             MAX_SKIPPED_TRANSACTIONS - skipped,
                         );
                     } else if (self.now)() < soft_deadline {
-                        debug!(
+                        debug!(target: "gear::authorship",
                             "Block seems full, but we still have time before the soft deadline, \
-							 so we will try a bit more before quitting."
+                             so we will try a bit more before quitting."
                         );
                     } else {
-                        debug!("Reached block weight limit, proceeding with proposing.");
+                        debug!(target: "gear::authorship", "Reached block weight limit, proceeding with proposing.");
                         break EndProposingReason::HitBlockWeightLimit;
                     }
                 }
                 Err(e) if skipped > 0 => {
                     pending_iterator.report_invalid(&pending_tx);
-                    trace!(
+                    trace!(target: "gear::authorship",
                         "[{:?}] Ignoring invalid transaction when skipping: {}",
                         pending_tx_hash,
                         e
@@ -501,14 +501,14 @@ where
                 }
                 Err(e) => {
                     pending_iterator.report_invalid(&pending_tx);
-                    debug!("[{:?}] Invalid transaction: {}", pending_tx_hash, e);
+                    debug!(target: "gear::authorship", "[{:?}] Invalid transaction: {}", pending_tx_hash, e);
                     unqueue_invalid.push(pending_tx_hash);
                 }
             }
         };
 
         if matches!(end_reason, EndProposingReason::HitBlockSizeLimit) && !transaction_pushed {
-            warn!(
+            warn!(target: "gear::authorship",
                 "Hit block size limit of `{}` without including any transaction!",
                 block_size_limit,
             );
@@ -519,16 +519,16 @@ where
         // Pushing a custom extrinsic that must run at the end of a block
         let custom_extrinsic = block_builder.create_terminal_extrinsic()?;
 
-        debug!("⚙️  Pushing Gear::run extrinsic into the block...");
+        debug!(target: "gear::authorship", "⚙️  Pushing Gear::run extrinsic into the block...");
         match block_builder.push(custom_extrinsic) {
             Ok(()) => {
-                debug!("⚙️  ... pushed to the block");
+                debug!(target: "gear::authorship", "⚙️  ... pushed to the block");
             }
             Err(ApplyExtrinsicFailed(Validity(e))) if e.exhausted_resources() => {
-                warn!("⚠️  Dropping terminal extrinsic from an overweight block.")
+                warn!(target: "gear::authorship", "⚠️  Dropping terminal extrinsic from an overweight block.")
             }
             Err(e) => {
-                warn!(
+                warn!(target: "gear::authorship",
                     "❗️ Terminal extrinsic returned unexpected error: {}. Dropping.",
                     e
                 );
@@ -724,7 +724,7 @@ mod tests {
         let api = client.runtime_api();
         api.execute_block(&block_id, proposal.block).unwrap();
 
-        let state = backend.state_at(block_id).unwrap();
+        let state = backend.state_at(genesis_hash).unwrap();
 
         let storage_changes = api.into_storage_changes(&state, genesis_hash).unwrap();
 

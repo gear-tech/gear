@@ -427,11 +427,13 @@ pub fn origin() -> ActorId {
 /// # Examples
 ///
 /// ```
+/// use core::array;
 /// use gcore::exec;
 ///
 /// #[no_mangle]
 /// extern "C" fn handle() {
-///     let (seed, block_number) = exec::random(b"my context").expect("Error in random");
+///     let subject: [u8; 32] = array::from_fn(|i| i as u8 + 1);
+///     let (seed, block_number) = exec::random(subject).expect("Error in random");
 /// }
 /// ```
 pub fn random(subject: [u8; 32]) -> Result<([u8; 32], u32)> {

@@ -126,6 +126,16 @@ pub mod pallet {
     );
 
     #[pallet::storage]
+    pub(crate) type CodeLenStorage<T: Config> = StorageMap<_, Identity, CodeId, u32>;
+
+    common::wrap_storage_map!(
+        storage: CodeLenStorage,
+        name: CodeLenStorageWrap,
+        key: CodeId,
+        value: u32
+    );
+
+    #[pallet::storage]
     #[pallet::unbounded]
     pub(crate) type OriginalCodeStorage<T: Config> = StorageMap<_, Identity, CodeId, Vec<u8>>;
 
@@ -157,6 +167,7 @@ pub mod pallet {
 
     impl<T: Config> common::CodeStorage for pallet::Pallet<T> {
         type InstrumentedCodeStorage = CodeStorageWrap<T>;
+        type InstrumentedLenStorage = CodeLenStorageWrap<T>;
         type MetadataStorage = MetadataStorageWrap<T>;
         type OriginalCodeStorage = OriginalCodeStorageWrap<T>;
     }
@@ -180,6 +191,7 @@ pub mod pallet {
         ///
         /// - `ProgramResumed(H256)` in the case of success.
         ///
+        #[pallet::call_index(0)]
         #[pallet::weight(<T as Config>::WeightInfo::resume_program(memory_pages.values().map(|p| p.len() as u32).sum()))]
         pub fn resume_program(
             origin: OriginFor<T>,

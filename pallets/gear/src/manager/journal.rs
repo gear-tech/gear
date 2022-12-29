@@ -36,7 +36,7 @@ use frame_support::{
 use frame_system::pallet_prelude::BlockNumberFor;
 use gear_core::{
     ids::{CodeId, MessageId, ProgramId, ReservationId},
-    memory::{PageBuf, PageNumber},
+    memory::{PageBuf, PageNumber, PageU32Size},
     message::{Dispatch, MessageWaitedType, StoredDispatch},
     reservation::GasReserver,
 };
@@ -125,7 +125,10 @@ where
                 DispatchStatus::Success
             }
             InitFailure {
-                program_id, origin, ..
+                program_id,
+                origin,
+                executed,
+                ..
             } => {
                 log::trace!(
                     "Dispatch ({:?}) init failure for program {:?}",
@@ -140,10 +143,22 @@ where
                 // dequeued. The other case is async init.
                 wake_waiting_init_msgs(program_id);
 
-                self.clean_reservation_tasks(program_id);
+                // If we run into `InitFailure` after real execution (not
+                // prepare or precharge) processor methods, then we are
+                // sure that it was active program.
+                let maybe_inactive = !executed;
+
+                self.clean_reservation_tasks(program_id, maybe_inactive);
 
                 common::set_program_terminated_status(program_id.into_origin(), origin)
-                    .expect("Only active program can cause init failure");
+                    .unwrap_or_else(|e| {
+                        if !maybe_inactive {
+                            unreachable!(
+                                "Program terminated status may only be set to active program {}",
+                                e
+                            );
+                        }
+                    });
 
                 let program_id = <T::AccountId as Origin>::from_origin(program_id.into_origin());
 
@@ -163,7 +178,7 @@ where
 
                 DispatchStatus::Failed
             }
-            CoreDispatchOutcome::NoExecution => {
+            NoExecution => {
                 log::trace!("Dispatch ({:?}) for program wasn't executed", message_id);
 
                 DispatchStatus::NotExecuted
@@ -197,7 +212,8 @@ where
 
         let _ = common::waiting_init_take_messages(id_exited);
 
-        self.clean_reservation_tasks(id_exited);
+        // Program can't be inactive, cause it was executed.
+        self.clean_reservation_tasks(id_exited, false);
 
         let id_exited = id_exited.into_origin();
 
@@ -396,7 +412,7 @@ where
             .expect("page update guaranteed to be called only for existing and active program");
         if let Program::Active(mut program) = program {
             let removed_pages = program.allocations.difference(&allocations);
-            for page in removed_pages.flat_map(|p| p.to_gear_pages_iter()) {
+            for page in removed_pages.flat_map(|page| page.to_pages_iter()) {
                 if program.pages_with_data.remove(&page) {
                     common::remove_program_page_data(program_id, page);
                 }

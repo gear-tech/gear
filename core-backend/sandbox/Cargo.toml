@@ -12,7 +12,7 @@ gear-backend-common = { path = "../common" }
 gsys ={ path = "../../gsys" }
 
 gear-wasm-instrument = { path = "../../utils/wasm-instrument", default-features = false }
-sp-sandbox = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false, features = ["host-sandbox"] }
+sp-sandbox = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.36", default-features = false, features = ["host-sandbox"] }
 # Use max_level_debug feature to remove tracing in sys-calls by default.
 log = { version = "0.4.17", default-features = false }
 derive_more = "0.99.17"

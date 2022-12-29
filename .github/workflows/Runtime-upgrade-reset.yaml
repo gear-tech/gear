@@ -55,7 +55,7 @@ jobs:
           cp -vf target/release/wasm-proc ./
 
       - name: Test runtime
-        run: ./wasm-proc --check-runtime-imports --path gear_runtime.wasm
+        run: ./wasm-proc --check-runtime-imports gear_runtime.wasm
 
       - name: Install Node.js
         uses: actions/setup-node@v2

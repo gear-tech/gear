@@ -1,16 +1,13 @@
 use crate::{
     args::SeedVariant,
-    utils::{self, LoaderRng, LoaderRngCore},
+    utils::{LoaderRng, LoaderRngCore},
 };
 use rand::RngCore;
 
-pub fn some_generator<Rng: LoaderRng>(
-    code_seed_type: Option<SeedVariant>,
-) -> Box<dyn LoaderRngCore> {
+pub fn some_generator<Rng: LoaderRng>(code_seed_type: SeedVariant) -> Box<dyn LoaderRngCore> {
     match code_seed_type {
-        None => Box::new(Rng::seed_from_u64(utils::now())) as _,
-        Some(SeedVariant::Dynamic(v)) => Box::new(Rng::seed_from_u64(v)) as _,
-        Some(SeedVariant::Constant(v)) => Box::new(ConstantGenerator::new(v)) as _,
+        SeedVariant::Dynamic(v) => Box::new(Rng::seed_from_u64(v)) as _,
+        SeedVariant::Constant(v) => Box::new(ConstantGenerator::new(v)) as _,
     }
 }
 

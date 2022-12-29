@@ -78,8 +78,7 @@ async fn test_calculate_handle_gas() -> Result<()> {
 
     signer
         .send_message(pid.into(), vec![], gas_info.min_limit, 0)
-        .await
-        .unwrap();
+        .await?;
 
     Ok(())
 }

@@ -250,4 +250,7 @@ pub trait Ext {
 
     /// Handler for the case when gas allowance is out.
     fn out_of_allowance(&mut self) -> Self::Error;
+
+    /// Get runtime cost weight.
+    fn runtime_cost(&self, costs: RuntimeCosts) -> u64;
 }

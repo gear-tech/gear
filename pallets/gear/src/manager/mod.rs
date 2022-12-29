@@ -106,7 +106,6 @@ impl fmt::Debug for HandleKind {
 #[derive(Debug)]
 pub struct CodeInfo {
     id: H256,
-    length_bytes: u32,
     exports: BTreeSet<DispatchKind>,
     static_pages: WasmPageNumber,
 }
@@ -115,7 +114,6 @@ impl CodeInfo {
     pub fn from_code_and_id(code: &CodeAndId) -> Self {
         Self {
             id: code.code_id().into_origin(),
-            length_bytes: code.code().code().len() as u32,
             exports: code.code().exports().clone(),
             static_pages: code.code().static_pages(),
         }
@@ -124,7 +122,6 @@ impl CodeInfo {
     pub fn from_code(id: &CodeId, code: &InstrumentedCode) -> Self {
         Self {
             id: id.into_origin(),
-            length_bytes: code.code().len() as u32,
             exports: code.exports().clone(),
             static_pages: code.static_pages(),
         }
@@ -234,7 +231,6 @@ where
                 allocations: active.allocations.clone(),
                 code_id,
                 code_exports: active.code_exports,
-                code_length_bytes: active.code_length_bytes,
                 static_pages: active.static_pages,
                 initialized: matches!(active.state, ProgramState::Initialized),
                 pages_with_data: active.pages_with_data,
@@ -258,7 +254,6 @@ where
             allocations: Default::default(),
             pages_with_data: Default::default(),
             code_hash: code_info.id,
-            code_length_bytes: code_info.length_bytes,
             code_exports: code_info.exports.clone(),
             static_pages: code_info.static_pages,
             state: common::ProgramState::Uninitialized { message_id },
@@ -268,11 +263,20 @@ where
         common::set_program(program_id.into_origin(), program);
     }
 
-    fn clean_reservation_tasks(&mut self, program_id: ProgramId) {
-        let active_program =
-            common::get_active_program(program_id.into_origin()).unwrap_or_else(|e| {
-                unreachable!("`exit` can be called only from active program: {}", e)
-            });
+    fn clean_reservation_tasks(&mut self, program_id: ProgramId, maybe_inactive: bool) {
+        let maybe_active_program = common::get_active_program(program_id.into_origin());
+
+        if maybe_active_program.is_err() && maybe_inactive {
+            return;
+        };
+
+        let active_program = maybe_active_program.unwrap_or_else(|e| {
+            unreachable!(
+                "Clean reservations can only be called on active program: {}",
+                e
+            )
+        });
+
         for (reservation_id, reservation_slot) in active_program.gas_reservation_map {
             <Self as TaskHandler<T::AccountId>>::remove_gas_reservation(
                 self,

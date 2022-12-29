@@ -34,7 +34,7 @@ use gear_core::{
     buffer::{RuntimeBuffer, RuntimeBufferSizeError},
     env::Ext,
     ids::ReservationId,
-    memory::Memory,
+    memory::{Memory, PageU32Size, WasmPageNumber},
     message::{HandlePacket, InitPacket, MessageWaitedType, PayloadSizeError, ReplyPacket},
 };
 use gear_core_errors::{CoreError, MemoryError};
@@ -325,7 +325,7 @@ where
         ctx.run(|ctx| {
             let length = match Self::validated(&mut ctx.ext, at, len) {
                 Ok(buffer) => {
-                    ctx.memory.write(buffer_ptr as usize, buffer)?;
+                    ctx.memory.write(buffer_ptr, buffer)?;
 
                     0u32
                 }
@@ -382,29 +382,29 @@ where
     pub fn alloc(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
         sys_trace!(target: "syscall::gear", "alloc, args = {}", args_to_str(args));
 
-        let pages = args.iter().read()?;
+        let pages = WasmPageNumber::new(args.iter().read()?).map_err(|_| HostError)?;
 
         let res = ctx.run_any(|ctx| {
             ctx.alloc(pages)
                 .map(|page| {
-                    log::debug!("ALLOC: {} pages at {:?}", pages, page);
-                    page.0
+                    log::debug!("ALLOC: {pages:?} pages at {page:?}");
+                    page
                 })
                 .map_err(Into::into)
         })?;
 
-        Ok(ReturnValue::Value(Value::I32(res as i32)))
+        Ok(ReturnValue::Value(Value::I32(res.raw() as i32)))
     }
 
     pub fn free(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
         sys_trace!(target: "syscall::gear", "free, args = {}", args_to_str(args));
 
-        let page: u32 = args.iter().read()?;
+        let page = WasmPageNumber::new(args.iter().read()?).map_err(|_| HostError)?;
 
         ctx.run(|ctx| {
             ctx.ext
-                .free(page.into())
-                .map(|_| log::debug!("FREE: {}", page))
+                .free(page)
+                .map(|_| log::debug!("FREE: {page:?}"))
                 .map_err(|err| {
                     log::debug!("FREE ERROR: {}", err);
                     FuncError::Core(err)

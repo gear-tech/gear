@@ -30,7 +30,7 @@ EOF
 }
 
 workspace_test() {
-  cargo nextest run --workspace "$@" --profile ci --no-fail-fast
+  cargo +nightly nextest run --workspace "$@" --profile ci --no-fail-fast
 }
 
 # $1 - ROOT DIR
@@ -155,5 +155,8 @@ syscalls_integrity_test() {
 }
 
 doc_test() {
-  cargo test --doc --workspace "$@"
+  MANIFEST="$1"
+  shift
+
+  cargo test --doc --workspace --manifest-path="$MANIFEST" -- "$@"
 }
