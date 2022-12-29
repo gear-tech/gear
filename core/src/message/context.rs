@@ -468,6 +468,11 @@ impl MessageContext {
     pub fn gas_limit(&self) -> GasLimit {
         self.current.gas_limit()
     }
+
+    /// Get the initial gas limit of the current message.
+    pub fn initial_gas_limit(&self) -> Option<GasLimit> {
+        self.current.initial_gas_limit()
+    }
 }
 
 pub struct CheckedRange {

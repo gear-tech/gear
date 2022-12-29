@@ -237,3 +237,21 @@ impl CodeId {
         &self.0
     }
 }
+
+/// Initial gas limit value while message was generated.
+///
+/// TODO: More info
+pub enum InitialGas {
+    GasFull(u64),
+    GasLess,
+}
+
+impl From<u64> for InitialGas {
+    fn from(g: u64) -> Self {
+        if g == 0 {
+            return Self::GasLess;
+        }
+
+        Self::GasFull(g)
+    }
+}

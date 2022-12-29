@@ -713,7 +713,12 @@ impl EnvExt for Ext {
     }
 
     fn gas_limit(&mut self) -> Result<u64, Self::Error> {
-        Ok(self.context.message_context.gas_limit())
+        self.charge_gas_runtime(RuntimeCosts::GasLimit)?;
+        Ok(self
+            .context
+            .message_context
+            .initial_gas_limit()
+            .unwrap_or_default())
     }
 
     fn value(&mut self) -> Result<u128, Self::Error> {

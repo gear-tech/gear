@@ -103,6 +103,11 @@ impl IncomingMessage {
         self.gas_limit
     }
 
+    /// Message initial gas limit.
+    pub fn initial_gas_limit(&self) -> Option<GasLimit> {
+        self.initial_gas_limit
+    }
+
     /// Message value.
     pub fn value(&self) -> Value {
         self.value

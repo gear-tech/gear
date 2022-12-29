@@ -23,7 +23,7 @@
 
 use crate::{
     error::{Result, SyscallError},
-    ActorId, MessageId, ReservationId,
+    ActorId, InitialGas, MessageId, ReservationId,
 };
 use gsys::{BlockNumberWithHash, LengthWithGas, LengthWithHash};
 
@@ -220,31 +220,33 @@ pub fn gas_available() -> u64 {
     gas
 }
 
-/// Get the current amount of gas message was initially sent with.
+/// Get the initial gas limit value when message was generated.
 ///
 /// Each message processing consumes gas on instructions execution and memory
-/// allocations. This function returns a value of the gas limit for spending
-/// during the current execution. Its use may help avoid unexpected behaviors
-/// during the smart-contract execution in case insufficient gas is available.
+/// allocations. This function returns a value of the initial gas limit for
+/// spending during the current execution. Its use may help avoiding unexpected
+/// behaviors during the smart-contract execution in case insufficient gas is
+/// available.
 ///
 /// # Examples
 ///
-/// Do the job while the amount of gas limit is more than 1000:
+/// Do different jobs in gasfull and gasless messages.
 ///
 /// ```
 /// use gcore::exec;
 ///
 /// #[no_mangle]
 /// extern "C" fn handle() {
-///     while exec::gas_limit() > 1000 {
-///         // ...
+///     match exec::gas_limit() {
+///         InitialGas::GasFull(gas) => // do something...
+///         InitialGas::GasLess => // do something...
 ///     }
 /// }
 /// ```
-pub fn gas_limit() -> u64 {
+pub fn gas_limit() -> InitialGas {
     let mut gas = 0u64;
     unsafe { gsys::gr_gas_limit(&mut gas as *mut u64) };
-    gas
+    gas.into()
 }
 
 /// Break the current execution.
