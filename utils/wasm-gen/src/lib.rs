@@ -282,6 +282,11 @@ struct WasmGen<'a> {
     calls_indexes: Vec<FuncIdx>,
 }
 
+enum GearStackEndExportSeed {
+    NotGenerate,
+    GenerateValue(u32),
+}
+
 impl<'a> WasmGen<'a> {
     fn initial_calls_indexes(module: &Module) -> Vec<FuncIdx> {
         let mut calls_indexes = Vec::new();
@@ -311,6 +316,45 @@ impl<'a> WasmGen<'a> {
         }
     }
 
+    // ~1% of cases with invalid stack size not a multiple of the page size
+    // ~1% of cases with invalid stask size that is biger than import memory
+    // ~1% of cases stack size is not generated at all
+    // all other cases should be valid
+    fn get_gear_stack_end_seed(&mut self, min_memory_size_pages: u32) -> GearStackEndExportSeed {
+        const MAX_SEED: u32 = 100;
+        const NOT_GENERATE_SEED: u32 = 0;
+        const NOT_WASM_PAGE_SEED: u32 = 1;
+        const BIGGER_THAN_MEMORY_SEED: u32 = 2;
+
+        const WASM_PAGE_SIZE_BYTES: u32 = 64 * 1024;
+
+        let seed = self.u.int_in_range(0..=MAX_SEED).unwrap();
+        match seed {
+            NOT_GENERATE_SEED => return GearStackEndExportSeed::NotGenerate,
+            NOT_WASM_PAGE_SEED => {
+                let max_size = min_memory_size_pages * WASM_PAGE_SIZE_BYTES;
+                // More likely value is not multiple of WASM_PAGE_SIZE_BYTES
+                let value = self.u.int_in_range(0..=max_size).unwrap();
+                return GearStackEndExportSeed::GenerateValue(value);
+            }
+            BIGGER_THAN_MEMORY_SEED => {
+                let value_pages = self
+                    .u
+                    .int_in_range(min_memory_size_pages..=10 * min_memory_size_pages)
+                    .unwrap();
+                // Make value a multiple of WASM_PAGE_SIZE_BYTES but bigger than min_memory_size
+                let value_bytes = (value_pages + 1) * WASM_PAGE_SIZE_BYTES;
+                return GearStackEndExportSeed::GenerateValue(value_bytes);
+            }
+            _ => {
+                let correct_value_pages = self.u.int_in_range(0..=min_memory_size_pages).unwrap();
+                // Make value a multiple of WASM_PAGE_SIZE_BYTES but less than min_memory_size
+                let correct_value_bytes = correct_value_pages * WASM_PAGE_SIZE_BYTES;
+                return GearStackEndExportSeed::GenerateValue(correct_value_bytes);
+            }
+        }
+    }
+
     pub fn gen_mem_export(&mut self, mut module: Module) -> Module {
         let mut mem_section_idx = None;
         for (idx, section) in module.sections().iter().enumerate() {
@@ -322,8 +366,8 @@ impl<'a> WasmGen<'a> {
         mem_section_idx.map(|index| module.sections_mut().remove(index));
 
         // TODO(MIKITA)
-        module = builder::from_module(module).global().value_type().i32().init_expr(Instruction::I32Const(10)).build().build();
-        module.export_section().unwrap().entries_mut().push()
+        // module = builder::from_module(module).global().value_type().i32().init_expr(Instruction::I32Const(10)).build().build();
+        // module.export_section().unwrap().entries_mut().push()
 
         let mem_size = self.u.int_in_range(0..=self.config.max_mem_size).unwrap();
         let mem_size_upper_bound = if self.config.has_mem_upper_bound.get(self.u) {
@@ -340,14 +384,27 @@ impl<'a> WasmGen<'a> {
             None
         };
 
-        builder::from_module(module)
+        let module = builder::from_module(module)
             .import()
             .module("env")
             .field("memory")
             .external()
             .memory(mem_size, mem_size_upper_bound)
             .build()
-            .build()
+            .build();
+
+        let gear_stack_end_seed = self.get_gear_stack_end_seed(mem_size);
+        if let GearStackEndExportSeed::GenerateValue(gear_stack_val) = gear_stack_end_seed {
+            return builder::from_module(module)
+                .import()
+                .module("env")
+                .field("__gear_stack_end")
+                .external()
+                .memory(gear_stack_val, None)
+                .build()
+                .build();
+        }
+        module
     }
 
     fn insert_instructions_in_random_place(
