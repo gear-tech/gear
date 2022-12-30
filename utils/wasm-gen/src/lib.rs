@@ -124,6 +124,7 @@ pub struct GearConfig {
     pub sys_call_freq: Ratio,
     pub sys_calls: SyscallsConfig,
     pub print_test_info: Option<String>,
+    pub max_percentage_seed: u32,
 }
 
 impl GearConfig {
@@ -142,6 +143,7 @@ impl GearConfig {
             sys_call_freq: (1, 1000).into(),
             sys_calls: Default::default(),
             print_test_info: None,
+            max_percentage_seed: 100,
         }
     }
     pub fn new_for_rare_cases() -> Self {
@@ -159,6 +161,7 @@ impl GearConfig {
             sys_call_freq: (1, 1000).into(),
             sys_calls: Default::default(),
             print_test_info: None,
+            max_percentage_seed: 5,
         }
     }
     pub fn new_valid() -> Self {
@@ -177,6 +180,7 @@ impl GearConfig {
             sys_call_freq: (1, 1000).into(),
             sys_calls: Default::default(),
             print_test_info: None,
+            max_percentage_seed: 100,
         }
     }
 }
@@ -321,14 +325,16 @@ impl<'a> WasmGen<'a> {
     // ~1% of cases stack size is not generated at all
     // all other cases should be valid
     fn get_gear_stack_end_seed(&mut self, min_memory_size_pages: u32) -> GearStackEndExportSeed {
-        const MAX_SEED: u32 = 100;
         const NOT_GENERATE_SEED: u32 = 0;
         const NOT_WASM_PAGE_SEED: u32 = 1;
         const BIGGER_THAN_MEMORY_SEED: u32 = 2;
 
         const WASM_PAGE_SIZE_BYTES: u32 = 64 * 1024;
 
-        let seed = self.u.int_in_range(0..=MAX_SEED).unwrap();
+        let seed = self
+            .u
+            .int_in_range(0..=self.config.max_percentage_seed)
+            .unwrap();
         match seed {
             NOT_GENERATE_SEED => GearStackEndExportSeed::NotGenerate,
             NOT_WASM_PAGE_SEED => {
