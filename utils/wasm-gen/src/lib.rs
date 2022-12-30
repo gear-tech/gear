@@ -391,11 +391,21 @@ impl<'a> WasmGen<'a> {
 
         let gear_stack_end_seed = self.get_gear_stack_end_seed(mem_size);
         if let GearStackEndExportSeed::GenerateValue(gear_stack_val) = gear_stack_end_seed {
+            let mut module = builder::from_module(module)
+                .global()
+                .value_type()
+                .i32()
+                .init_expr(Instruction::I32Const(gear_stack_val as i32))
+                .build()
+                .build();
+
+            let last_element_num = module.global_section_mut().unwrap().entries_mut().len() - 1;
+
             return builder::from_module(module)
                 .export()
                 .field("__gear_stack_end")
                 .internal()
-                .global(gear_stack_val)
+                .global(last_element_num.try_into().unwrap())
                 .build()
                 .build();
         }
