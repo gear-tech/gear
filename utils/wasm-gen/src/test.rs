@@ -23,8 +23,8 @@ use rand::{rngs::SmallRng, RngCore, SeedableRng};
 #[allow(unused)]
 use indicatif::ProgressIterator;
 
-const MODULES_AMOUNT : usize = 100;
-const TEST_THRESHOLD : usize = 1000000;
+const MODULES_AMOUNT: usize = 100;
+const TEST_THRESHOLD: usize = 1000000;
 
 #[test]
 fn gen_wasm_normal() {
@@ -35,7 +35,7 @@ fn gen_wasm_normal() {
         let mut u = Unstructured::new(&buf);
         let code = gen_gear_program_code(&mut u, GearConfig::new_normal());
         let wat = wasmprinter::print_bytes(code).unwrap();
-        println!("{wat}");
+        print!("{wat}");
     }
 }
 

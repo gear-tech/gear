@@ -330,12 +330,12 @@ impl<'a> WasmGen<'a> {
 
         let seed = self.u.int_in_range(0..=MAX_SEED).unwrap();
         match seed {
-            NOT_GENERATE_SEED => return GearStackEndExportSeed::NotGenerate,
+            NOT_GENERATE_SEED => GearStackEndExportSeed::NotGenerate,
             NOT_WASM_PAGE_SEED => {
                 let max_size = min_memory_size_pages * WASM_PAGE_SIZE_BYTES;
                 // More likely value is not multiple of WASM_PAGE_SIZE_BYTES
                 let value = self.u.int_in_range(0..=max_size).unwrap();
-                return GearStackEndExportSeed::GenerateValue(value);
+                GearStackEndExportSeed::GenerateValue(value)
             }
             BIGGER_THAN_MEMORY_SEED => {
                 let value_pages = self
@@ -344,13 +344,13 @@ impl<'a> WasmGen<'a> {
                     .unwrap();
                 // Make value a multiple of WASM_PAGE_SIZE_BYTES but bigger than min_memory_size
                 let value_bytes = (value_pages + 1) * WASM_PAGE_SIZE_BYTES;
-                return GearStackEndExportSeed::GenerateValue(value_bytes);
+                GearStackEndExportSeed::GenerateValue(value_bytes)
             }
             _ => {
                 let correct_value_pages = self.u.int_in_range(0..=min_memory_size_pages).unwrap();
                 // Make value a multiple of WASM_PAGE_SIZE_BYTES but less than min_memory_size
                 let correct_value_bytes = correct_value_pages * WASM_PAGE_SIZE_BYTES;
-                return GearStackEndExportSeed::GenerateValue(correct_value_bytes);
+                GearStackEndExportSeed::GenerateValue(correct_value_bytes)
             }
         }
     }
@@ -364,10 +364,6 @@ impl<'a> WasmGen<'a> {
             }
         }
         mem_section_idx.map(|index| module.sections_mut().remove(index));
-
-        // TODO(MIKITA)
-        // module = builder::from_module(module).global().value_type().i32().init_expr(Instruction::I32Const(10)).build().build();
-        // module.export_section().unwrap().entries_mut().push()
 
         let mem_size = self.u.int_in_range(0..=self.config.max_mem_size).unwrap();
         let mem_size_upper_bound = if self.config.has_mem_upper_bound.get(self.u) {
@@ -396,11 +392,10 @@ impl<'a> WasmGen<'a> {
         let gear_stack_end_seed = self.get_gear_stack_end_seed(mem_size);
         if let GearStackEndExportSeed::GenerateValue(gear_stack_val) = gear_stack_end_seed {
             return builder::from_module(module)
-                .import()
-                .module("env")
+                .export()
                 .field("__gear_stack_end")
-                .external()
-                .memory(gear_stack_val, None)
+                .internal()
+                .global(gear_stack_val)
                 .build()
                 .build();
         }
