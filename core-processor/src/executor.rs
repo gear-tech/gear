@@ -306,6 +306,7 @@ pub fn execute_wasm<
         reserve_for: settings.reserve_for,
         reservation: settings.reservation,
         random_data: settings.random_data,
+        dispatch_hold_cost: settings.dispatch_hold_cost,
     };
 
     let lazy_pages_weights = context.pages_config.lazy_pages_weights.clone();
@@ -508,6 +509,7 @@ pub fn execute_for_reply<
         reservation: Default::default(),
         random_data: Default::default(),
         system_reservation: Default::default(),
+        dispatch_hold_cost: Default::default(),
     };
 
     let lazy_pages_weights = context.pages_config.lazy_pages_weights.clone();

@@ -328,6 +328,25 @@ where
         }
     }
 
+    pub(crate) fn charge_gas_for_dispatch_stash_hold(
+        id: impl Into<GasNodeIdOf<GasHandlerOf<T>>>,
+        stored_bn: u64,
+    ) {
+        let current_bn: u64 = Self::block_number().unique_saturated_into();
+
+        let delayed_block_amount = current_bn.saturating_sub(stored_bn);
+
+        // cost_of_block * (delay + reserve_for)
+        let gas_amount = delayed_block_amount
+            .saturating_add(CostsPerBlockOf::<T>::reserve_for().unique_saturated_into())
+            .saturating_mul(CostsPerBlockOf::<T>::dispatch_stash());
+
+        // Spending gas, if need.
+        if !gas_amount.is_zero() {
+            Self::spend_gas(id, gas_amount)
+        }
+    }
+
     /// Adds dispatch into waitlist, deposits event and adds task for waking it.
     pub(crate) fn wait_dispatch(
         dispatch: StoredDispatch,
@@ -552,6 +571,11 @@ where
             unreachable!("Scheduling logic invalidated");
         }
 
+        let mut to_mailbox = false;
+
+        // `HoldBound` cost builder.
+        let hold_builder = HoldBound::<T>::by(CostsPerBlockOf::<T>::dispatch_stash());
+
         // Sender node of the dispatch.
         let sender_node = reservation
             .map(GasNodeId::Reservation)
@@ -583,18 +607,50 @@ where
                 })
                 .unwrap_or_default();
 
+            let delay_gas_value = (delay as u64)
+                .saturating_add(CostsPerBlockOf::<T>::reserve_for().unique_saturated_into())
+                .saturating_mul(CostsPerBlockOf::<T>::dispatch_stash().unique_saturated_into());
+
+            let mut gas_amount = delay_gas_value;
+
             // Message is going to be inserted into mailbox.
             //
             // No hold bound checks required, because gas_limit isn't less than threshold.
-            if gas_limit >= threshold {
+            to_mailbox = gas_limit >= threshold;
+            if to_mailbox {
                 // Cutting gas for storing in mailbox.
-                GasHandlerOf::<T>::cut(sender_node, dispatch.id(), gas_limit)
+                gas_amount = gas_amount.saturating_add(gas_limit);
+                GasHandlerOf::<T>::cut(sender_node, dispatch.id(), gas_amount)
                     .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
 
                 // TODO: adapt this line if gasful sending appears for reservations (#1828)
                 if let Some(reservation_id) = reservation {
                     Self::remove_gas_reservation_with_task(dispatch.source(), reservation_id);
                 }
+            } else {
+                GasHandlerOf::<T>::cut(sender_node, dispatch.id(), gas_amount)
+                    .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
+            }
+            // Calculating correct hold bound to lock gas
+            let maximal_hold = hold_builder.clone().maximum_for_message(dispatch.id());
+            let bn_delay = delay.saturated_into::<BlockNumberFor<T>>();
+            let hold = hold_builder.duration(bn_delay).min(maximal_hold);
+
+            // Locking funds for holding.
+            GasHandlerOf::<T>::lock(dispatch.id(), hold.lock())
+                .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
+
+            if hold.expected_duration().is_zero() {
+                // TODO: Replace with unreachable call after:
+                // - `HoldBound` safety usage stabilized;
+                log::error!("Failed to figure out correct wait hold bound");
+                return;
+            }
+
+            if !dispatch.value().is_zero() {
+                // Reserving value from source for future transfer or unreserve.
+                CurrencyOf::<T>::reserve(&from, value)
+                    .unwrap_or_else(|e| unreachable!("Unable to reserve requested value {:?}", e));
             }
         } else {
             match (dispatch.gas_limit(), reservation) {
@@ -632,22 +688,44 @@ where
                     Self::remove_gas_reservation_with_task(dispatch.source(), reservation_id);
                 }
             }
-        }
 
-        if !dispatch.value().is_zero() {
-            // Reserving value from source for future transfer or unreserve.
-            CurrencyOf::<T>::reserve(&from, value)
-                .unwrap_or_else(|e| unreachable!("Unable to reserve requested value {:?}", e));
+            // Calculating correct hold bound to lock gas
+            let maximal_hold = hold_builder.clone().maximum_for_message(dispatch.id());
+            let bn_delay = delay.saturated_into::<BlockNumberFor<T>>();
+            let hold = hold_builder.duration(bn_delay).min(maximal_hold);
+
+            // Locking funds for holding.
+            GasHandlerOf::<T>::lock(dispatch.id(), hold.lock())
+                .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
+
+            if hold.expected_duration().is_zero() {
+                // TODO: Replace with unreachable call after:
+                // - `HoldBound` safety usage stabilized;
+                log::error!("Failed to figure out correct wait hold bound");
+                return;
+            }
+
+            if !dispatch.value().is_zero() {
+                // Reserving value from source for future transfer or unreserve.
+                CurrencyOf::<T>::reserve(&from, value)
+                    .unwrap_or_else(|e| unreachable!("Unable to reserve requested value {:?}", e));
+            }
         }
 
         // Saving id to allow moving dispatch further.
         let message_id = dispatch.id();
 
+        // Add block number of insertation
+        let block_number: u64 = Self::block_number().unique_saturated_into();
+
         // Adding message into the stash.
-        DispatchStashOf::<T>::insert(message_id, dispatch.into_stored());
+        DispatchStashOf::<T>::insert(message_id, (dispatch.into_stored(), block_number));
 
         let task = if to_user {
-            ScheduledTask::SendUserMessage(message_id)
+            ScheduledTask::SendUserMessage {
+                message_id,
+                to_mailbox,
+            }
         } else {
             ScheduledTask::SendDispatch(message_id)
         };
@@ -770,7 +848,7 @@ where
     }
 
     /// Sends user message, once delay reached.
-    pub(crate) fn send_user_message_after_delay(message: StoredMessage) {
+    pub(crate) fn send_user_message_after_delay(message: StoredMessage, to_mailbox: bool) {
         // Converting payload into string.
         //
         // Note: for users, trap replies always contain
@@ -796,7 +874,8 @@ where
 
         // If gas limit can cover threshold, message will be added to mailbox,
         // task created and funds reserved.
-        let expiration = if GasHandlerOf::<T>::exists(message.id()) {
+
+        let expiration = if to_mailbox {
             // Querying gas limit. Fails in cases of `GasTree` invalidations.
             let gas_limit = GasHandlerOf::<T>::get_limit(message.id())
                 .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));

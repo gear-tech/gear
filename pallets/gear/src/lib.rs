@@ -1037,6 +1037,7 @@ pub mod pallet {
                 max_reservations: T::ReservationsLimit::get(),
                 code_instrumentation_cost: schedule.code_instrumentation_cost,
                 code_instrumentation_byte_cost: schedule.code_instrumentation_byte_cost,
+                dispatch_hold_cost: CostsPerBlockOf::<T>::waitlist(),
             }
         }
 

@@ -652,13 +652,11 @@ proptest! {
             }
 
             // Check property: for all the nodes with lock currently existing in the tree...
-            if node.lock().map(|x| x != 0).unwrap_or(false) {
+            if node.lock() != 0 {
                 // ...is not consumed
                 assert!(!node.is_consumed());
                 // ...can be with lock only after `lock`
                 assert!(locked_nodes.contains(&node_id));
-                // ...there can't be any existing cut nodes
-                assert!(!node.is_cut());
             }
 
             // Check property: for all the `Reserved` nodes currently existing in the tree...
@@ -671,7 +669,7 @@ proptest! {
             // Check property: for all the consumed nodes currently existing in the tree...
             if node.is_consumed() {
                 // ...have no locked value
-                assert!(matches!(node.lock(), Some(0) | None));
+                assert!(matches!(node.lock(), 0));
                 // ..have no system reserved value
                 assert!(matches!(node.system_reserve(), Some(0) | None));
                 // ...existing consumed node can't have zero refs. Otherwise it must have been deleted from the storage

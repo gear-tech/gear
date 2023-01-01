@@ -85,6 +85,8 @@ pub struct ProcessorContext {
     pub mailbox_threshold: u64,
     /// Cost for single block waitlist holding.
     pub waitlist_cost: u64,
+    /// Cost of holding a message in dispatch stash
+    pub dispatch_hold_cost: u64,
     /// Reserve for parameter of scheduling.
     pub reserve_for: u32,
     /// Cost for reservation holding.
@@ -547,6 +549,20 @@ impl EnvExt for Ext {
         self.charge_expiring_resources(&msg)?;
 
         self.charge_sending_fee(delay)?;
+
+        if delay != 0 {
+            // Take delay and get cost of block
+            // Calculate reserve like  wait_cost * (delay + reserve_for)
+            let cost_per_block = self.context.dispatch_hold_cost;
+            let waiting_reserve = (self.context.reserve_for as u64)
+                .saturating_add(delay as u64)
+                .saturating_mul(cost_per_block);
+
+            // Reduse gas for block waiting in dispatch stash
+            if self.context.gas_counter.reduce(waiting_reserve) != ChargeResult::Enough {
+                return self.return_and_store_err(Err(WaitError::NotEnoughGas));
+            }
+        }
 
         let result = self.context.message_context.reply_commit(msg, delay, None);
 
@@ -1099,6 +1115,7 @@ mod tests {
                 reserve_for: 0,
                 reservation: 0,
                 random_data: ([0u8; 32].to_vec(), 0),
+                dispatch_hold_cost: 0,
             };
 
             Self(default_pc)

@@ -311,7 +311,7 @@ fn exited_program_zero_gas() {
 fn delayed_user_replacement() {
     use demo_proxy_with_gas::{InputArgs, WASM_BINARY as PROXY_WGAS_WASM_BINARY};
 
-    fn scenario(gas_limit_to_forward: u64) {
+    fn scenario(gas_limit_to_forward: u64, to_mailbox: bool) {
         let code = ProgramCodeKind::OutgoingWithValueInHandle.to_bytes();
         let future_program_address = ProgramId::generate(CodeId::generate(&code), DEFAULT_SALT);
 
@@ -349,7 +349,10 @@ fn delayed_user_replacement() {
         // Message sending delayed.
         assert!(TaskPoolOf::<Test>::contains(
             &4,
-            &ScheduledTask::SendUserMessage(delayed_id)
+            &ScheduledTask::SendUserMessage {
+                message_id: delayed_id,
+                to_mailbox
+            }
         ));
 
         assert_ok!(Gear::upload_program(
@@ -369,7 +372,10 @@ fn delayed_user_replacement() {
         // Delayed message sent.
         assert!(!TaskPoolOf::<Test>::contains(
             &4,
-            &ScheduledTask::SendUserMessage(delayed_id)
+            &ScheduledTask::SendUserMessage {
+                message_id: delayed_id,
+                to_mailbox
+            }
         ));
 
         // Replace following lines once added validation to task handling of send_user_message.
@@ -390,14 +396,14 @@ fn delayed_user_replacement() {
     init_logger();
 
     // Scenario not planned to enter mailbox.
-    new_test_ext().execute_with(|| scenario(0));
+    new_test_ext().execute_with(|| scenario(0, false));
 
     // Scenario planned to enter mailbox.
     new_test_ext().execute_with(|| {
         let gas_limit_to_forward = DEFAULT_GAS_LIMIT * 100;
         assert!(<Test as Config>::MailboxThreshold::get() <= gas_limit_to_forward);
 
-        scenario(gas_limit_to_forward)
+        scenario(gas_limit_to_forward, true)
     });
 }
 
@@ -472,9 +478,19 @@ fn delayed_program_creation_no_code() {
         //
         // Single db read burned for querying program data from storage.
         assert_last_dequeued(2);
+
+        let delayed_block_amount: u64 = 1;
+
+        let delay_holding_fee = GasPrice::gas_price(
+            delayed_block_amount
+                .saturating_add(CostsPerBlockOf::<Test>::reserve_for().unique_saturated_into())
+                .saturating_mul(CostsPerBlockOf::<Test>::dispatch_stash()),
+        );
+
         assert_eq!(
             Balances::free_balance(&USER_1),
             free_balance + reserved_balance
+                - delay_holding_fee
                 - GasPrice::gas_price(DbWeightOf::<Test>::get().reads(1).ref_time())
         );
         assert!(Balances::reserved_balance(&USER_1).is_zero());

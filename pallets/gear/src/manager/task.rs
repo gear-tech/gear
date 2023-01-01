@@ -18,7 +18,7 @@
 
 use core::convert::TryInto;
 
-use crate::{manager::ExtManager, Config, DispatchStashOf, Event, Pallet, QueueOf};
+use crate::{manager::ExtManager, Config, DispatchStashOf, Event, GasHandlerOf, Pallet, QueueOf};
 use alloc::string::ToString;
 use common::{
     event::{
@@ -27,7 +27,7 @@ use common::{
     },
     scheduler::*,
     storage::*,
-    Origin,
+    GasTree, Origin,
 };
 use core_processor::common::ActorExecutionErrorReason;
 use gear_core::{
@@ -132,21 +132,41 @@ where
 
     fn send_dispatch(&mut self, stashed_message_id: MessageId) {
         // No validation required. If program doesn't exist, then NotExecuted appears.
-        let dispatch = DispatchStashOf::<T>::take(stashed_message_id)
+
+        let (dispatch, stored_bn) = DispatchStashOf::<T>::take(stashed_message_id)
             .unwrap_or_else(|| unreachable!("Scheduler & Stash logic invalidated!"));
+
+        // Unlock gas node to avoid of gas tree corruption
+        GasHandlerOf::<T>::unlock_all(dispatch.id())
+            .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
+
+        // Charging locked gas for holding in dispatch stash
+        Pallet::<T>::charge_gas_for_dispatch_stash_hold(dispatch.id(), stored_bn);
 
         QueueOf::<T>::queue(dispatch)
             .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e));
     }
 
-    fn send_user_message(&mut self, stashed_message_id: MessageId) {
+    fn send_user_message(&mut self, stashed_message_id: MessageId, is_mailbox_message: bool) {
         // TODO: validate here destination and send error reply, if required.
         // Atm despite the fact that program may exist, message goes into mailbox / event.
+        let mut stored_bn = 0;
         let message = DispatchStashOf::<T>::take(stashed_message_id)
-            .map(|dispatch| dispatch.into_parts().1)
+            .map(|(dispatch, bn)| {
+                stored_bn = bn;
+                dispatch.into_parts().1
+            })
             .unwrap_or_else(|| unreachable!("Scheduler & Stash logic invalidated!"));
 
-        Pallet::<T>::send_user_message_after_delay(message);
+        // Unlock gas node to avoid of gas tree corruption
+        GasHandlerOf::<T>::unlock_all(message.id())
+            .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
+
+        // Charge gas for message save
+        assert!(stored_bn != 0);
+        Pallet::<T>::charge_gas_for_dispatch_stash_hold(message.id(), stored_bn);
+
+        Pallet::<T>::send_user_message_after_delay(message, is_mailbox_message);
     }
 
     fn remove_gas_reservation(&mut self, program_id: ProgramId, reservation_id: ReservationId) {

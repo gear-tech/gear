@@ -696,9 +696,11 @@ fn lock_works() {
         assert_ok!(Gas::cut(external, reserved, 1_000));
 
         assert_eq!(Gas::total_supply(), 10_000);
-        assert_noop!(Gas::get_lock(reserved), Error::<Test>::Forbidden);
-        assert_noop!(Gas::lock(reserved, 1), Error::<Test>::Forbidden);
-        assert_noop!(Gas::unlock(reserved, 1), Error::<Test>::Forbidden);
+        assert_ok!(Gas::get_lock(reserved), 0);
+        assert_ok!(Gas::lock(reserved, 500));
+        assert_ok!(Gas::get_lock(reserved), 500);
+        assert_ok!(Gas::unlock(reserved, 500));
+        assert_ok!(Gas::get_lock(reserved), 0);
 
         let neg_imb = Gas::consume(reserved).unwrap().unwrap();
         assert_eq!(Gas::total_supply(), 9_000);

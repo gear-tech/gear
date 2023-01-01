@@ -64,6 +64,7 @@ pub fn process<
         reserve_for,
         reservation,
         write_cost,
+        dispatch_hold_cost,
         ..
     } = block_config.clone();
 
@@ -78,6 +79,7 @@ pub fn process<
         reserve_for,
         reservation,
         random_data,
+        dispatch_hold_cost,
     };
 
     let dispatch = execution_context.dispatch;

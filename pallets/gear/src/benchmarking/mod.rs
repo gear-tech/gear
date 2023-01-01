@@ -184,6 +184,7 @@ fn default_processor_context<T: Config>() -> ProcessorContext {
         reserve_for: 0,
         reservation: 0,
         random_data: ([0u8; 32].to_vec(), 0),
+        dispatch_hold_cost: 0,
     }
 }
 

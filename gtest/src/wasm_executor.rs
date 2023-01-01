@@ -40,8 +40,8 @@ use gear_wasm_instrument::{GLOBAL_NAME_ALLOWANCE, GLOBAL_NAME_GAS};
 use std::{collections::BTreeMap, mem};
 
 use crate::{
-    manager::ExtManager, Result, TestError, MAILBOX_THRESHOLD, MAX_RESERVATIONS, RESERVATION_COST,
-    RESERVE_FOR, WAITLIST_COST, WRITE_COST,
+    manager::ExtManager, Result, TestError, DISPATCH_HOLD_COST, MAILBOX_THRESHOLD,
+    MAX_RESERVATIONS, RESERVATION_COST, RESERVE_FOR, WAITLIST_COST, WRITE_COST,
 };
 
 /// Binary meta-functions executor for testing purposes
@@ -204,6 +204,7 @@ impl WasmExecutor {
             reserve_for: RESERVE_FOR,
             reservation: RESERVATION_COST,
             random_data: ([0u8; 32].to_vec(), 0),
+            dispatch_hold_cost: DISPATCH_HOLD_COST,
         })
     }
 

@@ -87,7 +87,11 @@ pub enum GasNode<ExternalId: Clone, Id: Clone, Balance: Zero + Clone> {
     ///
     /// Such node types are detached and aren't part of the tree structure
     /// (not node's parent, not node's child).
-    Cut { id: ExternalId, value: Balance },
+    Cut {
+        id: ExternalId,
+        value: Balance,
+        lock: Balance,
+    },
 
     /// A node used for gas reservation feature.
     ///
@@ -240,24 +244,24 @@ impl<ExternalId: Clone, Id: Clone + Copy, Balance: Zero + Clone + Copy>
     }
 
     /// Returns node's locked gas balance, if it can have any.
-    pub fn lock(&self) -> Option<Balance> {
+    pub fn lock(&self) -> Balance {
         match self {
             Self::External { lock, .. }
             | Self::UnspecifiedLocal { lock, .. }
             | Self::SpecifiedLocal { lock, .. }
-            | Self::Reserved { lock, .. } => Some(*lock),
-            Self::Cut { .. } => None,
+            | Self::Reserved { lock, .. }
+            | Self::Cut { lock, .. } => *lock,
         }
     }
 
     /// Get's a mutable access to node's locked gas balance, if it can have any.
-    pub fn lock_mut(&mut self) -> Option<&mut Balance> {
+    pub fn lock_mut(&mut self) -> &mut Balance {
         match self {
             Self::External { ref mut lock, .. }
             | Self::UnspecifiedLocal { ref mut lock, .. }
             | Self::SpecifiedLocal { ref mut lock, .. }
-            | Self::Reserved { ref mut lock, .. } => Some(lock),
-            Self::Cut { .. } => None,
+            | Self::Reserved { ref mut lock, .. }
+            | Self::Cut { ref mut lock, .. } => lock,
         }
     }
 
@@ -348,11 +352,6 @@ impl<ExternalId: Clone, Id: Clone + Copy, Balance: Zero + Clone + Copy>
     /// Returns whether the node has system reserved gas.
     pub(crate) fn is_system_reservable(&self) -> bool {
         self.system_reserve().is_some()
-    }
-
-    /// Returns whether the node is lockable.
-    pub(crate) fn is_lockable(&self) -> bool {
-        self.lock().is_some()
     }
 
     fn adjust_refs(&mut self, increase: bool, spec: bool) {
