@@ -20,10 +20,7 @@ use super::{GearApi, Result};
 use crate::Error;
 use gp::api::{
     config::GearConfig,
-    generated::api::{
-        runtime_types::{gear_runtime::RuntimeEvent, pallet_gear::ProcessStatus},
-        storage,
-    },
+    generated::api::{runtime_types::gear_runtime::RuntimeEvent, storage},
 };
 use subxt::{ext::sp_core::H256, rpc::ChainBlock};
 
@@ -155,12 +152,7 @@ impl GearApi {
 
     /// Check whether the message queue processing is stopped or not.
     pub async fn queue_processing_stopped(&self) -> Result<bool> {
-        let at = storage().gear().queue_state();
-        self.0
-            .storage()
-            .fetch(&at, None)
-            .await?
-            .ok_or(Error::StorageNotFound)
-            .map(|queue_state| matches!(queue_state, ProcessStatus::SkippedOrFailed))
+        let at = storage().gear().execute_inherent();
+        Ok(!self.0.storage().fetch_or_default(&at, None).await?)
     }
 }

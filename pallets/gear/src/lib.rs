@@ -67,8 +67,8 @@ use frame_support::{
     ensure,
     pallet_prelude::*,
     traits::{
-        BalanceStatus, Currency, ExistenceRequirement, Get, LockableCurrency, Randomness,
-        ReservableCurrency, StorageVersion,
+        BalanceStatus, ConstBool, Currency, ExistenceRequirement, Get, LockableCurrency,
+        Randomness, ReservableCurrency, StorageVersion,
     },
     weights::Weight,
 };
@@ -167,34 +167,6 @@ pub struct GasInfo {
     /// This flag shows, that `min_limit` makes sense and have some guarantees
     /// only before insertion into waitlist.
     pub waited: bool,
-}
-
-/// Mode of forcing message queue processing
-#[derive(Copy, Clone, Debug, Default, Decode, Encode, PartialEq, Eq, scale_info::TypeInfo)]
-#[cfg_attr(feature = "std", derive(serde::Deserialize, serde::Serialize))]
-pub enum Forcing {
-    /// Not forcing anything: queue gets processed if scheduled
-    #[default]
-    NotForcing,
-    /// Avoid queue processing indefinitely
-    ForceNone,
-    /// Forcing once to recover from earlier error
-    ForceOnce,
-    /// Force queue processing regardless of anything
-    ForceAlways,
-}
-
-/// Possible queue processing states.
-#[derive(Clone, Debug, Default, Decode, Encode, PartialEq, Eq, scale_info::TypeInfo)]
-#[cfg_attr(feature = "std", derive(serde::Deserialize, serde::Serialize))]
-pub enum ProcessStatus {
-    /// Scheduled to run in current block
-    #[default]
-    Scheduled,
-    /// Processing completed
-    Completed,
-    /// Forced to not run or failed during last run
-    SkippedOrFailed,
 }
 
 #[frame_support::pallet]
@@ -455,19 +427,21 @@ pub mod pallet {
         ValueLessThanMinimal,
         /// Messages storage corrupted.
         MessagesStorageCorrupted,
+        /// Message queue processing is disabled.
+        MessageQueueProcessingDisabled,
     }
 
     #[cfg(feature = "runtime-benchmarks")]
     #[pallet::storage]
     pub(crate) type BenchmarkStorage<T> = StorageMap<_, Identity, u32, Vec<u8>>;
 
+    /// A flag indicating whether the message queue should be processed at the end of a block
+    ///
+    /// If not set, the inherent extrinsic that processes the queue will keep throwing an error
+    /// thereby making the block builder exclude it from the block.
     #[pallet::storage]
-    #[pallet::getter(fn force_queue)]
-    pub(crate) type ForceQueue<T> = StorageValue<_, Forcing, ValueQuery>;
-
-    #[pallet::storage]
-    #[pallet::getter(fn queue_state)]
-    pub(crate) type QueueState<T> = StorageValue<_, ProcessStatus, ValueQuery>;
+    #[pallet::getter(fn execute_inherent)]
+    pub(crate) type ExecuteInherent<T> = StorageValue<_, bool, ValueQuery, ConstBool<true>>;
 
     /// The current block number being processed.
     ///
@@ -496,71 +470,20 @@ pub mod pallet {
 
         /// Initialization
         fn on_initialize(bn: BlockNumberFor<T>) -> Weight {
+            // Incrementing Gear block number
             BlockNumber::<T>::mutate(|bn| *bn = bn.saturating_add(One::one()));
 
             log::debug!(target: "gear::runtime", "⚙️  Initialization of block #{bn:?} (gear #{:?})", Self::block_number());
 
-            // Decide whether queue processing should be scheduled or skipped for current block
-
-            // If some forcing mode is on
-            match ForceQueue::<T>::get() {
-                Forcing::ForceNone => {
-                    // Regardless of anything, forcing not to process queue
-                    QueueState::<T>::put(ProcessStatus::SkippedOrFailed);
-                    T::DbWeight::get().reads_writes(1, 2)
-                }
-                Forcing::ForceAlways => {
-                    // Regardless of anything, forcing the queue to be processed
-                    QueueState::<T>::put(ProcessStatus::Scheduled);
-                    T::DbWeight::get().reads_writes(1, 2)
-                }
-                Forcing::ForceOnce => {
-                    // Forcing queue processing in current block, subsequently not forcing anything
-                    ForceQueue::<T>::put(Forcing::default());
-                    QueueState::<T>::put(ProcessStatus::Scheduled);
-                    T::DbWeight::get().reads_writes(1, 3)
-                }
-                Forcing::NotForcing => T::DbWeight::get().reads_writes(1, 1),
-            }
+            T::DbWeight::get().writes(1)
         }
 
         /// Finalization
         fn on_finalize(bn: BlockNumberFor<T>) {
+            // Undoing Gear block number increment
+            BlockNumber::<T>::mutate(|bn| *bn = bn.saturating_sub(One::one()));
+
             log::debug!(target: "gear::runtime", "⚙️  Finalization of block #{bn:?} (gear #{:?})", Self::block_number());
-
-            match QueueState::<T>::get() {
-                // Still in `Scheduled` state: last run didn't complete (likely, panicked)
-                ProcessStatus::Scheduled => {
-                    // Emitting event to signal queue processing transaction was rolled back.
-                    Self::deposit_event(Event::QueueProcessingReverted);
-                    log::debug!(target: "gear::runtime", "⚙️  Decreasing gear block number due to process status scheduled");
-                    BlockNumber::<T>::mutate(|bn| *bn = bn.saturating_sub(One::one()));
-                    QueueState::<T>::put(ProcessStatus::SkippedOrFailed);
-                }
-                // Latest run succeeded; scheduling to run again in the next block
-                ProcessStatus::Completed => {
-                    QueueState::<T>::put(ProcessStatus::Scheduled);
-                }
-                // Otherwise keeping the status intact;
-                // Note: `SkippedOrFailed` can now only be overridden through forcing
-                ProcessStatus::SkippedOrFailed => {
-                    log::debug!(target: "gear::runtime", "⚙️ Decreasing gear block number due to process status skipped or failed");
-                    BlockNumber::<T>::mutate(|bn| *bn = bn.saturating_sub(One::one()));
-                }
-            }
-        }
-    }
-
-    #[cfg_attr(feature = "std", derive(Default))]
-    #[pallet::genesis_config]
-    pub struct GenesisConfig {
-        pub force_queue: Forcing,
-    }
-
-    #[pallet::genesis_build]
-    impl<T: Config> GenesisBuild<T> for GenesisConfig {
-        fn build(&self) {
-            ForceQueue::<T>::put(self.force_queue);
         }
     }
 
@@ -568,22 +491,6 @@ pub mod pallet {
     where
         T::AccountId: Origin,
     {
-        /// Set force always strategy.
-        ///
-        /// For tests only.
-        #[cfg(any(feature = "std", feature = "runtime-benchmarks", test))]
-        pub fn force_always() {
-            <ForceQueue<T>>::put(Forcing::ForceAlways);
-        }
-
-        /// Set completed result of queue processing.
-        ///
-        /// For tests only.
-        #[cfg(any(feature = "std", feature = "runtime-benchmarks", test))]
-        pub fn processing_completed() {
-            <QueueState<T>>::put(ProcessStatus::Completed);
-        }
-
         /// Set gear block number.
         ///
         /// For tests only.
@@ -1690,12 +1597,10 @@ pub mod pallet {
         pub fn run(origin: OriginFor<T>) -> DispatchResultWithPostInfo {
             ensure_none(origin)?;
 
-            if !matches!(QueueState::<T>::get(), ProcessStatus::Scheduled) {
-                return Ok(PostDispatchInfo {
-                    actual_weight: Some(Weight::zero()),
-                    pays_fee: Pays::No,
-                });
-            }
+            ensure!(
+                ExecuteInherent::<T>::get(),
+                Error::<T>::MessageQueueProcessingDisabled
+            );
 
             let weight_used = <frame_system::Pallet<T>>::block_weight();
             let max_weight = <T as frame_system::Config>::BlockWeights::get().max_block;
@@ -1719,13 +1624,33 @@ pub mod pallet {
                 Self::block_number(),
             );
 
-            // Set queue processing status to allow for a new run in the next block
-            QueueState::<T>::put(ProcessStatus::Completed);
+            // Incrementing Gear block number one more time to indicate that the queue processing
+            // has been successfully completed in the current block.
+            // Caveat: this increment must be done strictly after all extrinsics in the block have
+            // been handled to ensure correct block number math.
+            BlockNumber::<T>::mutate(|bn| *bn = bn.saturating_add(One::one()));
 
             Ok(PostDispatchInfo {
-                actual_weight: Some(Weight::from_ref_time(actual_weight)),
+                actual_weight: Some(
+                    Weight::from_ref_time(actual_weight)
+                        .saturating_add(T::DbWeight::get().writes(1)),
+                ),
                 pays_fee: Pays::No,
             })
+        }
+
+        /// Sets `ExecuteInherent` flag.
+        ///
+        /// Requires root origin (eventually, will only be set via referendum)
+        #[pallet::call_index(8)]
+        #[pallet::weight(DbWeightOf::<T>::get().writes(1))]
+        pub fn set_execute_inherent(origin: OriginFor<T>, value: bool) -> DispatchResult {
+            ensure_root(origin)?;
+
+            log::debug!(target: "gear::runtime", "⚙️  Set ExecuteInherent flag to {}", value);
+            ExecuteInherent::<T>::put(value);
+
+            Ok(())
         }
     }
 

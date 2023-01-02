@@ -1354,8 +1354,8 @@ fn spent_gas_to_reward_block_author_works() {
         // the `gas_charge` incurred while processing the `InitProgram` message
         let gas_spent = GasPrice::gas_price(
             BlockGasLimitOf::<Test>::get()
-                - GasAllowanceOf::<Test>::get()
-                - minimal_weight.ref_time(),
+                .saturating_sub(GasAllowanceOf::<Test>::get())
+                .saturating_sub(minimal_weight.ref_time()),
         );
         assert_eq!(
             Balances::free_balance(BLOCK_AUTHOR),
@@ -1411,8 +1411,8 @@ fn unused_gas_released_back_works() {
 
         let user1_actual_msgs_spends = GasPrice::gas_price(
             BlockGasLimitOf::<Test>::get()
-                - GasAllowanceOf::<Test>::get()
-                - minimal_weight.ref_time(),
+                .saturating_sub(GasAllowanceOf::<Test>::get())
+                .saturating_sub(minimal_weight.ref_time()),
         );
 
         assert!(user1_potential_msgs_spends > user1_actual_msgs_spends);
@@ -1947,7 +1947,9 @@ fn initial_pages_cheaper_than_allocated_pages() {
             run_to_block(block_number, None);
             assert_last_dequeued(1);
 
-            GasPrice::gas_price(BlockGasLimitOf::<Test>::get() - GasAllowanceOf::<Test>::get())
+            GasPrice::gas_price(
+                BlockGasLimitOf::<Test>::get().saturating_sub(GasAllowanceOf::<Test>::get()),
+            )
         };
 
         let spent_for_initial_pages = gas_spent(wat_initial);

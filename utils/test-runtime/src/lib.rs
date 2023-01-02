@@ -135,7 +135,7 @@ impl Message {
         let signature = sp_keyring::AccountKeyring::from_public(&self.from)
             .expect("Creates keyring from public key.")
             .sign(&self.encode());
-        Extrinsic::Submit {
+        Extrinsic::Signed {
             message: self,
             signature,
         }
@@ -145,12 +145,12 @@ impl Message {
 // Extrinsic for test-runtime
 #[derive(Clone, PartialEq, Eq, Encode, Decode, RuntimeDebug, TypeInfo)]
 pub enum Extrinsic {
-    Submit {
+    Signed {
         message: Message,
         signature: AccountSignature,
     },
-    Process,
-    StorageChange(Vec<u8>, Option<Vec<u8>>),
+    Mandatory,
+    Custom(Vec<u8>, Option<Vec<u8>>),
 }
 
 #[cfg(feature = "std")]
@@ -181,15 +181,15 @@ impl BlindCheckable for Extrinsic {
 
     fn check(self) -> Result<Self, TransactionValidityError> {
         match self {
-            Extrinsic::Submit { message, signature } => {
+            Extrinsic::Signed { message, signature } => {
                 if sp_runtime::verify_encoded_lazy(&signature, &message, &message.from) {
-                    Ok(Extrinsic::Submit { message, signature })
+                    Ok(Extrinsic::Signed { message, signature })
                 } else {
                     Err(InvalidTransaction::BadProof.into())
                 }
             }
-            Extrinsic::Process => Ok(Extrinsic::Process),
-            Extrinsic::StorageChange(key, value) => Ok(Extrinsic::StorageChange(key, value)),
+            Extrinsic::Mandatory => Ok(Extrinsic::Mandatory),
+            Extrinsic::Custom(key, value) => Ok(Extrinsic::Custom(key, value)),
         }
     }
 }
@@ -199,7 +199,7 @@ impl ExtrinsicT for Extrinsic {
     type SignaturePayload = ();
 
     fn is_signed(&self) -> Option<bool> {
-        if let Extrinsic::Process = *self {
+        if let Extrinsic::Mandatory = *self {
             Some(false)
         } else {
             Some(true)
@@ -235,7 +235,7 @@ impl Extrinsic {
     // Returns `None` if the extrinsic holds the wrong variant
     pub fn try_message(&self) -> Option<&Message> {
         match self {
-            Extrinsic::Submit { ref message, .. } => Some(message),
+            Extrinsic::Signed { ref message, .. } => Some(message),
             _ => None,
         }
     }
@@ -624,7 +624,7 @@ cfg_if! {
                     _: <Block as BlockT>::Hash,
                 ) -> TransactionValidity {
                     // Not validating signature for unsigned extrinsic
-                    if let Extrinsic::Process = utx {
+                    if let Extrinsic::Mandatory = utx {
                         return Ok(ValidTransaction {
                             priority: u64::MAX,
                             requires: vec![],
@@ -669,7 +669,7 @@ cfg_if! {
                 }
 
                 fn gear_run_extrinsic() -> <Block as BlockT>::Extrinsic {
-                    Extrinsic::new(Extrinsic::Process, None).unwrap()
+                    Extrinsic::new(Extrinsic::Mandatory, None).unwrap()
                 }
 
                 fn read_state(_program_id: H256) -> Result<Vec<u8>, Vec<u8>> {
@@ -879,7 +879,7 @@ cfg_if! {
                     _: <Block as BlockT>::Hash,
                 ) -> TransactionValidity {
                     // Not validating signature for unsigned extrinsic
-                    if let Extrinsic::Process = utx {
+                    if let Extrinsic::Mandatory = utx {
                         return Ok(ValidTransaction{
                             priority: u64::MAX,
                             requires: vec![],
@@ -924,7 +924,7 @@ cfg_if! {
                 }
 
                 fn gear_run_extrinsic() -> <Block as BlockT>::Extrinsic {
-                    Extrinsic::new(Extrinsic::Process, None).unwrap()
+                    Extrinsic::new(Extrinsic::Mandatory, None).unwrap()
                 }
 
                 fn read_state(_program_id: H256) -> Result<Vec<u8>, Vec<u8>> {
@@ -1220,7 +1220,7 @@ mod tests {
         let (new_block_id, block) = {
             let mut builder = client.new_block(Default::default()).unwrap();
             builder
-                .push_storage_change(HEAP_PAGES.to_vec(), Some(32u64.encode()))
+                .push_custom(HEAP_PAGES.to_vec(), Some(32u64.encode()))
                 .unwrap();
             let block = builder.build().unwrap().block;
             let hash = block.header.hash();
@@ -1285,7 +1285,7 @@ mod tests {
 
         assert_eq!(
             runtime_api.gear_run_extrinsic(&block_id).unwrap().encode(),
-            Extrinsic::new(Extrinsic::Process, None).unwrap().encode()
+            Extrinsic::new(Extrinsic::Mandatory, None).unwrap().encode()
         );
     }
 }
