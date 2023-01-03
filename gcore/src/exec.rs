@@ -233,13 +233,13 @@ pub fn gas_available() -> u64 {
 /// Do different jobs in gasfull and gasless messages.
 ///
 /// ```
-/// use gcore::exec;
+/// use gcore::{exec, InitialGas};
 ///
 /// #[no_mangle]
 /// extern "C" fn handle() {
 ///     match exec::gas_limit() {
-///         InitialGas::GasFull(gas) => // do something...
-///         InitialGas::GasLess => // do something...
+///         InitialGas::GasFull(gas) => { } // do something...
+///         InitialGas::GasLess => { } // do something...
 ///     }
 /// }
 /// ```
