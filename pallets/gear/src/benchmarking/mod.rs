@@ -354,6 +354,7 @@ benchmarks! {
             Default::default(),
             value.unique_saturated_into(),
             None,
+            None,
         ), u32::MAX.unique_saturated_into()).expect("Error during mailbox insertion");
 
         init_block::<T>(None);
@@ -470,6 +471,7 @@ benchmarks! {
             ProgramId::from_origin(caller.clone().into_origin()),
             Default::default(),
             value.unique_saturated_into(),
+            None,
             None,
         ), u32::MAX.unique_saturated_into()).expect("Error during mailbox insertion");
         let payload = vec![0_u8; p as usize];

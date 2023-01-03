@@ -628,6 +628,7 @@ mod tests {
             0,
             0,
             None,
+            None,
         );
 
         // Creating a message context
@@ -755,6 +756,7 @@ mod tests {
             vec![1, 2].try_into().unwrap(),
             0,
             0,
+            None,
             None,
         );
 

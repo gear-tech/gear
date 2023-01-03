@@ -172,6 +172,7 @@ fn queue_works() {
                     Default::default(),
                     Default::default(),
                     Default::default(),
+                    Default::default(),
                 ),
                 None,
             )

@@ -335,6 +335,7 @@ macro_rules! command {
                         payload.try_into().unwrap(),
                         value,
                         None,
+                        None,
                     );
 
                     QueueOf::<Runtime>::queue(StoredDispatch::new(DispatchKind::Handle, msg, None))
@@ -413,6 +414,7 @@ macro_rules! command {
                                 ProgramId::from(id.as_bytes()),
                                 msg.payload().to_vec().try_into().unwrap(),
                                 msg.value(),
+                                None,
                                 msg.details(),
                             );
                         }

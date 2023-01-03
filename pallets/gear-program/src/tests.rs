@@ -88,7 +88,15 @@ fn pause_program_works() {
         WaitlistOf::<Test>::insert(
             StoredDispatch::new(
                 DispatchKind::Handle,
-                StoredMessage::new(msg_id_1, 3.into(), program_id, Default::default(), 0, None),
+                StoredMessage::new(
+                    msg_id_1,
+                    3.into(),
+                    program_id,
+                    Default::default(),
+                    0,
+                    None,
+                    None,
+                ),
                 None,
             ),
             u64::MAX,
@@ -99,7 +107,15 @@ fn pause_program_works() {
         WaitlistOf::<Test>::insert(
             StoredDispatch::new(
                 DispatchKind::Handle,
-                StoredMessage::new(msg_id_2, 4.into(), program_id, Default::default(), 0, None),
+                StoredMessage::new(
+                    msg_id_2,
+                    4.into(),
+                    program_id,
+                    Default::default(),
+                    0,
+                    None,
+                    None,
+                ),
                 None,
             ),
             u64::MAX,
@@ -412,6 +428,7 @@ fn resume_program_wrong_list_fails() {
                 message.destination(),
                 vec![0, 1, 2, 3, 4, 5].try_into().unwrap(),
                 message.value(),
+                None,
                 message.details(),
             ),
             opt_context,
@@ -503,6 +520,7 @@ mod utils {
                 Default::default(),
                 0,
                 None,
+                None,
             ),
             None,
         );
@@ -511,7 +529,15 @@ mod utils {
         let msg_id_1: MessageId = 1.into();
         let msg_1 = StoredDispatch::new(
             DispatchKind::Handle,
-            StoredMessage::new(msg_id_1, 3.into(), program_id, Default::default(), 0, None),
+            StoredMessage::new(
+                msg_id_1,
+                3.into(),
+                program_id,
+                Default::default(),
+                0,
+                None,
+                None,
+            ),
             None,
         );
         WaitlistOf::<Test>::insert(msg_1.clone(), u64::MAX).expect("Duplicate message is wl");
@@ -520,7 +546,15 @@ mod utils {
         let msg_id_2 = 2.into();
         let msg_2 = StoredDispatch::new(
             DispatchKind::Handle,
-            StoredMessage::new(msg_id_2, 4.into(), program_id, Default::default(), 0, None),
+            StoredMessage::new(
+                msg_id_2,
+                4.into(),
+                program_id,
+                Default::default(),
+                0,
+                None,
+                None,
+            ),
             None,
         );
         WaitlistOf::<Test>::insert(msg_2.clone(), u64::MAX).expect("Duplicate message is wl");
