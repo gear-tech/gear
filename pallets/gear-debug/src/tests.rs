@@ -81,6 +81,8 @@ fn debug_mode_works() {
 
     init_logger();
     new_test_ext().execute_with(|| {
+        let initial_gas_limit = 10_000_000_000_u64;
+
         let code_1 = parse_wat(wat_1);
         let code_2 = parse_wat(wat_2);
 
@@ -126,7 +128,7 @@ fn debug_mode_works() {
             code_2.clone(),
             b"salt".to_vec(),
             Vec::new(),
-            10_000_000_000_u64,
+            initial_gas_limit,
             0_u128,
         )
         .expect("Failed to submit program");
@@ -164,7 +166,7 @@ fn debug_mode_works() {
             RuntimeOrigin::signed(1),
             program_id_1,
             vec![],
-            1_000_000_000_u64,
+            initial_gas_limit,
             0_u128,
         )
         .expect("Failed to send message");
@@ -175,7 +177,7 @@ fn debug_mode_works() {
             RuntimeOrigin::signed(1),
             program_id_2,
             vec![],
-            1_000_000_000_u64,
+            initial_gas_limit,
             0_u128,
         )
         .expect("Failed to send message");
@@ -197,7 +199,7 @@ fn debug_mode_works() {
                             program_id_1,
                             Default::default(),
                             0,
-                            None,
+                            Some(initial_gas_limit),
                             None,
                         ),
                         None,
@@ -210,7 +212,7 @@ fn debug_mode_works() {
                             program_id_2,
                             Default::default(),
                             0,
-                            None,
+                            Some(initial_gas_limit),
                             None,
                         ),
                         None,
