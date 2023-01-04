@@ -20,7 +20,11 @@
 use crate::{api::Result, GearApi};
 use gear_core::ids::{CodeId, MessageId, ProgramId};
 use gp::api::types::GasInfo;
-use subxt::ext::sp_core::H256;
+use parity_scale_codec::{Decode, Encode};
+use std::path::Path;
+use subxt::{ext::sp_core::H256, rpc::rpc_params};
+
+use crate::utils;
 
 impl GearApi {
     /// gear_calculateInitCreateGas
@@ -91,6 +95,136 @@ impl GearApi {
                 value,
                 allow_other_panics,
                 at,
+            )
+            .await
+            .map_err(Into::into)
+    }
+
+    /// Read the program's state as a byte vector.
+    pub async fn read_state_bytes(
+        &self,
+        program_id: ProgramId,
+        at: Option<H256>,
+    ) -> Result<Vec<u8>> {
+        self.0
+            .rpc()
+            .request("gear_readState", rpc_params![H256(program_id.into()), at])
+            .await
+            .map_err(Into::into)
+    }
+
+    /// Read the program's state as decoded data.
+    pub async fn read_state<D: Decode>(
+        &self,
+        program_id: ProgramId,
+        at: Option<H256>,
+    ) -> Result<D> {
+        let bytes = self.read_state_bytes(program_id, at).await?;
+        D::decode(&mut bytes.as_ref()).map_err(Into::into)
+    }
+
+    /// Read the program's state as a byte vector using a meta Wasm.
+    pub async fn read_state_bytes_using_wasm(
+        &self,
+        program_id: ProgramId,
+        fn_name: &[u8],
+        wasm: Vec<u8>,
+        argument: Option<Vec<u8>>,
+        at: Option<H256>,
+    ) -> Result<Vec<u8>> {
+        self.0
+            .rpc()
+            .request(
+                "gear_readStateUsingWasm",
+                rpc_params![
+                    H256(program_id.into()),
+                    fn_name.to_vec(),
+                    wasm,
+                    argument,
+                    at
+                ],
+            )
+            .await
+            .map_err(Into::into)
+    }
+
+    /// Read the program's state as decoded data using a meta Wasm.
+    pub async fn read_state_using_wasm<E: Encode, D: Decode>(
+        &self,
+        program_id: ProgramId,
+        fn_name: &[u8],
+        wasm: Vec<u8>,
+        argument: Option<E>,
+        at: Option<H256>,
+    ) -> Result<D> {
+        let bytes = self
+            .read_state_bytes_using_wasm(
+                program_id,
+                fn_name,
+                wasm,
+                argument.map(|v| v.encode()),
+                at,
+            )
+            .await?;
+
+        D::decode(&mut bytes.as_ref()).map_err(Into::into)
+    }
+
+    /// Read the program's state using a meta Wasm file referenced by its `path`.
+    pub async fn read_state_bytes_using_wasm_by_path(
+        &self,
+        program_id: ProgramId,
+        fn_name: &[u8],
+        path: impl AsRef<Path>,
+        argument: Option<Vec<u8>>,
+        at: Option<H256>,
+    ) -> Result<Vec<u8>> {
+        let wasm = utils::code_from_os(path.as_ref())?;
+        self.0
+            .rpc()
+            .request(
+                "gear_readStateUsingWasm",
+                rpc_params![
+                    H256(program_id.into()),
+                    fn_name.to_vec(),
+                    wasm,
+                    argument,
+                    at
+                ],
+            )
+            .await
+            .map_err(Into::into)
+    }
+
+    /// Read the program's state using a meta Wasm file referenced by its `path`.
+    pub async fn read_state_using_wasm_by_path<E: Encode, D: Decode>(
+        &self,
+        program_id: ProgramId,
+        fn_name: &[u8],
+        path: impl AsRef<Path>,
+        argument: Option<E>,
+        at: Option<H256>,
+    ) -> Result<D> {
+        let bytes = self
+            .read_state_bytes_using_wasm_by_path(
+                program_id,
+                fn_name,
+                path,
+                argument.map(|v| v.encode()),
+                at,
+            )
+            .await?;
+
+        D::decode(&mut bytes.as_ref()).map_err(Into::into)
+    }
+
+    /// Read the program's metahash.
+    pub async fn read_metahash(&self, program_id: ProgramId, at: Option<H256>) -> Result<H256> {
+        self.0
+            .rpc()
+            .request(
+                "gear_readMetahash",
+                rpc_params![H256(program_id.into()), at],
             )
             .await
             .map_err(Into::into)
