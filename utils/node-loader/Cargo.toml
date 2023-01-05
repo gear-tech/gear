@@ -29,7 +29,7 @@ rand = { version = "0.8.0", features = ["small_rng"] }
 reqwest = { version = "0.11.13", default-features = false }
 structopt = "0.3.26"
 thiserror = "1.0.38"
-tokio = { version = "1.23.0", features = [ "macros" ] }
+tokio = { version = "1.23.1", features = [ "macros" ] }
 tracing = "0.1.36"
 tracing-appender = "0.2"
 tracing-subscriber = { version = "0.3.15", features = [ "env-filter", "json" ] }
