@@ -11136,9 +11136,13 @@ dependencies = [
 name = "validator-checks"
 version = "0.1.0"
 dependencies = [
+ "async-trait",
  "clap 4.0.32",
  "color-eyre",
+ "futures-util",
  "gear-program",
+ "subxt",
+ "thiserror",
 ]
 
 [[package]]

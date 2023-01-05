@@ -11,3 +11,7 @@ path = "bin/validator-checks.rs"
 gp = { package = "gear-program", path = "../../program" }
 clap = { version = "4.0.32", features = ["derive"] }
 color-eyre = { version = "0.6.2" }
+subxt = "0.25.0"
+thiserror = "1.0.38"
+async-trait = "0.1.60"
+futures-util = "0.3.25"
