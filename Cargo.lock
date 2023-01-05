@@ -11139,10 +11139,13 @@ dependencies = [
  "async-trait",
  "clap 4.0.32",
  "color-eyre",
+ "env_logger 0.10.0",
  "futures-util",
  "gear-program",
+ "log",
  "subxt",
  "thiserror",
+ "tokio",
 ]
 
 [[package]]

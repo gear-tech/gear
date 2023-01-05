@@ -10,3 +10,9 @@ pub struct Address(
     // Address of the validator.
     String,
 );
+
+impl From<String> for Address {
+    fn from(s: String) -> Self {
+        Self(s)
+    }
+}

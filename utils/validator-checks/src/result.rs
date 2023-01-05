@@ -8,6 +8,8 @@ pub enum Error {
     GProgram(#[from] gp::result::Error),
     #[error(transparent)]
     Subxt(#[from] subxt::Error),
+    #[error(transparent)]
+    EnvLogger(#[from] log::SetLoggerError),
 }
 
 pub type Result<T> = StdResult<T, Error>;

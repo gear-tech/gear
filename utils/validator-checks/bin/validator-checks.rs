@@ -2,10 +2,13 @@ use clap::Parser;
 use color_eyre::eyre::Result;
 use validator_checks::Opt;
 
-fn main() -> Result<()> {
+#[tokio::main]
+async fn main() -> Result<()> {
     color_eyre::install()?;
 
-    println!("{:?}", Opt::parse());
+    if let Err(e) = Opt::parse().run().await {
+        log::error!("{:?}", e);
+    }
 
     Ok(())
 }
