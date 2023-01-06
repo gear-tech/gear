@@ -221,7 +221,7 @@ impl Program {
 }
 
 #[derive(Clone, Debug, derive_more::Display)]
-#[display(fmt = "Program is not active one")]
+#[display(fmt = "Program is not an active one")]
 pub struct InactiveProgramError;
 
 impl core::convert::TryFrom<Program> for ActiveProgram {
@@ -276,7 +276,7 @@ impl CodeMetadata {
     }
 }
 
-// TODO: Remove this legacy after next runtime upgrade.
+// TODO: delete the fn after next upgrade
 pub fn reset_storage() {
     const STORAGE_PROGRAM_PREFIX: &[u8] = b"g::prog::";
     sp_io::storage::clear_prefix(STORAGE_PROGRAM_PREFIX, None);

@@ -21,6 +21,8 @@
 //! This primitive defines interface of interaction
 //! with globally stored single-key map (Key -> Value).
 
+use codec::{Encode, EncodeAppend, EncodeLike};
+
 /// Represents logic of managing globally stored
 /// single-key map for more complicated logic.
 ///
@@ -68,14 +70,14 @@ pub trait MapStorage {
 
 pub trait AppendMapStorage<Item, Key, Value>: MapStorage<Key = Key, Value = Value>
 where
-    Item: codec::Encode,
-    Key: codec::Encode,
-    Value: codec::EncodeAppend<Item = Item>,
+    Item: Encode,
+    Key: Encode,
+    Value: EncodeAppend<Item = Item>,
 {
     fn append<EncodeLikeKey, EncodeLikeItem>(key: EncodeLikeKey, item: EncodeLikeItem)
     where
-        EncodeLikeKey: codec::EncodeLike<Key>,
-        EncodeLikeItem: codec::EncodeLike<Item>;
+        EncodeLikeKey: EncodeLike<Key>,
+        EncodeLikeItem: EncodeLike<Item>;
 }
 
 /// Creates new type with specified name and key-value types and implements

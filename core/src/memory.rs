@@ -19,8 +19,8 @@
 //! Module for memory and allocations context.
 
 use crate::buffer::LimitedVec;
-use alloc::{collections::BTreeSet, vec::Vec};
-use codec::{Decode, Encode};
+use alloc::collections::BTreeSet;
+use codec::{Decode, Encode, EncodeLike, Input, Output};
 use core::{
     fmt,
     fmt::Debug,
@@ -75,27 +75,27 @@ pub struct PageBuf(PageBufInner);
 //      for length;
 // - work with PageBuf as with Vec. This is to workaround a limit in 2_048
 //      items for fixed length array in polkadot.js/metadata.
-//      Grep 'Only support for [Type' to get more details on that.
+//      Grep 'Only support for [[]Type' to get more details on that.
 impl Encode for PageBuf {
     fn size_hint(&self) -> usize {
         GEAR_PAGE_SIZE
     }
 
-    fn encode_to<W: codec::Output + ?Sized>(&self, dest: &mut W) {
+    fn encode_to<W: Output + ?Sized>(&self, dest: &mut W) {
         dest.write(self.0.get())
     }
 }
 
 impl Decode for PageBuf {
     #[inline]
-    fn decode<I: codec::Input>(input: &mut I) -> Result<Self, codec::Error> {
+    fn decode<I: Input>(input: &mut I) -> Result<Self, codec::Error> {
         let mut buffer = PageBufInner::filled_with(0);
         input.read(buffer.get_mut())?;
         Ok(Self(buffer))
     }
 }
 
-impl codec::EncodeLike for PageBuf {}
+impl EncodeLike for PageBuf {}
 
 impl fmt::Debug for PageBuf {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -132,11 +132,6 @@ impl PageBuf {
     /// Returns new page buffer with zeroed data.
     pub fn new_zeroed() -> PageBuf {
         Self(PageBufInner::filled_with(0))
-    }
-
-    /// Convert page buffer into vector without reallocations.
-    pub fn into_vec(self) -> Vec<u8> {
-        self.0.into_vec()
     }
 }
 

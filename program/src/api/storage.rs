@@ -65,9 +65,9 @@ mod gear {
             },
             types, Api,
         },
-        metadata::PAGE_SIZE,
         result::{ClientError, Result},
     };
+    use gear_core::memory::GEAR_PAGE_SIZE;
     use hex::ToHex;
     use parity_scale_codec::Decode;
     use std::collections::HashMap;
@@ -119,7 +119,7 @@ mod gear {
                     .fetch_raw(&lookup_bytes, None)
                     .await?
                     .ok_or_else(|| ClientError::PageNotFound(page.0, pid.encode_hex()))?;
-                let decoded = <[u8; PAGE_SIZE]>::decode(&mut &encoded_page[..])?;
+                let decoded = <[u8; GEAR_PAGE_SIZE]>::decode(&mut &encoded_page[..])?;
                 pages.insert(page.0, decoded.to_vec());
             }
 

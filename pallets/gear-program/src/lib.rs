@@ -25,8 +25,11 @@ pub mod migration;
 #[frame_support::pallet]
 pub mod pallet {
     use super::*;
+    use codec::EncodeLike;
     use common::{storage::*, CodeMetadata, Program};
-    use frame_support::{pallet_prelude::*, traits::StorageVersion, StoragePrefixedMap};
+    use frame_support::{
+        pallet_prelude::*, storage::PrefixIterator, traits::StorageVersion, StoragePrefixedMap,
+    };
     use frame_system::pallet_prelude::*;
     use gear_core::{
         code::InstrumentedCode,
@@ -147,8 +150,8 @@ pub mod pallet {
 
     #[cfg(feature = "debug-mode")]
     impl<T: Config> IterableMap<(ProgramId, Program)> for pallet::Pallet<T> {
-        type DrainIter = frame_support::storage::PrefixIterator<(ProgramId, Program)>;
-        type Iter = frame_support::storage::PrefixIterator<(ProgramId, Program)>;
+        type DrainIter = PrefixIterator<(ProgramId, Program)>;
+        type Iter = PrefixIterator<(ProgramId, Program)>;
 
         fn drain() -> Self::DrainIter {
             ProgramStorage::<T>::drain()
@@ -164,8 +167,8 @@ pub mod pallet {
     {
         fn append<EncodeLikeKey, EncodeLikeItem>(key: EncodeLikeKey, item: EncodeLikeItem)
         where
-            EncodeLikeKey: codec::EncodeLike<Self::Key>,
-            EncodeLikeItem: codec::EncodeLike<MessageId>,
+            EncodeLikeKey: EncodeLike<Self::Key>,
+            EncodeLikeItem: EncodeLike<MessageId>,
         {
             WaitingInitStorage::<Runtime>::append(key, item);
         }
