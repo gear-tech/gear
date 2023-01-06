@@ -72,7 +72,7 @@ pub fn call_node(script_path: PathBuf, args: Vec<&str>) -> Vec<u8> {
         .expect("Unable to convert PathBuf to str");
     let output = Command::new("node")
         .arg(script_path)
-        .args(&args)
+        .args(args)
         .output()
         .expect("Unable to call node.js process");
 

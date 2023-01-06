@@ -40,6 +40,7 @@ use gear_test::{
 use junit_common::{TestCase, TestSuite, TestSuites};
 use pallet_gear::{Config, GasAllowanceOf, GasHandlerOf, Pallet as GearPallet, ProgramStorageOf};
 use pallet_gear_debug::{DebugData, ProgramState};
+use quick_xml::Writer;
 use rayon::prelude::*;
 use sc_cli::{CliConfiguration, SharedParams};
 use sp_core::H256;
@@ -119,18 +120,18 @@ macro_rules! command {
                 .collect::<(Vec<_>, Vec<_>)>();
 
             if let Some(ref junit_path) = param.generate_junit {
-                let writer = std::fs::File::create(junit_path)?;
-                quick_xml::se::to_writer(
-                    writer,
+                let xml = quick_xml::se::to_writer(
+                    String::new(),
                     &TestSuites {
                         time: times.iter().sum::<f64>().to_string(),
                         testsuite: executions,
                     },
                 )
                 .map_err(|e| {
-                    let mapped: Box<dyn std::error::Error + Send + Sync + 'static> = Box::new(e);
+                    let mapped: Box<dyn std::error::Error + Send + Sync> = Box::new(e);
                     mapped
                 })?;
+                std::fs::write(junit_path, xml)?;
             }
 
             if total_failed.load(Ordering::SeqCst) == 0 {
