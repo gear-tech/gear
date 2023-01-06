@@ -725,7 +725,7 @@ mod tests {
         let mut pages = BTreeMap::new();
         for i in 0..=255 {
             let buffer = PageBufInner::filled_with(i);
-            pages.insert((i as u16).into(), PageBuf::from(buffer));
+            pages.insert((i as u16).into(), PageBuf::from_inner(buffer));
         }
         pages
     }
@@ -866,7 +866,7 @@ mod tests {
         // Change static pages
         for i in 0..static_pages {
             let buffer = PageBufInner::filled_with(42);
-            new_pages.insert(i.into(), PageBuf::from(buffer));
+            new_pages.insert(i.into(), PageBuf::from_inner(buffer));
         }
         // Do not include non-static pages
         let new_pages = new_pages
@@ -888,16 +888,28 @@ mod tests {
         let mut new_pages = prepare_pages();
 
         // Change pages
-        new_pages.insert(1.into(), PageBuf::from(PageBufInner::filled_with(42u8)));
-        new_pages.insert(5.into(), PageBuf::from(PageBufInner::filled_with(84u8)));
+        new_pages.insert(
+            1.into(),
+            PageBuf::from_inner(PageBufInner::filled_with(42u8)),
+        );
+        new_pages.insert(
+            5.into(),
+            PageBuf::from_inner(PageBufInner::filled_with(84u8)),
+        );
         new_pages.insert(30.into(), PageBuf::new_zeroed());
         let static_pages = 4.into();
         let res = get_pages_to_be_updated::<TestExt>(old_pages, new_pages.clone(), static_pages);
         assert_eq!(
             res,
             [
-                (1.into(), PageBuf::from(PageBufInner::filled_with(42u8))),
-                (5.into(), PageBuf::from(PageBufInner::filled_with(84u8))),
+                (
+                    1.into(),
+                    PageBuf::from_inner(PageBufInner::filled_with(42u8))
+                ),
+                (
+                    5.into(),
+                    PageBuf::from_inner(PageBufInner::filled_with(84u8))
+                ),
                 (30.into(), PageBuf::new_zeroed())
             ]
             .into()

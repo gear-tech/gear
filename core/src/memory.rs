@@ -121,17 +121,21 @@ impl DerefMut for PageBuf {
     }
 }
 
-impl From<PageBufInner> for PageBuf {
-    fn from(mut v: PageBufInner) -> Self {
-        v.extend_with(0);
-        Self(v)
-    }
-}
-
 impl PageBuf {
     /// Returns new page buffer with zeroed data.
     pub fn new_zeroed() -> PageBuf {
         Self(PageBufInner::filled_with(0))
+    }
+
+    /// Creates PageBuf from inner buffer. If the buffer has
+    /// the size of GEAR_PAGE_SIZE then no reallocations occur. In other
+    /// case it will be extended with zeros.
+    ///
+    /// The method is implemented intentionally instead of trait From to
+    /// highlight conversion cases in the source code.
+    pub fn from_inner(mut inner: PageBufInner) -> Self {
+        inner.extend_with(0);
+        Self(inner)
     }
 }
 
@@ -702,7 +706,7 @@ mod tests {
 
         let mut data = PageBufInner::filled_with(199u8);
         data.get_mut()[1] = 2;
-        let page_buf = PageBuf::from(data);
+        let page_buf = PageBuf::from_inner(data);
         log::debug!("page buff = {:?}", page_buf);
     }
 
