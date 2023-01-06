@@ -333,8 +333,13 @@ where
                 Err(_err) => 1,
             };
 
-            ctx.write_output(err_len_ptr, &length.to_le_bytes())
-                .map_err(Into::into)
+            // Ignore errors while doing unchecked reading.
+            if err_len_ptr != u32::MAX {
+                ctx.write_output(err_len_ptr, &length.to_le_bytes())
+                    .map_err(Into::into)
+            } else {
+                Ok(())
+            }
         })
     }
 
