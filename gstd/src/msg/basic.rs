@@ -217,6 +217,27 @@ pub fn load_bytes() -> Result<Vec<u8>> {
     Ok(result)
 }
 
+/// Get a payload of the message currently being processed without checking
+/// errors.
+///
+/// Loads payload of the message into a buffer with a message size which can be
+/// obtained using the [`size`] function.
+///
+/// # Examples
+///
+/// ```
+/// use gstd::msg;
+///
+/// extern "C" fn handle() {
+///     let payload_bytes = msg::load_bytes_unchecked();
+/// }
+/// ```
+pub fn load_bytes_unchecked() -> Vec<u8> {
+    let mut result = vec![0u8; size()];
+    gcore::msg::read_unchecked(result.as_mut());
+    result
+}
+
 /// Same as [`reply`](crate::msg::reply), without encoding payload.
 #[wait_for_reply]
 pub fn reply_bytes(payload: impl AsRef<[u8]>, value: u128) -> Result<MessageId> {
