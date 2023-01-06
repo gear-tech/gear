@@ -1099,6 +1099,8 @@ benchmarks! {
 
     gr_create_program_wgas_per_kb {
         let p in 0 .. MAX_PAYLOAD_LEN_KB;
+        // salt cannot be zero because we cannot execute batch of sys-calls
+        // as salt will be the same and we will get `ProgramAlreadyExists` error
         let s in 1 .. MAX_PAYLOAD_LEN_KB;
         let mut res = None;
         let exec = Benches::<T>::gr_create_program_wgas_per_kb(p, s)?;

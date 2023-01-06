@@ -271,6 +271,9 @@ where
     T: Config,
     T::AccountId: Origin,
 {
+    // size of error length field
+    const ERR_LEN_SIZE: u32 = size_of::<u32>() as u32;
+
     fn prepare_handle(
         code: WasmModule<T>,
         value: u32,
@@ -285,6 +288,12 @@ where
             value.into(),
             err_len_ptrs,
         )
+    }
+
+    fn gen_err_ptrs(repetitions: u32, offset: u32) -> Vec<u32> {
+        (0..repetitions)
+            .map(|x| x * Self::ERR_LEN_SIZE + offset)
+            .collect()
     }
 
     pub fn alloc(r: u32) -> Result<Exec<T>, &'static str> {
@@ -332,9 +341,7 @@ where
     }
 
     pub fn gr_reserve_gas(r: u32) -> Result<Exec<T>, &'static str> {
-        let err_ptrs = (0..r * API_BENCHMARK_BATCH_SIZE / 4)
-            .map(|x| x + 1) // +1 is for unaligned read
-            .collect();
+        let err_ptrs = Self::gen_err_ptrs(r * API_BENCHMARK_BATCH_SIZE, 1);
 
         let code = WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
@@ -347,7 +354,7 @@ where
                     // duration
                     Regular(Instruction::I32Const(1)),
                     // err_rid ptr
-                    Counter(1, 4),
+                    Counter(1, Self::ERR_LEN_SIZE),
                     // CALL
                     Regular(Instruction::Call(0)),
                 ],
@@ -367,9 +374,7 @@ where
 
         let amount_offset = reservation_id_offset + reservation_id_bytes.len() as u32;
 
-        let err_ptrs = (0..r * API_BENCHMARK_BATCH_SIZE / 4)
-            .map(|x| x + amount_offset)
-            .collect();
+        let err_ptrs = Self::gen_err_ptrs(r * API_BENCHMARK_BATCH_SIZE, amount_offset);
 
         let code = WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
@@ -384,7 +389,7 @@ where
                     // reservation_id ptr
                     Counter(reservation_id_offset, size_of::<ReservationId>() as u32),
                     // err_unreserved ptr
-                    Counter(amount_offset, 4),
+                    Counter(amount_offset, Self::ERR_LEN_SIZE),
                     // CALL
                     Regular(Instruction::Call(0)),
                 ],
@@ -418,9 +423,7 @@ where
     }
 
     pub fn gr_system_reserve_gas(r: u32) -> Result<Exec<T>, &'static str> {
-        let err_ptrs = (0..r * API_BENCHMARK_BATCH_SIZE / 4)
-            .map(|x| x + 1) // +1 is for unaligned read
-            .collect();
+        let err_ptrs = Self::gen_err_ptrs(r * API_BENCHMARK_BATCH_SIZE, 1);
 
         let code = WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
@@ -431,7 +434,7 @@ where
                     // gas amount
                     Regular(Instruction::I64Const(50_000_000)),
                     // err len ptr
-                    Counter(1, 4),
+                    Counter(1, Self::ERR_LEN_SIZE),
                     // CALL
                     Regular(Instruction::Call(0)),
                 ],
@@ -471,10 +474,7 @@ where
         let buffer_len = 100u32;
 
         let err_len_offset = buffer_offset + buffer_len;
-        let err_len_ptrs = (0..r * API_BENCHMARK_BATCH_SIZE / 4)
-            .step_by(4)
-            .map(|x| x + err_len_offset)
-            .collect();
+        let err_len_ptrs = Self::gen_err_ptrs(r * API_BENCHMARK_BATCH_SIZE, err_len_offset);
 
         let code = WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
@@ -489,7 +489,7 @@ where
                     // buffer ptr
                     Regular(Instruction::I32Const(buffer_offset as i32)),
                     // err len ptr
-                    Counter(err_len_offset, 4),
+                    Counter(err_len_offset, Self::ERR_LEN_SIZE),
                     // CALL
                     Regular(Instruction::Call(0)),
                 ],
@@ -514,10 +514,7 @@ where
         let buffer_len = buffer.len() as u32;
 
         let err_len_offset = buffer_offset + buffer_len;
-        let err_len_ptrs = (0..API_BENCHMARK_BATCH_SIZE / 4)
-            .step_by(4)
-            .map(|x| x + err_len_offset)
-            .collect();
+        let err_len_ptrs = Self::gen_err_ptrs(API_BENCHMARK_BATCH_SIZE, err_len_offset);
 
         let code = WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
@@ -536,7 +533,7 @@ where
                     // buffer ptr
                     Regular(Instruction::I32Const(buffer_offset as i32)),
                     // err len ptr
-                    Counter(err_len_offset, 4),
+                    Counter(err_len_offset, Self::ERR_LEN_SIZE),
                     // CALL
                     Regular(Instruction::Call(0)),
                 ],
@@ -580,10 +577,7 @@ where
     }
 
     pub fn gr_send_init(r: u32) -> Result<Exec<T>, &'static str> {
-        let err_len_ptrs = (0..r * API_BENCHMARK_BATCH_SIZE / 4)
-            .step_by(4)
-            .map(|x| x + 1) // +1 is for unaligned read
-            .collect();
+        let err_len_ptrs = Self::gen_err_ptrs(r * API_BENCHMARK_BATCH_SIZE, 1);
 
         let code = WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
@@ -592,7 +586,7 @@ where
                 r * API_BENCHMARK_BATCH_SIZE,
                 vec![
                     // err_handle ptr
-                    Counter(1, 4),
+                    Counter(1, Self::ERR_LEN_SIZE),
                     // CALL
                     Regular(Instruction::Call(0)),
                 ],
@@ -609,10 +603,7 @@ where
         let err_handle_ptr = payload_offset + payload_len;
 
         let err_offset = err_handle_ptr + 8;
-        let err_len_ptrs = (0..r * API_BENCHMARK_BATCH_SIZE / 4)
-            .step_by(4)
-            .map(|x| x + err_offset)
-            .collect();
+        let err_len_ptrs = Self::gen_err_ptrs(r * API_BENCHMARK_BATCH_SIZE, err_offset);
 
         let code = WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
@@ -632,7 +623,7 @@ where
                     // payload len
                     Regular(Instruction::I32Const(payload_len as i32)),
                     // err len ptr
-                    Counter(err_offset, 4),
+                    Counter(err_offset, Self::ERR_LEN_SIZE),
                     // CALL push
                     Regular(Instruction::Call(1)),
                 ],
@@ -650,10 +641,7 @@ where
         let handle_offset = payload_offset + payload_len;
 
         let err_offset = handle_offset + 8; // u32 + u32 offset
-        let err_len_ptrs = (0..API_BENCHMARK_BATCH_SIZE / 4)
-            .step_by(4)
-            .map(|x| x + err_offset)
-            .collect();
+        let err_len_ptrs = Self::gen_err_ptrs(API_BENCHMARK_BATCH_SIZE, err_offset);
 
         let code = WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
@@ -673,7 +661,7 @@ where
                     // payload len
                     Regular(Instruction::I32Const(payload_len as i32)),
                     // err len ptr
-                    Counter(err_offset, 4),
+                    Counter(err_offset, Self::ERR_LEN_SIZE),
                     // CALL push
                     Regular(Instruction::Call(1)),
                 ],
@@ -693,10 +681,7 @@ where
         let pid_value = vec![0; 32 + 16];
 
         let err_mid_offset = pid_value_offset + pid_value.len() as u32;
-        let err_len_ptrs = (0..r * API_BENCHMARK_BATCH_SIZE / 4)
-            .step_by(4)
-            .map(|x| x + err_mid_offset)
-            .collect();
+        let err_len_ptrs = Self::gen_err_ptrs(r * API_BENCHMARK_BATCH_SIZE, err_mid_offset);
 
         let code = WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
@@ -717,7 +702,7 @@ where
                     // delay
                     Regular(Instruction::I32Const(10)),
                     // err_mid ptr
-                    Counter(err_mid_offset, 4),
+                    Counter(err_mid_offset, Self::ERR_LEN_SIZE),
                     // CALL
                     Regular(Instruction::Call(0)),
                 ],
@@ -737,10 +722,7 @@ where
         let pid_value = vec![0; 32 + 16];
 
         let err_mid_offset = pid_value_offset + pid_value.len() as u32;
-        let err_len_ptrs = (0..API_BENCHMARK_BATCH_SIZE / 4)
-            .step_by(4)
-            .map(|x| x + err_mid_offset)
-            .collect();
+        let err_len_ptrs = Self::gen_err_ptrs(API_BENCHMARK_BATCH_SIZE, err_mid_offset);
 
         let code = WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
@@ -761,7 +743,7 @@ where
                     // delay
                     Regular(Instruction::I32Const(10)),
                     // err_mid ptr
-                    Counter(err_mid_offset, 4),
+                    Counter(err_mid_offset, Self::ERR_LEN_SIZE),
                     // CALL
                     Regular(Instruction::Call(0)),
                 ],
@@ -788,10 +770,7 @@ where
         let payload_len = 100;
 
         let err_mid_offset = payload_offset + payload_len;
-        let err_len_ptrs = (0..r * API_BENCHMARK_BATCH_SIZE / 4)
-            .step_by(4)
-            .map(|x| x + err_mid_offset)
-            .collect();
+        let err_len_ptrs = Self::gen_err_ptrs(r * API_BENCHMARK_BATCH_SIZE, err_mid_offset);
 
         let code = WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
@@ -812,7 +791,7 @@ where
                     // delay
                     Regular(Instruction::I32Const(10)),
                     // err_mid ptr
-                    Counter(err_mid_offset, 4),
+                    Counter(err_mid_offset, Self::ERR_LEN_SIZE),
                     // CALL
                     Regular(Instruction::Call(0)),
                 ],
@@ -862,10 +841,7 @@ where
         let payload_len = n * 1024;
 
         let err_mid_offset = payload_offset + payload_len;
-        let err_len_ptrs = (0..API_BENCHMARK_BATCH_SIZE / 4)
-            .step_by(4)
-            .map(|x| x + err_mid_offset)
-            .collect();
+        let err_len_ptrs = Self::gen_err_ptrs(API_BENCHMARK_BATCH_SIZE, err_mid_offset);
 
         let code = WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
@@ -886,7 +862,7 @@ where
                     // delay
                     Regular(Instruction::I32Const(10)),
                     // err_mid ptr
-                    Counter(err_mid_offset, 4),
+                    Counter(err_mid_offset, Self::ERR_LEN_SIZE),
                     // CALL
                     Regular(Instruction::Call(0)),
                 ],
@@ -923,7 +899,7 @@ where
         let value_offset = 1;
 
         let err_mid_offset = value_offset + mem::size_of::<u128>() as u32;
-        let err_len_ptrs = (0..r / 4).step_by(4).map(|x| x + err_mid_offset).collect();
+        let err_len_ptrs = Self::gen_err_ptrs(r, err_mid_offset);
 
         let code = WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
@@ -936,7 +912,7 @@ where
                     // delay
                     Regular(Instruction::I32Const(10)),
                     // err_mid ptr
-                    Counter(err_mid_offset, 4),
+                    Counter(err_mid_offset, Self::ERR_LEN_SIZE),
                     // CALL
                     Regular(Instruction::Call(0)),
                 ],
@@ -951,10 +927,7 @@ where
         let payload_len = 100;
 
         let err_offset = payload_offset + payload_len;
-        let err_len_ptrs = (0..r * API_BENCHMARK_BATCH_SIZE / 4)
-            .step_by(4)
-            .map(|x| x + err_offset)
-            .collect();
+        let err_len_ptrs = Self::gen_err_ptrs(r * API_BENCHMARK_BATCH_SIZE, err_offset);
 
         let code = WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
@@ -967,7 +940,7 @@ where
                     // payload len
                     Regular(Instruction::I32Const(payload_len as i32)),
                     // err len ptr
-                    Counter(err_offset, 4),
+                    Counter(err_offset, Self::ERR_LEN_SIZE),
                     // CALL
                     Regular(Instruction::Call(0)),
                 ],
@@ -1005,7 +978,7 @@ where
     pub fn gr_reservation_reply_commit(r: u32) -> Result<Exec<T>, &'static str> {
         let rid_value_offset = 1;
 
-        let rid_values = (0..r * API_BENCHMARK_BATCH_SIZE)
+        let rid_values = (0..r)
             .flat_map(|i| {
                 let mut bytes = [0; 32 + 16];
                 bytes[..32].copy_from_slice(ReservationId::from(i as u64).as_ref());
@@ -1014,7 +987,7 @@ where
             .collect::<Vec<_>>();
 
         let err_mid_offset = rid_value_offset + rid_values.len() as u32;
-        let err_len_ptrs = (0..r / 4).map(|x| x + err_mid_offset).collect();
+        let err_len_ptrs = Self::gen_err_ptrs(r, err_mid_offset);
 
         let code = WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
@@ -1031,7 +1004,7 @@ where
                     // delay
                     Regular(Instruction::I32Const(10)),
                     // err_mid ptr
-                    Counter(err_mid_offset, 4),
+                    Counter(err_mid_offset, Self::ERR_LEN_SIZE),
                     // CALL
                     Regular(Instruction::Call(0)),
                 ],
@@ -1066,10 +1039,7 @@ where
 
     pub fn gr_reply_to(r: u32) -> Result<Exec<T>, &'static str> {
         let err_mid_ptr = 1;
-        let err_len_ptrs = (0..r * API_BENCHMARK_BATCH_SIZE / 4)
-            .step_by(4)
-            .map(|x| x + err_mid_ptr)
-            .collect();
+        let err_len_ptrs = Self::gen_err_ptrs(r * API_BENCHMARK_BATCH_SIZE, err_mid_ptr);
 
         let code = WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
@@ -1078,7 +1048,7 @@ where
                 r * API_BENCHMARK_BATCH_SIZE,
                 vec![
                     // err_mid ptr
-                    Counter(err_mid_ptr, 4),
+                    Counter(err_mid_ptr, Self::ERR_LEN_SIZE),
                     // CALL
                     Regular(Instruction::Call(0)),
                 ],
@@ -1110,10 +1080,7 @@ where
 
     pub fn gr_signal_from(r: u32) -> Result<Exec<T>, &'static str> {
         let err_mid_ptr = 1;
-        let err_len_ptrs = (0..r * API_BENCHMARK_BATCH_SIZE / 4)
-            .step_by(4)
-            .map(|x| x + err_mid_ptr)
-            .collect();
+        let err_len_ptrs = Self::gen_err_ptrs(r * API_BENCHMARK_BATCH_SIZE, err_mid_ptr);
 
         let code = WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
@@ -1122,7 +1089,7 @@ where
                 r * API_BENCHMARK_BATCH_SIZE,
                 vec![
                     // err_mid ptr
-                    Counter(err_mid_ptr, 4),
+                    Counter(err_mid_ptr, Self::ERR_LEN_SIZE),
                     // CALL
                     Regular(Instruction::Call(0)),
                 ],
@@ -1157,10 +1124,7 @@ where
         let payload_len = 100;
 
         let err_offset = payload_offset + payload_len;
-        let err_len_ptrs = (0..r * API_BENCHMARK_BATCH_SIZE / 4)
-            .step_by(4)
-            .map(|x| x + err_offset)
-            .collect();
+        let err_len_ptrs = Self::gen_err_ptrs(r * API_BENCHMARK_BATCH_SIZE, err_offset);
 
         let code = WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
@@ -1173,7 +1137,7 @@ where
                     Regular(Instruction::I32Const(
                         payload_len.saturating_sub(payload_offset) as i32,
                     )),
-                    Counter(err_offset, 4),
+                    Counter(err_offset, Self::ERR_LEN_SIZE),
                     Regular(Instruction::Call(0)),
                 ],
             )),
@@ -1227,10 +1191,7 @@ where
         let err_handle_ptr = payload_offset + payload_len;
 
         let err_offset = err_handle_ptr + 8;
-        let err_len_ptrs = (0..r * API_BENCHMARK_BATCH_SIZE / 4)
-            .step_by(4)
-            .map(|x| x + err_offset)
-            .collect();
+        let err_len_ptrs = Self::gen_err_ptrs(r * API_BENCHMARK_BATCH_SIZE, err_offset);
 
         let code = WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
@@ -1252,7 +1213,7 @@ where
                         payload_len.saturating_sub(payload_offset) as i32,
                     )),
                     // err len ptr
-                    Counter(err_offset, 4),
+                    Counter(err_offset, Self::ERR_LEN_SIZE),
                     // CALL push
                     Regular(Instruction::Call(1)),
                 ],
@@ -1277,10 +1238,7 @@ where
         let err_handle_ptr = payload_offset + payload_len;
 
         let err_offset = err_handle_ptr + 8;
-        let err_len_ptrs = (0..API_BENCHMARK_BATCH_SIZE / 4)
-            .step_by(4)
-            .map(|x| x + err_offset)
-            .collect();
+        let err_len_ptrs = Self::gen_err_ptrs(API_BENCHMARK_BATCH_SIZE, err_offset);
 
         let code = WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
@@ -1302,7 +1260,7 @@ where
                         payload_len.saturating_sub(payload_offset) as i32,
                     )),
                     // err len ptr
-                    Counter(err_offset, 4),
+                    Counter(err_offset, Self::ERR_LEN_SIZE),
                     // CALL push
                     Regular(Instruction::Call(1)),
                 ],
@@ -1322,10 +1280,7 @@ where
 
     pub fn gr_status_code(r: u32) -> Result<Exec<T>, &'static str> {
         let err_code_ptr = 1;
-        let err_len_ptrs = (0..r * API_BENCHMARK_BATCH_SIZE / 4)
-            .step_by(4)
-            .map(|x| x + err_code_ptr)
-            .collect();
+        let err_len_ptrs = Self::gen_err_ptrs(r * API_BENCHMARK_BATCH_SIZE, err_code_ptr);
 
         let code = WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
@@ -1334,7 +1289,7 @@ where
                 r * API_BENCHMARK_BATCH_SIZE,
                 vec![
                     // err_code ptr
-                    Counter(err_code_ptr, 4),
+                    Counter(err_code_ptr, Self::ERR_LEN_SIZE),
                     // CALL
                     Regular(Instruction::Call(0)),
                 ],
@@ -1414,10 +1369,7 @@ where
         let status_code_offset = 1;
         let error_len_offset = status_code_offset + size_of::<i32>() as u32;
         let error_offset = error_len_offset + size_of::<u32>() as u32;
-        let err_len_ptrs = (0..r * API_BENCHMARK_BATCH_SIZE / 4)
-            .step_by(4)
-            .map(|x| x + error_offset)
-            .collect();
+        let err_len_ptrs = Self::gen_err_ptrs(r * API_BENCHMARK_BATCH_SIZE, error_offset);
 
         let code = WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
@@ -1430,7 +1382,7 @@ where
                     // CALL
                     Regular(Instruction::Call(0)),
                     // error ptr
-                    Counter(error_offset, 4),
+                    Counter(error_offset, Self::ERR_LEN_SIZE),
                     // error length ptr
                     Regular(Instruction::I32Const(error_len_offset as i32)),
                     // CALL
@@ -1475,10 +1427,7 @@ where
             .collect::<Vec<_>>();
 
         let err_offset = message_id_offset + message_ids.len() as u32;
-        let err_len_ptrs = (0..r * API_BENCHMARK_BATCH_SIZE / 4)
-            .step_by(4)
-            .map(|x| x + err_offset)
-            .collect();
+        let err_len_ptrs = Self::gen_err_ptrs(r * API_BENCHMARK_BATCH_SIZE, err_offset);
 
         let code = WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
@@ -1495,7 +1444,7 @@ where
                     // delay
                     Regular(Instruction::I32Const(10)),
                     // err len ptr
-                    Counter(err_offset, 4),
+                    Counter(err_offset, Self::ERR_LEN_SIZE),
                     // CALL
                     Regular(Instruction::Call(0)),
                 ],
@@ -1529,10 +1478,7 @@ where
         let salt_len = 32;
 
         let err_mid_pid_offset = payload_offset + payload_len;
-        let err_len_ptrs = (0..r * API_BENCHMARK_BATCH_SIZE / 4)
-            .step_by(4)
-            .map(|x| x + err_mid_pid_offset)
-            .collect();
+        let err_len_ptrs = Self::gen_err_ptrs(r * API_BENCHMARK_BATCH_SIZE, err_mid_pid_offset);
 
         let _ = Gear::<T>::upload_code_raw(
             RawOrigin::Signed(benchmarking::account("instantiator", 0, 0)).into(),
@@ -1558,7 +1504,7 @@ where
                     // cid_value ptr
                     Regular(Instruction::I32Const(cid_value_offset as i32)),
                     // salt ptr
-                    Counter(err_mid_pid_offset, 4),
+                    Counter(err_mid_pid_offset, Self::ERR_LEN_SIZE),
                     // salt len
                     Regular(Instruction::I32Const(salt_len)),
                     // payload ptr
@@ -1570,7 +1516,7 @@ where
                     // delay
                     Regular(Instruction::I32Const(10)),
                     // err_mid_pid ptr
-                    Counter(err_mid_pid_offset, 4),
+                    Counter(err_mid_pid_offset, Self::ERR_LEN_SIZE),
                     // CALL
                     Regular(Instruction::Call(0)),
                 ],
@@ -1595,10 +1541,7 @@ where
         let payload_len = pkb * 1024;
 
         let err_mid_pid_offset = payload_offset + payload_len;
-        let err_len_ptrs = (0..API_BENCHMARK_BATCH_SIZE / 4)
-            .step_by(4)
-            .map(|x| x + err_mid_pid_offset)
-            .collect();
+        let err_len_ptrs = Self::gen_err_ptrs(API_BENCHMARK_BATCH_SIZE, err_mid_pid_offset);
 
         let _ = Gear::<T>::upload_code_raw(
             RawOrigin::Signed(benchmarking::account("instantiator", 0, 0)).into(),
@@ -1617,7 +1560,7 @@ where
                     // cid_value ptr
                     Regular(Instruction::I32Const(cid_value_offset as i32)),
                     // salt ptr
-                    Counter(err_mid_pid_offset, 4),
+                    Counter(err_mid_pid_offset, Self::ERR_LEN_SIZE),
                     // salt len
                     Regular(Instruction::I32Const(salt_len as i32)),
                     // payload ptr
@@ -1629,7 +1572,7 @@ where
                     // delay
                     Regular(Instruction::I32Const(10)),
                     // err_mid_pid ptr
-                    Counter(err_mid_pid_offset, 4),
+                    Counter(err_mid_pid_offset, Self::ERR_LEN_SIZE),
                     // CALL
                     Regular(Instruction::Call(0)),
                 ],
