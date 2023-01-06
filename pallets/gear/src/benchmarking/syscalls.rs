@@ -12,7 +12,7 @@ use codec::Encode;
 use common::{
     benchmarking, scheduler::SchedulingCostsPerBlock, storage::*, CodeStorage, GasTree, Origin,
 };
-use core::{marker::PhantomData, mem, mem::size_of};
+use core::{marker::PhantomData, mem, mem::size_of, ops::Range};
 use core_processor::{
     configs::{AllocationsConfig, BlockConfig, BlockInfo},
     ContextChargedForCode, ContextChargedForInstrumentation,
@@ -38,7 +38,7 @@ fn prepare<T>(
     kind: HandleKind,
     payload: Vec<u8>,
     value: u128,
-    err_len_ptrs: Vec<u32>,
+    err_len_ptrs: Range<u32>,
 ) -> Result<Exec<T>, &'static str>
 where
     T: Config,
@@ -277,7 +277,7 @@ where
     fn prepare_handle(
         code: WasmModule<T>,
         value: u32,
-        err_len_ptrs: Vec<u32>,
+        err_len_ptrs: Range<u32>,
     ) -> Result<Exec<T>, &'static str> {
         let instance = Program::<T>::new(code, vec![])?;
 
@@ -290,10 +290,8 @@ where
         )
     }
 
-    fn gen_err_ptrs(repetitions: u32, offset: u32) -> Vec<u32> {
-        (0..repetitions)
-            .map(|x| x * Self::ERR_LEN_SIZE + offset)
-            .collect()
+    const fn err_len_ptrs(repetitions: u32, offset: u32) -> Range<u32> {
+        offset..repetitions * Self::ERR_LEN_SIZE + offset
     }
 
     pub fn alloc(r: u32) -> Result<Exec<T>, &'static str> {
@@ -311,7 +309,7 @@ where
             )),
             ..Default::default()
         });
-        Self::prepare_handle(code, 0, vec![])
+        Self::prepare_handle(code, 0, 0..0)
     }
 
     pub fn free(r: u32) -> Result<Exec<T>, &'static str> {
@@ -337,11 +335,11 @@ where
             handle_body: Some(body::plain(instructions)),
             ..Default::default()
         });
-        Self::prepare_handle(code, 0, vec![])
+        Self::prepare_handle(code, 0, 0..0)
     }
 
     pub fn gr_reserve_gas(r: u32) -> Result<Exec<T>, &'static str> {
-        let err_ptrs = Self::gen_err_ptrs(r * API_BENCHMARK_BATCH_SIZE, 1);
+        let err_ptrs = Self::err_len_ptrs(r * API_BENCHMARK_BATCH_SIZE, 1);
 
         let code = WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
@@ -374,7 +372,7 @@ where
 
         let amount_offset = reservation_id_offset + reservation_id_bytes.len() as u32;
 
-        let err_ptrs = Self::gen_err_ptrs(r * API_BENCHMARK_BATCH_SIZE, amount_offset);
+        let err_ptrs = Self::err_len_ptrs(r * API_BENCHMARK_BATCH_SIZE, amount_offset);
 
         let code = WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
@@ -423,7 +421,7 @@ where
     }
 
     pub fn gr_system_reserve_gas(r: u32) -> Result<Exec<T>, &'static str> {
-        let err_ptrs = Self::gen_err_ptrs(r * API_BENCHMARK_BATCH_SIZE, 1);
+        let err_ptrs = Self::err_len_ptrs(r * API_BENCHMARK_BATCH_SIZE, 1);
 
         let code = WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
@@ -466,7 +464,7 @@ where
             )),
             ..Default::default()
         });
-        Self::prepare_handle(code, 0, vec![])
+        Self::prepare_handle(code, 0, 0..0)
     }
 
     pub fn gr_read(r: u32) -> Result<Exec<T>, &'static str> {
@@ -474,7 +472,7 @@ where
         let buffer_len = 100u32;
 
         let err_len_offset = buffer_offset + buffer_len;
-        let err_len_ptrs = Self::gen_err_ptrs(r * API_BENCHMARK_BATCH_SIZE, err_len_offset);
+        let err_len_ptrs = Self::err_len_ptrs(r * API_BENCHMARK_BATCH_SIZE, err_len_offset);
 
         let code = WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
@@ -514,7 +512,7 @@ where
         let buffer_len = buffer.len() as u32;
 
         let err_len_offset = buffer_offset + buffer_len;
-        let err_len_ptrs = Self::gen_err_ptrs(API_BENCHMARK_BATCH_SIZE, err_len_offset);
+        let err_len_ptrs = Self::err_len_ptrs(API_BENCHMARK_BATCH_SIZE, err_len_offset);
 
         let code = WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
@@ -573,11 +571,11 @@ where
             )),
             ..Default::default()
         });
-        Self::prepare_handle(code, 0, vec![])
+        Self::prepare_handle(code, 0, 0..0)
     }
 
     pub fn gr_send_init(r: u32) -> Result<Exec<T>, &'static str> {
-        let err_len_ptrs = Self::gen_err_ptrs(r * API_BENCHMARK_BATCH_SIZE, 1);
+        let err_len_ptrs = Self::err_len_ptrs(r * API_BENCHMARK_BATCH_SIZE, 1);
 
         let code = WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
@@ -603,7 +601,7 @@ where
         let err_handle_ptr = payload_offset + payload_len;
 
         let err_offset = err_handle_ptr + 8;
-        let err_len_ptrs = Self::gen_err_ptrs(r * API_BENCHMARK_BATCH_SIZE, err_offset);
+        let err_len_ptrs = Self::err_len_ptrs(r * API_BENCHMARK_BATCH_SIZE, err_offset);
 
         let code = WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
@@ -641,7 +639,7 @@ where
         let handle_offset = payload_offset + payload_len;
 
         let err_offset = handle_offset + 8; // u32 + u32 offset
-        let err_len_ptrs = Self::gen_err_ptrs(API_BENCHMARK_BATCH_SIZE, err_offset);
+        let err_len_ptrs = Self::err_len_ptrs(API_BENCHMARK_BATCH_SIZE, err_offset);
 
         let code = WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
@@ -681,7 +679,7 @@ where
         let pid_value = vec![0; 32 + 16];
 
         let err_mid_offset = pid_value_offset + pid_value.len() as u32;
-        let err_len_ptrs = Self::gen_err_ptrs(r * API_BENCHMARK_BATCH_SIZE, err_mid_offset);
+        let err_len_ptrs = Self::err_len_ptrs(r * API_BENCHMARK_BATCH_SIZE, err_mid_offset);
 
         let code = WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
@@ -722,7 +720,7 @@ where
         let pid_value = vec![0; 32 + 16];
 
         let err_mid_offset = pid_value_offset + pid_value.len() as u32;
-        let err_len_ptrs = Self::gen_err_ptrs(API_BENCHMARK_BATCH_SIZE, err_mid_offset);
+        let err_len_ptrs = Self::err_len_ptrs(API_BENCHMARK_BATCH_SIZE, err_mid_offset);
 
         let code = WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
@@ -770,7 +768,7 @@ where
         let payload_len = 100;
 
         let err_mid_offset = payload_offset + payload_len;
-        let err_len_ptrs = Self::gen_err_ptrs(r * API_BENCHMARK_BATCH_SIZE, err_mid_offset);
+        let err_len_ptrs = Self::err_len_ptrs(r * API_BENCHMARK_BATCH_SIZE, err_mid_offset);
 
         let code = WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
@@ -841,7 +839,7 @@ where
         let payload_len = n * 1024;
 
         let err_mid_offset = payload_offset + payload_len;
-        let err_len_ptrs = Self::gen_err_ptrs(API_BENCHMARK_BATCH_SIZE, err_mid_offset);
+        let err_len_ptrs = Self::err_len_ptrs(API_BENCHMARK_BATCH_SIZE, err_mid_offset);
 
         let code = WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
@@ -899,7 +897,7 @@ where
         let value_offset = 1;
 
         let err_mid_offset = value_offset + mem::size_of::<u128>() as u32;
-        let err_len_ptrs = Self::gen_err_ptrs(r, err_mid_offset);
+        let err_len_ptrs = Self::err_len_ptrs(r, err_mid_offset);
 
         let code = WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
@@ -927,7 +925,7 @@ where
         let payload_len = 100;
 
         let err_offset = payload_offset + payload_len;
-        let err_len_ptrs = Self::gen_err_ptrs(r * API_BENCHMARK_BATCH_SIZE, err_offset);
+        let err_len_ptrs = Self::err_len_ptrs(r * API_BENCHMARK_BATCH_SIZE, err_offset);
 
         let code = WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
@@ -955,6 +953,7 @@ where
         let payload_len = n as i32 * 1024;
 
         let err_offset = payload_offset + payload_len;
+        let err_len_ptrs = Self::err_len_ptrs(1, err_offset as u32);
 
         let code = WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
@@ -972,7 +971,7 @@ where
             ])),
             ..Default::default()
         });
-        Self::prepare_handle(code, 10000000, vec![err_offset as u32])
+        Self::prepare_handle(code, 10000000, err_len_ptrs)
     }
 
     pub fn gr_reservation_reply_commit(r: u32) -> Result<Exec<T>, &'static str> {
@@ -987,7 +986,7 @@ where
             .collect::<Vec<_>>();
 
         let err_mid_offset = rid_value_offset + rid_values.len() as u32;
-        let err_len_ptrs = Self::gen_err_ptrs(r, err_mid_offset);
+        let err_len_ptrs = Self::err_len_ptrs(r, err_mid_offset);
 
         let code = WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
@@ -1039,7 +1038,7 @@ where
 
     pub fn gr_reply_to(r: u32) -> Result<Exec<T>, &'static str> {
         let err_mid_ptr = 1;
-        let err_len_ptrs = Self::gen_err_ptrs(r * API_BENCHMARK_BATCH_SIZE, err_mid_ptr);
+        let err_len_ptrs = Self::err_len_ptrs(r * API_BENCHMARK_BATCH_SIZE, err_mid_ptr);
 
         let code = WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
@@ -1080,7 +1079,7 @@ where
 
     pub fn gr_signal_from(r: u32) -> Result<Exec<T>, &'static str> {
         let err_mid_ptr = 1;
-        let err_len_ptrs = Self::gen_err_ptrs(r * API_BENCHMARK_BATCH_SIZE, err_mid_ptr);
+        let err_len_ptrs = Self::err_len_ptrs(r * API_BENCHMARK_BATCH_SIZE, err_mid_ptr);
 
         let code = WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
@@ -1124,7 +1123,7 @@ where
         let payload_len = 100;
 
         let err_offset = payload_offset + payload_len;
-        let err_len_ptrs = Self::gen_err_ptrs(r * API_BENCHMARK_BATCH_SIZE, err_offset);
+        let err_len_ptrs = Self::err_len_ptrs(r * API_BENCHMARK_BATCH_SIZE, err_offset);
 
         let code = WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
@@ -1159,6 +1158,7 @@ where
         let payload_len = n as i32 * 1_024;
 
         let err_offset = payload_offset + payload_len;
+        let err_len_ptrs = Self::err_len_ptrs(1, err_offset as u32);
 
         let code = WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
@@ -1180,7 +1180,7 @@ where
             HandleKind::Handle(ProgramId::from_origin(instance.addr)),
             vec![1u8; payload_len as usize],
             0u32.into(),
-            vec![err_offset as u32],
+            err_len_ptrs,
         )
     }
 
@@ -1191,7 +1191,7 @@ where
         let err_handle_ptr = payload_offset + payload_len;
 
         let err_offset = err_handle_ptr + 8;
-        let err_len_ptrs = Self::gen_err_ptrs(r * API_BENCHMARK_BATCH_SIZE, err_offset);
+        let err_len_ptrs = Self::err_len_ptrs(r * API_BENCHMARK_BATCH_SIZE, err_offset);
 
         let code = WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
@@ -1238,7 +1238,7 @@ where
         let err_handle_ptr = payload_offset + payload_len;
 
         let err_offset = err_handle_ptr + 8;
-        let err_len_ptrs = Self::gen_err_ptrs(API_BENCHMARK_BATCH_SIZE, err_offset);
+        let err_len_ptrs = Self::err_len_ptrs(API_BENCHMARK_BATCH_SIZE, err_offset);
 
         let code = WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
@@ -1280,7 +1280,7 @@ where
 
     pub fn gr_status_code(r: u32) -> Result<Exec<T>, &'static str> {
         let err_code_ptr = 1;
-        let err_len_ptrs = Self::gen_err_ptrs(r * API_BENCHMARK_BATCH_SIZE, err_code_ptr);
+        let err_len_ptrs = Self::err_len_ptrs(r * API_BENCHMARK_BATCH_SIZE, err_code_ptr);
 
         let code = WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
@@ -1339,7 +1339,7 @@ where
             )),
             ..Default::default()
         });
-        Self::prepare_handle(code, 0, vec![])
+        Self::prepare_handle(code, 0, 0..0)
     }
 
     pub fn gr_debug_per_kb(n: u32) -> Result<Exec<T>, &'static str> {
@@ -1362,14 +1362,14 @@ where
             )),
             ..Default::default()
         });
-        Self::prepare_handle(code, 0, vec![])
+        Self::prepare_handle(code, 0, 0..0)
     }
 
     pub fn gr_error(r: u32) -> Result<Exec<T>, &'static str> {
         let status_code_offset = 1;
         let error_len_offset = status_code_offset + size_of::<i32>() as u32;
         let error_offset = error_len_offset + size_of::<u32>() as u32;
-        let err_len_ptrs = Self::gen_err_ptrs(r * API_BENCHMARK_BATCH_SIZE, error_offset);
+        let err_len_ptrs = Self::err_len_ptrs(r * API_BENCHMARK_BATCH_SIZE, error_offset);
 
         let code = WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
@@ -1416,7 +1416,7 @@ where
             handle_body: Some(body::repeated(r, &instructions)),
             ..Default::default()
         });
-        Self::prepare_handle(code, 0, vec![])
+        Self::prepare_handle(code, 0, 0..0)
     }
 
     pub fn gr_wake(r: u32) -> Result<Exec<T>, &'static str> {
@@ -1427,7 +1427,7 @@ where
             .collect::<Vec<_>>();
 
         let err_offset = message_id_offset + message_ids.len() as u32;
-        let err_len_ptrs = Self::gen_err_ptrs(r * API_BENCHMARK_BATCH_SIZE, err_offset);
+        let err_len_ptrs = Self::err_len_ptrs(r * API_BENCHMARK_BATCH_SIZE, err_offset);
 
         let code = WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
@@ -1478,7 +1478,7 @@ where
         let salt_len = 32;
 
         let err_mid_pid_offset = payload_offset + payload_len;
-        let err_len_ptrs = Self::gen_err_ptrs(r * API_BENCHMARK_BATCH_SIZE, err_mid_pid_offset);
+        let err_len_ptrs = Self::err_len_ptrs(r * API_BENCHMARK_BATCH_SIZE, err_mid_pid_offset);
 
         let _ = Gear::<T>::upload_code_raw(
             RawOrigin::Signed(benchmarking::account("instantiator", 0, 0)).into(),
@@ -1541,7 +1541,7 @@ where
         let payload_len = pkb * 1024;
 
         let err_mid_pid_offset = payload_offset + payload_len;
-        let err_len_ptrs = Self::gen_err_ptrs(API_BENCHMARK_BATCH_SIZE, err_mid_pid_offset);
+        let err_len_ptrs = Self::err_len_ptrs(API_BENCHMARK_BATCH_SIZE, err_mid_pid_offset);
 
         let _ = Gear::<T>::upload_code_raw(
             RawOrigin::Signed(benchmarking::account("instantiator", 0, 0)).into(),
@@ -1590,7 +1590,7 @@ where
             handle_body: Some(body::from_instructions(instrs)),
             ..Default::default()
         });
-        Self::prepare_handle(code, 0, vec![])
+        Self::prepare_handle(code, 0, 0..0)
     }
 
     pub fn lazy_pages_write_access(wasm_pages: WasmPageNumber) -> Result<Exec<T>, &'static str> {
@@ -1601,6 +1601,6 @@ where
             handle_body: Some(body::from_instructions(instrs)),
             ..Default::default()
         });
-        Self::prepare_handle(code, 0, vec![])
+        Self::prepare_handle(code, 0, 0..0)
     }
 }

@@ -64,7 +64,7 @@ use common::{
     storage::{Counter, *},
     CodeMetadata, CodeStorage, GasPrice, GasTree, Origin, QueueRunner,
 };
-use core::convert::TryInto;
+use core::ops::Range;
 use core_processor::{
     common::{DispatchOutcome, JournalNote},
     configs::BlockConfig,
@@ -186,7 +186,7 @@ fn default_processor_context<T: Config>() -> ProcessorContext {
     }
 }
 
-fn verify_process((notes, err_len_ptrs): (Vec<JournalNote>, Vec<u32>)) {
+fn verify_process((notes, err_len_ptrs): (Vec<JournalNote>, Range<u32>)) {
     assert!(
         !notes.is_empty(),
         "Journal notes cannot be empty after execution"
@@ -211,36 +211,26 @@ fn verify_process((notes, err_len_ptrs): (Vec<JournalNote>, Vec<u32>)) {
         }
     }
 
-    for err_len_ptr in err_len_ptrs {
-        let page_number = PageNumber::from_offset(err_len_ptr);
-        let next_page_number = page_number.inc().unwrap();
-
-        let err_len_offset = (err_len_ptr - page_number.offset()) as usize;
-
-        let get_page = |page_number| {
+    let start_page_number = PageNumber::from_offset(err_len_ptrs.start);
+    let end_page_number = PageNumber::from_offset(err_len_ptrs.end);
+    start_page_number
+        .iter_end_inclusive(end_page_number)
+        .unwrap()
+        .flat_map(|page_number| {
             pages_data
                 .get(&page_number)
                 .cloned()
                 .map(|page| page.into_vec())
-                .unwrap_or_else(|| vec![0; 0x1000])
-        };
-
-        let page = get_page(page_number);
-        let next_page = get_page(next_page_number);
-        let err_len: Vec<u8> = page
-            .into_iter()
-            .chain(next_page.into_iter())
-            .skip(err_len_offset)
-            .take(4)
-            .collect();
-
-        let err_len = err_len.try_into().unwrap();
-        let err_len = u32::from_le_bytes(err_len);
-        assert_eq!(err_len, 0, "Fallible sys-call returned error");
-    }
+                .unwrap_or_else(|| vec![0; PageNumber::size() as usize])
+        })
+        .skip(err_len_ptrs.start as usize)
+        .take(err_len_ptrs.len())
+        .all(|b| b == 0)
+        .then_some(())
+        .expect("Fallible sys-call returned error")
 }
 
-fn run_process<T>(exec: Exec<T>) -> (Vec<JournalNote>, Vec<u32>)
+fn run_process<T>(exec: Exec<T>) -> (Vec<JournalNote>, Range<u32>)
 where
     T: Config,
     T::AccountId: Origin,
@@ -325,7 +315,7 @@ pub struct Exec<T: Config> {
     context: ProcessExecutionContext,
     random_data: (Vec<u8>, u32),
     memory_pages: BTreeMap<PageNumber, PageBuf>,
-    err_len_ptrs: Vec<u32>,
+    err_len_ptrs: Range<u32>,
 }
 
 benchmarks! {
