@@ -27,9 +27,9 @@ pub mod pallet {
     use super::*;
     use codec::EncodeLike;
     use common::{storage::*, CodeMetadata, Program};
-    use frame_support::{
-        pallet_prelude::*, storage::PrefixIterator, traits::StorageVersion, StoragePrefixedMap,
-    };
+    #[cfg(feature = "debug-mode")]
+    use frame_support::storage::PrefixIterator;
+    use frame_support::{pallet_prelude::*, traits::StorageVersion, StoragePrefixedMap};
     use frame_system::pallet_prelude::*;
     use gear_core::{
         code::InstrumentedCode,
@@ -149,16 +149,16 @@ pub mod pallet {
     }
 
     #[cfg(feature = "debug-mode")]
-    impl<T: Config> IterableMap<(ProgramId, Program)> for pallet::Pallet<T> {
+    impl<Runtime: Config> IterableMap<(ProgramId, Program)> for pallet::Pallet<Runtime> {
         type DrainIter = PrefixIterator<(ProgramId, Program)>;
         type Iter = PrefixIterator<(ProgramId, Program)>;
 
         fn drain() -> Self::DrainIter {
-            ProgramStorage::<T>::drain()
+            ProgramStorage::<Runtime>::drain()
         }
 
         fn iter() -> Self::Iter {
-            ProgramStorage::<T>::iter()
+            ProgramStorage::<Runtime>::iter()
         }
     }
 
