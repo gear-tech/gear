@@ -313,11 +313,7 @@ pub fn simple_scenario(params: &Params) -> TargetOutcome {
             let num_random = num_contracts >> 2;
             let mut hashes = program_ids
                 .into_iter()
-                .chain(
-                    (0..num_random)
-                        .into_iter()
-                        .map(|_| ProgramId::from(&H256::random()[..])),
-                )
+                .chain((0..num_random).map(|_| ProgramId::from(&H256::random()[..])))
                 .collect::<Vec<_>>();
             hashes.sort();
             let num_hashes: u16 = hashes.len() as u16;
