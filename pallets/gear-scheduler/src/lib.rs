@@ -51,7 +51,7 @@ pub mod pallet {
         traits::{Get, StorageVersion},
     };
     use frame_system::pallet_prelude::*;
-    use sp_std::{collections::btree_set::BTreeSet, convert::TryInto, marker::PhantomData};
+    use sp_std::{convert::TryInto, marker::PhantomData};
 
     pub type Cost = u64;
 
@@ -133,7 +133,7 @@ pub mod pallet {
     /// Defines block number, which should already contain no tasks,
     /// because they were processed before.
     /// Missed blocks processing prioritized.
-    type MissedBlocksCollection<T> = BTreeSet<BlockNumberFor<T>>;
+    type MissedBlocksCollection<T> = BlockNumberFor<T>;
 
     // Below goes storages and their gear's wrapper implementations.
     //

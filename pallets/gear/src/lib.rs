@@ -256,7 +256,7 @@ pub mod pallet {
             BlockNumber = Self::BlockNumber,
             Cost = u64,
             Task = ScheduledTask<Self::AccountId>,
-            MissedBlocksCollection = BTreeSet<Self::BlockNumber>,
+            MissedBlocksCollection = Self::BlockNumber,
         >;
 
         /// Message Queue processing routing provider.
@@ -865,40 +865,41 @@ pub mod pallet {
         /// Delayed tasks processing.
         pub fn process_tasks(ext_manager: &mut ExtManager<T>) {
             // Current block number.
-            let bn = Self::block_number();
+            let bn : u32 = <frame_system::Pallet<T>>::block_number().unique_saturated_into();
 
-            // Taking block numbers, where some incomplete tasks held.
-            // If there are no such values, we charge for single read, because
-            // nothing changing in database, otherwise we delete previous
-            // value and charge for single write.
-            //
-            // We also append current bn to process it together, by iterating
-            // over sorted bns set (that's the reason why `BTreeSet` used).
-            let (missed_blocks, were_empty) = MissedBlocksOf::<T>::take()
-                .map(|mut set| {
+            // Taking first block number, those has some incomplete tasks held.
+            // If there are no such blocks, we charge for single read, because
+            // nothing changing in database
+            let (first_missed_block, were_empty) = MissedBlocksOf::<T>::take()
+                .map(|first_bn| {
+                    // TODO: replase write with read
                     GasAllowanceOf::<T>::decrease(DbWeightOf::<T>::get().writes(1).ref_time());
-                    set.insert(bn);
-                    (set, false)
+                    (first_bn, false)
                 })
                 .unwrap_or_else(|| {
                     GasAllowanceOf::<T>::decrease(DbWeightOf::<T>::get().reads(1).ref_time());
-                    ([bn].into(), true)
+                    (bn.into(), true)
                 });
 
             // When we had to stop processing due to insufficient gas allowance.
             let mut stopped_at = None;
 
-            // Iterating over blocks.
-            for bn in &missed_blocks {
-                // Tasks drain iterator.
-                let tasks = TaskPoolOf::<T>::drain_prefix_keys(*bn);
+            // Avoiding iterators for `T::BlockNumber`.
+            let first_block_int: u32 = first_missed_block.unique_saturated_into();
+            let last_block_int: u32 = bn + 1;
 
+            // Iterating over all blocks.
+            for process_bn in first_block_int..last_block_int {
+                let process_bn_v : T::BlockNumber = process_bn.into();
+
+                // Tasks drain iterator.
+                let tasks = TaskPoolOf::<T>::drain_prefix_keys(process_bn_v);
                 // Checking gas allowance.
                 //
                 // Making sure we have gas to remove next task
                 // or update missed blocks.
                 if GasAllowanceOf::<T>::get() <= DbWeightOf::<T>::get().writes(2).ref_time() {
-                    stopped_at = Some(*bn);
+                    stopped_at = Some(process_bn_v);
                     log::debug!("Stopping processing tasks at: {stopped_at:?}");
                     break;
                 }
@@ -922,7 +923,7 @@ pub mod pallet {
                     // Making sure we have gas to remove next task
                     // or update missed blocks.
                     if GasAllowanceOf::<T>::get() <= DbWeightOf::<T>::get().writes(2).ref_time() {
-                        stopped_at = Some(*bn);
+                        stopped_at = Some(bn.into());
                         log::debug!("Stopping processing tasks at: {stopped_at:?}");
                         break;
                     }
@@ -935,27 +936,15 @@ pub mod pallet {
             }
 
             // If we didn't process all tasks and stopped at some block number,
-            // then there is new missed blocks set we should store.
+            // then there is a new first missed block number
             if let Some(stopped_at) = stopped_at {
-                // Avoiding `PartialEq` trait bound for `T::BlockNumber`.
-                let stopped_at: u32 = stopped_at.unique_saturated_into();
-
-                let actual_missed_blocks = missed_blocks
-                    .into_iter()
-                    .skip_while(|&x| {
-                        // Avoiding `PartialEq` trait bound for `T::BlockNumber`.
-                        let x: u32 = x.unique_saturated_into();
-                        x != stopped_at
-                    })
-                    .collect();
-
                 // Charging for inserting into missing blocks,
                 // if we were reading it only (they were empty).
                 if were_empty {
                     GasAllowanceOf::<T>::decrease(DbWeightOf::<T>::get().writes(1).ref_time());
                 }
 
-                MissedBlocksOf::<T>::put(actual_missed_blocks);
+                MissedBlocksOf::<T>::put(stopped_at);
             }
         }
 
