@@ -96,8 +96,6 @@ pub use pallet_balances::Call as BalancesCall;
 #[cfg(any(feature = "std", test))]
 pub use pallet_staking::StakerStatus;
 #[cfg(any(feature = "std", test))]
-pub use pallet_sudo::Call as SudoCall;
-#[cfg(any(feature = "std", test))]
 pub use sp_runtime::BuildStorage;
 
 pub use pallet_gear;
@@ -796,11 +794,6 @@ impl pallet_identity::Config for Runtime {
     type WeightInfo = pallet_identity::weights::SubstrateWeight<Runtime>;
 }
 
-impl pallet_sudo::Config for Runtime {
-    type RuntimeEvent = RuntimeEvent;
-    type RuntimeCall = RuntimeCall;
-}
-
 impl pallet_utility::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
     type RuntimeCall = RuntimeCall;
@@ -870,7 +863,6 @@ impl InstanceFilter<RuntimeCall> for ProxyType {
             ProxyType::NonTransfer => !matches!(
                 c,
                 RuntimeCall::Balances(..)
-                    | RuntimeCall::Sudo(..)
                     | RuntimeCall::Vesting(pallet_vesting::Call::vested_transfer { .. })
                     | RuntimeCall::Vesting(pallet_vesting::Call::force_vested_transfer { .. })
             ),
@@ -997,12 +989,6 @@ impl pallet_gear_gas::Config for Runtime {
 impl pallet_gear_messenger::Config for Runtime {
     type BlockLimiter = GearGas;
     type CurrentBlockNumber = Gear;
-}
-
-impl pallet_airdrop::Config for Runtime {
-    type RuntimeEvent = RuntimeEvent;
-    type WeightInfo = pallet_airdrop::weights::AirdropWeight<Runtime>;
-    type VestingSchedule = Vesting;
 }
 
 pub struct ExtraFeeFilter;
@@ -1135,11 +1121,6 @@ construct_runtime!(
         StakingRewards: pallet_gear_staking_rewards = 106,
         GearVoucher: pallet_gear_voucher = 107,
 
-        Sudo: pallet_sudo = 99,
-
-        // TODO: remove from production version
-        Airdrop: pallet_airdrop = 198,
-
         // Only available with "debug-mode" feature on
         GearDebug: pallet_gear_debug = 199,
     }
@@ -1197,11 +1178,6 @@ construct_runtime!(
         GearPayment: pallet_gear_payment = 105,
         StakingRewards: pallet_gear_staking_rewards = 106,
         GearVoucher: pallet_gear_voucher = 107,
-
-        Sudo: pallet_sudo = 99,
-
-        // TODO: remove from production version
-        Airdrop: pallet_airdrop = 198,
     }
 );
 
@@ -1213,8 +1189,6 @@ pub type Header = generic::Header<BlockNumber, BlakeTwo256>;
 pub type Block = generic::Block<Header, UncheckedExtrinsic>;
 /// The SignedExtension to the basic transaction logic.
 pub type SignedExtra = (
-    // RELEASE: remove before final release
-    DisableValueTransfers,
     // Keep as long as it's needed
     StakingBlackList<Runtime>,
     frame_system::CheckNonZeroSender<Runtime>,

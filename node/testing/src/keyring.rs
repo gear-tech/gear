@@ -28,7 +28,7 @@ use sp_keyring::{AccountKeyring, Ed25519Keyring, Sr25519Keyring};
 use sp_runtime::generic::Era;
 #[cfg(feature = "vara-native")]
 use vara_runtime::{
-    CustomChargeTransactionPayment, DisableValueTransfers, RuntimeCall, SessionKeys, SignedExtra,
+    CustomChargeTransactionPayment, RuntimeCall, SessionKeys, SignedExtra,
     StakingBlackList, UncheckedExtrinsic,
 };
 
@@ -94,7 +94,6 @@ pub fn to_session_keys(
 #[cfg(feature = "vara-native")]
 pub fn signed_extra(nonce: Index) -> SignedExtra {
     (
-        DisableValueTransfers {},
         StakingBlackList::new(),
         frame_system::CheckNonZeroSender::new(),
         frame_system::CheckSpecVersion::new(),

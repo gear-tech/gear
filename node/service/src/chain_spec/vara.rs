@@ -31,7 +31,7 @@ use vara_runtime::{
     constants::currency::{DOLLARS, UNITS as TOKEN},
     AuthorityDiscoveryConfig, BabeConfig, BalancesConfig, GenesisConfig, GrandpaConfig,
     ImOnlineConfig, NominationPoolsConfig, SessionConfig, SessionKeys, StakerStatus, StakingConfig,
-    StakingRewardsConfig, SudoConfig, SystemConfig, VestingConfig, WASM_BINARY,
+    StakingRewardsConfig, SystemConfig, VestingConfig, WASM_BINARY,
 };
 
 // The URL for the telemetry server.
@@ -552,7 +552,7 @@ fn testnet_genesis(
         ImOnlineId,
         AuthorityDiscoveryId,
     )>,
-    root_key: AccountId,
+    _root_key: AccountId,
     endowed_accounts: Vec<AccountId>,
     _enable_println: bool,
 ) -> GenesisConfig {
@@ -602,10 +602,6 @@ fn testnet_genesis(
             slash_reward_fraction: Perbill::from_percent(10),
             min_nominator_bond: MIN_NOMINATOR_BOND,
             ..Default::default()
-        },
-        sudo: SudoConfig {
-            // Assign network admin rights.
-            key: Some(root_key),
         },
         im_online: ImOnlineConfig { keys: vec![] },
         authority_discovery: AuthorityDiscoveryConfig { keys: vec![] },

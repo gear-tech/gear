@@ -281,7 +281,6 @@ fn signed_extension_works() {
             let construct_extrinsic =
                 |function: RuntimeCall, caller: Sr25519Keyring| -> UncheckedExtrinsic {
                     let extra: SignedExtra = (
-                        DisableValueTransfers {},
                         StakingBlackList::<Runtime>::new(),
                         frame_system::CheckNonZeroSender::<Runtime>::new(),
                         frame_system::CheckSpecVersion::<Runtime>::new(),
