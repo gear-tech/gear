@@ -194,6 +194,15 @@ mod test {
     }
 
     #[test]
+    fn test_prepend_works() {
+        let mut buf = TestBuffer::try_from(vec![1, 2, 3, 4, 5]).unwrap();
+        let prepend_buf = TestBuffer::try_from(vec![6, 7, 8]).unwrap();
+        buf.try_prepend(prepend_buf).unwrap();
+
+        assert_eq!(buf.get(), &[6, 7, 8, 1, 2, 3, 4, 5]);
+    }
+
+    #[test]
     fn test_full() {
         let mut x = TestBuffer::try_from(vec![1; N]).unwrap();
         let mut y = TestBuffer::try_from(vec![2; N / 2]).unwrap();
