@@ -34,8 +34,8 @@ use gear_core::{
     ids::{CodeId, MessageId, ProgramId, ReservationId},
     lazy_pages::AccessError,
     memory::{
-        AllocInfo, AllocationsContext, GrowHandler, GrowHandlerNothing, Memory, PageBuf,
-        PageNumber, PageU32Size, WasmPageNumber,
+        AllocInfo, AllocationsContext, GrowHandler, GrowHandlerNothing, Memory, MemoryInterval,
+        PageBuf, PageNumber, PageU32Size, WasmPageNumber,
     },
     message::{
         GasLimit, HandlePacket, InitPacket, MessageContext, Packet, ReplyPacket, StatusCode,
@@ -877,8 +877,8 @@ impl EnvExt for Ext {
     }
 
     fn pre_process_memory_accesses(
-        _reads: &[(u32, u32)],
-        _writes: &[(u32, u32)],
+        _reads: &[MemoryInterval],
+        _writes: &[MemoryInterval],
     ) -> Result<(), AccessError> {
         Ok(())
     }

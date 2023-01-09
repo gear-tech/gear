@@ -25,7 +25,7 @@ use codec::{Decode, DecodeAll, MaxEncodedLen};
 use gear_core::{
     buffer::{RuntimeBuffer, RuntimeBufferSizeError},
     env::Ext,
-    memory::Memory,
+    memory::{Memory, MemoryInterval},
 };
 use gear_core_errors::MemoryError;
 
@@ -38,7 +38,7 @@ pub enum MemoryAccessError {
     #[display(fmt = "{_0}")]
     RuntimeBuffer(RuntimeBufferSizeError),
     DecodeError,
-    #[display(fmt = "Buffer size {_0} is not eq to pre-registered size {_1}")]
+    #[display(fmt = "Buffer size {_0} is not equal to pre-registered size {_1}")]
     WrongBufferSize(usize, u32),
 }
 
@@ -60,8 +60,8 @@ pub enum MemoryAccessError {
 /// ```
 #[derive(Debug)]
 pub struct MemoryAccessManager<E: Ext> {
-    reads: Vec<(u32, u32)>,
-    writes: Vec<(u32, u32)>,
+    reads: Vec<MemoryInterval>,
+    writes: Vec<MemoryInterval>,
     _phantom: PhantomData<E>,
 }
 
@@ -78,12 +78,15 @@ impl<E: Ext> Default for MemoryAccessManager<E> {
 impl<E: Ext> MemoryAccessManager<E> {
     /// Register new read access.
     pub fn new_read(&mut self, ptr: u32, size: u32) -> WasmMemoryRead {
-        self.reads.push((ptr, size));
+        self.reads.push(MemoryInterval { offset: ptr, size });
         WasmMemoryRead { ptr, size }
     }
     /// Register new read static size type access.
     pub fn new_read_as<T: Sized>(&mut self, ptr: u32) -> WasmMemoryReadAs<T> {
-        self.reads.push((ptr, size_of::<T>() as u32));
+        self.reads.push(MemoryInterval {
+            offset: ptr,
+            size: size_of::<T>() as u32,
+        });
         WasmMemoryReadAs {
             ptr,
             _phantom: PhantomData,
@@ -94,7 +97,10 @@ impl<E: Ext> MemoryAccessManager<E> {
         &mut self,
         ptr: u32,
     ) -> WasmMemoryReadDecoded<T> {
-        self.reads.push((ptr, T::max_encoded_len() as u32));
+        self.reads.push(MemoryInterval {
+            offset: ptr,
+            size: T::max_encoded_len() as u32,
+        });
         WasmMemoryReadDecoded {
             ptr,
             _phantom: PhantomData,
@@ -102,12 +108,15 @@ impl<E: Ext> MemoryAccessManager<E> {
     }
     /// Register new write access.
     pub fn new_write(&mut self, ptr: u32, size: u32) -> WasmMemoryWrite {
-        self.writes.push((ptr, size));
+        self.writes.push(MemoryInterval { offset: ptr, size });
         WasmMemoryWrite { ptr, size }
     }
     /// Register new write static size access.
     pub fn new_write_as<T: Sized>(&mut self, ptr: u32) -> WasmMemoryWriteAs<T> {
-        self.writes.push((ptr, size_of::<T>() as u32));
+        self.writes.push(MemoryInterval {
+            offset: ptr,
+            size: size_of::<T>() as u32,
+        });
         WasmMemoryWriteAs {
             ptr,
             _phantom: PhantomData,
@@ -124,7 +133,7 @@ impl<E: Ext> MemoryAccessManager<E> {
         self.writes.clear();
         Ok(())
     }
-    fn read_into_buff<M: Memory>(
+    fn read_into_buf<M: Memory>(
         &mut self,
         memory: &M,
         ptr: u32,
@@ -139,7 +148,7 @@ impl<E: Ext> MemoryAccessManager<E> {
         read: WasmMemoryRead,
     ) -> Result<Vec<u8>, MemoryAccessError> {
         let mut buff = RuntimeBuffer::try_new_default(read.size as usize)?;
-        self.read_into_buff(memory, read.ptr, buff.get_mut())?;
+        self.read_into_buf(memory, read.ptr, buff.get_mut())?;
         Ok(buff.into_vec())
     }
     pub fn read_decoded<M: Memory, T: Decode + MaxEncodedLen>(
@@ -148,7 +157,7 @@ impl<E: Ext> MemoryAccessManager<E> {
         read: WasmMemoryReadDecoded<T>,
     ) -> Result<T, MemoryAccessError> {
         let mut buff = RuntimeBuffer::try_new_default(T::max_encoded_len())?.into_vec();
-        self.read_into_buff(memory, read.ptr, &mut buff)?;
+        self.read_into_buf(memory, read.ptr, &mut buff)?;
         let decoded = T::decode_all(&mut &buff[..]).map_err(|_| MemoryAccessError::DecodeError)?;
         Ok(decoded)
     }

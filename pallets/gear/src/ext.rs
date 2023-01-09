@@ -25,7 +25,7 @@ use gear_core::{
     gas::GasAmount,
     ids::{MessageId, ProgramId, ReservationId},
     lazy_pages::AccessError,
-    memory::{GrowHandler, Memory, PageNumber, PageU32Size, WasmPageNumber},
+    memory::{GrowHandler, Memory, MemoryInterval, PageNumber, PageU32Size, WasmPageNumber},
     message::{HandlePacket, InitPacket, ReplyPacket, StatusCode},
 };
 use gear_core_errors::{ExtError, MemoryError};
@@ -346,8 +346,8 @@ impl EnvExt for LazyPagesExt {
     }
 
     fn pre_process_memory_accesses(
-        _reads: &[(u32, u32)],
-        _writes: &[(u32, u32)],
+        _reads: &[MemoryInterval],
+        _writes: &[MemoryInterval],
     ) -> Result<(), AccessError> {
         // TODO: make pre-processing after we add charging in lazy pages.
         Ok(())

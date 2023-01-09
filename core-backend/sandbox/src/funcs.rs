@@ -75,7 +75,7 @@ pub enum FuncError<E: Display> {
     WrongInstrumentation,
     #[display(fmt = "Cannot decode value from memory")]
     DecodeValueError,
-    #[display(fmt = "Buffer size {_0} is not eq to pre-registered size {_1}")]
+    #[display(fmt = "Buffer size {_0} is not equal to pre-registered size {_1}")]
     WrongBufferSize(usize, u32),
 }
 
