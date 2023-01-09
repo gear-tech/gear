@@ -865,7 +865,7 @@ pub mod pallet {
         /// Delayed tasks processing.
         pub fn process_tasks(ext_manager: &mut ExtManager<T>) {
             // Current block number.
-            let bn : u32 = <frame_system::Pallet<T>>::block_number().unique_saturated_into();
+            let bn: u32 = <frame_system::Pallet<T>>::block_number().unique_saturated_into();
 
             // Taking first block number, those has some incomplete tasks held.
             // If there are no such blocks, we charge for single read, because
@@ -890,7 +890,7 @@ pub mod pallet {
 
             // Iterating over all blocks.
             for process_bn in first_block_int..last_block_int {
-                let process_bn_v : T::BlockNumber = process_bn.into();
+                let process_bn_v: T::BlockNumber = process_bn.into();
 
                 // Tasks drain iterator.
                 let tasks = TaskPoolOf::<T>::drain_prefix_keys(process_bn_v);
