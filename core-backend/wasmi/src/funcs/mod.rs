@@ -84,7 +84,7 @@ pub enum FuncError<E: Display> {
     DecodeValueError,
     #[display(fmt = "Failed to parse debug string")]
     DebugString,
-    #[display(fmt = "Buffer size {_0} is not eq to pre-registered size {_1}")]
+    #[display(fmt = "Buffer size {_0} is not equal to pre-registered size {_1}")]
     WrongBufferSize(usize, u32),
 }
 
