@@ -168,27 +168,27 @@ where
     E: Ext + IntoExtInfo<E::Error> + 'static,
     E::Error: IntoExtError + Display,
 {
-    fn new_read(&mut self, ptr: u32, size: u32) -> WasmMemoryRead {
-        self.manager.new_read(ptr, size)
+    fn register_read(&mut self, ptr: u32, size: u32) -> WasmMemoryRead {
+        self.manager.register_read(ptr, size)
     }
 
-    fn new_read_as<T: Sized>(&mut self, ptr: u32) -> WasmMemoryReadAs<T> {
-        self.manager.new_read_as(ptr)
+    fn register_read_as<T: Sized>(&mut self, ptr: u32) -> WasmMemoryReadAs<T> {
+        self.manager.register_read_as(ptr)
     }
 
-    fn new_read_decoded<T: Decode + MaxEncodedLen>(
+    fn register_read_decoded<T: Decode + MaxEncodedLen>(
         &mut self,
         ptr: u32,
     ) -> WasmMemoryReadDecoded<T> {
-        self.manager.new_read_decoded(ptr)
+        self.manager.register_read_decoded(ptr)
     }
 
-    fn new_write(&mut self, ptr: u32, size: u32) -> WasmMemoryWrite {
-        self.manager.new_write(ptr, size)
+    fn register_write(&mut self, ptr: u32, size: u32) -> WasmMemoryWrite {
+        self.manager.register_write(ptr, size)
     }
 
-    fn new_write_as<T: Sized>(&mut self, ptr: u32) -> WasmMemoryWriteAs<T> {
-        self.manager.new_write_as(ptr)
+    fn register_write_as<T: Sized>(&mut self, ptr: u32) -> WasmMemoryWriteAs<T> {
+        self.manager.register_write_as(ptr)
     }
 }
 

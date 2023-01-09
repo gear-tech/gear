@@ -142,9 +142,9 @@ where
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
             ctx.run(|ctx| {
-                let read_hash_val = ctx.new_read_as(pid_value_ptr);
-                let read_payload = ctx.new_read(payload_ptr, len);
-                let write_err_mid = ctx.new_write_as(err_mid_ptr);
+                let read_hash_val = ctx.register_read_as(pid_value_ptr);
+                let read_payload = ctx.register_read(payload_ptr, len);
+                let write_err_mid = ctx.register_write_as(err_mid_ptr);
 
                 let HashWithValue {
                     hash: destination,
@@ -180,9 +180,9 @@ where
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
             ctx.run(|ctx| {
-                let read_hash_val = ctx.new_read_as(pid_value_ptr);
-                let read_payload = ctx.new_read(payload_ptr, len);
-                let write_err_mid = ctx.new_write_as(err_mid_ptr);
+                let read_hash_val = ctx.register_read_as(pid_value_ptr);
+                let read_payload = ctx.register_read(payload_ptr, len);
+                let write_err_mid = ctx.register_write_as(err_mid_ptr);
 
                 let HashWithValue {
                     hash: destination,
@@ -219,8 +219,8 @@ where
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
             ctx.run(|ctx| {
-                let read_pid_value = ctx.new_read_as(pid_value_ptr);
-                let write_err_mid = ctx.new_write_as(err_mid_ptr);
+                let read_pid_value = ctx.register_read_as(pid_value_ptr);
+                let write_err_mid = ctx.register_write_as(err_mid_ptr);
 
                 let HashWithValue {
                     hash: destination,
@@ -258,8 +258,8 @@ where
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
             ctx.run(|ctx| {
-                let read_pid_value = ctx.new_read_as(pid_value_ptr);
-                let write_err_mid = ctx.new_write_as(err_mid_ptr);
+                let read_pid_value = ctx.register_read_as(pid_value_ptr);
+                let write_err_mid = ctx.register_write_as(err_mid_ptr);
 
                 let HashWithValue {
                     hash: destination,
@@ -296,7 +296,7 @@ where
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
             ctx.run(|ctx| {
-                let write_err_handle = ctx.new_write_as(err_handle_ptr);
+                let write_err_handle = ctx.register_write_as(err_handle_ptr);
 
                 ctx.host_state_mut()
                     .ext
@@ -324,8 +324,8 @@ where
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
             ctx.run(|ctx| {
-                let read_payload = ctx.new_read(payload_ptr, len);
-                let write_err_len = ctx.new_write_as(err_ptr);
+                let read_payload = ctx.register_read(payload_ptr, len);
+                let write_err_len = ctx.register_write_as(err_ptr);
 
                 let payload = ctx.read(read_payload)?;
 
@@ -360,9 +360,9 @@ where
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
             ctx.run(|ctx| {
-                let read_rid_pid_value = ctx.new_read_as(rid_pid_value_ptr);
-                let read_payload = ctx.new_read(payload_ptr, len);
-                let write_err_mid = ctx.new_write_as(err_mid_ptr);
+                let read_rid_pid_value = ctx.register_read_as(rid_pid_value_ptr);
+                let read_payload = ctx.register_read(payload_ptr, len);
+                let write_err_mid = ctx.register_write_as(err_mid_ptr);
 
                 let TwoHashesWithValue {
                     hash1: reservation_id,
@@ -401,8 +401,8 @@ where
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
             ctx.run(|ctx| {
-                let read_rid_pid_value = ctx.new_read_as(rid_pid_value_ptr);
-                let write_err_mid = ctx.new_write_as(err_mid_ptr);
+                let read_rid_pid_value = ctx.register_read_as(rid_pid_value_ptr);
+                let write_err_mid = ctx.register_write_as(err_mid_ptr);
 
                 let TwoHashesWithValue {
                     hash1: reservation_id,
@@ -455,10 +455,10 @@ where
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
             ctx.run_state_taken(|ctx, state| {
-                let write_err_len = ctx.new_write_as(err_len_ptr);
+                let write_err_len = ctx.register_write_as(err_len_ptr);
 
                 let length = if let Ok(buffer) = Self::validated(&mut state.ext, at, len) {
-                    let write_buffer = ctx.new_write(buffer_ptr, len);
+                    let write_buffer = ctx.register_write(buffer_ptr, len);
                     ctx.write(write_buffer, buffer)?;
                     0u32
                 } else {
@@ -479,7 +479,7 @@ where
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
             ctx.run(|ctx| {
-                let write_size = ctx.new_write_as(length_ptr);
+                let write_size = ctx.register_write_as(length_ptr);
 
                 let size = ctx.host_state_mut().ext.size().map_err(FuncError::Core)? as u32;
 
@@ -496,7 +496,7 @@ where
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
             ctx.run(|ctx| -> Result<(), _> {
-                let read_inheritor_id = ctx.new_read_decoded(inheritor_id_ptr);
+                let read_inheritor_id = ctx.register_read_decoded(inheritor_id_ptr);
 
                 let inheritor_id = ctx.read_decoded(read_inheritor_id)?;
 
@@ -518,7 +518,7 @@ where
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
             ctx.run(|ctx| {
-                let write_err_code = ctx.new_write_as(err_code_ptr);
+                let write_err_code = ctx.register_write_as(err_code_ptr);
 
                 ctx.host_state_mut()
                     .ext
@@ -577,7 +577,7 @@ where
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
             ctx.run(|ctx| {
-                let write_height = ctx.new_write_as(height_ptr);
+                let write_height = ctx.register_write_as(height_ptr);
 
                 let height = ctx
                     .host_state_mut()
@@ -602,7 +602,7 @@ where
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
             ctx.run(|ctx| {
-                let write_timestamp = ctx.new_write_as(timestamp_ptr);
+                let write_timestamp = ctx.register_write_as(timestamp_ptr);
 
                 let timestamp = ctx
                     .host_state_mut()
@@ -623,7 +623,7 @@ where
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
             ctx.run(|ctx| {
-                let write_origin = ctx.new_write_as(origin_ptr);
+                let write_origin = ctx.register_write_as(origin_ptr);
 
                 let origin = ctx.host_state_mut().ext.origin().map_err(FuncError::Core)?;
 
@@ -646,11 +646,11 @@ where
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
             ctx.run(|ctx| {
-                let read_payload = ctx.new_read(payload_ptr, len);
-                let write_err_mid = ctx.new_write_as(err_mid_ptr);
+                let read_payload = ctx.register_read(payload_ptr, len);
+                let write_err_mid = ctx.register_write_as(err_mid_ptr);
 
                 let value = if value_ptr != PTR_SPECIAL {
-                    let read_value = ctx.new_read_decoded::<u128>(value_ptr);
+                    let read_value = ctx.register_read_decoded::<u128>(value_ptr);
                     ctx.read_decoded(read_value)?
                 } else {
                     0
@@ -685,11 +685,11 @@ where
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
             ctx.run(|ctx| {
-                let read_payload = ctx.new_read(payload_ptr, len);
-                let write_err_mid = ctx.new_write_as(err_mid_ptr);
+                let read_payload = ctx.register_read(payload_ptr, len);
+                let write_err_mid = ctx.register_write_as(err_mid_ptr);
 
                 let value = if value_ptr != PTR_SPECIAL {
-                    let read_value = ctx.new_read_decoded::<u128>(value_ptr);
+                    let read_value = ctx.register_read_decoded::<u128>(value_ptr);
                     ctx.read_decoded(read_value)?
                 } else {
                     0
@@ -721,10 +721,10 @@ where
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
             ctx.run(|ctx| {
-                let write_err_mid = ctx.new_write_as(err_mid_ptr);
+                let write_err_mid = ctx.register_write_as(err_mid_ptr);
 
                 let value = if value_ptr != PTR_SPECIAL {
-                    let read_value = ctx.new_read_decoded::<u128>(value_ptr);
+                    let read_value = ctx.register_read_decoded::<u128>(value_ptr);
                     ctx.read_decoded(read_value)?
                 } else {
                     0
@@ -756,10 +756,10 @@ where
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
             ctx.run(|ctx| {
-                let write_err_mid = ctx.new_write_as(err_mid_ptr);
+                let write_err_mid = ctx.register_write_as(err_mid_ptr);
 
                 let value = if value_ptr != PTR_SPECIAL {
-                    let read_value = ctx.new_read_decoded::<u128>(value_ptr);
+                    let read_value = ctx.register_read_decoded::<u128>(value_ptr);
                     ctx.read_decoded(read_value)?
                 } else {
                     0
@@ -795,9 +795,9 @@ where
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
             ctx.run(|ctx| {
-                let read_rid_value = ctx.new_read_as(rid_value_ptr);
-                let read_payload = ctx.new_read(payload_ptr, len);
-                let write_err_mid = ctx.new_write_as(err_mid_ptr);
+                let read_rid_value = ctx.register_read_as(rid_value_ptr);
+                let read_payload = ctx.register_read(payload_ptr, len);
+                let write_err_mid = ctx.register_write_as(err_mid_ptr);
 
                 let HashWithValue {
                     hash: reservation_id,
@@ -834,8 +834,8 @@ where
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
             ctx.run(|ctx| {
-                let read_rid_value = ctx.new_read_as(rid_value_ptr);
-                let write_err_mid = ctx.new_write_as(err_mid_ptr);
+                let read_rid_value = ctx.register_read_as(rid_value_ptr);
+                let write_err_mid = ctx.register_write_as(err_mid_ptr);
 
                 let HashWithValue {
                     hash: reservation_id,
@@ -863,7 +863,7 @@ where
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
             ctx.run(|ctx| {
-                let write_err_mid = ctx.new_write_as(err_mid_ptr);
+                let write_err_mid = ctx.register_write_as(err_mid_ptr);
 
                 ctx.host_state_mut()
                     .ext
@@ -886,7 +886,7 @@ where
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
             ctx.run(|ctx| {
-                let write_err_mid = ctx.new_write_as(err_mid_ptr);
+                let write_err_mid = ctx.register_write_as(err_mid_ptr);
 
                 ctx.host_state_mut()
                     .ext
@@ -913,8 +913,8 @@ where
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
             ctx.run(|ctx| {
-                let read_payload = ctx.new_read(payload_ptr, len);
-                let write_err_len = ctx.new_write_as(err_ptr);
+                let read_payload = ctx.register_read(payload_ptr, len);
+                let write_err_len = ctx.register_write_as(err_ptr);
 
                 let payload = ctx.read(read_payload)?;
 
@@ -949,10 +949,10 @@ where
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
             ctx.run(|ctx| {
-                let write_err_mid = ctx.new_write_as(err_mid_ptr);
+                let write_err_mid = ctx.register_write_as(err_mid_ptr);
 
                 let value = if value_ptr != PTR_SPECIAL {
-                    let read_value = ctx.new_read_decoded(value_ptr);
+                    let read_value = ctx.register_read_decoded(value_ptr);
                     ctx.read_decoded(read_value)?
                 } else {
                     0
@@ -987,7 +987,7 @@ where
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
             ctx.run(|ctx| {
-                let write_err_len = ctx.new_write_as(err_ptr);
+                let write_err_len = ctx.register_write_as(err_ptr);
 
                 let result_len = ctx
                     .host_state_mut()
@@ -1021,10 +1021,10 @@ where
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
             ctx.run(|ctx| {
-                let write_err_mid = ctx.new_write_as(err_mid_ptr);
+                let write_err_mid = ctx.register_write_as(err_mid_ptr);
 
                 let value = if value_ptr != PTR_SPECIAL {
-                    let read_value = ctx.new_read_decoded(value_ptr);
+                    let read_value = ctx.register_read_decoded(value_ptr);
                     ctx.read_decoded(read_value)?
                 } else {
                     0
@@ -1062,8 +1062,8 @@ where
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
             ctx.run(|ctx| {
-                let read_pid_value = ctx.new_read_as(pid_value_ptr);
-                let write_err_mid = ctx.new_write_as(err_mid_ptr);
+                let read_pid_value = ctx.register_read_as(pid_value_ptr);
+                let write_err_mid = ctx.register_write_as(err_mid_ptr);
 
                 let HashWithValue {
                     hash: destination,
@@ -1108,7 +1108,7 @@ where
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
             ctx.run(|ctx| {
-                let write_err_len = ctx.new_write_as(err_ptr);
+                let write_err_len = ctx.register_write_as(err_ptr);
 
                 let result_len = ctx
                     .host_state_mut()
@@ -1142,8 +1142,8 @@ where
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
             ctx.run(|ctx| {
-                let read_pid_value = ctx.new_read_as(pid_value_ptr);
-                let write_err_mid = ctx.new_write_as(err_mid_ptr);
+                let read_pid_value = ctx.register_read_as(pid_value_ptr);
+                let write_err_mid = ctx.register_write_as(err_mid_ptr);
 
                 let HashWithValue {
                     hash: destination,
@@ -1185,7 +1185,7 @@ where
                 let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
                 ctx.run(|ctx| {
-                    let read_data = ctx.new_read(string_ptr, len);
+                    let read_data = ctx.register_read(string_ptr, len);
 
                     let data = ctx.read(read_data)?;
 
@@ -1215,7 +1215,7 @@ where
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
             ctx.run(|ctx| {
-                let write_err_rid = ctx.new_write_as(err_rid_ptr);
+                let write_err_rid = ctx.register_write_as(err_rid_ptr);
 
                 ctx.host_state_mut()
                     .ext
@@ -1241,8 +1241,8 @@ where
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
             ctx.run(|ctx| {
-                let read_reservation_id = ctx.new_read_decoded(reservation_id_ptr);
-                let write_err_unreserved = ctx.new_write_as(err_unreserved_ptr);
+                let read_reservation_id = ctx.register_read_decoded(reservation_id_ptr);
+                let write_err_unreserved = ctx.register_write_as(err_unreserved_ptr);
 
                 let id = ctx.read_decoded(read_reservation_id)?;
 
@@ -1267,7 +1267,7 @@ where
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
             ctx.run(|ctx| {
-                let write_err_len = ctx.new_write_as(err_ptr);
+                let write_err_len = ctx.register_write_as(err_ptr);
 
                 let len = ctx
                     .host_state_mut()
@@ -1294,7 +1294,7 @@ where
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
             ctx.run(|ctx| {
-                let write_gas = ctx.new_write_as(gas_ptr);
+                let write_gas = ctx.register_write_as(gas_ptr);
 
                 let gas = ctx
                     .host_state_mut()
@@ -1319,7 +1319,7 @@ where
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
             ctx.run(|ctx| {
-                let write_message_id = ctx.new_write_as(message_id_ptr);
+                let write_message_id = ctx.register_write_as(message_id_ptr);
 
                 let message_id = ctx
                     .host_state_mut()
@@ -1344,7 +1344,7 @@ where
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
             ctx.run(|ctx| {
-                let write_program_id = ctx.new_write_as(program_id_ptr);
+                let write_program_id = ctx.register_write_as(program_id_ptr);
 
                 let program_id = ctx
                     .host_state_mut()
@@ -1365,7 +1365,7 @@ where
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
             ctx.run(|ctx| {
-                let write_source = ctx.new_write_as(source_ptr);
+                let write_source = ctx.register_write_as(source_ptr);
 
                 let source = ctx.host_state_mut().ext.source().map_err(FuncError::Core)?;
 
@@ -1382,7 +1382,7 @@ where
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
             ctx.run(|ctx| {
-                let write_value = ctx.new_write_as(value_ptr);
+                let write_value = ctx.register_write_as(value_ptr);
 
                 let value = ctx.host_state_mut().ext.value().map_err(FuncError::Core)?;
 
@@ -1403,7 +1403,7 @@ where
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
             ctx.run(|ctx| {
-                let write_value = ctx.new_write_as(value_ptr);
+                let write_value = ctx.register_write_as(value_ptr);
 
                 let value_available = ctx
                     .host_state_mut()
@@ -1427,8 +1427,8 @@ where
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
             ctx.run(|ctx| {
-                let read_subject = ctx.new_read_decoded(subject_ptr);
-                let write_bn_random = ctx.new_write_as::<BlockNumberWithHash>(bn_random_ptr);
+                let read_subject = ctx.register_read_decoded(subject_ptr);
+                let write_bn_random = ctx.register_write_as::<BlockNumberWithHash>(bn_random_ptr);
 
                 let raw_subject: Hash = ctx.read_decoded(read_subject)?;
 
@@ -1547,8 +1547,8 @@ where
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
             ctx.run(|ctx| {
-                let read_message_id = ctx.new_read_decoded(message_id_ptr);
-                let write_err_len = ctx.new_write_as(err_ptr);
+                let read_message_id = ctx.register_read_decoded(message_id_ptr);
+                let write_err_len = ctx.register_write_as(err_ptr);
 
                 let message_id = ctx.read_decoded(read_message_id)?;
 
@@ -1585,10 +1585,10 @@ where
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
             ctx.run(|ctx| {
-                let read_cid_value = ctx.new_read_as(cid_value_ptr);
-                let read_salt = ctx.new_read(salt_ptr, salt_len);
-                let read_payload = ctx.new_read(payload_ptr, payload_len);
-                let write_err_mid_pid = ctx.new_write_as(err_mid_pid_ptr);
+                let read_cid_value = ctx.register_read_as(cid_value_ptr);
+                let read_salt = ctx.register_read(salt_ptr, salt_len);
+                let read_payload = ctx.register_read(payload_ptr, payload_len);
+                let write_err_mid_pid = ctx.register_write_as(err_mid_pid_ptr);
 
                 let HashWithValue {
                     hash: code_id,
@@ -1627,10 +1627,10 @@ where
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
             ctx.run(|ctx| {
-                let read_cid_value = ctx.new_read_as(cid_value_ptr);
-                let read_salt = ctx.new_read(salt_ptr, salt_len);
-                let read_payload = ctx.new_read(payload_ptr, payload_len);
-                let write_err_mid_pid = ctx.new_write_as(err_mid_pid_ptr);
+                let read_cid_value = ctx.register_read_as(cid_value_ptr);
+                let read_salt = ctx.register_read(salt_ptr, salt_len);
+                let read_payload = ctx.register_read(payload_ptr, payload_len);
+                let write_err_mid_pid = ctx.register_write_as(err_mid_pid_ptr);
 
                 let HashWithValue {
                     hash: code_id,
@@ -1666,11 +1666,11 @@ where
                         .process_error()
                         .map_err(FuncError::Core)?
                         .proc_res(|res| -> Result<(), FuncError<E::Error>> {
-                            let write_err_len = ctx.new_write_as(err_ptr);
+                            let write_err_len = ctx.register_write_as(err_ptr);
                             let length = match res {
                                 Ok(err) => {
                                     let write_error_bytes =
-                                        ctx.new_write(error_ptr, err.len() as u32);
+                                        ctx.register_write(error_ptr, err.len() as u32);
                                     ctx.write(write_error_bytes, err.as_ref())?;
                                     0
                                 }
