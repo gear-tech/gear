@@ -872,7 +872,6 @@ pub mod pallet {
             // nothing changing in database
             let (first_missed_block, were_empty) = MissedBlocksOf::<T>::take()
                 .map(|first_bn| {
-                    // TODO: replase write with read
                     GasAllowanceOf::<T>::decrease(DbWeightOf::<T>::get().writes(1).ref_time());
                     (first_bn, false)
                 })
