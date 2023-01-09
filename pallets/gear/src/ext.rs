@@ -24,7 +24,7 @@ use gear_core::{
     env::Ext as EnvExt,
     gas::GasAmount,
     ids::{MessageId, ProgramId, ReservationId},
-    lazy_pages::{AccessError, Status},
+    lazy_pages::AccessError,
     memory::{GrowHandler, Memory, PageNumber, PageU32Size, WasmPageNumber},
     message::{HandlePacket, InitPacket, ReplyPacket, StatusCode},
 };
@@ -94,11 +94,6 @@ impl ProcessorExt for LazyPagesExt {
 
     fn lazy_pages_post_execution_actions(mem: &mut impl Memory) {
         lazy_pages::remove_lazy_pages_prot(mem);
-    }
-
-    fn lazy_pages_status() -> Option<Status> {
-        // TODO: currently status is always `Normal`, change it after charging in lazy-pages.
-        Some(Status::Normal)
     }
 }
 

@@ -40,7 +40,6 @@ pub mod syscalls;
 
 pub const GLOBAL_NAME_GAS: &str = "gear_gas";
 pub const GLOBAL_NAME_ALLOWANCE: &str = "gear_allowance";
-pub const GLOBAL_NAME_STATUS: &str = "gear_status";
 
 pub fn inject<R: Rules>(
     module: elements::Module,

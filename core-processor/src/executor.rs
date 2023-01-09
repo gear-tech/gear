@@ -660,7 +660,7 @@ pub fn execute_for_reply<
 mod tests {
     use super::*;
     use alloc::{vec, vec::Vec};
-    use gear_core::{lazy_pages::Status, memory::WasmPageNumber};
+    use gear_core::memory::WasmPageNumber;
 
     struct TestExt;
     struct LazyTestExt;
@@ -679,9 +679,6 @@ mod tests {
         }
 
         fn lazy_pages_post_execution_actions(_mem: &mut impl Memory) {}
-        fn lazy_pages_status() -> Option<Status> {
-            None
-        }
     }
 
     impl ProcessorExt for LazyTestExt {
@@ -699,9 +696,6 @@ mod tests {
         }
 
         fn lazy_pages_post_execution_actions(_mem: &mut impl Memory) {}
-        fn lazy_pages_status() -> Option<Status> {
-            None
-        }
     }
 
     fn prepare_pages_and_allocs() -> (Vec<PageNumber>, BTreeSet<WasmPageNumber>) {
