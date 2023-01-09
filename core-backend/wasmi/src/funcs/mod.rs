@@ -31,7 +31,7 @@ use core::{
 };
 use gear_backend_common::{
     error_processor::{IntoExtError, ProcessError},
-    memory::MemoryAccessError,
+    memory::{MemoryAccessError, MemoryAccessRecorder, MemoryOwner},
     AsTerminationReason, IntoExtInfo, TerminationReason, TrapExplanation,
 };
 use gear_core::{

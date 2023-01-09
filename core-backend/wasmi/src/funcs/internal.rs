@@ -16,12 +16,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use core::ops::{Deref, DerefMut};
-
 use codec::MaxEncodedLen;
 use gear_backend_common::memory::{
-    MemoryAccessManager, WasmMemoryRead, WasmMemoryReadAs, WasmMemoryReadDecoded, WasmMemoryWrite,
-    WasmMemoryWriteAs,
+    MemoryAccessManager, MemoryOwner, WasmMemoryRead, WasmMemoryReadAs, WasmMemoryReadDecoded,
+    WasmMemoryWrite, WasmMemoryWriteAs,
 };
 
 use super::*;
@@ -37,28 +35,6 @@ where
     memory: WasmiMemory,
 }
 
-impl<'a, E> Deref for CallerWrap<'a, E>
-where
-    E: Ext + IntoExtInfo<E::Error> + 'static,
-    E::Error: IntoExtError,
-{
-    type Target = MemoryAccessManager<E>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.manager
-    }
-}
-
-impl<'a, E> DerefMut for CallerWrap<'a, E>
-where
-    E: Ext + IntoExtInfo<E::Error> + 'static,
-    E::Error: IntoExtError,
-{
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.manager
-    }
-}
-
 impl<'a, E> CallerWrap<'a, E>
 where
     E: Ext + IntoExtInfo<E::Error> + 'static,
@@ -70,38 +46,38 @@ where
         forbidden: bool,
         memory: WasmiMemory,
     ) -> Result<Self, Trap> {
-        let mut caller = Self {
+        let mut wrapper = Self {
             caller,
             manager: Default::default(),
             memory,
         };
 
         if forbidden {
-            caller.host_state_mut().err = FuncError::Core(E::Error::forbidden_function());
+            wrapper.host_state_mut().err = FuncError::Core(E::Error::forbidden_function());
             return Err(TrapCode::Unreachable.into());
         }
 
         let f = || {
-            let gas_global = caller.caller.get_export(GLOBAL_NAME_GAS)?.into_global()?;
-            let gas = gas_global.get(&caller.caller).try_into::<i64>()? as u64;
+            let gas_global = wrapper.caller.get_export(GLOBAL_NAME_GAS)?.into_global()?;
+            let gas = gas_global.get(&wrapper.caller).try_into::<i64>()? as u64;
 
-            let allowance_global = caller
+            let allowance_global = wrapper
                 .caller
                 .get_export(GLOBAL_NAME_ALLOWANCE)?
                 .into_global()?;
-            let allowance = allowance_global.get(&caller.caller).try_into::<i64>()? as u64;
+            let allowance = allowance_global.get(&wrapper.caller).try_into::<i64>()? as u64;
 
             Some((gas, allowance))
         };
 
         let (gas, allowance) = f().ok_or_else(|| {
-            caller.host_state_mut().err = FuncError::HostError;
+            wrapper.host_state_mut().err = FuncError::HostError;
             Trap::from(TrapCode::Unreachable)
         })?;
 
-        caller.host_state_mut().ext.update_counters(gas, allowance);
+        wrapper.host_state_mut().ext.update_counters(gas, allowance);
 
-        Ok(caller)
+        Ok(wrapper)
     }
 
     #[track_caller]
@@ -122,7 +98,7 @@ where
     }
 
     #[track_caller]
-    pub fn update_globals(&mut self) -> Result<(), Trap> {
+    fn update_globals(&mut self) -> Result<(), Trap> {
         let (gas, allowance) = self.host_state_mut().ext.counters();
 
         let mut f = || {
@@ -149,7 +125,7 @@ where
     }
 
     #[track_caller]
-    pub(crate) fn run<T, F>(&mut self, f: F) -> Result<T, Trap>
+    pub fn run<T, F>(&mut self, f: F) -> Result<T, Trap>
     where
         F: FnOnce(&mut Self) -> Result<T, FuncError<E::Error>>,
     {
@@ -164,7 +140,7 @@ where
     }
 
     #[track_caller]
-    pub(crate) fn run_state_taken<T, F>(&mut self, f: F) -> Result<T, Trap>
+    pub fn run_state_taken<T, F>(&mut self, f: F) -> Result<T, Trap>
     where
         F: FnOnce(&mut Self, &mut State<E>) -> Result<T, FuncError<E::Error>>,
     {
@@ -185,8 +161,43 @@ where
             Trap::from(TrapCode::Unreachable)
         })
     }
+}
 
-    pub fn read(&mut self, read: WasmMemoryRead) -> Result<Vec<u8>, MemoryAccessError> {
+impl<'a, E> MemoryAccessRecorder for CallerWrap<'a, E>
+where
+    E: Ext + IntoExtInfo<E::Error> + 'static,
+    E::Error: IntoExtError + Display,
+{
+    fn new_read(&mut self, ptr: u32, size: u32) -> WasmMemoryRead {
+        self.manager.new_read(ptr, size)
+    }
+
+    fn new_read_as<T: Sized>(&mut self, ptr: u32) -> WasmMemoryReadAs<T> {
+        self.manager.new_read_as(ptr)
+    }
+
+    fn new_read_decoded<T: Decode + MaxEncodedLen>(
+        &mut self,
+        ptr: u32,
+    ) -> WasmMemoryReadDecoded<T> {
+        self.manager.new_read_decoded(ptr)
+    }
+
+    fn new_write(&mut self, ptr: u32, size: u32) -> WasmMemoryWrite {
+        self.manager.new_write(ptr, size)
+    }
+
+    fn new_write_as<T: Sized>(&mut self, ptr: u32) -> WasmMemoryWriteAs<T> {
+        self.manager.new_write_as(ptr)
+    }
+}
+
+impl<'a, E> MemoryOwner for CallerWrap<'a, E>
+where
+    E: Ext + IntoExtInfo<E::Error> + 'static,
+    E::Error: IntoExtError + Display,
+{
+    fn read(&mut self, read: WasmMemoryRead) -> Result<Vec<u8>, MemoryAccessError> {
         let store = self.caller.as_context_mut();
         let memory = MemoryWrapRef {
             memory: self.memory,
@@ -195,7 +206,7 @@ where
         self.manager.read(&memory, read)
     }
 
-    pub fn read_as<T: Sized>(&mut self, read: WasmMemoryReadAs<T>) -> Result<T, MemoryAccessError> {
+    fn read_as<T: Sized>(&mut self, read: WasmMemoryReadAs<T>) -> Result<T, MemoryAccessError> {
         let store = self.caller.as_context_mut();
         let memory = MemoryWrapRef {
             memory: self.memory,
@@ -204,7 +215,7 @@ where
         self.manager.read_as(&memory, read)
     }
 
-    pub fn read_decoded<T: Decode + MaxEncodedLen>(
+    fn read_decoded<T: Decode + MaxEncodedLen>(
         &mut self,
         read: WasmMemoryReadDecoded<T>,
     ) -> Result<T, MemoryAccessError> {
@@ -216,7 +227,7 @@ where
         self.manager.read_decoded(&memory, read)
     }
 
-    pub fn write(&mut self, write: WasmMemoryWrite, buff: &[u8]) -> Result<(), MemoryAccessError> {
+    fn write(&mut self, write: WasmMemoryWrite, buff: &[u8]) -> Result<(), MemoryAccessError> {
         let store = self.caller.as_context_mut();
         let mut memory = MemoryWrapRef {
             memory: self.memory,
@@ -225,7 +236,7 @@ where
         self.manager.write(&mut memory, write, buff)
     }
 
-    pub fn write_as<T: Sized>(
+    fn write_as<T: Sized>(
         &mut self,
         write: WasmMemoryWriteAs<T>,
         obj: T,

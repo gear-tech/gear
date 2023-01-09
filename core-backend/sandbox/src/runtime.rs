@@ -25,8 +25,8 @@ use crate::{
 use alloc::vec::Vec;
 use codec::{Decode, MaxEncodedLen};
 use gear_backend_common::memory::{
-    MemoryAccessError, MemoryAccessManager, WasmMemoryRead, WasmMemoryReadAs,
-    WasmMemoryReadDecoded, WasmMemoryWrite, WasmMemoryWriteAs,
+    MemoryAccessError, MemoryAccessManager, MemoryAccessRecorder, MemoryOwner, WasmMemoryRead,
+    WasmMemoryReadAs, WasmMemoryReadDecoded, WasmMemoryWrite, WasmMemoryWriteAs,
 };
 use gear_core::env::Ext;
 use gear_wasm_instrument::{GLOBAL_NAME_ALLOWANCE, GLOBAL_NAME_GAS};
@@ -106,27 +106,52 @@ impl<E: Ext> Runtime<E> {
     }
 }
 
-impl<E: Ext> Runtime<E> {
-    pub fn read(&mut self, read: WasmMemoryRead) -> Result<Vec<u8>, MemoryAccessError> {
+impl<E: Ext> MemoryAccessRecorder for Runtime<E> {
+    fn new_read(&mut self, ptr: u32, size: u32) -> WasmMemoryRead {
+        self.memory_manager.new_read(ptr, size)
+    }
+
+    fn new_read_as<T: Sized>(&mut self, ptr: u32) -> WasmMemoryReadAs<T> {
+        self.memory_manager.new_read_as(ptr)
+    }
+
+    fn new_read_decoded<T: Decode + MaxEncodedLen>(
+        &mut self,
+        ptr: u32,
+    ) -> WasmMemoryReadDecoded<T> {
+        self.memory_manager.new_read_decoded(ptr)
+    }
+
+    fn new_write(&mut self, ptr: u32, size: u32) -> WasmMemoryWrite {
+        self.memory_manager.new_write(ptr, size)
+    }
+
+    fn new_write_as<T: Sized>(&mut self, ptr: u32) -> WasmMemoryWriteAs<T> {
+        self.memory_manager.new_write_as(ptr)
+    }
+}
+
+impl<E: Ext> MemoryOwner for Runtime<E> {
+    fn read(&mut self, read: WasmMemoryRead) -> Result<Vec<u8>, MemoryAccessError> {
         self.memory_manager.read(&self.memory, read)
     }
 
-    pub fn read_as<T: Sized>(&mut self, read: WasmMemoryReadAs<T>) -> Result<T, MemoryAccessError> {
+    fn read_as<T: Sized>(&mut self, read: WasmMemoryReadAs<T>) -> Result<T, MemoryAccessError> {
         self.memory_manager.read_as(&self.memory, read)
     }
 
-    pub fn read_decoded<T: Decode + MaxEncodedLen>(
+    fn read_decoded<T: Decode + MaxEncodedLen>(
         &mut self,
         read: WasmMemoryReadDecoded<T>,
     ) -> Result<T, MemoryAccessError> {
         self.memory_manager.read_decoded(&self.memory, read)
     }
 
-    pub fn write(&mut self, write: WasmMemoryWrite, buff: &[u8]) -> Result<(), MemoryAccessError> {
+    fn write(&mut self, write: WasmMemoryWrite, buff: &[u8]) -> Result<(), MemoryAccessError> {
         self.memory_manager.write(&mut self.memory, write, buff)
     }
 
-    pub fn write_as<T: Sized>(
+    fn write_as<T: Sized>(
         &mut self,
         write: WasmMemoryWriteAs<T>,
         obj: T,

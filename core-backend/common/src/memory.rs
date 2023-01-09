@@ -42,6 +42,49 @@ pub enum MemoryAccessError {
     WrongBufferSize(usize, u32),
 }
 
+/// Memory accesses recorder/registrar, which allow to register new accesses.
+pub trait MemoryAccessRecorder {
+    /// Register new read access.
+    fn new_read(&mut self, ptr: u32, size: u32) -> WasmMemoryRead;
+
+    /// Register new read static size type access.
+    fn new_read_as<T: Sized>(&mut self, ptr: u32) -> WasmMemoryReadAs<T>;
+
+    /// Register new read decoded type access.
+    fn new_read_decoded<T: Decode + MaxEncodedLen>(&mut self, ptr: u32)
+        -> WasmMemoryReadDecoded<T>;
+
+    /// Register new write access.
+    fn new_write(&mut self, ptr: u32, size: u32) -> WasmMemoryWrite;
+
+    /// Register new write static size access.
+    fn new_write_as<T: Sized>(&mut self, ptr: u32) -> WasmMemoryWriteAs<T>;
+}
+
+pub trait MemoryOwner {
+    /// Read from owned memory to new byte vector.
+    fn read(&mut self, read: WasmMemoryRead) -> Result<Vec<u8>, MemoryAccessError>;
+
+    /// Read from owned memory to new object `T`.
+    fn read_as<T: Sized>(&mut self, read: WasmMemoryReadAs<T>) -> Result<T, MemoryAccessError>;
+
+    /// Read from owned memory and decoded data into object `T`.
+    fn read_decoded<T: Decode + MaxEncodedLen>(
+        &mut self,
+        read: WasmMemoryReadDecoded<T>,
+    ) -> Result<T, MemoryAccessError>;
+
+    /// Write data from `buff` to owned memory.
+    fn write(&mut self, write: WasmMemoryWrite, buff: &[u8]) -> Result<(), MemoryAccessError>;
+
+    /// Write data from `obj` to owned memory.
+    fn write_as<T: Sized>(
+        &mut self,
+        write: WasmMemoryWriteAs<T>,
+        obj: T,
+    ) -> Result<(), MemoryAccessError>;
+}
+
 /// Memory access manager. Allows to pre-register memory accesses,
 /// and pre-process, them together. For example:
 /// ```ignore
@@ -75,15 +118,13 @@ impl<E: Ext> Default for MemoryAccessManager<E> {
     }
 }
 
-impl<E: Ext> MemoryAccessManager<E> {
-    /// Register new read access.
-    pub fn new_read(&mut self, ptr: u32, size: u32) -> WasmMemoryRead {
+impl<E: Ext> MemoryAccessRecorder for MemoryAccessManager<E> {
+    fn new_read(&mut self, ptr: u32, size: u32) -> WasmMemoryRead {
         self.reads.push(MemoryInterval { offset: ptr, size });
         WasmMemoryRead { ptr, size }
     }
 
-    /// Register new read static size type access.
-    pub fn new_read_as<T: Sized>(&mut self, ptr: u32) -> WasmMemoryReadAs<T> {
+    fn new_read_as<T: Sized>(&mut self, ptr: u32) -> WasmMemoryReadAs<T> {
         self.reads.push(MemoryInterval {
             offset: ptr,
             size: size_of::<T>() as u32,
@@ -94,8 +135,7 @@ impl<E: Ext> MemoryAccessManager<E> {
         }
     }
 
-    /// Register new read decoded type access.
-    pub fn new_read_decoded<T: Decode + MaxEncodedLen>(
+    fn new_read_decoded<T: Decode + MaxEncodedLen>(
         &mut self,
         ptr: u32,
     ) -> WasmMemoryReadDecoded<T> {
@@ -109,14 +149,12 @@ impl<E: Ext> MemoryAccessManager<E> {
         }
     }
 
-    /// Register new write access.
-    pub fn new_write(&mut self, ptr: u32, size: u32) -> WasmMemoryWrite {
+    fn new_write(&mut self, ptr: u32, size: u32) -> WasmMemoryWrite {
         self.writes.push(MemoryInterval { offset: ptr, size });
         WasmMemoryWrite { ptr, size }
     }
 
-    /// Register new write static size access.
-    pub fn new_write_as<T: Sized>(&mut self, ptr: u32) -> WasmMemoryWriteAs<T> {
+    fn new_write_as<T: Sized>(&mut self, ptr: u32) -> WasmMemoryWriteAs<T> {
         self.writes.push(MemoryInterval {
             offset: ptr,
             size: size_of::<T>() as u32,
@@ -126,7 +164,9 @@ impl<E: Ext> MemoryAccessManager<E> {
             _phantom: PhantomData,
         }
     }
+}
 
+impl<E: Ext> MemoryAccessManager<E> {
     /// Call pre-processing of registered memory accesses. Clear `self.reads` and `self.writes`.
     fn pre_process_memory_accesses(&mut self) -> Result<(), MemoryAccessError> {
         if self.reads.is_empty() && self.writes.is_empty() {
