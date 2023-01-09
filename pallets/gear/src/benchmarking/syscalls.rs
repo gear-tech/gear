@@ -370,9 +370,8 @@ where
         let reservation_id_bytes: Vec<u8> =
             reservation_ids.iter().flat_map(|x| x.encode()).collect();
 
-        let amount_offset = reservation_id_offset + reservation_id_bytes.len() as u32;
-
-        let err_ptrs = Self::err_len_ptrs(r * API_BENCHMARK_BATCH_SIZE, amount_offset);
+        let err_offset = reservation_id_offset + reservation_id_bytes.len() as u32;
+        let err_ptrs = Self::err_len_ptrs(r * API_BENCHMARK_BATCH_SIZE, err_offset);
 
         let code = WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
@@ -387,7 +386,7 @@ where
                     // reservation_id ptr
                     Counter(reservation_id_offset, size_of::<ReservationId>() as u32),
                     // err_unreserved ptr
-                    Counter(amount_offset, Self::ERR_LEN_SIZE),
+                    Counter(err_offset, Self::ERR_LEN_SIZE),
                     // CALL
                     Regular(Instruction::Call(0)),
                 ],
