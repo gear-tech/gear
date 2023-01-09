@@ -80,12 +80,11 @@ impl GearApi {
 
     /// Get a hash of a block identified by its `block_number`.
     pub async fn get_block_hash(&self, block_number: u32) -> Result<H256> {
-        Ok(self
-            .0
+        self.0
             .rpc()
             .block_hash(Some(block_number.into()))
             .await?
-            .ok_or(Error::BlockHashNotFound)?)
+            .ok_or(Error::BlockHashNotFound)
     }
 
     pub async fn last_block_timestamp(&self) -> Result<u64> {
