@@ -240,8 +240,10 @@ pub mod pallet {
 
         type DebugInfo: DebugInfo;
 
+        /// Implementation of a storage for program binary codes.
         type CodeStorage: CodeStorage;
 
+        /// Implementation of a storage for programs.
         type ProgramStorage: ProgramStorage;
 
         /// The minimal gas amount for message to be inserted in mailbox.

@@ -16,6 +16,117 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+//! # Gear Program Pallet
+//!
+//! The Gear Program Pallet provides functionality for storing programs
+//! and binary codes.
+//!
+//! - [`Config`]
+//! - [`Pallet`]
+//!
+//! ## Overview
+//!
+//! The Gear Program Pallet's main aim is to separate programs and binary codes storages out
+//! of Gear's execution logic and provide soft functionality to manage them.
+//!
+//! The Gear Program Pallet provides functions for:
+//! - Add/remove/check existence for binary codes;
+//! - Get original binary code, instrumented binary code and associated metadata;
+//! - Update instrumented binary code in the storage;
+//! - Add/remove/check existence for programs;
+//! - Get program data;
+//! - Update program in the storage;
+//! - Work with program memory pages and messages for uninitialized programs.
+//!
+//! ## Interface
+//!
+//! The Gear Program Pallet implements `gear_common::{CodeStorage, ProgramStorage}` traits
+//! and shouldn't contain any other functionality, except this trait declares.
+//!
+//! ## Usage
+//!
+//! How to use the functionality from the Gear Program Pallet:
+//!
+//! 1. Implement the pallet `Config` for your runtime.
+//!
+//! ```ignore
+//! // `runtime/src/lib.rs`
+//! // ... //
+//!
+//! impl pallet_gear_program::Config for Runtime {}
+//!
+//! // ... //
+//! ```
+//!
+//! 2. Provide associated type for your pallet's `Config`, which implements
+//! `gear_common::{CodeStorage, ProgramStorage}` traits,
+//! specifying associated types if needed.
+//!
+//! ```ignore
+//! // `some_pallet/src/lib.rs`
+//! // ... //
+//!
+//! use gear_common::{CodeStorage, ProgramStorage};
+//!
+//! #[pallet::config]
+//! pub trait Config: frame_system::Config {
+//!     // .. //
+//!
+//!     type CodeStorage: CodeStorage;
+//!
+//!     type ProgramStorage: ProgramStorage;
+//!
+//!     // .. //
+//! }
+//! ```
+//!
+//! 3. Declare Gear Program Pallet in your `construct_runtime!` macro.
+//!
+//! ```ignore
+//! // `runtime/src/lib.rs`
+//! // ... //
+//!
+//! construct_runtime!(
+//!     pub enum Runtime
+//!         where // ... //
+//!     {
+//!         // ... //
+//!
+//!         GearProgram: pallet_gear_program,
+//!
+//!         // ... //
+//!     }
+//! );
+//!
+//! // ... //
+//! ```
+//!
+//! 4. Set `GearProgram` as your pallet `Config`'s `{CodeStorage, ProgramStorage}` types.
+//!
+//! ```ignore
+//! // `runtime/src/lib.rs`
+//! // ... //
+//!
+//! impl some_pallet::Config for Runtime {
+//!     // ... //
+//!
+//!     type CodeStorage = GearProgram;
+//!
+//!     type ProgramStorage = GearProgram;
+//!
+//!     // ... //
+//! }
+//!
+//! // ... //
+//! ```
+//!
+//! 5. Work with Gear Program Pallet in your pallet with provided
+//! associated type interface.
+//!
+//! ## Genesis config
+//!
+//! The Gear Program Pallet doesn't depend on the `GenesisConfig`.
+
 #![cfg_attr(not(feature = "std"), no_std)]
 
 pub use pallet::*;

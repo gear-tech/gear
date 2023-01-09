@@ -40,12 +40,14 @@ pub trait ProgramStorage {
     type MemoryPageMap: DoubleMapStorage<Key1 = ProgramId, Key2 = PageNumber, Value = PageBuf>;
     type WaitingInitMap: AppendMapStorage<MessageId, ProgramId, Vec<MessageId>>;
 
+    /// Attempt to remove all items from all the associated maps.
     fn reset() {
         Self::ProgramMap::clear();
         Self::MemoryPageMap::clear();
         Self::WaitingInitMap::clear();
     }
 
+    /// Store a program to be associated with the given key `program_id` from the map.
     fn add_program(program_id: ProgramId, program: ActiveProgram) -> Result<(), Error> {
         Self::ProgramMap::mutate(program_id, |maybe| {
             if maybe.is_some() {
@@ -57,14 +59,17 @@ pub trait ProgramStorage {
         })
     }
 
+    /// Load the program associated with the given key `program_id` from the map.
     fn get_program(program_id: ProgramId) -> Option<Program> {
         Self::ProgramMap::get(&program_id)
     }
 
+    /// Does the program (explicitly) exist in storage?
     fn program_exists(program_id: ProgramId) -> bool {
         Self::ProgramMap::contains_key(&program_id)
     }
 
+    /// Update the active program under the given key `program_id`.
     fn update_active_program<F, ReturnType>(
         program_id: ProgramId,
         update_action: F,
@@ -78,6 +83,8 @@ pub trait ProgramStorage {
         })
     }
 
+    /// Update the program under the given key `program_id` only if the
+    /// stored program is an active one.
     fn update_program_if_active<F, ReturnType>(
         program_id: ProgramId,
         update_action: F,
@@ -97,6 +104,7 @@ pub trait ProgramStorage {
         Ok(result)
     }
 
+    /// Return program data for each page from `pages`.
     fn get_program_data_for_pages<'a>(
         program_id: ProgramId,
         pages: impl Iterator<Item = &'a PageNumber>,
@@ -115,28 +123,35 @@ pub trait ProgramStorage {
         Ok(pages_data)
     }
 
+    /// Store a memory page buffer to be associated with the given keys `program_id` and `page` from the map.
     fn set_program_page_data(program_id: ProgramId, page: PageNumber, page_buf: PageBuf) {
         Self::MemoryPageMap::insert(program_id, page, page_buf);
     }
 
+    /// Remove a memory page buffer under the given keys `program_id` and `page`.
     fn remove_program_page_data(program_id: ProgramId, page_num: PageNumber) {
         Self::MemoryPageMap::remove(program_id, page_num);
     }
 
+    /// Remove all memory page buffers under the given key `program_id`.
     fn remove_program_pages(program_id: ProgramId) {
         Self::MemoryPageMap::clear_prefix(program_id);
     }
 
+    /// Final full prefix that prefixes all keys of memory pages.
     fn pages_final_prefix() -> [u8; 32];
 
+    /// Load the messages to uninitialized program associated with the given key `program_id` from the map.
     fn waiting_init_get_messages(program_id: ProgramId) -> Vec<MessageId> {
         Self::WaitingInitMap::get(&program_id).unwrap_or_default()
     }
 
+    /// Take the messages to uninitialized program under the given key `program_id`.
     fn waiting_init_take_messages(program_id: ProgramId) -> Vec<MessageId> {
         Self::WaitingInitMap::take(program_id).unwrap_or_default()
     }
 
+    /// Append the given message id to the list of messages to uninitialized program in the storage.
     fn waiting_init_append_message_id(dest_prog_id: ProgramId, message_id: MessageId) {
         Self::WaitingInitMap::append(dest_prog_id, message_id);
     }
