@@ -22,13 +22,29 @@ use gear_core::ids::{CodeId, MessageId, ProgramId};
 use gp::api::types::GasInfo;
 use parity_scale_codec::{Decode, Encode};
 use std::path::Path;
-use subxt::{ext::sp_core::H256, rpc::rpc_params};
+use subxt::{
+    ext::{sp_core::H256, sp_runtime::DeserializeOwned},
+    rpc::{rpc_params, RpcParams},
+};
 
 use crate::utils;
 
 impl GearApi {
     /// gear_calculateInitCreateGas
     pub async fn calculate_create_gas(
+        &self,
+        origin: Option<H256>,
+        code_id: CodeId,
+        payload: Vec<u8>,
+        value: u128,
+        allow_other_panics: bool,
+    ) -> Result<GasInfo> {
+        self.calculate_create_gas_at(origin, code_id, payload, value, allow_other_panics, None)
+            .await
+    }
+
+    /// gear_calculateInitCreateGas
+    pub async fn calculate_create_gas_at(
         &self,
         origin: Option<H256>,
         code_id: CodeId,
@@ -51,6 +67,19 @@ impl GearApi {
         payload: Vec<u8>,
         value: u128,
         allow_other_panics: bool,
+    ) -> Result<GasInfo> {
+        self.calculate_upload_gas_at(origin, code, payload, value, allow_other_panics, None)
+            .await
+    }
+
+    /// gear_calculateInitUploadGas
+    pub async fn calculate_upload_gas_at(
+        &self,
+        origin: Option<H256>,
+        code: Vec<u8>,
+        payload: Vec<u8>,
+        value: u128,
+        allow_other_panics: bool,
         at: Option<H256>,
     ) -> Result<GasInfo> {
         self.0
@@ -67,6 +96,26 @@ impl GearApi {
         payload: Vec<u8>,
         value: u128,
         allow_other_panics: bool,
+    ) -> Result<GasInfo> {
+        self.calculate_handle_gas_at(
+            origin,
+            destination,
+            payload,
+            value,
+            allow_other_panics,
+            None,
+        )
+        .await
+    }
+
+    /// gear_calculateHandleGas
+    pub async fn calculate_handle_gas_at(
+        &self,
+        origin: Option<H256>,
+        destination: ProgramId,
+        payload: Vec<u8>,
+        value: u128,
+        allow_other_panics: bool,
         at: Option<H256>,
     ) -> Result<GasInfo> {
         self.0
@@ -77,6 +126,28 @@ impl GearApi {
 
     /// gear_calculateReplyGas
     pub async fn calculate_reply_gas(
+        &self,
+        origin: Option<H256>,
+        message_id: MessageId,
+        exit_code: i32,
+        payload: Vec<u8>,
+        value: u128,
+        allow_other_panics: bool,
+    ) -> Result<GasInfo> {
+        self.calculate_reply_gas_at(
+            origin,
+            message_id,
+            exit_code,
+            payload,
+            value,
+            allow_other_panics,
+            None,
+        )
+        .await
+    }
+
+    /// gear_calculateReplyGas
+    pub async fn calculate_reply_gas_at(
         &self,
         origin: Option<H256>,
         message_id: MessageId,
@@ -101,25 +172,32 @@ impl GearApi {
     }
 
     /// Read the program's state as a byte vector.
-    pub async fn read_state_bytes(
+    pub async fn read_state_bytes(&self, program_id: ProgramId) -> Result<Vec<u8>> {
+        self.read_state_bytes_at(program_id, None).await
+    }
+
+    /// Read the program's state as a byte vector.
+    pub async fn read_state_bytes_at(
         &self,
         program_id: ProgramId,
         at: Option<H256>,
     ) -> Result<Vec<u8>> {
-        self.0
-            .rpc()
-            .request("gear_readState", rpc_params![H256(program_id.into()), at])
+        self.rpc_request("gear_readState", rpc_params![H256(program_id.into()), at])
             .await
-            .map_err(Into::into)
     }
 
     /// Read the program's state as decoded data.
-    pub async fn read_state<D: Decode>(
+    pub async fn read_state<D: Decode>(&self, program_id: ProgramId) -> Result<D> {
+        self.read_state_at(program_id, None).await
+    }
+
+    /// Read the program's state as decoded data.
+    pub async fn read_state_at<D: Decode>(
         &self,
         program_id: ProgramId,
         at: Option<H256>,
     ) -> Result<D> {
-        let bytes = self.read_state_bytes(program_id, at).await?;
+        let bytes = self.read_state_bytes_at(program_id, at).await?;
         D::decode(&mut bytes.as_ref()).map_err(Into::into)
     }
 
@@ -130,22 +208,31 @@ impl GearApi {
         fn_name: &[u8],
         wasm: Vec<u8>,
         argument: Option<Vec<u8>>,
+    ) -> Result<Vec<u8>> {
+        self.read_state_bytes_using_wasm_at(program_id, fn_name, wasm, argument, None)
+            .await
+    }
+
+    /// Read the program's state as a byte vector using a meta Wasm.
+    pub async fn read_state_bytes_using_wasm_at(
+        &self,
+        program_id: ProgramId,
+        fn_name: &[u8],
+        wasm: Vec<u8>,
+        argument: Option<Vec<u8>>,
         at: Option<H256>,
     ) -> Result<Vec<u8>> {
-        self.0
-            .rpc()
-            .request(
-                "gear_readStateUsingWasm",
-                rpc_params![
-                    H256(program_id.into()),
-                    fn_name.to_vec(),
-                    wasm,
-                    argument,
-                    at
-                ],
-            )
-            .await
-            .map_err(Into::into)
+        self.rpc_request(
+            "gear_readStateUsingWasm",
+            rpc_params![
+                H256(program_id.into()),
+                fn_name.to_vec(),
+                wasm,
+                argument,
+                at
+            ],
+        )
+        .await
     }
 
     /// Read the program's state as decoded data using a meta Wasm.
@@ -155,10 +242,22 @@ impl GearApi {
         fn_name: &[u8],
         wasm: Vec<u8>,
         argument: Option<E>,
+    ) -> Result<D> {
+        self.read_state_using_wasm_at(program_id, fn_name, wasm, argument, None)
+            .await
+    }
+
+    /// Read the program's state as decoded data using a meta Wasm.
+    pub async fn read_state_using_wasm_at<E: Encode, D: Decode>(
+        &self,
+        program_id: ProgramId,
+        fn_name: &[u8],
+        wasm: Vec<u8>,
+        argument: Option<E>,
         at: Option<H256>,
     ) -> Result<D> {
         let bytes = self
-            .read_state_bytes_using_wasm(
+            .read_state_bytes_using_wasm_at(
                 program_id,
                 fn_name,
                 wasm,
@@ -177,23 +276,31 @@ impl GearApi {
         fn_name: &[u8],
         path: impl AsRef<Path>,
         argument: Option<Vec<u8>>,
+    ) -> Result<Vec<u8>> {
+        self.read_state_bytes_using_wasm_by_path_at(program_id, fn_name, path, argument, None)
+            .await
+    }
+
+    /// Read the program's state using a meta Wasm file referenced by its `path`.
+    pub async fn read_state_bytes_using_wasm_by_path_at(
+        &self,
+        program_id: ProgramId,
+        fn_name: &[u8],
+        path: impl AsRef<Path>,
+        argument: Option<Vec<u8>>,
         at: Option<H256>,
     ) -> Result<Vec<u8>> {
-        let wasm = utils::code_from_os(path.as_ref())?;
-        self.0
-            .rpc()
-            .request(
-                "gear_readStateUsingWasm",
-                rpc_params![
-                    H256(program_id.into()),
-                    fn_name.to_vec(),
-                    wasm,
-                    argument,
-                    at
-                ],
-            )
-            .await
-            .map_err(Into::into)
+        self.rpc_request(
+            "gear_readStateUsingWasm",
+            rpc_params![
+                H256(program_id.into()),
+                fn_name.to_vec(),
+                utils::code_from_os(path.as_ref())?,
+                argument,
+                at
+            ],
+        )
+        .await
     }
 
     /// Read the program's state using a meta Wasm file referenced by its `path`.
@@ -203,10 +310,22 @@ impl GearApi {
         fn_name: &[u8],
         path: impl AsRef<Path>,
         argument: Option<E>,
+    ) -> Result<D> {
+        self.read_state_using_wasm_by_path_at(program_id, fn_name, path, argument, None)
+            .await
+    }
+
+    /// Read the program's state using a meta Wasm file referenced by its `path`.
+    pub async fn read_state_using_wasm_by_path_at<E: Encode, D: Decode>(
+        &self,
+        program_id: ProgramId,
+        fn_name: &[u8],
+        path: impl AsRef<Path>,
+        argument: Option<E>,
         at: Option<H256>,
     ) -> Result<D> {
         let bytes = self
-            .read_state_bytes_using_wasm_by_path(
+            .read_state_bytes_using_wasm_by_path_at(
                 program_id,
                 fn_name,
                 path,
@@ -219,13 +338,23 @@ impl GearApi {
     }
 
     /// Read the program's metahash.
-    pub async fn read_metahash(&self, program_id: ProgramId, at: Option<H256>) -> Result<H256> {
+    pub async fn read_metahash(&self, program_id: ProgramId) -> Result<H256> {
+        self.read_metahash_at(program_id, None).await
+    }
+
+    /// Read the program's metahash.
+    pub async fn read_metahash_at(&self, program_id: ProgramId, at: Option<H256>) -> Result<H256> {
+        self.rpc_request(
+            "gear_readMetahash",
+            rpc_params![H256(program_id.into()), at],
+        )
+        .await
+    }
+
+    async fn rpc_request<T: DeserializeOwned>(&self, method: &str, params: RpcParams) -> Result<T> {
         self.0
             .rpc()
-            .request(
-                "gear_readMetahash",
-                rpc_params![H256(program_id.into()), at],
-            )
+            .request(method, params)
             .await
             .map_err(Into::into)
     }
