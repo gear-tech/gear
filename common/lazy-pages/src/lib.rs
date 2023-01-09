@@ -59,7 +59,7 @@ pub fn init_for_program(
         wasm_mem_addr,
         wasm_mem_size.raw(),
         stack_end_page,
-        prog_id.into_origin().into(),
+        <[u8; 32]>::from(prog_id.into_origin()).into(),
     );
 }
 

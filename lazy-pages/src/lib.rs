@@ -132,7 +132,7 @@ pub fn initialize_for_program(
     wasm_mem_addr: Option<usize>,
     wasm_mem_size: WasmPageNumber,
     stack_end_page: Option<WasmPageNumber>,
-    program_id: [u8; 32],
+    program_id: Vec<u8>,
 ) -> Result<(), InitializeForProgramError> {
     use InitializeForProgramError::*;
     LAZY_PAGES_CONTEXT.with(|ctx| {
@@ -392,7 +392,7 @@ unsafe fn init_for_process<H: UserSignalHandler>() -> Result<(), InitError> {
 /// Initialize lazy-pages for current thread.
 pub(crate) fn init_with_handler<H: UserSignalHandler>(
     version: LazyPagesVersion,
-    pages_final_prefix: [u8; 32],
+    pages_final_prefix: Vec<u8>,
 ) -> bool {
     // Set version even if it has been already set, because it can be changed after runtime upgrade.
     LAZY_PAGES_VERSION.with(|v| *v.borrow_mut() = version);
@@ -400,9 +400,7 @@ pub(crate) fn init_with_handler<H: UserSignalHandler>(
         let mut ctx = ctx.borrow_mut();
         *ctx = LazyPagesExecutionContext::default();
 
-        let mut prefix = Vec::with_capacity(64);
-        prefix.extend_from_slice(&pages_final_prefix);
-        ctx.program_storage_prefix = Some(prefix);
+        ctx.program_storage_prefix = Some(pages_final_prefix);
     });
 
     if let Err(err) = unsafe { init_for_process::<H>() } {
@@ -418,6 +416,6 @@ pub(crate) fn init_with_handler<H: UserSignalHandler>(
     true
 }
 
-pub fn init(version: LazyPagesVersion, pages_final_prefix: [u8; 32]) -> bool {
+pub fn init(version: LazyPagesVersion, pages_final_prefix: Vec<u8>) -> bool {
     init_with_handler::<DefaultUserSignalHandler>(version, pages_final_prefix)
 }
