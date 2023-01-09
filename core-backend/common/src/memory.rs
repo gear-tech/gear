@@ -81,6 +81,7 @@ impl<E: Ext> MemoryAccessManager<E> {
         self.reads.push(MemoryInterval { offset: ptr, size });
         WasmMemoryRead { ptr, size }
     }
+
     /// Register new read static size type access.
     pub fn new_read_as<T: Sized>(&mut self, ptr: u32) -> WasmMemoryReadAs<T> {
         self.reads.push(MemoryInterval {
@@ -92,6 +93,7 @@ impl<E: Ext> MemoryAccessManager<E> {
             _phantom: PhantomData,
         }
     }
+
     /// Register new read decoded type access.
     pub fn new_read_decoded<T: Decode + MaxEncodedLen>(
         &mut self,
@@ -106,11 +108,13 @@ impl<E: Ext> MemoryAccessManager<E> {
             _phantom: PhantomData,
         }
     }
+
     /// Register new write access.
     pub fn new_write(&mut self, ptr: u32, size: u32) -> WasmMemoryWrite {
         self.writes.push(MemoryInterval { offset: ptr, size });
         WasmMemoryWrite { ptr, size }
     }
+
     /// Register new write static size access.
     pub fn new_write_as<T: Sized>(&mut self, ptr: u32) -> WasmMemoryWriteAs<T> {
         self.writes.push(MemoryInterval {
@@ -122,6 +126,7 @@ impl<E: Ext> MemoryAccessManager<E> {
             _phantom: PhantomData,
         }
     }
+
     /// Call pre-processing of registered memory accesses. Clear `self.reads` and `self.writes`.
     fn pre_process_memory_accesses(&mut self) -> Result<(), MemoryAccessError> {
         if self.reads.is_empty() && self.writes.is_empty() {
@@ -133,6 +138,8 @@ impl<E: Ext> MemoryAccessManager<E> {
         self.writes.clear();
         Ok(())
     }
+
+    /// Pre-process registered accesses if need and read data from `memory` to `buff`.
     fn read_into_buf<M: Memory>(
         &mut self,
         memory: &M,
@@ -142,6 +149,8 @@ impl<E: Ext> MemoryAccessManager<E> {
         self.pre_process_memory_accesses()?;
         memory.read(ptr, buff).map_err(Into::into)
     }
+
+    /// Pre-process registered accesses if need and read data from `memory` into new vector.
     pub fn read<M: Memory>(
         &mut self,
         memory: &M,
@@ -151,6 +160,8 @@ impl<E: Ext> MemoryAccessManager<E> {
         self.read_into_buf(memory, read.ptr, buff.get_mut())?;
         Ok(buff.into_vec())
     }
+
+    /// Pre-process registered accesses if need and read and decode data as `T` from `memory`.
     pub fn read_decoded<M: Memory, T: Decode + MaxEncodedLen>(
         &mut self,
         memory: &M,
@@ -161,6 +172,8 @@ impl<E: Ext> MemoryAccessManager<E> {
         let decoded = T::decode_all(&mut &buff[..]).map_err(|_| MemoryAccessError::DecodeError)?;
         Ok(decoded)
     }
+
+    /// Pre-process registered accesses if need and read data as `T` from `memory`.
     pub fn read_as<M: Memory, T: Sized>(
         &mut self,
         memory: &M,
@@ -169,6 +182,8 @@ impl<E: Ext> MemoryAccessManager<E> {
         self.pre_process_memory_accesses()?;
         crate::read_memory_as(memory, read.ptr).map_err(Into::into)
     }
+
+    /// Pre-process registered accesses if need and write data from `buff` to `memory`.
     pub fn write<M: Memory>(
         &mut self,
         memory: &mut M,
@@ -181,6 +196,8 @@ impl<E: Ext> MemoryAccessManager<E> {
         self.pre_process_memory_accesses()?;
         memory.write(write.ptr, buff).map_err(Into::into)
     }
+
+    /// Pre-process registered accesses if need and write `obj` data to `memory`.
     pub fn write_as<M: Memory, T: Sized>(
         &mut self,
         memory: &mut M,
