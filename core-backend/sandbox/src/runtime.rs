@@ -44,6 +44,7 @@ pub(crate) struct Runtime<E: Ext> {
     pub memory: MemoryWrap,
     pub err: FuncError<E::Error>,
     pub globals: sp_sandbox::default_executor::InstanceGlobals,
+    // TODO: make wrapper around runtime and move memory_manager there (issue #2067)
     pub memory_manager: MemoryAccessManager<E>,
 }
 

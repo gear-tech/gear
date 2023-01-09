@@ -18,6 +18,8 @@
 
 //! Work with WASM program memory in backends.
 
+// TODO: make unit tests for `MemoryAccessManager` (issue #2068)
+
 use core::{marker::PhantomData, mem::size_of};
 
 use alloc::vec::Vec;
