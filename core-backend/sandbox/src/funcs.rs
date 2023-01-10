@@ -31,7 +31,6 @@ use gear_backend_common::{
     TrapExplanation,
 };
 use gear_core::{
-    buffer::RuntimeBufferSizeError,
     env::Ext,
     ids::ReservationId,
     memory::{Memory, PageU32Size, WasmPageNumber},
@@ -61,9 +60,6 @@ pub enum FuncError<E: Display> {
     #[from]
     #[display(fmt = "{_0}")]
     PayloadSize(PayloadSizeError),
-    #[from]
-    #[display(fmt = "{_0}")]
-    RuntimeBufferSize(RuntimeBufferSizeError),
     #[display(fmt = "Cannot set u128: {_0}")]
     SetU128(MemoryError),
     #[display(fmt = "Failed to parse debug string: {_0}")]
