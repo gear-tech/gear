@@ -219,8 +219,7 @@ fn verify_process((notes, err_len_ptrs): (Vec<JournalNote>, Range<u32>)) {
         .flat_map(|page_number| {
             pages_data
                 .get(&page_number)
-                .cloned()
-                .map(|page| page.into_vec())
+                .map(|page| (page as &[u8]).to_vec())
                 .unwrap_or_else(|| vec![0; PageNumber::size() as usize])
         })
         .skip(err_len_ptrs.start as usize)
