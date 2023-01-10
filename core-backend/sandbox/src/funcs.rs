@@ -338,7 +338,7 @@ where
                 ctx.write_output(err_len_ptr, &length.to_le_bytes())
                     .map_err(Into::into)
             } else {
-                Ok(())
+                Err(FuncError::ReadLenOverflow(err_len_ptr, len))
             }
         })
     }

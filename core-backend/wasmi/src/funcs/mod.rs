@@ -527,9 +527,11 @@ where
                 }
             };
 
-            if last_idx > message.len() as u32 {
-                let err = FuncError::ReadWrongRange(at..last_idx, message.len() as u32);
-                let size = Encode::encoded_size(&err) as u32;
+            let unchecked_read = err_ptr == u32::MAX;
+            let err = FuncError::ReadWrongRange(at..last_idx, message.len() as u32);
+            let size = Encode::encoded_size(&err) as u32;
+
+            if !unchecked_read && last_idx > message.len() as u32 {
                 return if let Err(err) = caller
                     .memory(&memory)
                     .write(err_ptr as usize, &size.to_le_bytes())
@@ -546,7 +548,13 @@ where
             // non critical copy due to non-production backend
             let message = message[at as usize..last_idx as usize].to_vec();
             match caller.memory(&memory).write(buffer_ptr as usize, &message) {
-                Ok(()) => caller.update_globals(),
+                Ok(()) => {
+                    if unchecked_read {
+                        caller.host_state_mut().err =
+                            FuncError::ReadLenOverflow(err_ptr, size).into();
+                    }
+                    caller.update_globals()
+                }
                 Err(e) => {
                     caller.host_state_mut().err = e.into();
                     Err(Trap::from(TrapCode::Unreachable))
