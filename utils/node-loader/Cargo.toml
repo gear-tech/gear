@@ -1,6 +1,6 @@
 [package]
 name = "gear-node-loader"
-version = "0.1.3"
+version = "0.1.4"
 authors = ["Gear Technologies"]
 edition = "2021"
 
