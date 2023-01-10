@@ -38,7 +38,7 @@ impl Listener {
         log::info!("Validators: {validator_list:#?}");
 
         if self.opt.block_production {
-            checkers.push(Box::new(BlockProduction::new(&self).await?));
+            checkers.push(Box::new(BlockProduction::new(self).await?));
         }
 
         let now = Instant::now();
@@ -49,6 +49,7 @@ impl Listener {
             .iter()
             .map(|checker| checker.name())
             .collect::<Vec<[u8; 4]>>();
+
         while let Some(maybe_block) = blocks.next().await {
             let block = maybe_block?;
             for checker in &checkers {

@@ -17,12 +17,12 @@ pub struct Validators(HashMap<AccountId32, Vec<[u8; 4]>>);
 impl Validators {
     /// Get all validators.
     pub fn validators(&self) -> Vec<AccountId32> {
-        self.0.keys().map(|acc| acc.clone()).collect()
+        self.0.keys().cloned().collect()
     }
 
     /// Mark the check has been validated.
     pub fn validated(&mut self, acc: &AccountId32, check: [u8; 4]) -> bool {
-        if let Some(checks) = self.0.get_mut(&acc) {
+        if let Some(checks) = self.0.get_mut(acc) {
             if checks.contains(&check) {
                 return false;
             }
@@ -41,7 +41,7 @@ impl Validators {
             let validators = self
                 .0
                 .iter()
-                .filter(|(_, validated_checks)| !validated_checks.contains(&check))
+                .filter(|(_, validated_checks)| !validated_checks.contains(check))
                 .map(|(acc, _)| acc)
                 .collect();
 
@@ -53,7 +53,7 @@ impl Validators {
 
     /// Validate if the specified check has been passed.
     pub fn validate(&self, check: &[u8; 4]) -> bool {
-        self.0.values().all(|checks| checks.contains(&check))
+        self.0.values().all(|checks| checks.contains(check))
     }
 
     /// Validate if all checks have been passed.
@@ -74,9 +74,7 @@ impl Validators {
 impl From<Vec<AccountId32>> for Validators {
     fn from(validators: Vec<AccountId32>) -> Self {
         let mut mapping = HashMap::new();
-        let mut iter = validators.into_iter();
-
-        while let Some(acc) = iter.next() {
+        for acc in validators.into_iter() {
             mapping.insert(acc, Default::default());
         }
 

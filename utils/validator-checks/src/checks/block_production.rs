@@ -38,7 +38,7 @@ impl Check for BlockProduction {
         let logs = block.header().digest().logs();
         let validator_list = validators.validators();
         if let Some(DigestItem::PreRuntime(engine, bytes)) = logs.get(0) {
-            if *engine == AURA_ENGINE_ID {
+            if let Some(author) = if *engine == AURA_ENGINE_ID {
                 Slot::decode(&mut bytes.as_ref())
                     .ok()
                     .map(|slot| slot.0 % validator_list.len() as u64)
@@ -50,15 +50,15 @@ impl Check for BlockProduction {
                 None
             }
             .and_then(|author_index| validator_list.get(author_index as usize))
-            .map(|author| {
-                if validators.validated(&author, self.name()) {
+            {
+                if validators.validated(author, self.name()) {
                     log::info!(
                         "Validated {:?} for {}",
                         author,
                         String::from_utf8_lossy(&self.name())
                     );
                 }
-            });
+            }
         }
     }
 }
