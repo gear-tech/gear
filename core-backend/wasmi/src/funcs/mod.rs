@@ -550,7 +550,7 @@ where
                 Ok(()) => {
                     if unchecked_read {
                         caller.host_state_mut().err =
-                            FuncError::WriteWrongRange(err_ptr..err_ptr + size, size).into();
+                            FuncError::WriteWrongRange(err_ptr..err_ptr + size, size);
                     }
                     caller.update_globals()
                 }
