@@ -1,6 +1,6 @@
 use crate::utils;
 use anyhow::{anyhow, Result};
-use gclient::{Result as GClientResult, Error as GClientError};
+use gclient::{Error as GClientError, Result as GClientResult};
 use once_cell::sync::OnceCell;
 use parking_lot::{Mutex, MutexGuard};
 use std::{
@@ -64,8 +64,8 @@ pub fn catch_missed_nonce<T>(batch_res: &GClientResult<T>, nonce: u32) -> Result
 fn is_missed_nonce_err(err: &GClientError) -> bool {
     let err_str = err.to_string().to_lowercase();
     err_str.contains(&utils::SUBXT_RPC_CALL_ERR_STR.to_lowercase())
-    || err_str.contains(&utils::TRANSACTION_INVALID.to_lowercase())
-    || err_str.contains(&utils::TRANSACTION_DROPPED.to_lowercase())
+        || err_str.contains(&utils::TRANSACTION_INVALID.to_lowercase())
+        || err_str.contains(&utils::TRANSACTION_DROPPED.to_lowercase())
 }
 
 #[test]
