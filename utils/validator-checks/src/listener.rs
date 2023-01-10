@@ -7,6 +7,7 @@ use crate::{
 };
 use futures_util::StreamExt;
 use gp::api::{types::Blocks, Api};
+use std::time::Instant;
 
 /// Entry of this program, block listener.
 pub struct Listener {
@@ -40,20 +41,34 @@ impl Listener {
             checkers.push(Box::new(BlockProduction::new(&self).await?));
         }
 
+        let now = Instant::now();
+        let checkers_len = checkers.len();
         let mut validators = validator_list.into();
         let mut blocks = self.listen().await?;
+        let all_checks = checkers
+            .iter()
+            .map(|checker| checker.name())
+            .collect::<Vec<[u8; 4]>>();
         while let Some(maybe_block) = blocks.next().await {
             let block = maybe_block?;
             for checker in &checkers {
                 checker.check(&mut validators, &block);
             }
 
-            if validators.validate_all(
-                &checkers
-                    .iter()
-                    .map(|checker| checker.name())
-                    .collect::<Vec<[u8; 4]>>(),
-            ) {
+            if now.elapsed().as_millis() > self.opt.timeout {
+                log::error!(
+                    "Some checks didn't pass: {:#?}",
+                    validators
+                        .unvalidated(&all_checks)
+                        .iter()
+                        .map(|(name, v)| { (String::from_utf8_lossy(name).to_string(), v) })
+                        .collect::<Vec<(String, &Vec<_>)>>()
+                );
+
+                std::process::exit(1);
+            }
+
+            if validators.validate_all(&all_checks).len() == checkers_len {
                 break;
             }
         }

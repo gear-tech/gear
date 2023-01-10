@@ -34,20 +34,40 @@ impl Validators {
         false
     }
 
+    /// Returns all unvalidated checks and the missing validators.
+    pub fn unvalidated(&self, checks: &[[u8; 4]]) -> Vec<([u8; 4], Vec<&AccountId32>)> {
+        let mut res = vec![];
+        for check in checks {
+            let validators = self
+                .0
+                .iter()
+                .filter(|(_, validated_checks)| !validated_checks.contains(&check))
+                .map(|(acc, _)| acc)
+                .collect();
+
+            res.push((*check, validators));
+        }
+
+        res
+    }
+
     /// Validate if the specified check has been passed.
     pub fn validate(&self, check: &[u8; 4]) -> bool {
         self.0.values().all(|checks| checks.contains(&check))
     }
 
     /// Validate if all checks have been passed.
-    pub fn validate_all(&self, checks: &[[u8; 4]]) -> bool {
+    pub fn validate_all(&self, checks: &[[u8; 4]]) -> Vec<[u8; 4]> {
+        let mut validated = vec![];
         for check in checks {
             if !self.validate(check) {
-                return false;
+                break;
+            } else {
+                validated.push(*check)
             }
         }
 
-        true
+        validated
     }
 }
 

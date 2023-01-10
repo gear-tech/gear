@@ -12,6 +12,9 @@ pub struct Opt {
     /// The network to be checked.
     #[arg(short, long)]
     pub endpoint: Option<String>,
+    /// Timeout of all checks.
+    #[arg(short, long, default_value = "600000")]
+    pub timeout: u128,
     /// Check if validators produce blocks.
     #[arg(short, long)]
     pub block_production: bool,
