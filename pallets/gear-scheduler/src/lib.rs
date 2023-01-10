@@ -127,14 +127,6 @@ pub mod pallet {
     /// Task type of the scheduler.
     type Task<T> = ScheduledTask<AccountId<T>>;
 
-    // BTreeSet used to exclude duplicates and always keep collection sorted.
-    /// Missed blocks collection type.
-    ///
-    /// Defines block number, which should already contain no tasks,
-    /// because they were processed before.
-    /// Missed blocks processing prioritized.
-    type MissedBlocksCollection<T> = BlockNumberFor<T>;
-
     // Below goes storages and their gear's wrapper implementations.
     //
     // Note, that we declare storages private to avoid outside
@@ -146,13 +138,13 @@ pub mod pallet {
 
     // Private storage for missed blocks collection.
     #[pallet::storage]
-    type MissedBlocks<T> = StorageValue<_, MissedBlocksCollection<T>>;
+    type FirstMissedBlock<T> = StorageValue<_, BlockNumberFor<T>>;
 
     // Public wrap of the missed blocks collection.
     common::wrap_storage_value!(
-        storage: MissedBlocks,
-        name: MissedBlocksWrap,
-        value: MissedBlocksCollection<T>
+        storage: FirstMissedBlock,
+        name: FirstMissedBlockWrap,
+        value: BlockNumberFor<T>
     );
 
     // ----
@@ -269,13 +261,12 @@ pub mod pallet {
         type BlockNumber = BlockNumberFor<T>;
         type Task = Task<T>;
         type Cost = u64;
-        type MissedBlocksCollection = MissedBlocksCollection<T>;
         type Error = Error<T>;
         type OutputError = DispatchError;
 
         type CostsPerBlock = Self;
 
-        type MissedBlocks = MissedBlocksWrap<T>;
+        type FirstMissedBlock = FirstMissedBlockWrap<T>;
 
         type TaskPool = TaskPoolImpl<
             TaskPoolWrap<T>,

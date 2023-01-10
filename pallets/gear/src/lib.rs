@@ -117,7 +117,7 @@ pub(crate) type MailboxOf<T> = <<T as Config>::Messenger as Messenger>::Mailbox;
 pub(crate) type WaitlistOf<T> = <<T as Config>::Messenger as Messenger>::Waitlist;
 pub(crate) type MessengerCapacityOf<T> = <<T as Config>::Messenger as Messenger>::Capacity;
 pub(crate) type TaskPoolOf<T> = <<T as Config>::Scheduler as Scheduler>::TaskPool;
-pub(crate) type MissedBlocksOf<T> = <<T as Config>::Scheduler as Scheduler>::MissedBlocks;
+pub(crate) type FirstMissedBlockOf<T> = <<T as Config>::Scheduler as Scheduler>::FirstMissedBlock;
 pub(crate) type CostsPerBlockOf<T> = <<T as Config>::Scheduler as Scheduler>::CostsPerBlock;
 pub(crate) type SchedulingCostOf<T> = <<T as Config>::Scheduler as Scheduler>::Cost;
 pub(crate) type GasBalanceOf<T> = <<T as Config>::GasProvider as GasProvider>::Balance;
@@ -256,7 +256,6 @@ pub mod pallet {
             BlockNumber = Self::BlockNumber,
             Cost = u64,
             Task = ScheduledTask<Self::AccountId>,
-            MissedBlocksCollection = Self::BlockNumber,
         >;
 
         /// Message Queue processing routing provider.
@@ -856,7 +855,7 @@ pub mod pallet {
         pub fn next_message_id(user_id: H256) -> MessageId {
             let nonce = SentOf::<T>::get();
             SentOf::<T>::increase();
-            let block_number = <frame_system::Pallet<T>>::block_number().unique_saturated_into();
+            let block_number = Self::block_number().unique_saturated_into();
             let user_id = ProgramId::from_origin(user_id);
 
             MessageId::generate_from_user(block_number, user_id, nonce.into())
@@ -865,12 +864,12 @@ pub mod pallet {
         /// Delayed tasks processing.
         pub fn process_tasks(ext_manager: &mut ExtManager<T>) {
             // Current block number.
-            let bn: u32 = <frame_system::Pallet<T>>::block_number().unique_saturated_into();
+            let bn: u32 = Self::block_number().unique_saturated_into();
 
             // Taking first block number, those has some incomplete tasks held.
             // If there are no such blocks, we charge for single read, because
             // nothing changing in database
-            let (first_missed_block, were_empty) = MissedBlocksOf::<T>::take()
+            let (first_missed_block, were_empty) = FirstMissedBlockOf::<T>::take()
                 .map(|first_bn| {
                     GasAllowanceOf::<T>::decrease(DbWeightOf::<T>::get().writes(1).ref_time());
                     (first_bn, false)
@@ -885,10 +884,9 @@ pub mod pallet {
 
             // Avoiding iterators for `T::BlockNumber`.
             let first_block_int: u32 = first_missed_block.unique_saturated_into();
-            let last_block_int: u32 = bn + 1;
 
             // Iterating over all blocks.
-            for process_bn in first_block_int..last_block_int {
+            for process_bn in first_block_int..=bn {
                 let process_bn_v: T::BlockNumber = process_bn.into();
 
                 // Tasks drain iterator.
@@ -943,7 +941,7 @@ pub mod pallet {
                     GasAllowanceOf::<T>::decrease(DbWeightOf::<T>::get().writes(1).ref_time());
                 }
 
-                MissedBlocksOf::<T>::put(stopped_at);
+                FirstMissedBlockOf::<T>::put(stopped_at);
             }
         }
 
