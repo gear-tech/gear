@@ -24,12 +24,19 @@ use core::{marker::PhantomData, mem::size_of};
 
 use alloc::vec::Vec;
 use codec::{Decode, DecodeAll, MaxEncodedLen};
+use core::fmt::Debug;
 use gear_core::{
     buffer::{RuntimeBuffer, RuntimeBufferSizeError},
     env::Ext,
     memory::{Memory, MemoryInterval},
 };
 use gear_core_errors::MemoryError;
+
+use crate::IntoExtInfo;
+
+/// Memory access error.
+#[derive(Debug, Clone, Copy)]
+pub struct OutOfMemoryAccessError;
 
 #[derive(Debug, derive_more::Display, derive_more::From)]
 pub enum MemoryAccessError {
@@ -39,9 +46,16 @@ pub enum MemoryAccessError {
     #[from]
     #[display(fmt = "{_0}")]
     RuntimeBuffer(RuntimeBufferSizeError),
+    #[display(fmt = "Cannot decode read memory")]
     DecodeError,
     #[display(fmt = "Buffer size {_0} is not equal to pre-registered size {_1}")]
     WrongBufferSize(usize, u32),
+}
+
+impl From<OutOfMemoryAccessError> for MemoryAccessError {
+    fn from(_: OutOfMemoryAccessError) -> Self {
+        MemoryAccessError::Memory(MemoryError::OutOfBounds)
+    }
 }
 
 /// Memory accesses recorder/registrar, which allow to register new accesses.
@@ -106,13 +120,13 @@ pub trait MemoryOwner {
 /// manager.write_as(write1, 111).unwrap();
 /// ```
 #[derive(Debug)]
-pub struct MemoryAccessManager<E: Ext> {
+pub struct MemoryAccessManager<E: Ext + IntoExtInfo<E::Error>> {
     reads: Vec<MemoryInterval>,
     writes: Vec<MemoryInterval>,
     _phantom: PhantomData<E>,
 }
 
-impl<E: Ext> Default for MemoryAccessManager<E> {
+impl<E: Ext + IntoExtInfo<E::Error>> Default for MemoryAccessManager<E> {
     fn default() -> Self {
         Self {
             reads: Vec::new(),
@@ -122,7 +136,7 @@ impl<E: Ext> Default for MemoryAccessManager<E> {
     }
 }
 
-impl<E: Ext> MemoryAccessRecorder for MemoryAccessManager<E> {
+impl<E: Ext + IntoExtInfo<E::Error>> MemoryAccessRecorder for MemoryAccessManager<E> {
     fn register_read(&mut self, ptr: u32, size: u32) -> WasmMemoryRead {
         self.reads.push(MemoryInterval { offset: ptr, size });
         WasmMemoryRead { ptr, size }
@@ -170,14 +184,13 @@ impl<E: Ext> MemoryAccessRecorder for MemoryAccessManager<E> {
     }
 }
 
-impl<E: Ext> MemoryAccessManager<E> {
+impl<E: Ext + IntoExtInfo<E::Error>> MemoryAccessManager<E> {
     /// Call pre-processing of registered memory accesses. Clear `self.reads` and `self.writes`.
     fn pre_process_memory_accesses(&mut self) -> Result<(), MemoryAccessError> {
         if self.reads.is_empty() && self.writes.is_empty() {
             return Ok(());
         }
-        E::pre_process_memory_accesses(&self.reads, &self.writes)
-            .map_err(|_| MemoryError::OutOfBounds)?;
+        E::pre_process_memory_accesses(&self.reads, &self.writes)?;
         self.reads.clear();
         self.writes.clear();
         Ok(())

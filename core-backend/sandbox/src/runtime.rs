@@ -24,9 +24,12 @@ use crate::{
 };
 use alloc::vec::Vec;
 use codec::{Decode, MaxEncodedLen};
-use gear_backend_common::memory::{
-    MemoryAccessError, MemoryAccessManager, MemoryAccessRecorder, MemoryOwner, WasmMemoryRead,
-    WasmMemoryReadAs, WasmMemoryReadDecoded, WasmMemoryWrite, WasmMemoryWriteAs,
+use gear_backend_common::{
+    memory::{
+        MemoryAccessError, MemoryAccessManager, MemoryAccessRecorder, MemoryOwner, WasmMemoryRead,
+        WasmMemoryReadAs, WasmMemoryReadDecoded, WasmMemoryWrite, WasmMemoryWriteAs,
+    },
+    IntoExtInfo,
 };
 use gear_core::env::Ext;
 use gear_wasm_instrument::{GLOBAL_NAME_ALLOWANCE, GLOBAL_NAME_GAS};
@@ -39,7 +42,7 @@ pub(crate) fn as_i64(v: Value) -> Option<i64> {
     }
 }
 
-pub(crate) struct Runtime<E: Ext> {
+pub(crate) struct Runtime<E: Ext + IntoExtInfo<E::Error>> {
     pub ext: E,
     pub memory: MemoryWrap,
     pub err: FuncError<E::Error>,
@@ -48,7 +51,7 @@ pub(crate) struct Runtime<E: Ext> {
     pub memory_manager: MemoryAccessManager<E>,
 }
 
-impl<E: Ext> Runtime<E> {
+impl<E: Ext + IntoExtInfo<E::Error>> Runtime<E> {
     pub(crate) fn run_any<T, F>(&mut self, f: F) -> Result<T, HostError>
     where
         F: FnOnce(&mut Self) -> Result<T, FuncError<E::Error>>,
@@ -107,7 +110,7 @@ impl<E: Ext> Runtime<E> {
     }
 }
 
-impl<E: Ext> MemoryAccessRecorder for Runtime<E> {
+impl<E: Ext + IntoExtInfo<E::Error>> MemoryAccessRecorder for Runtime<E> {
     fn register_read(&mut self, ptr: u32, size: u32) -> WasmMemoryRead {
         self.memory_manager.register_read(ptr, size)
     }
@@ -132,7 +135,7 @@ impl<E: Ext> MemoryAccessRecorder for Runtime<E> {
     }
 }
 
-impl<E: Ext> MemoryOwner for Runtime<E> {
+impl<E: Ext + IntoExtInfo<E::Error>> MemoryOwner for Runtime<E> {
     fn read(&mut self, read: WasmMemoryRead) -> Result<Vec<u8>, MemoryAccessError> {
         self.memory_manager.read(&self.memory, read)
     }

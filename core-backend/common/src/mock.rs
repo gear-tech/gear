@@ -17,8 +17,8 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    error_processor::IntoExtError, AsTerminationReason, ExtInfo, GetGasAmount, IntoExtInfo,
-    SystemReservationContext, TerminationReason,
+    error_processor::IntoExtError, memory::OutOfMemoryAccessError, AsTerminationReason, ExtInfo,
+    GetGasAmount, IntoExtInfo, SystemReservationContext, TerminationReason,
 };
 use alloc::collections::BTreeSet;
 use codec::{Decode, Encode};
@@ -28,7 +28,6 @@ use gear_core::{
     env::Ext,
     gas::{GasAmount, GasCounter},
     ids::{MessageId, ProgramId, ReservationId},
-    lazy_pages::AccessError,
     memory::{Memory, MemoryInterval, WasmPageNumber},
     message::{HandlePacket, InitPacket, ReplyPacket, StatusCode},
     reservation::GasReserver,
@@ -248,13 +247,6 @@ impl Ext for MockExt {
     fn runtime_cost(&self, _costs: RuntimeCosts) -> u64 {
         0
     }
-
-    fn pre_process_memory_accesses(
-        _reads: &[MemoryInterval],
-        _writes: &[MemoryInterval],
-    ) -> Result<(), AccessError> {
-        Ok(())
-    }
 }
 
 impl IntoExtInfo<<MockExt as Ext>::Error> for MockExt {
@@ -282,6 +274,13 @@ impl IntoExtInfo<<MockExt as Ext>::Error> for MockExt {
 
     fn trap_explanation(&self) -> Option<crate::TrapExplanation> {
         None
+    }
+
+    fn pre_process_memory_accesses(
+        _reads: &[MemoryInterval],
+        _writes: &[MemoryInterval],
+    ) -> Result<(), OutOfMemoryAccessError> {
+        Ok(())
     }
 }
 

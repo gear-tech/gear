@@ -24,15 +24,14 @@ use alloc::{
 };
 use codec::{Decode, Encode};
 use gear_backend_common::{
-    error_processor::IntoExtError, AsTerminationReason, ExtInfo, GetGasAmount, IntoExtInfo,
-    SystemReservationContext, TerminationReason, TrapExplanation,
+    error_processor::IntoExtError, memory::OutOfMemoryAccessError, AsTerminationReason, ExtInfo,
+    GetGasAmount, IntoExtInfo, SystemReservationContext, TerminationReason, TrapExplanation,
 };
 use gear_core::{
     costs::{HostFnWeights, RuntimeCosts},
     env::Ext as EnvExt,
     gas::{ChargeResult, GasAllowanceCounter, GasAmount, GasCounter, Token, ValueCounter},
     ids::{CodeId, MessageId, ProgramId, ReservationId},
-    lazy_pages::AccessError,
     memory::{
         AllocInfo, AllocationsContext, GrowHandler, GrowHandlerNothing, Memory, MemoryInterval,
         PageBuf, PageNumber, PageU32Size, WasmPageNumber,
@@ -253,6 +252,13 @@ impl IntoExtInfo<<Ext as EnvExt>::Error> for Ext {
         self.error_explanation
             .clone()
             .and_then(ProcessorError::into_trap_explanation)
+    }
+
+    fn pre_process_memory_accesses(
+        _reads: &[MemoryInterval],
+        _writes: &[MemoryInterval],
+    ) -> Result<(), OutOfMemoryAccessError> {
+        Ok(())
     }
 }
 
@@ -874,13 +880,6 @@ impl EnvExt for Ext {
 
     fn runtime_cost(&self, costs: RuntimeCosts) -> u64 {
         costs.token(&self.context.host_fn_weights).weight()
-    }
-
-    fn pre_process_memory_accesses(
-        _reads: &[MemoryInterval],
-        _writes: &[MemoryInterval],
-    ) -> Result<(), AccessError> {
-        Ok(())
     }
 }
 
