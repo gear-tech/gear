@@ -32,6 +32,9 @@ async fn inf_loop() -> Result<()> {
     // Taking block gas limit constant.
     let gas_limit = api.block_gas_limit()?;
 
+    // Taking account balance.
+    let _balance = api.total_balance(api.account_id()).await?;
+
     // Subscribing for events.
     let mut listener = api.subscribe().await?;
 

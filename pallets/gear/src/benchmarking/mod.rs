@@ -37,11 +37,11 @@
 #[allow(dead_code)]
 mod code;
 mod sandbox;
-use ::alloc::vec;
 
 mod syscalls;
-mod tests;
 use syscalls::Benches;
+
+mod tests;
 use tests::syscalls_integrity;
 
 use self::{
@@ -57,12 +57,14 @@ use crate::{
     BenchmarkStorage, Call, Config, ExecutionEnvironment, Ext as Externalities, GasHandlerOf,
     MailboxOf, Pallet as Gear, Pallet, QueueOf, Schedule,
 };
+use ::alloc::vec;
 use codec::Encode;
 use common::{
     self, benchmarking,
     storage::{Counter, *},
     CodeMetadata, CodeStorage, GasPrice, GasTree, Origin, QueueRunner,
 };
+use core::ops::Range;
 use core_processor::{
     common::{DispatchOutcome, JournalNote},
     configs::BlockConfig,
@@ -76,7 +78,7 @@ use gear_core::{
     code::{Code, CodeAndId},
     gas::{GasAllowanceCounter, GasCounter, ValueCounter},
     ids::{MessageId, ProgramId},
-    memory::{AllocationsContext, PageBuf, PageNumber, WasmPageNumber},
+    memory::{AllocationsContext, PageBuf, PageNumber, PageU32Size, WasmPageNumber},
     message::{ContextSettings, DispatchKind, MessageContext},
     reservation::GasReserver,
 };
@@ -184,33 +186,63 @@ fn default_processor_context<T: Config>() -> ProcessorContext {
     }
 }
 
-fn verify_process(notes: Vec<JournalNote>) {
+fn verify_process((notes, err_len_ptrs): (Vec<JournalNote>, Range<u32>)) {
     assert!(
         !notes.is_empty(),
         "Journal notes cannot be empty after execution"
     );
+
+    let mut pages_data = BTreeMap::new();
+
     for note in notes {
-        if let JournalNote::MessageDispatched { outcome, .. } = note {
-            match outcome {
-                DispatchOutcome::InitFailure { .. } | DispatchOutcome::MessageTrap { .. } => {
-                    panic!("Process was not successful")
-                }
-                _ => {}
+        match note {
+            JournalNote::MessageDispatched {
+                outcome: DispatchOutcome::InitFailure { .. } | DispatchOutcome::MessageTrap { .. },
+                ..
+            } => {
+                panic!("Process was not successful")
             }
+            JournalNote::UpdatePage {
+                page_number, data, ..
+            } => {
+                pages_data.insert(page_number, data);
+            }
+            _ => {}
         }
     }
+
+    let start_page_number = PageNumber::from_offset(err_len_ptrs.start);
+    let end_page_number = PageNumber::from_offset(err_len_ptrs.end);
+    start_page_number
+        .iter_end_inclusive(end_page_number)
+        .unwrap()
+        .flat_map(|page_number| {
+            pages_data
+                .get(&page_number)
+                .cloned()
+                .map(|page| page.into_vec())
+                .unwrap_or_else(|| vec![0; PageNumber::size() as usize])
+        })
+        .skip(err_len_ptrs.start as usize)
+        .take(err_len_ptrs.len())
+        .all(|b| b == 0)
+        .then_some(())
+        .expect("Fallible sys-call returned error")
 }
 
-fn run_process<T>(exec: Exec<T>) -> Vec<JournalNote>
+fn run_process<T>(exec: Exec<T>) -> (Vec<JournalNote>, Range<u32>)
 where
     T: Config,
     T::AccountId: Origin,
 {
-    core_processor::process::<Externalities, ExecutionEnvironment>(
-        &exec.block_config,
-        exec.context,
-        exec.random_data,
-        exec.memory_pages,
+    (
+        core_processor::process::<Externalities, ExecutionEnvironment>(
+            &exec.block_config,
+            exec.context,
+            exec.random_data,
+            exec.memory_pages,
+        ),
+        exec.err_len_ptrs,
     )
 }
 
@@ -283,6 +315,7 @@ pub struct Exec<T: Config> {
     context: ProcessExecutionContext,
     random_data: (Vec<u8>, u32),
     memory_pages: BTreeMap<PageNumber, PageBuf>,
+    err_len_ptrs: Range<u32>,
 }
 
 benchmarks! {
@@ -386,7 +419,7 @@ benchmarks! {
     //
     // `s`: Size of the salt in kilobytes.
     create_program {
-        let s in 0 .. code::max_pages::<T>() * 64 * 128;
+        let s in 0 .. code::max_pages::<T>() as u32 * 64 * 128;
 
         let caller = whitelisted_caller();
         let origin = RawOrigin::Signed(caller);
@@ -420,7 +453,7 @@ benchmarks! {
     // to be larger than the maximum size **after instrumentation**.
     upload_program {
         let c in 0 .. Perbill::from_percent(49).mul_ceil(T::Schedule::get().limits.code_len) / 1024;
-        let s in 0 .. code::max_pages::<T>() * 64 * 128;
+        let s in 0 .. code::max_pages::<T>() as u32 * 64 * 128;
         let salt = vec![42u8; s as usize];
         let value = <T as pallet::Config>::Currency::minimum_balance();
         let caller = whitelisted_caller();
@@ -483,6 +516,7 @@ benchmarks! {
 
     initial_allocation {
         let q in 1 .. MAX_PAGES;
+        let q = q as u16;
         let caller: T::AccountId = benchmarking::account("caller", 0, 0);
         <T as pallet::Config>::Currency::deposit_creating(&caller, (1u128 << 60).unique_saturated_into());
         let code = benchmarking::generate_wasm(q.into()).unwrap();
@@ -497,6 +531,7 @@ benchmarks! {
 
     alloc_in_handle {
         let q in 0 .. MAX_PAGES;
+        let q = q as u16;
         let caller: T::AccountId = benchmarking::account("caller", 0, 0);
         <T as pallet::Config>::Currency::deposit_creating(&caller, (1_u128 << 60).unique_saturated_into());
         let code = benchmarking::generate_wasm2(q.into()).unwrap();
@@ -512,10 +547,10 @@ benchmarks! {
     // This benchmarks the additional weight that is charged when a program is executed the
     // first time after a new schedule was deployed: For every new schedule a program needs
     // to re-run the instrumentation once.
-    reinstrument {
-        let c in 0 .. T::Schedule::get().limits.code_len;
-        let WasmModule { code, hash, .. } = WasmModule::<T>::sized(c, Location::Handle);
-        let code = Code::new_raw(code, 1, None, false).unwrap();
+    reinstrument_per_kb {
+        let c in 0 .. T::Schedule::get().limits.code_len / 1_024;
+        let WasmModule { code, hash, .. } = WasmModule::<T>::sized(c * 1_024, Location::Handle);
+        let code = Code::new_raw(code, 1, None, false, true).unwrap();
         let code_and_id = CodeAndId::new(code);
         let code_id = code_and_id.code_id();
 
@@ -529,7 +564,7 @@ benchmarks! {
 
         let schedule = T::Schedule::get();
     }: {
-        Gear::<T>::reinstrument_code(code_id, &schedule)?;
+        Gear::<T>::reinstrument_code(code_id, &schedule);
     }
 
     alloc {
@@ -807,8 +842,10 @@ benchmarks! {
         verify_process(res.unwrap());
     }
 
+    // We cannot call `gr_reply_commit` multiple times. Therefore our weight determination is not
+    // as precise as with other APIs.
     gr_reply_commit {
-        let r in 0 .. API_BENCHMARK_BATCHES;
+        let r in 0 .. 1;
         let mut res = None;
         let exec = Benches::<T>::gr_reply_commit(r)?;
     }: {
@@ -830,7 +867,7 @@ benchmarks! {
     }
 
     gr_reply_push_per_kb {
-        let n in 0 .. MAX_PAYLOAD_LEN_KB;
+        let n in 0 .. gear_core::message::MAX_PAYLOAD_SIZE as u32 / 1024;
         let mut res = None;
         let exec = Benches::<T>::gr_reply_push_per_kb(n)?;
     }: {
@@ -840,8 +877,10 @@ benchmarks! {
         verify_process(res.unwrap());
     }
 
+    // We cannot call `gr_reservation_reply_commit` multiple times. Therefore our weight determination is not
+    // as precise as with other APIs.
     gr_reservation_reply_commit {
-        let r in 0 .. API_BENCHMARK_BATCHES;
+        let r in 0 .. 1;
         let mut res = None;
         let exec = Benches::<T>::gr_reservation_reply_commit(r)?;
     }: {
@@ -1050,7 +1089,9 @@ benchmarks! {
 
     gr_create_program_wgas_per_kb {
         let p in 0 .. MAX_PAYLOAD_LEN_KB;
-        let s in 0 .. MAX_PAYLOAD_LEN_KB;
+        // salt cannot be zero because we cannot execute batch of sys-calls
+        // as salt will be the same and we will get `ProgramAlreadyExists` error
+        let s in 1 .. MAX_PAYLOAD_LEN_KB;
         let mut res = None;
         let exec = Benches::<T>::gr_create_program_wgas_per_kb(p, s)?;
     }: {
@@ -1061,9 +1102,9 @@ benchmarks! {
     }
 
     lazy_pages_read_access {
-        let p in 0 .. code::max_pages::<T>();
+        let p in 0 .. code::max_pages::<T>() as u32;
         let mut res = None;
-        let exec = Benches::<T>::lazy_pages_read_access(p)?;
+        let exec = Benches::<T>::lazy_pages_read_access((p as u16).into())?;
     }: {
         res.replace(run_process(exec));
     }
@@ -1072,9 +1113,9 @@ benchmarks! {
     }
 
     lazy_pages_write_access {
-        let p in 0 .. code::max_pages::<T>();
+        let p in 0 .. code::max_pages::<T>() as u32;
         let mut res = None;
-        let exec = Benches::<T>::lazy_pages_write_access(p)?;
+        let exec = Benches::<T>::lazy_pages_write_access((p as u16).into())?;
     }: {
         res.replace(run_process(exec));
     }
@@ -1085,11 +1126,11 @@ benchmarks! {
     // w_load = w_bench
     instr_i64load {
         let r in 0 .. INSTR_BENCHMARK_BATCHES;
-        let mem_pages = code::max_pages::<T>();
+        let mem_pages = code::max_pages::<T>() as u32;
         // Warm up memory.
-        let mut instrs = body::write_access_all_pages_instrs(mem_pages, vec![]);
+        let mut instrs = body::write_access_all_pages_instrs((mem_pages as u16).into(), vec![]);
         instrs = body::repeated_dyn_instr(r * INSTR_BENCHMARK_BATCH_SIZE, vec![
-                        RandomUnaligned(0, mem_pages * WasmPageNumber::size() as u32 - 8),
+                        RandomUnaligned(0, mem_pages * WasmPageNumber::size() - 8),
                         Regular(Instruction::I64Load(3, 0)),
                         Regular(Instruction::Drop)], instrs);
         let mut sbox = Sandbox::from(&WasmModule::<T>::from(ModuleDefinition {
@@ -1104,11 +1145,11 @@ benchmarks! {
     // w_store = w_bench - w_i64const
     instr_i64store {
         let r in 0 .. INSTR_BENCHMARK_BATCHES;
-        let mem_pages = code::max_pages::<T>();
+        let mem_pages = code::max_pages::<T>() as u32;
         // Warm up memory.
-        let mut instrs = body::write_access_all_pages_instrs(mem_pages, vec![]);
+        let mut instrs = body::write_access_all_pages_instrs((mem_pages as u16).into(), vec![]);
         instrs = body::repeated_dyn_instr(r * INSTR_BENCHMARK_BATCH_SIZE, vec![
-                        RandomUnaligned(0, mem_pages * WasmPageNumber::size() as u32 - 8),
+                        RandomUnaligned(0, mem_pages * WasmPageNumber::size() - 8),
                         RandomI64Repeated(1),
                         Regular(Instruction::I64Store(3, 0))], instrs);
         let mut sbox = Sandbox::from(&WasmModule::<T>::from(ModuleDefinition {

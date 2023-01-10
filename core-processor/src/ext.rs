@@ -28,14 +28,13 @@ use gear_backend_common::{
     SystemReservationContext, TerminationReason, TrapExplanation,
 };
 use gear_core::{
-    charge_gas_token,
     costs::{HostFnWeights, RuntimeCosts},
     env::Ext as EnvExt,
-    gas::{ChargeResult, GasAllowanceCounter, GasAmount, GasCounter, ValueCounter},
+    gas::{ChargeResult, GasAllowanceCounter, GasAmount, GasCounter, Token, ValueCounter},
     ids::{CodeId, MessageId, ProgramId, ReservationId},
     memory::{
-        AllocationsContext, GrowHandler, GrowHandlerNothing, Memory, PageBuf, PageNumber,
-        WasmPageNumber,
+        AllocInfo, AllocationsContext, GrowHandler, GrowHandlerNothing, Memory, PageBuf,
+        PageNumber, PageU32Size, WasmPageNumber,
     },
     message::{
         GasLimit, HandlePacket, InitPacket, MessageContext, Packet, ReplyPacket, StatusCode,
@@ -228,10 +227,10 @@ impl IntoExtInfo<<Ext as EnvExt>::Error> for Ext {
         let pages_for_data = |static_pages: WasmPageNumber,
                               allocations: &BTreeSet<WasmPageNumber>|
          -> Vec<PageNumber> {
-            (0..static_pages.0)
-                .map(WasmPageNumber)
+            static_pages
+                .iter_from_zero()
                 .chain(allocations.iter().copied())
-                .flat_map(|p| p.to_gear_pages_iter())
+                .flat_map(|p| p.to_pages_iter())
                 .collect()
         };
 
@@ -279,7 +278,7 @@ impl Ext {
     fn check_message_value(&mut self, message_value: u128) -> Result<(), ProcessorError> {
         let existential_deposit = self.context.existential_deposit;
         // Sending value should apply the range {0} ∪ [existential_deposit; +inf)
-        if 0 < message_value && message_value < existential_deposit {
+        if message_value != 0 && message_value < existential_deposit {
             self.return_and_store_err(Err(MessageError::InsufficientValue {
                 message_value,
                 existential_deposit,
@@ -634,7 +633,9 @@ impl EnvExt for Ext {
     }
 
     fn charge_gas_runtime(&mut self, costs: RuntimeCosts) -> Result<(), Self::Error> {
-        let (common_charge, allowance_charge) = charge_gas_token!(self, costs);
+        let token = costs.token(&self.context.host_fn_weights);
+        let common_charge = self.context.gas_counter.charge_token(token);
+        let allowance_charge = self.context.gas_allowance_counter.charge_token(token);
         self.check_charge_results(common_charge, allowance_charge)
     }
 
@@ -869,41 +870,44 @@ impl EnvExt for Ext {
         self.error_explanation = Some(TerminationReason::GasAllowanceExceeded.into());
         TerminationReason::GasAllowanceExceeded.into()
     }
+
+    fn runtime_cost(&self, costs: RuntimeCosts) -> u64 {
+        costs.token(&self.context.host_fn_weights).weight()
+    }
 }
 
 impl Ext {
     /// Inner alloc realization.
     pub fn alloc_inner<G: GrowHandler>(
         &mut self,
-        pages_num: WasmPageNumber,
+        pages: WasmPageNumber,
         mem: &mut impl Memory,
     ) -> Result<WasmPageNumber, ProcessorError> {
         self.charge_gas_runtime(RuntimeCosts::Alloc)?;
 
         // Charge gas for allocations
-        self.charge_gas((pages_num.0 as u64).saturating_mul(self.context.config.alloc_cost))?;
+        self.charge_gas((pages.raw() as u64).saturating_mul(self.context.config.alloc_cost))?;
         // Greedily charge gas for grow
-        self.charge_gas((pages_num.0 as u64).saturating_mul(self.context.config.mem_grow_cost))?;
+        self.charge_gas((pages.raw() as u64).saturating_mul(self.context.config.mem_grow_cost))?;
 
-        let old_mem_size = mem.size();
-
-        let result = self.context.allocations_context.alloc::<G>(pages_num, mem);
-
-        let page_number = self.return_and_store_err(result)?;
+        let result = self.context.allocations_context.alloc::<G>(pages, mem);
+        let AllocInfo { page, not_grown } = self.return_and_store_err(result)?;
 
         // Returns back greedily used gas for grow
-        let new_mem_size = mem.size();
-        let grow_pages_num = new_mem_size - old_mem_size;
         let mut gas_to_return_back = self
             .context
             .config
             .mem_grow_cost
-            .saturating_mul((pages_num - grow_pages_num).0 as u64);
+            .saturating_mul(not_grown.raw() as u64);
 
         // Returns back greedily used gas for allocations
         let mut new_allocated_pages_num = 0;
-        for page in page_number.0..page_number.0 + pages_num.0 {
-            if !self.context.allocations_context.is_init_page(page.into()) {
+        // This is safe cause panic is unreachable: alloc returns page, for which `page + pages` is inside u32 memory.
+        for page in page
+            .iter_count(pages)
+            .unwrap_or_else(|err| unreachable!("Alloc implementation error: {}", err))
+        {
+            if !self.context.allocations_context.is_init_page(page) {
                 new_allocated_pages_num += 1;
             }
         }
@@ -911,12 +915,12 @@ impl Ext {
             self.context
                 .config
                 .alloc_cost
-                .saturating_mul((pages_num.0 - new_allocated_pages_num) as u64),
+                .saturating_mul((pages.raw() - new_allocated_pages_num) as u64),
         );
 
         self.refund_gas(gas_to_return_back)?;
 
-        Ok(page_number)
+        Ok(page)
     }
 
     /// Into ext info inner impl.

@@ -18,7 +18,7 @@
 
 //! Message processing module.
 
-use alloc::collections::BTreeSet;
+use alloc::{collections::BTreeSet, string::String};
 use codec::{Decode, Encode};
 use scale_info::TypeInfo;
 
@@ -109,9 +109,32 @@ pub enum DispatchKind {
     Signal,
 }
 
-impl DispatchKind {
-    /// Convert DispatchKind into entry point function name.
-    pub fn into_entry(self) -> &'static str {
+/// Trait defining type could be used as entry point for a wasm module.
+pub trait WasmEntry: Sized {
+    /// Converting self into entry point name.
+    fn as_entry(&self) -> &str;
+
+    /// Converting entry point name into self object, if possible.
+    fn try_from_entry(entry: &str) -> Option<Self>;
+
+    /// Tries to convert self into `DispatchKind`.
+    fn try_into_kind(&self) -> Option<DispatchKind> {
+        <DispatchKind as WasmEntry>::try_from_entry(self.as_entry())
+    }
+}
+
+impl WasmEntry for String {
+    fn as_entry(&self) -> &str {
+        self
+    }
+
+    fn try_from_entry(entry: &str) -> Option<Self> {
+        Some(entry.into())
+    }
+}
+
+impl WasmEntry for DispatchKind {
+    fn as_entry(&self) -> &str {
         match self {
             Self::Init => "init",
             Self::Handle => "handle",
@@ -120,6 +143,20 @@ impl DispatchKind {
         }
     }
 
+    fn try_from_entry(entry: &str) -> Option<Self> {
+        let kind = match entry {
+            "init" => Self::Init,
+            "handle" => Self::Handle,
+            "handle_reply" => Self::Reply,
+            "handle_signal" => Self::Signal,
+            _ => return None,
+        };
+
+        Some(kind)
+    }
+}
+
+impl DispatchKind {
     /// Check if kind is init.
     pub fn is_init(&self) -> bool {
         matches!(self, Self::Init)

@@ -33,7 +33,12 @@ use gear_backend_common::{
     GetGasAmount, IntoExtInfo, StackEndError, TerminationReason, TrapExplanation,
     STACK_END_EXPORT_NAME,
 };
-use gear_core::{env::Ext, gas::GasAmount, memory::WasmPageNumber, message::DispatchKind};
+use gear_core::{
+    env::Ext,
+    gas::GasAmount,
+    memory::{PageU32Size, WasmPageNumber},
+    message::{DispatchKind, WasmEntry},
+};
 use gear_wasm_instrument::{
     syscalls::SysCallName::{self, *},
     GLOBAL_NAME_ALLOWANCE, GLOBAL_NAME_GAS,
@@ -82,11 +87,15 @@ impl GetGasAmount for Error {
 }
 
 /// Environment to run one module at a time providing Ext.
-pub struct SandboxEnvironment<E: Ext> {
+pub struct SandboxEnvironment<E, EP = DispatchKind>
+where
+    E: Ext,
+    EP: WasmEntry,
+{
     instance: Instance<Runtime<E>>,
     runtime: Runtime<E>,
     entries: BTreeSet<DispatchKind>,
-    entry_point: DispatchKind,
+    entry_point: EP,
 }
 
 // A helping wrapper for `EnvironmentDefinitionBuilder` and `forbidden_funcs`.
@@ -126,10 +135,11 @@ impl<E: Ext> From<EnvBuilder<E>> for EnvironmentDefinitionBuilder<Runtime<E>> {
     }
 }
 
-impl<E> Environment<E> for SandboxEnvironment<E>
+impl<E, EP> Environment<E, EP> for SandboxEnvironment<E, EP>
 where
     E: Ext + IntoExtInfo<E::Error> + GetGasAmount + 'static,
     E::Error: AsTerminationReason + IntoExtError,
+    EP: WasmEntry,
 {
     type Memory = MemoryWrap;
     type Error = Error;
@@ -137,11 +147,17 @@ where
     fn new(
         ext: E,
         binary: &[u8],
-        entry_point: DispatchKind,
+        entry_point: EP,
         entries: BTreeSet<DispatchKind>,
         mem_size: WasmPageNumber,
     ) -> Result<Self, Self::Error> {
         use SandboxEnvironmentError::*;
+
+        let entry_forbidden = entry_point
+            .try_into_kind()
+            .as_ref()
+            .map(DispatchKind::forbidden_funcs)
+            .unwrap_or_default();
 
         let mut builder = EnvBuilder::<E> {
             env_def_builder: EnvironmentDefinitionBuilder::new(),
@@ -149,7 +165,7 @@ where
                 .forbidden_funcs()
                 .iter()
                 .copied()
-                .chain(entry_point.forbidden_funcs())
+                .chain(entry_forbidden)
                 .collect(),
             funcs_count: 0,
         };
@@ -204,7 +220,7 @@ where
         builder.add_func(ReservationSend, Funcs::reservation_send);
         builder.add_func(ReservationSendCommit, Funcs::reservation_send_commit);
 
-        let memory: DefaultExecutorMemory = match SandboxMemory::new(mem_size.0, None) {
+        let memory: DefaultExecutorMemory = match SandboxMemory::new(mem_size.raw(), None) {
             Ok(mem) => mem,
             Err(e) => return Err((ext.gas_amount(), CreateEnvMemory(e)).into()),
         };
@@ -292,11 +308,14 @@ where
             }
         }
 
-        let res = if entries.contains(&entry_point) {
-            instance.invoke(entry_point.into_entry(), &[], &mut runtime)
-        } else {
-            Ok(ReturnValue::Unit)
-        };
+        let needs_execution = entry_point
+            .try_into_kind()
+            .map(|kind| entries.contains(&kind))
+            .unwrap_or(true);
+
+        let res = needs_execution
+            .then(|| instance.invoke(entry_point.as_entry(), &[], &mut runtime))
+            .unwrap_or(Ok(ReturnValue::Unit));
 
         let gas = runtime
             .globals

@@ -98,6 +98,12 @@ pub struct Schedule<T: Config> {
 
     /// Single db read per byte cost.
     pub db_read_per_byte: u64,
+
+    /// WASM code instrumentation base cost.
+    pub code_instrumentation_cost: u64,
+
+    /// WASM code instrumentation per-byte cost.
+    pub code_instrumentation_byte_cost: u64,
 }
 
 /// Describes the upper limits on various metrics.
@@ -140,7 +146,7 @@ pub struct Limits {
     pub parameters: u32,
 
     /// Maximum number of memory pages allowed for a program.
-    pub memory_pages: u32,
+    pub memory_pages: u16,
 
     /// Maximum number of elements allowed in a table.
     ///
@@ -168,7 +174,7 @@ pub struct Limits {
 impl Limits {
     /// The maximum memory size in bytes that a program can occupy.
     pub fn max_memory_size(&self) -> u32 {
-        self.memory_pages * 64 * 1024
+        self.memory_pages as u32 * 64 * 1024
     }
 }
 
@@ -516,6 +522,8 @@ impl<T: Config> Default for Schedule<T> {
             db_write_per_byte: cost_byte!(db_write_per_kb),
             db_read_per_byte: cost_byte!(db_read_per_kb),
             module_instantiation_per_byte: cost_byte!(instantiate_module_per_kb),
+            code_instrumentation_cost: call_zero!(reinstrument_per_kb, 0).ref_time(),
+            code_instrumentation_byte_cost: cost_byte!(reinstrument_per_kb),
         }
     }
 }
@@ -659,6 +667,10 @@ impl<T: Config> HostFnWeights<T> {
             gr_send_push_input_per_byte: self.gr_send_push_input_per_byte,
             gr_reply_push_input: self.gr_reply_push_input,
             gr_reply_push_input_per_byte: self.gr_reply_push_input_per_byte,
+            lazy_pages_read: 100,             // TODO: #1893
+            lazy_pages_write: 100,            // TODO: #1893
+            lazy_pages_write_after_read: 100, // TODO: #1893
+            update_page_in_storage: 100,      // TODO: #1731
         }
     }
 }

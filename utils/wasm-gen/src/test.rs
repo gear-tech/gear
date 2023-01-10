@@ -23,11 +23,14 @@ use rand::{rngs::SmallRng, RngCore, SeedableRng};
 #[allow(unused)]
 use indicatif::ProgressIterator;
 
+const MODULES_AMOUNT: usize = 100;
+const UNSTRUCTURED_SIZE: usize = 1000000;
+
 #[test]
 fn gen_wasm_normal() {
     let mut rng = SmallRng::seed_from_u64(1234);
-    for _ in 0..100 {
-        let mut buf = vec![0; 1000000];
+    for _ in 0..MODULES_AMOUNT {
+        let mut buf = vec![0; UNSTRUCTURED_SIZE];
         rng.fill_bytes(&mut buf);
         let mut u = Unstructured::new(&buf);
         let code = gen_gear_program_code(&mut u, GearConfig::new_normal());
@@ -38,8 +41,8 @@ fn gen_wasm_normal() {
 #[test]
 fn gen_wasm_rare() {
     let mut rng = SmallRng::seed_from_u64(12345);
-    for _ in 0..100 {
-        let mut buf = vec![0; 1000000];
+    for _ in 0..MODULES_AMOUNT {
+        let mut buf = vec![0; UNSTRUCTURED_SIZE];
         rng.fill_bytes(&mut buf);
         let mut u = Unstructured::new(&buf);
         let code = gen_gear_program_code(&mut u, GearConfig::new_for_rare_cases());
@@ -52,8 +55,8 @@ fn gen_wasm_valid() {
     let mut rng = SmallRng::seed_from_u64(33333);
     let mut config = GearConfig::new_valid();
     config.print_test_info = Some("HEY GEAR".to_owned());
-    for _ in 0..100 {
-        let mut buf = vec![0; 1000000];
+    for _ in 0..MODULES_AMOUNT {
+        let mut buf = vec![0; UNSTRUCTURED_SIZE];
         rng.fill_bytes(&mut buf);
         let mut u = Unstructured::new(&buf);
         let code = gen_gear_program_code(&mut u, config.clone());

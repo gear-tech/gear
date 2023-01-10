@@ -1,6 +1,6 @@
 [package]
 name = "gear-node-loader"
-version = "0.1.1"
+version = "0.1.3"
 authors = ["Gear Technologies"]
 edition = "2021"
 
@@ -15,20 +15,21 @@ gear-core = { path = "../../core" }
 gear-wasm-gen = { path = "../wasm-gen" }
 
 # external dependencies
-anyhow = "1.0.65"
-arbitrary = "1.1.6"
+anyhow = "1.0.68"
+arbitrary = "1.2.2"
 dyn-clonable = "0.9.0"
 futures = "0.3.25"
 futures-timer = "3.0.2"
 hex = "0.4.3"
-once_cell = "1.15.0"
+names = "0.14.0"
+once_cell = "1.17.0"
 parking_lot = "0.12.1"
 primitive-types = { version = "0.12.0", default-features = false, features = ["scale-info"] }
 rand = { version = "0.8.0", features = ["small_rng"] }
 reqwest = { version = "0.11.13", default-features = false }
 structopt = "0.3.26"
-thiserror = "1.0.37"
-tokio = { version = "1.23.0", features = [ "macros" ] }
+thiserror = "1.0.38"
+tokio = { version = "1.24.1", features = [ "macros" ] }
 tracing = "0.1.36"
 tracing-appender = "0.2"
 tracing-subscriber = { version = "0.3.15", features = [ "env-filter", "json" ] }

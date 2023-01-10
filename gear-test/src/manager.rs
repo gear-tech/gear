@@ -21,7 +21,7 @@ use core_processor::common::*;
 use gear_core::{
     code::{Code, CodeAndId},
     ids::{CodeId, MessageId, ProgramId, ReservationId},
-    memory::{PageBuf, PageNumber, WasmPageNumber},
+    memory::{PageBuf, PageNumber, PageU32Size, WasmPageNumber},
     message::{Dispatch, DispatchKind, GasLimit, MessageWaitedType, StoredDispatch, StoredMessage},
     reservation::GasReserver,
 };
@@ -152,7 +152,6 @@ impl ExecutionContext for InMemoryExtManager {
             allocations: Default::default(),
             code_id,
             code_exports: code_and_id.code().exports().clone(),
-            code_length_bytes: code_and_id.code().code().len() as u32,
             static_pages: code_and_id.code().static_pages(),
             initialized: false,
             pages_with_data: Default::default(),
@@ -343,7 +342,7 @@ impl JournalHandler for InMemoryExtManager {
             for page in data
                 .allocations
                 .difference(&allocations)
-                .flat_map(|p| p.to_gear_pages_iter())
+                .flat_map(|page| page.to_pages_iter())
             {
                 memory_pages.remove(&page);
             }
