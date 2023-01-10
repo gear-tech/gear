@@ -19,3 +19,5 @@ log = "0.4.16"
 env_logger = "0.10.0"
 tokio = { version = "1.23.0", features = [ "full" ] }
 parity-scale-codec = "3.1.5"
+sp-consensus-aura = { git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.36" }
+sp-consensus-babe = { git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.36" }

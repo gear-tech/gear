@@ -27,18 +27,20 @@ impl Listener {
 
     /// Listen to finalized blocks.
     pub async fn listen(&self) -> Result<Blocks> {
-        self.api.blocks().await.map_err(Into::into)
+        self.api.finalized_blocks().await.map_err(Into::into)
     }
 
     /// Run validator checks.
     pub async fn check(&self) -> Result<()> {
         let mut checkers: Vec<Box<dyn Check>> = Default::default();
-        let mut validators = self.api.validators().await?.into();
+        let validator_list = self.api.validators().await?;
+        log::info!("Validators: {validator_list:#?}");
 
         if self.opt.block_production {
             checkers.push(Box::new(BlockProduction::new(&self).await?));
         }
 
+        let mut validators = validator_list.into();
         let mut blocks = self.listen().await?;
         while let Some(maybe_block) = blocks.next().await {
             let block = maybe_block?;

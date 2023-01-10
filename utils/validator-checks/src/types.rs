@@ -8,28 +8,35 @@ use subxt::{blocks, ext::sp_runtime::AccountId32, OnlineClient};
 pub type Block = blocks::Block<GearConfig, OnlineClient<GearConfig>>;
 
 /// Unit type wrapper that represents a slot.
-#[derive(Encode, Decode)]
-pub struct Slot(u64);
+#[derive(Debug, Encode, Decode)]
+pub struct Slot(pub u64);
 
 /// Validators mapping.
 pub struct Validators(HashMap<AccountId32, Vec<[u8; 4]>>);
 
 impl Validators {
     /// Get all validators.
-    pub fn validators(&self) -> Vec<&AccountId32> {
-        self.0.keys().collect()
+    pub fn validators(&self) -> Vec<AccountId32> {
+        self.0.keys().map(|acc| acc.clone()).collect()
     }
 
     /// Mark the check has been validated.
-    pub fn validated(&mut self, acc: &AccountId32, check: [u8; 4]) {
+    pub fn validated(&mut self, acc: &AccountId32, check: [u8; 4]) -> bool {
         if let Some(checks) = self.0.get_mut(&acc) {
-            checks.push(check)
+            if checks.contains(&check) {
+                return false;
+            }
+
+            checks.push(check);
+            return true;
         }
+
+        false
     }
 
     /// Validate if the specified check has been passed.
     pub fn validate(&self, check: &[u8; 4]) -> bool {
-        self.0.values().any(|checks| checks.contains(&check))
+        self.0.values().all(|checks| checks.contains(&check))
     }
 
     /// Validate if all checks have been passed.
