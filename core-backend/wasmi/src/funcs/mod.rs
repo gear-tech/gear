@@ -33,7 +33,6 @@ use gear_backend_common::{
     TrapExplanation,
 };
 use gear_core::{
-    buffer::{RuntimeBuffer, RuntimeBufferSizeError},
     env::Ext,
     memory::{Memory, PageU32Size, WasmPageNumber},
     message::{
@@ -55,12 +54,10 @@ use wasmi::{
 pub enum FuncError<E: Display> {
     #[display(fmt = "{_0}")]
     Core(E),
-    #[display(fmt = "Runtime Error")]
+    #[display(fmt = "Binary code has wrong instrumentation")]
     WrongInstrumentation,
     #[display(fmt = "{_0}")]
     Memory(MemoryError),
-    #[display(fmt = "{_0}")]
-    RuntimeBufferSize(RuntimeBufferSizeError),
     #[display(fmt = "{_0}")]
     PayloadBufferSize(PayloadSizeError),
     #[display(fmt = "Failed to parse debug string")]
@@ -1378,9 +1375,8 @@ where
             move |caller: Caller<'_, HostState<E>>, string_ptr: u32, len: u32| -> EmptyOutput {
                 let mut caller = CallerWrap::prepare(caller, forbidden)?;
 
-                // todo Shall we use Payload?
-                let mut buffer = RuntimeBuffer::try_new_default(len as usize).map_err(|e| {
-                    caller.host_state_mut().err = FuncError::RuntimeBufferSize(e);
+                let mut buffer = Payload::try_new_default(len as usize).map_err(|e| {
+                    caller.host_state_mut().err = FuncError::PayloadBufferSize(e);
                     Trap::from(TrapCode::Unreachable)
                 })?;
 

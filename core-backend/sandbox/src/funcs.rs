@@ -24,14 +24,14 @@ use alloc::{
     string::{FromUtf8Error, String},
 };
 use blake2_rfc::blake2b::blake2b;
-use core::{convert::TryInto, fmt::Display, marker::PhantomData, ops::Range};
+use core::{fmt::Display, marker::PhantomData, ops::Range};
 use gear_backend_common::{
     error_processor::{IntoExtError, ProcessError},
     AsTerminationReason, IntoExtInfo, RuntimeCtx, RuntimeCtxError, TerminationReason,
     TrapExplanation,
 };
 use gear_core::{
-    buffer::{RuntimeBuffer, RuntimeBufferSizeError},
+    buffer::RuntimeBufferSizeError,
     env::Ext,
     ids::ReservationId,
     memory::{Memory, PageU32Size, WasmPageNumber},
@@ -125,18 +125,20 @@ where
     pub fn send(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
         sys_trace!(target: "syscall::gear", "send, args = {}", args_to_str(args));
 
-        let (pid_value_ptr, payload_ptr, len, delay, err_mid_ptr) = args.iter().read_5()?;
+        let (pid_value_ptr, payload_ptr, len, delay, err_mid_ptr) =
+            args.iter().read_5::<_, _, u32, _, _>()?;
 
         ctx.run(|ctx| {
             let HashWithValue {
                 hash: destination,
                 value,
             } = ctx.read_memory_as(pid_value_ptr)?;
-            let payload = (Payload::max_len() >= (len as usize))
-                .then_some(ctx.read_memory(payload_ptr, len))
-                .ok_or(FuncError::PayloadSize(PayloadSizeError))??
-                .try_into()?;
+            let payload = {
+                let mut payload = Payload::try_new_default(len as usize)?;
+                ctx.read_memory_into_buf(payload_ptr, payload.get_mut())?;
 
+                payload
+            };
             ctx.ext
                 .send(HandlePacket::new(destination.into(), payload, value), delay)
                 .process_error()
@@ -149,17 +151,19 @@ where
         sys_trace!(target: "syscall::gear", "send_wgas, args = {}", args_to_str(args));
 
         let (pid_value_ptr, payload_ptr, len, gas_limit, delay, err_mid_ptr) =
-            args.iter().read_6()?;
+            args.iter().read_6::<_, _, u32, _, _, _>()?;
 
         ctx.run(|ctx| {
             let HashWithValue {
                 hash: destination,
                 value,
             } = ctx.read_memory_as(pid_value_ptr)?;
-            let payload = (Payload::max_len() >= (len as usize))
-                .then_some(ctx.read_memory(payload_ptr, len))
-                .ok_or(FuncError::PayloadSize(PayloadSizeError))??
-                .try_into()?;
+            let payload = {
+                let mut payload = Payload::try_new_default(len as usize)?;
+                ctx.read_memory_into_buf(payload_ptr, payload.get_mut())?;
+
+                payload
+            };
 
             ctx.ext
                 .send(
@@ -240,16 +244,19 @@ where
     pub fn send_push(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
         sys_trace!(target: "syscall::gear", "send_push, args = {}", args_to_str(args));
 
-        let (handle, payload_ptr, len, err_len_ptr) = args.iter().read_4()?;
+        let (handle, payload_ptr, len, err_len_ptr) = args.iter().read_4::<_, _, u32, _>()?;
 
         ctx.run(|ctx| {
-            let payload = (Payload::max_len() >= (len as usize))
-                .then_some(ctx.read_memory(payload_ptr, len))
-                .ok_or(FuncError::PayloadSize(PayloadSizeError))?;
+            let payload = {
+                let mut payload = Payload::try_new_default(len as usize)?;
+                ctx.read_memory_into_buf(payload_ptr, payload.get_mut())?;
+
+                payload.into_vec()
+            };
 
             let len = ctx
                 .ext
-                .send_push(handle, &payload?)
+                .send_push(handle, &payload)
                 .process_error()
                 .map_err(FuncError::Core)?
                 .error_len();
@@ -262,7 +269,8 @@ where
     pub fn reservation_send(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
         sys_trace!(target: "syscall::gear", "reservation_send, args = {}", args_to_str(args));
 
-        let (rid_pid_value_ptr, payload_ptr, len, delay, err_mid_ptr) = args.iter().read_5()?;
+        let (rid_pid_value_ptr, payload_ptr, len, delay, err_mid_ptr) =
+            args.iter().read_5::<_, _, u32, _, _>()?;
 
         ctx.run(|ctx| {
             let TwoHashesWithValue {
@@ -270,10 +278,12 @@ where
                 hash2: destination,
                 value,
             } = ctx.read_memory_as(rid_pid_value_ptr)?;
-            let payload = (Payload::max_len() >= (len as usize))
-                .then_some(ctx.read_memory(payload_ptr, len))
-                .ok_or(FuncError::PayloadSize(PayloadSizeError))??
-                .try_into()?;
+            let payload = {
+                let mut payload = Payload::try_new_default(len as usize)?;
+                ctx.read_memory_into_buf(payload_ptr, payload.get_mut())?;
+
+                payload
+            };
 
             ctx.ext
                 .reservation_send(
@@ -483,13 +493,16 @@ where
     pub fn reply(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
         sys_trace!(target: "syscall::gear", "reply, args = {}", args_to_str(args));
 
-        let (payload_ptr, len, value_ptr, delay, err_mid_ptr) = args.iter().read_5()?;
+        let (payload_ptr, len, value_ptr, delay, err_mid_ptr) =
+            args.iter().read_5::<_, u32, _, _, _>()?;
 
         ctx.run(|ctx| {
-            let payload = (Payload::max_len() >= (len as usize))
-                .then_some(ctx.read_memory(payload_ptr, len))
-                .ok_or(FuncError::PayloadSize(PayloadSizeError))??
-                .try_into()?;
+            let payload = {
+                let mut payload = Payload::try_new_default(len as usize)?;
+                ctx.read_memory_into_buf(payload_ptr, payload.get_mut())?;
+
+                payload
+            };
             let value = if value_ptr as i32 == i32::MAX {
                 0
             } else {
@@ -507,13 +520,16 @@ where
     pub fn reply_wgas(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
         sys_trace!(target: "syscall::gear", "reply_wgas, args = {}", args_to_str(args));
 
-        let (payload_ptr, len, gas_limit, value_ptr, delay, err_mid_ptr) = args.iter().read_6()?;
+        let (payload_ptr, len, gas_limit, value_ptr, delay, err_mid_ptr) =
+            args.iter().read_6::<_, u32, _, _, _, _>()?;
 
         ctx.run(|ctx| {
-            let payload = (Payload::max_len() >= (len as usize))
-                .then_some(ctx.read_memory(payload_ptr, len))
-                .ok_or(FuncError::PayloadSize(PayloadSizeError))??
-                .try_into()?;
+            let payload = {
+                let mut payload = Payload::try_new_default(len as usize)?;
+                ctx.read_memory_into_buf(payload_ptr, payload.get_mut())?;
+
+                payload
+            };
             let value = if value_ptr as i32 == i32::MAX {
                 0
             } else {
@@ -574,17 +590,20 @@ where
     pub fn reservation_reply(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
         sys_trace!(target: "syscall::gear", "reservation_reply, args = {}", args_to_str(args));
 
-        let (rid_value_ptr, payload_ptr, len, delay, err_mid_ptr) = args.iter().read_5()?;
+        let (rid_value_ptr, payload_ptr, len, delay, err_mid_ptr) =
+            args.iter().read_5::<_, _, u32, _, _>()?;
 
         ctx.run(|ctx| {
             let HashWithValue {
                 hash: reservation_id,
                 value,
             } = ctx.read_memory_as(rid_value_ptr)?;
-            let payload = (Payload::max_len() >= (len as usize))
-                .then_some(ctx.read_memory(payload_ptr, len))
-                .ok_or(FuncError::PayloadSize(PayloadSizeError))??
-                .try_into()?;
+            let payload = {
+                let mut payload = Payload::try_new_default(len as usize)?;
+                ctx.read_memory_into_buf(payload_ptr, payload.get_mut())?;
+
+                payload
+            };
 
             ctx.ext
                 .reservation_reply(
@@ -652,16 +671,19 @@ where
     pub fn reply_push(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
         sys_trace!(target: "syscall::gear", "reply_push, args = {}", args_to_str(args));
 
-        let (payload_ptr, len, err_len_ptr) = args.iter().read_3()?;
+        let (payload_ptr, len, err_len_ptr) = args.iter().read_3::<_, u32, _>()?;
 
         ctx.run(|ctx| {
-            let payload = (Payload::max_len() >= (len as usize))
-                .then_some(ctx.read_memory(payload_ptr, len))
-                .ok_or(FuncError::PayloadSize(PayloadSizeError))?;
+            let payload = {
+                let mut payload = Payload::try_new_default(len as usize)?;
+                ctx.read_memory_into_buf(payload_ptr, payload.get_mut())?;
+
+                payload.into_vec()
+            };
 
             let len = ctx
                 .ext
-                .reply_push(&payload?)
+                .reply_push(&payload)
                 .process_error()
                 .map_err(FuncError::Core)?
                 .error_len();
@@ -824,8 +846,7 @@ where
         let (data_ptr, data_len): (_, u32) = args.iter().read_2()?;
 
         ctx.run(|ctx| {
-            // Todo shall we use Payload here?
-            let mut data = RuntimeBuffer::try_new_default(data_len as usize)?;
+            let mut data = Payload::try_new_default(data_len as usize)?;
             ctx.read_memory_into_buf(data_ptr, data.get_mut())?;
 
             let s = String::from_utf8(data.into_vec()).map_err(FuncError::DebugString)?;
@@ -1049,21 +1070,26 @@ where
         sys_trace!(target: "syscall::gear", "create_program, args = {}", args_to_str(args));
 
         let (cid_value_ptr, salt_ptr, salt_len, payload_ptr, payload_len, delay, err_mid_pid_ptr) =
-            args.iter().read_7()?;
+            args.iter().read_7::<_, _, u32, _, u32, _, _>()?;
 
         ctx.run(|ctx| {
             let HashWithValue {
                 hash: code_id,
                 value,
             } = ctx.read_memory_as(cid_value_ptr)?;
-            let salt = (Payload::max_len() >= (salt_len as usize))
-                .then_some(ctx.read_memory(salt_ptr, salt_len))
-                .ok_or(FuncError::PayloadSize(PayloadSizeError))??
-                .try_into()?;
-            let payload = (Payload::max_len() >= (payload_len as usize))
-                .then_some(ctx.read_memory(payload_ptr, payload_len))
-                .ok_or(FuncError::PayloadSize(PayloadSizeError))??
-                .try_into()?;
+
+            let salt = {
+                let mut salt = Payload::try_new_default(salt_len as usize)?;
+                ctx.read_memory_into_buf(salt_ptr, salt.get_mut())?;
+
+                salt
+            };
+            let payload = {
+                let mut payload = Payload::try_new_default(payload_len as usize)?;
+                ctx.read_memory_into_buf(payload_ptr, payload.get_mut())?;
+
+                payload
+            };
 
             ctx.ext
                 .create_program(InitPacket::new(code_id.into(), salt, payload, value), delay)
@@ -1087,21 +1113,26 @@ where
             gas_limit,
             delay,
             err_mid_pid_ptr,
-        ) = args.iter().read_8()?;
+        ) = args.iter().read_8::<_, _, u32, _, u32, _, _, _>()?;
 
         ctx.run(|ctx| {
             let HashWithValue {
                 hash: code_id,
                 value,
             } = ctx.read_memory_as(cid_value_ptr)?;
-            let salt = (Payload::max_len() >= (salt_len as usize))
-                .then_some(ctx.read_memory(salt_ptr, salt_len))
-                .ok_or(FuncError::PayloadSize(PayloadSizeError))??
-                .try_into()?;
-            let payload = (Payload::max_len() >= (payload_len as usize))
-                .then_some(ctx.read_memory(payload_ptr, payload_len))
-                .ok_or(FuncError::PayloadSize(PayloadSizeError))??
-                .try_into()?;
+
+            let salt = {
+                let mut salt = Payload::try_new_default(salt_len as usize)?;
+                ctx.read_memory_into_buf(salt_ptr, salt.get_mut())?;
+
+                salt
+            };
+            let payload = {
+                let mut payload = Payload::try_new_default(payload_len as usize)?;
+                ctx.read_memory_into_buf(payload_ptr, payload.get_mut())?;
+
+                payload
+            };
 
             ctx.ext
                 .create_program(
