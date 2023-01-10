@@ -4,7 +4,7 @@ use crate::{
     listener::Listener,
     result::Result,
     traits::{Check, Checker},
-    types::{Address, Block},
+    types::{Address, Block, Validators},
 };
 use async_trait::async_trait;
 use subxt::ext::sp_runtime::traits::Header;
@@ -27,8 +27,12 @@ impl Checker for BlockProduction {
 }
 
 impl Check for BlockProduction {
-    fn check(&self, block: &Block) {
+    fn name(&self) -> [u8; 4] {
+        *b"prod"
+    }
+
+    fn check(&self, validators: &mut Validators, block: &Block) {
         let logs = block.header().digest().logs();
-        println!("{:?}", logs);
+        log::debug!("{:?}", logs);
     }
 }

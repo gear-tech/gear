@@ -11143,6 +11143,7 @@ dependencies = [
  "futures-util",
  "gear-program",
  "log",
+ "parity-scale-codec",
  "subxt",
  "thiserror",
  "tokio",

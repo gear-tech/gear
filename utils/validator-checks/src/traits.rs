@@ -3,7 +3,7 @@
 use crate::{
     listener::Listener,
     result::Result,
-    types::{Address, Block},
+    types::{Address, Block, Validators},
 };
 use async_trait::async_trait;
 
@@ -27,6 +27,8 @@ pub trait Checker: Sized {
 
 /// Trait for doing various checks.
 pub trait Check {
+    fn name(&self) -> [u8; 4];
+
     /// Do the check.
-    fn check(&self, block: &Block);
+    fn check(&self, validators: &mut Validators, block: &Block);
 }

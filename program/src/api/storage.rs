@@ -30,6 +30,25 @@ impl Api {
     }
 }
 
+mod session {
+    use crate::{
+        api::{generated::api::storage, Api},
+        result::{ClientError, Result},
+    };
+    use subxt::ext::sp_runtime::AccountId32;
+
+    impl Api {
+        pub async fn validators(&self) -> Result<Vec<AccountId32>> {
+            let at = storage().session().validators();
+            Ok(self
+                .storage()
+                .fetch(&at, None)
+                .await?
+                .ok_or(ClientError::StorageNotFound)?)
+        }
+    }
+}
+
 mod system {
     use crate::{
         api::{generated::api::storage, Api},

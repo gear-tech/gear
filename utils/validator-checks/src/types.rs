@@ -1,9 +1,61 @@
 //! Shared types
 use gp::api::config::GearConfig;
-use subxt::{blocks, OnlineClient};
+use parity_scale_codec::{Decode, Encode};
+use std::collections::HashMap;
+use subxt::{blocks, ext::sp_runtime::AccountId32, OnlineClient};
 
 /// Gear block.
 pub type Block = blocks::Block<GearConfig, OnlineClient<GearConfig>>;
+
+/// Unit type wrapper that represents a slot.
+#[derive(Encode, Decode)]
+pub struct Slot(u64);
+
+/// Validators mapping.
+pub struct Validators(HashMap<AccountId32, Vec<[u8; 4]>>);
+
+impl Validators {
+    /// Get all validators.
+    pub fn validators(&self) -> Vec<&AccountId32> {
+        self.0.keys().collect()
+    }
+
+    /// Mark the check has been validated.
+    pub fn validated(&mut self, acc: &AccountId32, check: [u8; 4]) {
+        if let Some(checks) = self.0.get_mut(&acc) {
+            checks.push(check)
+        }
+    }
+
+    /// Validate if the specified check has been passed.
+    pub fn validate(&self, check: &[u8; 4]) -> bool {
+        self.0.values().any(|checks| checks.contains(&check))
+    }
+
+    /// Validate if all checks have been passed.
+    pub fn validate_all(&self, checks: &[[u8; 4]]) -> bool {
+        for check in checks {
+            if !self.validate(check) {
+                return false;
+            }
+        }
+
+        true
+    }
+}
+
+impl From<Vec<AccountId32>> for Validators {
+    fn from(validators: Vec<AccountId32>) -> Self {
+        let mut mapping = HashMap::new();
+        let mut iter = validators.into_iter();
+
+        while let Some(acc) = iter.next() {
+            mapping.insert(acc, Default::default());
+        }
+
+        Self(mapping)
+    }
+}
 
 /// Wrapper type for validators.
 pub struct Address(

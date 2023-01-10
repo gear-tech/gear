@@ -6,7 +6,7 @@ use crate::{
     traits::{Check, Checker},
 };
 use futures_util::StreamExt;
-use gp::api::{types::FinalizedBlocks, Api};
+use gp::api::{types::Blocks, Api};
 
 /// Entry of this program, block listener.
 pub struct Listener {
@@ -26,14 +26,16 @@ impl Listener {
     }
 
     /// Listen to finalized blocks.
-    pub async fn listen(&self) -> Result<FinalizedBlocks> {
-        self.api.finalized_blocks().await.map_err(Into::into)
+    pub async fn listen(&self) -> Result<Blocks> {
+        self.api.blocks().await.map_err(Into::into)
     }
 
     /// Run validator checks.
     pub async fn check(&self) -> Result<()> {
         let mut checkers: Vec<Box<dyn Check>> = Default::default();
-        if self.opt.produce_blocks {
+        let mut validators = self.api.validators().await?.into();
+
+        if self.opt.block_production {
             checkers.push(Box::new(BlockProduction::new(&self).await?));
         }
 
@@ -41,7 +43,16 @@ impl Listener {
         while let Some(maybe_block) = blocks.next().await {
             let block = maybe_block?;
             for checker in &checkers {
-                checker.check(&block);
+                checker.check(&mut validators, &block);
+            }
+
+            if validators.validate_all(
+                &checkers
+                    .iter()
+                    .map(|checker| checker.name())
+                    .collect::<Vec<[u8; 4]>>(),
+            ) {
+                break;
             }
         }
 

@@ -14,7 +14,7 @@ pub struct Opt {
     pub endpoint: Option<String>,
     /// Check if validators produce blocks.
     #[arg(short, long)]
-    pub produce_blocks: bool,
+    pub block_production: bool,
     /// Enable verbose logs.
     #[arg(short, long)]
     pub verbose: bool,
