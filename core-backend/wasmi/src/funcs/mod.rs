@@ -71,6 +71,8 @@ pub enum FuncError<E: Display> {
     Terminated(TerminationReason),
     #[display(fmt = "Cannot take data by indexes {_0:?} from message with size {_1}")]
     ReadWrongRange(Range<u32>, u32),
+    #[display(fmt = "Cannot write data by indexes {_0:?} from message with size {_1}")]
+    WriteWrongRange(Range<u32>, u32),
     #[display(fmt = "Overflow at {_0} + len {_1} in `gr_read`")]
     ReadLenOverflow(u32, u32),
 }
@@ -547,7 +549,8 @@ where
             match caller.memory(&memory).write(buffer_ptr, &message) {
                 Ok(()) => {
                     if unchecked_read {
-                        caller.host_state_mut().err = FuncError::ReadOverflow(err_ptr, size).into();
+                        caller.host_state_mut().err =
+                            FuncError::WriteWrongRange(err_ptr..err_ptr + size, size).into();
                     }
                     caller.update_globals()
                 }
