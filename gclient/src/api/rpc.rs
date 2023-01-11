@@ -182,8 +182,10 @@ impl GearApi {
         program_id: ProgramId,
         at: Option<H256>,
     ) -> Result<Vec<u8>> {
-        self.rpc_request("gear_readState", rpc_params![H256(program_id.into()), at])
-            .await
+        let response: String = self
+            .rpc_request("gear_readState", rpc_params![H256(program_id.into()), at])
+            .await?;
+        gp::utils::hex_to_vec(response).map_err(Into::into)
     }
 
     /// Read the program's state as decoded data.
@@ -205,7 +207,7 @@ impl GearApi {
     pub async fn read_state_bytes_using_wasm(
         &self,
         program_id: ProgramId,
-        fn_name: &[u8],
+        fn_name: &str,
         wasm: Vec<u8>,
         argument: Option<Vec<u8>>,
     ) -> Result<Vec<u8>> {
@@ -217,29 +219,31 @@ impl GearApi {
     pub async fn read_state_bytes_using_wasm_at(
         &self,
         program_id: ProgramId,
-        fn_name: &[u8],
+        fn_name: &str,
         wasm: Vec<u8>,
         argument: Option<Vec<u8>>,
         at: Option<H256>,
     ) -> Result<Vec<u8>> {
-        self.rpc_request(
-            "gear_readStateUsingWasm",
-            rpc_params![
-                H256(program_id.into()),
-                fn_name.to_vec(),
-                wasm,
-                argument,
-                at
-            ],
-        )
-        .await
+        let response: String = self
+            .rpc_request(
+                "gear_readStateUsingWasm",
+                rpc_params![
+                    H256(program_id.into()),
+                    hex::encode(fn_name),
+                    hex::encode(wasm),
+                    argument.map(hex::encode),
+                    at
+                ],
+            )
+            .await?;
+        gp::utils::hex_to_vec(response).map_err(Into::into)
     }
 
     /// Read the program's state as decoded data using a meta Wasm.
     pub async fn read_state_using_wasm<E: Encode, D: Decode>(
         &self,
         program_id: ProgramId,
-        fn_name: &[u8],
+        fn_name: &str,
         wasm: Vec<u8>,
         argument: Option<E>,
     ) -> Result<D> {
@@ -251,7 +255,7 @@ impl GearApi {
     pub async fn read_state_using_wasm_at<E: Encode, D: Decode>(
         &self,
         program_id: ProgramId,
-        fn_name: &[u8],
+        fn_name: &str,
         wasm: Vec<u8>,
         argument: Option<E>,
         at: Option<H256>,
@@ -273,7 +277,7 @@ impl GearApi {
     pub async fn read_state_bytes_using_wasm_by_path(
         &self,
         program_id: ProgramId,
-        fn_name: &[u8],
+        fn_name: &str,
         path: impl AsRef<Path>,
         argument: Option<Vec<u8>>,
     ) -> Result<Vec<u8>> {
@@ -285,20 +289,17 @@ impl GearApi {
     pub async fn read_state_bytes_using_wasm_by_path_at(
         &self,
         program_id: ProgramId,
-        fn_name: &[u8],
+        fn_name: &str,
         path: impl AsRef<Path>,
         argument: Option<Vec<u8>>,
         at: Option<H256>,
     ) -> Result<Vec<u8>> {
-        self.rpc_request(
-            "gear_readStateUsingWasm",
-            rpc_params![
-                H256(program_id.into()),
-                fn_name.to_vec(),
-                utils::code_from_os(path.as_ref())?,
-                argument,
-                at
-            ],
+        self.read_state_bytes_using_wasm_at(
+            program_id,
+            fn_name,
+            utils::code_from_os(path.as_ref())?,
+            argument,
+            at,
         )
         .await
     }
@@ -307,7 +308,7 @@ impl GearApi {
     pub async fn read_state_using_wasm_by_path<E: Encode, D: Decode>(
         &self,
         program_id: ProgramId,
-        fn_name: &[u8],
+        fn_name: &str,
         path: impl AsRef<Path>,
         argument: Option<E>,
     ) -> Result<D> {
@@ -319,7 +320,7 @@ impl GearApi {
     pub async fn read_state_using_wasm_by_path_at<E: Encode, D: Decode>(
         &self,
         program_id: ProgramId,
-        fn_name: &[u8],
+        fn_name: &str,
         path: impl AsRef<Path>,
         argument: Option<E>,
         at: Option<H256>,
