@@ -19,6 +19,7 @@
 //! RPC interface for the gear module.
 
 #![allow(clippy::too_many_arguments)]
+#![allow(where_clauses_object_safety)]
 
 use gear_common::Origin;
 use gear_core::ids::{CodeId, MessageId, ProgramId};

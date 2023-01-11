@@ -19,11 +19,9 @@
 //! Module for signal-management and waking concrete message based on reply
 //! received.
 
-use crate::{
-    prelude::{BTreeMap, Vec},
-    MessageId,
-};
+use crate::{prelude::Vec, MessageId};
 use core::task::{Context, Waker};
+use hashbrown::HashMap;
 
 pub type Payload = Vec<u8>;
 pub type StatusCode = i32;
@@ -42,13 +40,13 @@ struct WakeSignal {
 }
 
 pub(crate) struct WakeSignals {
-    signals: BTreeMap<MessageId, WakeSignal>,
+    signals: HashMap<MessageId, WakeSignal>,
 }
 
 impl WakeSignals {
     pub fn new() -> Self {
         Self {
-            signals: BTreeMap::new(),
+            signals: HashMap::new(),
         }
     }
 

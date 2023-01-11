@@ -182,19 +182,6 @@ pub struct HostFnWeights {
     pub update_page_in_storage: u64,
 }
 
-/// We need this access as a macro because sometimes hiding the lifetimes behind
-/// a function won't work out.
-#[macro_export]
-macro_rules! charge_gas_token {
-    ($ext:expr, $costs:expr) => {{
-        let token = $costs.token(&$ext.context.host_fn_weights);
-        (
-            $ext.context.gas_counter.charge_token(token),
-            $ext.context.gas_allowance_counter.charge_token(token),
-        )
-    }};
-}
-
 /// Token to consume gas amount.
 #[derive(Copy, Clone)]
 pub struct RuntimeToken {

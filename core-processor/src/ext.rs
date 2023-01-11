@@ -28,7 +28,6 @@ use gear_backend_common::{
     SystemReservationContext, TerminationReason, TrapExplanation,
 };
 use gear_core::{
-    charge_gas_token,
     costs::{HostFnWeights, RuntimeCosts},
     env::Ext as EnvExt,
     gas::{ChargeResult, GasAllowanceCounter, GasAmount, GasCounter, Token, ValueCounter},
@@ -280,7 +279,7 @@ impl Ext {
     fn check_message_value(&mut self, message_value: u128) -> Result<(), ProcessorError> {
         let existential_deposit = self.context.existential_deposit;
         // Sending value should apply the range {0} ∪ [existential_deposit; +inf)
-        if 0 < message_value && message_value < existential_deposit {
+        if message_value != 0 && message_value < existential_deposit {
             self.return_and_store_err(Err(MessageError::InsufficientValue {
                 message_value,
                 existential_deposit,
@@ -645,7 +644,9 @@ impl EnvExt for Ext {
     }
 
     fn charge_gas_runtime(&mut self, costs: RuntimeCosts) -> Result<(), Self::Error> {
-        let (common_charge, allowance_charge) = charge_gas_token!(self, costs);
+        let token = costs.token(&self.context.host_fn_weights);
+        let common_charge = self.context.gas_counter.charge_token(token);
+        let allowance_charge = self.context.gas_allowance_counter.charge_token(token);
         self.check_charge_results(common_charge, allowance_charge)
     }
 
