@@ -883,42 +883,74 @@ impl Ext {
         pages: WasmPageNumber,
         mem: &mut impl Memory,
     ) -> Result<WasmPageNumber, ProcessorError> {
-        self.charge_gas_runtime(RuntimeCosts::Alloc)?;
+        struct AllocGasCharger<'a> {
+            charged: u64,
+            ext: &'a mut Ext,
+        }
 
-        // Charge gas for allocations
-        self.charge_gas((pages.raw() as u64).saturating_mul(self.context.config.alloc_cost))?;
-        // Greedily charge gas for grow
-        self.charge_gas((pages.raw() as u64).saturating_mul(self.context.config.mem_grow_cost))?;
+        impl<'a> AllocGasCharger<'a> {
+            fn new(ext: &'a mut Ext) -> Self {
+                Self { charged: 0, ext }
+            }
 
-        let result = self.context.allocations_context.alloc::<G>(pages, mem);
-        let AllocInfo { page, not_grown } = self.return_and_store_err(result)?;
+            fn calculate_gas(&self, alloc: u32, mem_grow: u32) -> u64 {
+                let alloc = alloc as u64;
+                let mem_grow = mem_grow as u64;
+                0_u64
+                    .saturating_add(alloc.saturating_mul(self.ext.context.config.alloc_cost))
+                    .saturating_add(mem_grow.saturating_mul(self.ext.context.config.mem_grow_cost))
+            }
 
-        // Returns back greedily used gas for grow
-        let mut gas_to_return_back = self
-            .context
-            .config
-            .mem_grow_cost
-            .saturating_mul(not_grown.raw() as u64);
+            fn charge_gas(&mut self, pages: u32) -> Result<(), <Ext as EnvExt>::Error> {
+                let amount = self.calculate_gas(pages, pages);
+                self.ext.charge_gas(amount)?;
+                self.charged = self.charged.saturating_add(amount);
+                Ok(())
+            }
 
-        // Returns back greedily used gas for allocations
-        let mut new_allocated_pages_num = 0;
-        // This is safe cause panic is unreachable: alloc returns page, for which `page + pages` is inside u32 memory.
-        for page in page
-            .iter_count(pages)
-            .unwrap_or_else(|err| unreachable!("Alloc implementation error: {}", err))
-        {
-            if !self.context.allocations_context.is_init_page(page) {
-                new_allocated_pages_num += 1;
+            fn refund_gas(
+                &mut self,
+                not_allocated: u32,
+                not_grown: u32,
+            ) -> Result<(), <Ext as EnvExt>::Error> {
+                let amount = self.calculate_gas(not_allocated, not_grown);
+                self.ext.refund_gas(amount)?;
+
+                if self.charged < amount {
+                    unreachable!(
+                        "Allocation logic invalidated: trying to refund more than charged"
+                    );
+                }
+
+                Ok(())
             }
         }
-        gas_to_return_back = gas_to_return_back.saturating_add(
-            self.context
-                .config
-                .alloc_cost
-                .saturating_mul((pages.raw() - new_allocated_pages_num) as u64),
-        );
 
-        self.refund_gas(gas_to_return_back)?;
+        self.charge_gas_runtime(RuntimeCosts::Alloc)?;
+
+        let mut charger = AllocGasCharger::new(self);
+
+        // Charge gas for allocations & grow
+        charger.charge_gas(pages.raw())?;
+
+        let result = charger
+            .ext
+            .context
+            .allocations_context
+            .alloc::<G>(pages, mem);
+        let AllocInfo { page, not_grown } = charger.ext.return_and_store_err(result)?;
+
+        // Returns back greedily used gas for allocations
+        let new_allocated_pages_num: u32 = page
+            .iter_count(pages)
+            // This is safe cause panic is unreachable: alloc returns page, for which `page + pages` is inside u32 memory.
+            .unwrap_or_else(|err| unreachable!("Alloc implementation error: {}", err))
+            .map(|page| !charger.ext.context.allocations_context.is_init_page(page) as u32)
+            .sum();
+
+        let not_allocated = pages.raw() - new_allocated_pages_num;
+        let not_grown = not_grown.raw();
+        charger.refund_gas(not_allocated, not_grown)?;
 
         Ok(page)
     }
