@@ -16,15 +16,37 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-#[cfg(feature = "debug")]
+/// Extentions for additional features.
+///
+/// These helpers are not included in the resulting Wasm binary when compiled in
+/// the `release` profile without explicitly adding a `debug` feature.
+#[cfg(any(feature = "debug", debug_assertions))]
 pub mod ext {
+    use crate::error::{ExtError, Result};
+
     mod sys {
         extern "C" {
-            pub fn gr_debug(msg_ptr: *const u8, msg_len: u32);
+            pub fn gr_debug(data_ptr: *const u8, data_len: u32);
         }
     }
 
-    pub fn debug(s: &str) {
-        unsafe { sys::gr_debug(s.as_ptr(), s.as_bytes().len() as _) }
+    /// Add a `data` string to the debug log.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use gcore::ext;
+    ///
+    /// #[no_mangle]
+    /// extern "C" fn handle() {
+    ///     ext::debug("Hello, world!").expect("Unable to log");
+    /// }
+    /// ```
+    pub fn debug(data: &str) -> Result<()> {
+        let data_len = data.len().try_into().map_err(|_| ExtError::SyscallUsage)?;
+
+        unsafe { sys::gr_debug(data.as_ptr(), data_len) }
+
+        Ok(())
     }
 }

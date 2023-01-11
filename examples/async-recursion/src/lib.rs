@@ -14,12 +14,15 @@ fn decode_hex(s: &str) -> Result<Vec<u8>, ParseIntError> {
 }
 
 #[no_mangle]
-unsafe extern "C" fn init() {
-    let input = String::from_utf8(msg::load_bytes()).expect("Invalid message: should be utf-8");
-    DEST = ActorId::from_slice(
-        &decode_hex(&input).expect("Initialization failed: invalid program ID"),
-    )
-    .expect("Unable to create ActorId");
+extern "C" fn init() {
+    let input = String::from_utf8(msg::load_bytes().expect("Failed to load payload bytes"))
+        .expect("Invalid message: should be utf-8");
+    unsafe {
+        DEST = ActorId::from_slice(
+            &decode_hex(&input).expect("Initialization failed: invalid program ID"),
+        )
+        .expect("Unable to create ActorId");
+    }
 }
 
 /// Send message "PING" and wait for a reply, then recursively
@@ -31,7 +34,7 @@ async fn rec_func(val: usize) {
         .await
         .expect("Error in async message processing");
 
-    msg::send_bytes(msg::source(), format!("Hello, val = {}", val), 0).unwrap();
+    msg::send_bytes(msg::source(), format!("Hello, val = {val}"), 0).unwrap();
 
     if val - reply.len() > 0 {
         rec_func(val - reply.len()).await;

@@ -40,7 +40,7 @@ pub mod pallet {
     use frame_system::pallet_prelude::*;
     use gear_core::{
         ids::{CodeId, ProgramId},
-        memory::{PageNumber, WasmPageNumber},
+        memory::{PageNumber, PageU32Size, WasmPageNumber},
         message::{StoredDispatch, StoredMessage},
     };
     use primitive_types::H256;
@@ -52,8 +52,8 @@ pub mod pallet {
     #[pallet::config]
     pub trait Config: frame_system::Config {
         /// Because this pallet emits events, it depends on the runtime's definition of an event.
-        type Event: From<Event<Self>>
-            + IsType<<Self as frame_system::Config>::Event>
+        type RuntimeEvent: From<Event<Self>>
+            + IsType<<Self as frame_system::Config>::RuntimeEvent>
             + TryInto<Event<Self>>;
 
         /// Weight information for extrinsics in this pallet.
@@ -187,9 +187,9 @@ pub mod pallet {
             msg.id(),
             ProgramId::from_origin(source),
             ProgramId::from_origin(destination),
-            (*msg.payload()).to_vec(),
+            (*msg.payload()).to_vec().try_into().unwrap(),
             msg.value(),
-            msg.reply(),
+            msg.details(),
         );
 
         StoredDispatch::new(kind, message, context)
@@ -224,7 +224,7 @@ pub mod pallet {
                 let code_id = CodeId::from_origin(active.code_hash);
                 let static_pages = match T::CodeStorage::get_code(code_id) {
                     Some(code) => code.static_pages(),
-                    None => WasmPageNumber(0),
+                    None => WasmPageNumber::zero(),
                 };
                 let persistent_pages = common::get_program_pages_data(id.into_origin(), &active)
                     .unwrap()
@@ -276,6 +276,7 @@ pub mod pallet {
         ///
         /// Emits the following events:
         /// - `DebugMode(debug_mode_on).
+        #[pallet::call_index(0)]
         #[pallet::weight(<T as Config>::WeightInfo::enable_debug_mode())]
         pub fn enable_debug_mode(
             origin: OriginFor<T>,

@@ -1,50 +1,45 @@
 //! Gear api
-use crate::{
-    api::{config::GearConfig, generated::api::RuntimeApi, signer::Signer},
-    result::Result,
-};
+use crate::result::Result;
+use client::RpcClient;
+use config::GearConfig;
 use core::ops::{Deref, DerefMut};
-use std::{str::FromStr, time::Duration};
-use subxt::{
-    rpc::{RpcClientBuilder, Uri, WsTransportClientBuilder},
-    ClientBuilder, PolkadotExtrinsicParams,
-};
+use signer::Signer;
+use std::sync::Arc;
+use subxt::OnlineClient;
 
+mod client;
 pub mod config;
 mod constants;
 pub mod events;
 pub mod generated;
+mod rpc;
 pub mod signer;
 mod storage;
 pub mod types;
 mod utils;
 
-const DEFAULT_GEAR_ENDPOINT: &str = "wss://rpc-node.gear-tech.io:443";
-
-/// gear api
+/// Gear api wrapper.
 #[derive(Clone)]
-pub struct Api(RuntimeApi<GearConfig, PolkadotExtrinsicParams<GearConfig>>);
+pub struct Api(OnlineClient<GearConfig>);
 
 impl Api {
-    /// Build runtime api
+    /// Create new API client.
     pub async fn new(url: Option<&str>) -> Result<Self> {
         Self::new_with_timeout(url, None).await
     }
 
-    /// Build runtime api with timeout
+    /// Create new API client with timeout.
     pub async fn new_with_timeout(url: Option<&str>, timeout: Option<u64>) -> Result<Self> {
-        let (tx, rx) = WsTransportClientBuilder::default()
-            .connection_timeout(Duration::from_millis(timeout.unwrap_or(60_000)))
-            .build(Uri::from_str(url.unwrap_or(DEFAULT_GEAR_ENDPOINT))?)
-            .await?;
+        Ok(Self(
+            OnlineClient::from_rpc_client(Arc::new(RpcClient::new(url, timeout).await?)).await?,
+        ))
+    }
 
-        let rpc = RpcClientBuilder::default().build_with_tokio(tx, rx);
-        let builder = ClientBuilder::new().set_client(rpc);
-
-        Ok(Self(builder.build().await?.to_runtime_api::<RuntimeApi<
-            GearConfig,
-            PolkadotExtrinsicParams<GearConfig>,
-        >>()))
+    /// Subscribe finalized blocks
+    pub async fn finalized_blocks(&self) -> Result<types::FinalizedBlocks> {
+        Ok(types::FinalizedBlocks(
+            self.0.blocks().subscribe_finalized().await?,
+        ))
     }
 
     /// New signer from api
@@ -59,7 +54,7 @@ impl Api {
 }
 
 impl Deref for Api {
-    type Target = RuntimeApi<GearConfig, PolkadotExtrinsicParams<GearConfig>>;
+    type Target = OnlineClient<GearConfig>;
 
     fn deref(&self) -> &Self::Target {
         &self.0

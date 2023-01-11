@@ -1,0 +1,46 @@
+name: CD-gear-loader-network
+
+on:
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Install Info
+        run: |
+            ls -l .
+            ls -l ../..
+            pwd
+#      - name: Send telegram notify before run playbook
+#        uses: appleboy/telegram-action@master
+#        with:
+#          to: ${{ secrets.TELEGRAM_CHANNEL_ID }}
+#          token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+#          message: |
+#            Attention! Instances will be temporarily unavailable!
+#            ${{ github.actor }} run build with commit: "${{ github.event.commits[0].message }}"
+#            Build number: ${{ github.run_number }}
+      - name: Run playbook
+        uses: dawidd6/action-ansible-playbook@v2
+        with:
+          # Required, playbook filepath
+          directory: ./ansible/
+          playbook: gear-loader.yaml
+          # Optional, SSH private key
+          key: ${{secrets.SSH_PRIVATE_KEY}}
+          # Optional, literal inventory file contents
+          inventory: |
+            [gearNodes:children]
+            bootnode
+            nodes
+            [bootnode]
+            ${{secrets.GEAR_LOADER_NODE_1}} name=gear-loader-network01 loki=yes loki_url=${{secrets.LOKI_URL}}
+            [nodes]
+            ${{secrets.GEAR_LOADER_NODE_2}} name=gear-loader-network02 validator=yes loki=yes loki_url=${{secrets.LOKI_URL}}
+            ${{secrets.GEAR_LOADER_NODE_RPC}} name=gear-loader-network-rpc rpc=yes unsafe=yes loki=yes loki_url=${{secrets.LOKI_URL}}

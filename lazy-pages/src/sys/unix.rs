@@ -97,7 +97,7 @@ where
 
         if let Err(err) = H::handle(exc_info) {
             let old_sig_handler_works = match err {
-                Error::SignalFromUnknownMemory { .. } | Error::WasmMemAddrIsNotSet => {
+                Error::OutOfWasmMemoryAccess | Error::WasmMemAddrIsNotSet => {
                     old_sig_handler(sig, info, ucontext)
                 }
                 _ => false,
@@ -113,11 +113,11 @@ use errno::Errno;
 
 #[derive(Debug, Clone, Copy, derive_more::Display)]
 enum ThreadInitError {
-    #[display(fmt = "Cannot get information about old signal stack: {}", _0)]
+    #[display(fmt = "Cannot get information about old signal stack: {_0}")]
     OldStack(Errno),
-    #[display(fmt = "Cannot mmap space for signal stack: {}", _0)]
+    #[display(fmt = "Cannot mmap space for signal stack: {_0}")]
     Mmap(Errno),
-    #[display(fmt = "Cannot set new signal stack: {}", _0)]
+    #[display(fmt = "Cannot set new signal stack: {_0}")]
     SigAltStack(Errno),
 }
 

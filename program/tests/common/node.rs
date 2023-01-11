@@ -1,12 +1,10 @@
-use crate::common::{port, Error, Result};
+use crate::common::{env, port, Error, Result};
 use std::{
     io::{BufRead, BufReader},
     process::{Child, Command, Stdio},
 };
 
-pub const GEAR_NODE_BIN_PATH: &str = "/res/gear-node";
-
-/// Run gear-node with docker.
+/// Run gear with docker.
 pub struct Node {
     /// child process
     ps: Child,
@@ -20,11 +18,18 @@ impl Node {
         format!("ws://{}:{}", port::LOCALHOST, self.port)
     }
 
-    /// Run gear-node with docker in development mode.
+    /// Run gear with docker in development mode.
     pub fn dev() -> Result<Self> {
         let port = port::pick();
-        let ps = Command::new(env!("CARGO_MANIFEST_DIR").to_owned() + GEAR_NODE_BIN_PATH)
-            .args(["--ws-port", &port.to_string(), "--tmp", "--dev"])
+        let port_string = port.to_string();
+
+        let args = vec!["--ws-port", &port_string, "--tmp", "--dev"];
+
+        #[cfg(all(feature = "vara", not(feature = "gear")))]
+        let args = [args, vec!["--force-vara"]].concat();
+
+        let ps = Command::new(env::bin("gear"))
+            .args(args)
             .stderr(Stdio::piped())
             .stdout(Stdio::piped())
             .spawn()?;

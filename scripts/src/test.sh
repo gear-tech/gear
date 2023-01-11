@@ -23,15 +23,15 @@ test_usage() {
     collator_runtime run collator runtime testing tool
     pallet         run pallet-gear tests
     runtime-upgrade run runtime-upgrade test for queue processing
-    client-weights run client weight test for infinite loop demo execution
-    uploads        run client upload code test
+    client         run client tests via gclient
     fuzz           run fuzzer with a fuzz target
+    syscalls       run syscalls integrity test in benchmarking module of pallet-gear
 
 EOF
 }
 
 workspace_test() {
-  cargo nextest run --workspace "$@" --profile ci --exclude gear-program
+  cargo +nightly nextest run --workspace "$@" --profile ci --no-fail-fast
 }
 
 # $1 - ROOT DIR
@@ -63,19 +63,21 @@ gtest() {
 
 # $1 - ROOT DIR
 # $2 - TARGET DIR
-# $3 - yamls list (optional)
+# $3 - runtime str (gear / vara)
+# $4 - yamls list (optional)
 rtest() {
   ROOT_DIR="$1"
   TARGET_DIR="$2"
+  RUNTIME_STR="$3"
 
-  YAMLS=$(parse_yamls_list "$3")
+  YAMLS=$(parse_yamls_list "$4")
 
   if [ -z "$YAMLS" ]
   then
     YAMLS="$ROOT_DIR/gear-test/spec/*.yaml"
   fi
 
-  $ROOT_DIR/target/release/gear-node runtime-spec-tests $YAMLS -l0 --generate-junit "$TARGET_DIR"/runtime-test-junit.xml
+  $ROOT_DIR/target/release/gear runtime-spec-tests $YAMLS -l0 --runtime "$RUNTIME_STR" --generate-junit "$TARGET_DIR"/runtime-test-junit.xml
 }
 
 # $1 - ROOT DIR
@@ -112,7 +114,7 @@ runtime_upgrade_test() {
   DEMO_PING_PATH="$ROOT_DIR/target/wasm32-unknown-unknown/release/demo_ping.opt.wasm"
 
   # Run node
-  RUST_LOG="pallet_gear=debug,runtime::gear=debug" $ROOT_DIR/target/release/gear-node \
+  RUST_LOG="pallet_gear=debug,gear::runtime=debug" $ROOT_DIR/target/release/gear \
   --dev --tmp --unsafe-ws-external --unsafe-rpc-external --rpc-methods Unsafe --rpc-cors all & sleep 3
 
   # Change dir to the js script dir
@@ -124,43 +126,18 @@ runtime_upgrade_test() {
   # Killing node process added in js script
 }
 
-# $1 - ROOT DIR
-client_weights_test() {
+client_tests() {
   ROOT_DIR="$1"
-  TEST_SCRIPT_PATH="$ROOT_DIR/scripts/test-utils"
-  DEMO_LOOP_PATH="$ROOT_DIR/target/wasm32-unknown-unknown/release/demo_loop.opt.wasm"
 
-  # Run node
-  RUST_LOG="gear=debug,gwasm=debug" $ROOT_DIR/target/release/gear-node \
-  --dev --tmp --unsafe-ws-external --unsafe-rpc-external --rpc-methods Unsafe --rpc-cors all & sleep 3
+  if [ "$2" = "--run-node" ]; then
+    # Run node
+    RUST_LOG="pallet_gear=debug,gear::runtime=debug" $ROOT_DIR/target/release/gear \
+      --dev --tmp --unsafe-ws-external --unsafe-rpc-external --rpc-methods Unsafe --rpc-cors all & sleep 3
 
-  # Change dir to the js script dir
-  cd "$TEST_SCRIPT_PATH"
-
-  # Run test
-  npm run weights "$DEMO_LOOP_PATH"
-
-  # Killing node process added in js script
-}
-
-# $1 - ROOT DIR
-uploads_test() {
-  ROOT_DIR="$1"
-  shift
-
-  TEST_SCRIPT_PATH="$ROOT_DIR/scripts/test-utils"
-
-  # Run node
-  RUST_LOG="gear=debug,gwasm=debug" $ROOT_DIR/target/release/gear-node \
-  --dev --tmp --unsafe-ws-external --unsafe-rpc-external --rpc-methods Unsafe --rpc-cors all & sleep 3
-
-  # Change dir to the js script dir
-  cd "$TEST_SCRIPT_PATH"
-
-  # Run test
-  npm run uploads "$@"
-
-  # Killing node process added in js script
+    cargo test -p gclient -- --test-threads 1 || pkill -f 'gear |gear$' -9 | pkill -f 'gear |gear$' -9
+  else
+    cargo test -p gclient -- --test-threads 1
+  fi
 }
 
 run_fuzzer() {
@@ -188,4 +165,16 @@ run_fuzzer() {
   # Run fuzzer
   RUST_LOG="essential,pallet_gear=debug,gear_core_processor::executor=debug,economic_checks=debug,gwasm=debug" \
   cargo fuzz run --release "$FEATURES" --sanitizer=none "$TARGET"
+}
+
+# TODO this is likely to be merged with `pallet_test` or `workspace_test` in #1802
+syscalls_integrity_test() {
+  cargo test -p pallet-gear check_syscalls_integrity --features runtime-benchmarks
+}
+
+doc_test() {
+  MANIFEST="$1"
+  shift
+
+  cargo test --doc --workspace --manifest-path="$MANIFEST" -- "$@"
 }

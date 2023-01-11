@@ -34,7 +34,7 @@ mod wasm {
 
     #[gstd::async_main]
     async fn main() {
-        let input = msg::load_bytes();
+        let input = msg::load_bytes().expect("Failed to load payload bytes");
         if let Ok(outcome) = msg::send_bytes_for_reply(unsafe { DESTINATION }, &input[..], 0)
             .expect("Error sending message")
             .await
@@ -44,9 +44,9 @@ mod wasm {
     }
 
     #[no_mangle]
-    unsafe extern "C" fn init() {
+    extern "C" fn init() {
         let dest: ActorId = msg::load().expect("Expecting a contract address");
-        DESTINATION = dest;
+        unsafe { DESTINATION = dest };
         msg::reply((), 0);
     }
 }

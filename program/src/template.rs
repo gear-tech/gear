@@ -41,17 +41,16 @@ use gstd::{debug, msg, prelude::*};
 static mut MESSAGE_LOG: Vec<String> = vec![];
 
 #[no_mangle]
-pub unsafe extern "C" fn handle() {
-    let new_msg = String::from_utf8(msg::load_bytes()).expect("Invalid message");
+extern "C" fn handle() {
+    let new_msg = String::from_utf8(msg::load_bytes().unwrap()).expect("Invalid message");
 
     if new_msg == "PING" {
         msg::reply_bytes("PONG", 0).unwrap();
     }
 
-    MESSAGE_LOG.push(new_msg);
+    unsafe { MESSAGE_LOG.push(new_msg) };
 
-    debug!("{:?} total message(s) stored: ", MESSAGE_LOG.len());
-
+    debug!("{:?} total message(s) stored: ", unsafe { MESSAGE_LOG.len() });
 }
 "#;
 
@@ -69,16 +68,16 @@ pub fn create(name: &str) -> Result<()> {
         .stdout;
     let email = String::from_utf8_lossy(&email_bytes);
 
-    fs::create_dir_all(format!("{}/src", name))?;
+    fs::create_dir_all(format!("{name}/src"))?;
 
     fs::write(
-        format!("{}/Cargo.toml", name),
+        format!("{name}/Cargo.toml"),
         CARTO_TOML
             .replace(NAME, name)
             .replace(USER, &format!("{} <{}>", user.trim(), email.trim())),
     )?;
-    fs::write(format!("{}/build.rs", name), BUILD_RS)?;
-    fs::write(format!("{}/src/lib.rs", name), LIB_RS)?;
+    fs::write(format!("{name}/build.rs"), BUILD_RS)?;
+    fs::write(format!("{name}/src/lib.rs"), LIB_RS)?;
 
     Ok(())
 }

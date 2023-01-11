@@ -18,15 +18,30 @@
 
 //! Module for checked code.
 
-use crate::{ids::CodeId, memory::WasmPageNumber, message::DispatchKind};
+use crate::{
+    ids::CodeId,
+    memory::{PageU32Size, WasmPageNumber},
+    message::{DispatchKind, WasmEntry},
+};
 use alloc::{collections::BTreeSet, vec::Vec};
 use codec::{Decode, Encode};
-use parity_wasm::elements::{Internal, Module};
+use gear_wasm_instrument::{
+    parity_wasm::{
+        self,
+        elements::{Internal, Module},
+    },
+    wasm_instrument::{
+        self,
+        gas_metering::{ConstantCostRules, Rules},
+    },
+};
 use scale_info::TypeInfo;
-use wasm_instrument::gas_metering::Rules;
 
 /// Defines maximal permitted count of memory pages.
-pub const MAX_WASM_PAGE_COUNT: u32 = 512;
+pub const MAX_WASM_PAGE_COUNT: u16 = 512;
+
+/// Name of exports allowed on chain except execution kinds.
+pub const STATE_EXPORTS: [&str; 2] = ["state", "metahash"];
 
 /// Parse function exports from wasm module into [`DispatchKind`].
 fn get_exports(
@@ -42,24 +57,19 @@ fn get_exports(
         .iter()
     {
         if let Internal::Function(_) = entry.internal() {
-            if entry.field() == DispatchKind::Init.into_entry() {
-                exports.insert(DispatchKind::Init);
-            } else if entry.field() == DispatchKind::Handle.into_entry() {
-                exports.insert(DispatchKind::Handle);
-            } else if entry.field() == DispatchKind::Reply.into_entry() {
-                exports.insert(DispatchKind::Reply);
-            } else if entry.field() == DispatchKind::Signal.into_entry() {
-                exports.insert(DispatchKind::Signal);
-            } else if reject_unnecessary {
+            if let Some(kind) = DispatchKind::try_from_entry(entry.field()) {
+                exports.insert(kind);
+            } else if !STATE_EXPORTS.contains(&entry.field()) && reject_unnecessary {
                 return Err(CodeError::NonGearExportFnFound);
             }
         }
     }
+
     Ok(exports)
 }
 
 /// Instrumentation error.
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum CodeError {
     /// The provided code doesn't contain required import section.
     ImportSectionNotFound,
@@ -81,6 +91,8 @@ pub enum CodeError {
     /// This might be due to program contained unsupported/non-deterministic instructions
     /// (floats, manual memory grow, etc.).
     GasInjection,
+    /// Error occurred during stack height instrumentation.
+    StackLimitInjection,
     /// Error occurred during encoding instrumented program.
     ///
     /// The only possible reason for that might be OOM.
@@ -111,13 +123,16 @@ impl Code {
         raw_code: Vec<u8>,
         version: u32,
         mut get_gas_rules: GetRulesFn,
+        stack_height: Option<u32>,
     ) -> Result<Self, CodeError>
     where
         R: Rules,
         GetRulesFn: FnMut(&Module) -> R,
     {
-        let module: Module = wasm_instrument::parity_wasm::deserialize_buffer(&raw_code)
-            .map_err(|_| CodeError::Decode)?;
+        wasmparser::validate(&raw_code).map_err(|_| CodeError::Decode)?;
+
+        let module: Module =
+            parity_wasm::deserialize_buffer(&raw_code).map_err(|_| CodeError::Decode)?;
 
         if module.start_section().is_some() {
             log::debug!("Found start section in contract code, which is not allowed");
@@ -125,22 +140,20 @@ impl Code {
         }
 
         // get initial memory size from memory import.
-        let static_pages = WasmPageNumber(
-            module
-                .import_section()
-                .ok_or(CodeError::ImportSectionNotFound)?
-                .entries()
-                .iter()
-                .find_map(|entry| match entry.external() {
-                    parity_wasm::elements::External::Memory(mem_ty) => {
-                        Some(mem_ty.limits().initial())
-                    }
-                    _ => None,
-                })
-                .ok_or(CodeError::MemoryEntryNotFound)?,
-        );
+        let static_pages_raw = module
+            .import_section()
+            .ok_or(CodeError::ImportSectionNotFound)?
+            .entries()
+            .iter()
+            .find_map(|entry| match entry.external() {
+                parity_wasm::elements::External::Memory(mem_ty) => Some(mem_ty.limits().initial()),
+                _ => None,
+            })
+            .ok_or(CodeError::MemoryEntryNotFound)?;
+        let static_pages =
+            WasmPageNumber::new(static_pages_raw).map_err(|_| CodeError::InvalidStaticPageCount)?;
 
-        if static_pages > MAX_WASM_PAGE_COUNT.into() {
+        if static_pages.raw() > MAX_WASM_PAGE_COUNT as u32 {
             return Err(CodeError::InvalidStaticPageCount);
         }
 
@@ -148,13 +161,19 @@ impl Code {
 
         if exports.contains(&DispatchKind::Init) || exports.contains(&DispatchKind::Handle) {
             let gas_rules = get_gas_rules(&module);
-            let instrumented_module =
-                wasm_instrument::gas_metering::inject(module, &gas_rules, "env")
-                    .map_err(|_| CodeError::GasInjection)?;
+            let instrumented_module = gear_wasm_instrument::inject(module, &gas_rules, "env")
+                .map_err(|_| CodeError::GasInjection)?;
 
-            let instrumented =
-                wasm_instrument::parity_wasm::elements::serialize(instrumented_module)
-                    .map_err(|_| CodeError::Encode)?;
+            let instrumented = if let Some(limit) = stack_height {
+                let instrumented_module =
+                    wasm_instrument::inject_stack_limiter(instrumented_module, limit)
+                        .map_err(|_| CodeError::StackLimitInjection)?;
+                parity_wasm::elements::serialize(instrumented_module)
+                    .map_err(|_| CodeError::Encode)?
+            } else {
+                parity_wasm::elements::serialize(instrumented_module)
+                    .map_err(|_| CodeError::Encode)?
+            };
 
             Ok(Self {
                 code: instrumented,
@@ -168,20 +187,23 @@ impl Code {
         }
     }
 
-    /// Create the code without checks.
+    /// Create the code without instrumentation or instrumented
+    /// with `ConstantCostRules`. There is also no check for static memory pages.
     pub fn new_raw(
         original_code: Vec<u8>,
         version: u32,
         module: Option<Module>,
         instrument_with_const_rules: bool,
+        check_entries: bool,
     ) -> Result<Self, CodeError> {
+        wasmparser::validate(&original_code).map_err(|_| CodeError::Decode)?;
+
         let module = module.unwrap_or(
-            wasm_instrument::parity_wasm::deserialize_buffer(&original_code)
-                .map_err(|_| CodeError::Decode)?,
+            parity_wasm::deserialize_buffer(&original_code).map_err(|_| CodeError::Decode)?,
         );
 
         // get initial memory size from memory import.
-        let static_pages = WasmPageNumber(
+        let static_pages = WasmPageNumber::new(
             module
                 .import_section()
                 .ok_or(CodeError::ImportSectionNotFound)?
@@ -194,42 +216,90 @@ impl Code {
                     _ => None,
                 })
                 .ok_or(CodeError::MemoryEntryNotFound)?,
-        );
+        )
+        .map_err(|_| CodeError::InvalidStaticPageCount)?;
 
         let exports = get_exports(&module, false)?;
 
-        if exports.contains(&DispatchKind::Init) || exports.contains(&DispatchKind::Handle) {
-            if instrument_with_const_rules {
-                let instrumented_module = wasm_instrument::gas_metering::inject(
-                    module,
-                    &wasm_instrument::gas_metering::ConstantCostRules::default(),
-                    "env",
-                )
-                .map_err(|_| CodeError::GasInjection)?;
-
-                let instrumented =
-                    wasm_instrument::parity_wasm::elements::serialize(instrumented_module)
-                        .map_err(|_| CodeError::Encode)?;
-
-                Ok(Self {
-                    raw_code: original_code,
-                    code: instrumented,
-                    exports,
-                    static_pages,
-                    instruction_weights_version: version,
-                })
-            } else {
-                Ok(Self {
-                    raw_code: original_code.clone(),
-                    code: original_code,
-                    exports,
-                    static_pages,
-                    instruction_weights_version: version,
-                })
-            }
-        } else {
-            Err(CodeError::RequiredExportFnNotFound)
+        if check_entries
+            && !(exports.contains(&DispatchKind::Init) || exports.contains(&DispatchKind::Handle))
+        {
+            return Err(CodeError::RequiredExportFnNotFound);
         }
+
+        let code = if instrument_with_const_rules {
+            let instrumented_module =
+                gear_wasm_instrument::inject(module, &ConstantCostRules::default(), "env")
+                    .map_err(|_| CodeError::GasInjection)?;
+
+            parity_wasm::elements::serialize(instrumented_module).map_err(|_| CodeError::Encode)?
+        } else {
+            original_code.clone()
+        };
+
+        Ok(Self {
+            raw_code: original_code,
+            code,
+            exports,
+            static_pages,
+            instruction_weights_version: version,
+        })
+    }
+
+    /// Create the code with instrumentation, but without checks.
+    /// There is also no check for static memory pages.
+    pub fn new_raw_with_rules<R, GetRulesFn>(
+        original_code: Vec<u8>,
+        version: u32,
+        check_entries: bool,
+        mut get_gas_rules: GetRulesFn,
+    ) -> Result<Self, CodeError>
+    where
+        R: Rules,
+        GetRulesFn: FnMut(&Module) -> R,
+    {
+        wasmparser::validate(&original_code).map_err(|_| CodeError::Decode)?;
+
+        let module: Module =
+            parity_wasm::deserialize_buffer(&original_code).map_err(|_| CodeError::Decode)?;
+
+        // get initial memory size from memory import.
+        let static_pages_raw = module
+            .import_section()
+            .ok_or(CodeError::ImportSectionNotFound)?
+            .entries()
+            .iter()
+            .find_map(|entry| match entry.external() {
+                parity_wasm::elements::External::Memory(mem_ty) => Some(mem_ty.limits().initial()),
+                _ => None,
+            })
+            .ok_or(CodeError::MemoryEntryNotFound)?;
+
+        let static_pages =
+            WasmPageNumber::new(static_pages_raw).map_err(|_| CodeError::InvalidStaticPageCount)?;
+
+        let exports = get_exports(&module, false)?;
+
+        if check_entries
+            && !(exports.contains(&DispatchKind::Init) || exports.contains(&DispatchKind::Handle))
+        {
+            return Err(CodeError::RequiredExportFnNotFound);
+        }
+
+        let gas_rules = get_gas_rules(&module);
+        let instrumented_module = gear_wasm_instrument::inject(module, &gas_rules, "env")
+            .map_err(|_| CodeError::GasInjection)?;
+
+        let instrumented =
+            parity_wasm::elements::serialize(instrumented_module).map_err(|_| CodeError::Encode)?;
+
+        Ok(Self {
+            raw_code: original_code,
+            code: instrumented,
+            exports,
+            static_pages,
+            instruction_weights_version: version,
+        })
     }
 
     /// Returns the original code.
@@ -259,9 +329,11 @@ impl Code {
 
     /// Consumes this instance and returns the instrumented and raw binary codes.
     pub fn into_parts(self) -> (InstrumentedCode, Vec<u8>) {
+        let original_code_len = self.raw_code.len() as u32;
         (
             InstrumentedCode {
                 code: self.code,
+                original_code_len,
                 exports: self.exports,
                 static_pages: self.static_pages,
                 version: self.instruction_weights_version,
@@ -287,7 +359,7 @@ impl CodeAndId {
 
     /// Creates the instance from the precalculated hash without checks.
     pub fn from_parts_unchecked(code: Code, code_id: CodeId) -> Self {
-        assert_eq!(code_id, CodeId::generate(code.raw_code()));
+        debug_assert_eq!(code_id, CodeId::generate(code.raw_code()));
         Self { code, code_id }
     }
 
@@ -311,6 +383,7 @@ impl CodeAndId {
 #[derive(Clone, Debug, Decode, Encode, TypeInfo)]
 pub struct InstrumentedCode {
     code: Vec<u8>,
+    original_code_len: u32,
     exports: BTreeSet<DispatchKind>,
     static_pages: WasmPageNumber,
     version: u32,
@@ -320,6 +393,11 @@ impl InstrumentedCode {
     /// Returns reference to the instrumented binary code.
     pub fn code(&self) -> &[u8] {
         &self.code
+    }
+
+    /// Returns the length of the original binary code.
+    pub fn original_code_len(&self) -> u32 {
+        self.original_code_len
     }
 
     /// Returns instruction weights version.
@@ -372,5 +450,78 @@ impl From<CodeAndId> for InstrumentedCodeAndId {
         let (code, code_id) = code_and_id.into_parts();
         let (code, _) = code.into_parts();
         Self { code, code_id }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::code::{Code, CodeError};
+    use alloc::vec::Vec;
+    use gear_wasm_instrument::wasm_instrument::gas_metering::ConstantCostRules;
+
+    fn wat2wasm(s: &str) -> Vec<u8> {
+        wabt::Wat2Wasm::new()
+            .validate(true)
+            .convert(s)
+            .unwrap()
+            .as_ref()
+            .to_vec()
+    }
+
+    #[test]
+    fn reject_unknown_exports() {
+        const WAT: &str = r#"
+        (module
+            (import "env" "memory" (memory 1))
+            (export "this_import_is_unknown" (func $test))
+            (func $test)
+        )
+        "#;
+
+        let raw_code = wat2wasm(WAT);
+
+        assert_eq!(
+            Code::try_new(raw_code, 1, |_| ConstantCostRules::default(), None),
+            Err(CodeError::NonGearExportFnFound)
+        );
+    }
+
+    #[test]
+    fn required_fn_not_found() {
+        const WAT: &str = r#"
+        (module
+            (import "env" "memory" (memory 1))
+            (export "handle_signal" (func $handle_signal))
+            (func $handle_signal)
+        )
+        "#;
+
+        let raw_code = wat2wasm(WAT);
+
+        assert_eq!(
+            Code::try_new(raw_code, 1, |_| ConstantCostRules::default(), None),
+            Err(CodeError::RequiredExportFnNotFound)
+        );
+    }
+
+    #[test]
+    fn stack_limit_injection_works() {
+        const WAT: &str = r#"
+        (module
+            (import "env" "memory" (memory 1))
+            (export "init" (func $init))
+            (func $init)
+        )
+        "#;
+
+        let raw_code = wat2wasm(WAT);
+
+        let _ = Code::try_new(
+            raw_code,
+            1,
+            |_| ConstantCostRules::default(),
+            Some(16 * 1024),
+        )
+        .unwrap();
     }
 }

@@ -9,13 +9,18 @@ license = "GPL-3.0"
 gear-core = { path = "../../core" }
 gear-core-errors = { path = "../../core-errors", features = ["codec"] }
 gear-backend-common = { path = "../common" }
+gsys ={ path = "../../gsys" }
 
-parity-wasm = { version = "0.45.0", default-features = false }
-wasmi = { version = "0.13.0", default-features = false }
+gear-wasm-instrument = { path = "../../utils/wasm-instrument", default-features = false }
+wasmi = { version = "0.14.0", default-features = false }
 log = { version = "0.4.17", default-features = false }
 derive_more = "0.99.17"
 codec = { package = "parity-scale-codec", version = "3.1.2", default-features = false }
+blake2-rfc = { version = "0.2.18", default-features = false }
+
+[dev-dependencies]
+gear-backend-common = { path = "../common", features = ["mock"] }
 
 [features]
 default = ["std"]
-std = ["wasmi/std", "parity-wasm/std", "log/std"]
+std = ["wasmi/virtual_memory", "gear-wasm-instrument/std", "log/std"]

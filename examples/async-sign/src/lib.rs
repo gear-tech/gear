@@ -30,16 +30,18 @@ gstd::metadata! {
 }
 
 #[no_mangle]
-unsafe extern "C" fn init() {
+extern "C" fn init() {
     let args: InputArgs = msg::load().expect("Failed to decode `InputArgs`");
 
-    DESTINATION = args.destination;
-    SIGNATORY = args.signatory;
+    unsafe {
+        DESTINATION = args.destination;
+        SIGNATORY = args.signatory;
+    }
 }
 
 #[gstd::async_main]
 async fn main() {
-    let message = msg::load_bytes();
+    let message = msg::load_bytes().expect("Failed to load payload bytes");
 
     let request = SignRequest { message };
 

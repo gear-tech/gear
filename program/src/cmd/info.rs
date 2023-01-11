@@ -3,37 +3,42 @@ use crate::{
     api::{
         generated::api::runtime_types::{
             gear_common::storage::primitives::Interval,
-            gear_core::message::{common::ReplyDetails, stored::StoredMessage},
+            gear_core::message::{
+                common::{MessageDetails, ReplyDetails, SignalDetails},
+                stored::StoredMessage,
+            },
         },
         signer::Signer,
     },
     result::{Error, Result},
 };
+use clap::Parser;
 use std::fmt;
-use structopt::StructOpt;
-use subxt::{
+use subxt::ext::{
     sp_core::{crypto::Ss58Codec, sr25519::Pair, Pair as PairT},
     sp_runtime::AccountId32,
 };
 
-#[derive(Debug, StructOpt)]
+#[derive(Debug, Parser)]
 pub enum Action {
+    /// Get balance info of the current account
     Balance,
+    /// Get mailbox info of the current account
     Mailbox {
         /// The count of mails for fetching
-        #[structopt(default_value = "10", short, long)]
+        #[arg(default_value = "10", short, long)]
         count: u32,
     },
 }
 
 /// Get account info from ss58address.
-#[derive(Debug, StructOpt)]
+#[derive(Debug, Parser)]
 pub struct Info {
     /// Info of this address, if none, will use the logged in account.
     pub address: Option<String>,
 
     /// Info of balance, mailbox, etc.
-    #[structopt(subcommand)]
+    #[command(subcommand)]
     pub action: Action,
 }
 
@@ -107,12 +112,28 @@ impl fmt::Debug for Mail {
             )
             .field(
                 "payload",
-                &["0x", &hex::encode(&self.message.payload)].concat(),
+                &["0x", &hex::encode(&self.message.payload.0)].concat(),
             )
             .field("value", &self.message.value)
-            .field("reply", &self.message.reply.as_ref().map(DebugReplyDetails))
+            .field(
+                "details",
+                &self.message.details.as_ref().map(DebugMessageDestination),
+            )
             .field("interval", &self.interval)
             .finish()
+    }
+}
+
+struct DebugMessageDestination<'d>(pub &'d MessageDetails);
+
+impl<'d> fmt::Debug for DebugMessageDestination<'d> {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        let mut d = fmt.debug_tuple("MessageDetails");
+        match self.0 {
+            MessageDetails::Reply(reply) => d.field(&DebugReplyDetails(reply)),
+            MessageDetails::Signal(signal) => d.field(&DebugSignalDestination(signal)),
+        };
+        d.finish()
     }
 }
 
@@ -122,7 +143,18 @@ impl<'d> fmt::Debug for DebugReplyDetails<'d> {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         fmt.debug_struct("ReplyDetails")
             .field("reply_to", &hex::encode(self.0.reply_to.0))
-            .field("exit_code", &self.0.exit_code.to_string())
+            .field("status_code", &self.0.status_code.to_string())
+            .finish()
+    }
+}
+
+struct DebugSignalDestination<'d>(pub &'d SignalDetails);
+
+impl<'d> fmt::Debug for DebugSignalDestination<'d> {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        fmt.debug_struct("SignalDetails")
+            .field("from", &hex::encode(self.0.from.0))
+            .field("status_code", &self.0.status_code.to_string())
             .finish()
     }
 }

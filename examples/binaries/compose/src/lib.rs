@@ -120,7 +120,7 @@ mod wasm {
 
     #[gstd::async_main]
     async fn main() {
-        let input = msg::load_bytes();
+        let input = msg::load_bytes().expect("Failed to load payload bytes");
         debug!(
             "[0x{} compose::handle] input = {:?}, gas_available = {}",
             hex::encode(exec::program_id()),
@@ -139,10 +139,10 @@ mod wasm {
     }
 
     #[no_mangle]
-    unsafe extern "C" fn init() {
+    extern "C" fn init() {
         let (contract_a, contract_b): (ActorId, ActorId) =
             msg::load().expect("Expecting two contract addresses");
-        STATE = State::new(contract_a, contract_b);
+        unsafe { STATE = State::new(contract_a, contract_b) };
         msg::reply_bytes([], 0).unwrap();
     }
 }

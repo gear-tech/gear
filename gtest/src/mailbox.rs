@@ -23,7 +23,7 @@ use gear_core::{
     ids::{MessageId, ProgramId},
     message::{Dispatch, DispatchKind, Message, ReplyDetails, StoredMessage},
 };
-use std::cell::RefCell;
+use std::{cell::RefCell, convert::TryInto};
 
 pub struct Mailbox<'a> {
     manager: &'a RefCell<ExtManager>,
@@ -108,12 +108,12 @@ impl<'a> MessageReplier<'a> {
             MessageId::from(self.manager.borrow_mut().fetch_inc_message_nonce()),
             self.log.destination(),
             self.log.source(),
-            raw_payload.as_ref().to_vec(),
+            raw_payload.as_ref().to_vec().try_into().unwrap(),
             None,
             value,
             self.log
-                .exit_code()
-                .map(|exit_code| ReplyDetails::new(self.log.id(), exit_code)),
+                .status_code()
+                .map(|status_code| ReplyDetails::new(self.log.id(), status_code).into()),
         );
 
         self.manager
@@ -124,6 +124,8 @@ impl<'a> MessageReplier<'a> {
 
 #[cfg(test)]
 mod tests {
+    use std::convert::TryInto;
+
     use crate::{program::ProgramIdWrapper, Log, Program, System};
     use codec::Encode;
     use gear_core::{
@@ -138,10 +140,10 @@ mod tests {
         let message_id: MessageId = Default::default();
         let source_user_id = ProgramIdWrapper::from(100).0;
         let destination_user_id = ProgramIdWrapper::from(200).0;
-        let message_payload: Payload = vec![1, 2, 3];
-        let encoded_message_payload: Payload = message_payload.encode();
-        let reply_payload: Payload = vec![3, 2, 1];
-        let encoded_reply_payload: Payload = reply_payload.encode();
+        let message_payload: Payload = vec![1, 2, 3].try_into().unwrap();
+        let encoded_message_payload: Payload = message_payload.encode().try_into().unwrap();
+        let reply_payload: Payload = vec![3, 2, 1].try_into().unwrap();
+        let encoded_reply_payload: Payload = reply_payload.encode().try_into().unwrap();
         let log = Log::builder().payload(message_payload);
 
         //Building message based on arranged data
@@ -185,9 +187,9 @@ mod tests {
         assert!(!second_message_result.main_failed);
         assert!(!second_message_result.others_failed);
         assert_eq!(reply_log.len(), 1);
-        assert_eq!(last_reply_log.payload(), encoded_reply_payload);
-        assert_eq!(message_log.payload(), encoded_message_payload);
-        assert_eq!(second_message_log.payload(), encoded_message_payload);
+        assert_eq!(last_reply_log.payload(), encoded_reply_payload.get());
+        assert_eq!(message_log.payload(), encoded_message_payload.get());
+        assert_eq!(second_message_log.payload(), encoded_message_payload.get());
     }
 
     #[test]
@@ -197,8 +199,8 @@ mod tests {
         let message_id: MessageId = Default::default();
         let source_user_id = ProgramIdWrapper::from(100).0;
         let destination_user_id = ProgramIdWrapper::from(200).0;
-        let message_payload: Payload = vec![1, 2, 3];
-        let reply_payload: Payload = vec![3, 2, 1];
+        let message_payload: Payload = vec![1, 2, 3].try_into().unwrap();
+        let reply_payload: Payload = vec![3, 2, 1].try_into().unwrap();
         let message_log = Log::builder().payload(message_payload.clone());
 
         //Building message based on arranged data
@@ -206,7 +208,7 @@ mod tests {
             message_id,
             source_user_id,
             destination_user_id,
-            message_payload.encode(),
+            message_payload.encode().try_into().unwrap(),
             Default::default(),
             0,
             None,
@@ -231,9 +233,9 @@ mod tests {
         let message_id: MessageId = Default::default();
         let source_user_id = ProgramIdWrapper::from(100).0;
         let destination_user_id = ProgramIdWrapper::from(200).0;
-        let message_payload: Payload = vec![1, 2, 3];
+        let message_payload: Payload = vec![1, 2, 3].try_into().unwrap();
         let reply_payload_array: [u8; 3] = [3, 2, 1];
-        let reply_payload: Payload = reply_payload_array.to_vec();
+        let reply_payload: Payload = reply_payload_array.to_vec().try_into().unwrap();
         let log = Log::builder().payload(message_payload.clone());
 
         //Building message based on arranged data
@@ -241,7 +243,7 @@ mod tests {
             message_id,
             source_user_id,
             destination_user_id,
-            message_payload.encode(),
+            message_payload.encode().try_into().unwrap(),
             Default::default(),
             0,
             None,
@@ -259,7 +261,7 @@ mod tests {
         let result_log = result.log;
         let last_result_log = result_log.last().expect("No message log in run result");
 
-        assert_eq!(last_result_log.payload(), reply_payload);
+        assert_eq!(last_result_log.payload(), reply_payload.get());
     }
 
     #[test]
@@ -269,7 +271,7 @@ mod tests {
         let message_id: MessageId = Default::default();
         let source_user_id = ProgramIdWrapper::from(100).0;
         let destination_user_id = ProgramIdWrapper::from(200).0;
-        let message_payload: Payload = vec![1, 2, 3];
+        let message_payload: Payload = vec![1, 2, 3].try_into().unwrap();
         let log = Log::builder().payload(message_payload.clone());
 
         //Building message based on arranged data
@@ -277,7 +279,7 @@ mod tests {
             message_id,
             source_user_id,
             destination_user_id,
-            message_payload.encode(),
+            message_payload.encode().try_into().unwrap(),
             Default::default(),
             0,
             None,
@@ -341,7 +343,7 @@ mod tests {
             message_id,
             sender_id.into(),
             receiver_id.into(),
-            payload.encode(),
+            payload.encode().try_into().unwrap(),
             Default::default(),
             1000,
             None,

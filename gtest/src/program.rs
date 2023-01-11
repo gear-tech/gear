@@ -26,20 +26,21 @@ use codec::{Codec, Decode, Encode};
 use gear_core::{
     code::{Code, CodeAndId, InstrumentedCodeAndId},
     ids::{CodeId, MessageId, ProgramId},
-    message::{Dispatch, DispatchKind, ExitCode, Message, SignalMessage},
+    message::{Dispatch, DispatchKind, Message, SignalMessage, StatusCode},
     program::Program as CoreProgram,
 };
 use gear_wasm_builder::optimize::{OptType, Optimizer};
+use gear_wasm_instrument::wasm_instrument::gas_metering::ConstantCostRules;
 use path_clean::PathClean;
 use std::{
     cell::RefCell,
+    convert::TryInto,
     env,
     ffi::OsStr,
     fmt::Debug,
     fs,
     path::{Path, PathBuf},
 };
-use wasm_instrument::gas_metering::ConstantCostRules;
 
 #[derive(
     Default,
@@ -311,7 +312,7 @@ impl<'a> Program<'a> {
                 .clean();
 
             let filename = path.file_name().and_then(OsStr::to_str).unwrap_or_default();
-            assert!(filename.ends_with(ext), "Wrong file extension: {}", ext);
+            assert!(filename.ends_with(ext), "{}", "Wrong file extension: {ext}");
 
             fs::read(&path).unwrap_or_else(|_| panic!("Failed to read file {:?}", path))
         };
@@ -328,7 +329,7 @@ impl<'a> Program<'a> {
         optimized: Vec<u8>,
         metadata: Option<Vec<u8>>,
     ) -> Self {
-        let code = Code::try_new(optimized, 1, |_| ConstantCostRules::default())
+        let code = Code::try_new(optimized, 1, |_| ConstantCostRules::default(), None)
             .expect("Failed to create Program from code");
 
         let code_and_id: InstrumentedCodeAndId = CodeAndId::new(code).into();
@@ -348,7 +349,7 @@ impl<'a> Program<'a> {
         Self::program_with_id(
             system,
             id,
-            InnerProgram::new(program, code_id, Default::default()),
+            InnerProgram::new(program, code_id, Default::default(), Default::default()),
         )
     }
 
@@ -391,7 +392,7 @@ impl<'a> Program<'a> {
             ),
             source,
             self.id,
-            payload.as_ref().to_vec(),
+            payload.as_ref().to_vec().try_into().unwrap(),
             Some(u64::MAX),
             value,
             None,
@@ -412,20 +413,18 @@ impl<'a> Program<'a> {
     pub fn send_signal<ID: Into<ProgramIdWrapper>>(
         &self,
         from: ID,
-        exit_code: ExitCode,
+        status_code: StatusCode,
     ) -> RunResult {
         let mut system = self.manager.borrow_mut();
 
         let source = from.into().0;
 
-        let message = SignalMessage::new(
-            MessageId::generate_from_user(
-                system.block_info.height,
-                source,
-                system.fetch_inc_message_nonce() as u128,
-            ),
-            exit_code,
+        let origin_msg_id = MessageId::generate_from_user(
+            system.block_info.height,
+            source,
+            system.fetch_inc_message_nonce() as u128,
         );
+        let message = SignalMessage::new(origin_msg_id, status_code);
 
         let (actor, _) = system.actors.get_mut(&self.id).expect("Can't fail");
 
@@ -433,7 +432,7 @@ impl<'a> Program<'a> {
             *id = Some(message.id());
         };
 
-        let dispatch = message.into_dispatch(self.id);
+        let dispatch = message.into_dispatch(origin_msg_id, self.id);
         system.run_dispatch(dispatch)
     }
 
@@ -446,9 +445,11 @@ impl<'a> Program<'a> {
     }
 
     pub fn meta_state_with_bytes(&self, payload: impl AsRef<[u8]>) -> Result<Vec<u8>> {
-        self.manager
-            .borrow_mut()
-            .call_meta(&self.id, Some(payload.as_ref().into()), "meta_state")
+        self.manager.borrow_mut().call_meta(
+            &self.id,
+            Some(payload.as_ref().to_vec().try_into().unwrap()),
+            "meta_state",
+        )
     }
 
     pub fn meta_state_empty<D: Decode>(&self) -> Result<D> {
@@ -480,8 +481,8 @@ impl<'a> Program<'a> {
     }
 }
 
-pub fn calculate_program_id(code_hash: CodeId, salt: &[u8]) -> ProgramId {
-    ProgramId::generate(code_hash, salt)
+pub fn calculate_program_id(code_id: CodeId, salt: &[u8]) -> ProgramId {
+    ProgramId::generate(code_id, salt)
 }
 
 #[cfg(test)]

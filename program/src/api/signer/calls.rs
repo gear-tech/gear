@@ -1,37 +1,29 @@
 //! gear api calls
 use crate::api::{
-    config::GearConfig,
-    generated::api::{runtime_types::sp_runtime::DispatchError, Event},
     signer::Signer,
-    types::InBlock,
+    types::{InBlock, TxStatus},
 };
 use anyhow::anyhow;
-use std::fmt::Display;
-use subxt::{PolkadotExtrinsicParams, SubmittableExtrinsic, TransactionStatus};
+use subxt::{
+    ext::codec::Encode,
+    tx::{StaticTxPayload, TxPayload},
+};
 
 mod balances {
-    use crate::api::{signer::Signer, types::InBlock};
-    use subxt::sp_runtime::AccountId32;
+    use crate::api::{generated::api::tx, signer::Signer, types::InBlock};
+    use subxt::ext::sp_runtime::AccountId32;
 
     impl Signer {
         /// `pallet_balances::transfer`
-        pub async fn transfer(
-            &self,
-            destination: impl Into<AccountId32>,
-            value: u128,
-        ) -> InBlock<'_> {
-            let ex = self
-                .tx()
-                .balances()
-                .transfer(destination.into().into(), value)?;
-
+        pub async fn transfer(&self, destination: impl Into<AccountId32>, value: u128) -> InBlock {
+            let ex = tx().balances().transfer(destination.into().into(), value);
             self.process(ex).await
         }
     }
 }
 
 mod gear {
-    use crate::api::{signer::Signer, types::InBlock};
+    use crate::api::{generated::api::tx, signer::Signer, types::InBlock};
     use gear_core::ids::{CodeId, MessageId, ProgramId};
 
     impl Signer {
@@ -43,25 +35,24 @@ mod gear {
             payload: Vec<u8>,
             gas_limit: u64,
             value: u128,
-        ) -> InBlock<'_> {
-            let ex =
-                self.tx()
-                    .gear()
-                    .create_program(code_id.into(), salt, payload, gas_limit, value)?;
+        ) -> InBlock {
+            let ex = tx()
+                .gear()
+                .create_program(code_id.into(), salt, payload, gas_limit, value);
 
             self.process(ex).await
         }
 
         /// `pallet_gear::claim_value`
-        pub async fn claim_value(&self, message_id: MessageId) -> InBlock<'_> {
-            let ex = self.tx().gear().claim_value(message_id.into())?;
+        pub async fn claim_value(&self, message_id: MessageId) -> InBlock {
+            let ex = tx().gear().claim_value(message_id.into());
 
             self.process(ex).await
         }
 
         /// `pallet_gear::reset`
-        pub async fn reset(&self) -> InBlock<'_> {
-            let ex = self.tx().gear().reset()?;
+        pub async fn reset(&self) -> InBlock {
+            let ex = tx().gear().reset();
 
             self.process(ex).await
         }
@@ -73,11 +64,10 @@ mod gear {
             payload: Vec<u8>,
             gas_limit: u64,
             value: u128,
-        ) -> InBlock<'_> {
-            let ex =
-                self.tx()
-                    .gear()
-                    .send_message(destination.into(), payload, gas_limit, value)?;
+        ) -> InBlock {
+            let ex = tx()
+                .gear()
+                .send_message(destination.into(), payload, gas_limit, value);
 
             self.process(ex).await
         }
@@ -89,18 +79,17 @@ mod gear {
             payload: Vec<u8>,
             gas_limit: u64,
             value: u128,
-        ) -> InBlock<'_> {
-            let ex = self
-                .tx()
+        ) -> InBlock {
+            let ex = tx()
                 .gear()
-                .send_reply(reply_to_id.into(), payload, gas_limit, value)?;
+                .send_reply(reply_to_id.into(), payload, gas_limit, value);
 
             self.process(ex).await
         }
 
         /// `pallet_gear::upload_code`
-        pub async fn upload_code(&self, code: Vec<u8>) -> InBlock<'_> {
-            let ex = self.tx().gear().upload_code(code)?;
+        pub async fn upload_code(&self, code: Vec<u8>) -> InBlock {
+            let ex = tx().gear().upload_code(code);
 
             self.process(ex).await
         }
@@ -113,70 +102,69 @@ mod gear {
             payload: Vec<u8>,
             gas_limit: u64,
             value: u128,
-        ) -> InBlock<'_> {
-            let ex = self
-                .tx()
+        ) -> InBlock {
+            let ex = tx()
                 .gear()
-                .upload_program(code, salt, payload, gas_limit, value)?;
+                .upload_program(code, salt, payload, gas_limit, value);
 
             self.process(ex).await
         }
     }
 }
 
-type Extrinsic<'client, Call, Config> = SubmittableExtrinsic<
-    'client,
-    Config,
-    PolkadotExtrinsicParams<Config>,
-    Call,
-    DispatchError,
-    Event,
->;
-
 impl Signer {
     /// Propagates log::info for given status.
-    pub(crate) fn log_status<Config>(
-        &self,
-        status: &TransactionStatus<Config, DispatchError, Event>,
-    ) where
-        Config: subxt::Config,
-        Config::Hash: Display,
-    {
+    pub(crate) fn log_status(&self, status: &TxStatus) {
         match status {
-            TransactionStatus::Future => log::info!("\tStatus: Future"),
-            TransactionStatus::Ready => log::info!("\tStatus: Ready"),
-            TransactionStatus::Broadcast(v) => log::info!("\tStatus: Broadcast( {v:?} )"),
-            TransactionStatus::InBlock(b) => log::info!(
+            TxStatus::Future => log::info!("\tStatus: Future"),
+            TxStatus::Ready => log::info!("\tStatus: Ready"),
+            TxStatus::Broadcast(v) => log::info!("\tStatus: Broadcast( {v:?} )"),
+            TxStatus::InBlock(b) => log::info!(
                 "\tStatus: InBlock( block hash: {}, extrinsic hash: {} )",
                 b.block_hash(),
                 b.extrinsic_hash()
             ),
-            TransactionStatus::Retracted(h) => log::info!("\tStatus: Retracted( {h} )"),
-            TransactionStatus::FinalityTimeout(h) => log::info!("\tStatus: FinalityTimeout( {h} )"),
-            TransactionStatus::Finalized(b) => log::info!(
+            TxStatus::Retracted(h) => log::info!("\tStatus: Retracted( {h} )"),
+            TxStatus::FinalityTimeout(h) => log::info!("\tStatus: FinalityTimeout( {h} )"),
+            TxStatus::Finalized(b) => log::info!(
                 "\tStatus: Finalized( block hash: {}, extrinsic hash: {} )",
                 b.block_hash(),
                 b.extrinsic_hash()
             ),
-            TransactionStatus::Usurped(h) => log::info!("\tStatus: Usurped( {h} )"),
-            TransactionStatus::Dropped => log::info!("\tStatus: Dropped"),
-            TransactionStatus::Invalid => log::info!("\tStatus: Invalid"),
+            TxStatus::Usurped(h) => log::info!("\tStatus: Usurped( {h} )"),
+            TxStatus::Dropped => log::info!("\tStatus: Dropped"),
+            TxStatus::Invalid => log::info!("\tStatus: Invalid"),
         }
     }
+
     /// listen transaction process and print logs
-    pub async fn process<'client, Call>(
-        &'client self,
-        tx: Extrinsic<'client, Call, GearConfig>,
-    ) -> InBlock<'client>
-    where
-        Call: subxt::Call + Send + Sync,
-    {
-        use TransactionStatus::*;
+    pub async fn process<CallData: Encode>(&self, tx: StaticTxPayload<CallData>) -> InBlock {
+        use subxt::tx::TxStatus::*;
 
         let before = self.balance().await?;
-        let mut process = tx.sign_and_submit_then_watch_default(&self.signer).await?;
+        let mut process = if let Some(nonce) = self.nonce {
+            self.api
+                .tx()
+                .create_signed_with_nonce(&tx, &self.signer, nonce, Default::default())?
+                .submit_and_watch()
+                .await?
+        } else {
+            self.api
+                .tx()
+                .sign_and_submit_then_watch_default(&tx, &self.signer)
+                .await?
+        };
 
-        log::info!("Submitted extrinsic {}::{}", Call::PALLET, Call::FUNCTION);
+        // Get extrinsic details.
+        let (pallet, name) = {
+            if let Some(details) = tx.validation_details() {
+                (details.pallet_name, details.call_name)
+            } else {
+                ("Unknown", "Unknown")
+            }
+        };
+
+        log::info!("Submitted extrinsic {}::{}", pallet, name);
 
         while let Some(status) = process.next_item().await {
             let status = status?;
@@ -190,8 +178,8 @@ impl Signer {
                 Finalized(b) => {
                     log::info!(
                         "Successfully submitted call {}::{} {} at {}!",
-                        Call::PALLET,
-                        Call::FUNCTION,
+                        pallet,
+                        name,
                         b.extrinsic_hash(),
                         b.block_hash()
                     );

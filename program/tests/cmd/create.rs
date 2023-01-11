@@ -1,5 +1,5 @@
 //! Integration tests for command `deploy`
-use crate::common::{self, logs, traits::Convert, Result};
+use crate::common::{self, env, logs, traits::Convert, Result};
 
 #[tokio::test]
 async fn test_command_upload_program_works() -> Result<()> {
@@ -7,7 +7,13 @@ async fn test_command_upload_program_works() -> Result<()> {
     let mut node = common::Node::dev()?;
     node.wait(logs::gear_node::IMPORTING_BLOCKS)?;
 
-    let output = common::gear(&["-e", &node.ws(), "upload-program", "res/demo_meta.opt.wasm"])?;
+    let output = common::gear(&[
+        "-e",
+        &node.ws(),
+        "upload-program",
+        &env::wasm_bin("demo_meta.opt.wasm"),
+    ])?;
+
     assert!(output
         .stderr
         .convert()

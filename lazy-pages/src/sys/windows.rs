@@ -18,7 +18,10 @@
  * along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
 
-use crate::sys::{ExceptionInfo, UserSignalHandler};
+use crate::{
+    sys::{ExceptionInfo, UserSignalHandler},
+    Error,
+};
 use std::io;
 use winapi::{
     shared::ntdef::LONG,
@@ -62,9 +65,13 @@ where
         is_write,
     };
 
-    H::handle(info)
-        .map_err(|err| err.to_string())
-        .expect("Memory exception handler failed");
+    if let Err(err) = H::handle(info) {
+        if let Error::OutOfWasmMemoryAccess | Error::WasmMemAddrIsNotSet = err {
+            return EXCEPTION_CONTINUE_SEARCH;
+        } else {
+            panic!("Signal handler failed: {}", err);
+        }
+    }
 
     EXCEPTION_CONTINUE_EXECUTION
 }

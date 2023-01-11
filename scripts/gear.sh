@@ -57,7 +57,7 @@ gear_usage() {
     docker         docker functionality
     format         format gear parts via rustfmt
     init           initializes and updates packages and toolchains
-    run            run gear-node processing
+    run            run gear node
     test           test tool
     coverage       coverage utilities
 
@@ -319,17 +319,22 @@ case "$COMMAND" in
         header "Running js test for runtime upgrade"
         runtime_upgrade_test "$ROOT_DIR"; ;;
 
-      client-weights)
-        header "Running js test for client weights"
-        client_weights_test "$ROOT_DIR"; ;;
-
-      uploads)
-        header "Running js test for client code uploading"
-        uploads_test "$ROOT_DIR" "$@"; ;;
+      client)
+        header "Running gclient tests"
+        client_tests "$ROOT_DIR" "$@"; ;;
 
       fuzz)
         header "Running fuzzer for system consistency check"
         run_fuzzer "$ROOT_DIR" "$@"; ;;
+
+      syscalls)
+        header "Running syscalls integrity test of pallet-gear 'benchmarking' module on WASMI executor"
+        syscalls_integrity_test ;;
+
+      doc)
+        header "Testing examples in docs"
+        doc_test "$ROOT_DIR/Cargo.toml" "$@";
+        doc_test "$ROOT_DIR/examples/Cargo.toml" "$@"; ;;
 
       *)
         header  "Unknown option: '$SUBCOMMAND'"

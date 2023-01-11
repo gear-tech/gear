@@ -19,9 +19,12 @@
 use crate as pallet_gear_payment;
 use frame_support::{
     construct_runtime, parameter_types,
-    traits::{ConstU8, Contains, Currency, FindAuthor, OnFinalize, OnInitialize, OnUnbalanced},
-    weights::{IdentityFee, Weight},
+    traits::{
+        ConstU128, ConstU8, Contains, Currency, FindAuthor, OnFinalize, OnInitialize, OnUnbalanced,
+    },
+    weights::{constants::WEIGHT_REF_TIME_PER_SECOND, ConstantMultiplier, Weight},
 };
+use frame_support_test::TestRandomness;
 use frame_system as system;
 use pallet_transaction_payment::CurrencyAdapter;
 use primitive_types::H256;
@@ -103,20 +106,21 @@ impl pallet_timestamp::Config for Test {
 }
 
 parameter_types! {
-    pub const BlockHashCount: u64 = 250;
+    pub const BlockHashCount: u64 = 2400;
     pub const SS58Prefix: u8 = 42;
     pub const ExistentialDeposit: u64 = 1;
-    pub BlockWeights: frame_system::limits::BlockWeights =
-        frame_system::limits::BlockWeights::simple_max(Weight::from_ref_time(1_000_000_000));
+    pub RuntimeBlockWeights: frame_system::limits::BlockWeights = frame_system::limits::BlockWeights::simple_max(
+        Weight::from_parts(WEIGHT_REF_TIME_PER_SECOND / 2, u64::MAX)
+    );
 }
 
 impl system::Config for Test {
     type BaseCallFilter = frame_support::traits::Everything;
-    type BlockWeights = BlockWeights;
+    type BlockWeights = RuntimeBlockWeights;
     type BlockLength = ();
     type DbWeight = ();
-    type Origin = Origin;
-    type Call = Call;
+    type RuntimeOrigin = RuntimeOrigin;
+    type RuntimeCall = RuntimeCall;
     type Index = u64;
     type BlockNumber = u64;
     type Hash = H256;
@@ -146,14 +150,15 @@ impl pallet_transaction_payment::Config for Test {
     type Event = Event;
     type OnChargeTransaction = CurrencyAdapter<Balances, DealWithFees>;
     type OperationalFeeMultiplier = ConstU8<5>;
-    type WeightToFee = IdentityFee<u128>;
-    type LengthToFee = IdentityFee<u128>;
+    type WeightToFee = ConstantMultiplier<u128, ConstU128<1_000>>;
+    type LengthToFee = ConstantMultiplier<u128, ConstU128<1_000>>;
     type FeeMultiplierUpdate = pallet_gear_payment::GearFeeMultiplier<Test, QueueLengthStep>;
 }
 
 pub struct GasConverter;
 impl common::GasPrice for GasConverter {
     type Balance = u128;
+    type GasToBalanceMultiplier = ConstU128<1_000>;
 }
 
 parameter_types! {
@@ -163,7 +168,8 @@ parameter_types! {
 }
 
 impl pallet_gear::Config for Test {
-    type Event = Event;
+    type RuntimeEvent = RuntimeEvent;
+    type Randomness = TestRandomness<Self>;
     type Currency = Balances;
     type GasPrice = GasConverter;
     type WeightInfo = ();
@@ -172,10 +178,12 @@ impl pallet_gear::Config for Test {
     type DebugInfo = ();
     type CodeStorage = GearProgram;
     type MailboxThreshold = ConstU64<3000>;
+    type ReservationsLimit = ConstU64<256>;
     type Messenger = GearMessenger;
     type GasProvider = GearGas;
     type BlockLimiter = GearGas;
     type Scheduler = GearScheduler;
+    type QueueRunner = Gear;
 }
 
 impl pallet_gear_program::Config for Test {
@@ -194,10 +202,12 @@ impl pallet_gear_scheduler::Config for Test {
     type ReserveThreshold = ConstU64<1>;
     type WaitlistCost = ConstU64<100>;
     type MailboxCost = ConstU64<100>;
+    type ReservationCost = ConstU64<100>;
 }
 
 impl pallet_gear_messenger::Config for Test {
     type BlockLimiter = GearGas;
+    type CurrentBlockNumber = Gear;
 }
 
 type NegativeImbalance = <Balances as Currency<u64>>::NegativeImbalance;
@@ -244,13 +254,17 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
         .unwrap();
 
     pallet_balances::GenesisConfig::<Test> {
-        balances: vec![(ALICE, 1_000_000_000_u128), (BLOCK_AUTHOR, 1_000_u128)],
+        balances: vec![(ALICE, 100_000_000_000u128), (BLOCK_AUTHOR, 1_000u128)],
     }
     .assimilate_storage(&mut t)
     .unwrap();
 
     let mut ext = sp_io::TestExternalities::new(t);
-    ext.execute_with(|| System::set_block_number(1));
+    ext.execute_with(|| {
+        Gear::force_always();
+        System::set_block_number(1);
+        Gear::on_initialize(System::block_number());
+    });
     ext
 }
 
@@ -264,8 +278,8 @@ pub fn run_to_block(n: u64) {
     }
 }
 
-impl crate::ExtractCall<Call> for TestXt<Call, ()> {
-    fn extract_call(&self) -> Call {
+impl common::ExtractCall<RuntimeCall> for TestXt<RuntimeCall, ()> {
+    fn extract_call(&self) -> RuntimeCall {
         self.call.clone()
     }
 }

@@ -21,7 +21,7 @@ use codec::MaxEncodedLen;
 use gear_core::ids::ReservationId;
 
 /// ID of the [`GasNode`].
-#[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, TypeInfo)]
+#[derive(Debug, Copy, Clone, Hash, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, TypeInfo)]
 pub enum GasNodeId<T, U> {
     Node(T),
     Reservation(U),
@@ -39,6 +39,19 @@ impl<T, U> GasNodeId<T, U> {
         match self {
             GasNodeId::Node(_) => None,
             GasNodeId::Reservation(reservation_id) => Some(reservation_id),
+        }
+    }
+}
+
+impl<T, U> fmt::Display for GasNodeId<T, U>
+where
+    T: fmt::Display,
+    U: fmt::Display,
+{
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            GasNodeId::Node(id) => fmt::Display::fmt(id, f),
+            GasNodeId::Reservation(id) => fmt::Display::fmt(id, f),
         }
     }
 }
@@ -65,6 +78,7 @@ pub enum GasNode<ExternalId: Clone, Id: Clone, Balance: Zero + Clone> {
         id: ExternalId,
         value: Balance,
         lock: Balance,
+        system_reserve: Balance,
         refs: ChildrenRefs,
         consumed: bool,
     },
@@ -77,9 +91,14 @@ pub enum GasNode<ExternalId: Clone, Id: Clone, Balance: Zero + Clone> {
 
     /// A node used for gas reservation feature.
     ///
-    /// Such node types are detached and aren't part of the tree structure
-    /// (not node's parent, not node's child).
-    Reserved { id: ExternalId, value: Balance },
+    /// Such node types are detached from initial tree and may act the a root of new tree.
+    Reserved {
+        id: ExternalId,
+        value: Balance,
+        lock: Balance,
+        refs: ChildrenRefs,
+        consumed: bool,
+    },
 
     /// A node, which is a part of the tree structure, that can be
     /// a parent and/or a child.
@@ -93,6 +112,7 @@ pub enum GasNode<ExternalId: Clone, Id: Clone, Balance: Zero + Clone> {
         parent: Id,
         value: Balance,
         lock: Balance,
+        system_reserve: Balance,
         refs: ChildrenRefs,
         consumed: bool,
     },
@@ -101,7 +121,11 @@ pub enum GasNode<ExternalId: Clone, Id: Clone, Balance: Zero + Clone> {
     /// so relies on its `parent`.
     ///
     /// Such nodes don't have children references.
-    UnspecifiedLocal { parent: Id, lock: Balance },
+    UnspecifiedLocal {
+        parent: Id,
+        lock: Balance,
+        system_reserve: Balance,
+    },
 }
 
 /// Children references convenience struct
@@ -120,6 +144,7 @@ impl<ExternalId: Clone, Id: Clone + Copy, Balance: Zero + Clone + Copy>
             id: origin,
             value,
             lock: Zero::zero(),
+            system_reserve: Zero::zero(),
             refs: Default::default(),
             consumed: false,
         }
@@ -147,17 +172,23 @@ impl<ExternalId: Clone, Id: Clone + Copy, Balance: Zero + Clone + Copy>
 
     /// Marks the node as consumed, if it has the flag
     pub fn mark_consumed(&mut self) {
-        if let Self::External { consumed, .. } | Self::SpecifiedLocal { consumed, .. } = self {
+        if let Self::External { consumed, .. }
+        | Self::SpecifiedLocal { consumed, .. }
+        | Self::Reserved { consumed, .. } = self
+        {
             *consumed = true;
         }
     }
 
     /// Returns whether the node is marked consumed or not
     ///
-    /// Only `GasNode::External` and `GasNode::SpecifiedLocal` can be marked
+    /// Only `GasNode::External`, `GasNode::SpecifiedLocal`, `GasNode::Reserved` can be marked
     /// consumed and not deleted. See [`Tree::consume`] for details.
     pub fn is_consumed(&self) -> bool {
-        if let Self::External { consumed, .. } | Self::SpecifiedLocal { consumed, .. } = self {
+        if let Self::External { consumed, .. }
+        | Self::SpecifiedLocal { consumed, .. }
+        | Self::Reserved { consumed, .. } = self
+        {
             *consumed
         } else {
             false
@@ -176,8 +207,9 @@ impl<ExternalId: Clone, Id: Clone + Copy, Balance: Zero + Clone + Copy>
     /// Patron nodes are those on which other nodes of the tree rely
     /// (including the self node).
     pub fn is_patron(&self) -> bool {
-        if let Self::External { refs, consumed, .. } | Self::SpecifiedLocal { refs, consumed, .. } =
-            self
+        if let Self::External { refs, consumed, .. }
+        | Self::SpecifiedLocal { refs, consumed, .. }
+        | Self::Reserved { refs, consumed, .. } = self
         {
             !consumed || refs.unspec_refs != 0
         } else {
@@ -212,8 +244,9 @@ impl<ExternalId: Clone, Id: Clone + Copy, Balance: Zero + Clone + Copy>
         match self {
             Self::External { lock, .. }
             | Self::UnspecifiedLocal { lock, .. }
-            | Self::SpecifiedLocal { lock, .. } => Some(*lock),
-            Self::Cut { .. } | Self::Reserved { .. } => None,
+            | Self::SpecifiedLocal { lock, .. }
+            | Self::Reserved { lock, .. } => Some(*lock),
+            Self::Cut { .. } => None,
         }
     }
 
@@ -222,14 +255,35 @@ impl<ExternalId: Clone, Id: Clone + Copy, Balance: Zero + Clone + Copy>
         match self {
             Self::External { ref mut lock, .. }
             | Self::UnspecifiedLocal { ref mut lock, .. }
-            | Self::SpecifiedLocal { ref mut lock, .. } => Some(lock),
-            Self::Cut { .. } | Self::Reserved { .. } => None,
+            | Self::SpecifiedLocal { ref mut lock, .. }
+            | Self::Reserved { ref mut lock, .. } => Some(lock),
+            Self::Cut { .. } => None,
+        }
+    }
+
+    /// Returns node's system reserved gas balance, if it can have any.
+    pub fn system_reserve(&self) -> Option<Balance> {
+        match self {
+            GasNode::External { system_reserve, .. }
+            | GasNode::SpecifiedLocal { system_reserve, .. }
+            | GasNode::UnspecifiedLocal { system_reserve, .. } => Some(*system_reserve),
+            GasNode::Cut { .. } | GasNode::Reserved { .. } => None,
+        }
+    }
+
+    /// Gets a mutable access to node's system reserved gas balance, if it can have any.
+    pub fn system_reserve_mut(&mut self) -> Option<&mut Balance> {
+        match self {
+            GasNode::External { system_reserve, .. }
+            | GasNode::SpecifiedLocal { system_reserve, .. }
+            | GasNode::UnspecifiedLocal { system_reserve, .. } => Some(system_reserve),
+            GasNode::Cut { .. } | GasNode::Reserved { .. } => None,
         }
     }
 
     /// Returns node's parent, if it can have any.
     ///
-    /// That is, `GasNode::External` and `GasNode::ReservedLocal` nodes
+    /// That is, `GasNode::External`, `GasNode::Cut`, 'GasNode::Reserved` nodes
     /// don't have a parent, so a `None` is returned if the function is
     /// called on them.
     pub fn parent(&self) -> Option<Id> {
@@ -249,7 +303,9 @@ impl<ExternalId: Clone, Id: Clone + Copy, Balance: Zero + Clone + Copy>
     /// Returns node's spec refs
     pub fn spec_refs(&self) -> u32 {
         match self {
-            Self::External { refs, .. } | Self::SpecifiedLocal { refs, .. } => refs.spec_refs,
+            Self::External { refs, .. }
+            | Self::SpecifiedLocal { refs, .. }
+            | Self::Reserved { refs, .. } => refs.spec_refs,
             _ => 0,
         }
     }
@@ -257,7 +313,9 @@ impl<ExternalId: Clone, Id: Clone + Copy, Balance: Zero + Clone + Copy>
     /// Returns node's unspec refs
     pub fn unspec_refs(&self) -> u32 {
         match self {
-            Self::External { refs, .. } | Self::SpecifiedLocal { refs, .. } => refs.unspec_refs,
+            Self::External { refs, .. }
+            | Self::SpecifiedLocal { refs, .. }
+            | Self::Reserved { refs, .. } => refs.unspec_refs,
             _ => 0,
         }
     }
@@ -287,13 +345,21 @@ impl<ExternalId: Clone, Id: Clone + Copy, Balance: Zero + Clone + Copy>
         matches!(self, Self::Reserved { .. })
     }
 
-    /// Returns whether the node is detached and isn't part of the tree structure
-    pub(crate) fn is_detached(&self) -> bool {
-        self.is_reserved() | self.is_cut()
+    /// Returns whether the node has system reserved gas.
+    pub(crate) fn is_system_reservable(&self) -> bool {
+        self.system_reserve().is_some()
+    }
+
+    /// Returns whether the node is lockable.
+    pub(crate) fn is_lockable(&self) -> bool {
+        self.lock().is_some()
     }
 
     fn adjust_refs(&mut self, increase: bool, spec: bool) {
-        if let Self::External { refs, .. } | Self::SpecifiedLocal { refs, .. } = self {
+        if let Self::External { refs, .. }
+        | Self::SpecifiedLocal { refs, .. }
+        | Self::Reserved { refs, .. } = self
+        {
             match (increase, spec) {
                 (true, true) => refs.spec_refs = refs.spec_refs.saturating_add(1),
                 (true, false) => refs.unspec_refs = refs.unspec_refs.saturating_add(1),

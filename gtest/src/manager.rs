@@ -20,28 +20,35 @@ use crate::{
     log::{CoreLog, RunResult},
     program::{Gas, WasmProgram},
     wasm_executor::WasmExecutor,
-    Result, TestError, EXISTENTIAL_DEPOSIT, MAILBOX_THRESHOLD, RESERVE_FOR, WAITLIST_COST,
+    Result, TestError, EXISTENTIAL_DEPOSIT, INITIAL_RANDOM_SEED, MAILBOX_THRESHOLD,
+    MAX_RESERVATIONS, MODULE_INSTANTIATION_BYTE_COST, MODULE_INSTRUMENTATION_BYTE_COST,
+    MODULE_INSTRUMENTATION_COST, READ_COST, READ_PER_BYTE_COST, RESERVATION_COST, RESERVE_FOR,
+    WAITLIST_COST, WRITE_COST, WRITE_PER_BYTE_COST,
 };
 use core_processor::{
     common::*,
-    configs::{BlockConfig, BlockInfo, MessageExecutionContext},
-    Ext, PrepareResult,
+    configs::{BlockConfig, BlockInfo},
+    ContextChargedForCode, ContextChargedForInstrumentation, Ext,
 };
 use gear_backend_wasmi::WasmiEnvironment;
 use gear_core::{
-    code::{Code, CodeAndId, InstrumentedCodeAndId},
-    ids::{CodeId, MessageId, ProgramId},
-    memory::{PageBuf, PageNumber, WasmPageNumber},
+    code::{Code, CodeAndId, InstrumentedCode, InstrumentedCodeAndId},
+    ids::{CodeId, MessageId, ProgramId, ReservationId},
+    memory::{PageBuf, PageNumber, PageU32Size, WasmPageNumber},
     message::{
-        Dispatch, DispatchKind, Payload, ReplyMessage, ReplyPacket, StoredDispatch, StoredMessage,
+        Dispatch, DispatchKind, MessageWaitedType, Payload, ReplyMessage, ReplyPacket,
+        StoredDispatch, StoredMessage,
     },
     program::Program as CoreProgram,
+    reservation::{GasReservationMap, GasReserver},
 };
+use gear_wasm_instrument::{parity_wasm, wasm_instrument::gas_metering::ConstantCostRules};
+use rand::{rngs::StdRng, RngCore, SeedableRng};
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap, VecDeque},
+    convert::TryInto,
     time::{SystemTime, UNIX_EPOCH},
 };
-use wasm_instrument::gas_metering::ConstantCostRules;
 
 const OUTGOING_LIMIT: u32 = 1024;
 
@@ -118,11 +125,17 @@ impl TestActor {
     // Gets a new executable actor derived from the inner program.
     fn get_executable_actor_data(
         &self,
-    ) -> Option<(ExecutableActorData, BTreeMap<PageNumber, PageBuf>)> {
-        let (program, pages_data) = match self {
+    ) -> Option<(
+        ExecutableActorData,
+        CoreProgram,
+        BTreeMap<PageNumber, PageBuf>,
+    )> {
+        let (program, pages_data, code_id, gas_reservation_map) = match self {
             TestActor::Initialized(Program::Genuine {
                 program,
                 pages_data,
+                code_id,
+                gas_reservation_map,
                 ..
             })
             | TestActor::Uninitialized(
@@ -130,16 +143,30 @@ impl TestActor {
                 Some(Program::Genuine {
                     program,
                     pages_data,
+                    code_id,
+                    gas_reservation_map,
                     ..
                 }),
-            ) => (program.clone(), pages_data.clone()),
+            ) => (
+                program.clone(),
+                pages_data.clone(),
+                code_id,
+                gas_reservation_map.clone(),
+            ),
             _ => return None,
         };
+
         Some((
             ExecutableActorData {
-                program,
+                allocations: program.allocations().clone(),
+                code_id: *code_id,
+                code_exports: program.code().exports().clone(),
+                static_pages: program.code().static_pages(),
+                initialized: program.is_initialized(),
                 pages_with_data: pages_data.keys().copied().collect(),
+                gas_reservation_map,
             },
+            program,
             pages_data,
         ))
     }
@@ -151,6 +178,7 @@ pub(crate) enum Program {
         program: CoreProgram,
         code_id: CodeId,
         pages_data: BTreeMap<PageNumber, PageBuf>,
+        gas_reservation_map: GasReservationMap,
     },
     // Contract: is always `Some`, option is used to take ownership
     Mock(Option<Box<dyn WasmProgram>>),
@@ -161,11 +189,13 @@ impl Program {
         program: CoreProgram,
         code_id: CodeId,
         pages_data: BTreeMap<PageNumber, PageBuf>,
+        gas_reservation_map: GasReservationMap,
     ) -> Self {
         Program::Genuine {
             program,
             code_id,
             pages_data,
+            gas_reservation_map,
         }
     }
 
@@ -178,6 +208,7 @@ impl Program {
 pub(crate) struct ExtManager {
     // State metadata
     pub(crate) block_info: BlockInfo,
+    pub(crate) random_data: (Vec<u8>, u32),
 
     // Messaging and programs meta
     pub(crate) msg_nonce: u64,
@@ -215,6 +246,16 @@ impl ExtManager {
                     .expect("Time went backwards")
                     .as_millis() as u64,
             },
+            random_data: (
+                {
+                    let mut rng = StdRng::seed_from_u64(INITIAL_RANDOM_SEED);
+                    let mut random = [0u8; 32];
+                    rng.fill_bytes(&mut random);
+
+                    random.to_vec()
+                },
+                0,
+            ),
             ..Default::default()
         }
     }
@@ -233,9 +274,9 @@ impl ExtManager {
     }
 
     pub(crate) fn store_new_code(&mut self, code: &[u8]) -> CodeId {
-        let code_hash = CodeId::generate(code);
-        self.opt_binaries.insert(code_hash, code.to_vec());
-        code_hash
+        let code_id = CodeId::generate(code);
+        self.opt_binaries.insert(code_id, code.to_vec());
+        code_id
     }
 
     pub(crate) fn fetch_inc_message_nonce(&mut self) -> u64 {
@@ -316,7 +357,7 @@ impl ExtManager {
                     .entry(dest)
                     .or_default()
                     .push(message_id);
-                self.wait_dispatch(dispatch, None);
+                self.wait_dispatch(dispatch, None, MessageWaitedType::Wait);
 
                 continue;
             }
@@ -329,8 +370,14 @@ impl ExtManager {
 
             if actor.is_dormant() {
                 self.process_dormant(balance, dispatch);
-            } else if let Some((data, memory_pages)) = actor.get_executable_actor_data() {
-                self.process_normal(balance, data, memory_pages, dispatch);
+            } else if let Some((data, program, memory_pages)) = actor.get_executable_actor_data() {
+                self.process_normal(
+                    balance,
+                    data,
+                    program.code().clone(),
+                    memory_pages,
+                    dispatch,
+                );
             } else if let Some(mock) = actor.take_mock() {
                 self.process_mock(mock, dispatch);
             } else {
@@ -450,7 +497,7 @@ impl ExtManager {
     fn move_waiting_msgs_to_queue(&mut self, message_id: MessageId, program_id: ProgramId) {
         if let Some(ids) = self.wait_init_list.remove(&program_id) {
             for id in ids {
-                self.wake_message(message_id, program_id, id);
+                self.wake_message(message_id, program_id, id, 0);
             }
         }
     }
@@ -499,12 +546,14 @@ impl ExtManager {
 
                 if let Some(payload) = reply {
                     let id = MessageId::generate_reply(message_id, 0);
-                    let packet = ReplyPacket::new(payload, 0);
+                    let packet = ReplyPacket::new(payload.try_into().unwrap(), 0);
                     let reply_message = ReplyMessage::from_packet(id, packet);
 
                     self.send_dispatch(
                         message_id,
                         reply_message.into_dispatch(program_id, dispatch.source(), message_id),
+                        0,
+                        None,
                     );
                 }
             }
@@ -520,6 +569,7 @@ impl ExtManager {
                             program_id,
                             origin: source,
                             reason: expl.to_string(),
+                            executed: true,
                         },
                     );
                 } else {
@@ -541,6 +591,8 @@ impl ExtManager {
                     self.send_dispatch(
                         message_id,
                         reply_message.into_dispatch(program_id, dispatch.source(), message_id),
+                        0,
+                        None,
                     );
                 }
             }
@@ -559,10 +611,11 @@ impl ExtManager {
         &mut self,
         balance: u128,
         data: ExecutableActorData,
+        code: InstrumentedCode,
         memory_pages: BTreeMap<PageNumber, PageBuf>,
         dispatch: StoredDispatch,
     ) {
-        self.process_dispatch(balance, Some(data), memory_pages, dispatch);
+        self.process_dispatch(balance, Some((data, code)), memory_pages, dispatch);
     }
 
     fn process_dormant(&mut self, balance: u128, dispatch: StoredDispatch) {
@@ -572,7 +625,7 @@ impl ExtManager {
     fn process_dispatch(
         &mut self,
         balance: u128,
-        data: Option<ExecutableActorData>,
+        data: Option<(ExecutableActorData, InstrumentedCode)>,
         memory_pages: BTreeMap<PageNumber, PageBuf>,
         dispatch: StoredDispatch,
     ) {
@@ -592,27 +645,65 @@ impl ExtManager {
             mailbox_threshold: MAILBOX_THRESHOLD,
             waitlist_cost: WAITLIST_COST,
             reserve_for: RESERVE_FOR,
-        };
-        let message_execution_context = MessageExecutionContext {
-            actor: Actor {
-                balance,
-                destination_program: dest,
-                executable_data: data,
-            },
-            dispatch: dispatch.into_incoming(gas_limit),
-            origin: self.origin,
-            gas_allowance: u64::MAX,
-            subsequent_execution: false,
+            reservation: RESERVATION_COST,
+            read_cost: READ_COST,
+            write_cost: WRITE_COST,
+            read_per_byte_cost: READ_PER_BYTE_COST,
+            write_per_byte_cost: WRITE_PER_BYTE_COST,
+            module_instantiation_byte_cost: MODULE_INSTANTIATION_BYTE_COST,
+            max_reservations: MAX_RESERVATIONS,
+            code_instrumentation_cost: MODULE_INSTRUMENTATION_COST,
+            code_instrumentation_byte_cost: MODULE_INSTRUMENTATION_BYTE_COST,
         };
 
-        let journal = match core_processor::prepare(&block_config, message_execution_context) {
-            PrepareResult::WontExecute(journal) | PrepareResult::Error(journal) => journal,
-            PrepareResult::Ok { context, .. } => core_processor::process::<Ext, WasmiEnvironment>(
-                &block_config,
-                context,
-                memory_pages,
-            ),
+        let (actor_data, code) = match data {
+            Some((a, c)) => (Some(a), Some(c)),
+            None => (None, None),
         };
+
+        let precharged_dispatch = match core_processor::precharge_for_program(
+            &block_config,
+            u64::MAX,
+            dispatch.into_incoming(gas_limit),
+            dest,
+        ) {
+            Ok(d) => d,
+            Err(journal) => {
+                core_processor::handle_journal(journal, self);
+                return;
+            }
+        };
+
+        let context = match core_processor::precharge_for_code_length(
+            &block_config,
+            precharged_dispatch,
+            dest,
+            actor_data,
+        ) {
+            Ok(c) => c,
+            Err(journal) => {
+                core_processor::handle_journal(journal, self);
+                return;
+            }
+        };
+
+        let code = code.expect("Program exists so do code");
+        let context = ContextChargedForCode::from((context, code.code().len() as u32));
+        let context = ContextChargedForInstrumentation::from(context);
+        let context = match core_processor::precharge_for_memory(&block_config, context, false) {
+            Ok(c) => c,
+            Err(journal) => {
+                core_processor::handle_journal(journal, self);
+                return;
+            }
+        };
+
+        let journal = core_processor::process::<Ext, WasmiEnvironment<Ext>>(
+            &block_config,
+            (context, code, balance, self.origin).into(),
+            self.random_data.clone(),
+            memory_pages,
+        );
 
         core_processor::handle_journal(journal, self);
     }
@@ -626,12 +717,12 @@ impl ExtManager {
         let (actor, _balance) = self
             .actors
             .get_mut(program_id)
-            .ok_or(TestError::ActorNotFound(*program_id))?;
+            .ok_or_else(|| TestError::ActorNotFound(*program_id))?;
 
         let code_id = actor.code_id();
-        let (data, memory) = actor
+        let (_data, program, memory) = actor
             .get_executable_actor_data()
-            .ok_or(TestError::ActorIsNotExecutable(*program_id))?;
+            .ok_or_else(|| TestError::ActorIsNotExecutable(*program_id))?;
         let pages_initial_data = memory
             .into_iter()
             .map(|(page, data)| (page, Box::new(data)))
@@ -641,14 +732,21 @@ impl ExtManager {
             .map(Vec::as_slice)
             .ok_or(TestError::MetaBinaryNotProvided)?;
 
-        let mut ext = WasmExecutor::build_ext(&data.program, payload.unwrap_or_default());
+        let mut ext = WasmExecutor::build_ext(&program, payload.unwrap_or_default());
 
         WasmExecutor::update_ext(&mut ext, self);
 
+        let module =
+            parity_wasm::deserialize_buffer(meta_binary).map_err(|_| TestError::Instrumentation)?;
+        let module = gear_wasm_instrument::inject(module, &ConstantCostRules::default(), "env")
+            .map_err(|_| TestError::Instrumentation)?;
+        let instrumented =
+            parity_wasm::elements::serialize(module).map_err(|_| TestError::Instrumentation)?;
+
         WasmExecutor::execute(
-            &mut ext,
-            &data.program,
-            meta_binary,
+            ext,
+            &program,
+            &instrumented,
             &pages_initial_data,
             function_name,
         )
@@ -696,7 +794,13 @@ impl JournalHandler for ExtManager {
         }
     }
 
-    fn send_dispatch(&mut self, _message_id: MessageId, dispatch: Dispatch) {
+    fn send_dispatch(
+        &mut self,
+        _message_id: MessageId,
+        dispatch: Dispatch,
+        _delay: u32,
+        _reservation: Option<ReservationId>,
+    ) {
         self.gas_limits.insert(dispatch.id(), dispatch.gas_limit());
 
         if !self.is_user(&dispatch.destination()) {
@@ -704,7 +808,7 @@ impl JournalHandler for ExtManager {
         } else {
             let message = dispatch.into_stored().into_parts().1;
 
-            let message = match message.exit_code() {
+            let message = match message.status_code() {
                 Some(0) | None => message,
                 _ => message
                     .with_string_payload::<ExecutionErrorReason>()
@@ -720,7 +824,12 @@ impl JournalHandler for ExtManager {
         }
     }
 
-    fn wait_dispatch(&mut self, dispatch: StoredDispatch, _duration: Option<u32>) {
+    fn wait_dispatch(
+        &mut self,
+        dispatch: StoredDispatch,
+        _duration: Option<u32>,
+        _: MessageWaitedType,
+    ) {
         self.message_consumed(dispatch.id());
         self.wait_list
             .insert((dispatch.destination(), dispatch.id()), dispatch);
@@ -731,6 +840,7 @@ impl JournalHandler for ExtManager {
         _message_id: MessageId,
         program_id: ProgramId,
         awakening_id: MessageId,
+        _delay: u32,
     ) {
         if let Some(msg) = self.wait_list.remove(&(program_id, awakening_id)) {
             self.dispatches.push_back(msg);
@@ -774,14 +884,14 @@ impl JournalHandler for ExtManager {
                     ..
                 }),
             ) => {
-                for page in program
-                    .get_allocations()
+                program
+                    .allocations()
                     .difference(&allocations)
-                    .flat_map(|p| p.to_gear_pages_iter())
-                {
-                    pages_data.remove(&page);
-                }
-                *program.get_allocations_mut() = allocations;
+                    .flat_map(PageU32Size::to_pages_iter)
+                    .for_each(|ref page| {
+                        pages_data.remove(page);
+                    });
+                program.set_allocations(allocations);
             }
             _ => unreachable!("No pages data found for program"),
         }
@@ -813,20 +923,21 @@ impl JournalHandler for ExtManager {
         }
     }
 
-    fn store_new_programs(&mut self, code_hash: CodeId, candidates: Vec<(ProgramId, MessageId)>) {
-        if let Some(code) = self.opt_binaries.get(&code_hash).cloned() {
-            for (candidate_id, init_message_id) in candidates {
+    fn store_new_programs(&mut self, code_id: CodeId, candidates: Vec<(MessageId, ProgramId)>) {
+        if let Some(code) = self.opt_binaries.get(&code_id).cloned() {
+            for (init_message_id, candidate_id) in candidates {
                 if !self.actors.contains_key(&candidate_id) {
-                    let code = Code::try_new(code.clone(), 1, |_| ConstantCostRules::default())
-                        .expect("Program can't be constructed with provided code");
+                    let code =
+                        Code::try_new(code.clone(), 1, |_| ConstantCostRules::default(), None)
+                            .expect("Program can't be constructed with provided code");
 
                     let code_and_id: InstrumentedCodeAndId =
-                        CodeAndId::from_parts_unchecked(code, code_hash).into();
+                        CodeAndId::from_parts_unchecked(code, code_id).into();
                     let (code, code_id) = code_and_id.into_parts();
                     let candidate = CoreProgram::new(candidate_id, code);
                     self.store_new_actor(
                         candidate_id,
-                        Program::new(candidate, code_id, Default::default()),
+                        Program::new(candidate, code_id, Default::default(), Default::default()),
                         Some(init_message_id),
                     );
                 } else {
@@ -836,9 +947,9 @@ impl JournalHandler for ExtManager {
         } else {
             logger::debug!(
                 "No referencing code with code hash {:?} for candidate programs",
-                code_hash
+                code_id
             );
-            for (invalid_candidate_id, _) in candidates {
+            for (_, invalid_candidate_id) in candidates {
                 self.actors
                     .insert(invalid_candidate_id, (TestActor::Dormant, 0));
             }
@@ -848,4 +959,54 @@ impl JournalHandler for ExtManager {
     fn stop_processing(&mut self, _dispatch: StoredDispatch, _gas_burned: u64) {
         panic!("Processing stopped. Used for on-chain logic only.")
     }
+
+    fn reserve_gas(
+        &mut self,
+        _message_id: MessageId,
+        _reservation_id: ReservationId,
+        _program_id: ProgramId,
+        _amount: u64,
+        _bn: u32,
+    ) {
+    }
+
+    fn unreserve_gas(
+        &mut self,
+        _reservation_id: ReservationId,
+        _program_id: ProgramId,
+        _expiration: u32,
+    ) {
+    }
+
+    fn update_gas_reservation(&mut self, program_id: ProgramId, reserver: GasReserver) {
+        let block_height = self.block_info.height;
+        let (actor, _) = self
+            .actors
+            .get_mut(&program_id)
+            .expect("gas reservation update guaranteed to be called only on existing program");
+
+        if let TestActor::Initialized(Program::Genuine {
+            gas_reservation_map: prog_gas_reservation_map,
+            ..
+        })
+        | TestActor::Uninitialized(
+            _,
+            Some(Program::Genuine {
+                gas_reservation_map: prog_gas_reservation_map,
+                ..
+            }),
+        ) = actor
+        {
+            *prog_gas_reservation_map =
+                reserver.into_map(block_height, |duration| block_height + duration);
+        } else {
+            panic!("no gas reservation map found in program");
+        }
+    }
+
+    fn system_reserve_gas(&mut self, _message_id: MessageId, _amount: u64) {}
+
+    fn system_unreserve_gas(&mut self, _message_id: MessageId) {}
+
+    fn send_signal(&mut self, _message_id: MessageId, _destination: ProgramId) {}
 }

@@ -5,9 +5,9 @@ use gstd::{debug, msg, prelude::*};
 static mut MESSAGE_LOG: Vec<String> = vec![];
 
 #[no_mangle]
-unsafe extern "C" fn handle() {
+extern "C" fn handle() {
     let new_msg: i32 = msg::load().expect("Should be i32");
-    MESSAGE_LOG.push(format!("(vec) New msg: {:?}", new_msg));
+    unsafe { MESSAGE_LOG.push(format!("(vec) New msg: {new_msg:?}")) };
     let v = vec![1u8; new_msg as usize];
     debug!("v.len() = {:?}", v.len());
     debug!(
@@ -17,13 +17,15 @@ unsafe extern "C" fn handle() {
         v[new_msg as usize - 1]
     );
     msg::send(msg::source(), v.len() as i32, 0).unwrap();
-    debug!("{:?} total message(s) stored: ", MESSAGE_LOG.len());
+    debug!("{:?} total message(s) stored: ", unsafe {
+        MESSAGE_LOG.len()
+    });
 
     // The test idea is to allocate two wasm pages and check this allocation,
     // so we must skip `v` destruction.
     core::mem::forget(v);
 
-    for log in MESSAGE_LOG.iter() {
+    for log in unsafe { MESSAGE_LOG.iter() } {
         debug!(log);
     }
 }

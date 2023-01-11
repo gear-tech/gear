@@ -15,28 +15,29 @@ env:
   NIGHTLY_TOOLCHAIN_VERSION: ${{ secrets.NIGHTLY_TOOLCHAIN_VERSION }}
 
 jobs:
-  spec_version:
-    runs-on: [self-hosted, cachepot, epyc]
-    steps:
-      - name: Cancel Previous Runs
-        if: ${{ github.event_name == 'pull_request' }}
-        uses: styfle/cancel-workflow-action@0.9.1
-        with:
-          access_token: ${{ github.token }}
+  # TODO: add to specific branches.
+  # spec_version:
+  #   runs-on: [self-hosted, cachepot, epyc]
+  #   steps:
+  #     - name: Cancel Previous Runs
+  #       if: ${{ github.event_name == 'pull_request' }}
+  #       uses: styfle/cancel-workflow-action@0.9.1
+  #       with:
+  #         access_token: ${{ github.token }}
 
-      - name: "ACTIONS: Checkout"
-        uses: actions/checkout@v3
+  #     - name: "ACTIONS: Checkout"
+  #       uses: actions/checkout@v3
 
-      - name: "Fetch origin"
-        run: git fetch origin
+  #     - name: "Fetch origin"
+  #       run: git fetch origin
 
-      - name: "Check spec version"
-        if: ${{ ! contains(github.event.pull_request.labels.*.name, 'A4-insubstantial') }}
-        run: ./scripts/check-spec.sh
+  #     - name: "Check spec version"
+  #       if: ${{ ! contains(github.event.pull_request.labels.*.name, 'A4-insubstantial') }}
+  #       run: ./scripts/check-spec.sh
 
   check:
-    needs: spec_version
-    runs-on: [self-hosted, cachepot, epyc]
+    # needs: spec_version
+    runs-on: [self-hosted, cachepot, epyc-4, k8s-runner]
     env:
       RUSTUP_HOME: /tmp/rustup_home
     steps:
@@ -82,7 +83,10 @@ jobs:
           sudo apt update
           sudo apt install -y git clang curl libssl-dev llvm libudev-dev cmake protobuf-compiler
           sudo wget -c https://github.com/WebAssembly/binaryen/releases/download/version_105/binaryen-version_105-x86_64-linux.tar.gz -O - | sudo tar -xz -C .
-          cp binaryen-version_105/bin/wasm-opt /usr/bin/
+          sudo cp binaryen-version_105/bin/wasm-opt /usr/bin/
+          sudo wget -c https://github.com/paritytech/cachepot/releases/download/0.1.0-rc.2/cachepot-0.1.0-rc.2-x86_64-unknown-linux-musl.tar.gz -O - | sudo tar -xz -C .
+          sudo cp cachepot-0.1.0-rc.2-x86_64-unknown-linux-musl/cachepot /usr/bin/
+          sudo chmod +x /usr/bin/cachepot
 
       - name: "Cache: Unpack"
         if: ${{ github.event_name == 'pull_request' }}
@@ -107,6 +111,9 @@ jobs:
       - name: "Check clippy: Examples"
         run: ./scripts/gear.sh clippy examples
 
+      - name: "Test: Doc tests"
+        run: ./scripts/gear.sh test doc
+
       - name: "Cache: Pack"
         if: ${{ github.event_name == 'push' }}
         continue-on-error: true
@@ -117,8 +124,8 @@ jobs:
           mv /tmp/*.tar /root/cache/
 
   build:
-    needs: spec_version
-    runs-on: [self-hosted, cachepot, epyc]
+    # needs: spec_version
+    runs-on: [self-hosted, cachepot, epyc-4, k8s-runner]
     env:
       LLVM_PROFILE_FILE: "gear-%p-%m.profraw"
       RUSTUP_HOME: /tmp/rustup_home
@@ -176,18 +183,17 @@ jobs:
           sudo apt update
           sudo apt install -y git clang curl libssl-dev llvm libudev-dev cmake wabt protobuf-compiler
           sudo wget -c https://github.com/WebAssembly/binaryen/releases/download/version_105/binaryen-version_105-x86_64-linux.tar.gz -O - | sudo tar -xz -C .
-          cp binaryen-version_105/bin/wasm-opt /usr/bin/
+          sudo cp binaryen-version_105/bin/wasm-opt /usr/bin/
+          sudo wget -c https://github.com/paritytech/cachepot/releases/download/0.1.0-rc.2/cachepot-0.1.0-rc.2-x86_64-unknown-linux-musl.tar.gz -O - | sudo tar -xz -C .
+          sudo cp cachepot-0.1.0-rc.2-x86_64-unknown-linux-musl/cachepot /usr/bin/
+          sudo chmod +x /usr/bin/cachepot
 
       - name: "Install: grcov"
-        run: |
-          curl https://api.github.com/repos/mozilla/grcov/releases/latest |
-          grep -wo "https.*x86_64.*linux-gnu.*tar\.bz2" |
-          xargs curl -L |
-          tar xj
+        run: curl -L https://github.com/mozilla/grcov/releases/latest/download/grcov-x86_64-unknown-linux-gnu.tar.bz2 | tar jxf -
 
       - name: "Install: rust-covfix"
         run: |
-          curl -L https://github.com/Kogia-sima/rust-covfix/releases/download/v0.2.2/rust-covfix-linux-x86_64.tar.xz | tar Jxf -
+          curl -L https://github.com/gear-tech/rust-covfix/releases/download/deploy/rust-covfix-linux-x86_64.tar.xz | tar Jxf -
           mv rust-covfix-linux-x86_64/rust-covfix ./
 
       - name: "Cache: Unpack"
@@ -197,19 +203,21 @@ jobs:
           [ -d /root/cache/${{ github.event.pull_request.number }} ] && { tar -xf /root/cache/${{ github.event.pull_request.number }}/build_cache.tar -C /; tar -xf /root/cache/${{ github.event.pull_request.number }}/build_cargo_registry.tar -C /; tar -xf /root/cache/${{ github.event.pull_request.number }}/build_target.tar; }
           [ ! -d /root/cache/${{ github.event.pull_request.number }} ] && { tar -xf /root/cache/build_cache_${{ github.base_ref }}.tar -C /; tar -xf /root/cache/build_cargo_registry_${{ github.base_ref }}.tar -C /; tar -xf /root/cache/build_target_${{ github.base_ref }}.tar; }
 
+      - name: "Build: Examples (WASM)"
+        run: ./scripts/gear.sh build examples --locked
+
+      - name: "ACTIONS: Setup environment variable"
+        if: github.ref == 'refs/heads/master' || contains(github.event.pull_request.labels.*.name, 'E0-forcecoverage')
+        run: echo "RUSTFLAGS=-Cinstrument-coverage" >> $GITHUB_ENV
+
       - name: "Build: Gear"
         run: ./scripts/gear.sh build gear --locked --release
-        env:
-          RUSTFLAGS: -Cinstrument-coverage
 
       - name: "Build: WAT examples"
         run: ./scripts/gear.sh build wat-examples
 
       - name: Check runtime imports
-        run: ./target/release/wasm-proc --check-runtime-imports --path target/release/wbuild/gear-runtime/gear_runtime.wasm
-
-      - name: "Build: Examples (WASM)"
-        run: ./scripts/gear.sh build examples --locked
+        run: ./target/release/wasm-proc --check-runtime-imports target/release/wbuild/gear-runtime/gear_runtime.wasm
 
       - name: "Build: Split examples by .opt and .meta"
         run: ./scripts/gear.sh build examples-proc
@@ -221,23 +229,26 @@ jobs:
           cargo test -p pallet-gear-payment --features=lazy-pages --release --locked
 
       - name: "Test: Gear workspace"
-        run: ./scripts/gear.sh test gear --release --locked
-        env:
-          RUSTFLAGS: -Cinstrument-coverage
+        run: ./scripts/gear.sh test gear --exclude gclient --exclude gprogram --features pallet-gear-debug/lazy-pages --release --locked
 
       - name: "Test: JS metadata"
         run: ./scripts/gear.sh test js
-        env:
-          RUSTFLAGS: -Cinstrument-coverage
 
       - name: "Test: Process gear-test"
         run: ./scripts/gear.sh test gtest
 
-      - name: "Rebuild: gear-node"
-        run: ./scripts/gear.sh build node --release
+      - name: "Test: Program CLI"
+        run: |
+          cargo nextest run --release -p gear-program --features bin
+          cargo nextest run --release -p gear-program --no-default-features --features bin,vara
 
-      - name: "Test: Process node runtime testsuite"
-        run: ./scripts/gear.sh test rtest
+      - name: "Test: Client tests"
+        run: ./scripts/gear.sh test client --run-node
+
+      - name: "Test: Process node runtime spec tests"
+        run: |
+          cargo build -p gear-cli --release --features=runtime-test
+          ./scripts/gear.sh test rtest gear
 
       - name: "Rebuild: gear-collator"
         run: ./scripts/gear.sh build collator --release
@@ -247,26 +258,25 @@ jobs:
 
       - name: "Test: runtime spec tests no lazy pages"
         run: |
-          cargo build -p gear-node --release --no-default-features --features=gear-native --out-dir target-no-lazy -Z unstable-options
-          ./target-no-lazy/gear-node runtime-spec-tests ./gear-test/spec/*
+          cargo build -p gear-cli --release --no-default-features --features=runtime-test,gear-native --out-dir target-no-lazy -Z unstable-options
+          ./target-no-lazy/gear runtime-spec-tests ./gear-test/spec/* --runtime gear
 
       - name: "Test: Runtime upgrade and queue processing"
         run: ./scripts/gear.sh test runtime-upgrade
 
-      - name: "Test: Weight on client for loop"
-        run: ./scripts/gear.sh test client-weights
-
-      - name: "Test: Upload programs"
-        run: |
-          ./scripts/gear.sh test uploads "$(pwd)/target/wat-examples/wrong_load.wasm"
-          ./scripts/gear.sh test uploads "$(pwd)/target/wat-examples/inf_recursion.wasm"
-
       - name: "Test: Runtime benchmarks work"
         run: |
-          cargo build -p gear-node --release --no-default-features --features gear-native,runtime-benchmarks
-          ./target/release/gear-node benchmark pallet --chain=dev --steps=2 --repeat=1 --pallet=pallet_gear --extrinsic="*" --execution=wasm --wasm-execution=compiled --heap-pages=4096
+          cargo build -p gear-cli --release --no-default-features --features gear-native,runtime-benchmarks
+          ./target/release/gear benchmark pallet --chain=dev --steps=2 --repeat=1 --pallet=pallet_gear --extrinsic="*" --execution=wasm --wasm-execution=compiled --heap-pages=4096
+
+      - name: "Test: Sys-calls Wasmi integrity"
+        run: ./scripts/gear.sh test syscalls
+
+      - name: "Test: Sys-calls Sandbox integrity"
+        run: ./target/release/gear benchmark pallet --chain=dev --pallet=pallet_gear --extrinsic="check_syscalls_integrity" --execution=wasm --wasm-execution=compiled --extra
 
       - name: "Coverage: Aggregate"
+        if: github.ref == 'refs/heads/master' || contains(github.event.pull_request.labels.*.name, 'E0-forcecoverage')
         run: >-
           ./grcov . --binary-path ./target/release/ -s . -t lcov --branch --ignore-not-existing
           --ignore "/*"
@@ -288,20 +298,23 @@ jobs:
           --ignore "gcore/*"
           --ignore "gstd/*"
           --ignore "galloc/*"
-          --ignore "common/codegen/*"
+          --ignore "gtest/*"
+          --ignore "gclient/*"
           -o ./lcov.info
 
       - name: "Coverage: Fix report"
+        if: github.ref == 'refs/heads/master' || contains(github.event.pull_request.labels.*.name, 'E0-forcecoverage')
         run: ./rust-covfix -o lcov.info lcov.info
 
       - name: "Coverage: Publish"
+        if: github.ref == 'refs/heads/master' || contains(github.event.pull_request.labels.*.name, 'E0-forcecoverage')
         uses: codecov/codecov-action@v1
         with:
           file: ./lcov.info
 
       - name: "Build: Production binaries"
         if: github.event_name == 'push'
-        run: cargo build -p gear-node --profile production
+        run: cargo build -p gear-cli --profile production
 
       - name: "Cache: Pack"
         if: ${{ github.event_name == 'push' }}
@@ -331,10 +344,10 @@ jobs:
           cp target/production/wbuild/gear-runtime/gear_runtime.compact.compressed.wasm artifact/
           cp target/production/wbuild/gear-runtime/gear_runtime.compact.wasm artifact/
           cp target/production/wbuild/gear-runtime/gear_runtime.wasm artifact/
-          cp target/production/gear-node artifact/
+          cp target/production/gear artifact/
           cp target/release/gear-test artifact/
           cp target/release/wasm-proc artifact/
-          strip artifact/gear-node || true
+          strip artifact/gear || true
           strip artifact/gear-test || true
           strip artifact/wasm-proc || true
 
@@ -345,11 +358,12 @@ jobs:
           path: artifact
 
   build-win:
-    if: github.ref == 'refs/heads/master'
-    needs: spec_version
+    if: always() &&
+      (github.ref == 'refs/heads/master' || contains(github.event.pull_request.labels.*.name, 'E1-forcewindows'))
+    needs: build
     runs-on: ci-win
-    defaults: 
-      run: 
+    defaults:
+      run:
         shell: msys2 {0}
     env:
       RUSTC_WRAPPER: "cachepot"
@@ -372,21 +386,30 @@ jobs:
             procps
             mingw-w64-x86_64-protobuf
 
-      - name: "Install: rustup 1.24.3"
-        run: |
-          Invoke-WebRequest "https://static.rust-lang.org/rustup/archive/1.24.3/x86_64-pc-windows-msvc/rustup-init.exe" -OutFile "rustup-init.exe"
-          .\rustup-init.exe -y
-          rustup --version
-        shell: powershell
-
-      - name: "Install: Disable rustup auto-update"
-        run: rustup set auto-self-update disable
-
       - name: "Install: Nightly toolchain"
         uses: actions-rs/toolchain@v1
         with:
           toolchain: nightly
           target: wasm32-unknown-unknown
+
+      - name: "Install: Show specific nightly version"
+        if: ${{ env.NIGHTLY_TOOLCHAIN_VERSION != '' }}
+        run: echo $NIGHTLY_TOOLCHAIN_VERSION | sed 's/-/ - /g'
+
+      - name: "Install: Specific nightly toolchain"
+        if: ${{ env.NIGHTLY_TOOLCHAIN_VERSION != '' }}
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: nightly-${{ env.NIGHTLY_TOOLCHAIN_VERSION }}
+          target: wasm32-unknown-unknown
+          components: llvm-tools-preview
+
+      - name: "Install: Pin to specific nightly toolchain"
+        if: ${{ env.NIGHTLY_TOOLCHAIN_VERSION != '' }}
+        run: |
+          rm -r $env:USERPROFILE\.rustup\toolchains\nightly-x86_64-pc-windows-msvc
+          mv $env:USERPROFILE\.rustup\toolchains\nightly-$env:NIGHTLY_TOOLCHAIN_VERSION-x86_64-pc-windows-msvc $env:USERPROFILE\.rustup\toolchains\nightly-x86_64-pc-windows-msvc
+        shell: powershell
 
       - name: "Install: cargo-nextest"
         run: |
@@ -451,19 +474,20 @@ jobs:
       - name: "Build: Split examples by .opt and .meta"
         run: ./scripts/gear.sh build examples-proc
 
-      - name: "Test: Process node runtime testsuite"
-        run: ./scripts/gear.sh test rtest
-        
+      - name: "Test: Client tests"
+        run: ./scripts/gear.sh test client --run-node
+
+      - name: Stop Gear Node Force
+        shell: powershell
+        run: Get-Process gear* | Stop-Process -Force
+
+      - name: "Test: Process node runtime spec tests"
+        run: |
+          cargo build -p gear-cli --release --features=runtime-test
+          ./scripts/gear.sh test rtest gear
+
       - name: "Test: Runtime upgrade and queue processing"
         run: ./scripts/gear.sh test runtime-upgrade
-
-      - name: "Test: Weight on client for loop"
-        run: ./scripts/gear.sh test client-weights
-
-      - name: "Test: Upload programs"
-        run: |
-          ./scripts/gear.sh test uploads "$(pwd)/target/wat-examples/wrong_load.wasm"
-          ./scripts/gear.sh test uploads "$(pwd)/target/wat-examples/inf_recursion.wasm"
 
       - name: "Test: Lazy pages"
         uses: actions-rs/cargo@v1
@@ -477,11 +501,12 @@ jobs:
             -p gear-lazy-pages
             -p gear-runtime-interface
             --features=lazy-pages
-            --release            
+            --release
 
   build-macos-x86:
-    if: github.ref == 'refs/heads/master'
-    needs: spec_version
+    if: always() &&
+      (github.ref == 'refs/heads/master' || contains(github.event.pull_request.labels.*.name, 'E2-forcemacos'))
+    needs: build
     runs-on: macos-latest
     steps:
       - name: Cancel Previous Runs
@@ -492,7 +517,7 @@ jobs:
 
       - name: "ACTIONS: Checkout"
         uses: actions/checkout@v2
-        
+
       - name: "ACTIONS: Setup caching"
         uses: actions/cache@v3
         with:
@@ -522,7 +547,7 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: build
-          args: -p gear-node --features=lazy-pages
+          args: -p gear-cli --features=lazy-pages
 
       - name: "Test: Lazy pages"
         uses: actions-rs/cargo@v1

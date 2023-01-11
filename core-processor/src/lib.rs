@@ -25,17 +25,18 @@
 
 extern crate alloc;
 
-use gear_core::message::ExitCode;
+use gear_core::message::StatusCode;
 
 pub mod common;
 pub mod configs;
+mod context;
 mod executor;
 mod ext;
 mod handler;
 mod processor;
 
-/// Error exit code.
-pub const ERR_EXIT_CODE: ExitCode = 1;
+/// Error status code.
+pub const ERR_STATUS_CODE: StatusCode = 1;
 
 /// Destination isn't available for the message.
 ///
@@ -45,12 +46,23 @@ pub const ERR_EXIT_CODE: ExitCode = 1;
 /// 2. Program tries to init terminated program.
 /// If the message is `handle` or `handle_reply` it means, that destination
 /// was terminated while the message was in the queue.
-pub const UNAVAILABLE_DEST_EXIT_CODE: ExitCode = 2;
+pub const UNAVAILABLE_DEST_STATUS_CODE: StatusCode = 2;
 
 /// A try to init again initialized, existing program.
-pub const RE_INIT_EXIT_CODE: ExitCode = 3;
+pub const RE_INIT_STATUS_CODE: StatusCode = 3;
 
-pub use executor::execute_wasm;
+pub use context::{
+    ContextChargedForCode, ContextChargedForInstrumentation, ProcessExecutionContext,
+};
+pub use executor::{calculate_gas_for_code, calculate_gas_for_program, execute_wasm};
 pub use ext::{Ext, ProcessorContext, ProcessorError, ProcessorExt};
 pub use handler::handle_journal;
-pub use processor::{prepare, process, PrepareResult, PreparedMessageExecutionContext};
+pub use processor::{
+    precharge_for_code, precharge_for_code_length, precharge_for_instrumentation,
+    precharge_for_memory, precharge_for_program, process,
+};
+
+/// Informational functions for core-processor and executor.
+pub mod informational {
+    pub use crate::executor::execute_for_reply;
+}

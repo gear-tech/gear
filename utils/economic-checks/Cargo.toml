@@ -10,14 +10,14 @@ codec = { package = "parity-scale-codec", version = "3.1.2", features = ["derive
 log = { version = "0.4.17" }
 parity-wasm = { version = "0.45.0" }
 parking_lot = "0.12.0"
-primitive-types = { version = "0.11.1", features = ["scale-info"] }
+primitive-types = { version = "0.12.0", features = ["scale-info"] }
 rand = { version = "0.8.5", features = ["std_rng"] }
 serde = "1"
-env_logger = "0.9"
+env_logger = "0.10"
 hex = "0.4.3"
 arbitrary = { version = "1" }
-wasm-mutate = "0.2.8"
-wasmparser = "0.91.0"
+wasm-mutate = "0.2.13"
+wasmparser = "0.92.0"
 
 # Internal deps
 common = { package = "gear-common", path = "../../common" }
@@ -32,22 +32,23 @@ demo-mul-by-const = { path = "../../examples/binaries/mul-by-const" }
 demo-ncompose = { path = "../../examples/binaries/ncompose" }
 
 # Substrate deps
-frame-support = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-v0.9.29" }
-frame-system = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-v0.9.29" }
-sp-consensus-babe = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-v0.9.29" }
-sp-consensus-slots = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-v0.9.29" }
-sp-core = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-v0.9.29" }
-sp-finality-grandpa = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-v0.9.29" }
-sp-io = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-v0.9.29" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-v0.9.29" }
-sp-std = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-v0.9.29" }
-pallet-authorship = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-v0.9.29" }
-pallet-balances = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-v0.9.29" }
+frame-support = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.36" }
+frame-system = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.36" }
+pallet-authorship = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.36" }
+pallet-balances = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.36" }
+sp-consensus-slots = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.36" }
+sp-consensus-babe = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.36" }
+sp-core = { version = "7.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.36" }
+sp-finality-grandpa = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.36" }
+sp-io = { version = "7.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.36" }
+sp-std = { version = "5.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.36" }
+sp-runtime = { version = "7.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.36" }
 
 [dev-dependencies]
 wat = "1.0"
-wasmprinter = "0.2.40"
+wasmprinter = "0.2.45"
 demo-compose = { path = "../../examples/binaries/compose" }
+gstd = { path = "../../gstd" }
 
 [features]
 default = ["gear-native", "lazy-pages"]

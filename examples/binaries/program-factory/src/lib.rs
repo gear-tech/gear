@@ -50,24 +50,24 @@ const CHILD_CODE_HASH: [u8; 32] =
 #[cfg(not(feature = "std"))]
 mod wasm {
     use super::{CreateProgram, CHILD_CODE_HASH};
-    use gstd::{debug, msg, prog, ActorId, CodeHash};
+    use gstd::{msg, prog, ActorId};
 
     static mut COUNTER: i32 = 0;
     static mut ORIGIN: Option<ActorId> = None;
 
     #[no_mangle]
-    unsafe extern "C" fn init() {
-        ORIGIN = Some(msg::source());
+    extern "C" fn init() {
+        unsafe { ORIGIN = Some(msg::source()) };
     }
 
     #[no_mangle]
-    unsafe extern "C" fn handle() {
+    extern "C" fn handle() {
         match msg::load().expect("provided invalid payload") {
             CreateProgram::Default => {
                 let submitted_code = CHILD_CODE_HASH.into();
-                let new_program_id = prog::create_program_with_gas(
+                let (_message_id, new_program_id) = prog::create_program_with_gas(
                     submitted_code,
-                    COUNTER.to_le_bytes(),
+                    unsafe { COUNTER.to_le_bytes() },
                     [],
                     10_000_000_000,
                     0,
@@ -75,12 +75,12 @@ mod wasm {
                 .unwrap();
                 msg::send_bytes(new_program_id, [], 0).unwrap();
 
-                COUNTER += 1;
+                unsafe { COUNTER += 1 };
             }
             CreateProgram::Custom(custom_child_data) => {
                 for (code_hash, salt, gas_limit) in custom_child_data {
                     let submitted_code = code_hash.into();
-                    let new_program_id =
+                    let (_message_id, new_program_id) =
                         prog::create_program_with_gas(submitted_code, &salt, [], gas_limit, 0)
                             .unwrap();
                     let msg_id = msg::send_bytes(new_program_id, [], 0).unwrap();
@@ -90,9 +90,9 @@ mod wasm {
     }
 
     #[no_mangle]
-    unsafe extern "C" fn handle_reply() {
-        if msg::exit_code() != 0 {
-            let origin = ORIGIN.clone().unwrap();
+    extern "C" fn handle_reply() {
+        if msg::status_code().unwrap() != 0 {
+            let origin = unsafe { ORIGIN.clone().unwrap() };
             msg::send_bytes(origin, [], 0).unwrap();
         }
     }
@@ -151,11 +151,12 @@ mod tests {
     #[test]
     fn test_duplicate() {
         let sys = System::new();
+        sys.init_logger();
         let factory = prepare_factory(&sys);
 
         let salt = 0i32.to_be_bytes();
         let child_id_expected = calculate_program_id(CHILD_CODE_HASH.into(), &salt);
-        let payload = CreateProgram::Custom(vec![(CHILD_CODE_HASH, salt.to_vec(), 100_000)]);
+        let payload = CreateProgram::Custom(vec![(CHILD_CODE_HASH, salt.to_vec(), 100_000_000)]);
 
         // Send `handle` msg to factory to create a new child
         let res = factory.send_bytes(10001, payload.encode());
@@ -176,6 +177,7 @@ mod tests {
     #[test]
     fn test_non_existing_code_hash() {
         let sys = System::new();
+        sys.init_logger();
         let factory = prepare_factory(&sys);
 
         // Non existing code hash provided
@@ -193,6 +195,7 @@ mod tests {
     #[should_panic(expected = "Program can't be constructed with provided code")]
     fn test_invalid_wasm_child() {
         let sys = System::new();
+        sys.init_logger();
         let factory = prepare_factory(&sys);
 
         let invalid_wasm = [10u8; 32];

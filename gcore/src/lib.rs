@@ -16,7 +16,55 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+//! Lightweight library for use in Gear programs.
+//!
+//! This library should be used as a standard library when writing Gear
+//! programs. Compared to [`gstd`](https://docs.gear.rs/gstd/) crate, this
+//! library provides lower-level primitives that allow you to develop less
+//! expensive programs. Choose it if you are ready to write more code
+//! but get a more efficient Wasm.
+//!
+//! Note that you are to define panic and out-of-memory handlers, as the crate
+//! does not provide them by default.
+//!
+//! # Examples
+//!
+//! ```
+//! #![no_std]
+//! #![feature(alloc_error_handler)]
+//!
+//! extern crate galloc;
+//!
+//! use gcore::msg;
+//!
+//! #[no_mangle]
+//! extern "C" fn handle() {
+//!     let mut bytes = [0; 64];
+//!     msg::read(&mut bytes).expect("Unable to read");
+//!     if let Ok(payload) = core::str::from_utf8(&bytes) {
+//!         if payload == "PING" {
+//!             msg::reply(b"PONG", 0).expect("Unable to reply");
+//!         }
+//!     }
+//! }
+//!
+//! # #[cfg(target = "wasm32")]
+//! #[alloc_error_handler]
+//! pub fn oom(_: core::alloc::Layout) -> ! {
+//!     core::arch::wasm32::unreachable()
+//! }
+//!
+//! # #[cfg(target = "wasm32")]
+//! #[panic_handler]
+//! fn panic(_: &core::panic::PanicInfo) -> ! {
+//!     core::arch::wasm32::unreachable()
+//! }
+//!
+//! # fn main() {}
+//! ```
+
 #![no_std]
+#![warn(missing_docs)]
 #![cfg_attr(feature = "strict", deny(warnings))]
 #![doc(html_logo_url = "https://docs.gear.rs/logo.svg")]
 
@@ -30,6 +78,13 @@ pub mod prog;
 mod general;
 pub use general::*;
 
+#[cfg(any(feature = "debug", debug_assertions))]
 mod utils;
-#[cfg(feature = "debug")]
+#[cfg(any(feature = "debug", debug_assertions))]
 pub use utils::ext;
+
+use core::mem::size_of;
+use static_assertions::const_assert;
+
+// This allows all casts from u32 into usize be safe.
+const_assert!(size_of::<u32>() <= size_of::<usize>());

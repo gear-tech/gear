@@ -16,9 +16,9 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use anyhow::Error as AnyhowError;
 use codec::Error as CodecError;
 use core_processor::ProcessorError;
+use gear_backend_wasmi::wasmi;
 use gear_core::{ids::ProgramId, memory::WasmPageNumber};
 
 /// Type alias for the testing functions running result.
@@ -33,17 +33,17 @@ pub enum TestError {
 
     /// Function not found in executor.
     #[from(ignore)]
-    #[display(fmt = "Function not found in executor: `{}`", _0)]
+    #[display(fmt = "Function not found in executor: `{_0}`")]
     FunctionNotFound(String),
 
     /// Actor not found.
     #[from(ignore)]
-    #[display(fmt = "Actor not found: `{}`", _0)]
+    #[display(fmt = "Actor not found: `{_0}`")]
     ActorNotFound(ProgramId),
 
     /// Actor is not executable.
     #[from(ignore)]
-    #[display(fmt = "Actor is not executable: `{}`", _0)]
+    #[display(fmt = "Actor is not executable: `{_0}`")]
     ActorIsNotExecutable(ProgramId),
 
     /// Meta WASM binary hasn't been provided.
@@ -51,32 +51,36 @@ pub enum TestError {
     MetaBinaryNotProvided,
 
     /// Insufficient memory.
-    #[display(fmt = "Insufficient memory: available {:?} < requested {:?}", _0, _1)]
+    #[display(fmt = "Insufficient memory: available {_0:?} < requested {_1:?}")]
     InsufficientMemory(WasmPageNumber, WasmPageNumber),
 
     /// Invalid import module.
     #[from(ignore)]
-    #[display(fmt = "Invalid import module: `{}` instead of `env`", _0)]
+    #[display(fmt = "Invalid import module: `{_0}` instead of `env`")]
     InvalidImportModule(String),
 
     /// Failed to call unsupported function.
     #[from(ignore)]
-    #[display(fmt = "Failed to call unsupported function: `{}`", _0)]
+    #[display(fmt = "Failed to call unsupported function: `{_0}`")]
     UnsupportedFunction(String),
 
     /// Wrapper for [`ProcessorError`].
-    #[display(fmt = "{}", _0)]
+    #[display(fmt = "{_0}")]
     ExecutionError(ProcessorError),
 
     /// Wrapper for [`wasmi::Error`](https://paritytech.github.io/wasmi/wasmi/enum.Error.html).
-    #[display(fmt = "{}", _0)]
-    MemoryError(wasmi::Error),
+    #[display(fmt = "{_0}")]
+    MemoryError(gear_core_errors::MemoryError),
 
     /// Wrapper for `wasmi` error (used [`anyhow::Error`] for that).
-    #[display(fmt = "{}", _0)]
-    WasmiError(AnyhowError),
+    #[display(fmt = "{_0}")]
+    WasmiError(wasmi::Error),
 
     /// Wrapper for [`parity_scale_codec::Error`](https://docs.rs/parity-scale-codec/latest/parity_scale_codec/struct.Error.html).
-    #[display(fmt = "{}", _0)]
+    #[display(fmt = "{_0}")]
     ScaleCodecError(CodecError),
+
+    /// Instrumentation of binary code failed.
+    #[display(fmt = "Instrumentation of binary code failed.")]
+    Instrumentation,
 }

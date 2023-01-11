@@ -12,26 +12,13 @@ use std::{
     process::Command,
 };
 
-const META_EXPORTS: [&str; 13] = [
-    "meta_init_input",
-    "meta_init_output",
-    "meta_async_init_input",
-    "meta_async_init_output",
-    "meta_handle_input",
-    "meta_handle_output",
-    "meta_async_handle_input",
-    "meta_async_handle_output",
-    "meta_registry",
-    "meta_title",
-    "meta_state",
-    "meta_state_input",
-    "meta_state_output",
-];
-const OPTIMIZED_EXPORTS: [&str; 5] = [
+const OPTIMIZED_EXPORTS: [&str; 7] = [
     "handle",
     "handle_reply",
     "handle_signal",
     "init",
+    "state",
+    "metahash",
     "__gear_stack_end",
 ];
 
@@ -40,16 +27,6 @@ const OPTIMIZED_EXPORTS: [&str; 5] = [
 pub enum OptType {
     Meta,
     Opt,
-}
-
-impl OptType {
-    /// WASM exports from `OptType`.
-    pub fn exports(&self) -> &[&str] {
-        match &self {
-            OptType::Meta => &META_EXPORTS,
-            OptType::Opt => &OPTIMIZED_EXPORTS,
-        }
-    }
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -84,7 +61,27 @@ impl Optimizer {
     /// Process optimization.
     pub fn optimize(&self, ty: OptType) -> Result<Vec<u8>> {
         let mut module = self.module.clone();
-        pwasm_utils::optimize(&mut module, ty.exports().into())
+
+        let exports = if ty == OptType::Opt {
+            OPTIMIZED_EXPORTS.to_vec()
+        } else {
+            self.module
+                .export_section()
+                .ok_or_else(|| anyhow::anyhow!("Export section not found"))?
+                .entries()
+                .iter()
+                .flat_map(|entry| {
+                    if let Internal::Function(_) = entry.internal() {
+                        let entry = entry.field();
+                        (!OPTIMIZED_EXPORTS.contains(&entry)).then_some(entry)
+                    } else {
+                        None
+                    }
+                })
+                .collect()
+        };
+
+        pwasm_utils::optimize(&mut module, exports)
             .map_err(OptimizerError)
             .with_context(|| {
                 format!(
@@ -148,7 +145,7 @@ pub fn optimize_wasm(
     let original_size = metadata(&source)?.len() as f64 / 1000.0;
     let optimized_size = metadata(&dest_optimized)?.len() as f64 / 1000.0;
 
-    // overwrite existing destination wasm file with the optimised version
+    // overwrite existing destination wasm file with the optimized version
     std::fs::rename(&dest_optimized, &source)?;
     Ok(OptimizationResult {
         dest_wasm: source,
@@ -199,7 +196,7 @@ pub fn do_optimization(
     let mut command = Command::new(wasm_opt_path);
     command
         .arg(dest_wasm)
-        .arg(format!("-O{}", optimization_level))
+        .arg(format!("-O{optimization_level}"))
         .arg("-o")
         .arg(dest_optimized)
         // the memory in our module is imported, `wasm-opt` needs to be told that
@@ -220,8 +217,7 @@ pub fn do_optimization(
             .trim();
         panic!(
             "The wasm-opt optimization failed.\n\n\
-            The error which wasm-opt returned was: \n{}",
-            err
+            The error which wasm-opt returned was: \n{err}"
         );
     }
     Ok(())

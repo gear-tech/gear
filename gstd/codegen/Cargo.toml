@@ -12,3 +12,7 @@ proc-macro = true
 syn = { version = "1.0.96", features = ["full"] }
 quote = "1.0.18"
 proc-macro2 = "1.0.39"
+
+[dev-dependencies]
+gstd = { path = ".." }
+trybuild = "1.0.71"

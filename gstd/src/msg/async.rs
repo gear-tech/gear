@@ -19,10 +19,11 @@
 //! This `gstd` module provides async messaging functions.
 
 use crate::{
-    async_runtime::{signals, ReplyPoll},
+    async_runtime::{self, signals, Lock, ReplyPoll},
     errors::{ContractError, Result},
+    msg::macros::impl_futures,
     prelude::{convert::AsRef, Vec},
-    MessageId,
+    ActorId, Config, MessageId,
 };
 use codec::Decode;
 use core::{
@@ -33,14 +34,46 @@ use core::{
 };
 use futures::future::FusedFuture;
 
+fn poll<F, R>(waiting_reply_to: MessageId, cx: &mut Context<'_>, f: F) -> Poll<Result<R>>
+where
+    F: Fn(Vec<u8>) -> Result<R>,
+{
+    let msg_id = crate::msg::id();
+
+    // check if message is timed out.
+    if let Some((expected, now)) = async_runtime::locks().is_timeout(msg_id, waiting_reply_to) {
+        // Remove lock after timeout.
+        async_runtime::locks().remove(msg_id, waiting_reply_to);
+
+        return Poll::Ready(Err(ContractError::Timeout(expected, now)));
+    }
+
+    match signals().poll(waiting_reply_to, cx) {
+        ReplyPoll::None => panic!(
+            "Somebody created a future with the MessageId that never ended in static replies!"
+        ),
+        ReplyPoll::Pending => Poll::Pending,
+        ReplyPoll::Some((actual_reply, status_code)) => {
+            // Remove lock after waking.
+            async_runtime::locks().remove(msg_id, waiting_reply_to);
+
+            if status_code != 0 {
+                return Poll::Ready(Err(ContractError::StatusCode(status_code)));
+            }
+
+            Poll::Ready(f(actual_reply))
+        }
+    }
+}
+
 /// To interrupt a program execution waiting for a reply on a previous message,
 /// one needs to call an `.await` expression.
 /// The initial message that requires a reply is sent instantly.
 /// Function `send_for_reply` returns `CodecMessageFuture` which
 /// implements `Future` trait. Program interrupts until the reply is received.
-/// As soon as the reply is received, the function checks it's exit code and
-/// returns `Ok()` with decoded structure inside or `Err()` in case of exit code
-/// does not equal 0. For decode-related errors (<https://docs.rs/parity-scale-codec/2.3.1/parity_scale_codec/struct.Error.html>),
+/// As soon as the reply is received, the function checks it's status code and
+/// returns `Ok()` with decoded structure inside or `Err()` in case of status
+/// code does not equal 0. For decode-related errors (<https://docs.rs/parity-scale-codec/2.3.1/parity_scale_codec/struct.Error.html>),
 /// Gear returns the native one after decode.
 pub struct CodecMessageFuture<T> {
     /// Waiting reply to this the message id
@@ -51,41 +84,56 @@ pub struct CodecMessageFuture<T> {
     ///
     /// Need to `pub` this field because we are constructing this
     /// field in other files
-    pub(super) _marker: PhantomData<T>,
+    pub(crate) _marker: PhantomData<T>,
 }
 
-impl<D: Decode> Future for CodecMessageFuture<D> {
-    type Output = Result<D>;
-
-    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        let fut = &mut self;
-        match signals().poll(fut.waiting_reply_to, cx) {
-            ReplyPoll::None => panic!("Somebody created CodecMessageFuture with the MessageId that never ended in static replies!"),
-            ReplyPoll::Pending => Poll::Pending,
-            ReplyPoll::Some((actual_reply, exit_code)) => {
-                if exit_code != 0 {
-                    return Poll::Ready(Err(ContractError::ExitCode(exit_code)));
-                }
-
-                Poll::Ready(D::decode(&mut actual_reply.as_ref()).map_err(ContractError::Decode))
-            },
-        }
+impl_futures!(
+    CodecMessageFuture,
+    D,
+    D,
+    |fut, cx| => {
+        poll(fut.waiting_reply_to, cx, |reply| {
+            D::decode(&mut reply.as_ref()).map_err(ContractError::Decode)
+        })
     }
+);
+
+/// Same as [`CodecMessageFuture`], but also contains program id
+/// for functions that create programs.
+pub struct CodecCreateProgramFuture<T> {
+    /// Waiting reply to this the message id.
+    pub waiting_reply_to: MessageId,
+    /// Id of newly created program.
+    pub program_id: ActorId,
+    /// Marker
+    ///
+    /// # Note
+    ///
+    /// Need to `pub` this field because we are constructing this
+    /// field in other files.
+    pub(crate) _marker: PhantomData<T>,
 }
 
-impl<D: Decode> FusedFuture for CodecMessageFuture<D> {
-    fn is_terminated(&self) -> bool {
-        !signals().waits_for(self.waiting_reply_to)
+impl_futures!(
+    CodecCreateProgramFuture,
+    D,
+    (ActorId, D),
+    |fut, cx| => {
+        poll(fut.waiting_reply_to, cx, |reply| {
+            D::decode(&mut reply.as_ref())
+                .map(|payload| (fut.program_id, payload))
+                .map_err(ContractError::Decode)
+        })
     }
-}
+);
 
 /// To interrupt a program execution waiting for a reply on a previous message,
 /// one needs to call an `.await` expression.
 /// The initial message that requires a reply is sent instantly.
 /// Function `send_bytes_for_reply` returns `MessageFuture` which
 /// implements `Future` trait. Program interrupts until the reply is received.
-/// As soon as the reply is received, the function checks it's exit code and
-/// returns `Ok()` with raw bytes inside or `Err()` in case of exit code does
+/// As soon as the reply is received, the function checks it's status code and
+/// returns `Ok()` with raw bytes inside or `Err()` in case of status code does
 /// not equal 0. For decode-related errors (<https://docs.rs/parity-scale-codec/2.3.1/parity_scale_codec/struct.Error.html>),
 /// Gear returns the native one after decode.
 pub struct MessageFuture {
@@ -93,27 +141,29 @@ pub struct MessageFuture {
     pub waiting_reply_to: MessageId,
 }
 
-impl Future for MessageFuture {
-    type Output = Result<Vec<u8>>;
-
-    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        let fut = &mut *self;
-        match signals().poll(fut.waiting_reply_to, cx) {
-            ReplyPoll::None => panic!("Somebody created MessageFuture with the MessageId that never ended in static replies!"),
-            ReplyPoll::Pending => Poll::Pending,
-            ReplyPoll::Some((actual_reply, exit_code)) => {
-                if exit_code != 0 {
-                    return Poll::Ready(Err(ContractError::ExitCode(exit_code)));
-                }
-
-                Poll::Ready(Ok(actual_reply))
-            },
-        }
+impl_futures!(
+    MessageFuture,
+    Vec<u8>,
+    |fut, cx| => {
+        poll(fut.waiting_reply_to, cx, Ok)
     }
+);
+
+/// Same as [`MessageFuture`], but also contains program id
+/// for functions that create programs.
+pub struct CreateProgramFuture {
+    /// Waiting reply to this the message id
+    pub waiting_reply_to: MessageId,
+    /// Id of newly created program.
+    pub program_id: ActorId,
 }
 
-impl FusedFuture for MessageFuture {
-    fn is_terminated(&self) -> bool {
-        !signals().waits_for(self.waiting_reply_to)
+impl_futures!(
+    CreateProgramFuture,
+    (ActorId, Vec<u8>),
+    |fut, cx| => {
+        poll(fut.waiting_reply_to, cx, |reply| {
+            Ok((fut.program_id, reply))
+        })
     }
-}
+);

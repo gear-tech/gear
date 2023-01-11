@@ -18,69 +18,148 @@
 
 //! wasmi extensions for memory.
 
-use gear_core::memory::{Error, HostPointer, Memory, PageNumber, WasmPageNumber};
-use wasmi::{memory_units::Pages, MemoryRef};
+use crate::state::HostState;
+use codec::{Decode, DecodeAll, MaxEncodedLen};
+use gear_backend_common::IntoExtInfo;
+use gear_core::{
+    env::Ext,
+    memory::{Error, HostPointer, Memory, PageU32Size, WasmPageNumber},
+};
+use gear_core_errors::MemoryError;
+use wasmi::{core::memory_units::Pages, Memory as WasmiMemory, Store, StoreContextMut};
 
-/// Wrapper for [`wasmi::MemoryRef`].
-pub struct MemoryWrap(MemoryRef);
-
-impl MemoryWrap {
-    /// Wrap [`wasmi::MemoryRef`] for Memory trait.
-    pub fn new(mem: MemoryRef) -> Self {
-        MemoryWrap(mem)
-    }
+pub struct MemoryWrapRef<'a, E: Ext + IntoExtInfo<E::Error> + 'static> {
+    pub memory: WasmiMemory,
+    pub store: StoreContextMut<'a, HostState<E>>,
 }
 
-/// Memory interface for the allocator.
-impl Memory for MemoryWrap {
-    fn grow(&mut self, pages: WasmPageNumber) -> Result<PageNumber, Error> {
-        self.0
-            .grow(Pages(pages.0 as usize))
-            .map(|prev| (prev.0 as u32).into())
+impl<'a, E: Ext + IntoExtInfo<E::Error> + 'static> Memory for MemoryWrapRef<'a, E> {
+    fn grow(&mut self, pages: WasmPageNumber) -> Result<(), Error> {
+        self.memory
+            .grow(&mut self.store, Pages(pages.raw() as usize))
+            .map(|_| ())
             .map_err(|_| Error::OutOfBounds)
     }
 
     fn size(&self) -> WasmPageNumber {
-        (self.0.current_size().0 as u32).into()
+        WasmPageNumber::new(self.memory.current_pages(&self.store).0 as u32)
+            .expect("Unexpected backend behavior: wasm size is bigger then u32::MAX")
     }
 
-    fn write(&mut self, offset: usize, buffer: &[u8]) -> Result<(), Error> {
-        self.0
-            .set(offset as u32, buffer)
+    fn write(&mut self, offset: u32, buffer: &[u8]) -> Result<(), Error> {
+        self.memory
+            .write(&mut self.store, offset as usize, buffer)
             .map_err(|_| Error::MemoryAccessError)
     }
 
-    fn read(&self, offset: usize, buffer: &mut [u8]) -> Result<(), Error> {
-        self.0
-            .get_into(offset as u32, buffer)
+    fn read(&self, offset: u32, buffer: &mut [u8]) -> Result<(), Error> {
+        self.memory
+            .read(&self.store, offset as usize, buffer)
             .map_err(|_| Error::MemoryAccessError)
     }
 
-    fn data_size(&self) -> usize {
-        self.0.current_size().0 * WasmPageNumber::size()
+    unsafe fn get_buffer_host_addr_unsafe(&mut self) -> HostPointer {
+        self.memory.data_mut(&mut self.store).as_mut().as_mut_ptr() as HostPointer
+    }
+}
+
+impl<'a, E: Ext + IntoExtInfo<E::Error> + 'static> MemoryWrapRef<'a, E> {
+    pub fn write_memory_as<T: Sized>(&mut self, ptr: u32, obj: T) -> Result<(), MemoryError> {
+        gear_backend_common::write_memory_as(self, ptr, obj)
     }
 
-    unsafe fn get_buffer_host_addr_unsafe(&self) -> HostPointer {
-        self.0.direct_access_mut().as_mut().as_mut_ptr() as HostPointer
+    pub fn read_memory_as<T: Sized>(&self, ptr: u32) -> Result<T, MemoryError> {
+        gear_backend_common::read_memory_as(self, ptr)
+    }
+
+    pub fn read_memory_decoded<D: Decode + MaxEncodedLen>(
+        &self,
+        ptr: u32,
+    ) -> Result<D, MemoryError> {
+        let mut buffer = vec![0u8; D::max_encoded_len()];
+        self.read(ptr, &mut buffer)
+            .map_err(|_| MemoryError::OutOfBounds)?;
+        let decoded =
+            D::decode_all(&mut &buffer[..]).map_err(|_| MemoryError::MemoryAccessError)?;
+        Ok(decoded)
+    }
+}
+
+/// Wrapper for [`wasmi::Memory`].
+pub struct MemoryWrap<E: Ext + IntoExtInfo<E::Error> + 'static> {
+    pub memory: WasmiMemory,
+    pub store: Store<HostState<E>>,
+}
+
+impl<E: Ext + IntoExtInfo<E::Error> + 'static> MemoryWrap<E> {
+    /// Wrap [`wasmi::Memory`] for Memory trait.
+    pub fn new(memory: WasmiMemory, store: Store<HostState<E>>) -> Self {
+        MemoryWrap { memory, store }
+    }
+    pub fn into_store(self) -> Store<HostState<E>> {
+        self.store
+    }
+}
+
+/// Memory interface for the allocator.
+impl<E: Ext + IntoExtInfo<E::Error> + 'static> Memory for MemoryWrap<E> {
+    fn grow(&mut self, pages: WasmPageNumber) -> Result<(), Error> {
+        self.memory
+            .grow(&mut self.store, Pages(pages.raw() as usize))
+            .map(|_| ())
+            .map_err(|_| Error::OutOfBounds)
+    }
+
+    fn size(&self) -> WasmPageNumber {
+        WasmPageNumber::new(self.memory.current_pages(&self.store).0 as u32)
+            .expect("Unexpected backend behavior: wasm memory is bigger then u32::MAX")
+    }
+
+    fn write(&mut self, offset: u32, buffer: &[u8]) -> Result<(), Error> {
+        self.memory
+            .write(&mut self.store, offset as usize, buffer)
+            .map_err(|_| Error::MemoryAccessError)
+    }
+
+    fn read(&self, offset: u32, buffer: &mut [u8]) -> Result<(), Error> {
+        self.memory
+            .read(&self.store, offset as usize, buffer)
+            .map_err(|_| Error::MemoryAccessError)
+    }
+
+    unsafe fn get_buffer_host_addr_unsafe(&mut self) -> HostPointer {
+        self.memory.data_mut(&mut self.store).as_mut().as_mut_ptr() as HostPointer
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use crate::state::State;
+
     use super::*;
-    use gear_backend_common::{assert_err, assert_ok};
-    use gear_core::memory::AllocationsContext;
+    use gear_backend_common::{assert_err, assert_ok, mock::MockExt};
+    use gear_core::memory::{AllocInfo, AllocationsContext, GrowHandlerNothing};
+    use wasmi::{Engine, Store};
 
-    fn new_test_memory(static_pages: u32, max_pages: u32) -> (AllocationsContext, MemoryWrap) {
-        use wasmi::MemoryInstance as WasmMemory;
+    fn new_test_memory(
+        static_pages: u16,
+        max_pages: u16,
+    ) -> (AllocationsContext, MemoryWrap<MockExt>) {
+        use wasmi::MemoryType;
 
-        let memory = MemoryWrap::new(
-            WasmMemory::alloc(
-                Pages(static_pages as usize),
-                Some(Pages(max_pages as usize)),
-            )
-            .expect("Memory creation failed"),
+        let memory_type = MemoryType::new(static_pages as u32, Some(max_pages as u32));
+
+        let engine = Engine::default();
+        let mut store = Store::new(
+            &engine,
+            Some(State {
+                ext: MockExt::default(),
+                err: crate::funcs::FuncError::HostError,
+            }),
         );
+
+        let memory = WasmiMemory::new(&mut store, memory_type).expect("Memory creation failed");
+        let memory = MemoryWrap::new(memory, store);
 
         (
             AllocationsContext::new(Default::default(), static_pages.into(), max_pages.into()),
@@ -90,34 +169,66 @@ mod tests {
 
     #[test]
     fn smoky() {
-        let (mut mem, mut mem_wrap) = new_test_memory(16, 256);
+        let (mut ctx, mut mem_wrap) = new_test_memory(16, 256);
 
-        assert_ok!(mem.alloc(16.into(), &mut mem_wrap), 16.into());
+        assert_ok!(
+            ctx.alloc::<GrowHandlerNothing>(16.into(), &mut mem_wrap),
+            AllocInfo {
+                page: 16.into(),
+                not_grown: 0.into()
+            },
+        );
+
+        assert_ok!(
+            ctx.alloc::<GrowHandlerNothing>(0.into(), &mut mem_wrap),
+            AllocInfo {
+                page: 16.into(),
+                not_grown: 0.into()
+            }
+        );
 
         // there is a space for 14 more
         for _ in 0..14 {
-            assert_ok!(mem.alloc(16.into(), &mut mem_wrap));
+            assert_ok!(ctx.alloc::<GrowHandlerNothing>(16.into(), &mut mem_wrap));
         }
 
         // no more mem!
-        assert_err!(mem.alloc(1.into(), &mut mem_wrap), Error::OutOfBounds);
+        assert_err!(
+            ctx.alloc::<GrowHandlerNothing>(1.into(), &mut mem_wrap),
+            Error::OutOfBounds
+        );
 
         // but we free some
-        assert_ok!(mem.free(137.into()));
+        assert_ok!(ctx.free(137.into()));
 
         // and now can allocate page that was freed
-        assert_ok!(mem.alloc(1.into(), &mut mem_wrap), 137.into());
+        assert_ok!(
+            ctx.alloc::<GrowHandlerNothing>(1.into(), &mut mem_wrap),
+            AllocInfo {
+                page: 137.into(),
+                not_grown: 1.into()
+            },
+        );
 
         // if we have 2 in a row we can allocate even 2
-        assert_ok!(mem.free(117.into()));
-        assert_ok!(mem.free(118.into()));
+        assert_ok!(ctx.free(117.into()));
+        assert_ok!(ctx.free(118.into()));
 
-        assert_ok!(mem.alloc(2.into(), &mut mem_wrap), 117.into());
+        assert_ok!(
+            ctx.alloc::<GrowHandlerNothing>(2.into(), &mut mem_wrap),
+            AllocInfo {
+                page: 117.into(),
+                not_grown: 2.into()
+            },
+        );
 
         // but if 2 are not in a row, bad luck
-        assert_ok!(mem.free(117.into()));
-        assert_ok!(mem.free(158.into()));
+        assert_ok!(ctx.free(117.into()));
+        assert_ok!(ctx.free(158.into()));
 
-        assert_err!(mem.alloc(2.into(), &mut mem_wrap), Error::OutOfBounds);
+        assert_err!(
+            ctx.alloc::<GrowHandlerNothing>(2.into(), &mut mem_wrap),
+            Error::OutOfBounds
+        );
     }
 }

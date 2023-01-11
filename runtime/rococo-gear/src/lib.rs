@@ -29,8 +29,7 @@ pub mod xcm_config;
 
 use cumulus_pallet_parachain_system::RelayNumberStrictlyIncreases;
 use runtime_common::{
-    DealWithFees, MailboxCost, MailboxThreshold, OperationalFeeMultiplier, OutgoingLimit,
-    QueueLengthStep, ReserveThreshold, WaitlistCost,
+    DealWithFees, GasConverter,
 };
 use sp_api::impl_runtime_apis;
 pub use sp_consensus_aura::sr25519::AuthorityId as AuraId;
@@ -63,12 +62,14 @@ pub use pallet_gear::manager::{ExtManager, HandleKind};
 
 // A few exports that help ease life for downstream crates.
 pub use frame_support::{
-    construct_runtime, parameter_types,
+    construct_runtime,
+    dispatch::DispatchClass,
+    parameter_types,
     traits::{
         ConstU128, ConstU32, ConstU64, ConstU8, Contains, Currency, FindAuthor,
         KeyOwnerProofSystem, OnUnbalanced, Randomness, StorageInfo,
     },
-    weights::{constants::WEIGHT_PER_SECOND, DispatchClass, IdentityFee, Weight},
+    weights::{constants::WEIGHT_REF_TIME_PER_SECOND, IdentityFee, Weight},
     PalletId, StorageValue,
 };
 pub use frame_system::{
@@ -148,7 +149,7 @@ const AVERAGE_ON_INITIALIZE_RATIO: Perbill = Perbill::from_percent(5);
 const NORMAL_DISPATCH_RATIO: Perbill = Perbill::from_percent(25);
 
 /// We allow for 0.5 of a second of compute with a 12 second average block time.
-const MAXIMUM_BLOCK_WEIGHT: Weight = WEIGHT_PER_SECOND.saturating_div(2);
+const MAXIMUM_BLOCK_WEIGHT: Weight = Weight::from_parts(WEIGHT_REF_TIME_PER_SECOND.saturating_div(2), u64::MAX);
 
 parameter_types! {
     pub const Version: RuntimeVersion = VERSION;
@@ -192,7 +193,7 @@ impl frame_system::Config for Runtime {
     /// The identifier used to distinguish between accounts.
     type AccountId = AccountId;
     /// The aggregated dispatch type that is available for extrinsics.
-    type Call = Call;
+    type RuntimeCall = RuntimeCall;
     /// The lookup mechanism to get account ID from whatever is passed in dispatchers.
     type Lookup = AccountIdLookup<AccountId, ()>;
     /// The index type for storing how many extrinsics an account has signed.
@@ -206,9 +207,9 @@ impl frame_system::Config for Runtime {
     /// The header type.
     type Header = Header;
     /// The ubiquitous event type.
-    type Event = Event;
+    type RuntimeEvent = RuntimeEvent;
     /// The ubiquitous origin type.
-    type Origin = Origin;
+    type RuntimeOrigin = RuntimeOrigin;
     /// Maximum number of block number to block hash mappings to keep (oldest pruned first).
     type BlockHashCount = BlockHashCount;
     /// The weight of database operations that the runtime can invoke.
@@ -266,7 +267,7 @@ impl pallet_balances::Config for Runtime {
     /// The type for recording an account's balance.
     type Balance = Balance;
     /// The ubiquitous event type.
-    type Event = Event;
+    type RuntimeEvent = RuntimeEvent;
     type DustRemoval = ();
     type ExistentialDeposit = ConstU128<EXISTENTIAL_DEPOSIT>;
     type AccountStore = System;
@@ -275,10 +276,12 @@ impl pallet_balances::Config for Runtime {
 
 parameter_types! {
     pub const TransactionByteFee: Balance = 1;
+    pub const QueueLengthStep: u128 = 10;
+    pub const OperationalFeeMultiplier: u8 = 5;
 }
 
 impl pallet_transaction_payment::Config for Runtime {
-    type Event = Event;
+    type RuntimeEvent = RuntimeEvent;
     type OnChargeTransaction = CurrencyAdapter<Balances, DealWithFees<Runtime>>;
     type OperationalFeeMultiplier = OperationalFeeMultiplier;
     type WeightToFee = IdentityFee<Balance>;
@@ -292,7 +295,7 @@ parameter_types! {
 }
 
 impl cumulus_pallet_parachain_system::Config for Runtime {
-    type Event = Event;
+    type RuntimeEvent = RuntimeEvent;
     type OnSystemEvent = ();
     type SelfParaId = parachain_info::Pallet<Runtime>;
     type OutboundXcmpMessageSource = XcmpQueue;
@@ -308,7 +311,7 @@ impl parachain_info::Config for Runtime {}
 impl cumulus_pallet_aura_ext::Config for Runtime {}
 
 impl cumulus_pallet_xcmp_queue::Config for Runtime {
-    type Event = Event;
+    type RuntimeEvent = RuntimeEvent;
     type XcmExecutor = XcmExecutor<XcmConfig>;
     type ChannelInfo = ParachainSystem;
     type VersionWrapper = ();
@@ -319,7 +322,7 @@ impl cumulus_pallet_xcmp_queue::Config for Runtime {
 }
 
 impl cumulus_pallet_dmp_queue::Config for Runtime {
-    type Event = Event;
+    type RuntimeEvent = RuntimeEvent;
     type XcmExecutor = XcmExecutor<XcmConfig>;
     type ExecuteOverweightOrigin = EnsureRoot<AccountId>;
 }
@@ -331,7 +334,7 @@ parameter_types! {
 }
 
 impl pallet_session::Config for Runtime {
-    type Event = Event;
+    type RuntimeEvent = RuntimeEvent;
     type ValidatorId = <Self as frame_system::Config>::AccountId;
     // we don't have stash and controller, thus we don't need the convert as well.
     type ValidatorIdOf = pallet_collator_selection::IdentityCollator;
@@ -363,7 +366,7 @@ parameter_types! {
 pub type CollatorSelectionUpdateOrigin = EnsureRoot<AccountId>;
 
 impl pallet_collator_selection::Config for Runtime {
-    type Event = Event;
+    type RuntimeEvent = RuntimeEvent;
     type Currency = Balances;
     type UpdateOrigin = CollatorSelectionUpdateOrigin;
     type PotId = PotId;
@@ -379,24 +382,19 @@ impl pallet_collator_selection::Config for Runtime {
 }
 
 impl pallet_sudo::Config for Runtime {
-    type Event = Event;
-    type Call = Call;
+    type RuntimeEvent = RuntimeEvent;
+    type RuntimeCall = RuntimeCall;
 }
 
 impl pallet_utility::Config for Runtime {
-    type Event = Event;
-    type Call = Call;
+    type RuntimeEvent = RuntimeEvent;
+    type RuntimeCall = RuntimeCall;
     type WeightInfo = weights::pallet_utility::SubstrateWeight<Self>;
     type PalletsOrigin = OriginCaller;
 }
 
-pub struct GasConverter;
-impl gear_common::GasPrice for GasConverter {
-    type Balance = Balance;
-}
-
 impl pallet_gear_program::Config for Runtime {
-    type Event = Event;
+    type RuntimeEvent = RuntimeEvent;
     type WeightInfo = pallet_gear_program::weights::SubstrateWeight<Runtime>;
     type Currency = Balances;
     type Messenger = GearMessenger;
@@ -409,27 +407,38 @@ parameter_types! {
     pub const ExpirationDuration: u64 = MILLISECS_PER_BLOCK.saturating_mul(WaitListTraversalInterval::get() as u64);
     pub const ExternalSubmitterRewardFraction: Perbill = Perbill::from_percent(10);
     pub Schedule: pallet_gear::Schedule<Runtime> = Default::default();
+
+    pub const ReserveThreshold: u32 = 1;
+    pub const WaitlistCost: u64 = 100;
+    pub const MailboxCost: u64 = 100;
+    pub const ReservationCost: u64 = 100;
+
+    pub const OutgoingLimit: u32 = 1024;
+    pub const MailboxThreshold: u64 = 3000;
 }
 
 impl pallet_gear::Config for Runtime {
-    type Event = Event;
+    type RuntimeEvent = RuntimeEvent;
+    type Randomness = RandomnessCollectiveFlip;
     type Currency = Balances;
     type GasPrice = GasConverter;
-    type WeightInfo = weights::pallet_gear::SubstrateWeight<Self>;
+    type WeightInfo = pallet_gear::weights::SubstrateWeight<Self>;
     type Schedule = Schedule;
     type OutgoingLimit = OutgoingLimit;
     type DebugInfo = DebugInfo;
     type CodeStorage = GearProgram;
     type MailboxThreshold = MailboxThreshold;
+    type ReservationsLimit = ConstU64<256>;
     type Messenger = GearMessenger;
     type GasProvider = GearGas;
     type BlockLimiter = GearGas;
     type Scheduler = GearScheduler;
+    type QueueRunner = Gear;
 }
 
 #[cfg(feature = "debug-mode")]
 impl pallet_gear_debug::Config for Runtime {
-    type Event = Event;
+    type RuntimeEvent = RuntimeEvent;
     type WeightInfo = pallet_gear_debug::weights::GearSupportWeight<Runtime>;
     type CodeStorage = GearProgram;
     type Messenger = GearMessenger;
@@ -440,6 +449,7 @@ impl pallet_gear_scheduler::Config for Runtime {
     type ReserveThreshold = ReserveThreshold;
     type WaitlistCost = WaitlistCost;
     type MailboxCost = MailboxCost;
+    type ReservationCost = ReservationCost;
 }
 
 impl pallet_gear_gas::Config for Runtime {
@@ -448,17 +458,18 @@ impl pallet_gear_gas::Config for Runtime {
 
 impl pallet_gear_messenger::Config for Runtime {
     type BlockLimiter = GearGas;
+    type CurrentBlockNumber = Gear;
 }
 
 pub struct ExtraFeeFilter;
-impl Contains<Call> for ExtraFeeFilter {
-    fn contains(call: &Call) -> bool {
+impl Contains<RuntimeCall> for ExtraFeeFilter {
+    fn contains(call: &RuntimeCall) -> bool {
         // Calls that affect message queue and are subject to extra fee
         matches!(
             call,
-            Call::Gear(pallet_gear::Call::upload_program { .. })
-                | Call::Gear(pallet_gear::Call::send_message { .. })
-                | Call::Gear(pallet_gear::Call::send_reply { .. })
+            RuntimeCall::Gear(pallet_gear::Call::upload_program { .. })
+                | RuntimeCall::Gear(pallet_gear::Call::send_message { .. })
+                | RuntimeCall::Gear(pallet_gear::Call::send_reply { .. })
         )
     }
 }
@@ -468,12 +479,14 @@ impl pallet_gear_payment::Config for Runtime {
     type Messenger = GearMessenger;
 }
 
+impl pallet_randomness_collective_flip::Config for Runtime {}
+
 impl<C> frame_system::offchain::SendTransactionTypes<C> for Runtime
 where
-    Call: From<C>,
+    RuntimeCall: From<C>,
 {
     type Extrinsic = UncheckedExtrinsic;
-    type OverarchingCall = Call;
+    type OverarchingCall = RuntimeCall;
 }
 
 // Create the runtime by composing the FRAME pallets that were previously configured.
@@ -505,6 +518,7 @@ construct_runtime!(
 
         Sudo: pallet_sudo = 40,
         Utility: pallet_utility = 41,
+        RandomnessCollectiveFlip: pallet_randomness_collective_flip = 42,
 
         GearProgram: pallet_gear_program = 50,
         GearMessenger: pallet_gear_messenger = 51,
@@ -546,6 +560,7 @@ construct_runtime!(
 
         Sudo: pallet_sudo = 40,
         Utility: pallet_utility = 41,
+        RandomnessCollectiveFlip: pallet_randomness_collective_flip = 42,
 
         GearProgram: pallet_gear_program = 50,
         GearMessenger: pallet_gear_messenger = 51,
@@ -572,9 +587,9 @@ pub type SignedExtra = (
     pallet_transaction_payment::ChargeTransactionPayment<Runtime>,
 );
 /// Unchecked extrinsic type as expected by this runtime.
-pub type UncheckedExtrinsic = generic::UncheckedExtrinsic<Address, Call, Signature, SignedExtra>;
+pub type UncheckedExtrinsic = generic::UncheckedExtrinsic<Address, RuntimeCall, Signature, SignedExtra>;
 /// The payload being signed in transactions.
-pub type SignedPayload = generic::SignedPayload<Call, SignedExtra>;
+pub type SignedPayload = generic::SignedPayload<RuntimeCall, SignedExtra>;
 /// Executive: handles dispatch to the various modules.
 pub type Executive = frame_executive::Executive<
     Runtime,
@@ -609,6 +624,16 @@ mod benches {
 }
 
 impl_runtime_apis! {
+    impl sp_consensus_aura::AuraApi<Block, AuraId> for Runtime {
+        fn slot_duration() -> sp_consensus_aura::SlotDuration {
+            sp_consensus_aura::SlotDuration::from_millis(Aura::slot_duration())
+        }
+
+        fn authorities() -> Vec<AuraId> {
+            Aura::authorities().into_inner()
+        }
+    }
+
     impl sp_api::Core<Block> for Runtime {
         fn version() -> RuntimeVersion {
             VERSION
@@ -666,16 +691,6 @@ impl_runtime_apis! {
         }
     }
 
-    impl sp_consensus_aura::AuraApi<Block, AuraId> for Runtime {
-        fn slot_duration() -> sp_consensus_aura::SlotDuration {
-            sp_consensus_aura::SlotDuration::from_millis(Aura::slot_duration())
-        }
-
-        fn authorities() -> Vec<AuraId> {
-            Aura::authorities().into_inner()
-        }
-    }
-
     impl sp_session::SessionKeys<Block> for Runtime {
         fn generate_session_keys(seed: Option<Vec<u8>>) -> Vec<u8> {
             SessionKeys::generate(seed)
@@ -685,6 +700,12 @@ impl_runtime_apis! {
             encoded: Vec<u8>,
         ) -> Option<Vec<(Vec<u8>, KeyTypeId)>> {
             SessionKeys::decode_into_raw_public_keys(&encoded)
+        }
+    }
+
+    impl cumulus_primitives_core::CollectCollationInfo<Block> for Runtime {
+        fn collect_collation_info(header: &<Block as BlockT>::Header) -> cumulus_primitives_core::CollationInfo {
+            ParachainSystem::collect_collation_info(header)
         }
     }
 
@@ -709,12 +730,6 @@ impl_runtime_apis! {
         }
     }
 
-    impl cumulus_primitives_core::CollectCollationInfo<Block> for Runtime {
-        fn collect_collation_info(header: &<Block as BlockT>::Header) -> cumulus_primitives_core::CollationInfo {
-            ParachainSystem::collect_collation_info(header)
-        }
-    }
-
     // Here we implement our custom runtime API.
     impl pallet_gear_rpc_runtime_api::GearApi<Block> for Runtime {
         fn calculate_gas_info(
@@ -727,59 +742,26 @@ impl_runtime_apis! {
         ) -> Result<pallet_gear::GasInfo, Vec<u8>> {
             Gear::calculate_gas_info(account_id, kind, payload, value, allow_other_panics, initial_gas)
         }
-    }
 
-    #[cfg(feature = "runtime-benchmarks")]
-    impl frame_benchmarking::Benchmark<Block> for Runtime {
-        fn benchmark_metadata(extra: bool) -> (
-            Vec<frame_benchmarking::BenchmarkList>,
-            Vec<frame_support::traits::StorageInfo>,
-        ) {
-            use frame_benchmarking::{baseline, Benchmarking, BenchmarkList};
-            use frame_support::traits::StorageInfoTrait;
-            use frame_system_benchmarking::Pallet as SystemBench;
-            use cumulus_pallet_session_benchmarking::Pallet as SessionBench;
-            use baseline::Pallet as BaselineBench;
-
-            let mut list = Vec::<BenchmarkList>::new();
-            list_benchmarks!(list, extra);
-
-            let storage_info = AllPalletsWithSystem::storage_info();
-
-            (list, storage_info)
+        fn gear_run_extrinsic() -> <Block as BlockT>::Extrinsic {
+            UncheckedExtrinsic::new_unsigned(Gear::run_call().into()).into()
         }
 
-        fn dispatch_benchmark(
-            config: frame_benchmarking::BenchmarkConfig
-        ) -> Result<Vec<frame_benchmarking::BenchmarkBatch>, sp_runtime::RuntimeString> {
-            use frame_benchmarking::{baseline, Benchmarking, BenchmarkBatch, TrackedStorageKey};
+        fn read_state(program_id: H256) -> Result<Vec<u8>, Vec<u8>> {
+            Gear::read_state(program_id)
+        }
 
-            use frame_system_benchmarking::Pallet as SystemBench;
-            use cumulus_pallet_session_benchmarking::Pallet as SessionBench;
-            use baseline::Pallet as BaselineBench;
+        fn read_state_using_wasm(
+            program_id: H256,
+            fn_name: Vec<u8>,
+            wasm: Vec<u8>,
+            argument: Option<Vec<u8>>,
+        ) -> Result<Vec<u8>, Vec<u8>> {
+            Gear::read_state_using_wasm(program_id, fn_name, wasm, argument)
+        }
 
-            impl frame_system_benchmarking::Config for Runtime {}
-            impl cumulus_pallet_session_benchmarking::Config for Runtime {}
-            impl baseline::Config for Runtime {}
-
-            let whitelist: Vec<TrackedStorageKey> = vec![
-                // Block Number
-                hex_literal::hex!("26aa394eea5630e07c48ae0c9558cef702a5c1b19ab7a04f536c519aca4983ac").to_vec().into(),
-                // Total Issuance
-                hex_literal::hex!("c2261276cc9d1f8598ea4b6a74b15c2f57c875e4cff74148e4628f264b974c80").to_vec().into(),
-                // Execution Phase
-                hex_literal::hex!("26aa394eea5630e07c48ae0c9558cef7ff553b5a9862a516939d82b3d3d8661a").to_vec().into(),
-                // Event Count
-                hex_literal::hex!("26aa394eea5630e07c48ae0c9558cef70a98fdbe9ce6c55837576c60c7af3850").to_vec().into(),
-                // System Events
-                hex_literal::hex!("26aa394eea5630e07c48ae0c9558cef780d41e5e16056765bc8461851072c9d7").to_vec().into(),
-            ];
-
-            let mut batches = Vec::<BenchmarkBatch>::new();
-            let params = (&config, &whitelist);
-            add_benchmarks!(params, batches);
-
-            Ok(batches)
+        fn read_metahash(program_id: H256) -> Result<H256, Vec<u8>> {
+            Gear::read_metahash(program_id)
         }
     }
 

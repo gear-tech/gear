@@ -22,12 +22,22 @@ extern crate proc_macro;
 
 use core::fmt::Display;
 use proc_macro::TokenStream;
+use proc_macro2::Ident;
 use quote::{quote, ToTokens};
+use std::collections::BTreeSet;
+use syn::{
+    parse::{Parse, ParseStream},
+    punctuated::Punctuated,
+    Path, Token,
+};
 
 mod utils;
 
 /// A global flag, determining if `handle_reply` already was generated.
 static mut HANDLE_REPLY_FLAG: Flag = Flag(false);
+
+/// A global flag, determining if `handle_signal` already was generated.
+static mut HANDLE_SIGNAL_FLAG: Flag = Flag(false);
 
 struct Flag(bool);
 
@@ -36,6 +46,80 @@ impl Flag {
         let ret = self.0;
         self.0 = true;
         ret
+    }
+}
+
+struct MainAttrs {
+    handle_reply: Option<Path>,
+    handle_signal: Option<Path>,
+}
+
+impl MainAttrs {
+    fn check_attrs_not_exist(&self) -> Result<(), TokenStream> {
+        let Self {
+            handle_reply,
+            handle_signal,
+        } = self;
+
+        for (path, flag) in unsafe {
+            [
+                (handle_reply, HANDLE_REPLY_FLAG.0),
+                (handle_signal, HANDLE_SIGNAL_FLAG.0),
+            ]
+        } {
+            if let (Some(path), true) = (path, flag) {
+                return Err(compile_error(path, "parameter already defined"));
+            }
+        }
+
+        Ok(())
+    }
+}
+
+impl Parse for MainAttrs {
+    fn parse(input: ParseStream) -> syn::Result<Self> {
+        let punctuated: Punctuated<MainAttr, Token![,]> = Punctuated::parse_terminated(input)?;
+        let mut attrs = MainAttrs {
+            handle_reply: None,
+            handle_signal: None,
+        };
+        let mut existing_attrs = BTreeSet::new();
+
+        for MainAttr { name, path, .. } in punctuated {
+            let name = name.to_string();
+            if existing_attrs.contains(&name) {
+                return Err(syn::Error::new_spanned(name, "parameter already defined"));
+            }
+
+            match &*name {
+                "handle_reply" => {
+                    attrs.handle_reply = Some(path);
+                }
+                "handle_signal" => {
+                    attrs.handle_signal = Some(path);
+                }
+                _ => return Err(syn::Error::new_spanned(name, "unknown parameter")),
+            }
+
+            existing_attrs.insert(name);
+        }
+
+        Ok(attrs)
+    }
+}
+
+struct MainAttr {
+    name: Ident,
+    path: Path,
+}
+
+impl Parse for MainAttr {
+    fn parse(input: ParseStream) -> syn::Result<Self> {
+        let name: Ident = input.parse()?;
+        let _: Token![=] = input.parse()?;
+        let path: Path = input.parse()?;
+
+        Ok(Self { name, path })
     }
 }
 
@@ -49,7 +133,7 @@ fn check_signature(name: &str, function: &syn::ItemFn) -> Result<(), TokenStream
     if function.sig.ident != name {
         return Err(compile_error(
             &function.sig.ident,
-            format!("function must be called `{}`", name),
+            format!("function must be called `{name}`"),
         ));
     }
 
@@ -70,13 +154,14 @@ fn check_signature(name: &str, function: &syn::ItemFn) -> Result<(), TokenStream
     Ok(())
 }
 
-fn generate_handle_reply_if_required(mut code: TokenStream) -> TokenStream {
+fn generate_handle_reply_if_required(mut code: TokenStream, attr: Option<Path>) -> TokenStream {
     let reply_generated = unsafe { HANDLE_REPLY_FLAG.get_and_set() };
     if !reply_generated {
         let handle_reply: TokenStream = quote!(
             #[no_mangle]
-            unsafe extern "C" fn handle_reply() {
+            extern "C" fn handle_reply() {
                 gstd::record_reply();
+                #attr ();
             }
         )
         .into();
@@ -86,10 +171,32 @@ fn generate_handle_reply_if_required(mut code: TokenStream) -> TokenStream {
     code
 }
 
+fn generate_handle_signal_if_required(mut code: TokenStream, attr: Option<Path>) -> TokenStream {
+    let signal_generated = unsafe { HANDLE_SIGNAL_FLAG.get_and_set() };
+    if !signal_generated {
+        let handle_signal: TokenStream = quote!(
+            #[no_mangle]
+            extern "C" fn handle_signal() {
+                gstd::handle_signal();
+                #attr ();
+            }
+        )
+        .into();
+        code.extend([handle_signal]);
+    }
+
+    code
+}
+
+fn generate_if_required(code: TokenStream, attrs: MainAttrs) -> TokenStream {
+    let code = generate_handle_reply_if_required(code, attrs.handle_reply);
+    generate_handle_signal_if_required(code, attrs.handle_signal)
+}
+
 /// This is the procedural macro for your convenience.
 /// It marks the main async function to be the program entry point.
-/// Functions `handle`, `handle_reply` cannot be specified if this macro is used.
-/// If you need to specify `handle`, `handle_reply` explicitly don't use this macro.
+/// Functions `handle` cannot be specified if this macro is used.
+/// If you need to specify `handle` explicitly don't use this macro.
 ///
 /// ## Usage
 ///
@@ -99,10 +206,29 @@ fn generate_handle_reply_if_required(mut code: TokenStream) -> TokenStream {
 ///     gstd::debug!("Hello world!");
 /// }
 /// ```
+///
+/// You can specify `handle_reply` and `handle_signal` using parameters of same names.
+/// Note that default behavior of entrypoints is kept.
+///
+/// ```ignore
+/// #[gstd::async_main(handle_reply = my_handle_reply)]
+/// async fn init() {
+///     // ...
+/// }
+///
+/// fn my_handle_reply() {
+///     // ...
+/// }
+/// ```
 #[proc_macro_attribute]
-pub fn async_main(_attr: TokenStream, item: TokenStream) -> TokenStream {
+pub fn async_main(attr: TokenStream, item: TokenStream) -> TokenStream {
     let function = syn::parse_macro_input!(item as syn::ItemFn);
     if let Err(tokens) = check_signature("main", &function) {
+        return tokens;
+    }
+
+    let attrs = syn::parse_macro_input!(attr as MainAttrs);
+    if let Err(tokens) = attrs.check_attrs_not_exist() {
         return tokens;
     }
 
@@ -114,19 +240,20 @@ pub fn async_main(_attr: TokenStream, item: TokenStream) -> TokenStream {
         }
 
         #[no_mangle]
-        unsafe extern "C" fn handle() {
+        extern "C" fn handle() {
             __main_safe();
         }
     )
     .into();
 
-    generate_handle_reply_if_required(code)
+    generate_if_required(code, attrs)
 }
 
 /// Mark async function to be the program initialization method.
 /// Can be used together with [`macro@async_main`].
-/// Functions `init`, `handle_reply` cannot be specified if this macro is used.
-/// If you need to specify `init`, `handle_reply` explicitly don't use this macro.
+/// Function `init` cannot be specified if this macro is used.
+/// If you need to specify `init` explicitly don't use this macro.
+///
 ///
 /// ## Usage
 ///
@@ -136,23 +263,42 @@ pub fn async_main(_attr: TokenStream, item: TokenStream) -> TokenStream {
 ///     gstd::debug!("Hello world!");
 /// }
 /// ```
+///
+/// You can specify `handle_reply` and `handle_signal` using parameters of same names.
+/// Note that default behavior of entrypoints is kept.
+///
+/// ```ignore
+/// #[gstd::async_init(handle_signal = my_handle_signal)]
+/// async fn init() {
+///     // ...
+/// }
+///
+/// fn my_handle_signal() {
+///     // ...
+/// }
+/// ```
 #[proc_macro_attribute]
-pub fn async_init(_attr: TokenStream, item: TokenStream) -> TokenStream {
+pub fn async_init(attr: TokenStream, item: TokenStream) -> TokenStream {
     let function = syn::parse_macro_input!(item as syn::ItemFn);
     if let Err(tokens) = check_signature("init", &function) {
+        return tokens;
+    }
+
+    let attrs = syn::parse_macro_input!(attr as MainAttrs);
+    if let Err(tokens) = attrs.check_attrs_not_exist() {
         return tokens;
     }
 
     let body = &function.block;
     let code: TokenStream = quote!(
         #[no_mangle]
-        unsafe extern "C" fn init() {
+        extern "C" fn init() {
             gstd::message_loop(async #body);
         }
     )
     .into();
 
-    generate_handle_reply_if_required(code)
+    generate_if_required(code, attrs)
 }
 
 /// Extends async methods `for_reply` and `for_reply_as` for sending
@@ -215,28 +361,28 @@ pub fn wait_for_reply(_: TokenStream, item: TokenStream) -> TokenStream {
     let function = syn::parse_macro_input!(item as syn::ItemFn);
     let ident = function.sig.ident.clone();
 
-    // generate functions' idents
+    // Generate functions' idents.
     let (for_reply, for_reply_as) = (
         utils::with_suffix(&function.sig.ident, "_for_reply"),
         utils::with_suffix(&function.sig.ident, "_for_reply_as"),
     );
 
-    // generate docs
+    // Generate docs.
     let (for_reply_docs, for_reply_as_docs) = utils::wait_for_reply_docs(ident.to_string());
 
-    // generate arguments
+    // Generate arguments.
     let (inputs, variadic) = (function.sig.inputs.clone(), function.sig.variadic.clone());
     let args = utils::get_args(&inputs);
 
-    // generate generics
-    let decodeable_ty = utils::ident("D");
-    let decodeable_traits = vec![utils::ident("Decode")];
+    // Generate generics.
+    let decodable_ty = utils::ident("D");
+    let decodable_traits = vec![utils::ident("Decode")];
     let (for_reply_generics, for_reply_as_generics) = (
         function.sig.generics.clone(),
         utils::append_generic(
             function.sig.generics.clone(),
-            decodeable_ty,
-            decodeable_traits,
+            decodable_ty,
+            decodable_traits,
         ),
     );
 
@@ -260,4 +406,83 @@ pub fn wait_for_reply(_: TokenStream, item: TokenStream) -> TokenStream {
         }
     }
     .into()
+}
+
+/// Same as `wait_for_reply`, but works with functions, that create programs:
+/// returns message id with newly created program id.
+#[proc_macro_attribute]
+pub fn wait_create_program_for_reply(attr: TokenStream, item: TokenStream) -> TokenStream {
+    let function = syn::parse_macro_input!(item as syn::ItemFn);
+
+    let ident = function.sig.ident.clone();
+
+    let ident = if !attr.is_empty() {
+        assert_eq!(
+            attr.to_string(),
+            "Self",
+            "Proc macro attribute should be used only to specify Self source of the function"
+        );
+
+        quote! { Self::#ident }
+    } else {
+        quote! { #ident }
+    };
+
+    // Generate functions' idents.
+    let (for_reply, for_reply_as) = (
+        utils::with_suffix(&function.sig.ident, "_for_reply"),
+        utils::with_suffix(&function.sig.ident, "_for_reply_as"),
+    );
+
+    // Generate docs.
+    let (for_reply_docs, for_reply_as_docs) = utils::wait_for_reply_docs(ident.to_string());
+
+    // Generate arguments.
+    let (inputs, variadic) = (function.sig.inputs.clone(), function.sig.variadic.clone());
+    let args = utils::get_args(&inputs);
+
+    // Generate generics.
+    let decodable_ty = utils::ident("D");
+    let decodable_traits = vec![utils::ident("Decode")];
+    let (for_reply_generics, for_reply_as_generics) = (
+        function.sig.generics.clone(),
+        utils::append_generic(
+            function.sig.generics.clone(),
+            decodable_ty,
+            decodable_traits,
+        ),
+    );
+
+    quote! {
+        #function
+
+        #[doc = #for_reply_docs]
+        pub fn #for_reply #for_reply_generics ( #inputs #variadic ) -> Result<CreateProgramFuture> {
+            let (waiting_reply_to, program_id) = #ident #args ?;
+            signals().register_signal(waiting_reply_to);
+
+            Ok(CreateProgramFuture { waiting_reply_to, program_id })
+        }
+
+        #[doc = #for_reply_as_docs]
+        pub fn #for_reply_as #for_reply_as_generics ( #inputs #variadic ) -> Result<CodecCreateProgramFuture<D>> {
+            let (waiting_reply_to, program_id) = #ident #args ?;
+            signals().register_signal(waiting_reply_to);
+
+            Ok(CodecCreateProgramFuture::<D> { waiting_reply_to, program_id, _marker: Default::default() })
+        }
+    }
+    .into()
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn ui() {
+        let t = trybuild::TestCases::new();
+        t.pass("tests/ui/async_init_works.rs");
+        t.pass("tests/ui/async_main_works.rs");
+        t.compile_fail("tests/ui/signal_double_definition_not_work.rs");
+        t.compile_fail("tests/ui/reply_double_definition_not_work.rs");
+    }
 }

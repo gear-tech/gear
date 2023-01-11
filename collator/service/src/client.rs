@@ -19,13 +19,7 @@
 pub use runtime_primitives::{
     AccountId, Balance, Block, BlockNumber, Hash, Header, Index as Nonce,
 };
-use sc_executor::NativeElseWasmExecutor;
 use sp_runtime::traits::BlakeTwo256;
-
-pub type FullBackend = sc_service::TFullBackend<Block>;
-
-pub type FullClient<RuntimeApi, ExecutorDispatch> =
-    sc_service::TFullClient<Block, RuntimeApi, NativeElseWasmExecutor<ExecutorDispatch>>;
 
 #[cfg(not(any(feature = "rococo-gear-native",)))]
 compile_error!("at least one runtime feature must be enabled");

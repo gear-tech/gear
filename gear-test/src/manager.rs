@@ -19,17 +19,17 @@
 use crate::check::ExecutionContext;
 use core_processor::common::*;
 use gear_core::{
-    code::{Code, CodeAndId, InstrumentedCodeAndId},
-    ids::{CodeId, MessageId, ProgramId},
-    memory::{PageBuf, PageNumber, WasmPageNumber},
-    message::{Dispatch, DispatchKind, GasLimit, StoredDispatch, StoredMessage},
-    program::Program,
+    code::{Code, CodeAndId},
+    ids::{CodeId, MessageId, ProgramId, ReservationId},
+    memory::{PageBuf, PageNumber, PageU32Size, WasmPageNumber},
+    message::{Dispatch, DispatchKind, GasLimit, MessageWaitedType, StoredDispatch, StoredMessage},
+    reservation::GasReserver,
 };
+use gear_wasm_instrument::wasm_instrument::gas_metering::ConstantCostRules;
 use std::{
     collections::{BTreeMap, BTreeSet, VecDeque},
     fmt,
 };
-use wasm_instrument::gas_metering::ConstantCostRules;
 
 #[derive(Clone, Default)]
 /// In-memory state.
@@ -58,7 +58,7 @@ impl fmt::Debug for State {
                         actor
                             .executable_data
                             .as_ref()
-                            .map(|data| (*id, (actor.balance, data.program.get_allocations())))
+                            .map(|data| (*id, (actor.balance, &data.allocations)))
                     })
                     .collect::<BTreeMap<ProgramId, (u128, &BTreeSet<WasmPageNumber>)>>(),
             )
@@ -125,36 +125,52 @@ impl InMemoryExtManager {
 }
 
 impl ExecutionContext for InMemoryExtManager {
-    fn store_code(&mut self, code_hash: CodeId, code: Code) {
-        self.codes.insert(code_hash, code);
+    fn store_code(&mut self, code_id: CodeId, code: Code) {
+        self.codes.insert(code_id, code);
     }
+
+    fn load_code(&self, code_id: CodeId) -> Option<Code> {
+        self.codes.get(&code_id).cloned()
+    }
+
     fn store_original_code(&mut self, code: &[u8]) {
         self.original_codes
             .insert(CodeId::generate(code), code.to_vec());
     }
-    fn store_program(&mut self, id: ProgramId, code: Code, _init_message_id: MessageId) -> Program {
+    fn store_program(
+        &mut self,
+        id: ProgramId,
+        code: Code,
+        _init_message_id: MessageId,
+    ) -> ExecutableActorData {
         let code_and_id = CodeAndId::new(code);
+        let code_id = code_and_id.code_id();
 
         self.store_code(code_and_id.code_id(), code_and_id.code().clone());
 
-        let code_and_id: InstrumentedCodeAndId = code_and_id.into();
-        let (code, _) = code_and_id.into_parts();
-        let program = Program::new(id, code);
+        let actor_data = ExecutableActorData {
+            allocations: Default::default(),
+            code_id,
+            code_exports: code_and_id.code().exports().clone(),
+            static_pages: code_and_id.code().static_pages(),
+            initialized: false,
+            pages_with_data: Default::default(),
+            gas_reservation_map: Default::default(),
+        };
 
-        self.waiting_init.insert(program.id(), vec![]);
+        self.waiting_init.insert(id, vec![]);
         self.actors.insert(
-            program.id(),
+            id,
             TestActor {
                 balance: 0,
-                executable_data: Some(ExecutableActorData {
-                    program: program.clone(),
-                    pages_with_data: Default::default(),
-                }),
+                executable_data: Some(actor_data.clone()),
                 memory_pages: Default::default(),
             },
         );
-        program
+
+        actor_data
     }
+
     fn write_gas(&mut self, message_id: MessageId, gas_limit: u64) {
         self.gas_limits.insert(message_id, gas_limit);
     }
@@ -213,7 +229,7 @@ impl JournalHandler for InMemoryExtManager {
                     ..
                 }) = self.actors.get_mut(&program_id)
                 {
-                    data.program.set_initialized();
+                    data.initialized = true;
                 }
                 self.move_waiting_msgs_to_queue(program_id);
                 false
@@ -236,7 +252,13 @@ impl JournalHandler for InMemoryExtManager {
             self.dispatch_queue.remove(index);
         }
     }
-    fn send_dispatch(&mut self, _message_id: MessageId, dispatch: Dispatch) {
+    fn send_dispatch(
+        &mut self,
+        _message_id: MessageId,
+        dispatch: Dispatch,
+        _delay: u32,
+        _reservation: Option<ReservationId>,
+    ) {
         let destination = dispatch.destination();
         if self.actors.contains_key(&destination) || self.marked_destinations.contains(&destination)
         {
@@ -265,7 +287,12 @@ impl JournalHandler for InMemoryExtManager {
             self.log.push(dispatch.into_parts().1.into_stored());
         }
     }
-    fn wait_dispatch(&mut self, dispatch: StoredDispatch, _duration: Option<u32>) {
+    fn wait_dispatch(
+        &mut self,
+        dispatch: StoredDispatch,
+        _duration: Option<u32>,
+        _: MessageWaitedType,
+    ) {
         self.message_consumed(dispatch.id());
         self.wait_list
             .insert((dispatch.destination(), dispatch.id()), dispatch);
@@ -275,6 +302,7 @@ impl JournalHandler for InMemoryExtManager {
         _message_id: MessageId,
         program_id: ProgramId,
         awakening_id: MessageId,
+        _delay: u32,
     ) {
         if let Some(dispatch) = self.wait_list.remove(&(program_id, awakening_id)) {
             self.dispatch_queue.push_back(dispatch);
@@ -312,15 +340,14 @@ impl JournalHandler for InMemoryExtManager {
             .expect("Program not found in storage")
         {
             for page in data
-                .program
-                .get_allocations()
+                .allocations
                 .difference(&allocations)
-                .flat_map(|p| p.to_gear_pages_iter())
+                .flat_map(|page| page.to_pages_iter())
             {
                 memory_pages.remove(&page);
             }
 
-            *data.program.get_allocations_mut() = allocations;
+            data.allocations = allocations;
         } else {
             unreachable!("Can't update allocations for terminated program");
         }
@@ -342,12 +369,13 @@ impl JournalHandler for InMemoryExtManager {
         };
     }
 
-    fn store_new_programs(&mut self, code_hash: CodeId, candidates: Vec<(ProgramId, MessageId)>) {
-        if let Some(code) = self.original_codes.get(&code_hash).cloned() {
-            for (candidate_id, init_message_id) in candidates {
+    fn store_new_programs(&mut self, code_id: CodeId, candidates: Vec<(MessageId, ProgramId)>) {
+        if let Some(code) = self.original_codes.get(&code_id).cloned() {
+            for (init_message_id, candidate_id) in candidates {
                 if !self.actors.contains_key(&candidate_id) {
                     let code =
-                        Code::try_new(code.clone(), 1, |_| ConstantCostRules::default()).unwrap();
+                        Code::try_new(code.clone(), 1, |_| ConstantCostRules::default(), None)
+                            .unwrap();
 
                     self.store_program(candidate_id, code, init_message_id);
                 } else {
@@ -357,9 +385,9 @@ impl JournalHandler for InMemoryExtManager {
         } else {
             log::debug!(
                 "No referencing code with code hash {} for candidate programs",
-                code_hash
+                code_id
             );
-            for (invalid_candidate, _) in candidates {
+            for (_, invalid_candidate) in candidates {
                 self.marked_destinations.insert(invalid_candidate);
             }
         }
@@ -368,4 +396,45 @@ impl JournalHandler for InMemoryExtManager {
     fn stop_processing(&mut self, _dispatch: StoredDispatch, _gas_burned: u64) {
         panic!("Processing stopped. Used for on-chain logic only.");
     }
+
+    fn reserve_gas(
+        &mut self,
+        _message_id: MessageId,
+        _reservation_id: ReservationId,
+        _program_id: ProgramId,
+        _amount: u64,
+        _bn: u32,
+    ) {
+    }
+
+    fn unreserve_gas(
+        &mut self,
+        _reservation_id: ReservationId,
+        _program_id: ProgramId,
+        _expiration: u32,
+    ) {
+    }
+
+    fn update_gas_reservation(&mut self, program_id: ProgramId, reserver: GasReserver) {
+        let actor = self
+            .actors
+            .get_mut(&program_id)
+            .expect("gas reservation update guaranteed to be called only on existing program");
+
+        if let TestActor {
+            executable_data: Some(executable_data),
+            ..
+        } = actor
+        {
+            executable_data.gas_reservation_map = reserver.into_map(1, |duration| duration);
+        } else {
+            panic!("no gas reservation map found in program");
+        }
+    }
+
+    fn system_reserve_gas(&mut self, _message_id: MessageId, _amount: u64) {}
+
+    fn system_unreserve_gas(&mut self, _message_id: MessageId) {}
+
+    fn send_signal(&mut self, _message_id: MessageId, _destination: ProgramId) {}
 }

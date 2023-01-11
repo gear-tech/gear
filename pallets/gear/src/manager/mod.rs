@@ -26,15 +26,17 @@
 //! in case of execution resulting in a trap. So, it gives us a guarantee that regardless of the result of message execution, there is **always some
 //! value** to perform asset management, i.e move tokens further to the recipient or give back to sender. The guarantee is implemented by using
 //! corresponding `pallet_balances` functions (`reserve`, `repatriate_reserved`, `unreserve` along with `transfer`) in `pallet_gear` extrinsics,
-//! [`JournalHandler::send_dispatch`] and [`JournalHandler::send_value`] procedures.
+//! [`JournalHandler::send_dispatch`](core_processor::common::JournalHandler::send_dispatch) and
+//! [`JournalHandler::send_value`](core_processor::common::JournalHandler::send_value) procedures.
 //!
 //! 2. **Balance sufficiency before adding message with value to the queue**.
 //! Before message is added to the queue, sender's balance is checked for having adequate amount of assets to send desired value. For actors, who
 //! can sign transactions, these checks are done in extrinsic calls. For programs these checks are done on core backend level during execution. In details,
 //! when a message is executed, it has some context, which is set from the pallet level, and a part of the context data is program's actual balance (current balance +
 //! value sent within the executing message). So if during execution of the original message some other messages were sent, message send call is followed
-//! by program's balance checks. The check gives guarantee that value reservation call in [`JournalHandler::send_dispatch`] for program's messages won't fail,
-//! because there is always a sufficient balance for the call.
+//! by program's balance checks. The check gives guarantee that value reservation call in
+//! [`JournalHandler::send_dispatch`](core_processor::common::JournalHandler::send_dispatch) for program's messages won't fail, because there is always a
+//! sufficient balance for the call.
 //!
 //! 3. **Messages's value management considers existential deposit rule**.
 //! It means that before message with value is added to the queue, value is checked to be in the valid range - `{0} ∪ [existential_deposit; +inf)`. This is
@@ -49,16 +51,29 @@ mod task;
 pub use journal::*;
 pub use task::*;
 
-use crate::{Config, CurrencyOf, GearProgramPallet};
+use crate::{
+    Config, CostsPerBlockOf, CurrencyOf, GasHandlerOf, GearProgramPallet, Pallet, QueueOf,
+    TaskPoolOf,
+};
 use codec::{Decode, Encode};
-use common::{event::*, ActiveProgram, CodeStorage, Origin, ProgramState};
+use common::{
+    event::*,
+    scheduler::{ScheduledTask, SchedulingCostsPerBlock, TaskHandler, TaskPool},
+    storage::{Interval, Queue},
+    ActiveProgram, CodeStorage, GasTree, Origin, ProgramState,
+};
+use core::fmt;
 use core_processor::common::{Actor, ExecutableActorData};
 use frame_support::traits::Currency;
+use frame_system::pallet_prelude::BlockNumberFor;
 use gear_core::{
-    ids::{CodeId, MessageId, ProgramId},
-    message::ExitCode,
-    program::Program as NativeProgram,
+    code::{CodeAndId, InstrumentedCode},
+    ids::{CodeId, MessageId, ProgramId, ReservationId},
+    memory::WasmPageNumber,
+    message::{DispatchKind, SignalMessage, StatusCode},
+    reservation::GasReservationSlot,
 };
+use primitive_types::H256;
 use sp_runtime::traits::UniqueSaturatedInto;
 use sp_std::{
     collections::{btree_map::BTreeMap, btree_set::BTreeSet},
@@ -72,7 +87,45 @@ pub enum HandleKind {
     Init(Vec<u8>),
     InitByHash(CodeId),
     Handle(ProgramId),
-    Reply(MessageId, ExitCode),
+    Reply(MessageId, StatusCode),
+    Signal(MessageId, StatusCode),
+}
+
+impl fmt::Debug for HandleKind {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            HandleKind::Init(_) => f.debug_tuple("Init").field(&format_args!("[...]")).finish(),
+            HandleKind::InitByHash(id) => f.debug_tuple("InitByHash").field(id).finish(),
+            HandleKind::Handle(id) => f.debug_tuple("Handle").field(id).finish(),
+            HandleKind::Reply(id, code) => f.debug_tuple("Reply").field(id).field(code).finish(),
+            HandleKind::Signal(id, code) => f.debug_tuple("Signal").field(id).field(code).finish(),
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct CodeInfo {
+    id: H256,
+    exports: BTreeSet<DispatchKind>,
+    static_pages: WasmPageNumber,
+}
+
+impl CodeInfo {
+    pub fn from_code_and_id(code: &CodeAndId) -> Self {
+        Self {
+            id: code.code_id().into_origin(),
+            exports: code.code().exports().clone(),
+            static_pages: code.code().static_pages(),
+        }
+    }
+
+    pub fn from_code(id: &CodeId, code: &InstrumentedCode) -> Self {
+        Self {
+            id: id.into_origin(),
+            exports: code.exports().clone(),
+            static_pages: code.static_pages(),
+        }
+    }
 }
 
 /// Journal handler implementation for `pallet_gear`.
@@ -157,25 +210,15 @@ where
     /// Adds program's id to the collection of programs with
     /// loaded memory pages.
     pub fn insert_program_id_loaded_pages(&mut self, id: ProgramId) {
-        assert!(self.check_program_id(&id));
+        debug_assert!(self.check_program_id(&id));
 
         self.program_loaded_pages.insert(id);
     }
-
     /// NOTE: By calling this function we can't differ whether `None` returned, because
     /// program with `id` doesn't exist or it's terminated
     pub fn get_actor(&self, id: ProgramId) -> Option<Actor> {
         let active: ActiveProgram = common::get_program(id.into_origin())?.try_into().ok()?;
-        let program = {
-            let code_id = CodeId::from_origin(active.code_hash);
-            let code = T::CodeStorage::get_code(code_id)?;
-            NativeProgram::from_parts(
-                id,
-                code,
-                active.allocations,
-                matches!(active.state, ProgramState::Initialized),
-            )
-        };
+        let code_id = CodeId::from_origin(active.code_hash);
 
         let balance =
             CurrencyOf::<T>::free_balance(&<T::AccountId as Origin>::from_origin(id.into_origin()))
@@ -185,19 +228,24 @@ where
             balance,
             destination_program: id,
             executable_data: Some(ExecutableActorData {
-                program,
+                allocations: active.allocations.clone(),
+                code_id,
+                code_exports: active.code_exports,
+                static_pages: active.static_pages,
+                initialized: matches!(active.state, ProgramState::Initialized),
                 pages_with_data: active.pages_with_data,
+                gas_reservation_map: active.gas_reservation_map,
             }),
         })
     }
 
-    pub fn set_program(&self, program_id: ProgramId, code_id: CodeId, message_id: MessageId) {
+    pub fn set_program(&self, program_id: ProgramId, code_info: &CodeInfo, message_id: MessageId) {
         // Program can be added to the storage only with code, which is done in
         // `submit_program` or `upload_code` extrinsic.
         //
         // Code can exist without program, but the latter can't exist without code.
-        assert!(
-            T::CodeStorage::exists(code_id),
+        debug_assert!(
+            T::CodeStorage::exists(CodeId::from_origin(code_info.id)),
             "Program set must be called only when code exists",
         );
 
@@ -205,10 +253,111 @@ where
         let program = common::ActiveProgram {
             allocations: Default::default(),
             pages_with_data: Default::default(),
-            code_hash: code_id.into_origin(),
+            code_hash: code_info.id,
+            code_exports: code_info.exports.clone(),
+            static_pages: code_info.static_pages,
             state: common::ProgramState::Uninitialized { message_id },
+            gas_reservation_map: Default::default(),
         };
 
         common::set_program(program_id.into_origin(), program);
+    }
+
+    fn clean_reservation_tasks(&mut self, program_id: ProgramId, maybe_inactive: bool) {
+        let maybe_active_program = common::get_active_program(program_id.into_origin());
+
+        if maybe_active_program.is_err() && maybe_inactive {
+            return;
+        };
+
+        let active_program = maybe_active_program.unwrap_or_else(|e| {
+            unreachable!(
+                "Clean reservations can only be called on active program: {}",
+                e
+            )
+        });
+
+        for (reservation_id, reservation_slot) in active_program.gas_reservation_map {
+            <Self as TaskHandler<T::AccountId>>::remove_gas_reservation(
+                self,
+                program_id,
+                reservation_id,
+            );
+
+            let _ = TaskPoolOf::<T>::delete(
+                BlockNumberFor::<T>::from(reservation_slot.finish),
+                ScheduledTask::RemoveGasReservation(program_id, reservation_id),
+            );
+        }
+    }
+
+    pub fn remove_gas_reservation_impl(
+        program_id: ProgramId,
+        reservation_id: ReservationId,
+    ) -> GasReservationSlot {
+        let program_id = program_id.into_origin();
+        let mut prog = common::get_active_program(program_id).unwrap_or_else(|e| {
+            unreachable!(
+                "Gas reservation removing guaranteed to be called only on existing program: {}",
+                e
+            )
+        });
+        let slot = prog
+            .gas_reservation_map
+            .remove(&reservation_id)
+            .unwrap_or_else(|| {
+                unreachable!(
+                    "Gas reservation removing called on non-existing reservation ID: {}",
+                    reservation_id
+                )
+            });
+        common::set_program(program_id, prog);
+
+        GasHandlerOf::<T>::unlock_all(reservation_id)
+            .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
+
+        let interval = Interval {
+            start: BlockNumberFor::<T>::from(slot.start),
+            finish: BlockNumberFor::<T>::from(slot.finish),
+        };
+
+        Pallet::<T>::charge_for_hold(
+            reservation_id,
+            interval,
+            CostsPerBlockOf::<T>::reservation(),
+        );
+
+        Pallet::<T>::consume_and_retrieve(reservation_id);
+
+        slot
+    }
+
+    fn send_signal(&mut self, message_id: MessageId, destination: ProgramId) {
+        let reserved = GasHandlerOf::<T>::system_unreserve(message_id)
+            .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
+        if reserved != 0 {
+            log::debug!(
+                "Send signal issued by {} to {} with {} supply",
+                message_id,
+                destination,
+                reserved
+            );
+
+            // Creating signal message.
+            let trap_signal = SignalMessage::new(message_id, core_processor::ERR_STATUS_CODE)
+                .into_dispatch(message_id, destination)
+                .into_stored();
+
+            // Splitting gas for newly created reply message.
+            // TODO: don't split (#1743)
+            GasHandlerOf::<T>::split_with_value(message_id, trap_signal.id(), reserved)
+                .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
+
+            // Enqueueing dispatch into message queue.
+            QueueOf::<T>::queue(trap_signal)
+                .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e));
+        } else {
+            log::trace!("Signal wasn't sent due to inappropriate supply");
+        }
     }
 }

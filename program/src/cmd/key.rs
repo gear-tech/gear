@@ -1,14 +1,14 @@
 //! command `key`
 use crate::{keystore::key::Key as KeyT, result::Result};
+use clap::Parser;
 use std::{fmt::Display, result::Result as StdResult, str::FromStr};
-use structopt::StructOpt;
-use subxt::{
+use subxt::ext::{
     sp_core::{ecdsa, ed25519, sr25519, Pair},
     sp_runtime::traits::IdentifyAccount,
 };
 
 /// Cryptography scheme
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Scheme {
     Ecdsa,
     Ed25519,
@@ -27,14 +27,14 @@ impl FromStr for Scheme {
     }
 }
 
-#[derive(Debug, StructOpt)]
+#[derive(Debug, Parser)]
 pub enum Action {
     /// Generate a random account
     Generate,
 
     /// Generate a random node libp2p key
     #[cfg(feature = "node-key")]
-    #[structopt(name = "generate-node-key")]
+    #[clap(name = "generate-node-key")]
     GenerateNodeKey,
 
     /// Gets a public key and a SS58 address from the provided Secret URI
@@ -70,13 +70,13 @@ pub enum Action {
 }
 
 /// Keypair utils
-#[derive(Debug, StructOpt)]
+#[derive(Debug, Parser)]
 pub struct Key {
     /// Cryptography scheme
-    #[structopt(short, long, default_value = "sr25519")]
+    #[arg(short, long, default_value = "sr25519")]
     scheme: Scheme,
     /// Key actions
-    #[structopt(subcommand)]
+    #[command(subcommand)]
     action: Action,
 }
 
@@ -127,7 +127,7 @@ impl Key {
             let (pair, phrase, seed) = res;
             let signer = pair.signer();
 
-            Self::info(&format!("Secret Phrase `{}`", phrase), signer, Some(seed));
+            Self::info(&format!("Secret Phrase `{phrase}`"), signer, Some(seed));
         });
 
         Ok(())
@@ -163,11 +163,7 @@ impl Key {
         let key = KeyT::from_string(suri);
         let key_ref = &key;
         match_scheme!(self.scheme, pair(key_ref, passwd), pair, {
-            Self::info(
-                &format!("Secret Key URI `{}`", suri),
-                pair.0.signer(),
-                pair.1,
-            )
+            Self::info(&format!("Secret Key URI `{suri}`"), pair.0.signer(), pair.1)
         });
 
         Ok(())
@@ -190,7 +186,7 @@ impl Key {
             let signer = pair.0.signer();
             let sig = signer.sign(message.as_bytes());
 
-            println!("Message: {}", message);
+            println!("Message: {message}");
             println!("Signature: {}", hex::encode::<&[u8]>(sig.as_ref()));
             Self::info("The signer of this signature", signer, pair.1)
         });
@@ -206,7 +202,7 @@ impl Key {
         let [sig, msg, pubkey] = [&arr[0], message.as_bytes(), &arr[1]];
 
         match_scheme!(self.scheme, verify(sig, msg, pubkey), res, {
-            println!("Result: {}", res);
+            println!("Result: {res}");
         });
 
         Ok(())

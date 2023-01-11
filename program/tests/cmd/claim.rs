@@ -2,7 +2,7 @@
 use crate::common::{self, Result, ALICE_SS58_ADDRESS as ADDRESS};
 use gear_program::api::Api;
 
-const REWARD_PER_BLOCK: u128 = 3000;
+const REWARD_PER_BLOCK: u128 = 3_000_000; // 3_000 gas * 1_000 value per gas
 
 #[tokio::test]
 async fn test_command_claim_works() -> Result<()> {
@@ -11,6 +11,7 @@ async fn test_command_claim_works() -> Result<()> {
     // Check the mailbox of the testing account
     let api = Api::new(Some(&node.ws())).await?.try_signer(None)?;
     let mailbox = api.mailbox(common::alice_account_id(), 10).await?;
+
     assert_eq!(mailbox.len(), 1);
     let id = hex::encode(mailbox[0].0.id.0);
 
@@ -27,5 +28,6 @@ async fn test_command_claim_works() -> Result<()> {
         after.saturating_sub(before),
         messager::SENT_VALUE + REWARD_PER_BLOCK
     );
+
     Ok(())
 }

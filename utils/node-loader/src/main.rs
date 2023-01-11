@@ -5,44 +5,46 @@
 //! gets properly structured data acceptable by the gear node and randomizes it's "fields".
 //! That's why generated data is called semi-random.
 
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use args::{parse_cli_params, LoadParams, Params};
-use batch_pool::{generators, BatchPool};
+use batch_pool::BatchPool;
+use names::Generator;
 use rand::rngs::SmallRng;
-use std::{fs::File, io::Write};
 
 mod args;
 mod batch_pool;
+mod log;
 mod utils;
 
 /// Main entry-point
 #[tokio::main]
-async fn main() {
+async fn main() -> Result<()> {
     let params = parse_cli_params();
-    if let Err(e) = run(params).await {
-        eprintln!("{e:}");
-        std::process::exit(1)
-    }
+
+    run(params).await
 }
 
 async fn run(params: Params) -> Result<()> {
     match params {
-        Params::Dump { seed } => dump_with_seed(seed),
+        Params::Dump { seed } => utils::dump_with_seed(seed),
         Params::Load(load_params) => load_node(load_params).await,
     }
 }
 
-fn dump_with_seed(seed: u64) -> Result<()> {
-    let code = generators::generate_gear_program::<SmallRng>(seed);
-    let mut file = File::create("out.wasm")?;
-    file.write_all(&code)?;
-    Ok(())
-}
-
 async fn load_node(params: LoadParams) -> Result<()> {
-    let gear_api = utils::obtain_gear_api(&params.endpoint, &params.user).await?;
-    BatchPool::<SmallRng>::new(params.workers, params.batch_size, gear_api)
-        .run(params.code_seed_type)
-        .await;
-    Ok(())
+    let mut name_gen = Generator::default();
+    let run_name = name_gen
+        .next()
+        .ok_or(anyhow!("Failed generating run name"))?;
+
+    // this should not be dropped, until the loader works
+    let _guard = log::init_log(run_name.clone())?;
+
+    tracing::info!(
+        "Running {} of version {}. Run name: {run_name}.",
+        env!("CARGO_PKG_NAME"),
+        env!("CARGO_PKG_VERSION"),
+    );
+
+    BatchPool::<SmallRng>::run(params).await
 }

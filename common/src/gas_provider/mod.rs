@@ -119,11 +119,8 @@ pub trait Tree {
     /// The id of external node for a key.
     ///
     /// See [`get_origin_node`](Self::get_origin_node) for details.
-    fn get_origin_key(key: impl Into<GasNodeIdOf<Self>>) -> Result<Self::Key, Self::Error> {
-        Self::get_origin_node(key).and_then(|(_external, key)| {
-            key.to_node_id()
-                .ok_or_else(|| Self::InternalError::forbidden().into())
-        })
+    fn get_origin_key(key: impl Into<GasNodeIdOf<Self>>) -> Result<GasNodeIdOf<Self>, Self::Error> {
+        Self::get_origin_node(key).map(|(_external, key)| key)
     }
 
     /// Get value associated with given id and the key of an ancestor,
@@ -132,12 +129,14 @@ pub trait Tree {
     /// Error occurs if the tree is invalidated (has "orphan" nodes), and the
     /// node identified by the `key` belongs to a subtree originating at
     /// such "orphan" node, or in case of inexistent key.
-    fn get_limit_node(key: Self::Key) -> Result<(Self::Balance, Self::Key), Self::Error>;
+    fn get_limit_node(
+        key: impl Into<GasNodeIdOf<Self>>,
+    ) -> Result<(Self::Balance, GasNodeIdOf<Self>), Self::Error>;
 
     /// Get value associated with given id.
     ///
     /// See [`get_limit_node`](Self::get_limit_node) for details.
-    fn get_limit(key: Self::Key) -> Result<Self::Balance, Self::Error> {
+    fn get_limit(key: impl Into<GasNodeIdOf<Self>>) -> Result<Self::Balance, Self::Error> {
         Self::get_limit_node(key).map(|(balance, _key)| balance)
     }
 
@@ -159,8 +158,10 @@ pub trait Tree {
     /// overall supply of it. In case of a success, this indicates the
     /// entire value supply becomes over-collateralized,
     /// hence negative imbalance.
-    fn spend(key: Self::Key, amount: Self::Balance)
-        -> Result<Self::NegativeImbalance, Self::Error>;
+    fn spend(
+        key: impl Into<GasNodeIdOf<Self>>,
+        amount: Self::Balance,
+    ) -> Result<Self::NegativeImbalance, Self::Error>;
 
     /// Split underlying value.
     ///
@@ -169,7 +170,7 @@ pub trait Tree {
     ///
     /// This can't create imbalance as no value is burned or created.
     fn split_with_value(
-        key: Self::Key,
+        key: impl Into<GasNodeIdOf<Self>>,
         new_key: Self::Key,
         amount: Self::Balance,
     ) -> Result<(), Self::Error>;
@@ -179,7 +180,7 @@ pub trait Tree {
     /// If `key` does not identify any value an error is returned.
     ///
     /// This can't create imbalance as no value is burned or created.
-    fn split(key: Self::Key, new_key: Self::Key) -> Result<(), Self::Error>;
+    fn split(key: impl Into<GasNodeIdOf<Self>>, new_key: Self::Key) -> Result<(), Self::Error>;
 
     /// Cut underlying value to a reserved node.
     ///
@@ -187,7 +188,11 @@ pub trait Tree {
     /// locked under that key, an error is returned.
     ///
     /// This can't create imbalance as no value is burned or created.
-    fn cut(key: Self::Key, new_key: Self::Key, amount: Self::Balance) -> Result<(), Self::Error>;
+    fn cut(
+        key: impl Into<GasNodeIdOf<Self>>,
+        new_key: Self::Key,
+        amount: Self::Balance,
+    ) -> Result<(), Self::Error>;
 
     /// Locking some value from underlying balance.
     ///
@@ -195,7 +200,7 @@ pub trait Tree {
     /// locked under that key, an error is returned.
     ///
     /// This can't create imbalance as no value is burned or created.
-    fn lock(key: Self::Key, amount: Self::Balance) -> Result<(), Self::Error>;
+    fn lock(key: impl Into<GasNodeIdOf<Self>>, amount: Self::Balance) -> Result<(), Self::Error>;
 
     /// Unlocking some value from node's locked balance.
     ///
@@ -203,12 +208,13 @@ pub trait Tree {
     /// locked under that key, an error is returned.
     ///
     /// This can't create imbalance as no value is burned or created.
-    fn unlock(key: Self::Key, amount: Self::Balance) -> Result<(), Self::Error>;
+    fn unlock(key: impl Into<GasNodeIdOf<Self>>, amount: Self::Balance) -> Result<(), Self::Error>;
 
     /// Unlocking all value from node's locked balance.
     ///
     /// See [`unlock`](Self::unlock) for details.
-    fn unlock_all(key: Self::Key) -> Result<(), Self::Error> {
+    fn unlock_all(key: impl Into<GasNodeIdOf<Self>>) -> Result<(), Self::Error> {
+        let key = key.into();
         let amount = Self::get_lock(key.clone())?;
         Self::unlock(key, amount)
     }
@@ -218,7 +224,7 @@ pub trait Tree {
     /// Returns errors in cases of absence associated with given key node,
     /// or if such functionality is forbidden for specific node type:
     /// for example, for `GasNode::ReservedLocal`.
-    fn get_lock(key: Self::Key) -> Result<Self::Balance, Self::Error>;
+    fn get_lock(key: impl Into<GasNodeIdOf<Self>>) -> Result<Self::Balance, Self::Error>;
 
     /// Reserve some value from underlying balance.
     ///
@@ -228,6 +234,26 @@ pub trait Tree {
         new_key: Self::ReservationKey,
         amount: Self::Balance,
     ) -> Result<(), Self::Error>;
+
+    /// Reserve some value from underlying balance.
+    ///
+    /// Used in gas reservation for system signal.
+    fn system_reserve(key: Self::Key, amount: Self::Balance) -> Result<(), Self::Error>;
+
+    /// Unreserve some value from underlying balance.
+    ///
+    /// Used in gas reservation for system signal.
+    fn system_unreserve(key: Self::Key) -> Result<Self::Balance, Self::Error>;
+
+    /// Get system reserve value associated with given id.
+    ///
+    /// Returns errors in cases of absence associated with given key node,
+    /// or if such functionality is forbidden for specific node type:
+    /// for example, for `GasNode::ReservedLocal`.
+    fn get_system_reserve(key: Self::Key) -> Result<Self::Balance, Self::Error>;
+
+    /// Return bool, defining does node exist.
+    fn exists(key: Self::Key) -> bool;
 
     /// Removes all values.
     fn clear();

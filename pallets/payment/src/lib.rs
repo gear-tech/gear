@@ -18,7 +18,7 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
-use common::storage::*;
+use common::{storage::*, ExtractCall};
 use frame_support::{
     dispatch::{DispatchInfo, GetDispatchInfo, PostDispatchInfo},
     pallet_prelude::*,
@@ -29,7 +29,6 @@ use pallet_transaction_payment::{
     RuntimeDispatchInfo,
 };
 use sp_runtime::{
-    generic::{CheckedExtrinsic, UncheckedExtrinsic},
     traits::{Bounded, Convert, DispatchInfoOf, Dispatchable, PostDispatchInfoOf, SignedExtension},
     transaction_validity::TransactionValidityError,
     FixedPointNumber, FixedPointOperand, Perquintill, SaturatedConversion,
@@ -40,7 +39,7 @@ pub use pallet::*;
 
 type BalanceOf<T> =
     <<T as pallet_transaction_payment::Config>::OnChargeTransaction as OnChargeTransaction<T>>::Balance;
-type CallOf<T> = <T as frame_system::Config>::Call;
+type CallOf<T> = <T as frame_system::Config>::RuntimeCall;
 pub(crate) type QueueOf<T> = <<T as Config>::Messenger as Messenger>::Queue;
 pub type TransactionPayment<T> = pallet_transaction_payment::Pallet<T>;
 
@@ -144,9 +143,9 @@ where
     CallOf<T>: Dispatchable<Info = DispatchInfo, PostInfo = PostDispatchInfo>,
 {
     fn pre_dispatch_info<'a>(
-        call: &'a <T as frame_system::Config>::Call,
-        info: &'a DispatchInfoOf<<T as frame_system::Config>::Call>,
-    ) -> Cow<'a, DispatchInfoOf<<T as frame_system::Config>::Call>> {
+        call: &'a <T as frame_system::Config>::RuntimeCall,
+        info: &'a DispatchInfoOf<<T as frame_system::Config>::RuntimeCall>,
+    ) -> Cow<'a, DispatchInfoOf<<T as frame_system::Config>::RuntimeCall>> {
         // If the call is not subject to fee multiplication, divide weight by fee multiplier.
         // This action will effectively be cancelled out at the time the fee is calculated.
         //
@@ -200,6 +199,9 @@ where
     T: Config,
     S: Get<u128>,
 {
+    fn max() -> Multiplier {
+        Default::default()
+    }
     fn min() -> Multiplier {
         Default::default()
     }
@@ -208,34 +210,6 @@ where
     }
     fn variability() -> Multiplier {
         Default::default()
-    }
-}
-
-/// A trait whose purpose is to extract the `Call` variant of an extrinsic
-pub trait ExtractCall<RuntimeCall> {
-    fn extract_call(&self) -> RuntimeCall;
-}
-
-/// Implementation for unchecked extrinsic.
-impl<Address, RuntimeCall, Signature, Extra> ExtractCall<RuntimeCall>
-    for UncheckedExtrinsic<Address, RuntimeCall, Signature, Extra>
-where
-    RuntimeCall: Dispatchable + Clone,
-    Extra: SignedExtension,
-{
-    fn extract_call(&self) -> RuntimeCall {
-        self.function.clone()
-    }
-}
-
-/// Implementation for checked extrinsic.
-impl<Address, RuntimeCall, Extra> ExtractCall<RuntimeCall>
-    for CheckedExtrinsic<Address, RuntimeCall, Extra>
-where
-    RuntimeCall: Dispatchable + Clone,
-{
-    fn extract_call(&self) -> RuntimeCall {
-        self.function.clone()
     }
 }
 

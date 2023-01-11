@@ -22,7 +22,7 @@
 #![no_std]
 #![cfg_attr(target_arch = "wasm32", feature(alloc_error_handler))]
 #![cfg_attr(
-    all(target_arch = "wasm32", feature = "debug"),
+    all(target_arch = "wasm32", any(feature = "debug", debug_assertions)),
     feature(panic_info_message)
 )]
 #![cfg_attr(feature = "strict", deny(warnings))]
@@ -33,6 +33,7 @@ extern crate galloc;
 
 mod async_runtime;
 mod common;
+mod config;
 pub mod exec;
 pub mod lock;
 pub mod macros;
@@ -40,12 +41,19 @@ pub mod msg;
 pub mod prelude;
 pub mod prog;
 
-pub use async_runtime::{message_loop, record_reply};
+pub use async_runtime::{handle_signal, message_loop, record_reply};
 pub use common::{errors, handlers::*, primitives::*};
+pub use config::Config;
 pub use gstd_codegen::{async_init, async_main};
 pub use macros::util;
 
 pub use prelude::*;
 
-#[cfg(feature = "debug")]
+#[cfg(any(feature = "debug", debug_assertions))]
 pub use gcore::ext;
+
+use core::mem::size_of;
+use static_assertions::const_assert;
+
+// This allows all casts from u32 into usize be safe.
+const_assert!(size_of::<u32>() <= size_of::<usize>());

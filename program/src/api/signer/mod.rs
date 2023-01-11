@@ -6,9 +6,11 @@ use crate::{
 };
 use std::ops::{Deref, DerefMut};
 use subxt::{
-    sp_core::{crypto::Ss58Codec, sr25519::Pair, Pair as PairT},
-    sp_runtime::AccountId32,
-    PairSigner,
+    ext::{
+        sp_core::{crypto::Ss58Codec, sr25519::Pair, Pair as PairT},
+        sp_runtime::AccountId32,
+    },
+    tx::PairSigner,
 };
 
 mod calls;
@@ -20,16 +22,29 @@ pub struct Signer {
     api: Api,
     /// Current signer.
     pub signer: PairSigner<GearConfig, Pair>,
+    nonce: Option<u32>,
 }
 
 impl Signer {
-    /// New signer api
+    /// New signer api.
     pub fn new(api: Api, suri: &str, passwd: Option<&str>) -> Result<Self> {
         Ok(Self {
             api,
             signer: PairSigner::new(
                 Pair::from_string(suri, passwd).map_err(|_| Error::InvalidSecret)?,
             ),
+            nonce: None,
+        })
+    }
+
+    /// Change inner signer.
+    pub fn change(self, suri: &str, passwd: Option<&str>) -> Result<Self> {
+        Ok(Self {
+            api: self.api,
+            signer: PairSigner::new(
+                Pair::from_string(suri, passwd).map_err(|_| Error::InvalidSecret)?,
+            ),
+            nonce: None,
         })
     }
 
@@ -38,6 +53,7 @@ impl Signer {
         Ok(Self {
             api,
             signer: keystore::cache(passwd)?,
+            nonce: None,
         })
     }
 
@@ -46,6 +62,7 @@ impl Signer {
         Ok(Self {
             api,
             signer: keystore::keyring(passwd)?,
+            nonce: None,
         })
     }
 
@@ -56,6 +73,10 @@ impl Signer {
         } else {
             Self::keyring(api, passwd)
         }
+    }
+
+    pub fn set_nonce(&mut self, nonce: u32) {
+        self.nonce = Some(nonce)
     }
 
     /// Get address of the current signer

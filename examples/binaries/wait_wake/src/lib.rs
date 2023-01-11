@@ -49,18 +49,18 @@ fn process_request(request: Request) {
             };
             exec::wait();
         }
-        Request::Wake(id) => exec::wake(id),
+        Request::Wake(id) => exec::wake(id).unwrap(),
     }
 }
 
 #[no_mangle]
-unsafe extern "C" fn init() {
+extern "C" fn init() {
     msg::reply((), 0).unwrap();
 }
 
 #[no_mangle]
-unsafe extern "C" fn handle() {
-    if let Some(reply) = ECHOES.get_or_insert_with(BTreeMap::new).remove(&msg::id()) {
+extern "C" fn handle() {
+    if let Some(reply) = unsafe { ECHOES.get_or_insert_with(BTreeMap::new).remove(&msg::id()) } {
         msg::reply(reply, 0).unwrap();
     } else {
         msg::load::<Request>().map(process_request).unwrap();
@@ -68,7 +68,7 @@ unsafe extern "C" fn handle() {
 }
 
 #[no_mangle]
-unsafe extern "C" fn handle_reply() {}
+extern "C" fn handle_reply() {}
 
 #[cfg(test)]
 mod tests {

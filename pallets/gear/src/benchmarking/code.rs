@@ -29,18 +29,21 @@ use crate::Config;
 use common::Origin;
 use frame_support::traits::Get;
 use gear_core::ids::CodeId;
+use gear_wasm_instrument::{
+    parity_wasm::{
+        builder,
+        elements::{
+            self, BlockType, CustomSection, FuncBody, Instruction, Instructions, Module, Section,
+            ValueType,
+        },
+    },
+    syscalls::SysCallName,
+};
 use sp_sandbox::{
     default_executor::{EnvironmentDefinitionBuilder, Memory},
     SandboxEnvironmentBuilder, SandboxMemory,
 };
 use sp_std::{borrow::ToOwned, convert::TryFrom, marker::PhantomData, prelude::*};
-use wasm_instrument::parity_wasm::{
-    builder,
-    elements::{
-        self, BlockType, CustomSection, FuncBody, Instruction, Instructions, Module, Section,
-        ValueType,
-    },
-};
 
 /// The location where to put the generated code.
 pub enum Location {
@@ -63,8 +66,8 @@ pub struct ModuleDefinition {
     pub data_segments: Vec<DataSegment>,
     /// Creates the supplied amount of i64 mutable globals initialized with random values.
     pub num_globals: u32,
-    /// List of functions that the module should import. They start with index 0.
-    pub imported_functions: Vec<ImportedFunction>,
+    /// List of syscalls that the module should import. They start with index 0.
+    pub imported_functions: Vec<SysCallName>,
     /// Function body of the exported `init` function. Body is empty if `None`.
     /// Its index is `imported_functions.len()`.
     pub init_body: Option<FuncBody>,
@@ -74,10 +77,14 @@ pub struct ModuleDefinition {
     /// Function body of the exported `handle_reply` function. Body is empty if `None`.
     /// Its index is `imported_functions.len() + 2`.
     pub reply_body: Option<FuncBody>,
-    /// Function body of a non-exported function with index `imported_functions.len() + 3`.
+    /// Function body of the exported `handle_signal` function. Body is empty if `None`.
+    /// Its index is `imported_functions.len() + 3`.
+    pub signal_body: Option<FuncBody>,
+    /// Function body of a non-exported function with index `imported_functions.len() + 4`.
     pub aux_body: Option<FuncBody>,
     /// The amount of I64 arguments the aux function should have.
     pub aux_arg_num: u32,
+    pub aux_res: Option<ValueType>,
     /// If set to true the stack height limiter is injected into the the module. This is
     /// needed for instruction debugging because the cost of executing the stack height
     /// instrumentation should be included in the costs for the individual instructions
@@ -113,8 +120,9 @@ impl ImportedMemory {
     where
         T: Config,
     {
-        let pages = max_pages::<T>();
-        Self { min_pages: pages }
+        Self {
+            min_pages: max_pages::<T>() as u32,
+        }
     }
 }
 
@@ -137,7 +145,8 @@ pub struct WasmModule<T> {
 pub const OFFSET_INIT: u32 = 0;
 pub const OFFSET_HANDLE: u32 = OFFSET_INIT + 1;
 pub const OFFSET_REPLY: u32 = OFFSET_HANDLE + 1;
-pub const OFFSET_AUX: u32 = OFFSET_REPLY + 1;
+pub const OFFSET_SIGNAL: u32 = OFFSET_REPLY + 1;
+pub const OFFSET_AUX: u32 = OFFSET_SIGNAL + 1;
 
 impl<T: Config> From<ModuleDefinition> for WasmModule<T>
 where
@@ -167,6 +176,11 @@ where
             .build()
             .with_body(def.reply_body.unwrap_or_else(body::empty))
             .build()
+            .function()
+            .signature()
+            .build()
+            .with_body(def.signal_body.unwrap_or_else(body::empty))
+            .build()
             .export()
             .field("init")
             .internal()
@@ -181,6 +195,11 @@ where
             .field("handle_reply")
             .internal()
             .func(func_offset + OFFSET_REPLY)
+            .build()
+            .export()
+            .field("handle_signal")
+            .internal()
+            .func(func_offset + OFFSET_SIGNAL)
             .build();
 
         // If specified we add an additional internal function
@@ -188,6 +207,9 @@ where
             let mut signature = program.function().signature();
             for _ in 0..def.aux_arg_num {
                 signature = signature.with_param(ValueType::I64);
+            }
+            if let Some(res) = def.aux_res {
+                signature = signature.with_result(res);
             }
             program = signature.build().with_body(body).build();
         }
@@ -204,16 +226,17 @@ where
         }
 
         // Import supervisor functions. They start with idx 0.
-        for func in def.imported_functions {
+        for name in def.imported_functions {
+            let sign = name.signature();
             let sig = builder::signature()
-                .with_params(func.params)
-                .with_results(func.return_type.into_iter().collect::<Vec<_>>())
+                .with_params(sign.params.into_iter().map(Into::into))
+                .with_results(sign.results.into_iter())
                 .build_sig();
             let sig = program.push_signature(sig);
             program = program
                 .import()
-                .module(func.module)
-                .field(func.name)
+                .module("env")
+                .field(name.to_str())
                 .with_external(elements::External::Function(sig))
                 .build();
         }
@@ -295,57 +318,37 @@ where
     /// instrumentation runtime by nesting blocks as deeply as possible given the byte budget.
     /// `code_location`: Whether to place the code into `init` or `handle`.
     pub fn sized(target_bytes: u32, code_location: Location) -> Self {
-        use self::elements::Instruction::{End, I32Const, If, Return};
-        // Base size of a program is 63 bytes and each expansion adds 6 bytes.
+        use self::elements::Instruction::{Drop, End, I32Const, I64Const, I64Eq, If, Return};
+        // Base size of a program is 63 bytes and each expansion adds 20 bytes.
         // We do one expansion less to account for the code section and function body
         // size fields inside the binary wasm module representation which are leb128 encoded
         // and therefore grow in size when the contract grows. We are not allowed to overshoot
         // because of the maximum code size that is enforced by `instantiate_with_code`.
-        let expansions = (target_bytes.saturating_sub(63) / 6).saturating_sub(1);
-        const EXPANSION: [Instruction; 4] = [I32Const(0), If(BlockType::NoResult), Return, End];
+        let expansions = (target_bytes.saturating_sub(63) / 20).saturating_sub(1);
+        const EXPANSION: &[Instruction] = &[
+            I64Const(0),
+            I64Const(1),
+            I64Eq,
+            If(BlockType::NoResult),
+            Return,
+            End,
+            I32Const(0xffffff),
+            Drop,
+            I32Const(0),
+            If(BlockType::NoResult),
+            Return,
+            End,
+        ];
         let mut module = ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
             ..Default::default()
         };
-        let body = Some(body::repeated(expansions, &EXPANSION));
+        let body = Some(body::repeated(expansions, EXPANSION));
         match code_location {
             Location::Init => module.init_body = body,
             Location::Handle => module.handle_body = body,
         }
         module.into()
-    }
-
-    /// Creates a wasm module that calls the imported function named `getter_name` `repeat`
-    /// times. The imported function is expected to have the "getter signature" of
-    /// (out_ptr: u32) -> ().
-    pub fn getter(module_name: &'static str, getter_name: &'static str, repeat: u32) -> Self {
-        let pages = max_pages::<T>();
-        ModuleDefinition {
-            memory: Some(ImportedMemory::max::<T>()),
-            imported_functions: vec![ImportedFunction {
-                module: module_name,
-                name: getter_name,
-                params: vec![ValueType::I32],
-                return_type: None,
-            }],
-            // Write the output buffer size. The output size will be overwritten by the
-            // supervisor with the real size when calling the getter. Since this size does not
-            // change between calls it suffices to start with an initial value and then just
-            // leave as whatever value was written there.
-            data_segments: vec![DataSegment {
-                offset: 0,
-                value: (pages * 64 * 1024 - 4).to_le_bytes().to_vec(),
-            }],
-            handle_body: Some(body::repeated(
-                repeat,
-                &[
-                    Instruction::I32Const(4), // ptr where to store output
-                    Instruction::Call(0),     // call the imported function
-                ],
-            )),
-            ..Default::default()
-        }
-        .into()
     }
 
     /// Creates a memory instance for use in a sandbox with dimensions declared in this module
@@ -397,6 +400,8 @@ where
 
 /// Mechanisms to generate a function body that can be used inside a `ModuleDefinition`.
 pub mod body {
+    use gear_core::memory::{PageNumber, PageU32Size, WasmPageNumber};
+
     use super::*;
 
     /// When generating contract code by repeating a wasm sequence, it's sometimes necessary
@@ -414,6 +419,9 @@ pub mod body {
         /// Insert a I32Const with a random value in [low, high).
         /// (low, high)
         RandomI32(i32, i32),
+        /// Insert a I64Const with a random value in [low, high).
+        /// (low, high)
+        RandomI64(i64, i64),
         /// Insert the specified amount of I32Const with a random value.
         RandomI32Repeated(usize),
         /// Insert the specified amount of I64Const with a random value.
@@ -439,6 +447,11 @@ pub mod body {
         FuncBody::new(Vec::new(), Instructions::new(instructions))
     }
 
+    pub fn from_instructions(mut instructions: Vec<Instruction>) -> FuncBody {
+        instructions.push(Instruction::End);
+        FuncBody::new(Vec::new(), Instructions::new(instructions))
+    }
+
     pub fn empty() -> FuncBody {
         FuncBody::new(vec![], Instructions::empty())
     }
@@ -456,14 +469,48 @@ pub mod body {
         FuncBody::new(Vec::new(), instructions)
     }
 
-    pub fn repeated_dyn(repetitions: u32, mut instructions: Vec<DynInstr>) -> FuncBody {
+    pub fn write_access_all_pages_instrs(
+        mem_size: WasmPageNumber,
+        mut head: Vec<Instruction>,
+    ) -> Vec<Instruction> {
+        for page in mem_size
+            .iter_from_zero()
+            .flat_map(|p| p.to_pages_iter::<PageNumber>())
+        {
+            head.push(Instruction::I32Const(page.offset() as i32));
+            head.push(Instruction::I32Const(42));
+            head.push(Instruction::I32Store(2, 0));
+        }
+        head
+    }
+
+    pub fn read_access_all_pages_instrs(
+        mem_size: WasmPageNumber,
+        mut head: Vec<Instruction>,
+    ) -> Vec<Instruction> {
+        for page in mem_size
+            .iter_from_zero()
+            .flat_map(|p| p.to_pages_iter::<PageNumber>())
+        {
+            head.push(Instruction::I32Const(page.offset() as i32));
+            head.push(Instruction::I32Load(2, 0));
+            head.push(Instruction::Drop);
+        }
+        head
+    }
+
+    pub fn repeated_dyn_instr(
+        repetitions: u32,
+        mut instructions: Vec<DynInstr>,
+        mut head: Vec<Instruction>,
+    ) -> Vec<Instruction> {
         use rand::{distributions::Standard, prelude::*};
 
         // We do not need to be secure here.
         let mut rng = rand_pcg::Pcg32::seed_from_u64(8446744073709551615);
 
         // We need to iterate over indices because we cannot cycle over mutable references
-        let body = (0..instructions.len())
+        let instr_iter = (0..instructions.len())
             .cycle()
             .take(instructions.len() * usize::try_from(repetitions).unwrap())
             .flat_map(|idx| match &mut instructions[idx] {
@@ -479,6 +526,9 @@ pub mod body {
                 }
                 DynInstr::RandomI32(low, high) => {
                     vec![Instruction::I32Const(rng.gen_range(*low..*high))]
+                }
+                DynInstr::RandomI64(low, high) => {
+                    vec![Instruction::I64Const(rng.gen_range(*low..*high))]
                 }
                 DynInstr::RandomI32Repeated(num) => (&mut rng)
                     .sample_iter(Standard)
@@ -505,9 +555,14 @@ pub mod body {
                 DynInstr::RandomSetGlobal(low, high) => {
                     vec![Instruction::SetGlobal(rng.gen_range(*low..*high))]
                 }
-            })
-            .chain(sp_std::iter::once(Instruction::End))
-            .collect();
+            });
+        head.extend(instr_iter);
+        head
+    }
+
+    pub fn repeated_dyn(repetitions: u32, instructions: Vec<DynInstr>) -> FuncBody {
+        let mut body = repeated_dyn_instr(repetitions, instructions, vec![]);
+        body.push(Instruction::End);
         FuncBody::new(Vec::new(), Instructions::new(body))
     }
 
@@ -519,7 +574,7 @@ pub mod body {
 }
 
 /// The maximum amount of pages any program is allowed to have according to the current `Schedule`.
-pub fn max_pages<T: Config>() -> u32
+pub fn max_pages<T: Config>() -> u16
 where
     T: Config,
 {
@@ -527,6 +582,9 @@ where
 }
 
 fn inject_stack_metering<T: Config>(module: Module) -> Module {
-    let height = T::Schedule::get().limits.stack_height;
-    wasm_instrument::inject_stack_limiter(module, height).unwrap()
+    if let Some(height) = T::Schedule::get().limits.stack_height {
+        gear_wasm_instrument::wasm_instrument::inject_stack_limiter(module, height).unwrap()
+    } else {
+        module
+    }
 }

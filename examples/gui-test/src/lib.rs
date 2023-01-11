@@ -36,7 +36,7 @@ gstd::metadata! {
 type InitIncoming = Action<AStruct, Option<CustomStruct<u8>>, BTreeMap<String, u8>>;
 
 #[no_mangle]
-unsafe extern "C" fn init() {
+extern "C" fn init() {
     let incoming: InitIncoming = msg::load().expect("Unable to decode payload");
 
     let outgoing: Result<u8, Option<String>> = match incoming {
@@ -56,13 +56,13 @@ unsafe extern "C" fn init() {
         }
     };
 
-    msg::reply(outgoing, 555).unwrap();
+    msg::reply(outgoing, 1_001_000).unwrap();
 }
 
 type HandleIncoming = (BTreeMap<String, u8>, Option<(Option<u8>, u128, [u8; 3])>);
 
 #[no_mangle]
-unsafe extern "C" fn handle() {
+extern "C" fn handle() {
     let incoming: HandleIncoming = msg::load().expect("Unable to decode payload");
 
     let outgoing = match incoming {
@@ -80,5 +80,5 @@ unsafe extern "C" fn handle() {
         }
     };
 
-    msg::reply(outgoing, 555).unwrap();
+    msg::reply(outgoing, 1_001_000).unwrap();
 }

@@ -30,7 +30,7 @@ impl State {
 static mut STATE: State = State { name: "" };
 
 #[no_mangle]
-unsafe extern "C" fn handle() {
+extern "C" fn handle() {
     bot(msg::load().expect("Failed to decode incoming message"));
 }
 
@@ -59,15 +59,16 @@ fn bot(message: MemberMessage) {
 }
 
 #[no_mangle]
-unsafe extern "C" fn init() {
-    let input = String::from_utf8(msg::load_bytes()).expect("Invalid message: should be utf-8");
+extern "C" fn init() {
+    let input = String::from_utf8(msg::load_bytes().expect("Failed to load payload bytes"))
+        .expect("Invalid message: should be utf-8");
 
     let split = input.split(' ').collect::<Vec<_>>();
     match split.len() {
         2 => {
             let (name, room_id) = (&split[0], &split[1]);
             let s: &'static str = Box::leak(name.to_string().into_boxed_str());
-            STATE.set_name(s);
+            unsafe { STATE.set_name(s) };
             let room_id = ActorId::from_slice(
                 &decode_hex(room_id).expect("INITIALIZATION FAILED: INVALID ROOM ID"),
             )
@@ -86,5 +87,5 @@ unsafe extern "C" fn init() {
         }
     }
 
-    debug!("BOT '{}' created", STATE.name());
+    debug!("BOT '{}' created", unsafe { STATE.name() });
 }

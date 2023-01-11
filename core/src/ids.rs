@@ -18,7 +18,7 @@
 
 //! Base identifiers for messaging primitives.
 
-use crate::message::ExitCode;
+use crate::message::StatusCode;
 use alloc::vec::Vec;
 use blake2_rfc::blake2b;
 
@@ -183,28 +183,28 @@ impl MessageId {
         hash(&argument).into()
     }
 
-    /// Generate MessageId for reply message depend on exit code
-    pub fn generate_reply(origin_msg_id: MessageId, exit_code: ExitCode) -> MessageId {
+    /// Generate MessageId for reply message depend on status code
+    pub fn generate_reply(origin_msg_id: MessageId, status_code: StatusCode) -> MessageId {
         let unique_flag = b"reply";
 
         let origin_msg_id = origin_msg_id.as_ref();
-        let exit_code = exit_code.to_le_bytes();
+        let status_code = status_code.to_le_bytes();
 
-        let len = unique_flag.len() + origin_msg_id.len() + exit_code.len();
+        let len = unique_flag.len() + origin_msg_id.len() + status_code.len();
 
         let mut argument = Vec::with_capacity(len);
         argument.extend_from_slice(unique_flag);
-        argument.extend(exit_code);
+        argument.extend(status_code);
         argument.extend(origin_msg_id);
 
         hash(&argument).into()
     }
 
-    /// Generate MessageId for signal message depend on exit code
-    pub fn generate_signal(origin_msg_id: MessageId, exit_code: ExitCode) -> MessageId {
+    /// Generate MessageId for signal message depend on status code
+    pub fn generate_signal(origin_msg_id: MessageId) -> MessageId {
         const SALT: &[u8] = b"signal";
 
-        let argument = [origin_msg_id.as_ref(), &exit_code.to_le_bytes(), SALT].concat();
+        let argument = [SALT, origin_msg_id.as_ref()].concat();
         hash(&argument).into()
     }
 }
@@ -217,14 +217,7 @@ impl ProgramId {
 
     /// Generate ProgramId from given CodeId and salt
     pub fn generate(code_id: CodeId, salt: &[u8]) -> Self {
-        let code_id = code_id.as_ref();
-
-        let len = code_id.len() + salt.len();
-
-        let mut argument = Vec::with_capacity(len);
-        argument.extend_from_slice(code_id);
-        argument.extend_from_slice(salt);
-
+        let argument = [code_id.as_ref(), salt].concat();
         hash(&argument).into()
     }
 }
@@ -233,8 +226,13 @@ declare_id!(ReservationId: "Reservation identifier");
 
 impl ReservationId {
     /// Create a new reservation ID
-    pub fn generate(msg_id: MessageId, idx: u64) -> Self {
-        let argument = [msg_id.as_ref(), &idx.to_le_bytes(), b"reservation_id_salt"].concat();
+    pub fn generate(msg_id: MessageId, nonce: u64) -> Self {
+        let argument = [
+            b"reservation_id_salt",
+            msg_id.as_ref(),
+            &nonce.to_le_bytes(),
+        ]
+        .concat();
         hash(&argument).into()
     }
 }

@@ -1,21 +1,36 @@
-use crate::utils::LoaderRng;
+use gear_core::ids::{CodeId, ProgramId};
+use std::collections::BTreeSet;
 
-// TODO DN
-pub(super) struct TaskContextUpdate;
+use super::report::Report;
 
-#[derive(Clone)]
-pub(super) struct TasksContext {
-    // TODO DN
-    // pub programs: Vec<ProgramId>, // for send_message/send_reply
-    // pub mailbox: Vec<Mailbox>, // for send_reply and claim_value
+#[derive(Default)]
+pub struct ContextUpdate {
+    program_ids: BTreeSet<ProgramId>,
+    codes: BTreeSet<CodeId>,
 }
 
-impl TasksContext {
-    pub(super) fn new<Rng: LoaderRng>() -> Self {
-        Self {}
+#[derive(Clone, Default)]
+pub struct Context {
+    pub programs: BTreeSet<ProgramId>,
+    pub codes: BTreeSet<CodeId>,
+}
+
+impl From<Report> for ContextUpdate {
+    fn from(report: Report) -> Self {
+        ContextUpdate {
+            program_ids: report.program_ids,
+            codes: report.codes,
+        }
+    }
+}
+
+impl Context {
+    pub fn new() -> Self {
+        Default::default()
     }
 
-    pub(super) fn update(&mut self, _: TaskContextUpdate) {
-        todo!("Todo DN")
+    pub fn update(&mut self, mut update: ContextUpdate) {
+        self.programs.append(&mut update.program_ids);
+        self.codes.append(&mut update.codes);
     }
 }

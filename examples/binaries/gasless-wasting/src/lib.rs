@@ -40,9 +40,9 @@ mod wasm {
     use gstd::{msg, ActorId};
 
     #[no_mangle]
-    unsafe extern "C" fn handle() {
+    extern "C" fn handle() {
         let input: InputArgs = msg::load().unwrap();
-        msg::send_bytes(input.prog_to_wait, [], 0).unwrap();
         msg::send_bytes(input.prog_to_waste, [], 0).unwrap();
+        msg::send_bytes(input.prog_to_wait, [], 0).unwrap();
     }
 }

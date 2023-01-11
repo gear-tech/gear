@@ -46,9 +46,9 @@ pub enum ChargeResult {
 
 /// Gas counter with some predefined maximum gas.
 ///
-/// `Clone` and `Copy` traits aren't implemented for the type (however could be)
-/// in order to make the data only moveable, preventing implicit/explicit copying.
-#[derive(Debug)]
+/// `Copy` trait isn't implemented for the type (however could be)
+/// in order to make the data only moveable, preventing implicit copying.
+#[derive(Clone, Debug)]
 pub struct GasCounter {
     left: u64,
     burned: u64,
@@ -101,10 +101,29 @@ impl GasCounter {
         }
     }
 
+    /// Increase gas by `amount`.
+    ///
+    /// Called when gas unreservation is occurred.
+    // We don't decrease `burn` counter because `GasTree` manipulation is handled by separated function
+    // TODO: uncomment when unreserving in current message features is discussed
+    /*pub fn increase(&mut self, amount: u64) -> bool {
+        match self.left.checked_add(amount) {
+            None => false,
+            Some(new_left) => {
+                self.left = new_left;
+                true
+            }
+        }
+    }*/
+
     /// Reduce gas by `amount`.
     ///
     /// Called when message is sent to another program, so the gas `amount` is sent to
     /// receiving program.
+    /// Or called when gas reservation is occurred.
+    ///
+    /// In case of gas reservation:
+    /// We don't increase `burn` counter because `GasTree` manipulation is handled by separated function
     pub fn reduce(&mut self, amount: u64) -> ChargeResult {
         match self.left.checked_sub(amount) {
             None => ChargeResult::NotEnough,
@@ -118,7 +137,7 @@ impl GasCounter {
 
     /// Refund `amount` of gas.
     pub fn refund(&mut self, amount: u64) -> ChargeResult {
-        if amount > u64::MAX - self.left || amount > self.burned {
+        if amount > self.burned {
             return ChargeResult::NotEnough;
         }
         match self.left.checked_add(amount) {
@@ -205,13 +224,18 @@ impl ValueCounter {
 }
 
 /// Gas allowance counter with some predefined maximum value.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct GasAllowanceCounter(u128);
 
 impl GasAllowanceCounter {
     /// New limited gas allowance counter with initial value to spend.
     pub fn new(initial_amount: u64) -> Self {
         Self(initial_amount as u128)
+    }
+
+    /// Report how much gas allowance is left.
+    pub fn left(&self) -> u64 {
+        self.0 as u64
     }
 
     /// Charge `amount` of gas.
@@ -263,6 +287,10 @@ impl GasAllowanceCounter {
 #[cfg(test)]
 mod tests {
     use super::{ChargeResult, GasCounter};
+    use crate::{
+        costs::{HostFnWeights, RuntimeCosts},
+        gas::GasAllowanceCounter,
+    };
 
     #[test]
     /// Test that `GasCounter` object returns `Enough` and decreases the remaining count
@@ -280,5 +308,40 @@ mod tests {
 
         assert_eq!(result, ChargeResult::NotEnough);
         assert_eq!(counter.left(), 100);
+    }
+
+    #[test]
+    fn charge_fails() {
+        let mut counter = GasCounter::new(100);
+        assert_eq!(counter.charge(200), ChargeResult::NotEnough);
+    }
+
+    #[test]
+    fn charge_token_fails() {
+        let token = RuntimeCosts::Alloc.token(&HostFnWeights {
+            alloc: 1_000,
+            ..Default::default()
+        });
+
+        let mut counter = GasCounter::new(10);
+        assert_eq!(counter.charge_token(token), ChargeResult::NotEnough);
+    }
+
+    #[test]
+    fn refund_fails() {
+        let mut counter = GasCounter::new(200);
+        assert_eq!(counter.charge(100), ChargeResult::Enough);
+        assert_eq!(counter.refund(500), ChargeResult::NotEnough);
+    }
+
+    #[test]
+    fn charge_allowance_token_fails() {
+        let token = RuntimeCosts::Alloc.token(&HostFnWeights {
+            alloc: 1_000,
+            ..Default::default()
+        });
+
+        let mut counter = GasAllowanceCounter::new(10);
+        assert_eq!(counter.charge_token(token), ChargeResult::NotEnough);
     }
 }

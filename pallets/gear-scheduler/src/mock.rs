@@ -17,6 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate as pallet_gear_scheduler;
+use common::QueueRunner;
 use frame_support::{
     construct_runtime,
     pallet_prelude::*,
@@ -24,9 +25,10 @@ use frame_support::{
     traits::{ConstU64, FindAuthor},
     weights::constants::RocksDbWeight,
 };
+use frame_support_test::TestRandomness;
 use frame_system as system;
 use pallet_gear::BlockGasLimitOf;
-use sp_core::H256;
+use sp_core::{ConstU128, H256};
 use sp_runtime::{
     testing::Header,
     traits::{BlakeTwo256, IdentityLookup},
@@ -86,8 +88,8 @@ impl system::Config for Test {
     type BlockWeights = ();
     type BlockLength = ();
     type DbWeight = RocksDbWeight;
-    type Origin = Origin;
-    type Call = Call;
+    type RuntimeOrigin = RuntimeOrigin;
+    type RuntimeCall = RuntimeCall;
     type Index = u64;
     type BlockNumber = u64;
     type Hash = H256;
@@ -111,6 +113,7 @@ impl system::Config for Test {
 pub struct GasConverter;
 impl common::GasPrice for GasConverter {
     type Balance = u128;
+    type GasToBalanceMultiplier = ConstU128<1_000>;
 }
 
 impl pallet_gear_program::Config for Test {
@@ -127,7 +130,8 @@ parameter_types! {
 }
 
 impl pallet_gear::Config for Test {
-    type Event = Event;
+    type RuntimeEvent = RuntimeEvent;
+    type Randomness = TestRandomness<Self>;
     type Currency = Balances;
     type GasPrice = GasConverter;
     type WeightInfo = ();
@@ -136,10 +140,12 @@ impl pallet_gear::Config for Test {
     type DebugInfo = ();
     type CodeStorage = GearProgram;
     type MailboxThreshold = ConstU64<3000>;
+    type ReservationsLimit = ConstU64<256>;
     type Messenger = GearMessenger;
     type GasProvider = GearGas;
     type BlockLimiter = GearGas;
     type Scheduler = GearScheduler;
+    type QueueRunner = Gear;
 }
 
 impl pallet_gear_scheduler::Config for Test {
@@ -147,6 +153,7 @@ impl pallet_gear_scheduler::Config for Test {
     type ReserveThreshold = ConstU64<1>;
     type WaitlistCost = ConstU64<100>;
     type MailboxCost = ConstU64<100>;
+    type ReservationCost = ConstU64<100>;
 }
 
 impl pallet_gear_gas::Config for Test {
@@ -155,6 +162,7 @@ impl pallet_gear_gas::Config for Test {
 
 impl pallet_gear_messenger::Config for Test {
     type BlockLimiter = GearGas;
+    type CurrentBlockNumber = Gear;
 }
 
 pub struct FixedBlockAuthor;
@@ -194,18 +202,22 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
 
     pallet_balances::GenesisConfig::<Test> {
         balances: vec![
-            (USER_1, 500_000_000_000_u128),
-            (USER_2, 200_000_000_000_u128),
-            (USER_3, 500_000_000_000_u128),
-            (LOW_BALANCE_USER, 1000_u128),
-            (BLOCK_AUTHOR, 500_u128),
+            (USER_1, 500_000_000_000_000_u128),
+            (USER_2, 200_000_000_000_000_u128),
+            (USER_3, 500_000_000_000_000_u128),
+            (LOW_BALANCE_USER, 1_000_000_u128),
+            (BLOCK_AUTHOR, 500_000_u128),
         ],
     }
     .assimilate_storage(&mut t)
     .unwrap();
 
     let mut ext = sp_io::TestExternalities::new(t);
-    ext.execute_with(|| System::set_block_number(1));
+    ext.execute_with(|| {
+        Gear::force_always();
+        System::set_block_number(1);
+        Gear::on_initialize(System::block_number());
+    });
     ext
 }
 
@@ -219,16 +231,21 @@ pub fn run_to_block(n: u64, remaining_weight: Option<u64>) {
         Gear::on_initialize(System::block_number());
 
         let remaining_weight = remaining_weight.unwrap_or(BlockGasLimitOf::<Test>::get());
-
         log::debug!(
-            "🧱 Running on_idle block #{} with weight {}",
+            "🧱 Running run #{} with weight {}",
             System::block_number(),
             remaining_weight
         );
 
-        Gear::on_idle(
-            System::block_number(),
-            Weight::from_ref_time(remaining_weight),
-        );
+        Gear::run_queue(remaining_weight);
+        Gear::processing_completed();
+        Gear::on_finalize(System::block_number());
+
+        assert!(!System::events().iter().any(|e| {
+            matches!(
+                e.event,
+                RuntimeEvent::Gear(pallet_gear::Event::QueueProcessingReverted)
+            )
+        }))
     }
 }

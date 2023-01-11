@@ -16,11 +16,11 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use super::common::ReplyDetails;
+use super::{common::ReplyDetails, PayloadSizeError};
 use crate::{
     ids::{MessageId, ProgramId},
     message::{
-        Dispatch, DispatchKind, ExitCode, GasLimit, Message, Packet, Payload, StoredDispatch,
+        Dispatch, DispatchKind, GasLimit, Message, Packet, Payload, StatusCode, StoredDispatch,
         StoredMessage, Value,
     },
 };
@@ -39,8 +39,8 @@ pub struct ReplyMessage {
     gas_limit: Option<GasLimit>,
     /// Message value.
     value: Value,
-    /// Reply exit code.
-    exit_code: ExitCode,
+    /// Reply status code.
+    status_code: StatusCode,
 }
 
 impl ReplyMessage {
@@ -51,16 +51,16 @@ impl ReplyMessage {
             payload: packet.payload,
             gas_limit: packet.gas_limit,
             value: packet.value,
-            exit_code: packet.exit_code,
+            status_code: packet.status_code,
         }
     }
 
-    // TODO: consider using here `impl CoreError` and/or provide `AsExitCode`
+    // TODO: consider using here `impl CoreError` and/or provide `AsStatusCode`
     // trait or append such functionality to `CoreError` (issue #1083).
     /// Create new system generated ReplyMessage.
-    pub fn system(origin_msg_id: MessageId, payload: Payload, exit_code: ExitCode) -> Self {
-        let id = MessageId::generate_reply(origin_msg_id, exit_code);
-        let packet = ReplyPacket::system(payload, exit_code);
+    pub fn system(origin_msg_id: MessageId, payload: Payload, status_code: StatusCode) -> Self {
+        let id = MessageId::generate_reply(origin_msg_id, status_code);
+        let packet = ReplyPacket::system(payload, status_code);
 
         Self::from_packet(id, packet)
     }
@@ -79,7 +79,7 @@ impl ReplyMessage {
             self.payload,
             self.gas_limit,
             self.value,
-            Some(ReplyDetails::new(origin_msg_id, self.exit_code)),
+            Some(ReplyDetails::new(origin_msg_id, self.status_code).into()),
         )
     }
 
@@ -125,7 +125,7 @@ impl ReplyMessage {
 
     /// Message payload reference.
     pub fn payload(&self) -> &[u8] {
-        self.payload.as_ref()
+        self.payload.get()
     }
 
     /// Message optional gas limit.
@@ -138,9 +138,9 @@ impl ReplyMessage {
         self.value
     }
 
-    /// Exit code of the reply message.
-    pub fn exit_code(&self) -> ExitCode {
-        self.exit_code
+    /// Status code of the reply message.
+    pub fn status_code(&self) -> StatusCode {
+        self.status_code
     }
 }
 
@@ -155,8 +155,8 @@ pub struct ReplyPacket {
     gas_limit: Option<GasLimit>,
     /// Message value.
     value: Value,
-    /// Reply exit code.
-    exit_code: ExitCode,
+    /// Reply status code.
+    status_code: StatusCode,
 }
 
 impl ReplyPacket {
@@ -166,7 +166,7 @@ impl ReplyPacket {
             payload,
             gas_limit: None,
             value,
-            exit_code: 0,
+            status_code: 0,
         }
     }
 
@@ -176,35 +176,35 @@ impl ReplyPacket {
             payload,
             gas_limit: Some(gas_limit),
             value,
-            exit_code: 0,
+            status_code: 0,
         }
     }
 
-    // TODO: consider using here `impl CoreError` and/or provide `AsExitCode`
+    // TODO: consider using here `impl CoreError` and/or provide `AsStatusCode`
     // trait or append such functionality to `CoreError` (issue #1083).
     /// Create new system generated ReplyPacket.
-    pub fn system(payload: Payload, exit_code: ExitCode) -> Self {
+    pub fn system(payload: Payload, status_code: StatusCode) -> Self {
         Self {
             payload,
-            exit_code,
+            status_code,
             ..Default::default()
         }
     }
 
     /// Prepend payload.
-    pub(super) fn prepend(&mut self, data: Payload) {
-        self.payload.splice(0..0, data);
+    pub(super) fn try_prepend(&mut self, data: Payload) -> Result<(), PayloadSizeError> {
+        self.payload.try_prepend(data)
     }
 
-    /// Packet exit code.
-    pub fn exit_code(&self) -> ExitCode {
-        self.exit_code
+    /// Packet status code.
+    pub fn status_code(&self) -> StatusCode {
+        self.status_code
     }
 }
 
 impl Packet for ReplyPacket {
     fn payload(&self) -> &[u8] {
-        self.payload.as_ref()
+        self.payload.get()
     }
 
     fn gas_limit(&self) -> Option<GasLimit> {

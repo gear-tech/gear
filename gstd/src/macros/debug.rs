@@ -19,21 +19,22 @@
 //! Gear `debug!` macro.
 //! Enables output of the logs from Wasm if the `debug` feature is enabled.
 
-#[cfg(feature = "debug")]
+#[cfg(any(feature = "debug", debug_assertions))]
 #[macro_export]
 macro_rules! debug {
     ($arg:literal) => {
-        $crate::ext::debug(&$crate::prelude::format!("{}", $arg))
+        $crate::ext::debug(&$crate::prelude::format!("{}", $arg)).unwrap()
     };
     ($arg:expr) => {
-        $crate::ext::debug(&$crate::prelude::format!("{:?}", $arg))
+        $crate::ext::debug(&$crate::prelude::format!("{:?}", $arg)).unwrap()
     };
     ($fmt:literal $(, $args:expr)+) => {
-        $crate::ext::debug(&$crate::prelude::format!($fmt $(, $args)+))
+        $crate::ext::debug(&$crate::prelude::format!($fmt $(, $args)+)).unwrap()
     };
 }
 
 #[cfg(not(feature = "debug"))]
+#[cfg(not(debug_assertions))]
 #[macro_export]
 macro_rules! debug {
     ($arg:expr) => { let _ = $arg; };

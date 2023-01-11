@@ -11,16 +11,16 @@
  * If an approval is obtained the method replies with "PONG".
  */
 
-use codec::Decode;
 use futures::future;
 use gstd::{msg, prelude::*, ActorId};
-use scale_info::TypeInfo;
 
 static mut APPROVER_FIRST: ActorId = ActorId::new([0u8; 32]);
 static mut APPROVER_SECOND: ActorId = ActorId::new([0u8; 32]);
 static mut APPROVER_THIRD: ActorId = ActorId::new([0u8; 32]);
 
 #[derive(Debug, Decode, TypeInfo)]
+#[codec(crate = gstd::codec)]
+#[scale_info(crate = gstd::scale_info)]
 pub struct InputArgs {
     pub approver_first: ActorId,
     pub approver_second: ActorId,
@@ -37,11 +37,13 @@ gstd::metadata! {
 async fn init() {
     let args: InputArgs = msg::load().expect("Failed to decode `InputArgs`");
 
-    APPROVER_FIRST = args.approver_first;
-    APPROVER_SECOND = args.approver_second;
-    APPROVER_THIRD = args.approver_third;
+    unsafe {
+        APPROVER_FIRST = args.approver_first;
+        APPROVER_SECOND = args.approver_second;
+        APPROVER_THIRD = args.approver_third;
+    }
 
-    let mut requests: Vec<_> = [APPROVER_FIRST, APPROVER_SECOND, APPROVER_THIRD]
+    let mut requests: Vec<_> = unsafe { [APPROVER_FIRST, APPROVER_SECOND, APPROVER_THIRD] }
         .iter()
         .map(|s| msg::send_bytes_for_reply(*s, b"", 0))
         .collect::<Result<_, _>>()
@@ -62,20 +64,16 @@ async fn init() {
 
 #[gstd::async_main]
 async fn main() {
-    let message = msg::load_bytes();
+    let message = msg::load_bytes().expect("Failed to load payload bytes");
     if message != b"PING" {
         return;
     }
 
-    let requests: Vec<_> = [
-        unsafe { APPROVER_FIRST },
-        unsafe { APPROVER_SECOND },
-        unsafe { APPROVER_THIRD },
-    ]
-    .iter()
-    .map(|s| msg::send_bytes_for_reply(*s, b"", 0))
-    .collect::<Result<_, _>>()
-    .unwrap();
+    let requests: Vec<_> = unsafe { [APPROVER_FIRST, APPROVER_SECOND, APPROVER_THIRD] }
+        .iter()
+        .map(|s| msg::send_bytes_for_reply(*s, b"", 0))
+        .collect::<Result<_, _>>()
+        .unwrap();
 
     let _ = future::select_all(requests).await;
 

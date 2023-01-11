@@ -1,10 +1,10 @@
 //! command `login`
 use crate::{keystore, result::Result};
+use clap::Parser;
 use std::path::PathBuf;
-use structopt::StructOpt;
 
 /// Log in to account
-#[derive(Debug, StructOpt)]
+#[derive(Debug, Parser)]
 pub struct Login {
     /// The default keystore path is ~/.gear/keystore and ~/.gear/keystore.json
     ///
@@ -30,7 +30,7 @@ pub struct Login {
     pub json: Option<PathBuf>,
 
     /// password of the signer account
-    #[structopt(short, long)]
+    #[arg(short, long)]
     pub passwd: Option<String>,
 }
 

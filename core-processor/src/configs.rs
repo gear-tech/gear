@@ -18,12 +18,10 @@
 
 //! Configurations.
 
-use crate::common::Actor;
-use alloc::collections::BTreeSet;
+use alloc::{collections::BTreeSet, vec::Vec};
 use codec::{Decode, Encode};
-use gear_core::{
-    code, costs::HostFnWeights, ids::ProgramId, memory::WasmPageNumber, message::IncomingDispatch,
-};
+use gear_core::{code, costs::HostFnWeights, memory::WasmPageNumber};
+use gear_wasm_instrument::syscalls::SysCallName;
 
 const INIT_COST: u64 = 5000;
 const ALLOC_COST: u64 = 10000;
@@ -57,7 +55,7 @@ pub struct AllocationsConfig {
 impl Default for AllocationsConfig {
     fn default() -> Self {
         Self {
-            max_pages: WasmPageNumber(code::MAX_WASM_PAGE_COUNT),
+            max_pages: code::MAX_WASM_PAGE_COUNT.into(),
             init_cost: INIT_COST,
             alloc_cost: ALLOC_COST,
             mem_grow_cost: MEM_GROW_COST,
@@ -77,13 +75,18 @@ pub struct ExecutionSettings {
     /// Weights of host functions.
     pub host_fn_weights: HostFnWeights,
     /// Functions forbidden to be called.
-    pub forbidden_funcs: BTreeSet<&'static str>,
+    pub forbidden_funcs: BTreeSet<SysCallName>,
     /// Threshold for inserting into mailbox
     pub mailbox_threshold: u64,
     /// Cost for single block waitlist holding.
     pub waitlist_cost: u64,
     /// Reserve for parameter of scheduling.
     pub reserve_for: u32,
+    /// Cost for reservation holding.
+    pub reservation: u64,
+    /// Most recently determined random seed, along with the time in the past since when it was determinable by chain observers.
+    // TODO: find a way to put a random seed inside block config.
+    pub random_data: (Vec<u8>, u32),
 }
 
 impl ExecutionSettings {
@@ -107,26 +110,29 @@ pub struct BlockConfig {
     /// Host function weights.
     pub host_fn_weights: HostFnWeights,
     /// Forbidden functions.
-    pub forbidden_funcs: BTreeSet<&'static str>,
+    pub forbidden_funcs: BTreeSet<SysCallName>,
     /// Mailbox threshold.
     pub mailbox_threshold: u64,
     /// Cost for single block waitlist holding.
     pub waitlist_cost: u64,
     /// Reserve for parameter of scheduling.
     pub reserve_for: u32,
-}
-
-/// Unstable parameters for message execution across processing runs.
-#[derive(Clone)]
-pub struct MessageExecutionContext {
-    /// Executable actor.
-    pub actor: Actor,
-    /// Incoming dispatch.
-    pub dispatch: IncomingDispatch,
-    /// The ID of the user who started interaction with programs.
-    pub origin: ProgramId,
-    /// Gas allowance.
-    pub gas_allowance: u64,
-    /// The program is being executed the second or next time in the block.
-    pub subsequent_execution: bool,
+    /// Cost for reservation holding.
+    pub reservation: u64,
+    /// One-time db-read cost.
+    pub read_cost: u64,
+    /// One-time db-write cost.
+    pub write_cost: u64,
+    /// Per written byte cost.
+    pub write_per_byte_cost: u64,
+    /// Per loaded byte cost.
+    pub read_per_byte_cost: u64,
+    /// WASM module instantiation byte cost.
+    pub module_instantiation_byte_cost: u64,
+    /// Amount of reservations can exist for 1 program.
+    pub max_reservations: u64,
+    /// WASM code instrumentation base cost.
+    pub code_instrumentation_cost: u64,
+    /// WASM code instrumentation per-byte cost.
+    pub code_instrumentation_byte_cost: u64,
 }

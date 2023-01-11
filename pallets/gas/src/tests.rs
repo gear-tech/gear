@@ -88,7 +88,7 @@ fn test_consume_procedure_with_subnodes() {
         // total supply mustn't be affected, because root sponsored all it's balance
         assert_eq!(Gas::total_supply(), 300);
         // Consumed still exists, but has no balance.
-        assert_ok!(Gas::get_limit_node(root), (0, root));
+        assert_ok!(Gas::get_limit_node(root), (0, root.into()));
 
         // Consume node_1
         let consume_node_1 = Gas::consume(node_1);
@@ -96,11 +96,11 @@ fn test_consume_procedure_with_subnodes() {
         // Consumed node without unspec refs returns value,
         assert_eq!(consume_node_1.unwrap().unwrap().0.peek(), 100);
         // So it has no balance, but exists due to having children
-        assert_ok!(Gas::get_limit_node(node_1), (0, node_1));
+        assert_ok!(Gas::get_limit_node(node_1), (0, node_1.into()));
         // total supply is affected
         assert_eq!(Gas::total_supply(), 200);
         // Check value wasn't moved up to the root
-        assert_ok!(Gas::get_limit_node(root), (0, root));
+        assert_ok!(Gas::get_limit_node(root), (0, root.into()));
 
         // Consume node_2 independently
         let consume_node_2 = Gas::consume(node_2);
@@ -114,10 +114,10 @@ fn test_consume_procedure_with_subnodes() {
         // Consume node_3
         assert_ok!(Gas::consume(node_3), None);
         // Consumed node with unspec refs doesn't moves value up
-        assert_ok!(Gas::get_limit_node(node_3), (100, node_3));
+        assert_ok!(Gas::get_limit_node(node_3), (100, node_3.into()));
         // Check that spending from unspec `node_4` actually decreases balance from the ancestor with value - `node_3`.
         assert_eq!(Gas::spend(node_4, 100).unwrap().peek(), 100);
-        assert_ok!(Gas::get_limit_node(node_3), (0, node_3));
+        assert_ok!(Gas::get_limit_node(node_3), (0, node_3.into()));
         // total supply is affected after spending all of the blockage `node_3`
         assert!(Gas::total_supply().is_zero());
         // Still exists, although is consumed and has a zero balance. The only way to remove it is to remove children.
@@ -302,7 +302,7 @@ fn value_tree_known_errors() {
             assert_ok!(Gas::spend(split_1, 100));
             assert_ok!(Gas::spend(split_2, 100));
 
-            assert_ok!(Gas::get_limit_node(new_root), (700, new_root));
+            assert_ok!(Gas::get_limit_node(new_root), (700, new_root.into()));
             // Try to split the reserved node
             assert_noop!(Gas::split(cut, split_1), Error::<Test>::Forbidden);
 
@@ -468,11 +468,14 @@ fn long_chain() {
         let root_expected_limit = 450;
         let m1_expected_limit = 450;
         let m2_expected_limit = 450;
-        assert_ok!(Gas::get_limit_node(root), (root_expected_limit, root));
-        assert_ok!(Gas::get_limit_node(m1), (m1_expected_limit, m1));
-        assert_ok!(Gas::get_limit_node(m2), (m2_expected_limit, m2));
-        assert_ok!(Gas::get_limit_node(m3), (200, m3));
-        assert_ok!(Gas::get_limit_node(m4), (200, m4));
+        assert_ok!(
+            Gas::get_limit_node(root),
+            (root_expected_limit, root.into())
+        );
+        assert_ok!(Gas::get_limit_node(m1), (m1_expected_limit, m1.into()));
+        assert_ok!(Gas::get_limit_node(m2), (m2_expected_limit, m2.into()));
+        assert_ok!(Gas::get_limit_node(m3), (200, m3.into()));
+        assert_ok!(Gas::get_limit_node(m4), (200, m4.into()));
 
         // Send their value to the root, which is not consumed. therefore considered as a patron
         assert_ok!(Gas::consume(m1), None);
@@ -515,25 +518,25 @@ fn limit_vs_origin() {
         assert_ok!(Gas::split(split_1_1, split_1_1_1));
 
         // Original 1100 less 200 that were `cut` and `split_with_value`
-        assert_ok!(Gas::get_limit_node(root_node), (200, root_node));
+        assert_ok!(Gas::get_limit_node(root_node), (200, root_node.into()));
 
         // 300 cut from the root node
-        assert_ok!(Gas::get_limit_node(cut), (300, cut));
+        assert_ok!(Gas::get_limit_node(cut), (300, cut.into()));
 
         // Parent's 200
-        assert_ok!(Gas::get_limit_node(split_1), (200, root_node));
+        assert_ok!(Gas::get_limit_node(split_1), (200, root_node.into()));
 
         // Parent's 200
-        assert_ok!(Gas::get_limit_node(split_2), (200, root_node));
+        assert_ok!(Gas::get_limit_node(split_2), (200, root_node.into()));
 
         // Proprietary 600
-        assert_ok!(Gas::get_limit_node(split_1_1), (600, split_1_1));
+        assert_ok!(Gas::get_limit_node(split_1_1), (600, split_1_1.into()));
 
         // Grand-parent's 200
-        assert_ok!(Gas::get_limit_node(split_1_2), (200, root_node));
+        assert_ok!(Gas::get_limit_node(split_1_2), (200, root_node.into()));
 
         // Parent's 600
-        assert_ok!(Gas::get_limit_node(split_1_1_1), (600, split_1_1));
+        assert_ok!(Gas::get_limit_node(split_1_1_1), (600, split_1_1.into()));
 
         // All nodes origin is `origin`
         assert_ok!(Gas::get_external(root_node), origin);
@@ -591,14 +594,14 @@ fn subtree_gas_limit_remains_intact() {
         assert_ok!(Gas::split_with_value(node_2, node_5, 250));
 
         // Check gas limits in the beginning
-        assert_ok!(Gas::get_limit_node(root), (200, root));
-        assert_ok!(Gas::get_limit_node(node_1), (300, node_1));
-        assert_ok!(Gas::get_limit_node(node_2), (250, node_2));
+        assert_ok!(Gas::get_limit_node(root), (200, root.into()));
+        assert_ok!(Gas::get_limit_node(node_1), (300, node_1.into()));
+        assert_ok!(Gas::get_limit_node(node_2), (250, node_2.into()));
         // defined by parent
-        assert_ok!(Gas::get_limit_node(node_3), (300, node_1));
+        assert_ok!(Gas::get_limit_node(node_3), (300, node_1.into()));
         // defined by parent
-        assert_ok!(Gas::get_limit_node(node_4), (250, node_2));
-        assert_ok!(Gas::get_limit_node(node_5), (250, node_5));
+        assert_ok!(Gas::get_limit_node(node_4), (250, node_2.into()));
+        assert_ok!(Gas::get_limit_node(node_5), (250, node_5.into()));
 
         // Consume node_1
         assert!(Gas::consume(node_1).unwrap().is_none());

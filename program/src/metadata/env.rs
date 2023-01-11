@@ -27,7 +27,23 @@ pub fn apply(store: &mut Store<StoreData>, linker: &mut Linker<StoreData>) -> Re
         funcs::gr_read(store.as_context_mut(), memory),
     )?;
 
-    linker.define("env", "gr_size", funcs::gr_size(store.as_context_mut()))?;
+    linker.define(
+        "env",
+        "gr_reply",
+        funcs::gr_reply(store.as_context_mut(), memory),
+    )?;
+
+    linker.define(
+        "env",
+        "gr_error",
+        funcs::gr_error(store.as_context_mut(), memory),
+    )?;
+
+    linker.define(
+        "env",
+        "gr_size",
+        funcs::gr_size(store.as_context_mut(), memory),
+    )?;
 
     Ok(())
 }

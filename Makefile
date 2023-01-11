@@ -4,7 +4,7 @@ show:
 	@ ./scripts/gear.sh show
 
 .PHONY: pre-commit
-pre-commit: fmt check-spec clippy test
+pre-commit: fmt clippy test-gear # check-spec
 
 .PHONY: check-spec
 check-spec:
@@ -71,13 +71,21 @@ node:
 node-release:
 	@ ./scripts/gear.sh build node --release
 
+.PHONY: node-release-rtest
+node-release-rtest:
+	@ ./scripts/gear.sh build node --release --no-default-features --features=gear-native,lazy-pages,runtime-test
+
 .PHONY: vara
 vara:
-	@ ./scripts/gear.sh build node --no-default-features --features=vara-native,lazy-pages
+	@ ./scripts/gear.sh build node --no-default-features --features=vara-native,lazy-pages,program
 
 .PHONY: vara-release
 vara-release:
-	@ ./scripts/gear.sh build node --release --no-default-features --features=vara-native,lazy-pages
+	@ ./scripts/gear.sh build node --release --no-default-features --features=vara-native,lazy-pages,program
+
+.PHONY: vara-release-rtest
+vara-release-rtest:
+	@ ./scripts/gear.sh build node --release --no-default-features --features=runtime-test,vara-native,lazy-pages
 
 # Collator
 .PHONY: collator
@@ -217,18 +225,26 @@ purge-dev-chain-release:
 
 # Test section
 .PHONY: test
-test: test-gear test-js gtest # There should be no release builds (e.g. `rtest`) for fast checking.
+test: test-gear test-js gtest test-syscalls-integrity# There should be no release builds (e.g. `rtest`) for fast checking.
+
+.PHONY: test-doc
+test-doc:
+	@ ./scripts/gear.sh test doc
 
 .PHONY: test-release
-test-release: test-gear-release test-js gtest rtest test-runtime-upgrade test-client-weights
+test-release: test-gear-release test-js gtest rtest test-runtime-upgrade
 
 .PHONY: test-gear
-test-gear: init-js examples
-	@ ./scripts/gear.sh test gear
+test-gear: init-js examples # \
+	We use lazy-pages feature for pallet-gear-debug due to cargo building issue \
+	and fact that pallet-gear default is lazy-pages.
+	@ ./scripts/gear.sh test gear --exclude gclient --features pallet-gear-debug/lazy-pages
 
 .PHONY: test-gear-release
-test-gear-release: init-js examples
-	@ ./scripts/gear.sh test gear --release
+test-gear-release: init-js examples # \
+	We use lazy-pages feature for pallet-gear-debug due to cargo building issue \
+	and fact that pallet-gear default is lazy-pages.
+	@ ./scripts/gear.sh test gear --release --exclude gclient --features pallet-gear-debug/lazy-pages
 
 .PHONY: test-js
 test-js: init-js
@@ -239,12 +255,12 @@ gtest: init-js gear-test-release examples
 	@ ./scripts/gear.sh test gtest yamls="$(yamls)"
 
 .PHONY: rtest
-rtest: init-js node-release examples
-	@ ./scripts/gear.sh test rtest yamls="$(yamls)"
+rtest: init-js node-release-rtest examples
+	@ ./scripts/gear.sh test rtest gear yamls="$(yamls)"
 
 .PHONY: rtest-vara
-rtest-vara: init-js vara-release examples
-	@ ./scripts/gear.sh test rtest yamls="$(yamls)"
+rtest-vara: init-js vara-release-rtest examples
+	@ ./scripts/gear.sh test rtest vara yamls="$(yamls)"
 
 .PHONY: rtest-rococo
 rtest-rococo: init-js collator-release examples
@@ -262,17 +278,23 @@ test-pallet-release:
 test-runtime-upgrade: init-js examples node-release
 	@ ./scripts/gear.sh test runtime-upgrade
 
-.PHONY: test-client-weights
-test-client-weights: init-js examples node-release
-	@ ./scripts/gear.sh test client-weights
+.PHONY: test-client
+test-client: node-release examples wat-examples
+	@ ./scripts/gear.sh test client --run-node
+
+.PHONY: test-syscalls-integrity
+test-syscalls-integrity:
+	@ ./scripts/gear.sh test syscalls
 
 # Misc section
 .PHONY: doc
 doc:
 	@ RUSTDOCFLAGS="--enable-index-page -Zunstable-options" cargo +nightly doc --no-deps \
-		-p galloc -p gcore -p gear-backend-common -p gear-backend-sandbox \
+		-p galloc -p gclient -p gcore -p gear-backend-common -p gear-backend-sandbox \
 		-p gear-core -p gear-core-processor -p gear-lazy-pages -p gear-core-errors \
-		-p gstd -p gtest -p gear-wasm-builder -p gear-common
+		-p gstd -p gtest -p gear-wasm-builder -p gear-common \
+		-p pallet-gear -p pallet-gear-gas -p pallet-gear-messenger -p pallet-gear-payment \
+		-p pallet-gear-program -p pallet-gear-rpc -p pallet-gear-scheduler
 	@ cp -f images/logo.svg target/doc/rust-logo.svg
 
 .PHONY: fuzz
@@ -282,3 +304,7 @@ fuzz:
 .PHONY: fuzz-vara
 fuzz-vara:
 	@ ./scripts/gear.sh test fuzz --features=vara-native,lazy-pages --no-default-features $(target)
+
+.PHONY: kill
+kill:
+	@ pkill -f 'gear |gear$' -9

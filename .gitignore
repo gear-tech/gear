@@ -1,6 +1,7 @@
 utils/economic-checks/*.wat
 node_modules/
 target/
+target-no-lazy/
 .binpath
 .vscode
 .DS_Store

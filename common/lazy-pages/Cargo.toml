@@ -13,7 +13,7 @@ gear-core = { path = "../../core", default-features = false }
 gear-common = { path = "..", default-features = false }
 gear-runtime-interface = { path = "../../runtime-interface", default-features = false }
 
-sp-std = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.29", default-features = false }
+sp-std = { version = "5.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.36", default-features = false }
 
 [features]
 default = ["std"]

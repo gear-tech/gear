@@ -57,7 +57,7 @@ mod wasm {
     static mut STATE: Option<BTreeMap<u32, u32>> = None;
 
     #[no_mangle]
-    unsafe extern "C" fn handle() {
+    extern "C" fn handle() {
         let reply = match msg::load() {
             Ok(request) => process(request),
             Err(e) => {
@@ -88,8 +88,8 @@ mod wasm {
     }
 
     #[no_mangle]
-    unsafe extern "C" fn init() {
-        STATE = Some(BTreeMap::new());
+    extern "C" fn init() {
+        unsafe { STATE = Some(BTreeMap::new()) };
         msg::reply((), 0).unwrap();
     }
 }

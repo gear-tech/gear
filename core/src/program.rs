@@ -92,19 +92,14 @@ impl Program {
         self.is_initialized = true;
     }
 
-    /// Get reference to memory pages.
-    pub fn get_allocations(&self) -> &BTreeSet<WasmPageNumber> {
+    /// Get allocations as a set of page numbers.
+    pub fn allocations(&self) -> &BTreeSet<WasmPageNumber> {
         &self.allocations
     }
 
-    /// Get mut reference to memory pages.
-    pub fn get_allocations_mut(&mut self) -> &mut BTreeSet<WasmPageNumber> {
-        &mut self.allocations
-    }
-
-    /// Clear static area of this program.
-    pub fn clear_memory(&mut self) {
-        self.allocations.clear();
+    /// Set allocations as a set of page numbers.
+    pub fn set_allocations(&mut self, allocations: BTreeSet<WasmPageNumber>) {
+        self.allocations = allocations;
     }
 }
 
@@ -115,7 +110,7 @@ mod tests {
     use super::Program;
     use crate::{code::Code, ids::ProgramId};
     use alloc::vec::Vec;
-    use wasm_instrument::gas_metering::ConstantCostRules;
+    use gear_wasm_instrument::wasm_instrument::gas_metering::ConstantCostRules;
 
     fn parse_wat(source: &str) -> Vec<u8> {
         let module_bytes = wabt::Wat2Wasm::new()
@@ -159,7 +154,7 @@ mod tests {
 
         let binary: Vec<u8> = parse_wat(wat);
 
-        let code = Code::try_new(binary, 1, |_| ConstantCostRules::default()).unwrap();
+        let code = Code::try_new(binary, 1, |_| ConstantCostRules::default(), None).unwrap();
         let (code, _) = code.into_parts();
         let program = Program::new(ProgramId::from(1), code);
 
@@ -167,6 +162,6 @@ mod tests {
         assert_eq!(program.static_pages(), 2.into());
 
         // Has no allocations because we do not set them in new
-        assert_eq!(program.get_allocations().len(), 0);
+        assert_eq!(program.allocations().len(), 0);
     }
 }

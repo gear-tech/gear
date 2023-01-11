@@ -1,0 +1,23 @@
+[package]
+name = "gear-wasm-instrument"
+version = "0.1.0"
+authors = ["Gear Technologies"]
+edition = "2018"
+license = "GPL-3.0"
+
+[dependencies]
+wasm-instrument = { version = "0.2.1", git = "https://github.com/gear-tech/wasm-instrument.git", branch = "gear-stable", default-features = false }
+enum-iterator = "1.2.0"
+
+[dev-dependencies]
+wasmparser = "0.90"
+wat = "1.0.52"
+gear-backend-wasmi = { path = "../../core-backend/wasmi" }
+gear-backend-common = { path = "../../core-backend/common", features = ["mock"] }
+gear-core = { path = "../../core" }
+
+[features]
+default = ["std"]
+std = [
+    "wasm-instrument/std",
+]

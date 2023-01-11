@@ -16,4 +16,4 @@ fixtures:
         allowError: true
         log:
           - destination: 1000001
-            exitCode: 1
+            statusCode: 1

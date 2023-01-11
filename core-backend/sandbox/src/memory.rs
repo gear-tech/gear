@@ -18,7 +18,7 @@
 
 //! sp-sandbox extensions for memory.
 
-use gear_core::memory::{Error, HostPointer, Memory, PageNumber, WasmPageNumber};
+use gear_core::memory::{Error, HostPointer, Memory, PageU32Size, WasmPageNumber};
 use sp_sandbox::SandboxMemory;
 
 /// Wrapper for sp_sandbox::Memory.
@@ -33,34 +33,31 @@ impl MemoryWrap {
 
 /// Memory interface for the allocator.
 impl Memory for MemoryWrap {
-    fn grow(&mut self, pages: WasmPageNumber) -> Result<PageNumber, Error> {
+    fn grow(&mut self, pages: WasmPageNumber) -> Result<(), Error> {
         self.0
-            .grow(pages.0)
-            .map(|prev| prev.into())
+            .grow(pages.raw())
+            .map(|_| ())
             .map_err(|_| Error::OutOfBounds)
     }
 
     fn size(&self) -> WasmPageNumber {
-        self.0.size().into()
+        WasmPageNumber::new(self.0.size())
+            .expect("Unexpected backend behavior: size is bigger then u32::MAX")
     }
 
-    fn write(&mut self, offset: usize, buffer: &[u8]) -> Result<(), Error> {
+    fn write(&mut self, offset: u32, buffer: &[u8]) -> Result<(), Error> {
         self.0
-            .set(offset as u32, buffer)
+            .set(offset, buffer)
             .map_err(|_| Error::MemoryAccessError)
     }
 
-    fn read(&self, offset: usize, buffer: &mut [u8]) -> Result<(), Error> {
+    fn read(&self, offset: u32, buffer: &mut [u8]) -> Result<(), Error> {
         self.0
-            .get(offset as u32, buffer)
+            .get(offset, buffer)
             .map_err(|_| Error::MemoryAccessError)
     }
 
-    fn data_size(&self) -> usize {
-        self.0.size() as usize * WasmPageNumber::size()
-    }
-
-    unsafe fn get_buffer_host_addr_unsafe(&self) -> HostPointer {
+    unsafe fn get_buffer_host_addr_unsafe(&mut self) -> HostPointer {
         self.0.get_buff()
     }
 }
@@ -70,13 +67,14 @@ impl Memory for MemoryWrap {
 mod tests {
     use super::*;
     use gear_backend_common::{assert_err, assert_ok};
-    use gear_core::memory::AllocationsContext;
+    use gear_core::memory::{AllocInfo, AllocationsContext, GrowHandlerNothing};
 
-    fn new_test_memory(static_pages: u32, max_pages: u32) -> (AllocationsContext, MemoryWrap) {
+    fn new_test_memory(static_pages: u16, max_pages: u16) -> (AllocationsContext, MemoryWrap) {
         use sp_sandbox::SandboxMemory as WasmMemory;
 
         let memory = MemoryWrap::new(
-            WasmMemory::new(static_pages, Some(max_pages)).expect("Memory creation failed"),
+            WasmMemory::new(static_pages as u32, Some(max_pages as u32))
+                .expect("Memory creation failed"),
         );
 
         (
@@ -87,34 +85,66 @@ mod tests {
 
     #[test]
     fn smoky() {
-        let (mut mem, mut mem_wrap) = new_test_memory(16, 256);
+        let (mut ctx, mut mem_wrap) = new_test_memory(16, 256);
 
-        assert_ok!(mem.alloc(16.into(), &mut mem_wrap), 16.into());
+        assert_ok!(
+            ctx.alloc::<GrowHandlerNothing>(16.into(), &mut mem_wrap),
+            AllocInfo {
+                page: 16.into(),
+                not_grown: 0.into()
+            }
+        );
+
+        assert_ok!(
+            ctx.alloc::<GrowHandlerNothing>(0.into(), &mut mem_wrap),
+            AllocInfo {
+                page: 16.into(),
+                not_grown: 0.into()
+            }
+        );
 
         // there is a space for 14 more
         for _ in 0..14 {
-            assert_ok!(mem.alloc(16.into(), &mut mem_wrap));
+            assert_ok!(ctx.alloc::<GrowHandlerNothing>(16.into(), &mut mem_wrap));
         }
 
         // no more mem!
-        assert_err!(mem.alloc(1.into(), &mut mem_wrap), Error::OutOfBounds);
+        assert_err!(
+            ctx.alloc::<GrowHandlerNothing>(1.into(), &mut mem_wrap),
+            Error::OutOfBounds
+        );
 
         // but we free some
-        assert_ok!(mem.free(137.into()));
+        assert_ok!(ctx.free(137.into()));
 
         // and now can allocate page that was freed
-        assert_ok!(mem.alloc(1.into(), &mut mem_wrap), 137.into());
+        assert_ok!(
+            ctx.alloc::<GrowHandlerNothing>(1.into(), &mut mem_wrap),
+            AllocInfo {
+                page: 137.into(),
+                not_grown: 1.into()
+            },
+        );
 
         // if we have 2 in a row we can allocate even 2
-        assert_ok!(mem.free(117.into()));
-        assert_ok!(mem.free(118.into()));
+        assert_ok!(ctx.free(117.into()));
+        assert_ok!(ctx.free(118.into()));
 
-        assert_ok!(mem.alloc(2.into(), &mut mem_wrap), 117.into());
+        assert_ok!(
+            ctx.alloc::<GrowHandlerNothing>(2.into(), &mut mem_wrap),
+            AllocInfo {
+                page: 117.into(),
+                not_grown: 2.into()
+            }
+        );
 
         // but if 2 are not in a row, bad luck
-        assert_ok!(mem.free(117.into()));
-        assert_ok!(mem.free(158.into()));
+        assert_ok!(ctx.free(117.into()));
+        assert_ok!(ctx.free(158.into()));
 
-        assert_err!(mem.alloc(2.into(), &mut mem_wrap), Error::OutOfBounds);
+        assert_err!(
+            ctx.alloc::<GrowHandlerNothing>(2.into(), &mut mem_wrap),
+            Error::OutOfBounds
+        );
     }
 }

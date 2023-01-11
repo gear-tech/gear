@@ -28,11 +28,23 @@ pub struct HostFnWeights {
     /// Weight of calling `alloc`.
     pub alloc: u64,
 
+    /// Weight of calling `alloc`.
+    pub free: u64,
+
+    /// Weight of calling `gr_reserve_gas`.
+    pub gr_reserve_gas: u64,
+
+    /// Weight of calling `gr_unreserve_gas`
+    pub gr_unreserve_gas: u64,
+
+    /// Weight of calling `gr_system_reserve_gas`
+    pub gr_system_reserve_gas: u64,
+
     /// Weight of calling `gr_gas_available`.
     pub gr_gas_available: u64,
 
-    /// Weight of calling `gr_msg_id`.
-    pub gr_msg_id: u64,
+    /// Weight of calling `gr_message_id`.
+    pub gr_message_id: u64,
 
     /// Weight of calling `gr_origin`.
     pub gr_origin: u64,
@@ -64,7 +76,10 @@ pub struct HostFnWeights {
     /// Weight of calling `gr_block_timestamp`.
     pub gr_block_timestamp: u64,
 
-    /// Weight of calling `gr_value_available`.
+    /// Weight of calling `gr_random`.
+    pub gr_random: u64,
+
+    /// Weight of calling `gr_send_init`.
     pub gr_send_init: u64,
 
     /// Weight of calling `gr_send_push`.
@@ -79,11 +94,17 @@ pub struct HostFnWeights {
     /// Weight per payload byte by `gr_send_commit`.
     pub gr_send_commit_per_byte: u64,
 
+    /// Weight of calling `gr_reservation_send_commit`.
+    pub gr_reservation_send_commit: u64,
+
+    /// Weight per payload byte by `gr_reservation_send_commit`.
+    pub gr_reservation_send_commit_per_byte: u64,
+
     /// Weight of calling `gr_reply_commit`.
     pub gr_reply_commit: u64,
 
-    /// Weight per payload byte by `gr_reply_commit`.
-    pub gr_reply_commit_per_byte: u64,
+    /// Weight of calling `gr_reservation_reply_commit`.
+    pub gr_reservation_reply_commit: u64,
 
     /// Weight of calling `gr_reply_push`.
     pub gr_reply_push: u64,
@@ -94,11 +115,32 @@ pub struct HostFnWeights {
     /// Weight of calling `gr_reply_to`.
     pub gr_reply_to: u64,
 
+    /// Weight of calling `gr_signal_from`.
+    pub gr_signal_from: u64,
+
+    /// Weight of calling `gr_reply_push_input`.
+    pub gr_reply_push_input: u64,
+
+    /// Weight per payload byte by `gr_reply_push_input`.
+    pub gr_reply_push_input_per_byte: u64,
+
+    /// Weight of calling `gr_send_push_input`.
+    pub gr_send_push_input: u64,
+
+    /// Weight per payload byte by `gr_send_push_input`.
+    pub gr_send_push_input_per_byte: u64,
+
     /// Weight of calling `gr_debug`.
     pub gr_debug: u64,
 
-    /// Weight of calling `gr_exit_code`.
-    pub gr_exit_code: u64,
+    /// Weight per payload byte by `gr_debug`.
+    pub gr_debug_per_byte: u64,
+
+    /// Weight of calling `gr_error`.
+    pub gr_error: u64,
+
+    /// Weight of calling `gr_status_code`.
+    pub gr_status_code: u64,
 
     /// Weight of calling `gr_exit`.
     pub gr_exit: u64,
@@ -122,23 +164,22 @@ pub struct HostFnWeights {
     pub gr_create_program_wgas: u64,
 
     /// Weight per payload byte by `gr_create_program_wgas`.
-    pub gr_create_program_wgas_per_byte: u64,
+    pub gr_create_program_wgas_payload_per_byte: u64,
 
-    /// Weight of calling `gas`.
-    pub gas: u64,
-}
+    /// Weight per salt byte by `gr_create_program_wgas`.
+    pub gr_create_program_wgas_salt_per_byte: u64,
 
-/// We need this access as a macro because sometimes hiding the lifetimes behind
-/// a function won't work out.
-#[macro_export]
-macro_rules! charge_gas_token {
-    ($ext:expr, $costs:expr) => {{
-        let token = $costs.token(&$ext.context.host_fn_weights);
-        (
-            $ext.context.gas_counter.charge_token(token),
-            $ext.context.gas_allowance_counter.charge_token(token),
-        )
-    }};
+    /// Weight per one gear page read.
+    pub lazy_pages_read: u64,
+
+    /// Weight per one gear page write.
+    pub lazy_pages_write: u64,
+
+    /// Weight per one write, which is after page read.
+    pub lazy_pages_write_after_read: u64,
+
+    /// Weight per one gear page update in storage.
+    pub update_page_in_storage: u64,
 }
 
 /// Token to consume gas amount.
@@ -156,14 +197,19 @@ impl Token for RuntimeToken {
 /// Enumerates syscalls that can be charged by gas meter.
 #[derive(Copy, Clone)]
 pub enum RuntimeCosts {
-    /// Charge the gas meter with the cost of a metering block. The charged costs are
-    /// the supplied cost of the block plus the overhead of the metering itself.
-    MeteringBlock(u32),
     /// Weight of calling `alloc`.
     Alloc,
+    /// Weight of calling `free`.
+    Free,
+    /// Weight of calling `gr_reserve_gas`.
+    ReserveGas,
+    /// Weight of calling `gr_unreserve_gas`.
+    UnreserveGas,
+    /// Weight of calling `gr_system_reserve_gas`.
+    SystemReserveGas,
     /// Weight of calling `gr_gas_available`.
     GasAvailable,
-    /// Weight of calling `gr_msg_id`.
+    /// Weight of calling `gr_message_id`.
     MsgId,
     /// Weight of calling `gr_origin`.
     Origin,
@@ -183,22 +229,32 @@ pub enum RuntimeCosts {
     BlockHeight,
     /// Weight of calling `gr_block_timestamp`.
     BlockTimestamp,
-    /// Weight of calling `gr_value_available`.
+    /// Weight of calling `gr_random`.
+    Random,
+    /// Weight of calling `gr_send_init`.
     SendInit,
     /// Weight of calling `gr_send_push`.
     SendPush(u32),
     /// Weight of calling `gr_send_commit`.
     SendCommit(u32),
+    /// Weight of calling `gr_reservation_send_commit`.
+    ReservationSendCommit(u32),
     /// Weight of calling `gr_reply_commit`.
-    ReplyCommit(u32),
+    ReplyCommit,
+    /// Weight of calling `gr_reservation_reply_commit`.
+    ReservationReplyCommit,
     /// Weight of calling `gr_reply_push`.
     ReplyPush(u32),
     /// Weight of calling `gr_reply_to`.
     ReplyTo,
+    /// Weight of calling `gr_signal_from`.
+    SignalFrom,
     /// Weight of calling `gr_debug`.
-    Debug,
-    /// Weight of calling `gr_exit_code`.
-    ExitCode,
+    Debug(u32),
+    /// Weight of calling `gr_error`.
+    Error,
+    /// Weight of calling `gr_status_code`.
+    StatusCode,
     /// Weight of calling `gr_exit`.
     Exit,
     /// Weight of calling `gr_leave`.
@@ -212,7 +268,19 @@ pub enum RuntimeCosts {
     /// Weight of calling `gr_wake`.
     Wake,
     /// Weight of calling `gr_create_program_wgas`.
-    CreateProgram(u32),
+    CreateProgram(u32, u32),
+    /// Weight of calling `gr_resend_push`.
+    SendPushInput(u32),
+    /// Weight of calling `gr_rereply_push`.
+    ReplyPushInput(u32),
+    /// Weight of read access per one gear page.
+    LazyPagesRead,
+    /// Weight of write access per one gear page.
+    LazyPagesWrite,
+    /// Weight of write after read access per one gear page.
+    LazyPagesWriteAfterRead,
+    /// Weight of page update in storage after modification.
+    UpdatePageInStorage,
 }
 
 impl RuntimeCosts {
@@ -220,10 +288,13 @@ impl RuntimeCosts {
     pub fn token(&self, s: &HostFnWeights) -> RuntimeToken {
         use self::RuntimeCosts::*;
         let weight = match *self {
-            MeteringBlock(amount) => s.gas.saturating_add(amount.into()),
             Alloc => s.alloc,
+            Free => s.free,
+            ReserveGas => s.gr_reserve_gas,
+            UnreserveGas => s.gr_unreserve_gas,
+            SystemReserveGas => s.gr_system_reserve_gas,
             GasAvailable => s.gr_gas_available,
-            MsgId => s.gr_msg_id,
+            MsgId => s.gr_message_id,
             Origin => s.gr_origin,
             ProgramId => s.gr_program_id,
             Source => s.gr_source,
@@ -235,6 +306,7 @@ impl RuntimeCosts {
                 .saturating_add(s.gr_read_per_byte.saturating_mul(len.into())),
             BlockHeight => s.gr_block_height,
             BlockTimestamp => s.gr_block_timestamp,
+            Random => s.gr_random,
             SendInit => s.gr_send_init,
             SendPush(len) => s
                 .gr_send_push
@@ -242,24 +314,48 @@ impl RuntimeCosts {
             SendCommit(len) => s
                 .gr_send_commit
                 .saturating_add(s.gr_send_commit_per_byte.saturating_mul(len.into())),
-            ReplyCommit(len) => s
-                .gr_reply_commit
-                .saturating_add(s.gr_reply_commit_per_byte.saturating_mul(len.into())),
+            ReservationSendCommit(len) => s.gr_reservation_send_commit.saturating_add(
+                s.gr_reservation_send_commit_per_byte
+                    .saturating_mul(len.into()),
+            ),
+            ReplyCommit => s.gr_reply_commit,
+            ReservationReplyCommit => s.gr_reservation_reply_commit,
             ReplyPush(len) => s
                 .gr_reply_push
                 .saturating_add(s.gr_reply_push_per_byte.saturating_mul(len.into())),
             ReplyTo => s.gr_reply_to,
-            Debug => s.gr_debug,
-            ExitCode => s.gr_exit_code,
+            SignalFrom => s.gr_signal_from,
+            Debug(len) => s
+                .gr_debug
+                .saturating_add(s.gr_debug_per_byte.saturating_mul(len.into())),
+            Error => s.gr_error,
+            StatusCode => s.gr_status_code,
             Exit => s.gr_exit,
             Leave => s.gr_leave,
             Wait => s.gr_wait,
             WaitFor => s.gr_wait_for,
             WaitUpTo => s.gr_wait_up_to,
             Wake => s.gr_wake,
-            CreateProgram(len) => s
+            CreateProgram(payload_len, salt_len) => s
                 .gr_create_program_wgas
-                .saturating_add(s.gr_create_program_wgas_per_byte.saturating_mul(len.into())),
+                .saturating_add(
+                    s.gr_create_program_wgas_payload_per_byte
+                        .saturating_mul(payload_len.into()),
+                )
+                .saturating_add(
+                    s.gr_create_program_wgas_salt_per_byte
+                        .saturating_mul(salt_len.into()),
+                ),
+            SendPushInput(len) => s
+                .gr_send_push_input
+                .saturating_add(s.gr_send_push_input_per_byte.saturating_mul(len.into())),
+            ReplyPushInput(len) => s
+                .gr_reply_push_input
+                .saturating_add(s.gr_reply_push_input_per_byte.saturating_mul(len.into())),
+            LazyPagesRead => s.lazy_pages_read,
+            LazyPagesWrite => s.lazy_pages_write,
+            LazyPagesWriteAfterRead => s.lazy_pages_write_after_read,
+            UpdatePageInStorage => s.update_page_in_storage,
         };
         RuntimeToken { weight }
     }

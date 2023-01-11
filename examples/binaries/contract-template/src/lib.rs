@@ -136,7 +136,7 @@ mod wasm {
 
     #[gstd::async_main]
     async fn main() {
-        let input = msg::load_bytes();
+        let input = msg::load_bytes().expect("Failed to load payload bytes");
         debug!(
             "[0x{} contract_template::handle] input = 0x{}, exec::gas_available(): {}",
             hex::encode(unsafe { STATE.me }),
@@ -220,10 +220,10 @@ mod wasm {
     }
 
     #[no_mangle]
-    unsafe extern "C" fn init() {
+    extern "C" fn init() {
         let programs: Vec<ActorId> =
             msg::load().expect("Malformed input: expecting vectors of program IDs and random IDs");
-        STATE = State::new(programs);
+        unsafe { STATE = State::new(programs) };
         msg::reply_bytes([], 0).unwrap();
         debug!(
             "[0x{} contract-template::init] Program initialized",

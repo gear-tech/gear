@@ -36,17 +36,18 @@ impl<T> ExtErrorProcessor<T> {
         }
     }
 
-    pub fn error_len_on_success<F, E>(self, f: F) -> Result<u32, E>
+    pub fn proc_res<F, E, EO>(self, f: F) -> Result<(), EO>
     where
-        F: FnOnce(T) -> Result<(), E>,
+        // TODO: use here NonZeroU32
+        F: FnOnce(Result<T, u32>) -> Result<(), E>,
+        EO: From<E>,
     {
         match self.inner {
-            Ok(t) => {
-                f(t)?;
-                Ok(0)
-            }
-            Err(err) => Ok(err.encoded_size() as u32),
+            Ok(t) => f(Ok(t))?,
+            Err(err) => f(Err(err.encoded_size() as u32))?,
         }
+
+        Ok(())
     }
 }
 

@@ -29,13 +29,14 @@
 use core::{alloc::Layout, arch::wasm32, panic::PanicInfo};
 
 #[cfg(not(feature = "debug"))]
+#[cfg(not(debug_assertions))]
 #[cfg(target_arch = "wasm32")]
 #[alloc_error_handler]
 pub fn oom(_: Layout) -> ! {
     wasm32::unreachable()
 }
 
-#[cfg(feature = "debug")]
+#[cfg(any(feature = "debug", debug_assertions))]
 #[cfg(target_arch = "wasm32")]
 #[alloc_error_handler]
 pub fn oom(_: Layout) -> ! {
@@ -44,13 +45,14 @@ pub fn oom(_: Layout) -> ! {
 }
 
 #[cfg(not(feature = "debug"))]
+#[cfg(not(debug_assertions))]
 #[cfg(target_arch = "wasm32")]
 #[panic_handler]
 pub fn panic(_: &PanicInfo) -> ! {
     wasm32::unreachable();
 }
 
-#[cfg(feature = "debug")]
+#[cfg(any(feature = "debug", debug_assertions))]
 #[cfg(target_arch = "wasm32")]
 #[panic_handler]
 pub fn panic(panic_info: &PanicInfo) -> ! {

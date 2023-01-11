@@ -36,6 +36,8 @@ mod code {
 #[cfg(feature = "std")]
 pub use code::WASM_BINARY_OPT as WASM_BINARY;
 
+pub const GAS_LIMIT: u64 = 200_000_001;
+
 #[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
 pub enum SendMessage {
     Init { value: u128 },
@@ -56,7 +58,7 @@ mod wasm {
         hex_literal::hex!("abf3746e72a6e8740bd9e12b879fbdd59e052cb390f116454e9116c22021ae4a");
 
     #[no_mangle]
-    unsafe extern "C" fn init() {
+    extern "C" fn init() {
         let data: gstd::Vec<SendMessage> = msg::load().expect("provided invalid payload");
         let init = |wgas: bool, value: u128| {
             let submitted_code = CHILD_CODE_HASH.into();
@@ -64,18 +66,18 @@ mod wasm {
             let res = if wgas {
                 prog::create_program_with_gas(
                     submitted_code,
-                    COUNTER.to_le_bytes(),
+                    unsafe { COUNTER.to_le_bytes() },
                     [],
-                    100_000_001,
+                    super::GAS_LIMIT,
                     value,
                 )
             } else {
-                prog::create_program(submitted_code, COUNTER.to_le_bytes(), [], value)
+                prog::create_program(submitted_code, unsafe { COUNTER.to_le_bytes() }, [], value)
             };
 
             match res {
                 Ok(_) => {
-                    COUNTER += 1;
+                    unsafe { COUNTER += 1 };
                 }
                 Err(ContractError::Ext(err)) => panic!("{}", err),
                 Err(err) => panic!("{}", err),

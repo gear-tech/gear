@@ -3,11 +3,12 @@
 use core::num::ParseIntError;
 use gstd::{debug, msg, prelude::*, ActorId};
 
-static mut DEMO_PING: ActorId = ActorId::new([0u8; 32]);
+static mut DEMO_PING: ActorId = ActorId::zero();
 
 #[gstd::async_main]
 async fn main() {
-    let msg = String::from_utf8(msg::load_bytes()).expect("Invalid message: should be utf-8");
+    let msg = String::from_utf8(msg::load_bytes().expect("Failed to load payload bytes"))
+        .expect("Invalid message: should be utf-8");
 
     match msg.as_ref() {
         "handle store" => {
@@ -82,9 +83,13 @@ fn decode_hex(s: &str) -> Result<Vec<u8>, ParseIntError> {
 }
 
 #[no_mangle]
-unsafe extern "C" fn init() {
-    let input = String::from_utf8(msg::load_bytes()).expect("Invalid message: should be utf-8");
-    DEMO_PING =
-        ActorId::from_slice(&decode_hex(&input).expect("INTIALIZATION FAILED: INVALID PROGRAM ID"))
-            .expect("Unable to create ActorId");
+extern "C" fn init() {
+    let input = String::from_utf8(msg::load_bytes().expect("Failed to load payload bytes"))
+        .expect("Invalid message: should be utf-8");
+    unsafe {
+        DEMO_PING = ActorId::from_slice(
+            &decode_hex(&input).expect("INTIALIZATION FAILED: INVALID PROGRAM ID"),
+        )
+        .expect("Unable to create ActorId")
+    };
 }

@@ -1,7 +1,11 @@
 //! Gear config
 //!
 //! see <https://github.com/gear-tech/gear/blob/f48450dd9bad2efb9cb3fb13353464ca73e7b7f9/runtime/src/lib.rs#L183>
-use subxt::{sp_core, sp_runtime, Config};
+use subxt::{
+    ext::{sp_core, sp_runtime},
+    tx::PolkadotExtrinsicParams,
+    Config,
+};
 
 /// gear config
 ///
@@ -18,5 +22,5 @@ impl Config for GearConfig {
     type Address = sp_runtime::MultiAddress<Self::AccountId, ()>;
     type Header = sp_runtime::generic::Header<Self::BlockNumber, sp_runtime::traits::BlakeTwo256>;
     type Signature = sp_runtime::MultiSignature;
-    type Extrinsic = sp_runtime::OpaqueExtrinsic;
+    type ExtrinsicParams = PolkadotExtrinsicParams<Self>;
 }

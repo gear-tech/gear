@@ -6,15 +6,19 @@ static mut DEST: ActorId = ActorId::new([0u8; 32]);
 static mut COUNTER: usize = 0;
 
 #[no_mangle]
-unsafe extern "C" fn init() {
-    let dest = String::from_utf8(msg::load_bytes()).expect("Invalid message: should be utf-8");
-    DEST = ActorId::from_slice(&hex::decode(dest).expect("Invalid hex"))
-        .expect("Unable to create ActorId");
+extern "C" fn init() {
+    let dest = String::from_utf8(msg::load_bytes().expect("Failed to load payload bytes"))
+        .expect("Invalid message: should be utf-8");
+    unsafe {
+        DEST = ActorId::from_slice(&hex::decode(dest).expect("Invalid hex"))
+            .expect("Unable to create ActorId")
+    };
 }
 
 #[gstd::async_main]
 async fn main() {
-    let msg = String::from_utf8(msg::load_bytes()).expect("Invalid message: should be utf-8");
+    let msg = String::from_utf8(msg::load_bytes().expect("Failed to load payload bytes"))
+        .expect("Invalid message: should be utf-8");
     if &msg == "async" {
         unsafe { COUNTER += 1 };
 
@@ -25,8 +29,6 @@ async fn main() {
 
         msg::reply(unsafe { COUNTER } as i32, 0).unwrap();
 
-        unsafe {
-            COUNTER = 0;
-        }
+        unsafe { COUNTER = 0 };
     };
 }

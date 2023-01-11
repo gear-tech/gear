@@ -18,7 +18,7 @@
 
 use crate::{
     ids::{MessageId, ProgramId},
-    message::{Dispatch, DispatchKind, ExitCode, Message, ReplyDetails},
+    message::{Dispatch, DispatchKind, Message, SignalDetails, StatusCode},
 };
 use codec::{Decode, Encode};
 use scale_info::TypeInfo;
@@ -28,20 +28,20 @@ use scale_info::TypeInfo;
 pub struct SignalMessage {
     /// Message id.
     id: MessageId,
-    /// Reply exit code.
-    exit_code: ExitCode,
+    /// Reply status code.
+    status_code: StatusCode,
 }
 
 impl SignalMessage {
     /// Creates a new [`SignalMessage`].
-    pub fn new(origin_msg_id: MessageId, exit_code: ExitCode) -> Self {
-        let id = MessageId::generate_signal(origin_msg_id, exit_code);
+    pub fn new(origin_msg_id: MessageId, status_code: StatusCode) -> Self {
+        let id = MessageId::generate_signal(origin_msg_id);
 
-        Self { id, exit_code }
+        Self { id, status_code }
     }
 
     /// Convert [`SignalMessage`] into [`Message`].
-    pub fn into_message(self, destination: ProgramId) -> Message {
+    pub fn into_message(self, origin_msg_id: MessageId, destination: ProgramId) -> Message {
         Message::new(
             self.id,
             ProgramId::SYSTEM,
@@ -49,13 +49,16 @@ impl SignalMessage {
             Default::default(),
             None,
             0,
-            Some(ReplyDetails::new(self.id, self.exit_code)),
+            Some(SignalDetails::new(origin_msg_id, self.status_code).into()),
         )
     }
 
     /// Convert [`SignalMessage`] into [`Dispatch`].
-    pub fn into_dispatch(self, destination: ProgramId) -> Dispatch {
-        Dispatch::new(DispatchKind::Signal, self.into_message(destination))
+    pub fn into_dispatch(self, origin_msg_id: MessageId, destination: ProgramId) -> Dispatch {
+        Dispatch::new(
+            DispatchKind::Signal,
+            self.into_message(origin_msg_id, destination),
+        )
     }
 
     /// Message id.
@@ -63,8 +66,8 @@ impl SignalMessage {
         self.id
     }
 
-    /// Exit code of the reply message.
-    pub fn exit_code(&self) -> ExitCode {
-        self.exit_code
+    /// Status code of the reply message.
+    pub fn status_code(&self) -> StatusCode {
+        self.status_code
     }
 }

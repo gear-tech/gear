@@ -30,26 +30,29 @@ fn decode_hex(s: &str) -> Result<Vec<u8>, ParseIntError> {
 }
 
 #[no_mangle]
-unsafe extern "C" fn handle() {
+extern "C" fn handle() {
     let new_msg: i32 = msg::load().expect("Should be i32");
-    MESSAGE_LOG.push(format!("(sum) New msg: {:?}", new_msg));
+    unsafe { MESSAGE_LOG.push(format!("(sum) New msg: {new_msg:?}")) };
     debug!("sum gas_available: {}", exec::gas_available());
 
-    msg::send(STATE.send_to(), new_msg + new_msg, 0).unwrap();
+    msg::send(unsafe { STATE.send_to() }, new_msg + new_msg, 0).unwrap();
 
-    debug!("{:?} total message(s) stored: ", MESSAGE_LOG.len());
+    debug!("{:?} total message(s) stored: ", unsafe {
+        MESSAGE_LOG.len()
+    });
 
-    for log in MESSAGE_LOG.iter() {
+    for log in unsafe { MESSAGE_LOG.iter() } {
         debug!(log);
     }
 }
 
 #[no_mangle]
-unsafe extern "C" fn init() {
-    let input = String::from_utf8(msg::load_bytes()).expect("Invalid message: should be utf-8");
+extern "C" fn init() {
+    let input = String::from_utf8(msg::load_bytes().expect("Failed to load payload bytes"))
+        .expect("Invalid message: should be utf-8");
     let send_to = ActorId::from_slice(
         &decode_hex(&input).expect("INITIALIZATION FAILED: INVALID PROGRAM ID"),
     )
     .expect("Unable to create ActorId");
-    STATE.set_send_to(send_to);
+    unsafe { STATE.set_send_to(send_to) };
 }

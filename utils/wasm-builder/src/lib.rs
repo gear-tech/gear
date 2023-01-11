@@ -17,7 +17,9 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use anyhow::Result;
+use gmeta::{Metadata, MetadataRepr};
 use std::{env, process};
+use wasm_project::ProjectType;
 
 use crate::{cargo_command::CargoCommand, wasm_project::WasmProject};
 
@@ -42,7 +44,23 @@ impl WasmBuilder {
     /// Create a new `WasmBuilder`.
     pub fn new() -> Self {
         WasmBuilder {
-            wasm_project: WasmProject::new(),
+            wasm_project: WasmProject::new(ProjectType::Program(None)),
+            cargo: CargoCommand::new(),
+        }
+    }
+
+    /// Create a new `WasmBuilder` for metawasm.
+    pub fn new_metawasm() -> Self {
+        WasmBuilder {
+            wasm_project: WasmProject::new(ProjectType::Metawasm),
+            cargo: CargoCommand::new(),
+        }
+    }
+
+    /// Create a new `WasmBuilder` with metadata.
+    pub fn with_meta(metadata: MetadataRepr) -> Self {
+        WasmBuilder {
+            wasm_project: WasmProject::new(ProjectType::Program(Some(metadata))),
             cargo: CargoCommand::new(),
         }
     }
@@ -53,10 +71,10 @@ impl WasmBuilder {
             return;
         }
         if let Err(e) = self.build_project() {
-            eprintln!("error: {}", e);
+            eprintln!("error: {e}");
             e.chain()
                 .skip(1)
-                .for_each(|cause| eprintln!("|      {}", cause));
+                .for_each(|cause| eprintln!("|      {cause}"));
             process::exit(1);
         }
     }
@@ -85,4 +103,14 @@ impl Default for WasmBuilder {
 /// Shorthand function to be used in `build.rs`.
 pub fn build() {
     WasmBuilder::new().build();
+}
+
+/// Shorthand function to be used in `build.rs`.
+pub fn build_with_metadata<T: Metadata>() {
+    WasmBuilder::with_meta(T::repr()).build();
+}
+
+/// Shorthand function to be used in `build.rs`.
+pub fn build_metawasm() {
+    WasmBuilder::new_metawasm().build();
 }

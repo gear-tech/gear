@@ -23,25 +23,39 @@ use crate::{
     manager::{CollectState, State},
     sample::{PayloadVariant, Test},
 };
-use core_processor::{common::*, configs::*, Ext, PrepareResult};
+use core_processor::{
+    common::*, configs::*, ContextChargedForCode, ContextChargedForInstrumentation, Ext,
+};
 use gear_backend_common::Environment;
 use gear_core::{
     code::{Code, CodeAndId},
     ids::{MessageId, ProgramId},
     message::{Dispatch, DispatchKind, IncomingDispatch, IncomingMessage, Message},
 };
+use gear_wasm_instrument::wasm_instrument::gas_metering::ConstantCostRules;
+use rand::{rngs::StdRng, RngCore, SeedableRng};
 use regex::Regex;
 use std::{
+    convert::TryInto,
     io::{Error as IoError, ErrorKind as IoErrorKind},
     time::{SystemTime, UNIX_EPOCH},
 };
-use wasm_instrument::gas_metering::ConstantCostRules;
 
 pub const EXISTENTIAL_DEPOSIT: u128 = 500;
 pub const OUTGOING_LIMIT: u32 = 1024;
 pub const MAILBOX_THRESHOLD: u64 = 3000;
 pub const WAITLIST_COST: u64 = 100;
 pub const RESERVE_FOR: u32 = 1;
+pub const RESERVATION_COST: u64 = 100;
+pub const READ_COST: u64 = 20;
+pub const WRITE_COST: u64 = 100;
+pub const READ_PER_BYTE_COST: u64 = 10;
+pub const WRITE_PER_BYTE_COST: u64 = 10;
+pub const MODULE_INSTANTIATION_BYTE_COST: u64 = 20;
+pub const MAX_RESERVATIONS: u64 = 256;
+pub const INITIAL_RANDOM_SEED: u64 = 42;
+pub const MODULE_INSTRUMENTATION_BYTE_COST: u64 = 13;
+pub const MODULE_INSTRUMENTATION_COST: u64 = 297;
 
 pub fn parse_payload(payload: String) -> String {
     let program_id_regex = Regex::new(r"\{(?P<id>[0-9]+)\}").unwrap();
@@ -90,36 +104,68 @@ where
     E: Environment<Ext>,
     JH: JournalHandler + CollectState + ExecutionContext,
 {
-    let code = Code::try_new(message.code.clone(), 1, |_| ConstantCostRules::default())
-        .map_err(|e| anyhow::anyhow!("Error initialization: {:?}", &e))?;
+    let code = Code::try_new(
+        message.code.clone(),
+        1,
+        |_| ConstantCostRules::default(),
+        None,
+    )
+    .map_err(|e| anyhow::anyhow!("Error initialization: {:?}", &e))?;
 
-    let program = journal_handler.store_program(message.id, code, message.message.id());
-    let program_id = program.id();
+    let program_id = message.id;
+    let actor_data = journal_handler.store_program(program_id, code.clone(), message.message.id());
     journal_handler.write_gas(message.message.id(), message.message.gas_limit());
 
     let block_config = test_block_config(block_info);
 
-    let message_execution_context = MessageExecutionContext {
-        actor: Actor {
-            balance: 0,
-            destination_program: program_id,
-            executable_data: Some(ExecutableActorData {
-                program,
-                pages_with_data: Default::default(),
-            }),
-        },
-        dispatch: message.into(),
-        origin: Default::default(),
-        gas_allowance: u64::MAX,
-        subsequent_execution: false,
-    };
-
-    let journal = match core_processor::prepare(&block_config, message_execution_context) {
-        PrepareResult::WontExecute(journal) | PrepareResult::Error(journal) => journal,
-        PrepareResult::Ok { context, .. } => {
-            core_processor::process::<Ext, E>(&block_config, context, Default::default())
+    let precharged_dispatch = match core_processor::precharge_for_program(
+        &block_config,
+        u64::MAX,
+        message.into(),
+        program_id,
+    ) {
+        Ok(d) => d,
+        Err(journal) => {
+            core_processor::handle_journal(journal, journal_handler);
+            return Ok(());
         }
     };
+
+    let context = match core_processor::precharge_for_code_length(
+        &block_config,
+        precharged_dispatch,
+        program_id,
+        Some(actor_data),
+    ) {
+        Ok(c) => c,
+        Err(journal) => {
+            core_processor::handle_journal(journal, journal_handler);
+            return Ok(());
+        }
+    };
+
+    let context = ContextChargedForCode::from((context, code.code().len() as u32));
+    let context = ContextChargedForInstrumentation::from(context);
+    let context = match core_processor::precharge_for_memory(&block_config, context, false) {
+        Ok(c) => c,
+        Err(journal) => {
+            core_processor::handle_journal(journal, journal_handler);
+            return Ok(());
+        }
+    };
+
+    let mut rng = StdRng::seed_from_u64(INITIAL_RANDOM_SEED);
+    let mut random = [0u8; 32];
+    rng.fill_bytes(&mut random);
+
+    let (code, ..) = code.into_parts();
+
+    let journal = core_processor::process::<Ext, E>(
+        &block_config,
+        (context, code, 0u128, ProgramId::default()).into(),
+        (random.to_vec(), block_config.block_info.height),
+        Default::default(),
+    );
 
     core_processor::handle_journal(journal, journal_handler);
 
@@ -140,9 +186,14 @@ where
     if let Some(codes) = &test.codes {
         for code in codes {
             let code_bytes = std::fs::read(&code.path)
-                .map_err(|e| IoError::new(IoErrorKind::Other, format!("`{}': {}", code.path, e)))?;
-            let code = Code::try_new(code_bytes.clone(), 1, |_| ConstantCostRules::default())
-                .map_err(|e| anyhow::anyhow!("Error initialization: {:?}", &e))?;
+                .map_err(|e| IoError::new(IoErrorKind::Other, format!("`{}': {e}", code.path)))?;
+            let code = Code::try_new(
+                code_bytes.clone(),
+                1,
+                |_| ConstantCostRules::default(),
+                None,
+            )
+            .map_err(|e| anyhow::anyhow!("Error initialization: {:?}", &e))?;
 
             let (code, code_id) = CodeAndId::new(code).into_parts();
 
@@ -154,7 +205,7 @@ where
     for program in &test.programs {
         let program_path = program.path.clone();
         let code = std::fs::read(&program_path)
-            .map_err(|e| IoError::new(IoErrorKind::Other, format!("`{}': {}", program_path, e)))?;
+            .map_err(|e| IoError::new(IoErrorKind::Other, format!("`{program_path}': {e}")))?;
         let mut init_message = Vec::new();
         if let Some(init_msg) = &program.init_message {
             init_message = match init_msg {
@@ -191,9 +242,9 @@ where
                 message: IncomingMessage::new(
                     message_id,
                     init_source,
-                    init_message,
+                    init_message.try_into().unwrap(),
                     program.init_gas_limit.unwrap_or(GAS_LIMIT),
-                    program.init_value.unwrap_or(0) as u128,
+                    program.init_value.unwrap_or(0),
                     None,
                 ),
             },
@@ -250,14 +301,14 @@ where
             message_id,
             message_source,
             message.destination.to_program_id(),
-            payload,
+            payload.try_into().unwrap(),
             Some(gas_limit),
             message.value.unwrap_or_default() as _,
             None,
         );
         let dispatch = Dispatch::new(DispatchKind::Handle, message);
 
-        journal_handler.send_dispatch(Default::default(), dispatch);
+        journal_handler.send_dispatch(Default::default(), dispatch, 0, None);
 
         nonce += 1;
     }
@@ -277,6 +328,63 @@ where
     let mut state = journal_handler.collect();
     results.push((state.clone(), Ok(())));
 
+    let build_journal = |block_config,
+                         dispatch,
+                         program_id,
+                         actor: Actor,
+                         memory_pages,
+                         journal_handler: &mut JH| {
+        let precharged_dispatch = match core_processor::precharge_for_program(
+            &block_config,
+            u64::MAX,
+            dispatch,
+            program_id,
+        ) {
+            Ok(d) => d,
+            Err(journal) => {
+                return journal;
+            }
+        };
+
+        let balance = actor.balance;
+        let context = match core_processor::precharge_for_code_length(
+            &block_config,
+            precharged_dispatch,
+            program_id,
+            actor.executable_data,
+        ) {
+            Ok(c) => c,
+            Err(journal) => {
+                return journal;
+            }
+        };
+
+        let (code, ..) = journal_handler
+            .load_code(context.actor_data().code_id)
+            .expect("code not found in the collection")
+            .into_parts();
+
+        let context = ContextChargedForCode::from((context, code.code().len() as u32));
+        let context = ContextChargedForInstrumentation::from(context);
+        let context = match core_processor::precharge_for_memory(&block_config, context, false) {
+            Ok(c) => c,
+            Err(journal) => {
+                return journal;
+            }
+        };
+
+        let mut rng = StdRng::seed_from_u64(INITIAL_RANDOM_SEED);
+        let mut random = [0u8; 32];
+        rng.fill_bytes(&mut random);
+
+        core_processor::process::<Ext, E>(
+            &block_config,
+            (context, code, balance, ProgramId::default()).into(),
+            (random.to_vec(), block_config.block_info.height),
+            memory_pages,
+        )
+    };
+
     if let Some(steps) = steps {
         for step_no in 0..steps {
             let height = step_no as u32;
@@ -284,8 +392,6 @@ where
                 .duration_since(UNIX_EPOCH)
                 .map(|d| d.as_millis())
                 .unwrap_or(0) as u64;
-
-            let block_config = test_block_config(BlockInfo { height, timestamp });
 
             if let Some((dispatch, gas_limit)) = state.dispatch_queue.pop_front() {
                 let program_id = dispatch.destination();
@@ -295,23 +401,16 @@ where
                 });
                 let (actor, memory_pages) = actor.into_parts(program_id);
 
-                let message_execution_context = MessageExecutionContext {
-                    actor,
-                    dispatch: dispatch.into_incoming(gas_limit),
-                    origin: Default::default(),
-                    gas_allowance: u64::MAX,
-                    subsequent_execution: false,
-                };
+                let block_config = test_block_config(BlockInfo { height, timestamp });
 
-                let journal =
-                    match core_processor::prepare(&block_config, message_execution_context) {
-                        PrepareResult::WontExecute(journal) | PrepareResult::Error(journal) => {
-                            journal
-                        }
-                        PrepareResult::Ok { context, .. } => {
-                            core_processor::process::<Ext, E>(&block_config, context, memory_pages)
-                        }
-                    };
+                let journal = build_journal(
+                    block_config,
+                    dispatch.into_incoming(gas_limit),
+                    program_id,
+                    actor,
+                    memory_pages,
+                    journal_handler,
+                );
 
                 core_processor::handle_journal(journal, journal_handler);
 
@@ -341,20 +440,14 @@ where
                 timestamp,
             });
 
-            let message_execution_context = MessageExecutionContext {
+            let journal = build_journal(
+                block_config,
+                dispatch.into_incoming(gas_limit),
+                program_id,
                 actor,
-                dispatch: dispatch.into_incoming(gas_limit),
-                origin: Default::default(),
-                gas_allowance: u64::MAX,
-                subsequent_execution: false,
-            };
-
-            let journal = match core_processor::prepare(&block_config, message_execution_context) {
-                PrepareResult::WontExecute(journal) | PrepareResult::Error(journal) => journal,
-                PrepareResult::Ok { context, .. } => {
-                    core_processor::process::<Ext, E>(&block_config, context, memory_pages)
-                }
-            };
+                memory_pages,
+                journal_handler,
+            );
 
             counter += 1;
 
@@ -381,5 +474,14 @@ fn test_block_config(block_info: BlockInfo) -> BlockConfig {
         mailbox_threshold: MAILBOX_THRESHOLD,
         waitlist_cost: WAITLIST_COST,
         reserve_for: RESERVE_FOR,
+        reservation: RESERVATION_COST,
+        read_cost: READ_COST,
+        write_cost: WRITE_COST,
+        read_per_byte_cost: READ_PER_BYTE_COST,
+        write_per_byte_cost: WRITE_PER_BYTE_COST,
+        module_instantiation_byte_cost: MODULE_INSTANTIATION_BYTE_COST,
+        max_reservations: MAX_RESERVATIONS,
+        code_instrumentation_cost: MODULE_INSTRUMENTATION_COST,
+        code_instrumentation_byte_cost: MODULE_INSTRUMENTATION_BYTE_COST,
     }
 }

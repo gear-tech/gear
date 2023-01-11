@@ -17,26 +17,38 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    manager::ExtManager, Config, CurrencyOf, Event, GasAllowanceOf, GasHandlerOf,
-    GearProgramPallet, Pallet, QueueOf, SentOf, WaitlistOf,
+    internal::HoldBound,
+    manager::{CodeInfo, ExtManager},
+    Config, CostsPerBlockOf, CurrencyOf, Event, GasAllowanceOf, GasHandlerOf, GearProgramPallet,
+    Pallet, QueueOf, SentOf, TaskPoolOf, WaitlistOf,
 };
-use common::{event::*, storage::*, CodeStorage, GasTree, Origin, Program};
+use common::{
+    event::*,
+    scheduler::{ScheduledTask, SchedulingCostsPerBlock, TaskHandler, TaskPool},
+    storage::*,
+    CodeStorage, GasTree, Origin, Program,
+};
 use core_processor::common::{DispatchOutcome as CoreDispatchOutcome, JournalHandler};
-use frame_support::traits::{Currency, ExistenceRequirement, ReservableCurrency};
+use frame_support::{
+    sp_runtime::Saturating,
+    traits::{Currency, ExistenceRequirement, ReservableCurrency},
+};
+use frame_system::pallet_prelude::BlockNumberFor;
 use gear_core::{
-    ids::{CodeId, MessageId, ProgramId},
-    memory::{PageBuf, PageNumber},
-    message::{Dispatch, StoredDispatch},
+    ids::{CodeId, MessageId, ProgramId, ReservationId},
+    memory::{PageBuf, PageNumber, PageU32Size},
+    message::{Dispatch, MessageWaitedType, StoredDispatch},
+    reservation::GasReserver,
 };
 use sp_runtime::traits::{UniqueSaturatedInto, Zero};
-
 use sp_std::{
     collections::{btree_map::BTreeMap, btree_set::BTreeSet},
     prelude::*,
 };
 
-impl<T: Config> JournalHandler for ExtManager<T>
+impl<T> JournalHandler for ExtManager<T>
 where
+    T: Config,
     T::AccountId: Origin,
 {
     fn message_dispatched(
@@ -113,7 +125,10 @@ where
                 DispatchStatus::Success
             }
             InitFailure {
-                program_id, origin, ..
+                program_id,
+                origin,
+                executed,
+                ..
             } => {
                 log::trace!(
                     "Dispatch ({:?}) init failure for program {:?}",
@@ -128,8 +143,22 @@ where
                 // dequeued. The other case is async init.
                 wake_waiting_init_msgs(program_id);
 
+                // If we run into `InitFailure` after real execution (not
+                // prepare or precharge) processor methods, then we are
+                // sure that it was active program.
+                let maybe_inactive = !executed;
+
+                self.clean_reservation_tasks(program_id, maybe_inactive);
+
                 common::set_program_terminated_status(program_id.into_origin(), origin)
-                    .expect("Only active program can cause init failure");
+                    .unwrap_or_else(|e| {
+                        if !maybe_inactive {
+                            unreachable!(
+                                "Program terminated status may only be set to active program {}",
+                                e
+                            );
+                        }
+                    });
 
                 let program_id = <T::AccountId as Origin>::from_origin(program_id.into_origin());
 
@@ -149,7 +178,7 @@ where
 
                 DispatchStatus::Failed
             }
-            CoreDispatchOutcome::NoExecution => {
+            NoExecution => {
                 log::trace!("Dispatch ({:?}) for program wasn't executed", message_id);
 
                 DispatchStatus::NotExecuted
@@ -170,6 +199,8 @@ where
     }
 
     fn exit_dispatch(&mut self, id_exited: ProgramId, value_destination: ProgramId) {
+        log::debug!("Exit dispatch");
+
         let reason = MessageWokenSystemReason::ProgramGotInitialized.into_reason();
 
         WaitlistOf::<T>::drain_key(id_exited).for_each(|entry| {
@@ -181,10 +212,14 @@ where
 
         let _ = common::waiting_init_take_messages(id_exited);
 
+        // Program can't be inactive, cause it was executed.
+        self.clean_reservation_tasks(id_exited, false);
+
         let id_exited = id_exited.into_origin();
 
-        common::set_program_exited_status(id_exited, value_destination)
-            .expect("`exit` can be called only from active program; qed");
+        common::set_program_exited_status(id_exited, value_destination).unwrap_or_else(|e| {
+            unreachable!("`exit` can be called only from active program: {}", e)
+        });
 
         let program_account = &<T::AccountId as Origin>::from_origin(id_exited);
         let balance = CurrencyOf::<T>::free_balance(program_account);
@@ -204,11 +239,25 @@ where
     }
 
     fn message_consumed(&mut self, message_id: MessageId) {
-        Pallet::<T>::consume_message(message_id)
+        Pallet::<T>::consume_and_retrieve(message_id)
     }
 
-    fn send_dispatch(&mut self, message_id: MessageId, dispatch: Dispatch) {
-        if self.check_program_id(&dispatch.destination()) {
+    fn send_dispatch(
+        &mut self,
+        message_id: MessageId,
+        dispatch: Dispatch,
+        delay: u32,
+        reservation: Option<ReservationId>,
+    ) {
+        // This method shouldn't reduce gas allowance for enqueueing dispatch,
+        // because message already charged for it within the env.
+
+        let to_user = self.check_user_id(&dispatch.destination());
+
+        if !delay.is_zero() {
+            log::debug!("Sending delayed for {delay} blocks dispatch");
+            Pallet::<T>::send_delayed_dispatch(message_id, dispatch, delay, to_user, reservation)
+        } else if !to_user {
             let gas_limit = dispatch.gas_limit();
             let dispatch = dispatch.into_stored();
 
@@ -226,24 +275,43 @@ where
                 ).unwrap_or_else(|_| unreachable!("Value reservation can't fail due to value sending rules. For more info, see module docs."));
             }
 
-            if let Some(gas_limit) = gas_limit {
-                // # Safety
-                //
-                // 1. There is no logic splitting value from the reserved nodes.
-                // 2. The `gas_limit` has been checked inside message queue processing.
-                // 3. The `value` of the value node has been checked before.
-                // 4. The `dispatch.id()` is new generated by system from a checked
-                //    ( inside message queue processing ) `message_id`.
-                GasHandlerOf::<T>::split_with_value(message_id, dispatch.id(), gas_limit)
-                    .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
-            } else {
-                // # Safety
-                //
-                // 1. There is no logic splitting value from the reserved nodes.
-                // 2. The `dispatch.id()` is new generated by system from a checked
-                //    ( inside message queue processing ) `message_id`.
-                GasHandlerOf::<T>::split(message_id, dispatch.id())
-                    .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
+            match (gas_limit, reservation) {
+                (Some(gas_limit), None) => {
+                    // # Safety
+                    //
+                    // 1. There is no logic splitting value from the reserved nodes.
+                    // 2. The `gas_limit` has been checked inside message queue processing.
+                    // 3. The `value` of the value node has been checked before.
+                    // 4. The `dispatch.id()` is new generated by system from a checked
+                    //    ( inside message queue processing ) `message_id`.
+                    GasHandlerOf::<T>::split_with_value(message_id, dispatch.id(), gas_limit)
+                        .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
+                }
+                (None, None) => {
+                    // # Safety
+                    //
+                    // 1. There is no logic splitting value from the reserved nodes.
+                    // 2. The `dispatch.id()` is new generated by system from a checked
+                    //    ( inside message queue processing ) `message_id`.
+                    GasHandlerOf::<T>::split(message_id, dispatch.id())
+                        .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
+                }
+                (Some(_gas_limit), Some(_reservation_id)) => {
+                    // TODO: #1828
+                    unreachable!(
+                        "Sending dispatch with gas limit from reservation \
+                    is currently unimplemented and there is no way to send such dispatch"
+                    );
+                }
+                (None, Some(reservation_id)) => {
+                    GasHandlerOf::<T>::split(reservation_id, dispatch.id())
+                        .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
+
+                    Pallet::<T>::remove_gas_reservation_with_task(
+                        dispatch.source(),
+                        reservation_id,
+                    );
+                }
             }
 
             QueueOf::<T>::queue(dispatch)
@@ -255,15 +323,22 @@ where
                 message_id,
                 dispatch.gas_limit(),
             );
-            Pallet::<T>::send_user_message(message_id, dispatch.into_parts().1);
+            Pallet::<T>::send_user_message(message_id, dispatch.into_parts().1, reservation);
         }
     }
 
-    fn wait_dispatch(&mut self, dispatch: StoredDispatch, duration: Option<u32>) {
+    fn wait_dispatch(
+        &mut self,
+        dispatch: StoredDispatch,
+        duration: Option<u32>,
+        waited_type: MessageWaitedType,
+    ) {
+        // This method shouldn't reduce gas allowance for waiting dispatch,
+        // because message already charged for it within the env.
         Pallet::<T>::wait_dispatch(
             dispatch,
             duration.map(UniqueSaturatedInto::unique_saturated_into),
-            MessageWaitedRuntimeReason::WaitCalled.into_reason(),
+            MessageWaitedRuntimeReason::from(waited_type).into_reason(),
         )
     }
 
@@ -272,21 +347,41 @@ where
         message_id: MessageId,
         program_id: ProgramId,
         awakening_id: MessageId,
+        delay: u32,
     ) {
-        if let Some(dispatch) = Pallet::<T>::wake_dispatch(
-            program_id,
-            awakening_id,
-            MessageWokenRuntimeReason::WakeCalled.into_reason(),
-        ) {
-            QueueOf::<T>::queue(dispatch)
-                .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e));
-        } else {
-            log::debug!(
-                "Attempt to wake unknown message {:?} from {:?}",
+        // This method shouldn't reduce gas allowance for waking dispatch,
+        // because message already charged for it within the env.
+
+        if delay.is_zero() {
+            if let Some(dispatch) = Pallet::<T>::wake_dispatch(
+                program_id,
                 awakening_id,
-                message_id
-            );
+                MessageWokenRuntimeReason::WakeCalled.into_reason(),
+            ) {
+                QueueOf::<T>::queue(dispatch)
+                    .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e));
+
+                return;
+            }
+        } else if WaitlistOf::<T>::contains(&program_id, &awakening_id) {
+            let expected_bn =
+                Pallet::<T>::block_number().saturating_add(delay.unique_saturated_into());
+            let task = ScheduledTask::WakeMessage(program_id, awakening_id);
+
+            // This validation helps us to avoid returning error on insertion into `TaskPool` in case of duplicate wake.
+            if !TaskPoolOf::<T>::contains(&expected_bn, &task) {
+                TaskPoolOf::<T>::add(expected_bn, task)
+                    .unwrap_or_else(|e| unreachable!("Scheduling logic invalidated! {:?}", e));
+            }
+
+            return;
         }
+
+        log::debug!(
+            "Attempt to wake unknown message {:?} from {:?}",
+            awakening_id,
+            message_id
+        );
     }
 
     fn update_pages_data(
@@ -317,7 +412,7 @@ where
             .expect("page update guaranteed to be called only for existing and active program");
         if let Program::Active(mut program) = program {
             let removed_pages = program.allocations.difference(&allocations);
-            for page in removed_pages.flat_map(|p| p.to_gear_pages_iter()) {
+            for page in removed_pages.flat_map(|page| page.to_pages_iter()) {
                 if program.pages_with_data.remove(&page) {
                     common::remove_program_page_data(program_id, page);
                 }
@@ -336,11 +431,12 @@ where
         Pallet::<T>::transfer_reserved(&from, &to, value);
     }
 
-    fn store_new_programs(&mut self, code_id: CodeId, candidates: Vec<(ProgramId, MessageId)>) {
-        if T::CodeStorage::get_code(code_id).is_some() {
-            for (candidate_id, init_message) in candidates {
+    fn store_new_programs(&mut self, code_id: CodeId, candidates: Vec<(MessageId, ProgramId)>) {
+        if let Some(code) = T::CodeStorage::get_code(code_id) {
+            let code_info = CodeInfo::from_code(&code_id, &code);
+            for (init_message, candidate_id) in candidates {
                 if !GearProgramPallet::<T>::program_exists(candidate_id) {
-                    self.set_program(candidate_id, code_id, init_message);
+                    self.set_program(candidate_id, &code_info, init_message);
                 } else {
                     log::debug!("Program with id {:?} already exists", candidate_id);
                 }
@@ -350,7 +446,7 @@ where
                 "No referencing code with code hash {:?} for candidate programs",
                 code_id
             );
-            for (candidate, _) in candidates {
+            for (_, candidate) in candidates {
                 self.programs.insert(candidate);
             }
         }
@@ -368,5 +464,106 @@ where
         GasAllowanceOf::<T>::decrease(gas_burned);
         QueueOf::<T>::requeue(dispatch)
             .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e));
+    }
+
+    fn reserve_gas(
+        &mut self,
+        message_id: MessageId,
+        reservation_id: ReservationId,
+        program_id: ProgramId,
+        amount: u64,
+        duration: u32,
+    ) {
+        log::debug!(
+            "Reserved: {:?} from {:?} with {:?} for {} blocks",
+            amount,
+            message_id,
+            reservation_id,
+            duration
+        );
+
+        let hold = HoldBound::<T>::by(CostsPerBlockOf::<T>::reservation())
+            .duration(BlockNumberFor::<T>::from(duration));
+
+        // Validating holding duration.
+        if hold.expected_duration().is_zero() {
+            unreachable!("Threshold for reservation invalidated")
+        }
+
+        let total_amount = amount.saturating_add(hold.lock());
+
+        GasHandlerOf::<T>::reserve(message_id, reservation_id, total_amount)
+            .unwrap_or_else(|e| unreachable!("GasTree corrupted: {:?}", e));
+
+        GasHandlerOf::<T>::lock(reservation_id, hold.lock())
+            .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
+
+        TaskPoolOf::<T>::add(
+            hold.expected(),
+            ScheduledTask::RemoveGasReservation(program_id, reservation_id),
+        )
+        .unwrap_or_else(|e| unreachable!("Scheduling logic invalidated! {:?}", e));
+    }
+
+    fn unreserve_gas(
+        &mut self,
+        reservation_id: ReservationId,
+        program_id: ProgramId,
+        expiration: u32,
+    ) {
+        <Self as TaskHandler<T::AccountId>>::remove_gas_reservation(
+            self,
+            program_id,
+            reservation_id,
+        );
+
+        let _ = TaskPoolOf::<T>::delete(
+            BlockNumberFor::<T>::from(expiration),
+            ScheduledTask::RemoveGasReservation(program_id, reservation_id),
+        );
+    }
+
+    fn update_gas_reservation(&mut self, program_id: ProgramId, reserver: GasReserver) {
+        let pid = program_id.into_origin();
+        let prog = common::get_program(pid).unwrap_or_else(|| {
+            unreachable!("gas reservation update guaranteed to be called only on existing program")
+        });
+        if let Program::Active(mut prog) = prog {
+            prog.gas_reservation_map = reserver.into_map(
+                Pallet::<T>::block_number().unique_saturated_into(),
+                |duration| {
+                    HoldBound::<T>::by(CostsPerBlockOf::<T>::reservation())
+                        .duration(BlockNumberFor::<T>::from(duration))
+                        .expected()
+                        .unique_saturated_into()
+                },
+            );
+            common::set_program(pid, prog);
+        }
+    }
+
+    fn system_reserve_gas(&mut self, message_id: MessageId, amount: u64) {
+        log::debug!("Reserve {} of gas for system from {}", amount, message_id);
+
+        GasHandlerOf::<T>::system_reserve(message_id, amount)
+            .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
+    }
+
+    fn system_unreserve_gas(&mut self, message_id: MessageId) {
+        let amount = GasHandlerOf::<T>::system_unreserve(message_id)
+            .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
+
+        if amount != 0 {
+            log::debug!("Unreserved {} gas for system from {}", amount, message_id);
+        } else {
+            log::debug!(
+                "Gas for system was not unreserved from {} as there is no supply",
+                message_id
+            );
+        }
+    }
+
+    fn send_signal(&mut self, message_id: MessageId, destination: ProgramId) {
+        ExtManager::send_signal(self, message_id, destination)
     }
 }

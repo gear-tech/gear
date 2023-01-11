@@ -1,25 +1,25 @@
 //! command `create`
 use crate::{api::signer::Signer, result::Result, utils};
-use structopt::StructOpt;
+use clap::Parser;
 
 /// Deploy program to gear node
-#[derive(StructOpt, Debug)]
+#[derive(Parser, Debug)]
 pub struct Create {
     /// gear program code id
     code_id: String,
     /// gear program salt ( hex encoding )
-    #[structopt(default_value = "0x")]
+    #[arg(default_value = "0x")]
     salt: String,
     /// gear program init payload ( hex encoding )
-    #[structopt(default_value = "0x")]
+    #[arg(default_value = "0x")]
     init_payload: String,
     /// gear program gas limit
     ///
     /// if zero, gear will estimate this automatically
-    #[structopt(default_value = "0")]
+    #[arg(default_value = "0")]
     gas_limit: u64,
     /// gear program balance
-    #[structopt(default_value = "0")]
+    #[arg(default_value = "0")]
     value: u128,
 }
 
@@ -31,7 +31,7 @@ impl Create {
 
         let gas = if self.gas_limit == 0 {
             signer
-                .calculate_create_gas(code_id, payload.clone(), self.value, false, None)
+                .calculate_create_gas(None, code_id, payload.clone(), self.value, false, None)
                 .await?
                 .min_limit
         } else {
@@ -39,7 +39,7 @@ impl Create {
         };
 
         // estimate gas
-        let gas_limit = signer.cmp_gas_limit(gas).await?;
+        let gas_limit = signer.cmp_gas_limit(gas)?;
 
         // create program
         signer

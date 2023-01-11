@@ -42,7 +42,7 @@ Metadata {
 
 #[test]
 fn test_parsing_metadata() {
-    let demo_meta = include_bytes!("../../res/demo_meta.meta.wasm");
+    let demo_meta = demo_meta::WASM_BINARY_META;
     let metadata = Metadata::of(demo_meta).expect("get metadata failed");
 
     assert_eq!(
@@ -65,11 +65,16 @@ fn test_parsing_metadata() {
 
     assert_eq!(
         DEMO_METADATA.trim(),
-        &format!("{:#}", metadata).replace('"', "")
+        &format!("{metadata:#}").replace('"', "")
     );
 }
 
+// # Note
+//
+// tests below are reserved for constructing metadata types in pure rust
+
 #[test]
+#[ignore]
 fn test_encode_depth1_1() {
     /// Depth 1 with 1 parameter
     #[derive(Encode, Decode)]
@@ -83,6 +88,7 @@ fn test_encode_depth1_1() {
 }
 
 #[test]
+#[ignore]
 fn test_encode_depth1_2() {
     /// Depth 1 with 2 parameters
     #[derive(Encode, Decode)]
@@ -97,6 +103,7 @@ fn test_encode_depth1_2() {
 }
 
 #[test]
+#[ignore]
 fn test_encode_depth2_2() {
     // Depth 1 with 2 paramters
     #[derive(Encode, Decode)]

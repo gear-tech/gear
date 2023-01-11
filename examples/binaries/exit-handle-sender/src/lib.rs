@@ -28,7 +28,7 @@ mod wasm {
     use gstd::{exec, msg};
 
     #[no_mangle]
-    unsafe extern "C" fn handle() {
+    extern "C" fn handle() {
         let input: Input = msg::load().unwrap();
 
         match input {

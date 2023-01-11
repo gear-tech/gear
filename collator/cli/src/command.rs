@@ -22,8 +22,6 @@ use cumulus_client_cli::generate_genesis_block;
 use cumulus_primitives_core::ParaId;
 use frame_benchmarking_cli::{BenchmarkCmd, SUBSTRATE_REFERENCE_HARDWARE};
 use log::info;
-#[cfg(feature = "rococo-gear-native")]
-use rococo_gear_runtime::RuntimeApi;
 use runtime_primitives::Block;
 use sc_cli::{
     ChainSpec, CliConfiguration, DefaultConfigurationValues, ImportParams, KeystoreParams,
@@ -31,7 +29,7 @@ use sc_cli::{
 };
 use sc_service::{
     config::{BasePath, PrometheusConfig},
-    TaskManager,
+    TFullBackend,
 };
 use service::{self, chain_spec, IdentifyVariant, RococoGearRuntimeExecutor};
 use sp_core::hexdisplay::HexDisplay;
@@ -169,14 +167,7 @@ macro_rules! construct_async_run {
     (|$components:ident, $cli:ident, $cmd:ident, $config:ident| $( $code:tt )* ) => {{
         let runner = $cli.create_runner($cmd)?;
         runner.async_run(|$config| {
-            let $components = service::new_partial::<
-                RuntimeApi,
-                RococoGearRuntimeExecutor,
-                _
-            >(
-                &$config,
-                service::rococo_gear_build_import_queue,
-            )?;
+            let $components = service::new_partial(&$config,)?;
             let task_manager = $components.task_manager;
             { $( $code )* }.map(|v| (v, task_manager))
         })
@@ -269,21 +260,23 @@ pub fn run() -> sc_cli::Result<()> {
                     }
                 }
                 BenchmarkCmd::Block(cmd) => runner.sync_run(|config| {
-                    let partials = service::new_partial::<RuntimeApi, RococoGearRuntimeExecutor, _>(
-                        &config,
-                        service::rococo_gear_build_import_queue,
-                    )?;
+                    let partials = service::new_partial(&config,)?;
                     cmd.run(partials.client)
                 }),
-                BenchmarkCmd::Storage(cmd) => runner.sync_run(|config| {
-                    let partials = service::new_partial::<RuntimeApi, RococoGearRuntimeExecutor, _>(
-                        &config,
-                        service::rococo_gear_build_import_queue,
-                    )?;
-                    let db = partials.backend.expose_db();
-                    let storage = partials.backend.expose_storage();
-
-                    cmd.run(config, partials.client.clone(), db, storage)
+				#[cfg(not(feature = "runtime-benchmarks"))]
+				BenchmarkCmd::Storage(_) =>
+					return Err(sc_cli::Error::Input(
+						"Compile with --features=runtime-benchmarks \
+						to enable storage benchmarks."
+							.into(),
+					)
+					.into()),
+                #[cfg(feature = "runtime-benchmarks")]
+				BenchmarkCmd::Storage(cmd) => runner.sync_run(|config| {
+                    let partials = service::new_partial(&config)?;
+					let db = partials.backend.expose_db();
+					let storage = partials.backend.expose_storage();
+					cmd.run(config, partials.client.clone(), db, storage)
                 }),
                 BenchmarkCmd::Machine(cmd) => {
                     runner.sync_run(|config| cmd.run(&config, SUBSTRATE_REFERENCE_HARDWARE.clone()))
@@ -299,7 +292,8 @@ pub fn run() -> sc_cli::Result<()> {
 
             runner.sync_run(|config| cmd.run(config))
         }
-        Some(Subcommand::TryRuntime(cmd)) => {
+        #[cfg(feature = "try-runtime")]
+	    Some(Subcommand::TryRuntime(cmd)) => {
             if cfg!(feature = "try-runtime") {
                 let runner = cli.create_runner(cmd)?;
 

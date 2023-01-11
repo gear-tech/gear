@@ -224,8 +224,8 @@ pub struct Message {
     pub payload: Option<PayloadVariant>,
     pub gas_limit: Option<u64>,
     pub value: Option<u128>,
-    #[serde(rename = "exitCode")]
-    pub exit_code: Option<i32>,
+    #[serde(rename = "statusCode")]
+    pub status_code: Option<i32>,
 }
 
 /// Main model describing test structure

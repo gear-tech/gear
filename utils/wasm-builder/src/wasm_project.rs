@@ -16,17 +16,37 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use crate::{
+    crate_info::CrateInfo,
+    optimize::{OptType, Optimizer},
+};
 use anyhow::{Context, Result};
+use gmeta::MetadataRepr;
+use pwasm_utils::parity_wasm::{self, elements::Internal};
 use std::{
     env, fs,
     path::{Path, PathBuf},
 };
 use toml::value::Table;
 
-use crate::{
-    crate_info::CrateInfo,
-    optimize::{OptType, Optimizer},
-};
+/// Enum defining type of binary compiling: production program or metawasm.
+pub enum ProjectType {
+    Program(Option<MetadataRepr>),
+    Metawasm,
+}
+
+impl ProjectType {
+    pub fn is_metawasm(&self) -> bool {
+        matches!(self, ProjectType::Metawasm)
+    }
+
+    pub fn metadata(&self) -> Option<&MetadataRepr> {
+        match self {
+            ProjectType::Program(metadata) => metadata.as_ref(),
+            _ => None,
+        }
+    }
+}
 
 /// Temporary project generated to build a WASM output.
 ///
@@ -38,11 +58,12 @@ pub struct WasmProject {
     wasm_target_dir: PathBuf,
     file_base_name: Option<String>,
     profile: String,
+    project_type: ProjectType,
 }
 
 impl WasmProject {
     /// Create a new `WasmProject`.
-    pub fn new() -> Self {
+    pub fn new(project_type: ProjectType) -> Self {
         let original_dir: PathBuf = env::var("CARGO_MANIFEST_DIR")
             .expect("`CARGO_MANIFEST_DIR` is always set in build scripts")
             .into();
@@ -86,6 +107,7 @@ impl WasmProject {
             wasm_target_dir,
             file_base_name: None,
             profile,
+            project_type,
         }
     }
 
@@ -123,9 +145,13 @@ impl WasmProject {
         release_profile.insert("lto".into(), true.into());
         release_profile.insert("opt-level".into(), "s".into());
 
+        let mut production_profile = Table::new();
+        production_profile.insert("inherits".into(), "release".into());
+
         let mut profile = Table::new();
         profile.insert("dev".into(), release_profile.clone().into());
         profile.insert("release".into(), release_profile.into());
+        profile.insert("production".into(), production_profile.into());
 
         let mut crate_package = Table::new();
         crate_package.insert("package".into(), crate_info.name.into());
@@ -138,11 +164,22 @@ impl WasmProject {
         let mut dependencies = Table::new();
         dependencies.insert("orig-project".into(), crate_package.into());
 
+        let mut features = Table::new();
+        for feature in crate_info.features.keys() {
+            if feature != "default" {
+                features.insert(
+                    feature.into(),
+                    vec![format!("orig-project/{feature}")].into(),
+                );
+            }
+        }
+
         let mut cargo_toml = Table::new();
         cargo_toml.insert("package".into(), package.into());
         cargo_toml.insert("lib".into(), lib.into());
         cargo_toml.insert("dependencies".into(), dependencies.into());
         cargo_toml.insert("profile".into(), profile.into());
+        cargo_toml.insert("features".into(), features.into());
         cargo_toml.insert("workspace".into(), Table::new().into());
 
         fs::write(self.manifest_path(), toml::to_string_pretty(&cargo_toml)?)?;
@@ -157,7 +194,18 @@ impl WasmProject {
         // Copy original `Cargo.lock` if any
         let from_lock = self.original_dir.join("Cargo.lock");
         let to_lock = self.out_dir.join("Cargo.lock");
-        let _ = fs::copy(&from_lock, &to_lock);
+        let _ = fs::copy(from_lock, to_lock);
+
+        // Write metadata
+        if let Some(metadata) = &self.project_type.metadata() {
+            let wasm_meta_path = self.original_dir.join("meta.txt");
+            let wasm_meta_hash_path = self.original_dir.join(".metahash");
+
+            fs::write(wasm_meta_path, metadata.hex()).context("unable to write `meta.txt`")?;
+
+            fs::write(wasm_meta_hash_path, format!("{:?}", metadata.hash()))
+                .context("unable to write `.metahash`")?;
+        }
 
         Ok(())
     }
@@ -185,11 +233,29 @@ impl WasmProject {
             .map(|ext| self.wasm_target_dir.join([file_base_name, ext].concat()));
 
         // Optimize source.
-        fs::copy(&from_path, &to_path).context("unable to copy WASM file")?;
-        let _ = crate::optimize::optimize_wasm(to_path.clone(), "s", false);
+        if !self.project_type.is_metawasm() {
+            fs::copy(&from_path, &to_path).context("unable to copy WASM file")?;
+            // Issue (#1971)
+            // let _ = crate::optimize::optimize_wasm(to_path.clone(), "s", false);
+        }
+
+        let metadata = self
+            .project_type
+            .metadata()
+            .map(|m| {
+                format!(
+                    "#[allow(unused)] pub const WASM_METADATA: &[u8] = &{:?};\n",
+                    m.bytes()
+                )
+            })
+            .unwrap_or_default();
 
         // Generate wasm binaries
-        Self::generate_wasm(from_path, &to_opt_path, &to_meta_path)?;
+        Self::generate_wasm(
+            from_path,
+            (!self.project_type.is_metawasm()).then_some(&to_opt_path),
+            Some(&to_meta_path),
+        )?;
 
         let wasm_binary_path = self.original_dir.join(".binpath");
 
@@ -199,44 +265,90 @@ impl WasmProject {
         // Remove extension
         relative_path.set_extension("");
 
-        fs::write(&wasm_binary_path, format!("{}", relative_path.display()))
-            .context("unable to write `.binpath`")?;
+        if !self.project_type.is_metawasm() {
+            fs::write(wasm_binary_path, format!("{}", relative_path.display()))
+                .context("unable to write `.binpath`")?;
+        }
 
         let wasm_binary_rs = self.out_dir.join("wasm_binary.rs");
-        fs::write(
-            &wasm_binary_rs,
-            format!(
-                r#"#[allow(unused)]
+
+        if !self.project_type.is_metawasm() {
+            fs::write(
+                wasm_binary_rs,
+                format!(
+                    r#"#[allow(unused)]
 pub const WASM_BINARY: &[u8] = include_bytes!("{}");
 #[allow(unused)]
 pub const WASM_BINARY_OPT: &[u8] = include_bytes!("{}");
 #[allow(unused)]
 pub const WASM_BINARY_META: &[u8] = include_bytes!("{}");
+{}
 "#,
-                display_path(to_path),
-                display_path(to_opt_path),
-                display_path(to_meta_path),
-            ),
-        )
-        .context("unable to write `wasm_binary.rs`")?;
+                    display_path(to_path),
+                    display_path(to_opt_path),
+                    display_path(to_meta_path),
+                    metadata,
+                ),
+            )
+            .context("unable to write `wasm_binary.rs`")?;
+        } else {
+            fs::write(
+                wasm_binary_rs,
+                format!(
+                    r#"#[allow(unused)]
+pub const WASM_BINARY: &[u8] = include_bytes!("{}");
+#[allow(unused)]
+pub const WASM_EXPORTS: &[&str] = &{:?};
+
+"#,
+                    display_path(to_meta_path.clone()),
+                    Self::get_exports(to_meta_path)?,
+                ),
+            )
+            .context("unable to write `wasm_binary.rs`")?;
+        }
 
         Ok(())
     }
 
-    fn generate_wasm(from: PathBuf, to_opt: &Path, to_meta: &Path) -> Result<()> {
+    fn generate_wasm(from: PathBuf, to_opt: Option<&Path>, to_meta: Option<&Path>) -> Result<()> {
         let mut optimizer = Optimizer::new(from)?;
         optimizer.insert_stack_and_export();
         optimizer.strip_custom_sections();
 
         // Generate *.opt.wasm.
-        let opt = optimizer.optimize(OptType::Opt)?;
-        fs::write(to_opt, opt)?;
+        if let Some(to_opt) = to_opt {
+            let opt = optimizer.optimize(OptType::Opt)?;
+            fs::write(to_opt, opt)?;
+        }
 
         // Generate *.meta.wasm.
-        let meta = optimizer.optimize(OptType::Meta)?;
-        fs::write(to_meta, meta)?;
+        if let Some(to_meta) = to_meta {
+            let meta = optimizer.optimize(OptType::Meta)?;
+            fs::write(to_meta, meta)?;
+        }
 
         Ok(())
+    }
+
+    fn get_exports(file: PathBuf) -> Result<Vec<String>> {
+        let module = parity_wasm::deserialize_file(file)?;
+
+        let exports = module
+            .export_section()
+            .ok_or_else(|| anyhow::anyhow!("Export section not found"))?
+            .entries()
+            .iter()
+            .flat_map(|entry| {
+                if let Internal::Function(_) = entry.internal() {
+                    Some(entry.field().to_string())
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        Ok(exports)
     }
 }
 

@@ -17,13 +17,15 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate as pallet_gear_debug;
+use common::QueueRunner;
 use frame_support::{
     construct_runtime, parameter_types,
-    traits::{FindAuthor, OnFinalize, OnIdle, OnInitialize},
+    traits::{FindAuthor, OnFinalize, OnInitialize},
 };
+use frame_support_test::TestRandomness;
 use frame_system as system;
-use pallet_gear_messenger::Weight;
 use primitive_types::H256;
+use sp_core::ConstU128;
 use sp_runtime::{
     testing::Header,
     traits::{BlakeTwo256, ConstU64, IdentityLookup},
@@ -58,8 +60,8 @@ impl system::Config for Test {
     type BlockWeights = ();
     type BlockLength = ();
     type DbWeight = ();
-    type Origin = Origin;
-    type Call = Call;
+    type RuntimeOrigin = RuntimeOrigin;
+    type RuntimeCall = RuntimeCall;
     type Index = u64;
     type BlockNumber = u64;
     type Hash = H256;
@@ -121,6 +123,7 @@ impl pallet_timestamp::Config for Test {
 pub struct GasConverter;
 impl common::GasPrice for GasConverter {
     type Balance = u128;
+    type GasToBalanceMultiplier = ConstU128<1_000>;
 }
 
 impl pallet_gear_program::Config for Test {
@@ -131,7 +134,8 @@ impl pallet_gear_program::Config for Test {
 }
 
 impl pallet_gear::Config for Test {
-    type Event = Event;
+    type RuntimeEvent = RuntimeEvent;
+    type Randomness = TestRandomness<Self>;
     type Currency = Balances;
     type GasPrice = GasConverter;
     type WeightInfo = ();
@@ -140,14 +144,17 @@ impl pallet_gear::Config for Test {
     type Schedule = ();
     type CodeStorage = GearProgram;
     type MailboxThreshold = ConstU64<3000>;
+    type ReservationsLimit = ConstU64<256>;
     type Messenger = GearMessenger;
     type GasProvider = GearGas;
     type BlockLimiter = GearGas;
     type Scheduler = GearScheduler;
+    type QueueRunner = Gear;
 }
 
 impl pallet_gear_messenger::Config for Test {
     type BlockLimiter = GearGas;
+    type CurrentBlockNumber = Gear;
 }
 
 impl pallet_gear_scheduler::Config for Test {
@@ -155,6 +162,7 @@ impl pallet_gear_scheduler::Config for Test {
     type ReserveThreshold = ConstU64<1>;
     type WaitlistCost = ConstU64<100>;
     type MailboxCost = ConstU64<100>;
+    type ReservationCost = ConstU64<100>;
 }
 
 impl pallet_gear_gas::Config for Test {
@@ -182,7 +190,6 @@ construct_runtime!(
 );
 
 // Build genesis storage according to the mock runtime.
-#[allow(unused)]
 pub fn new_test_ext() -> sp_io::TestExternalities {
     let mut t = system::GenesisConfig::default()
         .build_storage::<Test>()
@@ -190,16 +197,20 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
 
     pallet_balances::GenesisConfig::<Test> {
         balances: vec![
-            (1, 100_000_000_000_u128),
-            (2, 2_u128),
-            (BLOCK_AUTHOR, 1_u128),
+            (1, 100_000_000_000_000_u128),
+            (2, 2_000_u128),
+            (BLOCK_AUTHOR, 1_000_u128),
         ],
     }
     .assimilate_storage(&mut t)
     .unwrap();
 
     let mut ext = sp_io::TestExternalities::new(t);
-    ext.execute_with(|| System::set_block_number(1));
+    ext.execute_with(|| {
+        Gear::force_always();
+        System::set_block_number(1);
+        Gear::on_initialize(System::block_number());
+    });
     ext
 }
 
@@ -213,9 +224,16 @@ pub fn run_to_block(n: u64, remaining_weight: Option<u64>) {
         Gear::on_initialize(System::block_number());
         let remaining_weight =
             remaining_weight.unwrap_or(pallet_gear::BlockGasLimitOf::<Test>::get());
-        Gear::on_idle(
-            System::block_number(),
-            Weight::from_ref_time(remaining_weight),
-        );
+
+        Gear::run_queue(remaining_weight);
+        Gear::processing_completed();
+        Gear::on_finalize(System::block_number());
+
+        assert!(!System::events().iter().any(|e| {
+            matches!(
+                e.event,
+                RuntimeEvent::Gear(pallet_gear::Event::QueueProcessingReverted)
+            )
+        }))
     }
 }

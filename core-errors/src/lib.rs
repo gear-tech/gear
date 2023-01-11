@@ -39,6 +39,10 @@ pub trait CoreError: fmt::Display + fmt::Debug + Sized {
 #[derive(Copy, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, derive_more::Display)]
 #[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo))]
 pub enum MessageError {
+    /// Message has bigger then allowed one message size
+    #[display(fmt = "Max message size exceed")]
+    MaxMessageSizeExceed,
+
     /// The error "Message limit exceeded" occurs when a program attempts to
     /// send more than the maximum amount of messages allowed within a single
     /// execution (current setting - 1024).
@@ -74,9 +78,7 @@ pub enum MessageError {
     /// Everything less than existential deposit but greater than 0 is not considered as available balance and not saved in DB.
     /// Value between 0 and existential deposit cannot be sent in message.
     #[display(
-        fmt = "In case of non-zero message value {}, it must be greater than existential deposit {}",
-        message_value,
-        existential_deposit
+        fmt = "In case of non-zero message value {message_value}, it must be greater than existential deposit {existential_deposit}"
     )]
     InsufficientValue {
         /// Message's value.
@@ -90,9 +92,7 @@ pub enum MessageError {
     ///
     /// Gas limit between 0 and mailbox threshold cannot be inserted in mailbox.
     #[display(
-        fmt = "In case of non-zero message gas limit {}, it must be greater than mailbox threshold {}",
-        message_gas_limit,
-        mailbox_threshold
+        fmt = "In case of non-zero message gas limit {message_gas_limit}, it must be greater than mailbox threshold {mailbox_threshold}"
     )]
     InsufficientGasLimit {
         /// Message's gas limit.
@@ -103,9 +103,7 @@ pub enum MessageError {
 
     /// The error occurs when program's balance is less than value in message it tries to send.
     #[display(
-        fmt = "Existing value {} is not enough to send a message with value {}",
-        value_left,
-        message_value
+        fmt = "Existing value {value_left} is not enough to send a message with value {message_value}"
     )]
     NotEnoughValue {
         /// Message's value.
@@ -117,6 +115,18 @@ pub enum MessageError {
     /// The error occurs when program receives too big payload.
     #[display(fmt = "Received message with abnormal payload size")]
     IncomingPayloadTooBig,
+
+    /// The error occurs when functions related to reply context, used without it.
+    #[display(fmt = "Not running in reply context")]
+    NoReplyContext,
+
+    /// The error occurs when functions related to signal context, used without it.
+    #[display(fmt = "Not running in signal context")]
+    NoSignalContext,
+
+    /// The error occurs when functions related to status code, used without required context.
+    #[display(fmt = "No status code in reply/signal context")]
+    NoStatusCodeContext,
 }
 
 /// Error using waiting syscalls.
@@ -137,12 +147,12 @@ pub enum WaitError {
 pub enum MemoryError {
     /// The error occurs when a program tries to allocate more memory  than
     /// allowed.
-    #[display(fmt = "Memory memory out of maximal bounds")]
+    #[display(fmt = "Memory access out of bounds")]
     OutOfBounds,
 
     /// The error occurs in attempt to free-up a memory page from static area or
     /// outside additionally allocated for this program.
-    #[display(fmt = "Page {} cannot be freed by the current program", _0)]
+    #[display(fmt = "Page {_0} cannot be freed by the current program")]
     InvalidFree(u32),
 
     /// The error occurs in attempt to access memory page outside pages area
@@ -150,9 +160,19 @@ pub enum MemoryError {
     #[display(fmt = "Access to the page not allocated to this program")]
     MemoryAccessError,
 
-    /// WASM page does not contain all necessary Gear pages.
-    #[display(fmt = "Page data has wrong size: {:#x}", _0)]
+    /// Invalid page data size.
+    // TODO: (issue #1956) change to u32.
+    #[display(fmt = "Page data has wrong size: {_0:#x}")]
     InvalidPageDataSize(u64),
+
+    /// Memory size cannot be zero after grow is applied for memory
+    #[display(fmt = "Memory unexpectedly has zero size after grow")]
+    MemSizeIsZeroAfterGrow,
+
+    /// Memory size cannot be zero after grow is applied for memory
+    // TODO: (issue #1956) make separate error for alloc in allocations context
+    #[display(fmt = "Allocated memory pages or memory size are incorrect")]
+    IncorrectAllocationsSetOrMemSize,
 }
 
 /// Execution error.
@@ -168,6 +188,24 @@ pub enum ExecutionError {
     /// An error occurs in attempt to call forbidden sys-call.
     #[display(fmt = "Unable to call a forbidden function")]
     ForbiddenFunction,
+    /// An error occurs in attempt to unreserve gas with non-existing reservation ID.
+    #[display(fmt = "Invalid reservation ID")]
+    InvalidReservationId,
+    /// An error occurs in attempt to reserve more gas than available.
+    #[display(fmt = "Insufficient gas for reservation")]
+    InsufficientGasForReservation,
+    /// An error occurs in attempt to reserve more times than allowed.
+    #[display(fmt = "Reservation limit has reached")]
+    ReservationsLimitReached,
+    /// An error occurs in attempt to create reservation for 0 blocks.
+    #[display(fmt = "Reservation duration cannot be zero")]
+    ZeroReservationDuration,
+    /// An error occurs in attempt to reserve zero gas.
+    #[display(fmt = "Reservation amount cannot be zero")]
+    ZeroReservationAmount,
+    /// An error occurs in attempt to reserve zero gas for the system.
+    #[display(fmt = "System reservation amount cannot be zero")]
+    ZeroSystemReservationAmount,
 }
 
 /// An error occurred in API.
@@ -177,25 +215,42 @@ pub enum ExecutionError {
 #[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo))]
 pub enum ExtError {
     /// We got some error but don't know which exactly because of disabled gcore's `codec` feature
+    #[cfg(not(feature = "codec"))]
     #[display(fmt = "Some error")]
     Some,
+
+    /// Decode error.
+    ///
+    /// Supposed to be unreachable.
+    #[cfg(feature = "codec")]
+    #[display(fmt = "`ExtError` decoding error")]
+    Decode,
+
+    // TODO: consider to create more complex one.
+    /// Syscall usage error.
+    #[display(fmt = "Syscall usage error")]
+    SyscallUsage,
+
     /// Memory error.
-    #[display(fmt = "Memory error: {}", _0)]
+    #[display(fmt = "Memory error: {_0}")]
     Memory(MemoryError),
+
     /// Message error.
-    #[display(fmt = "Message error: {}", _0)]
+    #[display(fmt = "Message error: {_0}")]
     Message(MessageError),
+
     /// Waiting error.
-    #[display(fmt = "Waiting error: {}", _0)]
+    #[display(fmt = "Waiting error: {_0}")]
     Wait(WaitError),
+
     /// Execution error.
-    #[display(fmt = "Execution error: {}", _0)]
+    #[display(fmt = "Execution error: {_0}")]
     Execution(ExecutionError),
 }
 
+#[cfg(feature = "codec")]
 impl ExtError {
     /// Size of error encoded in SCALE codec
-    #[cfg(feature = "codec")]
     pub fn encoded_size(&self) -> usize {
         Encode::encoded_size(self)
     }

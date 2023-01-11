@@ -84,7 +84,7 @@ struct NodeState {
 static mut STATE: Option<NodeState> = None;
 
 #[no_mangle]
-unsafe extern "C" fn handle() {
+extern "C" fn handle() {
     let reply = match msg::load() {
         Ok(request) => process(request),
         Err(e) => {
@@ -237,16 +237,16 @@ fn process(request: Request) -> Reply {
             }
         }
         Request::Add(sub_node) => {
-            state().sub_nodes.insert((sub_node as u64).into());
+            state().sub_nodes.insert(sub_node.into());
             Reply::Success
         }
     }
 }
 
 #[no_mangle]
-unsafe extern "C" fn handle_reply() {
+extern "C" fn handle_reply() {
     if let Some(ref mut transition) = state().transition {
-        if msg::reply_to() != transition.last_sent_message_id {
+        if msg::reply_to().unwrap() != transition.last_sent_message_id {
             return;
         }
 
@@ -257,12 +257,12 @@ unsafe extern "C" fn handle_reply() {
                 } else {
                     transition.state = TransitionState::Failed;
                 }
-                exec::wake(transition.message_id);
+                exec::wake(transition.message_id).unwrap();
             }
             Err(e) => {
                 transition.state = TransitionState::Failed;
                 debug!("Error processing reply: {:?}", e);
-                exec::wake(transition.message_id);
+                exec::wake(transition.message_id).unwrap();
             }
         }
     } else {
@@ -271,14 +271,16 @@ unsafe extern "C" fn handle_reply() {
 }
 
 #[no_mangle]
-unsafe extern "C" fn init() {
+extern "C" fn init() {
     let init: Initialization = msg::load().expect("Failed to decode init");
 
-    STATE = Some(NodeState {
-        status: init.status,
-        sub_nodes: BTreeSet::default(),
-        transition: None,
-    });
+    unsafe {
+        STATE = Some(NodeState {
+            status: init.status,
+            sub_nodes: BTreeSet::default(),
+            transition: None,
+        });
+    }
 
     msg::reply((), 0).unwrap();
 }

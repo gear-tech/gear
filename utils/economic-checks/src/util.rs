@@ -18,12 +18,11 @@
 
 use codec::{Decode, Encode};
 use common::{
-    storage::{IterableMap, Messenger},
+    storage::{IterableMap, Limiter, Messenger},
     GasTree,
 };
 use frame_support::{
-    traits::{GenesisBuild, OnFinalize, OnIdle, OnInitialize},
-    weights::Weight,
+    traits::{GenesisBuild, OnFinalize, OnInitialize},
     BasicExternalities,
 };
 use frame_system as system;
@@ -34,7 +33,7 @@ use gear_runtime::{
     Grandpa, GrandpaConfig, Runtime, Session, SessionConfig, SessionKeys, SudoConfig, System,
     TransactionPayment, TransactionPaymentConfig, UncheckedExtrinsic, EXISTENTIAL_DEPOSIT,
 };
-use pallet_gear::{BlockGasLimitOf, GasHandlerOf};
+use pallet_gear::{BlockGasLimitOf, GasAllowanceOf, GasHandlerOf};
 use pallet_gear_gas::Error as GasError;
 use parking_lot::RwLock;
 use rand::{rngs::StdRng, RngCore};
@@ -63,7 +62,6 @@ use vara_runtime::{
     TransactionPayment, TransactionPaymentConfig, UncheckedExtrinsic, EXISTENTIAL_DEPOSIT,
 };
 
-type GasNodeKeyOf<T> = <GasHandlerOf<T> as GasTree>::Key;
 type GasBalanceOf<T> = <GasHandlerOf<T> as GasTree>::Balance;
 
 pub(crate) type WaitlistOf<T> = <<T as pallet_gear::Config>::Messenger as Messenger>::Waitlist;
@@ -71,7 +69,7 @@ pub(crate) type MailboxOf<T> = <<T as pallet_gear::Config>::Messenger as Messeng
 
 // Generate a crypto pair from seed.
 pub(crate) fn get_from_seed<TPublic: Public>(seed: &str) -> <TPublic::Pair as Pair>::Public {
-    TPublic::Pair::from_string(&format!("//{}", seed), None)
+    TPublic::Pair::from_string(&format!("//{seed}"), None)
         .expect("static values are valid; qed")
         .public()
 }
@@ -258,12 +256,10 @@ pub(crate) fn with_offchain_ext(
 #[allow(unused)]
 pub(crate) fn run_to_block(n: u32, remaining_weight: Option<u64>) {
     while System::block_number() < n {
-        // Run on_idle hook that processes the queue
+        // Process message queue
         let remaining_weight = remaining_weight.unwrap_or_else(BlockGasLimitOf::<Runtime>::get);
-        Gear::on_idle(
-            System::block_number(),
-            Weight::from_ref_time(remaining_weight),
-        );
+        GasAllowanceOf::<Runtime>::put(remaining_weight);
+        Gear::run(frame_support::dispatch::RawOrigin::None.into()).unwrap();
 
         let current_blk = System::block_number();
         on_finalize(current_blk);
@@ -287,7 +283,8 @@ pub(crate) fn run_to_block_with_ocw(
         let remaining_weight = remaining_weight.unwrap_or_else(BlockGasLimitOf::<Runtime>::get);
 
         // Processing message queue
-        Gear::on_idle(i, Weight::from_ref_time(remaining_weight));
+        GasAllowanceOf::<Runtime>::put(remaining_weight);
+        Gear::run(frame_support::dispatch::RawOrigin::None.into()).unwrap();
 
         on_finalize(i);
 
@@ -321,26 +318,25 @@ pub(crate) fn total_gas_in_wait_list() -> u64 {
 
     // Iterate through the wait list and record the respective gas nodes value limits
     // attributing the latter to the nearest `node_with_value` ID to avoid duplication
-    let gas_limit_by_node_id: BTreeMap<GasNodeKeyOf<Runtime>, GasBalanceOf<Runtime>> =
-        WaitlistOf::<Runtime>::iter()
-            .map(|(dispatch, _)| {
-                let node_id = dispatch.id();
-                let (value, ancestor_id) = GasHandlerOf::<Runtime>::get_limit_node(node_id)
-                    .expect("There is always a value node for a valid dispatch ID");
+    let gas_limit_by_node_id: BTreeMap<_, GasBalanceOf<Runtime>> = WaitlistOf::<Runtime>::iter()
+        .map(|(dispatch, _)| {
+            let node_id = dispatch.id();
+            let (value, ancestor_id) = GasHandlerOf::<Runtime>::get_limit_node(node_id)
+                .expect("There is always a value node for a valid dispatch ID");
 
-                let lock = GasHandlerOf::<Runtime>::get_lock(node_id).unwrap_or_else(|e| {
-                    if e == GasError::<Runtime>::Forbidden.into() {
-                        0
-                    } else {
-                        panic!("GasTree error: {:?}", e)
-                    }
-                });
+            let lock = GasHandlerOf::<Runtime>::get_lock(node_id).unwrap_or_else(|e| {
+                if e == GasError::<Runtime>::Forbidden.into() {
+                    0
+                } else {
+                    panic!("GasTree error: {:?}", e)
+                }
+            });
 
-                total_lock += lock;
+            total_lock += lock;
 
-                (ancestor_id, value)
-            })
-            .collect();
+            (ancestor_id, value)
+        })
+        .collect();
 
     gas_limit_by_node_id
         .into_iter()
@@ -353,26 +349,25 @@ pub(crate) fn total_gas_in_mailbox() -> u64 {
 
     // Iterate through the mailbox and record the respective gas nodes value limits
     // attributing the latter to the nearest `node_with_value` ID to avoid duplication
-    let gas_limit_by_node_id: BTreeMap<GasNodeKeyOf<Runtime>, GasBalanceOf<Runtime>> =
-        MailboxOf::<Runtime>::iter()
-            .map(|(dispatch, _)| {
-                let node_id = dispatch.id();
-                let (value, ancestor_id) = GasHandlerOf::<Runtime>::get_limit_node(node_id)
-                    .expect("There is always a value node for a valid dispatch ID");
+    let gas_limit_by_node_id: BTreeMap<_, GasBalanceOf<Runtime>> = MailboxOf::<Runtime>::iter()
+        .map(|(dispatch, _)| {
+            let node_id = dispatch.id();
+            let (value, ancestor_id) = GasHandlerOf::<Runtime>::get_limit_node(node_id)
+                .expect("There is always a value node for a valid dispatch ID");
 
-                let lock = GasHandlerOf::<Runtime>::get_lock(node_id).unwrap_or_else(|e| {
-                    if e == GasError::<Runtime>::Forbidden.into() {
-                        0
-                    } else {
-                        panic!("GasTree error: {:?}", e)
-                    }
-                });
+            let lock = GasHandlerOf::<Runtime>::get_lock(node_id).unwrap_or_else(|e| {
+                if e == GasError::<Runtime>::Forbidden.into() {
+                    0
+                } else {
+                    panic!("GasTree error: {:?}", e)
+                }
+            });
 
-                total_lock += lock;
+            total_lock += lock;
 
-                (ancestor_id, value)
-            })
-            .collect();
+            (ancestor_id, value)
+        })
+        .collect();
 
     gas_limit_by_node_id
         .into_iter()

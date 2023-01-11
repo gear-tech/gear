@@ -43,7 +43,7 @@
 //! use gstd::{exec, msg};
 //!
 //! // Send a reply after the block height reaches the number 1000
-//! unsafe extern "C" fn handle() {
+//! extern "C" fn handle() {
 //!     if exec::block_height() >= 1000 {
 //!         msg::reply(b"Block #1000 reached", 0).unwrap();
 //!     }
@@ -53,7 +53,7 @@
 //! use gstd::{exec, msg};
 //!
 //! // Send a reply after the block timestamp reaches the February 22, 2022
-//! unsafe extern "C" fn handle() {
+//! extern "C" fn handle() {
 //!     if exec::block_timestamp() >= 1645488000000 {
 //!         msg::reply(b"The current block is generated after February 22, 2022", 0).unwrap();
 //!     }
@@ -63,7 +63,7 @@
 //! use gstd::exec;
 //!
 //! // Perform work while `gas_available` is more than 1000
-//! unsafe extern "C" fn handle() {
+//! extern "C" fn handle() {
 //!     while exec::gas_available() > 1000 {
 //!         // ...
 //!     }
@@ -73,14 +73,15 @@
 //! use gstd::exec;
 //!
 //! // Get self value balance in program
-//! unsafe extern "C" fn handle() {
+//! extern "C" fn handle() {
 //!     let _my_balance = exec::value_available();
 //! }
 //! ```
-use crate::{ActorId, MessageId};
+
+use crate::{common::errors::Result, ActorId, MessageId};
 pub use gcore::exec::{
-    block_height, block_timestamp, gas_available, leave, value_available, wait, wait_for,
-    wait_up_to,
+    block_height, block_timestamp, gas_available, leave, random, system_reserve_gas,
+    value_available, wait, wait_for, wait_up_to,
 };
 
 /// Terminate the execution of a program.
@@ -97,7 +98,7 @@ pub use gcore::exec::{
 /// ```
 /// use gstd::{exec, msg};
 ///
-/// unsafe extern "C" fn handle() {
+/// extern "C" fn handle() {
 ///     // ...
 ///     exec::exit(msg::source());
 /// }
@@ -118,14 +119,19 @@ pub fn exit(value_destination: ActorId) -> ! {
 /// ```
 /// use gstd::{exec, msg};
 ///
-/// unsafe extern "C" fn handle() {
+/// extern "C" fn handle() {
 ///     // ...
 ///     let msg_id = msg::id();
 ///     exec::wake(msg_id);
 /// }
 /// ```
-pub fn wake(waker_id: MessageId) {
-    gcore::exec::wake(waker_id.into())
+pub fn wake(message_id: MessageId) -> Result<()> {
+    wake_delayed(message_id, 0)
+}
+
+/// Same as [`wake`], but wakes delayed.
+pub fn wake_delayed(message_id: MessageId, delay: u32) -> Result<()> {
+    gcore::exec::wake_delayed(message_id.into(), delay).map_err(Into::into)
 }
 
 /// Return ID of the current program.
@@ -135,7 +141,7 @@ pub fn wake(waker_id: MessageId) {
 /// ```
 /// use gstd::{exec, ActorId};
 ///
-/// unsafe extern "C" fn handle() {
+/// extern "C" fn handle() {
 ///     // ...
 ///     let me = exec::program_id();
 /// }
@@ -152,7 +158,7 @@ pub fn program_id() -> ActorId {
 /// ```
 /// use gstd::{exec, ActorId};
 ///
-/// unsafe extern "C" fn handle() {
+/// extern "C" fn handle() {
 ///     // ...
 ///     let _user = exec::origin();
 /// }

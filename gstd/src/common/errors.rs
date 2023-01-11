@@ -18,7 +18,7 @@
 
 //! Gear common errors module.
 //! Enumerates errors that can occur in smart-contracts `ContractError`.
-//! Errors related to conversion, decoding, message exit code, other internal
+//! Errors related to conversion, decoding, message status code, other internal
 //! errors.
 
 use core::fmt;
@@ -29,19 +29,36 @@ pub type Result<T> = core::result::Result<T, ContractError>;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ContractError {
+    Timeout(u32, u32),
     Convert(&'static str),
     Decode(codec::Error),
-    ExitCode(i32),
+    StatusCode(i32),
     Ext(ExtError),
+    EmptyWaitDuration,
+    ZeroSystemReservationAmount,
+}
+
+impl ContractError {
+    /// If is timed out error.
+    pub fn timed_out(&self) -> bool {
+        matches!(self, ContractError::Timeout(..))
+    }
 }
 
 impl fmt::Display for ContractError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            ContractError::Convert(e) => write!(f, "Conversion error: {:?}", e),
-            ContractError::Decode(e) => write!(f, "Decoding codec bytes error: {}", e),
-            ContractError::ExitCode(e) => write!(f, "Reply returned exit code {}", e),
-            ContractError::Ext(e) => write!(f, "API error: {}", e),
+            ContractError::Timeout(expected, now) => {
+                write!(f, "Wait lock timeout at {expected}, now is {now}")
+            }
+            ContractError::Convert(e) => write!(f, "Conversion error: {e:?}"),
+            ContractError::Decode(e) => write!(f, "Decoding codec bytes error: {e}"),
+            ContractError::StatusCode(e) => write!(f, "Reply returned exit code {e}"),
+            ContractError::Ext(e) => write!(f, "API error: {e}"),
+            ContractError::EmptyWaitDuration => write!(f, "Wait duration can not be zero."),
+            ContractError::ZeroSystemReservationAmount => {
+                write!(f, "System reservation amount can not be zero in config.")
+            }
         }
     }
 }
@@ -49,5 +66,19 @@ impl fmt::Display for ContractError {
 impl From<ExtError> for ContractError {
     fn from(err: ExtError) -> Self {
         Self::Ext(err)
+    }
+}
+
+pub(crate) trait IntoContractResult<T> {
+    fn into_contract_result(self) -> Result<T>;
+}
+
+impl<T, E, V> IntoContractResult<V> for core::result::Result<T, E>
+where
+    T: Into<V>,
+    E: Into<ContractError>,
+{
+    fn into_contract_result(self) -> Result<V> {
+        self.map(Into::into).map_err(Into::into)
     }
 }

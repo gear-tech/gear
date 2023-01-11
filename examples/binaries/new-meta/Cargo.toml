@@ -1,0 +1,26 @@
+[package]
+name = "demo-new-meta"
+version = "0.1.0"
+authors = ["Gear Technologies"]
+edition = "2018"
+license = "GPL-3.0"
+workspace = "../../../"
+
+[dependencies]
+demo-meta-io = { path = "io" }
+gstd = { path = "../../../gstd", features = ["debug"] }
+codec = { package = "parity-scale-codec", version = "3.1.2", default-features = false }
+demo-meta-state-v1 = { path = "state-v1", default-features = false, optional = true }
+demo-meta-state-v2 = { path = "state-v2", default-features = false, optional = true }
+
+[build-dependencies]
+demo-meta-io = { path = "io" }
+gear-wasm-builder = { path = "../../../utils/wasm-builder" }
+
+[features]
+default = ["std"]
+std = [
+    "demo-meta-state-v1/std",
+    "demo-meta-state-v2/std",
+    "codec/std",
+]

@@ -19,6 +19,7 @@
 //! RPC interface for the gear module.
 
 #![allow(clippy::too_many_arguments)]
+#![allow(where_clauses_object_safety)]
 
 use gear_common::Origin;
 use gear_core::ids::{CodeId, MessageId, ProgramId};
@@ -40,7 +41,7 @@ fn runtime_error_into_rpc_error(err: impl std::fmt::Debug) -> JsonRpseeError {
     CallError::Custom(ErrorObject::owned(
         8000,
         "Runtime error",
-        Some(format!("{:?}", err)),
+        Some(format!("{err:?}")),
     ))
     .into()
 }
@@ -85,15 +86,31 @@ pub trait GearApi<BlockHash, ResponseType> {
         &self,
         source: H256,
         message_id: H256,
-        exit_code: i32,
+        status_code: i32,
         payload: Bytes,
         value: u128,
         allow_other_panics: bool,
         at: Option<BlockHash>,
     ) -> RpcResult<GasInfo>;
+
+    #[method(name = "gear_readState")]
+    fn read_state(&self, program_id: H256, at: Option<BlockHash>) -> RpcResult<Bytes>;
+
+    #[method(name = "gear_readStateUsingWasm")]
+    fn read_state_using_wasm(
+        &self,
+        program_id: H256,
+        fn_name: Bytes,
+        wasm: Bytes,
+        argument: Option<Bytes>,
+        at: Option<BlockHash>,
+    ) -> RpcResult<Bytes>;
+
+    #[method(name = "gear_readMetahash")]
+    fn read_metahash(&self, program_id: H256, at: Option<BlockHash>) -> RpcResult<H256>;
 }
 
-/// A struct that implements the [`GearApi`].
+/// A struct that implements the [`GearApi`](/gclient/struct.GearApi.html).
 pub struct Gear<C, P> {
     // If you have more generics, no need to Gear<C, M, N, P, ...>
     // just use a tuple like Gear<C, (M, N, P, ...)>
@@ -270,7 +287,7 @@ where
         &self,
         source: H256,
         message_id: H256,
-        exit_code: i32,
+        status_code: i32,
         payload: Bytes,
         value: u128,
         allow_other_panics: bool,
@@ -284,7 +301,7 @@ where
             api.calculate_gas_info(
                 &at,
                 source,
-                HandleKind::Reply(MessageId::from_origin(message_id), exit_code),
+                HandleKind::Reply(MessageId::from_origin(message_id), status_code),
                 payload.to_vec(),
                 value,
                 allow_other_panics,
@@ -295,12 +312,61 @@ where
             api.calculate_gas_info(
                 &at,
                 source,
-                HandleKind::Reply(MessageId::from_origin(message_id), exit_code),
+                HandleKind::Reply(MessageId::from_origin(message_id), status_code),
                 payload.to_vec(),
                 value,
                 allow_other_panics,
                 Some(min_limit),
             )
         })
+    }
+
+    fn read_state(
+        &self,
+        program_id: H256,
+        at: Option<<Block as BlockT>::Hash>,
+    ) -> RpcResult<Bytes> {
+        let at = BlockId::hash(at.unwrap_or_else(||
+            // If the block hash is not supplied assume the best block.
+            self.client.info().best_hash));
+
+        self.run_with_api_copy(|api| api.read_state(&at, program_id))
+            .map(Bytes)
+    }
+
+    fn read_state_using_wasm(
+        &self,
+        program_id: H256,
+        fn_name: Bytes,
+        wasm: Bytes,
+        argument: Option<Bytes>,
+        at: Option<<Block as BlockT>::Hash>,
+    ) -> RpcResult<Bytes> {
+        let at = BlockId::hash(at.unwrap_or_else(||
+            // If the block hash is not supplied assume the best block.
+            self.client.info().best_hash));
+
+        self.run_with_api_copy(|api| {
+            api.read_state_using_wasm(
+                &at,
+                program_id,
+                fn_name.to_vec(),
+                wasm.to_vec(),
+                argument.map(|v| v.to_vec()),
+            )
+            .map(|r| r.map(Bytes))
+        })
+    }
+
+    fn read_metahash(
+        &self,
+        program_id: H256,
+        at: Option<<Block as BlockT>::Hash>,
+    ) -> RpcResult<H256> {
+        let at = BlockId::hash(at.unwrap_or_else(||
+            // If the block hash is not supplied assume the best block.
+            self.client.info().best_hash));
+
+        self.run_with_api_copy(|api| api.read_metahash(&at, program_id))
     }
 }

@@ -16,12 +16,11 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use super::common::ReplyDetails;
 use crate::{
     ids::{MessageId, ProgramId},
     message::{
-        ContextStore, DispatchKind, ExitCode, GasLimit, Payload, StoredDispatch, StoredMessage,
-        Value,
+        common::MessageDetails, ContextStore, DispatchKind, GasLimit, Payload, StoredDispatch,
+        StoredMessage, Value,
     },
 };
 use codec::{Decode, Encode};
@@ -43,8 +42,8 @@ pub struct IncomingMessage {
     gas_limit: GasLimit,
     /// Message value.
     value: Value,
-    /// Message id replied on with exit code.
-    reply: Option<ReplyDetails>,
+    /// Message details like reply message ID, status code, etc.
+    details: Option<MessageDetails>,
 }
 
 impl IncomingMessage {
@@ -55,7 +54,7 @@ impl IncomingMessage {
         payload: Payload,
         gas_limit: GasLimit,
         value: Value,
-        reply: Option<ReplyDetails>,
+        details: Option<MessageDetails>,
     ) -> Self {
         Self {
             id,
@@ -63,9 +62,10 @@ impl IncomingMessage {
             payload,
             gas_limit,
             value,
-            reply,
+            details,
         }
     }
+
     /// Convert IncomingMessage into gasless StoredMessage.
     pub fn into_stored(self, destination: ProgramId) -> StoredMessage {
         StoredMessage::new(
@@ -74,7 +74,7 @@ impl IncomingMessage {
             destination,
             self.payload,
             self.value,
-            self.reply,
+            self.details,
         )
     }
 
@@ -90,7 +90,7 @@ impl IncomingMessage {
 
     /// Message payload reference.
     pub fn payload(&self) -> &[u8] {
-        self.payload.as_ref()
+        self.payload.get()
     }
 
     /// Message gas limit.
@@ -103,29 +103,14 @@ impl IncomingMessage {
         self.value
     }
 
-    /// Message reply.
-    pub fn reply(&self) -> Option<ReplyDetails> {
-        self.reply
-    }
-
-    /// Check if this message is reply.
-    pub fn is_reply(&self) -> bool {
-        self.reply.is_some()
-    }
-
-    /// Message id what this message replies to, if reply.
-    pub fn reply_to(&self) -> Option<MessageId> {
-        self.reply.map(|v| v.reply_to())
-    }
-
-    /// Exit code of the message, if reply.
-    pub fn exit_code(&self) -> Option<ExitCode> {
-        self.reply.map(|v| v.exit_code())
+    /// Message details.
+    pub fn details(&self) -> Option<MessageDetails> {
+        self.details
     }
 
     /// Returns bool defining if message is error reply.
     pub fn is_error_reply(&self) -> bool {
-        !matches!(self.exit_code(), Some(0) | None)
+        self.details.map(|d| d.is_error_reply()).unwrap_or(false)
     }
 }
 
@@ -187,6 +172,11 @@ impl IncomingDispatch {
     /// Previous execution context reference, if exists.
     pub fn context(&self) -> &Option<ContextStore> {
         &self.context
+    }
+
+    /// Previous execution context mutable reference, if exists.
+    pub fn context_mut(&mut self) -> &mut Option<ContextStore> {
+        &mut self.context
     }
 }
 

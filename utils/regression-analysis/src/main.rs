@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use clap::{Parser, Subcommand};
-use frame_support::{dispatch::GetCallName, weights::Weight};
+use frame_support::dispatch::GetCallName;
 use junit_common::TestSuites;
 use pallet_gear::{HostFnWeights, InstructionWeights};
 use quick_xml::de::from_str;
@@ -50,42 +50,42 @@ const TEST_SUITES_TEXT: &str = "Test suites";
 
 #[derive(Parser)]
 struct Cli {
-    #[clap(subcommand)]
+    #[command(subcommand)]
     command: Commands,
 }
 
 #[derive(Subcommand)]
 enum Commands {
     CollectData {
-        #[clap(long, value_parser)]
+        #[arg(long, value_parser)]
         data_folder_path: PathBuf,
-        #[clap(long, value_parser)]
+        #[arg(long, value_parser)]
         output_path: PathBuf,
-        #[clap(long, value_parser)]
+        #[arg(long, value_parser)]
         disable_filter: bool,
     },
     Compare {
-        #[clap(long, value_parser)]
+        #[arg(long, value_parser)]
         data_path: PathBuf,
-        #[clap(long, value_parser)]
+        #[arg(long, value_parser)]
         current_junit_path: PathBuf,
-        #[clap(long, value_parser)]
+        #[arg(long, value_parser)]
         disable_filter: bool,
     },
     Convert {
-        #[clap(long, value_parser)]
+        #[arg(long, value_parser)]
         data_folder_path: PathBuf,
-        #[clap(long, value_parser)]
+        #[arg(long, value_parser)]
         output_file: PathBuf,
-        #[clap(long, value_parser)]
+        #[arg(long, value_parser)]
         disable_filter: bool,
     },
     Weights {
-        #[clap(subcommand)]
+        #[command(subcommand)]
         kind: WeightsKind,
-        #[clap(long, value_parser)]
+        #[arg(long, value_parser)]
         input_file: PathBuf,
-        #[clap(long, value_parser)]
+        #[arg(long, value_parser)]
         output_file: PathBuf,
     },
 }
@@ -110,11 +110,11 @@ struct GithubActionBenchmark {
 
 #[derive(Deserialize)]
 #[serde(transparent)]
-struct WeightBenchmark(Vec<Weight>);
+struct WeightBenchmark(Vec<u64>);
 
 impl WeightBenchmark {
-    fn calc_weight(&self) -> Weight {
-        Weight::from_ref_time(self.0.iter().map(|w| w.ref_time()).sum())
+    fn calc_weight(&self) -> u64 {
+        self.0.iter().sum()
     }
 }
 
@@ -148,7 +148,7 @@ fn collect_data(
 ) -> BTreeMap<String, BTreeMap<String, Vec<u64>>> {
     let mut statistics: BTreeMap<_, BTreeMap<_, Vec<_>>> = BTreeMap::default();
     for entry in fs::read_dir(data_folder_path).unwrap() {
-        let executions = build_tree(disable_filter, &entry.unwrap().path());
+        let executions = build_tree(disable_filter, entry.unwrap().path());
         for (ref key, ref times) in executions {
             if !statistics.contains_key(key) {
                 statistics.insert(key.clone(), Default::default());
@@ -202,15 +202,17 @@ fn compare(data_path: PathBuf, current_junit_path: PathBuf, disable_filter: bool
 
     if let Some(total_time) = compared.remove(TEST_SUITES_TEXT) {
         println!("Total execution time");
-        let table = Table::new(total_time).with(Style::markdown());
-        println!("{}", table);
+        let mut table = Table::new(total_time);
+        table.with(Style::markdown());
+        println!("{table}");
         println!();
     }
 
     for (name, stats) in compared {
-        println!("name = {}", name);
-        let table = Table::new(stats).with(Style::markdown());
-        println!("{}", table);
+        println!("name = {name}");
+        let mut table = Table::new(stats);
+        table.with(Style::markdown());
+        println!("{table}");
         println!();
     }
 }
@@ -224,7 +226,7 @@ fn convert(data_folder_path: PathBuf, output_file: PathBuf, disable_filter: bool
             let test_name = if section_name == TEST_SUITES_TEXT {
                 test_name
             } else {
-                format!("{} - {}", section_name, test_name)
+                format!("{section_name} - {test_name}")
             };
 
             output::Test::new_for_github(test_name, &mut times)
@@ -250,7 +252,7 @@ fn weights(kind: WeightsKind, input_file: PathBuf, output_file: PathBuf) {
         map.get(field).map(|weight| GithubActionBenchmark {
             name: field.to_string(),
             unit: "ns".to_string(),
-            value: weight.calc_weight().ref_time() / 1000,
+            value: weight.calc_weight() / 1000,
             range: None,
             extra: None,
         })
@@ -306,8 +308,9 @@ fn weights(kind: WeightsKind, input_file: PathBuf, output_file: PathBuf) {
                 HostFnWeights {
                     _phantom,
                     alloc,
+                    free,
                     gr_gas_available,
-                    gr_msg_id,
+                    gr_message_id,
                     gr_origin,
                     gr_program_id,
                     gr_source,
@@ -318,18 +321,28 @@ fn weights(kind: WeightsKind, input_file: PathBuf, output_file: PathBuf) {
                     gr_read_per_byte,
                     gr_block_height,
                     gr_block_timestamp,
+                    gr_random,
                     gr_send_init,
                     gr_send_push,
                     gr_send_push_per_byte,
                     gr_send_commit,
                     gr_send_commit_per_byte,
+                    gr_reservation_send_commit,
+                    gr_reservation_send_commit_per_byte,
                     gr_reply_commit,
-                    gr_reply_commit_per_byte,
+                    gr_reservation_reply_commit,
                     gr_reply_push,
                     gr_reply_push_per_byte,
                     gr_reply_to,
+                    gr_signal_from,
+                    gr_reply_push_input,
+                    gr_reply_push_input_per_byte,
+                    gr_send_push_input,
+                    gr_send_push_input_per_byte,
                     gr_debug,
-                    gr_exit_code,
+                    gr_debug_per_byte,
+                    gr_error,
+                    gr_status_code,
                     gr_exit,
                     gr_leave,
                     gr_wait,
@@ -337,8 +350,11 @@ fn weights(kind: WeightsKind, input_file: PathBuf, output_file: PathBuf) {
                     gr_wait_up_to,
                     gr_wake,
                     gr_create_program_wgas,
-                    gr_create_program_wgas_per_byte,
-                    gas,
+                    gr_create_program_wgas_payload_per_byte,
+                    gr_create_program_wgas_salt_per_byte,
+                    gr_reserve_gas,
+                    gr_unreserve_gas,
+                    gr_system_reserve_gas,
                 }
             }
         }

@@ -10,19 +10,28 @@ repository = "https://github.com/gear-tech/gear"
 
 [dependencies]
 log = "0.4.17"
-gear-core = { path = "../core" }
-sp-io = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-v0.9.29" }
-sp-std = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-v0.9.29" }
+sp-io = { version = "7.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.36" }
+sp-std = { version = "5.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.36" }
+sp-wasm-interface = { version = "7.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.36" }
+sc-executor-common = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.36" }
 cfg-if = "1.0.0"
 region = "3.0.0"
 derive_more = "0.99.17"
 static_assertions = "1.1"
 once_cell = "1.14"
 
+gear-core = { path = "../core" }
+
+[target."cfg(target_vendor = \"apple\")".dependencies.mach]
+version = "0.3.2"
+
 [target.'cfg(unix)'.dependencies]
-nix = "0.25"
+nix = "0.26.1"
 libc = "0.2"
 errno = "0.2"
 
 [target.'cfg(windows)'.dependencies]
 winapi = { version = "0.3.9", features = ["excpt", "memoryapi"] }
+
+[dev-dependencies]
+env_logger = "0.10.0"

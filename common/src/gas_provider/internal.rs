@@ -101,9 +101,9 @@ where
     MapReservationKey: Copy,
     StorageMap: MapStorage<
         Key = GasNodeId<MapKey, MapReservationKey>,
-        Value = GasNode<ExternalId, MapKey, Balance>,
+        Value = GasNode<ExternalId, GasNodeId<MapKey, MapReservationKey>, Balance>,
     >,
-    GasNodeId<MapKey, MapReservationKey>: From<MapKey>,
+    GasNodeId<MapKey, MapReservationKey>: From<MapKey> + From<MapReservationKey>,
 {
     pub(super) fn get_node(
         key: impl Into<GasNodeId<MapKey, MapReservationKey>>,
@@ -122,13 +122,14 @@ where
     /// means, that the ancestor and `self` are the same.
     pub(super) fn node_with_value(
         node: StorageMap::Value,
-    ) -> Result<(StorageMap::Value, Option<MapKey>), Error> {
+    ) -> Result<(StorageMap::Value, Option<GasNodeIdOf<Self>>), Error> {
         let mut ret_node = node;
         let mut ret_id = None;
         if let GasNode::UnspecifiedLocal { parent, .. } = ret_node {
             ret_id = Some(parent);
             ret_node = Self::get_node(parent).ok_or_else(InternalError::parent_is_lost)?;
-            if !(ret_node.is_external() || ret_node.is_specified_local()) {
+            if !(ret_node.is_external() || ret_node.is_specified_local() || ret_node.is_reserved())
+            {
                 return Err(InternalError::unexpected_node_type().into());
             }
         }
@@ -144,7 +145,7 @@ where
     /// is equal to `None` in case `node` is a root node.
     pub(super) fn root(
         node: StorageMap::Value,
-    ) -> Result<(StorageMap::Value, Option<MapKey>), Error> {
+    ) -> Result<(StorageMap::Value, Option<GasNodeIdOf<Self>>), Error> {
         let mut ret_id = None;
         let mut ret_node = node;
         while let Some(parent) = ret_node.parent() {
@@ -177,7 +178,7 @@ where
         }
 
         // Update parent node
-        StorageMap::insert(id.into(), parent);
+        StorageMap::insert(id, parent);
 
         Ok(())
     }
@@ -214,7 +215,7 @@ where
                     .ok_or_else(InternalError::unexpected_node_type)?;
                 *patron_value = patron_value.saturating_add(*self_value);
                 *self_value = Zero::zero();
-                StorageMap::insert(patron_id.into(), patron);
+                StorageMap::insert(patron_id, patron);
 
                 Ok(CatchValueOutput::Missed)
             } else {
@@ -239,9 +240,10 @@ where
     /// are patron ones. The other criteria for a node to be marked as the
     /// patron one is not being consumed - value of such nodes mustn't be
     /// moved, because node itself rely on it.
+    #[allow(clippy::type_complexity)]
     fn find_ancestor_patron(
         node: &StorageMap::Value,
-    ) -> Result<Option<(StorageMap::Value, MapKey)>, Error> {
+    ) -> Result<Option<(StorageMap::Value, GasNodeIdOf<Self>)>, Error> {
         match node {
             GasNode::External { .. } | GasNode::Cut { .. } | GasNode::Reserved { .. } => Ok(None),
             GasNode::SpecifiedLocal { parent, .. } => {
@@ -250,7 +252,7 @@ where
                     Self::get_node(*parent).ok_or_else(InternalError::parent_is_lost)?;
                 while !ret_node.is_patron() {
                     match ret_node {
-                        GasNode::External { .. } => return Ok(None),
+                        GasNode::External { .. } | GasNode::Reserved { .. } => return Ok(None),
                         GasNode::SpecifiedLocal { parent, .. } => {
                             ret_id = parent;
                             ret_node =
@@ -317,7 +319,7 @@ where
     /// `CatchValueOutput::Missed`, but will return
     /// `CatchValueOutput::Caught(0)`.
     fn try_remove_consumed_ancestors(
-        key: MapKey,
+        key: GasNodeIdOf<Self>,
         descendant_catch_output: CatchValueOutput<Balance>,
     ) -> ConsumeResultOf<Self> {
         let mut node_id = key;
@@ -356,24 +358,23 @@ where
 
             if node.spec_refs() == 0 {
                 Self::decrease_parents_ref(&node)?;
-                StorageMap::remove(node_id.into());
+                StorageMap::remove(node_id);
 
                 match node {
-                    GasNode::External { .. } => {
+                    GasNode::External { .. } | GasNode::Reserved { .. } => {
                         if !catch_output.is_caught() {
                             return Err(InternalError::value_is_not_caught().into());
                         }
                         return Ok(consume_output);
                     }
                     GasNode::SpecifiedLocal { parent, .. } => {
-                        let parent = parent;
                         node_id = parent;
                         node = Self::get_node(parent).ok_or_else(InternalError::parent_is_lost)?;
                     }
                     _ => return Err(InternalError::unexpected_node_type().into()),
                 }
             } else {
-                StorageMap::insert(node_id.into(), node);
+                StorageMap::insert(node_id, node);
                 return Ok(consume_output);
             }
         }
@@ -382,20 +383,19 @@ where
     }
 
     /// Create ValueNode from node key with value
-    ///
-    /// if `reserve`, create ValueType::ReservedLocal
-    /// else, create ValueType::SpecifiedLocal
     pub(super) fn create_from_with_value(
-        key: MapKey,
+        key: impl Into<GasNodeIdOf<Self>>,
         new_node_key: NodeCreationKey<MapKey, MapReservationKey>,
         amount: Balance,
     ) -> Result<(), Error> {
+        let key = key.into();
+
         let (mut node, node_id) =
             Self::node_with_value(Self::get_node(key).ok_or_else(InternalError::node_not_found)?)?;
         let node_id = node_id.unwrap_or(key);
 
-        // Check if the parent node is detached
-        if node.is_detached() {
+        // Check if the parent node is cut
+        if node.is_cut() {
             return Err(InternalError::forbidden().into());
         }
 
@@ -426,6 +426,7 @@ where
                 GasNode::SpecifiedLocal {
                     value: amount,
                     lock: Zero::zero(),
+                    system_reserve: Zero::zero(),
                     parent: node_id,
                     refs: Default::default(),
                     consumed: false,
@@ -433,7 +434,13 @@ where
             }
             NodeCreationKey::Reserved(_) => {
                 let id = Self::get_external(key)?;
-                GasNode::Reserved { id, value: amount }
+                GasNode::Reserved {
+                    id,
+                    value: amount,
+                    lock: Zero::zero(),
+                    refs: Default::default(),
+                    consumed: false,
+                }
             }
         };
 
@@ -446,7 +453,7 @@ where
 
         *node_value = node_value.saturating_sub(amount);
 
-        StorageMap::insert(node_id.into(), node);
+        StorageMap::insert(node_id, node);
 
         Ok(())
     }
@@ -472,9 +479,9 @@ where
     MapReservationKey: Copy,
     StorageMap: MapStorage<
         Key = GasNodeId<MapKey, MapReservationKey>,
-        Value = GasNode<ExternalId, MapKey, Balance>,
+        Value = GasNode<ExternalId, GasNodeId<MapKey, MapReservationKey>, Balance>,
     >,
-    GasNodeId<MapKey, MapReservationKey>: From<MapKey>,
+    GasNodeId<MapKey, MapReservationKey>: From<MapKey> + From<MapReservationKey>,
 {
     type ExternalOrigin = ExternalId;
     type Key = MapKey;
@@ -523,18 +530,22 @@ where
         | GasNode::Cut { id, .. }
         | GasNode::Reserved { id, .. } = root
         {
-            Ok((id, maybe_key.map(GasNodeId::Node).unwrap_or(key)))
+            Ok((id, maybe_key.unwrap_or(key)))
         } else {
             unreachable!("Guaranteed by ValueNode::root method")
         }
     }
 
-    fn get_limit_node(key: Self::Key) -> Result<(Self::Balance, Self::Key), Self::Error> {
+    fn get_limit_node(
+        key: impl Into<GasNodeIdOf<Self>>,
+    ) -> Result<(Self::Balance, GasNodeIdOf<Self>), Self::Error> {
+        let key = key.into();
+
         let node = Self::get_node(key).ok_or_else(InternalError::node_not_found)?;
 
         let (node_with_value, maybe_key) = Self::node_with_value(node)?;
 
-        // The node here is either external or specified, hence has the inner value
+        // The node here is external, specified or reserved hence has the inner value
         let v = node_with_value
             .value()
             .ok_or_else(InternalError::unexpected_node_type)?;
@@ -579,6 +590,12 @@ where
         if let Some(lock) = node.lock() {
             if !lock.is_zero() {
                 return Err(InternalError::consumed_with_lock().into());
+            }
+        }
+
+        if let Some(system_reserve) = node.system_reserve() {
+            if !system_reserve.is_zero() {
+                return Err(InternalError::consumed_with_system_reservation().into());
             }
         }
 
@@ -637,9 +654,11 @@ where
     /// ### Note:
     /// Node is considered as an ancestor of itself.
     fn spend(
-        key: Self::Key,
+        key: impl Into<GasNodeIdOf<Self>>,
         amount: Self::Balance,
     ) -> Result<Self::NegativeImbalance, Self::Error> {
+        let key = key.into();
+
         // Upstream node with a concrete value exist for any node.
         // If it doesn't, the tree is considered invalidated.
         let (mut node, node_id) =
@@ -659,28 +678,29 @@ where
         log::debug!("Spent {:?} of gas", amount);
 
         // Save node that delivers limit
-        StorageMap::insert(node_id.unwrap_or(key).into(), node);
+        StorageMap::insert(node_id.unwrap_or(key), node);
 
         Ok(NegativeImbalance::new(amount))
     }
 
     fn split_with_value(
-        key: Self::Key,
+        key: impl Into<GasNodeIdOf<Self>>,
         new_key: Self::Key,
         amount: Self::Balance,
     ) -> Result<(), Self::Error> {
         Self::create_from_with_value(key, NodeCreationKey::SpecifiedLocal(new_key), amount)
     }
 
-    fn split(key: Self::Key, new_key: Self::Key) -> Result<(), Self::Error> {
+    fn split(key: impl Into<GasNodeIdOf<Self>>, new_key: Self::Key) -> Result<(), Self::Error> {
+        let key = key.into();
         let new_key = new_key.into();
 
         let (mut node, node_id) =
             Self::node_with_value(Self::get_node(key).ok_or_else(InternalError::node_not_found)?)?;
         let node_id = node_id.unwrap_or(key);
 
-        // Check if the value node is detached
-        if node.is_detached() {
+        // Check if the value node is cut
+        if node.is_cut() {
             return Err(InternalError::forbidden().into());
         }
 
@@ -694,26 +714,33 @@ where
         let new_node = GasNode::UnspecifiedLocal {
             parent: node_id,
             lock: Zero::zero(),
+            system_reserve: Zero::zero(),
         };
 
         // Save new node
         StorageMap::insert(new_key, new_node);
         // Update current node
-        StorageMap::insert(node_id.into(), node);
+        StorageMap::insert(node_id, node);
 
         Ok(())
     }
 
-    fn cut(key: Self::Key, new_key: Self::Key, amount: Self::Balance) -> Result<(), Self::Error> {
+    fn cut(
+        key: impl Into<GasNodeIdOf<Self>>,
+        new_key: Self::Key,
+        amount: Self::Balance,
+    ) -> Result<(), Self::Error> {
         Self::create_from_with_value(key, NodeCreationKey::Cut(new_key), amount)
     }
 
-    fn lock(key: Self::Key, amount: Self::Balance) -> Result<(), Self::Error> {
+    fn lock(key: impl Into<GasNodeIdOf<Self>>, amount: Self::Balance) -> Result<(), Self::Error> {
+        let key = key.into();
+
         // Taking node to lock into.
         let node = Self::get_node(key).ok_or_else(InternalError::node_not_found)?;
 
         // Validating node type to be able to lock.
-        if node.is_detached() {
+        if !node.is_lockable() {
             return Err(InternalError::forbidden().into());
         }
 
@@ -744,7 +771,7 @@ where
         // If provider is a parent, we save it to storage, otherwise mutating
         // current node further, saving it afterward.
         let mut node = if let Some(ancestor_id) = ancestor_id {
-            StorageMap::insert(ancestor_id.into(), ancestor_node);
+            StorageMap::insert(ancestor_id, ancestor_node);
 
             // Unreachable error: the same queried at the beginning of function.
             Self::get_node(key).ok_or_else(InternalError::node_not_found)?
@@ -758,7 +785,7 @@ where
 
         *node_lock = node_lock.saturating_add(amount);
 
-        StorageMap::insert(key.into(), node);
+        StorageMap::insert(key, node);
 
         Ok(())
     }
@@ -775,12 +802,14 @@ where
     // unspecified node, referring it.
     //
     // - For reservation type (`GasNode::ReservedLocal`) locking is denied.
-    fn unlock(key: Self::Key, amount: Self::Balance) -> Result<(), Self::Error> {
+    fn unlock(key: impl Into<GasNodeIdOf<Self>>, amount: Self::Balance) -> Result<(), Self::Error> {
+        let key = key.into();
+
         // Taking node to unlock from.
         let mut node = Self::get_node(key).ok_or_else(InternalError::node_not_found)?;
 
         // Validating node type to be able to lock.
-        if node.is_detached() {
+        if !node.is_lockable() {
             return Err(InternalError::forbidden().into());
         }
 
@@ -812,7 +841,7 @@ where
         // If provider is a current node, we save it to storage, otherwise mutating
         // provider node further, saving it afterward.
         let (mut ancestor_node, ancestor_id) = if let Some(ancestor_id) = ancestor_id {
-            StorageMap::insert(key.into(), node);
+            StorageMap::insert(key, node);
 
             (ancestor_node, ancestor_id)
         } else {
@@ -825,12 +854,13 @@ where
 
         *ancestor_value = ancestor_value.saturating_add(amount);
 
-        StorageMap::insert(ancestor_id.into(), ancestor_node);
+        StorageMap::insert(ancestor_id, ancestor_node);
 
         Ok(())
     }
 
-    fn get_lock(key: Self::Key) -> Result<Self::Balance, Self::Error> {
+    fn get_lock(key: impl Into<GasNodeIdOf<Self>>) -> Result<Self::Balance, Self::Error> {
+        let key = key.into();
         let node = Self::get_node(key).ok_or_else(InternalError::node_not_found)?;
 
         node.lock().ok_or_else(|| InternalError::forbidden().into())
@@ -842,6 +872,131 @@ where
         amount: Self::Balance,
     ) -> Result<(), Self::Error> {
         Self::create_from_with_value(key, NodeCreationKey::Reserved(new_key), amount)
+    }
+
+    fn system_reserve(key: Self::Key, amount: Self::Balance) -> Result<(), Self::Error> {
+        let key = key.into();
+
+        // Taking node to lock into.
+        let node = Self::get_node(key).ok_or_else(InternalError::node_not_found)?;
+
+        // Validating node type to be able to contain system reservation.
+        if !node.is_system_reservable() {
+            return Err(InternalError::forbidden().into());
+        }
+
+        // Validating that node is not consumed.
+        if node.is_consumed() {
+            return Err(InternalError::node_was_consumed().into());
+        }
+
+        // Quick quit on queried zero lock.
+        if amount.is_zero() {
+            return Ok(());
+        }
+
+        // Taking value provider for this node.
+        let (mut ancestor_node, ancestor_id) = Self::node_with_value(node)?;
+
+        // Mutating value of provider.
+        let ancestor_node_value = ancestor_node
+            .value_mut()
+            .ok_or_else(InternalError::unexpected_node_type)?;
+
+        if *ancestor_node_value < amount {
+            return Err(InternalError::insufficient_balance().into());
+        }
+
+        *ancestor_node_value = ancestor_node_value.saturating_sub(amount);
+
+        // If provider is a parent, we save it to storage, otherwise mutating
+        // current node further, saving it afterward.
+        let mut node = if let Some(ancestor_id) = ancestor_id {
+            StorageMap::insert(ancestor_id, ancestor_node);
+
+            // Unreachable error: the same queried at the beginning of function.
+            Self::get_node(key).ok_or_else(InternalError::node_not_found)?
+        } else {
+            ancestor_node
+        };
+
+        let system_reservation = node
+            .system_reserve_mut()
+            .ok_or_else(InternalError::unexpected_node_type)?;
+
+        *system_reservation = system_reservation.saturating_add(amount);
+
+        StorageMap::insert(key, node);
+
+        Ok(())
+    }
+
+    fn system_unreserve(key: Self::Key) -> Result<Self::Balance, Self::Error> {
+        let key = key.into();
+
+        // Taking node to unlock from.
+        let mut node = Self::get_node(key).ok_or_else(InternalError::node_not_found)?;
+
+        // Validating node type to be able to contain system reservation.
+        if !node.is_system_reservable() {
+            return Err(InternalError::forbidden().into());
+        }
+
+        // Validating that node is not consumed.
+        if node.is_consumed() {
+            return Err(InternalError::node_was_consumed().into());
+        }
+
+        let amount = node
+            .system_reserve()
+            .ok_or_else(InternalError::unexpected_node_type)?;
+
+        // Quick quit on queried zero unlock.
+        if amount.is_zero() {
+            return Ok(Zero::zero());
+        }
+
+        // Mutating locked value of queried node.
+        let system_reservation = node
+            .system_reserve_mut()
+            .ok_or_else(InternalError::unexpected_node_type)?;
+
+        *system_reservation = Zero::zero();
+
+        // Taking value provider for this node.
+        let (ancestor_node, ancestor_id) = Self::node_with_value(node.clone())?;
+
+        // Mutating value of provider.
+        // If provider is a current node, we save it to storage, otherwise mutating
+        // provider node further, saving it afterward.
+        let (mut ancestor_node, ancestor_id) = if let Some(ancestor_id) = ancestor_id {
+            StorageMap::insert(key, node);
+
+            (ancestor_node, ancestor_id)
+        } else {
+            (node, key)
+        };
+
+        let ancestor_value = ancestor_node
+            .value_mut()
+            .ok_or_else(InternalError::unexpected_node_type)?;
+
+        *ancestor_value = ancestor_value.saturating_add(amount);
+
+        StorageMap::insert(ancestor_id, ancestor_node);
+
+        Ok(amount)
+    }
+
+    fn get_system_reserve(key: Self::Key) -> Result<Self::Balance, Self::Error> {
+        let node = Self::get_node(key).ok_or_else(InternalError::node_not_found)?;
+
+        node.system_reserve()
+            .ok_or_else(|| InternalError::forbidden().into())
+    }
+
+    fn exists(key: Self::Key) -> bool {
+        Self::get_node(key).is_some()
     }
 
     fn clear() {

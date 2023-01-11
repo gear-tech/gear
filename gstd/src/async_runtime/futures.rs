@@ -18,18 +18,16 @@
 
 //! Module for future-management.
 
-use crate::{
-    prelude::{BTreeMap, Box},
-    MessageId,
-};
+use crate::{prelude::Box, MessageId};
 use core::{
     future::Future,
     pin::Pin,
     task::{Context, Waker},
 };
 use futures::FutureExt;
+use hashbrown::HashMap;
 
-pub(crate) type FuturesMap = BTreeMap<MessageId, Task>;
+pub(crate) type FuturesMap = HashMap<MessageId, Task>;
 
 type PinnedFuture = Pin<Box<dyn Future<Output = ()> + 'static>>;
 
@@ -58,16 +56,19 @@ pub fn message_loop<F>(future: F)
 where
     F: Future<Output = ()> + 'static,
 {
-    let task = super::futures()
-        .entry(crate::msg::id())
-        .or_insert_with(|| Task::new(future));
+    let msg_id = crate::msg::id();
+    let task = super::futures().entry(msg_id).or_insert_with(|| {
+        let system_reserve_amount = crate::Config::system_reserve();
+        crate::exec::system_reserve_gas(system_reserve_amount)
+            .expect("Failed to reserve gas for system signal");
+        Task::new(future)
+    });
 
     let mut cx = Context::from_waker(&task.waker);
 
     if Pin::new(&mut task.future).poll(&mut cx).is_ready() {
-        super::futures().remove(&crate::msg::id());
+        super::futures().remove(&msg_id);
     } else {
-        // TODO: make this call configurable (#1380)
-        crate::exec::wait_up_to(100)
+        super::locks().wait(msg_id);
     }
 }

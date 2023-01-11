@@ -51,7 +51,7 @@ async function main(pathToRuntimeCode, pathToDemoPing) {
   });
 
   assert.notEqual(messages[0], messages[1], 'JS_TEST: both sendMessage txs were processed in the same block');
-  console.log(`JS_TEST: message[0]: ${message[0]}, message[1]: ${message[1]}`);
+  console.log(`JS_TEST: messages[0]: ${messages[0]}, messages[1]: ${messages[1]}`);
   console.log(`JS_TEST: 1st assert passed`);
   assert.notStrictEqual(codeUpdatedBlock, undefined, 'JS_TEST: setCode was not processed successfully');
   console.log(`JS_TEST: 2nd assert passed`);
@@ -79,7 +79,7 @@ main(pathToRuntimeCode, pathToDemoPing)
     exitCode = 1;
   })
   .finally(() => {
-    exec('pgrep -f "gear-node" | xargs kill -9', (err, stdout, stderr) => {
+    exec('pkill -f \'gear |gear$\' -9', (err, stdout, stderr) => {
       if (err) {
         console.log(`JS_TEST: Unable to execute kill command (${err})`);
       }

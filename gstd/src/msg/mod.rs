@@ -18,6 +18,9 @@
 
 //! Messaging module.
 
+#[macro_use]
+mod macros;
+
 mod r#async;
 pub use r#async::*;
 
@@ -26,3 +29,5 @@ pub use basic::*;
 
 mod encoded;
 pub use encoded::*;
+
+mod utils;

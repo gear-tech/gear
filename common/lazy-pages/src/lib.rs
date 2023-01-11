@@ -24,27 +24,18 @@ use core::fmt;
 use gear_common::{pages_prefix, Origin};
 use gear_core::{
     ids::ProgramId,
-    memory::{HostPointer, Memory, PageNumber, WasmPageNumber},
+    memory::{HostPointer, Memory, PageNumber, PageU32Size, WasmPageNumber},
 };
 use gear_runtime_interface::gear_ri;
 use sp_std::vec::Vec;
 
-// TODO: remove this error and refactoring (issue #1390)
-#[derive(Debug, Clone, PartialEq, Eq, derive_more::Display, derive_more::From)]
-pub enum Error {
-    #[display(fmt = "Wasm memory buffer is undefined after wasm memory relocation")]
-    WasmMemBufferIsUndefined,
-}
-
-fn mprotect_lazy_pages(mem: &impl Memory, protect: bool) -> Result<(), Error> {
+fn mprotect_lazy_pages(mem: &mut impl Memory, protect: bool) {
     if mem.get_buffer_host_addr().is_none() {
-        return Ok(());
+        return;
     }
 
     // Cannot panic, unless OS has some problems with pages protection.
     gear_ri::mprotect_lazy_pages(protect);
-
-    Ok(())
 }
 
 /// Try to enable and initialize lazy pages env
@@ -54,39 +45,38 @@ pub fn try_to_enable_lazy_pages() -> bool {
 
 /// Protect and save storage keys for pages which has no data
 pub fn init_for_program(
-    mem: &impl Memory,
+    mem: &mut impl Memory,
     prog_id: ProgramId,
     stack_end: Option<WasmPageNumber>,
-) -> Result<(), Error> {
+) {
     let program_prefix = crate::pages_prefix(prog_id.into_origin());
     let wasm_mem_addr = mem.get_buffer_host_addr();
     let wasm_mem_size = mem.size();
-    let stack_end_page = stack_end.map(|p| p.0);
+    let stack_end_page = stack_end.map(|page| page.raw());
 
     // Cannot panic unless OS allocates buffer in not aligned by native page addr, or
     // something goes wrong with pages protection.
     gear_ri::init_lazy_pages_for_program(
         wasm_mem_addr,
-        wasm_mem_size.0,
+        wasm_mem_size.raw(),
         stack_end_page,
         program_prefix,
     );
-
-    Ok(())
 }
 
 /// Remove lazy-pages protection, returns wasm memory begin addr
-pub fn remove_lazy_pages_prot(mem: &impl Memory) -> Result<(), Error> {
-    mprotect_lazy_pages(mem, false)
+pub fn remove_lazy_pages_prot(mem: &mut impl Memory) {
+    mprotect_lazy_pages(mem, false);
 }
 
 /// Protect lazy-pages and set new wasm mem addr and size,
 /// if they have been changed.
 pub fn update_lazy_pages_and_protect_again(
-    mem: &impl Memory,
+    mem: &mut impl Memory,
     old_mem_addr: Option<HostPointer>,
     old_mem_size: WasmPageNumber,
-) -> Result<(), Error> {
+    new_mem_addr: HostPointer,
+) {
     struct PointerDisplay(HostPointer);
 
     impl fmt::Debug for PointerDisplay {
@@ -95,14 +85,15 @@ pub fn update_lazy_pages_and_protect_again(
         }
     }
 
-    let new_mem_addr = mem.get_buffer_host_addr();
-    if new_mem_addr != old_mem_addr {
+    if old_mem_addr
+        .map(|addr| new_mem_addr != addr)
+        .unwrap_or(true)
+    {
         log::debug!(
             "backend executor has changed wasm mem buff: from {:?} to {:?}",
             old_mem_addr.map(PointerDisplay),
-            new_mem_addr.map(PointerDisplay)
+            new_mem_addr
         );
-        let new_mem_addr = new_mem_addr.ok_or(Error::WasmMemBufferIsUndefined)?;
 
         // Cannot panic, unless OS allocates wasm mem buffer
         // in not aligned by native page addr.
@@ -111,16 +102,20 @@ pub fn update_lazy_pages_and_protect_again(
 
     let new_mem_size = mem.size();
     if new_mem_size > old_mem_size {
-        gear_ri::set_wasm_mem_size(new_mem_size.0);
+        gear_ri::set_wasm_mem_size(new_mem_size.raw());
     }
 
-    mprotect_lazy_pages(mem, true)
+    mprotect_lazy_pages(mem, true);
 }
 
 /// Returns list of released pages numbers.
 pub fn get_released_pages() -> Vec<PageNumber> {
+    // Use panic here, because producing block with contract execution error,
+    // because of problems in native backend is not good idea. Better to stop
+    // process queue and wait until native backend will be fixed.
+    // TODO: (issue #1731) use wrapper to transfer PageNumber safely from native to runtime.
     gear_ri::get_released_pages()
         .into_iter()
-        .map(PageNumber)
+        .map(|p| PageNumber::new(p).expect("Unexpected lazy pages behavior"))
         .collect()
 }

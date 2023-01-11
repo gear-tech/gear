@@ -56,13 +56,14 @@ pub enum Subcommand {
     Benchmark(frame_benchmarking_cli::BenchmarkCmd),
 
     /// Try some testing command against a specified runtime state.
-    TryRuntime(try_runtime_cli::TryRuntimeCmd),
+    #[cfg(feature = "try-runtime")]
+	TryRuntime(try_runtime_cli::TryRuntimeCmd),
 
     #[clap(
         name = "runtime-spec-tests",
         about = "Run gear runtime tests with yaml."
     )]
-    GearRuntimeTest(gear_runtime_test_cli::GearRuntimeTestCmd),
+    GearRuntimeTest(gear_runtime_test_cli::RuntimeTestCmd),
 
     /// Key management cli utilities
     #[clap(subcommand)]

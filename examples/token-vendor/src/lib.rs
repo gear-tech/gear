@@ -1,5 +1,4 @@
 #![no_std]
-#![feature(const_btree_new)]
 
 extern crate alloc;
 
@@ -198,12 +197,12 @@ async fn main() {
 }
 
 #[no_mangle]
-unsafe extern "C" fn init() {
+extern "C" fn init() {
     let config: InitConfig = msg::load().expect("Unable to decode InitConfig");
 
     debug!("Got InitConfig: {:?}", config);
 
-    if let Err(e) = STATE.init(msg::source(), config) {
+    if let Err(e) = unsafe { STATE.init(msg::source(), config) } {
         panic!("Failed to init State: {}", e);
     }
 

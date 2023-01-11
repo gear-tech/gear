@@ -1,6 +1,6 @@
 //! Command `reply`
 use crate::{api::signer::Signer, result::Result, utils};
-use structopt::StructOpt;
+use clap::Parser;
 
 /// Sends a reply message.
 ///
@@ -14,18 +14,18 @@ use structopt::StructOpt;
 /// - `value`: balance to be transferred to the program once it's been created.
 ///
 /// - `DispatchMessageEnqueued(H256)` when dispatch message is placed in the queue.
-#[derive(StructOpt, Debug)]
+#[derive(Parser, Debug)]
 pub struct Reply {
     /// Reply to
     reply_to_id: String,
     /// Reply payload
-    #[structopt(default_value = "0x")]
+    #[arg(default_value = "0x")]
     payload: String,
     /// Reply gas limit
-    #[structopt(default_value = "0")]
+    #[arg(default_value = "0")]
     gas_limit: u64,
     /// Reply value
-    #[structopt(default_value = "0")]
+    #[arg(default_value = "0")]
     value: u128,
 }
 

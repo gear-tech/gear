@@ -10,7 +10,7 @@ Gear substrate-based node, ready for hacking :rocket:
 ```
 sudo apt update
 # May prompt for location information
-sudo apt install -y git clang curl libssl-dev llvm libudev-dev
+sudo apt install -y git clang curl libssl-dev llvm libudev-dev cmake protobuf-compiler
 ```
 
 #### MacOS
@@ -64,18 +64,18 @@ Test network is live. To run local node connected to test network, compile and l
 
 ```
 cargo build --release
-./target/release/gear-node
+./target/release/gear
 ```
 
 ## Dev Net
 
 At the MVP stage, dev net is supported!
 
-to run a dev net, compile and run `gear-node`:
+to run a dev net, compile and run `gear`:
 
 ```bash
 cargo build --release
-./target/release/gear-node --dev
+./target/release/gear --dev
 ```
 
 Then follow to https://polkadot.js.org/ and connect to a local dev node.
@@ -85,13 +85,13 @@ How to program your gear node, see `EXAMPLES.md`
 Purge any existing dev chain state:
 
 ```bash
-./target/release/gear-node purge-chain --dev
+./target/release/gear purge-chain --dev
 ```
 
 Start a dev chain with detailed logging:
 
 ```bash
-RUST_LOG=debug RUST_BACKTRACE=1 ./target/release/gear-node -lruntime=debug --dev
+RUST_LOG=debug RUST_BACKTRACE=1 ./target/release/gear -lruntime=debug --dev
 ```
 
 ### Multi-Node Local Testnet
@@ -139,7 +139,7 @@ Execute `cargo run -- --help` to learn more about the template node's CLI option
 
 ### Upgrade
 
-To perform a runtime upgrade, Substrate uses existing runtime logic to update 
+To perform a runtime upgrade, Substrate uses existing runtime logic to update
 the Wasm runtime stored on the blockchain to a new consensus-breaking version with new logic.
 This upgrade gets pushed out to all syncing nodes on the network as a part of the consensus process.
 Once the Wasm runtime is upgraded, the executor will see that the native runtime `spec_name`, `spec_version`,
@@ -155,18 +155,18 @@ Let's do the upgrade step by step:
 3. Build your new node with
     ```bash
     cargo build --release -p gear-runtime
-    ``` 
+    ```
     It will be node state that we will be upgrading to.
 
     (Old node version is still running)
 
-4. Now use [Polkadot JS Apps UI](https://polkadot.js.org/apps/#/extrinsics?rpc=ws://127.0.0.1:9944) 
+4. Now use [Polkadot JS Apps UI](https://polkadot.js.org/apps/#/extrinsics?rpc=ws://127.0.0.1:9944)
 to automatically configure the UI to connect to the local node:
 
-(Some ad blockers and browser restrictions (e.g. the built-in Shield in Brave browser, 
-and https requirement for socket connection in Firefox) interfere with connecting to a local node. 
+(Some ad blockers and browser restrictions (e.g. the built-in Shield in Brave browser,
+and https requirement for socket connection in Firefox) interfere with connecting to a local node.
 Make sure to check them and, if needed, turn them off.
-You may not get connecting from a remote IP (like `polkadot.js.org/apps/`) to a local node working. 
+You may not get connecting from a remote IP (like `polkadot.js.org/apps/`) to a local node working.
 If you are unable to solve this, we encourage you to host your app locally, like [the apps UI](https://github.com/polkadot-js/apps#development))
 
 Use related account to invoke the `sudoUncheckedWeight` function and use the `setCode` function from the
@@ -177,13 +177,12 @@ to the `setCode` function. Click the "code" input field, and select one of the W
 ```bash
 target/release/wbuild/gear-runtime/gear_runtime.compact.wasm
 ```
-Leave the value for the `_weight` parameter at the default of `0`. Click "Submit Transaction" and then "Sign and Submit".
-    
+Leave the value for the `weight` parameter at the default of `0x00`. Click "Submit Transaction" and then "Sign and Submit".
+
 <img src="../images/sudo-upgrade.png" alt="upgrade settings" style="width:100%;">
-    
+
 After the transaction has been included in a block, the version number in the upper-left-hand corner of Polkadot
     JS Apps UI should reflect that the runtime version is now corresponding to the number you have set on step 2.
 
 If you still see your node producing blocks in the terminal it's running and reported on the UI,
 you have performed a successful forkless runtime upgrade! Congrats!!!
-

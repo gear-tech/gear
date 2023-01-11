@@ -34,14 +34,14 @@ use gear_backend_common::Environment;
 use gear_core::{
     code::Code,
     ids::{CodeId, MessageId, ProgramId},
-    memory::{PageBuf, PageNumber},
+    memory::{PageBuf, PageNumber, PageU32Size, WasmPageNumber},
     message::*,
-    program::Program,
 };
 use log::{Log, Metadata, Record, SetLoggerError};
 use rayon::prelude::*;
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap},
+    convert::TryInto,
     fmt, fs,
     sync::{
         atomic::{AtomicUsize, Ordering},
@@ -53,9 +53,15 @@ use std::{
 const FILTER_ENV: &str = "RUST_LOG";
 
 pub trait ExecutionContext {
-    fn store_code(&mut self, code_hash: CodeId, code: Code);
+    fn store_code(&mut self, code_id: CodeId, code: Code);
+    fn load_code(&self, code_id: CodeId) -> Option<Code>;
     fn store_original_code(&mut self, code: &[u8]);
-    fn store_program(&mut self, id: ProgramId, code: Code, init_message_id: MessageId) -> Program;
+    fn store_program(
+        &mut self,
+        id: ProgramId,
+        code: Code,
+        init_message_id: MessageId,
+    ) -> ExecutableActorData;
     fn write_gas(&mut self, message_id: MessageId, gas_limit: u64);
 }
 
@@ -115,7 +121,7 @@ pub struct DisplayedPayload(Vec<u8>);
 impl fmt::Display for DisplayedPayload {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         if let Ok(utf8) = std::str::from_utf8(&self.0[..]) {
-            write!(f, "utf-8 ({}) bytes(0x{})", utf8, hex::encode(&self.0))
+            write!(f, "utf-8 ({utf8}) bytes(0x{})", hex::encode(&self.0))
         } else {
             write!(f, "bytes (0x{})", hex::encode(&self.0))
         }
@@ -123,7 +129,7 @@ impl fmt::Display for DisplayedPayload {
 }
 
 #[derive(Debug, Display)]
-#[display(fmt = "expected: {}, actual: {}", expected, actual)]
+#[display(fmt = "expected: {expected}, actual: {actual}")]
 pub struct ContentMismatch<T: std::fmt::Display + std::fmt::Debug> {
     expected: T,
     actual: T,
@@ -135,13 +141,13 @@ pub enum MessageContentMismatch {
     Payload(ContentMismatch<DisplayedPayload>),
     GasLimit(ContentMismatch<u64>),
     Value(ContentMismatch<u128>),
-    ExitCode(ContentMismatch<i32>),
+    StatusCode(ContentMismatch<i32>),
 }
 
 #[derive(Debug, Display)]
 pub enum MessagesError {
     Count(ContentMismatch<usize>),
-    #[display(fmt = "at position: {}, mismatch {}", at, mismatch)]
+    #[display(fmt = "at position: {at}, mismatch {mismatch}")]
     AtPosition {
         at: usize,
         mismatch: MessageContentMismatch,
@@ -184,10 +190,10 @@ impl MessagesError {
         }
     }
 
-    fn exit_code(at: usize, expected: i32, actual: i32) -> Self {
+    fn status_code(at: usize, expected: i32, actual: i32) -> Self {
         Self::AtPosition {
             at,
-            mismatch: MessageContentMismatch::ExitCode(ContentMismatch { expected, actual }),
+            mismatch: MessageContentMismatch::StatusCode(ContentMismatch { expected, actual }),
         }
     }
 }
@@ -226,14 +232,14 @@ pub fn check_messages(
                 let is_init = exp.init.unwrap_or(false);
 
                 match_or_else(
-                    exp.exit_code,
-                    msg.exit_code().unwrap_or(0),
+                    exp.status_code,
+                    msg.status_code().unwrap_or(0),
                     |expected, actual| {
-                        errors.push(MessagesError::exit_code(position, expected, actual))
+                        errors.push(MessagesError::status_code(position, expected, actual))
                     },
                 );
 
-                if msg.exit_code().unwrap_or(0) == 0
+                if msg.status_code().unwrap_or(0) == 0
                     && exp
                         .payload
                         .as_mut()
@@ -281,9 +287,9 @@ pub fn check_messages(
                                         msg.id(),
                                         msg.source(),
                                         msg.destination(),
-                                        new_payload,
+                                        new_payload.try_into().unwrap(),
                                         msg.value(),
-                                        msg.reply(),
+                                        msg.details(),
                                     );
                                 };
 
@@ -331,96 +337,105 @@ pub fn check_messages(
     }
 }
 
+pub struct ProgramAllocations<'a> {
+    pub id: ProgramId,
+    pub static_pages: WasmPageNumber,
+    pub allocations: &'a BTreeSet<WasmPageNumber>,
+}
+
 pub fn check_allocations(
-    programs: &[Program],
+    allocations: &[ProgramAllocations<'_>],
     expected_allocations: &[sample::Allocations],
 ) -> Result<(), Vec<String>> {
-    let mut errors = Vec::new();
+    let mut errors = Vec::with_capacity(3 * allocations.len());
 
     for exp in expected_allocations {
         let target_program_id = exp.id.to_program_id();
-        if let Some(program) = programs.iter().find(|p| p.id() == target_program_id) {
-            let actual_pages = program
-                .get_allocations()
-                .iter()
-                .filter(|page| match exp.filter {
-                    Some(AllocationFilter::Static) => **page < program.static_pages(),
-                    Some(AllocationFilter::Dynamic) => **page >= program.static_pages(),
-                    None => true,
-                })
-                .collect::<BTreeSet<_>>();
+        let program_allocations = match allocations.iter().find(|&p| p.id == target_program_id) {
+            None => {
+                log::error!("Program not found");
+                errors.push(format!(
+                    "Expectation error (Program id not found: {target_program_id})",
+                ));
 
-            match exp.kind {
-                AllocationExpectationKind::PageCount(expected_page_count) => {
-                    if actual_pages.len() != expected_page_count as usize {
+                continue;
+            }
+            Some(a) => a,
+        };
+
+        let static_pages = program_allocations.static_pages;
+        let actual_pages = program_allocations
+            .allocations
+            .iter()
+            .filter(|&page| match exp.filter {
+                Some(AllocationFilter::Static) => *page < static_pages,
+                Some(AllocationFilter::Dynamic) => *page >= static_pages,
+                None => true,
+            })
+            .collect::<BTreeSet<_>>();
+
+        match exp.kind {
+            AllocationExpectationKind::PageCount(expected_page_count) => {
+                if actual_pages.len() != expected_page_count as usize {
+                    errors.push(format!(
+                        "Expectation error (Allocation page count does not match, expected: {expected_page_count}; actual: {}. Program id: {target_program_id})",
+                        actual_pages.len(),
+                    ));
+                }
+            }
+            AllocationExpectationKind::ExactPages(ref expected_pages) => {
+                let mut actual_pages = actual_pages
+                    .iter()
+                    .map(|page| page.raw())
+                    .collect::<Vec<_>>();
+                let mut expected_pages = expected_pages.clone();
+
+                actual_pages.sort_unstable();
+                expected_pages.sort_unstable();
+
+                if actual_pages != expected_pages {
+                    errors.push(format!(
+                        "Expectation error (Following allocation pages expected: {expected_pages:?}; actual: {actual_pages:?}. Program id: {target_program_id})",
+                    ))
+                }
+            }
+            AllocationExpectationKind::ContainsPages(ref expected_pages) => {
+                for &expected_page in expected_pages {
+                    if !actual_pages
+                        .iter()
+                        .map(|page| page.raw())
+                        .any(|actual_page| actual_page == expected_page)
+                    {
                         errors.push(format!(
-                            "Expectation error (Allocation page count does not match, expected: {}; actual: {}. Program id: {})",
-                            expected_page_count,
-                            actual_pages.len(),
-                            exp.id.to_program_id(),
+                            "Expectation error (Allocation page {expected_page} expected, but not found. Program id: {target_program_id})",
                         ));
                     }
                 }
-                AllocationExpectationKind::ExactPages(ref expected_pages) => {
-                    let mut actual_pages =
-                        actual_pages.iter().map(|page| page.0).collect::<Vec<_>>();
-                    let mut expected_pages = expected_pages.clone();
-
-                    actual_pages.sort_unstable();
-                    expected_pages.sort_unstable();
-
-                    if actual_pages != expected_pages {
-                        errors.push(format!(
-                            "Expectation error (Following allocation pages expected: {:?}; actual: {:?}. Program id: {})",
-                            expected_pages,
-                            actual_pages,
-                            exp.id.to_program_id(),
-                        ))
-                    }
-                }
-                AllocationExpectationKind::ContainsPages(ref expected_pages) => {
-                    for &expected_page in expected_pages {
-                        if !actual_pages
-                            .iter()
-                            .map(|page| page.0)
-                            .any(|actual_page| actual_page == expected_page)
-                        {
-                            errors.push(format!(
-                                "Expectation error (Allocation page {} expected, but not found. Program id: {})",
-                                expected_page,
-                                exp.id.to_program_id(),
-                            ));
-                        }
-                    }
-                }
             }
-        } else {
-            log::error!("Program not found");
-            errors.push(format!(
-                "Expectation error (Program id not found: {})",
-                exp.id.to_program_id()
-            ))
         }
     }
 
-    if errors.is_empty() {
-        Ok(())
-    } else {
-        Err(errors)
+    match errors.is_empty() {
+        true => Ok(()),
+        false => Err(errors),
     }
 }
 
 pub fn check_memory(
-    actors_data: &Vec<(ExecutableActorData, BTreeMap<PageNumber, PageBuf>)>,
+    actors_data: &Vec<(
+        ProgramId,
+        ExecutableActorData,
+        BTreeMap<PageNumber, PageBuf>,
+    )>,
     expected_memory: &[sample::BytesAt],
 ) -> Result<(), Vec<String>> {
     let mut errors = Vec::new();
     for case in expected_memory {
-        for (data, memory) in actors_data {
-            if data.program.id() == case.id.to_program_id() {
-                let page = PageNumber::new_from_addr(case.address);
+        for (program_id, _data, memory) in actors_data {
+            if *program_id == case.id.to_program_id() {
+                let page = PageNumber::from_offset(case.address as u32);
                 if let Some(page_buf) = memory.get(&page) {
-                    let begin_byte = case.address - page.offset();
+                    let begin_byte = case.address - page.offset() as usize;
                     let end_byte = begin_byte + case.bytes.len();
                     if page_buf[begin_byte..end_byte] != case.bytes {
                         errors.push("Expectation error (Static memory doesn't match)".to_string());
@@ -456,8 +471,7 @@ pub fn check_programs_state(
         for id in actual_programs.keys() {
             if !expected_programs.contains_key(id) {
                 errors.push(format!(
-                    "Actual program {:?} wasn't found in expectations",
-                    id,
+                    "Actual program {id:?} wasn't found in expectations",
                 ));
             }
         }
@@ -468,12 +482,11 @@ pub fn check_programs_state(
         if let Some(actual_termination) = actual_termination {
             if actual_termination != terminated {
                 errors.push(format!(
-                    "Wrong state of program: {:?} expected to be active={:?}, but it is active={:?}",
-                    id, terminated, actual_termination,
+                    "Wrong state of program: {id:?} expected to be active={terminated:?}, but it is active={actual_termination:?}",
                 ));
             }
         } else {
-            errors.push(format!("Invalid program id {:?}.", id));
+            errors.push(format!("Invalid program id {id:?}."));
         }
     }
 
@@ -510,7 +523,7 @@ where
 {
     if let Err(err) = proc::init_fixture::<E, JH>(test, fixture_no, &mut journal_handler) {
         total_failed.fetch_add(1, Ordering::SeqCst);
-        return format!("Initialization error ({})", err).bright_red();
+        return format!("Initialization error ({err})").bright_red();
     }
 
     let expected = match &test.fixtures[fixture_no].expected {
@@ -545,7 +558,7 @@ where
                     errors.extend(
                         msg_errors
                             .into_iter()
-                            .map(|err| format!("Messages check [{}]", err)),
+                            .map(|err| format!("Messages check [{err}]")),
                     );
                 }
             }
@@ -570,7 +583,7 @@ where
                 errors.extend(
                     log_errors
                         .into_iter()
-                        .map(|err| format!("Log check [{}]", err)),
+                        .map(|err| format!("Log check [{err}]")),
                 );
             }
         }
@@ -601,33 +614,39 @@ where
                 errors.extend(
                     prog_id_errors
                         .into_iter()
-                        .map(|err| format!("Program ids check: [{}]", err)),
+                        .map(|err| format!("Program ids check: [{err}]")),
                 );
             }
         }
+
         if !skip_allocations {
             if let Some(alloc) = &exp.allocations {
-                let progs: Vec<Program> = final_state
+                let progs: Vec<ProgramAllocations<'_>> = final_state
                     .actors
-                    .clone()
-                    .into_iter()
-                    .filter_map(|(_, actor)| actor.executable_data)
-                    .map(|data| data.program)
+                    .iter()
+                    .filter_map(|(id, actor)| actor.executable_data.as_ref().map(|d| (*id, d)))
+                    .map(|(id, data)| ProgramAllocations {
+                        id,
+                        static_pages: data.static_pages,
+                        allocations: &data.allocations,
+                    })
                     .collect();
+
                 if let Err(alloc_errors) = check_allocations(&progs, alloc) {
                     errors.push(format!("step: {:?}", exp.step));
                     errors.extend(alloc_errors);
                 }
             }
         }
+
         if !skip_memory {
             if let Some(mem) = &exp.memory {
                 let data = final_state
                     .actors
                     .into_iter()
-                    .filter_map(|(_, actor)| match actor.executable_data {
+                    .filter_map(|(actor_id, actor)| match actor.executable_data {
                         None => None,
-                        Some(d) => Some((d, actor.memory_pages)),
+                        Some(d) => Some((actor_id, d, actor.memory_pages)),
                     })
                     .collect();
                 if let Err(mem_errors) = check_memory(&data, mem) {
@@ -667,14 +686,14 @@ where
 {
     let map = Arc::new(RwLock::new(HashMap::new()));
     if let Err(e) = FixtureLogger::init(Arc::clone(&map)) {
-        println!("Logger err: {}", e);
+        println!("Logger err: {e}");
     }
     let mut tests = Vec::new();
 
     for path in files {
         if path.is_dir() {
             for entry in path.read_dir().expect("read_dir call failed").flatten() {
-                tests.push(read_test_from_file(&entry.path())?);
+                tests.push(read_test_from_file(entry.path())?);
             }
         } else {
             tests.push(read_test_from_file(&path)?);
@@ -684,7 +703,7 @@ where
     let total_fixtures: usize = tests.iter().map(|t| t.fixtures.len()).sum();
     let total_failed = AtomicUsize::new(0);
 
-    println!("Total fixtures: {}", total_fixtures);
+    println!("Total fixtures: {total_fixtures}");
 
     tests.par_iter().for_each(|test| {
         let progs_n_paths: Vec<(&str, ProgramId)> = test
@@ -727,7 +746,7 @@ where
                         .unwrap()
                         .iter()
                         .for_each(|line| {
-                            println!("{}", line);
+                            println!("{line}");
                         });
                 }
                 println!(

@@ -24,7 +24,7 @@ use common::{storage::*, Origin};
 use frame_support::{
     assert_ok,
     dispatch::{DispatchInfo, GetDispatchInfo, PostDispatchInfo},
-    weights::Weight,
+    weights::{Weight, WeightToFee},
 };
 use gear_core::{
     ids::{MessageId, ProgramId},
@@ -33,6 +33,9 @@ use gear_core::{
 use pallet_transaction_payment::{FeeDetails, InclusionFee, Multiplier, RuntimeDispatchInfo};
 use primitive_types::H256;
 use sp_runtime::{testing::TestXt, traits::SignedExtension, FixedPointNumber};
+
+type WeightToFeeFor<T> = <T as pallet_transaction_payment::Config>::WeightToFee;
+type LengthToFeeFor<T> = <T as pallet_transaction_payment::Config>::LengthToFee;
 
 macro_rules! assert_approx_eq {
     ($left:expr, $right:expr, $tol:expr) => {{
@@ -46,10 +49,10 @@ macro_rules! assert_approx_eq {
     }};
 }
 
-fn info_from_weight(w: u64) -> DispatchInfo {
+fn info_from_weight(weight: Weight) -> DispatchInfo {
     // DispatchInfo { weight: w, class: DispatchClass::Normal, pays_fee: Pays::Yes }
     DispatchInfo {
-        weight: Weight::from_ref_time(w),
+        weight,
         ..Default::default()
     }
 }
@@ -125,38 +128,43 @@ fn fee_rounding_error_bounded_by_multiplier() {
         // - relatively small weight, small multiplier
         // - relatively small weight, relatively large multiplier
 
-        let test_case =
-            |call: &<Test as frame_system::Config>::Call, weights: Vec<u64>, mul: u64| {
-                // not charging for tx len to make rounding error more significant
-                let len = 0;
+        let test_case = |call: &<Test as frame_system::Config>::RuntimeCall,
+                         weights: Vec<Weight>,
+                         mul: u64| {
+            // not charging for tx len to make rounding error more significant
+            let len = 0;
 
-                for w in weights {
-                    let alice_initial_balance = Balances::free_balance(ALICE);
-                    let author_initial_balance = Balances::free_balance(BLOCK_AUTHOR);
+            let rounding_error = WeightToFeeFor::<Test>::weight_to_fee(&Weight::from_ref_time(mul));
 
-                    let pre = CustomChargeTransactionPayment::<Test>::from(0)
-                        .pre_dispatch(&ALICE, call, &info_from_weight(w), len)
-                        .unwrap();
-                    assert_approx_eq!(
-                        Balances::free_balance(ALICE),
-                        alice_initial_balance - w as u128,
-                        mul as u128
-                    );
+            for w in weights {
+                let alice_initial_balance = Balances::free_balance(ALICE);
+                let author_initial_balance = Balances::free_balance(BLOCK_AUTHOR);
 
-                    assert_ok!(CustomChargeTransactionPayment::<Test>::post_dispatch(
-                        Some(pre),
-                        &info_from_weight(w),
-                        &default_post_info(),
-                        len,
-                        &Ok(())
-                    ));
-                    assert_approx_eq!(
-                        Balances::free_balance(BLOCK_AUTHOR),
-                        author_initial_balance + w as u128,
-                        mul as u128
-                    );
-                }
-            };
+                let pre = CustomChargeTransactionPayment::<Test>::from(0)
+                    .pre_dispatch(&ALICE, call, &info_from_weight(w), len)
+                    .unwrap();
+
+                let fee = WeightToFeeFor::<Test>::weight_to_fee(&w);
+                assert_approx_eq!(
+                    Balances::free_balance(ALICE),
+                    alice_initial_balance - fee,
+                    rounding_error
+                );
+
+                assert_ok!(CustomChargeTransactionPayment::<Test>::post_dispatch(
+                    Some(pre),
+                    &info_from_weight(w),
+                    &default_post_info(),
+                    len,
+                    &Ok(())
+                ));
+                assert_approx_eq!(
+                    Balances::free_balance(BLOCK_AUTHOR),
+                    author_initial_balance + fee,
+                    rounding_error
+                );
+            }
+        };
 
         // rounding error only arises for calls that do not affect MQ
         let call: &<Test as frame_system::Config>::Call =
@@ -164,7 +172,11 @@ fn fee_rounding_error_bounded_by_multiplier() {
                 message_id: MessageId::from_origin(H256::from_low_u64_le(1)),
             });
 
-        let weights: Vec<u64> = vec![1000, 100_000, 100_000_000];
+        let weights = vec![
+            Weight::from_ref_time(1_000),
+            Weight::from_ref_time(100_000),
+            Weight::from_ref_time(10_000_000),
+        ];
 
         // MQ is empty => multiplier is 1. No rounding error expected
         test_case(call, weights.clone(), 1);
@@ -208,35 +220,36 @@ fn mq_size_affecting_fee_works() {
                 value: 0,
             });
 
-        let len = 100_usize;
-        let per_byte_fee = TransactionByteFee::get();
-        let len_fee = per_byte_fee.saturating_mul(len as u128);
+        let len = 100usize;
+        let fee_length = LengthToFeeFor::<Test>::weight_to_fee(&Weight::from_ref_time(len as u64));
 
-        let weight = 1000_u64;
+        let weight = Weight::from_ref_time(1_000);
 
         let pre = CustomChargeTransactionPayment::<Test>::from(0)
             .pre_dispatch(&ALICE, call, &info_from_weight(weight), len)
             .unwrap();
+
+        let fee_weight = WeightToFeeFor::<Test>::weight_to_fee(&weight);
         // Can use strict equality for calls that do not introduce rounding error
         assert_eq!(
             Balances::free_balance(ALICE),
-            alice_initial_balance - weight as u128 - len_fee
+            alice_initial_balance - fee_weight - fee_length
         );
 
         assert_ok!(CustomChargeTransactionPayment::<Test>::post_dispatch(
             Some(pre),
-            &info_from_weight(1_000),
+            &info_from_weight(weight),
             &default_post_info(),
             len,
             &Ok(())
         ));
         assert_eq!(
             Balances::free_balance(ALICE),
-            alice_initial_balance - weight as u128 - len_fee
+            alice_initial_balance - fee_weight - fee_length
         );
         assert_eq!(
             Balances::free_balance(BLOCK_AUTHOR),
-            author_initial_balance + weight as u128 + len_fee
+            author_initial_balance + fee_weight + fee_length
         );
 
         // Now populate message queue
@@ -254,23 +267,23 @@ fn mq_size_affecting_fee_works() {
 
         assert_eq!(
             Balances::free_balance(ALICE),
-            alice_initial_balance - (weight as u128 * 16 + len_fee)
+            alice_initial_balance - (fee_weight * 16 + fee_length)
         );
 
         assert_ok!(CustomChargeTransactionPayment::<Test>::post_dispatch(
             Some(pre),
-            &info_from_weight(1_000),
+            &info_from_weight(weight),
             &default_post_info(),
             len,
             &Ok(())
         ));
         assert_eq!(
             Balances::free_balance(ALICE),
-            alice_initial_balance - (weight as u128 * 16 + len_fee)
+            alice_initial_balance - (fee_weight * 16 + fee_length)
         );
         assert_eq!(
             Balances::free_balance(BLOCK_AUTHOR),
-            author_initial_balance + (weight as u128 * 16 + len_fee)
+            author_initial_balance + (fee_weight * 16 + fee_length)
         );
     });
 }
@@ -297,18 +310,19 @@ fn mq_size_not_affecting_fee_works() {
                 message_id: MessageId::from_origin(H256::from_low_u64_le(1)),
             });
 
-        let len = 100_usize;
-        let per_byte_fee = TransactionByteFee::get();
-        let len_fee = per_byte_fee.saturating_mul(len as u128);
+        let len = 100usize;
+        let fee_length = LengthToFeeFor::<Test>::weight_to_fee(&Weight::from_ref_time(len as u64));
 
-        let weight = 1000_u64;
+        let weight = Weight::from_ref_time(1_000);
 
         let pre = CustomChargeTransactionPayment::<Test>::from(0)
             .pre_dispatch(&ALICE, call, &info_from_weight(weight), len)
             .unwrap();
+
+        let fee_weight = WeightToFeeFor::<Test>::weight_to_fee(&weight);
         assert_approx_eq!(
             Balances::free_balance(ALICE),
-            alice_initial_balance - weight as u128 - len_fee,
+            alice_initial_balance - fee_weight - fee_length,
             1
         );
 
@@ -321,16 +335,16 @@ fn mq_size_not_affecting_fee_works() {
         ));
         assert_eq!(
             Balances::free_balance(ALICE),
-            alice_initial_balance - weight as u128 - len_fee
+            alice_initial_balance - fee_weight - fee_length
         );
         assert_approx_eq!(
             Balances::free_balance(ALICE),
-            alice_initial_balance - weight as u128 - len_fee,
+            alice_initial_balance - fee_weight - fee_length,
             1
         );
         assert_approx_eq!(
             Balances::free_balance(BLOCK_AUTHOR),
-            author_initial_balance + weight as u128 + len_fee,
+            author_initial_balance + fee_weight + fee_length,
             1
         );
 
@@ -347,11 +361,12 @@ fn mq_size_not_affecting_fee_works() {
             .pre_dispatch(&ALICE, call, &info_from_weight(weight), len)
             .unwrap();
 
+        let rounding_error = WeightToFeeFor::<Test>::weight_to_fee(&Weight::from_ref_time(16));
         // Now we may have some rounding error somewhere at the least significant digits
         assert_approx_eq!(
             Balances::free_balance(ALICE),
-            alice_initial_balance - weight as u128 - len_fee,
-            16
+            alice_initial_balance - fee_weight - fee_length,
+            rounding_error
         );
 
         assert_ok!(CustomChargeTransactionPayment::<Test>::post_dispatch(
@@ -363,13 +378,13 @@ fn mq_size_not_affecting_fee_works() {
         ));
         assert_approx_eq!(
             Balances::free_balance(ALICE),
-            alice_initial_balance - weight as u128 - len_fee,
-            16
+            alice_initial_balance - fee_weight - fee_length,
+            rounding_error
         );
         assert_approx_eq!(
             Balances::free_balance(BLOCK_AUTHOR),
-            author_initial_balance + weight as u128 + len_fee,
-            16
+            author_initial_balance + fee_weight + fee_length,
+            rounding_error
         );
     });
 }
@@ -404,25 +419,29 @@ fn query_info_and_fee_details_work() {
 
     new_test_ext().execute_with(|| {
         // Empty Message queue => extra fee is not applied
+        let fee_affecting_weight = WeightToFeeFor::<Test>::weight_to_fee(&info_affecting_mq.weight);
+        let fee_affecting_length = LengthToFeeFor::<Test>::weight_to_fee(&Weight::from_ref_time(len_affecting_mq.into()));
         assert_eq!(
             GearPayment::query_info(xt_affecting_mq.clone(), len_affecting_mq),
             RuntimeDispatchInfo {
                 weight: info_affecting_mq.weight,
                 class: info_affecting_mq.class,
                 partial_fee: 0 /* base_fee */
-                    + len_affecting_mq as u128  /* len * 1 */
-                    + info_affecting_mq.weight.ref_time() as u128 /* weight */
+                    + fee_affecting_length  /* len * 1 */
+                    + fee_affecting_weight /* weight */
             },
         );
 
+        let fee_weight = WeightToFeeFor::<Test>::weight_to_fee(&info_not_affecting_mq.weight);
+        let fee_length = LengthToFeeFor::<Test>::weight_to_fee(&Weight::from_ref_time(len_not_affecting_mq.into()));
         assert_eq!(
             GearPayment::query_info(xt_not_affecting_mq.clone(), len_not_affecting_mq),
             RuntimeDispatchInfo {
                 weight: info_not_affecting_mq.weight,
                 class: info_not_affecting_mq.class,
                 partial_fee: 0 /* base_fee */
-                    + len_not_affecting_mq as u128  /* len * 1 */
-                    + info_not_affecting_mq.weight.ref_time() as u128 /* weight */
+                    + fee_length  /* len * 1 */
+                    + fee_weight /* weight */
             },
         );
 
@@ -440,8 +459,8 @@ fn query_info_and_fee_details_work() {
             FeeDetails {
                 inclusion_fee: Some(InclusionFee {
                     base_fee: 0,
-                    len_fee: len_affecting_mq as u128,
-                    adjusted_weight_fee: info_affecting_mq.weight.ref_time() as u128
+                    len_fee: fee_affecting_length,
+                    adjusted_weight_fee: fee_affecting_weight,
                 }),
                 tip: 0,
             },
@@ -452,8 +471,8 @@ fn query_info_and_fee_details_work() {
             FeeDetails {
                 inclusion_fee: Some(InclusionFee {
                     base_fee: 0,
-                    len_fee: len_not_affecting_mq as u128,
-                    adjusted_weight_fee: info_not_affecting_mq.weight.ref_time() as u128
+                    len_fee: fee_length,
+                    adjusted_weight_fee: fee_weight,
                 }),
                 tip: 0,
             },
@@ -478,21 +497,22 @@ fn query_info_and_fee_details_work() {
                 weight: info_affecting_mq.weight,
                 class: info_affecting_mq.class,
                 partial_fee: 0 /* base_fee */
-                    + len_affecting_mq as u128  /* len * 1 */
-                    + (info_affecting_mq.weight.ref_time() as u128) * 16_u128 /* weight * 16 */
+                    + fee_affecting_length  /* len * 1 */
+                    + fee_affecting_weight * 16u128 /* weight * 16 */
             },
         );
 
         // Extra fee not applicable => fee should be exactly what it was for empty MQ
         // However, we must account for the rounding error in this case
+        let rounding_error = WeightToFeeFor::<Test>::weight_to_fee(&Weight::from_ref_time(16));
         assert_eq!(
             GearPayment::query_info(xt_not_affecting_mq.clone(), len_not_affecting_mq),
             RuntimeDispatchInfo {
                 weight: info_not_affecting_mq.weight,
                 class: info_not_affecting_mq.class,
                 partial_fee: 0 /* base_fee */
-                    + len_not_affecting_mq as u128  /* len * 1 */
-                    + (info_not_affecting_mq.weight.ref_time() as u128 / 16) * 16 /* weight, with potential small rounding error */
+                    + fee_length  /* len * 1 */
+                    + (fee_weight / rounding_error) * rounding_error /* weight, with potential small rounding error */
             },
         );
 
@@ -510,8 +530,8 @@ fn query_info_and_fee_details_work() {
             FeeDetails {
                 inclusion_fee: Some(InclusionFee {
                     base_fee: 0,
-                    len_fee: len_affecting_mq as u128,
-                    adjusted_weight_fee: (info_affecting_mq.weight.ref_time() as u128) * 16_u128
+                    len_fee: fee_affecting_length,
+                    adjusted_weight_fee: fee_affecting_weight * 16u128,
                 }),
                 tip: 0,
             },
@@ -522,8 +542,8 @@ fn query_info_and_fee_details_work() {
             FeeDetails {
                 inclusion_fee: Some(InclusionFee {
                     base_fee: 0,
-                    len_fee: len_not_affecting_mq as u128,
-                    adjusted_weight_fee: (info_not_affecting_mq.weight.ref_time() as u128 / 16) * 16_u128
+                    len_fee: fee_length,
+                    adjusted_weight_fee: (fee_weight / rounding_error) * rounding_error,
                 }),
                 tip: 0,
             },

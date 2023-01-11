@@ -16,39 +16,37 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Module for signal-magement and waking concrete message based on reply
-//! recieved.
+//! Module for signal-management and waking concrete message based on reply
+//! received.
 
-use crate::{
-    prelude::{BTreeMap, Vec},
-    MessageId,
-};
+use crate::{prelude::Vec, MessageId};
 use core::task::{Context, Waker};
+use hashbrown::HashMap;
 
 pub type Payload = Vec<u8>;
-pub type ExitCode = i32;
+pub type StatusCode = i32;
 
 #[derive(Debug)]
 pub(crate) enum ReplyPoll {
     None,
     Pending,
-    Some((Payload, ExitCode)),
+    Some((Payload, StatusCode)),
 }
 
 struct WakeSignal {
     message_id: MessageId,
-    payload: Option<(Payload, ExitCode)>,
+    payload: Option<(Payload, StatusCode)>,
     waker: Option<Waker>,
 }
 
 pub(crate) struct WakeSignals {
-    signals: BTreeMap<MessageId, WakeSignal>,
+    signals: HashMap<MessageId, WakeSignal>,
 }
 
 impl WakeSignals {
     pub fn new() -> Self {
         Self {
-            signals: BTreeMap::new(),
+            signals: HashMap::new(),
         }
     }
 
@@ -64,12 +62,20 @@ impl WakeSignals {
     }
 
     pub fn record_reply(&mut self) {
-        if let Some(signal) = self.signals.get_mut(&crate::msg::reply_to()) {
-            signal.payload = Some((crate::msg::load_bytes(), crate::msg::exit_code()));
+        if let Some(signal) = self
+            .signals
+            .get_mut(&crate::msg::reply_to().expect("Shouldn't be called with incorrect context"))
+        {
+            signal.payload = Some((
+                crate::msg::load_bytes().expect("Failed to load bytes"),
+                crate::msg::status_code().expect("Shouldn't be called with incorrect context"),
+            ));
+
             if let Some(waker) = &signal.waker {
                 waker.wake_by_ref();
             }
-            crate::exec::wake(signal.message_id);
+
+            crate::exec::wake(signal.message_id).expect("Failed to wake the message")
         } else {
             crate::debug!("Received reply for the message we don't expect reply to or already processed before");
         }
