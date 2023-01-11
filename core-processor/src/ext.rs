@@ -33,8 +33,8 @@ use gear_core::{
     gas::{ChargeResult, GasAllowanceCounter, GasAmount, GasCounter, Token, ValueCounter},
     ids::{CodeId, MessageId, ProgramId, ReservationId},
     memory::{
-        AllocInfo, AllocationsContext, GrowHandler, GrowHandlerNothing, Memory, PageBuf,
-        PageNumber, PageU32Size, WasmPageNumber,
+        AllocInfo, AllocationsContext, GrowHandler, Memory, NoopGrowHandler, PageBuf, PageNumber,
+        PageU32Size, WasmPageNumber,
     },
     message::{
         GasLimit, HandlePacket, InitPacket, MessageContext, Packet, ReplyPacket, StatusCode,
@@ -376,7 +376,7 @@ impl EnvExt for Ext {
         pages_num: WasmPageNumber,
         mem: &mut impl Memory,
     ) -> Result<WasmPageNumber, Self::Error> {
-        self.alloc_inner::<GrowHandlerNothing>(pages_num, mem)
+        self.alloc_inner::<NoopGrowHandler>(pages_num, mem)
     }
 
     fn block_height(&mut self) -> Result<u32, Self::Error> {

@@ -494,11 +494,11 @@ pub trait GrowHandler {
 }
 
 /// Grow handler do nothing implementation
-pub struct GrowHandlerNothing;
+pub struct NoopGrowHandler;
 
-impl GrowHandler for GrowHandlerNothing {
+impl GrowHandler for NoopGrowHandler {
     fn before_grow_action(_mem: &mut impl Memory) -> Self {
-        GrowHandlerNothing
+        NoopGrowHandler
     }
     fn after_grow_action(self, _mem: &mut impl Memory) -> Result<(), Error> {
         Ok(())
