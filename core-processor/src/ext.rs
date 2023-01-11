@@ -24,8 +24,8 @@ use alloc::{
 };
 use codec::{Decode, Encode};
 use gear_backend_common::{
-    error_processor::IntoExtError, AsTerminationReason, ExtInfo, GetGasAmount, IntoExtInfo,
-    SystemReservationContext, TerminationReason, TrapExplanation,
+    error_processor::IntoExtError, memory::OutOfMemoryAccessError, AsTerminationReason, ExtInfo,
+    GetGasAmount, IntoExtInfo, SystemReservationContext, TerminationReason, TrapExplanation,
 };
 use gear_core::{
     costs::{HostFnWeights, RuntimeCosts},
@@ -33,8 +33,8 @@ use gear_core::{
     gas::{ChargeResult, GasAllowanceCounter, GasAmount, GasCounter, Token, ValueCounter},
     ids::{CodeId, MessageId, ProgramId, ReservationId},
     memory::{
-        AllocInfo, AllocationsContext, GrowHandler, GrowHandlerNothing, Memory, PageBuf,
-        PageNumber, PageU32Size, WasmPageNumber,
+        AllocInfo, AllocationsContext, GrowHandler, GrowHandlerNothing, Memory, MemoryInterval,
+        PageBuf, PageNumber, PageU32Size, WasmPageNumber,
     },
     message::{
         GasLimit, HandlePacket, InitPacket, MessageContext, Packet, ReplyPacket, StatusCode,
@@ -252,6 +252,13 @@ impl IntoExtInfo<<Ext as EnvExt>::Error> for Ext {
         self.error_explanation
             .clone()
             .and_then(ProcessorError::into_trap_explanation)
+    }
+
+    fn pre_process_memory_accesses(
+        _reads: &[MemoryInterval],
+        _writes: &[MemoryInterval],
+    ) -> Result<(), OutOfMemoryAccessError> {
+        Ok(())
     }
 }
 
