@@ -29,10 +29,11 @@ use runtime_primitives::AccountPublic;
 use sp_consensus_aura::AURA_ENGINE_ID;
 use sp_consensus_babe::{
     digests::{PreDigest, SecondaryPlainPreDigest},
-    BABE_ENGINE_ID,
+    AuthorityId as BabeId, BABE_ENGINE_ID,
 };
 use sp_consensus_slots::Slot;
 use sp_core::{sr25519, Pair, Public};
+use sp_finality_grandpa::AuthorityId as GrandpaId;
 use sp_runtime::{
     app_crypto::UncheckedFrom, traits::IdentifyAccount, AccountId32, Digest, DigestItem,
 };
@@ -48,8 +49,8 @@ use vara_runtime::{
     not(feature = "vara-native")
 ))]
 use rococo_gear_runtime::{
-    AuraConfig, AuraExtConfig, Authorship, CollatorSelectionConfig, RuntimeEvent, Gear, GearGas,
-    GearMessenger, ParachainSystemConfig, Runtime, SessionConfig, SessionKeys, System,
+    AuraConfig, AuraExtConfig, Authorship, CollatorSelectionConfig, Gear, GearGas, GearMessenger,
+    ParachainSystemConfig, Runtime, RuntimeEvent, SessionConfig, SessionKeys, System,
 };
 
 pub(crate) type QueueOf<T> = <<T as pallet_gear::Config>::Messenger as Messenger>::Queue;

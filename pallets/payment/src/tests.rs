@@ -167,8 +167,8 @@ fn fee_rounding_error_bounded_by_multiplier() {
         };
 
         // rounding error only arises for calls that do not affect MQ
-        let call: &<Test as frame_system::Config>::Call =
-            &Call::Gear(pallet_gear::Call::claim_value {
+        let call: &<Test as frame_system::Config>::RuntimeCall =
+            &RuntimeCall::Gear(pallet_gear::Call::claim_value {
                 message_id: MessageId::from_origin(H256::from_low_u64_le(1)),
             });
 
@@ -212,8 +212,8 @@ fn mq_size_affecting_fee_works() {
 
         let program_id = ProgramId::from_origin(H256::random());
 
-        let call: &<Test as frame_system::Config>::Call =
-            &Call::Gear(pallet_gear::Call::send_message {
+        let call: &<Test as frame_system::Config>::RuntimeCall =
+            &RuntimeCall::Gear(pallet_gear::Call::send_message {
                 destination: program_id,
                 payload: Default::default(),
                 gas_limit: 100_000,
@@ -305,8 +305,8 @@ fn mq_size_not_affecting_fee_works() {
         let alice_initial_balance = Balances::free_balance(ALICE);
         let author_initial_balance = Balances::free_balance(BLOCK_AUTHOR);
 
-        let call: &<Test as frame_system::Config>::Call =
-            &Call::Gear(pallet_gear::Call::claim_value {
+        let call: &<Test as frame_system::Config>::RuntimeCall =
+            &RuntimeCall::Gear(pallet_gear::Call::claim_value {
                 message_id: MessageId::from_origin(H256::from_low_u64_le(1)),
             });
 
@@ -393,13 +393,13 @@ fn mq_size_not_affecting_fee_works() {
 #[allow(clippy::let_unit_value)]
 fn query_info_and_fee_details_work() {
     let program_id = ProgramId::from_origin(H256::random());
-    let call_affecting_mq = Call::Gear(pallet_gear::Call::send_message {
+    let call_affecting_mq = RuntimeCall::Gear(pallet_gear::Call::send_message {
         destination: program_id,
         payload: Default::default(),
         gas_limit: 100_000,
         value: 0,
     });
-    let call_not_affecting_mq = Call::Gear(pallet_gear::Call::claim_value {
+    let call_not_affecting_mq = RuntimeCall::Gear(pallet_gear::Call::claim_value {
         message_id: 1.into(),
     });
     let extra = ();

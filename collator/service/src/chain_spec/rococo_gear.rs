@@ -20,7 +20,7 @@
 
 use super::*;
 use cumulus_primitives_core::ParaId;
-use rococo_gear_runtime::{AccountId, AuraId, GenesisConfig, EXISTENTIAL_DEPOSIT, GearConfig};
+use rococo_gear_runtime::{AccountId, AuraId, GearConfig, GenesisConfig, EXISTENTIAL_DEPOSIT};
 use sc_service::ChainType;
 use sp_core::sr25519;
 

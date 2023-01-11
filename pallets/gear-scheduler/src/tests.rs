@@ -106,7 +106,7 @@ fn out_of_rent_reply_exists(
     let pid = pid.into();
 
     System::events().into_iter().any(|e| {
-        if let mock::Event::Gear(pallet_gear::Event::UserMessageSent {
+        if let mock::RuntimeEvent::Gear(pallet_gear::Event::UserMessageSent {
             message: msg,
             expiration: None,
         }) = &e.event

@@ -27,10 +27,7 @@ use sc_cli::{
     ChainSpec, CliConfiguration, DefaultConfigurationValues, ImportParams, KeystoreParams,
     NetworkParams, Result, RuntimeVersion, SharedParams, SubstrateCli,
 };
-use sc_service::{
-    config::{BasePath, PrometheusConfig},
-    TFullBackend,
-};
+use sc_service::config::{BasePath, PrometheusConfig};
 use service::{self, chain_spec, IdentifyVariant, RococoGearRuntimeExecutor};
 use sp_core::hexdisplay::HexDisplay;
 use sp_runtime::traits::{AccountIdConversion, Block as _};
@@ -219,7 +216,7 @@ pub fn run() -> sc_cli::Result<()> {
                     &polkadot_cli,
                     config.tokio_handle.clone(),
                 )
-                .map_err(|err| format!("Relay chain argument error: {}", err))?;
+                .map_err(|err| format!("Relay chain argument error: {err}"))?;
 
                 cmd.run(config, polkadot_config)
             })
@@ -260,23 +257,24 @@ pub fn run() -> sc_cli::Result<()> {
                     }
                 }
                 BenchmarkCmd::Block(cmd) => runner.sync_run(|config| {
-                    let partials = service::new_partial(&config,)?;
+                    let partials = service::new_partial(&config)?;
                     cmd.run(partials.client)
                 }),
-				#[cfg(not(feature = "runtime-benchmarks"))]
-				BenchmarkCmd::Storage(_) =>
-					return Err(sc_cli::Error::Input(
-						"Compile with --features=runtime-benchmarks \
-						to enable storage benchmarks."
-							.into(),
-					)
-					.into()),
+                #[cfg(not(feature = "runtime-benchmarks"))]
+                BenchmarkCmd::Storage(_) => {
+                    return Err(sc_cli::Error::Input(
+                        "Compile with --features=runtime-benchmarks \
+                        to enable storage benchmarks."
+                            .into(),
+                    )
+                    .into())
+                }
                 #[cfg(feature = "runtime-benchmarks")]
-				BenchmarkCmd::Storage(cmd) => runner.sync_run(|config| {
+                BenchmarkCmd::Storage(cmd) => runner.sync_run(|config| {
                     let partials = service::new_partial(&config)?;
-					let db = partials.backend.expose_db();
-					let storage = partials.backend.expose_storage();
-					cmd.run(config, partials.client.clone(), db, storage)
+                    let db = partials.backend.expose_db();
+                    let storage = partials.backend.expose_storage();
+                    cmd.run(config, partials.client.clone(), db, storage)
                 }),
                 BenchmarkCmd::Machine(cmd) => {
                     runner.sync_run(|config| cmd.run(&config, SUBSTRATE_REFERENCE_HARDWARE.clone()))
@@ -292,31 +290,39 @@ pub fn run() -> sc_cli::Result<()> {
 
             runner.sync_run(|config| cmd.run(config))
         }
+
         #[cfg(feature = "try-runtime")]
-	    Some(Subcommand::TryRuntime(cmd)) => {
-            if cfg!(feature = "try-runtime") {
-                let runner = cli.create_runner(cmd)?;
+        Some(Subcommand::TryRuntime(cmd)) => {
+            let runner = cli.create_runner(cmd)?;
 
-                // grab the task manager.
-                let registry = &runner
-                    .config()
-                    .prometheus_config
-                    .as_ref()
-                    .map(|cfg| &cfg.registry);
-                let task_manager =
-                    TaskManager::new(runner.config().tokio_handle.clone(), *registry)
-                        .map_err(|e| format!("Error: {:?}", e))?;
+            use sc_executor::{sp_wasm_interface::ExtendedHostFunctions, NativeExecutionDispatch};
+            type HostFunctionsOf<E> = ExtendedHostFunctions<
+                sp_io::SubstrateHostFunctions,
+                <E as NativeExecutionDispatch>::ExtendHostFunctions,
+            >;
 
-                runner.async_run(|config| {
-                    Ok((
-                        cmd.run::<Block, RococoGearRuntimeExecutor>(config),
-                        task_manager,
-                    ))
-                })
-            } else {
-                Err("Try-runtime must be enabled by `--features try-runtime`.".into())
-            }
+            // grab the task manager.
+            let registry = &runner
+                .config()
+                .prometheus_config
+                .as_ref()
+                .map(|cfg| &cfg.registry);
+            let task_manager =
+                sc_service::TaskManager::new(runner.config().tokio_handle.clone(), *registry)
+                    .map_err(|e| format!("Error: {e:?}"))?;
+
+            runner.async_run(|_| {
+                Ok((
+                    cmd.run::<Block, HostFunctionsOf<RococoGearRuntimeExecutor>>(),
+                    task_manager,
+                ))
+            })
         }
+
+        #[cfg(not(feature = "try-runtime"))]
+        Some(Subcommand::TryRuntime) => Err("Try-runtime was not enabled when building the node. \
+            You can enable it with `--features try-runtime`."
+            .into()),
 
         Some(Subcommand::Key(cmd)) => Ok(cmd.run(&cli)?),
 
@@ -352,13 +358,13 @@ pub fn run() -> sc_cli::Result<()> {
 
                 let state_version = Cli::native_runtime_version(&config.chain_spec).state_version();
                 let block: Block = generate_genesis_block(&*config.chain_spec, state_version)
-                    .map_err(|e| format!("{:?}", e))?;
+                    .map_err(|e| format!("{e:?}"))?;
                 let genesis_state = format!("0x{:?}", HexDisplay::from(&block.header().encode()));
 
                 let tokio_handle = config.tokio_handle.clone();
                 let polkadot_config =
                     SubstrateCli::create_configuration(&polkadot_cli, &polkadot_cli, tokio_handle)
-                        .map_err(|err| format!("Relay chain argument error: {}", err))?;
+                        .map_err(|err| format!("Relay chain argument error: {err}"))?;
 
                 info!("Parachain id: {:?}", id);
                 info!("Parachain Account: {}", parachain_account);

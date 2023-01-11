@@ -271,7 +271,7 @@ fn get_last_message_id() -> MessageId {
     use pallet_gear::Event;
 
     let event = match System::events().last().map(|r| r.event.clone()) {
-        Some(super::mock::Event::Gear(e)) => e,
+        Some(super::mock::RuntimeEvent::Gear(e)) => e,
         _ => unreachable!("Should be one Gear event"),
     };
 

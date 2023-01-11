@@ -70,7 +70,7 @@ impl pallet_balances::Config for Test {
     type ReserveIdentifier = [u8; 8];
     type Balance = u128;
     type DustRemoval = ();
-    type Event = Event;
+    type RuntimeEvent = RuntimeEvent;
     type ExistentialDeposit = ExistentialDeposit;
     type AccountStore = System;
     type WeightInfo = ();
@@ -128,7 +128,7 @@ impl system::Config for Test {
     type AccountId = u64;
     type Lookup = IdentityLookup<Self::AccountId>;
     type Header = Header;
-    type Event = Event;
+    type RuntimeEvent = RuntimeEvent;
     type BlockHashCount = BlockHashCount;
     type Version = ();
     type PalletInfo = PalletInfo;
@@ -147,7 +147,7 @@ parameter_types! {
 }
 
 impl pallet_transaction_payment::Config for Test {
-    type Event = Event;
+    type RuntimeEvent = RuntimeEvent;
     type OnChargeTransaction = CurrencyAdapter<Balances, DealWithFees>;
     type OperationalFeeMultiplier = ConstU8<5>;
     type WeightToFee = ConstantMultiplier<u128, ConstU128<1_000>>;
@@ -187,7 +187,7 @@ impl pallet_gear::Config for Test {
 }
 
 impl pallet_gear_program::Config for Test {
-    type Event = Event;
+    type RuntimeEvent = RuntimeEvent;
     type WeightInfo = ();
     type Currency = Balances;
     type Messenger = GearMessenger;
@@ -229,15 +229,15 @@ impl OnUnbalanced<NegativeImbalance> for DealWithFees {
 }
 
 pub struct ExtraFeeFilter;
-impl Contains<Call> for ExtraFeeFilter {
-    fn contains(call: &Call) -> bool {
+impl Contains<RuntimeCall> for ExtraFeeFilter {
+    fn contains(call: &RuntimeCall) -> bool {
         // Calls that affect message queue and are subject to extra fee
         matches!(
             call,
-            Call::Gear(pallet_gear::Call::create_program { .. })
-                | Call::Gear(pallet_gear::Call::upload_program { .. })
-                | Call::Gear(pallet_gear::Call::send_message { .. })
-                | Call::Gear(pallet_gear::Call::send_reply { .. })
+            RuntimeCall::Gear(pallet_gear::Call::create_program { .. })
+                | RuntimeCall::Gear(pallet_gear::Call::upload_program { .. })
+                | RuntimeCall::Gear(pallet_gear::Call::send_message { .. })
+                | RuntimeCall::Gear(pallet_gear::Call::send_reply { .. })
         )
     }
 }

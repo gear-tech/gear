@@ -28,9 +28,7 @@ mod weights;
 pub mod xcm_config;
 
 use cumulus_pallet_parachain_system::RelayNumberStrictlyIncreases;
-use runtime_common::{
-    DealWithFees, GasConverter,
-};
+use runtime_common::{DealWithFees, GasConverter};
 use sp_api::impl_runtime_apis;
 pub use sp_consensus_aura::sr25519::AuthorityId as AuraId;
 use sp_core::{crypto::KeyTypeId, OpaqueMetadata, H256};
@@ -149,7 +147,8 @@ const AVERAGE_ON_INITIALIZE_RATIO: Perbill = Perbill::from_percent(5);
 const NORMAL_DISPATCH_RATIO: Perbill = Perbill::from_percent(25);
 
 /// We allow for 0.5 of a second of compute with a 12 second average block time.
-const MAXIMUM_BLOCK_WEIGHT: Weight = Weight::from_parts(WEIGHT_REF_TIME_PER_SECOND.saturating_div(2), u64::MAX);
+const MAXIMUM_BLOCK_WEIGHT: Weight =
+    Weight::from_parts(WEIGHT_REF_TIME_PER_SECOND.saturating_div(2), u64::MAX);
 
 parameter_types! {
     pub const Version: RuntimeVersion = VERSION;
@@ -587,7 +586,8 @@ pub type SignedExtra = (
     pallet_transaction_payment::ChargeTransactionPayment<Runtime>,
 );
 /// Unchecked extrinsic type as expected by this runtime.
-pub type UncheckedExtrinsic = generic::UncheckedExtrinsic<Address, RuntimeCall, Signature, SignedExtra>;
+pub type UncheckedExtrinsic =
+    generic::UncheckedExtrinsic<Address, RuntimeCall, Signature, SignedExtra>;
 /// The payload being signed in transactions.
 pub type SignedPayload = generic::SignedPayload<RuntimeCall, SignedExtra>;
 /// Executive: handles dispatch to the various modules.
@@ -744,7 +744,7 @@ impl_runtime_apis! {
         }
 
         fn gear_run_extrinsic() -> <Block as BlockT>::Extrinsic {
-            UncheckedExtrinsic::new_unsigned(Gear::run_call().into()).into()
+            UncheckedExtrinsic::new_unsigned(Gear::run_call().into())
         }
 
         fn read_state(program_id: H256) -> Result<Vec<u8>, Vec<u8>> {
@@ -767,29 +767,20 @@ impl_runtime_apis! {
 
     #[cfg(feature = "try-runtime")]
     impl frame_try_runtime::TryRuntime<Block> for Runtime {
-        fn on_runtime_upgrade() -> (Weight, Weight) {
-            // NOTE: intentional unwrap: we don't want to propagate the error backwards, and want to
-            // have a backtrace here. If any of the pre/post migration checks fail, we shall stop
-            // right here and right now.
-            let weight = Executive::try_runtime_upgrade().unwrap();
+        fn on_runtime_upgrade(checks: bool) -> (Weight, Weight) {
+            let weight = Executive::try_runtime_upgrade(checks).unwrap();
             (weight, RuntimeBlockWeights::get().max_block)
         }
 
         fn execute_block(
             block: Block,
             state_root_check: bool,
-            select: frame_try_runtime::TryStateSelect
+            signature_check: bool,
+            select: frame_try_runtime::TryStateSelect,
         ) -> Weight {
-            log::info!(
-                target: "node-runtime",
-                "try-runtime: executing block {:?} / root checks: {:?} / try-state-select: {:?}",
-                block.header.hash(),
-                state_root_check,
-                select,
-            );
             // NOTE: intentional unwrap: we don't want to propagate the error backwards, and want to
             // have a backtrace here.
-            Executive::try_execute_block(block, state_root_check, select).expect("try_execute_block failed")
+            Executive::try_execute_block(block, state_root_check, signature_check, select).unwrap()
         }
     }
 }

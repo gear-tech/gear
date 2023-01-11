@@ -5863,7 +5863,7 @@ fn test_reply_to_terminated_program() {
         assert_eq!(MailboxOf::<Test>::len(&USER_1), 1);
 
         // Send reply
-        let reply_call = crate::mock::Call::Gear(crate::Call::<Test>::send_reply {
+        let reply_call = crate::mock::RuntimeCall::Gear(crate::Call::<Test>::send_reply {
             reply_to_id: mail_id,
             payload: EMPTY_PAYLOAD.to_vec(),
             gas_limit: 10_000_000,
@@ -8655,8 +8655,8 @@ mod utils {
         )
     }
 
-    pub(super) fn call_default_message(to: ProgramId) -> crate::mock::Call {
-        crate::mock::Call::Gear(crate::Call::<Test>::send_message {
+    pub(super) fn call_default_message(to: ProgramId) -> crate::mock::RuntimeCall {
+        crate::mock::RuntimeCall::Gear(crate::Call::<Test>::send_message {
             destination: to,
             payload: EMPTY_PAYLOAD.to_vec(),
             gas_limit: DEFAULT_GAS_LIMIT,

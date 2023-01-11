@@ -93,6 +93,7 @@ frame-executive = { git = "https://github.com/gear-tech/substrate", branch = "ge
 frame-remote-externalities = { git = "https://github.com/gear-tech/substrate", branch = "gear-polkadot-v0.9.36" }
 frame-support = { git = "https://github.com/gear-tech/substrate", branch = "gear-polkadot-v0.9.36" }
 frame-system = { git = "https://github.com/gear-tech/substrate", branch = "gear-polkadot-v0.9.36" }
+frame-system-benchmarking = { git = "https://github.com/gear-tech/substrate", branch = "gear-polkadot-v0.9.36" }
 frame-system-rpc-runtime-api = { git = "https://github.com/gear-tech/substrate", branch = "gear-polkadot-v0.9.36" }
 frame-try-runtime = { git = "https://github.com/gear-tech/substrate", branch = "gear-polkadot-v0.9.36" }
 mmr-gadget = { git = "https://github.com/gear-tech/substrate", branch = "gear-polkadot-v0.9.36" }
@@ -119,11 +120,14 @@ pallet-identity = { git = "https://github.com/gear-tech/substrate", branch = "ge
 pallet-im-online = { git = "https://github.com/gear-tech/substrate", branch = "gear-polkadot-v0.9.36" }
 pallet-indices = { git = "https://github.com/gear-tech/substrate", branch = "gear-polkadot-v0.9.36" }
 pallet-membership = { git = "https://github.com/gear-tech/substrate", branch = "gear-polkadot-v0.9.36" }
+pallet-mmr = { git = "https://github.com/gear-tech/substrate", branch = "gear-polkadot-v0.9.36" }
 pallet-multisig = { git = "https://github.com/gear-tech/substrate", branch = "gear-polkadot-v0.9.36" }
 pallet-nis = { git = "https://github.com/gear-tech/substrate", branch = "gear-polkadot-v0.9.36" }
 pallet-nomination-pools = { git = "https://github.com/gear-tech/substrate", branch = "gear-polkadot-v0.9.36" }
+pallet-nomination-pools-benchmarking = { git = "https://github.com/gear-tech/substrate", branch = "gear-polkadot-v0.9.36" }
 pallet-nomination-pools-runtime-api = { git = "https://github.com/gear-tech/substrate", branch = "gear-polkadot-v0.9.36" }
 pallet-offences = { git = "https://github.com/gear-tech/substrate", branch = "gear-polkadot-v0.9.36" }
+pallet-offences-benchmarking = { git = "https://github.com/gear-tech/substrate", branch = "gear-polkadot-v0.9.36" }
 pallet-preimage = { git = "https://github.com/gear-tech/substrate", branch = "gear-polkadot-v0.9.36" }
 pallet-proxy = { git = "https://github.com/gear-tech/substrate", branch = "gear-polkadot-v0.9.36" }
 pallet-ranked-collective = { git = "https://github.com/gear-tech/substrate", branch = "gear-polkadot-v0.9.36" }
@@ -131,10 +135,13 @@ pallet-recovery = { git = "https://github.com/gear-tech/substrate", branch = "ge
 pallet-referenda = { git = "https://github.com/gear-tech/substrate", branch = "gear-polkadot-v0.9.36" }
 pallet-scheduler = { git = "https://github.com/gear-tech/substrate", branch = "gear-polkadot-v0.9.36" }
 pallet-session = { git = "https://github.com/gear-tech/substrate", branch = "gear-polkadot-v0.9.36" }
+pallet-session-benchmarking = { git = "https://github.com/gear-tech/substrate", branch = "gear-polkadot-v0.9.36" }
 pallet-society = { git = "https://github.com/gear-tech/substrate", branch = "gear-polkadot-v0.9.36" }
 pallet-staking = { git = "https://github.com/gear-tech/substrate", branch = "gear-polkadot-v0.9.36" }
 pallet-staking-reward-curve = { git = "https://github.com/gear-tech/substrate", branch = "gear-polkadot-v0.9.36" }
 pallet-staking-reward-fn = { git = "https://github.com/gear-tech/substrate", branch = "gear-polkadot-v0.9.36" }
+pallet-state-trie-migration = { git = "https://github.com/gear-tech/substrate", branch = "gear-polkadot-v0.9.36" }
+pallet-sudo = { git = "https://github.com/gear-tech/substrate", branch = "gear-polkadot-v0.9.36" }
 pallet-timestamp = { git = "https://github.com/gear-tech/substrate", branch = "gear-polkadot-v0.9.36" }
 pallet-tips = { git = "https://github.com/gear-tech/substrate", branch = "gear-polkadot-v0.9.36" }
 pallet-transaction-payment = { git = "https://github.com/gear-tech/substrate", branch = "gear-polkadot-v0.9.36" }
