@@ -610,7 +610,7 @@ impl EnvExt for Ext {
     }
 
     fn read(&mut self) -> Result<&[u8], Self::Error> {
-        let size: u32 = self
+        let size = self
             .size()?
             .try_into()
             .unwrap_or_else(|_| unreachable!("size of the payload is a known constant: gear_core::message::MAX_PAYLOAD_SIZE < u32::MAX"));
