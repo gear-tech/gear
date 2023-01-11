@@ -332,7 +332,7 @@ impl Ext {
         Ok(())
     }
 
-    fn check_forbidden_dest(&mut self, id: ProgramId) -> Result<(), ProcessorError> {
+    fn check_forbidden_destination(&mut self, id: ProgramId) -> Result<(), ProcessorError> {
         if id == ProgramId::SYSTEM {
             self.return_and_store_err(Err(ExecutionError::ForbiddenFunction))
         } else {
@@ -427,7 +427,7 @@ impl EnvExt for Ext {
     ) -> Result<MessageId, Self::Error> {
         self.charge_gas_runtime(RuntimeCosts::SendCommit(msg.payload().len() as u32))?;
 
-        self.check_forbidden_dest(msg.destination())?;
+        self.check_forbidden_destination(msg.destination())?;
         self.charge_expiring_resources(&msg)?;
 
         self.charge_sending_fee(delay)?;
@@ -451,7 +451,7 @@ impl EnvExt for Ext {
             msg.payload().len() as u32
         ))?;
 
-        self.check_forbidden_dest(msg.destination())?;
+        self.check_forbidden_destination(msg.destination())?;
 
         self.check_message_value(msg.value())?;
         let _gas_limit = self.check_gas_limit(msg.gas_limit())?;
@@ -480,7 +480,7 @@ impl EnvExt for Ext {
     fn reply_commit(&mut self, msg: ReplyPacket, delay: u32) -> Result<MessageId, Self::Error> {
         self.charge_gas_runtime(RuntimeCosts::ReplyCommit)?;
 
-        self.check_forbidden_dest(self.context.message_context.reply_destination())?;
+        self.check_forbidden_destination(self.context.message_context.reply_destination())?;
         self.charge_expiring_resources(&msg)?;
 
         self.charge_sending_fee(delay)?;
@@ -498,7 +498,7 @@ impl EnvExt for Ext {
     ) -> Result<MessageId, Self::Error> {
         self.charge_gas_runtime(RuntimeCosts::ReservationReplyCommit)?;
 
-        self.check_forbidden_dest(self.context.message_context.reply_destination())?;
+        self.check_forbidden_destination(self.context.message_context.reply_destination())?;
 
         self.check_message_value(msg.value())?;
         let _gas_limit = self.check_gas_limit(msg.gas_limit())?;
@@ -811,7 +811,7 @@ impl EnvExt for Ext {
             packet.salt().len() as u32,
         ))?;
 
-        self.check_forbidden_dest(packet.destination())?;
+        self.check_forbidden_destination(packet.destination())?;
         self.charge_expiring_resources(&packet)?;
         self.charge_sending_fee(delay)?;
 
