@@ -383,7 +383,7 @@ where
             } else {
                 Err(FuncError::WriteWrongRange(err_len_ptr..len, len))
             }
-
+        })
     }
 
     pub fn size(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {

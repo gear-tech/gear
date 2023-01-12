@@ -466,8 +466,15 @@ where
                     1u32
                 };
 
-                ctx.write_as(write_err_len, length.to_le_bytes())
-                    .map_err(Into::into)
+                if buffer_ptr != u32::MAX {
+                    ctx.write_as(write_err_len, length.to_le_bytes())
+                        .map_err(Into::into)
+                } else {
+                    Err(FuncError::WriteWrongRange(
+                        buffer_ptr..buffer_ptr + length,
+                        length,
+                    ))
+                }
             })
         };
 
