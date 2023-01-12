@@ -63,6 +63,15 @@ static_assertions::const_assert_eq!(WASM_PAGE_SIZE % GEAR_PAGE_SIZE, 0);
 static_assertions::const_assert_eq!(WASM_PAGE_SIZE % PAGE_STORAGE_GRANULARITY, 0);
 static_assertions::const_assert_eq!(PAGE_STORAGE_GRANULARITY % GEAR_PAGE_SIZE, 0);
 
+/// Interval in wasm program memory.
+#[derive(Debug)]
+pub struct MemoryInterval {
+    /// Interval offset in bytes.
+    pub offset: u32,
+    /// Interval size in bytes.
+    pub size: u32,
+}
+
 /// Alias for inner type of page buffer.
 pub type PageBufInner = LimitedVec<u8, (), GEAR_PAGE_SIZE>;
 

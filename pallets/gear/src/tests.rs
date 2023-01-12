@@ -8883,7 +8883,7 @@ fn check_gr_read_error_works() {
 fn check_reply_push_payload_exceed() {
     let wat = r#"
         (module
-            (import "env" "memory" (memory 0x100))
+            (import "env" "memory" (memory 0x101))
             (import "env" "gr_reply_push" (func $gr (param i32 i32 i32)))
             (export "init" (func $init))
             (func $init

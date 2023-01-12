@@ -45,6 +45,8 @@ pub enum Error {
     BalanceOverflow,
     #[error("Block data not found")]
     BlockDataNotFound,
+    #[error("Block hash not found")]
+    BlockHashNotFound,
     #[error("Some of extrinsics wasn't processed within the batch")]
     IncompleteBatchResult(usize, usize),
     #[error("Max depth reached, but queried block wasn't found")]
