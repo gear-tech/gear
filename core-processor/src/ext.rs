@@ -953,7 +953,7 @@ impl Ext {
         let mut pages_data = BTreeMap::new();
         for page in pages_for_data(static_pages, &allocations) {
             let mut buf = PageBuf::new_zeroed();
-            if let Err(err) = memory.read(page.offset(), buf.as_mut_slice()) {
+            if let Err(err) = memory.read(page.offset(), &mut buf) {
                 return Err((err, gas_counter.into()));
             }
             pages_data.insert(page, buf);

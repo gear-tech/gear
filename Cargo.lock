@@ -6370,19 +6370,12 @@ dependencies = [
 name = "pallet-gear-program"
 version = "2.0.0"
 dependencies = [
- "env_logger 0.10.0",
- "frame-benchmarking",
  "frame-support",
  "frame-system",
  "gear-common",
  "gear-core",
- "gear-wasm-instrument",
  "hashbrown 0.13.1",
- "hex-literal",
  "log",
- "pallet-balances",
- "pallet-gear-gas",
- "pallet-gear-messenger",
  "parity-scale-codec",
  "primitive-types",
  "scale-info",

@@ -18,21 +18,16 @@
 
 //! Module for memory and allocations context.
 
+use crate::buffer::LimitedVec;
+use alloc::collections::BTreeSet;
+use codec::{Decode, Encode, EncodeLike, Input, Output};
 use core::{
-    convert::TryFrom,
+    fmt,
     fmt::Debug,
     iter,
     num::NonZeroU32,
     ops::{Deref, DerefMut},
 };
-
-use alloc::{
-    boxed::Box,
-    collections::{BTreeMap, BTreeSet},
-    vec::Vec,
-};
-use codec::{Decode, Encode};
-use core::fmt;
 use scale_info::TypeInfo;
 
 /// A WebAssembly page has a constant size of 64KiB.
@@ -77,66 +72,80 @@ pub struct MemoryInterval {
     pub size: u32,
 }
 
+/// Alias for inner type of page buffer.
+pub type PageBufInner = LimitedVec<u8, (), GEAR_PAGE_SIZE>;
+
 /// Buffer for gear page data.
-#[derive(Clone, Encode, Decode, PartialEq, Eq)]
-pub struct PageBuf(Box<[u8; GEAR_PAGE_SIZE]>);
+#[derive(Clone, PartialEq, Eq, TypeInfo)]
+pub struct PageBuf(PageBufInner);
+
+// These traits are implemented intentionally by hand to achieve two goals:
+// - store PageBuf as fixed size array in a storage to eliminate extra bytes
+//      for length;
+// - work with PageBuf as with Vec. This is to workaround a limit in 2_048
+//      items for fixed length array in polkadot.js/metadata.
+//      Grep 'Only support for [[]Type' to get more details on that.
+impl Encode for PageBuf {
+    fn size_hint(&self) -> usize {
+        GEAR_PAGE_SIZE
+    }
+
+    fn encode_to<W: Output + ?Sized>(&self, dest: &mut W) {
+        dest.write(self.0.get())
+    }
+}
+
+impl Decode for PageBuf {
+    #[inline]
+    fn decode<I: Input>(input: &mut I) -> Result<Self, codec::Error> {
+        let mut buffer = PageBufInner::new_default();
+        input.read(buffer.get_mut())?;
+        Ok(Self(buffer))
+    }
+}
+
+impl EncodeLike for PageBuf {}
 
 impl fmt::Debug for PageBuf {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
             "PageBuf({:?}..{:?})",
-            &self.0[0..10],
-            &self.0[GEAR_PAGE_SIZE - 10..GEAR_PAGE_SIZE]
+            &self.0.get()[0..10],
+            &self.0.get()[GEAR_PAGE_SIZE - 10..GEAR_PAGE_SIZE]
         )
     }
 }
 
 impl Deref for PageBuf {
-    type Target = Box<[u8; GEAR_PAGE_SIZE]>;
+    type Target = [u8];
     fn deref(&self) -> &Self::Target {
-        &self.0
+        self.0.get()
     }
 }
 
 impl DerefMut for PageBuf {
     fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.0
+        self.0.get_mut()
     }
 }
 
 impl PageBuf {
-    /// Tries to transform vec<u8> into page buffer.
-    /// Makes it without any reallocations or memcpy: vector's buffer becomes PageBuf without any changes,
-    /// except vector's buffer capacity, which is removed.
-    pub fn new_from_vec(v: Vec<u8>) -> Result<Self, Error> {
-        Box::<[u8; GEAR_PAGE_SIZE]>::try_from(v.into_boxed_slice())
-            .map_err(|data| Error::InvalidPageDataSize(data.len() as u64))
-            .map(Self)
-    }
-
     /// Returns new page buffer with zeroed data.
     pub fn new_zeroed() -> PageBuf {
-        Self(Box::<[u8; GEAR_PAGE_SIZE]>::new([0u8; GEAR_PAGE_SIZE]))
+        Self(PageBufInner::new_default())
     }
 
-    /// Convert page buffer into vector without reallocations.
-    pub fn into_vec(self) -> Vec<u8> {
-        (self.0 as Box<[_]>).into_vec()
+    /// Creates PageBuf from inner buffer. If the buffer has
+    /// the size of GEAR_PAGE_SIZE then no reallocations occur. In other
+    /// case it will be extended with zeros.
+    ///
+    /// The method is implemented intentionally instead of trait From to
+    /// highlight conversion cases in the source code.
+    pub fn from_inner(mut inner: PageBufInner) -> Self {
+        inner.extend_with(0);
+        Self(inner)
     }
-}
-
-/// Tries to convert vector data map to page buffer data map.
-/// Makes it without buffer reallocations.
-pub fn vec_page_data_map_to_page_buf_map(
-    pages_data: BTreeMap<PageNumber, Vec<u8>>,
-) -> Result<BTreeMap<PageNumber, PageBuf>, Error> {
-    let mut pages_data_res = BTreeMap::new();
-    for (page, data) in pages_data {
-        let data = PageBuf::new_from_vec(data)?;
-        pages_data_res.insert(page, data);
-    }
-    Ok(pages_data_res)
 }
 
 /// Errors when act with PageU32Size.
@@ -659,7 +668,7 @@ impl AllocationsContext {
 mod tests {
     use super::*;
 
-    use alloc::{vec, vec::Vec};
+    use alloc::vec::Vec;
 
     #[test]
     /// Test that [PageNumber] add up correctly
@@ -703,9 +712,10 @@ mod tests {
         .format_level(true)
         .try_init()
         .expect("cannot init logger");
-        let mut data = vec![199u8; PageNumber::size() as usize];
-        data[1] = 2;
-        let page_buf = PageBuf::new_from_vec(data).unwrap();
+
+        let mut data = PageBufInner::filled_with(199u8);
+        data.get_mut()[1] = 2;
+        let page_buf = PageBuf::from_inner(data);
         log::debug!("page buff = {:?}", page_buf);
     }
 

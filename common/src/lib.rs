@@ -28,13 +28,16 @@ pub mod storage;
 pub mod code_storage;
 pub use code_storage::{CodeStorage, Error as CodeStorageError};
 
+pub mod program_storage;
+pub use program_storage::{Error as ProgramStorageError, ProgramStorage};
+
 pub mod gas_provider;
 
 #[cfg(feature = "runtime-benchmarks")]
 pub mod benchmarking;
 
 use codec::{Decode, Encode};
-use core::{fmt, mem};
+use core::fmt;
 use frame_support::{
     dispatch::DispatchError,
     traits::Get,
@@ -42,7 +45,7 @@ use frame_support::{
 };
 use gear_core::{
     ids::{CodeId, MessageId, ProgramId},
-    memory::{Error as MemoryError, PageBuf, PageNumber, PageU32Size, WasmPageNumber},
+    memory::{PageBuf, PageNumber, WasmPageNumber},
     message::DispatchKind,
     reservation::GasReservationMap,
 };
@@ -63,10 +66,6 @@ use storage::ValueStorage;
 extern crate alloc;
 
 pub use gas_provider::{Provider as GasProvider, Tree as GasTree};
-
-pub const STORAGE_PROGRAM_PREFIX: &[u8] = b"g::prog::";
-pub const STORAGE_PROGRAM_PAGES_PREFIX: &[u8] = b"g::pages::";
-pub const STORAGE_PROGRAM_STATE_WAIT_PREFIX: &[u8] = b"g::prog_wait::";
 
 pub trait Origin: Sized {
     fn into_origin(self) -> H256;
@@ -187,26 +186,6 @@ pub enum Program {
     Terminated(ProgramId),
 }
 
-#[derive(Clone, Debug, derive_more::Display)]
-pub enum CommonError {
-    #[display(fmt = "Program is not active one")]
-    InactiveProgram,
-    #[display(fmt = "Program does not exist for id = {_0}")]
-    DoesNotExist(H256),
-    #[display(fmt = "Cannot find data for {page:?}, program {program_id}")]
-    CannotFindDataForPage {
-        program_id: H256,
-        page: PageNumber,
-    },
-    MemoryError(MemoryError),
-}
-
-impl From<MemoryError> for CommonError {
-    fn from(err: MemoryError) -> Self {
-        Self::MemoryError(err)
-    }
-}
-
 impl Program {
     pub fn is_active(&self) -> bool {
         matches!(self, Program::Active(_))
@@ -241,13 +220,17 @@ impl Program {
     }
 }
 
+#[derive(Clone, Debug, derive_more::Display)]
+#[display(fmt = "Program is not an active one")]
+pub struct InactiveProgramError;
+
 impl core::convert::TryFrom<Program> for ActiveProgram {
-    type Error = CommonError;
+    type Error = InactiveProgramError;
 
     fn try_from(prog_with_status: Program) -> Result<ActiveProgram, Self::Error> {
         match prog_with_status {
             Program::Active(p) => Ok(p),
-            _ => Err(CommonError::InactiveProgram),
+            _ => Err(InactiveProgramError),
         }
     }
 }
@@ -293,212 +276,17 @@ impl CodeMetadata {
     }
 }
 
-pub fn program_key(id: H256) -> Vec<u8> {
-    let mut key = Vec::new();
-    key.extend(STORAGE_PROGRAM_PREFIX);
-    id.encode_to(&mut key);
-    key
-}
-
-pub fn pages_prefix(program_id: H256) -> Vec<u8> {
-    let id_bytes = program_id.as_fixed_bytes();
-    let mut key = Vec::with_capacity(STORAGE_PROGRAM_PAGES_PREFIX.len() + id_bytes.len() + 2);
-    key.extend(STORAGE_PROGRAM_PAGES_PREFIX);
-    key.extend(program_id.as_fixed_bytes());
-    key.extend(b"::");
-
-    key
-}
-
-fn page_key(id: H256, page: PageNumber) -> Vec<u8> {
-    let id_bytes = id.as_fixed_bytes();
-    let mut key = Vec::with_capacity(
-        STORAGE_PROGRAM_PAGES_PREFIX.len() + id_bytes.len() + 2 + mem::size_of::<u32>(),
-    );
-    key.extend(STORAGE_PROGRAM_PAGES_PREFIX);
-    key.extend(id.as_fixed_bytes());
-    key.extend(b"::");
-    key.extend(page.raw().to_le_bytes());
-
-    key
-}
-
-pub fn set_program_initialized(id: H256) {
-    if let Some(Program::Active(mut p)) = get_program(id) {
-        if !matches!(p.state, ProgramState::Initialized) {
-            p.state = ProgramState::Initialized;
-            sp_io::storage::set(&program_key(id), &Program::Active(p).encode());
-        }
-    }
-}
-
-pub fn set_program_terminated_status(id: H256, inheritor: ProgramId) -> Result<(), CommonError> {
-    if let Some(program) = get_program(id) {
-        if !program.is_active() {
-            return Err(CommonError::InactiveProgram);
-        }
-
-        sp_io::storage::clear_prefix(&pages_prefix(id), None);
-        sp_io::storage::set(&program_key(id), &Program::Terminated(inheritor).encode());
-
-        Ok(())
-    } else {
-        Err(CommonError::DoesNotExist(id))
-    }
-}
-
-pub fn set_program_exited_status(id: H256, inheritor: ProgramId) -> Result<(), CommonError> {
-    if let Some(program) = get_program(id) {
-        if !program.is_active() {
-            return Err(CommonError::InactiveProgram);
-        }
-
-        sp_io::storage::clear_prefix(&pages_prefix(id), None);
-        sp_io::storage::set(&program_key(id), &Program::Exited(inheritor).encode());
-
-        Ok(())
-    } else {
-        Err(CommonError::DoesNotExist(id))
-    }
-}
-
-pub fn get_program(id: H256) -> Option<Program> {
-    sp_io::storage::get(&program_key(id))
-        .map(|val| Program::decode(&mut &val[..]).expect("values encoded correctly"))
-}
-
-pub fn get_active_program(id: H256) -> Result<ActiveProgram, CommonError> {
-    let program = get_program(id).ok_or(CommonError::DoesNotExist(id))?;
-    if let Program::Active(program) = program {
-        Ok(program)
-    } else {
-        Err(CommonError::InactiveProgram)
-    }
-}
-
-/// Returns mem page data from storage for program `id` and `page_idx`
-pub fn get_program_page_data(program_id: H256, page: PageNumber) -> Result<PageBuf, CommonError> {
-    let key = page_key(program_id, page);
-    let data =
-        sp_io::storage::get(&key).ok_or(CommonError::CannotFindDataForPage { program_id, page })?;
-    PageBuf::new_from_vec(data.to_vec()).map_err(Into::into)
-}
-
-/// Returns data for all program pages, that have data in storage.
-pub fn get_program_pages_data(
-    program_id: H256,
-    program: &ActiveProgram,
-) -> Result<BTreeMap<PageNumber, PageBuf>, CommonError> {
-    get_program_data_for_pages(program_id, program.pages_with_data.iter())
-}
-
-/// Returns program data for each page from `pages`.
-pub fn get_program_data_for_pages<'a>(
-    program_id: H256,
-    pages: impl Iterator<Item = &'a PageNumber>,
-) -> Result<BTreeMap<PageNumber, PageBuf>, CommonError> {
-    let mut pages_data = BTreeMap::new();
-    for &page in pages {
-        let key = page_key(program_id, page);
-        let data = sp_io::storage::get(&key)
-            .ok_or(CommonError::CannotFindDataForPage { program_id, page })?;
-        let page_buf = PageBuf::new_from_vec(data.to_vec())?;
-        pages_data.insert(page, page_buf);
-    }
-    Ok(pages_data)
-}
-
-/// Returns program data for each page from `pages`, which has data in storage.
-pub fn get_program_data_for_pages_optional(
-    program_id: H256,
-    pages: impl Iterator<Item = PageNumber>,
-) -> Result<BTreeMap<PageNumber, PageBuf>, CommonError> {
-    let mut pages_data = BTreeMap::new();
-    for page in pages {
-        let key = page_key(program_id, page);
-        if let Some(data) = sp_io::storage::get(&key) {
-            let page_buf = PageBuf::new_from_vec(data.to_vec())?;
-            pages_data.insert(page, page_buf);
-        }
-    }
-    Ok(pages_data)
-}
-
-pub fn set_program(id: H256, program: ActiveProgram) {
-    log::trace!("set program with id = {}", id);
-    sp_io::storage::set(&program_key(id), &Program::Active(program).encode());
-}
-
-#[derive(Debug)]
-pub struct PageIsNotAllocatedErr(pub PageNumber);
-
-impl fmt::Display for PageIsNotAllocatedErr {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{:?} is not allocated for current program", self.0)
-    }
-}
-
-pub fn set_program_and_pages_data(
-    id: H256,
-    program: ActiveProgram,
-    persistent_pages: BTreeMap<PageNumber, PageBuf>,
-) -> Result<(), PageIsNotAllocatedErr> {
-    for (page_num, page_buf) in persistent_pages {
-        let key = page_key(id, page_num);
-        sp_io::storage::set(&key, page_buf.as_slice());
-    }
-    set_program(id, program);
-    Ok(())
-}
-
-pub fn program_exists(id: H256) -> bool {
-    sp_io::storage::exists(&program_key(id))
-}
-
-pub fn set_program_allocations(id: H256, allocations: BTreeSet<WasmPageNumber>) {
-    if let Some(Program::Active(mut prog)) = get_program(id) {
-        prog.allocations = allocations;
-        sp_io::storage::set(&program_key(id), &Program::Active(prog).encode())
-    }
-}
-
-pub fn set_program_page_data(program_id: H256, page: PageNumber, page_buf: PageBuf) {
-    let page_key = page_key(program_id, page);
-    sp_io::storage::set(&page_key, page_buf.as_slice());
-}
-
-pub fn remove_program_page_data(program_id: H256, page_num: PageNumber) {
-    let page_key = page_key(program_id, page_num);
-    sp_io::storage::clear(&page_key);
-}
-
-pub fn waiting_init_prefix(prog_id: ProgramId) -> Vec<u8> {
-    let mut key = Vec::new();
-    key.extend(STORAGE_PROGRAM_STATE_WAIT_PREFIX);
-    prog_id.encode_to(&mut key);
-
-    key
-}
-
-pub fn waiting_init_append_message_id(dest_prog_id: ProgramId, message_id: MessageId) {
-    let key = waiting_init_prefix(dest_prog_id);
-    sp_io::storage::append(&key, message_id.encode());
-}
-
-pub fn waiting_init_take_messages(dest_prog_id: ProgramId) -> Vec<MessageId> {
-    let key = waiting_init_prefix(dest_prog_id);
-    let messages =
-        sp_io::storage::get(&key).and_then(|v| Vec::<MessageId>::decode(&mut &v[..]).ok());
-    sp_io::storage::clear(&key);
-
-    messages.unwrap_or_default()
-}
-
+// TODO: delete the fn after next upgrade
 pub fn reset_storage() {
+    const STORAGE_PROGRAM_PREFIX: &[u8] = b"g::prog::";
     sp_io::storage::clear_prefix(STORAGE_PROGRAM_PREFIX, None);
+
+    const STORAGE_PROGRAM_PAGES_PREFIX: &[u8] = b"g::pages::";
     sp_io::storage::clear_prefix(STORAGE_PROGRAM_PAGES_PREFIX, None);
 
-    // TODO: Remove this legacy after next runtime upgrade.
+    const STORAGE_PROGRAM_STATE_WAIT_PREFIX: &[u8] = b"g::prog_wait::";
+    sp_io::storage::clear_prefix(STORAGE_PROGRAM_STATE_WAIT_PREFIX, None);
+
     sp_io::storage::clear_prefix(b"g::wait::", None);
 }
 

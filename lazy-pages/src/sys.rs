@@ -26,7 +26,7 @@ use std::{
     convert::{TryFrom, TryInto},
 };
 
-use crate::{utils, Error, LazyPage, LazyPagesExecutionContext, LAZY_PAGES_CONTEXT};
+use crate::{utils, Error, LazyPage, LazyPagesExecutionContext, LAZY_PAGES_PROGRAM_CONTEXT};
 
 use gear_core::memory::{
     PageNumber, PageU32Size, PagesIterInclusive, GEAR_PAGE_SIZE, PAGE_STORAGE_GRANULARITY,
@@ -301,5 +301,5 @@ unsafe fn user_signal_handler_internal(
 /// For the most recent logic see "self::user_signal_handler_internal"
 pub(crate) unsafe fn user_signal_handler(info: ExceptionInfo) -> Result<(), Error> {
     log::debug!("Interrupted, exception info = {:?}", info);
-    LAZY_PAGES_CONTEXT.with(|ctx| user_signal_handler_internal(ctx.borrow_mut(), info))
+    LAZY_PAGES_PROGRAM_CONTEXT.with(|ctx| user_signal_handler_internal(ctx.borrow_mut(), info))
 }
