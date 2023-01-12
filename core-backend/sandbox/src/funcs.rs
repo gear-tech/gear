@@ -137,8 +137,7 @@ where
     pub fn send(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
         sys_trace!(target: "syscall::gear", "send, args = {}", args_to_str(args));
 
-        let (pid_value_ptr, payload_ptr, len, delay, err_mid_ptr) =
-            args.iter().read_5::<_, _, u32, _, _>()?;
+        let (pid_value_ptr, payload_ptr, len, delay, err_mid_ptr) = args.iter().read_5()?;
 
         ctx.run(|ctx| {
             let read_hash_val = ctx.register_read_as(pid_value_ptr);
@@ -163,7 +162,7 @@ where
         sys_trace!(target: "syscall::gear", "send_wgas, args = {}", args_to_str(args));
 
         let (pid_value_ptr, payload_ptr, len, gas_limit, delay, err_mid_ptr) =
-            args.iter().read_6::<_, _, u32, _, _, _>()?;
+            args.iter().read_6()?;
 
         ctx.run(|ctx| {
             let read_hash_val = ctx.register_read_as(pid_value_ptr);
@@ -263,7 +262,7 @@ where
     pub fn send_push(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
         sys_trace!(target: "syscall::gear", "send_push, args = {}", args_to_str(args));
 
-        let (handle, payload_ptr, len, err_len_ptr) = args.iter().read_4::<_, _, u32, _>()?;
+        let (handle, payload_ptr, len, err_len_ptr) = args.iter().read_4()?;
 
         ctx.run(|ctx| {
             let read_payload = ctx.register_read(payload_ptr, len);
@@ -286,8 +285,7 @@ where
     pub fn reservation_send(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
         sys_trace!(target: "syscall::gear", "reservation_send, args = {}", args_to_str(args));
 
-        let (rid_pid_value_ptr, payload_ptr, len, delay, err_mid_ptr) =
-            args.iter().read_5::<_, _, u32, _, _>()?;
+        let (rid_pid_value_ptr, payload_ptr, len, delay, err_mid_ptr) = args.iter().read_5()?;
 
         ctx.run(|ctx| {
             let read_rid_pid_value = ctx.register_read_as(rid_pid_value_ptr);
@@ -535,8 +533,7 @@ where
     pub fn reply(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
         sys_trace!(target: "syscall::gear", "reply, args = {}", args_to_str(args));
 
-        let (payload_ptr, len, value_ptr, delay, err_mid_ptr) =
-            args.iter().read_5::<_, u32, _, _, _>()?;
+        let (payload_ptr, len, value_ptr, delay, err_mid_ptr) = args.iter().read_5()?;
 
         ctx.run(|ctx| {
             let read_payload = ctx.register_read(payload_ptr, len);
@@ -561,8 +558,7 @@ where
     pub fn reply_wgas(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
         sys_trace!(target: "syscall::gear", "reply_wgas, args = {}", args_to_str(args));
 
-        let (payload_ptr, len, gas_limit, value_ptr, delay, err_mid_ptr) =
-            args.iter().read_6::<_, u32, _, _, _, _>()?;
+        let (payload_ptr, len, gas_limit, value_ptr, delay, err_mid_ptr) = args.iter().read_6()?;
 
         ctx.run(|ctx| {
             let read_payload = ctx.register_read(payload_ptr, len);
@@ -636,8 +632,7 @@ where
     pub fn reservation_reply(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
         sys_trace!(target: "syscall::gear", "reservation_reply, args = {}", args_to_str(args));
 
-        let (rid_value_ptr, payload_ptr, len, delay, err_mid_ptr) =
-            args.iter().read_5::<_, _, u32, _, _>()?;
+        let (rid_value_ptr, payload_ptr, len, delay, err_mid_ptr) = args.iter().read_5()?;
 
         ctx.run(|ctx| {
             let read_rid_value = ctx.register_read_as(rid_value_ptr);
@@ -723,7 +718,7 @@ where
     pub fn reply_push(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
         sys_trace!(target: "syscall::gear", "reply_push, args = {}", args_to_str(args));
 
-        let (payload_ptr, len, err_len_ptr) = args.iter().read_3::<_, u32, _>()?;
+        let (payload_ptr, len, err_len_ptr) = args.iter().read_3()?;
 
         ctx.run(|ctx| {
             let read_payload = ctx.register_read(payload_ptr, len);
@@ -1159,7 +1154,7 @@ where
         sys_trace!(target: "syscall::gear", "create_program, args = {}", args_to_str(args));
 
         let (cid_value_ptr, salt_ptr, salt_len, payload_ptr, payload_len, delay, err_mid_pid_ptr) =
-            args.iter().read_7::<_, _, u32, _, u32, _, _>()?;
+            args.iter().read_7()?;
 
         ctx.run(|ctx| {
             let read_cid_value = ctx.register_read_as(cid_value_ptr);
@@ -1194,7 +1189,7 @@ where
             gas_limit,
             delay,
             err_mid_pid_ptr,
-        ) = args.iter().read_8::<_, _, u32, _, u32, _, _, _>()?;
+        ) = args.iter().read_8()?;
 
         ctx.run(|ctx| {
             let read_cid_value = ctx.register_read_as(cid_value_ptr);
