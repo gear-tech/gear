@@ -24,8 +24,8 @@ use alloc::{
 };
 use codec::{Decode, Encode};
 use gear_backend_common::{
-    error_processor::IntoExtError, AsTerminationReason, ExtInfo, GetGasAmount, IntoExtInfo,
-    SystemReservationContext, TerminationReason, TrapExplanation,
+    error_processor::IntoExtError, memory::OutOfMemoryAccessError, AsTerminationReason, ExtInfo,
+    GetGasAmount, IntoExtInfo, SystemReservationContext, TerminationReason, TrapExplanation,
 };
 use gear_core::{
     costs::{HostFnWeights, RuntimeCosts},
@@ -33,8 +33,8 @@ use gear_core::{
     gas::{ChargeResult, GasAllowanceCounter, GasAmount, GasCounter, Token, ValueCounter},
     ids::{CodeId, MessageId, ProgramId, ReservationId},
     memory::{
-        AllocInfo, AllocationsContext, GrowHandler, GrowHandlerNothing, Memory, PageBuf,
-        PageNumber, PageU32Size, WasmPageNumber,
+        AllocInfo, AllocationsContext, GrowHandler, GrowHandlerNothing, Memory, MemoryInterval,
+        PageBuf, PageNumber, PageU32Size, WasmPageNumber,
     },
     message::{
         GasLimit, HandlePacket, InitPacket, MessageContext, Packet, ReplyPacket, StatusCode,
@@ -253,6 +253,13 @@ impl IntoExtInfo<<Ext as EnvExt>::Error> for Ext {
             .clone()
             .and_then(ProcessorError::into_trap_explanation)
     }
+
+    fn pre_process_memory_accesses(
+        _reads: &[MemoryInterval],
+        _writes: &[MemoryInterval],
+    ) -> Result<(), OutOfMemoryAccessError> {
+        Ok(())
+    }
 }
 
 impl GetGasAmount for Ext {
@@ -330,7 +337,7 @@ impl Ext {
         Ok(())
     }
 
-    fn check_forbidden_call(&mut self, id: ProgramId) -> Result<(), ProcessorError> {
+    fn check_forbidden_destination(&mut self, id: ProgramId) -> Result<(), ProcessorError> {
         if id == ProgramId::SYSTEM {
             self.return_and_store_err(Err(ExecutionError::ForbiddenFunction))
         } else {
@@ -425,7 +432,7 @@ impl EnvExt for Ext {
     ) -> Result<MessageId, Self::Error> {
         self.charge_gas_runtime(RuntimeCosts::SendCommit(msg.payload().len() as u32))?;
 
-        self.check_forbidden_call(msg.destination())?;
+        self.check_forbidden_destination(msg.destination())?;
         self.charge_expiring_resources(&msg)?;
 
         self.charge_sending_fee(delay)?;
@@ -449,7 +456,7 @@ impl EnvExt for Ext {
             msg.payload().len() as u32
         ))?;
 
-        self.check_forbidden_call(msg.destination())?;
+        self.check_forbidden_destination(msg.destination())?;
 
         self.check_message_value(msg.value())?;
         let _gas_limit = self.check_gas_limit(msg.gas_limit())?;
@@ -478,7 +485,7 @@ impl EnvExt for Ext {
     fn reply_commit(&mut self, msg: ReplyPacket, delay: u32) -> Result<MessageId, Self::Error> {
         self.charge_gas_runtime(RuntimeCosts::ReplyCommit)?;
 
-        self.check_forbidden_call(self.context.message_context.reply_destination())?;
+        self.check_forbidden_destination(self.context.message_context.reply_destination())?;
         self.charge_expiring_resources(&msg)?;
 
         self.charge_sending_fee(delay)?;
@@ -496,7 +503,7 @@ impl EnvExt for Ext {
     ) -> Result<MessageId, Self::Error> {
         self.charge_gas_runtime(RuntimeCosts::ReservationReplyCommit)?;
 
-        self.check_forbidden_call(self.context.message_context.reply_destination())?;
+        self.check_forbidden_destination(self.context.message_context.reply_destination())?;
 
         self.check_message_value(msg.value())?;
         let _gas_limit = self.check_gas_limit(msg.gas_limit())?;
@@ -585,7 +592,7 @@ impl EnvExt for Ext {
         let result = self.context.allocations_context.free(page);
 
         // Returns back gas for allocated page if it's new
-        if !self.context.allocations_context.is_init_page(page) {
+        if result.is_ok() && !self.context.allocations_context.is_init_page(page) {
             self.refund_gas(self.context.config.alloc_cost)?;
         }
 
@@ -613,8 +620,7 @@ impl EnvExt for Ext {
         let size = self
             .size()?
             .try_into()
-            .map_err(|_| MessageError::IncomingPayloadTooBig)?;
-
+            .unwrap_or_else(|_| unreachable!("size of the payload is a known constant: gear_core::message::MAX_PAYLOAD_SIZE < u32::MAX"));
         self.charge_gas_runtime(RuntimeCosts::Read(size))?;
 
         Ok(self.context.message_context.current().payload())
@@ -801,7 +807,9 @@ impl EnvExt for Ext {
             packet.salt().len() as u32,
         ))?;
 
+        self.check_forbidden_destination(packet.destination())?;
         self.charge_expiring_resources(&packet)?;
+        self.charge_sending_fee(delay)?;
 
         let code_hash = packet.code_id();
 
@@ -878,6 +886,7 @@ impl EnvExt for Ext {
 
 impl Ext {
     /// Inner alloc realization.
+    // TODO  #2024 (https://github.com/gear-tech/gear/issues/2024) test that refunds less than charged!
     pub fn alloc_inner<G: GrowHandler>(
         &mut self,
         pages: WasmPageNumber,
@@ -975,5 +984,175 @@ impl Ext {
             program_candidates_data,
         };
         Ok(info)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use gear_core::message::ContextSettings;
+
+    struct ProcessorContextBuilder(ProcessorContext);
+
+    impl ProcessorContextBuilder {
+        fn new() -> Self {
+            let default_pc = ProcessorContext {
+                gas_counter: GasCounter::new(0),
+                gas_allowance_counter: GasAllowanceCounter::new(0),
+                gas_reserver: GasReserver::new(
+                    Default::default(),
+                    Default::default(),
+                    Default::default(),
+                    Default::default(),
+                ),
+                system_reservation: None,
+                value_counter: ValueCounter::new(0),
+                allocations_context: AllocationsContext::new(
+                    Default::default(),
+                    Default::default(),
+                    Default::default(),
+                ),
+                message_context: MessageContext::new(
+                    Default::default(),
+                    Default::default(),
+                    None,
+                    ContextSettings::new(0, 0, 0, 0, 0, 0),
+                ),
+                block_info: Default::default(),
+                config: Default::default(),
+                existential_deposit: 0,
+                origin: Default::default(),
+                program_id: Default::default(),
+                program_candidates_data: Default::default(),
+                host_fn_weights: Default::default(),
+                forbidden_funcs: Default::default(),
+                mailbox_threshold: 0,
+                waitlist_cost: 0,
+                reserve_for: 0,
+                reservation: 0,
+                random_data: ([0u8; 32].to_vec(), 0),
+            };
+
+            Self(default_pc)
+        }
+
+        fn with_gas(mut self, gas_counter: GasCounter) -> Self {
+            self.0.gas_counter = gas_counter;
+
+            self
+        }
+
+        fn with_allowance(mut self, gas_allowance_counter: GasAllowanceCounter) -> Self {
+            self.0.gas_allowance_counter = gas_allowance_counter;
+
+            self
+        }
+
+        fn with_weighs(mut self, weights: HostFnWeights) -> Self {
+            self.0.host_fn_weights = weights;
+
+            self
+        }
+
+        fn build(self) -> ProcessorContext {
+            self.0
+        }
+    }
+
+    #[test]
+    fn test_free_no_refund() {
+        // Set initial Ext state
+        let free_weight = 10;
+        let host_fn_weights = HostFnWeights {
+            free: free_weight,
+            ..Default::default()
+        };
+
+        let initial_gas = 100;
+        let initial_allowance = 10000;
+
+        let mut ext = Ext::new(
+            ProcessorContextBuilder::new()
+                .with_gas(GasCounter::new(initial_gas))
+                .with_allowance(GasAllowanceCounter::new(initial_allowance))
+                .with_weighs(host_fn_weights)
+                .build(),
+        );
+
+        // Check if refund happens, than refunding amount >= 0
+        let refunding_amount = ext.context.config.alloc_cost;
+        assert!(refunding_amount > 0);
+
+        let non_existing_page = 100.into();
+        assert_eq!(
+            ext.free(non_existing_page),
+            Err(ProcessorError::Core(ExtError::Memory(
+                MemoryError::OutOfBounds
+            )))
+        );
+
+        // Counters should change only by amount of call to `free`.
+        let charged = free_weight;
+        let (gas, allowance) = ext.counters();
+        assert_eq!(initial_gas - charged, gas);
+        assert_eq!(initial_allowance - charged, allowance);
+    }
+
+    // # TODO https://github.com/gear-tech/gear/issues/1998
+
+    #[test]
+    fn test_counter_zeroes() {
+        // Set initial Ext state
+        let free_weight = 1000;
+        let host_fn_weights = HostFnWeights {
+            free: free_weight,
+            ..Default::default()
+        };
+
+        let initial_gas = free_weight - 1;
+        let initial_allowance = free_weight + 1;
+
+        let mut lack_gas_ext = Ext::new(
+            ProcessorContextBuilder::new()
+                .with_gas(GasCounter::new(initial_gas))
+                .with_allowance(GasAllowanceCounter::new(initial_allowance))
+                .with_weighs(host_fn_weights.clone())
+                .build(),
+        );
+
+        assert_eq!(
+            lack_gas_ext.charge_gas_runtime(RuntimeCosts::Free),
+            Err(ExecutionError::GasLimitExceeded.into()),
+        );
+
+        let gas_amount = lack_gas_ext.gas_amount();
+        let allowance = lack_gas_ext.context.gas_allowance_counter.left();
+        // there was lack of gas
+        assert_eq!(0, gas_amount.left());
+        assert_eq!(initial_gas, gas_amount.burned());
+        assert_eq!(initial_allowance - free_weight, allowance);
+
+        let initial_gas = free_weight;
+        let initial_allowance = free_weight - 1;
+
+        let mut lack_allowance_ext = Ext::new(
+            ProcessorContextBuilder::new()
+                .with_gas(GasCounter::new(initial_gas))
+                .with_allowance(GasAllowanceCounter::new(initial_allowance))
+                .with_weighs(host_fn_weights)
+                .build(),
+        );
+
+        assert_eq!(
+            lack_allowance_ext.charge_gas_runtime(RuntimeCosts::Free),
+            Err(TerminationReason::GasAllowanceExceeded.into()),
+        );
+
+        let gas_amount = lack_allowance_ext.gas_amount();
+        let allowance = lack_allowance_ext.context.gas_allowance_counter.left();
+        assert_eq!(initial_gas - free_weight, gas_amount.left());
+        assert_eq!(initial_gas, gas_amount.burned());
+        // there was lack of allowance
+        assert_eq!(0, allowance);
     }
 }

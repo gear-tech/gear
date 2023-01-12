@@ -21,7 +21,7 @@ use crate::mock::*;
 use common::{self, Origin as _};
 use frame_support::assert_ok;
 #[cfg(feature = "lazy-pages")]
-use gear_core::memory::PageNumber;
+use gear_core::memory::{GranularityPage, PageNumber};
 use gear_core::{
     ids::{CodeId, MessageId, ProgramId},
     memory::{PageBuf, PageU32Size, WasmPageNumber},
@@ -284,8 +284,6 @@ fn get_last_message_id() -> MessageId {
 
 #[cfg(feature = "lazy-pages")]
 fn append_rest_psg_pages(page: PageNumber, pages_data: &mut BTreeMap<PageNumber, Vec<u8>>) {
-    use gear_core::memory::GranularityPage;
-
     page.to_page::<GranularityPage>()
         .to_pages_iter()
         .filter(|&p| p != page)

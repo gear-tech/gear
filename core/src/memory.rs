@@ -68,6 +68,15 @@ static_assertions::const_assert_eq!(WASM_PAGE_SIZE % GEAR_PAGE_SIZE, 0);
 static_assertions::const_assert_eq!(WASM_PAGE_SIZE % PAGE_STORAGE_GRANULARITY, 0);
 static_assertions::const_assert_eq!(PAGE_STORAGE_GRANULARITY % GEAR_PAGE_SIZE, 0);
 
+/// Interval in wasm program memory.
+#[derive(Debug)]
+pub struct MemoryInterval {
+    /// Interval offset in bytes.
+    pub offset: u32,
+    /// Interval size in bytes.
+    pub size: u32,
+}
+
 /// Buffer for gear page data.
 #[derive(Clone, Encode, Decode, PartialEq, Eq)]
 pub struct PageBuf(Box<[u8; GEAR_PAGE_SIZE]>);

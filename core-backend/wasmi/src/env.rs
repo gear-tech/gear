@@ -84,7 +84,7 @@ macro_rules! gas_amount {
         $store
             .state()
             .as_ref()
-            .expect("set before the block; qed")
+            .unwrap_or_else(|| unreachable!("State must be set in `WasmiEnvironment::new`; qed"))
             .ext
             .gas_amount()
     };
@@ -209,7 +209,7 @@ where
         let (gas, allowance) = store
             .state()
             .as_ref()
-            .expect("should be set")
+            .unwrap_or_else(|| unreachable!("State must be set in `WasmiEnvironment::new`"))
             .ext
             .counters();
 
@@ -273,14 +273,14 @@ where
             (gas_amount!(store), WrongInjectedAllowance)
         })?;
 
-        let runtime = store
+        let state = store
             .state_mut()
             .take()
-            .expect("is set before in `new`; qed");
+            .unwrap_or_else(|| unreachable!("State must be set in `WasmiEnvironment::new`; qed"));
 
         let State {
             mut ext, err: trap, ..
-        } = runtime;
+        } = state;
 
         ext.update_counters(gas as u64, allowance as u64);
 
