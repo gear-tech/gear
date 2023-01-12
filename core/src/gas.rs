@@ -91,7 +91,12 @@ impl GasCounter {
         let amount = token.weight();
 
         match self.left.checked_sub(amount) {
-            None => ChargeResult::NotEnough,
+            None => {
+                self.burned += self.left;
+                self.left = 0;
+
+                ChargeResult::NotEnough
+            }
             Some(new_left) => {
                 self.left = new_left;
                 self.burned += amount;
@@ -267,7 +272,11 @@ impl GasAllowanceCounter {
         let amount = token.weight() as u128;
 
         match self.0.checked_sub(amount) {
-            None => ChargeResult::NotEnough,
+            None => {
+                self.0 = 0;
+
+                ChargeResult::NotEnough
+            }
             Some(new_left) => {
                 self.0 = new_left;
 

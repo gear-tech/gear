@@ -58,8 +58,8 @@ const PTR_SPECIAL: u32 = i32::MAX as u32;
 pub enum FuncError<E: Display> {
     #[display(fmt = "{_0}")]
     Core(E),
-    #[display(fmt = "Runtime Error")]
-    HostError,
+    #[display(fmt = "Binary code has wrong instrumentation")]
+    WrongInstrumentation,
     #[display(fmt = "{_0}")]
     Memory(MemoryError),
     #[from]
@@ -68,8 +68,6 @@ pub enum FuncError<E: Display> {
     #[from]
     #[display(fmt = "{_0}")]
     RuntimeBufferSize(RuntimeBufferSizeError),
-    #[display(fmt = "{_0}")]
-    PayloadBufferSize(PayloadSizeError),
     #[display(fmt = "Failed to parse debug string")]
     DebugStringParsing,
     #[display(fmt = "`gr_error` expects error occurred earlier")]

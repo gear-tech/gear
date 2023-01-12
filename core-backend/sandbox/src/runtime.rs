@@ -72,6 +72,7 @@ impl<E: Ext + IntoExtInfo<E::Error>> Runtime<E> {
             .get_global_val(GLOBAL_NAME_ALLOWANCE)
             .and_then(as_i64)
             .ok_or_else(|| {
+                // TODO #1979
                 self.err = FuncError::WrongInstrumentation;
                 HostError
             })?;
@@ -81,7 +82,7 @@ impl<E: Ext + IntoExtInfo<E::Error>> Runtime<E> {
         let result = f(self).map_err(|err| {
             self.err = err;
             HostError
-        }); // TODO: Exit before setting globals in case of panic is optimization.
+        });
 
         let (gas, allowance) = self.ext.counters();
 
@@ -95,6 +96,7 @@ impl<E: Ext + IntoExtInfo<E::Error>> Runtime<E> {
         self.globals
             .set_global_val(GLOBAL_NAME_ALLOWANCE, Value::I64(allowance as i64))
             .map_err(|_| {
+                // TODO #1979
                 self.err = FuncError::WrongInstrumentation;
                 HostError
             })?;
