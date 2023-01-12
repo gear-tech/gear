@@ -33,6 +33,14 @@ pub trait CodeStorage {
     type OriginalCodeStorage: MapStorage<Key = CodeId, Value = Vec<u8>>;
     type MetadataStorage: MapStorage<Key = CodeId, Value = CodeMetadata>;
 
+    /// Attempt to remove all items from all the associated maps.
+    fn reset() {
+        Self::MetadataStorage::clear();
+        Self::OriginalCodeStorage::clear();
+        Self::InstrumentedLenStorage::clear();
+        Self::InstrumentedCodeStorage::clear();
+    }
+
     fn add_code(code_and_id: CodeAndId, metadata: CodeMetadata) -> Result<(), Error> {
         let (code, code_id) = code_and_id.into_parts();
         let (code, original_code) = code.into_parts();
