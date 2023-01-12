@@ -65,7 +65,6 @@ use gear_core::{
     code::{self, Code},
     ids::{CodeId, MessageId, ProgramId},
     memory::{PageU32Size, WasmPageNumber},
-    message::PayloadSizeError,
 };
 use gear_core_errors::*;
 use sp_runtime::{traits::UniqueSaturatedInto, SaturatedConversion};
@@ -9204,7 +9203,11 @@ fn check_reply_push_payload_exceed() {
         assert_last_dequeued(1);
         assert_failed(
             message_id,
-            ExecutionErrorReason::Ext(TrapExplanation::Other(PayloadSizeError.to_string().into())),
+            ExecutionErrorReason::Ext(TrapExplanation::Other(
+                ExtError::Message(MessageError::MaxMessageSizeExceed)
+                    .to_string()
+                    .into(),
+            )),
         );
     });
 }
