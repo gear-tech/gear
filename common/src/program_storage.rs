@@ -18,24 +18,30 @@
 
 use super::*;
 use crate::storage::{AppendMapStorage, DoubleMapStorage, MapStorage};
+use core::fmt::Debug;
 
-#[derive(Clone, Copy, Debug)]
-pub enum Error {
+/// Trait for ProgramStorage errors.
+///
+/// Contains constructors for all existing errors.
+pub trait Error {
     /// Program already exists in storage.
-    DuplicateItem,
+    fn duplicate_item() -> Self;
+
     /// Program is not found in the storage.
-    ItemNotFound,
+    fn item_not_found() -> Self;
+
     /// Program is not an instance of ActiveProgram.
-    NotActiveProgram,
+    fn not_active_program() -> Self;
+
     /// There is no data for specified `program_id` and `page`.
-    CannotFindDataForPage {
-        program_id: ProgramId,
-        page: PageNumber,
-    },
+    fn cannot_find_page_data() -> Self;
 }
 
 /// Trait to work with program data in a storage.
 pub trait ProgramStorage {
+    type InternalError: Error;
+    type Error: From<Self::InternalError> + Debug;
+
     type ProgramMap: MapStorage<Key = ProgramId, Value = Program>;
     type MemoryPageMap: DoubleMapStorage<Key1 = ProgramId, Key2 = PageNumber, Value = PageBuf>;
     type WaitingInitMap: AppendMapStorage<MessageId, ProgramId, Vec<MessageId>>;
@@ -48,10 +54,10 @@ pub trait ProgramStorage {
     }
 
     /// Store a program to be associated with the given key `program_id` from the map.
-    fn add_program(program_id: ProgramId, program: ActiveProgram) -> Result<(), Error> {
+    fn add_program(program_id: ProgramId, program: ActiveProgram) -> Result<(), Self::Error> {
         Self::ProgramMap::mutate(program_id, |maybe| {
             if maybe.is_some() {
-                return Err(Error::DuplicateItem);
+                return Err(Self::InternalError::duplicate_item().into());
             }
 
             *maybe = Some(Program::Active(program));
@@ -73,7 +79,7 @@ pub trait ProgramStorage {
     fn update_active_program<F, ReturnType>(
         program_id: ProgramId,
         update_action: F,
-    ) -> Result<ReturnType, Error>
+    ) -> Result<ReturnType, Self::Error>
     where
         F: FnOnce(&mut ActiveProgram) -> ReturnType,
     {
@@ -88,14 +94,15 @@ pub trait ProgramStorage {
     fn update_program_if_active<F, ReturnType>(
         program_id: ProgramId,
         update_action: F,
-    ) -> Result<ReturnType, Error>
+    ) -> Result<ReturnType, Self::Error>
     where
         F: FnOnce(&mut Program) -> ReturnType,
     {
-        let mut program = Self::ProgramMap::get(&program_id).ok_or(Error::ItemNotFound)?;
+        let mut program =
+            Self::ProgramMap::get(&program_id).ok_or(Self::InternalError::item_not_found())?;
         match program {
             Program::Active(_) => (),
-            _ => return Err(Error::NotActiveProgram),
+            _ => return Err(Self::InternalError::not_active_program().into()),
         }
 
         let result = update_action(&mut program);
@@ -108,15 +115,11 @@ pub trait ProgramStorage {
     fn get_program_data_for_pages<'a>(
         program_id: ProgramId,
         pages: impl Iterator<Item = &'a PageNumber>,
-    ) -> Result<BTreeMap<PageNumber, PageBuf>, Error> {
+    ) -> Result<BTreeMap<PageNumber, PageBuf>, Self::Error> {
         let mut pages_data = BTreeMap::new();
         for page in pages {
-            let data = Self::MemoryPageMap::get(&program_id, page).ok_or(
-                Error::CannotFindDataForPage {
-                    program_id,
-                    page: *page,
-                },
-            )?;
+            let data = Self::MemoryPageMap::get(&program_id, page)
+                .ok_or(Self::InternalError::cannot_find_page_data())?;
             pages_data.insert(*page, data);
         }
 

@@ -129,6 +129,8 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
+use sp_std::convert::TryInto;
+
 pub use pallet::*;
 
 pub mod migration;
@@ -147,6 +149,7 @@ pub mod pallet {
         ids::{CodeId, MessageId, ProgramId},
         memory::{PageBuf, PageNumber},
     };
+    use sp_runtime::DispatchError;
     use sp_std::prelude::*;
 
     /// The current storage version.
@@ -159,6 +162,32 @@ pub mod pallet {
     #[pallet::storage_version(PROGRAM_STORAGE_VERSION)]
     #[pallet::generate_store(pub(super) trait Store)]
     pub struct Pallet<T>(_);
+
+    #[pallet::error]
+    pub enum Error<T> {
+        DuplicateItem,
+        ItemNotFound,
+        NotActiveProgram,
+        CannotFindDataForPage,
+    }
+
+    impl<Runtime: Config> common::ProgramStorageError for Error<Runtime> {
+        fn duplicate_item() -> Self {
+            Self::DuplicateItem
+        }
+
+        fn item_not_found() -> Self {
+            Self::ItemNotFound
+        }
+
+        fn not_active_program() -> Self {
+            Self::NotActiveProgram
+        }
+
+        fn cannot_find_page_data() -> Self {
+            Self::CannotFindDataForPage
+        }
+    }
 
     #[pallet::storage]
     #[pallet::unbounded]
@@ -250,6 +279,9 @@ pub mod pallet {
     }
 
     impl<Runtime: Config> common::ProgramStorage for pallet::Pallet<Runtime> {
+        type InternalError = Error<Runtime>;
+        type Error = DispatchError;
+
         type ProgramMap = ProgramStorageWrap<Runtime>;
         type MemoryPageMap = MemoryPageStorageWrap<Runtime>;
         type WaitingInitMap = WaitingInitStorageWrap<Runtime>;
