@@ -328,7 +328,8 @@ impl GearApi {
         D::decode(&mut bytes.as_ref()).map_err(Into::into)
     }
 
-    /// Read the program's state using a meta Wasm file referenced by its `path`.
+    /// Read the program's state using a meta Wasm file referenced by its
+    /// `path`.
     pub async fn read_state_bytes_using_wasm_by_path(
         &self,
         program_id: ProgramId,
@@ -340,7 +341,8 @@ impl GearApi {
             .await
     }
 
-    /// Read the program's state using a meta Wasm file referenced by its `path`.
+    /// Read the program's state using a meta Wasm file referenced by its
+    /// `path`.
     pub async fn read_state_bytes_using_wasm_by_path_at(
         &self,
         program_id: ProgramId,
@@ -359,7 +361,8 @@ impl GearApi {
         .await
     }
 
-    /// Read the program's state using a meta Wasm file referenced by its `path`.
+    /// Read the program's state using a meta Wasm file referenced by its
+    /// `path`.
     pub async fn read_state_using_wasm_by_path<E: Encode, D: Decode>(
         &self,
         program_id: ProgramId,
@@ -371,7 +374,8 @@ impl GearApi {
             .await
     }
 
-    /// Read the program's state using a meta Wasm file referenced by its `path`.
+    /// Read the program's state using a meta Wasm file referenced by its
+    /// `path`.
     pub async fn read_state_using_wasm_by_path_at<E: Encode, D: Decode>(
         &self,
         program_id: ProgramId,

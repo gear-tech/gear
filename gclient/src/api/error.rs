@@ -58,7 +58,8 @@ pub enum Error {
     /// Occurs when a block identified by the specified hash cannot be found.
     #[error("Block data not found")]
     BlockDataNotFound,
-    /// Occurs when a hash of a block identified by the specified hash cannot be found.
+    /// Occurs when a hash of a block identified by the specified hash cannot be
+    /// found.
     #[error("Block hash not found")]
     BlockHashNotFound,
     /// Occurs when the batch hasn't been fully processed.

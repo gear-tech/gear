@@ -95,8 +95,8 @@ impl GearApi {
     ///   function creates a batch of programs and initializes them.
     /// - [`upload_code`](Self::upload_code) function uploads a code and returns
     ///   its identifier.
-    /// - [`upload_program_bytes`](Self::upload_program) function uploads a new
-    ///   program and initialize it.
+    /// - [`upload_program_bytes`](Self::upload_program_bytes) function uploads
+    ///   a new program and initialize it.
     pub async fn create_program_bytes(
         &self,
         code_id: CodeId,
@@ -130,8 +130,10 @@ impl GearApi {
 
     /// Create a batch of programs.
     ///
-    /// Same as [`create_program_bytes`](Self::create_program_bytes), but sends
-    /// a batch of extrinsics.
+    /// A batch is a set of programs to be created within one function call.
+    /// Every entry of the `args` iterator is a tuple of parameters used in the
+    /// [`create_program_bytes`](Self::create_program_bytes) function. It is
+    /// useful when deploying a multi-program dApp.
     pub async fn create_program_bytes_batch(
         &self,
         args: impl IntoIterator<Item = (CodeId, impl AsRef<[u8]>, impl AsRef<[u8]>, u64, u128)>,
@@ -178,32 +180,11 @@ impl GearApi {
         }
     }
 
-    /// Create a new program from a previously uploaded code identified by
-    /// [`CodeId`](https://docs.gear.rs/gear_core/ids/struct.CodeId.html) and
-    /// initialize it with an encoded `payload`.
-    ///
-    /// Sends the
-    /// [`pallet_gear::create_program`](https://docs.gear.rs/pallet_gear/pallet/struct.Pallet.html#method.create_program)
-    /// extrinsic.
-    ///
-    /// Parameters:
-    ///
-    /// - `code_id` is the code identifier that can be obtained by calling the
-    ///   [`upload_code`](Self::upload_code) function;
-    /// - `salt` is the arbitrary data needed to generate an address for a new
-    ///   program (control of salt uniqueness is entirely on the function
-    ///   caller’s side);
-    /// - `payload` contains encoded data to be processed in the `init` function
-    ///   of the newly deployed "child" program;
-    /// - `gas_limit` is the maximum gas amount allowed to spend for the program
-    ///   creation and initialization;
-    /// - `value` to be transferred to the program's account during
-    ///   initialization.
+    /// Same as [`create_program_bytes`](Self::create_program_bytes), but
+    /// initializes a newly created program with an encoded `payload`.
     ///
     /// # See also
     ///
-    /// - [`create_program_bytes`](Self::create_program_bytes) function
-    ///   initializes a newly created program with a byte slice payload.
     /// - [`upload_code`](Self::upload_code) function uploads a code and returns
     ///   its identifier.
     /// - [`upload_program`](Self::upload_program) function uploads a new
@@ -228,6 +209,11 @@ impl GearApi {
     ///
     /// This function returns a tuple with value and block hash containing the
     /// corresponding transaction.
+    ///
+    /// # See also
+    ///
+    /// - [`claim_value_batch`](Self::claim_value_batch) function claims a batch
+    ///   of values from the mailbox.
     pub async fn claim_value(&self, message_id: MessageId) -> Result<(u128, H256)> {
         let value = self
             .get_from_mailbox(message_id)
@@ -252,8 +238,10 @@ impl GearApi {
 
     /// Claim a batch of values from the mailbox.
     ///
-    /// Same as [`claim_value`](Self::claim_value), but sends a batch of
-    /// extrinsics.
+    /// A batch is a set of requests to be executed within one function call.
+    /// Every entry of the `args` iterator is a message identifier used in the
+    /// [`claim_value`](Self::claim_value) function. It is useful when
+    /// processing multiple replies in the mailbox at once.
     pub async fn claim_value_batch(
         &self,
         args: impl IntoIterator<Item = MessageId>,
@@ -307,11 +295,14 @@ impl GearApi {
 
     /// Clear data from all pallet storages.
     ///
+    /// This function, as well as a correspondent extrinsic, is temporary and
+    /// will be removed in the future.
+    ///
     /// Sends the
     /// [`pallet_gear::reset`](https://docs.gear.rs/pallet_gear/pallet/struct.Pallet.html#method.reset)
     /// extrinsic.
     ///
-    /// This function returns a hash of the block with the reset transaction.
+    /// Returned value is a hash of the block with the reset transaction.
     pub async fn reset(&self) -> Result<H256> {
         let tx = self.0.reset().await?;
 
@@ -342,6 +333,8 @@ impl GearApi {
     ///
     /// - [`send_message`](Self::send_message) function sends a message with an
     ///   encoded payload.
+    /// - [`send_message_bytes_batch`](Self::send_message_bytes_batch) function
+    ///   sends a batch of messages.
     pub async fn send_message_bytes(
         &self,
         destination: ProgramId,
@@ -372,8 +365,11 @@ impl GearApi {
 
     /// Send a batch of messages.
     ///
-    /// Same as [`send_message_bytes`](Self::send_message_bytes), but sends a
-    /// batch of extrinsics.
+    /// A batch is a set of messages to be sent within one function call. Every
+    /// entry of the `args` iterator is a tuple of parameters used in the
+    /// [`send_message_bytes`](Self::send_message_bytes) function. It is useful
+    /// when invoking several programs at once or sending a sequence of messages
+    /// to one program.
     pub async fn send_message_bytes_batch(
         &self,
         args: impl IntoIterator<Item = (ProgramId, impl AsRef<[u8]>, u64, u128)>,
@@ -419,22 +415,8 @@ impl GearApi {
         }
     }
 
-    /// Send a message containing an encoded `payload` to the `destination`.
-    ///
-    /// The message also contains the maximum `gas_limit` that can be spent and
-    /// the `value` to be transferred to the `destination`'s account.
-    ///
-    /// Sends the
-    /// [`pallet_gear::send_message`](https://docs.gear.rs/pallet_gear/pallet/struct.Pallet.html#method.send_message)
-    /// extrinsic.
-    ///
-    /// This function returns a tuple with a new message identifier and a hash
-    /// of the block with the message enqueuing transaction.
-    ///
-    /// # See also
-    ///
-    /// - [`send_message_bytes`](Self::send_message_bytes) function sends a
-    ///   message with a byte slice payload.
+    /// Same as [`send_message_bytes`](Self::send_message_bytes), but sends a
+    /// message with encoded `payload`.
     pub async fn send_message(
         &self,
         destination: ProgramId,
@@ -463,6 +445,8 @@ impl GearApi {
     ///
     /// - [`send_reply`](Self::send_reply) function sends a reply with an
     ///   encoded payload.
+    /// - [`send_reply_bytes_batch`](Self::send_reply_bytes_batch) function send
+    ///   a batch of replies.
     pub async fn send_reply_bytes(
         &self,
         reply_to_id: MessageId,
@@ -499,8 +483,10 @@ impl GearApi {
 
     /// Send a batch of replies.
     ///
-    /// Same as [`send_reply_bytes`](Self::send_reply_bytes), but sends a batch
-    /// of extrinsics.
+    /// A batch is a set of replies to be sent within one function call. Every
+    /// entry of the `args` iterator is a tuple of parameters used in the
+    /// [`send_reply_bytes`](Self::send_reply_bytes) function. It is useful when
+    /// replying to several programs at once.
     pub async fn send_reply_bytes_batch(
         &self,
         args: impl IntoIterator<Item = (MessageId, impl AsRef<[u8]>, u64, u128)>,
@@ -562,23 +548,8 @@ impl GearApi {
         }
     }
 
-    /// Send a reply containing an encoded `payload` to the message identified
-    /// by `reply_to_id`.
-    ///
-    /// The reply also contains the maximum `gas_limit` that can be spent and
-    /// the `value` to be transferred to the destination's account.
-    ///
-    /// Sends the
-    /// [`pallet_gear::send_reply`](https://docs.gear.rs/pallet_gear/pallet/struct.Pallet.html#method.send_reply)
-    /// extrinsic.
-    ///
-    /// This function returns a tuple with a new message identifier, transferred
-    /// value, and a hash of the block with the message enqueuing transaction.
-    ///
-    /// # See also
-    ///
-    /// - [`send_reply_bytes`](Self::send_reply_bytes) function sends a reply
-    ///   with a byte slice payload.
+    /// Same as [`send_reply_bytes`](Self::send_reply_bytes), but sends a reply
+    /// with encoded `payload`.
     pub async fn send_reply(
         &self,
         reply_to_id: MessageId,
@@ -600,6 +571,13 @@ impl GearApi {
     /// block with the code uploading transaction. The code identifier can be
     /// used when creating a program using the
     /// [`create_program`](Self::create_program) function.
+    ///
+    /// # See also
+    ///
+    /// - [`create_program`](Self::create_program) function creates a program
+    ///   from a previously uploaded code and initializes it.
+    /// - [`upload_program`](Self::upload_program) function uploads a new
+    ///   program and initialize it.
     pub async fn upload_code(&self, code: impl AsRef<[u8]>) -> Result<(CodeId, H256)> {
         let tx = self.0.upload_code(code.as_ref().to_vec()).await?;
 
@@ -618,8 +596,10 @@ impl GearApi {
 
     /// Upload a batch of codes.
     ///
-    /// Same as [`upload_code`](Self::upload_code), but sends a batch of
-    /// extrinsics.
+    /// A batch is a set of codes to be uploaded within one function call. Every
+    /// entry of the `args` iterator is a byte slice used in the
+    /// [`upload_code`](Self::upload_code) function. It is useful when deploying
+    /// a multi-program dApp.
     pub async fn upload_code_batch(
         &self,
         args: impl IntoIterator<Item = impl AsRef<[u8]>>,
@@ -736,8 +716,10 @@ impl GearApi {
 
     /// Upload a batch of programs.
     ///
-    /// Same as [`upload_program_bytes`](Self::upload_program_bytes), but sends
-    /// a batch of extrinsics.
+    /// A batch is a set of programs to be uploaded within one function call.
+    /// Every entry of the `args` iterator is a tuple used in the
+    /// [`upload_program_bytes`](Self::upload_program_bytes) function. It is
+    /// useful when deploying a multi-program dApp.
     pub async fn upload_program_bytes_batch(
         &self,
         args: impl IntoIterator<
@@ -813,33 +795,15 @@ impl GearApi {
             .await
     }
 
-    /// Upload a new program and initialize it with an encoded `payload`.
-    ///
-    /// Sends the
-    /// [`pallet_gear::upload_program`](https://docs.gear.rs/pallet_gear/pallet/struct.Pallet.html#method.upload_program)
-    /// extrinsic.
-    ///
-    /// Parameters:
-    ///
-    /// - `code` is the byte slice containing a binary Wasm code of the program;
-    /// - `salt` is the arbitrary data needed to generate an address for a new
-    ///   program (control of salt uniqueness is entirely on the function
-    ///   caller’s side);
-    /// - `payload` contains encoded data to be processed in the `init` function
-    ///   of the newly deployed "child" program;
-    /// - `gas_limit` is the maximum gas amount allowed to spend for the program
-    ///   creation and initialization;
-    /// - `value` to be transferred to the program's account during
-    ///   initialization.
+    /// Same as [`upload_program_bytes`](Self::upload_program_bytes), but
+    /// initializes a newly uploaded program with an encoded `payload`.
     ///
     /// # See also
     ///
-    /// - [`create_program_bytes`](Self::create_program_bytes) function creates
-    ///   a program from a previously uploaded code.
+    /// - [`create_program`](Self::create_program) function creates a program
+    ///   from a previously uploaded code.
     /// - [`upload_code`](Self::upload_code) function uploads a code and returns
     ///   its identifier.
-    /// - [`upload_program_bytes`](Self::upload_program_bytes) function uploads
-    ///   a program and initializes it with a byte slice payload.
     pub async fn upload_program(
         &self,
         code: impl AsRef<[u8]>,
@@ -901,9 +865,8 @@ impl GearApi {
     /// Upgrade the runtime by reading the code from the file located at the
     /// `path`.
     ///
-    /// Sends the
-    /// [`pallet_system::set_code`](https://crates.parity.io/frame_system/pallet/struct.Pallet.html#method.set_code)
-    /// extrinsic.
+    /// Same as [`set_code`](Self::set_code), but reads the runtime code from a
+    /// file instead of using a byte vector.
     pub async fn set_code_by_path(&self, path: impl AsRef<Path>) -> Result<H256> {
         let code = utils::code_from_os(path)?;
         self.set_code(code).await
