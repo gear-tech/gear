@@ -24,6 +24,7 @@ wat = "1.0.52"
 async-std = "1.12"
 env_logger = "0.10"
 log = "0.4"
+demo-meta-io = { path = "../examples/binaries/new-meta/io" }
 
 [features]
 default = [ "gear" ]

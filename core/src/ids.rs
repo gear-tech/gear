@@ -57,6 +57,13 @@ macro_rules! declare_id {
         )]
         pub struct $name(Hash);
 
+        impl $name {
+            /// Returns id as bytes array.
+            pub fn into_bytes(self) -> Hash {
+                self.0
+            }
+        }
+
         impl From<$name> for Hash {
             fn from(val: $name) -> Hash {
                 val.0

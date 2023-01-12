@@ -67,7 +67,7 @@ where
             F::status_code(store, forbidden, memory)
         }),
         f.build(Alloc, |forbidden| F::alloc(store, forbidden, memory)),
-        f.build(Free, |forbidden| F::free(store, forbidden)),
+        f.build(Free, |forbidden| F::free(store, forbidden, memory)),
         f.build(BlockHeight, |forbidden| {
             F::block_height(store, forbidden, memory)
         }),
@@ -138,10 +138,12 @@ where
             F::value_available(store, forbidden, memory)
         }),
         f.build(Random, |forbidden| F::random(store, forbidden, memory)),
-        f.build(Leave, |forbidden| F::leave(store, forbidden)),
-        f.build(Wait, |forbidden| F::wait(store, forbidden)),
-        f.build(WaitFor, |forbidden| F::wait_for(store, forbidden)),
-        f.build(WaitUpTo, |forbidden| F::wait_up_to(store, forbidden)),
+        f.build(Leave, |forbidden| F::leave(store, forbidden, memory)),
+        f.build(Wait, |forbidden| F::wait(store, forbidden, memory)),
+        f.build(WaitFor, |forbidden| F::wait_for(store, forbidden, memory)),
+        f.build(WaitUpTo, |forbidden| {
+            F::wait_up_to(store, forbidden, memory)
+        }),
         f.build(Wake, |forbidden| F::wake(store, forbidden, memory)),
         f.build(CreateProgram, |forbidden| {
             F::create_program(store, forbidden, memory)

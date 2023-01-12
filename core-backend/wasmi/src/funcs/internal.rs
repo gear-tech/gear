@@ -16,13 +16,24 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use codec::MaxEncodedLen;
+use gear_backend_common::memory::{
+    MemoryAccessManager, MemoryOwner, WasmMemoryRead, WasmMemoryReadAs, WasmMemoryReadDecoded,
+    WasmMemoryWrite, WasmMemoryWriteAs,
+};
+
 use super::*;
 use crate::state::State;
 
-pub(crate) struct CallerWrap<'a, E>(Caller<'a, HostState<E>>)
+pub(crate) struct CallerWrap<'a, E>
 where
     E: Ext + IntoExtInfo<E::Error> + 'static,
-    E::Error: IntoExtError;
+    E::Error: IntoExtError,
+{
+    caller: Caller<'a, HostState<E>>,
+    manager: MemoryAccessManager<E>,
+    memory: WasmiMemory,
+}
 
 impl<'a, E> CallerWrap<'a, E>
 where
@@ -30,71 +41,78 @@ where
     E::Error: IntoExtError,
 {
     #[track_caller]
-    pub fn prepare(caller: Caller<'a, HostState<E>>, forbidden: bool) -> Result<Self, Trap> {
-        let mut caller = Self(caller);
+    pub fn prepare(
+        caller: Caller<'a, HostState<E>>,
+        forbidden: bool,
+        memory: WasmiMemory,
+    ) -> Result<Self, Trap> {
+        let mut wrapper = Self {
+            caller,
+            manager: Default::default(),
+            memory,
+        };
 
         if forbidden {
-            caller.host_state_mut().err = FuncError::Core(E::Error::forbidden_function());
+            wrapper.host_state_mut().err = FuncError::Core(E::Error::forbidden_function());
             return Err(TrapCode::Unreachable.into());
         }
 
         let f = || {
-            let gas_global = caller.0.get_export(GLOBAL_NAME_GAS)?.into_global()?;
-            let gas = gas_global.get(&caller.0).try_into::<i64>()? as u64;
+            let gas_global = wrapper.caller.get_export(GLOBAL_NAME_GAS)?.into_global()?;
+            let gas = gas_global.get(&wrapper.caller).try_into::<i64>()? as u64;
 
-            let allowance_global = caller.0.get_export(GLOBAL_NAME_ALLOWANCE)?.into_global()?;
-            let allowance = allowance_global.get(&caller.0).try_into::<i64>()? as u64;
+            let allowance_global = wrapper
+                .caller
+                .get_export(GLOBAL_NAME_ALLOWANCE)?
+                .into_global()?;
+            let allowance = allowance_global.get(&wrapper.caller).try_into::<i64>()? as u64;
 
             Some((gas, allowance))
         };
 
         let (gas, allowance) = f().ok_or_else(|| {
-            // TODO #1979
-            caller.host_state_mut().err = FuncError::WrongInstrumentation;
+            wrapper.host_state_mut().err = FuncError::WrongInstrumentation;
             Trap::from(TrapCode::Unreachable)
         })?;
 
-        caller.host_state_mut().ext.update_counters(gas, allowance);
+        wrapper.host_state_mut().ext.update_counters(gas, allowance);
 
-        Ok(caller)
-    }
-
-    pub fn into_inner(self) -> Caller<'a, HostState<E>> {
-        self.0
-    }
-
-    pub fn from_inner(caller: Caller<'a, HostState<E>>) -> Self {
-        Self(caller)
+        Ok(wrapper)
     }
 
     #[track_caller]
     pub fn host_state_mut(&mut self) -> &mut State<E> {
-        self.0
+        self.caller
             .host_data_mut()
             .as_mut()
             .expect("host_state should be set before execution")
     }
 
     #[track_caller]
-    pub fn memory(&mut self, memory: &WasmiMemory) -> MemoryWrapRef<'_, E> {
-        let store = self.0.as_context_mut();
+    pub fn memory(&mut self) -> MemoryWrapRef<'_, E> {
+        let store = self.caller.as_context_mut();
         MemoryWrapRef {
-            memory: *memory,
+            memory: self.memory,
             store,
         }
     }
 
     #[track_caller]
-    pub fn update_globals(&mut self) -> Result<(), Trap> {
+    fn update_globals(&mut self) -> Result<(), Trap> {
         let (gas, allowance) = self.host_state_mut().ext.counters();
 
         let mut f = || {
-            let gas_global = self.0.get_export(GLOBAL_NAME_GAS)?.into_global()?;
-            gas_global.set(&mut self.0, Value::I64(gas as i64)).ok()?;
+            let gas_global = self.caller.get_export(GLOBAL_NAME_GAS)?.into_global()?;
+            gas_global
+                .set(&mut self.caller, Value::I64(gas as i64))
+                .ok()?;
 
-            let allowance_global = self.0.get_export(GLOBAL_NAME_ALLOWANCE)?.into_global()?;
+            let allowance_global = self
+                .caller
+                .get_export(GLOBAL_NAME_ALLOWANCE)?
+                .into_global()?;
             allowance_global
-                .set(&mut self.0, Value::I64(allowance as i64))
+                .set(&mut self.caller, Value::I64(allowance as i64))
                 .ok()?;
 
             Some(())
@@ -108,73 +126,127 @@ where
     }
 
     #[track_caller]
-    pub fn read<T, F>(&mut self, memory: &WasmiMemory, f: F) -> Result<T, Trap>
+    pub fn run<T, F>(&mut self, f: F) -> Result<T, Trap>
     where
-        F: FnOnce(MemoryWrapRef<'_, E>) -> Result<T, MemoryError>,
+        F: FnOnce(&mut Self) -> Result<T, FuncError<E::Error>>,
     {
-        let memory_ref = self.memory(memory);
+        let result = f(self).map_err(|err| {
+            self.host_state_mut().err = err;
+            Trap::from(TrapCode::Unreachable)
+        });
 
-        f(memory_ref).map_err(|e| {
-            self.host_state_mut().err = e.into();
+        self.update_globals()?;
+
+        result
+    }
+
+    #[track_caller]
+    pub fn run_state_taken<T, F>(&mut self, f: F) -> Result<T, Trap>
+    where
+        F: FnOnce(&mut Self, &mut State<E>) -> Result<T, FuncError<E::Error>>,
+    {
+        let mut state = self
+            .caller
+            .host_data_mut()
+            .take()
+            .expect("State must be set before execution");
+
+        let result = f(self, &mut state);
+
+        self.caller.host_data_mut().replace(state);
+
+        self.update_globals()?;
+
+        result.map_err(|err| {
+            self.host_state_mut().err = err;
             Trap::from(TrapCode::Unreachable)
         })
     }
+}
 
-    #[track_caller]
-    pub fn call_fallible<T, Call, Res>(
-        &mut self,
-        memory: &WasmiMemory,
-        call: Call,
-        result: Res,
-    ) -> Result<(), Trap>
-    where
-        Call: FnOnce(&mut E) -> Result<T, <E as Ext>::Error>,
-        Res: FnOnce(Result<T, u32>, MemoryWrapRef<'_, E>) -> Result<(), MemoryError>,
-    {
-        let res = match call(&mut self.host_state_mut().ext) {
-            Ok(value) => Ok(value),
-            Err(e) => match e.into_ext_error() {
-                Ok(ext_error) => Err(ext_error.encoded_size() as u32),
-                Err(e) => {
-                    self.host_state_mut().err = FuncError::Core(e);
-                    return Err(Trap::from(TrapCode::Unreachable));
-                }
-            },
-        };
-
-        result(res, self.memory(memory)).map_err(|e| {
-            self.host_state_mut().err = e.into();
-            Trap::from(TrapCode::Unreachable)
-        })?;
-
-        self.update_globals()?;
-
-        Ok(())
+impl<'a, E> MemoryAccessRecorder for CallerWrap<'a, E>
+where
+    E: Ext + IntoExtInfo<E::Error> + 'static,
+    E::Error: IntoExtError,
+{
+    fn register_read(&mut self, ptr: u32, size: u32) -> WasmMemoryRead {
+        self.manager.register_read(ptr, size)
     }
 
-    #[track_caller]
-    pub fn call_infallible<T, Call, Res>(
+    fn register_read_as<T: Sized>(&mut self, ptr: u32) -> WasmMemoryReadAs<T> {
+        self.manager.register_read_as(ptr)
+    }
+
+    fn register_read_decoded<T: Decode + MaxEncodedLen>(
         &mut self,
-        memory: &WasmiMemory,
-        call: Call,
-        result: Res,
-    ) -> Result<(), Trap>
-    where
-        Call: FnOnce(&mut E) -> Result<T, <E as Ext>::Error>,
-        Res: FnOnce(T, MemoryWrapRef<'_, E>) -> Result<(), MemoryError>,
-    {
-        let res = call(&mut self.host_state_mut().ext).map_err(|e| {
-            self.host_state_mut().err = FuncError::Core(e);
-            Trap::from(TrapCode::Unreachable)
-        })?;
+        ptr: u32,
+    ) -> WasmMemoryReadDecoded<T> {
+        self.manager.register_read_decoded(ptr)
+    }
 
-        result(res, self.memory(memory)).map_err(|e| {
-            self.host_state_mut().err = e.into();
-            Trap::from(TrapCode::Unreachable)
-        })?;
+    fn register_write(&mut self, ptr: u32, size: u32) -> WasmMemoryWrite {
+        self.manager.register_write(ptr, size)
+    }
 
-        self.update_globals()?;
+    fn register_write_as<T: Sized>(&mut self, ptr: u32) -> WasmMemoryWriteAs<T> {
+        self.manager.register_write_as(ptr)
+    }
+}
 
-        Ok(())
+impl<'a, E> MemoryOwner for CallerWrap<'a, E>
+where
+    E: Ext + IntoExtInfo<E::Error> + 'static,
+    E::Error: IntoExtError,
+{
+    fn read(&mut self, read: WasmMemoryRead) -> Result<Vec<u8>, MemoryAccessError> {
+        let store = self.caller.as_context_mut();
+        let memory = MemoryWrapRef {
+            memory: self.memory,
+            store,
+        };
+        self.manager.read(&memory, read)
+    }
+
+    fn read_as<T: Sized>(&mut self, read: WasmMemoryReadAs<T>) -> Result<T, MemoryAccessError> {
+        let store = self.caller.as_context_mut();
+        let memory = MemoryWrapRef {
+            memory: self.memory,
+            store,
+        };
+        self.manager.read_as(&memory, read)
+    }
+
+    fn read_decoded<T: Decode + MaxEncodedLen>(
+        &mut self,
+        read: WasmMemoryReadDecoded<T>,
+    ) -> Result<T, MemoryAccessError> {
+        let store = self.caller.as_context_mut();
+        let memory = MemoryWrapRef {
+            memory: self.memory,
+            store,
+        };
+        self.manager.read_decoded(&memory, read)
+    }
+
+    fn write(&mut self, write: WasmMemoryWrite, buff: &[u8]) -> Result<(), MemoryAccessError> {
+        let store = self.caller.as_context_mut();
+        let mut memory = MemoryWrapRef {
+            memory: self.memory,
+            store,
+        };
+        self.manager.write(&mut memory, write, buff)
+    }
+
+    fn write_as<T: Sized>(
+        &mut self,
+        write: WasmMemoryWriteAs<T>,
+        obj: T,
+    ) -> Result<(), MemoryAccessError> {
+        let store = self.caller.as_context_mut();
+        let mut memory = MemoryWrapRef {
+            memory: self.memory,
+            store,
+        };
+        self.manager.write_as(&mut memory, write, obj)
     }
 }

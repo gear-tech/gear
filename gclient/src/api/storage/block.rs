@@ -78,6 +78,15 @@ impl GearApi {
         Ok(self.get_block_at(Some(block_hash)).await?.header.number)
     }
 
+    /// Get a hash of a block identified by its `block_number`.
+    pub async fn get_block_hash(&self, block_number: u32) -> Result<H256> {
+        self.0
+            .rpc()
+            .block_hash(Some(block_number.into()))
+            .await?
+            .ok_or(Error::BlockHashNotFound)
+    }
+
     pub async fn last_block_timestamp(&self) -> Result<u64> {
         let at = storage().timestamp().now();
         self.0
