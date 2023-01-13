@@ -76,8 +76,6 @@ pub enum FuncError<E: Display> {
     Terminated(TerminationReason),
     #[display(fmt = "Cannot take data by indexes {_0:?} from message with size {_1}")]
     ReadWrongRange(Range<u32>, u32),
-    #[display(fmt = "Cannot write data by indexes {_0:?} from message with size {_1}")]
-    WriteWrongRange(Range<u32>, u32),
     #[display(fmt = "Overflow at {_0} + len {_1} in `gr_read`")]
     ReadLenOverflow(u32, u32),
     #[display(fmt = "Cannot decode value from memory")]
@@ -470,10 +468,7 @@ where
                     ctx.write_as(write_err_len, length.to_le_bytes())
                         .map_err(Into::into)
                 } else {
-                    Err(FuncError::WriteWrongRange(
-                        buffer_ptr..buffer_ptr + length,
-                        length,
-                    ))
+                    Err(MemoryError::MemoryAccessError.into())
                 }
             })
         };
