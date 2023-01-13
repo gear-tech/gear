@@ -546,22 +546,22 @@ impl AllocationsContext {
         mem: &mut impl Memory,
     ) -> Result<AllocInfo, Error> {
         let mem_size = mem.size();
-        let mut previous = self.static_pages;
-        let mut start = None;
-        for &page in self.allocations.iter().chain(iter::once(&mem_size)) {
-            if page
-                .sub(previous)
-                .map_err(|_| Error::IncorrectAllocationsSetOrMemSize)?
-                >= pages
-            {
-                start = Some(previous);
+        let mut start = self.static_pages;
+        let mut start_page = None;
+        for &end in self.allocations.iter().chain(iter::once(&mem_size)) {
+            let page_gap = end
+                .sub(start)
+                .map_err(|_| Error::IncorrectAllocationsSetOrMemSize)?;
+
+            if page_gap >= pages {
+                start_page = Some(start);
                 break;
             }
 
-            previous = page.inc().map_err(|_| Error::OutOfBounds)?;
+            start = end.inc().map_err(|_| Error::OutOfBounds)?;
         }
 
-        let (start, not_grown) = if let Some(start) = start {
+        let (start, not_grown) = if let Some(start) = start_page {
             (start, pages)
         } else {
             // If we cannot find interval between already allocated pages, then try to alloc new pages.
@@ -582,7 +582,7 @@ impl AllocationsContext {
             // Panic is impossible, because in loop above we checked it.
             let extra_grow = end.sub(mem_size).unwrap_or_else(|err| {
                 unreachable!(
-                    "`mem_size` must be bigger than all allocations or static pages, but get {}",
+                    "`mem_size` must be bigger than all allocations and static pages, but get {}",
                     err
                 )
             });
