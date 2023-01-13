@@ -26,7 +26,12 @@ impl From<TxStatus> for Error {
             TxStatus::Retracted(h) => TxError::Retracted(h),
             TxStatus::FinalityTimeout(h) => TxError::FinalityTimeout(h),
             TxStatus::Usurped(h) => TxError::Usurped(h),
-            _ => TxError::None,
+            TxStatus::Invalid => TxError::Invalid,
+            TxStatus::Dropped => TxError::Dropped,
+            unreachable => {
+                log::info!("Not an error tx status occurred {unreachable:?}");
+                TxError::None
+            }
         }
         .into()
     }
