@@ -111,6 +111,5 @@ async fn alloc_zero_pages() -> Result<()> {
         )"#;
     let api = GearApi::dev().await?.with("//Bob")?;
     let codes = vec![wat::parse_str(wat_code).unwrap()];
-    let res = upload_programs_and_check(&api, codes, Some(Duration::from_secs(5))).await;
-    res
+    upload_programs_and_check(&api, codes, Some(Duration::from_secs(5))).await
 }
