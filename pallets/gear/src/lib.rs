@@ -170,10 +170,11 @@ pub struct GasInfo {
 }
 
 /// Mode of forcing message queue processing
-#[derive(Copy, Clone, Debug, Decode, Encode, PartialEq, Eq, scale_info::TypeInfo)]
+#[derive(Copy, Clone, Debug, Default, Decode, Encode, PartialEq, Eq, scale_info::TypeInfo)]
 #[cfg_attr(feature = "std", derive(serde::Deserialize, serde::Serialize))]
 pub enum Forcing {
     /// Not forcing anything: queue gets processed if scheduled
+    #[default]
     NotForcing,
     /// Avoid queue processing indefinitely
     ForceNone,
@@ -183,28 +184,17 @@ pub enum Forcing {
     ForceAlways,
 }
 
-impl Default for Forcing {
-    fn default() -> Self {
-        Forcing::NotForcing
-    }
-}
-
 /// Possible queue processing states.
-#[derive(Clone, Debug, Decode, Encode, PartialEq, Eq, scale_info::TypeInfo)]
+#[derive(Clone, Debug, Default, Decode, Encode, PartialEq, Eq, scale_info::TypeInfo)]
 #[cfg_attr(feature = "std", derive(serde::Deserialize, serde::Serialize))]
 pub enum ProcessStatus {
     /// Scheduled to run in current block
+    #[default]
     Scheduled,
     /// Processing completed
     Completed,
     /// Forced to not run or failed during last run
     SkippedOrFailed,
-}
-
-impl Default for ProcessStatus {
-    fn default() -> Self {
-        ProcessStatus::Scheduled
-    }
 }
 
 #[frame_support::pallet]
