@@ -860,12 +860,12 @@ dependencies = [
 
 [[package]]
 name = "clap"
-version = "4.0.32"
+version = "4.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a7db700bc935f9e43e88d00b0850dae18a63773cfbec6d8e070fccf7fef89a39"
+checksum = "aa91278560fc226a5d9d736cc21e485ff9aad47d26b8ffe1f54cba868b684b9f"
 dependencies = [
  "bitflags",
- "clap_derive 4.0.21",
+ "clap_derive 4.1.0",
  "clap_lex 0.3.0",
  "is-terminal",
  "once_cell",
@@ -888,9 +888,9 @@ dependencies = [
 
 [[package]]
 name = "clap_derive"
-version = "4.0.21"
+version = "4.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0177313f9f02afc995627906bbd8967e2be069f5261954222dac78290c2b9014"
+checksum = "684a277d672e91966334af371f1a7b5833f9aa00b07c84e92fbce95e00208ce8"
 dependencies = [
  "heck 0.4.0",
  "proc-macro-error",
@@ -2646,7 +2646,7 @@ dependencies = [
  "Inflector",
  "array-bytes",
  "chrono",
- "clap 4.0.32",
+ "clap 4.1.0",
  "comfy-table",
  "frame-benchmarking",
  "frame-support",
@@ -3180,7 +3180,7 @@ dependencies = [
 name = "gear-cli"
 version = "0.1.0"
 dependencies = [
- "clap 4.0.32",
+ "clap 4.1.0",
  "frame-benchmarking",
  "frame-benchmarking-cli",
  "frame-system",
@@ -3353,7 +3353,7 @@ dependencies = [
  "base64 0.21.0",
  "blake2-rfc",
  "cfg-if",
- "clap 4.0.32",
+ "clap 4.1.0",
  "color-eyre",
  "demo-meta",
  "demo-waiter",
@@ -3486,7 +3486,7 @@ name = "gear-runtime-test-cli"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "clap 4.0.32",
+ "clap 4.1.0",
  "colored",
  "frame-support",
  "frame-system",
@@ -3598,7 +3598,7 @@ name = "gear-test"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "clap 4.0.32",
+ "clap 4.1.0",
  "colored",
  "derive_more",
  "env_logger 0.10.0",
@@ -7508,7 +7508,7 @@ dependencies = [
 name = "regression-analysis"
 version = "0.1.0"
 dependencies = [
- "clap 4.0.32",
+ "clap 4.1.0",
  "frame-support",
  "gear-runtime",
  "junit-common",
@@ -7900,7 +7900,7 @@ source = "git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0
 dependencies = [
  "array-bytes",
  "chrono",
- "clap 4.0.32",
+ "clap 4.1.0",
  "fdlimit",
  "futures",
  "libp2p 0.49.0",
@@ -10987,7 +10987,7 @@ name = "try-runtime-cli"
 version = "0.10.0-dev"
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.36#91c367ee60303f878fead054d95b600cea222156"
 dependencies = [
- "clap 4.0.32",
+ "clap 4.1.0",
  "frame-remote-externalities",
  "frame-try-runtime",
  "hex",
@@ -11485,7 +11485,7 @@ dependencies = [
 name = "wasm-proc"
 version = "0.1.0"
 dependencies = [
- "clap 4.0.32",
+ "clap 4.1.0",
  "env_logger 0.10.0",
  "gear-wasm-builder",
  "log",
