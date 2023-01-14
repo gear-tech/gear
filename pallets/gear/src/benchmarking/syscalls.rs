@@ -28,13 +28,13 @@ use super::{
 };
 use crate::{
     manager::HandleKind, schedule::API_BENCHMARK_BATCH_SIZE, Config, ExecutionEnvironment, Ext,
-    MailboxOf, Pallet as Gear,
+    MailboxOf, Pallet as Gear, ProgramStorageOf,
 };
 use alloc::{collections::BTreeSet, vec, vec::Vec};
 use codec::Encode;
-use common::{benchmarking, storage::*, Origin};
+use common::{benchmarking, storage::*, Origin, ProgramStorage};
 use core::{marker::PhantomData, mem, mem::size_of, ops::Range};
-use core_processor::common::JournalNote;
+use core_processor::common::{DispatchOutcome, JournalNote};
 use frame_system::RawOrigin;
 use gear_backend_common::lazy_pages::LazyPagesWeights;
 use gear_core::{
@@ -1418,7 +1418,6 @@ where
     }
 
     pub fn check_lazy_pages_charging() {
-
         let test = |seed: u64| {
             const MAX_ACCESSES_NUMBER: u32 = 1000;
             const LOAD_PROB: f64 = 1.0 / 2.0;
@@ -1489,7 +1488,7 @@ where
             .unwrap();
 
             let charged: Vec<(u64, u64)> = (0..2)
-                .map(|i| {
+                .map(|_i| {
                     let mut exec = exec.clone();
                     let weights = LazyPagesWeights {
                         read: rng.gen_range(0..MAX_COST),
@@ -1517,6 +1516,14 @@ where
                     for note in notes.into_iter() {
                         match note {
                             JournalNote::GasBurned { amount, .. } => gas_burned = amount,
+                            JournalNote::MessageDispatched {
+                                outcome:
+                                    DispatchOutcome::InitFailure { .. }
+                                    | DispatchOutcome::MessageTrap { .. },
+                                ..
+                            } => {
+                                panic!("Process was not successful")
+                            }
                             _ => {}
                         }
                     }
@@ -1534,9 +1541,7 @@ where
         for seed in 0..100 {
             test(seed);
         }
-
     }
-
 
     // +_+_+
     #[allow(unused)]

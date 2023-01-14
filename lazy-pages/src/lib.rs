@@ -264,7 +264,7 @@ pub fn pre_process_memory_accesses(
     for page in write_pages.iter() {
         read_pages.remove(page);
     }
-    LAZY_PAGES_CONTEXT
+    LAZY_PAGES_PROGRAM_CONTEXT
         .with(|ctx| unsafe {
             sys::process_lazy_pages(
                 ctx.borrow_mut(),
@@ -384,7 +384,7 @@ pub fn get_released_pages() -> Vec<PageNumber> {
 }
 
 pub fn get_status() -> Option<Status> {
-    LAZY_PAGES_CONTEXT.with(|ctx| ctx.borrow().status)
+    LAZY_PAGES_PROGRAM_CONTEXT.with(|ctx| ctx.borrow().status)
 }
 
 #[derive(Debug, Clone, derive_more::Display)]

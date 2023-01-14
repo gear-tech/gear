@@ -23,10 +23,10 @@ use core::ops::Range;
 use super::Exec;
 use crate::{
     manager::{CodeInfo, ExtManager, HandleKind},
-    Config, CostsPerBlockOf, CurrencyOf, DbWeightOf, GasHandlerOf, MailboxOf, Pallet as Gear,
+    Config, CostsPerBlockOf, CurrencyOf, DbWeightOf, MailboxOf, Pallet as Gear, ProgramStorageOf,
     QueueOf,
 };
-use common::{scheduler::SchedulingCostsPerBlock, storage::*, CodeStorage, GasTree, Origin};
+use common::{scheduler::SchedulingCostsPerBlock, storage::*, CodeStorage, Origin, ProgramStorage};
 use core_processor::{
     configs::{BlockConfig, BlockInfo, PagesConfig},
     ContextChargedForCode, ContextChargedForInstrumentation,
@@ -124,7 +124,9 @@ where
     T::AccountId: Origin,
 {
     #[cfg(feature = "lazy-pages")]
-    assert!(gear_lazy_pages_common::try_to_enable_lazy_pages());
+    assert!(gear_lazy_pages_common::try_to_enable_lazy_pages(
+        ProgramStorageOf::<T>::pages_final_prefix()
+    ));
 
     // to see logs in bench tests
     #[cfg(feature = "std")]

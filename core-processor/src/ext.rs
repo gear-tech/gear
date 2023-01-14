@@ -25,7 +25,7 @@ use alloc::{
 use codec::{Decode, Encode};
 use gear_backend_common::{
     error_processor::IntoExtError,
-    lazy_pages::{GlobalsCtx, Status, LazyPagesWeights},
+    lazy_pages::{GlobalsCtx, LazyPagesWeights, Status},
     memory::OutOfMemoryAccessError,
     AsTerminationReason, ExtInfo, GetGasAmount, IntoExtInfo, SystemReservationContext,
     TerminationReason, TrapExplanation,

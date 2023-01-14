@@ -33,9 +33,7 @@ use core::{any::Any, fmt};
 use gear_backend_common::{
     calc_stack_end,
     error_processor::IntoExtError,
-    lazy_pages::{
-        GlobalsAccessError, GlobalsAccessMod, GlobalsAccessTrait, GlobalsCtx,
-    },
+    lazy_pages::{GlobalsAccessError, GlobalsAccessMod, GlobalsAccessTrait, GlobalsCtx},
     AsTerminationReason, BackendReport, Environment, GetGasAmount, IntoExtInfo, StackEndError,
     TerminationReason, TrapExplanation, STACK_END_EXPORT_NAME,
 };

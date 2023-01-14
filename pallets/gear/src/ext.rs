@@ -19,7 +19,7 @@
 use alloc::{collections::BTreeSet, vec::Vec};
 use core_processor::{Ext, ProcessorContext, ProcessorError, ProcessorExt};
 use gear_backend_common::{
-    lazy_pages::{GlobalsCtx, Status, LazyPagesWeights},
+    lazy_pages::{GlobalsCtx, LazyPagesWeights, Status},
     memory::OutOfMemoryAccessError,
     ExtInfo, GetGasAmount, IntoExtInfo, TrapExplanation,
 };

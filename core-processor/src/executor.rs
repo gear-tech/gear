@@ -691,7 +691,7 @@ pub fn execute_for_reply<
 #[cfg(test)]
 mod tests {
     use super::*;
-    use alloc::{vec, vec::Vec};
+    use alloc::vec::Vec;
     use gear_backend_common::lazy_pages::Status;
     use gear_core::memory::{PageBufInner, WasmPageNumber};
 

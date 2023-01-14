@@ -61,8 +61,6 @@ use gear_core_errors::{ExtError, MemoryError};
 use lazy_pages::{GlobalsCtx, LazyPagesWeights};
 use scale_info::TypeInfo;
 
-pub mod memory;
-
 // Max amount of bytes allowed to be thrown as string explanation of the error.
 pub const TRIMMED_MAX_LEN: usize = 1024;
 
