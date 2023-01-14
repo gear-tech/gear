@@ -254,12 +254,32 @@ unsafe fn charge_gas(
     }
 }
 
-fn process_status(status: Status) -> Option<()> {
+/// Set new status in context.
+/// If new status is not [Status::Normal], then unprotect lazy-pages
+/// and continue work until the end of current wasm block. We don't care
+/// about future contract execution correctness, because it's already gas limit exceeded.
+///
+/// Returns true if new status is [Status::Normal].
+unsafe fn process_new_status(
+    ctx: &mut RefMut<LazyPagesExecutionContext>,
+    status: Status,
+) -> Result<bool, Error> {
+    ctx.status.replace(status);
     match status {
-        Status::Normal => Some(()),
+        Status::Normal => Ok(true),
         Status::GasLimitExceeded | Status::GasAllowanceExceeded => {
-            log::trace!("Gas limit or allowance exceed, so set exceed status and work in this mod until the end of execution");
-            None
+            log::trace!(
+                "Gas limit or allowance exceed, so removes protection from all wasm memory
+                         and continues execution until the end of current wasm block"
+            );
+            let wasm_mem_addr = ctx.wasm_mem_addr.ok_or(Error::WasmMemAddrIsNotSet)?;
+            let wasm_mem_size = ctx.wasm_mem_size.ok_or(Error::WasmMemSizeIsNotSet)?;
+            region::protect(
+                wasm_mem_addr as *mut (),
+                wasm_mem_size.offset() as usize,
+                Protection::READ_WRITE,
+            )?;
+            Ok(false)
         }
     }
 }
@@ -284,6 +304,23 @@ pub(crate) unsafe fn process_lazy_pages(
     } else {
         // Accessed pages are empty - nothing to do.
         return Ok(());
+    }
+
+    let status = ctx.status.as_ref().ok_or(Error::StatusIsNone)?;
+    match status {
+        Status::Normal => {}
+        Status::GasLimitExceeded | Status::GasAllowanceExceeded => {
+            if is_signal {
+                // Because we unprotect all lazy-pages when status is `exceeded`, then
+                // we cannot receive signals from wasm memory until the end of execution.
+                return Err(Error::SignalWhenStatusGasExceeded);
+            } else {
+                // Currently, we charge gas for sys-call after memory processing, so this can appear.
+                // In this case we do nothing, because all memory is already unprotected, and no need
+                // to take in account pages data from storage, because gas is exceeded.
+                return Ok(());
+            }
+        }
     }
 
     let stack_end = ctx.stack_end_wasm_page;
@@ -341,8 +378,7 @@ pub(crate) unsafe fn process_lazy_pages(
                             true,
                             true,
                         )?;
-                        ctx.status.replace(status);
-                        if process_status(status).is_none() {
+                        if !process_new_status(&mut ctx, status)? {
                             return Ok(());
                         }
                         ctx.read_after_write_charged.insert(granularity_page);
@@ -374,8 +410,7 @@ pub(crate) unsafe fn process_lazy_pages(
                         is_write,
                         false,
                     )?;
-                    ctx.status.replace(status);
-                    if process_status(status).is_none() {
+                    if !process_new_status(&mut ctx, status)? {
                         return Ok(());
                     }
                     if is_write {
@@ -385,14 +420,14 @@ pub(crate) unsafe fn process_lazy_pages(
                     }
                 }
 
-                // Need to set read/write access,
-                // download data for `lazy_page` from storage and add `lazy_page` to accessed pages.
+                // Need to set read/write access.
                 region::protect(
                     (wasm_mem_addr + lazy_page.offset() as usize) as *mut (),
                     LazyPage::size() as usize,
                     Protection::READ_WRITE,
                 )?;
 
+                // Download data for `lazy_page` from storage
                 for gear_page in lazy_page.to_pages_iter::<PageNumber>() {
                     let page_buffer_ptr =
                         (wasm_mem_addr as *mut u8).add(gear_page.offset() as usize);
@@ -417,6 +452,7 @@ pub(crate) unsafe fn process_lazy_pages(
                     }
                 }
 
+                // And add `lazy_page` to accessed pages.
                 ctx.accessed_pages.insert(lazy_page);
 
                 if is_write {
@@ -476,12 +512,6 @@ unsafe fn user_signal_handler_internal(
     ctx: RefMut<LazyPagesExecutionContext>,
     info: ExceptionInfo,
 ) -> Result<(), Error> {
-    let status = ctx.status.as_ref().ok_or(Error::StatusIsNone)?;
-    match status {
-        Status::Normal => {}
-        Status::GasLimitExceeded | Status::GasAllowanceExceeded => return Ok(()),
-    }
-
     let native_addr = info.fault_addr as usize;
     let is_write = info.is_write.ok_or(Error::ReadOrWriteIsUnknown)?;
     let wasm_mem_addr = ctx.wasm_mem_addr.ok_or(Error::WasmMemAddrIsNotSet)?;

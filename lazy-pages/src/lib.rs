@@ -86,6 +86,8 @@ pub(crate) enum Error {
     StatusIsNone,
     #[display(fmt = "It's unknown wether memory access is read or write")]
     ReadOrWriteIsUnknown,
+    #[display(fmt = "Cannot receive signal from wasm memory, when status is gas limit exceed")]
+    SignalWhenStatusGasExceeded,
 }
 
 #[derive(Clone, Copy)]
