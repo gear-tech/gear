@@ -332,7 +332,7 @@ benchmarks! {
 
     #[extra]
     check_lazy_pages_charging {
-        Benches::<T>::check_lazy_pages_charging();
+        tests::check_lazy_pages_charging::<T>();
     }: {}
 
     // This bench uses `StorageMap` as a storage, due to the fact that
