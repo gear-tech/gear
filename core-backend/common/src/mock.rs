@@ -289,7 +289,6 @@ impl IntoExtInfo<<MockExt as Ext>::Error> for MockExt {
             read: 0,
             write: 0,
             write_after_read: 0,
-            read_data_from_storage: 0,
         }
     }
 }

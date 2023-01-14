@@ -112,6 +112,7 @@ pub struct DataSegment {
 
 #[derive(Clone)]
 pub struct ImportedMemory {
+    // +_+_+ change to WasmPageNumber
     pub min_pages: u32,
 }
 

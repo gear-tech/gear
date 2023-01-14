@@ -999,7 +999,6 @@ pub mod pallet {
                     read: schedule.memory_weights.lazy_pages_read,
                     write: schedule.memory_weights.lazy_pages_write,
                     write_after_read: schedule.memory_weights.lazy_pages_write_after_read,
-                    read_data_from_storage: 0, // +_+_+
                 },
                 init_cost: schedule.memory_weights.initial_cost,
                 alloc_cost: schedule.memory_weights.allocation_cost,

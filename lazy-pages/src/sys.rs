@@ -208,21 +208,26 @@ fn charge_gas_internal(
     Ok(Status::Normal)
 }
 
+enum ChargeCase {
+    Read,
+    Write,
+    WriteAfterRead,
+}
+
 unsafe fn charge_gas(
     globals_ctx: Option<&GlobalsCtx>,
     gear_pages_amount: u32,
-    is_write: bool,
-    is_second_access: bool,
+    charge_case: ChargeCase,
 ) -> Result<Status, Error> {
     let globals_ctx = if let Some(ctx) = globals_ctx {
         ctx
     } else {
         return Ok(Status::Normal);
     };
-    let amount = match (is_write, is_second_access) {
-        (false, _) => globals_ctx.lazy_pages_weights.read,
-        (true, false) => globals_ctx.lazy_pages_weights.write,
-        (true, true) => globals_ctx.lazy_pages_weights.write_after_read,
+    let amount = match charge_case {
+        ChargeCase::Read => globals_ctx.lazy_pages_weights.read,
+        ChargeCase::Write => globals_ctx.lazy_pages_weights.write,
+        ChargeCase::WriteAfterRead => globals_ctx.lazy_pages_weights.write_after_read,
     };
     let amount = amount.saturating_mul(gear_pages_amount as u64);
     match globals_ctx.globals_access_mod {
@@ -375,8 +380,7 @@ pub(crate) unsafe fn process_lazy_pages(
                         let status = charge_gas(
                             ctx.globals_ctx.as_ref(),
                             GranularityPage::size() / PageNumber::size(),
-                            true,
-                            true,
+                            ChargeCase::WriteAfterRead,
                         )?;
                         if !process_new_status(&mut ctx, status)? {
                             return Ok(());
@@ -407,8 +411,11 @@ pub(crate) unsafe fn process_lazy_pages(
                     let status = charge_gas(
                         ctx.globals_ctx.as_ref(),
                         GranularityPage::size() / PageNumber::size(),
-                        is_write,
-                        false,
+                        if is_write {
+                            ChargeCase::Write
+                        } else {
+                            ChargeCase::Read
+                        },
                     )?;
                     if !process_new_status(&mut ctx, status)? {
                         return Ok(());

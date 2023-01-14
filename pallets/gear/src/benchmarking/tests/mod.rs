@@ -24,6 +24,7 @@
 use core::mem::size_of;
 
 use ::alloc::collections::BTreeSet;
+use common::ProgramStorage;
 use gear_backend_common::lazy_pages::LazyPagesWeights;
 use gear_core::memory::GranularityPage;
 use rand::{Rng, SeedableRng};
@@ -40,15 +41,19 @@ where
     T: Config,
     T::AccountId: Origin,
 {
+    const MAX_ACCESSES_NUMBER: u32 = 1000;
+    const LOAD_PROB: f64 = 1.0 / 2.0;
+    const MAX_COST: u64 = 1000;
+    const MAX_PAGES_WITH_DATA: u32 = 128;
+
+    let memory = ImportedMemory::max::<T>();
+    let size_wasm_pages = WasmPageNumber::new(memory.min_pages).unwrap();
+    let size_psg = size_wasm_pages.to_page::<GranularityPage>();
+    let gear_in_psg = GranularityPage::size() / PageNumber::size();
+    let access_size = size_of::<u32>() as u32;
+    let max_addr = size_wasm_pages.offset() - access_size;
+
     let test = |seed: u64| {
-        const MAX_ACCESSES_NUMBER: u32 = 1000;
-        const LOAD_PROB: f64 = 1.0 / 2.0;
-        const MAX_COST: u64 = 1000;
-
-        let gear_in_psg = GranularityPage::size() / PageNumber::size();
-        let access_size = size_of::<u32>() as u32;
-        let max_addr = ImportedMemory::max::<T>().min_pages * WasmPageNumber::size() - access_size;
-
         let mut instrs = vec![];
         let mut read_pages = BTreeSet::new();
         let mut write_pages = BTreeSet::new();
@@ -65,7 +70,7 @@ where
             ]
             .into_iter()
             .collect();
-            if rng.gen_bool(1.0 / 2.0) {
+            if rng.gen_bool(LOAD_PROB) {
                 instrs.push(Instruction::I32Const(addr));
                 instrs.push(Instruction::I32Load(2, 0));
                 instrs.push(Instruction::Drop);
@@ -98,9 +103,25 @@ where
             ..Default::default()
         });
         let instance = Program::<T>::new(code, vec![]).unwrap();
+        let source = instance.caller.into_origin();
+        let program_id = ProgramId::from_origin(instance.addr);
+
+        // Append data in storage for some pages.
+        for page in (0..rng.gen_range(0..MAX_PAGES_WITH_DATA))
+            .map(|_| GranularityPage::new(rng.gen_range(0..size_psg.raw())).unwrap())
+        {
+            for page in page.to_pages_iter::<PageNumber>() {
+                ProgramStorageOf::<T>::set_program_page_data(
+                    program_id,
+                    page,
+                    PageBuf::new_zeroed(),
+                );
+            }
+        }
+
         let exec = prepare_exec::<T>(
-            instance.caller.into_origin(),
-            HandleKind::Handle(ProgramId::from_origin(instance.addr)),
+            source,
+            HandleKind::Handle(program_id),
             vec![],
             0,
             0..0,
@@ -115,7 +136,6 @@ where
                     read: rng.gen_range(0..MAX_COST),
                     write: rng.gen_range(0..MAX_COST),
                     write_after_read: rng.gen_range(0..MAX_COST),
-                    read_data_from_storage: rng.gen_range(0..MAX_COST),
                 };
                 exec.block_config.allocations_config.lazy_pages_weights = weights.clone();
 
@@ -158,7 +178,7 @@ where
         );
     };
 
-    for seed in 0..100 {
+    for seed in 0..300 {
         test(seed);
     }
 }
@@ -227,3 +247,7 @@ pub fn check_lazy_pages_charging_special() {
     //     log::trace!("kek = {:?}", res);
     // }
 }
+
+// +_+_+
+// test gas exceed
+// test sys calls

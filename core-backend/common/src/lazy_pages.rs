@@ -43,8 +43,6 @@ pub struct LazyPagesWeights {
     pub write: u64,
     /// Write access cost per one gear page, which has been already read accessed.
     pub write_after_read: u64,
-    /// Read data from storage cost per one ger page.
-    pub read_data_from_storage: u64,
 }
 
 /// Globals ctx for lazy-pages initialization.
