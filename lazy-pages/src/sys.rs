@@ -208,28 +208,7 @@ fn charge_gas_internal(
     Ok(Status::Normal)
 }
 
-enum ChargeCase {
-    Read,
-    Write,
-    WriteAfterRead,
-}
-
-unsafe fn charge_gas(
-    globals_ctx: Option<&GlobalsCtx>,
-    gear_pages_amount: u32,
-    charge_case: ChargeCase,
-) -> Result<Status, Error> {
-    let globals_ctx = if let Some(ctx) = globals_ctx {
-        ctx
-    } else {
-        return Ok(Status::Normal);
-    };
-    let amount = match charge_case {
-        ChargeCase::Read => globals_ctx.lazy_pages_weights.read,
-        ChargeCase::Write => globals_ctx.lazy_pages_weights.write,
-        ChargeCase::WriteAfterRead => globals_ctx.lazy_pages_weights.write_after_read,
-    };
-    let amount = amount.saturating_mul(gear_pages_amount as u64);
+unsafe fn charge_gas(globals_ctx: GlobalsCtx, amount: u64) -> Result<Status, Error> {
     match globals_ctx.globals_access_mod {
         GlobalsAccessMod::WasmRuntime => {
             let instance = (globals_ctx.globals_access_ptr as *mut SandboxInstance)
@@ -259,34 +238,71 @@ unsafe fn charge_gas(
     }
 }
 
-/// Set new status in context.
-/// If new status is not [Status::Normal], then unprotect lazy-pages
-/// and continue work until the end of current wasm block. We don't care
-/// about future contract execution correctness, because it's already gas limit exceeded.
-///
-/// Returns true if new status is [Status::Normal].
-unsafe fn process_new_status(
+unsafe fn charge_for_pages(
     ctx: &mut RefMut<LazyPagesExecutionContext>,
-    status: Status,
-) -> Result<bool, Error> {
-    ctx.status.replace(status);
-    match status {
-        Status::Normal => Ok(true),
-        Status::GasLimitExceeded | Status::GasAllowanceExceeded => {
-            log::trace!(
-                "Gas limit or allowance exceed, so removes protection from all wasm memory
-                         and continues execution until the end of current wasm block"
-            );
-            let wasm_mem_addr = ctx.wasm_mem_addr.ok_or(Error::WasmMemAddrIsNotSet)?;
-            let wasm_mem_size = ctx.wasm_mem_size.ok_or(Error::WasmMemSizeIsNotSet)?;
-            region::protect(
-                wasm_mem_addr as *mut (),
-                wasm_mem_size.offset() as usize,
-                Protection::READ_WRITE,
-            )?;
-            Ok(false)
-        }
+    pages: PagesIterInclusive<LazyPage>,
+    is_write: bool,
+) -> Result<Status, Error> {
+    let globals_ctx = if let Some(ctx) = ctx.globals_ctx.as_ref() {
+        ctx.clone()
+    } else {
+        return Ok(Status::Normal);
+    };
+
+    let mut amount = 0u64;
+    for page in pages
+        .clone()
+        .map(|page| page.to_page::<GranularityPage>())
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+    {
+        let amount_for_page = if is_write {
+            if ctx.write_charged.contains(&page) {
+                // Has been already charged for write.
+                0
+            } else if ctx.read_charged.contains(&page) {
+                // Has been already charged for read.
+                if ctx.write_after_read_charged.contains(&page) {
+                    0
+                } else {
+                    // Need now to charge for write after read.
+                    ctx.write_after_read_charged.insert(page);
+                    globals_ctx.lazy_pages_weights.write_after_read
+                }
+            } else {
+                if ctx.write_after_read_charged.contains(&page) {
+                    return Err(Error::WriteAfterReadChargedWithoutReadCharged);
+                }
+                // Charge for write.
+                ctx.write_charged.insert(page);
+                globals_ctx.lazy_pages_weights.write
+            }
+        } else {
+            if ctx.read_charged.contains(&page) {
+                // Has been already charged for read.
+                0
+            } else if ctx.write_charged.contains(&page) {
+                // Has been already charged for write - so no need to charge for read.
+                0
+            } else {
+                if ctx.write_after_read_charged.contains(&page) {
+                    return Err(Error::WriteAfterReadChargedWithoutReadCharged);
+                }
+                // Charge for read.
+                ctx.read_charged.insert(page);
+                globals_ctx.lazy_pages_weights.read
+            }
+        };
+        amount = amount
+            .checked_add(amount_for_page)
+            .ok_or(Error::ChargedGasTooBig)?;
     }
+
+    // " * k" because lazy pages costs are per one gear page.
+    let k = (GranularityPage::size() / PageNumber::size()) as u64;
+    amount = amount.checked_mul(k).ok_or(Error::ChargedGasTooBig)?;
+
+    charge_gas(globals_ctx, amount)
 }
 
 pub(crate) unsafe fn process_lazy_pages(
@@ -361,8 +377,34 @@ pub(crate) unsafe fn process_lazy_pages(
             unreachable!("`start` can be only decreased, `end` can be only increased, so `start` <= `end`, but get: {}", err)
         });
 
+        if is_signal {
+            // If it's signal, then need to charge for accessed pages.
+            let status = charge_for_pages(&mut ctx, pages.clone(), is_write)?;
+
+            ctx.status.replace(status);
+
+            // If new status is not [Status::Normal], then unprotect lazy-pages
+            // and continue work until the end of current wasm block. We don't care
+            // about future contract execution correctness, because gas limit or allowance exceed.
+            match status {
+                Status::Normal => {}
+                Status::GasLimitExceeded | Status::GasAllowanceExceeded => {
+                    log::trace!(
+                        "Gas limit or allowance exceed, so removes protection from all wasm memory\
+                    and continues execution until the end of current wasm block"
+                    );
+                    region::protect(
+                        wasm_mem_addr as *mut (),
+                        wasm_mem_size.offset() as usize,
+                        Protection::READ_WRITE,
+                    )?;
+                    return Ok(());
+                }
+            }
+        }
+
         for lazy_page in pages {
-            let granularity_page = lazy_page.to_page();
+            // let granularity_page = lazy_page.to_page();
             if lazy_page.offset() < stack_end.offset() {
                 // Nothing to do, page has r/w accesses and data is in correct state.
                 if is_signal {
@@ -375,18 +417,6 @@ pub(crate) unsafe fn process_lazy_pages(
                 }
             } else if ctx.accessed_pages.contains(&lazy_page) {
                 if is_write {
-                    if is_signal && !ctx.read_after_write_charged.contains(&granularity_page) {
-                        // Charge gas for "write after read", because page has been already read accessed.
-                        let status = charge_gas(
-                            ctx.globals_ctx.as_ref(),
-                            GranularityPage::size() / PageNumber::size(),
-                            ChargeCase::WriteAfterRead,
-                        )?;
-                        if !process_new_status(&mut ctx, status)? {
-                            return Ok(());
-                        }
-                        ctx.read_after_write_charged.insert(granularity_page);
-                    }
                     // Set read/write access for page and add page to released.
                     region::protect(
                         (wasm_mem_addr + lazy_page.offset() as usize) as *mut (),
@@ -404,29 +434,6 @@ pub(crate) unsafe fn process_lazy_pages(
                     }
                 }
             } else {
-                if is_signal
-                    && ((is_write && !ctx.write_charged.contains(&granularity_page))
-                        || (!is_write && !ctx.read_charged.contains(&granularity_page)))
-                {
-                    let status = charge_gas(
-                        ctx.globals_ctx.as_ref(),
-                        GranularityPage::size() / PageNumber::size(),
-                        if is_write {
-                            ChargeCase::Write
-                        } else {
-                            ChargeCase::Read
-                        },
-                    )?;
-                    if !process_new_status(&mut ctx, status)? {
-                        return Ok(());
-                    }
-                    if is_write {
-                        ctx.write_charged.insert(granularity_page);
-                    } else {
-                        ctx.read_charged.insert(granularity_page);
-                    }
-                }
-
                 // Need to set read/write access.
                 region::protect(
                     (wasm_mem_addr + lazy_page.offset() as usize) as *mut (),

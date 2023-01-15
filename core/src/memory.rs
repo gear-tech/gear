@@ -167,6 +167,7 @@ pub enum PageError {
 }
 
 /// U32 size pages iterator, to iterate continuously from one page to another.
+#[derive(Debug, Clone)]
 pub struct PagesIter<P: PageU32Size> {
     page: P,
     end: P,
@@ -189,6 +190,7 @@ impl<P: PageU32Size> Iterator for PagesIter<P> {
 }
 
 /// U32 size pages iterator, to iterate continuously from one page to another, including the last one.
+#[derive(Debug, Clone)]
 pub struct PagesIterInclusive<P: PageU32Size> {
     page: Option<P>,
     end: P,

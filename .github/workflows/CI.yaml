@@ -261,7 +261,8 @@ jobs:
       - name: "Test: Runtime benchmarks and benchmark tests work"
         run: |
           cargo build -p gear-cli --release --features runtime-benchmarks
-          ./target/release/gear benchmark pallet --chain=dev --steps=2 --repeat=1 --pallet=pallet_gear --extrinsic="*" --execution=wasm --wasm-execution=compiled --heap-pages=4096 --extra
+          ./target/release/gear benchmark pallet --chain=dev --steps=2 --repeat=1 --pallet=pallet_gear --extrinsic="*" --execution=wasm --wasm-execution=compiled --heap-pages=4096
+          ./target/release/gear benchmark pallet --chain=dev --pallet=pallet_gear --extrinsic="check_all" --execution=wasm --wasm-execution=compiled --heap-pages=4096 --extra
 
       - name: "Test: Sys-calls Wasmi integrity"
         run: ./scripts/gear.sh test syscalls

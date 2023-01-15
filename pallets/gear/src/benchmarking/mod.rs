@@ -326,6 +326,14 @@ benchmarks! {
     }
 
     #[extra]
+    check_all {
+        syscalls_integrity::main_test::<T>();
+        tests::lazy_pages_charging::<T>();
+        tests::lazy_pages_charging_special::<T>();
+        tests::lazy_pages_gas_exceed::<T>();
+    } : {}
+
+    #[extra]
     check_syscalls_integrity {
         syscalls_integrity::main_test::<T>();
     }: {}

@@ -88,6 +88,10 @@ pub(crate) enum Error {
     ReadOrWriteIsUnknown,
     #[display(fmt = "Cannot receive signal from wasm memory, when status is gas limit exceed")]
     SignalWhenStatusGasExceeded,
+    #[display(fmt = "+_+_+")]
+    ChargedGasTooBig,
+    #[display(fmt = "Accessed page is write after read charged, but not read charged, which is impossible")]
+    WriteAfterReadChargedWithoutReadCharged,
 }
 
 #[derive(Clone, Copy)]
@@ -107,7 +111,7 @@ pub(crate) struct LazyPagesExecutionContext {
     /// Lazy page here is page, which has `size = max(native_page_size, gear_page_size)`.
     pub accessed_pages: BTreeSet<LazyPage>,
     /// Granularity pages, for which we have already charge gas for read after write.
-    pub read_after_write_charged: BTreeSet<GranularityPage>,
+    pub write_after_read_charged: BTreeSet<GranularityPage>,
     /// Granularity pages, for which we have already charge gas for read.
     pub read_charged: BTreeSet<GranularityPage>,
     /// Granularity pages, for which we have already charge gas for write.
