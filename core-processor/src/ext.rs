@@ -16,7 +16,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::configs::{BlockInfo, PagesConfig};
+use core::ops::Range;
+use crate::configs::{AllocationsConfig, BlockInfo, PagesConfig};
 use alloc::{
     collections::{BTreeMap, BTreeSet},
     string::{String, ToString},
@@ -129,6 +130,12 @@ pub enum ProcessorError {
     /// User's code panicked
     #[display(fmt = "Panic occurred: {_0}")]
     Panic(String),
+    /// Range doesh't fit message size
+    #[display(fmt = "Cannot take data by indexes {_0:?} from message with size {_1}")]
+    ReadWrongRange(Range<u32>, u32),
+    /// Index is more than u32
+    #[display(fmt = "Overflow at {_0} + len {_1} in `gr_read`")]
+    ReadLenOverflow(u32, u32),
 }
 
 impl ProcessorError {
@@ -629,11 +636,28 @@ impl EnvExt for Ext {
         Ok(())
     }
 
-    fn read(&mut self) -> Result<&[u8], Self::Error> {
+    fn read(&mut self, at: u32, len: u32) -> Result<&[u8], Self::Error> {
         let size = self
             .size()?
             .try_into()
             .unwrap_or_else(|_| unreachable!("size of the payload is a known constant: gear_core::message::MAX_PAYLOAD_SIZE < u32::MAX"));
+
+        // Verify read is correct
+        let last_idx = at
+            .checked_add(len)
+            .ok_or_else(|| ProcessorError::ReadLenOverflow(at, len))?;
+
+        {
+            let msg = self.context.message_context.current().payload();
+
+            if last_idx as usize > msg.len() {
+                return Err(ProcessorError::ReadWrongRange(
+                    at..last_idx,
+                    msg.len() as u32,
+                ));
+            }
+        }
+
         self.charge_gas_runtime(RuntimeCosts::Read(size))?;
 
         Ok(self.context.message_context.current().payload())
