@@ -96,6 +96,7 @@ where
 }
 
 // +_+_+
+// #[allow(unused)]
 // pub fn prepare_account<T>(source: H256) -> Result<(), &'static str>
 // where
 //     T: Config,

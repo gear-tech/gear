@@ -429,13 +429,13 @@ pub struct HostFnWeights<T: Config> {
 #[derive(Clone, Encode, Decode, PartialEq, Eq, WeightDebug, TypeInfo)]
 #[scale_info(skip_type_params(T))]
 pub struct MemoryWeights<T: Config> {
-    /// +_+_+
+    /// Lazy-pages read access cost per one gear page.
     pub lazy_pages_read: u64,
 
-    /// +_+_+
+    /// Lazy-pages write access cost per one gear page.
     pub lazy_pages_write: u64,
 
-    /// +_+_+
+    /// Lazy-pages write after read access cost per one gear page.
     pub lazy_pages_write_after_read: u64,
 
     /// Weight of initial page.

@@ -48,7 +48,7 @@ pub struct BlockInfo {
 pub struct PagesConfig {
     /// Max amount of pages.
     pub max_pages: WasmPageNumber,
-    /// +_+_+
+    /// Lazy-pages accesses costs.
     pub lazy_pages_weights: LazyPagesWeights,
     /// Cost of initial memory.
     pub init_cost: u64,

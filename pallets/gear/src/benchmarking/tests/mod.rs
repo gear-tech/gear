@@ -220,7 +220,7 @@ where
                     write: 10 * i,
                     write_after_read: 100 * i,
                 };
-                exec.block_config.allocations_config.lazy_pages_weights = weights.clone();
+                exec.block_config.allocations_config.lazy_pages_weights = weights;
 
                 let notes = core_processor::process::<Externalities, ExecutionEnvironment>(
                     &exec.block_config,

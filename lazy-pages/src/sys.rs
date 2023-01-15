@@ -251,7 +251,6 @@ unsafe fn charge_for_pages(
 
     let mut amount = 0u64;
     for page in pages
-        .clone()
         .map(|page| page.to_page::<GranularityPage>())
         .collect::<BTreeSet<_>>()
         .into_iter()
@@ -269,29 +268,22 @@ unsafe fn charge_for_pages(
                     ctx.write_after_read_charged.insert(page);
                     globals_ctx.lazy_pages_weights.write_after_read
                 }
+            } else if ctx.write_after_read_charged.contains(&page) {
+                return Err(Error::WriteAfterReadChargedWithoutReadCharged);
             } else {
-                if ctx.write_after_read_charged.contains(&page) {
-                    return Err(Error::WriteAfterReadChargedWithoutReadCharged);
-                }
                 // Charge for write.
                 ctx.write_charged.insert(page);
                 globals_ctx.lazy_pages_weights.write
             }
+        } else if ctx.read_charged.contains(&page) || ctx.write_charged.contains(&page) {
+            // Has been already charged for write or read - so no need to charge for read.
+            0
+        } else if ctx.write_after_read_charged.contains(&page) {
+            return Err(Error::WriteAfterReadChargedWithoutReadCharged);
         } else {
-            if ctx.read_charged.contains(&page) {
-                // Has been already charged for read.
-                0
-            } else if ctx.write_charged.contains(&page) {
-                // Has been already charged for write - so no need to charge for read.
-                0
-            } else {
-                if ctx.write_after_read_charged.contains(&page) {
-                    return Err(Error::WriteAfterReadChargedWithoutReadCharged);
-                }
-                // Charge for read.
-                ctx.read_charged.insert(page);
-                globals_ctx.lazy_pages_weights.read
-            }
+            // Charge for read.
+            ctx.read_charged.insert(page);
+            globals_ctx.lazy_pages_weights.read
         };
         amount = amount
             .checked_add(amount_for_page)
