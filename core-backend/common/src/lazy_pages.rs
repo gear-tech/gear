@@ -89,7 +89,7 @@ pub trait GlobalsAccessTrait {
 /// In the end of execution this status is checked and if it's not `Normal` then
 /// termination reason sets as `gas limit exceeded` or `gas allowance exceeded`, depending on status.
 /// NOTE: `repr(i64)` is important to be able add additional fields, without old runtimes separate support logic.
-#[derive(Debug, Clone, Copy, Encode, Decode)]
+#[derive(Debug, Clone, Copy, Encode, Decode, PartialEq, Eq)]
 #[repr(i64)]
 pub enum Status {
     /// Lazy-pages works in normal mode.

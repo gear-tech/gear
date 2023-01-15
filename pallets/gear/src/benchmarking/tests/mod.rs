@@ -25,18 +25,22 @@ use core::mem::size_of;
 
 use ::alloc::collections::BTreeSet;
 use common::ProgramStorage;
-use gear_backend_common::lazy_pages::LazyPagesWeights;
-use gear_core::memory::GranularityPage;
+use gear_backend_common::lazy_pages::{LazyPagesWeights, Status};
+use gear_core::memory::{GranularityPage, PageU32Size, PAGE_STORAGE_GRANULARITY};
+use gear_lazy_pages_common as lazy_pages;
 use rand::{Rng, SeedableRng};
 
 use crate::HandleKind;
 
-use super::{utils::prepare_exec, *};
+use super::{
+    utils::{self as common_utils, PrepareConfig},
+    *,
+};
 
 pub mod syscalls_integrity;
 mod utils;
 
-pub fn check_lazy_pages_charging<T>()
+pub fn lazy_pages_charging<T>()
 where
     T: Config,
     T::AccountId: Origin,
@@ -119,13 +123,12 @@ where
             }
         }
 
-        let exec = prepare_exec::<T>(
+        let exec = common_utils::prepare_exec::<T>(
             source,
             HandleKind::Handle(program_id),
             vec![],
-            0,
             0..0,
-            None,
+            Default::default(),
         )
         .unwrap();
 
@@ -183,71 +186,317 @@ where
     }
 }
 
-// +_+_+
-#[allow(unused)]
-pub fn check_lazy_pages_charging_special() {
-    // let psg = PAGE_STORAGE_GRANULARITY as i32;
-    // let instrs = vec![
-    //     Instruction::I32Const(0),
-    //     Instruction::I32Load(2, 0),
-    //     Instruction::Drop,
-    //     Instruction::I32Const(psg - 1),
-    //     Instruction::I32Load(2, 0),
-    //     Instruction::Drop,
-    //     Instruction::I32Const(psg * 10 - 1),
-    //     Instruction::I32Load(2, 0),
-    //     Instruction::Drop,
-    // ];
-    // let code = WasmModule::<T>::from(ModuleDefinition {
-    //     memory: Some(ImportedMemory::max::<T>()),
-    //     handle_body: Some(body::from_instructions(instrs)),
-    //     ..Default::default()
-    // });
-    // let instance = Program::<T>::new(code, vec![]).unwrap();
-    // let exec = prepare_exec::<T>(
-    //     instance.caller.into_origin(),
-    //     HandleKind::Handle(ProgramId::from_origin(instance.addr)),
-    //     vec![],
-    //     0,
-    //     0..0,
-    //     None,
-    // )
-    // .unwrap();
+pub fn lazy_pages_charging_special<T>()
+where
+    T: Config,
+    T::AccountId: Origin,
+{
+    let psg = PAGE_STORAGE_GRANULARITY as i32;
+    let read_cost = 1;
+    let write_cost = 10;
+    let write_after_read_cost = 100;
 
-    // {
-    //     let mut exec = exec.clone();
-    //     exec.block_config.allocations_config.lazy_pages_weights = LazyPagesWeights {
-    //         read: 1,
-    //         write: 10,
-    //         write_after_read: 100,
-    //         read_data_from_storage: 100,
-    //     };
-    //     let res = core_processor::process::<Ext, ExecutionEnvironment>(
-    //         &exec.block_config,
-    //         exec.context,
-    //         exec.random_data,
-    //         exec.memory_pages,
-    //     );
-    //     log::trace!("lol = {:?}", res);
-    // }
-    // {
-    //     let mut exec = exec.clone();
-    //     exec.block_config.allocations_config.lazy_pages_weights = LazyPagesWeights {
-    //         read: 0,
-    //         write: 0,
-    //         write_after_read: 0,
-    //         read_data_from_storage: 0,
-    //     };
-    //     let res = core_processor::process::<Ext, ExecutionEnvironment>(
-    //         &exec.block_config,
-    //         exec.context,
-    //         exec.random_data,
-    //         exec.memory_pages,
-    //     );
-    //     log::trace!("kek = {:?}", res);
-    // }
+    let test = |instrs, expected| {
+        let code = WasmModule::<T>::from(ModuleDefinition {
+            memory: Some(ImportedMemory::max::<T>()),
+            handle_body: Some(body::from_instructions(instrs)),
+            ..Default::default()
+        });
+        let instance = Program::<T>::new(code, vec![]).unwrap();
+        let exec = common_utils::prepare_exec::<T>(
+            instance.caller.into_origin(),
+            HandleKind::Handle(ProgramId::from_origin(instance.addr)),
+            vec![],
+            0..0,
+            Default::default(),
+        )
+        .unwrap();
+
+        let charged: Vec<u64> = (0..2)
+            .map(|i| {
+                let mut exec = exec.clone();
+                let weights = LazyPagesWeights {
+                    read: i,
+                    write: 10 * i,
+                    write_after_read: 100 * i,
+                };
+                exec.block_config.allocations_config.lazy_pages_weights = weights.clone();
+
+                let notes = core_processor::process::<Externalities, ExecutionEnvironment>(
+                    &exec.block_config,
+                    exec.context,
+                    exec.random_data,
+                    exec.memory_pages,
+                );
+
+                let mut gas_burned = 0;
+                for note in notes.into_iter() {
+                    match note {
+                        JournalNote::GasBurned { amount, .. } => gas_burned = amount,
+                        JournalNote::MessageDispatched {
+                            outcome:
+                                DispatchOutcome::InitFailure { .. }
+                                | DispatchOutcome::MessageTrap { .. },
+                            ..
+                        } => {
+                            panic!("Process was not successful")
+                        }
+                        _ => {}
+                    }
+                }
+
+                gas_burned
+            })
+            .collect();
+
+        let k = GranularityPage::size() / PageNumber::size();
+        assert_eq!(
+            charged[1].checked_sub(charged[0]).unwrap(),
+            expected * k as u64
+        );
+    };
+
+    test(
+        vec![
+            // Read 0st and 1st psg pages
+            Instruction::I32Const(psg - 1),
+            Instruction::I32Load(2, 0),
+            Instruction::Drop,
+            // Write after read 1st psg page
+            Instruction::I32Const(psg),
+            Instruction::I32Const(42),
+            Instruction::I32Store(2, 0),
+        ],
+        2 * read_cost + write_after_read_cost,
+    );
+
+    test(
+        vec![
+            // Read 0st and 1st psg pages
+            Instruction::I32Const(psg - 1),
+            Instruction::I32Load(2, 0),
+            Instruction::Drop,
+            // Write after read 0st and 1st psg page
+            Instruction::I32Const(psg - 3),
+            Instruction::I32Const(42),
+            Instruction::I32Store(2, 0),
+        ],
+        2 * read_cost + 2 * write_after_read_cost,
+    );
+
+    test(
+        vec![
+            // Read 0st and 1st psg pages
+            Instruction::I32Const(psg - 1),
+            Instruction::I32Load(2, 0),
+            Instruction::Drop,
+            // Write after read 1st psg page and write 2st psg page
+            Instruction::I32Const(2 * psg - 1),
+            Instruction::I32Const(42),
+            Instruction::I32Store(2, 0),
+        ],
+        2 * read_cost + write_after_read_cost + write_cost,
+    );
+
+    test(
+        vec![
+            // Read 1st psg page
+            Instruction::I32Const(psg),
+            Instruction::I32Load(2, 0),
+            Instruction::Drop,
+            // Write after read 1st psg page and write 0st psg page
+            Instruction::I32Const(psg - 1),
+            Instruction::I32Const(42),
+            Instruction::I32Store(2, 0),
+        ],
+        read_cost + write_after_read_cost + write_cost,
+    );
+
+    test(
+        vec![
+            // Read 1st psg page
+            Instruction::I32Const(psg),
+            Instruction::I32Load(2, 0),
+            Instruction::Drop,
+            // Read 0st and 1st psg pages, but pay only for 0st.
+            Instruction::I32Const(psg - 1),
+            Instruction::I32Load(2, 0),
+            Instruction::Drop,
+        ],
+        2 * read_cost,
+    );
+
+    test(
+        vec![
+            // Write 0st and 1st psg page
+            Instruction::I32Const(psg - 1),
+            Instruction::I32Const(42),
+            Instruction::I32Store(2, 0),
+            // Write 1st and 2st psg pages, but pay only for 2st page
+            Instruction::I32Const(2 * psg - 1),
+            Instruction::I32Const(42),
+            Instruction::I32Store(2, 0),
+        ],
+        3 * write_cost,
+    );
+
+    test(
+        vec![
+            // Write 0st and 1st psg page
+            Instruction::I32Const(psg - 1),
+            Instruction::I32Const(42),
+            Instruction::I32Store(2, 0),
+            // Read 1st and 2st psg pages, but pay only for 2st page
+            Instruction::I32Const(2 * psg - 1),
+            Instruction::I32Load(2, 0),
+            Instruction::Drop,
+        ],
+        read_cost + 2 * write_cost,
+    );
 }
 
-// +_+_+
-// test gas exceed
-// test sys calls
+pub fn lazy_pages_gas_exceed<T>()
+where
+    T: Config,
+    T::AccountId: Origin,
+{
+    let instrs = vec![
+        Instruction::I32Const(0),
+        Instruction::I32Const(42),
+        Instruction::I32Store(2, 0),
+    ];
+    let code = WasmModule::<T>::from(ModuleDefinition {
+        memory: Some(ImportedMemory::max::<T>()),
+        handle_body: Some(body::from_instructions(instrs)),
+        ..Default::default()
+    });
+    let instance = Program::<T>::new(code, vec![]).unwrap();
+    let source = instance.caller.into_origin();
+    let origin = instance.addr;
+
+    // Calculate how much gas burned, when lazy pages costs are zero.
+    let gas_burned = {
+        let mut exec = common_utils::prepare_exec::<T>(
+            source,
+            HandleKind::Handle(ProgramId::from_origin(origin)),
+            vec![],
+            0..0,
+            Default::default(),
+        )
+        .unwrap();
+        exec.block_config.allocations_config.lazy_pages_weights = LazyPagesWeights {
+            read: 0,
+            write: 0,
+            write_after_read: 0,
+        };
+
+        let notes = core_processor::process::<Externalities, ExecutionEnvironment>(
+            &exec.block_config,
+            exec.context,
+            exec.random_data,
+            exec.memory_pages,
+        );
+
+        let mut gas_burned = None;
+        for note in notes.into_iter() {
+            match note {
+                JournalNote::GasBurned { amount, .. } => gas_burned = Some(amount),
+                JournalNote::MessageDispatched {
+                    outcome:
+                        DispatchOutcome::InitFailure { .. } | DispatchOutcome::MessageTrap { .. },
+                    ..
+                } => {
+                    panic!("Process was not successful")
+                }
+                _ => {}
+            }
+        }
+
+        gas_burned.unwrap()
+    };
+
+    // Check gas limit exceeded.
+    {
+        let mut exec = common_utils::prepare_exec::<T>(
+            source,
+            HandleKind::Handle(ProgramId::from_origin(origin)),
+            vec![],
+            0..0,
+            PrepareConfig {
+                gas_limit: gas_burned,
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        exec.block_config.allocations_config.lazy_pages_weights = LazyPagesWeights {
+            read: 0,
+            write: 1,
+            write_after_read: 0,
+        };
+
+        let notes = core_processor::process::<Externalities, ExecutionEnvironment>(
+            &exec.block_config,
+            exec.context,
+            exec.random_data,
+            exec.memory_pages,
+        );
+
+        for note in notes.into_iter() {
+            match note {
+                JournalNote::MessageDispatched {
+                    outcome: DispatchOutcome::MessageTrap { .. },
+                    ..
+                } => {}
+                JournalNote::MessageDispatched { .. } => {
+                    panic!("Gas limit exceeded must lead to message trap");
+                }
+                _ => {}
+            }
+        }
+
+        assert_eq!(lazy_pages::get_status().unwrap(), Status::GasLimitExceeded);
+    };
+
+    // Check gas allowance exceeded.
+    {
+        let mut exec = common_utils::prepare_exec::<T>(
+            source,
+            HandleKind::Handle(ProgramId::from_origin(origin)),
+            vec![],
+            0..0,
+            PrepareConfig {
+                gas_allowance: gas_burned,
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        exec.block_config.allocations_config.lazy_pages_weights = LazyPagesWeights {
+            read: 0,
+            write: 1,
+            write_after_read: 0,
+        };
+
+        let notes = core_processor::process::<Externalities, ExecutionEnvironment>(
+            &exec.block_config,
+            exec.context,
+            exec.random_data,
+            exec.memory_pages,
+        );
+
+        for note in notes.into_iter() {
+            match note {
+                JournalNote::StopProcessing { .. } => {}
+                _ => {
+                    panic!("Gas allowance exceeded must lead to stop processing");
+                }
+            }
+        }
+
+        assert_eq!(
+            lazy_pages::get_status().unwrap(),
+            Status::GasAllowanceExceeded
+        );
+    };
+}
+
+// TODO: add test which check lazy-pages charging and sys-calls interaction (issue +_+_+).

@@ -42,7 +42,7 @@ use sp_core::H256;
 use sp_runtime::traits::UniqueSaturatedInto;
 use sp_std::{convert::TryInto, prelude::*};
 
-pub fn prepare_block_config<T>(lazy_pages_weights: Option<LazyPagesWeights>) -> BlockConfig
+pub fn prepare_block_config<T>() -> BlockConfig
 where
     T: Config,
     T::AccountId: Origin,
@@ -60,11 +60,11 @@ where
 
     let schedule = T::Schedule::get();
 
-    let lazy_pages_weights = lazy_pages_weights.unwrap_or(LazyPagesWeights {
+    let lazy_pages_weights = LazyPagesWeights {
         read: schedule.memory_weights.lazy_pages_read,
         write: schedule.memory_weights.lazy_pages_write,
         write_after_read: schedule.memory_weights.lazy_pages_write_after_read,
-    });
+    };
 
     BlockConfig {
         block_info,
@@ -110,13 +110,28 @@ where
 //     Ok(())
 // }
 
+pub struct PrepareConfig {
+    pub value: u128,
+    pub gas_allowance: u64,
+    pub gas_limit: u64,
+}
+
+impl Default for PrepareConfig {
+    fn default() -> Self {
+        PrepareConfig {
+            value: 0,
+            gas_allowance: u64::MAX,
+            gas_limit: u64::MAX / 2,
+        }
+    }
+}
+
 pub fn prepare_exec<T>(
     source: H256,
     kind: HandleKind,
     payload: Vec<u8>,
-    value: u128,
     err_len_ptrs: Range<u32>,
-    lazy_pages_weights: Option<LazyPagesWeights>,
+    config: PrepareConfig,
 ) -> Result<Exec<T>, &'static str>
 where
     T: Config,
@@ -163,7 +178,7 @@ where
                     program_id,
                     payload.try_into()?,
                     Some(u64::MAX),
-                    value,
+                    config.value,
                     None,
                 ),
             )
@@ -184,7 +199,7 @@ where
                     program_id,
                     payload.try_into()?,
                     Some(u64::MAX),
-                    value,
+                    config.value,
                     None,
                 ),
             )
@@ -197,7 +212,7 @@ where
                 dest,
                 payload.try_into()?,
                 Some(u64::MAX),
-                value,
+                config.value,
                 None,
             ),
         ),
@@ -213,7 +228,7 @@ where
                     msg.source(),
                     payload.try_into()?,
                     Some(u64::MAX),
-                    value,
+                    config.value,
                     Some(ReplyDetails::new(msg.id(), exit_code).into()),
                 ),
             )
@@ -230,7 +245,7 @@ where
                     msg.source(),
                     payload.try_into()?,
                     Some(u64::MAX),
-                    value,
+                    config.value,
                     Some(SignalDetails::new(msg.id(), status_code).into()),
                 ),
             )
@@ -253,12 +268,12 @@ where
         .get_actor(actor_id)
         .ok_or("Program not found in the storage")?;
 
-    let block_config = prepare_block_config::<T>(lazy_pages_weights);
+    let block_config = prepare_block_config::<T>();
 
     let precharged_dispatch = core_processor::precharge_for_program(
         &block_config,
-        u64::MAX,
-        queued_dispatch.into_incoming(u64::MAX / 2),
+        config.gas_allowance,
+        queued_dispatch.into_incoming(config.gas_limit),
         actor_id,
     )
     .map_err(|_| "core_processor::precharge_for_program failed")?;

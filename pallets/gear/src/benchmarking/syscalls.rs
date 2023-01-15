@@ -23,7 +23,7 @@ use super::{
         body::{self, DynInstr::*},
         max_pages, DataSegment, ImportedMemory, ModuleDefinition, WasmModule,
     },
-    utils::prepare_exec,
+    utils::{self, PrepareConfig},
     Exec, Program,
 };
 use crate::{
@@ -67,13 +67,15 @@ where
     ) -> Result<Exec<T>, &'static str> {
         let instance = Program::<T>::new(code, vec![])?;
 
-        prepare_exec::<T>(
+        utils::prepare_exec::<T>(
             instance.caller.into_origin(),
             HandleKind::Handle(ProgramId::from_origin(instance.addr)),
             vec![],
-            value.into(),
             err_len_ptrs,
-            None,
+            PrepareConfig {
+                value: value.into(),
+                ..Default::default()
+            },
         )
     }
 
@@ -199,13 +201,12 @@ where
         })
         .unwrap();
 
-        prepare_exec::<T>(
+        utils::prepare_exec::<T>(
             instance.caller.into_origin(),
             HandleKind::Handle(program_id),
             vec![],
-            0,
             err_ptrs,
-            None,
+            Default::default(),
         )
     }
 
@@ -229,13 +230,12 @@ where
             ..Default::default()
         });
         let instance = Program::<T>::new(code, vec![])?;
-        prepare_exec::<T>(
+        utils::prepare_exec::<T>(
             instance.caller.into_origin(),
             HandleKind::Handle(ProgramId::from_origin(instance.addr)),
             vec![],
-            0u32.into(),
             err_ptrs,
-            None,
+            Default::default(),
         )
     }
 
@@ -287,13 +287,12 @@ where
 
         let instance = Program::<T>::new(code, vec![])?;
 
-        prepare_exec::<T>(
+        utils::prepare_exec::<T>(
             instance.caller.into_origin(),
             HandleKind::Handle(ProgramId::from_origin(instance.addr)),
             vec![0; (buffer_len + buffer_offset) as usize],
-            0,
             err_len_ptrs,
-            None,
+            Default::default(),
         )
     }
 
@@ -332,13 +331,12 @@ where
 
         let instance = Program::<T>::new(code, vec![])?;
 
-        prepare_exec::<T>(
+        utils::prepare_exec::<T>(
             instance.caller.into_origin(),
             HandleKind::Handle(ProgramId::from_origin(instance.addr)),
             vec![0; (buffer_len + buffer_len) as usize],
-            0,
             err_len_ptrs,
-            None,
+            Default::default(),
         )
     }
 
@@ -607,13 +605,12 @@ where
         })
         .unwrap();
 
-        prepare_exec::<T>(
+        utils::prepare_exec::<T>(
             instance.caller.into_origin(),
             HandleKind::Handle(program_id),
             vec![],
-            0,
             err_len_ptrs,
-            None,
+            Default::default(),
         )
     }
 
@@ -681,13 +678,12 @@ where
         })
         .unwrap();
 
-        prepare_exec::<T>(
+        utils::prepare_exec::<T>(
             instance.caller.into_origin(),
             HandleKind::Handle(program_id),
             vec![],
-            0,
             err_len_ptrs,
-            None,
+            Default::default(),
         )
     }
 
@@ -827,13 +823,12 @@ where
         })
         .unwrap();
 
-        prepare_exec::<T>(
+        utils::prepare_exec::<T>(
             instance.caller.into_origin(),
             HandleKind::Handle(program_id),
             vec![],
-            0,
             err_len_ptrs,
-            None,
+            Default::default(),
         )
     }
 
@@ -869,13 +864,12 @@ where
         .into_stored();
         MailboxOf::<T>::insert(msg, u32::MAX.unique_saturated_into())
             .expect("Error during mailbox insertion");
-        prepare_exec::<T>(
+        utils::prepare_exec::<T>(
             instance.caller.into_origin(),
             HandleKind::Reply(msg_id, 0),
             vec![],
-            0u32.into(),
             err_len_ptrs,
-            None,
+            Default::default(),
         )
     }
 
@@ -911,13 +905,12 @@ where
         .into_stored();
         MailboxOf::<T>::insert(msg, u32::MAX.unique_saturated_into())
             .expect("Error during mailbox insertion");
-        prepare_exec::<T>(
+        utils::prepare_exec::<T>(
             instance.caller.into_origin(),
             HandleKind::Signal(msg_id, 1),
             vec![],
-            0u32.into(),
             err_len_ptrs,
-            None,
+            Default::default(),
         )
     }
 
@@ -947,13 +940,12 @@ where
         });
 
         let instance = Program::<T>::new(code, vec![])?;
-        prepare_exec::<T>(
+        utils::prepare_exec::<T>(
             instance.caller.into_origin(),
             HandleKind::Handle(ProgramId::from_origin(instance.addr)),
             vec![1u8; payload_len as usize],
-            0u32.into(),
             err_len_ptrs,
-            None,
+            Default::default(),
         )
     }
 
@@ -979,13 +971,12 @@ where
         });
 
         let instance = Program::<T>::new(code, vec![])?;
-        prepare_exec::<T>(
+        utils::prepare_exec::<T>(
             instance.caller.into_origin(),
             HandleKind::Handle(ProgramId::from_origin(instance.addr)),
             vec![1u8; payload_len as usize],
-            0u32.into(),
             err_len_ptrs,
-            None,
+            Default::default(),
         )
     }
 
@@ -1027,13 +1018,12 @@ where
         });
 
         let instance = Program::<T>::new(code, vec![])?;
-        prepare_exec::<T>(
+        utils::prepare_exec::<T>(
             instance.caller.into_origin(),
             HandleKind::Handle(ProgramId::from_origin(instance.addr)),
             vec![1u8; payload_len as usize],
-            0u32.into(),
             err_len_ptrs,
-            None,
+            Default::default(),
         )
     }
 
@@ -1075,13 +1065,12 @@ where
         });
 
         let instance = Program::<T>::new(code, vec![])?;
-        prepare_exec::<T>(
+        utils::prepare_exec::<T>(
             instance.caller.into_origin(),
             HandleKind::Handle(ProgramId::from_origin(instance.addr)),
             vec![1u8; payload_len as usize],
-            0u32.into(),
             err_len_ptrs,
-            None,
+            Default::default(),
         )
     }
 
@@ -1117,13 +1106,12 @@ where
         .into_stored();
         MailboxOf::<T>::insert(msg, u32::MAX.unique_saturated_into())
             .expect("Error during mailbox insertion");
-        prepare_exec::<T>(
+        utils::prepare_exec::<T>(
             instance.caller.into_origin(),
             HandleKind::Reply(msg_id, 0),
             vec![],
-            0u32.into(),
             err_len_ptrs,
-            None,
+            Default::default(),
         )
     }
 
@@ -1262,13 +1250,12 @@ where
 
         let instance = Program::<T>::new(code, vec![])?;
 
-        prepare_exec::<T>(
+        utils::prepare_exec::<T>(
             instance.caller.into_origin(),
             HandleKind::Handle(ProgramId::from_origin(instance.addr)),
             vec![],
-            0,
             err_len_ptrs,
-            None,
+            Default::default(),
         )
     }
 
