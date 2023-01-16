@@ -38,7 +38,7 @@ use subxt::{
 /// use gclient::GearApi;
 /// # use gclient::Result;
 ///
-/// ##[tokio::test]
+/// #[tokio::test]
 /// async fn listener_test() -> Result<()> {
 ///     let api = GearApi::dev().await?;
 ///     let mut listener = api.subscribe().await?;

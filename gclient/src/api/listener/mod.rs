@@ -82,8 +82,8 @@ impl DispatchStatus {
 
 /// Events processing trait.
 ///
-/// This trait provides default implementations for processing several events
-/// propagated through the network.
+/// This trait minimizes a boilerplate code when processing events by providing
+/// several default implementations.
 ///
 /// See implementation example in [`EventListener`].
 #[async_trait(?Send)]
@@ -106,6 +106,12 @@ pub trait EventProcessor {
     ///
     /// `predicate` contains specific processing logic depending on an event
     /// type.
+    ///
+    /// Implementor is responsible for applying the `predicate` to every event
+    /// to be processed and collecting their results.
+    ///
+    /// This function is one of the central functions to be defined by the trait
+    /// implementor.
     async fn proc<T>(&mut self, predicate: impl Fn(Event) -> Option<T> + Copy) -> Result<T>;
 
     /// Multiple events processing function.
@@ -219,7 +225,9 @@ pub trait EventProcessor {
     /// Check whether the processing of a message identified by `message_id`
     /// resulted in an error or has been successful.
     ///
-    /// This function returns an error message in case of an error.
+    /// This function returns an error message in case of an error. It is needed
+    /// only due to the possibility of a message's
+    /// [`NotExecuted`](DispatchStatus::NotExecuted) state.
     async fn err_or_succeed(&mut self, message_id: MessageId) -> Result<Option<String>> {
         let message_id: GenMId = message_id.into();
 

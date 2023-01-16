@@ -32,7 +32,8 @@ use subxt::ext::sp_runtime::AccountId32;
 pub struct GearApi(Signer);
 
 impl GearApi {
-    /// Create and init a new `GearApi` specified by its `address`.
+    /// Create and init a new `GearApi` specified by its `address` on behalf of
+    /// the default `Alice` user.
     pub async fn init(address: WSAddress) -> Result<Self> {
         Self::init_with(address, "//Alice").await
     }
@@ -73,7 +74,7 @@ impl GearApi {
     }
 
     /// Create and init a new `GearApi` instance that will be used with the
-    /// public Gear node.
+    /// public Gear testnet.
     pub async fn gear() -> Result<Self> {
         Self::init(WSAddress::gear()).await
     }
@@ -84,13 +85,20 @@ impl GearApi {
         Self::init(WSAddress::vara()).await
     }
 
-    /// Create an [`EventListener`] to process incoming events.
+    /// Create an [`EventListener`] to subscribe and handle continuously
+    /// incoming events.
     pub async fn subscribe(&self) -> Result<EventListener> {
         let events = self.0.finalized_blocks().await?;
         Ok(EventListener(events))
     }
 
-    /// Set the number used once (`nonce`) that will be used in extrinsics.
+    /// Set the number used once (`nonce`) that will be used while sending
+    /// extrinsics.
+    ///
+    /// If set, this nonce is added to the extrinsic and provides a unique
+    /// identifier of the transaction sent by the current account. The nonce
+    /// shows how many prior transactions have occurred from this account. This
+    /// helps protect against replay attacks or accidental double-submissions.
     pub fn set_nonce(&mut self, nonce: u32) {
         self.0.set_nonce(nonce)
     }
@@ -115,7 +123,7 @@ impl GearApi {
     /// use subxt::ext::sp_runtime::AccountId32;
     /// # use hex_literal::hex;
     ///
-    /// ##[tokio::test]
+    /// #[tokio::test]
     /// async fn account_test() -> Result<()> {
     ///     let api = GearApi::dev().await?;
     ///     let alice_id = hex!("d43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d");

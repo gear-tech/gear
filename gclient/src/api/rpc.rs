@@ -57,7 +57,8 @@ impl GearApi {
             .await
     }
 
-    /// gear_calculateInitCreateGas
+    /// Same as [`calculate_create_gas`](Self::calculate_create_gas), but
+    /// calculates the gas at the block identified by its hash.
     pub async fn calculate_create_gas_at(
         &self,
         origin: Option<H256>,
@@ -100,7 +101,8 @@ impl GearApi {
             .await
     }
 
-    /// gear_calculateInitUploadGas
+    /// Same as [`calculate_upload_gas`](Self::calculate_upload_gas), but
+    /// calculates the gas at the block identified by its hash.
     pub async fn calculate_upload_gas_at(
         &self,
         origin: Option<H256>,
@@ -148,7 +150,8 @@ impl GearApi {
         .await
     }
 
-    /// gear_calculateHandleGas
+    /// Same as [`calculate_handle_gas`](Self::calculate_handle_gas), but
+    /// calculates the gas at the block identified by its hash.
     pub async fn calculate_handle_gas_at(
         &self,
         origin: Option<H256>,
@@ -201,7 +204,8 @@ impl GearApi {
         .await
     }
 
-    /// gear_calculateReplyGas
+    /// Same as [`calculate_reply_gas`](Self::calculate_reply_gas), but
+    /// calculates the gas at the block identified by its hash.
     pub async fn calculate_reply_gas_at(
         &self,
         origin: Option<H256>,
@@ -231,7 +235,8 @@ impl GearApi {
         self.read_state_bytes_at(program_id, None).await
     }
 
-    /// Read the program's state as a byte vector.
+    /// Same as [`read_state_bytes`](Self::read_state_bytes), but reads the
+    /// program's state at the block identified by its hash.
     pub async fn read_state_bytes_at(
         &self,
         program_id: ProgramId,
@@ -248,7 +253,8 @@ impl GearApi {
         self.read_state_at(program_id, None).await
     }
 
-    /// Read the program's state as decoded data.
+    /// Same as [`read_state`](Self::read_state), but reads the program's state
+    /// at the block identified by its hash.
     pub async fn read_state_at<D: Decode>(
         &self,
         program_id: ProgramId,
@@ -270,7 +276,7 @@ impl GearApi {
             .await
     }
 
-    /// Read the program's state as a byte vector using a meta Wasm.
+    /// Same as [`read_state_bytes_using_wasm`](Self::read_state_bytes_using_wasm), but reads the program's state at the block identified by its hash.
     pub async fn read_state_bytes_using_wasm_at(
         &self,
         program_id: ProgramId,
@@ -306,7 +312,8 @@ impl GearApi {
             .await
     }
 
-    /// Read the program's state as decoded data using a meta Wasm.
+    /// Same as [`read_state_using_wasm`](Self::read_state_using_wasm), but
+    /// reads the program's state at the block identified by its hash.
     pub async fn read_state_using_wasm_at<E: Encode, D: Decode>(
         &self,
         program_id: ProgramId,
@@ -341,8 +348,7 @@ impl GearApi {
             .await
     }
 
-    /// Read the program's state using a meta Wasm file referenced by its
-    /// `path`.
+    /// Same as [`read_state_using_wasm_by_path`](Self::read_state_using_wasm_by_path), but reads the program's state at the block identified by its hash.
     pub async fn read_state_bytes_using_wasm_by_path_at(
         &self,
         program_id: ProgramId,
@@ -374,8 +380,7 @@ impl GearApi {
             .await
     }
 
-    /// Read the program's state using a meta Wasm file referenced by its
-    /// `path`.
+    /// Same as [`read_state_using_wasm_by_path`](Self::read_state_using_wasm_by_path), but reads the program's state at the block identified by its hash.
     pub async fn read_state_using_wasm_by_path_at<E: Encode, D: Decode>(
         &self,
         program_id: ProgramId,
@@ -402,7 +407,8 @@ impl GearApi {
         self.read_metahash_at(program_id, None).await
     }
 
-    /// Read the program's metahash.
+    /// Same as [`read_metahash`](Self::read_metahash), but read the program's
+    /// metahash at the block identified by its hash.
     pub async fn read_metahash_at(&self, program_id: ProgramId, at: Option<H256>) -> Result<H256> {
         self.rpc_request(
             "gear_readMetahash",

@@ -62,7 +62,7 @@ impl WSAddress {
         Self::new(Self::LOCALHOST, Self::DEFAULT_PORT)
     }
 
-    /// Return the default address of the public Gear node.
+    /// Return the default address of the public Gear testnet node.
     ///
     /// # Examples
     ///

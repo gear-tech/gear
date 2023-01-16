@@ -79,7 +79,7 @@
 //!
 //! const WASM_PATH: &str = "./target/wasm32-unknown-unknown/release/first_gear_app.opt.wasm";
 //!
-//! ##[tokio::test]
+//! #[tokio::test]
 //! async fn test_example() -> Result<()> {
 //!     // Create API instance
 //!     let api = GearApi::dev().await?;
@@ -92,21 +92,14 @@
 //!
 //!     // Calculate gas amount needed for initialization
 //!     let gas_info = api
-//!         .calculate_upload_gas(
-//!             None,
-//!             gclient::code_from_os(WASM_PATH)?,
-//!             vec![],
-//!             0,
-//!             true,
-//!             None,
-//!         )
+//!         .calculate_upload_gas(None, gclient::code_from_os(WASM_PATH)?, vec![], 0, true)
 //!         .await?;
 //!
 //!     // Upload and init the program
 //!     let (message_id, program_id, _hash) = api
 //!         .upload_program_bytes_by_path(
 //!             WASM_PATH,
-//!             gclient::bytes_now(),
+//!             gclient::now_in_micros().to_le_bytes(),
 //!             vec![],
 //!             gas_info.min_limit,
 //!             0,
@@ -119,7 +112,7 @@
 //!
 //!     // Calculate gas amount needed for handling the message
 //!     let gas_info = api
-//!         .calculate_handle_gas(None, program_id, payload.clone(), 0, true, None)
+//!         .calculate_handle_gas(None, program_id, payload.clone(), 0, true)
 //!         .await?;
 //!
 //!     // Send the PING message
