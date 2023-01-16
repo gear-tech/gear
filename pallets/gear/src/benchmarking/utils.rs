@@ -99,22 +99,6 @@ where
     }
 }
 
-// +_+_+
-// #[allow(unused)]
-// pub fn prepare_account<T>(source: H256) -> Result<(), &'static str>
-// where
-//     T: Config,
-//     T::AccountId: Origin,
-// {
-//     let bn: u64 = Gear::<T>::block_number().unique_saturated_into();
-//     let root_message_id = MessageId::from(bn);
-//     let initial_gas = u64::MAX;
-//     let origin = <T::AccountId as Origin>::from_origin(source);
-//     GasHandlerOf::<T>::create(origin, root_message_id, initial_gas)
-//         .map_err(|_| "Internal error: unable to create gas handler")?;
-//     Ok(())
-// }
-
 pub struct PrepareConfig {
     pub value: u128,
     pub gas_allowance: u64,

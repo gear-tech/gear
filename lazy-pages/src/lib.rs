@@ -255,7 +255,7 @@ fn get_access_pages(
             .ok_or(OutOfMemoryAccessError)?;
         // TODO: here we suppose zero byte access like one byte access, because
         // backend memory impl can access memory even in case access has size 0.
-        // We can optimize this if will ignore zero bytes access in core-backend (issue +_+_+).
+        // We can optimize this if will ignore zero bytes access in core-backend (issue #2095).
         let last_byte = byte_after_last.checked_sub(1).unwrap_or(byte_after_last);
         let last_page = LazyPage::from_offset(last_byte);
         set.extend((first_page.0..=last_page.0).map(LazyPage));

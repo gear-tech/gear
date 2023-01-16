@@ -494,4 +494,4 @@ where
     };
 }
 
-// TODO: add test which check lazy-pages charging and sys-calls interaction (issue +_+_+).
+// TODO: add test which check lazy-pages charging and sys-calls interaction (issue #2093).
