@@ -750,7 +750,7 @@ impl<T: Config> Default for HostFnWeights<T> {
 impl<T: Config> Default for MemoryWeights<T> {
     fn default() -> Self {
         Self {
-            // TODO: set values for lazy-pages from WeightInfo (issue #2022)
+            // TODO: set values for lazy-pages from WeightInfo (issue #1893)
             lazy_pages_read: 100,
             lazy_pages_write: 100,
             lazy_pages_write_after_read: 100,
