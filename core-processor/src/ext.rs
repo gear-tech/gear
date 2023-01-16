@@ -130,10 +130,10 @@ pub enum ProcessorError {
     /// User's code panicked
     #[display(fmt = "Panic occurred: {_0}")]
     Panic(String),
-    /// Range doesh't fit message size
+    /// User's code panicked
     #[display(fmt = "Cannot take data by indexes {_0:?} from message with size {_1}")]
     ReadWrongRange(Range<u32>, u32),
-    /// Index is more than u32
+    /// User's code panicked
     #[display(fmt = "Overflow at {_0} + len {_1} in `gr_read`")]
     ReadLenOverflow(u32, u32),
 }

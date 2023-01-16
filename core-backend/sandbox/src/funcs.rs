@@ -343,10 +343,10 @@ where
         let msg = ext.read(at, len).map_err(FuncError::Core)?;
 
         // 'at' and 'len' correct and saturation checked in Ext::read
-        assert!(at.checked_add(len).is_some());
+        debug_assert!(at.checked_add(len).is_some());
         let last_idx = at + len;
 
-        assert!(last_idx as usize >= msg.len());
+        debug_assert!(last_idx as usize >= msg.len());
 
         Ok(&msg[at as usize..last_idx as usize])
     }
