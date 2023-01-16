@@ -59,7 +59,7 @@ jobs:
       - name: "Install: Build deps"
         run: |
           sudo apt update
-          sudo apt install -y git clang curl libssl-dev llvm libudev-dev cmake protobuf-compiler
+          sudo apt install -y git clang curl libssl-dev llvm libudev-dev cmake protobuf-compiler wget bzip2
           sudo wget -c https://github.com/WebAssembly/binaryen/releases/download/version_105/binaryen-version_105-x86_64-linux.tar.gz -O - | sudo tar -xz -C .
           sudo cp binaryen-version_105/bin/wasm-opt /usr/bin/
 
