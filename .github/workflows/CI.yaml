@@ -302,7 +302,7 @@ jobs:
 
       - name: "Coverage: Publish"
         if: github.ref == 'refs/heads/master' || contains(github.event.pull_request.labels.*.name, 'E0-forcecoverage')
-        uses: codecov/codecov-action@v1
+        uses: codecov/codecov-action@v3
         with:
           file: ./lcov.info
 
