@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use super::{GearApi, Result};
-use crate::Error;
+use crate::{api::listener::EventListener, Error};
 use gp::api::{
     config::GearConfig,
     generated::api::{runtime_types::gear_runtime::RuntimeEvent, storage},
@@ -151,8 +151,29 @@ impl GearApi {
     }
 
     /// Check whether the message queue processing is stopped or not.
-    pub async fn queue_processing_stopped(&self) -> Result<bool> {
+    pub async fn queue_processing_enabled(&self) -> Result<bool> {
         let at = storage().gear().execute_inherent();
-        Ok(!self.0.storage().fetch_or_default(&at, None).await?)
+        Ok(self.0.storage().fetch_or_default(&at, None).await?)
+    }
+
+    /// Looks at two blocks from the stream and checks if the Gear block number
+    /// has grown from block to block or not.
+    pub async fn queue_processing_stalled(&self, listener: &mut EventListener) -> Result<bool> {
+        let at = storage().gear().block_number();
+
+        let current = listener.next_block_hash().await?;
+        let gear_current = self
+            .0
+            .storage()
+            .fetch_or_default(&at, Some(current))
+            .await?;
+
+        let mut next = current;
+        while next == current {
+            next = listener.next_block_hash().await?;
+        }
+        let gear_next = self.0.storage().fetch_or_default(&at, Some(next)).await?;
+
+        Ok(gear_next <= gear_current)
     }
 }

@@ -381,7 +381,7 @@ pub mod pallet {
             change: ProgramChangeKind<T::BlockNumber>,
         },
 
-        /// The extrinsic that runs queue processing rolled back
+        /// The pseudo-inherent extrinsic that runs queue processing rolled back or not executed.
         QueueProcessingReverted,
     }
 
@@ -457,6 +457,14 @@ pub mod pallet {
         }
     }
 
+    /// The Gear block number before processing messages.
+    ///
+    /// A helper variable that mirrors the `BlockNumber` at the beginning of a block.
+    /// Allows to gauge the actual `BlockNumber` progress.
+    #[pallet::storage]
+    #[pallet::getter(fn last_gear_block_number)]
+    pub(crate) type LastGearBlockNumber<T: Config> = StorageValue<_, T::BlockNumber>;
+
     #[pallet::hooks]
     impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T>
     where
@@ -473,14 +481,28 @@ pub mod pallet {
             // Incrementing Gear block number
             BlockNumber::<T>::mutate(|bn| *bn = bn.saturating_add(One::one()));
 
+            // Align the last gear block number before inherent execution with current value
+            <LastGearBlockNumber<T>>::put(Self::block_number());
+
             log::debug!(target: "gear::runtime", "⚙️  Initialization of block #{bn:?} (gear #{:?})", Self::block_number());
 
+            // The `LastGearBlockNumber` is killed at the end of a block therefore its value
+            // will only exist in overlay and never be committed to storage.
+            // The respective write weight can be omitted and not accounted for.
             T::DbWeight::get().writes(1)
         }
 
         /// Finalization
         fn on_finalize(bn: BlockNumberFor<T>) {
-            // Undoing Gear block number increment
+            // Check if the queue has been processed, that is gear block number bumped again.
+            // If not (while the queue processing enabled), fire an event.
+            if let Some(last_gear_block_number) = <LastGearBlockNumber<T>>::take() {
+                if Self::execute_inherent() && Self::block_number() <= last_gear_block_number {
+                    Self::deposit_event(Event::QueueProcessingReverted);
+                }
+            }
+
+            // Undoing Gear block number increment that was done upfront in `on_initialize`
             BlockNumber::<T>::mutate(|bn| *bn = bn.saturating_sub(One::one()));
 
             log::debug!(target: "gear::runtime", "⚙️  Finalization of block #{bn:?} (gear #{:?})", Self::block_number());
