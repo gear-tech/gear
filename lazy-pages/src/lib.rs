@@ -30,7 +30,7 @@ use gear_backend_common::{
     memory::OutOfMemoryAccessError,
 };
 use gear_core::memory::{
-    GranularityPage, PageNumber, PageU32Size, WasmPageNumber, GEAR_PAGE_SIZE,
+    GranularityPage, MemoryInterval, PageNumber, PageU32Size, WasmPageNumber, GEAR_PAGE_SIZE,
     PAGE_STORAGE_GRANULARITY,
 };
 use once_cell::sync::OnceCell;
@@ -243,17 +243,19 @@ impl PageU32Size for LazyPage {
     }
 }
 
-fn get_access_pages(accesses: &[(u32, u32)]) -> Result<BTreeSet<LazyPage>, OutOfMemoryAccessError> {
+fn get_access_pages(
+    accesses: &[MemoryInterval],
+) -> Result<BTreeSet<LazyPage>, OutOfMemoryAccessError> {
     let mut set = BTreeSet::new();
     for access in accesses {
-        let first_page = LazyPage::from_offset(access.0);
+        let first_page = LazyPage::from_offset(access.offset);
         let byte_after_last = access
-            .0
-            .checked_add(access.1)
+            .offset
+            .checked_add(access.size)
             .ok_or(OutOfMemoryAccessError)?;
         // TODO: here we suppose zero byte access like one byte access, because
         // backend memory impl can access memory even in case access has size 0.
-        // We can optimize this if will ignore zero bytes access in core-backend.
+        // We can optimize this if will ignore zero bytes access in core-backend (issue +_+_+).
         let last_byte = byte_after_last.checked_sub(1).unwrap_or(byte_after_last);
         let last_page = LazyPage::from_offset(last_byte);
         set.extend((first_page.0..=last_page.0).map(LazyPage));
@@ -262,10 +264,8 @@ fn get_access_pages(accesses: &[(u32, u32)]) -> Result<BTreeSet<LazyPage>, OutOf
 }
 
 pub fn pre_process_memory_accesses(
-    reads: &[(u32, u32)],
-    writes: &[(u32, u32)],
-    _in_buffers: Option<&[&mut [u8]]>,
-    _out_buffers: Option<&[&mut [u8]]>,
+    reads: &[MemoryInterval],
+    writes: &[MemoryInterval],
 ) -> Result<(), OutOfMemoryAccessError> {
     let mut read_pages = get_access_pages(reads)?;
     let write_pages = get_access_pages(writes)?;

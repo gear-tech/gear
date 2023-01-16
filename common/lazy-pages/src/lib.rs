@@ -127,14 +127,7 @@ pub fn pre_process_memory_accesses(
     reads: &[MemoryInterval],
     writes: &[MemoryInterval],
 ) -> Result<(), OutOfMemoryAccessError> {
-    gear_ri::pre_process_memory_accesses(
-        &reads
-            .iter()
-            .map(|interval| (interval.offset, interval.size))
-            .collect::<Vec<(u32, u32)>>(),
-        &writes
-            .iter()
-            .map(|interval| (interval.offset, interval.size))
-            .collect::<Vec<(u32, u32)>>(),
-    )
+    let reads = reads.iter().copied().map(Into::into).collect::<Vec<_>>();
+    let writes = writes.iter().copied().map(Into::into).collect::<Vec<_>>();
+    gear_ri::pre_process_memory_accesses(&reads, &writes)
 }

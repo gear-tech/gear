@@ -192,7 +192,7 @@ impl WasmExecutor {
                 ),
             ),
             block_info: Default::default(),
-            config: Default::default(),
+            pages_config: Default::default(),
             existential_deposit: 0,
             origin: Default::default(),
             program_id: Default::default(),

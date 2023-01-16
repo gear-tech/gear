@@ -72,7 +72,7 @@ where
 
     BlockConfig {
         block_info,
-        allocations_config: PagesConfig {
+        pages_config: PagesConfig {
             max_pages: T::Schedule::get().limits.memory_pages.into(),
             lazy_pages_weights,
             init_cost: T::Schedule::get().memory_weights.initial_cost,

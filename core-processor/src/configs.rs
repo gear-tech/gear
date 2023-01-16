@@ -78,7 +78,7 @@ pub struct ExecutionSettings {
     /// Contextual block information.
     pub block_info: BlockInfo,
     /// Allocation config.
-    pub allocations_config: PagesConfig,
+    pub pages_config: PagesConfig,
     /// Minimal amount of existence for account.
     pub existential_deposit: u128,
     /// Weights of host functions.
@@ -101,7 +101,7 @@ pub struct ExecutionSettings {
 impl ExecutionSettings {
     /// Max amount of pages.
     pub fn max_pages(&self) -> WasmPageNumber {
-        self.allocations_config.max_pages
+        self.pages_config.max_pages
     }
 }
 
@@ -111,7 +111,7 @@ pub struct BlockConfig {
     /// Block info.
     pub block_info: BlockInfo,
     /// Allocations config.
-    pub allocations_config: PagesConfig,
+    pub pages_config: PagesConfig,
     /// Existential deposit.
     pub existential_deposit: u128,
     /// Outgoing limit.

@@ -405,7 +405,7 @@ pub fn execute_wasm<
         allocations_context,
         message_context,
         block_info: settings.block_info,
-        config: settings.allocations_config,
+        pages_config: settings.pages_config,
         existential_deposit: settings.existential_deposit,
         origin,
         program_id,
@@ -602,7 +602,7 @@ pub fn execute_for_reply<
             height: Default::default(),
             timestamp: Default::default(),
         },
-        config: PagesConfig {
+        pages_config: PagesConfig {
             max_pages: 512.into(),
             lazy_pages_weights: LazyPagesWeights {
                 read: 0,

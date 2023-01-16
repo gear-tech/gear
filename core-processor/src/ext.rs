@@ -66,7 +66,7 @@ pub struct ProcessorContext {
     /// Block info.
     pub block_info: BlockInfo,
     /// Allocations config.
-    pub config: PagesConfig,
+    pub pages_config: PagesConfig,
     /// Account existential deposit
     pub existential_deposit: u128,
     /// Communication origin
@@ -274,7 +274,7 @@ impl IntoExtInfo<<Ext as EnvExt>::Error> for Ext {
     }
 
     fn lazy_pages_weights(&self) -> LazyPagesWeights {
-        self.context.config.lazy_pages_weights.clone()
+        self.context.pages_config.lazy_pages_weights.clone()
     }
 }
 
@@ -609,7 +609,7 @@ impl EnvExt for Ext {
 
         // Returns back gas for allocated page if it's new
         if result.is_ok() && !self.context.allocations_context.is_init_page(page) {
-            self.refund_gas(self.context.config.alloc_cost)?;
+            self.refund_gas(self.context.pages_config.alloc_cost)?;
         }
 
         self.return_and_store_err(result)
@@ -911,9 +911,11 @@ impl Ext {
         self.charge_gas_runtime(RuntimeCosts::Alloc)?;
 
         // Charge gas for allocations
-        self.charge_gas((pages.raw() as u64).saturating_mul(self.context.config.alloc_cost))?;
+        self.charge_gas((pages.raw() as u64).saturating_mul(self.context.pages_config.alloc_cost))?;
         // Greedily charge gas for grow
-        self.charge_gas((pages.raw() as u64).saturating_mul(self.context.config.mem_grow_cost))?;
+        self.charge_gas(
+            (pages.raw() as u64).saturating_mul(self.context.pages_config.mem_grow_cost),
+        )?;
 
         let result = self.context.allocations_context.alloc::<G>(pages, mem);
         let AllocInfo { page, not_grown } = self.return_and_store_err(result)?;
@@ -921,7 +923,7 @@ impl Ext {
         // Returns back greedily used gas for grow
         let mut gas_to_return_back = self
             .context
-            .config
+            .pages_config
             .mem_grow_cost
             .saturating_mul(not_grown.raw() as u64);
 
@@ -938,7 +940,7 @@ impl Ext {
         }
         gas_to_return_back = gas_to_return_back.saturating_add(
             self.context
-                .config
+                .pages_config
                 .alloc_cost
                 .saturating_mul((pages.raw() - new_allocated_pages_num) as u64),
         );
@@ -1035,7 +1037,7 @@ mod tests {
                     ContextSettings::new(0, 0, 0, 0, 0, 0),
                 ),
                 block_info: Default::default(),
-                config: Default::default(),
+                pages_config: Default::default(),
                 existential_deposit: 0,
                 origin: Default::default(),
                 program_id: Default::default(),
@@ -1096,7 +1098,7 @@ mod tests {
         );
 
         // Check if refund happens, than refunding amount >= 0
-        let refunding_amount = ext.context.config.alloc_cost;
+        let refunding_amount = ext.context.pages_config.alloc_cost;
         assert!(refunding_amount > 0);
 
         let non_existing_page = 100.into();

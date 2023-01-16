@@ -172,7 +172,7 @@ fn default_processor_context<T: Config>() -> ProcessorContext {
             ContextSettings::new(0, 0, 0, 0, 0, 0),
         ),
         block_info: Default::default(),
-        config: Default::default(),
+        pages_config: Default::default(),
         existential_deposit: 0,
         origin: Default::default(),
         program_id: Default::default(),

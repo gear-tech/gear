@@ -84,7 +84,9 @@ pub trait GearRI {
         reads: &[(u32, u32)],
         writes: &[(u32, u32)],
     ) -> Result<(), OutOfMemoryAccessError> {
-        lazy_pages::pre_process_memory_accesses(reads, writes, None, None)
+        let reads = reads.iter().copied().map(Into::into).collect::<Vec<_>>();
+        let writes = writes.iter().copied().map(Into::into).collect::<Vec<_>>();
+        lazy_pages::pre_process_memory_accesses(&reads, &writes)
     }
 
     fn get_lazy_pages_status() -> Option<Status> {

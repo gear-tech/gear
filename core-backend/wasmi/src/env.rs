@@ -43,7 +43,7 @@ use gear_core::{
     memory::{HostPointer, PageU32Size, WasmPageNumber},
     message::{DispatchKind, WasmEntry},
 };
-use gear_wasm_instrument::{GLOBAL_NAME_ALLOWANCE, GLOBAL_NAME_GAS, GLOBAL_NAME_STATUS};
+use gear_wasm_instrument::{GLOBAL_NAME_ALLOWANCE, GLOBAL_NAME_FLAGS, GLOBAL_NAME_GAS};
 use wasmi::{
     core::Value, Engine, Extern, Global, Instance, Linker, Memory, MemoryType, Module, Store,
 };
@@ -142,14 +142,6 @@ impl<E: Ext + 'static> GlobalsAccessTrait for GlobalsAccessProvider<E> {
                 global.set(store, Value::I64(value)).ok()
             })
             .ok_or(GlobalsAccessError)
-    }
-
-    fn get_i32(&self, _name: &str) -> Result<i32, GlobalsAccessError> {
-        todo!("Currently useless")
-    }
-
-    fn set_i32(&mut self, _name: &str, _value: i32) -> Result<(), GlobalsAccessError> {
-        todo!("Currently useless")
     }
 
     fn as_any_mut(&mut self) -> &mut dyn Any {
@@ -308,7 +300,7 @@ where
         let globals_ctx = GlobalsCtx {
             global_gas_name: GLOBAL_NAME_GAS.to_string(),
             global_allowance_name: GLOBAL_NAME_ALLOWANCE.to_string(),
-            global_state_name: GLOBAL_NAME_STATUS.to_string(),
+            global_flags_name: GLOBAL_NAME_FLAGS.to_string(),
             globals_access_ptr,
             globals_access_mod: GlobalsAccessMod::NativeRuntime,
             lazy_pages_weights: state.ext.lazy_pages_weights(),

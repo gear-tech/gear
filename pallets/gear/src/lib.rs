@@ -993,7 +993,7 @@ pub mod pallet {
 
             let schedule = T::Schedule::get();
 
-            let allocations_config = PagesConfig {
+            let pages_config = PagesConfig {
                 max_pages: schedule.limits.memory_pages.into(),
                 lazy_pages_weights: LazyPagesWeights {
                     read: schedule.memory_weights.lazy_pages_read,
@@ -1008,7 +1008,7 @@ pub mod pallet {
 
             BlockConfig {
                 block_info,
-                allocations_config,
+                pages_config,
                 existential_deposit,
                 outgoing_limit: T::OutgoingLimit::get(),
                 host_fn_weights: schedule.host_fn_weights.into_core(),

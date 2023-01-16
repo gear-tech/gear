@@ -53,7 +53,7 @@ pub struct GlobalsCtx {
     /// Gas allowance amount global name.
     pub global_allowance_name: String,
     /// Gear status global name.
-    pub global_state_name: String,
+    pub global_flags_name: String,
     /// Lazy-pages access weights.
     pub lazy_pages_weights: LazyPagesWeights,
     /// Raw pointer to the globals access provider.
@@ -73,9 +73,13 @@ pub trait GlobalsAccessTrait {
     /// Set global `name` == `value`, if `name` is I64 global export.
     fn set_i64(&mut self, name: &str, value: i64) -> Result<(), GlobalsAccessError>;
     /// Returns global `name` value, if `name` is I32 global export.
-    fn get_i32(&self, name: &str) -> Result<i32, GlobalsAccessError>;
+    fn get_i32(&self, _name: &str) -> Result<i32, GlobalsAccessError> {
+        unimplemented!("Currently has no i32 system globals")
+    }
     /// Set global `name` == `value`, if `name` is I32 global export.
-    fn set_i32(&mut self, name: &str, value: i32) -> Result<(), GlobalsAccessError>;
+    fn set_i32(&mut self, _name: &str, _value: i32) -> Result<(), GlobalsAccessError> {
+        unimplemented!("Currently has no i32 system globals")
+    }
     /// Returns as `&mut syn Any`.
     fn as_any_mut(&mut self) -> &mut dyn Any;
 }

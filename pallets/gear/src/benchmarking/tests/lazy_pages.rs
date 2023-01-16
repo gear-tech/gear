@@ -135,7 +135,7 @@ where
                     write: rng.gen_range(0..MAX_COST),
                     write_after_read: rng.gen_range(0..MAX_COST),
                 };
-                exec.block_config.allocations_config.lazy_pages_weights = weights.clone();
+                exec.block_config.pages_config.lazy_pages_weights = weights.clone();
 
                 let charged_for_pages = weights.read * gear_in_psg as u64 * read_pages.len() as u64
                     + weights.write * gear_in_psg as u64 * write_pages.len() as u64
@@ -215,7 +215,7 @@ where
                     write: 10 * i,
                     write_after_read: 100 * i,
                 };
-                exec.block_config.allocations_config.lazy_pages_weights = weights;
+                exec.block_config.pages_config.lazy_pages_weights = weights;
 
                 let notes = core_processor::process::<Externalities, ExecutionEnvironment>(
                     &exec.block_config,
@@ -379,7 +379,7 @@ where
             Default::default(),
         )
         .unwrap();
-        exec.block_config.allocations_config.lazy_pages_weights = LazyPagesWeights {
+        exec.block_config.pages_config.lazy_pages_weights = LazyPagesWeights {
             read: 0,
             write: 0,
             write_after_read: 0,
@@ -423,7 +423,7 @@ where
             },
         )
         .unwrap();
-        exec.block_config.allocations_config.lazy_pages_weights = LazyPagesWeights {
+        exec.block_config.pages_config.lazy_pages_weights = LazyPagesWeights {
             read: 0,
             write: 1,
             write_after_read: 0,
@@ -465,7 +465,7 @@ where
             },
         )
         .unwrap();
-        exec.block_config.allocations_config.lazy_pages_weights = LazyPagesWeights {
+        exec.block_config.pages_config.lazy_pages_weights = LazyPagesWeights {
             read: 0,
             write: 1,
             write_after_read: 0,

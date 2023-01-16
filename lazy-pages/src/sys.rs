@@ -140,14 +140,6 @@ impl<'a> GlobalsAccessTrait for GlobalsAccessSandbox<'a> {
         Ok(())
     }
 
-    fn get_i32(&self, _name: &str) -> Result<i32, GlobalsAccessError> {
-        todo!("Currently useless")
-    }
-
-    fn set_i32(&mut self, _name: &str, _value: i32) -> Result<(), GlobalsAccessError> {
-        todo!("Currently useless")
-    }
-
     fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
         unreachable!()
     }
@@ -396,7 +388,6 @@ pub(crate) unsafe fn process_lazy_pages(
         }
 
         for lazy_page in pages {
-            // let granularity_page = lazy_page.to_page();
             if lazy_page.offset() < stack_end.offset() {
                 // Nothing to do, page has r/w accesses and data is in correct state.
                 if is_signal {

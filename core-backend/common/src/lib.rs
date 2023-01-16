@@ -169,7 +169,7 @@ pub trait IntoExtInfo<Error> {
         writes: &[MemoryInterval],
     ) -> Result<(), OutOfMemoryAccessError>;
 
-    /// Returns lazy-pages costs.
+    /// Returns lazy-pages weights.
     fn lazy_pages_weights(&self) -> LazyPagesWeights;
 }
 
