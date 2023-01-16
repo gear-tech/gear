@@ -3380,7 +3380,7 @@ dependencies = [
  "serde",
  "serde_json",
  "subxt",
- "subxt-codegen",
+ "subxt-codegen 0.25.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "syn",
  "thiserror",
  "tokio",
@@ -10303,10 +10303,8 @@ checksum = "6bdef32e8150c2a081110b42772ffe7d7c9032b606bc226c8260fd97e0976601"
 [[package]]
 name = "subxt"
 version = "0.25.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e3cbc78fd36035a24883eada29e0205b9b1416172530a7d00a60c07d0337db0c"
+source = "git+https://github.com/paritytech/subxt?rev=d41f6574#d41f6574174d0a7d35ffcc6c3ff4d3740f5251ec"
 dependencies = [
- "bitvec",
  "derivative",
  "frame-metadata",
  "futures",
@@ -10315,6 +10313,7 @@ dependencies = [
  "jsonrpsee",
  "parity-scale-codec",
  "parking_lot 0.12.1",
+ "scale-bits",
  "scale-decode",
  "scale-info",
  "scale-value",
@@ -10323,7 +10322,7 @@ dependencies = [
  "sp-core",
  "sp-runtime",
  "subxt-macro",
- "subxt-metadata",
+ "subxt-metadata 0.25.0 (git+https://github.com/paritytech/subxt?rev=d41f6574)",
  "thiserror",
  "tracing",
 ]
@@ -10344,7 +10343,27 @@ dependencies = [
  "proc-macro2",
  "quote",
  "scale-info",
- "subxt-metadata",
+ "subxt-metadata 0.25.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "syn",
+ "tokio",
+]
+
+[[package]]
+name = "subxt-codegen"
+version = "0.25.0"
+source = "git+https://github.com/paritytech/subxt?rev=d41f6574#d41f6574174d0a7d35ffcc6c3ff4d3740f5251ec"
+dependencies = [
+ "darling",
+ "frame-metadata",
+ "heck 0.4.0",
+ "hex",
+ "jsonrpsee",
+ "parity-scale-codec",
+ "proc-macro-error",
+ "proc-macro2",
+ "quote",
+ "scale-info",
+ "subxt-metadata 0.25.0 (git+https://github.com/paritytech/subxt?rev=d41f6574)",
  "syn",
  "tokio",
 ]
@@ -10352,12 +10371,11 @@ dependencies = [
 [[package]]
 name = "subxt-macro"
 version = "0.25.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6f64826f2c4ba20e3b2a86ec81a6ae8655ca6b6a4c2a6ccc888b6615efc2df14"
+source = "git+https://github.com/paritytech/subxt?rev=d41f6574#d41f6574174d0a7d35ffcc6c3ff4d3740f5251ec"
 dependencies = [
  "darling",
  "proc-macro-error",
- "subxt-codegen",
+ "subxt-codegen 0.25.0 (git+https://github.com/paritytech/subxt?rev=d41f6574)",
  "syn",
 ]
 
@@ -10366,6 +10384,17 @@ name = "subxt-metadata"
 version = "0.25.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "869af75e23513538ad0af046af4a97b8d684e8d202e35ff4127ee061c1110813"
+dependencies = [
+ "frame-metadata",
+ "parity-scale-codec",
+ "scale-info",
+ "sp-core",
+]
+
+[[package]]
+name = "subxt-metadata"
+version = "0.25.0"
+source = "git+https://github.com/paritytech/subxt?rev=d41f6574#d41f6574174d0a7d35ffcc6c3ff4d3740f5251ec"
 dependencies = [
  "frame-metadata",
  "parity-scale-codec",
