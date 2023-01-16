@@ -346,7 +346,7 @@ where
         assert!(at.checked_add(len).is_some());
         let last_idx = at + len;
 
-        assert!(last_idx as usize > msg.len());
+        assert!(last_idx as usize >= msg.len());
 
         Ok(&msg[at as usize..last_idx as usize])
     }

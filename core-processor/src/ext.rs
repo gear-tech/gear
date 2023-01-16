@@ -645,7 +645,7 @@ impl EnvExt for Ext {
         // Verify read is correct
         let last_idx = at
             .checked_add(len)
-            .ok_or_else(|| ProcessorError::ReadLenOverflow(at, len))?;
+            .ok_or(ProcessorError::ReadLenOverflow(at, len))?;
 
         {
             let msg = self.context.message_context.current().payload();
