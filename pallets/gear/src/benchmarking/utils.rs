@@ -23,8 +23,7 @@ use core::ops::Range;
 use super::Exec;
 use crate::{
     manager::{CodeInfo, ExtManager, HandleKind},
-    Config, CostsPerBlockOf, CurrencyOf, DbWeightOf, MailboxOf, Pallet as Gear,
-    QueueOf,
+    Config, CostsPerBlockOf, CurrencyOf, DbWeightOf, MailboxOf, Pallet as Gear, QueueOf,
 };
 use common::{scheduler::SchedulingCostsPerBlock, storage::*, CodeStorage, Origin};
 use core_processor::{
@@ -43,9 +42,9 @@ use sp_runtime::traits::UniqueSaturatedInto;
 use sp_std::{convert::TryInto, prelude::*};
 
 #[cfg(feature = "lazy-pages")]
-use common::ProgramStorage;
-#[cfg(feature = "lazy-pages")]
 use crate::ProgramStorageOf;
+#[cfg(feature = "lazy-pages")]
+use common::ProgramStorage;
 
 pub fn prepare_block_config<T>() -> BlockConfig
 where

@@ -28,9 +28,11 @@ use rand::{Rng, SeedableRng};
 
 use gear_lazy_pages_common as lazy_pages;
 
-use crate::{HandleKind, benchmarking::utils::PrepareConfig};
 use super::*;
-use crate::benchmarking::utils as common_utils;
+use crate::{
+    benchmarking::{utils as common_utils, utils::PrepareConfig},
+    HandleKind,
+};
 // use super::utils::{self as common_utils, PrepareConfig};
 
 pub fn lazy_pages_charging<T>()

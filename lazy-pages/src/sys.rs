@@ -382,7 +382,7 @@ pub(crate) unsafe fn process_lazy_pages(
                 Status::Normal => {}
                 Status::GasLimitExceeded | Status::GasAllowanceExceeded => {
                     log::trace!(
-                        "Gas limit or allowance exceed, so removes protection from all wasm memory\
+                        "Gas limit or allowance exceed, so removes protection from all wasm memory \
                     and continues execution until the end of current wasm block"
                     );
                     region::protect(
