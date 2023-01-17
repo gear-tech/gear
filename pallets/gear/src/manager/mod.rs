@@ -52,7 +52,7 @@ pub use journal::*;
 pub use task::*;
 
 use crate::{
-    Config, CostsPerBlockOf, CurrencyOf, GasHandlerOf, GearProgramPallet, Pallet, QueueOf,
+    Config, CostsPerBlockOf, CurrencyOf, GasHandlerOf, Pallet, ProgramStorageOf, QueueOf,
     TaskPoolOf,
 };
 use codec::{Decode, Encode};
@@ -60,7 +60,7 @@ use common::{
     event::*,
     scheduler::{ScheduledTask, SchedulingCostsPerBlock, TaskHandler, TaskPool},
     storage::{Interval, Queue},
-    ActiveProgram, CodeStorage, GasTree, Origin, ProgramState,
+    ActiveProgram, CodeStorage, GasTree, Origin, ProgramState, ProgramStorage,
 };
 use core::fmt;
 use core_processor::common::{Actor, ExecutableActorData};
@@ -77,7 +77,7 @@ use primitive_types::H256;
 use sp_runtime::traits::UniqueSaturatedInto;
 use sp_std::{
     collections::{btree_map::BTreeMap, btree_set::BTreeSet},
-    convert::TryInto,
+    convert::{TryFrom, TryInto},
     marker::PhantomData,
     prelude::*,
 };
@@ -188,7 +188,7 @@ where
             true
         } else if self.users.contains(id) {
             false
-        } else if GearProgramPallet::<T>::program_exists(*id) {
+        } else if ProgramStorageOf::<T>::program_exists(*id) {
             self.programs.insert(*id);
             true
         } else {
@@ -217,7 +217,7 @@ where
     /// NOTE: By calling this function we can't differ whether `None` returned, because
     /// program with `id` doesn't exist or it's terminated
     pub fn get_actor(&self, id: ProgramId) -> Option<Actor> {
-        let active: ActiveProgram = common::get_program(id.into_origin())?.try_into().ok()?;
+        let active: ActiveProgram = ProgramStorageOf::<T>::get_program(id)?.try_into().ok()?;
         let code_id = CodeId::from_origin(active.code_hash);
 
         let balance =
@@ -260,21 +260,20 @@ where
             gas_reservation_map: Default::default(),
         };
 
-        common::set_program(program_id.into_origin(), program);
+        ProgramStorageOf::<T>::add_program(program_id, program)
+            .expect("set_program shouldn't be called for the existing id");
     }
 
     fn clean_reservation_tasks(&mut self, program_id: ProgramId, maybe_inactive: bool) {
-        let maybe_active_program = common::get_active_program(program_id.into_origin());
+        let maybe_active_program = ProgramStorageOf::<T>::get_program(program_id)
+            .and_then(|p| ActiveProgram::try_from(p).ok());
 
-        if maybe_active_program.is_err() && maybe_inactive {
+        if maybe_active_program.is_none() && maybe_inactive {
             return;
         };
 
-        let active_program = maybe_active_program.unwrap_or_else(|e| {
-            unreachable!(
-                "Clean reservations can only be called on active program: {}",
-                e
-            )
+        let active_program = maybe_active_program.unwrap_or_else(|| {
+            unreachable!("Clean reservations can only be called on active program")
         });
 
         for (reservation_id, reservation_slot) in active_program.gas_reservation_map {
@@ -295,23 +294,22 @@ where
         program_id: ProgramId,
         reservation_id: ReservationId,
     ) -> GasReservationSlot {
-        let program_id = program_id.into_origin();
-        let mut prog = common::get_active_program(program_id).unwrap_or_else(|e| {
+        let slot = ProgramStorageOf::<T>::update_active_program(program_id, |p| {
+            p.gas_reservation_map
+                .remove(&reservation_id)
+                .unwrap_or_else(|| {
+                    unreachable!(
+                        "Gas reservation removing called on non-existing reservation ID: {}",
+                        reservation_id
+                    )
+                })
+        })
+        .unwrap_or_else(|e| {
             unreachable!(
-                "Gas reservation removing guaranteed to be called only on existing program: {}",
+                "Gas reservation removing guaranteed to be called only on existing program: {:?}",
                 e
             )
         });
-        let slot = prog
-            .gas_reservation_map
-            .remove(&reservation_id)
-            .unwrap_or_else(|| {
-                unreachable!(
-                    "Gas reservation removing called on non-existing reservation ID: {}",
-                    reservation_id
-                )
-            });
-        common::set_program(program_id, prog);
 
         GasHandlerOf::<T>::unlock_all(reservation_id)
             .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));

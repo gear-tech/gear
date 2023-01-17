@@ -21,7 +21,7 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
 use core::fmt;
-use gear_common::{pages_prefix, Origin};
+use gear_common::Origin;
 use gear_core::{
     ids::ProgramId,
     memory::{HostPointer, Memory, PageNumber, PageU32Size, WasmPageNumber},
@@ -39,8 +39,8 @@ fn mprotect_lazy_pages(mem: &mut impl Memory, protect: bool) {
 }
 
 /// Try to enable and initialize lazy pages env
-pub fn try_to_enable_lazy_pages() -> bool {
-    gear_ri::init_lazy_pages()
+pub fn try_to_enable_lazy_pages(pages_final_prefix: [u8; 32]) -> bool {
+    gear_ri::init_lazy_pages(pages_final_prefix)
 }
 
 /// Protect and save storage keys for pages which has no data
@@ -49,7 +49,6 @@ pub fn init_for_program(
     prog_id: ProgramId,
     stack_end: Option<WasmPageNumber>,
 ) {
-    let program_prefix = crate::pages_prefix(prog_id.into_origin());
     let wasm_mem_addr = mem.get_buffer_host_addr();
     let wasm_mem_size = mem.size();
     let stack_end_page = stack_end.map(|page| page.raw());
@@ -60,7 +59,7 @@ pub fn init_for_program(
         wasm_mem_addr,
         wasm_mem_size.raw(),
         stack_end_page,
-        program_prefix,
+        <[u8; 32]>::from(prog_id.into_origin()).into(),
     );
 }
 

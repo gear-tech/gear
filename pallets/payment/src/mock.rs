@@ -177,6 +177,7 @@ impl pallet_gear::Config for Test {
     type OutgoingLimit = OutgoingLimit;
     type DebugInfo = ();
     type CodeStorage = GearProgram;
+    type ProgramStorage = GearProgram;
     type MailboxThreshold = ConstU64<3000>;
     type ReservationsLimit = ConstU64<256>;
     type Messenger = GearMessenger;
@@ -186,12 +187,7 @@ impl pallet_gear::Config for Test {
     type QueueRunner = Gear;
 }
 
-impl pallet_gear_program::Config for Test {
-    type RuntimeEvent = RuntimeEvent;
-    type WeightInfo = ();
-    type Currency = Balances;
-    type Messenger = GearMessenger;
-}
+impl pallet_gear_program::Config for Test {}
 
 impl pallet_gear_gas::Config for Test {
     type BlockGasLimit = BlockGasLimit;

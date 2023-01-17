@@ -103,7 +103,7 @@ where
                         core_processor::handle_journal(journal, &mut ext_manager);
 
                         // Adding id in on-init wake list.
-                        common::waiting_init_append_message_id(
+                        ProgramStorageOf::<T>::waiting_init_append_message_id(
                             dispatch.destination(),
                             dispatch.id(),
                         );
@@ -246,7 +246,7 @@ where
         dispatch_id: MessageId,
         reply: bool,
     ) -> ActorResult {
-        let maybe_active_program = match common::get_program(program_id.into_origin()) {
+        let maybe_active_program = match ProgramStorageOf::<T>::get_program(program_id) {
             Some(p) => p,
             None => {
                 // When an actor sends messages, which is intended to be added to the queue

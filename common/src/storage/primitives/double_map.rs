@@ -74,6 +74,9 @@ pub trait DoubleMapStorage {
     /// Gets value stored under given keys, if present,
     /// and removes it from storage.
     fn take(key1: Self::Key1, key2: Self::Key2) -> Option<Self::Value>;
+
+    /// Remove items from the map matching a `first_key` prefix.
+    fn clear_prefix(first_key: Self::Key1);
 }
 
 /// Creates new type with specified name and key1-key2-value types and
@@ -133,6 +136,10 @@ macro_rules! wrap_storage_double_map {
 
             fn take(key1: Self::Key1, key2: Self::Key2) -> Option<Self::Value> {
                 $storage::<T>::take(key1, key2)
+            }
+
+            fn clear_prefix(first_key: Self::Key1) {
+                let _ = $storage::<T>::clear_prefix(first_key, u32::MAX, None);
             }
         }
     };

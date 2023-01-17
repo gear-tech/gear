@@ -34,6 +34,7 @@ use std::borrow::Borrow;
 use subxt::ext::sp_runtime::AccountId32;
 
 impl GearApi {
+    /// Get a message identified by `message_id` from the mailbox.
     pub async fn get_from_mailbox(
         &self,
         message_id: impl Borrow<MessageId>,
@@ -42,6 +43,8 @@ impl GearApi {
             .await
     }
 
+    /// Get a message identified by `message_id` from the `account_id`'s
+    /// mailbox.
     pub async fn get_from_account_mailbox(
         &self,
         account_id: impl Borrow<AccountId32>,
@@ -75,6 +78,9 @@ impl GearApi {
         Ok(data)
     }
 
+    /// Get the total balance of the account identified by `account_id`.
+    ///
+    /// Total balance includes free and reserved funds.
     pub async fn total_balance(&self, account_id: &AccountId32) -> Result<u128> {
         let data = self.account_data(account_id).await?;
 
@@ -83,12 +89,15 @@ impl GearApi {
             .ok_or(Error::BalanceOverflow)
     }
 
+    /// Get the free funds balance of the account identified by `account_id`.
     pub async fn free_balance(&self, account_id: &AccountId32) -> Result<u128> {
         let data = self.account_data(account_id).await?;
 
         Ok(data.free)
     }
 
+    /// Get the reserved funds balance of the account identified by
+    /// `account_id`.
     pub async fn reserved_balance(&self, account_id: &AccountId32) -> Result<u128> {
         let data = self.account_data(account_id).await?;
 
