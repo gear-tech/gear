@@ -71,9 +71,9 @@ pub(crate) enum Error {
     InvalidPageDataSize { expected: u32, actual: u32 },
     #[display(fmt = "Any page cannot be released twice: {_0:?}")]
     DoubleRelease(LazyPage),
-    #[display(fmt = "Protection error: {_0}")]
+    #[display(fmt = "Memory protection error: {_0}")]
     #[from]
-    MemoryProtection(region::Error),
+    MemoryProtection(MprotectError),
     #[display(fmt = "Given instance host pointer is invalid")]
     HostInstancePointerIsInvalid,
     #[display(fmt = "Given pointer to globals access provider dyn object is invalid")]

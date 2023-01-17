@@ -33,7 +33,7 @@ use core::{any::Any, fmt};
 use gear_backend_common::{
     calc_stack_end,
     error_processor::IntoExtError,
-    lazy_pages::{GlobalsAccessError, GlobalsAccessMod, GlobalsAccessTrait, GlobalsCtx},
+    lazy_pages::{GlobalsAccessError, GlobalsAccessMod, GlobalsAccesser, GlobalsCtx},
     AsTerminationReason, BackendReport, Environment, GetGasAmount, IntoExtInfo, StackEndError,
     TerminationReason, TrapExplanation, STACK_END_EXPORT_NAME,
 };
@@ -121,7 +121,7 @@ impl<E: Ext> GlobalsAccessProvider<E> {
     }
 }
 
-impl<E: Ext + 'static> GlobalsAccessTrait for GlobalsAccessProvider<E> {
+impl<E: Ext + 'static> GlobalsAccesser for GlobalsAccessProvider<E> {
     fn get_i64(&self, name: &str) -> Result<i64, GlobalsAccessError> {
         self.get_global(name)
             .and_then(|global| {
@@ -283,7 +283,7 @@ where
             .state_mut()
             .as_ref()
             .unwrap_or_else(|| unreachable!("State must be set in `WasmiEnvironment::new`"));
-        let globals_provider_dyn_ref = &mut globals_provider as &mut dyn GlobalsAccessTrait;
+        let globals_provider_dyn_ref = &mut globals_provider as &mut dyn GlobalsAccesser;
 
         let needs_execution = entry_point
             .try_into_kind()
@@ -333,20 +333,16 @@ where
                 )
             })?;
 
-            globals_provider_dyn_ref
+            let store_option = &mut globals_provider_dyn_ref
                 .as_any_mut()
                 .downcast_mut::<GlobalsAccessProvider<E>>()
                 // Provider is `GlobalsAccessProvider`, so panic is impossible.
                 .unwrap_or_else(|| unreachable!("Provider must be `GlobalsAccessProvider`"))
-                .store
-                .replace(store);
+                .store;
+
+            store_option.replace(store);
             let res = entry_func.call(
-                globals_provider_dyn_ref
-                    .as_any_mut()
-                    .downcast_mut::<GlobalsAccessProvider<E>>()
-                    // Provider is `GlobalsAccessProvider`, so panic is impossible.
-                    .unwrap_or_else(|| unreachable!("Provider must be `GlobalsAccessProvider`"))
-                    .store
+                store_option
                     .as_mut()
                     // We set store above, so panic is impossible.
                     .unwrap_or_else(|| unreachable!("Store must be set before")),

@@ -48,6 +48,7 @@ pub struct LazyPagesWeights {
 /// Globals ctx for lazy-pages initialization.
 #[derive(Debug, Clone, PartialEq, Eq, Encode, Decode)]
 pub struct GlobalsCtx {
+    // TODO: considering change global name types to `TrimmedString` (issue #2098)
     /// Gas amount global name.
     pub global_gas_name: String,
     /// Gas allowance amount global name.
@@ -67,7 +68,7 @@ pub struct GlobalsCtx {
 pub struct GlobalsAccessError;
 
 /// Globals access trait.
-pub trait GlobalsAccessTrait {
+pub trait GlobalsAccesser {
     /// Returns global `name` value, if `name` is I64 global export.
     fn get_i64(&self, name: &str) -> Result<i64, GlobalsAccessError>;
     /// Set global `name` == `value`, if `name` is I64 global export.

@@ -316,7 +316,7 @@ where
                 globals_access_mod: GlobalsAccessMod::WasmRuntime,
             })
         } else {
-            None
+            unreachable!("We cannot use sandbox backend in std environment currently");
         };
 
         match pre_execution_handler(&mut runtime.memory, stack_end_page, globals_ctx) {

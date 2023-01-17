@@ -19,17 +19,17 @@
 //! Lazy-pages signal handler functionality.
 
 use crate::{
-    utils, Error, GranularityPage, LazyPage, LazyPagesExecutionContext, LAZY_PAGES_PROGRAM_CONTEXT,
+    mprotect, utils, Error, GranularityPage, LazyPage, LazyPagesExecutionContext,
+    LAZY_PAGES_PROGRAM_CONTEXT,
 };
 use cfg_if::cfg_if;
 use core::any::Any;
 use gear_backend_common::lazy_pages::{
-    GlobalsAccessError, GlobalsAccessMod, GlobalsAccessTrait, GlobalsCtx, Status,
+    GlobalsAccessError, GlobalsAccessMod, GlobalsAccesser, GlobalsCtx, Status,
 };
 use gear_core::memory::{
     PageNumber, PageU32Size, PagesIterInclusive, GEAR_PAGE_SIZE, PAGE_STORAGE_GRANULARITY,
 };
-use region::Protection;
 use sc_executor_common::sandbox::SandboxInstance;
 use sp_wasm_interface::Value;
 use std::{
@@ -113,11 +113,11 @@ pub(crate) enum AccessedPagesInfo {
     FromSignal(LazyPage),
 }
 
-struct GlobalsAccessSandbox<'a> {
+struct GlobalsAccessWasmRuntime<'a> {
     pub instance: &'a mut SandboxInstance,
 }
 
-impl<'a> GlobalsAccessTrait for GlobalsAccessSandbox<'a> {
+impl<'a> GlobalsAccesser for GlobalsAccessWasmRuntime<'a> {
     fn get_i64(&self, name: &str) -> Result<i64, GlobalsAccessError> {
         self.instance
             .get_global_val(name)
@@ -145,11 +145,11 @@ impl<'a> GlobalsAccessTrait for GlobalsAccessSandbox<'a> {
     }
 }
 
-struct GlobalsAccessDyn<'a, 'b> {
-    pub inner_access_provider: &'a mut &'b mut dyn GlobalsAccessTrait,
+struct GlobalsAccessNativeRuntime<'a, 'b> {
+    pub inner_access_provider: &'a mut &'b mut dyn GlobalsAccesser,
 }
 
-impl<'a, 'b> GlobalsAccessTrait for GlobalsAccessDyn<'a, 'b> {
+impl<'a, 'b> GlobalsAccesser for GlobalsAccessNativeRuntime<'a, 'b> {
     fn get_i64(&self, name: &str) -> Result<i64, GlobalsAccessError> {
         self.inner_access_provider.get_i64(name)
     }
@@ -158,21 +158,13 @@ impl<'a, 'b> GlobalsAccessTrait for GlobalsAccessDyn<'a, 'b> {
         self.inner_access_provider.set_i64(name, value)
     }
 
-    fn get_i32(&self, _name: &str) -> Result<i32, GlobalsAccessError> {
-        todo!("Currently useless")
-    }
-
-    fn set_i32(&mut self, _name: &str, _value: i32) -> Result<(), GlobalsAccessError> {
-        todo!("Currently useless")
-    }
-
     fn as_any_mut(&mut self) -> &mut dyn Any {
         unreachable!()
     }
 }
 
 fn charge_gas_internal(
-    mut globals_access_provider: impl GlobalsAccessTrait,
+    mut globals_access_provider: impl GlobalsAccesser,
     global_gas: &str,
     global_allowance: &str,
     amount: u64,
@@ -207,7 +199,7 @@ unsafe fn charge_gas(globals_ctx: GlobalsCtx, amount: u64) -> Result<Status, Err
                 .as_mut()
                 .ok_or(Error::HostInstancePointerIsInvalid)?;
             charge_gas_internal(
-                GlobalsAccessSandbox { instance },
+                GlobalsAccessWasmRuntime { instance },
                 &globals_ctx.global_gas_name,
                 &globals_ctx.global_allowance_name,
                 amount,
@@ -215,11 +207,11 @@ unsafe fn charge_gas(globals_ctx: GlobalsCtx, amount: u64) -> Result<Status, Err
         }
         GlobalsAccessMod::NativeRuntime => {
             let inner_access_provider = (globals_ctx.globals_access_ptr
-                as *mut &mut dyn GlobalsAccessTrait)
+                as *mut &mut dyn GlobalsAccesser)
                 .as_mut()
                 .ok_or(Error::DynGlobalsAccessPointerIsInvalid)?;
             charge_gas_internal(
-                GlobalsAccessDyn {
+                GlobalsAccessNativeRuntime {
                     inner_access_provider,
                 },
                 &globals_ctx.global_gas_name,
@@ -377,10 +369,11 @@ pub(crate) unsafe fn process_lazy_pages(
                         "Gas limit or allowance exceed, so removes protection from all wasm memory \
                     and continues execution until the end of current wasm block"
                     );
-                    region::protect(
-                        wasm_mem_addr as *mut (),
+                    mprotect::mprotect_interval(
+                        wasm_mem_addr,
                         wasm_mem_size.offset() as usize,
-                        Protection::READ_WRITE,
+                        true,
+                        true,
                     )?;
                     return Ok(());
                 }
@@ -401,10 +394,11 @@ pub(crate) unsafe fn process_lazy_pages(
             } else if ctx.accessed_pages.contains(&lazy_page) {
                 if is_write {
                     // Set read/write access for page and add page to released.
-                    region::protect(
-                        (wasm_mem_addr + lazy_page.offset() as usize) as *mut (),
+                    mprotect::mprotect_interval(
+                        wasm_mem_addr + lazy_page.offset() as usize,
                         LazyPage::size() as usize,
-                        Protection::READ_WRITE,
+                        true,
+                        true,
                     )?;
                     log::trace!("add {lazy_page:?} to released");
                     if !ctx.released_pages.insert(lazy_page) {
@@ -418,10 +412,11 @@ pub(crate) unsafe fn process_lazy_pages(
                 }
             } else {
                 // Need to set read/write access.
-                region::protect(
-                    (wasm_mem_addr + lazy_page.offset() as usize) as *mut (),
+                mprotect::mprotect_interval(
+                    wasm_mem_addr + lazy_page.offset() as usize,
                     LazyPage::size() as usize,
-                    Protection::READ_WRITE,
+                    true,
+                    true,
                 )?;
 
                 // Download data for `lazy_page` from storage
@@ -459,10 +454,11 @@ pub(crate) unsafe fn process_lazy_pages(
                     }
                 } else {
                     // Set only read access for page.
-                    region::protect(
-                        (wasm_mem_addr + lazy_page.offset() as usize) as *mut (),
+                    mprotect::mprotect_interval(
+                        wasm_mem_addr + lazy_page.offset() as usize,
                         LazyPage::size() as usize,
-                        Protection::READ,
+                        true,
+                        false,
                     )?;
                 }
             }

@@ -41,26 +41,26 @@ use gear_lazy_pages as lazy_pages;
 pub use sp_std::{convert::TryFrom, result::Result, vec::Vec};
 
 /// Use it to safely transfer wasm page from wasm runtime to native.
-pub struct WasmPageFFIWrapper(u32);
+pub struct WasmPageFfiWrapper(u32);
 
-impl From<WasmPageNumber> for WasmPageFFIWrapper {
+impl From<WasmPageNumber> for WasmPageFfiWrapper {
     fn from(value: WasmPageNumber) -> Self {
         Self(value.raw())
     }
 }
 
-impl From<WasmPageFFIWrapper> for WasmPageNumber {
-    fn from(val: WasmPageFFIWrapper) -> Self {
+impl From<WasmPageFfiWrapper> for WasmPageNumber {
+    fn from(val: WasmPageFfiWrapper) -> Self {
         // Safe because we can make wrapper only from `WasmPageNumber`.
         unsafe { WasmPageNumber::new_unchecked(val.0) }
     }
 }
 
-impl PassBy for WasmPageFFIWrapper {
+impl PassBy for WasmPageFfiWrapper {
     type PassBy = Inner<Self, u32>;
 }
 
-impl PassByInner for WasmPageFFIWrapper {
+impl PassByInner for WasmPageFfiWrapper {
     type Inner = u32;
 
     fn into_inner(self) -> Self::Inner {
@@ -107,7 +107,7 @@ pub trait GearRI {
     #[version(2)]
     fn init_lazy_pages_for_program(
         wasm_mem_addr: Option<HostPointer>,
-        wasm_mem_size: WasmPageFFIWrapper,
+        wasm_mem_size: WasmPageFfiWrapper,
         stack_end_page: Option<WasmPageNumber>,
         program_id: Vec<u8>,
         globals_ctx: Option<GlobalsCtx>,
@@ -150,7 +150,7 @@ pub trait GearRI {
     }
 
     #[version(2)]
-    fn set_wasm_mem_size(wasm_mem_size: WasmPageFFIWrapper) {
+    fn set_wasm_mem_size(wasm_mem_size: WasmPageFfiWrapper) {
         lazy_pages::set_wasm_mem_size(wasm_mem_size.into())
             .map_err(|e| e.to_string())
             .expect("Cannot set new wasm memory size");

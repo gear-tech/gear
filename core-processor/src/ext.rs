@@ -222,15 +222,15 @@ impl ProcessorExt for Ext {
         _stack_end: Option<WasmPageNumber>,
         _globals_ctx: Option<GlobalsCtx>,
     ) {
-        unreachable!()
+        unreachable!("Must not be called: lazy-pages is unsupported by this ext")
     }
 
     fn lazy_pages_post_execution_actions(_mem: &mut impl Memory) {
-        unreachable!()
+        unreachable!("Must not be called: lazy-pages is unsupported by this ext")
     }
 
     fn lazy_pages_status() -> Option<Status> {
-        unreachable!()
+        unreachable!("Must not be called: lazy-pages is unsupported by this ext")
     }
 }
 
