@@ -37,6 +37,8 @@ use syscalls::{sys_calls_table, SyscallsConfig};
 #[cfg(test)]
 mod test;
 
+pub mod utils;
+
 #[derive(Clone, Copy, Debug)]
 pub struct Ratio {
     numerator: u32,
