@@ -344,11 +344,9 @@ where
 
         // 'at' and 'len' correct and saturation checked in Ext::read
         debug_assert!(at.checked_add(len).is_some());
-        let last_idx = at + len;
+        debug_assert!((at + len) as usize == msg.len());
 
-        debug_assert!(last_idx as usize >= msg.len());
-
-        Ok(&msg[at as usize..last_idx as usize])
+        Ok(msg)
     }
 
     pub fn read(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {

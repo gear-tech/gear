@@ -130,10 +130,10 @@ pub enum ProcessorError {
     /// User's code panicked
     #[display(fmt = "Panic occurred: {_0}")]
     Panic(String),
-    /// User's code panicked
+    /// Cannot take data by indexes
     #[display(fmt = "Cannot take data by indexes {_0:?} from message with size {_1}")]
     ReadWrongRange(Range<u32>, u32),
-    /// User's code panicked
+    /// Overflow in 'gr_read'
     #[display(fmt = "Overflow at {_0} + len {_1} in `gr_read`")]
     ReadLenOverflow(u32, u32),
 }
@@ -642,6 +642,8 @@ impl EnvExt for Ext {
             .try_into()
             .unwrap_or_else(|_| unreachable!("size of the payload is a known constant: gear_core::message::MAX_PAYLOAD_SIZE < u32::MAX"));
 
+        self.charge_gas_runtime(RuntimeCosts::Read(size))?;
+
         // Verify read is correct
         let last_idx = at
             .checked_add(len)
@@ -660,7 +662,8 @@ impl EnvExt for Ext {
 
         self.charge_gas_runtime(RuntimeCosts::Read(size))?;
 
-        Ok(self.context.message_context.current().payload())
+        let msg = self.context.message_context.current().payload();
+        Ok(&msg[at as usize..last_idx as usize])
     }
 
     fn size(&mut self) -> Result<usize, Self::Error> {

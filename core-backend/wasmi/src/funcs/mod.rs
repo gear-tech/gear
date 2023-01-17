@@ -433,12 +433,10 @@ where
         let msg = ext.read(at, len).map_err(FuncError::Core)?;
 
         // 'at' and 'len' correct and saturation checked in Ext::read
-        assert!(at.checked_add(len).is_some());
-        let last_idx = at + len;
+        debug_assert!(at.checked_add(len).is_some());
+        debug_assert!((at + len) as usize == msg.len());
 
-        assert!(msg.len() >= last_idx as usize);
-
-        Ok(&msg[at as usize..last_idx as usize])
+        Ok(msg)
     }
 
     pub fn read(store: &mut Store<HostState<E>>, forbidden: bool, memory: WasmiMemory) -> Func {
