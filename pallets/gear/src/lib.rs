@@ -1246,7 +1246,6 @@ pub mod pallet {
         pub fn upload_code(origin: OriginFor<T>, code: Vec<u8>) -> DispatchResultWithPostInfo {
             let who = ensure_signed(origin)?;
 
-            // MIKITA: we can refund in case of hash already exists
             let code_id = Self::set_code_with_metadata(Self::check_code(code)?, who.into_origin())?;
 
             // TODO: replace this temporary (`None`) value
@@ -1325,7 +1324,6 @@ pub mod pallet {
                 value,
             )?;
 
-            // MIKITA we should refund if program already exists
             if !T::CodeStorage::exists(code_and_id.code_id()) {
                 // By that call we follow the guarantee that we have in `Self::upload_code` -
                 // if there's code in storage, there's also metadata for it.
@@ -1364,7 +1362,6 @@ pub mod pallet {
         /// For the details of this extrinsic, see `upload_code`.
         #[pallet::call_index(2)]
         #[pallet::weight(<T as Config>::WeightInfo::create_program(salt.len() as u32))]
-        // MIKITA nothing to refund here
         pub fn create_program(
             origin: OriginFor<T>,
             code_id: CodeId,
@@ -1433,9 +1430,10 @@ pub mod pallet {
                 ),
             );
 
-            // MIKITA different gas for 2 branchs
-            // MIKITA Refung gas if it's not initialized program
-            // MIKITA Refund different in case of another branch
+            // MIKITA different gas for 3 cases:
+            // MIKITA going to queue (active program)
+            // MIKITA going to waitlist (uninitialised program)
+            // MIKITA going to events (user interactions)
             if ProgramStorageOf::<T>::program_exists(destination) {
                 ensure!(Self::is_active(destination), Error::<T>::InactiveProgram);
 
@@ -1505,7 +1503,8 @@ pub mod pallet {
         /// or reply on the message from mailbox.
         #[pallet::call_index(4)]
         #[pallet::weight(<T as Config>::WeightInfo::send_reply(payload.len() as u32))]
-        // MIKITA maybe refund if MessageId is incorrect?
+        // MIKITA possible 2 cases
+        // MIKITA If message contains value and doesn't
         pub fn send_reply(
             origin: OriginFor<T>,
             reply_to_id: MessageId,
@@ -1595,7 +1594,8 @@ pub mod pallet {
         /// or reply on the message from mailbox.
         #[pallet::call_index(5)]
         #[pallet::weight(<T as Config>::WeightInfo::claim_value())]
-        // MIKITA maybe refund if MessageId is incorrect?
+        // MIKITA possible 2 cases
+        // MIKITA If message contains value and doesn't
         pub fn claim_value(
             origin: OriginFor<T>,
             message_id: MessageId,
@@ -1613,7 +1613,6 @@ pub mod pallet {
         /// Reset all pallet associated storage.
         #[pallet::call_index(6)]
         #[pallet::weight(0)]
-        // MIKITA nothing to refund
         pub fn reset(origin: OriginFor<T>) -> DispatchResult {
             ensure_root(origin)?;
             <T as Config>::Scheduler::reset();
@@ -1631,7 +1630,6 @@ pub mod pallet {
         /// Process message queue
         #[pallet::call_index(7)]
         #[pallet::weight((Weight::zero(), DispatchClass::Mandatory))]
-        // MIKITA nothing to refund cause it's zero cost
         pub fn run(origin: OriginFor<T>) -> DispatchResultWithPostInfo {
             ensure_none(origin)?;
 
