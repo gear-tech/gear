@@ -6,11 +6,12 @@ use crate::{
     manager::{CodeInfo, ExtManager, HandleKind},
     schedule::API_BENCHMARK_BATCH_SIZE,
     Config, CostsPerBlockOf, CurrencyOf, DbWeightOf, GasHandlerOf, MailboxOf, Pallet as Gear,
-    QueueOf,
+    ProgramStorageOf, QueueOf,
 };
 use codec::Encode;
 use common::{
     benchmarking, scheduler::SchedulingCostsPerBlock, storage::*, CodeStorage, GasTree, Origin,
+    ProgramStorage,
 };
 use core::{marker::PhantomData, mem, mem::size_of, ops::Range};
 use core_processor::{
@@ -45,7 +46,9 @@ where
     T::AccountId: Origin,
 {
     #[cfg(feature = "lazy-pages")]
-    assert!(gear_lazy_pages_common::try_to_enable_lazy_pages());
+    assert!(gear_lazy_pages_common::try_to_enable_lazy_pages(
+        ProgramStorageOf::<T>::pages_final_prefix()
+    ));
 
     // to see logs in bench tests
     #[cfg(feature = "std")]
@@ -397,22 +400,24 @@ where
         let instance = Program::<T>::new(code, vec![])?;
 
         // insert gas reservation slots
-        let mut program = common::get_active_program(instance.addr).unwrap();
-        for x in 0..r * API_BENCHMARK_BATCH_SIZE {
-            program.gas_reservation_map.insert(
-                ReservationId::from(x as u64),
-                GasReservationSlot {
-                    amount: 1_000,
-                    start: 1,
-                    finish: 100,
-                },
-            );
-        }
-        common::set_program(instance.addr, program);
+        let program_id = ProgramId::from_origin(instance.addr);
+        ProgramStorageOf::<T>::update_active_program(program_id, |program| {
+            for x in 0..r * API_BENCHMARK_BATCH_SIZE {
+                program.gas_reservation_map.insert(
+                    ReservationId::from(x as u64),
+                    GasReservationSlot {
+                        amount: 1_000,
+                        start: 1,
+                        finish: 100,
+                    },
+                );
+            }
+        })
+        .unwrap();
 
         prepare::<T>(
             instance.caller.into_origin(),
-            HandleKind::Handle(ProgramId::from_origin(instance.addr)),
+            HandleKind::Handle(program_id),
             vec![],
             0,
             err_ptrs,
@@ -799,22 +804,24 @@ where
         let instance = Program::<T>::new(code, vec![])?;
 
         // insert gas reservation slots
-        let mut program = common::get_active_program(instance.addr).unwrap();
-        for x in 0..r * API_BENCHMARK_BATCH_SIZE {
-            program.gas_reservation_map.insert(
-                ReservationId::from(x as u64),
-                GasReservationSlot {
-                    amount: 1_000,
-                    start: 1,
-                    finish: 100,
-                },
-            );
-        }
-        common::set_program(instance.addr, program);
+        let program_id = ProgramId::from_origin(instance.addr);
+        ProgramStorageOf::<T>::update_active_program(program_id, |program| {
+            for x in 0..r * API_BENCHMARK_BATCH_SIZE {
+                program.gas_reservation_map.insert(
+                    ReservationId::from(x as u64),
+                    GasReservationSlot {
+                        amount: 1_000,
+                        start: 1,
+                        finish: 100,
+                    },
+                );
+            }
+        })
+        .unwrap();
 
         prepare::<T>(
             instance.caller.into_origin(),
-            HandleKind::Handle(ProgramId::from_origin(instance.addr)),
+            HandleKind::Handle(program_id),
             vec![],
             0,
             err_len_ptrs,
@@ -870,22 +877,24 @@ where
         let instance = Program::<T>::new(code, vec![])?;
 
         // insert gas reservation slots
-        let mut program = common::get_active_program(instance.addr).unwrap();
-        for x in 0..API_BENCHMARK_BATCH_SIZE {
-            program.gas_reservation_map.insert(
-                ReservationId::from(x as u64),
-                GasReservationSlot {
-                    amount: 1_000,
-                    start: 1,
-                    finish: 100,
-                },
-            );
-        }
-        common::set_program(instance.addr, program);
+        let program_id = ProgramId::from_origin(instance.addr);
+        ProgramStorageOf::<T>::update_active_program(program_id, |program| {
+            for x in 0..API_BENCHMARK_BATCH_SIZE {
+                program.gas_reservation_map.insert(
+                    ReservationId::from(x as u64),
+                    GasReservationSlot {
+                        amount: 1_000,
+                        start: 1,
+                        finish: 100,
+                    },
+                );
+            }
+        })
+        .unwrap();
 
         prepare::<T>(
             instance.caller.into_origin(),
-            HandleKind::Handle(ProgramId::from_origin(instance.addr)),
+            HandleKind::Handle(program_id),
             vec![],
             0,
             err_len_ptrs,
@@ -1013,22 +1022,24 @@ where
         let instance = Program::<T>::new(code, vec![])?;
 
         // insert gas reservation slots
-        let mut program = common::get_active_program(instance.addr).unwrap();
-        for x in 0..r * API_BENCHMARK_BATCH_SIZE {
-            program.gas_reservation_map.insert(
-                ReservationId::from(x as u64),
-                GasReservationSlot {
-                    amount: 1_000,
-                    start: 1,
-                    finish: 100,
-                },
-            );
-        }
-        common::set_program(instance.addr, program);
+        let program_id = ProgramId::from_origin(instance.addr);
+        ProgramStorageOf::<T>::update_active_program(program_id, |program| {
+            for x in 0..r * API_BENCHMARK_BATCH_SIZE {
+                program.gas_reservation_map.insert(
+                    ReservationId::from(x as u64),
+                    GasReservationSlot {
+                        amount: 1_000,
+                        start: 1,
+                        finish: 100,
+                    },
+                );
+            }
+        })
+        .unwrap();
 
         prepare::<T>(
             instance.caller.into_origin(),
-            HandleKind::Handle(ProgramId::from_origin(instance.addr)),
+            HandleKind::Handle(program_id),
             vec![],
             0,
             err_len_ptrs,

@@ -26,8 +26,6 @@ use wasmtime::AsContextMut;
 /// Data used for the wasm exectuon.
 pub type StoreData = ext::Ext;
 
-const PAGE_SIZE: usize = 4096;
-
 macro_rules! construct_metadata {
     ($($meta:ident),+) => {
         /// Gear program metadata

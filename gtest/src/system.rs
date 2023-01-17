@@ -124,11 +124,12 @@ impl System {
 
     /// Saves code to the storage and returns it's code hash
     ///
-    /// This method is mainly used for providing a proper program from program creation logic.
-    /// In order to successfully create a new program with `gstd::prog::create_program_with_gas`
-    /// function, developer should provide to the function "child's" code hash. Code for that
-    /// code hash must be in storage at the time of the function call. So this method stores
-    /// the code in storage.
+    /// This method is mainly used for providing a proper program from program
+    /// creation logic. In order to successfully create a new program with
+    /// `gstd::prog::create_program_with_gas` function, developer should
+    /// provide to the function "child's" code hash. Code for that code hash
+    /// must be in storage at the time of the function call. So this method
+    /// stores the code in storage.
     pub fn submit_code<P: AsRef<Path>>(&self, code_path: P) -> CodeId {
         let path = env::current_dir()
             .expect("Unable to get root directory of the project")

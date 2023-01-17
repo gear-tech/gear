@@ -37,12 +37,19 @@ pub use sp_std::{convert::TryFrom, result::Result, vec::Vec};
 /// Note: name is expanded as gear_ri
 #[runtime_interface]
 pub trait GearRI {
-    /// Init lazy-pages.
-    /// Returns whether initialization was successful.
     fn init_lazy_pages() -> bool {
         use lazy_pages::LazyPagesVersion;
 
-        lazy_pages::init(LazyPagesVersion::Version1)
+        lazy_pages::init(LazyPagesVersion::Version1, vec![])
+    }
+
+    /// Init lazy-pages.
+    /// Returns whether initialization was successful.
+    #[version(2)]
+    fn init_lazy_pages(pages_final_prefix: [u8; 32]) -> bool {
+        use lazy_pages::LazyPagesVersion;
+
+        lazy_pages::init(LazyPagesVersion::Version1, pages_final_prefix.into())
     }
 
     /// Init lazy pages context for current program.
@@ -51,7 +58,7 @@ pub trait GearRI {
         wasm_mem_addr: Option<HostPointer>,
         wasm_mem_size_in_pages: u32,
         stack_end_page: Option<u32>,
-        program_prefix: Vec<u8>,
+        program_id: Vec<u8>,
     ) {
         // TODO: (issue #1731) make wrapper for safe pages arguments
         let wasm_mem_size =
@@ -65,7 +72,7 @@ pub trait GearRI {
             wasm_mem_addr,
             wasm_mem_size,
             stack_end_page,
-            program_prefix,
+            program_id,
         )
         .map_err(|e| e.to_string())
         .expect("Cannot initialize lazy pages for current program");

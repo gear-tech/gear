@@ -23,16 +23,11 @@
 use crate::errors::{ContractError, Result};
 
 /// Wait types.
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Default)]
 pub(crate) enum WaitType {
     WaitFor,
+    #[default]
     WaitUpTo,
-}
-
-impl Default for WaitType {
-    fn default() -> Self {
-        WaitType::WaitUpTo
-    }
 }
 
 /// `gstd` configuration

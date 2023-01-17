@@ -43,7 +43,15 @@ async fn upload_programs_and_check(
     // Sending batch.
     let args: Vec<_> = codes
         .into_iter()
-        .map(|code| (code, gclient::bytes_now(), "", gas_limit, 0))
+        .map(|code| {
+            (
+                code,
+                gclient::now_in_micros().to_le_bytes(),
+                "",
+                gas_limit,
+                0,
+            )
+        })
         .collect();
     let (ex_res, _) = if let Some(timeout) = timeout {
         async_std::future::timeout(timeout, api.upload_program_bytes_batch(args))
@@ -111,6 +119,5 @@ async fn alloc_zero_pages() -> Result<()> {
         )"#;
     let api = GearApi::dev().await?.with("//Bob")?;
     let codes = vec![wat::parse_str(wat_code).unwrap()];
-    let res = upload_programs_and_check(&api, codes, Some(Duration::from_secs(5))).await;
-    res
+    upload_programs_and_check(&api, codes, Some(Duration::from_secs(5))).await
 }

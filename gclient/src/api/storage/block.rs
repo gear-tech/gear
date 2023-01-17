@@ -30,14 +30,22 @@ use subxt::{ext::sp_core::H256, rpc::ChainBlock};
 type GearBlock = ChainBlock<GearConfig>;
 
 impl GearApi {
+    /// Return the total gas limit per block (also known as a gas budget).
     pub fn block_gas_limit(&self) -> Result<u64> {
         self.0.gas_limit().map_err(Into::into)
     }
 
+    /// The expected average block time at which BABE should be creating blocks.
+    ///
+    /// Since BABE is probabilistic it is not trivial to figure out what the
+    /// expected average block time should be based on the slot duration and the
+    /// security parameter `c` (where `1 - c` represents the probability of a
+    /// slot being empty).
     pub fn expected_block_time(&self) -> Result<u64> {
         self.0.expected_block_time().map_err(Into::into)
     }
 
+    // Get block data
     async fn get_block_at(&self, block_hash: Option<H256>) -> Result<GearBlock> {
         Ok(self
             .0
@@ -48,6 +56,7 @@ impl GearApi {
             .block)
     }
 
+    // Get events from the block
     async fn get_events_at(&self, block_hash: Option<H256>) -> Result<Vec<RuntimeEvent>> {
         let at = storage().system().events();
 
@@ -62,18 +71,22 @@ impl GearApi {
             .collect())
     }
 
+    /// Return a hash of the last block.
     pub async fn last_block_hash(&self) -> Result<H256> {
         Ok(self.get_block_at(None).await?.header.hash())
     }
 
+    /// Return a number of the last block (also known as block height).
     pub async fn last_block_number(&self) -> Result<u32> {
         Ok(self.get_block_at(None).await?.header.number)
     }
 
+    /// Return vector of events contained in the last block.
     pub async fn last_events(&self) -> Result<Vec<RuntimeEvent>> {
         self.get_events_at(None).await
     }
 
+    /// Return a number of the specified block identified by the `block_hash`.
     pub async fn block_number_at(&self, block_hash: H256) -> Result<u32> {
         Ok(self.get_block_at(Some(block_hash)).await?.header.number)
     }
@@ -87,6 +100,10 @@ impl GearApi {
             .ok_or(Error::BlockHashNotFound)
     }
 
+    /// Return a timestamp of the last block.
+    ///
+    /// The timestamp is the number of milliseconds elapsed since the Unix
+    /// epoch.
     pub async fn last_block_timestamp(&self) -> Result<u64> {
         let at = storage().timestamp().now();
         self.0
@@ -96,10 +113,14 @@ impl GearApi {
             .ok_or(Error::TimestampNotFound)
     }
 
+    /// Return vector of events contained in the specified block identified by
+    /// the `block_hash`.
     pub async fn events_at(&self, block_hash: H256) -> Result<Vec<RuntimeEvent>> {
         self.get_events_at(Some(block_hash)).await
     }
 
+    /// Return vector of events contained in blocks since the block identified
+    /// by the `block_hash` but no more than in `max_depth` blocks.
     pub async fn events_since(
         &self,
         block_hash: H256,
@@ -132,6 +153,7 @@ impl GearApi {
         }
     }
 
+    /// Check whether the message queue processing is stopped or not.
     pub async fn queue_processing_stopped(&self) -> Result<bool> {
         let at = storage().gear().queue_state();
         self.0

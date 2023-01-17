@@ -30,7 +30,21 @@ use subxt::{
 use crate::utils;
 
 impl GearApi {
-    /// gear_calculateInitCreateGas
+    /// Execute an RPC to calculate the gas required to create a program from a
+    /// code and process an initialization message.
+    ///
+    /// Actually sends the `gear_calculateInitCreateGas` RPC to the node. The
+    /// function's parameters are:
+    ///
+    /// - `origin` (optional) is the caller's public address;
+    /// - `code_id` is the uploaded code identifier that can be obtained by
+    ///   calling the [`upload_code`](Self::upload_code) function;
+    /// - `payload` vector contains data to be processed by the program;
+    /// - `value` to be transferred to the program's account;
+    /// - `allow_other_panics` flag indicates ignoring a trap during the
+    ///   program's execution;
+    /// - `at` (optional) allows executing the RPC at the specified block
+    ///   identified by its hash.
     pub async fn calculate_create_gas(
         &self,
         origin: Option<H256>,
@@ -43,7 +57,8 @@ impl GearApi {
             .await
     }
 
-    /// gear_calculateInitCreateGas
+    /// Same as [`calculate_create_gas`](Self::calculate_create_gas), but
+    /// calculates the gas at the block identified by its hash.
     pub async fn calculate_create_gas_at(
         &self,
         origin: Option<H256>,
@@ -59,7 +74,21 @@ impl GearApi {
             .map_err(Into::into)
     }
 
-    /// gear_calculateInitUploadGas
+    /// Execute an RPC to calculate the gas required to upload a program and
+    /// process an initialization message.
+    ///
+    /// Actually sends the `gear_calculateInitUploadGas` RPC to the node. The
+    /// function's parameters are:
+    ///
+    /// - `origin` (optional) is the caller's public address;
+    /// - `code` is the buffer containing the Wasm binary code of the Gear
+    ///   program;
+    /// - `payload` vector contains data to be processed by the program;
+    /// - `value` to be transferred to the program's account;
+    /// - `allow_other_panics` flag indicates ignoring a trap during the
+    ///   program's execution;
+    /// - `at` (optional) allows executing the RPC at the specified block
+    ///   identified by its hash.
     pub async fn calculate_upload_gas(
         &self,
         origin: Option<H256>,
@@ -72,7 +101,8 @@ impl GearApi {
             .await
     }
 
-    /// gear_calculateInitUploadGas
+    /// Same as [`calculate_upload_gas`](Self::calculate_upload_gas), but
+    /// calculates the gas at the block identified by its hash.
     pub async fn calculate_upload_gas_at(
         &self,
         origin: Option<H256>,
@@ -88,7 +118,19 @@ impl GearApi {
             .map_err(Into::into)
     }
 
-    /// gear_calculateHandleGas
+    /// Execute an RPC to calculate the gas required to handle a message.
+    ///
+    /// Actually sends the `gear_calculateHandleGas` RPC to the node. The
+    /// function's parameters are:
+    ///
+    /// - `origin` (optional) is the caller's public address;
+    /// - `destination` is the program address;
+    /// - `payload` vector contains data to be processed by the program;
+    /// - `value` to be transferred to the program's account;
+    /// - `allow_other_panics` flag indicates ignoring a trap during the
+    ///   program's execution;
+    /// - `at` (optional) allows executing the RPC at the specified block
+    ///   identified by its hash.
     pub async fn calculate_handle_gas(
         &self,
         origin: Option<H256>,
@@ -108,7 +150,8 @@ impl GearApi {
         .await
     }
 
-    /// gear_calculateHandleGas
+    /// Same as [`calculate_handle_gas`](Self::calculate_handle_gas), but
+    /// calculates the gas at the block identified by its hash.
     pub async fn calculate_handle_gas_at(
         &self,
         origin: Option<H256>,
@@ -124,7 +167,22 @@ impl GearApi {
             .map_err(Into::into)
     }
 
-    /// gear_calculateReplyGas
+    /// Execute an RPC to calculate the gas required to reply to the received
+    /// message from the mailbox.
+    ///
+    /// Actually sends the `gear_calculateReplyGas` RPC to the node. The
+    /// function's parameters are:
+    ///
+    /// - `origin` (optional) is the caller's public address;
+    /// - `message_id` is a message identifier required to find it in the
+    ///   mailbox;
+    /// - `exit_code` is the status code of the reply;
+    /// - `payload` vector contains data to be processed by the program;
+    /// - `value` to be transferred to the program's account;
+    /// - `allow_other_panics` flag indicates ignoring a trap during the
+    ///   program's execution;
+    /// - `at` (optional) allows executing the RPC at the specified block
+    ///   identified by its hash.
     pub async fn calculate_reply_gas(
         &self,
         origin: Option<H256>,
@@ -146,7 +204,8 @@ impl GearApi {
         .await
     }
 
-    /// gear_calculateReplyGas
+    /// Same as [`calculate_reply_gas`](Self::calculate_reply_gas), but
+    /// calculates the gas at the block identified by its hash.
     pub async fn calculate_reply_gas_at(
         &self,
         origin: Option<H256>,
@@ -176,7 +235,8 @@ impl GearApi {
         self.read_state_bytes_at(program_id, None).await
     }
 
-    /// Read the program's state as a byte vector.
+    /// Same as [`read_state_bytes`](Self::read_state_bytes), but reads the
+    /// program's state at the block identified by its hash.
     pub async fn read_state_bytes_at(
         &self,
         program_id: ProgramId,
@@ -193,7 +253,8 @@ impl GearApi {
         self.read_state_at(program_id, None).await
     }
 
-    /// Read the program's state as decoded data.
+    /// Same as [`read_state`](Self::read_state), but reads the program's state
+    /// at the block identified by its hash.
     pub async fn read_state_at<D: Decode>(
         &self,
         program_id: ProgramId,
@@ -215,7 +276,7 @@ impl GearApi {
             .await
     }
 
-    /// Read the program's state as a byte vector using a meta Wasm.
+    /// Same as [`read_state_bytes_using_wasm`](Self::read_state_bytes_using_wasm), but reads the program's state at the block identified by its hash.
     pub async fn read_state_bytes_using_wasm_at(
         &self,
         program_id: ProgramId,
@@ -251,7 +312,8 @@ impl GearApi {
             .await
     }
 
-    /// Read the program's state as decoded data using a meta Wasm.
+    /// Same as [`read_state_using_wasm`](Self::read_state_using_wasm), but
+    /// reads the program's state at the block identified by its hash.
     pub async fn read_state_using_wasm_at<E: Encode, D: Decode>(
         &self,
         program_id: ProgramId,
@@ -273,7 +335,8 @@ impl GearApi {
         D::decode(&mut bytes.as_ref()).map_err(Into::into)
     }
 
-    /// Read the program's state using a meta Wasm file referenced by its `path`.
+    /// Read the program's state using a meta Wasm file referenced by its
+    /// `path`.
     pub async fn read_state_bytes_using_wasm_by_path(
         &self,
         program_id: ProgramId,
@@ -285,7 +348,7 @@ impl GearApi {
             .await
     }
 
-    /// Read the program's state using a meta Wasm file referenced by its `path`.
+    /// Same as [`read_state_using_wasm_by_path`](Self::read_state_using_wasm_by_path), but reads the program's state at the block identified by its hash.
     pub async fn read_state_bytes_using_wasm_by_path_at(
         &self,
         program_id: ProgramId,
@@ -304,7 +367,8 @@ impl GearApi {
         .await
     }
 
-    /// Read the program's state using a meta Wasm file referenced by its `path`.
+    /// Read the program's state using a meta Wasm file referenced by its
+    /// `path`.
     pub async fn read_state_using_wasm_by_path<E: Encode, D: Decode>(
         &self,
         program_id: ProgramId,
@@ -316,7 +380,7 @@ impl GearApi {
             .await
     }
 
-    /// Read the program's state using a meta Wasm file referenced by its `path`.
+    /// Same as [`read_state_using_wasm_by_path`](Self::read_state_using_wasm_by_path), but reads the program's state at the block identified by its hash.
     pub async fn read_state_using_wasm_by_path_at<E: Encode, D: Decode>(
         &self,
         program_id: ProgramId,
@@ -343,7 +407,8 @@ impl GearApi {
         self.read_metahash_at(program_id, None).await
     }
 
-    /// Read the program's metahash.
+    /// Same as [`read_metahash`](Self::read_metahash), but read the program's
+    /// metahash at the block identified by its hash.
     pub async fn read_metahash_at(&self, program_id: ProgramId, at: Option<H256>) -> Result<H256> {
         self.rpc_request(
             "gear_readMetahash",
