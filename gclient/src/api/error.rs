@@ -21,42 +21,63 @@ use gp::result::Error as GPError;
 use std::{io::Error as IOError, result::Result as StdResult};
 use subxt::error::Error as SubxtError;
 
+/// `Result` type with a predefined error type ([`Error`]).
 pub type Result<T, E = Error> = StdResult<T, E>;
 
+/// Common error type.
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
+    /// A wrapper around [`anyhow::Error`].
     #[error(transparent)]
     Anyhow(#[from] AError),
+    /// A wrapper around [`gear_program::Error`](GPError).
     #[error(transparent)]
     GearProgram(#[from] GPError),
+    /// Occurs when attempting to iterate events without a subscription.
     #[error("An attempt to iter events without subscription")]
     EventsSubscriptionNotFound,
+    /// Occurs when events are stopped. Unreachable.
     #[error("Events stopped (unreachable")]
     EventsStopped,
+    /// A wrapper around [`subxt::error::Error`].
     #[error(transparent)]
     Subxt(#[from] SubxtError),
+    /// Occurs when an event of the expected type cannot be found.
     #[error("Expected event wasn't found")]
     EventNotFound,
+    /// A wrapper around [`std::io::Error`].
     #[error(transparent)]
     IO(#[from] IOError),
+    /// Occurs when trying to upload a Wasm binary with the wrong file extension
+    /// (other than `.wasm`).
     #[error("An attempt to upload invalid binary")]
     WrongBinaryExtension,
+    /// Occurs when the balance reaches its maximum value.
     #[error("Funds overcame u128::MAX")]
     BalanceOverflow,
+    /// Occurs when a block identified by the specified hash cannot be found.
     #[error("Block data not found")]
     BlockDataNotFound,
+    /// Occurs when a hash of a block identified by the specified hash cannot be
+    /// found.
     #[error("Block hash not found")]
     BlockHashNotFound,
+    /// Occurs when the batch hasn't been fully processed.
     #[error("Some of extrinsics wasn't processed within the batch")]
     IncompleteBatchResult(usize, usize),
+    /// Occurs when a block cannot be found within the specified depth.
     #[error("Max depth reached, but queried block wasn't found")]
     MaxDepthReached,
+    /// Occurs when an event cannot be found in pre-queried events.
     #[error("Event not found in pre-queried events")]
     EventNotFoundInIterator,
+    /// Occurs when a storage entry with a specified address cannot be found.
     #[error("Storage not found.")]
     StorageNotFound,
+    /// Occurs when a timestamp record cannot be found in the storage.
     #[error("Timestamp not found in storage.")]
     TimestampNotFound,
+    /// A wrapper around [`parity_scale_codec::Error`].
     #[error(transparent)]
     Codec(#[from] parity_scale_codec::Error),
 }

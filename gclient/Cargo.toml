@@ -23,6 +23,7 @@ tokio = { version = "1.24.1", features = ["full"] }
 wat = "1.0.52"
 async-std = "1.12"
 env_logger = "0.10"
+hex-literal = "0.3"
 log = "0.4"
 demo-meta-io = { path = "../examples/binaries/new-meta/io" }
 
