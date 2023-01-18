@@ -233,10 +233,10 @@ fn cost_for_write(
     } else if ctx.read_charged.contains(&page) {
         // Has been already charged for read.
         if ctx.write_after_read_charged.contains(&page) {
-            // Has been already charged for read after write.
+            // Has been already charged for write after read.
             Ok(0)
         } else {
-            // Need now to charge for write after read.
+            // Charge for write after read.
             ctx.write_after_read_charged.insert(page);
             Ok(weights.write_after_read)
         }
