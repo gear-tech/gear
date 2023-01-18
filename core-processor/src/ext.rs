@@ -190,40 +190,35 @@ impl AsTerminationReason for ProcessorError {
     }
 }
 
-struct AllocGasCharger<'a> {
-    charged: u64,
-    ext: &'a mut Ext,
+struct ChargedAllocGas {
+    amount: u64,
 }
 
-impl<'a> AllocGasCharger<'a> {
-    fn new(ext: &'a mut Ext) -> Self {
-        Self { charged: 0, ext }
-    }
-
-    fn calculate_gas(&self, alloc: u32, mem_grow: u32) -> u64 {
+impl ChargedAllocGas {
+    fn calculate_gas(ext: &Ext, alloc: u32, mem_grow: u32) -> u64 {
         let alloc = alloc as u64;
         let mem_grow = mem_grow as u64;
         0_u64
-            .saturating_add(alloc.saturating_mul(self.ext.context.config.alloc_cost))
-            .saturating_add(mem_grow.saturating_mul(self.ext.context.config.mem_grow_cost))
+            .saturating_add(alloc.saturating_mul(ext.context.config.alloc_cost))
+            .saturating_add(mem_grow.saturating_mul(ext.context.config.mem_grow_cost))
     }
 
-    fn charge_gas(&mut self, pages: u32) -> Result<(), <Ext as EnvExt>::Error> {
-        let amount = self.calculate_gas(pages, pages);
-        self.ext.charge_gas(amount)?;
-        self.charged = self.charged.saturating_add(amount);
-        Ok(())
+    fn charge(ext: &mut Ext, pages: u32) -> Result<Self, <Ext as EnvExt>::Error> {
+        let amount = Self::calculate_gas(ext, pages, pages);
+        ext.charge_gas(amount)?;
+        Ok(Self { amount })
     }
 
-    fn refund_gas(
-        &mut self,
+    fn refund(
+        self,
+        ext: &mut Ext,
         not_allocated: u32,
         not_grown: u32,
     ) -> Result<(), <Ext as EnvExt>::Error> {
-        let amount = self.calculate_gas(not_allocated, not_grown);
-        self.ext.refund_gas(amount)?;
+        let amount = Self::calculate_gas(ext, not_allocated, not_grown);
+        ext.refund_gas(amount)?;
 
-        if self.charged < amount {
+        if self.amount < amount {
             unreachable!("Allocation logic invalidated: trying to refund more than charged");
         }
 
@@ -936,29 +931,23 @@ impl Ext {
     ) -> Result<WasmPageNumber, ProcessorError> {
         self.charge_gas_runtime(RuntimeCosts::Alloc)?;
 
-        let mut charger = AllocGasCharger::new(self);
-
         // Charge gas for allocations & grow
-        charger.charge_gas(pages.raw())?;
+        let charged = ChargedAllocGas::charge(self, pages.raw())?;
 
-        let result = charger
-            .ext
-            .context
-            .allocations_context
-            .alloc::<G>(pages, mem);
-        let AllocInfo { page, not_grown } = charger.ext.return_and_store_err(result)?;
+        let result = self.context.allocations_context.alloc::<G>(pages, mem);
+        let AllocInfo { page, not_grown } = self.return_and_store_err(result)?;
 
         // Returns back greedily used gas for allocations
         let new_allocated_pages_num: u32 = page
             .iter_count(pages)
             // This is safe cause panic is unreachable: alloc returns page, for which `page + pages` is inside u32 memory.
             .unwrap_or_else(|err| unreachable!("Alloc implementation error: {}", err))
-            .map(|page| !charger.ext.context.allocations_context.is_init_page(page) as u32)
+            .map(|page| !self.context.allocations_context.is_init_page(page) as u32)
             .sum();
 
         let not_allocated = pages.raw() - new_allocated_pages_num;
         let not_grown = not_grown.raw();
-        charger.refund_gas(not_allocated, not_grown)?;
+        charged.refund(self, not_allocated, not_grown)?;
 
         Ok(page)
     }
