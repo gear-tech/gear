@@ -11180,7 +11180,7 @@ name = "validator-checks"
 version = "0.1.0"
 dependencies = [
  "async-trait",
- "clap 4.0.32",
+ "clap 4.1.1",
  "color-eyre",
  "env_logger 0.10.0",
  "futures-util",
