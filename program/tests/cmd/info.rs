@@ -8,7 +8,7 @@ AccountInfo {
     providers: 1,
     sufficients: 0,
     data: AccountData {
-        free: 1152921504606846976,
+        free: 340282366920938463463374607431768211455,
         reserved: 0,
         misc_frozen: 0,
         fee_frozen: 0,
