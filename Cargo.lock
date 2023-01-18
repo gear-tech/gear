@@ -9521,7 +9521,7 @@ dependencies = [
 [[package]]
 name = "sp-core"
 version = "7.0.0"
-source = "git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.36#91c367ee60303f878fead054d95b600cea222156"
+source = "git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.36#dab82dc6e8ca3fe43616d857b260a42a73ec28ca"
 dependencies = [
  "array-bytes",
  "base58",
@@ -9566,7 +9566,7 @@ dependencies = [
 [[package]]
 name = "sp-core-hashing"
 version = "5.0.0"
-source = "git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.36#91c367ee60303f878fead054d95b600cea222156"
+source = "git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.36#dab82dc6e8ca3fe43616d857b260a42a73ec28ca"
 dependencies = [
  "blake2",
  "byteorder",
@@ -9600,7 +9600,7 @@ dependencies = [
 [[package]]
 name = "sp-debug-derive"
 version = "5.0.0"
-source = "git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.36#91c367ee60303f878fead054d95b600cea222156"
+source = "git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.36#dab82dc6e8ca3fe43616d857b260a42a73ec28ca"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -9610,7 +9610,7 @@ dependencies = [
 [[package]]
 name = "sp-externalities"
 version = "0.13.0"
-source = "git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.36#91c367ee60303f878fead054d95b600cea222156"
+source = "git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.36#dab82dc6e8ca3fe43616d857b260a42a73ec28ca"
 dependencies = [
  "environmental",
  "parity-scale-codec",
@@ -9769,7 +9769,7 @@ dependencies = [
 [[package]]
 name = "sp-runtime-interface"
 version = "7.0.0"
-source = "git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.36#91c367ee60303f878fead054d95b600cea222156"
+source = "git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.36#dab82dc6e8ca3fe43616d857b260a42a73ec28ca"
 dependencies = [
  "bytes",
  "impl-trait-for-tuples",
@@ -9787,7 +9787,7 @@ dependencies = [
 [[package]]
 name = "sp-runtime-interface-proc-macro"
 version = "6.0.0"
-source = "git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.36#91c367ee60303f878fead054d95b600cea222156"
+source = "git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.36#dab82dc6e8ca3fe43616d857b260a42a73ec28ca"
 dependencies = [
  "Inflector",
  "proc-macro-crate 1.2.1",
@@ -9861,12 +9861,12 @@ dependencies = [
 [[package]]
 name = "sp-std"
 version = "5.0.0"
-source = "git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.36#91c367ee60303f878fead054d95b600cea222156"
+source = "git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.36#dab82dc6e8ca3fe43616d857b260a42a73ec28ca"
 
 [[package]]
 name = "sp-storage"
 version = "7.0.0"
-source = "git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.36#91c367ee60303f878fead054d95b600cea222156"
+source = "git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.36#dab82dc6e8ca3fe43616d857b260a42a73ec28ca"
 dependencies = [
  "impl-serde",
  "parity-scale-codec",
@@ -9895,7 +9895,7 @@ dependencies = [
 [[package]]
 name = "sp-tracing"
 version = "6.0.0"
-source = "git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.36#91c367ee60303f878fead054d95b600cea222156"
+source = "git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.36#dab82dc6e8ca3fe43616d857b260a42a73ec28ca"
 dependencies = [
  "parity-scale-codec",
  "sp-std",
@@ -9983,7 +9983,7 @@ dependencies = [
 [[package]]
 name = "sp-wasm-interface"
 version = "7.0.0"
-source = "git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.36#91c367ee60303f878fead054d95b600cea222156"
+source = "git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.36#dab82dc6e8ca3fe43616d857b260a42a73ec28ca"
 dependencies = [
  "impl-trait-for-tuples",
  "log",
@@ -11409,6 +11409,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "wasm-encoder"
+version = "0.21.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "29ab2fe77b325731603297debb4573e002d06ae0aa1f4dc108585c81961e0609"
+dependencies = [
+ "leb128",
+]
+
+[[package]]
 name = "wasm-info"
 version = "0.1.0"
 dependencies = [
@@ -11436,16 +11445,16 @@ dependencies = [
 
 [[package]]
 name = "wasm-mutate"
-version = "0.2.13"
+version = "0.2.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a0e9666b36c1e7e88bf1e0d114c8a4fe7d4e32d3aa38c1e8e9d71a972b99764a"
+checksum = "c2f8b34ecab2aadb3a974fc96d38a37780793b1a44f9e681ed68f7e69757ca90"
 dependencies = [
  "egg",
  "log",
  "rand 0.8.5",
  "thiserror",
- "wasm-encoder 0.20.0",
- "wasmparser 0.96.0",
+ "wasm-encoder 0.21.0",
+ "wasmparser 0.97.0",
 ]
 
 [[package]]
@@ -11892,6 +11901,16 @@ name = "wasmparser"
 version = "0.96.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "adde01ade41ab9a5d10ec8ed0bb954238cf8625b5cd5a13093d6de2ad9c2be1a"
+dependencies = [
+ "indexmap",
+ "url",
+]
+
+[[package]]
+name = "wasmparser"
+version = "0.97.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b98123a0d2bacf9286239231b116cbd66c65d9b89793f7c9bba3a3ae7f1b15f3"
 dependencies = [
  "indexmap",
  "url",
