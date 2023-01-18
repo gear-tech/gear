@@ -21,13 +21,14 @@
 #![allow(useless_deprecated, deprecated)]
 #![cfg_attr(not(feature = "std"), no_std)]
 
+use codec::{Decode, Encode};
 use gear_backend_common::{
-    lazy_pages::{GlobalsCtx, Status},
+    lazy_pages::{GlobalsConfig, LazyPagesWeights, Status},
     memory::OutOfMemoryAccessError,
 };
 use gear_core::memory::{HostPointer, PageNumber, PageU32Size, WasmPageNumber};
 use sp_runtime_interface::{
-    pass_by::{Inner, PassBy, PassByInner},
+    pass_by::{Codec, Inner, PassBy, PassByInner},
     runtime_interface,
 };
 
@@ -76,6 +77,26 @@ impl PassByInner for WasmPageFfiWrapper {
     }
 }
 
+#[derive(Debug, Clone, Encode, Decode)]
+pub struct LazyPagesProgramContext {
+    /// Wasm program memory addr.
+    pub wasm_mem_addr: Option<HostPointer>,
+    /// Wasm program memory size.
+    pub wasm_mem_size: WasmPageNumber,
+    /// Wasm program stack end page.
+    pub stack_end: Option<WasmPageNumber>,
+    /// Wasm program id.
+    pub program_id: Vec<u8>,
+    /// Globals config to access globals inside lazy-pages.
+    pub globals_config: GlobalsConfig,
+    /// Lazy-pages access weights.
+    pub lazy_pages_weights: LazyPagesWeights,
+}
+
+impl PassBy for LazyPagesProgramContext {
+    type PassBy = Codec<LazyPagesProgramContext>;
+}
+
 /// Runtime interface for gear node and runtime.
 /// Note: name is expanded as gear_ri
 #[runtime_interface]
@@ -105,25 +126,19 @@ pub trait GearRI {
     /// Init lazy pages context for current program.
     /// Panic if some goes wrong during initialization.
     #[version(2)]
-    fn init_lazy_pages_for_program(
-        wasm_mem_addr: Option<HostPointer>,
-        wasm_mem_size: WasmPageFfiWrapper,
-        stack_end_page: Option<WasmPageNumber>,
-        program_id: Vec<u8>,
-        globals_ctx: Option<GlobalsCtx>,
-    ) {
-        let wasm_mem_size = wasm_mem_size.into();
-        let wasm_mem_addr = wasm_mem_addr.map(|addr| {
+    fn init_lazy_pages_for_program(ctx: LazyPagesProgramContext) {
+        let wasm_mem_addr = ctx.wasm_mem_addr.map(|addr| {
             usize::try_from(addr)
                 .unwrap_or_else(|err| unreachable!("Cannot cast wasm mem addr to `usize`: {}", err))
         });
 
         lazy_pages::initialize_for_program(
             wasm_mem_addr,
-            wasm_mem_size,
-            stack_end_page,
-            program_id,
-            globals_ctx,
+            ctx.wasm_mem_size,
+            ctx.stack_end,
+            ctx.program_id,
+            Some(ctx.globals_config),
+            ctx.lazy_pages_weights,
         )
         .map_err(|e| e.to_string())
         .expect("Cannot initialize lazy pages for current program");
@@ -167,12 +182,12 @@ pub trait GearRI {
     fn init_lazy_pages_for_program(
         wasm_mem_addr: Option<HostPointer>,
         wasm_mem_size_in_pages: u32,
-        stack_end_page: Option<u32>,
+        stack_end: Option<u32>,
         program_id: Vec<u8>,
     ) {
         let wasm_mem_size =
             WasmPageNumber::new(wasm_mem_size_in_pages).expect("Unexpected wasm mem size number");
-        let stack_end_page = stack_end_page
+        let stack_end = stack_end
             .map(|page| WasmPageNumber::new(page).expect("Unexpected wasm stack end addr"));
         let wasm_mem_addr = wasm_mem_addr
             .map(|addr| usize::try_from(addr).expect("Cannot cast wasm mem addr to `usize`"));
@@ -180,9 +195,10 @@ pub trait GearRI {
         lazy_pages::initialize_for_program(
             wasm_mem_addr,
             wasm_mem_size,
-            stack_end_page,
+            stack_end,
             program_id,
             None,
+            Default::default(),
         )
         .map_err(|e| e.to_string())
         .expect("Cannot initialize lazy pages for current program");

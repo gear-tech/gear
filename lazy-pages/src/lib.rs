@@ -26,7 +26,7 @@
 //! It's not necessary behavior, but more simple and safe.
 
 use gear_backend_common::{
-    lazy_pages::{GlobalsCtx, Status},
+    lazy_pages::{GlobalsConfig, LazyPagesWeights, Status},
     memory::OutOfMemoryAccessError,
 };
 use gear_core::memory::{
@@ -128,9 +128,11 @@ pub(crate) struct LazyPagesExecutionContext {
     /// Gear pages, which has been write accessed.
     pub released_pages: BTreeSet<LazyPage>,
     /// Context to access globals and works with them: charge gas, set status global.
-    pub globals_ctx: Option<GlobalsCtx>,
+    pub globals_config: Option<GlobalsConfig>,
     /// Lazy-pages status: indicates in which mod lazy-pages works actually.
     pub status: Option<Status>,
+    /// Lazy-pages accesses weights.
+    pub lazy_pages_weights: LazyPagesWeights,
 }
 
 thread_local! {
@@ -164,9 +166,10 @@ pub enum InitializeForProgramError {
 pub fn initialize_for_program(
     wasm_mem_addr: Option<usize>,
     wasm_mem_size: WasmPageNumber,
-    stack_end_page: Option<WasmPageNumber>,
+    stack_end: Option<WasmPageNumber>,
     program_id: Vec<u8>,
-    globals_ctx: Option<GlobalsCtx>,
+    globals_config: Option<GlobalsConfig>,
+    lazy_pages_weights: LazyPagesWeights,
 ) -> Result<(), InitializeForProgramError> {
     use InitializeForProgramError::*;
 
@@ -178,6 +181,8 @@ pub fn initialize_for_program(
     LAZY_PAGES_PROGRAM_CONTEXT.with(|ctx| {
         let mut ctx = ctx.borrow_mut();
         *ctx = LazyPagesExecutionContext::default();
+
+        ctx.lazy_pages_weights = lazy_pages_weights;
 
         program_storage_prefix.extend_from_slice(&program_id);
         ctx.program_storage_prefix = Some(program_storage_prefix);
@@ -197,16 +202,16 @@ pub fn initialize_for_program(
         }
         ctx.wasm_mem_size = Some(wasm_mem_size);
 
-        ctx.stack_end_wasm_page = if let Some(stack_end_page) = stack_end_page {
-            if stack_end_page > wasm_mem_size {
-                return Err(StackEndAddrBiggerThenSize(stack_end_page, wasm_mem_size));
+        ctx.stack_end_wasm_page = if let Some(stack_end) = stack_end {
+            if stack_end > wasm_mem_size {
+                return Err(StackEndAddrBiggerThenSize(stack_end, wasm_mem_size));
             }
-            stack_end_page
+            stack_end
         } else {
             WasmPageNumber::zero()
         };
 
-        ctx.globals_ctx = globals_ctx;
+        ctx.globals_config = globals_config;
 
         // Set protection if wasm memory exist.
         if let Some(addr) = wasm_mem_addr {

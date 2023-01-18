@@ -33,7 +33,7 @@ use core::{any::Any, fmt};
 use gear_backend_common::{
     calc_stack_end,
     error_processor::IntoExtError,
-    lazy_pages::{GlobalsAccessError, GlobalsAccessMod, GlobalsAccesser, GlobalsCtx},
+    lazy_pages::{GlobalsAccessError, GlobalsAccessMod, GlobalsAccesser, GlobalsConfig},
     AsTerminationReason, BackendReport, Environment, GetGasAmount, IntoExtInfo, StackEndError,
     TerminationReason, TrapExplanation, STACK_END_EXPORT_NAME,
 };
@@ -232,7 +232,7 @@ where
         pre_execution_handler: F,
     ) -> Result<BackendReport<Self::Memory, E>, Self::Error>
     where
-        F: FnOnce(&mut Self::Memory, Option<WasmPageNumber>, Option<GlobalsCtx>) -> Result<(), T>,
+        F: FnOnce(&mut Self::Memory, Option<WasmPageNumber>, GlobalsConfig) -> Result<(), T>,
         T: fmt::Display,
     {
         use WasmiEnvironmentError::*;
@@ -249,8 +249,7 @@ where
             .get_export(&store, STACK_END_EXPORT_NAME)
             .and_then(Extern::into_global)
             .and_then(|g| g.get(&store).try_into::<i32>());
-        let stack_end_page =
-            calc_stack_end(stack_end).map_err(|e| (gas_amount!(store), StackEnd(e)))?;
+        let stack_end = calc_stack_end(stack_end).map_err(|e| (gas_amount!(store), StackEnd(e)))?;
 
         let (gas, allowance) = store
             .state()
@@ -279,10 +278,6 @@ where
             instance,
             store: None,
         };
-        let state = store
-            .state_mut()
-            .as_ref()
-            .unwrap_or_else(|| unreachable!("State must be set in `WasmiEnvironment::new`"));
         let globals_provider_dyn_ref = &mut globals_provider as &mut dyn GlobalsAccesser;
 
         let needs_execution = entry_point
@@ -297,22 +292,19 @@ where
         // each moment when protect memory signal can occur, than this trick is pretty safe.
         let globals_access_ptr = &globals_provider_dyn_ref as *const _ as HostPointer;
 
-        let globals_ctx = GlobalsCtx {
+        let globals_config = GlobalsConfig {
             global_gas_name: GLOBAL_NAME_GAS.to_string(),
             global_allowance_name: GLOBAL_NAME_ALLOWANCE.to_string(),
             global_flags_name: GLOBAL_NAME_FLAGS.to_string(),
             globals_access_ptr,
             globals_access_mod: GlobalsAccessMod::NativeRuntime,
-            lazy_pages_weights: state.ext.lazy_pages_weights(),
         };
 
         let mut memory_wrap = MemoryWrap::new(memory, store);
-        pre_execution_handler(&mut memory_wrap, stack_end_page, Some(globals_ctx)).map_err(
-            |e| {
-                let store = &memory_wrap.store;
-                (gas_amount!(store), PreExecutionHandler(e.to_string()))
-            },
-        )?;
+        pre_execution_handler(&mut memory_wrap, stack_end, globals_config).map_err(|e| {
+            let store = &memory_wrap.store;
+            (gas_amount!(store), PreExecutionHandler(e.to_string()))
+        })?;
 
         let mut store = memory_wrap.into_store();
         let res = if needs_execution {

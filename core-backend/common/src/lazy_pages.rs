@@ -35,7 +35,7 @@ pub enum GlobalsAccessMod {
 }
 
 /// Lazy-pages cases weights.
-#[derive(Debug, Clone, PartialEq, Eq, Encode, Decode)]
+#[derive(Debug, Default, Clone, PartialEq, Eq, Encode, Decode)]
 pub struct LazyPagesWeights {
     /// Read access cost per one gear page.
     pub read: u64,
@@ -45,9 +45,9 @@ pub struct LazyPagesWeights {
     pub write_after_read: u64,
 }
 
-/// Globals ctx for lazy-pages initialization.
+/// Globals ctx for lazy-pages initialization for program.
 #[derive(Debug, Clone, PartialEq, Eq, Encode, Decode)]
-pub struct GlobalsCtx {
+pub struct GlobalsConfig {
     // TODO: considering change global name types to `TrimmedString` (issue #2098)
     /// Gas amount global name.
     pub global_gas_name: String,
@@ -55,8 +55,6 @@ pub struct GlobalsCtx {
     pub global_allowance_name: String,
     /// Gear status global name.
     pub global_flags_name: String,
-    /// Lazy-pages access weights.
-    pub lazy_pages_weights: LazyPagesWeights,
     /// Raw pointer to the globals access provider.
     pub globals_access_ptr: HostPointer,
     /// Access mod, currently two: native or WASM runtime.

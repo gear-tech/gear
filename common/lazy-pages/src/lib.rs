@@ -22,7 +22,7 @@
 
 use core::fmt;
 use gear_backend_common::{
-    lazy_pages::{GlobalsCtx, Status},
+    lazy_pages::{GlobalsConfig, LazyPagesWeights, Status},
     memory::OutOfMemoryAccessError,
 };
 use gear_common::Origin;
@@ -30,7 +30,7 @@ use gear_core::{
     ids::ProgramId,
     memory::{HostPointer, Memory, MemoryInterval, PageNumber, WasmPageNumber},
 };
-use gear_runtime_interface::gear_ri;
+use gear_runtime_interface::{gear_ri, LazyPagesProgramContext};
 use sp_std::vec::Vec;
 
 fn mprotect_lazy_pages(mem: &mut impl Memory, protect: bool) {
@@ -50,22 +50,27 @@ pub fn try_to_enable_lazy_pages(pages_final_prefix: [u8; 32]) -> bool {
 /// Protect and save storage keys for pages which has no data
 pub fn init_for_program(
     mem: &mut impl Memory,
-    prog_id: ProgramId,
-    stack_end_page: Option<WasmPageNumber>,
-    globals_ctx: Option<GlobalsCtx>,
+    program_id: ProgramId,
+    stack_end: Option<WasmPageNumber>,
+    globals_config: GlobalsConfig,
+    lazy_pages_weights: LazyPagesWeights,
 ) {
     let wasm_mem_addr = mem.get_buffer_host_addr();
     let wasm_mem_size = mem.size();
+    let program_id = <[u8; 32]>::from(program_id.into_origin()).into();
+
+    let ctx = LazyPagesProgramContext {
+        wasm_mem_addr,
+        wasm_mem_size,
+        stack_end,
+        program_id,
+        globals_config,
+        lazy_pages_weights,
+    };
 
     // Cannot panic unless OS allocates buffer in not aligned by native page addr, or
     // something goes wrong with pages protection.
-    gear_ri::init_lazy_pages_for_program(
-        wasm_mem_addr,
-        wasm_mem_size.into(),
-        stack_end_page,
-        <[u8; 32]>::from(prog_id.into_origin()).into(),
-        globals_ctx,
-    );
+    gear_ri::init_lazy_pages_for_program(ctx);
 }
 
 /// Remove lazy-pages protection, returns wasm memory begin addr

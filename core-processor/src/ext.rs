@@ -25,7 +25,7 @@ use alloc::{
 use codec::{Decode, Encode};
 use gear_backend_common::{
     error_processor::IntoExtError,
-    lazy_pages::{GlobalsCtx, LazyPagesWeights, Status},
+    lazy_pages::{GlobalsConfig, LazyPagesWeights, Status},
     memory::OutOfMemoryAccessError,
     AsTerminationReason, ExtInfo, GetGasAmount, IntoExtInfo, SystemReservationContext,
     TerminationReason, TrapExplanation,
@@ -106,7 +106,8 @@ pub trait ProcessorExt {
         mem: &mut impl Memory,
         prog_id: ProgramId,
         stack_end: Option<WasmPageNumber>,
-        globals_ctx: Option<GlobalsCtx>,
+        globals_config: GlobalsConfig,
+        lazy_pages_weights: LazyPagesWeights,
     );
 
     /// Lazy pages contract post execution actions
@@ -220,7 +221,8 @@ impl ProcessorExt for Ext {
         _mem: &mut impl Memory,
         _prog_id: ProgramId,
         _stack_end: Option<WasmPageNumber>,
-        _globals_ctx: Option<GlobalsCtx>,
+        _globals_config: GlobalsConfig,
+        _lazy_pages_weights: LazyPagesWeights,
     ) {
         unreachable!("Must not be called: lazy-pages is unsupported by this ext")
     }
@@ -271,10 +273,6 @@ impl IntoExtInfo<<Ext as EnvExt>::Error> for Ext {
         _writes: &[MemoryInterval],
     ) -> Result<(), OutOfMemoryAccessError> {
         Ok(())
-    }
-
-    fn lazy_pages_weights(&self) -> LazyPagesWeights {
-        self.context.pages_config.lazy_pages_weights.clone()
     }
 }
 

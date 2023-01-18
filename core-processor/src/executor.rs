@@ -31,7 +31,7 @@ use alloc::{
     vec::Vec,
 };
 use gear_backend_common::{
-    lazy_pages::{GlobalsCtx, LazyPagesWeights, Status},
+    lazy_pages::{GlobalsConfig, LazyPagesWeights, Status},
     BackendReport, Environment, GetGasAmount, IntoExtInfo, TerminationReason, TrapExplanation,
 };
 use gear_core::{
@@ -238,12 +238,13 @@ pub(crate) fn charge_gas_for_pages(
 
 /// Writes initial pages data to memory and prepare memory for execution.
 fn prepare_memory<A: ProcessorExt, M: Memory>(
+    mem: &mut M,
     program_id: ProgramId,
     pages_data: &mut BTreeMap<PageNumber, PageBuf>,
     static_pages: WasmPageNumber,
     stack_end: Option<WasmPageNumber>,
-    globals_ctx: Option<GlobalsCtx>,
-    mem: &mut M,
+    globals_config: GlobalsConfig,
+    lazy_pages_weights: LazyPagesWeights,
 ) -> Result<(), ExecutionErrorReason> {
     if let Some(stack_end) = stack_end {
         if stack_end > static_pages {
@@ -264,7 +265,13 @@ fn prepare_memory<A: ProcessorExt, M: Memory>(
         if !pages_data.is_empty() {
             return Err(ExecutionErrorReason::InitialPagesContainsDataInLazyPagesMode);
         }
-        A::lazy_pages_init_for_program(mem, program_id, stack_end, globals_ctx);
+        A::lazy_pages_init_for_program(
+            mem,
+            program_id,
+            stack_end,
+            globals_config,
+            lazy_pages_weights,
+        );
     } else {
         // If we executes without lazy pages, then we have to save all initial data for static pages,
         // in order to be able to identify pages, which has been changed during execution.
@@ -419,6 +426,8 @@ pub fn execute_wasm<
         random_data: settings.random_data,
     };
 
+    let lazy_pages_weights = context.pages_config.lazy_pages_weights.clone();
+
     // Creating externalities.
     let ext = A::new(context);
 
@@ -431,14 +440,15 @@ pub fn execute_wasm<
             program.code().exports().clone(),
             memory_size,
         )?;
-        env.execute(|memory, stack_end, globals_ctx: Option<GlobalsCtx>| {
+        env.execute(|memory, stack_end, globals_config| {
             prepare_memory::<A, E::Memory>(
+                memory,
                 program_id,
                 &mut pages_initial_data,
                 static_pages,
                 stack_end,
-                globals_ctx,
-                memory,
+                globals_config,
+                lazy_pages_weights,
             )
         })
     };
@@ -628,6 +638,8 @@ pub fn execute_for_reply<
         system_reservation: Default::default(),
     };
 
+    let lazy_pages_weights = context.pages_config.lazy_pages_weights.clone();
+
     // Creating externalities.
     let ext = A::new(context);
 
@@ -640,14 +652,15 @@ pub fn execute_for_reply<
             program.code().exports().clone(),
             memory_size,
         )?;
-        env.execute(|memory, stack_end, globals_ctx| {
+        env.execute(|memory, stack_end, globals_config| {
             prepare_memory::<A, E::Memory>(
+                memory,
                 program.id(),
                 &mut pages_initial_data,
                 static_pages,
                 stack_end,
-                globals_ctx,
-                memory,
+                globals_config,
+                lazy_pages_weights,
             )
         })
     };
@@ -707,7 +720,8 @@ mod tests {
             _mem: &mut impl Memory,
             _prog_id: ProgramId,
             _stack_end: Option<WasmPageNumber>,
-            _globals_ctx: Option<GlobalsCtx>,
+            _globals_config: GlobalsConfig,
+            _lazy_pages_weights: LazyPagesWeights,
         ) {
         }
 
@@ -728,7 +742,8 @@ mod tests {
             _mem: &mut impl Memory,
             _prog_id: ProgramId,
             _stack_end: Option<WasmPageNumber>,
-            _globals_ctx: Option<GlobalsCtx>,
+            _globals_config: GlobalsConfig,
+            _lazy_pages_weights: LazyPagesWeights,
         ) {
         }
 

@@ -31,7 +31,7 @@ use core::fmt;
 use gear_backend_common::{
     calc_stack_end,
     error_processor::IntoExtError,
-    lazy_pages::{GlobalsAccessMod, GlobalsCtx},
+    lazy_pages::{GlobalsAccessMod, GlobalsConfig},
     AsTerminationReason, BackendReport, Environment, GetGasAmount, IntoExtInfo, StackEndError,
     TerminationReason, TrapExplanation, STACK_END_EXPORT_NAME,
 };
@@ -270,7 +270,7 @@ where
         pre_execution_handler: F,
     ) -> Result<BackendReport<Self::Memory, E>, Self::Error>
     where
-        F: FnOnce(&mut Self::Memory, Option<WasmPageNumber>, Option<GlobalsCtx>) -> Result<(), T>,
+        F: FnOnce(&mut Self::Memory, Option<WasmPageNumber>, GlobalsConfig) -> Result<(), T>,
         T: fmt::Display,
     {
         use SandboxEnvironmentError::*;
@@ -285,7 +285,7 @@ where
         let stack_end = instance
             .get_global_val(STACK_END_EXPORT_NAME)
             .and_then(|global| global.as_i32());
-        let stack_end_page = match calc_stack_end(stack_end) {
+        let stack_end = match calc_stack_end(stack_end) {
             Ok(s) => s,
             Err(e) => return Err((runtime.ext.gas_amount(), StackEnd(e)).into()),
         };
@@ -306,20 +306,19 @@ where
             .set_global_val(GLOBAL_NAME_ALLOWANCE, Value::I64(allowance as i64))
             .map_err(|_| (runtime.ext.gas_amount(), WrongInjectedAllowance))?;
 
-        let globals_ctx = if cfg!(not(feature = "std")) {
-            Some(GlobalsCtx {
+        let globals_config = if cfg!(not(feature = "std")) {
+            GlobalsConfig {
                 global_gas_name: GLOBAL_NAME_GAS.to_string(),
                 global_allowance_name: GLOBAL_NAME_ALLOWANCE.to_string(),
                 global_flags_name: GLOBAL_NAME_FLAGS.to_string(),
-                lazy_pages_weights: runtime.ext.lazy_pages_weights(),
                 globals_access_ptr: instance.get_instance_ptr(),
                 globals_access_mod: GlobalsAccessMod::WasmRuntime,
-            })
+            }
         } else {
             unreachable!("We cannot use sandbox backend in std environment currently");
         };
 
-        match pre_execution_handler(&mut runtime.memory, stack_end_page, globals_ctx) {
+        match pre_execution_handler(&mut runtime.memory, stack_end, globals_config) {
             Ok(_) => (),
             Err(e) => {
                 return Err((runtime.ext.gas_amount(), PreExecutionHandler(e.to_string())).into());

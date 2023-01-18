@@ -25,7 +25,7 @@ use crate::{
 use cfg_if::cfg_if;
 use core::any::Any;
 use gear_backend_common::lazy_pages::{
-    GlobalsAccessError, GlobalsAccessMod, GlobalsAccesser, GlobalsCtx, LazyPagesWeights, Status,
+    GlobalsAccessError, GlobalsAccessMod, GlobalsAccesser, GlobalsConfig, Status,
 };
 use gear_core::memory::{
     PageNumber, PageU32Size, PagesIterInclusive, GEAR_PAGE_SIZE, PAGE_STORAGE_GRANULARITY,
@@ -192,21 +192,21 @@ fn charge_gas_internal(
     Ok(Status::Normal)
 }
 
-unsafe fn charge_gas(globals_ctx: GlobalsCtx, amount: u64) -> Result<Status, Error> {
-    match globals_ctx.globals_access_mod {
+unsafe fn charge_gas(globals_config: GlobalsConfig, amount: u64) -> Result<Status, Error> {
+    match globals_config.globals_access_mod {
         GlobalsAccessMod::WasmRuntime => {
-            let instance = (globals_ctx.globals_access_ptr as *mut SandboxInstance)
+            let instance = (globals_config.globals_access_ptr as *mut SandboxInstance)
                 .as_mut()
                 .ok_or(Error::HostInstancePointerIsInvalid)?;
             charge_gas_internal(
                 GlobalsAccessWasmRuntime { instance },
-                &globals_ctx.global_gas_name,
-                &globals_ctx.global_allowance_name,
+                &globals_config.global_gas_name,
+                &globals_config.global_allowance_name,
                 amount,
             )
         }
         GlobalsAccessMod::NativeRuntime => {
-            let inner_access_provider = (globals_ctx.globals_access_ptr
+            let inner_access_provider = (globals_config.globals_access_ptr
                 as *mut &mut dyn GlobalsAccesser)
                 .as_mut()
                 .ok_or(Error::DynGlobalsAccessPointerIsInvalid)?;
@@ -214,8 +214,8 @@ unsafe fn charge_gas(globals_ctx: GlobalsCtx, amount: u64) -> Result<Status, Err
                 GlobalsAccessNativeRuntime {
                     inner_access_provider,
                 },
-                &globals_ctx.global_gas_name,
-                &globals_ctx.global_allowance_name,
+                &globals_config.global_gas_name,
+                &globals_config.global_allowance_name,
                 amount,
             )
         }
@@ -224,7 +224,6 @@ unsafe fn charge_gas(globals_ctx: GlobalsCtx, amount: u64) -> Result<Status, Err
 
 fn cost_for_write(
     ctx: &mut RefMut<LazyPagesExecutionContext>,
-    weights: &LazyPagesWeights,
     page: GranularityPage,
 ) -> Result<u64, Error> {
     if ctx.write_charged.contains(&page) {
@@ -238,20 +237,19 @@ fn cost_for_write(
         } else {
             // Charge for write after read.
             ctx.write_after_read_charged.insert(page);
-            Ok(weights.write_after_read)
+            Ok(ctx.lazy_pages_weights.write_after_read)
         }
     } else if ctx.write_after_read_charged.contains(&page) {
         Err(Error::WriteAfterReadChargedWithoutReadCharged)
     } else {
         // Charge for write.
         ctx.write_charged.insert(page);
-        Ok(weights.write)
+        Ok(ctx.lazy_pages_weights.write)
     }
 }
 
 fn cost_for_read(
     ctx: &mut RefMut<LazyPagesExecutionContext>,
-    weights: &LazyPagesWeights,
     page: GranularityPage,
 ) -> Result<u64, Error> {
     if ctx.read_charged.contains(&page) || ctx.write_charged.contains(&page) {
@@ -262,7 +260,7 @@ fn cost_for_read(
     } else {
         // Charge for read.
         ctx.read_charged.insert(page);
-        Ok(weights.read)
+        Ok(ctx.lazy_pages_weights.read)
     }
 }
 
@@ -271,7 +269,7 @@ unsafe fn charge_for_pages(
     pages: PagesIterInclusive<LazyPage>,
     is_write: bool,
 ) -> Result<Status, Error> {
-    let globals_ctx = if let Some(ctx) = ctx.globals_ctx.as_ref() {
+    let globals_config = if let Some(ctx) = ctx.globals_config.as_ref() {
         ctx.clone()
     } else {
         return Ok(Status::Normal);
@@ -282,9 +280,9 @@ unsafe fn charge_for_pages(
 
     for page in granularity_pages.into_iter() {
         let amount_for_page = if is_write {
-            cost_for_write(ctx, &globals_ctx.lazy_pages_weights, page)
+            cost_for_write(ctx, page)
         } else {
-            cost_for_read(ctx, &globals_ctx.lazy_pages_weights, page)
+            cost_for_read(ctx, page)
         }?;
         amount = amount
             .checked_add(amount_for_page)
@@ -295,7 +293,7 @@ unsafe fn charge_for_pages(
     let k = (GranularityPage::size() / PageNumber::size()) as u64;
     amount = amount.checked_mul(k).ok_or(Error::ChargedGasTooBig)?;
 
-    charge_gas(globals_ctx, amount)
+    charge_gas(globals_config, amount)
 }
 
 pub(crate) unsafe fn process_lazy_pages(
