@@ -1,6 +1,5 @@
 //! Host functions
 use crate::metadata::{result::Result, StoreData};
-use subxt::ext::bitvec::macros::internal::funty::Numeric;
 use wasmtime::{
     AsContext, AsContextMut, Caller, Extern, Func, Linker, Memory, MemoryType, Store, Trap,
 };

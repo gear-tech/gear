@@ -17,6 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use super::*;
+use common::ActiveProgram;
 use core::convert::TryFrom;
 use gear_core::memory::WasmPageNumber;
 use gear_wasm_instrument::syscalls::SysCallName;
@@ -306,7 +307,10 @@ where
     }
 
     fn code_with_memory(program_id: ProgramId) -> Result<CodeWithMemoryData, String> {
-        let program = common::get_active_program(program_id.into_origin())
+        let program = ProgramStorageOf::<T>::get_program(program_id)
+            .ok_or(String::from("Program not found"))?;
+
+        let program = ActiveProgram::try_from(program)
             .map_err(|e| format!("Get active program error: {e:?}"))?;
 
         let code_id = CodeId::from_origin(program.code_hash);
@@ -315,8 +319,11 @@ where
 
         #[cfg(not(feature = "lazy-pages"))]
         let program_pages = Some(
-            common::get_program_pages_data(program_id.into_origin(), &program)
-                .map_err(|e| format!("Get program pages data error: {e:?}"))?,
+            ProgramStorageOf::<T>::get_program_data_for_pages(
+                program_id,
+                program.pages_with_data.iter(),
+            )
+            .map_err(|e| format!("Get program pages data error: {e:?}"))?,
         );
 
         #[cfg(feature = "lazy-pages")]
@@ -338,7 +345,9 @@ where
         argument: Option<Vec<u8>>,
     ) -> Result<Vec<u8>, String> {
         #[cfg(feature = "lazy-pages")]
-        assert!(lazy_pages::try_to_enable_lazy_pages());
+        assert!(lazy_pages::try_to_enable_lazy_pages(
+            ProgramStorageOf::<T>::pages_final_prefix()
+        ));
 
         let schedule = T::Schedule::get();
 
@@ -379,7 +388,9 @@ where
 
     pub(crate) fn read_state_impl(program_id: ProgramId) -> Result<Vec<u8>, String> {
         #[cfg(feature = "lazy-pages")]
-        assert!(lazy_pages::try_to_enable_lazy_pages());
+        assert!(lazy_pages::try_to_enable_lazy_pages(
+            ProgramStorageOf::<T>::pages_final_prefix()
+        ));
 
         log::debug!("Reading state of {program_id:?}");
 
@@ -402,7 +413,9 @@ where
 
     pub(crate) fn read_metahash_impl(program_id: ProgramId) -> Result<H256, String> {
         #[cfg(feature = "lazy-pages")]
-        assert!(lazy_pages::try_to_enable_lazy_pages());
+        assert!(lazy_pages::try_to_enable_lazy_pages(
+            ProgramStorageOf::<T>::pages_final_prefix()
+        ));
 
         log::debug!("Reading metahash of {program_id:?}");
 

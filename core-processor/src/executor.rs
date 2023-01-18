@@ -254,7 +254,7 @@ fn prepare_memory<A: ProcessorExt, M: Memory>(
 
     // Set initial data for pages
     for (page, data) in pages_data.iter_mut() {
-        mem.write(page.offset(), data.as_slice())
+        mem.write(page.offset(), data)
             .map_err(|err| ExecutionErrorReason::InitialDataWriteFailed(*page, err))?;
     }
 
@@ -285,7 +285,7 @@ fn prepare_memory<A: ProcessorExt, M: Memory>(
                 continue;
             }
             let mut data = PageBuf::new_zeroed();
-            mem.read(page.offset(), data.as_mut_slice())
+            mem.read(page.offset(), &mut data)
                 .map_err(|err| ExecutionErrorReason::InitialMemoryReadFailed(page, err))?;
             pages_data.insert(page, data);
         }
@@ -659,8 +659,8 @@ pub fn execute_for_reply<
 #[cfg(test)]
 mod tests {
     use super::*;
-    use alloc::{vec, vec::Vec};
-    use gear_core::memory::WasmPageNumber;
+    use alloc::vec::Vec;
+    use gear_core::memory::{PageBufInner, WasmPageNumber};
 
     struct TestExt;
     struct LazyTestExt;
@@ -724,10 +724,8 @@ mod tests {
     fn prepare_pages() -> BTreeMap<PageNumber, PageBuf> {
         let mut pages = BTreeMap::new();
         for i in 0..=255 {
-            pages.insert(
-                (i as u16).into(),
-                PageBuf::new_from_vec(vec![i; 4096]).unwrap(),
-            );
+            let buffer = PageBufInner::filled_with(i);
+            pages.insert((i as u16).into(), PageBuf::from_inner(buffer));
         }
         pages
     }
@@ -867,7 +865,8 @@ mod tests {
 
         // Change static pages
         for i in 0..static_pages {
-            new_pages.insert(i.into(), PageBuf::new_from_vec(vec![42u8; 4096]).unwrap());
+            let buffer = PageBufInner::filled_with(42);
+            new_pages.insert(i.into(), PageBuf::from_inner(buffer));
         }
         // Do not include non-static pages
         let new_pages = new_pages
@@ -889,16 +888,28 @@ mod tests {
         let mut new_pages = prepare_pages();
 
         // Change pages
-        new_pages.insert(1.into(), PageBuf::new_from_vec(vec![42u8; 4096]).unwrap());
-        new_pages.insert(5.into(), PageBuf::new_from_vec(vec![84u8; 4096]).unwrap());
+        new_pages.insert(
+            1.into(),
+            PageBuf::from_inner(PageBufInner::filled_with(42u8)),
+        );
+        new_pages.insert(
+            5.into(),
+            PageBuf::from_inner(PageBufInner::filled_with(84u8)),
+        );
         new_pages.insert(30.into(), PageBuf::new_zeroed());
         let static_pages = 4.into();
         let res = get_pages_to_be_updated::<TestExt>(old_pages, new_pages.clone(), static_pages);
         assert_eq!(
             res,
             [
-                (1.into(), PageBuf::new_from_vec(vec![42u8; 4096]).unwrap()),
-                (5.into(), PageBuf::new_from_vec(vec![84u8; 4096]).unwrap()),
+                (
+                    1.into(),
+                    PageBuf::from_inner(PageBufInner::filled_with(42u8))
+                ),
+                (
+                    5.into(),
+                    PageBuf::from_inner(PageBufInner::filled_with(84u8))
+                ),
                 (30.into(), PageBuf::new_zeroed())
             ]
             .into()

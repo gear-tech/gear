@@ -89,7 +89,7 @@ impl GetGasAmount for Error {
 /// Environment to run one module at a time providing Ext.
 pub struct SandboxEnvironment<E, EP = DispatchKind>
 where
-    E: Ext,
+    E: Ext + IntoExtInfo<E::Error>,
     EP: WasmEntry,
 {
     instance: Instance<Runtime<E>>,
@@ -100,7 +100,7 @@ where
 
 // A helping wrapper for `EnvironmentDefinitionBuilder` and `forbidden_funcs`.
 // It makes adding functions to `EnvironmentDefinitionBuilder` shorter.
-struct EnvBuilder<E: Ext> {
+struct EnvBuilder<E: Ext + IntoExtInfo<E::Error>> {
     env_def_builder: EnvironmentDefinitionBuilder<Runtime<E>>,
     forbidden_funcs: BTreeSet<SysCallName>,
     funcs_count: usize,
@@ -129,7 +129,9 @@ impl<E: Ext + IntoExtInfo<E::Error> + 'static> EnvBuilder<E> {
     }
 }
 
-impl<E: Ext> From<EnvBuilder<E>> for EnvironmentDefinitionBuilder<Runtime<E>> {
+impl<E: Ext + IntoExtInfo<E::Error>> From<EnvBuilder<E>>
+    for EnvironmentDefinitionBuilder<Runtime<E>>
+{
     fn from(builder: EnvBuilder<E>) -> Self {
         builder.env_def_builder
     }
@@ -247,6 +249,7 @@ where
             memory: MemoryWrap::new(memory),
             err: FuncError::Terminated(TerminationReason::Success),
             globals: Default::default(),
+            memory_manager: Default::default(),
         };
 
         match Instance::new(binary, &env_builder, &mut runtime) {

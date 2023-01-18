@@ -40,7 +40,13 @@ async fn inf_loop() -> Result<()> {
 
     // Program initialization.
     let (mid, pid, _) = api
-        .upload_program_bytes_by_path(PATH, gclient::bytes_now(), "", gas_limit, 0)
+        .upload_program_bytes_by_path(
+            PATH,
+            gclient::now_in_micros().to_le_bytes(),
+            "",
+            gas_limit,
+            0,
+        )
         .await?;
 
     // Asserting successful initialization.
@@ -53,7 +59,7 @@ async fn inf_loop() -> Result<()> {
     assert!(listener.message_processed(mid).await?.failed());
 
     // Checking that blocks still running.
-    assert!(!api.queue_processing_stopped().await?);
+    assert!(!api.queue_processing_stalled(&mut listener).await?);
 
     Ok(())
 }

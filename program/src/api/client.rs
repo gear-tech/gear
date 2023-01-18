@@ -3,11 +3,12 @@ use crate::result::{ClientError, Result};
 use futures_util::{StreamExt, TryStreamExt};
 use jsonrpsee::{
     core::{
-        client::{ClientT, SubscriptionClientT},
+        client::{ClientT, Subscription, SubscriptionClientT, SubscriptionKind},
         traits::ToRpcParams,
         Error as JsonRpseeError,
     },
     http_client::{HttpClient, HttpClientBuilder},
+    types::SubscriptionId,
     ws_client::{WsClient, WsClientBuilder},
 };
 use std::{result::Result as StdResult, time::Duration};
@@ -89,30 +90,35 @@ impl RpcClientT for RpcClient {
         unsub: &'a str,
     ) -> RpcFuture<'a, RpcSubscription> {
         Box::pin(async move {
-            let sub = match self {
-                RpcClient::Http(c) => SubscriptionClientT::subscribe::<Box<RawValue>, _>(
-                    c,
-                    sub,
-                    Params(params),
-                    unsub,
-                )
-                .await
-                .map_err(|e| RpcError::ClientError(Box::new(e)))?
-                .map_err(|e| RpcError::ClientError(Box::new(e)))
-                .boxed(),
-                RpcClient::Ws(c) => SubscriptionClientT::subscribe::<Box<RawValue>, _>(
-                    c,
-                    sub,
-                    Params(params),
-                    unsub,
-                )
-                .await
-                .map_err(|e| RpcError::ClientError(Box::new(e)))?
-                .map_err(|e| RpcError::ClientError(Box::new(e)))
-                .boxed(),
+            let stream = match self {
+                RpcClient::Http(c) => subscription_stream(c, sub, params, unsub).await?,
+                RpcClient::Ws(c) => subscription_stream(c, sub, params, unsub).await?,
             };
 
-            Ok(sub)
+            let id = match stream.kind() {
+                SubscriptionKind::Subscription(SubscriptionId::Str(id)) => {
+                    Some(id.clone().into_owned())
+                }
+                _ => None,
+            };
+
+            let stream = stream
+                .map_err(|e| RpcError::ClientError(Box::new(e)))
+                .boxed();
+
+            Ok(RpcSubscription { stream, id })
         })
     }
+}
+
+// This is a support fn to create a subscription stream for a generic client
+async fn subscription_stream<C: SubscriptionClientT>(
+    client: &C,
+    sub: &str,
+    params: Option<Box<RawValue>>,
+    unsub: &str,
+) -> StdResult<Subscription<Box<RawValue>>, RpcError> {
+    SubscriptionClientT::subscribe::<Box<RawValue>, _>(client, sub, Params(params), unsub)
+        .await
+        .map_err(|e| RpcError::ClientError(Box::new(e)))
 }

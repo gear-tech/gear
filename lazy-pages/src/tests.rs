@@ -62,7 +62,10 @@ fn read_write_flag_works() {
         }
     }
 
-    assert!(init_with_handler::<TestHandler>(LazyPagesVersion::Version1));
+    assert!(init_with_handler::<TestHandler>(
+        LazyPagesVersion::Version1,
+        Default::default()
+    ));
 
     let page_size = region::page::size();
     let addr = region::alloc(page_size, Protection::NONE).unwrap();
@@ -103,7 +106,10 @@ fn test_mprotect_pages() {
 
     env_logger::init();
 
-    assert!(init_with_handler::<TestHandler>(LazyPagesVersion::Version1));
+    assert!(init_with_handler::<TestHandler>(
+        LazyPagesVersion::Version1,
+        Default::default()
+    ));
 
     let mut v = vec![0u8; 3 * WasmPageNumber::size() as usize];
     let buff = v.as_mut_ptr() as usize;

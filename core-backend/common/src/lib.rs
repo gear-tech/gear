@@ -25,6 +25,7 @@ extern crate alloc;
 pub mod error_processor;
 
 mod utils;
+use memory::OutOfMemoryAccessError;
 pub use utils::calc_stack_end;
 
 #[cfg(feature = "mock")]
@@ -47,7 +48,7 @@ use gear_core::{
     env::Ext,
     gas::GasAmount,
     ids::{CodeId, MessageId, ProgramId, ReservationId},
-    memory::{Memory, PageBuf, PageNumber, WasmPageNumber},
+    memory::{Memory, MemoryInterval, PageBuf, PageNumber, WasmPageNumber},
     message::{
         ContextStore, Dispatch, DispatchKind, IncomingDispatch, MessageWaitedType, WasmEntry,
     },
@@ -55,6 +56,8 @@ use gear_core::{
 };
 use gear_core_errors::{ExtError, MemoryError};
 use scale_info::TypeInfo;
+
+pub mod memory;
 
 // Max amount of bytes allowed to be thrown as string explanation of the error.
 pub const TRIMMED_MAX_LEN: usize = 1024;
@@ -157,6 +160,12 @@ pub trait IntoExtInfo<Error> {
     }
 
     fn trap_explanation(&self) -> Option<TrapExplanation>;
+
+    /// Pre-process memory access if need.
+    fn pre_process_memory_accesses(
+        reads: &[MemoryInterval],
+        writes: &[MemoryInterval],
+    ) -> Result<(), OutOfMemoryAccessError>;
 }
 
 pub trait GetGasAmount {

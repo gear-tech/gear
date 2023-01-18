@@ -18,13 +18,15 @@
 
 use alloc::{collections::BTreeSet, vec::Vec};
 use core_processor::{Ext, ProcessorContext, ProcessorError, ProcessorExt};
-use gear_backend_common::{ExtInfo, GetGasAmount, IntoExtInfo, TrapExplanation};
+use gear_backend_common::{
+    memory::OutOfMemoryAccessError, ExtInfo, GetGasAmount, IntoExtInfo, TrapExplanation,
+};
 use gear_core::{
     costs::RuntimeCosts,
     env::Ext as EnvExt,
     gas::GasAmount,
     ids::{MessageId, ProgramId, ReservationId},
-    memory::{GrowHandler, Memory, PageNumber, PageU32Size, WasmPageNumber},
+    memory::{GrowHandler, Memory, MemoryInterval, PageNumber, PageU32Size, WasmPageNumber},
     message::{HandlePacket, InitPacket, ReplyPacket, StatusCode},
 };
 use gear_core_errors::{ExtError, MemoryError};
@@ -63,6 +65,14 @@ impl IntoExtInfo<<LazyPagesExt as EnvExt>::Error> for LazyPagesExt {
 
     fn trap_explanation(&self) -> Option<TrapExplanation> {
         self.inner.trap_explanation()
+    }
+
+    fn pre_process_memory_accesses(
+        _reads: &[MemoryInterval],
+        _writes: &[MemoryInterval],
+    ) -> Result<(), OutOfMemoryAccessError> {
+        // TODO: make pre-processing after we add charging in lazy pages.
+        Ok(())
     }
 }
 

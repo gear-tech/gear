@@ -344,7 +344,8 @@ mod meta_tests {
     //     );
     //     assert!(!run_result.main_failed);
 
-    //     let result: Vec<Wallet> = program.meta_state(&expected_id).expect("Meta_state failed");
+    //     let result: Vec<Wallet> =
+    // program.meta_state(&expected_id).expect("Meta_state failed");
 
     //     assert_eq!(result, expected_result);
     // }

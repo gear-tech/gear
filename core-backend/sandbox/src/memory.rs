@@ -19,14 +19,13 @@
 //! sp-sandbox extensions for memory.
 
 use gear_core::memory::{Error, HostPointer, Memory, PageU32Size, WasmPageNumber};
-use sp_sandbox::SandboxMemory;
+use sp_sandbox::{default_executor::Memory as DefaultExecutorMemory, SandboxMemory};
 
 /// Wrapper for sp_sandbox::Memory.
-pub struct MemoryWrap(sp_sandbox::default_executor::Memory);
+pub struct MemoryWrap(DefaultExecutorMemory);
 
 impl MemoryWrap {
-    /// Wrap sp_sandbox::Memory for Memory trait.
-    pub fn new(mem: sp_sandbox::default_executor::Memory) -> Self {
+    pub fn new(mem: DefaultExecutorMemory) -> Self {
         MemoryWrap(mem)
     }
 }

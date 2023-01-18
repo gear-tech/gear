@@ -16,102 +16,177 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+//! # Gear Program Pallet
+//!
+//! The Gear Program Pallet provides functionality for storing programs
+//! and binary codes.
+//!
+//! - [`Config`]
+//! - [`Pallet`]
+//!
+//! ## Overview
+//!
+//! The Gear Program Pallet's main aim is to separate programs and binary codes storages out
+//! of Gear's execution logic and provide soft functionality to manage them.
+//!
+//! The Gear Program Pallet provides functions for:
+//! - Add/remove/check existence for binary codes;
+//! - Get original binary code, instrumented binary code and associated metadata;
+//! - Update instrumented binary code in the storage;
+//! - Add/remove/check existence for programs;
+//! - Get program data;
+//! - Update program in the storage;
+//! - Work with program memory pages and messages for uninitialized programs.
+//!
+//! ## Interface
+//!
+//! The Gear Program Pallet implements `gear_common::{CodeStorage, ProgramStorage}` traits
+//! and shouldn't contain any other functionality, except this trait declares.
+//!
+//! ## Usage
+//!
+//! How to use the functionality from the Gear Program Pallet:
+//!
+//! 1. Implement the pallet `Config` for your runtime.
+//!
+//! ```ignore
+//! // `runtime/src/lib.rs`
+//! // ... //
+//!
+//! impl pallet_gear_program::Config for Runtime {}
+//!
+//! // ... //
+//! ```
+//!
+//! 2. Provide associated type for your pallet's `Config`, which implements
+//! `gear_common::{CodeStorage, ProgramStorage}` traits,
+//! specifying associated types if needed.
+//!
+//! ```ignore
+//! // `some_pallet/src/lib.rs`
+//! // ... //
+//!
+//! use gear_common::{CodeStorage, ProgramStorage};
+//!
+//! #[pallet::config]
+//! pub trait Config: frame_system::Config {
+//!     // .. //
+//!
+//!     type CodeStorage: CodeStorage;
+//!
+//!     type ProgramStorage: ProgramStorage;
+//!
+//!     // .. //
+//! }
+//! ```
+//!
+//! 3. Declare Gear Program Pallet in your `construct_runtime!` macro.
+//!
+//! ```ignore
+//! // `runtime/src/lib.rs`
+//! // ... //
+//!
+//! construct_runtime!(
+//!     pub enum Runtime
+//!         where // ... //
+//!     {
+//!         // ... //
+//!
+//!         GearProgram: pallet_gear_program,
+//!
+//!         // ... //
+//!     }
+//! );
+//!
+//! // ... //
+//! ```
+//!
+//! 4. Set `GearProgram` as your pallet `Config`'s `{CodeStorage, ProgramStorage}` types.
+//!
+//! ```ignore
+//! // `runtime/src/lib.rs`
+//! // ... //
+//!
+//! impl some_pallet::Config for Runtime {
+//!     // ... //
+//!
+//!     type CodeStorage = GearProgram;
+//!
+//!     type ProgramStorage = GearProgram;
+//!
+//!     // ... //
+//! }
+//!
+//! // ... //
+//! ```
+//!
+//! 5. Work with Gear Program Pallet in your pallet with provided
+//! associated type interface.
+//!
+//! ## Genesis config
+//!
+//! The Gear Program Pallet doesn't depend on the `GenesisConfig`.
+
 #![cfg_attr(not(feature = "std"), no_std)]
 
+use sp_std::convert::TryInto;
+
 pub use pallet::*;
-pub use pause::PauseError;
-pub use weights::WeightInfo;
-
-mod pause;
-mod program;
-
-#[cfg(test)]
-mod mock;
-
-#[cfg(test)]
-mod tests;
 
 pub mod migration;
-pub mod weights;
-
-#[cfg(feature = "runtime-benchmarks")]
-mod benchmarking;
 
 #[frame_support::pallet]
 pub mod pallet {
-    pub use frame_support::weights::Weight;
-
-    pub(crate) type WaitlistOf<T> = <<T as Config>::Messenger as Messenger>::Waitlist;
-
     use super::*;
-    use common::{storage::*, CodeMetadata, Origin as _};
-    use frame_support::{
-        dispatch::DispatchResultWithPostInfo,
-        pallet_prelude::*,
-        traits::{
-            Currency, ExistenceRequirement, LockIdentifier, LockableCurrency, StorageVersion,
-            WithdrawReasons,
-        },
-    };
+    use codec::EncodeLike;
+    use common::{storage::*, CodeMetadata, Program};
+    #[cfg(feature = "debug-mode")]
+    use frame_support::storage::PrefixIterator;
+    use frame_support::{pallet_prelude::*, traits::StorageVersion, StoragePrefixedMap};
     use frame_system::pallet_prelude::*;
     use gear_core::{
         code::InstrumentedCode,
         ids::{CodeId, MessageId, ProgramId},
-        memory::{vec_page_data_map_to_page_buf_map, PageNumber},
-        message::StoredDispatch,
+        memory::{PageBuf, PageNumber},
     };
-    use sp_runtime::{traits::Zero, DispatchError};
-    use sp_std::{collections::btree_map::BTreeMap, convert::TryInto, prelude::*};
-
-    const LOCK_ID: LockIdentifier = *b"resume_p";
+    use sp_runtime::DispatchError;
+    use sp_std::prelude::*;
 
     /// The current storage version.
     const PROGRAM_STORAGE_VERSION: StorageVersion = StorageVersion::new(1);
 
     #[pallet::config]
-    pub trait Config: frame_system::Config {
-        /// Because this pallet emits events, it depends on the runtime's definition of an event.
-        type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
-
-        /// Weight information for extrinsics in this pallet.
-        type WeightInfo: WeightInfo;
-
-        type Currency: LockableCurrency<Self::AccountId>;
-
-        type Messenger: Messenger<
-            BlockNumber = Self::BlockNumber,
-            OutputError = DispatchError,
-            WaitlistFirstKey = ProgramId,
-            WaitlistSecondKey = MessageId,
-            WaitlistedMessage = StoredDispatch,
-        >;
-    }
-
-    type BalanceOf<T> =
-        <<T as Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
+    pub trait Config: frame_system::Config {}
 
     #[pallet::pallet]
     #[pallet::storage_version(PROGRAM_STORAGE_VERSION)]
     #[pallet::generate_store(pub(super) trait Store)]
     pub struct Pallet<T>(_);
 
-    #[pallet::event]
-    #[pallet::generate_deposit(pub(super) fn deposit_event)]
-    pub enum Event<T: Config> {
-        /// Program has been successfully resumed
-        ProgramResumed(ProgramId),
-        /// Program has been paused
-        ProgramPaused(ProgramId),
-    }
-
     #[pallet::error]
     pub enum Error<T> {
-        PausedProgramNotFound,
-        WrongMemoryPages,
-        NotAllocatedPageWithData,
-        ResumeProgramNotEnoughValue,
-        WrongWaitList,
-        InvalidPageData,
+        DuplicateItem,
+        ItemNotFound,
+        NotActiveProgram,
+        CannotFindDataForPage,
+    }
+
+    impl<Runtime: Config> common::ProgramStorageError for Error<Runtime> {
+        fn duplicate_item() -> Self {
+            Self::DuplicateItem
+        }
+
+        fn item_not_found() -> Self {
+            Self::ItemNotFound
+        }
+
+        fn not_active_program() -> Self {
+            Self::NotActiveProgram
+        }
+
+        fn cannot_find_page_data() -> Self {
+            Self::CannotFindDataForPage
+        }
     }
 
     #[pallet::storage]
@@ -159,8 +234,39 @@ pub mod pallet {
 
     #[pallet::storage]
     #[pallet::unbounded]
-    pub(crate) type PausedPrograms<T: Config> =
-        StorageMap<_, Identity, ProgramId, pause::PausedProgram>;
+    pub(crate) type ProgramStorage<T: Config> = StorageMap<_, Identity, ProgramId, Program>;
+
+    common::wrap_storage_map!(
+        storage: ProgramStorage,
+        name: ProgramStorageWrap,
+        key: ProgramId,
+        value: Program
+    );
+
+    #[pallet::storage]
+    #[pallet::unbounded]
+    pub(crate) type MemoryPageStorage<T: Config> =
+        StorageDoubleMap<_, Identity, ProgramId, Identity, PageNumber, PageBuf>;
+
+    common::wrap_storage_double_map!(
+        storage: MemoryPageStorage,
+        name: MemoryPageStorageWrap,
+        key1: ProgramId,
+        key2: PageNumber,
+        value: PageBuf
+    );
+
+    #[pallet::storage]
+    #[pallet::unbounded]
+    pub(crate) type WaitingInitStorage<T: Config> =
+        StorageMap<_, Identity, ProgramId, Vec<MessageId>>;
+
+    common::wrap_storage_map!(
+        storage: WaitingInitStorage,
+        name: WaitingInitStorageWrap,
+        key: ProgramId,
+        value: Vec<MessageId>
+    );
 
     #[pallet::hooks]
     impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {}
@@ -172,65 +278,42 @@ pub mod pallet {
         type OriginalCodeStorage = OriginalCodeStorageWrap<T>;
     }
 
-    #[pallet::call]
-    impl<T: Config> Pallet<T>
-    where
-        T::AccountId: common::Origin,
+    impl<Runtime: Config> common::ProgramStorage for pallet::Pallet<Runtime> {
+        type InternalError = Error<Runtime>;
+        type Error = DispatchError;
+
+        type ProgramMap = ProgramStorageWrap<Runtime>;
+        type MemoryPageMap = MemoryPageStorageWrap<Runtime>;
+        type WaitingInitMap = WaitingInitStorageWrap<Runtime>;
+
+        fn pages_final_prefix() -> [u8; 32] {
+            MemoryPageStorage::<Runtime>::final_prefix()
+        }
+    }
+
+    #[cfg(feature = "debug-mode")]
+    impl<Runtime: Config> IterableMap<(ProgramId, Program)> for pallet::Pallet<Runtime> {
+        type DrainIter = PrefixIterator<(ProgramId, Program)>;
+        type Iter = PrefixIterator<(ProgramId, Program)>;
+
+        fn drain() -> Self::DrainIter {
+            ProgramStorage::<Runtime>::drain()
+        }
+
+        fn iter() -> Self::Iter {
+            ProgramStorage::<Runtime>::iter()
+        }
+    }
+
+    impl<Runtime: Config> AppendMapStorage<MessageId, ProgramId, Vec<MessageId>>
+        for WaitingInitStorageWrap<Runtime>
     {
-        // TODO: unfortunately we cannot pass pages data in [PageBuf],
-        // because polkadot-js api can not support this type.
-        /// Resumes a previously paused program
-        ///
-        /// The origin must be Signed and the sender must have sufficient funds to
-        /// transfer value to the program.
-        ///
-        /// Parameters:
-        /// - `program_id`: id of the program to resume.
-        /// - `memory_pages`: program memory before it was paused.
-        /// - `value`: balance to be transferred to the program once it's been resumed.
-        ///
-        /// - `ProgramResumed(H256)` in the case of success.
-        ///
-        #[pallet::call_index(0)]
-        #[pallet::weight(<T as Config>::WeightInfo::resume_program(memory_pages.values().map(|p| p.len() as u32).sum()))]
-        pub fn resume_program(
-            origin: OriginFor<T>,
-            program_id: ProgramId,
-            memory_pages: BTreeMap<PageNumber, Vec<u8>>,
-            wait_list: BTreeMap<MessageId, gear_core::message::StoredDispatch>,
-            value: BalanceOf<T>,
-        ) -> DispatchResultWithPostInfo {
-            let memory_pages = match vec_page_data_map_to_page_buf_map(memory_pages) {
-                Ok(data) => data,
-                Err(err) => {
-                    log::debug!("resume program received wrong pages data: {}", err);
-                    return Err(Error::<T>::InvalidPageData.into());
-                }
-            };
-
-            let account = ensure_signed(origin)?;
-
-            ensure!(!value.is_zero(), Error::<T>::ResumeProgramNotEnoughValue);
-
-            Self::resume_program_impl(program_id, memory_pages, wait_list)?;
-
-            // The value movement `transfer` call respects existence requirements rules, so no need to check
-            // value for being in the valid interval like it's done in `pallet_gear` calls.
-            let program_account =
-                &<T::AccountId as common::Origin>::from_origin(program_id.into_origin());
-            T::Currency::transfer(
-                &account,
-                program_account,
-                value,
-                ExistenceRequirement::AllowDeath,
-            )?;
-
-            // TODO: maybe it is sufficient just to reserve value? (#762)
-            T::Currency::extend_lock(LOCK_ID, program_account, value, WithdrawReasons::FEE);
-
-            Self::deposit_event(Event::ProgramResumed(program_id));
-
-            Ok(().into())
+        fn append<EncodeLikeKey, EncodeLikeItem>(key: EncodeLikeKey, item: EncodeLikeItem)
+        where
+            EncodeLikeKey: EncodeLike<Self::Key>,
+            EncodeLikeItem: EncodeLike<MessageId>,
+        {
+            WaitingInitStorage::<Runtime>::append(key, item);
         }
     }
 }

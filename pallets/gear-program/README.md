@@ -1,14 +1,3 @@
-# API to work with programs
+# API to work with programs and binary codes
 
-A module provides functions for things like pause/resume/check existence of programs.
-
-## Interface
-
-### Dispatchable Functions
-
-### Functions
-
-* `pause_program` - pause running program
-* `resume_program` - resumes previously paused program
-* `program_paused` - checks if the paused program with specified id exists
-* `program_exists` - checks if the program with specified id exists
+A module provides whole logic for storing and interacting with programs and binary codes.
