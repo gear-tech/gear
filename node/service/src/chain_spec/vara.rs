@@ -18,6 +18,7 @@
 
 use crate::chain_spec::{get_account_id_from_seed, get_from_seed, AccountId, Extensions};
 use hex_literal::hex;
+use runtime_primitives::Balance;
 use sc_service::ChainType;
 use sp_consensus_babe::AuthorityId as BabeId;
 use sp_core::{crypto::UncheckedInto, sr25519};
@@ -84,7 +85,7 @@ pub fn development_config() -> Result<ChainSpec, String> {
 }
 
 pub fn local_testnet_config() -> Result<ChainSpec, String> {
-    let wasm_binary = WASM_BINARY.ok_or_else(|| "Development wasm not available".to_string())?;
+    let wasm_binary = WASM_BINARY.ok_or_else(|| "Local test wasm not available".to_string())?;
 
     Ok(ChainSpec::from_genesis(
         // Name
@@ -235,11 +236,11 @@ fn testnet_genesis(
             code: wasm_binary.to_vec(),
         },
         balances: BalancesConfig {
-            // Configure endowed accounts with initial balance of 1 << 60.
+            // Configure endowed accounts with initial balance of maximum possible value
             balances: endowed_accounts
                 .iter()
                 .cloned()
-                .map(|k| (k, 1 << 60))
+                .map(|k| (k, Balance::MAX))
                 .collect(),
         },
         babe: BabeConfig {
