@@ -290,15 +290,13 @@ fn check_signature(utx: &Extrinsic) -> Result<(), TransactionValidityError> {
 fn execute_transaction_backend(utx: &Extrinsic, _extrinsic_index: u32) -> ApplyExtrinsicResult {
     check_signature(utx)?;
     match utx {
-        Extrinsic::Submit { ref message, .. } => execute_submit_backend(message),
-        Extrinsic::Process => execute_process_backend(),
-        Extrinsic::StorageChange(key, value) => {
-            execute_storage_change(key, value.as_ref().map(|v| &**v))
-        }
+        Extrinsic::Signed { ref message, .. } => execute_signed_backend(message),
+        Extrinsic::Mandatory => execute_mandatory_backend(),
+        Extrinsic::Custom(key, value) => execute_custom_backend(key, value.as_ref().map(|v| &**v)),
     }
 }
 
-fn execute_submit_backend(tx: &Message) -> ApplyExtrinsicResult {
+fn execute_signed_backend(tx: &Message) -> ApplyExtrinsicResult {
     // check nonce
     let nonce_key = tx.from.to_keyed_vec(NONCE_OF);
     let expected_nonce: u64 = storage::hashed::get_or(&blake2_256, &nonce_key, 0);
@@ -317,7 +315,7 @@ fn execute_submit_backend(tx: &Message) -> ApplyExtrinsicResult {
     Ok(Ok(()))
 }
 
-fn execute_process_backend() -> ApplyExtrinsicResult {
+fn execute_mandatory_backend() -> ApplyExtrinsicResult {
     // Emulating message queue processing
     // Depending on the queue size this extrinsic might panic
 
@@ -336,7 +334,7 @@ fn execute_process_backend() -> ApplyExtrinsicResult {
     }
 }
 
-fn execute_storage_change(key: &[u8], value: Option<&[u8]>) -> ApplyExtrinsicResult {
+fn execute_custom_backend(key: &[u8], value: Option<&[u8]>) -> ApplyExtrinsicResult {
     match value {
         Some(value) => storage::unhashed::put_raw(key, value),
         None => storage::unhashed::kill(key),

@@ -62,7 +62,7 @@ use codec::Encode;
 use common::{
     self, benchmarking,
     storage::{Counter, *},
-    CodeMetadata, CodeStorage, GasPrice, GasTree, Origin, QueueRunner,
+    CodeMetadata, CodeStorage, GasPrice, GasTree, Origin,
 };
 use core::ops::Range;
 use core_processor::{
