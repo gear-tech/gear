@@ -3272,12 +3272,14 @@ name = "gear-core-processor"
 version = "0.1.0"
 dependencies = [
  "derive_more",
+ "env_logger 0.10.0",
  "gear-backend-common",
  "gear-core",
  "gear-core-errors",
  "gear-wasm-instrument",
  "log",
  "parity-scale-codec",
+ "proptest",
  "scale-info",
  "static_assertions",
 ]
