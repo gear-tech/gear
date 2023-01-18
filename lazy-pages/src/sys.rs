@@ -25,7 +25,7 @@ use crate::{
 use cfg_if::cfg_if;
 use core::any::Any;
 use gear_backend_common::lazy_pages::{
-    GlobalsAccessError, GlobalsAccessMod, GlobalsAccesser, GlobalsConfig, Status,
+    GlobalsAccessError, GlobalsAccessMod, GlobalsAccessor, GlobalsConfig, Status,
 };
 use gear_core::memory::{
     PageNumber, PageU32Size, PagesIterInclusive, GEAR_PAGE_SIZE, PAGE_STORAGE_GRANULARITY,
@@ -117,7 +117,7 @@ struct GlobalsAccessWasmRuntime<'a> {
     pub instance: &'a mut SandboxInstance,
 }
 
-impl<'a> GlobalsAccesser for GlobalsAccessWasmRuntime<'a> {
+impl<'a> GlobalsAccessor for GlobalsAccessWasmRuntime<'a> {
     fn get_i64(&self, name: &str) -> Result<i64, GlobalsAccessError> {
         self.instance
             .get_global_val(name)
@@ -146,10 +146,10 @@ impl<'a> GlobalsAccesser for GlobalsAccessWasmRuntime<'a> {
 }
 
 struct GlobalsAccessNativeRuntime<'a, 'b> {
-    pub inner_access_provider: &'a mut &'b mut dyn GlobalsAccesser,
+    pub inner_access_provider: &'a mut &'b mut dyn GlobalsAccessor,
 }
 
-impl<'a, 'b> GlobalsAccesser for GlobalsAccessNativeRuntime<'a, 'b> {
+impl<'a, 'b> GlobalsAccessor for GlobalsAccessNativeRuntime<'a, 'b> {
     fn get_i64(&self, name: &str) -> Result<i64, GlobalsAccessError> {
         self.inner_access_provider.get_i64(name)
     }
@@ -164,7 +164,7 @@ impl<'a, 'b> GlobalsAccesser for GlobalsAccessNativeRuntime<'a, 'b> {
 }
 
 fn charge_gas_internal(
-    mut globals_access_provider: impl GlobalsAccesser,
+    mut globals_access_provider: impl GlobalsAccessor,
     global_gas: &str,
     global_allowance: &str,
     amount: u64,
@@ -207,7 +207,7 @@ unsafe fn charge_gas(globals_config: GlobalsConfig, amount: u64) -> Result<Statu
         }
         GlobalsAccessMod::NativeRuntime => {
             let inner_access_provider = (globals_config.globals_access_ptr
-                as *mut &mut dyn GlobalsAccesser)
+                as *mut &mut dyn GlobalsAccessor)
                 .as_mut()
                 .ok_or(Error::DynGlobalsAccessPointerIsInvalid)?;
             charge_gas_internal(

@@ -33,7 +33,7 @@ use core::{any::Any, fmt};
 use gear_backend_common::{
     calc_stack_end,
     error_processor::IntoExtError,
-    lazy_pages::{GlobalsAccessError, GlobalsAccessMod, GlobalsAccesser, GlobalsConfig},
+    lazy_pages::{GlobalsAccessError, GlobalsAccessMod, GlobalsAccessor, GlobalsConfig},
     AsTerminationReason, BackendReport, Environment, GetGasAmount, IntoExtInfo, StackEndError,
     TerminationReason, TrapExplanation, STACK_END_EXPORT_NAME,
 };
@@ -121,7 +121,7 @@ impl<E: Ext> GlobalsAccessProvider<E> {
     }
 }
 
-impl<E: Ext + 'static> GlobalsAccesser for GlobalsAccessProvider<E> {
+impl<E: Ext + 'static> GlobalsAccessor for GlobalsAccessProvider<E> {
     fn get_i64(&self, name: &str) -> Result<i64, GlobalsAccessError> {
         self.get_global(name)
             .and_then(|global| {
@@ -278,7 +278,7 @@ where
             instance,
             store: None,
         };
-        let globals_provider_dyn_ref = &mut globals_provider as &mut dyn GlobalsAccesser;
+        let globals_provider_dyn_ref = &mut globals_provider as &mut dyn GlobalsAccessor;
 
         let needs_execution = entry_point
             .try_into_kind()

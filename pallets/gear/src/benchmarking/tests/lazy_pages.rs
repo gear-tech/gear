@@ -33,7 +33,6 @@ use crate::{
     benchmarking::{utils as common_utils, utils::PrepareConfig},
     HandleKind,
 };
-// use super::utils::{self as common_utils, PrepareConfig};
 
 pub fn lazy_pages_charging<T>()
 where
@@ -137,11 +136,22 @@ where
                 };
                 exec.block_config.pages_config.lazy_pages_weights = weights.clone();
 
-                let charged_for_pages = weights.read * gear_in_psg as u64 * read_pages.len() as u64
-                    + weights.write * gear_in_psg as u64 * write_pages.len() as u64
-                    + weights.write_after_read
-                        * gear_in_psg as u64
-                        * write_after_read_pages.len() as u64;
+                let calc_amount = |weight: u64, pages: &BTreeSet<GranularityPage>| {
+                    weight
+                        .checked_mul(gear_in_psg as u64)
+                        .unwrap()
+                        .checked_mul(pages.len() as u64)
+                        .unwrap()
+                };
+                let charged_for_read = calc_amount(weights.read, &read_pages);
+                let charged_for_write = calc_amount(weights.write, &write_pages);
+                let charged_for_write_after_read =
+                    calc_amount(weights.write_after_read, &write_after_read_pages);
+                let charged_for_pages = charged_for_read
+                    .checked_add(charged_for_write)
+                    .unwrap()
+                    .checked_add(charged_for_write_after_read)
+                    .unwrap();
 
                 let notes = core_processor::process::<Externalities, ExecutionEnvironment>(
                     &exec.block_config,

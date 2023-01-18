@@ -66,7 +66,7 @@ pub struct GlobalsConfig {
 pub struct GlobalsAccessError;
 
 /// Globals access trait.
-pub trait GlobalsAccesser {
+pub trait GlobalsAccessor {
     /// Returns global `name` value, if `name` is I64 global export.
     fn get_i64(&self, name: &str) -> Result<i64, GlobalsAccessError>;
     /// Set global `name` == `value`, if `name` is I64 global export.
@@ -79,7 +79,7 @@ pub trait GlobalsAccesser {
     fn set_i32(&mut self, _name: &str, _value: i32) -> Result<(), GlobalsAccessError> {
         unimplemented!("Currently has no i32 system globals")
     }
-    /// Returns as `&mut syn Any`.
+    /// Returns as `&mut dyn Any`.
     fn as_any_mut(&mut self) -> &mut dyn Any;
 }
 

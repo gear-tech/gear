@@ -473,7 +473,7 @@ pub fn execute_wasm<
                 };
 
                 match status {
-                    Status::Normal => {}
+                    Status::Normal => (),
                     Status::GasLimitExceeded => {
                         termination = TerminationReason::Trap(TrapExplanation::Core(
                             ExtError::Execution(gear_core_errors::ExecutionError::GasLimitExceeded),
