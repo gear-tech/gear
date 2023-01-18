@@ -1405,6 +1405,10 @@ pub mod pallet {
         /// - `DispatchMessageEnqueued(MessageInfo)` when dispatch message is placed in the queue.
         #[pallet::call_index(3)]
         #[pallet::weight(<T as Config>::WeightInfo::send_message(payload.len() as u32))]
+        // MIKITA different weights for 3 cases:
+        // MIKITA going to queue (active program)
+        // MIKITA going to waitlist (uninitialised program)
+        // MIKITA going to events (user interactions)
         pub fn send_message(
             origin: OriginFor<T>,
             destination: ProgramId,
@@ -1430,10 +1434,6 @@ pub mod pallet {
                 ),
             );
 
-            // MIKITA different gas for 3 cases:
-            // MIKITA going to queue (active program)
-            // MIKITA going to waitlist (uninitialised program)
-            // MIKITA going to events (user interactions)
             if ProgramStorageOf::<T>::program_exists(destination) {
                 ensure!(Self::is_active(destination), Error::<T>::InactiveProgram);
 
