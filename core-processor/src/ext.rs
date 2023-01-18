@@ -1087,6 +1087,12 @@ mod tests {
             self
         }
 
+        fn with_allocation_context(mut self, ctx: AllocationsContext) -> Self {
+            self.0.allocations_context = ctx;
+
+            self
+        }
+
         fn build(self) -> ProcessorContext {
             self.0
         }
@@ -1188,156 +1194,128 @@ mod tests {
         // there was lack of allowance
         assert_eq!(0, allowance);
     }
-}
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use alloc::vec;
-    use gear_core::{memory::HostPointer, message::ContextSettings};
-    use proptest::{
-        arbitrary::any,
-        collection::size_range,
-        prop_oneof, proptest,
-        strategy::{Just, Strategy},
-        test_runner::Config as ProptestConfig,
-    };
+    mod property_tests {
+        use super::*;
+        use gear_core::memory::HostPointer;
+        use proptest::{
+            arbitrary::any,
+            collection::size_range,
+            prop_oneof, proptest,
+            strategy::{Just, Strategy},
+            test_runner::Config as ProptestConfig,
+        };
 
-    struct TestMemory(WasmPageNumber);
+        struct TestMemory(WasmPageNumber);
 
-    impl Memory for TestMemory {
-        fn grow(&mut self, pages: WasmPageNumber) -> Result<(), MemoryError> {
-            self.0 = self.0.add(pages).map_err(|_| MemoryError::OutOfBounds)?;
-            Ok(())
+        impl Memory for TestMemory {
+            fn grow(&mut self, pages: WasmPageNumber) -> Result<(), MemoryError> {
+                self.0 = self.0.add(pages).map_err(|_| MemoryError::OutOfBounds)?;
+                Ok(())
+            }
+
+            fn size(&self) -> WasmPageNumber {
+                self.0
+            }
+
+            fn write(&mut self, _offset: u32, _buffer: &[u8]) -> Result<(), MemoryError> {
+                unreachable!()
+            }
+
+            fn read(&self, _offset: u32, _buffer: &mut [u8]) -> Result<(), MemoryError> {
+                unreachable!()
+            }
+
+            unsafe fn get_buffer_host_addr_unsafe(&mut self) -> HostPointer {
+                unreachable!()
+            }
         }
 
-        fn size(&self) -> WasmPageNumber {
-            self.0
+        #[derive(Debug, Clone)]
+        enum Action {
+            Alloc { pages: WasmPageNumber },
+            Free { page: WasmPageNumber },
         }
 
-        fn write(&mut self, _offset: u32, _buffer: &[u8]) -> Result<(), MemoryError> {
-            unreachable!()
+        fn actions() -> impl Strategy<Value = Vec<Action>> {
+            let action = wasm_page_number().prop_flat_map(|page| {
+                prop_oneof![
+                    Just(Action::Alloc { pages: page }),
+                    Just(Action::Free { page })
+                ]
+            });
+            proptest::collection::vec(action, 0..1024)
         }
 
-        fn read(&self, _offset: u32, _buffer: &mut [u8]) -> Result<(), MemoryError> {
-            unreachable!()
+        fn allocations() -> impl Strategy<Value = BTreeSet<WasmPageNumber>> {
+            proptest::collection::btree_set(wasm_page_number(), size_range(0..1024))
         }
 
-        unsafe fn get_buffer_host_addr_unsafe(&mut self) -> HostPointer {
-            unreachable!()
+        fn wasm_page_number() -> impl Strategy<Value = WasmPageNumber> {
+            any::<u16>().prop_map(WasmPageNumber::from)
         }
-    }
 
-    fn processor_context(allocations_context: AllocationsContext) -> ProcessorContext {
-        ProcessorContext {
-            gas_counter: GasCounter::new(u64::MAX),
-            gas_allowance_counter: GasAllowanceCounter::new(u64::MAX),
-            gas_reserver: GasReserver::new(MessageId::default(), 0, Default::default(), 0),
-            system_reservation: None,
-            value_counter: ValueCounter::new(0),
-            allocations_context,
-            message_context: MessageContext::new(
-                Default::default(),
-                Default::default(),
-                None,
-                ContextSettings::new(0, 0, 0, 0, 0, 0),
-            ),
-            block_info: Default::default(),
-            config: Default::default(),
-            existential_deposit: 0,
-            origin: Default::default(),
-            program_id: Default::default(),
-            program_candidates_data: Default::default(),
-            host_fn_weights: Default::default(),
-            forbidden_funcs: Default::default(),
-            mailbox_threshold: 0,
-            waitlist_cost: 0,
-            reserve_for: 0,
-            reservation: 0,
-            random_data: (vec![], 0),
+        fn proptest_config() -> ProptestConfig {
+            ProptestConfig {
+                cases: 1024,
+                ..Default::default()
+            }
         }
-    }
 
-    #[derive(Debug, Clone)]
-    enum Action {
-        Alloc { pages: WasmPageNumber },
-        Free { page: WasmPageNumber },
-    }
-
-    fn actions() -> impl Strategy<Value = Vec<Action>> {
-        let action = wasm_page_number().prop_flat_map(|page| {
-            prop_oneof![
-                Just(Action::Alloc { pages: page }),
-                Just(Action::Free { page })
-            ]
-        });
-        proptest::collection::vec(action, 0..1024)
-    }
-
-    fn allocations() -> impl Strategy<Value = BTreeSet<WasmPageNumber>> {
-        proptest::collection::btree_set(wasm_page_number(), size_range(0..1024))
-    }
-
-    fn wasm_page_number() -> impl Strategy<Value = WasmPageNumber> {
-        any::<u16>().prop_map(WasmPageNumber::from)
-    }
-
-    fn proptest_config() -> ProptestConfig {
-        ProptestConfig {
-            cases: 1024,
-            ..Default::default()
+        #[track_caller]
+        fn assert_alloc_error(err: <Ext as EnvExt>::Error) {
+            match err {
+                ProcessorError::Core(ExtError::Memory(
+                    MemoryError::OutOfBounds | MemoryError::IncorrectAllocationsSetOrMemSize,
+                )) => {}
+                err => Err(err).unwrap(),
+            }
         }
-    }
 
-    #[track_caller]
-    fn assert_alloc_error(err: <Ext as EnvExt>::Error) {
-        match err {
-            ProcessorError::Core(ExtError::Memory(
-                MemoryError::OutOfBounds | MemoryError::IncorrectAllocationsSetOrMemSize,
-            )) => {}
-            err => Err(err).unwrap(),
+        #[track_caller]
+        fn assert_free_error(err: <Ext as EnvExt>::Error) {
+            match err {
+                ProcessorError::Core(ExtError::Memory(
+                    MemoryError::InvalidFree(_) | MemoryError::OutOfBounds,
+                )) => {}
+                err => Err(err).unwrap(),
+            }
         }
-    }
 
-    #[track_caller]
-    fn assert_free_error(err: <Ext as EnvExt>::Error) {
-        match err {
-            ProcessorError::Core(ExtError::Memory(
-                MemoryError::InvalidFree(_) | MemoryError::OutOfBounds,
-            )) => {}
-            err => Err(err).unwrap(),
-        }
-    }
+        proptest! {
+            #![proptest_config(proptest_config())]
+            #[test]
+            fn alloc(
+                static_pages in wasm_page_number(),
+                allocations in allocations(),
+                max_pages in wasm_page_number(),
+                mem_size in wasm_page_number(),
+                actions in actions(),
+            ) {
+                let _ = env_logger::try_init();
 
-    proptest! {
-        #![proptest_config(proptest_config())]
-        #[test]
-        fn alloc(
-            static_pages in wasm_page_number(),
-            allocations in allocations(),
-            max_pages in wasm_page_number(),
-            mem_size in wasm_page_number(),
-            actions in actions(),
-        ) {
-            let _ = env_logger::try_init();
+                let ctx = AllocationsContext::new(allocations, static_pages, max_pages);
+                let ctx = ProcessorContextBuilder::new()
+                    .with_gas(GasCounter::new(u64::MAX))
+                    .with_allowance(GasAllowanceCounter::new(u64::MAX))
+                    .with_allocation_context(ctx)
+                    .build();
+                let mut ext = Ext::new(ctx);
+                let mut mem = TestMemory(mem_size);
 
-            let ctx = AllocationsContext::new(allocations, static_pages, max_pages);
-            let ctx = processor_context(ctx);
-            let mut ext = Ext::new(ctx);
-            let mut mem = TestMemory(mem_size);
-
-            for action in actions {
-                match action {
-                    Action::Alloc { pages } => {
-                        if let Err(err) = ext.alloc(pages, &mut mem) {
-                            assert_alloc_error(err);
+                for action in actions {
+                    match action {
+                        Action::Alloc { pages } => {
+                            if let Err(err) = ext.alloc(pages, &mut mem) {
+                                assert_alloc_error(err);
+                            }
                         }
+                        Action::Free { page } => {
+                            if let Err(err) = ext.free(page) {
+                                assert_free_error(err);
+                            }
+                        },
                     }
-                    Action::Free { page } => {
-                        if let Err(err) = ext.free(page) {
-                            assert_free_error(err);
-                        }
-                    },
                 }
             }
         }
