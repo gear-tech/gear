@@ -25,7 +25,7 @@ use crate::{
 use cfg_if::cfg_if;
 use core::any::Any;
 use gear_backend_common::lazy_pages::{
-    GlobalsAccessError, GlobalsAccessMod, GlobalsAccesser, GlobalsCtx, Status,
+    GlobalsAccessError, GlobalsAccessMod, GlobalsAccesser, GlobalsCtx, LazyPagesWeights, Status,
 };
 use gear_core::memory::{
     PageNumber, PageU32Size, PagesIterInclusive, GEAR_PAGE_SIZE, PAGE_STORAGE_GRANULARITY,
@@ -222,6 +222,50 @@ unsafe fn charge_gas(globals_ctx: GlobalsCtx, amount: u64) -> Result<Status, Err
     }
 }
 
+fn cost_for_write(
+    ctx: &mut RefMut<LazyPagesExecutionContext>,
+    weights: &LazyPagesWeights,
+    page: GranularityPage,
+) -> Result<u64, Error> {
+    if ctx.write_charged.contains(&page) {
+        // Has been already charged for write.
+        Ok(0)
+    } else if ctx.read_charged.contains(&page) {
+        // Has been already charged for read.
+        if ctx.write_after_read_charged.contains(&page) {
+            // Has been already charged for read after write.
+            Ok(0)
+        } else {
+            // Need now to charge for write after read.
+            ctx.write_after_read_charged.insert(page);
+            Ok(weights.write_after_read)
+        }
+    } else if ctx.write_after_read_charged.contains(&page) {
+        Err(Error::WriteAfterReadChargedWithoutReadCharged)
+    } else {
+        // Charge for write.
+        ctx.write_charged.insert(page);
+        Ok(weights.write)
+    }
+}
+
+fn cost_for_read(
+    ctx: &mut RefMut<LazyPagesExecutionContext>,
+    weights: &LazyPagesWeights,
+    page: GranularityPage,
+) -> Result<u64, Error> {
+    if ctx.read_charged.contains(&page) || ctx.write_charged.contains(&page) {
+        // Has been already charged for write or read - so no need to charge for read.
+        Ok(0)
+    } else if ctx.write_after_read_charged.contains(&page) {
+        Err(Error::WriteAfterReadChargedWithoutReadCharged)
+    } else {
+        // Charge for read.
+        ctx.read_charged.insert(page);
+        Ok(weights.read)
+    }
+}
+
 unsafe fn charge_for_pages(
     ctx: &mut RefMut<LazyPagesExecutionContext>,
     pages: PagesIterInclusive<LazyPage>,
@@ -234,41 +278,14 @@ unsafe fn charge_for_pages(
     };
 
     let mut amount = 0u64;
-    for page in pages
-        .map(|page| page.to_page::<GranularityPage>())
-        .collect::<BTreeSet<_>>()
-        .into_iter()
-    {
+    let granularity_pages: BTreeSet<GranularityPage> = pages.map(|page| page.to_page()).collect();
+
+    for page in granularity_pages.into_iter() {
         let amount_for_page = if is_write {
-            if ctx.write_charged.contains(&page) {
-                // Has been already charged for write.
-                0
-            } else if ctx.read_charged.contains(&page) {
-                // Has been already charged for read.
-                if ctx.write_after_read_charged.contains(&page) {
-                    0
-                } else {
-                    // Need now to charge for write after read.
-                    ctx.write_after_read_charged.insert(page);
-                    globals_ctx.lazy_pages_weights.write_after_read
-                }
-            } else if ctx.write_after_read_charged.contains(&page) {
-                return Err(Error::WriteAfterReadChargedWithoutReadCharged);
-            } else {
-                // Charge for write.
-                ctx.write_charged.insert(page);
-                globals_ctx.lazy_pages_weights.write
-            }
-        } else if ctx.read_charged.contains(&page) || ctx.write_charged.contains(&page) {
-            // Has been already charged for write or read - so no need to charge for read.
-            0
-        } else if ctx.write_after_read_charged.contains(&page) {
-            return Err(Error::WriteAfterReadChargedWithoutReadCharged);
+            cost_for_write(ctx, &globals_ctx.lazy_pages_weights, page)
         } else {
-            // Charge for read.
-            ctx.read_charged.insert(page);
-            globals_ctx.lazy_pages_weights.read
-        };
+            cost_for_read(ctx, &globals_ctx.lazy_pages_weights, page)
+        }?;
         amount = amount
             .checked_add(amount_for_page)
             .ok_or(Error::ChargedGasTooBig)?;
