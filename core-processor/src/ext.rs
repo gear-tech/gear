@@ -190,6 +190,47 @@ impl AsTerminationReason for ProcessorError {
     }
 }
 
+struct AllocGasCharger<'a> {
+    charged: u64,
+    ext: &'a mut Ext,
+}
+
+impl<'a> AllocGasCharger<'a> {
+    fn new(ext: &'a mut Ext) -> Self {
+        Self { charged: 0, ext }
+    }
+
+    fn calculate_gas(&self, alloc: u32, mem_grow: u32) -> u64 {
+        let alloc = alloc as u64;
+        let mem_grow = mem_grow as u64;
+        0_u64
+            .saturating_add(alloc.saturating_mul(self.ext.context.config.alloc_cost))
+            .saturating_add(mem_grow.saturating_mul(self.ext.context.config.mem_grow_cost))
+    }
+
+    fn charge_gas(&mut self, pages: u32) -> Result<(), <Ext as EnvExt>::Error> {
+        let amount = self.calculate_gas(pages, pages);
+        self.ext.charge_gas(amount)?;
+        self.charged = self.charged.saturating_add(amount);
+        Ok(())
+    }
+
+    fn refund_gas(
+        &mut self,
+        not_allocated: u32,
+        not_grown: u32,
+    ) -> Result<(), <Ext as EnvExt>::Error> {
+        let amount = self.calculate_gas(not_allocated, not_grown);
+        self.ext.refund_gas(amount)?;
+
+        if self.charged < amount {
+            unreachable!("Allocation logic invalidated: trying to refund more than charged");
+        }
+
+        Ok(())
+    }
+}
+
 /// Structure providing externalities for running host functions.
 pub struct Ext {
     /// Processor context.
@@ -893,49 +934,6 @@ impl Ext {
         pages: WasmPageNumber,
         mem: &mut impl Memory,
     ) -> Result<WasmPageNumber, ProcessorError> {
-        struct AllocGasCharger<'a> {
-            charged: u64,
-            ext: &'a mut Ext,
-        }
-
-        impl<'a> AllocGasCharger<'a> {
-            fn new(ext: &'a mut Ext) -> Self {
-                Self { charged: 0, ext }
-            }
-
-            fn calculate_gas(&self, alloc: u32, mem_grow: u32) -> u64 {
-                let alloc = alloc as u64;
-                let mem_grow = mem_grow as u64;
-                0_u64
-                    .saturating_add(alloc.saturating_mul(self.ext.context.config.alloc_cost))
-                    .saturating_add(mem_grow.saturating_mul(self.ext.context.config.mem_grow_cost))
-            }
-
-            fn charge_gas(&mut self, pages: u32) -> Result<(), <Ext as EnvExt>::Error> {
-                let amount = self.calculate_gas(pages, pages);
-                self.ext.charge_gas(amount)?;
-                self.charged = self.charged.saturating_add(amount);
-                Ok(())
-            }
-
-            fn refund_gas(
-                &mut self,
-                not_allocated: u32,
-                not_grown: u32,
-            ) -> Result<(), <Ext as EnvExt>::Error> {
-                let amount = self.calculate_gas(not_allocated, not_grown);
-                self.ext.refund_gas(amount)?;
-
-                if self.charged < amount {
-                    unreachable!(
-                        "Allocation logic invalidated: trying to refund more than charged"
-                    );
-                }
-
-                Ok(())
-            }
-        }
-
         self.charge_gas_runtime(RuntimeCosts::Alloc)?;
 
         let mut charger = AllocGasCharger::new(self);
