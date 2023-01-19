@@ -118,6 +118,7 @@ pub struct GearConfig {
     pub skip_init: Ratio,
     pub skip_handle: Ratio,
     pub skip_init_when_no_funcs: Ratio,
+    pub remove_recursion: Ratio,
     pub init_export_is_any_func: Ratio,
     pub max_mem_size: u32,
     pub max_mem_delta: u32,
@@ -137,6 +138,7 @@ impl GearConfig {
             skip_init: (1, 1000).into(),
             skip_handle: prob,
             skip_init_when_no_funcs: prob,
+            remove_recursion: (95, 100).into(),
             init_export_is_any_func: prob,
             max_mem_size: 1024,
             max_mem_delta: 1024,
@@ -154,6 +156,7 @@ impl GearConfig {
             skip_init: prob,
             skip_handle: prob,
             skip_init_when_no_funcs: prob,
+            remove_recursion: prob,
             process_when_no_funcs: prob,
             init_export_is_any_func: prob,
             max_mem_size: 1024,
@@ -174,6 +177,7 @@ impl GearConfig {
             skip_init: zero_prob,
             skip_handle: zero_prob,
             skip_init_when_no_funcs: zero_prob,
+            remove_recursion: zero_prob,
             init_export_is_any_func: zero_prob,
             max_mem_size: 512,
             max_mem_delta: 256,
@@ -736,6 +740,8 @@ impl<'a> WasmGen<'a> {
             }
         }
 
+        let module = utils::remove_recursion(module);
+
         module
     }
 }
@@ -758,6 +764,7 @@ pub fn gen_gear_program_module<'a>(u: &'a mut Unstructured<'a>, config: GearConf
     if !has_init {
         return gen.resolves_calls_indexes(module);
     }
+
     module = gen.gen_handle(module).0;
     module = gen.insert_sys_calls(module);
     module = gen.make_print_test_info(module);
