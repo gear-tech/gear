@@ -79,7 +79,11 @@ impl System {
         self.0.borrow_mut().run_dispatch(dispatch)
     }
 
-    pub fn spend_blocks(&self, amount: u32) {
+    pub fn send_delayed_dispatch(&self, dispatch: Dispatch) {
+        self.0.borrow_mut().send_delayed_dispatch(dispatch)
+    }
+
+    pub fn spend_blocks(&self, amount: u32) -> Vec<RunResult> {
         let mut manager = self.0.borrow_mut();
         if manager.block_info.height % EPOCH_DURATION_IN_BLOCKS == 0 {
             let mut rng = StdRng::seed_from_u64(
@@ -93,6 +97,9 @@ impl System {
 
         manager.block_info.height += amount;
         manager.block_info.timestamp += 1000 * amount as u64;
+
+        // Run delayed dispatches if the queue is not empty.
+        manager.process_delayed_dispatches()
     }
 
     /// Return the current block height.

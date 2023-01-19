@@ -358,4 +358,39 @@ mod tests {
 
         assert_eq!(system.balance_of(receiver_id), 1000);
     }
+
+    #[test]
+    fn delayed_message_works() {
+        // Arranging data for future messages
+        let system = System::new();
+        let message_id: MessageId = Default::default();
+        let source_user_id = ProgramIdWrapper::from(100).0;
+        let destination_user_id = ProgramIdWrapper::from(200).0;
+        let message_payload: Payload = vec![1, 2, 3].try_into().unwrap();
+        let log = Log::builder().payload(message_payload.clone());
+
+        // Building message based on arranged data
+        let message = Message::new(
+            message_id,
+            source_user_id,
+            destination_user_id,
+            message_payload.encode().try_into().unwrap(),
+            Default::default(),
+            0,
+            None,
+        );
+
+        let blocks = 10;
+        system
+            .0
+            .borrow_mut()
+            .send_delayed_dispatch(Dispatch::new(DispatchKind::Handle, message));
+
+        let mailbox = system.get_mailbox(destination_user_id);
+        assert!(!mailbox.contains(&log));
+
+        let results = system.spend_blocks(blocks);
+        assert_eq!(results.len(), 1);
+        assert!(mailbox.contains(&log));
+    }
 }

@@ -223,6 +223,7 @@ pub(crate) struct ExtManager {
     pub(crate) wait_list: BTreeMap<(ProgramId, MessageId), StoredDispatch>,
     pub(crate) wait_init_list: BTreeMap<ProgramId, Vec<MessageId>>,
     pub(crate) gas_limits: BTreeMap<MessageId, Option<u64>>,
+    pub(crate) delayed_dispatches: Vec<Dispatch>,
 
     // Last run info
     pub(crate) origin: ProgramId,
@@ -292,6 +293,25 @@ impl ExtManager {
             self.id_nonce += 1;
         }
         self.id_nonce
+    }
+
+    /// Insert message into the delayed queue.
+    pub(crate) fn send_delayed_dispatch(&mut self, dispatch: Dispatch) {
+        self.delayed_dispatches.push(dispatch);
+    }
+
+    /// Process all delayed dispatches.
+    pub(crate) fn process_delayed_dispatches(&mut self) -> Vec<RunResult> {
+        if self.delayed_dispatches.is_empty() {
+            Default::default()
+        } else {
+            self.delayed_dispatches
+                .drain(..)
+                .collect::<Vec<Dispatch>>()
+                .into_iter()
+                .map(|dispatch| self.run_dispatch(dispatch))
+                .collect()
+        }
     }
 
     fn validate_dispatch(&mut self, dispatch: &Dispatch) {
