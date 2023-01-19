@@ -671,7 +671,7 @@ fn process_success(
         })
     }
 
-    if let Some(allocations) = allocations {
+    if !allocations.is_empty() {
         journal.push(JournalNote::UpdateAllocations {
             program_id,
             allocations,

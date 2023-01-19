@@ -78,7 +78,7 @@ pub struct DispatchResult {
     /// Page updates.
     pub page_update: BTreeMap<PageNumber, PageBuf>,
     /// New allocations set for program if it has been changed.
-    pub allocations: Option<BTreeSet<WasmPageNumber>>,
+    pub allocations: BTreeSet<WasmPageNumber>,
 }
 
 impl DispatchResult {
