@@ -20,7 +20,7 @@
 //!
 //! THIS FILE WAS AUTO-GENERATED USING THE SUBSTRATE BENCHMARK CLI VERSION 4.0.0-dev
 //! DATE: 2023-01-17, STEPS: `51`, REPEAT: 200, LOW RANGE: `[]`, HIGH RANGE: `[]`
-//! HOSTNAME: `ip-172-31-20-193.us-west-1.compute.internal`, CPU: `Intel(R) Xeon(R) Platinum 8375C CPU @ 2.90GHz`
+//! CPU: `Intel(R) Xeon(R) Platinum 8375C CPU @ 2.90GHz`
 //! EXECUTION: Some(Wasm), WASM-EXECUTION: Compiled, CHAIN: Some("gear-dev"), DB CACHE: 1024
 
 // Executed Command:
@@ -606,15 +606,15 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_i64load(r: u32, ) -> Weight {
-        Weight::from_ref_time(11_336_080_678 as u64)
-            // Standard Error: 96_874
-            .saturating_add(Weight::from_ref_time(13_056_302 as u64).saturating_mul(r as u64))
+        Weight::from_ref_time(11_639_583_000 as u64)
+            // Standard Error: 121_168
+            .saturating_add(Weight::from_ref_time(30_753_009 as u64).saturating_mul(r as u64))
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_i64store(r: u32, ) -> Weight {
-        Weight::from_ref_time(11_605_531_225 as u64)
-            // Standard Error: 136_331
-            .saturating_add(Weight::from_ref_time(1_864_593 as u64).saturating_mul(r as u64))
+        Weight::from_ref_time(11_670_404_000 as u64)
+            // Standard Error: 116_067
+            .saturating_add(Weight::from_ref_time(42_656_030 as u64).saturating_mul(r as u64))
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_select(r: u32, ) -> Weight {
@@ -1358,15 +1358,15 @@ impl WeightInfo for () {
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_i64load(r: u32, ) -> Weight {
-        Weight::from_ref_time(11_336_080_678 as u64)
-            // Standard Error: 96_874
-            .saturating_add(Weight::from_ref_time(13_056_302 as u64).saturating_mul(r as u64))
+        Weight::from_ref_time(11_639_583_000 as u64)
+            // Standard Error: 121_168
+            .saturating_add(Weight::from_ref_time(30_753_009 as u64).saturating_mul(r as u64))
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_i64store(r: u32, ) -> Weight {
-        Weight::from_ref_time(11_605_531_225 as u64)
-            // Standard Error: 136_331
-            .saturating_add(Weight::from_ref_time(1_864_593 as u64).saturating_mul(r as u64))
+        Weight::from_ref_time(11_670_404_000 as u64)
+            // Standard Error: 116_067
+            .saturating_add(Weight::from_ref_time(42_656_030 as u64).saturating_mul(r as u64))
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_select(r: u32, ) -> Weight {
