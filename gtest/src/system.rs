@@ -91,10 +91,6 @@ impl System {
             manager.random_data = (random.to_vec(), manager.block_info.height + 1);
         }
 
-        for block_height in manager.block_info.height..=manager.block_info.height + amount {
-            manager.process_delayed_dispatches(block_height);
-        }
-
         manager.block_info.height += amount;
         manager.block_info.timestamp += 1000 * amount as u64;
     }

@@ -204,34 +204,6 @@ impl Program {
     }
 }
 
-/// Delayed dispatch with original message id and reservation info.
-#[derive(Debug)]
-pub(crate) struct DelayedDispatch {
-    pub message_id: MessageId,
-    pub dispatch: Dispatch,
-    pub reservation: Option<ReservationId>,
-}
-
-impl From<Dispatch> for DelayedDispatch {
-    fn from(dispatch: Dispatch) -> Self {
-        Self {
-            message_id: Default::default(),
-            dispatch,
-            reservation: None,
-        }
-    }
-}
-
-impl From<(MessageId, Dispatch)> for DelayedDispatch {
-    fn from((message_id, dispatch): (MessageId, Dispatch)) -> Self {
-        Self {
-            message_id,
-            dispatch,
-            reservation: None,
-        }
-    }
-}
-
 #[derive(Default, Debug)]
 pub(crate) struct ExtManager {
     // State metadata
@@ -247,7 +219,6 @@ pub(crate) struct ExtManager {
     pub(crate) opt_binaries: BTreeMap<CodeId, Vec<u8>>,
     pub(crate) meta_binaries: BTreeMap<CodeId, Vec<u8>>,
     pub(crate) dispatches: VecDeque<StoredDispatch>,
-    pub(crate) scheduled_dispatches: HashMap<u32, VecDeque<DelayedDispatch>>,
     pub(crate) mailbox: HashMap<ProgramId, Vec<StoredMessage>>,
     pub(crate) wait_list: BTreeMap<(ProgramId, MessageId), StoredDispatch>,
     pub(crate) wait_init_list: BTreeMap<ProgramId, Vec<MessageId>>,
@@ -426,31 +397,6 @@ impl ExtManager {
             total_processed,
             main_gas_burned: self.main_gas_burned,
             others_gas_burned: self.others_gas_burned,
-        }
-    }
-
-    /// Insert delayed dispatch into task pool.
-    pub(crate) fn send_delayed_dispatch(&mut self, delay: u32, dispatch: DelayedDispatch) {
-        let expected_block = self.block_info.height + delay;
-        if let Some(queue) = self.scheduled_dispatches.get_mut(&expected_block) {
-            queue.push_back(dispatch);
-        } else {
-            self.scheduled_dispatches
-                .insert(expected_block, VecDeque::from([dispatch]));
-        }
-    }
-
-    /// Send delayed dispatches from task pool.
-    pub(crate) fn process_delayed_dispatches(&mut self, block_height: u32) {
-        if let Some(mut queue) = self.scheduled_dispatches.remove(&block_height) {
-            while let Some(dispatch) = queue.pop_front() {
-                self.send_dispatch(
-                    dispatch.message_id,
-                    dispatch.dispatch,
-                    0,
-                    dispatch.reservation,
-                );
-            }
         }
     }
 
@@ -852,21 +798,12 @@ impl JournalHandler for ExtManager {
         &mut self,
         _message_id: MessageId,
         dispatch: Dispatch,
-        delay: u32,
+        _delay: u32,
         _reservation: Option<ReservationId>,
     ) {
         self.gas_limits.insert(dispatch.id(), dispatch.gas_limit());
 
-        if delay != 0 {
-            self.send_delayed_dispatch(
-                delay,
-                DelayedDispatch {
-                    message_id: _message_id,
-                    dispatch,
-                    reservation: _reservation,
-                },
-            );
-        } else if !self.is_user(&dispatch.destination()) {
+        if !self.is_user(&dispatch.destination()) {
             self.dispatches.push_back(dispatch.into_stored());
         } else {
             let message = dispatch.into_stored().into_parts().1;
