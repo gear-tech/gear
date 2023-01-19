@@ -115,6 +115,41 @@ impl<'a> ProcessorGasCharger<'a> {
         self.charge_gas_per_byte(amount)
     }
 
+    fn charge_gas_for_initial_memory(
+        &mut self,
+        settings: &PagesConfig,
+        static_pages: WasmPageNumber,
+    ) -> Result<(), ExecutionErrorReason> {
+        // TODO: check calculation is safe: #2007.
+        let amount = settings.init_cost * static_pages.raw() as u64;
+        self.charge_gas(GasOperation::InitialMemory, amount)
+    }
+
+    fn charge_gas_for_load_memory(
+        &mut self,
+        settings: &PagesConfig,
+        allocations: &BTreeSet<WasmPageNumber>,
+        static_pages: WasmPageNumber,
+    ) -> Result<(), ExecutionErrorReason> {
+        // TODO: check calculation is safe: #2007.
+        let amount =
+            settings.load_page_cost * (allocations.len() as u64 + static_pages.raw() as u64);
+        self.charge_gas(GasOperation::LoadMemory, amount)
+    }
+
+    fn charge_gas_for_grow_memory(
+        &mut self,
+        settings: &PagesConfig,
+        max_wasm_page: WasmPageNumber,
+        static_pages: WasmPageNumber,
+    ) -> Result<(), ExecutionErrorReason> {
+        // TODO: make separate class for size in pages (here is static_pages): #2008.
+        // TODO: check calculation is safe: #2007.
+        let amount =
+            settings.mem_grow_cost * (max_wasm_page.raw() as u64 + 1 - static_pages.raw() as u64);
+        self.charge_gas(GasOperation::GrowMemory, amount)
+    }
+
     /// Charge gas for pages init/load/grow and checks that there is enough gas for that.
     /// Returns size of wasm memory buffer which must be created in execution environment.
     // TODO: (issue #1894) remove charging for pages access/write/read/upload. But we should charge for
@@ -131,11 +166,8 @@ impl<'a> ProcessorGasCharger<'a> {
     ) -> Result<WasmPageNumber, ExecutionErrorReason> {
         // Initial execution: just charge for static pages
         if initial_execution {
-            // TODO: check calculation is safe: #2007.
             // Charging gas for initial pages
-            let amount = settings.init_cost * static_pages.raw() as u64;
-            self.charge_gas(GasOperation::InitialMemory, amount)?;
-
+            self.charge_gas_for_initial_memory(settings, static_pages)?;
             return Ok(static_pages);
         }
 
@@ -148,19 +180,12 @@ impl<'a> ProcessorGasCharger<'a> {
         };
 
         if !subsequent_execution {
-            // TODO: check calculation is safe: #2007.
             // Charging gas for loaded pages
-            let amount =
-                settings.load_page_cost * (allocations.len() as u64 + static_pages.raw() as u64);
-            self.charge_gas(GasOperation::LoadMemory, amount)?;
+            self.charge_gas_for_load_memory(settings, allocations, static_pages)?;
         }
 
-        // TODO: make separate class for size in pages (here is static_pages): #2008.
-        // TODO: check calculation is safe: #2007.
         // Charging gas for mem size
-        let amount =
-            settings.mem_grow_cost * (max_wasm_page.raw() as u64 + 1 - static_pages.raw() as u64);
-        self.charge_gas(GasOperation::GrowMemory, amount)?;
+        self.charge_gas_for_grow_memory(settings, max_wasm_page, static_pages)?;
 
         // +1 because pages numeration begins from 0
         let wasm_mem_size = max_wasm_page
