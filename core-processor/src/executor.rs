@@ -18,7 +18,7 @@
 
 use crate::{
     common::{
-        DispatchResult, DispatchResultKind, ExecutionError, ExecutionErrorReason, GasOperation,
+        DispatchResult, DispatchResultKind, ExecutionError, ExecutionErrorReason,
         WasmExecutionContext,
     },
     configs::{BlockInfo, ExecutionSettings, PagesConfig},
@@ -37,7 +37,7 @@ use gear_backend_common::{
 use gear_core::{
     code::InstrumentedCode,
     env::Ext as EnvExt,
-    gas::{ChargeResult, GasAllowanceCounter, GasCounter, ValueCounter},
+    gas::{GasAllowanceCounter, GasCounter, ValueCounter},
     ids::ProgramId,
     memory::{AllocationsContext, Memory, PageBuf, PageNumber, PageU32Size, WasmPageNumber},
     message::{
@@ -46,82 +46,7 @@ use gear_core::{
     program::Program,
     reservation::GasReserver,
 };
-use gear_core_errors::{ExtError, MemoryError};
-
-pub(crate) enum ChargeForBytesResult {
-    Ok,
-    BlockGasExceeded,
-    GasExceeded,
-}
-
-/// Calculates gas amount required to charge for program loading.
-pub fn calculate_gas_for_program(read_cost: u64, _per_byte_cost: u64) -> u64 {
-    read_cost
-}
-
-/// Calculates gas amount required to charge for code loading.
-pub fn calculate_gas_for_code(read_cost: u64, per_byte_cost: u64, code_len_bytes: u64) -> u64 {
-    read_cost.saturating_add(code_len_bytes.saturating_mul(per_byte_cost))
-}
-
-fn charge_gas(
-    operation: GasOperation,
-    amount: u64,
-    gas_counter: &mut GasCounter,
-    gas_allowance_counter: &mut GasAllowanceCounter,
-) -> Result<(), ExecutionErrorReason> {
-    log::trace!("Charge {} of gas to {}", amount, operation);
-    if gas_allowance_counter.charge(amount) != ChargeResult::Enough {
-        return Err(ExecutionErrorReason::BlockGasExceeded(operation));
-    }
-    if gas_counter.charge(amount) != ChargeResult::Enough {
-        return Err(ExecutionErrorReason::GasExceeded(operation));
-    }
-
-    Ok(())
-}
-
-pub(crate) fn charge_gas_per_byte(
-    amount: u64,
-    gas_counter: &mut GasCounter,
-    gas_allowance_counter: &mut GasAllowanceCounter,
-) -> ChargeForBytesResult {
-    if gas_allowance_counter.charge(amount) != ChargeResult::Enough {
-        return ChargeForBytesResult::BlockGasExceeded;
-    }
-    if gas_counter.charge(amount) != ChargeResult::Enough {
-        return ChargeForBytesResult::GasExceeded;
-    }
-
-    ChargeForBytesResult::Ok
-}
-
-pub(crate) fn charge_gas_for_program(
-    read_cost: u64,
-    per_byte_cost: u64,
-    gas_counter: &mut GasCounter,
-    gas_allowance_counter: &mut GasAllowanceCounter,
-) -> ChargeForBytesResult {
-    charge_gas_per_byte(
-        calculate_gas_for_program(read_cost, per_byte_cost),
-        gas_counter,
-        gas_allowance_counter,
-    )
-}
-
-pub(crate) fn charge_gas_for_code(
-    read_cost: u64,
-    per_byte_cost: u64,
-    code_len_bytes: u32,
-    gas_counter: &mut GasCounter,
-    gas_allowance_counter: &mut GasAllowanceCounter,
-) -> ChargeForBytesResult {
-    charge_gas_per_byte(
-        calculate_gas_for_code(read_cost, per_byte_cost, code_len_bytes.into()),
-        gas_counter,
-        gas_allowance_counter,
-    )
-}
+use gear_core_errors::ExtError;
 
 /// Make checks that everything with memory goes well.
 fn check_memory<'a>(
@@ -148,92 +73,6 @@ fn check_memory<'a>(
     }
 
     Ok(())
-}
-
-pub(crate) fn charge_gas_for_instantiation(
-    gas_per_byte: u64,
-    code_length: u32,
-    gas_counter: &mut GasCounter,
-    gas_allowance_counter: &mut GasAllowanceCounter,
-) -> Result<(), ExecutionErrorReason> {
-    let amount = gas_per_byte * code_length as u64;
-    charge_gas(
-        GasOperation::ModuleInstantiation,
-        amount,
-        gas_counter,
-        gas_allowance_counter,
-    )
-}
-
-/// Charge gas for pages init/load/grow and checks that there is enough gas for that.
-/// Returns size of wasm memory buffer which must be created in execution environment.
-// TODO: (issue #1894) remove charging for pages access/write/read/upload. But we should charge for
-// potential situation when gas limit/allowance exceeded during lazy-pages handling,
-// but we should continue execution until the end of block. During that execution
-// another signals can occur, which also take some time to process them.
-pub(crate) fn charge_gas_for_pages(
-    settings: &PagesConfig,
-    gas_counter: &mut GasCounter,
-    gas_allowance_counter: &mut GasAllowanceCounter,
-    allocations: &BTreeSet<WasmPageNumber>,
-    static_pages: WasmPageNumber,
-    initial_execution: bool,
-    subsequent_execution: bool,
-) -> Result<WasmPageNumber, ExecutionErrorReason> {
-    // Initial execution: just charge for static pages
-    if initial_execution {
-        // TODO: check calculation is safe: #2007.
-        // Charging gas for initial pages
-        let amount = settings.init_cost * static_pages.raw() as u64;
-        charge_gas(
-            GasOperation::InitialMemory,
-            amount,
-            gas_counter,
-            gas_allowance_counter,
-        )?;
-
-        return Ok(static_pages);
-    }
-
-    let max_wasm_page = if let Some(page) = allocations.iter().next_back() {
-        *page
-    } else if let Ok(max_wasm_page) = static_pages.dec() {
-        max_wasm_page
-    } else {
-        return Ok(WasmPageNumber::zero());
-    };
-
-    if !subsequent_execution {
-        // TODO: check calculation is safe: #2007.
-        // Charging gas for loaded pages
-        let amount =
-            settings.load_page_cost * (allocations.len() as u64 + static_pages.raw() as u64);
-        charge_gas(
-            GasOperation::LoadMemory,
-            amount,
-            gas_counter,
-            gas_allowance_counter,
-        )?;
-    }
-
-    // TODO: make separate class for size in pages (here is static_pages): #2008.
-    // TODO: check calculation is safe: #2007.
-    // Charging gas for mem size
-    let amount =
-        settings.mem_grow_cost * (max_wasm_page.raw() as u64 + 1 - static_pages.raw() as u64);
-    charge_gas(
-        GasOperation::GrowMemory,
-        amount,
-        gas_counter,
-        gas_allowance_counter,
-    )?;
-
-    // +1 because pages numeration begins from 0
-    let wasm_mem_size = max_wasm_page
-        .inc()
-        .map_err(|_| ExecutionErrorReason::Memory(MemoryError::OutOfBounds))?;
-
-    Ok(wasm_mem_size)
 }
 
 /// Writes initial pages data to memory and prepare memory for execution.
@@ -759,28 +598,6 @@ mod tests {
         (pages.to_vec(), pages.map(|p| p.to_page()).into())
     }
 
-    fn prepare_alloc_config() -> PagesConfig {
-        PagesConfig {
-            max_pages: 32.into(),
-            lazy_pages_weights: LazyPagesWeights {
-                read: 100,
-                write: 100,
-                write_after_read: 100,
-            },
-            init_cost: 1000,
-            alloc_cost: 2000,
-            mem_grow_cost: 3000,
-            load_page_cost: 4000,
-        }
-    }
-
-    fn prepare_gas_counters() -> (GasCounter, GasAllowanceCounter) {
-        (
-            GasCounter::new(1_000_000),
-            GasAllowanceCounter::new(4_000_000),
-        )
-    }
-
     fn prepare_pages() -> BTreeMap<PageNumber, PageBuf> {
         let mut pages = BTreeMap::new();
         for i in 0..=255 {
@@ -815,94 +632,6 @@ mod tests {
         let (pages, allocs) = prepare_pages_and_allocs();
         let res = check_memory(&allocs, pages.iter(), 4.into(), 8.into());
         assert!(res.is_ok());
-    }
-
-    #[test]
-    fn gas_for_pages_initial() {
-        let settings = prepare_alloc_config();
-        let (mut counter, mut allowance_counter) = prepare_gas_counters();
-        let static_pages = 4;
-        let res = charge_gas_for_pages(
-            &settings,
-            &mut counter,
-            &mut allowance_counter,
-            &Default::default(),
-            static_pages.into(),
-            true,
-            false,
-        );
-        // Result is static pages count
-        assert_eq!(res, Ok(static_pages.into()));
-        // Charging for static pages initialization
-        let charge = settings.init_cost * static_pages as u64;
-        assert_eq!(counter.left(), 1_000_000 - charge);
-        assert_eq!(allowance_counter.left(), 4_000_000 - charge);
-    }
-
-    #[test]
-    fn gas_for_pages_static() {
-        let settings = prepare_alloc_config();
-        let (mut counter, mut allowance_counter) = prepare_gas_counters();
-        let static_pages = 4;
-        let res = charge_gas_for_pages(
-            &settings,
-            &mut counter,
-            &mut allowance_counter,
-            &Default::default(),
-            static_pages.into(),
-            false,
-            false,
-        );
-        // Result is static pages count
-        assert_eq!(res, Ok(static_pages.into()));
-        // Charge for the first load of static pages
-        let charge = settings.load_page_cost * static_pages as u64;
-        assert_eq!(counter.left(), 1_000_000 - charge);
-        assert_eq!(allowance_counter.left(), 4_000_000 - charge);
-    }
-
-    #[test]
-    fn gas_for_pages_alloc() {
-        let settings = prepare_alloc_config();
-        let (mut counter, mut allowance_counter) = prepare_gas_counters();
-        let (_, allocs) = prepare_pages_and_allocs();
-        let static_pages = 4;
-        let res = charge_gas_for_pages(
-            &settings,
-            &mut counter,
-            &mut allowance_counter,
-            &allocs,
-            static_pages.into(),
-            false,
-            false,
-        );
-        // Result is the last page plus one
-        let last = *allocs.iter().last().unwrap();
-        assert_eq!(res, Ok(last.inc().unwrap()));
-        // Charge for loading and mem grow
-        let load_charge = settings.load_page_cost * (allocs.len() as u64 + static_pages as u64);
-        let grow_charge = settings.mem_grow_cost * (last.raw() as u64 + 1 - static_pages as u64);
-        assert_eq!(counter.left(), 1_000_000 - load_charge - grow_charge);
-        assert_eq!(
-            allowance_counter.left(),
-            4_000_000 - load_charge - grow_charge
-        );
-
-        // Use the second time (`subsequent` = `true`)
-        let (mut counter, mut allowance_counter) = prepare_gas_counters();
-        let res = charge_gas_for_pages(
-            &settings,
-            &mut counter,
-            &mut allowance_counter,
-            &allocs,
-            static_pages.into(),
-            false,
-            true,
-        );
-        assert_eq!(res, Ok(last.inc().unwrap()));
-        // Charge for mem grow only
-        assert_eq!(counter.left(), 1_000_000 - grow_charge);
-        assert_eq!(allowance_counter.left(), 4_000_000 - grow_charge);
     }
 
     #[test]

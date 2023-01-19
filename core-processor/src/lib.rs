@@ -27,6 +27,7 @@ extern crate alloc;
 
 use gear_core::message::StatusCode;
 
+mod charger;
 pub mod common;
 pub mod configs;
 mod context;
@@ -51,10 +52,11 @@ pub const UNAVAILABLE_DEST_STATUS_CODE: StatusCode = 2;
 /// A try to init again initialized, existing program.
 pub const RE_INIT_STATUS_CODE: StatusCode = 3;
 
+pub use charger::{calculate_gas_for_code, calculate_gas_for_program};
 pub use context::{
     ContextChargedForCode, ContextChargedForInstrumentation, ProcessExecutionContext,
 };
-pub use executor::{calculate_gas_for_code, calculate_gas_for_program, execute_wasm};
+pub use executor::execute_wasm;
 pub use ext::{Ext, ProcessorContext, ProcessorError, ProcessorExt};
 pub use handler::handle_journal;
 pub use processor::{
