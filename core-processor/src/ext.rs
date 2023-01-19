@@ -207,8 +207,8 @@ impl ChargedAllocGas {
         let alloc = alloc as u64;
         let mem_grow = mem_grow as u64;
         0_u64
-            .saturating_add(alloc.saturating_mul(ext.context.config.alloc_cost))
-            .saturating_add(mem_grow.saturating_mul(ext.context.config.mem_grow_cost))
+            .saturating_add(alloc.saturating_mul(ext.context.pages_config.alloc_cost))
+            .saturating_add(mem_grow.saturating_mul(ext.context.pages_config.mem_grow_cost))
     }
 
     fn charge(ext: &mut Ext, pages: u32) -> Result<Self, <Ext as EnvExt>::Error> {
