@@ -453,9 +453,6 @@ pub enum ExecutionErrorReason {
     /// Not executable actor.
     #[display(fmt = "Not executable actor")]
     NonExecutable,
-    /// Program's max page is not last page in wasm page
-    #[display(fmt = "Program's max page is not last page in wasm page")]
-    NotLastPage,
     /// Not enough gas to perform an operation.
     #[display(fmt = "Not enough gas to {_0}")]
     GasExceeded(GasOperation),
@@ -465,9 +462,6 @@ pub enum ExecutionErrorReason {
     /// Mem size less then static pages num
     #[display(fmt = "Mem size less then static pages num")]
     InsufficientMemorySize,
-    /// Changed page has no data in initial pages
-    #[display(fmt = "Changed page has no data in initial pages")]
-    PageNoData,
     /// Page with data is not allocated for program
     #[display(fmt = "{_0:?} is not allocated for program")]
     PageIsNotAllocated(PageNumber),
