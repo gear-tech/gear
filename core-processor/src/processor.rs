@@ -263,7 +263,7 @@ pub fn precharge_for_memory(
 
     let mut f = || {
         let memory_size = executor::charge_gas_for_pages(
-            &block_config.allocations_config,
+            &block_config.pages_config,
             gas_counter,
             gas_allowance_counter,
             &actor_data.allocations,
@@ -338,7 +338,7 @@ pub fn process<
 
     let BlockConfig {
         block_info,
-        allocations_config,
+        pages_config,
         existential_deposit,
         outgoing_limit,
         host_fn_weights,
@@ -354,7 +354,7 @@ pub fn process<
     let execution_settings = ExecutionSettings {
         block_info,
         existential_deposit,
-        allocations_config,
+        pages_config,
         host_fn_weights,
         forbidden_funcs,
         mailbox_threshold,

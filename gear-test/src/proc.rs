@@ -466,7 +466,7 @@ where
 fn test_block_config(block_info: BlockInfo) -> BlockConfig {
     BlockConfig {
         block_info,
-        allocations_config: Default::default(),
+        pages_config: Default::default(),
         existential_deposit: EXISTENTIAL_DEPOSIT,
         outgoing_limit: OUTGOING_LIMIT,
         host_fn_weights: Default::default(),

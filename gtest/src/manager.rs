@@ -637,7 +637,7 @@ impl ExtManager {
             .unwrap_or(u64::MAX);
         let block_config = BlockConfig {
             block_info: self.block_info,
-            allocations_config: Default::default(),
+            pages_config: Default::default(),
             existential_deposit: EXISTENTIAL_DEPOSIT,
             outgoing_limit: OUTGOING_LIMIT,
             host_fn_weights: Default::default(),

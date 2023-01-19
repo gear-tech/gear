@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::configs::{AllocationsConfig, BlockInfo};
+use crate::configs::{BlockInfo, PagesConfig};
 use alloc::{
     collections::{BTreeMap, BTreeSet},
     string::{String, ToString},
@@ -24,8 +24,11 @@ use alloc::{
 };
 use codec::{Decode, Encode};
 use gear_backend_common::{
-    error_processor::IntoExtError, memory::OutOfMemoryAccessError, AsTerminationReason, ExtInfo,
-    GetGasAmount, IntoExtInfo, SystemReservationContext, TerminationReason, TrapExplanation,
+    error_processor::IntoExtError,
+    lazy_pages::{GlobalsConfig, LazyPagesWeights, Status},
+    memory::OutOfMemoryAccessError,
+    AsTerminationReason, ExtInfo, GetGasAmount, IntoExtInfo, SystemReservationContext,
+    TerminationReason, TrapExplanation,
 };
 use gear_core::{
     costs::{HostFnWeights, RuntimeCosts},
@@ -63,7 +66,7 @@ pub struct ProcessorContext {
     /// Block info.
     pub block_info: BlockInfo,
     /// Allocations config.
-    pub config: AllocationsConfig,
+    pub pages_config: PagesConfig,
     /// Account existential deposit
     pub existential_deposit: u128,
     /// Communication origin
@@ -103,10 +106,15 @@ pub trait ProcessorExt {
         mem: &mut impl Memory,
         prog_id: ProgramId,
         stack_end: Option<WasmPageNumber>,
+        globals_config: GlobalsConfig,
+        lazy_pages_weights: LazyPagesWeights,
     );
 
     /// Lazy pages contract post execution actions
     fn lazy_pages_post_execution_actions(mem: &mut impl Memory);
+
+    /// Returns lazy pages status
+    fn lazy_pages_status() -> Option<Status>;
 }
 
 /// [`Ext`](Ext)'s error
@@ -249,12 +257,18 @@ impl ProcessorExt for Ext {
         _mem: &mut impl Memory,
         _prog_id: ProgramId,
         _stack_end: Option<WasmPageNumber>,
+        _globals_config: GlobalsConfig,
+        _lazy_pages_weights: LazyPagesWeights,
     ) {
-        unreachable!()
+        unreachable!("Must not be called: lazy-pages is unsupported by this ext")
     }
 
     fn lazy_pages_post_execution_actions(_mem: &mut impl Memory) {
-        unreachable!()
+        unreachable!("Must not be called: lazy-pages is unsupported by this ext")
+    }
+
+    fn lazy_pages_status() -> Option<Status> {
+        unreachable!("Must not be called: lazy-pages is unsupported by this ext")
     }
 }
 
@@ -630,7 +644,7 @@ impl EnvExt for Ext {
 
         // Returns back gas for allocated page if it's new
         if !self.context.allocations_context.is_init_page(page) {
-            self.refund_gas(self.context.config.alloc_cost)?;
+            self.refund_gas(self.context.pages_config.alloc_cost)?;
         }
 
         Ok(())
@@ -1039,7 +1053,7 @@ mod tests {
                     ContextSettings::new(0, 0, 0, 0, 0, 0),
                 ),
                 block_info: Default::default(),
-                config: Default::default(),
+                pages_config: Default::default(),
                 existential_deposit: 0,
                 origin: Default::default(),
                 program_id: Default::default(),
@@ -1106,7 +1120,7 @@ mod tests {
         );
 
         // Check if refund happens, than refunding amount >= 0
-        let refunding_amount = ext.context.config.alloc_cost;
+        let refunding_amount = ext.context.pages_config.alloc_cost;
         assert!(refunding_amount > 0);
 
         let non_existing_page = 100.into();

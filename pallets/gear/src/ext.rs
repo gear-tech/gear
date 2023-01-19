@@ -19,7 +19,9 @@
 use alloc::{collections::BTreeSet, vec::Vec};
 use core_processor::{Ext, ProcessorContext, ProcessorError, ProcessorExt};
 use gear_backend_common::{
-    memory::OutOfMemoryAccessError, ExtInfo, GetGasAmount, IntoExtInfo, TrapExplanation,
+    lazy_pages::{GlobalsConfig, LazyPagesWeights, Status},
+    memory::OutOfMemoryAccessError,
+    ExtInfo, GetGasAmount, IntoExtInfo, TrapExplanation,
 };
 use gear_core::{
     costs::RuntimeCosts,
@@ -68,11 +70,10 @@ impl IntoExtInfo<<LazyPagesExt as EnvExt>::Error> for LazyPagesExt {
     }
 
     fn pre_process_memory_accesses(
-        _reads: &[MemoryInterval],
-        _writes: &[MemoryInterval],
+        reads: &[MemoryInterval],
+        writes: &[MemoryInterval],
     ) -> Result<(), OutOfMemoryAccessError> {
-        // TODO: make pre-processing after we add charging in lazy pages.
-        Ok(())
+        lazy_pages::pre_process_memory_accesses(reads, writes)
     }
 }
 
@@ -97,12 +98,18 @@ impl ProcessorExt for LazyPagesExt {
         mem: &mut impl Memory,
         prog_id: ProgramId,
         stack_end: Option<WasmPageNumber>,
+        globals_config: GlobalsConfig,
+        lazy_pages_weights: LazyPagesWeights,
     ) {
-        lazy_pages::init_for_program(mem, prog_id, stack_end);
+        lazy_pages::init_for_program(mem, prog_id, stack_end, globals_config, lazy_pages_weights);
     }
 
     fn lazy_pages_post_execution_actions(mem: &mut impl Memory) {
         lazy_pages::remove_lazy_pages_prot(mem);
+    }
+
+    fn lazy_pages_status() -> Option<Status> {
+        lazy_pages::get_status()
     }
 }
 
