@@ -142,11 +142,18 @@ impl Signer {
         use subxt::tx::TxStatus::*;
 
         let before = self.balance().await?;
-        let mut process = self
-            .api
-            .tx()
-            .sign_and_submit_then_watch_default(&tx, &self.signer)
-            .await?;
+        let mut process = if let Some(nonce) = self.nonce {
+            self.api
+                .tx()
+                .create_signed_with_nonce(&tx, &self.signer, nonce, Default::default())?
+                .submit_and_watch()
+                .await?
+        } else {
+            self.api
+                .tx()
+                .sign_and_submit_then_watch_default(&tx, &self.signer)
+                .await?
+        };
 
         // Get extrinsic details.
         let (pallet, name) = {

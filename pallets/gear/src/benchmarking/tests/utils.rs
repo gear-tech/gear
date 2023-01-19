@@ -18,7 +18,8 @@
 
 use super::*;
 
-use crate::{BlockGasLimitOf, ProcessStatus, QueueState, SentOf};
+use crate::{GasAllowanceOf, SentOf};
+use frame_system::limits::BlockWeights;
 
 pub fn default_account<T: Origin>() -> T {
     benchmarking::account::<T>("default", 0, 0)
@@ -62,21 +63,19 @@ where
 
         Gear::<T>::on_initialize(SystemPallet::<T>::block_number());
 
-        let remaining_weight = remaining_weight.unwrap_or_else(BlockGasLimitOf::<T>::get);
-        log::debug!(
-            "🧱 Running run #{:?} (gear #{:?}) with weight {}",
-            SystemPallet::<T>::block_number(),
-            Gear::<T>::block_number(),
-            remaining_weight
-        );
+        if let Some(remaining_weight) = remaining_weight {
+            GasAllowanceOf::<T>::put(remaining_weight);
+            let max_block_weight =
+                <<T as frame_system::Config>::BlockWeights as Get<BlockWeights>>::get().max_block;
+            SystemPallet::<T>::register_extra_weight_unchecked(
+                max_block_weight.saturating_sub(frame_support::weights::Weight::from_ref_time(
+                    remaining_weight,
+                )),
+                frame_support::dispatch::DispatchClass::Normal,
+            );
+        }
 
-        Gear::<T>::run_queue(remaining_weight);
-        Gear::<T>::processing_completed();
+        Gear::<T>::run(frame_support::dispatch::RawOrigin::None.into()).unwrap();
         Gear::<T>::on_finalize(SystemPallet::<T>::block_number());
-
-        assert!(!matches!(
-            QueueState::<T>::get(),
-            ProcessStatus::SkippedOrFailed
-        ));
     }
 }

@@ -9,7 +9,7 @@ const REPO: &str = "https://github.com/gear-tech/gear-program";
 #[derive(Debug, Parser)]
 pub struct Update {
     /// Force update self from <https://github.com/gear-tech/gear-program>
-    #[clap(short, long)]
+    #[arg(short, long)]
     pub force: bool,
 }
 

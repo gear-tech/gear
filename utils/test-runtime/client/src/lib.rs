@@ -97,7 +97,6 @@ impl GenesisParameters {
                 sr25519::Public::from(Sr25519Keyring::Charlie).into(),
             ],
             (0..16_usize)
-                .into_iter()
                 .map(|i| AccountKeyring::numeric(i).public())
                 .chain(vec![
                     AccountKeyring::Alice.into(),

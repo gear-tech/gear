@@ -53,18 +53,21 @@ mod gear {
         api::{
             generated::api::{
                 runtime_types::{
-                    gear_common::{storage::primitives::Interval, ActiveProgram},
+                    gear_common::{self, storage::primitives::Interval, ActiveProgram},
                     gear_core::{
-                        code::InstrumentedCode, ids::CodeId, memory::PageNumber,
+                        code::InstrumentedCode,
+                        ids::{CodeId, ProgramId},
+                        memory::PageNumber,
                         message::stored::StoredMessage,
                     },
                 },
                 storage,
             },
-            types, utils, Api,
+            types, Api,
         },
         result::{ClientError, Result},
     };
+    use gear_core::memory::GEAR_PAGE_SIZE;
     use hex::ToHex;
     use parity_scale_codec::Decode;
     use std::collections::HashMap;
@@ -83,28 +86,41 @@ mod gear {
 
         /// Get active program from program id.
         pub async fn gprog(&self, pid: H256) -> Result<ActiveProgram> {
-            let bytes = self
+            let at = storage()
+                .gear_program()
+                .program_storage(&ProgramId(pid.into()));
+            let program = self
                 .storage()
-                .fetch_raw(&utils::program_key(pid), None)
+                .fetch(&at, None)
                 .await?
                 .ok_or_else(|| ClientError::ProgramNotFound(pid.encode_hex()))?;
 
-            match types::Program::decode(&mut bytes.as_ref())? {
-                types::Program::Active(p) => Ok(p),
-                types::Program::Terminated => Err(ClientError::ProgramTerminated.into()),
+            match program {
+                gear_common::Program::Active(p) => Ok(p),
+                _ => Err(ClientError::ProgramTerminated.into()),
             }
         }
 
         /// Get pages of active program.
         pub async fn gpages(&self, pid: H256, program: ActiveProgram) -> Result<types::GearPages> {
             let mut pages = HashMap::new();
+            let program_id = ProgramId(pid.into());
             for page in program.pages_with_data {
-                let value = self
+                let address = storage()
+                    .gear_program()
+                    .memory_page_storage(program_id.clone(), PageNumber(page.0));
+
+                let metadata = self.metadata();
+                let lookup_bytes =
+                    subxt::storage::utils::storage_address_bytes(&address, &metadata)?;
+
+                let encoded_page = self
                     .storage()
-                    .fetch_raw(&utils::page_key(pid, PageNumber(page.0)), None)
+                    .fetch_raw(&lookup_bytes, None)
                     .await?
                     .ok_or_else(|| ClientError::PageNotFound(page.0, pid.encode_hex()))?;
-                pages.insert(page.0, value);
+                let decoded = <[u8; GEAR_PAGE_SIZE]>::decode(&mut &encoded_page[..])?;
+                pages.insert(page.0, decoded.to_vec());
             }
 
             Ok(pages)

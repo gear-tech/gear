@@ -19,13 +19,13 @@ pub struct Reply {
     /// Reply to
     reply_to_id: String,
     /// Reply payload
-    #[clap(default_value = "0x")]
+    #[arg(default_value = "0x")]
     payload: String,
     /// Reply gas limit
-    #[clap(default_value = "0")]
+    #[arg(default_value = "0")]
     gas_limit: u64,
     /// Reply value
-    #[clap(default_value = "0")]
+    #[arg(default_value = "0")]
     value: u128,
 }
 

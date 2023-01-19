@@ -45,7 +45,7 @@ wasm_proc_build() {
 
 # $1 = TARGET DIR
 examples_proc() {
-  "$1"/release/wasm-proc -p "$1"/wasm32-unknown-unknown/release/*.wasm
+  "$1"/release/wasm-proc "$1"/wasm32-unknown-unknown/release/*.wasm
 }
 
 # $1 = ROOT DIR, $2 = TARGET DIR

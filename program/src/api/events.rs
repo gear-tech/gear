@@ -3,16 +3,15 @@ use crate::{
     api::{
         config::GearConfig,
         generated::api::{system::Event as SystemEvent, Event},
-        types::Events,
         Api,
     },
     result::{ClientError, Result},
 };
-use futures_util::StreamExt;
 use subxt::{
+    blocks::ExtrinsicEvents as TxEvents,
     error::{DispatchError, Error},
-    events::{EventDetails, Phase, StaticEvent},
-    tx::{TxEvents, TxInBlock},
+    events::{EventDetails, Phase},
+    tx::TxInBlock,
     OnlineClient,
 };
 
@@ -55,20 +54,6 @@ impl Api {
         | Event::System(SystemEvent::ExtrinsicFailed { dispatch_info, .. }) = event
         {
             log::info!("\tWeight cost: {:?}", dispatch_info.weight);
-        }
-
-        Err(ClientError::EventNotFound.into())
-    }
-
-    /// Wait for GearEvent.
-    pub async fn wait_for<E>(mut events: Events) -> Result<E>
-    where
-        E: StaticEvent,
-    {
-        while let Some(events) = events.next().await {
-            if let Ok(Some(e)) = events?.find_first::<E>() {
-                return Ok(e);
-            }
         }
 
         Err(ClientError::EventNotFound.into())

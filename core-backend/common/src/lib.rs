@@ -25,6 +25,7 @@ extern crate alloc;
 pub mod error_processor;
 
 mod utils;
+use memory::OutOfMemoryAccessError;
 pub use utils::calc_stack_end;
 
 #[cfg(feature = "mock")]
@@ -47,12 +48,16 @@ use gear_core::{
     env::Ext,
     gas::GasAmount,
     ids::{CodeId, MessageId, ProgramId, ReservationId},
-    memory::{Memory, PageBuf, PageNumber, WasmPageNumber},
-    message::{ContextStore, Dispatch, DispatchKind, IncomingDispatch, MessageWaitedType},
+    memory::{Memory, MemoryInterval, PageBuf, PageNumber, WasmPageNumber},
+    message::{
+        ContextStore, Dispatch, DispatchKind, IncomingDispatch, MessageWaitedType, WasmEntry,
+    },
     reservation::GasReserver,
 };
 use gear_core_errors::{ExtError, MemoryError};
 use scale_info::TypeInfo;
+
+pub mod memory;
 
 // Max amount of bytes allowed to be thrown as string explanation of the error.
 pub const TRIMMED_MAX_LEN: usize = 1024;
@@ -155,6 +160,12 @@ pub trait IntoExtInfo<Error> {
     }
 
     fn trap_explanation(&self) -> Option<TrapExplanation>;
+
+    /// Pre-process memory access if need.
+    fn pre_process_memory_accesses(
+        reads: &[MemoryInterval],
+        writes: &[MemoryInterval],
+    ) -> Result<(), OutOfMemoryAccessError>;
 }
 
 pub trait GetGasAmount {
@@ -175,7 +186,8 @@ pub enum RuntimeCtxError<E: Display> {
 
 pub trait RuntimeCtx<E: Ext> {
     /// Allocate new pages in instance memory.
-    fn alloc(&mut self, pages: u32) -> Result<WasmPageNumber, RuntimeCtxError<E::Error>>;
+    fn alloc(&mut self, pages: WasmPageNumber)
+        -> Result<WasmPageNumber, RuntimeCtxError<E::Error>>;
 
     /// Read designated chunk from the memory.
     fn read_memory(&self, ptr: u32, len: u32) -> Result<Vec<u8>, RuntimeCtxError<E::Error>>;
@@ -217,7 +229,7 @@ pub fn write_memory_as<T: Sized>(
     let slice =
         unsafe { slice::from_raw_parts(&obj as *const T as *const u8, mem::size_of::<T>()) };
 
-    memory.write(ptr as usize, slice)
+    memory.write(ptr, slice)
 }
 
 /// Reads bytes from given pointer to construct type T from them.
@@ -238,7 +250,7 @@ pub fn read_memory_as<T: Sized>(memory: &impl Memory, ptr: u32) -> Result<T, Mem
     let mut_slice =
         unsafe { slice::from_raw_parts_mut(buf.as_mut_ptr() as *mut u8, mem::size_of::<T>()) };
 
-    memory.read(ptr as usize, mut_slice)?;
+    memory.read(ptr, mut_slice)?;
 
     // # Safety:
     //
@@ -257,16 +269,18 @@ pub struct BackendReport<T, E> {
 
 #[derive(Debug, derive_more::Display)]
 pub enum StackEndError {
-    #[display(fmt = "Stack end addr {_0:#x} cannot be negative")]
-    IsNegative(i32),
     #[display(fmt = "Stack end addr {_0:#x} must be aligned to WASM page size")]
-    IsNotAligned(i32),
+    IsNotAligned(u32),
 }
 
 // '__gear_stack_end' export is inserted in wasm-proc or wasm-builder
 pub const STACK_END_EXPORT_NAME: &str = "__gear_stack_end";
 
-pub trait Environment<E: Ext + IntoExtInfo<E::Error> + 'static>: Sized {
+pub trait Environment<E, EP = DispatchKind>: Sized
+where
+    E: Ext + IntoExtInfo<E::Error> + 'static,
+    EP: WasmEntry,
+{
     /// Memory type for current environment.
     type Memory: Memory;
 
@@ -280,7 +294,7 @@ pub trait Environment<E: Ext + IntoExtInfo<E::Error> + 'static>: Sized {
     fn new(
         ext: E,
         binary: &[u8],
-        entry_point: DispatchKind,
+        entry_point: EP,
         entries: BTreeSet<DispatchKind>,
         mem_size: WasmPageNumber,
     ) -> Result<Self, Self::Error>;

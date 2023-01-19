@@ -97,7 +97,7 @@ where
 
         if let Err(err) = H::handle(exc_info) {
             let old_sig_handler_works = match err {
-                Error::SignalFromUnknownMemory { .. } | Error::WasmMemAddrIsNotSet => {
+                Error::OutOfWasmMemoryAccess | Error::WasmMemAddrIsNotSet => {
                     old_sig_handler(sig, info, ucontext)
                 }
                 _ => false,

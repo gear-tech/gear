@@ -34,8 +34,8 @@ pub use frame_support::{
     },
     weights::{
         constants::{
-            BlockExecutionWeight, ExtrinsicBaseWeight, RocksDbWeight, WEIGHT_PER_MILLIS,
-            WEIGHT_PER_SECOND,
+            BlockExecutionWeight, ExtrinsicBaseWeight, RocksDbWeight, WEIGHT_REF_TIME_PER_MILLIS,
+            WEIGHT_REF_TIME_PER_SECOND,
         },
         Weight,
     },
@@ -115,7 +115,8 @@ pub const BABE_GENESIS_EPOCH_CONFIG: sp_consensus_babe::BabeEpochConfiguration =
 /// We allow for 1/3 of block time for computations.
 ///
 /// It's 1/3 sec for gear runtime with 1 second block duration.
-const MAXIMUM_BLOCK_WEIGHT: Weight = WEIGHT_PER_SECOND.saturating_div(3).set_proof_size(u64::MAX);
+const MAXIMUM_BLOCK_WEIGHT: Weight =
+    Weight::from_parts(WEIGHT_REF_TIME_PER_SECOND.saturating_div(3), u64::MAX);
 
 /// The version information used to identify this runtime when compiled natively.
 #[cfg(feature = "std")]
@@ -188,7 +189,7 @@ impl frame_system::Config for Runtime {
 }
 
 parameter_types! {
-    pub const EpochDuration: u64 = EPOCH_DURATION_IN_SLOTS;
+    pub const EpochDuration: u64 = EPOCH_DURATION_IN_SLOTS as u64;
     pub const ExpectedBlockTime: Moment = MILLISECS_PER_BLOCK;
     pub const MaxAuthorities: u32 = 32;
 }
@@ -315,12 +316,7 @@ impl pallet_utility::Config for Runtime {
     type PalletsOrigin = OriginCaller;
 }
 
-impl pallet_gear_program::Config for Runtime {
-    type RuntimeEvent = RuntimeEvent;
-    type WeightInfo = weights::pallet_gear_program::SubstrateWeight<Runtime>;
-    type Currency = Balances;
-    type Messenger = GearMessenger;
-}
+impl pallet_gear_program::Config for Runtime {}
 
 parameter_types! {
     pub const GasLimitMaxPercentage: Percent = Percent::from_percent(GAS_LIMIT_MIN_PERCENTAGE_NUM);
@@ -350,6 +346,7 @@ impl pallet_gear::Config for Runtime {
     type OutgoingLimit = OutgoingLimit;
     type DebugInfo = DebugInfo;
     type CodeStorage = GearProgram;
+    type ProgramStorage = GearProgram;
     type MailboxThreshold = MailboxThreshold;
     type ReservationsLimit = ConstU64<256>;
     type Messenger = GearMessenger;
@@ -364,6 +361,7 @@ impl pallet_gear_debug::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
     type WeightInfo = pallet_gear_debug::weights::GearSupportWeight<Runtime>;
     type CodeStorage = GearProgram;
+    type ProgramStorage = GearProgram;
     type Messenger = GearMessenger;
 }
 
@@ -520,7 +518,6 @@ mod benches {
         [pallet_utility, Utility]
         // Gear pallets
         [pallet_gear, Gear]
-        [pallet_gear_program, GearProgram]
     );
 }
 
@@ -576,29 +573,31 @@ impl_runtime_apis_plus_common! {
 
     #[cfg(feature = "try-runtime")]
     impl frame_try_runtime::TryRuntime<Block> for Runtime {
-        fn on_runtime_upgrade() -> (Weight, Weight) {
+        fn on_runtime_upgrade(checks: bool) -> (Weight, Weight) {
             // NOTE: intentional unwrap: we don't want to propagate the error backwards, and want to
             // have a backtrace here. If any of the pre/post migration checks fail, we shall stop
             // right here and right now.
-            let weight = Executive::try_runtime_upgrade().unwrap();
+            let weight = Executive::try_runtime_upgrade(checks).unwrap();
             (weight, RuntimeBlockWeights::get().max_block)
         }
 
         fn execute_block(
             block: Block,
             state_root_check: bool,
+            signature_check: bool,
             select: frame_try_runtime::TryStateSelect
         ) -> Weight {
             log::info!(
                 target: "node-runtime",
-                "try-runtime: executing block {:?} / root checks: {:?} / try-state-select: {:?}",
+                "try-runtime: executing block {:?} / root checks: {:?} / signature_checks: {:?} / try-state-select: {:?}",
                 block.header.hash(),
                 state_root_check,
+                signature_check,
                 select,
             );
             // NOTE: intentional unwrap: we don't want to propagate the error backwards, and want to
             // have a backtrace here.
-            Executive::try_execute_block(block, state_root_check, select).unwrap()
+            Executive::try_execute_block(block, state_root_check, signature_check, select).unwrap()
         }
     }
 }

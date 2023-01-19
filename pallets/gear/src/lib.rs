@@ -49,25 +49,26 @@ pub use crate::{
 };
 pub use weights::WeightInfo;
 
-use alloc::format;
+use alloc::{format, string::String};
 use codec::{Decode, Encode};
 use common::{
     self, event::*, gas_provider::GasNodeId, scheduler::*, storage::*, BlockLimiter, CodeMetadata,
-    CodeStorage, GasPrice, GasProvider, GasTree, Origin, Program, ProgramState, QueueRunner,
+    CodeStorage, GasPrice, GasProvider, GasTree, Origin, Program, ProgramState, ProgramStorage,
+    QueueRunner,
 };
 use core::marker::PhantomData;
 use core_processor::{
-    common::{Actor, DispatchOutcome as CoreDispatchOutcome, ExecutableActorData, JournalNote},
-    configs::{AllocationsConfig, BlockConfig, BlockInfo, MessageExecutionContext},
-    PrechargeResult, PrepareResult,
+    common::{DispatchOutcome as CoreDispatchOutcome, ExecutableActorData, JournalNote},
+    configs::{AllocationsConfig, BlockConfig, BlockInfo},
+    ContextChargedForInstrumentation,
 };
 use frame_support::{
     dispatch::{DispatchError, DispatchResultWithPostInfo, PostDispatchInfo},
     ensure,
     pallet_prelude::*,
     traits::{
-        BalanceStatus, Currency, ExistenceRequirement, Get, LockableCurrency, Randomness,
-        ReservableCurrency, StorageVersion,
+        BalanceStatus, ConstBool, Currency, ExistenceRequirement, Get, LockableCurrency,
+        Randomness, ReservableCurrency, StorageVersion,
     },
     weights::Weight,
 };
@@ -79,7 +80,6 @@ use gear_core::{
     message::*,
 };
 use manager::{CodeInfo, QueuePostProcessingData};
-use pallet_gear_program::Pallet as GearProgramPallet;
 use primitive_types::H256;
 use sp_runtime::traits::{One, Saturating, UniqueSaturatedInto, Zero};
 use sp_std::{
@@ -98,10 +98,10 @@ use ext::LazyPagesExt as Ext;
 use core_processor::Ext;
 
 #[cfg(feature = "std")]
-type ExecutionEnvironment = gear_backend_wasmi::WasmiEnvironment<Ext>;
+type ExecutionEnvironment<EP = DispatchKind> = gear_backend_wasmi::WasmiEnvironment<Ext, EP>;
 
 #[cfg(not(feature = "std"))]
-type ExecutionEnvironment = gear_backend_sandbox::SandboxEnvironment<Ext>;
+type ExecutionEnvironment<EP = DispatchKind> = gear_backend_sandbox::SandboxEnvironment<Ext, EP>;
 
 pub(crate) type CurrencyOf<T> = <T as Config>::Currency;
 pub(crate) type BalanceOf<T> =
@@ -125,6 +125,7 @@ pub type GasAllowanceOf<T> = <<T as Config>::BlockLimiter as BlockLimiter>::GasA
 pub type GasHandlerOf<T> = <<T as Config>::GasProvider as GasProvider>::GasTree;
 pub type BlockGasLimitOf<T> = <<T as Config>::BlockLimiter as BlockLimiter>::BlockGasLimit;
 pub type GasUnitOf<T> = <<T as Config>::BlockLimiter as BlockLimiter>::Balance;
+pub type ProgramStorageOf<T> = <T as Config>::ProgramStorage;
 
 /// The current storage version.
 const GEAR_STORAGE_VERSION: StorageVersion = StorageVersion::new(1);
@@ -168,54 +169,13 @@ pub struct GasInfo {
     pub waited: bool,
 }
 
-/// Mode of forcing message queue processing
-#[derive(Copy, Clone, Debug, Decode, Encode, PartialEq, Eq, scale_info::TypeInfo)]
-#[cfg_attr(feature = "std", derive(serde::Deserialize, serde::Serialize))]
-pub enum Forcing {
-    /// Not forcing anything: queue gets processed if scheduled
-    NotForcing,
-    /// Avoid queue processing indefinitely
-    ForceNone,
-    /// Forcing once to recover from earlier error
-    ForceOnce,
-    /// Force queue processing regardless of anything
-    ForceAlways,
-}
-
-impl Default for Forcing {
-    fn default() -> Self {
-        Forcing::NotForcing
-    }
-}
-
-/// Possible queue processing states.
-#[derive(Clone, Debug, Decode, Encode, PartialEq, Eq, scale_info::TypeInfo)]
-#[cfg_attr(feature = "std", derive(serde::Deserialize, serde::Serialize))]
-pub enum ProcessStatus {
-    /// Scheduled to run in current block
-    Scheduled,
-    /// Processing completed
-    Completed,
-    /// Forced to not run or failed during last run
-    SkippedOrFailed,
-}
-
-impl Default for ProcessStatus {
-    fn default() -> Self {
-        ProcessStatus::Scheduled
-    }
-}
-
 #[frame_support::pallet]
 pub mod pallet {
     use super::*;
 
     #[pallet::config]
     pub trait Config:
-        frame_system::Config
-        + pallet_authorship::Config
-        + pallet_timestamp::Config
-        + pallet_gear_program::Config<Currency = <Self as Config>::Currency>
+        frame_system::Config + pallet_authorship::Config + pallet_timestamp::Config
     {
         /// Because this pallet emits events, it depends on the runtime's definition of an event.
         type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
@@ -242,7 +202,11 @@ pub mod pallet {
 
         type DebugInfo: DebugInfo;
 
+        /// Implementation of a storage for program binary codes.
         type CodeStorage: CodeStorage;
+
+        /// Implementation of a storage for programs.
+        type ProgramStorage: ProgramStorage;
 
         /// The minimal gas amount for message to be inserted in mailbox.
         ///
@@ -417,7 +381,7 @@ pub mod pallet {
             change: ProgramChangeKind<T::BlockNumber>,
         },
 
-        /// The extrinsic that runs queue processing rolled back
+        /// The pseudo-inherent extrinsic that runs queue processing rolled back or not executed.
         QueueProcessingReverted,
     }
 
@@ -463,19 +427,21 @@ pub mod pallet {
         ValueLessThanMinimal,
         /// Messages storage corrupted.
         MessagesStorageCorrupted,
+        /// Message queue processing is disabled.
+        MessageQueueProcessingDisabled,
     }
 
     #[cfg(feature = "runtime-benchmarks")]
     #[pallet::storage]
     pub(crate) type BenchmarkStorage<T> = StorageMap<_, Identity, u32, Vec<u8>>;
 
+    /// A flag indicating whether the message queue should be processed at the end of a block
+    ///
+    /// If not set, the inherent extrinsic that processes the queue will keep throwing an error
+    /// thereby making the block builder exclude it from the block.
     #[pallet::storage]
-    #[pallet::getter(fn force_queue)]
-    pub(crate) type ForceQueue<T> = StorageValue<_, Forcing, ValueQuery>;
-
-    #[pallet::storage]
-    #[pallet::getter(fn queue_state)]
-    pub(crate) type QueueState<T> = StorageValue<_, ProcessStatus, ValueQuery>;
+    #[pallet::getter(fn execute_inherent)]
+    pub(crate) type ExecuteInherent<T> = StorageValue<_, bool, ValueQuery, ConstBool<true>>;
 
     /// The current block number being processed.
     ///
@@ -491,6 +457,14 @@ pub mod pallet {
         }
     }
 
+    /// The Gear block number before processing messages.
+    ///
+    /// A helper variable that mirrors the `BlockNumber` at the beginning of a block.
+    /// Allows to gauge the actual `BlockNumber` progress.
+    #[pallet::storage]
+    #[pallet::getter(fn last_gear_block_number)]
+    pub(crate) type LastGearBlockNumber<T: Config> = StorageValue<_, T::BlockNumber>;
+
     #[pallet::hooks]
     impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T>
     where
@@ -504,71 +478,34 @@ pub mod pallet {
 
         /// Initialization
         fn on_initialize(bn: BlockNumberFor<T>) -> Weight {
+            // Incrementing Gear block number
             BlockNumber::<T>::mutate(|bn| *bn = bn.saturating_add(One::one()));
+
+            // Align the last gear block number before inherent execution with current value
+            <LastGearBlockNumber<T>>::put(Self::block_number());
 
             log::debug!(target: "gear::runtime", "⚙️  Initialization of block #{bn:?} (gear #{:?})", Self::block_number());
 
-            // Decide whether queue processing should be scheduled or skipped for current block
-
-            // If some forcing mode is on
-            match ForceQueue::<T>::get() {
-                Forcing::ForceNone => {
-                    // Regardless of anything, forcing not to process queue
-                    QueueState::<T>::put(ProcessStatus::SkippedOrFailed);
-                    T::DbWeight::get().reads_writes(1, 2)
-                }
-                Forcing::ForceAlways => {
-                    // Regardless of anything, forcing the queue to be processed
-                    QueueState::<T>::put(ProcessStatus::Scheduled);
-                    T::DbWeight::get().reads_writes(1, 2)
-                }
-                Forcing::ForceOnce => {
-                    // Forcing queue processing in current block, subsequently not forcing anything
-                    ForceQueue::<T>::put(Forcing::default());
-                    QueueState::<T>::put(ProcessStatus::Scheduled);
-                    T::DbWeight::get().reads_writes(1, 3)
-                }
-                Forcing::NotForcing => T::DbWeight::get().reads_writes(1, 1),
-            }
+            // The `LastGearBlockNumber` is killed at the end of a block therefore its value
+            // will only exist in overlay and never be committed to storage.
+            // The respective write weight can be omitted and not accounted for.
+            T::DbWeight::get().writes(1)
         }
 
         /// Finalization
         fn on_finalize(bn: BlockNumberFor<T>) {
-            log::debug!(target: "gear::runtime", "⚙️  Finalization of block #{bn:?} (gear #{:?})", Self::block_number());
-
-            match QueueState::<T>::get() {
-                // Still in `Scheduled` state: last run didn't complete (likely, panicked)
-                ProcessStatus::Scheduled => {
-                    // Emitting event to signal queue processing transaction was rolled back.
+            // Check if the queue has been processed, that is gear block number bumped again.
+            // If not (while the queue processing enabled), fire an event.
+            if let Some(last_gear_block_number) = <LastGearBlockNumber<T>>::take() {
+                if Self::execute_inherent() && Self::block_number() <= last_gear_block_number {
                     Self::deposit_event(Event::QueueProcessingReverted);
-                    log::debug!(target: "gear::runtime", "⚙️  Decreasing gear block number due to process status scheduled");
-                    BlockNumber::<T>::mutate(|bn| *bn = bn.saturating_sub(One::one()));
-                    QueueState::<T>::put(ProcessStatus::SkippedOrFailed);
-                }
-                // Latest run succeeded; scheduling to run again in the next block
-                ProcessStatus::Completed => {
-                    QueueState::<T>::put(ProcessStatus::Scheduled);
-                }
-                // Otherwise keeping the status intact;
-                // Note: `SkippedOrFailed` can now only be overridden through forcing
-                ProcessStatus::SkippedOrFailed => {
-                    log::debug!(target: "gear::runtime", "⚙️ Decreasing gear block number due to process status skipped or failed");
-                    BlockNumber::<T>::mutate(|bn| *bn = bn.saturating_sub(One::one()));
                 }
             }
-        }
-    }
 
-    #[cfg_attr(feature = "std", derive(Default))]
-    #[pallet::genesis_config]
-    pub struct GenesisConfig {
-        pub force_queue: Forcing,
-    }
+            // Undoing Gear block number increment that was done upfront in `on_initialize`
+            BlockNumber::<T>::mutate(|bn| *bn = bn.saturating_sub(One::one()));
 
-    #[pallet::genesis_build]
-    impl<T: Config> GenesisBuild<T> for GenesisConfig {
-        fn build(&self) {
-            ForceQueue::<T>::put(self.force_queue);
+            log::debug!(target: "gear::runtime", "⚙️  Finalization of block #{bn:?} (gear #{:?})", Self::block_number());
         }
     }
 
@@ -576,22 +513,6 @@ pub mod pallet {
     where
         T::AccountId: Origin,
     {
-        /// Set force always strategy.
-        ///
-        /// For tests only.
-        #[cfg(any(feature = "std", feature = "runtime-benchmarks", test))]
-        pub fn force_always() {
-            <ForceQueue<T>>::put(Forcing::ForceAlways);
-        }
-
-        /// Set completed result of queue processing.
-        ///
-        /// For tests only.
-        #[cfg(any(feature = "std", feature = "runtime-benchmarks", test))]
-        pub fn processing_completed() {
-            <QueueState<T>>::put(ProcessStatus::Completed);
-        }
-
         /// Set gear block number.
         ///
         /// For tests only.
@@ -627,6 +548,7 @@ pub mod pallet {
                 schedule.instruction_weights.version,
                 Some(module),
                 true,
+                true,
             )
             .map_err(|e| {
                 log::debug!("Code failed to load: {:?}", e);
@@ -650,7 +572,7 @@ pub mod pallet {
             let program_id = packet.destination();
             // Make sure there is no program with such id in program storage
             ensure!(
-                !GearProgramPallet::<T>::program_exists(program_id),
+                !ProgramStorageOf::<T>::program_exists(program_id),
                 Error::<T>::ProgramAlreadyExists
             );
 
@@ -714,11 +636,17 @@ pub mod pallet {
 
             let schedule = T::Schedule::get();
 
-            let code = Code::new_raw(code, schedule.instruction_weights.version, None, false)
-                .map_err(|e| {
-                    log::debug!("Code failed to load: {:?}", e);
-                    Error::<T>::FailedToConstructProgram
-                })?;
+            let code = Code::new_raw(
+                code,
+                schedule.instruction_weights.version,
+                None,
+                false,
+                true,
+            )
+            .map_err(|e| {
+                log::debug!("Code failed to load: {:?}", e);
+                Error::<T>::FailedToConstructProgram
+            })?;
 
             let code_id = Self::set_code_with_metadata(CodeAndId::new(code), who.into_origin())?;
 
@@ -731,6 +659,33 @@ pub mod pallet {
             });
 
             Ok(().into())
+        }
+
+        pub fn read_state_using_wasm(
+            program_id: H256,
+            fn_name: Vec<u8>,
+            wasm: Vec<u8>,
+            argument: Option<Vec<u8>>,
+        ) -> Result<Vec<u8>, Vec<u8>> {
+            let program_id = ProgramId::from_origin(program_id.into_origin());
+
+            let fn_name = String::from_utf8(fn_name)
+                .map_err(|_| "Non-utf8 function name".as_bytes().to_vec())?;
+
+            Self::read_state_using_wasm_impl(program_id, fn_name, wasm, argument)
+                .map_err(String::into_bytes)
+        }
+
+        pub fn read_state(program_id: H256) -> Result<Vec<u8>, Vec<u8>> {
+            let program_id = ProgramId::from_origin(program_id.into_origin());
+
+            Self::read_state_impl(program_id).map_err(String::into_bytes)
+        }
+
+        pub fn read_metahash(program_id: H256) -> Result<H256, Vec<u8>> {
+            let program_id = ProgramId::from_origin(program_id.into_origin());
+
+            Self::read_metahash_impl(program_id).map_err(String::into_bytes)
         }
 
         #[cfg(not(test))]
@@ -836,35 +791,35 @@ pub mod pallet {
 
         /// Returns true if a program has been successfully initialized
         pub fn is_initialized(program_id: ProgramId) -> bool {
-            common::get_program(program_id.into_origin())
+            ProgramStorageOf::<T>::get_program(program_id)
                 .map(|p| p.is_initialized())
                 .unwrap_or(false)
         }
 
         /// Returns true if id is a program and the program has active status.
         pub fn is_active(program_id: ProgramId) -> bool {
-            common::get_program(program_id.into_origin())
+            ProgramStorageOf::<T>::get_program(program_id)
                 .map(|p| p.is_active())
                 .unwrap_or_default()
         }
 
         /// Returns true if id is a program and the program has terminated status.
         pub fn is_terminated(program_id: ProgramId) -> bool {
-            common::get_program(program_id.into_origin())
+            ProgramStorageOf::<T>::get_program(program_id)
                 .map(|p| p.is_terminated())
                 .unwrap_or_default()
         }
 
         /// Returns true if id is a program and the program has exited status.
         pub fn is_exited(program_id: ProgramId) -> bool {
-            common::get_program(program_id.into_origin())
+            ProgramStorageOf::<T>::get_program(program_id)
                 .map(|p| p.is_exited())
                 .unwrap_or_default()
         }
 
         /// Returns exit argument of an exited program.
         pub fn exit_inheritor_of(program_id: ProgramId) -> Option<ProgramId> {
-            common::get_program(program_id.into_origin())
+            ProgramStorageOf::<T>::get_program(program_id)
                 .map(|p| {
                     if let Program::Exited(id) = p {
                         Some(id)
@@ -877,7 +832,7 @@ pub mod pallet {
 
         /// Returns inheritor of terminated (failed it's init) program.
         pub fn termination_inheritor_of(program_id: ProgramId) -> Option<ProgramId> {
-            common::get_program(program_id.into_origin())
+            ProgramStorageOf::<T>::get_program(program_id)
                 .map(|p| {
                     if let Program::Terminated(id) = p {
                         Some(id)
@@ -1002,20 +957,22 @@ pub mod pallet {
         ) -> Option<BTreeMap<PageNumber, PageBuf>> {
             #[cfg(feature = "lazy-pages")]
             let memory_pages = {
-                let _ = program_id;
+                // To calm clippy on unused argument.
                 let _ = pages_with_data;
-                assert!(lazy_pages::try_to_enable_lazy_pages());
+                assert!(lazy_pages::try_to_enable_lazy_pages(
+                    ProgramStorageOf::<T>::pages_final_prefix()
+                ));
                 Default::default()
             };
 
             #[cfg(not(feature = "lazy-pages"))]
-            let memory_pages = match common::get_program_data_for_pages(
-                program_id.into_origin(),
+            let memory_pages = match ProgramStorageOf::<T>::get_program_data_for_pages(
+                program_id,
                 pages_with_data.iter(),
             ) {
                 Ok(data) => data,
                 Err(err) => {
-                    log::error!("Cannot get data for program pages: {err}");
+                    log::error!("Cannot get data for program pages: {err:?}");
                     return None;
                 }
             };
@@ -1025,27 +982,44 @@ pub mod pallet {
             Some(memory_pages)
         }
 
-        pub(crate) fn get_code(code_id: CodeId, program_id: ProgramId) -> Option<InstrumentedCode> {
-            let code = match T::CodeStorage::get_code(code_id) {
-                None => {
-                    log::error!("Code '{code_id:?}' not found for program '{program_id:?}'");
-                    return None;
-                }
-                Some(c) => c,
+        pub(crate) fn block_config() -> BlockConfig {
+            let block_info = BlockInfo {
+                height: Self::block_number().unique_saturated_into(),
+                timestamp: <pallet_timestamp::Pallet<T>>::get().unique_saturated_into(),
             };
+
+            let existential_deposit = CurrencyOf::<T>::minimum_balance().unique_saturated_into();
 
             let schedule = T::Schedule::get();
-            let code = if code.instruction_weights_version() == schedule.instruction_weights.version
-            {
-                code
-            } else {
-                // todo: charge for code instrumenting
-                // If instrumented code exists, re-instrumentation can't fail
-                Self::reinstrument_code(code_id, &schedule)
-                    .unwrap_or_else(|e| unreachable!("Code storage corrupted {:?}", e))
+
+            let allocations_config = AllocationsConfig {
+                max_pages: schedule.limits.memory_pages.into(),
+                init_cost: schedule.memory_weights.initial_cost,
+                alloc_cost: schedule.memory_weights.allocation_cost,
+                mem_grow_cost: schedule.memory_weights.grow_cost,
+                load_page_cost: schedule.memory_weights.load_cost,
             };
 
-            Some(code)
+            BlockConfig {
+                block_info,
+                allocations_config,
+                existential_deposit,
+                outgoing_limit: T::OutgoingLimit::get(),
+                host_fn_weights: schedule.host_fn_weights.into_core(),
+                forbidden_funcs: Default::default(),
+                mailbox_threshold: T::MailboxThreshold::get(),
+                waitlist_cost: CostsPerBlockOf::<T>::waitlist(),
+                reserve_for: CostsPerBlockOf::<T>::reserve_for().unique_saturated_into(),
+                reservation: CostsPerBlockOf::<T>::reservation().unique_saturated_into(),
+                read_cost: DbWeightOf::<T>::get().reads(1).ref_time(),
+                write_cost: DbWeightOf::<T>::get().writes(1).ref_time(),
+                write_per_byte_cost: schedule.db_write_per_byte,
+                read_per_byte_cost: schedule.db_read_per_byte,
+                module_instantiation_byte_cost: schedule.module_instantiation_per_byte,
+                max_reservations: T::ReservationsLimit::get(),
+                code_instrumentation_cost: schedule.code_instrumentation_cost,
+                code_instrumentation_byte_cost: schedule.code_instrumentation_byte_cost,
+            }
         }
 
         /// Sets `code` and metadata, if code doesn't exist in storage.
@@ -1084,10 +1058,8 @@ pub mod pallet {
         pub(crate) fn reinstrument_code(
             code_id: CodeId,
             schedule: &Schedule<T>,
-        ) -> Result<InstrumentedCode, DispatchError> {
-            if T::CodeStorage::get_code(code_id).is_none() {
-                return Err(Error::<T>::CodeNotExists.into());
-            }
+        ) -> InstrumentedCode {
+            debug_assert!(T::CodeStorage::get_code(code_id).is_some());
 
             // By the invariant set in CodeStorage trait, original code can't exist in storage
             // without the instrumented code
@@ -1107,8 +1079,9 @@ pub mod pallet {
             let code_and_id = CodeAndId::from_parts_unchecked(code, code_id);
             let code_and_id = InstrumentedCodeAndId::from(code_and_id);
             T::CodeStorage::update_code(code_and_id.clone());
+            let (code, _) = code_and_id.into_parts();
 
-            Ok(code_and_id.into_parts().0)
+            code
         }
 
         pub(crate) fn check_code(code: Vec<u8>) -> Result<CodeAndId, DispatchError> {
@@ -1180,7 +1153,7 @@ pub mod pallet {
             let program_id = packet.destination();
             // Make sure there is no program with such id in program storage
             ensure!(
-                !GearProgramPallet::<T>::program_exists(program_id),
+                !ProgramStorageOf::<T>::program_exists(program_id),
                 Error::<T>::ProgramAlreadyExists
             );
 
@@ -1260,6 +1233,7 @@ pub mod pallet {
         ///
         /// Emits the following events:
         /// - `SavedCode(H256)` - when the code is saved in storage.
+        #[pallet::call_index(0)]
         #[pallet::weight(
             <T as Config>::WeightInfo::upload_code(code.len() as u32)
         )]
@@ -1317,6 +1291,7 @@ pub mod pallet {
         /// Ghost program can be removed by their original author via an explicit call.
         /// The funds stored by a ghost program will be release to the author once the program
         /// has been removed.
+        #[pallet::call_index(1)]
         #[pallet::weight(
             <T as Config>::WeightInfo::upload_program(code.len() as u32, salt.len() as u32)
         )]
@@ -1379,6 +1354,7 @@ pub mod pallet {
         /// # NOTE
         ///
         /// For the details of this extrinsic, see `upload_code`.
+        #[pallet::call_index(2)]
         #[pallet::weight(<T as Config>::WeightInfo::create_program(salt.len() as u32))]
         pub fn create_program(
             origin: OriginFor<T>,
@@ -1421,6 +1397,7 @@ pub mod pallet {
         ///
         /// Emits the following events:
         /// - `DispatchMessageEnqueued(MessageInfo)` when dispatch message is placed in the queue.
+        #[pallet::call_index(3)]
         #[pallet::weight(<T as Config>::WeightInfo::send_message(payload.len() as u32))]
         pub fn send_message(
             origin: OriginFor<T>,
@@ -1447,7 +1424,7 @@ pub mod pallet {
                 ),
             );
 
-            if GearProgramPallet::<T>::program_exists(destination) {
+            if ProgramStorageOf::<T>::program_exists(destination) {
                 ensure!(Self::is_active(destination), Error::<T>::InactiveProgram);
 
                 // Message is not guaranteed to be executed, that's why value is not immediately transferred.
@@ -1514,6 +1491,7 @@ pub mod pallet {
         ///
         /// NOTE: only user who is destination of the message, can claim value
         /// or reply on the message from mailbox.
+        #[pallet::call_index(4)]
         #[pallet::weight(<T as Config>::WeightInfo::send_reply(payload.len() as u32))]
         pub fn send_reply(
             origin: OriginFor<T>,
@@ -1602,6 +1580,7 @@ pub mod pallet {
         ///
         /// NOTE: only user who is destination of the message, can claim value
         /// or reply on the message from mailbox.
+        #[pallet::call_index(5)]
         #[pallet::weight(<T as Config>::WeightInfo::claim_value())]
         pub fn claim_value(
             origin: OriginFor<T>,
@@ -1618,13 +1597,15 @@ pub mod pallet {
         }
 
         /// Reset all pallet associated storage.
+        #[pallet::call_index(6)]
         #[pallet::weight(0)]
         pub fn reset(origin: OriginFor<T>) -> DispatchResult {
             ensure_root(origin)?;
             <T as Config>::Scheduler::reset();
             <T as Config>::GasProvider::reset();
             <T as Config>::Messenger::reset();
-            GearProgramPallet::<T>::reset_storage();
+            ProgramStorageOf::<T>::reset();
+            <T as Config>::CodeStorage::reset();
             common::reset_storage();
 
             Self::deposit_event(Event::DatabaseWiped);
@@ -1633,16 +1614,15 @@ pub mod pallet {
         }
 
         /// Process message queue
+        #[pallet::call_index(7)]
         #[pallet::weight((Weight::zero(), DispatchClass::Mandatory))]
         pub fn run(origin: OriginFor<T>) -> DispatchResultWithPostInfo {
             ensure_none(origin)?;
 
-            if !matches!(QueueState::<T>::get(), ProcessStatus::Scheduled) {
-                return Ok(PostDispatchInfo {
-                    actual_weight: Some(Weight::zero()),
-                    pays_fee: Pays::No,
-                });
-            }
+            ensure!(
+                ExecuteInherent::<T>::get(),
+                Error::<T>::MessageQueueProcessingDisabled
+            );
 
             let weight_used = <frame_system::Pallet<T>>::block_weight();
             let max_weight = <T as frame_system::Config>::BlockWeights::get().max_block;
@@ -1666,13 +1646,33 @@ pub mod pallet {
                 Self::block_number(),
             );
 
-            // Set queue processing status to allow for a new run in the next block
-            QueueState::<T>::put(ProcessStatus::Completed);
+            // Incrementing Gear block number one more time to indicate that the queue processing
+            // has been successfully completed in the current block.
+            // Caveat: this increment must be done strictly after all extrinsics in the block have
+            // been handled to ensure correct block number math.
+            BlockNumber::<T>::mutate(|bn| *bn = bn.saturating_add(One::one()));
 
             Ok(PostDispatchInfo {
-                actual_weight: Some(Weight::from_ref_time(actual_weight)),
+                actual_weight: Some(
+                    Weight::from_ref_time(actual_weight)
+                        .saturating_add(T::DbWeight::get().writes(1)),
+                ),
                 pays_fee: Pays::No,
             })
+        }
+
+        /// Sets `ExecuteInherent` flag.
+        ///
+        /// Requires root origin (eventually, will only be set via referendum)
+        #[pallet::call_index(8)]
+        #[pallet::weight(DbWeightOf::<T>::get().writes(1))]
+        pub fn set_execute_inherent(origin: OriginFor<T>, value: bool) -> DispatchResult {
+            ensure_root(origin)?;
+
+            log::debug!(target: "gear::runtime", "⚙️  Set ExecuteInherent flag to {}", value);
+            ExecuteInherent::<T>::put(value);
+
+            Ok(())
         }
     }
 

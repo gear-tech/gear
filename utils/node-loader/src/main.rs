@@ -5,9 +5,10 @@
 //! gets properly structured data acceptable by the gear node and randomizes it's "fields".
 //! That's why generated data is called semi-random.
 
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use args::{parse_cli_params, LoadParams, Params};
 use batch_pool::BatchPool;
+use names::Generator;
 use rand::rngs::SmallRng;
 
 mod args;
@@ -31,13 +32,18 @@ async fn run(params: Params) -> Result<()> {
 }
 
 async fn load_node(params: LoadParams) -> Result<()> {
+    let mut name_gen = Generator::default();
+    let run_name = name_gen
+        .next()
+        .ok_or(anyhow!("Failed generating run name"))?;
+
     // this should not be dropped, until the loader works
-    let _guard = log::init_log()?;
+    let _guard = log::init_log(run_name.clone())?;
 
     tracing::info!(
-        "Running {} of version: {}",
+        "Running {} of version {}. Run name: {run_name}.",
         env!("CARGO_PKG_NAME"),
-        env!("CARGO_PKG_VERSION")
+        env!("CARGO_PKG_VERSION"),
     );
 
     BatchPool::<SmallRng>::run(params).await

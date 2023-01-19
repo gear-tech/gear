@@ -24,9 +24,10 @@ fn codegen(mut encoded: &[u8], item_mod: ItemMod) -> String {
         <RuntimeMetadataPrefixed as Decode>::decode(&mut encoded).expect("decode metadata failed");
 
     // Genreate code.
+    let crate_path = Default::default();
     let generator = subxt_codegen::RuntimeGenerator::new(metadata);
     generator
-        .generate_runtime(item_mod, DerivesRegistry::default())
+        .generate_runtime(item_mod, DerivesRegistry::new(&crate_path), crate_path)
         .to_string()
 }
 

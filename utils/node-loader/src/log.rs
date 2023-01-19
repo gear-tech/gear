@@ -1,51 +1,42 @@
 use anyhow::{anyhow, Result};
-use std::io::{self, Stdout};
-use tracing_appender::{
-    non_blocking::{NonBlocking, WorkerGuard},
-    rolling,
-};
+use tracing_appender::{non_blocking::WorkerGuard, rolling};
 use tracing_subscriber::{
     fmt,
     fmt::{
-        format::{DefaultFields, Format, Pretty},
-        Layer, Subscriber,
+        format::{Format, Pretty},
+        Subscriber,
     },
     layer::SubscriberExt,
     util::SubscriberInitExt,
     EnvFilter, Layer as LayerT,
 };
 
-type StdoutLayer = LogLayer<fn() -> Stdout>;
-type FileLayer = LogLayer<NonBlocking>;
-type LogLayer<O> = Layer<DefaultSubscriber, Pretty, Format<Pretty>, O>;
-type DefaultSubscriber = Subscriber<DefaultFields, Format, EnvFilter>;
+type DefaultSubscriber = Subscriber<Pretty, Format<Pretty>, EnvFilter>;
 
-pub fn init_log() -> Result<WorkerGuard> {
-    let (guard, file_layer) = create_file_log_component();
-    let writers = create_stdout_log_component().and_then(file_layer);
+pub fn init_log(run_name: String) -> Result<WorkerGuard> {
+    let (guard, file_layer) = create_file_log_component(run_name);
 
     tracing_subscriber::fmt()
+        .pretty()
         .with_env_filter("gear_node_loader=debug,gear_program=debug")
+        .with_line_number(false)
+        .with_file(false)
+        .with_target(false)
+        .with_ansi(false)
         .finish()
-        .with(writers)
+        .with(file_layer)
         .try_init()
         .map(|_| guard)
         .map_err(|_| anyhow!("Can't initialize logger"))
 }
 
-fn create_file_log_component() -> (WorkerGuard, FileLayer) {
-    let file_appender = rolling::hourly("./log", "loader");
+fn create_file_log_component(run_name: String) -> (WorkerGuard, impl LayerT<DefaultSubscriber>) {
+    let file_name_prefix = format!("{run_name}-loader");
+    let file_appender = rolling::hourly("./log", file_name_prefix);
     let (non_blocking, guard) = tracing_appender::non_blocking(file_appender);
     let layer = fmt::layer()
         .pretty()
         .with_ansi(false)
         .with_writer(non_blocking);
     (guard, layer)
-}
-
-fn create_stdout_log_component() -> StdoutLayer {
-    fmt::layer()
-        .pretty()
-        .with_ansi(false)
-        .with_writer(io::stdout)
 }

@@ -15,7 +15,7 @@ pub enum Action {
 pub struct Meta {
     /// Path of "*.meta.wasm".
     pub metadata: PathBuf,
-    #[clap(subcommand)]
+    #[command(subcommand)]
     pub action: Action,
 }
 

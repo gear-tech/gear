@@ -8,18 +8,18 @@ pub struct Create {
     /// gear program code id
     code_id: String,
     /// gear program salt ( hex encoding )
-    #[clap(default_value = "0x")]
+    #[arg(default_value = "0x")]
     salt: String,
     /// gear program init payload ( hex encoding )
-    #[clap(default_value = "0x")]
+    #[arg(default_value = "0x")]
     init_payload: String,
     /// gear program gas limit
     ///
     /// if zero, gear will estimate this automatically
-    #[clap(default_value = "0")]
+    #[arg(default_value = "0")]
     gas_limit: u64,
     /// gear program balance
-    #[clap(default_value = "0")]
+    #[arg(default_value = "0")]
     value: u128,
 }
 

@@ -2,12 +2,15 @@
 use crate::result::{ClientError, Result};
 use futures_util::{StreamExt, TryStreamExt};
 use jsonrpsee::{
-    core::client::{ClientT, SubscriptionClientT},
+    core::{
+        client::{ClientT, Subscription, SubscriptionClientT, SubscriptionKind},
+        traits::ToRpcParams,
+        Error as JsonRpseeError,
+    },
     http_client::{HttpClient, HttpClientBuilder},
-    types::ParamsSer,
+    types::SubscriptionId,
     ws_client::{WsClient, WsClientBuilder},
 };
-use serde_json::value::Value;
 use std::{result::Result as StdResult, time::Duration};
 use subxt::{
     error::RpcError,
@@ -16,6 +19,14 @@ use subxt::{
 
 const DEFAULT_GEAR_ENDPOINT: &str = "wss://rpc-node.gear-tech.io:443";
 const DEFAULT_TIMEOUT: u64 = 60_000;
+
+struct Params(Option<Box<RawValue>>);
+
+impl ToRpcParams for Params {
+    fn to_rpc_params(self) -> StdResult<Option<Box<RawValue>>, JsonRpseeError> {
+        Ok(self.0)
+    }
+}
 
 /// Either http or websocket RPC client
 pub enum RpcClient {
@@ -60,14 +71,13 @@ impl RpcClientT for RpcClient {
         params: Option<Box<RawValue>>,
     ) -> RpcFuture<'a, Box<RawValue>> {
         Box::pin(async move {
-            let params = prep_params_for_jsonrpsee(params)?;
             let res = match self {
-                RpcClient::Http(c) => ClientT::request(c, method, Some(params))
+                RpcClient::Http(c) => ClientT::request(c, method, Params(params))
                     .await
-                    .map_err(|e| RpcError(e.to_string()))?,
-                RpcClient::Ws(c) => ClientT::request(c, method, Some(params))
+                    .map_err(|e| RpcError::ClientError(Box::new(e)))?,
+                RpcClient::Ws(c) => ClientT::request(c, method, Params(params))
                     .await
-                    .map_err(|e| RpcError(e.to_string()))?,
+                    .map_err(|e| RpcError::ClientError(Box::new(e)))?,
             };
             Ok(res)
         })
@@ -80,45 +90,35 @@ impl RpcClientT for RpcClient {
         unsub: &'a str,
     ) -> RpcFuture<'a, RpcSubscription> {
         Box::pin(async move {
-            let params = prep_params_for_jsonrpsee(params)?;
-            let sub = match self {
-                RpcClient::Http(c) => {
-                    SubscriptionClientT::subscribe::<Box<RawValue>>(c, sub, Some(params), unsub)
-                        .await
-                        .map_err(|e| RpcError(e.to_string()))?
-                        .map_err(|e| RpcError(e.to_string()))
-                        .boxed()
-                }
-                RpcClient::Ws(c) => {
-                    SubscriptionClientT::subscribe::<Box<RawValue>>(c, sub, Some(params), unsub)
-                        .await
-                        .map_err(|e| RpcError(e.to_string()))?
-                        .map_err(|e| RpcError(e.to_string()))
-                        .boxed()
-                }
+            let stream = match self {
+                RpcClient::Http(c) => subscription_stream(c, sub, params, unsub).await?,
+                RpcClient::Ws(c) => subscription_stream(c, sub, params, unsub).await?,
             };
 
-            Ok(sub)
+            let id = match stream.kind() {
+                SubscriptionKind::Subscription(SubscriptionId::Str(id)) => {
+                    Some(id.clone().into_owned())
+                }
+                _ => None,
+            };
+
+            let stream = stream
+                .map_err(|e| RpcError::ClientError(Box::new(e)))
+                .boxed();
+
+            Ok(RpcSubscription { stream, id })
         })
     }
 }
 
-// This is ugly; we have to encode to Value's to be compat with the jsonrpc interface.
-// Remove and simplify this once something like https://github.com/paritytech/jsonrpsee/issues/862 is in:
-fn prep_params_for_jsonrpsee(
+// This is a support fn to create a subscription stream for a generic client
+async fn subscription_stream<C: SubscriptionClientT>(
+    client: &C,
+    sub: &str,
     params: Option<Box<RawValue>>,
-) -> StdResult<ParamsSer<'static>, RpcError> {
-    let params = match params {
-        Some(params) => params,
-        // No params? avoid any work and bail early.
-        None => return Ok(ParamsSer::Array(Vec::new())),
-    };
-    let val = serde_json::to_value(&params).expect("RawValue guarantees valid JSON");
-    let arr = match val {
-        Value::Array(arr) => Ok(arr),
-        _ => Err(RpcError(format!(
-            "RPC Params are expected to be an array but got {params}"
-        ))),
-    }?;
-    Ok(ParamsSer::Array(arr))
+    unsub: &str,
+) -> StdResult<Subscription<Box<RawValue>>, RpcError> {
+    SubscriptionClientT::subscribe::<Box<RawValue>, _>(client, sub, Params(params), unsub)
+        .await
+        .map_err(|e| RpcError::ClientError(Box::new(e)))
 }

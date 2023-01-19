@@ -21,10 +21,11 @@ use crate::{
     config::WaitType,
     errors::{ContractError, Result},
     exec,
-    prelude::{BTreeMap, Vec},
+    prelude::Vec,
     Config, MessageId,
 };
 use core::cmp::Ordering;
+use hashbrown::HashMap;
 
 /// Type of wait locks.
 #[derive(Debug, PartialEq, Eq)]
@@ -136,7 +137,7 @@ impl Default for LockType {
 
 /// DoubleMap for wait locks.
 #[derive(Default, Debug)]
-pub struct LocksMap(BTreeMap<MessageId, BTreeMap<MessageId, Lock>>);
+pub struct LocksMap(HashMap<MessageId, HashMap<MessageId, Lock>>);
 
 impl LocksMap {
     /// Trigger waiting for the message.

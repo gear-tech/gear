@@ -111,7 +111,7 @@ where
 
     // this push is required as otherwise B2 has the same hash as A2 and won't get imported
     builder
-        .push_submit(Message {
+        .push_signed(Message {
             from: AccountKeyring::Alice.into(),
             item: 41,
             nonce: 0,
@@ -148,7 +148,7 @@ where
         .unwrap();
     // this push is required as otherwise C3 has the same hash as B3 and won't get imported
     builder
-        .push_submit(Message {
+        .push_signed(Message {
             from: AccountKeyring::Alice.into(),
             item: 1,
             nonce: 1,
@@ -167,7 +167,7 @@ where
         .unwrap();
     // this push is required as otherwise D2 has the same hash as B2 and won't get imported
     builder
-        .push_submit(Message {
+        .push_signed(Message {
             from: AccountKeyring::Alice.into(),
             item: 1,
             nonce: 0,
@@ -246,7 +246,7 @@ where
         .unwrap();
     // this push is required as otherwise B2 has the same hash as A2 and won't get imported
     builder
-        .push_submit(Message {
+        .push_signed(Message {
             from: AccountKeyring::Alice.into(),
             item: 41,
             nonce: 0,
@@ -279,7 +279,7 @@ where
         .unwrap();
     // this push is required as otherwise C3 has the same hash as B3 and won't get imported
     builder
-        .push_submit(Message {
+        .push_signed(Message {
             from: AccountKeyring::Alice.into(),
             item: 1,
             nonce: 1,
@@ -294,7 +294,7 @@ where
         .unwrap();
     // this push is required as otherwise D2 has the same hash as B2 and won't get imported
     builder
-        .push_submit(Message {
+        .push_signed(Message {
             from: AccountKeyring::Alice.into(),
             item: 1,
             nonce: 0,
@@ -381,7 +381,7 @@ where
         .unwrap();
     // this push is required as otherwise B2 has the same hash as A2 and won't get imported
     builder
-        .push_submit(Message {
+        .push_signed(Message {
             from: AccountKeyring::Alice.into(),
             item: 41,
             nonce: 0,
@@ -414,7 +414,7 @@ where
         .unwrap();
     // this push is required as otherwise C3 has the same hash as B3 and won't get imported
     builder
-        .push_submit(Message {
+        .push_signed(Message {
             from: AccountKeyring::Alice.into(),
             item: 1,
             nonce: 1,
@@ -429,7 +429,7 @@ where
         .unwrap();
     // this push is required as otherwise D2 has the same hash as B2 and won't get imported
     builder
-        .push_submit(Message {
+        .push_signed(Message {
             from: AccountKeyring::Alice.into(),
             item: 1,
             nonce: 0,

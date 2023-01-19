@@ -168,19 +168,18 @@ pub struct HostFnWeights {
 
     /// Weight per salt byte by `gr_create_program_wgas`.
     pub gr_create_program_wgas_salt_per_byte: u64,
-}
 
-/// We need this access as a macro because sometimes hiding the lifetimes behind
-/// a function won't work out.
-#[macro_export]
-macro_rules! charge_gas_token {
-    ($ext:expr, $costs:expr) => {{
-        let token = $costs.token(&$ext.context.host_fn_weights);
-        (
-            $ext.context.gas_counter.charge_token(token),
-            $ext.context.gas_allowance_counter.charge_token(token),
-        )
-    }};
+    /// Weight per one gear page read.
+    pub lazy_pages_read: u64,
+
+    /// Weight per one gear page write.
+    pub lazy_pages_write: u64,
+
+    /// Weight per one write, which is after page read.
+    pub lazy_pages_write_after_read: u64,
+
+    /// Weight per one gear page update in storage.
+    pub update_page_in_storage: u64,
 }
 
 /// Token to consume gas amount.
@@ -274,6 +273,14 @@ pub enum RuntimeCosts {
     SendPushInput(u32),
     /// Weight of calling `gr_rereply_push`.
     ReplyPushInput(u32),
+    /// Weight of read access per one gear page.
+    LazyPagesRead,
+    /// Weight of write access per one gear page.
+    LazyPagesWrite,
+    /// Weight of write after read access per one gear page.
+    LazyPagesWriteAfterRead,
+    /// Weight of page update in storage after modification.
+    UpdatePageInStorage,
 }
 
 impl RuntimeCosts {
@@ -345,6 +352,10 @@ impl RuntimeCosts {
             ReplyPushInput(len) => s
                 .gr_reply_push_input
                 .saturating_add(s.gr_reply_push_input_per_byte.saturating_mul(len.into())),
+            LazyPagesRead => s.lazy_pages_read,
+            LazyPagesWrite => s.lazy_pages_write,
+            LazyPagesWriteAfterRead => s.lazy_pages_write_after_read,
+            UpdatePageInStorage => s.update_page_in_storage,
         };
         RuntimeToken { weight }
     }

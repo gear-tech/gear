@@ -18,8 +18,8 @@
 
 use crate::chain_spec::{get_account_id_from_seed, get_from_seed, AccountId, Extensions};
 use gear_runtime::{
-    BabeConfig, BalancesConfig, GearConfig, GenesisConfig, GrandpaConfig, SessionConfig,
-    SessionKeys, SudoConfig, SystemConfig, WASM_BINARY,
+    BabeConfig, BalancesConfig, GenesisConfig, GrandpaConfig, SessionConfig, SessionKeys,
+    SudoConfig, SystemConfig, WASM_BINARY,
 };
 use hex_literal::hex;
 use sc_service::ChainType;
@@ -141,8 +141,8 @@ pub fn staging_testnet_config() -> Result<ChainSpec, String> {
         WASM_BINARY.ok_or_else(|| "Staging testnet wasm not available".to_string())?;
 
     Ok(ChainSpec::from_genesis(
-        "Gear Staging Testnet V4",
-        "gear_staging_testnet_v4",
+        "Gear Staging Testnet V5",
+        "gear_staging_testnet_v5",
         ChainType::Live,
         move || {
             testnet_genesis(
@@ -269,8 +269,5 @@ fn testnet_genesis(
             key: Some(root_key),
         },
         transaction_payment: Default::default(),
-        gear: GearConfig {
-            force_queue: Default::default(),
-        },
     }
 }

@@ -18,6 +18,7 @@
 
 use std::{borrow::Cow, fmt};
 
+/// Full WebSocket address required to specify the node.
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd)]
 pub struct WSAddress {
     domain: Cow<'static, str>,
@@ -36,8 +37,9 @@ impl WSAddress {
     const GEAR_PORT: u16 = 443;
 
     // Vara network.
-    const VARA: &'static str = "wss://vara.gear.rs";
+    const VARA: &'static str = "wss://rpc.vara-network.io";
 
+    /// Create a new `WSAddress` from a host `domain` and `port`.
     pub fn new(domain: impl Into<Cow<'static, str>>, port: impl Into<Option<u16>>) -> Self {
         Self {
             domain: domain.into(),
@@ -45,18 +47,59 @@ impl WSAddress {
         }
     }
 
+    /// Return the address of the local node working in developer mode (running
+    /// with `--dev` argument).
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use gclient::WSAddress;
+    ///
+    /// let address = WSAddress::dev();
+    /// assert_eq!(address, WSAddress::new("ws://127.0.0.1", 9944));
+    /// ```
     pub fn dev() -> Self {
         Self::new(Self::LOCALHOST, Self::DEFAULT_PORT)
     }
 
+    /// Return the default address of the public Gear testnet node.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use gclient::WSAddress;
+    ///
+    /// let address = WSAddress::gear();
+    /// assert_eq!(address, WSAddress::new("wss://rpc-node.gear-tech.io", 443));
+    /// ```
     pub fn gear() -> Self {
         Self::new(Self::GEAR, Self::GEAR_PORT)
     }
 
+    /// Return the default address of the public Vara node.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use gclient::WSAddress;
+    ///
+    /// let address = WSAddress::vara();
+    /// assert_eq!(address.url(), "wss://rpc.vara-network.io");
+    /// ```
     pub fn vara() -> Self {
         Self::new(Self::VARA, None)
     }
 
+    /// Convert the address to the URL string.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use gclient::WSAddress;
+    ///
+    /// let address = WSAddress::new("wss://my-node.example.com", 443);
+    /// assert_eq!(address.url(), "wss://my-node.example.com:443");
+    /// ```
     pub fn url(&self) -> String {
         if let Some(port) = self.port {
             format!("{}:{port}", self.domain)

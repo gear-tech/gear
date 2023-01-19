@@ -19,18 +19,34 @@
 use super::EventProcessor;
 use crate::{Error, Result};
 use async_trait::async_trait;
-use futures::stream::StreamExt;
 use gp::api::{
     config::GearConfig,
     generated::api::{gear::Event as GearEvent, Event},
-    types::FinalizedEvents,
+    types::FinalizedBlocks,
 };
 use subxt::{
     events::{Events, Phase},
     ext::sp_core::H256,
 };
 
-pub struct EventListener(pub(crate) FinalizedEvents);
+/// Event listener that allows catching and processing events propagated through
+/// the network.
+///
+/// # Examples
+///
+/// ```
+/// use gclient::GearApi;
+/// # use gclient::Result;
+///
+/// #[tokio::test]
+/// async fn listener_test() -> Result<()> {
+///     let api = GearApi::dev().await?;
+///     let mut listener = api.subscribe().await?;
+///     assert!(listener.blocks_running().await?);
+///     Ok(())
+/// }
+/// ```
+pub struct EventListener(pub(crate) FinalizedBlocks);
 
 #[async_trait(?Send)]
 impl EventProcessor for EventListener {
@@ -39,7 +55,7 @@ impl EventProcessor for EventListener {
     }
 
     async fn proc<T>(&mut self, predicate: impl Fn(Event) -> Option<T> + Copy) -> Result<T> {
-        while let Some(events) = self.0.next().await {
+        while let Some(events) = self.0.next_events().await {
             if let Some(res) = self.proc_events_inner(events?, predicate) {
                 return Ok(res);
             }
@@ -55,7 +71,7 @@ impl EventProcessor for EventListener {
     ) -> Result<Vec<T>> {
         let mut res = vec![];
 
-        while let Some(events) = self.0.next().await {
+        while let Some(events) = self.0.next_events().await {
             for event in events?.iter() {
                 if let Some(data) = predicate(event?.as_root_event::<(Phase, Event)>()?.1) {
                     res.push(data);
@@ -75,9 +91,11 @@ impl EventProcessor for EventListener {
 }
 
 impl EventListener {
-    /// Looks through finalized blocks to find the queue processing reverted event.
+    /// Look through finalized blocks to find the
+    /// [`QueueProcessingReverted`](https://docs.gear.rs/pallet_gear/pallet/enum.Event.html#variant.QueueProcessingReverted)
+    /// event.
     pub async fn queue_processing_reverted(&mut self) -> Result<H256> {
-        while let Some(events) = self.0.next().await {
+        while let Some(events) = self.0.next_events().await {
             let events = events?;
             let events_bh = events.block_hash();
 
@@ -91,24 +109,28 @@ impl EventListener {
         Err(Self::not_waited())
     }
 
-    pub async fn blocks_running_since(&mut self, previous: H256) -> Result<bool> {
-        let current = self
+    /// Reads the next event from the stream and returns the repsective block
+    /// hash.
+    pub async fn next_block_hash(&mut self) -> Result<H256> {
+        Ok(self
             .0
-            .next()
+            .next_events()
             .await
             .ok_or(Error::EventNotFound)??
-            .block_hash();
+            .block_hash())
+    }
+
+    /// Check whether at least one new block has been produced after the
+    /// `previous` block.
+    pub async fn blocks_running_since(&mut self, previous: H256) -> Result<bool> {
+        let current = self.next_block_hash().await?;
 
         Ok(current != previous)
     }
 
+    /// Check whether new blocks are produced as expected.
     pub async fn blocks_running(&mut self) -> Result<bool> {
-        let previous = self
-            .0
-            .next()
-            .await
-            .ok_or(Error::EventNotFound)??
-            .block_hash();
+        let previous = self.next_block_hash().await?;
 
         self.blocks_running_since(previous).await
     }

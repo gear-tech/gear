@@ -21,10 +21,10 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
 use core::fmt;
-use gear_common::{pages_prefix, Origin};
+use gear_common::Origin;
 use gear_core::{
     ids::ProgramId,
-    memory::{HostPointer, Memory, PageNumber, WasmPageNumber},
+    memory::{HostPointer, Memory, PageNumber, PageU32Size, WasmPageNumber},
 };
 use gear_runtime_interface::gear_ri;
 use sp_std::vec::Vec;
@@ -39,8 +39,8 @@ fn mprotect_lazy_pages(mem: &mut impl Memory, protect: bool) {
 }
 
 /// Try to enable and initialize lazy pages env
-pub fn try_to_enable_lazy_pages() -> bool {
-    gear_ri::init_lazy_pages()
+pub fn try_to_enable_lazy_pages(pages_final_prefix: [u8; 32]) -> bool {
+    gear_ri::init_lazy_pages(pages_final_prefix)
 }
 
 /// Protect and save storage keys for pages which has no data
@@ -49,18 +49,17 @@ pub fn init_for_program(
     prog_id: ProgramId,
     stack_end: Option<WasmPageNumber>,
 ) {
-    let program_prefix = crate::pages_prefix(prog_id.into_origin());
     let wasm_mem_addr = mem.get_buffer_host_addr();
     let wasm_mem_size = mem.size();
-    let stack_end_page = stack_end.map(|p| p.0);
+    let stack_end_page = stack_end.map(|page| page.raw());
 
     // Cannot panic unless OS allocates buffer in not aligned by native page addr, or
     // something goes wrong with pages protection.
     gear_ri::init_lazy_pages_for_program(
         wasm_mem_addr,
-        wasm_mem_size.0,
+        wasm_mem_size.raw(),
         stack_end_page,
-        program_prefix,
+        <[u8; 32]>::from(prog_id.into_origin()).into(),
     );
 }
 
@@ -102,7 +101,7 @@ pub fn update_lazy_pages_and_protect_again(
 
     let new_mem_size = mem.size();
     if new_mem_size > old_mem_size {
-        gear_ri::set_wasm_mem_size(new_mem_size.0);
+        gear_ri::set_wasm_mem_size(new_mem_size.raw());
     }
 
     mprotect_lazy_pages(mem, true);
@@ -110,8 +109,12 @@ pub fn update_lazy_pages_and_protect_again(
 
 /// Returns list of released pages numbers.
 pub fn get_released_pages() -> Vec<PageNumber> {
+    // Use panic here, because producing block with contract execution error,
+    // because of problems in native backend is not good idea. Better to stop
+    // process queue and wait until native backend will be fixed.
+    // TODO: (issue #1731) use wrapper to transfer PageNumber safely from native to runtime.
     gear_ri::get_released_pages()
         .into_iter()
-        .map(PageNumber)
+        .map(|p| PageNumber::new(p).expect("Unexpected lazy pages behavior"))
         .collect()
 }

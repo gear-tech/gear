@@ -24,13 +24,13 @@ pub struct Send {
     /// Send to
     pub destination: String,
     /// Send payload
-    #[clap(default_value = "0x")]
+    #[arg(default_value = "0x")]
     pub payload: String,
     /// Send gas limit
-    #[clap(default_value = "0")]
+    #[arg(default_value = "0")]
     pub gas_limit: u64,
     /// Send value
-    #[clap(default_value = "0")]
+    #[arg(default_value = "0")]
     pub value: u128,
 }
 

@@ -19,14 +19,14 @@
 use crate::{
     internal::HoldBound,
     manager::{CodeInfo, ExtManager},
-    Config, CostsPerBlockOf, CurrencyOf, Event, GasAllowanceOf, GasHandlerOf, GearProgramPallet,
-    Pallet, QueueOf, SentOf, TaskPoolOf, WaitlistOf,
+    Config, CostsPerBlockOf, CurrencyOf, Event, GasAllowanceOf, GasHandlerOf, Pallet,
+    ProgramStorageOf, QueueOf, SentOf, TaskPoolOf, WaitlistOf,
 };
 use common::{
     event::*,
     scheduler::{ScheduledTask, SchedulingCostsPerBlock, TaskHandler, TaskPool},
     storage::*,
-    CodeStorage, GasTree, Origin, Program,
+    CodeStorage, GasTree, Origin, Program, ProgramState, ProgramStorage,
 };
 use core_processor::common::{DispatchOutcome as CoreDispatchOutcome, JournalHandler};
 use frame_support::{
@@ -36,7 +36,7 @@ use frame_support::{
 use frame_system::pallet_prelude::BlockNumberFor;
 use gear_core::{
     ids::{CodeId, MessageId, ProgramId, ReservationId},
-    memory::{PageBuf, PageNumber},
+    memory::{PageBuf, PageNumber, PageU32Size},
     message::{Dispatch, MessageWaitedType, StoredDispatch},
     reservation::GasReserver,
 };
@@ -60,7 +60,7 @@ where
         use CoreDispatchOutcome::*;
 
         let wake_waiting_init_msgs = |p_id: ProgramId| {
-            common::waiting_init_take_messages(p_id)
+            ProgramStorageOf::<T>::waiting_init_take_messages(p_id)
                 .into_iter()
                 .for_each(|m_id| {
                     if let Some(m) = Pallet::<T>::wake_dispatch(
@@ -110,7 +110,15 @@ where
                 );
 
                 wake_waiting_init_msgs(program_id);
-                common::set_program_initialized(program_id.into_origin());
+                ProgramStorageOf::<T>::update_active_program(program_id, |p| {
+                    p.state = ProgramState::Initialized;
+                })
+                .unwrap_or_else(|e| {
+                    unreachable!(
+                        "Program initialized status may only be set to active program {:?}",
+                        e
+                    );
+                });
 
                 // TODO: replace this temporary (zero) value for expiration
                 // block number with properly calculated one
@@ -125,7 +133,10 @@ where
                 DispatchStatus::Success
             }
             InitFailure {
-                program_id, origin, ..
+                program_id,
+                origin,
+                executed,
+                ..
             } => {
                 log::trace!(
                     "Dispatch ({:?}) init failure for program {:?}",
@@ -140,10 +151,25 @@ where
                 // dequeued. The other case is async init.
                 wake_waiting_init_msgs(program_id);
 
-                self.clean_reservation_tasks(program_id);
+                // If we run into `InitFailure` after real execution (not
+                // prepare or precharge) processor methods, then we are
+                // sure that it was active program.
+                let maybe_inactive = !executed;
 
-                common::set_program_terminated_status(program_id.into_origin(), origin)
-                    .expect("Only active program can cause init failure");
+                self.clean_reservation_tasks(program_id, maybe_inactive);
+
+                ProgramStorageOf::<T>::update_program_if_active(program_id, |p| {
+                    *p = Program::Terminated(origin);
+                }).unwrap_or_else(|e| {
+                    if !maybe_inactive {
+                        unreachable!(
+                            "Program terminated status may only be set to an existing active program: {:?}",
+                            e,
+                        );
+                    }
+                });
+
+                ProgramStorageOf::<T>::remove_program_pages(program_id);
 
                 let program_id = <T::AccountId as Origin>::from_origin(program_id.into_origin());
 
@@ -163,7 +189,7 @@ where
 
                 DispatchStatus::Failed
             }
-            CoreDispatchOutcome::NoExecution => {
+            NoExecution => {
                 log::trace!("Dispatch ({:?}) for program wasn't executed", message_id);
 
                 DispatchStatus::NotExecuted
@@ -195,17 +221,21 @@ where
                 .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e));
         });
 
-        let _ = common::waiting_init_take_messages(id_exited);
+        let _ = ProgramStorageOf::<T>::waiting_init_take_messages(id_exited);
 
-        self.clean_reservation_tasks(id_exited);
+        // Program can't be inactive, cause it was executed.
+        self.clean_reservation_tasks(id_exited, false);
 
-        let id_exited = id_exited.into_origin();
-
-        common::set_program_exited_status(id_exited, value_destination).unwrap_or_else(|e| {
-            unreachable!("`exit` can be called only from active program: {}", e)
+        ProgramStorageOf::<T>::update_program_if_active(id_exited, |p| {
+            *p = Program::Exited(value_destination);
+        })
+        .unwrap_or_else(|e| {
+            unreachable!("`exit` can be called only from active program: {:?}", e);
         });
 
-        let program_account = &<T::AccountId as Origin>::from_origin(id_exited);
+        ProgramStorageOf::<T>::remove_program_pages(id_exited);
+
+        let program_account = &<T::AccountId as Origin>::from_origin(id_exited.into_origin());
         let balance = CurrencyOf::<T>::free_balance(program_account);
 
         let destination = Pallet::<T>::inheritor_for(value_destination);
@@ -374,16 +404,19 @@ where
         pages_data: BTreeMap<PageNumber, PageBuf>,
     ) {
         self.state_changes.insert(program_id);
-        let program_id = program_id.into_origin();
-        let program = common::get_program(program_id)
-            .expect("page update guaranteed to be called only for existing and active program");
-        if let Program::Active(mut program) = program {
+
+        ProgramStorageOf::<T>::update_active_program(program_id, |p| {
             for (page, data) in pages_data {
-                common::set_program_page_data(program_id, page, data);
-                program.pages_with_data.insert(page);
+                ProgramStorageOf::<T>::set_program_page_data(program_id, page, data);
+                p.pages_with_data.insert(page);
             }
-            common::set_program(program_id, program);
-        }
+        })
+        .unwrap_or_else(|e| {
+            unreachable!(
+                "Page update guaranteed to be called only for existing and active program: {:?}",
+                e
+            )
+        });
     }
 
     fn update_allocations(
@@ -391,19 +424,18 @@ where
         program_id: ProgramId,
         allocations: BTreeSet<gear_core::memory::WasmPageNumber>,
     ) {
-        let program_id = program_id.into_origin();
-        let program = common::get_program(program_id)
-            .expect("page update guaranteed to be called only for existing and active program");
-        if let Program::Active(mut program) = program {
-            let removed_pages = program.allocations.difference(&allocations);
-            for page in removed_pages.flat_map(|p| p.to_gear_pages_iter()) {
-                if program.pages_with_data.remove(&page) {
-                    common::remove_program_page_data(program_id, page);
+        ProgramStorageOf::<T>::update_active_program(program_id, |p| {
+            let removed_pages = p.allocations.difference(&allocations);
+            for page in removed_pages.flat_map(|page| page.to_pages_iter()) {
+                if p.pages_with_data.remove(&page) {
+                    ProgramStorageOf::<T>::remove_program_page_data(program_id, page);
                 }
             }
-            program.allocations = allocations;
-            common::set_program(program_id, program);
-        }
+
+            p.allocations = allocations;
+        }).unwrap_or_else(|e| {
+            unreachable!("Allocations update guaranteed to be called only for existing and active program: {:?}", e)
+        });
     }
 
     fn send_value(&mut self, from: ProgramId, to: Option<ProgramId>, value: u128) {
@@ -419,7 +451,7 @@ where
         if let Some(code) = T::CodeStorage::get_code(code_id) {
             let code_info = CodeInfo::from_code(&code_id, &code);
             for (init_message, candidate_id) in candidates {
-                if !GearProgramPallet::<T>::program_exists(candidate_id) {
+                if !ProgramStorageOf::<T>::program_exists(candidate_id) {
                     self.set_program(candidate_id, &code_info, init_message);
                 } else {
                     log::debug!("Program with id {:?} already exists", candidate_id);
@@ -508,12 +540,8 @@ where
     }
 
     fn update_gas_reservation(&mut self, program_id: ProgramId, reserver: GasReserver) {
-        let pid = program_id.into_origin();
-        let prog = common::get_program(pid).unwrap_or_else(|| {
-            unreachable!("gas reservation update guaranteed to be called only on existing program")
-        });
-        if let Program::Active(mut prog) = prog {
-            prog.gas_reservation_map = reserver.into_map(
+        ProgramStorageOf::<T>::update_active_program(program_id, |p| {
+            p.gas_reservation_map = reserver.into_map(
                 Pallet::<T>::block_number().unique_saturated_into(),
                 |duration| {
                     HoldBound::<T>::by(CostsPerBlockOf::<T>::reservation())
@@ -522,8 +550,13 @@ where
                         .unique_saturated_into()
                 },
             );
-            common::set_program(pid, prog);
-        }
+        })
+        .unwrap_or_else(|e| {
+            unreachable!(
+                "Gas reservation update guaranteed to be called only on an existing program: {:?}",
+                e
+            )
+        });
     }
 
     fn system_reserve_gas(&mut self, message_id: MessageId, amount: u64) {

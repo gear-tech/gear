@@ -11,12 +11,12 @@ use crate::{
         StoreData,
     },
 };
+use gear_core::memory::GEAR_PAGE_SIZE;
 use wasmtime::{
     AsContext, AsContextMut, Config, Engine, Extern, Func, Instance, Linker, Memory, Module, Store,
     Val,
 };
 
-const PAGE_SIZE: usize = 4096;
 const META_STATE: &str = "meta_state";
 
 /// Execute wasm binary
@@ -116,8 +116,8 @@ impl Reader {
         // 3. Apply pages to the current wasm module
         let mem_mut = mem.data_mut(self.store.as_context_mut());
         for (idx, page) in pages {
-            let start = (idx as usize) * PAGE_SIZE;
-            let end = start + PAGE_SIZE;
+            let start = (idx as usize) * GEAR_PAGE_SIZE;
+            let end = start + GEAR_PAGE_SIZE;
 
             mem_mut[start..end].copy_from_slice(&page);
         }

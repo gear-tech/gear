@@ -34,7 +34,7 @@ use gear_backend_common::Environment;
 use gear_core::{
     code::Code,
     ids::{CodeId, MessageId, ProgramId},
-    memory::{PageBuf, PageNumber, WasmPageNumber},
+    memory::{PageBuf, PageNumber, PageU32Size, WasmPageNumber},
     message::*,
 };
 use log::{Log, Metadata, Record, SetLoggerError};
@@ -384,7 +384,10 @@ pub fn check_allocations(
                 }
             }
             AllocationExpectationKind::ExactPages(ref expected_pages) => {
-                let mut actual_pages = actual_pages.iter().map(|page| page.0).collect::<Vec<_>>();
+                let mut actual_pages = actual_pages
+                    .iter()
+                    .map(|page| page.raw())
+                    .collect::<Vec<_>>();
                 let mut expected_pages = expected_pages.clone();
 
                 actual_pages.sort_unstable();
@@ -400,7 +403,7 @@ pub fn check_allocations(
                 for &expected_page in expected_pages {
                     if !actual_pages
                         .iter()
-                        .map(|page| page.0)
+                        .map(|page| page.raw())
                         .any(|actual_page| actual_page == expected_page)
                     {
                         errors.push(format!(
@@ -430,9 +433,9 @@ pub fn check_memory(
     for case in expected_memory {
         for (program_id, _data, memory) in actors_data {
             if *program_id == case.id.to_program_id() {
-                let page = PageNumber::new_from_addr(case.address);
+                let page = PageNumber::from_offset(case.address as u32);
                 if let Some(page_buf) = memory.get(&page) {
-                    let begin_byte = case.address - page.offset();
+                    let begin_byte = case.address - page.offset() as usize;
                     let end_byte = begin_byte + case.bytes.len();
                     if page_buf[begin_byte..end_byte] != case.bytes {
                         errors.push("Expectation error (Static memory doesn't match)".to_string());

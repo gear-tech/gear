@@ -53,10 +53,26 @@ impl<T, E: Default, const N: usize> TryFrom<Vec<T>> for LimitedVec<T, E, N> {
 }
 
 impl<T: Clone + Default, E: Default, const N: usize> LimitedVec<T, E, N> {
-    /// Returns new limited vector with default initialized elements.
+    /// Tries to create new limited vector of length `len`
+    /// with default initialized elements.
     pub fn try_new_default(len: usize) -> Result<Self, E> {
         (len <= N).then_some(()).ok_or_else(E::default)?;
         Ok(Self(vec![T::default(); len], PhantomData))
+    }
+
+    /// Creates new limited vector with default initialized elements.
+    pub fn new_default() -> Self {
+        Self(vec![T::default(); N], PhantomData)
+    }
+
+    /// Creates limited vector filled with the specified `value`.
+    pub fn filled_with(value: T) -> Self {
+        Self(vec![value; N], PhantomData)
+    }
+
+    /// Extends the array to its limit and fills with the specified `value`.
+    pub fn extend_with(&mut self, value: T) {
+        self.0.resize(N, value);
     }
 
     /// Append `value` to the end of vector.
@@ -181,6 +197,15 @@ mod test {
         assert_eq!(x.get().len(), N);
         assert_eq!(z.get().len(), 0);
         assert_eq!(x.get()[N / 2], "");
+    }
+
+    #[test]
+    fn test_prepend_works() {
+        let mut buf = TestBuffer::try_from(vec![1, 2, 3, 4, 5]).unwrap();
+        let prepend_buf = TestBuffer::try_from(vec![6, 7, 8]).unwrap();
+        buf.try_prepend(prepend_buf).unwrap();
+
+        assert_eq!(buf.get(), &[6, 7, 8, 1, 2, 3, 4, 5]);
     }
 
     #[test]

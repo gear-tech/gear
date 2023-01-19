@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2022 Gear Technologies Inc.
+// Copyright (C) 2021-2022 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -16,16 +16,6 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use super::*;
-use common::Origin as _;
-use gear_core::ids::ProgramId;
-
-impl<T: Config> pallet::Pallet<T> {
-    pub fn program_exists(program_id: ProgramId) -> bool {
-        common::program_exists(program_id.into_origin()) | Self::program_paused(program_id)
-    }
-
-    pub fn reset_storage() {
-        let _ = PausedPrograms::<T>::clear(u32::MAX, None);
-    }
+fn main() {
+    gear_wasm_builder::build_metawasm();
 }

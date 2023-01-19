@@ -22,6 +22,5 @@ impl Config for GearConfig {
     type Address = sp_runtime::MultiAddress<Self::AccountId, ()>;
     type Header = sp_runtime::generic::Header<Self::BlockNumber, sp_runtime::traits::BlakeTwo256>;
     type Signature = sp_runtime::MultiSignature;
-    type Extrinsic = sp_runtime::OpaqueExtrinsic;
     type ExtrinsicParams = PolkadotExtrinsicParams<Self>;
 }

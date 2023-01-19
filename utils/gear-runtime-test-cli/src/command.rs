@@ -24,10 +24,10 @@ use crate::{
 };
 use colored::{ColoredString, Colorize};
 use frame_support::traits::ReservableCurrency;
-use gear_common::{storage::*, GasPrice, GasTree, Origin as _};
+use gear_common::{storage::*, GasPrice, GasTree, Origin as _, ProgramStorage};
 use gear_core::{
     ids::{CodeId, ProgramId},
-    memory::vec_page_data_map_to_page_buf_map,
+    memory::PageU32Size,
     message::{DispatchKind, GasLimit, StoredDispatch, StoredMessage},
 };
 use gear_core_processor::common::ExecutableActorData;
@@ -38,8 +38,9 @@ use gear_test::{
     sample::{self, ChainProgram, PayloadVariant},
 };
 use junit_common::{TestCase, TestSuite, TestSuites};
-use pallet_gear::{Config, GasAllowanceOf, GasHandlerOf, Pallet as GearPallet};
+use pallet_gear::{Config, GasAllowanceOf, GasHandlerOf, Pallet as GearPallet, ProgramStorageOf};
 use pallet_gear_debug::{DebugData, ProgramState};
+use quick_xml::Writer;
 use rayon::prelude::*;
 use sc_cli::{CliConfiguration, SharedParams};
 use sp_core::H256;
@@ -119,18 +120,18 @@ macro_rules! command {
                 .collect::<(Vec<_>, Vec<_>)>();
 
             if let Some(ref junit_path) = param.generate_junit {
-                let writer = std::fs::File::create(junit_path)?;
-                quick_xml::se::to_writer(
-                    writer,
+                let xml = quick_xml::se::to_writer(
+                    String::new(),
                     &TestSuites {
                         time: times.iter().sum::<f64>().to_string(),
                         testsuite: executions,
                     },
                 )
                 .map_err(|e| {
-                    let mapped: Box<dyn std::error::Error + Send + Sync + 'static> = Box::new(e);
+                    let mapped: Box<dyn std::error::Error + Send + Sync> = Box::new(e);
                     mapped
                 })?;
+                std::fs::write(junit_path, xml)?;
             }
 
             if total_failed.load(Ordering::SeqCst) == 0 {
@@ -244,12 +245,11 @@ macro_rules! command {
                     pages_with_data: Default::default(),
                     code_hash: H256::default(),
                     code_exports: Default::default(),
-                    code_length_bytes: 0,
                     static_pages: 0.into(),
                     state: gear_common::ProgramState::Initialized,
                     gas_reservation_map: Default::default(),
                 };
-                gear_common::set_program(*id, program);
+                ProgramStorageOf::<Runtime>::add_program(ProgramId::from_origin(*id), program);
             }
 
             // Enable remapping of the source and destination of messages
@@ -454,14 +454,12 @@ macro_rules! command {
                                 .persistent_pages
                                 .keys()
                                 .copied()
-                                .map(|p| p.to_wasm_page())
+                                .map(|p| p.to_page())
                                 .collect();
 
-                            let memory =
-                                vec_page_data_map_to_page_buf_map(info.persistent_pages.clone())
-                                    .unwrap();
+                            let memory = info.persistent_pages.clone();
                             let gas_reservation_map = {
-                                let prog = gear_common::get_program(pid.into_origin()).unwrap();
+                                let prog = ProgramStorageOf::<Runtime>::get_program(*pid).unwrap();
                                 if let gear_common::Program::Active(gear_common::ActiveProgram {
                                     gas_reservation_map,
                                     ..
@@ -478,7 +476,6 @@ macro_rules! command {
                                     allocations: pages,
                                     code_id,
                                     code_exports: Default::default(),
-                                    code_length_bytes: Default::default(),
                                     static_pages: info.static_pages,
                                     initialized: true,
                                     pages_with_data: memory.keys().cloned().collect(),

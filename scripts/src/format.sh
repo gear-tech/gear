@@ -29,6 +29,6 @@ format() {
 }
 
 doc_format() {
-  cargo +nightly fmt -p gstd -p gcore -- "$@" \
+  cargo +nightly fmt -p gstd -p gcore -p gclient -p gtest -- "$@" \
     --config wrap_comments=true,format_code_in_doc_comments=true
 }

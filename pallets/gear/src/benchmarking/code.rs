@@ -120,8 +120,9 @@ impl ImportedMemory {
     where
         T: Config,
     {
-        let pages = max_pages::<T>();
-        Self { min_pages: pages }
+        Self {
+            min_pages: max_pages::<T>() as u32,
+        }
     }
 }
 
@@ -399,7 +400,7 @@ where
 
 /// Mechanisms to generate a function body that can be used inside a `ModuleDefinition`.
 pub mod body {
-    use gear_core::memory::WasmPageNumber;
+    use gear_core::memory::{PageNumber, PageU32Size, WasmPageNumber};
 
     use super::*;
 
@@ -469,12 +470,12 @@ pub mod body {
     }
 
     pub fn write_access_all_pages_instrs(
-        mem_size: u32,
+        mem_size: WasmPageNumber,
         mut head: Vec<Instruction>,
     ) -> Vec<Instruction> {
-        for page in (0..mem_size)
-            .map(WasmPageNumber)
-            .flat_map(|p| p.to_gear_pages_iter())
+        for page in mem_size
+            .iter_from_zero()
+            .flat_map(|p| p.to_pages_iter::<PageNumber>())
         {
             head.push(Instruction::I32Const(page.offset() as i32));
             head.push(Instruction::I32Const(42));
@@ -484,12 +485,12 @@ pub mod body {
     }
 
     pub fn read_access_all_pages_instrs(
-        mem_size: u32,
+        mem_size: WasmPageNumber,
         mut head: Vec<Instruction>,
     ) -> Vec<Instruction> {
-        for page in (0..mem_size)
-            .map(WasmPageNumber)
-            .flat_map(|p| p.to_gear_pages_iter())
+        for page in mem_size
+            .iter_from_zero()
+            .flat_map(|p| p.to_pages_iter::<PageNumber>())
         {
             head.push(Instruction::I32Const(page.offset() as i32));
             head.push(Instruction::I32Load(2, 0));
@@ -573,7 +574,7 @@ pub mod body {
 }
 
 /// The maximum amount of pages any program is allowed to have according to the current `Schedule`.
-pub fn max_pages<T: Config>() -> u32
+pub fn max_pages<T: Config>() -> u16
 where
     T: Config,
 {

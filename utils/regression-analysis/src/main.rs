@@ -34,12 +34,11 @@ mod junit_tree;
 mod output;
 mod stats;
 
-const PALLET_NAMES: [&str; 7] = [
+const PALLET_NAMES: [&str; 6] = [
     "pallet-gear-gas",
     "pallet-gear",
     "pallet-gear-debug",
     "pallet-gear-messenger",
-    "pallet-gear-program",
     "pallet-gear-payment",
     "pallet-gear-scheduler",
 ];
@@ -50,42 +49,42 @@ const TEST_SUITES_TEXT: &str = "Test suites";
 
 #[derive(Parser)]
 struct Cli {
-    #[clap(subcommand)]
+    #[command(subcommand)]
     command: Commands,
 }
 
 #[derive(Subcommand)]
 enum Commands {
     CollectData {
-        #[clap(long, value_parser)]
+        #[arg(long, value_parser)]
         data_folder_path: PathBuf,
-        #[clap(long, value_parser)]
+        #[arg(long, value_parser)]
         output_path: PathBuf,
-        #[clap(long, value_parser)]
+        #[arg(long, value_parser)]
         disable_filter: bool,
     },
     Compare {
-        #[clap(long, value_parser)]
+        #[arg(long, value_parser)]
         data_path: PathBuf,
-        #[clap(long, value_parser)]
+        #[arg(long, value_parser)]
         current_junit_path: PathBuf,
-        #[clap(long, value_parser)]
+        #[arg(long, value_parser)]
         disable_filter: bool,
     },
     Convert {
-        #[clap(long, value_parser)]
+        #[arg(long, value_parser)]
         data_folder_path: PathBuf,
-        #[clap(long, value_parser)]
+        #[arg(long, value_parser)]
         output_file: PathBuf,
-        #[clap(long, value_parser)]
+        #[arg(long, value_parser)]
         disable_filter: bool,
     },
     Weights {
-        #[clap(subcommand)]
+        #[command(subcommand)]
         kind: WeightsKind,
-        #[clap(long, value_parser)]
+        #[arg(long, value_parser)]
         input_file: PathBuf,
-        #[clap(long, value_parser)]
+        #[arg(long, value_parser)]
         output_file: PathBuf,
     },
 }
