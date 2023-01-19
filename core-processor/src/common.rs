@@ -404,8 +404,6 @@ pub trait JournalHandler {
 /// Execution error.
 #[derive(Debug)]
 pub struct ExecutionError {
-    /// Id of the program that generated execution error.
-    pub program_id: ProgramId,
     /// Gas amount of the execution.
     pub gas_amount: GasAmount,
     /// Error text.

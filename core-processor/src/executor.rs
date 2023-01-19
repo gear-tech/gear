@@ -221,7 +221,6 @@ pub fn execute_wasm<
         memory_size,
     ) {
         return Err(ExecutionError {
-            program_id,
             gas_amount: gas_counter.into(),
             reason,
         });
@@ -305,7 +304,6 @@ pub fn execute_wasm<
                     status
                 } else {
                     return Err(ExecutionError {
-                        program_id,
                         gas_amount: ext.into_gas_amount(),
                         reason: ExecutionErrorReason::LazyPagesStatusIsNone,
                     });
@@ -329,7 +327,6 @@ pub fn execute_wasm<
 
         Err(e) => {
             return Err(ExecutionError {
-                program_id,
                 gas_amount: e.gas_amount(),
                 reason: ExecutionErrorReason::Backend(e.to_string()),
             })
@@ -341,14 +338,12 @@ pub fn execute_wasm<
     let info = ext
         .into_ext_info(&memory)
         .map_err(|(err, gas_amount)| ExecutionError {
-            program_id,
             gas_amount,
             reason: ExecutionErrorReason::Backend(err.to_string()),
         })?;
 
     if A::LAZY_PAGES_ENABLED && !pages_initial_data.is_empty() {
         return Err(ExecutionError {
-            program_id,
             gas_amount: info.gas_amount,
             reason: ExecutionErrorReason::InitialPagesContainsDataInLazyPagesMode,
         });
