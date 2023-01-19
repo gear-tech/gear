@@ -25,3 +25,6 @@ use super::*;
 
 pub mod syscalls_integrity;
 mod utils;
+
+#[cfg(feature = "lazy-pages")]
+pub mod lazy_pages;

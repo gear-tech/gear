@@ -59,7 +59,7 @@ use common::{
 use core::marker::PhantomData;
 use core_processor::{
     common::{DispatchOutcome as CoreDispatchOutcome, ExecutableActorData, JournalNote},
-    configs::{AllocationsConfig, BlockConfig, BlockInfo},
+    configs::{BlockConfig, BlockInfo, PagesConfig},
     ContextChargedForInstrumentation,
 };
 use frame_support::{
@@ -73,6 +73,7 @@ use frame_support::{
     weights::Weight,
 };
 use frame_system::pallet_prelude::{BlockNumberFor, *};
+use gear_backend_common::lazy_pages::LazyPagesWeights;
 use gear_core::{
     code::{Code, CodeAndId, InstrumentedCode, InstrumentedCodeAndId},
     ids::{CodeId, MessageId, ProgramId, ReservationId},
@@ -992,8 +993,13 @@ pub mod pallet {
 
             let schedule = T::Schedule::get();
 
-            let allocations_config = AllocationsConfig {
+            let pages_config = PagesConfig {
                 max_pages: schedule.limits.memory_pages.into(),
+                lazy_pages_weights: LazyPagesWeights {
+                    read: schedule.memory_weights.lazy_pages_read,
+                    write: schedule.memory_weights.lazy_pages_write,
+                    write_after_read: schedule.memory_weights.lazy_pages_write_after_read,
+                },
                 init_cost: schedule.memory_weights.initial_cost,
                 alloc_cost: schedule.memory_weights.allocation_cost,
                 mem_grow_cost: schedule.memory_weights.grow_cost,
@@ -1002,7 +1008,7 @@ pub mod pallet {
 
             BlockConfig {
                 block_info,
-                allocations_config,
+                pages_config,
                 existential_deposit,
                 outgoing_limit: T::OutgoingLimit::get(),
                 host_fn_weights: schedule.host_fn_weights.into_core(),
@@ -1235,7 +1241,7 @@ pub mod pallet {
         /// - `SavedCode(H256)` - when the code is saved in storage.
         #[pallet::call_index(0)]
         #[pallet::weight(
-            <T as Config>::WeightInfo::upload_code(code.len() as u32)
+            <T as Config>::WeightInfo::upload_code(code.len() as u32 / 1024)
         )]
         pub fn upload_code(origin: OriginFor<T>, code: Vec<u8>) -> DispatchResultWithPostInfo {
             let who = ensure_signed(origin)?;
@@ -1293,7 +1299,7 @@ pub mod pallet {
         /// has been removed.
         #[pallet::call_index(1)]
         #[pallet::weight(
-            <T as Config>::WeightInfo::upload_program(code.len() as u32, salt.len() as u32)
+            <T as Config>::WeightInfo::upload_program(code.len() as u32 / 1024, salt.len() as u32)
         )]
         pub fn upload_program(
             origin: OriginFor<T>,

@@ -39,6 +39,7 @@ mod code;
 mod sandbox;
 
 mod syscalls;
+mod utils;
 use syscalls::Benches;
 
 mod tests;
@@ -171,7 +172,7 @@ fn default_processor_context<T: Config>() -> ProcessorContext {
             ContextSettings::new(0, 0, 0, 0, 0, 0),
         ),
         block_info: Default::default(),
-        config: Default::default(),
+        pages_config: Default::default(),
         existential_deposit: 0,
         origin: Default::default(),
         program_id: Default::default(),
@@ -307,6 +308,7 @@ fn caller_funding<T: pallet::Config>() -> BalanceOf<T> {
     BalanceOf::<T>::max_value() / 2u32.into()
 }
 
+#[derive(Clone)]
 pub struct Exec<T: Config> {
     #[allow(unused)]
     ext_manager: ExtManager<T>,
@@ -324,8 +326,47 @@ benchmarks! {
     }
 
     #[extra]
+    check_all {
+        syscalls_integrity::main_test::<T>();
+        #[cfg(feature = "lazy-pages")]
+        {
+            tests::lazy_pages::lazy_pages_charging::<T>();
+            tests::lazy_pages::lazy_pages_charging_special::<T>();
+            tests::lazy_pages::lazy_pages_gas_exceed::<T>();
+        }
+    } : {}
+
+    #[extra]
+    check_lazy_pages_all {
+        #[cfg(feature = "lazy-pages")]
+        {
+            tests::lazy_pages::lazy_pages_charging::<T>();
+            tests::lazy_pages::lazy_pages_charging_special::<T>();
+            tests::lazy_pages::lazy_pages_gas_exceed::<T>();
+        }
+    } : {}
+
+    #[extra]
     check_syscalls_integrity {
         syscalls_integrity::main_test::<T>();
+    }: {}
+
+    #[extra]
+    check_lazy_pages_charging {
+        #[cfg(feature = "lazy-pages")]
+        tests::lazy_pages::lazy_pages_charging::<T>();
+    }: {}
+
+    #[extra]
+    check_lazy_pages_charging_special {
+        #[cfg(feature = "lazy-pages")]
+        tests::lazy_pages::lazy_pages_charging_special::<T>();
+    }: {}
+
+    #[extra]
+    check_lazy_pages_gas_exceed {
+        #[cfg(feature = "lazy-pages")]
+        tests::lazy_pages::lazy_pages_gas_exceed::<T>();
     }: {}
 
     // This bench uses `StorageMap` as a storage, due to the fact that

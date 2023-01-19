@@ -59,17 +59,33 @@ pub const GEAR_PAGE_SIZE: usize = 0x1000;
 /// native page sizes. You can see an example of using in crate `gear-lazy-pages`.
 pub const PAGE_STORAGE_GRANULARITY: usize = 0x4000;
 
+static_assertions::const_assert!(WASM_PAGE_SIZE < u32::MAX as usize);
 static_assertions::const_assert_eq!(WASM_PAGE_SIZE % GEAR_PAGE_SIZE, 0);
 static_assertions::const_assert_eq!(WASM_PAGE_SIZE % PAGE_STORAGE_GRANULARITY, 0);
 static_assertions::const_assert_eq!(PAGE_STORAGE_GRANULARITY % GEAR_PAGE_SIZE, 0);
 
 /// Interval in wasm program memory.
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub struct MemoryInterval {
     /// Interval offset in bytes.
     pub offset: u32,
     /// Interval size in bytes.
     pub size: u32,
+}
+
+impl From<(u32, u32)> for MemoryInterval {
+    fn from(val: (u32, u32)) -> Self {
+        MemoryInterval {
+            offset: val.0,
+            size: val.1,
+        }
+    }
+}
+
+impl From<MemoryInterval> for (u32, u32) {
+    fn from(val: MemoryInterval) -> Self {
+        (val.offset, val.size)
+    }
 }
 
 /// Alias for inner type of page buffer.
@@ -166,6 +182,7 @@ pub enum PageError {
 }
 
 /// U32 size pages iterator, to iterate continuously from one page to another.
+#[derive(Debug, Clone)]
 pub struct PagesIter<P: PageU32Size> {
     page: P,
     end: P,
@@ -188,6 +205,7 @@ impl<P: PageU32Size> Iterator for PagesIter<P> {
 }
 
 /// U32 size pages iterator, to iterate continuously from one page to another, including the last one.
+#[derive(Debug, Clone)]
 pub struct PagesIterInclusive<P: PageU32Size> {
     page: Option<P>,
     end: P,

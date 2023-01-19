@@ -129,6 +129,7 @@ impl CodeInfo {
 }
 
 /// Journal handler implementation for `pallet_gear`.
+#[derive(Clone)]
 pub struct ExtManager<T: Config> {
     /// Ids checked that they are users.
     users: BTreeSet<ProgramId>,

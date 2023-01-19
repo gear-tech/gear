@@ -23,7 +23,7 @@
 use core::{marker::PhantomData, mem::size_of};
 
 use alloc::vec::Vec;
-use codec::{Decode, DecodeAll, MaxEncodedLen};
+use codec::{Decode, DecodeAll, Encode, MaxEncodedLen};
 use core::fmt::Debug;
 use gear_core::{
     buffer::{RuntimeBuffer, RuntimeBufferSizeError},
@@ -35,7 +35,7 @@ use gear_core_errors::MemoryError;
 use crate::IntoExtInfo;
 
 /// Memory access error.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Encode, Decode)]
 pub struct OutOfMemoryAccessError;
 
 #[derive(Debug, derive_more::Display, derive_more::From)]

@@ -103,6 +103,7 @@ impl ContextChargedForMemory {
 }
 
 /// Checked parameters for message execution across processing runs.
+#[derive(Clone)]
 pub struct ProcessExecutionContext {
     pub(crate) gas_counter: GasCounter,
     pub(crate) gas_allowance_counter: GasAllowanceCounter,
