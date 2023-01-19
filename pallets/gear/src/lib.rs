@@ -1241,7 +1241,7 @@ pub mod pallet {
         /// - `SavedCode(H256)` - when the code is saved in storage.
         #[pallet::call_index(0)]
         #[pallet::weight(
-            <T as Config>::WeightInfo::upload_code(code.len() as u32)
+            <T as Config>::WeightInfo::upload_code(code.len() as u32 / 1024)
         )]
         pub fn upload_code(origin: OriginFor<T>, code: Vec<u8>) -> DispatchResultWithPostInfo {
             let who = ensure_signed(origin)?;
@@ -1299,7 +1299,7 @@ pub mod pallet {
         /// has been removed.
         #[pallet::call_index(1)]
         #[pallet::weight(
-            <T as Config>::WeightInfo::upload_program(code.len() as u32, salt.len() as u32)
+            <T as Config>::WeightInfo::upload_program(code.len() as u32 / 1024, salt.len() as u32)
         )]
         pub fn upload_program(
             origin: OriginFor<T>,
