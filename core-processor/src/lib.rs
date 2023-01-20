@@ -56,7 +56,7 @@ pub use charger::{calculate_gas_for_code, calculate_gas_for_program};
 pub use context::{
     ContextChargedForCode, ContextChargedForInstrumentation, ProcessExecutionContext,
 };
-pub use executor::execute_wasm;
+pub use executor::{execute_wasm, PrepareMemoryError};
 pub use ext::{Ext, ProcessorContext, ProcessorError, ProcessorExt};
 pub use handler::handle_journal;
 pub use processor::{

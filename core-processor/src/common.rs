@@ -18,6 +18,7 @@
 
 //! Common structures for processing.
 
+use crate::executor::{InitialPagesContainDataError, PrepareMemoryError};
 use alloc::{
     collections::{BTreeMap, BTreeSet},
     string::String,
@@ -442,6 +443,9 @@ pub enum ExecutionErrorReason {
     /// Memory error
     #[display(fmt = "{_0}")]
     Memory(MemoryError),
+    /// Prepare memory error
+    #[display(fmt = "{_0}")]
+    PrepareMemory(PrepareMemoryError),
     /// Backend error
     #[display(fmt = "{_0}")]
     Backend(String),
@@ -457,33 +461,21 @@ pub enum ExecutionErrorReason {
     /// Not enough gas in block to perform an operation.
     #[display(fmt = "Not enough gas in block to {_0}")]
     BlockGasExceeded(GasOperation),
-    /// Mem size less then static pages num
-    #[display(fmt = "Mem size less then static pages num")]
-    InsufficientMemorySize,
-    /// Page with data is not allocated for program
-    #[display(fmt = "{_0:?} is not allocated for program")]
-    PageIsNotAllocated(PageNumber),
-    /// Cannot read initial memory data from wasm memory.
-    #[display(fmt = "Cannot read data for {_0:?}: {_1}")]
-    InitialMemoryReadFailed(PageNumber, MemoryError),
-    /// Cannot write initial data to wasm memory.
-    #[display(fmt = "Cannot write initial data for {_0:?}: {_1}")]
-    InitialDataWriteFailed(PageNumber, MemoryError),
     /// Message killed from storage as out of rent.
     #[display(fmt = "Out of rent")]
     OutOfRent,
-    /// Initial pages data must be empty in lazy pages mode
-    #[display(fmt = "Initial pages data must be empty when execute with lazy pages")]
-    InitialPagesContainsDataInLazyPagesMode,
-    /// Stack end page, which value is specified in WASM code, cannot be bigger than static memory size.
-    #[display(fmt = "Stack end page {_0:?} is bigger then WASM static memory size {_1:?}")]
-    StackEndPageBiggerWasmMemSize(WasmPageNumber, WasmPageNumber),
-    /// It's not allowed to set initial data for stack memory pages, if they are specified in WASM code.
-    #[display(fmt = "Set initial data for stack pages is restricted")]
-    StackPagesHaveInitialData,
+    /// Initial pages contain data.
+    #[display(fmt = "{_0}")]
+    InitialPagesContainData(InitialPagesContainDataError),
     /// Lazy page status must be set before contract execution.
     #[display(fmt = "Lazy page status must be set before contract execution")]
     LazyPagesStatusIsNone,
+}
+
+impl From<InitialPagesContainDataError> for ExecutionErrorReason {
+    fn from(err: InitialPagesContainDataError) -> Self {
+        ExecutionErrorReason::InitialPagesContainData(err)
+    }
 }
 
 /// Actor.

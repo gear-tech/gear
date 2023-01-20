@@ -47,7 +47,7 @@ use common::{
     event::*, scheduler::*, storage::*, CodeStorage, GasPrice as _, GasTree, Origin as _,
     ProgramStorage,
 };
-use core_processor::common::ExecutionErrorReason;
+use core_processor::{common::ExecutionErrorReason, PrepareMemoryError};
 use demo_compose::WASM_BINARY as COMPOSE_WASM_BINARY;
 use demo_mul_by_const::WASM_BINARY as MUL_CONST_WASM_BINARY;
 use demo_program_factory::{CreateProgram, WASM_BINARY as PROGRAM_FACTORY_WASM_BINARY};
@@ -8795,10 +8795,10 @@ fn check_gear_stack_end_fail() {
         assert_last_dequeued(1);
         assert_failed(
             message_id,
-            ExecutionErrorReason::StackEndPageBiggerWasmMemSize(
+            ExecutionErrorReason::PrepareMemory(PrepareMemoryError::StackEndPageBiggerWasmMemSize(
                 WasmPageNumber::new(5).unwrap(),
                 WasmPageNumber::new(4).unwrap(),
-            ),
+            )),
         );
 
         // Check error when stack end is not aligned
