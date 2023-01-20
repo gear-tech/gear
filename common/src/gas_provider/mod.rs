@@ -18,11 +18,11 @@
 
 use super::*;
 use frame_support::{
-    traits::{tokens::Balance as BalanceTrait, Imbalance, SameOrOther, TryDrop},
+    traits::{tokens::Balance as BalanceTrait, TryDrop},
     RuntimeDebug,
 };
 use sp_runtime::traits::Zero;
-use sp_std::{marker::PhantomData, mem};
+use sp_std::marker::PhantomData;
 
 mod error;
 mod internal;
@@ -70,14 +70,13 @@ pub trait Tree {
     /// operations that create inequality between the underlying value
     /// supply and some hypothetical "collateral" asset.
 
-    /// `PositiveImbalance` indicates that some value has been created,
-    /// which will eventually lead to an increase in total supply.
-    type PositiveImbalance: Imbalance<Self::Balance, Opposite = Self::NegativeImbalance>;
+    /// `PositiveImbalance` indicates that some value has been added
+    /// to circulation , i.e. total supply has increased.
+    type PositiveImbalance;
 
     /// `NegativeImbalance` indicates that some value has been removed
-    /// from circulation leading to a decrease in the total supply
-    /// of the underlying value.
-    type NegativeImbalance: Imbalance<Self::Balance, Opposite = Self::PositiveImbalance>;
+    /// from circulation, i.e. total supply has decreased.
+    type NegativeImbalance;
 
     type InternalError: Error;
 
@@ -277,14 +276,13 @@ pub trait Provider {
     /// operations that create inequality between the underlying value
     /// supply and some hypothetical "collateral" asset.
 
-    /// `PositiveImbalance` indicates that some value has been created,
-    /// which will eventually lead to an increase in total supply.
-    type PositiveImbalance: Imbalance<Self::Balance, Opposite = Self::NegativeImbalance>;
+    /// `PositiveImbalance` indicates that some value has been added
+    /// to circulation , i.e. total supply has increased.
+    type PositiveImbalance;
 
-    /// `NegativeImbalance` indicates that some value has been removed from
-    /// circulation leading to a decrease in the total supply of the
-    /// underlying value.
-    type NegativeImbalance: Imbalance<Self::Balance, Opposite = Self::PositiveImbalance>;
+    /// `NegativeImbalance` indicates that some value has been removed
+    /// from circulation, i.e. total supply has decreased.
+    type NegativeImbalance: Imbalance<Balance = Self::Balance>;
 
     type InternalError: Error;
 
@@ -310,4 +308,12 @@ pub trait Provider {
     fn reset() {
         Self::GasTree::clear();
     }
+}
+
+/// Represents either added or removed value to/from total supply of the currency.
+pub trait Imbalance {
+    type Balance;
+
+    /// Returns imbalance raw value.
+    fn peek(&self) -> Self::Balance;
 }

@@ -300,8 +300,8 @@ impl super::Provider for GasProvider {
     type Key = MapKey;
     type ReservationKey = ReservationKey;
     type Balance = Balance;
-    type PositiveImbalance = PositiveImbalance<Self::Balance, TotalIssuanceWrap>;
-    type NegativeImbalance = NegativeImbalance<Self::Balance, TotalIssuanceWrap>;
+    type PositiveImbalance = PositiveImbalance<Self::Balance>;
+    type NegativeImbalance = NegativeImbalance<Self::Balance>;
     type InternalError = Error;
     type Error = Error;
 

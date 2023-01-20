@@ -17,102 +17,70 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use super::*;
-use core::cmp::Ordering;
 
 /// Opaque, move-only struct with private field to denote that value has been
 /// created without any equal and opposite accounting
 #[derive(RuntimeDebug, PartialEq, Eq)]
-pub struct PositiveImbalance<Balance: BalanceTrait, TotalValue: ValueStorage<Value = Balance>>(
-    Balance,
-    PhantomData<TotalValue>,
-);
+pub struct PositiveImbalance<Balance: BalanceTrait>(Balance);
 
-impl<Balance: BalanceTrait, TotalValue: ValueStorage<Value = Balance>>
-    PositiveImbalance<Balance, TotalValue>
-{
+impl<Balance: BalanceTrait> PositiveImbalance<Balance> {
     /// Create a new positive imbalance from value amount.
     pub fn new(amount: Balance) -> Self {
-        PositiveImbalance(amount, PhantomData)
+        PositiveImbalance(amount)
+    }
+
+    /// Applies imbalance to some amount.
+    pub fn apply_to(&self, amount: &mut Option<Balance>) {
+        let new_value = amount.unwrap_or_else(Zero::zero).saturating_add(self.0);
+        *amount = Some(new_value);
     }
 }
 
-impl<Balance: BalanceTrait, TotalValue: ValueStorage<Value = Balance>> TryDrop
-    for PositiveImbalance<Balance, TotalValue>
-{
+impl<Balance: BalanceTrait> TryDrop for PositiveImbalance<Balance> {
     fn try_drop(self) -> Result<(), Self> {
-        self.drop_zero()
-    }
-}
-
-impl<Balance: BalanceTrait, TotalValue: ValueStorage<Value = Balance>> Default
-    for PositiveImbalance<Balance, TotalValue>
-{
-    fn default() -> Self {
-        Self::zero()
-    }
-}
-
-impl<Balance: BalanceTrait, TotalValue: ValueStorage<Value = Balance>> Imbalance<Balance>
-    for PositiveImbalance<Balance, TotalValue>
-{
-    type Opposite = NegativeImbalance<Balance, TotalValue>;
-
-    fn zero() -> Self {
-        Self(Zero::zero(), PhantomData)
-    }
-
-    fn drop_zero(self) -> Result<(), Self> {
         if self.0.is_zero() {
             Ok(())
         } else {
             Err(self)
         }
     }
+}
 
-    fn split(self, amount: Balance) -> (Self, Self) {
-        let first = self.0.min(amount);
-        let second = self.0 - first;
-
-        mem::forget(self);
-        (Self(first, PhantomData), Self(second, PhantomData))
+impl<Balance: BalanceTrait> Default for PositiveImbalance<Balance> {
+    fn default() -> Self {
+        Self(Zero::zero())
     }
+}
 
-    fn merge(mut self, other: Self) -> Self {
-        self.0 = self.0.saturating_add(other.0);
-        mem::forget(other);
+impl<Balance: BalanceTrait> Imbalance for PositiveImbalance<Balance> {
+    type Balance = Balance;
 
-        self
-    }
-
-    fn subsume(&mut self, other: Self) {
-        self.0 = self.0.saturating_add(other.0);
-        mem::forget(other);
-    }
-
-    fn offset(self, other: Self::Opposite) -> SameOrOther<Self, Self::Opposite> {
-        let (a, b) = (self.0, other.peek());
-        mem::forget((self, other));
-
-        match a.cmp(&b) {
-            Ordering::Greater => SameOrOther::Same(Self(a - b, PhantomData)),
-            Ordering::Equal => SameOrOther::None,
-            Ordering::Less => SameOrOther::Other(NegativeImbalance::new(b - a)),
-        }
-    }
-
-    fn peek(&self) -> Balance {
+    fn peek(&self) -> Self::Balance {
         self.0
     }
 }
 
-impl<Balance: BalanceTrait, TotalValue: ValueStorage<Value = Balance>> Drop
-    for PositiveImbalance<Balance, TotalValue>
-{
-    /// Basic drop handler will just square up the total issuance.
-    fn drop(&mut self) {
-        TotalValue::mutate(|v| {
-            let new_value = v.unwrap_or_else(Zero::zero).saturating_add(self.0);
-            *v = Some(new_value);
-        });
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn amount_increases_when_not_overflowing_imbalance_applied() {
+        let imbalance = PositiveImbalance::<u32>::new(45);
+        let mut amount = Some(44);
+
+        imbalance.apply_to(&mut amount);
+
+        assert_eq!(amount.unwrap(), 89);
+    }
+
+    #[test]
+    fn amount_increases_to_max_when_overflowing_imbalance_applied() {
+        let imbalance = PositiveImbalance::<u32>::new(120);
+        let mut amount = Some(u32::MAX - 100);
+
+        imbalance.apply_to(&mut amount);
+
+        assert_eq!(amount.unwrap(), u32::MAX);
     }
 }

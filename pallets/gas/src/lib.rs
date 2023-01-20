@@ -320,8 +320,8 @@ pub mod pallet {
         type Key = MessageId;
         type ReservationKey = ReservationId;
         type Balance = Balance;
-        type PositiveImbalance = PositiveImbalance<Self::Balance, TotalIssuanceWrap<T>>;
-        type NegativeImbalance = NegativeImbalance<Self::Balance, TotalIssuanceWrap<T>>;
+        type PositiveImbalance = PositiveImbalance<Self::Balance>;
+        type NegativeImbalance = NegativeImbalance<Self::Balance>;
         type InternalError = Error<T>;
         type Error = DispatchError;
 
