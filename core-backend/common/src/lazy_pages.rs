@@ -23,10 +23,10 @@ use core::fmt::Debug;
 use alloc::string::String;
 use codec::{Decode, Encode};
 use core::any::Any;
-use gear_core::memory::{HostPointer, PageNumber};
+use gear_core::memory::{HostPointer, GearPage};
 
 pub struct ChargeForPages {
-    read_storage_data: PageNumber,
+    read_storage_data: GearPage,
 }
 
 /// Informs lazy-pages whether they work with native or WASM runtime.

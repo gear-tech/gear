@@ -104,7 +104,7 @@ pub trait GearRI {
     fn pre_process_memory_accesses(
         reads: &[(u32, u32)],
         writes: &[(u32, u32)],
-    ) -> Result<(PageNumber, PageNumber), OutOfMemoryAccessError> {
+    ) -> Result<(GearPage, GearPage), OutOfMemoryAccessError> {
         let reads = reads.iter().copied().map(Into::into).collect::<Vec<_>>();
         let writes = writes.iter().copied().map(Into::into).collect::<Vec<_>>();
         // +_+_+
