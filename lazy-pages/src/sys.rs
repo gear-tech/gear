@@ -141,7 +141,7 @@ impl<'a> GlobalsAccessor for GlobalsAccessWasmRuntime<'a> {
     }
 
     fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
-        unreachable!()
+        unimplemented!("Has no use cases for this struct")
     }
 }
 
@@ -159,7 +159,7 @@ impl<'a, 'b> GlobalsAccessor for GlobalsAccessNativeRuntime<'a, 'b> {
     }
 
     fn as_any_mut(&mut self) -> &mut dyn Any {
-        unreachable!()
+        unimplemented!("Has no use cases for this struct")
     }
 }
 
@@ -192,7 +192,7 @@ fn charge_gas_internal(
     Ok(Status::Normal)
 }
 
-unsafe fn charge_gas(globals_config: GlobalsConfig, amount: u64) -> Result<Status, Error> {
+unsafe fn charge_gas(globals_config: &GlobalsConfig, amount: u64) -> Result<Status, Error> {
     match globals_config.globals_access_mod {
         GlobalsAccessMod::WasmRuntime => {
             let instance = (globals_config.globals_access_ptr as *mut SandboxInstance)
@@ -269,6 +269,7 @@ unsafe fn charge_for_pages(
     pages: PagesIterInclusive<LazyPage>,
     is_write: bool,
 ) -> Result<Status, Error> {
+    // +_+_+
     let globals_config = if let Some(ctx) = ctx.globals_config.as_ref() {
         ctx.clone()
     } else {
@@ -293,7 +294,39 @@ unsafe fn charge_for_pages(
     let k = (GranularityPage::size() / GearPage::size()) as u64;
     amount = amount.checked_mul(k).ok_or(Error::ChargedGasTooBig)?;
 
-    charge_gas(globals_config, amount)
+    charge_gas(&globals_config, amount)
+}
+
+unsafe fn charge_for_load_storage_data(
+    ctx: &mut RefMut<LazyPagesExecutionContext>,
+    page: LazyPage,
+) -> Result<Status, Error> {
+    if ctx.globals_config.is_none() {
+        return Ok(Status::Normal);
+    }
+
+    if ctx.read_storage_data_charged.insert(page.to_page()) {
+        // Charge for read from storage.
+
+        // " * k" because lazy pages costs are per one gear page.
+        let k = (GranularityPage::size() / GearPage::size()) as u64;
+        let amount = ctx
+            .lazy_pages_weights
+            .load_page_storage_data
+            .checked_mul(k)
+            .ok_or(Error::ChargedGasTooBig)?;
+        // Panic is impossible, because we checked above: `ctx.globals_config` is not `None`.
+        charge_gas(
+            ctx.globals_config
+                .as_ref()
+                .unwrap_or_else(|| unreachable!("Globals config is `None`")),
+            amount,
+        )
+    } else {
+        // Already charged for load from storage
+
+        Ok(Status::Normal)
+    }
 }
 
 pub(crate) unsafe fn process_lazy_pages(
@@ -343,6 +376,31 @@ pub(crate) unsafe fn process_lazy_pages(
             .ok_or(Error::ProgramPrefixIsNotSet)?,
     );
 
+    // Returns `true` if new status is not `Normal`.
+    let update_status = |ctx: &mut RefMut<LazyPagesExecutionContext>, status| {
+        ctx.status.replace(status);
+
+        // If new status is not [Status::Normal], then unprotect lazy-pages
+        // and continue work until the end of current wasm block. We don't care
+        // about future contract execution correctness, because gas limit or allowance exceed.
+        match status {
+            Status::Normal => Ok(false),
+            Status::GasLimitExceeded | Status::GasAllowanceExceeded => {
+                log::trace!(
+                    "Gas limit or allowance exceed, so removes protection from all wasm memory \
+                    and continues execution until the end of current wasm block"
+                );
+                mprotect::mprotect_interval(
+                    wasm_mem_addr,
+                    wasm_mem_size.offset() as usize,
+                    true,
+                    true,
+                )
+                .map(|_| true)
+            }
+        }
+    };
+
     let mut f = |pages: PagesIterInclusive<LazyPage>| {
         let psg = PAGE_STORAGE_GRANULARITY as u32;
         let Some(mut start) = pages.current() else {
@@ -372,26 +430,8 @@ pub(crate) unsafe fn process_lazy_pages(
             // If it's signal, then need to charge for accessed pages.
             let status = charge_for_pages(&mut ctx, pages.clone(), is_write)?;
 
-            ctx.status.replace(status);
-
-            // If new status is not [Status::Normal], then unprotect lazy-pages
-            // and continue work until the end of current wasm block. We don't care
-            // about future contract execution correctness, because gas limit or allowance exceed.
-            match status {
-                Status::Normal => {}
-                Status::GasLimitExceeded | Status::GasAllowanceExceeded => {
-                    log::trace!(
-                        "Gas limit or allowance exceed, so removes protection from all wasm memory \
-                    and continues execution until the end of current wasm block"
-                    );
-                    mprotect::mprotect_interval(
-                        wasm_mem_addr,
-                        wasm_mem_size.offset() as usize,
-                        true,
-                        true,
-                    )?;
-                    return Ok(());
-                }
+            if update_status(&mut ctx, status)? {
+                return Ok(());
             }
         }
 
@@ -426,6 +466,15 @@ pub(crate) unsafe fn process_lazy_pages(
                     }
                 }
             } else {
+                if is_signal {
+                    // If it's signal we need charge for loading page data from storage.
+                    let status = charge_for_load_storage_data(&mut ctx, lazy_page)?;
+
+                    if update_status(&mut ctx, status)? {
+                        return Ok(());
+                    }
+                }
+
                 // Need to set read/write access.
                 mprotect::mprotect_interval(
                     wasm_mem_addr + lazy_page.offset() as usize,

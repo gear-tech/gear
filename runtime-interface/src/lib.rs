@@ -23,7 +23,7 @@
 
 use codec::{Decode, Encode};
 use gear_backend_common::{
-    lazy_pages::{GlobalsConfig, LazyPagesWeights, Status},
+    lazy_pages::{ChargeForPages, GlobalsConfig, LazyPagesWeights, Status},
     memory::OutOfMemoryAccessError,
 };
 use gear_core::memory::{GearPage, HostPointer, PageU32Size, WasmPage};
@@ -104,11 +104,14 @@ pub trait GearRI {
     fn pre_process_memory_accesses(
         reads: &[(u32, u32)],
         writes: &[(u32, u32)],
-    ) -> Result<(GearPage, GearPage), OutOfMemoryAccessError> {
+    ) -> Result<ChargeForPages, OutOfMemoryAccessError> {
         let reads = reads.iter().copied().map(Into::into).collect::<Vec<_>>();
         let writes = writes.iter().copied().map(Into::into).collect::<Vec<_>>();
         // +_+_+
-        lazy_pages::pre_process_memory_accesses(&reads, &writes).map(|_| (0.into(), 0.into()))
+        lazy_pages::pre_process_memory_accesses(&reads, &writes).map(|_| ChargeForPages {
+            read_storage_data: 0.into(),
+            write_accessed: 0.into(),
+        })
     }
 
     fn get_lazy_pages_status() -> Option<Status> {
