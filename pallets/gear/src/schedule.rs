@@ -438,6 +438,15 @@ pub struct MemoryWeights<T: Config> {
     /// Lazy-pages write after read access cost per one gear page.
     pub lazy_pages_write_after_read: u64,
 
+    /// +_+_+
+    pub process_page_data_load: u64,
+
+    /// +_+_+
+    pub process_page_data_update: u64,
+
+    /// +_+_+
+    pub upload_page_data: u64,
+
     /// Weight of initial page.
     pub initial_cost: u64,
 
@@ -754,6 +763,9 @@ impl<T: Config> Default for MemoryWeights<T> {
             lazy_pages_read: 100,
             lazy_pages_write: 100,
             lazy_pages_write_after_read: 100,
+            process_page_data_load: 100,
+            process_page_data_update: 100,
+            upload_page_data: 100,
             initial_cost: <T as Config>::WeightInfo::initial_cost().ref_time(),
             allocation_cost: <T as Config>::WeightInfo::allocation_cost().ref_time(),
             grow_cost: <T as Config>::WeightInfo::grow_cost().ref_time(),

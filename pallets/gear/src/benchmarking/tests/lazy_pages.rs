@@ -133,6 +133,7 @@ where
                     read: rng.gen_range(0..MAX_COST),
                     write: rng.gen_range(0..MAX_COST),
                     write_after_read: rng.gen_range(0..MAX_COST),
+                    load_page_storage_data: 0, // +_+_+
                 };
                 exec.block_config.pages_config.lazy_pages_weights = weights.clone();
 
@@ -224,6 +225,7 @@ where
                     read: i,
                     write: 10 * i,
                     write_after_read: 100 * i,
+                    load_page_storage_data: 0, // +_+_+
                 };
                 exec.block_config.pages_config.lazy_pages_weights = weights;
 
@@ -389,11 +391,7 @@ where
             Default::default(),
         )
         .unwrap();
-        exec.block_config.pages_config.lazy_pages_weights = LazyPagesWeights {
-            read: 0,
-            write: 0,
-            write_after_read: 0,
-        };
+        exec.block_config.pages_config.lazy_pages_weights = Default::default();
 
         let notes = core_processor::process::<Externalities, ExecutionEnvironment>(
             &exec.block_config,
@@ -434,9 +432,8 @@ where
         )
         .unwrap();
         exec.block_config.pages_config.lazy_pages_weights = LazyPagesWeights {
-            read: 0,
             write: 1,
-            write_after_read: 0,
+            ..Default::default()
         };
 
         let notes = core_processor::process::<Externalities, ExecutionEnvironment>(
@@ -476,9 +473,8 @@ where
         )
         .unwrap();
         exec.block_config.pages_config.lazy_pages_weights = LazyPagesWeights {
-            read: 0,
             write: 1,
-            write_after_read: 0,
+            ..Default::default()
         };
 
         let notes = core_processor::process::<Externalities, ExecutionEnvironment>(

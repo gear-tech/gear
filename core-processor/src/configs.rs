@@ -32,6 +32,7 @@ const LAZY_PAGES_WEIGHTS: LazyPagesWeights = LazyPagesWeights {
     read: 10,
     write: 10,
     write_after_read: 10,
+    load_page_storage_data: 10,
 };
 
 /// Contextual block information.

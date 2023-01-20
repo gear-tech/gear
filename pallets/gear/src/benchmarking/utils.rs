@@ -68,6 +68,7 @@ where
         read: schedule.memory_weights.lazy_pages_read,
         write: schedule.memory_weights.lazy_pages_write,
         write_after_read: schedule.memory_weights.lazy_pages_write_after_read,
+        load_page_storage_data: schedule.memory_weights.process_page_data_load,
     };
 
     BlockConfig {

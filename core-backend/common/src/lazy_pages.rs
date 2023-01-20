@@ -23,7 +23,11 @@ use core::fmt::Debug;
 use alloc::string::String;
 use codec::{Decode, Encode};
 use core::any::Any;
-use gear_core::memory::HostPointer;
+use gear_core::memory::{HostPointer, PageNumber};
+
+pub struct ChargeForPages {
+    read_storage_data: PageNumber,
+}
 
 /// Informs lazy-pages whether they work with native or WASM runtime.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Encode, Decode)]
@@ -43,6 +47,8 @@ pub struct LazyPagesWeights {
     pub write: u64,
     /// Write access cost per one gear page, which has been already read accessed.
     pub write_after_read: u64,
+    /// +_+_+
+    pub load_page_storage_data: u64,
 }
 
 /// Globals ctx for lazy-pages initialization for program.
