@@ -26,7 +26,7 @@ use gear_backend_common::{
     lazy_pages::{GlobalsConfig, LazyPagesWeights, Status},
     memory::OutOfMemoryAccessError,
 };
-use gear_core::memory::{HostPointer, PageNumber, PageU32Size, WasmPageNumber};
+use gear_core::memory::{GearPage, HostPointer, PageU32Size, WasmPage};
 use sp_runtime_interface::{
     pass_by::{Codec, Inner, PassBy, PassByInner},
     runtime_interface,
@@ -44,16 +44,16 @@ pub use sp_std::{convert::TryFrom, result::Result, vec::Vec};
 /// Use it to safely transfer wasm page from wasm runtime to native.
 pub struct WasmPageFfiWrapper(u32);
 
-impl From<WasmPageNumber> for WasmPageFfiWrapper {
-    fn from(value: WasmPageNumber) -> Self {
+impl From<WasmPage> for WasmPageFfiWrapper {
+    fn from(value: WasmPage) -> Self {
         Self(value.raw())
     }
 }
 
-impl From<WasmPageFfiWrapper> for WasmPageNumber {
+impl From<WasmPageFfiWrapper> for WasmPage {
     fn from(val: WasmPageFfiWrapper) -> Self {
-        // Safe because we can make wrapper only from `WasmPageNumber`.
-        unsafe { WasmPageNumber::new_unchecked(val.0) }
+        // Safe because we can make wrapper only from `WasmPage`.
+        unsafe { WasmPage::new_unchecked(val.0) }
     }
 }
 
@@ -82,9 +82,9 @@ pub struct LazyPagesProgramContext {
     /// Wasm program memory addr.
     pub wasm_mem_addr: Option<HostPointer>,
     /// Wasm program memory size.
-    pub wasm_mem_size: WasmPageNumber,
+    pub wasm_mem_size: WasmPage,
     /// Wasm program stack end page.
-    pub stack_end: Option<WasmPageNumber>,
+    pub stack_end: Option<WasmPage>,
     /// Wasm program id.
     pub program_id: Vec<u8>,
     /// Globals config to access globals inside lazy-pages.
@@ -172,7 +172,7 @@ pub trait GearRI {
     }
 
     #[version(2)]
-    fn get_released_pages() -> Vec<PageNumber> {
+    fn get_released_pages() -> Vec<GearPage> {
         lazy_pages::get_released_pages()
     }
 
@@ -186,9 +186,9 @@ pub trait GearRI {
         program_id: Vec<u8>,
     ) {
         let wasm_mem_size =
-            WasmPageNumber::new(wasm_mem_size_in_pages).expect("Unexpected wasm mem size number");
-        let stack_end = stack_end
-            .map(|page| WasmPageNumber::new(page).expect("Unexpected wasm stack end addr"));
+            WasmPage::new(wasm_mem_size_in_pages).expect("Unexpected wasm mem size number");
+        let stack_end =
+            stack_end.map(|page| WasmPage::new(page).expect("Unexpected wasm stack end addr"));
         let wasm_mem_addr = wasm_mem_addr
             .map(|addr| usize::try_from(addr).expect("Cannot cast wasm mem addr to `usize`"));
 
@@ -215,7 +215,7 @@ pub trait GearRI {
 
     #[deprecated]
     fn set_wasm_mem_size(size_in_wasm_pages: u32) {
-        let size = WasmPageNumber::new(size_in_wasm_pages).expect("Unexpected wasm memory size");
+        let size = WasmPage::new(size_in_wasm_pages).expect("Unexpected wasm memory size");
         lazy_pages::set_wasm_mem_size(size)
             .map_err(|e| e.to_string())
             .expect("Cannot set new wasm memory size");

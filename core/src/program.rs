@@ -18,7 +18,7 @@
 
 //! Module for programs.
 
-use crate::{code::InstrumentedCode, ids::ProgramId, memory::WasmPageNumber};
+use crate::{code::InstrumentedCode, ids::ProgramId, memory::WasmPage};
 use alloc::collections::BTreeSet;
 use codec::{Decode, Encode};
 
@@ -28,7 +28,7 @@ pub struct Program {
     id: ProgramId,
     code: InstrumentedCode,
     /// Wasm pages allocated by program.
-    allocations: BTreeSet<WasmPageNumber>,
+    allocations: BTreeSet<WasmPage>,
     /// Program is initialized.
     is_initialized: bool,
 }
@@ -48,7 +48,7 @@ impl Program {
     pub fn from_parts(
         id: ProgramId,
         code: InstrumentedCode,
-        allocations: BTreeSet<WasmPageNumber>,
+        allocations: BTreeSet<WasmPage>,
         is_initialized: bool,
     ) -> Self {
         Self {
@@ -75,7 +75,7 @@ impl Program {
     }
 
     /// Get initial memory size for this program.
-    pub fn static_pages(&self) -> WasmPageNumber {
+    pub fn static_pages(&self) -> WasmPage {
         self.code.static_pages()
     }
 
@@ -93,12 +93,12 @@ impl Program {
     }
 
     /// Get allocations as a set of page numbers.
-    pub fn allocations(&self) -> &BTreeSet<WasmPageNumber> {
+    pub fn allocations(&self) -> &BTreeSet<WasmPage> {
         &self.allocations
     }
 
     /// Set allocations as a set of page numbers.
-    pub fn set_allocations(&mut self, allocations: BTreeSet<WasmPageNumber>) {
+    pub fn set_allocations(&mut self, allocations: BTreeSet<WasmPage>) {
         self.allocations = allocations;
     }
 }

@@ -22,7 +22,7 @@ use crate::state::HostState;
 use gear_backend_common::IntoExtInfo;
 use gear_core::{
     env::Ext,
-    memory::{Error, HostPointer, Memory, PageU32Size, WasmPageNumber},
+    memory::{Error, HostPointer, Memory, PageU32Size, WasmPage},
 };
 use wasmi::{core::memory_units::Pages, Memory as WasmiMemory, Store, StoreContextMut};
 
@@ -32,15 +32,15 @@ pub struct MemoryWrapRef<'a, E: Ext + IntoExtInfo<E::Error> + 'static> {
 }
 
 impl<'a, E: Ext + IntoExtInfo<E::Error> + 'static> Memory for MemoryWrapRef<'a, E> {
-    fn grow(&mut self, pages: WasmPageNumber) -> Result<(), Error> {
+    fn grow(&mut self, pages: WasmPage) -> Result<(), Error> {
         self.memory
             .grow(&mut self.store, Pages(pages.raw() as usize))
             .map(|_| ())
             .map_err(|_| Error::OutOfBounds)
     }
 
-    fn size(&self) -> WasmPageNumber {
-        WasmPageNumber::new(self.memory.current_pages(&self.store).0 as u32)
+    fn size(&self) -> WasmPage {
+        WasmPage::new(self.memory.current_pages(&self.store).0 as u32)
             .expect("Unexpected backend behavior: wasm size is bigger then u32::MAX")
     }
 
@@ -79,15 +79,15 @@ impl<E: Ext + IntoExtInfo<E::Error> + 'static> MemoryWrap<E> {
 
 /// Memory interface for the allocator.
 impl<E: Ext + IntoExtInfo<E::Error> + 'static> Memory for MemoryWrap<E> {
-    fn grow(&mut self, pages: WasmPageNumber) -> Result<(), Error> {
+    fn grow(&mut self, pages: WasmPage) -> Result<(), Error> {
         self.memory
             .grow(&mut self.store, Pages(pages.raw() as usize))
             .map(|_| ())
             .map_err(|_| Error::OutOfBounds)
     }
 
-    fn size(&self) -> WasmPageNumber {
-        WasmPageNumber::new(self.memory.current_pages(&self.store).0 as u32)
+    fn size(&self) -> WasmPage {
+        WasmPage::new(self.memory.current_pages(&self.store).0 as u32)
             .expect("Unexpected backend behavior: wasm memory is bigger then u32::MAX")
     }
 

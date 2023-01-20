@@ -21,7 +21,7 @@
 use crate::{
     costs::RuntimeCosts,
     ids::{MessageId, ProgramId, ReservationId},
-    memory::{Memory, WasmPageNumber},
+    memory::{Memory, WasmPage},
     message::{HandlePacket, InitPacket, ReplyPacket, StatusCode},
 };
 use alloc::collections::BTreeSet;
@@ -48,11 +48,7 @@ pub trait Ext {
     /// Allocate number of pages.
     ///
     /// The resulting page number should point to `pages` consecutive memory pages.
-    fn alloc(
-        &mut self,
-        pages: WasmPageNumber,
-        mem: &mut impl Memory,
-    ) -> Result<WasmPageNumber, Self::Error>;
+    fn alloc(&mut self, pages: WasmPage, mem: &mut impl Memory) -> Result<WasmPage, Self::Error>;
 
     /// Get the current block height.
     fn block_height(&mut self) -> Result<u32, Self::Error>;
@@ -164,7 +160,7 @@ pub trait Ext {
     ///
     /// Unlike traditional allocator, if multiple pages allocated via `alloc`, all pages
     /// should be `free`-d separately.
-    fn free(&mut self, page: WasmPageNumber) -> Result<(), Self::Error>;
+    fn free(&mut self, page: WasmPage) -> Result<(), Self::Error>;
 
     /// Send debug message.
     ///

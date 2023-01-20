@@ -37,7 +37,7 @@ use gear_backend_common::{
 use gear_core::{
     buffer::RuntimeBufferSizeError,
     env::Ext,
-    memory::{PageU32Size, WasmPageNumber},
+    memory::{PageU32Size, WasmPage},
     message::{HandlePacket, InitPacket, MessageWaitedType, PayloadSizeError, ReplyPacket},
 };
 use gear_core_errors::{CoreError, MemoryError};
@@ -532,8 +532,7 @@ where
 
     pub fn alloc(store: &mut Store<HostState<E>>, forbidden: bool, memory: WasmiMemory) -> Func {
         let func = move |caller: Caller<'_, HostState<E>>, pages: u32| -> FnResult<u32> {
-            let pages =
-                WasmPageNumber::new(pages).map_err(|_| Trap::Code(TrapCode::Unreachable))?;
+            let pages = WasmPage::new(pages).map_err(|_| Trap::Code(TrapCode::Unreachable))?;
 
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
@@ -550,7 +549,7 @@ where
 
     pub fn free(store: &mut Store<HostState<E>>, forbidden: bool, memory: WasmiMemory) -> Func {
         let func = move |caller: Caller<'_, HostState<E>>, page: u32| -> EmptyOutput {
-            let page = WasmPageNumber::new(page).map_err(|_| Trap::Code(TrapCode::Unreachable))?;
+            let page = WasmPage::new(page).map_err(|_| Trap::Code(TrapCode::Unreachable))?;
 
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 

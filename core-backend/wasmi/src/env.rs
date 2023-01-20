@@ -40,7 +40,7 @@ use gear_backend_common::{
 use gear_core::{
     env::Ext,
     gas::GasAmount,
-    memory::{HostPointer, PageU32Size, WasmPageNumber},
+    memory::{HostPointer, PageU32Size, WasmPage},
     message::{DispatchKind, WasmEntry},
 };
 use gear_wasm_instrument::{GLOBAL_NAME_ALLOWANCE, GLOBAL_NAME_FLAGS, GLOBAL_NAME_GAS};
@@ -163,7 +163,7 @@ where
         binary: &[u8],
         entry_point: EP,
         entries: BTreeSet<DispatchKind>,
-        mem_size: WasmPageNumber,
+        mem_size: WasmPage,
     ) -> Result<Self, Self::Error> {
         use WasmiEnvironmentError::*;
 
@@ -232,7 +232,7 @@ where
         pre_execution_handler: F,
     ) -> Result<BackendReport<Self::Memory, E>, Self::Error>
     where
-        F: FnOnce(&mut Self::Memory, Option<WasmPageNumber>, GlobalsConfig) -> Result<(), T>,
+        F: FnOnce(&mut Self::Memory, Option<WasmPage>, GlobalsConfig) -> Result<(), T>,
         T: fmt::Display,
     {
         use WasmiEnvironmentError::*;

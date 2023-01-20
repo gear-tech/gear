@@ -28,7 +28,7 @@ use gear_core::{
     env::Ext as EnvExt,
     gas::GasAmount,
     ids::{MessageId, ProgramId, ReservationId},
-    memory::{GrowHandler, Memory, MemoryInterval, PageNumber, PageU32Size, WasmPageNumber},
+    memory::{GearPage, GrowHandler, Memory, MemoryInterval, PageU32Size, WasmPage},
     message::{HandlePacket, InitPacket, ReplyPacket, StatusCode},
 };
 use gear_core_errors::{ExtError, MemoryError};
@@ -42,18 +42,17 @@ pub struct LazyPagesExt {
 
 impl IntoExtInfo<<LazyPagesExt as EnvExt>::Error> for LazyPagesExt {
     fn into_ext_info(self, memory: &impl Memory) -> Result<ExtInfo, (MemoryError, GasAmount)> {
-        let pages_for_data = |static_pages: WasmPageNumber,
-                              allocations: &BTreeSet<WasmPageNumber>|
-         -> Vec<PageNumber> {
-            // Accessed pages are all pages, that had been released and are in allocations set or static.
-            let mut accessed_pages = lazy_pages::get_released_pages();
-            accessed_pages.retain(|p| {
-                let wasm_page = p.to_page();
-                wasm_page < static_pages || allocations.contains(&wasm_page)
-            });
-            log::trace!("accessed pages numbers = {:?}", accessed_pages);
-            accessed_pages
-        };
+        let pages_for_data =
+            |static_pages: WasmPage, allocations: &BTreeSet<WasmPage>| -> Vec<GearPage> {
+                // Accessed pages are all pages, that had been released and are in allocations set or static.
+                let mut accessed_pages = lazy_pages::get_released_pages();
+                accessed_pages.retain(|p| {
+                    let wasm_page = p.to_page();
+                    wasm_page < static_pages || allocations.contains(&wasm_page)
+                });
+                log::trace!("accessed pages numbers = {:?}", accessed_pages);
+                accessed_pages
+            };
         self.inner.into_ext_info_inner(memory, pages_for_data)
     }
 
@@ -97,7 +96,7 @@ impl ProcessorExt for LazyPagesExt {
     fn lazy_pages_init_for_program(
         mem: &mut impl Memory,
         prog_id: ProgramId,
-        stack_end: Option<WasmPageNumber>,
+        stack_end: Option<WasmPage>,
         globals_config: GlobalsConfig,
         lazy_pages_weights: LazyPagesWeights,
     ) {
@@ -115,7 +114,7 @@ impl ProcessorExt for LazyPagesExt {
 
 struct GrowHandlerLazy {
     old_mem_addr: Option<u64>,
-    old_mem_size: WasmPageNumber,
+    old_mem_size: WasmPage,
 }
 
 impl GrowHandler for GrowHandlerLazy {
@@ -151,9 +150,9 @@ impl EnvExt for LazyPagesExt {
 
     fn alloc(
         &mut self,
-        pages_num: WasmPageNumber,
+        pages_num: WasmPage,
         mem: &mut impl Memory,
-    ) -> Result<WasmPageNumber, Self::Error> {
+    ) -> Result<WasmPage, Self::Error> {
         self.inner.alloc_inner::<GrowHandlerLazy>(pages_num, mem)
     }
 
@@ -249,7 +248,7 @@ impl EnvExt for LazyPagesExt {
         self.inner.program_id()
     }
 
-    fn free(&mut self, page: WasmPageNumber) -> Result<(), Self::Error> {
+    fn free(&mut self, page: WasmPage) -> Result<(), Self::Error> {
         self.inner.free(page)
     }
 

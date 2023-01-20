@@ -23,7 +23,7 @@ use gear_core::{
     code::InstrumentedCode,
     gas::{GasAllowanceCounter, GasCounter},
     ids::ProgramId,
-    memory::WasmPageNumber,
+    memory::WasmPage,
     message::IncomingDispatch,
     program::Program,
     reservation::GasReserver,
@@ -87,7 +87,7 @@ impl From<ContextChargedForCode> for ContextChargedForInstrumentation {
 pub struct ContextChargedForMemory {
     pub(crate) data: ContextData,
     pub(crate) max_reservations: u64,
-    pub(crate) memory_size: WasmPageNumber,
+    pub(crate) memory_size: WasmPage,
 }
 
 impl ContextChargedForMemory {
@@ -112,7 +112,7 @@ pub struct ProcessExecutionContext {
     pub(crate) origin: ProgramId,
     pub(crate) balance: u128,
     pub(crate) program: Program,
-    pub(crate) memory_size: WasmPageNumber,
+    pub(crate) memory_size: WasmPage,
 }
 
 impl From<(ContextChargedForMemory, InstrumentedCode, u128, ProgramId)>

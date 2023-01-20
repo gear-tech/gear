@@ -45,9 +45,9 @@ where
     const MAX_PAGES_WITH_DATA: u32 = 128;
 
     let memory = ImportedMemory::max::<T>();
-    let size_wasm_pages = WasmPageNumber::new(memory.min_pages).unwrap();
+    let size_wasm_pages = WasmPage::new(memory.min_pages).unwrap();
     let size_psg = size_wasm_pages.to_page::<GranularityPage>();
-    let gear_in_psg = GranularityPage::size() / PageNumber::size();
+    let gear_in_psg = GranularityPage::size() / GearPage::size();
     let access_size = size_of::<u32>() as u32;
     let max_addr = size_wasm_pages.offset() - access_size;
 
@@ -108,7 +108,7 @@ where
         for page in (0..rng.gen_range(0..MAX_PAGES_WITH_DATA))
             .map(|_| GranularityPage::new(rng.gen_range(0..size_psg.raw())).unwrap())
         {
-            for page in page.to_pages_iter::<PageNumber>() {
+            for page in page.to_pages_iter::<GearPage>() {
                 ProgramStorageOf::<T>::set_program_page_data(
                     program_id,
                     page,
@@ -254,7 +254,7 @@ where
             })
             .collect();
 
-        let k = GranularityPage::size() / PageNumber::size();
+        let k = GranularityPage::size() / GearPage::size();
         assert_eq!(
             charged[1].checked_sub(charged[0]).unwrap(),
             expected * k as u64

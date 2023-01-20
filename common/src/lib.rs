@@ -45,7 +45,7 @@ use frame_support::{
 };
 use gear_core::{
     ids::{CodeId, MessageId, ProgramId},
-    memory::{PageBuf, PageNumber, WasmPageNumber},
+    memory::{GearPage, PageBuf, WasmPage},
     message::DispatchKind,
     reservation::GasReservationMap,
 };
@@ -238,13 +238,13 @@ impl core::convert::TryFrom<Program> for ActiveProgram {
 #[derive(Clone, Debug, Decode, Encode, PartialEq, Eq, TypeInfo)]
 pub struct ActiveProgram {
     /// Set of dynamic wasm page numbers, which are allocated by the program.
-    pub allocations: BTreeSet<WasmPageNumber>,
+    pub allocations: BTreeSet<WasmPage>,
     /// Set of gear pages numbers, which has data in storage.
-    pub pages_with_data: BTreeSet<PageNumber>,
+    pub pages_with_data: BTreeSet<GearPage>,
     pub gas_reservation_map: GasReservationMap,
     pub code_hash: H256,
     pub code_exports: BTreeSet<DispatchKind>,
-    pub static_pages: WasmPageNumber,
+    pub static_pages: WasmPage,
     pub state: ProgramState,
 }
 
