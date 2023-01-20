@@ -102,7 +102,7 @@ gear-runtime-interface = { path = "../../runtime-interface" }
 gmeta = { path = "../../gmeta" }
 
 [features]
-default = ['std']
+default = ['std', 'runtime-benchmarks']
 std = [
 	"codec/std",
 	"env_logger",
