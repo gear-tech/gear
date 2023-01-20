@@ -16,14 +16,14 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use core::ops::Range;
-use crate::configs::{AllocationsConfig, BlockInfo, PagesConfig};
+use crate::configs::{BlockInfo, PagesConfig};
 use alloc::{
     collections::{BTreeMap, BTreeSet},
     string::{String, ToString},
     vec::Vec,
 };
 use codec::{Decode, Encode};
+use core::ops::Range;
 use gear_backend_common::{
     error_processor::IntoExtError,
     lazy_pages::{GlobalsConfig, LazyPagesWeights, Status},
