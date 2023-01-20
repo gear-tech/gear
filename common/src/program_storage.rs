@@ -42,7 +42,7 @@ pub trait ProgramStorage {
     type InternalError: Error;
     type Error: From<Self::InternalError> + Debug;
 
-    type ProgramMap: MapStorage<Key = ProgramId, Value = Program>;
+    type ProgramMap: MapStorage<Key = ProgramId, Value = (Program, u32)>;
     type MemoryPageMap: DoubleMapStorage<Key1 = ProgramId, Key2 = GearPage, Value = PageBuf>;
     type WaitingInitMap: AppendMapStorage<MessageId, ProgramId, Vec<MessageId>>;
 

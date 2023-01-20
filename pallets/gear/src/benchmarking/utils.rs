@@ -138,6 +138,7 @@ where
     let ext_manager = ExtManager::<T>::default();
     let bn: u64 = Gear::<T>::block_number().unique_saturated_into();
     let root_message_id = MessageId::from(bn);
+    const DEFAULT_BLOCK_NUMBER: u32 = 0;
 
     let dispatch = match kind {
         HandleKind::Init(ref code) => {
@@ -157,7 +158,12 @@ where
 
             let _ = Gear::<T>::set_code_with_metadata(code_and_id, source);
 
-            ExtManager::<T>::default().set_program(program_id, &code_info, root_message_id);
+            ExtManager::<T>::default().set_program(
+                DEFAULT_BLOCK_NUMBER,
+                program_id,
+                &code_info,
+                root_message_id,
+            );
 
             Dispatch::new(
                 DispatchKind::Init,
@@ -178,7 +184,12 @@ where
             let code = T::CodeStorage::get_code(code_id).ok_or("Code not found in storage")?;
             let code_info = CodeInfo::from_code(&code_id, &code);
 
-            ExtManager::<T>::default().set_program(program_id, &code_info, root_message_id);
+            ExtManager::<T>::default().set_program(
+                DEFAULT_BLOCK_NUMBER,
+                program_id,
+                &code_info,
+                root_message_id,
+            );
 
             Dispatch::new(
                 DispatchKind::Init,
