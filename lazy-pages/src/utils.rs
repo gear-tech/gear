@@ -68,17 +68,17 @@ pub fn with_inclusive_ranges<P: PageU32Size + Ord, E>(
 
 #[test]
 fn test_with_inclusive_range() {
-    use gear_core::memory::PageNumber;
+    use gear_core::memory::GearPage;
 
     let test = |pages: &[u16]| {
         let mut inclusive_ranges: Vec<Vec<u32>> = Vec::new();
-        let slice_to_ranges = |iter: PagesIterInclusive<PageNumber>| -> Result<(), ()> {
+        let slice_to_ranges = |iter: PagesIterInclusive<GearPage>| -> Result<(), ()> {
             inclusive_ranges.push(iter.map(|p| p.raw()).collect());
             Ok(())
         };
 
         with_inclusive_ranges(
-            &pages.iter().copied().map(PageNumber::from).collect(),
+            &pages.iter().copied().map(GearPage::from).collect(),
             slice_to_ranges,
         )
         .unwrap();

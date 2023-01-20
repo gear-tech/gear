@@ -28,7 +28,7 @@ use gear_core::{
     env::Ext,
     gas::{GasAmount, GasCounter},
     ids::{MessageId, ProgramId, ReservationId},
-    memory::{Memory, MemoryInterval, WasmPageNumber},
+    memory::{Memory, MemoryInterval, WasmPage},
     message::{HandlePacket, InitPacket, ReplyPacket, StatusCode},
     reservation::GasReserver,
 };
@@ -70,11 +70,7 @@ pub struct MockExt(BTreeSet<SysCallName>);
 impl Ext for MockExt {
     type Error = Error;
 
-    fn alloc(
-        &mut self,
-        _pages: WasmPageNumber,
-        _mem: &mut impl Memory,
-    ) -> Result<WasmPageNumber, Self::Error> {
+    fn alloc(&mut self, _pages: WasmPage, _mem: &mut impl Memory) -> Result<WasmPage, Self::Error> {
         Err(Error)
     }
     fn block_height(&mut self) -> Result<u32, Self::Error> {
@@ -135,7 +131,7 @@ impl Ext for MockExt {
     fn program_id(&mut self) -> Result<ProgramId, Self::Error> {
         Ok(0.into())
     }
-    fn free(&mut self, _page: WasmPageNumber) -> Result<(), Self::Error> {
+    fn free(&mut self, _page: WasmPage) -> Result<(), Self::Error> {
         Ok(())
     }
     fn debug(&mut self, _data: &str) -> Result<(), Self::Error> {

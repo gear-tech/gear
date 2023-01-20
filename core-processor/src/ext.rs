@@ -36,8 +36,8 @@ use gear_core::{
     gas::{ChargeResult, GasAllowanceCounter, GasAmount, GasCounter, Token, ValueCounter},
     ids::{CodeId, MessageId, ProgramId, ReservationId},
     memory::{
-        AllocInfo, AllocationsContext, GrowHandler, GrowHandlerNothing, Memory, MemoryInterval,
-        PageBuf, PageNumber, PageU32Size, WasmPageNumber,
+        AllocInfo, AllocationsContext, GearPage, GrowHandler, GrowHandlerNothing, Memory,
+        MemoryInterval, PageBuf, PageU32Size, WasmPage,
     },
     message::{
         GasLimit, HandlePacket, InitPacket, MessageContext, Packet, ReplyPacket, StatusCode,
@@ -105,7 +105,7 @@ pub trait ProcessorExt {
     fn lazy_pages_init_for_program(
         mem: &mut impl Memory,
         prog_id: ProgramId,
-        stack_end: Option<WasmPageNumber>,
+        stack_end: Option<WasmPage>,
         globals_config: GlobalsConfig,
         lazy_pages_weights: LazyPagesWeights,
     );
@@ -220,7 +220,7 @@ impl ProcessorExt for Ext {
     fn lazy_pages_init_for_program(
         _mem: &mut impl Memory,
         _prog_id: ProgramId,
-        _stack_end: Option<WasmPageNumber>,
+        _stack_end: Option<WasmPage>,
         _globals_config: GlobalsConfig,
         _lazy_pages_weights: LazyPagesWeights,
     ) {
@@ -238,15 +238,14 @@ impl ProcessorExt for Ext {
 
 impl IntoExtInfo<<Ext as EnvExt>::Error> for Ext {
     fn into_ext_info(self, memory: &impl Memory) -> Result<ExtInfo, (MemoryError, GasAmount)> {
-        let pages_for_data = |static_pages: WasmPageNumber,
-                              allocations: &BTreeSet<WasmPageNumber>|
-         -> Vec<PageNumber> {
-            static_pages
-                .iter_from_zero()
-                .chain(allocations.iter().copied())
-                .flat_map(|p| p.to_pages_iter())
-                .collect()
-        };
+        let pages_for_data =
+            |static_pages: WasmPage, allocations: &BTreeSet<WasmPage>| -> Vec<GearPage> {
+                static_pages
+                    .iter_from_zero()
+                    .chain(allocations.iter().copied())
+                    .flat_map(|p| p.to_pages_iter())
+                    .collect()
+            };
 
         self.into_ext_info_inner(memory, pages_for_data)
     }
@@ -394,9 +393,9 @@ impl EnvExt for Ext {
 
     fn alloc(
         &mut self,
-        pages_num: WasmPageNumber,
+        pages_num: WasmPage,
         mem: &mut impl Memory,
-    ) -> Result<WasmPageNumber, Self::Error> {
+    ) -> Result<WasmPage, Self::Error> {
         self.alloc_inner::<GrowHandlerNothing>(pages_num, mem)
     }
 
@@ -600,7 +599,7 @@ impl EnvExt for Ext {
         Ok(self.context.program_id)
     }
 
-    fn free(&mut self, page: WasmPageNumber) -> Result<(), Self::Error> {
+    fn free(&mut self, page: WasmPage) -> Result<(), Self::Error> {
         self.charge_gas_runtime(RuntimeCosts::Free)?;
 
         let result = self.context.allocations_context.free(page);
@@ -903,9 +902,9 @@ impl Ext {
     // TODO  #2024 (https://github.com/gear-tech/gear/issues/2024) test that refunds less than charged!
     pub fn alloc_inner<G: GrowHandler>(
         &mut self,
-        pages: WasmPageNumber,
+        pages: WasmPage,
         mem: &mut impl Memory,
-    ) -> Result<WasmPageNumber, ProcessorError> {
+    ) -> Result<WasmPage, ProcessorError> {
         self.charge_gas_runtime(RuntimeCosts::Alloc)?;
 
         // Charge gas for allocations
@@ -953,7 +952,7 @@ impl Ext {
     pub fn into_ext_info_inner(
         self,
         memory: &impl Memory,
-        pages_for_data: impl FnOnce(WasmPageNumber, &BTreeSet<WasmPageNumber>) -> Vec<PageNumber>,
+        pages_for_data: impl FnOnce(WasmPage, &BTreeSet<WasmPage>) -> Vec<GearPage>,
     ) -> Result<ExtInfo, (MemoryError, GasAmount)> {
         let ProcessorContext {
             allocations_context,

@@ -21,7 +21,7 @@ use core_processor::common::*;
 use gear_core::{
     code::{Code, CodeAndId},
     ids::{CodeId, MessageId, ProgramId, ReservationId},
-    memory::{PageBuf, PageNumber, PageU32Size, WasmPageNumber},
+    memory::{GearPage, PageBuf, PageU32Size, WasmPage},
     message::{Dispatch, DispatchKind, GasLimit, MessageWaitedType, StoredDispatch, StoredMessage},
     reservation::GasReserver,
 };
@@ -60,7 +60,7 @@ impl fmt::Debug for State {
                             .as_ref()
                             .map(|data| (*id, (actor.balance, &data.allocations)))
                     })
-                    .collect::<BTreeMap<ProgramId, (u128, &BTreeSet<WasmPageNumber>)>>(),
+                    .collect::<BTreeMap<ProgramId, (u128, &BTreeSet<WasmPage>)>>(),
             )
             .field("current_failed", &self.current_failed)
             .finish()
@@ -77,11 +77,11 @@ pub trait CollectState {
 pub struct TestActor {
     pub balance: u128,
     pub executable_data: Option<ExecutableActorData>,
-    pub memory_pages: BTreeMap<PageNumber, PageBuf>,
+    pub memory_pages: BTreeMap<GearPage, PageBuf>,
 }
 
 impl TestActor {
-    pub fn into_parts(self, dest: ProgramId) -> (Actor, BTreeMap<PageNumber, PageBuf>) {
+    pub fn into_parts(self, dest: ProgramId) -> (Actor, BTreeMap<GearPage, PageBuf>) {
         let Self {
             balance,
             executable_data,
@@ -312,7 +312,7 @@ impl JournalHandler for InMemoryExtManager {
     fn update_pages_data(
         &mut self,
         program_id: ProgramId,
-        mut pages_data: BTreeMap<PageNumber, PageBuf>,
+        mut pages_data: BTreeMap<GearPage, PageBuf>,
     ) {
         if let TestActor {
             executable_data: Some(_),
@@ -329,7 +329,7 @@ impl JournalHandler for InMemoryExtManager {
         }
     }
 
-    fn update_allocations(&mut self, program_id: ProgramId, allocations: BTreeSet<WasmPageNumber>) {
+    fn update_allocations(&mut self, program_id: ProgramId, allocations: BTreeSet<WasmPage>) {
         if let TestActor {
             executable_data: Some(data),
             memory_pages,

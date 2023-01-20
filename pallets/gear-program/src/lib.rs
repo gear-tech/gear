@@ -147,7 +147,7 @@ pub mod pallet {
     use gear_core::{
         code::InstrumentedCode,
         ids::{CodeId, MessageId, ProgramId},
-        memory::{PageBuf, PageNumber},
+        memory::{GearPage, PageBuf},
     };
     use sp_runtime::DispatchError;
     use sp_std::prelude::*;
@@ -246,13 +246,13 @@ pub mod pallet {
     #[pallet::storage]
     #[pallet::unbounded]
     pub(crate) type MemoryPageStorage<T: Config> =
-        StorageDoubleMap<_, Identity, ProgramId, Identity, PageNumber, PageBuf>;
+        StorageDoubleMap<_, Identity, ProgramId, Identity, GearPage, PageBuf>;
 
     common::wrap_storage_double_map!(
         storage: MemoryPageStorage,
         name: MemoryPageStorageWrap,
         key1: ProgramId,
-        key2: PageNumber,
+        key2: GearPage,
         value: PageBuf
     );
 

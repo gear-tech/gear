@@ -33,7 +33,7 @@ use gear_backend_common::{
 use gear_core::{
     buffer::RuntimeBufferSizeError,
     env::Ext,
-    memory::{PageU32Size, WasmPageNumber},
+    memory::{PageU32Size, WasmPage},
     message::{HandlePacket, InitPacket, MessageWaitedType, PayloadSizeError, ReplyPacket},
 };
 use gear_core_errors::{CoreError, MemoryError};
@@ -429,7 +429,7 @@ where
     pub fn alloc(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
         sys_trace!(target: "syscall::gear", "alloc, args = {}", args_to_str(args));
 
-        let pages = WasmPageNumber::new(args.iter().read()?).map_err(|_| HostError)?;
+        let pages = WasmPage::new(args.iter().read()?).map_err(|_| HostError)?;
 
         let res = ctx.run_any(|ctx| {
             ctx.ext
@@ -448,7 +448,7 @@ where
     pub fn free(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
         sys_trace!(target: "syscall::gear", "free, args = {}", args_to_str(args));
 
-        let page = WasmPageNumber::new(args.iter().read()?).map_err(|_| HostError)?;
+        let page = WasmPage::new(args.iter().read()?).map_err(|_| HostError)?;
 
         ctx.run(|ctx| {
             ctx.ext

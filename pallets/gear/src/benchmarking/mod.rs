@@ -79,7 +79,7 @@ use gear_core::{
     code::{Code, CodeAndId},
     gas::{GasAllowanceCounter, GasCounter, ValueCounter},
     ids::{MessageId, ProgramId},
-    memory::{AllocationsContext, PageBuf, PageNumber, PageU32Size, WasmPageNumber},
+    memory::{AllocationsContext, GearPage, PageBuf, PageU32Size, WasmPage},
     message::{ContextSettings, DispatchKind, MessageContext},
     reservation::GasReserver,
 };
@@ -212,8 +212,8 @@ fn verify_process((notes, err_len_ptrs): (Vec<JournalNote>, Range<u32>)) {
         }
     }
 
-    let start_page_number = PageNumber::from_offset(err_len_ptrs.start);
-    let end_page_number = PageNumber::from_offset(err_len_ptrs.end);
+    let start_page_number = GearPage::from_offset(err_len_ptrs.start);
+    let end_page_number = GearPage::from_offset(err_len_ptrs.end);
     start_page_number
         .iter_end_inclusive(end_page_number)
         .unwrap()
@@ -221,7 +221,7 @@ fn verify_process((notes, err_len_ptrs): (Vec<JournalNote>, Range<u32>)) {
             pages_data
                 .get(&page_number)
                 .map(|page| (page as &[u8]).to_vec())
-                .unwrap_or_else(|| vec![0; PageNumber::size() as usize])
+                .unwrap_or_else(|| vec![0; GearPage::size() as usize])
         })
         .skip(err_len_ptrs.start as usize)
         .take(err_len_ptrs.len())
@@ -315,7 +315,7 @@ pub struct Exec<T: Config> {
     block_config: BlockConfig,
     context: ProcessExecutionContext,
     random_data: (Vec<u8>, u32),
-    memory_pages: BTreeMap<PageNumber, PageBuf>,
+    memory_pages: BTreeMap<GearPage, PageBuf>,
     err_len_ptrs: Range<u32>,
 }
 
@@ -1170,7 +1170,7 @@ benchmarks! {
         // Warm up memory.
         let mut instrs = body::write_access_all_pages_instrs((mem_pages as u16).into(), vec![]);
         instrs = body::repeated_dyn_instr(r * INSTR_BENCHMARK_BATCH_SIZE, vec![
-                        RandomUnaligned(0, mem_pages * WasmPageNumber::size() - 8),
+                        RandomUnaligned(0, mem_pages * WasmPage::size() - 8),
                         Regular(Instruction::I64Load(3, 0)),
                         Regular(Instruction::Drop)], instrs);
         let mut sbox = Sandbox::from(&WasmModule::<T>::from(ModuleDefinition {
@@ -1189,7 +1189,7 @@ benchmarks! {
         // Warm up memory.
         let mut instrs = body::write_access_all_pages_instrs((mem_pages as u16).into(), vec![]);
         instrs = body::repeated_dyn_instr(r * INSTR_BENCHMARK_BATCH_SIZE, vec![
-                        RandomUnaligned(0, mem_pages * WasmPageNumber::size() - 8),
+                        RandomUnaligned(0, mem_pages * WasmPage::size() - 8),
                         RandomI64Repeated(1),
                         Regular(Instruction::I64Store(3, 0))], instrs);
         let mut sbox = Sandbox::from(&WasmModule::<T>::from(ModuleDefinition {
