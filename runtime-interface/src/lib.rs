@@ -107,11 +107,7 @@ pub trait GearRI {
     ) -> Result<ChargeForPages, OutOfMemoryAccessError> {
         let reads = reads.iter().copied().map(Into::into).collect::<Vec<_>>();
         let writes = writes.iter().copied().map(Into::into).collect::<Vec<_>>();
-        // +_+_+
-        lazy_pages::pre_process_memory_accesses(&reads, &writes).map(|_| ChargeForPages {
-            read_storage_data: 0.into(),
-            write_accessed: 0.into(),
-        })
+        lazy_pages::pre_process_memory_accesses(&reads, &writes)
     }
 
     fn get_lazy_pages_status() -> Option<Status> {

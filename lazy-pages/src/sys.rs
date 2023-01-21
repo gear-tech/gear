@@ -25,7 +25,7 @@ use crate::{
 use cfg_if::cfg_if;
 use core::any::Any;
 use gear_backend_common::lazy_pages::{
-    GlobalsAccessError, GlobalsAccessMod, GlobalsAccessor, GlobalsConfig, Status,
+    ChargeForPages, GlobalsAccessError, GlobalsAccessMod, GlobalsAccessor, GlobalsConfig, Status,
 };
 use gear_core::memory::{
     GearPage, PageU32Size, PagesIterInclusive, GEAR_PAGE_SIZE, PAGE_STORAGE_GRANULARITY,
@@ -225,42 +225,42 @@ unsafe fn charge_gas(globals_config: &GlobalsConfig, amount: u64) -> Result<Stat
 fn cost_for_write(
     ctx: &mut RefMut<LazyPagesExecutionContext>,
     page: GranularityPage,
-) -> Result<u64, Error> {
+) -> Result<Option<u64>, Error> {
     if ctx.write_charged.contains(&page) {
         // Has been already charged for write.
-        Ok(0)
+        Ok(None)
     } else if ctx.read_charged.contains(&page) {
         // Has been already charged for read.
         if ctx.write_after_read_charged.contains(&page) {
             // Has been already charged for write after read.
-            Ok(0)
+            Ok(None)
         } else {
             // Charge for write after read.
             ctx.write_after_read_charged.insert(page);
-            Ok(ctx.lazy_pages_weights.write_after_read)
+            Ok(Some(ctx.lazy_pages_weights.write_after_read))
         }
     } else if ctx.write_after_read_charged.contains(&page) {
         Err(Error::WriteAfterReadChargedWithoutReadCharged)
     } else {
         // Charge for write.
         ctx.write_charged.insert(page);
-        Ok(ctx.lazy_pages_weights.write)
+        Ok(Some(ctx.lazy_pages_weights.write))
     }
 }
 
 fn cost_for_read(
     ctx: &mut RefMut<LazyPagesExecutionContext>,
     page: GranularityPage,
-) -> Result<u64, Error> {
+) -> Result<Option<u64>, Error> {
     if ctx.read_charged.contains(&page) || ctx.write_charged.contains(&page) {
         // Has been already charged for write or read - so no need to charge for read.
-        Ok(0)
+        Ok(None)
     } else if ctx.write_after_read_charged.contains(&page) {
         Err(Error::WriteAfterReadChargedWithoutReadCharged)
     } else {
         // Charge for read.
         ctx.read_charged.insert(page);
-        Ok(ctx.lazy_pages_weights.read)
+        Ok(Some(ctx.lazy_pages_weights.read))
     }
 }
 
@@ -269,7 +269,7 @@ unsafe fn charge_for_pages(
     pages: PagesIterInclusive<LazyPage>,
     is_write: bool,
 ) -> Result<Status, Error> {
-    // +_+_+
+    // +_+_+ 
     let globals_config = if let Some(ctx) = ctx.globals_config.as_ref() {
         ctx.clone()
     } else {
@@ -286,7 +286,7 @@ unsafe fn charge_for_pages(
             cost_for_read(ctx, page)
         }?;
         amount = amount
-            .checked_add(amount_for_page)
+            .checked_add(amount_for_page.unwrap_or_default())
             .ok_or(Error::ChargedGasTooBig)?;
     }
 
@@ -308,6 +308,7 @@ unsafe fn charge_for_load_storage_data(
     if ctx.read_storage_data_charged.insert(page.to_page()) {
         // Charge for read from storage.
 
+        // +_+_+ consider weight per granularity
         // " * k" because lazy pages costs are per one gear page.
         let k = (GranularityPage::size() / GearPage::size()) as u64;
         let amount = ctx
@@ -333,7 +334,7 @@ pub(crate) unsafe fn process_lazy_pages(
     mut ctx: RefMut<LazyPagesExecutionContext>,
     accessed_pages: AccessedPagesInfo,
     is_write: bool,
-) -> Result<(), Error> {
+) -> Result<Option<ChargeForPages>, Error> {
     let wasm_mem_size = ctx.wasm_mem_size.ok_or(Error::WasmMemSizeIsNotSet)?;
 
     let (last_page, is_signal) = match &accessed_pages {
@@ -348,7 +349,7 @@ pub(crate) unsafe fn process_lazy_pages(
         }
     } else {
         // Accessed pages are empty - nothing to do.
-        return Ok(());
+        return Ok(None);
     }
 
     let status = ctx.status.as_ref().ok_or(Error::StatusIsNone)?;
@@ -363,7 +364,7 @@ pub(crate) unsafe fn process_lazy_pages(
                 // Currently, we charge gas for sys-call after memory processing, so this can appear.
                 // In this case we do nothing, because all memory is already unprotected, and no need
                 // to take in account pages data from storage, because gas is exceeded.
-                return Ok(());
+                return Ok(None);
             }
         }
     }
@@ -401,6 +402,8 @@ pub(crate) unsafe fn process_lazy_pages(
         }
     };
 
+    let mut charge_set = ChargeForPages::default();
+
     let mut f = |pages: PagesIterInclusive<LazyPage>| {
         let psg = PAGE_STORAGE_GRANULARITY as u32;
         let Some(mut start) = pages.current() else {
@@ -436,6 +439,7 @@ pub(crate) unsafe fn process_lazy_pages(
         }
 
         for lazy_page in pages {
+            let granularity_page = lazy_page.to_page();
             if lazy_page.offset() < stack_end.offset() {
                 // Nothing to do, page has r/w accesses and data is in correct state.
                 if is_signal {
@@ -459,6 +463,12 @@ pub(crate) unsafe fn process_lazy_pages(
                     if !ctx.released_pages.insert(lazy_page) {
                         return Err(Error::DoubleRelease(lazy_page));
                     }
+                    if !is_signal && ctx.write_after_read_charged.insert(granularity_page) {
+                        // +_+_+ unreachable
+                        assert!(ctx.read_charged.contains(&granularity_page));
+                        assert!(!ctx.write_charged.contains(&granularity_page));
+                        charge_set.write_accessed = charge_set.write_accessed.inc().unwrap();
+                    }
                 } else {
                     // Nothing to do, page has read accesses and data is in correct state.
                     if is_signal {
@@ -472,6 +482,16 @@ pub(crate) unsafe fn process_lazy_pages(
 
                     if update_status(&mut ctx, status)? {
                         return Ok(());
+                    }
+                } else {
+                    if ctx.read_storage_data_charged.insert(lazy_page.to_page()) {
+                        charge_set.read_storage_data = charge_set.read_storage_data.inc().unwrap();
+                    }
+                    if is_write && ctx.write_charged.insert(lazy_page.to_page()) {
+                        // +_+_+ unreachable
+                        assert!(!ctx.read_charged.contains(&granularity_page));
+                        assert!(!ctx.write_charged.contains(&granularity_page));
+                        charge_set.write_accessed = charge_set.write_accessed.inc().unwrap();
                     }
                 }
 
@@ -531,10 +551,12 @@ pub(crate) unsafe fn process_lazy_pages(
 
     match accessed_pages {
         AccessedPagesInfo::FromHostFunc(accessed_pages) => {
-            utils::with_inclusive_ranges(&accessed_pages, f)
+            utils::with_inclusive_ranges(&accessed_pages, f)?;
         }
-        AccessedPagesInfo::FromSignal(lazy_page) => f(lazy_page.iter_once()),
+        AccessedPagesInfo::FromSignal(lazy_page) => f(lazy_page.iter_once())?,
     }
+
+    Ok(Some(charge_set))
 }
 
 /// Before contract execution some pages from wasm memory buffer have been protected.
@@ -578,7 +600,7 @@ unsafe fn user_signal_handler_internal(
     let offset =
         u32::try_from(native_addr - wasm_mem_addr).map_err(|_| Error::OutOfWasmMemoryAccess)?;
     let lazy_page = LazyPage::from_offset(offset);
-    process_lazy_pages(ctx, AccessedPagesInfo::FromSignal(lazy_page), is_write)
+    process_lazy_pages(ctx, AccessedPagesInfo::FromSignal(lazy_page), is_write).map(|_| ())
 }
 
 /// User signal handler. Logic can depends on lazy-pages version.

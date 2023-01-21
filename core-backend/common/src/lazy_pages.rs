@@ -25,7 +25,7 @@ use codec::{Decode, Encode};
 use core::any::Any;
 use gear_core::memory::{HostPointer, GearPage};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Encode, Decode)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Encode, Decode)]
 pub struct ChargeForPages {
     /// +_+_+
     pub read_storage_data: GearPage,

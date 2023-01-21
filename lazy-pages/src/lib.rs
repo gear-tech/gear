@@ -26,11 +26,11 @@
 //! It's not necessary behavior, but more simple and safe.
 
 use gear_backend_common::{
-    lazy_pages::{GlobalsConfig, LazyPagesWeights, Status},
+    lazy_pages::{ChargeForPages, GlobalsConfig, LazyPagesWeights, Status},
     memory::OutOfMemoryAccessError,
 };
 use gear_core::memory::{
-    GearPage, GranularityPage, MemoryInterval, PageU32Size, WasmPage, GEAR_PAGE_SIZE,
+    GearPage, GranularityPage, MemoryInterval, PageError, PageU32Size, WasmPage, GEAR_PAGE_SIZE,
     PAGE_STORAGE_GRANULARITY,
 };
 use once_cell::sync::OnceCell;
@@ -90,6 +90,11 @@ pub(crate) enum Error {
     SignalWhenStatusGasExceeded,
     #[display(fmt = "Amount which we should charge is bigger than u64::MAX")]
     ChargedGasTooBig,
+    #[display(
+        fmt = "Amount of pages for which gas should be charged out of max possible in wasm memory"
+    )]
+    #[from]
+    PagesToChargeNumberIsTooBig(PageError),
     #[display(
         fmt = "Accessed page is write after read charged, but not read charged, which is impossible"
     )]
@@ -273,7 +278,7 @@ fn get_access_pages(
 pub fn pre_process_memory_accesses(
     reads: &[MemoryInterval],
     writes: &[MemoryInterval],
-) -> Result<(), OutOfMemoryAccessError> {
+) -> Result<ChargeForPages, OutOfMemoryAccessError> {
     let mut read_pages = get_access_pages(reads)?;
     let write_pages = get_access_pages(writes)?;
     for page in write_pages.iter() {
@@ -281,16 +286,28 @@ pub fn pre_process_memory_accesses(
     }
     LAZY_PAGES_PROGRAM_CONTEXT
         .with(|ctx| unsafe {
-            sys::process_lazy_pages(
+            let read_set = sys::process_lazy_pages(
                 ctx.borrow_mut(),
                 AccessedPagesInfo::FromHostFunc(read_pages),
                 false,
-            )?;
-            sys::process_lazy_pages(
+            )?
+            .unwrap_or_default();
+
+            assert_eq!(read_set.write_accessed, Default::default());
+
+            let write_set = sys::process_lazy_pages(
                 ctx.borrow_mut(),
                 AccessedPagesInfo::FromHostFunc(write_pages),
                 true,
-            )
+            )?
+            .unwrap_or_default();
+
+            Ok(ChargeForPages {
+                read_storage_data: read_set
+                    .read_storage_data
+                    .add(write_set.read_storage_data)?,
+                write_accessed: read_set.write_accessed.add(write_set.write_accessed)?,
+            })
         })
         .map_err(|err| match err {
             Error::OutOfWasmMemoryAccess | Error::WasmMemSizeIsNotSet => OutOfMemoryAccessError,
