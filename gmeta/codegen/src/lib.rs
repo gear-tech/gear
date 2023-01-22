@@ -154,8 +154,8 @@ pub fn metawasm(_: TokenStream, item: TokenStream) -> TokenStream {
             error!(signature.generics, "mustn't have generics");
         }
 
-        if signature.inputs.len() > 21 {
-            error!(signature.inputs, "too many arguments, no more 21 arguments must be here due restrictions of the SCALE codec");
+        if signature.inputs.len() > 19 {
+            error!(signature.inputs, "too many arguments, no more 19 arguments must be here due restrictions of the SCALE codec");
         }
 
         let signature_span = signature.span();
