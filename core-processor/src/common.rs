@@ -18,10 +18,7 @@
 
 //! Common structures for processing.
 
-use crate::{
-    executor::{InitialPagesContainDataError, PrepareMemoryError},
-    precharge::GasOperation,
-};
+use crate::{executor::InitialPagesContainDataError, precharge::GasOperation, PrepareMemoryError};
 use alloc::{
     collections::{BTreeMap, BTreeSet},
     string::String,
@@ -412,9 +409,6 @@ pub struct ExecutionError {
 /// Reason of execution error
 #[derive(Encode, Decode, TypeInfo, Debug, PartialEq, Eq, PartialOrd, Ord, derive_more::Display)]
 pub enum ExecutionErrorReason {
-    /// WASM memory size is too big.
-    #[display(fmt = "WASM memory size is too big")]
-    WasmMemSizeTooBig,
     /// Prepare memory error
     #[display(fmt = "{_0}")]
     PrepareMemory(PrepareMemoryError),

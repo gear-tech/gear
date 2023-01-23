@@ -72,18 +72,6 @@ enum PrechargeError {
     GasExceeded(GasOperation),
 }
 
-#[derive(Debug, Eq, PartialEq)]
-enum PrechargeForMemoryError {
-    Precharge(PrechargeError),
-    WasmMemSizeTooBig,
-}
-
-impl From<PrechargeError> for PrechargeForMemoryError {
-    fn from(err: PrechargeError) -> Self {
-        Self::Precharge(err)
-    }
-}
-
 struct GasPrecharger<'a> {
     counter: &'a mut GasCounter,
     allowance_counter: &'a mut GasAllowanceCounter,
@@ -210,7 +198,7 @@ impl<'a> GasPrecharger<'a> {
         static_pages: WasmPage,
         initial_execution: bool,
         subsequent_execution: bool,
-    ) -> Result<WasmPage, PrechargeForMemoryError> {
+    ) -> Result<WasmPage, PrechargeError> {
         // Initial execution: just charge for static pages
         if initial_execution {
             // Charging gas for initial pages
@@ -237,7 +225,10 @@ impl<'a> GasPrecharger<'a> {
         // +1 because pages numeration begins from 0
         let wasm_mem_size = max_wasm_page
             .inc()
-            .map_err(|_| PrechargeForMemoryError::WasmMemSizeTooBig)?;
+            // It means we somehow violated some constraints:
+            // 1. one of allocated pages > MAX_WASM_PAGE_COUNT
+            // 2. static pages > MAX_WASM_PAGE_COUNT
+            .expect("WASM memory size is too big");
 
         Ok(wasm_mem_size)
     }
@@ -505,19 +496,14 @@ pub fn precharge_for_memory(
         Err(err) => {
             log::debug!("Failed to charge for module instantiation or memory pages: {err:?}");
             let reason = match err {
-                PrechargeForMemoryError::Precharge(PrechargeError::BlockGasExceeded) => {
+                PrechargeError::BlockGasExceeded => {
                     return Err(process_allowance_exceed(
                         context.data.dispatch,
                         context.data.destination_id,
                         context.data.gas_counter.burned(),
                     ));
                 }
-                PrechargeForMemoryError::Precharge(PrechargeError::GasExceeded(op)) => {
-                    ExecutionErrorReason::GasExceeded(op)
-                }
-                PrechargeForMemoryError::WasmMemSizeTooBig => {
-                    ExecutionErrorReason::WasmMemSizeTooBig
-                }
+                PrechargeError::GasExceeded(op) => ExecutionErrorReason::GasExceeded(op),
             };
 
             let system_reservation_ctx =
