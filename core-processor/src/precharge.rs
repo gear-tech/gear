@@ -150,6 +150,7 @@ impl<'a> GasPrecharger<'a> {
         self.charge_gas(GasOperation::ModuleInstrumentation, amount)
     }
 
+    // Charging gas for initial pages
     fn charge_gas_for_initial_memory(
         &mut self,
         settings: &PagesConfig,
@@ -160,6 +161,7 @@ impl<'a> GasPrecharger<'a> {
         self.charge_gas(GasOperation::InitialMemory, amount)
     }
 
+    // Charging gas for loaded pages
     fn charge_gas_for_load_memory(
         &mut self,
         settings: &PagesConfig,
@@ -172,6 +174,7 @@ impl<'a> GasPrecharger<'a> {
         self.charge_gas(GasOperation::LoadMemory, amount)
     }
 
+    // Charging gas for mem size
     fn charge_gas_for_grow_memory(
         &mut self,
         settings: &PagesConfig,
@@ -201,7 +204,6 @@ impl<'a> GasPrecharger<'a> {
     ) -> Result<WasmPage, PrechargeError> {
         // Initial execution: just charge for static pages
         if initial_execution {
-            // Charging gas for initial pages
             self.charge_gas_for_initial_memory(settings, static_pages)?;
             return Ok(static_pages);
         }
@@ -215,11 +217,9 @@ impl<'a> GasPrecharger<'a> {
         };
 
         if !subsequent_execution {
-            // Charging gas for loaded pages
             self.charge_gas_for_load_memory(settings, allocations, static_pages)?;
         }
 
-        // Charging gas for mem size
         self.charge_gas_for_grow_memory(settings, max_wasm_page, static_pages)?;
 
         // +1 because pages numeration begins from 0
