@@ -184,26 +184,21 @@ where
         });
 
         let instance = Program::<T>::new(code, vec![])?;
-        let block_number = Gear::<T>::block_number().unique_saturated_into();
 
         // insert gas reservation slots
         let program_id = ProgramId::from_origin(instance.addr);
-        ProgramStorageOf::<T>::update_active_program(
-            program_id,
-            |program| {
-                for x in 0..r * API_BENCHMARK_BATCH_SIZE {
-                    program.gas_reservation_map.insert(
-                        ReservationId::from(x as u64),
-                        GasReservationSlot {
-                            amount: 1_000,
-                            start: 1,
-                            finish: 100,
-                        },
-                    );
-                }
-            },
-            block_number,
-        )
+        ProgramStorageOf::<T>::update_active_program(program_id, |program, _bn_ref| {
+            for x in 0..r * API_BENCHMARK_BATCH_SIZE {
+                program.gas_reservation_map.insert(
+                    ReservationId::from(x as u64),
+                    GasReservationSlot {
+                        amount: 1_000,
+                        start: 1,
+                        finish: 100,
+                    },
+                );
+            }
+        })
         .unwrap();
 
         utils::prepare_exec::<T>(
@@ -593,26 +588,21 @@ where
         });
 
         let instance = Program::<T>::new(code, vec![])?;
-        let block_number = Gear::<T>::block_number().unique_saturated_into();
 
         // insert gas reservation slots
         let program_id = ProgramId::from_origin(instance.addr);
-        ProgramStorageOf::<T>::update_active_program(
-            program_id,
-            |program| {
-                for x in 0..r * API_BENCHMARK_BATCH_SIZE {
-                    program.gas_reservation_map.insert(
-                        ReservationId::from(x as u64),
-                        GasReservationSlot {
-                            amount: 1_000,
-                            start: 1,
-                            finish: 100,
-                        },
-                    );
-                }
-            },
-            block_number,
-        )
+        ProgramStorageOf::<T>::update_active_program(program_id, |program, _bn_ref| {
+            for x in 0..r * API_BENCHMARK_BATCH_SIZE {
+                program.gas_reservation_map.insert(
+                    ReservationId::from(x as u64),
+                    GasReservationSlot {
+                        amount: 1_000,
+                        start: 1,
+                        finish: 100,
+                    },
+                );
+            }
+        })
         .unwrap();
 
         utils::prepare_exec::<T>(
@@ -671,26 +661,21 @@ where
         });
 
         let instance = Program::<T>::new(code, vec![])?;
-        let block_number = Gear::<T>::block_number().unique_saturated_into();
 
         // insert gas reservation slots
         let program_id = ProgramId::from_origin(instance.addr);
-        ProgramStorageOf::<T>::update_active_program(
-            program_id,
-            |program| {
-                for x in 0..API_BENCHMARK_BATCH_SIZE {
-                    program.gas_reservation_map.insert(
-                        ReservationId::from(x as u64),
-                        GasReservationSlot {
-                            amount: 1_000,
-                            start: 1,
-                            finish: 100,
-                        },
-                    );
-                }
-            },
-            block_number,
-        )
+        ProgramStorageOf::<T>::update_active_program(program_id, |program, _bn_ref| {
+            for x in 0..API_BENCHMARK_BATCH_SIZE {
+                program.gas_reservation_map.insert(
+                    ReservationId::from(x as u64),
+                    GasReservationSlot {
+                        amount: 1_000,
+                        start: 1,
+                        finish: 100,
+                    },
+                );
+            }
+        })
         .unwrap();
 
         utils::prepare_exec::<T>(
@@ -821,26 +806,21 @@ where
         });
 
         let instance = Program::<T>::new(code, vec![])?;
-        let block_number = Gear::<T>::block_number().unique_saturated_into();
 
         // insert gas reservation slots
         let program_id = ProgramId::from_origin(instance.addr);
-        ProgramStorageOf::<T>::update_active_program(
-            program_id,
-            |program| {
-                for x in 0..r * API_BENCHMARK_BATCH_SIZE {
-                    program.gas_reservation_map.insert(
-                        ReservationId::from(x as u64),
-                        GasReservationSlot {
-                            amount: 1_000,
-                            start: 1,
-                            finish: 100,
-                        },
-                    );
-                }
-            },
-            block_number,
-        )
+        ProgramStorageOf::<T>::update_active_program(program_id, |program, _bn_ref| {
+            for x in 0..r * API_BENCHMARK_BATCH_SIZE {
+                program.gas_reservation_map.insert(
+                    ReservationId::from(x as u64),
+                    GasReservationSlot {
+                        amount: 1_000,
+                        start: 1,
+                        finish: 100,
+                    },
+                );
+            }
+        })
         .unwrap();
 
         utils::prepare_exec::<T>(

@@ -84,19 +84,14 @@ pub trait ProgramStorage {
     fn update_active_program<F, ReturnType>(
         program_id: ProgramId,
         update_action: F,
-        block_number: Self::BlockNumber,
     ) -> Result<ReturnType, Self::Error>
     where
-        F: FnOnce(&mut ActiveProgram) -> ReturnType,
+        F: FnOnce(&mut ActiveProgram, &mut Self::BlockNumber) -> ReturnType,
     {
-        Self::update_program_if_active(
-            program_id,
-            |program| match program {
-                Program::Active(active_program) => update_action(active_program),
-                _ => unreachable!("invariant kept by update_program_if_active"),
-            },
-            block_number,
-        )
+        Self::update_program_if_active(program_id, |program, bn_ref| match program {
+            Program::Active(active_program) => update_action(active_program, bn_ref),
+            _ => unreachable!("invariant kept by update_program_if_active"),
+        })
     }
 
     /// Update the program under the given key `program_id` only if the
@@ -104,20 +99,19 @@ pub trait ProgramStorage {
     fn update_program_if_active<F, ReturnType>(
         program_id: ProgramId,
         update_action: F,
-        block_number: Self::BlockNumber,
     ) -> Result<ReturnType, Self::Error>
     where
-        F: FnOnce(&mut Program) -> ReturnType,
+        F: FnOnce(&mut Program, &mut Self::BlockNumber) -> ReturnType,
     {
-        let (mut program, _bn) =
+        let (mut program, mut bn) =
             Self::ProgramMap::get(&program_id).ok_or(Self::InternalError::item_not_found())?;
         match program {
             Program::Active(_) => (),
             _ => return Err(Self::InternalError::not_active_program().into()),
         }
 
-        let result = update_action(&mut program);
-        Self::ProgramMap::insert(program_id, (program, block_number));
+        let result = update_action(&mut program, &mut bn);
+        Self::ProgramMap::insert(program_id, (program, bn));
 
         Ok(result)
     }

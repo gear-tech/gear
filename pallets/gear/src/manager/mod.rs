@@ -301,21 +301,16 @@ where
         program_id: ProgramId,
         reservation_id: ReservationId,
     ) -> GasReservationSlot {
-        let block_number = Pallet::<T>::block_number();
-        let slot = ProgramStorageOf::<T>::update_active_program(
-            program_id,
-            |p| {
-                p.gas_reservation_map
-                    .remove(&reservation_id)
-                    .unwrap_or_else(|| {
-                        unreachable!(
-                            "Gas reservation removing called on non-existing reservation ID: {}",
-                            reservation_id
-                        )
-                    })
-            },
-            block_number,
-        )
+        let slot = ProgramStorageOf::<T>::update_active_program(program_id, |p, _bn_ref| {
+            p.gas_reservation_map
+                .remove(&reservation_id)
+                .unwrap_or_else(|| {
+                    unreachable!(
+                        "Gas reservation removing called on non-existing reservation ID: {}",
+                        reservation_id
+                    )
+                })
+        })
         .unwrap_or_else(|e| {
             unreachable!(
                 "Gas reservation removing guaranteed to be called only on existing program: {:?}",
