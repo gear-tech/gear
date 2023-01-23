@@ -17,7 +17,6 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    charger::{ProcessorChargeError, ProcessorGasCharger},
     common::{
         DispatchOutcome, DispatchResult, DispatchResultKind, ExecutableActorData,
         ExecutionErrorReason, GasOperation, JournalNote, PrechargedDispatch, WasmExecutionContext,
@@ -26,6 +25,7 @@ use crate::{
     context::*,
     executor,
     ext::ProcessorExt,
+    precharger::{GasPrecharger, PrechargeError},
 };
 use alloc::{collections::BTreeMap, string::ToString, vec::Vec};
 use codec::Encode;
@@ -64,11 +64,11 @@ pub fn precharge_for_program(
 
     let mut gas_counter = GasCounter::new(dispatch.gas_limit());
     let mut gas_allowance_counter = GasAllowanceCounter::new(gas_allowance);
-    let mut charger = ProcessorGasCharger::new(&mut gas_counter, &mut gas_allowance_counter);
+    let mut charger = GasPrecharger::new(&mut gas_counter, &mut gas_allowance_counter);
 
     match charger.charge_gas_for_program_data(read_cost, read_per_byte_cost) {
         Ok(()) => Ok((dispatch, gas_counter, gas_allowance_counter).into()),
-        Err(ProcessorChargeError::GasExceeded) => {
+        Err(PrechargeError::GasExceeded) => {
             let gas_burned = gas_counter.burned();
             let system_reservation_ctx = SystemReservationContext::from_dispatch(&dispatch);
             Err(process_error(
@@ -80,7 +80,7 @@ pub fn precharge_for_program(
                 false,
             ))
         }
-        Err(ProcessorChargeError::BlockGasExceeded) => {
+        Err(PrechargeError::BlockGasExceeded) => {
             let gas_burned = gas_counter.burned();
             Err(process_allowance_exceed(
                 dispatch,
@@ -129,7 +129,7 @@ pub fn precharge_for_code_length(
         ));
     }
 
-    let mut charger = ProcessorGasCharger::new(&mut gas_counter, &mut gas_allowance_counter);
+    let mut charger = GasPrecharger::new(&mut gas_counter, &mut gas_allowance_counter);
     match charger.charge_gas_per_byte(read_cost) {
         Ok(()) => Ok(ContextChargedForCodeLength {
             data: ContextData {
@@ -140,7 +140,7 @@ pub fn precharge_for_code_length(
                 actor_data,
             },
         }),
-        Err(ProcessorChargeError::GasExceeded) => {
+        Err(PrechargeError::GasExceeded) => {
             let system_reservation_ctx = SystemReservationContext::from_dispatch(&dispatch);
             Err(process_error(
                 dispatch,
@@ -151,7 +151,7 @@ pub fn precharge_for_code_length(
                 false,
             ))
         }
-        Err(ProcessorChargeError::BlockGasExceeded) => Err(process_allowance_exceed(
+        Err(PrechargeError::BlockGasExceeded) => Err(process_allowance_exceed(
             dispatch,
             destination_id,
             gas_counter.burned(),
@@ -168,14 +168,14 @@ pub fn precharge_for_code(
     let read_per_byte_cost = block_config.read_per_byte_cost;
     let read_cost = block_config.read_cost;
 
-    let mut charger = ProcessorGasCharger::new(
+    let mut charger = GasPrecharger::new(
         &mut context.data.gas_counter,
         &mut context.data.gas_allowance_counter,
     );
 
     match charger.charge_gas_for_program_code(read_cost, read_per_byte_cost, code_len_bytes) {
         Ok(()) => Ok((context, code_len_bytes).into()),
-        Err(ProcessorChargeError::GasExceeded) => {
+        Err(PrechargeError::GasExceeded) => {
             let system_reservation_ctx =
                 SystemReservationContext::from_dispatch(&context.data.dispatch);
             Err(process_error(
@@ -187,7 +187,7 @@ pub fn precharge_for_code(
                 false,
             ))
         }
-        Err(ProcessorChargeError::BlockGasExceeded) => Err(process_allowance_exceed(
+        Err(PrechargeError::BlockGasExceeded) => Err(process_allowance_exceed(
             context.data.dispatch,
             context.data.destination_id,
             context.data.gas_counter.burned(),
@@ -204,7 +204,7 @@ pub fn precharge_for_instrumentation(
     let cost_base = block_config.code_instrumentation_cost;
     let cost_per_byte = block_config.code_instrumentation_byte_cost;
 
-    let mut charger = ProcessorGasCharger::new(
+    let mut charger = GasPrecharger::new(
         &mut context.data.gas_counter,
         &mut context.data.gas_allowance_counter,
     );
@@ -212,7 +212,7 @@ pub fn precharge_for_instrumentation(
     match charger.charge_gas_for_instrumentation(cost_base, cost_per_byte, original_code_len_bytes)
     {
         Ok(()) => Ok(context.into()),
-        Err(ProcessorChargeError::GasExceeded) => {
+        Err(PrechargeError::GasExceeded) => {
             let system_reservation_ctx =
                 SystemReservationContext::from_dispatch(&context.data.dispatch);
             Err(process_error(
@@ -224,7 +224,7 @@ pub fn precharge_for_instrumentation(
                 false,
             ))
         }
-        Err(ProcessorChargeError::BlockGasExceeded) => Err(process_allowance_exceed(
+        Err(PrechargeError::BlockGasExceeded) => Err(process_allowance_exceed(
             context.data.dispatch,
             context.data.destination_id,
             context.data.gas_counter.burned(),
@@ -251,7 +251,7 @@ pub fn precharge_for_memory(
     } = &mut context;
 
     let mut f = || {
-        let mut charger = ProcessorGasCharger::new(gas_counter, gas_allowance_counter);
+        let mut charger = GasPrecharger::new(gas_counter, gas_allowance_counter);
 
         let is_initial_execution =
             dispatch.context().is_none() && matches!(dispatch.kind(), DispatchKind::Init);

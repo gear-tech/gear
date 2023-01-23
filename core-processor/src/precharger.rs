@@ -26,17 +26,17 @@ use gear_core::{
 };
 use gear_core_errors::MemoryError;
 
-pub enum ProcessorChargeError {
+pub enum PrechargeError {
     BlockGasExceeded,
     GasExceeded,
 }
 
-pub struct ProcessorGasCharger<'a> {
+pub struct GasPrecharger<'a> {
     counter: &'a mut GasCounter,
     allowance_counter: &'a mut GasAllowanceCounter,
 }
 
-impl<'a> ProcessorGasCharger<'a> {
+impl<'a> GasPrecharger<'a> {
     pub fn new(
         counter: &'a mut GasCounter,
         allowance_counter: &'a mut GasAllowanceCounter,
@@ -47,12 +47,12 @@ impl<'a> ProcessorGasCharger<'a> {
         }
     }
 
-    pub fn charge_gas_per_byte(&mut self, amount: u64) -> Result<(), ProcessorChargeError> {
+    pub fn charge_gas_per_byte(&mut self, amount: u64) -> Result<(), PrechargeError> {
         if self.allowance_counter.charge(amount) != ChargeResult::Enough {
-            return Err(ProcessorChargeError::BlockGasExceeded);
+            return Err(PrechargeError::BlockGasExceeded);
         }
         if self.counter.charge(amount) != ChargeResult::Enough {
-            return Err(ProcessorChargeError::GasExceeded);
+            return Err(PrechargeError::GasExceeded);
         }
 
         Ok(())
@@ -77,7 +77,7 @@ impl<'a> ProcessorGasCharger<'a> {
         &mut self,
         read_cost: u64,
         per_byte_cost: u64,
-    ) -> Result<(), ProcessorChargeError> {
+    ) -> Result<(), PrechargeError> {
         self.charge_gas_per_byte(calculate_gas_for_program(read_cost, per_byte_cost))
     }
 
@@ -86,7 +86,7 @@ impl<'a> ProcessorGasCharger<'a> {
         read_cost: u64,
         per_byte_cost: u64,
         code_len_bytes: u32,
-    ) -> Result<(), ProcessorChargeError> {
+    ) -> Result<(), PrechargeError> {
         self.charge_gas_per_byte(calculate_gas_for_code(
             read_cost,
             per_byte_cost,
@@ -108,7 +108,7 @@ impl<'a> ProcessorGasCharger<'a> {
         instrumentation_cost: u64,
         instrumentation_byte_cost: u64,
         original_code_len_bytes: u32,
-    ) -> Result<(), ProcessorChargeError> {
+    ) -> Result<(), PrechargeError> {
         let amount = instrumentation_cost.saturating_add(
             instrumentation_byte_cost.saturating_mul(original_code_len_bytes.into()),
         );
@@ -243,7 +243,7 @@ mod tests {
     fn gas_for_pages_initial() {
         let settings = prepare_alloc_config();
         let (mut gas_counter, mut gas_allowance_counter) = prepare_gas_counters();
-        let mut charger = ProcessorGasCharger::new(&mut gas_counter, &mut gas_allowance_counter);
+        let mut charger = GasPrecharger::new(&mut gas_counter, &mut gas_allowance_counter);
         let static_pages = 4;
         let res = charger.charge_gas_for_pages(
             &settings,
@@ -264,7 +264,7 @@ mod tests {
     fn gas_for_pages_static() {
         let settings = prepare_alloc_config();
         let (mut gas_counter, mut gas_allowance_counter) = prepare_gas_counters();
-        let mut charger = ProcessorGasCharger::new(&mut gas_counter, &mut gas_allowance_counter);
+        let mut charger = GasPrecharger::new(&mut gas_counter, &mut gas_allowance_counter);
         let static_pages = 4;
         let res = charger.charge_gas_for_pages(
             &settings,
@@ -285,7 +285,7 @@ mod tests {
     fn gas_for_pages_alloc() {
         let settings = prepare_alloc_config();
         let (mut gas_counter, mut gas_allowance_counter) = prepare_gas_counters();
-        let mut charger = ProcessorGasCharger::new(&mut gas_counter, &mut gas_allowance_counter);
+        let mut charger = GasPrecharger::new(&mut gas_counter, &mut gas_allowance_counter);
         let allocs = prepare_allocs();
         let static_pages = 4;
         let res =
@@ -307,7 +307,7 @@ mod tests {
 
         // Use the second time (`subsequent` = `true`)
         let (mut gas_counter, mut gas_allowance_counter) = prepare_gas_counters();
-        let mut charger = ProcessorGasCharger::new(&mut gas_counter, &mut gas_allowance_counter);
+        let mut charger = GasPrecharger::new(&mut gas_counter, &mut gas_allowance_counter);
         let res =
             charger.charge_gas_for_pages(&settings, &allocs, static_pages.into(), false, true);
         assert_eq!(res, Ok(last.inc().unwrap()));
