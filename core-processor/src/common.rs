@@ -18,7 +18,7 @@
 
 //! Common structures for processing.
 
-use crate::{precharge::GasOperation, PrepareMemoryError};
+use crate::precharge::GasOperation;
 use alloc::{
     collections::{BTreeMap, BTreeSet},
     string::String,
@@ -409,9 +409,6 @@ pub struct ExecutionError {
 /// Reason of execution error
 #[derive(Encode, Decode, TypeInfo, Debug, PartialEq, Eq, PartialOrd, Ord, derive_more::Display)]
 pub enum ExecutionErrorReason {
-    /// Prepare memory error
-    #[display(fmt = "{_0}")]
-    PrepareMemory(PrepareMemoryError),
     /// Not enough gas to perform an operation.
     #[display(fmt = "Not enough gas to {_0}")]
     GasExceeded(GasOperation),

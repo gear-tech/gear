@@ -8127,6 +8127,7 @@ mod utils {
         storage::{CountedByKey, Counter, IterableByKeyMap},
         Origin, ProgramStorage,
     };
+    use core::fmt::Display;
     use core_processor::common::ExecutionErrorReason;
     use frame_support::{
         dispatch::{DispatchErrorWithPostInfo, DispatchResultWithPostInfo},
@@ -8421,7 +8422,7 @@ mod utils {
     }
 
     #[track_caller]
-    pub(super) fn assert_failed(message_id: MessageId, error: ExecutionErrorReason) {
+    pub(super) fn assert_failed(message_id: MessageId, error: impl Display) {
         let status =
             dispatch_status(message_id).expect("Message not found in `Event::MessagesDispatched`");
 
@@ -8795,10 +8796,10 @@ fn check_gear_stack_end_fail() {
         assert_last_dequeued(1);
         assert_failed(
             message_id,
-            ExecutionErrorReason::PrepareMemory(PrepareMemoryError::StackEndPageBiggerWasmMemSize(
+            PrepareMemoryError::StackEndPageBiggerWasmMemSize(
                 WasmPage::new(5).unwrap(),
                 WasmPage::new(4).unwrap(),
-            )),
+            ),
         );
 
         // Check error when stack end is not aligned
