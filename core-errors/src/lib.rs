@@ -112,10 +112,6 @@ pub enum MessageError {
         value_left: u128,
     },
 
-    /// The error occurs when program receives too big payload.
-    #[display(fmt = "Received message with abnormal payload size")]
-    IncomingPayloadTooBig,
-
     /// The error occurs when functions related to reply context, used without it.
     #[display(fmt = "Not running in reply context")]
     NoReplyContext,
@@ -159,11 +155,6 @@ pub enum MemoryError {
     /// allocated for this program.
     #[display(fmt = "Access to the page not allocated to this program")]
     MemoryAccessError,
-
-    /// Invalid page data size.
-    // TODO: (issue #1956) change to u32.
-    #[display(fmt = "Page data has wrong size: {_0:#x}")]
-    InvalidPageDataSize(u64),
 
     /// Memory size cannot be zero after grow is applied for memory
     #[display(fmt = "Memory unexpectedly has zero size after grow")]
