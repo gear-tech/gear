@@ -69,7 +69,7 @@ use frame_system::pallet_prelude::BlockNumberFor;
 use gear_core::{
     code::{CodeAndId, InstrumentedCode},
     ids::{CodeId, MessageId, ProgramId, ReservationId},
-    memory::WasmPageNumber,
+    memory::WasmPage,
     message::{DispatchKind, SignalMessage, StatusCode},
     reservation::GasReservationSlot,
 };
@@ -107,7 +107,7 @@ impl fmt::Debug for HandleKind {
 pub struct CodeInfo {
     id: H256,
     exports: BTreeSet<DispatchKind>,
-    static_pages: WasmPageNumber,
+    static_pages: WasmPage,
 }
 
 impl CodeInfo {

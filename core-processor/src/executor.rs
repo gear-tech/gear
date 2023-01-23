@@ -40,7 +40,7 @@ use gear_core::{
     env::Ext as EnvExt,
     gas::{GasAllowanceCounter, GasCounter, ValueCounter},
     ids::ProgramId,
-    memory::{AllocationsContext, Memory, PageBuf, PageNumber, PageU32Size, WasmPageNumber},
+    memory::{AllocationsContext, GearPage, Memory, PageBuf, PageU32Size, WasmPage},
     message::{
         ContextSettings, DispatchKind, IncomingDispatch, IncomingMessage, MessageContext, WasmEntry,
     },
@@ -88,10 +88,10 @@ pub struct InitialPagesContainDataError;
 
 /// Make checks that everything with memory goes well.
 fn check_memory<'a>(
-    allocations: &BTreeSet<WasmPageNumber>,
-    pages_with_data: impl Iterator<Item = &'a PageNumber>,
-    static_pages: WasmPageNumber,
-    memory_size: WasmPageNumber,
+    allocations: &BTreeSet<WasmPage>,
+    pages_with_data: impl Iterator<Item = &'a GearPage>,
+    static_pages: WasmPage,
+    memory_size: WasmPage,
 ) -> Result<(), PrepareMemoryError> {
     if memory_size < static_pages {
         log::error!(
@@ -126,9 +126,9 @@ fn check_initial_pages_data(
 fn prepare_memory<A: ProcessorExt, M: Memory>(
     mem: &mut M,
     program_id: ProgramId,
-    pages_data: &mut BTreeMap<PageNumber, PageBuf>,
-    static_pages: WasmPageNumber,
-    stack_end: Option<WasmPageNumber>,
+    pages_data: &mut BTreeMap<GearPage, PageBuf>,
+    static_pages: WasmPage,
+    stack_end: Option<WasmPage>,
     globals_config: GlobalsConfig,
     lazy_pages_weights: LazyPagesWeights,
 ) -> Result<(), PrepareMemoryError> {
@@ -189,10 +189,10 @@ fn prepare_memory<A: ProcessorExt, M: Memory>(
 
 /// Returns pages and their new data, which must be updated or uploaded to storage.
 fn get_pages_to_be_updated<A: ProcessorExt>(
-    old_pages_data: BTreeMap<PageNumber, PageBuf>,
-    new_pages_data: BTreeMap<PageNumber, PageBuf>,
-    static_pages: WasmPageNumber,
-) -> BTreeMap<PageNumber, PageBuf> {
+    old_pages_data: BTreeMap<GearPage, PageBuf>,
+    new_pages_data: BTreeMap<GearPage, PageBuf>,
+    static_pages: WasmPage,
+) -> BTreeMap<GearPage, PageBuf> {
     if A::LAZY_PAGES_ENABLED {
         // In lazy pages mode we update some page data in storage,
         // when it has been write accessed, so no need to compare old and new page data.
@@ -439,14 +439,14 @@ pub fn execute_for_reply<
 >(
     function: EP,
     instrumented_code: InstrumentedCode,
-    pages_initial_data: Option<BTreeMap<PageNumber, PageBuf>>,
-    allocations: Option<BTreeSet<WasmPageNumber>>,
+    pages_initial_data: Option<BTreeMap<GearPage, PageBuf>>,
+    allocations: Option<BTreeSet<WasmPage>>,
     program_id: Option<ProgramId>,
     payload: Vec<u8>,
     gas_limit: u64,
 ) -> Result<Vec<u8>, String> {
     let program = Program::new(program_id.unwrap_or_default(), instrumented_code);
-    let mut pages_initial_data: BTreeMap<PageNumber, PageBuf> =
+    let mut pages_initial_data: BTreeMap<GearPage, PageBuf> =
         pages_initial_data.unwrap_or_default();
     let static_pages = program.static_pages();
     let allocations = allocations.unwrap_or_else(|| program.allocations().clone());
@@ -455,7 +455,7 @@ pub fn execute_for_reply<
         page.inc()
             .map_err(|err| err.to_string())
             .expect("Memory size overflow, impossible")
-    } else if static_pages != WasmPageNumber::from(0) {
+    } else if static_pages != WasmPage::from(0) {
         static_pages
     } else {
         0.into()
@@ -584,7 +584,7 @@ mod tests {
     use super::*;
     use alloc::vec::Vec;
     use gear_backend_common::lazy_pages::Status;
-    use gear_core::memory::{PageBufInner, WasmPageNumber};
+    use gear_core::memory::{PageBufInner, WasmPage};
 
     struct TestExt;
     struct LazyTestExt;
@@ -598,7 +598,7 @@ mod tests {
         fn lazy_pages_init_for_program(
             _mem: &mut impl Memory,
             _prog_id: ProgramId,
-            _stack_end: Option<WasmPageNumber>,
+            _stack_end: Option<WasmPage>,
             _globals_config: GlobalsConfig,
             _lazy_pages_weights: LazyPagesWeights,
         ) {
@@ -620,7 +620,7 @@ mod tests {
         fn lazy_pages_init_for_program(
             _mem: &mut impl Memory,
             _prog_id: ProgramId,
-            _stack_end: Option<WasmPageNumber>,
+            _stack_end: Option<WasmPage>,
             _globals_config: GlobalsConfig,
             _lazy_pages_weights: LazyPagesWeights,
         ) {
@@ -632,13 +632,13 @@ mod tests {
         }
     }
 
-    fn prepare_pages_and_allocs() -> (Vec<PageNumber>, BTreeSet<WasmPageNumber>) {
+    fn prepare_pages_and_allocs() -> (Vec<GearPage>, BTreeSet<WasmPage>) {
         let data = [0u16, 1, 2, 8, 18, 25, 27, 28, 93, 146, 240, 518];
         let pages = data.map(Into::into);
         (pages.to_vec(), pages.map(|p| p.to_page()).into())
     }
 
-    fn prepare_pages() -> BTreeMap<PageNumber, PageBuf> {
+    fn prepare_pages() -> BTreeMap<GearPage, PageBuf> {
         let mut pages = BTreeMap::new();
         for i in 0..=255 {
             let buffer = PageBufInner::filled_with(i);
@@ -700,11 +700,7 @@ mod tests {
         // Do not include non-static pages
         let new_pages = new_pages
             .into_iter()
-            .take(
-                WasmPageNumber::from(static_pages)
-                    .to_page::<PageNumber>()
-                    .raw() as _,
-            )
+            .take(WasmPage::from(static_pages).to_page::<GearPage>().raw() as _)
             .collect();
         let res =
             get_pages_to_be_updated::<TestExt>(Default::default(), new_pages, static_pages.into());
@@ -748,7 +744,7 @@ mod tests {
         let res =
             get_pages_to_be_updated::<TestExt>(Default::default(), new_pages.clone(), static_pages);
         // The result is all pages except the static ones
-        for page in static_pages.to_page::<PageNumber>().iter_from_zero() {
+        for page in static_pages.to_page::<GearPage>().iter_from_zero() {
             new_pages.remove(&page);
         }
         assert_eq!(res, new_pages,);

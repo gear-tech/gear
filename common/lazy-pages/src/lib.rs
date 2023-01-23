@@ -28,7 +28,7 @@ use gear_backend_common::{
 use gear_common::Origin;
 use gear_core::{
     ids::ProgramId,
-    memory::{HostPointer, Memory, MemoryInterval, PageNumber, WasmPageNumber},
+    memory::{GearPage, HostPointer, Memory, MemoryInterval, WasmPage},
 };
 use gear_runtime_interface::{gear_ri, LazyPagesProgramContext};
 use sp_std::vec::Vec;
@@ -51,7 +51,7 @@ pub fn try_to_enable_lazy_pages(pages_final_prefix: [u8; 32]) -> bool {
 pub fn init_for_program(
     mem: &mut impl Memory,
     program_id: ProgramId,
-    stack_end: Option<WasmPageNumber>,
+    stack_end: Option<WasmPage>,
     globals_config: GlobalsConfig,
     lazy_pages_weights: LazyPagesWeights,
 ) {
@@ -83,7 +83,7 @@ pub fn remove_lazy_pages_prot(mem: &mut impl Memory) {
 pub fn update_lazy_pages_and_protect_again(
     mem: &mut impl Memory,
     old_mem_addr: Option<HostPointer>,
-    old_mem_size: WasmPageNumber,
+    old_mem_size: WasmPage,
     new_mem_addr: HostPointer,
 ) {
     struct PointerDisplay(HostPointer);
@@ -118,7 +118,7 @@ pub fn update_lazy_pages_and_protect_again(
 }
 
 /// Returns list of released pages numbers.
-pub fn get_released_pages() -> Vec<PageNumber> {
+pub fn get_released_pages() -> Vec<GearPage> {
     gear_ri::get_released_pages()
 }
 

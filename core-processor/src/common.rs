@@ -32,7 +32,7 @@ use gear_backend_common::{SystemReservationContext, TrapExplanation};
 use gear_core::{
     gas::{GasAllowanceCounter, GasAmount, GasCounter},
     ids::{CodeId, MessageId, ProgramId, ReservationId},
-    memory::{PageBuf, PageNumber, WasmPageNumber},
+    memory::{GearPage, PageBuf, WasmPage},
     message::{
         ContextStore, Dispatch, DispatchKind, IncomingDispatch, MessageWaitedType, StoredDispatch,
     },
@@ -80,9 +80,9 @@ pub struct DispatchResult {
     /// System reservation context.
     pub system_reservation_context: SystemReservationContext,
     /// Page updates.
-    pub page_update: BTreeMap<PageNumber, PageBuf>,
+    pub page_update: BTreeMap<GearPage, PageBuf>,
     /// New allocations set for program if it has been changed.
-    pub allocations: BTreeSet<WasmPageNumber>,
+    pub allocations: BTreeSet<WasmPage>,
 }
 
 impl DispatchResult {
@@ -236,7 +236,7 @@ pub enum JournalNote {
         /// Program that owns the page.
         program_id: ProgramId,
         /// Number of the page.
-        page_number: PageNumber,
+        page_number: GearPage,
         /// New data of the page.
         data: PageBuf,
     },
@@ -246,7 +246,7 @@ pub enum JournalNote {
         /// Program id.
         program_id: ProgramId,
         /// New allocations set for the program.
-        allocations: BTreeSet<WasmPageNumber>,
+        allocations: BTreeSet<WasmPage>,
     },
     /// Send value
     SendValue {
@@ -362,13 +362,9 @@ pub trait JournalHandler {
         delay: u32,
     );
     /// Process page update.
-    fn update_pages_data(
-        &mut self,
-        program_id: ProgramId,
-        pages_data: BTreeMap<PageNumber, PageBuf>,
-    );
+    fn update_pages_data(&mut self, program_id: ProgramId, pages_data: BTreeMap<GearPage, PageBuf>);
     /// Process [JournalNote::UpdateAllocations].
-    fn update_allocations(&mut self, program_id: ProgramId, allocations: BTreeSet<WasmPageNumber>);
+    fn update_allocations(&mut self, program_id: ProgramId, allocations: BTreeSet<WasmPage>);
     /// Send value.
     fn send_value(&mut self, from: ProgramId, to: Option<ProgramId>, value: u128);
     /// Store new programs in storage.
@@ -470,15 +466,15 @@ pub struct Actor {
 #[derive(Clone, Debug, Decode, Encode)]
 pub struct ExecutableActorData {
     /// Set of dynamic wasm page numbers, which are allocated by the program.
-    pub allocations: BTreeSet<WasmPageNumber>,
+    pub allocations: BTreeSet<WasmPage>,
     /// Set of gear pages numbers, which has data in storage.
-    pub pages_with_data: BTreeSet<PageNumber>,
+    pub pages_with_data: BTreeSet<GearPage>,
     /// Id of the program code.
     pub code_id: CodeId,
     /// Exported functions by the program code.
     pub code_exports: BTreeSet<DispatchKind>,
     /// Count of static memory pages.
-    pub static_pages: WasmPageNumber,
+    pub static_pages: WasmPage,
     /// Flag indicates if the program is initialized.
     pub initialized: bool,
     /// Gas reservation map.
@@ -498,9 +494,9 @@ pub struct WasmExecutionContext {
     /// Program to be executed.
     pub program: Program,
     /// Memory pages with initial data.
-    pub pages_initial_data: BTreeMap<PageNumber, PageBuf>,
+    pub pages_initial_data: BTreeMap<GearPage, PageBuf>,
     /// Size of the memory block.
-    pub memory_size: WasmPageNumber,
+    pub memory_size: WasmPage,
 }
 
 /// Struct with dispatch and counters charged for program data.

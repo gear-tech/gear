@@ -21,7 +21,7 @@
 use alloc::{collections::BTreeSet, vec::Vec};
 use codec::{Decode, Encode};
 use gear_backend_common::lazy_pages::LazyPagesWeights;
-use gear_core::{code, costs::HostFnWeights, memory::WasmPageNumber};
+use gear_core::{code, costs::HostFnWeights, memory::WasmPage};
 use gear_wasm_instrument::syscalls::SysCallName;
 
 const INIT_COST: u64 = 5000;
@@ -47,7 +47,7 @@ pub struct BlockInfo {
 #[derive(Clone, Debug, Decode, Encode)]
 pub struct PagesConfig {
     /// Max amount of pages.
-    pub max_pages: WasmPageNumber,
+    pub max_pages: WasmPage,
     /// Lazy-pages accesses costs.
     pub lazy_pages_weights: LazyPagesWeights,
     /// Cost of initial memory.
@@ -100,7 +100,7 @@ pub struct ExecutionSettings {
 
 impl ExecutionSettings {
     /// Max amount of pages.
-    pub fn max_pages(&self) -> WasmPageNumber {
+    pub fn max_pages(&self) -> WasmPage {
         self.pages_config.max_pages
     }
 }

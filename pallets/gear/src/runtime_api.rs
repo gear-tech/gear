@@ -19,13 +19,13 @@
 use super::*;
 use common::ActiveProgram;
 use core::convert::TryFrom;
-use gear_core::memory::WasmPageNumber;
+use gear_core::memory::WasmPage;
 use gear_wasm_instrument::syscalls::SysCallName;
 
 pub(crate) struct CodeWithMemoryData {
     pub instrumented_code: InstrumentedCode,
-    pub allocations: BTreeSet<WasmPageNumber>,
-    pub program_pages: Option<BTreeMap<PageNumber, PageBuf>>,
+    pub allocations: BTreeSet<WasmPage>,
+    pub program_pages: Option<BTreeMap<GearPage, PageBuf>>,
 }
 
 impl<T: Config> Pallet<T>
