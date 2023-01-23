@@ -35,7 +35,6 @@ use gear_core::{
     memory::{PageU32Size, WasmPage},
     message::{DispatchKind, IncomingDispatch, MessageWaitedType, StatusCode},
 };
-use gear_core_errors::MemoryError;
 use scale_info::TypeInfo;
 
 /// Operation related to gas charging.
@@ -76,18 +75,12 @@ enum PrechargeError {
 #[derive(Debug, Eq, PartialEq)]
 enum PrechargeForMemoryError {
     Precharge(PrechargeError),
-    Memory(MemoryError),
+    WasmMemSizeTooBig,
 }
 
 impl From<PrechargeError> for PrechargeForMemoryError {
     fn from(err: PrechargeError) -> Self {
         Self::Precharge(err)
-    }
-}
-
-impl From<MemoryError> for PrechargeForMemoryError {
-    fn from(err: MemoryError) -> Self {
-        Self::Memory(err)
     }
 }
 
@@ -242,7 +235,9 @@ impl<'a> GasPrecharger<'a> {
         self.charge_gas_for_grow_memory(settings, max_wasm_page, static_pages)?;
 
         // +1 because pages numeration begins from 0
-        let wasm_mem_size = max_wasm_page.inc().map_err(|_| MemoryError::OutOfBounds)?;
+        let wasm_mem_size = max_wasm_page
+            .inc()
+            .map_err(|_| PrechargeForMemoryError::WasmMemSizeTooBig)?;
 
         Ok(wasm_mem_size)
     }
@@ -520,7 +515,9 @@ pub fn precharge_for_memory(
                 PrechargeForMemoryError::Precharge(PrechargeError::GasExceeded(op)) => {
                     ExecutionErrorReason::GasExceeded(op)
                 }
-                PrechargeForMemoryError::Memory(err) => ExecutionErrorReason::Memory(err),
+                PrechargeForMemoryError::WasmMemSizeTooBig => {
+                    ExecutionErrorReason::WasmMemSizeTooBig
+                }
             };
 
             let system_reservation_ctx =

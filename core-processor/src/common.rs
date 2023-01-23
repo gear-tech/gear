@@ -39,7 +39,6 @@ use gear_core::{
     program::Program,
     reservation::{GasReservationMap, GasReserver},
 };
-use gear_core_errors::MemoryError;
 use scale_info::TypeInfo;
 
 /// Kind of the dispatch result.
@@ -413,9 +412,9 @@ pub struct ExecutionError {
 /// Reason of execution error
 #[derive(Encode, Decode, TypeInfo, Debug, PartialEq, Eq, PartialOrd, Ord, derive_more::Display)]
 pub enum ExecutionErrorReason {
-    /// Memory error
-    #[display(fmt = "{_0}")]
-    Memory(MemoryError),
+    /// WASM memory size is too big.
+    #[display(fmt = "WASM memory size is too big")]
+    WasmMemSizeTooBig,
     /// Prepare memory error
     #[display(fmt = "{_0}")]
     PrepareMemory(PrepareMemoryError),
