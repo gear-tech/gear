@@ -32,7 +32,7 @@ use gear_backend_common::SystemReservationContext;
 use gear_core::{
     gas::{ChargeResult, GasAllowanceCounter, GasCounter},
     ids::ProgramId,
-    memory::{PageU32Size, WasmPageNumber},
+    memory::{PageU32Size, WasmPage},
     message::{DispatchKind, IncomingDispatch, MessageWaitedType, StatusCode},
 };
 use gear_core_errors::MemoryError;
@@ -156,7 +156,7 @@ impl<'a> GasPrecharger<'a> {
     fn charge_gas_for_initial_memory(
         &mut self,
         settings: &PagesConfig,
-        static_pages: WasmPageNumber,
+        static_pages: WasmPage,
     ) -> Result<(), ExecutionErrorReason> {
         // TODO: check calculation is safe: #2007.
         let amount = settings.init_cost * static_pages.raw() as u64;
@@ -166,8 +166,8 @@ impl<'a> GasPrecharger<'a> {
     fn charge_gas_for_load_memory(
         &mut self,
         settings: &PagesConfig,
-        allocations: &BTreeSet<WasmPageNumber>,
-        static_pages: WasmPageNumber,
+        allocations: &BTreeSet<WasmPage>,
+        static_pages: WasmPage,
     ) -> Result<(), ExecutionErrorReason> {
         // TODO: check calculation is safe: #2007.
         let amount =
@@ -178,8 +178,8 @@ impl<'a> GasPrecharger<'a> {
     fn charge_gas_for_grow_memory(
         &mut self,
         settings: &PagesConfig,
-        max_wasm_page: WasmPageNumber,
-        static_pages: WasmPageNumber,
+        max_wasm_page: WasmPage,
+        static_pages: WasmPage,
     ) -> Result<(), ExecutionErrorReason> {
         // TODO: make separate class for size in pages (here is static_pages): #2008.
         // TODO: check calculation is safe: #2007.
@@ -197,11 +197,11 @@ impl<'a> GasPrecharger<'a> {
     pub fn charge_gas_for_pages(
         &mut self,
         settings: &PagesConfig,
-        allocations: &BTreeSet<WasmPageNumber>,
-        static_pages: WasmPageNumber,
+        allocations: &BTreeSet<WasmPage>,
+        static_pages: WasmPage,
         initial_execution: bool,
         subsequent_execution: bool,
-    ) -> Result<WasmPageNumber, ExecutionErrorReason> {
+    ) -> Result<WasmPage, ExecutionErrorReason> {
         // Initial execution: just charge for static pages
         if initial_execution {
             // Charging gas for initial pages
@@ -214,7 +214,7 @@ impl<'a> GasPrecharger<'a> {
         } else if let Ok(max_wasm_page) = static_pages.dec() {
             max_wasm_page
         } else {
-            return Ok(WasmPageNumber::zero());
+            return Ok(WasmPage::zero());
         };
 
         if !subsequent_execution {
@@ -534,11 +534,11 @@ pub fn precharge_for_memory(
 mod tests {
     use super::*;
     use gear_backend_common::lazy_pages::LazyPagesWeights;
-    use gear_core::memory::PageNumber;
+    use gear_core::memory::GearPage;
 
-    fn prepare_allocs() -> BTreeSet<WasmPageNumber> {
+    fn prepare_allocs() -> BTreeSet<WasmPage> {
         let data = [0u16, 1, 2, 8, 18, 25, 27, 28, 93, 146, 240, 518];
-        data.map(Into::into).map(|p: PageNumber| p.to_page()).into()
+        data.map(Into::into).map(|p: GearPage| p.to_page()).into()
     }
 
     fn prepare_alloc_config() -> PagesConfig {

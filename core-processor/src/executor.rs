@@ -58,16 +58,16 @@ pub enum PrepareMemoryError {
     InsufficientMemorySize,
     /// Page with data is not allocated for program
     #[display(fmt = "{_0:?} is not allocated for program")]
-    PageIsNotAllocated(PageNumber),
+    PageIsNotAllocated(GearPage),
     /// Stack end page, which value is specified in WASM code, cannot be bigger than static memory size.
     #[display(fmt = "Stack end page {_0:?} is bigger then WASM static memory size {_1:?}")]
-    StackEndPageBiggerWasmMemSize(WasmPageNumber, WasmPageNumber),
+    StackEndPageBiggerWasmMemSize(WasmPage, WasmPage),
     /// Cannot write initial data to wasm memory.
     #[display(fmt = "Cannot write initial data for {_0:?}: {_1}")]
-    InitialDataWriteFailed(PageNumber, MemoryError),
+    InitialDataWriteFailed(GearPage, MemoryError),
     /// Cannot read initial memory data from wasm memory.
     #[display(fmt = "Cannot read data for {_0:?}: {_1}")]
-    InitialMemoryReadFailed(PageNumber, MemoryError),
+    InitialMemoryReadFailed(GearPage, MemoryError),
     /// Initial pages contain data error
     #[display(fmt = "{_0}")]
     InitialPagesContainData(InitialPagesContainDataError),
@@ -114,7 +114,7 @@ fn check_memory<'a>(
 }
 
 fn check_initial_pages_data(
-    initial_pages_data: &BTreeMap<PageNumber, PageBuf>,
+    initial_pages_data: &BTreeMap<GearPage, PageBuf>,
 ) -> Result<(), InitialPagesContainDataError> {
     initial_pages_data
         .is_empty()
