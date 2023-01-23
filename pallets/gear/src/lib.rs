@@ -207,7 +207,7 @@ pub mod pallet {
         type CodeStorage: CodeStorage;
 
         /// Implementation of a storage for programs.
-        type ProgramStorage: ProgramStorage;
+        type ProgramStorage: ProgramStorage<BlockNumber = Self::BlockNumber>;
 
         /// The minimal gas amount for message to be inserted in mailbox.
         ///

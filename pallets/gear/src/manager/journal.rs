@@ -233,7 +233,7 @@ where
         // Program can't be inactive, cause it was executed.
         self.clean_reservation_tasks(id_exited, false);
 
-        let block_number = Pallet::<T>::block_number().unique_saturated_into();
+        let block_number = Pallet::<T>::block_number();
         ProgramStorageOf::<T>::update_program_if_active(
             id_exited,
             |p| {
@@ -471,7 +471,7 @@ where
             let code_info = CodeInfo::from_code(&code_id, &code);
             for (init_message, candidate_id) in candidates {
                 if !ProgramStorageOf::<T>::program_exists(candidate_id) {
-                    let block_number = Pallet::<T>::block_number().unique_saturated_into();
+                    let block_number = Pallet::<T>::block_number();
                     self.set_program(block_number, candidate_id, &code_info, init_message);
                 } else {
                     log::debug!("Program with id {:?} already exists", candidate_id);

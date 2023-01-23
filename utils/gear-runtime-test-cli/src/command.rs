@@ -253,7 +253,7 @@ macro_rules! command {
                 ProgramStorageOf::<Runtime>::add_program(
                     ProgramId::from_origin(*id),
                     program,
-                    DEFAULT_BLOCK_NUMBER,
+                    DEFAULT_BLOCK_NUMBER.into(),
                 );
             }
 

@@ -242,7 +242,7 @@ where
 
     pub fn set_program(
         &self,
-        block_number: u32,
+        block_number: <T as frame_system::Config>::BlockNumber,
         program_id: ProgramId,
         code_info: &CodeInfo,
         message_id: MessageId,
@@ -301,7 +301,7 @@ where
         program_id: ProgramId,
         reservation_id: ReservationId,
     ) -> GasReservationSlot {
-        let block_number = Pallet::<T>::block_number().unique_saturated_into();
+        let block_number = Pallet::<T>::block_number();
         let slot = ProgramStorageOf::<T>::update_active_program(
             program_id,
             |p| {

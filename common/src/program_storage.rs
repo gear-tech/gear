@@ -41,8 +41,9 @@ pub trait Error {
 pub trait ProgramStorage {
     type InternalError: Error;
     type Error: From<Self::InternalError> + Debug;
+    type BlockNumber;
 
-    type ProgramMap: MapStorage<Key = ProgramId, Value = (Program, u32)>;
+    type ProgramMap: MapStorage<Key = ProgramId, Value = (Program, Self::BlockNumber)>;
     type MemoryPageMap: DoubleMapStorage<Key1 = ProgramId, Key2 = GearPage, Value = PageBuf>;
     type WaitingInitMap: AppendMapStorage<MessageId, ProgramId, Vec<MessageId>>;
 
@@ -57,7 +58,7 @@ pub trait ProgramStorage {
     fn add_program(
         program_id: ProgramId,
         program: ActiveProgram,
-        block_number: u32,
+        block_number: Self::BlockNumber,
     ) -> Result<(), Self::Error> {
         Self::ProgramMap::mutate(program_id, |maybe| {
             if maybe.is_some() {
@@ -70,7 +71,7 @@ pub trait ProgramStorage {
     }
 
     /// Load the program associated with the given key `program_id` from the map.
-    fn get_program(program_id: ProgramId) -> Option<(Program, u32)> {
+    fn get_program(program_id: ProgramId) -> Option<(Program, Self::BlockNumber)> {
         Self::ProgramMap::get(&program_id)
     }
 
@@ -83,7 +84,7 @@ pub trait ProgramStorage {
     fn update_active_program<F, ReturnType>(
         program_id: ProgramId,
         update_action: F,
-        block_number: u32,
+        block_number: Self::BlockNumber,
     ) -> Result<ReturnType, Self::Error>
     where
         F: FnOnce(&mut ActiveProgram) -> ReturnType,
@@ -103,14 +104,13 @@ pub trait ProgramStorage {
     fn update_program_if_active<F, ReturnType>(
         program_id: ProgramId,
         update_action: F,
-        block_number: u32,
+        block_number: Self::BlockNumber,
     ) -> Result<ReturnType, Self::Error>
     where
         F: FnOnce(&mut Program) -> ReturnType,
     {
-        let mut program = Self::ProgramMap::get(&program_id)
-            .ok_or(Self::InternalError::item_not_found())?
-            .0;
+        let (mut program, _bn) =
+            Self::ProgramMap::get(&program_id).ok_or(Self::InternalError::item_not_found())?;
         match program {
             Program::Active(_) => (),
             _ => return Err(Self::InternalError::not_active_program().into()),

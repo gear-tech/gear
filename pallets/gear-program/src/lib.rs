@@ -234,13 +234,14 @@ pub mod pallet {
 
     #[pallet::storage]
     #[pallet::unbounded]
-    pub(crate) type ProgramStorage<T: Config> = StorageMap<_, Identity, ProgramId, (Program, u32)>;
+    pub(crate) type ProgramStorage<T: Config> =
+        StorageMap<_, Identity, ProgramId, (Program, T::BlockNumber)>;
 
     common::wrap_storage_map!(
         storage: ProgramStorage,
         name: ProgramStorageWrap,
         key: ProgramId,
-        value: (Program, u32)
+        value: (Program, T::BlockNumber)
     );
 
     #[pallet::storage]
@@ -278,23 +279,26 @@ pub mod pallet {
         type OriginalCodeStorage = OriginalCodeStorageWrap<T>;
     }
 
-    impl<Runtime: Config> common::ProgramStorage for pallet::Pallet<Runtime> {
-        type InternalError = Error<Runtime>;
+    impl<T: Config> common::ProgramStorage for pallet::Pallet<T> {
+        type InternalError = Error<T>;
         type Error = DispatchError;
+        type BlockNumber = T::BlockNumber;
 
-        type ProgramMap = ProgramStorageWrap<Runtime>;
-        type MemoryPageMap = MemoryPageStorageWrap<Runtime>;
-        type WaitingInitMap = WaitingInitStorageWrap<Runtime>;
+        type ProgramMap = ProgramStorageWrap<T>;
+        type MemoryPageMap = MemoryPageStorageWrap<T>;
+        type WaitingInitMap = WaitingInitStorageWrap<T>;
 
         fn pages_final_prefix() -> [u8; 32] {
-            MemoryPageStorage::<Runtime>::final_prefix()
+            MemoryPageStorage::<T>::final_prefix()
         }
     }
 
     #[cfg(feature = "debug-mode")]
-    impl<Runtime: Config> IterableMap<(ProgramId, (Program, u32))> for pallet::Pallet<Runtime> {
-        type DrainIter = PrefixIterator<(ProgramId, (Program, u32))>;
-        type Iter = PrefixIterator<(ProgramId, (Program, u32))>;
+    impl<Runtime: Config> IterableMap<(ProgramId, (Program, Runtime::BlockNumber))>
+        for pallet::Pallet<Runtime>
+    {
+        type DrainIter = PrefixIterator<(ProgramId, (Program, Runtime::BlockNumber))>;
+        type Iter = PrefixIterator<(ProgramId, (Program, Runtime::BlockNumber))>;
 
         fn drain() -> Self::DrainIter {
             ProgramStorage::<Runtime>::drain()

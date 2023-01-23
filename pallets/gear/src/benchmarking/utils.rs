@@ -159,7 +159,7 @@ where
             let _ = Gear::<T>::set_code_with_metadata(code_and_id, source);
 
             ExtManager::<T>::default().set_program(
-                DEFAULT_BLOCK_NUMBER,
+                DEFAULT_BLOCK_NUMBER.into(),
                 program_id,
                 &code_info,
                 root_message_id,
@@ -185,7 +185,7 @@ where
             let code_info = CodeInfo::from_code(&code_id, &code);
 
             ExtManager::<T>::default().set_program(
-                DEFAULT_BLOCK_NUMBER,
+                DEFAULT_BLOCK_NUMBER.into(),
                 program_id,
                 &code_info,
                 root_message_id,
