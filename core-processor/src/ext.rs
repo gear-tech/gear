@@ -1239,15 +1239,15 @@ mod tests {
             test_runner::Config as ProptestConfig,
         };
 
-        struct TestMemory(WasmPageNumber);
+        struct TestMemory(WasmPage);
 
         impl Memory for TestMemory {
-            fn grow(&mut self, pages: WasmPageNumber) -> Result<(), MemoryError> {
+            fn grow(&mut self, pages: WasmPage) -> Result<(), MemoryError> {
                 self.0 = self.0.add(pages).map_err(|_| MemoryError::OutOfBounds)?;
                 Ok(())
             }
 
-            fn size(&self) -> WasmPageNumber {
+            fn size(&self) -> WasmPage {
                 self.0
             }
 
@@ -1266,8 +1266,8 @@ mod tests {
 
         #[derive(Debug, Clone)]
         enum Action {
-            Alloc { pages: WasmPageNumber },
-            Free { page: WasmPageNumber },
+            Alloc { pages: WasmPage },
+            Free { page: WasmPage },
         }
 
         fn actions() -> impl Strategy<Value = Vec<Action>> {
@@ -1280,12 +1280,12 @@ mod tests {
             proptest::collection::vec(action, 0..1024)
         }
 
-        fn allocations() -> impl Strategy<Value = BTreeSet<WasmPageNumber>> {
+        fn allocations() -> impl Strategy<Value = BTreeSet<WasmPage>> {
             proptest::collection::btree_set(wasm_page_number(), size_range(0..1024))
         }
 
-        fn wasm_page_number() -> impl Strategy<Value = WasmPageNumber> {
-            any::<u16>().prop_map(WasmPageNumber::from)
+        fn wasm_page_number() -> impl Strategy<Value = WasmPage> {
+            any::<u16>().prop_map(WasmPage::from)
         }
 
         fn proptest_config() -> ProptestConfig {
