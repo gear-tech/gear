@@ -20,20 +20,20 @@
 
 use alloc::{collections::BTreeSet, vec::Vec};
 use codec::{Decode, Encode};
-use gear_backend_common::lazy_pages::LazyPagesWeights;
-use gear_core::{code, costs::HostFnWeights, memory::WasmPage};
+// use gear_backend_common::lazy_pages::LazyPagesWeights;
+use gear_core::{costs::{HostFnWeights, CostPerPage}, memory::{WasmPage, GranularityPage}};
 use gear_wasm_instrument::syscalls::SysCallName;
 
-const INIT_COST: u64 = 5000;
-const ALLOC_COST: u64 = 10000;
-const MEM_GROW_COST: u64 = 10000;
-const LOAD_PAGE_COST: u64 = 3000;
-const LAZY_PAGES_WEIGHTS: LazyPagesWeights = LazyPagesWeights {
-    read: 10,
-    write: 10,
-    write_after_read: 10,
-    load_page_storage_data: 10,
-};
+// const INIT_COST: u64 = 5000;
+// const ALLOC_COST: u64 = 10000;
+// const MEM_GROW_COST: u64 = 10000;
+// const LOAD_PAGE_COST: u64 = 3000;
+// const LAZY_PAGES_WEIGHTS: LazyPagesWeights = LazyPagesWeights {
+//     read: 10,
+//     write: 10,
+//     write_after_read: 10,
+//     load_page_storage_data: 10,
+// };
 
 /// Contextual block information.
 #[derive(Clone, Copy, Debug, Encode, Decode, Default)]
@@ -44,35 +44,48 @@ pub struct BlockInfo {
     pub timestamp: u64,
 }
 
+
 /// Memory/allocation config.
 #[derive(Clone, Debug, Decode, Encode)]
 pub struct PagesConfig {
     /// Max amount of pages.
     pub max_pages: WasmPage,
-    /// Lazy-pages accesses costs.
-    pub lazy_pages_weights: LazyPagesWeights,
-    /// Cost of initial memory.
-    pub init_cost: u64,
-    /// Cost of allocating memory.
-    pub alloc_cost: u64,
-    /// Memory grow cost.
-    pub mem_grow_cost: u64,
-    /// Load page cost.
-    pub load_page_cost: u64,
+    /// Cost per one [GranularityPage] `read` processing in lazy-pages,
+    /// it does not include cost for loading page data from storage.
+    pub lazy_pages_read_cost: CostPerPage<GranularityPage>,
+    /// Cost per one [GranularityPage] `write` processing in lazy-pages,
+    /// it does not include cost for loading page data from storage.
+    pub lazy_pages_write_cost: CostPerPage<GranularityPage>,
+    /// Cost per one [GranularityPage] `write after read` processing in lazy-pages,
+    /// it does not include cost for loading page data from storage.
+    pub lazy_pages_write_after_read_cost: CostPerPage<GranularityPage>,
+    /// Cost per one [GranularityPage] data loading from storage
+    /// and moving it in program memory.
+    pub load_page_data_cost: CostPerPage<GranularityPage>,
+    /// Cost per one [GranularityPage] processing write accesses after execution.
+    /// Does not include cost for uploading page to storage.
+    pub write_access_page_cost: CostPerPage<GranularityPage>,
+    /// Cost per one [GranularityPage] uploading data to storage.
+    pub upload_page_data_cost: CostPerPage<GranularityPage>,
+    /// Cost per one [WasmPage] static page. Static pages can have static data,
+    /// and executor must to move this data to static pages before execution.
+    pub static_page_cost: CostPerPage<WasmPage>,
+    /// Cost per one [WasmPage] for memory growing.
+    pub mem_grow_cost: CostPerPage<WasmPage>,
 }
 
-impl Default for PagesConfig {
-    fn default() -> Self {
-        Self {
-            max_pages: code::MAX_WASM_PAGE_COUNT.into(),
-            lazy_pages_weights: LAZY_PAGES_WEIGHTS,
-            init_cost: INIT_COST,
-            alloc_cost: ALLOC_COST,
-            mem_grow_cost: MEM_GROW_COST,
-            load_page_cost: LOAD_PAGE_COST,
-        }
-    }
-}
+// impl Default for PagesConfig {
+//     fn default() -> Self {
+//         Self {
+//             max_pages: code::MAX_WASM_PAGE_COUNT.into(),
+//             lazy_pages_weights: LAZY_PAGES_WEIGHTS,
+//             init_cost: INIT_COST,
+//             alloc_cost: ALLOC_COST,
+//             mem_grow_cost: MEM_GROW_COST,
+//             load_page_cost: LOAD_PAGE_COST,
+//         }
+//     }
+// }
 
 /// Execution settings for handling messages.
 pub struct ExecutionSettings {

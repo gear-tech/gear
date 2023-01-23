@@ -172,68 +172,27 @@ pub(crate) fn charge_gas_for_instantiation(
 // but we should continue execution until the end of block. During that execution
 // another signals can occur, which also take some time to process them.
 pub(crate) fn charge_gas_for_pages(
-    settings: &PagesConfig,
+    config: &PagesConfig,
     gas_counter: &mut GasCounter,
     gas_allowance_counter: &mut GasAllowanceCounter,
     allocations: &BTreeSet<WasmPage>,
     static_pages: WasmPage,
-    initial_execution: bool,
-    subsequent_execution: bool,
 ) -> Result<WasmPage, ExecutionErrorReason> {
-    // Initial execution: just charge for static pages
-    if initial_execution {
-        // TODO: check calculation is safe: #2007.
-        // Charging gas for initial pages
-        let amount = settings.init_cost * static_pages.raw() as u64;
-        charge_gas(
-            GasOperation::InitialMemory,
-            amount,
-            gas_counter,
-            gas_allowance_counter,
-        )?;
-
-        return Ok(static_pages);
-    }
-
-    let max_wasm_page = if let Some(page) = allocations.iter().next_back() {
-        *page
-    } else if let Ok(max_wasm_page) = static_pages.dec() {
-        max_wasm_page
-    } else {
-        return Ok(WasmPage::zero());
-    };
-
-    if !subsequent_execution {
-        // TODO: check calculation is safe: #2007.
-        // Charging gas for loaded pages
-        let amount =
-            settings.load_page_cost * (allocations.len() as u64 + static_pages.raw() as u64);
-        charge_gas(
-            GasOperation::LoadMemory,
-            amount,
-            gas_counter,
-            gas_allowance_counter,
-        )?;
-    }
-
-    // TODO: make separate class for size in pages (here is static_pages): #2008.
-    // TODO: check calculation is safe: #2007.
-    // Charging gas for mem size
-    let amount =
-        settings.mem_grow_cost * (max_wasm_page.raw() as u64 + 1 - static_pages.raw() as u64);
+    // Charging gas for static pages.
+    let amount = config.static_page_cost.calc(static_pages);
     charge_gas(
-        GasOperation::GrowMemory,
+        GasOperation::InitialMemory,
         amount,
         gas_counter,
         gas_allowance_counter,
     )?;
 
-    // +1 because pages numeration begins from 0
-    let wasm_mem_size = max_wasm_page
-        .inc()
-        .map_err(|_| ExecutionErrorReason::Memory(MemoryError::OutOfBounds))?;
-
-    Ok(wasm_mem_size)
+    if let Some(page) = allocations.iter().next_back() {
+        page.inc()
+            .map_err(|_| ExecutionErrorReason::Memory(MemoryError::OutOfBounds))
+    } else {
+        Ok(static_pages)
+    }
 }
 
 /// Writes initial pages data to memory and prepare memory for execution.

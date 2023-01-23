@@ -18,9 +18,31 @@
 
 //! Costs module.
 
-use crate::gas::Token;
+use core::marker::PhantomData;
+
+use crate::{gas::Token, memory::PageU32Size};
 
 use codec::{Decode, Encode};
+
+/// Cost per one memory page.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Encode, Decode)]
+pub struct CostPerPage<PageU32Size> {
+    cost: u64,
+    _phantom: PhantomData<PageU32Size>,
+}
+
+impl<P: PageU32Size> CostPerPage<P> {
+    /// +_+_+
+    pub fn calc(&self, page: P) -> u64 {
+        self.cost.saturating_mul(page.raw() as u64)
+    }
+}
+
+impl<P: PageU32Size> From<u64> for CostPerPage<P> {
+    fn from(cost: u64) -> Self {
+        CostPerPage { cost, _phantom: PhantomData }
+    }
+}
 
 /// Describes the weight for each imported function that a program is allowed to call.
 #[derive(Clone, Encode, Decode, PartialEq, Eq, Default)]
