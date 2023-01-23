@@ -18,7 +18,7 @@
 
 //! Common structures for processing.
 
-use crate::{executor::InitialPagesContainDataError, precharge::GasOperation, PrepareMemoryError};
+use crate::{precharge::GasOperation, PrepareMemoryError};
 use alloc::{
     collections::{BTreeMap, BTreeSet},
     string::String,
@@ -427,18 +427,9 @@ pub enum ExecutionErrorReason {
     /// Message killed from storage as out of rent.
     #[display(fmt = "Out of rent")]
     OutOfRent,
-    /// Initial pages contain data.
-    #[display(fmt = "{_0}")]
-    InitialPagesContainData(InitialPagesContainDataError),
     /// Lazy page status must be set before contract execution.
     #[display(fmt = "Lazy page status must be set before contract execution")]
     LazyPagesStatusIsNone,
-}
-
-impl From<InitialPagesContainDataError> for ExecutionErrorReason {
-    fn from(err: InitialPagesContainDataError) -> Self {
-        Self::InitialPagesContainData(err)
-    }
 }
 
 /// Actor.

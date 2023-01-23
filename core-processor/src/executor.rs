@@ -47,44 +47,16 @@ use gear_core::{
     program::Program,
     reservation::GasReserver,
 };
-use gear_core_errors::{ExtError, MemoryError};
+use gear_core_errors::ExtError;
 use scale_info::TypeInfo;
 
 /// Prepare memory error
 #[derive(Encode, Decode, TypeInfo, Debug, PartialEq, Eq, PartialOrd, Ord, derive_more::Display)]
 pub enum PrepareMemoryError {
-    /// Mem size less then static pages num
-    #[display(fmt = "Mem size less then static pages num")]
-    InsufficientMemorySize,
-    /// Page with data is not allocated for program
-    #[display(fmt = "{_0:?} is not allocated for program")]
-    PageIsNotAllocated(GearPage),
     /// Stack end page, which value is specified in WASM code, cannot be bigger than static memory size.
     #[display(fmt = "Stack end page {_0:?} is bigger then WASM static memory size {_1:?}")]
     StackEndPageBiggerWasmMemSize(WasmPage, WasmPage),
-    /// Cannot write initial data to wasm memory.
-    #[display(fmt = "Cannot write initial data for {_0:?}: {_1}")]
-    InitialDataWriteFailed(GearPage, MemoryError),
-    /// Cannot read initial memory data from wasm memory.
-    #[display(fmt = "Cannot read data for {_0:?}: {_1}")]
-    InitialMemoryReadFailed(GearPage, MemoryError),
-    /// Initial pages contain data error
-    #[display(fmt = "{_0}")]
-    InitialPagesContainData(InitialPagesContainDataError),
-    /// It's not allowed to set initial data for stack memory pages, if they are specified in WASM code.
-    #[display(fmt = "Set initial data for stack pages is restricted")]
-    StackPagesHaveInitialData,
 }
-
-impl From<InitialPagesContainDataError> for PrepareMemoryError {
-    fn from(err: InitialPagesContainDataError) -> Self {
-        PrepareMemoryError::InitialPagesContainData(err)
-    }
-}
-
-#[derive(Encode, Decode, TypeInfo, Debug, PartialEq, Eq, PartialOrd, Ord, derive_more::Display)]
-#[display(fmt = "Initial pages data must be empty when execute with lazy pages")]
-pub struct InitialPagesContainDataError;
 
 /// Make checks that everything with memory goes well.
 fn check_memory<'a>(
@@ -92,34 +64,30 @@ fn check_memory<'a>(
     pages_with_data: impl Iterator<Item = &'a GearPage>,
     static_pages: WasmPage,
     memory_size: WasmPage,
-) -> Result<(), PrepareMemoryError> {
+) {
     if memory_size < static_pages {
-        log::error!(
+        unreachable!(
             "Mem size less then static pages num: mem_size = {:?}, static_pages = {:?}",
-            memory_size,
-            static_pages
+            memory_size, static_pages
         );
-        return Err(PrepareMemoryError::InsufficientMemorySize);
     }
 
     // Checks that all pages with data are in allocations set.
     for page in pages_with_data {
         let wasm_page = page.to_page();
         if wasm_page >= static_pages && !allocations.contains(&wasm_page) {
-            return Err(PrepareMemoryError::PageIsNotAllocated(*page));
+            unreachable!("{page:?} is not allocated for program");
         }
     }
-
-    Ok(())
 }
 
-fn check_initial_pages_data(
-    initial_pages_data: &BTreeMap<GearPage, PageBuf>,
-) -> Result<(), InitialPagesContainDataError> {
+fn check_initial_pages_data(initial_pages_data: &BTreeMap<GearPage, PageBuf>) {
     initial_pages_data
         .is_empty()
         .then_some(())
-        .ok_or(InitialPagesContainDataError)
+        .unwrap_or_else(|| {
+            unreachable!("Initial pages data must be empty when execute with lazy pages")
+        })
 }
 
 /// Writes initial pages data to memory and prepare memory for execution.
@@ -144,11 +112,11 @@ fn prepare_memory<A: ProcessorExt, M: Memory>(
     // Set initial data for pages
     for (page, data) in pages_data.iter_mut() {
         mem.write(page.offset(), data)
-            .map_err(|err| PrepareMemoryError::InitialDataWriteFailed(*page, err))?;
+            .unwrap_or_else(|err| unreachable!("Cannot write initial data for {page:?}: {err}"));
     }
 
     if A::LAZY_PAGES_ENABLED {
-        check_initial_pages_data(pages_data)?;
+        check_initial_pages_data(pages_data);
 
         A::lazy_pages_init_for_program(
             mem,
@@ -164,7 +132,7 @@ fn prepare_memory<A: ProcessorExt, M: Memory>(
         let begin = stack_end.unwrap_or_default();
 
         if pages_data.keys().any(|&p| p < begin.to_page()) {
-            return Err(PrepareMemoryError::StackPagesHaveInitialData);
+            unreachable!("Set initial data for stack pages is restricted")
         }
 
         let non_stack_pages = begin.iter_end(static_pages).unwrap_or_else(|err| {
@@ -180,7 +148,7 @@ fn prepare_memory<A: ProcessorExt, M: Memory>(
             }
             let mut data = PageBuf::new_zeroed();
             mem.read(page.offset(), &mut data)
-                .map_err(|err| PrepareMemoryError::InitialMemoryReadFailed(page, err))?;
+                .unwrap_or_else(|err| unreachable!("Cannot read data for {page:?}: {err}"));
             pages_data.insert(page, data);
         }
     }
@@ -259,17 +227,12 @@ pub fn execute_wasm<
     let static_pages = program.static_pages();
     let allocations = program.allocations();
 
-    if let Err(err) = check_memory(
+    check_memory(
         allocations,
         pages_initial_data.keys(),
         static_pages,
         memory_size,
-    ) {
-        return Err(ExecutionError {
-            gas_amount: gas_counter.into(),
-            reason: ExecutionErrorReason::PrepareMemory(err),
-        });
-    }
+    );
 
     // Creating allocations context.
     let allocations_context =
@@ -388,10 +351,7 @@ pub fn execute_wasm<
         })?;
 
     if A::LAZY_PAGES_ENABLED {
-        check_initial_pages_data(&pages_initial_data).map_err(|err| ExecutionError {
-            gas_amount: info.gas_amount.clone(),
-            reason: err.into(),
-        })?;
+        check_initial_pages_data(&pages_initial_data);
     }
 
     // Parsing outcome.
