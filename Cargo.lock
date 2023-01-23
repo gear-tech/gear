@@ -11439,9 +11439,9 @@ dependencies = [
 
 [[package]]
 name = "wasm-mutate"
-version = "0.2.14"
+version = "0.2.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c2f8b34ecab2aadb3a974fc96d38a37780793b1a44f9e681ed68f7e69757ca90"
+checksum = "13b9ef6013b91087e3d39a2a39b0d067e103f370e42f197bf61248a3e082e088"
 dependencies = [
  "egg",
  "log",
