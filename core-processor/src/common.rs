@@ -20,7 +20,7 @@
 
 use crate::{
     executor::{InitialPagesContainDataError, PrepareMemoryError},
-    precharge::PrechargeError,
+    precharge::GasOperation,
 };
 use alloc::{
     collections::{BTreeMap, BTreeSet},
@@ -419,9 +419,9 @@ pub enum ExecutionErrorReason {
     /// Prepare memory error
     #[display(fmt = "{_0}")]
     PrepareMemory(PrepareMemoryError),
-    /// Precharge error.
-    #[display(fmt = "{_0}")]
-    Precharge(PrechargeError),
+    /// Not enough gas to perform an operation.
+    #[display(fmt = "Not enough gas to {_0}")]
+    GasExceeded(GasOperation),
     /// Backend error
     #[display(fmt = "{_0}")]
     Backend(String),
@@ -445,12 +445,6 @@ pub enum ExecutionErrorReason {
 impl From<InitialPagesContainDataError> for ExecutionErrorReason {
     fn from(err: InitialPagesContainDataError) -> Self {
         Self::InitialPagesContainData(err)
-    }
-}
-
-impl From<PrechargeError> for ExecutionErrorReason {
-    fn from(err: PrechargeError) -> Self {
-        Self::Precharge(err)
     }
 }
 
