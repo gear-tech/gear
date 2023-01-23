@@ -18,300 +18,27 @@
 
 use crate::{
     common::{
-        DispatchOutcome, DispatchResult, DispatchResultKind, ExecutableActorData,
-        ExecutionErrorReason, GasOperation, JournalNote, PrechargedDispatch, WasmExecutionContext,
+        DispatchOutcome, DispatchResult, DispatchResultKind, ExecutionErrorReason, GasOperation,
+        JournalNote, WasmExecutionContext,
     },
     configs::{BlockConfig, ExecutionSettings},
     context::*,
     executor,
     ext::ProcessorExt,
-    precharger::{GasPrecharger, PrechargeError},
+    precharge::SuccessfulDispatchResultKind,
 };
 use alloc::{collections::BTreeMap, string::ToString, vec::Vec};
 use codec::Encode;
 use gear_backend_common::{Environment, IntoExtInfo, SystemReservationContext};
 use gear_core::{
     env::Ext as EnvExt,
-    gas::{GasAllowanceCounter, GasCounter},
     ids::ProgramId,
     memory::{PageBuf, PageNumber},
     message::{
-        ContextSettings, DispatchKind, IncomingDispatch, MessageWaitedType, ReplyMessage,
-        StatusCode, StoredDispatch,
+        ContextSettings, DispatchKind, IncomingDispatch, ReplyMessage, StatusCode, StoredDispatch,
     },
     reservation::GasReservationState,
 };
-
-#[derive(Debug)]
-enum SuccessfulDispatchResultKind {
-    Exit(ProgramId),
-    Wait(Option<u32>, MessageWaitedType),
-    Success,
-}
-
-/// Defines result variants of the precharge functions.
-pub type PrechargeResult<T> = Result<T, Vec<JournalNote>>;
-
-/// Charge a message for program data beforehand.
-pub fn precharge_for_program(
-    block_config: &BlockConfig,
-    gas_allowance: u64,
-    dispatch: IncomingDispatch,
-    destination_id: ProgramId,
-) -> PrechargeResult<PrechargedDispatch> {
-    let read_per_byte_cost = block_config.read_per_byte_cost;
-    let read_cost = block_config.read_cost;
-
-    let mut gas_counter = GasCounter::new(dispatch.gas_limit());
-    let mut gas_allowance_counter = GasAllowanceCounter::new(gas_allowance);
-    let mut charger = GasPrecharger::new(&mut gas_counter, &mut gas_allowance_counter);
-
-    match charger.charge_gas_for_program_data(read_cost, read_per_byte_cost) {
-        Ok(()) => Ok((dispatch, gas_counter, gas_allowance_counter).into()),
-        Err(PrechargeError::GasExceeded) => {
-            let gas_burned = gas_counter.burned();
-            let system_reservation_ctx = SystemReservationContext::from_dispatch(&dispatch);
-            Err(process_error(
-                dispatch,
-                destination_id,
-                gas_burned,
-                system_reservation_ctx,
-                ExecutionErrorReason::GasExceeded(GasOperation::ProgramData),
-                false,
-            ))
-        }
-        Err(PrechargeError::BlockGasExceeded) => {
-            let gas_burned = gas_counter.burned();
-            Err(process_allowance_exceed(
-                dispatch,
-                destination_id,
-                gas_burned,
-            ))
-        }
-    }
-}
-
-/// Charge a message for fetching the actual length of the binary code
-/// from a storage. The updated value of binary code length
-/// should be kept in standalone storage. The caller has to call this
-/// function to charge gas-counters accrodingly before fetching the value.
-///
-/// The function also performs several additional checks:
-/// - if an actor is executable
-/// - if a required dispatch method is exported.
-pub fn precharge_for_code_length(
-    block_config: &BlockConfig,
-    dispatch: PrechargedDispatch,
-    destination_id: ProgramId,
-    executable_data: Option<ExecutableActorData>,
-) -> PrechargeResult<ContextChargedForCodeLength> {
-    let read_cost = block_config.read_cost;
-
-    let (dispatch, mut gas_counter, mut gas_allowance_counter) = dispatch.into_parts();
-
-    let actor_data = match check_is_executable(executable_data, &dispatch) {
-        Err(status_code) => {
-            let system_reservation_ctx = SystemReservationContext::from_dispatch(&dispatch);
-            return Err(process_non_executable(
-                dispatch,
-                destination_id,
-                status_code,
-                system_reservation_ctx,
-            ));
-        }
-        Ok(data) => data,
-    };
-
-    if !actor_data.code_exports.contains(&dispatch.kind()) {
-        return Err(process_success(
-            SuccessfulDispatchResultKind::Success,
-            DispatchResult::success(dispatch, destination_id, gas_counter.into()),
-        ));
-    }
-
-    let mut charger = GasPrecharger::new(&mut gas_counter, &mut gas_allowance_counter);
-    match charger.charge_gas_per_byte(read_cost) {
-        Ok(()) => Ok(ContextChargedForCodeLength {
-            data: ContextData {
-                gas_counter,
-                gas_allowance_counter,
-                dispatch,
-                destination_id,
-                actor_data,
-            },
-        }),
-        Err(PrechargeError::GasExceeded) => {
-            let system_reservation_ctx = SystemReservationContext::from_dispatch(&dispatch);
-            Err(process_error(
-                dispatch,
-                destination_id,
-                gas_counter.burned(),
-                system_reservation_ctx,
-                ExecutionErrorReason::GasExceeded(GasOperation::ProgramCode),
-                false,
-            ))
-        }
-        Err(PrechargeError::BlockGasExceeded) => Err(process_allowance_exceed(
-            dispatch,
-            destination_id,
-            gas_counter.burned(),
-        )),
-    }
-}
-
-/// Charge a message for the program binary code beforehand.
-pub fn precharge_for_code(
-    block_config: &BlockConfig,
-    mut context: ContextChargedForCodeLength,
-    code_len_bytes: u32,
-) -> PrechargeResult<ContextChargedForCode> {
-    let read_per_byte_cost = block_config.read_per_byte_cost;
-    let read_cost = block_config.read_cost;
-
-    let mut charger = GasPrecharger::new(
-        &mut context.data.gas_counter,
-        &mut context.data.gas_allowance_counter,
-    );
-
-    match charger.charge_gas_for_program_code(read_cost, read_per_byte_cost, code_len_bytes) {
-        Ok(()) => Ok((context, code_len_bytes).into()),
-        Err(PrechargeError::GasExceeded) => {
-            let system_reservation_ctx =
-                SystemReservationContext::from_dispatch(&context.data.dispatch);
-            Err(process_error(
-                context.data.dispatch,
-                context.data.destination_id,
-                context.data.gas_counter.burned(),
-                system_reservation_ctx,
-                ExecutionErrorReason::GasExceeded(GasOperation::ProgramCode),
-                false,
-            ))
-        }
-        Err(PrechargeError::BlockGasExceeded) => Err(process_allowance_exceed(
-            context.data.dispatch,
-            context.data.destination_id,
-            context.data.gas_counter.burned(),
-        )),
-    }
-}
-
-/// Charge a message for instrumentation of the binary code beforehand.
-pub fn precharge_for_instrumentation(
-    block_config: &BlockConfig,
-    mut context: ContextChargedForCode,
-    original_code_len_bytes: u32,
-) -> PrechargeResult<ContextChargedForInstrumentation> {
-    let cost_base = block_config.code_instrumentation_cost;
-    let cost_per_byte = block_config.code_instrumentation_byte_cost;
-
-    let mut charger = GasPrecharger::new(
-        &mut context.data.gas_counter,
-        &mut context.data.gas_allowance_counter,
-    );
-
-    match charger.charge_gas_for_instrumentation(cost_base, cost_per_byte, original_code_len_bytes)
-    {
-        Ok(()) => Ok(context.into()),
-        Err(PrechargeError::GasExceeded) => {
-            let system_reservation_ctx =
-                SystemReservationContext::from_dispatch(&context.data.dispatch);
-            Err(process_error(
-                context.data.dispatch,
-                context.data.destination_id,
-                context.data.gas_counter.burned(),
-                system_reservation_ctx,
-                ExecutionErrorReason::GasExceeded(GasOperation::ModuleInstrumentation),
-                false,
-            ))
-        }
-        Err(PrechargeError::BlockGasExceeded) => Err(process_allowance_exceed(
-            context.data.dispatch,
-            context.data.destination_id,
-            context.data.gas_counter.burned(),
-        )),
-    }
-}
-
-/// Charge a message for program memory and module instantiation beforehand.
-pub fn precharge_for_memory(
-    block_config: &BlockConfig,
-    mut context: ContextChargedForInstrumentation,
-    subsequent_execution: bool,
-) -> PrechargeResult<ContextChargedForMemory> {
-    let ContextChargedForInstrumentation {
-        data:
-            ContextData {
-                gas_counter,
-                gas_allowance_counter,
-                actor_data,
-                dispatch,
-                ..
-            },
-        code_len_bytes,
-    } = &mut context;
-
-    let mut f = || {
-        let mut charger = GasPrecharger::new(gas_counter, gas_allowance_counter);
-
-        let is_initial_execution =
-            dispatch.context().is_none() && matches!(dispatch.kind(), DispatchKind::Init);
-        let memory_size = charger.charge_gas_for_pages(
-            &block_config.pages_config,
-            &actor_data.allocations,
-            actor_data.static_pages,
-            is_initial_execution,
-            subsequent_execution,
-        )?;
-
-        charger.charge_gas_for_instantiation(
-            block_config.module_instantiation_byte_cost,
-            *code_len_bytes,
-        )?;
-
-        Ok(memory_size)
-    };
-
-    let memory_size = match f() {
-        Ok(size) => {
-            log::debug!("Charged for module instantiation and memory pages. Size: {size:?}");
-            size
-        }
-        Err(reason) => {
-            log::debug!("Failed to charge for module instantiation or memory pages: {reason:?}");
-            return match reason {
-                ExecutionErrorReason::BlockGasExceeded(
-                    GasOperation::InitialMemory
-                    | GasOperation::GrowMemory
-                    | GasOperation::LoadMemory
-                    | GasOperation::ModuleInstantiation,
-                ) => Err(process_allowance_exceed(
-                    context.data.dispatch,
-                    context.data.destination_id,
-                    context.data.gas_counter.burned(),
-                )),
-
-                _ => {
-                    let system_reservation_ctx =
-                        SystemReservationContext::from_dispatch(&context.data.dispatch);
-                    Err(process_error(
-                        context.data.dispatch,
-                        context.data.destination_id,
-                        context.data.gas_counter.burned(),
-                        system_reservation_ctx,
-                        reason,
-                        false,
-                    ))
-                }
-            };
-        }
-    };
-
-    Ok(ContextChargedForMemory {
-        data: context.data,
-        max_reservations: block_config.max_reservations,
-        memory_size,
-    })
-}
 
 /// Process program & dispatch for it and return journal for updates.
 pub fn process<
@@ -323,7 +50,7 @@ pub fn process<
     random_data: (Vec<u8>, u32),
     memory_pages: BTreeMap<PageNumber, PageBuf>,
 ) -> Vec<JournalNote> {
-    use SuccessfulDispatchResultKind::*;
+    use crate::precharge::SuccessfulDispatchResultKind::*;
 
     let BlockConfig {
         block_info,
@@ -435,23 +162,8 @@ pub fn process<
     }
 }
 
-fn check_is_executable(
-    executable_data: Option<ExecutableActorData>,
-    dispatch: &IncomingDispatch,
-) -> Result<ExecutableActorData, StatusCode> {
-    executable_data
-        .map(|data| {
-            if data.initialized & matches!(dispatch.kind(), DispatchKind::Init) {
-                Err(crate::RE_INIT_STATUS_CODE)
-            } else {
-                Ok(data)
-            }
-        })
-        .unwrap_or(Err(crate::UNAVAILABLE_DEST_STATUS_CODE))
-}
-
 /// Helper function for journal creation in trap/error case
-fn process_error(
+pub fn process_error(
     dispatch: IncomingDispatch,
     program_id: ProgramId,
     gas_burned: u64,
@@ -547,11 +259,11 @@ fn process_error(
 }
 
 /// Helper function for journal creation in success case
-fn process_success(
+pub fn process_success(
     kind: SuccessfulDispatchResultKind,
     dispatch_result: DispatchResult,
 ) -> Vec<JournalNote> {
-    use SuccessfulDispatchResultKind::*;
+    use crate::precharge::SuccessfulDispatchResultKind::*;
 
     let DispatchResult {
         dispatch,
@@ -704,7 +416,7 @@ fn process_success(
     journal
 }
 
-fn process_allowance_exceed(
+pub fn process_allowance_exceed(
     dispatch: IncomingDispatch,
     program_id: ProgramId,
     gas_burned: u64,
@@ -724,7 +436,7 @@ fn process_allowance_exceed(
 }
 
 /// Helper function for journal creation in message no execution case
-fn process_non_executable(
+pub fn process_non_executable(
     dispatch: IncomingDispatch,
     program_id: ProgramId,
     status_code: StatusCode,
