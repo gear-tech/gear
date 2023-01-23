@@ -58,7 +58,7 @@ use gear_core::{
     reservation::GasReserver,
 };
 use gear_core_errors::{ExtError, MemoryError};
-use lazy_pages::GlobalsConfig;
+use lazy_pages::{GlobalsConfig, ChargeForPages};
 use scale_info::TypeInfo;
 
 // Max amount of bytes allowed to be thrown as string explanation of the error.
@@ -167,7 +167,7 @@ pub trait IntoExtInfo<Error> {
     fn pre_process_memory_accesses(
         reads: &[MemoryInterval],
         writes: &[MemoryInterval],
-    ) -> Result<(), OutOfMemoryAccessError>;
+    ) -> Result<ChargeForPages, OutOfMemoryAccessError>;
 }
 
 pub trait GetGasAmount {

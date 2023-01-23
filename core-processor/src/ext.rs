@@ -26,7 +26,7 @@ use codec::{Decode, Encode};
 use core::ops::Range;
 use gear_backend_common::{
     error_processor::IntoExtError,
-    lazy_pages::{GlobalsConfig, LazyPagesWeights, Status},
+    lazy_pages::{GlobalsConfig, LazyPagesWeights, Status, ChargeForPages},
     memory::OutOfMemoryAccessError,
     AsTerminationReason, ExtInfo, GetGasAmount, IntoExtInfo, SystemReservationContext,
     TerminationReason, TrapExplanation,
@@ -315,8 +315,9 @@ impl IntoExtInfo<<Ext as EnvExt>::Error> for Ext {
     fn pre_process_memory_accesses(
         _reads: &[MemoryInterval],
         _writes: &[MemoryInterval],
-    ) -> Result<(), OutOfMemoryAccessError> {
-        Ok(())
+    ) -> Result<ChargeForPages, OutOfMemoryAccessError> {
+        // +_+_+ check this
+        Ok(Default::default())
     }
 }
 

@@ -22,7 +22,7 @@
 
 use core::fmt;
 use gear_backend_common::{
-    lazy_pages::{GlobalsConfig, LazyPagesWeights, Status},
+    lazy_pages::{GlobalsConfig, LazyPagesWeights, Status, ChargeForPages},
     memory::OutOfMemoryAccessError,
 };
 use gear_common::Origin;
@@ -131,9 +131,9 @@ pub fn get_status() -> Option<Status> {
 pub fn pre_process_memory_accesses(
     reads: &[MemoryInterval],
     writes: &[MemoryInterval],
-) -> Result<(), OutOfMemoryAccessError> {
+) -> Result<ChargeForPages, OutOfMemoryAccessError> {
     // TODO: make wrapper to pass `&[MemoryInterval]` in runtime-interface (issue #2099).
     let reads = reads.iter().copied().map(Into::into).collect::<Vec<_>>();
     let writes = writes.iter().copied().map(Into::into).collect::<Vec<_>>();
-    gear_ri::pre_process_memory_accesses(&reads, &writes).map(|_| ())
+    gear_ri::pre_process_memory_accesses(&reads, &writes)
 }

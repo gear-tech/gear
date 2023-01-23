@@ -19,7 +19,7 @@
 use alloc::{collections::BTreeSet, vec::Vec};
 use core_processor::{Ext, ProcessorContext, ProcessorError, ProcessorExt};
 use gear_backend_common::{
-    lazy_pages::{GlobalsConfig, LazyPagesWeights, Status},
+    lazy_pages::{GlobalsConfig, LazyPagesWeights, Status, ChargeForPages},
     memory::OutOfMemoryAccessError,
     ExtInfo, GetGasAmount, IntoExtInfo, TrapExplanation,
 };
@@ -71,7 +71,7 @@ impl IntoExtInfo<<LazyPagesExt as EnvExt>::Error> for LazyPagesExt {
     fn pre_process_memory_accesses(
         reads: &[MemoryInterval],
         writes: &[MemoryInterval],
-    ) -> Result<(), OutOfMemoryAccessError> {
+    ) -> Result<ChargeForPages, OutOfMemoryAccessError> {
         lazy_pages::pre_process_memory_accesses(reads, writes)
     }
 }
