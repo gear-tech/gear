@@ -197,27 +197,14 @@ where
                     }
                 };
 
-                let subsequent_execution = ext_manager.program_pages_loaded(&actor_id);
-                let subsequent_burned = if !subsequent_execution {
-                    core_processor::precharge_for_memory(&block_config, context.clone(), true)
-                        .map(|c| c.gas_counter().burned())
-                        .unwrap_or(0)
-                } else {
-                    0
-                };
-
-                let context = match core_processor::precharge_for_memory(
-                    &block_config,
-                    context,
-                    subsequent_execution,
-                ) {
+                let context = match core_processor::precharge_for_memory(&block_config, context) {
                     Ok(c) => c,
                     Err(journal) => {
                         return journal;
                     }
                 };
 
-                may_be_returned += context.gas_counter().burned() - subsequent_burned;
+                may_be_returned += context.gas_counter().burned();
 
                 let memory_pages = match Self::get_and_track_memory_pages(
                     &mut ext_manager,

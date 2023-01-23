@@ -269,7 +269,7 @@ unsafe fn charge_for_pages(
     pages: PagesIterInclusive<LazyPage>,
     is_write: bool,
 ) -> Result<Status, Error> {
-    // +_+_+ 
+    // +_+_+
     let globals_config = if let Some(ctx) = ctx.globals_config.as_ref() {
         ctx.clone()
     } else {
@@ -490,7 +490,7 @@ pub(crate) unsafe fn process_lazy_pages(
                     if is_write && ctx.write_charged.insert(lazy_page.to_page()) {
                         // +_+_+ unreachable
                         assert!(!ctx.read_charged.contains(&granularity_page));
-                        assert!(!ctx.write_charged.contains(&granularity_page));
+                        assert!(!ctx.write_after_read_charged.contains(&granularity_page));
                         charge_set.write_accessed = charge_set.write_accessed.inc().unwrap();
                     }
                 }

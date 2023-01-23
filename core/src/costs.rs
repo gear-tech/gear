@@ -25,7 +25,7 @@ use crate::{gas::Token, memory::PageU32Size};
 use codec::{Decode, Encode};
 
 /// Cost per one memory page.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Encode, Decode)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Encode, Decode)]
 pub struct CostPerPage<PageU32Size> {
     cost: u64,
     _phantom: PhantomData<PageU32Size>,
@@ -33,14 +33,36 @@ pub struct CostPerPage<PageU32Size> {
 
 impl<P: PageU32Size> CostPerPage<P> {
     /// +_+_+
-    pub fn calc(&self, page: P) -> u64 {
-        self.cost.saturating_mul(page.raw() as u64)
+    pub fn calc(&self, pages: P) -> u64 {
+        self.cost.saturating_mul(pages.raw() as u64)
+    }
+    /// +_+_+
+    pub fn add(&self, other: Self) -> Self {
+        self.cost.saturating_add(other.cost).into()
     }
 }
 
 impl<P: PageU32Size> From<u64> for CostPerPage<P> {
     fn from(cost: u64) -> Self {
-        CostPerPage { cost, _phantom: PhantomData }
+        CostPerPage {
+            cost,
+            _phantom: PhantomData,
+        }
+    }
+}
+
+impl<P: PageU32Size> From<CostPerPage<P>> for u64 {
+    fn from(value: CostPerPage<P>) -> Self {
+        value.cost
+    }
+}
+
+impl<P: PageU32Size> Default for CostPerPage<P> {
+    fn default() -> Self {
+        Self {
+            cost: 0,
+            _phantom: PhantomData,
+        }
     }
 }
 

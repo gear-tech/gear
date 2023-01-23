@@ -37,7 +37,7 @@ use core::{marker::PhantomData, mem, mem::size_of, ops::Range};
 use frame_system::RawOrigin;
 use gear_core::{
     ids::{MessageId, ProgramId, ReservationId},
-    memory::{WasmPage, GearPage, PageU32Size, PageBuf, PageBufInner},
+    memory::{GearPage, PageBuf, PageBufInner, PageU32Size, WasmPage},
     message::Message,
     reservation::GasReservationSlot,
 };
@@ -1413,8 +1413,15 @@ where
     pub fn lazy_pages_read_storage_data(wasm_pages: WasmPage) -> Result<Exec<T>, &'static str> {
         let exec = Self::lazy_pages_read(wasm_pages)?;
         let program_id = exec.context.program().id();
-        for page in wasm_pages.iter_from_zero().flat_map(|p| p.to_pages_iter::<GearPage>()) {
-            ProgramStorageOf::<T>::set_program_page_data(program_id, page, PageBuf::from_inner(PageBufInner::filled_with(1)));
+        for page in wasm_pages
+            .iter_from_zero()
+            .flat_map(|p| p.to_pages_iter::<GearPage>())
+        {
+            ProgramStorageOf::<T>::set_program_page_data(
+                program_id,
+                page,
+                PageBuf::from_inner(PageBufInner::filled_with(1)),
+            );
         }
         Ok(exec)
     }

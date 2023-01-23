@@ -68,7 +68,7 @@ use common::{
 use core::ops::Range;
 use core_processor::{
     common::{DispatchOutcome, JournalNote},
-    configs::BlockConfig,
+    configs::{BlockConfig, PageCosts, TEST_MAX_PAGES_NUMBER},
     ProcessExecutionContext, ProcessorContext, ProcessorExt,
 };
 use frame_benchmarking::{benchmarks, whitelisted_caller};
@@ -172,7 +172,8 @@ fn default_processor_context<T: Config>() -> ProcessorContext {
             ContextSettings::new(0, 0, 0, 0, 0, 0),
         ),
         block_info: Default::default(),
-        pages_config: Default::default(),
+        max_pages: TEST_MAX_PAGES_NUMBER.into(),
+        page_costs: PageCosts::new_for_tests(),
         existential_deposit: 0,
         origin: Default::default(),
         program_id: Default::default(),

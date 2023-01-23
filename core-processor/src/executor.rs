@@ -21,7 +21,7 @@ use crate::{
         DispatchResult, DispatchResultKind, ExecutionError, ExecutionErrorReason, GasOperation,
         WasmExecutionContext,
     },
-    configs::{BlockInfo, ExecutionSettings, PagesConfig},
+    configs::{BlockInfo, ExecutionSettings, PageCosts},
     ext::{ProcessorContext, ProcessorExt},
 };
 use alloc::{
@@ -165,21 +165,17 @@ pub(crate) fn charge_gas_for_instantiation(
     )
 }
 
-/// Charge gas for pages init/load/grow and checks that there is enough gas for that.
+/// Charge gas for pages and checks that there is enough gas for that.
 /// Returns size of wasm memory buffer which must be created in execution environment.
-// TODO: (issue #1894) remove charging for pages access/write/read/upload. But we should charge for
-// potential situation when gas limit/allowance exceeded during lazy-pages handling,
-// but we should continue execution until the end of block. During that execution
-// another signals can occur, which also take some time to process them.
 pub(crate) fn charge_gas_for_pages(
-    config: &PagesConfig,
+    costs: &PageCosts,
     gas_counter: &mut GasCounter,
     gas_allowance_counter: &mut GasAllowanceCounter,
     allocations: &BTreeSet<WasmPage>,
     static_pages: WasmPage,
 ) -> Result<WasmPage, ExecutionErrorReason> {
     // Charging gas for static pages.
-    let amount = config.static_page_cost.calc(static_pages);
+    let amount = costs.static_page.calc(static_pages);
     charge_gas(
         GasOperation::InitialMemory,
         amount,
@@ -349,7 +345,7 @@ pub fn execute_wasm<
 
     // Creating allocations context.
     let allocations_context =
-        AllocationsContext::new(allocations.clone(), static_pages, settings.max_pages());
+        AllocationsContext::new(allocations.clone(), static_pages, settings.max_pages);
 
     // Creating message context.
     let message_context = MessageContext::new(
@@ -371,7 +367,8 @@ pub fn execute_wasm<
         allocations_context,
         message_context,
         block_info: settings.block_info,
-        pages_config: settings.pages_config,
+        max_pages: settings.max_pages,
+        page_costs: settings.page_costs,
         existential_deposit: settings.existential_deposit,
         origin,
         program_id,
@@ -385,7 +382,7 @@ pub fn execute_wasm<
         random_data: settings.random_data,
     };
 
-    let lazy_pages_weights = context.pages_config.lazy_pages_weights.clone();
+    let lazy_pages_weights = context.page_costs.lazy_pages_weights();
 
     // Creating externalities.
     let ext = A::new(context);
@@ -571,19 +568,8 @@ pub fn execute_for_reply<
             height: Default::default(),
             timestamp: Default::default(),
         },
-        pages_config: PagesConfig {
-            max_pages: 512.into(),
-            lazy_pages_weights: LazyPagesWeights {
-                read: 0,
-                write: 0,
-                write_after_read: 0,
-                load_page_storage_data: 0,
-            },
-            init_cost: Default::default(),
-            alloc_cost: Default::default(),
-            mem_grow_cost: Default::default(),
-            load_page_cost: Default::default(),
-        },
+        max_pages: 512.into(),
+        page_costs: Default::default(),
         existential_deposit: Default::default(),
         origin: Default::default(),
         program_id: program.id(),
@@ -598,7 +584,7 @@ pub fn execute_for_reply<
         system_reservation: Default::default(),
     };
 
-    let lazy_pages_weights = context.pages_config.lazy_pages_weights.clone();
+    let lazy_pages_weights = context.page_costs.lazy_pages_weights();
 
     // Creating externalities.
     let ext = A::new(context);
@@ -719,22 +705,6 @@ mod tests {
         (pages.to_vec(), pages.map(|p| p.to_page()).into())
     }
 
-    fn prepare_alloc_config() -> PagesConfig {
-        PagesConfig {
-            max_pages: 32.into(),
-            lazy_pages_weights: LazyPagesWeights {
-                read: 100,
-                write: 100,
-                write_after_read: 100,
-                load_page_storage_data: 100,
-            },
-            init_cost: 1000,
-            alloc_cost: 2000,
-            mem_grow_cost: 3000,
-            load_page_cost: 4000,
-        }
-    }
-
     fn prepare_gas_counters() -> (GasCounter, GasAllowanceCounter) {
         (
             GasCounter::new(1_000_000),
@@ -778,92 +748,40 @@ mod tests {
         assert!(res.is_ok());
     }
 
+    fn prepare_alloc_config() -> (WasmPage, PageCosts) {
+        (
+            32.into(),
+            PageCosts {
+                lazy_pages_read: 100.into(),
+                lazy_pages_write: 100.into(),
+                lazy_pages_write_after_read: 100.into(),
+                load_page_data: 4000.into(),
+                write_access_page: 4000.into(),
+                upload_page_data: 4000.into(),
+                static_page: 1000.into(),
+                mem_grow: 3000.into(),
+            },
+        )
+    }
+
     #[test]
     fn gas_for_pages_initial() {
-        let settings = prepare_alloc_config();
+        let (_, costs) = prepare_alloc_config();
         let (mut counter, mut allowance_counter) = prepare_gas_counters();
-        let static_pages = 4;
+        let static_pages = 4.into();
         let res = charge_gas_for_pages(
-            &settings,
+            &costs,
             &mut counter,
             &mut allowance_counter,
             &Default::default(),
-            static_pages.into(),
-            true,
-            false,
+            static_pages,
         );
         // Result is static pages count
-        assert_eq!(res, Ok(static_pages.into()));
+        assert_eq!(res, Ok(static_pages));
         // Charging for static pages initialization
-        let charge = settings.init_cost * static_pages as u64;
+        let charge = costs.static_page.calc(static_pages);
         assert_eq!(counter.left(), 1_000_000 - charge);
         assert_eq!(allowance_counter.left(), 4_000_000 - charge);
-    }
-
-    #[test]
-    fn gas_for_pages_static() {
-        let settings = prepare_alloc_config();
-        let (mut counter, mut allowance_counter) = prepare_gas_counters();
-        let static_pages = 4;
-        let res = charge_gas_for_pages(
-            &settings,
-            &mut counter,
-            &mut allowance_counter,
-            &Default::default(),
-            static_pages.into(),
-            false,
-            false,
-        );
-        // Result is static pages count
-        assert_eq!(res, Ok(static_pages.into()));
-        // Charge for the first load of static pages
-        let charge = settings.load_page_cost * static_pages as u64;
-        assert_eq!(counter.left(), 1_000_000 - charge);
-        assert_eq!(allowance_counter.left(), 4_000_000 - charge);
-    }
-
-    #[test]
-    fn gas_for_pages_alloc() {
-        let settings = prepare_alloc_config();
-        let (mut counter, mut allowance_counter) = prepare_gas_counters();
-        let (_, allocs) = prepare_pages_and_allocs();
-        let static_pages = 4;
-        let res = charge_gas_for_pages(
-            &settings,
-            &mut counter,
-            &mut allowance_counter,
-            &allocs,
-            static_pages.into(),
-            false,
-            false,
-        );
-        // Result is the last page plus one
-        let last = *allocs.iter().last().unwrap();
-        assert_eq!(res, Ok(last.inc().unwrap()));
-        // Charge for loading and mem grow
-        let load_charge = settings.load_page_cost * (allocs.len() as u64 + static_pages as u64);
-        let grow_charge = settings.mem_grow_cost * (last.raw() as u64 + 1 - static_pages as u64);
-        assert_eq!(counter.left(), 1_000_000 - load_charge - grow_charge);
-        assert_eq!(
-            allowance_counter.left(),
-            4_000_000 - load_charge - grow_charge
-        );
-
-        // Use the second time (`subsequent` = `true`)
-        let (mut counter, mut allowance_counter) = prepare_gas_counters();
-        let res = charge_gas_for_pages(
-            &settings,
-            &mut counter,
-            &mut allowance_counter,
-            &allocs,
-            static_pages.into(),
-            false,
-            true,
-        );
-        assert_eq!(res, Ok(last.inc().unwrap()));
-        // Charge for mem grow only
-        assert_eq!(counter.left(), 1_000_000 - grow_charge);
-        assert_eq!(allowance_counter.left(), 4_000_000 - grow_charge);
     }
 
     #[test]

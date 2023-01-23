@@ -189,11 +189,7 @@ where
                 };
 
             // The last one thing is to load program memory. Adjust gas counters for memory pages.
-            let context = match core_processor::precharge_for_memory(
-                &block_config,
-                context,
-                ext_manager.program_pages_loaded(&program_id),
-            ) {
+            let context = match core_processor::precharge_for_memory(&block_config, context) {
                 Ok(c) => c,
                 Err(journal) => {
                     core_processor::handle_journal(journal, &mut ext_manager);

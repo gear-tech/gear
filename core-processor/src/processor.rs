@@ -247,7 +247,6 @@ pub fn precharge_for_instrumentation(
 pub fn precharge_for_memory(
     block_config: &BlockConfig,
     mut context: ContextChargedForInstrumentation,
-    subsequent_execution: bool,
 ) -> PrechargeResult<ContextChargedForMemory> {
     let ContextChargedForInstrumentation {
         data:
@@ -255,7 +254,6 @@ pub fn precharge_for_memory(
                 gas_counter,
                 gas_allowance_counter,
                 actor_data,
-                dispatch,
                 ..
             },
         code_len_bytes,
@@ -263,13 +261,11 @@ pub fn precharge_for_memory(
 
     let mut f = || {
         let memory_size = executor::charge_gas_for_pages(
-            &block_config.pages_config,
+            &block_config.page_costs,
             gas_counter,
             gas_allowance_counter,
             &actor_data.allocations,
             actor_data.static_pages,
-            dispatch.context().is_none() && matches!(dispatch.kind(), DispatchKind::Init),
-            subsequent_execution,
         )?;
 
         executor::charge_gas_for_instantiation(
@@ -338,7 +334,8 @@ pub fn process<
 
     let BlockConfig {
         block_info,
-        pages_config,
+        max_pages,
+        page_costs,
         existential_deposit,
         outgoing_limit,
         host_fn_weights,
@@ -354,7 +351,8 @@ pub fn process<
     let execution_settings = ExecutionSettings {
         block_info,
         existential_deposit,
-        pages_config,
+        max_pages,
+        page_costs,
         host_fn_weights,
         forbidden_funcs,
         mailbox_threshold,

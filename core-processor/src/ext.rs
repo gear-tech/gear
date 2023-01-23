@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::configs::{BlockInfo, PagesConfig};
+use crate::configs::{BlockInfo, PageCosts};
 use alloc::{
     collections::{BTreeMap, BTreeSet},
     string::{String, ToString},
@@ -26,7 +26,7 @@ use codec::{Decode, Encode};
 use core::ops::Range;
 use gear_backend_common::{
     error_processor::IntoExtError,
-    lazy_pages::{GlobalsConfig, LazyPagesWeights, Status, ChargeForPages},
+    lazy_pages::{ChargeForPages, GlobalsConfig, LazyPagesWeights, Status},
     memory::OutOfMemoryAccessError,
     AsTerminationReason, ExtInfo, GetGasAmount, IntoExtInfo, SystemReservationContext,
     TerminationReason, TrapExplanation,
@@ -66,8 +66,10 @@ pub struct ProcessorContext {
     pub message_context: MessageContext,
     /// Block info.
     pub block_info: BlockInfo,
+    /// +_+_+
+    pub max_pages: WasmPage,
     /// Allocations config.
-    pub pages_config: PagesConfig,
+    pub page_costs: PageCosts,
     /// Account existential deposit
     pub existential_deposit: u128,
     /// Communication origin
@@ -652,11 +654,6 @@ impl EnvExt for Ext {
         self.return_and_store_err(result)?;
 
         // Returns back gas for allocated page if it's new
-        if !self.context.allocations_context.is_init_page(page) {
-            let res = self.refund_gas(self.context.pages_config.alloc_cost);
-            self.return_and_store_err(res)?;
-        }
-
         Ok(())
     }
 
@@ -979,20 +976,8 @@ impl Ext {
         let charged = ChargedAllocGas::charge(self, pages.raw())?;
 
         let result = self.context.allocations_context.alloc::<G>(pages, mem);
-        let AllocInfo { page, not_grown } = self.return_and_store_err(result)?;
+        let AllocInfo { page, not_grown: _ } = self.return_and_store_err(result)?;
 
-        // Returns back greedily used gas for allocations
-        let new_allocated_pages_num: u32 = page
-            .iter_count(pages)
-            // This is safe cause panic is unreachable: alloc returns page, for which `page + pages` is inside u32 memory.
-            .unwrap_or_else(|err| unreachable!("Alloc implementation error: {}", err))
-            .map(|page| !self.context.allocations_context.is_init_page(page) as u32)
-            .sum();
-
-        // Subtraction is safe because we met constraint
-        // page <= pages for `new_allocated_pages_num` so
-        // `new_allocated_pages_num` <= pages
-        let not_allocated = pages.raw() - new_allocated_pages_num;
         let not_grown = not_grown.raw();
         charged.refund(self, not_allocated, not_grown)?;
 
@@ -1086,7 +1071,8 @@ mod tests {
                     ContextSettings::new(0, 0, 0, 0, 0, 0),
                 ),
                 block_info: Default::default(),
-                pages_config: Default::default(),
+                max_pages: 512.into(),
+                page_costs: PageCosts::new_for_tests(),
                 existential_deposit: 0,
                 origin: Default::default(),
                 program_id: Default::default(),
@@ -1151,10 +1137,6 @@ mod tests {
                 .with_weighs(host_fn_weights)
                 .build(),
         );
-
-        // Check if refund happens, than refunding amount >= 0
-        let refunding_amount = ext.context.pages_config.alloc_cost;
-        assert!(refunding_amount > 0);
 
         let non_existing_page = 100.into();
         assert_eq!(

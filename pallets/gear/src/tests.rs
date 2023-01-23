@@ -5230,7 +5230,6 @@ fn gas_spent_precalculated() {
         let get_local_cost = schedule.instruction_weights.local_get;
         let add_cost = schedule.instruction_weights.i64add;
         let module_instantiation = module_instantiation_per_byte * code.len() as u64;
-        let load_page_cost = schedule.memory_weights.load_cost;
 
         let total_cost = {
             let cost = call_cost
@@ -5249,7 +5248,6 @@ fn gas_spent_precalculated() {
                 + read_cost
                 // cost for loading code
                 + core_processor::calculate_gas_for_code(read_cost, per_byte_cost, code.len() as u64)
-                + load_page_cost
                 + module_instantiation
         };
 

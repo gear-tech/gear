@@ -22,7 +22,7 @@
 
 use core::fmt;
 use gear_backend_common::{
-    lazy_pages::{GlobalsConfig, LazyPagesWeights, Status, ChargeForPages},
+    lazy_pages::{ChargeForPages, GlobalsConfig, LazyPagesWeights, Status},
     memory::OutOfMemoryAccessError,
 };
 use gear_common::Origin;

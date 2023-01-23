@@ -146,7 +146,7 @@ where
 
     let context = ContextChargedForCode::from((context, code.code().len() as u32));
     let context = ContextChargedForInstrumentation::from(context);
-    let context = match core_processor::precharge_for_memory(&block_config, context, false) {
+    let context = match core_processor::precharge_for_memory(&block_config, context) {
         Ok(c) => c,
         Err(journal) => {
             core_processor::handle_journal(journal, journal_handler);
@@ -366,7 +366,7 @@ where
 
         let context = ContextChargedForCode::from((context, code.code().len() as u32));
         let context = ContextChargedForInstrumentation::from(context);
-        let context = match core_processor::precharge_for_memory(&block_config, context, false) {
+        let context = match core_processor::precharge_for_memory(&block_config, context) {
             Ok(c) => c,
             Err(journal) => {
                 return journal;
@@ -466,7 +466,8 @@ where
 fn test_block_config(block_info: BlockInfo) -> BlockConfig {
     BlockConfig {
         block_info,
-        pages_config: Default::default(),
+        max_pages: TEST_MAX_PAGES_NUMBER.into(),
+        page_costs: PageCosts::new_for_tests(),
         existential_deposit: EXISTENTIAL_DEPOSIT,
         outgoing_limit: OUTGOING_LIMIT,
         host_fn_weights: Default::default(),

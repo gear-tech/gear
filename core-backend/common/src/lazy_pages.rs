@@ -23,7 +23,7 @@ use core::fmt::Debug;
 use alloc::string::String;
 use codec::{Decode, Encode};
 use core::any::Any;
-use gear_core::memory::{HostPointer, GearPage};
+use gear_core::memory::{GearPage, HostPointer};
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Encode, Decode)]
 pub struct ChargeForPages {

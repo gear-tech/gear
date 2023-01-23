@@ -17,8 +17,9 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    error_processor::IntoExtError, memory::OutOfMemoryAccessError, AsTerminationReason, ExtInfo,
-    GetGasAmount, IntoExtInfo, SystemReservationContext, TerminationReason, lazy_pages::ChargeForPages,
+    error_processor::IntoExtError, lazy_pages::ChargeForPages, memory::OutOfMemoryAccessError,
+    AsTerminationReason, ExtInfo, GetGasAmount, IntoExtInfo, SystemReservationContext,
+    TerminationReason,
 };
 use alloc::collections::BTreeSet;
 use codec::{Decode, Encode};

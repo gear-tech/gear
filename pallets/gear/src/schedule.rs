@@ -24,6 +24,7 @@
 use crate::{weights::WeightInfo, Config};
 
 use codec::{Decode, Encode};
+use core_processor::configs::PageCosts;
 use gear_core::{code, costs::HostFnWeights as CoreHostFnWeights, message};
 use gear_wasm_instrument::{parity_wasm::elements, wasm_instrument::gas_metering};
 use pallet_gear_proc_macro::{ScheduleDebug, WeightDebug};
@@ -429,39 +430,55 @@ pub struct HostFnWeights<T: Config> {
 #[derive(Clone, Encode, Decode, PartialEq, Eq, WeightDebug, TypeInfo)]
 #[scale_info(skip_type_params(T))]
 pub struct MemoryWeights<T: Config> {
-    /// Lazy-pages read access cost per one gear page.
+    /// Cost per one [GranularityPage] `read` processing in lazy-pages,
+    /// it does not include cost for loading page data from storage.
     pub lazy_pages_read: u64,
 
-    /// Lazy-pages write access cost per one gear page.
+    /// Cost per one [GranularityPage] `write` processing in lazy-pages,
+    /// it does not include cost for loading page data from storage.
     pub lazy_pages_write: u64,
 
-    /// Lazy-pages write after read access cost per one gear page.
+    /// Cost per one [GranularityPage] `write after read` processing in lazy-pages,
+    /// it does not include cost for loading page data from storage.
     pub lazy_pages_write_after_read: u64,
 
-    /// +_+_+
-    pub process_page_data_load: u64,
+    /// Cost per one [GranularityPage] data loading from storage
+    /// and moving it in program memory.
+    pub load_page_data: u64,
 
-    /// +_+_+
-    pub process_page_data_update: u64,
+    /// Cost per one [GranularityPage] processing write accesses after execution.
+    /// Does not include cost for uploading page to storage.
+    pub write_access_page: u64,
 
-    /// +_+_+
+    /// Cost per one [GranularityPage] uploading data to storage.
     pub upload_page_data: u64,
 
-    /// Weight of initial page.
-    pub initial_cost: u64,
+    /// Cost per one [WasmPage] static page. Static pages can have static data,
+    /// and executor must to move this data to static pages before execution.
+    pub static_page: u64,
 
-    /// Weight of allocated page.
-    pub allocation_cost: u64,
+    /// Cost per one [WasmPage] for memory growing.
+    pub mem_grow: u64,
 
-    /// Weight of growing page.
-    pub grow_cost: u64,
-
-    /// Weight of loading page.
-    pub load_cost: u64,
-
+    // pub parachain_read_heuristic: u64,
     /// The type parameter is used in the default implementation.
     #[codec(skip)]
     pub _phantom: PhantomData<T>,
+}
+
+impl<T: Config> From<MemoryWeights<T>> for PageCosts {
+    fn from(val: MemoryWeights<T>) -> Self {
+        Self {
+            lazy_pages_read: val.lazy_pages_read.into(),
+            lazy_pages_write: val.lazy_pages_write.into(),
+            lazy_pages_write_after_read: val.lazy_pages_write_after_read.into(),
+            load_page_data: val.load_page_data.into(),
+            write_access_page: val.write_access_page.into(),
+            upload_page_data: val.upload_page_data.into(),
+            static_page: val.static_page.into(),
+            mem_grow: val.mem_grow.into(),
+        }
+    }
 }
 
 macro_rules! replace_token {
@@ -759,17 +776,15 @@ impl<T: Config> Default for HostFnWeights<T> {
 impl<T: Config> Default for MemoryWeights<T> {
     fn default() -> Self {
         Self {
-            // TODO: set values for lazy-pages from WeightInfo (issue #1893)
+            // +_+_+
             lazy_pages_read: 100,
             lazy_pages_write: 100,
             lazy_pages_write_after_read: 100,
-            process_page_data_load: 100,
-            process_page_data_update: 100,
+            load_page_data: 100,
+            write_access_page: 100,
             upload_page_data: 100,
-            initial_cost: <T as Config>::WeightInfo::initial_cost().ref_time(),
-            allocation_cost: <T as Config>::WeightInfo::allocation_cost().ref_time(),
-            grow_cost: <T as Config>::WeightInfo::grow_cost().ref_time(),
-            load_cost: <T as Config>::WeightInfo::load_cost().ref_time(),
+            static_page: 100,
+            mem_grow: 100,
             _phantom: PhantomData,
         }
     }

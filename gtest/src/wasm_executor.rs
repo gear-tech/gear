@@ -16,7 +16,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use core_processor::{Ext, ProcessorContext, ProcessorExt};
+use core_processor::{
+    configs::{PageCosts, TEST_MAX_PAGES_NUMBER},
+    Ext, ProcessorContext, ProcessorExt,
+};
 use gear_backend_common::TerminationReason;
 use gear_backend_wasmi::{
     funcs::FuncError,
@@ -192,7 +195,8 @@ impl WasmExecutor {
                 ),
             ),
             block_info: Default::default(),
-            pages_config: Default::default(),
+            max_pages: TEST_MAX_PAGES_NUMBER.into(),
+            page_costs: PageCosts::new_for_tests(),
             existential_deposit: 0,
             origin: Default::default(),
             program_id: Default::default(),

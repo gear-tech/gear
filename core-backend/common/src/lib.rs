@@ -58,7 +58,7 @@ use gear_core::{
     reservation::GasReserver,
 };
 use gear_core_errors::{ExtError, MemoryError};
-use lazy_pages::{GlobalsConfig, ChargeForPages};
+use lazy_pages::{ChargeForPages, GlobalsConfig};
 use scale_info::TypeInfo;
 
 // Max amount of bytes allowed to be thrown as string explanation of the error.

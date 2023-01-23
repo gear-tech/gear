@@ -22,7 +22,7 @@ use core::mem::size_of;
 
 use ::alloc::collections::BTreeSet;
 use common::ProgramStorage;
-use gear_backend_common::lazy_pages::{LazyPagesWeights, Status};
+use gear_backend_common::lazy_pages::Status;
 use gear_core::memory::{GranularityPage, PageU32Size, PAGE_STORAGE_GRANULARITY};
 use rand::{Rng, SeedableRng};
 
@@ -129,13 +129,13 @@ where
         let charged: Vec<(u64, u64)> = (0..2)
             .map(|_i| {
                 let mut exec = exec.clone();
-                let weights = LazyPagesWeights {
-                    read: rng.gen_range(0..MAX_COST),
-                    write: rng.gen_range(0..MAX_COST),
-                    write_after_read: rng.gen_range(0..MAX_COST),
-                    load_page_storage_data: 0, // +_+_+
-                };
-                exec.block_config.pages_config.lazy_pages_weights = weights.clone();
+                let read = rng.gen_range(0..MAX_COST).into();
+                let write = rng.gen_range(0..MAX_COST).into();
+                let write_after_read = rng.gen_range(0..MAX_COST).into();
+
+                exec.block_config.page_costs.lazy_pages_read = read;
+                exec.block_config.page_costs.lazy_pages_write = write;
+                exec.block_config.page_costs.lazy_pages_write_after_read = write_after_read;
 
                 let calc_amount = |weight: u64, pages: &BTreeSet<GranularityPage>| {
                     weight
@@ -144,10 +144,10 @@ where
                         .checked_mul(pages.len() as u64)
                         .unwrap()
                 };
-                let charged_for_read = calc_amount(weights.read, &read_pages);
-                let charged_for_write = calc_amount(weights.write, &write_pages);
+                let charged_for_read = calc_amount(read.into(), &read_pages);
+                let charged_for_write = calc_amount(write.into(), &write_pages);
                 let charged_for_write_after_read =
-                    calc_amount(weights.write_after_read, &write_after_read_pages);
+                    calc_amount(write_after_read.into(), &write_after_read_pages);
                 let charged_for_pages = charged_for_read
                     .checked_add(charged_for_write)
                     .unwrap()
@@ -221,13 +221,13 @@ where
         let charged: Vec<u64> = (0..2)
             .map(|i| {
                 let mut exec = exec.clone();
-                let weights = LazyPagesWeights {
-                    read: i,
-                    write: 10 * i,
-                    write_after_read: 100 * i,
-                    load_page_storage_data: 0, // +_+_+
-                };
-                exec.block_config.pages_config.lazy_pages_weights = weights;
+                let read = i.into();
+                let write = (10 * i).into();
+                let write_after_read = (100 * i).into();
+
+                exec.block_config.page_costs.lazy_pages_read = read;
+                exec.block_config.page_costs.lazy_pages_write = write;
+                exec.block_config.page_costs.lazy_pages_write_after_read = write_after_read;
 
                 let notes = core_processor::process::<Externalities, ExecutionEnvironment>(
                     &exec.block_config,
@@ -391,7 +391,8 @@ where
             Default::default(),
         )
         .unwrap();
-        exec.block_config.pages_config.lazy_pages_weights = Default::default();
+
+        exec.block_config.page_costs = Default::default();
 
         let notes = core_processor::process::<Externalities, ExecutionEnvironment>(
             &exec.block_config,
@@ -431,8 +432,9 @@ where
             },
         )
         .unwrap();
-        exec.block_config.pages_config.lazy_pages_weights = LazyPagesWeights {
-            write: 1,
+
+        exec.block_config.page_costs = PageCosts {
+            lazy_pages_write: 1.into(),
             ..Default::default()
         };
 
@@ -472,8 +474,9 @@ where
             },
         )
         .unwrap();
-        exec.block_config.pages_config.lazy_pages_weights = LazyPagesWeights {
-            write: 1,
+
+        exec.block_config.page_costs = PageCosts {
+            lazy_pages_write: 1.into(),
             ..Default::default()
         };
 

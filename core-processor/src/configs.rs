@@ -20,20 +20,15 @@
 
 use alloc::{collections::BTreeSet, vec::Vec};
 use codec::{Decode, Encode};
-// use gear_backend_common::lazy_pages::LazyPagesWeights;
-use gear_core::{costs::{HostFnWeights, CostPerPage}, memory::{WasmPage, GranularityPage}};
+use gear_backend_common::lazy_pages::LazyPagesWeights;
+use gear_core::{
+    costs::{CostPerPage, HostFnWeights},
+    memory::{GranularityPage, WasmPage},
+};
 use gear_wasm_instrument::syscalls::SysCallName;
 
-// const INIT_COST: u64 = 5000;
-// const ALLOC_COST: u64 = 10000;
-// const MEM_GROW_COST: u64 = 10000;
-// const LOAD_PAGE_COST: u64 = 3000;
-// const LAZY_PAGES_WEIGHTS: LazyPagesWeights = LazyPagesWeights {
-//     read: 10,
-//     write: 10,
-//     write_after_read: 10,
-//     load_page_storage_data: 10,
-// };
+/// +_+_+
+pub const TEST_MAX_PAGES_NUMBER: u16 = 512;
 
 /// Contextual block information.
 #[derive(Clone, Copy, Debug, Encode, Decode, Default)]
@@ -44,55 +39,72 @@ pub struct BlockInfo {
     pub timestamp: u64,
 }
 
-
 /// Memory/allocation config.
-#[derive(Clone, Debug, Decode, Encode)]
-pub struct PagesConfig {
-    /// Max amount of pages.
-    pub max_pages: WasmPage,
+#[derive(Clone, Debug, Decode, Encode, Default)]
+pub struct PageCosts {
     /// Cost per one [GranularityPage] `read` processing in lazy-pages,
     /// it does not include cost for loading page data from storage.
-    pub lazy_pages_read_cost: CostPerPage<GranularityPage>,
+    pub lazy_pages_read: CostPerPage<GranularityPage>,
     /// Cost per one [GranularityPage] `write` processing in lazy-pages,
     /// it does not include cost for loading page data from storage.
-    pub lazy_pages_write_cost: CostPerPage<GranularityPage>,
+    pub lazy_pages_write: CostPerPage<GranularityPage>,
     /// Cost per one [GranularityPage] `write after read` processing in lazy-pages,
     /// it does not include cost for loading page data from storage.
-    pub lazy_pages_write_after_read_cost: CostPerPage<GranularityPage>,
+    pub lazy_pages_write_after_read: CostPerPage<GranularityPage>,
     /// Cost per one [GranularityPage] data loading from storage
     /// and moving it in program memory.
-    pub load_page_data_cost: CostPerPage<GranularityPage>,
+    pub load_page_data: CostPerPage<GranularityPage>,
     /// Cost per one [GranularityPage] processing write accesses after execution.
     /// Does not include cost for uploading page to storage.
-    pub write_access_page_cost: CostPerPage<GranularityPage>,
+    pub write_access_page: CostPerPage<GranularityPage>,
     /// Cost per one [GranularityPage] uploading data to storage.
-    pub upload_page_data_cost: CostPerPage<GranularityPage>,
+    pub upload_page_data: CostPerPage<GranularityPage>,
     /// Cost per one [WasmPage] static page. Static pages can have static data,
     /// and executor must to move this data to static pages before execution.
-    pub static_page_cost: CostPerPage<WasmPage>,
+    pub static_page: CostPerPage<WasmPage>,
     /// Cost per one [WasmPage] for memory growing.
-    pub mem_grow_cost: CostPerPage<WasmPage>,
+    pub mem_grow: CostPerPage<WasmPage>,
 }
 
-// impl Default for PagesConfig {
-//     fn default() -> Self {
-//         Self {
-//             max_pages: code::MAX_WASM_PAGE_COUNT.into(),
-//             lazy_pages_weights: LAZY_PAGES_WEIGHTS,
-//             init_cost: INIT_COST,
-//             alloc_cost: ALLOC_COST,
-//             mem_grow_cost: MEM_GROW_COST,
-//             load_page_cost: LOAD_PAGE_COST,
-//         }
-//     }
-// }
+impl PageCosts {
+    /// +_+_+
+    pub fn lazy_pages_weights(&self) -> LazyPagesWeights {
+        let write_post_process = self.write_access_page.add(self.upload_page_data);
+        LazyPagesWeights {
+            read: self.lazy_pages_read.into(),
+            write: self.lazy_pages_write.add(write_post_process).into(),
+            write_after_read: self
+                .lazy_pages_write_after_read
+                .add(write_post_process)
+                .into(),
+            load_page_storage_data: self.load_page_data.into(),
+        }
+    }
+    /// +_+_+
+    pub fn new_for_tests() -> Self {
+        let a = 1000.into();
+        let b = 4000.into();
+        Self {
+            lazy_pages_read: a,
+            lazy_pages_write: a,
+            lazy_pages_write_after_read: a,
+            load_page_data: a,
+            write_access_page: a,
+            upload_page_data: a,
+            static_page: b,
+            mem_grow: b,
+        }
+    }
+}
 
 /// Execution settings for handling messages.
 pub struct ExecutionSettings {
     /// Contextual block information.
     pub block_info: BlockInfo,
-    /// Allocation config.
-    pub pages_config: PagesConfig,
+    /// Max amount of pages in program memory during execution.
+    pub max_pages: WasmPage,
+    /// Pages costs.
+    pub page_costs: PageCosts,
     /// Minimal amount of existence for account.
     pub existential_deposit: u128,
     /// Weights of host functions.
@@ -112,20 +124,15 @@ pub struct ExecutionSettings {
     pub random_data: (Vec<u8>, u32),
 }
 
-impl ExecutionSettings {
-    /// Max amount of pages.
-    pub fn max_pages(&self) -> WasmPage {
-        self.pages_config.max_pages
-    }
-}
-
 /// Stable parameters for the whole block across processing runs.
 #[derive(Clone)]
 pub struct BlockConfig {
     /// Block info.
     pub block_info: BlockInfo,
+    /// +_+_+.
+    pub max_pages: WasmPage,
     /// Allocations config.
-    pub pages_config: PagesConfig,
+    pub page_costs: PageCosts,
     /// Existential deposit.
     pub existential_deposit: u128,
     /// Outgoing limit.
