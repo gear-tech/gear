@@ -53,6 +53,9 @@ pub enum GasOperation {
     /// Handle program data.
     #[display(fmt = "handle program data")]
     ProgramData,
+    /// Obtain code length.
+    #[display(fmt = "obtain code length")]
+    CodeLen,
     /// Handle program code.
     #[display(fmt = "handle program code")]
     ProgramCode,
@@ -64,9 +67,15 @@ pub enum GasOperation {
     ModuleInstrumentation,
 }
 
-enum PrechargeError {
-    BlockGasExceeded,
-    GasExceeded,
+/// Precharge error.
+#[derive(Encode, Decode, TypeInfo, Debug, PartialEq, Eq, PartialOrd, Ord, derive_more::Display)]
+pub enum PrechargeError {
+    /// Not enough gas in block to perform an operation.
+    #[display(fmt = "Not enough gas in block to {_0}")]
+    BlockGasExceeded(GasOperation),
+    /// Not enough gas to perform an operation.
+    #[display(fmt = "Not enough gas to {_0}")]
+    GasExceeded(GasOperation),
 }
 
 struct GasPrecharger<'a> {
@@ -85,27 +94,12 @@ impl<'a> GasPrecharger<'a> {
         }
     }
 
-    pub fn charge_gas_per_byte(&mut self, amount: u64) -> Result<(), PrechargeError> {
+    fn charge_gas(&mut self, operation: GasOperation, amount: u64) -> Result<(), PrechargeError> {
         if self.allowance_counter.charge(amount) != ChargeResult::Enough {
-            return Err(PrechargeError::BlockGasExceeded);
+            return Err(PrechargeError::BlockGasExceeded(operation));
         }
         if self.counter.charge(amount) != ChargeResult::Enough {
-            return Err(PrechargeError::GasExceeded);
-        }
-
-        Ok(())
-    }
-
-    fn charge_gas(
-        &mut self,
-        operation: GasOperation,
-        amount: u64,
-    ) -> Result<(), ExecutionErrorReason> {
-        if self.allowance_counter.charge(amount) != ChargeResult::Enough {
-            return Err(ExecutionErrorReason::BlockGasExceeded(operation));
-        }
-        if self.counter.charge(amount) != ChargeResult::Enough {
-            return Err(ExecutionErrorReason::GasExceeded(operation));
+            return Err(PrechargeError::GasExceeded(operation));
         }
 
         Ok(())
@@ -116,7 +110,17 @@ impl<'a> GasPrecharger<'a> {
         read_cost: u64,
         per_byte_cost: u64,
     ) -> Result<(), PrechargeError> {
-        self.charge_gas_per_byte(calculate_gas_for_program(read_cost, per_byte_cost))
+        self.charge_gas(
+            GasOperation::ProgramData,
+            calculate_gas_for_program(read_cost, per_byte_cost),
+        )
+    }
+
+    pub fn charge_gas_for_program_code_len(
+        &mut self,
+        read_cost: u64,
+    ) -> Result<(), PrechargeError> {
+        self.charge_gas(GasOperation::CodeLen, read_cost)
     }
 
     pub fn charge_gas_for_program_code(
@@ -125,18 +129,17 @@ impl<'a> GasPrecharger<'a> {
         per_byte_cost: u64,
         code_len_bytes: u32,
     ) -> Result<(), PrechargeError> {
-        self.charge_gas_per_byte(calculate_gas_for_code(
-            read_cost,
-            per_byte_cost,
-            code_len_bytes.into(),
-        ))
+        self.charge_gas(
+            GasOperation::ProgramCode,
+            calculate_gas_for_code(read_cost, per_byte_cost, code_len_bytes.into()),
+        )
     }
 
     pub fn charge_gas_for_instantiation(
         &mut self,
         gas_per_byte: u64,
         code_length: u32,
-    ) -> Result<(), ExecutionErrorReason> {
+    ) -> Result<(), PrechargeError> {
         let amount = gas_per_byte * code_length as u64;
         self.charge_gas(GasOperation::ModuleInstantiation, amount)
     }
@@ -150,14 +153,14 @@ impl<'a> GasPrecharger<'a> {
         let amount = instrumentation_cost.saturating_add(
             instrumentation_byte_cost.saturating_mul(original_code_len_bytes.into()),
         );
-        self.charge_gas_per_byte(amount)
+        self.charge_gas(GasOperation::ModuleInstrumentation, amount)
     }
 
     fn charge_gas_for_initial_memory(
         &mut self,
         settings: &PagesConfig,
         static_pages: WasmPage,
-    ) -> Result<(), ExecutionErrorReason> {
+    ) -> Result<(), PrechargeError> {
         // TODO: check calculation is safe: #2007.
         let amount = settings.init_cost * static_pages.raw() as u64;
         self.charge_gas(GasOperation::InitialMemory, amount)
@@ -168,7 +171,7 @@ impl<'a> GasPrecharger<'a> {
         settings: &PagesConfig,
         allocations: &BTreeSet<WasmPage>,
         static_pages: WasmPage,
-    ) -> Result<(), ExecutionErrorReason> {
+    ) -> Result<(), PrechargeError> {
         // TODO: check calculation is safe: #2007.
         let amount =
             settings.load_page_cost * (allocations.len() as u64 + static_pages.raw() as u64);
@@ -180,7 +183,7 @@ impl<'a> GasPrecharger<'a> {
         settings: &PagesConfig,
         max_wasm_page: WasmPage,
         static_pages: WasmPage,
-    ) -> Result<(), ExecutionErrorReason> {
+    ) -> Result<(), PrechargeError> {
         // TODO: make separate class for size in pages (here is static_pages): #2008.
         // TODO: check calculation is safe: #2007.
         let amount =
@@ -270,7 +273,15 @@ pub fn precharge_for_program(
 
     match charger.charge_gas_for_program_data(read_cost, read_per_byte_cost) {
         Ok(()) => Ok((dispatch, gas_counter, gas_allowance_counter).into()),
-        Err(PrechargeError::GasExceeded) => {
+        Err(PrechargeError::BlockGasExceeded(_)) => {
+            let gas_burned = gas_counter.burned();
+            Err(process_allowance_exceed(
+                dispatch,
+                destination_id,
+                gas_burned,
+            ))
+        }
+        Err(err) => {
             let gas_burned = gas_counter.burned();
             let system_reservation_ctx = SystemReservationContext::from_dispatch(&dispatch);
             Err(process_error(
@@ -278,16 +289,8 @@ pub fn precharge_for_program(
                 destination_id,
                 gas_burned,
                 system_reservation_ctx,
-                ExecutionErrorReason::GasExceeded(GasOperation::ProgramData),
+                err.into(),
                 false,
-            ))
-        }
-        Err(PrechargeError::BlockGasExceeded) => {
-            let gas_burned = gas_counter.burned();
-            Err(process_allowance_exceed(
-                dispatch,
-                destination_id,
-                gas_burned,
             ))
         }
     }
@@ -347,7 +350,7 @@ pub fn precharge_for_code_length(
     }
 
     let mut charger = GasPrecharger::new(&mut gas_counter, &mut gas_allowance_counter);
-    match charger.charge_gas_per_byte(read_cost) {
+    match charger.charge_gas_for_program_code_len(read_cost) {
         Ok(()) => Ok(ContextChargedForCodeLength {
             data: ContextData {
                 gas_counter,
@@ -357,22 +360,22 @@ pub fn precharge_for_code_length(
                 actor_data,
             },
         }),
-        Err(PrechargeError::GasExceeded) => {
+        Err(PrechargeError::BlockGasExceeded(_)) => Err(process_allowance_exceed(
+            dispatch,
+            destination_id,
+            gas_counter.burned(),
+        )),
+        Err(err) => {
             let system_reservation_ctx = SystemReservationContext::from_dispatch(&dispatch);
             Err(process_error(
                 dispatch,
                 destination_id,
                 gas_counter.burned(),
                 system_reservation_ctx,
-                ExecutionErrorReason::GasExceeded(GasOperation::ProgramCode),
+                err.into(),
                 false,
             ))
         }
-        Err(PrechargeError::BlockGasExceeded) => Err(process_allowance_exceed(
-            dispatch,
-            destination_id,
-            gas_counter.burned(),
-        )),
     }
 }
 
@@ -392,7 +395,12 @@ pub fn precharge_for_code(
 
     match charger.charge_gas_for_program_code(read_cost, read_per_byte_cost, code_len_bytes) {
         Ok(()) => Ok((context, code_len_bytes).into()),
-        Err(PrechargeError::GasExceeded) => {
+        Err(PrechargeError::BlockGasExceeded(_)) => Err(process_allowance_exceed(
+            context.data.dispatch,
+            context.data.destination_id,
+            context.data.gas_counter.burned(),
+        )),
+        Err(err) => {
             let system_reservation_ctx =
                 SystemReservationContext::from_dispatch(&context.data.dispatch);
             Err(process_error(
@@ -400,15 +408,10 @@ pub fn precharge_for_code(
                 context.data.destination_id,
                 context.data.gas_counter.burned(),
                 system_reservation_ctx,
-                ExecutionErrorReason::GasExceeded(GasOperation::ProgramCode),
+                err.into(),
                 false,
             ))
         }
-        Err(PrechargeError::BlockGasExceeded) => Err(process_allowance_exceed(
-            context.data.dispatch,
-            context.data.destination_id,
-            context.data.gas_counter.burned(),
-        )),
     }
 }
 
@@ -429,7 +432,12 @@ pub fn precharge_for_instrumentation(
     match charger.charge_gas_for_instrumentation(cost_base, cost_per_byte, original_code_len_bytes)
     {
         Ok(()) => Ok(context.into()),
-        Err(PrechargeError::GasExceeded) => {
+        Err(PrechargeError::BlockGasExceeded(_)) => Err(process_allowance_exceed(
+            context.data.dispatch,
+            context.data.destination_id,
+            context.data.gas_counter.burned(),
+        )),
+        Err(err) => {
             let system_reservation_ctx =
                 SystemReservationContext::from_dispatch(&context.data.dispatch);
             Err(process_error(
@@ -437,15 +445,10 @@ pub fn precharge_for_instrumentation(
                 context.data.destination_id,
                 context.data.gas_counter.burned(),
                 system_reservation_ctx,
-                ExecutionErrorReason::GasExceeded(GasOperation::ModuleInstrumentation),
+                err.into(),
                 false,
             ))
         }
-        Err(PrechargeError::BlockGasExceeded) => Err(process_allowance_exceed(
-            context.data.dispatch,
-            context.data.destination_id,
-            context.data.gas_counter.burned(),
-        )),
     }
 }
 
@@ -496,17 +499,13 @@ pub fn precharge_for_memory(
         Err(reason) => {
             log::debug!("Failed to charge for module instantiation or memory pages: {reason:?}");
             return match reason {
-                ExecutionErrorReason::BlockGasExceeded(
-                    GasOperation::InitialMemory
-                    | GasOperation::GrowMemory
-                    | GasOperation::LoadMemory
-                    | GasOperation::ModuleInstantiation,
-                ) => Err(process_allowance_exceed(
-                    context.data.dispatch,
-                    context.data.destination_id,
-                    context.data.gas_counter.burned(),
-                )),
-
+                ExecutionErrorReason::Precharge(PrechargeError::BlockGasExceeded(_)) => {
+                    Err(process_allowance_exceed(
+                        context.data.dispatch,
+                        context.data.destination_id,
+                        context.data.gas_counter.burned(),
+                    ))
+                }
                 _ => {
                     let system_reservation_ctx =
                         SystemReservationContext::from_dispatch(&context.data.dispatch);

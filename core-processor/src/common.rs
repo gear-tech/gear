@@ -20,7 +20,7 @@
 
 use crate::{
     executor::{InitialPagesContainDataError, PrepareMemoryError},
-    precharge::GasOperation,
+    precharge::PrechargeError,
 };
 use alloc::{
     collections::{BTreeMap, BTreeSet},
@@ -419,6 +419,9 @@ pub enum ExecutionErrorReason {
     /// Prepare memory error
     #[display(fmt = "{_0}")]
     PrepareMemory(PrepareMemoryError),
+    /// Precharge error.
+    #[display(fmt = "{_0}")]
+    Precharge(PrechargeError),
     /// Backend error
     #[display(fmt = "{_0}")]
     Backend(String),
@@ -428,12 +431,6 @@ pub enum ExecutionErrorReason {
     /// Not executable actor.
     #[display(fmt = "Not executable actor")]
     NonExecutable,
-    /// Not enough gas to perform an operation.
-    #[display(fmt = "Not enough gas to {_0}")]
-    GasExceeded(GasOperation),
-    /// Not enough gas in block to perform an operation.
-    #[display(fmt = "Not enough gas in block to {_0}")]
-    BlockGasExceeded(GasOperation),
     /// Message killed from storage as out of rent.
     #[display(fmt = "Out of rent")]
     OutOfRent,
@@ -447,7 +444,13 @@ pub enum ExecutionErrorReason {
 
 impl From<InitialPagesContainDataError> for ExecutionErrorReason {
     fn from(err: InitialPagesContainDataError) -> Self {
-        ExecutionErrorReason::InitialPagesContainData(err)
+        Self::InitialPagesContainData(err)
+    }
+}
+
+impl From<PrechargeError> for ExecutionErrorReason {
+    fn from(err: PrechargeError) -> Self {
+        Self::Precharge(err)
     }
 }
 
