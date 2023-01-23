@@ -23,6 +23,7 @@ use alloc::{
     vec::Vec,
 };
 use codec::{Decode, Encode};
+use core::ops::Range;
 use gear_backend_common::{
     error_processor::IntoExtError,
     lazy_pages::{GlobalsConfig, LazyPagesWeights, Status},
@@ -36,8 +37,8 @@ use gear_core::{
     gas::{ChargeResult, GasAllowanceCounter, GasAmount, GasCounter, Token, ValueCounter},
     ids::{CodeId, MessageId, ProgramId, ReservationId},
     memory::{
-        AllocInfo, AllocationsContext, GrowHandler, Memory, MemoryInterval, NoopGrowHandler,
-        PageBuf, PageNumber, PageU32Size, WasmPageNumber,
+        AllocInfo, AllocationsContext, GearPage, GrowHandler, Memory, MemoryInterval,
+        NoopGrowHandler, PageBuf, PageU32Size, WasmPage,
     },
     message::{
         GasLimit, HandlePacket, InitPacket, MessageContext, Packet, ReplyPacket, StatusCode,
@@ -105,7 +106,7 @@ pub trait ProcessorExt {
     fn lazy_pages_init_for_program(
         mem: &mut impl Memory,
         prog_id: ProgramId,
-        stack_end: Option<WasmPageNumber>,
+        stack_end: Option<WasmPage>,
         globals_config: GlobalsConfig,
         lazy_pages_weights: LazyPagesWeights,
     );
@@ -129,6 +130,12 @@ pub enum ProcessorError {
     /// User's code panicked
     #[display(fmt = "Panic occurred: {_0}")]
     Panic(String),
+    /// Cannot take data by indexes
+    #[display(fmt = "Cannot take data by indexes {_0:?} from message with size {_1}")]
+    ReadWrongRange(Range<u32>, u32),
+    /// Overflow in 'gr_read'
+    #[display(fmt = "Overflow at {_0} + len {_1} in `gr_read`")]
+    ReadLenOverflow(u32, u32),
 }
 
 impl ProcessorError {
@@ -258,7 +265,7 @@ impl ProcessorExt for Ext {
     fn lazy_pages_init_for_program(
         _mem: &mut impl Memory,
         _prog_id: ProgramId,
-        _stack_end: Option<WasmPageNumber>,
+        _stack_end: Option<WasmPage>,
         _globals_config: GlobalsConfig,
         _lazy_pages_weights: LazyPagesWeights,
     ) {
@@ -276,15 +283,14 @@ impl ProcessorExt for Ext {
 
 impl IntoExtInfo<<Ext as EnvExt>::Error> for Ext {
     fn into_ext_info(self, memory: &impl Memory) -> Result<ExtInfo, (MemoryError, GasAmount)> {
-        let pages_for_data = |static_pages: WasmPageNumber,
-                              allocations: &BTreeSet<WasmPageNumber>|
-         -> Vec<PageNumber> {
-            static_pages
-                .iter_from_zero()
-                .chain(allocations.iter().copied())
-                .flat_map(|p| p.to_pages_iter())
-                .collect()
-        };
+        let pages_for_data =
+            |static_pages: WasmPage, allocations: &BTreeSet<WasmPage>| -> Vec<GearPage> {
+                static_pages
+                    .iter_from_zero()
+                    .chain(allocations.iter().copied())
+                    .flat_map(|p| p.to_pages_iter())
+                    .collect()
+            };
 
         self.into_ext_info_inner(memory, pages_for_data)
     }
@@ -432,9 +438,9 @@ impl EnvExt for Ext {
 
     fn alloc(
         &mut self,
-        pages_num: WasmPageNumber,
+        pages_num: WasmPage,
         mem: &mut impl Memory,
-    ) -> Result<WasmPageNumber, Self::Error> {
+    ) -> Result<WasmPage, Self::Error> {
         self.alloc_inner::<NoopGrowHandler>(pages_num, mem)
     }
 
@@ -638,7 +644,7 @@ impl EnvExt for Ext {
         Ok(self.context.program_id)
     }
 
-    fn free(&mut self, page: WasmPageNumber) -> Result<(), Self::Error> {
+    fn free(&mut self, page: WasmPage) -> Result<(), Self::Error> {
         self.charge_gas_runtime(RuntimeCosts::Free)?;
 
         let result = self.context.allocations_context.free(page);
@@ -670,14 +676,34 @@ impl EnvExt for Ext {
         Ok(())
     }
 
-    fn read(&mut self) -> Result<&[u8], Self::Error> {
+    fn read(&mut self, at: u32, len: u32) -> Result<&[u8], Self::Error> {
         let size = self
             .size()?
             .try_into()
             .unwrap_or_else(|_| unreachable!("size of the payload is a known constant: gear_core::message::MAX_PAYLOAD_SIZE < u32::MAX"));
+
         self.charge_gas_runtime(RuntimeCosts::Read(size))?;
 
-        Ok(self.context.message_context.current().payload())
+        // Verify read is correct
+        let last_idx = at
+            .checked_add(len)
+            .ok_or(ProcessorError::ReadLenOverflow(at, len))?;
+
+        {
+            let msg = self.context.message_context.current().payload();
+
+            if last_idx as usize > msg.len() {
+                return Err(ProcessorError::ReadWrongRange(
+                    at..last_idx,
+                    msg.len() as u32,
+                ));
+            }
+        }
+
+        self.charge_gas_runtime(RuntimeCosts::Read(size))?;
+
+        let msg = self.context.message_context.current().payload();
+        Ok(&msg[at as usize..last_idx as usize])
     }
 
     fn size(&mut self) -> Result<usize, Self::Error> {
@@ -943,9 +969,9 @@ impl Ext {
     // TODO  #2024 (https://github.com/gear-tech/gear/issues/2024) test that refunds less than charged!
     pub fn alloc_inner<G: GrowHandler>(
         &mut self,
-        pages: WasmPageNumber,
+        pages: WasmPage,
         mem: &mut impl Memory,
-    ) -> Result<WasmPageNumber, ProcessorError> {
+    ) -> Result<WasmPage, ProcessorError> {
         self.charge_gas_runtime(RuntimeCosts::Alloc)?;
 
         // Charge gas for allocations & grow
@@ -977,7 +1003,7 @@ impl Ext {
     pub fn into_ext_info_inner(
         self,
         memory: &impl Memory,
-        pages_for_data: impl FnOnce(WasmPageNumber, &BTreeSet<WasmPageNumber>) -> Vec<PageNumber>,
+        pages_for_data: impl FnOnce(WasmPage, &BTreeSet<WasmPage>) -> Vec<GearPage>,
     ) -> Result<ExtInfo, (MemoryError, GasAmount)> {
         let ProcessorContext {
             allocations_context,

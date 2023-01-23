@@ -401,9 +401,9 @@ pub use gear_core_errors::MemoryError as Error;
 #[derive(
     Clone, Copy, Debug, Decode, Encode, PartialEq, Eq, PartialOrd, Ord, Hash, TypeInfo, Default,
 )]
-pub struct PageNumber(u32);
+pub struct GearPage(u32);
 
-impl PageU32Size for PageNumber {
+impl PageU32Size for GearPage {
     fn size_non_zero() -> NonZeroU32 {
         static_assertions::const_assert_ne!(GEAR_PAGE_SIZE, 0);
         unsafe { NonZeroU32::new_unchecked(GEAR_PAGE_SIZE as u32) }
@@ -420,9 +420,9 @@ impl PageU32Size for PageNumber {
 
 /// Wasm page number.
 #[derive(Clone, Copy, Debug, Decode, Encode, PartialEq, Eq, PartialOrd, Ord, TypeInfo, Default)]
-pub struct WasmPageNumber(u32);
+pub struct WasmPage(u32);
 
-impl PageU32Size for WasmPageNumber {
+impl PageU32Size for WasmPage {
     fn size_non_zero() -> NonZeroU32 {
         static_assertions::const_assert_ne!(WASM_PAGE_SIZE, 0);
         unsafe { NonZeroU32::new_unchecked(WASM_PAGE_SIZE as u32) }
@@ -456,19 +456,19 @@ impl PageU32Size for GranularityPage {
     }
 }
 
-impl From<u16> for WasmPageNumber {
+impl From<u16> for WasmPage {
     fn from(value: u16) -> Self {
-        // u16::MAX * WasmPageNumber::size() - 1 == u32::MAX
+        // u16::MAX * WasmPage::size() - 1 == u32::MAX
         static_assertions::const_assert!(WASM_PAGE_SIZE == 0x10000);
-        WasmPageNumber(value as u32)
+        WasmPage(value as u32)
     }
 }
 
-impl From<u16> for PageNumber {
+impl From<u16> for GearPage {
     fn from(value: u16) -> Self {
-        // u16::MAX * PageNumber::size() - 1 <= u32::MAX
+        // u16::MAX * GearPage::size() - 1 <= u32::MAX
         static_assertions::const_assert!(GEAR_PAGE_SIZE <= 0x10000);
-        PageNumber(value as u32)
+        GearPage(value as u32)
     }
 }
 
@@ -483,10 +483,10 @@ static_assertions::const_assert!(
 /// Backend wasm memory interface.
 pub trait Memory {
     /// Grow memory by number of pages.
-    fn grow(&mut self, pages: WasmPageNumber) -> Result<(), Error>;
+    fn grow(&mut self, pages: WasmPage) -> Result<(), Error>;
 
     /// Return current size of the memory.
-    fn size(&self) -> WasmPageNumber;
+    fn size(&self) -> WasmPage;
 
     /// Set memory region at specific pointer.
     fn write(&mut self, offset: u32, buffer: &[u8]) -> Result<(), Error>;
@@ -515,10 +515,10 @@ pub trait Memory {
 #[derive(Debug)]
 pub struct AllocationsContext {
     /// Pages which has been in storage before execution
-    init_allocations: BTreeSet<WasmPageNumber>,
-    allocations: BTreeSet<WasmPageNumber>,
-    max_pages: WasmPageNumber,
-    static_pages: WasmPageNumber,
+    init_allocations: BTreeSet<WasmPage>,
+    allocations: BTreeSet<WasmPage>,
+    max_pages: WasmPage,
+    static_pages: WasmPage,
 }
 
 /// Before and after memory grow actions.
@@ -545,9 +545,9 @@ impl GrowHandler for NoopGrowHandler {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct AllocInfo {
     /// Zero page of allocated interval.
-    pub page: WasmPageNumber,
+    pub page: WasmPage,
     /// Number of pages, which has been allocated inside already existing memory.
-    pub not_grown: WasmPageNumber,
+    pub not_grown: WasmPage,
 }
 
 impl AllocationsContext {
@@ -557,9 +557,9 @@ impl AllocationsContext {
     /// and allocation manager. Also configurable `static_pages` and `max_pages`
     /// are set.
     pub fn new(
-        allocations: BTreeSet<WasmPageNumber>,
-        static_pages: WasmPageNumber,
-        max_pages: WasmPageNumber,
+        allocations: BTreeSet<WasmPage>,
+        static_pages: WasmPage,
+        max_pages: WasmPage,
     ) -> Self {
         Self {
             init_allocations: allocations.clone(),
@@ -571,14 +571,14 @@ impl AllocationsContext {
 
     /// Return `true` if the page is the initial page,
     /// it means that the page was already in the storage.
-    pub fn is_init_page(&self, page: WasmPageNumber) -> bool {
+    pub fn is_init_page(&self, page: WasmPage) -> bool {
         self.init_allocations.contains(&page)
     }
 
     /// Alloc specific number of pages for the currently running program.
     pub fn alloc<G: GrowHandler>(
         &mut self,
-        pages: WasmPageNumber,
+        pages: WasmPage,
         mem: &mut impl Memory,
     ) -> Result<AllocInfo, Error> {
         let mem_size = mem.size();
@@ -624,7 +624,7 @@ impl AllocationsContext {
             });
 
             // Panic is impossible, in other case we would found interval inside existing memory.
-            if extra_grow == WasmPageNumber::zero() {
+            if extra_grow == WasmPage::zero() {
                 unreachable!("`extra grow cannot be zero");
             }
 
@@ -659,7 +659,7 @@ impl AllocationsContext {
     /// Free specific page.
     ///
     /// Currently running program should own this page.
-    pub fn free(&mut self, page: WasmPageNumber) -> Result<(), Error> {
+    pub fn free(&mut self, page: WasmPage) -> Result<(), Error> {
         if page > self.max_pages {
             Err(Error::OutOfBounds)
         } else if page < self.static_pages || !self.allocations.remove(&page) {
@@ -670,46 +670,39 @@ impl AllocationsContext {
     }
 
     /// Decomposes this instance and returns allocations.
-    pub fn into_parts(
-        self,
-    ) -> (
-        WasmPageNumber,
-        BTreeSet<WasmPageNumber>,
-        BTreeSet<WasmPageNumber>,
-    ) {
+    pub fn into_parts(self) -> (WasmPage, BTreeSet<WasmPage>, BTreeSet<WasmPage>) {
         (self.static_pages, self.init_allocations, self.allocations)
     }
 }
 
 #[cfg(test)]
-/// This module contains tests of PageNumber struct
+/// This module contains tests of GearPage struct
 mod tests {
     use super::*;
 
     use alloc::vec::Vec;
 
     #[test]
-    /// Test that [PageNumber] add up correctly
+    /// Test that [GearPage] add up correctly
     fn page_number_addition() {
-        let sum = PageNumber(100).add(200.into()).unwrap();
-        assert_eq!(sum, PageNumber(300));
+        let sum = GearPage(100).add(200.into()).unwrap();
+        assert_eq!(sum, GearPage(300));
     }
 
     #[test]
-    /// Test that [PageNumber] subtract correctly
+    /// Test that [GearPage] subtract correctly
     fn page_number_subtraction() {
-        let subtraction = PageNumber(299).sub(199.into()).unwrap();
-        assert_eq!(subtraction, PageNumber(100))
+        let subtraction = GearPage(299).sub(199.into()).unwrap();
+        assert_eq!(subtraction, GearPage(100))
     }
 
     #[test]
-    /// Test that [WasmPageNumber] set transforms correctly to [PageNumber] set.
+    /// Test that [WasmPage] set transforms correctly to [GearPage] set.
     fn wasm_pages_to_gear_pages() {
-        let wasm_pages: Vec<WasmPageNumber> =
-            [0u32, 10u32].iter().copied().map(WasmPageNumber).collect();
+        let wasm_pages: Vec<WasmPage> = [0u32, 10u32].iter().copied().map(WasmPage).collect();
         let gear_pages: Vec<u32> = wasm_pages
             .iter()
-            .flat_map(|p| p.to_pages_iter::<PageNumber>())
+            .flat_map(|p| p.to_pages_iter::<GearPage>())
             .map(|p| p.0)
             .collect();
 
@@ -739,57 +732,46 @@ mod tests {
 
     #[test]
     fn free_fails() {
-        let mut ctx =
-            AllocationsContext::new(BTreeSet::default(), WasmPageNumber(0), WasmPageNumber(0));
-        assert_eq!(ctx.free(WasmPageNumber(1)), Err(Error::OutOfBounds));
+        let mut ctx = AllocationsContext::new(BTreeSet::default(), WasmPage(0), WasmPage(0));
+        assert_eq!(ctx.free(WasmPage(1)), Err(Error::OutOfBounds));
+
+        let mut ctx = AllocationsContext::new(BTreeSet::default(), WasmPage(1), WasmPage(0));
+        assert_eq!(ctx.free(WasmPage(0)), Err(Error::InvalidFree(0)));
 
         let mut ctx =
-            AllocationsContext::new(BTreeSet::default(), WasmPageNumber(1), WasmPageNumber(0));
-        assert_eq!(ctx.free(WasmPageNumber(0)), Err(Error::InvalidFree(0)));
-
-        let mut ctx = AllocationsContext::new(
-            BTreeSet::from([WasmPageNumber(0)]),
-            WasmPageNumber(1),
-            WasmPageNumber(1),
-        );
-        assert_eq!(ctx.free(WasmPageNumber(1)), Err(Error::InvalidFree(1)));
+            AllocationsContext::new(BTreeSet::from([WasmPage(0)]), WasmPage(1), WasmPage(1));
+        assert_eq!(ctx.free(WasmPage(1)), Err(Error::InvalidFree(1)));
     }
 
     #[test]
     fn page_iterator() {
         let test = |num1, num2| {
-            let p1 = PageNumber::from(num1);
-            let p2 = PageNumber::from(num2);
+            let p1 = GearPage::from(num1);
+            let p2 = GearPage::from(num2);
 
             assert_eq!(
-                p1.iter_end(p2).unwrap().collect::<Vec<PageNumber>>(),
-                (num1..num2)
-                    .map(PageNumber::from)
-                    .collect::<Vec<PageNumber>>(),
+                p1.iter_end(p2).unwrap().collect::<Vec<GearPage>>(),
+                (num1..num2).map(GearPage::from).collect::<Vec<GearPage>>(),
             );
             assert_eq!(
                 p1.iter_end_inclusive(p2)
                     .unwrap()
-                    .collect::<Vec<PageNumber>>(),
-                (num1..=num2)
-                    .map(PageNumber::from)
-                    .collect::<Vec<PageNumber>>(),
+                    .collect::<Vec<GearPage>>(),
+                (num1..=num2).map(GearPage::from).collect::<Vec<GearPage>>(),
             );
             assert_eq!(
-                p1.iter_count(p2).unwrap().collect::<Vec<PageNumber>>(),
+                p1.iter_count(p2).unwrap().collect::<Vec<GearPage>>(),
                 (num1..num1 + num2)
-                    .map(PageNumber::from)
-                    .collect::<Vec<PageNumber>>(),
+                    .map(GearPage::from)
+                    .collect::<Vec<GearPage>>(),
             );
             assert_eq!(
-                p1.iter_from_zero().collect::<Vec<PageNumber>>(),
-                (0..num1).map(PageNumber::from).collect::<Vec<PageNumber>>(),
+                p1.iter_from_zero().collect::<Vec<GearPage>>(),
+                (0..num1).map(GearPage::from).collect::<Vec<GearPage>>(),
             );
             assert_eq!(
-                p1.iter_from_zero_inclusive().collect::<Vec<PageNumber>>(),
-                (0..=num1)
-                    .map(PageNumber::from)
-                    .collect::<Vec<PageNumber>>(),
+                p1.iter_from_zero_inclusive().collect::<Vec<GearPage>>(),
+                (0..=num1).map(GearPage::from).collect::<Vec<GearPage>>(),
             );
         };
 

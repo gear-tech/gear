@@ -33,7 +33,7 @@ use gear_core::{
     env::Ext as EnvExt,
     gas::{GasAllowanceCounter, GasCounter},
     ids::ProgramId,
-    memory::{PageBuf, PageNumber},
+    memory::{GearPage, PageBuf},
     message::{
         ContextSettings, DispatchKind, IncomingDispatch, MessageWaitedType, ReplyMessage,
         StatusCode, StoredDispatch,
@@ -332,7 +332,7 @@ pub fn process<
     block_config: &BlockConfig,
     execution_context: ProcessExecutionContext,
     random_data: (Vec<u8>, u32),
-    memory_pages: BTreeMap<PageNumber, PageBuf>,
+    memory_pages: BTreeMap<GearPage, PageBuf>,
 ) -> Vec<JournalNote> {
     use SuccessfulDispatchResultKind::*;
 

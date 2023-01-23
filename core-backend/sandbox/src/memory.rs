@@ -18,7 +18,7 @@
 
 //! sp-sandbox extensions for memory.
 
-use gear_core::memory::{Error, HostPointer, Memory, PageU32Size, WasmPageNumber};
+use gear_core::memory::{Error, HostPointer, Memory, PageU32Size, WasmPage};
 use sp_sandbox::{default_executor::Memory as DefaultExecutorMemory, SandboxMemory};
 
 /// Wrapper for sp_sandbox::Memory.
@@ -32,15 +32,15 @@ impl MemoryWrap {
 
 /// Memory interface for the allocator.
 impl Memory for MemoryWrap {
-    fn grow(&mut self, pages: WasmPageNumber) -> Result<(), Error> {
+    fn grow(&mut self, pages: WasmPage) -> Result<(), Error> {
         self.0
             .grow(pages.raw())
             .map(|_| ())
             .map_err(|_| Error::OutOfBounds)
     }
 
-    fn size(&self) -> WasmPageNumber {
-        WasmPageNumber::new(self.0.size())
+    fn size(&self) -> WasmPage {
+        WasmPage::new(self.0.size())
             .expect("Unexpected backend behavior: size is bigger then u32::MAX")
     }
 

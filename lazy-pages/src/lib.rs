@@ -30,7 +30,7 @@ use gear_backend_common::{
     memory::OutOfMemoryAccessError,
 };
 use gear_core::memory::{
-    GranularityPage, MemoryInterval, PageNumber, PageU32Size, WasmPageNumber, GEAR_PAGE_SIZE,
+    GearPage, GranularityPage, MemoryInterval, PageU32Size, WasmPage, GEAR_PAGE_SIZE,
     PAGE_STORAGE_GRANULARITY,
 };
 use once_cell::sync::OnceCell;
@@ -106,7 +106,7 @@ pub(crate) struct LazyPagesExecutionContext {
     /// Pointer to the begin of wasm memory buffer
     pub wasm_mem_addr: Option<usize>,
     /// Wasm memory buffer size, to identify whether signal is from wasm memory buffer.
-    pub wasm_mem_size: Option<WasmPageNumber>,
+    pub wasm_mem_size: Option<WasmPage>,
     /// Current program prefix in storage
     pub program_storage_prefix: Option<Vec<u8>>,
     /// Wasm addresses of lazy-pages, that have been read or write accessed at least once.
@@ -124,7 +124,7 @@ pub(crate) struct LazyPagesExecutionContext {
     /// can skip processing and this memory won't be protected. So, pages
     /// which lies before this value will never get into `released_pages`,
     /// which means that they will never be updated in storage.
-    pub stack_end_wasm_page: WasmPageNumber,
+    pub stack_end_wasm_page: WasmPage,
     /// Gear pages, which has been write accessed.
     pub released_pages: BTreeSet<LazyPage>,
     /// Context to access globals and works with them: charge gas, set status global.
@@ -151,9 +151,9 @@ pub enum InitializeForProgramError {
     #[display(fmt = "WASM memory native address {_0:#x} is not aligned to the native page size")]
     WasmMemAddrIsNotAligned(usize),
     #[display(fmt = "WASM memory size {_0:?} is bigger than u32::MAX bytes")]
-    WasmMemSizeBiggerThenU32Max(WasmPageNumber),
+    WasmMemSizeBiggerThenU32Max(WasmPage),
     #[display(fmt = "WASM stack end addr {_0:?} > wasm mem size {_1:?}")]
-    StackEndAddrBiggerThenSize(WasmPageNumber, WasmPageNumber),
+    StackEndAddrBiggerThenSize(WasmPage, WasmPage),
     #[display(fmt = "{_0}")]
     #[from]
     Mprotect(MprotectError),
@@ -165,8 +165,8 @@ pub enum InitializeForProgramError {
 
 pub fn initialize_for_program(
     wasm_mem_addr: Option<usize>,
-    wasm_mem_size: WasmPageNumber,
-    stack_end: Option<WasmPageNumber>,
+    wasm_mem_size: WasmPage,
+    stack_end: Option<WasmPage>,
     program_id: Vec<u8>,
     globals_config: Option<GlobalsConfig>,
     lazy_pages_weights: LazyPagesWeights,
@@ -208,7 +208,7 @@ pub fn initialize_for_program(
             }
             stack_end
         } else {
-            WasmPageNumber::zero()
+            WasmPage::zero()
         };
 
         ctx.globals_config = globals_config;
@@ -375,10 +375,10 @@ pub fn set_wasm_mem_begin_addr(wasm_mem_addr: usize) -> Result<(), WasmMemAddrEr
 
 #[derive(derive_more::Display)]
 #[display(fmt = "Wasm mem size {_0:?} is bigger then u32::MAX bytes")]
-pub struct WasmMemSizeError(WasmPageNumber);
+pub struct WasmMemSizeError(WasmPage);
 
 /// Set current wasm memory size in global context
-pub fn set_wasm_mem_size(size: WasmPageNumber) -> Result<(), WasmMemSizeError> {
+pub fn set_wasm_mem_size(size: WasmPage) -> Result<(), WasmMemSizeError> {
     LAZY_PAGES_PROGRAM_CONTEXT.with(|ctx| {
         let _ = ctx.borrow_mut().wasm_mem_size.insert(size);
     });
@@ -386,7 +386,7 @@ pub fn set_wasm_mem_size(size: WasmPageNumber) -> Result<(), WasmMemSizeError> {
 }
 
 /// Returns vec of lazy-pages which has been accessed
-pub fn get_released_pages() -> Vec<PageNumber> {
+pub fn get_released_pages() -> Vec<GearPage> {
     LAZY_PAGES_PROGRAM_CONTEXT.with(|ctx| {
         ctx.borrow()
             .released_pages
@@ -460,7 +460,7 @@ unsafe fn init_for_process<H: UserSignalHandler>() -> Result<(), InitError> {
     LAZY_PAGES_INITIALIZED
         .get_or_init(|| {
             let ps = region::page::size();
-            let gear_ps = PageNumber::size() as usize;
+            let gear_ps = GearPage::size() as usize;
             if ps > PAGE_STORAGE_GRANULARITY
                 || PAGE_STORAGE_GRANULARITY % ps != 0
                 || (ps > gear_ps && ps % gear_ps != 0)

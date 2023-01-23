@@ -28,7 +28,7 @@ use gear_backend_common::lazy_pages::{
     GlobalsAccessError, GlobalsAccessMod, GlobalsAccessor, GlobalsConfig, Status,
 };
 use gear_core::memory::{
-    PageNumber, PageU32Size, PagesIterInclusive, GEAR_PAGE_SIZE, PAGE_STORAGE_GRANULARITY,
+    GearPage, PageU32Size, PagesIterInclusive, GEAR_PAGE_SIZE, PAGE_STORAGE_GRANULARITY,
 };
 use sc_executor_common::sandbox::SandboxInstance;
 use sp_wasm_interface::Value;
@@ -90,7 +90,7 @@ impl PagePrefix {
         }
     }
     /// Returns key in storage for `page`.
-    pub fn calc_key_for_page(&mut self, page: PageNumber) -> &[u8] {
+    pub fn calc_key_for_page(&mut self, page: GearPage) -> &[u8] {
         let len = self.buffer.len();
         self.buffer[len - std::mem::size_of::<u32>()..len]
             .copy_from_slice(page.raw().to_le_bytes().as_slice());
@@ -290,7 +290,7 @@ unsafe fn charge_for_pages(
     }
 
     // " * k" because lazy pages costs are per one gear page.
-    let k = (GranularityPage::size() / PageNumber::size()) as u64;
+    let k = (GranularityPage::size() / GearPage::size()) as u64;
     amount = amount.checked_mul(k).ok_or(Error::ChargedGasTooBig)?;
 
     charge_gas(globals_config, amount)
@@ -435,13 +435,11 @@ pub(crate) unsafe fn process_lazy_pages(
                 )?;
 
                 // Download data for `lazy_page` from storage
-                for gear_page in lazy_page.to_pages_iter::<PageNumber>() {
+                for gear_page in lazy_page.to_pages_iter::<GearPage>() {
                     let page_buffer_ptr =
                         (wasm_mem_addr as *mut u8).add(gear_page.offset() as usize);
-                    let buffer_as_slice = std::slice::from_raw_parts_mut(
-                        page_buffer_ptr,
-                        PageNumber::size() as usize,
-                    );
+                    let buffer_as_slice =
+                        std::slice::from_raw_parts_mut(page_buffer_ptr, GearPage::size() as usize);
                     let res = sp_io::storage::read(
                         prefix.calc_key_for_page(gear_page),
                         buffer_as_slice,
@@ -451,9 +449,9 @@ pub(crate) unsafe fn process_lazy_pages(
                     log::trace!("{:?} has data in storage: {}", gear_page, res.is_some());
 
                     // Check data size is valid.
-                    if let Some(size) = res.filter(|&size| size != PageNumber::size()) {
+                    if let Some(size) = res.filter(|&size| size != GearPage::size()) {
                         return Err(Error::InvalidPageDataSize {
-                            expected: PageNumber::size(),
+                            expected: GearPage::size(),
                             actual: size,
                         });
                     }

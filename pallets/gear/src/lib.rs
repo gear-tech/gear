@@ -77,7 +77,7 @@ use gear_backend_common::lazy_pages::LazyPagesWeights;
 use gear_core::{
     code::{Code, CodeAndId, InstrumentedCode, InstrumentedCodeAndId},
     ids::{CodeId, MessageId, ProgramId, ReservationId},
-    memory::{PageBuf, PageNumber},
+    memory::{GearPage, PageBuf},
     message::*,
 };
 use manager::{CodeInfo, QueuePostProcessingData};
@@ -954,8 +954,8 @@ pub mod pallet {
         pub(crate) fn get_and_track_memory_pages(
             manager: &mut ExtManager<T>,
             program_id: ProgramId,
-            pages_with_data: &BTreeSet<PageNumber>,
-        ) -> Option<BTreeMap<PageNumber, PageBuf>> {
+            pages_with_data: &BTreeSet<GearPage>,
+        ) -> Option<BTreeMap<GearPage, PageBuf>> {
             #[cfg(feature = "lazy-pages")]
             let memory_pages = {
                 // To calm clippy on unused argument.

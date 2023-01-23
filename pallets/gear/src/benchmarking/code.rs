@@ -112,7 +112,7 @@ pub struct DataSegment {
 
 #[derive(Clone)]
 pub struct ImportedMemory {
-    // TODO: change to WasmPageNumber (issue #2094)
+    // TODO: change to WasmPage (issue #2094)
     pub min_pages: u32,
 }
 
@@ -401,7 +401,7 @@ where
 
 /// Mechanisms to generate a function body that can be used inside a `ModuleDefinition`.
 pub mod body {
-    use gear_core::memory::{PageNumber, PageU32Size, WasmPageNumber};
+    use gear_core::memory::{GearPage, PageU32Size, WasmPage};
 
     use super::*;
 
@@ -471,12 +471,12 @@ pub mod body {
     }
 
     pub fn write_access_all_pages_instrs(
-        mem_size: WasmPageNumber,
+        mem_size: WasmPage,
         mut head: Vec<Instruction>,
     ) -> Vec<Instruction> {
         for page in mem_size
             .iter_from_zero()
-            .flat_map(|p| p.to_pages_iter::<PageNumber>())
+            .flat_map(|p| p.to_pages_iter::<GearPage>())
         {
             head.push(Instruction::I32Const(page.offset() as i32));
             head.push(Instruction::I32Const(42));
@@ -486,12 +486,12 @@ pub mod body {
     }
 
     pub fn read_access_all_pages_instrs(
-        mem_size: WasmPageNumber,
+        mem_size: WasmPage,
         mut head: Vec<Instruction>,
     ) -> Vec<Instruction> {
         for page in mem_size
             .iter_from_zero()
-            .flat_map(|p| p.to_pages_iter::<PageNumber>())
+            .flat_map(|p| p.to_pages_iter::<GearPage>())
         {
             head.push(Instruction::I32Const(page.offset() as i32));
             head.push(Instruction::I32Load(2, 0));

@@ -37,7 +37,7 @@ use gear_backend_common::{
 use gear_core::{
     buffer::RuntimeBufferSizeError,
     env::Ext,
-    memory::{PageU32Size, WasmPageNumber},
+    memory::{PageU32Size, WasmPage},
     message::{HandlePacket, InitPacket, MessageWaitedType, PayloadSizeError, ReplyPacket},
 };
 use gear_core_errors::{CoreError, MemoryError};
@@ -430,17 +430,13 @@ where
         at: u32,
         len: u32,
     ) -> Result<&'_ [u8], FuncError<<E as Ext>::Error>> {
-        let msg = ext.read().map_err(FuncError::Core)?;
+        let msg = ext.read(at, len).map_err(FuncError::Core)?;
 
-        let last_idx = at
-            .checked_add(len)
-            .ok_or_else(|| FuncError::ReadLenOverflow(at, len))?;
+        // 'at' and 'len' correct and saturation checked in Ext::read
+        debug_assert!(at.checked_add(len).is_some());
+        debug_assert!((at + len) as usize == msg.len());
 
-        if last_idx as usize > msg.len() {
-            return Err(FuncError::ReadWrongRange(at..last_idx, msg.len() as u32));
-        }
-
-        Ok(&msg[at as usize..last_idx as usize])
+        Ok(msg)
     }
 
     pub fn read(store: &mut Store<HostState<E>>, forbidden: bool, memory: WasmiMemory) -> Func {
@@ -532,8 +528,7 @@ where
 
     pub fn alloc(store: &mut Store<HostState<E>>, forbidden: bool, memory: WasmiMemory) -> Func {
         let func = move |caller: Caller<'_, HostState<E>>, pages: u32| -> FnResult<u32> {
-            let pages =
-                WasmPageNumber::new(pages).map_err(|_| Trap::Code(TrapCode::Unreachable))?;
+            let pages = WasmPage::new(pages).map_err(|_| Trap::Code(TrapCode::Unreachable))?;
 
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
@@ -550,7 +545,7 @@ where
 
     pub fn free(store: &mut Store<HostState<E>>, forbidden: bool, memory: WasmiMemory) -> Func {
         let func = move |caller: Caller<'_, HostState<E>>, page: u32| -> EmptyOutput {
-            let page = WasmPageNumber::new(page).map_err(|_| Trap::Code(TrapCode::Unreachable))?;
+            let page = WasmPage::new(page).map_err(|_| Trap::Code(TrapCode::Unreachable))?;
 
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
