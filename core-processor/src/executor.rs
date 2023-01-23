@@ -308,13 +308,8 @@ pub fn execute_wasm<
             if A::LAZY_PAGES_ENABLED {
                 A::lazy_pages_post_execution_actions(&mut memory);
 
-                let status = if let Some(status) = A::lazy_pages_status() {
-                    status
-                } else {
-                    return Err(ExecutionError {
-                        gas_amount: ext.into_gas_amount(),
-                        reason: ExecutionErrorReason::LazyPagesStatusIsNone,
-                    });
+                let Some(status) = A::lazy_pages_status() else {
+                    unreachable!("Lazy page status must be set before contract execution");
                 };
 
                 match status {

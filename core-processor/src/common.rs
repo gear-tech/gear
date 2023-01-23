@@ -424,9 +424,6 @@ pub enum ExecutionErrorReason {
     /// Message killed from storage as out of rent.
     #[display(fmt = "Out of rent")]
     OutOfRent,
-    /// Lazy page status must be set before contract execution.
-    #[display(fmt = "Lazy page status must be set before contract execution")]
-    LazyPagesStatusIsNone,
 }
 
 /// Actor.
