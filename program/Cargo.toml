@@ -28,7 +28,7 @@ futures = "0.3"
 gear-core = { path = "../core" }
 hex = "0.4.3"
 jsonrpsee = { version = "^0.16", features = [ "http-client", "ws-client" ] }
-keyring = "1.2.0"
+keyring = "1.2.1"
 lazy_static = "1.4.0"
 libp2p = { version = "0.50.0", features = [ "identify" ], optional = true }
 log = "0.4.16"
