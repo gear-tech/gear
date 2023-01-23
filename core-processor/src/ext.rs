@@ -198,6 +198,8 @@ impl AsTerminationReason for ProcessorError {
     }
 }
 
+/// Charger for pages in `alloc()`
+/// that checks we always charge more than refund
 struct ChargedAllocGas {
     amount: u64,
 }
@@ -206,8 +208,8 @@ impl ChargedAllocGas {
     fn calculate_gas(ext: &Ext, alloc: u32, mem_grow: u32) -> u64 {
         let alloc = alloc as u64;
         let mem_grow = mem_grow as u64;
-        0_u64
-            .saturating_add(alloc.saturating_mul(ext.context.pages_config.alloc_cost))
+        alloc
+            .saturating_mul(ext.context.pages_config.alloc_cost)
             .saturating_add(mem_grow.saturating_mul(ext.context.pages_config.mem_grow_cost))
     }
 
@@ -644,7 +646,8 @@ impl EnvExt for Ext {
 
         // Returns back gas for allocated page if it's new
         if !self.context.allocations_context.is_init_page(page) {
-            self.refund_gas(self.context.pages_config.alloc_cost)?;
+            let res = self.refund_gas(self.context.pages_config.alloc_cost);
+            self.return_and_store_err(res)?;
         }
 
         Ok(())
@@ -959,6 +962,9 @@ impl Ext {
             .map(|page| !self.context.allocations_context.is_init_page(page) as u32)
             .sum();
 
+        // Subtraction is safe because we met constraint
+        // page <= pages for `new_allocated_pages_num` so
+        // `new_allocated_pages_num` <= pages
         let not_allocated = pages.raw() - new_allocated_pages_num;
         let not_grown = not_grown.raw();
         charged.refund(self, not_allocated, not_grown)?;
@@ -1220,15 +1226,15 @@ mod tests {
             }
 
             fn write(&mut self, _offset: u32, _buffer: &[u8]) -> Result<(), MemoryError> {
-                unreachable!()
+                unimplemented!()
             }
 
             fn read(&self, _offset: u32, _buffer: &mut [u8]) -> Result<(), MemoryError> {
-                unreachable!()
+                unimplemented!()
             }
 
             unsafe fn get_buffer_host_addr_unsafe(&mut self) -> HostPointer {
-                unreachable!()
+                unimplemented!()
             }
         }
 
