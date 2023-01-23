@@ -17,8 +17,7 @@
 
 use crate::{
     common::{
-        DispatchResult, ExecutableActorData, ExecutionErrorReason, GasOperation, JournalNote,
-        PrechargedDispatch,
+        DispatchResult, ExecutableActorData, ExecutionErrorReason, JournalNote, PrechargedDispatch,
     },
     configs::{BlockConfig, PagesConfig},
     context::{ContextChargedForCodeLength, ContextChargedForMemory, ContextData},
@@ -28,6 +27,7 @@ use crate::{
     ContextChargedForCode, ContextChargedForInstrumentation,
 };
 use alloc::{collections::BTreeSet, vec::Vec};
+use codec::{Decode, Encode};
 use gear_backend_common::SystemReservationContext;
 use gear_core::{
     gas::{ChargeResult, GasAllowanceCounter, GasCounter},
@@ -36,6 +36,33 @@ use gear_core::{
     message::{DispatchKind, IncomingDispatch, MessageWaitedType, StatusCode},
 };
 use gear_core_errors::MemoryError;
+use scale_info::TypeInfo;
+
+/// Operation related to gas charging.
+#[derive(Encode, Decode, TypeInfo, Debug, PartialEq, Eq, PartialOrd, Ord, derive_more::Display)]
+pub enum GasOperation {
+    /// Load existing memory.
+    #[display(fmt = "load memory")]
+    LoadMemory,
+    /// Grow memory size.
+    #[display(fmt = "grow memory size")]
+    GrowMemory,
+    /// Handle initial memory.
+    #[display(fmt = "handle initial memory")]
+    InitialMemory,
+    /// Handle program data.
+    #[display(fmt = "handle program data")]
+    ProgramData,
+    /// Handle program code.
+    #[display(fmt = "handle program code")]
+    ProgramCode,
+    /// Instantiate Wasm module.
+    #[display(fmt = "instantiate Wasm module")]
+    ModuleInstantiation,
+    /// Instrument Wasm module.
+    #[display(fmt = "instrument Wasm module")]
+    ModuleInstrumentation,
+}
 
 enum PrechargeError {
     BlockGasExceeded,

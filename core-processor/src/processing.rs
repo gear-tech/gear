@@ -18,8 +18,8 @@
 
 use crate::{
     common::{
-        DispatchOutcome, DispatchResult, DispatchResultKind, ExecutionErrorReason, GasOperation,
-        JournalNote, WasmExecutionContext,
+        DispatchOutcome, DispatchResult, DispatchResultKind, ExecutionErrorReason, JournalNote,
+        WasmExecutionContext,
     },
     configs::{BlockConfig, ExecutionSettings},
     context::*,
@@ -146,19 +146,14 @@ pub fn process<
                 process_allowance_exceed(dispatch, program_id, res.gas_amount.burned())
             }
         },
-        Err(e) => match e.reason {
-            ExecutionErrorReason::BlockGasExceeded(
-                GasOperation::InitialMemory | GasOperation::GrowMemory | GasOperation::LoadMemory,
-            ) => process_allowance_exceed(dispatch, program_id, e.gas_amount.burned()),
-            _ => process_error(
-                dispatch,
-                program_id,
-                e.gas_amount.burned(),
-                SystemReservationContext::default(),
-                e.reason,
-                true,
-            ),
-        },
+        Err(e) => process_error(
+            dispatch,
+            program_id,
+            e.gas_amount.burned(),
+            SystemReservationContext::default(),
+            e.reason,
+            true,
+        ),
     }
 }
 

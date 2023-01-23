@@ -18,7 +18,10 @@
 
 //! Common structures for processing.
 
-use crate::executor::{InitialPagesContainDataError, PrepareMemoryError};
+use crate::{
+    executor::{InitialPagesContainDataError, PrepareMemoryError},
+    precharge::GasOperation,
+};
 use alloc::{
     collections::{BTreeMap, BTreeSet},
     string::String,
@@ -409,32 +412,6 @@ pub struct ExecutionError {
     pub gas_amount: GasAmount,
     /// Error text.
     pub reason: ExecutionErrorReason,
-}
-
-/// Operation related to gas charging.
-#[derive(Encode, Decode, TypeInfo, Debug, PartialEq, Eq, PartialOrd, Ord, derive_more::Display)]
-pub enum GasOperation {
-    /// Load existing memory.
-    #[display(fmt = "load memory")]
-    LoadMemory,
-    /// Grow memory size.
-    #[display(fmt = "grow memory size")]
-    GrowMemory,
-    /// Handle initial memory.
-    #[display(fmt = "handle initial memory")]
-    InitialMemory,
-    /// Handle program data.
-    #[display(fmt = "handle program data")]
-    ProgramData,
-    /// Handle program code.
-    #[display(fmt = "handle program code")]
-    ProgramCode,
-    /// Instantiate Wasm module.
-    #[display(fmt = "instantiate Wasm module")]
-    ModuleInstantiation,
-    /// Instrument Wasm module.
-    #[display(fmt = "instrument Wasm module")]
-    ModuleInstrumentation,
 }
 
 /// Reason of execution error
