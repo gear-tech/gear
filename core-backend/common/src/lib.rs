@@ -151,7 +151,7 @@ pub struct ExtInfo {
 }
 
 pub trait IntoExtInfo<Error> {
-    fn into_ext_info(self, memory: &impl Memory) -> Result<ExtInfo, (MemoryError, GasAmount)>;
+    fn into_ext_info(self, memory: &impl Memory) -> ExtInfo;
 
     fn into_gas_amount(self) -> GasAmount;
 

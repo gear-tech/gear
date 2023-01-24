@@ -41,7 +41,7 @@ pub struct LazyPagesExt {
 }
 
 impl IntoExtInfo<<LazyPagesExt as EnvExt>::Error> for LazyPagesExt {
-    fn into_ext_info(self, memory: &impl Memory) -> Result<ExtInfo, (MemoryError, GasAmount)> {
+    fn into_ext_info(self, memory: &impl Memory) -> ExtInfo {
         let pages_for_data =
             |static_pages: WasmPage, allocations: &BTreeSet<WasmPage>| -> Vec<GearPage> {
                 // Accessed pages are all pages, that had been released and are in allocations set or static.
@@ -56,7 +56,7 @@ impl IntoExtInfo<<LazyPagesExt as EnvExt>::Error> for LazyPagesExt {
         self.inner.into_ext_info_inner(memory, pages_for_data)
     }
 
-    fn into_gas_amount(self) -> gear_core::gas::GasAmount {
+    fn into_gas_amount(self) -> GasAmount {
         self.inner.context.gas_counter.into()
     }
 
