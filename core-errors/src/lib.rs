@@ -43,6 +43,28 @@ pub enum MessageError {
     #[display(fmt = "Max message size exceed")]
     MaxMessageSizeExceed,
 
+    /// Overflow in 'gr_read'
+    #[display(fmt = "Length is too big to read payload in range [{at}; {at} + {len})")]
+    TooBigReadLen {
+        /// Range starts at
+        at: u32,
+        /// Range length
+        len: u32,
+    },
+
+    /// Cannot take data in payload range
+    #[display(
+        fmt = "Cannot take data in payload range [{start}; {end}) from message with size {msg_len}"
+    )]
+    ReadWrongRange {
+        /// Range starts at
+        start: u32,
+        /// Range ends at
+        end: u32,
+        /// Message length
+        msg_len: u32,
+    },
+
     /// The error "Message limit exceeded" occurs when a program attempts to
     /// send more than the maximum amount of messages allowed within a single
     /// execution (current setting - 1024).

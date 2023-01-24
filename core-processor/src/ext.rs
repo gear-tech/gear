@@ -23,7 +23,6 @@ use alloc::{
     vec::Vec,
 };
 use codec::{Decode, Encode};
-use core::ops::Range;
 use gear_backend_common::{
     error_processor::IntoExtError,
     lazy_pages::{GlobalsConfig, LazyPagesWeights, Status},
@@ -130,12 +129,6 @@ pub enum ProcessorError {
     /// User's code panicked
     #[display(fmt = "Panic occurred: {_0}")]
     Panic(String),
-    /// Cannot take data by indexes
-    #[display(fmt = "Cannot take data by indexes {_0:?} from message with size {_1}")]
-    ReadWrongRange(Range<u32>, u32),
-    /// Overflow in 'gr_read'
-    #[display(fmt = "Overflow at {_0} + len {_1} in `gr_read`")]
-    ReadLenOverflow(u32, u32),
 }
 
 impl ProcessorError {
@@ -685,25 +678,21 @@ impl EnvExt for Ext {
         self.charge_gas_runtime(RuntimeCosts::Read(size))?;
 
         // Verify read is correct
-        let last_idx = at
+        let result = at
             .checked_add(len)
-            .ok_or(ProcessorError::ReadLenOverflow(at, len))?;
-
-        {
-            let msg = self.context.message_context.current().payload();
-
-            if last_idx as usize > msg.len() {
-                return Err(ProcessorError::ReadWrongRange(
-                    at..last_idx,
-                    msg.len() as u32,
-                ));
-            }
+            .ok_or(MessageError::TooBigReadLen { at, len });
+        let end = self.return_and_store_err(result)?;
+        let msg = self.context.message_context.current().payload();
+        if end as usize > msg.len() {
+            self.return_and_store_err(Err(MessageError::ReadWrongRange {
+                start: at,
+                end,
+                msg_len: msg.len() as u32,
+            }))?;
         }
 
-        self.charge_gas_runtime(RuntimeCosts::Read(size))?;
-
         let msg = self.context.message_context.current().payload();
-        Ok(&msg[at as usize..last_idx as usize])
+        Ok(&msg[at as usize..end as usize])
     }
 
     fn size(&mut self) -> Result<usize, Self::Error> {
