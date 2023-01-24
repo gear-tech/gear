@@ -53,8 +53,8 @@ pub enum GasOperation {
     #[display(fmt = "handle program data")]
     ProgramData,
     /// Obtain code length.
-    #[display(fmt = "obtain code length")]
-    CodeLen,
+    #[display(fmt = "obtain program code length")]
+    ProgramCodeLen,
     /// Handle program code.
     #[display(fmt = "handle program code")]
     ProgramCode,
@@ -114,7 +114,7 @@ impl<'a> GasPrecharger<'a> {
         &mut self,
         read_cost: u64,
     ) -> Result<(), PrechargeError> {
-        self.charge_gas(GasOperation::CodeLen, read_cost)
+        self.charge_gas(GasOperation::ProgramCodeLen, read_cost)
     }
 
     pub fn charge_gas_for_program_code(
