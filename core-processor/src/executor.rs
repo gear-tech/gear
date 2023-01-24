@@ -603,30 +603,24 @@ mod tests {
     }
 
     #[test]
+    #[should_panic = "less then static pages"]
     fn check_memory_insufficient() {
-        let res = check_memory(&[].into(), [].iter(), 8.into(), 4.into());
-        assert_eq!(res, Err(PrepareMemoryError::InsufficientMemorySize));
+        check_memory(&[].into(), [].iter(), 8.into(), 4.into());
     }
 
     #[test]
+    #[should_panic = "is not allocated"]
     fn check_memory_not_allocated() {
         let (pages, mut allocs) = prepare_pages_and_allocs();
         let last = *allocs.iter().last().unwrap();
         allocs.remove(&last);
-        let res = check_memory(&allocs, pages.iter(), 2.into(), 4.into());
-        assert_eq!(
-            res,
-            Err(PrepareMemoryError::PageIsNotAllocated(
-                *pages.last().unwrap()
-            ))
-        );
+        check_memory(&allocs, pages.iter(), 2.into(), 4.into());
     }
 
     #[test]
     fn check_memory_ok() {
         let (pages, allocs) = prepare_pages_and_allocs();
-        let res = check_memory(&allocs, pages.iter(), 4.into(), 8.into());
-        assert!(res.is_ok());
+        check_memory(&allocs, pages.iter(), 4.into(), 8.into());
     }
 
     #[test]
