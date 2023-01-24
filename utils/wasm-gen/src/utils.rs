@@ -110,7 +110,7 @@ fn find_recursion_impl<Callback>(
         }
 
         if matches!(colored.get(&called_index), Some(Color::Grey)) {
-            callback(&path, called_index);
+            callback(path, called_index);
         }
     }
 

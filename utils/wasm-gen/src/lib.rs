@@ -740,9 +740,7 @@ impl<'a> WasmGen<'a> {
             }
         }
 
-        let module = utils::remove_recursion(module);
-
-        module
+        utils::remove_recursion(module)
     }
 }
 

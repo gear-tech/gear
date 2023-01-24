@@ -75,7 +75,7 @@ fn remove_trivial_recursions() {
         )
     )"#;
 
-    let wasm = wat::parse_str(&wat).unwrap();
+    let wasm = wat::parse_str(wat).unwrap();
     let module: elements::Module = parity_wasm::deserialize_buffer(&wasm).unwrap();
     let module = utils::remove_recursion(module);
     let wasm = parity_wasm::serialize(module).unwrap();
@@ -98,7 +98,7 @@ fn remove_trivial_recursions() {
         )
     )"#;
 
-    let wasm = wat::parse_str(&wat).unwrap();
+    let wasm = wat::parse_str(wat).unwrap();
     let module: elements::Module = parity_wasm::deserialize_buffer(&wasm).unwrap();
     utils::find_recursion(&module, |path, call| {
         println!("path = {path:?}, call = {call}");
