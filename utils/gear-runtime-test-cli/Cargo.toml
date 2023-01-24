@@ -9,7 +9,7 @@ license = "GPL-3.0"
 anyhow = "1.0.68"
 codec = { package = "parity-scale-codec", version = "3.1.2", default-features = false, features = ["derive"] }
 colored = "2.0.0"
-clap = { version = "4.1.0", features = ["derive"] }
+clap = { version = "4.1.1", features = ["derive"] }
 log = { version = "0.4.17", default-features = false }
 serde_json = "1.0.91"
 quick-xml = { version = "0.27", features = [ "serialize" ] }

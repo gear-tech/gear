@@ -16,9 +16,9 @@ use std::{
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
-/// subxt's GenericError::Rpc::RequestError::RestartNeeded // TODO https://github.com/gear-tech/gear/issues/2070
+/// subxt's GenericError::Rpc::RequestError::RestartNeeded
 pub const SUBXT_RPC_REQUEST_ERR_STR: &str = "Rpc error: The background task been terminated because: Networking or low-level protocol error";
-/// subxt's GenericError::Rpc::RequestError::Call (CallError::Failed) // TODO https://github.com/gear-tech/gear/issues/2070
+/// subxt's GenericError::Rpc::RequestError::Call (CallError::Failed)
 pub const SUBXT_RPC_CALL_ERR_STR: &str = "Transaction would exhaust the block limits";
 pub const EVENTS_TIMEOUT_ERR_STR: &str = "Block events timeout";
 pub const TRANSACTION_INVALID: &str = "Transaction Invalid";

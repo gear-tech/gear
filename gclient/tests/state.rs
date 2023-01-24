@@ -45,7 +45,7 @@ async fn get_state() -> Result<()> {
     let (message_id, program_id, _hash) = api
         .upload_program_bytes_by_path(
             WASM_PATH,
-            gclient::bytes_now(),
+            gclient::now_in_micros().to_le_bytes(),
             vec![],
             gas_info.min_limit,
             0,

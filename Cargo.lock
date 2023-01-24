@@ -287,9 +287,9 @@ checksum = "7a40729d2133846d9ed0ea60a8b9541bccddab49cd30f0715a1da672fe9a2524"
 
 [[package]]
 name = "async-trait"
-version = "0.1.61"
+version = "0.1.63"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "705339e0e4a9690e2908d2b3d049d85682cf19fbd5782494498fbf7003a6a282"
+checksum = "eff18d764974428cf3a9328e23fc5c986f5fbed46e6cd4cdf42544df5d297ec1"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -861,9 +861,9 @@ dependencies = [
 
 [[package]]
 name = "clap"
-version = "4.1.0"
+version = "4.1.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "aa91278560fc226a5d9d736cc21e485ff9aad47d26b8ffe1f54cba868b684b9f"
+checksum = "d8d93d855ce6a0aa87b8473ef9169482f40abaa2e9e0993024c35c902cbd5920"
 dependencies = [
  "bitflags",
  "clap_derive 4.1.0",
@@ -2646,7 +2646,7 @@ dependencies = [
  "Inflector",
  "array-bytes",
  "chrono",
- "clap 4.1.0",
+ "clap 4.1.3",
  "comfy-table",
  "frame-benchmarking",
  "frame-support",
@@ -3068,6 +3068,7 @@ dependencies = [
  "gear-core",
  "gear-program",
  "hex",
+ "hex-literal",
  "log",
  "parity-scale-codec",
  "subxt",
@@ -3180,7 +3181,7 @@ dependencies = [
 name = "gear-cli"
 version = "0.1.0"
 dependencies = [
- "clap 4.1.0",
+ "clap 4.1.3",
  "frame-benchmarking",
  "frame-benchmarking-cli",
  "frame-system",
@@ -3273,12 +3274,14 @@ name = "gear-core-processor"
 version = "0.1.0"
 dependencies = [
  "derive_more",
+ "env_logger 0.10.0",
  "gear-backend-common",
  "gear-core",
  "gear-core-errors",
  "gear-wasm-instrument",
  "log",
  "parity-scale-codec",
+ "proptest",
  "scale-info",
  "static_assertions",
 ]
@@ -3291,6 +3294,7 @@ dependencies = [
  "derive_more",
  "env_logger 0.10.0",
  "errno",
+ "gear-backend-common",
  "gear-core",
  "libc",
  "log",
@@ -3311,6 +3315,7 @@ name = "gear-lazy-pages-common"
 version = "0.1.0"
 dependencies = [
  "derive_more",
+ "gear-backend-common",
  "gear-common",
  "gear-core",
  "gear-runtime-interface",
@@ -3353,7 +3358,7 @@ dependencies = [
  "base64 0.21.0",
  "blake2-rfc",
  "cfg-if",
- "clap 4.1.0",
+ "clap 4.1.3",
  "color-eyre",
  "demo-meta",
  "demo-waiter",
@@ -3380,7 +3385,7 @@ dependencies = [
  "serde",
  "serde_json",
  "subxt",
- "subxt-codegen",
+ "subxt-codegen 0.25.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "syn",
  "thiserror",
  "tokio",
@@ -3461,6 +3466,7 @@ name = "gear-runtime-interface"
 version = "0.1.0"
 dependencies = [
  "derive_more",
+ "gear-backend-common",
  "gear-core",
  "gear-lazy-pages",
  "libc",
@@ -3486,7 +3492,7 @@ name = "gear-runtime-test-cli"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "clap 4.1.0",
+ "clap 4.1.3",
  "colored",
  "frame-support",
  "frame-system",
@@ -3598,7 +3604,7 @@ name = "gear-test"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "clap 4.1.0",
+ "clap 4.1.3",
  "colored",
  "derive_more",
  "env_logger 0.10.0",
@@ -4640,9 +4646,9 @@ dependencies = [
 
 [[package]]
 name = "keyring"
-version = "1.2.0"
+version = "1.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "38fb8399ddcabfccb274577a8d90f0653e0b5b5977797c1c8834ad09839a10e5"
+checksum = "ba264b266563c1363dcce004776cbf198d7422a4262f77f4ca285bf26ae30955"
 dependencies = [
  "byteorder",
  "secret-service",
@@ -7509,7 +7515,7 @@ dependencies = [
 name = "regression-analysis"
 version = "0.1.0"
 dependencies = [
- "clap 4.1.0",
+ "clap 4.1.3",
  "frame-support",
  "gear-runtime",
  "junit-common",
@@ -7541,11 +7547,11 @@ dependencies = [
 
 [[package]]
 name = "reqwest"
-version = "0.11.13"
+version = "0.11.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "68cc60575865c7831548863cc02356512e3f1dc2f3f82cb837d7fc4cc8f3c97c"
+checksum = "21eed90ec8570952d53b772ecf8f206aa1ec9a3d76b2521c56c42973f2d91ee9"
 dependencies = [
- "base64 0.13.1",
+ "base64 0.21.0",
  "bytes",
  "encoding_rs",
  "futures-core",
@@ -7901,7 +7907,7 @@ source = "git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0
 dependencies = [
  "array-bytes",
  "chrono",
- "clap 4.1.0",
+ "clap 4.1.3",
  "fdlimit",
  "futures",
  "libp2p 0.49.0",
@@ -10304,10 +10310,8 @@ checksum = "6bdef32e8150c2a081110b42772ffe7d7c9032b606bc226c8260fd97e0976601"
 [[package]]
 name = "subxt"
 version = "0.25.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e3cbc78fd36035a24883eada29e0205b9b1416172530a7d00a60c07d0337db0c"
+source = "git+https://github.com/paritytech/subxt?rev=d41f6574#d41f6574174d0a7d35ffcc6c3ff4d3740f5251ec"
 dependencies = [
- "bitvec",
  "derivative",
  "frame-metadata",
  "futures",
@@ -10316,6 +10320,7 @@ dependencies = [
  "jsonrpsee",
  "parity-scale-codec",
  "parking_lot 0.12.1",
+ "scale-bits",
  "scale-decode",
  "scale-info",
  "scale-value",
@@ -10324,7 +10329,7 @@ dependencies = [
  "sp-core",
  "sp-runtime",
  "subxt-macro",
- "subxt-metadata",
+ "subxt-metadata 0.25.0 (git+https://github.com/paritytech/subxt?rev=d41f6574)",
  "thiserror",
  "tracing",
 ]
@@ -10345,7 +10350,27 @@ dependencies = [
  "proc-macro2",
  "quote",
  "scale-info",
- "subxt-metadata",
+ "subxt-metadata 0.25.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "syn",
+ "tokio",
+]
+
+[[package]]
+name = "subxt-codegen"
+version = "0.25.0"
+source = "git+https://github.com/paritytech/subxt?rev=d41f6574#d41f6574174d0a7d35ffcc6c3ff4d3740f5251ec"
+dependencies = [
+ "darling",
+ "frame-metadata",
+ "heck 0.4.0",
+ "hex",
+ "jsonrpsee",
+ "parity-scale-codec",
+ "proc-macro-error",
+ "proc-macro2",
+ "quote",
+ "scale-info",
+ "subxt-metadata 0.25.0 (git+https://github.com/paritytech/subxt?rev=d41f6574)",
  "syn",
  "tokio",
 ]
@@ -10353,12 +10378,11 @@ dependencies = [
 [[package]]
 name = "subxt-macro"
 version = "0.25.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6f64826f2c4ba20e3b2a86ec81a6ae8655ca6b6a4c2a6ccc888b6615efc2df14"
+source = "git+https://github.com/paritytech/subxt?rev=d41f6574#d41f6574174d0a7d35ffcc6c3ff4d3740f5251ec"
 dependencies = [
  "darling",
  "proc-macro-error",
- "subxt-codegen",
+ "subxt-codegen 0.25.0 (git+https://github.com/paritytech/subxt?rev=d41f6574)",
  "syn",
 ]
 
@@ -10367,6 +10391,17 @@ name = "subxt-metadata"
 version = "0.25.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "869af75e23513538ad0af046af4a97b8d684e8d202e35ff4127ee061c1110813"
+dependencies = [
+ "frame-metadata",
+ "parity-scale-codec",
+ "scale-info",
+ "sp-core",
+]
+
+[[package]]
+name = "subxt-metadata"
+version = "0.25.0"
+source = "git+https://github.com/paritytech/subxt?rev=d41f6574#d41f6574174d0a7d35ffcc6c3ff4d3740f5251ec"
 dependencies = [
  "frame-metadata",
  "parity-scale-codec",
@@ -10642,9 +10677,9 @@ checksum = "cda74da7e1a664f795bb1f8a87ec406fb89a02522cf6e50620d016add6dbbf5c"
 
 [[package]]
 name = "tokio"
-version = "1.24.1"
+version = "1.24.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1d9f76183f91ecfb55e1d7d5602bd1d979e38a3a522fe900241cf195624d67ae"
+checksum = "597a12a59981d9e3c38d216785b0c37399f6e415e8d0712047620f189371b0bb"
 dependencies = [
  "autocfg",
  "bytes",
@@ -10710,9 +10745,9 @@ dependencies = [
 
 [[package]]
 name = "toml"
-version = "0.5.10"
+version = "0.5.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1333c76748e868a4d9d1017b5ab53171dfd095f70c712fdb4653a406547f598f"
+checksum = "f4f7f0dd8d50a853a531c426359045b1998f04219d88799810762cd4ad314234"
 dependencies = [
  "serde",
 ]
@@ -10966,7 +11001,7 @@ name = "try-runtime-cli"
 version = "0.10.0-dev"
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.36#91c367ee60303f878fead054d95b600cea222156"
 dependencies = [
- "clap 4.1.0",
+ "clap 4.1.3",
  "frame-remote-externalities",
  "frame-try-runtime",
  "hex",
@@ -11372,18 +11407,18 @@ dependencies = [
 
 [[package]]
 name = "wasm-encoder"
-version = "0.20.0"
+version = "0.21.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "05632e0a66a6ed8cca593c24223aabd6262f256c3693ad9822c315285f010614"
+checksum = "29ab2fe77b325731603297debb4573e002d06ae0aa1f4dc108585c81961e0609"
 dependencies = [
  "leb128",
 ]
 
 [[package]]
 name = "wasm-encoder"
-version = "0.21.0"
+version = "0.22.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "29ab2fe77b325731603297debb4573e002d06ae0aa1f4dc108585c81961e0609"
+checksum = "ef126be0e14bdf355ac1a8b41afc89195289e5c7179f80118e3abddb472f0810"
 dependencies = [
  "leb128",
 ]
@@ -11416,16 +11451,16 @@ dependencies = [
 
 [[package]]
 name = "wasm-mutate"
-version = "0.2.13"
+version = "0.2.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a0e9666b36c1e7e88bf1e0d114c8a4fe7d4e32d3aa38c1e8e9d71a972b99764a"
+checksum = "13b9ef6013b91087e3d39a2a39b0d067e103f370e42f197bf61248a3e082e088"
 dependencies = [
  "egg",
  "log",
  "rand 0.8.5",
  "thiserror",
- "wasm-encoder 0.20.0",
- "wasmparser 0.96.0",
+ "wasm-encoder 0.21.0",
+ "wasmparser 0.97.0",
 ]
 
 [[package]]
@@ -11473,7 +11508,7 @@ dependencies = [
 name = "wasm-proc"
 version = "0.1.0"
 dependencies = [
- "clap 4.1.0",
+ "clap 4.1.3",
  "env_logger 0.10.0",
  "gear-wasm-builder",
  "log",
@@ -11869,9 +11904,19 @@ dependencies = [
 
 [[package]]
 name = "wasmparser"
-version = "0.96.0"
+version = "0.97.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "adde01ade41ab9a5d10ec8ed0bb954238cf8625b5cd5a13093d6de2ad9c2be1a"
+checksum = "b98123a0d2bacf9286239231b116cbd66c65d9b89793f7c9bba3a3ae7f1b15f3"
+dependencies = [
+ "indexmap",
+ "url",
+]
+
+[[package]]
+name = "wasmparser"
+version = "0.98.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8724c724dc595495979c055f4bd8b7ed9fab1069623178a28016ae43a9666f36"
 dependencies = [
  "indexmap",
  "url",
@@ -11894,12 +11939,12 @@ dependencies = [
 
 [[package]]
 name = "wasmprinter"
-version = "0.2.45"
+version = "0.2.48"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3045e1aa2cac847f4f94a1e25db9f084a947aeff47d9099fb9c5ccd16d335040"
+checksum = "322949f382cd5e4bad4330e144bf2124b3182846194ac01e2423c07a6a15ba85"
 dependencies = [
  "anyhow",
- "wasmparser 0.96.0",
+ "wasmparser 0.98.1",
 ]
 
 [[package]]
@@ -12082,21 +12127,21 @@ dependencies = [
 
 [[package]]
 name = "wast"
-version = "51.0.0"
+version = "52.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a1f621e6e9af96438d3e05f0699da5b1dae59f2df964a2982166aa9b03c5b599"
+checksum = "829fb867c8e82d21557a2c6c5b3ed8e8f7cdd534ea782b9ecf68bede5607fe4b"
 dependencies = [
  "leb128",
  "memchr",
  "unicode-width",
- "wasm-encoder 0.21.0",
+ "wasm-encoder 0.22.0",
 ]
 
 [[package]]
 name = "wat"
-version = "1.0.53"
+version = "1.0.55"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5dd18c1168d7e8743d9b4f713c0203924f5dcc4a3983eb5e584de9614f9fccde"
+checksum = "3493e7c82d8e9a75e69ecbfe6f324ca1c4e2ae89f67ccbb22f92282e2e27bb23"
 dependencies = [
  "wast",
 ]
@@ -12141,9 +12186,9 @@ dependencies = [
 
 [[package]]
 name = "which"
-version = "4.3.0"
+version = "4.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1c831fbbee9e129a8cf93e7747a82da9d95ba8e16621cae60ec2cdc849bacb7b"
+checksum = "2441c784c52b289a054b7201fc93253e288f094e2f4be9058343127c4226a269"
 dependencies = [
  "either",
  "libc",

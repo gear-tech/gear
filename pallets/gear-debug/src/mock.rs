@@ -17,13 +17,15 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate as pallet_gear_debug;
-use common::QueueRunner;
+use common::storage::Limiter;
 use frame_support::{
     construct_runtime, parameter_types,
-    traits::{FindAuthor, OnFinalize, OnInitialize},
+    traits::{FindAuthor, Get, OnFinalize, OnInitialize},
+    weights::Weight,
 };
 use frame_support_test::TestRandomness;
-use frame_system as system;
+use frame_system::{self as system, limits::BlockWeights};
+use pallet_gear::GasAllowanceOf;
 use primitive_types::H256;
 use sp_core::ConstU128;
 use sp_runtime::{
@@ -204,7 +206,6 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
 
     let mut ext = sp_io::TestExternalities::new(t);
     ext.execute_with(|| {
-        Gear::force_always();
         System::set_block_number(1);
         Gear::on_initialize(System::block_number());
     });
@@ -219,11 +220,19 @@ pub fn run_to_block(n: u64, remaining_weight: Option<u64>) {
         GearGas::on_initialize(System::block_number());
         GearMessenger::on_initialize(System::block_number());
         Gear::on_initialize(System::block_number());
-        let remaining_weight =
-            remaining_weight.unwrap_or(pallet_gear::BlockGasLimitOf::<Test>::get());
 
-        Gear::run_queue(remaining_weight);
-        Gear::processing_completed();
+        if let Some(remaining_weight) = remaining_weight {
+            GasAllowanceOf::<Test>::put(remaining_weight);
+            let max_block_weight =
+                <<Test as frame_system::Config>::BlockWeights as Get<BlockWeights>>::get()
+                    .max_block;
+            System::register_extra_weight_unchecked(
+                max_block_weight.saturating_sub(Weight::from_ref_time(remaining_weight)),
+                frame_support::dispatch::DispatchClass::Normal,
+            );
+        }
+
+        Gear::run(frame_support::dispatch::RawOrigin::None.into()).unwrap();
         Gear::on_finalize(System::block_number());
 
         assert!(!System::events().iter().any(|e| {

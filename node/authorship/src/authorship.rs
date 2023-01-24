@@ -528,8 +528,8 @@ where
                 warn!(target: "gear::authorship", "⚠️  Dropping terminal extrinsic from an overweight block.")
             }
             Err(e) => {
-                warn!(target: "gear::authorship",
-                    "❗️ Terminal extrinsic returned unexpected error: {}. Dropping.",
+                error!(target: "gear::authorship",
+                    "❗️ Terminal extrinsic returned an error: {}. Dropping.",
                     e
                 );
             }

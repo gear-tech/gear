@@ -20,7 +20,7 @@
 
 use crate::{
     ids::CodeId,
-    memory::{PageU32Size, WasmPageNumber},
+    memory::{PageU32Size, WasmPage},
     message::{DispatchKind, WasmEntry},
 };
 use alloc::{collections::BTreeSet, vec::Vec};
@@ -112,7 +112,7 @@ pub struct Code {
     raw_code: Vec<u8>,
     /// Exports of the wasm module.
     exports: BTreeSet<DispatchKind>,
-    static_pages: WasmPageNumber,
+    static_pages: WasmPage,
     #[codec(compact)]
     instruction_weights_version: u32,
 }
@@ -151,7 +151,7 @@ impl Code {
             })
             .ok_or(CodeError::MemoryEntryNotFound)?;
         let static_pages =
-            WasmPageNumber::new(static_pages_raw).map_err(|_| CodeError::InvalidStaticPageCount)?;
+            WasmPage::new(static_pages_raw).map_err(|_| CodeError::InvalidStaticPageCount)?;
 
         if static_pages.raw() > MAX_WASM_PAGE_COUNT as u32 {
             return Err(CodeError::InvalidStaticPageCount);
@@ -203,7 +203,7 @@ impl Code {
         );
 
         // get initial memory size from memory import.
-        let static_pages = WasmPageNumber::new(
+        let static_pages = WasmPage::new(
             module
                 .import_section()
                 .ok_or(CodeError::ImportSectionNotFound)?
@@ -276,7 +276,7 @@ impl Code {
             .ok_or(CodeError::MemoryEntryNotFound)?;
 
         let static_pages =
-            WasmPageNumber::new(static_pages_raw).map_err(|_| CodeError::InvalidStaticPageCount)?;
+            WasmPage::new(static_pages_raw).map_err(|_| CodeError::InvalidStaticPageCount)?;
 
         let exports = get_exports(&module, false)?;
 
@@ -323,7 +323,7 @@ impl Code {
     }
 
     /// Returns initial memory size from memory import.
-    pub fn static_pages(&self) -> WasmPageNumber {
+    pub fn static_pages(&self) -> WasmPage {
         self.static_pages
     }
 
@@ -385,7 +385,7 @@ pub struct InstrumentedCode {
     code: Vec<u8>,
     original_code_len: u32,
     exports: BTreeSet<DispatchKind>,
-    static_pages: WasmPageNumber,
+    static_pages: WasmPage,
     version: u32,
 }
 
@@ -411,7 +411,7 @@ impl InstrumentedCode {
     }
 
     /// Returns initial memory size from memory import.
-    pub fn static_pages(&self) -> WasmPageNumber {
+    pub fn static_pages(&self) -> WasmPage {
         self.static_pages
     }
 

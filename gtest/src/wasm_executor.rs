@@ -31,7 +31,7 @@ use gear_backend_wasmi::{
 use gear_core::{
     env::Ext as ExtTrait,
     gas::{GasAllowanceCounter, GasCounter, ValueCounter},
-    memory::{AllocationsContext, Memory, PageBuf, PageNumber, PageU32Size},
+    memory::{AllocationsContext, GearPage, Memory, PageBuf, PageU32Size},
     message::{ContextSettings, IncomingMessage, MessageContext, Payload},
     program::Program,
     reservation::GasReserver,
@@ -54,7 +54,7 @@ impl WasmExecutor {
         ext: Ext,
         program: &Program,
         meta_binary: &[u8],
-        memory_pages: &BTreeMap<PageNumber, Box<PageBuf>>,
+        memory_pages: &BTreeMap<GearPage, Box<PageBuf>>,
         function_name: &str,
     ) -> Result<Vec<u8>> {
         let engine = Engine::default();
@@ -192,7 +192,7 @@ impl WasmExecutor {
                 ),
             ),
             block_info: Default::default(),
-            config: Default::default(),
+            pages_config: Default::default(),
             existential_deposit: 0,
             origin: Default::default(),
             program_id: Default::default(),
@@ -231,7 +231,7 @@ impl WasmExecutor {
 
     fn set_pages(
         memory: &mut MemoryWrap<Ext>,
-        pages: &BTreeMap<PageNumber, Box<PageBuf>>,
+        pages: &BTreeMap<GearPage, Box<PageBuf>>,
     ) -> Result<()> {
         let memory_size = memory.size();
         for (page_number, buffer) in pages {
@@ -344,7 +344,8 @@ mod meta_tests {
     //     );
     //     assert!(!run_result.main_failed);
 
-    //     let result: Vec<Wallet> = program.meta_state(&expected_id).expect("Meta_state failed");
+    //     let result: Vec<Wallet> =
+    // program.meta_state(&expected_id).expect("Meta_state failed");
 
     //     assert_eq!(result, expected_result);
     // }

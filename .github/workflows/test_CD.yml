@@ -8,7 +8,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Read secrets
-        uses: hashicorp/vault-action@v2.4.1
+        uses: hashicorp/vault-action@v2.4.3
         with:
           url: ${{ secrets.VAULT_URL }}
           tlsSkipVerify: true

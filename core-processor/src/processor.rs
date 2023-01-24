@@ -33,7 +33,7 @@ use gear_core::{
     env::Ext as EnvExt,
     gas::{GasAllowanceCounter, GasCounter},
     ids::ProgramId,
-    memory::{PageBuf, PageNumber},
+    memory::{GearPage, PageBuf},
     message::{
         ContextSettings, DispatchKind, IncomingDispatch, MessageWaitedType, ReplyMessage,
         StatusCode, StoredDispatch,
@@ -263,7 +263,7 @@ pub fn precharge_for_memory(
 
     let mut f = || {
         let memory_size = executor::charge_gas_for_pages(
-            &block_config.allocations_config,
+            &block_config.pages_config,
             gas_counter,
             gas_allowance_counter,
             &actor_data.allocations,
@@ -332,13 +332,13 @@ pub fn process<
     block_config: &BlockConfig,
     execution_context: ProcessExecutionContext,
     random_data: (Vec<u8>, u32),
-    memory_pages: BTreeMap<PageNumber, PageBuf>,
+    memory_pages: BTreeMap<GearPage, PageBuf>,
 ) -> Vec<JournalNote> {
     use SuccessfulDispatchResultKind::*;
 
     let BlockConfig {
         block_info,
-        allocations_config,
+        pages_config,
         existential_deposit,
         outgoing_limit,
         host_fn_weights,
@@ -354,7 +354,7 @@ pub fn process<
     let execution_settings = ExecutionSettings {
         block_info,
         existential_deposit,
-        allocations_config,
+        pages_config,
         host_fn_weights,
         forbidden_funcs,
         mailbox_threshold,

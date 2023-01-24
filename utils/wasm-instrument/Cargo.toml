@@ -11,7 +11,7 @@ enum-iterator = "1.2.0"
 
 [dev-dependencies]
 wasmparser = "0.90"
-wat = "1.0.52"
+wat = "1.0.55"
 gear-backend-wasmi = { path = "../../core-backend/wasmi" }
 gear-backend-common = { path = "../../core-backend/common", features = ["mock"] }
 gear-core = { path = "../../core" }
