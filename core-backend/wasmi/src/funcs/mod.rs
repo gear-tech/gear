@@ -137,6 +137,7 @@ where
                          delay: u32,
                          err_mid_ptr: u32|
               -> EmptyOutput {
+            log::trace!(target: "syscalls", "send", );
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
             ctx.run(|ctx| {
@@ -175,6 +176,7 @@ where
                          delay: u32,
                          err_mid_ptr: u32|
               -> EmptyOutput {
+            log::trace!(target: "syscalls", "send_wgas", );
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
             ctx.run(|ctx| {
@@ -214,6 +216,7 @@ where
                          delay: u32,
                          err_mid_ptr: u32|
               -> EmptyOutput {
+            log::trace!(target: "syscalls", "send_commit", );
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
             ctx.run(|ctx| {
@@ -253,6 +256,8 @@ where
                          delay: u32,
                          err_mid_ptr: u32|
               -> EmptyOutput {
+            log::trace!(target: "syscalls", "send_commit_wgas", );
+
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
             ctx.run(|ctx| {
@@ -291,6 +296,7 @@ where
         memory: WasmiMemory,
     ) -> Func {
         let func = move |caller: Caller<'_, HostState<E>>, err_handle_ptr: u32| -> EmptyOutput {
+            log::trace!(target: "syscalls", "send_init", );
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
             ctx.run(|ctx| {
@@ -319,6 +325,7 @@ where
                          len: u32,
                          err_ptr: u32|
               -> EmptyOutput {
+            log::trace!(target: "syscalls", "send_push", );
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
             ctx.run(|ctx| {
@@ -355,6 +362,7 @@ where
                          delay: u32,
                          err_mid_ptr: u32|
               -> EmptyOutput {
+            log::trace!(target: "syscalls", "reservation_send", );
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
             ctx.run(|ctx| {
@@ -396,6 +404,7 @@ where
                          delay: u32,
                          err_mid_ptr: u32|
               -> EmptyOutput {
+            log::trace!(target: "syscalls", "reservation_send_commit", );
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
             ctx.run(|ctx| {
@@ -446,6 +455,7 @@ where
                          buffer_ptr: u32,
                          err_len_ptr: u32|
               -> EmptyOutput {
+            log::trace!(target: "syscalls", "read", );
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
             ctx.run_state_taken(|ctx, state| {
@@ -470,6 +480,7 @@ where
 
     pub fn size(store: &mut Store<HostState<E>>, forbidden: bool, memory: WasmiMemory) -> Func {
         let func = move |caller: Caller<'_, HostState<E>>, length_ptr: u32| -> EmptyOutput {
+            log::trace!(target: "syscalls", "size", );
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
             ctx.run(|ctx| {
@@ -487,6 +498,7 @@ where
 
     pub fn exit(store: &mut Store<HostState<E>>, forbidden: bool, memory: WasmiMemory) -> Func {
         let func = move |caller: Caller<'_, HostState<E>>, inheritor_id_ptr: u32| -> EmptyOutput {
+            log::trace!(target: "syscalls", "exit", );
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
             ctx.run(|ctx| -> Result<(), _> {
@@ -509,6 +521,7 @@ where
         memory: WasmiMemory,
     ) -> Func {
         let func = move |caller: Caller<'_, HostState<E>>, err_code_ptr: u32| -> EmptyOutput {
+            log::trace!(target: "syscalls", "status_code", );
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
             ctx.run(|ctx| {
@@ -530,6 +543,7 @@ where
         let func = move |caller: Caller<'_, HostState<E>>, pages: u32| -> FnResult<u32> {
             let pages = WasmPage::new(pages).map_err(|_| Trap::Code(TrapCode::Unreachable))?;
 
+            log::trace!(target: "syscalls", "alloc", );
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
             ctx.run_state_taken(|ctx, state| {
@@ -545,6 +559,7 @@ where
 
     pub fn free(store: &mut Store<HostState<E>>, forbidden: bool, memory: WasmiMemory) -> Func {
         let func = move |caller: Caller<'_, HostState<E>>, page: u32| -> EmptyOutput {
+            log::trace!(target: "syscalls", "free", );
             let page = WasmPage::new(page).map_err(|_| Trap::Code(TrapCode::Unreachable))?;
 
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
@@ -567,6 +582,7 @@ where
         memory: WasmiMemory,
     ) -> Func {
         let func = move |caller: Caller<'_, HostState<E>>, height_ptr: u32| -> EmptyOutput {
+            log::trace!(target: "syscalls", "block_height", );
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
             ctx.run(|ctx| {
@@ -592,6 +608,7 @@ where
         memory: WasmiMemory,
     ) -> Func {
         let func = move |caller: Caller<'_, HostState<E>>, timestamp_ptr: u32| -> EmptyOutput {
+            log::trace!(target: "syscalls", "block_timestamp", );
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
             ctx.run(|ctx| {
@@ -613,6 +630,7 @@ where
 
     pub fn origin(store: &mut Store<HostState<E>>, forbidden: bool, memory: WasmiMemory) -> Func {
         let func = move |caller: Caller<'_, HostState<E>>, origin_ptr: u32| -> EmptyOutput {
+            log::trace!(target: "syscalls", "origin", );
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
             ctx.run(|ctx| {
@@ -636,6 +654,7 @@ where
                          delay: u32,
                          err_mid_ptr: u32|
               -> EmptyOutput {
+            log::trace!(target: "syscalls", "reply", );
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
             ctx.run(|ctx| {
@@ -675,6 +694,7 @@ where
                          delay: u32,
                          err_mid_ptr: u32|
               -> EmptyOutput {
+            log::trace!(target: "syscalls", "reply_wgas", );
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
             ctx.run(|ctx| {
@@ -711,6 +731,7 @@ where
                          delay: u32,
                          err_mid_ptr: u32|
               -> EmptyOutput {
+            log::trace!(target: "syscalls", "reply_commit", );
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
             ctx.run(|ctx| {
@@ -746,6 +767,7 @@ where
                          delay: u32,
                          err_mid_ptr: u32|
               -> EmptyOutput {
+            log::trace!(target: "syscalls", "reply_commit_wgas", );
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
             ctx.run(|ctx| {
@@ -785,6 +807,7 @@ where
                          delay: u32,
                          err_mid_ptr: u32|
               -> EmptyOutput {
+            log::trace!(target: "syscalls", "reservation_reply", );
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
             ctx.run(|ctx| {
@@ -824,6 +847,7 @@ where
                          delay: u32,
                          err_mid_ptr: u32|
               -> EmptyOutput {
+            log::trace!(target: "syscalls", "reservation_reply_commit", );
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
             ctx.run(|ctx| {
@@ -853,6 +877,7 @@ where
 
     pub fn reply_to(store: &mut Store<HostState<E>>, forbidden: bool, memory: WasmiMemory) -> Func {
         let func = move |caller: Caller<'_, HostState<E>>, err_mid_ptr: u32| -> EmptyOutput {
+            log::trace!(target: "syscalls", "reply_to", );
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
             ctx.run(|ctx| {
@@ -876,6 +901,7 @@ where
         memory: WasmiMemory,
     ) -> Func {
         let func = move |caller: Caller<'_, HostState<E>>, err_mid_ptr: u32| -> EmptyOutput {
+            log::trace!(target: "syscalls", "signal_from", );
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
             ctx.run(|ctx| {
@@ -903,6 +929,7 @@ where
                          len: u32,
                          err_ptr: u32|
               -> EmptyOutput {
+            log::trace!(target: "syscalls", "reply_push", );
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
             ctx.run(|ctx| {
@@ -939,6 +966,7 @@ where
                          delay: u32,
                          err_mid_ptr: u32|
               -> EmptyOutput {
+            log::trace!(target: "syscalls", "reply_input", );
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
             ctx.run(|ctx| {
@@ -977,6 +1005,7 @@ where
                          len: u32,
                          err_ptr: u32|
               -> EmptyOutput {
+            log::trace!(target: "syscalls", "reply_push_input", );
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
             ctx.run(|ctx| {
@@ -1011,6 +1040,7 @@ where
                          delay: u32,
                          err_mid_ptr: u32|
               -> EmptyOutput {
+            log::trace!(target: "syscalls", "reply_input_wgas", );
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
             ctx.run(|ctx| {
@@ -1052,6 +1082,7 @@ where
                          delay: u32,
                          err_mid_ptr: u32|
               -> EmptyOutput {
+            log::trace!(target: "syscalls", "send_input", );
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
             ctx.run(|ctx| {
@@ -1098,6 +1129,7 @@ where
                          len: u32,
                          err_ptr: u32|
               -> EmptyOutput {
+            log::trace!(target: "syscalls", "send_push_input", );
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
             ctx.run(|ctx| {
@@ -1132,6 +1164,7 @@ where
                          delay: u32,
                          err_mid_ptr: u32|
               -> EmptyOutput {
+            log::trace!(target: "syscalls", "send_input_wgas", );
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
             ctx.run(|ctx| {
@@ -1175,6 +1208,7 @@ where
     pub fn debug(store: &mut Store<HostState<E>>, forbidden: bool, memory: WasmiMemory) -> Func {
         let func =
             move |caller: Caller<'_, HostState<E>>, string_ptr: u32, len: u32| -> EmptyOutput {
+            log::trace!(target: "syscalls", "debug", );
                 let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
                 ctx.run(|ctx| {
@@ -1205,6 +1239,7 @@ where
                          duration: u32,
                          err_rid_ptr: u32|
               -> EmptyOutput {
+            log::trace!(target: "syscalls", "reserve_gas", );
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
             ctx.run(|ctx| {
@@ -1231,6 +1266,7 @@ where
                          reservation_id_ptr: u32,
                          err_unreserved_ptr: u32|
               -> EmptyOutput {
+            log::trace!(target: "syscalls", "unreserve_gas", );
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
             ctx.run(|ctx| {
@@ -1257,6 +1293,7 @@ where
         memory: WasmiMemory,
     ) -> Func {
         let func = move |caller: Caller<'_, HostState<E>>, gas: u64, err_ptr: u32| {
+            log::trace!(target: "syscalls", "system_reserve_gas", );
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
             ctx.run(|ctx| {
@@ -1284,6 +1321,7 @@ where
         memory: WasmiMemory,
     ) -> Func {
         let func = move |caller: Caller<'_, HostState<E>>, gas_ptr: u32| -> EmptyOutput {
+            log::trace!(target: "syscalls", "gas_available", );
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
             ctx.run(|ctx| {
@@ -1309,6 +1347,7 @@ where
         memory: WasmiMemory,
     ) -> Func {
         let func = move |caller: Caller<'_, HostState<E>>, message_id_ptr: u32| -> EmptyOutput {
+            log::trace!(target: "syscalls", "message_id", );
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
             ctx.run(|ctx| {
@@ -1334,6 +1373,7 @@ where
         memory: WasmiMemory,
     ) -> Func {
         let func = move |caller: Caller<'_, HostState<E>>, program_id_ptr: u32| -> EmptyOutput {
+            log::trace!(target: "syscalls", "program_id", );
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
             ctx.run(|ctx| {
@@ -1355,6 +1395,7 @@ where
 
     pub fn source(store: &mut Store<HostState<E>>, forbidden: bool, memory: WasmiMemory) -> Func {
         let func = move |caller: Caller<'_, HostState<E>>, source_ptr: u32| -> EmptyOutput {
+            log::trace!(target: "syscalls", "source", );
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
             ctx.run(|ctx| {
@@ -1372,6 +1413,7 @@ where
 
     pub fn value(store: &mut Store<HostState<E>>, forbidden: bool, memory: WasmiMemory) -> Func {
         let func = move |caller: Caller<'_, HostState<E>>, value_ptr: u32| -> EmptyOutput {
+            log::trace!(target: "syscalls", "value", );
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
             ctx.run(|ctx| {
@@ -1393,6 +1435,7 @@ where
         memory: WasmiMemory,
     ) -> Func {
         let func = move |caller: Caller<'_, HostState<E>>, value_ptr: u32| -> EmptyOutput {
+            log::trace!(target: "syscalls", "value_available", );
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
             ctx.run(|ctx| {
@@ -1417,6 +1460,7 @@ where
                          subject_ptr: u32,
                          bn_random_ptr: u32|
               -> EmptyOutput {
+            log::trace!(target: "syscalls", "random", );
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
             ctx.run(|ctx| {
@@ -1441,6 +1485,7 @@ where
 
     pub fn leave(store: &mut Store<HostState<E>>, forbidden: bool, memory: WasmiMemory) -> Func {
         let func = move |caller: Caller<'_, HostState<E>>| -> EmptyOutput {
+            log::trace!(target: "syscalls", "leave", );
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
             ctx.run(|ctx| -> Result<(), _> {
@@ -1459,6 +1504,7 @@ where
 
     pub fn wait(store: &mut Store<HostState<E>>, forbidden: bool, memory: WasmiMemory) -> Func {
         let func = move |caller: Caller<'_, HostState<E>>| -> EmptyOutput {
+            log::trace!(target: "syscalls", "wait", );
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
             ctx.run(|ctx| -> Result<(), _> {
@@ -1482,6 +1528,7 @@ where
 
     pub fn wait_for(store: &mut Store<HostState<E>>, forbidden: bool, memory: WasmiMemory) -> Func {
         let func = move |caller: Caller<'_, HostState<E>>, duration: u32| -> EmptyOutput {
+            log::trace!(target: "syscalls", "wait_for", );
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
             ctx.run(|ctx| -> Result<(), _> {
@@ -1509,6 +1556,7 @@ where
         memory: WasmiMemory,
     ) -> Func {
         let func = move |caller: Caller<'_, HostState<E>>, duration: u32| -> EmptyOutput {
+            log::trace!(target: "syscalls", "wait_up_to", );
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
             ctx.run(|ctx| -> Result<(), _> {
@@ -1537,6 +1585,7 @@ where
                          delay: u32,
                          err_ptr: u32|
               -> EmptyOutput {
+            log::trace!(target: "syscalls", "wake", );
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
             ctx.run(|ctx| {
@@ -1575,6 +1624,7 @@ where
                          delay: u32,
                          err_mid_pid_ptr: u32|
               -> EmptyOutput {
+            log::trace!(target: "syscalls", "create_program", );
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
             ctx.run(|ctx| {
@@ -1617,6 +1667,7 @@ where
                          delay: u32,
                          err_mid_pid_ptr: u32|
               -> EmptyOutput {
+            log::trace!(target: "syscalls", "create_program_wgas", );
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
             ctx.run(|ctx| {
@@ -1650,6 +1701,7 @@ where
     pub fn error(store: &mut Store<HostState<E>>, forbidden: bool, memory: WasmiMemory) -> Func {
         let func =
             move |caller: Caller<'_, HostState<E>>, error_ptr: u32, err_ptr: u32| -> EmptyOutput {
+            log::trace!(target: "syscalls", "error", );
                 let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
                 ctx.run(|ctx| {
@@ -1685,6 +1737,7 @@ where
 
     pub fn out_of_gas(store: &mut Store<HostState<E>>) -> Func {
         let func = move |mut caller: Caller<'_, HostState<E>>| -> EmptyOutput {
+            log::trace!(target: "syscalls", "out_of_gas", );
             let host_state = caller
                 .host_data_mut()
                 .as_mut()
@@ -1699,6 +1752,7 @@ where
 
     pub fn out_of_allowance(store: &mut Store<HostState<E>>) -> Func {
         let func = move |mut caller: Caller<'_, HostState<E>>| -> EmptyOutput {
+            log::trace!(target: "syscalls", "out_of_allowance", );
             let host_state = caller
                 .host_data_mut()
                 .as_mut()

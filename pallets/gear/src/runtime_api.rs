@@ -204,7 +204,7 @@ where
                     }
                 };
 
-                may_be_returned += context.gas_counter().burned();
+                may_be_returned += 0;
 
                 let memory_pages = match Self::get_and_track_memory_pages(
                     &mut ext_manager,

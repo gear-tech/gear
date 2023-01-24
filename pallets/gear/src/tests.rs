@@ -4091,11 +4091,17 @@ fn terminated_locking_funds() {
             CostsPerBlockOf::<Test>::waitlist() * (100 + CostsPerBlockOf::<Test>::reserve_for());
         let gas_spent_in_wl = CostsPerBlockOf::<Test>::waitlist();
 
+        dbg!(user_1_balance);
+        dbg!(prog_free);
+        dbg!(<Test as Config>::GasPrice::gas_price(locked_gas_to_wl - gas_spent_in_wl));
+        dbg!(<Test as Config>::GasPrice::gas_price(system_reservation));
+
         let expected_balance = user_1_balance
             + prog_free
             + <Test as Config>::GasPrice::gas_price(locked_gas_to_wl - gas_spent_in_wl)
             + <Test as Config>::GasPrice::gas_price(system_reservation);
         let user_1_balance = Balances::free_balance(USER_1);
+        dbg!(user_1_balance);
 
         assert_eq!(user_1_balance, expected_balance);
 
