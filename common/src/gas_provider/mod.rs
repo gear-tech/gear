@@ -17,10 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use super::*;
-use frame_support::{
-    traits::{tokens::Balance as BalanceTrait, TryDrop},
-    RuntimeDebug,
-};
+use frame_support::{traits::tokens::Balance as BalanceTrait, RuntimeDebug};
 use sp_runtime::traits::Zero;
 use sp_std::marker::PhantomData;
 
@@ -278,7 +275,7 @@ pub trait Provider {
 
     /// `PositiveImbalance` indicates that some value has been added
     /// to circulation , i.e. total supply has increased.
-    type PositiveImbalance;
+    type PositiveImbalance: Imbalance<Balance = Self::Balance>;
 
     /// `NegativeImbalance` indicates that some value has been removed
     /// from circulation, i.e. total supply has decreased.

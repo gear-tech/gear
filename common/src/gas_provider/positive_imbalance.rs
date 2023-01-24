@@ -36,16 +36,6 @@ impl<Balance: BalanceTrait> PositiveImbalance<Balance> {
     }
 }
 
-impl<Balance: BalanceTrait> TryDrop for PositiveImbalance<Balance> {
-    fn try_drop(self) -> Result<(), Self> {
-        if self.0.is_zero() {
-            Ok(())
-        } else {
-            Err(self)
-        }
-    }
-}
-
 impl<Balance: BalanceTrait> Default for PositiveImbalance<Balance> {
     fn default() -> Self {
         Self(Zero::zero())
