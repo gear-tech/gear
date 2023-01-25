@@ -27,8 +27,7 @@ use gear_backend_common::{
     error_processor::IntoExtError,
     lazy_pages::{GlobalsConfig, LazyPagesWeights, Status},
     memory::OutOfMemoryAccessError,
-    ExtInfo, GetGasAmount, IntoExtInfo, SystemReservationContext, TerminationReason,
-    TrapExplanation,
+    ExtInfo, GetGasAmount, IntoExtInfo, SystemReservationContext,
 };
 use gear_core::{
     costs::{HostFnWeights, RuntimeCosts},
@@ -123,9 +122,9 @@ pub enum ProcessorError {
     /// Basic error
     #[display(fmt = "{_0}")]
     Core(ExtError),
-    /// Termination reason occurred in a syscall
-    #[display(fmt = "Terminated: {_0:?}")]
-    Terminated(TerminationReason),
+    /// Gas allowance exceeded
+    #[display(fmt = "Gas allowance exceeded")]
+    GasAllowanceExceeded,
 }
 
 impl ProcessorError {
@@ -133,14 +132,6 @@ impl ProcessorError {
     pub fn as_ext_error(&self) -> Option<&ExtError> {
         match self {
             ProcessorError::Core(err) => Some(err),
-            _ => None,
-        }
-    }
-
-    /// Converts error into [`TrapExplanation`]
-    pub fn into_trap_explanation(self) -> Option<TrapExplanation> {
-        match self {
-            Self::Core(err) => Some(TrapExplanation::Core(err)),
             _ => None,
         }
     }
@@ -371,7 +362,7 @@ impl Ext {
 
         match (common_charge, allowance_charge) {
             (NotEnough, _) => Err(ExecutionError::GasLimitExceeded.into()),
-            (Enough, NotEnough) => Err(TerminationReason::GasAllowanceExceeded.into()),
+            (Enough, NotEnough) => Err(ProcessorError::GasAllowanceExceeded),
             (Enough, Enough) => Ok(()),
         }
     }
@@ -902,7 +893,7 @@ impl EnvExt for Ext {
     }
 
     fn out_of_allowance(&mut self) -> Self::Error {
-        TerminationReason::GasAllowanceExceeded.into()
+        ProcessorError::GasAllowanceExceeded
     }
 
     fn runtime_cost(&self, costs: RuntimeCosts) -> u64 {
@@ -1164,7 +1155,7 @@ mod tests {
 
         assert_eq!(
             lack_allowance_ext.charge_gas_runtime(RuntimeCosts::Free),
-            Err(TerminationReason::GasAllowanceExceeded.into()),
+            Err(ProcessorError::GasAllowanceExceeded),
         );
 
         let gas_amount = lack_allowance_ext.gas_amount();
