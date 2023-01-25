@@ -247,7 +247,7 @@ where
         reply: bool,
     ) -> ActorResult {
         let maybe_active_program = match ProgramStorageOf::<T>::get_program(program_id) {
-            Some(p) => p.0,
+            Some((p, _bn)) => p,
             None => {
                 // When an actor sends messages, which is intended to be added to the queue
                 // it's destination existence is always checked. The only case this doesn't

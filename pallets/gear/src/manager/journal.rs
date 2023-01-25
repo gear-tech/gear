@@ -408,7 +408,7 @@ where
     ) {
         self.state_changes.insert(program_id);
 
-        ProgramStorageOf::<T>::update_active_program(program_id, |p, _bn_ref| {
+        ProgramStorageOf::<T>::update_active_program(program_id, |p, _bn| {
             for (page, data) in pages_data {
                 ProgramStorageOf::<T>::set_program_page_data(program_id, page, data);
                 p.pages_with_data.insert(page);
@@ -427,7 +427,7 @@ where
         program_id: ProgramId,
         allocations: BTreeSet<gear_core::memory::WasmPage>,
     ) {
-        ProgramStorageOf::<T>::update_active_program(program_id, |p, _bn_ref| {
+        ProgramStorageOf::<T>::update_active_program(program_id, |p, _bn| {
             let removed_pages = p.allocations.difference(&allocations);
             for page in removed_pages.flat_map(|page| page.to_pages_iter()) {
                 if p.pages_with_data.remove(&page) {
@@ -544,7 +544,7 @@ where
     }
 
     fn update_gas_reservation(&mut self, program_id: ProgramId, reserver: GasReserver) {
-        ProgramStorageOf::<T>::update_active_program(program_id, |p, _bn_ref| {
+        ProgramStorageOf::<T>::update_active_program(program_id, |p, _bn| {
             p.gas_reservation_map = reserver.into_map(
                 Pallet::<T>::block_number().unique_saturated_into(),
                 |duration| {

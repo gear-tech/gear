@@ -273,7 +273,7 @@ where
 
     fn clean_reservation_tasks(&mut self, program_id: ProgramId, maybe_inactive: bool) {
         let maybe_active_program = ProgramStorageOf::<T>::get_program(program_id)
-            .and_then(|p| ActiveProgram::try_from(p.0).ok());
+            .and_then(|(p, _bn)| ActiveProgram::try_from(p).ok());
 
         if maybe_active_program.is_none() && maybe_inactive {
             return;
@@ -301,7 +301,7 @@ where
         program_id: ProgramId,
         reservation_id: ReservationId,
     ) -> GasReservationSlot {
-        let slot = ProgramStorageOf::<T>::update_active_program(program_id, |p, _bn_ref| {
+        let slot = ProgramStorageOf::<T>::update_active_program(program_id, |p, _bn| {
             p.gas_reservation_map
                 .remove(&reservation_id)
                 .unwrap_or_else(|| {
