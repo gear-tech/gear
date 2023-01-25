@@ -69,13 +69,12 @@ pub struct PageCosts {
 impl PageCosts {
     /// +_+_+
     pub fn lazy_pages_weights(&self) -> LazyPagesWeights {
-        let write_post_process = self.write_access_page.add(self.upload_page_data);
         LazyPagesWeights {
             read: self.lazy_pages_read.into(),
-            write: self.lazy_pages_write.add(write_post_process).into(),
+            write: self.lazy_pages_write.add(self.upload_page_data).into(),
             write_after_read: self
                 .lazy_pages_write_after_read
-                .add(write_post_process)
+                .add(self.upload_page_data)
                 .into(),
             load_page_storage_data: self.load_page_data.into(),
         }

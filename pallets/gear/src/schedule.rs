@@ -25,7 +25,12 @@ use crate::{weights::WeightInfo, Config};
 
 use codec::{Decode, Encode};
 use core_processor::configs::PageCosts;
-use gear_core::{code, costs::HostFnWeights as CoreHostFnWeights, message};
+use gear_core::{
+    code,
+    costs::HostFnWeights as CoreHostFnWeights,
+    memory::{GranularityPage, PageU32Size, WasmPage},
+    message,
+};
 use gear_wasm_instrument::{parity_wasm::elements, wasm_instrument::gas_metering};
 use pallet_gear_proc_macro::{ScheduleDebug, WeightDebug};
 use scale_info::TypeInfo;
@@ -775,14 +780,26 @@ impl<T: Config> Default for HostFnWeights<T> {
 
 impl<T: Config> Default for MemoryWeights<T> {
     fn default() -> Self {
+        macro_rules! cost_per_granularity_page {
+            ($name:ident) => {
+                cost!($name) / (WasmPage::size() / GranularityPage::size()) as u64
+            };
+        }
+
+        let lazy_pages_read = cost_per_granularity_page!(lazy_pages_read);
+        let lazy_pages_write = cost_per_granularity_page!(lazy_pages_write);
+        let kb_number_in_one_granularity_page = GranularityPage::size() as u64 / 1024;
+
         Self {
-            // +_+_+
-            lazy_pages_read: 100,
-            lazy_pages_write: 100,
-            lazy_pages_write_after_read: 100,
-            load_page_data: 100,
-            write_access_page: 100,
-            upload_page_data: 100,
+            lazy_pages_read,
+            lazy_pages_write,
+            lazy_pages_write_after_read: cost_per_granularity_page!(lazy_pages_write_after_read),
+            load_page_data: cost_per_granularity_page!(lazy_pages_read_storage_data)
+                .saturating_sub(lazy_pages_read),
+            write_access_page: lazy_pages_write - lazy_pages_read,
+            upload_page_data: cost!(db_write_per_kb)
+                .saturating_mul(kb_number_in_one_granularity_page),
+            // TODO: make benches to calculate static page cost and mem grow cost (issue #+_+_+)
             static_page: 100,
             mem_grow: 100,
             _phantom: PhantomData,
