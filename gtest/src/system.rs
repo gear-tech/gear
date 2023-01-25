@@ -28,7 +28,13 @@ use env_logger::{Builder, Env};
 use gear_core::{ids::CodeId, message::Dispatch};
 use path_clean::PathClean;
 use rand::{rngs::StdRng, RngCore, SeedableRng};
-use std::{cell::RefCell, env, fs, io::Write, path::Path, thread};
+use std::{
+    cell::{RefCell, RefMut},
+    env, fs,
+    io::Write,
+    path::Path,
+    thread,
+};
 
 pub struct System(pub(crate) RefCell<ExtManager>);
 
@@ -79,27 +85,34 @@ impl System {
         self.0.borrow_mut().run_dispatch(dispatch)
     }
 
-    pub fn send_delayed_dispatch(&self, dispatch: Dispatch) {
-        self.0.borrow_mut().send_delayed_dispatch(dispatch)
+    pub fn send_delayed_dispatch(&self, delay: u32, dispatch: Dispatch) {
+        self.0.borrow_mut().send_delayed_dispatch(delay, dispatch)
     }
 
     pub fn spend_blocks(&self, amount: u32) -> Vec<RunResult> {
         let mut manager = self.0.borrow_mut();
-        if manager.block_info.height % EPOCH_DURATION_IN_BLOCKS == 0 {
-            let mut rng = StdRng::seed_from_u64(
-                INITIAL_RANDOM_SEED + (manager.block_info.height / EPOCH_DURATION_IN_BLOCKS) as u64,
-            );
-            let mut random = [0u8; 32];
-            rng.fill_bytes(&mut random);
+        let check_epoch = |manager: &mut RefMut<ExtManager>| {
+            if manager.block_info.height % EPOCH_DURATION_IN_BLOCKS == 0 {
+                let mut rng = StdRng::seed_from_u64(
+                    INITIAL_RANDOM_SEED
+                        + (manager.block_info.height / EPOCH_DURATION_IN_BLOCKS) as u64,
+                );
+                let mut random = [0u8; 32];
+                rng.fill_bytes(&mut random);
 
-            manager.random_data = (random.to_vec(), manager.block_info.height + 1);
-        }
+                manager.random_data = (random.to_vec(), manager.block_info.height + 1);
+            }
+        };
 
-        manager.block_info.height += amount;
-        manager.block_info.timestamp += 1000 * amount as u64;
-
-        // Run delayed dispatches if the queue is not empty.
-        manager.process_delayed_dispatches()
+        (manager.block_info.height..manager.block_info.height + amount)
+            .map(|bn| {
+                check_epoch(&mut manager);
+                manager.block_info.height += 1;
+                manager.block_info.timestamp += 1000;
+                manager.process_delayed_dispatches(bn + 1)
+            })
+            .collect::<Vec<Vec<_>>>()
+            .concat()
     }
 
     /// Return the current block height.

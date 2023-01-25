@@ -360,8 +360,8 @@ mod tests {
     }
 
     #[test]
-    fn delayed_message_works() {
-        // Arranging data for future messages
+    fn delayed_dispatches_works() {
+        // Arranging data for future messages.
         let system = System::new();
         let message_id: MessageId = Default::default();
         let source_user_id = ProgramIdWrapper::from(100).0;
@@ -369,7 +369,7 @@ mod tests {
         let message_payload: Payload = vec![1, 2, 3].try_into().unwrap();
         let log = Log::builder().payload(message_payload.clone());
 
-        // Building message based on arranged data
+        // Building message based on arranged data.
         let message = Message::new(
             message_id,
             source_user_id,
@@ -380,17 +380,22 @@ mod tests {
             None,
         );
 
-        let blocks = 10;
-        system
-            .0
-            .borrow_mut()
-            .send_delayed_dispatch(Dispatch::new(DispatchKind::Handle, message));
+        let unexpected_blocks = 5;
+        let expected_blocks = 10;
+        system.0.borrow_mut().send_delayed_dispatch(
+            expected_blocks,
+            Dispatch::new(DispatchKind::Handle, message),
+        );
 
         let mailbox = system.get_mailbox(destination_user_id);
         assert!(!mailbox.contains(&log));
 
-        let results = system.spend_blocks(blocks);
-        assert_eq!(results.len(), 1);
+        // Run to unexpected blocks.
+        assert_eq!(system.spend_blocks(unexpected_blocks).len(), 0);
+        assert!(!mailbox.contains(&log));
+
+        // Run to expected blocks.
+        assert_eq!(system.spend_blocks(expected_blocks).len(), 1);
         assert!(mailbox.contains(&log));
     }
 }
