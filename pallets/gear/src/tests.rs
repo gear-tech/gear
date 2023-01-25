@@ -3607,7 +3607,7 @@ fn test_sending_waits() {
         ));
 
         // Check that block number was changed after first message sent
-        let block_number_after_send= System::block_number();
+        let block_number_after_send = System::block_number();
         assert_eq!(Gear::get_block_number(program_id), block_number_after_send);
 
         let wait_for = get_last_message_id();
