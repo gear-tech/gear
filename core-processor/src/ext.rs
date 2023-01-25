@@ -34,7 +34,9 @@ use gear_backend_common::{
 use gear_core::{
     costs::{HostFnWeights, RuntimeCosts},
     env::Ext as EnvExt,
-    gas::{ChargeResult, GasAllowanceCounter, GasAmount, GasCounter, Token, ValueCounter},
+    gas::{
+        ChargeResult, GasAllowanceCounter, GasAmount, GasCounter, GasRefunder, Token, ValueCounter,
+    },
     ids::{CodeId, MessageId, ProgramId, ReservationId},
     memory::{
         AllocInfo, AllocationsContext, GearPage, GrowHandler, Memory, MemoryInterval,
@@ -204,35 +206,6 @@ impl AsTerminationReason for ProcessorError {
             ProcessorError::Terminated(reason) => Some(reason),
             _ => None,
         }
-    }
-}
-
-/// Provide functionality to safely make gas refund after charge,
-/// it checks, that it's not refunded more gas than has been charged.
-struct GasRefunder {
-    amount: u64,
-}
-
-#[derive(Debug, derive_more::Display)]
-#[display(fmt = "Trying to refund {_1}, but {_0} was charged")]
-struct RefundError(u64, u64);
-
-impl GasRefunder {
-    fn charge(ext: &mut Ext, amount: u64) -> Result<Self, <Ext as EnvExt>::Error> {
-        ext.charge_gas(amount)?;
-        Ok(Self { amount })
-    }
-
-    fn refund(
-        self,
-        ext: &mut Ext,
-        amount: u64,
-    ) -> Result<Result<(), <Ext as EnvExt>::Error>, RefundError> {
-        if self.amount < amount {
-            return Err(RefundError(self.amount, amount));
-        }
-
-        Ok(ext.refund_gas(amount))
     }
 }
 
