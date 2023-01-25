@@ -18,7 +18,7 @@
 
 //! Costs module.
 
-use core::marker::PhantomData;
+use core::{marker::PhantomData, fmt::Debug};
 
 use crate::{gas::Token, memory::PageU32Size};
 

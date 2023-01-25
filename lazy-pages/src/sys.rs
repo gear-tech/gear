@@ -455,9 +455,11 @@ pub(crate) unsafe fn process_lazy_pages(
                         return Err(Error::DoubleRelease(lazy_page));
                     }
                     if !is_signal && ctx.write_after_read_charged.insert(granularity_page) {
-                        // +_+_+ unreachable
-                        assert!(ctx.read_charged.contains(&granularity_page));
-                        assert!(!ctx.write_charged.contains(&granularity_page));
+                        if !ctx.read_charged.contains(&granularity_page)
+                            || ctx.write_charged.contains(&granularity_page)
+                        {
+                            unreachable!("Lazy-pages context charge sets are in incorrect state");
+                        }
                         charge_set.write_accessed = charge_set.write_accessed.inc().unwrap();
                     }
                 } else {
@@ -479,9 +481,11 @@ pub(crate) unsafe fn process_lazy_pages(
                         charge_set.read_storage_data = charge_set.read_storage_data.inc().unwrap();
                     }
                     if is_write && ctx.write_charged.insert(lazy_page.to_page()) {
-                        // +_+_+ unreachable
-                        assert!(!ctx.read_charged.contains(&granularity_page));
-                        assert!(!ctx.write_after_read_charged.contains(&granularity_page));
+                        if ctx.read_charged.contains(&granularity_page)
+                            || ctx.write_after_read_charged.contains(&granularity_page)
+                        {
+                            unreachable!("Lazy-pages context charge sets are in incorrect state");
+                        }
                         charge_set.write_accessed = charge_set.write_accessed.inc().unwrap();
                     }
                 }

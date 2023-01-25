@@ -30,9 +30,9 @@ use gear_core::{
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Encode, Decode)]
 pub struct ChargeForPages {
-    /// +_+_+
+    /// Number of pages, for that we have to charge gas for page data loading from storage.
     pub read_storage_data: GearPage,
-    /// +_+_+
+    /// Number of pages, for that we have to charge gas for page write access in wasm memory.
     pub write_accessed: GearPage,
 }
 
@@ -48,13 +48,13 @@ pub enum GlobalsAccessMod {
 /// Lazy-pages cases weights.
 #[derive(Debug, Default, Clone, PartialEq, Eq, Encode, Decode)]
 pub struct LazyPagesWeights {
-    /// Read access cost per one gear page.
+    /// Read access cost.
     pub read: CostPerPage<GranularityPage>,
-    /// Write access cost per one gear page.
+    /// Write access cost.
     pub write: CostPerPage<GranularityPage>,
-    /// Write access cost per one gear page, which has been already read accessed.
+    /// Write access cost for page, which has been already read accessed.
     pub write_after_read: CostPerPage<GranularityPage>,
-    /// +_+_+
+    /// Loading page data from storage cost.
     pub load_page_storage_data: CostPerPage<GranularityPage>,
 }
 

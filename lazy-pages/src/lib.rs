@@ -117,7 +117,7 @@ pub(crate) struct LazyPagesExecutionContext {
     pub read_charged: BTreeSet<GranularityPage>,
     /// Granularity pages, for which we have already charge gas for write.
     pub write_charged: BTreeSet<GranularityPage>,
-    /// +_+_+
+    /// Loading page data from storage cost.
     pub read_storage_data_charged: BTreeSet<GranularityPage>,
     /// End of stack wasm address. Default is `0`, which means,
     /// that wasm data has no stack region. It's not necessary to specify

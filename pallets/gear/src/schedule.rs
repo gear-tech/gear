@@ -803,6 +803,7 @@ impl<T: Config> Default for MemoryWeights<T> {
             load_page_data: cost_per_granularity_page!(lazy_pages_read_storage_data)
                 .saturating_sub(lazy_pages_read),
             write_access_page: lazy_pages_write - lazy_pages_read,
+            // TODO: add fixed-upload cost here (cost for one db write) (issue #+_+_+).
             upload_page_data: cost!(db_write_per_kb)
                 .saturating_mul(kb_number_in_one_granularity_page),
             // TODO: make benches to calculate static page cost and mem grow cost (issue #+_+_+)
