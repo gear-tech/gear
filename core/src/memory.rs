@@ -438,7 +438,7 @@ impl PageU32Size for WasmPage {
 }
 
 /// Page with size [PAGE_STORAGE_GRANULARITY].
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Encode, Decode)]
 pub struct GranularityPage(u32);
 
 impl PageU32Size for GranularityPage {
