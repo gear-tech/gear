@@ -32,8 +32,8 @@ use gear_backend_common::{
     calc_stack_end,
     error_processor::IntoExtError,
     lazy_pages::{GlobalsAccessMod, GlobalsConfig},
-    AsTerminationReason, BackendReport, Environment, GetGasAmount, IntoExtInfo, StackEndError,
-    TerminationReason, TrapExplanation, STACK_END_EXPORT_NAME,
+    BackendReport, Environment, GetGasAmount, IntoExtInfo, StackEndError, TerminationReason,
+    TrapExplanation, STACK_END_EXPORT_NAME,
 };
 use gear_core::{
     env::Ext,
@@ -108,11 +108,12 @@ struct EnvBuilder<E: Ext + IntoExtInfo<E::Error>> {
     funcs_count: usize,
 }
 
-impl<E: Ext + IntoExtInfo<E::Error> + 'static> EnvBuilder<E> {
-    fn add_func(&mut self, name: SysCallName, f: HostFuncType<Runtime<E>>)
-    where
-        E::Error: AsTerminationReason + IntoExtError,
-    {
+impl<E> EnvBuilder<E>
+where
+    E: Ext + IntoExtInfo<E::Error> + 'static,
+    E::Error: IntoExtError + Clone,
+{
+    fn add_func(&mut self, name: SysCallName, f: HostFuncType<Runtime<E>>) {
         if self.forbidden_funcs.contains(&name) {
             self.env_def_builder
                 .add_host_func("env", name.to_str(), Funcs::forbidden);
@@ -123,10 +124,7 @@ impl<E: Ext + IntoExtInfo<E::Error> + 'static> EnvBuilder<E> {
         self.funcs_count += 1;
     }
 
-    fn add_memory(&mut self, memory: DefaultExecutorMemory)
-    where
-        E::Error: AsTerminationReason + IntoExtError,
-    {
+    fn add_memory(&mut self, memory: DefaultExecutorMemory) {
         self.env_def_builder.add_memory("env", "memory", memory);
     }
 }
@@ -142,7 +140,7 @@ impl<E: Ext + IntoExtInfo<E::Error>> From<EnvBuilder<E>>
 impl<E, EP> Environment<E, EP> for SandboxEnvironment<E, EP>
 where
     E: Ext + IntoExtInfo<E::Error> + GetGasAmount + 'static,
-    E::Error: AsTerminationReason + IntoExtError,
+    E::Error: IntoExtError + Clone,
     EP: WasmEntry,
 {
     type Memory = MemoryWrap;
@@ -347,7 +345,7 @@ where
             .ok_or((runtime.ext.gas_amount(), WrongInjectedAllowance))?;
 
         let Runtime {
-            err: trap,
+            err: runtime_err,
             mut ext,
             memory,
             ..
@@ -357,12 +355,8 @@ where
 
         log::debug!("SandboxEnvironment::execute res = {res:?}");
 
-        let trap_explanation = ext.trap_explanation();
-
         let termination = if res.is_err() {
-            let reason = trap_explanation
-                .map(TerminationReason::Trap)
-                .unwrap_or_else(|| trap.into_termination_reason());
+            let reason = runtime_err.into_termination_reason();
 
             // success is unacceptable when there is error
             if let TerminationReason::Success = reason {

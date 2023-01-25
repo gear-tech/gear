@@ -19,7 +19,7 @@
 use crate::state::HostState;
 use alloc::collections::{BTreeMap, BTreeSet};
 use codec::Encode;
-use gear_backend_common::{error_processor::IntoExtError, AsTerminationReason, IntoExtInfo};
+use gear_backend_common::{error_processor::IntoExtError, IntoExtInfo};
 use gear_core::env::Ext;
 use gear_wasm_instrument::syscalls::SysCallName::{self, *};
 use wasmi::{Func, Memory, Store};
@@ -43,7 +43,7 @@ pub fn build<E>(
 ) -> BTreeMap<SysCallName, Func>
 where
     E: Ext + IntoExtInfo<E::Error> + 'static,
-    E::Error: Encode + AsTerminationReason + IntoExtError,
+    E::Error: Encode + IntoExtError + Clone,
 {
     use crate::funcs::FuncsHandler as F;
 

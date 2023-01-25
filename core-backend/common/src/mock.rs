@@ -17,8 +17,8 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    error_processor::IntoExtError, memory::OutOfMemoryAccessError, AsTerminationReason, ExtInfo,
-    GetGasAmount, IntoExtInfo, SystemReservationContext, TerminationReason,
+    error_processor::IntoExtError, memory::OutOfMemoryAccessError, ExtInfo, GetGasAmount,
+    IntoExtInfo, SystemReservationContext,
 };
 use alloc::collections::BTreeSet;
 use codec::{Decode, Encode};
@@ -36,7 +36,7 @@ use gear_core_errors::{CoreError, ExtError};
 use gear_wasm_instrument::syscalls::SysCallName;
 
 /// Mock error
-#[derive(Debug, Encode, Decode)]
+#[derive(Debug, Clone, Encode, Decode)]
 pub struct Error;
 
 impl fmt::Display for Error {
@@ -47,12 +47,6 @@ impl fmt::Display for Error {
 
 impl CoreError for Error {
     fn forbidden_function() -> Self {
-        todo!()
-    }
-}
-
-impl AsTerminationReason for Error {
-    fn as_termination_reason(&self) -> Option<&TerminationReason> {
         todo!()
     }
 }
@@ -262,14 +256,6 @@ impl IntoExtInfo<<MockExt as Ext>::Error> for MockExt {
 
     fn into_gas_amount(self) -> gear_core::gas::GasAmount {
         GasAmount::from(GasCounter::new(0))
-    }
-
-    fn last_error(&self) -> Result<&gear_core_errors::ExtError, Error> {
-        Ok(&ExtError::SyscallUsage)
-    }
-
-    fn trap_explanation(&self) -> Option<crate::TrapExplanation> {
-        None
     }
 
     fn pre_process_memory_accesses(

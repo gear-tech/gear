@@ -32,7 +32,7 @@ use core::{
 use gear_backend_common::{
     error_processor::{IntoExtError, ProcessError},
     memory::{MemoryAccessError, MemoryAccessRecorder, MemoryOwner},
-    AsTerminationReason, IntoExtInfo, TerminationReason, TrapExplanation,
+    IntoExtInfo, TerminationReason, TrapExplanation,
 };
 use gear_core::{
     buffer::RuntimeBufferSizeError,
@@ -40,7 +40,7 @@ use gear_core::{
     memory::{PageU32Size, WasmPage},
     message::{HandlePacket, InitPacket, MessageWaitedType, PayloadSizeError, ReplyPacket},
 };
-use gear_core_errors::{CoreError, MemoryError};
+use gear_core_errors::{CoreError, ExtError, MemoryError};
 use gear_wasm_instrument::{GLOBAL_NAME_ALLOWANCE, GLOBAL_NAME_GAS};
 use gsys::{
     BlockNumberWithHash, Hash, HashWithValue, LengthWithCode, LengthWithGas, LengthWithHandle,
@@ -54,7 +54,7 @@ use wasmi::{
 // TODO: change it to u32::MAX (issue #2027)
 const PTR_SPECIAL: u32 = i32::MAX as u32;
 
-#[derive(Debug, derive_more::Display, derive_more::From)]
+#[derive(Debug, Clone, derive_more::Display, derive_more::From)]
 pub enum FuncError<E: Display> {
     #[display(fmt = "{_0}")]
     Core(E),
@@ -127,7 +127,7 @@ type EmptyOutput = Result<(), Trap>;
 impl<E> FuncsHandler<E>
 where
     E: Ext + IntoExtInfo<E::Error> + 'static,
-    E::Error: Encode + AsTerminationReason + IntoExtError,
+    E::Error: Encode + IntoExtError + Clone,
 {
     pub fn send(store: &mut Store<HostState<E>>, forbidden: bool, memory: WasmiMemory) -> Func {
         let func = move |caller: Caller<'_, HostState<E>>,
@@ -1653,15 +1653,21 @@ where
                 let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
                 ctx.run(|ctx| {
-                    ctx.host_state_mut()
-                        .ext
-                        .last_error_encoded()
+                    let last_err = match ctx.host_state_mut().err.clone() {
+                        FuncError::Core(maybe_ext) => {
+                            maybe_ext.into_ext_error().unwrap_or(ExtError::SyscallUsage)
+                        }
+                        _ => ExtError::SyscallUsage,
+                    };
+
+                    Ok(last_err)
                         .process_error()
                         .map_err(FuncError::Core)?
                         .proc_res(|res| -> Result<(), FuncError<E::Error>> {
                             let write_err_len = ctx.register_write_as(err_ptr);
                             let length = match res {
                                 Ok(err) => {
+                                    let err = err.encode();
                                     let write_error_bytes =
                                         ctx.register_write(error_ptr, err.len() as u32);
                                     ctx.write(write_error_bytes, err.as_ref())?;

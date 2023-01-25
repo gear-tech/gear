@@ -24,11 +24,12 @@ use alloc::{
     string::{FromUtf8Error, String},
 };
 use blake2_rfc::blake2b::blake2b;
+use codec::Encode;
 use core::{convert::TryInto, fmt::Display, marker::PhantomData};
 use gear_backend_common::{
     error_processor::{IntoExtError, ProcessError},
     memory::{MemoryAccessError, MemoryAccessRecorder, MemoryOwner},
-    AsTerminationReason, IntoExtInfo, RuntimeCtxError, TerminationReason, TrapExplanation,
+    IntoExtInfo, RuntimeCtxError, TerminationReason, TrapExplanation,
 };
 use gear_core::{
     buffer::RuntimeBufferSizeError,
@@ -36,7 +37,7 @@ use gear_core::{
     memory::{PageU32Size, WasmPage},
     message::{HandlePacket, InitPacket, MessageWaitedType, PayloadSizeError, ReplyPacket},
 };
-use gear_core_errors::{CoreError, MemoryError};
+use gear_core_errors::{CoreError, ExtError, MemoryError};
 use gsys::{
     BlockNumberWithHash, Hash, HashWithValue, LengthWithCode, LengthWithGas, LengthWithHandle,
     LengthWithHash, LengthWithTwoHashes, TwoHashesWithValue,
@@ -48,7 +49,7 @@ const PTR_SPECIAL: u32 = i32::MAX as u32;
 
 pub(crate) type SyscallOutput = Result<ReturnValue, HostError>;
 
-#[derive(Debug, derive_more::Display, derive_more::From)]
+#[derive(Debug, Clone, derive_more::Display, derive_more::From)]
 pub enum FuncError<E: Display> {
     #[display(fmt = "{_0}")]
     Core(E),
@@ -88,9 +89,13 @@ impl<E: Display> From<MemoryAccessError> for FuncError<E> {
     }
 }
 
-impl<E: Display> FuncError<E> {
+impl<E: Display + IntoExtError> FuncError<E> {
     pub fn into_termination_reason(self) -> TerminationReason {
         match self {
+            Self::Core(maybe_ext) => match maybe_ext.into_ext_error() {
+                Ok(ext) => TerminationReason::Trap(TrapExplanation::Core(ext)),
+                Err(err) => TerminationReason::Trap(TrapExplanation::Other(err.to_string().into())),
+            },
             Self::Terminated(reason) => reason,
             err => TerminationReason::Trap(TrapExplanation::Other(err.to_string().into())),
         }
@@ -128,7 +133,7 @@ macro_rules! sys_trace {
 impl<E> FuncsHandler<E>
 where
     E: Ext + IntoExtInfo<E::Error> + 'static,
-    E::Error: AsTerminationReason + IntoExtError,
+    E::Error: IntoExtError + Clone,
 {
     pub fn send(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
         sys_trace!(target: "syscall::gear", "send, args = {}", args_to_str(args));
@@ -1215,14 +1220,21 @@ where
         let (error_bytes_ptr, err_len_ptr) = args.iter().read_2()?;
 
         ctx.run(|ctx| {
-            ctx.ext
-                .last_error_encoded()
+            let last_err = match ctx.err.clone() {
+                FuncError::Core(maybe_ext) => {
+                    maybe_ext.into_ext_error().unwrap_or(ExtError::SyscallUsage)
+                }
+                _ => ExtError::SyscallUsage,
+            };
+
+            Ok(last_err)
                 .process_error()
                 .map_err(FuncError::Core)?
                 .proc_res(|res| -> Result<(), FuncError<E::Error>> {
                     let write_err_len = ctx.register_write_as(err_len_ptr);
                     let length = match res {
                         Ok(err) => {
+                            let err = err.encode();
                             let write_error_bytes =
                                 ctx.register_write(error_bytes_ptr, err.len() as u32);
                             ctx.write(write_error_bytes, err.as_ref())?;

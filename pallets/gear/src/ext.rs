@@ -21,7 +21,7 @@ use core_processor::{Ext, ProcessorContext, ProcessorError, ProcessorExt};
 use gear_backend_common::{
     lazy_pages::{GlobalsConfig, LazyPagesWeights, Status},
     memory::OutOfMemoryAccessError,
-    ExtInfo, GetGasAmount, IntoExtInfo, TrapExplanation,
+    ExtInfo, GetGasAmount, IntoExtInfo,
 };
 use gear_core::{
     costs::RuntimeCosts,
@@ -31,7 +31,7 @@ use gear_core::{
     memory::{GearPage, GrowHandler, Memory, MemoryInterval, PageU32Size, WasmPage},
     message::{HandlePacket, InitPacket, ReplyPacket, StatusCode},
 };
-use gear_core_errors::{ExtError, MemoryError};
+use gear_core_errors::MemoryError;
 use gear_lazy_pages_common as lazy_pages;
 use gear_wasm_instrument::syscalls::SysCallName;
 
@@ -58,14 +58,6 @@ impl IntoExtInfo<<LazyPagesExt as EnvExt>::Error> for LazyPagesExt {
 
     fn into_gas_amount(self) -> GasAmount {
         self.inner.context.gas_counter.into()
-    }
-
-    fn last_error(&self) -> Result<&ExtError, <LazyPagesExt as EnvExt>::Error> {
-        self.inner.last_error()
-    }
-
-    fn trap_explanation(&self) -> Option<TrapExplanation> {
-        self.inner.trap_explanation()
     }
 
     fn pre_process_memory_accesses(

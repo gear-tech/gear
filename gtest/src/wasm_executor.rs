@@ -142,15 +142,8 @@ impl WasmExecutor {
         match res {
             Ok((ptr_to_result,)) => Self::read_result(&memory_wrap, ptr_to_result),
             Err(_) => {
-                if let Some(processor_error) = memory_wrap
-                    .store
-                    .state()
-                    .as_ref()
-                    .unwrap()
-                    .ext
-                    .error_explanation
-                    .clone()
-                {
+                let func_error = memory_wrap.store.state().as_ref().unwrap().err.clone();
+                if let FuncError::Core(processor_error) = func_error {
                     Err(processor_error.into())
                 } else {
                     Err(TestError::InvalidReturnType)

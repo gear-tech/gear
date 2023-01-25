@@ -155,14 +155,6 @@ pub trait IntoExtInfo<Error> {
 
     fn into_gas_amount(self) -> GasAmount;
 
-    fn last_error(&self) -> Result<&ExtError, Error>;
-
-    fn last_error_encoded(&self) -> Result<Vec<u8>, Error> {
-        self.last_error().map(Encode::encode)
-    }
-
-    fn trap_explanation(&self) -> Option<TrapExplanation>;
-
     /// Pre-process memory access if need.
     fn pre_process_memory_accesses(
         reads: &[MemoryInterval],
@@ -174,7 +166,7 @@ pub trait GetGasAmount {
     fn gas_amount(&self) -> GasAmount;
 }
 
-#[derive(Debug, derive_more::Display, derive_more::From)]
+#[derive(Debug, Clone, derive_more::Display, derive_more::From)]
 pub enum RuntimeCtxError<E: Display> {
     #[display(fmt = "{_0}")]
     Ext(E),
@@ -308,8 +300,4 @@ where
     where
         F: FnOnce(&mut Self::Memory, Option<WasmPage>, GlobalsConfig) -> Result<(), T>,
         T: fmt::Display;
-}
-
-pub trait AsTerminationReason {
-    fn as_termination_reason(&self) -> Option<&TerminationReason>;
 }

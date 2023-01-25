@@ -34,8 +34,8 @@ use gear_backend_common::{
     calc_stack_end,
     error_processor::IntoExtError,
     lazy_pages::{GlobalsAccessError, GlobalsAccessMod, GlobalsAccessor, GlobalsConfig},
-    AsTerminationReason, BackendReport, Environment, GetGasAmount, IntoExtInfo, StackEndError,
-    TerminationReason, TrapExplanation, STACK_END_EXPORT_NAME,
+    BackendReport, Environment, GetGasAmount, IntoExtInfo, StackEndError, TerminationReason,
+    TrapExplanation, STACK_END_EXPORT_NAME,
 };
 use gear_core::{
     env::Ext,
@@ -152,7 +152,7 @@ impl<E: Ext + 'static> GlobalsAccessor for GlobalsAccessProvider<E> {
 impl<E, EP> Environment<E, EP> for WasmiEnvironment<E, EP>
 where
     E: Ext + IntoExtInfo<E::Error> + GetGasAmount + 'static,
-    E::Error: Encode + AsTerminationReason + IntoExtError,
+    E::Error: Encode + IntoExtError + Clone,
     EP: WasmEntry,
 {
     type Memory = MemoryWrap<E>;
@@ -362,19 +362,17 @@ where
             .unwrap_or_else(|| unreachable!("State must be set in `WasmiEnvironment::new`; qed"));
 
         let State {
-            mut ext, err: trap, ..
+            mut ext,
+            err: runtime_err,
+            ..
         } = state;
 
         ext.update_counters(gas as u64, allowance as u64);
 
         log::debug!("WasmiEnvironment::execute result = {res:?}");
 
-        let trap_explanation = ext.trap_explanation();
-
         let termination_reason = if res.is_err() {
-            let reason = trap_explanation
-                .map(TerminationReason::Trap)
-                .unwrap_or_else(|| trap.into_termination_reason());
+            let reason = runtime_err.into_termination_reason();
 
             // success is unacceptable when there is an error
             if let TerminationReason::Success = reason {
