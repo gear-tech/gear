@@ -472,6 +472,14 @@ impl From<u16> for GearPage {
     }
 }
 
+impl From<u16> for GranularityPage {
+    fn from(value: u16) -> Self {
+        // u16::MAX * GranularityPage::size() - 1 <= u32::MAX
+        static_assertions::const_assert!(PAGE_STORAGE_GRANULARITY <= 0x10000);
+        GranularityPage(value as u32)
+    }
+}
+
 /// Host pointer type.
 /// Host pointer can be 64bit or less, to support both we use u64.
 pub type HostPointer = u64;

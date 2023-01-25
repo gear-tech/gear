@@ -760,6 +760,7 @@ mod tests {
                 upload_page_data: 4000.into(),
                 static_page: 1000.into(),
                 mem_grow: 3000.into(),
+                parachain_read_heuristic: 0.into(),
             },
         )
     }

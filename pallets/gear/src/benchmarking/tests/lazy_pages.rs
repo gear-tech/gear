@@ -47,7 +47,6 @@ where
     let memory = ImportedMemory::max::<T>();
     let size_wasm_pages = WasmPage::new(memory.min_pages).unwrap();
     let size_psg = size_wasm_pages.to_page::<GranularityPage>();
-    let gear_in_psg = GranularityPage::size() / GearPage::size();
     let access_size = size_of::<u32>() as u32;
     let max_addr = size_wasm_pages.offset() - access_size;
 
@@ -129,25 +128,21 @@ where
         let charged: Vec<(u64, u64)> = (0..2)
             .map(|_i| {
                 let mut exec = exec.clone();
-                let read = rng.gen_range(0..MAX_COST).into();
-                let write = rng.gen_range(0..MAX_COST).into();
-                let write_after_read = rng.gen_range(0..MAX_COST).into();
+                let read: u64 = rng.gen_range(0..MAX_COST);
+                let write: u64 = rng.gen_range(0..MAX_COST);
+                let write_after_read: u64 = rng.gen_range(0..MAX_COST);
 
-                exec.block_config.page_costs.lazy_pages_read = read;
-                exec.block_config.page_costs.lazy_pages_write = write;
-                exec.block_config.page_costs.lazy_pages_write_after_read = write_after_read;
+                exec.block_config.page_costs.lazy_pages_read = read.into();
+                exec.block_config.page_costs.lazy_pages_write = write.into();
+                exec.block_config.page_costs.lazy_pages_write_after_read = write_after_read.into();
 
                 let calc_amount = |weight: u64, pages: &BTreeSet<GranularityPage>| {
-                    weight
-                        .checked_mul(gear_in_psg as u64)
-                        .unwrap()
-                        .checked_mul(pages.len() as u64)
-                        .unwrap()
+                    weight.checked_mul(pages.len() as u64).unwrap()
                 };
-                let charged_for_read = calc_amount(read.into(), &read_pages);
-                let charged_for_write = calc_amount(write.into(), &write_pages);
+                let charged_for_read = calc_amount(read, &read_pages);
+                let charged_for_write = calc_amount(write, &write_pages);
                 let charged_for_write_after_read =
-                    calc_amount(write_after_read.into(), &write_after_read_pages);
+                    calc_amount(write_after_read, &write_after_read_pages);
                 let charged_for_pages = charged_for_read
                     .checked_add(charged_for_write)
                     .unwrap()
@@ -256,11 +251,7 @@ where
             })
             .collect();
 
-        let k = GranularityPage::size() / GearPage::size();
-        assert_eq!(
-            charged[1].checked_sub(charged[0]).unwrap(),
-            expected * k as u64
-        );
+        assert_eq!(charged[1].checked_sub(charged[0]).unwrap(), expected);
     };
 
     test(

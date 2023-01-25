@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use core_processor::{
-    configs::{PageCosts, TEST_MAX_PAGES_NUMBER},
+    configs::{PageCosts, TESTS_MAX_PAGES_NUMBER},
     Ext, ProcessorContext, ProcessorExt,
 };
 use gear_backend_common::TerminationReason;
@@ -195,7 +195,7 @@ impl WasmExecutor {
                 ),
             ),
             block_info: Default::default(),
-            max_pages: TEST_MAX_PAGES_NUMBER.into(),
+            max_pages: TESTS_MAX_PAGES_NUMBER.into(),
             page_costs: PageCosts::new_for_tests(),
             existential_deposit: 0,
             origin: Default::default(),

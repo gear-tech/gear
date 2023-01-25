@@ -88,17 +88,11 @@ pub(crate) enum Error {
     ReadOrWriteIsUnknown,
     #[display(fmt = "Cannot receive signal from wasm memory, when status is gas limit exceed")]
     SignalWhenStatusGasExceeded,
-    #[display(fmt = "Amount which we should charge is bigger than u64::MAX")]
-    ChargedGasTooBig,
     #[display(
         fmt = "Amount of pages for which gas should be charged out of max possible in wasm memory"
     )]
     #[from]
     PagesToChargeNumberIsTooBig(PageError),
-    #[display(
-        fmt = "Accessed page is write after read charged, but not read charged, which is impossible"
-    )]
-    WriteAfterReadChargedWithoutReadCharged,
 }
 
 #[derive(Clone, Copy)]

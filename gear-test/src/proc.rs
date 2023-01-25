@@ -466,7 +466,7 @@ where
 fn test_block_config(block_info: BlockInfo) -> BlockConfig {
     BlockConfig {
         block_info,
-        max_pages: TEST_MAX_PAGES_NUMBER.into(),
+        max_pages: TESTS_MAX_PAGES_NUMBER.into(),
         page_costs: PageCosts::new_for_tests(),
         existential_deposit: EXISTENTIAL_DEPOSIT,
         outgoing_limit: OUTGOING_LIMIT,

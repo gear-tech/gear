@@ -27,7 +27,7 @@ use crate::{
 };
 use core_processor::{
     common::*,
-    configs::{BlockConfig, BlockInfo, PageCosts, TEST_MAX_PAGES_NUMBER},
+    configs::{BlockConfig, BlockInfo, PageCosts, TESTS_MAX_PAGES_NUMBER},
     ContextChargedForCode, ContextChargedForInstrumentation, Ext,
 };
 use gear_backend_wasmi::WasmiEnvironment;
@@ -637,7 +637,7 @@ impl ExtManager {
             .unwrap_or(u64::MAX);
         let block_config = BlockConfig {
             block_info: self.block_info,
-            max_pages: TEST_MAX_PAGES_NUMBER.into(),
+            max_pages: TESTS_MAX_PAGES_NUMBER.into(),
             page_costs: PageCosts::new_for_tests(),
             existential_deposit: EXISTENTIAL_DEPOSIT,
             outgoing_limit: OUTGOING_LIMIT,

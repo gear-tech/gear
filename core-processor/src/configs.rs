@@ -28,7 +28,7 @@ use gear_core::{
 use gear_wasm_instrument::syscalls::SysCallName;
 
 /// +_+_+
-pub const TEST_MAX_PAGES_NUMBER: u16 = 512;
+pub const TESTS_MAX_PAGES_NUMBER: u16 = 512;
 
 /// Contextual block information.
 #[derive(Clone, Copy, Debug, Encode, Decode, Default)]
@@ -64,22 +64,24 @@ pub struct PageCosts {
     pub static_page: CostPerPage<WasmPage>,
     /// Cost per one [WasmPage] for memory growing.
     pub mem_grow: CostPerPage<WasmPage>,
+    /// Cost per one granularity page storage read, when para-chain execution.
+    pub parachain_read_heuristic: CostPerPage<GranularityPage>,
 }
 
 impl PageCosts {
-    /// +_+_+
+    /// Calculates and returns weights for lazy-pages.
     pub fn lazy_pages_weights(&self) -> LazyPagesWeights {
         LazyPagesWeights {
-            read: self.lazy_pages_read.into(),
-            write: self.lazy_pages_write.add(self.upload_page_data).into(),
-            write_after_read: self
-                .lazy_pages_write_after_read
-                .add(self.upload_page_data)
-                .into(),
-            load_page_storage_data: self.load_page_data.into(),
+            read: self.lazy_pages_read.add(self.parachain_read_heuristic),
+            write: self
+                .lazy_pages_write
+                .add(self.parachain_read_heuristic)
+                .add(self.upload_page_data),
+            write_after_read: self.lazy_pages_write_after_read.add(self.upload_page_data),
+            load_page_storage_data: self.load_page_data,
         }
     }
-    /// +_+_+
+    /// New one for tests usage.
     pub fn new_for_tests() -> Self {
         let a = 1000.into();
         let b = 4000.into();
@@ -92,6 +94,7 @@ impl PageCosts {
             upload_page_data: a,
             static_page: b,
             mem_grow: b,
+            parachain_read_heuristic: a,
         }
     }
 }

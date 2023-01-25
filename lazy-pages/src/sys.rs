@@ -27,8 +27,9 @@ use core::any::Any;
 use gear_backend_common::lazy_pages::{
     ChargeForPages, GlobalsAccessError, GlobalsAccessMod, GlobalsAccessor, GlobalsConfig, Status,
 };
-use gear_core::memory::{
-    GearPage, PageU32Size, PagesIterInclusive, GEAR_PAGE_SIZE, PAGE_STORAGE_GRANULARITY,
+use gear_core::{
+    costs::CostPerPage,
+    memory::{GearPage, PageU32Size, PagesIterInclusive, GEAR_PAGE_SIZE, PAGE_STORAGE_GRANULARITY},
 };
 use sc_executor_common::sandbox::SandboxInstance;
 use sp_wasm_interface::Value;
@@ -225,42 +226,38 @@ unsafe fn charge_gas(globals_config: &GlobalsConfig, amount: u64) -> Result<Stat
 fn cost_for_write(
     ctx: &mut RefMut<LazyPagesExecutionContext>,
     page: GranularityPage,
-) -> Result<Option<u64>, Error> {
+) -> CostPerPage<GranularityPage> {
     if ctx.write_charged.contains(&page) {
         // Has been already charged for write.
-        Ok(None)
+        0.into()
     } else if ctx.read_charged.contains(&page) {
         // Has been already charged for read.
         if ctx.write_after_read_charged.contains(&page) {
             // Has been already charged for write after read.
-            Ok(None)
+            0.into()
         } else {
             // Charge for write after read.
             ctx.write_after_read_charged.insert(page);
-            Ok(Some(ctx.lazy_pages_weights.write_after_read))
+            ctx.lazy_pages_weights.write_after_read
         }
-    } else if ctx.write_after_read_charged.contains(&page) {
-        Err(Error::WriteAfterReadChargedWithoutReadCharged)
     } else {
         // Charge for write.
         ctx.write_charged.insert(page);
-        Ok(Some(ctx.lazy_pages_weights.write))
+        ctx.lazy_pages_weights.write
     }
 }
 
 fn cost_for_read(
     ctx: &mut RefMut<LazyPagesExecutionContext>,
     page: GranularityPage,
-) -> Result<Option<u64>, Error> {
+) -> CostPerPage<GranularityPage> {
     if ctx.read_charged.contains(&page) || ctx.write_charged.contains(&page) {
         // Has been already charged for write or read - so no need to charge for read.
-        Ok(None)
-    } else if ctx.write_after_read_charged.contains(&page) {
-        Err(Error::WriteAfterReadChargedWithoutReadCharged)
+        0.into()
     } else {
         // Charge for read.
         ctx.read_charged.insert(page);
-        Ok(Some(ctx.lazy_pages_weights.read))
+        ctx.lazy_pages_weights.read
     }
 }
 
@@ -269,12 +266,9 @@ unsafe fn charge_for_pages(
     pages: PagesIterInclusive<LazyPage>,
     is_write: bool,
 ) -> Result<Status, Error> {
-    // +_+_+
-    let globals_config = if let Some(ctx) = ctx.globals_config.as_ref() {
-        ctx.clone()
-    } else {
+    if ctx.globals_config.is_none() {
         return Ok(Status::Normal);
-    };
+    }
 
     let mut amount = 0u64;
     let granularity_pages: BTreeSet<GranularityPage> = pages.map(|page| page.to_page()).collect();
@@ -284,17 +278,20 @@ unsafe fn charge_for_pages(
             cost_for_write(ctx, page)
         } else {
             cost_for_read(ctx, page)
-        }?;
-        amount = amount
-            .checked_add(amount_for_page.unwrap_or_default())
-            .ok_or(Error::ChargedGasTooBig)?;
+        };
+        amount = amount.saturating_add(amount_for_page.calc(1.into()));
     }
 
-    // " * k" because lazy pages costs are per one gear page.
-    let k = (GranularityPage::size() / GearPage::size()) as u64;
-    amount = amount.checked_mul(k).ok_or(Error::ChargedGasTooBig)?;
-
-    charge_gas(&globals_config, amount)
+    if amount != 0 {
+        // Panic is impossible, because we checked above: `ctx.globals_config` is `Some`.
+        let globals_config = ctx
+            .globals_config
+            .as_ref()
+            .unwrap_or_else(|| unreachable!("Globals config is `None`"));
+        charge_gas(globals_config, amount)
+    } else {
+        Ok(Status::Normal)
+    }
 }
 
 unsafe fn charge_for_load_storage_data(
@@ -308,21 +305,15 @@ unsafe fn charge_for_load_storage_data(
     if ctx.read_storage_data_charged.insert(page.to_page()) {
         // Charge for read from storage.
 
-        // +_+_+ consider weight per granularity
-        // " * k" because lazy pages costs are per one gear page.
-        let k = (GranularityPage::size() / GearPage::size()) as u64;
-        let amount = ctx
-            .lazy_pages_weights
-            .load_page_storage_data
-            .checked_mul(k)
-            .ok_or(Error::ChargedGasTooBig)?;
-        // Panic is impossible, because we checked above: `ctx.globals_config` is not `None`.
-        charge_gas(
-            ctx.globals_config
-                .as_ref()
-                .unwrap_or_else(|| unreachable!("Globals config is `None`")),
-            amount,
-        )
+        let amount = ctx.lazy_pages_weights.load_page_storage_data.calc(1.into());
+
+        // Panic is impossible, because we checked above: `ctx.globals_config` is `Some`.
+        let globals_config = ctx
+            .globals_config
+            .as_ref()
+            .unwrap_or_else(|| unreachable!("Globals config is `None`"));
+
+        charge_gas(globals_config, amount)
     } else {
         // Already charged for load from storage
 

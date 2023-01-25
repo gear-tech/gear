@@ -23,7 +23,10 @@ use core::fmt::Debug;
 use alloc::string::String;
 use codec::{Decode, Encode};
 use core::any::Any;
-use gear_core::memory::{GearPage, HostPointer};
+use gear_core::{
+    costs::CostPerPage,
+    memory::{GearPage, GranularityPage, HostPointer},
+};
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Encode, Decode)]
 pub struct ChargeForPages {
@@ -46,13 +49,13 @@ pub enum GlobalsAccessMod {
 #[derive(Debug, Default, Clone, PartialEq, Eq, Encode, Decode)]
 pub struct LazyPagesWeights {
     /// Read access cost per one gear page.
-    pub read: u64,
+    pub read: CostPerPage<GranularityPage>,
     /// Write access cost per one gear page.
-    pub write: u64,
+    pub write: CostPerPage<GranularityPage>,
     /// Write access cost per one gear page, which has been already read accessed.
-    pub write_after_read: u64,
+    pub write_after_read: CostPerPage<GranularityPage>,
     /// +_+_+
-    pub load_page_storage_data: u64,
+    pub load_page_storage_data: CostPerPage<GranularityPage>,
 }
 
 /// Globals ctx for lazy-pages initialization for program.

@@ -1874,7 +1874,7 @@ fn initial_pages_cheaper_than_allocated_pages() {
 
     let wat_initial = r#"
     (module
-        (import "env" "memory" (memory 0x100))
+        (import "env" "memory" (memory 0x10))
         (export "init" (func $init))
         (func $init
             (local $i i32)
@@ -1890,7 +1890,7 @@ fn initial_pages_cheaper_than_allocated_pages() {
                 local.set $i
 
                 local.get $i
-                i32.const 0x1000000
+                i32.const 0x100000
                 i32.ne
                 br_if 0
             )
@@ -1907,7 +1907,7 @@ fn initial_pages_cheaper_than_allocated_pages() {
 
             ;; alloc 0x100 pages, so mem pages are: 0..=0xff
             (block
-                i32.const 0x100
+                i32.const 0x10
                 call $alloc
                 i32.eqz
                 br_if 0
@@ -1926,7 +1926,7 @@ fn initial_pages_cheaper_than_allocated_pages() {
                 local.set $i
 
                 local.get $i
-                i32.const 0x1000000
+                i32.const 0x100000
                 i32.ne
                 br_if 0
             )
@@ -1935,8 +1935,7 @@ fn initial_pages_cheaper_than_allocated_pages() {
 
     init_logger();
     new_test_ext().execute_with(|| {
-        let mut block_number = 1;
-        let mut gas_spent = |wat| {
+        let gas_spent = |wat| {
             let res = Gear::upload_program(
                 RuntimeOrigin::signed(USER_1),
                 ProgramCodeKind::Custom(wat).to_bytes(),
@@ -1947,8 +1946,7 @@ fn initial_pages_cheaper_than_allocated_pages() {
             );
             assert_ok!(res);
 
-            block_number += 1;
-            run_to_block(block_number, None);
+            run_to_next_block(None);
             assert_last_dequeued(1);
 
             GasPrice::gas_price(
@@ -1959,8 +1957,10 @@ fn initial_pages_cheaper_than_allocated_pages() {
         let spent_for_initial_pages = gas_spent(wat_initial);
         let spent_for_allocated_pages = gas_spent(wat_alloc);
         assert!(
-            spent_for_initial_pages < spent_for_allocated_pages, "{}",
-            "spent {spent_for_initial_pages} gas for initial pages, spent {spent_for_allocated_pages} gas for allocated pages",
+            spent_for_initial_pages < spent_for_allocated_pages,
+            "spent {} gas for initial pages, spent {} gas for allocated pages",
+            spent_for_initial_pages,
+            spent_for_allocated_pages,
         );
     });
 }
@@ -4040,7 +4040,8 @@ fn terminated_locking_funds() {
                 code_length as u64,
             )
             + module_instantiation
-            + <Test as Config>::Schedule::get().memory_weights.static_page * code.static_pages().raw() as u64;
+            + <Test as Config>::Schedule::get().memory_weights.static_page
+                * code.static_pages().raw() as u64;
 
         // Because we set gas for init message second execution only for resources loading, then
         // after execution system reserved gas and sended value and price for wait list must be returned

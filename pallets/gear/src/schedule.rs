@@ -465,7 +465,12 @@ pub struct MemoryWeights<T: Config> {
     /// Cost per one [WasmPage] for memory growing.
     pub mem_grow: u64,
 
-    // pub parachain_read_heuristic: u64,
+    /// Cost per one [GranularityPage].
+    /// When we read page data from storage in para-chain, then it should be sent to relay-chain,
+    /// in order to use it for process queue execution. So, reading from storage cause
+    /// additional resources consumption after block(s) production on para-chain.
+    pub parachain_read_heuristic: u64,
+
     /// The type parameter is used in the default implementation.
     #[codec(skip)]
     pub _phantom: PhantomData<T>,
@@ -482,6 +487,7 @@ impl<T: Config> From<MemoryWeights<T>> for PageCosts {
             upload_page_data: val.upload_page_data.into(),
             static_page: val.static_page.into(),
             mem_grow: val.mem_grow.into(),
+            parachain_read_heuristic: val.parachain_read_heuristic.into(),
         }
     }
 }
@@ -802,6 +808,8 @@ impl<T: Config> Default for MemoryWeights<T> {
             // TODO: make benches to calculate static page cost and mem grow cost (issue #+_+_+)
             static_page: 100,
             mem_grow: 100,
+            // TODO: make it non-zero for para-chains (issue #+_+_+)
+            parachain_read_heuristic: 0,
             _phantom: PhantomData,
         }
     }
