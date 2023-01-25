@@ -126,9 +126,6 @@ pub enum ProcessorError {
     /// Termination reason occurred in a syscall
     #[display(fmt = "Terminated: {_0:?}")]
     Terminated(TerminationReason),
-    /// User's code panicked
-    #[display(fmt = "Panic occurred: {_0}")]
-    Panic(String),
 }
 
 impl ProcessorError {
@@ -144,7 +141,6 @@ impl ProcessorError {
     pub fn into_trap_explanation(self) -> Option<TrapExplanation> {
         match self {
             Self::Core(err) => Some(TrapExplanation::Core(err)),
-            Self::Panic(msg) => Some(TrapExplanation::Other(msg.into())),
             _ => None,
         }
     }
