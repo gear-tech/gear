@@ -32,10 +32,9 @@ use codec::Encode;
 use core::{any::Any, fmt};
 use gear_backend_common::{
     calc_stack_end,
-    error_processor::IntoExtError,
     lazy_pages::{GlobalsAccessError, GlobalsAccessMod, GlobalsAccessor, GlobalsConfig},
-    BackendReport, Environment, GetGasAmount, IntoExtInfo, StackEndError, TerminationReason,
-    TrapExplanation, STACK_END_EXPORT_NAME,
+    BackendReport, Environment, GetGasAmount, IntoExtError, IntoExtInfo, StackEndError,
+    TerminationReason, TrapExplanation, STACK_END_EXPORT_NAME,
 };
 use gear_core::{
     env::Ext,
@@ -372,14 +371,14 @@ where
         log::debug!("WasmiEnvironment::execute result = {res:?}");
 
         let termination_reason = if res.is_err() {
-            let reason = runtime_err.into_termination_reason();
+            let mut reason = runtime_err.into_termination_reason();
 
             // success is unacceptable when there is an error
             if let TerminationReason::Success = reason {
-                TerminationReason::Trap(TrapExplanation::Unknown)
-            } else {
-                reason
+                reason = TerminationReason::Trap(TrapExplanation::Unknown)
             }
+
+            reason
         } else {
             TerminationReason::Success
         };

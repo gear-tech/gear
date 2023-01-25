@@ -17,8 +17,8 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    error_processor::IntoExtError, memory::OutOfMemoryAccessError, ExtInfo, GetGasAmount,
-    IntoExtInfo, SystemReservationContext,
+    memory::OutOfMemoryAccessError, ExtInfo, GetGasAmount, IntoExtError, IntoExtInfo,
+    SystemReservationContext, TerminationReason,
 };
 use alloc::collections::BTreeSet;
 use codec::{Decode, Encode};
@@ -53,6 +53,10 @@ impl CoreError for Error {
 
 impl IntoExtError for Error {
     fn into_ext_error(self) -> Result<ExtError, Self> {
+        todo!()
+    }
+
+    fn into_termination_reason(self) -> TerminationReason {
         todo!()
     }
 }

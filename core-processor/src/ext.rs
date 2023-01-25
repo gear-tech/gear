@@ -24,10 +24,10 @@ use alloc::{
 };
 use codec::{Decode, Encode};
 use gear_backend_common::{
-    error_processor::IntoExtError,
     lazy_pages::{GlobalsConfig, LazyPagesWeights, Status},
     memory::OutOfMemoryAccessError,
-    ExtInfo, GetGasAmount, IntoExtInfo, SystemReservationContext,
+    ExtInfo, GetGasAmount, IntoExtError, IntoExtInfo, SystemReservationContext, TerminationReason,
+    TrapExplanation,
 };
 use gear_core::{
     costs::{HostFnWeights, RuntimeCosts},
@@ -127,16 +127,6 @@ pub enum ProcessorError {
     GasAllowanceExceeded,
 }
 
-impl ProcessorError {
-    /// Tries to represent this error as [`ExtError`]
-    pub fn as_ext_error(&self) -> Option<&ExtError> {
-        match self {
-            ProcessorError::Core(err) => Some(err),
-            _ => None,
-        }
-    }
-}
-
 impl From<MessageError> for ProcessorError {
     fn from(err: MessageError) -> Self {
         Self::Core(ExtError::Message(err))
@@ -172,6 +162,13 @@ impl IntoExtError for ProcessorError {
         match self {
             ProcessorError::Core(err) => Ok(err),
             err => Err(err),
+        }
+    }
+
+    fn into_termination_reason(self) -> TerminationReason {
+        match self {
+            ProcessorError::Core(err) => TerminationReason::Trap(TrapExplanation::Core(err)),
+            ProcessorError::GasAllowanceExceeded => TerminationReason::GasAllowanceExceeded,
         }
     }
 }

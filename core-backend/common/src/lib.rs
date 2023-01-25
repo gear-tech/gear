@@ -22,7 +22,6 @@
 
 extern crate alloc;
 
-pub mod error_processor;
 pub mod lazy_pages;
 
 mod utils;
@@ -60,6 +59,12 @@ use gear_core::{
 use gear_core_errors::{ExtError, MemoryError};
 use lazy_pages::GlobalsConfig;
 use scale_info::TypeInfo;
+
+pub trait IntoExtError: Sized {
+    fn into_ext_error(self) -> Result<ExtError, Self>;
+
+    fn into_termination_reason(self) -> TerminationReason;
+}
 
 // Max amount of bytes allowed to be thrown as string explanation of the error.
 pub const TRIMMED_MAX_LEN: usize = 1024;

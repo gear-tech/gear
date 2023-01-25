@@ -19,7 +19,7 @@
 use crate::state::HostState;
 use alloc::collections::{BTreeMap, BTreeSet};
 use codec::Encode;
-use gear_backend_common::{error_processor::IntoExtError, IntoExtInfo};
+use gear_backend_common::{IntoExtError, IntoExtInfo};
 use gear_core::env::Ext;
 use gear_wasm_instrument::syscalls::SysCallName::{self, *};
 use wasmi::{Func, Memory, Store};

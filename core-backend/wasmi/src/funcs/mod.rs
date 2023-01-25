@@ -18,7 +18,11 @@
 
 mod internal;
 
-use crate::{funcs::internal::CallerWrap, memory::MemoryWrapRef, state::HostState};
+use crate::{
+    funcs::internal::CallerWrap,
+    memory::MemoryWrapRef,
+    state::{HostState, State},
+};
 #[cfg(not(feature = "std"))]
 use alloc::string::ToString;
 use blake2_rfc::blake2b::blake2b;
@@ -30,9 +34,8 @@ use core::{
     ops::Range,
 };
 use gear_backend_common::{
-    error_processor::{IntoExtError, ProcessError},
     memory::{MemoryAccessError, MemoryAccessRecorder, MemoryOwner},
-    IntoExtInfo, TerminationReason, TrapExplanation,
+    IntoExtError, IntoExtInfo, TerminationReason, TrapExplanation,
 };
 use gear_core::{
     buffer::RuntimeBufferSizeError,
@@ -101,10 +104,11 @@ impl<E: Display> From<MemoryAccessError> for FuncError<E> {
 
 impl<E> FuncError<E>
 where
-    E: Display,
+    E: Display + IntoExtError,
 {
     pub fn into_termination_reason(self) -> TerminationReason {
         match self {
+            Self::Core(err) => err.into_termination_reason(),
             Self::Terminated(reason) => reason,
             err => TerminationReason::Trap(TrapExplanation::Other(err.to_string().into())),
         }
@@ -114,6 +118,33 @@ where
 impl<E: Display> From<MemoryError> for FuncError<E> {
     fn from(err: MemoryError) -> Self {
         Self::Memory(err)
+    }
+}
+
+trait IntoExtErrorForResult<T, Err, Ext>
+where
+    Err: Display,
+    Ext: gear_core::env::Ext,
+{
+    fn into_ext_error(self, state: &mut State<Ext>) -> Result<Result<T, u32>, FuncError<Err>>;
+}
+
+impl<T, Err, Ext> IntoExtErrorForResult<T, Err, Ext> for Result<T, Err>
+where
+    Err: IntoExtError + Display + Clone,
+    Ext: gear_core::env::Ext<Error = Err>,
+{
+    fn into_ext_error(self, state: &mut State<Ext>) -> Result<Result<T, u32>, FuncError<Err>> {
+        match self {
+            Ok(value) => Ok(Ok(value)),
+            Err(err) => {
+                state.err = FuncError::Core(err.clone());
+                match err.into_ext_error() {
+                    Ok(ext_err) => Ok(Err(ext_err.encoded_size() as u32)),
+                    Err(err) => Err(FuncError::Core(err)),
+                }
+            }
+        }
     }
 }
 
@@ -150,12 +181,13 @@ where
                 } = ctx.read_as(read_hash_val)?;
                 let payload = ctx.read(read_payload)?.try_into()?;
 
-                ctx.host_state_mut()
+                let state = ctx.host_state_mut();
+                let res = state
                     .ext
                     .send(HandlePacket::new(destination.into(), payload, value), delay)
-                    .process_error()
-                    .map_err(FuncError::Core)?
-                    .proc_res(|res| ctx.write_as(write_err_mid, LengthWithHash::from(res)))
+                    .into_ext_error(state)?;
+                ctx.write_as(write_err_mid, LengthWithHash::from(res))?;
+                Ok(())
             })
         };
 
@@ -188,15 +220,16 @@ where
                 } = ctx.read_as(read_hash_val)?;
                 let payload = ctx.read(read_payload)?.try_into()?;
 
-                ctx.host_state_mut()
+                let state = ctx.host_state_mut();
+                let res = state
                     .ext
                     .send(
                         HandlePacket::new_with_gas(destination.into(), payload, gas_limit, value),
                         delay,
                     )
-                    .process_error()
-                    .map_err(FuncError::Core)?
-                    .proc_res(|res| ctx.write_as(write_err_mid, LengthWithHash::from(res)))
+                    .into_ext_error(state)?;
+                ctx.write_as(write_err_mid, LengthWithHash::from(res))?;
+                Ok(())
             })
         };
 
@@ -225,16 +258,17 @@ where
                     value,
                 } = ctx.read_as(read_pid_value)?;
 
-                ctx.host_state_mut()
+                let state = ctx.host_state_mut();
+                let res = state
                     .ext
                     .send_commit(
                         handle,
                         HandlePacket::new(destination.into(), Default::default(), value),
                         delay,
                     )
-                    .process_error()
-                    .map_err(FuncError::Core)?
-                    .proc_res(|res| ctx.write_as(write_err_mid, LengthWithHash::from(res)))
+                    .into_ext_error(state)?;
+                ctx.write_as(write_err_mid, LengthWithHash::from(res))?;
+                Ok(())
             })
         };
 
@@ -264,7 +298,8 @@ where
                     value,
                 } = ctx.read_as(read_pid_value)?;
 
-                ctx.host_state_mut()
+                let state = ctx.host_state_mut();
+                let res = state
                     .ext
                     .send_commit(
                         handle,
@@ -276,9 +311,9 @@ where
                         ),
                         delay,
                     )
-                    .process_error()
-                    .map_err(FuncError::Core)?
-                    .proc_res(|res| ctx.write_as(write_err_mid, LengthWithHash::from(res)))
+                    .into_ext_error(state)?;
+                ctx.write_as(write_err_mid, LengthWithHash::from(res))?;
+                Ok(())
             })
         };
 
@@ -296,12 +331,10 @@ where
             ctx.run(|ctx| {
                 let write_err_handle = ctx.register_write_as(err_handle_ptr);
 
-                ctx.host_state_mut()
-                    .ext
-                    .send_init()
-                    .process_error()
-                    .map_err(FuncError::Core)?
-                    .proc_res(|res| ctx.write_as(write_err_handle, LengthWithHandle::from(res)))
+                let state = ctx.host_state_mut();
+                let res = state.ext.send_init().into_ext_error(state)?;
+                ctx.write_as(write_err_handle, LengthWithHandle::from(res))?;
+                Ok(())
             })
         };
 
@@ -327,13 +360,12 @@ where
 
                 let payload = ctx.read(read_payload)?;
 
-                let len = ctx
-                    .host_state_mut()
+                let state = ctx.host_state_mut();
+                let res = state
                     .ext
                     .send_push(handle, &payload)
-                    .process_error()
-                    .map_err(FuncError::Core)?
-                    .error_len();
+                    .into_ext_error(state)?;
+                let len = res.err().unwrap_or(0);
 
                 ctx.write_as(write_err_len, len.to_le_bytes())
                     .map_err(Into::into)
@@ -369,16 +401,17 @@ where
                 } = ctx.read_as(read_rid_pid_value)?;
                 let payload = ctx.read(read_payload)?.try_into()?;
 
-                ctx.host_state_mut()
+                let state = ctx.host_state_mut();
+                let res = state
                     .ext
                     .reservation_send(
                         reservation_id.into(),
                         HandlePacket::new(destination.into(), payload, value),
                         delay,
                     )
-                    .process_error()
-                    .map_err(FuncError::Core)?
-                    .proc_res(|res| ctx.write_as(write_err_mid, LengthWithHash::from(res)))
+                    .into_ext_error(state)?;
+                ctx.write_as(write_err_mid, LengthWithHash::from(res))?;
+                Ok(())
             })
         };
 
@@ -408,7 +441,8 @@ where
                     value,
                 } = ctx.read_as(read_rid_pid_value)?;
 
-                ctx.host_state_mut()
+                let state = ctx.host_state_mut();
+                let res = state
                     .ext
                     .reservation_send_commit(
                         reservation_id.into(),
@@ -416,9 +450,9 @@ where
                         HandlePacket::new(destination.into(), Default::default(), value),
                         delay,
                     )
-                    .process_error()
-                    .map_err(FuncError::Core)?
-                    .proc_res(|res| ctx.write_as(write_err_mid, LengthWithHash::from(res)))
+                    .into_ext_error(state)?;
+                ctx.write_as(write_err_mid, LengthWithHash::from(res))?;
+                Ok(())
             })
         };
 
@@ -514,12 +548,10 @@ where
             ctx.run(|ctx| {
                 let write_err_code = ctx.register_write_as(err_code_ptr);
 
-                ctx.host_state_mut()
-                    .ext
-                    .status_code()
-                    .process_error()
-                    .map_err(FuncError::Core)?
-                    .proc_res(|res| ctx.write_as(write_err_code, LengthWithCode::from(res)))
+                let state = ctx.host_state_mut();
+                let res = state.ext.status_code().into_ext_error(state)?;
+                ctx.write_as(write_err_code, LengthWithCode::from(res))?;
+                Ok(())
             })
         };
 
@@ -650,12 +682,13 @@ where
                 };
                 let payload = ctx.read(read_payload)?.try_into()?;
 
-                ctx.host_state_mut()
+                let state = ctx.host_state_mut();
+                let res = state
                     .ext
                     .reply(ReplyPacket::new(payload, value), delay)
-                    .process_error()
-                    .map_err(FuncError::Core)?
-                    .proc_res(|res| ctx.write_as(write_err_mid, LengthWithHash::from(res)))
+                    .into_ext_error(state)?;
+                ctx.write_as(write_err_mid, LengthWithHash::from(res))?;
+                Ok(())
             })
         };
 
@@ -689,12 +722,13 @@ where
                 };
                 let payload = ctx.read(read_payload)?.try_into()?;
 
-                ctx.host_state_mut()
+                let state = ctx.host_state_mut();
+                let res = state
                     .ext
                     .reply(ReplyPacket::new_with_gas(payload, gas_limit, value), delay)
-                    .process_error()
-                    .map_err(FuncError::Core)?
-                    .proc_res(|res| ctx.write_as(write_err_mid, LengthWithHash::from(res)))
+                    .into_ext_error(state)?;
+                ctx.write_as(write_err_mid, LengthWithHash::from(res))?;
+                Ok(())
             })
         };
 
@@ -723,12 +757,13 @@ where
                     0
                 };
 
-                ctx.host_state_mut()
+                let state = ctx.host_state_mut();
+                let res = state
                     .ext
                     .reply_commit(ReplyPacket::new(Default::default(), value), delay)
-                    .process_error()
-                    .map_err(FuncError::Core)?
-                    .proc_res(|res| ctx.write_as(write_err_mid, LengthWithHash::from(res)))
+                    .into_ext_error(state)?;
+                ctx.write_as(write_err_mid, LengthWithHash::from(res))?;
+                Ok(())
             })
         };
 
@@ -758,15 +793,16 @@ where
                     0
                 };
 
-                ctx.host_state_mut()
+                let state = ctx.host_state_mut();
+                let res = state
                     .ext
                     .reply_commit(
                         ReplyPacket::new_with_gas(Default::default(), gas_limit, value),
                         delay,
                     )
-                    .process_error()
-                    .map_err(FuncError::Core)?
-                    .proc_res(|res| ctx.write_as(write_err_mid, LengthWithHash::from(res)))
+                    .into_ext_error(state)?;
+                ctx.write_as(write_err_mid, LengthWithHash::from(res))?;
+                Ok(())
             })
         };
 
@@ -798,16 +834,17 @@ where
                 } = ctx.read_as(read_rid_value)?;
                 let payload = ctx.read(read_payload)?.try_into()?;
 
-                ctx.host_state_mut()
+                let state = ctx.host_state_mut();
+                let res = state
                     .ext
                     .reservation_reply(
                         reservation_id.into(),
                         ReplyPacket::new(payload, value),
                         delay,
                     )
-                    .process_error()
-                    .map_err(FuncError::Core)?
-                    .proc_res(|res| ctx.write_as(write_err_mid, LengthWithHash::from(res)))
+                    .into_ext_error(state)?;
+                ctx.write_as(write_err_mid, LengthWithHash::from(res))?;
+                Ok(())
             })
         };
 
@@ -835,16 +872,17 @@ where
                     value,
                 } = ctx.read_as(read_rid_value)?;
 
-                ctx.host_state_mut()
+                let state = ctx.host_state_mut();
+                let res = state
                     .ext
                     .reservation_reply_commit(
                         reservation_id.into(),
                         ReplyPacket::new(Default::default(), value),
                         delay,
                     )
-                    .process_error()
-                    .map_err(FuncError::Core)?
-                    .proc_res(|res| ctx.write_as(write_err_mid, LengthWithHash::from(res)))
+                    .into_ext_error(state)?;
+                ctx.write_as(write_err_mid, LengthWithHash::from(res))?;
+                Ok(())
             })
         };
 
@@ -858,12 +896,10 @@ where
             ctx.run(|ctx| {
                 let write_err_mid = ctx.register_write_as(err_mid_ptr);
 
-                ctx.host_state_mut()
-                    .ext
-                    .reply_to()
-                    .process_error()
-                    .map_err(FuncError::Core)?
-                    .proc_res(|res| ctx.write_as(write_err_mid, LengthWithHash::from(res)))
+                let state = ctx.host_state_mut();
+                let res = state.ext.reply_to().into_ext_error(state)?;
+                ctx.write_as(write_err_mid, LengthWithHash::from(res))?;
+                Ok(())
             })
         };
 
@@ -881,12 +917,10 @@ where
             ctx.run(|ctx| {
                 let write_err_mid = ctx.register_write_as(err_mid_ptr);
 
-                ctx.host_state_mut()
-                    .ext
-                    .signal_from()
-                    .process_error()
-                    .map_err(FuncError::Core)?
-                    .proc_res(|res| ctx.write_as(write_err_mid, LengthWithHash::from(res)))
+                let state = ctx.host_state_mut();
+                let res = state.ext.signal_from().into_ext_error(state)?;
+                ctx.write_as(write_err_mid, LengthWithHash::from(res))?;
+                Ok(())
             })
         };
 
@@ -911,13 +945,9 @@ where
 
                 let payload = ctx.read(read_payload)?;
 
-                let len = ctx
-                    .host_state_mut()
-                    .ext
-                    .reply_push(&payload)
-                    .process_error()
-                    .map_err(FuncError::Core)?
-                    .error_len();
+                let state = ctx.host_state_mut();
+                let res = state.ext.reply_push(&payload).into_ext_error(state)?;
+                let len = res.err().unwrap_or(0);
 
                 ctx.write_as(write_err_len, len.to_le_bytes())
                     .map_err(Into::into)
@@ -951,16 +981,16 @@ where
                     0
                 };
 
-                let push_result = ctx.host_state_mut().ext.reply_push_input(offset, len);
-                push_result
-                    .and_then(|_| {
-                        ctx.host_state_mut()
-                            .ext
-                            .reply_commit(ReplyPacket::new(Default::default(), value), delay)
-                    })
-                    .process_error()
-                    .map_err(FuncError::Core)?
-                    .proc_res(|res| ctx.write_as(write_err_mid, LengthWithHash::from(res)))
+                let state = ctx.host_state_mut();
+                let mut f = || {
+                    state.ext.reply_push_input(offset, len)?;
+                    state
+                        .ext
+                        .reply_commit(ReplyPacket::new(Default::default(), value), delay)
+                };
+                let res = f().into_ext_error(state)?;
+                ctx.write_as(write_err_mid, LengthWithHash::from(res))?;
+                Ok(())
             })
         };
 
@@ -982,15 +1012,14 @@ where
             ctx.run(|ctx| {
                 let write_err_len = ctx.register_write_as(err_ptr);
 
-                let result_len = ctx
-                    .host_state_mut()
+                let state = ctx.host_state_mut();
+                let res = state
                     .ext
                     .reply_push_input(offset, len)
-                    .process_error()
-                    .map_err(FuncError::Core)?
-                    .error_len();
+                    .into_ext_error(state)?;
+                let len = res.err().unwrap_or(0);
 
-                ctx.write_as(write_err_len, result_len.to_le_bytes())
+                ctx.write_as(write_err_len, len.to_le_bytes())
                     .map_err(Into::into)
             })
         };
@@ -1023,17 +1052,17 @@ where
                     0
                 };
 
-                let push_result = ctx.host_state_mut().ext.reply_push_input(offset, len);
-                push_result
-                    .and_then(|_| {
-                        ctx.host_state_mut().ext.reply_commit(
-                            ReplyPacket::new_with_gas(Default::default(), gas_limit, value),
-                            delay,
-                        )
-                    })
-                    .process_error()
-                    .map_err(FuncError::Core)?
-                    .proc_res(|res| ctx.write_as(write_err_mid, LengthWithHash::from(res)))
+                let state = ctx.host_state_mut();
+                let mut f = || {
+                    state.ext.reply_push_input(offset, len)?;
+                    state.ext.reply_commit(
+                        ReplyPacket::new_with_gas(Default::default(), gas_limit, value),
+                        delay,
+                    )
+                };
+                let res = f().into_ext_error(state)?;
+                ctx.write_as(write_err_mid, LengthWithHash::from(res))?;
+                Ok(())
             })
         };
 
@@ -1063,24 +1092,19 @@ where
                     value,
                 } = ctx.read_as(read_pid_value)?;
 
-                let handle = ctx.host_state_mut().ext.send_init();
-                let push_result = handle.and_then(|h| {
-                    ctx.host_state_mut()
-                        .ext
-                        .send_push_input(h, offset, len)
-                        .map(|_| h)
-                });
-                push_result
-                    .and_then(|h| {
-                        ctx.host_state_mut().ext.send_commit(
-                            h,
-                            HandlePacket::new(destination.into(), Default::default(), value),
-                            delay,
-                        )
-                    })
-                    .process_error()
-                    .map_err(FuncError::Core)?
-                    .proc_res(|res| ctx.write_as(write_err_mid, LengthWithHash::from(res)))
+                let state = ctx.host_state_mut();
+                let mut f = || {
+                    let handle = state.ext.send_init()?;
+                    state.ext.send_push_input(handle, offset, len)?;
+                    state.ext.send_commit(
+                        handle,
+                        HandlePacket::new(destination.into(), Default::default(), value),
+                        delay,
+                    )
+                };
+                let res = f().into_ext_error(state)?;
+                ctx.write_as(write_err_mid, LengthWithHash::from(res))?;
+                Ok(())
             })
         };
 
@@ -1103,15 +1127,14 @@ where
             ctx.run(|ctx| {
                 let write_err_len = ctx.register_write_as(err_ptr);
 
-                let result_len = ctx
-                    .host_state_mut()
+                let state = ctx.host_state_mut();
+                let res = state
                     .ext
                     .send_push_input(handle, offset, len)
-                    .process_error()
-                    .map_err(FuncError::Core)?
-                    .error_len();
+                    .into_ext_error(state)?;
+                let len = res.err().unwrap_or(0);
 
-                ctx.write_as(write_err_len, result_len.to_le_bytes())
+                ctx.write_as(write_err_len, len.to_le_bytes())
                     .map_err(Into::into)
             })
         };
@@ -1143,29 +1166,24 @@ where
                     value,
                 } = ctx.read_as(read_pid_value)?;
 
-                let handle = ctx.host_state_mut().ext.send_init();
-                let push_result = handle.and_then(|h| {
-                    ctx.host_state_mut()
-                        .ext
-                        .send_push_input(h, offset, len)
-                        .map(|_| h)
-                });
-                push_result
-                    .and_then(|h| {
-                        ctx.host_state_mut().ext.send_commit(
-                            h,
-                            HandlePacket::new_with_gas(
-                                destination.into(),
-                                Default::default(),
-                                gas_limit,
-                                value,
-                            ),
-                            delay,
-                        )
-                    })
-                    .process_error()
-                    .map_err(FuncError::Core)?
-                    .proc_res(|res| ctx.write_as(write_err_mid, LengthWithHash::from(res)))
+                let state = ctx.host_state_mut();
+                let mut f = || {
+                    let handle = state.ext.send_init()?;
+                    state.ext.send_push_input(handle, offset, len)?;
+                    state.ext.send_commit(
+                        handle,
+                        HandlePacket::new_with_gas(
+                            destination.into(),
+                            Default::default(),
+                            gas_limit,
+                            value,
+                        ),
+                        delay,
+                    )
+                };
+                let res = f().into_ext_error(state)?;
+                ctx.write_as(write_err_mid, LengthWithHash::from(res))?;
+                Ok(())
             })
         };
 
@@ -1210,12 +1228,10 @@ where
             ctx.run(|ctx| {
                 let write_err_rid = ctx.register_write_as(err_rid_ptr);
 
-                ctx.host_state_mut()
-                    .ext
-                    .reserve_gas(gas, duration)
-                    .process_error()
-                    .map_err(FuncError::Core)?
-                    .proc_res(|res| ctx.write_as(write_err_rid, LengthWithHash::from(res)))
+                let state = ctx.host_state_mut();
+                let res = state.ext.reserve_gas(gas, duration).into_ext_error(state)?;
+                ctx.write_as(write_err_rid, LengthWithHash::from(res))?;
+                Ok(())
             })
         };
 
@@ -1239,12 +1255,10 @@ where
 
                 let id = ctx.read_decoded(read_reservation_id)?;
 
-                ctx.host_state_mut()
-                    .ext
-                    .unreserve_gas(id)
-                    .process_error()
-                    .map_err(FuncError::Core)?
-                    .proc_res(|res| ctx.write_as(write_err_unreserved, LengthWithGas::from(res)))
+                let state = ctx.host_state_mut();
+                let res = state.ext.unreserve_gas(id).into_ext_error(state)?;
+                ctx.write_as(write_err_unreserved, LengthWithGas::from(res))?;
+                Ok(())
             })
         };
 
@@ -1262,13 +1276,9 @@ where
             ctx.run(|ctx| {
                 let write_err_len = ctx.register_write_as(err_ptr);
 
-                let len = ctx
-                    .host_state_mut()
-                    .ext
-                    .system_reserve_gas(gas)
-                    .process_error()
-                    .map_err(FuncError::Core)?
-                    .error_len();
+                let state = ctx.host_state_mut();
+                let res = state.ext.system_reserve_gas(gas).into_ext_error(state)?;
+                let len = res.err().unwrap_or(0);
 
                 ctx.write_as(write_err_len, len.to_le_bytes())
                     .map_err(Into::into)
@@ -1545,13 +1555,9 @@ where
 
                 let message_id = ctx.read_decoded(read_message_id)?;
 
-                let len = ctx
-                    .host_state_mut()
-                    .ext
-                    .wake(message_id, delay)
-                    .process_error()
-                    .map_err(FuncError::Core)?
-                    .error_len();
+                let state = ctx.host_state_mut();
+                let res = state.ext.wake(message_id, delay).into_ext_error(state)?;
+                let len = res.err().unwrap_or(0);
 
                 ctx.write_as(write_err_len, len.to_le_bytes())
                     .map_err(Into::into)
@@ -1590,12 +1596,13 @@ where
                 let salt = ctx.read(read_salt)?.try_into()?;
                 let payload = ctx.read(read_payload)?.try_into()?;
 
-                ctx.host_state_mut()
+                let state = ctx.host_state_mut();
+                let res = state
                     .ext
                     .create_program(InitPacket::new(code_id.into(), salt, payload, value), delay)
-                    .process_error()
-                    .map_err(FuncError::Core)?
-                    .proc_res(|res| ctx.write_as(write_err_mid_pid, LengthWithTwoHashes::from(res)))
+                    .into_ext_error(state)?;
+                ctx.write_as(write_err_mid_pid, LengthWithTwoHashes::from(res))?;
+                Ok(())
             })
         };
 
@@ -1632,15 +1639,16 @@ where
                 let salt = ctx.read(read_salt)?.try_into()?;
                 let payload = ctx.read(read_payload)?.try_into()?;
 
-                ctx.host_state_mut()
+                let state = ctx.host_state_mut();
+                let res = state
                     .ext
                     .create_program(
                         InitPacket::new_with_gas(code_id.into(), salt, payload, gas_limit, value),
                         delay,
                     )
-                    .process_error()
-                    .map_err(FuncError::Core)?
-                    .proc_res(|res| ctx.write_as(write_err_mid_pid, LengthWithTwoHashes::from(res)))
+                    .into_ext_error(state)?;
+                ctx.write_as(write_err_mid_pid, LengthWithTwoHashes::from(res))?;
+                Ok(())
             })
         };
 
@@ -1648,43 +1656,40 @@ where
     }
 
     pub fn error(store: &mut Store<HostState<E>>, forbidden: bool, memory: WasmiMemory) -> Func {
-        let func =
-            move |caller: Caller<'_, HostState<E>>, error_ptr: u32, err_ptr: u32| -> EmptyOutput {
-                let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
+        let func = move |caller: Caller<'_, HostState<E>>,
+                         err_buf_ptr: u32,
+                         err_len_ptr: u32|
+              -> EmptyOutput {
+            let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
-                ctx.run(|ctx| {
-                    let last_err = match ctx.host_state_mut().err.clone() {
-                        FuncError::Core(maybe_ext) => {
-                            maybe_ext.into_ext_error().unwrap_or(ExtError::SyscallUsage)
-                        }
-                        _ => ExtError::SyscallUsage,
-                    };
+            ctx.run(|ctx| {
+                let state = ctx.host_state_mut();
+                let last_err = match state.err.clone() {
+                    FuncError::Core(maybe_ext) => maybe_ext
+                        .into_ext_error()
+                        .map_err(|_| ExtError::SyscallUsage),
+                    _ => Err(ExtError::SyscallUsage),
+                };
 
-                    Ok(last_err)
-                        .process_error()
-                        .map_err(FuncError::Core)?
-                        .proc_res(|res| -> Result<(), FuncError<E::Error>> {
-                            let write_err_len = ctx.register_write_as(err_ptr);
-                            let length = match res {
-                                Ok(err) => {
-                                    let err = err.encode();
-                                    let write_error_bytes =
-                                        ctx.register_write(error_ptr, err.len() as u32);
-                                    ctx.write(write_error_bytes, err.as_ref())?;
-                                    0
-                                }
-                                Err(length) => length,
-                            };
+                let write_err_len = ctx.register_write_as(err_len_ptr);
+                let len: u32 = match last_err {
+                    Ok(err) => {
+                        let err = err.encode();
+                        let write_error_bytes = ctx.register_write(err_buf_ptr, err.len() as u32);
+                        ctx.write(write_error_bytes, err.as_ref())?;
+                        0
+                    }
+                    Err(err) => err.encoded_size() as u32,
+                };
 
-                            ctx.host_state_mut()
-                                .ext
-                                .charge_error()
-                                .map_err(FuncError::Core)?;
-                            ctx.write_as(write_err_len, length.to_le_bytes())?;
-                            Ok(())
-                        })
-                })
-            };
+                ctx.host_state_mut()
+                    .ext
+                    .charge_error()
+                    .map_err(FuncError::Core)?;
+                ctx.write_as(write_err_len, len.to_le_bytes())?;
+                Ok(())
+            })
+        };
 
         Func::wrap(store, func)
     }
@@ -1710,8 +1715,7 @@ where
                 .as_mut()
                 .expect("host_state should be set before execution");
 
-            host_state.ext.out_of_allowance();
-            host_state.err = FuncError::Terminated(TerminationReason::GasAllowanceExceeded);
+            host_state.err = FuncError::Core(host_state.ext.out_of_allowance());
 
             Err(TrapCode::Unreachable.into())
         };
