@@ -52,6 +52,8 @@ use std::{
     time::Instant,
 };
 
+const DEFAULT_BLOCK_NUMBER: u32 = 0;
+
 impl CliConfiguration for RuntimeTestCmd {
     fn shared_params(&self) -> &SharedParams {
         &self.shared_params
@@ -212,7 +214,6 @@ macro_rules! command {
         }
 
         fn run_fixture(test: &'_ sample::Test, fixture: &sample::Fixture) -> ColoredString {
-            const DEFAULT_BLOCK_NUMBER: u32 = 0;
             let mut snapshots = Vec::new();
             let mut progs_n_paths: Vec<(&str, ProgramId)> = vec![];
             pallet_gear_debug::DebugMode::<Runtime>::put(true);

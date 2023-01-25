@@ -242,10 +242,10 @@ where
 
     pub fn set_program(
         &self,
-        block_number: <T as frame_system::Config>::BlockNumber,
         program_id: ProgramId,
         code_info: &CodeInfo,
         message_id: MessageId,
+        block_number: <T as frame_system::Config>::BlockNumber,
     ) {
         // Program can be added to the storage only with code, which is done in
         // `submit_program` or `upload_code` extrinsic.

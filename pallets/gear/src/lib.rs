@@ -602,10 +602,10 @@ pub mod pallet {
             let block_number = Self::block_number().unique_saturated_into();
 
             ExtManager::<T>::default().set_program(
-                block_number,
                 program_id,
                 &code_info,
                 message_id,
+                block_number,
             );
 
             // # Safety
@@ -799,7 +799,7 @@ pub mod pallet {
         /// Returns true if a program has been successfully initialized
         pub fn is_initialized(program_id: ProgramId) -> bool {
             ProgramStorageOf::<T>::get_program(program_id)
-                .map(|p| p.0.is_initialized())
+                .map(|(p, _bn)| p.is_initialized())
                 .unwrap_or(false)
         }
 
@@ -1190,10 +1190,10 @@ pub mod pallet {
             let block_number = Self::block_number().unique_saturated_into();
 
             ExtManager::<T>::default().set_program(
-                block_number,
                 packet.destination(),
                 &code_info,
                 message_id,
+                block_number,
             );
 
             // # Safety

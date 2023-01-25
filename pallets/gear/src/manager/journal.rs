@@ -162,7 +162,7 @@ where
                 ProgramStorageOf::<T>::update_program_if_active(program_id, |p, bn_ref| {
                     *bn_ref = Pallet::<T>::block_number();
                     *p = Program::Terminated(origin);
-                },).unwrap_or_else(|e| {
+                }).unwrap_or_else(|e| {
                     if !maybe_inactive {
                         unreachable!(
                             "Program terminated status may only be set to an existing active program: {:?}",
@@ -456,7 +456,7 @@ where
             for (init_message, candidate_id) in candidates {
                 if !ProgramStorageOf::<T>::program_exists(candidate_id) {
                     let block_number = Pallet::<T>::block_number();
-                    self.set_program(block_number, candidate_id, &code_info, init_message);
+                    self.set_program(candidate_id, &code_info, init_message, block_number);
                 } else {
                     log::debug!("Program with id {:?} already exists", candidate_id);
                 }

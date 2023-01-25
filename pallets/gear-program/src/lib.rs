@@ -171,7 +171,7 @@ pub mod pallet {
         CannotFindDataForPage,
     }
 
-    impl<Runtime: Config> common::ProgramStorageError for Error<Runtime> {
+    impl<T: Config> common::ProgramStorageError for Error<T> {
         fn duplicate_item() -> Self {
             Self::DuplicateItem
         }
@@ -294,30 +294,28 @@ pub mod pallet {
     }
 
     #[cfg(feature = "debug-mode")]
-    impl<Runtime: Config> IterableMap<(ProgramId, (Program, Runtime::BlockNumber))>
-        for pallet::Pallet<Runtime>
-    {
-        type DrainIter = PrefixIterator<(ProgramId, (Program, Runtime::BlockNumber))>;
-        type Iter = PrefixIterator<(ProgramId, (Program, Runtime::BlockNumber))>;
+    impl<T: Config> IterableMap<(ProgramId, (Program, T::BlockNumber))> for pallet::Pallet<T> {
+        type DrainIter = PrefixIterator<(ProgramId, (Program, T::BlockNumber))>;
+        type Iter = PrefixIterator<(ProgramId, (Program, T::BlockNumber))>;
 
         fn drain() -> Self::DrainIter {
-            ProgramStorage::<Runtime>::drain()
+            ProgramStorage::<T>::drain()
         }
 
         fn iter() -> Self::Iter {
-            ProgramStorage::<Runtime>::iter()
+            ProgramStorage::<T>::iter()
         }
     }
 
-    impl<Runtime: Config> AppendMapStorage<MessageId, ProgramId, Vec<MessageId>>
-        for WaitingInitStorageWrap<Runtime>
+    impl<T: Config> AppendMapStorage<MessageId, ProgramId, Vec<MessageId>>
+        for WaitingInitStorageWrap<T>
     {
         fn append<EncodeLikeKey, EncodeLikeItem>(key: EncodeLikeKey, item: EncodeLikeItem)
         where
             EncodeLikeKey: EncodeLike<Self::Key>,
             EncodeLikeItem: EncodeLike<MessageId>,
         {
-            WaitingInitStorage::<Runtime>::append(key, item);
+            WaitingInitStorage::<T>::append(key, item);
         }
     }
 }
