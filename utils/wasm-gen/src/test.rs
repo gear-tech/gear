@@ -104,6 +104,10 @@ fn remove_trivial_recursions() {
         println!("path = {path:?}, call = {call}");
     });
     let module = utils::remove_recursion(module);
+    utils::find_recursion(&module, |_path, _call| {
+        unreachable!("there should be no recursions")
+    });
+
     let wasm = parity_wasm::serialize(module).unwrap();
     wasmparser::validate(&wasm).unwrap();
 

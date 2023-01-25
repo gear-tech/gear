@@ -138,7 +138,7 @@ impl GearConfig {
             skip_init: (1, 1000).into(),
             skip_handle: prob,
             skip_init_when_no_funcs: prob,
-            remove_recursion: (95, 100).into(),
+            remove_recursion: (80, 100).into(),
             init_export_is_any_func: prob,
             max_mem_size: 1024,
             max_mem_delta: 1024,
@@ -694,7 +694,7 @@ impl<'a> WasmGen<'a> {
             return module;
         }
 
-        let Self { calls_indexes, .. } = self;
+        let Self { calls_indexes, u, config } = self;
 
         let import_funcs_num = module
             .import_section()
@@ -740,7 +740,10 @@ impl<'a> WasmGen<'a> {
             }
         }
 
-        utils::remove_recursion(module)
+        match config.remove_recursion.get(u) {
+            true => utils::remove_recursion(module),
+            false => module,
+        }
     }
 }
 
