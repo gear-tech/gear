@@ -28,18 +28,6 @@ impl<Balance: BalanceTrait> PositiveImbalance<Balance> {
     pub fn new(amount: Balance) -> Self {
         PositiveImbalance(amount)
     }
-
-    /// Applies imbalance to some amount.
-    pub fn apply_to(&self, amount: &mut Option<Balance>) {
-        let new_value = amount.unwrap_or_else(Zero::zero).saturating_add(self.0);
-        *amount = Some(new_value);
-    }
-}
-
-impl<Balance: BalanceTrait> Default for PositiveImbalance<Balance> {
-    fn default() -> Self {
-        Self(Zero::zero())
-    }
 }
 
 impl<Balance: BalanceTrait> Imbalance for PositiveImbalance<Balance> {
@@ -47,6 +35,11 @@ impl<Balance: BalanceTrait> Imbalance for PositiveImbalance<Balance> {
 
     fn peek(&self) -> Self::Balance {
         self.0
+    }
+
+    fn apply_to(&self, amount: &mut Option<Balance>) {
+        let new_value = amount.unwrap_or_else(Zero::zero).saturating_add(self.0);
+        *amount = Some(new_value);
     }
 }
 

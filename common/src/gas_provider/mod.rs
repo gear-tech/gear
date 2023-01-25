@@ -69,11 +69,11 @@ pub trait Tree {
 
     /// `PositiveImbalance` indicates that some value has been added
     /// to circulation , i.e. total supply has increased.
-    type PositiveImbalance;
+    type PositiveImbalance: Imbalance<Balance = Self::Balance>;
 
     /// `NegativeImbalance` indicates that some value has been removed
     /// from circulation, i.e. total supply has decreased.
-    type NegativeImbalance;
+    type NegativeImbalance: Imbalance<Balance = Self::Balance>;
 
     type InternalError: Error;
 
@@ -273,14 +273,6 @@ pub trait Provider {
     /// operations that create inequality between the underlying value
     /// supply and some hypothetical "collateral" asset.
 
-    /// `PositiveImbalance` indicates that some value has been added
-    /// to circulation , i.e. total supply has increased.
-    type PositiveImbalance: Imbalance<Balance = Self::Balance>;
-
-    /// `NegativeImbalance` indicates that some value has been removed
-    /// from circulation, i.e. total supply has decreased.
-    type NegativeImbalance: Imbalance<Balance = Self::Balance>;
-
     type InternalError: Error;
 
     /// Error type.
@@ -292,8 +284,6 @@ pub trait Provider {
         Key = Self::Key,
         ReservationKey = Self::ReservationKey,
         Balance = Self::Balance,
-        PositiveImbalance = Self::PositiveImbalance,
-        NegativeImbalance = Self::NegativeImbalance,
         InternalError = Self::InternalError,
         Error = Self::Error,
     >;
@@ -313,4 +303,7 @@ pub trait Imbalance {
 
     /// Returns imbalance raw value.
     fn peek(&self) -> Self::Balance;
+
+    /// Applies imbalance to some amount.
+    fn apply_to(&self, amount: &mut Option<Self::Balance>);
 }

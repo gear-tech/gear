@@ -303,7 +303,29 @@ fn value_tree_known_errors() {
         assert_ok!(Gas::consume(split_1), None);
         assert_ok!(Gas::consume(split_2), None);
         assert!(Gas::consume(new_root).unwrap().is_some());
+        // 100 is from the cut node
         assert_eq!(Gas::total_supply(), 100);
+    });
+}
+
+#[test]
+fn sub_nodes_tree_with_spends() {
+    new_test_ext().execute_with(|| {
+        let new_root = random_node_id();
+        let origin = ALICE;
+        let split_1 = random_node_id();
+        let split_2 = random_node_id();
+
+        Gas::create(origin, new_root, 1000).unwrap();
+
+        assert_ok!(Gas::split_with_value(new_root, split_1, 500));
+        assert_ok!(Gas::split_with_value(new_root, split_2, 500));
+
+        // Because root is not consumed, it is considered as a patron
+        assert_ok!(Gas::consume(split_1), None);
+        assert_ok!(Gas::consume(split_2), None);
+
+        assert_eq!(Gas::total_supply(), 1000);
     });
 }
 
@@ -331,6 +353,40 @@ fn all_keys_are_cleared() {
         // here we consumed everything
         let key_count = GasTree::iter_keys().fold(0, |k, _| k + 1);
         assert_eq!(key_count, 0);
+    });
+}
+
+#[test]
+fn split_with_no_value() {
+    new_test_ext().execute_with(|| {
+        let new_root = random_node_id();
+        let origin = ALICE;
+        let split_1 = random_node_id();
+        let split_2 = random_node_id();
+        let split_1_2 = random_node_id();
+
+        Gas::create(origin, new_root, 1000).unwrap();
+
+        assert_ok!(Gas::split(new_root, split_1));
+        assert_ok!(Gas::split(new_root, split_2));
+        assert_ok!(Gas::split_with_value(split_1, split_1_2, 500));
+
+        assert_eq!(Gas::spend(split_1, 200).unwrap().peek(), 200);
+
+        assert_ok!(Gas::consume(split_1), None);
+        assert_ok!(Gas::consume(split_2), None);
+
+        // gas-less nodes are always leaves, so easily removed
+        assert_noop!(Gas::get_external(split_1), Error::<Test>::NodeNotFound);
+        assert_noop!(Gas::get_external(split_2), Error::<Test>::NodeNotFound);
+
+        // Returns None, because root is not consumed, so considered as a patron
+        assert_ok!(Gas::consume(split_1_2), None);
+
+        let final_imb = Gas::consume(new_root).unwrap().unwrap().0;
+        assert_eq!(final_imb.peek(), 800);
+
+        assert!(Gas::total_supply().is_zero());
     });
 }
 
