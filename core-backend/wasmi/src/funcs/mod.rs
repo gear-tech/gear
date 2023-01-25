@@ -1208,7 +1208,7 @@ where
     pub fn debug(store: &mut Store<HostState<E>>, forbidden: bool, memory: WasmiMemory) -> Func {
         let func =
             move |caller: Caller<'_, HostState<E>>, string_ptr: u32, len: u32| -> EmptyOutput {
-            log::trace!(target: "syscalls", "debug", );
+                log::trace!(target: "syscalls", "debug", );
                 let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
                 ctx.run(|ctx| {
@@ -1701,7 +1701,7 @@ where
     pub fn error(store: &mut Store<HostState<E>>, forbidden: bool, memory: WasmiMemory) -> Func {
         let func =
             move |caller: Caller<'_, HostState<E>>, error_ptr: u32, err_ptr: u32| -> EmptyOutput {
-            log::trace!(target: "syscalls", "error", );
+                log::trace!(target: "syscalls", "error", );
                 let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
                 ctx.run(|ctx| {

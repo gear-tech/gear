@@ -13,6 +13,10 @@ pub fn system_reserve() -> u64 {
     gstd::Config::system_reserve()
 }
 
+pub fn reply_duration() -> u32 {
+    1
+}
+
 #[cfg(not(feature = "std"))]
 mod wasm {
     use gstd::{exec, msg, ActorId};
@@ -21,8 +25,10 @@ mod wasm {
     async fn init() {
         let value_receiver: ActorId = msg::load().unwrap();
 
-        msg::send_bytes_with_gas(value_receiver, [], 10_000, 1_000).unwrap();
-        msg::reply_bytes_with_gas_for_reply([], 10_000, 0)
+        msg::send_bytes_with_gas(value_receiver, [], 50_000, 1_000).unwrap();
+        msg::reply_bytes_with_gas_for_reply([], 30_000, 0)
+            .unwrap()
+            .exactly(Some(super::reply_duration()))
             .unwrap()
             .await;
         panic!();
