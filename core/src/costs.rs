@@ -32,11 +32,11 @@ pub struct CostPerPage<PageU32Size> {
 }
 
 impl<P: PageU32Size> CostPerPage<P> {
-    /// +_+_+
+    /// Calculate cost for `pages`.
     pub fn calc(&self, pages: P) -> u64 {
         self.cost.saturating_mul(pages.raw() as u64)
     }
-    /// +_+_+
+    /// Returns another [CostPerPage] with increased `cost` to `other.cost`.
     pub fn add(&self, other: Self) -> Self {
         self.cost.saturating_add(other.cost).into()
     }

@@ -66,7 +66,7 @@ pub struct ProcessorContext {
     pub message_context: MessageContext,
     /// Block info.
     pub block_info: BlockInfo,
-    /// +_+_+
+    /// Max allowed wasm memory pages.
     pub max_pages: WasmPage,
     /// Allocations config.
     pub page_costs: PageCosts,
@@ -207,23 +207,18 @@ impl AsTerminationReason for ProcessorError {
     }
 }
 
-/// Charger for pages in `alloc()`
-/// that checks we always charge more than refund
-struct ChargedAllocGas {
+/// Provide functionality to safely make gas refund after charge,
+/// it checks, that it's not refunded more gas than has been charged.
+struct GasRefunder {
     amount: u64,
 }
 
-impl ChargedAllocGas {
-    fn calculate_gas(ext: &Ext, alloc: u32, mem_grow: u32) -> u64 {
-        let alloc = alloc as u64;
-        let mem_grow = mem_grow as u64;
-        alloc
-            .saturating_mul(ext.context.pages_config.alloc_cost)
-            .saturating_add(mem_grow.saturating_mul(ext.context.pages_config.mem_grow_cost))
-    }
+#[derive(Debug, derive_more::Display)]
+#[display(fmt = "Trying to refund {_1}, but {_0} was charged")]
+struct RefundError(u64, u64);
 
-    fn charge(ext: &mut Ext, pages: u32) -> Result<Self, <Ext as EnvExt>::Error> {
-        let amount = Self::calculate_gas(ext, pages, pages);
+impl GasRefunder {
+    fn charge(ext: &mut Ext, amount: u64) -> Result<Self, <Ext as EnvExt>::Error> {
         ext.charge_gas(amount)?;
         Ok(Self { amount })
     }
@@ -231,17 +226,13 @@ impl ChargedAllocGas {
     fn refund(
         self,
         ext: &mut Ext,
-        not_allocated: u32,
-        not_grown: u32,
-    ) -> Result<(), <Ext as EnvExt>::Error> {
-        let amount = Self::calculate_gas(ext, not_allocated, not_grown);
-        ext.refund_gas(amount)?;
-
+        amount: u64,
+    ) -> Result<Result<(), <Ext as EnvExt>::Error>, RefundError> {
         if self.amount < amount {
-            unreachable!("Allocation logic invalidated: trying to refund more than charged");
+            return Err(RefundError(self.amount, amount));
         }
 
-        Ok(())
+        Ok(ext.refund_gas(amount))
     }
 }
 
@@ -318,7 +309,6 @@ impl IntoExtInfo<<Ext as EnvExt>::Error> for Ext {
         _reads: &[MemoryInterval],
         _writes: &[MemoryInterval],
     ) -> Result<ChargeForPages, OutOfMemoryAccessError> {
-        // +_+_+ check this
         Ok(Default::default())
     }
 }
@@ -964,7 +954,6 @@ impl EnvExt for Ext {
 
 impl Ext {
     /// Inner alloc realization.
-    // TODO  #2024 (https://github.com/gear-tech/gear/issues/2024) test that refunds less than charged!
     pub fn alloc_inner<G: GrowHandler>(
         &mut self,
         pages: WasmPage,
@@ -972,14 +961,16 @@ impl Ext {
     ) -> Result<WasmPage, ProcessorError> {
         self.charge_gas_runtime(RuntimeCosts::Alloc)?;
 
-        // Charge gas for allocations & grow
-        let charged = ChargedAllocGas::charge(self, pages.raw())?;
+        // Charge gas for memory grow.
+        let gas_refunder = GasRefunder::charge(self, self.context.page_costs.mem_grow.calc(pages))?;
 
         let result = self.context.allocations_context.alloc::<G>(pages, mem);
-        let AllocInfo { page, not_grown: _ } = self.return_and_store_err(result)?;
+        let AllocInfo { page, not_grown } = self.return_and_store_err(result)?;
 
-        let not_grown = not_grown.raw();
-        charged.refund(self, not_allocated, not_grown)?;
+        // Refund gas if memory has not been grown to `pages` size.
+        gas_refunder
+            .refund(self, self.context.page_costs.mem_grow.calc(not_grown))
+            .unwrap_or_else(|err| unreachable!("Alloc implementation error: {err}"))?;
 
         Ok(page)
     }

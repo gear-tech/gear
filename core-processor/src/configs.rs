@@ -27,7 +27,7 @@ use gear_core::{
 };
 use gear_wasm_instrument::syscalls::SysCallName;
 
-/// +_+_+
+/// Number of max pages number to use it in tests.
 pub const TESTS_MAX_PAGES_NUMBER: u16 = 512;
 
 /// Contextual block information.
@@ -131,7 +131,7 @@ pub struct ExecutionSettings {
 pub struct BlockConfig {
     /// Block info.
     pub block_info: BlockInfo,
-    /// +_+_+.
+    /// Max allowed page numbers for wasm program.
     pub max_pages: WasmPage,
     /// Allocations config.
     pub page_costs: PageCosts,
