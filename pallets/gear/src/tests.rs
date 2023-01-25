@@ -181,6 +181,10 @@ fn waited_with_zero_gas() {
 
         let program_id = utils::get_last_program_id();
 
+        // Check that block number matchs program upload block number
+        let upload_block_number = System::block_number();
+        assert_eq!(Gear::get_block_number(program_id), upload_block_number);
+
         run_to_next_block(None);
         let mid_in_mailbox = utils::get_last_message_id();
 
@@ -194,6 +198,10 @@ fn waited_with_zero_gas() {
 
         run_to_next_block(None);
         assert!(Gear::is_exited(program_id));
+
+        // Check that block number matchs block number when program exited
+        let exited_block_number = System::block_number();
+        assert_eq!(Gear::get_block_number(program_id), exited_block_number);
 
         // Nothing panics here.
         //
@@ -230,6 +238,10 @@ fn terminated_program_zero_gas() {
 
         let program_id = utils::get_last_program_id();
 
+        // Check that block number matchs program upload block number
+        let upload_block_number = System::block_number();
+        assert_eq!(Gear::get_block_number(program_id), upload_block_number);
+
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(USER_1),
             program_id,
@@ -240,6 +252,10 @@ fn terminated_program_zero_gas() {
 
         run_to_next_block(None);
         assert!(Gear::is_terminated(program_id));
+
+        // Check that block number matchs block number when program terminated
+        let terminated_block_number = System::block_number();
+        assert_eq!(Gear::get_block_number(program_id), terminated_block_number);
 
         // Nothing panics here.
         assert_total_dequeued(2);
@@ -3569,6 +3585,11 @@ fn test_sending_waits() {
         ));
 
         let program_id = get_last_program_id();
+
+        // Check that block number matchs program upload block number
+        let upload_block_number = System::block_number();
+        assert_eq!(Gear::get_block_number(program_id), upload_block_number);
+
         run_to_next_block(None);
 
         // Case 1 - `Command::SendFor`
@@ -3584,6 +3605,10 @@ fn test_sending_waits() {
             2_500_000_000,
             0,
         ));
+
+        // Check that block number was changed after first message sent
+        let block_number_after_send= System::block_number();
+        assert_eq!(Gear::get_block_number(program_id), block_number_after_send);
 
         let wait_for = get_last_message_id();
         run_to_next_block(None);
@@ -3640,6 +3665,10 @@ fn test_sending_waits() {
         ));
 
         run_to_next_block(None);
+
+        // Check that block number was not changed, 'cause program state not changed
+        assert_eq!(Gear::get_block_number(program_id), block_number_after_send);
+
         assert_eq!(
             get_waitlist_expiration(wait_wait),
             expiration(demo_waiter::default_wait_up_to_duration())
@@ -8632,7 +8661,7 @@ mod utils {
 
     #[track_caller]
     pub(super) fn get_reservation_map(pid: ProgramId) -> Option<GasReservationMap> {
-        let prog = ProgramStorageOf::<Test>::get_program(pid).unwrap().0;
+        let (prog, _bn) = ProgramStorageOf::<Test>::get_program(pid).unwrap();
         if let common::Program::Active(common::ActiveProgram {
             gas_reservation_map,
             ..

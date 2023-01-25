@@ -824,6 +824,12 @@ pub mod pallet {
                 .unwrap_or_default()
         }
 
+        pub fn get_block_number(program_id: ProgramId) -> <T as frame_system::Config>::BlockNumber {
+            ProgramStorageOf::<T>::get_program(program_id)
+                .map(|(_p, bn)| bn)
+                .unwrap_or_default()
+        }
+
         /// Returns exit argument of an exited program.
         pub fn exit_inheritor_of(program_id: ProgramId) -> Option<ProgramId> {
             ProgramStorageOf::<T>::get_program(program_id)
