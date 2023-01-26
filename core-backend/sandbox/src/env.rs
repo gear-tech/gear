@@ -23,10 +23,7 @@ use crate::{
     memory::MemoryWrap,
     runtime::{self, Runtime},
 };
-use alloc::{
-    collections::BTreeSet,
-    string::{String, ToString},
-};
+use alloc::{collections::BTreeSet, string::ToString};
 use core::fmt;
 use gear_backend_common::{
     calc_stack_end,
@@ -56,12 +53,6 @@ pub enum SandboxEnvironmentError {
     CreateEnvMemory(sp_sandbox::Error),
     #[display(fmt = "Unable to instantiate module: {_0:?}")]
     ModuleInstantiation(sp_sandbox::Error),
-    #[display(fmt = "Unable to get wasm module exports: {_0}")]
-    GetWasmExports(String),
-    #[display(fmt = "Unable to set module memory data")]
-    SetModuleMemoryData,
-    #[display(fmt = "Unable to save static pages initial data")]
-    SaveStaticPagesInitialData,
     #[from]
     StackEnd(StackEndError),
     #[display(fmt = "Mutable globals are not supported")]
