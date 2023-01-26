@@ -31,8 +31,8 @@ use core::fmt;
 use gear_backend_common::{
     calc_stack_end,
     lazy_pages::{GlobalsAccessMod, GlobalsConfig},
-    BackendExt, BackendReport, Environment, GetGasAmount, IntoExtError, StackEndError,
-    SyscallFuncError, TerminationReason, TrapExplanation, STACK_END_EXPORT_NAME,
+    BackendExt, BackendReport, Environment, EnvironmentExecutionError, GetGasAmount, IntoExtError,
+    StackEndError, SyscallFuncError, TerminationReason, TrapExplanation, STACK_END_EXPORT_NAME,
 };
 use gear_core::{
     env::Ext,
@@ -62,8 +62,6 @@ pub enum SandboxEnvironmentError {
     SetModuleMemoryData,
     #[display(fmt = "Unable to save static pages initial data")]
     SaveStaticPagesInitialData,
-    #[display(fmt = "{_0}")]
-    PreExecutionHandler(String),
     #[from]
     StackEnd(StackEndError),
     #[display(fmt = "Mutable globals are not supported")]
@@ -263,11 +261,12 @@ where
     fn execute<F, T>(
         self,
         pre_execution_handler: F,
-    ) -> Result<BackendReport<Self::Memory, E>, Self::Error>
+    ) -> Result<BackendReport<Self::Memory, E>, EnvironmentExecutionError<Self::Error, T>>
     where
         F: FnOnce(&mut Self::Memory, Option<WasmPage>, GlobalsConfig) -> Result<(), T>,
         T: fmt::Display,
     {
+        use EnvironmentExecutionError::*;
         use SandboxEnvironmentError::*;
 
         let Self {
@@ -282,24 +281,24 @@ where
             .and_then(|global| global.as_i32());
         let stack_end = match calc_stack_end(stack_end) {
             Ok(s) => s,
-            Err(e) => return Err((runtime.ext.gas_amount(), StackEnd(e)).into()),
+            Err(e) => return Err(Backend((runtime.ext.gas_amount(), StackEnd(e)).into())),
         };
 
-        runtime.globals = instance
-            .instance_globals()
-            .ok_or((runtime.ext.gas_amount(), MutableGlobalsNotSupported))?;
+        runtime.globals = instance.instance_globals().ok_or(Backend(
+            (runtime.ext.gas_amount(), MutableGlobalsNotSupported).into(),
+        ))?;
 
         let (gas, allowance) = runtime.ext.counters();
 
         runtime
             .globals
             .set_global_val(GLOBAL_NAME_GAS, Value::I64(gas as i64))
-            .map_err(|_| (runtime.ext.gas_amount(), WrongInjectedGas))?;
+            .map_err(|_| Backend((runtime.ext.gas_amount(), WrongInjectedGas).into()))?;
 
         runtime
             .globals
             .set_global_val(GLOBAL_NAME_ALLOWANCE, Value::I64(allowance as i64))
-            .map_err(|_| (runtime.ext.gas_amount(), WrongInjectedAllowance))?;
+            .map_err(|_| Backend((runtime.ext.gas_amount(), WrongInjectedAllowance).into()))?;
 
         let globals_config = if cfg!(not(feature = "std")) {
             GlobalsConfig {
@@ -316,7 +315,7 @@ where
         match pre_execution_handler(&mut runtime.memory, stack_end, globals_config) {
             Ok(_) => (),
             Err(e) => {
-                return Err((runtime.ext.gas_amount(), PreExecutionHandler(e.to_string())).into());
+                return Err(PrepareMemory(runtime.ext.gas_amount(), e));
             }
         }
 
@@ -333,13 +332,15 @@ where
             .globals
             .get_global_val(GLOBAL_NAME_GAS)
             .and_then(runtime::as_i64)
-            .ok_or((runtime.ext.gas_amount(), WrongInjectedGas))?;
+            .ok_or(Backend((runtime.ext.gas_amount(), WrongInjectedGas).into()))?;
 
         let allowance = runtime
             .globals
             .get_global_val(GLOBAL_NAME_ALLOWANCE)
             .and_then(runtime::as_i64)
-            .ok_or((runtime.ext.gas_amount(), WrongInjectedAllowance))?;
+            .ok_or(Backend(
+                (runtime.ext.gas_amount(), WrongInjectedAllowance).into(),
+            ))?;
 
         let Runtime {
             err: runtime_err,

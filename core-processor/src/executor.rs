@@ -33,7 +33,8 @@ use alloc::{
 use codec::{Decode, Encode};
 use gear_backend_common::{
     lazy_pages::{GlobalsConfig, LazyPagesWeights, Status},
-    BackendExt, BackendReport, Environment, GetGasAmount, TerminationReason, TrapExplanation,
+    BackendExt, BackendReport, Environment, EnvironmentExecutionError, GetGasAmount,
+    TerminationReason, TrapExplanation,
 };
 use gear_core::{
     code::InstrumentedCode,
@@ -318,7 +319,8 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + BackendExt + 'static, E: Environm
             kind,
             program.code().exports().clone(),
             memory_size,
-        )?;
+        )
+        .map_err(EnvironmentExecutionError::Backend)?;
         env.execute(|memory, stack_end, globals_config| {
             prepare_memory::<A, E::Memory>(
                 memory,
@@ -360,13 +362,22 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + BackendExt + 'static, E: Environm
 
             (termination, memory, ext)
         }
-
-        Err(e) => {
-            return Err(ActorExecutionError {
-                gas_amount: e.gas_amount(),
-                reason: ActorExecutionErrorReason::Backend(e.to_string()),
-            }
-            .into())
+        Err(EnvironmentExecutionError::Backend(e)) => {
+            return Err(ExecutionError::System(SystemExecutionError::Backend(
+                e.to_string(),
+            )))
+        }
+        Err(EnvironmentExecutionError::PrepareMemory(gas_amount, PrepareMemoryError::Actor(e))) => {
+            return Err(ExecutionError::Actor(ActorExecutionError {
+                gas_amount,
+                reason: ActorExecutionErrorReason::PrepareMemory(e),
+            }))
+        }
+        Err(EnvironmentExecutionError::PrepareMemory(
+            _gas_amount,
+            PrepareMemoryError::System(e),
+        )) => {
+            return Err(ExecutionError::System(e.into()));
         }
     };
 
@@ -515,7 +526,8 @@ pub fn execute_for_reply<
             function,
             program.code().exports().clone(),
             memory_size,
-        )?;
+        )
+        .map_err(EnvironmentExecutionError::Backend)?;
         env.execute(|memory, stack_end, globals_config| {
             prepare_memory::<A, E::Memory>(
                 memory,
@@ -535,7 +547,7 @@ pub fn execute_for_reply<
             memory_wrap: memory,
             ext,
         }) => (termination, memory, ext),
-        Err(e) => return Err(format!("Backend error: {e}")),
+        Err(e) => return Err(format!("Backend error: {e:?}")),
     };
 
     match termination {

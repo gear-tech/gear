@@ -40,7 +40,7 @@ use alloc::{
     vec::Vec,
 };
 use codec::{Decode, Encode};
-use core::{fmt, fmt::Display};
+use core::fmt::{Debug, Display};
 use gear_core::{
     env::Ext,
     gas::GasAmount,
@@ -152,6 +152,12 @@ pub enum StackEndError {
 // '__gear_stack_end' export is inserted in wasm-proc or wasm-builder
 pub const STACK_END_EXPORT_NAME: &str = "__gear_stack_end";
 
+#[derive(Debug)]
+pub enum EnvironmentExecutionError<B, P> {
+    Backend(B),
+    PrepareMemory(GasAmount, P),
+}
+
 pub trait Environment<E, EP = DispatchKind>: Sized
 where
     E: Ext + BackendExt + 'static,
@@ -161,7 +167,7 @@ where
     type Memory: Memory;
 
     /// An error issues in environment.
-    type Error: fmt::Display + GetGasAmount;
+    type Error: Debug + Display + GetGasAmount;
 
     /// 1) Instantiates wasm binary.
     /// 2) Creates wasm memory
@@ -179,7 +185,7 @@ where
     fn execute<F, T>(
         self,
         pre_execution_handler: F,
-    ) -> Result<BackendReport<Self::Memory, E>, Self::Error>
+    ) -> Result<BackendReport<Self::Memory, E>, EnvironmentExecutionError<Self::Error, T>>
     where
         F: FnOnce(&mut Self::Memory, Option<WasmPage>, GlobalsConfig) -> Result<(), T>,
         T: Display;

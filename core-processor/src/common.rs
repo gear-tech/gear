@@ -18,7 +18,7 @@
 
 //! Common structures for processing.
 
-use crate::{executor::SystemPrepareMemoryError, precharge::GasOperation};
+use crate::{executor::SystemPrepareMemoryError, precharge::GasOperation, ActorPrepareMemoryError};
 use alloc::{
     collections::{BTreeMap, BTreeSet},
     string::String,
@@ -424,6 +424,9 @@ pub enum ActorExecutionErrorReason {
     /// Not enough gas to perform an operation.
     #[display(fmt = "Not enough gas to {_0}")]
     GasExceeded(GasOperation),
+    /// Prepare memory error
+    #[display(fmt = "{_0}")]
+    PrepareMemory(ActorPrepareMemoryError),
     /// Backend error
     #[display(fmt = "{_0}")]
     Backend(String),
@@ -444,6 +447,9 @@ pub enum SystemExecutionError {
     /// Prepare memory error
     #[display(fmt = "Prepare memory: {_0}")]
     PrepareMemory(SystemPrepareMemoryError),
+    /// Backend error
+    #[display(fmt = "Backend error: {_0}")]
+    Backend(String),
 }
 
 /// Actor.

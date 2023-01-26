@@ -31,8 +31,8 @@ use core::{any::Any, fmt};
 use gear_backend_common::{
     calc_stack_end,
     lazy_pages::{GlobalsAccessError, GlobalsAccessMod, GlobalsAccessor, GlobalsConfig},
-    BackendExt, BackendReport, Environment, GetGasAmount, IntoExtError, StackEndError,
-    SyscallFuncError, TerminationReason, TrapExplanation, STACK_END_EXPORT_NAME,
+    BackendExt, BackendReport, Environment, EnvironmentExecutionError, GetGasAmount, IntoExtError,
+    StackEndError, SyscallFuncError, TerminationReason, TrapExplanation, STACK_END_EXPORT_NAME,
 };
 use gear_core::{
     env::Ext,
@@ -57,8 +57,6 @@ pub enum WasmiEnvironmentError {
     GetWasmExports(String),
     #[display(fmt = "Entry point has wrong type: {_0}")]
     EntryPointWrongType(String),
-    #[display(fmt = "{_0}")]
-    PreExecutionHandler(String),
     #[from]
     StackEnd(StackEndError),
     #[display(fmt = "Gas counter not found or has wrong type")]
@@ -227,11 +225,12 @@ where
     fn execute<F, T>(
         self,
         pre_execution_handler: F,
-    ) -> Result<BackendReport<Self::Memory, E>, Self::Error>
+    ) -> Result<BackendReport<Self::Memory, E>, EnvironmentExecutionError<Self::Error, T>>
     where
         F: FnOnce(&mut Self::Memory, Option<WasmPage>, GlobalsConfig) -> Result<(), T>,
         T: fmt::Display,
     {
+        use EnvironmentExecutionError::*;
         use WasmiEnvironmentError::*;
 
         let Self {
@@ -246,7 +245,8 @@ where
             .get_export(&store, STACK_END_EXPORT_NAME)
             .and_then(Extern::into_global)
             .and_then(|g| g.get(&store).try_into::<i32>());
-        let stack_end = calc_stack_end(stack_end).map_err(|e| (gas_amount!(store), StackEnd(e)))?;
+        let stack_end = calc_stack_end(stack_end)
+            .map_err(|e| Backend((gas_amount!(store), StackEnd(e)).into()))?;
 
         let (gas, allowance) = store
             .state()
@@ -259,7 +259,7 @@ where
             .get_export(&store, GLOBAL_NAME_GAS)
             .and_then(Extern::into_global)
             .and_then(|g| g.set(&mut store, Value::I64(gas as i64)).map(|_| g).ok())
-            .ok_or((gas_amount!(store), WrongInjectedGas))?;
+            .ok_or(Backend((gas_amount!(store), WrongInjectedGas).into()))?;
 
         let gear_allowance = instance
             .get_export(&store, GLOBAL_NAME_ALLOWANCE)
@@ -269,7 +269,7 @@ where
                     .map(|_| g)
                     .ok()
             })
-            .ok_or((gas_amount!(store), WrongInjectedAllowance))?;
+            .ok_or(Backend((gas_amount!(store), WrongInjectedAllowance).into()))?;
 
         let mut globals_provider = GlobalsAccessProvider {
             instance,
@@ -300,7 +300,7 @@ where
         let mut memory_wrap = MemoryWrap::new(memory, store);
         pre_execution_handler(&mut memory_wrap, stack_end, globals_config).map_err(|e| {
             let store = &memory_wrap.store;
-            (gas_amount!(store), PreExecutionHandler(e.to_string()))
+            PrepareMemory(gas_amount!(store), e)
         })?;
 
         let mut store = memory_wrap.into_store();
@@ -309,16 +309,22 @@ where
                 .get_export(&store, entry_point.as_entry())
                 .and_then(Extern::into_func)
                 .ok_or({
-                    (
-                        gas_amount!(store),
-                        GetWasmExports(entry_point.as_entry().to_string()),
+                    Backend(
+                        (
+                            gas_amount!(store),
+                            GetWasmExports(entry_point.as_entry().to_string()),
+                        )
+                            .into(),
                     )
                 })?;
 
             let entry_func = func.typed::<(), (), _>(&mut store).map_err(|_| {
-                (
-                    gas_amount!(store),
-                    EntryPointWrongType(entry_point.as_entry().to_string()),
+                Backend(
+                    (
+                        gas_amount!(store),
+                        EntryPointWrongType(entry_point.as_entry().to_string()),
+                    )
+                        .into(),
                 )
             })?;
 
@@ -347,11 +353,11 @@ where
         let gas = gear_gas
             .get(&store)
             .try_into::<i64>()
-            .ok_or((gas_amount!(store), WrongInjectedGas))?;
+            .ok_or(Backend((gas_amount!(store), WrongInjectedGas).into()))?;
         let allowance = gear_allowance
             .get(&store)
             .try_into::<i64>()
-            .ok_or((gas_amount!(store), WrongInjectedAllowance))?;
+            .ok_or(Backend((gas_amount!(store), WrongInjectedAllowance).into()))?;
 
         let state = store
             .state_mut()
