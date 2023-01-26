@@ -133,7 +133,7 @@ impl<'a> GasPrecharger<'a> {
         gas_per_byte: u64,
         code_length: u32,
     ) -> Result<(), PrechargeError> {
-        let amount = gas_per_byte * code_length as u64;
+        let amount = gas_per_byte.saturating_mul(code_length as u64);
         self.charge_gas(GasOperation::ModuleInstantiation, amount)
     }
 
@@ -156,7 +156,7 @@ impl<'a> GasPrecharger<'a> {
         static_pages: WasmPage,
     ) -> Result<(), PrechargeError> {
         // TODO: check calculation is safe: #2007.
-        let amount = settings.init_cost * static_pages.raw() as u64;
+        let amount = settings.init_cost.saturating_mul(static_pages.raw() as u64);
         self.charge_gas(GasOperation::InitialMemory, amount)
     }
 
@@ -168,8 +168,11 @@ impl<'a> GasPrecharger<'a> {
         static_pages: WasmPage,
     ) -> Result<(), PrechargeError> {
         // TODO: check calculation is safe: #2007.
-        let amount =
-            settings.load_page_cost * (allocations.len() as u64 + static_pages.raw() as u64);
+        let allocations = allocations.len() as u64;
+        let static_pages = static_pages.raw() as u64;
+        let amount = settings
+            .load_page_cost
+            .saturating_mul(allocations.saturating_add(static_pages));
         self.charge_gas(GasOperation::LoadMemory, amount)
     }
 
@@ -182,8 +185,11 @@ impl<'a> GasPrecharger<'a> {
     ) -> Result<(), PrechargeError> {
         // TODO: make separate class for size in pages (here is static_pages): #2008.
         // TODO: check calculation is safe: #2007.
-        let amount =
-            settings.mem_grow_cost * (max_wasm_page.raw() as u64 + 1 - static_pages.raw() as u64);
+        let max_wasm_page = max_wasm_page.raw() as u64;
+        let static_pages = static_pages.raw() as u64;
+        let amount = settings
+            .mem_grow_cost
+            .saturating_mul(max_wasm_page.saturating_add(1).saturating_sub(static_pages));
         self.charge_gas(GasOperation::GrowMemory, amount)
     }
 
