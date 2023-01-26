@@ -8,6 +8,7 @@ async fn main() -> Result<()> {
 
     if let Err(e) = Opt::parse().run().await {
         log::error!("{:?}", e);
+        std::process::exit(1);
     }
 
     Ok(())

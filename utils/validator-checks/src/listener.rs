@@ -1,13 +1,16 @@
 //! Block listener
 use crate::{
-    checks::BlockProduction,
+    blocks_production::BlocksProduction,
     cmd::Opt,
-    result::Result,
-    traits::{Check, Checker},
+    result::{Error, Result},
 };
 use futures_util::StreamExt;
 use gp::api::{types::Blocks, Api};
-use std::time::Instant;
+use std::{result::Result as StdResult, time::Instant};
+use subxt::ext::{
+    sp_core::crypto::{PublicError, Ss58Codec},
+    sp_runtime::AccountId32,
+};
 
 /// Entry of this program, block listener.
 pub struct Listener {
@@ -33,44 +36,34 @@ impl Listener {
 
     /// Run validator checks.
     pub async fn check(&self) -> Result<()> {
-        let mut checkers: Vec<Box<dyn Check>> = Default::default();
         let validator_list = self.api.validators().await?;
         log::info!("Validators: {validator_list:#?}");
 
-        if self.opt.block_production {
-            checkers.push(Box::new(BlockProduction::new(self).await?));
-        }
+        let mut blocks_production = BlocksProduction::new(
+            validator_list,
+            (!self.opt.validators.is_empty()).then_some(
+                self.opt
+                    .validators
+                    .iter()
+                    .map(|acc| AccountId32::from_ss58check(&acc))
+                    .collect::<StdResult<Vec<AccountId32>, PublicError>>()?,
+            ),
+        );
 
         let now = Instant::now();
-        let checkers_len = checkers.len();
-        let mut validators = validator_list.into();
         let mut blocks = self.listen().await?;
-        let all_checks = checkers
-            .iter()
-            .map(|checker| checker.name())
-            .collect::<Vec<[u8; 4]>>();
-
         while let Some(maybe_block) = blocks.next().await {
-            let block = maybe_block?;
-            for checker in &checkers {
-                checker.check(&mut validators, &block);
+            if blocks_production.check(&maybe_block?) {
+                break;
             }
 
             if now.elapsed().as_millis() > self.opt.timeout {
                 log::error!(
-                    "Some checks didn't pass: {:#?}",
-                    validators
-                        .unvalidated(&all_checks)
-                        .iter()
-                        .map(|(name, v)| { (String::from_utf8_lossy(name).to_string(), v) })
-                        .collect::<Vec<(String, &Vec<_>)>>()
+                    "Some validators didn't produce blocks: {:#?}",
+                    blocks_production.validators
                 );
 
-                std::process::exit(1);
-            }
-
-            if validators.validate_all(&all_checks).len() == checkers_len {
-                break;
+                return Err(Error::BlocksProduction);
             }
         }
 

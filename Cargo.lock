@@ -9469,24 +9469,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "sp-consensus-aura"
-version = "0.10.0-dev"
-source = "git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.36#91c367ee60303f878fead054d95b600cea222156"
-dependencies = [
- "async-trait",
- "parity-scale-codec",
- "scale-info",
- "sp-api",
- "sp-application-crypto",
- "sp-consensus",
- "sp-consensus-slots",
- "sp-inherents",
- "sp-runtime",
- "sp-std",
- "sp-timestamp",
-]
-
-[[package]]
 name = "sp-consensus-babe"
 version = "0.10.0-dev"
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.36#91c367ee60303f878fead054d95b600cea222156"
@@ -11179,7 +11161,6 @@ dependencies = [
 name = "validator-checks"
 version = "0.1.0"
 dependencies = [
- "async-trait",
  "clap 4.1.1",
  "color-eyre",
  "env_logger 0.10.0",
@@ -11187,7 +11168,6 @@ dependencies = [
  "gear-program",
  "log",
  "parity-scale-codec",
- "sp-consensus-aura",
  "sp-consensus-babe",
  "subxt",
  "thiserror",

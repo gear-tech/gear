@@ -7,17 +7,14 @@ use env_logger::{Builder, Env};
 pub struct Opt {
     /// Validators to be checked.
     ///
-    /// If none provided, will check all authorities.
+    /// If nothing provided, will check all authorities.
     pub validators: Vec<String>,
     /// The network to be checked.
     #[arg(short, long)]
     pub endpoint: Option<String>,
-    /// Timeout of all checks.
+    /// Timeout of all checks. ( milliseconds )
     #[arg(short, long, default_value = "600000")]
     pub timeout: u128,
-    /// Check if validators produce blocks.
-    #[arg(short, long)]
-    pub block_production: bool,
     /// Enable verbose logs.
     #[arg(short, long)]
     pub verbose: bool,
