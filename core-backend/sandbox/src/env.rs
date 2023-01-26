@@ -29,19 +29,21 @@ use alloc::{
 };
 use core::fmt;
 use gear_backend_common::{
-    calc_stack_end, error_processor::IntoExtError, AsTerminationReason, BackendReport, Environment,
-    GetGasAmount, IntoExtInfo, StackEndError, TerminationReason, TrapExplanation,
-    STACK_END_EXPORT_NAME,
+    calc_stack_end,
+    error_processor::IntoExtError,
+    lazy_pages::{GlobalsAccessMod, GlobalsConfig},
+    AsTerminationReason, BackendReport, Environment, GetGasAmount, IntoExtInfo, StackEndError,
+    TerminationReason, TrapExplanation, STACK_END_EXPORT_NAME,
 };
 use gear_core::{
     env::Ext,
     gas::GasAmount,
-    memory::{PageU32Size, WasmPageNumber},
+    memory::{PageU32Size, WasmPage},
     message::{DispatchKind, WasmEntry},
 };
 use gear_wasm_instrument::{
     syscalls::SysCallName::{self, *},
-    GLOBAL_NAME_ALLOWANCE, GLOBAL_NAME_GAS,
+    GLOBAL_NAME_ALLOWANCE, GLOBAL_NAME_FLAGS, GLOBAL_NAME_GAS,
 };
 use sp_sandbox::{
     default_executor::{EnvironmentDefinitionBuilder, Instance, Memory as DefaultExecutorMemory},
@@ -151,7 +153,7 @@ where
         binary: &[u8],
         entry_point: EP,
         entries: BTreeSet<DispatchKind>,
-        mem_size: WasmPageNumber,
+        mem_size: WasmPage,
     ) -> Result<Self, Self::Error> {
         use SandboxEnvironmentError::*;
 
@@ -268,7 +270,7 @@ where
         pre_execution_handler: F,
     ) -> Result<BackendReport<Self::Memory, E>, Self::Error>
     where
-        F: FnOnce(&mut Self::Memory, Option<WasmPageNumber>) -> Result<(), T>,
+        F: FnOnce(&mut Self::Memory, Option<WasmPage>, GlobalsConfig) -> Result<(), T>,
         T: fmt::Display,
     {
         use SandboxEnvironmentError::*;
@@ -283,7 +285,7 @@ where
         let stack_end = instance
             .get_global_val(STACK_END_EXPORT_NAME)
             .and_then(|global| global.as_i32());
-        let stack_end_page = match calc_stack_end(stack_end) {
+        let stack_end = match calc_stack_end(stack_end) {
             Ok(s) => s,
             Err(e) => return Err((runtime.ext.gas_amount(), StackEnd(e)).into()),
         };
@@ -304,7 +306,19 @@ where
             .set_global_val(GLOBAL_NAME_ALLOWANCE, Value::I64(allowance as i64))
             .map_err(|_| (runtime.ext.gas_amount(), WrongInjectedAllowance))?;
 
-        match pre_execution_handler(&mut runtime.memory, stack_end_page) {
+        let globals_config = if cfg!(not(feature = "std")) {
+            GlobalsConfig {
+                global_gas_name: GLOBAL_NAME_GAS.to_string(),
+                global_allowance_name: GLOBAL_NAME_ALLOWANCE.to_string(),
+                global_flags_name: GLOBAL_NAME_FLAGS.to_string(),
+                globals_access_ptr: instance.get_instance_ptr(),
+                globals_access_mod: GlobalsAccessMod::WasmRuntime,
+            }
+        } else {
+            unreachable!("We cannot use sandbox backend in std environment currently");
+        };
+
+        match pre_execution_handler(&mut runtime.memory, stack_end, globals_config) {
             Ok(_) => (),
             Err(e) => {
                 return Err((runtime.ext.gas_amount(), PreExecutionHandler(e.to_string())).into());

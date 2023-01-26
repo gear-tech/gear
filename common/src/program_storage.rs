@@ -43,7 +43,7 @@ pub trait ProgramStorage {
     type Error: From<Self::InternalError> + Debug;
 
     type ProgramMap: MapStorage<Key = ProgramId, Value = Program>;
-    type MemoryPageMap: DoubleMapStorage<Key1 = ProgramId, Key2 = PageNumber, Value = PageBuf>;
+    type MemoryPageMap: DoubleMapStorage<Key1 = ProgramId, Key2 = GearPage, Value = PageBuf>;
     type WaitingInitMap: AppendMapStorage<MessageId, ProgramId, Vec<MessageId>>;
 
     /// Attempt to remove all items from all the associated maps.
@@ -114,8 +114,8 @@ pub trait ProgramStorage {
     /// Return program data for each page from `pages`.
     fn get_program_data_for_pages<'a>(
         program_id: ProgramId,
-        pages: impl Iterator<Item = &'a PageNumber>,
-    ) -> Result<BTreeMap<PageNumber, PageBuf>, Self::Error> {
+        pages: impl Iterator<Item = &'a GearPage>,
+    ) -> Result<BTreeMap<GearPage, PageBuf>, Self::Error> {
         let mut pages_data = BTreeMap::new();
         for page in pages {
             let data = Self::MemoryPageMap::get(&program_id, page)
@@ -127,12 +127,12 @@ pub trait ProgramStorage {
     }
 
     /// Store a memory page buffer to be associated with the given keys `program_id` and `page` from the map.
-    fn set_program_page_data(program_id: ProgramId, page: PageNumber, page_buf: PageBuf) {
+    fn set_program_page_data(program_id: ProgramId, page: GearPage, page_buf: PageBuf) {
         Self::MemoryPageMap::insert(program_id, page, page_buf);
     }
 
     /// Remove a memory page buffer under the given keys `program_id` and `page`.
-    fn remove_program_page_data(program_id: ProgramId, page_num: PageNumber) {
+    fn remove_program_page_data(program_id: ProgramId, page_num: GearPage) {
         Self::MemoryPageMap::remove(program_id, page_num);
     }
 

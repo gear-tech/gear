@@ -18,7 +18,7 @@
 
 use crate::StackEndError;
 use alloc::string::String;
-use gear_core::memory::{PageU32Size, WasmPageNumber};
+use gear_core::memory::{PageU32Size, WasmPage};
 
 #[macro_export]
 macro_rules! assert_ok {
@@ -53,14 +53,14 @@ pub(crate) fn smart_truncate(s: &mut String, max_bytes: usize) {
     }
 }
 
-pub fn calc_stack_end(stack_end: Option<i32>) -> Result<Option<WasmPageNumber>, StackEndError> {
+pub fn calc_stack_end(stack_end: Option<i32>) -> Result<Option<WasmPage>, StackEndError> {
     use StackEndError::*;
     if let Some(stack_end) = stack_end {
         let stack_end = stack_end as u32;
-        if stack_end % WasmPageNumber::size() != 0 {
+        if stack_end % WasmPage::size() != 0 {
             return Err(IsNotAligned(stack_end));
         }
-        Ok(Some(WasmPageNumber::from_offset(stack_end)))
+        Ok(Some(WasmPage::from_offset(stack_end)))
     } else {
         Ok(None)
     }

@@ -18,18 +18,24 @@
 
 //! Lazy-pages signal handler functionality.
 
+use crate::{
+    mprotect, utils, Error, GranularityPage, LazyPage, LazyPagesExecutionContext,
+    LAZY_PAGES_PROGRAM_CONTEXT,
+};
 use cfg_if::cfg_if;
-use region::Protection;
+use core::any::Any;
+use gear_backend_common::lazy_pages::{
+    GlobalsAccessError, GlobalsAccessMod, GlobalsAccessor, GlobalsConfig, Status,
+};
+use gear_core::memory::{
+    GearPage, PageU32Size, PagesIterInclusive, GEAR_PAGE_SIZE, PAGE_STORAGE_GRANULARITY,
+};
+use sc_executor_common::sandbox::SandboxInstance;
+use sp_wasm_interface::Value;
 use std::{
     cell::RefMut,
     collections::BTreeSet,
     convert::{TryFrom, TryInto},
-};
-
-use crate::{utils, Error, LazyPage, LazyPagesExecutionContext, LAZY_PAGES_PROGRAM_CONTEXT};
-
-use gear_core::memory::{
-    PageNumber, PageU32Size, PagesIterInclusive, GEAR_PAGE_SIZE, PAGE_STORAGE_GRANULARITY,
 };
 
 // These constants are used both in runtime and in lazy-pages backend,
@@ -84,7 +90,7 @@ impl PagePrefix {
         }
     }
     /// Returns key in storage for `page`.
-    pub fn calc_key_for_page(&mut self, page: PageNumber) -> &[u8] {
+    pub fn calc_key_for_page(&mut self, page: GearPage) -> &[u8] {
         let len = self.buffer.len();
         self.buffer[len - std::mem::size_of::<u32>()..len]
             .copy_from_slice(page.raw().to_le_bytes().as_slice());
@@ -107,6 +113,189 @@ pub(crate) enum AccessedPagesInfo {
     FromSignal(LazyPage),
 }
 
+struct GlobalsAccessWasmRuntime<'a> {
+    pub instance: &'a mut SandboxInstance,
+}
+
+impl<'a> GlobalsAccessor for GlobalsAccessWasmRuntime<'a> {
+    fn get_i64(&self, name: &str) -> Result<i64, GlobalsAccessError> {
+        self.instance
+            .get_global_val(name)
+            .and_then(|value| {
+                if let Value::I64(value) = value {
+                    Some(value)
+                } else {
+                    None
+                }
+            })
+            .ok_or(GlobalsAccessError)
+    }
+
+    fn set_i64(&mut self, name: &str, value: i64) -> Result<(), GlobalsAccessError> {
+        self.instance
+            .set_global_val(name, Value::I64(value))
+            .ok()
+            .flatten()
+            .ok_or(GlobalsAccessError)?;
+        Ok(())
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
+        unreachable!()
+    }
+}
+
+struct GlobalsAccessNativeRuntime<'a, 'b> {
+    pub inner_access_provider: &'a mut &'b mut dyn GlobalsAccessor,
+}
+
+impl<'a, 'b> GlobalsAccessor for GlobalsAccessNativeRuntime<'a, 'b> {
+    fn get_i64(&self, name: &str) -> Result<i64, GlobalsAccessError> {
+        self.inner_access_provider.get_i64(name)
+    }
+
+    fn set_i64(&mut self, name: &str, value: i64) -> Result<(), GlobalsAccessError> {
+        self.inner_access_provider.set_i64(name, value)
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        unreachable!()
+    }
+}
+
+fn charge_gas_internal(
+    mut globals_access_provider: impl GlobalsAccessor,
+    global_gas: &str,
+    global_allowance: &str,
+    amount: u64,
+) -> Result<Status, Error> {
+    let mut sub_global = |name, value| {
+        let current_value = globals_access_provider.get_i64(name).ok()? as u64;
+        let (new_value, exceed) = current_value
+            .checked_sub(value)
+            .map(|val| (val, false))
+            .unwrap_or((0, true));
+        globals_access_provider
+            .set_i64(name, new_value as i64)
+            .ok()?;
+
+        log::trace!("Change global {name}: {current_value} -> {new_value}, exceeded: {exceed}");
+
+        Some(exceed)
+    };
+    if sub_global(global_gas, amount).ok_or(Error::CannotChargeGas)? {
+        return Ok(Status::GasLimitExceeded);
+    }
+    if sub_global(global_allowance, amount).ok_or(Error::CannotChargeGasAllowance)? {
+        return Ok(Status::GasAllowanceExceeded);
+    }
+    Ok(Status::Normal)
+}
+
+unsafe fn charge_gas(globals_config: GlobalsConfig, amount: u64) -> Result<Status, Error> {
+    match globals_config.globals_access_mod {
+        GlobalsAccessMod::WasmRuntime => {
+            let instance = (globals_config.globals_access_ptr as *mut SandboxInstance)
+                .as_mut()
+                .ok_or(Error::HostInstancePointerIsInvalid)?;
+            charge_gas_internal(
+                GlobalsAccessWasmRuntime { instance },
+                &globals_config.global_gas_name,
+                &globals_config.global_allowance_name,
+                amount,
+            )
+        }
+        GlobalsAccessMod::NativeRuntime => {
+            let inner_access_provider = (globals_config.globals_access_ptr
+                as *mut &mut dyn GlobalsAccessor)
+                .as_mut()
+                .ok_or(Error::DynGlobalsAccessPointerIsInvalid)?;
+            charge_gas_internal(
+                GlobalsAccessNativeRuntime {
+                    inner_access_provider,
+                },
+                &globals_config.global_gas_name,
+                &globals_config.global_allowance_name,
+                amount,
+            )
+        }
+    }
+}
+
+fn cost_for_write(
+    ctx: &mut RefMut<LazyPagesExecutionContext>,
+    page: GranularityPage,
+) -> Result<u64, Error> {
+    if ctx.write_charged.contains(&page) {
+        // Has been already charged for write.
+        Ok(0)
+    } else if ctx.read_charged.contains(&page) {
+        // Has been already charged for read.
+        if ctx.write_after_read_charged.contains(&page) {
+            // Has been already charged for write after read.
+            Ok(0)
+        } else {
+            // Charge for write after read.
+            ctx.write_after_read_charged.insert(page);
+            Ok(ctx.lazy_pages_weights.write_after_read)
+        }
+    } else if ctx.write_after_read_charged.contains(&page) {
+        Err(Error::WriteAfterReadChargedWithoutReadCharged)
+    } else {
+        // Charge for write.
+        ctx.write_charged.insert(page);
+        Ok(ctx.lazy_pages_weights.write)
+    }
+}
+
+fn cost_for_read(
+    ctx: &mut RefMut<LazyPagesExecutionContext>,
+    page: GranularityPage,
+) -> Result<u64, Error> {
+    if ctx.read_charged.contains(&page) || ctx.write_charged.contains(&page) {
+        // Has been already charged for write or read - so no need to charge for read.
+        Ok(0)
+    } else if ctx.write_after_read_charged.contains(&page) {
+        Err(Error::WriteAfterReadChargedWithoutReadCharged)
+    } else {
+        // Charge for read.
+        ctx.read_charged.insert(page);
+        Ok(ctx.lazy_pages_weights.read)
+    }
+}
+
+unsafe fn charge_for_pages(
+    ctx: &mut RefMut<LazyPagesExecutionContext>,
+    pages: PagesIterInclusive<LazyPage>,
+    is_write: bool,
+) -> Result<Status, Error> {
+    let globals_config = if let Some(ctx) = ctx.globals_config.as_ref() {
+        ctx.clone()
+    } else {
+        return Ok(Status::Normal);
+    };
+
+    let mut amount = 0u64;
+    let granularity_pages: BTreeSet<GranularityPage> = pages.map(|page| page.to_page()).collect();
+
+    for page in granularity_pages.into_iter() {
+        let amount_for_page = if is_write {
+            cost_for_write(ctx, page)
+        } else {
+            cost_for_read(ctx, page)
+        }?;
+        amount = amount
+            .checked_add(amount_for_page)
+            .ok_or(Error::ChargedGasTooBig)?;
+    }
+
+    // " * k" because lazy pages costs are per one gear page.
+    let k = (GranularityPage::size() / GearPage::size()) as u64;
+    amount = amount.checked_mul(k).ok_or(Error::ChargedGasTooBig)?;
+
+    charge_gas(globals_config, amount)
+}
+
 pub(crate) unsafe fn process_lazy_pages(
     mut ctx: RefMut<LazyPagesExecutionContext>,
     accessed_pages: AccessedPagesInfo,
@@ -127,6 +316,23 @@ pub(crate) unsafe fn process_lazy_pages(
     } else {
         // Accessed pages are empty - nothing to do.
         return Ok(());
+    }
+
+    let status = ctx.status.as_ref().ok_or(Error::StatusIsNone)?;
+    match status {
+        Status::Normal => {}
+        Status::GasLimitExceeded | Status::GasAllowanceExceeded => {
+            if is_signal {
+                // Because we unprotect all lazy-pages when status is `exceeded`, then
+                // we cannot receive signals from wasm memory until the end of execution.
+                return Err(Error::SignalWhenStatusGasExceeded);
+            } else {
+                // Currently, we charge gas for sys-call after memory processing, so this can appear.
+                // In this case we do nothing, because all memory is already unprotected, and no need
+                // to take in account pages data from storage, because gas is exceeded.
+                return Ok(());
+            }
+        }
     }
 
     let stack_end = ctx.stack_end_wasm_page;
@@ -162,6 +368,33 @@ pub(crate) unsafe fn process_lazy_pages(
             unreachable!("`start` can be only decreased, `end` can be only increased, so `start` <= `end`, but get: {}", err)
         });
 
+        if is_signal {
+            // If it's signal, then need to charge for accessed pages.
+            let status = charge_for_pages(&mut ctx, pages.clone(), is_write)?;
+
+            ctx.status.replace(status);
+
+            // If new status is not [Status::Normal], then unprotect lazy-pages
+            // and continue work until the end of current wasm block. We don't care
+            // about future contract execution correctness, because gas limit or allowance exceed.
+            match status {
+                Status::Normal => {}
+                Status::GasLimitExceeded | Status::GasAllowanceExceeded => {
+                    log::trace!(
+                        "Gas limit or allowance exceed, so removes protection from all wasm memory \
+                    and continues execution until the end of current wasm block"
+                    );
+                    mprotect::mprotect_interval(
+                        wasm_mem_addr,
+                        wasm_mem_size.offset() as usize,
+                        true,
+                        true,
+                    )?;
+                    return Ok(());
+                }
+            }
+        }
+
         for lazy_page in pages {
             if lazy_page.offset() < stack_end.offset() {
                 // Nothing to do, page has r/w accesses and data is in correct state.
@@ -176,10 +409,11 @@ pub(crate) unsafe fn process_lazy_pages(
             } else if ctx.accessed_pages.contains(&lazy_page) {
                 if is_write {
                     // Set read/write access for page and add page to released.
-                    region::protect(
-                        (wasm_mem_addr + lazy_page.offset() as usize) as *mut (),
+                    mprotect::mprotect_interval(
+                        wasm_mem_addr + lazy_page.offset() as usize,
                         LazyPage::size() as usize,
-                        Protection::READ_WRITE,
+                        true,
+                        true,
                     )?;
                     log::trace!("add {lazy_page:?} to released");
                     if !ctx.released_pages.insert(lazy_page) {
@@ -192,21 +426,20 @@ pub(crate) unsafe fn process_lazy_pages(
                     }
                 }
             } else {
-                // Need to set read/write access,
-                // download data for `lazy_page` from storage and add `lazy_page` to accessed pages.
-                region::protect(
-                    (wasm_mem_addr + lazy_page.offset() as usize) as *mut (),
+                // Need to set read/write access.
+                mprotect::mprotect_interval(
+                    wasm_mem_addr + lazy_page.offset() as usize,
                     LazyPage::size() as usize,
-                    Protection::READ_WRITE,
+                    true,
+                    true,
                 )?;
 
-                for gear_page in lazy_page.to_pages_iter::<PageNumber>() {
+                // Download data for `lazy_page` from storage
+                for gear_page in lazy_page.to_pages_iter::<GearPage>() {
                     let page_buffer_ptr =
                         (wasm_mem_addr as *mut u8).add(gear_page.offset() as usize);
-                    let buffer_as_slice = std::slice::from_raw_parts_mut(
-                        page_buffer_ptr,
-                        PageNumber::size() as usize,
-                    );
+                    let buffer_as_slice =
+                        std::slice::from_raw_parts_mut(page_buffer_ptr, GearPage::size() as usize);
                     let res = sp_io::storage::read(
                         prefix.calc_key_for_page(gear_page),
                         buffer_as_slice,
@@ -216,14 +449,15 @@ pub(crate) unsafe fn process_lazy_pages(
                     log::trace!("{:?} has data in storage: {}", gear_page, res.is_some());
 
                     // Check data size is valid.
-                    if let Some(size) = res.filter(|&size| size != PageNumber::size()) {
+                    if let Some(size) = res.filter(|&size| size != GearPage::size()) {
                         return Err(Error::InvalidPageDataSize {
-                            expected: PageNumber::size(),
+                            expected: GearPage::size(),
                             actual: size,
                         });
                     }
                 }
 
+                // And add `lazy_page` to accessed pages.
                 ctx.accessed_pages.insert(lazy_page);
 
                 if is_write {
@@ -233,10 +467,11 @@ pub(crate) unsafe fn process_lazy_pages(
                     }
                 } else {
                     // Set only read access for page.
-                    region::protect(
-                        (wasm_mem_addr + lazy_page.offset() as usize) as *mut (),
+                    mprotect::mprotect_interval(
+                        wasm_mem_addr + lazy_page.offset() as usize,
                         LazyPage::size() as usize,
-                        Protection::READ,
+                        true,
+                        false,
                     )?;
                 }
             }
