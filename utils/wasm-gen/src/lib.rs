@@ -694,7 +694,11 @@ impl<'a> WasmGen<'a> {
             return module;
         }
 
-        let Self { calls_indexes, u, config } = self;
+        let Self {
+            calls_indexes,
+            u,
+            config,
+        } = self;
 
         let import_funcs_num = module
             .import_section()
