@@ -20,19 +20,22 @@
 
 // TODO: make unit tests for `MemoryAccessManager` (issue #2068)
 
-use core::{marker::PhantomData, mem::size_of};
-
+use crate::IntoExtInfo;
 use alloc::vec::Vec;
 use codec::{Decode, DecodeAll, Encode, MaxEncodedLen};
-use core::fmt::Debug;
+use core::{
+    fmt::Debug,
+    marker::PhantomData,
+    mem,
+    mem::{size_of, MaybeUninit},
+    slice,
+};
 use gear_core::{
     buffer::{RuntimeBuffer, RuntimeBufferSizeError},
     env::Ext,
     memory::{Memory, MemoryInterval},
 };
 use gear_core_errors::MemoryError;
-
-use crate::IntoExtInfo;
 
 /// Memory access error.
 #[derive(Debug, Clone, Copy, Encode, Decode)]
@@ -237,7 +240,7 @@ impl<E: Ext + IntoExtInfo<E::Error>> MemoryAccessManager<E> {
         read: WasmMemoryReadAs<T>,
     ) -> Result<T, MemoryAccessError> {
         self.pre_process_memory_accesses()?;
-        crate::read_memory_as(memory, read.ptr).map_err(Into::into)
+        read_memory_as(memory, read.ptr).map_err(Into::into)
     }
 
     /// Pre-process registered accesses if need and write data from `buff` to `memory`.
@@ -262,8 +265,58 @@ impl<E: Ext + IntoExtInfo<E::Error>> MemoryAccessManager<E> {
         obj: T,
     ) -> Result<(), MemoryAccessError> {
         self.pre_process_memory_accesses()?;
-        crate::write_memory_as(memory, write.ptr, obj).map_err(Into::into)
+        write_memory_as(memory, write.ptr, obj).map_err(Into::into)
     }
+}
+
+/// Writes object in given memory as bytes.
+fn write_memory_as<T: Sized>(
+    memory: &mut impl Memory,
+    ptr: u32,
+    obj: T,
+) -> Result<(), MemoryError> {
+    // # Safety:
+    //
+    // Given object is `Sized` and we own them in the context of calling this
+    // function (it's on stack), it's safe to take ptr on the object and
+    // represent it as slice. Object will be dropped after `memory.write`
+    // finished execution and no one will rely on this slice.
+    //
+    // Bytes in memory always stored continuously and without paddings, properly
+    // aligned due to `[repr(C, packed)]` attribute of the types we use as T.
+    let slice =
+        unsafe { slice::from_raw_parts(&obj as *const T as *const u8, mem::size_of::<T>()) };
+
+    memory.write(ptr, slice)
+}
+
+/// Reads bytes from given pointer to construct type T from them.
+fn read_memory_as<T: Sized>(memory: &impl Memory, ptr: u32) -> Result<T, MemoryError> {
+    let mut buf = MaybeUninit::<T>::uninit();
+
+    // # Safety:
+    //
+    // Usage of mutable slice is safe for the same reason from `write_memory_as`.
+    // `MaybeUninit` is presented on stack with continuos sequence of bytes.
+    //
+    // It's also safe to construct T from any bytes, because we use the fn
+    // only for reading primitive const-size types that are `[repr(C)]`,
+    // so they always represented from sequence of bytes.
+    //
+    // Bytes in memory always stored continuously and without paddings, properly
+    // aligned due to `[repr(C, packed)]` attribute of the types we use as T.
+    let mut_slice =
+        unsafe { slice::from_raw_parts_mut(buf.as_mut_ptr() as *mut u8, mem::size_of::<T>()) };
+
+    memory.read(ptr, mut_slice)?;
+
+    // # Safety:
+    //
+    // Assuming init is always safe here due to the fact that we read proper
+    // amount of bytes from the wasm memory, which is never uninited: they may
+    // be filled by zeroes or some trash (valid for our primitives used as T),
+    // but always exist.
+    Ok(unsafe { buf.assume_init() })
 }
 
 /// Read static size type access wrapper.
