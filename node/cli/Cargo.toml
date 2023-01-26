@@ -69,7 +69,7 @@ vara-native = [
 	"service/vara-native",
 	"gear-runtime-test-cli?/vara-native",
 	"vara-runtime",
-	"gear-program/vara"
+	"gear-program/gear"
 ]
 lazy-pages = [
 	"service/lazy-pages",

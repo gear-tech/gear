@@ -4,12 +4,12 @@ version = "0.1.5"
 authors = ["Gear Technologies"]
 edition = "2021"
 description = "gear program cli"
-repository = "https://github.com/gear-tech/gear-program"
+repository = "https://github.com/gear-tech/gear/tree/master/program"
 license = "GPL-3.0"
 documentation = "https://docs.rs/gear-program"
-homepage = "https://github.com/gear-tech/gear-program"
+homepage = "https://github.com/gear-tech/gear/tree/master/program"
 keywords = ["gear", "cli", "wasm"]
-readme = './README.md'
+readme = "./README.md"
 
 [[bin]]
 path = "bin/gprogram.rs"
