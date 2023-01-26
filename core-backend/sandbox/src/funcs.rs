@@ -28,7 +28,7 @@ use codec::Encode;
 use core::{convert::TryInto, fmt::Display, marker::PhantomData};
 use gear_backend_common::{
     memory::{MemoryAccessError, MemoryAccessRecorder, MemoryOwner},
-    IntoExtError, IntoExtInfo, RuntimeCtxError, TerminationReason, TrapExplanation,
+    IntoExtError, IntoExtInfo, TerminationReason, TrapExplanation,
 };
 use gear_core::{
     buffer::RuntimeBufferSizeError,
@@ -52,9 +52,6 @@ pub(crate) type SyscallOutput = Result<ReturnValue, HostError>;
 pub enum FuncError<E: Display> {
     #[display(fmt = "{_0}")]
     Core(E),
-    #[from]
-    #[display(fmt = "{_0}")]
-    RuntimeCtx(RuntimeCtxError<E>),
     #[from]
     #[display(fmt = "{_0}")]
     Memory(MemoryError),
@@ -449,18 +446,16 @@ where
 
         let pages = WasmPage::new(args.iter().read()?).map_err(|_| HostError)?;
 
-        let res = ctx.run_any(|ctx| {
-            ctx.ext
+        let page = ctx.run_any(|ctx| {
+            let page = ctx
+                .ext
                 .alloc(pages, &mut ctx.memory)
-                .map_err(RuntimeCtxError::Ext)
-                .map_err(Into::into)
-                .map(|page| {
-                    log::debug!("ALLOC: {pages:?} pages at {page:?}");
-                    page
-                })
+                .map_err(FuncError::Core)?;
+            log::debug!("ALLOC: {pages:?} pages at {page:?}");
+            Ok(page)
         })?;
 
-        Ok(ReturnValue::Value(Value::I32(res.raw() as i32)))
+        Ok(ReturnValue::Value(Value::I32(page.raw() as i32)))
     }
 
     pub fn free(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
@@ -469,13 +464,9 @@ where
         let page = WasmPage::new(args.iter().read()?).map_err(|_| HostError)?;
 
         ctx.run(|ctx| {
-            ctx.ext
-                .free(page)
-                .map(|_| log::debug!("FREE: {page:?}"))
-                .map_err(|err| {
-                    log::debug!("FREE ERROR: {}", err);
-                    FuncError::Core(err)
-                })
+            ctx.ext.free(page).map_err(FuncError::Core)?;
+            log::debug!("FREE: {page:?}");
+            Ok(())
         })
     }
 
@@ -919,7 +910,7 @@ where
 
             let data = ctx.read(read_data)?;
 
-            let s = String::from_utf8(data).map_err(FuncError::DebugString)?;
+            let s = String::from_utf8(data).map_err(FuncError::<E::Error>::DebugString)?;
             ctx.ext.debug(&s).map_err(FuncError::Core)?;
 
             Ok(())
