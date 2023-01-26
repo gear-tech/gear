@@ -2,7 +2,7 @@
 #![allow(dead_code)]
 
 use frame_metadata::RuntimeMetadataPrefixed;
-use parity_scale_codec::{Decode, Encode};
+use parity_scale_codec::Decode;
 use std::{
     env, fs,
     io::Write,
@@ -11,6 +11,53 @@ use std::{
 };
 use subxt_codegen::DerivesRegistry;
 use syn::ItemMod;
+
+/// TODO: workaround for #2140, remove this after #2022
+pub enum Runtime {
+    Gear,
+    Vara,
+}
+
+impl Runtime {
+    // Get metadata from the wasm binaries of runtimes.
+    pub fn metadata(&self) -> Vec<u8> {
+        use gear_runtime_interface as gear_ri;
+        use sc_executor::WasmExecutionMethod;
+        use sc_executor_common::runtime_blob::RuntimeBlob;
+
+        // 1. Get the runtime binary.
+        let runtime = match self {
+            Runtime::Gear => "gear",
+            Runtime::Vara => "vara",
+        };
+        let path = format!(
+            "{}/../target/{}/wbuild/{}-runtime/{}_runtime.compact.compressed.wasm",
+            env!("CARGO_MANIFEST_DIR"),
+            env::var("PROFILE").unwrap(),
+            runtime,
+            runtime
+        );
+        let code = fs::read(&path).expect("Failed to find runtime");
+
+        // 2. Create wasm executor.
+        let executor = sc_executor::WasmExecutor::<(
+            gear_ri::gear_ri::HostFunctions,
+            sp_io::SubstrateHostFunctions,
+        )>::new(WasmExecutionMethod::Interpreted, Some(1024), 8, None, 2);
+
+        // 3. Extract metadata.
+        executor
+            .uncached_call(
+                RuntimeBlob::uncompress_if_needed(&code).expect("Invalid runtime code."),
+                &mut sp_io::TestExternalities::default().ext(),
+                true,
+                "Metadata_metadata",
+                &[],
+            )
+            .expect("Failed to extract runtime metadata")[4..] // [4..] for removing the magic number.
+            .to_vec()
+    }
+}
 
 /// Generate api
 fn codegen(mut encoded: &[u8], item_mod: ItemMod) -> String {
@@ -58,7 +105,10 @@ fn update_api() {
     {
         write_api(
             &codegen(
-                &gear_runtime::Runtime::metadata().encode(),
+                // &gear_runtime::Runtime::metadata().encode(),
+                //
+                // TODO: remove the following line after #2022.
+                &Runtime::Gear.metadata(),
                 syn::parse_quote!(
                     pub mod metadata {}
                 ),
@@ -71,7 +121,10 @@ fn update_api() {
     {
         write_api(
             &codegen(
-                &vara_runtime::Runtime::metadata().encode(),
+                // &vara_runtime::Runtime::metadata().encode(),
+                //
+                // TODO: remove the following line after #2022.
+                &Runtime::Vara.metadata(),
                 syn::parse_quote!(
                     pub mod metadata {}
                 ),
