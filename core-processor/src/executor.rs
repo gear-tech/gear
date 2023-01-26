@@ -56,6 +56,9 @@ pub enum PrepareMemoryError {
     /// Stack end page, which value is specified in WASM code, cannot be bigger than static memory size.
     #[display(fmt = "Stack end page {_0:?} is bigger then WASM static memory size {_1:?}")]
     StackEndPageBiggerWasmMemSize(WasmPage, WasmPage),
+    /// It's not allowed to set initial data for stack memory pages, if they are specified in WASM code.
+    #[display(fmt = "Set initial data for stack pages is restricted")]
+    StackPagesHaveInitialData,
 }
 
 /// Make checks that everything with memory goes well.
@@ -132,7 +135,7 @@ fn prepare_memory<A: ProcessorExt, M: Memory>(
         let begin = stack_end.unwrap_or_default();
 
         if pages_data.keys().any(|&p| p < begin.to_page()) {
-            unreachable!("Set initial data for stack pages is restricted")
+            return Err(PrepareMemoryError::StackPagesHaveInitialData);
         }
 
         let non_stack_pages = begin.iter_end(static_pages).unwrap_or_else(|err| {
