@@ -24,9 +24,13 @@ impl Opt {
     /// Run validator checks.
     pub async fn run(self) -> Result<()> {
         let mut builder = if self.verbose {
-            Builder::from_env(Env::default().default_filter_or("validator_checks=debug"))
+            Builder::from_env(
+                Env::default().default_filter_or("validator_checks,gear_validator_checks=debug"),
+            )
         } else {
-            Builder::from_env(Env::default().default_filter_or("validator_checks=info"))
+            Builder::from_env(
+                Env::default().default_filter_or("validator_checks,gear_validator_checks=info"),
+            )
         };
         builder.try_init()?;
 

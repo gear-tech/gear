@@ -36,19 +36,21 @@ impl Listener {
 
     /// Run validator checks.
     pub async fn check(&self) -> Result<()> {
-        let validator_list = self.api.validators().await?;
-        log::info!("Validators: {validator_list:#?}");
+        let all_validators = self.api.validators().await?;
+        let validators_to_be_checked = if !self.opt.validators.is_empty() {
+            self.opt
+                .validators
+                .iter()
+                .map(|acc| AccountId32::from_ss58check(acc))
+                .collect::<StdResult<Vec<AccountId32>, PublicError>>()?
+        } else {
+            all_validators.clone()
+        };
 
-        let mut blocks_production = BlocksProduction::new(
-            validator_list,
-            (!self.opt.validators.is_empty()).then_some(
-                self.opt
-                    .validators
-                    .iter()
-                    .map(|acc| AccountId32::from_ss58check(&acc))
-                    .collect::<StdResult<Vec<AccountId32>, PublicError>>()?,
-            ),
-        );
+        log::info!("All validators: {all_validators:#?}");
+        log::info!("Validators to be checked: {validators_to_be_checked:#?}");
+
+        let mut blocks_production = BlocksProduction::new(all_validators, validators_to_be_checked);
 
         let now = Instant::now();
         let mut blocks = self.listen_finalized().await?;

@@ -124,7 +124,7 @@ client_tests() {
 validators() {
     ROOT_DIR="$1"
 
-    $ROOT_DIR/target/release/validator-checks "$@"
+    $ROOT_DIR/target/release/validator-checks "${@:2}"
 }
 
 run_fuzzer() {

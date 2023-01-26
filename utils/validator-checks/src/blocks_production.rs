@@ -2,8 +2,11 @@
 use gp::api::config::GearConfig;
 use parity_scale_codec::Decode;
 use sp_consensus_babe::{digests::PreDigest as BabePreDigest, BABE_ENGINE_ID};
-use subxt::ext::sp_runtime::{generic::DigestItem, traits::Header};
-use subxt::{blocks, ext::sp_runtime::AccountId32, OnlineClient};
+use subxt::{
+    blocks,
+    ext::sp_runtime::{generic::DigestItem, traits::Header, AccountId32},
+    OnlineClient,
+};
 
 /// Gear block.
 pub type Block = blocks::Block<GearConfig, OnlineClient<GearConfig>>;
@@ -18,10 +21,10 @@ pub struct BlocksProduction {
 
 impl BlocksProduction {
     /// New blocks production check from validator lists
-    pub fn new(all_validators: Vec<AccountId32>, validators: Option<Vec<AccountId32>>) -> Self {
+    pub fn new(all_validators: Vec<AccountId32>, validators: Vec<AccountId32>) -> Self {
         Self {
-            all_validators: all_validators.clone(),
-            validators: validators.unwrap_or(all_validators),
+            all_validators,
+            validators,
         }
     }
 
@@ -38,17 +41,17 @@ impl BlocksProduction {
         let logs = block.header().digest().logs();
         if let Some(DigestItem::PreRuntime(engine, bytes)) = logs.get(0) {
             if *engine == BABE_ENGINE_ID {
-                BabePreDigest::decode(&mut bytes.as_ref())
+                if let Some(author) = BabePreDigest::decode(&mut bytes.as_ref())
                     .ok()
                     .and_then(|pre| self.all_validators.get(pre.authority_index() as usize))
-                    .map(|author| {
-                        if let Ok(index) = self.validators.binary_search(author) {
-                            log::info!(
-                                "Validated {:?} for blocks production.",
-                                self.validators.remove(index)
-                            );
-                        }
-                    });
+                {
+                    if let Ok(index) = self.validators.binary_search(author) {
+                        log::info!(
+                            "Validated {:?} for blocks production.",
+                            self.validators.remove(index)
+                        );
+                    }
+                }
 
                 return self.validators.is_empty();
             }
