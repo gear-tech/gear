@@ -38,6 +38,7 @@ mod session {
     use subxt::ext::sp_runtime::AccountId32;
 
     impl Api {
+        /// Get all validators from pallet_session.
         pub async fn validators(&self) -> Result<Vec<AccountId32>> {
             let at = storage().session().validators();
             Ok(self
