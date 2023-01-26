@@ -84,7 +84,7 @@ fn check_memory<'a>(
     }
 }
 
-fn check_initial_pages_data(initial_pages_data: &BTreeMap<GearPage, PageBuf>) {
+fn lazy_pages_check_initial_data(initial_pages_data: &BTreeMap<GearPage, PageBuf>) {
     initial_pages_data
         .is_empty()
         .then_some(())
@@ -119,7 +119,7 @@ fn prepare_memory<A: ProcessorExt, M: Memory>(
     }
 
     if A::LAZY_PAGES_ENABLED {
-        check_initial_pages_data(pages_data);
+        lazy_pages_check_initial_data(pages_data);
 
         A::lazy_pages_init_for_program(
             mem,
@@ -349,7 +349,7 @@ pub fn execute_wasm<
         })?;
 
     if A::LAZY_PAGES_ENABLED {
-        check_initial_pages_data(&pages_initial_data);
+        lazy_pages_check_initial_data(&pages_initial_data);
     }
 
     // Parsing outcome.
