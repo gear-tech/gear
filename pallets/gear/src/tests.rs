@@ -8421,6 +8421,7 @@ mod utils {
         assert_eq!(status, DispatchStatus::Success)
     }
 
+    /// TODO: return back to `ExecutionErrorReason`
     #[track_caller]
     pub(super) fn assert_failed(message_id: MessageId, error: impl Display) {
         let status =
