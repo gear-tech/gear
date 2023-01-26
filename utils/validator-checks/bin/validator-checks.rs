@@ -1,6 +1,6 @@
 use clap::Parser;
 use color_eyre::eyre::Result;
-use validator_checks::Opt;
+use gear_validator_checks::Opt;
 
 #[tokio::main]
 async fn main() -> Result<()> {

@@ -30,7 +30,7 @@ impl Listener {
     }
 
     /// Listen to finalized blocks.
-    pub async fn listen(&self) -> Result<Blocks> {
+    pub async fn listen_finalized(&self) -> Result<Blocks> {
         self.api.finalized_blocks().await.map_err(Into::into)
     }
 
@@ -51,7 +51,7 @@ impl Listener {
         );
 
         let now = Instant::now();
-        let mut blocks = self.listen().await?;
+        let mut blocks = self.listen_finalized().await?;
         while let Some(maybe_block) = blocks.next().await {
             if blocks_production.check(&maybe_block?) {
                 break;

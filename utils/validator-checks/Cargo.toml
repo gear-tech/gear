@@ -1,5 +1,5 @@
 [package]
-name = "validator-checks"
+name = "gear-validator-checks"
 version = "0.1.0"
 edition = "2021"
 
