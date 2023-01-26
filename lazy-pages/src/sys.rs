@@ -477,16 +477,25 @@ pub(crate) unsafe fn process_lazy_pages(
                         return Ok(());
                     }
                 } else {
-                    if ctx.read_storage_data_charged.insert(lazy_page.to_page()) {
+                    if ctx.read_storage_data_charged.insert(granularity_page) {
                         charge_set.read_storage_data = charge_set.read_storage_data.inc().unwrap();
                     }
-                    if is_write && ctx.write_charged.insert(lazy_page.to_page()) {
+                    if is_write && ctx.write_charged.insert(granularity_page) {
                         if ctx.read_charged.contains(&granularity_page)
                             || ctx.write_after_read_charged.contains(&granularity_page)
                         {
                             unreachable!("Lazy-pages context charge sets are in incorrect state");
                         }
                         charge_set.write_accessed = charge_set.write_accessed.inc().unwrap();
+                    } else {
+                        if ctx.write_charged.contains(&granularity_page)
+                            || ctx.write_after_read_charged.contains(&granularity_page)
+                        {
+                            unreachable!("Lazy-pages context charge sets are in incorrect state");
+                        }
+                        ctx.read_charged.insert(granularity_page);
+                        // No need to append `granularity_page` in `charge_set`, because gas
+                        // spent for page read is already included in syscall weight.
                     }
                 }
 
