@@ -24,6 +24,7 @@
 //! EXECUTION: Some(Wasm), WASM-EXECUTION: Compiled, CHAIN: Some("gear-dev"), DB CACHE: 1024
 
 // Executed Command:
+// cargo build -p gear-cli --features="runtime-benchmarks" --profile production
 // ./target/production/gear benchmark pallet --chain=gear-dev --steps=51 --repeat=200 --pallet=pallet_gear --extrinsic=* --execution=wasm --wasm-execution=compiled --heap-pages=4096 --output=out_gear.rs --template=.maintain/frame-weight-template.hbs
 
 #![cfg_attr(rustfmt, rustfmt_skip)]

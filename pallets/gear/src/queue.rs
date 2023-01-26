@@ -103,6 +103,7 @@ where
                         core_processor::handle_journal(journal, &mut ext_manager);
 
                         // Adding id in on-init wake list.
+                        // MIKITA getting into waitlist
                         ProgramStorageOf::<T>::waiting_init_append_message_id(
                             dispatch.destination(),
                             dispatch.id(),

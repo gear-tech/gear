@@ -517,7 +517,7 @@ benchmarks! {
         let caller = benchmarking::account("caller", 0, 0);
         <T as pallet::Config>::Currency::deposit_creating(&caller, DEPOSIT_AMOUNT.unique_saturated_into());
         let minimum_balance = <T as pallet::Config>::Currency::minimum_balance();
-        let program_id = ProgramId::from_origin(benchmarking::account::<T::AccountId>("program", 0, 100).into_origin());
+        let program_id = ProgramId::from_origin(benchmarking::account::<T::AccountId>("program", 0, PROGRAM_ID_DEFAULT).into_origin());
         let code = benchmarking::generate_wasm2(16.into()).unwrap();
         benchmarking::set_program::<ProgramStorageOf::<T>>(program_id, code, 1.into());
         let payload = vec![0_u8; p as usize];
@@ -534,7 +534,6 @@ benchmarks! {
         <T as pallet::Config>::Currency::deposit_creating(&caller, DEPOSIT_AMOUNT.unique_saturated_into());
         let minimum_balance = <T as pallet::Config>::Currency::minimum_balance();
         let program_id = ProgramId::from_origin(benchmarking::account::<T::AccountId>("program", 0, PROGRAM_ID_DEFAULT).into_origin());
-        let code = benchmarking::generate_wasm2(16.into()).unwrap();
         let payload = vec![0_u8; p as usize];
 
         init_block::<T>(None);
