@@ -103,6 +103,7 @@ fn update_api() {
 
 fn main() {
     println!("cargo:rerun-if-changed=build.rs");
+    println!("cargo:rerun-if-changed=../Cargo.lock");
     println!("cargo:rerun-if-changed=../runtime");
     println!("cargo:rerun-if-changed=../pallets/gear");
 
