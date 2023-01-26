@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    memory::OutOfMemoryAccessError, ExtInfo, GetGasAmount, IntoExtError, IntoExtInfo,
+    memory::OutOfMemoryAccessError, BackendExt, ExtInfo, GetGasAmount, IntoExtError,
     SystemReservationContext, TerminationReason,
 };
 use alloc::collections::BTreeSet;
@@ -243,7 +243,7 @@ impl Ext for MockExt {
     }
 }
 
-impl IntoExtInfo<<MockExt as Ext>::Error> for MockExt {
+impl BackendExt for MockExt {
     fn into_ext_info(self, _memory: &impl Memory) -> ExtInfo {
         ExtInfo {
             gas_amount: GasAmount::from(GasCounter::new(0)),

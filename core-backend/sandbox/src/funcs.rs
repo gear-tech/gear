@@ -25,7 +25,7 @@ use codec::Encode;
 use core::{convert::TryInto, fmt::Display, marker::PhantomData};
 use gear_backend_common::{
     memory::{MemoryAccessRecorder, MemoryOwner},
-    IntoExtError, IntoExtInfo, SyscallFuncError, TerminationReason,
+    BackendExt, IntoExtError, SyscallFuncError, TerminationReason,
 };
 use gear_core::{
     env::Ext,
@@ -47,7 +47,7 @@ pub(crate) type SyscallOutput = Result<ReturnValue, HostError>;
 trait IntoExtErrorForResult<T, Err, Ext>
 where
     Err: Display,
-    Ext: gear_core::env::Ext + IntoExtInfo<<Ext as gear_core::env::Ext>::Error>,
+    Ext: gear_core::env::Ext,
 {
     fn into_ext_error(
         self,
@@ -58,7 +58,7 @@ where
 impl<T, Err, Ext> IntoExtErrorForResult<T, Err, Ext> for Result<T, Err>
 where
     Err: IntoExtError + Display + Clone,
-    Ext: gear_core::env::Ext<Error = Err> + IntoExtInfo<Err>,
+    Ext: gear_core::env::Ext<Error = Err>,
 {
     fn into_ext_error(
         self,
@@ -107,7 +107,7 @@ macro_rules! sys_trace {
 
 impl<E> FuncsHandler<E>
 where
-    E: Ext + IntoExtInfo<E::Error> + 'static,
+    E: Ext + BackendExt + 'static,
     E::Error: IntoExtError + Clone,
 {
     pub fn send(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {

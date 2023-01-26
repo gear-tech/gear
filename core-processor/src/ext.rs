@@ -26,7 +26,7 @@ use codec::{Decode, Encode};
 use gear_backend_common::{
     lazy_pages::{GlobalsConfig, LazyPagesWeights, Status},
     memory::OutOfMemoryAccessError,
-    ExtInfo, GetGasAmount, IntoExtError, IntoExtInfo, SystemReservationContext, TerminationReason,
+    BackendExt, ExtInfo, GetGasAmount, IntoExtError, SystemReservationContext, TerminationReason,
     TrapExplanation,
 };
 use gear_core::{
@@ -249,7 +249,7 @@ impl ProcessorExt for Ext {
     }
 }
 
-impl IntoExtInfo<<Ext as EnvExt>::Error> for Ext {
+impl BackendExt for Ext {
     fn into_ext_info(self, memory: &impl Memory) -> ExtInfo {
         let pages_for_data =
             |static_pages: WasmPage, allocations: &BTreeSet<WasmPage>| -> Vec<GearPage> {

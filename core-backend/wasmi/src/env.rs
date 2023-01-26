@@ -27,12 +27,11 @@ use alloc::{
     collections::BTreeSet,
     string::{String, ToString},
 };
-use codec::Encode;
 use core::{any::Any, fmt};
 use gear_backend_common::{
     calc_stack_end,
     lazy_pages::{GlobalsAccessError, GlobalsAccessMod, GlobalsAccessor, GlobalsConfig},
-    BackendReport, Environment, GetGasAmount, IntoExtError, IntoExtInfo, StackEndError,
+    BackendExt, BackendReport, Environment, GetGasAmount, IntoExtError, StackEndError,
     SyscallFuncError, TerminationReason, TrapExplanation, STACK_END_EXPORT_NAME,
 };
 use gear_core::{
@@ -149,8 +148,8 @@ impl<E: Ext + 'static> GlobalsAccessor for GlobalsAccessProvider<E> {
 
 impl<E, EP> Environment<E, EP> for WasmiEnvironment<E, EP>
 where
-    E: Ext + IntoExtInfo<E::Error> + GetGasAmount + 'static,
-    E::Error: Encode + IntoExtError + Clone,
+    E: Ext + BackendExt + GetGasAmount + 'static,
+    E::Error: IntoExtError + Clone,
     EP: WasmEntry,
 {
     type Memory = MemoryWrap<E>;

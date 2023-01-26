@@ -121,7 +121,7 @@ pub struct ExtInfo {
     pub context_store: ContextStore,
 }
 
-pub trait IntoExtInfo<Error> {
+pub trait BackendExt {
     fn into_ext_info(self, memory: &impl Memory) -> ExtInfo;
 
     fn into_gas_amount(self) -> GasAmount;
@@ -154,7 +154,7 @@ pub const STACK_END_EXPORT_NAME: &str = "__gear_stack_end";
 
 pub trait Environment<E, EP = DispatchKind>: Sized
 where
-    E: Ext + IntoExtInfo<E::Error> + 'static,
+    E: Ext + BackendExt + 'static,
     EP: WasmEntry,
 {
     /// Memory type for current environment.

@@ -21,7 +21,7 @@ use core_processor::{Ext, ProcessorContext, ProcessorError, ProcessorExt};
 use gear_backend_common::{
     lazy_pages::{GlobalsConfig, LazyPagesWeights, Status},
     memory::OutOfMemoryAccessError,
-    ExtInfo, GetGasAmount, IntoExtInfo,
+    BackendExt, ExtInfo, GetGasAmount,
 };
 use gear_core::{
     costs::RuntimeCosts,
@@ -40,7 +40,7 @@ pub struct LazyPagesExt {
     inner: Ext,
 }
 
-impl IntoExtInfo<<LazyPagesExt as EnvExt>::Error> for LazyPagesExt {
+impl BackendExt for LazyPagesExt {
     fn into_ext_info(self, memory: &impl Memory) -> ExtInfo {
         let pages_for_data =
             |static_pages: WasmPage, allocations: &BTreeSet<WasmPage>| -> Vec<GearPage> {

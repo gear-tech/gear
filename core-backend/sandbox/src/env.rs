@@ -31,7 +31,7 @@ use core::fmt;
 use gear_backend_common::{
     calc_stack_end,
     lazy_pages::{GlobalsAccessMod, GlobalsConfig},
-    BackendReport, Environment, GetGasAmount, IntoExtError, IntoExtInfo, StackEndError,
+    BackendExt, BackendReport, Environment, GetGasAmount, IntoExtError, StackEndError,
     SyscallFuncError, TerminationReason, TrapExplanation, STACK_END_EXPORT_NAME,
 };
 use gear_core::{
@@ -90,7 +90,7 @@ impl GetGasAmount for Error {
 /// Environment to run one module at a time providing Ext.
 pub struct SandboxEnvironment<E, EP = DispatchKind>
 where
-    E: Ext + IntoExtInfo<E::Error>,
+    E: Ext,
     EP: WasmEntry,
 {
     instance: Instance<Runtime<E>>,
@@ -101,7 +101,7 @@ where
 
 // A helping wrapper for `EnvironmentDefinitionBuilder` and `forbidden_funcs`.
 // It makes adding functions to `EnvironmentDefinitionBuilder` shorter.
-struct EnvBuilder<E: Ext + IntoExtInfo<E::Error>> {
+struct EnvBuilder<E: Ext> {
     env_def_builder: EnvironmentDefinitionBuilder<Runtime<E>>,
     forbidden_funcs: BTreeSet<SysCallName>,
     funcs_count: usize,
@@ -109,7 +109,7 @@ struct EnvBuilder<E: Ext + IntoExtInfo<E::Error>> {
 
 impl<E> EnvBuilder<E>
 where
-    E: Ext + IntoExtInfo<E::Error> + 'static,
+    E: Ext + BackendExt + 'static,
     E::Error: IntoExtError + Clone,
 {
     fn add_func(&mut self, name: SysCallName, f: HostFuncType<Runtime<E>>) {
@@ -128,9 +128,7 @@ where
     }
 }
 
-impl<E: Ext + IntoExtInfo<E::Error>> From<EnvBuilder<E>>
-    for EnvironmentDefinitionBuilder<Runtime<E>>
-{
+impl<E: Ext> From<EnvBuilder<E>> for EnvironmentDefinitionBuilder<Runtime<E>> {
     fn from(builder: EnvBuilder<E>) -> Self {
         builder.env_def_builder
     }
@@ -138,7 +136,7 @@ impl<E: Ext + IntoExtInfo<E::Error>> From<EnvBuilder<E>>
 
 impl<E, EP> Environment<E, EP> for SandboxEnvironment<E, EP>
 where
-    E: Ext + IntoExtInfo<E::Error> + GetGasAmount + 'static,
+    E: Ext + BackendExt + GetGasAmount + 'static,
     E::Error: IntoExtError + Clone,
     EP: WasmEntry,
 {

@@ -33,7 +33,7 @@ use alloc::{
 use codec::{Decode, Encode};
 use gear_backend_common::{
     lazy_pages::{GlobalsConfig, LazyPagesWeights, Status},
-    BackendReport, Environment, GetGasAmount, IntoExtInfo, TerminationReason, TrapExplanation,
+    BackendExt, BackendReport, Environment, GetGasAmount, TerminationReason, TrapExplanation,
 };
 use gear_core::{
     code::InstrumentedCode,
@@ -233,10 +233,7 @@ fn get_pages_to_be_updated<A: ProcessorExt>(
 }
 
 /// Execute wasm with dispatch and return dispatch result.
-pub fn execute_wasm<
-    A: ProcessorExt + EnvExt + IntoExtInfo<<A as EnvExt>::Error> + 'static,
-    E: Environment<A>,
->(
+pub fn execute_wasm<A: ProcessorExt + EnvExt + BackendExt + 'static, E: Environment<A>>(
     balance: u128,
     dispatch: IncomingDispatch,
     context: WasmExecutionContext,
@@ -421,7 +418,7 @@ pub fn execute_wasm<
 
 /// !!! FOR TESTING / INFORMATIONAL USAGE ONLY
 pub fn execute_for_reply<
-    A: ProcessorExt + EnvExt + IntoExtInfo<<A as EnvExt>::Error> + 'static,
+    A: ProcessorExt + EnvExt + BackendExt + 'static,
     E: Environment<A, EP>,
     EP: WasmEntry,
 >(

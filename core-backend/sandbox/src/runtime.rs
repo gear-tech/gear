@@ -26,7 +26,7 @@ use gear_backend_common::{
         MemoryAccessError, MemoryAccessManager, MemoryAccessRecorder, MemoryOwner, WasmMemoryRead,
         WasmMemoryReadAs, WasmMemoryReadDecoded, WasmMemoryWrite, WasmMemoryWriteAs,
     },
-    IntoExtInfo, SyscallFuncError,
+    BackendExt, SyscallFuncError,
 };
 use gear_core::env::Ext;
 use gear_wasm_instrument::{GLOBAL_NAME_ALLOWANCE, GLOBAL_NAME_GAS};
@@ -39,7 +39,7 @@ pub(crate) fn as_i64(v: Value) -> Option<i64> {
     }
 }
 
-pub(crate) struct Runtime<E: Ext + IntoExtInfo<E::Error>> {
+pub(crate) struct Runtime<E: Ext> {
     pub ext: E,
     pub memory: MemoryWrap,
     pub err: SyscallFuncError<E::Error>,
@@ -48,7 +48,7 @@ pub(crate) struct Runtime<E: Ext + IntoExtInfo<E::Error>> {
     pub memory_manager: MemoryAccessManager<E>,
 }
 
-impl<E: Ext + IntoExtInfo<E::Error>> Runtime<E> {
+impl<E: Ext> Runtime<E> {
     pub(crate) fn run_any<T, F>(&mut self, f: F) -> Result<T, HostError>
     where
         F: FnOnce(&mut Self) -> Result<T, SyscallFuncError<E::Error>>,
@@ -109,7 +109,7 @@ impl<E: Ext + IntoExtInfo<E::Error>> Runtime<E> {
     }
 }
 
-impl<E: Ext + IntoExtInfo<E::Error>> MemoryAccessRecorder for Runtime<E> {
+impl<E: Ext> MemoryAccessRecorder for Runtime<E> {
     fn register_read(&mut self, ptr: u32, size: u32) -> WasmMemoryRead {
         self.memory_manager.register_read(ptr, size)
     }
@@ -134,7 +134,10 @@ impl<E: Ext + IntoExtInfo<E::Error>> MemoryAccessRecorder for Runtime<E> {
     }
 }
 
-impl<E: Ext + IntoExtInfo<E::Error>> MemoryOwner for Runtime<E> {
+impl<E> MemoryOwner for Runtime<E>
+where
+    E: Ext + BackendExt,
+{
     fn read(&mut self, read: WasmMemoryRead) -> Result<Vec<u8>, MemoryAccessError> {
         self.memory_manager.read(&self.memory, read)
     }

@@ -30,7 +30,7 @@ use codec::{Decode, Encode};
 use core::{convert::TryInto, fmt::Display, marker::PhantomData};
 use gear_backend_common::{
     memory::{MemoryAccessError, MemoryAccessRecorder, MemoryOwner},
-    IntoExtError, IntoExtInfo, SyscallFuncError, TerminationReason,
+    BackendExt, IntoExtError, SyscallFuncError, TerminationReason,
 };
 use gear_core::{
     env::Ext,
@@ -93,8 +93,8 @@ type EmptyOutput = Result<(), Trap>;
 
 impl<E> FuncsHandler<E>
 where
-    E: Ext + IntoExtInfo<E::Error> + 'static,
-    E::Error: Encode + IntoExtError + Clone,
+    E: Ext + BackendExt + 'static,
+    E::Error: IntoExtError + Clone,
 {
     pub fn send(store: &mut Store<HostState<E>>, forbidden: bool, memory: WasmiMemory) -> Func {
         let func = move |caller: Caller<'_, HostState<E>>,
