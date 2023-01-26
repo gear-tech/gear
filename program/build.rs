@@ -26,17 +26,30 @@ impl Runtime {
         use sc_executor_common::runtime_blob::RuntimeBlob;
 
         // 1. Get the runtime binary.
+        let profile = env::var("PROFILE").unwrap();
         let runtime = match self {
             Runtime::Gear => "gear",
             Runtime::Vara => "vara",
         };
-        let path = format!(
+        let path = PathBuf::from(format!(
             "{}/../target/{}/wbuild/{}-runtime/{}_runtime.compact.compressed.wasm",
             env!("CARGO_MANIFEST_DIR"),
-            env::var("PROFILE").unwrap(),
+            profile,
             runtime,
             runtime
-        );
+        ));
+
+        // Prebuild runtime if it has not been compiled.
+        if !path.exists() {
+            let mut cargo = Command::new("cargo");
+            let pkg = runtime.to_owned() + "-runtime";
+            let mut args = vec!["b", "-p", &pkg];
+            if profile == "release" {
+                args.push("--release");
+            }
+            cargo.args(&args).status().expect("Format code failed.");
+        }
+
         let code = fs::read(&path).expect("Failed to find runtime");
 
         // 2. Create wasm executor.

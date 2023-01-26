@@ -75,34 +75,26 @@ bin = [ "cli" ]
 cli = [ "color-eyre", "clap" ]
 node-key = [ "libp2p" ]
 
-# TODO: remove the features below after #2022
-gear = [ ]
-vara = [ ]
-debug-mode = []
-lazy-pages = []
-runtime-benchmarks = []
-try-runtime = []
-
-# TODO: add the features below back after #2022
-#
 # gear = [ "gear-runtime" ]
 # vara = [ "vara-runtime" ]
-# debug-mode = [
-#   "gear-runtime?/debug-mode",
-#   "vara-runtime?/debug-mode"
-# ]
-# lazy-pages = [
-#   "gear-runtime?/lazy-pages",
-#   "vara-runtime?/lazy-pages"
-# ]
-# runtime-benchmarks = [
-#   "gear-runtime?/runtime-benchmarks",
-#   "vara-runtime?/runtime-benchmarks"
-# ]
-# try-runtime = [
-#   "gear-runtime?/try-runtime",
-#   "vara-runtime?/try-runtime"
-# ]
+gear = [ ]
+vara = [ ]
+debug-mode = [
+  # "gear-runtime?/debug-mode",
+  # "vara-runtime?/debug-mode"
+]
+lazy-pages = [
+  # "gear-runtime?/lazy-pages",
+  # # "vara-runtime?/lazy-pages"
+]
+runtime-benchmarks = [
+  # "gear-runtime?/runtime-benchmarks",
+  # "vara-runtime?/runtime-benchmarks"
+]
+try-runtime = [
+  # "gear-runtime?/try-runtime",
+  # "vara-runtime?/try-runtime"
+]
 
 [package.metadata.docs.rs]
 all-features = true
