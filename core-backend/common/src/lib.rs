@@ -33,16 +33,13 @@ pub mod mock;
 
 pub mod memory;
 
+use crate::utils::TrimmedString;
 use alloc::{
     collections::{BTreeMap, BTreeSet},
-    string::String,
     vec::Vec,
 };
 use codec::{Decode, Encode};
-use core::{
-    fmt::{self},
-    ops::Deref,
-};
+use core::fmt;
 use gear_core::{
     env::Ext,
     gas::GasAmount,
@@ -61,36 +58,6 @@ pub trait IntoExtError: Sized {
     fn into_ext_error(self) -> Result<ExtError, Self>;
 
     fn into_termination_reason(self) -> TerminationReason;
-}
-
-// Max amount of bytes allowed to be thrown as string explanation of the error.
-pub const TRIMMED_MAX_LEN: usize = 1024;
-
-/// Wrapped string to fit `core-backend::TRIMMED_MAX_LEN` amount of bytes.
-#[derive(
-    Decode, Encode, TypeInfo, Debug, Clone, PartialEq, Eq, PartialOrd, Ord, derive_more::Display,
-)]
-pub struct TrimmedString(String);
-
-impl TrimmedString {
-    pub(crate) fn new(mut string: String) -> Self {
-        utils::smart_truncate(&mut string, TRIMMED_MAX_LEN);
-        Self(string)
-    }
-}
-
-impl<T: Into<String>> From<T> for TrimmedString {
-    fn from(other: T) -> Self {
-        Self::new(other.into())
-    }
-}
-
-impl Deref for TrimmedString {
-    type Target = String;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
 }
 
 #[derive(Decode, Encode, Debug, PartialEq, Eq, PartialOrd, Ord, Clone)]

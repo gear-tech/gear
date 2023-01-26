@@ -31,7 +31,6 @@ use core::{
     convert::TryInto,
     fmt::{Debug, Display},
     marker::PhantomData,
-    ops::Range,
 };
 use gear_backend_common::{
     memory::{MemoryAccessError, MemoryAccessRecorder, MemoryOwner},
