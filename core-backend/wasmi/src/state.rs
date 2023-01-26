@@ -16,13 +16,12 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use gear_backend_common::SyscallFuncError;
 use gear_core::env::Ext;
-
-use crate::funcs::FuncError;
 
 pub type HostState<E> = Option<State<E>>;
 
 pub struct State<E: Ext> {
     pub ext: E,
-    pub err: FuncError<E::Error>,
+    pub err: SyscallFuncError<E::Error>,
 }

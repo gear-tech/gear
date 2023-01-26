@@ -19,7 +19,6 @@
 //! wasmi environment for running a module.
 
 use crate::{
-    funcs::FuncError,
     funcs_tree,
     memory::MemoryWrap,
     state::{HostState, State},
@@ -34,7 +33,7 @@ use gear_backend_common::{
     calc_stack_end,
     lazy_pages::{GlobalsAccessError, GlobalsAccessMod, GlobalsAccessor, GlobalsConfig},
     BackendReport, Environment, GetGasAmount, IntoExtError, IntoExtInfo, StackEndError,
-    TerminationReason, TrapExplanation, STACK_END_EXPORT_NAME,
+    SyscallFuncError, TerminationReason, TrapExplanation, STACK_END_EXPORT_NAME,
 };
 use gear_core::{
     env::Ext,
@@ -204,7 +203,7 @@ where
 
         let runtime = State {
             ext,
-            err: FuncError::Terminated(TerminationReason::Success),
+            err: SyscallFuncError::Terminated(TerminationReason::Success),
         };
 
         *store.state_mut() = Some(runtime);

@@ -113,7 +113,7 @@ mod tests {
     use crate::state::State;
 
     use super::*;
-    use gear_backend_common::{assert_err, assert_ok, mock::MockExt};
+    use gear_backend_common::{assert_err, assert_ok, mock::MockExt, SyscallFuncError};
     use gear_core::memory::{AllocInfo, AllocationsContext, NoopGrowHandler};
     use wasmi::{Engine, Store};
 
@@ -130,7 +130,7 @@ mod tests {
             &engine,
             Some(State {
                 ext: MockExt::default(),
-                err: crate::funcs::FuncError::WrongInstrumentation,
+                err: SyscallFuncError::WrongInstrumentation,
             }),
         );
 

@@ -17,9 +17,8 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use core_processor::{Ext, ProcessorContext, ProcessorExt};
-use gear_backend_common::TerminationReason;
+use gear_backend_common::{SyscallFuncError, TerminationReason};
 use gear_backend_wasmi::{
-    funcs::FuncError,
     funcs_tree,
     state::{HostState, State},
     wasmi::{
@@ -79,7 +78,7 @@ impl WasmExecutor {
 
         let runtime = State {
             ext,
-            err: FuncError::Terminated(TerminationReason::Success),
+            err: SyscallFuncError::Terminated(TerminationReason::Success),
         };
 
         *store.state_mut() = Some(runtime);
@@ -143,7 +142,7 @@ impl WasmExecutor {
             Ok((ptr_to_result,)) => Self::read_result(&memory_wrap, ptr_to_result),
             Err(_) => {
                 let func_error = memory_wrap.store.state().as_ref().unwrap().err.clone();
-                if let FuncError::Core(processor_error) = func_error {
+                if let SyscallFuncError::Core(processor_error) = func_error {
                     Err(processor_error.into())
                 } else {
                     Err(TestError::InvalidReturnType)

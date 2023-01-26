@@ -18,10 +18,7 @@
 
 //! sp-sandbox runtime (here it's contract execution state) realization.
 
-use crate::{
-    funcs::{FuncError, SyscallOutput},
-    MemoryWrap,
-};
+use crate::{funcs::SyscallOutput, MemoryWrap};
 use alloc::vec::Vec;
 use codec::{Decode, MaxEncodedLen};
 use gear_backend_common::{
@@ -29,7 +26,7 @@ use gear_backend_common::{
         MemoryAccessError, MemoryAccessManager, MemoryAccessRecorder, MemoryOwner, WasmMemoryRead,
         WasmMemoryReadAs, WasmMemoryReadDecoded, WasmMemoryWrite, WasmMemoryWriteAs,
     },
-    IntoExtInfo,
+    IntoExtInfo, SyscallFuncError,
 };
 use gear_core::env::Ext;
 use gear_wasm_instrument::{GLOBAL_NAME_ALLOWANCE, GLOBAL_NAME_GAS};
@@ -45,7 +42,7 @@ pub(crate) fn as_i64(v: Value) -> Option<i64> {
 pub(crate) struct Runtime<E: Ext + IntoExtInfo<E::Error>> {
     pub ext: E,
     pub memory: MemoryWrap,
-    pub err: FuncError<E::Error>,
+    pub err: SyscallFuncError<E::Error>,
     pub globals: sp_sandbox::default_executor::InstanceGlobals,
     // TODO: make wrapper around runtime and move memory_manager there (issue #2067)
     pub memory_manager: MemoryAccessManager<E>,
@@ -54,7 +51,7 @@ pub(crate) struct Runtime<E: Ext + IntoExtInfo<E::Error>> {
 impl<E: Ext + IntoExtInfo<E::Error>> Runtime<E> {
     pub(crate) fn run_any<T, F>(&mut self, f: F) -> Result<T, HostError>
     where
-        F: FnOnce(&mut Self) -> Result<T, FuncError<E::Error>>,
+        F: FnOnce(&mut Self) -> Result<T, SyscallFuncError<E::Error>>,
     {
         self.memory_manager = Default::default();
 
@@ -63,7 +60,7 @@ impl<E: Ext + IntoExtInfo<E::Error>> Runtime<E> {
             .get_global_val(GLOBAL_NAME_GAS)
             .and_then(as_i64)
             .ok_or_else(|| {
-                self.err = FuncError::WrongInstrumentation;
+                self.err = SyscallFuncError::WrongInstrumentation;
                 HostError
             })?;
 
@@ -73,7 +70,7 @@ impl<E: Ext + IntoExtInfo<E::Error>> Runtime<E> {
             .and_then(as_i64)
             .ok_or_else(|| {
                 // TODO #1979
-                self.err = FuncError::WrongInstrumentation;
+                self.err = SyscallFuncError::WrongInstrumentation;
                 HostError
             })?;
 
@@ -89,7 +86,7 @@ impl<E: Ext + IntoExtInfo<E::Error>> Runtime<E> {
         self.globals
             .set_global_val(GLOBAL_NAME_GAS, Value::I64(gas as i64))
             .map_err(|_| {
-                self.err = FuncError::WrongInstrumentation;
+                self.err = SyscallFuncError::WrongInstrumentation;
                 HostError
             })?;
 
@@ -97,7 +94,7 @@ impl<E: Ext + IntoExtInfo<E::Error>> Runtime<E> {
             .set_global_val(GLOBAL_NAME_ALLOWANCE, Value::I64(allowance as i64))
             .map_err(|_| {
                 // TODO #1979
-                self.err = FuncError::WrongInstrumentation;
+                self.err = SyscallFuncError::WrongInstrumentation;
                 HostError
             })?;
 
@@ -106,7 +103,7 @@ impl<E: Ext + IntoExtInfo<E::Error>> Runtime<E> {
 
     pub(crate) fn run<F>(&mut self, f: F) -> SyscallOutput
     where
-        F: FnOnce(&mut Self) -> Result<(), FuncError<E::Error>>,
+        F: FnOnce(&mut Self) -> Result<(), SyscallFuncError<E::Error>>,
     {
         self.run_any(f).map(|_| ReturnValue::Unit)
     }

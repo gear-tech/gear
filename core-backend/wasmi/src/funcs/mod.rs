@@ -27,22 +27,17 @@ use crate::{
 use alloc::string::ToString;
 use blake2_rfc::blake2b::blake2b;
 use codec::{Decode, Encode};
-use core::{
-    convert::TryInto,
-    fmt::{Debug, Display},
-    marker::PhantomData,
-};
+use core::{convert::TryInto, fmt::Display, marker::PhantomData};
 use gear_backend_common::{
     memory::{MemoryAccessError, MemoryAccessRecorder, MemoryOwner},
-    IntoExtError, IntoExtInfo, TerminationReason, TrapExplanation,
+    IntoExtError, IntoExtInfo, SyscallFuncError, TerminationReason,
 };
 use gear_core::{
-    buffer::RuntimeBufferSizeError,
     env::Ext,
     memory::{PageU32Size, WasmPage},
-    message::{HandlePacket, InitPacket, MessageWaitedType, PayloadSizeError, ReplyPacket},
+    message::{HandlePacket, InitPacket, MessageWaitedType, ReplyPacket},
 };
-use gear_core_errors::{CoreError, ExtError, MemoryError};
+use gear_core_errors::{CoreError, ExtError};
 use gear_wasm_instrument::{GLOBAL_NAME_ALLOWANCE, GLOBAL_NAME_GAS};
 use gsys::{
     BlockNumberWithHash, Hash, HashWithValue, LengthWithCode, LengthWithGas, LengthWithHandle,
@@ -56,68 +51,15 @@ use wasmi::{
 // TODO: change it to u32::MAX (issue #2027)
 const PTR_SPECIAL: u32 = i32::MAX as u32;
 
-#[derive(Debug, Clone, derive_more::Display, derive_more::From)]
-pub enum FuncError<E: Display> {
-    #[display(fmt = "{_0}")]
-    Core(E),
-    #[display(fmt = "Binary code has wrong instrumentation")]
-    WrongInstrumentation,
-    #[display(fmt = "{_0}")]
-    Memory(MemoryError),
-    #[from]
-    #[display(fmt = "{_0}")]
-    PayloadSize(PayloadSizeError),
-    #[from]
-    #[display(fmt = "{_0}")]
-    RuntimeBufferSize(RuntimeBufferSizeError),
-    #[display(fmt = "Terminated: {_0:?}")]
-    Terminated(TerminationReason),
-    #[display(fmt = "Cannot decode value from memory")]
-    DecodeValueError,
-    #[display(fmt = "Failed to parse debug string")]
-    DebugString,
-    #[display(fmt = "Buffer size {_0} is not equal to pre-registered size {_1}")]
-    WrongBufferSize(usize, u32),
-}
-
-impl<E: Display> From<MemoryAccessError> for FuncError<E> {
-    fn from(err: MemoryAccessError) -> Self {
-        match err {
-            MemoryAccessError::Memory(err) => Self::Memory(err),
-            MemoryAccessError::RuntimeBuffer(err) => Self::RuntimeBufferSize(err),
-            MemoryAccessError::DecodeError => Self::DecodeValueError,
-            MemoryAccessError::WrongBufferSize(buffer_size, size) => {
-                Self::WrongBufferSize(buffer_size, size)
-            }
-        }
-    }
-}
-
-impl<E> FuncError<E>
-where
-    E: Display + IntoExtError,
-{
-    pub fn into_termination_reason(self) -> TerminationReason {
-        match self {
-            Self::Core(err) => err.into_termination_reason(),
-            Self::Terminated(reason) => reason,
-            err => TerminationReason::Trap(TrapExplanation::Other(err.to_string().into())),
-        }
-    }
-}
-
-impl<E: Display> From<MemoryError> for FuncError<E> {
-    fn from(err: MemoryError) -> Self {
-        Self::Memory(err)
-    }
-}
-
 trait IntoExtErrorForResult<T, Err, Ext>
 where
     Err: Display,
     Ext: gear_core::env::Ext,
 {
-    fn into_ext_error(self, state: &mut State<Ext>) -> Result<Result<T, u32>, FuncError<Err>>;
+    fn into_ext_error(
+        self,
+        state: &mut State<Ext>,
+    ) -> Result<Result<T, u32>, SyscallFuncError<Err>>;
 }
 
 impl<T, Err, Ext> IntoExtErrorForResult<T, Err, Ext> for Result<T, Err>
@@ -125,14 +67,17 @@ where
     Err: IntoExtError + Display + Clone,
     Ext: gear_core::env::Ext<Error = Err>,
 {
-    fn into_ext_error(self, state: &mut State<Ext>) -> Result<Result<T, u32>, FuncError<Err>> {
+    fn into_ext_error(
+        self,
+        state: &mut State<Ext>,
+    ) -> Result<Result<T, u32>, SyscallFuncError<Err>> {
         match self {
             Ok(value) => Ok(Ok(value)),
             Err(err) => {
-                state.err = FuncError::Core(err.clone());
+                state.err = SyscallFuncError::Core(err.clone());
                 match err.into_ext_error() {
                     Ok(ext_err) => Ok(Err(ext_err.encoded_size() as u32)),
-                    Err(err) => Err(FuncError::Core(err)),
+                    Err(err) => Err(SyscallFuncError::Core(err)),
                 }
             }
         }
@@ -454,8 +399,8 @@ where
         ext: &'_ mut E,
         at: u32,
         len: u32,
-    ) -> Result<&'_ [u8], FuncError<<E as Ext>::Error>> {
-        let msg = ext.read(at, len).map_err(FuncError::Core)?;
+    ) -> Result<&'_ [u8], SyscallFuncError<<E as Ext>::Error>> {
+        let msg = ext.read(at, len).map_err(SyscallFuncError::Core)?;
 
         // 'at' and 'len' correct and saturation checked in Ext::read
         debug_assert!(at.checked_add(len).is_some());
@@ -500,7 +445,11 @@ where
             ctx.run(|ctx| {
                 let write_size = ctx.register_write_as(length_ptr);
 
-                let size = ctx.host_state_mut().ext.size().map_err(FuncError::Core)? as u32;
+                let size = ctx
+                    .host_state_mut()
+                    .ext
+                    .size()
+                    .map_err(SyscallFuncError::Core)? as u32;
 
                 ctx.write_as(write_size, size.to_le_bytes())
                     .map_err(Into::into)
@@ -519,9 +468,14 @@ where
 
                 let inheritor_id = ctx.read_decoded(read_inheritor_id)?;
 
-                ctx.host_state_mut().ext.exit().map_err(FuncError::Core)?;
+                ctx.host_state_mut()
+                    .ext
+                    .exit()
+                    .map_err(SyscallFuncError::Core)?;
 
-                Err(FuncError::Terminated(TerminationReason::Exit(inheritor_id)))
+                Err(SyscallFuncError::Terminated(TerminationReason::Exit(
+                    inheritor_id,
+                )))
             })
         };
 
@@ -557,7 +511,10 @@ where
 
             ctx.run_state_taken(|ctx, state| {
                 let mut mem = ctx.memory();
-                let page = state.ext.alloc(pages, &mut mem).map_err(FuncError::Core)?;
+                let page = state
+                    .ext
+                    .alloc(pages, &mut mem)
+                    .map_err(SyscallFuncError::Core)?;
                 log::debug!("Alloc {:?} pages at {:?}", pages, page);
                 Ok((page.raw(),))
             })
@@ -577,7 +534,7 @@ where
                     .ext
                     .free(page)
                     .map(|_| log::debug!("Free {:?}", page))
-                    .map_err(FuncError::Core)
+                    .map_err(SyscallFuncError::Core)
             })
         };
 
@@ -599,7 +556,7 @@ where
                     .host_state_mut()
                     .ext
                     .block_height()
-                    .map_err(FuncError::Core)?;
+                    .map_err(SyscallFuncError::Core)?;
 
                 ctx.write_as(write_height, height.to_le_bytes())
                     .map_err(Into::into)
@@ -624,7 +581,7 @@ where
                     .host_state_mut()
                     .ext
                     .block_timestamp()
-                    .map_err(FuncError::Core)?;
+                    .map_err(SyscallFuncError::Core)?;
 
                 ctx.write_as(write_timestamp, timestamp.to_le_bytes())
                     .map_err(Into::into)
@@ -641,7 +598,11 @@ where
             ctx.run(|ctx| {
                 let write_origin = ctx.register_write_as(origin_ptr);
 
-                let origin = ctx.host_state_mut().ext.origin().map_err(FuncError::Core)?;
+                let origin = ctx
+                    .host_state_mut()
+                    .ext
+                    .origin()
+                    .map_err(SyscallFuncError::Core)?;
 
                 ctx.write_as(write_origin, origin.into_bytes())
                     .map_err(Into::into)
@@ -1191,11 +1152,11 @@ where
 
                     let data = ctx.read(read_data)?;
 
-                    let s = String::from_utf8(data).map_err(|_| FuncError::DebugString)?;
+                    let s = String::from_utf8(data).map_err(SyscallFuncError::DebugString)?;
                     ctx.host_state_mut()
                         .ext
                         .debug(&s)
-                        .map_err(FuncError::Core)?;
+                        .map_err(SyscallFuncError::Core)?;
 
                     Ok(())
                 })
@@ -1294,7 +1255,7 @@ where
                     .host_state_mut()
                     .ext
                     .gas_available()
-                    .map_err(FuncError::Core)?;
+                    .map_err(SyscallFuncError::Core)?;
 
                 ctx.write_as(write_gas, gas.to_le_bytes())
                     .map_err(Into::into)
@@ -1319,7 +1280,7 @@ where
                     .host_state_mut()
                     .ext
                     .message_id()
-                    .map_err(FuncError::Core)?;
+                    .map_err(SyscallFuncError::Core)?;
 
                 ctx.write_as(write_message_id, message_id.into_bytes())
                     .map_err(Into::into)
@@ -1344,7 +1305,7 @@ where
                     .host_state_mut()
                     .ext
                     .program_id()
-                    .map_err(FuncError::Core)?;
+                    .map_err(SyscallFuncError::Core)?;
 
                 ctx.write_as(write_program_id, program_id.into_bytes())
                     .map_err(Into::into)
@@ -1361,7 +1322,11 @@ where
             ctx.run(|ctx| {
                 let write_source = ctx.register_write_as(source_ptr);
 
-                let source = ctx.host_state_mut().ext.source().map_err(FuncError::Core)?;
+                let source = ctx
+                    .host_state_mut()
+                    .ext
+                    .source()
+                    .map_err(SyscallFuncError::Core)?;
 
                 ctx.write_as(write_source, source.into_bytes())
                     .map_err(Into::into)
@@ -1378,7 +1343,11 @@ where
             ctx.run(|ctx| {
                 let write_value = ctx.register_write_as(value_ptr);
 
-                let value = ctx.host_state_mut().ext.value().map_err(FuncError::Core)?;
+                let value = ctx
+                    .host_state_mut()
+                    .ext
+                    .value()
+                    .map_err(SyscallFuncError::Core)?;
 
                 ctx.write_as(write_value, value.to_le_bytes())
                     .map_err(Into::into)
@@ -1403,7 +1372,7 @@ where
                     .host_state_mut()
                     .ext
                     .value_available()
-                    .map_err(FuncError::Core)?;
+                    .map_err(SyscallFuncError::Core)?;
 
                 ctx.write_as(write_value, value_available.to_le_bytes())
                     .map_err(Into::into)
@@ -1426,7 +1395,11 @@ where
 
                 let raw_subject: Hash = ctx.read_decoded(read_subject)?;
 
-                let (random, bn) = ctx.host_state_mut().ext.random().map_err(FuncError::Core)?;
+                let (random, bn) = ctx
+                    .host_state_mut()
+                    .ext
+                    .random()
+                    .map_err(SyscallFuncError::Core)?;
                 let subject = [&raw_subject, random].concat();
 
                 let mut hash = [0; 32];
@@ -1449,9 +1422,9 @@ where
                     .host_state_mut()
                     .ext
                     .leave()
-                    .map_err(FuncError::Core)
+                    .map_err(SyscallFuncError::Core)
                     .err()
-                    .unwrap_or_else(|| FuncError::Terminated(TerminationReason::Leave)))
+                    .unwrap_or_else(|| SyscallFuncError::Terminated(TerminationReason::Leave)))
             })
         };
 
@@ -1467,10 +1440,10 @@ where
                     .host_state_mut()
                     .ext
                     .wait()
-                    .map_err(FuncError::Core)
+                    .map_err(SyscallFuncError::Core)
                     .err()
                     .unwrap_or_else(|| {
-                        FuncError::Terminated(TerminationReason::Wait(
+                        SyscallFuncError::Terminated(TerminationReason::Wait(
                             None,
                             MessageWaitedType::Wait,
                         ))
@@ -1490,10 +1463,10 @@ where
                     .host_state_mut()
                     .ext
                     .wait_for(duration)
-                    .map_err(FuncError::Core)
+                    .map_err(SyscallFuncError::Core)
                     .err()
                     .unwrap_or_else(|| {
-                        FuncError::Terminated(TerminationReason::Wait(
+                        SyscallFuncError::Terminated(TerminationReason::Wait(
                             Some(duration),
                             MessageWaitedType::WaitFor,
                         ))
@@ -1513,13 +1486,13 @@ where
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
             ctx.run(|ctx| -> Result<(), _> {
-                Err(FuncError::Terminated(TerminationReason::Wait(
+                Err(SyscallFuncError::Terminated(TerminationReason::Wait(
                     Some(duration),
                     if ctx
                         .host_state_mut()
                         .ext
                         .wait_up_to(duration)
-                        .map_err(FuncError::Core)?
+                        .map_err(SyscallFuncError::Core)?
                     {
                         MessageWaitedType::WaitUpToFull
                     } else {
@@ -1656,7 +1629,7 @@ where
             ctx.run(|ctx| {
                 let state = ctx.host_state_mut();
                 let last_err = match state.err.clone() {
-                    FuncError::Core(maybe_ext) => maybe_ext
+                    SyscallFuncError::Core(maybe_ext) => maybe_ext
                         .into_ext_error()
                         .map_err(|_| ExtError::SyscallUsage),
                     _ => Err(ExtError::SyscallUsage),
@@ -1676,7 +1649,7 @@ where
                 ctx.host_state_mut()
                     .ext
                     .charge_error()
-                    .map_err(FuncError::Core)?;
+                    .map_err(SyscallFuncError::Core)?;
                 ctx.write_as(write_err_len, len.to_le_bytes())?;
                 Ok(())
             })
@@ -1692,7 +1665,7 @@ where
                 .as_mut()
                 .expect("host_state should be set before execution");
 
-            host_state.err = FuncError::Core(host_state.ext.out_of_gas());
+            host_state.err = SyscallFuncError::Core(host_state.ext.out_of_gas());
             Err(TrapCode::Unreachable.into())
         };
 
@@ -1706,7 +1679,7 @@ where
                 .as_mut()
                 .expect("host_state should be set before execution");
 
-            host_state.err = FuncError::Core(host_state.ext.out_of_allowance());
+            host_state.err = SyscallFuncError::Core(host_state.ext.out_of_allowance());
 
             Err(TrapCode::Unreachable.into())
         };

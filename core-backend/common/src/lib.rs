@@ -33,20 +33,22 @@ pub mod mock;
 
 pub mod memory;
 
-use crate::utils::TrimmedString;
+use crate::{memory::MemoryAccessError, utils::TrimmedString};
 use alloc::{
     collections::{BTreeMap, BTreeSet},
+    string::{FromUtf8Error, ToString},
     vec::Vec,
 };
 use codec::{Decode, Encode};
-use core::fmt;
+use core::{fmt, fmt::Display};
 use gear_core::{
     env::Ext,
     gas::GasAmount,
     ids::{CodeId, MessageId, ProgramId, ReservationId},
     memory::{GearPage, Memory, MemoryInterval, PageBuf, WasmPage},
     message::{
-        ContextStore, Dispatch, DispatchKind, IncomingDispatch, MessageWaitedType, WasmEntry,
+        ContextStore, Dispatch, DispatchKind, IncomingDispatch, MessageWaitedType,
+        PayloadSizeError, WasmEntry,
     },
     reservation::GasReserver,
 };
@@ -180,5 +182,33 @@ where
     ) -> Result<BackendReport<Self::Memory, E>, Self::Error>
     where
         F: FnOnce(&mut Self::Memory, Option<WasmPage>, GlobalsConfig) -> Result<(), T>,
-        T: fmt::Display;
+        T: Display;
+}
+
+#[derive(Debug, Clone, derive_more::Display, derive_more::From)]
+pub enum SyscallFuncError<E: Display> {
+    #[display(fmt = "{_0}")]
+    Core(E),
+    #[from]
+    #[display(fmt = "{_0}")]
+    PayloadSize(PayloadSizeError),
+    #[display(fmt = "Failed to parse debug string: {_0}")]
+    DebugString(FromUtf8Error),
+    #[display(fmt = "Terminated: {_0:?}")]
+    Terminated(TerminationReason),
+    #[display(fmt = "Binary code has wrong instrumentation")]
+    WrongInstrumentation,
+    #[from]
+    #[display(fmt = "Memory access error: {_0}")]
+    MemoryAccess(MemoryAccessError),
+}
+
+impl<E: Display + IntoExtError> SyscallFuncError<E> {
+    pub fn into_termination_reason(self) -> TerminationReason {
+        match self {
+            Self::Core(err) => err.into_termination_reason(),
+            Self::Terminated(reason) => reason,
+            err => TerminationReason::Trap(TrapExplanation::Other(err.to_string().into())),
+        }
+    }
 }

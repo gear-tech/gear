@@ -19,7 +19,7 @@
 //! sp-sandbox environment for running a module.
 
 use crate::{
-    funcs::{FuncError, FuncsHandler as Funcs},
+    funcs::FuncsHandler as Funcs,
     memory::MemoryWrap,
     runtime::{self, Runtime},
 };
@@ -32,7 +32,7 @@ use gear_backend_common::{
     calc_stack_end,
     lazy_pages::{GlobalsAccessMod, GlobalsConfig},
     BackendReport, Environment, GetGasAmount, IntoExtError, IntoExtInfo, StackEndError,
-    TerminationReason, TrapExplanation, STACK_END_EXPORT_NAME,
+    SyscallFuncError, TerminationReason, TrapExplanation, STACK_END_EXPORT_NAME,
 };
 use gear_core::{
     env::Ext,
@@ -246,7 +246,7 @@ where
         let mut runtime = Runtime {
             ext,
             memory: MemoryWrap::new(memory),
-            err: FuncError::Terminated(TerminationReason::Success),
+            err: SyscallFuncError::Terminated(TerminationReason::Success),
             globals: Default::default(),
             memory_manager: Default::default(),
         };

@@ -41,7 +41,7 @@ use gear_core_errors::MemoryError;
 #[derive(Debug, Clone, Copy, Encode, Decode)]
 pub struct OutOfMemoryAccessError;
 
-#[derive(Debug, derive_more::Display, derive_more::From)]
+#[derive(Debug, Clone, derive_more::Display, derive_more::From)]
 pub enum MemoryAccessError {
     #[from]
     #[display(fmt = "{_0}")]
