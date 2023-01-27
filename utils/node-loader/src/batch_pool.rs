@@ -268,7 +268,7 @@ async fn create_renew_balance_task(
     let root_target_balance = root_api.free_balance(&root_address).await?;
 
     // every 100 blocks renew balance
-    let duration_millis = root_api.expected_block_time()? * 10;
+    let duration_millis = root_api.expected_block_time()? * 100;
 
     tracing::info!(
         "Renewing balances every {} seconds, user target balance is {}, authority target balance is {}",
@@ -287,7 +287,6 @@ async fn create_renew_balance_task(
                 let current = root_api.free_balance(&user_address).await?;
                 user_target_balance - current
             };
-
 
             // Calling `set_balance` for `user` is potentially dangerous, because getting actual
             // reserved balance is a complicated task, as reserved balance is changed by another
