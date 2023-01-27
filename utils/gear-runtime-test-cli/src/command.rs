@@ -465,8 +465,8 @@ macro_rules! command {
 
                             let memory = info.persistent_pages.clone();
                             let gas_reservation_map = {
-                                let prog =
-                                    ProgramStorageOf::<Runtime>::get_program(*pid).unwrap().0;
+                                let (prog, _bn) =
+                                    ProgramStorageOf::<Runtime>::get_program(*pid).unwrap();
                                 if let gear_common::Program::Active(gear_common::ActiveProgram {
                                     gas_reservation_map,
                                     ..
