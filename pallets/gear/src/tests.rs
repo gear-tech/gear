@@ -1244,16 +1244,24 @@ fn mailbox_threshold_works() {
 }
 
 #[test]
-fn send_message_inactive_program() {
+fn send_message_uninitialize_program() {
     init_logger();
     new_test_ext().execute_with(|| {
         // Submitting program and send message until it's uninitialized
         // Submitting first program and getting its id
-        let program_id = {
-            let res = upload_program_default(USER_1, ProgramCodeKind::Default);
-            assert_ok!(res);
-            res.expect("submit result was asserted")
-        };
+        let code = ProgramCodeKind::Default.to_bytes();
+        let salt = DEFAULT_SALT.to_vec();
+
+        let program_id = Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            code,
+            salt,
+            EMPTY_PAYLOAD.to_vec(),
+            DEFAULT_GAS_LIMIT,
+            0,
+        )
+        .map(|_| get_last_program_id())
+        .unwrap();
 
         assert!(Gear::is_active(program_id));
         assert!(!Gear::is_initialized(program_id));
