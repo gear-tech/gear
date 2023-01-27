@@ -55,6 +55,9 @@ use lazy_pages::GlobalsConfig;
 use memory::OutOfMemoryAccessError;
 use scale_info::TypeInfo;
 
+// '__gear_stack_end' export is inserted in wasm-proc or wasm-builder
+pub const STACK_END_EXPORT_NAME: &str = "__gear_stack_end";
+
 pub trait IntoExtError: Sized {
     fn into_ext_error(self) -> Result<ExtError, Self>;
 
@@ -141,9 +144,6 @@ pub struct BackendReport<T, E> {
     pub memory_wrap: T,
     pub ext: E,
 }
-
-// '__gear_stack_end' export is inserted in wasm-proc or wasm-builder
-pub const STACK_END_EXPORT_NAME: &str = "__gear_stack_end";
 
 #[derive(Debug)]
 pub enum EnvironmentExecutionError<B, P> {
