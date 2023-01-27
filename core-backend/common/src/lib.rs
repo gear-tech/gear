@@ -190,6 +190,7 @@ pub enum SyscallFuncError<E: Display> {
     #[from]
     #[display(fmt = "{_0}")]
     PayloadSize(PayloadSizeError),
+    #[from]
     #[display(fmt = "Failed to parse debug string: {_0}")]
     DebugString(FromUtf8Error),
     #[display(fmt = "Terminated: {_0:?}")]

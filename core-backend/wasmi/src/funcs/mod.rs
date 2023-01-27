@@ -1152,7 +1152,7 @@ where
 
                     let data = ctx.read(read_data)?;
 
-                    let s = String::from_utf8(data).map_err(SyscallFuncError::DebugString)?;
+                    let s = String::from_utf8(data)?;
                     ctx.host_state_mut()
                         .ext
                         .debug(&s)

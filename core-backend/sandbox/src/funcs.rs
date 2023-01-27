@@ -867,7 +867,7 @@ where
 
             let data = ctx.read(read_data)?;
 
-            let s = String::from_utf8(data).map_err(SyscallFuncError::<E::Error>::DebugString)?;
+            let s = String::from_utf8(data)?;
             ctx.ext.debug(&s).map_err(SyscallFuncError::Core)?;
 
             Ok(())
