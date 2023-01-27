@@ -2,7 +2,7 @@ use crate::{
     args::{LoadParams, SeedVariant},
     utils::{self, LoaderRng, SwapResult},
 };
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, Error, Result};
 use api::GearApiFacade;
 use batch::{Batch, BatchWithSeed};
 use context::Context;
@@ -16,6 +16,7 @@ use report::{BatchRunReport, Report};
 use std::{
     collections::{BTreeMap, BTreeSet},
     marker::PhantomData,
+    time::Duration,
 };
 use tracing::instrument;
 
@@ -47,17 +48,33 @@ impl<Rng: LoaderRng> BatchPool<Rng> {
         }
     }
 
+    // pub async fn run(params: LoadParams) -> Result<()> {
+    //     let api = GearApiFacade::try_new(params.node, params.user).await?;
+
+    //     let api = api.into_gear_api();
+    //     let starting_balance = api.total_balance(api.account_id()).await?;
+    //     Ok(renew_balance(api, params.root, starting_balance).await?)
+
+    // }
+
     pub async fn run(params: LoadParams) -> Result<()> {
         let api = GearApiFacade::try_new(params.node, params.user).await?;
         let mut batch_pool = Self::new(api.clone(), params.batch_size, params.workers);
 
         let run_pool_task = batch_pool.run_pool_loop(params.loader_seed, params.code_seed_type);
-        let inspect_crash_task = inspect_crash_events(api.into_gear_api());
+        let inspect_crash_task = inspect_crash_events(api.clone().into_gear_api());
+        let renew_balance_task = {
+            let api = api.into_gear_api();
+            let starting_balance = api.total_balance(api.account_id()).await?;
+            tracing::info!("BALANCE {starting_balance}");
+            renew_balance(api, params.root, starting_balance)
+        };
 
         let run_result = tokio::select! {
             r = run_pool_task => r,
             // TODO 1876 spawn a task
             r = inspect_crash_task => r,
+            r = renew_balance_task => r,
         };
 
         if let Err(ref e) = run_result {
@@ -250,4 +267,31 @@ async fn inspect_crash_events(api: GearApi) -> Result<()> {
     tracing::info!("{crash_err} at block hash {crash_block_hash:?}");
 
     Err(crash_err.into())
+}
+
+async fn renew_balance(api: GearApi, root: String, new_balance: u128) -> Result<()> {
+    let beneficiary = api.account_id().clone();
+    let root_api = api.with(root)?;
+
+    // every 100 blocks renew balance
+    let duration_millis = root_api.expected_block_time()? * 100;
+
+    loop {
+        tokio::time::sleep(Duration::from_millis(duration_millis)).await;
+
+        // BOB - transfer to him from Validator the new_balance - current reserved
+
+        // let current_balance = root_api.total_balance(&beneficiary).await?;
+        let current_reserved = root_api.reserved_balance(&beneficiary).await?;
+        root_api
+            .set_balance(
+                beneficiary.clone(),
+                new_balance - current_reserved,
+                current_reserved,
+            )
+            .await?;
+        tracing::info!("Renewed the balance of the sender");
+
+        tokio::task::yield_now().await
+    }
 }

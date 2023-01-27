@@ -240,7 +240,7 @@ fn testnet_genesis(
             balances: endowed_accounts
                 .iter()
                 .cloned()
-                .map(|k| (k, Balance::MAX))
+                .map(|k| (k, 1 << 60))
                 .collect(),
         },
         babe: BabeConfig {
