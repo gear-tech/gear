@@ -50,7 +50,7 @@ use gear_core::{
     },
     reservation::GasReserver,
 };
-use gear_core_errors::ExtError;
+use gear_core_errors::{CoreError, ExecutionError, ExtError, MessageError};
 use lazy_pages::GlobalsConfig;
 use memory::OutOfMemoryAccessError;
 use scale_info::TypeInfo;
@@ -187,12 +187,6 @@ where
 pub enum SyscallFuncError<E: Display> {
     #[display(fmt = "{_0}")]
     Core(E),
-    #[from]
-    #[display(fmt = "{_0}")]
-    PayloadSize(PayloadSizeError),
-    #[from]
-    #[display(fmt = "Failed to parse debug string: {_0}")]
-    DebugString(FromUtf8Error),
     #[display(fmt = "Terminated: {_0:?}")]
     Terminated(TerminationReason),
     #[display(fmt = "Binary code has wrong instrumentation")]
@@ -209,5 +203,21 @@ impl<E: Display + IntoExtError> SyscallFuncError<E> {
             Self::Terminated(reason) => reason,
             err => TerminationReason::Trap(TrapExplanation::Other(err.to_string().into())),
         }
+    }
+}
+
+impl<E: Display + CoreError> From<PayloadSizeError> for SyscallFuncError<E> {
+    fn from(_err: PayloadSizeError) -> Self {
+        Self::Core(E::from_ext_error(ExtError::Message(
+            MessageError::MaxMessageSizeExceed,
+        )))
+    }
+}
+
+impl<E: Display + CoreError> From<FromUtf8Error> for SyscallFuncError<E> {
+    fn from(_err: FromUtf8Error) -> Self {
+        Self::Core(E::from_ext_error(ExtError::Execution(
+            ExecutionError::InvalidDebugString,
+        )))
     }
 }

@@ -31,6 +31,9 @@ use scale_info::TypeInfo;
 
 /// Core error.
 pub trait CoreError: fmt::Display + fmt::Debug + Sized {
+    /// Convert `ExtError` into `Self`
+    fn from_ext_error(err: ExtError) -> Self;
+
     /// Attempt to call forbidden sys-call.
     fn forbidden_function() -> Self;
 }
@@ -201,6 +204,9 @@ pub enum ExecutionError {
     /// An error occurs in attempt to call forbidden sys-call.
     #[display(fmt = "Unable to call a forbidden function")]
     ForbiddenFunction,
+    /// An error occurs in attempt to parse invalid string in `gr_debug` sys-call.
+    #[display(fmt = "Invalid debug string passed in `gr_debug` sys-call")]
+    InvalidDebugString,
     /// An error occurs in attempt to unreserve gas with non-existing reservation ID.
     #[display(fmt = "Invalid reservation ID")]
     InvalidReservationId,
@@ -270,6 +276,10 @@ impl ExtError {
 }
 
 impl CoreError for ExtError {
+    fn from_ext_error(err: ExtError) -> Self {
+        err
+    }
+
     fn forbidden_function() -> Self {
         Self::Execution(ExecutionError::ForbiddenFunction)
     }

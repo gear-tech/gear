@@ -46,6 +46,10 @@ impl fmt::Display for Error {
 }
 
 impl CoreError for Error {
+    fn from_ext_error(_err: ExtError) -> Self {
+        todo!()
+    }
+
     fn forbidden_function() -> Self {
         todo!()
     }
