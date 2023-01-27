@@ -16,11 +16,9 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::StackEndError;
 use alloc::string::String;
 use codec::{Decode, Encode};
 use core::ops::Deref;
-use gear_core::memory::{PageU32Size, WasmPage};
 use scale_info::TypeInfo;
 
 #[macro_export]
@@ -83,19 +81,6 @@ fn smart_truncate(s: &mut String, max_bytes: usize) {
         }
 
         s.truncate(last_byte);
-    }
-}
-
-pub fn calc_stack_end(stack_end: Option<i32>) -> Result<Option<WasmPage>, StackEndError> {
-    use StackEndError::*;
-    if let Some(stack_end) = stack_end {
-        let stack_end = stack_end as u32;
-        if stack_end % WasmPage::size() != 0 {
-            return Err(IsNotAligned(stack_end));
-        }
-        Ok(Some(WasmPage::from_offset(stack_end)))
-    } else {
-        Ok(None)
     }
 }
 

@@ -25,8 +25,6 @@ extern crate alloc;
 pub mod lazy_pages;
 
 mod utils;
-use memory::OutOfMemoryAccessError;
-pub use utils::calc_stack_end;
 
 #[cfg(feature = "mock")]
 pub mod mock;
@@ -54,6 +52,7 @@ use gear_core::{
 };
 use gear_core_errors::ExtError;
 use lazy_pages::GlobalsConfig;
+use memory::OutOfMemoryAccessError;
 use scale_info::TypeInfo;
 
 pub trait IntoExtError: Sized {
@@ -143,12 +142,6 @@ pub struct BackendReport<T, E> {
     pub ext: E,
 }
 
-#[derive(Debug, derive_more::Display)]
-pub enum StackEndError {
-    #[display(fmt = "Stack end addr {_0:#x} must be aligned to WASM page size")]
-    IsNotAligned(u32),
-}
-
 // '__gear_stack_end' export is inserted in wasm-proc or wasm-builder
 pub const STACK_END_EXPORT_NAME: &str = "__gear_stack_end";
 
@@ -187,7 +180,7 @@ where
         pre_execution_handler: F,
     ) -> Result<BackendReport<Self::Memory, E>, EnvironmentExecutionError<Self::Error, T>>
     where
-        F: FnOnce(&mut Self::Memory, Option<WasmPage>, GlobalsConfig) -> Result<(), T>;
+        F: FnOnce(&mut Self::Memory, Option<i32>, GlobalsConfig) -> Result<(), T>;
 }
 
 #[derive(Debug, Clone, derive_more::Display, derive_more::From)]

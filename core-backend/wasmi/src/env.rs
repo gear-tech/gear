@@ -29,10 +29,9 @@ use alloc::{
 };
 use core::any::Any;
 use gear_backend_common::{
-    calc_stack_end,
     lazy_pages::{GlobalsAccessError, GlobalsAccessMod, GlobalsAccessor, GlobalsConfig},
     BackendExt, BackendReport, Environment, EnvironmentExecutionError, GetGasAmount, IntoExtError,
-    StackEndError, SyscallFuncError, TerminationReason, TrapExplanation, STACK_END_EXPORT_NAME,
+    SyscallFuncError, TerminationReason, TrapExplanation, STACK_END_EXPORT_NAME,
 };
 use gear_core::{
     env::Ext,
@@ -47,18 +46,19 @@ use wasmi::{
 
 #[derive(Debug, derive_more::Display, derive_more::From)]
 pub enum WasmiEnvironmentError {
+    #[from]
     #[display(fmt = "Failed to create env memory: {_0:?}")]
     CreateEnvMemory(wasmi::errors::MemoryError),
+    #[from]
     #[display(fmt = "Unable to link item: {_0:?}")]
     Linking(wasmi::errors::LinkerError),
+    #[from]
     #[display(fmt = "Unable to instantiate module: {_0:?}")]
     ModuleInstantiation(wasmi::Error),
     #[display(fmt = "Unable to get wasm module exports: {_0}")]
     GetWasmExports(String),
     #[display(fmt = "Entry point has wrong type: {_0}")]
     EntryPointWrongType(String),
-    #[from]
-    StackEnd(StackEndError),
     #[display(fmt = "Gas counter not found or has wrong type")]
     WrongInjectedGas,
     #[display(fmt = "Allowance counter not found or has wrong type")]
@@ -227,7 +227,7 @@ where
         pre_execution_handler: F,
     ) -> Result<BackendReport<Self::Memory, E>, EnvironmentExecutionError<Self::Error, T>>
     where
-        F: FnOnce(&mut Self::Memory, Option<WasmPage>, GlobalsConfig) -> Result<(), T>,
+        F: FnOnce(&mut Self::Memory, Option<i32>, GlobalsConfig) -> Result<(), T>,
     {
         use EnvironmentExecutionError::*;
         use WasmiEnvironmentError::*;
@@ -244,8 +244,6 @@ where
             .get_export(&store, STACK_END_EXPORT_NAME)
             .and_then(Extern::into_global)
             .and_then(|g| g.get(&store).try_into::<i32>());
-        let stack_end = calc_stack_end(stack_end)
-            .map_err(|e| Backend((gas_amount!(store), StackEnd(e)).into()))?;
 
         let (gas, allowance) = store
             .state()

@@ -25,10 +25,9 @@ use crate::{
 };
 use alloc::{collections::BTreeSet, string::ToString};
 use gear_backend_common::{
-    calc_stack_end,
     lazy_pages::{GlobalsAccessMod, GlobalsConfig},
     BackendExt, BackendReport, Environment, EnvironmentExecutionError, GetGasAmount, IntoExtError,
-    StackEndError, SyscallFuncError, TerminationReason, TrapExplanation, STACK_END_EXPORT_NAME,
+    SyscallFuncError, TerminationReason, TrapExplanation, STACK_END_EXPORT_NAME,
 };
 use gear_core::{
     env::Ext,
@@ -46,14 +45,12 @@ use sp_sandbox::{
     SandboxMemory, Value,
 };
 
-#[derive(Debug, derive_more::Display, derive_more::From)]
+#[derive(Debug, derive_more::Display)]
 pub enum SandboxEnvironmentError {
     #[display(fmt = "Failed to create env memory: {_0:?}")]
     CreateEnvMemory(sp_sandbox::Error),
     #[display(fmt = "Unable to instantiate module: {_0:?}")]
     ModuleInstantiation(sp_sandbox::Error),
-    #[from]
-    StackEnd(StackEndError),
     #[display(fmt = "Mutable globals are not supported")]
     MutableGlobalsNotSupported,
     #[display(fmt = "Gas counter not found or has wrong type")]
@@ -253,7 +250,7 @@ where
         pre_execution_handler: F,
     ) -> Result<BackendReport<Self::Memory, E>, EnvironmentExecutionError<Self::Error, T>>
     where
-        F: FnOnce(&mut Self::Memory, Option<WasmPage>, GlobalsConfig) -> Result<(), T>,
+        F: FnOnce(&mut Self::Memory, Option<i32>, GlobalsConfig) -> Result<(), T>,
     {
         use EnvironmentExecutionError::*;
         use SandboxEnvironmentError::*;
@@ -268,10 +265,6 @@ where
         let stack_end = instance
             .get_global_val(STACK_END_EXPORT_NAME)
             .and_then(|global| global.as_i32());
-        let stack_end = match calc_stack_end(stack_end) {
-            Ok(s) => s,
-            Err(e) => return Err(Backend((runtime.ext.gas_amount(), StackEnd(e)).into())),
-        };
 
         runtime.globals = instance.instance_globals().ok_or(Backend(
             (runtime.ext.gas_amount(), MutableGlobalsNotSupported).into(),
