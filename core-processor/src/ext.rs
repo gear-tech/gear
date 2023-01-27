@@ -26,8 +26,8 @@ use codec::{Decode, Encode};
 use gear_backend_common::{
     lazy_pages::{GlobalsConfig, LazyPagesWeights, Status},
     memory::OutOfMemoryAccessError,
-    BackendExt, ExtInfo, GetGasAmount, IntoExtError, SystemReservationContext, TerminationReason,
-    TrapExplanation,
+    BackendExt, BackendExtError, ExtInfo, GetGasAmount, SystemReservationContext,
+    TerminationReason, TrapExplanation,
 };
 use gear_core::{
     costs::{HostFnWeights, RuntimeCosts},
@@ -151,17 +151,17 @@ impl From<ExecutionError> for ProcessorError {
     }
 }
 
-impl CoreError for ProcessorError {
+impl CoreError for ProcessorError {}
+
+impl BackendExtError for ProcessorError {
     fn from_ext_error(err: ExtError) -> Self {
         Self::Core(err)
     }
 
     fn forbidden_function() -> Self {
-        Self::Core(ExtError::forbidden_function())
+        Self::Core(ExtError::Execution(ExecutionError::ForbiddenFunction))
     }
-}
 
-impl IntoExtError for ProcessorError {
     fn into_ext_error(self) -> Result<ExtError, Self> {
         match self {
             ProcessorError::Core(err) => Ok(err),

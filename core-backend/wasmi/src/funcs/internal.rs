@@ -31,7 +31,7 @@ use crate::state::State;
 pub(crate) struct CallerWrap<'a, E>
 where
     E: Ext + 'static,
-    E::Error: IntoExtError,
+    E::Error: BackendExtError,
 {
     caller: Caller<'a, HostState<E>>,
     manager: MemoryAccessManager<E>,
@@ -41,7 +41,7 @@ where
 impl<'a, E> CallerWrap<'a, E>
 where
     E: Ext + 'static,
-    E::Error: IntoExtError,
+    E::Error: BackendExtError,
 {
     #[track_caller]
     pub fn prepare(
@@ -170,7 +170,7 @@ where
 impl<'a, E> MemoryAccessRecorder for CallerWrap<'a, E>
 where
     E: Ext + 'static,
-    E::Error: IntoExtError,
+    E::Error: BackendExtError,
 {
     fn register_read(&mut self, ptr: u32, size: u32) -> WasmMemoryRead {
         self.manager.register_read(ptr, size)
@@ -199,7 +199,7 @@ where
 impl<'a, E> MemoryOwner for CallerWrap<'a, E>
 where
     E: Ext + BackendExt + 'static,
-    E::Error: IntoExtError,
+    E::Error: BackendExtError,
 {
     fn read(&mut self, read: WasmMemoryRead) -> Result<Vec<u8>, MemoryAccessError> {
         let store = self.caller.as_context_mut();

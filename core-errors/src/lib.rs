@@ -30,13 +30,7 @@ use core::fmt;
 use scale_info::TypeInfo;
 
 /// Core error.
-pub trait CoreError: fmt::Display + fmt::Debug + Sized {
-    /// Convert `ExtError` into `Self`
-    fn from_ext_error(err: ExtError) -> Self;
-
-    /// Attempt to call forbidden sys-call.
-    fn forbidden_function() -> Self;
-}
+pub trait CoreError: fmt::Display + fmt::Debug + Sized {}
 
 /// Error using messages.
 #[derive(Copy, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, derive_more::Display)]
@@ -272,15 +266,5 @@ impl ExtError {
     /// Size of error encoded in SCALE codec
     pub fn encoded_size(&self) -> usize {
         Encode::encoded_size(self)
-    }
-}
-
-impl CoreError for ExtError {
-    fn from_ext_error(err: ExtError) -> Self {
-        err
-    }
-
-    fn forbidden_function() -> Self {
-        Self::Execution(ExecutionError::ForbiddenFunction)
     }
 }

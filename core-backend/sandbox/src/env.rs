@@ -26,8 +26,8 @@ use crate::{
 use alloc::{collections::BTreeSet, string::ToString};
 use gear_backend_common::{
     lazy_pages::{GlobalsAccessMod, GlobalsConfig},
-    BackendExt, BackendReport, Environment, EnvironmentExecutionError, GetGasAmount, IntoExtError,
-    SyscallFuncError, TerminationReason, TrapExplanation, STACK_END_EXPORT_NAME,
+    BackendExt, BackendExtError, BackendReport, Environment, EnvironmentExecutionError,
+    GetGasAmount, SyscallFuncError, TerminationReason, TrapExplanation, STACK_END_EXPORT_NAME,
 };
 use gear_core::{
     env::Ext,
@@ -95,7 +95,7 @@ struct EnvBuilder<E: Ext> {
 impl<E> EnvBuilder<E>
 where
     E: Ext + BackendExt + 'static,
-    E::Error: IntoExtError + Clone,
+    E::Error: BackendExtError + Clone,
 {
     fn add_func(&mut self, name: SysCallName, f: HostFuncType<Runtime<E>>) {
         if self.forbidden_funcs.contains(&name) {
@@ -122,7 +122,7 @@ impl<E: Ext> From<EnvBuilder<E>> for EnvironmentDefinitionBuilder<Runtime<E>> {
 impl<E, EP> Environment<E, EP> for SandboxEnvironment<E, EP>
 where
     E: Ext + BackendExt + GetGasAmount + 'static,
-    E::Error: IntoExtError + Clone,
+    E::Error: BackendExtError + Clone,
     EP: WasmEntry,
 {
     type Memory = MemoryWrap;

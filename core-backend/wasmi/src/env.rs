@@ -30,8 +30,8 @@ use alloc::{
 use core::any::Any;
 use gear_backend_common::{
     lazy_pages::{GlobalsAccessError, GlobalsAccessMod, GlobalsAccessor, GlobalsConfig},
-    BackendExt, BackendReport, Environment, EnvironmentExecutionError, GetGasAmount, IntoExtError,
-    SyscallFuncError, TerminationReason, TrapExplanation, STACK_END_EXPORT_NAME,
+    BackendExt, BackendExtError, BackendReport, Environment, EnvironmentExecutionError,
+    GetGasAmount, SyscallFuncError, TerminationReason, TrapExplanation, STACK_END_EXPORT_NAME,
 };
 use gear_core::{
     env::Ext,
@@ -147,7 +147,7 @@ impl<E: Ext + 'static> GlobalsAccessor for GlobalsAccessProvider<E> {
 impl<E, EP> Environment<E, EP> for WasmiEnvironment<E, EP>
 where
     E: Ext + BackendExt + GetGasAmount + 'static,
-    E::Error: IntoExtError + Clone,
+    E::Error: BackendExtError + Clone,
     EP: WasmEntry,
 {
     type Memory = MemoryWrap<E>;

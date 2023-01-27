@@ -50,19 +50,13 @@ use gear_core::{
     },
     reservation::GasReserver,
 };
-use gear_core_errors::{CoreError, ExecutionError, ExtError, MessageError};
+use gear_core_errors::{ExecutionError, ExtError, MessageError};
 use lazy_pages::GlobalsConfig;
 use memory::OutOfMemoryAccessError;
 use scale_info::TypeInfo;
 
 // '__gear_stack_end' export is inserted in wasm-proc or wasm-builder
 pub const STACK_END_EXPORT_NAME: &str = "__gear_stack_end";
-
-pub trait IntoExtError: Sized {
-    fn into_ext_error(self) -> Result<ExtError, Self>;
-
-    fn into_termination_reason(self) -> TerminationReason;
-}
 
 #[derive(Decode, Encode, Debug, PartialEq, Eq, PartialOrd, Ord, Clone)]
 pub enum TerminationReason {
@@ -135,6 +129,16 @@ pub trait BackendExt {
     ) -> Result<(), OutOfMemoryAccessError>;
 }
 
+pub trait BackendExtError: Sized {
+    fn from_ext_error(err: ExtError) -> Self;
+
+    fn forbidden_function() -> Self;
+
+    fn into_ext_error(self) -> Result<ExtError, Self>;
+
+    fn into_termination_reason(self) -> TerminationReason;
+}
+
 pub trait GetGasAmount {
     fn gas_amount(&self) -> GasAmount;
 }
@@ -196,7 +200,7 @@ pub enum SyscallFuncError<E: Display> {
     MemoryAccess(MemoryAccessError),
 }
 
-impl<E: Display + IntoExtError> SyscallFuncError<E> {
+impl<E: Display + BackendExtError> SyscallFuncError<E> {
     pub fn into_termination_reason(self) -> TerminationReason {
         match self {
             Self::Core(err) => err.into_termination_reason(),
@@ -206,7 +210,7 @@ impl<E: Display + IntoExtError> SyscallFuncError<E> {
     }
 }
 
-impl<E: Display + CoreError> From<PayloadSizeError> for SyscallFuncError<E> {
+impl<E: Display + BackendExtError> From<PayloadSizeError> for SyscallFuncError<E> {
     fn from(_err: PayloadSizeError) -> Self {
         Self::Core(E::from_ext_error(ExtError::Message(
             MessageError::MaxMessageSizeExceed,
@@ -214,7 +218,7 @@ impl<E: Display + CoreError> From<PayloadSizeError> for SyscallFuncError<E> {
     }
 }
 
-impl<E: Display + CoreError> From<FromUtf8Error> for SyscallFuncError<E> {
+impl<E: Display + BackendExtError> From<FromUtf8Error> for SyscallFuncError<E> {
     fn from(_err: FromUtf8Error) -> Self {
         Self::Core(E::from_ext_error(ExtError::Execution(
             ExecutionError::InvalidDebugString,

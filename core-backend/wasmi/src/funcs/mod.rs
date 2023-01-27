@@ -30,14 +30,14 @@ use codec::{Decode, Encode};
 use core::{convert::TryInto, fmt::Display, marker::PhantomData};
 use gear_backend_common::{
     memory::{MemoryAccessError, MemoryAccessRecorder, MemoryOwner},
-    BackendExt, IntoExtError, SyscallFuncError, TerminationReason,
+    BackendExt, BackendExtError, SyscallFuncError, TerminationReason,
 };
 use gear_core::{
     env::Ext,
     memory::{PageU32Size, WasmPage},
     message::{HandlePacket, InitPacket, MessageWaitedType, ReplyPacket},
 };
-use gear_core_errors::{CoreError, ExtError};
+use gear_core_errors::ExtError;
 use gear_wasm_instrument::{GLOBAL_NAME_ALLOWANCE, GLOBAL_NAME_GAS};
 use gsys::{
     BlockNumberWithHash, Hash, HashWithValue, LengthWithCode, LengthWithGas, LengthWithHandle,
@@ -64,7 +64,7 @@ where
 
 impl<T, Err, Ext> IntoExtErrorForResult<T, Err, Ext> for Result<T, Err>
 where
-    Err: IntoExtError + Display + Clone,
+    Err: BackendExtError + Display + Clone,
     Ext: gear_core::env::Ext<Error = Err>,
 {
     fn into_ext_error(
@@ -94,7 +94,7 @@ type EmptyOutput = Result<(), Trap>;
 impl<E> FuncsHandler<E>
 where
     E: Ext + BackendExt + 'static,
-    E::Error: IntoExtError + Clone,
+    E::Error: BackendExtError + Clone,
 {
     pub fn send(store: &mut Store<HostState<E>>, forbidden: bool, memory: WasmiMemory) -> Func {
         let func = move |caller: Caller<'_, HostState<E>>,

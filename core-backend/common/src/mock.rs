@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    memory::OutOfMemoryAccessError, BackendExt, ExtInfo, GetGasAmount, IntoExtError,
+    memory::OutOfMemoryAccessError, BackendExt, BackendExtError, ExtInfo, GetGasAmount,
     SystemReservationContext, TerminationReason,
 };
 use alloc::collections::BTreeSet;
@@ -45,7 +45,9 @@ impl fmt::Display for Error {
     }
 }
 
-impl CoreError for Error {
+impl CoreError for Error {}
+
+impl BackendExtError for Error {
     fn from_ext_error(_err: ExtError) -> Self {
         todo!()
     }
@@ -53,9 +55,7 @@ impl CoreError for Error {
     fn forbidden_function() -> Self {
         todo!()
     }
-}
 
-impl IntoExtError for Error {
     fn into_ext_error(self) -> Result<ExtError, Self> {
         todo!()
     }

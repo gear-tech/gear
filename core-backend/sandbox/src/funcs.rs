@@ -25,14 +25,14 @@ use codec::Encode;
 use core::{convert::TryInto, fmt::Display, marker::PhantomData};
 use gear_backend_common::{
     memory::{MemoryAccessRecorder, MemoryOwner},
-    BackendExt, IntoExtError, SyscallFuncError, TerminationReason,
+    BackendExt, BackendExtError, SyscallFuncError, TerminationReason,
 };
 use gear_core::{
     env::Ext,
     memory::{PageU32Size, WasmPage},
     message::{HandlePacket, InitPacket, MessageWaitedType, ReplyPacket},
 };
-use gear_core_errors::{CoreError, ExtError};
+use gear_core_errors::ExtError;
 use gsys::{
     BlockNumberWithHash, Hash, HashWithValue, LengthWithCode, LengthWithGas, LengthWithHandle,
     LengthWithHash, LengthWithTwoHashes, TwoHashesWithValue,
@@ -57,7 +57,7 @@ where
 
 impl<T, Err, Ext> IntoExtErrorForResult<T, Err, Ext> for Result<T, Err>
 where
-    Err: IntoExtError + Display + Clone,
+    Err: BackendExtError + Display + Clone,
     Ext: gear_core::env::Ext<Error = Err>,
 {
     fn into_ext_error(
@@ -108,7 +108,7 @@ macro_rules! sys_trace {
 impl<E> FuncsHandler<E>
 where
     E: Ext + BackendExt + 'static,
-    E::Error: IntoExtError + Clone,
+    E::Error: BackendExtError + Clone,
 {
     pub fn send(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
         sys_trace!(target: "syscall::gear", "send, args = {}", args_to_str(args));
