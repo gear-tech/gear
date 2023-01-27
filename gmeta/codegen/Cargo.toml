@@ -7,6 +7,12 @@ edition = "2021"
 proc-macro = true
 
 [dependencies]
-syn = { version = "1.0.96", features = ["full"] }
-quote = "1.0.18"
-proc-macro2 = "1.0.39"
+syn = { version = "1", default-features = false, features = ["full", "printing", "parsing", "proc-macro", "extra-traits"] }
+quote = { version = "1", default-features = false }
+proc-macro2 = { version = "1", default-features = false }
+
+[dev-dependencies]
+gmeta = { path = "..", features = ["codegen"] }
+gstd = { path = "../../gstd" }
+parity-scale-codec = "3"
+scale-info = "2"

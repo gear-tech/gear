@@ -3864,8 +3864,12 @@ dependencies = [
 name = "gmeta-codegen"
 version = "0.1.0"
 dependencies = [
+ "gmeta",
+ "gstd",
+ "parity-scale-codec",
  "proc-macro2",
  "quote",
+ "scale-info",
  "syn",
 ]
 

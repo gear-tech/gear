@@ -53,6 +53,103 @@ fn has_attributes(
     }
 }
 
+/// Generates metawasm functions.
+///
+/// An example of the expected structure:
+/// ```
+/// use gstd::prelude::*;
+///
+/// #[derive(Decode, Encode, TypeInfo)]
+/// pub struct StateType;
+///
+/// #[derive(Encode, TypeInfo)]
+/// pub struct SomeReturnType;
+///
+/// #[derive(Decode, TypeInfo)]
+/// pub struct SomeArg;
+///
+/// #[gmeta::metawasm]
+/// pub mod metafuncs {
+///     pub type State = StateType;
+///
+///     /// Documentation...
+///     pub fn some_function(state: State) -> SomeReturnType {
+///         unimplemented!()
+///     }
+///
+///     pub fn another_function_but_with_arg(mut state: State, arg: SomeArg) -> State {
+///         unimplemented!()
+///     }
+///
+///     /// DOCSdocsDoCsdOcSDoCS...
+///     pub fn function_with_multiple_args(
+///         state: State,
+///         mut arg1: SomeArg,
+///         arg2: u16,
+///         mut arg3: u32,
+///     ) -> SomeReturnType {
+///         unimplemented!()
+///     }
+/// }
+/// # fn main() {}
+/// ```
+///
+/// # Syntax
+///
+/// - This attribute **must** be used on the `pub`lic `mod` container with the
+/// `metafuncs` identifier.
+/// - The first item in the module **must** be a `pub`lic `type` alias with the
+/// `State` identifier. The type for which `State` will be an alias **must**
+/// implement [`Decode`] trait.
+///
+/// Usually the state type should be imported from the implemented associative
+/// [`Metadata::State`](../gmeta/trait.Metadata.html#associatedtype.State) type
+/// from the contract's `io` crate.
+///
+/// - The rest of items **must** be `pub`lic functions.
+/// - The first argument of the functions **must** be `state: State` or
+/// `mut state: State`.
+///
+/// A function can have either just the one `state` argument or several
+/// additional ones.
+///
+/// - The maximum amount of additional arguments is 18 due restrictions of the
+/// SCALE codec.
+/// - All additional arguments **must** have only the binding pattern (e.g.
+/// `argument: ...` or `mut argument: ...`). The struct pattern
+/// (`Struct { x, y, .. }`), or tuple pattern (`(a, b)`), etc. aren't permitted.
+/// - All additional arguments **must** implement the [`Decode`] &
+/// [`TypeInfo`] traits.
+/// - A function **mustn't** return `()` or nothing.
+/// - A returned type **must** implement the
+/// [`Encode`](../gmeta/trait.Encode.html) & [`TypeInfo`] traits.
+///
+/// [`Decode`]: ../gmeta/trait.Decode.html
+/// [`TypeInfo`]: ../gmeta/trait.TypeInfo.html
+///
+/// # Expansion result
+///
+/// This attribute doesn't change the `metafuncs` module and items inside, but
+/// adds `use super::*;` inside the module because, in most cases, it'll be
+/// useful for importing items from an upper namespace. So every item in the
+/// same namespace where the module is located is accessible inside it.
+///
+/// The rest of the magic happens in the another generated private `extern`
+/// module. It registers all metawasm functions, their arguments & return types,
+/// and generates extern functions with the same names. Later, they can be
+/// called from a metaWASM binary inside a blockchain.
+///
+/// **Important note**: although metafunctions can take more than 1 additional
+/// arguments, on the metaWASM binary level, they must be passed as one. So if
+/// the amount of additinal arguments is 0 or 1, nothing needs to be changed,
+/// but if more - they all must be placed inside a tuple in the same order as in
+/// their function's signature.
+///
+/// E.g., argument definitions for the above example:
+/// - For `some_function` argument must be [`None`].
+/// - For `another_function_but_with_arg` argument must be `Some(SomeArg)`.
+/// - For `function_with_multiple_args` argument must be
+/// `Some((SomeArg, u16, u32))`.
 #[proc_macro_attribute]
 pub fn metawasm(_: TokenStream, item: TokenStream) -> TokenStream {
     let module: ItemMod = parse_macro_input!(item);
@@ -63,6 +160,17 @@ pub fn metawasm(_: TokenStream, item: TokenStream) -> TokenStream {
         "module with #[metawasm] mustn't have attributes",
     ) {
         return error;
+    }
+
+    if let Err(error) = is_public(module_span, &module.vis) {
+        return error;
+    }
+
+    if module.ident != "metafuncs" {
+        error!(
+            module.ident,
+            "name of a module with #[metawasm] must be `metafuncs`"
+        );
     }
 
     let (potential_type_item, potential_functions) = if let Some((_, items)) = module.content {
@@ -271,13 +379,6 @@ pub fn metawasm(_: TokenStream, item: TokenStream) -> TokenStream {
         let return_type = match signature.output {
             ReturnType::Default => error!(signature_span, "return type must be specified"),
             ReturnType::Type(_, return_type) => {
-                if *return_type == state_type || *return_type == state_type_inner {
-                    error!(
-                        return_type,
-                        "mustn't have the same return type as the `State` type alias"
-                    )
-                }
-
                 if let Type::Tuple(tuple) = *return_type {
                     error!(tuple, "return type mustn't be `()`");
                 }
@@ -333,31 +434,35 @@ pub fn metawasm(_: TokenStream, item: TokenStream) -> TokenStream {
     }
 
     quote! {
-        mod r#extern {
+        pub mod metafuncs {
             use super::*;
 
-            #[no_mangle]
-            extern "C" fn metadata() {
-                let mut funcs = ::gstd::BTreeMap::new();
-                let mut registry = ::gmeta::Registry::new();
+            mod r#extern {
+                use super::*;
 
-                #(#type_registrations)*
+                #[no_mangle]
+                extern "C" fn metadata() {
+                    let mut funcs = ::gstd::BTreeMap::new();
+                    let mut registry = ::gmeta::Registry::new();
 
-                let metawasm_data = ::gmeta::MetawasmData {
-                    funcs,
-                    registry: ::gstd::Encode::encode(&::gmeta::PortableRegistry::from(registry)),
-                };
+                    #(#type_registrations)*
 
-                ::gstd::msg::reply(metawasm_data, 0).expect("failed to encode or reply with metawasm data");
+                    let metawasm_data = ::gmeta::MetawasmData {
+                        funcs,
+                        registry: ::gstd::Encode::encode(&::gmeta::PortableRegistry::from(registry)),
+                    };
+
+                    ::gstd::msg::reply(metawasm_data, 0).expect("failed to encode or reply with metawasm data");
+                }
+
+                #(#extern_functions)*
             }
 
-            #(#extern_functions)*
+            #(#type_item_attributes)*
+            pub type #state_type = #state_type_inner;
+
+            #(#public_functions)*
         }
-
-        #(#type_item_attributes)*
-        pub type #state_type = #state_type_inner;
-
-        #(#public_functions)*
     }.into()
 }
 
