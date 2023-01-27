@@ -3325,7 +3325,7 @@ dependencies = [
 
 [[package]]
 name = "gear-node-loader"
-version = "0.1.4"
+version = "0.1.5"
 dependencies = [
  "anyhow",
  "arbitrary",

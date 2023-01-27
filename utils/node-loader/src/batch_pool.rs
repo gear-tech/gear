@@ -277,6 +277,8 @@ async fn create_renew_balance_task(
         root_target_balance
     );
 
+    // Every `duration_millis` milliseconds updates authority and user (batch sender) balances
+    // to target values.
     Ok(async move {
         loop {
             tokio::time::sleep(Duration::from_millis(duration_millis)).await;
@@ -286,6 +288,13 @@ async fn create_renew_balance_task(
                 user_target_balance - current
             };
 
+
+            // Calling `set_balance` for `user` is potentially dangerous, because getting actual
+            // reserved balance is a complicated task, as reserved balance is changed by another
+            // task, which loads the node.
+            //
+            // Reserved balance mustn't be changed as it can cause runtime panics within reserving
+            // or unreserving funds logic.
             root_api
                 .set_balance(
                     root_address.clone(),
