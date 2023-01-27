@@ -24,7 +24,6 @@ use crate::{
     runtime::{self, Runtime},
 };
 use alloc::{collections::BTreeSet, string::ToString};
-use core::fmt;
 use gear_backend_common::{
     calc_stack_end,
     lazy_pages::{GlobalsAccessMod, GlobalsConfig},
@@ -255,7 +254,6 @@ where
     ) -> Result<BackendReport<Self::Memory, E>, EnvironmentExecutionError<Self::Error, T>>
     where
         F: FnOnce(&mut Self::Memory, Option<WasmPage>, GlobalsConfig) -> Result<(), T>,
-        T: fmt::Display,
     {
         use EnvironmentExecutionError::*;
         use SandboxEnvironmentError::*;

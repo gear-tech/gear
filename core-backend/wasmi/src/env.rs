@@ -27,7 +27,7 @@ use alloc::{
     collections::BTreeSet,
     string::{String, ToString},
 };
-use core::{any::Any, fmt};
+use core::any::Any;
 use gear_backend_common::{
     calc_stack_end,
     lazy_pages::{GlobalsAccessError, GlobalsAccessMod, GlobalsAccessor, GlobalsConfig},
@@ -228,7 +228,6 @@ where
     ) -> Result<BackendReport<Self::Memory, E>, EnvironmentExecutionError<Self::Error, T>>
     where
         F: FnOnce(&mut Self::Memory, Option<WasmPage>, GlobalsConfig) -> Result<(), T>,
-        T: fmt::Display,
     {
         use EnvironmentExecutionError::*;
         use WasmiEnvironmentError::*;
