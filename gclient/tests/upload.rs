@@ -35,6 +35,7 @@ async fn upload_programs_and_check(
     // Taking block gas limit constant.
     let gas_limit = api.block_gas_limit()?;
 
+    // Subscribing for events.
     let mut listener = api.subscribe().await?;
 
     let codes_len = codes.len();
