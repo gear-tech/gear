@@ -20,7 +20,7 @@
 
 use std::time::Duration;
 
-use gclient::{GearApi, Result};
+use gclient::{EventProcessor, GearApi, Result};
 
 const PATHS: [&str; 2] = [
     "../target/wat-examples/wrong_load.wasm",
@@ -34,6 +34,8 @@ async fn upload_programs_and_check(
 ) -> Result<()> {
     // Taking block gas limit constant.
     let gas_limit = api.block_gas_limit()?;
+
+    let mut listener = api.subscribe().await?;
 
     let codes_len = codes.len();
 
@@ -68,10 +70,10 @@ async fn upload_programs_and_check(
     assert_eq!(codes_len, mids.len());
 
     // Checking that all batch got processed.
-    // assert_eq!(
-    //     codes_len,
-    //     listener.message_processed_batch(mids).await?.len(),
-    // );
+    assert_eq!(
+        codes_len,
+        listener.message_processed_batch(mids).await?.len(),
+    );
 
     // Check no runtime panic occurred
     assert!(!api.queue_processing_stalled().await?);
@@ -96,25 +98,25 @@ async fn harmless_upload() -> Result<()> {
     Ok(())
 }
 
-// #[tokio::test]
-// async fn alloc_zero_pages() -> Result<()> {
-//     let _ = env_logger::Builder::from_default_env()
-//         .format_module_path(false)
-//         .format_level(true)
-//         .try_init();
-//     log::info!("Begin");
-//     let wat_code = r#"
-//         (module
-//             (import "env" "memory" (memory 0))
-//             (import "env" "alloc" (func $alloc (param i32) (result i32)))
-//             (export "init" (func $init))
-//             (func $init
-//                 i32.const 0
-//                 call $alloc
-//                 drop
-//             )
-//         )"#;
-//     let api = GearApi::dev().await?.with("//Bob")?;
-//     let codes = vec![wat::parse_str(wat_code).unwrap()];
-//     upload_programs_and_check(&api, codes,
-// Some(Duration::from_secs(5))).await }
+#[tokio::test]
+async fn alloc_zero_pages() -> Result<()> {
+    let _ = env_logger::Builder::from_default_env()
+        .format_module_path(false)
+        .format_level(true)
+        .try_init();
+    log::info!("Begin");
+    let wat_code = r#"
+        (module
+            (import "env" "memory" (memory 0))
+            (import "env" "alloc" (func $alloc (param i32) (result i32)))
+            (export "init" (func $init))
+            (func $init
+                i32.const 0
+                call $alloc
+                drop
+            )
+        )"#;
+    let api = GearApi::dev().await?.with("//Bob")?;
+    let codes = vec![wat::parse_str(wat_code).unwrap()];
+    upload_programs_and_check(&api, codes, Some(Duration::from_secs(5))).await
+}

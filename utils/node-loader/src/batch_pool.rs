@@ -2,11 +2,11 @@ use crate::{
     args::{LoadParams, SeedVariant},
     utils::{self, LoaderRng, SwapResult},
 };
-use anyhow::{anyhow, Error, Result};
+use anyhow::{anyhow, Result};
 use api::GearApiFacade;
 use batch::{Batch, BatchWithSeed};
 use context::Context;
-use futures::{stream::FuturesUnordered, StreamExt};
+use futures::{stream::FuturesUnordered, Future, StreamExt};
 use gclient::{Error as GClientError, EventProcessor, GearApi, Result as GClientResult};
 use gear_core::ids::{MessageId, ProgramId};
 use generators::{BatchGenerator, RuntimeSettings};
@@ -48,27 +48,14 @@ impl<Rng: LoaderRng> BatchPool<Rng> {
         }
     }
 
-    // pub async fn run(params: LoadParams) -> Result<()> {
-    //     let api = GearApiFacade::try_new(params.node, params.user).await?;
-
-    //     let api = api.into_gear_api();
-    //     let starting_balance = api.total_balance(api.account_id()).await?;
-    //     Ok(renew_balance(api, params.root, starting_balance).await?)
-
-    // }
-
     pub async fn run(params: LoadParams) -> Result<()> {
         let api = GearApiFacade::try_new(params.node, params.user).await?;
         let mut batch_pool = Self::new(api.clone(), params.batch_size, params.workers);
 
         let run_pool_task = batch_pool.run_pool_loop(params.loader_seed, params.code_seed_type);
         let inspect_crash_task = inspect_crash_events(api.clone().into_gear_api());
-        let renew_balance_task = {
-            let api = api.into_gear_api();
-            let starting_balance = api.total_balance(api.account_id()).await?;
-            tracing::info!("BALANCE {starting_balance}");
-            renew_balance(api, params.root, starting_balance)
-        };
+        let renew_balance_task =
+            create_renew_balance_task(api.into_gear_api(), params.root).await?;
 
         let run_result = tokio::select! {
             r = run_pool_task => r,
@@ -269,29 +256,48 @@ async fn inspect_crash_events(api: GearApi) -> Result<()> {
     Err(crash_err.into())
 }
 
-async fn renew_balance(api: GearApi, root: String, new_balance: u128) -> Result<()> {
-    let beneficiary = api.account_id().clone();
-    let root_api = api.with(root)?;
+async fn create_renew_balance_task(
+    user_api: GearApi,
+    root: String,
+) -> Result<impl Future<Output = Result<()>>> {
+    let user_address = user_api.account_id().clone();
+    let user_target_balance = user_api.free_balance(&user_address).await?;
+
+    let root_api = user_api.with(root)?;
+    let root_address = root_api.account_id().clone();
+    let root_target_balance = root_api.free_balance(&root_address).await?;
 
     // every 100 blocks renew balance
-    let duration_millis = root_api.expected_block_time()? * 100;
+    let duration_millis = root_api.expected_block_time()? * 10;
 
-    loop {
-        tokio::time::sleep(Duration::from_millis(duration_millis)).await;
+    tracing::info!(
+        "Renewing balances every {} seconds, user target balance is {}, authority target balance is {}",
+        duration_millis / 1000,
+        user_target_balance,
+        root_target_balance
+    );
 
-        // BOB - transfer to him from Validator the new_balance - current reserved
+    Ok(async move {
+        loop {
+            tokio::time::sleep(Duration::from_millis(duration_millis)).await;
 
-        // let current_balance = root_api.total_balance(&beneficiary).await?;
-        let current_reserved = root_api.reserved_balance(&beneficiary).await?;
-        root_api
-            .set_balance(
-                beneficiary.clone(),
-                new_balance - current_reserved,
-                current_reserved,
-            )
-            .await?;
-        tracing::info!("Renewed the balance of the sender");
+            let user_balance_demand = {
+                let current = root_api.free_balance(&user_address).await?;
+                user_target_balance - current
+            };
 
-        tokio::task::yield_now().await
-    }
+            root_api
+                .set_balance(
+                    root_address.clone(),
+                    root_target_balance + user_balance_demand,
+                    0,
+                )
+                .await?;
+            root_api
+                .transfer(ProgramId::from(user_address.as_ref()), user_balance_demand)
+                .await?;
+
+            tracing::info!("Renewed balances!");
+        }
+    })
 }

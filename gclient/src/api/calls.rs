@@ -879,6 +879,10 @@ impl GearApi {
         self.set_code(code).await
     }
 
+    /// Set the free and reserved balance of the `to` account to `new_free` and
+    /// `new_reserved` respectively.
+    ///
+    /// Sends the [`pallet_balances::set_balance`](https://crates.parity.io/pallet_balances/pallet/struct.Pallet.html#method.set_balance) extrinsic.
     pub async fn set_balance(
         &self,
         to: impl Into<MultiAddress<AccountId32, ()>>,

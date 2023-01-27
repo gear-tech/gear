@@ -18,7 +18,6 @@
 
 use crate::chain_spec::{get_account_id_from_seed, get_from_seed, AccountId, Extensions};
 use hex_literal::hex;
-use runtime_primitives::Balance;
 use sc_service::ChainType;
 use sp_consensus_babe::AuthorityId as BabeId;
 use sp_core::{crypto::UncheckedInto, sr25519};
