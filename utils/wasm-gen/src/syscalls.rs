@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2022 Gear Technologies Inc.
+// Copyright (C) 2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -45,10 +45,10 @@ pub struct SysCallInfo {
     pub params: Vec<ValueType>,
     /// Syscall signature results.
     pub results: Vec<ValueType>,
-    /// Syscall params allowed input values.
-    pub param_rules: Vec<ParamRule>,
     /// Syscall frequency in generated code.
     pub frequency: Ratio,
+    /// Syscall allowed input values.
+    pub parameter_rules: Vec<Parameter>,
 }
 
 impl SysCallInfo {
@@ -56,19 +56,54 @@ impl SysCallInfo {
         Self {
             params: signature.params.iter().copied().map(Into::into).collect(),
             results: signature.results.to_vec(),
-            param_rules: signature
-                .params
-                .iter()
-                .copied()
-                .map(|param| param_to_rule(param, config))
-                .collect(),
             frequency,
+            parameter_rules: {
+                let mut rules = Vec::with_capacity(signature.params.len());
+                for parameter in signature.params.into_iter() {
+                    match parameter {
+                        ParamType::Size => match rules.last_mut() {
+                            None => rules.push((parameter, false)),
+                            Some((first, second)) => match (first, *second) {
+                                (ParamType::Ptr, false) => *second = true,
+                                _ => rules.push((parameter, false)),
+                            },
+                        },
+
+                        _ => rules.push((parameter, false)),
+                    }
+                }
+
+                rules
+                    .into_iter()
+                    .map(|(first, second)| match second {
+                        true => Parameter::MemoryArray,
+                        false => match first {
+                            ParamType::Ptr => Parameter::MemoryValue,
+                            ParamType::Alloc => Parameter::Alloc,
+                            _ => Parameter::Value {
+                                value_type: first.clone().into(),
+                                rule: param_to_rule(first, config),
+                            },
+                        },
+                    })
+                    .collect()
+            },
         }
     }
 
     pub fn func_type(&self) -> FunctionType {
         FunctionType::new(self.params.clone(), self.results.clone())
     }
+}
+
+pub enum Parameter {
+    Value {
+        value_type: ValueType,
+        rule: ParamRule,
+    },
+    MemoryArray,
+    MemoryValue,
+    Alloc,
 }
 
 /// Syscalls config.

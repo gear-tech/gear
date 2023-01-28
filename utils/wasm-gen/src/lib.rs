@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2022 Gear Technologies Inc.
+// Copyright (C) 2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -32,12 +32,14 @@ use gear_wasm_instrument::{
 use wasm_smith::{InstructionKind::*, InstructionKinds, Module as ModuleSmith, SwarmConfig};
 
 mod syscalls;
-use syscalls::{sys_calls_table, SyscallsConfig};
+use syscalls::{sys_calls_table, Parameter, SyscallsConfig};
 
 #[cfg(test)]
 mod test;
 
 pub mod utils;
+pub mod wasm;
+use wasm::PageCount as WasmPageCount;
 
 #[derive(Clone, Copy, Debug)]
 pub struct Ratio {
@@ -128,6 +130,7 @@ pub struct GearConfig {
     pub sys_calls: SyscallsConfig,
     pub print_test_info: Option<String>,
     pub max_percentage_seed: u32,
+    pub unchecked_memory_access: Ratio,
 }
 
 impl GearConfig {
@@ -148,6 +151,7 @@ impl GearConfig {
             sys_calls: Default::default(),
             print_test_info: None,
             max_percentage_seed: 100,
+            unchecked_memory_access: prob,
         }
     }
     pub fn new_for_rare_cases() -> Self {
@@ -167,6 +171,7 @@ impl GearConfig {
             sys_calls: Default::default(),
             print_test_info: None,
             max_percentage_seed: 5,
+            unchecked_memory_access: prob,
         }
     }
     pub fn new_valid() -> Self {
@@ -187,6 +192,7 @@ impl GearConfig {
             sys_calls: Default::default(),
             print_test_info: None,
             max_percentage_seed: 100,
+            unchecked_memory_access: zero_prob,
         }
     }
 }
@@ -236,25 +242,89 @@ pub fn gen_wasm_smith_module(u: &mut Unstructured, config: &SwarmConfig) -> Modu
     }
 }
 
+fn build_checked_call(
+    u: &mut Unstructured,
+    results: &[ValueType],
+    params_rules: &[Parameter],
+    func_no: u32,
+    memory_pages: WasmPageCount,
+    unchecked_memory: Ratio,
+) -> Vec<Instruction> {
+    let unchecked = unchecked_memory.get(u);
+
+    let mut code = Vec::with_capacity(params_rules.len() * 2 + 1 + results.len());
+    for parameter in params_rules {
+        match parameter {
+            Parameter::Value { value_type, rule } => {
+                let instr = match value_type {
+                    ValueType::I32 => Instruction::I32Const(rule.get_i32(u)),
+                    ValueType::I64 => Instruction::I64Const(rule.get_i64(u)),
+                    _ => panic!("Cannot handle f32/f64"),
+                };
+                code.push(instr);
+            }
+
+            Parameter::MemoryArray => {
+                if unchecked {
+                    code.push(Instruction::I32Const(u.arbitrary().unwrap()));
+                    code.push(Instruction::I32Const(u.arbitrary().unwrap()));
+                } else {
+                    let memory_size = memory_pages.size();
+
+                    let pointer_over = u.int_in_range(0..=memory_size - 1).unwrap();
+                    let offset = u.int_in_range(0..=pointer_over).unwrap();
+
+                    code.push(Instruction::I32Const(offset as i32));
+                    code.push(Instruction::I32Const((pointer_over - offset) as i32));
+                }
+            }
+
+            Parameter::MemoryValue => {
+                if unchecked {
+                    code.push(Instruction::I32Const(u.arbitrary().unwrap()));
+                } else {
+                    let memory_size = memory_pages.size();
+                    let offset = u.int_in_range(0..=memory_size - 16).unwrap();
+
+                    code.push(Instruction::I32Const(offset as i32));
+                }
+            }
+
+            Parameter::Alloc => {
+                if unchecked {
+                    code.push(Instruction::I32Const(u.arbitrary().unwrap()));
+                } else {
+                    let pages_to_alloc = u.int_in_range(0..=memory_pages.raw_number() - 1).unwrap();
+
+                    code.push(Instruction::I32Const(pages_to_alloc as i32));
+                }
+            }
+        }
+    }
+
+    code.push(Instruction::Call(func_no));
+    code.extend(results.iter().map(|_| Instruction::Drop));
+    code
+}
+
 fn make_call_instructions_vec(
     u: &mut Unstructured,
     params: &[ValueType],
     results: &[ValueType],
-    params_rules: &[ParamRule],
     func_no: u32,
 ) -> Vec<Instruction> {
-    let mut code = Vec::new();
-    for (index, val) in params.iter().enumerate() {
-        let rule = params_rules.get(index).cloned().unwrap_or_default();
+    let mut code = Vec::with_capacity(params.len() + 1 + results.len());
+    for val in params {
         let instr = match val {
-            ValueType::I32 => Instruction::I32Const(rule.get_i32(u)),
-            ValueType::I64 => Instruction::I64Const(rule.get_i64(u)),
+            ValueType::I32 => Instruction::I32Const(u.arbitrary().unwrap()),
+            ValueType::I64 => Instruction::I64Const(u.arbitrary().unwrap()),
             _ => panic!("Cannot handle f32/f64"),
         };
         code.push(instr);
     }
     code.push(Instruction::Call(func_no));
     code.extend(results.iter().map(|_| Instruction::Drop));
+
     code
 }
 
@@ -367,7 +437,7 @@ impl<'a> WasmGen<'a> {
         }
     }
 
-    pub fn gen_mem_export(&mut self, mut module: Module) -> Module {
+    pub fn gen_mem_export(&mut self, mut module: Module) -> (Module, WasmPageCount) {
         let mut mem_section_idx = None;
         for (idx, section) in module.sections().iter().enumerate() {
             if let Section::Memory(_) = section {
@@ -413,15 +483,19 @@ impl<'a> WasmGen<'a> {
 
             let last_element_num = module.global_section_mut().unwrap().entries_mut().len() - 1;
 
-            return builder::from_module(module)
-                .export()
-                .field("__gear_stack_end")
-                .internal()
-                .global(last_element_num.try_into().unwrap())
-                .build()
-                .build();
+            return (
+                builder::from_module(module)
+                    .export()
+                    .field("__gear_stack_end")
+                    .internal()
+                    .global(last_element_num.try_into().unwrap())
+                    .build()
+                    .build(),
+                mem_size.into(),
+            );
         }
-        module
+
+        (module, mem_size.into())
     }
 
     fn insert_instructions_in_random_place(
@@ -450,11 +524,11 @@ impl<'a> WasmGen<'a> {
             .function_section()
             .map_or(0, |funcs| funcs.entries().len() as u32);
         let func_type = get_func_type(&module, FuncIdx::Func(func_no));
+
         let mut instructions = make_call_instructions_vec(
             self.u,
             func_type.params(),
             func_type.results(),
-            Default::default(),
             func_no,
         );
         instructions.push(Instruction::End);
@@ -552,7 +626,7 @@ impl<'a> WasmGen<'a> {
         )
     }
 
-    pub fn insert_sys_calls(&mut self, mut module: Module) -> Module {
+    pub fn insert_sys_calls(&mut self, mut module: Module, memory_pages: WasmPageCount) -> Module {
         let code_size = if let Some(code) = module.code_section() {
             code.bodies()
                 .iter()
@@ -593,12 +667,13 @@ impl<'a> WasmGen<'a> {
             let func_no = self.calls_indexes.len() as u32 - 1;
 
             // insert sys call anywhere in the code
-            let instructions = make_call_instructions_vec(
+            let instructions = build_checked_call(
                 self.u,
-                &info.params,
                 &info.results,
-                &info.param_rules,
+                &info.parameter_rules,
                 func_no,
+                memory_pages,
+                self.config.unchecked_memory_access,
             );
 
             for _ in 0..sys_call_amount {
@@ -754,7 +829,7 @@ impl<'a> WasmGen<'a> {
 pub fn gen_gear_program_module<'a>(u: &'a mut Unstructured<'a>, config: GearConfig) -> Module {
     let swarm_config = default_swarm_config(u, &config);
 
-    let mut module = loop {
+    let module = loop {
         let module = gen_wasm_smith_module(u, &swarm_config);
         let wasm_bytes = module.to_bytes();
         let module: Module = parity_wasm::deserialize_buffer(&wasm_bytes).unwrap();
@@ -764,14 +839,15 @@ pub fn gen_gear_program_module<'a>(u: &'a mut Unstructured<'a>, config: GearConf
     };
 
     let mut gen = WasmGen::new(&module, u, config);
-    module = gen.gen_mem_export(module);
+
+    let (module, memory_pages) = gen.gen_mem_export(module);
     let (mut module, has_init) = gen.gen_init(module);
     if !has_init {
         return gen.resolves_calls_indexes(module);
     }
 
     module = gen.gen_handle(module).0;
-    module = gen.insert_sys_calls(module);
+    module = gen.insert_sys_calls(module, memory_pages);
     module = gen.make_print_test_info(module);
 
     gen.resolves_calls_indexes(module)
