@@ -81,7 +81,7 @@ impl SysCallInfo {
                             ParamType::Ptr => Parameter::MemoryValue,
                             ParamType::Alloc => Parameter::Alloc,
                             _ => Parameter::Value {
-                                value_type: first.clone().into(),
+                                value_type: first.into(),
                                 rule: param_to_rule(first, config),
                             },
                         },

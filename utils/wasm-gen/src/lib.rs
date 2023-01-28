@@ -270,8 +270,9 @@ fn build_checked_call(
                     code.push(Instruction::I32Const(u.arbitrary().unwrap()));
                 } else {
                     let memory_size = memory_pages.size();
+                    let upper_limit = memory_size.saturating_sub(1);
 
-                    let pointer_beyond = u.int_in_range(0..=memory_size - 1).unwrap();
+                    let pointer_beyond = u.int_in_range(0..=upper_limit).unwrap();
                     let offset = u.int_in_range(0..=pointer_beyond).unwrap();
 
                     code.push(Instruction::I32Const(offset as i32));
@@ -284,7 +285,10 @@ fn build_checked_call(
                     code.push(Instruction::I32Const(u.arbitrary().unwrap()));
                 } else {
                     let memory_size = memory_pages.size();
-                    let offset = u.int_in_range(0..=memory_size - 16).unwrap();
+                    // u/i128 are the biggest values with 8 bytes size.
+                    // So subtract a bit more.
+                    let upper_limit = memory_size.saturating_sub(16);
+                    let offset = u.int_in_range(0..=upper_limit).unwrap();
 
                     code.push(Instruction::I32Const(offset as i32));
                 }
@@ -294,7 +298,9 @@ fn build_checked_call(
                 if unchecked {
                     code.push(Instruction::I32Const(u.arbitrary().unwrap()));
                 } else {
-                    let pages_to_alloc = u.int_in_range(0..=memory_pages.raw_number() - 1).unwrap();
+                    let pages_to_alloc = u
+                        .int_in_range(0..=memory_pages.raw_number().saturating_sub(1))
+                        .unwrap();
 
                     code.push(Instruction::I32Const(pages_to_alloc as i32));
                 }
@@ -523,12 +529,8 @@ impl<'a> WasmGen<'a> {
             .map_or(0, |funcs| funcs.entries().len() as u32);
         let func_type = get_func_type(&module, FuncIdx::Func(func_no));
 
-        let mut instructions = make_call_instructions_vec(
-            self.u,
-            func_type.params(),
-            func_type.results(),
-            func_no,
-        );
+        let mut instructions =
+            make_call_instructions_vec(self.u, func_type.params(), func_type.results(), func_no);
         instructions.push(Instruction::End);
 
         module = builder::from_module(module)
