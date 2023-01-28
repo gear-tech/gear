@@ -29,7 +29,7 @@ use common::{
     storage::*,
     Origin,
 };
-use core_processor::common::ExecutionErrorReason;
+use core_processor::common::ActorExecutionErrorReason;
 use gear_core::{
     ids::{CodeId, MessageId, ProgramId, ReservationId},
     message::ReplyMessage,
@@ -72,7 +72,7 @@ where
         self.send_signal(message_id, waitlisted.destination());
 
         // Trap explanation.
-        let trap = ExecutionErrorReason::OutOfRent;
+        let trap = ActorExecutionErrorReason::OutOfRent;
 
         // Generate trap reply.
         if self.check_program_id(&waitlisted.source()) {

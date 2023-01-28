@@ -237,6 +237,7 @@ where
                     (random.encode(), bn.unique_saturated_into()),
                     memory_pages,
                 )
+                .unwrap_or_else(|e| unreachable!("core-processor logic invalidated: {}", e))
             };
 
             let journal = build_journal();

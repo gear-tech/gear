@@ -18,8 +18,8 @@
 
 use crate::{
     common::{
-        DispatchOutcome, DispatchResult, DispatchResultKind, ExecutionErrorReason, JournalNote,
-        WasmExecutionContext,
+        ActorExecutionErrorReason, DispatchOutcome, DispatchResult, DispatchResultKind,
+        ExecutionError, JournalNote, SystemExecutionError, WasmExecutionContext,
     },
     configs::{BlockConfig, ExecutionSettings},
     context::*,
@@ -49,7 +49,7 @@ pub fn process<
     execution_context: ProcessExecutionContext,
     random_data: (Vec<u8>, u32),
     memory_pages: BTreeMap<GearPage, PageBuf>,
-) -> Vec<JournalNote> {
+) -> Result<Vec<JournalNote>, SystemExecutionError> {
     use crate::precharge::SuccessfulDispatchResultKind::*;
 
     let BlockConfig {
@@ -121,18 +121,18 @@ pub fn process<
         msg_ctx_settings,
     )
     .map_err(|err| {
-        log::debug!("Wasm execution error: {}", err.reason);
+        log::debug!("Wasm execution error: {}", err);
         err
     });
 
     match exec_result {
-        Ok(res) => match res.kind {
+        Ok(res) => Ok(match res.kind {
             DispatchResultKind::Trap(reason) => process_error(
                 res.dispatch,
                 program_id,
                 res.gas_amount.burned(),
                 res.system_reservation_context,
-                ExecutionErrorReason::Ext(reason),
+                ActorExecutionErrorReason::Ext(reason),
                 true,
             ),
             DispatchResultKind::Success => process_success(Success, res),
@@ -145,15 +145,16 @@ pub fn process<
             DispatchResultKind::GasAllowanceExceed => {
                 process_allowance_exceed(dispatch, program_id, res.gas_amount.burned())
             }
-        },
-        Err(e) => process_error(
+        }),
+        Err(ExecutionError::Actor(e)) => Ok(process_error(
             dispatch,
             program_id,
             e.gas_amount.burned(),
             SystemReservationContext::default(),
             e.reason,
             true,
-        ),
+        )),
+        Err(ExecutionError::System(e)) => Err(e),
     }
 }
 
@@ -163,7 +164,7 @@ pub fn process_error(
     program_id: ProgramId,
     gas_burned: u64,
     system_reservation_ctx: SystemReservationContext,
-    err: ExecutionErrorReason,
+    err: ActorExecutionErrorReason,
     executed: bool,
 ) -> Vec<JournalNote> {
     let mut journal = Vec::new();
@@ -456,7 +457,7 @@ pub fn process_non_executable(
     // Reply back to the message `source`
     if !dispatch.is_error_reply() {
         // This expect panic is unreachable, unless error message is too large or max payload size is too small.
-        let err_payload = ExecutionErrorReason::NonExecutable
+        let err_payload = ActorExecutionErrorReason::NonExecutable
             .encode()
             .try_into()
             .expect("Error message is too large");

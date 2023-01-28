@@ -158,7 +158,8 @@ where
                     exec.context,
                     exec.random_data,
                     exec.memory_pages,
-                );
+                )
+                .unwrap_or_else(|e| unreachable!("core-processor logic invalidated: {}", e));
 
                 let mut gas_burned = 0;
                 for note in notes.into_iter() {
@@ -232,7 +233,8 @@ where
                     exec.context,
                     exec.random_data,
                     exec.memory_pages,
-                );
+                )
+                .unwrap_or_else(|e| unreachable!("core-processor logic invalidated: {}", e));
 
                 let mut gas_burned = 0;
                 for note in notes.into_iter() {
@@ -400,7 +402,8 @@ where
             exec.context,
             exec.random_data,
             exec.memory_pages,
-        );
+        )
+        .unwrap_or_else(|e| unreachable!("core-processor logic invalidated: {}", e));
 
         let mut gas_burned = None;
         for note in notes.into_iter() {
@@ -444,7 +447,8 @@ where
             exec.context,
             exec.random_data,
             exec.memory_pages,
-        );
+        )
+        .unwrap_or_else(|e| unreachable!("core-processor logic invalidated: {}", e));
 
         for note in notes.into_iter() {
             match note {
@@ -486,7 +490,8 @@ where
             exec.context,
             exec.random_data,
             exec.memory_pages,
-        );
+        )
+        .unwrap_or_else(|e| unreachable!("core-processor logic invalidated: {}", e));
 
         for note in notes.into_iter() {
             match note {

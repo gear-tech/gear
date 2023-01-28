@@ -55,7 +55,7 @@ pub const RE_INIT_STATUS_CODE: StatusCode = 3;
 pub use context::{
     ContextChargedForCode, ContextChargedForInstrumentation, ProcessExecutionContext,
 };
-pub use executor::{execute_wasm, PrepareMemoryError};
+pub use executor::{execute_wasm, ActorPrepareMemoryError};
 pub use ext::{Ext, ProcessorContext, ProcessorError, ProcessorExt};
 pub use handler::handle_journal;
 pub use precharge::{

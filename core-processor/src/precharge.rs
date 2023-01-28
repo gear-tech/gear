@@ -16,7 +16,8 @@
 
 use crate::{
     common::{
-        DispatchResult, ExecutableActorData, ExecutionErrorReason, JournalNote, PrechargedDispatch,
+        ActorExecutionErrorReason, DispatchResult, ExecutableActorData, JournalNote,
+        PrechargedDispatch,
     },
     configs::{BlockConfig, PagesConfig},
     context::{ContextChargedForCodeLength, ContextChargedForMemory, ContextData},
@@ -291,7 +292,7 @@ pub fn precharge_for_program(
                 destination_id,
                 gas_burned,
                 system_reservation_ctx,
-                ExecutionErrorReason::GasExceeded(op),
+                ActorExecutionErrorReason::GasExceeded(op),
                 false,
             ))
         }
@@ -374,7 +375,7 @@ pub fn precharge_for_code_length(
                 destination_id,
                 gas_counter.burned(),
                 system_reservation_ctx,
-                ExecutionErrorReason::GasExceeded(op),
+                ActorExecutionErrorReason::GasExceeded(op),
                 false,
             ))
         }
@@ -410,7 +411,7 @@ pub fn precharge_for_code(
                 context.data.destination_id,
                 context.data.gas_counter.burned(),
                 system_reservation_ctx,
-                ExecutionErrorReason::GasExceeded(op),
+                ActorExecutionErrorReason::GasExceeded(op),
                 false,
             ))
         }
@@ -447,7 +448,7 @@ pub fn precharge_for_instrumentation(
                 context.data.destination_id,
                 context.data.gas_counter.burned(),
                 system_reservation_ctx,
-                ExecutionErrorReason::GasExceeded(op),
+                ActorExecutionErrorReason::GasExceeded(op),
                 false,
             ))
         }
@@ -508,7 +509,7 @@ pub fn precharge_for_memory(
                         context.data.gas_counter.burned(),
                     ));
                 }
-                PrechargeError::GasExceeded(op) => ExecutionErrorReason::GasExceeded(op),
+                PrechargeError::GasExceeded(op) => ActorExecutionErrorReason::GasExceeded(op),
             };
 
             let system_reservation_ctx =

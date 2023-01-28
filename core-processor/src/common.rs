@@ -18,7 +18,7 @@
 
 //! Common structures for processing.
 
-use crate::precharge::GasOperation;
+use crate::{executor::SystemPrepareMemoryError, precharge::GasOperation};
 use alloc::{
     collections::{BTreeMap, BTreeSet},
     string::String,
@@ -397,18 +397,30 @@ pub trait JournalHandler {
     fn send_signal(&mut self, message_id: MessageId, destination: ProgramId);
 }
 
-/// Execution error.
-#[derive(Debug)]
-pub struct ExecutionError {
+/// Execution error
+#[derive(Debug, derive_more::Display, derive_more::From)]
+pub enum ExecutionError {
+    /// Actor execution error
+    #[display(fmt = "{_0}")]
+    Actor(ActorExecutionError),
+    /// System execution erorr
+    #[display(fmt = "{_0}")]
+    System(SystemExecutionError),
+}
+
+/// Actor execution error.
+#[derive(Debug, derive_more::Display)]
+#[display(fmt = "{reason}")]
+pub struct ActorExecutionError {
     /// Gas amount of the execution.
     pub gas_amount: GasAmount,
     /// Error text.
-    pub reason: ExecutionErrorReason,
+    pub reason: ActorExecutionErrorReason,
 }
 
 /// Reason of execution error
 #[derive(Encode, Decode, TypeInfo, Debug, PartialEq, Eq, PartialOrd, Ord, derive_more::Display)]
-pub enum ExecutionErrorReason {
+pub enum ActorExecutionErrorReason {
     /// Not enough gas to perform an operation.
     #[display(fmt = "Not enough gas to {_0}")]
     GasExceeded(GasOperation),
@@ -424,6 +436,14 @@ pub enum ExecutionErrorReason {
     /// Message killed from storage as out of rent.
     #[display(fmt = "Out of rent")]
     OutOfRent,
+}
+
+/// System execution error
+#[derive(Debug, derive_more::Display, derive_more::From)]
+pub enum SystemExecutionError {
+    /// Prepare memory error
+    #[display(fmt = "Prepare memory: {_0}")]
+    PrepareMemory(SystemPrepareMemoryError),
 }
 
 /// Actor.

@@ -18,8 +18,8 @@
 
 use crate::{
     common::{
-        DispatchResult, DispatchResultKind, ExecutionError, ExecutionErrorReason,
-        WasmExecutionContext,
+        ActorExecutionError, ActorExecutionErrorReason, DispatchResult, DispatchResultKind,
+        ExecutionError, SystemExecutionError, WasmExecutionContext,
     },
     configs::{BlockInfo, ExecutionSettings, PagesConfig},
     ext::{ProcessorContext, ProcessorExt},
@@ -47,12 +47,20 @@ use gear_core::{
     program::Program,
     reservation::GasReserver,
 };
-use gear_core_errors::ExtError;
+use gear_core_errors::{ExtError, MemoryError};
 use scale_info::TypeInfo;
+
+#[derive(Debug, derive_more::Display, derive_more::From)]
+pub enum PrepareMemoryError {
+    #[display(fmt = "{_0}")]
+    Actor(ActorPrepareMemoryError),
+    #[display(fmt = "{_0}")]
+    System(SystemPrepareMemoryError),
+}
 
 /// Prepare memory error
 #[derive(Encode, Decode, TypeInfo, Debug, PartialEq, Eq, PartialOrd, Ord, derive_more::Display)]
-pub enum PrepareMemoryError {
+pub enum ActorPrepareMemoryError {
     /// Stack end page, which value is specified in WASM code, cannot be bigger than static memory size.
     #[display(fmt = "Stack end page {_0:?} is bigger then WASM static memory size {_1:?}")]
     StackEndPageBiggerWasmMemSize(WasmPage, WasmPage),
@@ -61,36 +69,59 @@ pub enum PrepareMemoryError {
     StackPagesHaveInitialData,
 }
 
+#[derive(Debug, Eq, PartialEq, derive_more::Display)]
+pub enum SystemPrepareMemoryError {
+    /// Mem size less then static pages num
+    #[display(fmt = "Mem size less then static pages num")]
+    InsufficientMemorySize,
+    /// Page with data is not allocated for program
+    #[display(fmt = "{_0:?} is not allocated for program")]
+    PageIsNotAllocated(GearPage),
+    /// Cannot read initial memory data from wasm memory.
+    #[display(fmt = "Cannot read data for {_0:?}: {_1}")]
+    InitialMemoryReadFailed(GearPage, MemoryError),
+    /// Cannot write initial data to wasm memory.
+    #[display(fmt = "Cannot write initial data for {_0:?}: {_1}")]
+    InitialDataWriteFailed(GearPage, MemoryError),
+    /// Initial pages data must be empty in lazy pages mode
+    #[display(fmt = "Initial pages data must be empty when execute with lazy pages")]
+    InitialPagesContainsDataInLazyPagesMode,
+}
+
 /// Make checks that everything with memory goes well.
 fn check_memory<'a>(
     allocations: &BTreeSet<WasmPage>,
     pages_with_data: impl Iterator<Item = &'a GearPage>,
     static_pages: WasmPage,
     memory_size: WasmPage,
-) {
+) -> Result<(), SystemPrepareMemoryError> {
     if memory_size < static_pages {
-        unreachable!(
+        log::error!(
             "Mem size less then static pages num: mem_size = {:?}, static_pages = {:?}",
-            memory_size, static_pages
+            memory_size,
+            static_pages
         );
+        return Err(SystemPrepareMemoryError::InsufficientMemorySize);
     }
 
     // Checks that all pages with data are in allocations set.
     for page in pages_with_data {
         let wasm_page = page.to_page();
         if wasm_page >= static_pages && !allocations.contains(&wasm_page) {
-            unreachable!("{page:?} is not allocated for program");
+            return Err(SystemPrepareMemoryError::PageIsNotAllocated(*page));
         }
     }
+
+    Ok(())
 }
 
-fn lazy_pages_check_initial_data(initial_pages_data: &BTreeMap<GearPage, PageBuf>) {
+fn lazy_pages_check_initial_data(
+    initial_pages_data: &BTreeMap<GearPage, PageBuf>,
+) -> Result<(), SystemPrepareMemoryError> {
     initial_pages_data
         .is_empty()
         .then_some(())
-        .unwrap_or_else(|| {
-            unreachable!("Initial pages data must be empty when execute with lazy pages")
-        })
+        .ok_or(SystemPrepareMemoryError::InitialPagesContainsDataInLazyPagesMode)
 }
 
 /// Writes initial pages data to memory and prepare memory for execution.
@@ -105,21 +136,22 @@ fn prepare_memory<A: ProcessorExt, M: Memory>(
 ) -> Result<(), PrepareMemoryError> {
     if let Some(stack_end) = stack_end {
         if stack_end > static_pages {
-            return Err(PrepareMemoryError::StackEndPageBiggerWasmMemSize(
+            return Err(ActorPrepareMemoryError::StackEndPageBiggerWasmMemSize(
                 stack_end,
                 static_pages,
-            ));
+            )
+            .into());
         }
     }
 
     // Set initial data for pages
     for (page, data) in pages_data.iter_mut() {
         mem.write(page.offset(), data)
-            .unwrap_or_else(|err| unreachable!("Cannot write initial data for {page:?}: {err}"));
+            .map_err(|err| SystemPrepareMemoryError::InitialDataWriteFailed(*page, err))?;
     }
 
     if A::LAZY_PAGES_ENABLED {
-        lazy_pages_check_initial_data(pages_data);
+        lazy_pages_check_initial_data(pages_data)?;
 
         A::lazy_pages_init_for_program(
             mem,
@@ -135,7 +167,7 @@ fn prepare_memory<A: ProcessorExt, M: Memory>(
         let begin = stack_end.unwrap_or_default();
 
         if pages_data.keys().any(|&p| p < begin.to_page()) {
-            return Err(PrepareMemoryError::StackPagesHaveInitialData);
+            return Err(ActorPrepareMemoryError::StackPagesHaveInitialData.into());
         }
 
         let non_stack_pages = begin.iter_end(static_pages).unwrap_or_else(|err| {
@@ -151,7 +183,7 @@ fn prepare_memory<A: ProcessorExt, M: Memory>(
             }
             let mut data = PageBuf::new_zeroed();
             mem.read(page.offset(), &mut data)
-                .unwrap_or_else(|err| unreachable!("Cannot read data for {page:?}: {err}"));
+                .map_err(|err| SystemPrepareMemoryError::InitialMemoryReadFailed(page, err))?;
             pages_data.insert(page, data);
         }
     }
@@ -235,7 +267,8 @@ pub fn execute_wasm<
         pages_initial_data.keys(),
         static_pages,
         memory_size,
-    );
+    )
+    .map_err(SystemExecutionError::PrepareMemory)?;
 
     // Creating allocations context.
     let allocations_context =
@@ -332,10 +365,11 @@ pub fn execute_wasm<
         }
 
         Err(e) => {
-            return Err(ExecutionError {
+            return Err(ActorExecutionError {
                 gas_amount: e.gas_amount(),
-                reason: ExecutionErrorReason::Backend(e.to_string()),
-            })
+                reason: ActorExecutionErrorReason::Backend(e.to_string()),
+            }
+            .into())
         }
     };
 
@@ -343,13 +377,14 @@ pub fn execute_wasm<
 
     let info = ext
         .into_ext_info(&memory)
-        .map_err(|(err, gas_amount)| ExecutionError {
+        .map_err(|(err, gas_amount)| ActorExecutionError {
             gas_amount,
-            reason: ExecutionErrorReason::Backend(err.to_string()),
+            reason: ActorExecutionErrorReason::Backend(err.to_string()),
         })?;
 
     if A::LAZY_PAGES_ENABLED {
-        lazy_pages_check_initial_data(&pages_initial_data);
+        lazy_pages_check_initial_data(&pages_initial_data)
+            .map_err(SystemExecutionError::PrepareMemory)?;
     }
 
     // Parsing outcome.
@@ -606,24 +641,29 @@ mod tests {
     }
 
     #[test]
-    #[should_panic = "less then static pages"]
     fn check_memory_insufficient() {
-        check_memory(&[].into(), [].iter(), 8.into(), 4.into());
+        let res = check_memory(&[].into(), [].iter(), 8.into(), 4.into());
+        assert_eq!(res, Err(SystemPrepareMemoryError::InsufficientMemorySize));
     }
 
     #[test]
-    #[should_panic = "is not allocated"]
     fn check_memory_not_allocated() {
         let (pages, mut allocs) = prepare_pages_and_allocs();
         let last = *allocs.iter().last().unwrap();
         allocs.remove(&last);
-        check_memory(&allocs, pages.iter(), 2.into(), 4.into());
+        let res = check_memory(&allocs, pages.iter(), 2.into(), 4.into());
+        assert_eq!(
+            res,
+            Err(SystemPrepareMemoryError::PageIsNotAllocated(
+                *pages.last().unwrap()
+            ))
+        );
     }
 
     #[test]
     fn check_memory_ok() {
         let (pages, allocs) = prepare_pages_and_allocs();
-        check_memory(&allocs, pages.iter(), 4.into(), 8.into());
+        check_memory(&allocs, pages.iter(), 4.into(), 8.into()).unwrap();
     }
 
     #[test]
