@@ -26,6 +26,7 @@ use gp::api::generated::api::{
         frame_system::pallet::Call as SystemCall,
         gear_common::event::{CodeChangeKind, Entry},
         gear_runtime::RuntimeCall,
+        pallet_balances::pallet::Call as BalancesCall,
         pallet_gear::pallet::Call as GearCall,
         sp_weights::weight_v2::Weight,
     },
@@ -35,7 +36,13 @@ use gp::api::generated::api::{
 };
 use parity_scale_codec::Encode;
 use std::{collections::BTreeMap, path::Path};
-use subxt::{events::Phase, ext::sp_core::H256};
+use subxt::{
+    events::Phase,
+    ext::{
+        sp_core::H256,
+        sp_runtime::{AccountId32, MultiAddress},
+    },
+};
 
 impl GearApi {
     /// Transfer `value` to `destination`'s account.
@@ -870,5 +877,34 @@ impl GearApi {
     pub async fn set_code_by_path(&self, path: impl AsRef<Path>) -> Result<H256> {
         let code = utils::code_from_os(path)?;
         self.set_code(code).await
+    }
+
+    /// Set the free and reserved balance of the `to` account to `new_free` and
+    /// `new_reserved` respectively.
+    ///
+    /// Sends the [`pallet_balances::set_balance`](https://crates.parity.io/pallet_balances/pallet/struct.Pallet.html#method.set_balance) extrinsic.
+    pub async fn set_balance(
+        &self,
+        to: impl Into<MultiAddress<AccountId32, ()>>,
+        new_free: u128,
+        new_reserved: u128,
+    ) -> Result<H256> {
+        let ex = tx().sudo().sudo_unchecked_weight(
+            RuntimeCall::Balances(BalancesCall::set_balance {
+                who: to.into(),
+                new_free,
+                new_reserved,
+            }),
+            Weight {
+                ref_time: 0,
+                // # TODO
+                //
+                // Check this field
+                proof_size: Default::default(),
+            },
+        );
+        let tx = self.0.process(ex).await?;
+
+        Ok(tx.wait_for_success().await?.block_hash())
     }
 }

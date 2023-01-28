@@ -37,8 +37,8 @@ use gear_core::{
     gas::{ChargeResult, GasAllowanceCounter, GasAmount, GasCounter, Token, ValueCounter},
     ids::{CodeId, MessageId, ProgramId, ReservationId},
     memory::{
-        AllocInfo, AllocationsContext, GearPage, GrowHandler, GrowHandlerNothing, Memory,
-        MemoryInterval, PageBuf, PageU32Size, WasmPage,
+        AllocInfo, AllocationsContext, GearPage, GrowHandler, Memory, MemoryInterval,
+        NoopGrowHandler, PageBuf, PageU32Size, WasmPage,
     },
     message::{
         GasLimit, HandlePacket, InitPacket, MessageContext, Packet, ReplyPacket, StatusCode,
@@ -202,6 +202,44 @@ impl AsTerminationReason for ProcessorError {
             ProcessorError::Terminated(reason) => Some(reason),
             _ => None,
         }
+    }
+}
+
+/// Charger for pages in `alloc()`
+/// that checks we always charge more than refund
+struct ChargedAllocGas {
+    amount: u64,
+}
+
+impl ChargedAllocGas {
+    fn calculate_gas(ext: &Ext, alloc: u32, mem_grow: u32) -> u64 {
+        let alloc = alloc as u64;
+        let mem_grow = mem_grow as u64;
+        alloc
+            .saturating_mul(ext.context.pages_config.alloc_cost)
+            .saturating_add(mem_grow.saturating_mul(ext.context.pages_config.mem_grow_cost))
+    }
+
+    fn charge(ext: &mut Ext, pages: u32) -> Result<Self, <Ext as EnvExt>::Error> {
+        let amount = Self::calculate_gas(ext, pages, pages);
+        ext.charge_gas(amount)?;
+        Ok(Self { amount })
+    }
+
+    fn refund(
+        self,
+        ext: &mut Ext,
+        not_allocated: u32,
+        not_grown: u32,
+    ) -> Result<(), <Ext as EnvExt>::Error> {
+        let amount = Self::calculate_gas(ext, not_allocated, not_grown);
+        ext.refund_gas(amount)?;
+
+        if self.amount < amount {
+            unreachable!("Allocation logic invalidated: trying to refund more than charged");
+        }
+
+        Ok(())
     }
 }
 
@@ -403,7 +441,7 @@ impl EnvExt for Ext {
         pages_num: WasmPage,
         mem: &mut impl Memory,
     ) -> Result<WasmPage, Self::Error> {
-        self.alloc_inner::<GrowHandlerNothing>(pages_num, mem)
+        self.alloc_inner::<NoopGrowHandler>(pages_num, mem)
     }
 
     fn block_height(&mut self) -> Result<u32, Self::Error> {
@@ -610,13 +648,15 @@ impl EnvExt for Ext {
         self.charge_gas_runtime(RuntimeCosts::Free)?;
 
         let result = self.context.allocations_context.free(page);
+        self.return_and_store_err(result)?;
 
         // Returns back gas for allocated page if it's new
-        if result.is_ok() && !self.context.allocations_context.is_init_page(page) {
-            self.refund_gas(self.context.pages_config.alloc_cost)?;
+        if !self.context.allocations_context.is_init_page(page) {
+            let res = self.refund_gas(self.context.pages_config.alloc_cost);
+            self.return_and_store_err(res)?;
         }
 
-        self.return_and_store_err(result)
+        Ok(())
     }
 
     fn debug(&mut self, data: &str) -> Result<(), Self::Error> {
@@ -934,42 +974,26 @@ impl Ext {
     ) -> Result<WasmPage, ProcessorError> {
         self.charge_gas_runtime(RuntimeCosts::Alloc)?;
 
-        // Charge gas for allocations
-        self.charge_gas((pages.raw() as u64).saturating_mul(self.context.pages_config.alloc_cost))?;
-        // Greedily charge gas for grow
-        self.charge_gas(
-            (pages.raw() as u64).saturating_mul(self.context.pages_config.mem_grow_cost),
-        )?;
+        // Charge gas for allocations & grow
+        let charged = ChargedAllocGas::charge(self, pages.raw())?;
 
         let result = self.context.allocations_context.alloc::<G>(pages, mem);
         let AllocInfo { page, not_grown } = self.return_and_store_err(result)?;
 
-        // Returns back greedily used gas for grow
-        let mut gas_to_return_back = self
-            .context
-            .pages_config
-            .mem_grow_cost
-            .saturating_mul(not_grown.raw() as u64);
-
         // Returns back greedily used gas for allocations
-        let mut new_allocated_pages_num = 0;
-        // This is safe cause panic is unreachable: alloc returns page, for which `page + pages` is inside u32 memory.
-        for page in page
+        let new_allocated_pages_num: u32 = page
             .iter_count(pages)
+            // This is safe cause panic is unreachable: alloc returns page, for which `page + pages` is inside u32 memory.
             .unwrap_or_else(|err| unreachable!("Alloc implementation error: {}", err))
-        {
-            if !self.context.allocations_context.is_init_page(page) {
-                new_allocated_pages_num += 1;
-            }
-        }
-        gas_to_return_back = gas_to_return_back.saturating_add(
-            self.context
-                .pages_config
-                .alloc_cost
-                .saturating_mul((pages.raw() - new_allocated_pages_num) as u64),
-        );
+            .map(|page| !self.context.allocations_context.is_init_page(page) as u32)
+            .sum();
 
-        self.refund_gas(gas_to_return_back)?;
+        // Subtraction is safe because we met constraint
+        // page <= pages for `new_allocated_pages_num` so
+        // `new_allocated_pages_num` <= pages
+        let not_allocated = pages.raw() - new_allocated_pages_num;
+        let not_grown = not_grown.raw();
+        charged.refund(self, not_allocated, not_grown)?;
 
         Ok(page)
     }
@@ -1098,6 +1122,12 @@ mod tests {
             self
         }
 
+        fn with_allocation_context(mut self, ctx: AllocationsContext) -> Self {
+            self.0.allocations_context = ctx;
+
+            self
+        }
+
         fn build(self) -> ProcessorContext {
             self.0
         }
@@ -1198,5 +1228,131 @@ mod tests {
         assert_eq!(initial_gas, gas_amount.burned());
         // there was lack of allowance
         assert_eq!(0, allowance);
+    }
+
+    mod property_tests {
+        use super::*;
+        use gear_core::memory::HostPointer;
+        use proptest::{
+            arbitrary::any,
+            collection::size_range,
+            prop_oneof, proptest,
+            strategy::{Just, Strategy},
+            test_runner::Config as ProptestConfig,
+        };
+
+        struct TestMemory(WasmPage);
+
+        impl Memory for TestMemory {
+            fn grow(&mut self, pages: WasmPage) -> Result<(), MemoryError> {
+                self.0 = self.0.add(pages).map_err(|_| MemoryError::OutOfBounds)?;
+                Ok(())
+            }
+
+            fn size(&self) -> WasmPage {
+                self.0
+            }
+
+            fn write(&mut self, _offset: u32, _buffer: &[u8]) -> Result<(), MemoryError> {
+                unimplemented!()
+            }
+
+            fn read(&self, _offset: u32, _buffer: &mut [u8]) -> Result<(), MemoryError> {
+                unimplemented!()
+            }
+
+            unsafe fn get_buffer_host_addr_unsafe(&mut self) -> HostPointer {
+                unimplemented!()
+            }
+        }
+
+        #[derive(Debug, Clone)]
+        enum Action {
+            Alloc { pages: WasmPage },
+            Free { page: WasmPage },
+        }
+
+        fn actions() -> impl Strategy<Value = Vec<Action>> {
+            let action = wasm_page_number().prop_flat_map(|page| {
+                prop_oneof![
+                    Just(Action::Alloc { pages: page }),
+                    Just(Action::Free { page })
+                ]
+            });
+            proptest::collection::vec(action, 0..1024)
+        }
+
+        fn allocations() -> impl Strategy<Value = BTreeSet<WasmPage>> {
+            proptest::collection::btree_set(wasm_page_number(), size_range(0..1024))
+        }
+
+        fn wasm_page_number() -> impl Strategy<Value = WasmPage> {
+            any::<u16>().prop_map(WasmPage::from)
+        }
+
+        fn proptest_config() -> ProptestConfig {
+            ProptestConfig {
+                cases: 1024,
+                ..Default::default()
+            }
+        }
+
+        #[track_caller]
+        fn assert_alloc_error(err: <Ext as EnvExt>::Error) {
+            match err {
+                ProcessorError::Core(ExtError::Memory(
+                    MemoryError::OutOfBounds | MemoryError::IncorrectAllocationsSetOrMemSize,
+                )) => {}
+                err => Err(err).unwrap(),
+            }
+        }
+
+        #[track_caller]
+        fn assert_free_error(err: <Ext as EnvExt>::Error) {
+            match err {
+                ProcessorError::Core(ExtError::Memory(
+                    MemoryError::InvalidFree(_) | MemoryError::OutOfBounds,
+                )) => {}
+                err => Err(err).unwrap(),
+            }
+        }
+
+        proptest! {
+            #![proptest_config(proptest_config())]
+            #[test]
+            fn alloc(
+                static_pages in wasm_page_number(),
+                allocations in allocations(),
+                max_pages in wasm_page_number(),
+                mem_size in wasm_page_number(),
+                actions in actions(),
+            ) {
+                let _ = env_logger::try_init();
+
+                let ctx = AllocationsContext::new(allocations, static_pages, max_pages);
+                let ctx = ProcessorContextBuilder::new()
+                    .with_gas(GasCounter::new(u64::MAX))
+                    .with_allowance(GasAllowanceCounter::new(u64::MAX))
+                    .with_allocation_context(ctx)
+                    .build();
+                let mut ext = Ext::new(ctx);
+                let mut mem = TestMemory(mem_size);
+
+                for action in actions {
+                    match action {
+                        Action::Alloc { pages } => {
+                            if let Err(err) = ext.alloc(pages, &mut mem) {
+                                assert_alloc_error(err);
+                            }
+                        }
+                        Action::Free { page } => {
+                            if let Err(err) = ext.free(page) {
+                                assert_free_error(err);
+                            }
+                        },
+                    }
+                }
+            }
+        }
     }
 }

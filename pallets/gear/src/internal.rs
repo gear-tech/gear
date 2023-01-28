@@ -30,16 +30,14 @@ use common::{
         MessageWaitedSystemReason::ProgramIsNotInitialized, MessageWokenReason, Reason, Reason::*,
         UserMessageReadReason, UserMessageReadRuntimeReason,
     },
-    gas_provider::{GasNodeId, GasNodeIdOf},
+    gas_provider::{GasNodeId, GasNodeIdOf, Imbalance},
     scheduler::*,
     storage::*,
     GasPrice, GasTree, Origin,
 };
 use core::cmp::{Ord, Ordering};
 use core_processor::common::ActorExecutionErrorReason;
-use frame_support::traits::{
-    BalanceStatus, Currency, ExistenceRequirement, Imbalance, ReservableCurrency,
-};
+use frame_support::traits::{BalanceStatus, Currency, ExistenceRequirement, ReservableCurrency};
 use frame_system::pallet_prelude::BlockNumberFor;
 use gear_core::{
     ids::{MessageId, ProgramId, ReservationId},

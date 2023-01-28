@@ -17,5 +17,9 @@ log = { version = "0.4.17", default-features = false }
 derive_more = "0.99.17"
 static_assertions = "1"
 
+[dev-dependencies]
+proptest = "1.0.0"
+env_logger = "0.10.0"
+
 [features]
 strict = []

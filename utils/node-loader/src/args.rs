@@ -26,8 +26,12 @@ pub struct LoadParams {
     pub node_stopper: String,
 
     /// User name
-    #[structopt(long, default_value = "//Alice")]
+    #[structopt(long, default_value = "//Bob")]
     pub user: String,
+
+    /// Root account of the node
+    #[structopt(long, default_value = "//Alice")]
+    pub root: String,
 
     /// Starting seed for loading the network
     #[structopt(long)]
