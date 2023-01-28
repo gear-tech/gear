@@ -87,43 +87,43 @@ pub struct SyscallsConfig {
 
 impl Default for SyscallsConfig {
     fn default() -> Self {
-        let restricted_ratio = (1, 100).into();
+        let unrestricted_ratio = (1, 100).into();
         Self {
             alloc_param_rule: ParamRule {
                 allowed_values: 0..=512,
-                restricted_ratio,
+                unrestricted_ratio,
             },
             free_param_rule: ParamRule {
                 allowed_values: 0..=512,
-                restricted_ratio,
+                unrestricted_ratio,
             },
             ptr_rule: ParamRule {
                 allowed_values: 0..=513 * 0x10000 - 1,
-                restricted_ratio,
+                unrestricted_ratio,
             },
             memory_size_rule: ParamRule {
                 allowed_values: 0..=0x10000,
-                restricted_ratio: (10, 100).into(),
+                unrestricted_ratio: (10, 100).into(),
             },
             no_rule: ParamRule {
                 allowed_values: 0..=0,
-                restricted_ratio: (100, 100).into(),
+                unrestricted_ratio: (100, 100).into(),
             },
             gas_rule: ParamRule {
                 allowed_values: 0..=250_000_000_000,
-                restricted_ratio,
+                unrestricted_ratio,
             },
             message_position: ParamRule {
                 allowed_values: 0..=10,
-                restricted_ratio,
+                unrestricted_ratio,
             },
             duration_in_blocks: ParamRule {
                 allowed_values: 0..=10000,
-                restricted_ratio,
+                unrestricted_ratio,
             },
             handler: ParamRule {
                 allowed_values: 0..=100,
-                restricted_ratio,
+                unrestricted_ratio,
             },
         }
     }

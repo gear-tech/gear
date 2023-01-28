@@ -73,21 +73,21 @@ impl Ratio {
 #[derive(Debug, Clone)]
 pub struct ParamRule {
     pub allowed_values: RangeInclusive<i64>,
-    pub restricted_ratio: Ratio,
+    pub unrestricted_ratio: Ratio,
 }
 
 impl Default for ParamRule {
     fn default() -> Self {
         Self {
             allowed_values: 0..=0,
-            restricted_ratio: (100, 100).into(),
+            unrestricted_ratio: (100, 100).into(),
         }
     }
 }
 
 impl ParamRule {
     pub fn get_i32(&self, u: &mut Unstructured) -> i32 {
-        if self.restricted_ratio.get(u) {
+        if self.unrestricted_ratio.get(u) {
             u.arbitrary().unwrap()
         } else {
             let start = if *self.allowed_values.start() < i32::MIN as i64 {
@@ -104,7 +104,7 @@ impl ParamRule {
         }
     }
     pub fn get_i64(&self, u: &mut Unstructured) -> i64 {
-        if self.restricted_ratio.get(u) {
+        if self.unrestricted_ratio.get(u) {
             u.arbitrary().unwrap()
         } else {
             u.int_in_range(self.allowed_values.clone()).unwrap()
