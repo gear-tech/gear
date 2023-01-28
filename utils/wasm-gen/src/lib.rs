@@ -39,7 +39,7 @@ mod test;
 
 pub mod utils;
 pub mod wasm;
-use wasm::PageCount as WasmPageCount;
+use wasm::{PageCount as WasmPageCount, PAGE_SIZE as WASM_PAGE_SIZE};
 
 #[derive(Clone, Copy, Debug)]
 pub struct Ratio {
@@ -271,11 +271,11 @@ fn build_checked_call(
                 } else {
                     let memory_size = memory_pages.size();
 
-                    let pointer_over = u.int_in_range(0..=memory_size - 1).unwrap();
-                    let offset = u.int_in_range(0..=pointer_over).unwrap();
+                    let pointer_beyond = u.int_in_range(0..=memory_size - 1).unwrap();
+                    let offset = u.int_in_range(0..=pointer_beyond).unwrap();
 
                     code.push(Instruction::I32Const(offset as i32));
-                    code.push(Instruction::I32Const((pointer_over - offset) as i32));
+                    code.push(Instruction::I32Const((pointer_beyond - offset) as i32));
                 }
             }
 
@@ -405,8 +405,6 @@ impl<'a> WasmGen<'a> {
         const NOT_WASM_PAGE_SEED: u32 = 1;
         const BIGGER_THAN_MEMORY_SEED: u32 = 2;
 
-        const WASM_PAGE_SIZE_BYTES: u32 = 64 * 1024;
-
         let seed = self
             .u
             .int_in_range(0..=self.config.max_percentage_seed)
@@ -414,7 +412,7 @@ impl<'a> WasmGen<'a> {
         match seed {
             NOT_GENERATE_SEED => GearStackEndExportSeed::NotGenerate,
             NOT_WASM_PAGE_SEED => {
-                let max_size = min_memory_size_pages * WASM_PAGE_SIZE_BYTES;
+                let max_size = min_memory_size_pages * WASM_PAGE_SIZE;
                 // More likely value is not multiple of WASM_PAGE_SIZE_BYTES
                 let value = self.u.int_in_range(0..=max_size).unwrap();
                 GearStackEndExportSeed::GenerateValue(value)
@@ -425,13 +423,13 @@ impl<'a> WasmGen<'a> {
                     .int_in_range(min_memory_size_pages..=10 * min_memory_size_pages)
                     .unwrap();
                 // Make value a multiple of WASM_PAGE_SIZE_BYTES but bigger than min_memory_size
-                let value_bytes = (value_pages + 1) * WASM_PAGE_SIZE_BYTES;
+                let value_bytes = (value_pages + 1) * WASM_PAGE_SIZE;
                 GearStackEndExportSeed::GenerateValue(value_bytes)
             }
             _ => {
                 let correct_value_pages = self.u.int_in_range(0..=min_memory_size_pages).unwrap();
                 // Make value a multiple of WASM_PAGE_SIZE_BYTES but less than min_memory_size
-                let correct_value_bytes = correct_value_pages * WASM_PAGE_SIZE_BYTES;
+                let correct_value_bytes = correct_value_pages * WASM_PAGE_SIZE;
                 GearStackEndExportSeed::GenerateValue(correct_value_bytes)
             }
         }

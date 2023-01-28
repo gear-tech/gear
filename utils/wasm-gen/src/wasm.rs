@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 // WASM page has size of 64KiBs (65_536 bytes)
-const WASM_PAGE_SIZE: u32 = 0x10000;
+pub const PAGE_SIZE: u32 = 0x10000;
 
 #[derive(Clone, Copy, Debug, Default)]
 pub struct Page(u16);
@@ -45,7 +45,7 @@ impl From<Page> for PageCount {
 
 impl PageCount {
     pub fn size(&self) -> u32 {
-        self.0 * WASM_PAGE_SIZE
+        self.0 * PAGE_SIZE
     }
 
     pub fn raw_number(&self) -> u32 {

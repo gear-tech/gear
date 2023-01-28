@@ -96,13 +96,21 @@ impl SysCallInfo {
     }
 }
 
+/// Newtype for additional validation of calls arguments.
+///
+/// Parameters describing memory access should have correct values
+/// if required. For example, offset + length < memory_size for arrays.
 pub enum Parameter {
+    /// Some value with its type and generating rule.
     Value {
         value_type: ValueType,
         rule: ParamRule,
     },
+    /// Offset and length in memory for an array. Both have type i32.
     MemoryArray,
+    /// Pointer in memory for some primitive type value.
     MemoryValue,
+    /// Argument to `alloc` syscall.
     Alloc,
 }
 
