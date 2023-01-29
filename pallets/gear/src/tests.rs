@@ -1244,6 +1244,41 @@ fn mailbox_threshold_works() {
 }
 
 #[test]
+fn send_message_uninitialize_program() {
+    init_logger();
+    new_test_ext().execute_with(|| {
+        // Submitting program and send message until it's uninitialized
+        // Submitting first program and getting its id
+        let code = ProgramCodeKind::Default.to_bytes();
+        let salt = DEFAULT_SALT.to_vec();
+
+        let program_id = Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            code,
+            salt,
+            EMPTY_PAYLOAD.to_vec(),
+            DEFAULT_GAS_LIMIT,
+            0,
+        )
+        .map(|_| get_last_program_id())
+        .unwrap();
+
+        assert!(Gear::is_active(program_id));
+        assert!(!Gear::is_initialized(program_id));
+
+        // Sending message while program is still not initialized
+        assert_ok!(call_default_message(program_id).dispatch(RuntimeOrigin::signed(USER_1)));
+        let message_id = get_last_message_id();
+
+        run_to_block(2, None);
+
+        assert_succeed(message_id);
+
+        assert!(Gear::is_initialized(program_id));
+    })
+}
+
+#[test]
 fn send_message_expected_failure() {
     init_logger();
     new_test_ext().execute_with(|| {
