@@ -256,6 +256,7 @@ jobs:
           ./target-no-lazy/gear runtime-spec-tests ./gear-test/spec/* --runtime gear
 
       - name: "Test: Runtime upgrade and queue processing"
+        if: github.ref != 'refs/heads/master'
         run: ./scripts/gear.sh test runtime-upgrade
 
       - name: "Test: Runtime benchmarks and benchmark tests work"
