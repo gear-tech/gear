@@ -2654,6 +2654,7 @@ fn claim_value_works() {
             block_producer_balance + burned_for_hold
         );
 
+        // mikita
         System::assert_last_event(
             Event::UserMessageRead {
                 id: reply_to_id,

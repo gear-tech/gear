@@ -56,7 +56,7 @@ use self::{
 use crate::{
     manager::ExtManager, pallet, schedule::INSTR_BENCHMARK_BATCH_SIZE, BTreeMap, BalanceOf,
     BenchmarkStorage, Call, Config, ExecutionEnvironment, Ext as Externalities, GasHandlerOf,
-    MailboxOf, Pallet as Gear, Pallet, ProgramStorageOf, QueueOf, Schedule,
+    MailboxOf, Pallet as Gear, Pallet, ProgramStorageOf, QueueOf, Schedule, Event,
 };
 use ::alloc::vec;
 use codec::Encode;
@@ -537,9 +537,10 @@ benchmarks! {
         let payload = vec![0_u8; p as usize];
 
         init_block::<T>(None);
-    }: send_message(RawOrigin::Signed(caller), program_id, payload, GAS_LIMIT_EXT, minimum_balance)
+    }: send_message(RawOrigin::Signed(caller.clone()), program_id, payload, GAS_LIMIT_EXT, minimum_balance)
     verify {
-        //assert!(matches!(QueueOf::<T>::dequeue(), Ok(Some(_))));
+        assert!(!matches!(QueueOf::<T>::dequeue(), Ok(Some(_))));
+        assert!(MailboxOf::<T>::is_empty(&caller));
     }
 
     send_reply {
