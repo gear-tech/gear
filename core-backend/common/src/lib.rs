@@ -34,12 +34,13 @@ pub mod memory;
 use crate::{memory::MemoryAccessError, utils::TrimmedString};
 use alloc::{
     collections::{BTreeMap, BTreeSet},
-    string::{FromUtf8Error, ToString},
+    string::FromUtf8Error,
     vec::Vec,
 };
 use codec::{Decode, Encode};
 use core::fmt::{Debug, Display};
 use gear_core::{
+    buffer::RuntimeBufferSizeError,
     env::Ext,
     gas::GasAmount,
     ids::{CodeId, MessageId, ProgramId, ReservationId},
@@ -77,8 +78,6 @@ pub enum TrapExplanation {
     Core(ExtError),
     #[display(fmt = "{_0}")]
     Panic(TrimmedString),
-    #[display(fmt = "{_0}")]
-    Other(TrimmedString),
     #[display(fmt = "Reason is unknown. Possibly `unreachable` instruction is occurred")]
     Unknown,
 }
@@ -154,8 +153,9 @@ pub struct BackendReport<T, E> {
 
 #[derive(Debug)]
 pub enum EnvironmentExecutionError<B, P> {
-    Backend(B),
+    Environment(B),
     PrepareMemory(GasAmount, P),
+    SyscallFunc(SystemSyscallFuncError),
 }
 
 pub trait Environment<E, EP = DispatchKind>: Sized
@@ -190,41 +190,75 @@ where
         F: FnOnce(&mut Self::Memory, Option<i32>, GlobalsConfig) -> Result<(), T>;
 }
 
-#[derive(Debug, Clone, derive_more::Display, derive_more::From)]
+#[derive(Debug, Clone, derive_more::From)]
 pub enum SyscallFuncError<E: Display> {
-    #[display(fmt = "{_0}")]
-    Core(E),
-    #[display(fmt = "Terminated: {_0:?}")]
-    Terminated(TerminationReason),
-    #[display(fmt = "Binary code has wrong instrumentation")]
-    WrongInstrumentation,
-    #[from]
-    #[display(fmt = "Memory access error: {_0}")]
-    MemoryAccess(MemoryAccessError),
+    Actor(ActorSyscallFuncError<E>),
+    System(SystemSyscallFuncError),
 }
 
-impl<E: Display + BackendExtError> SyscallFuncError<E> {
-    pub fn into_termination_reason(self) -> TerminationReason {
-        match self {
-            Self::Core(err) => err.into_termination_reason(),
-            Self::Terminated(reason) => reason,
-            err => TerminationReason::Trap(TrapExplanation::Other(err.to_string().into())),
+impl<E: Display + BackendExtError> From<MemoryAccessError> for SyscallFuncError<E> {
+    fn from(err: MemoryAccessError) -> Self {
+        match err {
+            MemoryAccessError::Memory(err) => {
+                ActorSyscallFuncError::Core(E::from_ext_error(err.into())).into()
+            }
+            MemoryAccessError::OutOfBounds(err) => SystemSyscallFuncError::OutOfBounds(err).into(),
+            MemoryAccessError::RuntimeBuffer(err) => err.into(),
+            MemoryAccessError::DecodeError => SystemSyscallFuncError::DecodeError.into(),
+            MemoryAccessError::WrongBufferSize(buf, write) => {
+                SystemSyscallFuncError::WrongBufferSize(buf, write).into()
+            }
         }
     }
 }
 
 impl<E: Display + BackendExtError> From<PayloadSizeError> for SyscallFuncError<E> {
     fn from(_err: PayloadSizeError) -> Self {
-        Self::Core(E::from_ext_error(ExtError::Message(
-            MessageError::MaxMessageSizeExceed,
-        )))
+        ActorSyscallFuncError::Core(E::from_ext_error(MessageError::MaxMessageSizeExceed.into()))
+            .into()
+    }
+}
+
+impl<E: Display + BackendExtError> From<RuntimeBufferSizeError> for SyscallFuncError<E> {
+    fn from(_err: RuntimeBufferSizeError) -> Self {
+        ActorSyscallFuncError::Core(E::from_ext_error(ExtError::SyscallUsage)).into()
     }
 }
 
 impl<E: Display + BackendExtError> From<FromUtf8Error> for SyscallFuncError<E> {
     fn from(_err: FromUtf8Error) -> Self {
-        Self::Core(E::from_ext_error(ExtError::Execution(
-            ExecutionError::InvalidDebugString,
-        )))
+        ActorSyscallFuncError::Core(E::from_ext_error(ExecutionError::InvalidDebugString.into()))
+            .into()
     }
+}
+
+#[derive(Debug, Clone, derive_more::Display, derive_more::From)]
+pub enum ActorSyscallFuncError<E: Display> {
+    #[display(fmt = "{_0}")]
+    Core(E),
+    #[from]
+    #[display(fmt = "Terminated: {_0:?}")]
+    Terminated(TerminationReason),
+}
+
+impl<E: Display + BackendExtError> ActorSyscallFuncError<E> {
+    pub fn into_termination_reason(self) -> TerminationReason {
+        match self {
+            Self::Core(err) => err.into_termination_reason(),
+            Self::Terminated(reason) => reason,
+        }
+    }
+}
+
+#[derive(Debug, Clone, derive_more::Display, derive_more::From)]
+pub enum SystemSyscallFuncError {
+    #[display(fmt = "Binary code has wrong instrumentation")]
+    WrongInstrumentation,
+    #[from]
+    #[display(fmt = "{_0}")]
+    OutOfBounds(OutOfMemoryAccessError),
+    #[display(fmt = "Failed to decode read memory")]
+    DecodeError,
+    #[display(fmt = "Buffer size {_0} is not equal to pre-registered size {_1}")]
+    WrongBufferSize(usize, u32),
 }

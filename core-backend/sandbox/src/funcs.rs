@@ -25,7 +25,7 @@ use codec::Encode;
 use core::{convert::TryInto, fmt::Display, marker::PhantomData};
 use gear_backend_common::{
     memory::{MemoryAccessRecorder, MemoryOwner},
-    BackendExt, BackendExtError, SyscallFuncError, TerminationReason,
+    ActorSyscallFuncError, BackendExt, BackendExtError, SyscallFuncError, TerminationReason,
 };
 use gear_core::{
     env::Ext,
@@ -52,7 +52,7 @@ where
     fn into_ext_error(
         self,
         state: &mut Runtime<Ext>,
-    ) -> Result<Result<T, u32>, SyscallFuncError<Err>>;
+    ) -> Result<Result<T, u32>, ActorSyscallFuncError<Err>>;
 }
 
 impl<T, Err, Ext> IntoExtErrorForResult<T, Err, Ext> for Result<T, Err>
@@ -63,14 +63,14 @@ where
     fn into_ext_error(
         self,
         state: &mut Runtime<Ext>,
-    ) -> Result<Result<T, u32>, SyscallFuncError<Err>> {
+    ) -> Result<Result<T, u32>, ActorSyscallFuncError<Err>> {
         match self {
             Ok(value) => Ok(Ok(value)),
             Err(err) => {
-                state.err = SyscallFuncError::Core(err.clone());
+                state.err = ActorSyscallFuncError::Core(err.clone()).into();
                 match err.into_ext_error() {
                     Ok(ext_err) => Ok(Err(ext_err.encoded_size() as u32)),
-                    Err(err) => Err(SyscallFuncError::Core(err)),
+                    Err(err) => Err(ActorSyscallFuncError::Core(err)),
                 }
             }
         }
@@ -320,7 +320,7 @@ where
         at: u32,
         len: u32,
     ) -> Result<&'_ [u8], SyscallFuncError<<E as Ext>::Error>> {
-        let msg = ext.read(at, len).map_err(SyscallFuncError::Core)?;
+        let msg = ext.read(at, len).map_err(ActorSyscallFuncError::Core)?;
 
         // 'at' and 'len' correct and saturation checked in Ext::read
         debug_assert!(at.checked_add(len).is_some());
@@ -359,7 +359,7 @@ where
         ctx.run(|ctx| {
             let write_size = ctx.register_write_as(size_ptr);
 
-            let size = ctx.ext.size().map_err(SyscallFuncError::Core)? as u32;
+            let size = ctx.ext.size().map_err(ActorSyscallFuncError::Core)? as u32;
 
             ctx.write_as(write_size, size.to_le_bytes())
                 .map_err(Into::into)
@@ -376,11 +376,9 @@ where
 
             let inheritor_id = ctx.read_decoded(read_inheritor_id)?;
 
-            ctx.ext.exit().map_err(SyscallFuncError::Core)?;
+            ctx.ext.exit().map_err(ActorSyscallFuncError::Core)?;
 
-            Err(SyscallFuncError::Terminated(TerminationReason::Exit(
-                inheritor_id,
-            )))
+            Err(ActorSyscallFuncError::Terminated(TerminationReason::Exit(inheritor_id)).into())
         })
     }
 
@@ -407,7 +405,7 @@ where
             let page = ctx
                 .ext
                 .alloc(pages, &mut ctx.memory)
-                .map_err(SyscallFuncError::Core)?;
+                .map_err(ActorSyscallFuncError::Core)?;
             log::debug!("ALLOC: {pages:?} pages at {page:?}");
             Ok(page)
         })?;
@@ -421,7 +419,7 @@ where
         let page = WasmPage::new(args.iter().read()?).map_err(|_| HostError)?;
 
         ctx.run(|ctx| {
-            ctx.ext.free(page).map_err(SyscallFuncError::Core)?;
+            ctx.ext.free(page).map_err(ActorSyscallFuncError::Core)?;
             log::debug!("FREE: {page:?}");
             Ok(())
         })
@@ -435,7 +433,10 @@ where
         ctx.run(|ctx| {
             let write_height = ctx.register_write_as(height_ptr);
 
-            let height = ctx.ext.block_height().map_err(SyscallFuncError::Core)?;
+            let height = ctx
+                .ext
+                .block_height()
+                .map_err(ActorSyscallFuncError::Core)?;
 
             ctx.write_as(write_height, height.to_le_bytes())
                 .map_err(Into::into)
@@ -450,7 +451,10 @@ where
         ctx.run(|ctx| {
             let write_timestamp = ctx.register_write_as(timestamp_ptr);
 
-            let timestamp = ctx.ext.block_timestamp().map_err(SyscallFuncError::Core)?;
+            let timestamp = ctx
+                .ext
+                .block_timestamp()
+                .map_err(ActorSyscallFuncError::Core)?;
 
             ctx.write_as(write_timestamp, timestamp.to_le_bytes())
                 .map_err(Into::into)
@@ -465,7 +469,7 @@ where
         ctx.run(|ctx| {
             let write_origin = ctx.register_write_as(origin_ptr);
 
-            let origin = ctx.ext.origin().map_err(SyscallFuncError::Core)?;
+            let origin = ctx.ext.origin().map_err(ActorSyscallFuncError::Core)?;
 
             ctx.write_as(write_origin, origin.into_bytes())
                 .map_err(Into::into)
@@ -485,7 +489,7 @@ where
 
             let raw_subject: Hash = ctx.read_decoded(read_subject)?;
 
-            let (random, bn) = ctx.ext.random().map_err(SyscallFuncError::Core)?;
+            let (random, bn) = ctx.ext.random().map_err(ActorSyscallFuncError::Core)?;
             let subject = [&raw_subject, random].concat();
 
             let mut hash = [0; 32];
@@ -868,7 +872,7 @@ where
             let data = ctx.read(read_data)?;
 
             let s = String::from_utf8(data)?;
-            ctx.ext.debug(&s).map_err(SyscallFuncError::Core)?;
+            ctx.ext.debug(&s).map_err(ActorSyscallFuncError::Core)?;
 
             Ok(())
         })
@@ -933,7 +937,10 @@ where
         ctx.run(|ctx| {
             let write_gas = ctx.register_write_as(gas_ptr);
 
-            let gas = ctx.ext.gas_available().map_err(SyscallFuncError::Core)?;
+            let gas = ctx
+                .ext
+                .gas_available()
+                .map_err(ActorSyscallFuncError::Core)?;
 
             ctx.write_as(write_gas, gas.to_le_bytes())
                 .map_err(Into::into)
@@ -948,7 +955,7 @@ where
         ctx.run(|ctx| {
             let write_message_id = ctx.register_write_as(message_id_ptr);
 
-            let message_id = ctx.ext.message_id().map_err(SyscallFuncError::Core)?;
+            let message_id = ctx.ext.message_id().map_err(ActorSyscallFuncError::Core)?;
 
             ctx.write_as(write_message_id, message_id.into_bytes())
                 .map_err(Into::into)
@@ -963,7 +970,7 @@ where
         ctx.run(|ctx| {
             let write_program_id = ctx.register_write_as(program_id_ptr);
 
-            let program_id = ctx.ext.program_id().map_err(SyscallFuncError::Core)?;
+            let program_id = ctx.ext.program_id().map_err(ActorSyscallFuncError::Core)?;
 
             ctx.write_as(write_program_id, program_id.into_bytes())
                 .map_err(Into::into)
@@ -978,7 +985,7 @@ where
         ctx.run(|ctx| {
             let write_source = ctx.register_write_as(source_ptr);
 
-            let source = ctx.ext.source().map_err(SyscallFuncError::Core)?;
+            let source = ctx.ext.source().map_err(ActorSyscallFuncError::Core)?;
 
             ctx.write_as(write_source, source.into_bytes())
                 .map_err(Into::into)
@@ -993,7 +1000,7 @@ where
         ctx.run(|ctx| {
             let write_value = ctx.register_write_as(value_ptr);
 
-            let value = ctx.ext.value().map_err(SyscallFuncError::Core)?;
+            let value = ctx.ext.value().map_err(ActorSyscallFuncError::Core)?;
 
             ctx.write_as(write_value, value.to_le_bytes())
                 .map_err(Into::into)
@@ -1008,7 +1015,10 @@ where
         ctx.run(|ctx| {
             let write_value = ctx.register_write_as(value_ptr);
 
-            let value_available = ctx.ext.value_available().map_err(SyscallFuncError::Core)?;
+            let value_available = ctx
+                .ext
+                .value_available()
+                .map_err(ActorSyscallFuncError::Core)?;
 
             ctx.write_as(write_value, value_available.to_le_bytes())
                 .map_err(Into::into)
@@ -1022,9 +1032,10 @@ where
             Err(ctx
                 .ext
                 .leave()
-                .map_err(SyscallFuncError::Core)
+                .map_err(ActorSyscallFuncError::Core)
                 .err()
-                .unwrap_or_else(|| SyscallFuncError::Terminated(TerminationReason::Leave)))
+                .unwrap_or(ActorSyscallFuncError::Terminated(TerminationReason::Leave)))
+            .map_err(Into::into)
         })
     }
 
@@ -1035,14 +1046,15 @@ where
             Err(ctx
                 .ext
                 .wait()
-                .map_err(SyscallFuncError::Core)
+                .map_err(ActorSyscallFuncError::Core)
                 .err()
                 .unwrap_or_else(|| {
-                    SyscallFuncError::Terminated(TerminationReason::Wait(
+                    ActorSyscallFuncError::Terminated(TerminationReason::Wait(
                         None,
                         MessageWaitedType::Wait,
                     ))
                 }))
+            .map_err(Into::into)
         })
     }
 
@@ -1054,14 +1066,15 @@ where
             Err(ctx
                 .ext
                 .wait_for(duration)
-                .map_err(SyscallFuncError::Core)
+                .map_err(ActorSyscallFuncError::Core)
                 .err()
                 .unwrap_or_else(|| {
-                    SyscallFuncError::Terminated(TerminationReason::Wait(
+                    ActorSyscallFuncError::Terminated(TerminationReason::Wait(
                         Some(duration),
                         MessageWaitedType::WaitFor,
                     ))
                 }))
+            .map_err(Into::into)
         })
     }
 
@@ -1071,18 +1084,19 @@ where
         let duration = args.iter().read()?;
 
         ctx.run(|ctx| -> Result<(), _> {
-            Err(SyscallFuncError::Terminated(TerminationReason::Wait(
+            Err(ActorSyscallFuncError::Terminated(TerminationReason::Wait(
                 Some(duration),
                 if ctx
                     .ext
                     .wait_up_to(duration)
-                    .map_err(SyscallFuncError::Core)?
+                    .map_err(ActorSyscallFuncError::Core)?
                 {
                     MessageWaitedType::WaitUpToFull
                 } else {
                     MessageWaitedType::WaitUpTo
                 },
-            )))
+            ))
+            .into())
         })
     }
 
@@ -1185,7 +1199,7 @@ where
 
         ctx.run(|ctx| {
             let last_err = match ctx.err.clone() {
-                SyscallFuncError::Core(maybe_ext) => maybe_ext
+                SyscallFuncError::Actor(ActorSyscallFuncError::Core(maybe_ext)) => maybe_ext
                     .into_ext_error()
                     .map_err(|_| ExtError::SyscallUsage),
                 _ => Err(ExtError::SyscallUsage),
@@ -1202,7 +1216,9 @@ where
                 Err(err) => err.encoded_size() as u32,
             };
 
-            ctx.ext.charge_error().map_err(SyscallFuncError::Core)?;
+            ctx.ext
+                .charge_error()
+                .map_err(ActorSyscallFuncError::Core)?;
             ctx.write_as(write_err_len, length.to_le_bytes())?;
             Ok(())
         })
@@ -1212,14 +1228,14 @@ where
         sys_trace!(target: "syscall::gear", "forbidden");
 
         ctx.run(|_ctx| -> Result<(), _> {
-            Err(SyscallFuncError::Core(E::Error::forbidden_function()))
+            Err(ActorSyscallFuncError::Core(E::Error::forbidden_function()).into())
         })
     }
 
     pub fn out_of_gas(ctx: &mut Runtime<E>, _args: &[Value]) -> SyscallOutput {
         sys_trace!(target: "syscall::gear", "out_of_gas");
 
-        ctx.err = SyscallFuncError::Core(ctx.ext.out_of_gas());
+        ctx.err = ActorSyscallFuncError::Core(ctx.ext.out_of_gas()).into();
 
         Err(HostError)
     }
@@ -1227,7 +1243,7 @@ where
     pub fn out_of_allowance(ctx: &mut Runtime<E>, _args: &[Value]) -> SyscallOutput {
         sys_trace!(target: "syscall::gear", "out_of_allowance");
 
-        ctx.err = SyscallFuncError::Core(ctx.ext.out_of_allowance());
+        ctx.err = ActorSyscallFuncError::Core(ctx.ext.out_of_allowance()).into();
 
         Err(HostError)
     }

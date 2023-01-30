@@ -8972,11 +8972,9 @@ fn check_reply_push_payload_exceed() {
         assert_last_dequeued(1);
         assert_failed(
             message_id,
-            ActorExecutionErrorReason::Ext(TrapExplanation::Other(
-                ExtError::Message(MessageError::MaxMessageSizeExceed)
-                    .to_string()
-                    .into(),
-            )),
+            ActorExecutionErrorReason::Ext(TrapExplanation::Core(ExtError::Message(
+                MessageError::MaxMessageSizeExceed,
+            ))),
         );
     });
 }

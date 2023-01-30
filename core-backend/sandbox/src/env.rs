@@ -26,8 +26,9 @@ use crate::{
 use alloc::{collections::BTreeSet, string::ToString};
 use gear_backend_common::{
     lazy_pages::{GlobalsAccessMod, GlobalsConfig},
-    BackendExt, BackendExtError, BackendReport, Environment, EnvironmentExecutionError,
-    GetGasAmount, SyscallFuncError, TerminationReason, TrapExplanation, STACK_END_EXPORT_NAME,
+    ActorSyscallFuncError, BackendExt, BackendExtError, BackendReport, Environment,
+    EnvironmentExecutionError, GetGasAmount, SyscallFuncError, TerminationReason, TrapExplanation,
+    STACK_END_EXPORT_NAME,
 };
 use gear_core::{
     env::Ext,
@@ -229,7 +230,7 @@ where
         let mut runtime = Runtime {
             ext,
             memory: MemoryWrap::new(memory),
-            err: SyscallFuncError::Terminated(TerminationReason::Success),
+            err: ActorSyscallFuncError::Terminated(TerminationReason::Success).into(),
             globals: Default::default(),
             memory_manager: Default::default(),
         };
@@ -266,7 +267,7 @@ where
             .get_global_val(STACK_END_EXPORT_NAME)
             .and_then(|global| global.as_i32());
 
-        runtime.globals = instance.instance_globals().ok_or(Backend(
+        runtime.globals = instance.instance_globals().ok_or(Environment(
             (runtime.ext.gas_amount(), MutableGlobalsNotSupported).into(),
         ))?;
 
@@ -275,12 +276,12 @@ where
         runtime
             .globals
             .set_global_val(GLOBAL_NAME_GAS, Value::I64(gas as i64))
-            .map_err(|_| Backend((runtime.ext.gas_amount(), WrongInjectedGas).into()))?;
+            .map_err(|_| Environment((runtime.ext.gas_amount(), WrongInjectedGas).into()))?;
 
         runtime
             .globals
             .set_global_val(GLOBAL_NAME_ALLOWANCE, Value::I64(allowance as i64))
-            .map_err(|_| Backend((runtime.ext.gas_amount(), WrongInjectedAllowance).into()))?;
+            .map_err(|_| Environment((runtime.ext.gas_amount(), WrongInjectedAllowance).into()))?;
 
         let globals_config = if cfg!(not(feature = "std")) {
             GlobalsConfig {
@@ -314,13 +315,15 @@ where
             .globals
             .get_global_val(GLOBAL_NAME_GAS)
             .and_then(runtime::as_i64)
-            .ok_or(Backend((runtime.ext.gas_amount(), WrongInjectedGas).into()))?;
+            .ok_or(Environment(
+                (runtime.ext.gas_amount(), WrongInjectedGas).into(),
+            ))?;
 
         let allowance = runtime
             .globals
             .get_global_val(GLOBAL_NAME_ALLOWANCE)
             .and_then(runtime::as_i64)
-            .ok_or(Backend(
+            .ok_or(Environment(
                 (runtime.ext.gas_amount(), WrongInjectedAllowance).into(),
             ))?;
 
@@ -336,7 +339,12 @@ where
         log::debug!("SandboxEnvironment::execute res = {res:?}");
 
         let termination_reason = if res.is_err() {
-            let mut reason = runtime_err.into_termination_reason();
+            let err = match runtime_err {
+                SyscallFuncError::Actor(err) => err,
+                SyscallFuncError::System(err) => return Err(SyscallFunc(err)),
+            };
+
+            let mut reason = err.into_termination_reason();
 
             // success is unacceptable when there is error
             if let TerminationReason::Success = reason {

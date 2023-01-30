@@ -332,7 +332,7 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + BackendExt + 'static, E: Environm
             program.code().exports().clone(),
             memory_size,
         )
-        .map_err(EnvironmentExecutionError::Backend)?;
+        .map_err(EnvironmentExecutionError::Environment)?;
         env.execute(|memory, stack_end, globals_config| {
             prepare_memory::<A, E::Memory>(
                 memory,
@@ -374,8 +374,8 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + BackendExt + 'static, E: Environm
 
             (termination, memory, ext)
         }
-        Err(EnvironmentExecutionError::Backend(e)) => {
-            return Err(ExecutionError::System(SystemExecutionError::Backend(
+        Err(EnvironmentExecutionError::Environment(e)) => {
+            return Err(ExecutionError::System(SystemExecutionError::Environment(
                 e.to_string(),
             )))
         }
@@ -390,6 +390,9 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + BackendExt + 'static, E: Environm
             PrepareMemoryError::System(e),
         )) => {
             return Err(ExecutionError::System(e.into()));
+        }
+        Err(EnvironmentExecutionError::SyscallFunc(e)) => {
+            return Err(ExecutionError::System(e.into()))
         }
     };
 
@@ -539,7 +542,7 @@ pub fn execute_for_reply<
             program.code().exports().clone(),
             memory_size,
         )
-        .map_err(EnvironmentExecutionError::Backend)?;
+        .map_err(EnvironmentExecutionError::Environment)?;
         env.execute(|memory, stack_end, globals_config| {
             prepare_memory::<A, E::Memory>(
                 memory,

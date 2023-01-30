@@ -25,7 +25,7 @@ use alloc::{
     vec::Vec,
 };
 use codec::{Decode, Encode};
-use gear_backend_common::{SystemReservationContext, TrapExplanation};
+use gear_backend_common::{SystemReservationContext, SystemSyscallFuncError, TrapExplanation};
 use gear_core::{
     gas::{GasAllowanceCounter, GasAmount, GasCounter},
     ids::{CodeId, MessageId, ProgramId, ReservationId},
@@ -442,11 +442,16 @@ pub enum ActorExecutionErrorReason {
 #[derive(Debug, derive_more::Display, derive_more::From)]
 pub enum SystemExecutionError {
     /// Prepare memory error
+    #[from]
     #[display(fmt = "Prepare memory: {_0}")]
     PrepareMemory(SystemPrepareMemoryError),
-    /// Backend error
+    /// Environment error
     #[display(fmt = "Backend error: {_0}")]
-    Backend(String),
+    Environment(String),
+    /// Sys-call function error
+    #[from]
+    #[display(fmt = "Syscall function error: {_0}")]
+    SyscallFunc(SystemSyscallFuncError),
 }
 
 /// Actor.

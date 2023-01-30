@@ -22,7 +22,7 @@ use gear_backend_common::{
         MemoryAccessManager, MemoryOwner, WasmMemoryRead, WasmMemoryReadAs, WasmMemoryReadDecoded,
         WasmMemoryWrite, WasmMemoryWriteAs,
     },
-    BackendExt,
+    ActorSyscallFuncError, BackendExt, SystemSyscallFuncError,
 };
 
 use super::*;
@@ -56,7 +56,8 @@ where
         };
 
         if forbidden {
-            wrapper.host_state_mut().err = SyscallFuncError::Core(E::Error::forbidden_function());
+            wrapper.host_state_mut().err =
+                ActorSyscallFuncError::Core(E::Error::forbidden_function()).into();
             return Err(TrapCode::Unreachable.into());
         }
 
@@ -74,7 +75,7 @@ where
         };
 
         let (gas, allowance) = f().ok_or_else(|| {
-            wrapper.host_state_mut().err = SyscallFuncError::WrongInstrumentation;
+            wrapper.host_state_mut().err = SystemSyscallFuncError::WrongInstrumentation.into();
             Trap::from(TrapCode::Unreachable)
         })?;
 
@@ -123,7 +124,7 @@ where
 
         f().ok_or_else(|| {
             // TODO #1979
-            self.host_state_mut().err = SyscallFuncError::WrongInstrumentation;
+            self.host_state_mut().err = SystemSyscallFuncError::WrongInstrumentation.into();
             Trap::from(TrapCode::Unreachable)
         })
     }

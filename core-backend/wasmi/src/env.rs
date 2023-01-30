@@ -30,8 +30,9 @@ use alloc::{
 use core::any::Any;
 use gear_backend_common::{
     lazy_pages::{GlobalsAccessError, GlobalsAccessMod, GlobalsAccessor, GlobalsConfig},
-    BackendExt, BackendExtError, BackendReport, Environment, EnvironmentExecutionError,
-    GetGasAmount, SyscallFuncError, TerminationReason, TrapExplanation, STACK_END_EXPORT_NAME,
+    ActorSyscallFuncError, BackendExt, BackendExtError, BackendReport, Environment,
+    EnvironmentExecutionError, GetGasAmount, SyscallFuncError, TerminationReason, TrapExplanation,
+    STACK_END_EXPORT_NAME,
 };
 use gear_core::{
     env::Ext,
@@ -200,7 +201,7 @@ where
 
         let runtime = State {
             ext,
-            err: SyscallFuncError::Terminated(TerminationReason::Success),
+            err: ActorSyscallFuncError::Terminated(TerminationReason::Success).into(),
         };
 
         *store.state_mut() = Some(runtime);
@@ -256,7 +257,7 @@ where
             .get_export(&store, GLOBAL_NAME_GAS)
             .and_then(Extern::into_global)
             .and_then(|g| g.set(&mut store, Value::I64(gas as i64)).map(|_| g).ok())
-            .ok_or(Backend((gas_amount!(store), WrongInjectedGas).into()))?;
+            .ok_or(Environment((gas_amount!(store), WrongInjectedGas).into()))?;
 
         let gear_allowance = instance
             .get_export(&store, GLOBAL_NAME_ALLOWANCE)
@@ -266,7 +267,9 @@ where
                     .map(|_| g)
                     .ok()
             })
-            .ok_or(Backend((gas_amount!(store), WrongInjectedAllowance).into()))?;
+            .ok_or(Environment(
+                (gas_amount!(store), WrongInjectedAllowance).into(),
+            ))?;
 
         let mut globals_provider = GlobalsAccessProvider {
             instance,
@@ -306,7 +309,7 @@ where
                 .get_export(&store, entry_point.as_entry())
                 .and_then(Extern::into_func)
                 .ok_or({
-                    Backend(
+                    Environment(
                         (
                             gas_amount!(store),
                             GetWasmExports(entry_point.as_entry().to_string()),
@@ -316,7 +319,7 @@ where
                 })?;
 
             let entry_func = func.typed::<(), (), _>(&mut store).map_err(|_| {
-                Backend(
+                Environment(
                     (
                         gas_amount!(store),
                         EntryPointWrongType(entry_point.as_entry().to_string()),
@@ -350,11 +353,13 @@ where
         let gas = gear_gas
             .get(&store)
             .try_into::<i64>()
-            .ok_or(Backend((gas_amount!(store), WrongInjectedGas).into()))?;
+            .ok_or(Environment((gas_amount!(store), WrongInjectedGas).into()))?;
         let allowance = gear_allowance
             .get(&store)
             .try_into::<i64>()
-            .ok_or(Backend((gas_amount!(store), WrongInjectedAllowance).into()))?;
+            .ok_or(Environment(
+                (gas_amount!(store), WrongInjectedAllowance).into(),
+            ))?;
 
         let state = store
             .state_mut()
@@ -372,7 +377,12 @@ where
         log::debug!("WasmiEnvironment::execute result = {res:?}");
 
         let termination_reason = if res.is_err() {
-            let mut reason = runtime_err.into_termination_reason();
+            let err = match runtime_err {
+                SyscallFuncError::Actor(err) => err,
+                SyscallFuncError::System(err) => return Err(SyscallFunc(err)),
+            };
+
+            let mut reason = err.into_termination_reason();
 
             // success is unacceptable when there is an error
             if let TerminationReason::Success = reason {

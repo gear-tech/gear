@@ -38,7 +38,8 @@ use gear_core::{
 use gear_core_errors::MemoryError;
 
 /// Memory access error.
-#[derive(Debug, Clone, Copy, Encode, Decode)]
+#[derive(Debug, Clone, Copy, Encode, Decode, derive_more::Display)]
+#[display(fmt = "Out of memory access error")]
 pub struct OutOfMemoryAccessError;
 
 #[derive(Debug, Clone, derive_more::Display, derive_more::From)]
@@ -48,17 +49,14 @@ pub enum MemoryAccessError {
     Memory(MemoryError),
     #[from]
     #[display(fmt = "{_0}")]
+    OutOfBounds(OutOfMemoryAccessError),
+    #[from]
+    #[display(fmt = "{_0}")]
     RuntimeBuffer(RuntimeBufferSizeError),
     #[display(fmt = "Cannot decode read memory")]
     DecodeError,
     #[display(fmt = "Buffer size {_0} is not equal to pre-registered size {_1}")]
     WrongBufferSize(usize, u32),
-}
-
-impl From<OutOfMemoryAccessError> for MemoryAccessError {
-    fn from(_: OutOfMemoryAccessError) -> Self {
-        MemoryAccessError::Memory(MemoryError::OutOfBounds)
-    }
 }
 
 /// Memory accesses recorder/registrar, which allow to register new accesses.
