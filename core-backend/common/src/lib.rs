@@ -120,7 +120,7 @@ pub struct ExtInfo {
 }
 
 pub trait BackendExt {
-    fn into_ext_info(self, memory: &impl Memory) -> ExtInfo;
+    fn into_ext_info(self, memory: &impl Memory) -> Result<ExtInfo, (MemoryError, GasAmount)>;
 
     fn into_gas_amount(self) -> GasAmount;
 

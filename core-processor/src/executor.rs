@@ -398,7 +398,12 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + BackendExt + 'static, E: Environm
 
     log::debug!("Termination reason: {:?}", termination);
 
-    let info = ext.into_ext_info(&memory);
+    let info = ext
+        .into_ext_info(&memory)
+        .map_err(|(err, gas_amount)| ActorExecutionError {
+            gas_amount,
+            reason: ActorExecutionErrorReason::Backend(err.to_string()),
+        })?;
 
     if A::LAZY_PAGES_ENABLED {
         lazy_pages_check_initial_data(&pages_initial_data)
@@ -578,7 +583,10 @@ pub fn execute_for_reply<
         TerminationReason::GasAllowanceExceeded => return Err("Unreachable".into()),
     };
 
-    let info = ext.into_ext_info(&memory);
+    let info = ext
+        .into_ext_info(&memory)
+        .map_err(|e| format!("Backend postprocessing error: {e:?}"))?;
+
     for (dispatch, _, _) in info.generated_dispatches {
         if matches!(dispatch.kind(), DispatchKind::Reply) {
             return Ok(dispatch.payload().to_vec());

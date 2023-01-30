@@ -254,7 +254,7 @@ impl ProcessorExt for Ext {
 }
 
 impl BackendExt for Ext {
-    fn into_ext_info(self, memory: &impl Memory) -> ExtInfo {
+    fn into_ext_info(self, memory: &impl Memory) -> Result<ExtInfo, (MemoryError, GasAmount)> {
         let pages_for_data =
             |static_pages: WasmPage, allocations: &BTreeSet<WasmPage>| -> Vec<GearPage> {
                 static_pages
@@ -946,7 +946,7 @@ impl Ext {
         self,
         memory: &impl Memory,
         pages_for_data: impl FnOnce(WasmPage, &BTreeSet<WasmPage>) -> Vec<GearPage>,
-    ) -> ExtInfo {
+    ) -> Result<ExtInfo, (MemoryError, GasAmount)> {
         let ProcessorContext {
             allocations_context,
             message_context,
@@ -961,9 +961,9 @@ impl Ext {
         let mut pages_data = BTreeMap::new();
         for page in pages_for_data(static_pages, &allocations) {
             let mut buf = PageBuf::new_zeroed();
-            memory
-                .read(page.offset(), &mut buf)
-                .unwrap_or_else(|err| unreachable!("Failed to read from WASM memory: {:?}", err));
+            if let Err(err) = memory.read(page.offset(), &mut buf) {
+                return Err((err, gas_counter.into()));
+            }
             pages_data.insert(page, buf);
         }
 
@@ -980,7 +980,7 @@ impl Ext {
             context_store.add_system_reservation(reservation);
         }
 
-        ExtInfo {
+        let info = ExtInfo {
             gas_amount: gas_counter.into(),
             gas_reserver,
             system_reservation_context,
@@ -992,7 +992,8 @@ impl Ext {
             awakening,
             context_store,
             program_candidates_data,
-        }
+        };
+        Ok(info)
     }
 }
 

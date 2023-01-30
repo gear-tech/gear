@@ -32,7 +32,7 @@ use gear_core::{
     message::{HandlePacket, InitPacket, ReplyPacket, StatusCode},
     reservation::GasReserver,
 };
-use gear_core_errors::{CoreError, ExtError};
+use gear_core_errors::{CoreError, ExtError, MemoryError};
 use gear_wasm_instrument::syscalls::SysCallName;
 
 /// Mock error
@@ -252,8 +252,8 @@ impl Ext for MockExt {
 }
 
 impl BackendExt for MockExt {
-    fn into_ext_info(self, _memory: &impl Memory) -> ExtInfo {
-        ExtInfo {
+    fn into_ext_info(self, _memory: &impl Memory) -> Result<ExtInfo, (MemoryError, GasAmount)> {
+        Ok(ExtInfo {
             gas_amount: GasAmount::from(GasCounter::new(0)),
             gas_reserver: GasReserver::new(Default::default(), 0, Default::default(), 1024),
             system_reservation_context: SystemReservationContext::default(),
@@ -263,7 +263,7 @@ impl BackendExt for MockExt {
             awakening: Default::default(),
             program_candidates_data: Default::default(),
             context_store: Default::default(),
-        }
+        })
     }
 
     fn into_gas_amount(self) -> gear_core::gas::GasAmount {
