@@ -254,7 +254,7 @@ impl ProcessorExt for Ext {
 }
 
 impl BackendExt for Ext {
-    fn into_ext_info(self, memory: &impl Memory) -> Result<ExtInfo, (MemoryError, GasAmount)> {
+    fn into_ext_info(self, memory: &impl Memory) -> Result<ExtInfo, MemoryError> {
         let pages_for_data =
             |static_pages: WasmPage, allocations: &BTreeSet<WasmPage>| -> Vec<GearPage> {
                 static_pages
@@ -946,7 +946,7 @@ impl Ext {
         self,
         memory: &impl Memory,
         pages_for_data: impl FnOnce(WasmPage, &BTreeSet<WasmPage>) -> Vec<GearPage>,
-    ) -> Result<ExtInfo, (MemoryError, GasAmount)> {
+    ) -> Result<ExtInfo, MemoryError> {
         let ProcessorContext {
             allocations_context,
             message_context,
@@ -961,9 +961,7 @@ impl Ext {
         let mut pages_data = BTreeMap::new();
         for page in pages_for_data(static_pages, &allocations) {
             let mut buf = PageBuf::new_zeroed();
-            if let Err(err) = memory.read(page.offset(), &mut buf) {
-                return Err((err, gas_counter.into()));
-            }
+            memory.read(page.offset(), &mut buf)?;
             pages_data.insert(page, buf);
         }
 

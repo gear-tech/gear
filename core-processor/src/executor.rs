@@ -400,10 +400,7 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + BackendExt + 'static, E: Environm
 
     let info = ext
         .into_ext_info(&memory)
-        .map_err(|(err, gas_amount)| ActorExecutionError {
-            gas_amount,
-            reason: ActorExecutionErrorReason::Backend(err.to_string()),
-        })?;
+        .map_err(SystemExecutionError::IntoExtInfo)?;
 
     if A::LAZY_PAGES_ENABLED {
         lazy_pages_check_initial_data(&pages_initial_data)

@@ -36,6 +36,7 @@ use gear_core::{
     program::Program,
     reservation::{GasReservationMap, GasReserver},
 };
+use gear_core_errors::MemoryError;
 use scale_info::TypeInfo;
 
 /// Kind of the dispatch result.
@@ -452,6 +453,9 @@ pub enum SystemExecutionError {
     #[from]
     #[display(fmt = "Syscall function error: {_0}")]
     SyscallFunc(SystemSyscallFuncError),
+    /// Error during `into_ext_info()` call
+    #[display(fmt = "`into_ext_info()` error: {_0}")]
+    IntoExtInfo(MemoryError),
 }
 
 /// Actor.

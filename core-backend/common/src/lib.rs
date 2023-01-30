@@ -51,7 +51,7 @@ use gear_core::{
     },
     reservation::GasReserver,
 };
-use gear_core_errors::{ExecutionError, ExtError, MessageError};
+use gear_core_errors::{ExecutionError, ExtError, MemoryError, MessageError};
 use lazy_pages::GlobalsConfig;
 use memory::OutOfMemoryAccessError;
 use scale_info::TypeInfo;
@@ -120,7 +120,7 @@ pub struct ExtInfo {
 }
 
 pub trait BackendExt {
-    fn into_ext_info(self, memory: &impl Memory) -> Result<ExtInfo, (MemoryError, GasAmount)>;
+    fn into_ext_info(self, memory: &impl Memory) -> Result<ExtInfo, MemoryError>;
 
     fn into_gas_amount(self) -> GasAmount;
 

@@ -252,7 +252,7 @@ impl Ext for MockExt {
 }
 
 impl BackendExt for MockExt {
-    fn into_ext_info(self, _memory: &impl Memory) -> Result<ExtInfo, (MemoryError, GasAmount)> {
+    fn into_ext_info(self, _memory: &impl Memory) -> Result<ExtInfo, MemoryError> {
         Ok(ExtInfo {
             gas_amount: GasAmount::from(GasCounter::new(0)),
             gas_reserver: GasReserver::new(Default::default(), 0, Default::default(), 1024),

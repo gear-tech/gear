@@ -41,7 +41,7 @@ pub struct LazyPagesExt {
 }
 
 impl BackendExt for LazyPagesExt {
-    fn into_ext_info(self, memory: &impl Memory) -> Result<ExtInfo, (MemoryError, GasAmount)> {
+    fn into_ext_info(self, memory: &impl Memory) -> Result<ExtInfo, MemoryError> {
         let pages_for_data =
             |static_pages: WasmPage, allocations: &BTreeSet<WasmPage>| -> Vec<GearPage> {
                 // Accessed pages are all pages, that had been released and are in allocations set or static.
