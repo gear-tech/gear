@@ -647,8 +647,19 @@ impl<'a> WasmGen<'a> {
             }
 
             let types = module.type_section_mut().unwrap().types_mut();
-            let type_no = types.len() as u32;
-            types.push(Type::Function(info.func_type()));
+            let type_no = match types.iter().enumerate().find(|(_index, type_)| {
+                let Type::Function(type_) = type_;
+
+                *type_ == info.func_type()
+            }) {
+                Some((index, _type)) => index,
+                None => {
+                    let index = types.len();
+                    types.push(Type::Function(info.func_type()));
+
+                    index
+                }
+            } as u32;
 
             // make import
             module = builder::from_module(module)
