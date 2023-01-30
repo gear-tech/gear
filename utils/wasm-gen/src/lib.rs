@@ -559,7 +559,10 @@ impl<'a> WasmGen<'a> {
             return (module, false);
         }
 
-        let funcs_len = module.functions_space() as u32;
+        let funcs_len = module
+            .function_section()
+            .map_or(0, |funcs| funcs.entries().len() as u32);
+
         if funcs_len == 0 {
             return (module, false);
         }
@@ -576,7 +579,10 @@ impl<'a> WasmGen<'a> {
             return (module, false);
         }
 
-        let funcs_len = module.functions_space() as u32;
+        let funcs_len = module
+            .function_section()
+            .map_or(0, |funcs| funcs.entries().len() as u32);
+
         if funcs_len == 0 && self.config.skip_init_when_no_funcs.get(self.u) {
             return (module, false);
         }
