@@ -33,6 +33,7 @@ use crate::{
         RuntimeOrigin,
         System,
         Test,
+        Timestamp,
         BLOCK_AUTHOR,
         LOW_BALANCE_USER,
         USER_1,
@@ -619,6 +620,63 @@ fn read_state_using_wasm_works() {
         .expect("Failed to read state");
 
         assert_eq!(res, expected);
+    });
+}
+
+#[test]
+fn read_state_bn_and_timestamp_works() {
+    use demo_new_meta::{MessageInitIn, META_WASM_V3, WASM_BINARY};
+
+    let check = |program_id: ProgramId| {
+        let expected: u32 = Gear::block_number().unique_saturated_into();
+
+        let res = Gear::read_state_using_wasm_impl(
+            program_id,
+            "block_number",
+            META_WASM_V3.to_vec(),
+            None,
+        )
+        .expect("Failed to read state");
+        let res = u32::decode(&mut res.as_ref()).unwrap();
+
+        assert_eq!(res, expected);
+
+        let expected: u64 = Timestamp::get().unique_saturated_into();
+
+        let res = Gear::read_state_using_wasm_impl(
+            program_id,
+            "block_timestamp",
+            META_WASM_V3.to_vec(),
+            None,
+        )
+        .expect("Failed to read state");
+        let res = u64::decode(&mut res.as_ref()).unwrap();
+
+        assert_eq!(res, expected);
+    };
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_2),
+            WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            <MessageInitIn as Default>::default().encode(),
+            DEFAULT_GAS_LIMIT * 100,
+            10_000,
+        ));
+
+        let program_id = utils::get_last_program_id();
+
+        run_to_next_block(None);
+        assert!(Gear::is_initialized(program_id));
+        check(program_id);
+
+        run_to_block(10, None);
+        check(program_id);
+
+        run_to_block(20, None);
+        check(program_id);
     });
 }
 
