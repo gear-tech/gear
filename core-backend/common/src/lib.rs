@@ -31,7 +31,10 @@ pub mod mock;
 
 pub mod memory;
 
-use crate::{memory::MemoryAccessError, utils::TrimmedString};
+use crate::{
+    memory::{ActorMemoryAccessError, MemoryAccessError, SystemMemoryAccessError},
+    utils::TrimmedString,
+};
 use alloc::{
     collections::{BTreeMap, BTreeSet},
     string::FromUtf8Error,
@@ -199,29 +202,21 @@ pub enum SyscallFuncError<E: Display> {
 impl<E: Display + BackendExtError> From<MemoryAccessError> for SyscallFuncError<E> {
     fn from(err: MemoryAccessError) -> Self {
         match err {
-            MemoryAccessError::Memory(err) => {
-                ActorSyscallFuncError::Core(E::from_ext_error(err.into())).into()
-            }
-            MemoryAccessError::OutOfBounds(err) => SystemSyscallFuncError::OutOfBounds(err).into(),
-            MemoryAccessError::RuntimeBuffer(err) => err.into(),
-            MemoryAccessError::DecodeError => SystemSyscallFuncError::DecodeError.into(),
-            MemoryAccessError::WrongBufferSize(buf, write) => {
-                SystemSyscallFuncError::WrongBufferSize(buf, write).into()
-            }
+            MemoryAccessError::Actor(err) => ActorSyscallFuncError::from(err).into(),
+            MemoryAccessError::System(err) => SystemSyscallFuncError::from(err).into(),
         }
     }
 }
 
 impl<E: Display + BackendExtError> From<PayloadSizeError> for SyscallFuncError<E> {
-    fn from(_err: PayloadSizeError) -> Self {
-        ActorSyscallFuncError::Core(E::from_ext_error(MessageError::MaxMessageSizeExceed.into()))
-            .into()
+    fn from(err: PayloadSizeError) -> Self {
+        ActorSyscallFuncError::from(err).into()
     }
 }
 
 impl<E: Display + BackendExtError> From<RuntimeBufferSizeError> for SyscallFuncError<E> {
-    fn from(_err: RuntimeBufferSizeError) -> Self {
-        ActorSyscallFuncError::Core(E::from_ext_error(ExtError::SyscallUsage)).into()
+    fn from(err: RuntimeBufferSizeError) -> Self {
+        ActorSyscallFuncError::from(err).into()
     }
 }
 
@@ -241,6 +236,27 @@ pub enum ActorSyscallFuncError<E: Display> {
     Terminated(TerminationReason),
 }
 
+impl<E: Display + BackendExtError> From<PayloadSizeError> for ActorSyscallFuncError<E> {
+    fn from(_err: PayloadSizeError) -> Self {
+        Self::Core(E::from_ext_error(MessageError::MaxMessageSizeExceed.into()))
+    }
+}
+
+impl<E: Display + BackendExtError> From<RuntimeBufferSizeError> for ActorSyscallFuncError<E> {
+    fn from(_err: RuntimeBufferSizeError) -> Self {
+        Self::Core(E::from_ext_error(ExtError::SyscallUsage))
+    }
+}
+
+impl<E: Display + BackendExtError> From<ActorMemoryAccessError> for ActorSyscallFuncError<E> {
+    fn from(err: ActorMemoryAccessError) -> Self {
+        match err {
+            ActorMemoryAccessError::Memory(err) => Self::Core(E::from_ext_error(err.into())),
+            ActorMemoryAccessError::RuntimeBuffer(err) => Self::from(err),
+        }
+    }
+}
+
 impl<E: Display + BackendExtError> ActorSyscallFuncError<E> {
     pub fn into_termination_reason(self) -> TerminationReason {
         match self {
@@ -255,10 +271,6 @@ pub enum SystemSyscallFuncError {
     #[display(fmt = "Binary code has wrong instrumentation")]
     WrongInstrumentation,
     #[from]
-    #[display(fmt = "{_0}")]
-    OutOfBounds(OutOfMemoryAccessError),
-    #[display(fmt = "Failed to decode read memory")]
-    DecodeError,
-    #[display(fmt = "Buffer size {_0} is not equal to pre-registered size {_1}")]
-    WrongBufferSize(usize, u32),
+    #[display(fmt = "Memory access error: {_0}")]
+    MemoryAccess(SystemMemoryAccessError),
 }

@@ -44,15 +44,43 @@ pub struct OutOfMemoryAccessError;
 
 #[derive(Debug, Clone, derive_more::Display, derive_more::From)]
 pub enum MemoryAccessError {
+    Actor(ActorMemoryAccessError),
+    System(SystemMemoryAccessError),
+}
+
+impl From<MemoryError> for MemoryAccessError {
+    fn from(err: MemoryError) -> Self {
+        Self::Actor(err.into())
+    }
+}
+
+impl From<RuntimeBufferSizeError> for MemoryAccessError {
+    fn from(err: RuntimeBufferSizeError) -> Self {
+        Self::Actor(err.into())
+    }
+}
+
+impl From<OutOfMemoryAccessError> for MemoryAccessError {
+    fn from(err: OutOfMemoryAccessError) -> Self {
+        Self::System(err.into())
+    }
+}
+
+#[derive(Debug, Clone, derive_more::Display, derive_more::From)]
+pub enum ActorMemoryAccessError {
     #[from]
     #[display(fmt = "{_0}")]
     Memory(MemoryError),
     #[from]
     #[display(fmt = "{_0}")]
-    OutOfBounds(OutOfMemoryAccessError),
+    RuntimeBuffer(RuntimeBufferSizeError),
+}
+
+#[derive(Debug, Clone, derive_more::Display, derive_more::From)]
+pub enum SystemMemoryAccessError {
     #[from]
     #[display(fmt = "{_0}")]
-    RuntimeBuffer(RuntimeBufferSizeError),
+    OutOfBounds(OutOfMemoryAccessError),
     #[display(fmt = "Cannot decode read memory")]
     DecodeError,
     #[display(fmt = "Buffer size {_0} is not equal to pre-registered size {_1}")]
@@ -227,7 +255,8 @@ impl<E: Ext + BackendExt> MemoryAccessManager<E> {
     ) -> Result<T, MemoryAccessError> {
         let mut buff = RuntimeBuffer::try_new_default(T::max_encoded_len())?.into_vec();
         self.read_into_buf(memory, read.ptr, &mut buff)?;
-        let decoded = T::decode_all(&mut &buff[..]).map_err(|_| MemoryAccessError::DecodeError)?;
+        let decoded =
+            T::decode_all(&mut &buff[..]).map_err(|_| SystemMemoryAccessError::DecodeError)?;
         Ok(decoded)
     }
 
@@ -249,7 +278,7 @@ impl<E: Ext + BackendExt> MemoryAccessManager<E> {
         buff: &[u8],
     ) -> Result<(), MemoryAccessError> {
         if buff.len() != write.size as usize {
-            return Err(MemoryAccessError::WrongBufferSize(buff.len(), write.size));
+            return Err(SystemMemoryAccessError::WrongBufferSize(buff.len(), write.size).into());
         }
         self.pre_process_memory_accesses()?;
         memory.write(write.ptr, buff).map_err(Into::into)
