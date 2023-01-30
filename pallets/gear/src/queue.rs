@@ -224,7 +224,8 @@ where
                 (context, code, balance, origin).into(),
                 (random.encode(), bn.unique_saturated_into()),
                 memory_pages,
-            );
+            )
+            .unwrap_or_else(|e| unreachable!("core-processor logic invalidated: {}", e));
 
             core_processor::handle_journal(journal, &mut ext_manager);
         }

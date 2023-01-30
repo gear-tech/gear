@@ -241,7 +241,8 @@ where
             exec.context,
             exec.random_data,
             exec.memory_pages,
-        ),
+        )
+        .unwrap_or_else(|e| unreachable!("core-processor logic invalidated: {}", e)),
         exec.err_len_ptrs,
     )
 }
