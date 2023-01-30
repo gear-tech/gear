@@ -900,6 +900,10 @@ impl EnvExt for Ext {
     fn runtime_cost(&self, costs: RuntimeCosts) -> u64 {
         costs.token(&self.context.host_fn_weights).weight()
     }
+
+    fn maybe_panic(&self) -> Option<String> {
+        self.panic.clone()
+    }
 }
 
 impl Ext {

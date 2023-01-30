@@ -58,11 +58,12 @@ use scale_info::TypeInfo;
 // '__gear_stack_end' export is inserted in wasm-proc or wasm-builder
 pub const STACK_END_EXPORT_NAME: &str = "__gear_stack_end";
 
-#[derive(Decode, Encode, Debug, PartialEq, Eq, PartialOrd, Ord, Clone)]
+#[derive(Decode, Encode, Debug, PartialEq, Eq, PartialOrd, Ord, Clone, derive_more::From)]
 pub enum TerminationReason {
     Exit(ProgramId),
     Leave,
     Success,
+    #[from]
     Trap(TrapExplanation),
     Wait(Option<u32>, MessageWaitedType),
     GasAllowanceExceeded,
@@ -74,6 +75,8 @@ pub enum TerminationReason {
 pub enum TrapExplanation {
     #[display(fmt = "{_0}")]
     Core(ExtError),
+    #[display(fmt = "{_0}")]
+    Panic(TrimmedString),
     #[display(fmt = "{_0}")]
     Other(TrimmedString),
     #[display(fmt = "Reason is unknown. Possibly `unreachable` instruction is occurred")]

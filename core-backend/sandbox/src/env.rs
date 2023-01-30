@@ -340,7 +340,10 @@ where
 
             // success is unacceptable when there is error
             if let TerminationReason::Success = reason {
-                reason = TerminationReason::Trap(TrapExplanation::Unknown)
+                reason = ext
+                    .maybe_panic()
+                    .map(|s| TrapExplanation::Panic(s.into()).into())
+                    .unwrap_or(TerminationReason::Trap(TrapExplanation::Unknown));
             }
 
             reason

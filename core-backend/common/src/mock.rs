@@ -20,7 +20,7 @@ use crate::{
     memory::OutOfMemoryAccessError, BackendExt, BackendExtError, ExtInfo, GetGasAmount,
     SystemReservationContext, TerminationReason,
 };
-use alloc::collections::BTreeSet;
+use alloc::{collections::BTreeSet, string::String};
 use codec::{Decode, Encode};
 use core::fmt;
 use gear_core::{
@@ -244,6 +244,10 @@ impl Ext for MockExt {
 
     fn runtime_cost(&self, _costs: RuntimeCosts) -> u64 {
         0
+    }
+
+    fn maybe_panic(&self) -> Option<String> {
+        None
     }
 }
 
