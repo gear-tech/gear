@@ -23,7 +23,7 @@ base64 = "0.21.0"
 color-eyre = { version = "0.6.2", optional = true }
 dirs = "4.0.0"
 env_logger = "0.10.0"
-futures-util = "0.3.25"
+futures-util = "0.3.26"
 futures = "0.3"
 gear-core = { path = "../core" }
 hex = "0.4.3"
