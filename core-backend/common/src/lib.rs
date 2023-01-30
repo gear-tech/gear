@@ -134,7 +134,7 @@ pub trait BackendExt {
     ) -> Result<(), OutOfMemoryAccessError>;
 }
 
-pub trait BackendExtError: Sized {
+pub trait BackendExtError: Sized + Clone {
     fn from_ext_error(err: ExtError) -> Self;
 
     fn forbidden_function() -> Self;

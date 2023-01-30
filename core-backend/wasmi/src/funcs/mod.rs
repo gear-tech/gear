@@ -1630,14 +1630,7 @@ where
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
             ctx.run(|ctx| {
-                let state = ctx.host_state_mut();
-                let last_err = match state.err.clone() {
-                    SyscallFuncError::Actor(ActorSyscallFuncError::Core(maybe_ext)) => maybe_ext
-                        .into_ext_error()
-                        .map_err(|_| ExtError::SyscallUsage),
-                    _ => Err(ExtError::SyscallUsage),
-                };
-
+                let last_err = ctx.last_err();
                 let write_err_len = ctx.register_write_as(err_len_ptr);
                 let len: u32 = match last_err {
                     Ok(err) => {

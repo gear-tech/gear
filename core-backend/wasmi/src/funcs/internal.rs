@@ -166,6 +166,22 @@ where
             Trap::from(TrapCode::Unreachable)
         })
     }
+
+    pub(crate) fn last_err(&mut self) -> Result<ExtError, ExtError> {
+        let state = self.host_state_mut();
+        let last_err = match state.err.clone() {
+            SyscallFuncError::Actor(ActorSyscallFuncError::Core(maybe_ext)) => maybe_ext
+                .into_ext_error()
+                .map_err(|_| ExtError::SyscallUsage),
+            _ => Err(ExtError::SyscallUsage),
+        };
+
+        if let Err(err) = &last_err {
+            state.err = ActorSyscallFuncError::Core(E::Error::from_ext_error(err.clone())).into();
+        }
+
+        last_err
+    }
 }
 
 impl<'a, E> MemoryAccessRecorder for CallerWrap<'a, E>

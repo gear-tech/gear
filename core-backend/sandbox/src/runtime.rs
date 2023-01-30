@@ -26,9 +26,10 @@ use gear_backend_common::{
         MemoryAccessError, MemoryAccessManager, MemoryAccessRecorder, MemoryOwner, WasmMemoryRead,
         WasmMemoryReadAs, WasmMemoryReadDecoded, WasmMemoryWrite, WasmMemoryWriteAs,
     },
-    BackendExt, SyscallFuncError, SystemSyscallFuncError,
+    ActorSyscallFuncError, BackendExt, BackendExtError, SyscallFuncError, SystemSyscallFuncError,
 };
 use gear_core::env::Ext;
+use gear_core_errors::ExtError;
 use gear_wasm_instrument::{GLOBAL_NAME_ALLOWANCE, GLOBAL_NAME_GAS};
 use sp_sandbox::{HostError, InstanceGlobals, ReturnValue, Value};
 
@@ -48,7 +49,11 @@ pub(crate) struct Runtime<E: Ext> {
     pub memory_manager: MemoryAccessManager<E>,
 }
 
-impl<E: Ext> Runtime<E> {
+impl<E> Runtime<E>
+where
+    E: Ext,
+    E::Error: BackendExtError,
+{
     pub(crate) fn run_any<T, F>(&mut self, f: F) -> Result<T, HostError>
     where
         F: FnOnce(&mut Self) -> Result<T, SyscallFuncError<E::Error>>,
@@ -106,6 +111,21 @@ impl<E: Ext> Runtime<E> {
         F: FnOnce(&mut Self) -> Result<(), SyscallFuncError<E::Error>>,
     {
         self.run_any(f).map(|_| ReturnValue::Unit)
+    }
+
+    pub(crate) fn last_err(&mut self) -> Result<ExtError, ExtError> {
+        let last_err = match self.err.clone() {
+            SyscallFuncError::Actor(ActorSyscallFuncError::Core(maybe_ext)) => maybe_ext
+                .into_ext_error()
+                .map_err(|_| ExtError::SyscallUsage),
+            _ => Err(ExtError::SyscallUsage),
+        };
+
+        if let Err(err) = &last_err {
+            self.err = ActorSyscallFuncError::Core(E::Error::from_ext_error(err.clone())).into();
+        }
+
+        last_err
     }
 }
 

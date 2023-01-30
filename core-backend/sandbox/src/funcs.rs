@@ -32,7 +32,6 @@ use gear_core::{
     memory::{PageU32Size, WasmPage},
     message::{HandlePacket, InitPacket, MessageWaitedType, ReplyPacket},
 };
-use gear_core_errors::ExtError;
 use gsys::{
     BlockNumberWithHash, Hash, HashWithValue, LengthWithCode, LengthWithGas, LengthWithHandle,
     LengthWithHash, LengthWithTwoHashes, TwoHashesWithValue,
@@ -1198,13 +1197,7 @@ where
         let (error_bytes_ptr, err_len_ptr) = args.iter().read_2()?;
 
         ctx.run(|ctx| {
-            let last_err = match ctx.err.clone() {
-                SyscallFuncError::Actor(ActorSyscallFuncError::Core(maybe_ext)) => maybe_ext
-                    .into_ext_error()
-                    .map_err(|_| ExtError::SyscallUsage),
-                _ => Err(ExtError::SyscallUsage),
-            };
-
+            let last_err = ctx.last_err();
             let write_err_len = ctx.register_write_as(err_len_ptr);
             let length: u32 = match last_err {
                 Ok(err) => {
