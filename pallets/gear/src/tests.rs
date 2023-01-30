@@ -181,6 +181,10 @@ fn waited_with_zero_gas() {
 
         let program_id = utils::get_last_program_id();
 
+        // Check that block number matchs program upload block number
+        let upload_block_number = System::block_number();
+        assert_eq!(Gear::get_block_number(program_id), upload_block_number);
+
         run_to_next_block(None);
         let mid_in_mailbox = utils::get_last_message_id();
 
@@ -194,6 +198,10 @@ fn waited_with_zero_gas() {
 
         run_to_next_block(None);
         assert!(Gear::is_exited(program_id));
+
+        // Check that block number matchs block number when program exited
+        let exited_block_number = System::block_number();
+        assert_eq!(Gear::get_block_number(program_id), exited_block_number);
 
         // Nothing panics here.
         //
@@ -230,6 +238,10 @@ fn terminated_program_zero_gas() {
 
         let program_id = utils::get_last_program_id();
 
+        // Check that block number matchs program upload block number
+        let upload_block_number = System::block_number();
+        assert_eq!(Gear::get_block_number(program_id), upload_block_number);
+
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(USER_1),
             program_id,
@@ -240,6 +252,10 @@ fn terminated_program_zero_gas() {
 
         run_to_next_block(None);
         assert!(Gear::is_terminated(program_id));
+
+        // Check that block number matchs block number when program terminated
+        let terminated_block_number = System::block_number();
+        assert_eq!(Gear::get_block_number(program_id), terminated_block_number);
 
         // Nothing panics here.
         assert_total_dequeued(2);
@@ -2530,6 +2546,7 @@ fn send_reply_failure_to_claim_from_mailbox() {
 
         if ProgramStorageOf::<Test>::get_program(prog_id)
             .expect("Failed to get program from storage")
+            .0
             .is_terminated()
         {
             panic!("Program is terminated!");
@@ -3603,6 +3620,11 @@ fn test_sending_waits() {
         ));
 
         let program_id = get_last_program_id();
+
+        // Check that block number matchs program upload block number
+        let upload_block_number = System::block_number();
+        assert_eq!(Gear::get_block_number(program_id), upload_block_number);
+
         run_to_next_block(None);
 
         // Case 1 - `Command::SendFor`
@@ -3618,6 +3640,10 @@ fn test_sending_waits() {
             2_500_000_000,
             0,
         ));
+
+        // Check that block number was changed after first message sent
+        let block_number_after_send = System::block_number();
+        assert_eq!(Gear::get_block_number(program_id), block_number_after_send);
 
         let wait_for = get_last_message_id();
         run_to_next_block(None);
@@ -3674,6 +3700,10 @@ fn test_sending_waits() {
         ));
 
         run_to_next_block(None);
+
+        // Check that block number was not changed, 'cause program state not changed
+        assert_eq!(Gear::get_block_number(program_id), block_number_after_send);
+
         assert_eq!(
             get_waitlist_expiration(wait_wait),
             expiration(demo_waiter::default_wait_up_to_duration())
@@ -5196,13 +5226,13 @@ fn gas_spent_precalculated() {
         let code = code.code();
 
         let init_gas_code_id = CodeId::from_origin(ProgramStorageOf::<Test>::get_program(init_gas_id)
-            .and_then(|p| common::ActiveProgram::try_from(p).ok())
+            .and_then(|(p, _bn)| common::ActiveProgram::try_from(p).ok())
             .expect("program must exist")
             .code_hash);
         let init_code_len: u64 = <Test as Config>::CodeStorage::get_code(init_gas_code_id).unwrap().code().len() as u64;
 
         let init_no_gas_code_id = CodeId::from_origin(ProgramStorageOf::<Test>::get_program(init_no_counter_id)
-            .and_then(|p| common::ActiveProgram::try_from(p).ok())
+            .and_then(|(p, _bn)| common::ActiveProgram::try_from(p).ok())
             .expect("program must exist")
             .code_hash);
         let init_no_gas_code_len: u64 = <Test as Config>::CodeStorage::get_code(init_no_gas_code_id).unwrap().code().len() as u64;
@@ -8341,7 +8371,7 @@ mod utils {
             let expected_code = ProgramCodeKind::OutgoingWithValueInHandle.to_bytes();
             assert_eq!(
                 ProgramStorageOf::<Test>::get_program(prog_id)
-                    .and_then(|p| common::ActiveProgram::try_from(p).ok())
+                    .and_then(|(p, _bn)| common::ActiveProgram::try_from(p).ok())
                     .expect("program must exist")
                     .code_hash,
                 generate_code_hash(&expected_code).into(),
@@ -8361,7 +8391,7 @@ mod utils {
         )
         .into();
         let actual_code_hash = ProgramStorageOf::<Test>::get_program(program_id)
-            .and_then(|p| common::ActiveProgram::try_from(p).ok())
+            .and_then(|(p, _bn)| common::ActiveProgram::try_from(p).ok())
             .map(|prog| prog.code_hash)
             .expect("invalid program address for the test");
         assert_eq!(
@@ -8668,7 +8698,7 @@ mod utils {
 
     #[track_caller]
     pub(super) fn get_reservation_map(pid: ProgramId) -> Option<GasReservationMap> {
-        let prog = ProgramStorageOf::<Test>::get_program(pid).unwrap();
+        let (prog, _bn) = ProgramStorageOf::<Test>::get_program(pid).unwrap();
         if let common::Program::Active(common::ActiveProgram {
             gas_reservation_map,
             ..
