@@ -1723,6 +1723,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "demo-meta-state-v3"
+version = "0.1.0"
+dependencies = [
+ "demo-meta-io",
+ "gear-wasm-builder",
+ "gmeta",
+ "gstd",
+]
+
+[[package]]
 name = "demo-mul-by-const"
 version = "0.1.0"
 dependencies = [
@@ -1747,6 +1757,7 @@ dependencies = [
  "demo-meta-io",
  "demo-meta-state-v1",
  "demo-meta-state-v2",
+ "demo-meta-state-v3",
  "gear-wasm-builder",
  "gstd",
  "parity-scale-codec",

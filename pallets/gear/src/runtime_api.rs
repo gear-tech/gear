@@ -376,6 +376,11 @@ where
         let mut payload = argument.unwrap_or_default();
         payload.append(&mut Self::read_state_impl(program_id)?);
 
+        let block_info = BlockInfo {
+            height: Self::block_number().unique_saturated_into(),
+            timestamp: <pallet_timestamp::Pallet<T>>::get().unique_saturated_into(),
+        };
+
         core_processor::informational::execute_for_reply::<Ext, ExecutionEnvironment<String>, String>(
             function.into(),
             instrumented_code,
@@ -384,6 +389,7 @@ where
             None,
             payload,
             BlockGasLimitOf::<T>::get() / 4,
+            block_info,
         )
     }
 
@@ -401,6 +407,11 @@ where
             program_pages,
         } = Self::code_with_memory(program_id)?;
 
+        let block_info = BlockInfo {
+            height: Self::block_number().unique_saturated_into(),
+            timestamp: <pallet_timestamp::Pallet<T>>::get().unique_saturated_into(),
+        };
+
         core_processor::informational::execute_for_reply::<Ext, ExecutionEnvironment<String>, String>(
             String::from("state"),
             instrumented_code,
@@ -409,6 +420,7 @@ where
             Some(program_id),
             Default::default(),
             BlockGasLimitOf::<T>::get() / 4,
+            block_info,
         )
     }
 
@@ -426,6 +438,11 @@ where
             program_pages,
         } = Self::code_with_memory(program_id)?;
 
+        let block_info = BlockInfo {
+            height: Self::block_number().unique_saturated_into(),
+            timestamp: <pallet_timestamp::Pallet<T>>::get().unique_saturated_into(),
+        };
+
         core_processor::informational::execute_for_reply::<Ext, ExecutionEnvironment<String>, String>(
             String::from("metahash"),
             instrumented_code,
@@ -434,6 +451,7 @@ where
             Some(program_id),
             Default::default(),
             BlockGasLimitOf::<T>::get() / 4,
+            block_info,
         )
         .and_then(|bytes| {
             H256::decode(&mut bytes.as_ref()).map_err(|_| "Failed to decode hash".into())

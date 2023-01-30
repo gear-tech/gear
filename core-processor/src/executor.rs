@@ -425,6 +425,7 @@ pub fn execute_wasm<
 }
 
 /// !!! FOR TESTING / INFORMATIONAL USAGE ONLY
+#[allow(clippy::too_many_arguments)]
 pub fn execute_for_reply<
     A: ProcessorExt + EnvExt + IntoExtInfo<<A as EnvExt>::Error> + 'static,
     E: Environment<A, EP>,
@@ -437,6 +438,7 @@ pub fn execute_for_reply<
     program_id: Option<ProgramId>,
     payload: Vec<u8>,
     gas_limit: u64,
+    block_info: BlockInfo,
 ) -> Result<Vec<u8>, String> {
     let program = Program::new(program_id.unwrap_or_default(), instrumented_code);
     let mut pages_initial_data: BTreeMap<GearPage, PageBuf> =
@@ -480,10 +482,7 @@ pub fn execute_for_reply<
             None,
             ContextSettings::new(0, 0, 0, 0, 0, 0),
         ),
-        block_info: BlockInfo {
-            height: Default::default(),
-            timestamp: Default::default(),
-        },
+        block_info,
         pages_config: PagesConfig {
             max_pages: 512.into(),
             lazy_pages_weights: LazyPagesWeights {
