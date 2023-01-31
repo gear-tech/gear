@@ -53,12 +53,21 @@ pub struct SysCallInfo {
 }
 
 impl SysCallInfo {
-    pub fn new(config: &GearConfig, signature: SysCallSignature, frequency: Ratio, skip_memory_array: bool) -> Self {
+    pub fn new(
+        config: &GearConfig,
+        signature: SysCallSignature,
+        frequency: Ratio,
+        skip_memory_array: bool,
+    ) -> Self {
         Self {
             params: signature.params.iter().copied().map(Into::into).collect(),
             results: signature.results.to_vec(),
             frequency,
-            parameter_rules: Self::into_parameter_rules(config, signature.params, skip_memory_array),
+            parameter_rules: Self::into_parameter_rules(
+                config,
+                signature.params,
+                skip_memory_array,
+            ),
         }
     }
 
@@ -66,7 +75,11 @@ impl SysCallInfo {
         FunctionType::new(self.params.clone(), self.results.clone())
     }
 
-    fn into_parameter_rules(config: &GearConfig, parameters: Vec<ParamType>, skip_memory_array: bool) -> Vec<Parameter> {
+    fn into_parameter_rules(
+        config: &GearConfig,
+        parameters: Vec<ParamType>,
+        skip_memory_array: bool,
+    ) -> Vec<Parameter> {
         let mut rules = Vec::with_capacity(parameters.len());
         for parameter in parameters.into_iter() {
             match parameter {
@@ -184,8 +197,7 @@ pub(crate) fn sys_calls_table(config: &GearConfig) -> BTreeMap<SysCallName, SysC
             (
                 name,
                 SysCallInfo::new(config, name.signature(), config.sys_call_freq, {
-                    name == SysCallName::SendInput
-                    || name == SysCallName::SendInputWGas
+                    name == SysCallName::SendInput || name == SysCallName::SendInputWGas
                 }),
             )
         })
