@@ -25,12 +25,12 @@ extern crate alloc;
 
 #[cfg(feature = "codec")]
 use codec::{Decode, Encode};
-use core::fmt;
+use core::fmt::{Debug, Display};
 #[cfg(feature = "codec")]
 use scale_info::TypeInfo;
 
 /// Core error.
-pub trait CoreError: fmt::Display + fmt::Debug + Sized {}
+pub trait CoreError: Debug + Display + Sized {}
 
 /// Error using messages.
 #[derive(Copy, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, derive_more::Display)]
