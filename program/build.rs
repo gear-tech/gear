@@ -162,5 +162,5 @@ fn main() {
     println!("cargo:rerun-if-changed=../runtime");
     println!("cargo:rerun-if-changed=../pallets/gear");
 
-    update_api()
+    update_api();
 }
