@@ -40,6 +40,7 @@ pub fn param_to_rule(param: ParamType, config: &GearConfig) -> ParamRule {
 }
 
 /// Syscall function info and config.
+#[derive(Debug)]
 pub struct SysCallInfo {
     /// Syscall signature params.
     pub params: Vec<ValueType>,
@@ -52,47 +53,49 @@ pub struct SysCallInfo {
 }
 
 impl SysCallInfo {
-    pub fn new(config: &GearConfig, signature: SysCallSignature, frequency: Ratio) -> Self {
+    pub fn new(config: &GearConfig, signature: SysCallSignature, frequency: Ratio, skip_memory_array: bool) -> Self {
         Self {
             params: signature.params.iter().copied().map(Into::into).collect(),
             results: signature.results.to_vec(),
             frequency,
-            parameter_rules: {
-                let mut rules = Vec::with_capacity(signature.params.len());
-                for parameter in signature.params.into_iter() {
-                    match parameter {
-                        ParamType::Size => match rules.last_mut() {
-                            None => rules.push((parameter, false)),
-                            Some((first, second)) => match (first, *second) {
-                                (ParamType::Ptr, false) => *second = true,
-                                _ => rules.push((parameter, false)),
-                            },
-                        },
-
-                        _ => rules.push((parameter, false)),
-                    }
-                }
-
-                rules
-                    .into_iter()
-                    .map(|(first, second)| match second {
-                        true => Parameter::MemoryArray,
-                        false => match first {
-                            ParamType::Ptr => Parameter::MemoryValue,
-                            ParamType::Alloc => Parameter::Alloc,
-                            _ => Parameter::Value {
-                                value_type: first.into(),
-                                rule: param_to_rule(first, config),
-                            },
-                        },
-                    })
-                    .collect()
-            },
+            parameter_rules: Self::into_parameter_rules(config, signature.params, skip_memory_array),
         }
     }
 
     pub fn func_type(&self) -> FunctionType {
         FunctionType::new(self.params.clone(), self.results.clone())
+    }
+
+    fn into_parameter_rules(config: &GearConfig, parameters: Vec<ParamType>, skip_memory_array: bool) -> Vec<Parameter> {
+        let mut rules = Vec::with_capacity(parameters.len());
+        for parameter in parameters.into_iter() {
+            match parameter {
+                ParamType::Size => match rules.last_mut() {
+                    None => rules.push((parameter, false)),
+                    Some((first, memory_array)) => match (first, *memory_array) {
+                        (ParamType::Ptr, false) if !skip_memory_array => *memory_array = true,
+                        _ => rules.push((parameter, false)),
+                    },
+                },
+
+                _ => rules.push((parameter, false)),
+            }
+        }
+
+        rules
+            .into_iter()
+            .map(|(arg_type, memory_array)| match memory_array {
+                true => Parameter::MemoryArray,
+                false => match arg_type {
+                    ParamType::Ptr => Parameter::MemoryValue,
+                    ParamType::Alloc => Parameter::Alloc,
+                    _ => Parameter::Value {
+                        value_type: arg_type.into(),
+                        rule: param_to_rule(arg_type, config),
+                    },
+                },
+            })
+            .collect()
     }
 }
 
@@ -100,6 +103,7 @@ impl SysCallInfo {
 ///
 /// Parameters describing memory access should have correct values
 /// if required. For example, offset + length < memory_size for arrays.
+#[derive(Debug)]
 pub enum Parameter {
     /// Some value with its type and generating rule.
     Value {
@@ -179,7 +183,10 @@ pub(crate) fn sys_calls_table(config: &GearConfig) -> BTreeMap<SysCallName, SysC
         .map(|name| {
             (
                 name,
-                SysCallInfo::new(config, name.signature(), config.sys_call_freq),
+                SysCallInfo::new(config, name.signature(), config.sys_call_freq, {
+                    name == SysCallName::SendInput
+                    || name == SysCallName::SendInputWGas
+                }),
             )
         })
         .collect()
