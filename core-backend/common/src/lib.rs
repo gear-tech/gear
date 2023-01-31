@@ -151,11 +151,14 @@ pub trait BackendState<E: BackendExtError> {
     fn err_mut(&mut self) -> &mut SyscallFuncError<E>;
 
     fn last_err(&mut self) -> Result<ExtError, ExtError> {
-        let last_err = match self.err_mut().clone() {
-            SyscallFuncError::Actor(ActorSyscallFuncError::Core(maybe_ext)) => maybe_ext
+        let last_err = if let SyscallFuncError::Actor(ActorSyscallFuncError::Core(maybe_ext)) =
+            self.err_mut().clone()
+        {
+            maybe_ext
                 .into_ext_error()
-                .map_err(|_| ExtError::SyscallUsage),
-            _ => Err(ExtError::SyscallUsage),
+                .map_err(|_| ExtError::SyscallUsage)
+        } else {
+            Err(ExtError::SyscallUsage)
         };
 
         if let Err(err) = &last_err {
