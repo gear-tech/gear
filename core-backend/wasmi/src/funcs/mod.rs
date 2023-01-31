@@ -18,19 +18,14 @@
 
 mod internal;
 
-use crate::{
-    funcs::internal::CallerWrap,
-    memory::MemoryWrapRef,
-    state::{HostState, State},
-};
-#[cfg(not(feature = "std"))]
-use alloc::string::ToString;
+use crate::{funcs::internal::CallerWrap, memory::MemoryWrapRef, state::HostState};
 use blake2_rfc::blake2b::blake2b;
 use codec::{Decode, Encode};
-use core::{convert::TryInto, fmt::Display, marker::PhantomData};
+use core::{convert::TryInto, marker::PhantomData};
 use gear_backend_common::{
     memory::{MemoryAccessError, MemoryAccessRecorder, MemoryOwner},
-    ActorSyscallFuncError, BackendExt, BackendExtError, SyscallFuncError, TerminationReason,
+    ActorSyscallFuncError, BackendExt, BackendExtError, IntoExtErrorForResult, SyscallFuncError,
+    TerminationReason,
 };
 use gear_core::{
     env::Ext,
@@ -50,39 +45,6 @@ use wasmi::{
 
 // TODO: change it to u32::MAX (issue #2027)
 const PTR_SPECIAL: u32 = i32::MAX as u32;
-
-trait IntoExtErrorForResult<T, Err, Ext>
-where
-    Err: Display,
-    Ext: gear_core::env::Ext,
-{
-    fn into_ext_error(
-        self,
-        state: &mut State<Ext>,
-    ) -> Result<Result<T, u32>, ActorSyscallFuncError<Err>>;
-}
-
-impl<T, Err, Ext> IntoExtErrorForResult<T, Err, Ext> for Result<T, Err>
-where
-    Err: BackendExtError + Display + Clone,
-    Ext: gear_core::env::Ext<Error = Err>,
-{
-    fn into_ext_error(
-        self,
-        state: &mut State<Ext>,
-    ) -> Result<Result<T, u32>, ActorSyscallFuncError<Err>> {
-        match self {
-            Ok(value) => Ok(Ok(value)),
-            Err(err) => {
-                state.err = ActorSyscallFuncError::Core(err.clone()).into();
-                match err.into_ext_error() {
-                    Ok(ext_err) => Ok(Err(ext_err.encoded_size() as u32)),
-                    Err(err) => Err(ActorSyscallFuncError::Core(err)),
-                }
-            }
-        }
-    }
-}
 
 pub struct FuncsHandler<E: Ext + 'static> {
     _phantom: PhantomData<E>,

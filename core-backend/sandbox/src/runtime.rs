@@ -26,7 +26,8 @@ use gear_backend_common::{
         MemoryAccessError, MemoryAccessManager, MemoryAccessRecorder, MemoryOwner, WasmMemoryRead,
         WasmMemoryReadAs, WasmMemoryReadDecoded, WasmMemoryWrite, WasmMemoryWriteAs,
     },
-    ActorSyscallFuncError, BackendExt, BackendExtError, SyscallFuncError, SystemSyscallFuncError,
+    ActorSyscallFuncError, BackendExt, BackendExtError, BackendState, SyscallFuncError,
+    SystemSyscallFuncError,
 };
 use gear_core::env::Ext;
 use gear_core_errors::ExtError;
@@ -126,6 +127,14 @@ where
         }
 
         last_err
+    }
+}
+
+impl<E: Ext> BackendState for Runtime<E> {
+    type CoreError = E::Error;
+
+    fn err_mut(&mut self) -> &mut SyscallFuncError<Self::CoreError> {
+        &mut self.err
     }
 }
 
