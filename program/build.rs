@@ -9,16 +9,48 @@ use std::{
     path::PathBuf,
     process::{Command, Stdio},
 };
+use substrate_wasm_builder::WasmBuilder;
 use subxt_codegen::DerivesRegistry;
 use syn::ItemMod;
 
-/// TODO: workaround for #2140, remove this after #2022
+const WASM_MAGIC_NUMBER_PREFIX: usize = 4;
+
+/// Runtime types.
 pub enum Runtime {
     Gear,
     Vara,
 }
 
 impl Runtime {
+    /// Converts the given runtime type to str.
+    fn as_str(&self) -> &str {
+        match self {
+            Runtime::Gear => "gear",
+            Runtime::Vara => "vara",
+        }
+    }
+
+    // Using `gear-runtime` and `vara-runtime` as build denpendencies
+    // will compile both native libraries and wasm libraries separately
+    // from the complation of dependencies which is overkill for our need.
+    //
+    // So here we just build the wasm libraries from the runtimes diectly,
+    // it will skip building the runtimes as native libraries and the builts
+    // are shared with other workspace members.
+    fn compile_runtime(&self) {
+        let runtime = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .expect("Invalid manifest directory.")
+            .join(format!("runtime/{}/Cargo.toml", self.as_str()));
+
+        WasmBuilder::new()
+            .with_project(&runtime)
+            .expect(&format!("Failed to locate wasm project {:?}", runtime))
+            .export_heap_base()
+            .import_memory()
+            .build()
+    }
+
     // Get metadata from the wasm binaries of runtimes.
     pub fn metadata(&self) -> Vec<u8> {
         use gear_runtime_interface as gear_ri;
@@ -27,38 +59,27 @@ impl Runtime {
 
         // 1. Get the runtime binary.
         let profile = env::var("PROFILE").unwrap();
-        let runtime = match self {
-            Runtime::Gear => "gear",
-            Runtime::Vara => "vara",
-        };
         let path = PathBuf::from(format!(
             "{}/../target/{}/wbuild/{}-runtime/{}_runtime.compact.compressed.wasm",
             env!("CARGO_MANIFEST_DIR"),
             profile,
-            runtime,
-            runtime
+            self.as_str(),
+            self.as_str(),
         ));
 
-        // Prebuild runtime if it has not been compiled.
+        // 2. Compile the runtime if it has not been compiled.
         if !path.exists() {
-            let mut cargo = Command::new("cargo");
-            let pkg = runtime.to_owned() + "-runtime";
-            let mut args = vec!["b", "-p", &pkg];
-            if profile == "release" {
-                args.push("--release");
-            }
-            cargo.args(&args).status().expect("Format code failed.");
+            self.compile_runtime();
         }
 
-        let code = fs::read(&path).expect("Failed to find runtime");
-
-        // 2. Create wasm executor.
+        // 3. Create wasm executor.
         let executor = sc_executor::WasmExecutor::<(
             gear_ri::gear_ri::HostFunctions,
             sp_io::SubstrateHostFunctions,
         )>::new(WasmExecutionMethod::Interpreted, Some(1024), 8, None, 2);
 
-        // 3. Extract metadata.
+        // 4. Extract metadata.
+        let code = fs::read(&path).expect("Failed to find runtime");
         executor
             .uncached_call(
                 RuntimeBlob::uncompress_if_needed(&code).expect("Invalid runtime code."),
@@ -67,12 +88,12 @@ impl Runtime {
                 "Metadata_metadata",
                 &[],
             )
-            .expect("Failed to extract runtime metadata")[4..] // [4..] for removing the magic number.
+            .expect("Failed to extract runtime metadata")[WASM_MAGIC_NUMBER_PREFIX..]
             .to_vec()
     }
 }
 
-/// Generate api
+/// Generate API.
 fn codegen(mut encoded: &[u8], item_mod: ItemMod) -> String {
     let metadata =
         <RuntimeMetadataPrefixed as Decode>::decode(&mut encoded).expect("decode metadata failed");
@@ -85,7 +106,7 @@ fn codegen(mut encoded: &[u8], item_mod: ItemMod) -> String {
         .to_string()
 }
 
-/// Write API to disk
+/// Write API to `OUT_DIR`.
 fn write_api(api: &str, path: PathBuf) {
     // format generated code
     let mut rustfmt = Command::new("rustfmt");
@@ -96,20 +117,17 @@ fn write_api(api: &str, path: PathBuf) {
         .spawn()
         .unwrap();
 
-    // pipe api to rustfmt
+    // Pipe API to rustfmt.
     write!(code.stdin.as_mut().unwrap(), "{api}").unwrap();
     let output = code.wait_with_output().unwrap();
 
-    // write api to disk
+    // Write API to `OUT_DIR`.
     fs::write(&path, &output.stdout).expect(&format!("Couldn't write to file: {:?}", path));
 }
 
-/// Update runtime api
+/// Update runtime api.
 fn update_api() {
     let path = PathBuf::from(env::var("OUT_DIR").expect("OUT_DIR not found")).join("metadata.rs");
-
-    // Clean previous generation if exists.
-    let _ = fs::remove_file(&path);
 
     #[cfg(any(
         all(feature = "gear", not(feature = "vara")),
@@ -118,15 +136,12 @@ fn update_api() {
     {
         write_api(
             &codegen(
-                // &gear_runtime::Runtime::metadata().encode(),
-                //
-                // TODO: remove the following line after #2022.
                 &Runtime::Gear.metadata(),
                 syn::parse_quote!(
                     pub mod metadata {}
                 ),
             ),
-            path.clone(),
+            path,
         );
     }
 
@@ -134,9 +149,6 @@ fn update_api() {
     {
         write_api(
             &codegen(
-                // &vara_runtime::Runtime::metadata().encode(),
-                //
-                // TODO: remove the following line after #2022.
                 &Runtime::Vara.metadata(),
                 syn::parse_quote!(
                     pub mod metadata {}

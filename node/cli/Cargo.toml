@@ -58,7 +58,7 @@ gear-program = { path = "../../program", features = [ "cli" ], optional = true }
 substrate-build-script-utils = { version = "3.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.36" }
 
 [features]
-default = ["gear-native", "vara-native", "lazy-pages"]
+default = ["gear-native", "vara-native", "lazy-pages", "gear-program"]
 gear-native = [
 	"service/gear-native",
 	"gear-runtime-test-cli?/gear-native",
@@ -81,7 +81,6 @@ lazy-pages = [
 runtime-benchmarks = [
 	"service/runtime-benchmarks",
 	"frame-benchmarking-cli/runtime-benchmarks",
-	"gear-program/runtime-benchmarks",
 ]
 debug-mode = [
 	"service/debug-mode",
@@ -92,7 +91,6 @@ debug-mode = [
 try-runtime = [
 	"service/try-runtime",
 	"try-runtime-cli/try-runtime",
-	"gear-program/try-runtime",
 ]
 runtime-test = ["gear-runtime-test-cli"]
 program = ["gear-program"]

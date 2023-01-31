@@ -3398,6 +3398,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sp-io",
+ "substrate-wasm-builder",
  "subxt",
  "subxt-codegen 0.25.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "syn",
