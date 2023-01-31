@@ -255,7 +255,7 @@ where
         pre_execution_handler: F,
     ) -> Result<BackendReport<Self::Memory, E>, EnvironmentExecutionError<Self::Error, T>>
     where
-        F: FnOnce(&mut Self::Memory, Option<i32>, GlobalsConfig) -> Result<(), T>,
+        F: FnOnce(&mut Self::Memory, Option<u32>, GlobalsConfig) -> Result<(), T>,
     {
         use EnvironmentExecutionError::*;
         use SandboxEnvironmentError::*;
@@ -269,7 +269,8 @@ where
 
         let stack_end = instance
             .get_global_val(STACK_END_EXPORT_NAME)
-            .and_then(|global| global.as_i32());
+            .and_then(|global| global.as_i32())
+            .map(|global| global as u32);
 
         runtime.globals = instance.instance_globals().ok_or(Environment(
             (runtime.ext.gas_amount(), GlobalsNotSupported).into(),

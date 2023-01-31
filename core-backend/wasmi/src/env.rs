@@ -228,7 +228,7 @@ where
         pre_execution_handler: F,
     ) -> Result<BackendReport<Self::Memory, E>, EnvironmentExecutionError<Self::Error, T>>
     where
-        F: FnOnce(&mut Self::Memory, Option<i32>, GlobalsConfig) -> Result<(), T>,
+        F: FnOnce(&mut Self::Memory, Option<u32>, GlobalsConfig) -> Result<(), T>,
     {
         use EnvironmentExecutionError::*;
         use WasmiEnvironmentError::*;
@@ -244,7 +244,7 @@ where
         let stack_end = instance
             .get_export(&store, STACK_END_EXPORT_NAME)
             .and_then(Extern::into_global)
-            .and_then(|g| g.get(&store).try_into::<i32>());
+            .and_then(|g| g.get(&store).try_into::<u32>());
 
         let (gas, allowance) = store
             .state()

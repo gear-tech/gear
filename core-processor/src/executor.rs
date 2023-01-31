@@ -133,12 +133,11 @@ fn prepare_memory<A: ProcessorExt, M: Memory>(
     program_id: ProgramId,
     pages_data: &mut BTreeMap<GearPage, PageBuf>,
     static_pages: WasmPage,
-    stack_end: Option<i32>,
+    stack_end: Option<u32>,
     globals_config: GlobalsConfig,
     lazy_pages_weights: LazyPagesWeights,
 ) -> Result<(), PrepareMemoryError> {
     let stack_end = if let Some(stack_end) = stack_end {
-        let stack_end = stack_end as u32;
         let stack_end = (stack_end % WasmPage::size() == 0)
             .then_some(WasmPage::from_offset(stack_end))
             .ok_or(ActorPrepareMemoryError::StackIsNotAligned(stack_end))?;
