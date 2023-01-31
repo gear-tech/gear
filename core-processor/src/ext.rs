@@ -835,7 +835,7 @@ impl EnvExt for Ext {
         let code_hash = packet.code_id();
 
         // Send a message for program creation
-        let value = self
+        let (mid, pid) = self
             .context
             .message_context
             .init_program(packet, delay)
@@ -850,7 +850,7 @@ impl EnvExt for Ext {
 
                 (init_msg_id, new_prog_id)
             })?;
-        Ok(value)
+        Ok((mid, pid))
     }
 
     fn random(&mut self) -> Result<(&[u8], u32), Self::Error> {
