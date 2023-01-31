@@ -22,7 +22,6 @@ mod mailbox;
 mod manager;
 mod program;
 mod system;
-mod wasm_executor;
 
 pub use error::{Result, TestError};
 pub use log::{CoreLog, Log, RunResult};

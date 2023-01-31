@@ -1749,6 +1749,7 @@ dependencies = [
  "demo-meta-state-v2",
  "gear-wasm-builder",
  "gstd",
+ "gtest",
  "parity-scale-codec",
 ]
 

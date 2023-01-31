@@ -22,7 +22,7 @@ use crate::{
     system::System,
     Result,
 };
-use codec::{Codec, Decode, Encode};
+use codec::Codec;
 use gear_core::{
     code::{Code, CodeAndId, InstrumentedCodeAndId},
     ids::{CodeId, MessageId, ProgramId},
@@ -440,26 +440,22 @@ impl<'a> Program<'a> {
         self.id
     }
 
-    pub fn meta_state<E: Encode, D: Decode>(&self, payload: E) -> Result<D> {
-        D::decode(&mut self.meta_state_with_bytes(payload.encode())?.as_slice()).map_err(Into::into)
+    pub fn read_state(&self) -> Result<Vec<u8>> {
+        self.manager.borrow_mut().read_state(&self.id)
     }
 
-    pub fn meta_state_with_bytes(&self, payload: impl AsRef<[u8]>) -> Result<Vec<u8>> {
-        self.manager.borrow_mut().call_meta(
+    pub fn read_state_with_map(
+        &self,
+        mapping_wasm: Vec<u8>,
+        mapping_wasm_function_name: impl Into<String>,
+        mapping_wasm_argument: Option<Vec<u8>>,
+    ) -> Result<Vec<u8>> {
+        self.manager.borrow_mut().read_state_with_map(
             &self.id,
-            Some(payload.as_ref().to_vec().try_into().unwrap()),
-            "meta_state",
+            mapping_wasm,
+            mapping_wasm_function_name,
+            mapping_wasm_argument,
         )
-    }
-
-    pub fn meta_state_empty<D: Decode>(&self) -> Result<D> {
-        D::decode(&mut self.meta_state_empty_with_bytes()?.as_slice()).map_err(Into::into)
-    }
-
-    pub fn meta_state_empty_with_bytes(&self) -> Result<Vec<u8>> {
-        self.manager
-            .borrow_mut()
-            .call_meta(&self.id, None, "meta_state")
     }
 
     pub fn mint(&mut self, value: Balance) {

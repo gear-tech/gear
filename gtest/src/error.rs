@@ -83,4 +83,8 @@ pub enum TestError {
     /// Instrumentation of binary code failed.
     #[display(fmt = "Instrumentation of binary code failed.")]
     Instrumentation,
+
+    /// Reading of program state failed.
+    #[display(fmt = "Reading of program state failed: `{_0}`")]
+    ReadStateError(String),
 }

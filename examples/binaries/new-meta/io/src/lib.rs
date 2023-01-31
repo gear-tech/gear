@@ -94,8 +94,8 @@ impl Wallet {
                     hex: [2].to_vec(),
                 },
                 person: Person {
-                    surname: "OtherName".into(),
-                    name: "OtherSurname".into(),
+                    surname: "OtherSurname".into(),
+                    name: "OtherName".into(),
                 },
             },
         ]
