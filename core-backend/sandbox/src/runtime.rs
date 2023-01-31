@@ -26,7 +26,7 @@ use gear_backend_common::{
         MemoryAccessError, MemoryAccessManager, MemoryAccessRecorder, MemoryOwner, WasmMemoryRead,
         WasmMemoryReadAs, WasmMemoryReadDecoded, WasmMemoryWrite, WasmMemoryWriteAs,
     },
-    BackendExt, BackendExtError, BackendState, SyscallFuncError, SystemSyscallFuncError,
+    BackendExt, BackendExtError, BackendState, SyscallFuncError,
 };
 use gear_core::env::Ext;
 use gear_wasm_instrument::{GLOBAL_NAME_ALLOWANCE, GLOBAL_NAME_GAS};
@@ -63,20 +63,13 @@ where
             .globals
             .get_global_val(GLOBAL_NAME_GAS)
             .and_then(as_i64)
-            .ok_or_else(|| {
-                self.err = SystemSyscallFuncError::WrongInstrumentation.into();
-                HostError
-            })?;
+            .unwrap_or_else(|| unreachable!("Globals must be checked during env creation"));
 
         let allowance = self
             .globals
             .get_global_val(GLOBAL_NAME_ALLOWANCE)
             .and_then(as_i64)
-            .ok_or_else(|| {
-                // TODO #1979
-                self.err = SystemSyscallFuncError::WrongInstrumentation.into();
-                HostError
-            })?;
+            .unwrap_or_else(|| unreachable!("Globals must be checked during env creation"));
 
         self.ext.update_counters(gas as u64, allowance as u64);
 
@@ -89,18 +82,15 @@ where
 
         self.globals
             .set_global_val(GLOBAL_NAME_GAS, Value::I64(gas as i64))
-            .map_err(|_| {
-                self.err = SystemSyscallFuncError::WrongInstrumentation.into();
-                HostError
-            })?;
+            .unwrap_or_else(|e| {
+                unreachable!("Globals must be checked during env creation: {:?}", e)
+            });
 
         self.globals
             .set_global_val(GLOBAL_NAME_ALLOWANCE, Value::I64(allowance as i64))
-            .map_err(|_| {
-                // TODO #1979
-                self.err = SystemSyscallFuncError::WrongInstrumentation.into();
-                HostError
-            })?;
+            .unwrap_or_else(|e| {
+                unreachable!("Globals must be checked during env creation: {:?}", e)
+            });
 
         result
     }

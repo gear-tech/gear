@@ -22,7 +22,7 @@ use gear_backend_common::{
         MemoryAccessManager, MemoryOwner, WasmMemoryRead, WasmMemoryReadAs, WasmMemoryReadDecoded,
         WasmMemoryWrite, WasmMemoryWriteAs,
     },
-    ActorSyscallFuncError, BackendExt, SystemSyscallFuncError,
+    ActorSyscallFuncError, BackendExt,
 };
 
 use super::*;
@@ -74,10 +74,8 @@ where
             Some((gas, allowance))
         };
 
-        let (gas, allowance) = f().ok_or_else(|| {
-            wrapper.host_state_mut().err = SystemSyscallFuncError::WrongInstrumentation.into();
-            Trap::from(TrapCode::Unreachable)
-        })?;
+        let (gas, allowance) =
+            f().unwrap_or_else(|| unreachable!("Globals must be checked during env creation"));
 
         wrapper.host_state_mut().ext.update_counters(gas, allowance);
 
@@ -102,7 +100,7 @@ where
     }
 
     #[track_caller]
-    fn update_globals(&mut self) -> Result<(), Trap> {
+    fn update_globals(&mut self) {
         let (gas, allowance) = self.host_state_mut().ext.counters();
 
         let mut f = || {
@@ -122,11 +120,7 @@ where
             Some(())
         };
 
-        f().ok_or_else(|| {
-            // TODO #1979
-            self.host_state_mut().err = SystemSyscallFuncError::WrongInstrumentation.into();
-            Trap::from(TrapCode::Unreachable)
-        })
+        f().unwrap_or_else(|| unreachable!("Globals must be checked during env creation"));
     }
 
     #[track_caller]
@@ -139,7 +133,7 @@ where
             Trap::from(TrapCode::Unreachable)
         });
 
-        self.update_globals()?;
+        self.update_globals();
 
         result
     }
@@ -159,7 +153,7 @@ where
 
         self.caller.host_data_mut().replace(state);
 
-        self.update_globals()?;
+        self.update_globals();
 
         result.map_err(|err| {
             self.host_state_mut().err = err;

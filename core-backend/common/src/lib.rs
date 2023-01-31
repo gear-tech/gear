@@ -387,8 +387,6 @@ impl<E: Display + BackendExtError> ActorSyscallFuncError<E> {
 
 #[derive(Debug, Clone, derive_more::Display, derive_more::From)]
 pub enum SystemSyscallFuncError {
-    #[display(fmt = "Binary code has wrong instrumentation")]
-    WrongInstrumentation,
     #[from]
     #[display(fmt = "Memory access error: {_0}")]
     MemoryAccess(SystemMemoryAccessError),
