@@ -155,9 +155,9 @@ pub struct BackendReport<T, E> {
 }
 
 #[derive(Debug)]
-pub enum EnvironmentExecutionError<B, P> {
-    Environment(B),
-    PrepareMemory(GasAmount, P),
+pub enum EnvironmentExecutionError<Env, PrepMem> {
+    Environment(Env),
+    PrepareMemory(GasAmount, PrepMem),
     SyscallFunc(SystemSyscallFuncError),
 }
 
