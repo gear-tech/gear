@@ -256,14 +256,17 @@ where
     }
 }
 
-#[derive(Debug)]
-pub enum EnvironmentExecutionError<Env, PrepMem> {
+#[derive(Debug, derive_more::Display)]
+pub enum EnvironmentExecutionError<Env: Display, PrepMem: Display> {
+    #[display(fmt = "Environment error: {_0}")]
     Environment(Env),
+    #[display(fmt = "Prepare error: {_1}")]
     PrepareMemory(GasAmount, PrepMem),
+    #[display(fmt = "Module start error")]
     ModuleStart(GasAmount),
 }
 
-impl<Env, PrepMem> EnvironmentExecutionError<Env, PrepMem> {
+impl<Env: Display, PrepMem: Display> EnvironmentExecutionError<Env, PrepMem> {
     pub fn from_infallible(err: EnvironmentExecutionError<Env, Infallible>) -> Self {
         match err {
             EnvironmentExecutionError::Environment(err) => Self::Environment(err),
@@ -305,7 +308,8 @@ where
     /// Run instance setup starting at `entry_point` - wasm export function name.
     fn execute<F, T>(self, pre_execution_handler: F) -> EnvironmentExecutionResult<T, Self, EP>
     where
-        F: FnOnce(&mut Self::Memory, Option<u32>, GlobalsConfig) -> Result<(), T>;
+        F: FnOnce(&mut Self::Memory, Option<u32>, GlobalsConfig) -> Result<(), T>,
+        T: Display;
 }
 
 #[derive(Debug, Clone, derive_more::From)]

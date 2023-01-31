@@ -24,7 +24,7 @@ use crate::{
     runtime::{self, Runtime},
 };
 use alloc::{collections::BTreeSet, string::ToString};
-use core::convert::Infallible;
+use core::{convert::Infallible, fmt::Display};
 use gear_backend_common::{
     lazy_pages::{GlobalsAccessMod, GlobalsConfig},
     ActorSyscallFuncError, BackendExt, BackendExtError, BackendReport, Environment,
@@ -255,6 +255,7 @@ where
     fn execute<F, T>(self, pre_execution_handler: F) -> EnvironmentExecutionResult<T, Self, EP>
     where
         F: FnOnce(&mut Self::Memory, Option<u32>, GlobalsConfig) -> Result<(), T>,
+        T: Display,
     {
         use EnvironmentExecutionError::*;
         use SandboxEnvironmentError::*;

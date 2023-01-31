@@ -571,7 +571,7 @@ where
         Ok(report) => report
             .into_parts()
             .map_err(|e| format!("Backend error: {e}"))?,
-        Err(e) => return Err(format!("Backend error: {e:?}")),
+        Err(e) => return Err(format!("Backend error: {e}")),
     };
 
     match termination {

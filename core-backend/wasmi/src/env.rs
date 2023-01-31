@@ -27,7 +27,7 @@ use alloc::{
     collections::BTreeSet,
     string::{String, ToString},
 };
-use core::{any::Any, convert::Infallible};
+use core::{any::Any, convert::Infallible, fmt::Display};
 use gear_backend_common::{
     lazy_pages::{GlobalsAccessError, GlobalsAccessMod, GlobalsAccessor, GlobalsConfig},
     ActorSyscallFuncError, BackendExt, BackendExtError, BackendReport, Environment,
@@ -228,6 +228,7 @@ where
     fn execute<F, T>(self, pre_execution_handler: F) -> EnvironmentExecutionResult<T, Self, EP>
     where
         F: FnOnce(&mut Self::Memory, Option<u32>, GlobalsConfig) -> Result<(), T>,
+        T: Display,
     {
         use EnvironmentExecutionError::*;
         use WasmiEnvironmentError::*;
