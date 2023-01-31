@@ -41,7 +41,7 @@ pub enum MessageError {
     MaxMessageSizeExceed,
 
     /// Overflow in 'gr_read'
-    #[display(fmt = "Length is too big to read payload in range [{at}; {at} + {len})")]
+    #[display(fmt = "Length is overflowed ({at} + {len}) to read payload")]
     TooBigReadLen {
         /// Range starts at
         at: u32,
