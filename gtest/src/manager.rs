@@ -411,6 +411,7 @@ impl ExtManager {
             Some(*program_id),
             Default::default(),
             u64::MAX,
+            self.block_info,
         )
         .map_err(TestError::ReadStateError)
     }
@@ -441,6 +442,7 @@ impl ExtManager {
             None,
             mapping_code_payload,
             u64::MAX,
+            self.block_info,
         )
         .map_err(TestError::ReadStateError)
     }
