@@ -24,15 +24,14 @@ use codec::{Decode, Encode};
 use core::{convert::TryInto, marker::PhantomData};
 use gear_backend_common::{
     memory::{MemoryAccessError, MemoryAccessRecorder, MemoryOwner},
-    ActorSyscallFuncError, BackendExt, BackendExtError, IntoExtErrorForResult, SyscallFuncError,
-    TerminationReason,
+    ActorSyscallFuncError, BackendExt, BackendExtError, BackendState, IntoExtErrorForResult,
+    SyscallFuncError, TerminationReason,
 };
 use gear_core::{
     env::Ext,
     memory::{PageU32Size, WasmPage},
     message::{HandlePacket, InitPacket, MessageWaitedType, ReplyPacket},
 };
-use gear_core_errors::ExtError;
 use gear_wasm_instrument::{GLOBAL_NAME_ALLOWANCE, GLOBAL_NAME_GAS};
 use gsys::{
     BlockNumberWithHash, Hash, HashWithValue, LengthWithCode, LengthWithGas, LengthWithHandle,
@@ -1592,7 +1591,7 @@ where
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
             ctx.run(|ctx| {
-                let last_err = ctx.last_err();
+                let last_err = ctx.host_state_mut().last_err();
                 let write_err_len = ctx.register_write_as(err_len_ptr);
                 let len: u32 = match last_err {
                     Ok(err) => {

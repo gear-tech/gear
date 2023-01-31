@@ -57,7 +57,7 @@ use gear_core::{
     },
     reservation::GasReserver,
 };
-use gear_core_errors::{ExecutionError, ExtError, MemoryError, MessageError};
+use gear_core_errors::{CoreError, ExecutionError, ExtError, MemoryError, MessageError};
 use lazy_pages::GlobalsConfig;
 use memory::OutOfMemoryAccessError;
 use scale_info::TypeInfo;
@@ -137,7 +137,7 @@ pub trait BackendExt: Ext {
     ) -> Result<(), OutOfMemoryAccessError>;
 }
 
-pub trait BackendExtError: Clone + Sized {
+pub trait BackendExtError: CoreError + Clone {
     fn from_ext_error(err: ExtError) -> Self;
 
     fn forbidden_function() -> Self;
@@ -147,10 +147,23 @@ pub trait BackendExtError: Clone + Sized {
     fn into_termination_reason(self) -> TerminationReason;
 }
 
-pub trait BackendState {
-    type CoreError: Display;
+pub trait BackendState<E: BackendExtError> {
+    fn err_mut(&mut self) -> &mut SyscallFuncError<E>;
 
-    fn err_mut(&mut self) -> &mut SyscallFuncError<Self::CoreError>;
+    fn last_err(&mut self) -> Result<ExtError, ExtError> {
+        let last_err = match self.err_mut().clone() {
+            SyscallFuncError::Actor(ActorSyscallFuncError::Core(maybe_ext)) => maybe_ext
+                .into_ext_error()
+                .map_err(|_| ExtError::SyscallUsage),
+            _ => Err(ExtError::SyscallUsage),
+        };
+
+        if let Err(err) = &last_err {
+            *self.err_mut() = ActorSyscallFuncError::Core(E::from_ext_error(err.clone())).into();
+        }
+
+        last_err
+    }
 }
 
 pub trait IntoExtErrorForResult<T, Err, State>
@@ -166,7 +179,7 @@ where
 impl<T, Err, State> IntoExtErrorForResult<T, Err, State> for Result<T, Err>
 where
     Err: BackendExtError + Display,
-    State: BackendState<CoreError = Err>,
+    State: BackendState<Err>,
 {
     fn into_ext_error(
         self,
