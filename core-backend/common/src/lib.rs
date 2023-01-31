@@ -41,7 +41,10 @@ use alloc::{
     vec::Vec,
 };
 use codec::{Decode, Encode};
-use core::fmt::{Debug, Display};
+use core::{
+    convert::Infallible,
+    fmt::{Debug, Display},
+};
 use gear_core::{
     buffer::RuntimeBufferSizeError,
     env::Ext,
@@ -158,7 +161,19 @@ pub struct BackendReport<T, E> {
 pub enum EnvironmentExecutionError<Env, PrepMem> {
     Environment(Env),
     PrepareMemory(GasAmount, PrepMem),
+    ModuleStart(GasAmount),
     SyscallFunc(SystemSyscallFuncError),
+}
+
+impl<Env, PrepMem> EnvironmentExecutionError<Env, PrepMem> {
+    pub fn from_infallible(err: EnvironmentExecutionError<Env, Infallible>) -> Self {
+        match err {
+            EnvironmentExecutionError::Environment(err) => Self::Environment(err),
+            EnvironmentExecutionError::PrepareMemory(_, err) => match err {},
+            EnvironmentExecutionError::ModuleStart(gas_amount) => Self::ModuleStart(gas_amount),
+            EnvironmentExecutionError::SyscallFunc(err) => Self::SyscallFunc(err),
+        }
+    }
 }
 
 pub trait Environment<E, EP = DispatchKind>: Sized
@@ -182,7 +197,7 @@ where
         entry_point: EP,
         entries: BTreeSet<DispatchKind>,
         mem_size: WasmPage,
-    ) -> Result<Self, Self::Error>;
+    ) -> Result<Self, EnvironmentExecutionError<Self::Error, Infallible>>;
 
     /// Run instance setup starting at `entry_point` - wasm export function name.
     fn execute<F, T>(

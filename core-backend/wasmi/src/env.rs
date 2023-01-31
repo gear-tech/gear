@@ -41,6 +41,7 @@ use gear_core::{
     message::{DispatchKind, WasmEntry},
 };
 use gear_wasm_instrument::{GLOBAL_NAME_ALLOWANCE, GLOBAL_NAME_FLAGS, GLOBAL_NAME_GAS};
+use std::convert::Infallible;
 use wasmi::{
     core::Value, Engine, Extern, Global, Instance, Linker, Memory, MemoryType, Module, Store,
 };
@@ -160,7 +161,8 @@ where
         entry_point: EP,
         entries: BTreeSet<DispatchKind>,
         mem_size: WasmPage,
-    ) -> Result<Self, Self::Error> {
+    ) -> Result<Self, EnvironmentExecutionError<Self::Error, Infallible>> {
+        use EnvironmentExecutionError::*;
         use WasmiEnvironmentError::*;
 
         let engine = Engine::default();
@@ -170,11 +172,11 @@ where
 
         let memory_type = MemoryType::new(mem_size.raw(), None);
         let memory = Memory::new(&mut store, memory_type)
-            .map_err(|e| (ext.gas_amount(), CreateEnvMemory(e)))?;
+            .map_err(|e| Environment((ext.gas_amount(), CreateEnvMemory(e)).into()))?;
 
         linker
             .define("env", "memory", memory)
-            .map_err(|e| (ext.gas_amount(), Linking(e)))?;
+            .map_err(|e| Environment((ext.gas_amount(), Linking(e)).into()))?;
 
         let entry_forbidden = entry_point
             .try_into_kind()
@@ -193,11 +195,11 @@ where
         for (name, function) in functions {
             linker
                 .define("env", name.to_str(), function)
-                .map_err(|e| (ext.gas_amount(), Linking(e)))?;
+                .map_err(|e| Environment((ext.gas_amount(), Linking(e)).into()))?;
         }
 
         let module = Module::new(store.engine(), &mut &binary[..])
-            .map_err(|e| (ext.gas_amount(), ModuleInstantiation(e)))?;
+            .map_err(|e| Environment((ext.gas_amount(), ModuleInstantiation(e)).into()))?;
 
         let runtime = State {
             ext,
@@ -208,11 +210,11 @@ where
 
         let instance_pre = linker
             .instantiate(&mut store, &module)
-            .map_err(|e| (gas_amount!(store), ModuleInstantiation(e)))?;
+            .map_err(|e| Environment((gas_amount!(store), ModuleInstantiation(e)).into()))?;
 
         let instance = instance_pre
             .ensure_no_start(&mut store)
-            .map_err(|e| (gas_amount!(store), ModuleInstantiation(e.into())))?;
+            .map_err(|e| Environment((gas_amount!(store), ModuleInstantiation(e.into())).into()))?;
 
         Ok(Self {
             instance,

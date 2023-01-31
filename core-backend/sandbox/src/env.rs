@@ -45,6 +45,7 @@ use sp_sandbox::{
     HostFuncType, InstanceGlobals, ReturnValue, SandboxEnvironmentBuilder, SandboxInstance,
     SandboxMemory, Value,
 };
+use std::convert::Infallible;
 
 #[derive(Debug, derive_more::Display)]
 pub enum SandboxEnvironmentError {
@@ -135,7 +136,8 @@ where
         entry_point: EP,
         entries: BTreeSet<DispatchKind>,
         mem_size: WasmPage,
-    ) -> Result<Self, Self::Error> {
+    ) -> Result<Self, EnvironmentExecutionError<Self::Error, Infallible>> {
+        use EnvironmentExecutionError::*;
         use SandboxEnvironmentError::*;
 
         let entry_forbidden = entry_point
@@ -207,7 +209,7 @@ where
 
         let memory: DefaultExecutorMemory = match SandboxMemory::new(mem_size.raw(), None) {
             Ok(mem) => mem,
-            Err(e) => return Err((ext.gas_amount(), CreateEnvMemory(e)).into()),
+            Err(e) => return Err(Environment((ext.gas_amount(), CreateEnvMemory(e)).into())),
         };
 
         builder.add_memory(memory.clone());
@@ -242,7 +244,10 @@ where
                 entries,
                 entry_point,
             }),
-            Err(e) => Err((runtime.ext.gas_amount(), ModuleInstantiation(e)).into()),
+            Err(sp_sandbox::Error::Execution) => Err(ModuleStart(runtime.ext.gas_amount())),
+            Err(e) => Err(Environment(
+                (runtime.ext.gas_amount(), ModuleInstantiation(e)).into(),
+            )),
         }
     }
 
