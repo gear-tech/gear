@@ -171,7 +171,7 @@ pub mod pallet {
         CannotFindDataForPage,
     }
 
-    impl<Runtime: Config> common::ProgramStorageError for Error<Runtime> {
+    impl<T: Config> common::ProgramStorageError for Error<T> {
         fn duplicate_item() -> Self {
             Self::DuplicateItem
         }
@@ -234,13 +234,14 @@ pub mod pallet {
 
     #[pallet::storage]
     #[pallet::unbounded]
-    pub(crate) type ProgramStorage<T: Config> = StorageMap<_, Identity, ProgramId, Program>;
+    pub(crate) type ProgramStorage<T: Config> =
+        StorageMap<_, Identity, ProgramId, (Program, T::BlockNumber)>;
 
     common::wrap_storage_map!(
         storage: ProgramStorage,
         name: ProgramStorageWrap,
         key: ProgramId,
-        value: Program
+        value: (Program, T::BlockNumber)
     );
 
     #[pallet::storage]
@@ -278,42 +279,43 @@ pub mod pallet {
         type OriginalCodeStorage = OriginalCodeStorageWrap<T>;
     }
 
-    impl<Runtime: Config> common::ProgramStorage for pallet::Pallet<Runtime> {
-        type InternalError = Error<Runtime>;
+    impl<T: Config> common::ProgramStorage for pallet::Pallet<T> {
+        type InternalError = Error<T>;
         type Error = DispatchError;
+        type BlockNumber = T::BlockNumber;
 
-        type ProgramMap = ProgramStorageWrap<Runtime>;
-        type MemoryPageMap = MemoryPageStorageWrap<Runtime>;
-        type WaitingInitMap = WaitingInitStorageWrap<Runtime>;
+        type ProgramMap = ProgramStorageWrap<T>;
+        type MemoryPageMap = MemoryPageStorageWrap<T>;
+        type WaitingInitMap = WaitingInitStorageWrap<T>;
 
         fn pages_final_prefix() -> [u8; 32] {
-            MemoryPageStorage::<Runtime>::final_prefix()
+            MemoryPageStorage::<T>::final_prefix()
         }
     }
 
     #[cfg(feature = "debug-mode")]
-    impl<Runtime: Config> IterableMap<(ProgramId, Program)> for pallet::Pallet<Runtime> {
-        type DrainIter = PrefixIterator<(ProgramId, Program)>;
-        type Iter = PrefixIterator<(ProgramId, Program)>;
+    impl<T: Config> IterableMap<(ProgramId, (Program, T::BlockNumber))> for pallet::Pallet<T> {
+        type DrainIter = PrefixIterator<(ProgramId, (Program, T::BlockNumber))>;
+        type Iter = PrefixIterator<(ProgramId, (Program, T::BlockNumber))>;
 
         fn drain() -> Self::DrainIter {
-            ProgramStorage::<Runtime>::drain()
+            ProgramStorage::<T>::drain()
         }
 
         fn iter() -> Self::Iter {
-            ProgramStorage::<Runtime>::iter()
+            ProgramStorage::<T>::iter()
         }
     }
 
-    impl<Runtime: Config> AppendMapStorage<MessageId, ProgramId, Vec<MessageId>>
-        for WaitingInitStorageWrap<Runtime>
+    impl<T: Config> AppendMapStorage<MessageId, ProgramId, Vec<MessageId>>
+        for WaitingInitStorageWrap<T>
     {
         fn append<EncodeLikeKey, EncodeLikeItem>(key: EncodeLikeKey, item: EncodeLikeItem)
         where
             EncodeLikeKey: EncodeLike<Self::Key>,
             EncodeLikeItem: EncodeLike<MessageId>,
         {
-            WaitingInitStorage::<Runtime>::append(key, item);
+            WaitingInitStorage::<T>::append(key, item);
         }
     }
 }

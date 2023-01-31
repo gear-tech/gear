@@ -1042,7 +1042,9 @@ impl Ext {
             gas_amount: gas_counter.into(),
             gas_reserver,
             system_reservation_context,
-            allocations: allocations.ne(&initial_allocations).then_some(allocations),
+            allocations: (allocations != initial_allocations)
+                .then_some(allocations)
+                .unwrap_or_default(),
             pages_data,
             generated_dispatches,
             awakening,

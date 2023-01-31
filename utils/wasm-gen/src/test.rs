@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2022 Gear Technologies Inc.
+// Copyright (C) 2021-2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -16,8 +16,9 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{gen_gear_program_code, GearConfig};
+use crate::{gen_gear_program_code, utils, GearConfig};
 use arbitrary::Unstructured;
+use gear_wasm_instrument::parity_wasm::{self, elements};
 use rand::{rngs::SmallRng, RngCore, SeedableRng};
 
 #[allow(unused)]
@@ -63,4 +64,53 @@ fn gen_wasm_valid() {
         let _wat = wasmprinter::print_bytes(&code).unwrap();
         wasmparser::validate(&code).unwrap();
     }
+}
+
+#[test]
+fn remove_trivial_recursions() {
+    let wat = r#"
+    (module
+        (func (;0;)
+            call 0
+        )
+    )"#;
+
+    let wasm = wat::parse_str(wat).unwrap();
+    let module: elements::Module = parity_wasm::deserialize_buffer(&wasm).unwrap();
+    let module = utils::remove_recursion(module);
+    let wasm = parity_wasm::serialize(module).unwrap();
+    wasmparser::validate(&wasm).unwrap();
+
+    let wat = wasmprinter::print_bytes(&wasm).unwrap();
+    println!("wat = {wat}");
+
+    let wat = r#"
+    (module
+        (func (;0;) (result i64)
+            call 1
+        )
+        (func (;1;) (result i64)
+            call 0
+        )
+        (func (;2;)
+            call 1
+            drop
+        )
+    )"#;
+
+    let wasm = wat::parse_str(wat).unwrap();
+    let module: elements::Module = parity_wasm::deserialize_buffer(&wasm).unwrap();
+    utils::find_recursion(&module, |path, call| {
+        println!("path = {path:?}, call = {call}");
+    });
+    let module = utils::remove_recursion(module);
+    utils::find_recursion(&module, |_path, _call| {
+        unreachable!("there should be no recursions")
+    });
+
+    let wasm = parity_wasm::serialize(module).unwrap();
+    wasmparser::validate(&wasm).unwrap();
+
+    let wat = wasmprinter::print_bytes(&wasm).unwrap();
+    println!("wat = {wat}");
 }

@@ -737,7 +737,8 @@ impl ExtManager {
             (context, code, balance, self.origin).into(),
             self.random_data.clone(),
             memory_pages,
-        );
+        )
+        .unwrap_or_else(|e| unreachable!("core-processor logic violated: {}", e));
 
         core_processor::handle_journal(journal, self);
     }
@@ -801,7 +802,7 @@ impl JournalHandler for ExtManager {
             let message = match message.status_code() {
                 Some(0) | None => message,
                 _ => message
-                    .with_string_payload::<ExecutionErrorReason>()
+                    .with_string_payload::<ActorExecutionErrorReason>()
                     .unwrap_or_else(|e| e),
             };
 

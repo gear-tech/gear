@@ -21,6 +21,7 @@ use super::*;
 use gear_core::memory::{PageU32Size, WasmPage};
 use gear_wasm_instrument::parity_wasm::{self, elements::*};
 use sp_io::hashing::blake2_256;
+use sp_runtime::traits::Zero;
 use sp_std::borrow::ToOwned;
 
 pub fn account<AccountId: Origin>(name: &'static str, index: u32, seed: u32) -> AccountId {
@@ -132,7 +133,10 @@ pub fn generate_wasm3(payload: Vec<u8>) -> Result<Vec<u8>, &'static str> {
     Ok(code)
 }
 
-pub fn set_program<ProgramStorage: super::ProgramStorage>(
+pub fn set_program<
+    ProgramStorage: super::ProgramStorage<BlockNumber = BlockNumber>,
+    BlockNumber: Zero,
+>(
     program_id: ProgramId,
     code: Vec<u8>,
     static_pages: WasmPage,
@@ -161,6 +165,7 @@ pub fn set_program<ProgramStorage: super::ProgramStorage>(
             state: ProgramState::Initialized,
             gas_reservation_map: GasReservationMap::default(),
         },
+        Zero::zero(),
     )
     .expect("benchmarking; program duplicates should not exist");
 }
