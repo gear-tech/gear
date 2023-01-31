@@ -332,7 +332,7 @@ extern "C" {
     ///
     /// Arguments type:
     /// - `buf`: `mut ptr` for buffer to store requested data.
-    /// - `len`: `mut ptr` for `u32` error length.
+    /// - `len`: `mut ptr` for `u32` current error length.
     pub fn gr_error(buf: *mut BufferStart, len: *mut Length);
 
     /// Fallible `gr_status_code` get syscall.
