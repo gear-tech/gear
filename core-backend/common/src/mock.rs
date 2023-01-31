@@ -41,7 +41,7 @@ pub struct Error;
 
 impl fmt::Display for Error {
     fn fmt(&self, _f: &mut fmt::Formatter) -> fmt::Result {
-        todo!()
+        unimplemented!()
     }
 }
 
@@ -49,19 +49,19 @@ impl CoreError for Error {}
 
 impl BackendExtError for Error {
     fn from_ext_error(_err: ExtError) -> Self {
-        todo!()
+        unimplemented!()
     }
 
     fn forbidden_function() -> Self {
-        todo!()
+        unimplemented!()
     }
 
     fn into_ext_error(self) -> Result<ExtError, Self> {
-        todo!()
+        unimplemented!()
     }
 
     fn into_termination_reason(self) -> TerminationReason {
-        todo!()
+        unimplemented!()
     }
 }
 
