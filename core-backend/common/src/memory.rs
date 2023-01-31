@@ -81,6 +81,7 @@ pub enum SystemMemoryAccessError {
     #[from]
     #[display(fmt = "{_0}")]
     OutOfBounds(OutOfMemoryAccessError),
+    // TODO: remove #2164
     #[display(fmt = "Cannot decode read memory")]
     DecodeError,
     #[display(fmt = "Buffer size {_0} is not equal to pre-registered size {_1}")]
