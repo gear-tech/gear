@@ -31,8 +31,7 @@ use core::{any::Any, convert::Infallible};
 use gear_backend_common::{
     lazy_pages::{GlobalsAccessError, GlobalsAccessMod, GlobalsAccessor, GlobalsConfig},
     ActorSyscallFuncError, BackendExt, BackendExtError, BackendReport, Environment,
-    EnvironmentExecutionError, GetGasAmount, SyscallFuncError, TerminationReason, TrapExplanation,
-    STACK_END_EXPORT_NAME,
+    EnvironmentExecutionError, GetGasAmount, TerminationReason, STACK_END_EXPORT_NAME,
 };
 use gear_core::{
     env::Ext,
@@ -377,29 +376,8 @@ where
 
         log::debug!("WasmiEnvironment::execute result = {res:?}");
 
-        let termination_reason = if res.is_err() {
-            let err = match runtime_err {
-                SyscallFuncError::Actor(err) => err,
-                SyscallFuncError::System(err) => return Err(SyscallFunc(err)),
-            };
-
-            let mut reason = err.into_termination_reason();
-
-            // success is unacceptable when there is an error
-            if let TerminationReason::Success = reason {
-                reason = ext
-                    .maybe_panic()
-                    .map(|s| TrapExplanation::Panic(s.into()).into())
-                    .unwrap_or(TerminationReason::Trap(TrapExplanation::Unknown));
-            }
-
-            reason
-        } else {
-            TerminationReason::Success
-        };
-
         Ok(BackendReport {
-            termination_reason,
+            err: (res.is_err()).then_some(runtime_err),
             memory_wrap: MemoryWrap::new(memory, store),
             ext,
         })

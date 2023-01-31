@@ -47,7 +47,7 @@ use core::{
 };
 use gear_core::{
     buffer::RuntimeBufferSizeError,
-    env::Ext,
+    env::Ext as EnvExt,
     gas::GasAmount,
     ids::{CodeId, MessageId, ProgramId, ReservationId},
     memory::{GearPage, Memory, MemoryInterval, PageBuf, WasmPage},
@@ -125,7 +125,7 @@ pub struct ExtInfo {
     pub context_store: ContextStore,
 }
 
-pub trait BackendExt: Ext {
+pub trait BackendExt: EnvExt {
     fn into_ext_info(self, memory: &impl Memory) -> Result<ExtInfo, MemoryError>;
 
     fn into_gas_amount(self) -> GasAmount;
@@ -204,10 +204,56 @@ pub trait GetGasAmount {
     fn gas_amount(&self) -> GasAmount;
 }
 
-pub struct BackendReport<T, E> {
-    pub termination_reason: TerminationReason,
-    pub memory_wrap: T,
-    pub ext: E,
+pub struct BackendReport<MemWrap, Ext>
+where
+    Ext: EnvExt,
+{
+    pub err: Option<SyscallFuncError<Ext::Error>>,
+    pub memory_wrap: MemWrap,
+    pub ext: Ext,
+}
+
+impl<MemWrap, Ext> BackendReport<MemWrap, Ext>
+where
+    Ext: EnvExt,
+    Ext::Error: BackendExtError,
+{
+    fn termination_reason(
+        ext: &Ext,
+        err: Option<SyscallFuncError<Ext::Error>>,
+    ) -> Result<TerminationReason, SystemSyscallFuncError> {
+        match err {
+            Some(runtime_err) => {
+                let err = match runtime_err {
+                    SyscallFuncError::Actor(err) => err,
+                    SyscallFuncError::System(err) => return Err(err),
+                };
+
+                let mut reason = err.into_termination_reason();
+
+                // success is unacceptable when there is error
+                if let TerminationReason::Success = reason {
+                    reason = ext
+                        .maybe_panic()
+                        .map(|s| TrapExplanation::Panic(s.into()).into())
+                        .unwrap_or(TerminationReason::Trap(TrapExplanation::Unknown));
+                }
+
+                Ok(reason)
+            }
+            None => Ok(TerminationReason::Success),
+        }
+    }
+
+    pub fn into_parts(self) -> Result<(TerminationReason, MemWrap, Ext), SystemSyscallFuncError> {
+        let Self {
+            err,
+            memory_wrap,
+            ext,
+        } = self;
+        let reason = Self::termination_reason(&ext, err)?;
+        Ok((reason, memory_wrap, ext))
+    }
 }
 
 #[derive(Debug)]
@@ -215,7 +261,6 @@ pub enum EnvironmentExecutionError<Env, PrepMem> {
     Environment(Env),
     PrepareMemory(GasAmount, PrepMem),
     ModuleStart(GasAmount),
-    SyscallFunc(SystemSyscallFuncError),
 }
 
 impl<Env, PrepMem> EnvironmentExecutionError<Env, PrepMem> {
@@ -224,7 +269,6 @@ impl<Env, PrepMem> EnvironmentExecutionError<Env, PrepMem> {
             EnvironmentExecutionError::Environment(err) => Self::Environment(err),
             EnvironmentExecutionError::PrepareMemory(_, err) => match err {},
             EnvironmentExecutionError::ModuleStart(gas_amount) => Self::ModuleStart(gas_amount),
-            EnvironmentExecutionError::SyscallFunc(err) => Self::SyscallFunc(err),
         }
     }
 }

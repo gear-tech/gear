@@ -29,7 +29,7 @@ use crate::{
 };
 use alloc::{collections::BTreeMap, string::ToString, vec::Vec};
 use codec::Encode;
-use gear_backend_common::{BackendExt, Environment, SystemReservationContext};
+use gear_backend_common::{BackendExt, BackendExtError, Environment, SystemReservationContext};
 use gear_core::{
     ids::ProgramId,
     memory::{GearPage, PageBuf},
@@ -40,12 +40,17 @@ use gear_core::{
 };
 
 /// Process program & dispatch for it and return journal for updates.
-pub fn process<A: ProcessorExt + BackendExt + 'static, E: Environment<A>>(
+pub fn process<A, E>(
     block_config: &BlockConfig,
     execution_context: ProcessExecutionContext,
     random_data: (Vec<u8>, u32),
     memory_pages: BTreeMap<GearPage, PageBuf>,
-) -> Result<Vec<JournalNote>, SystemExecutionError> {
+) -> Result<Vec<JournalNote>, SystemExecutionError>
+where
+    A: ProcessorExt + BackendExt + 'static,
+    A::Error: BackendExtError,
+    E: Environment<A>,
+{
     use crate::precharge::SuccessfulDispatchResultKind::*;
 
     let BlockConfig {

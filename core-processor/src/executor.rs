@@ -33,7 +33,7 @@ use alloc::{
 use codec::{Decode, Encode};
 use gear_backend_common::{
     lazy_pages::{GlobalsConfig, LazyPagesWeights, Status},
-    BackendExt, BackendReport, Environment, EnvironmentExecutionError, TerminationReason,
+    BackendExt, BackendExtError, Environment, EnvironmentExecutionError, TerminationReason,
     TrapExplanation,
 };
 use gear_core::{
@@ -245,13 +245,18 @@ fn get_pages_to_be_updated<A: ProcessorExt>(
 }
 
 /// Execute wasm with dispatch and return dispatch result.
-pub fn execute_wasm<A: ProcessorExt + BackendExt + 'static, E: Environment<A>>(
+pub fn execute_wasm<A, E>(
     balance: u128,
     dispatch: IncomingDispatch,
     context: WasmExecutionContext,
     settings: ExecutionSettings,
     msg_ctx_settings: ContextSettings,
-) -> Result<DispatchResult, ExecutionError> {
+) -> Result<DispatchResult, ExecutionError>
+where
+    A: ProcessorExt + BackendExt + 'static,
+    A::Error: BackendExtError,
+    E: Environment<A>,
+{
     let WasmExecutionContext {
         gas_counter,
         gas_allowance_counter,
@@ -345,11 +350,11 @@ pub fn execute_wasm<A: ProcessorExt + BackendExt + 'static, E: Environment<A>>(
         })
     };
     let (termination, memory, ext) = match execute() {
-        Ok(BackendReport {
-            termination_reason: mut termination,
-            memory_wrap: mut memory,
-            ext,
-        }) => {
+        Ok(report) => {
+            let (mut termination, mut memory, ext) = report
+                .into_parts()
+                .map_err(SystemExecutionError::SyscallFunc)?;
+
             // released pages initial data will be added to `pages_initial_data` after execution.
             if A::LAZY_PAGES_ENABLED {
                 A::lazy_pages_post_execution_actions(&mut memory);
@@ -395,9 +400,6 @@ pub fn execute_wasm<A: ProcessorExt + BackendExt + 'static, E: Environment<A>>(
                 gas_amount,
                 reason: ActorExecutionErrorReason::ModuleStart,
             }))
-        }
-        Err(EnvironmentExecutionError::SyscallFunc(e)) => {
-            return Err(ExecutionError::System(e.into()))
         }
     };
 
@@ -450,11 +452,7 @@ pub fn execute_wasm<A: ProcessorExt + BackendExt + 'static, E: Environment<A>>(
 }
 
 /// !!! FOR TESTING / INFORMATIONAL USAGE ONLY
-pub fn execute_for_reply<
-    A: ProcessorExt + BackendExt + 'static,
-    E: Environment<A, EP>,
-    EP: WasmEntry,
->(
+pub fn execute_for_reply<A, E, EP>(
     function: EP,
     instrumented_code: InstrumentedCode,
     pages_initial_data: Option<BTreeMap<GearPage, PageBuf>>,
@@ -462,7 +460,13 @@ pub fn execute_for_reply<
     program_id: Option<ProgramId>,
     payload: Vec<u8>,
     gas_limit: u64,
-) -> Result<Vec<u8>, String> {
+) -> Result<Vec<u8>, String>
+where
+    A: ProcessorExt + BackendExt + 'static,
+    A::Error: BackendExtError,
+    E: Environment<A, EP>,
+    EP: WasmEntry,
+{
     let program = Program::new(program_id.unwrap_or_default(), instrumented_code);
     let mut pages_initial_data: BTreeMap<GearPage, PageBuf> =
         pages_initial_data.unwrap_or_default();
@@ -564,11 +568,9 @@ pub fn execute_for_reply<
     };
 
     let (termination, memory, ext) = match f() {
-        Ok(BackendReport {
-            termination_reason: termination,
-            memory_wrap: memory,
-            ext,
-        }) => (termination, memory, ext),
+        Ok(report) => report
+            .into_parts()
+            .map_err(|e| format!("Backend error: {e}"))?,
         Err(e) => return Err(format!("Backend error: {e:?}")),
     };
 
