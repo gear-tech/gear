@@ -27,7 +27,7 @@ use alloc::{
     collections::BTreeSet,
     string::{String, ToString},
 };
-use core::any::Any;
+use core::{any::Any, convert::Infallible};
 use gear_backend_common::{
     lazy_pages::{GlobalsAccessError, GlobalsAccessMod, GlobalsAccessor, GlobalsConfig},
     ActorSyscallFuncError, BackendExt, BackendExtError, BackendReport, Environment,
@@ -41,7 +41,6 @@ use gear_core::{
     message::{DispatchKind, WasmEntry},
 };
 use gear_wasm_instrument::{GLOBAL_NAME_ALLOWANCE, GLOBAL_NAME_FLAGS, GLOBAL_NAME_GAS};
-use std::convert::Infallible;
 use wasmi::{
     core::Value, Engine, Extern, Global, Instance, Linker, Memory, MemoryType, Module, Store,
 };
