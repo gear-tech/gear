@@ -273,11 +273,17 @@ impl<Env, PrepMem> EnvironmentExecutionError<Env, PrepMem> {
     }
 }
 
-pub trait Environment<E, EP = DispatchKind>: Sized
+pub type EnvironmentExecutionResult<T, Env, EP> = Result<
+    BackendReport<<Env as Environment<EP>>::Memory, <Env as Environment<EP>>::Ext>,
+    EnvironmentExecutionError<<Env as Environment<EP>>::Error, T>,
+>;
+
+pub trait Environment<EP = DispatchKind>: Sized
 where
-    E: BackendExt + 'static,
     EP: WasmEntry,
 {
+    type Ext: BackendExt + 'static;
+
     /// Memory type for current environment.
     type Memory: Memory;
 
@@ -289,7 +295,7 @@ where
     /// 3) Runs `pre_execution_handler` to fill the memory before running instance.
     /// 4) Instantiate external funcs for wasm module.
     fn new(
-        ext: E,
+        ext: Self::Ext,
         binary: &[u8],
         entry_point: EP,
         entries: BTreeSet<DispatchKind>,
@@ -297,10 +303,7 @@ where
     ) -> Result<Self, EnvironmentExecutionError<Self::Error, Infallible>>;
 
     /// Run instance setup starting at `entry_point` - wasm export function name.
-    fn execute<F, T>(
-        self,
-        pre_execution_handler: F,
-    ) -> Result<BackendReport<Self::Memory, E>, EnvironmentExecutionError<Self::Error, T>>
+    fn execute<F, T>(self, pre_execution_handler: F) -> EnvironmentExecutionResult<T, Self, EP>
     where
         F: FnOnce(&mut Self::Memory, Option<u32>, GlobalsConfig) -> Result<(), T>;
 }

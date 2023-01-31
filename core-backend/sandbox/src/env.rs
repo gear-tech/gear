@@ -28,7 +28,8 @@ use core::convert::Infallible;
 use gear_backend_common::{
     lazy_pages::{GlobalsAccessMod, GlobalsConfig},
     ActorSyscallFuncError, BackendExt, BackendExtError, BackendReport, Environment,
-    EnvironmentExecutionError, GetGasAmount, TerminationReason, STACK_END_EXPORT_NAME,
+    EnvironmentExecutionError, EnvironmentExecutionResult, GetGasAmount, TerminationReason,
+    STACK_END_EXPORT_NAME,
 };
 use gear_core::{
     env::Ext,
@@ -120,17 +121,18 @@ impl<E: Ext> From<EnvBuilder<E>> for EnvironmentDefinitionBuilder<Runtime<E>> {
     }
 }
 
-impl<E, EP> Environment<E, EP> for SandboxEnvironment<E, EP>
+impl<E, EP> Environment<EP> for SandboxEnvironment<E, EP>
 where
     E: BackendExt + GetGasAmount + 'static,
     E::Error: BackendExtError,
     EP: WasmEntry,
 {
+    type Ext = E;
     type Memory = MemoryWrap;
     type Error = Error;
 
     fn new(
-        ext: E,
+        ext: Self::Ext,
         binary: &[u8],
         entry_point: EP,
         entries: BTreeSet<DispatchKind>,
@@ -250,10 +252,7 @@ where
         }
     }
 
-    fn execute<F, T>(
-        self,
-        pre_execution_handler: F,
-    ) -> Result<BackendReport<Self::Memory, E>, EnvironmentExecutionError<Self::Error, T>>
+    fn execute<F, T>(self, pre_execution_handler: F) -> EnvironmentExecutionResult<T, Self, EP>
     where
         F: FnOnce(&mut Self::Memory, Option<u32>, GlobalsConfig) -> Result<(), T>,
     {

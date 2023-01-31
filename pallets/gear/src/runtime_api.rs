@@ -231,7 +231,7 @@ where
                 let (random, bn) = T::Randomness::random(dispatch_id.as_ref());
                 let origin = ProgramId::from_origin(source);
 
-                core_processor::process::<Ext, ExecutionEnvironment>(
+                core_processor::process::<ExecutionEnvironment>(
                     &block_config,
                     (context, code, balance, origin).into(),
                     (random.encode(), bn.unique_saturated_into()),
@@ -376,7 +376,7 @@ where
         let mut payload = argument.unwrap_or_default();
         payload.append(&mut Self::read_state_impl(program_id)?);
 
-        core_processor::informational::execute_for_reply::<Ext, ExecutionEnvironment<String>, String>(
+        core_processor::informational::execute_for_reply::<ExecutionEnvironment<String>, String>(
             function.into(),
             instrumented_code,
             None,
@@ -401,7 +401,7 @@ where
             program_pages,
         } = Self::code_with_memory(program_id)?;
 
-        core_processor::informational::execute_for_reply::<Ext, ExecutionEnvironment<String>, String>(
+        core_processor::informational::execute_for_reply::<ExecutionEnvironment<String>, String>(
             String::from("state"),
             instrumented_code,
             program_pages,
@@ -426,7 +426,7 @@ where
             program_pages,
         } = Self::code_with_memory(program_id)?;
 
-        core_processor::informational::execute_for_reply::<Ext, ExecutionEnvironment<String>, String>(
+        core_processor::informational::execute_for_reply::<ExecutionEnvironment<String>, String>(
             String::from("metahash"),
             instrumented_code,
             program_pages,
