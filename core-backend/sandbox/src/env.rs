@@ -24,6 +24,7 @@ use crate::{
     runtime::{self, Runtime},
 };
 use alloc::{collections::BTreeSet, string::ToString};
+use core::convert::Infallible;
 use gear_backend_common::{
     lazy_pages::{GlobalsAccessMod, GlobalsConfig},
     ActorSyscallFuncError, BackendExt, BackendExtError, BackendReport, Environment,
@@ -44,7 +45,6 @@ use sp_sandbox::{
     HostFuncType, InstanceGlobals, ReturnValue, SandboxEnvironmentBuilder, SandboxInstance,
     SandboxMemory, Value,
 };
-use std::convert::Infallible;
 
 #[derive(Debug, derive_more::Display)]
 pub enum SandboxEnvironmentError {
