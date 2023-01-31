@@ -17,8 +17,6 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::runtime::Runtime;
-#[cfg(not(feature = "std"))]
-use alloc::string::ToString;
 use alloc::{format, string::String};
 use blake2_rfc::blake2b::blake2b;
 use codec::Encode;
