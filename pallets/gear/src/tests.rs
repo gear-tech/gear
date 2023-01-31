@@ -2667,7 +2667,7 @@ fn claim_value_works() {
 
 #[test]
 fn uninitialized_program_zero_gas() {
-    use demo_init_wait::WASM_BINARY;
+    use demo_init_wait::WASM_BINARY; // mikita check here
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -3920,6 +3920,7 @@ fn test_message_processing_for_non_existing_destination() {
 #[test]
 fn exit_locking_funds() {
     use demo_exit_handle_sender::{Input, WASM_BINARY as EXIT_HANDLE_SENDER_BINARY};
+    // MIKITA check here
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -4799,6 +4800,7 @@ fn no_redundant_gas_value_after_exiting() {
     })
 }
 
+// Mikita see here
 #[test]
 fn init_wait_reply_exit_cleaned_storage() {
     use demo_init_wait_reply_exit::WASM_BINARY;
