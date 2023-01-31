@@ -82,7 +82,7 @@ where
                 let res = state
                     .ext
                     .send(HandlePacket::new(destination.into(), payload, value), delay)
-                    .into_ext_error(state)?;
+                    .into_ext_error(&mut state.err)?;
                 ctx.write_as(write_err_mid, LengthWithHash::from(res))?;
                 Ok(())
             })
@@ -124,7 +124,7 @@ where
                         HandlePacket::new_with_gas(destination.into(), payload, gas_limit, value),
                         delay,
                     )
-                    .into_ext_error(state)?;
+                    .into_ext_error(&mut state.err)?;
                 ctx.write_as(write_err_mid, LengthWithHash::from(res))?;
                 Ok(())
             })
@@ -163,7 +163,7 @@ where
                         HandlePacket::new(destination.into(), Default::default(), value),
                         delay,
                     )
-                    .into_ext_error(state)?;
+                    .into_ext_error(&mut state.err)?;
                 ctx.write_as(write_err_mid, LengthWithHash::from(res))?;
                 Ok(())
             })
@@ -208,7 +208,7 @@ where
                         ),
                         delay,
                     )
-                    .into_ext_error(state)?;
+                    .into_ext_error(&mut state.err)?;
                 ctx.write_as(write_err_mid, LengthWithHash::from(res))?;
                 Ok(())
             })
@@ -229,7 +229,7 @@ where
                 let write_err_handle = ctx.register_write_as(err_handle_ptr);
 
                 let state = ctx.host_state_mut();
-                let res = state.ext.send_init().into_ext_error(state)?;
+                let res = state.ext.send_init().into_ext_error(&mut state.err)?;
                 ctx.write_as(write_err_handle, LengthWithHandle::from(res))?;
                 Ok(())
             })
@@ -261,7 +261,7 @@ where
                 let res = state
                     .ext
                     .send_push(handle, &payload)
-                    .into_ext_error(state)?;
+                    .into_ext_error(&mut state.err)?;
                 let len = res.err().unwrap_or(0);
 
                 ctx.write_as(write_err_len, len.to_le_bytes())
@@ -306,7 +306,7 @@ where
                         HandlePacket::new(destination.into(), payload, value),
                         delay,
                     )
-                    .into_ext_error(state)?;
+                    .into_ext_error(&mut state.err)?;
                 ctx.write_as(write_err_mid, LengthWithHash::from(res))?;
                 Ok(())
             })
@@ -347,27 +347,13 @@ where
                         HandlePacket::new(destination.into(), Default::default(), value),
                         delay,
                     )
-                    .into_ext_error(state)?;
+                    .into_ext_error(&mut state.err)?;
                 ctx.write_as(write_err_mid, LengthWithHash::from(res))?;
                 Ok(())
             })
         };
 
         Func::wrap(store, func)
-    }
-
-    fn validated(
-        ext: &'_ mut E,
-        at: u32,
-        len: u32,
-    ) -> Result<&'_ [u8], SyscallFuncError<<E as Ext>::Error>> {
-        let msg = ext.read(at, len).map_err(ActorSyscallFuncError::Core)?;
-
-        // 'at' and 'len' correct and saturation checked in Ext::read
-        debug_assert!(at.checked_add(len).is_some());
-        debug_assert!((at + len) as usize == msg.len());
-
-        Ok(msg)
     }
 
     pub fn read(store: &mut Store<HostState<E>>, forbidden: bool, memory: WasmiMemory) -> Func {
@@ -381,14 +367,13 @@ where
 
             ctx.run_state_taken(|ctx, state| {
                 let write_err_len = ctx.register_write_as(err_len_ptr);
-
-                let length = if let Ok(buffer) = Self::validated(&mut state.ext, at, len) {
-                    let write_buffer = ctx.register_write(buffer_ptr, len);
-                    ctx.write(write_buffer, buffer)?;
-                    0u32
-                } else {
-                    // TODO: issue #1652.
-                    1u32
+                let length = match state.ext.read(at, len).into_ext_error(&mut state.err)? {
+                    Ok(buf) => {
+                        let write_buffer = ctx.register_write(buffer_ptr, len);
+                        ctx.write(write_buffer, buf)?;
+                        0u32
+                    }
+                    Err(err_len) => err_len,
                 };
 
                 ctx.write_as(write_err_len, length.to_le_bytes())
@@ -453,7 +438,7 @@ where
                 let write_err_code = ctx.register_write_as(err_code_ptr);
 
                 let state = ctx.host_state_mut();
-                let res = state.ext.status_code().into_ext_error(state)?;
+                let res = state.ext.status_code().into_ext_error(&mut state.err)?;
                 ctx.write_as(write_err_code, LengthWithCode::from(res))?;
                 Ok(())
             })
@@ -598,7 +583,7 @@ where
                 let res = state
                     .ext
                     .reply(ReplyPacket::new(payload, value), delay)
-                    .into_ext_error(state)?;
+                    .into_ext_error(&mut state.err)?;
                 ctx.write_as(write_err_mid, LengthWithHash::from(res))?;
                 Ok(())
             })
@@ -638,7 +623,7 @@ where
                 let res = state
                     .ext
                     .reply(ReplyPacket::new_with_gas(payload, gas_limit, value), delay)
-                    .into_ext_error(state)?;
+                    .into_ext_error(&mut state.err)?;
                 ctx.write_as(write_err_mid, LengthWithHash::from(res))?;
                 Ok(())
             })
@@ -673,7 +658,7 @@ where
                 let res = state
                     .ext
                     .reply_commit(ReplyPacket::new(Default::default(), value), delay)
-                    .into_ext_error(state)?;
+                    .into_ext_error(&mut state.err)?;
                 ctx.write_as(write_err_mid, LengthWithHash::from(res))?;
                 Ok(())
             })
@@ -712,7 +697,7 @@ where
                         ReplyPacket::new_with_gas(Default::default(), gas_limit, value),
                         delay,
                     )
-                    .into_ext_error(state)?;
+                    .into_ext_error(&mut state.err)?;
                 ctx.write_as(write_err_mid, LengthWithHash::from(res))?;
                 Ok(())
             })
@@ -754,7 +739,7 @@ where
                         ReplyPacket::new(payload, value),
                         delay,
                     )
-                    .into_ext_error(state)?;
+                    .into_ext_error(&mut state.err)?;
                 ctx.write_as(write_err_mid, LengthWithHash::from(res))?;
                 Ok(())
             })
@@ -792,7 +777,7 @@ where
                         ReplyPacket::new(Default::default(), value),
                         delay,
                     )
-                    .into_ext_error(state)?;
+                    .into_ext_error(&mut state.err)?;
                 ctx.write_as(write_err_mid, LengthWithHash::from(res))?;
                 Ok(())
             })
@@ -809,7 +794,7 @@ where
                 let write_err_mid = ctx.register_write_as(err_mid_ptr);
 
                 let state = ctx.host_state_mut();
-                let res = state.ext.reply_to().into_ext_error(state)?;
+                let res = state.ext.reply_to().into_ext_error(&mut state.err)?;
                 ctx.write_as(write_err_mid, LengthWithHash::from(res))?;
                 Ok(())
             })
@@ -830,7 +815,7 @@ where
                 let write_err_mid = ctx.register_write_as(err_mid_ptr);
 
                 let state = ctx.host_state_mut();
-                let res = state.ext.signal_from().into_ext_error(state)?;
+                let res = state.ext.signal_from().into_ext_error(&mut state.err)?;
                 ctx.write_as(write_err_mid, LengthWithHash::from(res))?;
                 Ok(())
             })
@@ -858,7 +843,10 @@ where
                 let payload = ctx.read(read_payload)?;
 
                 let state = ctx.host_state_mut();
-                let res = state.ext.reply_push(&payload).into_ext_error(state)?;
+                let res = state
+                    .ext
+                    .reply_push(&payload)
+                    .into_ext_error(&mut state.err)?;
                 let len = res.err().unwrap_or(0);
 
                 ctx.write_as(write_err_len, len.to_le_bytes())
@@ -900,7 +888,7 @@ where
                         .ext
                         .reply_commit(ReplyPacket::new(Default::default(), value), delay)
                 };
-                let res = f().into_ext_error(state)?;
+                let res = f().into_ext_error(&mut state.err)?;
                 ctx.write_as(write_err_mid, LengthWithHash::from(res))?;
                 Ok(())
             })
@@ -928,7 +916,7 @@ where
                 let res = state
                     .ext
                     .reply_push_input(offset, len)
-                    .into_ext_error(state)?;
+                    .into_ext_error(&mut state.err)?;
                 let len = res.err().unwrap_or(0);
 
                 ctx.write_as(write_err_len, len.to_le_bytes())
@@ -972,7 +960,7 @@ where
                         delay,
                     )
                 };
-                let res = f().into_ext_error(state)?;
+                let res = f().into_ext_error(&mut state.err)?;
                 ctx.write_as(write_err_mid, LengthWithHash::from(res))?;
                 Ok(())
             })
@@ -1014,7 +1002,7 @@ where
                         delay,
                     )
                 };
-                let res = f().into_ext_error(state)?;
+                let res = f().into_ext_error(&mut state.err)?;
                 ctx.write_as(write_err_mid, LengthWithHash::from(res))?;
                 Ok(())
             })
@@ -1043,7 +1031,7 @@ where
                 let res = state
                     .ext
                     .send_push_input(handle, offset, len)
-                    .into_ext_error(state)?;
+                    .into_ext_error(&mut state.err)?;
                 let len = res.err().unwrap_or(0);
 
                 ctx.write_as(write_err_len, len.to_le_bytes())
@@ -1093,7 +1081,7 @@ where
                         delay,
                     )
                 };
-                let res = f().into_ext_error(state)?;
+                let res = f().into_ext_error(&mut state.err)?;
                 ctx.write_as(write_err_mid, LengthWithHash::from(res))?;
                 Ok(())
             })
@@ -1141,7 +1129,10 @@ where
                 let write_err_rid = ctx.register_write_as(err_rid_ptr);
 
                 let state = ctx.host_state_mut();
-                let res = state.ext.reserve_gas(gas, duration).into_ext_error(state)?;
+                let res = state
+                    .ext
+                    .reserve_gas(gas, duration)
+                    .into_ext_error(&mut state.err)?;
                 ctx.write_as(write_err_rid, LengthWithHash::from(res))?;
                 Ok(())
             })
@@ -1168,7 +1159,7 @@ where
                 let id = ctx.read_decoded(read_reservation_id)?;
 
                 let state = ctx.host_state_mut();
-                let res = state.ext.unreserve_gas(id).into_ext_error(state)?;
+                let res = state.ext.unreserve_gas(id).into_ext_error(&mut state.err)?;
                 ctx.write_as(write_err_unreserved, LengthWithGas::from(res))?;
                 Ok(())
             })
@@ -1189,7 +1180,10 @@ where
                 let write_err_len = ctx.register_write_as(err_ptr);
 
                 let state = ctx.host_state_mut();
-                let res = state.ext.system_reserve_gas(gas).into_ext_error(state)?;
+                let res = state
+                    .ext
+                    .system_reserve_gas(gas)
+                    .into_ext_error(&mut state.err)?;
                 let len = res.err().unwrap_or(0);
 
                 ctx.write_as(write_err_len, len.to_le_bytes())
@@ -1484,7 +1478,10 @@ where
                 let message_id = ctx.read_decoded(read_message_id)?;
 
                 let state = ctx.host_state_mut();
-                let res = state.ext.wake(message_id, delay).into_ext_error(state)?;
+                let res = state
+                    .ext
+                    .wake(message_id, delay)
+                    .into_ext_error(&mut state.err)?;
                 let len = res.err().unwrap_or(0);
 
                 ctx.write_as(write_err_len, len.to_le_bytes())
@@ -1528,7 +1525,7 @@ where
                 let res = state
                     .ext
                     .create_program(InitPacket::new(code_id.into(), salt, payload, value), delay)
-                    .into_ext_error(state)?;
+                    .into_ext_error(&mut state.err)?;
                 ctx.write_as(write_err_mid_pid, LengthWithTwoHashes::from(res))?;
                 Ok(())
             })
@@ -1574,7 +1571,7 @@ where
                         InitPacket::new_with_gas(code_id.into(), salt, payload, gas_limit, value),
                         delay,
                     )
-                    .into_ext_error(state)?;
+                    .into_ext_error(&mut state.err)?;
                 ctx.write_as(write_err_mid_pid, LengthWithTwoHashes::from(res))?;
                 Ok(())
             })

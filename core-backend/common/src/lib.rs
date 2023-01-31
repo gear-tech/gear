@@ -169,29 +169,28 @@ pub trait BackendState<E: BackendExtError> {
     }
 }
 
-pub trait IntoExtErrorForResult<T, Err, State>
+pub trait IntoExtErrorForResult<T, Err>
 where
     Err: Display,
 {
     fn into_ext_error(
         self,
-        state: &mut State,
+        state_err: &mut SyscallFuncError<Err>,
     ) -> Result<Result<T, u32>, ActorSyscallFuncError<Err>>;
 }
 
-impl<T, Err, State> IntoExtErrorForResult<T, Err, State> for Result<T, Err>
+impl<T, Err> IntoExtErrorForResult<T, Err> for Result<T, Err>
 where
     Err: BackendExtError + Display,
-    State: BackendState<Err>,
 {
     fn into_ext_error(
         self,
-        state: &mut State,
+        state_err: &mut SyscallFuncError<Err>,
     ) -> Result<Result<T, u32>, ActorSyscallFuncError<Err>> {
         match self {
             Ok(value) => Ok(Ok(value)),
             Err(err) => {
-                *state.err_mut() = ActorSyscallFuncError::Core(err.clone()).into();
+                *state_err = ActorSyscallFuncError::Core(err.clone()).into();
                 match err.into_ext_error() {
                     Ok(ext_err) => Ok(Err(ext_err.encoded_size() as u32)),
                     Err(err) => Err(ActorSyscallFuncError::Core(err)),
