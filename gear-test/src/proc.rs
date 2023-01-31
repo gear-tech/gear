@@ -476,6 +476,7 @@ fn test_block_config(block_info: BlockInfo) -> BlockConfig {
         forbidden_funcs: Default::default(),
         mailbox_threshold: MAILBOX_THRESHOLD,
         waitlist_cost: WAITLIST_COST,
+        dispatch_hold_cost: DISPATCH_HOLD_COST,
         reserve_for: RESERVE_FOR,
         reservation: RESERVATION_COST,
         read_cost: READ_COST,
@@ -486,6 +487,5 @@ fn test_block_config(block_info: BlockInfo) -> BlockConfig {
         max_reservations: MAX_RESERVATIONS,
         code_instrumentation_cost: MODULE_INSTRUMENTATION_COST,
         code_instrumentation_byte_cost: MODULE_INSTRUMENTATION_BYTE_COST,
-        dispatch_hold_cost: DISPATCH_HOLD_COST,
     }
 }

@@ -201,10 +201,10 @@ impl WasmExecutor {
             forbidden_funcs: Default::default(),
             mailbox_threshold: MAILBOX_THRESHOLD,
             waitlist_cost: WAITLIST_COST,
+            dispatch_hold_cost: DISPATCH_HOLD_COST,
             reserve_for: RESERVE_FOR,
             reservation: RESERVATION_COST,
             random_data: ([0u8; 32].to_vec(), 0),
-            dispatch_hold_cost: DISPATCH_HOLD_COST,
         })
     }
 

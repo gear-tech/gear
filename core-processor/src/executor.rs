@@ -303,10 +303,10 @@ pub fn execute_wasm<
         forbidden_funcs: settings.forbidden_funcs,
         mailbox_threshold: settings.mailbox_threshold,
         waitlist_cost: settings.waitlist_cost,
+        dispatch_hold_cost: settings.dispatch_hold_cost,
         reserve_for: settings.reserve_for,
         reservation: settings.reservation,
         random_data: settings.random_data,
-        dispatch_hold_cost: settings.dispatch_hold_cost,
     };
 
     let lazy_pages_weights = context.pages_config.lazy_pages_weights.clone();
@@ -505,11 +505,11 @@ pub fn execute_for_reply<
         forbidden_funcs: Default::default(),
         mailbox_threshold: Default::default(),
         waitlist_cost: Default::default(),
+        dispatch_hold_cost: Default::default(),
         reserve_for: Default::default(),
         reservation: Default::default(),
         random_data: Default::default(),
         system_reservation: Default::default(),
-        dispatch_hold_cost: Default::default(),
     };
 
     let lazy_pages_weights = context.pages_config.lazy_pages_weights.clone();

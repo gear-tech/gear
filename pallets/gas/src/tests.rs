@@ -699,6 +699,8 @@ fn lock_works() {
         assert_ok!(Gas::get_lock(reserved), 0);
         assert_ok!(Gas::lock(reserved, 500));
         assert_ok!(Gas::get_lock(reserved), 500);
+        assert_ok!(Gas::lock(reserved, 300));
+        assert_ok!(Gas::get_lock(reserved), 800);
         assert_ok!(Gas::unlock(reserved, 500));
         assert_ok!(Gas::get_lock(reserved), 0);
 

@@ -115,7 +115,7 @@ pub trait TaskHandler<AccountId> {
     fn send_dispatch(&mut self, stashed_message_id: MessageId);
 
     // Send delayed message to user action.
-    fn send_user_message(&mut self, stashed_message_id: MessageId, is_mailbox_message: bool);
+    fn send_user_message(&mut self, stashed_message_id: MessageId, to_mailbox: bool);
 
     /// Remove gas reservation action.
     fn remove_gas_reservation(&mut self, program_id: ProgramId, reservation_id: ReservationId);

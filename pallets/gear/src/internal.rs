@@ -341,10 +341,9 @@ where
             .saturating_add(CostsPerBlockOf::<T>::reserve_for().unique_saturated_into())
             .saturating_mul(CostsPerBlockOf::<T>::dispatch_stash());
 
-        // Spending gas, if need.
-        if !gas_amount.is_zero() {
-            Self::spend_gas(id, gas_amount)
-        }
+        // Spending gas
+        debug_assert!(!gas_amount.is_zero());
+        Self::spend_gas(id, gas_amount)
     }
 
     /// Adds dispatch into waitlist, deposits event and adds task for waking it.
@@ -571,10 +570,8 @@ where
             unreachable!("Scheduling logic invalidated");
         }
 
+        // Indicates that message goes to mailbox and gas should be charged for holding
         let mut to_mailbox = false;
-
-        // `HoldBound` cost builder.
-        let hold_builder = HoldBound::<T>::by(CostsPerBlockOf::<T>::dispatch_stash());
 
         // Sender node of the dispatch.
         let sender_node = reservation
@@ -607,11 +604,9 @@ where
                 })
                 .unwrap_or_default();
 
-            let delay_gas_value = (delay as u64)
+            let gas_for_delay = (delay as u64)
                 .saturating_add(CostsPerBlockOf::<T>::reserve_for().unique_saturated_into())
                 .saturating_mul(CostsPerBlockOf::<T>::dispatch_stash().unique_saturated_into());
-
-            let mut gas_amount = delay_gas_value;
 
             // Message is going to be inserted into mailbox.
             //
@@ -619,7 +614,7 @@ where
             to_mailbox = gas_limit >= threshold;
             if to_mailbox {
                 // Cutting gas for storing in mailbox.
-                gas_amount = gas_amount.saturating_add(gas_limit);
+                let gas_amount = gas_for_delay.saturating_add(gas_limit);
                 GasHandlerOf::<T>::cut(sender_node, dispatch.id(), gas_amount)
                     .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
 
@@ -628,9 +623,13 @@ where
                     Self::remove_gas_reservation_with_task(dispatch.source(), reservation_id);
                 }
             } else {
-                GasHandlerOf::<T>::cut(sender_node, dispatch.id(), gas_amount)
+                GasHandlerOf::<T>::cut(sender_node, dispatch.id(), gas_for_delay)
                     .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
             }
+
+            // `HoldBound` cost builder.
+            let hold_builder = HoldBound::<T>::by(CostsPerBlockOf::<T>::dispatch_stash());
+
             // Calculating correct hold bound to lock gas
             let maximal_hold = hold_builder.clone().maximum_for_message(dispatch.id());
             let bn_delay = delay.saturated_into::<BlockNumberFor<T>>();
@@ -688,6 +687,9 @@ where
                     Self::remove_gas_reservation_with_task(dispatch.source(), reservation_id);
                 }
             }
+
+            // `HoldBound` cost builder.
+            let hold_builder = HoldBound::<T>::by(CostsPerBlockOf::<T>::dispatch_stash());
 
             // Calculating correct hold bound to lock gas
             let maximal_hold = hold_builder.clone().maximum_for_message(dispatch.id());

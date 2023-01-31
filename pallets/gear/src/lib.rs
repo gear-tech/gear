@@ -1027,6 +1027,7 @@ pub mod pallet {
                 forbidden_funcs: Default::default(),
                 mailbox_threshold: T::MailboxThreshold::get(),
                 waitlist_cost: CostsPerBlockOf::<T>::waitlist(),
+                dispatch_hold_cost: CostsPerBlockOf::<T>::waitlist(),
                 reserve_for: CostsPerBlockOf::<T>::reserve_for().unique_saturated_into(),
                 reservation: CostsPerBlockOf::<T>::reservation().unique_saturated_into(),
                 read_cost: DbWeightOf::<T>::get().reads(1).ref_time(),
@@ -1037,7 +1038,6 @@ pub mod pallet {
                 max_reservations: T::ReservationsLimit::get(),
                 code_instrumentation_cost: schedule.code_instrumentation_cost,
                 code_instrumentation_byte_cost: schedule.code_instrumentation_byte_cost,
-                dispatch_hold_cost: CostsPerBlockOf::<T>::waitlist(),
             }
         }
 
