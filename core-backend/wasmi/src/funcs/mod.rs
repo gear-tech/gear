@@ -93,8 +93,8 @@ type EmptyOutput = Result<(), Trap>;
 
 impl<E> FuncsHandler<E>
 where
-    E: Ext + BackendExt + 'static,
-    E::Error: BackendExtError + Clone,
+    E: BackendExt + 'static,
+    E::Error: BackendExtError,
 {
     pub fn send(store: &mut Store<HostState<E>>, forbidden: bool, memory: WasmiMemory) -> Func {
         let func = move |caller: Caller<'_, HostState<E>>,

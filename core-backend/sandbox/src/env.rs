@@ -96,8 +96,8 @@ struct EnvBuilder<E: Ext> {
 
 impl<E> EnvBuilder<E>
 where
-    E: Ext + BackendExt + 'static,
-    E::Error: BackendExtError + Clone,
+    E: BackendExt + 'static,
+    E::Error: BackendExtError,
 {
     fn add_func(&mut self, name: SysCallName, f: HostFuncType<Runtime<E>>) {
         if self.forbidden_funcs.contains(&name) {
@@ -123,8 +123,8 @@ impl<E: Ext> From<EnvBuilder<E>> for EnvironmentDefinitionBuilder<Runtime<E>> {
 
 impl<E, EP> Environment<E, EP> for SandboxEnvironment<E, EP>
 where
-    E: Ext + BackendExt + GetGasAmount + 'static,
-    E::Error: BackendExtError + Clone,
+    E: BackendExt + GetGasAmount + 'static,
+    E::Error: BackendExtError,
     EP: WasmEntry,
 {
     type Memory = MemoryWrap;

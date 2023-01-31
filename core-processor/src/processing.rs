@@ -31,7 +31,6 @@ use alloc::{collections::BTreeMap, string::ToString, vec::Vec};
 use codec::Encode;
 use gear_backend_common::{BackendExt, Environment, SystemReservationContext};
 use gear_core::{
-    env::Ext as EnvExt,
     ids::ProgramId,
     memory::{GearPage, PageBuf},
     message::{
@@ -41,7 +40,7 @@ use gear_core::{
 };
 
 /// Process program & dispatch for it and return journal for updates.
-pub fn process<A: ProcessorExt + EnvExt + BackendExt + 'static, E: Environment<A>>(
+pub fn process<A: ProcessorExt + BackendExt + 'static, E: Environment<A>>(
     block_config: &BlockConfig,
     execution_context: ProcessExecutionContext,
     random_data: (Vec<u8>, u32),

@@ -125,7 +125,7 @@ pub struct ExtInfo {
     pub context_store: ContextStore,
 }
 
-pub trait BackendExt {
+pub trait BackendExt: Ext {
     fn into_ext_info(self, memory: &impl Memory) -> Result<ExtInfo, MemoryError>;
 
     fn into_gas_amount(self) -> GasAmount;
@@ -137,7 +137,7 @@ pub trait BackendExt {
     ) -> Result<(), OutOfMemoryAccessError>;
 }
 
-pub trait BackendExtError: Sized + Clone {
+pub trait BackendExtError: Clone + Sized {
     fn from_ext_error(err: ExtError) -> Self;
 
     fn forbidden_function() -> Self;
@@ -178,7 +178,7 @@ impl<Env, PrepMem> EnvironmentExecutionError<Env, PrepMem> {
 
 pub trait Environment<E, EP = DispatchKind>: Sized
 where
-    E: Ext + BackendExt + 'static,
+    E: BackendExt + 'static,
     EP: WasmEntry,
 {
     /// Memory type for current environment.

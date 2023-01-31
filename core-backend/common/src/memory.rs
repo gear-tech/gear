@@ -214,7 +214,7 @@ impl<E: Ext> MemoryAccessRecorder for MemoryAccessManager<E> {
     }
 }
 
-impl<E: Ext + BackendExt> MemoryAccessManager<E> {
+impl<E: BackendExt> MemoryAccessManager<E> {
     /// Call pre-processing of registered memory accesses. Clear `self.reads` and `self.writes`.
     fn pre_process_memory_accesses(&mut self) -> Result<(), MemoryAccessError> {
         if self.reads.is_empty() && self.writes.is_empty() {

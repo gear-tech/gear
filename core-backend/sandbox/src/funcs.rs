@@ -106,8 +106,8 @@ macro_rules! sys_trace {
 
 impl<E> FuncsHandler<E>
 where
-    E: Ext + BackendExt + 'static,
-    E::Error: BackendExtError + Clone,
+    E: BackendExt + 'static,
+    E::Error: BackendExtError,
 {
     pub fn send(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
         sys_trace!(target: "syscall::gear", "send, args = {}", args_to_str(args));

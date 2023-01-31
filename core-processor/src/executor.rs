@@ -38,7 +38,6 @@ use gear_backend_common::{
 };
 use gear_core::{
     code::InstrumentedCode,
-    env::Ext as EnvExt,
     gas::{GasAllowanceCounter, GasCounter, ValueCounter},
     ids::ProgramId,
     memory::{AllocationsContext, GearPage, Memory, PageBuf, PageU32Size, WasmPage},
@@ -246,7 +245,7 @@ fn get_pages_to_be_updated<A: ProcessorExt>(
 }
 
 /// Execute wasm with dispatch and return dispatch result.
-pub fn execute_wasm<A: ProcessorExt + EnvExt + BackendExt + 'static, E: Environment<A>>(
+pub fn execute_wasm<A: ProcessorExt + BackendExt + 'static, E: Environment<A>>(
     balance: u128,
     dispatch: IncomingDispatch,
     context: WasmExecutionContext,
@@ -452,7 +451,7 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + BackendExt + 'static, E: Environm
 
 /// !!! FOR TESTING / INFORMATIONAL USAGE ONLY
 pub fn execute_for_reply<
-    A: ProcessorExt + EnvExt + BackendExt + 'static,
+    A: ProcessorExt + BackendExt + 'static,
     E: Environment<A, EP>,
     EP: WasmEntry,
 >(

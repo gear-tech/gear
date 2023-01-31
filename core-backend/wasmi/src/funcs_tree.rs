@@ -19,7 +19,6 @@
 use crate::state::HostState;
 use alloc::collections::{BTreeMap, BTreeSet};
 use gear_backend_common::{BackendExt, BackendExtError};
-use gear_core::env::Ext;
 use gear_wasm_instrument::syscalls::SysCallName::{self, *};
 use wasmi::{Func, Memory, Store};
 
@@ -41,8 +40,8 @@ pub fn build<E>(
     forbidden_funcs: BTreeSet<SysCallName>,
 ) -> BTreeMap<SysCallName, Func>
 where
-    E: Ext + BackendExt + 'static,
-    E::Error: BackendExtError + Clone,
+    E: BackendExt + 'static,
+    E::Error: BackendExtError,
 {
     use crate::funcs::FuncsHandler as F;
 

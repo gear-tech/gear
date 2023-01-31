@@ -156,7 +156,7 @@ impl<E: Ext> MemoryAccessRecorder for Runtime<E> {
 
 impl<E> MemoryOwner for Runtime<E>
 where
-    E: Ext + BackendExt,
+    E: BackendExt,
 {
     fn read(&mut self, read: WasmMemoryRead) -> Result<Vec<u8>, MemoryAccessError> {
         self.memory_manager.read(&self.memory, read)

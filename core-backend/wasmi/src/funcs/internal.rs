@@ -215,7 +215,7 @@ where
 
 impl<'a, E> MemoryOwner for CallerWrap<'a, E>
 where
-    E: Ext + BackendExt + 'static,
+    E: BackendExt + 'static,
     E::Error: BackendExtError,
 {
     fn read(&mut self, read: WasmMemoryRead) -> Result<Vec<u8>, MemoryAccessError> {

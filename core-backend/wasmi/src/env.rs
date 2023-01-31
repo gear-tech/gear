@@ -148,8 +148,8 @@ impl<E: Ext + 'static> GlobalsAccessor for GlobalsAccessProvider<E> {
 
 impl<E, EP> Environment<E, EP> for WasmiEnvironment<E, EP>
 where
-    E: Ext + BackendExt + GetGasAmount + 'static,
-    E::Error: BackendExtError + Clone,
+    E: BackendExt + GetGasAmount + 'static,
+    E::Error: BackendExtError,
     EP: WasmEntry,
 {
     type Memory = MemoryWrap<E>;
