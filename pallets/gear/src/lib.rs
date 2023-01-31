@@ -271,22 +271,23 @@ pub mod pallet {
     #[pallet::event]
     #[pallet::generate_deposit(pub(super) fn deposit_event)]
     pub enum Event<T: Config> {
-        /// User send message to program, which was successfully
-        /// added to gear message queue.
-        MessageEnqueued {
+
+        /// User sends message to program, which was successfully
+        /// added to the Gear message queue.
+        MessageQueued {
             /// Generated id of the message.
             id: MessageId,
             /// Account id of the source of the message.
             source: T::AccountId,
-            /// Program id, who is a destination of the message.
+            /// Program id, who is the message's destination.
             destination: ProgramId,
             /// Entry point for processing of the message.
-            /// On the sending stage, processing function
-            /// of program is always known.
-            entry: Entry,
+            /// On the sending stage, the processing function
+            /// of the program is always known.
+            entry: MessageEntry,
         },
 
-        /// Somebody sent message to user.
+        /// Somebody sent a message to the user.
         UserMessageSent {
             /// Message sent.
             message: StoredMessage,
@@ -302,18 +303,18 @@ pub mod pallet {
         },
 
         /// Message marked as "read" and removes it from `Mailbox`.
-        /// This event only affects messages, which were
-        /// already inserted in `Mailbox` before.
+        /// This event only affects messages that were 
+        /// already inserted in `Mailbox`.
         UserMessageRead {
             /// Id of the message read.
             id: MessageId,
-            /// The reason of the reading (removal from `Mailbox`).
+            /// The reason for the reading (removal from `Mailbox`).
             ///
             /// NOTE: See more docs about reasons at `gear_common::event`.
             reason: UserMessageReadReason,
         },
 
-        /// The result of the messages processing within the block.
+        /// The result of processing the messages within the block.
         MessagesDispatched {
             /// Total amount of messages removed from message queue.
             total: MessengerCapacityOf<T>,
@@ -329,7 +330,7 @@ pub mod pallet {
         /// Will be removed in favor of proper database migrations.
         DatabaseWiped,
 
-        /// Messages execution delayed (waited) and it was successfully
+        /// Messages execution delayed (waited) and successfully
         /// added to gear waitlist.
         MessageWaited {
             /// Id of the message waited.
@@ -337,8 +338,8 @@ pub mod pallet {
             /// Origin message id, which started messaging chain with programs,
             /// where currently waited message was created.
             ///
-            /// Used for identifying by user, that this message associated
-            /// with him and with the concrete initial message.
+            /// Used to identify by the user that this message associated 
+            /// with him and the concrete initial message.
             origin: Option<GasNodeId<MessageId, ReservationId>>,
             /// The reason of the waiting (addition to `Waitlist`).
             ///
@@ -362,7 +363,7 @@ pub mod pallet {
             reason: MessageWokenReason,
         },
 
-        /// Any data related to programs codes changed.
+        /// Any data related to program codes changed.
         CodeChanged {
             /// Id of the code affected.
             id: CodeId,
@@ -389,12 +390,12 @@ pub mod pallet {
     // Gear pallet error.
     #[pallet::error]
     pub enum Error<T> {
-        /// Message wasn't found in mailbox.
+        /// Message wasn't found in the mailbox.
         MessageNotFound,
         /// Not enough balance to reserve.
         ///
-        /// Usually occurs when gas_limit specified is such that origin account can't afford the message.
-        NotEnoughBalanceForReserve,
+        /// Usually occurs when the gas_limit specified is such that the origin account can't afford the message.
+        InsufficientBalanceForReserve,
         /// Gas limit too high.
         ///
         /// Occurs when an extrinsic's declared `gas_limit` is greater than a block's maximum gas limit.
@@ -405,25 +406,25 @@ pub mod pallet {
         ProgramAlreadyExists,
         /// Program is terminated.
         ///
-        /// Program init ended up with failure, so such message destination is unavailable anymore.
+        /// Program init failed, so such message destination is no longer unavailable.
         InactiveProgram,
         /// Message gas tree is not found.
         ///
-        /// When message claimed from mailbox has a corrupted or non-extant gas tree associated.
+        /// When a message claimed from the mailbox has a corrupted or non-extant gas tree associated.
         NoMessageTree,
         /// Code already exists.
         ///
-        /// Occurs when trying to save to storage a program code, that has been saved there.
+        /// Occurs when trying to save to storage a program code that has been saved there.
         CodeAlreadyExists,
-        /// Code not exists.
+        /// Code does not exist.
         ///
         /// Occurs when trying to get a program code from storage, that doesn't exist.
-        CodeNotExists,
+        CodeDoesntExist,
         /// The code supplied to `upload_code` or `upload_program` exceeds the limit specified in the
         /// current schedule.
         CodeTooLarge,
         /// Failed to create a program.
-        FailedToConstructProgram,
+        ProgramConstructFailed,
         /// Value doesn't cover ExistentialDeposit.
         ValueLessThanMinimal,
         /// Messages storage corrupted.
