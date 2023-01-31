@@ -53,8 +53,8 @@ pub enum SandboxEnvironmentError {
     CreateEnvMemory(sp_sandbox::Error),
     #[display(fmt = "Unable to instantiate module: {_0:?}")]
     ModuleInstantiation(sp_sandbox::Error),
-    #[display(fmt = "Mutable globals are not supported")]
-    MutableGlobalsNotSupported,
+    #[display(fmt = "Globals are not supported")]
+    GlobalsNotSupported,
     #[display(fmt = "Gas counter not found or has wrong type")]
     WrongInjectedGas,
     #[display(fmt = "Allowance counter not found or has wrong type")]
@@ -273,7 +273,7 @@ where
             .and_then(|global| global.as_i32());
 
         runtime.globals = instance.instance_globals().ok_or(Environment(
-            (runtime.ext.gas_amount(), MutableGlobalsNotSupported).into(),
+            (runtime.ext.gas_amount(), GlobalsNotSupported).into(),
         ))?;
 
         let (gas, allowance) = runtime.ext.counters();
