@@ -207,7 +207,7 @@ pub mod pallet {
         type CodeStorage: CodeStorage;
 
         /// Implementation of a storage for programs.
-        type ProgramStorage: ProgramStorage;
+        type ProgramStorage: ProgramStorage<BlockNumber = Self::BlockNumber>;
 
         /// The minimal gas amount for message to be inserted in mailbox.
         ///
@@ -599,8 +599,14 @@ pub mod pallet {
             }
 
             let message_id = Self::next_message_id(origin);
+            let block_number = Self::block_number().unique_saturated_into();
 
-            ExtManager::<T>::default().set_program(program_id, &code_info, message_id);
+            ExtManager::<T>::default().set_program(
+                program_id,
+                &code_info,
+                message_id,
+                block_number,
+            );
 
             // # Safety
             //
@@ -793,37 +799,43 @@ pub mod pallet {
         /// Returns true if a program has been successfully initialized
         pub fn is_initialized(program_id: ProgramId) -> bool {
             ProgramStorageOf::<T>::get_program(program_id)
-                .map(|p| p.is_initialized())
+                .map(|(p, _bn)| p.is_initialized())
                 .unwrap_or(false)
         }
 
         /// Returns true if id is a program and the program has active status.
         pub fn is_active(program_id: ProgramId) -> bool {
             ProgramStorageOf::<T>::get_program(program_id)
-                .map(|p| p.is_active())
+                .map(|(p, _bn)| p.is_active())
                 .unwrap_or_default()
         }
 
         /// Returns true if id is a program and the program has terminated status.
         pub fn is_terminated(program_id: ProgramId) -> bool {
             ProgramStorageOf::<T>::get_program(program_id)
-                .map(|p| p.is_terminated())
+                .map(|(p, _bn)| p.is_terminated())
                 .unwrap_or_default()
         }
 
         /// Returns true if id is a program and the program has exited status.
         pub fn is_exited(program_id: ProgramId) -> bool {
             ProgramStorageOf::<T>::get_program(program_id)
-                .map(|p| p.is_exited())
+                .map(|(p, _bn)| p.is_exited())
+                .unwrap_or_default()
+        }
+
+        pub fn get_block_number(program_id: ProgramId) -> <T as frame_system::Config>::BlockNumber {
+            ProgramStorageOf::<T>::get_program(program_id)
+                .map(|(_p, bn)| bn)
                 .unwrap_or_default()
         }
 
         /// Returns exit argument of an exited program.
         pub fn exit_inheritor_of(program_id: ProgramId) -> Option<ProgramId> {
             ProgramStorageOf::<T>::get_program(program_id)
-                .map(|p| {
-                    if let Program::Exited(id) = p {
-                        Some(id)
+                .map(|(p, _bn)| {
+                    if let Program::Exited(inheritor) = p {
+                        Some(inheritor)
                     } else {
                         None
                     }
@@ -834,9 +846,9 @@ pub mod pallet {
         /// Returns inheritor of terminated (failed it's init) program.
         pub fn termination_inheritor_of(program_id: ProgramId) -> Option<ProgramId> {
             ProgramStorageOf::<T>::get_program(program_id)
-                .map(|p| {
-                    if let Program::Terminated(id) = p {
-                        Some(id)
+                .map(|(p, _bn)| {
+                    if let Program::Terminated(inheritor) = p {
+                        Some(inheritor)
                     } else {
                         None
                     }
@@ -1181,8 +1193,14 @@ pub mod pallet {
             let origin = who.clone().into_origin();
 
             let message_id = Self::next_message_id(origin);
+            let block_number = Self::block_number().unique_saturated_into();
 
-            ExtManager::<T>::default().set_program(packet.destination(), &code_info, message_id);
+            ExtManager::<T>::default().set_program(
+                packet.destination(),
+                &code_info,
+                message_id,
+                block_number,
+            );
 
             // # Safety
             //

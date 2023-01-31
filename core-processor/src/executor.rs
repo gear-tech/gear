@@ -452,6 +452,7 @@ where
 }
 
 /// !!! FOR TESTING / INFORMATIONAL USAGE ONLY
+#[allow(clippy::too_many_arguments)]
 pub fn execute_for_reply<E, EP>(
     function: EP,
     instrumented_code: InstrumentedCode,
@@ -460,6 +461,7 @@ pub fn execute_for_reply<E, EP>(
     program_id: Option<ProgramId>,
     payload: Vec<u8>,
     gas_limit: u64,
+    block_info: BlockInfo,
 ) -> Result<Vec<u8>, String>
 where
     E: Environment<EP>,
@@ -509,10 +511,7 @@ where
             None,
             ContextSettings::new(0, 0, 0, 0, 0, 0),
         ),
-        block_info: BlockInfo {
-            height: Default::default(),
-            timestamp: Default::default(),
-        },
+        block_info,
         pages_config: PagesConfig {
             max_pages: 512.into(),
             lazy_pages_weights: LazyPagesWeights {
