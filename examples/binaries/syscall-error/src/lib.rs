@@ -18,7 +18,7 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
-use gstd::{mem::MaybeUninit, msg, prelude::*, ActorId};
+use gstd::{msg, prelude::*, ActorId};
 
 #[cfg(feature = "std")]
 mod code {
@@ -32,15 +32,13 @@ use gstd::errors::{ContractError, ExtError, MessageError};
 #[no_mangle]
 extern "C" fn init() {
     unsafe {
-        let mut buf = [0; 1024];
-        let mut len = MaybeUninit::uninit();
-        gsys::gr_error(buf.as_mut_ptr(), len.as_mut_ptr());
-        let len = len.assume_init();
+        let mut len = 0;
+        gsys::gr_error(ptr::null_mut(), &mut len);
         assert_ne!(len, 0);
 
-        let mut len = MaybeUninit::uninit();
-        gsys::gr_error(buf.as_mut_ptr(), len.as_mut_ptr());
-        let len = len.assume_init();
+        let mut buf = vec![0; len as usize];
+        let mut len = 0;
+        gsys::gr_error(buf.as_mut_ptr(), &mut len);
         assert_eq!(len, 0);
         let err = ExtError::decode(&mut buf.as_ref()).unwrap();
         assert_eq!(err, ExtError::SyscallUsage);
