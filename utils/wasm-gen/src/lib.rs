@@ -41,6 +41,8 @@ pub mod utils;
 pub mod wasm;
 use wasm::{PageCount as WasmPageCount, PAGE_SIZE as WASM_PAGE_SIZE};
 
+const MEMORY_VALUE_SIZE: u32 = 100;
+
 #[derive(Clone, Copy, Debug)]
 pub struct Ratio {
     numerator: u32,
@@ -266,14 +268,24 @@ fn build_checked_call(
 
             Parameter::MemoryArray => {
                 if unchecked {
-                    code.push(Instruction::I32Const(u.arbitrary().unwrap()));
-                    code.push(Instruction::I32Const(u.arbitrary().unwrap()));
+                    code.push(Instruction::I32Const(
+                        u.arbitrary()
+                            .expect("Unstructured::arbitrary failed for MemoryArray"),
+                    ));
+                    code.push(Instruction::I32Const(
+                        u.arbitrary()
+                            .expect("Unstructured::arbitrary failed for MemoryArray"),
+                    ));
                 } else {
-                    let memory_size = memory_pages.size();
+                    let memory_size = memory_pages.memory_size();
                     let upper_limit = memory_size.saturating_sub(1);
 
-                    let pointer_beyond = u.int_in_range(0..=upper_limit).unwrap();
-                    let offset = u.int_in_range(0..=pointer_beyond).unwrap();
+                    let pointer_beyond = u
+                        .int_in_range(0..=upper_limit)
+                        .expect("Unstructured::int_in_range failed for MemoryArray");
+                    let offset = u
+                        .int_in_range(0..=pointer_beyond)
+                        .expect("Unstructured::int_in_range failed for MemoryArray");
 
                     code.push(Instruction::I32Const(offset as i32));
                     code.push(Instruction::I32Const((pointer_beyond - offset) as i32));
@@ -282,13 +294,17 @@ fn build_checked_call(
 
             Parameter::MemoryValue => {
                 if unchecked {
-                    code.push(Instruction::I32Const(u.arbitrary().unwrap()));
+                    code.push(Instruction::I32Const(
+                        u.arbitrary()
+                            .expect("Unstructured::arbitrary failed for MemoryValue"),
+                    ));
                 } else {
-                    let memory_size = memory_pages.size();
-                    // u/i128 are the biggest values with 8 bytes size.
-                    // So subtract a bit more.
-                    let upper_limit = memory_size.saturating_sub(16);
-                    let offset = u.int_in_range(0..=upper_limit).unwrap();
+                    let memory_size = memory_pages.memory_size();
+                    // Subtract a bit more so entities from gsys fit.
+                    let upper_limit = memory_size.saturating_sub(MEMORY_VALUE_SIZE);
+                    let offset = u
+                        .int_in_range(0..=upper_limit)
+                        .expect("Unstructured::int_in_range failed for MemoryValue");
 
                     code.push(Instruction::I32Const(offset as i32));
                 }
@@ -296,11 +312,14 @@ fn build_checked_call(
 
             Parameter::Alloc => {
                 if unchecked {
-                    code.push(Instruction::I32Const(u.arbitrary().unwrap()));
+                    code.push(Instruction::I32Const(
+                        u.arbitrary()
+                            .expect("Unstructured::arbitrary failed for Alloc"),
+                    ));
                 } else {
                     let pages_to_alloc = u
-                        .int_in_range(0..=memory_pages.raw_number().saturating_sub(1))
-                        .unwrap();
+                        .int_in_range(0..=memory_pages.raw().saturating_sub(1))
+                        .expect("Unstructured::int_in_range failed for Alloc");
 
                     code.push(Instruction::I32Const(pages_to_alloc as i32));
                 }
@@ -322,8 +341,14 @@ fn make_call_instructions_vec(
     let mut code = Vec::with_capacity(params.len() + 1 + results.len());
     for val in params {
         let instr = match val {
-            ValueType::I32 => Instruction::I32Const(u.arbitrary().unwrap()),
-            ValueType::I64 => Instruction::I64Const(u.arbitrary().unwrap()),
+            ValueType::I32 => Instruction::I32Const(
+                u.arbitrary()
+                    .expect("Unstructured::arbitrary failed for I32"),
+            ),
+            ValueType::I64 => Instruction::I64Const(
+                u.arbitrary()
+                    .expect("Unstructured::arbitrary failed for I64"),
+            ),
             _ => panic!("Cannot handle f32/f64"),
         };
         code.push(instr);

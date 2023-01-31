@@ -16,9 +16,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-// WASM page has size of 64KiBs (65_536 bytes)
+/// WASM page has size of 64KiBs (65_536 bytes)
 pub const PAGE_SIZE: u32 = 0x10000;
 
+/// Struct for indexing WASM memory page.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct Page(u16);
 
@@ -28,6 +29,7 @@ impl From<u16> for Page {
     }
 }
 
+/// Newtype to represent WASM memory pages count.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct PageCount(u32);
 
@@ -44,11 +46,13 @@ impl From<Page> for PageCount {
 }
 
 impl PageCount {
-    pub fn size(&self) -> u32 {
+    /// Calculate WASM memory size for this pages count.
+    pub fn memory_size(&self) -> u32 {
         self.0 * PAGE_SIZE
     }
 
-    pub fn raw_number(&self) -> u32 {
+    /// Get WASM memory pages count as a number.
+    pub fn raw(&self) -> u32 {
         self.0
     }
 }
