@@ -15,4 +15,11 @@ pub mod metafuncs {
     pub fn last_wallet(state: State) -> Option<Wallet> {
         state.last().cloned()
     }
+
+    /// Returns the first & last wallets.
+    ///
+    /// They'll equal if the contract has only one wallet.
+    pub fn first_and_last_wallets(state: State) -> (Option<Wallet>, Option<Wallet>) {
+        (first_wallet(state.clone()), last_wallet(state))
+    }
 }

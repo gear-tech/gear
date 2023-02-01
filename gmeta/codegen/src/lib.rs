@@ -379,8 +379,10 @@ pub fn metawasm(_: TokenStream, item: TokenStream) -> TokenStream {
         let return_type = match signature.output {
             ReturnType::Default => error!(signature_span, "return type must be specified"),
             ReturnType::Type(_, return_type) => {
-                if let Type::Tuple(tuple) = *return_type {
-                    error!(tuple, "return type mustn't be `()`");
+                if let Type::Tuple(tuple) = return_type.as_ref() {
+                    if tuple.elems.is_empty() {
+                        error!(tuple, "return type mustn't be `()`");
+                    }
                 }
 
                 return_type
