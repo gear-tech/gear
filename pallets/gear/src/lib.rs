@@ -271,7 +271,6 @@ pub mod pallet {
     #[pallet::event]
     #[pallet::generate_deposit(pub(super) fn deposit_event)]
     pub enum Event<T: Config> {
-
         /// User sends message to program, which was successfully
         /// added to the Gear message queue.
         MessageQueued {
@@ -303,7 +302,7 @@ pub mod pallet {
         },
 
         /// Message marked as "read" and removes it from `Mailbox`.
-        /// This event only affects messages that were 
+        /// This event only affects messages that were
         /// already inserted in `Mailbox`.
         UserMessageRead {
             /// Id of the message read.
@@ -319,7 +318,7 @@ pub mod pallet {
             /// Total amount of messages removed from message queue.
             total: MessengerCapacityOf<T>,
             /// Execution statuses of the messages, which were already known
-            /// by `Event::MessageEnqueued` (sent from user to program).
+            /// by `Event::MessageQueued` (sent from user to program).
             statuses: BTreeMap<MessageId, DispatchStatus>,
             /// Ids of programs, which state changed during queue processing.
             state_changes: BTreeSet<ProgramId>,
@@ -338,7 +337,7 @@ pub mod pallet {
             /// Origin message id, which started messaging chain with programs,
             /// where currently waited message was created.
             ///
-            /// Used to identify by the user that this message associated 
+            /// Used to identify by the user that this message associated
             /// with him and the concrete initial message.
             origin: Option<GasNodeId<MessageId, ReservationId>>,
             /// The reason of the waiting (addition to `Waitlist`).
@@ -542,7 +541,7 @@ pub mod pallet {
             let module =
                 gear_wasm_instrument::parity_wasm::deserialize_buffer(&code).map_err(|e| {
                     log::debug!("Module failed to load: {:?}", e);
-                    Error::<T>::FailedToConstructProgram
+                    Error::<T>::ProgramConstructFailed
                 })?;
 
             let code = Code::new_raw(
@@ -554,7 +553,7 @@ pub mod pallet {
             )
             .map_err(|e| {
                 log::debug!("Code failed to load: {:?}", e);
-                Error::<T>::FailedToConstructProgram
+                Error::<T>::ProgramConstructFailed
             })?;
 
             let code_and_id = CodeAndId::new(code);
@@ -583,7 +582,7 @@ pub mod pallet {
             // First we reserve enough funds on the account to pay for `gas_limit`
             // and to transfer declared value.
             CurrencyOf::<T>::reserve(&who, reserve_fee + value)
-                .map_err(|_| Error::<T>::NotEnoughBalanceForReserve)?;
+                .map_err(|_| Error::<T>::InsufficientBalanceForReserve)?;
 
             let origin = who.clone().into_origin();
 
@@ -627,11 +626,11 @@ pub mod pallet {
 
             QueueOf::<T>::queue(dispatch).map_err(|_| Error::<T>::MessagesStorageCorrupted)?;
 
-            Self::deposit_event(Event::MessageEnqueued {
+            Self::deposit_event(Event::MessageQueued {
                 id: message_id,
                 source: who,
                 destination: program_id,
-                entry: Entry::Init,
+                entry: MessageEntry::Init,
             });
 
             Ok(().into())
@@ -653,7 +652,7 @@ pub mod pallet {
             )
             .map_err(|e| {
                 log::debug!("Code failed to load: {:?}", e);
-                Error::<T>::FailedToConstructProgram
+                Error::<T>::ProgramConstructFailed
             })?;
 
             let code_id = Self::set_code_with_metadata(CodeAndId::new(code), who.into_origin())?;
@@ -1119,7 +1118,7 @@ pub mod pallet {
             )
             .map_err(|e| {
                 log::debug!("Code failed to load: {:?}", e);
-                Error::<T>::FailedToConstructProgram
+                Error::<T>::ProgramConstructFailed
             })?;
 
             ensure!(
@@ -1181,7 +1180,7 @@ pub mod pallet {
             // First we reserve enough funds on the account to pay for `gas_limit`
             // and to transfer declared value.
             <T as Config>::Currency::reserve(&who, reserve_fee + value)
-                .map_err(|_| Error::<T>::NotEnoughBalanceForReserve)?;
+                .map_err(|_| Error::<T>::InsufficientBalanceForReserve)?;
 
             Ok(packet)
         }
@@ -1218,11 +1217,11 @@ pub mod pallet {
                 .into_dispatch(ProgramId::from_origin(origin))
                 .into_stored();
 
-            let event = Event::MessageEnqueued {
+            let event = Event::MessageQueued {
                 id: dispatch.id(),
                 source: who,
                 destination: dispatch.destination(),
-                entry: Entry::Init,
+                entry: MessageEntry::Init,
             };
 
             QueueOf::<T>::queue(dispatch).map_err(|_| Error::<T>::MessagesStorageCorrupted)?;
@@ -1392,7 +1391,7 @@ pub mod pallet {
             let who = ensure_signed(origin)?;
 
             // Check if code exists.
-            let code = T::CodeStorage::get_code(code_id).ok_or(Error::<T>::CodeNotExists)?;
+            let code = T::CodeStorage::get_code(code_id).ok_or(Error::<T>::CodeDoesntExist)?;
 
             // Check `gas_limit` and `value`
             Self::check_gas_limit_and_value(gas_limit, value)?;
@@ -1456,13 +1455,13 @@ pub mod pallet {
                 // That's because destination can fail to be initialized, while this dispatch message is next
                 // in the queue.
                 CurrencyOf::<T>::reserve(&who, value.unique_saturated_into())
-                    .map_err(|_| Error::<T>::NotEnoughBalanceForReserve)?;
+                    .map_err(|_| Error::<T>::InsufficientBalanceForReserve)?;
 
                 let gas_limit_reserve = T::GasPrice::gas_price(gas_limit);
 
                 // First we reserve enough funds on the account to pay for `gas_limit`
                 CurrencyOf::<T>::reserve(&who, gas_limit_reserve)
-                    .map_err(|_| Error::<T>::NotEnoughBalanceForReserve)?;
+                    .map_err(|_| Error::<T>::InsufficientBalanceForReserve)?;
 
                 // # Safety
                 //
@@ -1473,11 +1472,11 @@ pub mod pallet {
 
                 let message = message.into_stored_dispatch(ProgramId::from_origin(origin));
 
-                Self::deposit_event(Event::MessageEnqueued {
+                Self::deposit_event(Event::MessageQueued {
                     id: message.id(),
                     source: who,
                     destination: message.destination(),
-                    entry: Entry::Handle,
+                    entry: MessageEntry::Handle,
                 });
 
                 QueueOf::<T>::queue(message).map_err(|_| Error::<T>::MessagesStorageCorrupted)?;
@@ -1492,7 +1491,7 @@ pub mod pallet {
                     value.unique_saturated_into(),
                     ExistenceRequirement::AllowDeath,
                 )
-                .map_err(|_| Error::<T>::NotEnoughBalanceForReserve)?;
+                .map_err(|_| Error::<T>::InsufficientBalanceForReserve)?;
 
                 Pallet::<T>::deposit_event(Event::UserMessageSent {
                     message,
@@ -1555,7 +1554,7 @@ pub mod pallet {
             // Note, that message is not guaranteed to be successfully executed,
             // that's why value is not immediately transferred.
             CurrencyOf::<T>::reserve(&origin, gas_limit_reserve + value)
-                .map_err(|_| Error::<T>::NotEnoughBalanceForReserve)?;
+                .map_err(|_| Error::<T>::InsufficientBalanceForReserve)?;
 
             // Creating reply message.
             let message = ReplyMessage::from_packet(
@@ -1580,11 +1579,11 @@ pub mod pallet {
             );
 
             // Pre-generating appropriate event to avoid dispatch cloning.
-            let event = Event::MessageEnqueued {
+            let event = Event::MessageQueued {
                 id: dispatch.id(),
                 source: origin,
                 destination: dispatch.destination(),
-                entry: Entry::Reply(mailboxed.id()),
+                entry: MessageEntry::Reply(mailboxed.id()),
             };
 
             // Queueing dispatch.

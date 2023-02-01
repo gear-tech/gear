@@ -1112,12 +1112,12 @@ fn upload_program_expected_failure() {
                 DEFAULT_GAS_LIMIT,
                 balance + 1
             ),
-            Error::<Test>::NotEnoughBalanceForReserve
+            Error::<Test>::InsufficientBalanceForReserve
         );
 
         assert_noop!(
             upload_program_default(LOW_BALANCE_USER, ProgramCodeKind::Default),
-            Error::<Test>::NotEnoughBalanceForReserve
+            Error::<Test>::InsufficientBalanceForReserve
         );
 
         // Gas limit is too high
@@ -1379,7 +1379,7 @@ fn send_message_expected_failure() {
 
         assert_noop!(
             call_default_message(program_id).dispatch(RuntimeOrigin::signed(LOW_BALANCE_USER)),
-            Error::<Test>::NotEnoughBalanceForReserve
+            Error::<Test>::InsufficientBalanceForReserve
         );
 
         let low_balance_user_balance = Balances::free_balance(LOW_BALANCE_USER);
@@ -2357,8 +2357,8 @@ fn init_message_logging_works() {
             run_to_block(next_block, None);
 
             let msg_id = match event {
-                Event::MessageEnqueued { id, entry, .. } => {
-                    if entry == Entry::Init {
+                Event::MessageQueued { id, entry, .. } => {
+                    if entry == MessageEntry::Init {
                         id
                     } else {
                         unreachable!("expect Event::InitMessageEnqueued")
@@ -2476,11 +2476,11 @@ fn events_logging_works() {
             let message_id = get_last_message_id();
 
             System::assert_last_event(
-                Event::MessageEnqueued {
+                Event::MessageQueued {
                     id: message_id,
                     source: USER_1,
                     destination: program_id,
-                    entry: Entry::Init,
+                    entry: MessageEntry::Init,
                 }
                 .into(),
             );
@@ -2509,11 +2509,11 @@ fn events_logging_works() {
             let message_id = get_last_message_id();
 
             System::assert_last_event(
-                Event::MessageEnqueued {
+                Event::MessageQueued {
                     id: message_id,
                     source: USER_1,
                     destination: program_id,
-                    entry: Entry::Handle,
+                    entry: MessageEntry::Handle,
                 }
                 .into(),
             );
@@ -2568,9 +2568,9 @@ fn send_reply_works() {
         };
 
         let actual_reply_message_id = match event {
-            Event::MessageEnqueued {
+            Event::MessageQueued {
                 id,
-                entry: Entry::Reply(_reply_to_id),
+                entry: MessageEntry::Reply(_reply_to_id),
                 ..
             } => id,
             _ => unreachable!("expect Event::DispatchMessageEnqueued"),
@@ -4421,7 +4421,7 @@ fn test_create_program_no_code_hash() {
                 RuntimeOrigin::signed(USER_1),
                 invalid_prog_code_kind.to_bytes(),
             ),
-            Error::<Test>::FailedToConstructProgram,
+            Error::<Test>::ProgramConstructFailed,
         );
 
         System::reset_events();
@@ -6603,7 +6603,7 @@ fn invalid_memory_page_count_rejected() {
                 RuntimeOrigin::signed(USER_1),
                 ProgramCodeKind::Custom(&wat).to_bytes(),
             ),
-            Error::<Test>::FailedToConstructProgram
+            Error::<Test>::ProgramConstructFailed
         );
 
         assert_noop!(
@@ -6615,7 +6615,7 @@ fn invalid_memory_page_count_rejected() {
                 1_000_000_000,
                 0,
             ),
-            Error::<Test>::FailedToConstructProgram
+            Error::<Test>::ProgramConstructFailed
         );
     });
 }
@@ -6657,12 +6657,12 @@ fn reject_incorrect_binary() {
                 RuntimeOrigin::signed(USER_1),
                 ProgramCodeKind::Custom(wat).to_bytes()
             ),
-            Error::<Test>::FailedToConstructProgram
+            Error::<Test>::ProgramConstructFailed
         );
 
         assert_noop!(
             upload_program_default(USER_1, ProgramCodeKind::Custom(wat)),
-            Error::<Test>::FailedToConstructProgram
+            Error::<Test>::ProgramConstructFailed
         );
     });
 }
@@ -8608,9 +8608,9 @@ mod utils {
             _ => unreachable!("Should be one Gear event"),
         };
 
-        if let Event::MessageEnqueued {
+        if let Event::MessageQueued {
             destination,
-            entry: Entry::Init,
+            entry: MessageEntry::Init,
             ..
         } = event
         {
@@ -8671,7 +8671,7 @@ mod utils {
                 }
             })
             .find_map(|e| match e {
-                Event::MessageEnqueued { id, .. } => Some(id),
+                Event::MessageQueued { id, .. } => Some(id),
                 Event::UserMessageSent { message, .. } => Some(message.id()),
                 _ => None,
             })
