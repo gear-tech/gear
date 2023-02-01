@@ -3,17 +3,17 @@ use gmeta::metawasm;
 use gstd::{exec, prelude::*};
 
 #[metawasm]
-pub trait Metawasm {
-    type State = Vec<Wallet>;
+pub mod metafuncs {
+    pub type State = Vec<Wallet>;
 
-    fn block_number(state: Self::State) -> u32 {
+    pub fn block_number(state: State) -> u32 {
         // TODO: allow state to be unused
         let _ = state;
 
         exec::block_height()
     }
 
-    fn block_timestamp(state: Self::State) -> u64 {
+    pub fn block_timestamp(state: State) -> u64 {
         // TODO: allow state to be unused
         let _ = state;
 
