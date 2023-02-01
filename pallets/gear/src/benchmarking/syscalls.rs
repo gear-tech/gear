@@ -1163,9 +1163,9 @@ where
 
     pub fn gr_error(r: u32) -> Result<Exec<T>, &'static str> {
         let status_code_offset = 1;
-        let error_offset = status_code_offset + 1024;
-        let error_len_offset = error_offset + size_of::<u32>() as u32;
+        let error_len_offset = status_code_offset + size_of::<u32>() as u32;
         let err_len_ptrs = Self::err_len_ptrs(r * API_BENCHMARK_BATCH_SIZE, error_len_offset);
+        let error_offset = err_len_ptrs.end;
 
         let code = WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
