@@ -177,10 +177,10 @@ where
                     if legit_error_2 == pallet_gear::Error::<Runtime>::InactiveProgram.into() => {}
                 legit_error_3
                     if legit_error_3
-                        == pallet_gear::Error::<Runtime>::NotEnoughBalanceForReserve.into() => {}
+                        == pallet_gear::Error::<Runtime>::InsufficientBalanceForReserve.into() => {}
                 legit_error_4
                     if legit_error_4
-                        == pallet_gear::Error::<Runtime>::FailedToConstructProgram.into() => {}
+                        == pallet_gear::Error::<Runtime>::ProgramConstructFailed.into() => {}
                 _ => panic!("{:?}", e),
             }
         }
