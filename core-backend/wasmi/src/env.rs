@@ -31,12 +31,11 @@ use core::{any::Any, convert::Infallible, fmt::Display};
 use gear_backend_common::{
     lazy_pages::{GlobalsAccessError, GlobalsAccessMod, GlobalsAccessor, GlobalsConfig},
     ActorSyscallFuncError, BackendExt, BackendExtError, BackendReport, Environment,
-    EnvironmentExecutionError, EnvironmentExecutionResult, GetGasAmount, TerminationReason,
+    EnvironmentExecutionError, EnvironmentExecutionResult, TerminationReason,
     STACK_END_EXPORT_NAME,
 };
 use gear_core::{
     env::Ext,
-    gas::GasAmount,
     memory::{HostPointer, PageU32Size, WasmPage},
     message::{DispatchKind, WasmEntry},
 };
@@ -64,19 +63,6 @@ pub enum WasmiEnvironmentError {
     WrongInjectedGas,
     #[display(fmt = "Allowance counter not found or has wrong type")]
     WrongInjectedAllowance,
-}
-
-#[derive(Debug, derive_more::Display, derive_more::From)]
-#[display(fmt = "{error}")]
-pub struct Error {
-    gas_amount: GasAmount,
-    error: WasmiEnvironmentError,
-}
-
-impl GetGasAmount for Error {
-    fn gas_amount(&self) -> GasAmount {
-        self.gas_amount.clone()
-    }
 }
 
 macro_rules! gas_amount {
@@ -147,13 +133,13 @@ impl<E: Ext + 'static> GlobalsAccessor for GlobalsAccessProvider<E> {
 
 impl<E, EP> Environment<EP> for WasmiEnvironment<E, EP>
 where
-    E: BackendExt + GetGasAmount + 'static,
+    E: BackendExt + 'static,
     E::Error: BackendExtError,
     EP: WasmEntry,
 {
     type Ext = E;
     type Memory = MemoryWrap<E>;
-    type Error = Error;
+    type Error = WasmiEnvironmentError;
 
     fn new(
         ext: Self::Ext,
@@ -171,12 +157,12 @@ where
         let mut linker: Linker<HostState<E>> = Linker::new();
 
         let memory_type = MemoryType::new(mem_size.raw(), None);
-        let memory = Memory::new(&mut store, memory_type)
-            .map_err(|e| Environment((ext.gas_amount(), CreateEnvMemory(e)).into()))?;
+        let memory =
+            Memory::new(&mut store, memory_type).map_err(|e| Environment(CreateEnvMemory(e)))?;
 
         linker
             .define("env", "memory", memory)
-            .map_err(|e| Environment((ext.gas_amount(), Linking(e)).into()))?;
+            .map_err(|e| Environment(Linking(e)))?;
 
         let entry_forbidden = entry_point
             .try_into_kind()
@@ -195,11 +181,11 @@ where
         for (name, function) in functions {
             linker
                 .define("env", name.to_str(), function)
-                .map_err(|e| Environment((ext.gas_amount(), Linking(e)).into()))?;
+                .map_err(|e| Environment(Linking(e)))?;
         }
 
         let module = Module::new(store.engine(), &mut &binary[..])
-            .map_err(|e| Environment((ext.gas_amount(), ModuleInstantiation(e)).into()))?;
+            .map_err(|e| Environment(ModuleInstantiation(e)))?;
 
         let runtime = State {
             ext,
@@ -210,11 +196,11 @@ where
 
         let instance_pre = linker
             .instantiate(&mut store, &module)
-            .map_err(|e| Environment((gas_amount!(store), ModuleInstantiation(e)).into()))?;
+            .map_err(|e| Environment(ModuleInstantiation(e)))?;
 
         let instance = instance_pre
             .ensure_no_start(&mut store)
-            .map_err(|e| Environment((gas_amount!(store), ModuleInstantiation(e.into())).into()))?;
+            .map_err(|e| Environment(ModuleInstantiation(e.into())))?;
 
         Ok(Self {
             instance,
@@ -257,7 +243,7 @@ where
             .get_export(&store, GLOBAL_NAME_GAS)
             .and_then(Extern::into_global)
             .and_then(|g| g.set(&mut store, Value::I64(gas as i64)).map(|_| g).ok())
-            .ok_or(Environment((gas_amount!(store), WrongInjectedGas).into()))?;
+            .ok_or(Environment(WrongInjectedGas))?;
 
         let gear_allowance = instance
             .get_export(&store, GLOBAL_NAME_ALLOWANCE)
@@ -267,9 +253,7 @@ where
                     .map(|_| g)
                     .ok()
             })
-            .ok_or(Environment(
-                (gas_amount!(store), WrongInjectedAllowance).into(),
-            ))?;
+            .ok_or(Environment(WrongInjectedAllowance))?;
 
         let mut globals_provider = GlobalsAccessProvider {
             instance,
@@ -308,24 +292,12 @@ where
             let func = instance
                 .get_export(&store, entry_point.as_entry())
                 .and_then(Extern::into_func)
-                .ok_or({
-                    Environment(
-                        (
-                            gas_amount!(store),
-                            GetWasmExports(entry_point.as_entry().to_string()),
-                        )
-                            .into(),
-                    )
-                })?;
+                .ok_or(Environment(GetWasmExports(
+                    entry_point.as_entry().to_string(),
+                )))?;
 
             let entry_func = func.typed::<(), (), _>(&mut store).map_err(|_| {
-                Environment(
-                    (
-                        gas_amount!(store),
-                        EntryPointWrongType(entry_point.as_entry().to_string()),
-                    )
-                        .into(),
-                )
+                Environment(EntryPointWrongType(entry_point.as_entry().to_string()))
             })?;
 
             let store_option = &mut globals_provider_dyn_ref
@@ -353,13 +325,11 @@ where
         let gas = gear_gas
             .get(&store)
             .try_into::<i64>()
-            .ok_or(Environment((gas_amount!(store), WrongInjectedGas).into()))?;
+            .ok_or(Environment(WrongInjectedGas))?;
         let allowance = gear_allowance
             .get(&store)
             .try_into::<i64>()
-            .ok_or(Environment(
-                (gas_amount!(store), WrongInjectedAllowance).into(),
-            ))?;
+            .ok_or(Environment(WrongInjectedAllowance))?;
 
         let state = store
             .state_mut()

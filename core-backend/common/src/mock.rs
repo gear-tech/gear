@@ -17,8 +17,8 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    memory::OutOfMemoryAccessError, BackendExt, BackendExtError, ExtInfo, GetGasAmount,
-    SystemReservationContext, TerminationReason,
+    memory::OutOfMemoryAccessError, BackendExt, BackendExtError, ExtInfo, SystemReservationContext,
+    TerminationReason,
 };
 use alloc::{collections::BTreeSet, string::String};
 use codec::{Decode, Encode};
@@ -266,7 +266,7 @@ impl BackendExt for MockExt {
         })
     }
 
-    fn into_gas_amount(self) -> gear_core::gas::GasAmount {
+    fn gas_amount(&self) -> GasAmount {
         GasAmount::from(GasCounter::new(0))
     }
 
@@ -275,11 +275,5 @@ impl BackendExt for MockExt {
         _writes: &[MemoryInterval],
     ) -> Result<(), OutOfMemoryAccessError> {
         Ok(())
-    }
-}
-
-impl GetGasAmount for MockExt {
-    fn gas_amount(&self) -> GasAmount {
-        GasAmount::from(GasCounter::new(0))
     }
 }

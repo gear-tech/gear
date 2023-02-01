@@ -21,7 +21,7 @@ use core_processor::{Ext, ProcessorContext, ProcessorError, ProcessorExt};
 use gear_backend_common::{
     lazy_pages::{GlobalsConfig, LazyPagesWeights, Status},
     memory::OutOfMemoryAccessError,
-    BackendExt, ExtInfo, GetGasAmount,
+    BackendExt, ExtInfo,
 };
 use gear_core::{
     costs::RuntimeCosts,
@@ -56,8 +56,8 @@ impl BackendExt for LazyPagesExt {
         self.inner.into_ext_info_inner(memory, pages_for_data)
     }
 
-    fn into_gas_amount(self) -> GasAmount {
-        self.inner.context.gas_counter.into()
+    fn gas_amount(&self) -> GasAmount {
+        self.inner.context.gas_counter.clone().into()
     }
 
     fn pre_process_memory_accesses(
@@ -65,14 +65,6 @@ impl BackendExt for LazyPagesExt {
         writes: &[MemoryInterval],
     ) -> Result<(), OutOfMemoryAccessError> {
         lazy_pages::pre_process_memory_accesses(reads, writes)
-    }
-}
-
-impl GetGasAmount for LazyPagesExt {
-    fn gas_amount(&self) -> GasAmount {
-        let gas_counter = self.inner.context.gas_counter.clone();
-
-        gas_counter.into()
     }
 }
 

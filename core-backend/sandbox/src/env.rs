@@ -28,12 +28,11 @@ use core::{convert::Infallible, fmt::Display};
 use gear_backend_common::{
     lazy_pages::{GlobalsAccessMod, GlobalsConfig},
     ActorSyscallFuncError, BackendExt, BackendExtError, BackendReport, Environment,
-    EnvironmentExecutionError, EnvironmentExecutionResult, GetGasAmount, TerminationReason,
+    EnvironmentExecutionError, EnvironmentExecutionResult, TerminationReason,
     STACK_END_EXPORT_NAME,
 };
 use gear_core::{
     env::Ext,
-    gas::GasAmount,
     memory::{PageU32Size, WasmPage},
     message::{DispatchKind, WasmEntry},
 };
@@ -59,19 +58,6 @@ pub enum SandboxEnvironmentError {
     WrongInjectedGas,
     #[display(fmt = "Allowance counter not found or has wrong type")]
     WrongInjectedAllowance,
-}
-
-#[derive(Debug, derive_more::Display, derive_more::From)]
-#[display(fmt = "{error}")]
-pub struct Error {
-    gas_amount: GasAmount,
-    error: SandboxEnvironmentError,
-}
-
-impl GetGasAmount for Error {
-    fn gas_amount(&self) -> GasAmount {
-        self.gas_amount.clone()
-    }
 }
 
 /// Environment to run one module at a time providing Ext.
@@ -123,13 +109,13 @@ impl<E: Ext> From<EnvBuilder<E>> for EnvironmentDefinitionBuilder<Runtime<E>> {
 
 impl<E, EP> Environment<EP> for SandboxEnvironment<E, EP>
 where
-    E: BackendExt + GetGasAmount + 'static,
+    E: BackendExt + 'static,
     E::Error: BackendExtError,
     EP: WasmEntry,
 {
     type Ext = E;
     type Memory = MemoryWrap;
-    type Error = Error;
+    type Error = SandboxEnvironmentError;
 
     fn new(
         ext: Self::Ext,
@@ -210,7 +196,7 @@ where
 
         let memory: DefaultExecutorMemory = match SandboxMemory::new(mem_size.raw(), None) {
             Ok(mem) => mem,
-            Err(e) => return Err(Environment((ext.gas_amount(), CreateEnvMemory(e)).into())),
+            Err(e) => return Err(Environment(CreateEnvMemory(e))),
         };
 
         builder.add_memory(memory.clone());
@@ -246,9 +232,7 @@ where
                 entry_point,
             }),
             Err(sp_sandbox::Error::Execution) => Err(ModuleStart(runtime.ext.gas_amount())),
-            Err(e) => Err(Environment(
-                (runtime.ext.gas_amount(), ModuleInstantiation(e)).into(),
-            )),
+            Err(e) => Err(Environment(ModuleInstantiation(e))),
         }
     }
 
@@ -272,21 +256,21 @@ where
             .and_then(|global| global.as_i32())
             .map(|global| global as u32);
 
-        runtime.globals = instance.instance_globals().ok_or(Environment(
-            (runtime.ext.gas_amount(), GlobalsNotSupported).into(),
-        ))?;
+        runtime.globals = instance
+            .instance_globals()
+            .ok_or(Environment(GlobalsNotSupported))?;
 
         let (gas, allowance) = runtime.ext.counters();
 
         runtime
             .globals
             .set_global_val(GLOBAL_NAME_GAS, Value::I64(gas as i64))
-            .map_err(|_| Environment((runtime.ext.gas_amount(), WrongInjectedGas).into()))?;
+            .map_err(|_| Environment(WrongInjectedGas))?;
 
         runtime
             .globals
             .set_global_val(GLOBAL_NAME_ALLOWANCE, Value::I64(allowance as i64))
-            .map_err(|_| Environment((runtime.ext.gas_amount(), WrongInjectedAllowance).into()))?;
+            .map_err(|_| Environment(WrongInjectedAllowance))?;
 
         let globals_config = if cfg!(not(feature = "std")) {
             GlobalsConfig {
@@ -320,17 +304,13 @@ where
             .globals
             .get_global_val(GLOBAL_NAME_GAS)
             .and_then(runtime::as_i64)
-            .ok_or(Environment(
-                (runtime.ext.gas_amount(), WrongInjectedGas).into(),
-            ))?;
+            .ok_or(Environment(WrongInjectedGas))?;
 
         let allowance = runtime
             .globals
             .get_global_val(GLOBAL_NAME_ALLOWANCE)
             .and_then(runtime::as_i64)
-            .ok_or(Environment(
-                (runtime.ext.gas_amount(), WrongInjectedAllowance).into(),
-            ))?;
+            .ok_or(Environment(WrongInjectedAllowance))?;
 
         let Runtime {
             err: runtime_err,

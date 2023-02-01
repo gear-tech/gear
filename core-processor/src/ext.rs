@@ -26,8 +26,8 @@ use codec::{Decode, Encode};
 use gear_backend_common::{
     lazy_pages::{GlobalsConfig, LazyPagesWeights, Status},
     memory::OutOfMemoryAccessError,
-    BackendExt, BackendExtError, ExtInfo, GetGasAmount, SystemReservationContext,
-    TerminationReason, TrapExplanation,
+    BackendExt, BackendExtError, ExtInfo, SystemReservationContext, TerminationReason,
+    TrapExplanation,
 };
 use gear_core::{
     costs::{HostFnWeights, RuntimeCosts},
@@ -267,8 +267,8 @@ impl BackendExt for Ext {
         self.into_ext_info_inner(memory, pages_for_data)
     }
 
-    fn into_gas_amount(self) -> GasAmount {
-        self.context.gas_counter.into()
+    fn gas_amount(&self) -> GasAmount {
+        self.context.gas_counter.clone().into()
     }
 
     fn pre_process_memory_accesses(
@@ -276,14 +276,6 @@ impl BackendExt for Ext {
         _writes: &[MemoryInterval],
     ) -> Result<(), OutOfMemoryAccessError> {
         Ok(())
-    }
-}
-
-impl GetGasAmount for Ext {
-    fn gas_amount(&self) -> GasAmount {
-        let gas_counter = self.context.gas_counter.clone();
-
-        gas_counter.into()
     }
 }
 

@@ -128,7 +128,7 @@ pub struct ExtInfo {
 pub trait BackendExt: EnvExt {
     fn into_ext_info(self, memory: &impl Memory) -> Result<ExtInfo, MemoryError>;
 
-    fn into_gas_amount(self) -> GasAmount;
+    fn gas_amount(&self) -> GasAmount;
 
     /// Pre-process memory access if need.
     fn pre_process_memory_accesses(
@@ -198,10 +198,6 @@ where
             }
         }
     }
-}
-
-pub trait GetGasAmount {
-    fn gas_amount(&self) -> GasAmount;
 }
 
 pub struct BackendReport<MemWrap, Ext>
@@ -293,7 +289,7 @@ where
     type Memory: Memory;
 
     /// An error issues in environment.
-    type Error: Debug + Display + GetGasAmount;
+    type Error: Debug + Display;
 
     /// 1) Instantiates wasm binary.
     /// 2) Creates wasm memory
