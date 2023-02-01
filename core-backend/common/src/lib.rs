@@ -62,7 +62,7 @@ use lazy_pages::GlobalsConfig;
 use memory::OutOfMemoryAccessError;
 use scale_info::TypeInfo;
 
-// '__gear_stack_end' export is inserted in wasm-proc or wasm-builder
+// '__gear_stack_end' export is inserted by wasm-proc or wasm-builder
 pub const STACK_END_EXPORT_NAME: &str = "__gear_stack_end";
 
 #[derive(Decode, Encode, Debug, PartialEq, Eq, PartialOrd, Ord, Clone, derive_more::From)]
