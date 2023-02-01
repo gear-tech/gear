@@ -6,7 +6,7 @@ use parity_scale_codec::Decode;
 use std::{
     env, fs,
     io::Write,
-    path::PathBuf,
+    path::{Path, PathBuf},
     process::{Command, Stdio},
 };
 use substrate_wasm_builder::WasmBuilder;
@@ -37,10 +37,9 @@ impl Runtime {
     // So here we just build the wasm libraries from the runtimes diectly,
     // it will skip building the runtimes as native libraries and the builts
     // are shared with other workspace members.
-    fn compile_runtime(&self) {
-        let runtime = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .parent()
-            .expect("Invalid manifest directory.")
+    fn compile_runtime(&self, root: impl AsRef<Path>) {
+        let runtime = root
+            .as_ref()
             .join(format!("runtime/{}/Cargo.toml", self.as_str()));
 
         WasmBuilder::new()
@@ -58,10 +57,11 @@ impl Runtime {
         use sc_executor_common::runtime_blob::RuntimeBlob;
 
         // 1. Get the runtime binary.
-        let profile = env::var("PROFILE").unwrap();
-        let path = PathBuf::from(format!(
-            "{}/../target/{}/wbuild/{}-runtime/{}_runtime.compact.compressed.wasm",
-            env!("CARGO_MANIFEST_DIR"),
+        let profile = env::var("PROFILE").expect("Unable to get build profile.");
+        let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        let root = manifest_dir.parent().expect("Invalid manifest directory.");
+        let path = root.join(format!(
+            "target/{}/wbuild/{}-runtime/{}_runtime.compact.compressed.wasm",
             profile,
             self.as_str(),
             self.as_str(),
@@ -69,7 +69,7 @@ impl Runtime {
 
         // 2. Compile the runtime if it has not been compiled.
         if !path.exists() {
-            self.compile_runtime();
+            self.compile_runtime(&root);
         }
 
         // 3. Create wasm executor.
@@ -118,8 +118,9 @@ fn write_api(api: &str, path: PathBuf) {
         .unwrap();
 
     // Pipe API to rustfmt.
-    write!(code.stdin.as_mut().unwrap(), "{api}").unwrap();
-    let output = code.wait_with_output().unwrap();
+    write!(code.stdin.as_mut().unwrap(), "{api}")
+        .expect("Failed to pipe generated code to rustfmt");
+    let output = code.wait_with_output().expect("Broken pipe");
 
     // Write API to `OUT_DIR`.
     fs::write(&path, &output.stdout).expect(&format!("Couldn't write to file: {:?}", path));
