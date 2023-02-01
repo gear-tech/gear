@@ -140,7 +140,7 @@ impl Ext for MockExt {
     fn charge_error(&mut self) -> Result<(), Self::Error> {
         Ok(())
     }
-    fn read(&mut self) -> Result<&[u8], Self::Error> {
+    fn read(&mut self, _at: u32, _len: u32) -> Result<&[u8], Self::Error> {
         Ok(&[])
     }
     fn size(&mut self) -> Result<usize, Self::Error> {

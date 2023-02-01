@@ -24,7 +24,7 @@ use sp_core::{crypto::UncheckedInto, sr25519};
 use sp_finality_grandpa::AuthorityId as GrandpaId;
 use vara_runtime::{
     BabeConfig, BalancesConfig, GenesisConfig, GrandpaConfig, SessionConfig, SessionKeys,
-    SudoConfig, SystemConfig, WASM_BINARY,
+    SudoConfig, SystemConfig, VestingConfig, WASM_BINARY,
 };
 
 // The URL for the telemetry server.
@@ -84,7 +84,7 @@ pub fn development_config() -> Result<ChainSpec, String> {
 }
 
 pub fn local_testnet_config() -> Result<ChainSpec, String> {
-    let wasm_binary = WASM_BINARY.ok_or_else(|| "Development wasm not available".to_string())?;
+    let wasm_binary = WASM_BINARY.ok_or_else(|| "Local test wasm not available".to_string())?;
 
     Ok(ChainSpec::from_genesis(
         // Name
@@ -269,5 +269,6 @@ fn testnet_genesis(
             key: Some(root_key),
         },
         transaction_payment: Default::default(),
+        vesting: VestingConfig { vesting: vec![] },
     }
 }

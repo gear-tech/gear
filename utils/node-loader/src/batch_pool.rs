@@ -6,7 +6,7 @@ use anyhow::{anyhow, Result};
 use api::GearApiFacade;
 use batch::{Batch, BatchWithSeed};
 use context::Context;
-use futures::{stream::FuturesUnordered, StreamExt};
+use futures::{stream::FuturesUnordered, Future, StreamExt};
 use gclient::{Error as GClientError, EventProcessor, GearApi, Result as GClientResult};
 use gear_core::ids::{MessageId, ProgramId};
 use generators::{BatchGenerator, RuntimeSettings};
@@ -16,6 +16,7 @@ use report::{BatchRunReport, Report};
 use std::{
     collections::{BTreeMap, BTreeSet},
     marker::PhantomData,
+    time::Duration,
 };
 use tracing::instrument;
 
@@ -52,12 +53,15 @@ impl<Rng: LoaderRng> BatchPool<Rng> {
         let mut batch_pool = Self::new(api.clone(), params.batch_size, params.workers);
 
         let run_pool_task = batch_pool.run_pool_loop(params.loader_seed, params.code_seed_type);
-        let inspect_crash_task = inspect_crash_events(api.into_gear_api());
+        let inspect_crash_task = inspect_crash_events(api.clone().into_gear_api());
+        let renew_balance_task =
+            create_renew_balance_task(api.into_gear_api(), params.root).await?;
 
         let run_result = tokio::select! {
             r = run_pool_task => r,
             // TODO 1876 spawn a task
             r = inspect_crash_task => r,
+            r = renew_balance_task => r,
         };
 
         if let Err(ref e) = run_result {
@@ -250,4 +254,58 @@ async fn inspect_crash_events(api: GearApi) -> Result<()> {
     tracing::info!("{crash_err} at block hash {crash_block_hash:?}");
 
     Err(crash_err.into())
+}
+
+async fn create_renew_balance_task(
+    user_api: GearApi,
+    root: String,
+) -> Result<impl Future<Output = Result<()>>> {
+    let user_address = user_api.account_id().clone();
+    let user_target_balance = user_api.free_balance(&user_address).await?;
+
+    let root_api = user_api.with(root)?;
+    let root_address = root_api.account_id().clone();
+    let root_target_balance = root_api.free_balance(&root_address).await?;
+
+    // every 100 blocks renew balance
+    let duration_millis = root_api.expected_block_time()? * 100;
+
+    tracing::info!(
+        "Renewing balances every {} seconds, user target balance is {}, authority target balance is {}",
+        duration_millis / 1000,
+        user_target_balance,
+        root_target_balance
+    );
+
+    // Every `duration_millis` milliseconds updates authority and user (batch sender) balances
+    // to target values.
+    Ok(async move {
+        loop {
+            tokio::time::sleep(Duration::from_millis(duration_millis)).await;
+
+            let user_balance_demand = {
+                let current = root_api.free_balance(&user_address).await?;
+                user_target_balance - current
+            };
+
+            // Calling `set_balance` for `user` is potentially dangerous, because getting actual
+            // reserved balance is a complicated task, as reserved balance is changed by another
+            // task, which loads the node.
+            //
+            // Reserved balance mustn't be changed as it can cause runtime panics within reserving
+            // or unreserving funds logic.
+            root_api
+                .set_balance(
+                    root_address.clone(),
+                    root_target_balance + user_balance_demand,
+                    0,
+                )
+                .await?;
+            root_api
+                .transfer(ProgramId::from(user_address.as_ref()), user_balance_demand)
+                .await?;
+
+            tracing::info!("Renewed balances!");
+        }
+    })
 }

@@ -430,17 +430,13 @@ where
         at: u32,
         len: u32,
     ) -> Result<&'_ [u8], FuncError<<E as Ext>::Error>> {
-        let msg = ext.read().map_err(FuncError::Core)?;
+        let msg = ext.read(at, len).map_err(FuncError::Core)?;
 
-        let last_idx = at
-            .checked_add(len)
-            .ok_or_else(|| FuncError::ReadLenOverflow(at, len))?;
+        // 'at' and 'len' correct and saturation checked in Ext::read
+        debug_assert!(at.checked_add(len).is_some());
+        debug_assert!((at + len) as usize == msg.len());
 
-        if last_idx as usize > msg.len() {
-            return Err(FuncError::ReadWrongRange(at..last_idx, msg.len() as u32));
-        }
-
-        Ok(&msg[at as usize..last_idx as usize])
+        Ok(msg)
     }
 
     pub fn read(store: &mut Store<HostState<E>>, forbidden: bool, memory: WasmiMemory) -> Func {

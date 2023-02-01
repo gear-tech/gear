@@ -218,7 +218,7 @@ where
     /// NOTE: By calling this function we can't differ whether `None` returned, because
     /// program with `id` doesn't exist or it's terminated
     pub fn get_actor(&self, id: ProgramId) -> Option<Actor> {
-        let active: ActiveProgram = ProgramStorageOf::<T>::get_program(id)?.try_into().ok()?;
+        let active: ActiveProgram = ProgramStorageOf::<T>::get_program(id)?.0.try_into().ok()?;
         let code_id = CodeId::from_origin(active.code_hash);
 
         let balance =
@@ -240,7 +240,13 @@ where
         })
     }
 
-    pub fn set_program(&self, program_id: ProgramId, code_info: &CodeInfo, message_id: MessageId) {
+    pub fn set_program(
+        &self,
+        program_id: ProgramId,
+        code_info: &CodeInfo,
+        message_id: MessageId,
+        block_number: <T as frame_system::Config>::BlockNumber,
+    ) {
         // Program can be added to the storage only with code, which is done in
         // `submit_program` or `upload_code` extrinsic.
         //
@@ -261,13 +267,13 @@ where
             gas_reservation_map: Default::default(),
         };
 
-        ProgramStorageOf::<T>::add_program(program_id, program)
+        ProgramStorageOf::<T>::add_program(program_id, program, block_number)
             .expect("set_program shouldn't be called for the existing id");
     }
 
     fn clean_reservation_tasks(&mut self, program_id: ProgramId, maybe_inactive: bool) {
         let maybe_active_program = ProgramStorageOf::<T>::get_program(program_id)
-            .and_then(|p| ActiveProgram::try_from(p).ok());
+            .and_then(|(p, _bn)| ActiveProgram::try_from(p).ok());
 
         if maybe_active_program.is_none() && maybe_inactive {
             return;
@@ -295,7 +301,7 @@ where
         program_id: ProgramId,
         reservation_id: ReservationId,
     ) -> GasReservationSlot {
-        let slot = ProgramStorageOf::<T>::update_active_program(program_id, |p| {
+        let slot = ProgramStorageOf::<T>::update_active_program(program_id, |p, _bn| {
             p.gas_reservation_map
                 .remove(&reservation_id)
                 .unwrap_or_else(|| {

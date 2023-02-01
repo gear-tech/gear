@@ -142,7 +142,7 @@ pub struct ExtInfo {
     pub gas_amount: GasAmount,
     pub gas_reserver: GasReserver,
     pub system_reservation_context: SystemReservationContext,
-    pub allocations: Option<BTreeSet<WasmPage>>,
+    pub allocations: BTreeSet<WasmPage>,
     pub pages_data: BTreeMap<GearPage, PageBuf>,
     pub generated_dispatches: Vec<(Dispatch, u32, Option<ReservationId>)>,
     pub awakening: Vec<(MessageId, u32)>,

@@ -260,8 +260,8 @@ impl EnvExt for LazyPagesExt {
         self.inner.charge_error()
     }
 
-    fn read(&mut self) -> Result<&[u8], Self::Error> {
-        self.inner.read()
+    fn read(&mut self, at: u32, len: u32) -> Result<&[u8], Self::Error> {
+        self.inner.read(at, len)
     }
 
     fn size(&mut self) -> Result<usize, Self::Error> {

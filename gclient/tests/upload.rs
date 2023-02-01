@@ -77,7 +77,7 @@ async fn upload_programs_and_check(
     );
 
     // Check no runtime panic occurred
-    assert!(!api.queue_processing_stalled(&mut listener).await?);
+    assert!(!api.queue_processing_stalled().await?);
 
     Ok(())
 }

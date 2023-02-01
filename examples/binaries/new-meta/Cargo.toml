@@ -12,6 +12,7 @@ gstd = { path = "../../../gstd", features = ["debug"] }
 codec = { package = "parity-scale-codec", version = "3.1.2", default-features = false }
 demo-meta-state-v1 = { path = "state-v1", default-features = false, optional = true }
 demo-meta-state-v2 = { path = "state-v2", default-features = false, optional = true }
+demo-meta-state-v3 = { path = "state-v3", default-features = false, optional = true }
 
 [build-dependencies]
 demo-meta-io = { path = "io" }
@@ -22,5 +23,6 @@ default = ["std"]
 std = [
     "demo-meta-state-v1/std",
     "demo-meta-state-v2/std",
+    "demo-meta-state-v3/std",
     "codec/std",
 ]
