@@ -231,7 +231,7 @@ where
                 let (random, bn) = T::Randomness::random(dispatch_id.as_ref());
                 let origin = ProgramId::from_origin(source);
 
-                core_processor::process::<Ext, ExecutionEnvironment>(
+                core_processor::process::<ExecutionEnvironment>(
                     &block_config,
                     (context, code, balance, origin).into(),
                     (random.encode(), bn.unique_saturated_into()),
@@ -381,7 +381,7 @@ where
             timestamp: <pallet_timestamp::Pallet<T>>::get().unique_saturated_into(),
         };
 
-        core_processor::informational::execute_for_reply::<Ext, ExecutionEnvironment<String>, String>(
+        core_processor::informational::execute_for_reply::<ExecutionEnvironment<String>, String>(
             function.into(),
             instrumented_code,
             None,
@@ -412,7 +412,7 @@ where
             timestamp: <pallet_timestamp::Pallet<T>>::get().unique_saturated_into(),
         };
 
-        core_processor::informational::execute_for_reply::<Ext, ExecutionEnvironment<String>, String>(
+        core_processor::informational::execute_for_reply::<ExecutionEnvironment<String>, String>(
             String::from("state"),
             instrumented_code,
             program_pages,
@@ -443,7 +443,7 @@ where
             timestamp: <pallet_timestamp::Pallet<T>>::get().unique_saturated_into(),
         };
 
-        core_processor::informational::execute_for_reply::<Ext, ExecutionEnvironment<String>, String>(
+        core_processor::informational::execute_for_reply::<ExecutionEnvironment<String>, String>(
             String::from("metahash"),
             instrumented_code,
             program_pages,
