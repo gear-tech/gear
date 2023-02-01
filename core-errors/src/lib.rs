@@ -188,23 +188,10 @@ pub enum MemoryError {
     IncorrectAllocationsSetOrMemSize,
 }
 
-/// Execution error.
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, derive_more::Display)]
+/// Reservation error.
+#[derive(Debug, Clone, Copy, Eq, PartialEq, PartialOrd, Ord, Hash, derive_more::Display)]
 #[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo))]
-pub enum ExecutionError {
-    // TODO: remove some errors in #2199
-    /// An error occurs in attempt to charge more gas than available during execution.
-    #[display(fmt = "Not enough gas to continue execution")]
-    GasLimitExceeded,
-    /// An error occurs in attempt to refund more gas than burned one.
-    #[display(fmt = "Too many gas refunded")]
-    TooManyGasAdded,
-    /// An error occurs in attempt to call forbidden sys-call.
-    #[display(fmt = "Unable to call a forbidden function")]
-    ForbiddenFunction,
-    /// An error occurs in attempt to parse invalid string in `gr_debug` sys-call.
-    #[display(fmt = "Invalid debug string passed in `gr_debug` sys-call")]
-    InvalidDebugString,
+pub enum ReservationError {
     /// An error occurs in attempt to unreserve gas with non-existing reservation ID.
     #[display(fmt = "Invalid reservation ID")]
     InvalidReservationId,
@@ -223,6 +210,25 @@ pub enum ExecutionError {
     /// An error occurs in attempt to reserve zero gas for the system.
     #[display(fmt = "System reservation amount cannot be zero")]
     ZeroSystemReservationAmount,
+}
+
+/// Execution error.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, derive_more::Display)]
+#[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo))]
+pub enum ExecutionError {
+    // TODO: remove some errors in #2199
+    /// An error occurs in attempt to charge more gas than available during execution.
+    #[display(fmt = "Not enough gas to continue execution")]
+    GasLimitExceeded,
+    /// An error occurs in attempt to refund more gas than burned one.
+    #[display(fmt = "Too many gas refunded")]
+    TooManyGasAdded,
+    /// An error occurs in attempt to call forbidden sys-call.
+    #[display(fmt = "Unable to call a forbidden function")]
+    ForbiddenFunction,
+    /// An error occurs in attempt to parse invalid string in `gr_debug` sys-call.
+    #[display(fmt = "Invalid debug string passed in `gr_debug` sys-call")]
+    InvalidDebugString,
 }
 
 /// An error occurred in API.
@@ -259,6 +265,10 @@ pub enum ExtError {
     /// Waiting error.
     #[display(fmt = "Waiting error: {_0}")]
     Wait(WaitError),
+
+    /// Reservation error.
+    #[display(fmt = "Reservation error: {_0}")]
+    Reservation(ReservationError),
 
     /// Execution error.
     #[display(fmt = "Execution error: {_0}")]

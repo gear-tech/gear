@@ -43,7 +43,9 @@ use gear_core::{
     },
     reservation::GasReserver,
 };
-use gear_core_errors::{CoreError, ExecutionError, ExtError, MemoryError, MessageError, WaitError};
+use gear_core_errors::{
+    CoreError, ExecutionError, ExtError, MemoryError, MessageError, ReservationError, WaitError,
+};
 use gear_wasm_instrument::syscalls::SysCallName;
 
 /// Processor context.
@@ -142,6 +144,12 @@ impl From<MemoryError> for ProcessorError {
 impl From<WaitError> for ProcessorError {
     fn from(err: WaitError) -> Self {
         Self::Core(ExtError::Wait(err))
+    }
+}
+
+impl From<ReservationError> for ProcessorError {
+    fn from(err: ReservationError) -> Self {
+        Self::Core(ExtError::Reservation(err))
     }
 }
 
@@ -695,18 +703,18 @@ impl EnvExt for Ext {
         self.charge_gas(self.context.message_context.settings().reservation_fee())?;
 
         if amount == 0 {
-            return Err(ExecutionError::ZeroReservationAmount.into());
+            return Err(ReservationError::ZeroReservationAmount.into());
         }
 
         if duration == 0 {
-            return Err(ExecutionError::ZeroReservationDuration.into());
+            return Err(ReservationError::ZeroReservationDuration.into());
         }
 
         let reserve = u64::from(self.context.reserve_for.saturating_add(duration))
             .saturating_mul(self.context.reservation);
         let reduce_amount = amount.saturating_add(reserve);
         if self.context.gas_counter.reduce(reduce_amount) == ChargeResult::NotEnough {
-            return Err(ExecutionError::InsufficientGasForReservation.into());
+            return Err(ReservationError::InsufficientGasForReservation.into());
         }
 
         let id = self.context.gas_reserver.reserve(amount, duration)?;
@@ -735,11 +743,11 @@ impl EnvExt for Ext {
 
         // TODO: use `NonZeroU64` after issue #1838 is fixed
         if amount == 0 {
-            return Err(ExecutionError::ZeroSystemReservationAmount.into());
+            return Err(ReservationError::ZeroSystemReservationAmount.into());
         }
 
         if self.context.gas_counter.reduce(amount) == ChargeResult::NotEnough {
-            return Err(ExecutionError::InsufficientGasForReservation.into());
+            return Err(ReservationError::InsufficientGasForReservation.into());
         }
 
         let reservation = &mut self.context.system_reservation;
