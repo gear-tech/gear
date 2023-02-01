@@ -522,6 +522,7 @@ pub struct AllocationsContext {
 }
 
 /// Before and after memory grow actions.
+#[must_use]
 pub trait GrowHandler {
     /// Before grow action
     fn before_grow_action(mem: &mut impl Memory) -> Self;
