@@ -96,12 +96,12 @@ impl ProcessorExt for LazyPagesExt {
     }
 }
 
-struct GrowHandlerLazy {
+struct LazyGrowHandler {
     old_mem_addr: Option<u64>,
     old_mem_size: WasmPage,
 }
 
-impl GrowHandler for GrowHandlerLazy {
+impl GrowHandler for LazyGrowHandler {
     fn before_grow_action(mem: &mut impl Memory) -> Self {
         // New pages allocation may change wasm memory buffer location.
         // So we remove protections from lazy-pages
@@ -113,6 +113,7 @@ impl GrowHandler for GrowHandlerLazy {
             old_mem_size: mem.size(),
         }
     }
+
     fn after_grow_action(self, mem: &mut impl Memory) -> Result<(), MemoryError> {
         // Add new allocations to lazy pages.
         // Protect all lazy pages including new allocations.
@@ -137,7 +138,7 @@ impl EnvExt for LazyPagesExt {
         pages_num: WasmPage,
         mem: &mut impl Memory,
     ) -> Result<WasmPage, Self::Error> {
-        self.inner.alloc_inner::<GrowHandlerLazy>(pages_num, mem)
+        self.inner.alloc_inner::<LazyGrowHandler>(pages_num, mem)
     }
 
     fn block_height(&mut self) -> Result<u32, Self::Error> {
