@@ -44,7 +44,7 @@ impl Runtime {
 
         WasmBuilder::new()
             .with_project(&runtime)
-            .expect(&format!("Failed to locate wasm project {:?}", runtime))
+            .unwrap_or_else(|_| panic!("Failed to locate wasm project {runtime:?}"))
             .export_heap_base()
             .import_memory()
             .build()
@@ -69,7 +69,7 @@ impl Runtime {
 
         // 2. Compile the runtime if it has not been compiled.
         if !path.exists() {
-            self.compile_runtime(&root);
+            self.compile_runtime(root);
         }
 
         // 3. Create wasm executor.
@@ -123,7 +123,8 @@ fn write_api(api: &str, path: PathBuf) {
     let output = code.wait_with_output().expect("Broken pipe");
 
     // Write API to `OUT_DIR`.
-    fs::write(&path, &output.stdout).expect(&format!("Couldn't write to file: {:?}", path));
+    fs::write(&path, output.stdout)
+        .unwrap_or_else(|_| panic!("Couldn't write API to file: {path:?}"));
 }
 
 /// Update runtime api.
