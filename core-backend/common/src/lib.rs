@@ -276,8 +276,10 @@ impl<Env: Display, PrepMem: Display> EnvironmentExecutionError<Env, PrepMem> {
     }
 }
 
+type EnvironmentBackendReport<Env, EP> =
+    BackendReport<<Env as Environment<EP>>::Memory, <Env as Environment<EP>>::Ext>;
 pub type EnvironmentExecutionResult<T, Env, EP> = Result<
-    BackendReport<<Env as Environment<EP>>::Memory, <Env as Environment<EP>>::Ext>,
+    EnvironmentBackendReport<Env, EP>,
     EnvironmentExecutionError<<Env as Environment<EP>>::Error, T>,
 >;
 
