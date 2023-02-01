@@ -159,7 +159,6 @@ where
             .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
 
         // Charge gas for message save
-        debug_assert!(stored_bn != 0);
         Pallet::<T>::charge_gas_for_dispatch_stash_hold(message.id(), stored_bn);
 
         Pallet::<T>::send_user_message_after_delay(message, to_mailbox);

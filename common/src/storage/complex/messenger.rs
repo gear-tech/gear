@@ -165,10 +165,9 @@ pub trait Messenger {
             Key = Self::WaitlistFirstKey,
         >;
 
-    // TODO: Change u64 with BlockNumber type
     type DispatchStash: MapStorage<
         Key = Self::DispatchStashKey,
-        Value = (Self::QueuedDispatch, u64),
+        Value = (Self::QueuedDispatch, Self::BlockNumber),
     >;
 
     /// Resets all related to messenger storages.

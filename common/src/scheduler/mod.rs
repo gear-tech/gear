@@ -100,6 +100,6 @@ pub trait SchedulingCostsPerBlock {
     /// Cost for reservation holding.
     fn reservation() -> Self::Cost;
     /// Cost for storing message in dispatch stash.
-    /// Everything sent delayed goes into dispatch stash
+    /// Everything sent delayed goes into dispatch stash.
     fn dispatch_stash() -> Self::Cost;
 }

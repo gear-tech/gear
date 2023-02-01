@@ -330,16 +330,17 @@ where
 
     pub(crate) fn charge_gas_for_dispatch_stash_hold(
         id: impl Into<GasNodeIdOf<GasHandlerOf<T>>>,
-        stored_bn: u64,
+        stored_bn: BlockNumberFor<T>,
     ) {
-        let current_bn: u64 = Self::block_number().unique_saturated_into();
+        let current_bn = Self::block_number();
 
         let delayed_block_amount = current_bn.saturating_sub(stored_bn);
 
         // cost_of_block * (delay + reserve_for)
-        let gas_amount = delayed_block_amount
-            .saturating_add(CostsPerBlockOf::<T>::reserve_for().unique_saturated_into())
-            .saturating_mul(CostsPerBlockOf::<T>::dispatch_stash());
+        let blocks_to_charge: u64 = delayed_block_amount
+            .saturating_add(CostsPerBlockOf::<T>::reserve_for())
+            .unique_saturated_into();
+        let gas_amount = blocks_to_charge.saturating_mul(CostsPerBlockOf::<T>::dispatch_stash());
 
         // Spending gas
         debug_assert!(!gas_amount.is_zero());
@@ -718,7 +719,7 @@ where
         let message_id = dispatch.id();
 
         // Add block number of insertation
-        let block_number: u64 = Self::block_number().unique_saturated_into();
+        let block_number = Self::block_number();
 
         // Adding message into the stash.
         DispatchStashOf::<T>::insert(message_id, (dispatch.into_stored(), block_number));
