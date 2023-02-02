@@ -18,7 +18,10 @@
 
 use core::convert::TryInto;
 
-use crate::{manager::ExtManager, Config, DispatchStashOf, Event, GasHandlerOf, Pallet, QueueOf};
+use crate::{
+    manager::ExtManager, Config, CostsPerBlockOf, DispatchStashOf, Event, GasHandlerOf, Pallet,
+    QueueOf,
+};
 use alloc::string::ToString;
 use common::{
     event::{
@@ -141,7 +144,17 @@ where
             .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
 
         // Charging locked gas for holding in dispatch stash
-        Pallet::<T>::charge_gas_for_dispatch_stash_hold(dispatch.id(), stored_bn);
+        // Charge gas for message save
+        let current_bn = Pallet::<T>::block_number();
+        let hold_interval = Interval {
+            start: stored_bn,
+            finish: current_bn,
+        };
+        Pallet::<T>::charge_for_hold(
+            dispatch.id(),
+            hold_interval,
+            CostsPerBlockOf::<T>::dispatch_stash(),
+        );
 
         QueueOf::<T>::queue(dispatch)
             .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e));
@@ -159,7 +172,16 @@ where
             .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
 
         // Charge gas for message save
-        Pallet::<T>::charge_gas_for_dispatch_stash_hold(message.id(), stored_bn);
+        let current_bn = Pallet::<T>::block_number();
+        let hold_interval = Interval {
+            start: stored_bn,
+            finish: current_bn,
+        };
+        Pallet::<T>::charge_for_hold(
+            message.id(),
+            hold_interval,
+            CostsPerBlockOf::<T>::dispatch_stash(),
+        );
 
         Pallet::<T>::send_user_message_after_delay(message, to_mailbox);
     }

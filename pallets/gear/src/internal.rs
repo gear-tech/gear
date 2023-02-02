@@ -328,27 +328,6 @@ where
         }
     }
 
-    pub(crate) fn charge_gas_for_dispatch_stash_hold(
-        id: impl Into<GasNodeIdOf<GasHandlerOf<T>>>,
-        stored_bn: BlockNumberFor<T>,
-    ) {
-        let current_bn = Self::block_number();
-
-        let delayed_block_amount = current_bn.saturating_sub(stored_bn);
-
-        // cost_of_block * (delay + reserve_for)
-        // `HoldBound` cost builder.
-        let hold_builder = HoldBound::<T>::by(CostsPerBlockOf::<T>::dispatch_stash());
-
-        // Calculating correct hold bound to lock gas
-        let bn_delay = delayed_block_amount.saturated_into::<BlockNumberFor<T>>();
-        let hold = hold_builder.duration(bn_delay);
-
-        // Spending gas
-        debug_assert!(!hold.lock().is_zero());
-        Self::spend_gas(id, hold.lock())
-    }
-
     /// Adds dispatch into waitlist, deposits event and adds task for waking it.
     pub(crate) fn wait_dispatch(
         dispatch: StoredDispatch,
