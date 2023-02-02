@@ -114,19 +114,18 @@ impl GrowHandler for LazyGrowHandler {
         }
     }
 
-    fn after_grow_action(self, mem: &mut impl Memory) -> Result<(), MemoryError> {
+    fn after_grow_action(self, mem: &mut impl Memory) {
         // Add new allocations to lazy pages.
         // Protect all lazy pages including new allocations.
-        let new_mem_addr = mem
-            .get_buffer_host_addr()
-            .ok_or(MemoryError::MemSizeIsZeroAfterGrow)?;
+        let new_mem_addr = mem.get_buffer_host_addr().unwrap_or_else(|| {
+            unreachable!("Memory size cannot be zero after grow is applied for memory")
+        });
         lazy_pages::update_lazy_pages_and_protect_again(
             mem,
             self.old_mem_addr,
             self.old_mem_size,
             new_mem_addr,
         );
-        Ok(())
     }
 }
 

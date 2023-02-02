@@ -47,7 +47,7 @@ use gear_core::{
     env::Ext as EnvExt,
     gas::GasAmount,
     ids::{CodeId, MessageId, ProgramId, ReservationId},
-    memory::{GearPage, Memory, MemoryInterval, PageBuf, WasmPage},
+    memory::{GearPage, IncorrectAllocationDataError, Memory, MemoryInterval, PageBuf, WasmPage},
     message::{
         ContextStore, Dispatch, DispatchKind, IncomingDispatch, MessageWaitedType,
         PayloadSizeError, WasmEntry,
@@ -62,8 +62,14 @@ use scale_info::TypeInfo;
 // '__gear_stack_end' export is inserted by wasm-proc or wasm-builder
 pub const STACK_END_EXPORT_NAME: &str = "__gear_stack_end";
 
-#[derive(Decode, Encode, Debug, PartialEq, Eq, PartialOrd, Ord, Clone, derive_more::From)]
+#[derive(Debug, derive_more::From)]
 pub enum TerminationReason {
+    Actor(ActorTerminationReason),
+    System(SystemTerminationReason),
+}
+
+#[derive(Decode, Encode, Debug, PartialEq, Eq, PartialOrd, Ord, Clone, derive_more::From)]
+pub enum ActorTerminationReason {
     Exit(ProgramId),
     Leave,
     Success,
@@ -71,6 +77,12 @@ pub enum TerminationReason {
     GasAllowanceExceeded,
     #[from]
     Trap(TrapExplanation),
+}
+
+#[derive(Debug, Clone, derive_more::Display)]
+pub enum SystemTerminationReason {
+    #[display(fmt = "{_0}")]
+    IncorrectAllocationData(IncorrectAllocationDataError),
 }
 
 #[derive(
@@ -88,7 +100,7 @@ pub enum TerminationReason {
 )]
 pub enum TrapExplanation {
     #[display(fmt = "{_0}")]
-    Core(ExtError),
+    Ext(ExtError),
     #[display(fmt = "{_0}")]
     Panic(TrimmedString),
     #[display(fmt = "Reason is unknown. Possibly `unreachable` instruction is occurred")]

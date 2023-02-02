@@ -23,7 +23,8 @@ use codec::Encode;
 use core::{convert::TryInto, marker::PhantomData};
 use gear_backend_common::{
     memory::{MemoryAccessError, MemoryAccessRecorder, MemoryOwner},
-    BackendExt, BackendExtError, BackendState, TerminationReason,
+    ActorSyscallFuncError, ActorTerminationReason, BackendExt, BackendExtError, BackendState,
+    IntoExtErrorForResult, TerminationReason,
 };
 use gear_core::{
     env::Ext,
@@ -31,6 +32,7 @@ use gear_core::{
     message::{HandlePacket, InitPacket, MessageWaitedType, ReplyPacket},
 };
 use gear_core_errors::ExtError;
+use gear_core_errors::ExecutionError;
 use gsys::{
     BlockNumberWithHash, Hash, HashWithValue, LengthBytes, LengthWithCode, LengthWithGas,
     LengthWithHandle, LengthWithHash, LengthWithTwoHashes, TwoHashesWithValue,
@@ -801,6 +803,12 @@ where
             let source = ctx.ext.source()?;
 
             let write_source = ctx.register_write_as(source_ptr);
+
+            let source = ctx
+                .ext
+                .source()
+                .map_err(<E as Ext>::Error::into_termination_reason)?;
+
             ctx.write_as(write_source, source.into_bytes())
                 .map_err(Into::into)
         })

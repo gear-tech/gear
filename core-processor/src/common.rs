@@ -434,12 +434,6 @@ pub enum ActorExecutionErrorReason {
     /// Ext error
     #[display(fmt = "{_0}")]
     Ext(TrapExplanation),
-    /// Not executable actor.
-    #[display(fmt = "Not executable actor")]
-    NonExecutable,
-    /// Message killed from storage as out of rent.
-    #[display(fmt = "Out of rent")]
-    OutOfRent,
 }
 
 /// System execution error

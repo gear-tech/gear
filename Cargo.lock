@@ -3359,6 +3359,7 @@ dependencies = [
  "derive_more",
  "parity-scale-codec",
  "scale-info",
+ "static_assertions",
 ]
 
 [[package]]
@@ -6880,6 +6881,7 @@ dependencies = [
  "frame-system",
  "gear-common",
  "gear-core",
+ "gear-core-errors",
  "gear-core-processor",
  "log",
  "pallet-authorship",

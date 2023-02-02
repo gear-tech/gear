@@ -23,11 +23,15 @@
 
 extern crate alloc;
 
+mod simple;
+
 #[cfg(feature = "codec")]
 use codec::{Decode, Encode};
 use core::fmt::{Debug, Display};
 #[cfg(feature = "codec")]
 use scale_info::TypeInfo;
+
+pub use simple::*;
 
 /// Core error.
 pub trait CoreError: Debug + Display + Sized {}
@@ -181,11 +185,6 @@ pub enum MemoryError {
     /// Memory size cannot be zero after grow is applied for memory
     #[display(fmt = "Memory unexpectedly has zero size after grow")]
     MemSizeIsZeroAfterGrow,
-
-    /// Memory size cannot be zero after grow is applied for memory
-    // TODO: (issue #1956) make separate error for alloc in allocations context
-    #[display(fmt = "Allocated memory pages or memory size are incorrect")]
-    IncorrectAllocationsSetOrMemSize,
 }
 
 /// Reservation error.

@@ -30,6 +30,8 @@ use core::{
 };
 use scale_info::TypeInfo;
 
+pub use gear_core_errors::MemoryError as Error;
+
 /// A WebAssembly page has a constant size of 64KiB.
 pub const WASM_PAGE_SIZE: usize = 0x10000;
 
@@ -122,7 +124,7 @@ impl Decode for PageBuf {
 
 impl EncodeLike for PageBuf {}
 
-impl fmt::Debug for PageBuf {
+impl Debug for PageBuf {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
@@ -395,8 +397,6 @@ pub trait PageU32Size: Sized + Clone + Copy + PartialEq + Eq + PartialOrd + Ord 
     }
 }
 
-pub use gear_core_errors::MemoryError as Error;
-
 /// Page number.
 #[derive(
     Clone, Copy, Debug, Decode, Encode, PartialEq, Eq, PartialOrd, Ord, Hash, TypeInfo, Default,
@@ -527,7 +527,7 @@ pub trait GrowHandler {
     /// Before grow action
     fn before_grow_action(mem: &mut impl Memory) -> Self;
     /// After grow action
-    fn after_grow_action(self, mem: &mut impl Memory) -> Result<(), Error>;
+    fn after_grow_action(self, mem: &mut impl Memory);
 }
 
 /// Grow handler do nothing implementation
@@ -537,9 +537,25 @@ impl GrowHandler for NoopGrowHandler {
     fn before_grow_action(_mem: &mut impl Memory) -> Self {
         NoopGrowHandler
     }
-    fn after_grow_action(self, _mem: &mut impl Memory) -> Result<(), Error> {
-        Ok(())
-    }
+    fn after_grow_action(self, _mem: &mut impl Memory) {}
+}
+
+/// Incorrect allocation data error
+#[derive(Debug, Clone, Eq, PartialEq, derive_more::Display)]
+#[display(fmt = "Allocated memory pages or memory size are incorrect")]
+pub struct IncorrectAllocationDataError;
+
+/// Allocation error
+#[derive(Debug, Clone, Eq, PartialEq, derive_more::Display, derive_more::From)]
+pub enum AllocError {
+    /// Incorrect allocation data error
+    #[from]
+    #[display(fmt = "{_0}")]
+    IncorrectAllocationData(IncorrectAllocationDataError),
+    /// Memory error
+    #[from]
+    #[display(fmt = "{_0}")]
+    Memory(Error),
 }
 
 /// Alloc method result.
@@ -577,18 +593,19 @@ impl AllocationsContext {
     }
 
     /// Alloc specific number of pages for the currently running program.
+    // TODO: Introduce AllocError instead of Error
     pub fn alloc<G: GrowHandler>(
         &mut self,
         pages: WasmPage,
         mem: &mut impl Memory,
-    ) -> Result<AllocInfo, Error> {
+    ) -> Result<AllocInfo, AllocError> {
         let mem_size = mem.size();
         let mut start = self.static_pages;
         let mut start_page = None;
         for &end in self.allocations.iter().chain(iter::once(&mem_size)) {
             let page_gap = end
                 .sub(start)
-                .map_err(|_| Error::IncorrectAllocationsSetOrMemSize)?;
+                .map_err(|_| AllocError::IncorrectAllocationData(IncorrectAllocationDataError))?;
 
             if page_gap >= pages {
                 start_page = Some(start);
@@ -633,7 +650,7 @@ impl AllocationsContext {
 
             let grow_handler = G::before_grow_action(mem);
             mem.grow(extra_grow)?;
-            grow_handler.after_grow_action(mem)?;
+            grow_handler.after_grow_action(mem);
 
             // Panic is impossible, because of way `extra_grow` was calculated.
             let not_grown = pages.sub(extra_grow).unwrap_or_else(|err| {

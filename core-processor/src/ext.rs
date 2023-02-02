@@ -22,12 +22,11 @@ use alloc::{
     string::{String, ToString},
     vec::Vec,
 };
-use codec::{Decode, Encode};
 use gear_backend_common::{
     lazy_pages::{GlobalsConfig, LazyPagesWeights, Status},
     memory::OutOfMemoryAccessError,
-    BackendExt, BackendExtError, ExtInfo, SystemReservationContext, TerminationReason,
-    TrapExplanation,
+    ActorTerminationReason, BackendExt, BackendExtError, ExtInfo, SystemReservationContext,
+    SystemTerminationReason, TerminationReason, TrapExplanation,
 };
 use gear_core::{
     costs::{HostFnWeights, RuntimeCosts},
@@ -35,7 +34,7 @@ use gear_core::{
     gas::{ChargeResult, GasAllowanceCounter, GasAmount, GasCounter, Token, ValueCounter},
     ids::{CodeId, MessageId, ProgramId, ReservationId},
     memory::{
-        AllocInfo, AllocationsContext, GearPage, GrowHandler, Memory, MemoryInterval,
+        AllocError, AllocInfo, AllocationsContext, GearPage, GrowHandler, Memory, MemoryInterval,
         NoopGrowHandler, PageBuf, PageU32Size, WasmPage,
     },
     message::{
@@ -119,11 +118,14 @@ pub trait ProcessorExt {
 }
 
 /// [`Ext`](Ext)'s error
-#[derive(Debug, Clone, Eq, PartialEq, derive_more::Display, derive_more::From, Encode, Decode)]
+#[derive(Debug, Clone, Eq, PartialEq, derive_more::Display, derive_more::From)]
 pub enum ProcessorError {
     /// Basic error
     #[display(fmt = "{_0}")]
     Core(ExtError),
+    /// Allocation error
+    #[display(fmt = "{_0}")]
+    Alloc(AllocError),
     /// Gas allowance exceeded
     #[display(fmt = "Gas allowance exceeded")]
     GasAllowanceExceeded,
@@ -179,8 +181,18 @@ impl BackendExtError for ProcessorError {
 
     fn into_termination_reason(self) -> TerminationReason {
         match self {
-            ProcessorError::Core(err) => TerminationReason::Trap(TrapExplanation::Core(err)),
-            ProcessorError::GasAllowanceExceeded => TerminationReason::GasAllowanceExceeded,
+            ProcessorError::Core(err) => {
+                ActorTerminationReason::Trap(TrapExplanation::Ext(err)).into()
+            }
+            ProcessorError::Alloc(AllocError::Memory(err)) => {
+                ActorTerminationReason::Trap(TrapExplanation::Ext(err.into())).into()
+            }
+            ProcessorError::Alloc(AllocError::IncorrectAllocationData(err)) => {
+                SystemTerminationReason::IncorrectAllocationData(err).into()
+            }
+            ProcessorError::GasAllowanceExceeded => {
+                ActorTerminationReason::GasAllowanceExceeded.into()
+            }
         }
     }
 }
@@ -627,6 +639,7 @@ impl EnvExt for Ext {
         Ok(())
     }
 
+    // TODO: runtime buffer check
     fn debug(&mut self, data: &str) -> Result<(), Self::Error> {
         self.charge_gas_runtime(RuntimeCosts::Debug(data.len() as u32))?;
 
@@ -1268,7 +1281,7 @@ mod tests {
             match err {
                 ProcessorError::Core(ExtError::Memory(
                     MemoryError::ProgramAllocOutOfBounds
-                    | MemoryError::IncorrectAllocationsSetOrMemSize,
+                    | MemoryError::Grow,
                 )) => {}
                 err => Err(err).unwrap(),
             }

@@ -24,6 +24,7 @@ use gear_backend_common::{
     },
     BackendExt, BackendState,
 };
+use gear_core_errors::ExecutionError;
 
 use super::*;
 use crate::state::State;

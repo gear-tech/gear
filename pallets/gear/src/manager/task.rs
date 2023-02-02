@@ -16,10 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use core::convert::TryInto;
-
 use crate::{manager::ExtManager, Config, DispatchStashOf, Event, Pallet, QueueOf};
-use alloc::string::ToString;
 use common::{
     event::{
         MessageWokenRuntimeReason, MessageWokenSystemReason, RuntimeReason, SystemReason,
@@ -29,11 +26,12 @@ use common::{
     storage::*,
     Origin,
 };
-use core_processor::common::ActorExecutionErrorReason;
+use core::convert::TryInto;
 use gear_core::{
     ids::{CodeId, MessageId, ProgramId, ReservationId},
     message::ReplyMessage,
 };
+use gear_core_errors::HandleReplyError;
 
 impl<T: Config> TaskHandler<T::AccountId> for ExtManager<T>
 where
@@ -72,7 +70,7 @@ where
         self.send_signal(message_id, waitlisted.destination());
 
         // Trap explanation.
-        let trap = ActorExecutionErrorReason::OutOfRent;
+        let trap = HandleReplyError::OutOfRent;
 
         // Generate trap reply.
         if self.check_program_id(&waitlisted.source()) {

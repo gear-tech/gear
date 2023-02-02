@@ -23,9 +23,9 @@ extern crate alloc;
 use crate::{mock::*, *};
 use alloc::string::ToString;
 use common::{scheduler::*, storage::*, GasPrice as _, GasTree, Origin};
-use core_processor::common::ActorExecutionErrorReason;
 use frame_support::traits::ReservableCurrency;
 use gear_core::{ids::*, message::*};
+use gear_core_errors::HandleReplyError;
 use pallet_gear::{GasAllowanceOf, GasHandlerOf};
 use sp_core::H256;
 
@@ -114,7 +114,7 @@ fn out_of_rent_reply_exists(
             msg.destination() == src
                 && msg.source() == pid
                 && msg.reply() == Some(ReplyDetails::new(mid, 1))
-                && msg.payload() == ActorExecutionErrorReason::OutOfRent.to_string().as_bytes()
+                && msg.payload() == HandleReplyError::OutOfRent.to_string().as_bytes()
         } else {
             false
         }

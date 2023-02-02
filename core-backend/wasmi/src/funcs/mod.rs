@@ -24,7 +24,8 @@ use codec::{Decode, Encode};
 use core::{convert::TryInto, marker::PhantomData};
 use gear_backend_common::{
     memory::{MemoryAccessError, MemoryAccessRecorder, MemoryOwner},
-    BackendExt, BackendExtError, BackendState, FuncError, TerminationReason,
+    ActorSyscallFuncError, ActorTerminationReason, BackendExt, BackendExtError, BackendState,
+    FuncError, IntoExtErrorForResult, SyscallFuncError, TerminationReason,
 };
 use gear_core::{
     env::Ext,
