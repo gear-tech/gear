@@ -38,10 +38,7 @@ use alloc::{
     vec::Vec,
 };
 use codec::{Decode, Encode};
-use core::{
-    convert::Infallible,
-    fmt::{Debug, Display},
-};
+use core::fmt::{Debug, Display};
 use gear_core::{
     buffer::RuntimeBufferSizeError,
     env::Ext as EnvExt,
