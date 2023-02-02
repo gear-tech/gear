@@ -79,6 +79,29 @@ pub enum ActorTerminationReason {
     Trap(TrapExplanation),
 }
 
+impl From<PayloadSizeError> for ActorTerminationReason {
+    fn from(_err: PayloadSizeError) -> Self {
+        Self::Trap(TrapExplanation::Ext(
+            MessageError::MaxMessageSizeExceed.into(),
+        ))
+    }
+}
+
+impl From<RuntimeBufferSizeError> for ActorTerminationReason {
+    fn from(_err: RuntimeBufferSizeError) -> Self {
+        Self::Trap(TrapExplanation::Ext(ExtError::SyscallUsage))
+    }
+}
+
+impl From<ActorMemoryAccessError> for ActorTerminationReason {
+    fn from(err: ActorMemoryAccessError) -> Self {
+        match err {
+            ActorMemoryAccessError::Memory(err) => Self::Trap(TrapExplanation::Ext(err.into())),
+            ActorMemoryAccessError::RuntimeBuffer(err) => Self::from(err),
+        }
+    }
+}
+
 #[derive(Debug, Clone, derive_more::Display)]
 pub enum SystemTerminationReason {
     #[display(fmt = "{_0}")]
@@ -234,9 +257,9 @@ where
 }
 
 #[derive(Debug, Clone, derive_more::From)]
-pub enum FuncError<E: BackendExtError> {
-    Core(E),
-    Terminated(TerminationReason),
+pub enum SyscallFuncError {
+    Actor(ActorTerminationReason),
+    System(SystemSyscallFuncError),
 }
 
 impl<E: BackendExtError> From<MemoryAccessError> for FuncError<E> {
@@ -346,4 +369,11 @@ pub trait BackendTermination<E: EnvExt, M: Sized>: Sized {
 
         (ext, memory, termination_reason)
     }
+}
+#[derive(Debug, Clone, derive_more::Display, derive_more::From)]
+pub enum SystemSyscallFuncError {
+    #[display(fmt = "Memory access error: {_0}")]
+    MemoryAccess(SystemMemoryAccessError),
+    #[display(fmt = "Termination reason: {_0}")]
+    TerminationReason(SystemTerminationReason),
 }

@@ -22,7 +22,7 @@ use gear_backend_common::{
         MemoryAccessManager, MemoryOwner, WasmMemoryRead, WasmMemoryReadAs, WasmMemoryReadDecoded,
         WasmMemoryWrite, WasmMemoryWriteAs,
     },
-    BackendExt, BackendState,
+    ActorTerminationReason, BackendExt, TrapExplanation, BackendState,
 };
 use gear_core_errors::ExecutionError;
 

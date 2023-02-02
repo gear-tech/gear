@@ -23,8 +23,8 @@ use codec::Encode;
 use core::{convert::TryInto, marker::PhantomData};
 use gear_backend_common::{
     memory::{MemoryAccessError, MemoryAccessRecorder, MemoryOwner},
-    ActorSyscallFuncError, ActorTerminationReason, BackendExt, BackendExtError, BackendState,
-    IntoExtErrorForResult, TerminationReason,
+    ActorTerminationReason, BackendExt, BackendExtError, BackendState, IntoExtErrorForResult,
+    TerminationReason, TrapExplanation,
 };
 use gear_core::{
     env::Ext,

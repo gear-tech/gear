@@ -27,8 +27,8 @@ use alloc::{collections::BTreeSet, format, string::ToString};
 use core::{any::Any, convert::Infallible, fmt::Display};
 use gear_backend_common::{
     lazy_pages::{GlobalsAccessError, GlobalsAccessMod, GlobalsAccessor, GlobalsConfig},
-    ActorSyscallFuncError, ActorTerminationReason, BackendExt, BackendExtError, BackendReport,
-    Environment, EnvironmentExecutionError, EnvironmentExecutionResult, STACK_END_EXPORT_NAME,
+    ActorTerminationReason, BackendExt, BackendExtError, BackendReport, Environment,
+    EnvironmentExecutionError, EnvironmentExecutionResult, STACK_END_EXPORT_NAME,
 };
 use gear_core::{
     env::Ext,
