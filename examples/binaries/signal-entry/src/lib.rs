@@ -50,7 +50,7 @@ pub enum HandleAction {
 mod wasm {
     use super::*;
     use gstd::{
-        errors::{ExecutionError, ExtError},
+        errors::{ExtError, ReservationError},
         exec, msg,
         prelude::*,
         ActorId, MessageId,
@@ -176,8 +176,9 @@ mod wasm {
                 let res = exec::system_reserve_gas(0);
                 assert_eq!(
                     res,
-                    Err(ExtError::Execution(
-                        ExecutionError::ZeroSystemReservationAmount
+                    // TODO: move the variant into ExecutionError
+                    Err(ExtError::Reservation(
+                        ReservationError::ZeroSystemReservationAmount
                     ))
                 );
             }
