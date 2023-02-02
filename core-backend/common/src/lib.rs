@@ -102,10 +102,12 @@ impl From<ActorMemoryAccessError> for ActorTerminationReason {
     }
 }
 
-#[derive(Debug, Clone, derive_more::Display)]
+#[derive(Debug, Clone, derive_more::From, derive_more::Display)]
 pub enum SystemTerminationReason {
     #[display(fmt = "{_0}")]
     IncorrectAllocationData(IncorrectAllocationDataError),
+    #[display(fmt = "Memory access error: {_0}")]
+    MemoryAccess(SystemMemoryAccessError),
 }
 
 #[derive(
@@ -259,7 +261,7 @@ where
 #[derive(Debug, Clone, derive_more::From)]
 pub enum SyscallFuncError {
     Actor(ActorTerminationReason),
-    System(SystemSyscallFuncError),
+    System(SystemTerminationReason),
 }
 
 impl<E: BackendExtError> From<MemoryAccessError> for FuncError<E> {

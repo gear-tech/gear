@@ -446,9 +446,10 @@ pub enum SystemExecutionError {
     /// Environment error
     #[display(fmt = "Backend error: {_0}")]
     Environment(String),
-    /// Wasm program backend execution error
-    #[display(fmt = "Backend error")]
-    BackendError,
+    /// Sys-call function error
+    #[from]
+    #[display(fmt = "Syscall function error: {_0}")]
+    SyscallFunc(SystemTerminationReason),
     /// Error during `into_ext_info()` call
     #[display(fmt = "`into_ext_info()` error: {_0}")]
     IntoExtInfo(MemoryError),
