@@ -809,6 +809,7 @@ where
                 .source()
                 .map_err(<E as Ext>::Error::into_termination_reason)?;
 
+            let write_source = ctx.register_write_as(source_ptr);
             ctx.write_as(write_source, source.into_bytes())
                 .map_err(Into::into)
         })

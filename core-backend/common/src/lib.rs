@@ -62,10 +62,40 @@ use scale_info::TypeInfo;
 // '__gear_stack_end' export is inserted by wasm-proc or wasm-builder
 pub const STACK_END_EXPORT_NAME: &str = "__gear_stack_end";
 
-#[derive(Debug, derive_more::From)]
+#[derive(Debug, Clone, derive_more::From)]
 pub enum TerminationReason {
     Actor(ActorTerminationReason),
     System(SystemTerminationReason),
+}
+
+impl From<MemoryAccessError> for TerminationReason {
+    fn from(err: MemoryAccessError) -> Self {
+        match err {
+            MemoryAccessError::Actor(err) => ActorTerminationReason::from(err).into(),
+            MemoryAccessError::System(err) => SystemTerminationReason::from(err).into(),
+        }
+    }
+}
+
+impl From<PayloadSizeError> for TerminationReason {
+    fn from(err: PayloadSizeError) -> Self {
+        ActorTerminationReason::from(err).into()
+    }
+}
+
+impl From<RuntimeBufferSizeError> for TerminationReason {
+    fn from(err: RuntimeBufferSizeError) -> Self {
+        ActorTerminationReason::from(err).into()
+    }
+}
+
+impl From<FromUtf8Error> for TerminationReason {
+    fn from(_err: FromUtf8Error) -> Self {
+        ActorTerminationReason::Trap(TrapExplanation::Ext(
+            ExecutionError::InvalidDebugString.into(),
+        ))
+        .into()
+    }
 }
 
 #[derive(Decode, Encode, Debug, PartialEq, Eq, PartialOrd, Ord, Clone, derive_more::From)]

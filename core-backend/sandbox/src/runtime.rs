@@ -124,11 +124,13 @@ where
         .map(|_| ReturnValue::Unit)
     }
 
-    pub fn run<F>(&mut self, f: F) -> SyscallOutput
-    where
-        F: FnOnce(&mut Self) -> Result<(), FuncError<E::Error>>,
-    {
-        self.run_any(f).map(|_| ReturnValue::Unit)
+impl<E> BackendState<E::Error> for Runtime<E>
+where
+    E: Ext,
+    E::Error: BackendExtError,
+{
+    fn err_mut(&mut self) -> &mut SyscallFuncError {
+        &mut self.err
     }
 }
 
