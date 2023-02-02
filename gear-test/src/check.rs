@@ -515,7 +515,7 @@ fn run_fixture<JH, E>(
 ) -> ColoredString
 where
     JH: JournalHandler + CollectState + ExecutionContext,
-    E: Environment<Ext>,
+    E: Environment<Ext = Ext>,
 {
     if let Err(err) = proc::init_fixture::<E, JH>(test, fixture_no, &mut journal_handler) {
         total_failed.fetch_add(1, Ordering::SeqCst);
@@ -677,8 +677,8 @@ pub fn check_main<JH, E, F>(
 ) -> anyhow::Result<()>
 where
     JH: JournalHandler + CollectState + ExecutionContext,
-    E: Environment<Ext>,
-    F: Fn() -> JH + std::marker::Sync + std::marker::Send,
+    E: Environment<Ext = Ext>,
+    F: Fn() -> JH + Sync + Send,
 {
     let map = Arc::new(RwLock::new(HashMap::new()));
     if let Err(e) = FixtureLogger::init(Arc::clone(&map)) {
