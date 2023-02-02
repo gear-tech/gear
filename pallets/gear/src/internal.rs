@@ -337,14 +337,16 @@ where
         let delayed_block_amount = current_bn.saturating_sub(stored_bn);
 
         // cost_of_block * (delay + reserve_for)
-        let blocks_to_charge: u64 = delayed_block_amount
-            .saturating_add(CostsPerBlockOf::<T>::reserve_for())
-            .unique_saturated_into();
-        let gas_amount = blocks_to_charge.saturating_mul(CostsPerBlockOf::<T>::dispatch_stash());
+        // `HoldBound` cost builder.
+        let hold_builder = HoldBound::<T>::by(CostsPerBlockOf::<T>::dispatch_stash());
+
+        // Calculating correct hold bound to lock gas
+        let bn_delay = delayed_block_amount.saturated_into::<BlockNumberFor<T>>();
+        let hold = hold_builder.duration(bn_delay);
 
         // Spending gas
-        debug_assert!(!gas_amount.is_zero());
-        Self::spend_gas(id, gas_amount)
+        debug_assert!(!hold.lock().is_zero());
+        Self::spend_gas(id, hold.lock())
     }
 
     /// Adds dispatch into waitlist, deposits event and adds task for waking it.
