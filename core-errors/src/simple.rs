@@ -41,7 +41,7 @@ pub enum SimpleExecutionError {
 /// Reply error
 #[derive(Copy, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, derive_more::Display)]
 #[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo))]
-pub enum HandleReplyError {
+pub enum SimpleReplyError {
     /// Execution error.
     #[display(fmt = "Execution error: {_0}")]
     Execution(SimpleExecutionError),
@@ -59,7 +59,7 @@ pub enum HandleReplyError {
 /// Signal error
 #[derive(Copy, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, derive_more::Display)]
 #[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo))]
-pub enum SignalError {
+pub enum SimpleSignalError {
     /// Execution error
     #[display(fmt = "Execution error: {_0}")]
     Execution(SimpleExecutionError),
@@ -75,7 +75,7 @@ mod tests {
 
     #[test]
     fn assert_sizes() {
-        assert!(HandleReplyError::encoded_fixed_size().unwrap() <= mem::size_of::<u32>());
-        assert!(SignalError::encoded_fixed_size().unwrap() <= mem::size_of::<u32>());
+        assert!(SimpleReplyError::encoded_fixed_size().unwrap() <= mem::size_of::<u32>());
+        assert!(SimpleSignalError::encoded_fixed_size().unwrap() <= mem::size_of::<u32>());
     }
 }

@@ -31,7 +31,7 @@ use gear_core::{
     ids::{CodeId, MessageId, ProgramId, ReservationId},
     message::ReplyMessage,
 };
-use gear_core_errors::HandleReplyError;
+use gear_core_errors::SimpleReplyError;
 
 impl<T: Config> TaskHandler<T::AccountId> for ExtManager<T>
 where
@@ -70,7 +70,7 @@ where
         self.send_signal(message_id, waitlisted.destination());
 
         // Trap explanation.
-        let trap = HandleReplyError::OutOfRent;
+        let trap = SimpleReplyError::OutOfRent;
 
         // Generate trap reply.
         if self.check_program_id(&waitlisted.source()) {

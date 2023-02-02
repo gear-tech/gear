@@ -39,7 +39,7 @@ use gear_core::{
     },
     reservation::GasReservationState,
 };
-use gear_core_errors::HandleReplyError;
+use gear_core_errors::SimpleReplyError;
 
 /// Process program & dispatch for it and return journal for updates.
 pub fn process<E>(
@@ -460,7 +460,7 @@ pub fn process_non_executable(
     // Reply back to the message `source`
     if !dispatch.is_error_reply() {
         // This expect panic is unreachable, unless error message is too large or max payload size is too small.
-        let err_payload = HandleReplyError::NonExecutable
+        let err_payload = SimpleReplyError::NonExecutable
             .encode()
             .try_into()
             .expect("Error message is too large");

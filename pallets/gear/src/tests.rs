@@ -2530,17 +2530,17 @@ fn events_logging_works() {
                 Some(ActorExecutionErrorReason::Ext(TrapExplanation::Ext(
                     ExtError::Execution(ExecutionError::GasLimitExceeded),
                 ))),
-                Some(HandleReplyError::NonExecutable),
+                Some(SimpleReplyError::NonExecutable),
             ),
             (
                 ProgramCodeKind::Custom(wat_trap_in_init),
                 Some(ActorExecutionErrorReason::Ext(TrapExplanation::Unknown)),
-                Some(HandleReplyError::NonExecutable),
+                Some(SimpleReplyError::NonExecutable),
             ),
             (
                 ProgramCodeKind::Custom(wat_trap_in_handle),
                 None,
-                Some(HandleReplyError::Execution(SimpleExecutionError::Ext)),
+                Some(SimpleReplyError::Execution(SimpleExecutionError::Ext)),
             ),
         ];
 
