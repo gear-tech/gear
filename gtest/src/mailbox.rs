@@ -380,22 +380,27 @@ mod tests {
             None,
         );
 
-        let unexpected_blocks = 5;
-        let expected_blocks = 10;
+        let bn_before_schedule = 5;
+        let scheduled_delay = 10;
         system.0.borrow_mut().send_delayed_dispatch(
-            expected_blocks,
+            scheduled_delay,
             Dispatch::new(DispatchKind::Handle, message),
         );
 
         let mailbox = system.get_mailbox(destination_user_id);
         assert!(!mailbox.contains(&log));
 
-        // Run to unexpected blocks.
-        assert_eq!(system.spend_blocks(unexpected_blocks).len(), 0);
+        // Run to block number before scheduled delay
+        assert_eq!(system.spend_blocks(bn_before_schedule).len(), 0);
         assert!(!mailbox.contains(&log));
 
-        // Run to expected blocks.
-        assert_eq!(system.spend_blocks(expected_blocks).len(), 1);
+        // Run to block number at scheduled delay
+        assert_eq!(
+            system
+                .spend_blocks(scheduled_delay - bn_before_schedule)
+                .len(),
+            1
+        );
         assert!(mailbox.contains(&log));
     }
 }

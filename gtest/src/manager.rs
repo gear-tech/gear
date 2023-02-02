@@ -20,10 +20,10 @@ use crate::{
     log::{CoreLog, RunResult},
     program::{Gas, WasmProgram},
     wasm_executor::WasmExecutor,
-    Result, TestError, EXISTENTIAL_DEPOSIT, INITIAL_RANDOM_SEED, MAILBOX_THRESHOLD,
-    MAX_RESERVATIONS, MODULE_INSTANTIATION_BYTE_COST, MODULE_INSTRUMENTATION_BYTE_COST,
-    MODULE_INSTRUMENTATION_COST, READ_COST, READ_PER_BYTE_COST, RESERVATION_COST, RESERVE_FOR,
-    WAITLIST_COST, WRITE_COST, WRITE_PER_BYTE_COST,
+    Result, TestError, EPOCH_DURATION_IN_BLOCKS, EXISTENTIAL_DEPOSIT, INITIAL_RANDOM_SEED,
+    MAILBOX_THRESHOLD, MAX_RESERVATIONS, MODULE_INSTANTIATION_BYTE_COST,
+    MODULE_INSTRUMENTATION_BYTE_COST, MODULE_INSTRUMENTATION_COST, READ_COST, READ_PER_BYTE_COST,
+    RESERVATION_COST, RESERVE_FOR, WAITLIST_COST, WRITE_COST, WRITE_PER_BYTE_COST,
 };
 use core_processor::{
     common::*,
@@ -295,6 +295,7 @@ impl ExtManager {
         self.id_nonce
     }
 
+    #[allow(unused)]
     /// Insert message into the delayed queue.
     pub(crate) fn send_delayed_dispatch(&mut self, delay: u32, dispatch: Dispatch) {
         self.delayed_dispatches
@@ -314,6 +315,20 @@ impl ExtManager {
                     .collect()
             })
             .unwrap_or_default()
+    }
+
+    /// Check if the current block number should trigger new epoch and reset
+    /// the provided random data.
+    pub(crate) fn check_epoch(&mut self) {
+        if self.block_info.height % EPOCH_DURATION_IN_BLOCKS == 0 {
+            let mut rng = StdRng::seed_from_u64(
+                INITIAL_RANDOM_SEED + (self.block_info.height / EPOCH_DURATION_IN_BLOCKS) as u64,
+            );
+            let mut random = [0u8; 32];
+            rng.fill_bytes(&mut random);
+
+            self.random_data = (random.to_vec(), self.block_info.height + 1);
+        }
     }
 
     fn validate_dispatch(&mut self, dispatch: &Dispatch) {
