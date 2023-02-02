@@ -10,7 +10,7 @@ wasm-instrument = { version = "0.2.1", git = "https://github.com/gear-tech/wasm-
 enum-iterator = "1.2.0"
 
 [dev-dependencies]
-wasmparser = "0.90"
+wasmparser = "0.99"
 wat = "1.0.56"
 gear-backend-wasmi = { path = "../../core-backend/wasmi" }
 gear-backend-common = { path = "../../core-backend/common", features = ["mock"] }
