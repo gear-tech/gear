@@ -22,7 +22,7 @@ use crate::{
     system::System,
     Result,
 };
-use codec::Codec;
+use codec::{Codec, Decode, Encode};
 use gear_core::{
     code::{Code, CodeAndId, InstrumentedCodeAndId},
     ids::{CodeId, MessageId, ProgramId},
@@ -440,22 +440,43 @@ impl<'a> Program<'a> {
         self.id
     }
 
-    pub fn read_state(&self) -> Result<Vec<u8>> {
-        self.manager.borrow_mut().read_state(&self.id)
+    /// Reads the program’s state as a byte vector.
+    pub fn read_state_bytes(&self) -> Result<Vec<u8>> {
+        self.manager.borrow_mut().read_state_bytes(&self.id)
     }
 
-    pub fn read_state_with_map(
+    /// Reads the program’s transformed state as a byte vector. The transformed
+    /// state is a result of applying the `fn_name` function from the `wasm`
+    /// binary with the optional `argument`.
+    pub fn read_state_bytes_using_wasm(
         &self,
-        mapping_wasm: Vec<u8>,
-        mapping_wasm_function_name: impl Into<String>,
-        mapping_wasm_argument: Option<Vec<u8>>,
+        fn_name: &str,
+        wasm: Vec<u8>,
+        argument: Option<Vec<u8>>,
     ) -> Result<Vec<u8>> {
-        self.manager.borrow_mut().read_state_with_map(
-            &self.id,
-            mapping_wasm,
-            mapping_wasm_function_name,
-            mapping_wasm_argument,
-        )
+        self.manager
+            .borrow_mut()
+            .read_state_bytes_using_wasm(&self.id, fn_name, wasm, argument)
+    }
+
+    /// Reads and decodes the program's state .
+    pub fn read_state<D: Decode>(&self) -> Result<D> {
+        let state_bytes = self.read_state_bytes()?;
+        D::decode(&mut state_bytes.as_ref()).map_err(Into::into)
+    }
+
+    /// Reads and decodes the program’s transformed state. The transformed state
+    /// is a result of applying the `fn_name` function from the `wasm`
+    /// binary with the optional `argument`.
+    pub fn read_state_using_wasm<E: Encode, D: Decode>(
+        &self,
+        fn_name: &str,
+        wasm: Vec<u8>,
+        argument: Option<E>,
+    ) -> Result<D> {
+        let argument_bytes = argument.map(|arg| arg.encode());
+        let state_bytes = self.read_state_bytes_using_wasm(fn_name, wasm, argument_bytes)?;
+        D::decode(&mut state_bytes.as_ref()).map_err(Into::into)
     }
 
     pub fn mint(&mut self, value: Balance) {

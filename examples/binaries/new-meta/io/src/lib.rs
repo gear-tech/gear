@@ -69,7 +69,7 @@ pub struct Person {
     pub name: String,
 }
 
-#[derive(TypeInfo, Decode, Encode, Clone, Debug)]
+#[derive(TypeInfo, Decode, Encode, Clone, Debug, PartialEq)]
 pub struct Wallet {
     pub id: Id,
     pub person: Person,

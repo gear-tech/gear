@@ -393,7 +393,7 @@ impl ExtManager {
 
     /// Call non-void meta function from actor stored in manager.
     /// Warning! This is a static call that doesn't change actors pages data.
-    pub(crate) fn read_state(&mut self, program_id: &ProgramId) -> Result<Vec<u8>> {
+    pub(crate) fn read_state_bytes(&mut self, program_id: &ProgramId) -> Result<Vec<u8>> {
         let (actor, _balance) = self
             .actors
             .get_mut(program_id)
@@ -416,26 +416,26 @@ impl ExtManager {
         .map_err(TestError::ReadStateError)
     }
 
-    pub(crate) fn read_state_with_map(
+    pub(crate) fn read_state_bytes_using_wasm(
         &mut self,
         program_id: &ProgramId,
-        mapping_wasm: Vec<u8>,
-        mapping_wasm_function_name: impl Into<String>,
-        mapping_wasm_argument: Option<Vec<u8>>,
+        fn_name: &str,
+        wasm: Vec<u8>,
+        argument: Option<Vec<u8>>,
     ) -> Result<Vec<u8>> {
-        let mapping_code = Code::new_raw(mapping_wasm, 1, None, true, false)
-            .map_err(|_| TestError::Instrumentation)?;
+        let mapping_code =
+            Code::new_raw(wasm, 1, None, true, false).map_err(|_| TestError::Instrumentation)?;
 
         let mapping_code = InstrumentedCodeAndId::from(CodeAndId::new(mapping_code))
             .into_parts()
             .0;
 
         // The `metawasm` macro knows how to decode this as a tuple
-        let mut mapping_code_payload = mapping_wasm_argument.unwrap_or_default();
-        mapping_code_payload.append(&mut self.read_state(program_id)?);
+        let mut mapping_code_payload = argument.unwrap_or_default();
+        mapping_code_payload.append(&mut self.read_state_bytes(program_id)?);
 
         core_processor::informational::execute_for_reply::<Ext, WasmiEnvironment<Ext, _>, _>(
-            mapping_wasm_function_name.into(),
+            String::from(fn_name),
             mapping_code,
             None,
             None,
