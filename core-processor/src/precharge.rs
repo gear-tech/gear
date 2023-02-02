@@ -305,7 +305,7 @@ fn check_is_executable(
 ) -> Result<ExecutableActorData, StatusCode> {
     executable_data
         .map(|data| {
-            if data.initialized & matches!(dispatch.kind(), DispatchKind::Init) {
+            if data.initialized && matches!(dispatch.kind(), DispatchKind::Init) {
                 Err(crate::RE_INIT_STATUS_CODE)
             } else {
                 Ok(data)
