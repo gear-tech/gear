@@ -29,20 +29,24 @@ use alloc::{
     string::{String, ToString},
 };
 use codec::Encode;
-use core::fmt;
+use core::{any::Any, fmt};
 use gear_backend_common::{
-    calc_stack_end, error_processor::IntoExtError, AsTerminationReason, BackendReport, Environment,
-    GetGasAmount, IntoExtInfo, StackEndError, TerminationReason, TrapExplanation,
-    STACK_END_EXPORT_NAME,
+    calc_stack_end,
+    error_processor::IntoExtError,
+    lazy_pages::{GlobalsAccessError, GlobalsAccessMod, GlobalsAccessor, GlobalsConfig},
+    AsTerminationReason, BackendReport, Environment, GetGasAmount, IntoExtInfo, StackEndError,
+    TerminationReason, TrapExplanation, STACK_END_EXPORT_NAME,
 };
 use gear_core::{
     env::Ext,
     gas::GasAmount,
-    memory::{PageU32Size, WasmPageNumber},
+    memory::{HostPointer, PageU32Size, WasmPage},
     message::{DispatchKind, WasmEntry},
 };
-use gear_wasm_instrument::{GLOBAL_NAME_ALLOWANCE, GLOBAL_NAME_GAS};
-use wasmi::{core::Value, Engine, Extern, Instance, Linker, Memory, MemoryType, Module, Store};
+use gear_wasm_instrument::{GLOBAL_NAME_ALLOWANCE, GLOBAL_NAME_FLAGS, GLOBAL_NAME_GAS};
+use wasmi::{
+    core::Value, Engine, Extern, Global, Instance, Linker, Memory, MemoryType, Module, Store,
+};
 
 #[derive(Debug, derive_more::Display, derive_more::From)]
 pub enum WasmiEnvironmentError {
@@ -103,6 +107,48 @@ where
     entry_point: EP,
 }
 
+struct GlobalsAccessProvider<E: Ext> {
+    pub instance: Instance,
+    pub store: Option<Store<HostState<E>>>,
+}
+
+impl<E: Ext> GlobalsAccessProvider<E> {
+    fn get_global(&self, name: &str) -> Option<Global> {
+        let store = self.store.as_ref()?;
+        self.instance
+            .get_export(store, name)
+            .and_then(|export| export.into_global())
+    }
+}
+
+impl<E: Ext + 'static> GlobalsAccessor for GlobalsAccessProvider<E> {
+    fn get_i64(&self, name: &str) -> Result<i64, GlobalsAccessError> {
+        self.get_global(name)
+            .and_then(|global| {
+                let store = self.store.as_ref()?;
+                if let Value::I64(val) = global.get(store) {
+                    Some(val)
+                } else {
+                    None
+                }
+            })
+            .ok_or(GlobalsAccessError)
+    }
+
+    fn set_i64(&mut self, name: &str, value: i64) -> Result<(), GlobalsAccessError> {
+        self.get_global(name)
+            .and_then(|global| {
+                let store = self.store.as_mut()?;
+                global.set(store, Value::I64(value)).ok()
+            })
+            .ok_or(GlobalsAccessError)
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
+    }
+}
+
 impl<E, EP> Environment<E, EP> for WasmiEnvironment<E, EP>
 where
     E: Ext + IntoExtInfo<E::Error> + GetGasAmount + 'static,
@@ -117,7 +163,7 @@ where
         binary: &[u8],
         entry_point: EP,
         entries: BTreeSet<DispatchKind>,
-        mem_size: WasmPageNumber,
+        mem_size: WasmPage,
     ) -> Result<Self, Self::Error> {
         use WasmiEnvironmentError::*;
 
@@ -186,7 +232,7 @@ where
         pre_execution_handler: F,
     ) -> Result<BackendReport<Self::Memory, E>, Self::Error>
     where
-        F: FnOnce(&mut Self::Memory, Option<WasmPageNumber>) -> Result<(), T>,
+        F: FnOnce(&mut Self::Memory, Option<WasmPage>, GlobalsConfig) -> Result<(), T>,
         T: fmt::Display,
     {
         use WasmiEnvironmentError::*;
@@ -203,8 +249,7 @@ where
             .get_export(&store, STACK_END_EXPORT_NAME)
             .and_then(Extern::into_global)
             .and_then(|g| g.get(&store).try_into::<i32>());
-        let stack_end_page =
-            calc_stack_end(stack_end).map_err(|e| (gas_amount!(store), StackEnd(e)))?;
+        let stack_end = calc_stack_end(stack_end).map_err(|e| (gas_amount!(store), StackEnd(e)))?;
 
         let (gas, allowance) = store
             .state()
@@ -229,16 +274,37 @@ where
             })
             .ok_or((gas_amount!(store), WrongInjectedAllowance))?;
 
-        let mut memory_wrap = MemoryWrap::new(memory, store);
-        pre_execution_handler(&mut memory_wrap, stack_end_page).map_err(|e| {
-            let store = &memory_wrap.store;
-            (gas_amount!(store), PreExecutionHandler(e.to_string()))
-        })?;
+        let mut globals_provider = GlobalsAccessProvider {
+            instance,
+            store: None,
+        };
+        let globals_provider_dyn_ref = &mut globals_provider as &mut dyn GlobalsAccessor;
 
         let needs_execution = entry_point
             .try_into_kind()
             .map(|kind| entries.contains(&kind))
             .unwrap_or(true);
+
+        // Pointer to the globals access provider is valid until the end of `execute` method.
+        // So, we can safely use it inside lazy-pages and be sure that it points to the valid object.
+        // We cannot guaranty that `store` (and so globals also) will be in a valid state,
+        // because executor mut-borrows `store` during execution. But if it's in a valid state
+        // each moment when protect memory signal can occur, than this trick is pretty safe.
+        let globals_access_ptr = &globals_provider_dyn_ref as *const _ as HostPointer;
+
+        let globals_config = GlobalsConfig {
+            global_gas_name: GLOBAL_NAME_GAS.to_string(),
+            global_allowance_name: GLOBAL_NAME_ALLOWANCE.to_string(),
+            global_flags_name: GLOBAL_NAME_FLAGS.to_string(),
+            globals_access_ptr,
+            globals_access_mod: GlobalsAccessMod::NativeRuntime,
+        };
+
+        let mut memory_wrap = MemoryWrap::new(memory, store);
+        pre_execution_handler(&mut memory_wrap, stack_end, globals_config).map_err(|e| {
+            let store = &memory_wrap.store;
+            (gas_amount!(store), PreExecutionHandler(e.to_string()))
+        })?;
 
         let mut store = memory_wrap.into_store();
         let res = if needs_execution {
@@ -259,7 +325,24 @@ where
                 )
             })?;
 
-            entry_func.call(&mut store, ())
+            let store_option = &mut globals_provider_dyn_ref
+                .as_any_mut()
+                .downcast_mut::<GlobalsAccessProvider<E>>()
+                // Provider is `GlobalsAccessProvider`, so panic is impossible.
+                .unwrap_or_else(|| unreachable!("Provider must be `GlobalsAccessProvider`"))
+                .store;
+
+            store_option.replace(store);
+            let res = entry_func.call(
+                store_option
+                    .as_mut()
+                    // We set store above, so panic is impossible.
+                    .unwrap_or_else(|| unreachable!("Store must be set before")),
+                (),
+            );
+            store = globals_provider.store.take().unwrap();
+
+            res
         } else {
             Ok(())
         };
@@ -268,10 +351,10 @@ where
             .get(&store)
             .try_into::<i64>()
             .ok_or((gas_amount!(store), WrongInjectedGas))?;
-        let allowance = gear_allowance.get(&store).try_into::<i64>().ok_or({
-            let store = &store;
-            (gas_amount!(store), WrongInjectedAllowance)
-        })?;
+        let allowance = gear_allowance
+            .get(&store)
+            .try_into::<i64>()
+            .ok_or((gas_amount!(store), WrongInjectedAllowance))?;
 
         let state = store
             .state_mut()

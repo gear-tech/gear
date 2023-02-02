@@ -165,7 +165,8 @@ where
         (context, code, 0u128, ProgramId::default()).into(),
         (random.to_vec(), block_config.block_info.height),
         Default::default(),
-    );
+    )
+    .unwrap_or_else(|e| unreachable!("core-processor logic violated: {}", e));
 
     core_processor::handle_journal(journal, journal_handler);
 
@@ -383,6 +384,7 @@ where
             (random.to_vec(), block_config.block_info.height),
             memory_pages,
         )
+        .unwrap_or_else(|e| unreachable!("core-processor logic invalidated: {}", e))
     };
 
     if let Some(steps) = steps {
@@ -466,7 +468,7 @@ where
 fn test_block_config(block_info: BlockInfo) -> BlockConfig {
     BlockConfig {
         block_info,
-        allocations_config: Default::default(),
+        pages_config: Default::default(),
         existential_deposit: EXISTENTIAL_DEPOSIT,
         outgoing_limit: OUTGOING_LIMIT,
         host_fn_weights: Default::default(),

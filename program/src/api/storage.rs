@@ -57,7 +57,7 @@ mod gear {
                     gear_core::{
                         code::InstrumentedCode,
                         ids::{CodeId, ProgramId},
-                        memory::PageNumber,
+                        memory::GearPage,
                         message::stored::StoredMessage,
                     },
                 },
@@ -93,7 +93,8 @@ mod gear {
                 .storage()
                 .fetch(&at, None)
                 .await?
-                .ok_or_else(|| ClientError::ProgramNotFound(pid.encode_hex()))?;
+                .ok_or_else(|| ClientError::ProgramNotFound(pid.encode_hex()))?
+                .0;
 
             match program {
                 gear_common::Program::Active(p) => Ok(p),
@@ -108,7 +109,7 @@ mod gear {
             for page in program.pages_with_data {
                 let address = storage()
                     .gear_program()
-                    .memory_page_storage(program_id.clone(), PageNumber(page.0));
+                    .memory_page_storage(program_id.clone(), GearPage(page.0));
 
                 let metadata = self.metadata();
                 let lookup_bytes =

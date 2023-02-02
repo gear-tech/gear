@@ -39,6 +39,7 @@ mod code;
 mod sandbox;
 
 mod syscalls;
+mod utils;
 use syscalls::Benches;
 
 mod tests;
@@ -62,7 +63,7 @@ use codec::Encode;
 use common::{
     self, benchmarking,
     storage::{Counter, *},
-    CodeMetadata, CodeStorage, GasPrice, GasTree, Origin, QueueRunner,
+    CodeMetadata, CodeStorage, GasPrice, GasTree, Origin,
 };
 use core::ops::Range;
 use core_processor::{
@@ -78,7 +79,7 @@ use gear_core::{
     code::{Code, CodeAndId},
     gas::{GasAllowanceCounter, GasCounter, ValueCounter},
     ids::{MessageId, ProgramId},
-    memory::{AllocationsContext, PageBuf, PageNumber, PageU32Size, WasmPageNumber},
+    memory::{AllocationsContext, GearPage, PageBuf, PageU32Size, WasmPage},
     message::{ContextSettings, DispatchKind, MessageContext},
     reservation::GasReserver,
 };
@@ -171,7 +172,7 @@ fn default_processor_context<T: Config>() -> ProcessorContext {
             ContextSettings::new(0, 0, 0, 0, 0, 0),
         ),
         block_info: Default::default(),
-        config: Default::default(),
+        pages_config: Default::default(),
         existential_deposit: 0,
         origin: Default::default(),
         program_id: Default::default(),
@@ -211,8 +212,8 @@ fn verify_process((notes, err_len_ptrs): (Vec<JournalNote>, Range<u32>)) {
         }
     }
 
-    let start_page_number = PageNumber::from_offset(err_len_ptrs.start);
-    let end_page_number = PageNumber::from_offset(err_len_ptrs.end);
+    let start_page_number = GearPage::from_offset(err_len_ptrs.start);
+    let end_page_number = GearPage::from_offset(err_len_ptrs.end);
     start_page_number
         .iter_end_inclusive(end_page_number)
         .unwrap()
@@ -220,7 +221,7 @@ fn verify_process((notes, err_len_ptrs): (Vec<JournalNote>, Range<u32>)) {
             pages_data
                 .get(&page_number)
                 .map(|page| (page as &[u8]).to_vec())
-                .unwrap_or_else(|| vec![0; PageNumber::size() as usize])
+                .unwrap_or_else(|| vec![0; GearPage::size() as usize])
         })
         .skip(err_len_ptrs.start as usize)
         .take(err_len_ptrs.len())
@@ -240,7 +241,8 @@ where
             exec.context,
             exec.random_data,
             exec.memory_pages,
-        ),
+        )
+        .unwrap_or_else(|e| unreachable!("core-processor logic invalidated: {}", e)),
         exec.err_len_ptrs,
     )
 }
@@ -307,13 +309,14 @@ fn caller_funding<T: pallet::Config>() -> BalanceOf<T> {
     BalanceOf::<T>::max_value() / 2u32.into()
 }
 
+#[derive(Clone)]
 pub struct Exec<T: Config> {
     #[allow(unused)]
     ext_manager: ExtManager<T>,
     block_config: BlockConfig,
     context: ProcessExecutionContext,
     random_data: (Vec<u8>, u32),
-    memory_pages: BTreeMap<PageNumber, PageBuf>,
+    memory_pages: BTreeMap<GearPage, PageBuf>,
     err_len_ptrs: Range<u32>,
 }
 
@@ -324,8 +327,47 @@ benchmarks! {
     }
 
     #[extra]
+    check_all {
+        syscalls_integrity::main_test::<T>();
+        #[cfg(feature = "lazy-pages")]
+        {
+            tests::lazy_pages::lazy_pages_charging::<T>();
+            tests::lazy_pages::lazy_pages_charging_special::<T>();
+            tests::lazy_pages::lazy_pages_gas_exceed::<T>();
+        }
+    } : {}
+
+    #[extra]
+    check_lazy_pages_all {
+        #[cfg(feature = "lazy-pages")]
+        {
+            tests::lazy_pages::lazy_pages_charging::<T>();
+            tests::lazy_pages::lazy_pages_charging_special::<T>();
+            tests::lazy_pages::lazy_pages_gas_exceed::<T>();
+        }
+    } : {}
+
+    #[extra]
     check_syscalls_integrity {
         syscalls_integrity::main_test::<T>();
+    }: {}
+
+    #[extra]
+    check_lazy_pages_charging {
+        #[cfg(feature = "lazy-pages")]
+        tests::lazy_pages::lazy_pages_charging::<T>();
+    }: {}
+
+    #[extra]
+    check_lazy_pages_charging_special {
+        #[cfg(feature = "lazy-pages")]
+        tests::lazy_pages::lazy_pages_charging_special::<T>();
+    }: {}
+
+    #[extra]
+    check_lazy_pages_gas_exceed {
+        #[cfg(feature = "lazy-pages")]
+        tests::lazy_pages::lazy_pages_gas_exceed::<T>();
     }: {}
 
     // This bench uses `StorageMap` as a storage, due to the fact that
@@ -373,7 +415,7 @@ benchmarks! {
         let program_id = benchmarking::account::<T::AccountId>("program", 0, 100);
         <T as pallet::Config>::Currency::deposit_creating(&program_id, 100_000_000_000_000_u128.unique_saturated_into());
         let code = benchmarking::generate_wasm2(16.into()).unwrap();
-        benchmarking::set_program::<ProgramStorageOf::<T>>(ProgramId::from_origin(program_id.clone().into_origin()), code, 1.into());
+        benchmarking::set_program::<ProgramStorageOf::<T>, _>(ProgramId::from_origin(program_id.clone().into_origin()), code, 1.into());
         let original_message_id = MessageId::from_origin(benchmarking::account::<T::AccountId>("message", 0, 100).into_origin());
         let gas_limit = 50000;
         let value = 10000u32.into();
@@ -473,7 +515,7 @@ benchmarks! {
         let minimum_balance = <T as pallet::Config>::Currency::minimum_balance();
         let program_id = ProgramId::from_origin(benchmarking::account::<T::AccountId>("program", 0, 100).into_origin());
         let code = benchmarking::generate_wasm2(16.into()).unwrap();
-        benchmarking::set_program::<ProgramStorageOf::<T>>(program_id, code, 1.into());
+        benchmarking::set_program::<ProgramStorageOf::<T>, _>(program_id, code, 1.into());
         let payload = vec![0_u8; p as usize];
 
         init_block::<T>(None);
@@ -490,7 +532,7 @@ benchmarks! {
         let program_id = benchmarking::account::<T::AccountId>("program", 0, 100);
         <T as pallet::Config>::Currency::deposit_creating(&program_id, 100_000_000_000_000_u128.unique_saturated_into());
         let code = benchmarking::generate_wasm2(16.into()).unwrap();
-        benchmarking::set_program::<ProgramStorageOf::<T>>(ProgramId::from_origin(program_id.clone().into_origin()), code, 1.into());
+        benchmarking::set_program::<ProgramStorageOf::<T>, _>(ProgramId::from_origin(program_id.clone().into_origin()), code, 1.into());
         let original_message_id = MessageId::from_origin(benchmarking::account::<T::AccountId>("message", 0, 100).into_origin());
         let gas_limit = 50000;
         let value = (p % 2).into();
@@ -1129,7 +1171,7 @@ benchmarks! {
         // Warm up memory.
         let mut instrs = body::write_access_all_pages_instrs((mem_pages as u16).into(), vec![]);
         instrs = body::repeated_dyn_instr(r * INSTR_BENCHMARK_BATCH_SIZE, vec![
-                        RandomUnaligned(0, mem_pages * WasmPageNumber::size() - 8),
+                        RandomUnaligned(0, mem_pages * WasmPage::size() - 8),
                         Regular(Instruction::I64Load(3, 0)),
                         Regular(Instruction::Drop)], instrs);
         let mut sbox = Sandbox::from(&WasmModule::<T>::from(ModuleDefinition {
@@ -1148,7 +1190,7 @@ benchmarks! {
         // Warm up memory.
         let mut instrs = body::write_access_all_pages_instrs((mem_pages as u16).into(), vec![]);
         instrs = body::repeated_dyn_instr(r * INSTR_BENCHMARK_BATCH_SIZE, vec![
-                        RandomUnaligned(0, mem_pages * WasmPageNumber::size() - 8),
+                        RandomUnaligned(0, mem_pages * WasmPage::size() - 8),
                         RandomI64Repeated(1),
                         Regular(Instruction::I64Store(3, 0))], instrs);
         let mut sbox = Sandbox::from(&WasmModule::<T>::from(ModuleDefinition {

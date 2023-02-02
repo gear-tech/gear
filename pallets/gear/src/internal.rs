@@ -30,16 +30,14 @@ use common::{
         MessageWaitedSystemReason::ProgramIsNotInitialized, MessageWokenReason, Reason, Reason::*,
         UserMessageReadReason, UserMessageReadRuntimeReason,
     },
-    gas_provider::{GasNodeId, GasNodeIdOf},
+    gas_provider::{GasNodeId, GasNodeIdOf, Imbalance},
     scheduler::*,
     storage::*,
     GasPrice, GasTree, Origin,
 };
 use core::cmp::{Ord, Ordering};
-use core_processor::common::ExecutionErrorReason;
-use frame_support::traits::{
-    BalanceStatus, Currency, ExistenceRequirement, Imbalance, ReservableCurrency,
-};
+use core_processor::common::ActorExecutionErrorReason;
+use frame_support::traits::{BalanceStatus, Currency, ExistenceRequirement, ReservableCurrency};
 use frame_system::pallet_prelude::BlockNumberFor;
 use gear_core::{
     ids::{MessageId, ProgramId, ReservationId},
@@ -701,7 +699,7 @@ where
         // string explanation of the error.
         let message = if message.is_error_reply() {
             message
-                .with_string_payload::<ExecutionErrorReason>()
+                .with_string_payload::<ActorExecutionErrorReason>()
                 .unwrap_or_else(|e| {
                     log::debug!("Failed to decode error to string");
                     e
@@ -784,7 +782,7 @@ where
             message
         } else {
             message
-                .with_string_payload::<ExecutionErrorReason>()
+                .with_string_payload::<ActorExecutionErrorReason>()
                 .unwrap_or_else(|e| {
                     log::debug!("Failed to decode error to string");
                     e

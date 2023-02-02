@@ -50,7 +50,7 @@ async fn keyhasher_size_exceed() -> Result<()> {
     assert!(listener.message_processed(mid).await?.succeed());
 
     // Check no runtime panic occurred
-    assert!(!api.queue_processing_stopped().await?);
+    assert!(!api.queue_processing_stalled().await?);
 
     Ok(())
 }

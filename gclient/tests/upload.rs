@@ -77,7 +77,7 @@ async fn upload_programs_and_check(
     );
 
     // Check no runtime panic occurred
-    assert!(!api.queue_processing_stopped().await?);
+    assert!(!api.queue_processing_stalled().await?);
 
     Ok(())
 }

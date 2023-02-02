@@ -109,27 +109,28 @@ impl EventListener {
         Err(Self::not_waited())
     }
 
-    /// Check whether at least one new block has been produced after the
-    /// `previous` block.
-    pub async fn blocks_running_since(&mut self, previous: H256) -> Result<bool> {
-        let current = self
+    /// Reads the next event from the stream and returns the repsective block
+    /// hash.
+    pub async fn next_block_hash(&mut self) -> Result<H256> {
+        Ok(self
             .0
             .next_events()
             .await
             .ok_or(Error::EventNotFound)??
-            .block_hash();
+            .block_hash())
+    }
+
+    /// Check whether at least one new block has been produced after the
+    /// `previous` block.
+    pub async fn blocks_running_since(&mut self, previous: H256) -> Result<bool> {
+        let current = self.next_block_hash().await?;
 
         Ok(current != previous)
     }
 
     /// Check whether new blocks are produced as expected.
     pub async fn blocks_running(&mut self) -> Result<bool> {
-        let previous = self
-            .0
-            .next_events()
-            .await
-            .ok_or(Error::EventNotFound)??
-            .block_hash();
+        let previous = self.next_block_hash().await?;
 
         self.blocks_running_since(previous).await
     }

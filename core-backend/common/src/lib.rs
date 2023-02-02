@@ -23,6 +23,7 @@
 extern crate alloc;
 
 pub mod error_processor;
+pub mod lazy_pages;
 
 mod utils;
 use memory::OutOfMemoryAccessError;
@@ -30,6 +31,8 @@ pub use utils::calc_stack_end;
 
 #[cfg(feature = "mock")]
 pub mod mock;
+
+pub mod memory;
 
 use alloc::{
     collections::{BTreeMap, BTreeSet},
@@ -48,16 +51,15 @@ use gear_core::{
     env::Ext,
     gas::GasAmount,
     ids::{CodeId, MessageId, ProgramId, ReservationId},
-    memory::{Memory, MemoryInterval, PageBuf, PageNumber, WasmPageNumber},
+    memory::{GearPage, Memory, MemoryInterval, PageBuf, WasmPage},
     message::{
         ContextStore, Dispatch, DispatchKind, IncomingDispatch, MessageWaitedType, WasmEntry,
     },
     reservation::GasReserver,
 };
 use gear_core_errors::{ExtError, MemoryError};
+use lazy_pages::GlobalsConfig;
 use scale_info::TypeInfo;
-
-pub mod memory;
 
 // Max amount of bytes allowed to be thrown as string explanation of the error.
 pub const TRIMMED_MAX_LEN: usize = 1024;
@@ -140,8 +142,8 @@ pub struct ExtInfo {
     pub gas_amount: GasAmount,
     pub gas_reserver: GasReserver,
     pub system_reservation_context: SystemReservationContext,
-    pub allocations: Option<BTreeSet<WasmPageNumber>>,
-    pub pages_data: BTreeMap<PageNumber, PageBuf>,
+    pub allocations: BTreeSet<WasmPage>,
+    pub pages_data: BTreeMap<GearPage, PageBuf>,
     pub generated_dispatches: Vec<(Dispatch, u32, Option<ReservationId>)>,
     pub awakening: Vec<(MessageId, u32)>,
     pub program_candidates_data: BTreeMap<CodeId, Vec<(MessageId, ProgramId)>>,
@@ -186,8 +188,7 @@ pub enum RuntimeCtxError<E: Display> {
 
 pub trait RuntimeCtx<E: Ext> {
     /// Allocate new pages in instance memory.
-    fn alloc(&mut self, pages: WasmPageNumber)
-        -> Result<WasmPageNumber, RuntimeCtxError<E::Error>>;
+    fn alloc(&mut self, pages: WasmPage) -> Result<WasmPage, RuntimeCtxError<E::Error>>;
 
     /// Read designated chunk from the memory.
     fn read_memory(&self, ptr: u32, len: u32) -> Result<Vec<u8>, RuntimeCtxError<E::Error>>;
@@ -296,7 +297,7 @@ where
         binary: &[u8],
         entry_point: EP,
         entries: BTreeSet<DispatchKind>,
-        mem_size: WasmPageNumber,
+        mem_size: WasmPage,
     ) -> Result<Self, Self::Error>;
 
     /// Run instance setup starting at `entry_point` - wasm export function name.
@@ -305,7 +306,7 @@ where
         pre_execution_handler: F,
     ) -> Result<BackendReport<Self::Memory, E>, Self::Error>
     where
-        F: FnOnce(&mut Self::Memory, Option<WasmPageNumber>) -> Result<(), T>,
+        F: FnOnce(&mut Self::Memory, Option<WasmPage>, GlobalsConfig) -> Result<(), T>,
         T: fmt::Display;
 }
 

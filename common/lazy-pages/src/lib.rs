@@ -21,12 +21,16 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
 use core::fmt;
+use gear_backend_common::{
+    lazy_pages::{GlobalsConfig, LazyPagesWeights, Status},
+    memory::OutOfMemoryAccessError,
+};
 use gear_common::Origin;
 use gear_core::{
     ids::ProgramId,
-    memory::{HostPointer, Memory, PageNumber, PageU32Size, WasmPageNumber},
+    memory::{GearPage, HostPointer, Memory, MemoryInterval, WasmPage},
 };
-use gear_runtime_interface::gear_ri;
+use gear_runtime_interface::{gear_ri, LazyPagesProgramContext};
 use sp_std::vec::Vec;
 
 fn mprotect_lazy_pages(mem: &mut impl Memory, protect: bool) {
@@ -46,21 +50,27 @@ pub fn try_to_enable_lazy_pages(pages_final_prefix: [u8; 32]) -> bool {
 /// Protect and save storage keys for pages which has no data
 pub fn init_for_program(
     mem: &mut impl Memory,
-    prog_id: ProgramId,
-    stack_end: Option<WasmPageNumber>,
+    program_id: ProgramId,
+    stack_end: Option<WasmPage>,
+    globals_config: GlobalsConfig,
+    lazy_pages_weights: LazyPagesWeights,
 ) {
     let wasm_mem_addr = mem.get_buffer_host_addr();
     let wasm_mem_size = mem.size();
-    let stack_end_page = stack_end.map(|page| page.raw());
+    let program_id = <[u8; 32]>::from(program_id.into_origin()).into();
+
+    let ctx = LazyPagesProgramContext {
+        wasm_mem_addr,
+        wasm_mem_size,
+        stack_end,
+        program_id,
+        globals_config,
+        lazy_pages_weights,
+    };
 
     // Cannot panic unless OS allocates buffer in not aligned by native page addr, or
     // something goes wrong with pages protection.
-    gear_ri::init_lazy_pages_for_program(
-        wasm_mem_addr,
-        wasm_mem_size.raw(),
-        stack_end_page,
-        <[u8; 32]>::from(prog_id.into_origin()).into(),
-    );
+    gear_ri::init_lazy_pages_for_program(ctx);
 }
 
 /// Remove lazy-pages protection, returns wasm memory begin addr
@@ -73,7 +83,7 @@ pub fn remove_lazy_pages_prot(mem: &mut impl Memory) {
 pub fn update_lazy_pages_and_protect_again(
     mem: &mut impl Memory,
     old_mem_addr: Option<HostPointer>,
-    old_mem_size: WasmPageNumber,
+    old_mem_size: WasmPage,
     new_mem_addr: HostPointer,
 ) {
     struct PointerDisplay(HostPointer);
@@ -101,20 +111,29 @@ pub fn update_lazy_pages_and_protect_again(
 
     let new_mem_size = mem.size();
     if new_mem_size > old_mem_size {
-        gear_ri::set_wasm_mem_size(new_mem_size.raw());
+        gear_ri::set_wasm_mem_size(new_mem_size.into());
     }
 
     mprotect_lazy_pages(mem, true);
 }
 
 /// Returns list of released pages numbers.
-pub fn get_released_pages() -> Vec<PageNumber> {
-    // Use panic here, because producing block with contract execution error,
-    // because of problems in native backend is not good idea. Better to stop
-    // process queue and wait until native backend will be fixed.
-    // TODO: (issue #1731) use wrapper to transfer PageNumber safely from native to runtime.
+pub fn get_released_pages() -> Vec<GearPage> {
     gear_ri::get_released_pages()
-        .into_iter()
-        .map(|p| PageNumber::new(p).expect("Unexpected lazy pages behavior"))
-        .collect()
+}
+
+/// Returns lazy pages actual status.
+pub fn get_status() -> Option<Status> {
+    gear_ri::get_lazy_pages_status()
+}
+
+/// Pre-process memory access in syscalls in lazy-pages.
+pub fn pre_process_memory_accesses(
+    reads: &[MemoryInterval],
+    writes: &[MemoryInterval],
+) -> Result<(), OutOfMemoryAccessError> {
+    // TODO: make wrapper to pass `&[MemoryInterval]` in runtime-interface (issue #2099).
+    let reads = reads.iter().copied().map(Into::into).collect::<Vec<_>>();
+    let writes = writes.iter().copied().map(Into::into).collect::<Vec<_>>();
+    gear_ri::pre_process_memory_accesses(&reads, &writes)
 }

@@ -18,8 +18,8 @@
 
 use crate::chain_spec::{get_account_id_from_seed, get_from_seed, AccountId, Extensions};
 use gear_runtime::{
-    BabeConfig, BalancesConfig, GearConfig, GenesisConfig, GrandpaConfig, SessionConfig,
-    SessionKeys, SudoConfig, SystemConfig, WASM_BINARY,
+    BabeConfig, BalancesConfig, GenesisConfig, GrandpaConfig, SessionConfig, SessionKeys,
+    SudoConfig, SystemConfig, WASM_BINARY,
 };
 use hex_literal::hex;
 use sc_service::ChainType;
@@ -84,7 +84,7 @@ pub fn development_config() -> Result<ChainSpec, String> {
 }
 
 pub fn local_testnet_config() -> Result<ChainSpec, String> {
-    let wasm_binary = WASM_BINARY.ok_or_else(|| "Development wasm not available".to_string())?;
+    let wasm_binary = WASM_BINARY.ok_or_else(|| "Local testnet wasm not available".to_string())?;
 
     Ok(ChainSpec::from_genesis(
         // Name
@@ -269,8 +269,5 @@ fn testnet_genesis(
             key: Some(root_key),
         },
         transaction_payment: Default::default(),
-        gear: GearConfig {
-            force_queue: Default::default(),
-        },
     }
 }

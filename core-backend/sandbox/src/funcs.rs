@@ -24,7 +24,7 @@ use alloc::{
     string::{FromUtf8Error, String},
 };
 use blake2_rfc::blake2b::blake2b;
-use core::{convert::TryInto, fmt::Display, marker::PhantomData, ops::Range};
+use core::{convert::TryInto, fmt::Display, marker::PhantomData};
 use gear_backend_common::{
     error_processor::{IntoExtError, ProcessError},
     memory::{MemoryAccessError, MemoryAccessRecorder, MemoryOwner},
@@ -33,7 +33,7 @@ use gear_backend_common::{
 use gear_core::{
     buffer::RuntimeBufferSizeError,
     env::Ext,
-    memory::{PageU32Size, WasmPageNumber},
+    memory::{PageU32Size, WasmPage},
     message::{HandlePacket, InitPacket, MessageWaitedType, PayloadSizeError, ReplyPacket},
 };
 use gear_core_errors::{CoreError, MemoryError};
@@ -67,10 +67,6 @@ pub enum FuncError<E: Display> {
     DebugString(FromUtf8Error),
     #[display(fmt = "Terminated: {_0:?}")]
     Terminated(TerminationReason),
-    #[display(fmt = "Cannot take data by indexes {_0:?} from message with size {_1}")]
-    ReadWrongRange(Range<u32>, u32),
-    #[display(fmt = "Overflow at {_0} + len {_1} in `gr_read`")]
-    ReadLenOverflow(u32, u32),
     #[display(fmt = "Binary code has wrong instrumentation")]
     WrongInstrumentation,
     #[display(fmt = "Cannot decode value from memory")]
@@ -344,17 +340,13 @@ where
         at: u32,
         len: u32,
     ) -> Result<&'_ [u8], FuncError<<E as Ext>::Error>> {
-        let msg = ext.read().map_err(FuncError::Core)?;
+        let msg = ext.read(at, len).map_err(FuncError::Core)?;
 
-        let last_idx = at
-            .checked_add(len)
-            .ok_or_else(|| FuncError::ReadLenOverflow(at, len))?;
+        // 'at' and 'len' correct and saturation checked in Ext::read
+        debug_assert!(at.checked_add(len).is_some());
+        debug_assert!((at + len) as usize == msg.len());
 
-        if last_idx as usize > msg.len() {
-            return Err(FuncError::ReadWrongRange(at..last_idx, msg.len() as u32));
-        }
-
-        Ok(&msg[at as usize..last_idx as usize])
+        Ok(msg)
     }
 
     pub fn read(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
@@ -434,7 +426,7 @@ where
     pub fn alloc(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
         sys_trace!(target: "syscall::gear", "alloc, args = {}", args_to_str(args));
 
-        let pages = WasmPageNumber::new(args.iter().read()?).map_err(|_| HostError)?;
+        let pages = WasmPage::new(args.iter().read()?).map_err(|_| HostError)?;
 
         let res = ctx.run_any(|ctx| {
             ctx.ext
@@ -453,7 +445,7 @@ where
     pub fn free(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
         sys_trace!(target: "syscall::gear", "free, args = {}", args_to_str(args));
 
-        let page = WasmPageNumber::new(args.iter().read()?).map_err(|_| HostError)?;
+        let page = WasmPage::new(args.iter().read()?).map_err(|_| HostError)?;
 
         ctx.run(|ctx| {
             ctx.ext
