@@ -30,7 +30,7 @@ struct WrappedMessage {
 extern "C" fn handle() {
     let message: WrappedMessage = msg::load().unwrap();
 
-    msg::send_bytes(message.recipient_id, message.payload, message.value).unwrap();
+    msg::send_bytes(message.recipient_id, message.payload, message.value.into()).unwrap();
 }
 
 #[no_mangle]
