@@ -17,9 +17,12 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use codec::MaxEncodedLen;
-use gear_backend_common::memory::{
-    MemoryAccessManager, MemoryOwner, WasmMemoryRead, WasmMemoryReadAs, WasmMemoryReadDecoded,
-    WasmMemoryWrite, WasmMemoryWriteAs,
+use gear_backend_common::{
+    memory::{
+        MemoryAccessManager, MemoryOwner, WasmMemoryRead, WasmMemoryReadAs, WasmMemoryReadDecoded,
+        WasmMemoryWrite, WasmMemoryWriteAs,
+    },
+    ActorSyscallFuncError, BackendExt,
 };
 
 use super::*;
@@ -27,8 +30,8 @@ use crate::state::State;
 
 pub(crate) struct CallerWrap<'a, E>
 where
-    E: Ext + IntoExtInfo<E::Error> + 'static,
-    E::Error: IntoExtError,
+    E: Ext + 'static,
+    E::Error: BackendExtError,
 {
     caller: Caller<'a, HostState<E>>,
     manager: MemoryAccessManager<E>,
@@ -37,8 +40,8 @@ where
 
 impl<'a, E> CallerWrap<'a, E>
 where
-    E: Ext + IntoExtInfo<E::Error> + 'static,
-    E::Error: IntoExtError,
+    E: Ext + 'static,
+    E::Error: BackendExtError,
 {
     #[track_caller]
     pub fn prepare(
@@ -53,7 +56,8 @@ where
         };
 
         if forbidden {
-            wrapper.host_state_mut().err = FuncError::Core(E::Error::forbidden_function());
+            wrapper.host_state_mut().err =
+                ActorSyscallFuncError::Core(E::Error::forbidden_function()).into();
             return Err(TrapCode::Unreachable.into());
         }
 
@@ -70,10 +74,8 @@ where
             Some((gas, allowance))
         };
 
-        let (gas, allowance) = f().ok_or_else(|| {
-            wrapper.host_state_mut().err = FuncError::WrongInstrumentation;
-            Trap::from(TrapCode::Unreachable)
-        })?;
+        let (gas, allowance) =
+            f().unwrap_or_else(|| unreachable!("Globals must be checked during env creation"));
 
         wrapper.host_state_mut().ext.update_counters(gas, allowance);
 
@@ -98,7 +100,7 @@ where
     }
 
     #[track_caller]
-    fn update_globals(&mut self) -> Result<(), Trap> {
+    fn update_globals(&mut self) {
         let (gas, allowance) = self.host_state_mut().ext.counters();
 
         let mut f = || {
@@ -118,24 +120,20 @@ where
             Some(())
         };
 
-        f().ok_or_else(|| {
-            // TODO #1979
-            self.host_state_mut().err = FuncError::WrongInstrumentation;
-            Trap::from(TrapCode::Unreachable)
-        })
+        f().unwrap_or_else(|| unreachable!("Globals must be checked during env creation"));
     }
 
     #[track_caller]
     pub fn run<T, F>(&mut self, f: F) -> Result<T, Trap>
     where
-        F: FnOnce(&mut Self) -> Result<T, FuncError<E::Error>>,
+        F: FnOnce(&mut Self) -> Result<T, SyscallFuncError<E::Error>>,
     {
         let result = f(self).map_err(|err| {
             self.host_state_mut().err = err;
             Trap::from(TrapCode::Unreachable)
         });
 
-        self.update_globals()?;
+        self.update_globals();
 
         result
     }
@@ -143,7 +141,7 @@ where
     #[track_caller]
     pub fn run_state_taken<T, F>(&mut self, f: F) -> Result<T, Trap>
     where
-        F: FnOnce(&mut Self, &mut State<E>) -> Result<T, FuncError<E::Error>>,
+        F: FnOnce(&mut Self, &mut State<E>) -> Result<T, SyscallFuncError<E::Error>>,
     {
         let mut state = self
             .caller
@@ -155,7 +153,7 @@ where
 
         self.caller.host_data_mut().replace(state);
 
-        self.update_globals()?;
+        self.update_globals();
 
         result.map_err(|err| {
             self.host_state_mut().err = err;
@@ -166,8 +164,8 @@ where
 
 impl<'a, E> MemoryAccessRecorder for CallerWrap<'a, E>
 where
-    E: Ext + IntoExtInfo<E::Error> + 'static,
-    E::Error: IntoExtError,
+    E: Ext + 'static,
+    E::Error: BackendExtError,
 {
     fn register_read(&mut self, ptr: u32, size: u32) -> WasmMemoryRead {
         self.manager.register_read(ptr, size)
@@ -195,8 +193,8 @@ where
 
 impl<'a, E> MemoryOwner for CallerWrap<'a, E>
 where
-    E: Ext + IntoExtInfo<E::Error> + 'static,
-    E::Error: IntoExtError,
+    E: BackendExt + 'static,
+    E::Error: BackendExtError,
 {
     fn read(&mut self, read: WasmMemoryRead) -> Result<Vec<u8>, MemoryAccessError> {
         let store = self.caller.as_context_mut();

@@ -219,7 +219,7 @@ where
             let (random, bn) = T::Randomness::random(dispatch_id.as_ref());
             let origin = ProgramId::from_origin(external.into_origin());
 
-            let journal = core_processor::process::<Ext, ExecutionEnvironment>(
+            let journal = core_processor::process::<ExecutionEnvironment>(
                 &block_config,
                 (context, code, balance, origin).into(),
                 (random.encode(), bn.unique_saturated_into()),

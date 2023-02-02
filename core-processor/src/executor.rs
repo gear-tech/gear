@@ -33,11 +33,12 @@ use alloc::{
 use codec::{Decode, Encode};
 use gear_backend_common::{
     lazy_pages::{GlobalsConfig, LazyPagesWeights, Status},
-    BackendReport, Environment, GetGasAmount, IntoExtInfo, TerminationReason, TrapExplanation,
+    BackendExt, BackendExtError, Environment, EnvironmentExecutionError, TerminationReason,
+    TrapExplanation,
 };
 use gear_core::{
     code::InstrumentedCode,
-    env::Ext as EnvExt,
+    env::Ext,
     gas::{GasAllowanceCounter, GasCounter, ValueCounter},
     ids::ProgramId,
     memory::{AllocationsContext, GearPage, Memory, PageBuf, PageU32Size, WasmPage},
@@ -67,6 +68,9 @@ pub enum ActorPrepareMemoryError {
     /// It's not allowed to set initial data for stack memory pages, if they are specified in WASM code.
     #[display(fmt = "Set initial data for stack pages is restricted")]
     StackPagesHaveInitialData,
+    /// Stack is not aligned to WASM page size
+    #[display(fmt = "Stack end addr {_0:#x} must be aligned to WASM page size")]
+    StackIsNotAligned(u32),
 }
 
 #[derive(Debug, Eq, PartialEq, derive_more::Display)]
@@ -130,11 +134,15 @@ fn prepare_memory<A: ProcessorExt, M: Memory>(
     program_id: ProgramId,
     pages_data: &mut BTreeMap<GearPage, PageBuf>,
     static_pages: WasmPage,
-    stack_end: Option<WasmPage>,
+    stack_end: Option<u32>,
     globals_config: GlobalsConfig,
     lazy_pages_weights: LazyPagesWeights,
 ) -> Result<(), PrepareMemoryError> {
-    if let Some(stack_end) = stack_end {
+    let stack_end = if let Some(stack_end) = stack_end {
+        let stack_end = (stack_end % WasmPage::size() == 0)
+            .then_some(WasmPage::from_offset(stack_end))
+            .ok_or(ActorPrepareMemoryError::StackIsNotAligned(stack_end))?;
+
         if stack_end > static_pages {
             return Err(ActorPrepareMemoryError::StackEndPageBiggerWasmMemSize(
                 stack_end,
@@ -142,7 +150,11 @@ fn prepare_memory<A: ProcessorExt, M: Memory>(
             )
             .into());
         }
-    }
+
+        Some(stack_end)
+    } else {
+        None
+    };
 
     // Set initial data for pages
     for (page, data) in pages_data.iter_mut() {
@@ -233,16 +245,18 @@ fn get_pages_to_be_updated<A: ProcessorExt>(
 }
 
 /// Execute wasm with dispatch and return dispatch result.
-pub fn execute_wasm<
-    A: ProcessorExt + EnvExt + IntoExtInfo<<A as EnvExt>::Error> + 'static,
-    E: Environment<A>,
->(
+pub fn execute_wasm<E>(
     balance: u128,
     dispatch: IncomingDispatch,
     context: WasmExecutionContext,
     settings: ExecutionSettings,
     msg_ctx_settings: ContextSettings,
-) -> Result<DispatchResult, ExecutionError> {
+) -> Result<DispatchResult, ExecutionError>
+where
+    E: Environment,
+    E::Ext: ProcessorExt + BackendExt + 'static,
+    <E::Ext as Ext>::Error: BackendExtError,
+{
     let WasmExecutionContext {
         gas_counter,
         gas_allowance_counter,
@@ -312,7 +326,7 @@ pub fn execute_wasm<
     let lazy_pages_weights = context.pages_config.lazy_pages_weights.clone();
 
     // Creating externalities.
-    let ext = A::new(context);
+    let ext = E::Ext::new(context);
 
     // Execute program in backend env.
     let execute = || {
@@ -322,9 +336,10 @@ pub fn execute_wasm<
             kind,
             program.code().exports().clone(),
             memory_size,
-        )?;
+        )
+        .map_err(EnvironmentExecutionError::from_infallible)?;
         env.execute(|memory, stack_end, globals_config| {
-            prepare_memory::<A, E::Memory>(
+            prepare_memory::<E::Ext, E::Memory>(
                 memory,
                 program_id,
                 &mut pages_initial_data,
@@ -336,16 +351,16 @@ pub fn execute_wasm<
         })
     };
     let (termination, memory, ext) = match execute() {
-        Ok(BackendReport {
-            termination_reason: mut termination,
-            memory_wrap: mut memory,
-            ext,
-        }) => {
-            // released pages initial data will be added to `pages_initial_data` after execution.
-            if A::LAZY_PAGES_ENABLED {
-                A::lazy_pages_post_execution_actions(&mut memory);
+        Ok(report) => {
+            let (mut termination, mut memory, ext) = report
+                .into_parts()
+                .map_err(SystemExecutionError::SyscallFunc)?;
 
-                let Some(status) = A::lazy_pages_status() else {
+            // released pages initial data will be added to `pages_initial_data` after execution.
+            if E::Ext::LAZY_PAGES_ENABLED {
+                E::Ext::lazy_pages_post_execution_actions(&mut memory);
+
+                let Some(status) = E::Ext::lazy_pages_status() else {
                     unreachable!("Lazy page status must be set before contract execution");
                 };
 
@@ -364,13 +379,28 @@ pub fn execute_wasm<
 
             (termination, memory, ext)
         }
-
-        Err(e) => {
-            return Err(ActorExecutionError {
-                gas_amount: e.gas_amount(),
-                reason: ActorExecutionErrorReason::Backend(e.to_string()),
-            }
-            .into())
+        Err(EnvironmentExecutionError::Environment(e)) => {
+            return Err(ExecutionError::System(SystemExecutionError::Environment(
+                e.to_string(),
+            )))
+        }
+        Err(EnvironmentExecutionError::PrepareMemory(gas_amount, PrepareMemoryError::Actor(e))) => {
+            return Err(ExecutionError::Actor(ActorExecutionError {
+                gas_amount,
+                reason: ActorExecutionErrorReason::PrepareMemory(e),
+            }))
+        }
+        Err(EnvironmentExecutionError::PrepareMemory(
+            _gas_amount,
+            PrepareMemoryError::System(e),
+        )) => {
+            return Err(ExecutionError::System(e.into()));
+        }
+        Err(EnvironmentExecutionError::ModuleStart(gas_amount)) => {
+            return Err(ExecutionError::Actor(ActorExecutionError {
+                gas_amount,
+                reason: ActorExecutionErrorReason::ModuleStart,
+            }))
         }
     };
 
@@ -378,12 +408,9 @@ pub fn execute_wasm<
 
     let info = ext
         .into_ext_info(&memory)
-        .map_err(|(err, gas_amount)| ActorExecutionError {
-            gas_amount,
-            reason: ActorExecutionErrorReason::Backend(err.to_string()),
-        })?;
+        .map_err(SystemExecutionError::IntoExtInfo)?;
 
-    if A::LAZY_PAGES_ENABLED {
+    if E::Ext::LAZY_PAGES_ENABLED {
         lazy_pages_check_initial_data(&pages_initial_data)
             .map_err(SystemExecutionError::PrepareMemory)?;
     }
@@ -403,7 +430,7 @@ pub fn execute_wasm<
     };
 
     let page_update =
-        get_pages_to_be_updated::<A>(pages_initial_data, info.pages_data, static_pages);
+        get_pages_to_be_updated::<E::Ext>(pages_initial_data, info.pages_data, static_pages);
 
     // Getting new programs that are scheduled to be initialized (respected messages are in `generated_dispatches` collection)
     let program_candidates = info.program_candidates_data;
@@ -426,11 +453,8 @@ pub fn execute_wasm<
 }
 
 /// !!! FOR TESTING / INFORMATIONAL USAGE ONLY
-pub fn execute_for_reply<
-    A: ProcessorExt + EnvExt + IntoExtInfo<<A as EnvExt>::Error> + 'static,
-    E: Environment<A, EP>,
-    EP: WasmEntry,
->(
+#[allow(clippy::too_many_arguments)]
+pub fn execute_for_reply<E, EP>(
     function: EP,
     instrumented_code: InstrumentedCode,
     pages_initial_data: Option<BTreeMap<GearPage, PageBuf>>,
@@ -438,7 +462,14 @@ pub fn execute_for_reply<
     program_id: Option<ProgramId>,
     payload: Vec<u8>,
     gas_limit: u64,
-) -> Result<Vec<u8>, String> {
+    block_info: BlockInfo,
+) -> Result<Vec<u8>, String>
+where
+    E: Environment<EP>,
+    E::Ext: ProcessorExt + BackendExt + 'static,
+    <E::Ext as Ext>::Error: BackendExtError,
+    EP: WasmEntry,
+{
     let program = Program::new(program_id.unwrap_or_default(), instrumented_code);
     let mut pages_initial_data: BTreeMap<GearPage, PageBuf> =
         pages_initial_data.unwrap_or_default();
@@ -481,10 +512,7 @@ pub fn execute_for_reply<
             None,
             ContextSettings::new(0, 0, 0, 0, 0, 0),
         ),
-        block_info: BlockInfo {
-            height: Default::default(),
-            timestamp: Default::default(),
-        },
+        block_info,
         pages_config: PagesConfig {
             max_pages: 512.into(),
             lazy_pages_weights: LazyPagesWeights {
@@ -515,7 +543,7 @@ pub fn execute_for_reply<
     let lazy_pages_weights = context.pages_config.lazy_pages_weights.clone();
 
     // Creating externalities.
-    let ext = A::new(context);
+    let ext = E::Ext::new(context);
 
     // Execute program in backend env.
     let f = || {
@@ -525,9 +553,10 @@ pub fn execute_for_reply<
             function,
             program.code().exports().clone(),
             memory_size,
-        )?;
+        )
+        .map_err(EnvironmentExecutionError::from_infallible)?;
         env.execute(|memory, stack_end, globals_config| {
-            prepare_memory::<A, E::Memory>(
+            prepare_memory::<E::Ext, E::Memory>(
                 memory,
                 program.id(),
                 &mut pages_initial_data,
@@ -540,11 +569,9 @@ pub fn execute_for_reply<
     };
 
     let (termination, memory, ext) = match f() {
-        Ok(BackendReport {
-            termination_reason: termination,
-            memory_wrap: memory,
-            ext,
-        }) => (termination, memory, ext),
+        Ok(report) => report
+            .into_parts()
+            .map_err(|e| format!("Backend error: {e}"))?,
         Err(e) => return Err(format!("Backend error: {e}")),
     };
 

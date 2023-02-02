@@ -31,6 +31,7 @@ pub use frame_support::{
     parameter_types,
     traits::{
         ConstU128, ConstU32, Contains, FindAuthor, KeyOwnerProofSystem, Randomness, StorageInfo,
+        WithdrawReasons,
     },
     weights::{
         constants::{
@@ -59,7 +60,7 @@ use sp_api::impl_runtime_apis;
 use sp_core::{crypto::KeyTypeId, ConstU64, OpaqueMetadata, H256};
 use sp_runtime::{
     create_runtime_str, generic, impl_opaque_keys,
-    traits::{AccountIdLookup, BlakeTwo256, Block as BlockT, NumberFor, OpaqueKeys},
+    traits::{AccountIdLookup, BlakeTwo256, Block as BlockT, ConvertInto, NumberFor, OpaqueKeys},
     transaction_validity::{TransactionSource, TransactionValidity},
     ApplyExtrinsicResult, Percent,
 };
@@ -420,6 +421,22 @@ where
     type OverarchingCall = RuntimeCall;
 }
 
+parameter_types! {
+    pub const MinVestedTransfer: Balance = 100 * CENTS;
+    pub UnvestedFundsAllowedWithdrawReasons: WithdrawReasons =
+        WithdrawReasons::except(WithdrawReasons::TRANSFER | WithdrawReasons::RESERVE);
+}
+
+impl pallet_vesting::Config for Runtime {
+    type RuntimeEvent = RuntimeEvent;
+    type Currency = Balances;
+    type BlockNumberToBalance = ConvertInto;
+    type MinVestedTransfer = MinVestedTransfer;
+    type WeightInfo = pallet_vesting::weights::SubstrateWeight<Runtime>;
+    type UnvestedFundsAllowedWithdrawReasons = UnvestedFundsAllowedWithdrawReasons;
+    const MAX_VESTING_SCHEDULES: u32 = 28;
+}
+
 // Create the runtime by composing the FRAME pallets that were previously configured.
 #[cfg(feature = "debug-mode")]
 construct_runtime!(
@@ -434,6 +451,7 @@ construct_runtime!(
         Babe: pallet_babe,
         Grandpa: pallet_grandpa,
         Balances: pallet_balances,
+        Vesting: pallet_vesting,
         TransactionPayment: pallet_transaction_payment,
         Session: pallet_session,
         Sudo: pallet_sudo,
@@ -463,6 +481,7 @@ construct_runtime!(
         Babe: pallet_babe,
         Grandpa: pallet_grandpa,
         Balances: pallet_balances,
+        Vesting: pallet_vesting,
         TransactionPayment: pallet_transaction_payment,
         Session: pallet_session,
         Sudo: pallet_sudo,

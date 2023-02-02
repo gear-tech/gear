@@ -237,7 +237,7 @@ where
     T::AccountId: Origin,
 {
     (
-        core_processor::process::<Externalities, ExecutionEnvironment>(
+        core_processor::process::<ExecutionEnvironment>(
             &exec.block_config,
             exec.context,
             exec.random_data,
