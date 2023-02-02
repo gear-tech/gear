@@ -289,7 +289,6 @@ where
         let (at, len, buffer_ptr, err_len_ptr): (_, _, u32, _) = args.iter().read_4()?;
 
         ctx.run(|ctx| {
-            let write_err_len = ctx.register_write_as(err_len_ptr);
             let res = ctx.ext.read(at, len);
             let length = match res.into_ext_error(&mut ctx.err)? {
                 Ok(buf) => {
@@ -301,12 +300,14 @@ where
                 Err(err_len) => err_len,
             };
 
-            // Ignore errors while doing unchecked reading.
-            if err_len_ptr != u32::MAX {
-                ctx.write_as(write_err_len, length.to_le_bytes())
-                    .map_err(Into::into)
+            // In unchecked reading, skip the writing error operation when
+            // there is no error but exit with `ctx.write_as`'s error when
+            // there are some errors.
+            if err_len_ptr != u32::MAX || length > 0 {
+                let write_err_len = ctx.register_write_as(err_len_ptr);
+                Ok(ctx.write_as(write_err_len, length.to_le_bytes())?)
             } else {
-                Err(MemoryError::MemoryAccessError.into())
+                Ok(())
             }
         })
     }

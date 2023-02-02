@@ -366,7 +366,6 @@ where
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
             ctx.run_state_taken(|ctx, state| {
-                let write_err_len = ctx.register_write_as(err_len_ptr);
                 let length = match state.ext.read(at, len).into_ext_error(&mut state.err)? {
                     Ok(buf) => {
                         let write_buffer = ctx.register_write(buffer_ptr, len);
@@ -376,11 +375,14 @@ where
                     Err(err_len) => err_len,
                 };
 
-                if buffer_ptr != u32::MAX {
-                    ctx.write_as(write_err_len, length.to_le_bytes())
-                        .map_err(Into::into)
+                // In unchecked reading, skip the writing error operation when
+                // there is no error but exit with `ctx.write_as`'s error when
+                // there are some errors.
+                if err_len_ptr != u32::MAX || length > 0 {
+                    let write_err_len = ctx.register_write_as(err_len_ptr);
+                    Ok(ctx.write_as(write_err_len, length.to_le_bytes())?)
                 } else {
-                    Err(MemoryError::MemoryAccessError.into())
+                    Ok(())
                 }
             })
         };
