@@ -664,7 +664,6 @@ fn unstoppable_block_execution_works() {
 
         run_to_block(2, None);
 
-        // Mikita
         let GasInfo {
             burned: expected_burned_gas,
             may_be_returned,

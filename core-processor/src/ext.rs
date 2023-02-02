@@ -374,6 +374,23 @@ impl Ext {
             )
         }
     }
+
+    fn charge_for_dispatch_stash_hold(&mut self, delay: u32) -> Result<(), ProcessorError> {
+        if delay != 0 {
+            // Take delay and get cost of block
+            // Calculate reserve like  wait_cost * (delay + reserve_for)
+            let cost_per_block = self.context.dispatch_hold_cost;
+            let waiting_reserve = (self.context.reserve_for as u64)
+                .saturating_add(delay as u64)
+                .saturating_mul(cost_per_block);
+
+            // Reduse gas for block waiting in dispatch stash
+            if self.context.gas_counter.reduce(waiting_reserve) != ChargeResult::Enough {
+                return Err(WaitError::NotEnoughGas.into());
+            }
+        }
+        Ok(())
+    }
 }
 
 impl EnvExt for Ext {
@@ -438,19 +455,7 @@ impl EnvExt for Ext {
 
         self.charge_sending_fee(delay)?;
 
-        if delay != 0 {
-            // Take delay and get cost of block
-            // Calculate reserve like  wait_cost * (delay + reserve_for)
-            let cost_per_block = self.context.dispatch_hold_cost;
-            let waiting_reserve = (self.context.reserve_for as u64)
-                .saturating_add(delay as u64)
-                .saturating_mul(cost_per_block);
-
-            // Reduse gas for block waiting in dispatch stash
-            if self.context.gas_counter.reduce(waiting_reserve) != ChargeResult::Enough {
-                return Err(WaitError::NotEnoughGas.into());
-            }
-        }
+        self.charge_for_dispatch_stash_hold(delay)?;
 
         let msg_id = self
             .context
@@ -482,19 +487,7 @@ impl EnvExt for Ext {
 
         self.context.gas_reserver.mark_used(id)?;
 
-        if delay != 0 {
-            // Take delay and get cost of block
-            // Calculate reserve like  wait_cost * (delay + reserve_for)
-            let cost_per_block = self.context.dispatch_hold_cost;
-            let waiting_reserve = (self.context.reserve_for as u64)
-                .saturating_add(delay as u64)
-                .saturating_mul(cost_per_block);
-
-            // Reduse gas for block waiting in dispatch stash
-            if self.context.gas_counter.reduce(waiting_reserve) != ChargeResult::Enough {
-                return Err(WaitError::NotEnoughGas.into());
-            }
-        }
+        self.charge_for_dispatch_stash_hold(delay)?;
 
         let msg_id = self
             .context
@@ -517,19 +510,7 @@ impl EnvExt for Ext {
 
         self.charge_sending_fee(delay)?;
 
-        if delay != 0 {
-            // Take delay and get cost of block
-            // Calculate reserve like  wait_cost * (delay + reserve_for)
-            let cost_per_block = self.context.dispatch_hold_cost;
-            let waiting_reserve = (self.context.reserve_for as u64)
-                .saturating_add(delay as u64)
-                .saturating_mul(cost_per_block);
-
-            // Reduse gas for block waiting in dispatch stash
-            if self.context.gas_counter.reduce(waiting_reserve) != ChargeResult::Enough {
-                return Err(WaitError::NotEnoughGas.into());
-            }
-        }
+        self.charge_for_dispatch_stash_hold(delay)?;
 
         let msg_id = self
             .context
@@ -870,19 +851,7 @@ impl EnvExt for Ext {
 
         let code_hash = packet.code_id();
 
-        if delay != 0 {
-            // Take delay and get cost of block
-            // Calculate reserve like  wait_cost * (delay + reserve_for)
-            let cost_per_block = self.context.dispatch_hold_cost;
-            let waiting_reserve = (self.context.reserve_for as u64)
-                .saturating_add(delay as u64)
-                .saturating_mul(cost_per_block);
-
-            // Reduse gas for block waiting in dispatch stash
-            if self.context.gas_counter.reduce(waiting_reserve) != ChargeResult::Enough {
-                return Err(WaitError::NotEnoughGas.into());
-            }
-        }
+        self.charge_for_dispatch_stash_hold(delay)?;
 
         // Send a message for program creation
         let (mid, pid) = self
