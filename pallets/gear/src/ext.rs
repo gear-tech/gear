@@ -16,12 +16,12 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use alloc::{collections::BTreeSet, vec::Vec};
+use alloc::{collections::BTreeSet, string::String, vec::Vec};
 use core_processor::{Ext, ProcessorContext, ProcessorError, ProcessorExt};
 use gear_backend_common::{
     lazy_pages::{GlobalsConfig, LazyPagesWeights, Status},
     memory::OutOfMemoryAccessError,
-    ExtInfo, GetGasAmount, IntoExtInfo, TrapExplanation,
+    BackendExt, ExtInfo,
 };
 use gear_core::{
     costs::RuntimeCosts,
@@ -31,7 +31,7 @@ use gear_core::{
     memory::{GearPage, GrowHandler, Memory, MemoryInterval, PageU32Size, WasmPage},
     message::{HandlePacket, InitPacket, ReplyPacket, StatusCode},
 };
-use gear_core_errors::{ExtError, MemoryError};
+use gear_core_errors::MemoryError;
 use gear_lazy_pages_common as lazy_pages;
 use gear_wasm_instrument::syscalls::SysCallName;
 
@@ -40,8 +40,8 @@ pub struct LazyPagesExt {
     inner: Ext,
 }
 
-impl IntoExtInfo<<LazyPagesExt as EnvExt>::Error> for LazyPagesExt {
-    fn into_ext_info(self, memory: &impl Memory) -> Result<ExtInfo, (MemoryError, GasAmount)> {
+impl BackendExt for LazyPagesExt {
+    fn into_ext_info(self, memory: &impl Memory) -> Result<ExtInfo, MemoryError> {
         let pages_for_data =
             |static_pages: WasmPage, allocations: &BTreeSet<WasmPage>| -> Vec<GearPage> {
                 // Accessed pages are all pages, that had been released and are in allocations set or static.
@@ -56,16 +56,8 @@ impl IntoExtInfo<<LazyPagesExt as EnvExt>::Error> for LazyPagesExt {
         self.inner.into_ext_info_inner(memory, pages_for_data)
     }
 
-    fn into_gas_amount(self) -> gear_core::gas::GasAmount {
-        self.inner.context.gas_counter.into()
-    }
-
-    fn last_error(&self) -> Result<&ExtError, <LazyPagesExt as EnvExt>::Error> {
-        self.inner.last_error()
-    }
-
-    fn trap_explanation(&self) -> Option<TrapExplanation> {
-        self.inner.trap_explanation()
+    fn gas_amount(&self) -> GasAmount {
+        self.inner.context.gas_counter.clone().into()
     }
 
     fn pre_process_memory_accesses(
@@ -73,14 +65,6 @@ impl IntoExtInfo<<LazyPagesExt as EnvExt>::Error> for LazyPagesExt {
         writes: &[MemoryInterval],
     ) -> Result<(), OutOfMemoryAccessError> {
         lazy_pages::pre_process_memory_accesses(reads, writes)
-    }
-}
-
-impl GetGasAmount for LazyPagesExt {
-    fn gas_amount(&self) -> GasAmount {
-        let gas_counter = self.inner.context.gas_counter.clone();
-
-        gas_counter.into()
     }
 }
 
@@ -358,5 +342,9 @@ impl EnvExt for LazyPagesExt {
 
     fn runtime_cost(&self, costs: RuntimeCosts) -> u64 {
         self.inner.runtime_cost(costs)
+    }
+
+    fn maybe_panic(&self) -> Option<String> {
+        self.inner.maybe_panic()
     }
 }
