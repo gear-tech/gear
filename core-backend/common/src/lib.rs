@@ -212,10 +212,6 @@ pub trait BackendExt: EnvExt {
 }
 
 pub trait BackendExtError: CoreError + Clone {
-    fn from_ext_error(err: ExtError) -> Self;
-
-    fn forbidden_function() -> Self;
-
     fn into_ext_error(self) -> Result<ExtError, Self>;
 
     fn into_termination_reason(self) -> TerminationReason;

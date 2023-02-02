@@ -48,14 +48,6 @@ impl fmt::Display for Error {
 impl CoreError for Error {}
 
 impl BackendExtError for Error {
-    fn from_ext_error(_err: ExtError) -> Self {
-        unimplemented!()
-    }
-
-    fn forbidden_function() -> Self {
-        unimplemented!()
-    }
-
     fn into_ext_error(self) -> Result<ExtError, Self> {
         unimplemented!()
     }

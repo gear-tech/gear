@@ -164,14 +164,6 @@ impl From<ExecutionError> for ProcessorError {
 impl CoreError for ProcessorError {}
 
 impl BackendExtError for ProcessorError {
-    fn from_ext_error(err: ExtError) -> Self {
-        Self::Core(err)
-    }
-
-    fn forbidden_function() -> Self {
-        Self::Core(ExtError::Execution(ExecutionError::ForbiddenFunction))
-    }
-
     fn into_ext_error(self) -> Result<ExtError, Self> {
         match self {
             ProcessorError::Core(err) => Ok(err),
