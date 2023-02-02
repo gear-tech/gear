@@ -441,6 +441,34 @@ benchmarks! {
         assert!(MailboxOf::<T>::is_empty(&caller));
     }
 
+    claim_value__balance {
+        let caller = benchmarking::account("caller", 0, 0);
+        <T as pallet::Config>::Currency::deposit_creating(&caller, DEPOSIT_AMOUNT.unique_saturated_into());
+        let program_id = benchmarking::account::<T::AccountId>("program", 0, 100);
+        <T as pallet::Config>::Currency::deposit_creating(&program_id, DEPOSIT_AMOUNT.unique_saturated_into());
+        let code = benchmarking::generate_wasm2(16.into()).unwrap();
+        benchmarking::set_program::<ProgramStorageOf::<T>>(ProgramId::from_origin(program_id.clone().into_origin()), code, 1.into());
+        let original_message_id = MessageId::from_origin(benchmarking::account::<T::AccountId>("message", 0, 100).into_origin());
+        let gas_limit = 50000;
+        let value = 10000u32.into();
+        GasHandlerOf::<T>::create(program_id.clone(), original_message_id, gas_limit).expect("Failed to create gas handler");
+        <T as pallet::Config>::Currency::reserve(&program_id, <T as pallet::Config>::GasPrice::gas_price(gas_limit) + value).expect("Failed to reserve");
+        MailboxOf::<T>::insert(gear_core::message::StoredMessage::new(
+            original_message_id,
+            ProgramId::from_origin(program_id.into_origin()),
+            ProgramId::from_origin(caller.clone().into_origin()),
+            Default::default(),
+            value.unique_saturated_into(),
+            None,
+        ), u32::MAX.unique_saturated_into()).expect("Error during mailbox insertion");
+
+        init_block::<T>(None);
+    }: claim_value(RawOrigin::Signed(caller.clone()), original_message_id)
+    verify {
+        assert!(matches!(QueueOf::<T>::dequeue(), Ok(None)));
+        assert!(MailboxOf::<T>::is_empty(&caller));
+    }
+
     // This constructs a program that is maximal expensive to instrument.
     // It creates a maximum number of metering blocks per byte.
     //
