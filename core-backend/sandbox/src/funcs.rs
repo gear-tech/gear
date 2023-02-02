@@ -438,9 +438,7 @@ where
 
         ctx.run(|ctx| {
             let read_subject = ctx.register_read_decoded(subject_ptr);
-            let write_bn_random = ctx
-                .memory_manager
-                .register_write_as::<BlockNumberWithHash>(bn_random_ptr);
+            let write_bn_random = ctx.register_write_as(bn_random_ptr);
 
             let raw_subject: Hash = ctx.read_decoded(read_subject)?;
 
@@ -465,7 +463,7 @@ where
             let write_err_mid = ctx.register_write_as(err_mid_ptr);
 
             let value = if value_ptr != PTR_SPECIAL {
-                let read_value = ctx.register_read_decoded::<u128>(value_ptr);
+                let read_value = ctx.register_read_decoded(value_ptr);
                 ctx.read_decoded(read_value)?
             } else {
                 0
@@ -491,7 +489,7 @@ where
             let write_err_mid = ctx.register_write_as(err_mid_ptr);
 
             let value = if value_ptr != PTR_SPECIAL {
-                let read_value = ctx.register_read_decoded::<u128>(value_ptr);
+                let read_value = ctx.register_read_decoded(value_ptr);
                 ctx.read_decoded(read_value)?
             } else {
                 0
@@ -516,7 +514,7 @@ where
             let write_err_mid = ctx.register_write_as(err_mid_ptr);
 
             let value = if value_ptr != PTR_SPECIAL {
-                let read_value = ctx.register_read_decoded::<u128>(value_ptr);
+                let read_value = ctx.register_read_decoded(value_ptr);
                 ctx.read_decoded(read_value)?
             } else {
                 0
@@ -540,7 +538,7 @@ where
             let write_err_mid = ctx.register_write_as(err_mid_ptr);
 
             let value = if value_ptr != PTR_SPECIAL {
-                let read_value = ctx.register_read_decoded::<u128>(value_ptr);
+                let read_value = ctx.register_read_decoded(value_ptr);
                 ctx.read_decoded(read_value)?
             } else {
                 0
