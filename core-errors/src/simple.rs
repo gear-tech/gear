@@ -14,36 +14,15 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-#[cfg(feature = "codec")]
-use codec::{Decode, Encode};
-use core::{iter, mem};
-#[cfg(feature = "codec")]
-use scale_info::TypeInfo;
+use enum_iterator::Sequence;
 
 /// Type that can be encoded and decoded into status code
-pub trait SimpleCodec: Encode + Decode + sealed::Sealed + Sized {
+pub trait SimpleCodec: sealed::Sealed + Sized {
     /// Convert type into status code
-    fn into_status_code(self) -> i32 {
-        const U32_SIZE: usize = mem::size_of::<i32>();
-
-        let mut buf = self.encode();
-        assert!(buf.len() <= U32_SIZE);
-        buf.extend(iter::repeat(0).take(U32_SIZE - buf.len()));
-        let buf = buf.try_into().expect("Vec must be exactly 4 bytes length");
-        assert_ne!(
-            buf, [0; 4],
-            "Encoded simple error shouldn't be 0 because it's successful status code"
-        );
-
-        u32::from_le_bytes(buf) as i32
-    }
+    fn into_status_code(self) -> i32;
 
     /// Convert status code into self
-    fn from_status_code(status_code: i32) -> Option<Self> {
-        let status_code = status_code as u32;
-        let status_code = status_code.to_le_bytes();
-        Self::decode(&mut status_code.as_ref()).ok()
-    }
+    fn from_status_code(status_code: i32) -> Option<Self>;
 }
 
 mod sealed {
@@ -51,8 +30,9 @@ mod sealed {
 }
 
 /// Simple execution error
-#[derive(Copy, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, derive_more::Display)]
-#[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo))]
+#[derive(
+    Copy, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Sequence, derive_more::Display,
+)]
 pub enum SimpleExecutionError {
     /// Gas limit exceeded
     #[display(fmt = "Gas limit exceeded")]
@@ -69,11 +49,24 @@ pub enum SimpleExecutionError {
     Unknown,
 }
 
+impl SimpleExecutionError {
+    fn decode(num: u8) -> Option<Self> {
+        match num {
+            0 => Some(Self::GasLimitExceeded),
+            1 => Some(Self::MemoryExceeded),
+            2 => Some(Self::Ext),
+            3 => Some(Self::Panic),
+            4 => Some(Self::Unknown),
+            _ => None,
+        }
+    }
+}
+
 /// Reply error
-#[derive(Copy, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, derive_more::Display)]
-#[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo))]
+#[derive(
+    Copy, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Sequence, derive_more::Display,
+)]
 #[repr(u8)]
-#[allow(clippy::unnecessary_cast)]
 pub enum SimpleReplyError {
     /// Execution error.
     #[display(fmt = "Execution error: {_0}")]
@@ -89,14 +82,46 @@ pub enum SimpleReplyError {
     CodeNotExists = 4,
 }
 
-impl SimpleCodec for SimpleReplyError {}
+impl SimpleCodec for SimpleReplyError {
+    fn into_status_code(self) -> i32 {
+        let first = match self {
+            SimpleReplyError::Execution(_) => 1,
+            SimpleReplyError::NonExecutable => 2,
+            SimpleReplyError::OutOfRent => 3,
+            SimpleReplyError::CodeNotExists => 4,
+        };
+        let mut second = 0;
+        if let Self::Execution(err) = self {
+            second = err as u32;
+        }
+
+        (first | second << 8) as i32
+    }
+
+    fn from_status_code(status_code: i32) -> Option<Self> {
+        let status_code = status_code as u32;
+        let first = (status_code & 0xff) as u8;
+        let second = ((status_code & 0xff00) >> 8) as u8;
+
+        let execution = SimpleExecutionError::decode(second)?;
+
+        match first {
+            1 => Some(SimpleReplyError::Execution(execution)),
+            2 => Some(SimpleReplyError::NonExecutable),
+            3 => Some(SimpleReplyError::OutOfRent),
+            4 => Some(SimpleReplyError::CodeNotExists),
+            _ => None,
+        }
+    }
+}
+
 impl sealed::Sealed for SimpleReplyError {}
 
 /// Signal error
-#[derive(Copy, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, derive_more::Display)]
-#[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo))]
+#[derive(
+    Copy, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Sequence, derive_more::Display,
+)]
 #[repr(u8)]
-#[allow(clippy::unnecessary_cast)]
 pub enum SimpleSignalError {
     /// Execution error
     #[display(fmt = "Execution error: {_0}")]
@@ -106,17 +131,59 @@ pub enum SimpleSignalError {
     RemovedFromWaitlist = 2,
 }
 
-impl SimpleCodec for SimpleSignalError {}
+impl SimpleCodec for SimpleSignalError {
+    fn into_status_code(self) -> i32 {
+        let first = match self {
+            SimpleSignalError::Execution(_) => 1,
+            SimpleSignalError::RemovedFromWaitlist => 2,
+        };
+        let mut second = 0;
+        if let Self::Execution(err) = self {
+            second = err as u32;
+        }
+
+        (first | second << 8) as i32
+    }
+
+    fn from_status_code(status_code: i32) -> Option<Self> {
+        let status_code = status_code as u32;
+        let first = (status_code & 0xff) as u8;
+        let second = ((status_code & 0xff00) >> 8) as u8;
+
+        let execution = SimpleExecutionError::decode(second)?;
+
+        match first {
+            1 => Some(SimpleSignalError::Execution(execution)),
+            2 => Some(SimpleSignalError::RemovedFromWaitlist),
+            _ => None,
+        }
+    }
+}
+
 impl sealed::Sealed for SimpleSignalError {}
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use core::mem;
 
     #[test]
-    fn assert_sizes() {
-        assert!(SimpleReplyError::encoded_fixed_size().unwrap() <= mem::size_of::<u32>());
-        assert!(SimpleSignalError::encoded_fixed_size().unwrap() <= mem::size_of::<u32>());
+    fn encode_decode() {
+        for variant in enum_iterator::all::<SimpleSignalError>() {
+            let status_code = variant.into_status_code();
+            assert_ne!(variant.into_status_code(), 0);
+            assert_eq!(
+                SimpleSignalError::from_status_code(status_code),
+                Some(variant)
+            );
+        }
+
+        for variant in enum_iterator::all::<SimpleReplyError>() {
+            let status_code = variant.into_status_code();
+            assert_ne!(variant.into_status_code(), 0);
+            assert_eq!(
+                SimpleReplyError::from_status_code(status_code),
+                Some(variant)
+            );
+        }
     }
 }

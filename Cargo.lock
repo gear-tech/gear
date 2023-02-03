@@ -3357,9 +3357,9 @@ name = "gear-core-errors"
 version = "0.1.0"
 dependencies = [
  "derive_more",
+ "enum-iterator 1.2.0",
  "parity-scale-codec",
  "scale-info",
- "static_assertions",
 ]
 
 [[package]]

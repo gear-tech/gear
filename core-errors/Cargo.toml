@@ -8,7 +8,7 @@ license = "GPL-3.0"
 [dependencies]
 scale-info = { version = "2.1.1", default-features = false, features = ["derive"], optional = true }
 derive_more = "0.99.17"
-static_assertions = "1.1.0"
+enum-iterator = "1.2.0"
 
 [dependencies.codec]
 package = "parity-scale-codec"
