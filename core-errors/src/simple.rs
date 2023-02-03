@@ -20,8 +20,8 @@ use core::{iter, mem};
 #[cfg(feature = "codec")]
 use scale_info::TypeInfo;
 
-/// Type that can be encoded into status code
-pub trait SimpleEncodable: Encode + sealed::Sealed + Sized {
+/// Type that can be encoded and decoded into status code
+pub trait SimpleCodec: Encode + Decode + sealed::Sealed + Sized {
     /// Convert type into status code
     fn into_status_code(self) -> i32 {
         const U32_SIZE: usize = mem::size_of::<i32>();
@@ -36,6 +36,13 @@ pub trait SimpleEncodable: Encode + sealed::Sealed + Sized {
         );
 
         u32::from_le_bytes(buf) as i32
+    }
+
+    /// Convert status code into self
+    fn from_status_code(status_code: i32) -> Option<Self> {
+        let status_code = status_code as u32;
+        let status_code = status_code.to_le_bytes();
+        Self::decode(&mut status_code.as_ref()).ok()
     }
 }
 
@@ -82,7 +89,7 @@ pub enum SimpleReplyError {
     CodeNotExists = 4,
 }
 
-impl SimpleEncodable for SimpleReplyError {}
+impl SimpleCodec for SimpleReplyError {}
 impl sealed::Sealed for SimpleReplyError {}
 
 /// Signal error
@@ -99,7 +106,7 @@ pub enum SimpleSignalError {
     RemovedFromWaitlist = 2,
 }
 
-impl SimpleEncodable for SimpleSignalError {}
+impl SimpleCodec for SimpleSignalError {}
 impl sealed::Sealed for SimpleSignalError {}
 
 #[cfg(test)]

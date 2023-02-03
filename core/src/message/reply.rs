@@ -25,7 +25,7 @@ use crate::{
     },
 };
 use codec::{Decode, Encode};
-use gear_core_errors::{SimpleEncodable, SimpleReplyError};
+use gear_core_errors::{SimpleCodec, SimpleReplyError};
 use scale_info::TypeInfo;
 
 /// Message for Reply entry point.

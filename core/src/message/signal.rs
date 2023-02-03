@@ -21,7 +21,7 @@ use crate::{
     message::{Dispatch, DispatchKind, Message, SignalDetails, StatusCode},
 };
 use codec::{Decode, Encode};
-use gear_core_errors::{SimpleEncodable, SimpleSignalError};
+use gear_core_errors::{SimpleCodec, SimpleSignalError};
 use scale_info::TypeInfo;
 
 /// Message for signal entry point.

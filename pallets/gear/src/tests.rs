@@ -8356,7 +8356,7 @@ mod utils {
         message::StoredMessage,
         reservation::GasReservationMap,
     };
-    use gear_core_errors::{ExtError, SimpleEncodable, SimpleReplyError};
+    use gear_core_errors::{ExtError, SimpleCodec, SimpleReplyError};
     use sp_core::H256;
     use sp_runtime::traits::UniqueSaturatedInto;
     use sp_std::{convert::TryFrom, fmt::Debug};

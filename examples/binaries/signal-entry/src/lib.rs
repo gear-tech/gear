@@ -51,7 +51,7 @@ mod wasm {
     use super::*;
     use gstd::{
         errors::{
-            ExtError, ReservationError, SimpleEncodable, SimpleExecutionError, SimpleSignalError,
+            ExtError, ReservationError, SimpleCodec, SimpleExecutionError, SimpleSignalError,
         },
         exec, msg,
         prelude::*,
@@ -198,14 +198,12 @@ mod wasm {
             HandleSignalState::Normal => {
                 msg::send(unsafe { INITIATOR }, b"handle_signal", 0).unwrap();
                 let status_code = msg::status_code().unwrap();
-                let panic =
-                    SimpleSignalError::Execution(SimpleExecutionError::Panic).into_status_code();
-                let gas_exceeded =
-                    SimpleSignalError::Execution(SimpleExecutionError::GasLimitExceeded)
-                        .into_status_code();
-                if status_code != panic && status_code != gas_exceeded {
-                    panic!("Unexpected status code: {status_code}")
-                }
+                let err = SimpleSignalError::from_status_code(status_code).expect("Known error");
+                assert!(matches!(
+                    err,
+                    SimpleSignalError::Execution(SimpleExecutionError::Panic)
+                        | SimpleSignalError::Execution(SimpleExecutionError::GasLimitExceeded)
+                ));
 
                 if let Some(handle_msg) = unsafe { HANDLE_MSG } {
                     assert_eq!(msg::signal_from(), Ok(handle_msg));
