@@ -17,6 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{manager::ExtManager, Config, DispatchStashOf, Event, Pallet, QueueOf};
+use alloc::string::ToString;
 use common::{
     event::{
         MessageWokenRuntimeReason, MessageWokenSystemReason, RuntimeReason, SystemReason,
