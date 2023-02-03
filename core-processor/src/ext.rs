@@ -1274,7 +1274,11 @@ mod tests {
                 ProcessorError::Core(ExtError::Memory(
                     MemoryError::ProgramAllocOutOfBounds
                     | MemoryError::Grow,
-                )) => {}
+                ))
+                | ProcessorError::Alloc(
+                    AllocError::IncorrectAllocationData(_)
+                    | AllocError::Memory(MemoryError::OutOfBounds),
+                ) => {}
                 err => Err(err).unwrap(),
             }
         }
