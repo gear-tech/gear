@@ -12,7 +12,18 @@ pub mod metafuncs {
     }
 
     /// Returns a wallet of the given `person`.
-    pub fn wallet_by_person(state: State, person: Person) -> Option<Wallet> {
+    pub fn wallet_by_person(state: State, Person { surname, name }: Person) -> Option<Wallet> {
+        let person = Person { surname, name };
+
         state.into_iter().find(|w| w.person == person)
+    }
+
+    /// Returns a wallet of a person with the given `name` & `surname`.
+    pub fn wallet_by_name_and_surname(
+        state: State,
+        name: String,
+        surname: String,
+    ) -> Option<Wallet> {
+        wallet_by_person(state, Person { surname, name })
     }
 }

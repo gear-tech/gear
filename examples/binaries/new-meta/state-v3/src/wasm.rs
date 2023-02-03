@@ -6,17 +6,11 @@ use gstd::{exec, prelude::*};
 pub mod metafuncs {
     pub type State = Vec<Wallet>;
 
-    pub fn block_number(state: State) -> u32 {
-        // TODO: allow state to be unused
-        let _ = state;
-
+    pub fn block_number(_: State) -> u32 {
         exec::block_height()
     }
 
-    pub fn block_timestamp(state: State) -> u64 {
-        // TODO: allow state to be unused
-        let _ = state;
-
+    pub fn block_timestamp(_: State) -> u64 {
         exec::block_timestamp()
     }
 }

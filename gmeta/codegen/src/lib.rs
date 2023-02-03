@@ -2,8 +2,8 @@ use proc_macro::TokenStream;
 use quote::{quote, ToTokens};
 use std::{borrow::Borrow, fmt::Display, iter};
 use syn::{
-    parse_macro_input, spanned::Spanned, Attribute, Error, FnArg, Item, ItemMod, Pat, PatIdent,
-    ReturnType, Type, TypePath, Visibility,
+    parse_macro_input, spanned::Spanned, Attribute, Error, FnArg, Item, ItemMod, Pat, ReturnType,
+    Type, TypePath, Visibility,
 };
 
 fn error(spanned: impl Spanned, message: impl Display) -> TokenStream {
@@ -73,20 +73,20 @@ fn has_attributes(
 ///     pub type State = StateType;
 ///
 ///     /// Documentation...
-///     pub fn some_function(state: State) -> SomeReturnType {
+///     pub fn some_function(_: State) -> SomeReturnType {
 ///         unimplemented!()
 ///     }
 ///
-///     pub fn another_function_but_with_arg(mut state: State, arg: SomeArg) -> State {
+///     pub fn another_function_but_with_arg(mut _state: State, _arg: SomeArg) -> State {
 ///         unimplemented!()
 ///     }
 ///
 ///     /// DOCSdocsDoCsdOcSDoCS...
 ///     pub fn function_with_multiple_args(
-///         state: State,
-///         mut arg1: SomeArg,
-///         arg2: u16,
-///         mut arg3: u32,
+///         _state: State,
+///         mut _arg1: SomeArg,
+///         _arg2: u16,
+///         mut _arg3: u32,
 ///     ) -> SomeReturnType {
 ///         unimplemented!()
 ///     }
@@ -107,17 +107,13 @@ fn has_attributes(
 /// from the contract's `io` crate.
 ///
 /// - The rest of items **must** be `pub`lic functions.
-/// - The first argument of the functions **must** be `state: State` or
-/// `mut state: State`.
+/// - The first argument's type of metafunctions **must** be `State`.
 ///
-/// A function can have either just the one `state` argument or several
-/// additional ones.
+/// In addition to the mandatory first argument, functions can have additional
+/// ones.
 ///
 /// - The maximum amount of additional arguments is 18 due restrictions of the
 /// SCALE codec.
-/// - All additional arguments **must** have only the binding pattern (e.g.
-/// `argument: ...` or `mut argument: ...`). The struct pattern
-/// (`Struct { x, y, .. }`), or tuple pattern (`(a, b)`), etc. aren't permitted.
 /// - All additional arguments **must** implement the [`Decode`] &
 /// [`TypeInfo`] traits.
 /// - A function **mustn't** return `()` or nothing.
@@ -146,9 +142,9 @@ fn has_attributes(
 /// their function's signature.
 ///
 /// E.g., argument definitions for the above example:
-/// - For `some_function` argument must be [`None`].
-/// - For `another_function_but_with_arg` argument must be `Some(SomeArg)`.
-/// - For `function_with_multiple_args` argument must be
+/// - For `some_function` an argument must be [`None`].
+/// - For `another_function_but_with_arg` an argument must be `Some(SomeArg)`.
+/// - For `function_with_multiple_args` an argument must be
 /// `Some((SomeArg, u16, u32))`.
 #[proc_macro_attribute]
 pub fn metawasm(_: TokenStream, item: TokenStream) -> TokenStream {
@@ -273,66 +269,43 @@ pub fn metawasm(_: TokenStream, item: TokenStream) -> TokenStream {
 
         let first = if let Some(first) = inputs.next() {
             if let FnArg::Typed(first) = first {
+                if let Err(error) = has_attributes(&first.attrs, "mustn't have attributes") {
+                    return error;
+                }
+
                 first
             } else {
-                error!(first, "first argument must be `state: State`");
+                error!(first, "mustn't be `self`");
             }
         } else {
             error!(
                 signature.paren_token.span,
-                "mustn't be empty, add `state: State`"
+                "mustn't be empty, add `state: State` or `_: State`"
             );
-        };
-
-        // Checking the first argument's name
-
-        let first_ident = if let Pat::Ident(first) = *first.pat {
-            if let Err(error) = has_attributes(&first.attrs, "mustn't have attributes") {
-                return error;
-            }
-
-            if_some_error!(first.by_ref, "mustn't be bound to a reference");
-
-            if let Some((at, subput)) = first.subpat {
-                error!(
-                    subput.span().join(at.span).unwrap_or(at.span),
-                    "mustn't have a subpattern"
-                );
-            }
-
-            if first.ident != "state" {
-                error!(first.ident, "first argument's name must be `state`");
-            }
-
-            first
-        } else {
-            error!(first.pat, "unsupported pattern, use just `state`")
         };
 
         // Checking the first argument's type
 
         match *first.ty {
-            Type::Reference(reference) => {
-                if *reference.elem == state_type {
-                    let lifetime_span = reference.lifetime.map(|lifetime| lifetime.span());
-                    let mutability_span = reference.mutability.map(|mutability| mutability.span());
+            Type::Reference(reference) if *reference.elem == state_type => {
+                let lifetime_span = reference.lifetime.map(|lifetime| lifetime.span());
+                let mutability_span = reference.mutability.map(|mutability| mutability.span());
 
-                    let lifetime_mutability = lifetime_span
-                        .and_then(|lifetime_span| {
-                            mutability_span
-                                .and_then(|mutability_span| mutability_span.join(lifetime_span))
-                                .or(Some(lifetime_span))
-                        })
-                        .or(mutability_span);
+                let lifetime_mutability = lifetime_span
+                    .and_then(|lifetime_span| {
+                        mutability_span
+                            .and_then(|mutability_span| mutability_span.join(lifetime_span))
+                            .or(Some(lifetime_span))
+                    })
+                    .or(mutability_span);
 
-                    let span = lifetime_mutability
-                        .and_then(|lifetime_mutability| {
-                            lifetime_mutability.join(reference.and_token.span)
-                        })
-                        .unwrap_or(reference.and_token.span);
+                let span = lifetime_mutability
+                    .and_then(|lifetime_mutability| {
+                        lifetime_mutability.join(reference.and_token.span)
+                    })
+                    .unwrap_or(reference.and_token.span);
 
-                    error!(span, "mustn't take a reference");
-                }
+                error!(span, "mustn't take a reference");
             }
             first_type => {
                 if first_type != state_type {
@@ -347,26 +320,11 @@ pub fn metawasm(_: TokenStream, item: TokenStream) -> TokenStream {
 
         for argument in inputs {
             if let FnArg::Typed(argument) = argument {
-                if let Pat::Ident(argument_ident) = *argument.pat {
-                    if let Err(error) =
-                        has_attributes(argument_ident.attrs.iter(), "mustn't have attributes")
-                    {
-                        return error;
-                    }
-
-                    if_some_error!(argument_ident.by_ref, "mustn't be bound to a reference");
-
-                    if let Some((at, subput)) = argument_ident.subpat {
-                        error!(
-                            subput.span().join(at.span).unwrap_or(at.span),
-                            "mustn't have a subpattern"
-                        );
-                    }
-
-                    arguments.push((argument_ident, argument.ty));
-                } else {
-                    error!(argument.pat, "unsupported pattern, use just an identifier")
+                if let Err(error) = has_attributes(&argument.attrs, "mustn't have attributes") {
+                    return error;
                 }
+
+                arguments.push((argument.pat, argument.ty));
             } else {
                 // The rest of arguments can't be the `self` argument because
                 // the compiler won't allow this.
@@ -392,7 +350,7 @@ pub fn metawasm(_: TokenStream, item: TokenStream) -> TokenStream {
         functions.push((
             function.attrs,
             signature.ident,
-            first_ident,
+            first.pat,
             arguments,
             return_type,
             function.block,
@@ -405,17 +363,21 @@ pub fn metawasm(_: TokenStream, item: TokenStream) -> TokenStream {
     let (mut extern_functions, mut public_functions) =
         (type_registrations.clone(), type_registrations.clone());
 
-    for (attributes, function_identifier, state_identifier, arguments, return_type, block) in
-        functions
+    for (attributes, function_identifier, state_pattern, arguments, return_type, block) in functions
     {
-        let (input_type, (variables, variables_types, variables_wo_parentheses), arguments) =
-            process_arguments(arguments, state_identifier);
+        let CodeGenItems {
+            input_type,
+            variables,
+            variables_types,
+            variables_wo_parentheses,
+            arguments,
+        } = process_arguments(arguments, state_pattern);
 
-        let stringed_funident = function_identifier.to_string();
+        let stringed_func_ident = function_identifier.to_string();
         let output = register_type(&return_type);
 
         type_registrations.push(quote! {
-            funcs.insert(#stringed_funident.into(), ::gmeta::TypesRepr { input: #input_type, output: #output });
+            funcs.insert(#stringed_func_ident.into(), ::gmeta::TypesRepr { input: #input_type, output: #output });
         });
 
         extern_functions.push(quote! {
@@ -468,60 +430,67 @@ pub fn metawasm(_: TokenStream, item: TokenStream) -> TokenStream {
     }.into()
 }
 
+struct CodeGenItems {
+    input_type: proc_macro2::TokenStream,
+    variables: proc_macro2::TokenStream,
+    variables_types: proc_macro2::TokenStream,
+    variables_wo_parentheses: proc_macro2::TokenStream,
+    arguments: proc_macro2::TokenStream,
+}
+
 fn process_arguments(
-    arguments: Vec<(PatIdent, Box<Type>)>,
-    state_identifier: PatIdent,
-) -> (
-    proc_macro2::TokenStream,
-    (
-        proc_macro2::TokenStream,
-        proc_macro2::TokenStream,
-        proc_macro2::TokenStream,
-    ),
-    proc_macro2::TokenStream,
-) {
+    arguments: Vec<(Box<Pat>, Box<Type>)>,
+    state_pattern: Box<Pat>,
+) -> CodeGenItems {
     if arguments.is_empty() {
         let variables = quote!(state);
 
-        (
-            quote!(None),
-            (variables.clone(), quote!(super::State), variables),
-            quote!(#state_identifier: State),
-        )
+        CodeGenItems {
+            input_type: quote!(None),
+            variables: variables.clone(),
+            variables_types: quote!(State),
+            variables_wo_parentheses: variables,
+            arguments: quote!(#state_pattern: State),
+        }
     } else {
-        let arguments_idents = arguments.iter().map(|argument| &argument.0.ident);
-        let variables_wo_parentheses = quote!(#(#arguments_idents),*);
+        let arguments_types = arguments.iter().map(|argument| &argument.1);
+        let variables_types_wo_parentheses = quote!(#(#arguments_types),*);
 
-        let (variables, variables_types) = {
-            let arguments_types = arguments.iter().map(|argument| argument.1.as_ref());
-            let variables_types_wo_parentheses = quote!(#(#arguments_types),*);
+        let (variables_wo_parentheses, variables, variables_types) = if arguments.len() > 1 {
+            let variables_wo_parentheses =
+                (0..arguments.len()).map(|index| quote::format_ident!("arg{}", index));
+            let variables_wo_parentheses = quote!(#(#variables_wo_parentheses),*);
 
-            if arguments.len() > 1 {
-                (
-                    quote!((#variables_wo_parentheses)),
-                    quote!((#variables_types_wo_parentheses)),
-                )
-            } else {
-                (
-                    variables_wo_parentheses.clone(),
-                    variables_types_wo_parentheses,
-                )
-            }
+            let variables_with_parentheses = quote!((#variables_wo_parentheses));
+
+            (
+                variables_wo_parentheses,
+                variables_with_parentheses,
+                quote!((#variables_types_wo_parentheses)),
+            )
+        } else {
+            let variables_wo_parentheses = quote!(arg);
+
+            (
+                variables_wo_parentheses.clone(),
+                variables_wo_parentheses,
+                variables_types_wo_parentheses,
+            )
         };
 
         let input_type = register_type(variables_types.clone());
 
-        let arguments = arguments.into_iter().map(|(name, ty)| quote!(#name: #ty));
+        let arguments = arguments
+            .into_iter()
+            .map(|(pattern, ty)| quote!(#pattern: #ty));
 
-        (
+        CodeGenItems {
             input_type,
-            (
-                quote!((#variables, state)),
-                quote!((#variables_types, super::State)),
-                quote!(state, #variables_wo_parentheses),
-            ),
-            quote!(#state_identifier: State, #(#arguments),*),
-        )
+            variables: quote!((#variables, state)),
+            variables_types: quote!((#variables_types, State)),
+            variables_wo_parentheses: quote!(state, #variables_wo_parentheses),
+            arguments: quote!(#state_pattern: State, #(#arguments),*),
+        }
     }
 }
 
