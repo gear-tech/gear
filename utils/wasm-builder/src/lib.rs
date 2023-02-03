@@ -67,7 +67,9 @@ impl WasmBuilder {
 
     /// Build the program and produce an output WASM binary.
     pub fn build(self) {
-        if env::var(self.cargo.skip_build_env()).is_ok() {
+        if env::var(self.cargo.skip_package_build_env()).is_ok()
+            || env::var("SKIP_WASM_BUILD").is_ok()
+        {
             return;
         }
         if let Err(e) = self.build_project() {

@@ -79,7 +79,7 @@ impl CargoCommand {
             .arg("--")
             .args(&self.rustc_flags)
             .env("CARGO_TARGET_DIR", &self.target_dir)
-            .env(self.skip_build_env(), ""); // Don't build the original crate recursively
+            .env(self.skip_package_build_env(), ""); // Don't build the original crate recursively
 
         self.remove_cargo_encoded_rustflags(&mut cargo);
 
@@ -93,7 +93,7 @@ impl CargoCommand {
     }
 
     /// Generate a project specific environment variable that used to skip the build.
-    pub fn skip_build_env(&self) -> String {
+    pub fn skip_package_build_env(&self) -> String {
         format!(
             "SKIP_{}_WASM_BUILD",
             env::var("CARGO_PKG_NAME")
