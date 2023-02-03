@@ -48,68 +48,11 @@ pub(crate) struct Runtime<E: Ext> {
     pub memory_manager: MemoryAccessManager<E>,
 }
 
-/*
-
-WASM -> Backend
--- fallible case --
-ext.some_call() -> Result<T, ProcessorError>
-Result.into_ext_error(&mut state) {
-Ok(T) -> Ok(T)
-Err(ProcessorError::ExtError) -> Ok(Err(LENGTH))
-Err(Processor::GasAllowanceExceeded) -> Err()
-}
-
-
-
-*/
-
-/*
-
-type BodyRes = Result<T, E1>;
-type PostRes = Result<T, E2>;
-
-// - T to be casted into `ReturnValue`
-// - E1 after body closure writes into `Runtime { err, .. }`,
-// supposed to be
-
-ctx.run_any(
-    body: |&mut self| -> BodyRes,
-    post: |&mut self, BodyRes| -> PostRes,
-)
-where:
-    - E to be written into Runtime { err, .. }
-    -
-
-*/
-
 impl<E> Runtime<E>
 where
     E: BackendExt,
     E::Error: BackendExtError,
 {
-    // pub(crate) fn foo(&mut self, res: Result<(), MemoryAccessError>) -> Result<(), SyscallFuncError<E::Error>> {
-    //     let Err(mae) = res else {
-    //         return Ok(());
-    //     };
-
-    //     let amae = match mae {
-    //         MemoryAccessError::Actor(amae) => amae,
-    //         err => return Err(err.into()),
-    //     };
-
-    //     let ext_error = match amae {
-    //         ActorMemoryAccessError::Memory(mem_error) => mem_error.into(),
-    //         // TODO: to be fixed in future
-    //         ActorMemoryAccessError::RuntimeBuffer(_) => ExtError::SyscallUsage,
-    //     };
-
-    //     let err_len = ext_error.encoded_size() as u32;
-
-    //     let func_error = SyscallFuncError::Actor(ActorSyscallFuncError::Core(E::Error::from_ext_error(ext_error)));
-
-    //     Err(func_error)
-    // }
-
     // Cleans `memory_manager`, updates ext counters based on globals.
     pub(crate) fn prepare_run(&mut self) {
         self.memory_manager = Default::default();
