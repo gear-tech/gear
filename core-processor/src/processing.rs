@@ -135,7 +135,7 @@ where
                 program_id,
                 res.gas_amount.burned(),
                 res.system_reservation_context,
-                ActorExecutionErrorReason::Ext(reason),
+                ActorExecutionErrorReason::Trap(reason),
                 true,
             ),
             DispatchResultKind::Success => process_success(Success, res),

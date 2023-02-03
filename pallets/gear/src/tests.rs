@@ -2299,7 +2299,7 @@ fn block_gas_limit_works() {
         // TODO: fix this in #2199
         assert_failed(
             failed1,
-            ActorExecutionErrorReason::Ext(TrapExplanation::Unknown),
+            ActorExecutionErrorReason::Trap(TrapExplanation::Unknown),
         );
         // assert_failed(
         //     failed1,
@@ -2310,7 +2310,7 @@ fn block_gas_limit_works() {
 
         assert_failed(
             failed2,
-            ActorExecutionErrorReason::Ext(TrapExplanation::Ext(ExtError::Execution(
+            ActorExecutionErrorReason::Trap(TrapExplanation::Ext(ExtError::Execution(
                 ExecutionError::GasLimitExceeded,
             ))),
         );
@@ -2417,7 +2417,7 @@ fn init_message_logging_works() {
             // Will fail, because tests use default gas limit, which is very low for successful greedy init
             (
                 ProgramCodeKind::GreedyInit,
-                Some(ActorExecutionErrorReason::Ext(TrapExplanation::Ext(
+                Some(ActorExecutionErrorReason::Trap(TrapExplanation::Ext(
                     ExtError::Execution(ExecutionError::GasLimitExceeded),
                 ))),
             ),
@@ -2527,20 +2527,20 @@ fn events_logging_works() {
             (ProgramCodeKind::Default, None, None),
             (
                 ProgramCodeKind::GreedyInit,
-                Some(ActorExecutionErrorReason::Ext(TrapExplanation::Ext(
+                Some(ActorExecutionErrorReason::Trap(TrapExplanation::Ext(
                     ExtError::Execution(ExecutionError::GasLimitExceeded),
                 ))),
                 Some(SimpleReplyError::NonExecutable.into()),
             ),
             (
                 ProgramCodeKind::Custom(wat_trap_in_init),
-                Some(ActorExecutionErrorReason::Ext(TrapExplanation::Unknown)),
+                Some(ActorExecutionErrorReason::Trap(TrapExplanation::Unknown)),
                 Some(SimpleReplyError::NonExecutable.into()),
             ),
             (
                 ProgramCodeKind::Custom(wat_trap_in_handle),
                 None,
-                Some(ActorExecutionErrorReason::Ext(TrapExplanation::Unknown).into()),
+                Some(ActorExecutionErrorReason::Trap(TrapExplanation::Unknown).into()),
             ),
         ];
 
@@ -3524,7 +3524,7 @@ fn test_different_waits_fail() {
 
         assert_failed(
             wait_gas,
-            ActorExecutionErrorReason::Ext(TrapExplanation::Ext(ExtError::Wait(
+            ActorExecutionErrorReason::Trap(TrapExplanation::Ext(ExtError::Wait(
                 WaitError::NotEnoughGas,
             ))),
         );
@@ -3559,7 +3559,7 @@ fn test_different_waits_fail() {
 
         assert_failed(
             wait_for_gas,
-            ActorExecutionErrorReason::Ext(TrapExplanation::Ext(ExtError::Wait(
+            ActorExecutionErrorReason::Trap(TrapExplanation::Ext(ExtError::Wait(
                 WaitError::NotEnoughGas,
             ))),
         );
@@ -3594,7 +3594,7 @@ fn test_different_waits_fail() {
 
         assert_failed(
             wait_up_to_gas,
-            ActorExecutionErrorReason::Ext(TrapExplanation::Ext(ExtError::Wait(
+            ActorExecutionErrorReason::Trap(TrapExplanation::Ext(ExtError::Wait(
                 WaitError::NotEnoughGas,
             ))),
         );
@@ -3630,7 +3630,7 @@ fn test_different_waits_fail() {
 
         assert_failed(
             wait_for_arg,
-            ActorExecutionErrorReason::Ext(TrapExplanation::Ext(ExtError::Wait(
+            ActorExecutionErrorReason::Trap(TrapExplanation::Ext(ExtError::Wait(
                 WaitError::InvalidArgument,
             ))),
         );
@@ -3666,7 +3666,7 @@ fn test_different_waits_fail() {
 
         assert_failed(
             wait_up_to_arg,
-            ActorExecutionErrorReason::Ext(TrapExplanation::Ext(ExtError::Wait(
+            ActorExecutionErrorReason::Trap(TrapExplanation::Ext(ExtError::Wait(
                 WaitError::InvalidArgument,
             ))),
         );
@@ -4284,7 +4284,7 @@ fn terminated_locking_funds() {
         assert_succeed(reply_id);
         assert_failed(
             message_id,
-            ActorExecutionErrorReason::Ext(TrapExplanation::Ext(ExtError::Execution(
+            ActorExecutionErrorReason::Trap(TrapExplanation::Ext(ExtError::Execution(
                 ExecutionError::GasLimitExceeded,
             ))),
         );
@@ -5654,7 +5654,7 @@ fn test_create_program_with_value_lt_ed() {
         // TODO: fix this in #1857
         assert_failed(
             msg_id,
-            ActorExecutionErrorReason::Ext(TrapExplanation::Unknown),
+            ActorExecutionErrorReason::Trap(TrapExplanation::Unknown),
         );
         // assert_failed(
         //     msg_id,
@@ -5740,7 +5740,7 @@ fn test_create_program_with_exceeding_value() {
         // TODO: fix this in #1857
         assert_failed(
             origin_msg_id,
-            ActorExecutionErrorReason::Ext(TrapExplanation::Unknown),
+            ActorExecutionErrorReason::Trap(TrapExplanation::Unknown),
         );
         // assert_failed(
         //     origin_msg_id,
@@ -6323,7 +6323,7 @@ fn execution_over_blocks() {
 
         assert_failed(
             message_id,
-            ActorExecutionErrorReason::Ext(TrapExplanation::Ext(ExtError::Execution(
+            ActorExecutionErrorReason::Trap(TrapExplanation::Ext(ExtError::Execution(
                 ExecutionError::GasLimitExceeded,
             ))),
         );
@@ -9168,7 +9168,7 @@ fn check_reply_push_payload_exceed() {
         // TODO: fix this in #1857
         assert_failed(
             message_id,
-            ActorExecutionErrorReason::Ext(TrapExplanation::Unknown),
+            ActorExecutionErrorReason::Trap(TrapExplanation::Unknown),
         );
         // assert_failed(
         //     message_id,

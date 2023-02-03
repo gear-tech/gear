@@ -431,9 +431,9 @@ pub enum ActorExecutionErrorReason {
     /// Backend error
     #[display(fmt = "Environment error: {_0}")]
     Environment(String),
-    /// Ext error
+    /// Trap explanation
     #[display(fmt = "{_0}")]
-    Ext(TrapExplanation),
+    Trap(TrapExplanation),
 }
 
 /// System execution error
