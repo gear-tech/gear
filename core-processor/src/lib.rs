@@ -25,8 +25,6 @@
 
 extern crate alloc;
 
-use gear_core::message::StatusCode;
-
 pub mod common;
 pub mod configs;
 mod context;
@@ -35,9 +33,6 @@ mod ext;
 mod handler;
 mod precharge;
 mod processing;
-
-/// Error status code.
-pub const ERR_STATUS_CODE: StatusCode = 1;
 
 pub use context::{
     ContextChargedForCode, ContextChargedForInstrumentation, ProcessExecutionContext,

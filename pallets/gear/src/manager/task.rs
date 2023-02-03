@@ -32,7 +32,7 @@ use gear_core::{
     ids::{CodeId, MessageId, ProgramId, ReservationId},
     message::ReplyMessage,
 };
-use gear_core_errors::SimpleReplyError;
+use gear_core_errors::{SimpleReplyError, SimpleSignalError};
 
 impl<T: Config> TaskHandler<T::AccountId> for ExtManager<T>
 where
@@ -68,7 +68,11 @@ where
         let waitlisted = Pallet::<T>::wake_dispatch(program_id, message_id, reason)
             .unwrap_or_else(|| unreachable!("Scheduling logic invalidated!"));
 
-        self.send_signal(message_id, waitlisted.destination());
+        self.send_signal(
+            message_id,
+            waitlisted.destination(),
+            SimpleSignalError::RemovedFromWaitlist,
+        );
 
         // Trap explanation.
         let err = SimpleReplyError::OutOfRent;

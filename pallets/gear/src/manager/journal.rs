@@ -40,6 +40,7 @@ use gear_core::{
     message::{Dispatch, MessageWaitedType, StoredDispatch},
     reservation::GasReserver,
 };
+use gear_core_errors::SimpleSignalError;
 use sp_runtime::traits::{UniqueSaturatedInto, Zero};
 use sp_std::{
     collections::{btree_map::BTreeMap, btree_set::BTreeSet},
@@ -584,7 +585,12 @@ where
         }
     }
 
-    fn send_signal(&mut self, message_id: MessageId, destination: ProgramId) {
-        ExtManager::send_signal(self, message_id, destination)
+    fn send_signal(
+        &mut self,
+        message_id: MessageId,
+        destination: ProgramId,
+        err: SimpleSignalError,
+    ) {
+        ExtManager::send_signal(self, message_id, destination, err)
     }
 }

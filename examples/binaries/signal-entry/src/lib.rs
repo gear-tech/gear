@@ -50,7 +50,9 @@ pub enum HandleAction {
 mod wasm {
     use super::*;
     use gstd::{
-        errors::{ExtError, ReservationError},
+        errors::{
+            ExtError, ReservationError, SimpleEncodable, SimpleExecutionError, SimpleSignalError,
+        },
         exec, msg,
         prelude::*,
         ActorId, MessageId,
@@ -195,7 +197,15 @@ mod wasm {
         match unsafe { &HANDLE_SIGNAL_STATE } {
             HandleSignalState::Normal => {
                 msg::send(unsafe { INITIATOR }, b"handle_signal", 0).unwrap();
-                assert_eq!(msg::status_code(), Ok(1));
+                let status_code = msg::status_code().unwrap();
+                let panic =
+                    SimpleSignalError::Execution(SimpleExecutionError::Panic).into_status_code();
+                let gas_exceeded =
+                    SimpleSignalError::Execution(SimpleExecutionError::GasLimitExceeded)
+                        .into_status_code();
+                if status_code != panic && status_code != gas_exceeded {
+                    panic!("Unexpected status code: {status_code}")
+                }
 
                 if let Some(handle_msg) = unsafe { HANDLE_MSG } {
                     assert_eq!(msg::signal_from(), Ok(handle_msg));
@@ -227,6 +237,7 @@ mod wasm {
 mod tests {
     extern crate std;
 
+    use gstd::errors::{SimpleExecutionError, SimpleSignalError};
     use gtest::{Program, System};
 
     #[test]
@@ -236,7 +247,7 @@ mod tests {
 
         let program = Program::current(&system);
 
-        let res = program.send_signal(0, 1);
+        let res = program.send_signal(0, SimpleSignalError::Execution(SimpleExecutionError::Panic));
         assert!(!res.main_failed());
     }
 }

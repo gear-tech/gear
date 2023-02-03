@@ -36,7 +36,7 @@ use gear_core::{
     program::Program,
     reservation::{GasReservationMap, GasReserver},
 };
-use gear_core_errors::{ExtError, MemoryError, SimpleExecutionError};
+use gear_core_errors::{ExtError, MemoryError, SimpleExecutionError, SimpleSignalError};
 use scale_info::TypeInfo;
 
 /// Kind of the dispatch result.
@@ -315,6 +315,8 @@ pub enum JournalNote {
         message_id: MessageId,
         /// Program ID which signal will be sent to.
         destination: ProgramId,
+        /// Simple signal error.
+        err: SimpleSignalError,
     },
 }
 
@@ -395,7 +397,12 @@ pub trait JournalHandler {
     /// Do system unreservation.
     fn system_unreserve_gas(&mut self, message_id: MessageId);
     /// Send system signal.
-    fn send_signal(&mut self, message_id: MessageId, destination: ProgramId);
+    fn send_signal(
+        &mut self,
+        message_id: MessageId,
+        destination: ProgramId,
+        err: SimpleSignalError,
+    );
 }
 
 /// Execution error

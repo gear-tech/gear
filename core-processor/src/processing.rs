@@ -36,7 +36,7 @@ use gear_core::{
     message::{ContextSettings, DispatchKind, IncomingDispatch, ReplyMessage, StoredDispatch},
     reservation::GasReservationState,
 };
-use gear_core_errors::SimpleReplyError;
+use gear_core_errors::{SimpleReplyError, SimpleSignalError};
 
 /// Process program & dispatch for it and return journal for updates.
 pub fn process<E>(
@@ -205,6 +205,7 @@ pub fn process_error(
             journal.push(JournalNote::SendSignal {
                 message_id,
                 destination: program_id,
+                err: SimpleSignalError::Execution(err.as_simple()),
             });
         }
 
