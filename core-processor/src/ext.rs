@@ -748,7 +748,7 @@ impl EnvExt for Ext {
 
         // TODO: use `NonZeroU64` after issue #1838 is fixed
         if amount == 0 {
-            return Err(ReservationError::ZeroSystemReservationAmount.into());
+            return Err(ReservationError::ZeroReservationAmount.into());
         }
 
         if self.context.gas_counter.reduce(amount) == ChargeResult::NotEnough {

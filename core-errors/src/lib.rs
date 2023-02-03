@@ -206,9 +206,6 @@ pub enum ReservationError {
     /// An error occurs in attempt to reserve zero gas.
     #[display(fmt = "Reservation amount cannot be zero")]
     ZeroReservationAmount,
-    /// An error occurs in attempt to reserve zero gas for the system.
-    #[display(fmt = "System reservation amount cannot be zero")]
-    ZeroSystemReservationAmount,
 }
 
 /// Execution error.
