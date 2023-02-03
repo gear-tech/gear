@@ -48,15 +48,70 @@ pub(crate) struct Runtime<E: Ext> {
     pub memory_manager: MemoryAccessManager<E>,
 }
 
+/*
+
+WASM -> Backend
+-- fallible case --
+ext.some_call() -> Result<T, ProcessorError>
+Result.into_ext_error(&mut state) {
+Ok(T) -> Ok(T)
+Err(ProcessorError::ExtError) -> Ok(Err(LENGTH))
+Err(Processor::GasAllowanceExceeded) -> Err()
+}
+
+
+
+*/
+
+/*
+
+type BodyRes = Result<T, E1>;
+type PostRes = Result<T, E2>;
+
+// - T to be casted into `ReturnValue`
+// - E1 after body closure writes into `Runtime { err, .. }`,
+// supposed to be
+
+ctx.run_any(
+    body: |&mut self| -> BodyRes,
+    post: |&mut self, BodyRes| -> PostRes,
+)
+where:
+    - E to be written into Runtime { err, .. }
+    -
+
+*/
+
 impl<E> Runtime<E>
 where
-    E: Ext,
+    E: BackendExt,
     E::Error: BackendExtError,
 {
-    pub(crate) fn run_any<T, F>(&mut self, f: F) -> Result<T, HostError>
-    where
-        F: FnOnce(&mut Self) -> Result<T, SyscallFuncError<E::Error>>,
-    {
+    // pub(crate) fn foo(&mut self, res: Result<(), MemoryAccessError>) -> Result<(), SyscallFuncError<E::Error>> {
+    //     let Err(mae) = res else {
+    //         return Ok(());
+    //     };
+
+    //     let amae = match mae {
+    //         MemoryAccessError::Actor(amae) => amae,
+    //         err => return Err(err.into()),
+    //     };
+
+    //     let ext_error = match amae {
+    //         ActorMemoryAccessError::Memory(mem_error) => mem_error.into(),
+    //         // TODO: to be fixed in future
+    //         ActorMemoryAccessError::RuntimeBuffer(_) => ExtError::SyscallUsage,
+    //     };
+
+    //     let err_len = ext_error.encoded_size() as u32;
+
+    //     let func_error = SyscallFuncError::Actor(ActorSyscallFuncError::Core(E::Error::from_ext_error(ext_error)));
+
+    //     Err(func_error)
+    // }
+
+    // Cleans `memory_manager`, updates ext counters based on globals.
+    pub(crate) fn prepare_run(&mut self) {
         self.memory_manager = Default::default();
 
         let gas = self
@@ -72,12 +127,10 @@ where
             .unwrap_or_else(|| unreachable!("Globals must be checked during env creation"));
 
         self.ext.update_counters(gas as u64, allowance as u64);
+    }
 
-        let result = f(self).map_err(|err| {
-            self.err = err;
-            HostError
-        });
-
+    // Updates globals after execution.
+    pub(crate) fn update_globals(&mut self) {
         let (gas, allowance) = self.ext.counters();
 
         self.globals
@@ -91,6 +144,63 @@ where
             .unwrap_or_else(|e| {
                 unreachable!("Globals must be checked during env creation: {:?}", e)
             });
+    }
+
+    pub(crate) fn run_fallible<T, G, GuardFn, BodyFn, PostFn>(
+        &mut self,
+        guard: GuardFn,
+        body: BodyFn,
+        post: PostFn,
+    ) -> SyscallOutput
+    where
+        GuardFn: FnOnce(&mut Self) -> WasmMemoryWriteAs<G>,
+        BodyFn: FnOnce(&mut Self) -> Result<Result<T, u32>, SyscallFuncError<E::Error>>,
+        PostFn: FnOnce(
+            &mut Self,
+            WasmMemoryWriteAs<G>,
+            Result<T, u32>,
+        ) -> Result<(), MemoryAccessError>,
+    {
+        self.prepare_run();
+
+        let write_guard = guard(self);
+
+        let mut body_res = body(self).map_err(|err| {
+            *self.err_mut() = err;
+        });
+
+        if body_res.is_err() {
+            if let Ok(to_be_returned) = self.last_err() {
+                body_res = Ok(Err(to_be_returned.encoded_size() as u32));
+            }
+        }
+
+        let body_res = body_res;
+
+        let result = body_res.map_err(|_err| HostError).and_then(|res| {
+            post(self, write_guard, res).map_err(|err| {
+                self.err = err.into();
+                HostError
+            })
+        });
+
+        self.update_globals();
+
+        result.map(|_| ReturnValue::Unit)
+    }
+
+    pub(crate) fn run_any<T, F>(&mut self, f: F) -> Result<T, HostError>
+    where
+        F: FnOnce(&mut Self) -> Result<T, SyscallFuncError<E::Error>>,
+    {
+        self.prepare_run();
+
+        let result = f(self).map_err(|err| {
+            self.err = err;
+            HostError
+        });
+
+        self.update_globals();
 
         result
     }
