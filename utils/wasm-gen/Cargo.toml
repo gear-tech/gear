@@ -14,5 +14,5 @@ wasmprinter = "0.2"
 [dev-dependencies]
 rand = { version = "0.8.0", features = ["small_rng"] }
 wasmparser = { version = "0.99.0" }
-wat = "1.0.56"
+wat = "1.0.57"
 indicatif = "*"
