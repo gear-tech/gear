@@ -593,7 +593,6 @@ impl AllocationsContext {
     }
 
     /// Alloc specific number of pages for the currently running program.
-    // TODO: Introduce AllocError instead of Error
     pub fn alloc<G: GrowHandler>(
         &mut self,
         pages: WasmPage,
