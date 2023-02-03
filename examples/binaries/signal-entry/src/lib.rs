@@ -178,7 +178,6 @@ mod wasm {
                 let res = exec::system_reserve_gas(0);
                 assert_eq!(
                     res,
-                    // TODO: move the variant into ExecutionError
                     Err(ExtError::Reservation(
                         ReservationError::ZeroReservationAmount
                     ))
