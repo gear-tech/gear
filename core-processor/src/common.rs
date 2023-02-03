@@ -36,7 +36,7 @@ use gear_core::{
     program::Program,
     reservation::{GasReservationMap, GasReserver},
 };
-use gear_core_errors::MemoryError;
+use gear_core_errors::{ExtError, MemoryError, SimpleExecutionError};
 use scale_info::TypeInfo;
 
 /// Kind of the dispatch result.
@@ -434,6 +434,27 @@ pub enum ActorExecutionErrorReason {
     /// Trap explanation
     #[display(fmt = "{_0}")]
     Trap(TrapExplanation),
+}
+
+impl ActorExecutionErrorReason {
+    /// Convert self into [`SimpleExecutionError`]
+    pub fn as_simple(&self) -> SimpleExecutionError {
+        match self {
+            ActorExecutionErrorReason::GasExceeded(_) => SimpleExecutionError::GasLimitExceeded,
+            ActorExecutionErrorReason::PrepareMemory(_) => SimpleExecutionError::Unknown,
+            ActorExecutionErrorReason::Trap(expl) => match expl {
+                TrapExplanation::Ext(err) => match err {
+                    ExtError::Memory(MemoryError::Grow) => SimpleExecutionError::MemoryExceeded,
+                    ExtError::Execution(gear_core_errors::ExecutionError::GasLimitExceeded) => {
+                        SimpleExecutionError::GasLimitExceeded
+                    }
+                    _ => SimpleExecutionError::Ext,
+                },
+                TrapExplanation::Panic(_) => SimpleExecutionError::Panic,
+                TrapExplanation::Unknown => SimpleExecutionError::Unknown,
+            },
+        }
+    }
 }
 
 /// System execution error

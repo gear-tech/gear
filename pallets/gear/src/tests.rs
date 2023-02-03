@@ -8356,7 +8356,7 @@ mod utils {
         message::StoredMessage,
         reservation::GasReservationMap,
     };
-    use gear_core_errors::{ExtError, SimpleReplyError};
+    use gear_core_errors::{ExtError, SimpleEncodable, SimpleReplyError};
     use sp_core::H256;
     use sp_runtime::traits::UniqueSaturatedInto;
     use sp_std::{convert::TryFrom, fmt::Debug};
@@ -8645,16 +8645,17 @@ mod utils {
             if let MockRuntimeEvent::Gear(Event::UserMessageSent { message, .. }) = e.event {
                 if let Some(details) = message.reply() {
                     if details.reply_to() == message_id && details.status_code() != 0 {
-                        actual_error = Some(
+                        actual_error = Some((
                             String::from_utf8(message.payload().to_vec())
                                 .expect("Unable to decode string from error reply"),
-                        );
+                            details.status_code(),
+                        ));
                     }
                 }
             }
         });
 
-        let mut actual_error =
+        let (mut actual_error, status_code) =
             actual_error.expect("Error message not found in any `RuntimeEvent::UserMessageSent`");
 
         log::debug!("Actual error: {:?}", actual_error);
@@ -8686,7 +8687,11 @@ mod utils {
             expectations = format!("'{expectations}'");
         }
 
-        assert_eq!(expectations, actual_error)
+        assert_eq!(expectations, actual_error);
+
+        if let AssertFailedError::SimpleReply(err) = &error {
+            assert_eq!(status_code, err.into_status_code());
+        }
     }
 
     #[track_caller]

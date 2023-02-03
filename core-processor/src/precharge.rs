@@ -33,7 +33,7 @@ use gear_core::{
     gas::{ChargeResult, GasAllowanceCounter, GasCounter},
     ids::ProgramId,
     memory::{PageU32Size, WasmPage},
-    message::{DispatchKind, IncomingDispatch, MessageWaitedType, StatusCode},
+    message::{DispatchKind, IncomingDispatch, MessageWaitedType},
 };
 use scale_info::TypeInfo;
 
@@ -302,16 +302,9 @@ pub fn precharge_for_program(
 fn check_is_executable(
     executable_data: Option<ExecutableActorData>,
     dispatch: &IncomingDispatch,
-) -> Result<ExecutableActorData, StatusCode> {
+) -> Option<ExecutableActorData> {
     executable_data
-        .map(|data| {
-            if data.initialized && matches!(dispatch.kind(), DispatchKind::Init) {
-                Err(crate::RE_INIT_STATUS_CODE)
-            } else {
-                Ok(data)
-            }
-        })
-        .unwrap_or(Err(crate::UNAVAILABLE_DEST_STATUS_CODE))
+        .filter(|data| !(data.initialized && matches!(dispatch.kind(), DispatchKind::Init)))
 }
 
 /// Charge a message for fetching the actual length of the binary code
@@ -332,17 +325,13 @@ pub fn precharge_for_code_length(
 
     let (dispatch, mut gas_counter, mut gas_allowance_counter) = dispatch.into_parts();
 
-    let actor_data = match check_is_executable(executable_data, &dispatch) {
-        Err(status_code) => {
-            let system_reservation_ctx = SystemReservationContext::from_dispatch(&dispatch);
-            return Err(process_non_executable(
-                dispatch,
-                destination_id,
-                status_code,
-                system_reservation_ctx,
-            ));
-        }
-        Ok(data) => data,
+    let Some(actor_data) = check_is_executable(executable_data, &dispatch) else {
+        let system_reservation_ctx = SystemReservationContext::from_dispatch(&dispatch);
+        return Err(process_non_executable(
+            dispatch,
+            destination_id,
+            system_reservation_ctx,
+        ));
     };
 
     if !actor_data.code_exports.contains(&dispatch.kind()) {

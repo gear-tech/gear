@@ -178,7 +178,7 @@ mod wasm {
                     res,
                     // TODO: move the variant into ExecutionError
                     Err(ExtError::Reservation(
-                        ReservationError::ZeroSystemReservationAmount
+                        ReservationError::ZeroReservationAmount
                     ))
                 );
             }

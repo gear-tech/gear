@@ -16,8 +16,32 @@
 
 #[cfg(feature = "codec")]
 use codec::{Decode, Encode};
+use core::{iter, mem};
 #[cfg(feature = "codec")]
 use scale_info::TypeInfo;
+
+/// Type that can be encoded into status code
+pub trait SimpleEncodable: Encode + sealed::Sealed + Sized {
+    /// Convert type into status code
+    fn into_status_code(self) -> i32 {
+        const U32_SIZE: usize = mem::size_of::<i32>();
+
+        let mut buf = self.encode();
+        assert!(buf.len() <= U32_SIZE);
+        buf.extend(iter::repeat(0).take(U32_SIZE - buf.len()));
+        let buf = buf.try_into().expect("Vec must be exactly 4 bytes length");
+        assert_ne!(
+            buf, [0; 4],
+            "Encoded simple error shouldn't be 0 because it's successful status code"
+        );
+
+        u32::from_le_bytes(buf) as i32
+    }
+}
+
+mod sealed {
+    pub trait Sealed {}
+}
 
 /// Simple execution error
 #[derive(Copy, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, derive_more::Display)]
@@ -35,38 +59,48 @@ pub enum SimpleExecutionError {
     /// Panic occurred
     Panic,
     /// `unreachable` occurred
-    Unreachable,
+    Unknown,
 }
 
 /// Reply error
 #[derive(Copy, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, derive_more::Display)]
 #[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo))]
+#[repr(u8)]
+#[allow(clippy::unnecessary_cast)]
 pub enum SimpleReplyError {
     /// Execution error.
     #[display(fmt = "Execution error: {_0}")]
-    Execution(SimpleExecutionError),
+    Execution(SimpleExecutionError) = 1,
     /// Not executable actor.
     #[display(fmt = "Not executable actor")]
-    NonExecutable,
+    NonExecutable = 2,
     /// Message killed from storage as out of rent.
     #[display(fmt = "Out of rent")]
-    OutOfRent,
+    OutOfRent = 3,
     /// `gr_create_program` called with in-existing code ID.
     #[display(fmt = "Program code does not exist")]
-    CodeNotExists,
+    CodeNotExists = 4,
 }
+
+impl SimpleEncodable for SimpleReplyError {}
+impl sealed::Sealed for SimpleReplyError {}
 
 /// Signal error
 #[derive(Copy, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, derive_more::Display)]
 #[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo))]
+#[repr(u8)]
+#[allow(clippy::unnecessary_cast)]
 pub enum SimpleSignalError {
     /// Execution error
     #[display(fmt = "Execution error: {_0}")]
-    Execution(SimpleExecutionError),
+    Execution(SimpleExecutionError) = 1,
     /// Message has been removed from the waitlist
     #[display(fmt = "Message has been removed from the waitlist")]
-    RemovedFromWaitlist,
+    RemovedFromWaitlist = 2,
 }
+
+impl SimpleEncodable for SimpleSignalError {}
+impl sealed::Sealed for SimpleSignalError {}
 
 #[cfg(test)]
 mod tests {
