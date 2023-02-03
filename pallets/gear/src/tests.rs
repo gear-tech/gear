@@ -2530,21 +2530,23 @@ fn events_logging_works() {
                 Some(ActorExecutionErrorReason::Ext(TrapExplanation::Ext(
                     ExtError::Execution(ExecutionError::GasLimitExceeded),
                 ))),
-                Some(SimpleReplyError::NonExecutable),
+                Some(SimpleReplyError::NonExecutable.into()),
             ),
             (
                 ProgramCodeKind::Custom(wat_trap_in_init),
                 Some(ActorExecutionErrorReason::Ext(TrapExplanation::Unknown)),
-                Some(SimpleReplyError::NonExecutable),
+                Some(SimpleReplyError::NonExecutable.into()),
             ),
             (
                 ProgramCodeKind::Custom(wat_trap_in_handle),
                 None,
-                Some(SimpleReplyError::Execution(SimpleExecutionError::Ext)),
+                Some(ActorExecutionErrorReason::Ext(TrapExplanation::Unknown).into()),
             ),
         ];
 
         for (code_kind, init_failure_reason, handle_failure_reason) in tests {
+            let handle_failure_reason: Option<AssertFailedError> = handle_failure_reason;
+
             System::reset_events();
             let program_id = {
                 let res = upload_program_default(USER_1, code_kind);
@@ -2599,9 +2601,8 @@ fn events_logging_works() {
 
             run_to_block(next_block, None);
 
-            if let Some(_handle_failure_reason) = handle_failure_reason {
-                // TODO: uncomment
-                //assert_failed(message_id, handle_failure_reason);
+            if let Some(handle_failure_reason) = handle_failure_reason {
+                assert_failed(message_id, handle_failure_reason);
             } else {
                 assert_succeed(message_id);
             }
@@ -8355,7 +8356,7 @@ mod utils {
         message::StoredMessage,
         reservation::GasReservationMap,
     };
-    use gear_core_errors::ExtError;
+    use gear_core_errors::{ExtError, SimpleReplyError};
     use sp_core::H256;
     use sp_runtime::traits::UniqueSaturatedInto;
     use sp_std::{convert::TryFrom, fmt::Debug};
@@ -8659,6 +8660,12 @@ mod utils {
         log::debug!("Actual error: {:?}", actual_error);
 
         actual_error
+    }
+
+    #[derive(derive_more::Display, derive_more::From)]
+    pub(super) enum AssertFailedError {
+        Execution(ActorExecutionErrorReason),
+        SimpleReply(SimpleReplyError),
     }
 
     #[track_caller]
