@@ -33,7 +33,7 @@ use gear_core::{
 };
 use gsys::{
     BlockNumberWithHash, Hash, HashWithValue, LengthWithCode, LengthWithGas, LengthWithHandle,
-    LengthWithHash, LengthWithTwoHashes, TwoHashesWithValue,
+    LengthWithHash, LengthWithTwoHashes, TwoHashesWithValue, LengthBytes,
 };
 use sp_sandbox::{HostError, ReturnValue, Value};
 
@@ -95,24 +95,20 @@ where
 
         let (pid_value_ptr, payload_ptr, len, delay, err_mid_ptr) = args.iter().read_5()?;
 
-        ctx.run_fallible(
-            |ctx| ctx.register_write_as(err_mid_ptr),
-            |ctx| {
-                let read_hash_val = ctx.register_read_as(pid_value_ptr);
-                let read_payload = ctx.register_read(payload_ptr, len);
-                let HashWithValue {
-                    hash: destination,
-                    value,
-                } = ctx.read_as(read_hash_val)?;
-                let payload = ctx.read(read_payload)?.try_into()?;
+        ctx.run_fallible_gsobol::<_, _, LengthWithHash>(err_mid_ptr, |ctx| {
+            let read_hash_val = ctx.register_read_as(pid_value_ptr);
+            let read_payload = ctx.register_read(payload_ptr, len);
+            let HashWithValue {
+                hash: destination,
+                value,
+            } = ctx.read_as(read_hash_val)?;
+            let payload = ctx.read(read_payload)?.try_into()?;
 
-                ctx.ext
-                    .send(HandlePacket::new(destination.into(), payload, value), delay)
-                    .into_ext_error(&mut ctx.err)
-                    .map_err(Into::into)
-            },
-            |ctx, write_err_mid, res| ctx.write_as(write_err_mid, LengthWithHash::from(res)),
-        )
+            ctx.ext
+                .send(HandlePacket::new(destination.into(), payload, value), delay)
+                .into_ext_error(&mut ctx.err)
+                .map_err(Into::into)
+        })
     }
 
     /// Fallible `gr_send_wgas` syscall.
@@ -232,22 +228,15 @@ where
 
         let (handle, payload_ptr, len, err_len_ptr) = args.iter().read_4()?;
 
-        ctx.run_fallible(
-            |ctx| ctx.register_write_as(err_len_ptr),
-            |ctx| {
-                let read_payload = ctx.register_read(payload_ptr, len);
-                let payload = ctx.read(read_payload)?;
+        ctx.run_fallible_gsobol::<_, _, LengthBytes>(err_len_ptr, |ctx| {
+            let read_payload = ctx.register_read(payload_ptr, len);
+            let payload = ctx.read(read_payload)?;
 
-                ctx.ext
-                    .send_push(handle, &payload)
-                    .into_ext_error(&mut ctx.err)
-                    .map_err(Into::into)
-            },
-            |ctx, write_err_len, res| {
-                let len = res.err().unwrap_or(0);
-                ctx.write_as(write_err_len, len.to_le_bytes())
-            },
-        )
+            ctx.ext
+                .send_push(handle, &payload)
+                .into_ext_error(&mut ctx.err)
+                .map_err(Into::into)
+        })
     }
 
     /// Fallible `gr_reservation_send` syscall.

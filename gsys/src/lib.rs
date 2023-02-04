@@ -20,6 +20,8 @@
 
 #![no_std]
 
+use core::mem::size_of;
+
 /// Represents block number type.
 pub type BlockNumber = u32;
 
@@ -167,6 +169,16 @@ impl From<Result<Handle, Length>> for LengthWithHandle {
         }
 
         res
+    }
+}
+
+#[repr(C, packed)]
+#[derive(Default)]
+pub struct LengthBytes([u8; size_of::<Length>()]);
+
+impl From<Result<(), Length>> for LengthBytes {
+    fn from(value: Result<(), Length>) -> Self {
+        Self(value.err().unwrap_or_default().to_le_bytes())
     }
 }
 

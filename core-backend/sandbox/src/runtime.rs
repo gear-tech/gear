@@ -132,6 +132,39 @@ where
         result.map(|_| ReturnValue::Unit)
     }
 
+    pub fn run_fallible_gsobol<T: Sized, F, R>(&mut self, res_ptr: u32, f: F) -> SyscallOutput
+    where
+        F: FnOnce(&mut Self) -> Result<Result<T, u32>, SyscallFuncError<E::Error>>,
+        R: From<Result<T, u32>> + Sized,
+    {
+        self.prepare_run();
+
+        let write_res = self.memory_manager.register_write_as::<R>(res_ptr);
+
+        let mut res = f(self).map_err(|err| {
+            *self.err_mut() = err;
+        });
+
+        if res.is_err() {
+            if let Ok(to_be_returned) = self.last_err() {
+                res = Ok(Err(to_be_returned.encoded_size() as u32));
+            }
+        }
+
+        let res = if let Ok(res) = res {
+            self.write_as(write_res, R::from(res)).map_err(|err| {
+                *self.err_mut() = err.into();
+                HostError
+            }).map(|_| ReturnValue::Unit)
+        } else {
+            Err(HostError)
+        };
+
+        self.update_globals();
+
+        res
+    }
+
     pub(crate) fn run_any<T, F>(&mut self, f: F) -> Result<T, HostError>
     where
         F: FnOnce(&mut Self) -> Result<T, SyscallFuncError<E::Error>>,
