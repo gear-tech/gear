@@ -1406,10 +1406,6 @@ pub mod pallet {
         #[pallet::call_index(3)]
         #[pallet::weight(<T as Config>::WeightInfo::send_message(payload.len() as u32)
                 .max(<T as Config>::WeightInfo::send_message_user_interaction(payload.len() as u32)))]
-        // MIKITA different weights for 3 cases:
-        // MIKITA going to queue (active program)
-        // MIKITA going to waitlist (uninitialised program) MAYBE NOT ACTUAL
-        // MIKITA going to events (user interactions)
         pub fn send_message(
             origin: OriginFor<T>,
             destination: ProgramId,
@@ -1517,8 +1513,6 @@ pub mod pallet {
         #[pallet::call_index(4)]
         #[pallet::weight(<T as Config>::WeightInfo::send_reply(payload.len() as u32)
             .max(<T as Config>::WeightInfo::send_reply_zero_balance(payload.len() as u32)))]
-        // MIKITA possible 2 cases
-        // MIKITA If message contains value and doesn't
         pub fn send_reply(
             origin: OriginFor<T>,
             reply_to_id: MessageId,
@@ -1622,8 +1616,6 @@ pub mod pallet {
         #[pallet::call_index(5)]
         #[pallet::weight(<T as Config>::WeightInfo::claim_value()
             .max(<T as Config>::WeightInfo::claim_value_zero_balance()))]
-        // MIKITA possible 2 cases
-        // MIKITA If message contains value and doesn't
         pub fn claim_value(
             origin: OriginFor<T>,
             message_id: MessageId,
