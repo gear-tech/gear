@@ -44,11 +44,14 @@ pub trait WeightInfo {
     fn db_read_per_kb(c: u32, ) -> Weight;
     fn instantiate_module_per_kb(c: u32, ) -> Weight;
     fn claim_value() -> Weight;
+    fn claim_value_zero_balance() -> Weight;
     fn upload_code(c: u32, ) -> Weight;
     fn create_program(s: u32, ) -> Weight;
     fn upload_program(c: u32, s: u32, ) -> Weight;
     fn send_message(p: u32, ) -> Weight;
+    fn send_message_user_interaction(p: u32, ) -> Weight;
     fn send_reply(p: u32, ) -> Weight;
+    fn send_reply_zero_balance(p: u32, ) -> Weight;
     fn initial_allocation(q: u32, ) -> Weight;
     fn alloc_in_handle(q: u32, ) -> Weight;
     fn reinstrument_per_kb(c: u32, ) -> Weight;
@@ -195,6 +198,11 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
             .saturating_add(T::DbWeight::get().reads(7 as u64))
             .saturating_add(T::DbWeight::get().writes(5 as u64))
     }
+    fn claim_value_zero_balance() -> Weight {
+        Weight::from_ref_time(56_576_000 as u64)
+            .saturating_add(T::DbWeight::get().reads(6 as u64))
+            .saturating_add(T::DbWeight::get().writes(4 as u64))
+    }
     /// The range of component `c` is `[0, 250]`.
     fn upload_code(c: u32, ) -> Weight {
         Weight::from_ref_time(62_722_000 as u64)
@@ -231,10 +239,26 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
             .saturating_add(T::DbWeight::get().writes(8 as u64))
     }
     /// The range of component `p` is `[0, 1048576]`.
+    fn send_message_user_interaction(p: u32, ) -> Weight {
+        Weight::from_ref_time(38_704_338 as u64)
+            // Standard Error: 0
+            .saturating_add(Weight::from_ref_time(1_116 as u64).saturating_mul(p as u64))
+            .saturating_add(T::DbWeight::get().reads(4 as u64))
+            .saturating_add(T::DbWeight::get().writes(3 as u64))
+    }
+    /// The range of component `p` is `[0, 1048576]`.
     fn send_reply(p: u32, ) -> Weight {
         Weight::from_ref_time(63_719_882 as u64)
             // Standard Error: 1
             .saturating_add(Weight::from_ref_time(1_270 as u64).saturating_mul(p as u64))
+            .saturating_add(T::DbWeight::get().reads(13 as u64))
+            .saturating_add(T::DbWeight::get().writes(10 as u64))
+    }
+    /// The range of component `p` is `[0, 1048576]`.
+    fn send_reply_zero_balance(p: u32, ) -> Weight {
+        Weight::from_ref_time(81_883_551 as u64)
+            // Standard Error: 0
+            .saturating_add(Weight::from_ref_time(1_124 as u64).saturating_mul(p as u64))
             .saturating_add(T::DbWeight::get().reads(13 as u64))
             .saturating_add(T::DbWeight::get().writes(10 as u64))
     }
@@ -945,6 +969,11 @@ impl WeightInfo for () {
             .saturating_add(RocksDbWeight::get().reads(7 as u64))
             .saturating_add(RocksDbWeight::get().writes(5 as u64))
     }
+    fn claim_value_zero_balance() -> Weight {
+        Weight::from_ref_time(56_576_000 as u64)
+            .saturating_add(RocksDbWeight::get().reads(6 as u64))
+            .saturating_add(RocksDbWeight::get().writes(4 as u64))
+    }
     /// The range of component `c` is `[0, 250]`.
     fn upload_code(c: u32, ) -> Weight {
         Weight::from_ref_time(62_722_000 as u64)
@@ -981,10 +1010,26 @@ impl WeightInfo for () {
             .saturating_add(RocksDbWeight::get().writes(8 as u64))
     }
     /// The range of component `p` is `[0, 1048576]`.
+    fn send_message_user_interaction(p: u32, ) -> Weight {
+        Weight::from_ref_time(38_704_338 as u64)
+            // Standard Error: 0
+            .saturating_add(Weight::from_ref_time(1_116 as u64).saturating_mul(p as u64))
+            .saturating_add(RocksDbWeight::get().reads(4 as u64))
+            .saturating_add(RocksDbWeight::get().writes(3 as u64))
+    }
+    /// The range of component `p` is `[0, 1048576]`.
     fn send_reply(p: u32, ) -> Weight {
         Weight::from_ref_time(63_719_882 as u64)
             // Standard Error: 1
             .saturating_add(Weight::from_ref_time(1_270 as u64).saturating_mul(p as u64))
+            .saturating_add(RocksDbWeight::get().reads(13 as u64))
+            .saturating_add(RocksDbWeight::get().writes(10 as u64))
+    }
+    /// The range of component `p` is `[0, 1048576]`.
+    fn send_reply_zero_balance(p: u32, ) -> Weight {
+        Weight::from_ref_time(81_883_551 as u64)
+            // Standard Error: 0
+            .saturating_add(Weight::from_ref_time(1_124 as u64).saturating_mul(p as u64))
             .saturating_add(RocksDbWeight::get().reads(13 as u64))
             .saturating_add(RocksDbWeight::get().writes(10 as u64))
     }

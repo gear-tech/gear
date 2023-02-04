@@ -1536,6 +1536,7 @@ dependencies = [
  "gear-wasm-builder",
  "gstd",
  "parity-scale-codec",
+ "scale-info",
 ]
 
 [[package]]
