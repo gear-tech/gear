@@ -1404,7 +1404,8 @@ pub mod pallet {
         /// Emits the following events:
         /// - `DispatchMessageEnqueued(MessageInfo)` when dispatch message is placed in the queue.
         #[pallet::call_index(3)]
-        #[pallet::weight(<T as Config>::WeightInfo::send_message(payload.len() as u32))]
+        #[pallet::weight(<T as Config>::WeightInfo::send_message(payload.len() as u32)
+                .max(<T as Config>::WeightInfo::send_message_user_interaction(payload.len() as u32)))]
         // MIKITA different weights for 3 cases:
         // MIKITA going to queue (active program)
         // MIKITA going to waitlist (uninitialised program) MAYBE NOT ACTUAL
@@ -1416,6 +1417,8 @@ pub mod pallet {
             gas_limit: u64,
             value: BalanceOf<T>,
         ) -> DispatchResultWithPostInfo {
+            let payload_len = payload.len() as u32;
+
             let payload = payload
                 .try_into()
                 .map_err(|err: PayloadSizeError| DispatchError::Other(err.into()))?;
@@ -1434,6 +1437,7 @@ pub mod pallet {
                 ),
             );
 
+            // Program interaction
             if ProgramStorageOf::<T>::program_exists(destination) {
                 ensure!(Self::is_active(destination), Error::<T>::InactiveProgram);
 
@@ -1466,26 +1470,35 @@ pub mod pallet {
                 });
 
                 QueueOf::<T>::queue(message).map_err(|_| Error::<T>::MessagesStorageCorrupted)?;
-            } else {
-                let message = message.into_stored(ProgramId::from_origin(origin));
-
-                CurrencyOf::<T>::transfer(
-                    &who,
-                    &<T as frame_system::Config>::AccountId::from_origin(
-                        message.destination().into_origin(),
-                    ),
-                    value.unique_saturated_into(),
-                    ExistenceRequirement::AllowDeath,
-                )
-                .map_err(|_| Error::<T>::NotEnoughBalanceForReserve)?;
-
-                Pallet::<T>::deposit_event(Event::UserMessageSent {
-                    message,
-                    expiration: None,
+                return Ok(PostDispatchInfo {
+                    actual_weight: Some(<T as Config>::WeightInfo::send_message(payload_len)),
+                    pays_fee: Pays::No,
                 });
             }
 
-            Ok(().into())
+            // User inteeraction
+            let message = message.into_stored(ProgramId::from_origin(origin));
+
+            CurrencyOf::<T>::transfer(
+                &who,
+                &<T as frame_system::Config>::AccountId::from_origin(
+                    message.destination().into_origin(),
+                ),
+                value.unique_saturated_into(),
+                ExistenceRequirement::AllowDeath,
+            )
+            .map_err(|_| Error::<T>::NotEnoughBalanceForReserve)?;
+
+            Pallet::<T>::deposit_event(Event::UserMessageSent {
+                message,
+                expiration: None,
+            });
+            Ok(PostDispatchInfo {
+                actual_weight: Some(<T as Config>::WeightInfo::send_message_user_interaction(
+                    payload_len,
+                )),
+                pays_fee: Pays::No,
+            })
         }
 
         /// Send reply on message in `Mailbox`.
@@ -1502,7 +1515,8 @@ pub mod pallet {
         /// NOTE: only user who is destination of the message, can claim value
         /// or reply on the message from mailbox.
         #[pallet::call_index(4)]
-        #[pallet::weight(<T as Config>::WeightInfo::send_reply(payload.len() as u32))]
+        #[pallet::weight(<T as Config>::WeightInfo::send_reply(payload.len() as u32)
+            .max(<T as Config>::WeightInfo::send_reply_zero_balance(payload.len() as u32)))]
         // MIKITA possible 2 cases
         // MIKITA If message contains value and doesn't
         pub fn send_reply(
@@ -1512,6 +1526,8 @@ pub mod pallet {
             gas_limit: u64,
             value: BalanceOf<T>,
         ) -> DispatchResultWithPostInfo {
+            let payload_len = payload.len() as u32;
+
             let payload = payload
                 .try_into()
                 .map_err(|err: PayloadSizeError| DispatchError::Other(err.into()))?;
@@ -1581,7 +1597,18 @@ pub mod pallet {
             // Depositing pre-generated event.
             Self::deposit_event(event);
 
-            Ok(().into())
+            if mailboxed.value().is_zero() {
+                return Ok(PostDispatchInfo {
+                    actual_weight: Some(<T as Config>::WeightInfo::send_reply_zero_balance(
+                        payload_len,
+                    )),
+                    pays_fee: Pays::No,
+                });
+            }
+            Ok(PostDispatchInfo {
+                actual_weight: Some(<T as Config>::WeightInfo::send_reply(payload_len)),
+                pays_fee: Pays::No,
+            })
         }
 
         /// Claim value from message in `Mailbox`.
@@ -1593,7 +1620,8 @@ pub mod pallet {
         /// NOTE: only user who is destination of the message, can claim value
         /// or reply on the message from mailbox.
         #[pallet::call_index(5)]
-        #[pallet::weight(<T as Config>::WeightInfo::claim_value())]
+        #[pallet::weight(<T as Config>::WeightInfo::claim_value()
+            .max(<T as Config>::WeightInfo::claim_value_zero_balance()))]
         // MIKITA possible 2 cases
         // MIKITA If message contains value and doesn't
         pub fn claim_value(
@@ -1604,10 +1632,19 @@ pub mod pallet {
             let reason = UserMessageReadRuntimeReason::MessageClaimed.into_reason();
 
             // Reading message, if found, or failing extrinsic.
-            Self::read_message(ensure_signed(origin)?, message_id, reason)
+            let mailboxed = Self::read_message(ensure_signed(origin)?, message_id, reason)
                 .ok_or(Error::<T>::MessageNotFound)?;
 
-            Ok(().into())
+            if mailboxed.value().is_zero() {
+                return Ok(PostDispatchInfo {
+                    actual_weight: Some(<T as Config>::WeightInfo::claim_value_zero_balance()),
+                    pays_fee: Pays::No,
+                });
+            }
+            Ok(PostDispatchInfo {
+                actual_weight: Some(<T as Config>::WeightInfo::claim_value()),
+                pays_fee: Pays::No,
+            })
         }
 
         /// Reset all pallet associated storage.
