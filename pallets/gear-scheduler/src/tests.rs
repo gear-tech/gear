@@ -25,7 +25,7 @@ use alloc::string::ToString;
 use common::{scheduler::*, storage::*, GasPrice as _, GasTree, Origin};
 use frame_support::traits::ReservableCurrency;
 use gear_core::{ids::*, message::*};
-use gear_core_errors::SimpleReplyError;
+use gear_core_errors::{SimpleCodec, SimpleReplyError};
 use pallet_gear::{GasAllowanceOf, GasHandlerOf};
 use sp_core::H256;
 
@@ -111,10 +111,11 @@ fn out_of_rent_reply_exists(
             expiration: None,
         }) = &e.event
         {
+            let err = SimpleReplyError::OutOfRent;
             msg.destination() == src
                 && msg.source() == pid
-                && msg.reply() == Some(ReplyDetails::new(mid, 1))
-                && msg.payload() == SimpleReplyError::OutOfRent.to_string().as_bytes()
+                && msg.reply() == Some(ReplyDetails::new(mid, err.into_status_code()))
+                && msg.payload() == err.to_string().as_bytes()
         } else {
             false
         }
