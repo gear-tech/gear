@@ -33,6 +33,7 @@ mod sealed {
 #[derive(
     Copy, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Sequence, derive_more::Display,
 )]
+#[non_exhaustive]
 pub enum SimpleExecutionError {
     /// Gas limit exceeded
     #[display(fmt = "Gas limit exceeded")]
@@ -66,6 +67,7 @@ impl SimpleExecutionError {
 #[derive(
     Copy, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Sequence, derive_more::Display,
 )]
+#[non_exhaustive]
 #[repr(u8)]
 pub enum SimpleReplyError {
     /// Execution error.
@@ -121,6 +123,7 @@ impl sealed::Sealed for SimpleReplyError {}
 #[derive(
     Copy, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Sequence, derive_more::Display,
 )]
+#[non_exhaustive]
 #[repr(u8)]
 pub enum SimpleSignalError {
     /// Execution error
