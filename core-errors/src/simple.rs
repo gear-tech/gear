@@ -37,17 +37,17 @@ mod sealed {
 pub enum SimpleExecutionError {
     /// Gas limit exceeded
     #[display(fmt = "Gas limit exceeded")]
-    GasLimitExceeded,
+    GasLimitExceeded = 0,
     /// Memory exceeded
     #[display(fmt = "Memory exceeded")]
-    MemoryExceeded,
+    MemoryExceeded = 1,
     /// Ext error
     #[display(fmt = "Business-logic error")]
-    Ext,
+    Ext = 2,
     /// Panic occurred
-    Panic,
+    Panic = 3,
     /// `unreachable` occurred
-    Unknown,
+    Unknown = 4,
 }
 
 impl SimpleExecutionError {
