@@ -450,7 +450,7 @@ benchmarks! {
         <T as pallet::Config>::Currency::deposit_creating(&program_id, DEPOSIT_AMOUNT.unique_saturated_into());
 
         let code = benchmarking::generate_wasm2(16.into()).unwrap();
-        benchmarking::set_program::<ProgramStorageOf::<T>>(ProgramId::from_origin(program_id.clone().into_origin()), code, 1.into());
+        benchmarking::set_program::<ProgramStorageOf::<T>, _>(ProgramId::from_origin(program_id.clone().into_origin()), code, 1.into());
 
         let original_message_id = MessageId::from_origin(benchmarking::account::<T::AccountId>("message", 0, PROGRAM_ID_DEFAULT).into_origin());
         let gas_limit = 50000;
@@ -613,7 +613,7 @@ benchmarks! {
         let program_id = benchmarking::account::<T::AccountId>("program", 0, PROGRAM_ID_DEFAULT);
         <T as pallet::Config>::Currency::deposit_creating(&program_id, DEPOSIT_AMOUNT.unique_saturated_into());
         let code = benchmarking::generate_wasm2(16.into()).unwrap();
-        benchmarking::set_program::<ProgramStorageOf::<T>>(ProgramId::from_origin(program_id.clone().into_origin()), code, 1.into());
+        benchmarking::set_program::<ProgramStorageOf::<T>, _>(ProgramId::from_origin(program_id.clone().into_origin()), code, 1.into());
         let original_message_id = MessageId::from_origin(benchmarking::account::<T::AccountId>("message", 0, PROGRAM_ID_DEFAULT).into_origin());
         let gas_limit = 50000;
         GasHandlerOf::<T>::create(program_id.clone(), original_message_id, gas_limit).expect("Failed to create gas handler");
