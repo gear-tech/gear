@@ -51,4 +51,4 @@ fixtures:
             value: 1
           payload:
             kind: i32
-            value: 1
+            value: 0x0301 # SimpleReplyError::Execution(SimpleExecutionError::Panic)
