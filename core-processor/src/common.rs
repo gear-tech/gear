@@ -18,13 +18,14 @@
 
 //! Common structures for processing.
 
+use crate::{executor::SystemPrepareMemoryError, precharge::GasOperation, ActorPrepareMemoryError};
 use alloc::{
     collections::{BTreeMap, BTreeSet},
     string::String,
     vec::Vec,
 };
 use codec::{Decode, Encode};
-use gear_backend_common::{SystemReservationContext, TrapExplanation};
+use gear_backend_common::{SystemReservationContext, SystemSyscallFuncError, TrapExplanation};
 use gear_core::{
     gas::{GasAllowanceCounter, GasAmount, GasCounter},
     ids::{CodeId, MessageId, ProgramId, ReservationId},
@@ -78,7 +79,7 @@ pub struct DispatchResult {
     /// Page updates.
     pub page_update: BTreeMap<GearPage, PageBuf>,
     /// New allocations set for program if it has been changed.
-    pub allocations: Option<BTreeSet<WasmPage>>,
+    pub allocations: BTreeSet<WasmPage>,
 }
 
 impl DispatchResult {
@@ -397,97 +398,67 @@ pub trait JournalHandler {
     fn send_signal(&mut self, message_id: MessageId, destination: ProgramId);
 }
 
-/// Execution error.
-#[derive(Debug)]
-pub struct ExecutionError {
-    /// Id of the program that generated execution error.
-    pub program_id: ProgramId,
+/// Execution error
+#[derive(Debug, derive_more::Display, derive_more::From)]
+pub enum ExecutionError {
+    /// Actor execution error
+    #[display(fmt = "{_0}")]
+    Actor(ActorExecutionError),
+    /// System execution erorr
+    #[display(fmt = "{_0}")]
+    System(SystemExecutionError),
+}
+
+/// Actor execution error.
+#[derive(Debug, derive_more::Display)]
+#[display(fmt = "{reason}")]
+pub struct ActorExecutionError {
     /// Gas amount of the execution.
     pub gas_amount: GasAmount,
     /// Error text.
-    pub reason: ExecutionErrorReason,
-}
-
-/// Operation related to gas charging.
-#[derive(Encode, Decode, TypeInfo, Debug, PartialEq, Eq, PartialOrd, Ord, derive_more::Display)]
-pub enum GasOperation {
-    /// Load existing memory.
-    #[display(fmt = "load memory")]
-    LoadMemory,
-    /// Grow memory size.
-    #[display(fmt = "grow memory size")]
-    GrowMemory,
-    /// Handle initial memory.
-    #[display(fmt = "handle initial memory")]
-    InitialMemory,
-    /// Handle program data.
-    #[display(fmt = "handle program data")]
-    ProgramData,
-    /// Handle program code.
-    #[display(fmt = "handle program code")]
-    ProgramCode,
-    /// Instantiate Wasm module.
-    #[display(fmt = "instantiate Wasm module")]
-    ModuleInstantiation,
-    /// Instrument Wasm module.
-    #[display(fmt = "instrument Wasm module")]
-    ModuleInstrumentation,
+    pub reason: ActorExecutionErrorReason,
 }
 
 /// Reason of execution error
 #[derive(Encode, Decode, TypeInfo, Debug, PartialEq, Eq, PartialOrd, Ord, derive_more::Display)]
-pub enum ExecutionErrorReason {
-    /// Memory error
+pub enum ActorExecutionErrorReason {
+    /// Not enough gas to perform an operation.
+    #[display(fmt = "Not enough gas to {_0}")]
+    GasExceeded(GasOperation),
+    /// Prepare memory error
     #[display(fmt = "{_0}")]
-    Memory(MemoryError),
-    /// Backend error
-    #[display(fmt = "{_0}")]
-    Backend(String),
+    PrepareMemory(ActorPrepareMemoryError),
+    /// Module start error
+    #[display(fmt = "Failed to instantiate module because of trap in start function")]
+    ModuleStart,
     /// Ext error
     #[display(fmt = "{_0}")]
     Ext(TrapExplanation),
     /// Not executable actor.
     #[display(fmt = "Not executable actor")]
     NonExecutable,
-    /// Program's max page is not last page in wasm page
-    #[display(fmt = "Program's max page is not last page in wasm page")]
-    NotLastPage,
-    /// Not enough gas to perform an operation.
-    #[display(fmt = "Not enough gas to {_0}")]
-    GasExceeded(GasOperation),
-    /// Not enough gas in block to perform an operation.
-    #[display(fmt = "Not enough gas in block to {_0}")]
-    BlockGasExceeded(GasOperation),
-    /// Mem size less then static pages num
-    #[display(fmt = "Mem size less then static pages num")]
-    InsufficientMemorySize,
-    /// Changed page has no data in initial pages
-    #[display(fmt = "Changed page has no data in initial pages")]
-    PageNoData,
-    /// Page with data is not allocated for program
-    #[display(fmt = "{_0:?} is not allocated for program")]
-    PageIsNotAllocated(GearPage),
-    /// Cannot read initial memory data from wasm memory.
-    #[display(fmt = "Cannot read data for {_0:?}: {_1}")]
-    InitialMemoryReadFailed(GearPage, MemoryError),
-    /// Cannot write initial data to wasm memory.
-    #[display(fmt = "Cannot write initial data for {_0:?}: {_1}")]
-    InitialDataWriteFailed(GearPage, MemoryError),
     /// Message killed from storage as out of rent.
     #[display(fmt = "Out of rent")]
     OutOfRent,
-    /// Initial pages data must be empty in lazy pages mode
-    #[display(fmt = "Initial pages data must be empty when execute with lazy pages")]
-    InitialPagesContainsDataInLazyPagesMode,
-    /// Stack end page, which value is specified in WASM code, cannot be bigger than static memory size.
-    #[display(fmt = "Stack end page {_0:?} is bigger then WASM static memory size {_1:?}")]
-    StackEndPageBiggerWasmMemSize(WasmPage, WasmPage),
-    /// It's not allowed to set initial data for stack memory pages, if they are specified in WASM code.
-    #[display(fmt = "Set initial data for stack pages is restricted")]
-    StackPagesHaveInitialData,
-    /// Lazy page status must be set before contract execution.
-    #[display(fmt = "Lazy page status must be set before contract execution")]
-    LazyPagesStatusIsNone,
+}
+
+/// System execution error
+#[derive(Debug, derive_more::Display, derive_more::From)]
+pub enum SystemExecutionError {
+    /// Prepare memory error
+    #[from]
+    #[display(fmt = "Prepare memory: {_0}")]
+    PrepareMemory(SystemPrepareMemoryError),
+    /// Environment error
+    #[display(fmt = "Backend error: {_0}")]
+    Environment(String),
+    /// Sys-call function error
+    #[from]
+    #[display(fmt = "Syscall function error: {_0}")]
+    SyscallFunc(SystemSyscallFuncError),
+    /// Error during `into_ext_info()` call
+    #[display(fmt = "`into_ext_info()` error: {_0}")]
+    IntoExtInfo(MemoryError),
 }
 
 /// Actor.

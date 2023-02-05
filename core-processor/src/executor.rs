@@ -18,8 +18,8 @@
 
 use crate::{
     common::{
-        DispatchResult, DispatchResultKind, ExecutionError, ExecutionErrorReason, GasOperation,
-        WasmExecutionContext,
+        ActorExecutionError, ActorExecutionErrorReason, DispatchResult, DispatchResultKind,
+        ExecutionError, SystemExecutionError, WasmExecutionContext,
     },
     configs::{BlockInfo, ExecutionSettings, PagesConfig},
     ext::{ProcessorContext, ProcessorExt},
@@ -30,14 +30,16 @@ use alloc::{
     string::{String, ToString},
     vec::Vec,
 };
+use codec::{Decode, Encode};
 use gear_backend_common::{
     lazy_pages::{GlobalsConfig, LazyPagesWeights, Status},
-    BackendReport, Environment, GetGasAmount, IntoExtInfo, TerminationReason, TrapExplanation,
+    BackendExt, BackendExtError, Environment, EnvironmentExecutionError, TerminationReason,
+    TrapExplanation,
 };
 use gear_core::{
     code::InstrumentedCode,
-    env::Ext as EnvExt,
-    gas::{ChargeResult, GasAllowanceCounter, GasCounter, ValueCounter},
+    env::Ext,
+    gas::{GasAllowanceCounter, GasCounter, ValueCounter},
     ids::ProgramId,
     memory::{AllocationsContext, GearPage, Memory, PageBuf, PageU32Size, WasmPage},
     message::{
@@ -47,80 +49,47 @@ use gear_core::{
     reservation::GasReserver,
 };
 use gear_core_errors::{ExtError, MemoryError};
+use scale_info::TypeInfo;
 
-pub(crate) enum ChargeForBytesResult {
-    Ok,
-    BlockGasExceeded,
-    GasExceeded,
+#[derive(Debug, derive_more::Display, derive_more::From)]
+pub enum PrepareMemoryError {
+    #[display(fmt = "{_0}")]
+    Actor(ActorPrepareMemoryError),
+    #[display(fmt = "{_0}")]
+    System(SystemPrepareMemoryError),
 }
 
-/// Calculates gas amount required to charge for program loading.
-pub fn calculate_gas_for_program(read_cost: u64, _per_byte_cost: u64) -> u64 {
-    read_cost
+/// Prepare memory error
+#[derive(Encode, Decode, TypeInfo, Debug, PartialEq, Eq, PartialOrd, Ord, derive_more::Display)]
+pub enum ActorPrepareMemoryError {
+    /// Stack end page, which value is specified in WASM code, cannot be bigger than static memory size.
+    #[display(fmt = "Stack end page {_0:?} is bigger then WASM static memory size {_1:?}")]
+    StackEndPageBiggerWasmMemSize(WasmPage, WasmPage),
+    /// It's not allowed to set initial data for stack memory pages, if they are specified in WASM code.
+    #[display(fmt = "Set initial data for stack pages is restricted")]
+    StackPagesHaveInitialData,
+    /// Stack is not aligned to WASM page size
+    #[display(fmt = "Stack end addr {_0:#x} must be aligned to WASM page size")]
+    StackIsNotAligned(u32),
 }
 
-/// Calculates gas amount required to charge for code loading.
-pub fn calculate_gas_for_code(read_cost: u64, per_byte_cost: u64, code_len_bytes: u64) -> u64 {
-    read_cost.saturating_add(code_len_bytes.saturating_mul(per_byte_cost))
-}
-
-fn charge_gas(
-    operation: GasOperation,
-    amount: u64,
-    gas_counter: &mut GasCounter,
-    gas_allowance_counter: &mut GasAllowanceCounter,
-) -> Result<(), ExecutionErrorReason> {
-    log::trace!("Charge {} of gas to {}", amount, operation);
-    if gas_allowance_counter.charge(amount) != ChargeResult::Enough {
-        return Err(ExecutionErrorReason::BlockGasExceeded(operation));
-    }
-    if gas_counter.charge(amount) != ChargeResult::Enough {
-        return Err(ExecutionErrorReason::GasExceeded(operation));
-    }
-
-    Ok(())
-}
-
-pub(crate) fn charge_gas_per_byte(
-    amount: u64,
-    gas_counter: &mut GasCounter,
-    gas_allowance_counter: &mut GasAllowanceCounter,
-) -> ChargeForBytesResult {
-    if gas_allowance_counter.charge(amount) != ChargeResult::Enough {
-        return ChargeForBytesResult::BlockGasExceeded;
-    }
-    if gas_counter.charge(amount) != ChargeResult::Enough {
-        return ChargeForBytesResult::GasExceeded;
-    }
-
-    ChargeForBytesResult::Ok
-}
-
-pub(crate) fn charge_gas_for_program(
-    read_cost: u64,
-    per_byte_cost: u64,
-    gas_counter: &mut GasCounter,
-    gas_allowance_counter: &mut GasAllowanceCounter,
-) -> ChargeForBytesResult {
-    charge_gas_per_byte(
-        calculate_gas_for_program(read_cost, per_byte_cost),
-        gas_counter,
-        gas_allowance_counter,
-    )
-}
-
-pub(crate) fn charge_gas_for_code(
-    read_cost: u64,
-    per_byte_cost: u64,
-    code_len_bytes: u32,
-    gas_counter: &mut GasCounter,
-    gas_allowance_counter: &mut GasAllowanceCounter,
-) -> ChargeForBytesResult {
-    charge_gas_per_byte(
-        calculate_gas_for_code(read_cost, per_byte_cost, code_len_bytes.into()),
-        gas_counter,
-        gas_allowance_counter,
-    )
+#[derive(Debug, Eq, PartialEq, derive_more::Display)]
+pub enum SystemPrepareMemoryError {
+    /// Mem size less then static pages num
+    #[display(fmt = "Mem size less then static pages num")]
+    InsufficientMemorySize,
+    /// Page with data is not allocated for program
+    #[display(fmt = "{_0:?} is not allocated for program")]
+    PageIsNotAllocated(GearPage),
+    /// Cannot read initial memory data from wasm memory.
+    #[display(fmt = "Cannot read data for {_0:?}: {_1}")]
+    InitialMemoryReadFailed(GearPage, MemoryError),
+    /// Cannot write initial data to wasm memory.
+    #[display(fmt = "Cannot write initial data for {_0:?}: {_1}")]
+    InitialDataWriteFailed(GearPage, MemoryError),
+    /// Initial pages data must be empty in lazy pages mode
+    #[display(fmt = "Initial pages data must be empty when execute with lazy pages")]
+    InitialPagesContainsDataInLazyPagesMode,
 }
 
 /// Make checks that everything with memory goes well.
@@ -129,111 +98,34 @@ fn check_memory<'a>(
     pages_with_data: impl Iterator<Item = &'a GearPage>,
     static_pages: WasmPage,
     memory_size: WasmPage,
-) -> Result<(), ExecutionErrorReason> {
+) -> Result<(), SystemPrepareMemoryError> {
     if memory_size < static_pages {
         log::error!(
             "Mem size less then static pages num: mem_size = {:?}, static_pages = {:?}",
             memory_size,
             static_pages
         );
-        return Err(ExecutionErrorReason::InsufficientMemorySize);
+        return Err(SystemPrepareMemoryError::InsufficientMemorySize);
     }
 
     // Checks that all pages with data are in allocations set.
     for page in pages_with_data {
         let wasm_page = page.to_page();
         if wasm_page >= static_pages && !allocations.contains(&wasm_page) {
-            return Err(ExecutionErrorReason::PageIsNotAllocated(*page));
+            return Err(SystemPrepareMemoryError::PageIsNotAllocated(*page));
         }
     }
 
     Ok(())
 }
 
-pub(crate) fn charge_gas_for_instantiation(
-    gas_per_byte: u64,
-    code_length: u32,
-    gas_counter: &mut GasCounter,
-    gas_allowance_counter: &mut GasAllowanceCounter,
-) -> Result<(), ExecutionErrorReason> {
-    let amount = gas_per_byte * code_length as u64;
-    charge_gas(
-        GasOperation::ModuleInstantiation,
-        amount,
-        gas_counter,
-        gas_allowance_counter,
-    )
-}
-
-/// Charge gas for pages init/load/grow and checks that there is enough gas for that.
-/// Returns size of wasm memory buffer which must be created in execution environment.
-// TODO: (issue #1894) remove charging for pages access/write/read/upload. But we should charge for
-// potential situation when gas limit/allowance exceeded during lazy-pages handling,
-// but we should continue execution until the end of block. During that execution
-// another signals can occur, which also take some time to process them.
-pub(crate) fn charge_gas_for_pages(
-    settings: &PagesConfig,
-    gas_counter: &mut GasCounter,
-    gas_allowance_counter: &mut GasAllowanceCounter,
-    allocations: &BTreeSet<WasmPage>,
-    static_pages: WasmPage,
-    initial_execution: bool,
-    subsequent_execution: bool,
-) -> Result<WasmPage, ExecutionErrorReason> {
-    // Initial execution: just charge for static pages
-    if initial_execution {
-        // TODO: check calculation is safe: #2007.
-        // Charging gas for initial pages
-        let amount = settings.init_cost * static_pages.raw() as u64;
-        charge_gas(
-            GasOperation::InitialMemory,
-            amount,
-            gas_counter,
-            gas_allowance_counter,
-        )?;
-
-        return Ok(static_pages);
-    }
-
-    let max_wasm_page = if let Some(page) = allocations.iter().next_back() {
-        *page
-    } else if let Ok(max_wasm_page) = static_pages.dec() {
-        max_wasm_page
-    } else {
-        return Ok(WasmPage::zero());
-    };
-
-    if !subsequent_execution {
-        // TODO: check calculation is safe: #2007.
-        // Charging gas for loaded pages
-        let amount =
-            settings.load_page_cost * (allocations.len() as u64 + static_pages.raw() as u64);
-        charge_gas(
-            GasOperation::LoadMemory,
-            amount,
-            gas_counter,
-            gas_allowance_counter,
-        )?;
-    }
-
-    // TODO: make separate class for size in pages (here is static_pages): #2008.
-    // TODO: check calculation is safe: #2007.
-    // Charging gas for mem size
-    let amount =
-        settings.mem_grow_cost * (max_wasm_page.raw() as u64 + 1 - static_pages.raw() as u64);
-    charge_gas(
-        GasOperation::GrowMemory,
-        amount,
-        gas_counter,
-        gas_allowance_counter,
-    )?;
-
-    // +1 because pages numeration begins from 0
-    let wasm_mem_size = max_wasm_page
-        .inc()
-        .map_err(|_| ExecutionErrorReason::Memory(MemoryError::OutOfBounds))?;
-
-    Ok(wasm_mem_size)
+fn lazy_pages_check_initial_data(
+    initial_pages_data: &BTreeMap<GearPage, PageBuf>,
+) -> Result<(), SystemPrepareMemoryError> {
+    initial_pages_data
+        .is_empty()
+        .then_some(())
+        .ok_or(SystemPrepareMemoryError::InitialPagesContainsDataInLazyPagesMode)
 }
 
 /// Writes initial pages data to memory and prepare memory for execution.
@@ -242,29 +134,37 @@ fn prepare_memory<A: ProcessorExt, M: Memory>(
     program_id: ProgramId,
     pages_data: &mut BTreeMap<GearPage, PageBuf>,
     static_pages: WasmPage,
-    stack_end: Option<WasmPage>,
+    stack_end: Option<u32>,
     globals_config: GlobalsConfig,
     lazy_pages_weights: LazyPagesWeights,
-) -> Result<(), ExecutionErrorReason> {
-    if let Some(stack_end) = stack_end {
+) -> Result<(), PrepareMemoryError> {
+    let stack_end = if let Some(stack_end) = stack_end {
+        let stack_end = (stack_end % WasmPage::size() == 0)
+            .then_some(WasmPage::from_offset(stack_end))
+            .ok_or(ActorPrepareMemoryError::StackIsNotAligned(stack_end))?;
+
         if stack_end > static_pages {
-            return Err(ExecutionErrorReason::StackEndPageBiggerWasmMemSize(
+            return Err(ActorPrepareMemoryError::StackEndPageBiggerWasmMemSize(
                 stack_end,
                 static_pages,
-            ));
+            )
+            .into());
         }
-    }
+
+        Some(stack_end)
+    } else {
+        None
+    };
 
     // Set initial data for pages
     for (page, data) in pages_data.iter_mut() {
         mem.write(page.offset(), data)
-            .map_err(|err| ExecutionErrorReason::InitialDataWriteFailed(*page, err))?;
+            .map_err(|err| SystemPrepareMemoryError::InitialDataWriteFailed(*page, err))?;
     }
 
     if A::LAZY_PAGES_ENABLED {
-        if !pages_data.is_empty() {
-            return Err(ExecutionErrorReason::InitialPagesContainsDataInLazyPagesMode);
-        }
+        lazy_pages_check_initial_data(pages_data)?;
+
         A::lazy_pages_init_for_program(
             mem,
             program_id,
@@ -279,7 +179,7 @@ fn prepare_memory<A: ProcessorExt, M: Memory>(
         let begin = stack_end.unwrap_or_default();
 
         if pages_data.keys().any(|&p| p < begin.to_page()) {
-            return Err(ExecutionErrorReason::StackPagesHaveInitialData);
+            return Err(ActorPrepareMemoryError::StackPagesHaveInitialData.into());
         }
 
         let non_stack_pages = begin.iter_end(static_pages).unwrap_or_else(|err| {
@@ -295,7 +195,7 @@ fn prepare_memory<A: ProcessorExt, M: Memory>(
             }
             let mut data = PageBuf::new_zeroed();
             mem.read(page.offset(), &mut data)
-                .map_err(|err| ExecutionErrorReason::InitialMemoryReadFailed(page, err))?;
+                .map_err(|err| SystemPrepareMemoryError::InitialMemoryReadFailed(page, err))?;
             pages_data.insert(page, data);
         }
     }
@@ -344,18 +244,19 @@ fn get_pages_to_be_updated<A: ProcessorExt>(
     page_update
 }
 
-#[allow(clippy::result_large_err)]
 /// Execute wasm with dispatch and return dispatch result.
-pub fn execute_wasm<
-    A: ProcessorExt + EnvExt + IntoExtInfo<<A as EnvExt>::Error> + 'static,
-    E: Environment<A>,
->(
+pub fn execute_wasm<E>(
     balance: u128,
     dispatch: IncomingDispatch,
     context: WasmExecutionContext,
     settings: ExecutionSettings,
     msg_ctx_settings: ContextSettings,
-) -> Result<DispatchResult, ExecutionError> {
+) -> Result<DispatchResult, ExecutionError>
+where
+    E: Environment,
+    E::Ext: ProcessorExt + BackendExt + 'static,
+    <E::Ext as Ext>::Error: BackendExtError,
+{
     let WasmExecutionContext {
         gas_counter,
         gas_allowance_counter,
@@ -375,18 +276,13 @@ pub fn execute_wasm<
     let static_pages = program.static_pages();
     let allocations = program.allocations();
 
-    if let Err(reason) = check_memory(
+    check_memory(
         allocations,
         pages_initial_data.keys(),
         static_pages,
         memory_size,
-    ) {
-        return Err(ExecutionError {
-            program_id,
-            gas_amount: gas_counter.into(),
-            reason,
-        });
-    }
+    )
+    .map_err(SystemExecutionError::PrepareMemory)?;
 
     // Creating allocations context.
     let allocations_context =
@@ -429,7 +325,7 @@ pub fn execute_wasm<
     let lazy_pages_weights = context.pages_config.lazy_pages_weights.clone();
 
     // Creating externalities.
-    let ext = A::new(context);
+    let ext = E::Ext::new(context);
 
     // Execute program in backend env.
     let execute = || {
@@ -439,9 +335,10 @@ pub fn execute_wasm<
             kind,
             program.code().exports().clone(),
             memory_size,
-        )?;
+        )
+        .map_err(EnvironmentExecutionError::from_infallible)?;
         env.execute(|memory, stack_end, globals_config| {
-            prepare_memory::<A, E::Memory>(
+            prepare_memory::<E::Ext, E::Memory>(
                 memory,
                 program_id,
                 &mut pages_initial_data,
@@ -453,23 +350,17 @@ pub fn execute_wasm<
         })
     };
     let (termination, memory, ext) = match execute() {
-        Ok(BackendReport {
-            termination_reason: mut termination,
-            memory_wrap: mut memory,
-            ext,
-        }) => {
-            // released pages initial data will be added to `pages_initial_data` after execution.
-            if A::LAZY_PAGES_ENABLED {
-                A::lazy_pages_post_execution_actions(&mut memory);
+        Ok(report) => {
+            let (mut termination, mut memory, ext) = report
+                .into_parts()
+                .map_err(SystemExecutionError::SyscallFunc)?;
 
-                let status = if let Some(status) = A::lazy_pages_status() {
-                    status
-                } else {
-                    return Err(ExecutionError {
-                        program_id,
-                        gas_amount: ext.into_gas_amount(),
-                        reason: ExecutionErrorReason::LazyPagesStatusIsNone,
-                    });
+            // released pages initial data will be added to `pages_initial_data` after execution.
+            if E::Ext::LAZY_PAGES_ENABLED {
+                E::Ext::lazy_pages_post_execution_actions(&mut memory);
+
+                let Some(status) = E::Ext::lazy_pages_status() else {
+                    unreachable!("Lazy page status must be set before contract execution");
                 };
 
                 match status {
@@ -487,13 +378,28 @@ pub fn execute_wasm<
 
             (termination, memory, ext)
         }
-
-        Err(e) => {
-            return Err(ExecutionError {
-                program_id,
-                gas_amount: e.gas_amount(),
-                reason: ExecutionErrorReason::Backend(e.to_string()),
-            })
+        Err(EnvironmentExecutionError::Environment(e)) => {
+            return Err(ExecutionError::System(SystemExecutionError::Environment(
+                e.to_string(),
+            )))
+        }
+        Err(EnvironmentExecutionError::PrepareMemory(gas_amount, PrepareMemoryError::Actor(e))) => {
+            return Err(ExecutionError::Actor(ActorExecutionError {
+                gas_amount,
+                reason: ActorExecutionErrorReason::PrepareMemory(e),
+            }))
+        }
+        Err(EnvironmentExecutionError::PrepareMemory(
+            _gas_amount,
+            PrepareMemoryError::System(e),
+        )) => {
+            return Err(ExecutionError::System(e.into()));
+        }
+        Err(EnvironmentExecutionError::ModuleStart(gas_amount)) => {
+            return Err(ExecutionError::Actor(ActorExecutionError {
+                gas_amount,
+                reason: ActorExecutionErrorReason::ModuleStart,
+            }))
         }
     };
 
@@ -501,18 +407,11 @@ pub fn execute_wasm<
 
     let info = ext
         .into_ext_info(&memory)
-        .map_err(|(err, gas_amount)| ExecutionError {
-            program_id,
-            gas_amount,
-            reason: ExecutionErrorReason::Backend(err.to_string()),
-        })?;
+        .map_err(SystemExecutionError::IntoExtInfo)?;
 
-    if A::LAZY_PAGES_ENABLED && !pages_initial_data.is_empty() {
-        return Err(ExecutionError {
-            program_id,
-            gas_amount: info.gas_amount,
-            reason: ExecutionErrorReason::InitialPagesContainsDataInLazyPagesMode,
-        });
+    if E::Ext::LAZY_PAGES_ENABLED {
+        lazy_pages_check_initial_data(&pages_initial_data)
+            .map_err(SystemExecutionError::PrepareMemory)?;
     }
 
     // Parsing outcome.
@@ -530,7 +429,7 @@ pub fn execute_wasm<
     };
 
     let page_update =
-        get_pages_to_be_updated::<A>(pages_initial_data, info.pages_data, static_pages);
+        get_pages_to_be_updated::<E::Ext>(pages_initial_data, info.pages_data, static_pages);
 
     // Getting new programs that are scheduled to be initialized (respected messages are in `generated_dispatches` collection)
     let program_candidates = info.program_candidates_data;
@@ -553,11 +452,8 @@ pub fn execute_wasm<
 }
 
 /// !!! FOR TESTING / INFORMATIONAL USAGE ONLY
-pub fn execute_for_reply<
-    A: ProcessorExt + EnvExt + IntoExtInfo<<A as EnvExt>::Error> + 'static,
-    E: Environment<A, EP>,
-    EP: WasmEntry,
->(
+#[allow(clippy::too_many_arguments)]
+pub fn execute_for_reply<E, EP>(
     function: EP,
     instrumented_code: InstrumentedCode,
     pages_initial_data: Option<BTreeMap<GearPage, PageBuf>>,
@@ -565,7 +461,14 @@ pub fn execute_for_reply<
     program_id: Option<ProgramId>,
     payload: Vec<u8>,
     gas_limit: u64,
-) -> Result<Vec<u8>, String> {
+    block_info: BlockInfo,
+) -> Result<Vec<u8>, String>
+where
+    E: Environment<EP>,
+    E::Ext: ProcessorExt + BackendExt + 'static,
+    <E::Ext as Ext>::Error: BackendExtError,
+    EP: WasmEntry,
+{
     let program = Program::new(program_id.unwrap_or_default(), instrumented_code);
     let mut pages_initial_data: BTreeMap<GearPage, PageBuf> =
         pages_initial_data.unwrap_or_default();
@@ -608,10 +511,7 @@ pub fn execute_for_reply<
             None,
             ContextSettings::new(0, 0, 0, 0, 0, 0),
         ),
-        block_info: BlockInfo {
-            height: Default::default(),
-            timestamp: Default::default(),
-        },
+        block_info,
         pages_config: PagesConfig {
             max_pages: 512.into(),
             lazy_pages_weights: LazyPagesWeights {
@@ -641,7 +541,7 @@ pub fn execute_for_reply<
     let lazy_pages_weights = context.pages_config.lazy_pages_weights.clone();
 
     // Creating externalities.
-    let ext = A::new(context);
+    let ext = E::Ext::new(context);
 
     // Execute program in backend env.
     let f = || {
@@ -651,9 +551,10 @@ pub fn execute_for_reply<
             function,
             program.code().exports().clone(),
             memory_size,
-        )?;
+        )
+        .map_err(EnvironmentExecutionError::from_infallible)?;
         env.execute(|memory, stack_end, globals_config| {
-            prepare_memory::<A, E::Memory>(
+            prepare_memory::<E::Ext, E::Memory>(
                 memory,
                 program.id(),
                 &mut pages_initial_data,
@@ -666,11 +567,9 @@ pub fn execute_for_reply<
     };
 
     let (termination, memory, ext) = match f() {
-        Ok(BackendReport {
-            termination_reason: termination,
-            memory_wrap: memory,
-            ext,
-        }) => (termination, memory, ext),
+        Ok(report) => report
+            .into_parts()
+            .map_err(|e| format!("Backend error: {e}"))?,
         Err(e) => return Err(format!("Backend error: {e}")),
     };
 
@@ -759,28 +658,6 @@ mod tests {
         (pages.to_vec(), pages.map(|p| p.to_page()).into())
     }
 
-    fn prepare_alloc_config() -> PagesConfig {
-        PagesConfig {
-            max_pages: 32.into(),
-            lazy_pages_weights: LazyPagesWeights {
-                read: 100,
-                write: 100,
-                write_after_read: 100,
-            },
-            init_cost: 1000,
-            alloc_cost: 2000,
-            mem_grow_cost: 3000,
-            load_page_cost: 4000,
-        }
-    }
-
-    fn prepare_gas_counters() -> (GasCounter, GasAllowanceCounter) {
-        (
-            GasCounter::new(1_000_000),
-            GasAllowanceCounter::new(4_000_000),
-        )
-    }
-
     fn prepare_pages() -> BTreeMap<GearPage, PageBuf> {
         let mut pages = BTreeMap::new();
         for i in 0..=255 {
@@ -793,7 +670,7 @@ mod tests {
     #[test]
     fn check_memory_insufficient() {
         let res = check_memory(&[].into(), [].iter(), 8.into(), 4.into());
-        assert_eq!(res, Err(ExecutionErrorReason::InsufficientMemorySize));
+        assert_eq!(res, Err(SystemPrepareMemoryError::InsufficientMemorySize));
     }
 
     #[test]
@@ -804,7 +681,7 @@ mod tests {
         let res = check_memory(&allocs, pages.iter(), 2.into(), 4.into());
         assert_eq!(
             res,
-            Err(ExecutionErrorReason::PageIsNotAllocated(
+            Err(SystemPrepareMemoryError::PageIsNotAllocated(
                 *pages.last().unwrap()
             ))
         );
@@ -813,96 +690,7 @@ mod tests {
     #[test]
     fn check_memory_ok() {
         let (pages, allocs) = prepare_pages_and_allocs();
-        let res = check_memory(&allocs, pages.iter(), 4.into(), 8.into());
-        assert!(res.is_ok());
-    }
-
-    #[test]
-    fn gas_for_pages_initial() {
-        let settings = prepare_alloc_config();
-        let (mut counter, mut allowance_counter) = prepare_gas_counters();
-        let static_pages = 4;
-        let res = charge_gas_for_pages(
-            &settings,
-            &mut counter,
-            &mut allowance_counter,
-            &Default::default(),
-            static_pages.into(),
-            true,
-            false,
-        );
-        // Result is static pages count
-        assert_eq!(res, Ok(static_pages.into()));
-        // Charging for static pages initialization
-        let charge = settings.init_cost * static_pages as u64;
-        assert_eq!(counter.left(), 1_000_000 - charge);
-        assert_eq!(allowance_counter.left(), 4_000_000 - charge);
-    }
-
-    #[test]
-    fn gas_for_pages_static() {
-        let settings = prepare_alloc_config();
-        let (mut counter, mut allowance_counter) = prepare_gas_counters();
-        let static_pages = 4;
-        let res = charge_gas_for_pages(
-            &settings,
-            &mut counter,
-            &mut allowance_counter,
-            &Default::default(),
-            static_pages.into(),
-            false,
-            false,
-        );
-        // Result is static pages count
-        assert_eq!(res, Ok(static_pages.into()));
-        // Charge for the first load of static pages
-        let charge = settings.load_page_cost * static_pages as u64;
-        assert_eq!(counter.left(), 1_000_000 - charge);
-        assert_eq!(allowance_counter.left(), 4_000_000 - charge);
-    }
-
-    #[test]
-    fn gas_for_pages_alloc() {
-        let settings = prepare_alloc_config();
-        let (mut counter, mut allowance_counter) = prepare_gas_counters();
-        let (_, allocs) = prepare_pages_and_allocs();
-        let static_pages = 4;
-        let res = charge_gas_for_pages(
-            &settings,
-            &mut counter,
-            &mut allowance_counter,
-            &allocs,
-            static_pages.into(),
-            false,
-            false,
-        );
-        // Result is the last page plus one
-        let last = *allocs.iter().last().unwrap();
-        assert_eq!(res, Ok(last.inc().unwrap()));
-        // Charge for loading and mem grow
-        let load_charge = settings.load_page_cost * (allocs.len() as u64 + static_pages as u64);
-        let grow_charge = settings.mem_grow_cost * (last.raw() as u64 + 1 - static_pages as u64);
-        assert_eq!(counter.left(), 1_000_000 - load_charge - grow_charge);
-        assert_eq!(
-            allowance_counter.left(),
-            4_000_000 - load_charge - grow_charge
-        );
-
-        // Use the second time (`subsequent` = `true`)
-        let (mut counter, mut allowance_counter) = prepare_gas_counters();
-        let res = charge_gas_for_pages(
-            &settings,
-            &mut counter,
-            &mut allowance_counter,
-            &allocs,
-            static_pages.into(),
-            false,
-            true,
-        );
-        assert_eq!(res, Ok(last.inc().unwrap()));
-        // Charge for mem grow only
-        assert_eq!(counter.left(), 1_000_000 - grow_charge);
-        assert_eq!(allowance_counter.left(), 4_000_000 - grow_charge);
+        check_memory(&allocs, pages.iter(), 4.into(), 8.into()).unwrap();
     }
 
     #[test]

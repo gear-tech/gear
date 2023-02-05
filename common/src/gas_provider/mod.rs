@@ -17,12 +17,9 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use super::*;
-use frame_support::{
-    traits::{tokens::Balance as BalanceTrait, Imbalance, SameOrOther, TryDrop},
-    RuntimeDebug,
-};
+use frame_support::{traits::tokens::Balance as BalanceTrait, RuntimeDebug};
 use sp_runtime::traits::Zero;
-use sp_std::{marker::PhantomData, mem};
+use sp_std::marker::PhantomData;
 
 mod error;
 mod internal;
@@ -70,14 +67,13 @@ pub trait Tree {
     /// operations that create inequality between the underlying value
     /// supply and some hypothetical "collateral" asset.
 
-    /// `PositiveImbalance` indicates that some value has been created,
-    /// which will eventually lead to an increase in total supply.
-    type PositiveImbalance: Imbalance<Self::Balance, Opposite = Self::NegativeImbalance>;
+    /// `PositiveImbalance` indicates that some value has been added
+    /// to circulation , i.e. total supply has increased.
+    type PositiveImbalance: Imbalance<Balance = Self::Balance>;
 
     /// `NegativeImbalance` indicates that some value has been removed
-    /// from circulation leading to a decrease in the total supply
-    /// of the underlying value.
-    type NegativeImbalance: Imbalance<Self::Balance, Opposite = Self::PositiveImbalance>;
+    /// from circulation, i.e. total supply has decreased.
+    type NegativeImbalance: Imbalance<Balance = Self::Balance>;
 
     type InternalError: Error;
 
@@ -277,15 +273,6 @@ pub trait Provider {
     /// operations that create inequality between the underlying value
     /// supply and some hypothetical "collateral" asset.
 
-    /// `PositiveImbalance` indicates that some value has been created,
-    /// which will eventually lead to an increase in total supply.
-    type PositiveImbalance: Imbalance<Self::Balance, Opposite = Self::NegativeImbalance>;
-
-    /// `NegativeImbalance` indicates that some value has been removed from
-    /// circulation leading to a decrease in the total supply of the
-    /// underlying value.
-    type NegativeImbalance: Imbalance<Self::Balance, Opposite = Self::PositiveImbalance>;
-
     type InternalError: Error;
 
     /// Error type.
@@ -297,8 +284,6 @@ pub trait Provider {
         Key = Self::Key,
         ReservationKey = Self::ReservationKey,
         Balance = Self::Balance,
-        PositiveImbalance = Self::PositiveImbalance,
-        NegativeImbalance = Self::NegativeImbalance,
         InternalError = Self::InternalError,
         Error = Self::Error,
     >;
@@ -310,4 +295,15 @@ pub trait Provider {
     fn reset() {
         Self::GasTree::clear();
     }
+}
+
+/// Represents either added or removed value to/from total supply of the currency.
+pub trait Imbalance {
+    type Balance;
+
+    /// Returns imbalance raw value.
+    fn peek(&self) -> Self::Balance;
+
+    /// Applies imbalance to some amount.
+    fn apply_to(&self, amount: &mut Option<Self::Balance>);
 }

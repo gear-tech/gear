@@ -33,7 +33,8 @@ mod context;
 mod executor;
 mod ext;
 mod handler;
-mod processor;
+mod precharge;
+mod processing;
 
 /// Error status code.
 pub const ERR_STATUS_CODE: StatusCode = 1;
@@ -54,13 +55,15 @@ pub const RE_INIT_STATUS_CODE: StatusCode = 3;
 pub use context::{
     ContextChargedForCode, ContextChargedForInstrumentation, ProcessExecutionContext,
 };
-pub use executor::{calculate_gas_for_code, calculate_gas_for_program, execute_wasm};
+pub use executor::{execute_wasm, ActorPrepareMemoryError};
 pub use ext::{Ext, ProcessorContext, ProcessorError, ProcessorExt};
 pub use handler::handle_journal;
-pub use processor::{
-    precharge_for_code, precharge_for_code_length, precharge_for_instrumentation,
-    precharge_for_memory, precharge_for_program, process,
+pub use precharge::{
+    calculate_gas_for_code, calculate_gas_for_program, precharge_for_code,
+    precharge_for_code_length, precharge_for_instrumentation, precharge_for_memory,
+    precharge_for_program,
 };
+pub use processing::process;
 
 /// Informational functions for core-processor and executor.
 pub mod informational {

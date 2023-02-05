@@ -17,10 +17,10 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    error_processor::IntoExtError, memory::OutOfMemoryAccessError, AsTerminationReason, ExtInfo,
-    GetGasAmount, IntoExtInfo, SystemReservationContext, TerminationReason,
+    memory::OutOfMemoryAccessError, BackendExt, BackendExtError, ExtInfo, SystemReservationContext,
+    TerminationReason,
 };
-use alloc::collections::BTreeSet;
+use alloc::{collections::BTreeSet, string::String};
 use codec::{Decode, Encode};
 use core::fmt;
 use gear_core::{
@@ -36,30 +36,32 @@ use gear_core_errors::{CoreError, ExtError, MemoryError};
 use gear_wasm_instrument::syscalls::SysCallName;
 
 /// Mock error
-#[derive(Debug, Encode, Decode)]
+#[derive(Debug, Clone, Encode, Decode)]
 pub struct Error;
 
 impl fmt::Display for Error {
     fn fmt(&self, _f: &mut fmt::Formatter) -> fmt::Result {
-        todo!()
+        unimplemented!()
     }
 }
 
-impl CoreError for Error {
+impl CoreError for Error {}
+
+impl BackendExtError for Error {
+    fn from_ext_error(_err: ExtError) -> Self {
+        unimplemented!()
+    }
+
     fn forbidden_function() -> Self {
-        todo!()
+        unimplemented!()
     }
-}
 
-impl AsTerminationReason for Error {
-    fn as_termination_reason(&self) -> Option<&TerminationReason> {
-        todo!()
-    }
-}
-
-impl IntoExtError for Error {
     fn into_ext_error(self) -> Result<ExtError, Self> {
-        todo!()
+        unimplemented!()
+    }
+
+    fn into_termination_reason(self) -> TerminationReason {
+        unimplemented!()
     }
 }
 
@@ -243,10 +245,14 @@ impl Ext for MockExt {
     fn runtime_cost(&self, _costs: RuntimeCosts) -> u64 {
         0
     }
+
+    fn maybe_panic(&self) -> Option<String> {
+        None
+    }
 }
 
-impl IntoExtInfo<<MockExt as Ext>::Error> for MockExt {
-    fn into_ext_info(self, _memory: &impl Memory) -> Result<ExtInfo, (MemoryError, GasAmount)> {
+impl BackendExt for MockExt {
+    fn into_ext_info(self, _memory: &impl Memory) -> Result<ExtInfo, MemoryError> {
         Ok(ExtInfo {
             gas_amount: GasAmount::from(GasCounter::new(0)),
             gas_reserver: GasReserver::new(Default::default(), 0, Default::default(), 1024),
@@ -260,16 +266,8 @@ impl IntoExtInfo<<MockExt as Ext>::Error> for MockExt {
         })
     }
 
-    fn into_gas_amount(self) -> gear_core::gas::GasAmount {
+    fn gas_amount(&self) -> GasAmount {
         GasAmount::from(GasCounter::new(0))
-    }
-
-    fn last_error(&self) -> Result<&gear_core_errors::ExtError, Error> {
-        Ok(&ExtError::SyscallUsage)
-    }
-
-    fn trap_explanation(&self) -> Option<crate::TrapExplanation> {
-        None
     }
 
     fn pre_process_memory_accesses(
@@ -277,11 +275,5 @@ impl IntoExtInfo<<MockExt as Ext>::Error> for MockExt {
         _writes: &[MemoryInterval],
     ) -> Result<(), OutOfMemoryAccessError> {
         Ok(())
-    }
-}
-
-impl GetGasAmount for MockExt {
-    fn gas_amount(&self) -> GasAmount {
-        GasAmount::from(GasCounter::new(0))
     }
 }

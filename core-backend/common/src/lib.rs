@@ -22,80 +22,55 @@
 
 extern crate alloc;
 
-pub mod error_processor;
 pub mod lazy_pages;
 
 mod utils;
-use memory::OutOfMemoryAccessError;
-pub use utils::calc_stack_end;
 
 #[cfg(feature = "mock")]
 pub mod mock;
 
 pub mod memory;
 
+use crate::{
+    memory::{ActorMemoryAccessError, MemoryAccessError, SystemMemoryAccessError},
+    utils::TrimmedString,
+};
 use alloc::{
     collections::{BTreeMap, BTreeSet},
-    string::String,
+    string::FromUtf8Error,
     vec::Vec,
 };
-use codec::{Decode, Encode, MaxEncodedLen};
+use codec::{Decode, Encode};
 use core::{
-    fmt::{self, Display},
-    mem::{self, MaybeUninit},
-    ops::Deref,
-    slice,
+    convert::Infallible,
+    fmt::{Debug, Display},
 };
 use gear_core::{
     buffer::RuntimeBufferSizeError,
-    env::Ext,
+    env::Ext as EnvExt,
     gas::GasAmount,
     ids::{CodeId, MessageId, ProgramId, ReservationId},
     memory::{GearPage, Memory, MemoryInterval, PageBuf, WasmPage},
     message::{
-        ContextStore, Dispatch, DispatchKind, IncomingDispatch, MessageWaitedType, WasmEntry,
+        ContextStore, Dispatch, DispatchKind, IncomingDispatch, MessageWaitedType,
+        PayloadSizeError, WasmEntry,
     },
     reservation::GasReserver,
 };
-use gear_core_errors::{ExtError, MemoryError};
+use gear_core_errors::{CoreError, ExecutionError, ExtError, MemoryError, MessageError};
 use lazy_pages::GlobalsConfig;
+use memory::OutOfMemoryAccessError;
 use scale_info::TypeInfo;
 
-// Max amount of bytes allowed to be thrown as string explanation of the error.
-pub const TRIMMED_MAX_LEN: usize = 1024;
+// '__gear_stack_end' export is inserted by wasm-proc or wasm-builder
+pub const STACK_END_EXPORT_NAME: &str = "__gear_stack_end";
 
-/// Wrapped string to fit `core-backend::TRIMMED_MAX_LEN` amount of bytes.
-#[derive(
-    Decode, Encode, TypeInfo, Debug, Clone, PartialEq, Eq, PartialOrd, Ord, derive_more::Display,
-)]
-pub struct TrimmedString(String);
-
-impl TrimmedString {
-    pub(crate) fn new(mut string: String) -> Self {
-        utils::smart_truncate(&mut string, TRIMMED_MAX_LEN);
-        Self(string)
-    }
-}
-
-impl<T: Into<String>> From<T> for TrimmedString {
-    fn from(other: T) -> Self {
-        Self::new(other.into())
-    }
-}
-
-impl Deref for TrimmedString {
-    type Target = String;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-#[derive(Decode, Encode, Debug, PartialEq, Eq, PartialOrd, Ord, Clone)]
+#[derive(Decode, Encode, Debug, PartialEq, Eq, PartialOrd, Ord, Clone, derive_more::From)]
 pub enum TerminationReason {
     Exit(ProgramId),
     Leave,
     Success,
+    #[from]
     Trap(TrapExplanation),
     Wait(Option<u32>, MessageWaitedType),
     GasAllowanceExceeded,
@@ -108,7 +83,7 @@ pub enum TrapExplanation {
     #[display(fmt = "{_0}")]
     Core(ExtError),
     #[display(fmt = "{_0}")]
-    Other(TrimmedString),
+    Panic(TrimmedString),
     #[display(fmt = "Reason is unknown. Possibly `unreachable` instruction is occurred")]
     Unknown,
 }
@@ -142,7 +117,7 @@ pub struct ExtInfo {
     pub gas_amount: GasAmount,
     pub gas_reserver: GasReserver,
     pub system_reservation_context: SystemReservationContext,
-    pub allocations: Option<BTreeSet<WasmPage>>,
+    pub allocations: BTreeSet<WasmPage>,
     pub pages_data: BTreeMap<GearPage, PageBuf>,
     pub generated_dispatches: Vec<(Dispatch, u32, Option<ReservationId>)>,
     pub awakening: Vec<(MessageId, u32)>,
@@ -150,18 +125,10 @@ pub struct ExtInfo {
     pub context_store: ContextStore,
 }
 
-pub trait IntoExtInfo<Error> {
-    fn into_ext_info(self, memory: &impl Memory) -> Result<ExtInfo, (MemoryError, GasAmount)>;
+pub trait BackendExt: EnvExt {
+    fn into_ext_info(self, memory: &impl Memory) -> Result<ExtInfo, MemoryError>;
 
-    fn into_gas_amount(self) -> GasAmount;
-
-    fn last_error(&self) -> Result<&ExtError, Error>;
-
-    fn last_error_encoded(&self) -> Result<Vec<u8>, Error> {
-        self.last_error().map(Encode::encode)
-    }
-
-    fn trap_explanation(&self) -> Option<TrapExplanation>;
+    fn gas_amount(&self) -> GasAmount;
 
     /// Pre-process memory access if need.
     fn pre_process_memory_accesses(
@@ -170,146 +137,255 @@ pub trait IntoExtInfo<Error> {
     ) -> Result<(), OutOfMemoryAccessError>;
 }
 
-pub trait GetGasAmount {
-    fn gas_amount(&self) -> GasAmount;
+pub trait BackendExtError: CoreError + Clone {
+    fn from_ext_error(err: ExtError) -> Self;
+
+    fn forbidden_function() -> Self;
+
+    fn into_ext_error(self) -> Result<ExtError, Self>;
+
+    fn into_termination_reason(self) -> TerminationReason;
 }
 
-#[derive(Debug, derive_more::Display, derive_more::From)]
-pub enum RuntimeCtxError<E: Display> {
-    #[display(fmt = "{_0}")]
-    Ext(E),
-    #[from]
-    #[display(fmt = "{_0}")]
-    Memory(MemoryError),
-    #[from]
-    #[display(fmt = "{_0}")]
-    RuntimeBuffer(RuntimeBufferSizeError),
+pub trait BackendState<E: BackendExtError> {
+    fn err_mut(&mut self) -> &mut SyscallFuncError<E>;
+
+    fn last_err(&mut self) -> Result<ExtError, ExtError> {
+        let last_err = if let SyscallFuncError::Actor(ActorSyscallFuncError::Core(maybe_ext)) =
+            self.err_mut().clone()
+        {
+            maybe_ext
+                .into_ext_error()
+                .map_err(|_| ExtError::SyscallUsage)
+        } else {
+            Err(ExtError::SyscallUsage)
+        };
+
+        if let Err(err) = &last_err {
+            *self.err_mut() = ActorSyscallFuncError::Core(E::from_ext_error(err.clone())).into();
+        }
+
+        last_err
+    }
 }
 
-pub trait RuntimeCtx<E: Ext> {
-    /// Allocate new pages in instance memory.
-    fn alloc(&mut self, pages: WasmPage) -> Result<WasmPage, RuntimeCtxError<E::Error>>;
-
-    /// Read designated chunk from the memory.
-    fn read_memory(&self, ptr: u32, len: u32) -> Result<Vec<u8>, RuntimeCtxError<E::Error>>;
-
-    /// Read designated chunk from the memory into the supplied buffer.
-    fn read_memory_into_buf(
-        &self,
-        ptr: u32,
-        buf: &mut [u8],
-    ) -> Result<(), RuntimeCtxError<E::Error>>;
-
-    /// Reads and decodes a type with a size fixed at compile time from program memory.
-    fn read_memory_decoded<D: Decode + MaxEncodedLen>(
-        &self,
-        ptr: u32,
-    ) -> Result<D, RuntimeCtxError<E::Error>>;
-
-    /// Write the given buffer and its length to the designated locations in memory.
-    //
-    /// `out_ptr` is the location in memory where `buf` should be written to.
-    fn write_output(&mut self, out_ptr: u32, buf: &[u8]) -> Result<(), RuntimeCtxError<E::Error>>;
+pub trait IntoExtErrorForResult<T, Err>
+where
+    Err: Display,
+{
+    fn into_ext_error(
+        self,
+        state_err: &mut SyscallFuncError<Err>,
+    ) -> Result<Result<T, u32>, ActorSyscallFuncError<Err>>;
 }
 
-/// Writes object in given memory as bytes.
-pub fn write_memory_as<T: Sized>(
-    memory: &mut impl Memory,
-    ptr: u32,
-    obj: T,
-) -> Result<(), MemoryError> {
-    // # Safety:
-    //
-    // Given object is `Sized` and we own them in the context of calling this
-    // function (it's on stack), it's safe to take ptr on the object and
-    // represent it as slice. Object will be dropped after `memory.write`
-    // finished execution and no one will rely on this slice.
-    //
-    // Bytes in memory always stored continuously and without paddings, properly
-    // aligned due to `[repr(C, packed)]` attribute of the types we use as T.
-    let slice =
-        unsafe { slice::from_raw_parts(&obj as *const T as *const u8, mem::size_of::<T>()) };
-
-    memory.write(ptr, slice)
+impl<T, Err> IntoExtErrorForResult<T, Err> for Result<T, Err>
+where
+    Err: BackendExtError + Display,
+{
+    fn into_ext_error(
+        self,
+        state_err: &mut SyscallFuncError<Err>,
+    ) -> Result<Result<T, u32>, ActorSyscallFuncError<Err>> {
+        match self {
+            Ok(value) => Ok(Ok(value)),
+            Err(err) => {
+                *state_err = ActorSyscallFuncError::Core(err.clone()).into();
+                match err.into_ext_error() {
+                    Ok(ext_err) => Ok(Err(ext_err.encoded_size() as u32)),
+                    Err(err) => Err(ActorSyscallFuncError::Core(err)),
+                }
+            }
+        }
+    }
 }
 
-/// Reads bytes from given pointer to construct type T from them.
-pub fn read_memory_as<T: Sized>(memory: &impl Memory, ptr: u32) -> Result<T, MemoryError> {
-    let mut buf = MaybeUninit::<T>::uninit();
-
-    // # Safety:
-    //
-    // Usage of mutable slice is safe for the same reason from `write_memory_as`.
-    // `MaybeUninit` is presented on stack with continuos sequence of bytes.
-    //
-    // It's also safe to construct T from any bytes, because we use the fn
-    // only for reading primitive const-size types that are `[repr(C)]`,
-    // so they always represented from sequence of bytes.
-    //
-    // Bytes in memory always stored continuously and without paddings, properly
-    // aligned due to `[repr(C, packed)]` attribute of the types we use as T.
-    let mut_slice =
-        unsafe { slice::from_raw_parts_mut(buf.as_mut_ptr() as *mut u8, mem::size_of::<T>()) };
-
-    memory.read(ptr, mut_slice)?;
-
-    // # Safety:
-    //
-    // Assuming init is always safe here due to the fact that we read proper
-    // amount of bytes from the wasm memory, which is never uninited: they may
-    // be filled by zeroes or some trash (valid for our primitives used as T),
-    // but always exist.
-    Ok(unsafe { buf.assume_init() })
+pub struct BackendReport<MemWrap, Ext>
+where
+    Ext: EnvExt,
+{
+    pub err: Option<SyscallFuncError<Ext::Error>>,
+    pub memory_wrap: MemWrap,
+    pub ext: Ext,
 }
 
-pub struct BackendReport<T, E> {
-    pub termination_reason: TerminationReason,
-    pub memory_wrap: T,
-    pub ext: E,
+impl<MemWrap, Ext> BackendReport<MemWrap, Ext>
+where
+    Ext: EnvExt,
+    Ext::Error: BackendExtError,
+{
+    fn termination_reason(
+        ext: &Ext,
+        err: Option<SyscallFuncError<Ext::Error>>,
+    ) -> Result<TerminationReason, SystemSyscallFuncError> {
+        match err {
+            Some(runtime_err) => {
+                let err = match runtime_err {
+                    SyscallFuncError::Actor(err) => err,
+                    SyscallFuncError::System(err) => return Err(err),
+                };
+
+                let mut reason = err.into_termination_reason();
+
+                // success is unacceptable when there is error
+                if let TerminationReason::Success = reason {
+                    reason = ext
+                        .maybe_panic()
+                        .map(|s| TrapExplanation::Panic(s.into()).into())
+                        .unwrap_or(TerminationReason::Trap(TrapExplanation::Unknown));
+                }
+
+                Ok(reason)
+            }
+            None => Ok(TerminationReason::Success),
+        }
+    }
+
+    pub fn into_parts(self) -> Result<(TerminationReason, MemWrap, Ext), SystemSyscallFuncError> {
+        let Self {
+            err,
+            memory_wrap,
+            ext,
+        } = self;
+        let reason = Self::termination_reason(&ext, err)?;
+        Ok((reason, memory_wrap, ext))
+    }
 }
 
 #[derive(Debug, derive_more::Display)]
-pub enum StackEndError {
-    #[display(fmt = "Stack end addr {_0:#x} must be aligned to WASM page size")]
-    IsNotAligned(u32),
+pub enum EnvironmentExecutionError<Env: Display, PrepMem: Display> {
+    #[display(fmt = "Environment error: {_0}")]
+    Environment(Env),
+    #[display(fmt = "Prepare error: {_1}")]
+    PrepareMemory(GasAmount, PrepMem),
+    #[display(fmt = "Module start error")]
+    ModuleStart(GasAmount),
 }
 
-// '__gear_stack_end' export is inserted in wasm-proc or wasm-builder
-pub const STACK_END_EXPORT_NAME: &str = "__gear_stack_end";
+impl<Env: Display, PrepMem: Display> EnvironmentExecutionError<Env, PrepMem> {
+    pub fn from_infallible(err: EnvironmentExecutionError<Env, Infallible>) -> Self {
+        match err {
+            EnvironmentExecutionError::Environment(err) => Self::Environment(err),
+            EnvironmentExecutionError::PrepareMemory(_, err) => match err {},
+            EnvironmentExecutionError::ModuleStart(gas_amount) => Self::ModuleStart(gas_amount),
+        }
+    }
+}
 
-pub trait Environment<E, EP = DispatchKind>: Sized
+type EnvironmentBackendReport<Env, EP> =
+    BackendReport<<Env as Environment<EP>>::Memory, <Env as Environment<EP>>::Ext>;
+pub type EnvironmentExecutionResult<T, Env, EP> = Result<
+    EnvironmentBackendReport<Env, EP>,
+    EnvironmentExecutionError<<Env as Environment<EP>>::Error, T>,
+>;
+
+pub trait Environment<EP = DispatchKind>: Sized
 where
-    E: Ext + IntoExtInfo<E::Error> + 'static,
     EP: WasmEntry,
 {
+    type Ext: BackendExt + 'static;
+
     /// Memory type for current environment.
     type Memory: Memory;
 
     /// An error issues in environment.
-    type Error: fmt::Display + GetGasAmount;
+    type Error: Debug + Display;
 
     /// 1) Instantiates wasm binary.
     /// 2) Creates wasm memory
     /// 3) Runs `pre_execution_handler` to fill the memory before running instance.
     /// 4) Instantiate external funcs for wasm module.
     fn new(
-        ext: E,
+        ext: Self::Ext,
         binary: &[u8],
         entry_point: EP,
         entries: BTreeSet<DispatchKind>,
         mem_size: WasmPage,
-    ) -> Result<Self, Self::Error>;
+    ) -> Result<Self, EnvironmentExecutionError<Self::Error, Infallible>>;
 
     /// Run instance setup starting at `entry_point` - wasm export function name.
-    fn execute<F, T>(
-        self,
-        pre_execution_handler: F,
-    ) -> Result<BackendReport<Self::Memory, E>, Self::Error>
+    fn execute<F, T>(self, pre_execution_handler: F) -> EnvironmentExecutionResult<T, Self, EP>
     where
-        F: FnOnce(&mut Self::Memory, Option<WasmPage>, GlobalsConfig) -> Result<(), T>,
-        T: fmt::Display;
+        F: FnOnce(&mut Self::Memory, Option<u32>, GlobalsConfig) -> Result<(), T>,
+        T: Display;
 }
 
-pub trait AsTerminationReason {
-    fn as_termination_reason(&self) -> Option<&TerminationReason>;
+#[derive(Debug, Clone, derive_more::From)]
+pub enum SyscallFuncError<E: Display> {
+    Actor(ActorSyscallFuncError<E>),
+    System(SystemSyscallFuncError),
+}
+
+impl<E: Display + BackendExtError> From<MemoryAccessError> for SyscallFuncError<E> {
+    fn from(err: MemoryAccessError) -> Self {
+        match err {
+            MemoryAccessError::Actor(err) => ActorSyscallFuncError::from(err).into(),
+            MemoryAccessError::System(err) => SystemSyscallFuncError::from(err).into(),
+        }
+    }
+}
+
+impl<E: Display + BackendExtError> From<PayloadSizeError> for SyscallFuncError<E> {
+    fn from(err: PayloadSizeError) -> Self {
+        ActorSyscallFuncError::from(err).into()
+    }
+}
+
+impl<E: Display + BackendExtError> From<RuntimeBufferSizeError> for SyscallFuncError<E> {
+    fn from(err: RuntimeBufferSizeError) -> Self {
+        ActorSyscallFuncError::from(err).into()
+    }
+}
+
+impl<E: Display + BackendExtError> From<FromUtf8Error> for SyscallFuncError<E> {
+    fn from(_err: FromUtf8Error) -> Self {
+        ActorSyscallFuncError::Core(E::from_ext_error(ExecutionError::InvalidDebugString.into()))
+            .into()
+    }
+}
+
+#[derive(Debug, Clone, derive_more::Display, derive_more::From)]
+pub enum ActorSyscallFuncError<E: Display> {
+    #[display(fmt = "{_0}")]
+    Core(E),
+    #[from]
+    #[display(fmt = "Terminated: {_0:?}")]
+    Terminated(TerminationReason),
+}
+
+impl<E: Display + BackendExtError> From<PayloadSizeError> for ActorSyscallFuncError<E> {
+    fn from(_err: PayloadSizeError) -> Self {
+        Self::Core(E::from_ext_error(MessageError::MaxMessageSizeExceed.into()))
+    }
+}
+
+impl<E: Display + BackendExtError> From<RuntimeBufferSizeError> for ActorSyscallFuncError<E> {
+    fn from(_err: RuntimeBufferSizeError) -> Self {
+        Self::Core(E::from_ext_error(ExtError::SyscallUsage))
+    }
+}
+
+impl<E: Display + BackendExtError> From<ActorMemoryAccessError> for ActorSyscallFuncError<E> {
+    fn from(err: ActorMemoryAccessError) -> Self {
+        match err {
+            ActorMemoryAccessError::Memory(err) => Self::Core(E::from_ext_error(err.into())),
+            ActorMemoryAccessError::RuntimeBuffer(err) => Self::from(err),
+        }
+    }
+}
+
+impl<E: Display + BackendExtError> ActorSyscallFuncError<E> {
+    pub fn into_termination_reason(self) -> TerminationReason {
+        match self {
+            Self::Core(err) => err.into_termination_reason(),
+            Self::Terminated(reason) => reason,
+        }
+    }
+}
+
+#[derive(Debug, Clone, derive_more::Display, derive_more::From)]
+pub enum SystemSyscallFuncError {
+    #[from]
+    #[display(fmt = "Memory access error: {_0}")]
+    MemoryAccess(SystemMemoryAccessError),
 }

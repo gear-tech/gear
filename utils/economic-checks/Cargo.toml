@@ -16,8 +16,8 @@ serde = "1"
 env_logger = "0.10"
 hex = "0.4.3"
 arbitrary = { version = "1" }
-wasm-mutate = "0.2.15"
-wasmparser = "0.92.0"
+wasm-mutate = "0.2.17"
+wasmparser = "0.99.0"
 
 # Internal deps
 common = { package = "gear-common", path = "../../common" }
@@ -46,7 +46,7 @@ sp-runtime = { version = "7.0.0", git = "https://github.com/gear-tech/substrate.
 
 [dev-dependencies]
 wat = "1.0"
-wasmprinter = "0.2.48"
+wasmprinter = "0.2.49"
 demo-compose = { path = "../../examples/binaries/compose" }
 gstd = { path = "../../gstd" }
 

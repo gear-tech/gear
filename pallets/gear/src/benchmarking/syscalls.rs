@@ -187,7 +187,7 @@ where
 
         // insert gas reservation slots
         let program_id = ProgramId::from_origin(instance.addr);
-        ProgramStorageOf::<T>::update_active_program(program_id, |program| {
+        ProgramStorageOf::<T>::update_active_program(program_id, |program, _bn| {
             for x in 0..r * API_BENCHMARK_BATCH_SIZE {
                 program.gas_reservation_map.insert(
                     ReservationId::from(x as u64),
@@ -591,7 +591,7 @@ where
 
         // insert gas reservation slots
         let program_id = ProgramId::from_origin(instance.addr);
-        ProgramStorageOf::<T>::update_active_program(program_id, |program| {
+        ProgramStorageOf::<T>::update_active_program(program_id, |program, _bn| {
             for x in 0..r * API_BENCHMARK_BATCH_SIZE {
                 program.gas_reservation_map.insert(
                     ReservationId::from(x as u64),
@@ -664,7 +664,7 @@ where
 
         // insert gas reservation slots
         let program_id = ProgramId::from_origin(instance.addr);
-        ProgramStorageOf::<T>::update_active_program(program_id, |program| {
+        ProgramStorageOf::<T>::update_active_program(program_id, |program, _bn| {
             for x in 0..API_BENCHMARK_BATCH_SIZE {
                 program.gas_reservation_map.insert(
                     ReservationId::from(x as u64),
@@ -809,7 +809,7 @@ where
 
         // insert gas reservation slots
         let program_id = ProgramId::from_origin(instance.addr);
-        ProgramStorageOf::<T>::update_active_program(program_id, |program| {
+        ProgramStorageOf::<T>::update_active_program(program_id, |program, _bn| {
             for x in 0..r * API_BENCHMARK_BATCH_SIZE {
                 program.gas_reservation_map.insert(
                     ReservationId::from(x as u64),
@@ -1163,9 +1163,9 @@ where
 
     pub fn gr_error(r: u32) -> Result<Exec<T>, &'static str> {
         let status_code_offset = 1;
-        let error_len_offset = status_code_offset + size_of::<i32>() as u32;
-        let error_offset = error_len_offset + size_of::<u32>() as u32;
-        let err_len_ptrs = Self::err_len_ptrs(r * API_BENCHMARK_BATCH_SIZE, error_offset);
+        let error_len_offset = status_code_offset + size_of::<u32>() as u32;
+        let err_len_ptrs = Self::err_len_ptrs(r * API_BENCHMARK_BATCH_SIZE, error_len_offset);
+        let error_offset = err_len_ptrs.end;
 
         let code = WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
@@ -1177,10 +1177,10 @@ where
                     Regular(Instruction::I32Const(status_code_offset as i32)),
                     // CALL
                     Regular(Instruction::Call(0)),
-                    // error ptr
-                    Counter(error_offset, Self::ERR_LEN_SIZE),
-                    // error length ptr
-                    Regular(Instruction::I32Const(error_len_offset as i32)),
+                    // error data ptr of previous syscall
+                    Regular(Instruction::I32Const(error_offset as i32)),
+                    // error length ptr of `gr_error`
+                    Counter(error_len_offset, Self::ERR_LEN_SIZE),
                     // CALL
                     Regular(Instruction::Call(1)),
                 ],

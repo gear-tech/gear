@@ -153,12 +153,13 @@ where
                     .checked_add(charged_for_write_after_read)
                     .unwrap();
 
-                let notes = core_processor::process::<Externalities, ExecutionEnvironment>(
+                let notes = core_processor::process::<ExecutionEnvironment>(
                     &exec.block_config,
                     exec.context,
                     exec.random_data,
                     exec.memory_pages,
-                );
+                )
+                .unwrap_or_else(|e| unreachable!("core-processor logic invalidated: {}", e));
 
                 let mut gas_burned = 0;
                 for note in notes.into_iter() {
@@ -227,12 +228,13 @@ where
                 };
                 exec.block_config.pages_config.lazy_pages_weights = weights;
 
-                let notes = core_processor::process::<Externalities, ExecutionEnvironment>(
+                let notes = core_processor::process::<ExecutionEnvironment>(
                     &exec.block_config,
                     exec.context,
                     exec.random_data,
                     exec.memory_pages,
-                );
+                )
+                .unwrap_or_else(|e| unreachable!("core-processor logic invalidated: {}", e));
 
                 let mut gas_burned = 0;
                 for note in notes.into_iter() {
@@ -395,12 +397,13 @@ where
             write_after_read: 0,
         };
 
-        let notes = core_processor::process::<Externalities, ExecutionEnvironment>(
+        let notes = core_processor::process::<ExecutionEnvironment>(
             &exec.block_config,
             exec.context,
             exec.random_data,
             exec.memory_pages,
-        );
+        )
+        .unwrap_or_else(|e| unreachable!("core-processor logic invalidated: {}", e));
 
         let mut gas_burned = None;
         for note in notes.into_iter() {
@@ -439,12 +442,13 @@ where
             write_after_read: 0,
         };
 
-        let notes = core_processor::process::<Externalities, ExecutionEnvironment>(
+        let notes = core_processor::process::<ExecutionEnvironment>(
             &exec.block_config,
             exec.context,
             exec.random_data,
             exec.memory_pages,
-        );
+        )
+        .unwrap_or_else(|e| unreachable!("core-processor logic invalidated: {}", e));
 
         for note in notes.into_iter() {
             match note {
@@ -481,12 +485,13 @@ where
             write_after_read: 0,
         };
 
-        let notes = core_processor::process::<Externalities, ExecutionEnvironment>(
+        let notes = core_processor::process::<ExecutionEnvironment>(
             &exec.block_config,
             exec.context,
             exec.random_data,
             exec.memory_pages,
-        );
+        )
+        .unwrap_or_else(|e| unreachable!("core-processor logic invalidated: {}", e));
 
         for note in notes.into_iter() {
             match note {

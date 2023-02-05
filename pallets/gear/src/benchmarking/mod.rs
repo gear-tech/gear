@@ -241,12 +241,13 @@ where
     T::AccountId: Origin,
 {
     (
-        core_processor::process::<Externalities, ExecutionEnvironment>(
+        core_processor::process::<ExecutionEnvironment>(
             &exec.block_config,
             exec.context,
             exec.random_data,
             exec.memory_pages,
-        ),
+        )
+        .unwrap_or_else(|e| unreachable!("core-processor logic invalidated: {}", e)),
         exec.err_len_ptrs,
     )
 }
@@ -419,7 +420,7 @@ benchmarks! {
         let program_id = benchmarking::account::<T::AccountId>("program", 0, PROGRAM_ID_DEFAULT);
         <T as pallet::Config>::Currency::deposit_creating(&program_id, DEPOSIT_AMOUNT.unique_saturated_into());
         let code = benchmarking::generate_wasm2(16.into()).unwrap();
-        benchmarking::set_program::<ProgramStorageOf::<T>>(ProgramId::from_origin(program_id.clone().into_origin()), code, 1.into());
+        benchmarking::set_program::<ProgramStorageOf::<T>, _>(ProgramId::from_origin(program_id.clone().into_origin()), code, 1.into());
         let original_message_id = MessageId::from_origin(benchmarking::account::<T::AccountId>("message", 0, PROGRAM_ID_DEFAULT).into_origin());
         let gas_limit = 50000;
         let value = 10000u32.into();
@@ -549,7 +550,7 @@ benchmarks! {
         let minimum_balance = <T as pallet::Config>::Currency::minimum_balance();
         let program_id = ProgramId::from_origin(benchmarking::account::<T::AccountId>("program", 0, PROGRAM_ID_DEFAULT).into_origin());
         let code = benchmarking::generate_wasm2(16.into()).unwrap();
-        benchmarking::set_program::<ProgramStorageOf::<T>>(program_id, code, 1.into());
+        benchmarking::set_program::<ProgramStorageOf::<T>, _>(program_id, code, 1.into());
         let payload = vec![0_u8; p as usize];
 
         init_block::<T>(None);
@@ -581,7 +582,7 @@ benchmarks! {
         let program_id = benchmarking::account::<T::AccountId>("program", 0, PROGRAM_ID_DEFAULT);
         <T as pallet::Config>::Currency::deposit_creating(&program_id, DEPOSIT_AMOUNT.unique_saturated_into());
         let code = benchmarking::generate_wasm2(16.into()).unwrap();
-        benchmarking::set_program::<ProgramStorageOf::<T>>(ProgramId::from_origin(program_id.clone().into_origin()), code, 1.into());
+        benchmarking::set_program::<ProgramStorageOf::<T>, _>(ProgramId::from_origin(program_id.clone().into_origin()), code, 1.into());
         let original_message_id = MessageId::from_origin(benchmarking::account::<T::AccountId>("message", 0, PROGRAM_ID_DEFAULT).into_origin());
         let gas_limit = 50000;
         let value = 10000u32.into();

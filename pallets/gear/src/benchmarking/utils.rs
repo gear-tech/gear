@@ -46,6 +46,8 @@ use crate::ProgramStorageOf;
 #[cfg(feature = "lazy-pages")]
 use common::ProgramStorage;
 
+const DEFAULT_BLOCK_NUMBER: u32 = 0;
+
 pub fn prepare_block_config<T>() -> BlockConfig
 where
     T: Config,
@@ -157,7 +159,12 @@ where
 
             let _ = Gear::<T>::set_code_with_metadata(code_and_id, source);
 
-            ExtManager::<T>::default().set_program(program_id, &code_info, root_message_id);
+            ExtManager::<T>::default().set_program(
+                program_id,
+                &code_info,
+                root_message_id,
+                DEFAULT_BLOCK_NUMBER.into(),
+            );
 
             Dispatch::new(
                 DispatchKind::Init,
@@ -178,7 +185,12 @@ where
             let code = T::CodeStorage::get_code(code_id).ok_or("Code not found in storage")?;
             let code_info = CodeInfo::from_code(&code_id, &code);
 
-            ExtManager::<T>::default().set_program(program_id, &code_info, root_message_id);
+            ExtManager::<T>::default().set_program(
+                program_id,
+                &code_info,
+                root_message_id,
+                DEFAULT_BLOCK_NUMBER.into(),
+            );
 
             Dispatch::new(
                 DispatchKind::Init,
